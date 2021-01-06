@@ -1,0 +1,21 @@
+<svg version="1.1" xmlns="http://www.w3.org/2000/svg"
+     xmlns:xlink="http://www.w3.org/1999/xlink"
+     x="0" y="0" width="1440" height="1440"
+     viewBox="0, 0, 1440, 1440">
+  <defs>
+    <style>
+       @import url('https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed&display=swap');
+    </style>
+  </defs>
+  <g id="g1">
+    <path d="M0,0 L1440,0 L1440,1440 L0,1440 L0,0 z" fill="#000000"/>
+    <path d="M473,760 L720,101 L967,760 z" fill="#97BF0F"/>
+    <path d="M785,933 L1068,180 L1350,933 z" fill="#789C22"/>
+    <path d="M90,1094 L466,90 L843,1094 z" fill="#789C22"/>
+    <text x="90" y="1367">
+      <tspan dx="-24" font-family="Barlow Semi Condensed" font-size="273" fill="#FFFFFF">
+        LA FORESTA
+      </tspan>
+    </text>
+  </g>
+</svg>
