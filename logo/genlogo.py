@@ -11,7 +11,7 @@ svg = """<svg version="1.1" xmlns="http://www.w3.org/2000/svg"
      viewBox="0, 0, {sz}, {sz}">
   <defs>
     <style>
-       @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed&display=swap');
+       @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed&amp;display=swap');
     </style>
   </defs>
   <g id="g1">

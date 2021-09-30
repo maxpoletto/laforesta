@@ -4,16 +4,16 @@
      viewBox="0, 0, 720, 720">
   <defs>
     <style>
-       @import url('https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed&display=swap');
+       @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed&amp;display=swap');
     </style>
   </defs>
   <g id="g1">
-    <path d="M0,0 L720,0 L720,720 L0,720 L0,0 z" fill="#000000"/>
+    <path d="M0,0 L720,0 L720,720 L0,720 L0,0 z" fill="#ffffff" stroke="#789C22" stroke-width="32"/>
     <path d="M237,380 L360,51 L483,380 z" fill="#97BF0F"/>
     <path d="M393,466 L534,90 L675,466 z" fill="#789C22"/>
     <path d="M45,547 L233,45 L421,547 z" fill="#789C22"/>
-    <text x="45" y="683">
-      <tspan dx="-12" font-family="Barlow Semi Condensed" font-size="136" fill="#FFFFFF">
+    <text x="50%" y="95%" dominant-baseline="auto" text-anchor="middle">
+      <tspan dx="-5" font-family="Barlow Condensed" font-size="163" fill="#000000">
         LA FORESTA
       </tspan>
     </text>
