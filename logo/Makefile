@@ -1,10 +1,10 @@
 TARGETS = laforesta.svg laforesta.html
 
 laforesta.svg: genlogo.py
-	python $< > $@
+	python3 $< > $@
 
 laforesta.html: genlogo.py
-	python $< -html > $@
+	python3 $< -html > $@
 
 clean:
 	@rm -f $(TARGETS) *~
