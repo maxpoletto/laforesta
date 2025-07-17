@@ -43,7 +43,7 @@ def italian_locale():
     finally:
         locale.setlocale(locale.LC_ALL, old_locale)
 
-def create_parcel_histogram(trees: pd.DataFrame, parcel: pd.Series, color_map: dict, output_dir: str) -> None:
+def create_parcel_histogram(trees: pd.DataFrame, parcel: pd.Series, color_map: dict, output_dir: str) -> list:
     """
     Create a histogram for a specific parcel showing tree distribution by diameter class
     with stacked bars for different species, scaled to estimated totals per hectare
@@ -103,10 +103,85 @@ Classe diametrica media: {round(parcel_data["Classe diametrica"].mean()):n}""".s
     plt.savefig(filepath, bbox_inches='tight')
     print(f"Saved histogram for {compresa}-{particella} to {filepath}")
     plt.close(fig)
+    return [compresa, particella, filepath]
+
+def generate_html_index(files: list, output_dir: str) -> None:
+    """
+    Generate an HTML index file for the generated histograms
+    """
+    files_sorted = sorted(files, key=lambda x: x[2])
+
+    with open(os.path.join(output_dir, 'index.html'), 'w', encoding='utf-8') as f:
+        f.write('''<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Soc. Agr. La Foresta: distribuzione piante per classe diametrica</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .histogram-item {
+            margin-bottom: 40px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            background-color: #fafafa;
+        }
+        .histogram-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #34495e;
+            margin-bottom: 10px;
+        }
+        .histogram-image {
+            width: 100%;
+            max-width: 800px;
+            height: auto;
+            display: block;
+            margin: 0 auto;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Istogrammi Distribuzione Alberi per Classe Diametrica</h1>
+''')
+
+        for compresa, particella, filepath in files_sorted:
+            # Get just the filename for the src attribute
+            filename = os.path.basename(filepath)
+            f.write(f'''        <div class="histogram-item">
+            <div class="histogram-title">{compresa} - Particella {particella}</div>
+            <img src="{filename}" alt="Istogramma {compresa}-{particella}" class="histogram-image">
+        </div>
+''')
+
+        f.write('''    </div>
+</body>
+</html>''')
 
 def main():
     """
-    Main analysis function
+    Entry point.
     """
     alberi = pd.read_csv('alberi.csv')
     particelle = pd.read_csv('particelle.csv')
@@ -137,8 +212,11 @@ def main():
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
+    files = []
     for _, row in parcels_df.iterrows():
-        create_parcel_histogram(alberi_fustaia, row, color_map, output_dir)
+        files.append(create_parcel_histogram(alberi_fustaia, row, color_map, output_dir))
+
+    generate_html_index(files, output_dir)
 
     with italian_locale():
         print(f"\nAnalisi completata. Tutti i grafici sono stati salvati in '{output_dir}'")
