@@ -3,6 +3,7 @@
 Forest Parcel Analysis: Generate histograms of tree distribution by diameter class for each parcel
 """
 
+import sys
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
@@ -19,55 +20,65 @@ plt.rcParams['legend.fontsize'] = 9
 plt.rcParams['xtick.labelsize'] = 9
 plt.rcParams['ytick.labelsize'] = 9
 
-def create_parcel_histogram(data: pd.DataFrame, compresa: str, particella: str, global_color_map: dict, save_path: str = None) -> None:
+SAMPLE_AREAS_PER_HA = 8
+
+def create_parcel_histogram(trees: pd.DataFrame, parcel: pd.Series, color_map: dict, output_dir: str) -> None:
     """
     Create a histogram for a specific parcel showing tree distribution by diameter class
-    with stacked bars for different species
+    with stacked bars for different species, scaled to estimated totals per hectare
     """
-    parcel_data = data[(data['Compresa'] == compresa) & (data['Particella'] == particella)]
-    if len(parcel_data) == 0:
-        print(f"Nessun dato per {compresa}-{particella}")
-        return
+    compresa = parcel['Compresa']
+    particella = parcel['Particella']
+    parcel_data = trees[(trees['Compresa'] == compresa) & (trees['Particella'] == particella)]
+    assert len(parcel_data) > 0, f"Nessun dato per {compresa}-{particella}"
 
-    counts = parcel_data.groupby(['Classe diametrica', 'Genere']).size().unstack(fill_value=0)
+    filename = f"{compresa}_{particella}_histogram.png"
+    filepath = os.path.join(output_dir, filename)
+    print(f"Generazione istogramma per {compresa}-{particella}...")
+
+    # Get sampled counts by diameter class and species
+    counts = (parcel_data.groupby(['Classe diametrica', 'Genere']).size().unstack(fill_value=0)
+              * SAMPLE_AREAS_PER_HA / parcel['sample_areas'])
+
     fig, ax = plt.subplots(figsize=(12, 8))
     species_list = counts.columns.tolist()
 
     bottom = np.zeros(len(counts.index))
     for species in species_list:
         values = counts[species].values
-        bars = ax.bar(counts.index, values, bottom=bottom,
-                     label=species, color=global_color_map[species],
-                     alpha=0.8, edgecolor='white', linewidth=0.5)
+        ax.bar(counts.index, values, bottom=bottom,
+               label=species, color=color_map[species],
+               alpha=0.8, edgecolor='white', linewidth=0.5)
         bottom += values
 
     ax.set_xlabel('Classe diametrica', fontweight='bold')
-    ax.set_ylabel('Numero di alberi', fontweight='bold')
+    ax.set_ylabel('Numero di alberi per ettaro', fontweight='bold')
     ax.set_title(f'Distribuzione alberi per classe diametrica - {compresa} Particella {particella}',
                 fontweight='bold', pad=20)
 
-    max_diameter = max(40, data['Classe diametrica'].max())
+    max_diameter = max(40, trees['Classe diametrica'].max())
     ax.set_xlim(-0.5, max_diameter + 0.5)
     ax.set_xticks(range(0, max_diameter + 1, 2))
     ax.grid(True, alpha=0.3, axis='y')
     ax.set_axisbelow(True)
     ax.legend(title='Specie', bbox_to_anchor=(1.05, 1), loc='upper left')
 
-    stats_text = f'Totale alberi: {len(parcel_data)}\n'
-    stats_text += f'Specie prevalente: {parcel_data["Genere"].mode().iloc[0]}\n'
-    stats_text += f'Classe diametrica media: {parcel_data["Classe diametrica"].mean():.1f}'
+    stats_text = f"""
+Alberi campionati: {len(parcel_data)}
+N. aree saggio: {parcel["sample_areas"]}
+Area: {parcel["area_ha"]:.2f} ha
+Stima totale alberi: {parcel["estimated_total"]:,}
+Stima alberi / ha: {parcel["estimated_total"]/parcel["area_ha"]:.0f}
+Specie prevalente: {parcel_data["Genere"].mode().iloc[0]}
+Classe diametrica media: {parcel_data["Classe diametrica"].mean():.1f}""".strip()
 
     ax.text(0.98, 0.98, stats_text, transform=ax.transAxes,
             verticalalignment='top', horizontalalignment='right',
             bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
-
-    # Adjust layout to prevent legend cutoff
     plt.tight_layout()
 
-    # Save the plot if path provided
-    if save_path:
-        plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        print(f"Saved histogram for {compresa}-{particella} to {save_path}")
+    plt.savefig(filepath, bbox_inches='tight')
+    print(f"Saved histogram for {compresa}-{particella} to {filepath}")
     plt.close(fig)
 
 def main():
@@ -83,29 +94,40 @@ def main():
     # Create consistent color mapping for all species
     all_species = sorted(alberi_fustaia['Genere'].unique())
     colors = plt.cm.Set3(np.linspace(0, 1, len(all_species)))
-    global_color_map = dict(zip(all_species, colors))
+    color_map = dict(zip(all_species, colors))
 
-    # Get unique parcel combinations
-    parcels = alberi_fustaia.groupby(['Compresa', 'Particella']).size().reset_index(name='tree_count')
-    print(f"Trovate {len(parcels)} particelle")
+    parcel_stats = (alberi_fustaia.groupby(['Compresa', 'Particella'])
+                   .agg(sampled_trees=('Area saggio', 'size'),
+                        sample_areas=('Area saggio', 'nunique'))
+                   .reset_index())
+
+    parcels_df = (parcel_stats.merge(particelle[['Compresa', 'Particella', 'Area (ha)']],
+                                     on=['Compresa', 'Particella'], how='left')
+                  .rename(columns={'Area (ha)': 'area_ha'}))
+
+    parcels_df['estimated_total'] = round((parcels_df['sampled_trees'] / parcels_df['sample_areas'])
+                                          * SAMPLE_AREAS_PER_HA
+                                          * parcels_df['area_ha']).astype(int)
+
+    print(f"Trovate {len(parcels_df)} particelle")
+
     output_dir = 'histograms'
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    for _, row in parcels.iterrows():
-        compresa = row['Compresa']
-        particella = row['Particella']
-
-        filename = f"{compresa}_{particella}_histogram.png"
-        filepath = os.path.join(output_dir, filename)
-        print(f"Generazione istogramma per {compresa}-{particella}...")
-        create_parcel_histogram(alberi_fustaia, compresa, particella, global_color_map, filepath)
+    for _, row in parcels_df.iterrows():
+        create_parcel_histogram(alberi_fustaia, row, color_map, output_dir)
 
     print(f"\nAnalisi completata. Tutti i grafici sono stati salvati in '{output_dir}'")
     print("\nRiepilogo:")
-    parcel_summary = parcels.sort_values(['Compresa', 'Particella'])
+    parcel_summary = parcels_df.sort_values(['Compresa', 'Particella'])
     for _, row in parcel_summary.iterrows():
-        print(f"  {row['Compresa']} - Particella {row['Particella']}: {row['tree_count']} alberi")
+        trees_per_ha = row['estimated_total'] / row['area_ha']
+        print(f"  {row['Compresa']} - Particella {row['Particella']}: "
+              f"{row['sampled_trees']} alberi campionati, "
+              f"{row['sample_areas']} aree saggio, "
+              f"{row['area_ha']:.2f} ha → "
+              f"Stima totale: {row['estimated_total']:,} alberi ({trees_per_ha:.0f} alberi/ha)")
 
 if __name__ == "__main__":
     main()
