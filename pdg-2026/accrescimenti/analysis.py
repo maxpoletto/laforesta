@@ -53,7 +53,8 @@ def create_parcel_histogram(trees: pd.DataFrame, parcel: pd.Series, color_map: d
     parcel_data = trees[(trees['Compresa'] == compresa) & (trees['Particella'] == particella)]
     assert len(parcel_data) > 0, f"Nessun dato per {compresa}-{particella}"
 
-    filename = f"{compresa}_{particella}_histogram.png"
+    padded_particella = str(particella).zfill(3)
+    filename = f"{compresa}_{padded_particella}_histogram.png"
     filepath = os.path.join(output_dir, filename)
     print(f"Generazione istogramma per {compresa}-{particella}...")
 
