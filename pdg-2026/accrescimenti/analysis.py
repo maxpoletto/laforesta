@@ -28,24 +28,24 @@ def create_parcel_histogram(data: pd.DataFrame, compresa: str, particella: str, 
     if len(parcel_data) == 0:
         print(f"Nessun dato per {compresa}-{particella}")
         return
-    
+
     counts = parcel_data.groupby(['Classe diametrica', 'Genere']).size().unstack(fill_value=0)
-    fig, ax = plt.subplots(figsize=(12, 8))    
+    fig, ax = plt.subplots(figsize=(12, 8))
     species_list = counts.columns.tolist()
-    
+
     bottom = np.zeros(len(counts.index))
     for species in species_list:
         values = counts[species].values
-        bars = ax.bar(counts.index, values, bottom=bottom, 
-                     label=species, color=global_color_map[species], 
+        bars = ax.bar(counts.index, values, bottom=bottom,
+                     label=species, color=global_color_map[species],
                      alpha=0.8, edgecolor='white', linewidth=0.5)
         bottom += values
 
     ax.set_xlabel('Classe diametrica', fontweight='bold')
     ax.set_ylabel('Numero di alberi', fontweight='bold')
-    ax.set_title(f'Distribuzione alberi per classe diametrica - {compresa} Particella {particella}', 
+    ax.set_title(f'Distribuzione alberi per classe diametrica - {compresa} Particella {particella}',
                 fontweight='bold', pad=20)
-    
+
     max_diameter = max(40, data['Classe diametrica'].max())
     ax.set_xlim(-0.5, max_diameter + 0.5)
     ax.set_xticks(range(0, max_diameter + 1, 2))
@@ -56,14 +56,14 @@ def create_parcel_histogram(data: pd.DataFrame, compresa: str, particella: str, 
     stats_text = f'Totale alberi: {len(parcel_data)}\n'
     stats_text += f'Specie prevalente: {parcel_data["Genere"].mode().iloc[0]}\n'
     stats_text += f'Classe diametrica media: {parcel_data["Classe diametrica"].mean():.1f}'
-    
-    ax.text(0.98, 0.98, stats_text, transform=ax.transAxes, 
-            verticalalignment='top', horizontalalignment='right', 
+
+    ax.text(0.98, 0.98, stats_text, transform=ax.transAxes,
+            verticalalignment='top', horizontalalignment='right',
             bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
-    
+
     # Adjust layout to prevent legend cutoff
     plt.tight_layout()
-    
+
     # Save the plot if path provided
     if save_path:
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
@@ -76,22 +76,22 @@ def main():
     """
     alberi = pd.read_csv('alberi.csv')
     particelle = pd.read_csv('particelle.csv')
-    
+
     alberi_fustaia = alberi[alberi['Fustaia'] == True].copy()
     print(f"Dati filtrati: {len(alberi_fustaia)} campioni di alberti a fustaia (su {len(alberi)} totali)")
-    
+
     # Create consistent color mapping for all species
     all_species = sorted(alberi_fustaia['Genere'].unique())
     colors = plt.cm.Set3(np.linspace(0, 1, len(all_species)))
     global_color_map = dict(zip(all_species, colors))
-    
+
     # Get unique parcel combinations
     parcels = alberi_fustaia.groupby(['Compresa', 'Particella']).size().reset_index(name='tree_count')
     print(f"Trovate {len(parcels)} particelle")
     output_dir = 'histograms'
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-    
+
     for _, row in parcels.iterrows():
         compresa = row['Compresa']
         particella = row['Particella']
@@ -108,4 +108,4 @@ def main():
         print(f"  {row['Compresa']} - Particella {row['Particella']}: {row['tree_count']} alberi")
 
 if __name__ == "__main__":
-    main() 
+    main()
