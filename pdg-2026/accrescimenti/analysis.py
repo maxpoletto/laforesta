@@ -36,7 +36,6 @@ def create_parcel_histogram(trees: pd.DataFrame, parcel: pd.Series, color_map: d
     filepath = os.path.join(output_dir, filename)
     print(f"Generazione istogramma per {compresa}-{particella}...")
 
-    # Get sampled counts by diameter class and species
     counts = (parcel_data.groupby(['Classe diametrica', 'Genere']).size().unstack(fill_value=0)
               * SAMPLE_AREAS_PER_HA / parcel['sample_areas'])
 
@@ -52,13 +51,13 @@ def create_parcel_histogram(trees: pd.DataFrame, parcel: pd.Series, color_map: d
         bottom += values
 
     ax.set_xlabel('Classe diametrica', fontweight='bold')
-    ax.set_ylabel('Numero di alberi per ettaro', fontweight='bold')
+    ax.set_ylabel('Stima alberi / ha', fontweight='bold')
     ax.set_title(f'Distribuzione alberi per classe diametrica - {compresa} Particella {particella}',
                 fontweight='bold', pad=20)
 
-    max_diameter = max(40, trees['Classe diametrica'].max())
-    ax.set_xlim(-0.5, max_diameter + 0.5)
-    ax.set_xticks(range(0, max_diameter + 1, 2))
+    max_class = trees['Classe diametrica'].max()
+    ax.set_xlim(-0.5, max_class + 0.5)
+    ax.set_xticks(range(0, max_class + 1, 2))
     ax.grid(True, alpha=0.3, axis='y')
     ax.set_axisbelow(True)
     ax.legend(title='Specie', bbox_to_anchor=(1.05, 1), loc='upper left')
@@ -108,7 +107,6 @@ def main():
     parcels_df['estimated_total'] = round((parcels_df['sampled_trees'] / parcels_df['sample_areas'])
                                           * SAMPLE_AREAS_PER_HA
                                           * parcels_df['area_ha']).astype(int)
-
     print(f"Trovate {len(parcels_df)} particelle")
 
     output_dir = 'histograms'
