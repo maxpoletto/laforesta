@@ -53,8 +53,7 @@ def create_parcel_histogram(trees: pd.DataFrame, parcel: pd.Series, color_map: d
     parcel_data = trees[(trees['Compresa'] == compresa) & (trees['Particella'] == particella)]
     assert len(parcel_data) > 0, f"Nessun dato per {compresa}-{particella}"
 
-    padded_particella = str(particella).zfill(3)
-    filename = f"{compresa}_{padded_particella}_histogram.png"
+    filename = f"{compresa}_{parcel['sort_key']}_classi-diametriche.png"
     filepath = os.path.join(output_dir, filename)
     print(f"Generazione istogramma per {compresa}-{particella}...")
 
@@ -163,7 +162,7 @@ def generate_html_index(files: list, output_dir: str) -> None:
 </head>
 <body>
     <div class="container">
-        <h1>Istogrammi Distribuzione Alberi per Classe Diametrica</h1>
+        <h1>Soc. Agr. La Foresta: distribuzione piante per classe diametrica</h1>
 ''')
 
         for compresa, particella, filepath in files_sorted:
@@ -206,6 +205,9 @@ def main():
     parcels_df['estimated_total'] = round((parcels_df['sampled_trees'] / parcels_df['sample_areas'])
                                           * SAMPLE_AREAS_PER_HA
                                           * parcels_df['area_ha']).astype(int)
+
+    parcels_df['sort_key'] = parcels_df['Particella'].apply(
+        lambda x: (f"{x}=" if str(x)[-1].isdigit() else str(x)).zfill(3))
     print(f"Trovate {len(parcels_df)} particelle")
 
     output_dir = 'histograms'
@@ -221,8 +223,7 @@ def main():
     with italian_locale():
         print(f"\nAnalisi completata. Tutti i grafici sono stati salvati in '{output_dir}'")
         print("\nRiepilogo:")
-        parcel_summary = parcels_df.sort_values(['Compresa', 'Particella'])
-        for _, row in parcel_summary.iterrows():
+        for _, row in parcels_df.sort_values(['sort_key']).iterrows():
             trees_per_ha = row['estimated_total'] / row['area_ha']
             print(f"  {row['Compresa']} - Particella {row['Particella']}: "
                 f"{row['sampled_trees']} alberi campionati, "
