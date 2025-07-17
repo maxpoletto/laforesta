@@ -8,19 +8,40 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 import os
+import locale
+from contextlib import contextmanager
 
 # Set up matplotlib for high-quality plots suitable for reports
-plt.rcParams['figure.dpi'] = 300
-plt.rcParams['savefig.dpi'] = 300
-plt.rcParams['font.size'] = 10
+plt.rcParams['figure.dpi'] = 200
+plt.rcParams['savefig.dpi'] = 200
+plt.rcParams['font.size'] = 5
 plt.rcParams['font.family'] = 'Arial'
-plt.rcParams['axes.labelsize'] = 11
-plt.rcParams['axes.titlesize'] = 12
-plt.rcParams['legend.fontsize'] = 9
-plt.rcParams['xtick.labelsize'] = 9
-plt.rcParams['ytick.labelsize'] = 9
+plt.rcParams['axes.labelsize'] = 7
+plt.rcParams['axes.titlesize'] = 8
+plt.rcParams['legend.frameon'] = False
+plt.rcParams['legend.loc'] = 'upper left'
+plt.rcParams['legend.fontsize'] = 5
+plt.rcParams['legend.title_fontsize'] = 6
+plt.rcParams['xtick.labelsize'] = 6
+plt.rcParams['ytick.labelsize'] = 6
+plt.rcParams['figure.figsize'] = (4, 2.5)
 
 SAMPLE_AREAS_PER_HA = 8
+
+@contextmanager
+def italian_locale():
+    old_locale = locale.getlocale()
+    try:
+        locale.setlocale(locale.LC_ALL, 'it_IT.UTF-8')
+        yield
+    except locale.Error:
+        try:
+            locale.setlocale(locale.LC_ALL, 'it_IT')
+            yield
+        except locale.Error:
+            yield
+    finally:
+        locale.setlocale(locale.LC_ALL, old_locale)
 
 def create_parcel_histogram(trees: pd.DataFrame, parcel: pd.Series, color_map: dict, output_dir: str) -> None:
     """
@@ -39,7 +60,7 @@ def create_parcel_histogram(trees: pd.DataFrame, parcel: pd.Series, color_map: d
     counts = (parcel_data.groupby(['Classe diametrica', 'Genere']).size().unstack(fill_value=0)
               * SAMPLE_AREAS_PER_HA / parcel['sample_areas'])
 
-    fig, ax = plt.subplots(figsize=(12, 8))
+    fig, ax = plt.subplots()
     species_list = counts.columns.tolist()
 
     bottom = np.zeros(len(counts.index))
@@ -60,20 +81,22 @@ def create_parcel_histogram(trees: pd.DataFrame, parcel: pd.Series, color_map: d
     ax.set_xticks(range(0, max_class + 1, 2))
     ax.grid(True, alpha=0.3, axis='y')
     ax.set_axisbelow(True)
-    ax.legend(title='Specie', bbox_to_anchor=(1.05, 1), loc='upper left')
+    ax.legend(title='Specie', bbox_to_anchor=(1.01, 1.02),
+              alignment='left')
 
-    stats_text = f"""
+    with italian_locale():
+        stats_text = f"""
+Area: {locale.format_string('%.2f', parcel["area_ha"])} ha
 Alberi campionati: {len(parcel_data)}
 N. aree saggio: {parcel["sample_areas"]}
-Area: {parcel["area_ha"]:.2f} ha
-Stima totale alberi: {parcel["estimated_total"]:,}
-Stima alberi / ha: {parcel["estimated_total"]/parcel["area_ha"]:.0f}
+Stima totale alberi: {parcel["estimated_total"]:n}
+Stima alberi / ha: {round(parcel["estimated_total"]/parcel["area_ha"]):n}
 Specie prevalente: {parcel_data["Genere"].mode().iloc[0]}
-Classe diametrica media: {parcel_data["Classe diametrica"].mean():.1f}""".strip()
+Classe diametrica media: {round(parcel_data["Classe diametrica"].mean()):n}""".strip()
 
-    ax.text(0.98, 0.98, stats_text, transform=ax.transAxes,
+    ax.text(0.99, 0.98, stats_text, transform=ax.transAxes,
             verticalalignment='top', horizontalalignment='right',
-            bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
+            bbox=dict(boxstyle='round', facecolor='#fbfbfb', alpha=1, linewidth=0.2))
     plt.tight_layout()
 
     plt.savefig(filepath, bbox_inches='tight')
@@ -116,16 +139,17 @@ def main():
     for _, row in parcels_df.iterrows():
         create_parcel_histogram(alberi_fustaia, row, color_map, output_dir)
 
-    print(f"\nAnalisi completata. Tutti i grafici sono stati salvati in '{output_dir}'")
-    print("\nRiepilogo:")
-    parcel_summary = parcels_df.sort_values(['Compresa', 'Particella'])
-    for _, row in parcel_summary.iterrows():
-        trees_per_ha = row['estimated_total'] / row['area_ha']
-        print(f"  {row['Compresa']} - Particella {row['Particella']}: "
-              f"{row['sampled_trees']} alberi campionati, "
-              f"{row['sample_areas']} aree saggio, "
-              f"{row['area_ha']:.2f} ha → "
-              f"Stima totale: {row['estimated_total']:,} alberi ({trees_per_ha:.0f} alberi/ha)")
+    with italian_locale():
+        print(f"\nAnalisi completata. Tutti i grafici sono stati salvati in '{output_dir}'")
+        print("\nRiepilogo:")
+        parcel_summary = parcels_df.sort_values(['Compresa', 'Particella'])
+        for _, row in parcel_summary.iterrows():
+            trees_per_ha = row['estimated_total'] / row['area_ha']
+            print(f"  {row['Compresa']} - Particella {row['Particella']}: "
+                f"{row['sampled_trees']} alberi campionati, "
+                f"{row['sample_areas']} aree saggio, "
+                f"{locale.format_string('%.2f', row['area_ha'])} ha → "
+                f"Stima totale: {row['estimated_total']:n} alberi ({round(trees_per_ha):n} alberi/ha)")
 
 if __name__ == "__main__":
     main()
