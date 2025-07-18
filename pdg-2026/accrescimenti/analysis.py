@@ -14,7 +14,6 @@ import argparse
 from contextlib import contextmanager
 from scipy import stats
 
-# Set up matplotlib for high-quality plots suitable for reports
 plt.rcParams['figure.dpi'] = 200
 plt.rcParams['savefig.dpi'] = 200
 plt.rcParams['font.size'] = 5
@@ -180,11 +179,10 @@ def generate_html_index_cd(files: list, output_dir: str) -> None:
 ''')
 
         for compresa, particella, filepath in files_sorted:
-            # Get just the filename for the src attribute
             filename = os.path.basename(filepath)
             f.write(f'''        <div class="histogram-item">
             <div class="histogram-title">{compresa} - Particella {particella}</div>
-            <img src="{filename}" alt="Istogramma {compresa}-{particella}" class="histogram-image">
+            <img src="{filename}" alt="Istogramma classi diametriche {compresa}-{particella}" class="histogram-image">
         </div>
 ''')
 
@@ -327,7 +325,6 @@ def generate_html_index_ci(files: list, output_dir: str) -> None:
 ''')
 
         for compresa, particella, filepath in files_sorted:
-            # Get just the filename for the src attribute
             filename = os.path.basename(filepath)
             f.write(f'''        <div class="histogram-item">
             <div class="histogram-title">{compresa} - Particella {particella}</div>
@@ -343,7 +340,7 @@ def main():
     """
     Entry point.
     """
-    parser = argparse.ArgumentParser(description='Forest Parcel Analysis')
+    parser = argparse.ArgumentParser(description='Analisi accrescimenti')
     parser.add_argument('--solo-classi-diametriche', action='store_true',
                         help='Genera solo istogrammi classi diametriche')
     parser.add_argument('--solo-curve-ipsometriche', action='store_true',
