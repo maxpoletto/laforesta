@@ -14,15 +14,15 @@ def read_and_export_prelievo():
     try:
         # Read the specific sheet from the Excel file
         df = pd.read_excel('foresta.xlsx', sheet_name='Prelievo per particella')
-        
+
         print("Contents of 'Prelievo per particella' sheet:")
         print("=" * 50)
         print(f"Shape: {df.shape[0]} rows, {df.shape[1]} columns")
-        
+
         # Define the columns we need for the visualization
         required_columns = [
             'Compresa',
-            'Particella', 
+            'Particella',
             'Governo',
             'Area (ha)',
             'Età media',
@@ -31,7 +31,7 @@ def read_and_export_prelievo():
             'm3/ha nuovo',
             'Incr/ha nuovo'
         ]
-        
+
         # Check if all required columns exist
         missing_columns = [col for col in required_columns if col not in df.columns]
         if missing_columns:
@@ -40,30 +40,34 @@ def read_and_export_prelievo():
             for i, col in enumerate(df.columns):
                 print(f"  {i+1}. {col}")
             return None
-        
+
         # Extract the required columns
         export_df = df[required_columns].copy()
-        
+
         # Remove rows where both Compresa and Particella are NaN (empty rows)
         export_df = export_df.dropna(subset=['Compresa', 'Particella'], how='all')
-        
+
         print(f"\nExporting {len(export_df)} rows with {len(required_columns)} columns")
         print("\nColumn summary:")
         for col in required_columns:
             non_null = export_df[col].notna().sum()
             print(f"  {col}: {non_null}/{len(export_df)} non-null values")
-        
+
+        # Round fustaia and ceduo columns to integers
+        export_df['No. fustaia'] = export_df['No. fustaia'].round().astype(int)
+        export_df['No. ceduo'] = export_df['No. ceduo'].round().astype(int)
+
         # Export to CSV
         csv_filename = 'prelievo_parcels.csv'
         export_df.to_csv(csv_filename, index=False)
         print(f"\nExported data to '{csv_filename}'")
-        
+
         # Show first few rows
         print("\nFirst 10 rows of exported data:")
         print(export_df.head(10))
-        
+
         return export_df
-        
+
     except FileNotFoundError:
         print("Error: Could not find 'foresta.xlsx'")
         return None
@@ -82,4 +86,4 @@ def read_and_export_prelievo():
         return None
 
 if __name__ == "__main__":
-    df = read_and_export_prelievo() 
+    df = read_and_export_prelievo()
