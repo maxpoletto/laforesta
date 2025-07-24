@@ -18,7 +18,7 @@ args = parser.parse_args()
 def fit_logarithmic_curve(x, y) -> tuple[tuple[float, float], float]:
     """Fit logarithmic curve to data using np.polyfit and return parameters and R²"""
     x_clean = x[x > 0]
-    y_clean = y[y > 0]
+    y_clean = y[x > 0]
 
     if len(x_clean) < 10:
         return None, None
