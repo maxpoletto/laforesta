@@ -9,6 +9,7 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('--volume-dendrometrico', action='store_true', help='Plot volume dendrometrico')
 parser.add_argument('--volume-cormometrico', action='store_true', help='Plot volume cormometrico')
+parser.add_argument('--interpolation', type=str, help='Interpolation method', default='quadratic')
 parser.add_argument('-i', '-input', type=str, help='Input CSV file', default='alsometrie.csv')
 args = parser.parse_args()
 
@@ -26,7 +27,7 @@ for col in numeric_columns:
     df[col] = pd.to_numeric(df[col], errors='coerce')
 
 # Interpolate missing height values for each species separately
-df['Altezza indicativa'] = df.groupby('Genere')['Altezza indicativa'].transform(lambda x: x.interpolate(method='linear'))
+df['Altezza indicativa'] = df.groupby('Genere')['Altezza indicativa'].transform(lambda x: x.interpolate(method=args.interpolation))
 
 # Save the interpolated data
 df.to_csv('alsometrie_interpolated.csv', index=False, float_format='%g')
