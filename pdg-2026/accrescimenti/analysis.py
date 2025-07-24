@@ -190,6 +190,30 @@ def generate_html_index_cd(files: list, output_dir: str) -> None:
 </body>
 </html>''')
 
+def fit_logarithmic_curve(x, y) -> tuple[tuple[float, float], float, tuple[float, float]]:
+    """Fit logarithmic curve to data using np.polyfit and return parameters and R²"""
+    x_clean = x[x > 0]
+    y_clean = y[x > 0]
+
+    if len(x_clean) < 10:
+        return None, None, None
+
+    # Fit logarithmic function: y = a*ln(x) + b
+    # Using linear fit to log-transformed x values
+    coeffs = np.polyfit(np.log(x_clean), y_clean, 1)
+    a, b = coeffs
+
+    # Calculate predictions and R²
+    y_pred = a * np.log(x_clean) + b
+    if np.var(y_clean) > 0:  # Avoid division by zero
+        ss_res = np.sum((y_clean - y_pred) ** 2)
+        ss_tot = np.sum((y_clean - np.mean(y_clean)) ** 2)
+        r2 = 1 - (ss_res / ss_tot)
+    else:
+        r2 = 0.0  # No variance in y values
+
+    return (a, b), r2, (x_clean.min(), x_clean.max())
+
 def create_parcel_ci(trees: pd.DataFrame, parcel: pd.Series, color_map: dict, output_dir: str) -> list:
     """
     Create a scatter plot for a specific parcel showing height vs diameter class relationship
@@ -217,34 +241,22 @@ def create_parcel_ci(trees: pd.DataFrame, parcel: pd.Series, color_map: dict, ou
         # Plot scatter points
         ax.scatter(x, y, color=color_map[species], label=species, alpha=0.7, s=20)
 
-        if len(species_data) >= 10:
-            # Fit logarithmic function: y = a*ln(x) + b
-            # Using x values > 0 only (diameter classes start from 1)
-            x_log = x[x > 0]
-            y_log = y[x > 0]
+        params, r2, limits = fit_logarithmic_curve(x, y)
+        if params is None:
+            continue
 
-            if len(x_log) >= 10:
-                coeffs = np.polyfit(np.log(x_log), y_log, 1)  # Linear fit to log(x)
-                a, b = coeffs
+        a, b = params
+        x_min, x_max = limits
+        x_smooth = np.linspace(x_min, x_max, 100)
+        y_smooth = a * np.log(x_smooth) + b
+        ax.plot(x_smooth, y_smooth, color=color_map[species], linestyle='--', alpha=0.8, linewidth=1.5)
 
-                y_pred = a * np.log(x_log) + b
-                if np.var(y_log) > 0:  # Avoid division by zero
-                    ss_res = np.sum((y_log - y_pred) ** 2)
-                    ss_tot = np.sum((y_log - np.mean(y_log)) ** 2)
-                    r_squared = 1 - (ss_res / ss_tot)
-                else:
-                    r_squared = 0.0  # No variance in y values
-
-                x_smooth = np.linspace(x_log.min(), x_log.max(), 100)
-                y_smooth = a * np.log(x_smooth) + b
-                ax.plot(x_smooth, y_smooth, color=color_map[species], linestyle='--', alpha=0.8, linewidth=1.5)
-
-                polynomial_info.append({
-                    'species': species,
-                    'coeffs': (a, b),
-                    'r_squared': r_squared,
-                    'n_points': len(species_data)
-                })
+        polynomial_info.append({
+            'species': species,
+            'coeffs': (a, b),
+            'r_squared': r2,
+            'n_points': len(species_data)
+        })
 
     ax.set_xlabel('Classe diametrica', fontweight='bold')
     ax.set_ylabel('Altezza (m)', fontweight='bold')
