@@ -13,7 +13,7 @@ for col in numeric_columns:
     df[col] = pd.to_numeric(df[col], errors='coerce')
 
 # Interpolate missing height values for each species separately
-df['Altezza indicativa'] = df.groupby('Genere')['Altezza indicativa'].transform(lambda x: x.interpolate(method='cubic'))
+df['Altezza indicativa'] = df.groupby('Genere')['Altezza indicativa'].transform(lambda x: x.interpolate(method='linear'))
 
 # Save the interpolated data
 df.to_csv('alsometrie_interpolated.csv', index=False, float_format='%g')
@@ -27,8 +27,10 @@ fig, axes = plt.subplots(1, 3, figsize=(18, 6))
 # Define colors for each species
 species_colors = {
     'Abete bianco': 'blue',
-    'Faggio': 'green', 
-    'Pino laricio': 'red'
+    'Faggio': 'green',
+    'Pino laricio': 'red',
+    'Castagno': 'purple',
+    'Douglasia': 'orange',
 }
 
 # Plot 1: Height vs Base Diameter
@@ -37,18 +39,18 @@ for i, parameter in enumerate(['Altezza indicativa', 'Volume dendrometrico', 'Vo
         species_data = df[df['Genere'] == species].dropna(subset=[parameter])
         if len(species_data) > 0:
             # Sort by diameter to ensure proper x-axis ordering
-            species_data = species_data.sort_values('Diam base')
-            species_data.plot.scatter(x='Diam base', y=parameter, 
-                                      ax=axes[i], label=species, alpha=0.7, 
+            species_data = species_data.sort_values('Diam 130cm')
+            species_data.plot.scatter(x='Diam 130cm', y=parameter,
+                                      ax=axes[i], label=species, alpha=0.7,
                                       color=species_colors[species], s=30)
-    axes[i].set_title(f'{parameter} vs Diametro base', fontsize=14, fontweight='bold')
-    axes[i].set_xlabel('Diametro base (cm)')
+    axes[i].set_title(f'{parameter} vs Diametro 130cm', fontsize=14, fontweight='bold')
+    axes[i].set_xlabel('Diametro 130cm (cm)')
     unit = 'm' if parameter == 'Altezza indicativa' else 'mc'
     axes[i].set_ylabel(f'{parameter} ({unit})')
 
     axes[i].locator_params(axis='x', nbins=8)
     axes[i].locator_params(axis='y', nbins=10)
-    
+
     axes[i].grid(True, alpha=0.3)
     axes[i].legend()
 
