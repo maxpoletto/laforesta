@@ -2,8 +2,8 @@
 
 all: alsometrie.png
 
-alsometrie.png: alsometrie.csv
-	python interpolate.py
+alsometrie.png: interpolate.py alsometrie.csv
+	python $<
 
 sync: alsometrie.png
 	ssh laforesta.it "cd /var/www/laforestadotit/html/pdg-2026 && mkdir -p tavole-di-cubatura"
