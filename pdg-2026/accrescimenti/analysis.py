@@ -97,22 +97,34 @@ STYLE = """
         }
 """
 
-def create_parcel_cd(trees: pd.DataFrame, parcel: pd.Series, color_map: dict, output_dir: str) -> list:
+def create_cd(trees: pd.DataFrame, region: pd.Series, color_map: dict, output_dir: str) -> list:
     """
-    Create a histogram for a specific parcel showing tree distribution by diameter class
+    Create a histogram for a specific region (parcel or compresa) showing tree distribution by diameter class
     with stacked bars for different species, scaled to estimated totals per hectare
     """
-    compresa = parcel['Compresa']
-    particella = parcel['Particella']
-    parcel_data = trees[(trees['Compresa'] == compresa) & (trees['Particella'] == particella)]
-    assert len(parcel_data) > 0, f"Nessun dato per {compresa}-{particella}"
-
-    filename = f"{compresa}_{parcel['sort_key']}_classi-diametriche.png"
+    compresa = region['Compresa']
+    particella = region.get('Particella', None)
+    
+    if particella is not None:
+        # Per-particella mode
+        region_data = trees[(trees['Compresa'] == compresa) & (trees['Particella'] == particella)]
+        filename = f"{compresa}_{region['sort_key']}_classi-diametriche.png"
+        title = f'Distribuzione alberi per classe diametrica - {compresa} Particella {particella}'
+        print_name = f"{compresa}-{particella}"
+    else:
+        # Per-compresa mode
+        region_data = trees[trees['Compresa'] == compresa]
+        filename = f"{compresa}_classi-diametriche.png"
+        title = f'Distribuzione alberi per classe diametrica - {compresa}'
+        print_name = compresa
+    
+    assert len(region_data) > 0, f"Nessun dato per {print_name}"
+    
     filepath = os.path.join(output_dir, filename)
-    print(f"Generazione istogramma per {compresa}-{particella}...")
+    print(f"Generazione istogramma per {print_name}...")
 
-    counts = (parcel_data.groupby(['Classe diametrica', 'Genere']).size().unstack(fill_value=0)
-              * SAMPLE_AREAS_PER_HA / parcel['sample_areas'])
+    counts = (region_data.groupby(['Classe diametrica', 'Genere']).size().unstack(fill_value=0)
+              * SAMPLE_AREAS_PER_HA / region['sample_areas'])
 
     fig, ax = plt.subplots(figsize=(4, 2.5))
     species_list = counts.columns.tolist()
@@ -127,8 +139,7 @@ def create_parcel_cd(trees: pd.DataFrame, parcel: pd.Series, color_map: dict, ou
 
     ax.set_xlabel('Classe diametrica', fontweight='bold')
     ax.set_ylabel('Stima alberi / ha', fontweight='bold')
-    ax.set_title(f'Distribuzione alberi per classe diametrica - {compresa} Particella {particella}',
-                fontweight='bold', pad=20)
+    ax.set_title(title, fontweight='bold', pad=20)
 
     max_class = trees['Classe diametrica'].max()
     ax.set_xlim(-0.5, max_class + 0.5)
@@ -140,13 +151,13 @@ def create_parcel_cd(trees: pd.DataFrame, parcel: pd.Series, color_map: dict, ou
 
     with italian_locale():
         stats_text = f"""
-Area: {locale.format_string('%.2f', parcel["area_ha"])} ha
-Alberi campionati: {len(parcel_data)}
-N. aree saggio: {parcel["sample_areas"]}
-Stima totale alberi: {parcel["estimated_total"]:n}
-Stima alberi / ha: {round(parcel["estimated_total"]/parcel["area_ha"]):n}
-Specie prevalente: {parcel_data["Genere"].mode().iloc[0]}
-Classe diametrica media: {round(parcel_data["Classe diametrica"].mean()):n}""".strip()
+Area: {locale.format_string('%.2f', region["area_ha"])} ha
+Alberi campionati: {len(region_data)}
+N. aree saggio: {region["sample_areas"]}
+Stima totale alberi: {region["estimated_total"]:n}
+Stima alberi / ha: {round(region["estimated_total"]/region["area_ha"]):n}
+Specie prevalente: {region_data["Genere"].mode().iloc[0]}
+Classe diametrica media: {round(region_data["Classe diametrica"].mean()):n}""".strip()
 
     ax.text(0.99, 0.98, stats_text, transform=ax.transAxes,
             verticalalignment='top', horizontalalignment='right',
@@ -154,7 +165,7 @@ Classe diametrica media: {round(parcel_data["Classe diametrica"].mean()):n}""".s
     plt.tight_layout()
 
     plt.savefig(filepath, bbox_inches='tight')
-    print(f"Saved histogram for {compresa}-{particella} to {filepath}")
+    print(f"Saved histogram for {print_name} to {filepath}")
     plt.close(fig)
     return [compresa, particella, filepath]
 
@@ -267,28 +278,40 @@ def create_height_interpolation_functions(alsometrie_file, method='fit', interpo
 
     return height_functions
 
-def create_parcel_ci(trees: pd.DataFrame, parcel: pd.Series, color_map: dict, output_dir: str,
-                     height_functions: dict = None) -> list:
+def create_ci(trees: pd.DataFrame, region: pd.Series, color_map: dict, output_dir: str,
+              height_functions: dict = None) -> list:
     """
-    Create a scatter plot for a specific parcel showing height vs diameter class relationship
+    Create a scatter plot for a specific region (parcel or compresa) showing height vs diameter class relationship
     with logarithmic fit for each species
     """
-    compresa = parcel['Compresa']
-    particella = parcel['Particella']
-    parcel_data = trees[(trees['Compresa'] == compresa) & (trees['Particella'] == particella)]
-    assert len(parcel_data) > 0, f"Nessun dato per {compresa}-{particella}"
-
-    filename = f"{compresa}_{parcel['sort_key']}_curve-ipsometriche.png"
+    compresa = region['Compresa']
+    particella = region.get('Particella', None)
+    
+    if particella is not None:
+        # Per-particella mode
+        region_data = trees[(trees['Compresa'] == compresa) & (trees['Particella'] == particella)]
+        filename = f"{compresa}_{region['sort_key']}_curve-ipsometriche.png"
+        title = f'Curve ipsometriche - {compresa} Particella {particella}'
+        print_name = f"{compresa}-{particella}"
+    else:
+        # Per-compresa mode
+        region_data = trees[trees['Compresa'] == compresa]
+        filename = f"{compresa}_curve-ipsometriche.png"
+        title = f'Curve ipsometriche - {compresa}'
+        print_name = compresa
+    
+    assert len(region_data) > 0, f"Nessun dato per {print_name}"
+    
     filepath = os.path.join(output_dir, filename)
-    print(f"Generazione grafico ipsometrico per {compresa}-{particella}...")
+    print(f"Generazione grafico ipsometrico per {print_name}...")
 
     fig, ax = plt.subplots(figsize=(4, 3))
 
-    species_list = sorted(parcel_data['Genere'].unique())
+    species_list = sorted(region_data['Genere'].unique())
     polynomial_info = []
 
     for species in species_list:
-        species_data = parcel_data[parcel_data['Genere'] == species]
+        species_data = region_data[region_data['Genere'] == species]
         x = species_data['Classe diametrica'].values
 
         # Use interpolated heights if available, otherwise use original h(m)
@@ -321,14 +344,13 @@ def create_parcel_ci(trees: pd.DataFrame, parcel: pd.Series, color_map: dict, ou
 
     ax.set_xlabel('Classe diametrica', fontweight='bold')
     ax.set_ylabel('Altezza (m)', fontweight='bold')
-    ax.set_title(f'Curve ipsometriche - {compresa} Particella {particella}',
-                fontweight='bold', pad=20)
+    ax.set_title(title, fontweight='bold', pad=20)
 
     max_class = trees['Classe diametrica'].max()
     ax.set_xlim(-0.5, max_class + 0.5)
     ax.set_xticks(range(0, max_class + 1, 2))
 
-    y_max = parcel_data['h(m)'].max().astype(int)
+    y_max = region_data['h(m)'].max().astype(int)
     ax.set_ylim(0, (y_max + 6)//5*5)
     td = min(ax.get_ylim()[1] // 5, 4)
     y_ticks = np.arange(0, ax.get_ylim()[1] + 1, td)
@@ -340,13 +362,13 @@ def create_parcel_ci(trees: pd.DataFrame, parcel: pd.Series, color_map: dict, ou
 
     with italian_locale():
         stats_text = f"""
-Area: {locale.format_string('%.2f', parcel["area_ha"])} ha
-Alberi campionati: {len(parcel_data)}
-N. aree saggio: {parcel["sample_areas"]}
-Stima totale alberi: {parcel["estimated_total"]:n}
-Stima alberi / ha: {round(parcel["estimated_total"]/parcel["area_ha"]):n}
-Specie prevalente: {parcel_data["Genere"].mode().iloc[0]}
-Altezza media: {locale.format_string('%.1f', parcel_data["h(m)"].mean())} m""".strip()
+Area: {locale.format_string('%.2f', region["area_ha"])} ha
+Alberi campionati: {len(region_data)}
+N. aree saggio: {region["sample_areas"]}
+Stima totale alberi: {region["estimated_total"]:n}
+Stima alberi / ha: {round(region["estimated_total"]/region["area_ha"]):n}
+Specie prevalente: {region_data["Genere"].mode().iloc[0]}
+Altezza media: {locale.format_string('%.1f', region_data["h(m)"].mean())} m""".strip()
 
     ax.text(0.99, 0.98, stats_text, transform=ax.transAxes,
             verticalalignment='top', horizontalalignment='right',
@@ -366,7 +388,7 @@ Altezza media: {locale.format_string('%.1f', parcel_data["h(m)"].mean())} m""".s
 
     plt.tight_layout()
     plt.savefig(filepath, bbox_inches='tight')
-    print(f"Saved scatter plot for {compresa}-{particella} to {filepath}")
+    print(f"Saved scatter plot for {print_name} to {filepath}")
     plt.close(fig)
     return [compresa, particella, filepath]
 
@@ -428,6 +450,8 @@ def main():
                         help='Path to trees CSV file')
     parser.add_argument('--particelle-file', type=str, default='particelle.csv',
                         help='Path to particelle CSV file')
+    parser.add_argument('--per-particella', action='store_true',
+                        help='Generate graphs per Compresa-Particella pair (default: per Compresa only)')
 
     args = parser.parse_args()
 
@@ -467,6 +491,26 @@ def main():
         lambda x: (f"{x}=" if str(x)[-1].isdigit() else str(x)).zfill(3))
     print(f"Trovate {len(parcels_df)} particelle")
 
+    # Create region data (either per particella or per compresa)
+    if args.per_particella:
+        regions_df = parcels_df
+        print(f"Modalità per particella: {len(regions_df)} particelle")
+    else:
+        # Aggregate by compresa
+        compresa_stats = (alberi_fustaia.groupby(['Compresa'])
+                         .agg(sampled_trees=('Area saggio', 'size'),
+                              sample_areas=('Area saggio', 'nunique'))
+                         .reset_index())
+        
+        compresa_areas = (particelle.groupby('Compresa')['Area (ha)'].sum().reset_index()
+                         .rename(columns={'Area (ha)': 'area_ha'}))
+        
+        regions_df = (compresa_stats.merge(compresa_areas, on='Compresa', how='left'))
+        regions_df['estimated_total'] = round((regions_df['sampled_trees'] / regions_df['sample_areas'])
+                                              * SAMPLE_AREAS_PER_HA
+                                              * regions_df['area_ha']).astype(int)
+        print(f"Modalità per compresa: {len(regions_df)} comprese")
+
     # Create height interpolation functions if processing curve ipsometriche
     height_functions = {}
     if curve_ipsometriche:
@@ -483,8 +527,8 @@ def main():
             os.makedirs(output_dir)
 
         files = []
-        for _, row in parcels_df.iterrows():
-            files.append(create_parcel_cd(alberi_fustaia, row, color_map, output_dir))
+        for _, row in regions_df.iterrows():
+            files.append(create_cd(alberi_fustaia, row, color_map, output_dir))
 
         generate_html_index_cd(files, output_dir)
         print(f"Istogrammi classi diametriche salvati in '{output_dir}'")
@@ -495,8 +539,8 @@ def main():
             os.makedirs(output_dir)
 
         files = []
-        for _, row in parcels_df.iterrows():
-            files.append(create_parcel_ci(alberi_fustaia, row, color_map, output_dir, height_functions))
+        for _, row in regions_df.iterrows():
+            files.append(create_ci(alberi_fustaia, row, color_map, output_dir, height_functions))
 
         generate_html_index_ci(files, output_dir)
         print(f"Curve ipsometriche salvate in '{output_dir}'")
@@ -504,13 +548,23 @@ def main():
     with italian_locale():
         print(f"\nAnalisi completata.")
         print("\nRiepilogo:")
-        for _, row in parcels_df.sort_values(['sort_key']).iterrows():
-            trees_per_ha = row['estimated_total'] / row['area_ha']
-            print(f"  {row['Compresa']} - Particella {row['Particella']}: "
-                f"{row['sampled_trees']} alberi campionati, "
-                f"{row['sample_areas']} aree saggio, "
-                f"{locale.format_string('%.2f', row['area_ha'])} ha → "
-                f"Stima totale: {row['estimated_total']:n} alberi ({round(trees_per_ha):n} alberi/ha)")
+        
+        if args.per_particella:
+            for _, row in regions_df.sort_values(['sort_key']).iterrows():
+                trees_per_ha = row['estimated_total'] / row['area_ha']
+                print(f"  {row['Compresa']} - Particella {row['Particella']}: "
+                    f"{row['sampled_trees']} alberi campionati, "
+                    f"{row['sample_areas']} aree saggio, "
+                    f"{locale.format_string('%.2f', row['area_ha'])} ha → "
+                    f"Stima totale: {row['estimated_total']:n} alberi ({round(trees_per_ha):n} alberi/ha)")
+        else:
+            for _, row in regions_df.iterrows():
+                trees_per_ha = row['estimated_total'] / row['area_ha']
+                print(f"  {row['Compresa']}: "
+                    f"{row['sampled_trees']} alberi campionati, "
+                    f"{row['sample_areas']} aree saggio, "
+                    f"{locale.format_string('%.2f', row['area_ha'])} ha → "
+                    f"Stima totale: {row['estimated_total']:n} alberi ({round(trees_per_ha):n} alberi/ha)")
 
 if __name__ == "__main__":
     main()
