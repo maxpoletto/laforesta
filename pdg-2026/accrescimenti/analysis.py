@@ -214,7 +214,61 @@ def fit_logarithmic_curve(x, y) -> tuple[tuple[float, float], float, tuple[float
 
     return (a, b), r2, (x_clean.min(), x_clean.max())
 
-def create_parcel_ci(trees: pd.DataFrame, parcel: pd.Series, color_map: dict, output_dir: str) -> list:
+def create_height_interpolation_functions(alsometrie_file, method='fit', interpolation='quadratic'):
+    """Create height interpolation functions from alsometrie data"""
+    try:
+        df = pd.read_csv(alsometrie_file)
+    except FileNotFoundError:
+        print(f"Warning: {alsometrie_file} not found, using original h(m) values")
+        return {}
+
+    # Convert numeric columns
+    numeric_columns = ['Diam base', 'Diam 130cm', 'Volume dendrometrico', 'Volume cormometrico', 'Altezza indicativa']
+    for col in numeric_columns:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+
+    height_functions = {}
+
+    if method == 'none':
+        return None
+    elif method == 'interpolate':
+        df['Altezza indicativa'] = df.groupby('Genere')['Altezza indicativa'].transform(lambda x: x.interpolate(method=interpolation))
+        for species in df['Genere'].unique():
+            species_data = df[df['Genere'] == species].dropna(subset=['Diam 130cm', 'Altezza indicativa'])
+            if len(species_data) >= 2:
+                # Sort by diameter
+                species_data = species_data.sort_values('Diam 130cm')
+                x_data = species_data['Diam 130cm'].values
+                y_data = species_data['Altezza indicativa'].values
+
+                # Create interpolation function using numpy interp
+                height_functions[species] = lambda x, x_data=x_data, y_data=y_data: np.interp(x, x_data, y_data)
+
+    elif method == 'fit':
+        # Use fitted logarithmic curves like interpolate.py does
+        for species in df['Genere'].unique():
+            species_data = df[df['Genere'] == species]
+
+            # Get non-missing data for fitting
+            fit_data = species_data.dropna(subset=['Altezza indicativa', 'Diam 130cm'])
+
+            if len(fit_data) < 2:
+                continue
+
+            x_fit = fit_data['Diam 130cm'].values
+            y_fit = fit_data['Altezza indicativa'].values
+
+            params, r2, _ = fit_logarithmic_curve(x_fit, y_fit)
+            if params is not None:
+                a, b = params
+                height_functions[species] = lambda x, a=a, b=b: a * np.log(np.maximum(x, 0.1)) + b
+                print(f"{species:15}: y = {a:.4f}*ln(x) + {b:.4f}, R² = {r2:.4f} ({len(fit_data)} points)")
+
+    return height_functions
+
+def create_parcel_ci(trees: pd.DataFrame, parcel: pd.Series, color_map: dict, output_dir: str,
+                     height_functions: dict = None) -> list:
     """
     Create a scatter plot for a specific parcel showing height vs diameter class relationship
     with logarithmic fit for each species
@@ -236,7 +290,14 @@ def create_parcel_ci(trees: pd.DataFrame, parcel: pd.Series, color_map: dict, ou
     for species in species_list:
         species_data = parcel_data[parcel_data['Genere'] == species]
         x = species_data['Classe diametrica'].values
-        y = species_data['h(m)'].values
+
+        # Use interpolated heights if available, otherwise use original h(m)
+        if height_functions and species in height_functions:
+            # Get D(cm) values and apply interpolation function
+            d_cm = species_data['D(cm)'].values
+            y = np.array([height_functions[species](d) for d in d_cm])
+        else:
+            y = species_data['h(m)'].values
 
         # Plot scatter points
         ax.scatter(x, y, color=color_map[species], label=species, alpha=0.7, s=20)
@@ -357,6 +418,16 @@ def main():
                         help='Genera solo istogrammi classi diametriche')
     parser.add_argument('--solo-curve-ipsometriche', action='store_true',
                         help='Genera solo curve ipsometriche')
+    parser.add_argument('--height-method', type=str, choices=['fit', 'interpolate', 'none'], default='none',
+                        help='Method to compute height values: fit (logarithmic curve) or interpolate or none')
+    parser.add_argument('--interpolation', type=str, default='quadratic',
+                        help='Interpolation method when using interpolate method')
+    parser.add_argument('--alsometrie-file', type=str, default='alsometrie.csv',
+                        help='Path to alsometrie CSV file for height interpolation')
+    parser.add_argument('--trees-file', type=str, default='alberi.csv',
+                        help='Path to trees CSV file')
+    parser.add_argument('--particelle-file', type=str, default='particelle.csv',
+                        help='Path to particelle CSV file')
 
     args = parser.parse_args()
 
@@ -368,8 +439,8 @@ def main():
     elif args.solo_curve_ipsometriche:
         classi_diametriche = False
 
-    alberi = pd.read_csv('alberi.csv')
-    particelle = pd.read_csv('particelle.csv')
+    alberi = pd.read_csv(args.trees_file)
+    particelle = pd.read_csv(args.particelle_file)
 
     alberi_fustaia = alberi[alberi['Fustaia'] == True].copy()
     print(f"Dati filtrati: {len(alberi_fustaia)} campioni di alberti a fustaia (su {len(alberi)} totali)")
@@ -396,6 +467,16 @@ def main():
         lambda x: (f"{x}=" if str(x)[-1].isdigit() else str(x)).zfill(3))
     print(f"Trovate {len(parcels_df)} particelle")
 
+    # Create height interpolation functions if processing curve ipsometriche
+    height_functions = {}
+    if curve_ipsometriche:
+        print(f"Creating height interpolation functions using method '{args.height_method}'...")
+        height_functions = create_height_interpolation_functions(
+            alsometrie_file=args.alsometrie_file,
+            method=args.height_method,
+            interpolation=args.interpolation
+        )
+
     if classi_diametriche:
         output_dir = 'classi-diametriche'
         if not os.path.exists(output_dir):
@@ -415,7 +496,7 @@ def main():
 
         files = []
         for _, row in parcels_df.iterrows():
-            files.append(create_parcel_ci(alberi_fustaia, row, color_map, output_dir))
+            files.append(create_parcel_ci(alberi_fustaia, row, color_map, output_dir, height_functions))
 
         generate_html_index_ci(files, output_dir)
         print(f"Curve ipsometriche salvate in '{output_dir}'")
