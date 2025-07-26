@@ -4,7 +4,7 @@ Forest Parcel Analysis: Generate histograms of tree distribution by diameter cla
 and scatter plots with height-diameter relationships for each parcel
 """
 
-import sys
+from pathlib import Path
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
@@ -104,23 +104,21 @@ def create_cd(trees: pd.DataFrame, region: pd.Series, color_map: dict, output_di
     """
     compresa = region['Compresa']
     particella = region.get('Particella', None)
-    
+
     if particella is not None:
-        # Per-particella mode
         region_data = trees[(trees['Compresa'] == compresa) & (trees['Particella'] == particella)]
         filename = f"{compresa}_{region['sort_key']}_classi-diametriche.png"
         title = f'Distribuzione alberi per classe diametrica - {compresa} Particella {particella}'
         print_name = f"{compresa}-{particella}"
     else:
-        # Per-compresa mode
         region_data = trees[trees['Compresa'] == compresa]
         filename = f"{compresa}_classi-diametriche.png"
         title = f'Distribuzione alberi per classe diametrica - {compresa}'
         print_name = compresa
-    
+
     assert len(region_data) > 0, f"Nessun dato per {print_name}"
-    
-    filepath = os.path.join(output_dir, filename)
+
+    filepath = Path(output_dir) / filename
     print(f"Generazione istogramma per {print_name}...")
 
     counts = (region_data.groupby(['Classe diametrica', 'Genere']).size().unstack(fill_value=0)
@@ -175,7 +173,7 @@ def generate_html_index_cd(files: list, output_dir: str) -> None:
     """
     files_sorted = sorted(files, key=lambda x: x[2])
 
-    with open(os.path.join(output_dir, 'index.html'), 'w', encoding='utf-8') as f:
+    with open(Path(output_dir) / 'index.html', 'w', encoding='utf-8') as f:
         f.write(f'''<!DOCTYPE html>
 <html lang="it">
 <head>
@@ -190,10 +188,9 @@ def generate_html_index_cd(files: list, output_dir: str) -> None:
 ''')
 
         for compresa, particella, filepath in files_sorted:
-            filename = os.path.basename(filepath)
             f.write(f'''        <div class="histogram-item">
             <div class="histogram-title">{compresa} - Particella {particella}</div>
-            <img src="{filename}" alt="Istogramma classi diametriche {compresa}-{particella}" class="histogram-image">
+            <img src="{filepath.name}" alt="Istogramma classi diametriche {compresa}-{particella}" class="histogram-image">
         </div>
 ''')
 
@@ -286,23 +283,21 @@ def create_ci(trees: pd.DataFrame, region: pd.Series, color_map: dict, output_di
     """
     compresa = region['Compresa']
     particella = region.get('Particella', None)
-    
+
     if particella is not None:
-        # Per-particella mode
         region_data = trees[(trees['Compresa'] == compresa) & (trees['Particella'] == particella)]
         filename = f"{compresa}_{region['sort_key']}_curve-ipsometriche.png"
         title = f'Curve ipsometriche - {compresa} Particella {particella}'
         print_name = f"{compresa}-{particella}"
     else:
-        # Per-compresa mode
         region_data = trees[trees['Compresa'] == compresa]
         filename = f"{compresa}_curve-ipsometriche.png"
         title = f'Curve ipsometriche - {compresa}'
         print_name = compresa
-    
+
     assert len(region_data) > 0, f"Nessun dato per {print_name}"
-    
-    filepath = os.path.join(output_dir, filename)
+
+    filepath = Path(output_dir) / filename
     print(f"Generazione grafico ipsometrico per {print_name}...")
 
     fig, ax = plt.subplots(figsize=(4, 3))
@@ -398,7 +393,7 @@ def generate_html_index_ci(files: list, output_dir: str) -> None:
     """
     files_sorted = sorted(files, key=lambda x: x[2])
 
-    with open(os.path.join(output_dir, 'index.html'), 'w', encoding='utf-8') as f:
+    with open(Path(output_dir) / 'index.html', 'w', encoding='utf-8') as f:
         f.write(f'''<!DOCTYPE html>
 <html lang="it">
 <head>
@@ -420,10 +415,9 @@ def generate_html_index_ci(files: list, output_dir: str) -> None:
 ''')
 
         for compresa, particella, filepath in files_sorted:
-            filename = os.path.basename(filepath)
             f.write(f'''        <div class="histogram-item">
             <div class="histogram-title">{compresa} - Particella {particella}</div>
-            <img src="{filename}" alt="Curva ipsometrica {compresa}-{particella}" class="histogram-image">
+            <img src="{filepath.name}" alt="Curva ipsometrica {compresa}-{particella}" class="histogram-image">
         </div>
 ''')
 
@@ -448,6 +442,8 @@ def main():
                         help='Path to alsometrie CSV file for height interpolation')
     parser.add_argument('--trees-file', type=str, default='alberi.csv',
                         help='Path to trees CSV file')
+    parser.add_argument('--output-prefix', type=str, default='',
+                        help='Output prefix')
     parser.add_argument('--particelle-file', type=str, default='particelle.csv',
                         help='Path to particelle CSV file')
     parser.add_argument('--per-particella', action='store_true',
@@ -501,10 +497,10 @@ def main():
                          .agg(sampled_trees=('Area saggio', 'size'),
                               sample_areas=('Area saggio', 'nunique'))
                          .reset_index())
-        
+
         compresa_areas = (particelle.groupby('Compresa')['Area (ha)'].sum().reset_index()
                          .rename(columns={'Area (ha)': 'area_ha'}))
-        
+
         regions_df = (compresa_stats.merge(compresa_areas, on='Compresa', how='left'))
         regions_df['estimated_total'] = round((regions_df['sampled_trees'] / regions_df['sample_areas'])
                                               * SAMPLE_AREAS_PER_HA
@@ -522,9 +518,8 @@ def main():
         )
 
     if classi_diametriche:
-        output_dir = 'classi-diametriche'
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
+        output_dir = Path(args.output_prefix) / 'classi-diametriche'
+        os.makedirs(output_dir, exist_ok=True)
 
         files = []
         for _, row in regions_df.iterrows():
@@ -534,9 +529,8 @@ def main():
         print(f"Istogrammi classi diametriche salvati in '{output_dir}'")
 
     if curve_ipsometriche:
-        output_dir = 'curve-ipsometriche'
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
+        output_dir = Path(args.output_prefix) / 'curve-ipsometriche'
+        os.makedirs(output_dir, exist_ok=True)
 
         files = []
         for _, row in regions_df.iterrows():
@@ -548,7 +542,7 @@ def main():
     with italian_locale():
         print(f"\nAnalisi completata.")
         print("\nRiepilogo:")
-        
+
         if args.per_particella:
             for _, row in regions_df.sort_values(['sort_key']).iterrows():
                 trees_per_ha = row['estimated_total'] / row['area_ha']
