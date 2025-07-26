@@ -4,15 +4,15 @@ Forest Parcel Analysis: Generate histograms of tree distribution by diameter cla
 and scatter plots with height-diameter relationships for each parcel
 """
 
-from pathlib import Path
-import pandas as pd
-import matplotlib.pyplot as plt
-import numpy as np
-import os
-import locale
 import argparse
 from contextlib import contextmanager
-from scipy import stats
+import locale
+import os
+from pathlib import Path
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 
 plt.rcParams['figure.dpi'] = 200
 plt.rcParams['savefig.dpi'] = 200
@@ -438,12 +438,12 @@ def regions_dataframe(alberi_fustaia: pd.DataFrame, particelle: pd.DataFrame, pe
 
     return df
 
-
 def main():
     """
     Entry point.
     """
-    parser = argparse.ArgumentParser(description='Analisi accrescimenti')
+    parser = argparse.ArgumentParser(description='Analisi accrescimenti', add_help=False)
+    parser.add_argument('-h', '--help', action='store_true', help='Mostra questo messaggio e esci')
     parser.add_argument('--solo-classi-diametriche', action='store_true',
                         help='Genera solo istogrammi classi diametriche')
     parser.add_argument('--solo-curve-ipsometriche', action='store_true',
@@ -464,6 +464,9 @@ def main():
                         help='Genera risultati per ogni coppia (compresa, particella) (default: solo per compresa)')
 
     args = parser.parse_args()
+    if args.help:
+        parser.print_help()
+        return
 
     classi_diametriche = not args.solo_curve_ipsometriche
     curve_ipsometriche = not args.solo_classi_diametriche
