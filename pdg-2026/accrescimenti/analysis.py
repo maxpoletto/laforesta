@@ -187,9 +187,10 @@ def generate_html_index_cd(files: list, output_dir: str) -> None:
 ''')
 
         for compresa, particella, filepath in files_sorted:
+            title = f"{compresa} - Particella {particella}" if particella else compresa
             f.write(f'''        <div class="histogram-item">
-            <div class="histogram-title">{compresa} - Particella {particella}</div>
-            <img src="{filepath.name}" alt="Istogramma classi diametriche {compresa}-{particella}" class="histogram-image">
+            <div class="histogram-title">{title}</div>
+            <img src="{filepath.name}" alt="Istogramma classi diametriche {title}" class="histogram-image">
         </div>
 ''')
 
@@ -419,9 +420,10 @@ def generate_html_index_ci(files: list, output_dir: str) -> None:
 ''')
 
         for compresa, particella, filepath in files_sorted:
+            title = f"{compresa} - Particella {particella}" if particella else compresa
             f.write(f'''        <div class="histogram-item">
-            <div class="histogram-title">{compresa} - Particella {particella}</div>
-            <img src="{filepath.name}" alt="Curva ipsometrica {compresa}-{particella}" class="histogram-image">
+            <div class="histogram-title">{title}</div>
+            <img src="{filepath.name}" alt="Curva ipsometrica {title}" class="histogram-image">
         </div>
 ''')
 
