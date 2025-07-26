@@ -426,6 +426,30 @@ def generate_html_index_ci(files: list, output_dir: str) -> None:
 </body>
 </html>''')
 
+def regions_dataframe(alberi_fustaia : pd.DataFrame, particelle : pd.DataFrame, per_particella : bool) -> pd.DataFrame:
+    """Create a dataframe with region data"""
+    groupby = ['Compresa', 'Particella'] if per_particella else ['Compresa']
+    trees = (alberi_fustaia.groupby(groupby)
+             .agg(sampled_trees=('Area saggio', 'size'),
+                  sample_areas=('Area saggio', 'nunique'))
+             .reset_index())
+    areas = particelle.groupby(groupby)['Area (ha)'].sum().reset_index()
+    df = (trees.merge(areas, on=groupby, how='left').rename(columns={'Area (ha)': 'area_ha'}))
+    df['estimated_total'] = round((df['sampled_trees'] / df['sample_areas'])
+                                  * SAMPLE_AREAS_PER_HA
+                                  * df['area_ha']).astype(int)
+
+    if per_particella:
+        df['sort_key'] = df['Particella'].apply(
+            lambda x: (f"{x}=" if str(x)[-1].isdigit() else str(x)).zfill(3))
+        print(f"Modalità per particella: {len(df)} particelle")
+    else:
+        df['sort_key'] = df['Compresa']
+        print(f"Modalità per compresa: {len(df)} comprese")
+
+    return df
+
+
 def main():
     """
     Entry point.
@@ -471,42 +495,8 @@ def main():
     colors = plt.cm.Set3(np.linspace(0, 1, len(all_species)))
     color_map = dict(zip(all_species, colors))
 
-    parcel_stats = (alberi_fustaia.groupby(['Compresa', 'Particella'])
-                   .agg(sampled_trees=('Area saggio', 'size'),
-                        sample_areas=('Area saggio', 'nunique'))
-                   .reset_index())
-
-    parcels_df = (parcel_stats.merge(particelle[['Compresa', 'Particella', 'Area (ha)']],
-                                     on=['Compresa', 'Particella'], how='left')
-                  .rename(columns={'Area (ha)': 'area_ha'}))
-
-    parcels_df['estimated_total'] = round((parcels_df['sampled_trees'] / parcels_df['sample_areas'])
-                                          * SAMPLE_AREAS_PER_HA
-                                          * parcels_df['area_ha']).astype(int)
-
-    parcels_df['sort_key'] = parcels_df['Particella'].apply(
-        lambda x: (f"{x}=" if str(x)[-1].isdigit() else str(x)).zfill(3))
-    print(f"Trovate {len(parcels_df)} particelle")
-
     # Create region data (either per particella or per compresa)
-    if args.per_particella:
-        regions_df = parcels_df
-        print(f"Modalità per particella: {len(regions_df)} particelle")
-    else:
-        # Aggregate by compresa
-        compresa_stats = (alberi_fustaia.groupby(['Compresa'])
-                         .agg(sampled_trees=('Area saggio', 'size'),
-                              sample_areas=('Area saggio', 'nunique'))
-                         .reset_index())
-
-        compresa_areas = (particelle.groupby('Compresa')['Area (ha)'].sum().reset_index()
-                         .rename(columns={'Area (ha)': 'area_ha'}))
-
-        regions_df = (compresa_stats.merge(compresa_areas, on='Compresa', how='left'))
-        regions_df['estimated_total'] = round((regions_df['sampled_trees'] / regions_df['sample_areas'])
-                                              * SAMPLE_AREAS_PER_HA
-                                              * regions_df['area_ha']).astype(int)
-        print(f"Modalità per compresa: {len(regions_df)} comprese")
+    regions = regions_dataframe(alberi_fustaia, particelle, args.per_particella)
 
     # Create height interpolation functions if processing curve ipsometriche
     height_functions = {}
@@ -523,7 +513,7 @@ def main():
         os.makedirs(output_dir, exist_ok=True)
 
         files = []
-        for _, row in regions_df.iterrows():
+        for _, row in regions.iterrows():
             files.append(create_cd(alberi_fustaia, row, color_map, output_dir))
 
         generate_html_index_cd(files, output_dir)
@@ -534,7 +524,7 @@ def main():
         os.makedirs(output_dir, exist_ok=True)
 
         files = []
-        for _, row in regions_df.iterrows():
+        for _, row in regions.iterrows():
             files.append(create_ci(alberi_fustaia, row, color_map, output_dir, height_functions))
 
         generate_html_index_ci(files, output_dir)
@@ -545,7 +535,7 @@ def main():
         print("\nRiepilogo:")
 
         if args.per_particella:
-            for _, row in regions_df.sort_values(['sort_key']).iterrows():
+            for _, row in regions.sort_values(['sort_key']).iterrows():
                 trees_per_ha = row['estimated_total'] / row['area_ha']
                 print(f"  {row['Compresa']} - Particella {row['Particella']}: "
                     f"{row['sampled_trees']} alberi campionati, "
@@ -553,7 +543,7 @@ def main():
                     f"{locale.format_string('%.2f', row['area_ha'])} ha → "
                     f"Stima totale: {row['estimated_total']:n} alberi ({round(trees_per_ha):n} alberi/ha)")
         else:
-            for _, row in regions_df.iterrows():
+            for _, row in regions.iterrows():
                 trees_per_ha = row['estimated_total'] / row['area_ha']
                 print(f"  {row['Compresa']}: "
                     f"{row['sampled_trees']} alberi campionati, "
