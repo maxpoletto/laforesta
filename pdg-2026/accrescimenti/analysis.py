@@ -221,7 +221,8 @@ def fit_logarithmic_curve(x: np.ndarray, y: np.ndarray) -> tuple[tuple[float, fl
 
     return (a, b), r2, (x_clean.min(), x_clean.max())
 
-def height_interpolation_functions(alsometrie_file: str, height_method: str, interpolation_method: str) -> dict:
+def height_interpolation_functions(alsometrie_file: str, height_method: str, interpolation_method: str,
+                                   alsometry_calc: bool, alsometry_file: str) -> dict:
     """Create height interpolation functions from alsometrie data"""
     if height_method == 'originali':
         return None
@@ -262,6 +263,14 @@ def height_interpolation_functions(alsometrie_file: str, height_method: str, int
                 print(f"{species:15}: y = {a:.4f}*ln(x) + {b:.4f}, R² = {r2:.4f} ({len(data)} punti)")
     else:
         raise ValueError(f"Metodo di interpolazione altezze non valido: {height_method}")
+
+    if alsometry_calc:
+        df['Diam base'] = df['Diam base'].astype('Int64')
+        df['Altezza indicativa'] = df.apply(
+            lambda row: hfuncs[row['Genere']](row['Diam 130cm']) if hfuncs and row['Genere'] in hfuncs else row['Altezza indicativa'],
+            axis=1)
+        df.to_csv(alsometry_file, index=False, float_format="%.3f")
+        print(f"File '{alsometry_file}' salvato")
 
     return hfuncs
 
@@ -451,31 +460,35 @@ def main():
     parser.add_argument('-h', '--help', action='store_true', help='Mostra questo messaggio e esci')
     g1 = parser.add_argument_group('Tipo e granularità dei risultati')
     g1.add_argument('--genera-classi-diametriche', action='store_true',
-                        help='Genera istogrammi classi diametriche')
+                    help='Genera istogrammi classi diametriche')
     g1.add_argument('--genera-curve-ipsometriche', action='store_true',
-                        help='Genera curve ipsometriche')
+                    help='Genera curve ipsometriche')
     g1.add_argument('--genera-alberi-altezze-calcolate', action='store_true',
-                        help='Genera tabella alberi campionati con altezze calcolate in base ai dati alsometrici')
+                    help='Genera tabella alberi campionati con altezze calcolate in base ai dati alsometrici')
+    g1.add_argument('--genera-alsometrie-calcolate', action='store_true',
+                    help='Genera file con le altezze calcolate dalle curve ipsometriche')
     g1.add_argument('--per-particella', action='store_true',
-                        help='Genera risultati per ogni coppia (compresa, particella) (default: solo per compresa)')
+                    help='Genera risultati per ogni coppia (compresa, particella) (default: solo per compresa)')
     g2 = parser.add_argument_group('Altezze per curve ipsometriche')
     g2.add_argument('--metodo-altezze', type=str, choices=['regressione', 'interpolazione', 'originali'], default='originali',
-                        help='Metodo per calcolare le altezze: regressione (logaritmica) o interpolazione o usare i valori originali')
+                    help='Metodo per calcolare le altezze: regressione (logaritmica) o interpolazione o usare i valori originali')
     g2.add_argument('--interpolazione', type=str, default='quadratic',
-                        help='Metodo di interpolazione quando si usa il metodo di interpolazione ("cubic", "quadratic", "linear")')
+                    help='Metodo di interpolazione quando si usa il metodo di interpolazione ("cubic", "quadratic", "linear")')
     g2.add_argument('--ometti-generi-sconosciuti', action='store_true',
-                        help='Omette generi non presenti nel file alsometrie dalle curve ipsometriche')
+                    help='Omette generi non presenti nel file alsometrie dalle curve ipsometriche')
     g3 = parser.add_argument_group('Nomi dei file')
     g3.add_argument('--file-alsometrie', type=str, default='alsometrie.csv',
-                        help='File con le altezze da tabelle alsometriche')
+                    help='File con le altezze da tabelle alsometriche (input)')
     g3.add_argument('--file-alberi', type=str, default='alberi.csv',
-                        help='File con i dati degli alberi campionati')
-    g3.add_argument('--file-alberi-calcolati', type=str, default='alberi-calcolati.csv',
-                        help='File con i dati degli alberi campionati con altezze calcolate')
+                    help='File con i dati degli alberi campionati (input)')
     g3.add_argument('--file-particelle', type=str, default='particelle.csv',
-                        help='File con i dati delle particelle')
+                    help='File con i dati delle particelle (input)')
+    g3.add_argument('--file-alberi-calcolati', type=str, default='alberi-calcolati.csv',
+                    help='File con i dati degli alberi campionati con altezze calcolate (output)')
+    g3.add_argument('--file-alsometrie-calcolate', type=str, default='alsometrie-calcolate.csv',
+                    help='File con dati alsometrici calcolati (output)')
     g3.add_argument('--prefisso-output', type=str, default='',
-                        help='Prefisso per i file di output')
+                    help='Prefisso per i file di output')
 
     args = parser.parse_args()
     if args.help:
@@ -509,12 +522,16 @@ def main():
         print(f"Istogrammi classi diametriche salvati in '{output_dir}'")
 
     hfuncs = {}
-    if args.genera_curve_ipsometriche or args.genera_alberi_altezze_calcolate:
+    if (args.genera_curve_ipsometriche
+        or args.genera_alberi_altezze_calcolate
+        or args.genera_alsometrie_calcolate):
         print(f"Creazione funzioni di interpolazione altezze usando metodo '{args.metodo_altezze}'...")
         hfuncs = height_interpolation_functions(
             alsometrie_file=args.file_alsometrie,
             height_method=args.metodo_altezze,
-            interpolation_method=args.interpolazione
+            interpolation_method=args.interpolazione,
+            alsometry_calc=args.genera_alsometrie_calcolate,
+            alsometry_file=args.file_alsometrie_calcolate,
         )
 
     if args.genera_curve_ipsometriche:
@@ -532,9 +549,10 @@ def main():
 
     if args.genera_alberi_altezze_calcolate:
         alberi_calcolati = alberi.copy()
-        alberi_calcolati['h(m)'] = alberi_calcolati['D(cm)'].apply(
-            lambda x: hfuncs[alberi_calcolati['Genere']](x) if hfuncs and alberi_calcolati['Genere'] in hfuncs else x)
-        alberi_calcolati.to_csv(args.file_alberi_calcolati, index=False)
+        alberi_calcolati['h(m)'] = alberi_calcolati.apply(
+            lambda row: hfuncs[row['Genere']](row['D(cm)']) if (hfuncs and row['Genere'] in hfuncs) else row['h(m)'],
+            axis=1)
+        alberi_calcolati.to_csv(args.file_alberi_calcolati, index=False, float_format="%.3f")
         print(f"File '{args.file_alberi_calcolati}' salvato")
 
     with italian_locale():
