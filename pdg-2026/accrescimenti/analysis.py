@@ -450,10 +450,12 @@ def main():
     parser = argparse.ArgumentParser(description='Analisi accrescimenti', add_help=False)
     parser.add_argument('-h', '--help', action='store_true', help='Mostra questo messaggio e esci')
     g1 = parser.add_argument_group('Tipo e granularità dei risultati')
-    g1.add_argument('--solo-classi-diametriche', action='store_true',
-                        help='Genera solo istogrammi classi diametriche')
-    g1.add_argument('--solo-curve-ipsometriche', action='store_true',
-                        help='Genera solo curve ipsometriche')
+    g1.add_argument('--genera-classi-diametriche', action='store_true',
+                        help='Genera istogrammi classi diametriche')
+    g1.add_argument('--genera-curve-ipsometriche', action='store_true',
+                        help='Genera curve ipsometriche')
+    g1.add_argument('--genera-alberi-altezze-calcolate', action='store_true',
+                        help='Genera tabella alberi campionati con altezze calcolate in base ai dati alsometrici')
     g1.add_argument('--per-particella', action='store_true',
                         help='Genera risultati per ogni coppia (compresa, particella) (default: solo per compresa)')
     g2 = parser.add_argument_group('Altezze per curve ipsometriche')
@@ -467,7 +469,9 @@ def main():
     g3.add_argument('--file-alsometrie', type=str, default='alsometrie.csv',
                         help='File con le altezze da tabelle alsometriche')
     g3.add_argument('--file-alberi', type=str, default='alberi.csv',
-                        help='File con i dati degli alberi')
+                        help='File con i dati degli alberi campionati')
+    g3.add_argument('--file-alberi-calcolati', type=str, default='alberi-calcolati.csv',
+                        help='File con i dati degli alberi campionati con altezze calcolate')
     g3.add_argument('--file-particelle', type=str, default='particelle.csv',
                         help='File con i dati delle particelle')
     g3.add_argument('--prefisso-output', type=str, default='',
@@ -477,9 +481,6 @@ def main():
     if args.help:
         parser.print_help()
         return
-
-    classi_diametriche = not args.solo_curve_ipsometriche
-    curve_ipsometriche = not args.solo_classi_diametriche
 
     alberi = pd.read_csv(args.file_alberi)
     particelle = pd.read_csv(args.file_particelle)
@@ -495,7 +496,7 @@ def main():
     # Create region data (either per particella or per compresa)
     regions = regions_dataframe(alberi_fustaia, particelle, args.per_particella)
 
-    if classi_diametriche:
+    if args.genera_classi_diametriche:
         output_dir = Path(args.prefisso_output) / 'classi-diametriche'
         os.makedirs(output_dir, exist_ok=True)
 
@@ -507,17 +508,18 @@ def main():
         generate_html_index_cd(files, output_dir)
         print(f"Istogrammi classi diametriche salvati in '{output_dir}'")
 
-    if curve_ipsometriche:
-        output_dir = Path(args.prefisso_output) / 'curve-ipsometriche'
-        os.makedirs(output_dir, exist_ok=True)
-
-        hfuncs = {}
+    hfuncs = {}
+    if args.genera_curve_ipsometriche or args.genera_alberi_altezze_calcolate:
         print(f"Creazione funzioni di interpolazione altezze usando metodo '{args.metodo_altezze}'...")
         hfuncs = height_interpolation_functions(
             alsometrie_file=args.file_alsometrie,
             height_method=args.metodo_altezze,
             interpolation_method=args.interpolazione
         )
+
+    if args.genera_curve_ipsometriche:
+        output_dir = Path(args.prefisso_output) / 'curve-ipsometriche'
+        os.makedirs(output_dir, exist_ok=True)
 
         files = []
         for _, row in regions.sort_values(['sort_key']).iterrows():
@@ -527,6 +529,13 @@ def main():
 
         generate_html_index_ci(files, output_dir)
         print(f"Curve ipsometriche salvate in '{output_dir}'")
+
+    if args.genera_alberi_altezze_calcolate:
+        alberi_calcolati = alberi.copy()
+        alberi_calcolati['h(m)'] = alberi_calcolati['D(cm)'].apply(
+            lambda x: hfuncs[alberi_calcolati['Genere']](x) if hfuncs and alberi_calcolati['Genere'] in hfuncs else x)
+        alberi_calcolati.to_csv(args.file_alberi_calcolati, index=False)
+        print(f"File '{args.file_alberi_calcolati}' salvato")
 
     with italian_locale():
         print(f"\nAnalisi completata.")
