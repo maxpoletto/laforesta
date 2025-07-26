@@ -301,6 +301,7 @@ def create_ci(trees: pd.DataFrame, region: pd.Series, color_map: dict, output_di
     species_list = sorted(region_data['Genere'].unique())
     polynomial_info = []
 
+    ymax = 0
     for species in species_list:
         species_data = region_data[region_data['Genere'] == species]
         x = species_data['Classe diametrica'].values
@@ -317,6 +318,7 @@ def create_ci(trees: pd.DataFrame, region: pd.Series, color_map: dict, output_di
             y = np.array([hfuncs[species](d) for d in d_cm])
         else:
             y = species_data['h(m)'].values
+        ymax = max(ymax, y.max())
 
         # Plot scatter points
         ax.scatter(x, y, color=color_map[species], label=species, alpha=0.7, s=20)
@@ -346,8 +348,7 @@ def create_ci(trees: pd.DataFrame, region: pd.Series, color_map: dict, output_di
     ax.set_xlim(-0.5, max_class + 0.5)
     ax.set_xticks(range(0, max_class + 1, 2))
 
-    y_max = region_data['h(m)'].max().astype(int)
-    ax.set_ylim(0, (y_max + 6)//5*5)
+    ax.set_ylim(0, (ymax + 6)//5*5)
     td = min(ax.get_ylim()[1] // 5, 4)
     y_ticks = np.arange(0, ax.get_ylim()[1] + 1, td)
     ax.set_yticks(y_ticks)
