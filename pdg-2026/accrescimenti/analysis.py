@@ -459,36 +459,31 @@ def main():
                         help='Genera solo istogrammi classi diametriche')
     parser.add_argument('--solo-curve-ipsometriche', action='store_true',
                         help='Genera solo curve ipsometriche')
-    parser.add_argument('--height-method', type=str, choices=['fit', 'interpolate', 'none'], default='none',
-                        help='Method to compute height values: fit (logarithmic curve) or interpolate or none')
-    parser.add_argument('--interpolation', type=str, default='quadratic',
-                        help='Interpolation method when using interpolate method')
-    parser.add_argument('--alsometrie-file', type=str, default='alsometrie.csv',
-                        help='Path to alsometrie CSV file for height interpolation')
-    parser.add_argument('--trees-file', type=str, default='alberi.csv',
-                        help='Path to trees CSV file')
-    parser.add_argument('--output-prefix', type=str, default='',
-                        help='Output prefix')
-    parser.add_argument('--particelle-file', type=str, default='particelle.csv',
-                        help='Path to particelle CSV file')
+    parser.add_argument('--metodo-altezze', type=str, choices=['regressione', 'interpolazione', 'originali'], default='originali',
+                        help='Metodo per calcolare le altezze: regressione (logaritmica) o interpolazione o usare i valori originali')
+    parser.add_argument('--interpolazione', type=str, default='quadratic',
+                        help='Metodo di interpolazione quando si usa il metodo di interpolazione ("cubic", "quadratic", "linear")')
+    parser.add_argument('--file-alsometrie', type=str, default='alsometrie.csv',
+                        help='File con le altezze da tabelle alsometriche')
+    parser.add_argument('--file-alberi', type=str, default='alberi.csv',
+                        help='File con i dati degli alberi')
+    parser.add_argument('--file-particelle', type=str, default='particelle.csv',
+                        help='File con i dati delle particelle')
+    parser.add_argument('--prefisso-output', type=str, default='',
+                        help='Prefisso per i file di output')
     parser.add_argument('--per-particella', action='store_true',
-                        help='Generate graphs per Compresa-Particella pair (default: per Compresa only)')
+                        help='Genera risultati per ogni coppia (compresa, particella) (default: solo per compresa)')
 
     args = parser.parse_args()
 
-    classi_diametriche = True
-    curve_ipsometriche = True
+    classi_diametriche = not args.solo_curve_ipsometriche
+    curve_ipsometriche = not args.solo_classi_diametriche
 
-    if args.solo_classi_diametriche:
-        curve_ipsometriche = False
-    elif args.solo_curve_ipsometriche:
-        classi_diametriche = False
-
-    alberi = pd.read_csv(args.trees_file)
-    particelle = pd.read_csv(args.particelle_file)
+    alberi = pd.read_csv(args.file_alberi)
+    particelle = pd.read_csv(args.file_particelle)
 
     alberi_fustaia = alberi[alberi['Fustaia'] == True].copy()
-    print(f"Dati filtrati: {len(alberi_fustaia)} campioni di alberti a fustaia (su {len(alberi)} totali)")
+    print(f"Dati filtrati: {len(alberi_fustaia)} campioni di alberi a fustaia (su {len(alberi)} totali)")
 
     # Create consistent color mapping for all species
     all_species = sorted(alberi_fustaia['Genere'].unique())
@@ -509,7 +504,7 @@ def main():
         )
 
     if classi_diametriche:
-        output_dir = Path(args.output_prefix) / 'classi-diametriche'
+        output_dir = Path(args.prefisso_output) / 'classi-diametriche'
         os.makedirs(output_dir, exist_ok=True)
 
         files = []
@@ -520,7 +515,7 @@ def main():
         print(f"Istogrammi classi diametriche salvati in '{output_dir}'")
 
     if curve_ipsometriche:
-        output_dir = Path(args.output_prefix) / 'curve-ipsometriche'
+        output_dir = Path(args.prefisso_output) / 'curve-ipsometriche'
         os.makedirs(output_dir, exist_ok=True)
 
         files = []
