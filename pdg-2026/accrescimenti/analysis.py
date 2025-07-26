@@ -105,20 +105,17 @@ def create_cd(trees: pd.DataFrame, region: pd.Series, color_map: dict, output_di
     compresa = region['Compresa']
     particella = region.get('Particella', None)
 
-    if particella is not None:
-        region_data = trees[(trees['Compresa'] == compresa) & (trees['Particella'] == particella)]
-        filename = f"{compresa}_{region['sort_key']}_classi-diametriche.png"
-        title = f'Distribuzione alberi per classe diametrica - {compresa} Particella {particella}'
-        print_name = f"{compresa}-{particella}"
-    else:
+    if particella is None:
         region_data = trees[trees['Compresa'] == compresa]
-        filename = f"{compresa}_classi-diametriche.png"
         title = f'Distribuzione alberi per classe diametrica - {compresa}'
         print_name = compresa
+    else:
+        region_data = trees[(trees['Compresa'] == compresa) & (trees['Particella'] == particella)]
+        title = f'Distribuzione alberi per classe diametrica - {compresa} Particella {particella}'
+        print_name = f"{compresa}-{particella}"
+    filename = f"{region['sort_key']}_classi-diametriche.png"
 
     assert len(region_data) > 0, f"Nessun dato per {print_name}"
-
-    filepath = Path(output_dir) / filename
     print(f"Generazione istogramma per {print_name}...")
 
     counts = (region_data.groupby(['Classe diametrica', 'Genere']).size().unstack(fill_value=0)
@@ -163,6 +160,7 @@ Classe diametrica media: {round(region_data["Classe diametrica"].mean()):n}""".s
             bbox=dict(boxstyle='round', facecolor='#fbfbfb', alpha=1, linewidth=0.2))
     plt.tight_layout()
 
+    filepath = Path(output_dir) / filename
     plt.savefig(filepath, bbox_inches='tight')
     print(f"Saved histogram for {print_name} to {filepath}")
     plt.close(fig)
@@ -199,7 +197,7 @@ def generate_html_index_cd(files: list, output_dir: str) -> None:
 </body>
 </html>''')
 
-def fit_logarithmic_curve(x, y) -> tuple[tuple[float, float], float, tuple[float, float]]:
+def fit_logarithmic_curve(x: np.ndarray, y: np.ndarray) -> tuple[tuple[float, float], float, tuple[float, float]]:
     """Fit logarithmic curve to data using np.polyfit and return parameters and R²"""
     x_clean = x[x > 0]
     y_clean = y[x > 0]
@@ -223,61 +221,52 @@ def fit_logarithmic_curve(x, y) -> tuple[tuple[float, float], float, tuple[float
 
     return (a, b), r2, (x_clean.min(), x_clean.max())
 
-def create_height_interpolation_functions(alsometrie_file, method='fit', interpolation='quadratic'):
+def height_interpolation_functions(alsometrie_file: str, height_method: str, interpolation_method: str) -> dict:
     """Create height interpolation functions from alsometrie data"""
+    if height_method == 'originali':
+        return None
+
     try:
         df = pd.read_csv(alsometrie_file)
     except FileNotFoundError:
         print(f"Warning: {alsometrie_file} not found, using original h(m) values")
-        return {}
+        return None
 
     # Convert numeric columns
-    numeric_columns = ['Diam base', 'Diam 130cm', 'Volume dendrometrico', 'Volume cormometrico', 'Altezza indicativa']
-    for col in numeric_columns:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors='coerce')
+    numeric_cols = ['Diam base', 'Diam 130cm', 'Volume dendrometrico', 'Volume cormometrico', 'Altezza indicativa']
+    missing_cols = [col for col in numeric_cols if col not in df.columns]
+    if missing_cols:
+        raise ValueError(f"Colonne {missing_cols} non trovate in {alsometrie_file}")
+    df[numeric_cols] = df[numeric_cols].apply(pd.to_numeric, errors='coerce')
 
-    height_functions = {}
+    hfuncs = {}
 
-    if method == 'none':
-        return None
-    elif method == 'interpolate':
-        df['Altezza indicativa'] = df.groupby('Genere')['Altezza indicativa'].transform(lambda x: x.interpolate(method=interpolation))
+    if height_method == 'interpolazione':
+        df['Altezza indicativa'] = (df.groupby('Genere')['Altezza indicativa']
+                                    .transform(lambda x: x.interpolate(method=interpolation_method)))
         for species in df['Genere'].unique():
-            species_data = df[df['Genere'] == species].dropna(subset=['Diam 130cm', 'Altezza indicativa'])
-            if len(species_data) >= 2:
-                # Sort by diameter
-                species_data = species_data.sort_values('Diam 130cm')
-                x_data = species_data['Diam 130cm'].values
-                y_data = species_data['Altezza indicativa'].values
-
-                # Create interpolation function using numpy interp
-                height_functions[species] = lambda x, x_data=x_data, y_data=y_data: np.interp(x, x_data, y_data)
-
-    elif method == 'fit':
-        # Use fitted logarithmic curves like interpolate.py does
+            data = (df[df['Genere'] == species].dropna(subset=['Diam 130cm', 'Altezza indicativa'])
+                    .sort_values('Diam 130cm'))
+            hfuncs[species] = (lambda x,
+                                xvec=data['Diam 130cm'].values, yvec=data['Altezza indicativa'].values:
+                                np.interp(x, xvec, yvec)) # type: ignore
+    elif height_method == 'regressione':
         for species in df['Genere'].unique():
-            species_data = df[df['Genere'] == species]
-
-            # Get non-missing data for fitting
-            fit_data = species_data.dropna(subset=['Altezza indicativa', 'Diam 130cm'])
-
-            if len(fit_data) < 2:
-                continue
-
-            x_fit = fit_data['Diam 130cm'].values
-            y_fit = fit_data['Altezza indicativa'].values
-
-            params, r2, _ = fit_logarithmic_curve(x_fit, y_fit)
+            data = (df[df['Genere'] == species]
+                    .dropna(subset=['Altezza indicativa', 'Diam 130cm']))
+            params, r2, _ = fit_logarithmic_curve(data['Diam 130cm'].values,
+                                                  data['Altezza indicativa'].values)
             if params is not None:
                 a, b = params
-                height_functions[species] = lambda x, a=a, b=b: a * np.log(np.maximum(x, 0.1)) + b
-                print(f"{species:15}: y = {a:.4f}*ln(x) + {b:.4f}, R² = {r2:.4f} ({len(fit_data)} points)")
+                hfuncs[species] = lambda x, a=a, b=b: a * np.log(np.maximum(x, 0.1)) + b
+                print(f"{species:15}: y = {a:.4f}*ln(x) + {b:.4f}, R² = {r2:.4f} ({len(data)} punti)")
+    else:
+        raise ValueError(f"Metodo di interpolazione altezze non valido: {height_method}")
 
-    return height_functions
+    return hfuncs
 
 def create_ci(trees: pd.DataFrame, region: pd.Series, color_map: dict, output_dir: str,
-              height_functions: dict = None) -> list:
+              hfuncs: dict) -> list:
     """
     Create a scatter plot for a specific region (parcel or compresa) showing height vs diameter class relationship
     with logarithmic fit for each species
@@ -285,20 +274,17 @@ def create_ci(trees: pd.DataFrame, region: pd.Series, color_map: dict, output_di
     compresa = region['Compresa']
     particella = region.get('Particella', None)
 
-    if particella is not None:
-        region_data = trees[(trees['Compresa'] == compresa) & (trees['Particella'] == particella)]
-        filename = f"{compresa}_{region['sort_key']}_curve-ipsometriche.png"
-        title = f'Curve ipsometriche - {compresa} Particella {particella}'
-        print_name = f"{compresa}-{particella}"
-    else:
+    if particella is None:
         region_data = trees[trees['Compresa'] == compresa]
-        filename = f"{compresa}_curve-ipsometriche.png"
         title = f'Curve ipsometriche - {compresa}'
         print_name = compresa
+    else:
+        region_data = trees[(trees['Compresa'] == compresa) & (trees['Particella'] == particella)]
+        title = f'Curve ipsometriche - {compresa} Particella {particella}'
+        print_name = f"{compresa}-{particella}"
+    filename = f"{region['sort_key']}_curve-ipsometriche.png"
 
     assert len(region_data) > 0, f"Nessun dato per {print_name}"
-
-    filepath = Path(output_dir) / filename
     print(f"Generazione grafico ipsometrico per {print_name}...")
 
     fig, ax = plt.subplots(figsize=(4, 3))
@@ -311,10 +297,10 @@ def create_ci(trees: pd.DataFrame, region: pd.Series, color_map: dict, output_di
         x = species_data['Classe diametrica'].values
 
         # Use interpolated heights if available, otherwise use original h(m)
-        if height_functions and species in height_functions:
+        if hfuncs and species in hfuncs:
             # Get D(cm) values and apply interpolation function
             d_cm = species_data['D(cm)'].values
-            y = np.array([height_functions[species](d) for d in d_cm])
+            y = np.array([hfuncs[species](d) for d in d_cm])
         else:
             y = species_data['h(m)'].values
 
@@ -383,6 +369,8 @@ Altezza media: {locale.format_string('%.1f', region_data["h(m)"].mean())} m""".s
                 fontsize=5, bbox=dict(boxstyle='round', facecolor='#f0f0f0', alpha=0.8, linewidth=0.2))
 
     plt.tight_layout()
+
+    filepath = Path(output_dir) / filename
     plt.savefig(filepath, bbox_inches='tight')
     print(f"Saved scatter plot for {print_name} to {filepath}")
     plt.close(fig)
@@ -426,7 +414,7 @@ def generate_html_index_ci(files: list, output_dir: str) -> None:
 </body>
 </html>''')
 
-def regions_dataframe(alberi_fustaia : pd.DataFrame, particelle : pd.DataFrame, per_particella : bool) -> pd.DataFrame:
+def regions_dataframe(alberi_fustaia: pd.DataFrame, particelle: pd.DataFrame, per_particella: bool) -> pd.DataFrame:
     """Create a dataframe with region data"""
     groupby = ['Compresa', 'Particella'] if per_particella else ['Compresa']
     trees = (alberi_fustaia.groupby(groupby)
@@ -442,6 +430,7 @@ def regions_dataframe(alberi_fustaia : pd.DataFrame, particelle : pd.DataFrame, 
     if per_particella:
         df['sort_key'] = df['Particella'].apply(
             lambda x: (f"{x}=" if str(x)[-1].isdigit() else str(x)).zfill(3))
+        df['sort_key'] = df['Compresa'] + '-' + df['sort_key']
         print(f"Modalità per particella: {len(df)} particelle")
     else:
         df['sort_key'] = df['Compresa']
@@ -493,22 +482,12 @@ def main():
     # Create region data (either per particella or per compresa)
     regions = regions_dataframe(alberi_fustaia, particelle, args.per_particella)
 
-    # Create height interpolation functions if processing curve ipsometriche
-    height_functions = {}
-    if curve_ipsometriche:
-        print(f"Creating height interpolation functions using method '{args.height_method}'...")
-        height_functions = create_height_interpolation_functions(
-            alsometrie_file=args.alsometrie_file,
-            method=args.height_method,
-            interpolation=args.interpolation
-        )
-
     if classi_diametriche:
         output_dir = Path(args.prefisso_output) / 'classi-diametriche'
         os.makedirs(output_dir, exist_ok=True)
 
         files = []
-        for _, row in regions.iterrows():
+        for _, row in regions.sort_values(['sort_key']).iterrows():
             files.append(create_cd(alberi_fustaia, row, color_map, output_dir))
 
         generate_html_index_cd(files, output_dir)
@@ -518,9 +497,17 @@ def main():
         output_dir = Path(args.prefisso_output) / 'curve-ipsometriche'
         os.makedirs(output_dir, exist_ok=True)
 
+        hfuncs = {}
+        print(f"Creazione funzioni di interpolazione altezze usando metodo '{args.metodo_altezze}'...")
+        hfuncs = height_interpolation_functions(
+            alsometrie_file=args.file_alsometrie,
+            height_method=args.metodo_altezze,
+            interpolation_method=args.interpolazione
+        )
+
         files = []
-        for _, row in regions.iterrows():
-            files.append(create_ci(alberi_fustaia, row, color_map, output_dir, height_functions))
+        for _, row in regions.sort_values(['sort_key']).iterrows():
+            files.append(create_ci(alberi_fustaia, row, color_map, output_dir, hfuncs))
 
         generate_html_index_ci(files, output_dir)
         print(f"Curve ipsometriche salvate in '{output_dir}'")
@@ -529,22 +516,14 @@ def main():
         print(f"\nAnalisi completata.")
         print("\nRiepilogo:")
 
-        if args.per_particella:
-            for _, row in regions.sort_values(['sort_key']).iterrows():
-                trees_per_ha = row['estimated_total'] / row['area_ha']
-                print(f"  {row['Compresa']} - Particella {row['Particella']}: "
-                    f"{row['sampled_trees']} alberi campionati, "
-                    f"{row['sample_areas']} aree saggio, "
-                    f"{locale.format_string('%.2f', row['area_ha'])} ha → "
-                    f"Stima totale: {row['estimated_total']:n} alberi ({round(trees_per_ha):n} alberi/ha)")
-        else:
-            for _, row in regions.iterrows():
-                trees_per_ha = row['estimated_total'] / row['area_ha']
-                print(f"  {row['Compresa']}: "
-                    f"{row['sampled_trees']} alberi campionati, "
-                    f"{row['sample_areas']} aree saggio, "
-                    f"{locale.format_string('%.2f', row['area_ha'])} ha → "
-                    f"Stima totale: {row['estimated_total']:n} alberi ({round(trees_per_ha):n} alberi/ha)")
+        for _, row in regions.sort_values(['sort_key']).iterrows():
+            trees_per_ha = row['estimated_total'] / row['area_ha']
+            label = f"{row['Compresa']} - Particella {row['Particella']}" if args.per_particella else row['Compresa']
+            print(f"  {label}: "
+                f"{row['sampled_trees']} alberi campionati, "
+                f"{row['sample_areas']} aree saggio, "
+                f"{locale.format_string('%.2f', row['area_ha'])} ha → "
+                f"Stima totale: {row['estimated_total']:n} alberi ({round(trees_per_ha):n} alberi/ha)")
 
 if __name__ == "__main__":
     main()
