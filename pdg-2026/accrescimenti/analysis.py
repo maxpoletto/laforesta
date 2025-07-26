@@ -266,7 +266,7 @@ def height_interpolation_functions(alsometrie_file: str, height_method: str, int
     return hfuncs
 
 def create_ci(trees: pd.DataFrame, region: pd.Series, color_map: dict, output_dir: str,
-              hfuncs: dict) -> list:
+              hfuncs: dict, omit_unknown: bool) -> list:
     """
     Create a scatter plot for a specific region (parcel or compresa) showing height vs diameter class relationship
     with logarithmic fit for each species
@@ -295,6 +295,11 @@ def create_ci(trees: pd.DataFrame, region: pd.Series, color_map: dict, output_di
     for species in species_list:
         species_data = region_data[region_data['Genere'] == species]
         x = species_data['Classe diametrica'].values
+
+        # Skip species not present in alsometrie if requested (generate only "clean" curves)
+        if hfuncs and species not in hfuncs and omit_unknown:
+            print(f"Genere {species} non presente nel file alsometrie, omesso dalle curve ipsometriche")
+            continue
 
         # Use interpolated heights if available, otherwise use original h(m)
         if hfuncs and species in hfuncs:
@@ -444,24 +449,29 @@ def main():
     """
     parser = argparse.ArgumentParser(description='Analisi accrescimenti', add_help=False)
     parser.add_argument('-h', '--help', action='store_true', help='Mostra questo messaggio e esci')
-    parser.add_argument('--solo-classi-diametriche', action='store_true',
+    g1 = parser.add_argument_group('Tipo e granularità dei risultati')
+    g1.add_argument('--solo-classi-diametriche', action='store_true',
                         help='Genera solo istogrammi classi diametriche')
-    parser.add_argument('--solo-curve-ipsometriche', action='store_true',
+    g1.add_argument('--solo-curve-ipsometriche', action='store_true',
                         help='Genera solo curve ipsometriche')
-    parser.add_argument('--metodo-altezze', type=str, choices=['regressione', 'interpolazione', 'originali'], default='originali',
-                        help='Metodo per calcolare le altezze: regressione (logaritmica) o interpolazione o usare i valori originali')
-    parser.add_argument('--interpolazione', type=str, default='quadratic',
-                        help='Metodo di interpolazione quando si usa il metodo di interpolazione ("cubic", "quadratic", "linear")')
-    parser.add_argument('--file-alsometrie', type=str, default='alsometrie.csv',
-                        help='File con le altezze da tabelle alsometriche')
-    parser.add_argument('--file-alberi', type=str, default='alberi.csv',
-                        help='File con i dati degli alberi')
-    parser.add_argument('--file-particelle', type=str, default='particelle.csv',
-                        help='File con i dati delle particelle')
-    parser.add_argument('--prefisso-output', type=str, default='',
-                        help='Prefisso per i file di output')
-    parser.add_argument('--per-particella', action='store_true',
+    g1.add_argument('--per-particella', action='store_true',
                         help='Genera risultati per ogni coppia (compresa, particella) (default: solo per compresa)')
+    g2 = parser.add_argument_group('Altezze per curve ipsometriche')
+    g2.add_argument('--metodo-altezze', type=str, choices=['regressione', 'interpolazione', 'originali'], default='originali',
+                        help='Metodo per calcolare le altezze: regressione (logaritmica) o interpolazione o usare i valori originali')
+    g2.add_argument('--interpolazione', type=str, default='quadratic',
+                        help='Metodo di interpolazione quando si usa il metodo di interpolazione ("cubic", "quadratic", "linear")')
+    g2.add_argument('--ometti-generi-sconosciuti', action='store_true',
+                        help='Omette generi non presenti nel file alsometrie dalle curve ipsometriche')
+    g3 = parser.add_argument_group('Nomi dei file')
+    g3.add_argument('--file-alsometrie', type=str, default='alsometrie.csv',
+                        help='File con le altezze da tabelle alsometriche')
+    g3.add_argument('--file-alberi', type=str, default='alberi.csv',
+                        help='File con i dati degli alberi')
+    g3.add_argument('--file-particelle', type=str, default='particelle.csv',
+                        help='File con i dati delle particelle')
+    g3.add_argument('--prefisso-output', type=str, default='',
+                        help='Prefisso per i file di output')
 
     args = parser.parse_args()
     if args.help:
@@ -491,7 +501,8 @@ def main():
 
         files = []
         for _, row in regions.sort_values(['sort_key']).iterrows():
-            files.append(create_cd(alberi_fustaia, row, color_map, output_dir))
+            files.append(create_cd(trees=alberi_fustaia, region=row,
+                                   color_map=color_map, output_dir=output_dir))
 
         generate_html_index_cd(files, output_dir)
         print(f"Istogrammi classi diametriche salvati in '{output_dir}'")
@@ -510,7 +521,9 @@ def main():
 
         files = []
         for _, row in regions.sort_values(['sort_key']).iterrows():
-            files.append(create_ci(alberi_fustaia, row, color_map, output_dir, hfuncs))
+            files.append(create_ci(trees=alberi_fustaia, region=row,
+                                   color_map=color_map, output_dir=output_dir,
+                                   hfuncs=hfuncs, omit_unknown=args.ometti_generi_sconosciuti))
 
         generate_html_index_ci(files, output_dir)
         print(f"Curve ipsometriche salvate in '{output_dir}'")
