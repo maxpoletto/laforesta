@@ -1,100 +1,100 @@
 ﻿Genere,Diam base,Diam 130cm,Volume dendrometrico,Volume cormometrico,Altezza indicativa
-Abete bianco,11,10,0.045,0.030,8
-Abete bianco,12,11,0.055,0.045,
-Abete bianco,13,12,0.070,0.060,
-Abete bianco,14,13,0.090,0.075,10
-Abete bianco,15,14,0.115,0.098,
-Abete bianco,17,15,0.140,0.122,12.5
-Abete bianco,18,16,0.169,0.148,
-Abete bianco,19,17,0.198,0.174,
-Abete bianco,21,18,0.228,0.200,
-Abete bianco,22,19,0.258,0.226,
-Abete bianco,23,20,0.288,0.252,14
-Abete bianco,24,21,0.337,0.293,
-Abete bianco,26,22,0.386,0.334,
-Abete bianco,27,23,0.435,0.376,
-Abete bianco,28,24,0.484,0.418,
-Abete bianco,29,25,0.533,0.460,16.8
-Abete bianco,30,26,0.593,0.511,
-Abete bianco,31,27,0.653,0.562,
-Abete bianco,33,28,0.713,0.613,
-Abete bianco,34,29,0.773,0.664,
-Abete bianco,35,30,0.833,0.716,18.7
-Abete bianco,37,31,0.911,0.781,
-Abete bianco,38,32,0.989,0.846,
-Abete bianco,39,33,1.067,0.911,
-Abete bianco,40,34,1.145,0.977,
-Abete bianco,41,35,1.223,1.043,22
-Abete bianco,43,36,1.318,1.117,
-Abete bianco,44,37,1.413,1.191,
-Abete bianco,45,38,1.508,1.265,
-Abete bianco,47,39,1.604,1.339,
-Abete bianco,48,40,1.700,1.414,24.8
-Abete bianco,49,41,1.804,1.514,
-Abete bianco,50,42,1.908,1.614,
-Abete bianco,52,43,2.012,1.714,
-Abete bianco,53,44,2.116,1.814,
-Abete bianco,54,45,2.220,1.915,26
-Abete bianco,55,46,2.328,2.005,
-Abete bianco,57,47,2.436,2.123,
-Abete bianco,58,48,2.544,2.241,
-Abete bianco,59,49,2.652,2.359,
-Abete bianco,60,50,2.760,2.477,28
-Abete bianco,62,51,2.872,2.599,
-Abete bianco,63,52,2.984,2.721,
-Abete bianco,64,53,3.096,2.843,
-Abete bianco,65,54,3.208,2.965,
-Abete bianco,66,55,3.320,3.087,29.8
-Abete bianco,68,56,3.444,3.202,
-Abete bianco,69,57,3.568,3.317,
-Abete bianco,70,58,3.692,3.432,
-Abete bianco,72,59,3.816,3.547,
-Abete bianco,73,60,3.940,3.662,30.7
-Abete bianco,74,61,4.074,3.796,
-Abete bianco,75,62,4.208,3.930,
-Abete bianco,77,63,4.342,4.065,
-Abete bianco,78,64,4.476,4.205,
-Abete bianco,79,65,4.610,4.335,32
-Abete bianco,80,66,4.750,4.470,
-Abete bianco,81,67,4.890,4.605,
-Abete bianco,83,68,5.030,4.740,
-Abete bianco,84,69,5.170,4.875,
-Abete bianco,85,70,5.310,5.010,32.9
-Abete bianco,86,71,5.452,5.146,
-Abete bianco,88,72,5.594,5.282,
-Abete bianco,89,73,5.736,5.418,
-Abete bianco,90,74,5.878,5.554,
-Abete bianco,92,75,6.020,5.690,33.4
-Abete bianco,93,76,6.193,5.828,
-Abete bianco,94,77,6.366,5.966,
-Abete bianco,95,78,6.539,6.104,
-Abete bianco,97,79,6.712,6.242,
-Abete bianco,98,80,6.885,6.380,34
-Abete bianco,99,81,7.059,6.519,
-Abete bianco,100,82,7.133,6.658,
-Abete bianco,101,83,7.307,6.797,
-Abete bianco,103,84,7.481,6.936,
-Abete bianco,104,85,7.755,7.075,34.1
-Abete bianco,105,86,7.931,7.217,
-Abete bianco,106,87,8.107,7.359,
-Abete bianco,108,88,8.283,7.501,
-Abete bianco,109,89,8.459,7.644,
-Abete bianco,110,90,8.635,7.787,34.1
-Abete bianco,111,91,8.818,7.953,
-Abete bianco,113,92,9.001,8.119,
-Abete bianco,114,93,9.185,8.285,
-Abete bianco,115,94,9.369,8.451,
-Abete bianco,116,95,9.553,8.617,33.2
-Abete bianco,117,96,9.740,8.785,
-Abete bianco,119,97,9.927,8.953,
-Abete bianco,120,98,10.115,9.121,
-Abete bianco,121,99,10.303,9.289,
-Abete bianco,122,100,10.491,9.457,32.7
-Abete bianco,124,101,10.681,9.645,
-Abete bianco,125,102,10.871,9.833,
-Abete bianco,126,103,11.061,10.022,
-Abete bianco,127,104,11.251,10.211,
-Abete bianco,128,105,11.441,10.400,32.5
+Abete,11,10,0.045,0.030,8
+Abete,12,11,0.055,0.045,
+Abete,13,12,0.070,0.060,
+Abete,14,13,0.090,0.075,10
+Abete,15,14,0.115,0.098,
+Abete,17,15,0.140,0.122,12.5
+Abete,18,16,0.169,0.148,
+Abete,19,17,0.198,0.174,
+Abete,21,18,0.228,0.200,
+Abete,22,19,0.258,0.226,
+Abete,23,20,0.288,0.252,14
+Abete,24,21,0.337,0.293,
+Abete,26,22,0.386,0.334,
+Abete,27,23,0.435,0.376,
+Abete,28,24,0.484,0.418,
+Abete,29,25,0.533,0.460,16.8
+Abete,30,26,0.593,0.511,
+Abete,31,27,0.653,0.562,
+Abete,33,28,0.713,0.613,
+Abete,34,29,0.773,0.664,
+Abete,35,30,0.833,0.716,18.7
+Abete,37,31,0.911,0.781,
+Abete,38,32,0.989,0.846,
+Abete,39,33,1.067,0.911,
+Abete,40,34,1.145,0.977,
+Abete,41,35,1.223,1.043,22
+Abete,43,36,1.318,1.117,
+Abete,44,37,1.413,1.191,
+Abete,45,38,1.508,1.265,
+Abete,47,39,1.604,1.339,
+Abete,48,40,1.700,1.414,24.8
+Abete,49,41,1.804,1.514,
+Abete,50,42,1.908,1.614,
+Abete,52,43,2.012,1.714,
+Abete,53,44,2.116,1.814,
+Abete,54,45,2.220,1.915,26
+Abete,55,46,2.328,2.005,
+Abete,57,47,2.436,2.123,
+Abete,58,48,2.544,2.241,
+Abete,59,49,2.652,2.359,
+Abete,60,50,2.760,2.477,28
+Abete,62,51,2.872,2.599,
+Abete,63,52,2.984,2.721,
+Abete,64,53,3.096,2.843,
+Abete,65,54,3.208,2.965,
+Abete,66,55,3.320,3.087,29.8
+Abete,68,56,3.444,3.202,
+Abete,69,57,3.568,3.317,
+Abete,70,58,3.692,3.432,
+Abete,72,59,3.816,3.547,
+Abete,73,60,3.940,3.662,30.7
+Abete,74,61,4.074,3.796,
+Abete,75,62,4.208,3.930,
+Abete,77,63,4.342,4.065,
+Abete,78,64,4.476,4.205,
+Abete,79,65,4.610,4.335,32
+Abete,80,66,4.750,4.470,
+Abete,81,67,4.890,4.605,
+Abete,83,68,5.030,4.740,
+Abete,84,69,5.170,4.875,
+Abete,85,70,5.310,5.010,32.9
+Abete,86,71,5.452,5.146,
+Abete,88,72,5.594,5.282,
+Abete,89,73,5.736,5.418,
+Abete,90,74,5.878,5.554,
+Abete,92,75,6.020,5.690,33.4
+Abete,93,76,6.193,5.828,
+Abete,94,77,6.366,5.966,
+Abete,95,78,6.539,6.104,
+Abete,97,79,6.712,6.242,
+Abete,98,80,6.885,6.380,34
+Abete,99,81,7.059,6.519,
+Abete,100,82,7.133,6.658,
+Abete,101,83,7.307,6.797,
+Abete,103,84,7.481,6.936,
+Abete,104,85,7.755,7.075,34.1
+Abete,105,86,7.931,7.217,
+Abete,106,87,8.107,7.359,
+Abete,108,88,8.283,7.501,
+Abete,109,89,8.459,7.644,
+Abete,110,90,8.635,7.787,34.1
+Abete,111,91,8.818,7.953,
+Abete,113,92,9.001,8.119,
+Abete,114,93,9.185,8.285,
+Abete,115,94,9.369,8.451,
+Abete,116,95,9.553,8.617,33.2
+Abete,117,96,9.740,8.785,
+Abete,119,97,9.927,8.953,
+Abete,120,98,10.115,9.121,
+Abete,121,99,10.303,9.289,
+Abete,122,100,10.491,9.457,32.7
+Abete,124,101,10.681,9.645,
+Abete,125,102,10.871,9.833,
+Abete,126,103,11.061,10.022,
+Abete,127,104,11.251,10.211,
+Abete,128,105,11.441,10.400,32.5
 Faggio,11,10,0.062,0.045,11
 Faggio,13,11,0.074,0.054,
 Faggio,14,12,0.086,0.063,
@@ -267,118 +267,118 @@ Castagno,,61,2.396,2.109,
 Castagno,,62,2.464,2.181,
 Castagno,,63,2.532,2.253,
 Castagno,,64,2.6,2.326,
-Douglasia,,10,0,,
-Douglasia,,11,0,,
-Douglasia,,12,0,,
-Douglasia,,13,0,,
-Douglasia,,14,0,,
-Douglasia,,15,0,,
-Douglasia,,16,0,,
-Douglasia,,17,0,,
-Douglasia,,18,0,,
-Douglasia,,19,0,,
-Douglasia,,20,0,,
-Douglasia,,21,0,,
-Douglasia,,22,0,,
-Douglasia,,23,0.3737385,,18
-Douglasia,,24,0,,
-Douglasia,,25,0,,
-Douglasia,,26,0,,
-Douglasia,,27,0.572265,,20
-Douglasia,,28,0,,
-Douglasia,,29,0.5941665,,18
-Douglasia,,30,0,,
-Douglasia,,31,0.71666575,,19
-Douglasia,,32,0.80384,,20
-Douglasia,,33,0,,
-Douglasia,,34,0.998206,,22
-Douglasia,,35,0,,
-Douglasia,,36,1.169964,,23
-Douglasia,,37,0,,
-Douglasia,,38,0,,
-Douglasia,,39,0,,
-Douglasia,,40,1.3816,,22
-Douglasia,,41,0,,
-Douglasia,,42,1.453977,,21
-Douglasia,,43,1.5966115,,22
-Douglasia,,44,0,,
-Douglasia,,45,0,,
-Douglasia,,46,0,,
-Douglasia,,47,0,,
-Douglasia,,48,0,,
-Douglasia,,49,2.0732635,,22
-Douglasia,,50,0,,
-Douglasia,,51,0,,
-Douglasia,,52,0,,
-Douglasia,,53,2.646078,,24
-Douglasia,,54,0,,
-Douglasia,,55,0,,
-Douglasia,,56,0,,
-Douglasia,,57,0,,
-Douglasia,,58,0,,
-Douglasia,,59,0,,
-Douglasia,,60,0,,
-Douglasia,,61,0,,
-Douglasia,,62,0,,
-Douglasia,,63,0,,
-Douglasia,,64,4.0192,,25
-Douglasia,,65,4.643275,,28
-Douglasia,,66,0,,
-Douglasia,,67,0,,
-Douglasia,,68,4.5373,,25
-Douglasia,,69,0,,
-Douglasia,,70,0,,
-Douglasia,,71,0,,
-Douglasia,,72,5.697216,,28
-Douglasia,,73,0,,
-Douglasia,,74,0,,
-Douglasia,,75,0,,
-Douglasia,,76,0,,
-Douglasia,,77,0,,
-Douglasia,,78,7.16391,,30
-Douglasia,,79,0,,
-Douglasia,,80,8.0384,,32
-Douglasia,,81,0,,
-Douglasia,,82,0,,
-Douglasia,,83,8.652584,,32
-Douglasia,,84,0,,
-Douglasia,,85,0,,
-Douglasia,,86,0,,
-Douglasia,,87,0,,
-Douglasia,,88,0,,
-Douglasia,,89,0,,
-Douglasia,,90,0,,
-Douglasia,,91,0,,
-Douglasia,,92,0,,
-Douglasia,,93,0,,
-Douglasia,,94,0,,
-Douglasia,,95,0,,
-Douglasia,,96,0,,
-Douglasia,,97,12.5563105,,34
-Douglasia,,98,0,,
-Douglasia,,99,0,,
-Douglasia,,100,0,,
-Douglasia,,101,0,,
-Douglasia,,102,0,,
-Douglasia,,103,0,,
-Douglasia,,104,0,,
-Douglasia,,105,0,,
-Douglasia,,106,0,,
-Douglasia,,107,0,,
-Douglasia,,108,0,,
-Douglasia,,109,0,,
-Douglasia,,110,0,,
-Douglasia,,111,0,,
-Douglasia,,112,0,,
-Douglasia,,113,0,,
-Douglasia,,114,17.343162,,34
-Douglasia,,115,0,,
-Douglasia,,116,0,,
-Douglasia,,117,0,,
-Douglasia,,118,0,,
-Douglasia,,119,0,,
-Douglasia,,120,0,,
-Douglasia,,121,0,,
-Douglasia,,122,0,,
-Douglasia,,123,0,,
-Douglasia,,124,0
+Douglas,,10,0,,
+Douglas,,11,0,,
+Douglas,,12,0,,
+Douglas,,13,0,,
+Douglas,,14,0,,
+Douglas,,15,0,,
+Douglas,,16,0,,
+Douglas,,17,0,,
+Douglas,,18,0,,
+Douglas,,19,0,,
+Douglas,,20,0,,
+Douglas,,21,0,,
+Douglas,,22,0,,
+Douglas,,23,0.3737385,,18
+Douglas,,24,0,,
+Douglas,,25,0,,
+Douglas,,26,0,,
+Douglas,,27,0.572265,,20
+Douglas,,28,0,,
+Douglas,,29,0.5941665,,18
+Douglas,,30,0,,
+Douglas,,31,0.71666575,,19
+Douglas,,32,0.80384,,20
+Douglas,,33,0,,
+Douglas,,34,0.998206,,22
+Douglas,,35,0,,
+Douglas,,36,1.169964,,23
+Douglas,,37,0,,
+Douglas,,38,0,,
+Douglas,,39,0,,
+Douglas,,40,1.3816,,22
+Douglas,,41,0,,
+Douglas,,42,1.453977,,21
+Douglas,,43,1.5966115,,22
+Douglas,,44,0,,
+Douglas,,45,0,,
+Douglas,,46,0,,
+Douglas,,47,0,,
+Douglas,,48,0,,
+Douglas,,49,2.0732635,,22
+Douglas,,50,0,,
+Douglas,,51,0,,
+Douglas,,52,0,,
+Douglas,,53,2.646078,,24
+Douglas,,54,0,,
+Douglas,,55,0,,
+Douglas,,56,0,,
+Douglas,,57,0,,
+Douglas,,58,0,,
+Douglas,,59,0,,
+Douglas,,60,0,,
+Douglas,,61,0,,
+Douglas,,62,0,,
+Douglas,,63,0,,
+Douglas,,64,4.0192,,25
+Douglas,,65,4.643275,,28
+Douglas,,66,0,,
+Douglas,,67,0,,
+Douglas,,68,4.5373,,25
+Douglas,,69,0,,
+Douglas,,70,0,,
+Douglas,,71,0,,
+Douglas,,72,5.697216,,28
+Douglas,,73,0,,
+Douglas,,74,0,,
+Douglas,,75,0,,
+Douglas,,76,0,,
+Douglas,,77,0,,
+Douglas,,78,7.16391,,30
+Douglas,,79,0,,
+Douglas,,80,8.0384,,32
+Douglas,,81,0,,
+Douglas,,82,0,,
+Douglas,,83,8.652584,,32
+Douglas,,84,0,,
+Douglas,,85,0,,
+Douglas,,86,0,,
+Douglas,,87,0,,
+Douglas,,88,0,,
+Douglas,,89,0,,
+Douglas,,90,0,,
+Douglas,,91,0,,
+Douglas,,92,0,,
+Douglas,,93,0,,
+Douglas,,94,0,,
+Douglas,,95,0,,
+Douglas,,96,0,,
+Douglas,,97,12.5563105,,34
+Douglas,,98,0,,
+Douglas,,99,0,,
+Douglas,,100,0,,
+Douglas,,101,0,,
+Douglas,,102,0,,
+Douglas,,103,0,,
+Douglas,,104,0,,
+Douglas,,105,0,,
+Douglas,,106,0,,
+Douglas,,107,0,,
+Douglas,,108,0,,
+Douglas,,109,0,,
+Douglas,,110,0,,
+Douglas,,111,0,,
+Douglas,,112,0,,
+Douglas,,113,0,,
+Douglas,,114,17.343162,,34
+Douglas,,115,0,,
+Douglas,,116,0,,
+Douglas,,117,0,,
+Douglas,,118,0,,
+Douglas,,119,0,,
+Douglas,,120,0,,
+Douglas,,121,0,,
+Douglas,,122,0,,
+Douglas,,123,0,,
+Douglas,,124,0
