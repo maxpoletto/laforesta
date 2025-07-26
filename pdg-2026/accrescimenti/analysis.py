@@ -142,6 +142,7 @@ def create_cd(trees: pd.DataFrame, region: pd.Series, color_map: dict, output_di
     max_class = trees['Classe diametrica'].max()
     ax.set_xlim(-0.5, max_class + 0.5)
     ax.set_xticks(range(0, max_class + 1, 2))
+    ax.set_ylim(0, counts.sum(axis=1).max() * 1.1)
     ax.grid(True, alpha=0.3, axis='y')
     ax.set_axisbelow(True)
     ax.legend(title='Specie', bbox_to_anchor=(1.01, 1.02),
