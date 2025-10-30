@@ -9,7 +9,7 @@ all: dati
 alsometrie-calcolate.csv: analysis.py alsometrie.csv
 	python3 analysis.py --genera-alsometrie-calcolate --metodo-altezze interpolazione --file-alsometrie-calcolate alsometrie-calcolate.csv
 
-datialtezze-calcolate.csv: analysis.py alberi.csv alsometrie.csv
+altezze-calcolate.csv: analysis.py alberi.csv alsometrie.csv
 	python3 analysis.py --genera-alberi-altezze-calcolate --metodo-altezze interpolazione --file-alberi-calcolati alberi-calcolati.csv
 
 cd-per-compresa: analysis.py alberi.csv particelle.csv
