@@ -40,6 +40,9 @@ sync:
 	ssh laforesta.it "mkdir -p /var/www/laforestadotit/html/pdg-2026/accrescimenti"
 	rsync -avz -e ssh . laforesta.it:/var/www/laforestadotit/html/pdg-2026/accrescimenti/
 
+alberi-modello.png: alberi-modello.py
+	python $<
+
 alsometrie.png: interpolate.py alsometrie.csv
 	python $<
 
