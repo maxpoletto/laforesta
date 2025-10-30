@@ -4,8 +4,8 @@ import sys
 import pandas as pd
 import numpy as np
 from scipy import stats
+import argparse
 
-# Suppress scientific notation in numpy output
 #np.set_printoptions(suppress=True, precision=2)
 
 cov = {
@@ -109,11 +109,9 @@ s2 = {
     'Sorbo': 4.0506e-5, # Come il ciliegio ("Altre latifoglie", Tabacchi p.400).
 }
 
-# Make covariance matrices symmetric (they are entered as lower triangular)
-print("Making covariance matrices symmetric...")
+# Make covariance matrices symmetric
 for genere in cov:
     cov_matrix = cov[genere]
-    # Add the transpose, then subtract the diagonal (to avoid doubling it)
     cov[genere] = cov_matrix + cov_matrix.T - np.diag(np.diag(cov_matrix))
 
 # Compute b arrays as transposes of bt (making them column vectors)
@@ -121,142 +119,157 @@ b = {}
 for genere in bt:
     b[genere] = bt[genere].reshape(-1, 1)  # Convert to column vector (n x 1)
 
-print(f"Prepared {len(b)} coefficient vectors (b)")
-print(f"Prepared {len(cov)} covariance matrices")
-print(f"Prepared {len(s2)} variance scalars (s2)")
+# Parse command line arguments
+parser = argparse.ArgumentParser(description='Calculate forest volume with confidence intervals')
+parser.add_argument('csv_file', help='CSV file with tree data (DatiBase table)')
+parser.add_argument('-v', '--verbose', action='store_true', help='Show detailed calculations for each group')
+args = parser.parse_args()
 
-if len(sys.argv) < 2:
-    print("Usage: python calcolo-volumi.py <csv_file.csv>")
-    print("  Expects a CSV file (e.g., exported from Excel DatiBase table)")
-    sys.exit(1)
-
-csv_file = sys.argv[1]
+csv_file = args.csv_file
+verbose = args.verbose
 
 # Read CSV file
 try:
-    print(f"Reading from {csv_file}...")
     df_table = pd.read_csv(csv_file)
 except Exception as e:
     print(f"Error reading file: {e}")
     sys.exit(2)
 
 # Print statistics about the df_table
-print("Statistiche sulla tabella 'Dati Base':")
-print(f"- Numero di righe: {df_table.shape[0]}")
-print(f"- Numero di colonne: {df_table.shape[1]}")
-print(f"- Nomi colonne: {list(df_table.columns)}")
-print("\nStatistiche descrittive (valori numerici):")
-print(df_table.describe(include='all'))
+if verbose:
+    print("\nStatistiche sulla tabella 'Dati Base':")
+    print(f"- Numero di righe: {df_table.shape[0]}")
+    print(f"- Numero di colonne: {df_table.shape[1]}")
+    print(f"- Nomi colonne: {list(df_table.columns)}")
+    print("\nStatistiche descrittive (valori numerici):")
+    print(df_table.describe(include='all'))
 
 # Group data by Compresa, Particella, and Genere
-print("\n" + "="*80)
-print("Raggruppamento per Compresa - Particella - Genere")
-print("="*80)
-
 grouped = df_table.groupby(['Compresa', 'Particella', 'Genere'])
 
-print(f"\nNumero totale di gruppi: {len(grouped)}")
+if verbose:
+    print(f"\nRaggruppamento per Compresa - Particella - Genere")
+    print(f"Numero totale di gruppi: {len(grouped)}")
+
+# Store results for summary table
+results = []
 
 # Process each group
 for group_key, group_data in grouped:
     compresa, particella, genere = group_key
     n_g = len(group_data)
-    
-    print(f"\n{'='*60}")
-    print(f"Gruppo: Compresa={compresa}, Particella={particella}, Genere={genere}")
-    print(f"Numero di alberi (n_g): {n_g}")
-    
+
+    if verbose:
+        print(f"\n{'='*60}")
+        print(f"Gruppo: Compresa={compresa}, Particella={particella}, Genere={genere}")
+        print(f"Numero di alberi (n_g): {n_g}")
+
     # Check if we have coefficients for this genus
     if genere not in b:
         print(f"\n⚠️  ATTENZIONE: Coefficienti non definiti per genere '{genere}'")
         exit(1)
-    
+
     # Get coefficient vector b for this genus
     b_genere = b[genere]
-    print(f"\nVettore coefficienti b per {genere} ({b_genere.shape[0]} x {b_genere.shape[1]}):")
-    print(b_genere)
+    if verbose:
+        print(f"\nVettore coefficienti b per {genere} ({b_genere.shape[0]} x {b_genere.shape[1]}):")
+        print(b_genere)
     assert b_genere.shape[0] == 2 or b_genere.shape[0] == 3, f"Numero di coefficienti per {genere} non valido: {b_genere.shape[0]}"
-    
-    # Create D0 matrix (n_g x 2)
+
+    # Create D0 matrix
     # Column 1: all ones
-    # Column 2: D(cm)^2 * h(m) for each tree
-    # Column 3: D(cm) for each tree
     D0 = np.zeros((n_g, b_genere.shape[0]))
     D0[:, 0] = 1  # First column is all 1s
-    
-    # Calculate D^2 * h for each tree
-    # Need to extract D(cm) and h(m) columns
+
+    # Column 2: D(cm)^2 * h(m) for each tree
     D_cm = group_data['D(cm)'].values
     h_m = group_data['h(m)'].values
     D0[:, 1] = (D_cm ** 2) * h_m
+
+    # Column 3: D(cm) for each tree
     if b_genere.shape[0] == 3:
         D0[:, 2] = D_cm
 
-    # Create D1 matrix (1 x 3) - sum of all rows in D0
+    # Create D1 matrix - sum of all rows in D0
     D1 = np.sum(D0, axis=0).reshape(1, b_genere.shape[0])
-    
-    print(f"\nMatrice D0 ({n_g} x {b_genere.shape[0]}):")
-    print(D0)
-    
-    print(f"\nMatrice D1 (1 x {b_genere.shape[0]}) [somma delle righe di D0]:")
-    print(D1)
+
+    if verbose:
+        print(f"\nMatrice D0 ({n_g} x {b_genere.shape[0]}):")
+        print(D0)
+
+        print(f"\nMatrice D1 (1 x {b_genere.shape[0]}) [somma delle righe di D0]:")
+        print(D1)
 
     T0 = D1 @ b_genere / 1000 # Convert to m³
-    
-    print(f"\nVolume atteso T0 = D1 × b:")
-    print(T0)
-    print(f"  T0 = {T0[0,0]:.4f} m³")
-    
+
+    if verbose:
+        print(f"\nVolume atteso T0 = D1 × b:")
+        print(T0)
+        print(f"  T0 = {T0[0,0]:.4f} m³")
+
     # Get covariance matrix for this genus
-    if genere not in cov:
-        print(f"\n⚠️  ATTENZIONE: Matrice di varianza-covarianza non definita per genere '{genere}'")
-        exit(1)
-    
+    assert genere in cov and genere in s2, f"Genere '{genere}' non riconosciuto"
+
     cov_matrix = cov[genere]
-    print(f"\nMatrice di varianza-covarianza per {genere} ({cov_matrix.shape[0]}x{cov_matrix.shape[1]}):")
-    print(cov_matrix)
-    
-    # Check that we have s2 for this genus
-    if genere not in s2:
-        print(f"\n⚠️  ATTENZIONE: Varianza s2 non definita per genere '{genere}'")
-        exit(1)
-    
-    # Calculate 95% confidence interval
-    print(f"\n{'='*60}")
-    print("Calcolo intervallo di confidenza 95%")
-    print(f"{'='*60}")
-    
-    # Step 1: V0 = (D1 @ cov @ D1.T) * s2
+    if verbose:
+        print(f"\nMatrice di varianza-covarianza per {genere} ({cov_matrix.shape[0]}x{cov_matrix.shape[1]}):")
+        print(cov_matrix)
+
+    # Step 1: V0 = (D1 @ cov @ D1.T)
     V0 = (D1 @ cov_matrix @ D1.T)[0, 0]
-    print(f"\nV0 = varianza attesa")
-    print(f"V0 = {V0:.6e}")
-    
-    # Step 2: V1 = sum of squares of second column of D0
+    if verbose:
+        print(f"\nV0 = varianza attesa")
+        print(f"V0 = {V0:.6e}")
+
+    # Step 2: V1 = sum of squares of second column of D0 * s2
     V1 = np.sum(D0[:, 1] ** 2) * s2[genere]
-    print(f"\nV1 = varianza residua")
-    print(f"V1 = {V1:.6e}")
-    
+    if verbose:
+        print(f"\nV1 = varianza residua")
+        print(f"V1 = {V1:.6e}")
+
     # Step 3: Get t-statistic for 95% CI
     # T.INV.2T(0.05, n) in Excel = two-tailed t at alpha=0.05
     t_stat = stats.t.ppf(1 - 0.05/2, n_g)
-    print(f"\nt-statistic (α=0.05, df={n_g}):")
-    print(f"t = {t_stat:.4f}")
-    
+    if verbose:
+        print(f"\nt-statistic (α=0.05, df={n_g}):")
+        print(f"t = {t_stat:.4f}")
+
     # Step 4: Confidence interval = T0 ± t * sqrt(V0 + V1)
     margin_of_error = t_stat * np.sqrt(V0 + V1) / 1000 # Convert to m³
     ci_lower = T0[0, 0] - margin_of_error
     ci_upper = T0[0, 0] + margin_of_error
-    
-    print(f"\nMargine di errore = t * sqrt(V0 + V1) = {margin_of_error:.4f} m³")
-    print(f"\nIntervallo di confidenza 95%:")
-    print(f"  [{ci_lower:.4f}, {ci_upper:.4f}] m³")
-    
-    # Print summary
-    print(f"\n{'='*60}")
-    print("Riepilogo finale")
-    print(f"{'='*60}")
-    print(f"  Numero alberi: {n_g}")
-    print(f"  Volume totale atteso: {T0[0,0]:.4f} m³")
-    print(f"  Volume medio per albero: {T0[0,0]/n_g:.4f} m³")
-    print(f"  IC 95%: [{ci_lower:.4f}, {ci_upper:.4f}] m³")
-    print(f"  Ampiezza IC: {ci_upper - ci_lower:.4f} m³")
+
+    if verbose:
+        print(f"\nMargine di errore = t * sqrt(V0 + V1) = {margin_of_error:.4f} m³")
+        print("\nRiepilogo")
+        print(f"  Numero alberi: {n_g}")
+        print(f"  Volume totale atteso: {T0[0,0]:.4f} m³")
+        print(f"  Volume medio per albero: {T0[0,0]/n_g:.4f} m³")
+        print(f"  IF 95%: [{ci_lower:.4f}, {ci_upper:.4f}] m³")
+        print(f"  Ampiezza IC: {ci_upper - ci_lower:.4f} m³")
+
+    # Store results
+    results.append({
+        'Compresa': compresa,
+        'Particella': particella,
+        'Genere': genere,
+        'N_alberi': n_g,
+        'Volume_m3': T0[0, 0],
+        'IC_low_m3': ci_lower,
+        'IC_high_m3': ci_upper
+    })
+
+# Print summary table
+if verbose:
+    print("\n" + "="*80)
+
+print("Volumi per particella e genere")
+print("="*80)
+
+results_df = pd.DataFrame(results)
+print(results_df.to_string(index=False))
+
+print("\n" + "="*80)
+print(f"Volume totale: {results_df['Volume_m3'].sum():.4f} m³")
+print(f"IC totale: [{results_df['IC_low_m3'].sum():.4f}, {results_df['IC_high_m3'].sum():.4f}] m³")
+print("="*80)
