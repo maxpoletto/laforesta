@@ -255,8 +255,8 @@ for group_key, group_data in grouped:
         'Genere': genere,
         'N_alberi': n_g,
         'Volume_m3': T0[0, 0],
-        'IC_low_m3': ci_lower,
-        'IC_high_m3': ci_upper
+        'IF_low_m3': ci_lower,
+        'IF_high_m3': ci_upper
     })
 
 # Print summary table
@@ -271,5 +271,5 @@ print(results_df.to_string(index=False))
 
 print("\n" + "="*80)
 print(f"Volume totale: {results_df['Volume_m3'].sum():.4f} m³")
-print(f"IC totale: [{results_df['IC_low_m3'].sum():.4f}, {results_df['IC_high_m3'].sum():.4f}] m³")
+print(f"IF totale: [{results_df['IF_low_m3'].sum():.4f}, {results_df['IF_high_m3'].sum():.4f}] m³")
 print("="*80)
