@@ -91,33 +91,25 @@ for i, sp in enumerate(species):
     plt.scatter(x, y, label=sp, alpha=0.7, s=50, color=colors[i])
     
     if len(x) >= 3:
-        try:
-            # Fit the curve
-            popt, _ = curve_fit(log_func, x, y)
-            a, b = popt
-            
-            # Calculate R²
-            y_pred = log_func(x, a, b)
-            r2 = r2_score(y, y_pred)
-            
-            # Generate smooth curve for plotting
-            x_smooth = np.linspace(x.min(), x.max(), 100)
-            y_smooth = log_func(x_smooth, a, b)
-            
-            # Plot the fitted curve
-            plt.plot(x_smooth, y_smooth, '--', color=colors[i], 
-                    alpha=0.6, linewidth=2,
-                    label=f'{sp} fit (R²={r2:.3f})')
-            
-            print(f"\n{sp}:")
-            print(f"  n = {len(x)} points")
-            print(f"  y = {a:.3f}·ln(x) + {b:.3f}")
-            print(f"  R² = {r2:.3f}")
-            
-        except Exception as e:
-            print(f"\n{sp}: Could not fit curve - {e}")
+        popt, _ = curve_fit(log_func, x, y)
+        a, b = popt
+        
+        y_pred = log_func(x, a, b)
+        r2 = r2_score(y, y_pred)
+        
+        x_smooth = np.linspace(x.min(), x.max(), 100)
+        y_smooth = log_func(x_smooth, a, b)
+        
+        plt.plot(x_smooth, y_smooth, '--', color=colors[i], 
+                alpha=0.6, linewidth=2,
+                label=f'{sp} fit (R²={r2:.3f})')
+        
+        print(f"\n{sp}:")
+        print(f"  n = {len(x)}")
+        print(f"  y = {a:.3f}·ln(x) + {b:.3f}")
+        print(f"  R² = {r2:.3f}")
     else:
-        print(f"\n{sp}: Too few points ({len(x)}) for fitting")
+        print(f"\n{sp}: Troppi pochi punti ({len(x)}) per la regressione")
 
 plt.xlabel('Diametro a cm 150 (cm)', fontsize=11)
 plt.ylabel('Altezza (m)', fontsize=11)
