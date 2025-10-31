@@ -16,7 +16,7 @@ data = [
     ('Abete', 31, 23),
     ('Abete', 22, 18),
     ('Abete', 37, 28),
-    ('Abete', 5, 26),
+    ('Abete', 35, 26),
     ('Abete', 35, 26),
     ('Abete', 30, 20),
     ('Abete', 32, 15),
@@ -83,6 +83,9 @@ colors = plt.cm.tab10(np.linspace(0, 1, len(species)))
 def log_func(x, a, b):
     return a * np.log(x) + b
 
+def lin_func(x, a, b):
+    return a * x + b
+
 for i, sp in enumerate(species):
     species_data = df[df['Specie'] == sp]
     x = species_data['Diametro_cm'].values
@@ -90,15 +93,17 @@ for i, sp in enumerate(species):
     
     plt.scatter(x, y, label=sp, alpha=0.7, s=50, color=colors[i])
     
+    func = lin_func
+
     if len(x) >= 3:
-        popt, _ = curve_fit(log_func, x, y)
+        popt, _ = curve_fit(func, x, y)
         a, b = popt
         
-        y_pred = log_func(x, a, b)
+        y_pred = func(x, a, b)
         r2 = r2_score(y, y_pred)
         
         x_smooth = np.linspace(x.min(), x.max(), 100)
-        y_smooth = log_func(x_smooth, a, b)
+        y_smooth = func(x_smooth, a, b)
         
         plt.plot(x_smooth, y_smooth, '--', color=colors[i], 
                 alpha=0.6, linewidth=2,
@@ -106,7 +111,7 @@ for i, sp in enumerate(species):
         
         print(f"\n{sp}:")
         print(f"  n = {len(x)}")
-        print(f"  y = {a:.3f}·ln(x) + {b:.3f}")
+        print(f"  y = {a:.3f}·x + {b:.3f}")
         print(f"  R² = {r2:.3f}")
     else:
         print(f"\n{sp}: Troppi pochi punti ({len(x)}) per la regressione")
