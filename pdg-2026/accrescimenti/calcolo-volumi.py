@@ -265,8 +265,10 @@ for group_key, group_data in grouped:
         'Genere': genere,
         'N_alberi': n_g,
         'Volume_m3': T0[0, 0],
-        'IF_low_m3': ci_lower,
-        'IF_high_m3': ci_upper
+        'Errore': margin_of_error,
+        'Errore %': margin_of_error / T0[0, 0] * 100,
+        'IF_inf_m3': ci_lower,
+        'IF_sup_m3': ci_upper,
     })
 
 # Print summary table
@@ -279,7 +281,12 @@ print("="*80)
 results_df = pd.DataFrame(results)
 print(results_df.to_string(index=False))
 
+error_total = np.sqrt(np.sum(results_df['Errore'] ** 2))
+if verbose:
+    print(f"\n√(∑ error²): {error_total:.4f}")
+
 print("\n" + "="*80)
 print(f"Volume totale: {results_df['Volume_m3'].sum():.4f} m³")
-print(f"IF totale: [{results_df['IF_low_m3'].sum():.4f}, {results_df['IF_high_m3'].sum():.4f}] m³")
+print(f"IF totale: [{results_df['Volume_m3'].sum() - error_total:.4f}, {results_df['Volume_m3'].sum() + error_total:.4f}] m³")
+print(f"Errore % medio: {results_df['Errore %'].mean():.1f}%")
 print("="*80)
