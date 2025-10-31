@@ -181,12 +181,8 @@ for group_key, group_data in grouped:
         print(f"Gruppo: Compresa={compresa}, Particella={particella}, Genere={genere}")
         print(f"Numero di alberi (n_g): {n_g}")
 
-    # Check if we have coefficients for this genus
-    if genere not in b:
-        print(f"\n⚠️  ATTENZIONE: Coefficienti non definiti per genere '{genere}'")
-        exit(1)
+    assert genere in b and genere in ns and genere in cov and genere in s2, f"Genere '{genere}' non riconosciuto"
 
-    # Get coefficient vector b for this genus
     b_genere = b[genere]
     if verbose:
         print(f"\nVettore coefficienti b per {genere} ({b_genere.shape[0]} x {b_genere.shape[1]}):")
@@ -223,9 +219,6 @@ for group_key, group_data in grouped:
         print(f"\nVolume atteso T0 = D1 × b:")
         print(T0)
         print(f"  T0 = {T0[0,0]:.4f} m³")
-
-    # Get covariance matrix for this genus
-    assert genere in cov and genere in s2, f"Genere '{genere}' non riconosciuto"
 
     cov_matrix = cov[genere]
     if verbose:
