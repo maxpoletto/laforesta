@@ -92,6 +92,23 @@ bt = {
     'Sorbo':          np.array([  2.3118,    3.1278e-2, 3.7159e-1 ]), # Come il ciliegio ("Altre latifoglie", Tabacchi p.400).
 }
 
+ns = { # See p.16 of Tabacchi.
+    'Abete': 46,
+    'Acero': 37,
+    'Castagno': 85,
+    'Cerro': 88,
+    'Ciliegio': 22,
+    'Douglas': 35,
+    'Faggio': 91,
+    'Leccio': 83,
+    'Ontano': 35,
+    'Pino': 50,
+    'Pino Laricio': 50,
+    'Pino Marittimo': 26,
+    'Pino Nero': 63,
+    'Sorbo': 22,
+}
+
 s2 = {
     'Abete': 1.5284e-5,
     'Acero': 2.2710e-5,
@@ -229,9 +246,9 @@ for group_key, group_data in grouped:
 
     # Step 3: Get t-statistic for 95% CI
     # T.INV.2T(0.05, n) in Excel = two-tailed t at alpha=0.05
-    t_stat = stats.t.ppf(1 - 0.05/2, n_g)
+    t_stat = stats.t.ppf(1 - 0.05/2, ns[genere]-2)
     if verbose:
-        print(f"\nt-statistic (α=0.05, df={n_g}):")
+        print(f"\nt-statistic (α=0.05, df={ns[genere]-2}):")
         print(f"t = {t_stat:.4f}")
 
     # Step 4: Confidence interval = T0 ± t * sqrt(V0 + V1)
