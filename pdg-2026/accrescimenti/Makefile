@@ -2,7 +2,7 @@
 	cd-per-compresa cd-per-particella \
 	ci-originali-per-compresa ci-originali-per-particella \
 	ci-interpolate-per-compresa ci-interpolate-per-particella \
-	dati sync clean
+	dati sync clean ipsometrie
 
 all: dati
 
@@ -40,13 +40,16 @@ sync:
 	ssh laforesta.it "mkdir -p /var/www/laforestadotit/html/pdg-2026/accrescimenti"
 	rsync -avz -e ssh . laforesta.it:/var/www/laforestadotit/html/pdg-2026/accrescimenti/
 
-alberi-modello.png: alberi-modello.py
-	python $<
+ipsometrie: ipsometrie.py csv-alberi-modello.csv csv-altezze.csv
+	python $< csv-alberi-modello.csv --fit lineare -o alberi1-lineare.png
+	python $< csv-alberi-modello.csv --fit logaritmico -o alberi1-logaritmico.png
+	python $< csv-altezze.csv --fit logaritmico -o alberi2-logaritmico.png
+	python $< csv-altezze.csv --fit lineare -o alberi2-lineare.png
 
 alsometrie.png: interpolate.py alsometrie.csv
 	python $<
 
 clean:
 	rm -rf alberi-calcolati.csv alsometrie-calcolate.csv
-	rm -rf report
 	rm -rf alsometrie.png
+	rm -rf alberi1-lineare.png alberi1-logaritmico.png alberi2-lineare.png alberi2-logaritmico.png
