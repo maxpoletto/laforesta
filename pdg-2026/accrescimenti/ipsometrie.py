@@ -32,8 +32,8 @@ def main():
     parser.add_argument('csv_file', help='File CSV con 3 colonne: Specie, Diametro (cm), Altezza (m)')
     parser.add_argument('--fit', choices=['lineare', 'logaritmico'], default='logaritmico',
                         help='Tipo di fit: lineare o logaritmico (default: logaritmico)')
-    parser.add_argument('-o', '--output', default='alberi-modello.png',
-                        help='Nome del file di output (default: alberi-modello.png)')
+    parser.add_argument('-o', '--output', default='ipsometrie.png',
+                        help='Nome del file di output (default: ipsometrie.png)')
 
     args = parser.parse_args()
 
