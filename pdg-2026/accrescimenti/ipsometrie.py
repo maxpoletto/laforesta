@@ -82,7 +82,7 @@ def main():
 
             print(f"\n{sp}:")
             print(f"  n = {len(x)}")
-            if args.fit == 'linear':
+            if args.fit == 'lineare':
                 print(f"  y = {a:.3f}·x + {b:.3f}")
             else:
                 print(f"  y = {a:.3f}·ln(x) + {b:.3f}")
