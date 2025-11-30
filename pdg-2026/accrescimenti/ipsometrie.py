@@ -21,43 +21,50 @@ def load_data_from_csv(filename):
         print(f"Errore nel leggere il file: {e}")
         sys.exit(1)
 
+def load_data_from_6column_csv(filename):
+    """Load data from a 6-column CSV file with Compresa, ADS, Specie, Diametro, Altezza, Metodo."""
+    try:
+        df = pd.read_csv(filename)
+        # Filter for Metodo == '3p'
+        df = df[df['Metodo'] == '3p'].copy()
+        # Keep only relevant columns
+        df = df[['Compresa', 'Specie', 'Diametro', 'Altezza']]
+        return df
+    except FileNotFoundError:
+        print(f"Errore: File '{filename}' non trovato")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Errore nel leggere il file: {e}")
+        sys.exit(1)
+
 def log_func(x, a, b):
     return a * np.log(x) + b
 
 def lin_func(x, a, b):
     return a * x + b
 
-def main():
-    parser = argparse.ArgumentParser(description='Analisi altezza-diametro per specie arboree')
-    parser.add_argument('csv_file', help='File CSV con 3 colonne: Specie, Diametro (cm), Altezza (m)')
-    parser.add_argument('--fit', choices=['lineare', 'logaritmico'], default='logaritmico',
-                        help='Tipo di fit: lineare o logaritmico (default: logaritmico)')
-    parser.add_argument('-o', '--output', default='ipsometrie.png',
-                        help='Nome del file di output (default: ipsometrie.png)')
-
-    args = parser.parse_args()
-
-    # Load data from CSV
-    df = load_data_from_csv(args.csv_file)
-    print(f"Dati caricati da {args.csv_file}: {len(df)} osservazioni")
-
-    # Choose fit function
-    if args.fit == 'lineare':
-        func = lin_func
-        func_name = 'lineare'
-    elif args.fit == 'logaritmico':
-        func = log_func
-        func_name = 'logaritmico'
-    else:
-        print(f"Errore: Tipo di fit non valido: {args.fit}")
-        sys.exit(1)
-
+def analyze_and_plot(df, func, func_name, plot_file, fit_file=None, title_prefix=''):
+    """
+    Perform analysis and generate plot for a dataset.
+    
+    Args:
+        df: DataFrame with columns Specie, Diametro, Altezza
+        func: Fit function to use
+        func_name: Name of the fit function for display
+        plot_file: Path to save the plot
+        fit_file: Optional path to save fit results (if None, print to stdout)
+        title_prefix: Prefix for the plot title
+    """
     plt.figure(figsize=(12, 7))
  
     species = sorted(df['Specie'].unique())
  
     # Colors for consistent plotting
     colors = plt.cm.tab10(np.linspace(0, 1, len(species)))
+    
+    # Prepare fit results output
+    fit_results = []
+    fit_results.append(f"Dati: {len(df)} osservazioni\n")
  
     for i, sp in enumerate(species):
         species_data = df[df['Specie'] == sp]
@@ -80,28 +87,87 @@ def main():
                     alpha=0.6, linewidth=2,
                     label=f'{sp} fit (R²={r2:.3f})')
 
-            print(f"\n{sp}:")
-            print(f"  n = {len(x)}")
-            if args.fit == 'lineare':
-                print(f"  y = {a:.3f}·x + {b:.3f}")
+            fit_results.append(f"\n{sp}:")
+            fit_results.append(f"  n = {len(x)}")
+            if func_name == 'lineare':
+                fit_results.append(f"  y = {a:.3f}·x + {b:.3f}")
             else:
-                print(f"  y = {a:.3f}·ln(x) + {b:.3f}")
-            print(f"  R² = {r2:.3f}")
+                fit_results.append(f"  y = {a:.3f}·ln(x) + {b:.3f}")
+            fit_results.append(f"  R² = {r2:.3f}")
         else:
-            print(f"\n{sp}: Troppi pochi punti ({len(x)}) per la regressione")
+            fit_results.append(f"\n{sp}: Troppi pochi punti ({len(x)}) per la regressione")
 
     # Extract output basename without extension for title
-    output_basename = os.path.splitext(os.path.basename(args.output))[0]
+    prefix = f"${title_prefix}: " if title_prefix else ""
+    plot_title = f'{prefix}Altezza vs Diametro per Specie (con fit {func_name})'
     
     plt.xlabel('Diametro a cm 150 (cm)', fontsize=11)
     plt.ylabel('Altezza (m)', fontsize=11)
-    plt.title(f'{output_basename}: Altezza vs Diametro per Specie (con fit {func_name})', fontsize=13)
+    plt.title(plot_title, fontsize=13)
     plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=9)
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
 
-    plt.savefig(args.output, dpi=150, bbox_inches='tight')
-    print(f"\nPlot salvato in {args.output} (fit {func_name})")
+    plt.savefig(plot_file, dpi=150, bbox_inches='tight')
+    
+    # Output fit results
+    fit_text = '\n'.join(fit_results)
+    if fit_file:
+        with open(fit_file, 'w') as f:
+            f.write(fit_text + '\n')
+        print(f"Plot salvato in {plot_file}, fit salvato in {fit_file}")
+    else:
+        print(fit_text)
+        print(f"\nPlot salvato in {plot_file} (fit {func_name})")
+
+def main():
+    parser = argparse.ArgumentParser(description='Analisi altezza-diametro per specie arboree')
+    parser.add_argument('csv_file', help='File CSV con dati alberi')
+    parser.add_argument('--format', choices=['3c', '6c'], default='6c',
+                        help='Formato del CSV: 3 colonne (Specie,Diametro,Altezza) o 6 colonne (Compresa,ADS,Specie,Diametro,Altezza,Metodo)')
+    parser.add_argument('--fit', choices=['lin', 'log'], default='log',
+                        help='Tipo di fit: lineare (lin) o logaritmico (log) (default: log)')
+    parser.add_argument('-o', '--output', 
+                        help='Prefisso per i file di output (default: ipsometrie)', default='ipsometrie')
+
+    args = parser.parse_args()
+
+    # Choose fit function
+    if args.fit == 'lin':
+        func = lin_func
+        func_name = 'lineare'
+    elif args.fit == 'log':
+        func = log_func
+        func_name = 'logaritmico'
+    else:
+        print(f"Errore: Tipo di fit non valido: {args.fit}")
+        sys.exit(1)
+
+    if args.format == '3c':
+        # Original 3-column format
+        plot_file = f"{args.output}-plot.png"
+        fit_file = f"{args.output}-fit.txt"
+        df = load_data_from_csv(args.csv_file)
+        print(f"Dati caricati da {args.csv_file}: {len(df)} osservazioni")
+        analyze_and_plot(df, func, func_name, plot_file, fit_file)
+        
+    elif args.format == '6c':
+        # New 6-column format with Compresa grouping
+        prefix = f"{args.output}"
+        
+        df = load_data_from_6column_csv(args.csv_file)
+        print(f"Dati caricati da {args.csv_file}: {len(df)} osservazioni (Metodo='3p')")
+        
+        # Group by Compresa
+        comprese = sorted(df['Compresa'].unique())
+        print(f"Comprese trovate: {', '.join(str(c) for c in comprese)}\n")
+        
+        for compresa in comprese:
+            compresa_df = df[df['Compresa'] == compresa][['Specie', 'Diametro', 'Altezza']].copy()            
+            plot_file = f"{prefix}-{compresa}-plot.png"
+            fit_file = f"{prefix}-{compresa}-fit.txt"
+            analyze_and_plot(compresa_df, func, func_name, plot_file, 
+                           fit_file=fit_file, title_prefix=f"Compresa {compresa}")
 
 if __name__ == '__main__':
     main()
