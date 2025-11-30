@@ -64,7 +64,10 @@ def analyze_and_plot(df, func, func_name, plot_file, fit_file=None, title_prefix
     
     # Prepare fit results output
     fit_results = []
-    fit_results.append(f"Dati: {len(df)} osservazioni\n")
+    if title_prefix:
+        fit_results.append(f"{title_prefix}")
+    fit_results.append(f"Tipo di fit: {func_name}")
+    fit_results.append(f"Dati: {len(df)} osservazioni")
  
     for i, sp in enumerate(species):
         species_data = df[df['Specie'] == sp]
@@ -98,7 +101,7 @@ def analyze_and_plot(df, func, func_name, plot_file, fit_file=None, title_prefix
             fit_results.append(f"\n{sp}: Troppi pochi punti ({len(x)}) per la regressione")
 
     # Extract output basename without extension for title
-    prefix = f"${title_prefix}: " if title_prefix else ""
+    prefix = f"{title_prefix}: " if title_prefix else ""
     plot_title = f'{prefix}Altezza vs Diametro per Specie (con fit {func_name})'
     
     plt.xlabel('Diametro a cm 150 (cm)', fontsize=11)
