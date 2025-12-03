@@ -25,10 +25,8 @@ def load_data_from_6column_csv(filename):
     """Load data from a 6-column CSV file with Compresa, ADS, Specie, Diametro, Altezza, Metodo."""
     try:
         df = pd.read_csv(filename)
-        # Filter for Metodo == '3p'
-        df = df[df['Metodo'] == '3p'].copy()
         # Keep only relevant columns
-        df = df[['Compresa', 'Specie', 'Diametro', 'Altezza']]
+        df = df[['Compresa', 'Particella', 'Specie', 'Diametro', 'Altezza']]
         return df
     except FileNotFoundError:
         print(f"Errore: File '{filename}' non trovato")
@@ -132,6 +130,8 @@ def main():
                         help='Tipo di fit: lineare (lin) o logaritmico (log) (default: log)')
     parser.add_argument('-o', '--output', 
                         help='Prefisso per i file di output (default: ipsometrie)', default='ipsometrie')
+    parser.add_argument('--per-particella', action='store_true', default=False,
+                        help='Analisi per particella (usare solo con --format=6c)')
 
     args = parser.parse_args()
 
@@ -161,16 +161,21 @@ def main():
         df = load_data_from_6column_csv(args.csv_file)
         print(f"Dati caricati da {args.csv_file}: {len(df)} osservazioni (Metodo='3p')")
         
-        # Group by Compresa
-        comprese = sorted(df['Compresa'].unique())
-        print(f"Comprese trovate: {', '.join(str(c) for c in comprese)}\n")
-        
-        for compresa in comprese:
-            compresa_df = df[df['Compresa'] == compresa][['Specie', 'Diametro', 'Altezza']].copy()            
-            plot_file = f"{prefix}-{compresa}-plot.png"
-            fit_file = f"{prefix}-{compresa}-fit.txt"
-            analyze_and_plot(compresa_df, func, func_name, plot_file, 
-                           fit_file=fit_file, title_prefix=f"Compresa {compresa}")
+        # Group by Compresa or Particella
+        if args.per_particella:
+            group_by = 'Particella'
+        else:
+            group_by = 'Compresa'
+        regions = sorted(df[group_by].unique())
+        plural = 'Particelle' if args.per_particella else 'Comprese'
+        print(f"{plural} trovate: {', '.join(str(r) for r in regions)}\n")
+    
+        for region in regions:
+            region_df = df[df[group_by] == region][['Specie', 'Diametro', 'Altezza']].copy()            
+            plot_file = f"{prefix}-{region}-plot.png"
+            fit_file = f"{prefix}-{region}-fit.txt"
+            analyze_and_plot(region_df, func, func_name, plot_file, 
+                           fit_file=fit_file, title_prefix=f"{group_by} {region}")
 
 if __name__ == '__main__':
     main()
