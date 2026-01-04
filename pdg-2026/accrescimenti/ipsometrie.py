@@ -159,7 +159,7 @@ def main():
         prefix = f"{args.output}"
         
         df = load_data_from_6column_csv(args.csv_file)
-        print(f"Dati caricati da {args.csv_file}: {len(df)} osservazioni (Metodo='3p')")
+        print(f"Dati caricati da {args.csv_file}: {len(df)} osservazioni")
         
         # Group by Compresa or Particella
         if args.per_particella:
