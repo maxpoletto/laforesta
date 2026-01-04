@@ -7,12 +7,14 @@ import numpy as np
 import argparse
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--volume-dendrometrico', action='store_true', help='Plot volume dendrometrico')
-parser.add_argument('--volume-cormometrico', action='store_true', help='Plot volume cormometrico')
-parser.add_argument('--interpolation', type=str, help='Interpolation method', default='quadratic')
-parser.add_argument('--method', type=str, choices=['interpolate', 'fit'], default='fit',
-                    help='Method to fill missing height values: interpolate or fit')
-parser.add_argument('-i', '-input', type=str, help='Input CSV file', default='alsometrie.csv')
+parser.add_argument('--volume-dendrometrico', action='store_true', help='Visualizza volume dendrometrico')
+parser.add_argument('--volume-cormometrico', action='store_true', help='Visualizza volume cormometrico')
+parser.add_argument('--interpolazione', type=str, help='Metodo di interpolazione', default='quadratic')
+parser.add_argument('--metodo-riempimento', type=str, choices=['interpola', 'fit'], default='fit',
+                    help='Metodo per riempire i valori mancanti di altezza: interpolazione o fitting')
+parser.add_argument('-i', '-input', type=str, help='File CSV di input', default='alsometrie.csv')
+parser.add_argument('-o', '-output', type=str, help='File CSV di output', default='alsometrie-calcolate.csv')
+parser.add_argument('-p', '-plot', type=str, help='File di output per il grafico', default='alsometrie.png')
 args = parser.parse_args()
 
 def fit_logarithmic_curve(x, y) -> tuple[tuple[float, float], float]:
@@ -53,9 +55,9 @@ for col in numeric_columns:
     df[col] = pd.to_numeric(df[col], errors='coerce')
 
 # Fill missing height values based on chosen method
-if args.method == 'interpolate':
-    df['Altezza indicativa'] = df.groupby('Genere')['Altezza indicativa'].transform(lambda x: x.interpolate(method=args.interpolation))
-elif args.method == 'fit':
+if args.metodo_riempimento == 'interpola':
+    df['Altezza indicativa'] = df.groupby('Genere')['Altezza indicativa'].transform(lambda x: x.interpolate(method=args.interpolazione))
+elif args.metodo_riempimento == 'fit':
     df_filled = df.copy()
     for species in df['Genere'].unique():
         species_mask = df['Genere'] == species
@@ -69,7 +71,7 @@ elif args.method == 'fit':
         y_fit = fit_data['Altezza indicativa'].values
         params, r2 = fit_logarithmic_curve(x_fit, y_fit)
         if params is None:
-            print(f"{species:15}: Failed to fit logarithmic curve")
+            print(f"{species:15}: Impossibile eseguire il fitting logaritmico")
             continue
 
         a, b = params
@@ -86,18 +88,19 @@ elif args.method == 'fit':
     df = df_filled
 
 # Save the interpolated data
-df.to_csv('alsometrie_interpolated.csv', index=False, float_format='%g')
+df.to_csv(args.o, index=False, float_format='%g')
 
 # Create a figure with subplots for each desired parameter
 fig, axes = plt.subplots(1, len(parameters), figsize=(6 * len(parameters), 6))
 
 # Define colors for each species
 species_colors = {
-    'Abete bianco': 'blue',
+    'Abete': 'blue',
+    'Castagno': 'yellow',
+    'Douglas': 'orange',
     'Faggio': 'green',
-    'Pino laricio': 'red',
-    'Castagno': 'purple',
-    'Douglasia': 'orange',
+    'Pino Laricio': 'red',
+    'Pino Nero': 'cyan',
 }
 
 if len(parameters) == 1:
@@ -123,5 +126,4 @@ for i, parameter in enumerate(parameters):
     axes[i].legend()
 
 plt.tight_layout()
-plt.savefig('alsometrie.png', dpi=200, bbox_inches='tight')
-plt.show()
+plt.savefig(args.p, dpi=200, bbox_inches='tight')
