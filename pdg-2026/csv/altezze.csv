@@ -1,0 +1,511 @@
+﻿Compresa,ADS,C-A,Particella,Specie,Diametro,Altezza,Metodo
+A,54,A-54,A-2a,Douglasia,44,23,2p
+A,54,A-54,A-2a,Douglasia,47,26,2p
+A,54,A-54,A-2a,Douglasia,54,29,2p
+A,54,A-54,A-2a,Douglasia,56,29,2p
+A,54,A-54,A-2a,Douglasia,55,27,2p
+A,54,A-54,A-2a,Douglasia,44,27,2p
+A,54,A-54,A-2a,Douglasia,54,28,2p
+A,54,A-54,A-2a,Douglasia,56,31,2p
+A,54,A-54,A-2a,Douglasia,46,31,2p
+A,54,A-54,A-2a,Douglasia,47,27,2p
+A,54,A-54,A-2a,Douglasia,50,28,2p
+A,54,A-54,A-2a,Douglasia,45,26,2p
+A,55,A-55,A-1,Abete,40,27,2p
+A,55,A-55,A-1,Abete,49,28,2p
+A,55,A-55,A-1,Abete,55,30,2p
+A,55,A-55,A-1,Abete,49,27,2p
+A,64,A-64,A-12,Abete,18,13,2p
+A,64,A-64,A-12,Abete,28,19,2p
+A,64,A-64,A-12,Abete,30,22,2p
+A,64,A-64,A-12,Abete,13,10,2p
+A,64,A-64,A-12,Abete,22,12,2p
+A,64,A-64,A-12,Abete,16,7,2p
+A,64,A-64,A-12,Abete,17,12,2p
+A,26,A-26,A-17,Abete,88,34,2p
+A,26,A-26,A-17,Abete,54,32,2p
+A,26,A-26,A-17,Abete,45,32,2p
+A,26,A-26,A-17,Abete,35,27,2p
+A,26,A-26,A-17,Abete,62,34,2p
+A,26,A-26,A-17,Faggio,40,30,2p
+A,26,A-26,A-17,Abete,71,35,2p
+A,26,A-26,A-17,Abete,41,33,2p
+A,26,A-26,A-17,Abete,60,35,2p
+A,25,A-25,A-24,Ontano,31,24,2p
+A,25,A-25,A-24,Abete,55,36,2p
+A,25,A-25,A-24,Abete,38,31,2p
+A,25,A-25,A-24,Abete,36,32,2p
+A,25,A-25,A-24,Abete,39,33,2p
+A,25,A-25,A-24,Abete,50,34,2p
+A,25,A-25,A-24,Abete,21,20,2p
+A,25,A-25,A-24,Abete,50,32,2p
+A,48,A-48,A-9,Abete,56,30,3p
+A,48,A-48,A-9,Abete,62,32,3p
+A,48,A-48,A-9,Abete,54,29,3p
+A,48,A-48,A-9,Abete,70,34,3p
+A,48,A-48,A-9,Abete,22,20,3p
+A,48,A-48,A-9,Abete,31,26,3p
+A,48,A-48,A-9,Abete,26,25,3p
+A,48,A-48,A-9,Abete,24,24,3p
+A,13,A-13,A-28,Abete,54,30,3p
+A,13,A-13,A-28,Castagno,23,22,3p
+A,13,A-13,A-28,Castagno,24,23,3p
+A,13,A-13,A-28,Abete,23,25,3p
+A,13,A-13,A-28,Abete,32,28,3p
+A,13,A-13,A-28,Abete,78,36,3p
+A,13,A-13,A-28,Abete,28,24,3p
+A,13,A-13,A-28,Abete,54,31,3p
+A,13,A-13,A-28,Abete,47,31,3p
+A,13,A-13,A-28,Abete,71,33,3p
+A,13,A-13,A-28,Pino Nero,64,35,3p
+A,13,A-13,A-28,Pino Nero,40,34,3p
+A,1,A-1,A-28,Castagno,50,24,3p
+A,1,A-1,A-28,Abete,84,30,3p
+A,1,A-1,A-28,Castagno,66,29,3p
+A,1,A-1,A-28,Abete,69,32,3p
+A,1,A-1,A-28,Castagno,52,28,3p
+A,1,A-1,A-28,Abete,31,27,3p
+A,1,A-1,A-28,Abete,49,31,3p
+A,1,A-1,A-28,Abete,58,31,3p
+A,5,A-5,A-23,Abete,32,31,3p
+A,5,A-5,A-23,Faggio,41,27,3p
+A,5,A-5,A-23,Abete,59,32,3p
+A,5,A-5,A-23,Abete,48,30,3p
+A,5,A-5,A-23,Faggio,40,27,3p
+A,5,A-5,A-23,Abete,44,32,3p
+A,5,A-5,A-23,Abete,46,32,3p
+A,5,A-5,A-23,Abete,28,26,3p
+A,5,A-5,A-23,Abete,36,32,3p
+A,8,A-8,A-14,Faggio,20,16,3p
+A,8,A-8,A-14,Faggio,26,24,3p
+A,8,A-8,A-14,Faggio,24,19,3p
+A,8,A-8,A-14,Faggio,52,26,3p
+A,8,A-8,A-14,Faggio,18,21,3p
+A,8,A-8,A-14,Faggio,40,24,3p
+A,8,A-8,A-14,Faggio,36,24,3p
+A,8,A-8,A-14,Faggio,9,9,3p
+A,8,A-8,A-14,Faggio,12,12,3p
+A,8,A-8,A-14,Faggio,51,25,3p
+A,8,A-8,A-14,Faggio,60,25,3p
+A,7,A-7,A-14,Abete,53,30,3p
+A,7,A-7,A-14,Abete,50,27,3p
+A,7,A-7,A-14,Abete,56,32,3p
+A,7,A-7,A-14,Abete,35,22,3p
+A,7,A-7,A-14,Faggio,15,17,3p
+A,7,A-7,A-14,Castagno,33,21,3p
+A,7,A-7,A-14,Abete,71,32,3p
+A,7,A-7,A-14,Abete,78,34,3p
+A,36,A-36,A-19,Abete,25,20,3p
+A,36,A-36,A-19,Faggio,22,24,3p
+A,36,A-36,A-19,Abete,36,26,3p
+A,36,A-36,A-19,Abete,103,34,3p
+A,36,A-36,A-19,Abete,73,33,3p
+A,36,A-36,A-19,Castagno,26,27,3p
+A,36,A-36,A-19,Abete,30,29,3p
+A,36,A-36,A-19,Abete,44,28,3p
+A,56,A-56,A-13,Abete,34,33,3p
+A,56,A-56,A-13,Abete,30,33,3p
+A,56,A-56,A-13,Abete,34,31,3p
+A,56,A-56,A-13,Abete,59,34,3p
+A,56,A-56,A-13,Abete,55,35,3p
+A,56,A-56,A-13,Abete,39,27,3p
+A,56,A-56,A-13,Abete,64,36,3p
+A,56,A-56,A-13,Abete,38,33,3p
+A,58,A-58,A-7,Pino Nero,60,29,3p
+A,58,A-58,A-7,Abete,15,7,3p
+A,58,A-58,A-7,Pino Nero,44,26,3p
+A,58,A-58,A-7,Pino Nero,42,27,3p
+A,58,A-58,A-7,Pino Nero,53,28,3p
+A,58,A-58,A-7,Pino Nero,59,29,3p
+A,58,A-58,A-7,Pino Nero,31,23,3p
+A,58,A-58,A-7,Pino Nero,29,22,3p
+A,58,A-58,A-7,Pino Nero,32,24,3p
+A,58,A-58,A-7,Pino Nero,54,30,3p
+A,58,A-58,A-7,Pino Nero,38,31,3p
+A,10,A-10,A-7,Abete,23,24,3p
+A,10,A-10,A-7,Abete,28,21,3p
+A,10,A-10,A-7,Abete,26,22,3p
+A,10,A-10,A-7,Abete,25,22,3p
+A,10,A-10,A-7,Abete,28,20,3p
+A,10,A-10,A-7,Abete,48,27,3p
+A,10,A-10,A-7,Abete,58,28,3p
+A,10,A-10,A-7,Abete,40,25,3p
+A,10,A-10,A-7,Abete,49,28,3p
+A,10,A-10,A-7,Faggio,24,20,3p
+A,59,A-59,A-4,Abete,85,25,3p
+A,59,A-59,A-4,Faggio,43,27,3p
+A,59,A-59,A-4,Abete,39,30,3p
+A,59,A-59,A-4,Douglasia,37,31,3p
+A,59,A-59,A-4,Pino Nero,51,28,3p
+A,59,A-59,A-4,Douglasia,59,32,3p
+A,59,A-59,A-4,Abete,40,25,3p
+A,59,A-59,A-4,Abete,37,24,3p
+A,59,A-59,A-4,Pino Nero,28,26,3p
+A,49,A-49,A-7,Abete,32,25,3p
+A,49,A-49,A-7,Pino Nero,55,27,3p
+A,49,A-49,A-7,Pino Nero,50,28,3p
+A,49,A-49,A-7,Abete,48,27,3p
+A,49,A-49,A-7,Pino Nero,37,26,3p
+A,49,A-49,A-7,Abete,52,25,3p
+A,49,A-49,A-7,Abete,35,22,3p
+A,49,A-49,A-7,Abete,55,26,3p
+A,60,A-60,A-10b,Abete,45,30,3p
+A,60,A-60,A-10b,Abete,51,27,3p
+A,60,A-60,A-10b,Abete,39,31,3p
+A,60,A-60,A-10b,Abete,37,27,3p
+A,60,A-60,A-10b,Pino Nero,50,31,3p
+A,60,A-60,A-10b,Abete,65,31,3p
+A,60,A-60,A-10b,Castagno,22,24,3p
+A,60,A-60,A-10b,Abete,66,30,3p
+A,60,A-60,A-10b,Abete,44,25,3p
+A,63,A-63,A-9,Faggio,50,24,3p
+A,63,A-63,A-9,Abete,90,28,3p
+A,63,A-63,A-9,Abete,23,22,3p
+A,63,A-63,A-9,Abete,34,25,3p
+A,63,A-63,A-9,Abete,79,28,3p
+A,63,A-63,A-9,Faggio,29,23,3p
+A,63,A-63,A-9,Faggio,28,23,3p
+A,63,A-63,A-9,Abete,50,27,3p
+A,63,A-63,A-9,Castagno,18,16,3p
+A,63,A-63,A-9,Castagno,25,21,3p
+A,64,A-64,A-12,Abete,36,26,3p
+A,64,A-64,A-12,Abete,30,19,3p
+A,64,A-64,A-12,Faggio,33,23,3p
+A,46,A-46,A-8,Abete,21,24,3p
+A,46,A-46,A-8,Abete,62,32,3p
+A,46,A-46,A-8,Abete,35,26,3p
+A,46,A-46,A-8,Abete,27,18,3p
+A,46,A-46,A-8,Abete,36,27,3p
+A,46,A-46,A-8,Castagno,37,24,3p
+A,46,A-46,A-8,Abete,63,30,3p
+A,46,A-46,A-8,Abete,42,28,3p
+A,33,A-33,A-11,Abete,33,29,3p
+A,33,A-33,A-11,Abete,38,29,3p
+A,33,A-33,A-11,Abete,48,33,3p
+A,33,A-33,A-11,Abete,65,34,3p
+A,33,A-33,A-11,Abete,44,27,3p
+A,33,A-33,A-11,Abete,30,28,3p
+A,33,A-33,A-11,Abete,66,34,3p
+A,33,A-33,A-11,Abete,67,35,3p
+A,33,A-33,A-11,Abete,52,29,3p
+A,30,A-30,A-18,Abete,153,34,3p
+A,30,A-30,A-18,Abete,43,28,3p
+A,30,A-30,A-18,Abete,57,27,3p
+A,30,A-30,A-18,Abete,29,23,3p
+A,30,A-30,A-18,Faggio,33,22,3p
+A,30,A-30,A-18,Faggio,59,30,3p
+A,30,A-30,A-18,Abete,110,35,3p
+A,30,A-30,A-18,Abete,100,32,3p
+A,23,A-23,A-22,Abete,26,24,3p
+A,23,A-23,A-22,Abete,38,24,3p
+A,23,A-23,A-22,Abete,80,31,3p
+A,23,A-23,A-22,Castagno,28,22,3p
+A,23,A-23,A-22,Abete,62,31,3p
+A,23,A-23,A-22,Abete,37,28,3p
+A,23,A-23,A-22,Castagno,36,21,3p
+A,23,A-23,A-22,Abete,43,29,3p
+A,23,A-23,A-22,Faggio,53,29,3p
+A,16,A-16,A-24,Abete,20,22,3p
+A,16,A-16,A-24,Abete,37,23,3p
+A,16,A-16,A-24,Castagno,39,23,3p
+A,16,A-16,A-24,Abete,66,36,3p
+A,16,A-16,A-24,Abete,57,29,3p
+A,16,A-16,A-24,Faggio,39,26,3p
+A,16,A-16,A-24,Abete,52,33,3p
+A,16,A-16,A-24,Abete,82,36,3p
+A,16,A-16,A-24,Abete,29,27,3p
+A,16,A-16,A-24,Abete,70,36,3p
+B,23,B-23,B-8,Abete,25,14,3p
+B,22,B-22,B-8,Abete,21,12,3p
+B,22,B-22,B-8,Abete,15,8,3p
+B,22,B-22,B-8,Abete,12,7,3p
+B,3,B-3,B-6,Abete,66,27,3p
+B,3,B-3,B-6,Abete,45,24,3p
+B,3,B-3,B-6,Abete,23,20,3p
+B,3,B-3,B-6,Abete,70,28,3p
+B,3,B-3,B-6,Abete,60,30,3p
+B,10,B-10,B-2,Abete,11,6,3p
+B,10,B-10,B-2,Abete,11,7,3p
+B,10,B-10,B-2,Abete,8,6,3p
+B,11,B-11,B-2,Abete,16,7,3p
+B,11,B-11,B-2,Abete,15,10,3p
+B,11,B-11,B-2,Abete,13,8,3p
+B,11,B-11,B-2,Abete,21,10,3p
+B,11,B-11,B-2,Abete,10,6,3p
+B,11,B-11,B-2,Abete,10,7,3p
+B,11,B-11,B-2,Abete,13,7,3p
+B,23,B-23,B-8,Douglasia,60,34,3p
+B,23,B-23,B-8,Douglasia,52,30,3p
+B,22,B-22,B-8,Douglasia,52,34,3p
+B,22,B-22,B-8,Douglasia,63,37,3p
+B,1,B-1,B-8,Faggio,24,16,3p
+B,1,B-1,B-8,Faggio,32,17,3p
+B,1,B-1,B-8,Faggio,22,15,3p
+B,1,B-1,B-8,Faggio,35,20,3p
+B,1,B-1,B-8,Faggio,20,13,3p
+B,23,B-23,B-8,Faggio,40,22,3p
+B,23,B-23,B-8,Faggio,55,25,3p
+B,22,B-22,B-8,Faggio,37,26,3p
+B,22,B-22,B-8,Faggio,51,27,3p
+B,22,B-22,B-8,Faggio,42,27,3p
+B,22,B-22,B-8,Faggio,47,27,3p
+B,3,B-3,B-6,Faggio,25,23,3p
+B,3,B-3,B-6,Faggio,30,20,3p
+B,3,B-3,B-6,Faggio,40,26,3p
+B,5,B-5,B-4,Faggio,42,27,3p
+B,5,B-5,B-4,Faggio,40,27,3p
+B,5,B-5,B-4,Faggio,57,28,3p
+B,5,B-5,B-4,Faggio,32,25,3p
+B,5,B-5,B-4,Faggio,40,27,3p
+B,5,B-5,B-4,Faggio,24,24,3p
+B,7,B-7,B-3,Faggio,54,27,3p
+B,7,B-7,B-3,Faggio,54,27,3p
+B,7,B-7,B-3,Faggio,25,24,3p
+B,7,B-7,B-3,Faggio,24,20,3p
+B,7,B-7,B-3,Faggio,26,21,3p
+B,7,B-7,B-3,Faggio,57,26,3p
+B,7,B-7,B-3,Faggio,51,29,3p
+B,10,B-10,B-2,Faggio,32,24,3p
+B,10,B-10,B-2,Faggio,50,26,3p
+B,10,B-10,B-2,Faggio,25,23,3p
+B,10,B-10,B-2,Faggio,52,29,3p
+B,10,B-10,B-2,Faggio,30,25,3p
+B,10,B-10,B-2,Faggio,25,20,3p
+B,11,B-11,B-2,Faggio,52,29,3p
+B,11,B-11,B-2,Faggio,35,26,3p
+B,11,B-11,B-2,Faggio,24,23,3p
+B,11,B-11,B-2,Faggio,53,29,3p
+B,1,B-1,B-8,Pino Nero,48,26,3p
+B,1,B-1,B-8,Pino Nero,32,18,3p
+B,1,B-1,B-8,Pino Nero,40,23,3p
+B,1,B-1,B-8,Pino Nero,43,22,3p
+B,1,B-1,B-8,Pino Nero,64,24,3p
+B,1,B-1,B-8,Pino Nero,50,24,3p
+B,1,B-1,B-8,Pino Nero,75,25,3p
+B,23,B-23,B-8,Pino Nero,40,27,3p
+B,23,B-23,B-8,Pino Nero,39,29,3p
+B,23,B-23,B-8,Pino Nero,32,25,3p
+B,23,B-23,B-8,Pino Nero,66,32,3p
+B,22,B-22,B-8,Pino Nero,69,34,3p
+B,22,B-22,B-8,Pino Nero,45,33,3p
+B,22,B-22,B-8,Pino Nero,35,27,3p
+B,22,B-22,B-8,Pino Nero,54,31,3p
+B,3,B-3,B-6,Pino Nero,26,21,3p
+B,3,B-3,B-6,Pino Nero,51,24,3p
+B,3,B-3,B-6,Pino Nero,43,23,3p
+B,7,B-7,B-3,Pino Nero,42,27,3p
+B,7,B-7,B-3,Pino Nero,63,32,3p
+B,7,B-7,B-3,Pino Nero,55,29,3p
+B,26,B-26,B-11c,Pino Nero,41,23,3p
+B,26,B-26,B-11c,Pino Nero,26,22,3p
+B,26,B-26,B-11c,Pino Nero,35,23,3p
+B,26,B-26,B-11c,Pino Nero,38,23,3p
+B,26,B-26,B-11c,Pino Nero,17,18,3p
+B,26,B-26,B-11c,Pino Nero,22,20,3p
+B,26,B-26,B-11c,Pino Nero,39,22,3p
+B,26,B-26,B-11c,Pino Nero,25,20,3p
+B,26,B-26,B-11c,Abete,28,19,3p
+B,26,B-26,B-11c,Abete,33,23,3p
+B,26,B-26,B-11c,Abete,41,21,3p
+B,26,B-26,B-11c,Pino Nero,60,21,3p
+B,27,B-27,B-11a,Pino Nero,48,31,3p
+B,27,B-27,B-11a,Pino Nero,23,28,3p
+B,27,B-27,B-11a,Pino Nero,48,29,3p
+B,27,B-27,B-11a,Pino Nero,58,31,3p
+B,27,B-27,B-11a,Pino Nero,36,25,3p
+B,27,B-27,B-11a,Pino Nero,53,26,3p
+B,27,B-27,B-11a,Pino Nero,46,27,3p
+B,27,B-27,B-11a,Douglasia,48,36,3p
+B,27,B-27,B-11a,Douglasia,47,35,3p
+B,30,B-30,B-10a,Douglasia,90,41,3p
+B,30,B-30,B-10a,Douglasia,70,39,3p
+B,30,B-30,B-10a,Douglasia,38,35,3p
+B,30,B-30,B-10a,Douglasia,58,40,3p
+B,30,B-30,B-10a,Abete,72,31,3p
+B,30,B-30,B-10a,Abete,41,25,3p
+B,30,B-30,B-10a,Abete,51,24,3p
+B,30,B-30,B-10a,Abete,49,24,3p
+B,30,B-30,B-10a,Pino Nero,59,30,3p
+B,30,B-30,B-10a,Pino Nero,48,31,3p
+B,30,B-30,B-10a,Douglasia,50,36,3p
+B,34,B-34,B-9a,Pino Nero,56,28,3p
+B,34,B-34,B-9a,Pino Nero,58,29,3p
+B,34,B-34,B-9a,Pino Nero,58,28,3p
+B,34,B-34,B-9a,Pino Nero,62,29,3p
+B,34,B-34,B-9a,Pino Nero,56,28,3p
+B,34,B-34,B-9a,Pino Nero,66,27,3p
+B,34,B-34,B-9a,Pino Nero,53,28,3p
+B,32,B-32,B-9a,Abete,57,34,3p
+B,32,B-32,B-9a,Abete,78,36,3p
+B,32,B-32,B-9a,Abete,90,35,3p
+B,32,B-32,B-9a,Abete,47,27,3p
+B,32,B-32,B-9a,Abete,50,28,3p
+B,32,B-32,B-9a,Abete,38,26,3p
+B,32,B-32,B-9a,Abete,35,25,3p
+B,32,B-32,B-9a,Abete,55,28,3p
+B,38,B-38,B-14a,Faggio,53,28,3p
+B,38,B-38,B-14a,Abete,22,12,3p
+B,38,B-38,B-14a,Faggio,32,26,3p
+B,38,B-38,B-14a,Abete,23,15,3p
+B,38,B-38,B-14a,Abete,24,13,3p
+B,38,B-38,B-14a,Faggio,30,24,3p
+B,38,B-38,B-14a,Faggio,42,25,3p
+B,38,B-38,B-14a,Abete,26,13,3p
+B,38,B-38,B-14a,Abete,11,5,3p
+B,38,B-38,B-14a,Abete,14,6,3p
+B,38,B-38,B-14a,Faggio,44,25,3p
+B,18,B-18,B-4,Faggio,23,23,3p
+B,18,B-18,B-4,Faggio,28,24,3p
+B,18,B-18,B-4,Faggio,44,30,3p
+B,18,B-18,B-4,Faggio,26,23,3p
+B,18,B-18,B-4,Faggio,39,26,3p
+B,18,B-18,B-4,Faggio,26,24,3p
+B,17,B-17,B-3,Douglasia,115,46,3p
+B,17,B-17,B-3,Douglasia,49,38,3p
+B,17,B-17,B-3,Douglasia,64,41,3p
+B,17,B-17,B-3,Faggio,33,26,3p
+B,17,B-17,B-3,Faggio,43,27,3p
+B,17,B-17,B-3,Pino Nero,25,28,3p
+B,17,B-17,B-3,Faggio,50,31,3p
+B,17,B-17,B-3,Faggio,29,27,3p
+B,17,B-17,B-3,Faggio,50,28,3p
+B,17,B-17,B-3,Faggio,33,26,3p
+B,17,B-17,B-3,Pino Nero,54,34,3p
+B,40,B-40,B-13a,Pino Nero,42,22,3p
+B,40,B-40,B-13a,Pino Nero,40,18,3p
+B,40,B-40,B-13a,Faggio,50,23,3p
+B,40,B-40,B-13a,Faggio,35,19,3p
+B,40,B-40,B-13a,Faggio,30,18,3p
+B,40,B-40,B-13a,Pino Nero,39,23,3p
+B,40,B-40,B-13a,Faggio,37,22,3p
+B,42,B-42,B-12a,leccio,36,23,3p
+B,42,B-42,B-12a,Abete,21,15,3p
+B,42,B-42,B-12a,Abete,30,14,3p
+B,42,B-42,B-12a,Abete,22,14,3p
+B,42,B-42,B-12a,Douglasia,21,22,3p
+B,42,B-42,B-12a,Douglasia,43,28,3p
+B,42,B-42,B-12a,Douglasia,73,34,3p
+B,42,B-42,B-12a,Faggio,78,30,3p
+C,7,C-7,C-2,Pino Nero,50,27,3p
+C,7,C-7,C-2,Pino Nero,53,26,3p
+C,7,C-7,C-2,Pino Nero,33,20,3p
+C,7,C-7,C-2,Pino Nero,53,27,3p
+C,7,C-7,C-2,Pino Nero,45,28,3p
+C,8,C-8,C-2,Pino Nero,57,28,3p
+C,8,C-8,C-2,Pino Nero,33,26,3p
+C,8,C-8,C-2,Pino Nero,40,24,3p
+C,8,C-8,C-2,Pino Nero,59,31,3p
+C,8,C-8,C-2,Pino Nero,38,28,3p
+C,6,C-6,C-6a,Douglasia,73,34,3p
+C,6,C-6,C-6a,Douglasia,45,31,3p
+C,6,C-6,C-6a,Douglasia,43,30,3p
+C,6,C-6,C-6a,Douglasia,46,30,3p
+C,6,C-6,C-6a,Douglasia,50,34,3p
+C,14,C-14,C-6a,Castagno,21,21,3p
+C,14,C-14,C-6a,Abete,36,23,3p
+C,14,C-14,C-6a,Abete,29,25,3p
+C,14,C-14,C-6a,Abete,22,24,3p
+C,14,C-14,C-6a,Abete,56,26,3p
+C,14,C-14,C-6a,Abete,44,24,3p
+C,14,C-14,C-6a,Abete,28,25,3p
+C,41,C-41,C-12a,Douglasia,73,41,3p
+C,41,C-41,C-12a,Douglasia,65,36,3p
+C,41,C-41,C-12a,Pino Nero,39,28,3p
+C,41,C-41,C-12a,Pino Nero,40,26,3p
+C,41,C-41,C-12a,Faggio,33,25,3p
+C,41,C-41,C-12a,Douglasia,67,35,3p
+C,41,C-41,C-12a,Pino Nero,58,30,3p
+C,41,C-41,C-12a,Faggio,18,11,3p
+C,41,C-41,C-12a,Faggio,40,19,3p
+C,40,C-40,C-12a,Abete,31,18,3p
+C,40,C-40,C-12a,Abete,23,15,3p
+C,40,C-40,C-12a,Abete,26,18,3p
+C,40,C-40,C-12a,Douglasia,26,19,3p
+C,40,C-40,C-12a,Douglasia,18,14,3p
+C,40,C-40,C-12a,Abete,26,19,3p
+C,40,C-40,C-12a,Abete,26,18,3p
+C,40,C-40,C-12a,Abete,42,22,3p
+C,40,C-40,C-12a,Abete,16,17,3p
+C,40,C-40,C-12a,Abete,22,18,3p
+C,40,C-40,C-12a,Abete,35,19,3p
+C,40,C-40,C-12a,Abete,25,19,3p
+C,40,C-40,C-12a,Abete,26,18,3p
+C,40,C-40,C-12a,Abete,22,17,3p
+C,40,C-40,C-12a,Abete,22,17,3p
+C,40,C-40,C-12a,Abete,40,22,3p
+C,46,C-46,C-12b,Abete,38,21,3p
+C,46,C-46,C-12b,Abete,18,18,3p
+C,46,C-46,C-12b,Abete,24,18,3p
+C,46,C-46,C-12b,Douglasia,30,22,3p
+C,46,C-46,C-12b,Douglasia,42,25,3p
+C,46,C-46,C-12b,Abete,33,22,3p
+C,46,C-46,C-12b,Douglasia,18,18,3p
+C,46,C-46,C-12b,Abete,36,22,3p
+C,46,C-46,C-12b,Abete,26,17,3p
+C,46,C-46,C-12b,Abete,26,18,3p
+C,46,C-46,C-12b,Abete,32,17,3p
+C,22,C-22,C-16b,Abete,45,21,3p
+C,22,C-22,C-16b,Abete,37,21,3p
+C,22,C-22,C-16b,Abete,33,20,3p
+C,22,C-22,C-16b,Abete,16,15,3p
+C,22,C-22,C-16b,Abete,27,19,3p
+C,22,C-22,C-16b,Abete,29,20,3p
+C,22,C-22,C-16b,Abete,20,16,3p
+C,22,C-22,C-16b,Abete,26,18,3p
+C,22,C-22,C-16b,Abete,30,18,3p
+C,22,C-22,C-16b,Abete,20,16,3p
+C,22,C-22,C-16b,Abete,25,17,3p
+C,22,C-22,C-16b,Abete,18,14,3p
+C,45,C-45,C-15,Abete,45,24,3p
+C,45,C-45,C-15,Abete,14,14,3p
+C,45,C-45,C-15,Abete,41,18,3p
+C,45,C-45,C-15,Abete,43,20,3p
+C,45,C-45,C-15,Ontano,28,17,3p
+C,45,C-45,C-15,Ontano,15,11,3p
+C,45,C-45,C-15,Ontano,11,8,3p
+C,45,C-45,C-15,Ontano,25,14,3p
+C,45,C-45,C-15,Ontano,29,15,3p
+C,43,C-43,C-15,Pino Nero,37,21,3p
+C,43,C-43,C-15,Pino Marittimo,82,31,3p
+C,43,C-43,C-15,Pino Marittimo,54,29,3p
+C,43,C-43,C-15,Pino Marittimo,60,27,3p
+C,43,C-43,C-15,Pino Marittimo,66,28,3p
+C,43,C-43,C-15,Pino Marittimo,52,29,3p
+C,44,C-44,C-15,Pino Marittimo,75,35,3p
+C,44,C-44,C-15,Pino Marittimo,55,31,3p
+C,44,C-44,C-15,Pino Marittimo,63,28,3p
+C,44,C-44,C-15,Pino Marittimo,66,26,3p
+C,44,C-44,C-15,Pino Marittimo,64,26,3p
+C,44,C-44,C-15,Pino Marittimo,65,28,3p
+C,44,C-44,C-15,Pino Marittimo,60,29,3p
+C,44,C-44,C-15,Pino Marittimo,75,25,3p
+C,44,C-44,C-15,Pino Marittimo,52,29,3p
+C,44,C-44,C-15,Pino Marittimo,62,31,3p
+C,42,C-42,C-13,Abete,95,28,3p
+C,42,C-42,C-13,Abete,75,27,3p
+C,42,C-42,C-13,Douglasia,29,21,3p
+C,42,C-42,C-13,Douglasia,37,25,3p
+C,42,C-42,C-13,Douglasia,40,24,3p
+C,42,C-42,C-13,Douglasia,21,17,3p
+C,42,C-42,C-13,Douglasia,16,16,3p
+C,42,C-42,C-13,Douglasia,26,18,3p
+C,42,C-42,C-13,Abete,78,27,3p
+C,48,C-48,C-14b,Ontano,32,19,3p
+C,48,C-48,C-14b,Ontano,33,17,3p
+C,48,C-48,C-14b,Ontano,14,12,3p
+C,48,C-48,C-14b,Pino Marittimo,54,28,3p
+C,48,C-48,C-14b,Pino Marittimo,70,29,3p
+C,48,C-48,C-14b,Pino Marittimo,72,30,3p
+C,48,C-48,C-14b,Ontano,21,13,3p
+C,48,C-48,C-14b,Abete,35,16,3p
+C,37,C-37,C-16a,Pino Nero,37,21,3p
+C,37,C-37,C-16a,Pino Nero,40,23,3p
+C,37,C-37,C-16a,Pino Nero,44,24,3p
+C,37,C-37,C-16a,Pino Nero,40,24,3p
+C,37,C-37,C-16a,Pino Nero,50,26,3p
+C,37,C-37,C-16a,Pino Nero,51,26,3p
+C,37,C-37,C-16a,Pino Nero,46,25,3p
+C,37,C-37,C-16a,Pino Nero,42,26,3p
+C,37,C-37,C-16a,Pino Nero,49,23,3p
+C,37,C-37,C-16a,Pino Nero,54,24,3p
+C,37,C-37,C-16a,Pino Nero,55,25,3p

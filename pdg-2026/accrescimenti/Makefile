@@ -1,3 +1,5 @@
+CSV_DIR=../csv
+
 .PHONY: all \
 	cd-per-compresa cd-per-particella \
 	ci-originali-per-compresa ci-originali-per-particella \
@@ -6,32 +8,33 @@
 
 all: dati
 
-alsometrie-calcolate.csv: analysis.py alsometrie.csv
-	python3 analysis.py --genera-alsometrie-calcolate --metodo-altezze interpolazione --file-alsometrie-calcolate alsometrie-calcolate.csv
+alsometrie-calcolate.csv: analysis.py $(CSV_DIR)/alsometrie.csv
+	ls $(CSV_DIR)/alsometrie.csv
+	python3 analysis.py --input-dir $(CSV_DIR) --genera-alsometrie-calcolate --metodo-altezze interpolazione --file-alsometrie-calcolate $(CSV_DIR)/alsometrie-calcolate.csv
 
-altezze-calcolate.csv: analysis.py alberi.csv alsometrie.csv
-	python3 analysis.py --genera-alberi-altezze-calcolate --metodo-altezze interpolazione --file-alberi-calcolati alberi-calcolati.csv
+alberi-calcolati.csv: analysis.py $(CSV_DIR)/alberi.csv $(CSV_DIR)/alsometrie.csv
+	python3 analysis.py --input-dir $(CSV_DIR) --genera-alberi-altezze-calcolate --metodo-altezze interpolazione --file-alberi-calcolati $(CSV_DIR)/alberi-calcolati.csv
 
-cd-per-compresa: analysis.py alberi.csv particelle.csv
-	python3 analysis.py --genera-classi-diametriche --prefisso-output dati/per-compresa
+cd-per-compresa: analysis.py $(CSV_DIR)/alberi.csv $(CSV_DIR)/particelle.csv
+	python3 analysis.py --input-dir $(CSV_DIR) --genera-classi-diametriche --prefisso-output dati/per-compresa
 
-cd-per-particella: analysis.py alberi.csv particelle.csv
-	python3 analysis.py --genera-classi-diametriche --per-particella --prefisso-output dati/per-particella
+cd-per-particella: analysis.py $(CSV_DIR)/alberi.csv $(CSV_DIR)/particelle.csv
+	python3 analysis.py --input-dir $(CSV_DIR) --genera-classi-diametriche --per-particella --prefisso-output dati/per-particella
 
-ci-originali-per-compresa: analysis.py alberi.csv particelle.csv
-	python3 analysis.py --genera-curve-ipsometriche --metodo-altezze originali --prefisso-output dati/per-compresa-originali
+ci-originali-per-compresa: analysis.py $(CSV_DIR)/alberi.csv $(CSV_DIR)/particelle.csv
+	python3 analysis.py --input-dir $(CSV_DIR) --genera-curve-ipsometriche --metodo-altezze originali --prefisso-output dati/per-compresa-originali
 
-ci-originali-per-particella: analysis.py alberi.csv particelle.csv
-	python3 analysis.py --genera-curve-ipsometriche --metodo-altezze originali --per-particella --prefisso-output dati/per-particella-originali
+ci-originali-per-particella: analysis.py $(CSV_DIR)/alberi.csv $(CSV_DIR)/particelle.csv
+	python3 analysis.py --input-dir $(CSV_DIR) --genera-curve-ipsometriche --metodo-altezze originali --per-particella --prefisso-output dati/per-particella-originali
 
-ci-interpolate-per-compresa: analysis.py alberi.csv particelle.csv alsometrie.csv
-	python3 analysis.py --genera-curve-ipsometriche --metodo-altezze interpolazione --ometti-generi-sconosciuti --prefisso-output dati/per-compresa-interpolate
+ci-interpolate-per-compresa: analysis.py $(CSV_DIR)/alberi.csv $(CSV_DIR)/particelle.csv $(CSV_DIR)/alsometrie.csv
+	python3 analysis.py --input-dir $(CSV_DIR) --genera-curve-ipsometriche --metodo-altezze interpolazione --ometti-generi-sconosciuti --prefisso-output dati/per-compresa-interpolate
 
-ci-interpolate-per-particella: analysis.py alberi.csv particelle.csv alsometrie.csv
-	python3 analysis.py --genera-curve-ipsometriche --metodo-altezze interpolazione --ometti-generi-sconosciuti --per-particella --prefisso-output dati/per-particella-interpolate
+ci-interpolate-per-particella: analysis.py $(CSV_DIR)/alberi.csv $(CSV_DIR)/particelle.csv $(CSV_DIR)/alsometrie.csv
+	python3 analysis.py --input-dir $(CSV_DIR) --genera-curve-ipsometriche --metodo-altezze interpolazione --ometti-generi-sconosciuti --per-particella --prefisso-output dati/per-particella-interpolate
 
-dati: analysis.py alberi.csv alsometrie.csv particelle.csv \
-	alsometrie-calcolate.csv altezze-calcolate.csv \
+dati: analysis.py $(CSV_DIR)/alberi.csv $(CSV_DIR)/alsometrie.csv $(CSV_DIR)/particelle.csv \
+	$(CSV_DIR)/alsometrie-calcolate.csv $(CSV_DIR)/alberi-calcolati.csv \
 	cd-per-compresa cd-per-particella \
 	ci-originali-per-compresa ci-originali-per-particella \
 	ci-interpolate-per-compresa ci-interpolate-per-particella
@@ -40,16 +43,13 @@ sync:
 	ssh laforesta.it "mkdir -p /var/www/laforestadotit/html/pdg-2026/accrescimenti"
 	rsync -avz -e ssh . laforesta.it:/var/www/laforestadotit/html/pdg-2026/accrescimenti/
 
-ipsometrie: ipsometrie.py csv-alberi-modello.csv csv-altezze.csv
-	python $< csv-alberi-modello.csv --fit lineare -o alberi1-lineare.png
-	python $< csv-alberi-modello.csv --fit logaritmico -o alberi1-logaritmico.png
-	python $< csv-altezze.csv --fit logaritmico -o alberi2-logaritmico.png
-	python $< csv-altezze.csv --fit lineare -o alberi2-lineare.png
-
-alsometrie.png: interpolate.py alsometrie.csv
-	python $<
+ipsometrie: ipsometrie.py $(CSV_DIR)/alberi-modello.csv $(CSV_DIR)/altezze.csv
+	python $< $(CSV_DIR)/alberi-modello.csv --format 3c --fit lin -o alberi1-lineare
+	python $< $(CSV_DIR)/alberi-modello.csv --format 3c --fit log -o alberi1-logaritmico
+	python $< $(CSV_DIR)/altezze.csv --fit log -o alberi2-logaritmico
+	python $< $(CSV_DIR)/altezze.csv --fit lin -o alberi2-lineare
 
 clean:
-	rm -rf alberi-calcolati.csv alsometrie-calcolate.csv
+	rm -rf $(CSV_DIR)/alberi-calcolati.csv $(CSV_DIR)/alsometrie-calcolate.csv
 	rm -rf alsometrie.png
 	rm -rf alberi1-lineare.png alberi1-logaritmico.png alberi2-lineare.png alberi2-logaritmico.png
