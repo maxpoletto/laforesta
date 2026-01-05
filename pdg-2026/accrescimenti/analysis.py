@@ -213,21 +213,17 @@ class LaTeXFormatter(OutputFormatter):
 
     def __init__(self, compile_pdf: bool = False):
         self.compile_pdf = compile_pdf
-        self.latex_files = []
+        self.fragments = []  # List of (name, title) tuples
+        self.output_dir = None
 
     def generate_index_cd(self, files: list, output_dir: str) -> None:
-        """Generate a LaTeX document for diameter class histograms"""
+        """Generate a LaTeX fragment for diameter class histograms"""
+        self.output_dir = Path(output_dir)
         files_sorted = sorted(files, key=lambda x: x[2])
-        latex_file = Path(output_dir) / 'classi-diametriche.tex'
+        latex_file = self.output_dir / 'classi-diametriche.tex'
 
         with open(latex_file, 'w', encoding='utf-8') as f:
-            f.write(self.HEADER)
-            f.write(r'''\title{Distribuzione piante per classe diametrica}
-\date{}
-\author{Società Agricola La Foresta}
-\begin{document}
-\maketitle''')
-
+            # Write only the content, no header/footer
             for compresa, particella, filepath in files_sorted:
                 title = f"{compresa} - Particella {particella}" if particella else compresa
                 # Escape underscores in title for LaTeX
@@ -239,24 +235,19 @@ class LaTeXFormatter(OutputFormatter):
 \\end{{figure}}
 
 ''')
-            f.write(self.FOOTER)
-        self.latex_files.append(latex_file)
-        print(f"Generato file LaTeX: {latex_file}")
+        
+        self.fragments.append(('classi-diametriche.tex', 'Distribuzione piante per classe diametrica'))
+        print(f"Generato frammento LaTeX: {latex_file}")
 
     def generate_index_ci(self, files: list, output_dir: str) -> None:
-        """Generate a LaTeX document for height-diameter curves"""
+        """Generate a LaTeX fragment for height-diameter curves"""
+        self.output_dir = Path(output_dir)
         files_sorted = sorted(files, key=lambda x: x[2])
-        latex_file = Path(output_dir) / 'curve-ipsometriche.tex'
+        latex_file = self.output_dir / 'curve-ipsometriche.tex'
 
         with open(latex_file, 'w', encoding='utf-8') as f:
-            f.write(self.HEADER)
-            f.write(r'''\title{Curve ipsometriche}
-\date{}
-\author{Società Agricola La Foresta}
-\begin{document}
-\maketitle
-
-\begin{quote}
+            # Write explanation first
+            f.write(r'''\begin{quote}
 \itshape
 Le curve ipsometriche sono state calcolate con un modello di regressione logaritmico, per
 ogni combinazione di compresa, particella e genere. Vengono visualizzate solo per
@@ -264,7 +255,7 @@ combinazioni con almeno 10 punti ($n \ge 10$).
 \end{quote}
 
 ''')
-
+            # Write only the content, no header/footer
             for compresa, particella, filepath in files_sorted:
                 title = f"{compresa} - Particella {particella}" if particella else compresa
                 # Escape underscores in title for LaTeX
@@ -277,40 +268,66 @@ combinazioni con almeno 10 punti ($n \ge 10$).
 
 ''')
 
+        self.fragments.append(('curve-ipsometriche.tex', 'Curve ipsometriche'))
+        print(f"Generato frammento LaTeX: {latex_file}")
+
+    def finalize(self, output_dir: str, base_name: str) -> None:
+        """Generate master document and optionally compile to PDF"""
+        if not self.fragments:
+            return
+        
+        output_dir = Path(output_dir)
+        master_file = output_dir / f'{base_name}.tex'
+        
+        # Generate master document that includes fragments
+        with open(master_file, 'w', encoding='utf-8') as f:
+            f.write(self.HEADER)
+            f.write(r'''\title{Società Agricola La Foresta\\Analisi Accrescimenti}
+\date{}
+\author{}
+\begin{document}
+\maketitle
+
+''')
+            for fragment_name, fragment_title in self.fragments:
+                f.write(f'\\section{{{fragment_title}}}\n')
+                f.write(f'\\input{{{fragment_name}}}\n')
+                f.write('\\clearpage\n\n')
+            
             f.write(self.FOOTER)
-
-        self.latex_files.append(latex_file)
-        print(f"Generato file LaTeX: {latex_file}")
-
-    def finalize(self, output_dir: str) -> None:
-        """Compile LaTeX files to PDF if requested"""
+        
+        print(f"Generato documento LaTeX principale: {master_file}")
+        
+        # Compile to PDF if requested
         if not self.compile_pdf:
             return
-        for latex_file in self.latex_files:
-            pdf_file = latex_file.with_suffix('.pdf')
-            if pdf_file.exists():
-                pdf_file.unlink()
-            try:
-                result = subprocess.run(
-                    ['pdflatex', '-interaction=nonstopmode', latex_file.name],
-                    cwd=latex_file.parent,
-                    capture_output=True,
-                    text=True
-                )
-                if result.returncode != 0:
-                    raise RuntimeError(f"Warning: pdflatex returned non-zero exit code ({result.stderr})")
+        
+        pdf_file = master_file.with_suffix('.pdf')
+        if pdf_file.exists():
+            pdf_file.unlink()
+        
+        try:
+            result = subprocess.run(
+                ['pdflatex', '-interaction=nonstopmode', master_file.name],
+                cwd=master_file.parent,
+                capture_output=True,
+                text=True,
+                check=False
+            )
+            if result.returncode != 0:
+                raise RuntimeError("pdflatex returned non-zero exit code")
 
-                if pdf_file.exists():
-                    print(f"Generato file PDF: {pdf_file}")
-                    # Clean up auxiliary files
-                    for ext in ['.aux', '.log', '.out']:
-                        aux_file = latex_file.with_suffix(ext)
-                        if aux_file.exists():
-                            aux_file.unlink()
-                else:
-                    print(f"Attenzione: file PDF non creato")
-            except Exception as e:
-                print(f"Errore nella compilazione LaTeX: {e}")
+            if pdf_file.exists():
+                print(f"Generato file PDF: {pdf_file}")
+                # Clean up auxiliary files
+                for ext in ['.aux', '.log', '.out', '.toc']:
+                    aux_file = master_file.with_suffix(ext)
+                    if aux_file.exists():
+                        aux_file.unlink()
+            else:
+                print("Attenzione: file PDF non creato")
+        except Exception as e:
+            print(f"Errore nella compilazione LaTeX: {e}")
 
 #
 # Interpolation and curve fitting
@@ -793,7 +810,7 @@ def main():
                     help='Omette generi non presenti nel file alsometrie dalle curve ipsometriche')
     g3 = parser.add_argument_group('Nomi dei file di input')
     g3.add_argument('--input-dir', type=str, default='.',
-                    help='Directory contenente i file di input'),
+                    help='Directory contenente i file di input')
     g3.add_argument('--file-alsometrie', type=str, default='alsometrie.csv',
                     help='File con le altezze da tabelle alsometriche')
     g3.add_argument('--file-ipsometro', type=str, default='altezze.csv',
@@ -807,6 +824,8 @@ def main():
                     help='File con i dati degli alberi campionati con altezze calcolate')
     g4.add_argument('--file-alsometrie-calcolate', type=str, default='alsometrie-calcolate.csv',
                     help='File con dati alsometrici calcolati')
+    g4.add_argument('--nome-report', type=str, default='report',
+                    help='Nome del file tex/pdf (senza suffisso)')
     g4.add_argument('--prefisso-output', type=str, default='./',
                     help='Prefisso per i file di output')
 
@@ -852,32 +871,38 @@ def main():
             alsometrie_calcolate_file=str(args.file_alsometrie_calcolate)
         )
 
+    # For LaTeX/PDF, use single output directory; for HTML, use subdirectories
+    if args.formato_output == 'html':
+        cd_output_dir = Path(args.prefisso_output) / 'classi-diametriche'
+        ci_output_dir = Path(args.prefisso_output) / 'curve-ipsometriche'
+    else:  # latex or pdf
+        cd_output_dir = Path(args.prefisso_output) / 'tex'
+        ci_output_dir = Path(args.prefisso_output) / 'tex'
+
     if args.genera_classi_diametriche:
-        output_dir = Path(args.prefisso_output) / 'classi-diametriche'
-        os.makedirs(output_dir, exist_ok=True)
+        os.makedirs(cd_output_dir, exist_ok=True)
 
         files = []
         for _, row in regions.sort_values(['sort_key']).iterrows():
             files.append(create_cd(trees=alberi_fustaia, region=row,
-                                   color_map=color_map, output_dir=output_dir,
+                                   color_map=color_map, output_dir=cd_output_dir,
                                    set_title=args.formato_output == 'html'))
 
-        formatter.generate_index_cd(files, output_dir)
-        print(f"Istogrammi classi diametriche salvati in '{output_dir}'")
+        formatter.generate_index_cd(files, cd_output_dir)
+        print(f"Istogrammi classi diametriche salvati in '{cd_output_dir}'")
 
     if args.genera_curve_ipsometriche:
-        output_dir = Path(args.prefisso_output) / 'curve-ipsometriche'
-        os.makedirs(output_dir, exist_ok=True)
+        os.makedirs(ci_output_dir, exist_ok=True)
 
         files = []
         for _, row in regions.sort_values(['sort_key']).iterrows():
             files.append(create_ci(trees=alberi_fustaia, region=row,
-                                   color_map=color_map, output_dir=output_dir,
+                                   color_map=color_map, output_dir=ci_output_dir,
                                    hfuncs=hfuncs, omit_unknown=args.ometti_generi_sconosciuti,
                                    set_title=args.formato_output == 'html'))
 
-        formatter.generate_index_ci(files, output_dir)
-        print(f"Curve ipsometriche salvate in '{output_dir}'")
+        formatter.generate_index_ci(files, ci_output_dir)
+        print(f"Curve ipsometriche salvate in '{ci_output_dir}'")
 
     if args.genera_alberi_altezze_calcolate:
         alberi_calcolati = alberi.copy()
@@ -890,10 +915,12 @@ def main():
 
     # Finalize output (compile PDF if LaTeX was chosen)
     if args.genera_classi_diametriche or args.genera_curve_ipsometriche:
-        formatter.finalize(output_dir)
+        # Use whichever directory was set (they're the same for LaTeX mode)
+        final_dir = cd_output_dir if args.genera_classi_diametriche else ci_output_dir
+        formatter.finalize(final_dir, args.nome_report)
 
     with italian_locale():
-        print(f"\nAnalisi completata.")
+        print("\nAnalisi completata.")
         print("\nRiepilogo:")
 
         for _, row in regions.sort_values(['sort_key']).iterrows():
