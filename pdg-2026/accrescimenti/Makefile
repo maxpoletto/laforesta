@@ -44,10 +44,8 @@ sync:
 	rsync -avz -e ssh . laforesta.it:/var/www/laforestadotit/html/pdg-2026/accrescimenti/
 
 ipsometrie: ipsometrie.py $(CSV_DIR)/alberi-modello.csv $(CSV_DIR)/altezze.csv
-	./ipsometrie.py $(CSV_DIR)/alberi-modello.csv --format 3c --fit lin -o alberi1-lineare
-	./ipsometrie.py $(CSV_DIR)/alberi-modello.csv --format 3c --fit log -o alberi1-logaritmico
-	./ipsometrie.py $(CSV_DIR)/altezze.csv --fit log -o alberi2-logaritmico
-	./ipsometrie.py $(CSV_DIR)/altezze.csv --fit lin -o alberi2-lineare
+	./ipsometrie.py $(CSV_DIR)/altezze.csv --fit log -o ipsometrie-log
+	./ipsometrie.py $(CSV_DIR)/altezze.csv --fit lin -o ipsometrie-lin
 
 clean:
 	rm -rf $(CSV_DIR)/alberi-calcolati.csv $(CSV_DIR)/alsometrie-calcolate.csv
