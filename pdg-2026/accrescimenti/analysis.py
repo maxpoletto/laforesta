@@ -241,7 +241,7 @@ class LaTeXFormatter(OutputFormatter):
 ''')
             f.write(self.FOOTER)
         self.latex_files.append(latex_file)
-        print(f"LaTeX document generated: {latex_file}")
+        print(f"Generato file LaTeX: {latex_file}")
 
     def generate_index_ci(self, files: list, output_dir: str) -> None:
         """Generate a LaTeX document for height-diameter curves"""
@@ -280,7 +280,7 @@ combinazioni con almeno 10 punti ($n \ge 10$).
             f.write(self.FOOTER)
 
         self.latex_files.append(latex_file)
-        print(f"LaTeX document generated: {latex_file}")
+        print(f"Generato file LaTeX: {latex_file}")
 
     def finalize(self, output_dir: str) -> None:
         """Compile LaTeX files to PDF if requested"""
@@ -291,7 +291,6 @@ combinazioni con almeno 10 punti ($n \ge 10$).
             if pdf_file.exists():
                 pdf_file.unlink()
             try:
-                print(f"Compiling {latex_file} to PDF...")
                 result = subprocess.run(
                     ['pdflatex', '-interaction=nonstopmode', latex_file.name],
                     cwd=latex_file.parent,
@@ -302,44 +301,134 @@ combinazioni con almeno 10 punti ($n \ge 10$).
                     raise RuntimeError(f"Warning: pdflatex returned non-zero exit code ({result.stderr})")
 
                 if pdf_file.exists():
-                    print(f"PDF generated: {pdf_file}")
+                    print(f"Generato file PDF: {pdf_file}")
                     # Clean up auxiliary files
                     for ext in ['.aux', '.log', '.out']:
                         aux_file = latex_file.with_suffix(ext)
                         if aux_file.exists():
                             aux_file.unlink()
                 else:
-                    print(f"Warning: PDF file was not created")
+                    print(f"Attenzione: file PDF non creato")
             except Exception as e:
-                print(f"Error compiling LaTeX: {e}")
+                print(f"Errore nella compilazione LaTeX: {e}")
 
 #
 # Interpolation and curve fitting
 #
 
-def fit_logarithmic_curve(x: np.ndarray, y: np.ndarray) -> tuple[tuple[float, float], float, tuple[float, float]]:
-    """Fit logarithmic curve to data using np.polyfit and return a tuple with the parameters, R² and the range of x values"""
-    x_clean = x[x > 0]
-    y_clean = y[x > 0]
+class RegressionFunc(ABC):
 
-    if len(x_clean) < 10:
-        return None, None, None
+    def __init__(self):
+        self.a = None
+        self.b = None
+        self.r2 = None
+        self.x_range = None
+        self.n_points = None
 
-    # Fit logarithmic function: y = a*ln(x) + b
-    # Using linear fit to log-transformed x values
-    coeffs = np.polyfit(np.log(x_clean), y_clean, 1)
-    a, b = coeffs
+    @abstractmethod
+    def _clean_data(self, x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 
-    # Calculate predictions and R²
-    y_pred = a * np.log(x_clean) + b
-    if np.var(y_clean) > 0:  # Avoid division by zero
-        ss_res = np.sum((y_clean - y_pred) ** 2)
-        ss_tot = np.sum((y_clean - np.mean(y_clean)) ** 2)
-        r2 = 1 - (ss_res / ss_tot)
-    else:
-        r2 = 0.0  # No variance in y values
+        """Clean and validate input data. Returns (x_clean, y_clean)."""
+        pass
 
-    return (a, b), r2, (x_clean.min(), x_clean.max())
+    @abstractmethod
+    def _fit_params(self, x: np.ndarray, y: np.ndarray) -> tuple[float, float]:
+        """Fit parameters to data. Returns (a, b)."""
+        pass
+
+    @abstractmethod
+    def _predict(self, x: np.ndarray, a: float, b: float) -> np.ndarray:
+        """Predict y values from x using parameters a, b."""
+        pass
+
+    @abstractmethod
+    def _create_lambda(self, a: float, b: float):
+        """Create lambda function for prediction."""
+        pass
+
+    @abstractmethod
+    def _format_equation(self, a: float, b: float) -> str:
+        """Format equation as string."""
+        pass
+
+    def fit(self, x: np.ndarray, y: np.ndarray, min_points: int = 10) -> bool:
+        """Fit the regression function to data.
+
+        Returns True if successful, False otherwise.
+        """
+        x_clean, y_clean = self._clean_data(x, y)
+
+        if len(x_clean) < min_points:
+            return False
+
+        self.a, self.b = self._fit_params(x_clean, y_clean)
+        y_pred = self._predict(x_clean, self.a, self.b)
+
+        # Calculate R²
+        if np.var(y_clean) > 0:
+            ss_res = np.sum((y_clean - y_pred) ** 2)
+            ss_tot = np.sum((y_clean - np.mean(y_clean)) ** 2)
+            self.r2 = 1 - (ss_res / ss_tot)
+        else:
+            self.r2 = 0.0
+
+        self.x_range = (x_clean.min(), x_clean.max())
+        self.n_points = len(x_clean)
+        return True
+
+    def get_lambda(self):
+        """Return a lambda function for prediction."""
+        if self.a is None or self.b is None:
+            return None
+        return self._create_lambda(self.a, self.b)
+
+    def __str__(self) -> str:
+        """Return string representation of the fitted function."""
+        if self.a is None or self.b is None:
+            return "Not fitted"
+        return self._format_equation(self.a, self.b)
+
+
+class LogarithmicRegression(RegressionFunc):
+    """Logarithmic regression: y = a*ln(x) + b"""
+
+    def _clean_data(self, x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        mask = (x > 0) & np.isfinite(x) & np.isfinite(y)
+        return x[mask], y[mask]
+
+    def _fit_params(self, x: np.ndarray, y: np.ndarray) -> tuple[float, float]:
+        coeffs = np.polyfit(np.log(x), y, 1)
+        return coeffs[0], coeffs[1]
+
+    def _predict(self, x: np.ndarray, a: float, b: float) -> np.ndarray:
+        return a * np.log(x) + b
+
+    def _create_lambda(self, a: float, b: float):
+        return lambda x: a * np.log(np.maximum(x, 0.1)) + b
+
+    def _format_equation(self, a: float, b: float) -> str:
+        return f"y = {a:.4f}*ln(x) + {b:.4f}"
+
+
+class LinearRegression(RegressionFunc):
+    """Linear regression: y = a*x + b"""
+
+    def _clean_data(self, x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        mask = np.isfinite(x) & np.isfinite(y)
+        return x[mask], y[mask]
+
+    def _fit_params(self, x: np.ndarray, y: np.ndarray) -> tuple[float, float]:
+        coeffs = np.polyfit(x, y, 1)
+        return coeffs[0], coeffs[1]
+
+    def _predict(self, x: np.ndarray, a: float, b: float) -> np.ndarray:
+        return a * x + b
+
+    def _create_lambda(self, a: float, b: float):
+        return lambda x: a * x + b
+
+    def _format_equation(self, a: float, b: float) -> str:
+        return f"y = {a:.4f}*x + {b:.4f}"
 
 def hif_alsometrie(alsometrie_file: str, interpolation_func: str,
                    alsometry_calc: bool, alsometrie_calcolate_file: str) -> dict | None:
@@ -349,7 +438,7 @@ def hif_alsometrie(alsometrie_file: str, interpolation_func: str,
     try:
         df = pd.read_csv(alsometrie_file)
     except FileNotFoundError:
-        print(f"Warning: {alsometrie_file} not found, using original h(m) values")
+        print(f"Attenzione: {alsometrie_file} non trovato, uso i valori originali h(m)")
         return None
 
     # Convert numeric columns
@@ -388,13 +477,16 @@ def hif_altezze(altezze_file: str, regression_func: str) -> dict | None:
     try:
         df = pd.read_csv(altezze_file)
     except FileNotFoundError:
-        print(f"Warning: {altezze_file} not found, using original h(m) values")
+        print(f"Attenzione: {altezze_file} non trovato, uso i valori originali h(m)")
         return None
 
     required_cols = ['Compresa', 'Specie', 'Diametro', 'Altezza']
     missing_cols = [col for col in required_cols if col not in df.columns]
     if missing_cols:
         raise ValueError(f"Colonne {missing_cols} non trovate in {altezze_file}")
+
+    # Select regression class
+    RegressionClass = LogarithmicRegression if regression_func == 'logaritmica' else LinearRegression
 
     hfuncs = {}
     for compresa in sorted(df['Compresa'].unique()):
@@ -406,30 +498,12 @@ def hif_altezze(altezze_file: str, regression_func: str) -> dict | None:
             x = species_data['Diametro'].values
             y = species_data['Altezza'].values
 
-            if len(x) < 10:
+            regr = RegressionClass()
+            if regr.fit(x, y, min_points=10):
+                hfuncs[compresa][species] = regr.get_lambda()
+                print(f"  {species:15}: {regr}")
+            else:
                 print(f"  {species:15}: Troppi pochi punti ({len(x)}) per la regressione")
-                continue
-
-            if regression_func == 'logaritmica':
-                # Fit logarithmic curve: y = a*ln(x) + b
-                params, r2, _ = fit_logarithmic_curve(x, y)
-                if params is not None:
-                    a, b = params
-                    hfuncs[compresa][species] = lambda d, a=a, b=b: a * np.log(np.maximum(d, 0.1)) + b
-                else:
-                    print(f"  {species:15}: Fallito fit logaritmico")
-            elif regression_func == 'lineare':
-                # Fit linear curve: y = a*x + b
-                coeffs = np.polyfit(x, y, 1)
-                a, b = coeffs
-                y_pred = a * x + b
-                if np.var(y) > 0:
-                    ss_res = np.sum((y - y_pred) ** 2)
-                    ss_tot = np.sum((y - np.mean(y)) ** 2)
-                    r2 = 1 - (ss_res / ss_tot)
-                else:
-                    r2 = 0.0
-                hfuncs[compresa][species] = lambda d, a=a, b=b: a * d + b
 
     return hfuncs
 
@@ -528,7 +602,7 @@ Classe diametrica media: {round(region_data["Classe diametrica"].mean()):n}""".s
 
     filepath = Path(output_dir) / filename
     plt.savefig(filepath, bbox_inches='tight')
-    print(f"Saved histogram for {print_name} to {filepath}")
+    print(f"Salvato istogramma per {print_name} in {filepath}")
     plt.close(fig)
     return [compresa, particella, filepath]
 
@@ -568,7 +642,6 @@ def create_ci(trees: pd.DataFrame, region: pd.Series, color_map: dict, output_di
         species_data = region_data[region_data['Genere'] == species]
         x = species_data['Classe diametrica'].values
 
-        # Get height function for this compresa/species combination
         height_func = get_height_function(hfuncs, compresa, species)
 
         # Skip species not present in height functions if requested (generate only "clean" curves)
@@ -588,21 +661,21 @@ def create_ci(trees: pd.DataFrame, region: pd.Series, color_map: dict, output_di
         # Plot scatter points
         ax.scatter(x, y, color=color_map[species], label=species, alpha=0.7, s=20)
 
-        params, r2, limits = fit_logarithmic_curve(x, y)
-        if params is None:
+        # Fit logarithmic curve for visualization
+        regr = LogarithmicRegression()
+        if not regr.fit(x, y, min_points=10):
             continue
 
-        a, b = params
-        x_min, x_max = limits
+        x_min, x_max = regr.x_range
         x_smooth = np.linspace(x_min, x_max, 100)
-        y_smooth = a * np.log(x_smooth) + b
+        y_smooth = regr.get_lambda()(x_smooth)
         ax.plot(x_smooth, y_smooth, color=color_map[species], linestyle='--', alpha=0.8, linewidth=1.5)
 
         polynomial_info.append({
             'species': species,
-            'coeffs': (a, b),
-            'r_squared': r2,
-            'n_points': len(species_data)
+            'equation': str(regr),
+            'r_squared': regr.r2,
+            'n_points': regr.n_points
         })
 
     ax.set_xlabel('Classe diametrica', fontweight='bold')
@@ -639,11 +712,8 @@ Altezza media: {locale.format_string('%.1f', region_data["h(m)"].mean())} m""".s
 
     if polynomial_info:
         poly_text = ""
-        for info in polynomial_info:
-            a, b = info['coeffs']
-            r2 = info['r_squared']
-            n = info['n_points']
-            poly_text += f"{info['species']}: y = {a:.4f}ln(x) + {b:.4f} (R² = {r2:.3f}, n = {n})\n"
+        for i in polynomial_info:
+            poly_text += f"{i['species']}: {i['equation']} (R² = {i['r_squared']:.3f}, n = {i['n_points']})\n"
 
         ax.text(0.01, -0.25, poly_text.strip(), transform=ax.transAxes,
                 verticalalignment='top', horizontalalignment='left',
@@ -653,7 +723,7 @@ Altezza media: {locale.format_string('%.1f', region_data["h(m)"].mean())} m""".s
 
     filepath = Path(output_dir) / filename
     plt.savefig(filepath, bbox_inches='tight')
-    print(f"Saved scatter plot for {print_name} to {filepath}")
+    print(f"Salvato grafico ipsometrico per {print_name} in {filepath}")
     plt.close(fig)
     return [compresa, particella, filepath]
 
