@@ -318,7 +318,7 @@ combinazioni con almeno 10 punti ($n \ge 10$).
 #
 
 def fit_logarithmic_curve(x: np.ndarray, y: np.ndarray) -> tuple[tuple[float, float], float, tuple[float, float]]:
-    """Fit logarithmic curve to data using np.polyfit and return parameters and R²"""
+    """Fit logarithmic curve to data using np.polyfit and return a tuple with the parameters, R² and the range of x values"""
     x_clean = x[x > 0]
     y_clean = y[x > 0]
 
@@ -341,12 +341,11 @@ def fit_logarithmic_curve(x: np.ndarray, y: np.ndarray) -> tuple[tuple[float, fl
 
     return (a, b), r2, (x_clean.min(), x_clean.max())
 
-def height_interpolation_functions(alsometrie_file: str, height_method: str, interpolation_method: str,
-                                   alsometry_calc: bool, alsometrie_calcolate_file: str) -> dict:
-    """Create height interpolation functions from alsometrie data"""
-    if height_method == 'originali':
-        return None
-
+def hif_alsometrie(alsometrie_file: str, interpolation_func: str,
+                   alsometry_calc: bool, alsometrie_calcolate_file: str) -> dict | None:
+    """Create height interpolation functions from alsometrie data.
+    Returns a dictionary: hfuncs[species] = lambda function
+    """
     try:
         df = pd.read_csv(alsometrie_file)
     except FileNotFoundError:
@@ -361,28 +360,15 @@ def height_interpolation_functions(alsometrie_file: str, height_method: str, int
     df[numeric_cols] = df[numeric_cols].apply(pd.to_numeric, errors='coerce')
 
     hfuncs = {}
-
-    if height_method == 'interpolazione':
-        df['Altezza indicativa'] = (df.groupby('Genere')['Altezza indicativa']
-                                    .transform(lambda x: x.interpolate(method=interpolation_method)))
-        for species in df['Genere'].unique():
-            data = (df[df['Genere'] == species].dropna(subset=['Diam 130cm', 'Altezza indicativa'])
-                    .sort_values('Diam 130cm'))
-            hfuncs[species] = (lambda x,
-                                xvec=data['Diam 130cm'].values, yvec=data['Altezza indicativa'].values:
-                                np.interp(x, xvec, yvec)) # type: ignore
-    elif height_method == 'regressione':
-        for species in df['Genere'].unique():
-            data = (df[df['Genere'] == species]
-                    .dropna(subset=['Altezza indicativa', 'Diam 130cm']))
-            params, r2, _ = fit_logarithmic_curve(data['Diam 130cm'].values,
-                                                  data['Altezza indicativa'].values)
-            if params is not None:
-                a, b = params
-                hfuncs[species] = lambda x, a=a, b=b: a * np.log(np.maximum(x, 0.1)) + b
-                print(f"{species:15}: y = {a:.4f}*ln(x) + {b:.4f}, R² = {r2:.4f} ({len(data)} punti)")
-    else:
-        raise ValueError(f"Metodo di interpolazione altezze non valido: {height_method}")
+    interp_method = 'quadratic' if interpolation_func == 'quadratica' else 'linear'
+    df['Altezza indicativa'] = (df.groupby('Genere')['Altezza indicativa']
+                                .transform(lambda x: x.interpolate(method=interp_method)))
+    for species in df['Genere'].unique():
+        data = (df[df['Genere'] == species].dropna(subset=['Diam 130cm', 'Altezza indicativa'])
+                .sort_values('Diam 130cm'))
+        hfuncs[species] = (lambda x,
+                            xvec=data['Diam 130cm'].values, yvec=data['Altezza indicativa'].values:
+                            np.interp(x, xvec, yvec)) # type: ignore
 
     if alsometry_calc:
         df['Diam base'] = df['Diam base'].astype('Int64')
@@ -393,6 +379,84 @@ def height_interpolation_functions(alsometrie_file: str, height_method: str, int
         print(f"File '{alsometrie_calcolate_file}' salvato")
 
     return hfuncs
+
+def hif_altezze(altezze_file: str, regression_func: str) -> dict | None:
+    """Create height interpolation functions from measured height data (ipsometro).
+
+    Returns a nested dictionary: hfuncs[compresa][species] = lambda function
+    """
+    try:
+        df = pd.read_csv(altezze_file)
+    except FileNotFoundError:
+        print(f"Warning: {altezze_file} not found, using original h(m) values")
+        return None
+
+    required_cols = ['Compresa', 'Specie', 'Diametro', 'Altezza']
+    missing_cols = [col for col in required_cols if col not in df.columns]
+    if missing_cols:
+        raise ValueError(f"Colonne {missing_cols} non trovate in {altezze_file}")
+
+    hfuncs = {}
+    for compresa in sorted(df['Compresa'].unique()):
+        compresa_data = df[df['Compresa'] == compresa]
+        hfuncs[compresa] = {}
+
+        for species in sorted(compresa_data['Specie'].unique()):
+            species_data = compresa_data[compresa_data['Specie'] == species]
+            x = species_data['Diametro'].values
+            y = species_data['Altezza'].values
+
+            if len(x) < 10:
+                print(f"  {species:15}: Troppi pochi punti ({len(x)}) per la regressione")
+                continue
+
+            if regression_func == 'logaritmica':
+                # Fit logarithmic curve: y = a*ln(x) + b
+                params, r2, _ = fit_logarithmic_curve(x, y)
+                if params is not None:
+                    a, b = params
+                    hfuncs[compresa][species] = lambda d, a=a, b=b: a * np.log(np.maximum(d, 0.1)) + b
+                else:
+                    print(f"  {species:15}: Fallito fit logaritmico")
+            elif regression_func == 'lineare':
+                # Fit linear curve: y = a*x + b
+                coeffs = np.polyfit(x, y, 1)
+                a, b = coeffs
+                y_pred = a * x + b
+                if np.var(y) > 0:
+                    ss_res = np.sum((y - y_pred) ** 2)
+                    ss_tot = np.sum((y - np.mean(y)) ** 2)
+                    r2 = 1 - (ss_res / ss_tot)
+                else:
+                    r2 = 0.0
+                hfuncs[compresa][species] = lambda d, a=a, b=b: a * d + b
+
+    return hfuncs
+
+def get_height_function(hfuncs: dict, compresa: str, species: str):
+    """Get height interpolation function from hfuncs dictionary.
+
+    Handles both flat structure (alsometrie: hfuncs[species])
+    and nested structure (ipsometro: hfuncs[compresa][species]).
+    """
+    if not hfuncs:
+        return None
+    if compresa in hfuncs and isinstance(hfuncs[compresa], dict):
+        return hfuncs[compresa].get(species)
+    return hfuncs.get(species)
+
+def height_interpolation_functions(height_source: str, alsometrie_file: str, ipsometro_file: str,
+                                   interpolation_func: str, regression_func: str,
+                                   alsometry_calc: bool, alsometrie_calcolate_file: str) -> dict | None:
+    """Create height interpolation functions."""
+    assert height_source in ['alsometrie', 'ipsometro']
+    assert interpolation_func in ['quadratica', 'lineare']
+    assert regression_func in ['logaritmica', 'lineare']
+
+    if height_source == 'alsometrie':
+        return hif_alsometrie(alsometrie_file, interpolation_func, alsometry_calc, alsometrie_calcolate_file)
+    elif height_source == 'ipsometro':
+        return hif_altezze(ipsometro_file, regression_func)
 
 #
 # Create histograms for diameter class distribution
@@ -504,16 +568,19 @@ def create_ci(trees: pd.DataFrame, region: pd.Series, color_map: dict, output_di
         species_data = region_data[region_data['Genere'] == species]
         x = species_data['Classe diametrica'].values
 
-        # Skip species not present in alsometrie if requested (generate only "clean" curves)
-        if hfuncs and species not in hfuncs and omit_unknown:
-            print(f"Genere {species} non presente nel file alsometrie, omesso dalle curve ipsometriche")
+        # Get height function for this compresa/species combination
+        height_func = get_height_function(hfuncs, compresa, species)
+
+        # Skip species not present in height functions if requested (generate only "clean" curves)
+        if hfuncs and height_func is None and omit_unknown:
+            print(f"Genere {species} non presente nelle funzioni di altezza, omesso dalle curve ipsometriche")
             continue
 
         # Use interpolated heights if available, otherwise use original h(m)
-        if hfuncs and species in hfuncs:
+        if height_func is not None:
             # Get D(cm) values and apply interpolation function
             d_cm = species_data['D(cm)'].values
-            y = np.array([hfuncs[species](d) for d in d_cm])
+            y = np.array([height_func(d) for d in d_cm])
         else:
             y = species_data['h(m)'].values
         ymax = max(ymax, y.max())
@@ -626,34 +693,51 @@ def main():
     g1.add_argument('--genera-curve-ipsometriche', action='store_true',
                     help='Genera curve ipsometriche')
     g1.add_argument('--genera-alberi-altezze-calcolate', action='store_true',
-                    help='Genera tabella alberi campionati con altezze calcolate in base ai dati alsometrici')
+                    help='Genera tabella alberi campionati con altezze calcolate in base alla fonte delle altezze')
     g1.add_argument('--genera-alsometrie-calcolate', action='store_true',
                     help='Genera file con le altezze calcolate dalle curve ipsometriche')
+    g1.add_argument('--fonte-altezze', type=str,
+                    choices=['alsometrie', 'ipsometro', 'originali'],
+                    default='originali',
+                    help=('Fonte delle altezze per le curve ipsometriche (default: originali). ' +
+                    '"Alsometrie" = tavole alsometriche (Tabacchi et al.); i valori intermedi verrano interpolati. ' +
+                    '"Ipsometro" = dati misurati con ipsometro; i valori intermedi verranno calcolati per regressione. ' +
+                    '"Originali" = dati originali.'))
     g1.add_argument('--per-particella', action='store_true',
                     help='Genera risultati per ogni coppia (compresa, particella) (default: solo per compresa)')
-    g1.add_argument('--formato-output', type=str, choices=['html', 'latex', 'pdf'], default='html',
+    g1.add_argument('--formato-output', type=str,
+                    choices=['html', 'latex', 'pdf'],
+                    default='html',
                     help='Formato di output per i documenti (default: html)')
     g2 = parser.add_argument_group('Altezze per curve ipsometriche')
-    g2.add_argument('--metodo-altezze', type=str, choices=['regressione', 'interpolazione', 'originali'], default='originali',
-                    help='Metodo per calcolare le altezze: regressione (logaritmica) o interpolazione o usare i valori originali')
-    g2.add_argument('--interpolazione', type=str, default='quadratic',
-                    help='Metodo di interpolazione quando si usa il metodo di interpolazione ("cubic", "quadratic", "linear")')
+    g2.add_argument('--funzione-interpolazione', type=str,
+                    choices=['quadratica', 'lineare'],
+                    default='quadratica',
+                    help='Funzione interpolante per altezze da tabelle alsometriche (default: quadratica)')
+    g2.add_argument('--funzione-regressione', type=str,
+                    choices=['logaritmica', 'lineare'],
+                    default='logaritmica',
+                    help='Funzione di regressione per altezze da dati ipsometrici (default: logaritmica)')
     g2.add_argument('--ometti-generi-sconosciuti', action='store_true',
+                    default=True,
                     help='Omette generi non presenti nel file alsometrie dalle curve ipsometriche')
-    g3 = parser.add_argument_group('Nomi dei file')
+    g3 = parser.add_argument_group('Nomi dei file di input')
     g3.add_argument('--input-dir', type=str, default='.',
                     help='Directory contenente i file di input'),
     g3.add_argument('--file-alsometrie', type=str, default='alsometrie.csv',
-                    help='File con le altezze da tabelle alsometriche (input)')
+                    help='File con le altezze da tabelle alsometriche')
+    g3.add_argument('--file-ipsometro', type=str, default='altezze.csv',
+                    help='File con i dati delle altezze misurate con ipsometro')
     g3.add_argument('--file-alberi', type=str, default='alberi.csv',
-                    help='File con i dati degli alberi campionati (input)')
+                    help='File con i dati degli alberi campionati')
     g3.add_argument('--file-particelle', type=str, default='particelle.csv',
-                    help='File con i dati delle particelle (input)')
-    g3.add_argument('--file-alberi-calcolati', type=str, default='alberi-calcolati.csv',
-                    help='File con i dati degli alberi campionati con altezze calcolate (output)')
-    g3.add_argument('--file-alsometrie-calcolate', type=str, default='alsometrie-calcolate.csv',
-                    help='File con dati alsometrici calcolati (output)')
-    g3.add_argument('--prefisso-output', type=str, default='./',
+                    help='File con i dati delle particelle')
+    g4 = parser.add_argument_group('Nomi dei file di output')
+    g4.add_argument('--file-alberi-calcolati', type=str, default='alberi-calcolati.csv',
+                    help='File con i dati degli alberi campionati con altezze calcolate')
+    g4.add_argument('--file-alsometrie-calcolate', type=str, default='alsometrie-calcolate.csv',
+                    help='File con dati alsometrici calcolati')
+    g4.add_argument('--prefisso-output', type=str, default='./',
                     help='Prefisso per i file di output')
 
     args = parser.parse_args()
@@ -664,6 +748,7 @@ def main():
     args.file_alberi = Path(args.input_dir) / args.file_alberi
     args.file_particelle = Path(args.input_dir) / args.file_particelle
     args.file_alsometrie = Path(args.input_dir) / args.file_alsometrie
+    args.file_ipsometro = Path(args.input_dir) / args.file_ipsometro
 
     alberi = pd.read_csv(args.file_alberi)
     particelle = pd.read_csv(args.file_particelle)
@@ -685,20 +770,16 @@ def main():
     else:  # latex
         formatter = LaTeXFormatter(compile_pdf=args.formato_output == 'pdf')
 
-    hfuncs = {}
-    if (args.genera_curve_ipsometriche
-        or args.genera_alberi_altezze_calcolate
-        or args.genera_alsometrie_calcolate):
-        print(f"Creazione funzioni di interpolazione altezze usando metodo '{args.metodo_altezze}'...")
-        print(f"File alsometrie: {args.file_alsometrie}")
-        print(f"File alberi calcolati: {args.file_alberi_calcolati}")
-        print(f"File alsometrie calcolate: {args.file_alsometrie_calcolate}")
+    hfuncs = None
+    if args.fonte_altezze != 'originali':
         hfuncs = height_interpolation_functions(
+            height_source=args.fonte_altezze,
             alsometrie_file=str(args.file_alsometrie),
-            height_method=args.metodo_altezze,
-            interpolation_method=args.interpolazione,
+            ipsometro_file=str(args.file_ipsometro),
+            interpolation_func=args.funzione_interpolazione,
+            regression_func=args.funzione_regressione,
             alsometry_calc=args.genera_alsometrie_calcolate,
-            alsometrie_calcolate_file=str(args.file_alsometrie_calcolate),
+            alsometrie_calcolate_file=str(args.file_alsometrie_calcolate)
         )
 
     if args.genera_classi_diametriche:
@@ -730,9 +811,10 @@ def main():
 
     if args.genera_alberi_altezze_calcolate:
         alberi_calcolati = alberi.copy()
-        alberi_calcolati['h(m)'] = alberi_calcolati.apply(
-            lambda row: hfuncs[row['Genere']](row['D(cm)']) if (hfuncs and row['Genere'] in hfuncs) else row['h(m)'],
-            axis=1)
+        def calc_height(row):
+            height_func = get_height_function(hfuncs, row['Compresa'], row['Genere'])
+            return height_func(row['D(cm)']) if height_func is not None else row['h(m)']
+        alberi_calcolati['h(m)'] = alberi_calcolati.apply(calc_height, axis=1)
         alberi_calcolati.to_csv(args.file_alberi_calcolati, index=False, float_format="%.3f")
         print(f"File '{args.file_alberi_calcolati}' salvato")
 
