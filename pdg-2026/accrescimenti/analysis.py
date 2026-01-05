@@ -4,11 +4,13 @@ Forest Parcel Analysis: Generate histograms of tree distribution by diameter cla
 and scatter plots with height-diameter relationships for each parcel
 """
 
+from abc import ABC, abstractmethod
 import argparse
 from contextlib import contextmanager
 import locale
 import os
 from pathlib import Path
+import subprocess
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -29,6 +31,10 @@ plt.rcParams['ytick.labelsize'] = 6
 
 SAMPLE_AREAS_PER_HA = 8
 
+#
+# Output formatters
+#
+
 @contextmanager
 def italian_locale():
     old_locale = locale.getlocale()
@@ -44,7 +50,28 @@ def italian_locale():
     finally:
         locale.setlocale(locale.LC_ALL, old_locale)
 
-STYLE = """
+class OutputFormatter(ABC):
+    """Abstract base class for output formatters"""
+
+    @abstractmethod
+    def generate_index_cd(self, files: list, output_dir: str) -> None:
+        """Generate index for diameter class histograms"""
+        pass
+
+    @abstractmethod
+    def generate_index_ci(self, files: list, output_dir: str) -> None:
+        """Generate index for height-diameter curves"""
+        pass
+
+    @abstractmethod
+    def finalize(self, output_dir: str) -> None:
+        """Finalize output (e.g., compile PDF for LaTeX)"""
+        pass
+
+class HTMLFormatter(OutputFormatter):
+    """HTML output formatter"""
+
+    style = """
         body {
             font-family: Arial, sans-serif;
             margin: 20px;
@@ -97,106 +124,198 @@ STYLE = """
         }
 """
 
-def create_cd(trees: pd.DataFrame, region: pd.Series, color_map: dict, output_dir: str) -> list:
-    """
-    Create a histogram for a specific region (parcel or compresa) showing tree distribution by diameter class
-    with stacked bars for different species, scaled to estimated totals per hectare
-    """
-    compresa = region['Compresa']
-    particella = region.get('Particella', None)
+    def generate_index_cd(self, files: list, output_dir: str) -> None:
+        """Generate an HTML index file for the generated histograms"""
+        files_sorted = sorted(files, key=lambda x: x[2])
 
-    if particella is None:
-        region_data = trees[trees['Compresa'] == compresa]
-        title = f'Distribuzione alberi per classe diametrica - {compresa}'
-        print_name = compresa
-    else:
-        region_data = trees[(trees['Compresa'] == compresa) & (trees['Particella'] == particella)]
-        title = f'Distribuzione alberi per classe diametrica - {compresa} Particella {particella}'
-        print_name = f"{compresa}-{particella}"
-    filename = f"{region['sort_key']}_classi-diametriche.png"
-
-    assert len(region_data) > 0, f"Nessun dato per {print_name}"
-    print(f"Generazione istogramma per {print_name}...")
-
-    counts = (region_data.groupby(['Classe diametrica', 'Genere']).size().unstack(fill_value=0)
-              * SAMPLE_AREAS_PER_HA / region['sample_areas'])
-
-    fig, ax = plt.subplots(figsize=(4, 2.5))
-    species_list = counts.columns.tolist()
-
-    bottom = np.zeros(len(counts.index))
-    for species in species_list:
-        values = counts[species].values
-        ax.bar(counts.index, values, bottom=bottom,
-               label=species, color=color_map[species],
-               alpha=0.8, edgecolor='white', linewidth=0.5)
-        bottom += values
-
-    ax.set_xlabel('Classe diametrica', fontweight='bold')
-    ax.set_ylabel('Stima alberi / ha', fontweight='bold')
-    ax.set_title(title, fontweight='bold', pad=20)
-
-    max_class = trees['Classe diametrica'].max()
-    ax.set_xlim(-0.5, max_class + 0.5)
-    ax.set_xticks(range(0, max_class + 1, 2))
-    ax.set_ylim(0, counts.sum(axis=1).max() * 1.1)
-    ax.grid(True, alpha=0.3, axis='y')
-    ax.set_axisbelow(True)
-    ax.legend(title='Specie', bbox_to_anchor=(1.01, 1.02),
-              alignment='left')
-
-    with italian_locale():
-        stats_text = f"""
-Area: {locale.format_string('%.2f', region["area_ha"])} ha
-Alberi campionati: {len(region_data)}
-N. aree saggio: {region["sample_areas"]}
-Stima totale alberi: {region["estimated_total"]:n}
-Stima alberi / ha: {round(region["estimated_total"]/region["area_ha"]):n}
-Specie prevalente: {region_data["Genere"].mode().iloc[0]}
-Classe diametrica media: {round(region_data["Classe diametrica"].mean()):n}""".strip()
-
-    ax.text(0.99, 0.98, stats_text, transform=ax.transAxes,
-            verticalalignment='top', horizontalalignment='right',
-            bbox=dict(boxstyle='round', facecolor='#fbfbfb', alpha=1, linewidth=0.2))
-    plt.tight_layout()
-
-    filepath = Path(output_dir) / filename
-    plt.savefig(filepath, bbox_inches='tight')
-    print(f"Saved histogram for {print_name} to {filepath}")
-    plt.close(fig)
-    return [compresa, particella, filepath]
-
-def generate_html_index_cd(files: list, output_dir: str) -> None:
-    """
-    Generate an HTML index file for the generated histograms
-    """
-    files_sorted = sorted(files, key=lambda x: x[2])
-
-    with open(Path(output_dir) / 'index.html', 'w', encoding='utf-8') as f:
-        f.write(f'''<!DOCTYPE html>
+        with open(Path(output_dir) / 'index.html', 'w', encoding='utf-8') as f:
+            f.write(f'''<!DOCTYPE html>
 <html lang="it">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Soc. Agr. La Foresta: distribuzione piante per classe diametrica</title>
-    <style>{STYLE}    </style>
+    <style>{self.style}    </style>
 </head>
 <body>
     <div class="container">
         <h1>Soc. Agr. La Foresta: distribuzione piante per classe diametrica</h1>
 ''')
 
-        for compresa, particella, filepath in files_sorted:
-            title = f"{compresa} - Particella {particella}" if particella else compresa
-            f.write(f'''        <div class="histogram-item">
+            for compresa, particella, filepath in files_sorted:
+                title = f"{compresa} - Particella {particella}" if particella else compresa
+                f.write(f'''        <div class="histogram-item">
             <div class="histogram-title">{title}</div>
             <img src="{filepath.name}" alt="Istogramma classi diametriche {title}" class="histogram-image">
         </div>
 ''')
 
-        f.write('''    </div>
+            f.write('''    </div>
 </body>
 </html>''')
+
+    def generate_index_ci(self, files: list, output_dir: str) -> None:
+        """Generate an HTML index file for the generated scatter plots"""
+        files_sorted = sorted(files, key=lambda x: x[2])
+
+        with open(Path(output_dir) / 'index.html', 'w', encoding='utf-8') as f:
+            f.write(f'''<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Soc. Agr. La Foresta: curve ipsometriche</title>
+    <style>{self.style}    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Soc. Agr. La Foresta: curve ipsometriche</h1>
+        <div class="explanation">
+            <p>
+                Le curve ipsometriche sono state calcolate con un modello di regressione logaritmico, per
+                ogni combinazione di compresa, particella e genere. Vengono visualizzate solo per
+                combinazioni con almeno 10 punti (n ≥ 10).
+            </p>
+        </div>
+''')
+
+            for compresa, particella, filepath in files_sorted:
+                title = f"{compresa} - Particella {particella}" if particella else compresa
+                f.write(f'''        <div class="histogram-item">
+            <div class="histogram-title">{title}</div>
+            <img src="{filepath.name}" alt="Curva ipsometrica {title}" class="histogram-image">
+        </div>
+''')
+
+            f.write('''    </div>
+</body>
+</html>''')
+
+    def finalize(self, output_dir: str) -> None:
+        """No finalization needed for HTML"""
+        pass
+
+
+class LaTeXFormatter(OutputFormatter):
+    """LaTeX output formatter"""
+
+    HEADER = r'''\documentclass[a4paper,11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[italian]{babel}
+\usepackage{graphicx}
+\usepackage{geometry}
+\usepackage{float}
+\geometry{margin=2cm}
+\usepackage{times}
+'''
+    FOOTER = r'''\end{document}
+'''
+
+    def __init__(self, compile_pdf: bool = False):
+        self.compile_pdf = compile_pdf
+        self.latex_files = []
+
+    def generate_index_cd(self, files: list, output_dir: str) -> None:
+        """Generate a LaTeX document for diameter class histograms"""
+        files_sorted = sorted(files, key=lambda x: x[2])
+        latex_file = Path(output_dir) / 'classi-diametriche.tex'
+
+        with open(latex_file, 'w', encoding='utf-8') as f:
+            f.write(self.HEADER)
+            f.write(r'''\title{Distribuzione piante per classe diametrica}
+\date{}
+\author{Società Agricola La Foresta}
+\begin{document}
+\maketitle''')
+
+            for compresa, particella, filepath in files_sorted:
+                title = f"{compresa} - Particella {particella}" if particella else compresa
+                # Escape underscores in title for LaTeX
+                title_escaped = title.replace('_', r'\_')
+                f.write(f'''\\section*{{{title_escaped}}}
+\\begin{{figure}}[H]
+    \\centering
+    \\includegraphics[width=0.9\\textwidth]{{{filepath.name}}}
+\\end{{figure}}
+
+''')
+            f.write(self.FOOTER)
+        self.latex_files.append(latex_file)
+        print(f"LaTeX document generated: {latex_file}")
+
+    def generate_index_ci(self, files: list, output_dir: str) -> None:
+        """Generate a LaTeX document for height-diameter curves"""
+        files_sorted = sorted(files, key=lambda x: x[2])
+        latex_file = Path(output_dir) / 'curve-ipsometriche.tex'
+
+        with open(latex_file, 'w', encoding='utf-8') as f:
+            f.write(self.HEADER)
+            f.write(r'''\title{Curve ipsometriche}
+\date{}
+\author{Società Agricola La Foresta}
+\begin{document}
+\maketitle
+
+\begin{quote}
+\itshape
+Le curve ipsometriche sono state calcolate con un modello di regressione logaritmico, per
+ogni combinazione di compresa, particella e genere. Vengono visualizzate solo per
+combinazioni con almeno 10 punti ($n \ge 10$).
+\end{quote}
+
+''')
+
+            for compresa, particella, filepath in files_sorted:
+                title = f"{compresa} - Particella {particella}" if particella else compresa
+                # Escape underscores in title for LaTeX
+                title_escaped = title.replace('_', r'\_')
+                f.write(f'''\\section*{{{title_escaped}}}
+\\begin{{figure}}[H]
+    \\centering
+    \\includegraphics[width=0.9\\textwidth]{{{filepath.name}}}
+\\end{{figure}}
+
+''')
+
+            f.write(self.FOOTER)
+
+        self.latex_files.append(latex_file)
+        print(f"LaTeX document generated: {latex_file}")
+
+    def finalize(self, output_dir: str) -> None:
+        """Compile LaTeX files to PDF if requested"""
+        if not self.compile_pdf:
+            return
+        for latex_file in self.latex_files:
+            pdf_file = latex_file.with_suffix('.pdf')
+            if pdf_file.exists():
+                pdf_file.unlink()
+            try:
+                print(f"Compiling {latex_file} to PDF...")
+                result = subprocess.run(
+                    ['pdflatex', '-interaction=nonstopmode', latex_file.name],
+                    cwd=latex_file.parent,
+                    capture_output=True,
+                    text=True
+                )
+                if result.returncode != 0:
+                    raise RuntimeError(f"Warning: pdflatex returned non-zero exit code ({result.stderr})")
+
+                if pdf_file.exists():
+                    print(f"PDF generated: {pdf_file}")
+                    # Clean up auxiliary files
+                    for ext in ['.aux', '.log', '.out']:
+                        aux_file = latex_file.with_suffix(ext)
+                        if aux_file.exists():
+                            aux_file.unlink()
+                else:
+                    print(f"Warning: PDF file was not created")
+            except Exception as e:
+                print(f"Error compiling LaTeX: {e}")
+
+#
+# Interpolation and curve fitting
+#
 
 def fit_logarithmic_curve(x: np.ndarray, y: np.ndarray) -> tuple[tuple[float, float], float, tuple[float, float]]:
     """Fit logarithmic curve to data using np.polyfit and return parameters and R²"""
@@ -275,8 +394,86 @@ def height_interpolation_functions(alsometrie_file: str, height_method: str, int
 
     return hfuncs
 
+#
+# Create histograms for diameter class distribution
+#
+
+def create_cd(trees: pd.DataFrame, region: pd.Series, color_map: dict, output_dir: str, set_title: bool) -> list:
+    """
+    Create a histogram for a specific region (parcel or compresa) showing tree distribution by diameter class
+    with stacked bars for different species, scaled to estimated totals per hectare
+    """
+    compresa = region['Compresa']
+    particella = region.get('Particella', None)
+
+    if particella is None:
+        region_data = trees[trees['Compresa'] == compresa]
+        title = f'Distribuzione alberi per classe diametrica - {compresa}' if set_title else None
+        print_name = compresa
+    else:
+        region_data = trees[(trees['Compresa'] == compresa) & (trees['Particella'] == particella)]
+        title = f'Distribuzione alberi per classe diametrica - {compresa} Particella {particella}' if set_title else None
+        print_name = f"{compresa}-{particella}"
+    filename = f"{region['sort_key']}_classi-diametriche.png"
+
+    assert len(region_data) > 0, f"Nessun dato per {print_name}"
+    print(f"Generazione istogramma per {print_name}...")
+
+    counts = (region_data.groupby(['Classe diametrica', 'Genere']).size().unstack(fill_value=0)
+              * SAMPLE_AREAS_PER_HA / region['sample_areas'])
+
+    fig, ax = plt.subplots(figsize=(4, 2.5))
+    species_list = counts.columns.tolist()
+
+    bottom = np.zeros(len(counts.index))
+    for species in species_list:
+        values = counts[species].values
+        ax.bar(counts.index, values, bottom=bottom,
+               label=species, color=color_map[species],
+               alpha=0.8, edgecolor='white', linewidth=0.5)
+        bottom += values
+
+    ax.set_xlabel('Classe diametrica', fontweight='bold')
+    ax.set_ylabel('Stima alberi / ha', fontweight='bold')
+    if title:
+        ax.set_title(title, fontweight='bold', pad=20)
+
+    max_class = trees['Classe diametrica'].max()
+    ax.set_xlim(-0.5, max_class + 0.5)
+    ax.set_xticks(range(0, max_class + 1, 2))
+    ax.set_ylim(0, counts.sum(axis=1).max() * 1.1)
+    ax.grid(True, alpha=0.3, axis='y')
+    ax.set_axisbelow(True)
+    ax.legend(title='Specie', bbox_to_anchor=(1.01, 1.02),
+              alignment='left')
+
+    with italian_locale():
+        stats_text = f"""
+Area: {locale.format_string('%.2f', region["area_ha"])} ha
+Alberi campionati: {len(region_data)}
+N. aree saggio: {region["sample_areas"]}
+Stima totale alberi: {region["estimated_total"]:n}
+Stima alberi / ha: {round(region["estimated_total"]/region["area_ha"]):n}
+Specie prevalente: {region_data["Genere"].mode().iloc[0]}
+Classe diametrica media: {round(region_data["Classe diametrica"].mean()):n}""".strip()
+
+    ax.text(0.99, 0.98, stats_text, transform=ax.transAxes,
+            verticalalignment='top', horizontalalignment='right',
+            bbox=dict(boxstyle='round', facecolor='#fbfbfb', alpha=1, linewidth=0.2))
+    plt.tight_layout()
+
+    filepath = Path(output_dir) / filename
+    plt.savefig(filepath, bbox_inches='tight')
+    print(f"Saved histogram for {print_name} to {filepath}")
+    plt.close(fig)
+    return [compresa, particella, filepath]
+
+#
+# Create scatter plots for height vs diameter class relationship
+#
+
 def create_ci(trees: pd.DataFrame, region: pd.Series, color_map: dict, output_dir: str,
-              hfuncs: dict, omit_unknown: bool) -> list:
+              hfuncs: dict, omit_unknown: bool, set_title: bool) -> list:
     """
     Create a scatter plot for a specific region (parcel or compresa) showing height vs diameter class relationship
     with logarithmic fit for each species
@@ -286,11 +483,11 @@ def create_ci(trees: pd.DataFrame, region: pd.Series, color_map: dict, output_di
 
     if particella is None:
         region_data = trees[trees['Compresa'] == compresa]
-        title = f'Curve ipsometriche - {compresa}'
+        title = f'Curve ipsometriche - {compresa}' if set_title else None
         print_name = compresa
     else:
         region_data = trees[(trees['Compresa'] == compresa) & (trees['Particella'] == particella)]
-        title = f'Curve ipsometriche - {compresa} Particella {particella}'
+        title = f'Curve ipsometriche - {compresa} Particella {particella}' if set_title else None
         print_name = f"{compresa}-{particella}"
     filename = f"{region['sort_key']}_curve-ipsometriche.png"
 
@@ -343,7 +540,8 @@ def create_ci(trees: pd.DataFrame, region: pd.Series, color_map: dict, output_di
 
     ax.set_xlabel('Classe diametrica', fontweight='bold')
     ax.set_ylabel('Altezza (m)', fontweight='bold')
-    ax.set_title(title, fontweight='bold', pad=20)
+    if title:
+        ax.set_title(title, fontweight='bold', pad=20)
 
     max_class = trees['Classe diametrica'].max()
     ax.set_xlim(-0.5, max_class + 0.5)
@@ -392,47 +590,8 @@ Altezza media: {locale.format_string('%.1f', region_data["h(m)"].mean())} m""".s
     plt.close(fig)
     return [compresa, particella, filepath]
 
-def generate_html_index_ci(files: list, output_dir: str) -> None:
-    """
-    Generate an HTML index file for the generated scatter plots
-    """
-    files_sorted = sorted(files, key=lambda x: x[2])
-
-    with open(Path(output_dir) / 'index.html', 'w', encoding='utf-8') as f:
-        f.write(f'''<!DOCTYPE html>
-<html lang="it">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Soc. Agr. La Foresta: curve ipsometriche</title>
-    <style>{STYLE}    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>Soc. Agr. La Foresta: curve ipsometriche</h1>
-        <div class="explanation">
-            <p>
-                Le curve ipsometriche sono state calcolate con un modello di regressione logaritmico, per
-                ogni combinazione di compresa, particella e genere. Vengono visualizzate solo per
-                combinazioni con almeno 10 punti (n ≥ 10).
-            </p>
-        </div>
-''')
-
-        for compresa, particella, filepath in files_sorted:
-            title = f"{compresa} - Particella {particella}" if particella else compresa
-            f.write(f'''        <div class="histogram-item">
-            <div class="histogram-title">{title}</div>
-            <img src="{filepath.name}" alt="Curva ipsometrica {title}" class="histogram-image">
-        </div>
-''')
-
-        f.write('''    </div>
-</body>
-</html>''')
-
 def regions_dataframe(alberi_fustaia: pd.DataFrame, particelle: pd.DataFrame, per_particella: bool) -> pd.DataFrame:
-    """Create a dataframe with region data"""
+    """Create a dataframe with region data. Region may be "compresa" or "particella". """
     groupby = ['Compresa', 'Particella'] if per_particella else ['Compresa']
     trees = (alberi_fustaia.groupby(groupby)
              .agg(sampled_trees=('Area saggio', 'size'),
@@ -472,6 +631,8 @@ def main():
                     help='Genera file con le altezze calcolate dalle curve ipsometriche')
     g1.add_argument('--per-particella', action='store_true',
                     help='Genera risultati per ogni coppia (compresa, particella) (default: solo per compresa)')
+    g1.add_argument('--formato-output', type=str, choices=['html', 'latex', 'pdf'], default='html',
+                    help='Formato di output per i documenti (default: html)')
     g2 = parser.add_argument_group('Altezze per curve ipsometriche')
     g2.add_argument('--metodo-altezze', type=str, choices=['regressione', 'interpolazione', 'originali'], default='originali',
                     help='Metodo per calcolare le altezze: regressione (logaritmica) o interpolazione o usare i valori originali')
@@ -518,17 +679,11 @@ def main():
     # Create region data (either per particella or per compresa)
     regions = regions_dataframe(alberi_fustaia, particelle, args.per_particella)
 
-    if args.genera_classi_diametriche:
-        output_dir = Path(args.prefisso_output) / 'classi-diametriche'
-        os.makedirs(output_dir, exist_ok=True)
-
-        files = []
-        for _, row in regions.sort_values(['sort_key']).iterrows():
-            files.append(create_cd(trees=alberi_fustaia, region=row,
-                                   color_map=color_map, output_dir=output_dir))
-
-        generate_html_index_cd(files, output_dir)
-        print(f"Istogrammi classi diametriche salvati in '{output_dir}'")
+    # Create output formatter based on command-line argument
+    if args.formato_output == 'html':
+        formatter = HTMLFormatter()
+    else:  # latex
+        formatter = LaTeXFormatter(compile_pdf=args.formato_output == 'pdf')
 
     hfuncs = {}
     if (args.genera_curve_ipsometriche
@@ -546,6 +701,19 @@ def main():
             alsometrie_calcolate_file=str(args.file_alsometrie_calcolate),
         )
 
+    if args.genera_classi_diametriche:
+        output_dir = Path(args.prefisso_output) / 'classi-diametriche'
+        os.makedirs(output_dir, exist_ok=True)
+
+        files = []
+        for _, row in regions.sort_values(['sort_key']).iterrows():
+            files.append(create_cd(trees=alberi_fustaia, region=row,
+                                   color_map=color_map, output_dir=output_dir,
+                                   set_title=args.formato_output == 'html'))
+
+        formatter.generate_index_cd(files, output_dir)
+        print(f"Istogrammi classi diametriche salvati in '{output_dir}'")
+
     if args.genera_curve_ipsometriche:
         output_dir = Path(args.prefisso_output) / 'curve-ipsometriche'
         os.makedirs(output_dir, exist_ok=True)
@@ -554,9 +722,10 @@ def main():
         for _, row in regions.sort_values(['sort_key']).iterrows():
             files.append(create_ci(trees=alberi_fustaia, region=row,
                                    color_map=color_map, output_dir=output_dir,
-                                   hfuncs=hfuncs, omit_unknown=args.ometti_generi_sconosciuti))
+                                   hfuncs=hfuncs, omit_unknown=args.ometti_generi_sconosciuti,
+                                   set_title=args.formato_output == 'html'))
 
-        generate_html_index_ci(files, output_dir)
+        formatter.generate_index_ci(files, output_dir)
         print(f"Curve ipsometriche salvate in '{output_dir}'")
 
     if args.genera_alberi_altezze_calcolate:
@@ -566,6 +735,10 @@ def main():
             axis=1)
         alberi_calcolati.to_csv(args.file_alberi_calcolati, index=False, float_format="%.3f")
         print(f"File '{args.file_alberi_calcolati}' salvato")
+
+    # Finalize output (compile PDF if LaTeX was chosen)
+    if args.genera_classi_diametriche or args.genera_curve_ipsometriche:
+        formatter.finalize(output_dir)
 
     with italian_locale():
         print(f"\nAnalisi completata.")
