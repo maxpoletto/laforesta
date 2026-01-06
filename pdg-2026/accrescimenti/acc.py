@@ -8,6 +8,7 @@ from abc import ABC, abstractmethod
 import argparse
 from pathlib import Path
 import re
+import subprocess
 from typing import Iterable, Optional
 
 import matplotlib.pyplot as plt
@@ -843,6 +844,15 @@ def run_report(args):
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write(processed)
     print(f"Report generato: {output_file}")
+    if format_type == 'pdf':
+        subprocess.run(
+            ['pdflatex', '-interaction=nonstopmode', output_file.name],
+            cwd=output_dir,
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        print(f"Report generato: {output_file.with_suffix('.pdf')}")
 
 def run_lista_particelle(args):
     """List land parcels."""

@@ -3,6 +3,7 @@ OTHER_FLAGS=--un-genere-per-grafico
 
 .PHONY: all equazioni \
 	html clean-html \
+	pdf clean-pdf \
 	cd-per-compresa cd-per-particella \
 	ci-originali-per-compresa ci-originali-per-particella \
 	ci-interpolate-per-compresa ci-interpolate-per-particella \
@@ -38,6 +39,10 @@ ci-interpolate-per-particella: analysis.py $(CSV_DIR)/alberi.csv $(CSV_DIR)/part
 $(CSV_DIR)/alberi-calcolati.csv:
 	./acc.py --calcola-altezze --equazioni $(CSV_DIR)/equazioni_ipsometro.csv --input $(CSV_DIR)/alberi.csv --output $(CSV_DIR)/alberi-calcolati.csv
 
+#
+# Fit curves
+#
+
 equazioni: $(CSV_DIR)/equazioni_originali.csv $(CSV_DIR)/equazioni_ipsometro.csv $(CSV_DIR)/equazioni_tabelle.csv
 
 $(CSV_DIR)/equazioni_originali.csv: $(CSV_DIR)/alberi.csv
@@ -49,7 +54,14 @@ $(CSV_DIR)/equazioni_ipsometro.csv: $(CSV_DIR)/altezze.csv
 $(CSV_DIR)/equazioni_tabelle.csv: $(CSV_DIR)/alsometrie.csv $(CSV_DIR)/particelle.csv
 	./acc.py --genera-equazioni --funzione log --fonte-altezze tabelle --particelle $(CSV_DIR)/particelle.csv --input $(CSV_DIR)/alsometrie.csv --output $(CSV_DIR)/equazioni_tabelle.csv
 
+#
+# HTML output
+#
+
 html: html/per-compresa/classi-diametriche/index.html html/per-compresa/altezze-originali/index.html html/per-compresa/altezze-calcolate/index.html
+
+clean-html:
+	rm -f html/per-compresa/classi-diametriche/*  html/per-compresa/altezze-originali/*  html/per-compresa/altezze-calcolate/*
 
 html/per-compresa/classi-diametriche/index.html: $(CSV_DIR)/alberi.csv $(CSV_DIR)/particelle.csv $(CSV_DIR)/equazioni_ipsometro.csv template/html/per-compresa/classi-diametriche/index.html html/style.css
 	./acc.py --report --formato html --equazioni $(CSV_DIR)/equazioni_ipsometro.csv --alberi $(CSV_DIR)/alberi.csv --particelle $(CSV_DIR)/particelle.csv --input template/html/per-compresa/classi-diametriche/index.html --output-dir html/per-compresa/classi-diametriche/
@@ -60,9 +72,21 @@ html/per-compresa/altezze-originali/index.html: $(CSV_DIR)/alberi.csv $(CSV_DIR)
 html/per-compresa/altezze-calcolate/index.html: $(CSV_DIR)/alberi-calcolati.csv $(CSV_DIR)/particelle.csv $(CSV_DIR)/equazioni_ipsometro.csv template/html/per-compresa/altezze-calcolate/index.html html/style.css
 	./acc.py --report --formato html --equazioni $(CSV_DIR)/equazioni_ipsometro.csv --alberi $(CSV_DIR)/alberi-calcolati.csv --particelle $(CSV_DIR)/particelle.csv --input template/html/per-compresa/altezze-calcolate/index.html --output-dir html/per-compresa/altezze-calcolate/
 
-relazione.pdf: template/tex/relazione.tex $(CSV_DIR)/alberi.csv $(CSV_DIR)/particelle.csv $(CSV_DIR)/equazioni_ipsometro.csv $(CSV_DIR)/equazioni_originali.csv $(CSV_DIR)/equazioni_tabelle.csv
+#
+# LaTeX / PDF output
+#
+
+pdf: tex/relazione.pdf
+
+tex/relazione.pdf: template/tex/relazione.tex $(CSV_DIR)/alberi.csv $(CSV_DIR)/particelle.csv $(CSV_DIR)/equazioni_ipsometro.csv $(CSV_DIR)/equazioni_originali.csv $(CSV_DIR)/equazioni_tabelle.csv
 	./acc.py --report --formato pdf --equazioni $(CSV_DIR)/equazioni_ipsometro.csv --alberi $(CSV_DIR)/alberi-calcolati.csv --particelle $(CSV_DIR)/particelle.csv --input template/tex/relazione.tex --output-dir tex/
 
+clean-pdf:
+	rm -f tex/relazione.pdf tex/relazione.tex
+
+#
+# Legacy (to be removed)
+#
 
 dati: ./analysis.py $(CSV_DIR)/alberi.csv $(CSV_DIR)/alsometrie.csv $(CSV_DIR)/particelle.csv \
 	$(CSV_DIR)/alsometrie-calcolate.csv $(CSV_DIR)/alberi-calcolati.csv \
@@ -83,9 +107,3 @@ sync:
 ipsometrie: ipsometrie.py $(CSV_DIR)/alberi-modello.csv $(CSV_DIR)/altezze.csv
 	./ipsometrie.py $(CSV_DIR)/altezze.csv --fit log -o ipsometrie-log
 	./ipsometrie.py $(CSV_DIR)/altezze.csv --fit lin -o ipsometrie-lin
-
-clean-html:
-	rm -f html/per-compresa/classi-diametriche/*  html/per-compresa/altezze-originali/*  html/per-compresa/altezze-calcolate/*
-
-clean-tex:
-	rm -f tex/relazione.tex
