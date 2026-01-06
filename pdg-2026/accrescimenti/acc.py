@@ -527,7 +527,7 @@ def render_ci_graph(data: dict, max_diameter_class: int, equations_df: pd.DataFr
             eq = eq_row.iloc[0]
 
             # Draw the curve using saved parameters
-            x_min, x_max = x.min(), x.max()
+            x_min, x_max = 1, x.max()
             x_smooth = np.linspace(x_min, x_max, 100)
 
             if eq['funzione'] == 'ln':
