@@ -191,10 +191,27 @@ class HTMLFormatter(OutputFormatter):
         html += '        </div>\n'
         return html
 
-    def generate_index_cd(self, files: list, output_dir: str, one_species_per_graph: bool = False,
-                          external_legends: bool = False, region_legends: dict = None) -> None:
-        """Generate an HTML index file for the generated histograms"""
+    def _generate_index_html(self, files: list, output_dir: str, section_type: str,
+                            one_species_per_graph: bool = False, external_legends: bool = False,
+                            region_legends: dict = None, explanation: str = None) -> None:
+        """Unified HTML index generator for both cd and ci sections.
+
+        Args:
+            section_type: 'cd' for diameter classes, 'ci' for height curves
+            explanation: Optional explanation text to include after title
+        """
         files_sorted = sorted(files, key=lambda x: (x['compresa'], x.get('particella', ''), x.get('species', '')))
+
+        config = {
+            'cd': {
+                'title': 'Soc. Agr. La Foresta: distribuzione piante per classe diametrica',
+                'for_cd': True
+            },
+            'ci': {
+                'title': 'Soc. Agr. La Foresta: curve ipsometriche',
+                'for_cd': False
+            }
+        }[section_type]
 
         with open(Path(output_dir) / 'index.html', 'w', encoding='utf-8') as f:
             f.write(f'''<!DOCTYPE html>
@@ -202,13 +219,15 @@ class HTMLFormatter(OutputFormatter):
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Soc. Agr. La Foresta: distribuzione piante per classe diametrica</title>
+    <title>{config['title']}</title>
     <style>{self.style}    </style>
 </head>
 <body>
     <div class="container">
-        <h1>Soc. Agr. La Foresta: distribuzione piante per classe diametrica</h1>
+        <h1>{config['title']}</h1>
 ''')
+            if explanation:
+                f.write(explanation)
 
             # Group results by region when one_species_per_graph is True
             if one_species_per_graph:
@@ -227,7 +246,7 @@ class HTMLFormatter(OutputFormatter):
                             f.write(self._write_region_header_html(region_title, region_legends[region_key]))
 
                     # Write species graph
-                    legend_html = self._format_legend_html(result, one_species_per_graph, for_cd=True) if external_legends else None
+                    legend_html = self._format_legend_html(result, one_species_per_graph, for_cd=config['for_cd']) if external_legends else None
                     f.write(self._write_graph_item_html(result['species'], result['filepath'].name, legend_html))
             else:
                 # Original behavior: one graph per region
@@ -236,71 +255,31 @@ class HTMLFormatter(OutputFormatter):
                     particella = result['particella']
                     title = f"{compresa} - Particella {particella}" if particella else compresa
 
-                    legend_html = self._format_legend_html(result, one_species_per_graph, for_cd=True) if external_legends else None
+                    legend_html = self._format_legend_html(result, one_species_per_graph, for_cd=config['for_cd']) if external_legends else None
                     f.write(self._write_graph_item_html(title, result['filepath'].name, legend_html))
 
             f.write('''    </div>
 </body>
 </html>''')
 
+    def generate_index_cd(self, files: list, output_dir: str, one_species_per_graph: bool = False,
+                          external_legends: bool = False, region_legends: dict = None) -> None:
+        """Generate an HTML index file for the generated histograms"""
+        self._generate_index_html(files, output_dir, 'cd', one_species_per_graph, external_legends, region_legends)
+
     def generate_index_ci(self, files: list, output_dir: str, one_species_per_graph: bool = False,
                           external_legends: bool = False, region_legends: dict = None) -> None:
         """Generate an HTML index file for the generated scatter plots"""
-        files_sorted = sorted(files, key=lambda x: (x['compresa'], x.get('particella', ''), x.get('species', '')))
-
-        with open(Path(output_dir) / 'index.html', 'w', encoding='utf-8') as f:
-            f.write(f'''<!DOCTYPE html>
-<html lang="it">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Soc. Agr. La Foresta: curve ipsometriche</title>
-    <style>{self.style}    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>Soc. Agr. La Foresta: curve ipsometriche</h1>
-        <div class="explanation">
+        explanation = '''        <div class="explanation">
             <p>
                 Le curve ipsometriche sono state calcolate con un modello di regressione logaritmico, per
                 ogni combinazione di compresa, particella e genere. Vengono visualizzate solo per
                 combinazioni con almeno 10 punti (n ≥ 10).
             </p>
         </div>
-''')
-
-            # Group results by region when one_species_per_graph is True
-            if one_species_per_graph:
-                current_region = None
-                for result in files_sorted:
-                    compresa = result['compresa']
-                    particella = result['particella']
-                    region_key = (compresa, particella)
-
-                    # Write region header when entering new region
-                    if region_key != current_region:
-                        current_region = region_key
-                        region_title = f"{compresa} - Particella {particella}" if particella else compresa
-
-                        if external_legends and region_legends and region_key in region_legends:
-                            f.write(self._write_region_header_html(region_title, region_legends[region_key]))
-
-                    # Write species graph
-                    legend_html = self._format_legend_html(result, one_species_per_graph, for_cd=False) if external_legends else None
-                    f.write(self._write_graph_item_html(result['species'], result['filepath'].name, legend_html))
-            else:
-                # Original behavior: one graph per region
-                for result in files_sorted:
-                    compresa = result['compresa']
-                    particella = result['particella']
-                    title = f"{compresa} - Particella {particella}" if particella else compresa
-
-                    legend_html = self._format_legend_html(result, one_species_per_graph, for_cd=False) if external_legends else None
-                    f.write(self._write_graph_item_html(title, result['filepath'].name, legend_html))
-
-            f.write('''    </div>
-</body>
-</html>''')
+'''
+        self._generate_index_html(files, output_dir, 'ci', one_species_per_graph, external_legends,
+                                 region_legends, explanation=explanation)
 
     def finalize(self, output_dir: str, base_name: str = None) -> None:
         """No finalization needed for HTML"""
@@ -408,14 +387,39 @@ class LaTeXFormatter(OutputFormatter):
         if external_legends:
             f.write(self._format_legend_latex(result, one_species_per_graph, for_cd))
 
-    def generate_index_cd(self, files: list, output_dir: str, one_species_per_graph: bool = False,
-                          external_legends: bool = False, region_legends: dict = None) -> None:
-        """Generate a LaTeX fragment for diameter class histograms"""
+    def _generate_index(self, files: list, output_dir: str, section_type: str,
+                       one_species_per_graph: bool = False, external_legends: bool = False,
+                       region_legends: dict = None, explanation: str = None) -> None:
+        """Unified LaTeX index generator for both cd and ci sections.
+
+        Args:
+            section_type: 'cd' for diameter classes, 'ci' for height curves
+            explanation: Optional explanation text to include at top
+        """
         self.output_dir = Path(output_dir)
         files_sorted = sorted(files, key=lambda x: (x['compresa'], x.get('particella', ''), x.get('species', '')))
-        latex_file = self.output_dir / 'classi-diametriche.tex'
+
+        # Section-specific configuration
+        config = {
+            'cd': {
+                'filename': 'classi-diametriche.tex',
+                'fragment_title': 'Distribuzione piante per classe diametrica',
+                'for_cd': True
+            },
+            'ci': {
+                'filename': 'curve-ipsometriche.tex',
+                'fragment_title': 'Curve ipsometriche',
+                'for_cd': False
+            }
+        }[section_type]
+
+        latex_file = self.output_dir / config['filename']
 
         with open(latex_file, 'w', encoding='utf-8') as f:
+            # Write optional explanation
+            if explanation:
+                f.write(explanation)
+
             first = True
 
             if one_species_per_graph:
@@ -440,7 +444,7 @@ class LaTeXFormatter(OutputFormatter):
 
                     # Write species subsection
                     self._write_species_subsection(f, result, one_species_per_graph,
-                                                   for_cd=True, external_legends=external_legends)
+                                                   for_cd=config['for_cd'], external_legends=external_legends)
             else:
                 # Original behavior: one graph per region, all species combined
                 for result in files_sorted:
@@ -454,70 +458,28 @@ class LaTeXFormatter(OutputFormatter):
                     self._write_figure(f, result['filepath'].name)
 
                     if external_legends:
-                        f.write(self._format_legend_latex(result, one_species_per_graph, for_cd=True))
+                        f.write(self._format_legend_latex(result, one_species_per_graph, for_cd=config['for_cd']))
                     f.write('\n')
 
-        self.fragments.append(('classi-diametriche.tex', 'Distribuzione piante per classe diametrica'))
+        self.fragments.append((config['filename'], config['fragment_title']))
+        print(f"Generato frammento LaTeX: {latex_file}")
+
+    def generate_index_cd(self, files: list, output_dir: str, one_species_per_graph: bool = False,
+                          external_legends: bool = False, region_legends: dict = None) -> None:
+        """Generate a LaTeX fragment for diameter class histograms"""
+        self._generate_index(files, output_dir, 'cd', one_species_per_graph, external_legends, region_legends)
 
     def generate_index_ci(self, files: list, output_dir: str, one_species_per_graph: bool = False,
                           external_legends: bool = False, region_legends: dict = None) -> None:
         """Generate a LaTeX fragment for height-diameter curves"""
-        self.output_dir = Path(output_dir)
-        files_sorted = sorted(files, key=lambda x: (x['compresa'], x.get('particella', ''), x.get('species', '')))
-        latex_file = self.output_dir / 'curve-ipsometriche.tex'
-
-        with open(latex_file, 'w', encoding='utf-8') as f:
-            # Write explanation first
-            f.write(r'''
+        explanation = r'''
 Le curve ipsometriche sono state calcolate con un modello di regressione logaritmico, per
 ogni combinazione di compresa, particella e genere. Vengono visualizzate solo per
 combinazioni con almeno 10 punti ($n \ge 10$).
 
-''')
-
-            # Group results by region when one_species_per_graph is True
-            first = True
-
-            if one_species_per_graph:
-                # One graph per species, grouped by region
-                current_region = None
-                for result in files_sorted:
-                    compresa = result['compresa']
-                    particella = result['particella']
-                    region_key = (compresa, particella)
-
-                    # Write region header when entering new region
-                    if region_key != current_region:
-                        current_region = region_key
-                        region_title = f"{compresa} - Particella {particella}" if particella else compresa
-                        title_escaped = region_title.replace('_', r'\_')
-
-                        self._write_section_header(f, title_escaped, first)
-                        first = False
-
-                        if external_legends and region_legends and region_key in region_legends:
-                            self._write_region_stats(f, region_legends[region_key])
-
-                    # Write species subsection
-                    self._write_species_subsection(f, result, one_species_per_graph,
-                                                   for_cd=False, external_legends=external_legends)
-            else:
-                # Original behavior: one graph per region, all species combined
-                for result in files_sorted:
-                    compresa = result['compresa']
-                    particella = result['particella']
-                    title = f"{compresa} - Particella {particella}" if particella else compresa
-                    title_escaped = title.replace('_', r'\_')
-
-                    self._write_section_header(f, title_escaped, first)
-                    first = False
-                    self._write_figure(f, result['filepath'].name)
-
-                    if external_legends:
-                        f.write(self._format_legend_latex(result, one_species_per_graph, for_cd=False))
-                    f.write('\n')
-
-        self.fragments.append(('curve-ipsometriche.tex', 'Curve ipsometriche'))
+'''
+        self._generate_index(files, output_dir, 'ci', one_species_per_graph, external_legends,
+                           region_legends, explanation=explanation)
 
     def finalize(self, output_dir: str, base_name: str) -> None:
         """Generate master document and optionally compile to PDF"""
@@ -792,6 +754,47 @@ def height_interpolation_functions(height_source: str, alsometrie_file: str, ips
 # Create histograms for diameter class distribution
 #
 
+def _prepare_region_data(trees: pd.DataFrame, region: pd.Series, one_species_per_graph: bool,
+                        for_cd: bool) -> tuple:
+    """Extract and prepare region data common to both cd and ci graph generation.
+
+    Returns:
+        tuple: (region_data, print_name, region_stats, species_to_process)
+    """
+    compresa = region['Compresa']
+    particella = region.get('Particella', None)
+
+    if particella is None:
+        region_data = trees[trees['Compresa'] == compresa]
+        print_name = compresa
+    else:
+        region_data = trees[(trees['Compresa'] == compresa) & (trees['Particella'] == particella)]
+        print_name = f"{compresa}-{particella}"
+
+    assert len(region_data) > 0, f"Nessun dato per {print_name}"
+
+    # Data traceability
+    species_list = sorted(region_data['Genere'].unique())
+    graph_type = "istogramma" if for_cd else "curve ipsometriche"
+    print(f"Generazione {graph_type} per {print_name}:")
+    print(f"  Alberi campionati: {len(region_data)}")
+    print(f"  Specie: {', '.join(species_list)}")
+    if for_cd:
+        print(f"  Stima totale: {region['estimated_total']} alberi")
+    else:
+        print(f"  Altezza media: {region_data['h(m)'].mean():.1f} m")
+
+    # Get region-level stats
+    region_stats = format_region_stats(region, region_data, for_cd=for_cd)
+
+    # Determine which species to process
+    if one_species_per_graph:
+        species_to_process = sorted(region_data['Genere'].unique())
+    else:
+        species_to_process = [None]  # None means all species in one graph
+
+    return region_data, print_name, region_stats, species_to_process
+
 def format_region_stats(region: pd.Series, region_data: pd.DataFrame, for_cd: bool = True) -> dict:
     """Generate statistics for a region (shared across species when one_species_per_graph is enabled).
 
@@ -836,33 +839,12 @@ def create_cd(trees: pd.DataFrame, region: pd.Series, color_map: dict, output_di
 
     Returns a list of result dictionaries, one per graph created.
     """
+    # Prepare region data (common logic with create_ci)
+    region_data, print_name, region_stats, species_to_process = _prepare_region_data(
+        trees, region, one_species_per_graph, for_cd=True)
+
     compresa = region['Compresa']
     particella = region.get('Particella', None)
-
-    if particella is None:
-        region_data = trees[trees['Compresa'] == compresa]
-        print_name = compresa
-    else:
-        region_data = trees[(trees['Compresa'] == compresa) & (trees['Particella'] == particella)]
-        print_name = f"{compresa}-{particella}"
-
-    assert len(region_data) > 0, f"Nessun dato per {print_name}"
-
-    # Data traceability
-    species_list = sorted(region_data['Genere'].unique())
-    print(f"Generazione istogramma per {print_name}:")
-    print(f"  Alberi campionati: {len(region_data)}")
-    print(f"  Specie: {', '.join(species_list)}")
-    print(f"  Stima totale: {region['estimated_total']} alberi")
-
-    # Get region-level stats (shared across all species)
-    region_stats = format_region_stats(region, region_data, for_cd=True)
-
-    # Determine which species to process
-    if one_species_per_graph:
-        species_to_process = sorted(region_data['Genere'].unique())
-    else:
-        species_to_process = [None]  # None means all species in one graph
 
     results = []
     for species in species_to_process:
@@ -981,33 +963,12 @@ def create_ci(trees: pd.DataFrame, region: pd.Series, color_map: dict, output_di
 
     Returns a list of result dictionaries, one per graph created.
     """
+    # Prepare region data (common logic with create_cd)
+    region_data, print_name, region_stats, species_to_process = _prepare_region_data(
+        trees, region, one_species_per_graph, for_cd=False)
+
     compresa = region['Compresa']
     particella = region.get('Particella', None)
-
-    if particella is None:
-        region_data = trees[trees['Compresa'] == compresa]
-        print_name = compresa
-    else:
-        region_data = trees[(trees['Compresa'] == compresa) & (trees['Particella'] == particella)]
-        print_name = f"{compresa}-{particella}"
-
-    assert len(region_data) > 0, f"Nessun dato per {print_name}"
-
-    # Data traceability
-    species_list = sorted(region_data['Genere'].unique())
-    print(f"Generazione curve ipsometriche per {print_name}:")
-    print(f"  Alberi campionati: {len(region_data)}")
-    print(f"  Specie: {', '.join(species_list)}")
-    print(f"  Altezza media: {region_data['h(m)'].mean():.1f} m")
-
-    # Get region-level stats
-    region_stats = format_region_stats(region, region_data, for_cd=False)
-
-    # Determine which species to process
-    if one_species_per_graph:
-        species_to_process = sorted(region_data['Genere'].unique())
-    else:
-        species_to_process = [None]  # None means all species in one graph
 
     results = []
     for target_species in species_to_process:
