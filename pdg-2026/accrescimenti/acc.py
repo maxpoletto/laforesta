@@ -177,7 +177,7 @@ class HTMLSnippetFormatter(SnippetFormatter):
 
     def format_metadata(self, stats: dict, curve_info: list = None) -> str:
         """Format metadata as HTML."""
-        html = '<div class="metadata">\n'
+        html = '<div class="graph-details">\n'
         html += f'<p><strong>Alberi campionati:</strong> {stats["sampled_trees"]:d}</p>\n'
         html += f'<p><strong>Stima totale:</strong> {stats["estimated_total"]:d}</p>\n'
         html += f'<p><strong>Area:</strong> {stats["area_ha"]:.2f} ha</p>\n'
@@ -235,8 +235,8 @@ class LaTeXSnippetFormatter(SnippetFormatter):
 # =============================================================================
 
 def prepare_region_data(trees_df: pd.DataFrame, particelle_df: pd.DataFrame,
-                       compresa: str, particella: Optional[str] = None,
-                       genere: Optional[str] = None) -> dict:
+                        compresa: str, particella: Optional[str] = None,
+                        genere: Optional[str] = None) -> dict:
     """
     Filter and aggregate tree data based on parameters.
 
@@ -483,7 +483,7 @@ def apply_height_equations(alberi_file: str, equations_file: str,
 # RENDERING AND TEMPLATE PROCESSING
 # =============================================================================
 
-def render_ci_graph(prepared_data: dict, equations_df: pd.DataFrame,
+def render_ci_graph(data: dict, equations_df: pd.DataFrame,
                     output_path: Path, formatter: SnippetFormatter,
                     color_map: dict) -> dict:
     """
@@ -501,9 +501,9 @@ def render_ci_graph(prepared_data: dict, equations_df: pd.DataFrame,
             - 'filepath': Path to generated PNG
             - 'snippet': Formatted HTML/LaTeX snippet for template substitution
     """
-    trees = prepared_data['trees']
-    species_list = prepared_data['species_list']
-    compresa = prepared_data['compresa']
+    trees = data['trees']
+    species_list = data['species_list']
+    compresa = data['compresa']
 
     fig, ax = plt.subplots(figsize=(4, 3))
     curve_info = []
@@ -566,7 +566,7 @@ def render_ci_graph(prepared_data: dict, equations_df: pd.DataFrame,
     plt.close(fig)
 
     snippet = formatter.format_image(output_path)
-    snippet += '\n' + formatter.format_metadata(prepared_data['stats'], curve_info=curve_info)
+    snippet += '\n' + formatter.format_metadata(data['stats'], curve_info=curve_info)
 
     return {
         'filepath': output_path,
@@ -574,7 +574,7 @@ def render_ci_graph(prepared_data: dict, equations_df: pd.DataFrame,
     }
 
 
-def render_cd_graph(prepared_data: dict, output_path: Path,
+def render_cd_graph(data: dict, max_diameter_class: int, output_path: Path,
                     formatter: SnippetFormatter, color_map: dict) -> dict:
     """
     Generate classi diametriche (diameter class histogram) graph.
@@ -590,17 +590,15 @@ def render_cd_graph(prepared_data: dict, output_path: Path,
             - 'filepath': Path to generated PNG
             - 'snippet': Formatted HTML/LaTeX snippet for template substitution
     """
-    trees = prepared_data['trees']
-    species_list = prepared_data['species_list']
-    sample_areas = prepared_data['stats']['sample_areas']
+    trees = data['trees']
+    species_list = data['species_list']
+    sample_areas = data['stats']['sample_areas']
 
     counts = (trees.groupby(['Classe diametrica', 'Genere']).size().unstack(fill_value=0)
               * SAMPLE_AREAS_PER_HA / sample_areas)
 
-    # Create figure
     fig, ax = plt.subplots(figsize=(4, 2.5))
 
-    # Plot bars
     bottom = np.zeros(len(counts.index))
     for species in species_list:
         if species not in counts.columns:
@@ -613,9 +611,8 @@ def render_cd_graph(prepared_data: dict, output_path: Path,
 
     ax.set_xlabel('Classe diametrica', fontweight='bold')
     ax.set_ylabel('Stima alberi / ha', fontweight='bold')
-    max_class = trees['Classe diametrica'].max()
-    ax.set_xlim(-0.5, max_class + 0.5)
-    ax.set_xticks(range(0, max_class + 1, 2))
+    ax.set_xlim(-0.5, max_diameter_class + 0.5)
+    ax.set_xticks(range(0, max_diameter_class + 1, 2))
     ax.set_ylim(0, counts.sum(axis=1).max() * 1.1)
     ax.grid(True, alpha=0.3, axis='y')
     ax.set_axisbelow(True)
@@ -626,7 +623,7 @@ def render_cd_graph(prepared_data: dict, output_path: Path,
     plt.close(fig)
 
     snippet = formatter.format_image(output_path)
-    snippet += '\n' + formatter.format_metadata(prepared_data['stats'])
+    snippet += '\n' + formatter.format_metadata(data['stats'])
 
     return {
         'filepath': output_path,
@@ -689,6 +686,7 @@ def process_template(template_text: str, trees_df: pd.DataFrame,
     formatter = HTMLSnippetFormatter() if format_type == 'html' else LaTeXSnippetFormatter()
     color_map = get_color_map(sorted(trees_df['Genere'].unique()))
     graph_counter = {}
+    max_diameter_class = trees_df['Classe diametrica'].max()
 
     def process_directive(match):
         directive = parse_template_directive(match.group(0))
@@ -728,7 +726,7 @@ def process_template(template_text: str, trees_df: pd.DataFrame,
             output_path = output_dir / filename
 
             if keyword == 'cd':
-                result = render_cd_graph(data, output_path, formatter, color_map)
+                result = render_cd_graph(data, max_diameter_class, output_path, formatter, color_map)
                 print(f"  Generato: {filename}")
             elif keyword == 'ci':
                 result = render_ci_graph(data, equations_df, output_path, formatter, color_map)
@@ -830,6 +828,7 @@ def run_report(args):
     print(f"Output directory: {args.output_dir}")
 
     trees_df = pd.read_csv(args.alberi)
+    trees_df = trees_df[trees_df['Fustaia'] == True].copy()  # Filter to fustaia only
     particelle_df = pd.read_csv(args.particelle)
     equations_df = pd.read_csv(args.equazioni)
 
@@ -841,7 +840,7 @@ def run_report(args):
 
     processed = process_template(template_text, trees_df, particelle_df,
                                  equations_df, output_dir, format_type)
-    output_file = Path(output_dir) / args.input
+    output_file = output_dir / Path(args.input).name
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write(processed)
     print(f"Report generato: {output_file}")
