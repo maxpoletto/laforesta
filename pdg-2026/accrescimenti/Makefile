@@ -1,4 +1,4 @@
-CSV_DIR=../csv
+CSV_DIR=csv
 OTHER_FLAGS=--un-genere-per-grafico
 
 .PHONY: all equazioni \
