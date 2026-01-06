@@ -412,9 +412,9 @@ def process_template(template_text: str, trees_df: pd.DataFrame,
 # UTILITY FUNCTIONS
 # =============================================================================
 
-def list_tuples(particelle_file: str) -> None:
+def list_parcels(particelle_file: str) -> None:
     """
-    List all (compresa, particella) tuples from particelle file.
+    List all (compresa, particella) pairs from particelle file.
     
     Args:
         particelle_file: CSV with parcel data
@@ -505,10 +505,10 @@ def run_report(args):
     print(f"Report generato: {output_file}")
 
 
-def run_lista_tuple(args):
-    """Execute utility mode: List tuples."""
-    print("Tuple (compresa, particella) disponibili:")
-    list_tuples(args.particelle)
+def run_lista_particelle(args):
+    """Execute utility mode: List particelle."""
+    print("Particelle disponibili:")
+    list_parcels(args.particelle)
 
 
 def main():
