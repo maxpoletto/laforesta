@@ -780,7 +780,17 @@ def _prepare_region_data(trees: pd.DataFrame, region: pd.Series, one_species_per
         print(f"  Altezza media: {region_data['h(m)'].mean():.1f} m")
 
     # Get region-level stats
-    region_stats = format_region_stats(region, region_data, for_cd=for_cd)
+    with italian_locale():
+        region_stats = {
+            'area_ha': locale.format_string('%.2f', region["area_ha"]),
+            'sampled_trees': len(region_data),
+            'sample_areas': region["sample_areas"],
+            'estimated_total': locale.format_string('%d', region["estimated_total"]),
+            'estimated_per_ha': locale.format_string('%d', round(region["estimated_total"]/region["area_ha"])),
+            'dominant_species': region_data["Genere"].mode().iloc[0] if len(region_data) > 0 else 'N/A',
+            'mean_diameter_class': locale.format_string('%d', round(region_data["Classe diametrica"].mean())),
+            'mean_height': locale.format_string('%.1f', region_data["h(m)"].mean())
+        }
 
     # Determine which species to process
     if one_species_per_graph:
@@ -789,26 +799,6 @@ def _prepare_region_data(trees: pd.DataFrame, region: pd.Series, one_species_per
         species_to_process = [None]  # None means all species in one graph
 
     return region_data, print_name, region_stats, species_to_process
-
-def format_region_stats(region: pd.Series, region_data: pd.DataFrame, for_cd: bool = True) -> dict:
-    """Generate statistics for a region (shared across species when one_species_per_graph is enabled).
-
-    Returns a dict with common stats that don't vary by species.
-    """
-    with italian_locale():
-        stats = {
-            'area_ha': locale.format_string('%.2f', region["area_ha"]),
-            'sampled_trees': len(region_data),
-            'sample_areas': region["sample_areas"],
-            'estimated_total': locale.format_string('%d', region["estimated_total"]),
-            'estimated_per_ha': locale.format_string('%d', round(region["estimated_total"]/region["area_ha"])),
-            'dominant_species': region_data["Genere"].mode().iloc[0] if len(region_data) > 0 else 'N/A'
-        }
-        if for_cd:
-            stats['mean_diameter_class'] = locale.format_string('%d', round(region_data["Classe diametrica"].mean()))
-        else:
-            stats['mean_height'] = locale.format_string('%.1f', region_data["h(m)"].mean())
-    return stats
 
 def format_species_stats(species_data: pd.DataFrame, region: pd.Series, for_cd: bool = True) -> dict:
     """Generate statistics specific to a species.
