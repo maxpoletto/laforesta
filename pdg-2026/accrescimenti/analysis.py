@@ -167,6 +167,30 @@ class HTMLFormatter(OutputFormatter):
         html += '</div>'
         return html
 
+    def _write_region_header_html(self, region_title: str, reg_stats: dict = None) -> str:
+        """Generate HTML for a region header with optional stats."""
+        html = f'''        <div style="margin: 20px 0; padding: 15px; background-color: #e8f4f8; border-radius: 8px;">
+            <h2 style="margin-top: 0;">{region_title}</h2>
+'''
+        if reg_stats:
+            html += f'''            <p style="margin: 2px 0;"><strong>Area:</strong> {reg_stats['area_ha']} ha</p>
+            <p style="margin: 2px 0;"><strong>N. aree saggio:</strong> {reg_stats['sample_areas']}</p>
+            <p style="margin: 2px 0;"><strong>Specie prevalente:</strong> {reg_stats['dominant_species']}</p>
+'''
+        html += '        </div>\n'
+        return html
+
+    def _write_graph_item_html(self, title: str, filepath_name: str, legend_html: str = None) -> str:
+        """Generate HTML for a graph item with optional legend."""
+        html = f'''        <div class="histogram-item">
+            <div class="histogram-title">{title}</div>
+            <img src="{filepath_name}" alt="Istogramma {title}" class="histogram-image">
+'''
+        if legend_html:
+            html += legend_html
+        html += '        </div>\n'
+        return html
+
     def generate_index_cd(self, files: list, output_dir: str, one_species_per_graph: bool = False,
                           external_legends: bool = False, region_legends: dict = None) -> None:
         """Generate an HTML index file for the generated histograms"""
@@ -194,47 +218,26 @@ class HTMLFormatter(OutputFormatter):
                     particella = result['particella']
                     region_key = (compresa, particella)
 
-                    # Write region header and common stats if this is a new region
+                    # Write region header when entering new region
                     if region_key != current_region:
                         current_region = region_key
                         region_title = f"{compresa} - Particella {particella}" if particella else compresa
 
-                        # Write common region stats (only once per region)
                         if external_legends and region_legends and region_key in region_legends:
-                            reg_stats = region_legends[region_key]
-                            f.write(f'''        <div style="margin: 20px 0; padding: 15px; background-color: #e8f4f8; border-radius: 8px;">
-            <h2 style="margin-top: 0;">{region_title}</h2>
-            <p style="margin: 2px 0;"><strong>Area:</strong> {reg_stats['area_ha']} ha</p>
-            <p style="margin: 2px 0;"><strong>N. aree saggio:</strong> {reg_stats['sample_areas']}</p>
-            <p style="margin: 2px 0;"><strong>Specie prevalente:</strong> {reg_stats['dominant_species']}</p>
-        </div>
-''')
+                            f.write(self._write_region_header_html(region_title, region_legends[region_key]))
 
-                    # Write individual species graph
-                    species = result['species']
-                    filepath = result['filepath']
-                    title = f"{species}"
-                    f.write(f'''        <div class="histogram-item">
-            <div class="histogram-title">{title}</div>
-            <img src="{filepath.name}" alt="Istogramma classi diametriche {title}" class="histogram-image">
-''')
-                    if external_legends:
-                        f.write(self._format_legend_html(result, one_species_per_graph, for_cd=True))
-                    f.write('        </div>\n')
+                    # Write species graph
+                    legend_html = self._format_legend_html(result, one_species_per_graph, for_cd=True) if external_legends else None
+                    f.write(self._write_graph_item_html(result['species'], result['filepath'].name, legend_html))
             else:
                 # Original behavior: one graph per region
                 for result in files_sorted:
                     compresa = result['compresa']
                     particella = result['particella']
-                    filepath = result['filepath']
                     title = f"{compresa} - Particella {particella}" if particella else compresa
-                    f.write(f'''        <div class="histogram-item">
-            <div class="histogram-title">{title}</div>
-            <img src="{filepath.name}" alt="Istogramma classi diametriche {title}" class="histogram-image">
-''')
-                    if external_legends:
-                        f.write(self._format_legend_html(result, one_species_per_graph, for_cd=True))
-                    f.write('        </div>\n')
+
+                    legend_html = self._format_legend_html(result, one_species_per_graph, for_cd=True) if external_legends else None
+                    f.write(self._write_graph_item_html(title, result['filepath'].name, legend_html))
 
             f.write('''    </div>
 </body>
@@ -274,47 +277,26 @@ class HTMLFormatter(OutputFormatter):
                     particella = result['particella']
                     region_key = (compresa, particella)
 
-                    # Write region header and common stats if this is a new region
+                    # Write region header when entering new region
                     if region_key != current_region:
                         current_region = region_key
                         region_title = f"{compresa} - Particella {particella}" if particella else compresa
 
-                        # Write common region stats (only once per region)
                         if external_legends and region_legends and region_key in region_legends:
-                            reg_stats = region_legends[region_key]
-                            f.write(f'''        <div style="margin: 20px 0; padding: 15px; background-color: #e8f4f8; border-radius: 8px;">
-            <h2 style="margin-top: 0;">{region_title}</h2>
-            <p style="margin: 2px 0;"><strong>Area:</strong> {reg_stats['area_ha']} ha</p>
-            <p style="margin: 2px 0;"><strong>N. aree saggio:</strong> {reg_stats['sample_areas']}</p>
-            <p style="margin: 2px 0;"><strong>Specie prevalente:</strong> {reg_stats['dominant_species']}</p>
-        </div>
-''')
+                            f.write(self._write_region_header_html(region_title, region_legends[region_key]))
 
-                    # Write individual species graph
-                    species = result['species']
-                    filepath = result['filepath']
-                    title = f"{species}"
-                    f.write(f'''        <div class="histogram-item">
-            <div class="histogram-title">{title}</div>
-            <img src="{filepath.name}" alt="Curva ipsometrica {title}" class="histogram-image">
-''')
-                    if external_legends:
-                        f.write(self._format_legend_html(result, one_species_per_graph, for_cd=False))
-                    f.write('        </div>\n')
+                    # Write species graph
+                    legend_html = self._format_legend_html(result, one_species_per_graph, for_cd=False) if external_legends else None
+                    f.write(self._write_graph_item_html(result['species'], result['filepath'].name, legend_html))
             else:
                 # Original behavior: one graph per region
                 for result in files_sorted:
                     compresa = result['compresa']
                     particella = result['particella']
-                    filepath = result['filepath']
                     title = f"{compresa} - Particella {particella}" if particella else compresa
-                    f.write(f'''        <div class="histogram-item">
-            <div class="histogram-title">{title}</div>
-            <img src="{filepath.name}" alt="Curva ipsometrica {title}" class="histogram-image">
-''')
-                    if external_legends:
-                        f.write(self._format_legend_html(result, one_species_per_graph, for_cd=False))
-                    f.write('        </div>\n')
+
+                    legend_html = self._format_legend_html(result, one_species_per_graph, for_cd=False) if external_legends else None
+                    f.write(self._write_graph_item_html(title, result['filepath'].name, legend_html))
 
             f.write('''    </div>
 </body>
@@ -392,6 +374,40 @@ class LaTeXFormatter(OutputFormatter):
         latex += '\\end{quote}\n'
         return latex
 
+    def _write_section_header(self, f, title_escaped: str, first: bool) -> None:
+        """Write section header with optional page break."""
+        if not first:
+            f.write('\\clearpage\n')
+        f.write(f'\\section*{{{title_escaped}}}\n')
+
+    def _write_figure(self, f, filepath: str) -> None:
+        """Write a figure block."""
+        f.write('\\begin{figure}[H]\n')
+        f.write('    \\centering\n')
+        f.write(f'    \\includegraphics[width=0.9\\textwidth]{{{filepath}}}\n')
+        f.write('\\end{figure}\n')
+
+    def _write_region_stats(self, f, reg_stats: dict) -> None:
+        """Write region statistics block."""
+        f.write('\\begin{quote}\n\\small\n')
+        f.write(f"\\textbf{{Area:}} {reg_stats['area_ha']} ha\\\\\n")
+        f.write(f"\\textbf{{N. aree saggio:}} {reg_stats['sample_areas']}\\\\\n")
+        f.write(f"\\textbf{{Specie prevalente:}} {reg_stats['dominant_species']}\\\\\n")
+        f.write('\\end{quote}\n\n')
+
+    def _write_species_subsection(self, f, result: dict, one_species_per_graph: bool,
+                                  for_cd: bool, external_legends: bool) -> None:
+        """Write a species subsection with figure and optional legend."""
+        species = result['species']
+        filepath = result['filepath']
+        species_escaped = species.replace('_', r'\_')
+
+        f.write(f'\\subsection*{{{species_escaped}}}\n')
+        self._write_figure(f, filepath.name)
+
+        if external_legends:
+            f.write(self._format_legend_latex(result, one_species_per_graph, for_cd))
+
     def generate_index_cd(self, files: list, output_dir: str, one_species_per_graph: bool = False,
                           external_legends: bool = False, region_legends: dict = None) -> None:
         """Generate a LaTeX fragment for diameter class histograms"""
@@ -400,78 +416,48 @@ class LaTeXFormatter(OutputFormatter):
         latex_file = self.output_dir / 'classi-diametriche.tex'
 
         with open(latex_file, 'w', encoding='utf-8') as f:
-            # Group results by region when one_species_per_graph is True
             first = True
+
             if one_species_per_graph:
+                # One graph per species, grouped by region
                 current_region = None
                 for result in files_sorted:
                     compresa = result['compresa']
                     particella = result['particella']
                     region_key = (compresa, particella)
 
-                    # Write region header and common stats if this is a new region
+                    # Write region header when entering new region
                     if region_key != current_region:
                         current_region = region_key
                         region_title = f"{compresa} - Particella {particella}" if particella else compresa
-                        region_title_escaped = region_title.replace('_', r'\_')
+                        title_escaped = region_title.replace('_', r'\_')
 
-                        # Start new region on new page
-                        if not first:
-                            f.write('\\clearpage\n')
+                        self._write_section_header(f, title_escaped, first)
                         first = False
-                        f.write(f'\\section*{{{region_title_escaped}}}\n')
 
-                        # Write common region stats (only once per region)
                         if external_legends and region_legends and region_key in region_legends:
-                            reg_stats = region_legends[region_key]
-                            f.write('\\begin{quote}\n\\small\n')
-                            f.write(f"\\textbf{{Area:}} {reg_stats['area_ha']} ha\\\\\n")
-                            f.write(f"\\textbf{{N. aree saggio:}} {reg_stats['sample_areas']}\\\\\n")
-                            f.write(f"\\textbf{{Specie prevalente:}} {reg_stats['dominant_species']}\\\\\n")
-                            f.write('\\end{quote}\n\n')
+                            self._write_region_stats(f, region_legends[region_key])
 
-                    # Write individual species graph
-                    species = result['species']
-                    filepath = result['filepath']
-                    species_escaped = species.replace('_', r'\_')
-
-                    # Keep species info together on same page
-#                    f.write('\\begin{samepage}\n')
-                    f.write(f'\\subsection*{{{species_escaped}}}\n')
-                    f.write('\\begin{figure}[H]\n')
-                    f.write('    \\centering\n')
-                    f.write(f'    \\includegraphics[width=0.9\\textwidth]{{{filepath.name}}}\n')
-                    f.write('\\end{figure}\n')
-
-                    if external_legends:
-                        f.write(self._format_legend_latex(result, one_species_per_graph, for_cd=True))
-
-#                    f.write('\\end{samepage}\n\n')
+                    # Write species subsection
+                    self._write_species_subsection(f, result, one_species_per_graph,
+                                                   for_cd=True, external_legends=external_legends)
             else:
-                # Original behavior: one graph per region
+                # Original behavior: one graph per region, all species combined
                 for result in files_sorted:
                     compresa = result['compresa']
                     particella = result['particella']
-                    filepath = result['filepath']
                     title = f"{compresa} - Particella {particella}" if particella else compresa
                     title_escaped = title.replace('_', r'\_')
 
-                    # Start new region on new page
-                    if not first:
-                        f.write('\\clearpage\n')
+                    self._write_section_header(f, title_escaped, first)
                     first = False
-                    f.write(f'\\section*{{{title_escaped}}}\n')
-                    f.write('\\begin{figure}[H]\n')
-                    f.write('    \\centering\n')
-                    f.write(f'    \\includegraphics[width=0.9\\textwidth]{{{filepath.name}}}\n')
-                    f.write('\\end{figure}\n')
+                    self._write_figure(f, result['filepath'].name)
 
                     if external_legends:
                         f.write(self._format_legend_latex(result, one_species_per_graph, for_cd=True))
                     f.write('\n')
 
         self.fragments.append(('classi-diametriche.tex', 'Distribuzione piante per classe diametrica'))
-        print(f"Generato frammento LaTeX: {latex_file}")
 
     def generate_index_ci(self, files: list, output_dir: str, one_species_per_graph: bool = False,
                           external_legends: bool = False, region_legends: dict = None) -> None:
@@ -491,76 +477,47 @@ combinazioni con almeno 10 punti ($n \ge 10$).
 
             # Group results by region when one_species_per_graph is True
             first = True
+
             if one_species_per_graph:
+                # One graph per species, grouped by region
                 current_region = None
                 for result in files_sorted:
                     compresa = result['compresa']
                     particella = result['particella']
                     region_key = (compresa, particella)
 
-                    # Write region header and common stats if this is a new region
+                    # Write region header when entering new region
                     if region_key != current_region:
                         current_region = region_key
                         region_title = f"{compresa} - Particella {particella}" if particella else compresa
-                        region_title_escaped = region_title.replace('_', r'\_')
+                        title_escaped = region_title.replace('_', r'\_')
 
-                        # Start new region on new page
-                        if not first:
-                            f.write('\\clearpage\n')
+                        self._write_section_header(f, title_escaped, first)
                         first = False
-                        f.write(f'\\section*{{{region_title_escaped}}}\n')
 
-                        # Write common region stats (only once per region)
                         if external_legends and region_legends and region_key in region_legends:
-                            reg_stats = region_legends[region_key]
-                            f.write('\\begin{quote}\n\\small\n')
-                            f.write(f"\\textbf{{Area:}} {reg_stats['area_ha']} ha\\\\\n")
-                            f.write(f"\\textbf{{N. aree saggio:}} {reg_stats['sample_areas']}\\\\\n")
-                            f.write(f"\\textbf{{Specie prevalente:}} {reg_stats['dominant_species']}\\\\\n")
-                            f.write('\\end{quote}\n\n')
+                            self._write_region_stats(f, region_legends[region_key])
 
-                    # Write individual species graph
-                    species = result['species']
-                    filepath = result['filepath']
-                    species_escaped = species.replace('_', r'\_')
-
-                    # Keep species info together on same page
-#                    f.write('\\begin{samepage}\n')
-                    f.write(f'\\subsection*{{{species_escaped}}}\n')
-                    f.write('\\begin{figure}[H]\n')
-                    f.write('    \\centering\n')
-                    f.write(f'    \\includegraphics[width=0.9\\textwidth]{{{filepath.name}}}\n')
-                    f.write('\\end{figure}\n')
-
-                    if external_legends:
-                        f.write(self._format_legend_latex(result, one_species_per_graph, for_cd=False))
-
-#                    f.write('\\end{samepage}\n\n')
+                    # Write species subsection
+                    self._write_species_subsection(f, result, one_species_per_graph,
+                                                   for_cd=False, external_legends=external_legends)
             else:
-                # Original behavior: one graph per region
+                # Original behavior: one graph per region, all species combined
                 for result in files_sorted:
                     compresa = result['compresa']
                     particella = result['particella']
-                    filepath = result['filepath']
                     title = f"{compresa} - Particella {particella}" if particella else compresa
                     title_escaped = title.replace('_', r'\_')
 
-                    # Start new region on new page
-                    if not first:
-                        f.write('\\clearpage\n')
+                    self._write_section_header(f, title_escaped, first)
                     first = False
-                    f.write(f'\\section*{{{title_escaped}}}\n')
-                    f.write('\\begin{figure}[H]\n')
-                    f.write('    \\centering\n')
-                    f.write(f'    \\includegraphics[width=0.9\\textwidth]{{{filepath.name}}}\n')
-                    f.write('\\end{figure}\n')
+                    self._write_figure(f, result['filepath'].name)
 
                     if external_legends:
                         f.write(self._format_legend_latex(result, one_species_per_graph, for_cd=False))
                     f.write('\n')
 
         self.fragments.append(('curve-ipsometriche.tex', 'Curve ipsometriche'))
-        print(f"Generato frammento LaTeX: {latex_file}")
 
     def finalize(self, output_dir: str, base_name: str) -> None:
         """Generate master document and optionally compile to PDF"""
@@ -578,7 +535,6 @@ combinazioni con almeno 10 punti ($n \ge 10$).
 \author{}
 \begin{document}
 \maketitle
-
 ''')
             for fragment_name, fragment_title in self.fragments:
                 f.write(f'\\section{{{fragment_title}}}\n')
@@ -587,9 +543,6 @@ combinazioni con almeno 10 punti ($n \ge 10$).
 
             f.write(self.FOOTER)
 
-        print(f"Generato documento LaTeX principale: {master_file}")
-
-        # Compile to PDF if requested
         if not self.compile_pdf:
             return
 
@@ -609,14 +562,13 @@ combinazioni con almeno 10 punti ($n \ge 10$).
                 raise RuntimeError("pdflatex returned non-zero exit code")
 
             if pdf_file.exists():
-                print(f"Generato file PDF: {pdf_file}")
                 # Clean up auxiliary files
                 for ext in ['.aux', '.log', '.out', '.toc']:
                     aux_file = master_file.with_suffix(ext)
                     if aux_file.exists():
                         aux_file.unlink()
             else:
-                print("Attenzione: file PDF non creato")
+                raise RuntimeError("File PDF non creato")
         except Exception as e:
             print(f"Errore nella compilazione LaTeX: {e}")
 
@@ -793,7 +745,6 @@ def hif_altezze(altezze_file: str, regression_func: str) -> dict | None:
     if missing_cols:
         raise ValueError(f"Colonne {missing_cols} non trovate in {altezze_file}")
 
-    # Select regression class
     RegressionClass = LogarithmicRegression if regression_func == 'logaritmica' else LinearRegression
 
     hfuncs = {}
@@ -809,9 +760,6 @@ def hif_altezze(altezze_file: str, regression_func: str) -> dict | None:
             regr = RegressionClass()
             if regr.fit(x, y, min_points=10):
                 hfuncs[compresa][species] = regr.get_lambda()
-                print(f"  {species:15}: {regr}")
-            else:
-                print(f"  {species:15}: Troppi pochi punti ({len(x)}) per la regressione")
 
     return hfuncs
 
@@ -899,7 +847,13 @@ def create_cd(trees: pd.DataFrame, region: pd.Series, color_map: dict, output_di
         print_name = f"{compresa}-{particella}"
 
     assert len(region_data) > 0, f"Nessun dato per {print_name}"
-    print(f"Generazione istogramma per {print_name}...")
+
+    # Data traceability
+    species_list = sorted(region_data['Genere'].unique())
+    print(f"Generazione istogramma per {print_name}:")
+    print(f"  Alberi campionati: {len(region_data)}")
+    print(f"  Specie: {', '.join(species_list)}")
+    print(f"  Stima totale: {region['estimated_total']} alberi")
 
     # Get region-level stats (shared across all species)
     region_stats = format_region_stats(region, region_data, for_cd=True)
@@ -1038,7 +992,13 @@ def create_ci(trees: pd.DataFrame, region: pd.Series, color_map: dict, output_di
         print_name = f"{compresa}-{particella}"
 
     assert len(region_data) > 0, f"Nessun dato per {print_name}"
-    print(f"Generazione grafico ipsometrico per {print_name}...")
+
+    # Data traceability
+    species_list = sorted(region_data['Genere'].unique())
+    print(f"Generazione curve ipsometriche per {print_name}:")
+    print(f"  Alberi campionati: {len(region_data)}")
+    print(f"  Specie: {', '.join(species_list)}")
+    print(f"  Altezza media: {region_data['h(m)'].mean():.1f} m")
 
     # Get region-level stats
     region_stats = format_region_stats(region, region_data, for_cd=False)
@@ -1307,10 +1267,21 @@ def main():
     particelle = pd.read_csv(args.file_particelle)
 
     alberi_fustaia = alberi[alberi['Fustaia'] == True].copy()
+    all_species = sorted(alberi_fustaia['Genere'].unique())
+
+    print("=" * 70)
+    print("ANALISI ACCRESCIMENTI - CONFIGURAZIONE")
+    print("=" * 70)
     print(f"Dati filtrati: {len(alberi_fustaia)} campioni di alberi a fustaia (su {len(alberi)} totali)")
+    print(f"Specie presenti: {', '.join(all_species)}")
+    print(f"Formato output: {args.formato_output.upper()}")
+    print(f"Granularità: {'Per particella' if args.per_particella else 'Per compresa'}")
+    print(f"Layout grafici: {'Un genere per grafico' if args.un_genere_per_grafico else 'Tutti i generi combinati'}")
+    print(f"Legende: {'Esterne' if args.legenda_esterna else 'Nei grafici'}")
+    print("=" * 70)
+    print()
 
     # Create consistent color mapping for all species
-    all_species = sorted(alberi_fustaia['Genere'].unique())
     colors = plt.cm.Set3(np.linspace(0, 1, len(all_species)))
     color_map = dict(zip(all_species, colors))
 
@@ -1408,17 +1379,20 @@ def main():
         formatter.finalize(final_dir, args.nome_report)
 
     with italian_locale():
-        print("\nAnalisi completata.")
-        print("\nRiepilogo:")
+        print()
+        print("=" * 70)
+        print("ANALISI COMPLETATA")
+        print("=" * 70)
+        print("\nRiepilogo dati per regione:")
 
         for _, row in regions.sort_values(['sort_key']).iterrows():
             trees_per_ha = row['estimated_total'] / row['area_ha']
             label = f"{row['Compresa']} - Particella {row['Particella']}" if args.per_particella else row['Compresa']
-            print(f"  {label}: "
-                f"{row['sampled_trees']} alberi campionati, "
-                f"{row['sample_areas']} aree saggio, "
-                f"{locale.format_string('%.2f', row['area_ha'])} ha → "
-                f"Stima totale: {row['estimated_total']:n} alberi ({round(trees_per_ha):n} alberi/ha)")
+            print(f"  {label}:")
+            print(f"    • {row['sampled_trees']} alberi campionati, {row['sample_areas']} aree saggio")
+            print(f"    • {locale.format_string('%.2f', row['area_ha'])} ha")
+            print(f"    • Stima totale: {row['estimated_total']:n} alberi ({round(trees_per_ha):n} alberi/ha)")
+        print("=" * 70)
 
 if __name__ == "__main__":
     main()
