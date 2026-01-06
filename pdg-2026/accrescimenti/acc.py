@@ -7,7 +7,7 @@ Three-mode tool for equation generation, height calculation, and report generati
 from abc import ABC, abstractmethod
 import argparse
 from pathlib import Path
-from typing import Optional
+from typing import Iterable, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -262,36 +262,80 @@ def prepare_region_data(trees_df: pd.DataFrame, particelle_df: pd.DataFrame,
 # COMPUTATION LAYER (equation generation and application)
 # =============================================================================
 
+def fit_curves_grouped(groups: Iterable[tuple[tuple[str, str], pd.DataFrame]], funzione: str, min_points: int = 10) -> pd.DataFrame:
+    """
+    Fit regression curves to grouped data.
+
+    Args:
+        groups: Iterable of ((compresa, genere), DataFrame) tuples
+        funzione: 'log' or 'lin'
+        min_points: Minimum number of points required for fitting
+
+    Returns:
+        DataFrame with columns [compresa, genere, funzione, a, b, r2, n]
+    """
+    RegressionClass = LogarithmicRegression if funzione == 'log' else LinearRegression
+    func_name = 'ln' if funzione == 'log' else 'lin'
+
+    results = []
+    for (compresa, genere), group_df in groups:
+        regr = RegressionClass()
+        if regr.fit(group_df['x'].values, group_df['y'].values, min_points=min_points):
+            results.append({
+                'compresa': compresa,
+                'genere': genere,
+                'funzione': func_name,
+                'a': regr.a,
+                'b': regr.b,
+                'r2': regr.r2,
+                'n': regr.n_points
+            })
+            print(f"  {compresa} - {genere}: {regr} (R² = {regr.r2:.2f}, n = {regr.n_points})")
+        else:
+            print(f"  {compresa} - {genere}: dati insufficienti (n < {min_points})")
+
+    return pd.DataFrame(results)
+
+
 def fit_curves_from_ipsometro(ipsometro_file: str, funzione: str = 'log') -> pd.DataFrame:
     """
     Generate equations from ipsometer field measurements.
 
     Args:
-        ipsometro_file: CSV with columns [Compresa, Specie, Diametro, Altezza]
+        ipsometro_file: CSV with columns [Compresa, Genere, Diametro, Altezza]
         funzione: 'log' or 'lin'
 
     Returns:
         DataFrame with columns [compresa, genere, funzione, a, b, r2, n]
     """
-    # TODO: Implement curve fitting from ipsometer data
-    raise NotImplementedError("fit_curves_from_ipsometro not yet implemented")
+    df = pd.read_csv(ipsometro_file)
+    df['x'] = df['Diametro']
+    df['y'] = df['Altezza']
+    groups = []
+
+    for (compresa, specie), group in df.groupby(['Compresa', 'Specie']):
+        groups.append(((compresa, specie), group))
+    return fit_curves_grouped(groups, funzione)
 
 
-def fit_curves_from_originali(alberi_file: str, particelle_file: str,
-                              funzione: str = 'log') -> pd.DataFrame:
+def fit_curves_from_originali(alberi_file: str, funzione: str = 'log') -> pd.DataFrame:
     """
     Generate equations from original tree database heights.
 
     Args:
         alberi_file: CSV with tree data
-        particelle_file: CSV with parcel metadata
         funzione: 'log' or 'lin'
 
     Returns:
         DataFrame with columns [compresa, genere, funzione, a, b, r2, n]
     """
-    # TODO: Implement curve fitting from tree database
-    raise NotImplementedError("fit_curves_from_originali not yet implemented")
+    df = pd.read_csv(alberi_file)
+    df = df[df['Fustaia'] == True].copy()
+    df['x'] = df['D(cm)']
+    df['y'] = df['h(m)']
+
+    groups = [(key, group) for key, group in df.groupby(['Compresa', 'Genere'])]
+    return fit_curves_grouped(groups, funzione)
 
 
 def fit_curves_from_tabelle(tabelle_file: str, particelle_file: str,
@@ -307,8 +351,20 @@ def fit_curves_from_tabelle(tabelle_file: str, particelle_file: str,
     Returns:
         DataFrame with columns [compresa, genere, funzione, a, b, r2, n]
     """
-    # TODO: Implement curve fitting from alsometric tables
-    raise NotImplementedError("fit_curves_from_tabelle not yet implemented")
+    df_particelle = pd.read_csv(particelle_file)
+    comprese = sorted(df_particelle['Compresa'].dropna().unique())
+
+    df_als = pd.read_csv(tabelle_file)
+    df_als['Diam 130cm'] = pd.to_numeric(df_als['Diam 130cm'], errors='coerce')
+    df_als['Altezza indicativa'] = pd.to_numeric(df_als['Altezza indicativa'], errors='coerce')
+    df_als['x'] = df_als['Diam 130cm']
+    df_als['y'] = df_als['Altezza indicativa']
+
+    groups = []
+    for compresa in comprese:
+        for genere, group in df_als.groupby('Genere'):
+            groups.append(((compresa, genere), group))
+    return fit_curves_grouped(groups, funzione)
 
 
 def apply_height_equations(alberi_file: str, equations_file: str,
@@ -458,7 +514,7 @@ def run_genera_equazioni(args):
     if args.fonte_altezze == 'ipsometro':
         equations_df = fit_curves_from_ipsometro(args.input, args.funzione)
     elif args.fonte_altezze == 'originali':
-        equations_df = fit_curves_from_originali(args.input, args.particelle, args.funzione)
+        equations_df = fit_curves_from_originali(args.input, args.funzione)
     elif args.fonte_altezze == 'tabelle':
         equations_df = fit_curves_from_tabelle(args.input, args.particelle, args.funzione)
     else:
@@ -600,7 +656,7 @@ Modalità di utilizzo:
         if not args.output:
             parser.error('--genera-equazioni richiede --output')
         if args.fonte_altezze == 'tabelle' and not args.particelle:
-            parser.error(f'--fonte-altezze={args.fonte_altezze} richiede --particelle')
+            parser.error('--fonte-altezze=tabelle richiede --particelle')
         run_genera_equazioni(args)
 
     elif args.calcola_altezze:
