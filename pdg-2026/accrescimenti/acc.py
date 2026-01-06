@@ -7,6 +7,7 @@ Three-mode tool for equation generation, height calculation, and report generati
 from abc import ABC, abstractmethod
 import argparse
 from pathlib import Path
+import re
 from typing import Iterable, Optional
 
 import matplotlib.pyplot as plt
@@ -600,13 +601,36 @@ def parse_template_directive(line: str) -> Optional[dict]:
         dict with keys: 'keyword', 'params', 'full_text'
         or None if not a valid directive
     """
-    # TODO: Implement template directive parsing
-    raise NotImplementedError("parse_template_directive not yet implemented")
+    # Match pattern: @@keyword(param=value, param=value, ...)
+    pattern = r'@@(\w+)\((.*?)\)'
+    match = re.search(pattern, line)
+
+    if not match:
+        return None
+
+    keyword = match.group(1)
+    params_str = match.group(2)
+    full_text = match.group(0)
+
+    params = {}
+    if params_str.strip():
+        # Split by comma and parse key=value pairs
+        for param in params_str.split(','):
+            param = param.strip()
+            if '=' in param:
+                key, value = param.split('=', 1)
+                params[key.strip()] = value.strip()
+
+    return {
+        'keyword': keyword,
+        'params': params,
+        'full_text': full_text
+    }
 
 
 def process_template(template_text: str, trees_df: pd.DataFrame,
-                    particelle_df: pd.DataFrame, equations_df: pd.DataFrame,
-                    output_dir: Path, format_type: str) -> str:
+                     particelle_df: pd.DataFrame, equations_df: pd.DataFrame,
+                     output_dir: Path, format_type: str) -> str:
     """
     Process template by substituting @@directives with generated content.
 
@@ -621,8 +645,66 @@ def process_template(template_text: str, trees_df: pd.DataFrame,
     Returns:
         Processed template text
     """
-    # TODO: Implement template processing
-    raise NotImplementedError("process_template not yet implemented")
+    formatter = HTMLSnippetFormatter() if format_type == 'html' else LaTeXSnippetFormatter()
+    color_map = get_color_map(sorted(trees_df['Genere'].unique()))
+    graph_counter = {}
+
+    def process_directive(match):
+        directive = parse_template_directive(match.group(0))
+        if not directive:
+            return match.group(0)  # Return unchanged if parsing fails
+
+        keyword = directive['keyword']
+        params = directive['params']
+
+        # Validate required parameters
+        if 'compresa' not in params:
+            print(f"ERRORE: Direttiva {directive['full_text']} manca del parametro 'compresa'")
+            return directive['full_text']
+
+        compresa = params['compresa']
+        particella = params.get('particella', None)
+        genere = params.get('genere', None)
+
+        try:
+            data = prepare_region_data(trees_df, particelle_df, compresa, particella, genere)
+
+            key = (keyword, compresa, particella, genere)
+            if key not in graph_counter:
+                graph_counter[key] = 0
+            graph_counter[key] += 1
+
+            parts = [compresa]
+            if particella:
+                parts.append(particella)
+            if genere:
+                parts.append(genere)
+            parts.append(keyword)
+            if graph_counter[key] > 1:
+                parts.append(str(graph_counter[key]))
+
+            filename = '_'.join(parts) + '.png'
+            output_path = output_dir / filename
+
+            if keyword == 'cd':
+                result = render_cd_graph(data, output_path, formatter, color_map)
+                print(f"  Generato: {filename}")
+            elif keyword == 'ci':
+                result = render_ci_graph(data, equations_df, output_path, formatter, color_map)
+                print(f"  Generato: {filename}")
+            else:
+                raise ValueError(f"Tipo di grafico sconosciuto: {keyword}")
+
+            return result['snippet']
+
+        except Exception as e:
+            raise ValueError(f"ERRORE nella generazione di {directive['full_text']}: {e}")
+
+    # Find and replace all directives
+    pattern = r'@@\w+\([^)]*\)'
+    processed = re.sub(pattern, process_directive, template_text)
+
+    return processed
 
 
 # =============================================================================
@@ -690,7 +772,7 @@ def run_genera_equazioni(args):
 
 
 def run_calcola_altezze(args):
-    """Execute Mode 2: Calculate heights."""
+    """Calculate heights."""
     print(f"Calcolo altezze usando equazioni da: {args.equazioni}")
     print(f"Input: {args.input}")
     print(f"Output: {args.output}")
@@ -700,39 +782,31 @@ def run_calcola_altezze(args):
 
 
 def run_report(args):
-    """Execute Mode 3: Generate report from template."""
+    """Generate report from template."""
     format_type = args.formato
     print(f"Generazione report formato: {format_type}")
     print(f"Template: {args.input}")
     print(f"Output directory: {args.output_dir}")
 
-    # Load data
     trees_df = pd.read_csv(args.alberi)
     particelle_df = pd.read_csv(args.particelle)
     equations_df = pd.read_csv(args.equazioni)
 
-    # Read template
     with open(args.input, 'r', encoding='utf-8') as f:
         template_text = f.read()
 
-    # Process template
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     processed = process_template(template_text, trees_df, particelle_df,
-                                equations_df, output_dir, format_type)
-
-    # Write output
-    input_path = Path(args.input)
-    output_file = output_dir / input_path.name
+                                 equations_df, output_dir, format_type)
+    output_file = Path(output_dir) / args.input
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write(processed)
-
     print(f"Report generato: {output_file}")
 
-
 def run_lista_particelle(args):
-    """Execute utility mode: List particelle."""
+    """List land parcels."""
     print("Particelle disponibili:")
     list_parcels(args.particelle)
 
