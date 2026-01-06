@@ -1,5 +1,5 @@
 CSV_DIR=../csv
-OTHER_FLAGS=--legenda-esterna
+OTHER_FLAGS=
 
 .PHONY: all \
 	cd-per-compresa cd-per-particella \
@@ -41,7 +41,7 @@ dati: ./analysis.py $(CSV_DIR)/alberi.csv $(CSV_DIR)/alsometrie.csv $(CSV_DIR)/p
 	ci-interpolate-per-compresa ci-interpolate-per-particella
 
 report:
-	./analysis.py --input-dir $(CSV_DIR) --legenda-esterna --nome-report report --formato-output pdf --genera-classi-diametriche --genera-curve-ipsometriche --fonte-altezze ipsometro --ometti-generi-sconosciuti
+	./analysis.py --input-dir $(CSV_DIR) --nome-report report --formato-output pdf --genera-classi-diametriche --genera-curve-ipsometriche --fonte-altezze ipsometro --ometti-generi-sconosciuti
 
 sync:
 	ssh laforesta.it "mkdir -p /var/www/laforestadotit/html/pdg-2026/accrescimenti"

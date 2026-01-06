@@ -55,13 +55,13 @@ class OutputFormatter(ABC):
 
     @abstractmethod
     def generate_index_cd(self, files: list, output_dir: str, one_species_per_graph: bool = False,
-                          external_legends: bool = False, region_legends: dict = None) -> None:
+                          region_legends: dict = None) -> None:
         """Generate index for diameter class histograms"""
         pass
 
     @abstractmethod
     def generate_index_ci(self, files: list, output_dir: str, one_species_per_graph: bool = False,
-                          external_legends: bool = False, region_legends: dict = None) -> None:
+                          region_legends: dict = None) -> None:
         """Generate index for height-diameter curves"""
         pass
 
@@ -192,7 +192,7 @@ class HTMLFormatter(OutputFormatter):
         return html
 
     def _generate_index_html(self, files: list, output_dir: str, section_type: str,
-                            one_species_per_graph: bool = False, external_legends: bool = False,
+                            one_species_per_graph: bool = False,
                             region_legends: dict = None, explanation: str = None) -> None:
         """Unified HTML index generator for both cd and ci sections.
 
@@ -242,11 +242,11 @@ class HTMLFormatter(OutputFormatter):
                         current_region = region_key
                         region_title = f"{compresa} - Particella {particella}" if particella else compresa
 
-                        if external_legends and region_legends and region_key in region_legends:
+                        if region_legends and region_key in region_legends:
                             f.write(self._write_region_header_html(region_title, region_legends[region_key]))
 
-                    # Write species graph
-                    legend_html = self._format_legend_html(result, one_species_per_graph, for_cd=config['for_cd']) if external_legends else None
+                    # Write species graph with legend
+                    legend_html = self._format_legend_html(result, one_species_per_graph, for_cd=config['for_cd'])
                     f.write(self._write_graph_item_html(result['species'], result['filepath'].name, legend_html))
             else:
                 # Original behavior: one graph per region
@@ -255,7 +255,7 @@ class HTMLFormatter(OutputFormatter):
                     particella = result['particella']
                     title = f"{compresa} - Particella {particella}" if particella else compresa
 
-                    legend_html = self._format_legend_html(result, one_species_per_graph, for_cd=config['for_cd']) if external_legends else None
+                    legend_html = self._format_legend_html(result, one_species_per_graph, for_cd=config['for_cd'])
                     f.write(self._write_graph_item_html(title, result['filepath'].name, legend_html))
 
             f.write('''    </div>
@@ -263,12 +263,12 @@ class HTMLFormatter(OutputFormatter):
 </html>''')
 
     def generate_index_cd(self, files: list, output_dir: str, one_species_per_graph: bool = False,
-                          external_legends: bool = False, region_legends: dict = None) -> None:
+                          region_legends: dict = None) -> None:
         """Generate an HTML index file for the generated histograms"""
-        self._generate_index_html(files, output_dir, 'cd', one_species_per_graph, external_legends, region_legends)
+        self._generate_index_html(files, output_dir, 'cd', one_species_per_graph, region_legends)
 
     def generate_index_ci(self, files: list, output_dir: str, one_species_per_graph: bool = False,
-                          external_legends: bool = False, region_legends: dict = None) -> None:
+                          region_legends: dict = None) -> None:
         """Generate an HTML index file for the generated scatter plots"""
         explanation = '''        <div class="explanation">
             <p>
@@ -278,7 +278,7 @@ class HTMLFormatter(OutputFormatter):
             </p>
         </div>
 '''
-        self._generate_index_html(files, output_dir, 'ci', one_species_per_graph, external_legends,
+        self._generate_index_html(files, output_dir, 'ci', one_species_per_graph,
                                  region_legends, explanation=explanation)
 
     def finalize(self, output_dir: str, base_name: str = None) -> None:
@@ -375,20 +375,18 @@ class LaTeXFormatter(OutputFormatter):
         f.write('\\end{quote}\n\n')
 
     def _write_species_subsection(self, f, result: dict, one_species_per_graph: bool,
-                                  for_cd: bool, external_legends: bool) -> None:
-        """Write a species subsection with figure and optional legend."""
+                                  for_cd: bool) -> None:
+        """Write a species subsection with figure and legend."""
         species = result['species']
         filepath = result['filepath']
         species_escaped = species.replace('_', r'\_')
 
         f.write(f'\\subsection*{{{species_escaped}}}\n')
         self._write_figure(f, filepath.name)
-
-        if external_legends:
-            f.write(self._format_legend_latex(result, one_species_per_graph, for_cd))
+        f.write(self._format_legend_latex(result, one_species_per_graph, for_cd))
 
     def _generate_index(self, files: list, output_dir: str, section_type: str,
-                       one_species_per_graph: bool = False, external_legends: bool = False,
+                       one_species_per_graph: bool = False,
                        region_legends: dict = None, explanation: str = None) -> None:
         """Unified LaTeX index generator for both cd and ci sections.
 
@@ -439,12 +437,11 @@ class LaTeXFormatter(OutputFormatter):
                         self._write_section_header(f, title_escaped, first)
                         first = False
 
-                        if external_legends and region_legends and region_key in region_legends:
+                        if region_legends and region_key in region_legends:
                             self._write_region_stats(f, region_legends[region_key])
 
-                    # Write species subsection
-                    self._write_species_subsection(f, result, one_species_per_graph,
-                                                   for_cd=config['for_cd'], external_legends=external_legends)
+                    # Write species subsection with legend
+                    self._write_species_subsection(f, result, one_species_per_graph, for_cd=config['for_cd'])
             else:
                 # Original behavior: one graph per region, all species combined
                 for result in files_sorted:
@@ -456,21 +453,19 @@ class LaTeXFormatter(OutputFormatter):
                     self._write_section_header(f, title_escaped, first)
                     first = False
                     self._write_figure(f, result['filepath'].name)
-
-                    if external_legends:
-                        f.write(self._format_legend_latex(result, one_species_per_graph, for_cd=config['for_cd']))
+                    f.write(self._format_legend_latex(result, one_species_per_graph, for_cd=config['for_cd']))
                     f.write('\n')
 
         self.fragments.append((config['filename'], config['fragment_title']))
         print(f"Generato frammento LaTeX: {latex_file}")
 
     def generate_index_cd(self, files: list, output_dir: str, one_species_per_graph: bool = False,
-                          external_legends: bool = False, region_legends: dict = None) -> None:
+                          region_legends: dict = None) -> None:
         """Generate a LaTeX fragment for diameter class histograms"""
-        self._generate_index(files, output_dir, 'cd', one_species_per_graph, external_legends, region_legends)
+        self._generate_index(files, output_dir, 'cd', one_species_per_graph, region_legends)
 
     def generate_index_ci(self, files: list, output_dir: str, one_species_per_graph: bool = False,
-                          external_legends: bool = False, region_legends: dict = None) -> None:
+                          region_legends: dict = None) -> None:
         """Generate a LaTeX fragment for height-diameter curves"""
         explanation = r'''
 Le curve ipsometriche sono state calcolate con un modello di regressione logaritmico, per
@@ -478,7 +473,7 @@ ogni combinazione di compresa, particella e genere. Vengono visualizzate solo pe
 combinazioni con almeno 10 punti ($n \ge 10$).
 
 '''
-        self._generate_index(files, output_dir, 'ci', one_species_per_graph, external_legends,
+        self._generate_index(files, output_dir, 'ci', one_species_per_graph,
                            region_legends, explanation=explanation)
 
     def finalize(self, output_dir: str, base_name: str) -> None:
@@ -833,7 +828,7 @@ def format_species_stats(species_data: pd.DataFrame, region: pd.Series, for_cd: 
     return stats
 
 def create_cd(trees: pd.DataFrame, region: pd.Series, color_map: dict, output_dir: str, set_title: bool,
-              one_species_per_graph: bool = False, external_legends: bool = False) -> list:
+              one_species_per_graph: bool = False) -> list:
     """
     Create histogram(s) for a specific region showing tree distribution by diameter class.
 
@@ -900,32 +895,8 @@ def create_cd(trees: pd.DataFrame, region: pd.Series, color_map: dict, output_di
         ax.grid(True, alpha=0.3, axis='y')
         ax.set_axisbelow(True)
 
-        # Add legend to graph if external_legends is False
-        if not external_legends:
-            ax.legend(title='Specie', bbox_to_anchor=(1.01, 1.02), alignment='left')
-
-        # Build stats text - conditional based on one_species_per_graph
-        if not external_legends:
-            if one_species_per_graph and species_stats:
-                # Species-specific stats
-                stats_text = f"""
-Alberi campionati: {species_stats['sampled_trees']}
-Stima totale alberi: {species_stats['estimated_total']}
-Classe diametrica media: {species_stats['mean_diameter_class']}""".strip()
-            else:
-                # Region-level stats
-                stats_text = f"""
-Area: {region_stats['area_ha']} ha
-Alberi campionati: {region_stats['sampled_trees']}
-N. aree saggio: {region_stats['sample_areas']}
-Stima totale alberi: {region_stats['estimated_total']}
-Stima alberi / ha: {region_stats['estimated_per_ha']}
-Specie prevalente: {region_stats['dominant_species']}
-Classe diametrica media: {region_stats['mean_diameter_class']}""".strip()
-
-            ax.text(0.99, 0.98, stats_text, transform=ax.transAxes,
-                    verticalalignment='top', horizontalalignment='right',
-                    bbox=dict(boxstyle='round', facecolor='#fbfbfb', alpha=1, linewidth=0.2))
+        # Always add legend mapping colors to species
+        ax.legend(title='Specie', bbox_to_anchor=(1.01, 1.02), alignment='left')
 
         plt.tight_layout()
 
@@ -957,7 +928,7 @@ Classe diametrica media: {region_stats['mean_diameter_class']}""".strip()
 
 def create_ci(trees: pd.DataFrame, region: pd.Series, color_map: dict, output_dir: str,
               hfuncs: dict, omit_unknown: bool, set_title: bool,
-              one_species_per_graph: bool = False, external_legends: bool = False) -> list:
+              one_species_per_graph: bool = False) -> list:
     """
     Create scatter plot(s) for a specific region showing height vs diameter class relationship.
 
@@ -1061,42 +1032,8 @@ def create_ci(trees: pd.DataFrame, region: pd.Series, color_map: dict, output_di
         ax.grid(True, alpha=0.3)
         ax.set_axisbelow(True)
 
-        # Add legend to graph if external_legends is False
-        if not external_legends:
-            ax.legend(title='Specie', bbox_to_anchor=(1.01, 1.02), alignment='left')
-
-        # Build stats text - conditional based on one_species_per_graph
-        if not external_legends:
-            if one_species_per_graph and species_stats:
-                # Species-specific stats
-                stats_text = f"""
-Alberi campionati: {species_stats['sampled_trees']}
-Stima totale alberi: {species_stats['estimated_total']}
-Altezza media: {species_stats['mean_height']} m""".strip()
-            else:
-                # Region-level stats
-                stats_text = f"""
-Area: {region_stats['area_ha']} ha
-Alberi campionati: {region_stats['sampled_trees']}
-N. aree saggio: {region_stats['sample_areas']}
-Stima totale alberi: {region_stats['estimated_total']}
-Stima alberi / ha: {region_stats['estimated_per_ha']}
-Specie prevalente: {region_stats['dominant_species']}
-Altezza media: {region_stats['mean_height']} m""".strip()
-
-            ax.text(0.99, 0.98, stats_text, transform=ax.transAxes,
-                    verticalalignment='top', horizontalalignment='right',
-                    bbox=dict(boxstyle='round', facecolor='#fbfbfb', alpha=1, linewidth=0.2))
-
-        # Add polynomial info to graph if external_legends is False
-        if not external_legends and polynomial_info:
-            poly_text = ""
-            for i in polynomial_info:
-                poly_text += f"{i['species']}: {i['equation']} (R² = {i['r_squared']:.3f}, n = {i['n_points']})\n"
-
-            ax.text(0.01, -0.25, poly_text.strip(), transform=ax.transAxes,
-                    verticalalignment='top', horizontalalignment='left',
-                    fontsize=5, bbox=dict(boxstyle='round', facecolor='#f0f0f0', alpha=0.8, linewidth=0.2))
+        # Always add legend mapping colors to species
+        ax.legend(title='Specie', bbox_to_anchor=(1.01, 1.02), alignment='left')
 
         plt.tight_layout()
 
@@ -1178,9 +1115,6 @@ def main():
     g1.add_argument('--un-genere-per-grafico', action='store_true',
                     default=False,
                     help='Genera un grafico separato per ogni genere (miglior visibilità)')
-    g1.add_argument('--legenda-esterna', action='store_true',
-                    default=True,
-                    help='Mostra statistiche e equazioni interpolanti sotto il grafico invece che nel grafico')
     g2 = parser.add_argument_group('Altezze per curve ipsometriche')
     g2.add_argument('--funzione-interpolazione', type=str,
                     choices=['quadratica', 'lineare'],
@@ -1238,7 +1172,6 @@ def main():
     print(f"Formato output: {args.formato_output.upper()}")
     print(f"Granularità: {'Per particella' if args.per_particella else 'Per compresa'}")
     print(f"Layout grafici: {'Un genere per grafico' if args.un_genere_per_grafico else 'Tutti i generi combinati'}")
-    print(f"Legende: {'Esterne' if args.legenda_esterna else 'Nei grafici'}")
     print("=" * 70)
     print()
 
@@ -1284,18 +1217,16 @@ def main():
             results = create_cd(trees=alberi_fustaia, region=row,
                                color_map=color_map, output_dir=cd_output_dir,
                                set_title=args.formato_output == 'html',
-                               one_species_per_graph=args.un_genere_per_grafico,
-                               external_legends=args.legenda_esterna)
+                               one_species_per_graph=args.un_genere_per_grafico)
             all_results.extend(results)
 
-            # Store region-level legends for external display
-            if args.un_genere_per_grafico and args.legenda_esterna and results:
+            # Store region-level legends for external display (when one species per graph)
+            if args.un_genere_per_grafico and results:
                 region_key = (results[0]['compresa'], results[0]['particella'])
                 region_legends[region_key] = results[0]['legend_data']['region_stats']
 
         formatter.generate_index_cd(all_results, cd_output_dir,
                                    one_species_per_graph=args.un_genere_per_grafico,
-                                   external_legends=args.legenda_esterna,
                                    region_legends=region_legends)
         print(f"Istogrammi classi diametriche salvati in '{cd_output_dir}'")
 
@@ -1309,18 +1240,16 @@ def main():
                                color_map=color_map, output_dir=ci_output_dir,
                                hfuncs=hfuncs, omit_unknown=args.ometti_generi_sconosciuti,
                                set_title=args.formato_output == 'html',
-                               one_species_per_graph=args.un_genere_per_grafico,
-                               external_legends=args.legenda_esterna)
+                               one_species_per_graph=args.un_genere_per_grafico)
             all_results.extend(results)
 
-            # Store region-level legends for external display
-            if args.un_genere_per_grafico and args.legenda_esterna and results:
+            # Store region-level legends for external display (when one species per graph)
+            if args.un_genere_per_grafico and results:
                 region_key = (results[0]['compresa'], results[0]['particella'])
                 region_legends[region_key] = results[0]['legend_data']['region_stats']
 
         formatter.generate_index_ci(all_results, ci_output_dir,
                                    one_species_per_graph=args.un_genere_per_grafico,
-                                   external_legends=args.legenda_esterna,
                                    region_legends=region_legends)
         print(f"Curve ipsometriche salvate in '{ci_output_dir}'")
 
