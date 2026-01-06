@@ -1,5 +1,5 @@
 CSV_DIR=../csv
-OTHER_FLAGS=
+OTHER_FLAGS=--un-genere-per-grafico
 
 .PHONY: all \
 	cd-per-compresa cd-per-particella \
@@ -40,8 +40,11 @@ dati: ./analysis.py $(CSV_DIR)/alberi.csv $(CSV_DIR)/alsometrie.csv $(CSV_DIR)/p
 	ci-originali-per-compresa ci-originali-per-particella \
 	ci-interpolate-per-compresa ci-interpolate-per-particella
 
-report:
-	./analysis.py --input-dir $(CSV_DIR) --nome-report report --formato-output pdf --genera-classi-diametriche --genera-curve-ipsometriche --fonte-altezze ipsometro --ometti-generi-sconosciuti
+volumi: ./calcolo-volumi.py $(CSV_DIR)/alberi-calcolati.csv
+	./calcolo-volumi.py $(CSV_DIR)/alberi-calcolati.csv -v
+
+report: ./analysis.py $(CSV_DIR)/alberi.csv $(CSV_DIR)/alsometrie.csv $(CSV_DIR)/particelle.csv $(CSV_DIR)/altezze.csv
+	./analysis.py --input-dir $(CSV_DIR) --un-genere-per-grafico --nome-report report --formato-output pdf --genera-classi-diametriche --genera-curve-ipsometriche --fonte-altezze ipsometro --ometti-generi-sconosciuti
 
 sync:
 	ssh laforesta.it "mkdir -p /var/www/laforestadotit/html/pdg-2026/accrescimenti"
