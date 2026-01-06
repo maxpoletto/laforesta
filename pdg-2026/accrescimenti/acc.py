@@ -188,7 +188,7 @@ class HTMLSnippetFormatter(SnippetFormatter):
             html += f'<p><strong>Classe diametrica media:</strong> {stats["mean_diameter_class"]:.0f}</p>\n'
 
         if curve_info:
-            html += '<br><p><strong>Funzioni di interpolazione:</strong></p>\n'
+            html += '<br><p><strong>Equazioni interpolanti:</strong></p>\n'
             for curve in curve_info:
                 html += (f'<p>{curve["species"]}: {curve["equation"]} '
                         f'(R² = {curve["r_squared"]:.2f}, n = {curve["n_points"]})</p>\n')
@@ -219,7 +219,7 @@ class LaTeXSnippetFormatter(SnippetFormatter):
             latex += f"\\textbf{{Classe diametrica media:}} {stats['mean_diameter_class']:.0f}\\\\\n"
 
         if curve_info:
-            latex += '\\\\\n\\textbf{Funzioni di interpolazione:}\\\\\n'
+            latex += '\\\\\n\\textbf{Equazioni interpolanti:}\\\\\n'
             for curve in curve_info:
                 eq = curve['equation'].replace('*', r'\times ')
                 eq = eq.replace('ln', r'\ln')
@@ -526,7 +526,6 @@ def render_ci_graph(data: dict, max_diameter_class: int, equations_df: pd.DataFr
         if len(eq_row) > 0:
             eq = eq_row.iloc[0]
 
-            # Draw the curve using saved parameters
             x_min, x_max = 1, x.max()
             x_smooth = np.linspace(x_min, x_max, 100)
 

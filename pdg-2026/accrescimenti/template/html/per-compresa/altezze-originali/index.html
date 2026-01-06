@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Soc. Agr. La Foresta: altezze grezze</title>
+    <link rel="stylesheet" href="../../style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Soc. Agr. La Foresta: altezze grezze</h1>
+        <div class="explanation">
+            <p>
+                Le curve ipsometriche sono state calcolate con un modello di regressione logaritmico, per
+                ogni combinazione di compresa, particella e genere. Vengono visualizzate solo per
+                combinazioni con almeno 10 punti (n ≥ 10).
+            </p>
+        </div>
+        <div class="graph-item">
+            <div class="graph-title">Capistrano</div>
+            @@ci(compresa=Capistrano)
+        </div>
+        <div class="graph-item">
+            <div class="graph-title">Fabrizia</div>
+            @@ci(compresa=Fabrizia)
+        </div>
+        <div class="graph-item">
+            <div class="graph-title">Serra</div>
+            @@ci(compresa=Serra)
+        </div>
+    </div>
+</body>
+</html>

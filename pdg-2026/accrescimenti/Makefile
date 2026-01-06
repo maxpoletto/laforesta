@@ -49,13 +49,16 @@ $(CSV_DIR)/equazioni_ipsometro.csv: $(CSV_DIR)/altezze.csv
 $(CSV_DIR)/equazioni_tabelle.csv: $(CSV_DIR)/alsometrie.csv $(CSV_DIR)/particelle.csv
 	./acc.py --genera-equazioni --funzione log --fonte-altezze tabelle --particelle $(CSV_DIR)/particelle.csv --input $(CSV_DIR)/alsometrie.csv --output $(CSV_DIR)/equazioni_tabelle.csv
 
-html: html/per-compresa/classi-diametriche/index.html html/per-compresa/altezze-originali/index.html
+html: html/per-compresa/classi-diametriche/index.html html/per-compresa/altezze-originali/index.html html/per-compresa/altezze-calcolate/index.html
 
 html/per-compresa/classi-diametriche/index.html: $(CSV_DIR)/alberi.csv $(CSV_DIR)/particelle.csv $(CSV_DIR)/equazioni_ipsometro.csv template/html/per-compresa/classi-diametriche/index.html html/style.css
 	./acc.py --report --formato html --equazioni $(CSV_DIR)/equazioni_ipsometro.csv --alberi $(CSV_DIR)/alberi.csv --particelle $(CSV_DIR)/particelle.csv --input template/html/per-compresa/classi-diametriche/index.html --output-dir html/per-compresa/classi-diametriche/
 
 html/per-compresa/altezze-originali/index.html: $(CSV_DIR)/alberi.csv $(CSV_DIR)/particelle.csv $(CSV_DIR)/equazioni_originali.csv template/html/per-compresa/altezze-originali/index.html html/style.css
 	./acc.py --report --formato html --equazioni $(CSV_DIR)/equazioni_ipsometro.csv --alberi $(CSV_DIR)/alberi.csv --particelle $(CSV_DIR)/particelle.csv --input template/html/per-compresa/altezze-originali/index.html --output-dir html/per-compresa/altezze-originali/
+
+html/per-compresa/altezze-calcolate/index.html: $(CSV_DIR)/alberi.csv $(CSV_DIR)/particelle.csv $(CSV_DIR)/equazioni_ipsometro.csv template/html/per-compresa/altezze-calcolate/index.html html/style.css
+	./acc.py --report --formato html --equazioni $(CSV_DIR)/equazioni_ipsometro.csv --alberi $(CSV_DIR)/alberi.csv --particelle $(CSV_DIR)/particelle.csv --input template/html/per-compresa/altezze-calcolate/index.html --output-dir html/per-compresa/altezze-calcolate/
 
 dati: ./analysis.py $(CSV_DIR)/alberi.csv $(CSV_DIR)/alsometrie.csv $(CSV_DIR)/particelle.csv \
 	$(CSV_DIR)/alsometrie-calcolate.csv $(CSV_DIR)/alberi-calcolati.csv \
