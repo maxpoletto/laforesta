@@ -157,11 +157,11 @@ class SnippetFormatter(ABC):
         pass
 
     @abstractmethod
-    def format_metadata(self, metadata: dict, curve_info: list = None) -> str:
+    def format_metadata(self, stats: dict, curve_info: list = None) -> str:
         """Format metadata block for this format.
 
         Args:
-            metadata: Statistics about the region/species
+            stats: Statistics about the region/species
             curve_info: List of dicts with {species, equation, r_squared, n_points}
                        from equations.csv
         """
@@ -174,17 +174,17 @@ class HTMLSnippetFormatter(SnippetFormatter):
     def format_image(self, filepath: Path) -> str:
         return f'<img src="{filepath.name}" class="graph-image">'
 
-    def format_metadata(self, metadata: dict, curve_info: list = None) -> str:
+    def format_metadata(self, stats: dict, curve_info: list = None) -> str:
         """Format metadata as HTML."""
         html = '<div class="metadata">\n'
-        html += f'<p><strong>Alberi campionati:</strong> {metadata["sampled_trees"]}</p>\n'
-        html += f'<p><strong>Stima totale:</strong> {metadata["estimated_total"]}</p>\n'
-        html += f'<p><strong>Area:</strong> {metadata["area_ha"]} ha</p>\n'
+        html += f'<p><strong>Alberi campionati:</strong> {stats["sampled_trees"]:d}</p>\n'
+        html += f'<p><strong>Stima totale:</strong> {stats["estimated_total"]:d}</p>\n'
+        html += f'<p><strong>Area:</strong> {stats["area_ha"]:.2f} ha</p>\n'
 
-        if "mean_height" in metadata:
-            html += f'<p><strong>Altezza media:</strong> {metadata["mean_height"]:.1f} m</p>\n'
-        if "mean_diameter_class" in metadata:
-            html += f'<p><strong>Classe diametrica media:</strong> {metadata["mean_diameter_class"]:.0f}</p>\n'
+        if "mean_height" in stats:
+            html += f'<p><strong>Altezza media:</strong> {stats["mean_height"]:.1f} m</p>\n'
+        if "mean_diameter_class" in stats:
+            html += f'<p><strong>Classe diametrica media:</strong> {stats["mean_diameter_class"]:.0f}</p>\n'
 
         if curve_info:
             html += '<br><p><strong>Funzioni di interpolazione:</strong></p>\n'
@@ -205,17 +205,17 @@ class LaTeXSnippetFormatter(SnippetFormatter):
                 f'  \\includegraphics[width=0.9\\textwidth]{{{filepath.name}}}\n'
                 f'\\end{{figure}}\n')
 
-    def format_metadata(self, metadata: dict, curve_info: list = None) -> str:
+    def format_metadata(self, stats: dict, curve_info: list = None) -> str:
         """Format metadata as LaTeX."""
         latex = '\\begin{quote}\\small\n'
-        latex += f"\\textbf{{Alberi campionati:}} {metadata['sampled_trees']}\\\\\n"
-        latex += f"\\textbf{{Stima totale:}} {metadata['estimated_total']}\\\\\n"
-        latex += f"\\textbf{{Area:}} {metadata['area_ha']} ha\\\\\n"
+        latex += f"\\textbf{{Alberi campionati:}} {stats['sampled_trees']:d}\\\\\n"
+        latex += f"\\textbf{{Stima totale:}} {stats['estimated_total']:d}\\\\\n"
+        latex += f"\\textbf{{Area:}} {stats['area_ha']:.2f} ha\\\\\n"
 
-        if "mean_height" in metadata:
-            latex += f"\\textbf{{Altezza media:}} {metadata['mean_height']:.1f} m\\\\\n"
-        if "mean_diameter_class" in metadata:
-            latex += f"\\textbf{{Classe diametrica media:}} {metadata['mean_diameter_class']:.0f}\\\\\n"
+        if "mean_height" in stats:
+            latex += f"\\textbf{{Altezza media:}} {stats['mean_height']:.1f} m\\\\\n"
+        if "mean_diameter_class" in stats:
+            latex += f"\\textbf{{Classe diametrica media:}} {stats['mean_diameter_class']:.0f}\\\\\n"
 
         if curve_info:
             latex += '\\\\\n\\textbf{Funzioni di interpolazione:}\\\\\n'
@@ -249,13 +249,65 @@ def prepare_region_data(trees_df: pd.DataFrame, particelle_df: pd.DataFrame,
     Returns:
         dict with keys:
             - 'trees': filtered DataFrame
-            - 'metadata': computed statistics
+            - 'stats': computed statistics
             - 'species_list': list of species in this dataset
             - 'compresa': compresa name
             - 'particella': particella name or None
     """
-    # TODO: Implement data filtering and aggregation
-    raise NotImplementedError("prepare_region_data not yet implemented")
+    # Filter trees by compresa and particella
+    if particella is None:
+        filtered_trees = trees_df[trees_df['Compresa'] == compresa].copy()
+    else:
+        filtered_trees = trees_df[
+            (trees_df['Compresa'] == compresa) &
+            (trees_df['Particella'] == particella)
+        ].copy()
+
+    if len(filtered_trees) == 0:
+        region_label = f"{compresa}-{particella}" if particella else compresa
+        raise ValueError(f"Nessun dato trovato per {region_label}")
+
+    if genere is not None:
+        filtered_trees = filtered_trees[filtered_trees['Genere'] == genere].copy()
+        if len(filtered_trees) == 0:
+            raise ValueError(f"Nessun dato trovato per genere '{genere}'")
+
+    if particella is None:
+        area_data = particelle_df[particelle_df['Compresa'] == compresa]
+    else:
+        area_data = particelle_df[
+            (particelle_df['Compresa'] == compresa) &
+            (particelle_df['Particella'] == particella)
+        ]
+
+    area_ha = area_data['Area (ha)'].sum()
+    sample_areas = filtered_trees['Area saggio'].nunique()
+    sampled_trees = len(filtered_trees)
+    estimated_total = round((sampled_trees / sample_areas) * SAMPLE_AREAS_PER_HA * area_ha)
+    estimated_per_ha = round(estimated_total / area_ha)
+    stats = {
+        'area_ha': area_ha,
+        'sample_areas': sample_areas,
+        'sampled_trees': sampled_trees,
+        'estimated_total': estimated_total,
+        'estimated_per_ha': estimated_per_ha,
+        'mean_diameter_class': filtered_trees['Classe diametrica'].mean(),
+        'mean_height': filtered_trees['h(m)'].mean()
+    }
+
+    # Determine species list
+    if genere is not None:
+        species_list = [genere]
+    else:
+        species_list = sorted(filtered_trees['Genere'].unique())
+
+    return {
+        'compresa': compresa,
+        'particella': particella,
+        'trees': filtered_trees,
+        'stats': stats,
+        'species_list': species_list,
+    }
 
 
 # =============================================================================
@@ -386,8 +438,8 @@ def apply_height_equations(alberi_file: str, equations_file: str,
 # =============================================================================
 
 def render_ci_graph(prepared_data: dict, equations_df: pd.DataFrame,
-                   output_path: Path, formatter: SnippetFormatter,
-                   color_map: dict) -> dict:
+                    output_path: Path, formatter: SnippetFormatter,
+                    color_map: dict) -> dict:
     """
     Generate curve ipsometriche (height-diameter) graph.
 
@@ -403,12 +455,81 @@ def render_ci_graph(prepared_data: dict, equations_df: pd.DataFrame,
             - 'filepath': Path to generated PNG
             - 'snippet': Formatted HTML/LaTeX snippet for template substitution
     """
-    # TODO: Implement curve ipsometriche graph generation
-    raise NotImplementedError("render_ci_graph not yet implemented")
+    trees = prepared_data['trees']
+    species_list = prepared_data['species_list']
+    compresa = prepared_data['compresa']
+
+    fig, ax = plt.subplots(figsize=(4, 3))
+    curve_info = []
+    ymax = 0
+
+    for species in species_list:
+        sp_data = trees[trees['Genere'] == species]
+        x = sp_data['Classe diametrica'].values
+        y = sp_data['h(m)'].values
+        ymax = max(ymax, y.max())
+
+        ax.scatter(x, y, color=color_map[species], label=species, alpha=0.7, s=20)
+
+        # Look up pre-computed equation from equations.csv
+        eq_row = equations_df[
+            (equations_df['compresa'] == compresa) &
+            (equations_df['genere'] == species)
+        ]
+
+        if len(eq_row) > 0:
+            eq = eq_row.iloc[0]
+
+            # Draw the curve using saved parameters
+            x_min, x_max = x.min(), x.max()
+            x_smooth = np.linspace(x_min, x_max, 100)
+
+            if eq['funzione'] == 'ln':
+                y_smooth = eq['a'] * np.log(x_smooth) + eq['b']
+                eq_str = f"y = {eq['a']:.2f}*ln(x) + {eq['b']:.2f}"
+            else:  # 'lin'
+                y_smooth = eq['a'] * x_smooth + eq['b']
+                eq_str = f"y = {eq['a']:.2f}*x + {eq['b']:.2f}"
+
+            ax.plot(x_smooth, y_smooth, color=color_map[species],
+                   linestyle='--', alpha=0.8, linewidth=1.5)
+
+            # Save curve info for metadata display
+            curve_info.append({
+                'species': species,
+                'equation': eq_str,
+                'r_squared': eq['r2'],
+                'n_points': int(eq['n'])
+            })
+
+    ax.set_xlabel('Classe diametrica', fontweight='bold')
+    ax.set_ylabel('Altezza (m)', fontweight='bold')
+    max_class = trees['Classe diametrica'].max()
+    ax.set_xlim(-0.5, max_class + 0.5)
+    ax.set_xticks(range(0, max_class + 1, 2))
+    ax.set_ylim(0, (ymax + 6)//5*5)
+    td = min(ax.get_ylim()[1] // 5, 4)
+    y_ticks = np.arange(0, ax.get_ylim()[1] + 1, td)
+    ax.set_yticks(y_ticks)
+    ax.grid(True, alpha=0.3)
+    ax.set_axisbelow(True)
+    ax.legend(title='Specie', bbox_to_anchor=(1.01, 1.02), alignment='left')
+
+    plt.tight_layout()
+    plt.savefig(output_path, bbox_inches='tight')
+    plt.close(fig)
+
+    snippet = formatter.format_image(output_path)
+    snippet += '\n' + formatter.format_metadata(prepared_data['stats'], curve_info=curve_info)
+
+    return {
+        'filepath': output_path,
+        'snippet': snippet
+    }
 
 
 def render_cd_graph(prepared_data: dict, output_path: Path,
-                   formatter: SnippetFormatter, color_map: dict) -> dict:
+                    formatter: SnippetFormatter, color_map: dict) -> dict:
     """
     Generate classi diametriche (diameter class histogram) graph.
 
@@ -423,8 +544,48 @@ def render_cd_graph(prepared_data: dict, output_path: Path,
             - 'filepath': Path to generated PNG
             - 'snippet': Formatted HTML/LaTeX snippet for template substitution
     """
-    # TODO: Implement classi diametriche graph generation
-    raise NotImplementedError("render_cd_graph not yet implemented")
+    trees = prepared_data['trees']
+    species_list = prepared_data['species_list']
+    sample_areas = prepared_data['stats']['sample_areas']
+
+    counts = (trees.groupby(['Classe diametrica', 'Genere']).size().unstack(fill_value=0)
+              * SAMPLE_AREAS_PER_HA / sample_areas)
+
+    # Create figure
+    fig, ax = plt.subplots(figsize=(4, 2.5))
+
+    # Plot bars
+    bottom = np.zeros(len(counts.index))
+    for species in species_list:
+        if species not in counts.columns:
+            continue
+        values = counts[species].values
+        ax.bar(counts.index, values, bottom=bottom,
+               label=species, color=color_map[species],
+               alpha=0.8, edgecolor='white', linewidth=0.5)
+        bottom += values
+
+    ax.set_xlabel('Classe diametrica', fontweight='bold')
+    ax.set_ylabel('Stima alberi / ha', fontweight='bold')
+    max_class = trees['Classe diametrica'].max()
+    ax.set_xlim(-0.5, max_class + 0.5)
+    ax.set_xticks(range(0, max_class + 1, 2))
+    ax.set_ylim(0, counts.sum(axis=1).max() * 1.1)
+    ax.grid(True, alpha=0.3, axis='y')
+    ax.set_axisbelow(True)
+    ax.legend(title='Specie', bbox_to_anchor=(1.01, 1.02), alignment='left')
+
+    plt.tight_layout()
+    plt.savefig(output_path, bbox_inches='tight')
+    plt.close(fig)
+
+    snippet = formatter.format_image(output_path)
+    snippet += '\n' + formatter.format_metadata(prepared_data['stats'])
+
+    return {
+        'filepath': output_path,
+        'snippet': snippet
+    }
 
 
 # =============================================================================
