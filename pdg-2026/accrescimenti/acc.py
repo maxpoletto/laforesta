@@ -430,9 +430,53 @@ def apply_height_equations(alberi_file: str, equations_file: str,
         equations_file: CSV with equations [compresa, genere, funzione, a, b, r2, n]
         output_file: Output tree CSV with updated heights
     """
-    # TODO: Implement height calculation using equations
-    raise NotImplementedError("apply_height_equations not yet implemented")
+    trees_df = pd.read_csv(alberi_file)
+    equations_df = pd.read_csv(equations_file)
 
+    total_trees = len(trees_df)
+    trees_updated = 0
+    trees_unchanged = 0
+
+    print(f"Applicazione equazioni a {total_trees} alberi...")
+
+    output_df = trees_df.copy()
+    output_df['h(m)'] = output_df['h(m)'].astype(float)
+
+    # For each unique (compresa, genere) pair in trees
+    for (compresa, genere), group in trees_df.groupby(['Compresa', 'Genere']):
+        # Look up equation
+        eq_row = equations_df[
+            (equations_df['compresa'] == compresa) &
+            (equations_df['genere'] == genere)
+        ]
+
+        if len(eq_row) == 0:
+            print(f"  {compresa} - {genere}: nessuna equazione trovata; altezze immutate")
+            trees_unchanged += len(group)
+            continue
+
+        eq = eq_row.iloc[0]
+
+        indices = group.index
+        diameters = trees_df.loc[indices, 'D(cm)'].astype(float)
+
+        if eq['funzione'] == 'ln':
+            new_heights = eq['a'] * np.log(np.maximum(diameters, 0.1)) + eq['b']
+        else:  # 'lin'
+            new_heights = eq['a'] * diameters + eq['b']
+
+        output_df.loc[indices, 'h(m)'] = new_heights.astype(float)
+        trees_updated += len(group)
+
+        print(f"  {compresa} - {genere}: {len(group)} alberi aggiornati")
+
+    output_df.to_csv(output_file, index=False, float_format="%.3f")
+
+    print(f"\nRiepilogo:")
+    print(f"  Totale alberi: {total_trees}")
+    print(f"  Alberi aggiornati: {trees_updated}")
+    print(f"  Alberi non modificati: {trees_unchanged}")
+    print(f"File salvato: {output_file}")
 
 # =============================================================================
 # RENDERING LAYER (graph generation with format-specific snippets)
