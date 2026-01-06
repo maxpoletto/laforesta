@@ -73,7 +73,7 @@ class OutputFormatter(ABC):
 class HTMLFormatter(OutputFormatter):
     """HTML output formatter"""
 
-    style = """
+    style = r"""
         body {
             font-family: Arial, sans-serif;
             margin: 20px;
@@ -102,20 +102,20 @@ class HTMLFormatter(OutputFormatter):
             padding: 5px 20px;
             background-color: #fafafa;
         }
-        .histogram-item {
+        .graph-item {
             margin-bottom: 40px;
             border: 1px solid #ddd;
             border-radius: 8px;
             padding: 20px;
             background-color: #fafafa;
         }
-        .histogram-title {
+        .graph-title {
             font-size: 18px;
             font-weight: bold;
             color: #34495e;
             margin-bottom: 10px;
         }
-        .histogram-image {
+        .graph-image {
             width: 100%;
             max-width: 800px;
             height: auto;
@@ -123,6 +123,27 @@ class HTMLFormatter(OutputFormatter):
             margin: 0 auto;
             border: 1px solid #ccc;
             border-radius: 4px;
+        }
+        .graph-details {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #f0f0f0;
+            border-radius: 4px;
+        }
+        .graph-details p {
+            margin: 2px 0;
+        }
+        .region-header {
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #e8f4f8;
+            border-radius: 8px;
+        }
+        .region-header h2 {
+            margin-top: 0;
+        }
+        .region-header p {
+            margin: 2px 0;
         }
 """
 
@@ -132,59 +153,57 @@ class HTMLFormatter(OutputFormatter):
         region_stats = legend['region_stats']
         species_stats = legend['species_stats']
 
-        html = '<div style="margin-top: 10px; padding: 10px; background-color: #f0f0f0; border-radius: 4px;">'
+        html = '<div class="graph-details">'
 
         # Common region stats (displayed once when one_species_per_graph is True)
         if one_species_per_graph and species_stats:
             # Show species-specific stats
-            html += f'''<p style="margin: 2px 0;"><strong>Alberi campionati:</strong> {species_stats['sampled_trees']}</p>
-<p style="margin: 2px 0;"><strong>Stima totale alberi:</strong> {species_stats['estimated_total']}</p>'''
+            html += f'''<p><strong>Alberi campionati:</strong> {species_stats['sampled_trees']}</p>
+<p><strong>Stima totale alberi:</strong> {species_stats['estimated_total']}</p>'''
             if for_cd:
-                html += f'<p style="margin: 2px 0;"><strong>Classe diametrica media:</strong> {species_stats["mean_diameter_class"]}</p>'
+                html += f'<p><strong>Classe diametrica media:</strong> {species_stats["mean_diameter_class"]}</p>'
             else:
-                html += f'<p style="margin: 2px 0;"><strong>Altezza media:</strong> {species_stats["mean_height"]} m</p>'
+                html += f'<p><strong>Altezza media:</strong> {species_stats["mean_height"]} m</p>'
         else:
             # Show region-level stats
-            html += f'''<p style="margin: 2px 0;"><strong>Area:</strong> {region_stats['area_ha']} ha</p>
-<p style="margin: 2px 0;"><strong>Alberi campionati:</strong> {region_stats['sampled_trees']}</p>
-<p style="margin: 2px 0;"><strong>N. aree saggio:</strong> {region_stats['sample_areas']}</p>
-<p style="margin: 2px 0;"><strong>Stima totale alberi:</strong> {region_stats['estimated_total']}</p>
-<p style="margin: 2px 0;"><strong>Stima alberi / ha:</strong> {region_stats['estimated_per_ha']}</p>
-<p style="margin: 2px 0;"><strong>Specie prevalente:</strong> {region_stats['dominant_species']}</p>'''
+            html += f'''<p><strong>Area:</strong> {region_stats['area_ha']} ha</p>
+<p><strong>Alberi campionati:</strong> {region_stats['sampled_trees']}</p>
+<p><strong>N. aree saggio:</strong> {region_stats['sample_areas']}</p>
+<p><strong>Stima totale alberi:</strong> {region_stats['estimated_total']}</p>
+<p><strong>Stima alberi / ha:</strong> {region_stats['estimated_per_ha']}</p>
+<p><strong>Specie prevalente:</strong> {region_stats['dominant_species']}</p>'''
             if for_cd:
-                html += f'<p style="margin: 2px 0;"><strong>Classe diametrica media:</strong> {region_stats["mean_diameter_class"]}</p>'
+                html += f'<p><strong>Classe diametrica media:</strong> {region_stats["mean_diameter_class"]}</p>'
             else:
-                html += f'<p style="margin: 2px 0;"><strong>Altezza media:</strong> {region_stats["mean_height"]} m</p>'
+                html += f'<p><strong>Altezza media:</strong> {region_stats["mean_height"]} m</p>'
 
         # Add polynomial info for curves
         if not for_cd and 'polynomial_info' in legend and legend['polynomial_info']:
-            html += '<div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #ccc;">'
-            html += '<p style="margin: 5px 0;"><strong>Curve di regressione:</strong></p>'
+            html += '<br/><p><strong>Curve di regressione:</strong></p>'
             for poly in legend['polynomial_info']:
-                html += f'<p style="margin: 2px 0; font-size: 12px;">{poly["species"]}: {poly["equation"]} (R² = {poly["r_squared"]:.2f}, n = {poly["n_points"]})</p>'
-            html += '</div>'
+                html += f'<p>{poly["species"]}: {poly["equation"]} (R² = {poly["r_squared"]:.2f}, n = {poly["n_points"]})</p>'
 
         html += '</div>'
         return html
 
     def _write_region_header_html(self, region_title: str, reg_stats: dict = None) -> str:
         """Generate HTML for a region header with optional stats."""
-        html = f'''        <div style="margin: 20px 0; padding: 15px; background-color: #e8f4f8; border-radius: 8px;">
-            <h2 style="margin-top: 0;">{region_title}</h2>
+        html = f'''        <div class='region-header'>
+            <h2>{region_title}</h2>
 '''
         if reg_stats:
-            html += f'''            <p style="margin: 2px 0;"><strong>Area:</strong> {reg_stats['area_ha']} ha</p>
-            <p style="margin: 2px 0;"><strong>N. aree saggio:</strong> {reg_stats['sample_areas']}</p>
-            <p style="margin: 2px 0;"><strong>Specie prevalente:</strong> {reg_stats['dominant_species']}</p>
+            html += f'''            <p><strong>Area:</strong> {reg_stats['area_ha']} ha</p>
+            <p><strong>N. aree saggio:</strong> {reg_stats['sample_areas']}</p>
+            <p><strong>Specie prevalente:</strong> {reg_stats['dominant_species']}</p>
 '''
         html += '        </div>\n'
         return html
 
     def _write_graph_item_html(self, title: str, filepath_name: str, legend_html: str = None) -> str:
         """Generate HTML for a graph item with optional legend."""
-        html = f'''        <div class="histogram-item">
-            <div class="histogram-title">{title}</div>
-            <img src="{filepath_name}" alt="Istogramma {title}" class="histogram-image">
+        html = f'''        <div class="graph-item">
+            <div class="graph-title">{title}</div>
+            <img src="{filepath_name}" alt="Istogramma {title}" class="graph-image">
 '''
         if legend_html:
             html += legend_html
@@ -768,18 +787,13 @@ def _prepare_region_data(trees: pd.DataFrame, region: pd.Series, one_species_per
 
     assert len(region_data) > 0, f"Nessun dato per {print_name}"
 
-    # Data traceability
-    species_list = sorted(region_data['Genere'].unique())
-    graph_type = "istogramma" if for_cd else "curve ipsometriche"
-    print(f"Generazione {graph_type} per {print_name}:")
+    print(f"Generazione grafico per {print_name}:")
     print(f"  Alberi campionati: {len(region_data)}")
-    print(f"  Specie: {', '.join(species_list)}")
     if for_cd:
         print(f"  Stima totale: {region['estimated_total']} alberi")
     else:
         print(f"  Altezza media: {region_data['h(m)'].mean():.1f} m")
 
-    # Get region-level stats
     with italian_locale():
         region_stats = {
             'area_ha': locale.format_string('%.2f', region["area_ha"]),
