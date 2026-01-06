@@ -34,6 +34,9 @@ ci-interpolate-per-compresa: analysis.py $(CSV_DIR)/alberi.csv $(CSV_DIR)/partic
 ci-interpolate-per-particella: analysis.py $(CSV_DIR)/alberi.csv $(CSV_DIR)/particelle.csv $(CSV_DIR)/alsometrie.csv
 	./analysis.py $(OTHER_FLAGS) --input-dir $(CSV_DIR) --genera-curve-ipsometriche --fonte-altezze ipsometro --ometti-generi-sconosciuti --per-particella --prefisso-output dati/per-particella-interpolate
 
+html-cd-per-compresa: $(CSV_DIR)/alberi.csv $(CSV_DIR)/particelle.csv $(CSV_DIR)/equazioni_ipsometro.csv template/html/per-compresa/classi-diametriche/index.html
+	./acc.py --report --formato html --equazioni $(CSV_DIR)/equazioni_ipsometro.csv --alberi $(CSV_DIR)/alberi.csv --particelle $(CSV_DIR)/particelle.csv --input template/html/per-compresa/classi-diametriche/index.html --output-dir html/per-compresa/classi-diametriche/
+
 dati: ./analysis.py $(CSV_DIR)/alberi.csv $(CSV_DIR)/alsometrie.csv $(CSV_DIR)/particelle.csv \
 	$(CSV_DIR)/alsometrie-calcolate.csv $(CSV_DIR)/alberi-calcolati.csv \
 	cd-per-compresa cd-per-particella \
