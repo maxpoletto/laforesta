@@ -57,8 +57,12 @@ html/per-compresa/classi-diametriche/index.html: $(CSV_DIR)/alberi.csv $(CSV_DIR
 html/per-compresa/altezze-originali/index.html: $(CSV_DIR)/alberi.csv $(CSV_DIR)/particelle.csv $(CSV_DIR)/equazioni_originali.csv template/html/per-compresa/altezze-originali/index.html html/style.css
 	./acc.py --report --formato html --equazioni $(CSV_DIR)/equazioni_ipsometro.csv --alberi $(CSV_DIR)/alberi.csv --particelle $(CSV_DIR)/particelle.csv --input template/html/per-compresa/altezze-originali/index.html --output-dir html/per-compresa/altezze-originali/
 
-html/per-compresa/altezze-calcolate/index.html: $(CSV_DIR)/alberi.csv $(CSV_DIR)/particelle.csv $(CSV_DIR)/equazioni_ipsometro.csv template/html/per-compresa/altezze-calcolate/index.html html/style.css
-	./acc.py --report --formato html --equazioni $(CSV_DIR)/equazioni_ipsometro.csv --alberi $(CSV_DIR)/alberi.csv --particelle $(CSV_DIR)/particelle.csv --input template/html/per-compresa/altezze-calcolate/index.html --output-dir html/per-compresa/altezze-calcolate/
+html/per-compresa/altezze-calcolate/index.html: $(CSV_DIR)/alberi-calcolati.csv $(CSV_DIR)/particelle.csv $(CSV_DIR)/equazioni_ipsometro.csv template/html/per-compresa/altezze-calcolate/index.html html/style.css
+	./acc.py --report --formato html --equazioni $(CSV_DIR)/equazioni_ipsometro.csv --alberi $(CSV_DIR)/alberi-calcolati.csv --particelle $(CSV_DIR)/particelle.csv --input template/html/per-compresa/altezze-calcolate/index.html --output-dir html/per-compresa/altezze-calcolate/
+
+relazione.pdf: template/tex/relazione.tex $(CSV_DIR)/alberi.csv $(CSV_DIR)/particelle.csv $(CSV_DIR)/equazioni_ipsometro.csv $(CSV_DIR)/equazioni_originali.csv $(CSV_DIR)/equazioni_tabelle.csv
+	./acc.py --report --formato pdf --equazioni $(CSV_DIR)/equazioni_ipsometro.csv --alberi $(CSV_DIR)/alberi-calcolati.csv --particelle $(CSV_DIR)/particelle.csv --input template/tex/relazione.tex --output-dir tex/
+
 
 dati: ./analysis.py $(CSV_DIR)/alberi.csv $(CSV_DIR)/alsometrie.csv $(CSV_DIR)/particelle.csv \
 	$(CSV_DIR)/alsometrie-calcolate.csv $(CSV_DIR)/alberi-calcolati.csv \
@@ -81,4 +85,7 @@ ipsometrie: ipsometrie.py $(CSV_DIR)/alberi-modello.csv $(CSV_DIR)/altezze.csv
 	./ipsometrie.py $(CSV_DIR)/altezze.csv --fit lin -o ipsometrie-lin
 
 clean-html:
-	rm -f html/per-compresa/classi-diametriche/*  html/per-compresa/altezze-originali/*
+	rm -f html/per-compresa/classi-diametriche/*  html/per-compresa/altezze-originali/*  html/per-compresa/altezze-calcolate/*
+
+clean-tex:
+	rm -f tex/relazione.tex
