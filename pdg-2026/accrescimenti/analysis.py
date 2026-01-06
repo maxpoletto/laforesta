@@ -161,7 +161,7 @@ class HTMLFormatter(OutputFormatter):
             html += '<div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #ccc;">'
             html += '<p style="margin: 5px 0;"><strong>Curve di regressione:</strong></p>'
             for poly in legend['polynomial_info']:
-                html += f'<p style="margin: 2px 0; font-size: 12px;">{poly["species"]}: {poly["equation"]} (R² = {poly["r_squared"]:.3f}, n = {poly["n_points"]})</p>'
+                html += f'<p style="margin: 2px 0; font-size: 12px;">{poly["species"]}: {poly["equation"]} (R² = {poly["r_squared"]:.2f}, n = {poly["n_points"]})</p>'
             html += '</div>'
 
         html += '</div>'
@@ -344,11 +344,11 @@ class LaTeXFormatter(OutputFormatter):
 
         # Add polynomial info for curves
         if not for_cd and 'polynomial_info' in legend and legend['polynomial_info']:
-            latex += '\\vspace{0.5em}\n\\textbf{Curve di regressione:}\\\\\n'
+            latex += '\\\\\n\\textbf{Curve di regressione:}\\\\\n'
             for poly in legend['polynomial_info']:
                 eq = self._equation_to_latex(poly['equation'])
                 # Use inline math mode to keep equation on same line with R² and n
-                latex += f"{poly['species']}: ${eq}$ ($R^2$ = {poly['r_squared']:.3f}, $n$ = {poly['n_points']})\\\\\n"
+                latex += f"{poly['species']}: ${eq}$ ($R^2$ = {poly['r_squared']:.2f}, $n$ = {poly['n_points']})\\\\\n"
 
         latex += '\\end{quote}\n'
         return latex
@@ -624,7 +624,7 @@ class LogarithmicRegression(RegressionFunc):
         return lambda x: a * np.log(np.maximum(x, 0.1)) + b
 
     def _format_equation(self, a: float, b: float) -> str:
-        return f"y = {a:.4f}*ln(x) + {b:.4f}"
+        return f"y = {a:.2f}*ln(x) + {b:.2f}"
 
 
 class LinearRegression(RegressionFunc):
@@ -645,7 +645,7 @@ class LinearRegression(RegressionFunc):
         return lambda x: a * x + b
 
     def _format_equation(self, a: float, b: float) -> str:
-        return f"y = {a:.4f}*x + {b:.4f}"
+        return f"y = {a:.2f}*x + {b:.2f}"
 
 def hif_alsometrie(alsometrie_file: str, interpolation_func: str,
                    alsometry_calc: bool, alsometrie_calcolate_file: str) -> dict | None:
