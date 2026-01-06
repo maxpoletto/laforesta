@@ -231,7 +231,7 @@ class LaTeXSnippetFormatter(SnippetFormatter):
 
 
 # =============================================================================
-# DATA PREPARATION LAYER (pure data, no rendering)
+# DATA PREPARATION (pure data, no rendering)
 # =============================================================================
 
 def prepare_region_data(trees_df: pd.DataFrame, particelle_df: pd.DataFrame,
@@ -478,8 +478,9 @@ def apply_height_equations(alberi_file: str, equations_file: str,
     print(f"  Alberi non modificati: {trees_unchanged}")
     print(f"File salvato: {output_file}")
 
+
 # =============================================================================
-# RENDERING LAYER (graph generation with format-specific snippets)
+# RENDERING AND TEMPLATE PROCESSING
 # =============================================================================
 
 def render_ci_graph(prepared_data: dict, equations_df: pd.DataFrame,
@@ -632,10 +633,6 @@ def render_cd_graph(prepared_data: dict, output_path: Path,
         'snippet': snippet
     }
 
-
-# =============================================================================
-# TEMPLATE PROCESSING
-# =============================================================================
 
 def parse_template_directive(line: str) -> Optional[dict]:
     """
