@@ -483,7 +483,7 @@ def apply_height_equations(alberi_file: str, equations_file: str,
 # RENDERING AND TEMPLATE PROCESSING
 # =============================================================================
 
-def render_ci_graph(data: dict, max_diameter_class: int, equations_df: pd.DataFrame,
+def render_ci_graph(data: dict, max_diameter: int, equations_df: pd.DataFrame,
                     output_path: Path, formatter: SnippetFormatter,
                     color_map: dict) -> dict:
     """
@@ -511,11 +511,11 @@ def render_ci_graph(data: dict, max_diameter_class: int, equations_df: pd.DataFr
 
     for species in species_list:
         sp_data = trees[trees['Genere'] == species]
-        x = sp_data['Classe diametrica'].values
+        x = sp_data['D(cm)'].values
         y = sp_data['h(m)'].values
         ymax = max(ymax, y.max())
 
-        ax.scatter(x, y, color=color_map[species], label=species, alpha=0.7, s=20)
+        ax.scatter(x, y, color=color_map[species], label=species, alpha=0.7, linewidth=2, s=1)
 
         # Look up pre-computed equation from equations.csv
         eq_row = equations_df[
@@ -547,10 +547,10 @@ def render_ci_graph(data: dict, max_diameter_class: int, equations_df: pd.DataFr
                 'n_points': int(eq['n'])
             })
 
-    ax.set_xlabel('Classe diametrica', fontweight='bold')
+    ax.set_xlabel('Diametro (cm)', fontweight='bold')
     ax.set_ylabel('Altezza (m)', fontweight='bold')
-    ax.set_xlim(-0.5, max_diameter_class + 0.5)
-    ax.set_xticks(range(0, max_diameter_class + 1, 2))
+    ax.set_xlim(-0.5, max_diameter + 0.5)
+    ax.set_xticks(range(0, max_diameter + 1, (max_diameter + 1)//10))
     ax.set_ylim(0, (ymax + 6)//5*5)
     td = min(ax.get_ylim()[1] // 5, 4)
     y_ticks = np.arange(0, ax.get_ylim()[1] + 1, td)
@@ -684,6 +684,7 @@ def process_template(template_text: str, trees_df: pd.DataFrame,
     formatter = HTMLSnippetFormatter() if format_type == 'html' else LaTeXSnippetFormatter()
     color_map = get_color_map(sorted(trees_df['Genere'].unique()))
     graph_counter = {}
+    max_diameter = trees_df['D(cm)'].max()
     max_diameter_class = trees_df['Classe diametrica'].max()
 
     def process_directive(match):
@@ -727,7 +728,7 @@ def process_template(template_text: str, trees_df: pd.DataFrame,
                 result = render_cd_graph(data, max_diameter_class, output_path, formatter, color_map)
                 print(f"  Generato: {filename}")
             elif keyword == 'ci':
-                result = render_ci_graph(data, max_diameter_class, equations_df, output_path, formatter, color_map)
+                result = render_ci_graph(data, max_diameter, equations_df, output_path, formatter, color_map)
                 print(f"  Generato: {filename}")
             else:
                 raise ValueError(f"Tipo di grafico sconosciuto: {keyword}")
