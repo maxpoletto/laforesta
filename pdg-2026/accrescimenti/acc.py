@@ -483,7 +483,7 @@ def apply_height_equations(alberi_file: str, equations_file: str,
 # RENDERING AND TEMPLATE PROCESSING
 # =============================================================================
 
-def render_ci_graph(data: dict, equations_df: pd.DataFrame,
+def render_ci_graph(data: dict, max_diameter_class: int, equations_df: pd.DataFrame,
                     output_path: Path, formatter: SnippetFormatter,
                     color_map: dict) -> dict:
     """
@@ -550,9 +550,8 @@ def render_ci_graph(data: dict, equations_df: pd.DataFrame,
 
     ax.set_xlabel('Classe diametrica', fontweight='bold')
     ax.set_ylabel('Altezza (m)', fontweight='bold')
-    max_class = trees['Classe diametrica'].max()
-    ax.set_xlim(-0.5, max_class + 0.5)
-    ax.set_xticks(range(0, max_class + 1, 2))
+    ax.set_xlim(-0.5, max_diameter_class + 0.5)
+    ax.set_xticks(range(0, max_diameter_class + 1, 2))
     ax.set_ylim(0, (ymax + 6)//5*5)
     td = min(ax.get_ylim()[1] // 5, 4)
     y_ticks = np.arange(0, ax.get_ylim()[1] + 1, td)
@@ -729,7 +728,7 @@ def process_template(template_text: str, trees_df: pd.DataFrame,
                 result = render_cd_graph(data, max_diameter_class, output_path, formatter, color_map)
                 print(f"  Generato: {filename}")
             elif keyword == 'ci':
-                result = render_ci_graph(data, equations_df, output_path, formatter, color_map)
+                result = render_ci_graph(data, max_diameter_class, equations_df, output_path, formatter, color_map)
                 print(f"  Generato: {filename}")
             else:
                 raise ValueError(f"Tipo di grafico sconosciuto: {keyword}")
