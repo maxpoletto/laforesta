@@ -209,7 +209,7 @@ for group_key, group_data in grouped:
     if verbose:
         print(f"\nMatrice D0 ({n_g} x {b_genere.shape[0]}):")
         print(D0)
-™
+
         print(f"\nMatrice D1 (1 x {b_genere.shape[0]}) [somma delle righe di D0]:")
         print(D1)
 
