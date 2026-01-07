@@ -1,49 +1,25 @@
 CSV_DIR=csv
-OTHER_FLAGS=--un-genere-per-grafico
 
-.PHONY: all equazioni \
+include Legacy.mak
+
+.PHONY: \
+	equazioni clean-equazioni \
+	altvol clean-altvol \
 	html clean-html \
-	pdf clean-pdf \
-	cd-per-compresa cd-per-particella \
-	ci-originali-per-compresa ci-originali-per-particella \
-	ci-interpolate-per-compresa ci-interpolate-per-particella \
-	dati sync ipsometrie
+	pdf clean-pdf
+    all clean
 
-all: dati
+all: equazioni altvol pdf
 
-alsometrie-calcolate.csv: analysis.py $(CSV_DIR)/alsometrie.csv
-	ls $(CSV_DIR)/alsometrie.csv
-	./analysis.py --input-dir $(CSV_DIR) --genera-alsometrie-calcolate --fonte-altezze alsometrie --file-alsometrie-calcolate $(CSV_DIR)/alsometrie-calcolate.csv
-
-alberi-calcolati.csv: analysis.py $(CSV_DIR)/alberi.csv $(CSV_DIR)/alsometrie.csv
-	./analysis.py --input-dir $(CSV_DIR) --genera-alberi-altezze-calcolate --fonte-altezze alsometrie --file-alberi-calcolati $(CSV_DIR)/alberi-calcolati.csv
-
-cd-per-compresa: analysis.py $(CSV_DIR)/alberi.csv $(CSV_DIR)/particelle.csv
-	./analysis.py $(OTHER_FLAGS) --input-dir $(CSV_DIR) --genera-classi-diametriche --prefisso-output dati/per-compresa
-
-cd-per-particella: analysis.py $(CSV_DIR)/alberi.csv $(CSV_DIR)/particelle.csv
-	./analysis.py $(OTHER_FLAGS) --input-dir $(CSV_DIR) --genera-classi-diametriche --per-particella --prefisso-output dati/per-particella
-
-ci-originali-per-compresa: analysis.py $(CSV_DIR)/alberi.csv $(CSV_DIR)/particelle.csv
-	./analysis.py $(OTHER_FLAGS) --input-dir $(CSV_DIR) --genera-curve-ipsometriche --fonte-altezze originali --prefisso-output dati/per-compresa-originali
-
-ci-originali-per-particella: analysis.py $(CSV_DIR)/alberi.csv $(CSV_DIR)/particelle.csv
-	./analysis.py $(OTHER_FLAGS) --input-dir $(CSV_DIR) --genera-curve-ipsometriche --fonte-altezze originali --per-particella --prefisso-output dati/per-particella-originali
-
-ci-interpolate-per-compresa: analysis.py $(CSV_DIR)/alberi.csv $(CSV_DIR)/particelle.csv $(CSV_DIR)/alsometrie.csv
-	./analysis.py $(OTHER_FLAGS) --input-dir $(CSV_DIR) --genera-curve-ipsometriche --fonte-altezze ipsometro --ometti-generi-sconosciuti --prefisso-output dati/per-compresa-interpolate
-
-ci-interpolate-per-particella: analysis.py $(CSV_DIR)/alberi.csv $(CSV_DIR)/particelle.csv $(CSV_DIR)/alsometrie.csv
-	./analysis.py $(OTHER_FLAGS) --input-dir $(CSV_DIR) --genera-curve-ipsometriche --fonte-altezze ipsometro --ometti-generi-sconosciuti --per-particella --prefisso-output dati/per-particella-interpolate
-
-$(CSV_DIR)/alberi-calcolati.csv:
-	./acc.py --calcola-altezze --equazioni $(CSV_DIR)/equazioni_ipsometro.csv --input $(CSV_DIR)/alberi.csv --output $(CSV_DIR)/alberi-calcolati.csv
+clean: clean-equazioni clean-altvol clean-pdf
 
 #
 # Fit curves
 #
 
-equazioni: $(CSV_DIR)/equazioni_originali.csv $(CSV_DIR)/equazioni_ipsometro.csv $(CSV_DIR)/equazioni_tabelle.csv
+FILES_EQUAZIONI=$(CSV_DIR)/equazioni_originali.csv $(CSV_DIR)/equazioni_ipsometro.csv $(CSV_DIR)/equazioni_tabelle.csv
+
+equazioni: $(FILES_EQUAZIONI)
 
 $(CSV_DIR)/equazioni_originali.csv: $(CSV_DIR)/alberi.csv
 	./acc.py --genera-equazioni --funzione log --fonte-altezze originali --input $(CSV_DIR)/alberi.csv --output $(CSV_DIR)/equazioni_originali.csv
@@ -54,23 +30,33 @@ $(CSV_DIR)/equazioni_ipsometro.csv: $(CSV_DIR)/altezze.csv
 $(CSV_DIR)/equazioni_tabelle.csv: $(CSV_DIR)/alsometrie.csv $(CSV_DIR)/particelle.csv
 	./acc.py --genera-equazioni --funzione log --fonte-altezze tabelle --particelle $(CSV_DIR)/particelle.csv --input $(CSV_DIR)/alsometrie.csv --output $(CSV_DIR)/equazioni_tabelle.csv
 
+clean-equazioni:
+	rm -f $(FILES_EQUAZIONI)
+
 #
-# Volumes
+# Heights and volumes
 #
 
-volumi: $(CSV_DIR)/alberi-con-volumi.csv
+FILES_ALTVOL=$(CSV_DIR)/alberi-con-volumi.csv $(CSV_DIR)/alberi-calcolati.csv
+
+altvol: $(FILES_ALTVOL)
 
 $(CSV_DIR)/alberi-con-volumi.csv: $(CSV_DIR)/alberi-calcolati.csv
 	./acc.py --calcola-volumi --input $(CSV_DIR)/alberi-calcolati.csv --output $(CSV_DIR)/alberi-con-volumi.csv
+
+$(CSV_DIR)/alberi-calcolati.csv: $(CSV_DIR)/alberi.csv $(CSV_DIR)/equazioni_ipsometro.csv
+	./acc.py --calcola-altezze --equazioni $(CSV_DIR)/equazioni_ipsometro.csv --input $(CSV_DIR)/alberi.csv --output $(CSV_DIR)/alberi-calcolati.csv
+
+clean-altvol:
+	rm -f $(FILES_ALTVOL)
 
 #
 # HTML output
 #
 
-html: html/per-compresa/classi-diametriche/index.html html/per-compresa/altezze-originali/index.html html/per-compresa/altezze-calcolate/index.html
+FILES_HTML=html/per-compresa/classi-diametriche/index.html html/per-compresa/altezze-originali/index.html html/per-compresa/altezze-calcolate/index.html
 
-clean-html:
-	rm -f html/per-compresa/classi-diametriche/*  html/per-compresa/altezze-originali/*  html/per-compresa/altezze-calcolate/*
+html: $(FILES_HTML)
 
 html/per-compresa/classi-diametriche/index.html: $(CSV_DIR)/alberi.csv $(CSV_DIR)/particelle.csv $(CSV_DIR)/equazioni_ipsometro.csv template/html/per-compresa/classi-diametriche/index.html html/style.css
 	./acc.py --report --formato html --equazioni $(CSV_DIR)/equazioni_ipsometro.csv --alberi $(CSV_DIR)/alberi.csv --particelle $(CSV_DIR)/particelle.csv --input template/html/per-compresa/classi-diametriche/index.html --output-dir html/per-compresa/classi-diametriche/
@@ -81,38 +67,20 @@ html/per-compresa/altezze-originali/index.html: $(CSV_DIR)/alberi.csv $(CSV_DIR)
 html/per-compresa/altezze-calcolate/index.html: $(CSV_DIR)/alberi-calcolati.csv $(CSV_DIR)/particelle.csv $(CSV_DIR)/equazioni_ipsometro.csv template/html/per-compresa/altezze-calcolate/index.html html/style.css
 	./acc.py --report --formato html --equazioni $(CSV_DIR)/equazioni_ipsometro.csv --alberi $(CSV_DIR)/alberi-calcolati.csv --particelle $(CSV_DIR)/particelle.csv --input template/html/per-compresa/altezze-calcolate/index.html --output-dir html/per-compresa/altezze-calcolate/
 
+clean-html:
+	rm -f $(FILES_HTML)
+
 #
 # LaTeX / PDF output
 #
 
 pdf: tex/relazione.pdf
 
+tex/relazione.tex: template/tex/relazione.tex $(CSV_DIR)/alberi.csv $(CSV_DIR)/particelle.csv $(CSV_DIR)/equazioni_ipsometro.csv $(CSV_DIR)/equazioni_originali.csv $(CSV_DIR)/equazioni_tabelle.csv
+	./acc.py --report --formato tex --equazioni $(CSV_DIR)/equazioni_ipsometro.csv --alberi $(CSV_DIR)/alberi-con-volumi.csv --particelle $(CSV_DIR)/particelle.csv --input template/tex/relazione.tex --output-dir tex/
+
 tex/relazione.pdf: template/tex/relazione.tex $(CSV_DIR)/alberi.csv $(CSV_DIR)/particelle.csv $(CSV_DIR)/equazioni_ipsometro.csv $(CSV_DIR)/equazioni_originali.csv $(CSV_DIR)/equazioni_tabelle.csv
 	./acc.py --report --formato pdf --equazioni $(CSV_DIR)/equazioni_ipsometro.csv --alberi $(CSV_DIR)/alberi-con-volumi.csv --particelle $(CSV_DIR)/particelle.csv --input template/tex/relazione.tex --output-dir tex/
 
 clean-pdf:
 	rm -f tex/relazione.pdf tex/relazione.tex
-
-#
-# Legacy (to be removed)
-#
-
-dati: ./analysis.py $(CSV_DIR)/alberi.csv $(CSV_DIR)/alsometrie.csv $(CSV_DIR)/particelle.csv \
-	$(CSV_DIR)/alsometrie-calcolate.csv $(CSV_DIR)/alberi-calcolati.csv \
-	cd-per-compresa cd-per-particella \
-	ci-originali-per-compresa ci-originali-per-particella \
-	ci-interpolate-per-compresa ci-interpolate-per-particella
-
-volumi2: ./calcolo-volumi.py $(CSV_DIR)/alberi-calcolati.csv
-	./calcolo-volumi.py $(CSV_DIR)/alberi-calcolati.csv -v
-
-report: ./analysis.py $(CSV_DIR)/alberi.csv $(CSV_DIR)/alsometrie.csv $(CSV_DIR)/particelle.csv $(CSV_DIR)/altezze.csv
-	./analysis.py --input-dir $(CSV_DIR) --un-genere-per-grafico --nome-report report --formato-output pdf --genera-classi-diametriche --genera-curve-ipsometriche --fonte-altezze ipsometro --ometti-generi-sconosciuti
-
-sync:
-	ssh laforesta.it "mkdir -p /var/www/laforestadotit/html/pdg-2026/accrescimenti"
-	rsync -avz -e ssh . laforesta.it:/var/www/laforestadotit/html/pdg-2026/accrescimenti/
-
-ipsometrie: ipsometrie.py $(CSV_DIR)/alberi-modello.csv $(CSV_DIR)/altezze.csv
-	./ipsometrie.py $(CSV_DIR)/altezze.csv --fit log -o ipsometrie-log
-	./ipsometrie.py $(CSV_DIR)/altezze.csv --fit lin -o ipsometrie-lin
