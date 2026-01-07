@@ -499,16 +499,91 @@ def apply_volume_equations(alberi_file: str, output_file: str) -> None:
 # DATA PREPARATION (pure data, no rendering)
 # =============================================================================
 
-def prepare_region_data(trees_df: pd.DataFrame, particelle_df: pd.DataFrame,
-                        compresa: str, particella: Optional[str] = None,
-                        genere: Optional[str] = None) -> dict:
+def filter_trees_by_region(trees_df: pd.DataFrame, particelle_df: pd.DataFrame,
+                           compresa: Optional[str] = None,
+                           particella: Optional[str] = None,
+                           genere: Optional[str] = None) -> tuple[pd.DataFrame, dict]:
     """
-    Filter and aggregate tree data based on parameters.
+    Filter trees and compute region metadata (shared across all directives).
 
     Args:
         trees_df: Full tree database
         particelle_df: Parcel metadata
-        compresa: Required compresa name
+        compresa: Optional compresa name (None means all comprese)
+        particella: Optional particella name (requires compresa)
+        genere: Optional species name (None means all species)
+
+    Returns:
+        Tuple of (filtered_trees, metadata) where metadata contains:
+            - 'area_ha': Total area in hectares
+            - 'sample_areas': Number of sample areas
+            - 'compresa': compresa name or None
+            - 'particella': particella name or None
+
+    Raises:
+        ValueError: If particella specified without compresa, or no data found
+    """
+    if particella and not compresa:
+        raise ValueError("particella richiede compresa")
+
+    # Filter trees
+    filtered_trees = trees_df.copy()
+
+    if compresa:
+        filtered_trees = filtered_trees[filtered_trees['Compresa'] == compresa]
+        if particella:
+            filtered_trees = filtered_trees[filtered_trees['Particella'] == particella]
+
+    if len(filtered_trees) == 0:
+        if particella:
+            region_label = f"{compresa}-{particella}"
+        elif compresa:
+            region_label = compresa
+        else:
+            region_label = "tutte le comprese"
+        raise ValueError(f"Nessun dato trovato per {region_label}")
+
+    if genere:
+        filtered_trees = filtered_trees[filtered_trees['Genere'] == genere]
+        if len(filtered_trees) == 0:
+            raise ValueError(f"Nessun dato trovato per genere '{genere}'")
+
+    # Get area metadata
+    if compresa:
+        if particella:
+            area_data = particelle_df[
+                (particelle_df['Compresa'] == compresa) &
+                (particelle_df['Particella'] == particella)
+            ]
+        else:
+            area_data = particelle_df[particelle_df['Compresa'] == compresa]
+    else:
+        area_data = particelle_df
+
+    area_ha = area_data['Area (ha)'].sum()
+    sample_areas = filtered_trees['Area saggio'].nunique()
+
+    metadata = {
+        'area_ha': area_ha,
+        'sample_areas': sample_areas,
+        'compresa': compresa,
+        'particella': particella,
+    }
+
+    return filtered_trees, metadata
+
+
+def prepare_region_data(trees_df: pd.DataFrame, particelle_df: pd.DataFrame,
+                       compresa: Optional[str] = None,
+                       particella: Optional[str] = None,
+                       genere: Optional[str] = None) -> dict:
+    """
+    Prepare data for graph rendering (cd, ci directives).
+
+    Args:
+        trees_df: Full tree database
+        particelle_df: Parcel metadata
+        compresa: Optional compresa name
         particella: Optional particella name
         genere: Optional species name (None means all species)
 
@@ -517,43 +592,21 @@ def prepare_region_data(trees_df: pd.DataFrame, particelle_df: pd.DataFrame,
             - 'trees': filtered DataFrame
             - 'stats': computed statistics
             - 'species_list': list of species in this dataset
-            - 'compresa': compresa name
+            - 'compresa': compresa name or None
             - 'particella': particella name or None
     """
-    # Filter trees by compresa and particella
-    if particella is None:
-        filtered_trees = trees_df[trees_df['Compresa'] == compresa].copy()
-    else:
-        filtered_trees = trees_df[
-            (trees_df['Compresa'] == compresa) &
-            (trees_df['Particella'] == particella)
-        ].copy()
+    filtered_trees, metadata = filter_trees_by_region(
+        trees_df, particelle_df, compresa, particella, genere
+    )
 
-    if len(filtered_trees) == 0:
-        region_label = f"{compresa}-{particella}" if particella else compresa
-        raise ValueError(f"Nessun dato trovato per {region_label}")
-
-    if genere is not None:
-        filtered_trees = filtered_trees[filtered_trees['Genere'] == genere].copy()
-        if len(filtered_trees) == 0:
-            raise ValueError(f"Nessun dato trovato per genere '{genere}'")
-
-    if particella is None:
-        area_data = particelle_df[particelle_df['Compresa'] == compresa]
-    else:
-        area_data = particelle_df[
-            (particelle_df['Compresa'] == compresa) &
-            (particelle_df['Particella'] == particella)
-        ]
-
-    area_ha = area_data['Area (ha)'].sum()
-    sample_areas = filtered_trees['Area saggio'].nunique()
     sampled_trees = len(filtered_trees)
-    estimated_total = round((sampled_trees / sample_areas) * SAMPLE_AREAS_PER_HA * area_ha)
-    estimated_per_ha = round(estimated_total / area_ha)
+    estimated_total = round((sampled_trees / metadata['sample_areas']) *
+                           SAMPLE_AREAS_PER_HA * metadata['area_ha'])
+    estimated_per_ha = round(estimated_total / metadata['area_ha'])
+
     stats = {
-        'area_ha': area_ha,
-        'sample_areas': sample_areas,
+        'area_ha': metadata['area_ha'],
+        'sample_areas': metadata['sample_areas'],
         'sampled_trees': sampled_trees,
         'estimated_total': estimated_total,
         'estimated_per_ha': estimated_per_ha,
@@ -562,7 +615,7 @@ def prepare_region_data(trees_df: pd.DataFrame, particelle_df: pd.DataFrame,
     }
 
     # Determine species list
-    if genere is not None:
+    if genere:
         species_list = [genere]
     else:
         species_list = sorted(filtered_trees['Genere'].unique())
@@ -920,20 +973,8 @@ def render_tsv_table(trees_df: pd.DataFrame, particelle_df: pd.DataFrame,
     Returns:
         dict with 'snippet' key containing formatted table
     """
-    # Validate parameters
-    if particella and not compresa:
-        raise ValueError("@@tsv: particella richiede compresa")
-
-    # Filter trees
-    filtered_trees = trees_df.copy()
-    if compresa:
-        filtered_trees = filtered_trees[filtered_trees['Compresa'] == compresa]
-    if particella:
-        filtered_trees = filtered_trees[filtered_trees['Particella'] == particella]
-
-    if len(filtered_trees) == 0:
-        region_label = f"{compresa}-{particella}" if particella else (compresa or "tutte le comprese")
-        raise ValueError(f"@@tsv: Nessun dato trovato per {region_label}")
+    # Use shared filtering logic
+    filtered_trees, _ = filter_trees_by_region(trees_df, particelle_df, compresa, particella)
 
     # Determine grouping columns
     group_cols = []
@@ -1159,10 +1200,13 @@ def process_template(template_text: str, trees_df: pd.DataFrame,
         params = directive['params']
 
         try:
-            # Handle @@tsv separately (doesn't require compresa, no graph generation)
+            # Extract common parameters (all now optional)
+            compresa = params.get('compresa', None)
+            particella = params.get('particella', None)
+            genere = params.get('genere', None)
+
+            # Handle @@tsv (table, no graph)
             if keyword == 'tsv':
-                compresa = params.get('compresa', None)
-                particella = params.get('particella', None)
                 per_particella = params.get('per_particella', 'si').lower() == 'si'
                 stime_totali = params.get('stime_totali', 'no').lower() == 'si'
                 intervallo_fiduciario = params.get('intervallo_fiduciario', 'no').lower() == 'si'
@@ -1179,15 +1223,7 @@ def process_template(template_text: str, trees_df: pd.DataFrame,
                 print("  Generata tabella volumi")
                 return result['snippet']
 
-            # For graph directives (cd, ci), compresa is required
-            if 'compresa' not in params:
-                print(f"ERRORE: Direttiva {directive['full_text']} manca del parametro 'compresa'")
-                return directive['full_text']
-
-            compresa = params['compresa']
-            particella = params.get('particella', None)
-            genere = params.get('genere', None)
-
+            # Handle graph directives (cd, ci)
             data = prepare_region_data(trees_df, particelle_df, compresa, particella, genere)
 
             key = (keyword, compresa, particella, genere)
@@ -1195,7 +1231,12 @@ def process_template(template_text: str, trees_df: pd.DataFrame,
                 graph_counter[key] = 0
             graph_counter[key] += 1
 
-            parts = [compresa]
+            # Build filename
+            parts = []
+            if compresa:
+                parts.append(compresa)
+            else:
+                parts.append('tutte')  # All comprese
             if particella:
                 parts.append(particella)
             if genere:
