@@ -6,7 +6,7 @@ include Legacy.mak
 	equazioni clean-equazioni \
 	altvol clean-altvol \
 	html clean-html \
-	pdf clean-pdf
+	pdf clean-pdf \
     all clean
 
 all: equazioni altvol pdf
