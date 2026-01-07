@@ -887,7 +887,7 @@ def render_ci_graph(data: dict, max_diameter: int, equations_df: pd.DataFrame,
 
     ax.set_xlabel('Diametro (cm)', fontweight='bold')
     ax.set_ylabel('Altezza (m)', fontweight='bold')
-    ax.set_xlim(-0.5, max_diameter + 0.5)
+    ax.set_xlim(-0.5, max_diameter + 3)
     ax.set_xticks(range(0, max_diameter + 1, (max_diameter + 1)//10))
     ax.set_ylim(0, (ymax + 6)//5*5)
     td = min(ax.get_ylim()[1] // 5, 4)
