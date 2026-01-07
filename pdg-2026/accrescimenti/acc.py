@@ -950,7 +950,11 @@ def render_cd_graph(data: dict, max_diameter_class: int, output_path: Path,
     ax.set_ylim(0, counts.sum(axis=1).max() * 1.1)
     ax.grid(True, alpha=0.3, axis='y')
     ax.set_axisbelow(True)
-    ax.legend(title='Specie', bbox_to_anchor=(1.01, 1.02), alignment='left')
+    
+    # Reverse legend order to match visual stacking order (top-to-bottom)
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(reversed(handles), reversed(labels), 
+              title='Specie', bbox_to_anchor=(1.01, 1.02), alignment='left')
 
     plt.tight_layout()
     plt.savefig(output_path, bbox_inches='tight')
