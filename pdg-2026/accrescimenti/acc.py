@@ -1121,6 +1121,7 @@ def process_template(template_text: str, trees_df: pd.DataFrame,
     color_map = get_color_map(sorted(trees_df['Genere'].unique()))
     max_diameter = trees_df['D(cm)'].max()
     max_diameter_class = trees_df['Classe diametrica'].max()
+    directives = {}  # Track duplicate directives
 
     def build_graph_filename(compresa: Optional[str], particella: Optional[str],
                              genere: Optional[str], keyword: str) -> str:
@@ -1135,6 +1136,11 @@ def process_template(template_text: str, trees_df: pd.DataFrame,
         if genere:
             parts.append(genere)
         parts.append(keyword)
+        key = (compresa, particella, genere, keyword)
+        if key in directives:
+            print(f"  Attenzione: comando duplicato {keyword})")
+        else:
+            directives[key] = True
         return '_'.join(parts) + '.png'
 
     def process_directive(match):
@@ -1147,28 +1153,35 @@ def process_template(template_text: str, trees_df: pd.DataFrame,
         compresa = params.get('compresa', None)
         particella = params.get('particella', None)
         genere = params.get('genere', None)
-        data = region_data(trees_df, particelle_df, compresa, particella, genere)
 
-        match keyword:
-            case 'tsv':
-                options = {
-                    'per_particella': params.get('per_particella', 'si').lower() == 'si',
-                    'stime_totali': params.get('stime_totali', 'no').lower() == 'si',
-                    'intervallo_fiduciario': params.get('intervallo_fiduciario', 'no').lower() == 'si',
-                    'totali': params.get('totali', 'no').lower() == 'si'
-                }
-                result = render_tsv_table(data, particelle_df, formatter, **options)
-            case 'cd':
-                filename = build_graph_filename(compresa, particella, genere, keyword)
-                result = render_cd_graph(data, max_diameter_class,
-                                         output_dir/filename, formatter, color_map)
-            case 'ci':
-                filename = build_graph_filename(compresa, particella, genere, keyword)
-                result = render_ci_graph(data, max_diameter, equations_df,
-                                         output_dir/filename, formatter, color_map)
-            case _:
-                raise ValueError(f"Comando sconosciuto: {keyword}")
-        return result['snippet']
+        try:
+            data = region_data(trees_df, particelle_df, compresa, particella, genere)
+
+            match keyword:
+                case 'tsv':
+                    options = {
+                        'per_particella': params.get('per_particella', 'si').lower() == 'si',
+                        'stime_totali': params.get('stime_totali', 'no').lower() == 'si',
+                        'intervallo_fiduciario':
+                            params.get('intervallo_fiduciario', 'no').lower() == 'si',
+                        'totali': params.get('totali', 'no').lower() == 'si'
+                    }
+                    result = render_tsv_table(data, particelle_df, formatter, **options)
+                case 'cd':
+                    filename = build_graph_filename(compresa, particella, genere, keyword)
+                    result = render_cd_graph(data, max_diameter_class,
+                                             output_dir / filename, formatter, color_map)
+                case 'ci':
+                    filename = build_graph_filename(compresa, particella, genere, keyword)
+                    result = render_ci_graph(data, max_diameter, equations_df,
+                                             output_dir / filename, formatter, color_map)
+                case _:
+                    raise ValueError(f"Comando sconosciuto: {keyword}")
+
+            return result['snippet']
+
+        except Exception as e:
+            raise ValueError(f"ERRORE nella generazione di {directive['full_text']}: {e}") from e
 
     # Find and replace all directives
     pattern = r'@@\w+\([^)]*\)'
