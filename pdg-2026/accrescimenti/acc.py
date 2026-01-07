@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # pylint: disable=too-many-lines
+# pylint: disable=singleton-comparison
 """
 Forest Analysis: Accrescimenti Tool
 Three-mode tool for equation generation, height calculation, and report generation.
@@ -48,27 +49,22 @@ class RegressionFunc(ABC):
     @abstractmethod
     def _clean_data(self, x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """Clean and validate input data. Returns (x_clean, y_clean)."""
-        pass
 
     @abstractmethod
     def _fit_params(self, x: np.ndarray, y: np.ndarray) -> tuple[float, float]:
         """Fit parameters to data. Returns (a, b)."""
-        pass
 
     @abstractmethod
     def _predict(self, x: np.ndarray, a: float, b: float) -> np.ndarray:
         """Predict y values from x using parameters a, b."""
-        pass
 
     @abstractmethod
     def _create_lambda(self, a: float, b: float):
         """Create lambda function for prediction."""
-        pass
 
     @abstractmethod
     def _format_equation(self, a: float, b: float) -> str:
         """Format equation as string."""
-        pass
 
     def fit(self, x: np.ndarray, y: np.ndarray, min_points: int = 10) -> bool:
         """Fit the regression function to data. Returns True if successful."""
@@ -376,30 +372,30 @@ class LaTeXSnippetFormatter(SnippetFormatter):
 def calculate_tree_volume(diameter: float, height: float, genere: str) -> float:
     """
     Calculate volume for a single tree using Tabacchi equations.
-    
+
     Args:
         diameter: Diameter in cm (D)
         height: Height in m (h)
         genere: Species name
-    
+
     Returns:
         Volume in m³
-    
+
     Raises:
         ValueError: If genere is not in Tabacchi tables
     """
     if genere not in TABACCHI_B:
         raise ValueError(f"Genere '{genere}' non trovato nelle tavole di Tabacchi")
-    
+
     b = TABACCHI_B[genere]
-    
+
     # Volume equation: V = b0 + b1 * D² * h [+ b2 * D]
     d2h = (diameter ** 2) * height
     if len(b) == 2:
         volume = (b[0] + b[1] * d2h) / 1000  # Convert to m³
     else:  # len(b) == 3
         volume = (b[0] + b[1] * d2h + b[2] * diameter) / 1000
-    
+
     return volume
 
 
@@ -640,7 +636,7 @@ def fit_curves_from_tabelle(tabelle_file: str, particelle_file: str,
             groups.append(((compresa, genere), group))
     return fit_curves_grouped(groups, funzione)
 
-
+#pylint: disable=too-many-locals
 def apply_height_equations(alberi_file: str, equations_file: str,
                            output_file: str) -> None:
     """
@@ -698,7 +694,7 @@ def apply_height_equations(alberi_file: str, equations_file: str,
     print(f"  Alberi aggiornati: {trees_updated}")
     print(f"  Alberi non modificati: {trees_unchanged}")
     print(f"File salvato: {output_file}")
-
+#pylint: enable=too-many-locals
 
 # =============================================================================
 # RENDERING AND TEMPLATE PROCESSING
