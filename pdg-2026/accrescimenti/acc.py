@@ -16,6 +16,7 @@ from typing import Iterable, Optional
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from scipy import stats
 
 # Matplotlib configuration
 plt.rcParams['figure.dpi'] = 200
@@ -144,11 +145,144 @@ class LinearRegression(RegressionFunc):
 
 
 # =============================================================================
-# TABACCHI VOLUME COEFFICIENTS (from calcolo-volumi.py)
+# SNIPPET FORMATTERS (for template substitution)
 # =============================================================================
 
-# Covariance matrices for volume equation coefficients (by species)
-# These will be made symmetric after definition
+class SnippetFormatter(ABC):
+    """Formats individual components (images, metadata) for template insertion."""
+
+    @abstractmethod
+    def format_image(self, filepath: Path) -> str:
+        """Format image reference for this format."""
+
+    @abstractmethod
+    def format_metadata(self, stat: dict, curve_info: list = None) -> str:
+        """Format metadata block for this format.
+
+        Args:
+            stats: Statistics about the region/species
+            curve_info: List of dicts with {species, equation, r_squared, n_points}
+                       from equations.csv
+        """
+
+    @abstractmethod
+    def format_table(self, headers: list[str], rows: list[list[str]]) -> str:
+        """Format a data table for this format.
+
+        Args:
+            headers: Column headers
+            rows: Data rows (each row is a list of strings)
+
+        Returns:
+            Formatted table snippet
+        """
+
+
+class HTMLSnippetFormatter(SnippetFormatter):
+    """HTML snippet formatter."""
+
+    def format_image(self, filepath: Path) -> str:
+        return f'<img src="{filepath.name}" class="graph-image">'
+
+    def format_metadata(self, stat: dict, curve_info: list = None) -> str:
+        """Format metadata as HTML."""
+        html = '<div class="graph-details">\n'
+        html += f'<p><strong>Alberi campionati:</strong> {stat["sampled_trees"]:d}</p>\n'
+        html += f'<p><strong>Stima totale:</strong> {stat["estimated_total"]:d}</p>\n'
+        html += f'<p><strong>Area:</strong> {stat["area_ha"]:.2f} ha</p>\n'
+
+        if "mean_height" in stat:
+            html += f'<p><strong>Altezza media:</strong> {stat["mean_height"]:.1f} m</p>\n'
+        if "mean_diameter_class" in stat:
+            html += '<p><strong>Classe diametrica media:</strong> '
+            html += f'{stat["mean_diameter_class"]:.0f}</p>\n'
+
+        if curve_info:
+            html += '<br><p><strong>Equazioni interpolanti:</strong></p>\n'
+            for curve in curve_info:
+                html += (f'<p>{curve["species"]}: {curve["equation"]} '
+                        f'(R² = {curve["r_squared"]:.2f}, n = {curve["n_points"]})</p>\n')
+
+        html += '</div>\n'
+        return html
+
+    def format_table(self, headers: list[str], rows: list[list[str]]) -> str:
+        """Format table as HTML."""
+        html = '<table class="volume-table">\n'
+        html += '  <thead>\n    <tr>\n'
+        for header in headers:
+            html += f'      <th>{header}</th>\n'
+        html += '    </tr>\n  </thead>\n'
+        html += '  <tbody>\n'
+        for row in rows:
+            html += '    <tr>\n'
+            for cell in row:
+                html += f'      <td>{cell}</td>\n'
+            html += '    </tr>\n'
+        html += '  </tbody>\n</table>\n'
+        return html
+
+
+class LaTeXSnippetFormatter(SnippetFormatter):
+    """LaTeX snippet formatter."""
+
+    def format_image(self, filepath: Path) -> str:
+        return (f'\\begin{{figure}}[H]\n'
+                f'  \\centering\n'
+                f'  \\includegraphics[width=0.9\\textwidth]{{{filepath.name}}}\n'
+                f'\\end{{figure}}\n')
+
+    def format_metadata(self, stat: dict, curve_info: list = None) -> str:
+        """Format metadata as LaTeX."""
+        latex = '\\begin{quote}\\small\n'
+        latex += f"\\textbf{{Alberi campionati:}} {stat['sampled_trees']:d}\\\\\n"
+        latex += f"\\textbf{{Stima totale:}} {stat['estimated_total']:d}\\\\\n"
+        latex += f"\\textbf{{Area:}} {stat['area_ha']:.2f} ha\\\\\n"
+
+        if "mean_height" in stat:
+            latex += f"\\textbf{{Altezza media:}} {stat['mean_height']:.1f} m\\\\\n"
+        if "mean_diameter_class" in stat:
+            latex += "\\textbf{{Classe diametrica media:}} "
+            latex += f"{stat['mean_diameter_class']:.0f}\\\\\n"
+
+        if curve_info:
+            latex += '\\\\\n\\textbf{Equazioni interpolanti:}\\\\\n'
+            for curve in curve_info:
+                eq = curve['equation'].replace('*', r'\times ')
+                eq = eq.replace('ln', r'\ln')
+                latex += (f"{curve['species']}: ${eq}$ ($R^2$ = {curve['r_squared']:.2f}, "
+                         f"$n$ = {curve['n_points']})\\\\\n")
+
+        latex += '\\end{quote}\n'
+        return latex
+
+    def format_table(self, headers: list[str], rows: list[list[str]]) -> str:
+        """Format table as LaTeX."""
+        n_cols = len(headers)
+        # Use l for text columns, r for numeric columns
+        # Assume last columns are numeric (volumes)
+        col_spec = 'l' * (n_cols - 2) + 'r' * min(2, n_cols)
+        if n_cols > 2:
+            col_spec = 'l' * (n_cols - 2) + 'r' * 2
+        else:
+            col_spec = 'l' * n_cols
+
+        latex = f'\\begin{{tabular}}{{{col_spec}}}\n'
+        latex += '\\hline\n'
+        latex += ' & '.join(headers) + ' \\\\\n'
+        latex += '\\hline\n'
+        for row in rows:
+            latex += ' & '.join(row) + ' \\\\\n'
+        latex += '\\hline\n'
+        latex += '\\end{tabular}\n'
+        return latex
+
+
+# =============================================================================
+# VOLUME CALCULATION (Tabacchi equations)
+# =============================================================================
+
+# Lower-triangular covariance matrices for volume equation coefficients (by species).
 TABACCHI_COV = {
     'Abete': np.array([
         [  4.9584,     0,         0 ],
@@ -216,7 +350,7 @@ TABACCHI_COV = {
     ]),
 }
 
-# Volume equation coefficients (as row vectors, will be transposed to column vectors)
+# Volume equation coefficients (as row vectors).
 TABACCHI_B = {
     'Abete':          np.array([ -1.8381,    3.7836e-2, 3.9934e-1 ]),
     'Acero':          np.array([  1.6905,    3.7082e-2 ]),
@@ -280,143 +414,6 @@ def make_symmetric():
     # pylint: enable=consider-using-dict-items
 make_symmetric()
 
-# =============================================================================
-# SNIPPET FORMATTERS (for template substitution)
-# =============================================================================
-
-class SnippetFormatter(ABC):
-    """Formats individual components (images, metadata) for template insertion."""
-
-    @abstractmethod
-    def format_image(self, filepath: Path) -> str:
-        """Format image reference for this format."""
-
-    @abstractmethod
-    def format_metadata(self, stats: dict, curve_info: list = None) -> str:
-        """Format metadata block for this format.
-
-        Args:
-            stats: Statistics about the region/species
-            curve_info: List of dicts with {species, equation, r_squared, n_points}
-                       from equations.csv
-        """
-
-    @abstractmethod
-    def format_table(self, headers: list[str], rows: list[list[str]]) -> str:
-        """Format a data table for this format.
-
-        Args:
-            headers: Column headers
-            rows: Data rows (each row is a list of strings)
-
-        Returns:
-            Formatted table snippet
-        """
-
-
-class HTMLSnippetFormatter(SnippetFormatter):
-    """HTML snippet formatter."""
-
-    def format_image(self, filepath: Path) -> str:
-        return f'<img src="{filepath.name}" class="graph-image">'
-
-    def format_metadata(self, stats: dict, curve_info: list = None) -> str:
-        """Format metadata as HTML."""
-        html = '<div class="graph-details">\n'
-        html += f'<p><strong>Alberi campionati:</strong> {stats["sampled_trees"]:d}</p>\n'
-        html += f'<p><strong>Stima totale:</strong> {stats["estimated_total"]:d}</p>\n'
-        html += f'<p><strong>Area:</strong> {stats["area_ha"]:.2f} ha</p>\n'
-
-        if "mean_height" in stats:
-            html += f'<p><strong>Altezza media:</strong> {stats["mean_height"]:.1f} m</p>\n'
-        if "mean_diameter_class" in stats:
-            html += '<p><strong>Classe diametrica media:</strong> '
-            html += f'{stats["mean_diameter_class"]:.0f}</p>\n'
-
-        if curve_info:
-            html += '<br><p><strong>Equazioni interpolanti:</strong></p>\n'
-            for curve in curve_info:
-                html += (f'<p>{curve["species"]}: {curve["equation"]} '
-                        f'(R² = {curve["r_squared"]:.2f}, n = {curve["n_points"]})</p>\n')
-
-        html += '</div>\n'
-        return html
-
-    def format_table(self, headers: list[str], rows: list[list[str]]) -> str:
-        """Format table as HTML."""
-        html = '<table class="volume-table">\n'
-        html += '  <thead>\n    <tr>\n'
-        for header in headers:
-            html += f'      <th>{header}</th>\n'
-        html += '    </tr>\n  </thead>\n'
-        html += '  <tbody>\n'
-        for row in rows:
-            html += '    <tr>\n'
-            for cell in row:
-                html += f'      <td>{cell}</td>\n'
-            html += '    </tr>\n'
-        html += '  </tbody>\n</table>\n'
-        return html
-
-
-class LaTeXSnippetFormatter(SnippetFormatter):
-    """LaTeX snippet formatter."""
-
-    def format_image(self, filepath: Path) -> str:
-        return (f'\\begin{{figure}}[H]\n'
-                f'  \\centering\n'
-                f'  \\includegraphics[width=0.9\\textwidth]{{{filepath.name}}}\n'
-                f'\\end{{figure}}\n')
-
-    def format_metadata(self, stats: dict, curve_info: list = None) -> str:
-        """Format metadata as LaTeX."""
-        latex = '\\begin{quote}\\small\n'
-        latex += f"\\textbf{{Alberi campionati:}} {stats['sampled_trees']:d}\\\\\n"
-        latex += f"\\textbf{{Stima totale:}} {stats['estimated_total']:d}\\\\\n"
-        latex += f"\\textbf{{Area:}} {stats['area_ha']:.2f} ha\\\\\n"
-
-        if "mean_height" in stats:
-            latex += f"\\textbf{{Altezza media:}} {stats['mean_height']:.1f} m\\\\\n"
-        if "mean_diameter_class" in stats:
-            latex += "\\textbf{{Classe diametrica media:}} "
-            latex += f"{stats['mean_diameter_class']:.0f}\\\\\n"
-
-        if curve_info:
-            latex += '\\\\\n\\textbf{Equazioni interpolanti:}\\\\\n'
-            for curve in curve_info:
-                eq = curve['equation'].replace('*', r'\times ')
-                eq = eq.replace('ln', r'\ln')
-                latex += (f"{curve['species']}: ${eq}$ ($R^2$ = {curve['r_squared']:.2f}, "
-                         f"$n$ = {curve['n_points']})\\\\\n")
-
-        latex += '\\end{quote}\n'
-        return latex
-
-    def format_table(self, headers: list[str], rows: list[list[str]]) -> str:
-        """Format table as LaTeX."""
-        n_cols = len(headers)
-        # Use l for text columns, r for numeric columns
-        # Assume last columns are numeric (volumes)
-        col_spec = 'l' * (n_cols - 2) + 'r' * min(2, n_cols)
-        if n_cols > 2:
-            col_spec = 'l' * (n_cols - 2) + 'r' * 2
-        else:
-            col_spec = 'l' * n_cols
-
-        latex = f'\\begin{{tabular}}{{{col_spec}}}\n'
-        latex += '\\hline\n'
-        latex += ' & '.join(headers) + ' \\\\\n'
-        latex += '\\hline\n'
-        for row in rows:
-            latex += ' & '.join(row) + ' \\\\\n'
-        latex += '\\hline\n'
-        latex += '\\end{tabular}\n'
-        return latex
-
-
-# =============================================================================
-# VOLUME CALCULATION (Tabacchi equations)
-# =============================================================================
 
 def calculate_tree_volume(diameter: float, height: float, genere: str) -> float:
     """
@@ -446,6 +443,70 @@ def calculate_tree_volume(diameter: float, height: float, genere: str) -> float:
         volume = (b[0] + b[1] * d2h + b[2] * diameter) / 1000
 
     return volume
+
+
+def calculate_volume_confidence_interval(trees_df: pd.DataFrame) -> tuple[float, float]:
+    """
+    Calculate confidence interval margin for a group of trees using Tabacchi equations.
+
+    Conservative approach: assumes perfect correlation between species.
+    - For each species: margin_i = t_i * sqrt(v0_i + v1_i)
+    - Total margin = sum(margin_i)
+
+    Where:
+    - V0: variance from coefficient uncertainty (D1 @ cov @ D1.T)
+    - V1: residual variance (sum of s² * (D²h)²)
+
+    Args:
+        trees_df: DataFrame with columns D(cm), h(m), Genere, V(m3)
+
+    Returns:
+        Tuple of (total_volume, margin_of_error) in m³
+
+    Raises:
+        ValueError: If any genere not in Tabacchi tables
+    """
+    total_volume = 0.0
+    total_margin = 0.0  # Sum margins (conservative: assumes perfect correlation)
+
+    for genere, group in trees_df.groupby('Genere'):
+        if genere not in TABACCHI_B:
+            raise ValueError(f"Genere '{genere}' non presente in Tabacchi")
+
+        n_trees = len(group)
+        b = TABACCHI_B[genere]
+        cov = TABACCHI_COV[genere]
+        s2 = TABACCHI_S2[genere]
+        df = TABACCHI_NS[genere] - 2
+
+        # Build D0 matrix (n_trees x n_coefficients)
+        d0 = np.zeros((n_trees, len(b)))
+        d0[:, 0] = 1
+        d0[:, 1] = (group['D(cm)'].values ** 2) * group['h(m)'].values
+        if len(b) == 3:
+            d0[:, 2] = group['D(cm)'].values
+
+        # D1 = sum of rows of D0 (1 x n_coefficients)
+        d1 = np.sum(d0, axis=0).reshape(1, -1)
+
+        # V0: Coefficient uncertainty variance
+        v0 = (d1 @ cov @ d1.T)[0, 0]
+
+        # V1: Residual variance
+        d2h = d0[:, 1]  # D²h values for each tree
+        v1 = np.sum(d2h ** 2) * s2
+
+        # Species-specific t-statistic
+        t_stat = stats.t.ppf(1 - 0.05/2, df)
+
+        # Species-specific margin
+        margin_species = t_stat * np.sqrt(v0 + v1) / 1000  # Convert to m³
+
+        # Accumulate
+        total_volume += group['V(m3)'].sum()
+        total_margin += margin_species
+
+    return total_volume, total_margin
 
 
 def apply_volume_equations(alberi_file: str, output_file: str) -> None:
@@ -698,9 +759,7 @@ def apply_height_equations(alberi_file: str, equations_file: str,
     output_df = trees_df.copy()
     output_df['h(m)'] = output_df['h(m)'].astype(float)
 
-    # For each unique (compresa, genere) pair in trees
     for (compresa, genere), group in trees_df.groupby(['Compresa', 'Genere']):
-        # Look up equation
         eq_row = equations_df[
             (equations_df['compresa'] == compresa) &
             (equations_df['genere'] == genere)
@@ -971,25 +1030,17 @@ def render_tsv_table(data: dict, particelle_df: pd.DataFrame,
 
         # Compute confidence intervals if requested
         if options['intervallo_fiduciario']:
-            # Recompute residual errors for this group
-            v1_sum = 0.0
-            for _, tree in group_df.iterrows():
-                d2h = (tree['D(cm)'] ** 2) * tree['h(m)']
-                genere = tree['Genere']
-                if genere in TABACCHI_S2:
-                    v1_sum += TABACCHI_S2[genere] * (d2h ** 2)
+            # Use full confidence interval calculation (V0 + V1 + t-statistic)
+            _, margin_sampled = calculate_volume_confidence_interval(group_df)
 
-            # Residual error (V1 component only, conservative)
-            residual_error = np.sqrt(v1_sum) / 1000  # Convert to m³
-
-            # Scale error if stime_totali
+            # Scale margin if stime_totali
             if options['stime_totali']:
-                residual_error = residual_error * area_ha * SAMPLE_AREAS_PER_HA / sample_areas
+                margin = margin_sampled * area_ha * SAMPLE_AREAS_PER_HA / sample_areas
+            else:
+                margin = margin_sampled
 
-            # Conservative CI: just use residual error (no t-statistic, no V0)
-            # For proper CI we'd need to aggregate V0 across groups, which is complex
-            row_dict['IF_inf'] = volume - residual_error
-            row_dict['IF_sup'] = volume + residual_error
+            row_dict['IF_inf'] = volume - margin
+            row_dict['IF_sup'] = volume + margin
 
         table_rows.append(row_dict)
 
