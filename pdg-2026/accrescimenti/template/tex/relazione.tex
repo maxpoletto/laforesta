@@ -15,17 +15,33 @@
 \usepackage{gillius}
 \usepackage{sectsty}
 \allsectionsfont{\sffamily}
-\title{\sffamily Società Agricola La Foresta\\Analisi Accrescimenti}
-\date{}
-\author{}
+\title{\sffamily Documentazione integrativa al Piano di Assestamento}
+\date{\sffamily Gennaio 2026}
+\author{\sffamily Società Agricola La Foresta\\\sffamily Serra San Bruno}
 \begin{document}
 \maketitle
 
-\section{Distribuzione piante per classe diametrica}
+\section{Introduzione}
 
-\subsection*{Capistrano}
-@@cd(genere=Abete)
+Il presente documento contiene la documentazione integrativa al Piano di Assestamento della Società Agricola La Foresta, come richiesto dal Dipartimento Politiche Della Montagna Foreste Forestazione e Difesa del Suolo della Regione Calabria con Protocollo 464707 del 25/06/2025.
+
+\section{Curve ipsometriche e classi diametriche}
+
+In questa sezione è riportata, per ciascuna compresa, la distribuzione grafica in classi diametriche del numero di piante per ettaro. Presentiamo un solo grafico di questo tipo per ciascuna compresa, in modo da evidenziare la partecipazione delle diverse specie.
+
+Sono riportate inoltre, per ciascuna compresa e per ciascuna specie ivi prevalente, le curve ipsometriche in forma grafica, complete delle relative equazioni interpolanti. Le equazioni sono calcolate con un modello di regressione logaritmico, solo per combinazioni di compresa e genere per le quali sono state campionate almeno 10 piante ($n \geq 10$).
+
+\subsection{Capistrano}
+
+La distribuzione in classi diametriche a Capistrano è la seguente. Il bosco è dominato da abeti e pini.
+@@cd(compresa=Capistrano)
 \clearpage
+@@ci(compresa=Capistrano)
+@@ci(compresa=Capistrano,genere=Abete)
+@@ci(compresa=Capistrano,genere=Pino Nero)
+@@ci(compresa=Capistrano,genere=Pino Marittimo)
+
+
 \subsection*{Fabrizia}
 @@cd(compresa=Fabrizia)
 \clearpage
