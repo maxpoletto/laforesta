@@ -257,24 +257,34 @@ class LaTeXSnippetFormatter(SnippetFormatter):
         return latex
 
     def format_table(self, headers: list[str], rows: list[list[str]]) -> str:
-        """Format table as LaTeX."""
+        """Format table as LaTeX using longtable for page breaks."""
         n_cols = len(headers)
         # Use l for text columns, r for numeric columns
         # Assume last columns are numeric (volumes)
-        col_spec = 'l' * (n_cols - 2) + 'r' * min(2, n_cols)
         if n_cols > 2:
             col_spec = 'l' * (n_cols - 2) + 'r' * 2
         else:
             col_spec = 'l' * n_cols
 
-        latex = f'\\begin{{tabular}}{{{col_spec}}}\n'
+        # Use longtable instead of tabular to allow page breaks
+        latex = f'\\begin{{longtable}}{{{col_spec}}}\n'
         latex += '\\hline\n'
         latex += ' & '.join(headers) + ' \\\\\n'
         latex += '\\hline\n'
+        latex += '\\endfirsthead\n'  # End of first page header
+        latex += '\\multicolumn{' + str(n_cols) + '}{c}{\\textit{(continua dalla pagina precedente)}} \\\\\n'
+        latex += '\\hline\n'
+        latex += ' & '.join(headers) + ' \\\\\n'
+        latex += '\\hline\n'
+        latex += '\\endhead\n'  # Header for subsequent pages
+        latex += '\\hline\n'
+        latex += '\\multicolumn{' + str(n_cols) + '}{r}{\\textit{(continua alla pagina successiva)}} \\\\\n'
+        latex += '\\endfoot\n'  # Footer for all pages except last
+        latex += '\\hline\n'
+        latex += '\\endlastfoot\n'  # Footer for last page
         for row in rows:
             latex += ' & '.join(row) + ' \\\\\n'
-        latex += '\\hline\n'
-        latex += '\\end{tabular}\n'
+        latex += '\\end{longtable}\n'
         return latex
 
 
@@ -1169,7 +1179,7 @@ def process_template(template_text: str, trees_df: pd.DataFrame,
         Processed template text
     """
     formatter = HTMLSnippetFormatter() if format_type == 'html' else LaTeXSnippetFormatter()
-    color_map = get_color_map(sorted(trees_df['Genere'].unique()))
+    color_map = get_color_map()
     max_diameter = trees_df['D(cm)'].max()
     max_diameter_class = trees_df['Classe diametrica'].max()
     directives = {}  # Track duplicate directives
@@ -1265,18 +1275,48 @@ def list_parcels(particelle_file: str) -> None:
             print(f"  {compresa},{particella}")
 
 
-def get_color_map(species_list: list) -> dict:
+def get_color_map() -> dict:
     """
     Create consistent color mapping for species.
 
-    Args:
-        species_list: List of unique species names
-
     Returns:
-        Dict mapping species -> matplotlib color
+        Dict mapping species -> matplotlib color (as RGBA tuple)
     """
-    colors = plt.cm.Set3(np.linspace(0, 1, len(species_list)))  # type: ignore
-    return dict(zip(sorted(species_list), colors))
+    # Manual color mapping for the 14 Tabacchi species
+    # Organized by type: deciduous (yellows/greens), conifers (blues), special (pinks/reds)
+    color_palette = {
+        # Deciduous broadleaves (yellow-green spectrum)
+        'Faggio': '#F4F269',          # canary-yellow - most common broadleaf
+        'Castagno': '#CEE26B',        # lime-cream
+        'Acero': '#A8D26D',           # willow-green
+        'Cerro': '#82C26E',           # moss-green
+        'Ontano': '#5CB270',          # emerald
+        'Leccio': '#4DA368',          # emerald-dark (adjusted for distinction)
+
+        # Conifers (blue-aqua spectrum)
+        'Abete': '#0c63e7',           # royal-blue - firs
+        'Douglas': '#07c8f9',         # sky-aqua
+        'Pino': '#09a6f3',            # fresh-sky - all the common pines
+        'Pino Nero': '#09a6f3',       # fresh-sky
+        'Pino Laricio': '#09a6f3',    # fresh-sky
+
+        # Special cases (coral/pink spectrum)
+        'Pino Marittimo': '#FB6363',  # vibrant-coral
+        'Ciliegio': '#DC4E5E',        # lobster-pink - cherry
+        'Sorbo': '#BE385A',           # rosewood - rowan
+    }
+
+    # Convert hex to RGBA tuples for matplotlib
+    def hex_to_rgba(hex_color):
+        hex_color = hex_color.lstrip('#')
+        if len(hex_color) == 8:  # RRGGBBAA
+            r, g, b, a = [int(hex_color[i:i+2], 16) / 255.0 for i in (0, 2, 4, 6)]
+        else:  # RRGGBB
+            r, g, b = [int(hex_color[i:i+2], 16) / 255.0 for i in (0, 2, 4)]
+            a = 1.0
+        return (r, g, b, a)
+
+    return {species: hex_to_rgba(color) for species, color in color_palette.items()}
 
 
 # =============================================================================
@@ -1353,7 +1393,6 @@ def run_report(args):
             ['pdflatex', '-interaction=nonstopmode', output_file.name],
             cwd=output_dir,
             capture_output=True,
-            text=True,
             check=True
         )
         print(f"Report generato: {output_file.with_suffix('.pdf')}")
