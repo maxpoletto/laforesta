@@ -499,12 +499,12 @@ def apply_volume_equations(alberi_file: str, output_file: str) -> None:
 # DATA PREPARATION (pure data, no rendering)
 # =============================================================================
 
-def filter_trees_by_region(trees_df: pd.DataFrame, particelle_df: pd.DataFrame,
-                           compresa: Optional[str] = None,
-                           particella: Optional[str] = None,
-                           genere: Optional[str] = None) -> tuple[pd.DataFrame, dict]:
+def region_data(trees_df: pd.DataFrame, particelle_df: pd.DataFrame,
+                compresa: Optional[str] = None,
+                particella: Optional[str] = None,
+                genere: Optional[str] = None) -> tuple[pd.DataFrame, dict]:
     """
-    Filter trees and compute region metadata (shared across all directives).
+    Compute region data (shared across all directives).
 
     Args:
         trees_df: Full tree database
@@ -514,11 +514,9 @@ def filter_trees_by_region(trees_df: pd.DataFrame, particelle_df: pd.DataFrame,
         genere: Optional species name (None means all species)
 
     Returns:
-        Tuple of (filtered_trees, metadata) where metadata contains:
+        Tuple of (filtered_trees, metrics ... ) where metrics include:
             - 'area_ha': Total area in hectares
             - 'sample_areas': Number of sample areas
-            - 'compresa': compresa name or None
-            - 'particella': particella name or None
 
     Raises:
         ValueError: If particella specified without compresa, or no data found
@@ -526,106 +524,45 @@ def filter_trees_by_region(trees_df: pd.DataFrame, particelle_df: pd.DataFrame,
     if particella and not compresa:
         raise ValueError("particella richiede compresa")
 
-    # Filter trees
     filtered_trees = trees_df.copy()
 
     if compresa:
         filtered_trees = filtered_trees[filtered_trees['Compresa'] == compresa]
-        if particella:
-            filtered_trees = filtered_trees[filtered_trees['Particella'] == particella]
-
-    if len(filtered_trees) == 0:
-        if particella:
-            region_label = f"{compresa}-{particella}"
-        elif compresa:
-            region_label = compresa
-        else:
-            region_label = "tutte le comprese"
-        raise ValueError(f"Nessun dato trovato per {region_label}")
-
+    if particella:
+        filtered_trees = filtered_trees[filtered_trees['Particella'] == particella]
     if genere:
         filtered_trees = filtered_trees[filtered_trees['Genere'] == genere]
-        if len(filtered_trees) == 0:
-            raise ValueError(f"Nessun dato trovato per genere '{genere}'")
+    if len(filtered_trees) == 0:
+        raise ValueError(f"Nessun dato trovato per compresa '{compresa}' " +
+                         f"particella '{particella}' genere '{genere}'")
 
-    # Get area metadata
+    area_data = particelle_df.copy()
     if compresa:
-        if particella:
-            area_data = particelle_df[
-                (particelle_df['Compresa'] == compresa) &
-                (particelle_df['Particella'] == particella)
-            ]
-        else:
-            area_data = particelle_df[particelle_df['Compresa'] == compresa]
-    else:
-        area_data = particelle_df
+        area_data = area_data[area_data['Compresa'] == compresa]
+    if particella:
+        area_data = area_data[area_data['Particella'] == particella]
 
     area_ha = area_data['Area (ha)'].sum()
-    sample_areas = filtered_trees['Area saggio'].nunique()
-
-    metadata = {
-        'area_ha': area_ha,
-        'sample_areas': sample_areas,
-        'compresa': compresa,
-        'particella': particella,
-    }
-
-    return filtered_trees, metadata
-
-
-def prepare_region_data(trees_df: pd.DataFrame, particelle_df: pd.DataFrame,
-                       compresa: Optional[str] = None,
-                       particella: Optional[str] = None,
-                       genere: Optional[str] = None) -> dict:
-    """
-    Prepare data for graph rendering (cd, ci directives).
-
-    Args:
-        trees_df: Full tree database
-        particelle_df: Parcel metadata
-        compresa: Optional compresa name
-        particella: Optional particella name
-        genere: Optional species name (None means all species)
-
-    Returns:
-        dict with keys:
-            - 'trees': filtered DataFrame
-            - 'stats': computed statistics
-            - 'species_list': list of species in this dataset
-            - 'compresa': compresa name or None
-            - 'particella': particella name or None
-    """
-    filtered_trees, metadata = filter_trees_by_region(
-        trees_df, particelle_df, compresa, particella, genere
-    )
+    # "Area saggio" labels are not unique at least across comprese.
+    sample_areas = filtered_trees.drop_duplicates(
+        subset=['Compresa', 'Particella', 'Area saggio']).shape[0]
 
     sampled_trees = len(filtered_trees)
-    estimated_total = round((sampled_trees / metadata['sample_areas']) *
-                           SAMPLE_AREAS_PER_HA * metadata['area_ha'])
-    estimated_per_ha = round(estimated_total / metadata['area_ha'])
-
-    stats = {
-        'area_ha': metadata['area_ha'],
-        'sample_areas': metadata['sample_areas'],
-        'sampled_trees': sampled_trees,
-        'estimated_total': estimated_total,
-        'estimated_per_ha': estimated_per_ha,
-        'mean_diameter_class': filtered_trees['Classe diametrica'].mean(),
-        'mean_height': filtered_trees['h(m)'].mean()
-    }
-
-    # Determine species list
-    if genere:
-        species_list = [genere]
-    else:
-        species_list = sorted(filtered_trees['Genere'].unique())
+    estimated_total = round((sampled_trees / sample_areas) * SAMPLE_AREAS_PER_HA * area_ha)
+    estimated_per_ha = round(estimated_total / area_ha)
 
     return {
         'compresa': compresa,
         'particella': particella,
         'trees': filtered_trees,
-        'stats': stats,
-        'species_list': species_list,
+        'species_list': sorted(filtered_trees['Genere'].unique()),
+        'area_ha': area_ha,
+        'sample_areas': sample_areas,
+        'sampled_trees': sampled_trees,
+        'estimated_total': estimated_total,
+        'estimated_per_ha': estimated_per_ha,
+        'mean_diameter_class': filtered_trees['Classe diametrica'].mean(),
+        'mean_height': filtered_trees['h(m)'].mean(),
     }
 
 
@@ -809,7 +746,7 @@ def render_ci_graph(data: dict, max_diameter: int, equations_df: pd.DataFrame,
     Generate curve ipsometriche (height-diameter) graph.
 
     Args:
-        prepared_data: Output from prepare_region_data()
+        data: Output from region_data()
         equations_df: Pre-computed equations from CSV
         output_path: Where to save the PNG
         formatter: HTML or LaTeX snippet formatter
@@ -883,7 +820,7 @@ def render_ci_graph(data: dict, max_diameter: int, equations_df: pd.DataFrame,
     plt.close(fig)
 
     snippet = formatter.format_image(output_path)
-    snippet += '\n' + formatter.format_metadata(data['stats'], curve_info=curve_info)
+    snippet += '\n' + formatter.format_metadata(data, curve_info=curve_info)
 
     return {
         'filepath': output_path,
@@ -897,7 +834,7 @@ def render_cd_graph(data: dict, max_diameter_class: int, output_path: Path,
     Generate classi diametriche (diameter class histogram) graph.
 
     Args:
-        prepared_data: Output from prepare_region_data()
+        data: Output from region_data()
         output_path: Where to save the PNG
         formatter: HTML or LaTeX snippet formatter
         color_map: Species -> color mapping
@@ -909,7 +846,7 @@ def render_cd_graph(data: dict, max_diameter_class: int, output_path: Path,
     """
     trees = data['trees']
     species_list = data['species_list']
-    sample_areas = data['stats']['sample_areas']
+    sample_areas = data['sample_areas']
 
     counts = (trees.groupby(['Classe diametrica', 'Genere']).size().unstack(fill_value=0)
               * SAMPLE_AREAS_PER_HA / sample_areas)
@@ -940,7 +877,7 @@ def render_cd_graph(data: dict, max_diameter_class: int, output_path: Path,
     plt.close(fig)
 
     snippet = formatter.format_image(output_path)
-    snippet += '\n' + formatter.format_metadata(data['stats'])
+    snippet += '\n' + formatter.format_metadata(data)
 
     return {
         'filepath': output_path,
@@ -948,37 +885,32 @@ def render_cd_graph(data: dict, max_diameter_class: int, output_path: Path,
     }
 
 
-def render_tsv_table(trees_df: pd.DataFrame, particelle_df: pd.DataFrame,
-                    formatter: SnippetFormatter,
-                    compresa: Optional[str] = None,
-                    particella: Optional[str] = None,
-                    per_particella: bool = True,
-                    stime_totali: bool = False,
-                    intervallo_fiduciario: bool = False,
-                    totali: bool = False) -> dict:
+def render_tsv_table(data: dict, particelle_df: pd.DataFrame,
+                     formatter: SnippetFormatter,
+                     **options: dict) -> dict:
     """
     Generate volume summary table (@@tsv directive).
 
     Args:
-        trees_df: Full tree database with V(m3) column
+        data: Output from region_data()
         particelle_df: Parcel metadata
         formatter: HTML or LaTeX snippet formatter
-        compresa: Optional compresa filter
-        particella: Optional particella filter
-        per_particella: If True, show rows per particella; if False, aggregate
-        stime_totali: If True, scale to total volume; if False, show sampled volume
-        intervallo_fiduciario: If True, include confidence interval columns
-        totali: If True, add totals row at bottom
+        options: Dictionary of options:
+            - per_particella: If True, show rows per particella; if False, aggregate
+            - stime_totali: If True, scale to total volume; if False, show sampled volume
+            - intervallo_fiduciario: If True, include confidence interval columns
+            - totali: If True, add totals row at bottom
 
     Returns:
         dict with 'snippet' key containing formatted table
     """
-    # Use shared filtering logic
-    filtered_trees, _ = filter_trees_by_region(trees_df, particelle_df, compresa, particella)
+    filtered_trees = data['trees']
+    compresa = data['compresa']
+    particella = data['particella']
 
     # Determine grouping columns
     group_cols = []
-    if not per_particella or particella:
+    if not options['per_particella'] or particella:
         # Case (d): specific particella, group by genere only
         # Case (c) with per_particella=no: group by genere only
         if compresa and not particella:
@@ -1011,7 +943,7 @@ def render_tsv_table(trees_df: pd.DataFrame, particelle_df: pd.DataFrame,
         sampled_volume = group_df['V(m3)'].sum()
 
         # Scale to total if requested
-        if stime_totali:
+        if options['stime_totali']:
             # Get region info for scaling
             region_compresa = row_dict.get('Compresa', compresa)
             region_particella = row_dict.get('Particella', particella)
@@ -1038,7 +970,7 @@ def render_tsv_table(trees_df: pd.DataFrame, particelle_df: pd.DataFrame,
         row_dict['Volume'] = volume
 
         # Compute confidence intervals if requested
-        if intervallo_fiduciario:
+        if options['intervallo_fiduciario']:
             # Recompute residual errors for this group
             v1_sum = 0.0
             for _, tree in group_df.iterrows():
@@ -1051,7 +983,7 @@ def render_tsv_table(trees_df: pd.DataFrame, particelle_df: pd.DataFrame,
             residual_error = np.sqrt(v1_sum) / 1000  # Convert to m³
 
             # Scale error if stime_totali
-            if stime_totali:
+            if options['stime_totali']:
                 residual_error = residual_error * area_ha * SAMPLE_AREAS_PER_HA / sample_areas
 
             # Conservative CI: just use residual error (no t-statistic, no V0)
@@ -1079,7 +1011,7 @@ def render_tsv_table(trees_df: pd.DataFrame, particelle_df: pd.DataFrame,
     headers.append('Genere')
     headers.append('N. Alberi')
     headers.append('Volume (m³)')
-    if intervallo_fiduciario:
+    if options['intervallo_fiduciario']:
         headers.append('IF inf (m³)')
         headers.append('IF sup (m³)')
 
@@ -1099,7 +1031,7 @@ def render_tsv_table(trees_df: pd.DataFrame, particelle_df: pd.DataFrame,
         row.append(str(row_dict['Genere']))
         row.append(f"{row_dict['N_alberi']}")
         row.append(f"{row_dict['Volume']:.2f}")
-        if intervallo_fiduciario:
+        if options['intervallo_fiduciario']:
             row.append(f"{row_dict['IF_inf']:.2f}")
             row.append(f"{row_dict['IF_sup']:.2f}")
 
@@ -1108,12 +1040,12 @@ def render_tsv_table(trees_df: pd.DataFrame, particelle_df: pd.DataFrame,
         # Accumulate totals
         total_trees += row_dict['N_alberi']
         total_volume += row_dict['Volume']
-        if intervallo_fiduciario:
+        if options['intervallo_fiduciario']:
             total_if_inf += row_dict['IF_inf']
             total_if_sup += row_dict['IF_sup']
 
     # Add totals row if requested
-    if totali:
+    if options['totali']:
         total_row = []
         # Fill in blank cells for grouping columns
         n_group_cols = (1 if show_compresa else 0) + (1 if show_particella else 0)
@@ -1122,7 +1054,7 @@ def render_tsv_table(trees_df: pd.DataFrame, particelle_df: pd.DataFrame,
         total_row.append('Totale')
         total_row.append(f"{total_trees}")
         total_row.append(f"{total_volume:.2f}")
-        if intervallo_fiduciario:
+        if options['intervallo_fiduciario']:
             total_row.append(f"{total_if_inf:.2f}")
             total_row.append(f"{total_if_sup:.2f}")
         data_rows.append(total_row)
@@ -1187,9 +1119,23 @@ def process_template(template_text: str, trees_df: pd.DataFrame,
     """
     formatter = HTMLSnippetFormatter() if format_type == 'html' else LaTeXSnippetFormatter()
     color_map = get_color_map(sorted(trees_df['Genere'].unique()))
-    graph_counter = {}
     max_diameter = trees_df['D(cm)'].max()
     max_diameter_class = trees_df['Classe diametrica'].max()
+
+    def build_graph_filename(compresa: Optional[str], particella: Optional[str],
+                             genere: Optional[str], keyword: str) -> str:
+        """Build a filename for a graph based on the parameters."""
+        parts = []
+        if compresa:
+            parts.append(compresa)
+        else:
+            parts.append('tutte')
+        if particella:
+            parts.append(particella)
+        if genere:
+            parts.append(genere)
+        parts.append(keyword)
+        return '_'.join(parts) + '.png'
 
     def process_directive(match):
         directive = parse_template_directive(match.group(0))
@@ -1198,71 +1144,31 @@ def process_template(template_text: str, trees_df: pd.DataFrame,
 
         keyword = directive['keyword']
         params = directive['params']
+        compresa = params.get('compresa', None)
+        particella = params.get('particella', None)
+        genere = params.get('genere', None)
+        data = region_data(trees_df, particelle_df, compresa, particella, genere)
 
-        try:
-            # Extract common parameters (all now optional)
-            compresa = params.get('compresa', None)
-            particella = params.get('particella', None)
-            genere = params.get('genere', None)
-
-            # Handle @@tsv (table, no graph)
-            if keyword == 'tsv':
-                per_particella = params.get('per_particella', 'si').lower() == 'si'
-                stime_totali = params.get('stime_totali', 'no').lower() == 'si'
-                intervallo_fiduciario = params.get('intervallo_fiduciario', 'no').lower() == 'si'
-                totali = params.get('totali', 'no').lower() == 'si'
-
-                result = render_tsv_table(
-                    trees_df, particelle_df, formatter,
-                    compresa=compresa, particella=particella,
-                    per_particella=per_particella,
-                    stime_totali=stime_totali,
-                    intervallo_fiduciario=intervallo_fiduciario,
-                    totali=totali
-                )
-                print("  Generata tabella volumi")
-                return result['snippet']
-
-            # Handle graph directives (cd, ci)
-            data = prepare_region_data(trees_df, particelle_df, compresa, particella, genere)
-
-            key = (keyword, compresa, particella, genere)
-            if key not in graph_counter:
-                graph_counter[key] = 0
-            graph_counter[key] += 1
-
-            # Build filename
-            parts = []
-            if compresa:
-                parts.append(compresa)
-            else:
-                parts.append('tutte')  # All comprese
-            if particella:
-                parts.append(particella)
-            if genere:
-                parts.append(genere)
-            parts.append(keyword)
-            if graph_counter[key] > 1:
-                parts.append(str(graph_counter[key]))
-
-            filename = '_'.join(parts) + '.png'
-            output_path = output_dir / filename
-
-            if keyword == 'cd':
+        match keyword:
+            case 'tsv':
+                options = {
+                    'per_particella': params.get('per_particella', 'si').lower() == 'si',
+                    'stime_totali': params.get('stime_totali', 'no').lower() == 'si',
+                    'intervallo_fiduciario': params.get('intervallo_fiduciario', 'no').lower() == 'si',
+                    'totali': params.get('totali', 'no').lower() == 'si'
+                }
+                result = render_tsv_table(data, particelle_df, formatter, **options)
+            case 'cd':
+                filename = build_graph_filename(compresa, particella, genere, keyword)
                 result = render_cd_graph(data, max_diameter_class,
-                                         output_path, formatter, color_map)
-                print(f"  Generato: {filename}")
-            elif keyword == 'ci':
-                result = render_ci_graph(data, max_diameter,
-                                         equations_df, output_path, formatter, color_map)
-                print(f"  Generato: {filename}")
-            else:
-                raise ValueError(f"Tipo di grafico sconosciuto: {keyword}")
-
-            return result['snippet']
-
-        except Exception as e:
-            raise ValueError(f"ERRORE nella generazione di {directive['full_text']}: {e}") from e
+                                         output_dir/filename, formatter, color_map)
+            case 'ci':
+                filename = build_graph_filename(compresa, particella, genere, keyword)
+                result = render_ci_graph(data, max_diameter, equations_df,
+                                         output_dir/filename, formatter, color_map)
+            case _:
+                raise ValueError(f"Comando sconosciuto: {keyword}")
+        return result['snippet']
 
     # Find and replace all directives
     pattern = r'@@\w+\([^)]*\)'
