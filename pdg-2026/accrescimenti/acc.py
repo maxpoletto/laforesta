@@ -32,6 +32,7 @@ plt.rcParams['xtick.labelsize'] = 6
 plt.rcParams['ytick.labelsize'] = 6
 
 SAMPLE_AREAS_PER_HA = 8
+MIN_TREES_PER_HA = 0.5 # Ignore buckets less than this in classi diametriche graphs.
 
 # =============================================================================
 # REGRESSION / CURVE FITTING
@@ -622,6 +623,15 @@ def region_data(trees_df: pd.DataFrame, particelle_df: pd.DataFrame,
     estimated_total = round((sampled_trees / sample_areas) * SAMPLE_AREAS_PER_HA * area_ha)
     estimated_per_ha = round(estimated_total / area_ha)
 
+    # Calculate max significant diameter class (for x-axis scaling)
+    max_significant_diameter_class = 0
+    if len(filtered_trees) > 0 and sample_areas > 0:
+        class_counts = filtered_trees.groupby('Classe diametrica').size()
+        trees_per_ha = class_counts * SAMPLE_AREAS_PER_HA / sample_areas
+        significant_classes = trees_per_ha[trees_per_ha >= MIN_TREES_PER_HA]
+        if len(significant_classes) > 0:
+            max_significant_diameter_class = int(significant_classes.index.max())
+
     return {
         'compresa': compresa,
         'particella': particella,
@@ -634,6 +644,7 @@ def region_data(trees_df: pd.DataFrame, particelle_df: pd.DataFrame,
         'estimated_per_ha': estimated_per_ha,
         'mean_diameter_class': filtered_trees['Classe diametrica'].mean(),
         'mean_height': filtered_trees['h(m)'].mean(),
+        'max_significant_diameter_class': max_significant_diameter_class,
     }
 
 
@@ -920,7 +931,7 @@ def render_cd_graph(data: dict, max_diameter_class: int, output_path: Path,
     counts = (trees.groupby(['Classe diametrica', 'Genere']).size().unstack(fill_value=0)
               * SAMPLE_AREAS_PER_HA / sample_areas)
 
-    fig, ax = plt.subplots(figsize=(4, 2.5))
+    fig, ax = plt.subplots(figsize=(4, 3.75))
 
     bottom = np.zeros(len(counts.index))
     for species in species_list:
@@ -1160,7 +1171,7 @@ def parse_template_directive(line: str) -> Optional[dict]:
         'full_text': full_text
     }
 
-
+DIRECTIVE_PATTERN = re.compile(r'@@(\w+)\((.*?)\)')
 def process_template(template_text: str, trees_df: pd.DataFrame,
                      particelle_df: pd.DataFrame, equations_df: pd.DataFrame,
                      output_dir: Path, format_type: str) -> str:
@@ -1178,11 +1189,6 @@ def process_template(template_text: str, trees_df: pd.DataFrame,
     Returns:
         Processed template text
     """
-    formatter = HTMLSnippetFormatter() if format_type == 'html' else LaTeXSnippetFormatter()
-    color_map = get_color_map()
-    max_diameter = trees_df['D(cm)'].max()
-    max_diameter_class = trees_df['Classe diametrica'].max()
-    directives = {}  # Track duplicate directives
 
     def build_graph_filename(compresa: Optional[str], particella: Optional[str],
                              genere: Optional[str], keyword: str) -> str:
@@ -1197,11 +1203,6 @@ def process_template(template_text: str, trees_df: pd.DataFrame,
         if genere:
             parts.append(genere)
         parts.append(keyword)
-        key = (compresa, particella, genere, keyword)
-        if key in directives:
-            print(f"  Attenzione: comando duplicato {keyword})")
-        else:
-            directives[key] = True
         return '_'.join(parts) + '.png'
 
     def process_directive(match):
@@ -1216,7 +1217,8 @@ def process_template(template_text: str, trees_df: pd.DataFrame,
         genere = params.get('genere', None)
 
         try:
-            data = region_data(trees_df, particelle_df, compresa, particella, genere)
+            cache_key = (compresa, particella, genere)
+            data = data_cache[cache_key]
 
             match keyword:
                 case 'tsv':
@@ -1244,9 +1246,40 @@ def process_template(template_text: str, trees_df: pd.DataFrame,
         except Exception as e:
             raise ValueError(f"ERRORE nella generazione di {directive['full_text']}: {e}") from e
 
+    formatter = HTMLSnippetFormatter() if format_type == 'html' else LaTeXSnippetFormatter()
+    color_map = get_color_map()
+    max_diameter = trees_df['D(cm)'].max()
+
+    # First pass: parse all directives and pre-compute and cache region_data
+    data_cache = {}  # Cache region_data results by (compresa, particella, genere)
+    seen_directives = {}  # Track duplicate directives
+
+    for match in DIRECTIVE_PATTERN.finditer(template_text):
+        keyword, params_str = match.groups()
+        params = dict(re.findall(r'(\w+)=([^,]+)', params_str))
+        compresa = params.get('compresa')
+        particella = params.get('particella')
+        genere = params.get('genere')
+
+        cache_key = (compresa, particella, genere)
+        if cache_key not in data_cache:
+            data_cache[cache_key] = region_data(trees_df, particelle_df, 
+                                                compresa, particella, genere)
+        key = (compresa, particella, genere, keyword)
+        if key in seen_directives:
+            print(f"  Attenzione: comando duplicato {keyword})")
+        else:
+            seen_directives[key] = True
+
+    # Compute global max diameter class from all cached datasets
+    max_diameter_class = 0
+    for data in data_cache.values():
+        max_diameter_class = max(max_diameter_class, data['max_significant_diameter_class'])
+    if max_diameter_class == 0:
+        max_diameter_class = int(trees_df['Classe diametrica'].max())
+
     # Find and replace all directives
-    pattern = r'@@\w+\([^)]*\)'
-    processed = re.sub(pattern, process_directive, template_text)
+    processed = re.sub(DIRECTIVE_PATTERN, process_directive, template_text)
 
     return processed
 
@@ -1286,7 +1319,7 @@ def get_color_map() -> dict:
     # Organized by type: deciduous (yellows/greens), conifers (blues), special (pinks/reds)
     color_palette = {
         # Deciduous broadleaves (yellow-green spectrum)
-        'Faggio': '#F4F269',          # canary-yellow - most common broadleaf
+        'Faggio': '#F4F269',          # canary-yellow
         'Castagno': '#CEE26B',        # lime-cream
         'Acero': '#A8D26D',           # willow-green
         'Cerro': '#82C26E',           # moss-green
@@ -1296,9 +1329,9 @@ def get_color_map() -> dict:
         # Conifers (blue-aqua spectrum)
         'Abete': '#0c63e7',           # royal-blue - firs
         'Douglas': '#07c8f9',         # sky-aqua
-        'Pino': '#09a6f3',            # fresh-sky - all the common pines
-        'Pino Nero': '#09a6f3',       # fresh-sky
-        'Pino Laricio': '#09a6f3',    # fresh-sky
+        'Pino': '#09a6f3',            # fresh-sky - common pines
+        'Pino Nero': '#0a85ed',       # brilliant-azure
+        'Pino Laricio': '#0a85ed',    # brilliant-azure
 
         # Special cases (coral/pink spectrum)
         'Pino Marittimo': '#FB6363',  # vibrant-coral
