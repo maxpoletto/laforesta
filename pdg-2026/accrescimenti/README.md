@@ -10,7 +10,7 @@ Forest analysis tool for height/volume calculations and report generation
          --input INPUT_FILE --output EQUATION_FILE --particelle PARCEL_METADATA
 ```
 
-Fits curves (y = a·ln(x) + b or y = a·x + b) for each (compresa, genere) pair.  
+Fits curves (y = a·ln(x) + b or y = a·x + b) for each (compresa, genere) pair.
 Output CSV: `compresa,genere,funzione,a,b,r2,n`
 
 ### 2. Calculate heights
@@ -56,7 +56,9 @@ Lists all (compresa, particella) tuples.
 | `compresa=NAME` | compresa name | Filter by compresa (default: all) | all |
 | `particella=NAME` | particella name | Filter by particella (requires compresa) | all |
 | `genere=GENERE` | species name | Filter by species (default: all species on one graph) | all |
+| `per_compresa` | `si`, `no` | Group by compresa (default: `si`) | `@@tsv` only |
 | `per_particella` | `si`, `no` | Group by particella (default: `si`) | `@@tsv` only |
+| `per_genere` | `si`, `no` | Group by genere (default: `si`) | `@@tsv` only |
 | `stime_totali` | `si`, `no` | Show estimated total volumes (default: `no`) | `@@tsv` only |
 | `intervallo_fiduciario` | `si`, `no` | Show confidence intervals (default: `no`) | `@@tsv` only |
 | `totali` | `si`, `no` | Add totals row (default: `no`) | `@@tsv` only |
@@ -66,11 +68,11 @@ Lists all (compresa, particella) tuples.
 - **Equation files** (CSV): Regression coefficients for height-diameter relationships
   - Columns: `compresa,genere,funzione,a,b,r2,n`
   - One row per (compresa, genere) pair with sufficient data (n ≥ 10)
-  
+
 - **Height files** (CSV): Field measurements from ipsometer or textbook data
   - Ipsometer: `Compresa,Particella,Area saggio,Genere,D(cm),h(m)`
   - Textbook: `Genere,Classe diametrica,Altezza indicativa`
-  
+
 - **Tree database** (CSV): Complete tree inventory with computed attributes
   - Columns: `Compresa,Particella,Area saggio,Genere,D(cm),h(m),V(m³),Fustaia,Classe diametrica`
   - Heights initially estimated, refined using equations

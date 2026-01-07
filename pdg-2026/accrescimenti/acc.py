@@ -1005,7 +1005,9 @@ def render_tsv_table(data: dict, particelle_df: pd.DataFrame,
         particelle_df: Parcel metadata
         formatter: HTML or LaTeX snippet formatter
         options: Dictionary of options:
-            - per_particella: If True, show rows per particella; if False, aggregate
+            - per_compresa: If True, show rows per compresa; if False, aggregate (default: si)
+            - per_particella: If True, show rows per particella; if False, aggregate (default: si)
+            - per_genere: If True, show rows per genere; if False, aggregate (default: si)
             - stime_totali: If True, scale to total volume; if False, show sampled volume
             - intervallo_fiduciario: If True, include confidence interval columns
             - totali: If True, add totals row at bottom
@@ -1016,27 +1018,30 @@ def render_tsv_table(data: dict, particelle_df: pd.DataFrame,
     filtered_trees = data['trees']
     compresa = data['compresa']
     particella = data['particella']
+    genere = data.get('genere')  # May not be in data dict if not filtered
 
-    # Determine grouping columns
+    # Determine grouping columns based on per_* flags and filters
+    # If a dimension is already filtered (specific value provided), don't group by it
+    # Otherwise, use the per_* flag to decide
     group_cols = []
-    if not options['per_particella'] or particella:
-        # Case (d): specific particella, group by genere only
-        # Case (c) with per_particella=no: group by genere only
-        if compresa and not particella:
-            group_cols = ['Genere']
-        elif particella:
-            group_cols = ['Genere']
-        else:
-            # Case (a) with per_particella=no: group by (compresa, genere)
-            group_cols = ['Compresa', 'Genere']
-    else:
-        # per_particella=si
-        if compresa:
-            # Case (c) with per_particella=si: group by (particella, genere)
-            group_cols = ['Particella', 'Genere']
-        else:
-            # Case (a) with per_particella=si: group by (compresa, particella, genere)
-            group_cols = ['Compresa', 'Particella', 'Genere']
+
+    # Compresa: include if not filtered and per_compresa=si
+    if not compresa and options.get('per_compresa', True):
+        group_cols.append('Compresa')
+
+    # Particella: include if not filtered and per_particella=si
+    if not particella and options.get('per_particella', True):
+        group_cols.append('Particella')
+
+    # Genere: include if not filtered and per_genere=si
+    if not genere and options.get('per_genere', True):
+        group_cols.append('Genere')
+
+    # If no grouping columns, aggregate everything into one row
+    if not group_cols:
+        group_cols = ['_dummy']  # Dummy column for single aggregation
+        filtered_trees = filtered_trees.copy()
+        filtered_trees['_dummy'] = 'Totale'
 
     # Aggregate data
     table_rows = []
@@ -1115,12 +1120,17 @@ def render_tsv_table(data: dict, particelle_df: pd.DataFrame,
     headers = []
     show_compresa = 'Compresa' in group_cols
     show_particella = 'Particella' in group_cols
+    show_genere = 'Genere' in group_cols
+    show_dummy = '_dummy' in group_cols
 
     if show_compresa:
         headers.append('Compresa')
     if show_particella:
         headers.append('Particella')
-    headers.append('Genere')
+    if show_genere:
+        headers.append('Genere')
+
+    # Always show value columns
     headers.append('N. Alberi')
     headers.append('Volume (m³)')
     if options['intervallo_fiduciario']:
@@ -1140,7 +1150,9 @@ def render_tsv_table(data: dict, particelle_df: pd.DataFrame,
             row.append(str(row_dict.get('Compresa', '')))
         if show_particella:
             row.append(str(row_dict.get('Particella', '')))
-        row.append(str(row_dict['Genere']))
+        if show_genere:
+            row.append(str(row_dict.get('Genere', '')))
+        # Skip _dummy column in output
         row.append(f"{row_dict['N_alberi']}")
         row.append(f"{row_dict['Volume']:.2f}")
         if options['intervallo_fiduciario']:
@@ -1156,14 +1168,20 @@ def render_tsv_table(data: dict, particelle_df: pd.DataFrame,
             total_if_inf += row_dict['IF_inf']
             total_if_sup += row_dict['IF_sup']
 
-    # Add totals row if requested
-    if options['totali']:
+    # Add totals row if requested (skip if dummy aggregation, which is already a total)
+    if options['totali'] and not show_dummy:
         total_row = []
-        # Fill in blank cells for grouping columns
-        n_group_cols = (1 if show_compresa else 0) + (1 if show_particella else 0)
-        for _ in range(n_group_cols):
+        # Fill in blank cells for grouping columns (except the last one where we put 'Totale')
+        n_group_cols = ((1 if show_compresa else 0) +
+                       (1 if show_particella else 0) +
+                       (1 if show_genere else 0))
+
+        # Add blank cells for all but the last grouping column
+        for _ in range(n_group_cols - 1):
             total_row.append('')
-        total_row.append('Totale')
+        # Put 'Totale' in the last grouping column (or first column if no grouping)
+        if n_group_cols > 0:
+            total_row.append('Totale')
         total_row.append(f"{total_trees}")
         total_row.append(f"{total_volume:.2f}")
         if options['intervallo_fiduciario']:
@@ -1263,7 +1281,9 @@ def process_template(template_text: str, trees_df: pd.DataFrame,
             match keyword:
                 case 'tsv':
                     options = {
+                        'per_compresa': params.get('per_compresa', 'si').lower() == 'si',
                         'per_particella': params.get('per_particella', 'si').lower() == 'si',
+                        'per_genere': params.get('per_genere', 'si').lower() == 'si',
                         'stime_totali': params.get('stime_totali', 'no').lower() == 'si',
                         'intervallo_fiduciario':
                             params.get('intervallo_fiduciario', 'no').lower() == 'si',
