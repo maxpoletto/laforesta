@@ -55,6 +55,15 @@ $(CSV_DIR)/equazioni_tabelle.csv: $(CSV_DIR)/alsometrie.csv $(CSV_DIR)/particell
 	./acc.py --genera-equazioni --funzione log --fonte-altezze tabelle --particelle $(CSV_DIR)/particelle.csv --input $(CSV_DIR)/alsometrie.csv --output $(CSV_DIR)/equazioni_tabelle.csv
 
 #
+# Volumes
+#
+
+volumi: $(CSV_DIR)/alberi-con-volumi.csv
+
+$(CSV_DIR)/alberi-con-volumi.csv: $(CSV_DIR)/alberi-calcolati.csv
+	./acc.py --calcola-volumi --input $(CSV_DIR)/alberi-calcolati.csv --output $(CSV_DIR)/alberi-con-volumi.csv
+
+#
 # HTML output
 #
 
@@ -79,7 +88,7 @@ html/per-compresa/altezze-calcolate/index.html: $(CSV_DIR)/alberi-calcolati.csv 
 pdf: tex/relazione.pdf
 
 tex/relazione.pdf: template/tex/relazione.tex $(CSV_DIR)/alberi.csv $(CSV_DIR)/particelle.csv $(CSV_DIR)/equazioni_ipsometro.csv $(CSV_DIR)/equazioni_originali.csv $(CSV_DIR)/equazioni_tabelle.csv
-	./acc.py --report --formato pdf --equazioni $(CSV_DIR)/equazioni_ipsometro.csv --alberi $(CSV_DIR)/alberi-calcolati.csv --particelle $(CSV_DIR)/particelle.csv --input template/tex/relazione.tex --output-dir tex/
+	./acc.py --report --formato pdf --equazioni $(CSV_DIR)/equazioni_ipsometro.csv --alberi $(CSV_DIR)/alberi-con-volumi.csv --particelle $(CSV_DIR)/particelle.csv --input template/tex/relazione.tex --output-dir tex/
 
 clean-pdf:
 	rm -f tex/relazione.pdf tex/relazione.tex
@@ -94,7 +103,7 @@ dati: ./analysis.py $(CSV_DIR)/alberi.csv $(CSV_DIR)/alsometrie.csv $(CSV_DIR)/p
 	ci-originali-per-compresa ci-originali-per-particella \
 	ci-interpolate-per-compresa ci-interpolate-per-particella
 
-volumi: ./calcolo-volumi.py $(CSV_DIR)/alberi-calcolati.csv
+volumi2: ./calcolo-volumi.py $(CSV_DIR)/alberi-calcolati.csv
 	./calcolo-volumi.py $(CSV_DIR)/alberi-calcolati.csv -v
 
 report: ./analysis.py $(CSV_DIR)/alberi.csv $(CSV_DIR)/alsometrie.csv $(CSV_DIR)/particelle.csv $(CSV_DIR)/altezze.csv

@@ -301,6 +301,18 @@ class SnippetFormatter(ABC):
                        from equations.csv
         """
 
+    @abstractmethod
+    def format_table(self, headers: list[str], rows: list[list[str]]) -> str:
+        """Format a data table for this format.
+
+        Args:
+            headers: Column headers
+            rows: Data rows (each row is a list of strings)
+
+        Returns:
+            Formatted table snippet
+        """
+
 
 class HTMLSnippetFormatter(SnippetFormatter):
     """HTML snippet formatter."""
@@ -328,6 +340,22 @@ class HTMLSnippetFormatter(SnippetFormatter):
                         f'(R² = {curve["r_squared"]:.2f}, n = {curve["n_points"]})</p>\n')
 
         html += '</div>\n'
+        return html
+
+    def format_table(self, headers: list[str], rows: list[list[str]]) -> str:
+        """Format table as HTML."""
+        html = '<table class="volume-table">\n'
+        html += '  <thead>\n    <tr>\n'
+        for header in headers:
+            html += f'      <th>{header}</th>\n'
+        html += '    </tr>\n  </thead>\n'
+        html += '  <tbody>\n'
+        for row in rows:
+            html += '    <tr>\n'
+            for cell in row:
+                html += f'      <td>{cell}</td>\n'
+            html += '    </tr>\n'
+        html += '  </tbody>\n</table>\n'
         return html
 
 
@@ -362,6 +390,27 @@ class LaTeXSnippetFormatter(SnippetFormatter):
                          f"$n$ = {curve['n_points']})\\\\\n")
 
         latex += '\\end{quote}\n'
+        return latex
+
+    def format_table(self, headers: list[str], rows: list[list[str]]) -> str:
+        """Format table as LaTeX."""
+        n_cols = len(headers)
+        # Use l for text columns, r for numeric columns
+        # Assume last columns are numeric (volumes)
+        col_spec = 'l' * (n_cols - 2) + 'r' * min(2, n_cols)
+        if n_cols > 2:
+            col_spec = 'l' * (n_cols - 2) + 'r' * 2
+        else:
+            col_spec = 'l' * n_cols
+
+        latex = f'\\begin{{tabular}}{{{col_spec}}}\n'
+        latex += '\\hline\n'
+        latex += ' & '.join(headers) + ' \\\\\n'
+        latex += '\\hline\n'
+        for row in rows:
+            latex += ' & '.join(row) + ' \\\\\n'
+        latex += '\\hline\n'
+        latex += '\\end{tabular}\n'
         return latex
 
 
@@ -846,6 +895,203 @@ def render_cd_graph(data: dict, max_diameter_class: int, output_path: Path,
     }
 
 
+def render_tsv_table(trees_df: pd.DataFrame, particelle_df: pd.DataFrame,
+                    formatter: SnippetFormatter,
+                    compresa: Optional[str] = None,
+                    particella: Optional[str] = None,
+                    per_particella: bool = True,
+                    stime_totali: bool = False,
+                    intervallo_fiduciario: bool = False,
+                    totali: bool = False) -> dict:
+    """
+    Generate volume summary table (@@tsv directive).
+
+    Args:
+        trees_df: Full tree database with V(m3) column
+        particelle_df: Parcel metadata
+        formatter: HTML or LaTeX snippet formatter
+        compresa: Optional compresa filter
+        particella: Optional particella filter
+        per_particella: If True, show rows per particella; if False, aggregate
+        stime_totali: If True, scale to total volume; if False, show sampled volume
+        intervallo_fiduciario: If True, include confidence interval columns
+        totali: If True, add totals row at bottom
+
+    Returns:
+        dict with 'snippet' key containing formatted table
+    """
+    # Validate parameters
+    if particella and not compresa:
+        raise ValueError("@@tsv: particella richiede compresa")
+
+    # Filter trees
+    filtered_trees = trees_df.copy()
+    if compresa:
+        filtered_trees = filtered_trees[filtered_trees['Compresa'] == compresa]
+    if particella:
+        filtered_trees = filtered_trees[filtered_trees['Particella'] == particella]
+
+    if len(filtered_trees) == 0:
+        region_label = f"{compresa}-{particella}" if particella else (compresa or "tutte le comprese")
+        raise ValueError(f"@@tsv: Nessun dato trovato per {region_label}")
+
+    # Determine grouping columns
+    group_cols = []
+    if not per_particella or particella:
+        # Case (d): specific particella, group by genere only
+        # Case (c) with per_particella=no: group by genere only
+        if compresa and not particella:
+            group_cols = ['Genere']
+        elif particella:
+            group_cols = ['Genere']
+        else:
+            # Case (a) with per_particella=no: group by (compresa, genere)
+            group_cols = ['Compresa', 'Genere']
+    else:
+        # per_particella=si
+        if compresa:
+            # Case (c) with per_particella=si: group by (particella, genere)
+            group_cols = ['Particella', 'Genere']
+        else:
+            # Case (a) with per_particella=si: group by (compresa, particella, genere)
+            group_cols = ['Compresa', 'Particella', 'Genere']
+
+    # Aggregate data
+    table_rows = []
+    for group_key, group_df in filtered_trees.groupby(group_cols):
+        if not isinstance(group_key, tuple):
+            group_key = (group_key,)
+
+        # Extract group identifiers
+        row_dict = dict(zip(group_cols, group_key))
+
+        # Count trees and sum volumes
+        n_trees = len(group_df)
+        sampled_volume = group_df['V(m3)'].sum()
+
+        # Scale to total if requested
+        if stime_totali:
+            # Get region info for scaling
+            region_compresa = row_dict.get('Compresa', compresa)
+            region_particella = row_dict.get('Particella', particella)
+
+            # Get particelle info for this region
+            if region_particella:
+                region_particelle = particelle_df[
+                    (particelle_df['Compresa'] == region_compresa) &
+                    (particelle_df['Particella'] == region_particella)
+                ]
+            else:
+                region_particelle = particelle_df[particelle_df['Compresa'] == region_compresa]
+
+            area_ha = region_particelle['Area (ha)'].sum()
+            sample_areas = len(group_df['Area saggio'].unique())
+
+            volume = sampled_volume * area_ha * SAMPLE_AREAS_PER_HA / sample_areas
+            n_trees_display = int(n_trees * area_ha * SAMPLE_AREAS_PER_HA / sample_areas)
+        else:
+            volume = sampled_volume
+            n_trees_display = n_trees
+
+        row_dict['N_alberi'] = n_trees_display
+        row_dict['Volume'] = volume
+
+        # Compute confidence intervals if requested
+        if intervallo_fiduciario:
+            # Recompute residual errors for this group
+            v1_sum = 0.0
+            for _, tree in group_df.iterrows():
+                d2h = (tree['D(cm)'] ** 2) * tree['h(m)']
+                genere = tree['Genere']
+                if genere in TABACCHI_S2:
+                    v1_sum += TABACCHI_S2[genere] * (d2h ** 2)
+
+            # Residual error (V1 component only, conservative)
+            residual_error = np.sqrt(v1_sum) / 1000  # Convert to m³
+
+            # Scale error if stime_totali
+            if stime_totali:
+                residual_error = residual_error * area_ha * SAMPLE_AREAS_PER_HA / sample_areas
+
+            # Conservative CI: just use residual error (no t-statistic, no V0)
+            # For proper CI we'd need to aggregate V0 across groups, which is complex
+            row_dict['IF_inf'] = volume - residual_error
+            row_dict['IF_sup'] = volume + residual_error
+
+        table_rows.append(row_dict)
+
+    # Sort rows
+    if len(table_rows) == 0:
+        raise ValueError("@@tsv: Nessun dato da visualizzare")
+
+    table_rows = sorted(table_rows, key=lambda r: tuple(r.get(col, '') for col in group_cols))
+
+    # Build table headers
+    headers = []
+    show_compresa = 'Compresa' in group_cols
+    show_particella = 'Particella' in group_cols
+
+    if show_compresa:
+        headers.append('Compresa')
+    if show_particella:
+        headers.append('Particella')
+    headers.append('Genere')
+    headers.append('N. Alberi')
+    headers.append('Volume (m³)')
+    if intervallo_fiduciario:
+        headers.append('IF inf (m³)')
+        headers.append('IF sup (m³)')
+
+    # Build table data rows
+    data_rows = []
+    total_trees = 0
+    total_volume = 0.0
+    total_if_inf = 0.0
+    total_if_sup = 0.0
+
+    for row_dict in table_rows:
+        row = []
+        if show_compresa:
+            row.append(str(row_dict.get('Compresa', '')))
+        if show_particella:
+            row.append(str(row_dict.get('Particella', '')))
+        row.append(str(row_dict['Genere']))
+        row.append(f"{row_dict['N_alberi']}")
+        row.append(f"{row_dict['Volume']:.2f}")
+        if intervallo_fiduciario:
+            row.append(f"{row_dict['IF_inf']:.2f}")
+            row.append(f"{row_dict['IF_sup']:.2f}")
+
+        data_rows.append(row)
+
+        # Accumulate totals
+        total_trees += row_dict['N_alberi']
+        total_volume += row_dict['Volume']
+        if intervallo_fiduciario:
+            total_if_inf += row_dict['IF_inf']
+            total_if_sup += row_dict['IF_sup']
+
+    # Add totals row if requested
+    if totali:
+        total_row = []
+        # Fill in blank cells for grouping columns
+        n_group_cols = (1 if show_compresa else 0) + (1 if show_particella else 0)
+        for _ in range(n_group_cols):
+            total_row.append('')
+        total_row.append('Totale')
+        total_row.append(f"{total_trees}")
+        total_row.append(f"{total_volume:.2f}")
+        if intervallo_fiduciario:
+            total_row.append(f"{total_if_inf:.2f}")
+            total_row.append(f"{total_if_sup:.2f}")
+        data_rows.append(total_row)
+
+    # Format table
+    snippet = formatter.format_table(headers, data_rows)
+
+    return {'snippet': snippet}
+
+
 def parse_template_directive(line: str) -> Optional[dict]:
     """
     Parse a template directive like @@ci(compresa=Serra, genere=Abete).
@@ -912,16 +1158,36 @@ def process_template(template_text: str, trees_df: pd.DataFrame,
         keyword = directive['keyword']
         params = directive['params']
 
-        # Validate required parameters
-        if 'compresa' not in params:
-            print(f"ERRORE: Direttiva {directive['full_text']} manca del parametro 'compresa'")
-            return directive['full_text']
-
-        compresa = params['compresa']
-        particella = params.get('particella', None)
-        genere = params.get('genere', None)
-
         try:
+            # Handle @@tsv separately (doesn't require compresa, no graph generation)
+            if keyword == 'tsv':
+                compresa = params.get('compresa', None)
+                particella = params.get('particella', None)
+                per_particella = params.get('per_particella', 'si').lower() == 'si'
+                stime_totali = params.get('stime_totali', 'no').lower() == 'si'
+                intervallo_fiduciario = params.get('intervallo_fiduciario', 'no').lower() == 'si'
+                totali = params.get('totali', 'no').lower() == 'si'
+
+                result = render_tsv_table(
+                    trees_df, particelle_df, formatter,
+                    compresa=compresa, particella=particella,
+                    per_particella=per_particella,
+                    stime_totali=stime_totali,
+                    intervallo_fiduciario=intervallo_fiduciario,
+                    totali=totali
+                )
+                print("  Generata tabella volumi")
+                return result['snippet']
+
+            # For graph directives (cd, ci), compresa is required
+            if 'compresa' not in params:
+                print(f"ERRORE: Direttiva {directive['full_text']} manca del parametro 'compresa'")
+                return directive['full_text']
+
+            compresa = params['compresa']
+            particella = params.get('particella', None)
+            genere = params.get('genere', None)
+
             data = prepare_region_data(trees_df, particelle_df, compresa, particella, genere)
 
             key = (keyword, compresa, particella, genere)
