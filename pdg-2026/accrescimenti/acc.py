@@ -199,7 +199,8 @@ class HTMLSnippetFormatter(SnippetFormatter):
             html += f'{stat["mean_diameter_class"]:.0f}</p>\n'
 
         if curve_info:
-            html += '<br><p><strong>Equazioni interpolanti:</strong></p>\n'
+            i = 'i' if len(curve_info) > 1 else 'e'
+            html += f'<br><p><strong>Equazion{i} interpolant{i}:</strong></p>\n'
             for curve in curve_info:
                 html += (f'<p>{curve["species"]}: {curve["equation"]} '
                         f'(R² = {curve["r_squared"]:.2f}, n = {curve["n_points"]})</p>\n')
@@ -247,7 +248,8 @@ class LaTeXSnippetFormatter(SnippetFormatter):
             latex += f"{stat['mean_diameter_class']:.0f}\\\\\n"
 
         if curve_info:
-            latex += '\\\\\n\\textbf{Equazioni interpolanti:}\\\\\n'
+            i = 'i' if len(curve_info) > 1 else 'e'
+            latex += f'\\\\\n\\textbf{{Equazion{i} interpolant{i}:}}\\\\\n'
             for curve in curve_info:
                 eq = curve['equation'].replace('*', r'\times ')
                 eq = eq.replace('ln', r'\ln')
