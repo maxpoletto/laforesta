@@ -44,7 +44,7 @@ def lin_func(x, a, b):
 def analyze_and_plot(df, func, func_name, plot_file, fit_file=None, title_prefix=''):
     """
     Perform analysis and generate plot for a dataset.
-    
+
     Args:
         df: DataFrame with columns Specie, Diametro, Altezza
         func: Fit function to use
@@ -54,19 +54,19 @@ def analyze_and_plot(df, func, func_name, plot_file, fit_file=None, title_prefix
         title_prefix: Prefix for the plot title
     """
     plt.figure(figsize=(12, 7))
- 
+
     species = sorted(df['Specie'].unique())
- 
+
     # Colors for consistent plotting
     colors = plt.cm.tab10(np.linspace(0, 1, len(species)))
-    
+
     # Prepare fit results output
     fit_results = []
     if title_prefix:
         fit_results.append(f"{title_prefix}")
     fit_results.append(f"Tipo di fit: {func_name}")
     fit_results.append(f"Dati: {len(df)} osservazioni")
- 
+
     for i, sp in enumerate(species):
         species_data = df[df['Specie'] == sp]
         x = species_data['Diametro'].values
@@ -101,7 +101,7 @@ def analyze_and_plot(df, func, func_name, plot_file, fit_file=None, title_prefix
     # Extract output basename without extension for title
     prefix = f"{title_prefix}: " if title_prefix else ""
     plot_title = f'{prefix}Altezza vs Diametro per Specie (con fit {func_name})'
-    
+
     plt.xlabel('Diametro a cm 150 (cm)', fontsize=11)
     plt.ylabel('Altezza (m)', fontsize=11)
     plt.title(plot_title, fontsize=13)
@@ -110,7 +110,7 @@ def analyze_and_plot(df, func, func_name, plot_file, fit_file=None, title_prefix
     plt.tight_layout()
 
     plt.savefig(plot_file, dpi=150, bbox_inches='tight')
-    
+
     # Output fit results
     fit_text = '\n'.join(fit_results)
     if fit_file:
@@ -128,7 +128,7 @@ def main():
                         help='Formato del CSV: 3 colonne (Specie,Diametro,Altezza) o 6 colonne (Compresa,ADS,Specie,Diametro,Altezza,Metodo)')
     parser.add_argument('--fit', choices=['lin', 'log'], default='log',
                         help='Tipo di fit: lineare (lin) o logaritmico (log) (default: log)')
-    parser.add_argument('-o', '--output', 
+    parser.add_argument('-o', '--output',
                         help='Prefisso per i file di output (default: ipsometrie)', default='ipsometrie')
     parser.add_argument('--per-particella', action='store_true', default=False,
                         help='Analisi per particella (usare solo con --format=6c)')
@@ -153,14 +153,14 @@ def main():
         df = load_data_from_csv(args.csv_file)
         print(f"Dati caricati da {args.csv_file}: {len(df)} osservazioni")
         analyze_and_plot(df, func, func_name, plot_file, fit_file)
-        
+
     elif args.format == '6c':
         # New 6-column format with Compresa grouping
         prefix = f"{args.output}"
-        
+
         df = load_data_from_6column_csv(args.csv_file)
         print(f"Dati caricati da {args.csv_file}: {len(df)} osservazioni")
-        
+
         # Group by Compresa or Particella
         if args.per_particella:
             group_by = 'Particella'
@@ -169,12 +169,12 @@ def main():
         regions = sorted(df[group_by].unique())
         plural = 'Particelle' if args.per_particella else 'Comprese'
         print(f"{plural} trovate: {', '.join(str(r) for r in regions)}\n")
-    
+
         for region in regions:
-            region_df = df[df[group_by] == region][['Specie', 'Diametro', 'Altezza']].copy()            
+            region_df = df[df[group_by] == region][['Specie', 'Diametro', 'Altezza']].copy()
             plot_file = f"{prefix}-{region}-plot.png"
             fit_file = f"{prefix}-{region}-fit.txt"
-            analyze_and_plot(region_df, func, func_name, plot_file, 
+            analyze_and_plot(region_df, func, func_name, plot_file,
                            fit_file=fit_file, title_prefix=f"{group_by} {region}")
 
 if __name__ == '__main__':
