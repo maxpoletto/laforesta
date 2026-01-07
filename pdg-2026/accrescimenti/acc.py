@@ -952,10 +952,10 @@ def render_cd_graph(data: dict, max_diameter_class: int, output_path: Path,
     ax.set_ylim(0, counts.sum(axis=1).max() * 1.1)
     ax.grid(True, alpha=0.3, axis='y')
     ax.set_axisbelow(True)
-    
+
     # Reverse legend order to match visual stacking order (top-to-bottom)
     handles, labels = ax.get_legend_handles_labels()
-    ax.legend(reversed(handles), reversed(labels), 
+    ax.legend(reversed(handles), reversed(labels),
               title='Specie', bbox_to_anchor=(1.01, 1.02), alignment='left')
 
     plt.tight_layout()
@@ -969,6 +969,29 @@ def render_cd_graph(data: dict, max_diameter_class: int, output_path: Path,
         'filepath': output_path,
         'snippet': snippet
     }
+
+
+PART_PATTERN = re.compile(r'^(\d+)([a-zA-Z]*)$')
+def natural_sort_key(value: str) -> tuple:
+    """
+    Generate a sort key for natural (alphanumeric) sorting.
+
+    Handles particelle like "2a", "10b", etc. so that:
+    - Numeric parts sort numerically (9 < 10)
+    - Alphabetic suffixes sort alphabetically (2a < 2b)
+
+    Args:
+        value: String to generate sort key for
+
+    Returns:
+        Tuple of (numeric_part, alphabetic_part) for sorting
+    """
+    match = PART_PATTERN.match(value)
+    if match:
+        numeric = int(match.group(1))
+        alpha = match.group(2)
+        return (numeric, alpha)
+    return (float('inf'), str(value))
 
 
 def render_tsv_table(data: dict, particelle_df: pd.DataFrame,
@@ -1075,7 +1098,18 @@ def render_tsv_table(data: dict, particelle_df: pd.DataFrame,
     if len(table_rows) == 0:
         raise ValueError("@@tsv: Nessun dato da visualizzare")
 
-    table_rows = sorted(table_rows, key=lambda r: tuple(r.get(col, '') for col in group_cols))
+    def sort_key(row):
+        """Generate sort key with natural sorting for Particella column."""
+        key_parts = []
+        for col in group_cols:
+            value = row.get(col, '')
+            if col == 'Particella':
+                key_parts.append(natural_sort_key(value))
+            else:
+                key_parts.append((0, str(value)))  # Regular string sort for other columns
+        return tuple(key_parts)
+
+    table_rows = sorted(table_rows, key=sort_key)
 
     # Build table headers
     headers = []
@@ -1269,7 +1303,7 @@ def process_template(template_text: str, trees_df: pd.DataFrame,
 
         cache_key = (compresa, particella, genere)
         if cache_key not in data_cache:
-            data_cache[cache_key] = region_data(trees_df, particelle_df, 
+            data_cache[cache_key] = region_data(trees_df, particelle_df,
                                                 compresa, particella, genere)
         key = (compresa, particella, genere, keyword)
         if key in seen_directives:
@@ -1309,7 +1343,8 @@ def list_parcels(particelle_file: str) -> None:
     # Group by Compresa and list particelle
     for compresa in sorted(df['Compresa'].unique()):
         compresa_data = df[df['Compresa'] == compresa]
-        particelle = sorted(compresa_data['Particella'].astype(str).unique())
+        particelle = sorted(compresa_data['Particella'].astype(str).unique(),
+                          key=natural_sort_key)
         for particella in particelle:
             print(f"  {compresa},{particella}")
 
