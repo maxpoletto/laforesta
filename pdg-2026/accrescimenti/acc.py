@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# pylint: disable=too-many-lines
 """
 Forest Analysis: Accrescimenti Tool
 Three-mode tool for equation generation, height calculation, and report generation.
@@ -147,6 +148,143 @@ class LinearRegression(RegressionFunc):
 
 
 # =============================================================================
+# TABACCHI VOLUME COEFFICIENTS (from calcolo-volumi.py)
+# =============================================================================
+
+# Covariance matrices for volume equation coefficients (by species)
+# These will be made symmetric after definition
+TABACCHI_COV = {
+    'Abete': np.array([
+        [  4.9584,     0,         0 ],
+        [  1.1274e-3,  7.6175e-7, 0 ],
+        [ -7.1820e-1, -2.0243e-4, 1.1287e-1 ],
+    ]),
+    'Acero': np.array([
+        [  9.8852e-1,  0],
+        [ -4.7366e-4,  8.4075e-7]
+    ]),
+    'Castagno': np.array([
+        [  6.5052,     0,         0 ],
+        [  2.0090e-3,  1.2430e-6, 0 ],
+        [ -1.0771,    -3.9067e-4, 1.9110e-1 ]
+    ]),
+    'Cerro': np.array([
+        [  4.5573e-1, 0 ],
+        [ -1.8540e-4, 3.6935e-7 ]
+    ]),
+    'Ciliegio': np.array([
+        [  1.5377e1,   0,         0 ],
+        [  8.9101e-3,  9.7080e-6, 0 ],
+        [ -2.6997,    -1.8132e-3, 4.9690e-1 ]
+    ]),
+    'Douglas': np.array([
+        [  6.2135e1,   0,         0 ],
+        [  6.9406e-3,  1.2592e-6, 0 ],
+        [ -6.8517,    -8.2763e-4, 7.7268e-1 ]
+    ]),
+    'Faggio': np.array([
+        [  1.2573,    0 ],
+        [ -3.2331e-4, 6.4872e-7 ]
+    ]),
+    'Leccio': np.array([
+        [  8.9968,     0,         0 ],
+        [  4.6303e-3,  3.9302e-6, 0 ],
+        [ -1.6058,    -9.3376e-4, 3.0078e-1 ]
+    ]),
+    'Ontano': np.array([
+        [  4.9867e1,   0,         0 ],
+        [  1.3116e-2,  5.3498e-6, 0 ],
+        [ -7.1964,    -2.0513e-3, 1.0716 ]
+    ]),
+    'Pino': np.array([
+        [  3.2482,    0 ],
+        [ -7.5710e-4, 3.0428e-7 ]
+    ]),
+    'Pino Laricio': np.array([
+        [  3.2482,    0 ],
+        [ -7.5710e-4, 3.0428e-7 ]
+    ]),
+    'Pino Marittimo': np.array([
+        [  2.6524e-1, 0 ],
+        [ -1.2270e-4, 5.9640e-7 ]
+    ]),
+    'Pino Nero': np.array([
+        [  2.9797e1,   0,         0 ],
+        [  4.5880e-3,  1.3001e-6, 0 ],
+        [ -3.0604,    -5.4676e-4, 3.3202e-1 ]
+    ]),
+    'Sorbo': np.array([
+        [  1.5377e1,   0,         0 ],
+        [  8.9101e-3,  9.7080e-6, 0 ],
+        [ -2.6997,    -1.8132e-3, 4.9690e-1 ]
+    ]),
+}
+
+# Volume equation coefficients (as row vectors, will be transposed to column vectors)
+TABACCHI_B = {
+    'Abete':          np.array([ -1.8381,    3.7836e-2, 3.9934e-1 ]),
+    'Acero':          np.array([  1.6905,    3.7082e-2 ]),
+    'Castagno':       np.array([ -2,         3.6524e-2, 7.4466e-1 ]),
+    'Cerro':          np.array([ -4.3221e-2, 3.8079e-2 ]),
+    'Ciliegio':       np.array([  2.3118,    3.1278e-2, 3.7159e-1 ]),
+    'Douglas':        np.array([ -7.9946,    3.3343e-2, 1.2186 ]),
+    'Faggio':         np.array([  8.1151e-1, 3.8965e-2 ]),
+    'Leccio':         np.array([ -2.2219,    3.9685e-2, 6.2762e-1 ]),
+    'Ontano':         np.array([ -2.2932e1,  3.2641e-2, 2.991 ]),
+    'Pino':           np.array([  6.4383,    3.8594e-2 ]),
+    'Pino Laricio':   np.array([  6.4383,    3.8594e-2 ]),
+    'Pino Marittimo': np.array([  2.9963,    3.8302e-2 ]),
+    'Pino Nero':      np.array([ -2.1480e1,  3.3448e-2, 2.9088]),
+    'Sorbo':          np.array([  2.3118,    3.1278e-2, 3.7159e-1 ]),
+}
+
+# Degrees of freedom for t-statistic (n - 2)
+TABACCHI_NS = {
+    'Abete': 46,
+    'Acero': 37,
+    'Castagno': 85,
+    'Cerro': 88,
+    'Ciliegio': 22,
+    'Douglas': 35,
+    'Faggio': 91,
+    'Leccio': 83,
+    'Ontano': 35,
+    'Pino': 50,
+    'Pino Laricio': 50,
+    'Pino Marittimo': 26,
+    'Pino Nero': 63,
+    'Sorbo': 22,
+}
+
+# Residual variance (s²)
+TABACCHI_S2 = {
+    'Abete': 1.5284e-5,
+    'Acero': 2.2710e-5,
+    'Castagno': 3.0491e-5,
+    'Cerro': 2.5866e-5,
+    'Ciliegio': 4.0506e-5,
+    'Douglas': 9.0103e-6,
+    'Faggio': 5.1468e-5,
+    'Leccio': 6.0915e-5,
+    'Ontano': 3.9958e-5,
+    'Pino': 6.3906e-6,
+    'Pino Laricio': 6.3906e-6,
+    'Pino Marittimo': 1.4031e-5,
+    'Pino Nero': 1.7090e-5,
+    'Sorbo': 4.0506e-5,
+}
+
+# Make covariance matrices symmetric
+def make_symmetric():
+    """Make covariance matrices symmetric."""
+    # pylint: disable=consider-using-dict-items
+    for genere in TABACCHI_COV:
+        m = TABACCHI_COV[genere]
+        TABACCHI_COV[genere] = m + m.T - np.diag(np.diag(m))
+    # pylint: enable=consider-using-dict-items
+make_symmetric()
+
+# =============================================================================
 # SNIPPET FORMATTERS (for template substitution)
 # =============================================================================
 
@@ -156,7 +294,6 @@ class SnippetFormatter(ABC):
     @abstractmethod
     def format_image(self, filepath: Path) -> str:
         """Format image reference for this format."""
-        pass
 
     @abstractmethod
     def format_metadata(self, stats: dict, curve_info: list = None) -> str:
@@ -167,7 +304,6 @@ class SnippetFormatter(ABC):
             curve_info: List of dicts with {species, equation, r_squared, n_points}
                        from equations.csv
         """
-        pass
 
 
 class HTMLSnippetFormatter(SnippetFormatter):
@@ -186,7 +322,8 @@ class HTMLSnippetFormatter(SnippetFormatter):
         if "mean_height" in stats:
             html += f'<p><strong>Altezza media:</strong> {stats["mean_height"]:.1f} m</p>\n'
         if "mean_diameter_class" in stats:
-            html += f'<p><strong>Classe diametrica media:</strong> {stats["mean_diameter_class"]:.0f}</p>\n'
+            html += '<p><strong>Classe diametrica media:</strong> '
+            html += f'{stats["mean_diameter_class"]:.0f}</p>\n'
 
         if curve_info:
             html += '<br><p><strong>Equazioni interpolanti:</strong></p>\n'
@@ -217,7 +354,8 @@ class LaTeXSnippetFormatter(SnippetFormatter):
         if "mean_height" in stats:
             latex += f"\\textbf{{Altezza media:}} {stats['mean_height']:.1f} m\\\\\n"
         if "mean_diameter_class" in stats:
-            latex += f"\\textbf{{Classe diametrica media:}} {stats['mean_diameter_class']:.0f}\\\\\n"
+            latex += "\\textbf{{Classe diametrica media:}} "
+            latex += f"{stats['mean_diameter_class']:.0f}\\\\\n"
 
         if curve_info:
             latex += '\\\\\n\\textbf{Equazioni interpolanti:}\\\\\n'
@@ -229,6 +367,87 @@ class LaTeXSnippetFormatter(SnippetFormatter):
 
         latex += '\\end{quote}\n'
         return latex
+
+
+# =============================================================================
+# VOLUME CALCULATION (Tabacchi equations)
+# =============================================================================
+
+def calculate_tree_volume(diameter: float, height: float, genere: str) -> float:
+    """
+    Calculate volume for a single tree using Tabacchi equations.
+    
+    Args:
+        diameter: Diameter in cm (D)
+        height: Height in m (h)
+        genere: Species name
+    
+    Returns:
+        Volume in m³
+    
+    Raises:
+        ValueError: If genere is not in Tabacchi tables
+    """
+    if genere not in TABACCHI_B:
+        raise ValueError(f"Genere '{genere}' non trovato nelle tavole di Tabacchi")
+    
+    b = TABACCHI_B[genere]
+    
+    # Volume equation: V = b0 + b1 * D² * h [+ b2 * D]
+    d2h = (diameter ** 2) * height
+    if len(b) == 2:
+        volume = (b[0] + b[1] * d2h) / 1000  # Convert to m³
+    else:  # len(b) == 3
+        volume = (b[0] + b[1] * d2h + b[2] * diameter) / 1000
+    
+    return volume
+
+
+def apply_volume_equations(alberi_file: str, output_file: str) -> None:
+    """
+    Calculate volumes for all trees in the input file.
+
+    Args:
+        alberi_file: Input CSV with tree data (requires D(cm), h(m), Genere columns)
+        output_file: Output CSV with added V(m3) column
+    """
+    print("Calcolo volumi con equazioni di Tabacchi")
+    print(f"Input: {alberi_file}")
+    print(f"Output: {output_file}")
+
+    trees_df = pd.read_csv(alberi_file)
+    required = ['D(cm)', 'h(m)', 'Genere']
+    missing = [col for col in required if col not in trees_df.columns]
+    if missing:
+        raise ValueError(f"Colonne mancanti nel file di input: {missing}")
+
+    trees_df['V(m3)'] = 0.0
+
+    # Calculate volumes for each tree
+    calculated = 0
+
+    for idx, row in trees_df.iterrows():
+        genere = row['Genere']
+        diameter = row['D(cm)']
+        height = row['h(m)']
+
+        if pd.isna(diameter) or pd.isna(height):
+            raise ValueError(f"Dati mancanti per riga {idx}: Diametro={diameter}, Altezza={height}")
+        if genere not in TABACCHI_B:
+            raise ValueError(f"Genere '{genere}' non trovato nelle tavole di Tabacchi")
+
+        volume = calculate_tree_volume(diameter, height, genere)
+        trees_df.at[idx, 'V(m3)'] = volume
+        calculated += 1
+
+    trees_df.to_csv(output_file, index=False, float_format="%.6f")
+
+    print("\nRiepilogo:")
+    print(f"  Alberi totali: {len(trees_df)}")
+    print(f"  Volumi calcolati: {calculated}")
+
+    total_volume = trees_df['V(m3)'].sum()
+    print(f"\n  Volume totale campionato: {total_volume:.2f} m³")
 
 
 # =============================================================================
@@ -316,7 +535,8 @@ def prepare_region_data(trees_df: pd.DataFrame, particelle_df: pd.DataFrame,
 # COMPUTATION LAYER (equation generation and application)
 # =============================================================================
 
-def fit_curves_grouped(groups: Iterable[tuple[tuple[str, str], pd.DataFrame]], funzione: str, min_points: int = 10) -> pd.DataFrame:
+def fit_curves_grouped(groups: Iterable[tuple[tuple[str, str], pd.DataFrame]],
+                       funzione: str, min_points: int = 10) -> pd.DataFrame:
     """
     Fit regression curves to grouped data.
 
@@ -473,7 +693,7 @@ def apply_height_equations(alberi_file: str, equations_file: str,
 
     output_df.to_csv(output_file, index=False, float_format="%.3f")
 
-    print(f"\nRiepilogo:")
+    print("\nRiepilogo:")
     print(f"  Totale alberi: {total_trees}")
     print(f"  Alberi aggiornati: {trees_updated}")
     print(f"  Alberi non modificati: {trees_unchanged}")
@@ -726,10 +946,12 @@ def process_template(template_text: str, trees_df: pd.DataFrame,
             output_path = output_dir / filename
 
             if keyword == 'cd':
-                result = render_cd_graph(data, max_diameter_class, output_path, formatter, color_map)
+                result = render_cd_graph(data, max_diameter_class,
+                                         output_path, formatter, color_map)
                 print(f"  Generato: {filename}")
             elif keyword == 'ci':
-                result = render_ci_graph(data, max_diameter, equations_df, output_path, formatter, color_map)
+                result = render_ci_graph(data, max_diameter,
+                                         equations_df, output_path, formatter, color_map)
                 print(f"  Generato: {filename}")
             else:
                 raise ValueError(f"Tipo di grafico sconosciuto: {keyword}")
@@ -737,7 +959,7 @@ def process_template(template_text: str, trees_df: pd.DataFrame,
             return result['snippet']
 
         except Exception as e:
-            raise ValueError(f"ERRORE nella generazione di {directive['full_text']}: {e}")
+            raise ValueError(f"ERRORE nella generazione di {directive['full_text']}: {e}") from e
 
     # Find and replace all directives
     pattern = r'@@\w+\([^)]*\)'
@@ -820,6 +1042,15 @@ def run_calcola_altezze(args):
     print("Altezze calcolate con successo")
 
 
+def run_calcola_volumi(args):
+    """Calculate volumes."""
+    print("Calcolo volumi usando tavole di Tabacchi")
+    print(f"Input: {args.input}")
+    print(f"Output: {args.output}")
+
+    apply_volume_equations(args.input, args.output)
+
+
 def run_report(args):
     """Generate report from template."""
     format_type = args.formato
@@ -879,12 +1110,16 @@ Modalità di utilizzo:
    ./acc.py --calcola-altezze --equazioni equations.csv \\
             --input alberi.csv --output alberi-calcolati.csv
 
-3. GENERA REPORT:
+3. CALCOLA VOLUMI:
+   ./acc.py --calcola-volumi --input alberi-calcolati.csv \\
+            --output alberi-con-volumi.csv
+
+4. GENERA REPORT:
    ./acc.py --report --formato=html --equazioni equations.csv \\
-            --alberi alberi-calcolati.csv --particelle particelle.csv \\
+            --alberi alberi-con-volumi.csv --particelle particelle.csv \\
             --input template.html --output-dir report/
 
-4. LISTA PARTICELLE:
+5. LISTA PARTICELLE:
    ./acc.py --lista-particelle --particelle particelle.csv
 """
     )
@@ -895,6 +1130,8 @@ Modalità di utilizzo:
                            help='Genera equazioni di interpolazione')
     run_group.add_argument('--calcola-altezze', action='store_true',
                            help='Calcola altezze usando equazioni')
+    run_group.add_argument('--calcola-volumi', action='store_true',
+                           help='Calcola volumi usando tavole di Tabacchi')
     run_group.add_argument('--report', action='store_true',
                            help='Genera report da template')
     run_group.add_argument('--lista-particelle', action='store_true',
@@ -951,6 +1188,13 @@ Modalità di utilizzo:
         if not args.output:
             parser.error('--calcola-altezze richiede --output')
         run_calcola_altezze(args)
+
+    elif args.calcola_volumi:
+        if not args.input:
+            parser.error('--calcola-volumi richiede --input')
+        if not args.output:
+            parser.error('--calcola-volumi richiede --output')
+        run_calcola_volumi(args)
 
     elif args.report:
         if not args.equazioni:
