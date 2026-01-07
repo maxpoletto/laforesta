@@ -29,32 +29,75 @@ Il presente documento contiene la documentazione integrativa al Piano di Assesta
 
 In questa sezione è riportata, per ciascuna compresa, la distribuzione grafica in classi diametriche del numero di piante per ettaro. Presentiamo un solo grafico di questo tipo per ciascuna compresa, in modo da evidenziare la partecipazione delle diverse specie.
 
-Sono riportate inoltre, per ciascuna compresa e per ciascuna specie ivi prevalente, le curve ipsometriche in forma grafica, complete delle relative equazioni interpolanti. Le equazioni sono calcolate con un modello di regressione logaritmico, solo per combinazioni di compresa e genere per le quali sono state campionate almeno 10 piante ($n \geq 10$).
+Sono riportate inoltre, per ciascuna compresa e per ciascuna specie ivi prevalente, le curve ipsometriche in forma grafica, complete delle relative equazioni interpolanti.
+
+Le equazioni sono calcolate con un modello di regressione logaritmico, solo per combinazioni di compresa e genere per le quali sono state campionate almeno 10 piante ($n \geq 10$).
+
+Sono esclusi i diametri (grossi) per i quali la frequenza di alberi è inferiore a 0,5 piante / ettaro.
+\clearpage
 
 \subsection{Capistrano}
 
 La distribuzione in classi diametriche a Capistrano è la seguente. Il bosco è dominato da abeti e pini.
+\subsection*{Capistrano: Classi diametriche}
 @@cd(compresa=Capistrano)
 \clearpage
+\subsection*{Capistrano: curve ipsometriche, veduta d'insieme}
 @@ci(compresa=Capistrano)
+\clearpage
+\subsection*{Capistrano: ipsometria abete}
 @@ci(compresa=Capistrano,genere=Abete)
+\clearpage
+\subsection*{Capistrano: ipsometria pino nero}
 @@ci(compresa=Capistrano,genere=Pino Nero)
+\clearpage
+\subsection*{Capistrano: ipsometria pino marittimo}
 @@ci(compresa=Capistrano,genere=Pino Marittimo)
+\clearpage
 
+\subsection{Fabrizia}
 
-\subsection*{Fabrizia}
+La distribuzione in classi diametriche a Fabrizia è la seguente. Il bosco è dominato dal faggio, con una cospicua presenza di abete e pino nero.
+
+\subsection*{Fabrizia: Classi diametriche}
 @@cd(compresa=Fabrizia)
 \clearpage
-\subsection*{Serra}
-@@cd(compresa=Serra)
-
-\section{Curve ipsometriche}
-
-\subsection*{Fabrizia}
+\subsection*{Fabrizia: curve ipsometriche, veduta d'insieme}
 @@ci(compresa=Fabrizia)
 \clearpage
-\subsection*{Serra}
+\subsection*{Fabrizia: ipsometria abete}
+@@ci(compresa=Fabrizia,genere=Abete)
+\clearpage
+\subsection*{Fabrizia: ipsometria faggio}
+@@ci(compresa=Fabrizia,genere=Faggio)
+\clearpage
+\subsection*{Fabrizia: ipsometria pino nero}
+@@ci(compresa=Fabrizia,genere=Pino Nero)
+\clearpage
+
+\subsection{Serra}
+
+La distribuzione in classi diametriche a Serra è la seguente. Il bosco è dominato dall'abete, ma sono presenti anche faggio, castagno, douglas, e pino nero.
+
+\subsection*{Serra: Classi diametriche}
+@@cd(compresa=Serra)
+\clearpage
+\subsection*{Serra: curve ipsometriche, veduta d'insieme}
 @@ci(compresa=Serra)
+\clearpage
+\subsection*{Serra: ipsometria abete}
+@@ci(compresa=Serra,genere=Abete)
+\clearpage
+\subsection*{Serra: ipsometria castagno}
+@@ci(compresa=Serra,genere=Castagno)
+\clearpage
+\subsection*{Serra: ipsometria faggio}
+@@ci(compresa=Serra,genere=Faggio)
+\clearpage
+\subsection*{Serra: ipsometria pino nero}
+@@ci(compresa=Serra,genere=Pino Nero)
+\clearpage
+
 
 \section{Stima volumetrica}
 \subsection*{Capistrano}
