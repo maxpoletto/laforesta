@@ -76,10 +76,12 @@ clean-html:
 
 pdf: tex/relazione.pdf
 
-tex/relazione.tex: template/tex/relazione.tex $(CSV_DIR)/alberi.csv $(CSV_DIR)/particelle.csv $(CSV_DIR)/equazioni_ipsometro.csv $(CSV_DIR)/equazioni_originali.csv $(CSV_DIR)/equazioni_tabelle.csv
+DEPS_TEX=$(CSV_DIR)/equazioni_ipsometro.csv $(CSV_DIR)/alberi-con-volumi.csv $(CSV_DIR)/particelle.csv template/tex/relazione.tex
+
+tex/relazione.tex: $(DEPS_TEX)
 	./acc.py --report --formato tex --equazioni $(CSV_DIR)/equazioni_ipsometro.csv --alberi $(CSV_DIR)/alberi-con-volumi.csv --particelle $(CSV_DIR)/particelle.csv --input template/tex/relazione.tex --output-dir tex/
 
-tex/relazione.pdf: template/tex/relazione.tex $(CSV_DIR)/alberi.csv $(CSV_DIR)/particelle.csv $(CSV_DIR)/equazioni_ipsometro.csv $(CSV_DIR)/equazioni_originali.csv $(CSV_DIR)/equazioni_tabelle.csv
+tex/relazione.pdf: $(DEPS_TEX)
 	./acc.py --report --formato pdf --equazioni $(CSV_DIR)/equazioni_ipsometro.csv --alberi $(CSV_DIR)/alberi-con-volumi.csv --particelle $(CSV_DIR)/particelle.csv --input template/tex/relazione.tex --output-dir tex/
 
 clean-pdf:
