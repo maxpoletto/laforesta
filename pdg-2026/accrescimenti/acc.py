@@ -237,7 +237,7 @@ class LaTeXSnippetFormatter(SnippetFormatter):
         """Format metadata as LaTeX."""
         latex = '\\begin{quote}\\small\n'
         latex += f"\\textbf{{Alberi campionati:}} {stat['sampled_trees']:d}\\\\\n"
-        latex += f"\\textbf{{Stima totale:}} {stat['estimated_total']:d}\\\\\n"
+        latex += f"\\textbf{{Stima totale:}} {stat['ntrees_total']:d}\\\\\n"
 
         if "mean_height" in stat:
             latex += f"\\textbf{{Altezza media:}} {stat['mean_height']:.1f} m\\\\\n"
@@ -596,54 +596,54 @@ def region_data(trees_df: pd.DataFrame, particelle_df: pd.DataFrame,
     if particella and not compresa:
         raise ValueError("particella richiede compresa")
 
-    filtered_trees = trees_df.copy()
+    trees = trees_df.copy()
 
     if compresa:
-        filtered_trees = filtered_trees[filtered_trees['Compresa'] == compresa]
+        trees = trees[trees['Compresa'] == compresa]
     if particella:
-        filtered_trees = filtered_trees[filtered_trees['Particella'] == particella]
+        trees = trees[trees['Particella'] == particella]
     if genere:
-        filtered_trees = filtered_trees[filtered_trees['Genere'] == genere]
-    if len(filtered_trees) == 0:
+        trees = trees[trees['Genere'] == genere]
+    if len(trees) == 0:
         raise ValueError(f"Nessun dato trovato per compresa '{compresa}' " +
                          f"particella '{particella}' genere '{genere}'")
 
-    area_data = particelle_df.copy()
+    parcels = particelle_df.copy()
     if compresa:
-        area_data = area_data[area_data['Compresa'] == compresa]
+        parcels = parcels[parcels['Compresa'] == compresa]
     if particella:
-        area_data = area_data[area_data['Particella'] == particella]
+        parcels = parcels[parcels['Particella'] == particella]
 
-    area_ha = area_data['Area (ha)'].sum()
+    area_ha = parcels['Area (ha)'].sum()
     # "Area saggio" labels are not unique at least across comprese.
-    sample_areas = filtered_trees.drop_duplicates(
+    n_sample_areas = trees.drop_duplicates(
         subset=['Compresa', 'Particella', 'Area saggio']).shape[0]
 
-    sampled_trees = len(filtered_trees)
-    estimated_total = round((sampled_trees / sample_areas) * SAMPLE_AREAS_PER_HA * area_ha)
-    estimated_per_ha = round(estimated_total / area_ha)
+    n_trees_sampled = len(trees)
+    n_trees_per_ha_by_diameter = n_trees_sampled * SAMPLE_AREAS_PER_HA / n_sample_areas
+    n_trees_total = round(n_trees_per_ha_by_diameter * area_ha)
 
     # Calculate max significant diameter class (for x-axis scaling)
     max_significant_diameter_class = 0
-    if len(filtered_trees) > 0 and sample_areas > 0:
-        class_counts = filtered_trees.groupby('Classe diametrica').size()
-        trees_per_ha = class_counts * SAMPLE_AREAS_PER_HA / sample_areas
-        significant_classes = trees_per_ha[trees_per_ha >= MIN_TREES_PER_HA]
-        if len(significant_classes) > 0:
-            max_significant_diameter_class = int(significant_classes.index.max())
+    if len(trees) > 0 and n_sample_areas > 0:
+        n_trees_by_diameter = trees.groupby('Classe diametrica').size()
+        n_trees_per_ha_by_diameter = n_trees_by_diameter * SAMPLE_AREAS_PER_HA / n_sample_areas
+        common_diameters = n_trees_per_ha_by_diameter[n_trees_per_ha_by_diameter >= MIN_TREES_PER_HA]
+        if len(common_diameters) > 0:
+            max_significant_diameter_class = int(common_diameters.index.max())
 
     return {
         'compresa': compresa,
         'particella': particella,
-        'trees': filtered_trees,
-        'species_list': sorted(filtered_trees['Genere'].unique()),
+        'trees': trees,
+        'species_list': sorted(trees['Genere'].unique()),
         'area_ha': area_ha,
-        'sample_areas': sample_areas,
-        'sampled_trees': sampled_trees,
-        'estimated_total': estimated_total,
-        'estimated_per_ha': estimated_per_ha,
-        'mean_diameter_class': filtered_trees['Classe diametrica'].mean(),
-        'mean_height': filtered_trees['h(m)'].mean(),
+        'sample_areas': n_sample_areas,
+        'sampled_trees': n_trees_sampled,
+        'ntrees_total': n_trees_total,
+        'ntrees_per_ha': n_trees_per_ha_by_diameter, # Not used
+        'mean_diameter_class': trees['Classe diametrica'].mean(),
+        'mean_height': trees['h(m)'].mean(),
         'max_significant_diameter_class': max_significant_diameter_class,
     }
 
@@ -1013,7 +1013,7 @@ def render_tsv_table(data: dict, particelle_df: pd.DataFrame,
     Returns:
         dict with 'snippet' key containing formatted table
     """
-    filtered_trees = data['trees']
+    trees = data['trees']
     compresa = data['compresa']
     particella = data['particella']
     genere = data.get('genere')  # May not be in data dict if not filtered
@@ -1023,51 +1023,37 @@ def render_tsv_table(data: dict, particelle_df: pd.DataFrame,
     # Otherwise, use the per_* flag to decide
     group_cols = []
 
-    # Compresa: include if not filtered and per_compresa=si
     if not compresa and options.get('per_compresa', True):
         group_cols.append('Compresa')
-
-    # Particella: include if not filtered and per_particella=si
     if not particella and options.get('per_particella', True):
         group_cols.append('Particella')
-
-    # Genere: include if not filtered and per_genere=si
     if not genere and options.get('per_genere', True):
         group_cols.append('Genere')
 
     # If no grouping columns, aggregate everything into one row
     if not group_cols:
         group_cols = ['_dummy']  # Dummy column for single aggregation
-        filtered_trees = filtered_trees.copy()
-        filtered_trees['_dummy'] = 'Totale'
+        trees = trees.copy()
+        trees['_dummy'] = 'Totale'
 
-    # Aggregate data
     table_rows = []
-    for group_key, group_df in filtered_trees.groupby(group_cols):
-        if not isinstance(group_key, tuple):
-            group_key = (group_key,)
-
-        # Extract group identifiers
+    for group_key, group_df in trees.groupby(group_cols):
         row_dict = dict(zip(group_cols, group_key))
 
-        # Count trees and sum volumes
         n_trees = len(group_df)
         sampled_volume = group_df['V(m3)'].sum()
 
-        # Scale to total if requested
         if options['stime_totali']:
-            # Get region info for scaling
-            region_compresa = row_dict.get('Compresa', compresa)
-            region_particella = row_dict.get('Particella', particella)
+            group_compresa = row_dict.get('Compresa', compresa)
+            group_particella = row_dict.get('Particella', particella)
 
-            # Get particelle info for this region
-            if region_particella:
+            if group_particella:
                 region_particelle = particelle_df[
-                    (particelle_df['Compresa'] == region_compresa) &
-                    (particelle_df['Particella'] == region_particella)
+                    (particelle_df['Compresa'] == group_compresa) &
+                    (particelle_df['Particella'] == group_particella)
                 ]
             else:
-                region_particelle = particelle_df[particelle_df['Compresa'] == region_compresa]
+                region_particelle = particelle_df[particelle_df['Compresa'] == group_compresa]
 
             area_ha = region_particelle['Area (ha)'].sum()
             sample_areas = len(group_df['Area saggio'].unique())
