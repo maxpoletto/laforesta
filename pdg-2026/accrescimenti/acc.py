@@ -1040,46 +1040,54 @@ def render_tsv_table(data: dict, particelle_df: pd.DataFrame,
     for group_key, group_df in trees.groupby(group_cols):
         row_dict = dict(zip(group_cols, group_key))
 
-        n_trees = len(group_df)
-        sampled_volume = group_df['V(m3)'].sum()
+        n_trees_sampled = len(group_df)
+        volume_sampled = group_df['V(m3)'].sum()
 
         if options['stime_totali']:
-            group_compresa = row_dict.get('Compresa', compresa)
-            group_particella = row_dict.get('Particella', particella)
+            # Scale per-particella, and then aggregate, to obtain consistent totals, because
+            # the sampling density (sample_areas / area_ha) varies across particelle.
+            volume_display = 0.0
+            n_trees_scaled = 0.0
+            margin_scaled = 0.0
 
-            if group_particella:
-                region_particelle = particelle_df[
-                    (particelle_df['Compresa'] == group_compresa) &
-                    (particelle_df['Particella'] == group_particella)
+            for (part_compresa, part_particella), part_df in group_df.groupby(
+                    ['Compresa', 'Particella']):
+                part_info = particelle_df[
+                    (particelle_df['Compresa'] == part_compresa) &
+                    (particelle_df['Particella'] == part_particella)
                 ]
-            else:
-                region_particelle = particelle_df[particelle_df['Compresa'] == group_compresa]
+                part_area_ha = part_info['Area (ha)'].sum()
+                part_sample_areas = part_df.drop_duplicates(
+                    subset=['Compresa', 'Particella', 'Area saggio']).shape[0]
 
-            area_ha = region_particelle['Area (ha)'].sum()
-            sample_areas = len(group_df['Area saggio'].unique())
+                if part_sample_areas == 0:
+                    continue
 
-            volume = sampled_volume * area_ha * SAMPLE_AREAS_PER_HA / sample_areas
-            n_trees_display = int(n_trees * area_ha * SAMPLE_AREAS_PER_HA / sample_areas)
+                scale_factor = part_area_ha * SAMPLE_AREAS_PER_HA / part_sample_areas
+                volume_display += part_df['V(m3)'].sum() * scale_factor
+                n_trees_scaled += len(part_df) * scale_factor
+
+                if options['intervallo_fiduciario']:
+                    _, part_margin = calculate_volume_confidence_interval(part_df)
+                    margin_scaled += part_margin * scale_factor
+
+            n_trees_display = int(n_trees_scaled)
         else:
-            volume = sampled_volume
-            n_trees_display = n_trees
+            volume_display = volume_sampled
+            n_trees_display = n_trees_sampled
 
         row_dict['N_alberi'] = n_trees_display
-        row_dict['Volume'] = volume
+        row_dict['Volume'] = volume_display
 
         # Compute confidence intervals if requested
         if options['intervallo_fiduciario']:
-            # Use full confidence interval calculation (V0 + V1 + t-statistic)
-            _, margin_sampled = calculate_volume_confidence_interval(group_df)
-
-            # Scale margin if stime_totali
             if options['stime_totali']:
-                margin = margin_sampled * area_ha * SAMPLE_AREAS_PER_HA / sample_areas
+                margin = margin_scaled
             else:
-                margin = margin_sampled
+                _, margin = calculate_volume_confidence_interval(group_df)
 
-            row_dict['IF_inf'] = volume - margin
-            row_dict['IF_sup'] = volume + margin
+            row_dict['IF_inf'] = volume_display - margin
+            row_dict['IF_sup'] = volume_display + margin
 
         table_rows.append(row_dict)
 
