@@ -37,45 +37,6 @@ Le equazioni sono calcolate con un modello di regressione logaritmico, solo per 
 Sono esclusi i diametri (grossi) per i quali la frequenza di alberi è inferiore a 0,5 piante / ettaro.
 \clearpage
 
-\subsection{Capistrano}
-
-La distribuzione in classi diametriche a Capistrano è la seguente. Il bosco è dominato da abeti e pini.
-\subsection*{Capistrano: Classi diametriche}
-@@cd(compresa=Capistrano)
-\clearpage
-\subsection*{Capistrano: curve ipsometriche, veduta d'insieme}
-@@ci(compresa=Capistrano)
-\clearpage
-\subsection*{Capistrano: ipsometria abete}
-@@ci(compresa=Capistrano,genere=Abete)
-\clearpage
-\subsection*{Capistrano: ipsometria pino nero}
-@@ci(compresa=Capistrano,genere=Pino Nero)
-\clearpage
-\subsection*{Capistrano: ipsometria pino marittimo}
-@@ci(compresa=Capistrano,genere=Pino Marittimo)
-\clearpage
-
-\subsection{Fabrizia}
-
-La distribuzione in classi diametriche a Fabrizia è la seguente. Il bosco è dominato dal faggio, con una cospicua presenza di abete e pino nero.
-
-\subsection*{Fabrizia: Classi diametriche}
-@@cd(compresa=Fabrizia)
-\clearpage
-\subsection*{Fabrizia: curve ipsometriche, veduta d'insieme}
-@@ci(compresa=Fabrizia)
-\clearpage
-\subsection*{Fabrizia: ipsometria abete}
-@@ci(compresa=Fabrizia,genere=Abete)
-\clearpage
-\subsection*{Fabrizia: ipsometria faggio}
-@@ci(compresa=Fabrizia,genere=Faggio)
-\clearpage
-\subsection*{Fabrizia: ipsometria pino nero}
-@@ci(compresa=Fabrizia,genere=Pino Nero)
-\clearpage
-
 \subsection{Serra}
 
 La distribuzione in classi diametriche a Serra è la seguente. Il bosco è dominato dall'abete, ma sono presenti anche faggio, castagno, douglas, e pino nero.
@@ -99,24 +60,58 @@ La distribuzione in classi diametriche a Serra è la seguente. Il bosco è domin
 @@ci(compresa=Serra,genere=Pino Nero)
 \clearpage
 
+\subsection{Fabrizia}
+
+La distribuzione in classi diametriche a Fabrizia è la seguente. Il bosco è dominato dal faggio, con una cospicua presenza di abete e pino nero.
+
+\subsection*{Fabrizia: Classi diametriche}
+@@cd(compresa=Fabrizia)
+\clearpage
+\subsection*{Fabrizia: curve ipsometriche, veduta d'insieme}
+@@ci(compresa=Fabrizia)
+\clearpage
+\subsection*{Fabrizia: ipsometria abete}
+@@ci(compresa=Fabrizia,genere=Abete)
+\clearpage
+\subsection*{Fabrizia: ipsometria faggio}
+@@ci(compresa=Fabrizia,genere=Faggio)
+\clearpage
+\subsection*{Fabrizia: ipsometria pino nero}
+@@ci(compresa=Fabrizia,genere=Pino Nero)
+\clearpage
+
+\subsection{Capistrano}
+
+La distribuzione in classi diametriche a Capistrano è la seguente. Il bosco è dominato da abeti e pini.
+\subsection*{Capistrano: Classi diametriche}
+@@cd(compresa=Capistrano)
+\clearpage
+\subsection*{Capistrano: curve ipsometriche, veduta d'insieme}
+@@ci(compresa=Capistrano)
+\clearpage
+\subsection*{Capistrano: ipsometria abete}
+@@ci(compresa=Capistrano,genere=Abete)
+\clearpage
+\subsection*{Capistrano: ipsometria pino nero}
+@@ci(compresa=Capistrano,genere=Pino Nero)
+\clearpage
+\subsection*{Capistrano: ipsometria pino marittimo}
+@@ci(compresa=Capistrano,genere=Pino Marittimo)
+\clearpage
 
 \section{Stima dei volumi}
 
 Di seguito la stima dei volumi di ciascuna compresa, calcolata secondo la metodologia alle pp.20--27 di {\em Stima del volume e della fitomassa delle principali specie forestali italiane}, Tabacchi {\em et al.} 2011, scaricabile all'indirizzo {\small \url{https://www.inventarioforestale.org/wp-content/uploads/2022/10/tavole_cubatura.pdf}}.
 
-Oltre alla cubatura totale, riportiamo il numero di piante campionate per ciascuna specie, nonché l'intervallo fiduciario al 95\% della stima dei volumi. Il margine d'errore per il volume totale è calcolato come la somma dei margini d'errore di ciascuna specie: rappresenta quindi il caso peggiore, in cui le particelle sono completamente correlate tra loro.
+Oltre alla cubatura totale, riportiamo una stima del numero di piante, nonché l'intervallo fiduciario al 95\% della stima dei volumi, ottenuto sempre con la metodologia del Tabacchi. Il margine d'errore per il volume totale è calcolato come la somma dei margini d'errore di ciascuna specie: rappresenta quindi il caso peggiore, in cui le particelle sono completamente correlate tra loro.
 
-@@tsv(per_particella=no,per_genere=no,intervallo_fiduciario=si,totali=si,stime_totali=si)
-
-Le tabelle alle pagine seguenti forniscono i dettagli per ciascuna particella delle tre comprese.
-
-\subsection*{Stima dei volumi: Capistrano}
-@@tsv(compresa=Capistrano,intervallo_fiduciario=si,totali=si,stime_totali=si)
+\subsection*{Serra}
+@@tsv(compresa=Serra,per_genere=no,intervallo_fiduciario=si,totali=si,stime_totali=si)
 \clearpage
 \subsection*{Stima dei volumi: Fabrizia}
-@@tsv(compresa=Fabrizia,intervallo_fiduciario=si,totali=si,stime_totali=si)
+@@tsv(compresa=Fabrizia,per_genere=no,intervallo_fiduciario=si,totali=si,stime_totali=si)
 \clearpage
-\subsection*{Serra}
-@@tsv(compresa=Serra,intervallo_fiduciario=si,totali=si,stime_totali=si)
+\subsection*{Stima dei volumi: Capistrano}
+@@tsv(compresa=Capistrano,per_genere=no,intervallo_fiduciario=si,totali=si,stime_totali=si)
 
 \end{document}
