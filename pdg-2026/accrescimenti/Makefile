@@ -37,18 +37,14 @@ clean-equazioni:
 # Heights and volumes
 #
 
-FILES_ALTVOL=$(CSV_DIR)/alberi-con-volumi.csv $(CSV_DIR)/alberi-calcolati.csv
 
-altvol: $(FILES_ALTVOL)
-
-$(CSV_DIR)/alberi-con-volumi.csv: $(CSV_DIR)/alberi-calcolati.csv
-	./acc.py --calcola-volumi --input $(CSV_DIR)/alberi-calcolati.csv --output $(CSV_DIR)/alberi-con-volumi.csv
+altvol: $(CSV_DIR)/alberi-calcolati.csv
 
 $(CSV_DIR)/alberi-calcolati.csv: $(CSV_DIR)/alberi.csv $(CSV_DIR)/equazioni_ipsometro.csv
-	./acc.py --calcola-altezze --equazioni $(CSV_DIR)/equazioni_ipsometro.csv --input $(CSV_DIR)/alberi.csv --output $(CSV_DIR)/alberi-calcolati.csv
+	./acc.py --calcola-altezze-volumi --equazioni $(CSV_DIR)/equazioni_ipsometro.csv --input $(CSV_DIR)/alberi.csv --output $(CSV_DIR)/alberi-calcolati.csv
 
 clean-altvol:
-	rm -f $(FILES_ALTVOL)
+	rm -f $(CSV_DIR)/alberi-calcolati.csv
 
 #
 # HTML output
@@ -75,14 +71,18 @@ clean-html:
 #
 
 pdf: tex/relazione.pdf
+pdf0: tex/relazione0.pdf
 
-DEPS_TEX=$(CSV_DIR)/equazioni_ipsometro.csv $(CSV_DIR)/alberi-con-volumi.csv $(CSV_DIR)/particelle.csv template/tex/relazione.tex
+DEPS_TEX=$(CSV_DIR)/equazioni_ipsometro.csv $(CSV_DIR)/alberi-calcolati.csv $(CSV_DIR)/particelle.csv template/tex/relazione.tex
 
 tex/relazione.tex: $(DEPS_TEX)
-	./acc.py --report --formato tex --equazioni $(CSV_DIR)/equazioni_ipsometro.csv --alberi $(CSV_DIR)/alberi-con-volumi.csv --particelle $(CSV_DIR)/particelle.csv --input template/tex/relazione.tex --output-dir tex/
+	./acc.py --report --formato tex --equazioni $(CSV_DIR)/equazioni_ipsometro.csv --alberi $(CSV_DIR)/alberi-calcolati.csv --particelle $(CSV_DIR)/particelle.csv --input template/tex/relazione.tex --output-dir tex/
 
 tex/relazione.pdf: $(DEPS_TEX)
-	./acc.py --report --formato pdf --equazioni $(CSV_DIR)/equazioni_ipsometro.csv --alberi $(CSV_DIR)/alberi-con-volumi.csv --particelle $(CSV_DIR)/particelle.csv --input template/tex/relazione.tex --output-dir tex/
+	./acc.py --report --formato pdf --equazioni $(CSV_DIR)/equazioni_ipsometro.csv --alberi $(CSV_DIR)/alberi-calcolati.csv --particelle $(CSV_DIR)/particelle.csv --input template/tex/relazione.tex --output-dir tex/
+
+tex/relazione0.pdf: $(DEPS_TEX)
+	./acc.py --report --formato pdf --equazioni $(CSV_DIR)/equazioni_ipsometro.csv --alberi $(CSV_DIR)/alberi.csv --particelle $(CSV_DIR)/particelle.csv --input template/tex/relazione0.tex --output-dir tex/
 
 clean-pdf:
 	rm -f tex/relazione.pdf tex/relazione.tex

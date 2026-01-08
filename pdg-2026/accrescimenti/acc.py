@@ -520,51 +520,37 @@ def calculate_volume_confidence_interval(trees_df: pd.DataFrame) -> tuple[float,
     return total_volume, total_margin
 
 
-def apply_volume_equations(alberi_file: str, output_file: str) -> None:
+def compute_volumes(trees_df: pd.DataFrame) -> pd.DataFrame:
     """
-    Calculate volumes for all trees in the input file.
+    Compute volumes for all trees using Tabacchi equations.
 
     Args:
-        alberi_file: Input CSV with tree data (requires D(cm), h(m), Genere columns)
-        output_file: Output CSV with added V(m3) column
-    """
-    print("Calcolo volumi con equazioni di Tabacchi")
-    print(f"Input: {alberi_file}")
-    print(f"Output: {output_file}")
+        trees_df: DataFrame with D(cm), h(m), Genere columns
 
-    trees_df = pd.read_csv(alberi_file)
+    Returns:
+        DataFrame with added/updated V(m3) column
+    """
     required = ['D(cm)', 'h(m)', 'Genere']
     missing = [col for col in required if col not in trees_df.columns]
     if missing:
-        raise ValueError(f"Colonne mancanti nel file di input: {missing}")
+        raise ValueError(f"Colonne mancanti: {missing}")
 
-    trees_df['V(m3)'] = 0.0
+    result_df = trees_df.copy()
+    result_df['V(m3)'] = 0.0
 
-    # Calculate volumes for each tree
-    calculated = 0
-
-    for idx, row in trees_df.iterrows():
+    for idx, row in result_df.iterrows():
         genere = row['Genere']
         diameter = row['D(cm)']
         height = row['h(m)']
 
         if pd.isna(diameter) or pd.isna(height):
-            raise ValueError(f"Dati mancanti per riga {idx}: Diametro={diameter}, Altezza={height}")
+            raise ValueError(f"Dati mancanti per riga {idx}: D={diameter}, h={height}")
         if genere not in TABACCHI_B:
             raise ValueError(f"Genere '{genere}' non trovato nelle tavole di Tabacchi")
 
-        volume = calculate_tree_volume(diameter, height, genere)
-        trees_df.at[idx, 'V(m3)'] = volume
-        calculated += 1
+        result_df.at[idx, 'V(m3)'] = calculate_tree_volume(diameter, height, genere)
 
-    trees_df.to_csv(output_file, index=False, float_format="%.6f")
-
-    print("\nRiepilogo:")
-    print(f"  Alberi totali: {len(trees_df)}")
-    print(f"  Volumi calcolati: {calculated}")
-
-    total_volume = trees_df['V(m3)'].sum()
-    print(f"\n  Volume totale campionato: {total_volume:.2f} m³")
+    return result_df
 
 
 # =============================================================================
@@ -758,27 +744,24 @@ def fit_curves_from_tabelle(tabelle_file: str, particelle_file: str,
     return fit_curves_grouped(groups, funzione)
 
 #pylint: disable=too-many-locals
-def apply_height_equations(alberi_file: str, equations_file: str,
-                           output_file: str) -> None:
+def compute_heights(trees_df: pd.DataFrame, equations_df: pd.DataFrame,
+                    verbose: bool = False) -> tuple[pd.DataFrame, int, int]:
     """
     Apply height equations to tree database, updating heights.
 
     Args:
-        alberi_file: Input tree CSV
-        equations_file: CSV with equations [compresa, genere, funzione, a, b, r2, n]
-        output_file: Output tree CSV with updated heights
-    """
-    trees_df = pd.read_csv(alberi_file)
-    equations_df = pd.read_csv(equations_file)
+        trees_df: DataFrame with Compresa, Genere, D(cm) columns
+        equations_df: DataFrame with compresa, genere, funzione, a, b columns
+        verbose: If True, print progress messages
 
-    total_trees = len(trees_df)
+    Returns:
+        Tuple of (updated DataFrame, trees_updated count, trees_unchanged count)
+    """
     trees_updated = 0
     trees_unchanged = 0
 
-    print(f"Applicazione equazioni a {total_trees} alberi...")
-
-    output_df = trees_df.copy()
-    output_df['h(m)'] = output_df['h(m)'].astype(float)
+    result_df = trees_df.copy()
+    result_df['h(m)'] = result_df['h(m)'].astype(float)
 
     for (compresa, genere), group in trees_df.groupby(['Compresa', 'Genere']):
         eq_row = equations_df[
@@ -787,12 +770,12 @@ def apply_height_equations(alberi_file: str, equations_file: str,
         ]
 
         if len(eq_row) == 0:
-            print(f"  {compresa} - {genere}: nessuna equazione trovata; altezze immutate")
+            if verbose:
+                print(f"  {compresa} - {genere}: nessuna equazione; altezze immutate")
             trees_unchanged += len(group)
             continue
 
         eq = eq_row.iloc[0]
-
         indices = group.index
         diameters = trees_df.loc[indices, 'D(cm)'].astype(float)
 
@@ -801,18 +784,13 @@ def apply_height_equations(alberi_file: str, equations_file: str,
         else:  # 'lin'
             new_heights = eq['a'] * diameters + eq['b']
 
-        output_df.loc[indices, 'h(m)'] = new_heights.astype(float)
+        result_df.loc[indices, 'h(m)'] = new_heights.astype(float)
         trees_updated += len(group)
 
-        print(f"  {compresa} - {genere}: {len(group)} alberi aggiornati")
+        if verbose:
+            print(f"  {compresa} - {genere}: {len(group)} alberi aggiornati")
 
-    output_df.to_csv(output_file, index=False, float_format="%.3f")
-
-    print("\nRiepilogo:")
-    print(f"  Totale alberi: {total_trees}")
-    print(f"  Alberi aggiornati: {trees_updated}")
-    print(f"  Alberi non modificati: {trees_unchanged}")
-    print(f"File salvato: {output_file}")
+    return result_df, trees_updated, trees_unchanged
 #pylint: enable=too-many-locals
 
 # =============================================================================
@@ -1436,23 +1414,22 @@ def run_genera_equazioni(args):
         print("ERRORE: Nessuna equazione generata (funzioni stub non implementate)")
 
 
-def run_calcola_altezze(args):
-    """Calculate heights."""
-    print(f"Calcolo altezze usando equazioni da: {args.equazioni}")
+def run_calcola_altezze_volumi(args):
+    """Calculate heights and volumes in one pass."""
+    print(f"Calcolo altezze con equazioni da: {args.equazioni}")
+    print("Calcolo volumi con tavole del Tabacchi")
     print(f"Input: {args.input}")
     print(f"Output: {args.output}")
 
-    apply_height_equations(args.input, args.equazioni, args.output)
-    print("Altezze calcolate con successo")
+    trees_df = pd.read_csv(args.input)
+    equations_df = pd.read_csv(args.equazioni)
 
+    trees_df, updated, unchanged = compute_heights(trees_df, equations_df, verbose=True)
+    trees_df = compute_volumes(trees_df)
+    print(f"\nCalcolo altezze e volumi: {updated} alberi aggiornati, {unchanged} immutati")
 
-def run_calcola_volumi(args):
-    """Calculate volumes."""
-    print("Calcolo volumi usando tavole di Tabacchi")
-    print(f"Input: {args.input}")
-    print(f"Output: {args.output}")
-
-    apply_volume_equations(args.input, args.output)
+    trees_df.to_csv(args.output, index=False, float_format="%.6f")
+    print(f"\nFile salvato: {args.output}")
 
 
 def run_report(args):
@@ -1509,20 +1486,16 @@ Modalità di utilizzo:
    ./acc.py --genera-equazioni --funzione=log --fonte-altezze=tabelle \\
             --input alsometrie.csv --particelle particelle.csv --output equations.csv
 
-2. CALCOLA ALTEZZE:
-   ./acc.py --calcola-altezze --equazioni equations.csv \\
+2. CALCOLA ALTEZZE E VOLUMI:
+   ./acc.py --calcola-altezze-volumi --equazioni equations.csv \\
             --input alberi.csv --output alberi-calcolati.csv
 
-3. CALCOLA VOLUMI:
-   ./acc.py --calcola-volumi --input alberi-calcolati.csv \\
-            --output alberi-con-volumi.csv
-
-4. GENERA REPORT:
+3. GENERA REPORT:
    ./acc.py --report --formato=html --equazioni equations.csv \\
-            --alberi alberi-con-volumi.csv --particelle particelle.csv \\
+            --alberi alberi-calcolati.csv --particelle particelle.csv \\
             --input template.html --output-dir report/
 
-5. LISTA PARTICELLE:
+4. LISTA PARTICELLE:
    ./acc.py --lista-particelle --particelle particelle.csv
 """
     )
@@ -1531,10 +1504,8 @@ Modalità di utilizzo:
     run_group = parser.add_mutually_exclusive_group(required=True)
     run_group.add_argument('--genera-equazioni', action='store_true',
                            help='Genera equazioni di interpolazione')
-    run_group.add_argument('--calcola-altezze', action='store_true',
-                           help='Calcola altezze usando equazioni')
-    run_group.add_argument('--calcola-volumi', action='store_true',
-                           help='Calcola volumi usando tavole di Tabacchi')
+    run_group.add_argument('--calcola-altezze-volumi', action='store_true',
+                           help='Calcola altezze (equazioni) e volumi (Tabacchi)')
     run_group.add_argument('--report', action='store_true',
                            help='Genera report da template')
     run_group.add_argument('--lista-particelle', action='store_true',
@@ -1583,21 +1554,14 @@ Modalità di utilizzo:
             parser.error('--fonte-altezze=tabelle richiede --particelle')
         run_genera_equazioni(args)
 
-    elif args.calcola_altezze:
+    elif args.calcola_altezze_volumi:
         if not args.equazioni:
-            parser.error('--calcola-altezze richiede --equazioni')
+            parser.error('--calcola-altezze-volumi richiede --equazioni')
         if not args.input:
-            parser.error('--calcola-altezze richiede --input')
+            parser.error('--calcola-altezze-volumi richiede --input')
         if not args.output:
-            parser.error('--calcola-altezze richiede --output')
-        run_calcola_altezze(args)
-
-    elif args.calcola_volumi:
-        if not args.input:
-            parser.error('--calcola-volumi richiede --input')
-        if not args.output:
-            parser.error('--calcola-volumi richiede --output')
-        run_calcola_volumi(args)
+            parser.error('--calcola-altezze-volumi richiede --output')
+        run_calcola_altezze_volumi(args)
 
     elif args.report:
         if not args.equazioni:

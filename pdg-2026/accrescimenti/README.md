@@ -13,21 +13,18 @@ Forest analysis tool for height/volume calculations and report generation
 Fits curves (y = a·ln(x) + b or y = a·x + b) for each (compresa, genere) pair.
 Output CSV: `compresa,genere,funzione,a,b,r2,n`
 
-### 2. Calculate heights
+### 2. Calculate heights and volumes
 ```bash
-./acc.py --calcola-altezze --equazioni EQUATION_FILE --alberi INPUT_FILE --output OUTPUT_FILE
+./acc.py --calcola-altezze-volumi --equazioni EQUATION_FILE --input INPUT_FILE --output OUTPUT_FILE
 ```
 
-Applies equations to estimate tree heights. Heights unchanged if no equation exists.
+In one pass:
+1. Applies height equations to estimate tree heights (unchanged if no equation exists)
+2. Computes volume V(m³) for each tree using Tabacchi equations
 
-### 3. Calculate volumes
-```bash
-./acc.py --calcola-volumi --alberi INPUT_FILE --output OUTPUT_FILE
-```
+This ensures heights and volumes are always consistent.
 
-Computes volume V(m³) for each tree using Tabacchi equations. Stores in output CSV.
-
-### 4. Generate report
+### 3. Generate report
 ```bash
 ./acc.py --report --formato={html,latex,pdf} --equazioni EQUATION_FILE \
          --alberi TREE_DATABASE --particelle PARCEL_METADATA \
@@ -36,7 +33,7 @@ Computes volume V(m³) for each tree using Tabacchi equations. Stores in output 
 
 Processes template, substituting `@@directives` with graphs/tables. PDF mode runs pdflatex.
 
-### 5. List parcels
+### 4. List parcels
 ```bash
 ./acc.py --lista-particelle --particelle PARCEL_METADATA
 ```
