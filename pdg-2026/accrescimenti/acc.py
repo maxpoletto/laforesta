@@ -679,19 +679,19 @@ def fit_curves_from_ipsometro(ipsometro_file: str, funzione: str = 'log') -> pd.
     Generate equations from ipsometer field measurements.
 
     Args:
-        ipsometro_file: CSV with columns [Compresa, Genere, Diametro, Altezza]
+        ipsometro_file: CSV with columns [Compresa, Genere, D(cm), h(m)]
         funzione: 'log' or 'lin'
 
     Returns:
         DataFrame with columns [compresa, genere, funzione, a, b, r2, n]
     """
     df = pd.read_csv(ipsometro_file)
-    df['x'] = df['Diametro']
-    df['y'] = df['Altezza']
+    df['x'] = df['D(cm)']
+    df['y'] = df['h(m)']
     groups = []
 
-    for (compresa, specie), group in df.groupby(['Compresa', 'Specie']):
-        groups.append(((compresa, specie), group))
+    for (compresa, genere), group in df.groupby(['Compresa', 'Genere']):
+        groups.append(((compresa, genere), group))
     return fit_curves_grouped(groups, funzione)
 
 
