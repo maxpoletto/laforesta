@@ -190,7 +190,6 @@ class HTMLSnippetFormatter(SnippetFormatter):
         html = '<div class="graph-details">\n'
         html += f'<p><strong>Alberi campionati:</strong> {stat["sampled_trees"]:d}</p>\n'
         html += f'<p><strong>Stima totale:</strong> {stat["estimated_total"]:d}</p>\n'
-        html += f'<p><strong>Area:</strong> {stat["area_ha"]:.2f} ha</p>\n'
 
         if "mean_height" in stat:
             html += f'<p><strong>Altezza media:</strong> {stat["mean_height"]:.1f} m</p>\n'
@@ -239,7 +238,6 @@ class LaTeXSnippetFormatter(SnippetFormatter):
         latex = '\\begin{quote}\\small\n'
         latex += f"\\textbf{{Alberi campionati:}} {stat['sampled_trees']:d}\\\\\n"
         latex += f"\\textbf{{Stima totale:}} {stat['estimated_total']:d}\\\\\n"
-        latex += f"\\textbf{{Area:}} {stat['area_ha']:.2f} ha\\\\\n"
 
         if "mean_height" in stat:
             latex += f"\\textbf{{Altezza media:}} {stat['mean_height']:.1f} m\\\\\n"
@@ -263,11 +261,11 @@ class LaTeXSnippetFormatter(SnippetFormatter):
         """Format table as LaTeX using longtable for page breaks."""
         n_cols = len(headers)
         # Use l for text columns, r for numeric columns
-        # Assume last columns are numeric (volumes)
-        if n_cols > 2:
-            col_spec = 'l' * (n_cols - 2) + 'r' * 2
+        # Assume first column is text, the rest are numeric (volumes)
+        if n_cols > 1:
+            col_spec = 'l'  + 'r' * (n_cols - 1)
         else:
-            col_spec = 'l' * n_cols
+            col_spec = 'l'
 
         # Use longtable instead of tabular to allow page breaks
         latex = f'\\begin{{longtable}}{{{col_spec}}}\n'
@@ -1247,6 +1245,8 @@ def process_template(template_text: str, trees_df: pd.DataFrame,
     Returns:
         Processed template text
     """
+    # Track filenames to make duplicates unique
+    filename_counts = {}
 
     def build_graph_filename(compresa: Optional[str], particella: Optional[str],
                              genere: Optional[str], keyword: str) -> str:
@@ -1261,7 +1261,16 @@ def process_template(template_text: str, trees_df: pd.DataFrame,
         if genere:
             parts.append(genere)
         parts.append(keyword)
-        return '_'.join(parts) + '.png'
+
+        base_name = '_'.join(parts)
+
+        # Make duplicates unique with a counter
+        if base_name in filename_counts:
+            filename_counts[base_name] += 1
+            return f"{base_name}_{filename_counts[base_name]}.png"
+        else:
+            filename_counts[base_name] = 1
+            return base_name + '.png'
 
     def process_directive(match):
         directive = parse_template_directive(match.group(0))
@@ -1312,7 +1321,6 @@ def process_template(template_text: str, trees_df: pd.DataFrame,
 
     # First pass: parse all directives and pre-compute and cache region_data
     data_cache = {}  # Cache region_data results by (compresa, particella, genere)
-    seen_directives = {}  # Track duplicate directives
 
     for match in DIRECTIVE_PATTERN.finditer(template_text):
         keyword, params_str = match.groups()
@@ -1325,11 +1333,6 @@ def process_template(template_text: str, trees_df: pd.DataFrame,
         if cache_key not in data_cache:
             data_cache[cache_key] = region_data(trees_df, particelle_df,
                                                 compresa, particella, genere)
-        key = (compresa, particella, genere, keyword)
-        if key in seen_directives:
-            print(f"  Attenzione: comando duplicato {keyword})")
-        else:
-            seen_directives[key] = True
 
     # Compute global max diameter class from all cached datasets
     max_diameter_class = 0
