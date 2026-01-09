@@ -87,5 +87,4 @@ Multiple `alberi`/`equazioni` files are concatenated; multiple filters are combi
 ## Implementation Notes
 
 - **Regression curves** in `@@ci` graphs use `EQUATION_FILE` (not recomputed from current data) to reflect original fit quality
-- **Graph x-axis scaling**: Computed per-region from actual filtered data to prevent squashed histograms
 - **Volume confidence intervals**: Conservative aggregation (sum of margins) for mixed species
