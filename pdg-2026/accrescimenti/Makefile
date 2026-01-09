@@ -72,13 +72,13 @@ clean-html:
 
 pdf: tex/relazione.pdf
 
-DEPS_TEX=$(CSV_DIR)/equazioni_ipsometro.csv $(CSV_DIR)/alberi-calcolati.csv $(CSV_DIR)/particelle.csv template/tex/relazione.tex
+DEPS_TEX=$(FILES_EQUAZIONI) $(CSV_DIR)/alberi.csv $(CSV_DIR)/alberi-calcolati.csv $(CSV_DIR)/particelle.csv template/tex/relazione.tex
 
 tex/relazione.tex: $(DEPS_TEX)
-	./acc.py --report --formato tex --equazioni $(CSV_DIR)/equazioni_ipsometro.csv --alberi $(CSV_DIR)/alberi-calcolati.csv --particelle $(CSV_DIR)/particelle.csv --input template/tex/relazione.tex --output-dir tex/
+	./acc.py --report --formato tex --particelle $(CSV_DIR)/particelle.csv --dati $(CSV_DIR) --input template/tex/relazione.tex --output-dir tex/
 
 tex/relazione.pdf: $(DEPS_TEX)
-	./acc.py --report --formato pdf --equazioni $(CSV_DIR)/equazioni_ipsometro.csv --alberi $(CSV_DIR)/alberi-calcolati.csv --particelle $(CSV_DIR)/particelle.csv --input template/tex/relazione.tex --output-dir tex/
+	./acc.py --report --formato pdf --particelle $(CSV_DIR)/particelle.csv --dati $(CSV_DIR) --input template/tex/relazione.tex --output-dir tex/
 
 clean-pdf:
 	rm -f tex/relazione.pdf tex/relazione.tex

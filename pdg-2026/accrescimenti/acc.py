@@ -188,8 +188,8 @@ class HTMLSnippetFormatter(SnippetFormatter):
     def format_metadata(self, stat: dict, curve_info: list = None) -> str:
         """Format metadata as HTML."""
         html = '<div class="graph-details">\n'
-        html += f'<p><strong>Alberi campionati:</strong> {stat["sampled_trees"]:d}</p>\n'
-        html += f'<p><strong>Stima totale:</strong> {stat["ntrees_total"]:d}</p>\n'
+        html += f'<p><strong>Alberi campionati:</strong> {stat["n_sampled_trees"]:d}</p>\n'
+        html += f'<p><strong>Stima totale:</strong> {stat["n_trees_total"]:d}</p>\n'
 
         if "mean_height" in stat:
             html += f'<p><strong>Altezza media:</strong> {stat["mean_height"]:.1f} m</p>\n'
@@ -201,7 +201,7 @@ class HTMLSnippetFormatter(SnippetFormatter):
             i = 'i' if len(curve_info) > 1 else 'e'
             html += f'<br><p><strong>Equazion{i} interpolant{i}:</strong></p>\n'
             for curve in curve_info:
-                html += (f'<p>{curve["species"]}: {curve["equation"]} '
+                html += (f'<p>{curve["genere"]}: {curve["equation"]} '
                         f'(R² = {curve["r_squared"]:.2f}, n = {curve["n_points"]})</p>\n')
 
         html += '</div>\n'
@@ -1195,8 +1195,8 @@ def parse_template_directive(line: str) -> Optional[dict]:
     params_str = match.group(2)
     full_text = match.group(0)
 
-    # Keys that should always be lists (filter parameters)
-    list_keys = {'compresa', 'particella', 'genere'}
+    # Keys that should always be lists (filter parameters + file parameters)
+    list_keys = {'compresa', 'particella', 'genere', 'alberi', 'equazioni'}
 
     params = {}
     if params_str.strip():
@@ -1224,23 +1224,57 @@ def parse_template_directive(line: str) -> Optional[dict]:
     }
 
 DIRECTIVE_PATTERN = re.compile(r'@@(\w+)\((.*?)\)')
-def process_template(template_text: str, trees_df: pd.DataFrame,
-                     particelle_df: pd.DataFrame, equations_df: pd.DataFrame,
+def process_template(template_text: str, data_dir: Path,
+                     particelle_df: pd.DataFrame,
                      output_dir: Path, format_type: str) -> str:
     """
     Process template by substituting @@directives with generated content.
 
     Args:
         template_text: Input template
-        trees_df: Tree database
-        particelle_df: Parcel metadata
-        equations_df: Pre-computed equations
+        data_dir: Base directory for data files (alberi, equazioni)
+        particelle_df: Parcel metadata (global)
         output_dir: Where to save generated graphs
         format_type: 'html' or 'latex'
 
     Returns:
         Processed template text
     """
+    # Cache for loaded DataFrames (keyed by filename tuple)
+    file_cache = {}
+
+    def load_trees(filenames: list) -> pd.DataFrame:
+        """Load and concatenate tree data from multiple files."""
+        cache_key = tuple(sorted(filenames))
+        if cache_key in file_cache:
+            return file_cache[cache_key]
+
+        dfs = []
+        for filename in filenames:
+            filepath = data_dir / filename
+            df = pd.read_csv(filepath)
+            df = df[df['Fustaia'] == True].copy()  # Filter to fustaia only
+            dfs.append(df)
+
+        result = pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame()
+        file_cache[cache_key] = result
+        return result
+
+    def load_equations(filenames: list) -> pd.DataFrame:
+        """Load and concatenate equation data from multiple files."""
+        cache_key = ('eq',) + tuple(sorted(filenames))
+        if cache_key in file_cache:
+            return file_cache[cache_key]
+
+        dfs = []
+        for filename in filenames:
+            filepath = data_dir / filename
+            dfs.append(pd.read_csv(filepath))
+
+        result = pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame()
+        file_cache[cache_key] = result
+        return result
+
     # Track filenames to make duplicates unique
     filename_counts = {}
 
@@ -1276,12 +1310,30 @@ def process_template(template_text: str, trees_df: pd.DataFrame,
 
         keyword = directive['keyword']
         params = directive['params']
-        compresa = params.get('compresa', None)
-        particella = params.get('particella', None)
-        genere = params.get('genere', None)
+
+        # Extract file parameters (required)
+        alberi_files = params.get('alberi')
+        equazioni_files = params.get('equazioni')
+
+        # Validate required parameters
+        if not alberi_files:
+            raise ValueError(f"@@{keyword} richiede alberi=FILE")
+        if keyword == 'ci' and not equazioni_files:
+            raise ValueError(f"@@ci richiede equazioni=FILE")
+
+        # Extract filter parameters
+        comprese = params.get('compresa')
+        particelle = params.get('particella')
+        generi = params.get('genere')
 
         try:
-            cache_key = (_to_hashable(compresa), _to_hashable(particella), _to_hashable(genere))
+            # Build cache key including file names
+            cache_key = (
+                _to_hashable(alberi_files),
+                _to_hashable(comprese),
+                _to_hashable(particelle),
+                _to_hashable(generi)
+            )
             data = data_cache[cache_key]
 
             match keyword:
@@ -1297,11 +1349,12 @@ def process_template(template_text: str, trees_df: pd.DataFrame,
                     }
                     result = render_tsv_table(data, particelle_df, formatter, **options)
                 case 'cd':
-                    filename = build_graph_filename(compresa, particella, genere, keyword)
+                    filename = build_graph_filename(comprese, particelle, generi, keyword)
                     result = render_cd_graph(data, max_diameter_class,
                                              output_dir / filename, formatter, color_map)
                 case 'ci':
-                    filename = build_graph_filename(compresa, particella, genere, keyword)
+                    equations_df = load_equations(equazioni_files)
+                    filename = build_graph_filename(comprese, particelle, generi, keyword)
                     result = render_ci_graph(data, max_diameter, equations_df,
                                              output_dir / filename, formatter, color_map)
                 case _:
@@ -1314,31 +1367,51 @@ def process_template(template_text: str, trees_df: pd.DataFrame,
 
     formatter = HTMLSnippetFormatter() if format_type == 'html' else LaTeXSnippetFormatter()
     color_map = get_color_map()
-    max_diameter = trees_df['D(cm)'].max()
 
-    # First pass: parse all directives and pre-compute and cache region_data
-    data_cache = {}  # Cache region_data results by (compresa, particella, genere) tuples
+    # First pass: parse all directives, load data, and cache region_data
+    data_cache = {}  # Cache region_data by (alberi_files, comprese, particelle, generi)
+    max_diameter = 0
 
     for match in DIRECTIVE_PATTERN.finditer(template_text):
         directive = parse_template_directive(match.group(0))
         if not directive:
             continue
-        params = directive['params']
-        compresa = params.get('compresa')
-        particella = params.get('particella')
-        genere = params.get('genere')
 
-        cache_key = (_to_hashable(compresa), _to_hashable(particella), _to_hashable(genere))
+        params = directive['params']
+        alberi_files = params.get('alberi')
+        if not alberi_files:
+            continue  # Will error in second pass
+
+        comprese = params.get('compresa')
+        particelle = params.get('particella')
+        generi = params.get('genere')
+
+        cache_key = (
+            _to_hashable(alberi_files),
+            _to_hashable(comprese),
+            _to_hashable(particelle),
+            _to_hashable(generi)
+        )
+
         if cache_key not in data_cache:
+            trees_df = load_trees(alberi_files)
+            max_diameter = max(max_diameter, trees_df['D(cm)'].max())
             data_cache[cache_key] = region_data(trees_df, particelle_df,
-                                                compresa, particella, genere)
+                                                comprese, particelle, generi)
 
     # Compute global max diameter class from all cached datasets
     max_diameter_class = 0
     for data in data_cache.values():
         max_diameter_class = max(max_diameter_class, data['max_significant_diameter_class'])
-    if max_diameter_class == 0:
-        max_diameter_class = int(trees_df['Classe diametrica'].max())
+    if max_diameter_class == 0 and data_cache:
+        # Fallback: use max from any loaded trees
+        for key in data_cache:
+            alberi_files = list(key[0]) if key[0] else []
+            if alberi_files:
+                trees_df = load_trees(alberi_files)
+                max_diameter_class = max(max_diameter_class,
+                                         int(trees_df['Classe diametrica'].max()))
+                break
 
     # Find and replace all directives
     processed = re.sub(DIRECTIVE_PATTERN, process_directive, template_text)
@@ -1464,12 +1537,11 @@ def run_report(args):
     format_type = args.formato
     print(f"Generazione report formato: {format_type}")
     print(f"Template: {args.input}")
+    print(f"Directory dati: {args.dati}")
     print(f"Output directory: {args.output_dir}")
 
-    trees_df = pd.read_csv(args.alberi)
-    trees_df = trees_df[trees_df['Fustaia'] == True].copy()  # Filter to fustaia only
+    data_dir = Path(args.dati)
     particelle_df = pd.read_csv(args.particelle)
-    equations_df = pd.read_csv(args.equazioni)
 
     with open(args.input, 'r', encoding='utf-8') as f:
         template_text = f.read()
@@ -1477,8 +1549,8 @@ def run_report(args):
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    processed = process_template(template_text, trees_df, particelle_df,
-                                 equations_df, output_dir, format_type)
+    processed = process_template(template_text, data_dir, particelle_df,
+                                 output_dir, format_type)
     output_file = output_dir / Path(args.input).name
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write(processed)
@@ -1518,9 +1590,9 @@ Modalità di utilizzo:
             --input alberi.csv --output alberi-calcolati.csv
 
 3. GENERA REPORT:
-   ./acc.py --report --formato=html --equazioni equations.csv \\
-            --alberi alberi-calcolati.csv --particelle particelle.csv \\
+   ./acc.py --report --formato=html --dati csv/ --particelle particelle.csv \\
             --input template.html --output-dir report/
+   (Directives specify alberi=file.csv and equazioni=file.csv)
 
 4. LISTA PARTICELLE:
    ./acc.py --lista-particelle --particelle particelle.csv
@@ -1547,9 +1619,9 @@ Modalità di utilizzo:
     files_group.add_argument('--output-dir',
                             help='Directory di output (per report)')
     files_group.add_argument('--equazioni',
-                            help='File CSV con equazioni')
-    files_group.add_argument('--alberi',
-                            help='File CSV con dati alberi')
+                            help='File CSV con equazioni (per --calcola-altezze-volumi)')
+    files_group.add_argument('--dati',
+                            help='Directory base per file dati (per --report)')
     files_group.add_argument('--particelle',
                             help='File CSV con dati particelle')
 
@@ -1591,10 +1663,8 @@ Modalità di utilizzo:
         run_calcola_altezze_volumi(args)
 
     elif args.report:
-        if not args.equazioni:
-            parser.error('--report richiede --equazioni')
-        if not args.alberi:
-            parser.error('--report richiede --alberi')
+        if not args.dati:
+            parser.error('--report richiede --dati')
         if not args.particelle:
             parser.error('--report richiede --particelle')
         if not args.input:
