@@ -60,6 +60,12 @@ Lists all (compresa, particella) tuples.
 | `intervallo_fiduciario` | `si`, `no` | Show confidence intervals (default: `no`) | `@@tsv` only |
 | `totali` | `si`, `no` | Add totals row (default: `no`) | `@@tsv` only |
 
+**Multi-value filters**: `compresa`, `particella`, and `genere` can be repeated to include multiple values:
+```
+@@cd(compresa=Serra, compresa=Fabrizia, genere=Abete, genere=Castagno)
+```
+This shows data for both Serra and Fabrizia, filtered to Abete and Castagno only.
+
 ## File Formats
 
 - **Equation files** (CSV): Regression coefficients for height-diameter relationships

@@ -189,7 +189,7 @@ class HTMLSnippetFormatter(SnippetFormatter):
         """Format metadata as HTML."""
         html = '<div class="graph-details">\n'
         html += f'<p><strong>Alberi campionati:</strong> {stat["sampled_trees"]:d}</p>\n'
-        html += f'<p><strong>Stima totale:</strong> {stat["estimated_total"]:d}</p>\n'
+        html += f'<p><strong>Stima totale:</strong> {stat["ntrees_total"]:d}</p>\n'
 
         if "mean_height" in stat:
             html += f'<p><strong>Altezza media:</strong> {stat["mean_height"]:.1f} m</p>\n'
@@ -236,8 +236,8 @@ class LaTeXSnippetFormatter(SnippetFormatter):
     def format_metadata(self, stat: dict, curve_info: list = None) -> str:
         """Format metadata as LaTeX."""
         latex = '\\begin{quote}\\small\n'
-        latex += f"\\textbf{{Alberi campionati:}} {stat['sampled_trees']:d}\\\\\n"
-        latex += f"\\textbf{{Stima totale:}} {stat['ntrees_total']:d}\\\\\n"
+        latex += f"\\textbf{{Alberi campionati:}} {stat['n_sampled_trees']:d}\\\\\n"
+        latex += f"\\textbf{{Stima totale:}} {stat['n_trees_total']:d}\\\\\n"
 
         if "mean_height" in stat:
             latex += f"\\textbf{{Altezza media:}} {stat['mean_height']:.1f} m\\\\\n"
@@ -251,7 +251,7 @@ class LaTeXSnippetFormatter(SnippetFormatter):
             for curve in curve_info:
                 eq = curve['equation'].replace('*', r'\times ')
                 eq = eq.replace('ln', r'\ln')
-                latex += (f"{curve['species']}: ${eq}$ ($R^2$ = {curve['r_squared']:.2f}, "
+                latex += (f"{curve['genere']}: ${eq}$ ($R^2$ = {curve['r_squared']:.2f}, "
                          f"$n$ = {curve['n_points']})\\\\\n")
 
         latex += '\\end{quote}\n'
@@ -273,13 +273,15 @@ class LaTeXSnippetFormatter(SnippetFormatter):
         latex += ' & '.join(headers) + ' \\\\\n'
         latex += '\\hline\n'
         latex += '\\endfirsthead\n'  # End of first page header
-        latex += '\\multicolumn{' + str(n_cols) + '}{c}{\\textit{(continua dalla pagina precedente)}} \\\\\n'
+        latex += '\\multicolumn{' + str(n_cols) + '}{c}'
+        latex += '{\\textit{(continua dalla pagina precedente)}} \\\\\n'
         latex += '\\hline\n'
         latex += ' & '.join(headers) + ' \\\\\n'
         latex += '\\hline\n'
         latex += '\\endhead\n'  # Header for subsequent pages
         latex += '\\hline\n'
-        latex += '\\multicolumn{' + str(n_cols) + '}{r}{\\textit{(continua alla pagina successiva)}} \\\\\n'
+        latex += '\\multicolumn{' + str(n_cols) + '}{r}'
+        latex += '{\\textit{(continua alla pagina successiva)}} \\\\\n'
         latex += '\\endfoot\n'  # Footer for all pages except last
         latex += '\\hline\n'
         latex += '\\endlastfoot\n'  # Footer for last page
@@ -558,50 +560,51 @@ def compute_volumes(trees_df: pd.DataFrame) -> pd.DataFrame:
 # =============================================================================
 
 def region_data(trees_df: pd.DataFrame, particelle_df: pd.DataFrame,
-                compresa: Optional[str] = None,
-                particella: Optional[str] = None,
-                genere: Optional[str] = None) -> tuple[pd.DataFrame, dict]:
+                comprese=None,
+                particelle=None,
+                generi=None) -> dict:
     """
     Compute region data (shared across all directives).
 
     Args:
         trees_df: Full tree database
         particelle_df: Parcel metadata
-        compresa: Optional compresa name (None means all comprese)
-        particella: Optional particella name (requires compresa)
-        genere: Optional species name (None means all species)
+        compresa: Optional compresa name(s) - string or list (None means all)
+        particella: Optional particella name(s) - string or list (requires compresa)
+        genere: Optional species name(s) - string or list (None means all)
 
     Returns:
-        Tuple of (filtered_trees, metrics ... ) where metrics include:
+        Dict with filtered trees and metrics including:
             - 'area_ha': Total area in hectares
-            - 'sample_areas': Number of sample areas
+            - 'n_sample_areas': Number of sample areas
 
     Raises:
         ValueError: If particella specified without compresa, or no data found
     """
-    if particella and not compresa:
+    def _filter_df(df: pd.DataFrame, column: str, values: Optional[list]) -> pd.DataFrame:
+        """Return new DataFrame with rows of df where df[column] is in values."""
+        if values is None:
+            return df
+        return df[df[column].isin(values)]
+
+    if particelle and not comprese:
         raise ValueError("particella richiede compresa")
 
     trees = trees_df.copy()
+    trees = _filter_df(trees, 'Compresa', comprese)
+    trees = _filter_df(trees, 'Particella', particelle)
+    trees = _filter_df(trees, 'Genere', generi)
 
-    if compresa:
-        trees = trees[trees['Compresa'] == compresa]
-    if particella:
-        trees = trees[trees['Particella'] == particella]
-    if genere:
-        trees = trees[trees['Genere'] == genere]
     if len(trees) == 0:
-        raise ValueError(f"Nessun dato trovato per compresa '{compresa}' " +
-                         f"particella '{particella}' genere '{genere}'")
+        raise ValueError(f"Nessun dato trovato per comprese '{comprese}' " +
+                         f"particelle '{particelle}' generi '{generi}'")
 
     parcels = particelle_df.copy()
-    if compresa:
-        parcels = parcels[parcels['Compresa'] == compresa]
-    if particella:
-        parcels = parcels[parcels['Particella'] == particella]
+    parcels = _filter_df(parcels, 'Compresa', comprese)
+    parcels = _filter_df(parcels, 'Particella', particelle)
 
     area_ha = parcels['Area (ha)'].sum()
-    # "Area saggio" labels are not unique at least across comprese.
+    # "Area saggio" labels are not unique across comprese.
     n_sample_areas = trees.drop_duplicates(
         subset=['Compresa', 'Particella', 'Area saggio']).shape[0]
 
@@ -614,20 +617,19 @@ def region_data(trees_df: pd.DataFrame, particelle_df: pd.DataFrame,
     if len(trees) > 0 and n_sample_areas > 0:
         n_trees_by_diameter = trees.groupby('Classe diametrica').size()
         n_trees_per_ha_by_diameter = n_trees_by_diameter * SAMPLE_AREAS_PER_HA / n_sample_areas
-        common_diameters = n_trees_per_ha_by_diameter[n_trees_per_ha_by_diameter >= MIN_TREES_PER_HA]
+        common_diameters = n_trees_per_ha_by_diameter[
+            n_trees_per_ha_by_diameter >= MIN_TREES_PER_HA]
         if len(common_diameters) > 0:
             max_significant_diameter_class = int(common_diameters.index.max())
 
     return {
-        'compresa': compresa,
-        'particella': particella,
         'trees': trees,
-        'species_list': sorted(trees['Genere'].unique()),
+        'comprese': comprese,
+        'generi': sorted(trees['Genere'].unique()),
         'area_ha': area_ha,
-        'sample_areas': n_sample_areas,
-        'sampled_trees': n_trees_sampled,
-        'ntrees_total': n_trees_total,
-        'ntrees_per_ha': n_trees_per_ha_by_diameter, # Not used
+        'n_sample_areas': n_sample_areas,
+        'n_sampled_trees': n_trees_sampled,
+        'n_trees_total': n_trees_total,
         'mean_diameter_class': trees['Classe diametrica'].mean(),
         'mean_height': trees['h(m)'].mean(),
         'max_significant_diameter_class': max_significant_diameter_class,
@@ -816,50 +818,56 @@ def render_ci_graph(data: dict, max_diameter: int, equations_df: pd.DataFrame,
             - 'snippet': Formatted HTML/LaTeX snippet for template substitution
     """
     trees = data['trees']
-    species_list = data['species_list']
-    compresa = data['compresa']
+    generi = data['generi']
+    comprese = data['comprese']
 
     fig, ax = plt.subplots(figsize=(4, 3))
     curve_info = []
     ymax = 0
 
-    for species in species_list:
-        sp_data = trees[trees['Genere'] == species]
+    # First pass: scatter points (once per genere)
+    for genere in generi:
+        sp_data = trees[trees['Genere'] == genere]
         x = sp_data['D(cm)'].values
         y = sp_data['h(m)'].values
         ymax = max(ymax, y.max())
+        ax.scatter(x, y, color=color_map[genere], label=genere, alpha=0.7, linewidth=2, s=1)
 
-        ax.scatter(x, y, color=color_map[species], label=species, alpha=0.7, linewidth=2, s=1)
+    # Second pass: regression curves (per compresa/genere pair)
+    for compresa in comprese:
+        for genere in generi:
+            sp_data = trees[trees['Genere'] == genere]
+            x = sp_data['D(cm)'].values
 
-        # Look up pre-computed equation from equations.csv
-        eq_row = equations_df[
-            (equations_df['compresa'] == compresa) &
-            (equations_df['genere'] == species)
-        ]
+            # Look up pre-computed equation from equations.csv
+            eq_row = equations_df[
+                (equations_df['compresa'] == compresa) &
+                (equations_df['genere'] == genere)
+            ]
 
-        if len(eq_row) > 0:
-            eq = eq_row.iloc[0]
+            if len(eq_row) > 0:
+                eq = eq_row.iloc[0]
 
-            x_min, x_max = 1, x.max()
-            x_smooth = np.linspace(x_min, x_max, 100)
+                x_min, x_max = 1, x.max()
+                x_smooth = np.linspace(x_min, x_max, 100)
 
-            if eq['funzione'] == 'ln':
-                y_smooth = eq['a'] * np.log(x_smooth) + eq['b']
-                eq_str = f"y = {eq['a']:.2f}*ln(x) + {eq['b']:.2f}"
-            else:  # 'lin'
-                y_smooth = eq['a'] * x_smooth + eq['b']
-                eq_str = f"y = {eq['a']:.2f}*x + {eq['b']:.2f}"
+                if eq['funzione'] == 'ln':
+                    y_smooth = eq['a'] * np.log(x_smooth) + eq['b']
+                    eq_str = f"y = {eq['a']:.2f}*ln(x) + {eq['b']:.2f}"
+                else:  # 'lin'
+                    y_smooth = eq['a'] * x_smooth + eq['b']
+                    eq_str = f"y = {eq['a']:.2f}*x + {eq['b']:.2f}"
 
-            ax.plot(x_smooth, y_smooth, color=color_map[species],
-                   linestyle='--', alpha=0.8, linewidth=1.5)
+                ax.plot(x_smooth, y_smooth, color=color_map[genere],
+                    linestyle='--', alpha=0.8, linewidth=1.5)
 
-            # Save curve info for metadata display
-            curve_info.append({
-                'species': species,
-                'equation': eq_str,
-                'r_squared': eq['r2'],
-                'n_points': int(eq['n'])
-            })
+                # Save curve info for metadata display
+                curve_info.append({
+                    'genere': genere,
+                    'equation': eq_str,
+                    'r_squared': eq['r2'],
+                    'n_points': int(eq['n'])
+                })
 
     ax.set_xlabel('Diametro (cm)', fontweight='bold')
     ax.set_ylabel('Altezza (m)', fontweight='bold')
@@ -903,8 +911,8 @@ def render_cd_graph(data: dict, max_diameter_class: int, output_path: Path,
             - 'snippet': Formatted HTML/LaTeX snippet for template substitution
     """
     trees = data['trees']
-    species_list = data['species_list']
-    sample_areas = data['sample_areas']
+    generi = data['generi']
+    sample_areas = data['n_sample_areas']
 
     counts = (trees.groupby(['Classe diametrica', 'Genere']).size().unstack(fill_value=0)
               * SAMPLE_AREAS_PER_HA / sample_areas)
@@ -912,12 +920,12 @@ def render_cd_graph(data: dict, max_diameter_class: int, output_path: Path,
     fig, ax = plt.subplots(figsize=(4, 3.75))
 
     bottom = np.zeros(len(counts.index))
-    for species in species_list:
-        if species not in counts.columns:
+    for genere in generi:
+        if genere not in counts.columns:
             continue
-        values = counts[species].values
+        values = counts[genere].values
         ax.bar(counts.index, values, bottom=bottom,
-               label=species, color=color_map[species],
+               label=genere, color=color_map[genere],
                alpha=0.8, edgecolor='white', linewidth=0.5)
         bottom += values
 
@@ -992,20 +1000,17 @@ def render_tsv_table(data: dict, particelle_df: pd.DataFrame,
         dict with 'snippet' key containing formatted table
     """
     trees = data['trees']
-    compresa = data['compresa']
-    particella = data['particella']
-    genere = data.get('genere')  # May not be in data dict if not filtered
 
     # Determine grouping columns based on per_* flags and filters
     # If a dimension is already filtered (specific value provided), don't group by it
     # Otherwise, use the per_* flag to decide
     group_cols = []
 
-    if not compresa and options.get('per_compresa', True):
+    if options.get('per_compresa', True):
         group_cols.append('Compresa')
-    if not particella and options.get('per_particella', True):
+    if options.get('per_particella', True):
         group_cols.append('Particella')
-    if not genere and options.get('per_genere', True):
+    if options.get('per_genere', True):
         group_cols.append('Genere')
 
     # If no grouping columns, aggregate everything into one row
@@ -1169,6 +1174,12 @@ def parse_template_directive(line: str) -> Optional[dict]:
     """
     Parse a template directive like @@ci(compresa=Serra, genere=Abete).
 
+    Filter keys (compresa, particella, genere) are always lists (even single values):
+        @@cd(compresa=Serra) -> {'compresa': ['Serra']}
+        @@cd(compresa=Serra, compresa=Fabrizia) -> {'compresa': ['Serra', 'Fabrizia']}
+
+    Other keys remain scalar values.
+
     Returns:
         dict with keys: 'keyword', 'params', 'full_text'
         or None if not a valid directive
@@ -1184,6 +1195,9 @@ def parse_template_directive(line: str) -> Optional[dict]:
     params_str = match.group(2)
     full_text = match.group(0)
 
+    # Keys that should always be lists (filter parameters)
+    list_keys = {'compresa', 'particella', 'genere'}
+
     params = {}
     if params_str.strip():
         # Split by comma and parse key=value pairs
@@ -1191,7 +1205,17 @@ def parse_template_directive(line: str) -> Optional[dict]:
             param = param.strip()
             if '=' in param:
                 key, value = param.split('=', 1)
-                params[key.strip()] = value.strip()
+                key = key.strip()
+                value = value.strip()
+
+                if key in list_keys:
+                    # Always accumulate into lists
+                    if key not in params:
+                        params[key] = []
+                    params[key].append(value)
+                else:
+                    # Scalar value (last one wins if repeated)
+                    params[key] = value
 
     return {
         'keyword': keyword,
@@ -1220,18 +1244,19 @@ def process_template(template_text: str, trees_df: pd.DataFrame,
     # Track filenames to make duplicates unique
     filename_counts = {}
 
-    def build_graph_filename(compresa: Optional[str], particella: Optional[str],
-                             genere: Optional[str], keyword: str) -> str:
-        """Build a filename for a graph based on the parameters."""
+    def _to_hashable(values: Optional[list]) -> Optional[tuple]:
+        """Convert list to sorted tuple for cache keys, or None if empty/None."""
+        return tuple(sorted(values)) if values else None
+
+    def build_graph_filename(compresa: Optional[list], particella: Optional[list],
+                             genere: Optional[list], keyword: str) -> str:
+        """Build a filename for a graph based on the parameters (all lists)."""
         parts = []
-        if compresa:
-            parts.append(compresa)
-        else:
-            parts.append('tutte')
+        parts.append('-'.join(sorted(compresa)) if compresa else 'tutte')
         if particella:
-            parts.append(particella)
+            parts.append('-'.join(sorted(str(p) for p in particella)))
         if genere:
-            parts.append(genere)
+            parts.append('-'.join(sorted(genere)))
         parts.append(keyword)
 
         base_name = '_'.join(parts)
@@ -1256,7 +1281,7 @@ def process_template(template_text: str, trees_df: pd.DataFrame,
         genere = params.get('genere', None)
 
         try:
-            cache_key = (compresa, particella, genere)
+            cache_key = (_to_hashable(compresa), _to_hashable(particella), _to_hashable(genere))
             data = data_cache[cache_key]
 
             match keyword:
@@ -1292,16 +1317,18 @@ def process_template(template_text: str, trees_df: pd.DataFrame,
     max_diameter = trees_df['D(cm)'].max()
 
     # First pass: parse all directives and pre-compute and cache region_data
-    data_cache = {}  # Cache region_data results by (compresa, particella, genere)
+    data_cache = {}  # Cache region_data results by (compresa, particella, genere) tuples
 
     for match in DIRECTIVE_PATTERN.finditer(template_text):
-        keyword, params_str = match.groups()
-        params = dict(re.findall(r'(\w+)=([^,]+)', params_str))
+        directive = parse_template_directive(match.group(0))
+        if not directive:
+            continue
+        params = directive['params']
         compresa = params.get('compresa')
         particella = params.get('particella')
         genere = params.get('genere')
 
-        cache_key = (compresa, particella, genere)
+        cache_key = (_to_hashable(compresa), _to_hashable(particella), _to_hashable(genere))
         if cache_key not in data_cache:
             data_cache[cache_key] = region_data(trees_df, particelle_df,
                                                 compresa, particella, genere)
