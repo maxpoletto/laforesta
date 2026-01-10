@@ -72,13 +72,13 @@ clean-html:
 
 pdf: tex/relazione.pdf
 
-DEPS_TEX=$(FILES_EQUAZIONI) $(CSV_DIR)/alberi.csv $(CSV_DIR)/alberi-calcolati.csv $(CSV_DIR)/particelle.csv template/tex/relazione.tex
+DEPS_TEX=$(FILES_EQUAZIONI) $(CSV_DIR)/alberi.csv $(CSV_DIR)/alberi-calcolati.csv $(CSV_DIR)/particelle.csv
 
-tex/relazione.tex: $(DEPS_TEX)
-	./acc.py --report --formato tex --particelle $(CSV_DIR)/particelle.csv --dati $(CSV_DIR) --input template/tex/relazione.tex --output-dir tex/
+tex/%.tex: template/tex/%.tex $(DEPS_TEX)
+	./acc.py --report --formato tex --particelle $(CSV_DIR)/particelle.csv --dati $(CSV_DIR) --input template/tex/$*.tex --output-dir tex/
 
-tex/relazione.pdf: $(DEPS_TEX)
-	./acc.py --report --formato pdf --particelle $(CSV_DIR)/particelle.csv --dati $(CSV_DIR) --input template/tex/relazione.tex --output-dir tex/
+tex/%.pdf: template/tex/%.tex $(DEPS_TEX)
+	./acc.py --report --formato pdf --particelle $(CSV_DIR)/particelle.csv --dati $(CSV_DIR) --input template/tex/$*.tex --output-dir tex/
 
 clean-pdf:
 	rm -f tex/relazione.pdf tex/relazione.tex
