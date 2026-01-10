@@ -44,23 +44,31 @@ La distribuzione in classi diametriche a Serra è la seguente. Il bosco è domin
 \subsection*{Serra: Classi diametriche}
 @@cd(compresa=Serra,alberi=alberi.csv)
 \clearpage
-\subsection*{Serra: curve ipsometriche originali}
-@@ci(compresa=Serra,alberi=alberi.csv,equazioni=equazioni_originali.csv)
-\subsection*{Serra: curve ipsometriche nuove}
-@@ci(compresa=Serra,alberi=alberi-calcolati.csv,equazioni=equazioni_ipsometro.csv)
 
+\subsection*{Serra: curve ipsometriche, veduta d'insieme}
+Presentiamo le curve ipsometriche per le specie prevalenti nella compresa di Serra: abete, castagno, douglas, faggio, pino nero. Le rimanenti specie sono troppo poco frequenti per permettere un'analisi significativa delle altezze.
+
+@@ci(compresa=Serra,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv,genere=Abete,genere=Castagno,genere=Douglas,genere=Faggio,genere=Pino Nero)
 \clearpage
+
 \subsection*{Serra: ipsometria abete}
-@@ci(compresa=Serra,genere=Abete,genere=Castagno,alberi=alberi-calcolati.csv,equazioni=equazioni_ipsometro.csv)
+@@ci(compresa=Serra,genere=Abete,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
 \clearpage
+
 \subsection*{Serra: ipsometria castagno}
-@@ci(compresa=Serra,genere=Castagno,alberi=alberi-calcolati.csv,equazioni=equazioni_ipsometro.csv)
+@@ci(compresa=Serra,genere=Castagno,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
 \clearpage
+
+\subsection*{Serra: ipsometria douglas}
+@@ci(compresa=Serra,genere=Douglas,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
+\clearpage
+
 \subsection*{Serra: ipsometria faggio}
-@@ci(compresa=Serra,genere=Faggio,alberi=alberi-calcolati.csv,equazioni=equazioni_ipsometro.csv)
+@@ci(compresa=Serra,genere=Faggio,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
 \clearpage
+
 \subsection*{Serra: ipsometria pino nero}
-@@ci(compresa=Serra,genere=Pino Nero,alberi=alberi-calcolati.csv,equazioni=equazioni_ipsometro.csv)
+@@ci(compresa=Serra,genere=Pino Nero,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
 \clearpage
 
 \subsection{Fabrizia}
@@ -70,17 +78,26 @@ La distribuzione in classi diametriche a Fabrizia è la seguente. Il bosco è do
 \subsection*{Fabrizia: Classi diametriche}
 @@cd(compresa=Fabrizia,alberi=alberi.csv)
 \clearpage
+
 \subsection*{Fabrizia: curve ipsometriche, veduta d'insieme}
-@@ci(compresa=Fabrizia,alberi=alberi-calcolati.csv,equazioni=equazioni_ipsometro.csv)
+Le specie prevalenti, per le quali abbiamo potuto calcolare le equazioni interpolanti, sono abete, douglas, faggio e pino nero.
+@@ci(compresa=Fabrizia,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv,genere=Abete,genere=Douglas,genere=Faggio,genere=Pino Nero)
 \clearpage
+
 \subsection*{Fabrizia: ipsometria abete}
-@@ci(compresa=Fabrizia,genere=Abete,alberi=alberi-calcolati.csv,equazioni=equazioni_ipsometro.csv)
+@@ci(compresa=Fabrizia,genere=Abete,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
 \clearpage
+
+\subsection*{Fabrizia: ipsometria douglas}
+@@ci(compresa=Fabrizia,genere=Douglas,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
+\clearpage
+
 \subsection*{Fabrizia: ipsometria faggio}
-@@ci(compresa=Fabrizia,genere=Faggio,alberi=alberi-calcolati.csv,equazioni=equazioni_ipsometro.csv)
+@@ci(compresa=Fabrizia,genere=Faggio,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
 \clearpage
+
 \subsection*{Fabrizia: ipsometria pino nero}
-@@ci(compresa=Fabrizia,genere=Pino Nero,alberi=alberi-calcolati.csv,equazioni=equazioni_ipsometro.csv)
+@@ci(compresa=Fabrizia,genere=Pino Nero,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
 \clearpage
 
 \subsection{Capistrano}
@@ -89,17 +106,26 @@ La distribuzione in classi diametriche a Capistrano è la seguente. Il bosco è 
 \subsection*{Capistrano: Classi diametriche}
 @@cd(compresa=Capistrano,alberi=alberi.csv)
 \clearpage
+
 \subsection*{Capistrano: curve ipsometriche, veduta d'insieme}
-@@ci(compresa=Capistrano,alberi=alberi-calcolati.csv,equazioni=equazioni_ipsometro.csv)
+Le specie prevalenti, per le quali abbiamo potuto calcolare le equazioni interpolanti, sono abete, douglas, pino marittimo e pino nero.
+@@ci(compresa=Capistrano,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
 \clearpage
+
 \subsection*{Capistrano: ipsometria abete}
-@@ci(compresa=Capistrano,genere=Abete,alberi=alberi-calcolati.csv,equazioni=equazioni_ipsometro.csv)
+@@ci(compresa=Capistrano,genere=Abete,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
 \clearpage
-\subsection*{Capistrano: ipsometria pino nero}
-@@ci(compresa=Capistrano,genere=Pino Nero,alberi=alberi-calcolati.csv,equazioni=equazioni_ipsometro.csv)
+
+\subsection*{Capistrano: ipsometria douglas}
+@@ci(compresa=Capistrano,genere=Douglas,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
 \clearpage
+
 \subsection*{Capistrano: ipsometria pino marittimo}
-@@ci(compresa=Capistrano,genere=Pino Marittimo,alberi=alberi-calcolati.csv,equazioni=equazioni_ipsometro.csv)
+@@ci(compresa=Capistrano,genere=Pino Marittimo,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
+\clearpage
+
+\subsection*{Capistrano: ipsometria pino nero}
+@@ci(compresa=Capistrano,genere=Pino Nero,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
 \clearpage
 
 \section{Stima dei volumi}
@@ -108,19 +134,16 @@ Di seguito la stima dei volumi di ciascuna compresa, calcolata secondo la metodo
 
 Oltre alla cubatura totale, riportiamo una stima del numero di piante, nonché l'intervallo fiduciario al 95\% della stima dei volumi, ottenuto sempre con la metodologia del Tabacchi. Il margine d'errore per il volume totale è calcolato come la somma dei margini d'errore di ciascuna specie: rappresenta quindi il caso peggiore, in cui le particelle sono completamente correlate tra loro.
 
-@@tsv(per_compresa=no,per_particella=no,per_genere=no ,intervallo_fiduciario=si,totali=si,stime_totali=si,alberi=alberi-calcolati.csv)
-@@tsv(per_compresa=si,per_particella=no,per_genere=no ,intervallo_fiduciario=si,totali=si,stime_totali=si,alberi=alberi-calcolati.csv)
-
-@@tsv(per_compresa=si,compresa=Serra,compresa=Fabrizia,alberi=alberi-calcolati.csv)
-@@ci(compresa=Serra,compresa=Fabrizia,alberi=alberi-calcolati.csv,equazioni=equazioni_ipsometro.csv)
+@@tsv(alberi=alberi-calcolati.csv,per_compresa=si,per_particella=no,per_genere=no,intervallo_fiduciario=si,totali=si,stime_totali=si)
 
 \subsection*{Serra}
-@@tsv(compresa=Serra,per_genere=no,intervallo_fiduciario=si,totali=si,stime_totali=si,alberi=alberi-calcolati.csv)
+@@tsv(alberi=alberi-calcolati.csv,compresa=Serra,per_compresa=no,per_particella=si,per_genere=no,intervallo_fiduciario=si,totali=si,stime_totali=si)
 \clearpage
+
 \subsection*{Stima dei volumi: Fabrizia}
-@@tsv(compresa=Fabrizia,per_genere=no,intervallo_fiduciario=si,totali=si,stime_totali=si,alberi=alberi-calcolati.csv)
-\clearpage
+@@tsv(alberi=alberi-calcolati.csv,compresa=Fabrizia,per_compresa=no,per_particella=si,per_genere=no,intervallo_fiduciario=si,totali=si,stime_totali=si)
+
 \subsection*{Stima dei volumi: Capistrano}
-@@tsv(compresa=Capistrano,per_genere=no,intervallo_fiduciario=si,totali=si,stime_totali=si,alberi=alberi-calcolati.csv)
+@@tsv(alberi=alberi-calcolati.csv,compresa=Capistrano,per_compresa=no,per_particella=si,per_genere=no,intervallo_fiduciario=si,totali=si,stime_totali=si)
 
 \end{document}
