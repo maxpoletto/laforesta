@@ -2,8 +2,7 @@
 # pylint: disable=too-many-lines
 # pylint: disable=singleton-comparison
 """
-Forest Analysis: Accrescimenti Tool
-Three-mode tool for equation generation, height calculation, and report generation.
+Forest Analysis: estiamtion of forest characteristics and growth ("accrescimenti").
 """
 
 from abc import ABC, abstractmethod
@@ -1493,7 +1492,7 @@ def get_color_map() -> dict:
 # =============================================================================
 
 def run_genera_equazioni(args):
-    """Execute Mode 1: Generate equations."""
+    """Generate equations."""
     print(f"Generazione equazioni da fonte: {args.fonte_altezze}")
     print(f"Funzione: {args.funzione}")
 
