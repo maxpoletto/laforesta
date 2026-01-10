@@ -1,0 +1,7 @@
+# Regole di prelievo in base all'età.
+# Se l'età media delle piante nella particella è maggiore di
+# 'anni', allora il prelievo percentuale non può superare 'PP_max'.
+Anni,PP_max
+60,100
+30,20
+0,15

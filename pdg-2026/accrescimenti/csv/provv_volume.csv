@@ -1,0 +1,10 @@
+# Regole di prelievo in base al volume.
+# Se il volume delle piante per ettaro nella particella è
+# maggiore del PPM% della provvigione minima,
+# allora il prelievo può raggiungere il PP_max% del volume.
+PPM,PP_max
+180,25
+160,20,
+140,15,
+120,10,
+0,0
