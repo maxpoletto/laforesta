@@ -1883,9 +1883,9 @@ def run_calcola_altezze_volumi(args):
 def run_report(args):
     """Generate report from template."""
     print(f"Generazione report formato: {args.formato}")
-    print(f"Template: {args.input}")
-    print(f"Directory dati: {args.dati}")
-    print(f"Output directory: {args.output_dir}")
+    print(f"Input: {args.input}")
+    print(f"Cartella dati: {args.dati}")
+    print(f"Cartella output: {args.output_dir}")
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
