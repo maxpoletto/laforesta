@@ -45,8 +45,9 @@ Lists all (compresa, particella) tuples.
 - `@@cd(parameters)` — Diameter class histogram with metadata
 - `@@ci(parameters)` — Height-diameter scatter plot with regression curves
 - `@@tsv(parameters)` — Volume table with optional confidence intervals
+- `@@tpt(parameters)` — Harvest (prelievo totale) table based on volume/age rules
 
-### Parameters
+### Common Parameters
 
 | Parameter | Values | Description | Required | Applicable to |
 |-----------|--------|-------------|----------|---------------|
@@ -55,12 +56,39 @@ Lists all (compresa, particella) tuples.
 | `compresa=NAME` | compresa name | Filter by compresa (default: all) | No | all |
 | `particella=NAME` | particella name | Filter by particella (requires compresa) | No | all |
 | `genere=GENERE` | species name | Filter by species (default: all) | No | all |
-| `per_compresa` | `si`, `no` | Group by compresa (default: `si`) | No | `@@tsv` only |
-| `per_particella` | `si`, `no` | Group by particella (default: `si`) | No | `@@tsv` only |
-| `per_genere` | `si`, `no` | Group by genere (default: `si`) | No | `@@tsv` only |
-| `stime_totali` | `si`, `no` | Show estimated total volumes (default: `no`) | No | `@@tsv` only |
-| `intervallo_fiduciario` | `si`, `no` | Show confidence intervals (default: `no`) | No | `@@tsv` only |
-| `totali` | `si`, `no` | Add totals row (default: `no`) | No | `@@tsv` only |
+| `per_compresa` | `si`, `no` | Group by compresa (default: `si`) | No | `@@tsv`, `@@tpt` |
+| `per_particella` | `si`, `no` | Group by particella (default: `si`) | No | `@@tsv`, `@@tpt` |
+| `per_genere` | `si`, `no` | Group by genere (default: `si`) | No | `@@tsv`, `@@tpt` |
+| `totali` | `si`, `no` | Add totals row (default: `no`) | No | `@@tsv`, `@@tpt` |
+
+### `@@tsv` Parameters
+
+| Parameter | Values | Description |
+|-----------|--------|-------------|
+| `stime_totali` | `si`, `no` | Show estimated total volumes (default: `no`) |
+| `intervallo_fiduciario` | `si`, `no` | Show confidence intervals (default: `no`) |
+
+### `@@tpt` Parameters
+
+| Parameter | Values | Description | Required |
+|-----------|--------|-------------|----------|
+| `comparti=FILE` | filename | Comparto rules CSV (relative to `--dati`) | **Yes** |
+| `provv_vol=FILE` | filename | Volume-based harvest rules CSV | **Yes** |
+| `provv_eta=FILE` | filename | Age-based harvest rules CSV | **Yes** |
+| `comparto` | `si`, `no` | Show comparto column (default: `si`) | No |
+| `col_volume` | `si`, `no` | Show total volume column (default: `no`) | No |
+| `col_pp_max` | `si`, `no` | Show PP_max % column (default: `no`) | No |
+| `col_prel_ha` | `si`, `no` | Show harvest per hectare (default: `si`) | No |
+| `col_prel_tot` | `si`, `no` | Show total harvest (default: `si`) | No |
+
+**Harvest algorithm** (per particella):
+1. Let v = total volume per hectare, for all species
+2. Look up provvigione_minima (pm) from comparto
+3. Find PP_max from volume rules: first row where v > PPM × pm / 100
+4. Cap PP_max using age rules: first row where età_media > Anni
+5. Harvestable volume per species per hectare = species volume per hectare × PP_max / 100
+
+Note: "Ceduo" particelle (Comparto F) are excluded from harvest calculations.
 
 **Multi-value parameters**: `alberi`, `equazioni`, `compresa`, `particella`, and `genere` can be repeated:
 ```

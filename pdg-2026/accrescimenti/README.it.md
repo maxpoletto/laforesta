@@ -45,8 +45,9 @@ Elenca tutte le tuple (compresa, particella).
 - `@@cd(parametri)` — Istogramma delle classi diametriche con metadati
 - `@@ci(parametri)` — Grafico a dispersione altezza-diametro con curve di regressione
 - `@@tsv(parametri)` — Tabella volumi con intervalli di fiducia opzionali
+- `@@tpt(parametri)` — Tabella prelievo totale basata su regole volume/età
 
-### Parametri
+### Parametri Comuni
 
 | Parametro | Valori | Descrizione | Obbligatorio | Applicabile a |
 |-----------|--------|-------------|--------------|---------------|
@@ -55,12 +56,39 @@ Elenca tutte le tuple (compresa, particella).
 | `compresa=NOME` | nome compresa | Filtra per compresa (default: tutte) | No | tutti |
 | `particella=NOME` | nome particella | Filtra per particella (richiede compresa) | No | tutti |
 | `genere=GENERE` | nome specie | Filtra per specie (default: tutte) | No | tutti |
-| `per_compresa` | `si`, `no` | Raggruppa per compresa (default: `si`) | No | solo `@@tsv` |
-| `per_particella` | `si`, `no` | Raggruppa per particella (default: `si`) | No | solo `@@tsv` |
-| `per_genere` | `si`, `no` | Raggruppa per genere (default: `si`) | No | solo `@@tsv` |
-| `stime_totali` | `si`, `no` | Mostra volumi totali stimati (default: `no`) | No | solo `@@tsv` |
-| `intervallo_fiduciario` | `si`, `no` | Mostra intervalli di fiducia (default: `no`) | No | solo `@@tsv` |
-| `totali` | `si`, `no` | Aggiungi riga totali (default: `no`) | No | solo `@@tsv` |
+| `per_compresa` | `si`, `no` | Raggruppa per compresa (default: `si`) | No | `@@tsv`, `@@tpt` |
+| `per_particella` | `si`, `no` | Raggruppa per particella (default: `si`) | No | `@@tsv`, `@@tpt` |
+| `per_genere` | `si`, `no` | Raggruppa per genere (default: `si`) | No | `@@tsv`, `@@tpt` |
+| `totali` | `si`, `no` | Aggiungi riga totali (default: `no`) | No | `@@tsv`, `@@tpt` |
+
+### Parametri `@@tsv`
+
+| Parametro | Valori | Descrizione |
+|-----------|--------|-------------|
+| `stime_totali` | `si`, `no` | Mostra volumi totali stimati (default: `no`) |
+| `intervallo_fiduciario` | `si`, `no` | Mostra intervalli di fiducia (default: `no`) |
+
+### Parametri `@@tpt`
+
+| Parametro | Valori | Descrizione | Obbligatorio |
+|-----------|--------|-------------|--------------|
+| `comparti=FILE` | nome file | CSV regole comparti (relativo a `--dati`) | **Sì** |
+| `provv_vol=FILE` | nome file | CSV regole prelievo basate su volume | **Sì** |
+| `provv_eta=FILE` | nome file | CSV regole prelievo basate su età | **Sì** |
+| `comparto` | `si`, `no` | Mostra colonna comparto (default: `si`) | No |
+| `col_volume` | `si`, `no` | Mostra colonna volume totale (default: `no`) | No |
+| `col_pp_max` | `si`, `no` | Mostra colonna PP_max % (default: `no`) | No |
+| `col_prel_ha` | `si`, `no` | Mostra prelievo per ettaro (default: `si`) | No |
+| `col_prel_tot` | `si`, `no` | Mostra prelievo totale (default: `si`) | No |
+
+**Algoritmo prelievo** (per particella):
+1. Poni v = volume per ettaro totale, per tutte le specie
+2. Trova provvigione_minima (pm) dal comparto
+3. Trova PP_max dalle regole volume: prima riga dove v > PPM × pm / 100
+4. Limita PP_max usando regole età: prima riga dove età_media > Anni
+5. Prelievo per specie per ettaro = volume per ettaro della specie × PP_max / 100
+
+Le particelle a ceduo (Comparto F) sono escluse dai calcoli di prelievo.
 
 **Parametri multivalore**: `alberi`, `equazioni`, `compresa`, `particella` e `genere` possono essere ripetuti:
 ```
