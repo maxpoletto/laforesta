@@ -146,4 +146,70 @@ Oltre alla cubatura totale, riportiamo una stima del numero di piante, nonché l
 \subsection*{Stima dei volumi: Capistrano}
 @@tsv(alberi=alberi-calcolati.csv,compresa=Capistrano,per_compresa=no,per_particella=si,per_genere=no,intervallo_fiduciario=si,totali=si,stime_totali=si)
 
+\clearpage
+\section{Ripresa}
+
+La ripresa per le particelle governate a fustaia è calcolata in base alla provvigione minima del comparto corrispondente, secondo la seguente tabella:
+
+\begin{center}
+\begin{tabular}{llr}
+\hline
+& Provvigione \\
+Comparto & minima (m³/ha)\\
+\hline
+A        & 350 \\
+B        & 350 \\
+C        & 250 \\
+D        & 250 \\
+E        & 350 \\
+\hline
+\end{tabular}
+\end{center}
+
+Se il volume delle piante per ettaro nella particella è maggiore di una determinata percentuale della provvigione minima,
+allora il prelievo non può superare una determinata percentuale del volume, secondo la seguente tabella:
+\begin{center}
+\begin{tabular}{rr}
+\hline
+Percentuale  & Percentuale \\
+provvigione minima & volume prelevabile \\
+\hline
+$> 180$ & 25 \\
+$> 160$ & 20 \\
+$> 140$ & 15 \\
+$> 120$ & 10 \\
+$\leq 120$ & 0  \\
+\hline
+\end{tabular}
+\end{center}
+
+Inoltre, a seconda dell'età media della particella, il prelievo non può superare una determinata percentuale del volume, secondo la seguente tabella:
+\begin{center}
+\begin{tabular}{rr}
+\hline
+Età media & Percentuale \\
+(anni) & volume prelevabile \\
+\hline
+$> 60$ & 25 \\
+$> 30$ & 20 \\
+$\leq 30$ & 15 \\
+\hline
+\end{tabular}
+\end{center}
+
+In base a queste regole, la ripresa totale per compresa è la seguente.
+
+@@tpt(alberi=alberi-calcolati.csv,comparti=comparti.csv,provv_vol=provv_vol.csv,provv_eta=provv_eta.csv,per_compresa=si,per_genere=no,per_particella=no,col_prel_ha=si,totali=si)
+
+Di seguito, per ciascuna compresa, la ripresa per particella.
+
+\subsection*{Serra}
+@@tpt(alberi=alberi-calcolati.csv,compresa=Serra,comparti=comparti.csv,provv_vol=provv_vol.csv,provv_eta=provv_eta.csv,per_compresa=si,per_genere=no,comparto=si,totali=si,col_pp_max=si)
+
+\subsection*{Fabrizia}
+@@tpt(alberi=alberi-calcolati.csv,compresa=Fabrizia,comparti=comparti.csv,provv_vol=provv_vol.csv,provv_eta=provv_eta.csv,per_compresa=si,per_genere=no,comparto=si,totali=si,col_pp_max=si)
+
+\subsection*{Capistrano}
+@@tpt(alberi=alberi-calcolati.csv,compresa=Capistrano,comparti=comparti.csv,provv_vol=provv_vol.csv,provv_eta=provv_eta.csv,per_compresa=si,per_genere=no,comparto=si,totali=si,col_pp_max=si)
+
 \end{document}
