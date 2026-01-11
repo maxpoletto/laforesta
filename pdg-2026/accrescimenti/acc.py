@@ -962,14 +962,11 @@ def render_cd_graph(data: dict, output_path: Path,
                alpha=0.8, edgecolor='white', linewidth=0.5)
         bottom += values
 
-    x_max = max(options.get('x_max', 0), trees['Classe diametrica'].max()+2)
-    print(f"Regions {data['regions']}")
-    print(f"Species: {species}")
-    print(f"trees: {trees.shape[0]}")
-    print(f"trees['Classe diametrica'].max(): {trees['Classe diametrica'].max()}")
-    print(f"counts.sum(axis=1).max(): {counts.sum(axis=1).max()}")
-    y_max = max(options.get('y_max', 0), counts.sum(axis=1).max() * 1.1)
-    print(f"y_max: {y_max}")
+    x_max = (options.get('x_max', 0)
+        if options.get('x_max', 0) > 0 else trees['Classe diametrica'].max()+2)
+    y_max = (options.get('y_max', 0)
+        if options.get('y_max', 0) > 0 else counts.sum(axis=1).max() * 1.1)
+
     ax.set_xlabel('Classe diametrica', fontweight='bold')
     ax.set_ylabel('Stima alberi / ha', fontweight='bold')
     ax.set_xlim(-0.5, x_max)
