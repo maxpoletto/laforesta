@@ -18,6 +18,13 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
+SAMPLE_AREA_HA = 0.125
+MIN_TREES_PER_HA = 0.5 # Ignore buckets less than this in classi diametriche graphs.
+
+# =============================================================================
+# OUTPUT FORMATTING
+# =============================================================================
+
 # Matplotlib configuration
 plt.rcParams['figure.dpi'] = 200
 plt.rcParams['savefig.dpi'] = 200
@@ -30,124 +37,6 @@ plt.rcParams['legend.loc'] = 'upper left'
 plt.rcParams['legend.fontsize'] = 5
 plt.rcParams['xtick.labelsize'] = 6
 plt.rcParams['ytick.labelsize'] = 6
-
-SAMPLE_AREA_HA = 0.125
-MIN_TREES_PER_HA = 0.5 # Ignore buckets less than this in classi diametriche graphs.
-
-# =============================================================================
-# REGRESSION / CURVE FITTING
-# =============================================================================
-
-class RegressionFunc(ABC):
-    """Abstract base class for regression functions."""
-
-    def __init__(self):
-        self.a = None
-        self.b = None
-        self.r2 = None
-        self.x_range = None
-        self.n_points = None
-
-    @abstractmethod
-    def _clean_data(self, x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        """Clean and validate input data. Returns (x_clean, y_clean)."""
-
-    @abstractmethod
-    def _fit_params(self, x: np.ndarray, y: np.ndarray) -> tuple[float, float]:
-        """Fit parameters to data. Returns (a, b)."""
-
-    @abstractmethod
-    def _predict(self, x: np.ndarray, a: float, b: float) -> np.ndarray:
-        """Predict y values from x using parameters a, b."""
-
-    @abstractmethod
-    def _create_lambda(self, a: float, b: float):
-        """Create lambda function for prediction."""
-
-    @abstractmethod
-    def _format_equation(self, a: float, b: float) -> str:
-        """Format equation as string."""
-
-    def fit(self, x: np.ndarray, y: np.ndarray, min_points: int = 10) -> bool:
-        """Fit the regression function to data. Returns True if successful."""
-        x_clean, y_clean = self._clean_data(x, y)
-
-        if len(x_clean) < min_points:
-            return False
-
-        self.a, self.b = self._fit_params(x_clean, y_clean)
-        y_pred = self._predict(x_clean, self.a, self.b)
-
-        # Calculate R²
-        if np.var(y_clean) > 0:
-            ss_res = np.sum((y_clean - y_pred) ** 2)
-            ss_tot = np.sum((y_clean - np.mean(y_clean)) ** 2)
-            self.r2 = 1 - (ss_res / ss_tot)
-        else:
-            self.r2 = 0.0
-
-        self.x_range = (x_clean.min(), x_clean.max())
-        self.n_points = len(x_clean)
-        return True
-
-    def get_lambda(self):
-        """Return a lambda function for prediction."""
-        if self.a is None or self.b is None:
-            return None
-        return self._create_lambda(self.a, self.b)
-
-    def __str__(self) -> str:
-        """Return string representation of the fitted function."""
-        if self.a is None or self.b is None:
-            return "Not fitted"
-        return self._format_equation(self.a, self.b)
-
-
-class LogarithmicRegression(RegressionFunc):
-    """Logarithmic regression: y = a*ln(x) + b"""
-
-    def _clean_data(self, x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        mask = (x > 0) & np.isfinite(x) & np.isfinite(y)
-        return x[mask], y[mask]
-
-    def _fit_params(self, x: np.ndarray, y: np.ndarray) -> tuple[float, float]:
-        coeffs = np.polyfit(np.log(x), y, 1)
-        return coeffs[0], coeffs[1]
-
-    def _predict(self, x: np.ndarray, a: float, b: float) -> np.ndarray:
-        return a * np.log(x) + b
-
-    def _create_lambda(self, a: float, b: float):
-        return lambda x: a * np.log(np.maximum(x, 0.1)) + b
-
-    def _format_equation(self, a: float, b: float) -> str:
-        return f"y = {a:.2f}*ln(x) + {b:.2f}"
-
-
-class LinearRegression(RegressionFunc):
-    """Linear regression: y = a*x + b"""
-
-    def _clean_data(self, x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        mask = np.isfinite(x) & np.isfinite(y)
-        return x[mask], y[mask]
-
-    def _fit_params(self, x: np.ndarray, y: np.ndarray) -> tuple[float, float]:
-        coeffs = np.polyfit(x, y, 1)
-        return coeffs[0], coeffs[1]
-
-    def _predict(self, x: np.ndarray, a: float, b: float) -> np.ndarray:
-        return a * x + b
-
-    def _create_lambda(self, a: float, b: float):
-        return lambda x: a * x + b
-
-    def _format_equation(self, a: float, b: float) -> str:
-        return f"y = {a:.2f}*x + {b:.2f}"
-
-
-# =============================================================================
-# SNIPPET FORMATTERS (for template substitution)
-# =============================================================================
 
 class SnippetFormatter(ABC):
     """Formats individual components (images, metadata) for template insertion."""
@@ -294,6 +183,117 @@ class LaTeXSnippetFormatter(SnippetFormatter):
 
 
 # =============================================================================
+# REGRESSION / CURVE FITTING
+# =============================================================================
+
+class RegressionFunc(ABC):
+    """Abstract base class for regression functions."""
+
+    def __init__(self):
+        self.a = None
+        self.b = None
+        self.r2 = None
+        self.x_range = None
+        self.n_points = None
+
+    @abstractmethod
+    def _clean_data(self, x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """Clean and validate input data. Returns (x_clean, y_clean)."""
+
+    @abstractmethod
+    def _fit_params(self, x: np.ndarray, y: np.ndarray) -> tuple[float, float]:
+        """Fit parameters to data. Returns (a, b)."""
+
+    @abstractmethod
+    def _predict(self, x: np.ndarray, a: float, b: float) -> np.ndarray:
+        """Predict y values from x using parameters a, b."""
+
+    @abstractmethod
+    def _create_lambda(self, a: float, b: float):
+        """Create lambda function for prediction."""
+
+    @abstractmethod
+    def _format_equation(self, a: float, b: float) -> str:
+        """Format equation as string."""
+
+    def fit(self, x: np.ndarray, y: np.ndarray, min_points: int = 10) -> bool:
+        """Fit the regression function to data. Returns True if successful."""
+        x_clean, y_clean = self._clean_data(x, y)
+
+        if len(x_clean) < min_points:
+            return False
+
+        self.a, self.b = self._fit_params(x_clean, y_clean)
+        y_pred = self._predict(x_clean, self.a, self.b)
+
+        # Calculate R²
+        if np.var(y_clean) > 0:
+            ss_res = np.sum((y_clean - y_pred) ** 2)
+            ss_tot = np.sum((y_clean - np.mean(y_clean)) ** 2)
+            self.r2 = 1 - (ss_res / ss_tot)
+        else:
+            self.r2 = 0.0
+
+        self.x_range = (x_clean.min(), x_clean.max())
+        self.n_points = len(x_clean)
+        return True
+
+    def get_lambda(self):
+        """Return a lambda function for prediction."""
+        if self.a is None or self.b is None:
+            return None
+        return self._create_lambda(self.a, self.b)
+
+    def __str__(self) -> str:
+        """Return string representation of the fitted function."""
+        if self.a is None or self.b is None:
+            return "Not fitted"
+        return self._format_equation(self.a, self.b)
+
+
+class LogarithmicRegression(RegressionFunc):
+    """Logarithmic regression: y = a*ln(x) + b"""
+
+    def _clean_data(self, x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        mask = (x > 0) & np.isfinite(x) & np.isfinite(y)
+        return x[mask], y[mask]
+
+    def _fit_params(self, x: np.ndarray, y: np.ndarray) -> tuple[float, float]:
+        coeffs = np.polyfit(np.log(x), y, 1)
+        return coeffs[0], coeffs[1]
+
+    def _predict(self, x: np.ndarray, a: float, b: float) -> np.ndarray:
+        return a * np.log(x) + b
+
+    def _create_lambda(self, a: float, b: float):
+        return lambda x: a * np.log(np.maximum(x, 0.1)) + b
+
+    def _format_equation(self, a: float, b: float) -> str:
+        return f"y = {a:.2f}*ln(x) + {b:.2f}"
+
+
+class LinearRegression(RegressionFunc):
+    """Linear regression: y = a*x + b"""
+
+    def _clean_data(self, x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        mask = np.isfinite(x) & np.isfinite(y)
+        return x[mask], y[mask]
+
+    def _fit_params(self, x: np.ndarray, y: np.ndarray) -> tuple[float, float]:
+        coeffs = np.polyfit(x, y, 1)
+        return coeffs[0], coeffs[1]
+
+    def _predict(self, x: np.ndarray, a: float, b: float) -> np.ndarray:
+        return a * x + b
+
+    def _create_lambda(self, a: float, b: float):
+        return lambda x: a * x + b
+
+    def _format_equation(self, a: float, b: float) -> str:
+        return f"y = {a:.2f}*x + {b:.2f}"
+
+
+# =============================================================================
 # VOLUME CALCULATION (Tabacchi equations)
 # =============================================================================
 
@@ -430,7 +430,7 @@ def make_symmetric():
 make_symmetric()
 
 
-def calculate_tree_volume(diameter: float, height: float, genere: str) -> float:
+def calculate_one_tree_volume(diameter: float, height: float, genere: str) -> float:
     """
     Calculate volume for a single tree using Tabacchi equations.
 
@@ -524,7 +524,7 @@ def calculate_volume_confidence_interval(trees_df: pd.DataFrame) -> tuple[float,
     return total_volume, total_margin
 
 
-def compute_volumes(trees_df: pd.DataFrame) -> pd.DataFrame:
+def calculate_all_trees_volume(trees_df: pd.DataFrame) -> pd.DataFrame:
     """
     Compute volumes for all trees using Tabacchi equations.
 
@@ -552,13 +552,13 @@ def compute_volumes(trees_df: pd.DataFrame) -> pd.DataFrame:
         if genere not in TABACCHI_B:
             raise ValueError(f"Genere '{genere}' non trovato nelle tavole di Tabacchi")
 
-        result_df.at[idx, 'V(m3)'] = calculate_tree_volume(diameter, height, genere)
+        result_df.at[idx, 'V(m3)'] = calculate_one_tree_volume(diameter, height, genere)
 
     return result_df
 
 
 # =============================================================================
-# DATA PREPARATION (pure data, no rendering)
+# DATA PREPARATION
 # =============================================================================
 
 region_cache = {}
@@ -666,6 +666,7 @@ def load_trees(filenames: list[str] | str, data_dir: Path | None = None) -> pd.D
     df = load_csv(filenames, data_dir)
     df.drop(df[df['Fustaia']==False].index,inplace=True)
     return df
+
 
 # =============================================================================
 # COMPUTATION LAYER (equation generation and application)
@@ -825,8 +826,9 @@ def compute_heights(trees_df: pd.DataFrame, equations_df: pd.DataFrame,
     return result_df, trees_updated, trees_unchanged
 #pylint: enable=too-many-locals
 
+
 # =============================================================================
-# RENDERING AND TEMPLATE PROCESSING
+# RENDERING OF INDIVIDUAL DIRECTIVES
 # =============================================================================
 
 def render_ci_graph(data: dict, equations_df: pd.DataFrame,
@@ -1037,31 +1039,26 @@ def render_tsv_table(data: dict, formatter: SnippetFormatter,
         dict with 'snippet' key containing formatted table
     """
     trees = data['trees']
+    if 'V(m3)' not in trees.columns:
+        raise ValueError("@@tsv richiede dati con volumi (manca la colonna 'V(m3)'). "
+                         "Esegui --calcola-altezze-volumi per calcolarli.")
 
     # Determine grouping columns based on per_* flags and filters
     # If a dimension is already filtered (specific value provided), don't group by it
     # Otherwise, use the per_* flag to decide
     group_cols = []
-
     if options.get('per_compresa', True):
         group_cols.append('Compresa')
     if options.get('per_particella', True):
         group_cols.append('Particella')
     if options.get('per_genere', True):
         group_cols.append('Genere')
-
-    # If no grouping columns, aggregate everything into one row
     if not group_cols:
-        group_cols = ['_dummy']  # Dummy column for single aggregation
         trees = trees.copy()
         trees['_dummy'] = 'Totale'
+        group_cols = ['_dummy']  # Dummy column for single aggregation
 
     particella_stats = data['particella_stats']
-
-    # Validate that volume data exists
-    if 'V(m3)' not in trees.columns:
-        raise ValueError("@@tsv richiede dati con volumi (colonna V(m3) mancante). "
-                        "Usare alberi-calcolati.csv o eseguire --calcola-altezze-volumi")
 
     table_rows = []
     for group_key, group_df in trees.groupby(group_cols):
@@ -1582,6 +1579,10 @@ def render_tpt_table(data: dict, comparti_df: pd.DataFrame,
 #pylint: enable=too-many-locals,too-many-branches,too-many-statements
 
 
+# =============================================================================
+# TEMPLATE PROCESSING
+# =============================================================================
+
 def parse_template_directive(line: str) -> Optional[dict]:
     """
     Parse a template directive like @@ci(compresa=Serra, genere=Abete).
@@ -1873,7 +1874,7 @@ def run_calcola_altezze_volumi(args):
     equations_df = load_csv(args.equazioni)
 
     trees_df, updated, unchanged = compute_heights(trees_df, equations_df, verbose=True)
-    trees_df = compute_volumes(trees_df)
+    trees_df = calculate_all_trees_volume(trees_df)
     print(f"\nCalcolo altezze e volumi: {updated} alberi aggiornati, {unchanged} immutati")
 
     trees_df.to_csv(args.output, index=False, float_format="%.6f")
