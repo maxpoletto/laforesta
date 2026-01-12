@@ -46,7 +46,7 @@ class SnippetFormatter(ABC):
         """Format image reference for this format."""
 
     @abstractmethod
-    def format_metadata(self, stat: dict, curve_info: list = None) -> str:
+    def format_metadata(self, data: dict, curve_info: list = None) -> str:
         """Format metadata block for this format.
 
         Args:
@@ -56,7 +56,7 @@ class SnippetFormatter(ABC):
         """
 
     @abstractmethod
-    def format_table(self, headers: list[str], rows: list[list[str]]) -> str:
+    def format_table(self, headers: list[tuple[str, str]], rows: list[list[str]]) -> str:
         """Format a data table for this format.
 
         Args:
@@ -74,17 +74,17 @@ class HTMLSnippetFormatter(SnippetFormatter):
     def format_image(self, filepath: Path) -> str:
         return f'<img src="{filepath.name}" class="graph-image">'
 
-    def format_metadata(self, stat: dict, curve_info: list = None) -> str:
+    def format_metadata(self, data: dict, curve_info: list = None) -> str:
         """Format metadata as HTML."""
         html = '<div class="graph-details">\n'
-        html += f'<p><strong>Alberi campionati:</strong> {stat["n_sampled_trees"]:d}</p>\n'
-        html += f'<p><strong>Stima totale:</strong> {stat["n_trees_total"]:d}</p>\n'
+        html += f'<p><strong>Alberi campionati:</strong> {data["n_sampled_trees"]:d}</p>\n'
+        html += f'<p><strong>Stima totale:</strong> {data["n_trees_total"]:d}</p>\n'
 
-        if "mean_height" in stat:
-            html += f'<p><strong>Altezza media:</strong> {stat["mean_height"]:.1f} m</p>\n'
-        if "mean_diameter_class" in stat:
+        if "mean_height" in data:
+            html += f'<p><strong>Altezza media:</strong> {data["mean_height"]:.1f} m</p>\n'
+        if "mean_diameter_class" in data:
             html += '<p><strong>Classe diametrica media:</strong> '
-            html += f'{stat["mean_diameter_class"]:.0f}</p>\n'
+            html += f'{data["mean_diameter_class"]:.0f}</p>\n'
 
         if curve_info:
             i = 'i' if len(curve_info) > 1 else 'e'
@@ -96,18 +96,23 @@ class HTMLSnippetFormatter(SnippetFormatter):
         html += '</div>\n'
         return html
 
-    def format_table(self, headers: list[str], rows: list[list[str]]) -> str:
-        """Format table as HTML."""
+    def format_table(self, headers: list[tuple[str, str]], rows: list[list[str]]) -> str:
+        """Format table as HTML.
+        Headers is a list of tuples (header, justification).
+        Justification is 'l' for left, 'r' for right, 'c' for center.
+        """
+        justify_style = {'l': 'col_left', 'r': 'col_right', 'c': 'col_center'}
+        justify = [justify_style[h[1]] for h in headers]
         html = '<table class="volume-table">\n'
         html += '  <thead>\n    <tr>\n'
-        for header in headers:
-            html += f'      <th>{header}</th>\n'
+        for header, j in zip([h[0] for h in headers], justify):
+            html += f'      <th class="{j}">{header}</th>\n'
         html += '    </tr>\n  </thead>\n'
         html += '  <tbody>\n'
         for row in rows:
             html += '    <tr>\n'
-            for cell in row:
-                html += f'      <td>{cell}</td>\n'
+            for cell, j in zip(row, justify):
+                html += f'      <td class="{j}">{cell}</td>\n'
             html += '    </tr>\n'
         html += '  </tbody>\n</table>\n'
         return html
@@ -128,14 +133,6 @@ class LaTeXSnippetFormatter(SnippetFormatter):
         latex += f"\\textbf{{Comprese:}} {data['regions']}\\\\\n"
         latex += f"\\textbf{{Generi:}} {data['species']}\\\\\n"
         latex += f"\\textbf{{Alberi campionati:}} {data['trees'].shape[0]:d}\\\\\n"
-        #latex += f"\\textbf{{Stima totale:}} {stat['n_trees_total']:d}\\\\\n"
-#
-        #if "mean_height" in stat:
-        #    latex += f"\\textbf{{Altezza media:}} {stat['mean_height']:.1f} m\\\\\n"
-        #if "mean_diameter_class" in stat:
-        #    latex += "\\textbf{{Classe diametrica media:}} "
-        #    latex += f"{stat['mean_diameter_class']:.0f}\\\\\n"
-#
         if curve_info:
             i = 'i' if len(curve_info) > 1 else 'e'
             latex += f'\n\\textbf{{Equazion{i} interpolant{i}:}}\\\\\n'
@@ -148,30 +145,27 @@ class LaTeXSnippetFormatter(SnippetFormatter):
         latex += '\\end{quote}\n'
         return latex
 
-    def format_table(self, headers: list[str], rows: list[list[str]]) -> str:
-        """Format table as LaTeX using longtable for page breaks."""
-        n_cols = len(headers)
-        # Use l for text columns, r for numeric columns
-        # Assume first column is text, the rest are numeric (volumes)
-        if n_cols > 1:
-            col_spec = 'l'  + 'r' * (n_cols - 1)
-        else:
-            col_spec = 'l'
-
+    def format_table(self, headers: list[tuple[str, str]], rows: list[list[str]]) -> str:
+        """Format table as LaTeX using longtable for page breaks.
+           Headers is a list of tuples (header, justification).
+           Justification is 'l' for left, 'r' for right, 'c' for center.
+        """
+        col_specs = [h[1] for h in headers]
+        print(headers, col_specs)
         # Use longtable instead of tabular to allow page breaks
-        latex = f'\\begin{{longtable}}{{{col_spec}}}\n'
+        latex = f'\\begin{{longtable}}{{ {"".join(col_specs)} }}\n'
         latex += '\\hline\n'
-        latex += ' & '.join(headers) + ' \\\\\n'
+        latex += ' & '.join([h[0] for h in headers]) + ' \\\\\n'
         latex += '\\hline\n'
         latex += '\\endfirsthead\n'  # End of first page header
-        latex += '\\multicolumn{' + str(n_cols) + '}{c}'
+        latex += '\\multicolumn{' + str(len(headers)) + '}{c}'
         latex += '{\\textit{(continua dalla pagina precedente)}} \\\\\n'
         latex += '\\hline\n'
-        latex += ' & '.join(headers) + ' \\\\\n'
+        latex += ' & '.join([h[0] for h in headers]) + ' \\\\\n'
         latex += '\\hline\n'
         latex += '\\endhead\n'  # Header for subsequent pages
         latex += '\\hline\n'
-        latex += '\\multicolumn{' + str(n_cols) + '}{r}'
+        latex += '\\multicolumn{' + str(len(headers)) + '}{r}'
         latex += '{\\textit{(continua alla pagina successiva)}} \\\\\n'
         latex += '\\endfoot\n'  # Footer for all pages except last
         latex += '\\hline\n'
@@ -1038,6 +1032,17 @@ def render_tsv_table(data: dict, formatter: SnippetFormatter,
     Returns:
         dict with 'snippet' key containing formatted table
     """
+    def sort_key(row):
+        """Generate sort key for group-by columns."""
+        key_parts = []
+        for col in group_cols:
+            value = row.get(col, '')
+            if col == 'Particella':
+                key_parts.append(natural_sort_key(value))
+            else:
+                key_parts.append((0, str(value)))  # Regular string sort for other columns
+        return tuple(key_parts)
+
     trees = data['trees']
     if 'V(m3)' not in trees.columns:
         raise ValueError("@@tsv richiede dati con volumi (manca la colonna 'V(m3)'). "
@@ -1058,149 +1063,92 @@ def render_tsv_table(data: dict, formatter: SnippetFormatter,
         trees['_dummy'] = 'Totale'
         group_cols = ['_dummy']  # Dummy column for single aggregation
 
-    particella_stats = data['particella_stats']
+    parcels = data['parcels']
 
     table_rows = []
-    for group_key, group_df in trees.groupby(group_cols):
+    for group_key, group_trees in trees.groupby(group_cols):
         row_dict = dict(zip(group_cols, group_key))
 
-        n_trees_sampled = len(group_df)
-        volume_sampled = group_df['V(m3)'].sum()
-
         if options['stime_totali']:
-            # Scale per-particella, then aggregate (sampling density varies across particelle)
-            volume_display = 0.0
-            n_trees_scaled = 0.0
-            margin_scaled = 0.0
+            # First scale per-parcel, then aggregate (sampling density varies across parcels)
+            n_trees, volume, margin = 0.0, 0.0, 0.0
 
-            for (part_compresa, part_particella), part_df in group_df.groupby(
-                    ['Compresa', 'Particella']):
-                stats = particella_stats.get((part_compresa, part_particella))
-                if not stats:
-                    continue
-
-                scale_factor = stats['scale_factor']
-                volume_display += part_df['V(m3)'].sum() * scale_factor
-                n_trees_scaled += len(part_df) * scale_factor
-
+            for (region, parcel), ptrees in group_trees.groupby(['Compresa', 'Particella']):
+                p = parcels[(region, parcel)]
+                sf = p['sampled_frac']
+                n_trees += len(ptrees) / sf
+                volume += ptrees['V(m3)'].sum() / sf
                 if options['intervallo_fiduciario']:
-                    _, part_margin = calculate_volume_confidence_interval(part_df)
-                    margin_scaled += part_margin * scale_factor
-
-            n_trees_display = int(n_trees_scaled)
+                    _, pmargin = calculate_volume_confidence_interval(ptrees)
+                    margin += pmargin / sf
         else:
-            volume_display = volume_sampled
-            n_trees_display = n_trees_sampled
+            n_trees = len(group_trees)
+            volume = group_trees['V(m3)'].sum()
+            if options['intervallo_fiduciario']:
+                _, margin = calculate_volume_confidence_interval(group_trees)
 
-        row_dict['N_alberi'] = n_trees_display
-        row_dict['Volume'] = volume_display
-
-        # Compute confidence intervals if requested
+        row_dict['N_alberi'] = n_trees
+        row_dict['Volume'] = volume
         if options['intervallo_fiduciario']:
-            if options['stime_totali']:
-                margin = margin_scaled
-            else:
-                _, margin = calculate_volume_confidence_interval(group_df)
-
-            row_dict['IF_inf'] = volume_display - margin
-            row_dict['IF_sup'] = volume_display + margin
-
+            row_dict['vol_lo'] = volume - margin
+            row_dict['vol_hi'] = volume + margin
         table_rows.append(row_dict)
-
-    # Sort rows
-    if len(table_rows) == 0:
-        raise ValueError("@@tsv: Nessun dato da visualizzare")
-
-    def sort_key(row):
-        """Generate sort key with natural sorting for Particella column."""
-        key_parts = []
-        for col in group_cols:
-            value = row.get(col, '')
-            if col == 'Particella':
-                key_parts.append(natural_sort_key(value))
-            else:
-                key_parts.append((0, str(value)))  # Regular string sort for other columns
-        return tuple(key_parts)
 
     table_rows = sorted(table_rows, key=sort_key)
 
-    # Build table headers
     headers = []
-    show_compresa = 'Compresa' in group_cols
-    show_particella = 'Particella' in group_cols
-    show_genere = 'Genere' in group_cols
-    show_dummy = '_dummy' in group_cols
-
-    if show_compresa:
-        headers.append('Compresa')
-    if show_particella:
-        headers.append('Particella')
-    if show_genere:
-        headers.append('Genere')
-
-    # Always show value columns
-    headers.append('N. Alberi')
-    headers.append('Volume (m³)')
+    show_region = 'Compresa' in group_cols
+    show_parcel = 'Particella' in group_cols
+    show_species = 'Genere' in group_cols
+    if show_region:
+        headers.append(('Compresa', 'l'))
+    if show_parcel:
+        headers.append(('Particella', 'l'))
+    if show_species:
+        headers.append(('Genere', 'l'))
+    headers.append(('N. Alberi', 'r'))
+    headers.append(('Volume (m³)', 'r'))
     if options['intervallo_fiduciario']:
-        headers.append('IF inf (m³)')
-        headers.append('IF sup (m³)')
+        headers.append(('IF inf (m³)', 'r'))
+        headers.append(('IF sup (m³)', 'r'))
 
-    # Build table data rows
     data_rows = []
-    total_trees = 0
-    total_volume = 0.0
-    total_if_inf = 0.0
-    total_if_sup = 0.0
+    tot_trees, total_volume, tot_vol_lo, tot_vol_hi = 0, 0.0, 0.0, 0.0
 
     for row_dict in table_rows:
         row = []
-        if show_compresa:
+        if show_region:
             row.append(str(row_dict.get('Compresa', '')))
-        if show_particella:
+        if show_parcel:
             row.append(str(row_dict.get('Particella', '')))
-        if show_genere:
+        if show_species:
             row.append(str(row_dict.get('Genere', '')))
-        # Skip _dummy column in output
-        row.append(f"{row_dict['N_alberi']}")
+        row.append(f"{row_dict['N_alberi']:.0f}")
         row.append(f"{row_dict['Volume']:.2f}")
         if options['intervallo_fiduciario']:
-            row.append(f"{row_dict['IF_inf']:.2f}")
-            row.append(f"{row_dict['IF_sup']:.2f}")
-
+            row.append(f"{row_dict['vol_lo']:.2f}")
+            row.append(f"{row_dict['vol_hi']:.2f}")
         data_rows.append(row)
 
-        # Accumulate totals
-        total_trees += row_dict['N_alberi']
+        tot_trees += row_dict['N_alberi']
         total_volume += row_dict['Volume']
         if options['intervallo_fiduciario']:
-            total_if_inf += row_dict['IF_inf']
-            total_if_sup += row_dict['IF_sup']
+            tot_vol_lo += row_dict['vol_lo']
+            tot_vol_hi += row_dict['vol_hi']
 
-    # Add totals row if requested (skip if dummy aggregation, which is already a total)
-    if options['totali'] and not show_dummy:
-        total_row = []
-        # Fill in blank cells for grouping columns (except the last one where we put 'Totale')
-        n_group_cols = ((1 if show_compresa else 0) +
-                       (1 if show_particella else 0) +
-                       (1 if show_genere else 0))
-
-        # Add blank cells for all but the last grouping column
-        for _ in range(n_group_cols - 1):
-            total_row.append('')
-        # Put 'Totale' in the last grouping column (or first column if no grouping)
-        if n_group_cols > 0:
-            total_row.append('Totale')
-        total_row.append(f"{total_trees}")
+    # Add totals row if requested (skip if no grouping, since result is already a total)
+    n_group_cols = ((1 if show_region else 0) + (1 if show_parcel else 0)
+                    + (1 if show_species else 0))
+    if options['totali'] and n_group_cols > 0:
+        total_row = ['Totale'] + [''] * (n_group_cols - 1)
+        total_row.append(f"{tot_trees:.0f}")
         total_row.append(f"{total_volume:.2f}")
         if options['intervallo_fiduciario']:
-            total_row.append(f"{total_if_inf:.2f}")
-            total_row.append(f"{total_if_sup:.2f}")
+            total_row.append(f"{tot_vol_lo:.2f}")
+            total_row.append(f"{tot_vol_hi:.2f}")
         data_rows.append(total_row)
 
-    # Format table
-    snippet = formatter.format_table(headers, data_rows)
-
-    return {'snippet': snippet}
+    return {'snippet': formatter.format_table(headers, data_rows)}
 
 
 def compute_pp_max(volume_per_ha: float, eta_media: float,
@@ -1496,22 +1444,22 @@ def render_tpt_table(data: dict, comparti_df: pd.DataFrame,
     show_dummy = '_dummy' in [list(r.keys())[0] for r in table_rows[:1]]
 
     if show_compresa:
-        headers.append('Compresa')
+        headers.append(('Compresa','l'))
     if show_particella:
-        headers.append('Particella')
+        headers.append(('Particella','l'))
         if options.get('comparto', True):
-            headers.append('Comparto')
+            headers.append(('Comparto','l'))
     if show_genere:
-        headers.append('Genere')
+        headers.append(('Genere','l'))
 
     if options.get('col_volume', False):
-        headers.append('Volume (m³)')
+        headers.append(('Volume (m³)','r'))
     if options.get('col_pp_max', False) and show_particella:
-        headers.append('Prelievo \\%')
+        headers.append(('Prelievo \\%','r'))
     if options.get('col_prel_ha', True) and show_particella:
-        headers.append('Prelievo/ha (m³)')
+        headers.append(('Prelievo/ha (m³)','r'))
     if options.get('col_prel_tot', True):
-        headers.append('Prelievo tot (m³)')
+        headers.append(('Prelievo tot (m³)','r'))
 
     # Build data rows
     data_rows = []
