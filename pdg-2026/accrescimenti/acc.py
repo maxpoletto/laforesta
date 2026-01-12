@@ -16,6 +16,7 @@ from typing import Iterable, Optional
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from natsort import natsort_keygen
 from scipy import stats
 
 SAMPLE_AREA_HA = 0.125
@@ -1010,20 +1011,9 @@ def natural_sort_key(value: str) -> tuple:
 
 
 def calculate_tsv_table(data: dict, group_cols: list[str],
-                        calc_margin: bool, calc_total: bool) -> list[dict]:
-    """Calculate the table rows for the @@tsv directive."""
-
-    def sort_key(row):
-        """Generate sort key for group-by columns."""
-        key_parts = []
-        for col in group_cols:
-            value = row.get(col, '')
-            if col == 'Particella':
-                key_parts.append(natural_sort_key(value))
-            else:
-                key_parts.append((0, str(value)))  # Regular string sort for other columns
-        return tuple(key_parts)
-
+                        calc_margin: bool, calc_total: bool) -> pd.DataFrame:
+    """Calculate the table rows for the @@tsv directive. Returns a DataFrame."""
+    #pylint: disable=too-many-locals
     trees = data['trees']
     if 'V(m3)' not in trees.columns:
         raise ValueError("@@tsv richiede dati con volumi (manca la colonna 'V(m3)'). "
@@ -1032,10 +1022,10 @@ def calculate_tsv_table(data: dict, group_cols: list[str],
 
     if not group_cols:
         trees = trees.copy()
-        trees['_dummy'] = 'Totale'
-        group_cols = ['_dummy']  # Dummy column for single aggregation
+        trees['_'] = 'Totale'
+        group_cols = ['_']  # Pseudo-column for single aggregation
 
-    table_rows = []
+    rows = []
     for group_key, group_trees in trees.groupby(group_cols):
         row_dict = dict(zip(group_cols, group_key))
 
@@ -1057,16 +1047,17 @@ def calculate_tsv_table(data: dict, group_cols: list[str],
             if calc_margin:
                 _, margin = calculate_volume_confidence_interval(group_trees)
 
-        row_dict['N_alberi'] = n_trees
-        row_dict['Volume'] = volume
+        row_dict['n_trees'] = n_trees
+        row_dict['volume'] = volume
         if calc_margin:
             row_dict['vol_lo'] = volume - margin
             row_dict['vol_hi'] = volume + margin
-        table_rows.append(row_dict)
+        rows.append(row_dict)
 
-    print(f"table_rows: {table_rows[:2]}\n")
-    table_rows = sorted(table_rows, key=sort_key)
-    return table_rows
+    df = pd.DataFrame(rows).sort_values(group_cols,
+        key=lambda col: natsort_keygen()(col) if col.name == 'Particella' else col)
+
+    return df
 
 
 def render_tsv_table(data: dict, formatter: SnippetFormatter,
@@ -1089,10 +1080,6 @@ def render_tsv_table(data: dict, formatter: SnippetFormatter,
     Returns:
         dict with 'snippet' key containing formatted table
     """
-
-    # Determine grouping columns based on per_* flags and filters
-    # If a dimension is already filtered (specific value provided), don't group by it
-    # Otherwise, use the per_* flag to decide
     group_cols = []
     if options.get('per_compresa', True):
         group_cols.append('Compresa')
@@ -1101,13 +1088,14 @@ def render_tsv_table(data: dict, formatter: SnippetFormatter,
     if options.get('per_genere', True):
         group_cols.append('Genere')
 
-    table_rows = calculate_tsv_table(data, group_cols,
+    df = calculate_tsv_table(data, group_cols,
         options['intervallo_fiduciario'], options['stime_totali'])
 
     headers = []
     show_region = 'Compresa' in group_cols
     show_parcel = 'Particella' in group_cols
     show_species = 'Genere' in group_cols
+
     if show_region:
         headers.append(('Compresa', 'l'))
     if show_parcel:
@@ -1120,43 +1108,28 @@ def render_tsv_table(data: dict, formatter: SnippetFormatter,
         headers.append(('IF inf (m³)', 'r'))
         headers.append(('IF sup (m³)', 'r'))
 
-    data_rows = []
-    tot_trees, total_volume, tot_vol_lo, tot_vol_hi = 0, 0.0, 0.0, 0.0
+    # Format numeric columns as strings.
+    df_display = df.copy()
+    df_display['n_trees'] = df_display['n_trees'].apply(lambda x: f"{x:.0f}")
+    for col in ['volume', 'vol_lo', 'vol_hi']:
+        if col in df_display.columns:
+            df_display[col] = df_display[col].apply(lambda x: f"{x:.2f}")
 
-    for row_dict in table_rows:
-        row = []
-        if show_region:
-            row.append(str(row_dict['Compresa']))
-        if show_parcel:
-            row.append(str(row_dict['Particella']))
-        if show_species:
-            row.append(str(row_dict['Genere']))
-        row.append(f"{row_dict['N_alberi']:.0f}")
-        row.append(f"{row_dict['Volume']:.2f}")
+    # Add totals row. Note that if there are no grouping columns,
+    # the result already includes (just) the total row.
+    if not group_cols:
+        df_display = df_display.drop(columns=['_'])
+    display_rows = df_display.values.tolist()
+    if options['totali'] and group_cols:
+        total_row = ['Totale'] + [''] * (len(group_cols) - 1)
+        total_row.append(f"{df['n_trees'].sum():.0f}")
+        total_row.append(f"{df['volume'].sum():.2f}")
         if options['intervallo_fiduciario']:
-            row.append(f"{row_dict['vol_lo']:.2f}")
-            row.append(f"{row_dict['vol_hi']:.2f}")
-        data_rows.append(row)
+            total_row.append(f"{df['vol_lo'].sum():.2f}")
+            total_row.append(f"{df['vol_hi'].sum():.2f}")
+        display_rows.append(total_row)
 
-        tot_trees += row_dict['N_alberi']
-        total_volume += row_dict['Volume']
-        if options['intervallo_fiduciario']:
-            tot_vol_lo += row_dict['vol_lo']
-            tot_vol_hi += row_dict['vol_hi']
-
-    # Add totals row if requested (skip if no grouping, since result is already a total)
-    n_group_cols = ((1 if show_region else 0) + (1 if show_parcel else 0)
-                    + (1 if show_species else 0))
-    if options['totali'] and n_group_cols > 0:
-        total_row = ['Totale'] + [''] * (n_group_cols - 1)
-        total_row.append(f"{tot_trees:.0f}")
-        total_row.append(f"{total_volume:.2f}")
-        if options['intervallo_fiduciario']:
-            total_row.append(f"{tot_vol_lo:.2f}")
-            total_row.append(f"{tot_vol_hi:.2f}")
-        data_rows.append(total_row)
-
-    return {'snippet': formatter.format_table(headers, data_rows)}
+    return {'snippet': formatter.format_table(headers, display_rows)}
 
 
 def compute_pp_max(volume_per_ha: float, eta_media: float,
@@ -1427,9 +1400,6 @@ def render_tpt_table(data: dict, comparti_df: pd.DataFrame,
                 if 'Compresa' in group_cols:
                     row['Compresa'] = compresa
                 table_rows.append(row)
-
-    if not table_rows:
-        raise ValueError("@@tpt: Nessun dato da visualizzare (verificare che ci siano particelle Fustaia)")
 
     # Sort rows
     def sort_key(row):
