@@ -57,13 +57,13 @@ class SnippetFormatter(ABC):
         """
 
     @abstractmethod
-    def format_table(self, headers: list[tuple[str, str]], rows: list[list[str]]) -> str:
+    def format_table(self, headers: list[tuple[str, str]], rows: list[list[str]], small: bool = False) -> str:
         """Format a data table for this format.
 
         Args:
             headers: Column headers
             rows: Data rows (each row is a list of strings)
-
+            small: If True, use smaller font size
         Returns:
             Formatted table snippet
         """
@@ -97,7 +97,7 @@ class HTMLSnippetFormatter(SnippetFormatter):
         html += '</div>\n'
         return html
 
-    def format_table(self, headers: list[tuple[str, str]], rows: list[list[str]]) -> str:
+    def format_table(self, headers: list[tuple[str, str]], rows: list[list[str]], small: bool = False) -> str:
         """Format table as HTML.
         Headers is a list of tuples (header, justification).
         Justification is 'l' for left, 'r' for right, 'c' for center.
@@ -146,14 +146,15 @@ class LaTeXSnippetFormatter(SnippetFormatter):
         latex += '\\end{quote}\n'
         return latex
 
-    def format_table(self, headers: list[tuple[str, str]], rows: list[list[str]]) -> str:
+    def format_table(self, headers: list[tuple[str, str]], rows: list[list[str]], small: bool = False) -> str:
         """Format table as LaTeX using longtable for page breaks.
            Headers is a list of tuples (header, justification).
            Justification is 'l' for left, 'r' for right, 'c' for center.
         """
         col_specs = [h[1] for h in headers]
         # Use longtable instead of tabular to allow page breaks
-        latex = f'\\begin{{longtable}}{{ {"".join(col_specs)} }}\n'
+        latex = '\\begin{small}\n' if small else ''
+        latex += f'\\begin{{longtable}}{{ {"".join(col_specs)} }}\n'
         latex += '\\hline\n'
         latex += ' & '.join([h[0] for h in headers]) + ' \\\\\n'
         latex += '\\hline\n'
@@ -173,6 +174,8 @@ class LaTeXSnippetFormatter(SnippetFormatter):
         for row in rows:
             latex += ' & '.join(row) + ' \\\\\n'
         latex += '\\end{longtable}\n'
+        if small:
+            latex += '\\end{small}\n'
         return latex
 
 
@@ -608,8 +611,7 @@ def parcel_data(tree_files: list[str], tree_df: pd.DataFrame, parcel_df: pd.Data
                          f"particelle '{parcels}' generi '{species}'")
 
     parcel_stats = {}
-    for (region, parcel), trees in trees_region.groupby(
-            ['Compresa', 'Particella']):
+    for (region, parcel), trees in trees_region.groupby(['Compresa', 'Particella']):
         md_row = parcel_df[
             (parcel_df['Compresa'] == region) &
             (parcel_df['Particella'] == parcel)
@@ -636,7 +638,7 @@ def parcel_data(tree_files: list[str], tree_df: pd.DataFrame, parcel_df: pd.Data
     data = {
         'trees': trees_region_species,
         'regions': sorted(trees_region['Compresa'].unique()),
-        'species': sorted(trees_region['Genere'].unique()),
+        'species': sorted(trees_region_species['Genere'].unique()),
         'parcels': parcel_stats,
     }
     region_cache[key] = data
@@ -823,6 +825,8 @@ def compute_heights(trees_df: pd.DataFrame, equations_df: pd.DataFrame,
 # RENDERING OF INDIVIDUAL DIRECTIVES
 # =============================================================================
 
+# CURVE IPSOMETRICHE ==========================================================
+
 def render_ci_graph(data: dict, equations_df: pd.DataFrame,
                     output_path: Path, formatter: SnippetFormatter,
                     color_map: dict, **options) -> dict:
@@ -841,6 +845,7 @@ def render_ci_graph(data: dict, equations_df: pd.DataFrame,
         - 'filepath': Path to generated PNG
         - 'snippet': Formatted HTML/LaTeX snippet for template substitution
     """
+    #pylint: disable=too-many-locals
     trees = data['trees']
     species = data['species']
     regions = data['regions']
@@ -913,6 +918,8 @@ def render_ci_graph(data: dict, equations_df: pd.DataFrame,
         'snippet': snippet
     }
 
+
+# CLASSI DIAMETRICHE ==========================================================
 
 def render_cd_graph(data: dict, output_path: Path,
                     formatter: SnippetFormatter, color_map: dict, **options) -> dict:
@@ -987,6 +994,8 @@ def render_cd_graph(data: dict, output_path: Path,
     }
 
 
+# STIMA VOLUMI ================================================================
+
 PART_PATTERN = re.compile(r'^(\d+)([a-zA-Z]*)$')
 def natural_sort_key(value: str) -> tuple:
     """
@@ -1034,7 +1043,10 @@ def calculate_tsv_table(data: dict, group_cols: list[str],
             n_trees, volume, margin = 0.0, 0.0, 0.0
 
             for (region, parcel), ptrees in group_trees.groupby(['Compresa', 'Particella']):
-                p = parcels[(region, parcel)]
+                try:
+                    p = parcels[(region, parcel)]
+                except KeyError as e:
+                    raise ValueError(f"Particella {region}/{parcel} non trovata") from e
                 sf = p['sampled_frac']
                 n_trees += len(ptrees) / sf
                 volume += ptrees['V(m3)'].sum() / sf
@@ -1054,10 +1066,12 @@ def calculate_tsv_table(data: dict, group_cols: list[str],
             row_dict['vol_hi'] = volume + margin
         rows.append(row_dict)
 
-    df = pd.DataFrame(rows).sort_values(group_cols,
+    df = pd.DataFrame(rows)
+    if '_' in group_cols:
+        group_cols.remove('_')
+        df = df.drop(columns=['_'])
+    return df.sort_values(group_cols,
         key=lambda col: natsort_keygen()(col) if col.name == 'Particella' else col)
-
-    return df
 
 
 def render_tsv_table(data: dict, formatter: SnippetFormatter,
@@ -1081,11 +1095,11 @@ def render_tsv_table(data: dict, formatter: SnippetFormatter,
         dict with 'snippet' key containing formatted table
     """
     group_cols = []
-    if options.get('per_compresa', True):
+    if options['per_compresa']:
         group_cols.append('Compresa')
-    if options.get('per_particella', True):
+    if options['per_particella']:
         group_cols.append('Particella')
-    if options.get('per_genere', True):
+    if options['per_genere']:
         group_cols.append('Genere')
 
     df = calculate_tsv_table(data, group_cols,
@@ -1117,20 +1131,20 @@ def render_tsv_table(data: dict, formatter: SnippetFormatter,
 
     # Add totals row. Note that if there are no grouping columns,
     # the result already includes (just) the total row.
-    if not group_cols:
-        df_display = df_display.drop(columns=['_'])
     display_rows = df_display.values.tolist()
     if options['totali'] and group_cols:
         total_row = ['Totale'] + [''] * (len(group_cols) - 1)
         total_row.append(f"{df['n_trees'].sum():.0f}")
         total_row.append(f"{df['volume'].sum():.2f}")
-        if options['intervallo_fiduciario']:
+        if 'vol_lo' in df.columns:
             total_row.append(f"{df['vol_lo'].sum():.2f}")
             total_row.append(f"{df['vol_hi'].sum():.2f}")
         display_rows.append(total_row)
 
     return {'snippet': formatter.format_table(headers, display_rows)}
 
+
+# RIPRESA =====================================================================
 
 def compute_pp_max(volume_per_ha: float, eta_media: float,
                    provvigione_minima: float,
@@ -1170,339 +1184,196 @@ def compute_pp_max(volume_per_ha: float, eta_media: float,
     return min(pp_max_vol, pp_max_eta)
 
 
-#pylint: disable=too-many-locals,too-many-branches,too-many-statements
-def render_tpt_table(data: dict, comparti_df: pd.DataFrame,
-                     provv_vol_df: pd.DataFrame, provv_eta_df: pd.DataFrame,
-                     formatter: SnippetFormatter,
-                     **options: dict) -> dict:
+def calculate_tpt_table(data: dict, comparti_df: pd.DataFrame,
+                        provv_vol_df: pd.DataFrame, provv_eta_df: pd.DataFrame,
+                        group_cols: list[str]) -> pd.DataFrame:
     """
-    Generate harvest (prelievo totale) table (@@tpt directive).
+    Calculate harvest (prelievo totale) table data for the @@tpt directive.
 
     Algorithm per particella:
-    1. Filter to Fustaia only (ceduo is excluded)
+    1. Filter to Fustaia only (ceduo is excluded via Provvigione minima = -1)
     2. Calculate scaled total volume V_total (all species in particella)
     3. v = V_total / area (volume per hectare)
     4. Look up pm = provvigione_minima[comparto]
     5. Find PP_max from provv_vol (first row where v > PPM * pm / 100)
     6. Cap PP_max using provv_eta (first row where età > Anni)
-    7. For filtered species: harvestable = V_genere_scaled * PP_max / 100
+    7. harvestable = V_total_scaled * PP_max / 100
+
+    Note: per_genere grouping is not supported because PP_max is a parcel-level
+    constraint. The harvest percentage can be applied to any subset of species.
 
     Args:
-        data: Output from region_data
-        particelle_df: Parcel metadata (includes Comparto, Età media)
+        data: Output from parcel_data
+        comparti_df: Comparto -> Provvigione minima mapping
+        provv_vol_df: Volume-based harvest rules
+        provv_eta_df: Age-based harvest rules
+        group_cols: List of grouping columns (Compresa, Particella only)
+
+    Returns:
+        DataFrame with columns depending on group_cols, plus:
+        comparto, volume, pp_max, harvest_ha, harvest_total, n_trees
+    """
+    #pylint: disable=too-many-locals
+    trees = data['trees']
+    if 'V(m3)' not in trees.columns:
+        raise ValueError("@@tpt richiede dati con volumi (colonna V(m3) mancante). "
+                         "Esegui --calcola-altezze-volumi per calcolarli.")
+    parcels = data['parcels']
+
+    if not group_cols:
+        trees = trees.copy()
+        trees['_'] = 'Totale'
+        group_cols = ['_']
+
+    per_parcel = 'Particella' in group_cols
+    rows = []
+    sector_pm = dict(zip(comparti_df['Comparto'], comparti_df['Provvigione minima']))
+    for group_key, group_trees in trees.groupby(group_cols):
+        row_dict = dict(zip(group_cols, group_key))
+        volume, pp_max, harvest, area_ha = 0.0, 0.0, 0.0, 0.0
+        any_tree = False
+        for (region, parcel), part_trees in group_trees.groupby(['Compresa', 'Particella']):
+            try:
+                p = parcels[(region, parcel)]
+            except KeyError as e:
+                raise ValueError(f"Particella {region}/{parcel} non trovata") from e
+
+            sector, p_area, sf, age = p['sector'], p['area_ha'], p['sampled_frac'], p['age']
+            try:
+                provv_min = sector_pm[sector]
+            except KeyError as e:
+                raise ValueError(f"Comparto {p['sector']} non trovato") from e
+            if provv_min < 0:  # Skip ceduo
+                continue
+
+            any_tree = True
+            p_vol = part_trees['V(m3)'].sum() / sf
+            pp_max = compute_pp_max(p_vol / p_area, age, provv_min, provv_vol_df, provv_eta_df)
+            volume += p_vol
+            harvest += p_vol * pp_max / 100
+            area_ha += p_area
+
+        if not any_tree: # All ceduo in this grouping
+            continue
+
+        if per_parcel:
+            row_dict['sector'] = sector
+            row_dict['age'] = age
+        row_dict['area_ha'] = area_ha
+        row_dict['volume'] = volume
+        if per_parcel:
+            row_dict['pp_max'] = pp_max
+        row_dict['harvest'] = harvest
+        rows.append(row_dict)
+
+    df = pd.DataFrame(rows)
+    if '_' in group_cols:
+        group_cols.remove('_')
+        df = df.drop(columns=['_'])
+    return df.sort_values(group_cols,
+        key=lambda col: natsort_keygen()(col) if col.name == 'Particella' else col)
+
+
+def render_tpt_table(data: dict, comparti_df: pd.DataFrame,
+                     provv_vol_df: pd.DataFrame, provv_eta_df: pd.DataFrame,
+                     formatter: SnippetFormatter,
+                     **options: dict) -> dict:
+    """
+    Render harvest (prelievo totale) table (@@tpt directive).
+
+    Args:
+        data: Output from parcel_data
         comparti_df: Comparto -> Provvigione minima mapping
         provv_vol_df: Volume-based harvest rules
         provv_eta_df: Age-based harvest rules
         formatter: HTML or LaTeX snippet formatter
         options: Dictionary of options:
-            - per_compresa, per_particella, per_genere: Grouping flags
-            - comparto: Show comparto column (default si)
-            - col_volume: Show total volume column (default no)
-            - col_pp_max: Show PP_max column (default no)
-            - col_prel_ha: Show harvest per hectare (default si)
-            - col_prel_tot: Show total harvest (default si)
+            - per_compresa, per_particella: Grouping flags
+            - col_comparto: Show comparto column (default si)
+            - col_volume: Show total volume column (default si)
+            - col_volume_ha: Show total volume per hectare column (default si)
+            - col_pp_max: Show provvigione percentuale massima column (default si)
+            - col_prelievo: Show harvest column (default si)
             - totali: Add totals row
+
+        comparto and pp_max only appear if per_particella is True.
 
     Returns:
         dict with 'snippet' key containing formatted table
     """
-    trees = data['trees']  # Filtered by genere (if specified)
-    particella_stats = data['particella_stats']  # Pre-computed from all generi
-
-    # Validate that volume data exists
-    if 'V(m3)' not in trees.columns:
-        raise ValueError("@@tpt richiede dati con volumi (colonna V(m3) mancante). "
-                        "Usare alberi-calcolati.csv o eseguire --calcola-altezze-volumi")
-
-    # Build lookup dicts for comparti data
-    comparti_lookup = dict(zip(comparti_df['Comparto'], comparti_df['Provvigione minima']))
-
-    # Compute per-particella harvest data (PP_max depends on total volume from ALL generi)
-    particella_harvest = {}  # (compresa, particella) -> {pp_max, volume_total, harvest_total, ...}
-
-    for (compresa, particella), part_trees in trees.groupby(['Compresa', 'Particella']):
-        # Get pre-computed stats (based on ALL generi)
-        stats = particella_stats.get((compresa, particella))
-        if not stats:
-            continue
-
-        comparto = stats['comparto']
-        eta_media = stats['eta_media']
-        area_ha = stats['area_ha']
-        scale_factor = stats['scale_factor']
-
-        if 'volume_total_scaled' not in stats:
-            raise ValueError(f"Volume non disponibile per particella {particella}. "
-                           "Usare alberi-calcolati.csv")
-        volume_total_scaled = stats['volume_total_scaled']  # Total volume (all generi)
-
-        if comparto not in comparti_lookup:
-            raise ValueError(f"Comparto {comparto} non trovato")
-        provvigione_minima = comparti_lookup[comparto]
-
-        # Skip ceduo (comparto F or Provvigione minima = -1)
-        if provvigione_minima < 0:
-            continue
-
-        # PP_max is based on TOTAL forest volume (all species), not filtered volume
-        volume_per_ha = volume_total_scaled / area_ha
-        pp_max = compute_pp_max(volume_per_ha, eta_media, provvigione_minima,
-                                provv_vol_df, provv_eta_df)
-
-        # Harvest for the filtered species in this particella
-        volume_filtered_scaled = part_trees['V(m3)'].sum() * scale_factor
-        harvest_total = volume_filtered_scaled * pp_max / 100
-        harvest_per_ha = harvest_total / area_ha
-
-        particella_harvest[(compresa, particella)] = {
-            'comparto': comparto,
-            'area_ha': area_ha,
-            'volume_total': volume_total_scaled,
-            'volume_filtered': volume_filtered_scaled,
-            'pp_max': pp_max,
-            'harvest_total': harvest_total,
-            'harvest_per_ha': harvest_per_ha,
-            'n_trees': int(len(part_trees) * scale_factor),
-        }
-
-        # Also store per-genere data for this particella
-        for genere, genere_trees in part_trees.groupby('Genere'):
-            volume_genere_scaled = genere_trees['V(m3)'].sum() * scale_factor
-            harvest_genere = volume_genere_scaled * pp_max / 100
-
-            key = (compresa, particella, genere)
-            particella_harvest[key] = {
-                'comparto': comparto,
-                'area_ha': area_ha,
-                'volume': volume_genere_scaled,
-                'pp_max': pp_max,
-                'harvest_total': harvest_genere,
-                'harvest_per_ha': harvest_genere / area_ha,
-                'n_trees': int(len(genere_trees) * scale_factor),
-            }
-
-    # Determine grouping columns
+    # Determine grouping columns (per_genere not supported for tpt)
     group_cols = []
-    if options.get('per_compresa', True):
+    if options['per_compresa']:
         group_cols.append('Compresa')
-    if options.get('per_particella', True):
+    if options['per_particella']:
         group_cols.append('Particella')
-    if options.get('per_genere', True):
-        group_cols.append('Genere')
 
-    # Helper: iterate over per-genere entries (3-tuple keys)
-    def iter_genere_entries():
-        for k, v in particella_harvest.items():
-            if len(k) == 3:
-                yield k[0], k[1], k[2], v  # compresa, particella, genere, data
+    df = calculate_tpt_table(data, comparti_df, provv_vol_df, provv_eta_df, group_cols)
+    if df.empty:
+        return {'snippet': ''}
 
-    # Helper: iterate over per-particella entries (2-tuple keys)
-    def iter_particella_entries():
-        for k, v in particella_harvest.items():
-            if len(k) == 2:
-                yield k[0], k[1], v  # compresa, particella, data
+    per_parcel = 'Particella' in group_cols
 
-    # Build table rows based on grouping
-    table_rows = []
-
-    if not group_cols:
-        # Full aggregation: single row
-        total_harvest = sum(v['harvest_total'] for _, _, v in iter_particella_entries())
-        total_volume = sum(v['volume_filtered'] for _, _, v in iter_particella_entries())
-        total_trees = sum(v['n_trees'] for _, _, v in iter_particella_entries())
-        table_rows.append({
-            '_dummy': 'Totale',
-            'Volume': total_volume,
-            'Prelievo_tot': total_harvest,
-            'N_alberi': total_trees,
-        })
-    elif group_cols == ['Compresa']:
-        # Aggregate by compresa
-        comprese = trees['Compresa'].unique()
-        for compresa in sorted(comprese):
-            harvest = sum(v['harvest_total'] for c, _, v in iter_particella_entries()
-                         if c == compresa)
-            volume = sum(v['volume_filtered'] for c, _, v in iter_particella_entries()
-                        if c == compresa)
-            n_trees = sum(v['n_trees'] for c, _, v in iter_particella_entries()
-                         if c == compresa)
-            table_rows.append({
-                'Compresa': compresa,
-                'Volume': volume,
-                'Prelievo_tot': harvest,
-                'N_alberi': n_trees,
-            })
-    elif group_cols == ['Genere']:
-        # Aggregate by genere across all particelle
-        generi = trees['Genere'].unique()
-        for genere in sorted(generi):
-            harvest = sum(v['harvest_total'] for _, _, g, v in iter_genere_entries()
-                         if g == genere)
-            volume = sum(v['volume'] for _, _, g, v in iter_genere_entries()
-                        if g == genere)
-            n_trees = sum(v['n_trees'] for _, _, g, v in iter_genere_entries()
-                         if g == genere)
-            table_rows.append({
-                'Genere': genere,
-                'Volume': volume,
-                'Prelievo_tot': harvest,
-                'N_alberi': n_trees,
-            })
-    elif group_cols == ['Compresa', 'Genere']:
-        # Aggregate by compresa and genere (no particella breakdown)
-        aggregated = {}  # (compresa, genere) -> {volume, harvest, n_trees}
-        for compresa, particella, genere, v in iter_genere_entries():
-            key = (compresa, genere)
-            if key not in aggregated:
-                aggregated[key] = {'Volume': 0, 'Prelievo_tot': 0, 'N_alberi': 0}
-            aggregated[key]['Volume'] += v['volume']
-            aggregated[key]['Prelievo_tot'] += v['harvest_total']
-            aggregated[key]['N_alberi'] += v['n_trees']
-
-        for (compresa, genere), agg in sorted(aggregated.items()):
-            table_rows.append({
-                'Compresa': compresa,
-                'Genere': genere,
-                'Volume': agg['Volume'],
-                'Prelievo_tot': agg['Prelievo_tot'],
-                'N_alberi': agg['N_alberi'],
-            })
-    elif 'Particella' in group_cols:
-        # Per-particella grouping (may also include Compresa and/or Genere)
-        if 'Genere' in group_cols:
-            # Per (compresa, particella, genere) - finest granularity
-            for compresa, particella, genere, v in iter_genere_entries():
-                row = {
-                    'Particella': particella,
-                    'Genere': genere,
-                    'Comparto': v['comparto'],
-                    'Volume': v['volume'],
-                    'PP_max': v['pp_max'],
-                    'Prelievo_ha': v['harvest_per_ha'],
-                    'Prelievo_tot': v['harvest_total'],
-                    'N_alberi': v['n_trees'],
-                }
-                if 'Compresa' in group_cols:
-                    row['Compresa'] = compresa
-                table_rows.append(row)
-        else:
-            # Per (compresa, particella) - no genere breakdown
-            for compresa, particella, v in iter_particella_entries():
-                row = {
-                    'Particella': particella,
-                    'Comparto': v['comparto'],
-                    'Volume': v['volume_filtered'],
-                    'PP_max': v['pp_max'],
-                    'Prelievo_ha': v['harvest_per_ha'],
-                    'Prelievo_tot': v['harvest_total'],
-                    'N_alberi': v['n_trees'],
-                }
-                if 'Compresa' in group_cols:
-                    row['Compresa'] = compresa
-                table_rows.append(row)
-
-    # Sort rows
-    def sort_key(row):
-        key_parts = []
-        for col in group_cols:
-            value = row.get(col, '')
-            if col == 'Particella':
-                key_parts.append(natural_sort_key(str(value)))
-            else:
-                key_parts.append((0, str(value)))
-        return tuple(key_parts)
-
-    table_rows = sorted(table_rows, key=sort_key)
-
-    # Build headers based on options
     headers = []
-    show_compresa = 'Compresa' in group_cols
-    show_particella = 'Particella' in group_cols
-    show_genere = 'Genere' in group_cols
-    show_dummy = '_dummy' in [list(r.keys())[0] for r in table_rows[:1]]
+    for col in group_cols:
+        headers.append((col, 'l'))
+    if options['col_comparto'] and per_parcel:
+        headers.append(('Comparto', 'l'))
+    if options['col_eta'] and per_parcel:
+        headers.append(('Età (anni)', 'r'))
+    if options['col_area_ha']:
+        headers.append(('Area (ha)', 'r'))
+    if options['col_volume']:
+        headers.append(('Vol tot (m³)', 'r'))
+    if options['col_volume_ha']:
+        headers.append(('Vol/ha (m³/ha)', 'r'))
+    if options['col_pp_max'] and per_parcel:
+        headers.append(('Prelievo \\%', 'r'))
+    if options['col_prelievo']:
+        headers.append(('Prelievo (m³)', 'r'))
 
-    if show_compresa:
-        headers.append(('Compresa','l'))
-    if show_particella:
-        headers.append(('Particella','l'))
-        if options.get('comparto', True):
-            headers.append(('Comparto','l'))
-    if show_genere:
-        headers.append(('Genere','l'))
+    # Build display rows
+    display_rows = []
+    for _, row in df.iterrows():
+        display_row = []
+        for col in group_cols:
+            display_row.append(str(row[col]))
+        if options['col_comparto'] and per_parcel:
+            display_row.append(str(row['sector']))
+        if options['col_eta'] and per_parcel:
+            display_row.append(f"{row['age']:.0f}")
+        if options['col_area_ha']:
+            display_row.append(f"{row['area_ha']:.2f}")
+        if options['col_volume']:
+            display_row.append(f"{row['volume']:.2f}")
+        if options['col_volume_ha']:
+            display_row.append(f"{row['volume'] / row['area_ha']:.2f}")
+        if options['col_pp_max'] and per_parcel:
+            display_row.append(f"{row['pp_max']:.0f}")
+        if options['col_prelievo']:
+            display_row.append(f"{row['harvest']:.2f}")
+        display_rows.append(display_row)
 
-    if options.get('col_volume', False):
-        headers.append(('Volume (m³)','r'))
-    if options.get('col_pp_max', False) and show_particella:
-        headers.append(('Prelievo \\%','r'))
-    if options.get('col_prel_ha', True) and show_particella:
-        headers.append(('Prelievo/ha (m³)','r'))
-    if options.get('col_prel_tot', True):
-        headers.append(('Prelievo tot (m³)','r'))
-
-    # Build data rows
-    data_rows = []
-    total_volume = 0.0
-    total_harvest = 0.0
-    total_harvest_ha = 0.0
-    total_trees = 0
-
-    for row_dict in table_rows:
-        row = []
-        if show_compresa:
-            row.append(str(row_dict.get('Compresa', '')))
-        if show_particella:
-            row.append(str(row_dict.get('Particella', '')))
-            if options.get('comparto', True):
-                row.append(str(row_dict.get('Comparto', '')))
-        if show_genere:
-            row.append(str(row_dict.get('Genere', '')))
-        if show_dummy:
-            pass  # Don't add dummy column to output
-
-        if options.get('col_volume', False):
-            row.append(f"{row_dict.get('Volume', 0):.2f}")
-        if options.get('col_pp_max', False) and show_particella:
-            row.append(f"{row_dict.get('PP_max', 0):.0f}")
-        if options.get('col_prel_ha', True) and show_particella:
-            row.append(f"{row_dict.get('Prelievo_ha', 0):.2f}")
-        if options.get('col_prel_tot', True):
-            row.append(f"{row_dict.get('Prelievo_tot', 0):.2f}")
-
-        data_rows.append(row)
-
-        # Accumulate totals
-        total_volume += row_dict.get('Volume', 0)
-        total_harvest += row_dict.get('Prelievo_tot', 0)
-        total_harvest_ha += row_dict.get('Prelievo_ha', 0)
-        total_trees += row_dict.get('N_alberi', 0)
-
-    # Add totals row if requested
-    if options.get('totali', False) and not show_dummy:
-        total_row = []
-        n_group_cols = ((1 if show_compresa else 0) +
-                       (1 if show_particella else 0) +
-                       (1 if options.get('comparto', True) and show_particella else 0) +
-                       (1 if show_genere else 0))
-
-        for _ in range(n_group_cols - 1):
+    # Add totals row if requested (and there are grouping columns)
+    if options.get('totali', False) and group_cols:
+        total_row = ['Totale'] + [''] * (len(group_cols) - 1)
+        if options['col_comparto'] and per_parcel:
             total_row.append('')
-        if n_group_cols > 0:
-            total_row.append('Totale')
-
-        if options.get('col_volume', False):
-            total_row.append(f"{total_volume:.2f}")
-        if options.get('col_pp_max', False) and show_particella:
+        if options['col_eta'] and per_parcel:
+            total_row.append('')
+        if options['col_area_ha']:
+            total_row.append(f"{df['area_ha'].sum():.2f}")
+        if options['col_volume']:
+            total_row.append(f"{df['volume'].sum():.2f}")
+        if options['col_volume_ha']:
+            total_row.append(f"{df['volume'].sum() / df['area_ha'].sum():.2f}")
+        if options['col_pp_max'] and per_parcel:
             total_row.append('')  # PP_max doesn't aggregate meaningfully
-        if options.get('col_prel_ha', True) and show_particella:
-            total_row.append('')  # Per-ha doesn't aggregate meaningfully
-        if options.get('col_prel_tot', True):
-            total_row.append(f"{total_harvest:.2f}")
+        if options['col_prelievo']:
+            total_row.append(f"{df['harvest'].sum():.2f}")
+        display_rows.append(total_row)
 
-        data_rows.append(total_row)
-
-    snippet = formatter.format_table(headers, data_rows)
-    return {'snippet': snippet}
-#pylint: enable=too-many-locals,too-many-branches,too-many-statements
+    return {'snippet': formatter.format_table(headers, display_rows, small=True)}
 
 
 # =============================================================================
@@ -1643,18 +1514,21 @@ def process_template(template_text: str, data_dir: Path,
                     }
                     result = render_tsv_table(data, formatter, **options)
                 case 'tpt':
+                    if params.get('per_genere', None) is not None:
+                        raise ValueError("@@tpt non supporta il parametro 'per_genere'")
                     comparti_df = load_csv(params['comparti'], data_dir)
                     provv_vol_df = load_csv(params['provv_vol'], data_dir)
                     provv_eta_df = load_csv(params['provv_eta'], data_dir)
                     options = {
                         'per_compresa': params.get('per_compresa', 'si').lower() == 'si',
                         'per_particella': params.get('per_particella', 'si').lower() == 'si',
-                        'per_genere': params.get('per_genere', 'si').lower() == 'si',
                         'col_comparto': params.get('col_comparto', 'si').lower() == 'si',
-                        'col_volume_ha': params.get('col_volume_ha', 'no').lower() == 'si',
-                        'col_pp_max': params.get('col_pp_max', 'no').lower() == 'si',
-                        'col_prel_ha': params.get('col_prel_ha', 'si').lower() == 'si',
-                        'col_prel_tot': params.get('col_prel_tot', 'si').lower() == 'si',
+                        'col_eta': params.get('col_eta', 'si').lower() == 'si',
+                        'col_area_ha': params.get('col_area_ha', 'si').lower() == 'si',
+                        'col_volume': params.get('col_volume', 'si').lower() == 'si',
+                        'col_volume_ha': params.get('col_volume_ha', 'si').lower() == 'si',
+                        'col_pp_max': params.get('col_pp_max', 'si').lower() == 'si',
+                        'col_prelievo': params.get('col_prelievo', 'si').lower() == 'si',
                         'totali': params.get('totali', 'no').lower() == 'si',
                     }
                     result = render_tpt_table(data, comparti_df, provv_vol_df,
