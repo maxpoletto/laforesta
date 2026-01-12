@@ -1825,12 +1825,14 @@ def run_report(args):
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write(processed)
     if args.formato == 'pdf':
-        subprocess.run(
-            ['pdflatex', '-interaction=nonstopmode', output_file.name],
-            cwd=output_dir,
-            capture_output=True,
-            check=True
-        )
+        for _ in range(2):
+            subprocess.run(
+                ['pdflatex', '-interaction=nonstopmode', output_file.name],
+                cwd=output_dir,
+                capture_output=True,
+                check=True
+            )
+
         print(f"Report generato: {output_file.with_suffix('.pdf')}")
     else:
         print(f"Report generato: {output_file}")
