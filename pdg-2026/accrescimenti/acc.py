@@ -151,7 +151,6 @@ class LaTeXSnippetFormatter(SnippetFormatter):
            Justification is 'l' for left, 'r' for right, 'c' for center.
         """
         col_specs = [h[1] for h in headers]
-        print(headers, col_specs)
         # Use longtable instead of tabular to allow page breaks
         latex = f'\\begin{{longtable}}{{ {"".join(col_specs)} }}\n'
         latex += '\\hline\n'
@@ -770,7 +769,6 @@ def fit_curves_from_tabelle(tabelle_file: str, particelle_file: str,
             groups.append(((compresa, genere), group))
     return fit_curves_grouped(groups, funzione)
 
-#pylint: disable=too-many-locals
 def compute_heights(trees_df: pd.DataFrame, equations_df: pd.DataFrame,
                     verbose: bool = False) -> tuple[pd.DataFrame, int, int]:
     """
@@ -818,7 +816,6 @@ def compute_heights(trees_df: pd.DataFrame, equations_df: pd.DataFrame,
             print(f"  {compresa} - {genere}: {len(group)} alberi aggiornati")
 
     return result_df, trees_updated, trees_unchanged
-#pylint: enable=too-many-locals
 
 
 # =============================================================================
@@ -1012,6 +1009,66 @@ def natural_sort_key(value: str) -> tuple:
     return (float('inf'), str(value))
 
 
+def calculate_tsv_table(data: dict, group_cols: list[str],
+                        calc_margin: bool, calc_total: bool) -> list[dict]:
+    """Calculate the table rows for the @@tsv directive."""
+
+    def sort_key(row):
+        """Generate sort key for group-by columns."""
+        key_parts = []
+        for col in group_cols:
+            value = row.get(col, '')
+            if col == 'Particella':
+                key_parts.append(natural_sort_key(value))
+            else:
+                key_parts.append((0, str(value)))  # Regular string sort for other columns
+        return tuple(key_parts)
+
+    trees = data['trees']
+    if 'V(m3)' not in trees.columns:
+        raise ValueError("@@tsv richiede dati con volumi (manca la colonna 'V(m3)'). "
+                         "Esegui --calcola-altezze-volumi per calcolarli.")
+    parcels = data['parcels']
+
+    if not group_cols:
+        trees = trees.copy()
+        trees['_dummy'] = 'Totale'
+        group_cols = ['_dummy']  # Dummy column for single aggregation
+
+    table_rows = []
+    for group_key, group_trees in trees.groupby(group_cols):
+        row_dict = dict(zip(group_cols, group_key))
+
+        if calc_total:
+            # First scale per-parcel, then aggregate (sampling density varies across parcels)
+            n_trees, volume, margin = 0.0, 0.0, 0.0
+
+            for (region, parcel), ptrees in group_trees.groupby(['Compresa', 'Particella']):
+                p = parcels[(region, parcel)]
+                sf = p['sampled_frac']
+                n_trees += len(ptrees) / sf
+                volume += ptrees['V(m3)'].sum() / sf
+                if calc_margin:
+                    _, pmargin = calculate_volume_confidence_interval(ptrees)
+                    margin += pmargin / sf
+        else:
+            n_trees = len(group_trees)
+            volume = group_trees['V(m3)'].sum()
+            if calc_margin:
+                _, margin = calculate_volume_confidence_interval(group_trees)
+
+        row_dict['N_alberi'] = n_trees
+        row_dict['Volume'] = volume
+        if calc_margin:
+            row_dict['vol_lo'] = volume - margin
+            row_dict['vol_hi'] = volume + margin
+        table_rows.append(row_dict)
+
+    print(f"table_rows: {table_rows[:2]}\n")
+    table_rows = sorted(table_rows, key=sort_key)
+    return table_rows
+
+
 def render_tsv_table(data: dict, formatter: SnippetFormatter,
                      **options: dict) -> dict:
     """
@@ -1032,21 +1089,6 @@ def render_tsv_table(data: dict, formatter: SnippetFormatter,
     Returns:
         dict with 'snippet' key containing formatted table
     """
-    def sort_key(row):
-        """Generate sort key for group-by columns."""
-        key_parts = []
-        for col in group_cols:
-            value = row.get(col, '')
-            if col == 'Particella':
-                key_parts.append(natural_sort_key(value))
-            else:
-                key_parts.append((0, str(value)))  # Regular string sort for other columns
-        return tuple(key_parts)
-
-    trees = data['trees']
-    if 'V(m3)' not in trees.columns:
-        raise ValueError("@@tsv richiede dati con volumi (manca la colonna 'V(m3)'). "
-                         "Esegui --calcola-altezze-volumi per calcolarli.")
 
     # Determine grouping columns based on per_* flags and filters
     # If a dimension is already filtered (specific value provided), don't group by it
@@ -1058,43 +1100,9 @@ def render_tsv_table(data: dict, formatter: SnippetFormatter,
         group_cols.append('Particella')
     if options.get('per_genere', True):
         group_cols.append('Genere')
-    if not group_cols:
-        trees = trees.copy()
-        trees['_dummy'] = 'Totale'
-        group_cols = ['_dummy']  # Dummy column for single aggregation
 
-    parcels = data['parcels']
-
-    table_rows = []
-    for group_key, group_trees in trees.groupby(group_cols):
-        row_dict = dict(zip(group_cols, group_key))
-
-        if options['stime_totali']:
-            # First scale per-parcel, then aggregate (sampling density varies across parcels)
-            n_trees, volume, margin = 0.0, 0.0, 0.0
-
-            for (region, parcel), ptrees in group_trees.groupby(['Compresa', 'Particella']):
-                p = parcels[(region, parcel)]
-                sf = p['sampled_frac']
-                n_trees += len(ptrees) / sf
-                volume += ptrees['V(m3)'].sum() / sf
-                if options['intervallo_fiduciario']:
-                    _, pmargin = calculate_volume_confidence_interval(ptrees)
-                    margin += pmargin / sf
-        else:
-            n_trees = len(group_trees)
-            volume = group_trees['V(m3)'].sum()
-            if options['intervallo_fiduciario']:
-                _, margin = calculate_volume_confidence_interval(group_trees)
-
-        row_dict['N_alberi'] = n_trees
-        row_dict['Volume'] = volume
-        if options['intervallo_fiduciario']:
-            row_dict['vol_lo'] = volume - margin
-            row_dict['vol_hi'] = volume + margin
-        table_rows.append(row_dict)
-
-    table_rows = sorted(table_rows, key=sort_key)
+    table_rows = calculate_tsv_table(data, group_cols,
+        options['intervallo_fiduciario'], options['stime_totali'])
 
     headers = []
     show_region = 'Compresa' in group_cols
@@ -1118,11 +1126,11 @@ def render_tsv_table(data: dict, formatter: SnippetFormatter,
     for row_dict in table_rows:
         row = []
         if show_region:
-            row.append(str(row_dict.get('Compresa', '')))
+            row.append(str(row_dict['Compresa']))
         if show_parcel:
-            row.append(str(row_dict.get('Particella', '')))
+            row.append(str(row_dict['Particella']))
         if show_species:
-            row.append(str(row_dict.get('Genere', '')))
+            row.append(str(row_dict['Genere']))
         row.append(f"{row_dict['N_alberi']:.0f}")
         row.append(f"{row_dict['Volume']:.2f}")
         if options['intervallo_fiduciario']:
