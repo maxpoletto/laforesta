@@ -72,7 +72,7 @@ clean-html:
 
 pdf: tex/relazione.pdf
 
-DEPS_TEX=$(FILES_EQUAZIONI) $(CSV_DIR)/alberi.csv $(CSV_DIR)/alberi-calcolati.csv $(CSV_DIR)/particelle.csv
+DEPS_TEX=$(FILES_EQUAZIONI) $(CSV_DIR)/alberi.csv $(CSV_DIR)/alberi-calcolati.csv $(CSV_DIR)/particelle.csv acc.py
 
 tex/%.tex: template/tex/%.tex $(DEPS_TEX)
 	./acc.py --report --formato tex --particelle $(CSV_DIR)/particelle.csv --dati $(CSV_DIR) --input template/tex/$*.tex --output-dir tex/
