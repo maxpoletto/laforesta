@@ -1144,6 +1144,145 @@ def render_tsv_table(data: dict, formatter: SnippetFormatter,
     return {'snippet': formatter.format_table(headers, display_rows)}
 
 
+def render_gsv_graph(data: dict, output_path: Path,
+                     formatter: SnippetFormatter, color_map: dict,
+                     **options) -> dict:
+    """
+    Generate volume summary horizontal bar graph (@@gsv directive).
+
+    Args:
+        data: Output from parcel_data
+        output_path: Where to save the PNG
+        formatter: HTML or LaTeX snippet formatter
+        color_map: Species -> color mapping
+        options: per_compresa, per_particella, per_genere flags
+
+    Returns:
+        dict with 'filepath' and 'snippet' keys
+    """
+    group_cols = []
+    if options.get('per_compresa', True):
+        group_cols.append('Compresa')
+    if options.get('per_particella', True):
+        group_cols.append('Particella')
+
+    # For stacking, we need per-genere data even if displaying by compresa/particella
+    stacked = options.get('per_genere', False) and group_cols
+    if stacked:
+        base_cols = group_cols.copy()
+        group_cols.append('Genere')
+
+    df = calculate_tsv_table(data, group_cols, calc_margin=False, calc_total=True)
+    if df.empty:
+        return {'snippet': '', 'filepath': None}
+
+    if stacked:
+        # Pivot to get genere as columns for stacking
+        pivot_df = df.pivot_table(index=base_cols, columns='Genere',
+                                  values='volume', fill_value=0)
+        labels = ['/'.join(str(x) for x in idx) if isinstance(idx, tuple) else str(idx)
+                  for idx in pivot_df.index]
+        generi = pivot_df.columns.tolist()
+
+        # Sort by compresa then particella (natural sort for particella)
+        if 'Particella' in base_cols:
+            sort_keys = [pivot_df.index.get_level_values(c) for c in base_cols]
+            sort_idx = sorted(range(len(labels)), key=lambda i: tuple(
+                natural_sort_key(str(sort_keys[j][i])) if base_cols[j] == 'Particella'
+                else (0, str(sort_keys[j][i])) for j in range(len(base_cols))))
+            labels = [labels[i] for i in sort_idx]
+            pivot_df = pivot_df.iloc[sort_idx]
+
+        # Calculate spacing for compresa groups
+        spacing = []
+        if 'Compresa' in base_cols and 'Particella' in base_cols:
+            comprese = pivot_df.index.get_level_values('Compresa')
+            for i, c in enumerate(comprese):
+                spacing.append(0.3 if i > 0 and c != comprese[i-1] else 0)
+        else:
+            spacing = [0] * len(labels)
+
+        # Calculate y positions with spacing
+        y_positions = []
+        cumulative = 0
+        for s in spacing:
+            cumulative += s
+            y_positions.append(cumulative)
+            cumulative += 1
+
+        # Figure height: ~0.35 inches per bar, minimum 3
+        fig_height = max(3, len(labels) * 0.35 + sum(spacing) * 0.35)
+        fig, ax = plt.subplots(figsize=(5, fig_height))
+
+        # Draw stacked horizontal bars
+        left = np.zeros(len(labels))
+        for genere in generi:
+            values = pivot_df[genere].values
+            ax.barh(y_positions, values, left=left, label=genere,
+                    color=color_map.get(genere, '#0c63e7'), height=0.8,
+                    edgecolor='white', linewidth=0.5)
+            left += values
+
+        ax.set_yticks(y_positions)
+        ax.set_yticklabels(labels)
+        ax.invert_yaxis()
+
+        handles, lbl = ax.get_legend_handles_labels()
+        ax.legend(reversed(handles), reversed(lbl),
+                  title='Specie', bbox_to_anchor=(1.01, 1.02), alignment='left')
+    else:
+        # Simple bars (no stacking)
+        if options.get('per_genere', False):
+            # Per-genere only: one bar per genere
+            labels = df['Genere'].tolist()
+            values = df['volume'].values
+        elif group_cols:
+            labels = ['/'.join(str(row[c]) for c in group_cols) for _, row in df.iterrows()]
+            values = df['volume'].values
+        else:
+            labels = ['Totale']
+            values = df['volume'].values
+
+        # Calculate spacing for compresa groups
+        spacing = []
+        if 'Compresa' in group_cols and 'Particella' in group_cols:
+            comprese = df['Compresa'].tolist()
+            for i, c in enumerate(comprese):
+                spacing.append(0.3 if i > 0 and c != comprese[i-1] else 0)
+        else:
+            spacing = [0] * len(labels)
+
+        y_positions = []
+        cumulative = 0
+        for s in spacing:
+            cumulative += s
+            y_positions.append(cumulative)
+            cumulative += 1
+
+        fig_height = max(3, len(labels) * 0.35 + sum(spacing) * 0.35)
+        fig, ax = plt.subplots(figsize=(5, fig_height))
+
+        ax.barh(y_positions, values, color='#0c63e7', height=0.8,
+                edgecolor='white', linewidth=0.5)
+        ax.set_yticks(y_positions)
+        ax.set_yticklabels(labels)
+        ax.invert_yaxis()
+
+    ax.set_xlabel('Volume (m³)', fontweight='bold')
+    ax.grid(True, alpha=0.3, axis='x')
+    ax.set_axisbelow(True)
+    ax.set_xlim(0, None)
+
+    plt.tight_layout()
+    plt.savefig(output_path, bbox_inches='tight')
+    plt.close(fig)
+
+    snippet = formatter.format_image(output_path)
+    snippet += '\n' + formatter.format_metadata(data)
+
+    return {'filepath': output_path, 'snippet': snippet}
+
+
 # RIPRESA =====================================================================
 
 def compute_pp_max(volume_per_ha: float, eta_media: float,
@@ -1376,6 +1515,81 @@ def render_tpt_table(data: dict, comparti_df: pd.DataFrame,
     return {'snippet': formatter.format_table(headers, display_rows, small=True)}
 
 
+def render_gpt_graph(data: dict, comparti_df: pd.DataFrame,
+                     provv_vol_df: pd.DataFrame, provv_eta_df: pd.DataFrame,
+                     output_path: Path, formatter: SnippetFormatter,
+                     **options) -> dict:
+    """
+    Generate harvest horizontal bar graph (@@gpt directive).
+
+    Args:
+        data: Output from parcel_data
+        comparti_df: Comparto -> Provvigione minima mapping
+        provv_vol_df: Volume-based harvest rules
+        provv_eta_df: Age-based harvest rules
+        output_path: Where to save the PNG
+        formatter: HTML or LaTeX snippet formatter
+        options: per_compresa, per_particella flags (per_genere not supported)
+
+    Returns:
+        dict with 'filepath' and 'snippet' keys
+    """
+    group_cols = []
+    if options.get('per_compresa', True):
+        group_cols.append('Compresa')
+    if options.get('per_particella', True):
+        group_cols.append('Particella')
+
+    df = calculate_tpt_table(data, comparti_df, provv_vol_df, provv_eta_df, group_cols)
+    if df.empty:
+        return {'snippet': '', 'filepath': None}
+
+    if group_cols:
+        labels = ['/'.join(str(row[c]) for c in group_cols) for _, row in df.iterrows()]
+    else:
+        labels = ['Totale']
+    values = df['harvest'].values
+
+    # Calculate spacing for compresa groups
+    spacing = []
+    if 'Compresa' in group_cols and 'Particella' in group_cols:
+        comprese = df['Compresa'].tolist()
+        for i, c in enumerate(comprese):
+            spacing.append(0.3 if i > 0 and c != comprese[i-1] else 0)
+    else:
+        spacing = [0] * len(labels)
+
+    y_positions = []
+    cumulative = 0
+    for s in spacing:
+        cumulative += s
+        y_positions.append(cumulative)
+        cumulative += 1
+
+    fig_height = max(3, len(labels) * 0.35 + sum(spacing) * 0.35)
+    fig, ax = plt.subplots(figsize=(5, fig_height))
+
+    ax.barh(y_positions, values, color='#0c63e7', height=0.8,
+            edgecolor='white', linewidth=0.5)
+    ax.set_yticks(y_positions)
+    ax.set_yticklabels(labels)
+    ax.invert_yaxis()
+
+    ax.set_xlabel('Prelievo (m³)', fontweight='bold')
+    ax.grid(True, alpha=0.3, axis='x')
+    ax.set_axisbelow(True)
+    ax.set_xlim(0, None)
+
+    plt.tight_layout()
+    plt.savefig(output_path, bbox_inches='tight')
+    plt.close(fig)
+
+    snippet = formatter.format_image(output_path)
+    snippet += '\n' + formatter.format_metadata(data)
+
+    return {'filepath': output_path, 'snippet': snippet}
+
+
 # =============================================================================
 # TEMPLATE PROCESSING
 # =============================================================================
@@ -1492,6 +1706,13 @@ def process_template(template_text: str, data_dir: Path,
                 raise ValueError("@@tpt richiede provv_vol=FILE")
             if not params.get('provv_eta'):
                 raise ValueError("@@tpt richiede provv_eta=FILE")
+        if keyword == 'gpt':
+            if not params.get('comparti'):
+                raise ValueError("@@gpt richiede comparti=FILE")
+            if not params.get('provv_vol'):
+                raise ValueError("@@gpt richiede provv_vol=FILE")
+            if not params.get('provv_eta'):
+                raise ValueError("@@gpt richiede provv_eta=FILE")
 
         comprese = params.get('compresa', [])
         particelle = params.get('particella', [])
@@ -1550,6 +1771,28 @@ def process_template(template_text: str, data_dir: Path,
                     filename = _build_graph_filename(comprese, particelle, generi, keyword)
                     result = render_gci_graph(data, equations_df, output_dir / filename,
                                              formatter, color_map, **options)
+                case 'gsv':
+                    options = {
+                        'per_compresa': params.get('per_compresa', 'si').lower() == 'si',
+                        'per_particella': params.get('per_particella', 'si').lower() == 'si',
+                        'per_genere': params.get('per_genere', 'no').lower() == 'si',
+                    }
+                    filename = _build_graph_filename(comprese, particelle, generi, keyword)
+                    result = render_gsv_graph(data, output_dir / filename,
+                                              formatter, color_map, **options)
+                case 'gpt':
+                    if params.get('per_genere', None) is not None:
+                        raise ValueError("@@gpt non supporta il parametro 'per_genere'")
+                    comparti_df = load_csv(params['comparti'], data_dir)
+                    provv_vol_df = load_csv(params['provv_vol'], data_dir)
+                    provv_eta_df = load_csv(params['provv_eta'], data_dir)
+                    options = {
+                        'per_compresa': params.get('per_compresa', 'si').lower() == 'si',
+                        'per_particella': params.get('per_particella', 'si').lower() == 'si',
+                    }
+                    filename = _build_graph_filename(comprese, particelle, generi, keyword)
+                    result = render_gpt_graph(data, comparti_df, provv_vol_df, provv_eta_df,
+                                              output_dir / filename, formatter, **options)
                 case _:
                     raise ValueError(f"Comando sconosciuto: {keyword}")
 

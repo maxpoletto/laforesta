@@ -136,6 +136,8 @@ Oltre alla cubatura totale, riportiamo una stima del numero di piante, nonché l
 
 @@tsv(alberi=alberi-calcolati.csv,per_compresa=si,per_particella=no,per_genere=no,intervallo_fiduciario=si,totali=si,stime_totali=si)
 
+@@gsv(alberi=alberi-calcolati.csv,per_compresa=si,per_particella=no,per_genere=si)
+
 \subsection*{Stima dei volumi: Serra}
 @@tsv(alberi=alberi-calcolati.csv,compresa=Serra,per_compresa=no,per_particella=si,per_genere=no,intervallo_fiduciario=si,totali=si,stime_totali=si)
 \clearpage
@@ -200,6 +202,9 @@ $\leq 30$ & 15 \\
 In base a queste regole, la ripresa totale per compresa è la seguente.
 
 @@tpt(alberi=alberi-calcolati.csv,comparti=comparti.csv,provv_vol=provv_vol.csv,provv_eta=provv_eta.csv,per_compresa=si,per_particella=no,col_prel_ha=si,totali=si)
+
+@@gpt(alberi=alberi-calcolati.csv,comparti=comparti.csv,provv_vol=provv_vol.csv,provv_eta=provv_eta.csv,per_compresa=si,per_particella=no)
+
 
 Di seguito, per ciascuna compresa, la ripresa per particella. Per ogni particella riportiamo anche il comparto, l'età media, e l'area, il che permette di verificare manualmente le percentuali di prelievo.
 
