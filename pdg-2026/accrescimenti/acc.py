@@ -827,11 +827,11 @@ def compute_heights(trees_df: pd.DataFrame, equations_df: pd.DataFrame,
 
 # CURVE IPSOMETRICHE ==========================================================
 
-def render_ci_graph(data: dict, equations_df: pd.DataFrame,
-                    output_path: Path, formatter: SnippetFormatter,
-                    color_map: dict, **options) -> dict:
+def render_gci_graph(data: dict, equations_df: pd.DataFrame,
+                     output_path: Path, formatter: SnippetFormatter,
+                     color_map: dict, **options) -> dict:
     """
-    Generate curve ipsometriche (height-diameter) graph.
+    Generate height-diameter graphs.
 
     Args:
         data: Output from region_data
@@ -921,10 +921,10 @@ def render_ci_graph(data: dict, equations_df: pd.DataFrame,
 
 # CLASSI DIAMETRICHE ==========================================================
 
-def render_cd_graph(data: dict, output_path: Path,
-                    formatter: SnippetFormatter, color_map: dict, **options) -> dict:
+def render_gcd_graph(data: dict, output_path: Path,
+                     formatter: SnippetFormatter, color_map: dict, **options) -> dict:
     """
-    Generate classi diametriche (diameter class histogram) graph.
+    Generate diameter class histograms.
 
     Args:
         data: Output from region_data
@@ -1382,11 +1382,11 @@ def render_tpt_table(data: dict, comparti_df: pd.DataFrame,
 
 def parse_template_directive(line: str) -> Optional[dict]:
     """
-    Parse a template directive like @@ci(compresa=Serra, genere=Abete).
+    Parse a template directive like @@gci(compresa=Serra, genere=Abete).
 
     Filter keys (compresa, particella, genere) are always lists (even single values):
-        @@cd(compresa=Serra) -> {'compresa': ['Serra']}
-        @@cd(compresa=Serra, compresa=Fabrizia) -> {'compresa': ['Serra', 'Fabrizia']}
+        @@gcd(compresa=Serra) -> {'compresa': ['Serra']}
+        @@gcd(compresa=Serra, compresa=Fabrizia) -> {'compresa': ['Serra', 'Fabrizia']}
 
     Other keys remain scalar values.
 
@@ -1483,8 +1483,8 @@ def process_template(template_text: str, data_dir: Path,
 
         if not alberi_files:
             raise ValueError(f"@@{keyword} richiede alberi=FILE")
-        if keyword == 'ci' and not equazioni_files:
-            raise ValueError("@@ci richiede equazioni=FILE")
+        if keyword == 'gci' and not equazioni_files:
+            raise ValueError("@@gci richiede equazioni=FILE")
         if keyword == 'tpt':
             if not params.get('comparti'):
                 raise ValueError("@@tpt richiede comparti=FILE")
@@ -1533,22 +1533,22 @@ def process_template(template_text: str, data_dir: Path,
                     }
                     result = render_tpt_table(data, comparti_df, provv_vol_df,
                                               provv_eta_df, formatter, **options)
-                case 'cd':
+                case 'gcd':
                     options = {
                         'x_max': int(params.get('x_max', 0)),
                         'y_max': int(params.get('y_max', 0)),
                     }
                     filename = _build_graph_filename(comprese, particelle, generi, keyword)
-                    result = render_cd_graph(data, output_dir / filename,
+                    result = render_gcd_graph(data, output_dir / filename,
                                              formatter, color_map, **options)
-                case 'ci':
+                case 'gci':
                     options = {
                         'x_max': int(params.get('x_max', 0)),
                         'y_max': int(params.get('y_max', 0)),
                     }
                     equations_df = load_csv(equazioni_files, data_dir)
                     filename = _build_graph_filename(comprese, particelle, generi, keyword)
-                    result = render_ci_graph(data, equations_df, output_dir / filename,
+                    result = render_gci_graph(data, equations_df, output_dir / filename,
                                              formatter, color_map, **options)
                 case _:
                     raise ValueError(f"Comando sconosciuto: {keyword}")
