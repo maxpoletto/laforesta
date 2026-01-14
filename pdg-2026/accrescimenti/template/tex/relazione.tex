@@ -42,7 +42,7 @@ Sono esclusi i diametri (grossi) per i quali la frequenza di alberi è inferiore
 La distribuzione in classi diametriche a Serra è la seguente. Il bosco è dominato dall'abete, ma sono presenti anche faggio, castagno, douglas, e pino nero.
 
 \subsection*{Serra: Classi diametriche}
-@@gcd(compresa=Serra,alberi=alberi.csv)
+@@gcd(compresa=Serra,alberi=alberi.csv,x_max=24)
 \clearpage
 
 \subsection*{Serra: curve ipsometriche, veduta d'insieme}
@@ -76,7 +76,7 @@ Presentiamo le curve ipsometriche per le specie prevalenti nella compresa di Ser
 La distribuzione in classi diametriche a Fabrizia è la seguente. Il bosco è dominato dal faggio, con una cospicua presenza di abete e pino nero.
 
 \subsection*{Fabrizia: Classi diametriche}
-@@gcd(compresa=Fabrizia,alberi=alberi.csv)
+@@gcd(compresa=Fabrizia,alberi=alberi.csv,x_max=24)
 \clearpage
 
 \subsection*{Fabrizia: curve ipsometriche, veduta d'insieme}
@@ -104,7 +104,7 @@ Le specie prevalenti, per le quali abbiamo potuto calcolare le equazioni interpo
 
 La distribuzione in classi diametriche a Capistrano è la seguente. Il bosco è dominato da abeti e pini.
 \subsection*{Capistrano: Classi diametriche}
-@@gcd(compresa=Capistrano,alberi=alberi.csv)
+@@gcd(compresa=Capistrano,alberi=alberi.csv,x_max=24)
 \clearpage
 
 \subsection*{Capistrano: curve ipsometriche, veduta d'insieme}
@@ -135,8 +135,6 @@ Di seguito la stima dei volumi di ciascuna compresa, calcolata secondo la metodo
 Oltre alla cubatura totale, riportiamo una stima del numero di piante, nonché l'intervallo fiduciario al 95\% della stima dei volumi, ottenuto sempre con la metodologia del Tabacchi. Il margine d'errore per il volume totale è calcolato come la somma dei margini d'errore di ciascuna specie: rappresenta quindi il caso peggiore, in cui le particelle sono completamente correlate tra loro.
 
 @@tsv(alberi=alberi-calcolati.csv,per_compresa=si,per_particella=no,per_genere=no,intervallo_fiduciario=si,totali=si,stime_totali=si)
-
-@@gsv(alberi=alberi-calcolati.csv,per_compresa=si,per_particella=no,per_genere=si)
 
 \subsection*{Stima dei volumi: Serra}
 @@tsv(alberi=alberi-calcolati.csv,compresa=Serra,per_compresa=no,per_particella=si,per_genere=no,intervallo_fiduciario=si,totali=si,stime_totali=si)
@@ -202,9 +200,6 @@ $\leq 30$ & 15 \\
 In base a queste regole, la ripresa totale per compresa è la seguente.
 
 @@tpt(alberi=alberi-calcolati.csv,comparti=comparti.csv,provv_vol=provv_vol.csv,provv_eta=provv_eta.csv,per_compresa=si,per_particella=no,col_prel_ha=si,totali=si)
-
-@@gpt(alberi=alberi-calcolati.csv,comparti=comparti.csv,provv_vol=provv_vol.csv,provv_eta=provv_eta.csv,per_compresa=si,per_particella=no)
-
 
 Di seguito, per ciascuna compresa, la ripresa per particella. Per ogni particella riportiamo anche il comparto, l'età media, e l'area, il che permette di verificare manualmente le percentuali di prelievo.
 
