@@ -1920,6 +1920,9 @@ def run_calcola_altezze_volumi(args):
     trees_df = calculate_all_trees_volume(trees_df)
     print(f"\nCalcolo altezze e volumi: {updated} alberi aggiornati, {unchanged} immutati")
 
+    trees_df.sort_values(by=['Compresa', 'Particella', 'Area saggio', 'n'],
+        key=lambda col: natsort_keygen()(col) if col.name == 'Particella' else col,
+        inplace=True)
     trees_df.to_csv(args.output, index=False, float_format="%.6f")
     print(f"\nFile salvato: {args.output}")
 
