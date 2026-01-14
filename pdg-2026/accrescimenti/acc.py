@@ -661,6 +661,7 @@ def load_trees(filenames: list[str] | str, data_dir: Path | None = None) -> pd.D
     """Load trees from CSV file(s), skipping comment lines starting with #."""
     df = load_csv(filenames, data_dir)
     df.drop(df[df['Fustaia']==False].index,inplace=True)
+    df['Particella'] = df['Particella'].astype(str)
     return df
 
 
