@@ -78,26 +78,20 @@ class HTMLSnippetFormatter(SnippetFormatter):
     def format_metadata(self, data: dict, curve_info: list = None) -> str:
         """Format metadata as HTML."""
         html = '<div class="graph-details">\n'
-        html += f'<p><strong>Alberi campionati:</strong> {data["n_sampled_trees"]:d}</p>\n'
-        html += f'<p><strong>Stima totale:</strong> {data["n_trees_total"]:d}</p>\n'
-
-        if "mean_height" in data:
-            html += f'<p><strong>Altezza media:</strong> {data["mean_height"]:.1f} m</p>\n'
-        if "mean_diameter_class" in data:
-            html += '<p><strong>Classe diametrica media:</strong> '
-            html += f'{data["mean_diameter_class"]:.0f}</p>\n'
-
+        html += f'<p><strong>Comprese:</strong> {data["regions"]}</p>\n'
+        html += f'<p><strong>Generi:</strong> {data["species"]}</p>\n'
+        html += f'<p><strong>Alberi campionati:</strong> {data["trees"].shape[0]:d}</p>\n'
         if curve_info:
             i = 'i' if len(curve_info) > 1 else 'e'
             html += f'<br><p><strong>Equazion{i} interpolant{i}:</strong></p>\n'
             for curve in curve_info:
                 html += (f'<p>{curve["genere"]}: {curve["equation"]} '
-                        f'(R² = {curve["r_squared"]:.2f}, n = {curve["n_points"]})</p>\n')
-
+                         f'(R² = {curve["r_squared"]:.2f}, n = {curve["n_points"]})</p>\n')
         html += '</div>\n'
         return html
 
-    def format_table(self, headers: list[tuple[str, str]], rows: list[list[str]], small: bool = False) -> str:
+    def format_table(self, headers: list[tuple[str, str]], rows: list[list[str]],
+        small: bool = False) -> str:
         """Format table as HTML.
         Headers is a list of tuples (header, justification).
         Justification is 'l' for left, 'r' for right, 'c' for center.
