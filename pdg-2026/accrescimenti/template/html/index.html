@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Documentazione integrativa al Piano di Assestamento</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* Additional styles for the report */
+        .title {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .title h1 {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .title .author {
+            font-size: 16px;
+            margin-top: 10px;
+        }
+        .title .date {
+            font-size: 14px;
+            margin-top: 5px;
+        }
+        h2 {
+            font-family: Arial, sans-serif;
+            color: #2c3e50;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #34495e;
+            padding-bottom: 5px;
+        }
+        h3 {
+            font-family: Arial, sans-serif;
+            color: #34495e;
+            margin-top: 25px;
+            margin-bottom: 10px;
+        }
+        h4 {
+            font-family: Arial, sans-serif;
+            color: #34495e;
+            margin-top: 20px;
+            margin-bottom: 8px;
+            font-style: italic;
+        }
+        p {
+            margin-bottom: 15px;
+            line-height: 1.6;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        table.center {
+            margin-left: auto;
+            margin-right: auto;
+            width: auto;
+        }
+        table th, table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        table th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+        }
+        table tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .page-break {
+            page-break-after: always;
+        }
+        @media print {
+            .page-break {
+                page-break-after: always;
+            }
+        }
+        a {
+            color: #3498db;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        em {
+            font-style: italic;
+        }
+        .graph-item {
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="title">
+            <h1>Documentazione integrativa al Piano di Assestamento</h1>
+            <div class="author">Società Agricola La Foresta<br>Serra San Bruno</div>
+            <div class="date">Gennaio 2026</div>
+        </div>
+
+        <h2>Introduzione</h2>
+
+        <p>Il presente documento contiene la documentazione integrativa al Piano di Assestamento della Società Agricola La Foresta, come richiesto dal Dipartimento Politiche Della Montagna Foreste Forestazione e Difesa del Suolo della Regione Calabria con Protocollo 464707 del 25/06/2025.</p>
+
+        <h2>Curve ipsometriche e classi diametriche</h2>
+
+        <p>In questa sezione è riportata, per ciascuna compresa, la distribuzione grafica in classi diametriche del numero di piante per ettaro. Presentiamo un solo grafico di questo tipo per ciascuna compresa, in modo da evidenziare la partecipazione delle diverse specie.</p>
+
+        <p>Sono riportate inoltre, per ciascuna compresa e per ciascuna specie ivi prevalente, le curve ipsometriche in forma grafica, complete delle relative equazioni interpolanti.</p>
+
+        <p>Le equazioni sono calcolate con un modello di regressione logaritmico, solo per combinazioni di compresa e genere per le quali sono state campionate almeno 10 piante (<em>n</em> ≥ 10).</p>
+
+        <p>Sono esclusi i diametri (grossi) per i quali la frequenza di alberi è inferiore a 0,5 piante / ettaro.</p>
+
+        <div class="page-break"></div>
+
+        <h3>Serra</h3>
+
+        <p>La distribuzione in classi diametriche a Serra è la seguente. Il bosco è dominato dall'abete, ma sono presenti anche faggio, castagno, douglas, e pino nero.</p>
+
+        <h4>Serra: Classi diametriche</h4>
+        @@gcd(compresa=Serra,alberi=alberi.csv,x_max=24)
+
+        <div class="page-break"></div>
+
+        <h4>Serra: curve ipsometriche, veduta d'insieme</h4>
+        <p>Presentiamo le curve ipsometriche per le specie prevalenti nella compresa di Serra: abete, castagno, douglas, faggio, pino nero. Le rimanenti specie sono troppo poco frequenti per permettere un'analisi significativa delle altezze.</p>
+
+        @@gci(compresa=Serra,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv,genere=Abete,genere=Castagno,genere=Douglas,genere=Faggio,genere=Pino Nero)
+
+        <div class="page-break"></div>
+
+        <h4>Serra: ipsometria abete</h4>
+        @@gci(compresa=Serra,genere=Abete,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
+
+        <div class="page-break"></div>
+
+        <h4>Serra: ipsometria castagno</h4>
+        @@gci(compresa=Serra,genere=Castagno,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
+
+        <div class="page-break"></div>
+
+        <h4>Serra: ipsometria douglas</h4>
+        @@gci(compresa=Serra,genere=Douglas,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
+
+        <div class="page-break"></div>
+
+        <h4>Serra: ipsometria faggio</h4>
+        @@gci(compresa=Serra,genere=Faggio,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
+
+        <div class="page-break"></div>
+
+        <h4>Serra: ipsometria pino nero</h4>
+        @@gci(compresa=Serra,genere=Pino Nero,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
+
+        <div class="page-break"></div>
+
+        <h3>Fabrizia</h3>
+
+        <p>La distribuzione in classi diametriche a Fabrizia è la seguente. Il bosco è dominato dal faggio, con una cospicua presenza di abete e pino nero.</p>
+
+        <h4>Fabrizia: Classi diametriche</h4>
+        @@gcd(compresa=Fabrizia,alberi=alberi.csv,x_max=24)
+
+        <div class="page-break"></div>
+
+        <h4>Fabrizia: curve ipsometriche, veduta d'insieme</h4>
+        <p>Le specie prevalenti, per le quali abbiamo potuto calcolare le equazioni interpolanti, sono abete, douglas, faggio e pino nero.</p>
+        @@gci(compresa=Fabrizia,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv,genere=Abete,genere=Douglas,genere=Faggio,genere=Pino Nero)
+
+        <div class="page-break"></div>
+
+        <h4>Fabrizia: ipsometria abete</h4>
+        @@gci(compresa=Fabrizia,genere=Abete,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
+
+        <div class="page-break"></div>
+
+        <h4>Fabrizia: ipsometria douglas</h4>
+        @@gci(compresa=Fabrizia,genere=Douglas,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
+
+        <div class="page-break"></div>
+
+        <h4>Fabrizia: ipsometria faggio</h4>
+        @@gci(compresa=Fabrizia,genere=Faggio,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
+
+        <div class="page-break"></div>
+
+        <h4>Fabrizia: ipsometria pino nero</h4>
+        @@gci(compresa=Fabrizia,genere=Pino Nero,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
+
+        <div class="page-break"></div>
+
+        <h3>Capistrano</h3>
+
+        <p>La distribuzione in classi diametriche a Capistrano è la seguente. Il bosco è dominato da abeti e pini.</p>
+        <h4>Capistrano: Classi diametriche</h4>
+        @@gcd(compresa=Capistrano,alberi=alberi.csv,x_max=24)
+
+        <div class="page-break"></div>
+
+        <h4>Capistrano: curve ipsometriche, veduta d'insieme</h4>
+        <p>Le specie prevalenti, per le quali abbiamo potuto calcolare le equazioni interpolanti, sono abete, douglas, pino marittimo e pino nero.</p>
+        @@gci(compresa=Capistrano,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
+
+        <div class="page-break"></div>
+
+        <h4>Capistrano: ipsometria abete</h4>
+        @@gci(compresa=Capistrano,genere=Abete,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
+
+        <div class="page-break"></div>
+
+        <h4>Capistrano: ipsometria douglas</h4>
+        @@gci(compresa=Capistrano,genere=Douglas,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
+
+        <div class="page-break"></div>
+
+        <h4>Capistrano: ipsometria pino marittimo</h4>
+        @@gci(compresa=Capistrano,genere=Pino Marittimo,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
+
+        <div class="page-break"></div>
+
+        <h4>Capistrano: ipsometria pino nero</h4>
+        @@gci(compresa=Capistrano,genere=Pino Nero,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
+
+        <div class="page-break"></div>
+
+        <h2>Stima dei volumi</h2>
+
+        <p>Di seguito la stima dei volumi di ciascuna compresa, calcolata secondo la metodologia alle pp.20--27 di <em>Stima del volume e della fitomassa delle principali specie forestali italiane</em>, Tabacchi <em>et al.</em> 2011, scaricabile all'indirizzo <a href="https://www.inventarioforestale.org/wp-content/uploads/2022/10/tavole_cubatura.pdf">https://www.inventarioforestale.org/wp-content/uploads/2022/10/tavole_cubatura.pdf</a>.</p>
+
+        <p>Oltre alla cubatura totale, riportiamo una stima del numero di piante, nonché l'intervallo fiduciario al 95% della stima dei volumi, ottenuto sempre con la metodologia del Tabacchi. Il margine d'errore per il volume totale è calcolato come la somma dei margini d'errore di ciascuna specie: rappresenta quindi il caso peggiore, in cui le particelle sono completamente correlate tra loro.</p>
+
+        @@tsv(alberi=alberi-calcolati.csv,per_compresa=si,per_particella=no,per_genere=no,intervallo_fiduciario=si,totali=si,stime_totali=si)
+
+        <h4>Stima dei volumi: Serra</h4>
+        @@tsv(alberi=alberi-calcolati.csv,compresa=Serra,per_compresa=no,per_particella=si,per_genere=no,intervallo_fiduciario=si,totali=si,stime_totali=si)
+
+        <div class="page-break"></div>
+
+        <h4>Stima dei volumi: Fabrizia</h4>
+        @@tsv(alberi=alberi-calcolati.csv,compresa=Fabrizia,per_compresa=no,per_particella=si,per_genere=no,intervallo_fiduciario=si,totali=si,stime_totali=si)
+
+        <h4>Stima dei volumi: Capistrano</h4>
+        @@tsv(alberi=alberi-calcolati.csv,compresa=Capistrano,per_compresa=no,per_particella=si,per_genere=no,intervallo_fiduciario=si,totali=si,stime_totali=si)
+
+        <div class="page-break"></div>
+
+        <h2>Ripresa</h2>
+
+        <p>La ripresa per le particelle governate a fustaia è calcolata in base alla provvigione minima del comparto corrispondente, secondo la seguente tabella:</p>
+
+        <table class="center">
+            <thead>
+                <tr>
+                    <th>Comparto</th>
+                    <th>Provvigione minima (m³/ha)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>A</td><td>350</td></tr>
+                <tr><td>B</td><td>350</td></tr>
+                <tr><td>C</td><td>250</td></tr>
+                <tr><td>D</td><td>250</td></tr>
+                <tr><td>E</td><td>350</td></tr>
+            </tbody>
+        </table>
+
+        <p>Se il volume delle piante per ettaro nella particella è maggiore di una determinata percentuale della provvigione minima, allora il prelievo non può superare una determinata percentuale del volume, secondo la seguente tabella:</p>
+        <table class="center">
+            <thead>
+                <tr>
+                    <th>Percentuale provvigione minima</th>
+                    <th>Percentuale volume prelevabile</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>&gt; 180</td><td>25</td></tr>
+                <tr><td>&gt; 160</td><td>20</td></tr>
+                <tr><td>&gt; 140</td><td>15</td></tr>
+                <tr><td>&gt; 120</td><td>10</td></tr>
+                <tr><td>≤ 120</td><td>0</td></tr>
+            </tbody>
+        </table>
+
+        <p>Inoltre, a seconda dell'età media della particella, il prelievo non può superare una determinata percentuale del volume, secondo la seguente tabella:</p>
+        <table class="center">
+            <thead>
+                <tr>
+                    <th>Età media (anni)</th>
+                    <th>Percentuale volume prelevabile</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>&gt; 60</td><td>25</td></tr>
+                <tr><td>&gt; 30</td><td>20</td></tr>
+                <tr><td>≤ 30</td><td>15</td></tr>
+            </tbody>
+        </table>
+
+        <p>In base a queste regole, la ripresa totale per compresa è la seguente.</p>
+
+        @@tpt(alberi=alberi-calcolati.csv,comparti=comparti.csv,provv_vol=provv_vol.csv,provv_eta=provv_eta.csv,per_compresa=si,per_particella=no,col_prel_ha=si,totali=si)
+
+        <p>Di seguito, per ciascuna compresa, la ripresa per particella. Per ogni particella riportiamo anche il comparto, l'età media, e l'area, il che permette di verificare manualmente le percentuali di prelievo.</p>
+
+        <h4>Ripresa: Serra</h4>
+        @@tpt(alberi=alberi-calcolati.csv,compresa=Serra,comparti=comparti.csv,provv_vol=provv_vol.csv,provv_eta=provv_eta.csv,per_compresa=si,totali=si)
+
+        <h4>Ripresa: Fabrizia</h4>
+        @@tpt(alberi=alberi-calcolati.csv,compresa=Fabrizia,comparti=comparti.csv,provv_vol=provv_vol.csv,provv_eta=provv_eta.csv,per_compresa=si,totali=si)
+
+        <h4>Ripresa: Capistrano</h4>
+        @@tpt(alberi=alberi-calcolati.csv,compresa=Capistrano,comparti=comparti.csv,provv_vol=provv_vol.csv,provv_eta=provv_eta.csv,per_compresa=si,totali=si)
+
+    </div>
+</body>
+</html>
