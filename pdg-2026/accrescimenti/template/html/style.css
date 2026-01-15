@@ -11,11 +11,9 @@ body {
     border-radius: 8px;
     box-shadow: 0 2px 10px rgba(0,0,0,0.1);
 }
-h1 {
-    color: #2c3e50;
-    text-align: center;
-    margin-bottom: 30px;
-}
+
+/* Graph/chart elements */
+
 .explanation {
     font-size: 16px;
     font-style: italic;
@@ -27,7 +25,7 @@ h1 {
     background-color: #fafafa;
 }
 .graph-item {
-    margin-bottom: 40px;
+    margin: 20px 0 40px 0;
     border: 1px solid #ddd;
     border-radius: 8px;
     padding: 20px;
@@ -65,4 +63,102 @@ h1 {
 }
 .col_center {
     text-align: center;
+}
+
+/* Title and headers */
+
+.title {
+    font-family: Arial, sans-serif;
+    text-align: center;
+    margin-bottom: 10px;
+}
+.title h1 {
+    font-size: 24px;
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+.title .author {
+    font-size: 16px;
+    margin-top: 10px;
+}
+.title .date {
+    font-size: 14px;
+    margin-top: 5px;
+}
+
+h1 {
+    color: #2c3e50;
+    text-align: center;
+    margin-bottom: 30px;
+}
+h2 {
+    font-family: Arial, sans-serif;
+    color: #2c3e50;
+    margin-top: 30px;
+    margin-bottom: 15px;
+    border-bottom: 2px solid #34495e;
+    padding-bottom: 5px;
+}
+h3 {
+    font-family: Arial, sans-serif;
+    color: #34495e;
+    margin-top: 25px;
+    margin-bottom: 10px;
+}
+h4 {
+    font-family: Arial, sans-serif;
+    color: #34495e;
+    margin-top: 20px;
+    margin-bottom: 8px;
+    font-style: italic;
+}
+
+/* Tables */
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+}
+table.center {
+    margin-left: auto;
+    margin-right: auto;
+    width: auto;
+}
+table th, table td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: left;
+}
+table th {
+    background-color: #f2f2f2;
+    font-weight: bold;
+}
+table tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+
+/* Text */
+
+p {
+    margin-bottom: 15px;
+    line-height: 1.6;
+}
+a {
+    color: #3498db;
+    text-decoration: none;
+}
+a:hover {
+    text-decoration: underline;
+}
+em {
+    font-style: italic;
+}
+.page-break {
+    break-after: always;
+}
+@media print {
+    .page-break {
+        break-after: always;
+    }
 }
