@@ -50,18 +50,15 @@ clean-altvol:
 # HTML output
 #
 
-FILES_HTML=html/per-compresa/classi-diametriche/index.html html/per-compresa/altezze-originali/index.html html/per-compresa/altezze-calcolate/index.html
+FILES_HTML=html/index.html
 
 html: $(FILES_HTML)
 
-html/per-compresa/classi-diametriche/index.html: $(CSV_DIR)/alberi.csv $(CSV_DIR)/particelle.csv $(CSV_DIR)/equazioni_ipsometro.csv template/html/per-compresa/classi-diametriche/index.html html/style.css
-	./acc.py --report --formato html --equazioni $(CSV_DIR)/equazioni_ipsometro.csv --alberi $(CSV_DIR)/alberi.csv --particelle $(CSV_DIR)/particelle.csv --input template/html/per-compresa/classi-diametriche/index.html --output-dir html/per-compresa/classi-diametriche/
+DEPS_HTML=$(FILES_EQUAZIONI) $(CSV_DIR)/alberi.csv $(CSV_DIR)/alberi-calcolati.csv $(CSV_DIR)/particelle.csv acc.py template/html/style.css
 
-html/per-compresa/altezze-originali/index.html: $(CSV_DIR)/alberi.csv $(CSV_DIR)/particelle.csv $(CSV_DIR)/equazioni_originali.csv template/html/per-compresa/altezze-originali/index.html html/style.css
-	./acc.py --report --formato html --equazioni $(CSV_DIR)/equazioni_ipsometro.csv --alberi $(CSV_DIR)/alberi.csv --particelle $(CSV_DIR)/particelle.csv --input template/html/per-compresa/altezze-originali/index.html --output-dir html/per-compresa/altezze-originali/
-
-html/per-compresa/altezze-calcolate/index.html: $(CSV_DIR)/alberi-calcolati.csv $(CSV_DIR)/particelle.csv $(CSV_DIR)/equazioni_ipsometro.csv template/html/per-compresa/altezze-calcolate/index.html html/style.css
-	./acc.py --report --formato html --equazioni $(CSV_DIR)/equazioni_ipsometro.csv --alberi $(CSV_DIR)/alberi-calcolati.csv --particelle $(CSV_DIR)/particelle.csv --input template/html/per-compresa/altezze-calcolate/index.html --output-dir html/per-compresa/altezze-calcolate/
+html/%.html: template/html/%.html $(DEPS_HTML)
+	cp -f template/html/style.css html/
+	./acc.py --report --formato html --particelle $(CSV_DIR)/particelle.csv --dati $(CSV_DIR) --input template/html/$*.html --output-dir html/
 
 clean-html:
 	rm -f $(FILES_HTML)
