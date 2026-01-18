@@ -1,7 +1,5 @@
 CSV_DIR=csv
 
-include Legacy.mak
-
 .PHONY: \
 	equazioni clean-equazioni \
 	altvol clean-altvol \
