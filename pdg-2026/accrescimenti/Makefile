@@ -45,14 +45,19 @@ clean-altvol:
 	rm -f $(CSV_DIR)/alberi-calcolati.csv
 
 #
+# Data dependencies
+#
+
+DATA_DEPS=$(FILES_EQUAZIONI) $(CSV_DIR)/alberi.csv $(CSV_DIR)/alberi-calcolati.csv $(CSV_DIR)/particelle.csv $(CSV_DIR)/comparti.csv $(CSV_DIR)/provv_vol.csv $(CSV_DIR)/provv_eta.csv
+
+#
 # HTML output
 #
 
 FILES_HTML=html/index.html
+DEPS_HTML=$(DATA_DEPS) acc.py template/html/style.css
 
 html: $(FILES_HTML)
-
-DEPS_HTML=$(FILES_EQUAZIONI) $(CSV_DIR)/alberi.csv $(CSV_DIR)/alberi-calcolati.csv $(CSV_DIR)/particelle.csv acc.py template/html/style.css
 
 html/%.html: template/html/%.html $(DEPS_HTML)
 	cp -f template/html/style.css html/
@@ -65,9 +70,11 @@ clean-html:
 # LaTeX / PDF output
 #
 
-pdf: tex/relazione.pdf
+FILES_PDF=tex/relazione.pdf
+FILES_TEX=tex/relazione.tex
+DEPS_TEX=$(DATA_DEPS) acc.py
 
-DEPS_TEX=$(FILES_EQUAZIONI) $(CSV_DIR)/alberi.csv $(CSV_DIR)/alberi-calcolati.csv $(CSV_DIR)/particelle.csv acc.py
+pdf: $(FILES_PDF)
 
 tex/%.tex: template/tex/%.tex $(DEPS_TEX)
 	./acc.py --report --formato tex --particelle $(CSV_DIR)/particelle.csv --dati $(CSV_DIR) --input template/tex/$*.tex --output-dir tex/
@@ -76,17 +83,16 @@ tex/%.pdf: template/tex/%.tex $(DEPS_TEX)
 	./acc.py --report --formato pdf --particelle $(CSV_DIR)/particelle.csv --dati $(CSV_DIR) --input template/tex/$*.tex --output-dir tex/
 
 clean-pdf:
-	rm -f tex/relazione.pdf tex/relazione.tex
+	rm -f $(FILES_PDF) $(FILES_TEX)
 
 #
 # CSV output
 #
 
 FILES_CSV=csv/ripresa.csv
+DEPS_CSV=$(DATA_DEPS) acc.py
 
-csv: csv/ripresa.csv
-
-DEPS_CSV=$(DEPS_TEX)
+csv: $(FILES_CSV)
 
 $(CSV_DIR)/ripresa.csv: template/csv/ripresa.csv $(DEPS_CSV)
 	./acc.py --report --formato csv --particelle $(CSV_DIR)/particelle.csv --dati $(CSV_DIR) --input template/csv/ripresa.csv --output-dir csv/
