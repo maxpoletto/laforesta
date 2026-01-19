@@ -77,3 +77,19 @@ tex/%.pdf: template/tex/%.tex $(DEPS_TEX)
 
 clean-pdf:
 	rm -f tex/relazione.pdf tex/relazione.tex
+
+#
+# CSV output
+#
+
+FILES_CSV=csv/ripresa.csv
+
+csv: csv/ripresa.csv
+
+DEPS_CSV=$(DEPS_TEX)
+
+$(CSV_DIR)/ripresa.csv: template/csv/ripresa.csv $(DEPS_CSV)
+	./acc.py --report --formato csv --particelle $(CSV_DIR)/particelle.csv --dati $(CSV_DIR) --input template/csv/ripresa.csv --output-dir csv/
+
+clean-csv:
+	rm -f $(FILES_CSV)
