@@ -8,6 +8,8 @@ Forest Analysis: estiamtion of forest characteristics and growth ("accrescimenti
 from abc import ABC, abstractmethod
 import argparse
 from collections import defaultdict
+import csv
+import io
 from pathlib import Path
 import re
 import subprocess
@@ -171,6 +173,25 @@ class LaTeXSnippetFormatter(SnippetFormatter):
         if small:
             latex += '\\end{small}\n'
         return latex
+
+
+class CSVSnippetFormatter(SnippetFormatter):
+    """CSV snippet formatter for table-only output."""
+
+    def format_image(self, filepath: Path) -> str:
+        raise NotImplementedError("Formato CSV non supporta immagini (direttive @@g*)")
+
+    def format_metadata(self, data: dict, curve_info: list = None) -> str:
+        raise NotImplementedError("Formato CSV non supporta metadati")
+
+    def format_table(self, headers: list[tuple[str, str]], rows: list[list[str]],
+                     small: bool = False) -> str:
+        """Format table as CSV."""
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow([h[0] for h in headers])
+        writer.writerows(rows)
+        return output.getvalue()
 
 
 # =============================================================================
@@ -1687,6 +1708,9 @@ def process_template(template_text: str, data_dir: Path,
         keyword = directive['keyword']
         params = directive['params']
 
+        if format_type == 'csv' and keyword.startswith('g'):
+            raise ValueError(f"@@{keyword}: il formato CSV supporta solo direttive @@t* (tabelle)")
+
         alberi_files = params.get('alberi')
         equazioni_files = params.get('equazioni')
 
@@ -1796,7 +1820,15 @@ def process_template(template_text: str, data_dir: Path,
         except Exception as e:
             raise ValueError(f"ERRORE nella generazione di {directive['full_text']}: {e}") from e
 
-    formatter = HTMLSnippetFormatter() if format_type == 'html' else LaTeXSnippetFormatter()
+    match format_type:
+        case 'html':
+            formatter = HTMLSnippetFormatter()
+        case 'csv':
+            formatter = CSVSnippetFormatter()
+        case 'latex' | 'pdf':
+            formatter = LaTeXSnippetFormatter()
+        case _:
+            raise ValueError(f"Formato non supportato: {format_type}")
     color_map = get_color_map()
     particelle_df = load_csv(parcel_file)
 
@@ -2024,7 +2056,7 @@ Modalità di utilizzo:
 
     # Specific options for --report
     report_group = parser.add_argument_group('Opzioni per --report')
-    report_group.add_argument('--formato', choices=['html', 'latex', 'pdf'], default='pdf',
+    report_group.add_argument('--formato', choices=['csv', 'html', 'latex', 'pdf'], default='pdf',
                              help='Formato output (default: pdf)')
     report_group.add_argument('--ometti-generi-sconosciuti', action='store_true',
                              help='Ometti dai grafici generi per cui non abbiamo equazioni')
