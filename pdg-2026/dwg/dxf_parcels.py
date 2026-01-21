@@ -217,6 +217,64 @@ def snap_endpoints(lines, tolerance=1.0):
     return snapped_lines
 
 
+def close_gaps(lines, max_gap=50):
+    """
+    Close gaps by adding short line segments between nearby endpoints.
+    Unlike snap_endpoints which just moves points, this creates new geometry.
+    """
+    try:
+        from scipy.spatial import cKDTree
+        import numpy as np
+    except ImportError:
+        print("  scipy not available, skipping gap closing")
+        return lines
+
+    endpoints = []
+    endpoint_info = []
+
+    for i, line in enumerate(lines):
+        coords = list(line.coords)
+        endpoints.append(coords[0])
+        endpoint_info.append((i, 'start', coords[0]))
+        endpoints.append(coords[-1])
+        endpoint_info.append((i, 'end', coords[-1]))
+
+    endpoints_arr = np.array(endpoints)
+    tree = cKDTree(endpoints_arr)
+
+    # Find pairs of endpoints within max_gap that aren't from same line
+    added_segments = []
+    used_endpoints = set()
+
+    for i, (pt, (line_idx, end_type, _)) in enumerate(zip(endpoints, endpoint_info)):
+        if i in used_endpoints:
+            continue
+
+        indices = tree.query_ball_point(pt, max_gap)
+
+        for j in indices:
+            if j <= i or j in used_endpoints:
+                continue
+
+            other_line_idx = endpoint_info[j][0]
+            if other_line_idx == line_idx:
+                continue
+
+            other_pt = endpoints[j]
+            dist = np.linalg.norm(np.array(pt) - np.array(other_pt))
+
+            if 0.01 < dist < max_gap:
+                added_segments.append(LineString([pt, other_pt]))
+                used_endpoints.add(i)
+                used_endpoints.add(j)
+                break
+
+    if added_segments:
+        print(f"    Added {len(added_segments)} gap-closing segments (max {max_gap}m)")
+
+    return lines + added_segments
+
+
 def node_lines(lines):
     """Split lines at all intersections (noding)."""
     if not lines:
@@ -240,17 +298,23 @@ def node_lines(lines):
         return lines
 
 
-def polygonize_layer(lines, layer_name, tolerance=0.5):
+def polygonize_layer(lines, layer_name, max_gap=0):
     """
     Convert a collection of lines into polygons.
 
     Uses noding (split at intersections) and endpoint snapping to handle
     common CAD issues like crossing lines and small gaps.
+
+    max_gap: if > 0, add line segments to close gaps up to this distance (meters)
     """
     if not lines:
         return []
 
     print(f"\n  Polygonizing layer '{layer_name}' ({len(lines)} lines)...")
+
+    # Optionally close gaps first
+    if max_gap > 0:
+        lines = close_gaps(lines, max_gap)
 
     # Strategy 1: Basic polygonization
     polys_basic = list(polygonize(lines))
@@ -294,12 +358,12 @@ def polygonize_layer(lines, layer_name, tolerance=0.5):
     return valid_polygons
 
 
-def analyze_and_extract(dxf_path: Path, parcel_layers=None, tolerance=0.1):
+def analyze_and_extract(dxf_path: Path, parcel_layers=None, max_gap=0):
     """
     Main extraction routine.
 
     parcel_layers: list of layer names to process, or None for auto-detect
-    tolerance: snapping tolerance in meters
+    max_gap: if > 0, add line segments to close gaps up to this distance (meters)
     """
     layer_lines, doc = collect_linework_by_layer(dxf_path)
 
@@ -320,7 +384,7 @@ def analyze_and_extract(dxf_path: Path, parcel_layers=None, tolerance=0.1):
             print(f"  Warning: layer '{layer}' not found")
             continue
 
-        polygons = polygonize_layer(layer_lines[layer], layer, tolerance)
+        polygons = polygonize_layer(layer_lines[layer], layer, max_gap)
 
         for i, poly in enumerate(polygons):
             all_parcels.append({
@@ -435,31 +499,44 @@ def save_geojson(parcel_data, output_path: Path):
     print(f"Saved: {output_path}")
 
 
-def plot_overview(parcel_data, output_path: Path):
-    """Plot all parcels colored by layer."""
+def plot_polygon(ax, poly, alpha=0.4, linewidth=0.5):
+    """Plot a polygon or multipolygon using matplotlib's default color cycle."""
+    if poly.geom_type == 'Polygon':
+        xs, ys = poly.exterior.xy
+        ax.fill(xs, ys, alpha=alpha)
+        ax.plot(xs, ys, 'b-', linewidth=linewidth)
+    elif poly.geom_type == 'MultiPolygon':
+        for p in poly.geoms:
+            plot_polygon(ax, p, alpha, linewidth)
+
+
+def plot_overview_utm(parcels, output_path: Path):
+    """Plot all parcels in UTM coordinates (like find_gaps.py)."""
     fig, ax = plt.subplots(figsize=(14, 12))
 
-    layers = list(set(pd['layer'] for pd in parcel_data))
-    colors = plt.cm.tab10(range(len(layers)))
-    layer_colors = dict(zip(layers, colors))
+    for p in parcels:
+        plot_polygon(ax, p['polygon_utm'])
+
+    ax.set_title(f"All Parcels - UTM ({len(parcels)} total)")
+    ax.set_aspect('equal')
+    plt.tight_layout()
+
+    fig.savefig(output_path, dpi=150)
+    plt.close(fig)
+    print(f"Saved UTM overview: {output_path}")
+
+
+def plot_overview(parcel_data, output_path: Path):
+    """Plot all parcels (WGS84)."""
+    fig, ax = plt.subplots(figsize=(14, 12))
 
     for pd in parcel_data:
-        poly = pd['polygon']
-        color = layer_colors[pd['layer']]
-
-        if poly.geom_type == 'Polygon':
-            xs, ys = poly.exterior.xy
-            ax.fill(xs, ys, alpha=0.4, color=color)
-            ax.plot(xs, ys, color=color, linewidth=0.5)
-
-    # Legend
-    handles = [plt.Line2D([0], [0], color=layer_colors[l], linewidth=3, label=l) for l in layers]
-    ax.legend(handles=handles, loc='upper left')
+        plot_polygon(ax, pd['polygon'])
 
     ax.set_xlabel("Longitude")
     ax.set_ylabel("Latitude")
     ax.set_title(f"All Parcels ({len(parcel_data)} total)")
-    ax.set_aspect('equal')
+    # Note: no set_aspect('equal') - lat/lng degrees aren't equal distances
     plt.tight_layout()
 
     fig.savefig(output_path, dpi=150)
@@ -473,7 +550,7 @@ def main():
     parser.add_argument("--output-dir", "-o", default="parcels", help="Output directory")
     parser.add_argument("--max-plots", "-n", type=int, default=50, help="Max individual plots")
     parser.add_argument("--layers", "-l", nargs='+', help="Specific layers to process")
-    parser.add_argument("--tolerance", "-t", type=float, default=0.5, help="Snap tolerance in meters")
+    parser.add_argument("--max-gap", "-g", type=float, default=0, help="Max gap to close by adding segments (meters)")
     parser.add_argument("--no-individual", action="store_true", help="Skip individual parcel plots")
     parser.add_argument("--crs", "-c", default="wgs84-33n",
                         choices=list(CRS_OPTIONS.keys()),
@@ -494,7 +571,7 @@ def main():
     parcels, layer_lines = analyze_and_extract(
         dxf_path,
         parcel_layers=args.layers,
-        tolerance=args.tolerance
+        max_gap=args.max_gap
     )
 
     if not parcels:
@@ -506,6 +583,9 @@ def main():
     for i, p in enumerate(parcels):
         try:
             poly_wgs = reproject_polygon(p['polygon_utm'])
+            if not poly_wgs.is_valid:
+                print(f"  Parcel {i}: invalid after reprojection (area_utm={p['polygon_utm'].area:.0f})")
+                poly_wgs = make_valid(poly_wgs)
             if poly_wgs.is_valid and poly_wgs.area > 0:
                 parcel_data.append({
                     'global_index': i,
@@ -514,13 +594,18 @@ def main():
                     'polygon': poly_wgs,
                     'area': poly_wgs.area,
                 })
+            else:
+                print(f"  Parcel {i}: dropped (valid={poly_wgs.is_valid}, area={poly_wgs.area})")
         except Exception as e:
             print(f"  Skipping parcel {i}: {e}")
+
+    print(f"After reprojection: {len(parcel_data)} of {len(parcels)} parcels valid")
 
     # Save GeoJSON
     save_geojson(parcel_data, output_dir / "all_parcels.geojson")
 
-    # Overview plot
+    # Overview plots
+    plot_overview_utm(parcels, output_dir / "overview_utm.png")
     plot_overview(parcel_data, output_dir / "overview.png")
 
     # Individual plots
