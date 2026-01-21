@@ -4,6 +4,8 @@ Analyze DXF structure and extract parcel boundaries via polygonization.
 
 Handles the common CAD case where boundaries are open polylines/lines
 that visually form closed regions but aren't flagged as closed.
+
+Supports multiple Italian coordinate reference systems.
 """
 
 import argparse
@@ -21,8 +23,29 @@ from shapely.ops import polygonize, unary_union, linemerge
 from shapely.validation import make_valid
 
 
-# UTM Zone 33N -> WGS84
-transformer = Transformer.from_crs("EPSG:32633", "EPSG:4326", always_xy=True)
+# Common Italian CRS options
+CRS_OPTIONS = {
+    'wgs84-33n': 'EPSG:32633',    # WGS84 / UTM zone 33N
+    'ed50-33n': 'EPSG:23033',      # ED50 / UTM zone 33N (common in older Italian data)
+    'monte-mario-2': 'EPSG:3004',  # Monte Mario / Italy zone 2 (Gauss-Boaga)
+    'wgs84-32n': 'EPSG:32632',     # WGS84 / UTM zone 32N
+    'ed50-32n': 'EPSG:23032',      # ED50 / UTM zone 32N
+}
+
+# Default - can be overridden via command line
+SOURCE_CRS = 'EPSG:32633'
+transformer = None
+
+
+def init_transformer(source_crs):
+    """Initialize the coordinate transformer."""
+    global transformer, SOURCE_CRS
+    SOURCE_CRS = source_crs
+    transformer = Transformer.from_crs(source_crs, "EPSG:4326", always_xy=True)
+
+
+# Initialize with default
+init_transformer('EPSG:32633')
 
 
 def reproject_coords(coords):
@@ -452,7 +475,16 @@ def main():
     parser.add_argument("--layers", "-l", nargs='+', help="Specific layers to process")
     parser.add_argument("--tolerance", "-t", type=float, default=0.5, help="Snap tolerance in meters")
     parser.add_argument("--no-individual", action="store_true", help="Skip individual parcel plots")
+    parser.add_argument("--crs", "-c", default="wgs84-33n",
+                        choices=list(CRS_OPTIONS.keys()),
+                        help="Source coordinate system (default: wgs84-33n). "
+                             "Options: wgs84-33n, ed50-33n, monte-mario-2, wgs84-32n, ed50-32n")
     args = parser.parse_args()
+
+    # Initialize transformer with specified CRS
+    source_crs = CRS_OPTIONS[args.crs]
+    init_transformer(source_crs)
+    print(f"Using source CRS: {args.crs} ({source_crs})")
 
     dxf_path = Path(args.input)
     output_dir = Path(args.output_dir)
