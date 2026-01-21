@@ -361,7 +361,7 @@ def main():
         plot_path = dxf_path.with_suffix('.png')
         fig.savefig(plot_path, dpi=150)
         print(f"Saved plot: {plot_path}")
-        plt.show()
+        #plt.show()
 
 
 if __name__ == "__main__":
