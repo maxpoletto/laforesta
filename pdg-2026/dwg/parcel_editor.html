@@ -46,7 +46,7 @@
             font-size: 12px;
         }
         #parcel-list {
-            max-height: 200px;
+            max-height: 300px;
             overflow-y: auto;
             background: white;
             border: 1px solid #ccc;
@@ -59,9 +59,21 @@
             cursor: pointer;
             display: flex;
             justify-content: space-between;
+            align-items: center;
         }
         .parcel-item:hover { background: #f0f0f0; }
+        .parcel-item .parcel-name { flex: 1; }
+        .parcel-item .parcel-name.loaded { color: #ff6600; }
+        .parcel-item .parcel-actions { display: flex; gap: 8px; }
+        .parcel-item .edit-btn { color: #2196F3; cursor: pointer; }
         .parcel-item .delete-btn { color: #f44336; cursor: pointer; }
+        .parcel-item input.rename-input {
+            flex: 1;
+            padding: 2px 4px;
+            border: 1px solid #2196F3;
+            border-radius: 2px;
+            font-size: 12px;
+        }
         input[type="file"] { margin: 10px 0; width: 100%; }
         .section { margin: 20px 0; border-top: 1px solid #ccc; padding-top: 15px; }
         #coords { font-family: monospace; font-size: 11px; }
@@ -134,9 +146,9 @@
         </div>
         
         <div class="section">
-            <h4>✏️ Drawn Parcels</h4>
+            <h4>✏️ Parcels</h4>
             <div id="parcel-list"></div>
-            <button class="primary" onclick="exportGeoJSON()">📥 Export Drawn</button>
+            <button class="primary" onclick="exportGeoJSON()">📥 Export All</button>
             <button class="danger" onclick="clearAllParcels()">🗑️ Clear All</button>
         </div>
         
@@ -154,10 +166,16 @@
             <ol style="font-size: 11px; padding-left: 20px; margin: 0;">
                 <li>Load your extracted parcels (GeoJSON)</li>
                 <li>Use offset sliders to align with satellite imagery</li>
-                <li>Click "Apply & Export" to save corrected version</li>
-                <li>Use polygon tool to draw missing parcels</li>
-                <li>Export when done</li>
+                <li>Click "Apply & Export" to save offset version</li>
+                <li>Use polygon tool to draw new parcels</li>
+                <li>Click "Edit" (pencil icon in toolbar) to drag vertices</li>
+                <li>Click ✎ next to parcel name to rename</li>
+                <li>Export All when done</li>
             </ol>
+            <p style="font-size: 10px; color: #666; margin-top: 8px;">
+                <span style="color: #ff6600;">Orange names</span> = loaded from file<br>
+                Blue names = hand-drawn
+            </p>
         </div>
     </div>
 
@@ -254,6 +272,11 @@
         map.on(L.Draw.Event.DELETED, function(e) {
             updateParcelList();
             updateStatus('Parcel(s) deleted');
+        });
+
+        map.on(L.Draw.Event.EDITED, function(e) {
+            const count = Object.keys(e.layers._layers).length;
+            updateStatus(`Edited ${count} parcel(s)`);
         });
         
         // Show coordinates on mouse move
@@ -362,7 +385,7 @@
         document.getElementById('load-reference').addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (!file) return;
-            
+
             const reader = new FileReader();
             reader.onload = function(e) {
                 try {
@@ -370,13 +393,38 @@
                     resetOffset();
                     referenceLayer.clearLayers();
                     referenceLayer.addData(originalReferenceData);
-                    
+
+                    // Also add to drawnItems for editing
+                    let loadedCount = 0;
+                    L.geoJSON(originalReferenceData, {
+                        onEachFeature: function(feature, layer) {
+                            if (feature.geometry.type === 'Polygon' || feature.geometry.type === 'MultiPolygon') {
+                                parcelCounter++;
+                                layer.parcelId = parcelCounter;
+                                layer.parcelName = feature.properties?.name ||
+                                                   (feature.properties?.parcel_index !== undefined ? `Parcel ${feature.properties.parcel_index}` :
+                                                   `Loaded ${parcelCounter}`);
+                                layer.isLoaded = true;
+                                layer.originalProperties = { ...feature.properties };
+                                layer.bindPopup(`<b>${layer.parcelName}</b>`);
+                                drawnItems.addLayer(layer);
+                                loadedCount++;
+                            }
+                        },
+                        style: {
+                            color: '#ff6600',
+                            weight: 2,
+                            fillOpacity: 0.2
+                        }
+                    });
+
+                    updateParcelList();
+
                     if (referenceLayer.getBounds().isValid()) {
                         map.fitBounds(referenceLayer.getBounds());
                     }
-                    
-                    const count = originalReferenceData.features ? originalReferenceData.features.length : 0;
-                    updateStatus(`Loaded ${count} reference parcels. Use sliders to adjust alignment.`);
+
+                    updateStatus(`Loaded ${loadedCount} parcels (editable). Use sliders to adjust alignment.`);
                 } catch (err) {
                     updateStatus('Error loading GeoJSON: ' + err.message);
                 }
@@ -387,6 +435,13 @@
         function clearReference() {
             referenceLayer.clearLayers();
             originalReferenceData = null;
+            // Also remove loaded parcels from drawnItems
+            const toRemove = [];
+            drawnItems.eachLayer(function(layer) {
+                if (layer.isLoaded) toRemove.push(layer);
+            });
+            toRemove.forEach(layer => drawnItems.removeLayer(layer));
+            updateParcelList();
             resetOffset();
             updateStatus('Reference data cleared');
         }
@@ -394,16 +449,75 @@
         function updateParcelList() {
             const list = document.getElementById('parcel-list');
             list.innerHTML = '';
-            
+
             drawnItems.eachLayer(function(layer) {
                 const item = document.createElement('div');
                 item.className = 'parcel-item';
+                item.dataset.leafletId = layer._leaflet_id;
+                const loadedClass = layer.isLoaded ? ' loaded' : '';
                 item.innerHTML = `
-                    <span onclick="zoomToParcel(${layer._leaflet_id})">${layer.parcelName || 'Unnamed'}</span>
-                    <span class="delete-btn" onclick="deleteParcel(${layer._leaflet_id})">✕</span>
+                    <span class="parcel-name${loadedClass}" onclick="zoomToParcel(${layer._leaflet_id})">${layer.parcelName || 'Unnamed'}</span>
+                    <span class="parcel-actions">
+                        <span class="edit-btn" onclick="startRename(${layer._leaflet_id})" title="Rename">✎</span>
+                        <span class="delete-btn" onclick="deleteParcel(${layer._leaflet_id})" title="Delete">✕</span>
+                    </span>
                 `;
                 list.appendChild(item);
             });
+        }
+
+        function startRename(leafletId) {
+            const item = document.querySelector(`.parcel-item[data-leaflet-id="${leafletId}"]`);
+            if (!item) return;
+
+            let layer = null;
+            drawnItems.eachLayer(function(l) {
+                if (l._leaflet_id === leafletId) layer = l;
+            });
+            if (!layer) return;
+
+            const nameSpan = item.querySelector('.parcel-name');
+            const currentName = layer.parcelName || 'Unnamed';
+            const loadedClass = layer.isLoaded ? ' loaded' : '';
+
+            item.innerHTML = `
+                <input type="text" class="rename-input" value="${currentName}" onkeydown="handleRenameKey(event, ${leafletId})" />
+                <span class="parcel-actions">
+                    <span class="edit-btn" onclick="finishRename(${leafletId})" title="Save">✓</span>
+                    <span class="delete-btn" onclick="updateParcelList()" title="Cancel">✕</span>
+                </span>
+            `;
+            const input = item.querySelector('.rename-input');
+            input.focus();
+            input.select();
+        }
+
+        function handleRenameKey(event, leafletId) {
+            if (event.key === 'Enter') {
+                finishRename(leafletId);
+            } else if (event.key === 'Escape') {
+                updateParcelList();
+            }
+        }
+
+        function finishRename(leafletId) {
+            const item = document.querySelector(`.parcel-item[data-leaflet-id="${leafletId}"]`);
+            if (!item) return;
+
+            const input = item.querySelector('.rename-input');
+            if (!input) return;
+
+            const newName = input.value.trim() || 'Unnamed';
+
+            drawnItems.eachLayer(function(layer) {
+                if (layer._leaflet_id === leafletId) {
+                    layer.parcelName = newName;
+                    layer.bindPopup(`<b>${newName}</b>`);
+                    updateStatus(`Renamed to "${newName}"`);
+                }
+            });
+
+            updateParcelList();
         }
         
         function zoomToParcel(leafletId) {
@@ -435,30 +549,33 @@
         
         function exportGeoJSON() {
             const features = [];
-            
+
             drawnItems.eachLayer(function(layer) {
                 const geojson = layer.toGeoJSON();
-                geojson.properties = {
-                    name: layer.parcelName,
-                    id: layer.parcelId
-                };
+                // Preserve original properties for loaded parcels, add name
+                if (layer.isLoaded && layer.originalProperties) {
+                    geojson.properties = { ...layer.originalProperties };
+                }
+                geojson.properties = geojson.properties || {};
+                geojson.properties.name = layer.parcelName;
+                geojson.properties.id = layer.parcelId;
                 features.push(geojson);
             });
-            
+
             const geojson = {
                 type: 'FeatureCollection',
                 features: features
             };
-            
+
             const blob = new Blob([JSON.stringify(geojson, null, 2)], {type: 'application/json'});
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = 'drawn_parcels.geojson';
+            a.download = 'parcels_edited.geojson';
             a.click();
             URL.revokeObjectURL(url);
-            
-            updateStatus(`Exported ${features.length} drawn parcels`);
+
+            updateStatus(`Exported ${features.length} parcels`);
         }
         
         function updateStatus(msg) {
