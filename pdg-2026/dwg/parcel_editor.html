@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Parcel Digitizer</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
+    
+    <style>
+        body { margin: 0; padding: 0; font-family: sans-serif; }
+        #map { position: absolute; top: 0; bottom: 0; left: 0; right: 320px; }
+        #sidebar {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            right: 0;
+            width: 320px;
+            background: #f5f5f5;
+            padding: 15px;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+        h3 { margin-top: 0; }
+        h4 { margin: 10px 0 5px 0; }
+        button {
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+            cursor: pointer;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: white;
+        }
+        button:hover { background: #e0e0e0; }
+        button.primary { background: #4CAF50; color: white; border-color: #4CAF50; }
+        button.primary:hover { background: #45a049; }
+        button.danger { background: #f44336; color: white; border-color: #f44336; }
+        button.danger:hover { background: #da190b; }
+        #status { 
+            margin: 10px 0; 
+            padding: 10px; 
+            background: #fff; 
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        #parcel-list {
+            max-height: 200px;
+            overflow-y: auto;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .parcel-item {
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+        }
+        .parcel-item:hover { background: #f0f0f0; }
+        .parcel-item .delete-btn { color: #f44336; cursor: pointer; }
+        input[type="file"] { margin: 10px 0; width: 100%; }
+        .section { margin: 20px 0; border-top: 1px solid #ccc; padding-top: 15px; }
+        #coords { font-family: monospace; font-size: 11px; }
+        
+        /* Offset controls */
+        .offset-control {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+        }
+        .offset-control label {
+            width: 80px;
+            font-size: 12px;
+        }
+        .offset-control input[type="range"] {
+            flex: 1;
+            margin: 0 10px;
+        }
+        .offset-control .value {
+            width: 60px;
+            font-family: monospace;
+            font-size: 11px;
+        }
+        .offset-buttons {
+            display: flex;
+            gap: 5px;
+            margin: 5px 0;
+        }
+        .offset-buttons button {
+            flex: 1;
+            padding: 5px;
+            font-size: 11px;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div id="sidebar">
+        <h3>🗺️ Parcel Digitizer</h3>
+        
+        <div id="status">Ready. Click the polygon tool to start drawing.</div>
+        <div id="coords"></div>
+        
+        <div class="section">
+            <h4>📂 Load Reference Data</h4>
+            <input type="file" id="load-reference" accept=".geojson,.json" />
+            <button onclick="clearReference()">Clear Reference</button>
+            
+            <h4>🔧 Adjust Reference Offset</h4>
+            <p style="font-size: 11px; color: #666;">
+                Use these sliders to shift your reference data to align with satellite imagery.
+            </p>
+            
+            <div class="offset-control">
+                <label>East-West:</label>
+                <input type="range" id="offset-ew" min="-200" max="200" value="0" step="1">
+                <span class="value" id="offset-ew-value">0m</span>
+            </div>
+            
+            <div class="offset-control">
+                <label>North-South:</label>
+                <input type="range" id="offset-ns" min="-200" max="200" value="0" step="1">
+                <span class="value" id="offset-ns-value">0m</span>
+            </div>
+            
+            <div class="offset-buttons">
+                <button onclick="resetOffset()">Reset</button>
+                <button onclick="applyOffset()" class="primary">Apply & Export</button>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h4>✏️ Drawn Parcels</h4>
+            <div id="parcel-list"></div>
+            <button class="primary" onclick="exportGeoJSON()">📥 Export Drawn</button>
+            <button class="danger" onclick="clearAllParcels()">🗑️ Clear All</button>
+        </div>
+        
+        <div class="section">
+            <h4>🗺️ Basemap</h4>
+            <div class="offset-buttons">
+                <button onclick="setBasemap('osm')">OSM</button>
+                <button onclick="setBasemap('satellite')">Satellite</button>
+                <button onclick="setBasemap('topo')">Topo</button>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h4>📖 Instructions</h4>
+            <ol style="font-size: 11px; padding-left: 20px; margin: 0;">
+                <li>Load your extracted parcels (GeoJSON)</li>
+                <li>Use offset sliders to align with satellite imagery</li>
+                <li>Click "Apply & Export" to save corrected version</li>
+                <li>Use polygon tool to draw missing parcels</li>
+                <li>Export when done</li>
+            </ol>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+    
+    <script>
+        // Initialize map - centered on Calabria region
+        const map = L.map('map').setView([38.65, 16.3], 12);
+        
+        // Basemap layers
+        const basemaps = {
+            osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }),
+            satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: '© Esri'
+            }),
+            topo: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenTopoMap'
+            })
+        };
+        
+        let currentBasemap = basemaps.satellite.addTo(map);
+        
+        function setBasemap(name) {
+            map.removeLayer(currentBasemap);
+            currentBasemap = basemaps[name].addTo(map);
+        }
+        
+        // Reference data storage
+        let originalReferenceData = null;
+        let currentOffsetEW = 0;  // meters
+        let currentOffsetNS = 0;  // meters
+        
+        // Reference layer (existing parcels)
+        let referenceLayer = L.geoJSON(null, {
+            style: {
+                color: '#ff6600',
+                weight: 2,
+                fillOpacity: 0.2,
+            },
+            onEachFeature: function(feature, layer) {
+                if (feature.properties) {
+                    const props = Object.entries(feature.properties)
+                        .map(([k, v]) => `<b>${k}:</b> ${v}`)
+                        .join('<br>');
+                    layer.bindPopup(props || 'No properties');
+                }
+            }
+        }).addTo(map);
+        
+        // Drawn parcels layer
+        const drawnItems = new L.FeatureGroup().addTo(map);
+        let parcelCounter = 0;
+        
+        // Drawing controls
+        const drawControl = new L.Control.Draw({
+            position: 'topleft',
+            draw: {
+                polygon: {
+                    allowIntersection: false,
+                    shapeOptions: {
+                        color: '#3388ff',
+                        weight: 2,
+                        fillOpacity: 0.3
+                    }
+                },
+                polyline: false,
+                rectangle: false,
+                circle: false,
+                marker: false,
+                circlemarker: false
+            },
+            edit: {
+                featureGroup: drawnItems,
+                remove: true
+            }
+        });
+        map.addControl(drawControl);
+        
+        // Handle drawing events
+        map.on(L.Draw.Event.CREATED, function(e) {
+            const layer = e.layer;
+            parcelCounter++;
+            layer.parcelId = parcelCounter;
+            layer.parcelName = `Parcel ${parcelCounter}`;
+            layer.bindPopup(`<b>${layer.parcelName}</b>`);
+            drawnItems.addLayer(layer);
+            updateParcelList();
+            updateStatus(`Created ${layer.parcelName}`);
+        });
+        
+        map.on(L.Draw.Event.DELETED, function(e) {
+            updateParcelList();
+            updateStatus('Parcel(s) deleted');
+        });
+        
+        // Show coordinates on mouse move
+        map.on('mousemove', function(e) {
+            document.getElementById('coords').innerHTML = 
+                `Lat: ${e.latlng.lat.toFixed(6)}, Lng: ${e.latlng.lng.toFixed(6)}`;
+        });
+        
+        // Offset controls
+        document.getElementById('offset-ew').addEventListener('input', function(e) {
+            currentOffsetEW = parseInt(e.target.value);
+            document.getElementById('offset-ew-value').textContent = `${currentOffsetEW}m`;
+            updateReferenceWithOffset();
+        });
+        
+        document.getElementById('offset-ns').addEventListener('input', function(e) {
+            currentOffsetNS = parseInt(e.target.value);
+            document.getElementById('offset-ns-value').textContent = `${currentOffsetNS}m`;
+            updateReferenceWithOffset();
+        });
+        
+        function resetOffset() {
+            currentOffsetEW = 0;
+            currentOffsetNS = 0;
+            document.getElementById('offset-ew').value = 0;
+            document.getElementById('offset-ns').value = 0;
+            document.getElementById('offset-ew-value').textContent = '0m';
+            document.getElementById('offset-ns-value').textContent = '0m';
+            updateReferenceWithOffset();
+        }
+        
+        function offsetCoordinates(coords, offsetLon, offsetLat) {
+            if (typeof coords[0] === 'number') {
+                // Single coordinate pair [lon, lat]
+                return [coords[0] + offsetLon, coords[1] + offsetLat];
+            } else {
+                // Nested array
+                return coords.map(c => offsetCoordinates(c, offsetLon, offsetLat));
+            }
+        }
+        
+        function updateReferenceWithOffset() {
+            if (!originalReferenceData) return;
+            
+            // Convert meter offset to approximate degrees
+            // At ~38°N: 1° lat ≈ 111km, 1° lon ≈ 87km
+            const offsetLon = currentOffsetEW / 87000;
+            const offsetLat = currentOffsetNS / 111000;
+            
+            // Deep clone and offset
+            const offsetData = JSON.parse(JSON.stringify(originalReferenceData));
+            
+            for (const feature of offsetData.features || []) {
+                if (feature.geometry && feature.geometry.coordinates) {
+                    feature.geometry.coordinates = offsetCoordinates(
+                        feature.geometry.coordinates, offsetLon, offsetLat
+                    );
+                }
+            }
+            
+            referenceLayer.clearLayers();
+            referenceLayer.addData(offsetData);
+            
+            updateStatus(`Offset: ${currentOffsetEW}m E, ${currentOffsetNS}m N`);
+        }
+        
+        function applyOffset() {
+            if (!originalReferenceData) {
+                updateStatus('No reference data loaded');
+                return;
+            }
+            
+            const offsetLon = currentOffsetEW / 87000;
+            const offsetLat = currentOffsetNS / 111000;
+            
+            const offsetData = JSON.parse(JSON.stringify(originalReferenceData));
+            
+            for (const feature of offsetData.features || []) {
+                if (feature.geometry && feature.geometry.coordinates) {
+                    feature.geometry.coordinates = offsetCoordinates(
+                        feature.geometry.coordinates, offsetLon, offsetLat
+                    );
+                }
+            }
+            
+            // Add offset info to properties
+            offsetData.properties = offsetData.properties || {};
+            offsetData.properties.offset_applied = {
+                east_meters: currentOffsetEW,
+                north_meters: currentOffsetNS
+            };
+            
+            // Download
+            const blob = new Blob([JSON.stringify(offsetData, null, 2)], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'parcels_corrected.geojson';
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            updateStatus(`Exported with offset: ${currentOffsetEW}m E, ${currentOffsetNS}m N`);
+        }
+        
+        // Load reference GeoJSON
+        document.getElementById('load-reference').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    originalReferenceData = JSON.parse(e.target.result);
+                    resetOffset();
+                    referenceLayer.clearLayers();
+                    referenceLayer.addData(originalReferenceData);
+                    
+                    if (referenceLayer.getBounds().isValid()) {
+                        map.fitBounds(referenceLayer.getBounds());
+                    }
+                    
+                    const count = originalReferenceData.features ? originalReferenceData.features.length : 0;
+                    updateStatus(`Loaded ${count} reference parcels. Use sliders to adjust alignment.`);
+                } catch (err) {
+                    updateStatus('Error loading GeoJSON: ' + err.message);
+                }
+            };
+            reader.readAsText(file);
+        });
+        
+        function clearReference() {
+            referenceLayer.clearLayers();
+            originalReferenceData = null;
+            resetOffset();
+            updateStatus('Reference data cleared');
+        }
+        
+        function updateParcelList() {
+            const list = document.getElementById('parcel-list');
+            list.innerHTML = '';
+            
+            drawnItems.eachLayer(function(layer) {
+                const item = document.createElement('div');
+                item.className = 'parcel-item';
+                item.innerHTML = `
+                    <span onclick="zoomToParcel(${layer._leaflet_id})">${layer.parcelName || 'Unnamed'}</span>
+                    <span class="delete-btn" onclick="deleteParcel(${layer._leaflet_id})">✕</span>
+                `;
+                list.appendChild(item);
+            });
+        }
+        
+        function zoomToParcel(leafletId) {
+            drawnItems.eachLayer(function(layer) {
+                if (layer._leaflet_id === leafletId) {
+                    map.fitBounds(layer.getBounds());
+                    layer.openPopup();
+                }
+            });
+        }
+        
+        function deleteParcel(leafletId) {
+            drawnItems.eachLayer(function(layer) {
+                if (layer._leaflet_id === leafletId) {
+                    drawnItems.removeLayer(layer);
+                }
+            });
+            updateParcelList();
+        }
+        
+        function clearAllParcels() {
+            if (confirm('Delete all drawn parcels?')) {
+                drawnItems.clearLayers();
+                parcelCounter = 0;
+                updateParcelList();
+                updateStatus('All parcels cleared');
+            }
+        }
+        
+        function exportGeoJSON() {
+            const features = [];
+            
+            drawnItems.eachLayer(function(layer) {
+                const geojson = layer.toGeoJSON();
+                geojson.properties = {
+                    name: layer.parcelName,
+                    id: layer.parcelId
+                };
+                features.push(geojson);
+            });
+            
+            const geojson = {
+                type: 'FeatureCollection',
+                features: features
+            };
+            
+            const blob = new Blob([JSON.stringify(geojson, null, 2)], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'drawn_parcels.geojson';
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            updateStatus(`Exported ${features.length} drawn parcels`);
+        }
+        
+        function updateStatus(msg) {
+            document.getElementById('status').innerHTML = msg;
+        }
+    </script>
+</body>
+</html>
