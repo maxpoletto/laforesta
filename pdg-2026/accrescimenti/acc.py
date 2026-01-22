@@ -145,10 +145,10 @@ class LaTeXSnippetFormatter(SnippetFormatter):
 
     def format_image(self, filepath: Path, options: dict = None) -> str:
         height = '0.35' if options and options.get('piccolo') else '0.5'
-        return (f'\\begin{{figure}}[H]\n'
-                f'  \\centering\n'
-                f'  \\includegraphics[height={height}\\textheight]{{{filepath.name}}}\n'
-                f'\\end{{figure}}\n')
+        latex = '\\begin{center}\n'
+        latex += f'  \\includegraphics[height={height}\\textheight]{{{filepath.name}}}\n'
+        latex += '\\end{center}\n'
+        return latex
 
     def format_metadata(self, data: dict, curve_info: list = None) -> str:
         """Format metadata as LaTeX."""
@@ -1152,6 +1152,7 @@ def render_prop(particelle_df: pd.DataFrame, compresa: str, particella: str,
     paragraph_fields = [
         ('Stazione', row['Stazione']),
         ('Soprassuolo', row['Soprassuolo']),
+        ('Piano del taglio', row['Piano del taglio']),
     ]
 
     return {'snippet': formatter.format_prop(short_fields, paragraph_fields)}
