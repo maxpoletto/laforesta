@@ -1849,45 +1849,45 @@ def process_template(template_text: str, data_dir: Path,
         if not directive:
             return match.group(0)  # Return unchanged if parsing fails
 
-        keyword = directive['keyword']
-        params = directive['params']
-
-        if format_type == 'csv' and (keyword.startswith('g') or keyword == 'prop'):
-            raise ValueError(f"@@{keyword}: il formato CSV supporta solo direttive @@t* (tabelle)")
-
-        alberi_files = params.get('alberi')
-        equazioni_files = params.get('equazioni')
-
-        if not alberi_files and keyword != 'prop':
-            raise ValueError(f"@@{keyword} richiede alberi=FILE")
-        if keyword == 'gci' and not equazioni_files:
-            raise ValueError("@@gci richiede equazioni=FILE")
-        elif keyword == 'tpt':
-            if not params.get('comparti'):
-                raise ValueError("@@tpt richiede comparti=FILE")
-            if not params.get('provv_vol'):
-                raise ValueError("@@tpt richiede provv_vol=FILE")
-            if not params.get('provv_eta'):
-                raise ValueError("@@tpt richiede provv_eta=FILE")
-        elif keyword == 'gpt':
-            if not params.get('comparti'):
-                raise ValueError("@@gpt richiede comparti=FILE")
-            if not params.get('provv_vol'):
-                raise ValueError("@@gpt richiede provv_vol=FILE")
-            if not params.get('provv_eta'):
-                raise ValueError("@@gpt richiede provv_eta=FILE")
-
-        comprese = params.get('compresa', [])
-        particelle = params.get('particella', [])
-        generi = params.get('genere', [])
-
-        if keyword == 'prop':
-            if len(comprese) != 1 or len(particelle) != 1 or len(params) != 2:
-                raise ValueError("@@prop richiede esattamente compresa=X e particella=Y")
-            result = render_prop(particelle_df, comprese[0], particelle[0], formatter)
-            return result['snippet']
-
         try:
+            keyword = directive['keyword']
+            params = directive['params']
+
+            if format_type == 'csv' and (keyword.startswith('g') or keyword == 'prop'):
+                raise ValueError(f"@@{keyword}: il formato CSV supporta solo direttive @@t* (tabelle)")
+
+            alberi_files = params.get('alberi')
+            equazioni_files = params.get('equazioni')
+
+            if not alberi_files and keyword != 'prop':
+                raise ValueError(f"@@{keyword} richiede alberi=FILE")
+            if keyword == 'gci' and not equazioni_files:
+                raise ValueError("@@gci richiede equazioni=FILE")
+            elif keyword == 'tpt':
+                if not params.get('comparti'):
+                    raise ValueError("@@tpt richiede comparti=FILE")
+                if not params.get('provv_vol'):
+                    raise ValueError("@@tpt richiede provv_vol=FILE")
+                if not params.get('provv_eta'):
+                    raise ValueError("@@tpt richiede provv_eta=FILE")
+            elif keyword == 'gpt':
+                if not params.get('comparti'):
+                    raise ValueError("@@gpt richiede comparti=FILE")
+                if not params.get('provv_vol'):
+                    raise ValueError("@@gpt richiede provv_vol=FILE")
+                if not params.get('provv_eta'):
+                    raise ValueError("@@gpt richiede provv_eta=FILE")
+
+            comprese = params.get('compresa', [])
+            particelle = params.get('particella', [])
+            generi = params.get('genere', [])
+
+            if keyword == 'prop':
+                if len(comprese) != 1 or len(particelle) != 1 or len(params) != 2:
+                    raise ValueError("@@prop richiede esattamente compresa=X e particella=Y")
+                result = render_prop(particelle_df, comprese[0], particelle[0], formatter)
+                return result['snippet']
+
             trees_df = load_trees(alberi_files, data_dir)
             data = parcel_data(alberi_files, trees_df, particelle_df, comprese, particelle, generi)
 
