@@ -201,11 +201,11 @@ class LaTeXSnippetFormatter(SnippetFormatter):
     def format_prop(self, short_fields: list[tuple[str, str]],
                     paragraph_fields: list[tuple[str, str]]) -> str:
         """Format parcel properties as LaTeX."""
-        latex = '\\noindent '
-        latex += ' $\\cdot$ '.join(f'\\textbf{{{label}:}} {value}' for label, value in short_fields)
-        latex += '\n\n'
+        formatted = [f'\\textbf{{{label}:}} {value}' for label, value in short_fields]
+        lines = [' $\\cdot$ '.join(formatted[i:i+2]) for i in range(0, len(formatted), 2)]
+        latex = '\\noindent ' + ' \\\\\n'.join(lines) + '\n\n'
         for label, value in paragraph_fields:
-            latex += f'\\textbf{{{label}:}} {value}\n\n'
+            latex += f'\\noindent\\textbf{{{label}:}} {value}\n\n'
         return latex
 
 
@@ -1143,7 +1143,7 @@ def render_prop(particelle_df: pd.DataFrame, compresa: str, particella: str,
         ('Località', row['Località']),
         ('Età media', f"{int(row['Età media'])} anni"),
         ('Governo', row['Governo']),
-        ('Altitudine', f"{altitudine} m"),
+        ('Altitudine', altitudine),
         ('Esposizione', row['Esposizione'] or ''),
     ]
     paragraph_fields = [
