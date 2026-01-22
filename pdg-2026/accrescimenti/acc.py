@@ -144,7 +144,7 @@ class LaTeXSnippetFormatter(SnippetFormatter):
     """LaTeX snippet formatter."""
 
     def format_image(self, filepath: Path, options: dict = None) -> str:
-        height = '0.35' if options and options.get('piccolo') else '0.5'
+        height = '0.28' if options and options.get('piccolo') else '0.5'
         latex = '\\begin{center}\n'
         latex += f'  \\includegraphics[height={height}\\textheight]{{{filepath.name}}}\n'
         latex += '\\end{center}\n'
@@ -1502,19 +1502,20 @@ def calculate_tpt_table(data: dict, comparti_df: pd.DataFrame,
     6. Cap PP_max using provv_eta (first row where età > Anni)
     7. harvestable = V_total_scaled * PP_max / 100
 
-    Note: per_genere grouping is not supported because PP_max is a parcel-level
-    constraint. The harvest percentage can be applied to any subset of species.
+    pp_max is always computed at the particella level (from total volume across
+    all species). If Genere is in group_cols, the harvest is broken down by
+    species using that same pp_max.
 
     Args:
         data: Output from parcel_data
         comparti_df: Comparto -> Provvigione minima mapping
         provv_vol_df: Volume-based harvest rules
         provv_eta_df: Age-based harvest rules
-        group_cols: List of grouping columns (Compresa, Particella only)
+        group_cols: List of grouping columns (Compresa, Particella, Genere)
 
     Returns:
         DataFrame with columns depending on group_cols, plus:
-        comparto, volume, pp_max, harvest_ha, harvest_total, n_trees
+        comparto, volume, pp_max, harvest, area_ha
     """
     #pylint: disable=too-many-locals
     trees = data['trees']
@@ -1523,56 +1524,81 @@ def calculate_tpt_table(data: dict, comparti_df: pd.DataFrame,
                          "Esegui --calcola-altezze-volumi per calcolarli.")
     parcels = data['parcels']
 
+    added_dummy = False
     if not group_cols:
         trees = trees.copy()
         trees['_'] = 'Totale'
         group_cols = ['_']
+        added_dummy = True
 
     per_parcel = 'Particella' in group_cols or len(parcels) == 1
-    rows = []
     sector_pm = dict(zip(comparti_df['Comparto'], comparti_df['Provvigione minima']))
-    for group_key, group_trees in trees.groupby(group_cols):
-        row_dict = dict(zip(group_cols, group_key))
-        volume, pp_max, harvest, area_ha = 0.0, 0.0, 0.0, 0.0
-        any_tree = False
-        for (region, parcel), part_trees in group_trees.groupby(['Compresa', 'Particella']):
-            try:
-                p = parcels[(region, parcel)]
-            except KeyError as e:
-                raise ValueError(f"Particella {region}/{parcel} non trovata") from e
 
-            sector, p_area, sf, age = p['sector'], p['area_ha'], p['sampled_frac'], p['age']
-            try:
-                provv_min = sector_pm[sector]
-            except KeyError as e:
-                raise ValueError(f"Comparto {p['sector']} non trovato") from e
-            if provv_min < 0:  # Skip ceduo
+    # First pass: compute pp_max for each particella (based on total volume)
+    parcel_info = {}
+    for (region, parcel), part_trees in trees.groupby(['Compresa', 'Particella']):
+        try:
+            p = parcels[(region, parcel)]
+        except KeyError as e:
+            raise ValueError(f"Particella {region}/{parcel} non trovata") from e
+
+        sector, p_area, sf, age = p['sector'], p['area_ha'], p['sampled_frac'], p['age']
+        try:
+            provv_min = sector_pm[sector]
+        except KeyError as e:
+            raise ValueError(f"Comparto {p['sector']} non trovato") from e
+
+        if provv_min < 0:  # Ceduo
+            parcel_info[(region, parcel)] = {'skip': True}
+            continue
+
+        p_vol = part_trees['V(m3)'].sum() / sf
+        pp_max = compute_pp_max(p_vol / p_area, age, provv_min, provv_vol_df, provv_eta_df)
+        parcel_info[(region, parcel)] = {
+            'pp_max': pp_max, 'sector': sector, 'age': age, 'area_ha': p_area, 'sf': sf,
+            'skip': False
+        }
+
+    # Second pass: aggregate by group_cols
+    rows = []
+    for group_key, group_trees in trees.groupby(group_cols):
+        if not isinstance(group_key, tuple):
+            group_key = (group_key,)
+        row_dict = dict(zip(group_cols, group_key))
+        volume, harvest, area_ha = 0.0, 0.0, 0.0
+        any_tree = False
+        last_pp_max, last_sector, last_age = 0.0, '', 0
+
+        for (region, parcel), part_trees in group_trees.groupby(['Compresa', 'Particella']):
+            info = parcel_info[(region, parcel)]
+            if info['skip']:
                 continue
 
             any_tree = True
-            p_vol = part_trees['V(m3)'].sum() / sf
-            pp_max = compute_pp_max(p_vol / p_area, age, provv_min, provv_vol_df, provv_eta_df)
+            p_vol = part_trees['V(m3)'].sum() / info['sf']
             volume += p_vol
-            harvest += p_vol * pp_max / 100
-            area_ha += p_area
+            harvest += p_vol * info['pp_max'] / 100
+            area_ha += info['area_ha']
+            last_pp_max, last_sector, last_age = info['pp_max'], info['sector'], info['age']
 
-        if not any_tree: # All ceduo in this grouping
+        if not any_tree:
             continue
 
         if per_parcel:
-            row_dict['sector'] = sector
-            row_dict['age'] = age
+            row_dict['sector'] = last_sector
+            row_dict['age'] = last_age
+            row_dict['pp_max'] = last_pp_max
         row_dict['area_ha'] = area_ha
         row_dict['volume'] = volume
-        if per_parcel:
-            row_dict['pp_max'] = pp_max
         row_dict['harvest'] = harvest
         rows.append(row_dict)
 
     df = pd.DataFrame(rows)
-    if '_' in group_cols:
+    if added_dummy:
         group_cols.remove('_')
         df = df.drop(columns=['_'])
+    if not group_cols:
+        return df
     return df.sort_values(group_cols,
         key=lambda col: natsort_keygen()(col) if col.name == 'Particella' else col)
 
@@ -1591,7 +1617,7 @@ def render_tpt_table(data: dict, comparti_df: pd.DataFrame,
         provv_eta_df: Age-based harvest rules
         formatter: HTML or LaTeX snippet formatter
         options: Dictionary of options:
-            - per_compresa, per_particella: Grouping flags
+            - per_compresa, per_particella, per_genere: Grouping flags
             - col_comparto: Show comparto column (default si)
             - col_volume: Show total volume column (default si)
             - col_volume_ha: Show total volume per hectare column (default si)
@@ -1600,16 +1626,18 @@ def render_tpt_table(data: dict, comparti_df: pd.DataFrame,
             - totali: Add totals row
 
         comparto and pp_max only appear if per_particella is True.
+        Note: pp_max is always computed from total parcel volume (all species).
 
     Returns:
         dict with 'snippet' key containing formatted table
     """
-    # Determine grouping columns (per_genere not supported for tpt)
     group_cols = []
     if options['per_compresa']:
         group_cols.append('Compresa')
     if options['per_particella']:
         group_cols.append('Particella')
+    if options.get('per_genere', False):
+        group_cols.append('Genere')
 
     df = calculate_tpt_table(data, comparti_df, provv_vol_df, provv_eta_df, group_cols)
     if df.empty:
@@ -1659,17 +1687,24 @@ def render_tpt_table(data: dict, comparti_df: pd.DataFrame,
 
     # Add totals row if requested (and there are grouping columns)
     if options.get('totali', False) and group_cols:
+        # When per_genere, area_ha is duplicated across species; dedupe for totals
+        if 'Genere' in group_cols:
+            parcel_cols = [c for c in group_cols if c != 'Genere'] or ['area_ha']
+            total_area = df.drop_duplicates(subset=parcel_cols)['area_ha'].sum()
+        else:
+            total_area = df['area_ha'].sum()
+
         total_row = ['Totale'] + [''] * (len(group_cols) - 1)
         if options['col_comparto'] and per_parcel:
             total_row.append('')
         if options['col_eta'] and per_parcel:
             total_row.append('')
         if options['col_area_ha']:
-            total_row.append(f"{df['area_ha'].sum():.2f}")
+            total_row.append(f"{total_area:.2f}")
         if options['col_volume']:
             total_row.append(f"{df['volume'].sum():.2f}")
         if options['col_volume_ha']:
-            total_row.append(f"{df['volume'].sum() / df['area_ha'].sum():.2f}")
+            total_row.append(f"{df['volume'].sum() / total_area:.2f}")
         if options['col_pp_max'] and per_parcel:
             total_row.append('')  # PP_max doesn't aggregate meaningfully
         if options['col_prelievo']:
@@ -1943,14 +1978,16 @@ def process_template(template_text: str, data_dir: Path,
                     }
                     result = render_tsv_table(data, formatter, **options)
                 case 'tpt':
-                    if params.get('per_genere', None) is not None:
-                        raise ValueError("@@tpt non supporta il parametro 'per_genere'")
+                    if params.get('genere', None) is not None:
+                        raise ValueError("@@tpt non supporta il parametro 'genere' "
+                                         "(usa 'per_genere=si' per raggruppare per specie)")
                     comparti_df = load_csv(params['comparti'], data_dir)
                     provv_vol_df = load_csv(params['provv_vol'], data_dir)
                     provv_eta_df = load_csv(params['provv_eta'], data_dir)
                     options = {
                         'per_compresa': params.get('per_compresa', 'si').lower() == 'si',
                         'per_particella': params.get('per_particella', 'si').lower() == 'si',
+                        'per_genere': params.get('per_genere', 'no').lower() == 'si',
                         'col_comparto': params.get('col_comparto', 'si').lower() == 'si',
                         'col_eta': params.get('col_eta', 'si').lower() == 'si',
                         'col_area_ha': params.get('col_area_ha', 'si').lower() == 'si',
