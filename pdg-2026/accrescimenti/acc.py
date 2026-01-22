@@ -1524,7 +1524,7 @@ def calculate_tpt_table(data: dict, comparti_df: pd.DataFrame,
         trees['_'] = 'Totale'
         group_cols = ['_']
 
-    per_parcel = 'Particella' in group_cols
+    per_parcel = 'Particella' in group_cols or len(parcels) == 1
     rows = []
     sector_pm = dict(zip(comparti_df['Comparto'], comparti_df['Provvigione minima']))
     for group_key, group_trees in trees.groupby(group_cols):
@@ -1611,7 +1611,7 @@ def render_tpt_table(data: dict, comparti_df: pd.DataFrame,
     if df.empty:
         return {'snippet': ''}
 
-    per_parcel = 'Particella' in group_cols
+    per_parcel = 'Particella' in group_cols or len(data['parcels']) == 1
 
     headers = []
     for col in group_cols:

@@ -39,16 +39,10 @@ Sono esclusi i diametri (grossi) per i quali la frequenza di alberi è inferiore
 
 \subsection{Serra}
 
-@@prop(compresa=Serra,particella=1)
-
-
 La distribuzione in classi diametriche a Serra è la seguente. Il bosco è dominato dall'abete, ma sono presenti anche faggio, castagno, douglas, e pino nero.
 
 \subsection*{Serra: Classi diametriche}
 @@gcd(compresa=Serra,alberi=alberi.csv,x_max=24)
-
-In forma tabellare:
-@@tcd(compresa=Serra,alberi=alberi.csv)
 \clearpage
 
 \subsection*{Serra: curve ipsometriche, veduta d'insieme}
@@ -83,9 +77,6 @@ La distribuzione in classi diametriche a Fabrizia è la seguente. Il bosco è do
 
 \subsection*{Fabrizia: Classi diametriche}
 @@gcd(compresa=Fabrizia,alberi=alberi.csv,x_max=24)
-
-In forma tabellare:
-@@tcd(compresa=Fabrizia,alberi=alberi.csv)
 \clearpage
 
 \subsection*{Fabrizia: curve ipsometriche, veduta d'insieme}
@@ -114,10 +105,6 @@ Le specie prevalenti, per le quali abbiamo potuto calcolare le equazioni interpo
 La distribuzione in classi diametriche a Capistrano è la seguente. Il bosco è dominato da abeti e pini.
 \subsection*{Capistrano: Classi diametriche}
 @@gcd(compresa=Capistrano,alberi=alberi.csv,x_max=24)
-
-In forma tabellare:
-@@tcd(compresa=Capistrano,alberi=alberi.csv)
-
 \clearpage
 
 \subsection*{Capistrano: curve ipsometriche, veduta d'insieme}
@@ -140,6 +127,22 @@ Le specie prevalenti, per le quali abbiamo potuto calcolare le equazioni interpo
 \subsection*{Capistrano: ipsometria pino nero}
 @@gci(compresa=Capistrano,genere=Pino Nero,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
 \clearpage
+
+\section{Dettaglio per particella}
+
+\subsection{Serra / 1}
+
+\subsubsection{Caratteristiche generali}
+@@prop(compresa=Serra,particella=1)
+\subsubsection{Classi diametriche}
+@@gcd(compresa=Serra,particella=1,alberi=alberi-calcolati.csv,x_max=24)
+@@tcd(compresa=Serra,particella=1,alberi=alberi-calcolati.csv)
+\subsubsection{Volumi}
+@@tsv(compresa=Serra,particella=1,alberi=alberi-calcolati.csv,per_genere=si,per_compresa=no,per_particella=no,intervallo_fiduciario=si,totali=si,stime_totali=si)
+\subsubsection{Ripresa}
+@@tpt(compresa=Serra,particella=1,alberi=alberi-calcolati.csv,comparti=comparti.csv,provv_vol=provv_vol.csv,provv_eta=provv_eta.csv,per_compresa=no,per_particella=no,col_area_ha=no)
+\clearpage
+
 
 \section{Stima dei volumi}
 
