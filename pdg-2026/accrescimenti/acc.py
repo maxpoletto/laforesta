@@ -150,19 +150,16 @@ class LaTeXSnippetFormatter(SnippetFormatter):
 
     def format_metadata(self, data: dict, curve_info: list = None) -> str:
         """Format metadata as LaTeX."""
+        if not curve_info:
+            return ""
         latex = '\\begin{quote}\\small\n'
-        latex += f"\\textbf{{Comprese:}} {data['regions']}\\\\\n"
-        latex += f"\\textbf{{Generi:}} {data['species']}\\\\\n"
-        latex += f"\\textbf{{Alberi campionati:}} {data['trees'].shape[0]:d}\\\\\n"
-        if curve_info:
-            i = 'i' if len(curve_info) > 1 else 'e'
-            latex += f'\n\\textbf{{Equazion{i} interpolant{i}:}}\\\\\n'
-            for curve in curve_info:
-                eq = curve['equation'].replace('*', r'\times ')
-                eq = eq.replace('ln', r'\ln')
-                latex += (f"{curve['genere']}: ${eq}$ ($R^2$ = {curve['r_squared']:.2f}, "
-                         f"$n$ = {curve['n_points']})\\\\\n")
-
+        i = 'i' if len(curve_info) > 1 else 'e'
+        latex += f'\n\\textbf{{Equazion{i} interpolant{i}:}}\\\\\n'
+        for curve in curve_info:
+            eq = curve['equation'].replace('*', r'\times ')
+            eq = eq.replace('ln', r'\ln')
+            latex += (f"{curve['genere']}: ${eq}$ ($R^2$ = {curve['r_squared']:.2f}, "
+                        f"$n$ = {curve['n_points']})\\\\\n")
         latex += '\\end{quote}\n'
         return latex
 
