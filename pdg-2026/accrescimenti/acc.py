@@ -1815,18 +1815,18 @@ DIRECTIVE_PATTERN = re.compile(r'@@(\w+)\((.*?)\)')
 def process_template(template_text: str, data_dir: Path,
                      parcel_file: str,
                      output_dir: Path,
-                     format_type: str) -> str:
+                     format_type: str,
+                     template_dir: Path = None) -> str:
     """
     Process template by substituting @@directives with generated content.
 
     Args:
         template_text: Input template
         data_dir: Base directory for data files (alberi, equazioni)
-        tree_files: List of tree data files
-        equation_files: List of equation data files
         parcel_file: Parcel metadata file
         output_dir: Where to save generated graphs
         format_type: 'html' or 'latex'
+        template_dir: Directory containing template files (for @@particelle modello)
 
     Returns:
         Processed template text
@@ -1847,6 +1847,38 @@ def process_template(template_text: str, data_dir: Path,
         filename_counts[base_name] += 1
         return f'{base_name}_{filename_counts[base_name]:02d}.png'
 
+    def render_particelle(comprese: list[str], particelle_df: pd.DataFrame, params: dict):
+        """
+        Render information about all parcels in compresa by filling in a model template.
+        """
+        if len(comprese) != 1:
+            raise ValueError("@@particelle richiede esattamente compresa=X")
+        modello = params.get('modello')
+        if not modello:
+            raise ValueError("@@particelle richiede modello=BASENAME")
+        if not template_dir:
+            raise ValueError("@@particelle richiede --input per trovare il modello")
+
+        ext = '.html' if format_type == 'html' else '.tex'
+        modello_path = template_dir / (modello + ext)
+        if not modello_path.exists():
+            raise ValueError(f"Modello non trovato: {modello_path}")
+        with open(modello_path, 'r', encoding='utf-8') as f:
+            modello_text = f.read()
+
+        compresa = comprese[0]
+        parcel_rows = particelle_df[(particelle_df['Compresa'] == compresa) &
+                                    (particelle_df['Governo'] == 'Fustaia')]
+        parcel_list = sorted(parcel_rows['Particella'].unique(), key=natural_sort_key)
+
+        output_parts = []
+        for particella in parcel_list:
+            expanded = modello_text.replace('@@compresa', compresa)
+            expanded = expanded.replace('@@particella', str(particella))
+            processed_part = re.sub(DIRECTIVE_PATTERN, process_directive, expanded)
+            output_parts.append(processed_part)
+        return '\n'.join(output_parts)
+
     def process_directive(match):
         directive = parse_template_directive(match.group(0))
         if not directive:
@@ -1856,13 +1888,13 @@ def process_template(template_text: str, data_dir: Path,
             keyword = directive['keyword']
             params = directive['params']
 
-            if format_type == 'csv' and (keyword.startswith('g') or keyword == 'prop'):
+            if format_type == 'csv' and (keyword.startswith('g') or keyword in ('prop', 'particelle')):
                 raise ValueError(f"@@{keyword}: il formato CSV supporta solo direttive @@t* (tabelle)")
 
             alberi_files = params.get('alberi')
             equazioni_files = params.get('equazioni')
 
-            if not alberi_files and keyword != 'prop':
+            if not alberi_files and keyword not in ('prop', 'particelle'):
                 raise ValueError(f"@@{keyword} richiede alberi=FILE")
             if keyword == 'gci' and not equazioni_files:
                 raise ValueError("@@gci richiede equazioni=FILE")
@@ -1890,6 +1922,9 @@ def process_template(template_text: str, data_dir: Path,
                     raise ValueError("@@prop richiede esattamente compresa=X e particella=Y")
                 result = render_prop(particelle_df, comprese[0], particelle[0], formatter)
                 return result['snippet']
+
+            if keyword == 'particelle':
+                return render_particelle(comprese, particelle_df, params)
 
             trees_df = load_trees(alberi_files, data_dir)
             data = parcel_data(alberi_files, trees_df, particelle_df, comprese, particelle, generi)
@@ -2124,7 +2159,7 @@ def run_report(args):
         template_text = f.read()
 
     processed = process_template(template_text, Path(args.dati), args.particelle,
-                                 output_dir, args.formato)
+                                 output_dir, args.formato, Path(args.input).parent)
     output_file = output_dir / Path(args.input).name
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write(processed)
