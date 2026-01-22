@@ -45,7 +45,7 @@ class SnippetFormatter(ABC):
     """Formats individual components (images, metadata) for template insertion."""
 
     @abstractmethod
-    def format_image(self, filepath: Path) -> str:
+    def format_image(self, filepath: Path, options: dict = None) -> str:
         """Format image reference for this format."""
 
     @abstractmethod
@@ -86,8 +86,9 @@ class SnippetFormatter(ABC):
 class HTMLSnippetFormatter(SnippetFormatter):
     """HTML snippet formatter."""
 
-    def format_image(self, filepath: Path) -> str:
-        return f'<img src="{filepath.name}" class="graph-image">'
+    def format_image(self, filepath: Path, options: dict = None) -> str:
+        cls = 'graph-image-small' if options and options.get('piccolo') else 'graph-image'
+        return f'<img src="{filepath.name}" class="{cls}">'
 
     def format_metadata(self, data: dict, curve_info: list = None) -> str:
         """Format metadata as HTML."""
@@ -142,10 +143,11 @@ class HTMLSnippetFormatter(SnippetFormatter):
 class LaTeXSnippetFormatter(SnippetFormatter):
     """LaTeX snippet formatter."""
 
-    def format_image(self, filepath: Path) -> str:
+    def format_image(self, filepath: Path, options: dict = None) -> str:
+        height = '0.35' if options and options.get('piccolo') else '0.5'
         return (f'\\begin{{figure}}[H]\n'
                 f'  \\centering\n'
-                f'  \\includegraphics[width=0.9\\textwidth]{{{filepath.name}}}\n'
+                f'  \\includegraphics[height={height}\\textheight]{{{filepath.name}}}\n'
                 f'\\end{{figure}}\n')
 
     def format_metadata(self, data: dict, curve_info: list = None) -> str:
@@ -209,7 +211,7 @@ class LaTeXSnippetFormatter(SnippetFormatter):
 class CSVSnippetFormatter(SnippetFormatter):
     """CSV snippet formatter for table-only output."""
 
-    def format_image(self, filepath: Path) -> str:
+    def format_image(self, filepath: Path, options: dict = None) -> str:
         raise NotImplementedError("Formato CSV non supporta immagini (direttive @@g*)")
 
     def format_metadata(self, data: dict, curve_info: list = None) -> str:
@@ -901,7 +903,9 @@ def render_gci_graph(data: dict, equations_df: pd.DataFrame,
     species = data['species']
     regions = data['regions']
 
-    fig, ax = plt.subplots(figsize=(4, 3))
+    #figsize = (2, 1.5) if options.get('piccolo', False) else (4, 3)
+    figsize = (4, 3)
+    fig, ax = plt.subplots(figsize=figsize)
 
     # First pass: scatter points (once per species)
     for sp in species:
@@ -961,7 +965,7 @@ def render_gci_graph(data: dict, equations_df: pd.DataFrame,
     plt.savefig(output_path, bbox_inches='tight')
     plt.close(fig)
 
-    snippet = formatter.format_image(output_path)
+    snippet = formatter.format_image(output_path, options)
     snippet += '\n' + formatter.format_metadata(data, curve_info=curve_info)
 
     return {
@@ -1002,7 +1006,9 @@ def render_gcd_graph(data: dict, output_path: Path,
     counts = pd.concat(counts.values()).groupby(level=0).sum()/area_ha
     counts = counts[species].fillna(0).sort_index()
 
-    fig, ax = plt.subplots(figsize=(4, 3.75))
+    # figsize = (2, 1.875) if options.get('piccolo', False) else (4, 3.75)
+    figsize = (4, 3.75)
+    fig, ax = plt.subplots(figsize=figsize)
 
     bottom = np.zeros(len(counts.index))
     for genere in species:
@@ -1036,7 +1042,7 @@ def render_gcd_graph(data: dict, output_path: Path,
     plt.savefig(output_path, bbox_inches='tight')
     plt.close(fig)
 
-    snippet = formatter.format_image(output_path)
+    snippet = formatter.format_image(output_path, options)
     snippet += '\n' + formatter.format_metadata(data)
 
     return {
@@ -1098,15 +1104,15 @@ def render_tcd_table(data: dict, formatter: SnippetFormatter, **options) -> dict
         row_total = 0.0
         for b in bin_order:
             val = counts.loc[b, genere] if b in counts.index and genere in counts.columns else 0
-            row.append(f"{val:.1f}")
+            row.append(f"{val:.0f}")
             row_total += val
             col_totals[b] += val
-        row.append(f"{row_total:.1f}")
+        row.append(f"{row_total:.0f}")
         rows.append(row)
 
     # Add totals row
-    total_row = ['Totale'] + [f"{col_totals[b]:.1f}" for b in bin_order]
-    total_row.append(f"{sum(col_totals.values()):.1f}")
+    total_row = ['Totale'] + [f"{col_totals[b]:.0f}" for b in bin_order]
+    total_row.append(f"{sum(col_totals.values()):.0f}")
     rows.append(total_row)
 
     return {'snippet': formatter.format_table(headers, rows)}
@@ -1924,6 +1930,7 @@ def process_template(template_text: str, data_dir: Path,
                     options = {
                         'x_max': int(params.get('x_max', 0)),
                         'y_max': int(params.get('y_max', 0)),
+                        'piccolo': params.get('piccolo', 'no').lower() == 'si',
                     }
                     filename = _build_graph_filename(comprese, particelle, generi, keyword)
                     result = render_gcd_graph(data, output_dir / filename,
@@ -1934,6 +1941,7 @@ def process_template(template_text: str, data_dir: Path,
                     options = {
                         'x_max': int(params.get('x_max', 0)),
                         'y_max': int(params.get('y_max', 0)),
+                        'piccolo': params.get('piccolo', 'no').lower() == 'si',
                     }
                     equations_df = load_csv(equazioni_files, data_dir)
                     filename = _build_graph_filename(comprese, particelle, generi, keyword)
