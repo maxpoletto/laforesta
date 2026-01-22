@@ -59,13 +59,12 @@ class SnippetFormatter(ABC):
         """
 
     @abstractmethod
-    def format_table(self, headers: list[tuple[str, str]], rows: list[list[str]], small: bool = False) -> str:
+    def format_table(self, headers: list[tuple[str, str]], rows: list[list[str]]) -> str:
         """Format a data table for this format.
 
         Args:
             headers: Column headers
             rows: Data rows (each row is a list of strings)
-            small: If True, use smaller font size
         Returns:
             Formatted table snippet
         """
@@ -105,8 +104,7 @@ class HTMLSnippetFormatter(SnippetFormatter):
         html += '</div>\n'
         return html
 
-    def format_table(self, headers: list[tuple[str, str]], rows: list[list[str]],
-        small: bool = False) -> str:
+    def format_table(self, headers: list[tuple[str, str]], rows: list[list[str]]) -> str:
         """Format table as HTML.
         Headers is a list of tuples (header, justification).
         Justification is 'l' for left, 'r' for right, 'c' for center.
@@ -165,15 +163,14 @@ class LaTeXSnippetFormatter(SnippetFormatter):
         latex += '\\end{quote}\n'
         return latex
 
-    def format_table(self, headers: list[tuple[str, str]], rows: list[list[str]], small: bool = False) -> str:
+    def format_table(self, headers: list[tuple[str, str]], rows: list[list[str]]) -> str:
         """Format table as LaTeX using longtable for page breaks.
            Headers is a list of tuples (header, justification).
            Justification is 'l' for left, 'r' for right, 'c' for center.
         """
         col_specs = [h[1] for h in headers]
         # Use longtable instead of tabular to allow page breaks
-        latex = '\\begin{small}\n' if small else ''
-        latex += f'\\begin{{longtable}}{{ {"".join(col_specs)} }}\n'
+        latex = f'\\begin{{longtable}}{{ {"".join(col_specs)} }}\n'
         latex += '\\hline\n'
         latex += ' & '.join([h[0] for h in headers]) + ' \\\\\n'
         latex += '\\hline\n'
@@ -193,8 +190,6 @@ class LaTeXSnippetFormatter(SnippetFormatter):
         for row in rows:
             latex += ' & '.join(row) + ' \\\\\n'
         latex += '\\end{longtable}\n'
-        if small:
-            latex += '\\end{small}\n'
         return latex
 
     def format_prop(self, short_fields: list[tuple[str, str]],
@@ -217,8 +212,7 @@ class CSVSnippetFormatter(SnippetFormatter):
     def format_metadata(self, data: dict, curve_info: list = None) -> str:
         raise NotImplementedError("Formato CSV non supporta metadati")
 
-    def format_table(self, headers: list[tuple[str, str]], rows: list[list[str]],
-                     small: bool = False) -> str:
+    def format_table(self, headers: list[tuple[str, str]], rows: list[list[str]]) -> str:
         """Format table as CSV."""
         output = io.StringIO()
         writer = csv.writer(output)
@@ -1711,7 +1705,7 @@ def render_tpt_table(data: dict, comparti_df: pd.DataFrame,
             total_row.append(f"{df['harvest'].sum():.2f}")
         display_rows.append(total_row)
 
-    return {'snippet': formatter.format_table(headers, display_rows, small=True)}
+    return {'snippet': formatter.format_table(headers, display_rows)}
 
 
 def render_gpt_graph(data: dict, comparti_df: pd.DataFrame,
