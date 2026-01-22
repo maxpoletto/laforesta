@@ -72,7 +72,7 @@ clean-html:
 
 FILES_PDF=tex/relazione.pdf
 FILES_TEX=tex/relazione.tex
-DEPS_TEX=$(DATA_DEPS) acc.py
+DEPS_TEX=$(DATA_DEPS) acc.py template/tex/particella.tex
 
 pdf: $(FILES_PDF)
 
