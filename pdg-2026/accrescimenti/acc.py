@@ -1010,6 +1010,73 @@ def render_gcd_graph(data: dict, output_path: Path,
     }
 
 
+BIN0 = "0-19 cm"
+BIN1 = "20-39 cm"
+BIN2 = "40+ cm"
+def render_tcd_table(data: dict, formatter: SnippetFormatter, **options) -> dict:
+    """
+    Generate diameter class table (@@tcd directive).
+
+    Creates a table with rows for each species and columns for diameter ranges:
+    [0-20) cm, [20-40) cm, and ≥40 cm. Values are estimated trees per hectare.
+
+    Args:
+        data: Output from parcel_data
+        formatter: HTML or LaTeX snippet formatter
+
+    Returns:
+        dict with 'snippet' key containing formatted table
+    """
+    trees = data['trees']
+    species = data['species']
+    parcels = data['parcels']
+
+    # Assign diameter range bins
+    def diameter_bin(d):
+        if d < 20:
+            return BIN0
+        elif d < 40:
+            return BIN1
+        return BIN2
+
+    trees = trees.copy()
+    trees['Classe'] = trees['D(cm)'].apply(diameter_bin)
+
+    # Count trees per hectare, grouped by parcel then aggregated
+    counts, area_ha = {}, 0
+    for (region, parcel), ptrees in trees.groupby(['Compresa', 'Particella']):
+        p = parcels[(region, parcel)]
+        counts[(region, parcel)] = (
+            ptrees.groupby(['Classe', 'Genere']).size().unstack(fill_value=0)
+            / p['sampled_frac'])
+        area_ha += p['area_ha']
+    counts = pd.concat(counts.values()).groupby(level=0).sum() / area_ha
+
+    # Build table: rows = species, columns = diameter ranges
+    bin_order = [BIN0, BIN1, BIN2]
+    headers = [('Genere', 'l')] + [(b, 'r') for b in bin_order] + [('Totale', 'r')]
+
+    rows = []
+    col_totals = {b: 0.0 for b in bin_order}
+    for genere in species:
+        row = [genere]
+        row_total = 0.0
+        for b in bin_order:
+            val = counts.loc[b, genere] if b in counts.index and genere in counts.columns else 0
+            row.append(f"{val:.1f}")
+            row_total += val
+            col_totals[b] += val
+        row.append(f"{row_total:.1f}")
+        rows.append(row)
+
+    # Add totals row
+    total_row = ['Totale'] + [f"{col_totals[b]:.1f}" for b in bin_order]
+    total_row.append(f"{sum(col_totals.values()):.1f}")
+    rows.append(total_row)
+
+    return {'snippet': formatter.format_table(headers, rows)}
+
+
 # STIMA VOLUMI ================================================================
 
 PART_PATTERN = re.compile(r'^(\d+)([a-zA-Z]*)$')
@@ -1781,6 +1848,8 @@ def process_template(template_text: str, data_dir: Path,
                     filename = _build_graph_filename(comprese, particelle, generi, keyword)
                     result = render_gcd_graph(data, output_dir / filename,
                                              formatter, color_map, **options)
+                case 'tcd':
+                    result = render_tcd_table(data, formatter)
                 case 'gci':
                     options = {
                         'x_max': int(params.get('x_max', 0)),
