@@ -1,8 +1,8 @@
 \subsection{@@compresa, particella @@particella}
 {\footnotesize
-\subsubsection{Caratteristiche generali}
+\subsubsection*{Caratteristiche generali}
 @@prop(compresa=@@compresa,particella=@@particella)
-\subsubsection{Classi diametriche}
+\subsubsection*{Classi diametriche}
 \begin{minipage}[c]{0.45\textwidth}
 \centering
 @@gcd(compresa=@@compresa,particella=@@particella,alberi=alberi-calcolati.csv,x_max=24,piccolo=si)
@@ -11,9 +11,9 @@
 \begin{minipage}[t]{0.45\textwidth}
 @@tcd(compresa=@@compresa,particella=@@particella,alberi=alberi-calcolati.csv)
 \end{minipage}
-\subsubsection{Volumi}
+\subsubsection*{Volumi}
 @@tsv(compresa=@@compresa,particella=@@particella,alberi=alberi-calcolati.csv,per_genere=si,per_compresa=no,per_particella=no,intervallo_fiduciario=si,totali=si,stime_totali=si)
-\subsubsection{Ripresa}
+\subsubsection*{Ripresa}
 @@tpt(compresa=@@compresa,particella=@@particella,alberi=alberi-calcolati.csv,comparti=comparti.csv,provv_vol=provv_vol.csv,provv_eta=provv_eta.csv,per_compresa=no,per_particella=no,per_genere=si,col_area_ha=no,totali=si)
 }
 \clearpage

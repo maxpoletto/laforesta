@@ -7,6 +7,7 @@
 \usepackage{float}
 \usepackage{longtable}
 \geometry{margin=2cm}
+\setlength{\LTleft}{1cm}
 
 % Typography: serif body text
 \usepackage{libertinus}
@@ -207,19 +208,26 @@ In base a queste regole, la ripresa totale per compresa è la seguente.
 Di seguito, per ciascuna compresa, la ripresa per particella. Per ogni particella riportiamo anche il comparto, l'età media, e l'area, il che permette di verificare manualmente le percentuali di prelievo secondo i criteri di cui sopra.
 
 \subsection*{Ripresa: Serra}
+{\footnotesize
 @@tpt(alberi=alberi-calcolati.csv,compresa=Serra,comparti=comparti.csv,provv_vol=provv_vol.csv,provv_eta=provv_eta.csv,per_compresa=si,totali=si)
+}
 
 \subsection*{Ripresa: Fabrizia}
+{\footnotesize
 @@tpt(alberi=alberi-calcolati.csv,compresa=Fabrizia,comparti=comparti.csv,provv_vol=provv_vol.csv,provv_eta=provv_eta.csv,per_compresa=si,totali=si)
+}
 
 \subsection*{Ripresa: Capistrano}
+{\footnotesize
 @@tpt(alberi=alberi-calcolati.csv,compresa=Capistrano,comparti=comparti.csv,provv_vol=provv_vol.csv,provv_eta=provv_eta.csv,per_compresa=si,totali=si)
+}
 
 \clearpage
 \section{Dettaglio per particella}
 
 Di seguito, per ogni compresa e ogni particella, riportiamo in dettaglio le caratteristiche della particella e dei soprassuoli, il piano degli interventi silvicolturali, e i volumi e la ripresa divisi per specie.
 
+\setlength{\LTleft}{0pt}
 @@particelle(compresa=Serra,modello=particella)
 @@particelle(compresa=Fabrizia,modello=particella)
 @@particelle(compresa=Capistrano,modello=particella)
