@@ -126,15 +126,8 @@ Le specie prevalenti, per le quali abbiamo potuto calcolare le equazioni interpo
 
 \subsection*{Capistrano: ipsometria pino nero}
 @@gci(compresa=Capistrano,genere=Pino Nero,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
+
 \clearpage
-
-\section{Dettaglio per particella}
-
-@@particelle(compresa=Serra,modello=particella)
-@@particelle(compresa=Fabrizia,modello=particella)
-@@particelle(compresa=Capistrano,modello=particella)
-
-
 \section{Stima dei volumi}
 
 Di seguito la stima dei volumi di ciascuna compresa, calcolata secondo la metodologia alle pp.20--27 di {\em Stima del volume e della fitomassa delle principali specie forestali italiane}, Tabacchi {\em et al.} 2011, scaricabile all'indirizzo {\small \url{https://www.inventarioforestale.org/wp-content/uploads/2022/10/tavole_cubatura.pdf}}.
@@ -156,50 +149,53 @@ Oltre alla cubatura totale, riportiamo una stima del numero di piante, nonché l
 \clearpage
 \section{Ripresa}
 
-La ripresa per le particelle governate a fustaia è calcolata in base alla provvigione minima del comparto corrispondente, secondo la seguente tabella:
+La ripresa per le particelle governate a fustaia è calcolata secondo i criteri definiti dalle Prescrizioni di Massima e di Polizia Forestale della Regione Calabria del 2011, e in particolare dagli articoli 48 e 49.
+
+In sintesi, la provvigione minima di una particella dipende dalla provvigione minima del comparto corrispondente, secondo la seguente tabella:
 
 \begin{center}
 \begin{tabular}{llr}
 \hline
-& Provvigione \\
-Comparto & minima (m³/ha)\\
+         &                 & Provvigione \\
+Comparto & Caratteristiche & minima (m³/ha)\\
 \hline
-A        & 350 \\
-B        & 350 \\
-C        & 250 \\
-D        & 250 \\
-E        & 350 \\
-\hline
-\end{tabular}
-\end{center}
-
-Se il volume delle piante per ettaro nella particella è maggiore di una determinata percentuale della provvigione minima,
-allora il prelievo non può superare una determinata percentuale del volume, secondo la seguente tabella:
-\begin{center}
-\begin{tabular}{rr}
-\hline
-Percentuale  & Percentuale \\
-provvigione minima & volume prelevabile \\
-\hline
-$> 180$ & 25 \\
-$> 160$ & 20 \\
-$> 140$ & 15 \\
-$> 120$ & 10 \\
-$\leq 120$ & 0  \\
+A        & Popolamenti a prevalenza di faggio, o misti di conifere e latifoglie & 350 \\
+B        & Popolamenti a prevalenza di faggio, o misti di conifere e latifoglie & 350 \\
+C        & Pinete di pino nero e laricio, popolamenti misti & 250 \\
+D        & Pinete di pino nero e laricio, popolamenti misti & 250 \\
+E        & Popolamenti a prevalenza di faggio, o misti di conifere e latifoglie & 350 \\
 \hline
 \end{tabular}
 \end{center}
 
-Inoltre, a seconda dell'età media della particella, il prelievo non può superare una determinata percentuale del volume, secondo la seguente tabella:
+Il prelievo massimo consentito in una particella è calcolato in base a due criteri, l'entità della provvigione e l'età media del popolamento.
+
+Il volume massimo del prelievo in una particella è determinato dall'eccesso della provvigione effettiva rispetto alla provvigione minima della particella, secondo la seguente tabella.
+
 \begin{center}
-\begin{tabular}{rr}
+\begin{tabular}{lr}
 \hline
-Età media & Percentuale \\
-(anni) & volume prelevabile \\
+Eccedenza percentuale sulla         & Prelievo massimo \\
+provvigione minima                  & percentuale \\
 \hline
-$> 60$ & 25 \\
-$> 30$ & 20 \\
-$\leq 30$ & 15 \\
+$\ge 80$        & 25 \\
+$\ge 60, < 80$  & 20 \\
+$\ge 40, < 60$  & 15 \\
+$\ge 20, < 40$  & 10 \\
+$< 20$          &  0 \\
+\hline
+\end{tabular}
+\end{center}
+
+Inoltre, per fustaie fino a 60 anni di età, il prelievo non può superare una determinata percentuale dell'area basimetrica, secondo la seguente tabella:
+\begin{center}
+\begin{tabular}{lr}
+\hline
+Età media & Percentuale massima \\
+(anni)    & area basimetrica \\
+\hline
+$\ge 30, < 60$  & 20 \\
+$<30$           & 15 \\
 \hline
 \end{tabular}
 \end{center}
@@ -208,7 +204,7 @@ In base a queste regole, la ripresa totale per compresa è la seguente.
 
 @@tpt(alberi=alberi-calcolati.csv,comparti=comparti.csv,provv_vol=provv_vol.csv,provv_eta=provv_eta.csv,per_compresa=si,per_particella=no,col_prel_ha=si,totali=si)
 
-Di seguito, per ciascuna compresa, la ripresa per particella. Per ogni particella riportiamo anche il comparto, l'età media, e l'area, il che permette di verificare manualmente le percentuali di prelievo.
+Di seguito, per ciascuna compresa, la ripresa per particella. Per ogni particella riportiamo anche il comparto, l'età media, e l'area, il che permette di verificare manualmente le percentuali di prelievo secondo i criteri di cui sopra.
 
 \subsection*{Ripresa: Serra}
 @@tpt(alberi=alberi-calcolati.csv,compresa=Serra,comparti=comparti.csv,provv_vol=provv_vol.csv,provv_eta=provv_eta.csv,per_compresa=si,totali=si)
@@ -218,5 +214,14 @@ Di seguito, per ciascuna compresa, la ripresa per particella. Per ogni particell
 
 \subsection*{Ripresa: Capistrano}
 @@tpt(alberi=alberi-calcolati.csv,compresa=Capistrano,comparti=comparti.csv,provv_vol=provv_vol.csv,provv_eta=provv_eta.csv,per_compresa=si,totali=si)
+
+\clearpage
+\section{Dettaglio per particella}
+
+Di seguito, per ogni compresa e ogni particella, riportiamo in dettaglio le caratteristiche della particella e dei soprassuoli, il piano degli interventi silvicolturali, e i volumi e la ripresa divisi per specie.
+
+@@particelle(compresa=Serra,modello=particella)
+@@particelle(compresa=Fabrizia,modello=particella)
+@@particelle(compresa=Capistrano,modello=particella)
 
 \end{document}
