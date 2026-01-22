@@ -70,6 +70,18 @@ class SnippetFormatter(ABC):
             Formatted table snippet
         """
 
+    @abstractmethod
+    def format_prop(self, short_fields: list[tuple[str, str]],
+                    paragraph_fields: list[tuple[str, str]]) -> str:
+        """Format parcel properties for this format.
+
+        Args:
+            short_fields: List of (label, value) tuples for inline display
+            paragraph_fields: List of (label, value) tuples for paragraph display
+        Returns:
+            Formatted properties snippet
+        """
+
 
 class HTMLSnippetFormatter(SnippetFormatter):
     """HTML snippet formatter."""
@@ -112,6 +124,18 @@ class HTMLSnippetFormatter(SnippetFormatter):
                 html += f'      <td class="{j}">{cell}</td>\n'
             html += '    </tr>\n'
         html += '  </tbody>\n</table>\n'
+        return html
+
+    def format_prop(self, short_fields: list[tuple[str, str]],
+                    paragraph_fields: list[tuple[str, str]]) -> str:
+        """Format parcel properties as HTML."""
+        html = '<div class="parcel-props">\n'
+        html += '<p class="props-inline">'
+        html += ' · '.join(f'<strong>{label}:</strong> {value}' for label, value in short_fields)
+        html += '</p>\n'
+        for label, value in paragraph_fields:
+            html += f'<p><strong>{label}:</strong> {value}</p>\n'
+        html += '</div>\n'
         return html
 
 
@@ -174,6 +198,16 @@ class LaTeXSnippetFormatter(SnippetFormatter):
             latex += '\\end{small}\n'
         return latex
 
+    def format_prop(self, short_fields: list[tuple[str, str]],
+                    paragraph_fields: list[tuple[str, str]]) -> str:
+        """Format parcel properties as LaTeX."""
+        latex = '\\noindent '
+        latex += ' $\\cdot$ '.join(f'\\textbf{{{label}:}} {value}' for label, value in short_fields)
+        latex += '\n\n'
+        for label, value in paragraph_fields:
+            latex += f'\\textbf{{{label}:}} {value}\n\n'
+        return latex
+
 
 class CSVSnippetFormatter(SnippetFormatter):
     """CSV snippet formatter for table-only output."""
@@ -192,6 +226,10 @@ class CSVSnippetFormatter(SnippetFormatter):
         writer.writerow([h[0] for h in headers])
         writer.writerows(rows)
         return output.getvalue()
+
+    def format_prop(self, short_fields: list[tuple[str, str]],
+                    paragraph_fields: list[tuple[str, str]]) -> str:
+        raise NotImplementedError("Formato CSV non supporta @@prop")
 
 
 # =============================================================================
@@ -1077,6 +1115,45 @@ def render_tcd_table(data: dict, formatter: SnippetFormatter, **options) -> dict
     return {'snippet': formatter.format_table(headers, rows)}
 
 
+def render_prop(particelle_df: pd.DataFrame, compresa: str, particella: str,
+                formatter: SnippetFormatter) -> dict:
+    """
+    Render parcel properties (@@prop directive).
+
+    Args:
+        particelle_df: DataFrame with parcel metadata
+        compresa: Compresa name
+        particella: Particella identifier
+        formatter: HTML or LaTeX snippet formatter
+
+    Returns:
+        dict with 'snippet' key containing formatted properties
+    """
+    row = particelle_df[(particelle_df['Compresa'] == compresa) &
+                        (particelle_df['Particella'] == particella)]
+    if row.empty:
+        raise ValueError(f"Particella '{particella}' non trovata in compresa '{compresa}'")
+    row = row.iloc[0]
+
+    area = f"{row['Area (ha)']:.2f} ha"
+    altitudine = f"{int(row['Altitudine min'])}-{int(row['Altitudine max'])} m"
+
+    short_fields = [
+        ('Area', area),
+        ('Località', row['Località']),
+        ('Età media', f"{int(row['Età media'])} anni"),
+        ('Governo', row['Governo']),
+        ('Altitudine', f"{altitudine} m"),
+        ('Esposizione', row['Esposizione'] or ''),
+    ]
+    paragraph_fields = [
+        ('Stazione', row['Stazione']),
+        ('Soprassuolo', row['Soprassuolo']),
+    ]
+
+    return {'snippet': formatter.format_prop(short_fields, paragraph_fields)}
+
+
 # STIMA VOLUMI ================================================================
 
 PART_PATTERN = re.compile(r'^(\d+)([a-zA-Z]*)$')
@@ -1775,24 +1852,24 @@ def process_template(template_text: str, data_dir: Path,
         keyword = directive['keyword']
         params = directive['params']
 
-        if format_type == 'csv' and keyword.startswith('g'):
+        if format_type == 'csv' and (keyword.startswith('g') or keyword == 'prop'):
             raise ValueError(f"@@{keyword}: il formato CSV supporta solo direttive @@t* (tabelle)")
 
         alberi_files = params.get('alberi')
         equazioni_files = params.get('equazioni')
 
-        if not alberi_files:
+        if not alberi_files and keyword != 'prop':
             raise ValueError(f"@@{keyword} richiede alberi=FILE")
         if keyword == 'gci' and not equazioni_files:
             raise ValueError("@@gci richiede equazioni=FILE")
-        if keyword == 'tpt':
+        elif keyword == 'tpt':
             if not params.get('comparti'):
                 raise ValueError("@@tpt richiede comparti=FILE")
             if not params.get('provv_vol'):
                 raise ValueError("@@tpt richiede provv_vol=FILE")
             if not params.get('provv_eta'):
                 raise ValueError("@@tpt richiede provv_eta=FILE")
-        if keyword == 'gpt':
+        elif keyword == 'gpt':
             if not params.get('comparti'):
                 raise ValueError("@@gpt richiede comparti=FILE")
             if not params.get('provv_vol'):
@@ -1803,6 +1880,12 @@ def process_template(template_text: str, data_dir: Path,
         comprese = params.get('compresa', [])
         particelle = params.get('particella', [])
         generi = params.get('genere', [])
+
+        if keyword == 'prop':
+            if len(comprese) != 1 or len(particelle) != 1 or len(params) != 2:
+                raise ValueError("@@prop richiede esattamente compresa=X e particella=Y")
+            result = render_prop(particelle_df, comprese[0], particelle[0], formatter)
+            return result['snippet']
 
         try:
             trees_df = load_trees(alberi_files, data_dir)
