@@ -36,9 +36,9 @@ const ParcelEditor = (function() {
     };
 
     const styles = {
-        default: { color: '#3388ff', weight: 2, fillOpacity: 0.2 },
-        otherLayer: { color: '#ff6600', weight: 1, fillOpacity: 0.1 },
-        selected: { color: '#00ff00', weight: 3, fillOpacity: 0.4 },
+        default: { color: '#3388ff', weight: 2, opacity: 1, fillOpacity: 0.2 },
+        otherLayer: { color: '#ff6600', weight: 1, opacity: 1, fillOpacity: 0.1 },
+        selected: { color: '#00ff00', weight: 3, opacity: 1, fillOpacity: 0.4 },
         hidden: { opacity: 0, fillOpacity: 0 }
     };
 
