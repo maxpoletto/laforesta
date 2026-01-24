@@ -108,6 +108,31 @@
             padding: 5px;
             font-size: 11px;
         }
+        select {
+            width: 100%;
+            padding: 5px;
+            margin: 5px 0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        #layer-filter {
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            padding: 8px;
+            margin: 10px 0;
+            max-height: 120px;
+            overflow-y: auto;
+        }
+        #layer-filter label {
+            display: block;
+            padding: 4px 0;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        #layer-filter input[type="checkbox"] {
+            margin-right: 8px;
+        }
     </style>
 </head>
 <body>
@@ -123,11 +148,15 @@
             <input type="file" id="load-reference" accept=".geojson,.json" />
             <button onclick="clearReference()">Clear Reference</button>
             
-            <h4>🔧 Adjust Reference Offset</h4>
-            <p style="font-size: 11px; color: #666;">
-                Use these sliders to shift your reference data to align with satellite imagery.
-            </p>
-            
+            <h4>🔧 Datum / CRS Correction</h4>
+            <select id="crs-preset" onchange="applyCrsPreset()">
+                <option value="none">-- Select CRS preset --</option>
+                <option value="wgs84">WGS84 (no offset)</option>
+                <option value="ed50">ED50 → WGS84 (~-90m E, -130m N)</option>
+                <option value="monte-mario">Monte Mario → WGS84 (~-50m E, -70m N)</option>
+                <option value="custom">Custom offset...</option>
+            </select>
+
             <div class="offset-control">
                 <label>East-West:</label>
                 <input type="range" id="offset-ew" min="-200" max="200" value="0" step="1">
@@ -149,8 +178,13 @@
         
         <div class="section">
             <h4>✏️ Parcels</h4>
+            <div id="layer-filter-container" style="display: none;">
+                <label style="font-size: 11px; color: #666;">Filter by layer:</label>
+                <div id="layer-filter"></div>
+            </div>
             <div id="parcel-list"></div>
             <button class="primary" onclick="exportGeoJSON()">📥 Export All</button>
+            <button class="primary" onclick="exportFilteredGeoJSON()" style="background: #2196F3; border-color: #2196F3;">📥 Export Filtered</button>
             <button class="danger" onclick="clearAllParcels()">🗑️ Clear All</button>
         </div>
         
@@ -167,17 +201,16 @@
             <h4>📖 Instructions</h4>
             <ol style="font-size: 11px; padding-left: 20px; margin: 0;">
                 <li>Load your extracted parcels (GeoJSON)</li>
-                <li>Use offset sliders to align with satellite imagery</li>
-                <li>Click "Import to Edit" to add parcels for editing</li>
-                <li>Click a parcel to select it (turns green, shows vertices)</li>
-                <li>Drag vertices to adjust parcel boundaries</li>
-                <li>Click ✎ to rename, ✕ to delete</li>
-                <li>Use polygon tool to draw new parcels</li>
-                <li>Export All when done</li>
+                <li>Select CRS preset or adjust offset sliders</li>
+                <li>Click "Import to Edit" to add parcels</li>
+                <li>Use layer checkboxes to filter by region</li>
+                <li>Click parcel to select (green = editable)</li>
+                <li>Drag vertices to adjust boundaries</li>
+                <li>Export All or Export Filtered when done</li>
             </ol>
             <p style="font-size: 10px; color: #666; margin-top: 8px;">
-                <span style="color: #00ff00;">Green</span> = selected (editable)<br>
-                <span style="color: #ff6600;">Orange</span> = imported from file<br>
+                <span style="color: #00ff00;">Green</span> = selected<br>
+                <span style="color: #ff6600;">Orange</span> = imported<br>
                 <span style="color: #3388ff;">Blue</span> = hand-drawn
             </p>
         </div>
@@ -214,6 +247,20 @@
         let originalReferenceData = null;
         let currentOffsetEW = 0;  // meters
         let currentOffsetNS = 0;  // meters
+
+        // CRS presets (approximate offsets at ~38°N, 16°E in Calabria)
+        // These convert FROM the named CRS TO WGS84
+        const crsPresets = {
+            'none': { ew: 0, ns: 0 },
+            'wgs84': { ew: 0, ns: 0 },
+            'ed50': { ew: -90, ns: -130 },        // ED50 → WGS84
+            'monte-mario': { ew: -50, ns: -70 },  // Monte Mario → WGS84
+            'custom': null  // Keep current values
+        };
+
+        // Layer visibility tracking
+        let visibleLayers = new Set();
+        let allLayers = new Set();
         
         // Reference layer (existing parcels)
         let referenceLayer = L.geoJSON(null, {
@@ -349,6 +396,21 @@
             document.getElementById('offset-ns').value = 0;
             document.getElementById('offset-ew-value').textContent = '0m';
             document.getElementById('offset-ns-value').textContent = '0m';
+            document.getElementById('crs-preset').value = 'none';
+            updateReferenceWithOffset();
+        }
+
+        function applyCrsPreset() {
+            const preset = document.getElementById('crs-preset').value;
+            if (preset === 'custom' || !crsPresets[preset]) return;
+
+            const offsets = crsPresets[preset];
+            currentOffsetEW = offsets.ew;
+            currentOffsetNS = offsets.ns;
+            document.getElementById('offset-ew').value = currentOffsetEW;
+            document.getElementById('offset-ns').value = currentOffsetNS;
+            document.getElementById('offset-ew-value').textContent = `${currentOffsetEW}m`;
+            document.getElementById('offset-ns-value').textContent = `${currentOffsetNS}m`;
             updateReferenceWithOffset();
         }
         
@@ -472,6 +534,7 @@
 
             // Add to drawnItems
             let loadedCount = 0;
+            allLayers.clear();
             L.geoJSON(offsetData, {
                 onEachFeature: function(feature, layer) {
                     if (feature.geometry.type === 'Polygon' || feature.geometry.type === 'MultiPolygon') {
@@ -486,15 +549,24 @@
                         addLayerClickHandler(layer);
                         drawnItems.addLayer(layer);
                         loadedCount++;
+
+                        // Track layers
+                        if (feature.properties?.layer) {
+                            allLayers.add(feature.properties.layer);
+                        }
                     }
                 },
                 style: loadedStyle
             });
 
+            // Initialize all layers as visible
+            visibleLayers = new Set(allLayers);
+
             // Clear reference layer (no longer needed)
             referenceLayer.clearLayers();
             originalReferenceData = null;
             resetOffset();
+            updateLayerFilter();
             updateParcelList();
             updateStatus(`Imported ${loadedCount} parcels for editing.`);
         }
@@ -506,11 +578,70 @@
             updateStatus('Reference data cleared');
         }
         
+        function updateLayerFilter() {
+            const container = document.getElementById('layer-filter-container');
+            const filter = document.getElementById('layer-filter');
+
+            if (allLayers.size === 0) {
+                container.style.display = 'none';
+                return;
+            }
+
+            container.style.display = 'block';
+            filter.innerHTML = '';
+
+            const sortedLayers = Array.from(allLayers).sort();
+            for (const layerName of sortedLayers) {
+                const label = document.createElement('label');
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.checked = visibleLayers.has(layerName);
+                checkbox.onchange = () => toggleLayer(layerName, checkbox.checked);
+                label.appendChild(checkbox);
+                label.appendChild(document.createTextNode(layerName));
+                filter.appendChild(label);
+            }
+        }
+
+        function toggleLayer(layerName, visible) {
+            if (visible) {
+                visibleLayers.add(layerName);
+            } else {
+                visibleLayers.delete(layerName);
+            }
+            updateParcelVisibility();
+            updateParcelList();
+        }
+
+        function updateParcelVisibility() {
+            drawnItems.eachLayer(function(layer) {
+                const layerName = layer.originalProperties?.layer || '';
+                const shouldShow = visibleLayers.size === 0 || visibleLayers.has(layerName);
+
+                if (shouldShow) {
+                    if (!map.hasLayer(layer)) {
+                        // Re-add to map (but it's in drawnItems, so just show it)
+                        layer.setStyle({ ...layer.options, opacity: 1, fillOpacity: 0.2 });
+                    }
+                } else {
+                    // Hide by making transparent
+                    layer.setStyle({ ...layer.options, opacity: 0, fillOpacity: 0 });
+                    if (selectedLayer && selectedLayer._leaflet_id === layer._leaflet_id) {
+                        deselectParcel();
+                    }
+                }
+            });
+        }
+
         function updateParcelList() {
             const list = document.getElementById('parcel-list');
             list.innerHTML = '';
 
             drawnItems.eachLayer(function(layer) {
+                const layerName = layer.originalProperties?.layer || '';
+                const shouldShow = visibleLayers.size === 0 || visibleLayers.has(layerName);
+                if (!shouldShow) return;
+
                 const item = document.createElement('div');
                 const isSelected = selectedLayer && selectedLayer._leaflet_id === layer._leaflet_id;
                 item.className = 'parcel-item' + (isSelected ? ' selected' : '');
@@ -608,6 +739,9 @@
                 deselectParcel();
                 drawnItems.clearLayers();
                 parcelCounter = 0;
+                allLayers.clear();
+                visibleLayers.clear();
+                updateLayerFilter();
                 updateParcelList();
                 updateStatus('All parcels cleared');
             }
@@ -642,6 +776,46 @@
             URL.revokeObjectURL(url);
 
             updateStatus(`Exported ${features.length} parcels`);
+        }
+
+        function exportFilteredGeoJSON() {
+            const features = [];
+
+            drawnItems.eachLayer(function(layer) {
+                const layerName = layer.originalProperties?.layer || '';
+                const shouldInclude = visibleLayers.size === 0 || visibleLayers.has(layerName);
+                if (!shouldInclude) return;
+
+                const geojson = layer.toGeoJSON();
+                if (layer.isLoaded && layer.originalProperties) {
+                    geojson.properties = { ...layer.originalProperties };
+                }
+                geojson.properties = geojson.properties || {};
+                geojson.properties.name = layer.parcelName;
+                geojson.properties.id = layer.parcelId;
+                features.push(geojson);
+            });
+
+            const geojson = {
+                type: 'FeatureCollection',
+                features: features
+            };
+
+            // Generate filename based on visible layers
+            const layerSuffix = visibleLayers.size > 0
+                ? '_' + Array.from(visibleLayers).join('_').replace(/[^a-zA-Z0-9_]/g, '')
+                : '';
+            const filename = `parcels${layerSuffix}.geojson`;
+
+            const blob = new Blob([JSON.stringify(geojson, null, 2)], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+
+            updateStatus(`Exported ${features.length} filtered parcels`);
         }
         
         function updateStatus(msg) {
