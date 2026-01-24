@@ -23,10 +23,10 @@
         <div class="section">
             <h4>Load Reference Data</h4>
             <input type="file" id="load-reference" accept=".geojson,.json" />
-            <button onclick="clearReference()">Clear Reference</button>
+            <button onclick="ParcelEditor.clearReference()">Clear Reference</button>
 
             <h4>Datum / CRS Correction</h4>
-            <select id="crs-preset" onchange="applyCrsPreset()">
+            <select id="crs-preset" onchange="ParcelEditor.applyCrsPreset()">
                 <option value="none">-- Select CRS preset --</option>
                 <option value="wgs84">WGS84 (no offset)</option>
                 <option value="ed50">ED50 → WGS84 (~-90m E, -130m N)</option>
@@ -47,10 +47,10 @@
             </div>
 
             <div class="offset-buttons">
-                <button onclick="resetOffset()">Reset</button>
-                <button onclick="importReferenceToEdit()" class="primary">Import to Edit</button>
+                <button onclick="ParcelEditor.resetOffset()">Reset</button>
+                <button onclick="ParcelEditor.importReferenceToEdit()" class="primary">Import to Edit</button>
             </div>
-            <button onclick="applyOffset()" style="font-size: 11px;">Export with Offset</button>
+            <button onclick="ParcelEditor.applyOffset()" style="font-size: 11px;">Export with Offset</button>
         </div>
 
         <div class="section">
@@ -60,17 +60,17 @@
                 <div id="layer-filter"></div>
             </div>
             <div id="parcel-list"></div>
-            <button class="primary" onclick="exportGeoJSON()">📥 Export All</button>
-            <button class="primary" onclick="exportFilteredGeoJSON()" style="background: #2196F3; border-color: #2196F3;">📥 Export Filtered</button>
-            <button class="danger" onclick="clearAllParcels()">🗑️ Clear All</button>
+            <button class="primary" onclick="ParcelEditor.exportGeoJSON()">📥 Export All</button>
+            <button class="primary" onclick="ParcelEditor.exportFilteredGeoJSON()" style="background: #2196F3; border-color: #2196F3;">📥 Export Filtered</button>
+            <button class="danger" onclick="ParcelEditor.clearAllParcels()">🗑️ Clear All</button>
         </div>
 
         <div class="section">
             <h4>Basemap</h4>
             <div class="offset-buttons">
-                <button onclick="setBasemap('osm')">OSM</button>
-                <button onclick="setBasemap('satellite')">Satellite</button>
-                <button onclick="setBasemap('topo')">Topo</button>
+                <button onclick="ParcelEditor.setBasemap('osm')">OSM</button>
+                <button onclick="ParcelEditor.setBasemap('satellite')">Satellite</button>
+                <button onclick="ParcelEditor.setBasemap('topo')">Topo</button>
             </div>
         </div>
 
