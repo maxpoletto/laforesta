@@ -598,7 +598,7 @@ function exportFilteredGeoJSON() {
 
 function updateStatus(msg) {
     document.getElementById('status').innerHTML = msg;
-}
+}    
 
 // Auto-load all_parcels.json on startup if available
 fetch('all_parcels.json')
