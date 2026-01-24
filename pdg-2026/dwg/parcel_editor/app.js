@@ -104,7 +104,7 @@ const ParcelEditor = (function() {
 
         updateParcelStyles();
         updateParcelList();
-        updateStatus(name ? `Editing layer: ${name}` : 'No layer selected');
+        updateStatus(name ? `Compresa attiva: ${name}` : 'Nessuna compresa selezionata');
     }
 
     // Parcel management
@@ -115,7 +115,7 @@ const ParcelEditor = (function() {
         parcelCounter++;
         const parcel = {
             id: parcelCounter,
-            name: feature.properties?.name || `Parcel ${parcelCounter}`,
+            name: feature.properties?.name || `Particella ${parcelCounter}`,
             feature: feature,
             mapLayer: mapLayer
         };
@@ -139,7 +139,7 @@ const ParcelEditor = (function() {
         drawnItems.removeLayer(parcel.mapLayer);
         layer.parcels = layer.parcels.filter(p => p !== parcel);
         updateParcelList();
-        updateStatus('Parcel deleted');
+        updateStatus('Particella eliminata');
     }
 
     function selectParcel(parcel) {
@@ -148,7 +148,7 @@ const ParcelEditor = (function() {
         parcel.mapLayer.setStyle(styles.selected);
         parcel.mapLayer.editing.enable();
         updateParcelList();
-        updateStatus(`Selected: ${parcel.name}`);
+        updateStatus(`Particella selezionata: ${parcel.name}`);
     }
 
     function deselectParcel() {
@@ -211,7 +211,7 @@ const ParcelEditor = (function() {
         if (names.length === 0) {
             const opt = document.createElement('option');
             opt.value = '';
-            opt.textContent = '(no layers)';
+            opt.textContent = '(nessuna compresa)';
             selector.appendChild(opt);
             $('layer-controls').style.display = 'none';
             return;
@@ -242,8 +242,8 @@ const ParcelEditor = (function() {
             item.innerHTML = `
                 <span class="parcel-name" onclick="ParcelEditor.onParcelClick(${parcel.id})">${parcel.name}</span>
                 <span class="parcel-actions">
-                    <span class="edit-btn" onclick="ParcelEditor.startRename(${parcel.id})" title="Rename">✎</span>
-                    <span class="delete-btn" onclick="ParcelEditor.onDeleteParcel(${parcel.id})" title="Delete">✕</span>
+                    <span class="edit-btn" onclick="ParcelEditor.startRename(${parcel.id})" title="Rinomina">✎</span>
+                    <span class="delete-btn" onclick="ParcelEditor.onDeleteParcel(${parcel.id})" title="Elimina">✕</span>
                 </span>
             `;
             list.appendChild(item);
@@ -302,7 +302,7 @@ const ParcelEditor = (function() {
         }
 
         const parcelCount = Object.values(layers).reduce((sum, l) => sum + l.parcels.length, 0);
-        updateStatus(`Loaded ${parcelCount} parcels in ${Object.keys(layers).length} layers`);
+        updateStatus(`Caricate ${parcelCount} particelle in ${Object.keys(layers).length} comprese`);
     }
 
     function exportGeoJSON() {
@@ -332,16 +332,16 @@ const ParcelEditor = (function() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'parcels.geojson';
+        a.download = 'particelle.geojson';
         a.click();
         URL.revokeObjectURL(url);
 
-        updateStatus(`Exported ${features.length} parcels`);
+        updateStatus(`Esportate ${features.length} particelle`);
     }
 
     function clearAll(confirm_needed = true) {
         if (confirm_needed && Object.keys(layers).length > 0) {
-            if (!confirm('Delete all layers and parcels?')) return;
+            if (!confirm('Cancellare tutte le comprese e particelle?')) return;
         }
 
         deselectParcel();
@@ -351,7 +351,7 @@ const ParcelEditor = (function() {
         parcelCounter = 0;
         updateLayerSelector();
         updateParcelList();
-        updateStatus('Cleared');
+        updateStatus('Tutte comprese cancellate');
     }
 
     function addParcelClickHandler(mapLayer) {
@@ -379,8 +379,8 @@ const ParcelEditor = (function() {
             <input type="text" class="rename-input" value="${parcel.name}"
                    onkeydown="ParcelEditor.handleRenameKey(event, ${parcelId})" />
             <span class="parcel-actions">
-                <span class="edit-btn" onclick="ParcelEditor.finishRename(${parcelId})" title="Save">✓</span>
-                <span class="delete-btn" onclick="ParcelEditor.updateParcelList()" title="Cancel">✕</span>
+                <span class="edit-btn" onclick="ParcelEditor.finishRename(${parcelId})" title="Salva">✓</span>
+                <span class="delete-btn" onclick="ParcelEditor.updateParcelList()" title="Annulla">✕</span>
             </span>
         `;
         const input = item.querySelector('.rename-input');
@@ -400,10 +400,10 @@ const ParcelEditor = (function() {
         const input = $('parcel-list').querySelector('.rename-input');
         if (!input) return;
 
-        parcel.name = input.value.trim() || 'Unnamed';
+        parcel.name = input.value.trim() || 'Senza nome';
         parcel.mapLayer.bindPopup(`<b>${parcel.name}</b>`);
         updateParcelList();
-        updateStatus(`Renamed to "${parcel.name}"`);
+        updateStatus(`Particella rinominata a "${parcel.name}"`);
     }
 
     // Public API
@@ -428,7 +428,7 @@ const ParcelEditor = (function() {
             // New parcel drawn
             map.on(L.Draw.Event.CREATED, e => {
                 if (!selectedLayerName) {
-                    updateStatus('Select or create a layer first');
+                    updateStatus('Seleziona o crea una compresa prima di disegnare una particella');
                     return;
                 }
 
@@ -451,7 +451,7 @@ const ParcelEditor = (function() {
 
                 selectParcel(parcel);
                 updateParcelList();
-                updateStatus(`Created ${parcel.name}`);
+                updateStatus(`Creata particella ${parcel.name}`);
             });
 
             // Click background to deselect
@@ -511,7 +511,7 @@ const ParcelEditor = (function() {
                         const data = JSON.parse(evt.target.result);
                         loadGeoJSON(data);
                     } catch (err) {
-                        updateStatus('Error loading GeoJSON: ' + err.message);
+                        updateStatus('Errore nel caricamento del GeoJSON: ' + err.message);
                     }
                 };
                 reader.readAsText(file);
@@ -545,27 +545,27 @@ const ParcelEditor = (function() {
         },
 
         createNewLayer() {
-            const name = prompt('Layer name:');
+            const name = prompt('Nome della compresa:');
             if (!name || !name.trim()) return;
 
             if (layers[name.trim()]) {
-                updateStatus('Layer already exists');
+                updateStatus('La compresa esiste già');
                 return;
             }
 
             createLayer(name.trim());
             updateLayerSelector();
             selectLayer(name.trim());
-            updateStatus(`Created layer: ${name.trim()}`);
+            updateStatus(`Creata compresa: ${name.trim()}`);
         },
 
         deleteCurrentLayer() {
             if (!selectedLayerName) return;
-            if (!confirm(`Delete layer "${selectedLayerName}" and all its parcels?`)) return;
+            if (!confirm(`Elimina la compresa "${selectedLayerName}" e tutte le sue particelle?`)) return;
 
             const name = selectedLayerName;
             deleteLayer(name);
-            updateStatus(`Deleted layer: ${name}`);
+            updateStatus(`Eliminata compresa: ${name}`);
         },
 
         exportGeoJSON,

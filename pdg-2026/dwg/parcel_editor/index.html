@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Parcel Editor</title>
+    <title>Editore particelle</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
@@ -17,33 +17,33 @@
 <body>
     <div id="map"></div>
     <div id="sidebar">
-        <h3>Parcel Editor</h3>
-        <div id="status">Ready</div>
+        <h3>Editore particelle</h3>
+        <div id="status">Pronto</div>
         <div id="coords"></div>
 
         <div class="section">
-            <h4>Data</h4>
+            <h4>Dati</h4>
             <input type="file" id="load-file" accept=".geojson,.json" />
             <div class="button-row">
-                <button class="primary" onclick="ParcelEditor.exportGeoJSON()">Export</button>
-                <button class="danger" onclick="ParcelEditor.clearAll()">Clear</button>
+                <button class="primary" onclick="ParcelEditor.exportGeoJSON()">Esporta</button>
+                <button class="danger" onclick="ParcelEditor.clearAll()">Cancella</button>
             </div>
         </div>
 
         <div class="section">
-            <h4>Layer</h4>
+            <h4>Compresa</h4>
             <div class="layer-selector-row">
                 <select id="layer-selector"></select>
-                <button onclick="ParcelEditor.createNewLayer()" title="New Layer">+</button>
+                <button onclick="ParcelEditor.createNewLayer()" title="Nuova compresa">+</button>
             </div>
 
             <div id="layer-controls">
                 <label class="checkbox-row">
                     <input type="checkbox" id="layer-visible" checked />
-                    Visible
+                    Visibile?
                 </label>
 
-                <h5>Offset Correction</h5>
+                <h5>Correzione coordinate</h5>
                 <div class="offset-control">
                     <label>E-W:</label>
                     <input type="range" id="offset-ew" min="-200" max="200" value="0" step="1">
@@ -54,34 +54,34 @@
                     <input type="range" id="offset-ns" min="-200" max="200" value="0" step="1">
                     <span class="value" id="offset-ns-value">0m</span>
                 </div>
-                <button onclick="ParcelEditor.resetOffset()" class="small">Reset Offset</button>
+                <button onclick="ParcelEditor.resetOffset()" class="small">Azzera correzione</button>
 
-                <h5>Parcels</h5>
+                <h5>Particelle</h5>
                 <div id="parcel-list"></div>
 
-                <button class="danger small" onclick="ParcelEditor.deleteCurrentLayer()">Delete This Layer</button>
+                <button class="danger small" onclick="ParcelEditor.deleteCurrentLayer()">Elimina questa compresa</button>
             </div>
         </div>
 
         <div class="section">
-            <h4>Basemap</h4>
+            <h4>Mappa</h4>
             <div class="button-row">
-                <button onclick="ParcelEditor.setBasemap('osm')">OSM</button>
-                <button onclick="ParcelEditor.setBasemap('satellite')">Satellite</button>
-                <button onclick="ParcelEditor.setBasemap('topo')">Topo</button>
+                <button onclick="ParcelEditor.setBasemap('osm')">OpenStreetMap</button>
+                <button onclick="ParcelEditor.setBasemap('satellite')">Satellitare</button>
+                <button onclick="ParcelEditor.setBasemap('topo')">Topografica</button>
             </div>
         </div>
 
         <div class="section">
-            <h4>Help</h4>
+            <h4>Legenda</h4>
             <ul class="help-list">
-                <li><span class="color-dot blue"></span> Selected layer parcels</li>
-                <li><span class="color-dot orange"></span> Other layer parcels</li>
-                <li><span class="color-dot green"></span> Selected parcel (editable)</li>
+                <li><span class="color-dot blue"></span>Compresa selezionata</li>
+                <li><span class="color-dot orange"></span>Altre comprese</li>
+                <li><span class="color-dot green"></span>Particella selezionata (modificabile)</li>
             </ul>
             <p class="help-text">
-                Click a parcel in the selected layer to edit its vertices.
-                Use the polygon tool to draw new parcels.
+                Clicca una particella nella compresa selezionata per modificarne i vertici.
+                Usa lo strumento poligono (in alto a sinistra) per disegnare nuove particelle.
             </p>
         </div>
     </div>
