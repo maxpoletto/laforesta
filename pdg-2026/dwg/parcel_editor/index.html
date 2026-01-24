@@ -42,14 +42,6 @@
                 </label>
 
                 <h5>Offset Correction</h5>
-                <select id="crs-preset" onchange="ParcelEditor.applyCrsPreset()">
-                    <option value="custom">Custom offset</option>
-                    <option value="none">No offset</option>
-                    <option value="wgs84">WGS84 (no offset)</option>
-                    <option value="ed50">ED50 → WGS84</option>
-                    <option value="monte-mario">Monte Mario → WGS84</option>
-                </select>
-
                 <div class="offset-control">
                     <label>E-W:</label>
                     <input type="range" id="offset-ew" min="-200" max="200" value="0" step="1">

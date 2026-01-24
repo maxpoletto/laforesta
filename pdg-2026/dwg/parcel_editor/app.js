@@ -27,14 +27,6 @@ const ParcelEditor = (function() {
         })
     };
 
-    const crsPresets = {
-        'none': { ew: 0, ns: 0 },
-        'wgs84': { ew: 0, ns: 0 },
-        'ed50': { ew: -90, ns: -130 },
-        'monte-mario': { ew: -50, ns: -70 },
-        'custom': null
-    };
-
     const styles = {
         default: { color: '#3388ff', weight: 2, opacity: 1, fillOpacity: 0.2 },
         otherLayer: { color: '#ff6600', weight: 1, opacity: 1, fillOpacity: 0.1 },
@@ -108,7 +100,6 @@ const ParcelEditor = (function() {
             $('offset-ew-value').textContent = `${layer.offset.ew}m`;
             $('offset-ns-value').textContent = `${layer.offset.ns}m`;
             $('layer-visible').checked = layer.visible;
-            $('crs-preset').value = 'custom';
         }
 
         updateParcelStyles();
@@ -494,7 +485,6 @@ const ParcelEditor = (function() {
                 if (layer) {
                     layer.offset.ew = parseInt(e.target.value);
                     $('offset-ew-value').textContent = `${layer.offset.ew}m`;
-                    $('crs-preset').value = 'custom';
                     applyLayerOffset(selectedLayerName);
                 }
             });
@@ -504,7 +494,6 @@ const ParcelEditor = (function() {
                 if (layer) {
                     layer.offset.ns = parseInt(e.target.value);
                     $('offset-ns-value').textContent = `${layer.offset.ns}m`;
-                    $('crs-preset').value = 'custom';
                     applyLayerOffset(selectedLayerName);
                 }
             });
@@ -540,22 +529,6 @@ const ParcelEditor = (function() {
             currentBasemap = basemaps[name]().addTo(map);
         },
 
-        applyCrsPreset() {
-            const preset = $('crs-preset').value;
-            if (preset === 'custom' || !crsPresets[preset]) return;
-
-            const layer = getSelectedLayer();
-            if (!layer) return;
-
-            layer.offset.ew = crsPresets[preset].ew;
-            layer.offset.ns = crsPresets[preset].ns;
-            $('offset-ew').value = layer.offset.ew;
-            $('offset-ns').value = layer.offset.ns;
-            $('offset-ew-value').textContent = `${layer.offset.ew}m`;
-            $('offset-ns-value').textContent = `${layer.offset.ns}m`;
-            applyLayerOffset(selectedLayerName);
-        },
-
         resetOffset() {
             const layer = getSelectedLayer();
             if (!layer) return;
@@ -566,7 +539,6 @@ const ParcelEditor = (function() {
             $('offset-ns').value = 0;
             $('offset-ew-value').textContent = '0m';
             $('offset-ns-value').textContent = '0m';
-            $('crs-preset').value = 'none';
             applyLayerOffset(selectedLayerName);
         },
 
