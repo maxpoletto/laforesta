@@ -297,6 +297,8 @@ const ParcelEditor = (function() {
         // Fit bounds
         if (drawnItems.getBounds().isValid()) {
             map.fitBounds(drawnItems.getBounds());
+        } else {
+            map.setView([38.65, 16.3], 12); // Default to center of Calabria
         }
 
         const parcelCount = Object.values(layers).reduce((sum, l) => sum + l.parcels.length, 0);
@@ -406,8 +408,8 @@ const ParcelEditor = (function() {
 
     // Public API
     return {
-        init() {
-            map = L.map('map').setView([38.65, 16.3], 12);
+        init(filename = null) {
+            map = L.map('map');
             currentBasemap = basemaps.satellite().addTo(map);
 
             drawnItems = new L.FeatureGroup().addTo(map);
@@ -515,12 +517,12 @@ const ParcelEditor = (function() {
                 reader.readAsText(file);
             });
 
-            // Auto-load all_parcels.json if available
-            fetch('all_parcels.json')
-                .then(r => r.ok ? r.json() : Promise.reject())
-                .then(data => loadGeoJSON(data))
-                .catch(() => {});
-
+            if (filename) {
+                fetch(filename)
+                    .then(r => r.ok ? r.json() : Promise.reject())
+                    .then(data => loadGeoJSON(data))
+                    .catch(() => {});
+            }
             updateLayerSelector();
         },
 
@@ -586,4 +588,4 @@ const ParcelEditor = (function() {
     };
 })();
 
-document.addEventListener('DOMContentLoaded', () => ParcelEditor.init());
+document.addEventListener('DOMContentLoaded', () => ParcelEditor.init("all_parcels.json"));
