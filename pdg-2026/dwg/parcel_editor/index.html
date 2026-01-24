@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Parcel Digitizer</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
+    <link rel="stylesheet" href="style.css" />
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+</head>
+<body>
+    <div id="map"></div>
+    <div id="sidebar">
+        <h3>Parcel Digitizer</h3>
+
+        <div id="status">Ready. Click the polygon tool to start drawing.</div>
+        <div id="coords"></div>
+
+        <div class="section">
+            <h4>Load Reference Data</h4>
+            <input type="file" id="load-reference" accept=".geojson,.json" />
+            <button onclick="clearReference()">Clear Reference</button>
+
+            <h4>Datum / CRS Correction</h4>
+            <select id="crs-preset" onchange="applyCrsPreset()">
+                <option value="none">-- Select CRS preset --</option>
+                <option value="wgs84">WGS84 (no offset)</option>
+                <option value="ed50">ED50 → WGS84 (~-90m E, -130m N)</option>
+                <option value="monte-mario">Monte Mario → WGS84 (~-50m E, -70m N)</option>
+                <option value="custom">Custom offset...</option>
+            </select>
+
+            <div class="offset-control">
+                <label>East-West:</label>
+                <input type="range" id="offset-ew" min="-200" max="200" value="0" step="1">
+                <span class="value" id="offset-ew-value">0m</span>
+            </div>
+
+            <div class="offset-control">
+                <label>North-South:</label>
+                <input type="range" id="offset-ns" min="-200" max="200" value="0" step="1">
+                <span class="value" id="offset-ns-value">0m</span>
+            </div>
+
+            <div class="offset-buttons">
+                <button onclick="resetOffset()">Reset</button>
+                <button onclick="importReferenceToEdit()" class="primary">Import to Edit</button>
+            </div>
+            <button onclick="applyOffset()" style="font-size: 11px;">Export with Offset</button>
+        </div>
+
+        <div class="section">
+            <h4>Parcels</h4>
+            <div id="layer-filter-container" style="display: none;">
+                <label style="font-size: 11px; color: #666;">Filter by layer:</label>
+                <div id="layer-filter"></div>
+            </div>
+            <div id="parcel-list"></div>
+            <button class="primary" onclick="exportGeoJSON()">📥 Export All</button>
+            <button class="primary" onclick="exportFilteredGeoJSON()" style="background: #2196F3; border-color: #2196F3;">📥 Export Filtered</button>
+            <button class="danger" onclick="clearAllParcels()">🗑️ Clear All</button>
+        </div>
+
+        <div class="section">
+            <h4>Basemap</h4>
+            <div class="offset-buttons">
+                <button onclick="setBasemap('osm')">OSM</button>
+                <button onclick="setBasemap('satellite')">Satellite</button>
+                <button onclick="setBasemap('topo')">Topo</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h4>Instructions</h4>
+            <ol style="font-size: 11px; padding-left: 20px; margin: 0;">
+                <li>Load your extracted parcels (GeoJSON)</li>
+                <li>Select CRS preset or adjust offset sliders</li>
+                <li>Click "Import to Edit" to add parcels</li>
+                <li>Use layer checkboxes to filter by region</li>
+                <li>Click parcel to select (green = editable)</li>
+                <li>Drag vertices to adjust boundaries</li>
+                <li>Export All or Export Filtered when done</li>
+            </ol>
+            <p style="font-size: 10px; color: #666; margin-top: 8px;">
+                <span style="color: #00ff00;">Green</span> = selected<br>
+                <span style="color: #ff6600;">Orange</span> = imported<br>
+                <span style="color: #3388ff;">Blue</span> = hand-drawn
+            </p>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

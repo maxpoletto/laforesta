@@ -1,0 +1,138 @@
+body { margin: 0; padding: 0; font-family: sans-serif; }
+#map { position: absolute; top: 0; bottom: 0; left: 0; right: 320px; }
+#sidebar {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: 0;
+    width: 320px;
+    background: #f5f5f5;
+    padding: 15px;
+    box-sizing: border-box;
+    overflow-y: auto;
+}
+h3 {
+    margin-top: 0;
+}
+h4 {
+    margin: 10px 0 5px 0;
+}
+button {
+    width: 100%;
+    padding: 10px;
+    margin: 5px 0;
+    cursor: pointer;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background: white;
+}
+button:hover {
+    background: #e0e0e0;
+}
+button.primary {
+    background: #4CAF50; color: white; border-color: #4CAF50;
+}
+button.primary:hover {
+    background: #45a049;
+}
+button.danger {
+    background: #f44336; color: white; border-color: #f44336;
+}
+button.danger:hover {
+    background: #da190b;
+}
+#status {
+    margin: 10px 0;
+    padding: 10px;
+    background: #fff;
+    border-radius: 4px;
+    font-size: 12px;
+}
+#parcel-list {
+    max-height: 300px;
+    overflow-y: auto;
+    background: white;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    margin: 10px 0;
+}
+.parcel-item {
+    padding: 8px;
+    border-bottom: 1px solid #eee;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.parcel-item:hover { background: #f0f0f0; }
+.parcel-item.selected { background: #e3f2fd; }
+.parcel-item .parcel-name { flex: 1; }
+.parcel-item .parcel-name.loaded { color: #ff6600; }
+.parcel-item .parcel-actions { display: flex; gap: 8px; }
+.parcel-item .edit-btn { color: #2196F3; cursor: pointer; }
+.parcel-item .delete-btn { color: #f44336; cursor: pointer; }
+.parcel-item input.rename-input {
+    flex: 1;
+    padding: 2px 4px;
+    border: 1px solid #2196F3;
+    border-radius: 2px;
+    font-size: 12px;
+}
+input[type="file"] { margin: 10px 0; width: 100%; }
+.section { margin: 20px 0; border-top: 1px solid #ccc; padding-top: 15px; }
+#coords { font-family: monospace; font-size: 11px; }
+
+/* Offset controls */
+.offset-control {
+    display: flex;
+    align-items: center;
+    margin: 5px 0;
+}
+.offset-control label {
+    width: 80px;
+    font-size: 12px;
+}
+.offset-control input[type="range"] {
+    flex: 1;
+    margin: 0 10px;
+}
+.offset-control .value {
+    width: 60px;
+    font-family: monospace;
+    font-size: 11px;
+}
+.offset-buttons {
+    display: flex;
+    gap: 5px;
+    margin: 5px 0;
+}
+.offset-buttons button {
+    flex: 1;
+    padding: 5px;
+    font-size: 11px;
+}
+select {
+    width: 100%;
+    padding: 5px;
+    margin: 5px 0;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+#layer-filter {
+    background: white;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 8px;
+    margin: 10px 0;
+    max-height: 120px;
+    overflow-y: auto;
+}
+#layer-filter label {
+    display: block;
+    padding: 4px 0;
+    font-size: 12px;
+    cursor: pointer;
+}
+#layer-filter input[type="checkbox"] {
+    margin-right: 8px;
+}
