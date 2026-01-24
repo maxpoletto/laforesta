@@ -1,27 +1,23 @@
-// Parcel Editor - encapsulated module
+// Parcel Editor - Layer-based editing
 const ParcelEditor = (function() {
     'use strict';
 
     // State
     let map = null;
     let currentBasemap = null;
-    let referenceLayer = null;
     let drawnItems = null;
     let drawControl = null;
 
-    let originalReferenceData = null;
-    let currentOffsetEW = 0;
-    let currentOffsetNS = 0;
-
-    let visibleLayers = new Set();
-    let allLayers = new Set();
+    // Layer data: { name: { parcels: [...], offset: {ew, ns}, visible: true } }
+    let layers = {};
+    let selectedLayerName = null;
+    let selectedParcel = null;
     let parcelCounter = 0;
-    let selectedLayer = null;
 
     // Constants
     const basemaps = {
         osm: () => L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
+            attribution: '© OpenStreetMap'
         }),
         satellite: () => L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
             attribution: '© Esri'
@@ -41,18 +37,18 @@ const ParcelEditor = (function() {
 
     const styles = {
         default: { color: '#3388ff', weight: 2, fillOpacity: 0.2 },
-        loaded: { color: '#ff6600', weight: 2, fillOpacity: 0.2 },
-        selected: { color: '#00ff00', weight: 3, fillOpacity: 0.4 }
+        otherLayer: { color: '#ff6600', weight: 1, fillOpacity: 0.1 },
+        selected: { color: '#00ff00', weight: 3, fillOpacity: 0.4 },
+        hidden: { opacity: 0, fillOpacity: 0 }
     };
 
-    // DOM helpers
     const $ = id => document.getElementById(id);
 
     function updateStatus(msg) {
-        $('status').innerHTML = msg;
+        $('status').textContent = msg;
     }
 
-    // Offset handling
+    // Coordinate offset utilities
     function offsetCoordinates(coords, offsetLon, offsetLat) {
         if (typeof coords[0] === 'number') {
             return [coords[0] + offsetLon, coords[1] + offsetLat];
@@ -60,124 +56,184 @@ const ParcelEditor = (function() {
         return coords.map(c => offsetCoordinates(c, offsetLon, offsetLat));
     }
 
-    function getOffsetDegrees() {
-        return {
-            lon: currentOffsetEW / 87000,
-            lat: currentOffsetNS / 111000
-        };
+    function getOffsetDegrees(ew, ns) {
+        return { lon: ew / 87000, lat: ns / 111000 };
     }
 
-    function applyOffsetToData(data) {
-        const { lon, lat } = getOffsetDegrees();
-        const offsetData = JSON.parse(JSON.stringify(data));
-        for (const feature of offsetData.features || []) {
-            if (feature.geometry?.coordinates) {
-                feature.geometry.coordinates = offsetCoordinates(
-                    feature.geometry.coordinates, lon, lat
-                );
-            }
-        }
-        return offsetData;
+    // Layer management
+    function getLayer(name) {
+        return layers[name] || null;
     }
 
-    function updateReferenceWithOffset() {
-        if (!originalReferenceData) return;
-        referenceLayer.clearLayers();
-        referenceLayer.addData(applyOffsetToData(originalReferenceData));
-        updateStatus(`Offset: ${currentOffsetEW}m E, ${currentOffsetNS}m N`);
+    function getSelectedLayer() {
+        return selectedLayerName ? layers[selectedLayerName] : null;
     }
 
-    function setOffsetUI(ew, ns) {
-        currentOffsetEW = ew;
-        currentOffsetNS = ns;
-        $('offset-ew').value = ew;
-        $('offset-ns').value = ns;
-        $('offset-ew-value').textContent = `${ew}m`;
-        $('offset-ns-value').textContent = `${ns}m`;
+    function createLayer(name) {
+        if (layers[name]) return false;
+        layers[name] = { parcels: [], offset: { ew: 0, ns: 0 }, visible: true };
+        return true;
     }
 
-    // Parcel selection
-    function addLayerClickHandler(layer) {
-        layer.on('click', function(e) {
-            L.DomEvent.stopPropagation(e);
-            selectParcel(layer._leaflet_id);
+    function deleteLayer(name) {
+        const layer = layers[name];
+        if (!layer) return;
+
+        // Remove parcels from map
+        layer.parcels.forEach(p => {
+            if (p.mapLayer) drawnItems.removeLayer(p.mapLayer);
         });
+
+        delete layers[name];
+
+        // Select another layer or none
+        const remaining = Object.keys(layers);
+        selectLayer(remaining.length > 0 ? remaining[0] : null);
+        updateLayerSelector();
     }
 
-    function selectParcel(leafletId) {
-        if (selectedLayer?.editing) {
-            selectedLayer.editing.disable();
-        }
-        if (selectedLayer) {
-            selectedLayer.setStyle(selectedLayer.isLoaded ? styles.loaded : styles.default);
+    function selectLayer(name) {
+        // Deselect current parcel
+        if (selectedParcel) {
+            deselectParcel();
         }
 
-        selectedLayer = null;
-        drawnItems.eachLayer(layer => {
-            if (layer._leaflet_id === leafletId) {
-                selectedLayer = layer;
-                layer.setStyle(styles.selected);
-                layer.editing.enable();
-                updateStatus(`Selected: ${layer.parcelName} - drag vertices to edit`);
-            }
-        });
+        selectedLayerName = name;
+
+        // Update offset controls to show this layer's values
+        const layer = getSelectedLayer();
+        if (layer) {
+            $('offset-ew').value = layer.offset.ew;
+            $('offset-ns').value = layer.offset.ns;
+            $('offset-ew-value').textContent = `${layer.offset.ew}m`;
+            $('offset-ns-value').textContent = `${layer.offset.ns}m`;
+            $('layer-visible').checked = layer.visible;
+            $('crs-preset').value = 'custom';
+        }
+
+        updateParcelStyles();
         updateParcelList();
+        updateStatus(name ? `Editing layer: ${name}` : 'No layer selected');
+    }
+
+    // Parcel management
+    function addParcelToLayer(layerName, feature, mapLayer) {
+        const layer = layers[layerName];
+        if (!layer) return null;
+
+        parcelCounter++;
+        const parcel = {
+            id: parcelCounter,
+            name: feature.properties?.name || `Parcel ${parcelCounter}`,
+            feature: feature,
+            mapLayer: mapLayer
+        };
+
+        // Store reference back to parcel data
+        mapLayer.parcelData = parcel;
+        mapLayer.layerName = layerName;
+
+        layer.parcels.push(parcel);
+        return parcel;
+    }
+
+    function deleteParcel(parcel) {
+        const layer = layers[parcel.mapLayer.layerName];
+        if (!layer) return;
+
+        if (selectedParcel === parcel) {
+            deselectParcel();
+        }
+
+        drawnItems.removeLayer(parcel.mapLayer);
+        layer.parcels = layer.parcels.filter(p => p !== parcel);
+        updateParcelList();
+        updateStatus('Parcel deleted');
+    }
+
+    function selectParcel(parcel) {
+        deselectParcel();
+        selectedParcel = parcel;
+        parcel.mapLayer.setStyle(styles.selected);
+        parcel.mapLayer.editing.enable();
+        updateParcelList();
+        updateStatus(`Selected: ${parcel.name}`);
     }
 
     function deselectParcel() {
-        if (selectedLayer) {
-            selectedLayer.editing?.disable();
-            selectedLayer.setStyle(selectedLayer.isLoaded ? styles.loaded : styles.default);
-            selectedLayer = null;
+        if (selectedParcel) {
+            selectedParcel.mapLayer.editing?.disable();
+            updateParcelStyle(selectedParcel);
+            selectedParcel = null;
             updateParcelList();
-            updateStatus('Ready');
         }
     }
 
-    // Layer filtering
-    function updateLayerFilter() {
-        const container = $('layer-filter-container');
-        const filter = $('layer-filter');
+    function updateParcelStyle(parcel) {
+        const layer = layers[parcel.mapLayer.layerName];
+        if (!layer) return;
 
-        if (allLayers.size === 0) {
-            container.style.display = 'none';
+        if (!layer.visible) {
+            parcel.mapLayer.setStyle(styles.hidden);
+        } else if (parcel.mapLayer.layerName === selectedLayerName) {
+            parcel.mapLayer.setStyle(styles.default);
+        } else {
+            parcel.mapLayer.setStyle(styles.otherLayer);
+        }
+    }
+
+    function updateParcelStyles() {
+        Object.values(layers).forEach(layer => {
+            layer.parcels.forEach(parcel => {
+                if (parcel !== selectedParcel) {
+                    updateParcelStyle(parcel);
+                }
+            });
+        });
+    }
+
+    // Apply offset to a layer's parcels on the map
+    function applyLayerOffset(layerName) {
+        const layer = layers[layerName];
+        if (!layer) return;
+
+        const { lon, lat } = getOffsetDegrees(layer.offset.ew, layer.offset.ns);
+
+        layer.parcels.forEach(parcel => {
+            // Get original coordinates from stored feature
+            const origCoords = parcel.feature.geometry.coordinates;
+            const offsetCoords = offsetCoordinates(origCoords, lon, lat);
+
+            // Update map layer with offset coordinates
+            const newLatLngs = L.GeoJSON.coordsToLatLngs(offsetCoords,
+                parcel.feature.geometry.type === 'Polygon' ? 1 : 2);
+            parcel.mapLayer.setLatLngs(newLatLngs);
+        });
+    }
+
+    // UI updates
+    function updateLayerSelector() {
+        const selector = $('layer-selector');
+        selector.innerHTML = '';
+
+        const names = Object.keys(layers).sort();
+        if (names.length === 0) {
+            const opt = document.createElement('option');
+            opt.value = '';
+            opt.textContent = '(no layers)';
+            selector.appendChild(opt);
+            $('layer-controls').style.display = 'none';
             return;
         }
 
-        container.style.display = 'block';
-        filter.innerHTML = '';
+        $('layer-controls').style.display = 'block';
 
-        for (const layerName of Array.from(allLayers).sort()) {
-            const label = document.createElement('label');
-            const checkbox = document.createElement('input');
-            checkbox.type = 'checkbox';
-            checkbox.checked = visibleLayers.has(layerName);
-            checkbox.onchange = () => toggleLayer(layerName, checkbox.checked);
-            label.appendChild(checkbox);
-            label.appendChild(document.createTextNode(layerName));
-            filter.appendChild(label);
-        }
-    }
-
-    function toggleLayer(layerName, visible) {
-        visible ? visibleLayers.add(layerName) : visibleLayers.delete(layerName);
-        updateParcelVisibility();
-        updateParcelList();
-    }
-
-    function updateParcelVisibility() {
-        drawnItems.eachLayer(layer => {
-            const layerName = layer.originalProperties?.layer || '';
-            const shouldShow = visibleLayers.size === 0 || visibleLayers.has(layerName);
-
-            if (shouldShow) {
-                layer.setStyle({ ...layer.options, opacity: 1, fillOpacity: 0.2 });
-            } else {
-                layer.setStyle({ ...layer.options, opacity: 0, fillOpacity: 0 });
-                if (selectedLayer?._leaflet_id === layer._leaflet_id) {
-                    deselectParcel();
-                }
-            }
+        names.forEach(name => {
+            const opt = document.createElement('option');
+            opt.value = name;
+            opt.textContent = name;
+            if (name === selectedLayerName) opt.selected = true;
+            selector.appendChild(opt);
         });
     }
 
@@ -185,42 +241,152 @@ const ParcelEditor = (function() {
         const list = $('parcel-list');
         list.innerHTML = '';
 
-        drawnItems.eachLayer(layer => {
-            const layerName = layer.originalProperties?.layer || '';
-            if (visibleLayers.size > 0 && !visibleLayers.has(layerName)) return;
+        const layer = getSelectedLayer();
+        if (!layer) return;
 
-            const isSelected = selectedLayer?._leaflet_id === layer._leaflet_id;
-            const loadedClass = layer.isLoaded ? ' loaded' : '';
-
+        layer.parcels.forEach(parcel => {
+            const isSelected = selectedParcel === parcel;
             const item = document.createElement('div');
             item.className = 'parcel-item' + (isSelected ? ' selected' : '');
-            item.dataset.leafletId = layer._leaflet_id;
             item.innerHTML = `
-                <span class="parcel-name${loadedClass}" onclick="ParcelEditor.selectParcel(${layer._leaflet_id})">${layer.parcelName || 'Unnamed'}</span>
+                <span class="parcel-name" onclick="ParcelEditor.onParcelClick(${parcel.id})">${parcel.name}</span>
                 <span class="parcel-actions">
-                    <span class="edit-btn" onclick="ParcelEditor.startRename(${layer._leaflet_id})" title="Rename">✎</span>
-                    <span class="delete-btn" onclick="ParcelEditor.deleteParcel(${layer._leaflet_id})" title="Delete">✕</span>
+                    <span class="edit-btn" onclick="ParcelEditor.startRename(${parcel.id})" title="Rename">✎</span>
+                    <span class="delete-btn" onclick="ParcelEditor.onDeleteParcel(${parcel.id})" title="Delete">✕</span>
                 </span>
             `;
             list.appendChild(item);
         });
     }
 
+    function findParcelById(id) {
+        for (const layer of Object.values(layers)) {
+            const parcel = layer.parcels.find(p => p.id === id);
+            if (parcel) return parcel;
+        }
+        return null;
+    }
+
+    // Load/Export
+    function loadGeoJSON(data) {
+        // Clear existing
+        clearAll(false);
+
+        // Group features by layer property
+        const featuresByLayer = {};
+        (data.features || []).forEach(feature => {
+            const layerName = feature.properties?.layer || 'Default';
+            if (!featuresByLayer[layerName]) {
+                featuresByLayer[layerName] = [];
+            }
+            featuresByLayer[layerName].push(feature);
+        });
+
+        // Create layers and add parcels
+        Object.entries(featuresByLayer).forEach(([layerName, features]) => {
+            createLayer(layerName);
+
+            features.forEach(feature => {
+                if (feature.geometry?.type === 'Polygon' || feature.geometry?.type === 'MultiPolygon') {
+                    const mapLayer = L.geoJSON(feature, { style: styles.otherLayer }).getLayers()[0];
+                    if (mapLayer) {
+                        drawnItems.addLayer(mapLayer);
+                        addParcelToLayer(layerName, feature, mapLayer);
+                        addParcelClickHandler(mapLayer);
+                    }
+                }
+            });
+        });
+
+        // Select first layer
+        const firstLayer = Object.keys(layers).sort()[0];
+        updateLayerSelector();
+        selectLayer(firstLayer);
+
+        // Fit bounds
+        if (drawnItems.getBounds().isValid()) {
+            map.fitBounds(drawnItems.getBounds());
+        }
+
+        const parcelCount = Object.values(layers).reduce((sum, l) => sum + l.parcels.length, 0);
+        updateStatus(`Loaded ${parcelCount} parcels in ${Object.keys(layers).length} layers`);
+    }
+
+    function exportGeoJSON() {
+        const features = [];
+
+        Object.entries(layers).forEach(([layerName, layer]) => {
+            const { lon, lat } = getOffsetDegrees(layer.offset.ew, layer.offset.ns);
+
+            layer.parcels.forEach(parcel => {
+                // Get current coordinates from map (includes any edits)
+                const geojson = parcel.mapLayer.toGeoJSON();
+
+                // Apply offset to get final coordinates
+                // Note: mapLayer already has offset applied visually, but toGeoJSON
+                // returns the current visual coordinates, so we're good
+
+                geojson.properties = geojson.properties || {};
+                geojson.properties.name = parcel.name;
+                geojson.properties.layer = layerName;
+                geojson.properties.id = parcel.id;
+                features.push(geojson);
+            });
+        });
+
+        const geojson = { type: 'FeatureCollection', features };
+        const blob = new Blob([JSON.stringify(geojson, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'parcels.geojson';
+        a.click();
+        URL.revokeObjectURL(url);
+
+        updateStatus(`Exported ${features.length} parcels`);
+    }
+
+    function clearAll(confirm_needed = true) {
+        if (confirm_needed && Object.keys(layers).length > 0) {
+            if (!confirm('Delete all layers and parcels?')) return;
+        }
+
+        deselectParcel();
+        drawnItems.clearLayers();
+        layers = {};
+        selectedLayerName = null;
+        parcelCounter = 0;
+        updateLayerSelector();
+        updateParcelList();
+        updateStatus('Cleared');
+    }
+
+    function addParcelClickHandler(mapLayer) {
+        mapLayer.on('click', function(e) {
+            L.DomEvent.stopPropagation(e);
+            const parcel = mapLayer.parcelData;
+            if (parcel && mapLayer.layerName === selectedLayerName) {
+                selectParcel(parcel);
+            }
+        });
+    }
+
     // Rename functionality
-    function startRename(leafletId) {
-        const item = document.querySelector(`.parcel-item[data-leaflet-id="${leafletId}"]`);
-        if (!item) return;
+    function startRename(parcelId) {
+        const parcel = findParcelById(parcelId);
+        if (!parcel) return;
 
-        let layer = null;
-        drawnItems.eachLayer(l => { if (l._leaflet_id === leafletId) layer = l; });
-        if (!layer) return;
+        const items = $('parcel-list').querySelectorAll('.parcel-item');
+        const layer = getSelectedLayer();
+        const index = layer.parcels.indexOf(parcel);
+        if (index < 0 || !items[index]) return;
 
-        const currentName = layer.parcelName || 'Unnamed';
+        const item = items[index];
         item.innerHTML = `
-            <input type="text" class="rename-input" value="${currentName}"
-                   onkeydown="ParcelEditor.handleRenameKey(event, ${leafletId})" />
+            <input type="text" class="rename-input" value="${parcel.name}"
+                   onkeydown="ParcelEditor.handleRenameKey(event, ${parcelId})" />
             <span class="parcel-actions">
-                <span class="edit-btn" onclick="ParcelEditor.finishRename(${leafletId})" title="Save">✓</span>
+                <span class="edit-btn" onclick="ParcelEditor.finishRename(${parcelId})" title="Save">✓</span>
                 <span class="delete-btn" onclick="ParcelEditor.updateParcelList()" title="Cancel">✕</span>
             </span>
         `;
@@ -229,93 +395,32 @@ const ParcelEditor = (function() {
         input.select();
     }
 
-    function handleRenameKey(event, leafletId) {
-        if (event.key === 'Enter') finishRename(leafletId);
+    function handleRenameKey(event, parcelId) {
+        if (event.key === 'Enter') finishRename(parcelId);
         else if (event.key === 'Escape') updateParcelList();
     }
 
-    function finishRename(leafletId) {
-        const input = document.querySelector(`.parcel-item[data-leaflet-id="${leafletId}"] .rename-input`);
+    function finishRename(parcelId) {
+        const parcel = findParcelById(parcelId);
+        if (!parcel) return;
+
+        const input = $('parcel-list').querySelector('.rename-input');
         if (!input) return;
 
-        const newName = input.value.trim() || 'Unnamed';
-        drawnItems.eachLayer(layer => {
-            if (layer._leaflet_id === leafletId) {
-                layer.parcelName = newName;
-                layer.bindPopup(`<b>${newName}</b>`);
-                updateStatus(`Renamed to "${newName}"`);
-            }
-        });
+        parcel.name = input.value.trim() || 'Unnamed';
+        parcel.mapLayer.bindPopup(`<b>${parcel.name}</b>`);
         updateParcelList();
-    }
-
-    function deleteParcel(leafletId) {
-        drawnItems.eachLayer(layer => {
-            if (layer._leaflet_id === leafletId) {
-                if (selectedLayer?._leaflet_id === leafletId) deselectParcel();
-                drawnItems.removeLayer(layer);
-            }
-        });
-        updateParcelList();
-        updateStatus('Parcel deleted');
-    }
-
-    // Export functions
-    function collectFeatures(filterByVisibility) {
-        const features = [];
-        drawnItems.eachLayer(layer => {
-            if (filterByVisibility) {
-                const layerName = layer.originalProperties?.layer || '';
-                if (visibleLayers.size > 0 && !visibleLayers.has(layerName)) return;
-            }
-
-            const geojson = layer.toGeoJSON();
-            if (layer.isLoaded && layer.originalProperties) {
-                geojson.properties = { ...layer.originalProperties };
-            }
-            geojson.properties = geojson.properties || {};
-            geojson.properties.name = layer.parcelName;
-            geojson.properties.id = layer.parcelId;
-            features.push(geojson);
-        });
-        return features;
-    }
-
-    function downloadGeoJSON(features, filename) {
-        const geojson = { type: 'FeatureCollection', features };
-        const blob = new Blob([JSON.stringify(geojson, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        a.click();
-        URL.revokeObjectURL(url);
+        updateStatus(`Renamed to "${parcel.name}"`);
     }
 
     // Public API
     return {
         init() {
-            // Initialize map
             map = L.map('map').setView([38.65, 16.3], 12);
             currentBasemap = basemaps.satellite().addTo(map);
 
-            // Reference layer
-            referenceLayer = L.geoJSON(null, {
-                style: styles.loaded,
-                onEachFeature(feature, layer) {
-                    if (feature.properties) {
-                        const props = Object.entries(feature.properties)
-                            .map(([k, v]) => `<b>${k}:</b> ${v}`)
-                            .join('<br>');
-                        layer.bindPopup(props || 'No properties');
-                    }
-                }
-            }).addTo(map);
-
-            // Drawn items layer
             drawnItems = new L.FeatureGroup().addTo(map);
 
-            // Drawing controls
             drawControl = new L.Control.Draw({
                 position: 'topleft',
                 draw: {
@@ -327,21 +432,36 @@ const ParcelEditor = (function() {
             });
             map.addControl(drawControl);
 
-            // Event handlers
+            // New parcel drawn
             map.on(L.Draw.Event.CREATED, e => {
-                const layer = e.layer;
-                parcelCounter++;
-                layer.parcelId = parcelCounter;
-                layer.parcelName = `Parcel ${parcelCounter}`;
-                layer.isLoaded = false;
-                layer.bindPopup(`<b>${layer.parcelName}</b>`);
-                addLayerClickHandler(layer);
-                drawnItems.addLayer(layer);
+                if (!selectedLayerName) {
+                    updateStatus('Select or create a layer first');
+                    return;
+                }
+
+                const mapLayer = e.layer;
+                const feature = mapLayer.toGeoJSON();
+
+                // Store original feature (without offset)
+                const layer = getSelectedLayer();
+                const { lon, lat } = getOffsetDegrees(layer.offset.ew, layer.offset.ns);
+
+                // Remove offset from stored coordinates (reverse the visual offset)
+                feature.geometry.coordinates = offsetCoordinates(
+                    feature.geometry.coordinates, -lon, -lat
+                );
+
+                drawnItems.addLayer(mapLayer);
+                const parcel = addParcelToLayer(selectedLayerName, feature, mapLayer);
+                addParcelClickHandler(mapLayer);
+                mapLayer.bindPopup(`<b>${parcel.name}</b>`);
+
+                selectParcel(parcel);
                 updateParcelList();
-                selectParcel(layer._leaflet_id);
-                updateStatus(`Created ${layer.parcelName}`);
+                updateStatus(`Created ${parcel.name}`);
             });
 
+            // Click background to deselect
             map.on('click', e => {
                 if (e.originalEvent.target === map._container ||
                     e.originalEvent.target.classList.contains('leaflet-tile')) {
@@ -349,41 +469,56 @@ const ParcelEditor = (function() {
                 }
             });
 
+            // Coordinates display
             map.on('mousemove', e => {
-                $('coords').innerHTML = `Lat: ${e.latlng.lat.toFixed(6)}, Lng: ${e.latlng.lng.toFixed(6)}`;
+                $('coords').textContent = `${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}`;
             });
 
-            // Offset slider handlers
+            // Layer selector
+            $('layer-selector').addEventListener('change', e => {
+                selectLayer(e.target.value);
+            });
+
+            // Visibility checkbox
+            $('layer-visible').addEventListener('change', e => {
+                const layer = getSelectedLayer();
+                if (layer) {
+                    layer.visible = e.target.checked;
+                    updateParcelStyles();
+                }
+            });
+
+            // Offset controls
             $('offset-ew').addEventListener('input', e => {
-                currentOffsetEW = parseInt(e.target.value);
-                $('offset-ew-value').textContent = `${currentOffsetEW}m`;
-                updateReferenceWithOffset();
+                const layer = getSelectedLayer();
+                if (layer) {
+                    layer.offset.ew = parseInt(e.target.value);
+                    $('offset-ew-value').textContent = `${layer.offset.ew}m`;
+                    $('crs-preset').value = 'custom';
+                    applyLayerOffset(selectedLayerName);
+                }
             });
 
             $('offset-ns').addEventListener('input', e => {
-                currentOffsetNS = parseInt(e.target.value);
-                $('offset-ns-value').textContent = `${currentOffsetNS}m`;
-                updateReferenceWithOffset();
+                const layer = getSelectedLayer();
+                if (layer) {
+                    layer.offset.ns = parseInt(e.target.value);
+                    $('offset-ns-value').textContent = `${layer.offset.ns}m`;
+                    $('crs-preset').value = 'custom';
+                    applyLayerOffset(selectedLayerName);
+                }
             });
 
             // File loader
-            $('load-reference').addEventListener('change', e => {
+            $('load-file').addEventListener('change', e => {
                 const file = e.target.files[0];
                 if (!file) return;
 
                 const reader = new FileReader();
                 reader.onload = evt => {
                     try {
-                        originalReferenceData = JSON.parse(evt.target.result);
-                        this.resetOffset();
-                        referenceLayer.clearLayers();
-                        referenceLayer.addData(originalReferenceData);
-
-                        if (referenceLayer.getBounds().isValid()) {
-                            map.fitBounds(referenceLayer.getBounds());
-                        }
-                        const count = originalReferenceData.features?.length || 0;
-                        updateStatus(`Loaded ${count} reference parcels. Adjust offset, then click "Import" to edit.`);
+                        const data = JSON.parse(evt.target.result);
+                        loadGeoJSON(data);
                     } catch (err) {
                         updateStatus('Error loading GeoJSON: ' + err.message);
                     }
@@ -394,17 +529,10 @@ const ParcelEditor = (function() {
             // Auto-load all_parcels.json if available
             fetch('all_parcels.json')
                 .then(r => r.ok ? r.json() : Promise.reject())
-                .then(data => {
-                    originalReferenceData = data;
-                    referenceLayer.clearLayers();
-                    referenceLayer.addData(data);
-                    if (referenceLayer.getBounds().isValid()) {
-                        map.fitBounds(referenceLayer.getBounds());
-                    }
-                    const count = data.features?.length || 0;
-                    updateStatus(`Auto-loaded ${count} parcels from all_parcels.json. Adjust offset, then "Import to Edit".`);
-                })
+                .then(data => loadGeoJSON(data))
                 .catch(() => {});
+
+            updateLayerSelector();
         },
 
         setBasemap(name) {
@@ -412,122 +540,78 @@ const ParcelEditor = (function() {
             currentBasemap = basemaps[name]().addTo(map);
         },
 
-        resetOffset() {
-            setOffsetUI(0, 0);
-            $('crs-preset').value = 'none';
-            updateReferenceWithOffset();
-        },
-
         applyCrsPreset() {
             const preset = $('crs-preset').value;
             if (preset === 'custom' || !crsPresets[preset]) return;
-            const { ew, ns } = crsPresets[preset];
-            setOffsetUI(ew, ns);
-            updateReferenceWithOffset();
+
+            const layer = getSelectedLayer();
+            if (!layer) return;
+
+            layer.offset.ew = crsPresets[preset].ew;
+            layer.offset.ns = crsPresets[preset].ns;
+            $('offset-ew').value = layer.offset.ew;
+            $('offset-ns').value = layer.offset.ns;
+            $('offset-ew-value').textContent = `${layer.offset.ew}m`;
+            $('offset-ns-value').textContent = `${layer.offset.ns}m`;
+            applyLayerOffset(selectedLayerName);
         },
 
-        applyOffset() {
-            if (!originalReferenceData) {
-                updateStatus('No reference data loaded');
+        resetOffset() {
+            const layer = getSelectedLayer();
+            if (!layer) return;
+
+            layer.offset.ew = 0;
+            layer.offset.ns = 0;
+            $('offset-ew').value = 0;
+            $('offset-ns').value = 0;
+            $('offset-ew-value').textContent = '0m';
+            $('offset-ns-value').textContent = '0m';
+            $('crs-preset').value = 'none';
+            applyLayerOffset(selectedLayerName);
+        },
+
+        createNewLayer() {
+            const name = prompt('Layer name:');
+            if (!name || !name.trim()) return;
+
+            if (layers[name.trim()]) {
+                updateStatus('Layer already exists');
                 return;
             }
-            const offsetData = applyOffsetToData(originalReferenceData);
-            offsetData.properties = offsetData.properties || {};
-            offsetData.properties.offset_applied = {
-                east_meters: currentOffsetEW,
-                north_meters: currentOffsetNS
-            };
-            downloadGeoJSON(offsetData.features, 'parcels_corrected.geojson');
-            updateStatus(`Exported with offset: ${currentOffsetEW}m E, ${currentOffsetNS}m N`);
+
+            createLayer(name.trim());
+            updateLayerSelector();
+            selectLayer(name.trim());
+            updateStatus(`Created layer: ${name.trim()}`);
         },
 
-        importReferenceToEdit() {
-            if (!originalReferenceData) {
-                updateStatus('No reference data loaded');
-                return;
-            }
+        deleteCurrentLayer() {
+            if (!selectedLayerName) return;
+            if (!confirm(`Delete layer "${selectedLayerName}" and all its parcels?`)) return;
 
-            const offsetData = applyOffsetToData(originalReferenceData);
-            let loadedCount = 0;
-            allLayers.clear();
-
-            L.geoJSON(offsetData, {
-                onEachFeature(feature, layer) {
-                    if (feature.geometry.type === 'Polygon' || feature.geometry.type === 'MultiPolygon') {
-                        parcelCounter++;
-                        layer.parcelId = parcelCounter;
-                        layer.parcelName = feature.properties?.name ||
-                            (feature.properties?.parcel_index !== undefined
-                                ? `Parcel ${feature.properties.parcel_index}`
-                                : `Imported ${parcelCounter}`);
-                        layer.isLoaded = true;
-                        layer.originalProperties = { ...feature.properties };
-                        layer.bindPopup(`<b>${layer.parcelName}</b>`);
-                        addLayerClickHandler(layer);
-                        drawnItems.addLayer(layer);
-                        loadedCount++;
-
-                        if (feature.properties?.layer) {
-                            allLayers.add(feature.properties.layer);
-                        }
-                    }
-                },
-                style: styles.loaded
-            });
-
-            visibleLayers = new Set(allLayers);
-            referenceLayer.clearLayers();
-            originalReferenceData = null;
-            this.resetOffset();
-            updateLayerFilter();
-            updateParcelList();
-            updateStatus(`Imported ${loadedCount} parcels for editing.`);
+            const name = selectedLayerName;
+            deleteLayer(name);
+            updateStatus(`Deleted layer: ${name}`);
         },
 
-        clearReference() {
-            referenceLayer.clearLayers();
-            originalReferenceData = null;
-            this.resetOffset();
-            updateStatus('Reference data cleared');
+        exportGeoJSON,
+        clearAll,
+        updateParcelList,
+
+        onParcelClick(id) {
+            const parcel = findParcelById(id);
+            if (parcel) selectParcel(parcel);
         },
 
-        clearAllParcels() {
-            if (confirm('Delete all parcels?')) {
-                deselectParcel();
-                drawnItems.clearLayers();
-                parcelCounter = 0;
-                allLayers.clear();
-                visibleLayers.clear();
-                updateLayerFilter();
-                updateParcelList();
-                updateStatus('All parcels cleared');
-            }
+        onDeleteParcel(id) {
+            const parcel = findParcelById(id);
+            if (parcel) deleteParcel(parcel);
         },
 
-        exportGeoJSON() {
-            const features = collectFeatures(false);
-            downloadGeoJSON(features, 'parcels_edited.geojson');
-            updateStatus(`Exported ${features.length} parcels`);
-        },
-
-        exportFilteredGeoJSON() {
-            const features = collectFeatures(true);
-            const layerSuffix = visibleLayers.size > 0
-                ? '_' + Array.from(visibleLayers).join('_').replace(/[^a-zA-Z0-9_]/g, '')
-                : '';
-            downloadGeoJSON(features, `parcels${layerSuffix}.geojson`);
-            updateStatus(`Exported ${features.length} filtered parcels`);
-        },
-
-        // Exposed for HTML onclick handlers
-        selectParcel,
         startRename,
         handleRenameKey,
-        finishRename,
-        deleteParcel,
-        updateParcelList
+        finishRename
     };
 })();
 
-// Initialize on DOM ready
 document.addEventListener('DOMContentLoaded', () => ParcelEditor.init());
