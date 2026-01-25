@@ -8,7 +8,7 @@ const ParcelEditor = (function() {
     let drawnItems = null;
     let drawControl = null;
 
-    // Layer data: { name: { parcels: [...], offset: {ew, ns}, visible: true } }
+    // Layer data: { name: { parcels: [...], offset: {ew, ns}, oldOffset: {ew, ns}, visible: true } }
     let layers = {};
     let selectedLayerName = null;
     let selectedParcel = null;
@@ -63,7 +63,12 @@ const ParcelEditor = (function() {
 
     function createLayer(name) {
         if (layers[name]) return false;
-        layers[name] = { parcels: [], offset: { ew: 0, ns: 0 }, visible: true };
+        layers[name] = {
+            parcels: [],
+            offset: { ew: 0, ns: 0 },
+            oldOffset: { ew: 0, ns: 0 },  // Track what's already applied to coordinates
+            visible: true
+        };
         return true;
     }
 
@@ -108,16 +113,15 @@ const ParcelEditor = (function() {
     }
 
     // Parcel management
-    function addParcelToLayer(layerName, feature, mapLayer) {
+    function addParcelToLayer(layerName, mapLayer) {
         const layer = layers[layerName];
         if (!layer) return null;
 
         parcelCounter++;
         const parcel = {
             id: parcelCounter,
-            name: feature.properties?.name || `Particella ${parcelCounter}`,
-            feature: feature,
-            mapLayer: mapLayer
+            name: mapLayer.parcelName || `Particella ${parcelCounter}`,
+            mapLayer: mapLayer  // Single source of truth for coordinates
         };
 
         // Store reference back to parcel data
@@ -183,23 +187,41 @@ const ParcelEditor = (function() {
         });
     }
 
-    // Apply offset to a layer's parcels on the map
+    // Apply offset delta to a layer's parcels
     function applyLayerOffset(layerName) {
         const layer = layers[layerName];
         if (!layer) return;
 
-        const { lon, lat } = getOffsetDegrees(layer.offset.ew, layer.offset.ns);
+        const deltaEw = layer.offset.ew - layer.oldOffset.ew;
+        const deltaNs = layer.offset.ns - layer.oldOffset.ns;
+        if (deltaEw === 0 && deltaNs === 0) return;
+
+        const { lon: deltaLon, lat: deltaLat } = getOffsetDegrees(deltaEw, deltaNs);
+        const wasEditing = selectedParcel?.mapLayer.layerName === layerName ? selectedParcel : null;
 
         layer.parcels.forEach(parcel => {
-            // Get original coordinates from stored feature
-            const origCoords = parcel.feature.geometry.coordinates;
-            const offsetCoords = offsetCoordinates(origCoords, lon, lat);
+            const geom = parcel.mapLayer.toGeoJSON().geometry;
+            const newCoords = offsetCoordinates(geom.coordinates, deltaLon, deltaLat);
+            const depth = geom.type === 'Polygon' ? 1 : 2;
+            const newLatLngs = L.GeoJSON.coordsToLatLngs(newCoords, depth);
+            const style = parcel.mapLayer.options;
 
-            // Update map layer with offset coordinates
-            const newLatLngs = L.GeoJSON.coordsToLatLngs(offsetCoords,
-                parcel.feature.geometry.type === 'Polygon' ? 1 : 2);
-            parcel.mapLayer.setLatLngs(newLatLngs);
+            // Recreate layer to clear all cached state in Leaflet.Draw
+            drawnItems.removeLayer(parcel.mapLayer);
+            const newLayer = L.polygon(newLatLngs, style);
+            newLayer.parcelData = parcel;
+            newLayer.layerName = layerName;
+            parcel.mapLayer = newLayer;
+            drawnItems.addLayer(newLayer);
+            addParcelClickHandler(newLayer);
         });
+
+        if (wasEditing) {
+            wasEditing.mapLayer.setStyle(styles.selected);
+            wasEditing.mapLayer.editing.enable();
+        }
+
+        layer.oldOffset = { ew: layer.offset.ew, ns: layer.offset.ns };
     }
 
     // UI updates
@@ -279,12 +301,13 @@ const ParcelEditor = (function() {
 
             features.forEach(feature => {
                 if (feature.geometry?.type === 'Polygon' || feature.geometry?.type === 'MultiPolygon') {
-                    const mapLayer = L.geoJSON(feature, { style: styles.otherLayer }).getLayers()[0];
-                    if (mapLayer) {
-                        drawnItems.addLayer(mapLayer);
-                        addParcelToLayer(layerName, feature, mapLayer);
-                        addParcelClickHandler(mapLayer);
-                    }
+                    const depth = feature.geometry.type === 'Polygon' ? 1 : 2;
+                    const latlngs = L.GeoJSON.coordsToLatLngs(feature.geometry.coordinates, depth);
+                    const mapLayer = L.polygon(latlngs, styles.otherLayer);
+                    mapLayer.parcelName = feature.properties?.name;
+                    drawnItems.addLayer(mapLayer);
+                    addParcelToLayer(layerName, mapLayer);
+                    addParcelClickHandler(mapLayer);
                 }
             });
         });
@@ -309,16 +332,9 @@ const ParcelEditor = (function() {
         const features = [];
 
         Object.entries(layers).forEach(([layerName, layer]) => {
-            const { lon, lat } = getOffsetDegrees(layer.offset.ew, layer.offset.ns);
-
             layer.parcels.forEach(parcel => {
-                // Get current coordinates from map (includes any edits)
+                // Get current coordinates from map (includes any edits and offsets)
                 const geojson = parcel.mapLayer.toGeoJSON();
-
-                // Apply offset to get final coordinates
-                // Note: mapLayer already has offset applied visually, but toGeoJSON
-                // returns the current visual coordinates, so we're good
-
                 geojson.properties = geojson.properties || {};
                 geojson.properties.name = parcel.name;
                 geojson.properties.layer = layerName;
@@ -433,19 +449,8 @@ const ParcelEditor = (function() {
                 }
 
                 const mapLayer = e.layer;
-                const feature = mapLayer.toGeoJSON();
-
-                // Store original feature (without offset)
-                const layer = getSelectedLayer();
-                const { lon, lat } = getOffsetDegrees(layer.offset.ew, layer.offset.ns);
-
-                // Remove offset from stored coordinates (reverse the visual offset)
-                feature.geometry.coordinates = offsetCoordinates(
-                    feature.geometry.coordinates, -lon, -lat
-                );
-
                 drawnItems.addLayer(mapLayer);
-                const parcel = addParcelToLayer(selectedLayerName, feature, mapLayer);
+                const parcel = addParcelToLayer(selectedLayerName, mapLayer);
                 addParcelClickHandler(mapLayer);
                 mapLayer.bindPopup(`<b>${parcel.name}</b>`);
 
