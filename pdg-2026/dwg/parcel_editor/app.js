@@ -593,4 +593,4 @@ const ParcelEditor = (function() {
     };
 })();
 
-document.addEventListener('DOMContentLoaded', () => ParcelEditor.init("all_parcels.json"));
+document.addEventListener('DOMContentLoaded', () => ParcelEditor.init("parcels.json"));
