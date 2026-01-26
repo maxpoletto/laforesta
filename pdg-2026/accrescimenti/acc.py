@@ -2157,6 +2157,18 @@ def run_genera_equazioni(args):
         print("ERRORE: Nessuna equazione generata (funzioni stub non implementate)")
 
 
+def run_calcola_incrementi(args):
+    """Calculate IP (incremento percentuale) for each tree."""
+    print(f"Calcolo incrementi percentuali")
+    print(f"Input: {args.input}")
+    print(f"Output: {args.output}")
+
+    trees_df = load_trees(args.input)
+    trees_df['IP'] = trees_df['c(1/a)'] * 2 * trees_df['Ipr(mm)'] / 100 / trees_df['D(cm)']
+    trees_df.to_csv(args.output, index=False, float_format="%.6f")
+    print(f"\nFile salvato: {args.output}")
+
+
 def run_calcola_altezze_volumi(args):
     """Calculate heights and volumes in one pass."""
     print(f"Calcolo altezze con equazioni da: {args.equazioni}")
@@ -2250,6 +2262,8 @@ Modalità di utilizzo:
                            help='Genera equazioni di interpolazione')
     run_group.add_argument('--calcola-altezze-volumi', action='store_true',
                            help='Calcola altezze (equazioni) e volumi (Tabacchi)')
+    run_group.add_argument('--calcola-incrementi', action='store_true',
+                           help='Calcola incrementi percentuali (IP)')
     run_group.add_argument('--report', action='store_true',
                            help='Genera report da template')
     run_group.add_argument('--lista-particelle', action='store_true',
@@ -2306,6 +2320,13 @@ Modalità di utilizzo:
         if not args.output:
             parser.error('--calcola-altezze-volumi richiede --output')
         run_calcola_altezze_volumi(args)
+
+    elif args.calcola_incrementi:
+        if not args.input:
+            parser.error('--calcola-incrementi richiede --input')
+        if not args.output:
+            parser.error('--calcola-incrementi richiede --output')
+        run_calcola_incrementi(args)
 
     elif args.report:
         if not args.dati:
