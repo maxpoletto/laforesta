@@ -45,6 +45,15 @@ clean-altvol:
 	rm -f $(CSV_DIR)/alberi-calcolati.csv
 
 #
+# Growth
+#
+
+incrementi: $(CSV_DIR)/incrementi.csv
+
+$(CSV_DIR)/incrementi.csv: $(CSV_DIR)/alberi-calcolati.csv
+	./acc.py --calcola-incrementi --input $(CSV_DIR)/alberi-calcolati.csv --output $(CSV_DIR)/incrementi.csv
+
+#
 # Data dependencies
 #
 
