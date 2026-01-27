@@ -1314,7 +1314,7 @@ def calculate_ip_table(data: dict, group_cols: list[str],
     """
     trees = data['trees']
     parcels = data['parcels']
-    for col in ('IP', 'V(m3)'):
+    for col in (group_cols + ['c(1/a)', 'Ipr(mm)', 'D(cm)', 'V(m3)']):
         if col not in trees.columns:
             raise ValueError(f"@@tip/@@gip richiede la colonna '{col}'. "
                              "Esegui --calcola-incrementi e --calcola-altezze-volumi.")
@@ -1324,7 +1324,7 @@ def calculate_ip_table(data: dict, group_cols: list[str],
     rows = []
     for group_key, group_trees in trees.groupby(all_cols):
         row_dict = dict(zip(all_cols, group_key))
-        ip_medio = group_trees['IP'].mean()
+        ip_medio = (group_trees['c(1/a)'] * 2 * group_trees['Ipr(mm)'] / 100 / group_trees['D(cm)']).mean()
 
         if stime_totali:
             volume = 0.0
