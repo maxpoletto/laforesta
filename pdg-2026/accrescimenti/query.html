@@ -117,6 +117,11 @@ async function init() {
         document.getElementById('tables-list').innerHTML = `Tabelle disponibili: ${tablesInfo}`;
         statusEl.textContent = 'Pronto.';
         runBtn.disabled = false;
+        const params = new URLSearchParams(window.location.search);
+        if (params.has('q')) {
+            queryEl.value = params.get('q');
+            window.runQuery();
+        }
     } catch (e) {
         statusEl.textContent = 'Errore durante il caricamento.';
         errorEl.textContent = e.message;
@@ -126,6 +131,9 @@ async function init() {
 window.runQuery = async function() {
     const sql = queryEl.value.trim();
     if (!sql) return;
+    const url = new URL(window.location);
+    url.searchParams.set('q', sql);
+    history.replaceState(null, '', url);
     errorEl.textContent = '';
     resultEl.innerHTML = '';
     try {
