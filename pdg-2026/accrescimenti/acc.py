@@ -1302,6 +1302,132 @@ def render_tsv_table(data: dict, formatter: SnippetFormatter,
     return {'snippet': formatter.format_table(headers, display_rows)}
 
 
+def calculate_ip_table(data: dict, group_cols: list[str],
+                       stime_totali: bool) -> pd.DataFrame:
+    """Calculate the table rows for the @@tip/@@gip directives. Returns a DataFrame.
+
+    For each group (always includes Genere and Classe diametrica),
+    computes:
+      - ip_medio: mean of IP across trees in the group
+      - incremento_corrente: sum(V(m3)) * mean(IP) / 100
+    When stime_totali is True, volumes are scaled by 1/sampled_frac per parcel.
+    """
+    trees = data['trees']
+    parcels = data['parcels']
+    for col in ('IP', 'V(m3)'):
+        if col not in trees.columns:
+            raise ValueError(f"@@tip/@@gip richiede la colonna '{col}'. "
+                             "Esegui --calcola-incrementi e --calcola-altezze-volumi.")
+
+    all_cols = group_cols + ['Genere', 'Classe diametrica']
+
+    rows = []
+    for group_key, group_trees in trees.groupby(all_cols):
+        row_dict = dict(zip(all_cols, group_key))
+        ip_medio = group_trees['IP'].mean()
+
+        if stime_totali:
+            volume = 0.0
+            for (region, parcel), ptrees in group_trees.groupby(['Compresa', 'Particella']):
+                sf = parcels[(region, parcel)]['sampled_frac']
+                volume += ptrees['V(m3)'].sum() / sf
+        else:
+            volume = group_trees['V(m3)'].sum()
+
+        row_dict['ip_medio'] = ip_medio
+        row_dict['incremento_corrente'] = volume * ip_medio / 100
+        rows.append(row_dict)
+
+    df = pd.DataFrame(rows)
+    return df.sort_values(all_cols,
+        key=lambda col: natsort_keygen()(col) if col.name == 'Particella' else col)
+
+
+def render_tip_table(data: dict, formatter: SnippetFormatter,
+                     **options: dict) -> dict:
+    """Generate IP summary table (@@tip directive)."""
+    group_cols = []
+    if options['per_compresa']:
+        group_cols.append('Compresa')
+    if options['per_particella']:
+        group_cols.append('Particella')
+
+    df = calculate_ip_table(data, group_cols, options['stime_totali'])
+
+    headers = []
+    if options['per_compresa']:
+        headers.append(('Compresa', 'l'))
+    if options['per_particella']:
+        headers.append(('Particella', 'l'))
+    headers.append(('Genere', 'l'))
+    headers.append(('Classe diam.', 'r'))
+    headers.append(('IP medio', 'r'))
+    headers.append(('Incr. corrente (m³)', 'r'))
+
+    df_display = df.copy()
+    df_display['ip_medio'] = df_display['ip_medio'].apply(lambda x: f"{x:.2f}")
+    df_display['incremento_corrente'] = df_display['incremento_corrente'].apply(
+        lambda x: f"{x:.4f}")
+
+    # Keep only display columns in order
+    col_order = [h[0] for h in headers]
+    rename = {'Classe diametrica': 'Classe diam.',
+              'ip_medio': 'IP medio',
+              'incremento_corrente': 'Incr. corrente (m³)'}
+    df_display = df_display.rename(columns=rename)
+    df_display = df_display[col_order]
+    rows = [list(map(str, row)) for row in df_display.values.tolist()]
+    return {'snippet': formatter.format_table(headers, rows)}
+
+
+def render_gip_graph(data: dict, output_path: Path,
+                     formatter: SnippetFormatter, color_map: dict,
+                     **options) -> dict:
+    """Generate IP line graph (@@gip directive)."""
+    group_cols = []
+    if options.get('per_compresa', False):
+        group_cols.append('Compresa')
+    if options.get('per_particella', False):
+        group_cols.append('Particella')
+
+    df = calculate_ip_table(data, group_cols, options.get('stime_totali', False))
+
+    metrica = options.get('metrica', 'ip')
+    if metrica == 'ip':
+        y_col, y_label = 'ip_medio', 'Incremento % medio'
+    else:
+        y_col, y_label = 'incremento_corrente', 'Incremento corrente (m³)'
+
+    # Each curve is a unique (optional compresa, optional particella, genere) tuple
+    curve_cols = group_cols + ['Genere']
+
+    fig, ax = plt.subplots(figsize=(5, 3.5))
+
+    for curve_key, curve_df in df.groupby(curve_cols):
+        if isinstance(curve_key, str):
+            curve_key = (curve_key,)
+        label = ' / '.join(str(k) for k in curve_key)
+        genere = curve_key[-1]  # last element is always Genere
+        curve_df = curve_df.sort_values('Classe diametrica')
+        ax.plot(curve_df['Classe diametrica'], curve_df[y_col],
+                marker='o', markersize=3, linewidth=1.5,
+                color=color_map.get(genere, '#0c63e7'),
+                label=label, alpha=0.85)
+
+    ax.set_xlabel('Classe diametrica', fontweight='bold')
+    ax.set_ylabel(y_label, fontweight='bold')
+    ax.legend(title='Specie', bbox_to_anchor=(1.01, 1.02), alignment='left')
+    ax.grid(axis='y', alpha=0.3)
+
+    plt.tight_layout()
+    plt.savefig(output_path, bbox_inches='tight')
+    plt.close(fig)
+
+    snippet = formatter.format_image(output_path, options)
+    snippet += '\n' + formatter.format_metadata(data)
+    return {'filepath': output_path, 'snippet': snippet}
+
+
 def render_gsv_graph(data: dict, output_path: Path,
                      formatter: SnippetFormatter, color_map: dict,
                      **options) -> dict:
@@ -1993,6 +2119,23 @@ def process_template(template_text: str, data_dir: Path,
                     }
                     result = render_tpt_table(data, comparti_df, provv_vol_df,
                                               provv_eta_df, formatter, **options)
+                case 'tip':
+                    options = {
+                        'per_compresa': params.get('per_compresa', 'no').lower() == 'si',
+                        'per_particella': params.get('per_particella', 'no').lower() == 'si',
+                        'stime_totali': params.get('stime_totali', 'no').lower() == 'si',
+                    }
+                    result = render_tip_table(data, formatter, **options)
+                case 'gip':
+                    options = {
+                        'per_compresa': params.get('per_compresa', 'no').lower() == 'si',
+                        'per_particella': params.get('per_particella', 'no').lower() == 'si',
+                        'stime_totali': params.get('stime_totali', 'no').lower() == 'si',
+                        'metrica': params.get('metrica', 'ip'),
+                    }
+                    filename = _build_graph_filename(comprese, particelle, generi, keyword)
+                    result = render_gip_graph(data, output_dir / filename,
+                                             formatter, color_map, **options)
                 case 'gcd':
                     options = {
                         'x_max': int(params.get('x_max', 0)),
