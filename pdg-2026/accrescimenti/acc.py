@@ -1393,26 +1393,26 @@ def render_tip_table(data: dict, formatter: SnippetFormatter,
         headers.append(('Particella', 'l'))
     headers.append(('Genere', 'l'))
     headers.append(('Diametro', 'r'))
-    headers.append(('IP medio', 'r'))
-    headers.append(('Incr. corrente (m³)', 'r'))
+    headers.append(('Incr. pct.', 'r'))
+    headers.append(('Incr. corr. (m³)', 'r'))
 
     df_display = df.copy()
     # Convert bucket (5, 10, 15...) to range label ("1-5", "6-10", "11-15"...)
     df_display['Diametro'] = df_display['Diametro'].apply(lambda n: f"{n-4}-{n}")
     df_display['ip_medio'] = df_display['ip_medio'].apply(lambda x: f"{x:.2f}")
     df_display['incremento_corrente'] = df_display['incremento_corrente'].apply(
-        lambda x: f"{x:.4f}")
+        lambda x: f"{x:.2f}")
 
     # Keep only display columns in order
     col_order = [h[0] for h in headers]
-    rename = {'ip_medio': 'IP medio',
-              'incremento_corrente': 'Incr. corrente (m³)'}
+    rename = {'ip_medio': 'Incr. pct.',
+              'incremento_corrente': 'Incr. corr. (m³)'}
     df_display = df_display.rename(columns=rename)
     df_display = df_display[col_order]
     display_rows = df_display.values.tolist()
     if options['totali']:
         total_row = ['Totale'] + [''] * (len(headers) - 2)
-        total_row.append(f"{df['incremento_corrente'].sum():.4f}")
+        total_row.append(f"{df['incremento_corrente'].sum():.2f}")
         display_rows.append(total_row)
     rows = [list(map(str, row)) for row in display_rows]
     return {'snippet': formatter.format_table(headers, rows)}
