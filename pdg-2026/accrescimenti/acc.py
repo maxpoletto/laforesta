@@ -651,7 +651,7 @@ def parcel_data(tree_files: list[str], tree_df: pd.DataFrame, parcel_df: pd.Data
     trees_region = tree_df.copy()
     trees_region = _filter_df(trees_region, 'Compresa', regions)
     trees_region = _filter_df(trees_region, 'Particella', parcels)
-    trees_region_species = _filter_df(trees_region, 'Genere', species)
+    trees_region_species = _filter_df(trees_region, 'Genere', species).copy()
     if len(trees_region_species) == 0:
         raise ValueError(f"Nessun dato trovato per comprese '{regions}' " +
                          f"particelle '{parcels}' generi '{species}'")
