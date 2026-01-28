@@ -1,4 +1,4 @@
-\subsection{@@compresa, particella @@particella}
+\subsection*{@@compresa, particella @@particella}
 
 {\footnotesize
 
@@ -6,17 +6,27 @@
 @@prop(compresa=@@compresa,particella=@@particella)
 
 \subsubsection*{Classi diametriche}
+
 \begin{minipage}[t][][c]{0.5\textwidth}
-\centering
-@@gcd(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,x_max=24,stile=width=\textwidth)
-\end{minipage}%
-\hfill
-\begin{minipage}[t][][t]{0.5\textwidth}
+    \noindent \textsf{Alberi per ettaro}\\
     \vspace{-\baselineskip}
+    @@gcd(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,stile=width=\textwidth,metrica=alberi_ha)
     \begingroup
         \setlength{\LTleft}{0pt}
         \begin{flushright}
-            @@tcd(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella)
+            @@tcd(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,metrica=alberi_ha)
+        \end{flushright}
+    \endgroup
+\end{minipage}%
+\hfill
+\begin{minipage}[t][][c]{0.5\textwidth}
+    \noindent \textsf{Volumi per ettaro}\\
+    \vspace{-\baselineskip}
+    @@gcd(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,stile=width=\textwidth,metrica=volume_ha)
+    \begingroup
+        \setlength{\LTleft}{0pt}
+        \begin{flushright}
+            @@tcd(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,metrica=volume_ha)
         \end{flushright}
     \endgroup
 \end{minipage}
