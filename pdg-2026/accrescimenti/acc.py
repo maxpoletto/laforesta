@@ -681,6 +681,10 @@ def parcel_data(tree_files: list[str], tree_df: pd.DataFrame, parcel_df: pd.Data
             'sampled_frac': sampled_frac,
         }
 
+    # Compute diameter bucket: D in (0,5] -> 5, D in (5,10] -> 10, etc.
+    trees_region_species['Diametro'] = (
+        (np.floor((trees_region_species['D(cm)'] - 1) / 5) + 1) * 5).astype(int)
+
     data = {
         'trees': trees_region_species,
         'regions': sorted(trees_region['Compresa'].unique()),
@@ -995,33 +999,28 @@ def _calculate_cd_data(data: dict, metrica: str, stime_totali: bool,
 
     Returns DataFrame indexed by bucket with species as columns.
     """
-    trees = data['trees'].copy()
+    trees = data['trees']
     parcels = data['parcels']
     species = data['species']
     use_volume = metrica.startswith('volume')
     per_ha = metrica.endswith('_ha')
 
-    # Assign diameter buckets
     if fine:
-        # 5cm buckets: D in (0,5] -> 5, D in (5,10] -> 10, etc.
-        trees['_bucket'] = ((np.floor((trees['D(cm)'] - 1) / 5) + 1) * 5).astype(int)
+        bucket_key = 'Diametro'
     else:
         def coarse_bin(d):
-            if d <= 30:
-                return COARSE_BIN0
-            elif d <= 50:
-                return COARSE_BIN1
-            return COARSE_BIN2
-        trees['_bucket'] = trees['D(cm)'].apply(coarse_bin)
+            return COARSE_BIN0 if d <= 30 else COARSE_BIN1 if d <= 50 else COARSE_BIN2
+        bucket_key = trees['Diametro'].apply(coarse_bin)
 
     results, area_ha = {}, 0
     for (region, parcel), ptrees in trees.groupby(['Compresa', 'Particella']):
         p = parcels[(region, parcel)]
         area_ha += p['area_ha']
+        grp = [bucket_key, 'Genere'] if fine else [bucket_key.loc[ptrees.index], 'Genere']
         if use_volume:
-            agg = ptrees.groupby(['_bucket', 'Genere'])['V(m3)'].sum().unstack(fill_value=0)
+            agg = ptrees.groupby(grp)['V(m3)'].sum().unstack(fill_value=0)
         else:
-            agg = ptrees.groupby(['_bucket', 'Genere']).size().unstack(fill_value=0)
+            agg = ptrees.groupby(grp).size().unstack(fill_value=0)
         if stime_totali:
             agg = agg / p['sampled_frac']
         results[(region, parcel)] = agg
@@ -1340,8 +1339,7 @@ def calculate_ip_table(data: dict, group_cols: list[str],
                        stime_totali: bool) -> pd.DataFrame:
     """Calculate the table rows for the @@tip/@@gip directives. Returns a DataFrame.
 
-    For each group (always includes Genere and Classe diametrica),
-    computes:
+    For each group (always includes Genere and Diametro bucket), computes:
       - ip_medio: mean of IP across trees in the group
       - incremento_corrente: sum(V(m3)) * mean(IP) / 100
     When stime_totali is True, volumes are scaled by 1/sampled_frac per parcel.
@@ -1353,7 +1351,7 @@ def calculate_ip_table(data: dict, group_cols: list[str],
             raise ValueError(f"@@tip/@@gip richiede la colonna '{col}'. "
                              "Esegui --calcola-incrementi e --calcola-altezze-volumi.")
 
-    all_cols = group_cols + ['Genere', 'Classe diametrica']
+    all_cols = group_cols + ['Genere', 'Diametro']
 
     rows = []
     for group_key, group_trees in trees.groupby(all_cols):
@@ -1394,19 +1392,20 @@ def render_tip_table(data: dict, formatter: SnippetFormatter,
     if options['per_particella']:
         headers.append(('Particella', 'l'))
     headers.append(('Genere', 'l'))
-    headers.append(('Classe diam.', 'r'))
+    headers.append(('Diametro', 'r'))
     headers.append(('IP medio', 'r'))
     headers.append(('Incr. corrente (m³)', 'r'))
 
     df_display = df.copy()
+    # Convert bucket (5, 10, 15...) to range label ("1-5", "6-10", "11-15"...)
+    df_display['Diametro'] = df_display['Diametro'].apply(lambda n: f"{n-4}-{n}")
     df_display['ip_medio'] = df_display['ip_medio'].apply(lambda x: f"{x:.2f}")
     df_display['incremento_corrente'] = df_display['incremento_corrente'].apply(
         lambda x: f"{x:.4f}")
 
     # Keep only display columns in order
     col_order = [h[0] for h in headers]
-    rename = {'Classe diametrica': 'Classe diam.',
-              'ip_medio': 'IP medio',
+    rename = {'ip_medio': 'IP medio',
               'incremento_corrente': 'Incr. corrente (m³)'}
     df_display = df_display.rename(columns=rename)
     df_display = df_display[col_order]
@@ -1447,14 +1446,16 @@ def render_gip_graph(data: dict, output_path: Path,
             curve_key = (curve_key,)
         label = ' / '.join(str(k) for k in curve_key)
         genere = curve_key[-1]  # last element is always Genere
-        curve_df = curve_df.sort_values('Classe diametrica')
-        ax.plot(curve_df['Classe diametrica'], curve_df[y_col],
+        curve_df = curve_df.sort_values('Diametro')
+        ax.plot(curve_df['Diametro'], curve_df[y_col],
                 marker='o', markersize=3, linewidth=1.5,
                 color=color_map.get(genere, '#0c63e7'),
                 label=label, alpha=0.85)
 
-    ax.set_xlabel('Classe diametrica')
+    ax.set_xlabel('Diametro (cm)')
     ax.set_ylabel(y_label)
+    x_max = df['Diametro'].max() + 5
+    ax.set_xticks(range(0, x_max + 1, 10))
     ax.legend(title='Specie', bbox_to_anchor=(1.01, 1.02), alignment='left')
     ax.grid(axis='y', alpha=0.3)
 
