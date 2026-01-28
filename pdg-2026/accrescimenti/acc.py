@@ -1953,6 +1953,35 @@ def render_gpt_graph(data: dict, comparti_df: pd.DataFrame,
 # TEMPLATE PROCESSING
 # =============================================================================
 
+
+def check_allowed_params(directive: str, params: dict, options: dict):
+    """Check that all keys in params are in options, raise ValueError if not."""
+    bad_keys = []
+    for key in params.keys():
+        if key not in options and key not in ['alberi', 'compresa', 'particella', 'genere']:
+            bad_keys.append(key)
+    if bad_keys:
+        raise ValueError(f"Parametri non validi '{bad_keys}' in @@{directive}")
+
+
+def check_required_params(directive: str, params: dict, required_keys: list[str]):
+    """Check that all keys in required_keys are present in params, raise ValueError if not."""
+    missing_keys = []
+    for key in required_keys:
+        if key not in params:
+            missing_keys.append(key)
+    if missing_keys:
+        raise ValueError(f"Parametri obbligatori mancanti '{missing_keys}' in @@{directive}")
+
+
+def check_param_values(options: dict, key: str, valid_values: list[str], directive: str):
+    """Check that options[key] is in valid_values, raise ValueError if not."""
+    value = options.get(key)
+    if value not in valid_values:
+        raise ValueError(f"Valore non valido per '{key}' in @@{directive}: '{value}'. "
+                         f"Valori validi: {', '.join(valid_values)}")
+
+
 def parse_template_directive(line: str) -> Optional[dict]:
     """
     Parse a template directive like @@gci(compresa=Serra, genere=Abete).
@@ -2095,22 +2124,6 @@ def process_template(template_text: str, data_dir: Path,
 
             if not alberi_files and keyword not in ('prop', 'particelle'):
                 raise ValueError(f"@@{keyword} richiede alberi=FILE")
-            if keyword == 'gci' and not equazioni_files:
-                raise ValueError("@@gci richiede equazioni=FILE")
-            elif keyword == 'tpt':
-                if not params.get('comparti'):
-                    raise ValueError("@@tpt richiede comparti=FILE")
-                if not params.get('provv_vol'):
-                    raise ValueError("@@tpt richiede provv_vol=FILE")
-                if not params.get('provv_eta'):
-                    raise ValueError("@@tpt richiede provv_eta=FILE")
-            elif keyword == 'gpt':
-                if not params.get('comparti'):
-                    raise ValueError("@@gpt richiede comparti=FILE")
-                if not params.get('provv_vol'):
-                    raise ValueError("@@gpt richiede provv_vol=FILE")
-                if not params.get('provv_eta'):
-                    raise ValueError("@@gpt richiede provv_eta=FILE")
 
             comprese = params.get('compresa', [])
             particelle = params.get('particella', [])
@@ -2139,15 +2152,16 @@ def process_template(template_text: str, data_dir: Path,
                             params.get('intervallo_fiduciario', 'no').lower() == 'si',
                         'totali': params.get('totali', 'no').lower() == 'si'
                     }
+                    check_allowed_params(keyword, params, options)
                     result = render_tsv_table(data, formatter, **options)
                 case 'tpt':
-                    if params.get('genere', None) is not None:
+                    if 'genere' in params:
                         raise ValueError("@@tpt non supporta il parametro 'genere' "
                                          "(usa 'per_genere=si' per raggruppare per specie)")
-                    comparti_df = load_csv(params['comparti'], data_dir)
-                    provv_vol_df = load_csv(params['provv_vol'], data_dir)
-                    provv_eta_df = load_csv(params['provv_eta'], data_dir)
                     options = {
+                        'comparti': True,
+                        'provv_vol': True,
+                        'provv_eta': True,
                         'per_compresa': params.get('per_compresa', 'si').lower() == 'si',
                         'per_particella': params.get('per_particella', 'si').lower() == 'si',
                         'per_genere': params.get('per_genere', 'no').lower() == 'si',
@@ -2160,6 +2174,11 @@ def process_template(template_text: str, data_dir: Path,
                         'col_prelievo': params.get('col_prelievo', 'si').lower() == 'si',
                         'totali': params.get('totali', 'no').lower() == 'si',
                     }
+                    check_allowed_params(keyword, params, options)
+                    check_required_params(keyword, params, ['comparti', 'provv_vol', 'provv_eta'])
+                    comparti_df = load_csv(params['comparti'], data_dir)
+                    provv_vol_df = load_csv(params['provv_vol'], data_dir)
+                    provv_eta_df = load_csv(params['provv_eta'], data_dir)
                     result = render_tpt_table(data, comparti_df, provv_vol_df,
                                               provv_eta_df, formatter, **options)
                 case 'tip':
@@ -2169,6 +2188,7 @@ def process_template(template_text: str, data_dir: Path,
                         'stime_totali': params.get('stime_totali', 'si').lower() == 'si',
                         'totali': params.get('totali', 'no').lower() == 'si',
                     }
+                    check_allowed_params(keyword, params, options)
                     result = render_tip_table(data, formatter, **options)
                 case 'gip':
                     options = {
@@ -2178,6 +2198,8 @@ def process_template(template_text: str, data_dir: Path,
                         'metrica': params.get('metrica', 'ip'),
                         'stile': params.get('stile'),
                     }
+                    check_allowed_params(keyword, params, options)
+                    check_param_values(options, 'metrica', ['ip', 'ic'], '@@gip')
                     filename = _build_graph_filename(comprese, particelle, generi, keyword)
                     result = render_gip_graph(data, output_dir / filename,
                                               formatter, color_map, **options)
@@ -2189,6 +2211,8 @@ def process_template(template_text: str, data_dir: Path,
                         'metrica': params.get('metrica', 'alberi_ha'),
                         'stime_totali': params.get('stime_totali', 'si').lower() == 'si',
                     }
+                    check_allowed_params(keyword, params, options)
+                    check_param_values(options, 'metrica', ['alberi_ha', 'volume_ha', 'alberi_tot', 'volume_tot'], '@@gcd')
                     filename = _build_graph_filename(comprese, particelle, generi, keyword)
                     result = render_gcd_graph(data, output_dir / filename,
                                               formatter, color_map, **options)
@@ -2197,13 +2221,18 @@ def process_template(template_text: str, data_dir: Path,
                         'metrica': params.get('metrica', 'alberi_ha'),
                         'stime_totali': params.get('stime_totali', 'si').lower() == 'si',
                     }
+                    check_allowed_params(keyword, params, options)
+                    check_param_values(options, 'metrica', ['alberi_ha', 'volume_ha', 'alberi_tot', 'volume_tot'], '@@tcd')
                     result = render_tcd_table(data, formatter, **options)
                 case 'gci':
                     options = {
+                        'equazioni': True,
                         'x_max': int(params.get('x_max', 0)),
                         'y_max': int(params.get('y_max', 0)),
                         'stile': params.get('stile'),
                     }
+                    check_allowed_params(keyword, params, options)
+                    check_required_params(keyword, params, ['equazioni'])
                     equations_df = load_csv(equazioni_files, data_dir)
                     filename = _build_graph_filename(comprese, particelle, generi, keyword)
                     result = render_gci_graph(data, equations_df, output_dir / filename,
@@ -2215,20 +2244,26 @@ def process_template(template_text: str, data_dir: Path,
                         'per_genere': params.get('per_genere', 'no').lower() == 'si',
                         'stile': params.get('stile'),
                     }
+                    check_allowed_params(keyword, params, options)
                     filename = _build_graph_filename(comprese, particelle, generi, keyword)
                     result = render_gsv_graph(data, output_dir / filename,
                                               formatter, color_map, **options)
                 case 'gpt':
-                    if params.get('per_genere', None) is not None:
+                    if 'per_genere' in params:
                         raise ValueError("@@gpt non supporta il parametro 'per_genere'")
+                    options = {
+                        'comparti': True,
+                        'provv_vol': True,
+                        'provv_eta': True,
+                        'per_compresa': params.get('per_compresa', 'si').lower() == 'si',
+                        'per_particella': params.get('per_particella', 'si').lower() == 'si',
+                        'stile': params.get('stile')
+                    }
+                    check_allowed_params(keyword, params, options)
+                    check_required_params(keyword, params, ['comparti', 'provv_vol', 'provv_eta'])
                     comparti_df = load_csv(params['comparti'], data_dir)
                     provv_vol_df = load_csv(params['provv_vol'], data_dir)
                     provv_eta_df = load_csv(params['provv_eta'], data_dir)
-                    options = {
-                        'per_compresa': params.get('per_compresa', 'si').lower() == 'si',
-                        'per_particella': params.get('per_particella', 'si').lower() == 'si',
-                        'stile': params.get('stile'),
-                    }
                     filename = _build_graph_filename(comprese, particelle, generi, keyword)
                     result = render_gpt_graph(data, comparti_df, provv_vol_df, provv_eta_df,
                                               output_dir / filename, formatter, **options)
