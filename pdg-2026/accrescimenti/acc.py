@@ -976,25 +976,52 @@ GCD_Y_LABELS = {
     'volume_tot': 'Stima volume totale (m³)',
 }
 
-def _calculate_cd_data(data: dict, metrica: str, stime_totali: bool) -> pd.DataFrame:
+# Coarse bins for @@tcd table
+COARSE_BIN0 = "1-30 cm"
+COARSE_BIN1 = "31-50 cm"
+COARSE_BIN2 = "50+ cm"
+COARSE_BINS = [COARSE_BIN0, COARSE_BIN1, COARSE_BIN2]
+
+
+def _calculate_cd_data(data: dict, metrica: str, stime_totali: bool,
+                       fine: bool = True) -> pd.DataFrame:
     """Calculate diameter class data for @@gcd/@@tcd directives.
 
-    Returns a DataFrame indexed by Classe diametrica with species as columns.
+    Args:
+        data: Output from region_data
+        metrica: alberi_ha|alberi_tot|volume_ha|volume_tot
+        stime_totali: scale by 1/sampled_frac if True
+        fine: True for 5cm buckets (5, 10, 15...), False for 3 coarse buckets
+
+    Returns DataFrame indexed by bucket with species as columns.
     """
-    trees = data['trees']
+    trees = data['trees'].copy()
     parcels = data['parcels']
     species = data['species']
     use_volume = metrica.startswith('volume')
     per_ha = metrica.endswith('_ha')
+
+    # Assign diameter buckets
+    if fine:
+        # 5cm buckets: D in (0,5] -> 5, D in (5,10] -> 10, etc.
+        trees['_bucket'] = ((np.floor((trees['D(cm)'] - 1) / 5) + 1) * 5).astype(int)
+    else:
+        def coarse_bin(d):
+            if d <= 30:
+                return COARSE_BIN0
+            elif d <= 50:
+                return COARSE_BIN1
+            return COARSE_BIN2
+        trees['_bucket'] = trees['D(cm)'].apply(coarse_bin)
 
     results, area_ha = {}, 0
     for (region, parcel), ptrees in trees.groupby(['Compresa', 'Particella']):
         p = parcels[(region, parcel)]
         area_ha += p['area_ha']
         if use_volume:
-            agg = ptrees.groupby(['Classe diametrica', 'Genere'])['V(m3)'].sum().unstack(fill_value=0)
+            agg = ptrees.groupby(['_bucket', 'Genere'])['V(m3)'].sum().unstack(fill_value=0)
         else:
-            agg = ptrees.groupby(['Classe diametrica', 'Genere']).size().unstack(fill_value=0)
+            agg = ptrees.groupby(['_bucket', 'Genere']).size().unstack(fill_value=0)
         if stime_totali:
             agg = agg / p['sampled_frac']
         results[(region, parcel)] = agg
@@ -1027,7 +1054,7 @@ def render_gcd_graph(data: dict, output_path: Path,
     metrica = options.get('metrica', 'alberi_ha')
     stime_totali = options.get('stime_totali', True)
 
-    values_df = _calculate_cd_data(data, metrica, stime_totali)
+    values_df = _calculate_cd_data(data, metrica, stime_totali, fine=True)
 
     figsize = (4, 3.75)
     fig, ax = plt.subplots(figsize=figsize)
@@ -1037,21 +1064,22 @@ def render_gcd_graph(data: dict, output_path: Path,
         if genere not in values_df.columns:
             continue
         values = values_df[genere].values
-        ax.bar(values_df.index, values, bottom=bottom,
+        ax.bar(values_df.index, values, bottom=bottom, width=4,
                label=genere, color=color_map[genere],
                alpha=0.8, edgecolor='white', linewidth=0.5)
         bottom += values
 
-    x_max = (options.get('x_max', 0)
-        if options.get('x_max', 0) > 0 else trees['Classe diametrica'].max()+2)
+    # x_max in cm (fine buckets are 5, 10, 15...)
+    max_bucket = values_df.index.max() if len(values_df) > 0 else 50
+    x_max = options.get('x_max', 0) if options.get('x_max', 0) > 0 else max_bucket + 5
     y_max = (options.get('y_max', 0)
         if options.get('y_max', 0) > 0 else values_df.sum(axis=1).max() * 1.1)
 
-    ax.set_xlabel('Classe diametrica')
+    ax.set_xlabel('Diametro (cm)')
     ax.set_ylabel(GCD_Y_LABELS[metrica])
-    ax.set_xlim(-0.5, x_max)
+    ax.set_xlim(0, x_max)
     ax.set_ylim(0, y_max)
-    ax.set_xticks(range(0, x_max, 2))
+    ax.set_xticks(range(0, x_max + 1, 10))
     ax.grid(True, alpha=0.3, axis='y')
     ax.set_axisbelow(True)
 
@@ -1073,54 +1101,12 @@ def render_gcd_graph(data: dict, output_path: Path,
     }
 
 
-BIN0 = "0-19 cm"
-BIN1 = "20-39 cm"
-BIN2 = "40+ cm"
-
-def _calculate_tcd_data(data: dict, metrica: str, stime_totali: bool) -> pd.DataFrame:
-    """Calculate binned diameter class data for @@tcd directive.
-
-    Returns a DataFrame indexed by bin (BIN0, BIN1, BIN2) with species as columns.
-    """
-    trees = data['trees'].copy()
-    parcels = data['parcels']
-    species = data['species']
-    use_volume = metrica.startswith('volume')
-    per_ha = metrica.endswith('_ha')
-
-    def diameter_bin(d):
-        if d < 20:
-            return BIN0
-        elif d < 40:
-            return BIN1
-        return BIN2
-
-    trees['Classe'] = trees['D(cm)'].apply(diameter_bin)
-
-    results, area_ha = {}, 0
-    for (region, parcel), ptrees in trees.groupby(['Compresa', 'Particella']):
-        p = parcels[(region, parcel)]
-        area_ha += p['area_ha']
-        if use_volume:
-            agg = ptrees.groupby(['Classe', 'Genere'])['V(m3)'].sum().unstack(fill_value=0)
-        else:
-            agg = ptrees.groupby(['Classe', 'Genere']).size().unstack(fill_value=0)
-        if stime_totali:
-            agg = agg / p['sampled_frac']
-        results[(region, parcel)] = agg
-
-    combined = pd.concat(results.values()).groupby(level=0).sum()
-    if per_ha:
-        combined = combined / area_ha
-    return combined.reindex(columns=species, fill_value=0)
-
-
 def render_tcd_table(data: dict, formatter: SnippetFormatter, **options) -> dict:
     """
     Generate diameter class table (@@tcd directive).
 
     Creates a table with rows for each species and columns for diameter ranges:
-    [0-20) cm, [20-40) cm, and ≥40 cm.
+    (0,30], (30,50], (50,max].
 
     Args:
         data: Output from parcel_data
@@ -1135,18 +1121,17 @@ def render_tcd_table(data: dict, formatter: SnippetFormatter, **options) -> dict
     stime_totali = options.get('stime_totali', True)
     use_volume = metrica.startswith('volume')
 
-    values_df = _calculate_tcd_data(data, metrica, stime_totali)
+    values_df = _calculate_cd_data(data, metrica, stime_totali, fine=False)
 
-    bin_order = [BIN0, BIN1, BIN2]
-    headers = [('Genere', 'l')] + [(b, 'r') for b in bin_order] + [('Totale', 'r')]
+    headers = [('Genere', 'l')] + [(b, 'r') for b in COARSE_BINS] + [('Totale', 'r')]
     fmt = "{:.2f}" if use_volume else "{:.0f}"
 
     rows = []
-    col_totals = {b: 0.0 for b in bin_order}
+    col_totals = {b: 0.0 for b in COARSE_BINS}
     for genere in species:
         row = [genere]
         row_total = 0.0
-        for b in bin_order:
+        for b in COARSE_BINS:
             val = values_df.loc[b, genere] if b in values_df.index else 0
             row.append(fmt.format(val))
             row_total += val
@@ -1155,7 +1140,7 @@ def render_tcd_table(data: dict, formatter: SnippetFormatter, **options) -> dict
         rows.append(row)
 
     # Add totals row
-    total_row = ['Totale'] + [fmt.format(col_totals[b]) for b in bin_order]
+    total_row = ['Totale'] + [fmt.format(col_totals[b]) for b in COARSE_BINS]
     total_row.append(fmt.format(sum(col_totals.values())))
     rows.append(total_row)
 
