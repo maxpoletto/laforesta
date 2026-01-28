@@ -1,24 +1,50 @@
 \subsection{@@compresa, particella @@particella}
+
 {\footnotesize
+
 \subsubsection*{Caratteristiche generali}
 @@prop(compresa=@@compresa,particella=@@particella)
+
 \subsubsection*{Classi diametriche}
-\begin{minipage}[c]{0.45\textwidth}
+\begin{minipage}[t][][c]{0.5\textwidth}
 \centering
-@@gcd(compresa=@@compresa,particella=@@particella,alberi=alberi-calcolati.csv,x_max=24,piccolo=si)
+@@gcd(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,x_max=24,stile=width=\textwidth)
 \end{minipage}%
 \hfill
-\begin{minipage}[t]{0.45\textwidth}
-@@tcd(compresa=@@compresa,particella=@@particella,alberi=alberi-calcolati.csv)
+\begin{minipage}[t][][t]{0.5\textwidth}
+    \vspace{-\baselineskip}
+    \begingroup
+        \setlength{\LTleft}{0pt}
+        \begin{flushright}
+            @@tcd(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella)
+        \end{flushright}
+    \endgroup
 \end{minipage}
+
 \subsubsection*{Volumi}
 @@tsv(compresa=@@compresa,particella=@@particella,alberi=alberi-calcolati.csv,per_genere=si,per_compresa=no,per_particella=no,intervallo_fiduciario=si,totali=si,stime_totali=si)
-\subsubsection{Incrementi}
-@@tip(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,per_compresa=no,per_particella=no,stime_totali=si,totali=si)
-@@gip(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,per_compresa=no,per_particella=no,stime_totali=si,metrica=ip)
-@@gip(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,per_compresa=no,per_particella=no,stime_totali=si,metrica=incremento)
+
+\subsubsection*{Incrementi}
+\begin{minipage}[t][][t]{0.5\textwidth}
+    \begingroup
+        \setlength{\LTleft}{0pt}
+        \vspace{-\baselineskip}
+        \begin{flushleft}
+            @@tip(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,per_compresa=no,per_particella=no,stime_totali=si,totali=si)
+        \end{flushleft}
+    \endgroup
+\end{minipage}%
+\hfill
+\begin{minipage}[t][][c]{0.5\textwidth}
+    \begin{flushright}
+        @@gip(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,per_compresa=no,per_particella=no,stime_totali=si,metrica=ip,stile=width=\textwidth)
+        \vspace*{1em}
+        @@gip(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,per_compresa=no,per_particella=no,stime_totali=si,metrica=incremento,stile=width=\textwidth)
+    \end{flushright}
+\end{minipage}
 
 \subsubsection*{Ripresa}
 @@tpt(compresa=@@compresa,particella=@@particella,alberi=alberi-calcolati.csv,comparti=comparti.csv,provv_vol=provv_vol.csv,provv_eta=provv_eta.csv,per_compresa=no,per_particella=no,per_genere=si,col_area_ha=no,totali=si)
+
 }
 \clearpage
