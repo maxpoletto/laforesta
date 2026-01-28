@@ -86,7 +86,7 @@ class HTMLSnippetFormatter(SnippetFormatter):
     """HTML snippet formatter."""
 
     def format_image(self, filepath: Path, options: dict = None) -> str:
-        cls = 'graph-image-small' if options and options.get('piccolo') else 'graph-image'
+        cls = options['stile'] if options['stile'] else 'graph-image'
         return f'<img src="{filepath.name}" class="{cls}">'
 
     def format_metadata(self, data: dict, curve_info: list = None) -> str:
@@ -142,9 +142,9 @@ class LaTeXSnippetFormatter(SnippetFormatter):
     """LaTeX snippet formatter."""
 
     def format_image(self, filepath: Path, options: dict = None) -> str:
-        height = '0.28' if options and options.get('piccolo') else '0.5'
+        fmt = options['stile'] if options['stile'] else 'width=0.5\\textwidth'
         latex = '\\begin{center}\n'
-        latex += f'  \\includegraphics[height={height}\\textheight]{{{filepath.name}}}\n'
+        latex += f'  \\includegraphics[{fmt}]{{{filepath.name}}}\n'
         latex += '\\end{center}\n'
         return latex
 
@@ -897,7 +897,6 @@ def render_gci_graph(data: dict, equations_df: pd.DataFrame,
     species = data['species']
     regions = data['regions']
 
-    #figsize = (2, 1.5) if options.get('piccolo', False) else (4, 3)
     figsize = (4, 3)
     fig, ax = plt.subplots(figsize=figsize)
 
@@ -1000,7 +999,6 @@ def render_gcd_graph(data: dict, output_path: Path,
     counts = pd.concat(counts.values()).groupby(level=0).sum()/area_ha
     counts = counts[species].fillna(0).sort_index()
 
-    # figsize = (2, 1.875) if options.get('piccolo', False) else (4, 3.75)
     figsize = (4, 3.75)
     fig, ax = plt.subplots(figsize=figsize)
 
@@ -1566,7 +1564,7 @@ def render_gsv_graph(data: dict, output_path: Path,
     plt.savefig(output_path, bbox_inches='tight')
     plt.close(fig)
 
-    snippet = formatter.format_image(output_path)
+    snippet = formatter.format_image(output_path, options)
     snippet += '\n' + formatter.format_metadata(data)
 
     return {'filepath': output_path, 'snippet': snippet}
@@ -1908,7 +1906,7 @@ def render_gpt_graph(data: dict, comparti_df: pd.DataFrame,
     plt.savefig(output_path, bbox_inches='tight')
     plt.close(fig)
 
-    snippet = formatter.format_image(output_path)
+    snippet = formatter.format_image(output_path, options)
     snippet += '\n' + formatter.format_metadata(data)
 
     return {'filepath': output_path, 'snippet': snippet}
@@ -1986,7 +1984,7 @@ def process_template(template_text: str, data_dir: Path,
         data_dir: Base directory for data files (alberi, equazioni)
         parcel_file: Parcel metadata file
         output_dir: Where to save generated graphs
-        format_type: 'html' or 'latex'
+        format_type: 'html' or 'tex'
         template_dir: Directory containing template files (for @@particelle modello)
 
     Returns:
@@ -2020,6 +2018,7 @@ def process_template(template_text: str, data_dir: Path,
         if not template_dir:
             raise ValueError("@@particelle richiede --input per trovare il modello")
 
+        # TODO: support .csv output
         ext = '.html' if format_type == 'html' else '.tex'
         modello_path = template_dir / (modello + ext)
         if not modello_path.exists():
@@ -2138,6 +2137,7 @@ def process_template(template_text: str, data_dir: Path,
                         'per_particella': params.get('per_particella', 'no').lower() == 'si',
                         'stime_totali': params.get('stime_totali', 'no').lower() == 'si',
                         'metrica': params.get('metrica', 'ip'),
+                        'stile': params.get('stile'),
                     }
                     filename = _build_graph_filename(comprese, particelle, generi, keyword)
                     result = render_gip_graph(data, output_dir / filename,
@@ -2146,7 +2146,7 @@ def process_template(template_text: str, data_dir: Path,
                     options = {
                         'x_max': int(params.get('x_max', 0)),
                         'y_max': int(params.get('y_max', 0)),
-                        'piccolo': params.get('piccolo', 'no').lower() == 'si',
+                        'stile': params.get('stile'),
                     }
                     filename = _build_graph_filename(comprese, particelle, generi, keyword)
                     result = render_gcd_graph(data, output_dir / filename,
@@ -2157,7 +2157,7 @@ def process_template(template_text: str, data_dir: Path,
                     options = {
                         'x_max': int(params.get('x_max', 0)),
                         'y_max': int(params.get('y_max', 0)),
-                        'piccolo': params.get('piccolo', 'no').lower() == 'si',
+                        'stile': params.get('stile'),
                     }
                     equations_df = load_csv(equazioni_files, data_dir)
                     filename = _build_graph_filename(comprese, particelle, generi, keyword)
@@ -2168,6 +2168,7 @@ def process_template(template_text: str, data_dir: Path,
                         'per_compresa': params.get('per_compresa', 'si').lower() == 'si',
                         'per_particella': params.get('per_particella', 'si').lower() == 'si',
                         'per_genere': params.get('per_genere', 'no').lower() == 'si',
+                        'stile': params.get('stile'),
                     }
                     filename = _build_graph_filename(comprese, particelle, generi, keyword)
                     result = render_gsv_graph(data, output_dir / filename,
@@ -2181,6 +2182,7 @@ def process_template(template_text: str, data_dir: Path,
                     options = {
                         'per_compresa': params.get('per_compresa', 'si').lower() == 'si',
                         'per_particella': params.get('per_particella', 'si').lower() == 'si',
+                        'stile': params.get('stile'),
                     }
                     filename = _build_graph_filename(comprese, particelle, generi, keyword)
                     result = render_gpt_graph(data, comparti_df, provv_vol_df, provv_eta_df,
@@ -2198,7 +2200,7 @@ def process_template(template_text: str, data_dir: Path,
             formatter = HTMLSnippetFormatter()
         case 'csv':
             formatter = CSVSnippetFormatter()
-        case 'latex' | 'pdf':
+        case 'tex' | 'pdf':
             formatter = LaTeXSnippetFormatter()
         case _:
             raise ValueError(f"Formato non supportato: {format_type}")
@@ -2443,7 +2445,7 @@ Modalità di utilizzo:
 
     # Specific options for --report
     report_group = parser.add_argument_group('Opzioni per --report')
-    report_group.add_argument('--formato', choices=['csv', 'html', 'latex', 'pdf'], default='pdf',
+    report_group.add_argument('--formato', choices=['csv', 'html', 'tex', 'pdf'], default='pdf',
                              help='Formato output (default: pdf)')
     report_group.add_argument('--ometti-generi-sconosciuti', action='store_true',
                              help='Ometti dai grafici generi per cui non abbiamo equazioni')
