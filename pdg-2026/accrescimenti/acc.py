@@ -2043,7 +2043,7 @@ def process_template(template_text: str, data_dir: Path,
         filename_counts[base_name] += 1
         return f'{base_name}_{filename_counts[base_name]:02d}.png'
 
-    def render_particelle(comprese: list[str], particelle_df: pd.DataFrame, params: dict):
+    def render_particelle(comprese: list[str], particelle: list[str], particelle_df: pd.DataFrame, params: dict):
         """
         Render information about all parcels in compresa by filling in a model template.
         """
@@ -2067,6 +2067,8 @@ def process_template(template_text: str, data_dir: Path,
         parcel_rows = particelle_df[(particelle_df['Compresa'] == compresa) &
                                     (particelle_df['Governo'] == 'Fustaia')]
         parcel_list = sorted(parcel_rows['Particella'].unique(), key=natural_sort_key)
+        if particelle:
+            parcel_list = [p for p in parcel_list if p in particelle]
 
         output_parts = []
         for particella in parcel_list:
@@ -2121,7 +2123,7 @@ def process_template(template_text: str, data_dir: Path,
                 return result['snippet']
 
             if keyword == 'particelle':
-                return render_particelle(comprese, particelle_df, params)
+                return render_particelle(comprese, particelle, particelle_df, params)
 
             trees_df = load_trees(alberi_files, data_dir)
             data = parcel_data(alberi_files, trees_df, particelle_df, comprese, particelle, generi)
