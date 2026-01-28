@@ -942,8 +942,8 @@ def render_gci_graph(data: dict, equations_df: pd.DataFrame,
 
     x_max = max(options.get('x_max', 0), trees['D(cm)'].max() + 3)
     y_max = max(options.get('y_max', 0), (trees['h(m)'].max() + 6) // 5 * 5)
-    ax.set_xlabel('Diametro (cm)', fontweight='bold')
-    ax.set_ylabel('Altezza (m)', fontweight='bold')
+    ax.set_xlabel('Diametro (cm)')
+    ax.set_ylabel('Altezza (m)')
     ax.set_xlim(-0.5, x_max)
     ax.set_ylim(0, y_max)
     ax.set_xticks(range(0, x_max, 1+x_max//10))
@@ -1017,8 +1017,8 @@ def render_gcd_graph(data: dict, output_path: Path,
     y_max = (options.get('y_max', 0)
         if options.get('y_max', 0) > 0 else counts.sum(axis=1).max() * 1.1)
 
-    ax.set_xlabel('Classe diametrica', fontweight='bold')
-    ax.set_ylabel('Stima alberi / ha', fontweight='bold')
+    ax.set_xlabel('Classe diametrica')
+    ax.set_ylabel('Stima alberi / ha')
     ax.set_xlim(-0.5, x_max)
     ax.set_ylim(0, y_max)
     ax.set_xticks(range(0, x_max, 2))
@@ -1417,8 +1417,8 @@ def render_gip_graph(data: dict, output_path: Path,
                 color=color_map.get(genere, '#0c63e7'),
                 label=label, alpha=0.85)
 
-    ax.set_xlabel('Classe diametrica', fontweight='bold')
-    ax.set_ylabel(y_label, fontweight='bold')
+    ax.set_xlabel('Classe diametrica')
+    ax.set_ylabel(y_label)
     ax.legend(title='Specie', bbox_to_anchor=(1.01, 1.02), alignment='left')
     ax.grid(axis='y', alpha=0.3)
 
@@ -1555,7 +1555,7 @@ def render_gsv_graph(data: dict, output_path: Path,
         ax.set_yticklabels(labels)
         ax.invert_yaxis()
 
-    ax.set_xlabel('Volume (m³)', fontweight='bold')
+    ax.set_xlabel('Volume (m³)')
     ax.grid(True, alpha=0.3, axis='x')
     ax.set_axisbelow(True)
     ax.set_xlim(0, None)
@@ -1897,7 +1897,7 @@ def render_gpt_graph(data: dict, comparti_df: pd.DataFrame,
     ax.set_yticklabels(labels)
     ax.invert_yaxis()
 
-    ax.set_xlabel('Prelievo (m³)', fontweight='bold')
+    ax.set_xlabel('Prelievo (m³)')
     ax.grid(True, alpha=0.3, axis='x')
     ax.set_axisbelow(True)
     ax.set_xlim(0, None)
