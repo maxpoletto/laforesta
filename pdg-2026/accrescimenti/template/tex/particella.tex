@@ -13,6 +13,11 @@
 \end{minipage}
 \subsubsection*{Volumi}
 @@tsv(compresa=@@compresa,particella=@@particella,alberi=alberi-calcolati.csv,per_genere=si,per_compresa=no,per_particella=no,intervallo_fiduciario=si,totali=si,stime_totali=si)
+\subsubsection{Incrementi}
+@@tip(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,per_compresa=no,per_particella=no,stime_totali=si,totali=si)
+@@gip(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,per_compresa=no,per_particella=no,stime_totali=si,metrica=ip)
+@@gip(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,per_compresa=no,per_particella=no,stime_totali=si,metrica=incremento)
+
 \subsubsection*{Ripresa}
 @@tpt(compresa=@@compresa,particella=@@particella,alberi=alberi-calcolati.csv,comparti=comparti.csv,provv_vol=provv_vol.csv,provv_eta=provv_eta.csv,per_compresa=no,per_particella=no,per_genere=si,col_area_ha=no,totali=si)
 }
