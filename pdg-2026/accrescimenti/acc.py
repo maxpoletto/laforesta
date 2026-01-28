@@ -1088,7 +1088,8 @@ def render_gcd_graph(data: dict, output_path: Path,
             continue
         series = values_df[genere]
         if use_lines:
-            ax.plot(series.index, series.values, marker='o', markersize=3, linewidth=1.5,
+            nonzero = series[series > 0]
+            ax.plot(nonzero.index, nonzero.values, marker='o', markersize=3, linewidth=1.5,
                     color=color_map[genere], label=genere, alpha=0.85)
         else:
             ax.bar(series.index, series.values, bottom=bottom, width=4,
