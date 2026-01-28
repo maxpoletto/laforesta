@@ -1376,7 +1376,12 @@ def render_tip_table(data: dict, formatter: SnippetFormatter,
               'incremento_corrente': 'Incr. corrente (m³)'}
     df_display = df_display.rename(columns=rename)
     df_display = df_display[col_order]
-    rows = [list(map(str, row)) for row in df_display.values.tolist()]
+    display_rows = df_display.values.tolist()
+    if options['totali']:
+        total_row = ['Totale'] + [''] * (len(headers) - 2)
+        total_row.append(f"{df['incremento_corrente'].sum():.4f}")
+        display_rows.append(total_row)
+    rows = [list(map(str, row)) for row in display_rows]
     return {'snippet': formatter.format_table(headers, rows)}
 
 
@@ -2124,6 +2129,7 @@ def process_template(template_text: str, data_dir: Path,
                         'per_compresa': params.get('per_compresa', 'no').lower() == 'si',
                         'per_particella': params.get('per_particella', 'no').lower() == 'si',
                         'stime_totali': params.get('stime_totali', 'no').lower() == 'si',
+                        'totali': params.get('totali', 'no').lower() == 'si',
                     }
                     result = render_tip_table(data, formatter, **options)
                 case 'gip':
