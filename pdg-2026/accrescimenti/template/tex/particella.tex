@@ -5,7 +5,7 @@
 \subsubsection*{Caratteristiche generali}
 @@prop(compresa=@@compresa,particella=@@particella)
 
-\subsubsection*{Classi diametriche}
+\subsubsection*{Analisi per classi diametriche}
 
 \begin{minipage}[t][][c]{0.5\textwidth}
     \noindent \textsf{Alberi per ettaro}\\
@@ -30,9 +30,18 @@
         \end{flushright}
     \endgroup
 \end{minipage}
-
-\subsubsection*{Volumi}
-@@tsv(compresa=@@compresa,particella=@@particella,alberi=alberi-calcolati.csv,per_genere=si,per_compresa=no,per_particella=no,intervallo_fiduciario=si,totali=si,stime_totali=si)
+\\
+\begin{minipage}[t][][c]{0.5\textwidth}
+    \noindent \textsf{Area basimetrica per ettaro}\\
+    \vspace{-\baselineskip}
+    @@gcd(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,stile=width=\textwidth,metrica=G_ha)
+    \begingroup
+        \setlength{\LTleft}{0pt}
+        \begin{flushright}
+            @@tcd(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,metrica=G_ha)
+        \end{flushright}
+    \endgroup
+\end{minipage}
 
 \subsubsection*{Incrementi}
 \begin{minipage}[t][][t]{0.5\textwidth}
@@ -52,6 +61,9 @@
         @@gip(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,per_compresa=no,per_particella=no,stime_totali=si,metrica=ic,stile=width=\textwidth)
     \end{flushright}
 \end{minipage}
+
+\subsubsection*{Volumi}
+@@tsv(compresa=@@compresa,particella=@@particella,alberi=alberi-calcolati.csv,per_genere=si,per_compresa=no,per_particella=no,intervallo_fiduciario=si,totali=si,stime_totali=si)
 
 \subsubsection*{Ripresa}
 @@tpt(compresa=@@compresa,particella=@@particella,alberi=alberi-calcolati.csv,comparti=comparti.csv,provv_vol=provv_vol.csv,provv_eta=provv_eta.csv,per_compresa=no,per_particella=no,per_genere=si,col_area_ha=no,totali=si)
