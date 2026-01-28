@@ -980,6 +980,7 @@ GCD_Y_LABELS = {
     'volume_tot': 'Stima volume totale (m³)',
     'G_ha': 'Area basimetrica (m²/ha)',
     'G_tot': 'Area basimetrica totale (m²)',
+    'altezza': 'Altezza media (m)',
 }
 
 # Coarse bins for @@tcd table
@@ -989,7 +990,7 @@ COARSE_BIN2 = "50+ cm"
 COARSE_BINS = [COARSE_BIN0, COARSE_BIN1, COARSE_BIN2]
 
 # Aggregation types for _calculate_cd_data
-AGG_COUNT, AGG_VOLUME, AGG_BASAL = 0, 1, 2
+AGG_COUNT, AGG_VOLUME, AGG_BASAL, AGG_HEIGHT = 0, 1, 2, 3
 
 
 def _calculate_cd_data(data: dict, metrica: str, stime_totali: bool,
@@ -998,8 +999,8 @@ def _calculate_cd_data(data: dict, metrica: str, stime_totali: bool,
 
     Args:
         data: Output from region_data
-        metrica: alberi_ha|alberi_tot|volume_ha|volume_tot|G_ha|G_tot
-        stime_totali: scale by 1/sampled_frac if True
+        metrica: alberi_*|volume_*|G_*|altezza
+        stime_totali: scale by 1/sampled_frac if True (ignored for altezza)
         fine: True for 5cm buckets (5, 10, 15...), False for 3 coarse buckets
 
     Returns DataFrame indexed by bucket with species as columns.
@@ -1007,7 +1008,15 @@ def _calculate_cd_data(data: dict, metrica: str, stime_totali: bool,
     trees = data['trees']
     parcels = data['parcels']
     species = data['species']
-    agg_type = AGG_VOLUME if metrica.startswith('volume') else AGG_BASAL if metrica.startswith('G') else AGG_COUNT
+
+    if metrica.startswith('volume'):
+        agg_type = AGG_VOLUME
+    elif metrica.startswith('G'):
+        agg_type = AGG_BASAL
+    elif metrica == 'altezza':
+        agg_type = AGG_HEIGHT
+    else:
+        agg_type = AGG_COUNT
     per_ha = metrica.endswith('_ha')
 
     if fine:
@@ -1016,6 +1025,12 @@ def _calculate_cd_data(data: dict, metrica: str, stime_totali: bool,
         def coarse_bin(d):
             return COARSE_BIN0 if d <= 30 else COARSE_BIN1 if d <= 50 else COARSE_BIN2
         bucket_key = trees['Diametro'].apply(coarse_bin)
+
+    # For height, compute mean directly (no per-parcel scaling)
+    if agg_type == AGG_HEIGHT:
+        bucket_vals = trees['Diametro'] if fine else bucket_key
+        combined = trees.groupby([bucket_vals, 'Genere'])['h(m)'].mean().unstack(fill_value=0)
+        return combined.reindex(columns=species, fill_value=0).sort_index()
 
     results, area_ha = {}, 0
     for (region, parcel), ptrees in trees.groupby(['Compresa', 'Particella']):
@@ -1062,6 +1077,7 @@ def render_gcd_graph(data: dict, output_path: Path,
     stime_totali = options['stime_totali']
 
     values_df = _calculate_cd_data(data, metrica, stime_totali, fine=True)
+    use_lines = metrica == 'altezza'
 
     figsize = (4, 3.75)
     fig, ax = plt.subplots(figsize=figsize)
@@ -1070,17 +1086,21 @@ def render_gcd_graph(data: dict, output_path: Path,
     for genere in species:
         if genere not in values_df.columns:
             continue
-        values = values_df[genere].values
-        ax.bar(values_df.index, values, bottom=bottom, width=4,
-               label=genere, color=color_map[genere],
-               alpha=0.8, edgecolor='white', linewidth=0.5)
-        bottom += values
+        series = values_df[genere]
+        if use_lines:
+            ax.plot(series.index, series.values, marker='o', markersize=3, linewidth=1.5,
+                    color=color_map[genere], label=genere, alpha=0.85)
+        else:
+            ax.bar(series.index, series.values, bottom=bottom, width=4,
+                   label=genere, color=color_map[genere],
+                   alpha=0.8, edgecolor='white', linewidth=0.5)
+            bottom += series
 
     # x_max in cm (fine buckets are 5, 10, 15...)
     max_bucket = values_df.index.max() if len(values_df) > 0 else 50
     x_max = options['x_max'] if options['x_max'] > 0 else max_bucket + 5
-    y_max = (options['y_max']
-        if options['y_max'] > 0 else values_df.sum(axis=1).max() * 1.1)
+    y_max_auto = values_df.max().max() if use_lines else values_df.sum(axis=1).max()
+    y_max = options['y_max'] if options['y_max'] > 0 else y_max_auto * 1.1
 
     ax.set_xlabel('Diametro (cm)')
     ax.set_ylabel(GCD_Y_LABELS[metrica])
@@ -1090,10 +1110,11 @@ def render_gcd_graph(data: dict, output_path: Path,
     ax.grid(True, alpha=0.3, axis='y')
     ax.set_axisbelow(True)
 
-    # Reverse legend order to match visual stacking order (top-to-bottom)
     handles, labels = ax.get_legend_handles_labels()
-    ax.legend(reversed(handles), reversed(labels),
-              title='Specie', bbox_to_anchor=(1.01, 1.02), alignment='left')
+    if not use_lines:
+        # Reverse legend order to match visual stacking order (top-to-bottom)
+        handles, labels = reversed(handles), reversed(labels)
+    ax.legend(handles, labels, title='Specie', bbox_to_anchor=(1.01, 1.02), alignment='left')
 
     plt.tight_layout()
     plt.savefig(output_path, bbox_inches='tight')
@@ -1118,7 +1139,7 @@ def render_tcd_table(data: dict, formatter: SnippetFormatter, **options) -> dict
     Args:
         data: Output from parcel_data
         formatter: HTML or LaTeX snippet formatter
-        options: metrica (alberi_*|volume_*|G_*), stime_totali
+        options: metrica (alberi_*|volume_*|G_*|altezza), stime_totali
 
     Returns:
         dict with 'snippet' key containing formatted table
@@ -1126,7 +1147,7 @@ def render_tcd_table(data: dict, formatter: SnippetFormatter, **options) -> dict
     species = data['species']
     metrica = options['metrica']
     stime_totali = options['stime_totali']
-    use_decimals = metrica.startswith('volume') or metrica.startswith('G')
+    use_decimals = metrica.startswith('volume') or metrica.startswith('G') or metrica == 'altezza'
 
     values_df = _calculate_cd_data(data, metrica, stime_totali, fine=False)
 
@@ -2230,7 +2251,8 @@ def process_template(template_text: str, data_dir: Path,
                     }
                     check_allowed_params(keyword, params, options)
                     check_param_values(options, 'metrica',
-                        ['alberi_ha', 'G_ha', 'volume_ha', 'alberi_tot', 'G_tot', 'volume_tot'],
+                        ['alberi_ha', 'G_ha', 'volume_ha',
+                         'alberi_tot', 'G_tot', 'volume_tot', 'altezza'],
                         '@@gcd')
                     filename = _build_graph_filename(comprese, particelle, generi, keyword)
                     result = render_gcd_graph(data, output_dir / filename,
@@ -2242,7 +2264,8 @@ def process_template(template_text: str, data_dir: Path,
                     }
                     check_allowed_params(keyword, params, options)
                     check_param_values(options, 'metrica',
-                        ['alberi_ha', 'G_ha', 'volume_ha', 'alberi_tot', 'G_tot', 'volume_tot'],
+                        ['alberi_ha', 'G_ha', 'volume_ha',
+                         'alberi_tot', 'G_tot', 'volume_tot', 'altezza'],
                         '@@tcd')
                     result = render_tcd_table(data, formatter, **options)
                 case 'gci':
