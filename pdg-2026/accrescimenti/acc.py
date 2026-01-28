@@ -1783,6 +1783,7 @@ def render_tpt_table(data: dict, comparti_df: pd.DataFrame,
             - col_volume_ha: Show total volume per hectare column (default si)
             - col_pp_max: Show provvigione percentuale massima column (default si)
             - col_prelievo: Show harvest column (default si)
+            - col_prelievo_ha: Show harvest per hectare column (default si)
             - totali: Add totals row
 
         comparto and pp_max only appear if per_particella is True.
@@ -1809,9 +1810,9 @@ def render_tpt_table(data: dict, comparti_df: pd.DataFrame,
     for col in group_cols:
         headers.append((col, 'l'))
     if options['col_comparto'] and per_parcel:
-        headers.append(('Comparto', 'l'))
+        headers.append(('Comp.', 'l'))
     if options['col_eta'] and per_parcel:
-        headers.append(('Età (anni)', 'r'))
+        headers.append(('Età (aa)', 'r'))
     if options['col_area_ha']:
         headers.append(('Area (ha)', 'r'))
     if options['col_volume']:
@@ -1821,7 +1822,9 @@ def render_tpt_table(data: dict, comparti_df: pd.DataFrame,
     if options['col_pp_max'] and per_parcel:
         headers.append(('Prelievo \\%', 'r'))
     if options['col_prelievo']:
-        headers.append(('Prelievo (m³)', 'r'))
+        headers.append(('Prel tot (m³)', 'r'))
+    if options['col_prelievo_ha']:
+        headers.append(('Prel/ha (m³/ha)', 'r'))
 
     # Build display rows
     display_rows = []
@@ -1843,6 +1846,8 @@ def render_tpt_table(data: dict, comparti_df: pd.DataFrame,
             display_row.append(f"{row['pp_max']:.0f}")
         if options['col_prelievo']:
             display_row.append(f"{row['harvest']:.2f}")
+        if options['col_prelievo_ha']:
+            display_row.append(f"{row['harvest'] / row['area_ha']:.2f}")
         display_rows.append(display_row)
 
     # Add totals row if requested (and there are grouping columns)
@@ -1869,6 +1874,8 @@ def render_tpt_table(data: dict, comparti_df: pd.DataFrame,
             total_row.append('')  # PP_max doesn't aggregate meaningfully
         if options['col_prelievo']:
             total_row.append(f"{df['harvest'].sum():.2f}")
+        if options['col_prelievo_ha']:
+            total_row.append(f"{df['harvest'].sum() / total_area:.2f}")
         display_rows.append(total_row)
 
     return {'snippet': formatter.format_table(headers, display_rows)}
@@ -2172,6 +2179,7 @@ def process_template(template_text: str, data_dir: Path,
                         'col_volume_ha': params.get('col_volume_ha', 'si').lower() == 'si',
                         'col_pp_max': params.get('col_pp_max', 'si').lower() == 'si',
                         'col_prelievo': params.get('col_prelievo', 'si').lower() == 'si',
+                        'col_prelievo_ha': params.get('col_prelievo_ha', 'si').lower() == 'si',
                         'totali': params.get('totali', 'no').lower() == 'si',
                     }
                     check_allowed_params(keyword, params, options)
