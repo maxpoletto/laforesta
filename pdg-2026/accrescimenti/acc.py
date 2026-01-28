@@ -1376,7 +1376,7 @@ def calculate_ip_table(data: dict, group_cols: list[str],
             volume = group_trees['V(m3)'].sum()
 
         row_dict['ip_medio'] = ip_medio
-        row_dict['incremento_corrente'] = volume * ip_medio / 100
+        row_dict['incremento_corrente'] = volume * ((1 + ip_medio / 100)**2 - 1)
         rows.append(row_dict)
 
     df = pd.DataFrame(rows)
