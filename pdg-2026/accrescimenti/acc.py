@@ -969,6 +969,42 @@ def render_gci_graph(data: dict, equations_df: pd.DataFrame,
 
 # CLASSI DIAMETRICHE ==========================================================
 
+GCD_Y_LABELS = {
+    'alberi_ha': 'Stima alberi / ha',
+    'alberi_tot': 'Stima alberi totali',
+    'volume_ha': 'Stima volume / ha (m³/ha)',
+    'volume_tot': 'Stima volume totale (m³)',
+}
+
+def _calculate_cd_data(data: dict, metrica: str, stime_totali: bool) -> pd.DataFrame:
+    """Calculate diameter class data for @@gcd/@@tcd directives.
+
+    Returns a DataFrame indexed by Classe diametrica with species as columns.
+    """
+    trees = data['trees']
+    parcels = data['parcels']
+    species = data['species']
+    use_volume = metrica.startswith('volume')
+    per_ha = metrica.endswith('_ha')
+
+    results, area_ha = {}, 0
+    for (region, parcel), ptrees in trees.groupby(['Compresa', 'Particella']):
+        p = parcels[(region, parcel)]
+        area_ha += p['area_ha']
+        if use_volume:
+            agg = ptrees.groupby(['Classe diametrica', 'Genere'])['V(m3)'].sum().unstack(fill_value=0)
+        else:
+            agg = ptrees.groupby(['Classe diametrica', 'Genere']).size().unstack(fill_value=0)
+        if stime_totali:
+            agg = agg / p['sampled_frac']
+        results[(region, parcel)] = agg
+
+    combined = pd.concat(results.values()).groupby(level=0).sum()
+    if per_ha:
+        combined = combined / area_ha
+    return combined.reindex(columns=species, fill_value=0).sort_index()
+
+
 def render_gcd_graph(data: dict, output_path: Path,
                      formatter: SnippetFormatter, color_map: dict, **options) -> dict:
     """
@@ -979,6 +1015,7 @@ def render_gcd_graph(data: dict, output_path: Path,
         output_path: Where to save the PNG
         formatter: HTML or LaTeX snippet formatter
         color_map: Species -> color mapping
+        options: metrica (alberi_ha|alberi_tot|volume_ha|volume_tot), stime_totali, x_max, y_max
 
     Returns:
         dict with keys:
@@ -987,27 +1024,20 @@ def render_gcd_graph(data: dict, output_path: Path,
     """
     trees = data['trees']
     species = data['species']
-    parcels = data['parcels']
+    metrica = options.get('metrica', 'alberi_ha')
+    stime_totali = options.get('stime_totali', True)
 
-    counts, area_ha = {}, 0
-    for (region, parcel), ptrees in trees.groupby(['Compresa', 'Particella']):
-        p = parcels[(region, parcel)]
-        counts[(region, parcel)] = (
-            ptrees.groupby(['Classe diametrica', 'Genere']).size().unstack(fill_value=0)
-            / p['sampled_frac'])
-        area_ha += p['area_ha']
-    counts = pd.concat(counts.values()).groupby(level=0).sum()/area_ha
-    counts = counts[species].fillna(0).sort_index()
+    values_df = _calculate_cd_data(data, metrica, stime_totali)
 
     figsize = (4, 3.75)
     fig, ax = plt.subplots(figsize=figsize)
 
-    bottom = np.zeros(len(counts.index))
+    bottom = np.zeros(len(values_df.index))
     for genere in species:
-        if genere not in counts.columns:
+        if genere not in values_df.columns:
             continue
-        values = counts[genere].values
-        ax.bar(counts.index, values, bottom=bottom,
+        values = values_df[genere].values
+        ax.bar(values_df.index, values, bottom=bottom,
                label=genere, color=color_map[genere],
                alpha=0.8, edgecolor='white', linewidth=0.5)
         bottom += values
@@ -1015,10 +1045,10 @@ def render_gcd_graph(data: dict, output_path: Path,
     x_max = (options.get('x_max', 0)
         if options.get('x_max', 0) > 0 else trees['Classe diametrica'].max()+2)
     y_max = (options.get('y_max', 0)
-        if options.get('y_max', 0) > 0 else counts.sum(axis=1).max() * 1.1)
+        if options.get('y_max', 0) > 0 else values_df.sum(axis=1).max() * 1.1)
 
     ax.set_xlabel('Classe diametrica')
-    ax.set_ylabel('Stima alberi / ha')
+    ax.set_ylabel(GCD_Y_LABELS[metrica])
     ax.set_xlim(-0.5, x_max)
     ax.set_ylim(0, y_max)
     ax.set_xticks(range(0, x_max, 2))
@@ -1046,25 +1076,18 @@ def render_gcd_graph(data: dict, output_path: Path,
 BIN0 = "0-19 cm"
 BIN1 = "20-39 cm"
 BIN2 = "40+ cm"
-def render_tcd_table(data: dict, formatter: SnippetFormatter, **options) -> dict:
+
+def _calculate_tcd_data(data: dict, metrica: str, stime_totali: bool) -> pd.DataFrame:
+    """Calculate binned diameter class data for @@tcd directive.
+
+    Returns a DataFrame indexed by bin (BIN0, BIN1, BIN2) with species as columns.
     """
-    Generate diameter class table (@@tcd directive).
-
-    Creates a table with rows for each species and columns for diameter ranges:
-    [0-20) cm, [20-40) cm, and ≥40 cm. Values are estimated trees per hectare.
-
-    Args:
-        data: Output from parcel_data
-        formatter: HTML or LaTeX snippet formatter
-
-    Returns:
-        dict with 'snippet' key containing formatted table
-    """
-    trees = data['trees']
-    species = data['species']
+    trees = data['trees'].copy()
     parcels = data['parcels']
+    species = data['species']
+    use_volume = metrica.startswith('volume')
+    per_ha = metrica.endswith('_ha')
 
-    # Assign diameter range bins
     def diameter_bin(d):
         if d < 20:
             return BIN0
@@ -1072,22 +1095,51 @@ def render_tcd_table(data: dict, formatter: SnippetFormatter, **options) -> dict
             return BIN1
         return BIN2
 
-    trees = trees.copy()
     trees['Classe'] = trees['D(cm)'].apply(diameter_bin)
 
-    # Count trees per hectare, grouped by parcel then aggregated
-    counts, area_ha = {}, 0
+    results, area_ha = {}, 0
     for (region, parcel), ptrees in trees.groupby(['Compresa', 'Particella']):
         p = parcels[(region, parcel)]
-        counts[(region, parcel)] = (
-            ptrees.groupby(['Classe', 'Genere']).size().unstack(fill_value=0)
-            / p['sampled_frac'])
         area_ha += p['area_ha']
-    counts = pd.concat(counts.values()).groupby(level=0).sum() / area_ha
+        if use_volume:
+            agg = ptrees.groupby(['Classe', 'Genere'])['V(m3)'].sum().unstack(fill_value=0)
+        else:
+            agg = ptrees.groupby(['Classe', 'Genere']).size().unstack(fill_value=0)
+        if stime_totali:
+            agg = agg / p['sampled_frac']
+        results[(region, parcel)] = agg
 
-    # Build table: rows = species, columns = diameter ranges
+    combined = pd.concat(results.values()).groupby(level=0).sum()
+    if per_ha:
+        combined = combined / area_ha
+    return combined.reindex(columns=species, fill_value=0)
+
+
+def render_tcd_table(data: dict, formatter: SnippetFormatter, **options) -> dict:
+    """
+    Generate diameter class table (@@tcd directive).
+
+    Creates a table with rows for each species and columns for diameter ranges:
+    [0-20) cm, [20-40) cm, and ≥40 cm.
+
+    Args:
+        data: Output from parcel_data
+        formatter: HTML or LaTeX snippet formatter
+        options: metrica (alberi_ha|alberi_tot|volume_ha|volume_tot), stime_totali
+
+    Returns:
+        dict with 'snippet' key containing formatted table
+    """
+    species = data['species']
+    metrica = options.get('metrica', 'alberi_ha')
+    stime_totali = options.get('stime_totali', True)
+    use_volume = metrica.startswith('volume')
+
+    values_df = _calculate_tcd_data(data, metrica, stime_totali)
+
     bin_order = [BIN0, BIN1, BIN2]
     headers = [('Genere', 'l')] + [(b, 'r') for b in bin_order] + [('Totale', 'r')]
+    fmt = "{:.2f}" if use_volume else "{:.0f}"
 
     rows = []
     col_totals = {b: 0.0 for b in bin_order}
@@ -1095,16 +1147,16 @@ def render_tcd_table(data: dict, formatter: SnippetFormatter, **options) -> dict
         row = [genere]
         row_total = 0.0
         for b in bin_order:
-            val = counts.loc[b, genere] if b in counts.index and genere in counts.columns else 0
-            row.append(f"{val:.0f}")
+            val = values_df.loc[b, genere] if b in values_df.index else 0
+            row.append(fmt.format(val))
             row_total += val
             col_totals[b] += val
-        row.append(f"{row_total:.0f}")
+        row.append(fmt.format(row_total))
         rows.append(row)
 
     # Add totals row
-    total_row = ['Totale'] + [f"{col_totals[b]:.0f}" for b in bin_order]
-    total_row.append(f"{sum(col_totals.values()):.0f}")
+    total_row = ['Totale'] + [fmt.format(col_totals[b]) for b in bin_order]
+    total_row.append(fmt.format(sum(col_totals.values())))
     rows.append(total_row)
 
     return {'snippet': formatter.format_table(headers, rows)}
@@ -2147,12 +2199,18 @@ def process_template(template_text: str, data_dir: Path,
                         'x_max': int(params.get('x_max', 0)),
                         'y_max': int(params.get('y_max', 0)),
                         'stile': params.get('stile'),
+                        'metrica': params.get('metrica', 'alberi_ha'),
+                        'stime_totali': params.get('stime_totali', 'si').lower() == 'si',
                     }
                     filename = _build_graph_filename(comprese, particelle, generi, keyword)
                     result = render_gcd_graph(data, output_dir / filename,
                                              formatter, color_map, **options)
                 case 'tcd':
-                    result = render_tcd_table(data, formatter)
+                    options = {
+                        'metrica': params.get('metrica', 'alberi_ha'),
+                        'stime_totali': params.get('stime_totali', 'si').lower() == 'si',
+                    }
+                    result = render_tcd_table(data, formatter, **options)
                 case 'gci':
                     options = {
                         'x_max': int(params.get('x_max', 0)),
