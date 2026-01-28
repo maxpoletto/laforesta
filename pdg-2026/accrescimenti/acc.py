@@ -940,8 +940,8 @@ def render_gci_graph(data: dict, equations_df: pd.DataFrame,
                     'n_points': int(eq['n'])
                 })
 
-    x_max = max(options.get('x_max', 0), trees['D(cm)'].max() + 3)
-    y_max = max(options.get('y_max', 0), (trees['h(m)'].max() + 6) // 5 * 5)
+    x_max = max(options['x_max'], trees['D(cm)'].max() + 3)
+    y_max = max(options['y_max'], (trees['h(m)'].max() + 6) // 5 * 5)
     ax.set_xlabel('Diametro (cm)')
     ax.set_ylabel('Altezza (m)')
     ax.set_xlim(-0.5, x_max)
@@ -1070,9 +1070,9 @@ def render_gcd_graph(data: dict, output_path: Path,
 
     # x_max in cm (fine buckets are 5, 10, 15...)
     max_bucket = values_df.index.max() if len(values_df) > 0 else 50
-    x_max = options.get('x_max', 0) if options.get('x_max', 0) > 0 else max_bucket + 5
-    y_max = (options.get('y_max', 0)
-        if options.get('y_max', 0) > 0 else values_df.sum(axis=1).max() * 1.1)
+    x_max = options['x_max'] if options['x_max'] > 0 else max_bucket + 5
+    y_max = (options['y_max']
+        if options['y_max'] > 0 else values_df.sum(axis=1).max() * 1.1)
 
     ax.set_xlabel('Diametro (cm)')
     ax.set_ylabel(GCD_Y_LABELS[metrica])
@@ -1424,9 +1424,9 @@ def render_gip_graph(data: dict, output_path: Path,
                      **options) -> dict:
     """Generate IP line graph (@@gip directive)."""
     group_cols = []
-    if options.get('per_compresa', False):
+    if options['per_compresa']:
         group_cols.append('Compresa')
-    if options.get('per_particella', False):
+    if options['per_particella']:
         group_cols.append('Particella')
 
     df = calculate_ip_table(data, group_cols, options['stime_totali'])
@@ -1484,13 +1484,13 @@ def render_gsv_graph(data: dict, output_path: Path,
         dict with 'filepath' and 'snippet' keys
     """
     group_cols = []
-    if options.get('per_compresa', True):
+    if options['per_compresa']:
         group_cols.append('Compresa')
-    if options.get('per_particella', True):
+    if options['per_particella']:
         group_cols.append('Particella')
 
     # For stacking, we need per-genere data even if displaying by compresa/particella
-    stacked = options.get('per_genere', False) and group_cols
+    stacked = options['per_genere'] and group_cols
     if stacked:
         base_cols = group_cols.copy()
         group_cols.append('Genere')
@@ -1555,7 +1555,7 @@ def render_gsv_graph(data: dict, output_path: Path,
                   title='Specie', bbox_to_anchor=(1.01, 1.02), alignment='left')
     else:
         # Simple bars (no stacking)
-        if options.get('per_genere', False):
+        if options['per_genere']:
             # Per-genere only: one bar per genere
             labels = df['Genere'].tolist()
             values = df['volume'].values
@@ -1795,7 +1795,7 @@ def render_tpt_table(data: dict, comparti_df: pd.DataFrame,
         group_cols.append('Compresa')
     if options['per_particella']:
         group_cols.append('Particella')
-    if options.get('per_genere', False):
+    if options['per_genere']:
         group_cols.append('Genere')
 
     df = calculate_tpt_table(data, comparti_df, provv_vol_df, provv_eta_df, group_cols)
@@ -1845,7 +1845,7 @@ def render_tpt_table(data: dict, comparti_df: pd.DataFrame,
         display_rows.append(display_row)
 
     # Add totals row if requested (and there are grouping columns)
-    if options.get('totali', False) and group_cols:
+    if options['totali'] and group_cols:
         # When per_genere, area_ha is duplicated across species; dedupe for totals
         if 'Genere' in group_cols:
             parcel_cols = [c for c in group_cols if c != 'Genere'] or ['area_ha']
@@ -1893,9 +1893,9 @@ def render_gpt_graph(data: dict, comparti_df: pd.DataFrame,
         dict with 'filepath' and 'snippet' keys
     """
     group_cols = []
-    if options.get('per_compresa', True):
+    if options['per_compresa']:
         group_cols.append('Compresa')
-    if options.get('per_particella', True):
+    if options['per_particella']:
         group_cols.append('Particella')
 
     df = calculate_tpt_table(data, comparti_df, provv_vol_df, provv_eta_df, group_cols)
