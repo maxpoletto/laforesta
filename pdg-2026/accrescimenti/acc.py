@@ -1049,10 +1049,9 @@ def render_gcd_graph(data: dict, output_path: Path,
             - 'filepath': Path to generated PNG
             - 'snippet': Formatted HTML/LaTeX snippet for template substitution
     """
-    trees = data['trees']
     species = data['species']
-    metrica = options.get('metrica', 'alberi_ha')
-    stime_totali = options.get('stime_totali', True)
+    metrica = options['metrica']
+    stime_totali = options['stime_totali']
 
     values_df = _calculate_cd_data(data, metrica, stime_totali, fine=True)
 
@@ -1117,8 +1116,8 @@ def render_tcd_table(data: dict, formatter: SnippetFormatter, **options) -> dict
         dict with 'snippet' key containing formatted table
     """
     species = data['species']
-    metrica = options.get('metrica', 'alberi_ha')
-    stime_totali = options.get('stime_totali', True)
+    metrica = options['metrica']
+    stime_totali = options['stime_totali']
     use_volume = metrica.startswith('volume')
 
     values_df = _calculate_cd_data(data, metrica, stime_totali, fine=False)
@@ -1430,9 +1429,9 @@ def render_gip_graph(data: dict, output_path: Path,
     if options.get('per_particella', False):
         group_cols.append('Particella')
 
-    df = calculate_ip_table(data, group_cols, options.get('stime_totali', False))
+    df = calculate_ip_table(data, group_cols, options['stime_totali'])
 
-    metrica = options.get('metrica', 'ip')
+    metrica = options['metrica']
     if metrica == 'ip':
         y_col, y_label = 'ip_medio', 'Incremento % medio'
     else:
@@ -2132,7 +2131,7 @@ def process_template(template_text: str, data_dir: Path,
                         'per_compresa': params.get('per_compresa', 'si').lower() == 'si',
                         'per_particella': params.get('per_particella', 'si').lower() == 'si',
                         'per_genere': params.get('per_genere', 'si').lower() == 'si',
-                        'stime_totali': params.get('stime_totali', 'no').lower() == 'si',
+                        'stime_totali': params.get('stime_totali', 'si').lower() == 'si',
                         'intervallo_fiduciario':
                             params.get('intervallo_fiduciario', 'no').lower() == 'si',
                         'totali': params.get('totali', 'no').lower() == 'si'
@@ -2164,7 +2163,7 @@ def process_template(template_text: str, data_dir: Path,
                     options = {
                         'per_compresa': params.get('per_compresa', 'no').lower() == 'si',
                         'per_particella': params.get('per_particella', 'no').lower() == 'si',
-                        'stime_totali': params.get('stime_totali', 'no').lower() == 'si',
+                        'stime_totali': params.get('stime_totali', 'si').lower() == 'si',
                         'totali': params.get('totali', 'no').lower() == 'si',
                     }
                     result = render_tip_table(data, formatter, **options)
@@ -2172,7 +2171,7 @@ def process_template(template_text: str, data_dir: Path,
                     options = {
                         'per_compresa': params.get('per_compresa', 'no').lower() == 'si',
                         'per_particella': params.get('per_particella', 'no').lower() == 'si',
-                        'stime_totali': params.get('stime_totali', 'no').lower() == 'si',
+                        'stime_totali': params.get('stime_totali', 'si').lower() == 'si',
                         'metrica': params.get('metrica', 'ip'),
                         'stile': params.get('stile'),
                     }
