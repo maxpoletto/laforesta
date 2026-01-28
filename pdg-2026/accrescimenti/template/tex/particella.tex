@@ -8,8 +8,7 @@
 \subsubsection*{Analisi per classi diametriche}
 
 \begin{minipage}[t][][c]{0.5\textwidth}
-    \noindent \textsf{Alberi per ettaro}\\
-    \vspace{-\baselineskip}
+    \noindent \textsf{Alberi per ettaro}
     @@gcd(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,stile=width=\textwidth,metrica=alberi_ha)
     \begingroup
         \setlength{\LTleft}{0pt}
@@ -20,8 +19,7 @@
 \end{minipage}%
 \hfill
 \begin{minipage}[t][][c]{0.5\textwidth}
-    \noindent \textsf{Volumi per ettaro}\\
-    \vspace{-\baselineskip}
+    \noindent \textsf{Volumi per ettaro}
     @@gcd(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,stile=width=\textwidth,metrica=volume_ha)
     \begingroup
         \setlength{\LTleft}{0pt}
@@ -32,13 +30,23 @@
 \end{minipage}
 \\
 \begin{minipage}[t][][c]{0.5\textwidth}
-    \noindent \textsf{Area basimetrica per ettaro}\\
-    \vspace{-\baselineskip}
+    \noindent \textsf{Area basimetrica per ettaro}
     @@gcd(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,stile=width=\textwidth,metrica=G_ha)
     \begingroup
         \setlength{\LTleft}{0pt}
         \begin{flushright}
             @@tcd(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,metrica=G_ha)
+        \end{flushright}
+    \endgroup
+\end{minipage}
+\hfill
+\begin{minipage}[t][][c]{0.5\textwidth}
+    \noindent \textsf{Altezza media}
+    @@gcd(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,stile=width=\textwidth,metrica=altezza)
+    \begingroup
+        \setlength{\LTleft}{0pt}
+        \begin{flushright}
+            @@tcd(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,metrica=altezza)
         \end{flushright}
     \endgroup
 \end{minipage}
