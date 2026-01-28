@@ -2177,7 +2177,7 @@ def process_template(template_text: str, data_dir: Path,
                     }
                     filename = _build_graph_filename(comprese, particelle, generi, keyword)
                     result = render_gip_graph(data, output_dir / filename,
-                                             formatter, color_map, **options)
+                                              formatter, color_map, **options)
                 case 'gcd':
                     options = {
                         'x_max': int(params.get('x_max', 0)),
@@ -2188,7 +2188,7 @@ def process_template(template_text: str, data_dir: Path,
                     }
                     filename = _build_graph_filename(comprese, particelle, generi, keyword)
                     result = render_gcd_graph(data, output_dir / filename,
-                                             formatter, color_map, **options)
+                                              formatter, color_map, **options)
                 case 'tcd':
                     options = {
                         'metrica': params.get('metrica', 'alberi_ha'),
@@ -2204,7 +2204,7 @@ def process_template(template_text: str, data_dir: Path,
                     equations_df = load_csv(equazioni_files, data_dir)
                     filename = _build_graph_filename(comprese, particelle, generi, keyword)
                     result = render_gci_graph(data, equations_df, output_dir / filename,
-                                             formatter, color_map, **options)
+                                              formatter, color_map, **options)
                 case 'gsv':
                     options = {
                         'per_compresa': params.get('per_compresa', 'si').lower() == 'si',
