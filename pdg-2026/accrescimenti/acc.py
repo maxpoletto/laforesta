@@ -978,6 +978,8 @@ GCD_Y_LABELS = {
     'alberi_tot': 'Stima alberi totali',
     'volume_ha': 'Stima volume / ha (m³/ha)',
     'volume_tot': 'Stima volume totale (m³)',
+    'G_ha': 'Area basimetrica (m²/ha)',
+    'G_tot': 'Area basimetrica totale (m²)',
 }
 
 # Coarse bins for @@tcd table
@@ -986,6 +988,9 @@ COARSE_BIN1 = "31-50 cm"
 COARSE_BIN2 = "50+ cm"
 COARSE_BINS = [COARSE_BIN0, COARSE_BIN1, COARSE_BIN2]
 
+# Aggregation types for _calculate_cd_data
+AGG_COUNT, AGG_VOLUME, AGG_BASAL = 0, 1, 2
+
 
 def _calculate_cd_data(data: dict, metrica: str, stime_totali: bool,
                        fine: bool = True) -> pd.DataFrame:
@@ -993,7 +998,7 @@ def _calculate_cd_data(data: dict, metrica: str, stime_totali: bool,
 
     Args:
         data: Output from region_data
-        metrica: alberi_ha|alberi_tot|volume_ha|volume_tot
+        metrica: alberi_ha|alberi_tot|volume_ha|volume_tot|G_ha|G_tot
         stime_totali: scale by 1/sampled_frac if True
         fine: True for 5cm buckets (5, 10, 15...), False for 3 coarse buckets
 
@@ -1002,7 +1007,7 @@ def _calculate_cd_data(data: dict, metrica: str, stime_totali: bool,
     trees = data['trees']
     parcels = data['parcels']
     species = data['species']
-    use_volume = metrica.startswith('volume')
+    agg_type = AGG_VOLUME if metrica.startswith('volume') else AGG_BASAL if metrica.startswith('G') else AGG_COUNT
     per_ha = metrica.endswith('_ha')
 
     if fine:
@@ -1016,11 +1021,15 @@ def _calculate_cd_data(data: dict, metrica: str, stime_totali: bool,
     for (region, parcel), ptrees in trees.groupby(['Compresa', 'Particella']):
         p = parcels[(region, parcel)]
         area_ha += p['area_ha']
-        grp = [bucket_key, 'Genere'] if fine else [bucket_key.loc[ptrees.index], 'Genere']
-        if use_volume:
-            agg = ptrees.groupby(grp)['V(m3)'].sum().unstack(fill_value=0)
+        bucket_vals = ptrees['Diametro'] if fine else bucket_key.loc[ptrees.index]
+        if agg_type == AGG_VOLUME:
+            agg = ptrees.groupby([bucket_vals, 'Genere'])['V(m3)'].sum().unstack(fill_value=0)
+        elif agg_type == AGG_BASAL:
+            # Basal area: π/4 * D² in cm², convert to m²
+            basal = np.pi / 4 * ptrees['D(cm)'] ** 2 / 10000
+            agg = basal.groupby([bucket_vals, ptrees['Genere']]).sum().unstack(fill_value=0)
         else:
-            agg = ptrees.groupby(grp).size().unstack(fill_value=0)
+            agg = ptrees.groupby([bucket_vals, 'Genere']).size().unstack(fill_value=0)
         if stime_totali:
             agg = agg / p['sampled_frac']
         results[(region, parcel)] = agg
@@ -1041,7 +1050,7 @@ def render_gcd_graph(data: dict, output_path: Path,
         output_path: Where to save the PNG
         formatter: HTML or LaTeX snippet formatter
         color_map: Species -> color mapping
-        options: metrica (alberi_ha|alberi_tot|volume_ha|volume_tot), stime_totali, x_max, y_max
+        options: metrica (alberi_*|volume_*|G_*), stime_totali, x_max, y_max
 
     Returns:
         dict with keys:
@@ -1109,7 +1118,7 @@ def render_tcd_table(data: dict, formatter: SnippetFormatter, **options) -> dict
     Args:
         data: Output from parcel_data
         formatter: HTML or LaTeX snippet formatter
-        options: metrica (alberi_ha|alberi_tot|volume_ha|volume_tot), stime_totali
+        options: metrica (alberi_*|volume_*|G_*), stime_totali
 
     Returns:
         dict with 'snippet' key containing formatted table
@@ -1117,12 +1126,12 @@ def render_tcd_table(data: dict, formatter: SnippetFormatter, **options) -> dict
     species = data['species']
     metrica = options['metrica']
     stime_totali = options['stime_totali']
-    use_volume = metrica.startswith('volume')
+    use_decimals = metrica.startswith('volume') or metrica.startswith('G')
 
     values_df = _calculate_cd_data(data, metrica, stime_totali, fine=False)
 
     headers = [('Genere', 'l')] + [(b, 'r') for b in COARSE_BINS] + [('Totale', 'r')]
-    fmt = "{:.2f}" if use_volume else "{:.0f}"
+    fmt = "{:.2f}" if use_decimals else "{:.0f}"
 
     rows = []
     col_totals = {b: 0.0 for b in COARSE_BINS}
@@ -2220,7 +2229,9 @@ def process_template(template_text: str, data_dir: Path,
                         'stime_totali': params.get('stime_totali', 'si').lower() == 'si',
                     }
                     check_allowed_params(keyword, params, options)
-                    check_param_values(options, 'metrica', ['alberi_ha', 'volume_ha', 'alberi_tot', 'volume_tot'], '@@gcd')
+                    check_param_values(options, 'metrica',
+                        ['alberi_ha', 'G_ha', 'volume_ha', 'alberi_tot', 'G_tot', 'volume_tot'],
+                        '@@gcd')
                     filename = _build_graph_filename(comprese, particelle, generi, keyword)
                     result = render_gcd_graph(data, output_dir / filename,
                                               formatter, color_map, **options)
@@ -2230,7 +2241,9 @@ def process_template(template_text: str, data_dir: Path,
                         'stime_totali': params.get('stime_totali', 'si').lower() == 'si',
                     }
                     check_allowed_params(keyword, params, options)
-                    check_param_values(options, 'metrica', ['alberi_ha', 'volume_ha', 'alberi_tot', 'volume_tot'], '@@tcd')
+                    check_param_values(options, 'metrica',
+                        ['alberi_ha', 'G_ha', 'volume_ha', 'alberi_tot', 'G_tot', 'volume_tot'],
+                        '@@tcd')
                     result = render_tcd_table(data, formatter, **options)
                 case 'gci':
                     options = {
