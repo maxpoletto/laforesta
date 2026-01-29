@@ -5,10 +5,10 @@ CSV_DIR=csv
 	altvol clean-altvol \
 	html clean-html \
 	pdf clean-pdf \
-    all clean
+    all clean \
+	test
 
 all: equazioni altvol pdf
-
 clean: clean-equazioni clean-altvol clean-pdf
 
 #
@@ -108,3 +108,10 @@ $(CSV_DIR)/ripresa.csv: template/csv/ripresa.csv $(DEPS_CSV)
 
 clean-csv:
 	rm -f $(FILES_CSV)
+
+#
+# Testing
+#
+
+test:
+	pytest --cov=acc --cov-report=term-missing test/

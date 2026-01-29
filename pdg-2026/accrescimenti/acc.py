@@ -989,11 +989,11 @@ COARSE_BIN1 = "31-50 cm"
 COARSE_BIN2 = "50+ cm"
 COARSE_BINS = [COARSE_BIN0, COARSE_BIN1, COARSE_BIN2]
 
-# Aggregation types for _calculate_cd_data
+# Aggregation types for calculate_cd_data
 AGG_COUNT, AGG_VOLUME, AGG_BASAL, AGG_HEIGHT = 0, 1, 2, 3
 
 
-def _calculate_cd_data(data: dict, metrica: str, stime_totali: bool,
+def calculate_cd_data(data: dict, metrica: str, stime_totali: bool,
                        fine: bool = True) -> pd.DataFrame:
     """Calculate diameter class data for @@gcd/@@tcd directives.
 
@@ -1076,7 +1076,7 @@ def render_gcd_graph(data: dict, output_path: Path,
     metrica = options['metrica']
     stime_totali = options['stime_totali']
 
-    values_df = _calculate_cd_data(data, metrica, stime_totali, fine=True)
+    values_df = calculate_cd_data(data, metrica, stime_totali, fine=True)
     use_lines = metrica == 'altezza'
 
     figsize = (4, 3.75)
@@ -1150,7 +1150,7 @@ def render_tcd_table(data: dict, formatter: SnippetFormatter, **options) -> dict
     stime_totali = options['stime_totali']
     use_decimals = metrica.startswith('volume') or metrica.startswith('G') or metrica == 'altezza'
 
-    values_df = _calculate_cd_data(data, metrica, stime_totali, fine=False)
+    values_df = calculate_cd_data(data, metrica, stime_totali, fine=False)
 
     headers = [('Genere', 'l')] + [(b, 'r') for b in COARSE_BINS] + [('Totale', 'r')]
     fmt = "{:.2f}" if use_decimals else "{:.0f}"
