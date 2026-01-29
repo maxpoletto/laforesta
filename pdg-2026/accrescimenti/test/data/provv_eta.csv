@@ -1,0 +1,7 @@
+# Age-based harvest rules for testing
+# For age >= 60: use volume rules (PP_max = 100 means "use volume rules")
+# For age < 60: PP_max applies to basal area
+Anni,PP_max
+60,100
+30,20
+0,15

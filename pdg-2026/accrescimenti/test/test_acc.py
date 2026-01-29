@@ -3,22 +3,26 @@ Tests for acc.py forest analysis module.
 
 Test categories:
 (a) Aggregation consistency - total vs per-particella breakdown
-(b) Cross-query consistency - @@tsv totals match @@tcd sums
+(b) Cross-query consistency - @@tsv totals match @@tcd sums, @@tsv/@@tpt consistency
 (c) Correct scaling with different sample areas
 (d) Edge cases
 (f) Confidence interval sanity
+(g) Small tree (D <= 20cm) exclusion
+(h) Harvest calculation (volume and basal area rules)
 
 Test data (in test/data/):
-- Parcel A: 10 ha, 1 sample area  -> sampled_frac = 0.0125, scale = 80
-- Parcel B: 10 ha, 2 sample areas -> sampled_frac = 0.025,  scale = 40
-- Parcel C: 10 ha, 5 sample areas -> sampled_frac = 0.0625, scale = 16
+- Parcel A: 10 ha, 1 sample area, age=60  -> sampled_frac = 0.0125, scale = 80
+- Parcel B: 10 ha, 2 sample areas, age=70 -> sampled_frac = 0.025,  scale = 40
+- Parcel C: 10 ha, 5 sample areas, age=80 -> sampled_frac = 0.0625, scale = 16
 - Species: Faggio, Cerro (both have 2-coefficient Tabacchi equations)
+- Includes small trees (D <= 20cm) for testing exclusion logic
 """
 
 import sys
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import pytest
 
 # Add parent directory to path for imports
@@ -196,6 +200,40 @@ class TestCrossQueryConsistency:
         assert np.isclose(tcd_basal, manual_basal, rtol=1e-9), \
             f"@@tcd G {tcd_basal} != manual G {manual_basal}"
 
+    def test_tsv_tpt_volume_consistency(
+            self, data_all, comparti_df, provv_vol_df, provv_eta_df):
+        """@@tsv and @@tpt should report the same total volume."""
+        df_tsv = acc.calculate_tsv_table(
+            data_all, group_cols=[], calc_margin=False, calc_total=True,
+            calc_mature=True
+        )
+        df_tpt = acc.calculate_tpt_table(
+            data_all, comparti_df, provv_vol_df, provv_eta_df, group_cols=[]
+        )
+
+        tsv_vol = df_tsv['volume'].sum()
+        tpt_vol = df_tpt['volume'].sum()
+
+        assert np.isclose(tsv_vol, tpt_vol, rtol=1e-9), \
+            f"@@tsv volume {tsv_vol} != @@tpt volume {tpt_vol}"
+
+    def test_tsv_tpt_volume_mature_consitency(
+            self, data_all, comparti_df, provv_vol_df, provv_eta_df):
+        """@@tsv and @@tpt should report the same volume_mature."""
+        df_tsv = acc.calculate_tsv_table(
+            data_all, group_cols=[], calc_margin=False, calc_total=True,
+            calc_mature=True
+        )
+        df_tpt = acc.calculate_tpt_table(
+            data_all, comparti_df, provv_vol_df, provv_eta_df, group_cols=[]
+        )
+
+        tsv_vol_ss = df_tsv['volume_mature'].sum()
+        tpt_vol_ss = df_tpt['volume_mature'].sum()
+
+        assert np.isclose(tsv_vol_ss, tpt_vol_ss, rtol=1e-9), \
+            f"@@tsv vol_ss {tsv_vol_ss} != @@tpt vol_ss {tpt_vol_ss}"
+
 
 # =============================================================================
 # (c) CORRECT SCALING WITH DIFFERENT SAMPLE AREAS
@@ -227,32 +265,32 @@ class TestSampleAreaScaling:
             f"Parcel C sampled_frac wrong: {parcels[('Test', 'C')]['sampled_frac']}"
 
     def test_tree_scaling_parcel_a(self, data_parcel_a):
-        """Parcel A: 4 sampled trees should scale to 4 * 80 = 320 estimated trees."""
+        """Parcel A: 6 sampled trees should scale to 6 * 80 = 480 estimated trees."""
         df = acc.calculate_tsv_table(
             data_parcel_a, group_cols=[], calc_margin=False, calc_total=True
         )
-        # 4 trees / 0.0125 = 320
-        expected_trees = 4 / 0.0125
+        # 6 trees / 0.0125 = 480
+        expected_trees = 6 / 0.0125
         assert np.isclose(df['n_trees'].sum(), expected_trees, rtol=1e-9), \
             f"Parcel A trees {df['n_trees'].sum()} != expected {expected_trees}"
 
     def test_tree_scaling_parcel_b(self, data_parcel_b):
-        """Parcel B: 6 sampled trees should scale to 6 * 40 = 240 estimated trees."""
+        """Parcel B: 8 sampled trees should scale to 8 * 40 = 320 estimated trees."""
         df = acc.calculate_tsv_table(
             data_parcel_b, group_cols=[], calc_margin=False, calc_total=True
         )
-        # 6 trees / 0.025 = 240
-        expected_trees = 6 / 0.025
+        # 8 trees / 0.025 = 320
+        expected_trees = 8 / 0.025
         assert np.isclose(df['n_trees'].sum(), expected_trees, rtol=1e-9), \
             f"Parcel B trees {df['n_trees'].sum()} != expected {expected_trees}"
 
     def test_tree_scaling_parcel_c(self, data_parcel_c):
-        """Parcel C: 10 sampled trees should scale to 10 * 16 = 160 estimated trees."""
+        """Parcel C: 12 sampled trees should scale to 12 * 16 = 192 estimated trees."""
         df = acc.calculate_tsv_table(
             data_parcel_c, group_cols=[], calc_margin=False, calc_total=True
         )
-        # 10 trees / 0.0625 = 160
-        expected_trees = 10 / 0.0625
+        # 12 trees / 0.0625 = 192
+        expected_trees = 12 / 0.0625
         assert np.isclose(df['n_trees'].sum(), expected_trees, rtol=1e-9), \
             f"Parcel C trees {df['n_trees'].sum()} != expected {expected_trees}"
 
@@ -261,8 +299,8 @@ class TestSampleAreaScaling:
         df = acc.calculate_tsv_table(
             data_all, group_cols=[], calc_margin=False, calc_total=True
         )
-        # 4/0.0125 + 6/0.025 + 10/0.0625 = 320 + 240 + 160 = 720
-        expected_trees = 320 + 240 + 160
+        # 6/0.0125 + 8/0.025 + 12/0.0625 = 480 + 320 + 192 = 992
+        expected_trees = 480 + 320 + 192
         assert np.isclose(df['n_trees'].sum(), expected_trees, rtol=1e-9), \
             f"Total trees {df['n_trees'].sum()} != expected {expected_trees}"
 
@@ -410,11 +448,154 @@ class TestConfidenceInterval:
 
 
 # =============================================================================
+# (g) SMALL TREES (D <= 20cm EXCLUSION)
+# =============================================================================
+
+class TestMature:
+    """Test that trees with D <= 20cm are correctly excluded from harvest calculations."""
+
+    def test_volume_mature_excludes_small_trees(self, data_all):
+        """volume_mature should exclude trees with D <= 20cm."""
+        df = acc.calculate_tsv_table(
+            data_all, group_cols=[], calc_margin=False, calc_total=True,
+            calc_mature=True
+        )
+
+        total_vol = df['volume'].sum()
+        vol_ss = df['volume_mature'].sum()
+
+        # volume_mature should be less than total (we have small trees)
+        assert vol_ss < total_vol, \
+            f"Vol small ({vol_ss}) should be less than total ({total_vol})"
+
+    def test_small_trees_count(self, data_all):
+        """Verify the number of small trees in test data."""
+        trees = data_all['trees']
+        n_small = (trees['D(cm)'] <= acc.MATURE_THRESHOLD).sum()
+        n_mature = (trees['D(cm)'] > acc.MATURE_THRESHOLD).sum()
+
+        # Test data has 6 small trees (D=15,20,18,12,10,19)
+        assert n_small == 6, f"Expected 6 small trees, got {n_small}"
+        assert n_mature == 20, f"Expected 20 mature trees, got {n_mature}"
+
+    def test_volume_mature_consistency(self, data_all):
+        """Manual calculation of volume_mature should match."""
+        trees = data_all['trees']
+        parcels = data_all['parcels']
+
+        # Manual calculation
+        manual_vol_mature = 0.0
+        for (region, parcel), ptrees in trees.groupby(['Compresa', 'Particella']):
+            sf = parcels[(region, parcel)]['sampled_frac']
+            above = ptrees[ptrees['D(cm)'] > acc.MATURE_THRESHOLD]
+            manual_vol_mature += above['V(m3)'].sum() / sf
+
+        # Via calculate_tsv_table
+        df = acc.calculate_tsv_table(
+            data_all, group_cols=[], calc_margin=False, calc_total=True,
+            calc_mature=True
+        )
+        computed_vol_mature = df['volume_mature'].sum()
+
+        assert np.isclose(manual_vol_mature, computed_vol_mature, rtol=1e-9), \
+            f"Manual vol_mature {manual_vol_mature} != computed {computed_vol_mature}"
+
+
+# =============================================================================
+# (h) HARVEST CALCULATION
+# =============================================================================
+
+class TestHarvestCalculation:
+    """Test harvest (prelievo) calculations."""
+
+    def test_age_rule_volume_threshold(self, provv_eta_df):
+        """Age >= 60 should use volume rules (PP_max = 100)."""
+        pp_max, use_vol = acc.get_age_rule(60, provv_eta_df)
+        assert use_vol, "Age 60 should use volume rules"
+        assert pp_max == 100
+
+        pp_max, use_vol = acc.get_age_rule(75, provv_eta_df)
+        assert use_vol, "Age 75 should use volume rules"
+
+    def test_age_rule_basal_threshold(self, provv_eta_df):
+        """Age < 60 should use basal area rules."""
+        pp_max, use_vol = acc.get_age_rule(59, provv_eta_df)
+        assert not use_vol, "Age 59 should use basal area rules"
+        assert pp_max == 20  # 30 <= 59 < 60
+
+        pp_max, use_vol = acc.get_age_rule(25, provv_eta_df)
+        assert not use_vol, "Age 25 should use basal area rules"
+        assert pp_max == 15  # 0 <= 25 < 30
+
+    def test_volume_harvest_excludes_sottomisura(
+            self, data_all, comparti_df, provv_vol_df, provv_eta_df):
+        """Volume-based harvest should use volume_mature."""
+        df = acc.calculate_tpt_table(
+            data_all, comparti_df, provv_vol_df, provv_eta_df, group_cols=[]
+        )
+
+        # harvest should be based on volume_mature, not total volume
+        vol_mature = df['volume_mature'].sum()
+        harvest = df['harvest'].sum()
+
+        # For age >= 60, harvest = vol_mature * pp_max / 100
+        # harvest should be <= vol_mature (since pp_max <= 100)
+        assert harvest <= vol_mature, \
+            f"Harvest ({harvest}) should not exceed vol_mature ({vol_mature})"
+
+    def test_harvest_per_parcel(
+            self, data_all, comparti_df, provv_vol_df, provv_eta_df):
+        """Harvest totals should equal sum of per-parcel harvests."""
+        df_total = acc.calculate_tpt_table(
+            data_all, comparti_df, provv_vol_df, provv_eta_df, group_cols=[]
+        )
+        df_parcels = acc.calculate_tpt_table(
+            data_all, comparti_df, provv_vol_df, provv_eta_df,
+            group_cols=['Particella']
+        )
+
+        total_harvest = df_total['harvest'].sum()
+        sum_parcels = df_parcels['harvest'].sum()
+
+        assert np.isclose(total_harvest, sum_parcels, rtol=1e-9), \
+            f"Total harvest {total_harvest} != sum of parcels {sum_parcels}"
+
+    def test_basal_area_harvest_smallest_first(self):
+        """For young parcels, harvest should select smallest trees first."""
+        # Create a young parcel fixture (age < 60)
+        # The test particelle have ages 60, 70, 80 - all use volume rules
+        # This test verifies the function logic directly
+
+        # Create a small test case with known values
+        test_trees = pd.DataFrame({
+            'D(cm)': [25, 30, 40, 50],  # All > 20
+            'V(m3)': [0.1, 0.2, 0.4, 0.8],  # Increasing volumes
+        })
+
+        # Basal areas: π/4 * D² / 10000 in m²
+        # D=25: 0.0491, D=30: 0.0707, D=40: 0.1257, D=50: 0.1963
+        # Total G = 0.4418 m²
+        # If pp_max = 20%, target G = 0.0884 m²
+        # Should harvest D=25 (G=0.0491), then D=30 (cumulative G=0.1198 > 0.0884)
+        # So only D=25 is fully harvested
+
+        sf = 1.0  # No scaling for this unit test
+        vol_mature, harvest = acc.compute_harvest_by_basal_area(test_trees, 20, sf)
+
+        # Total volume_mature
+        assert np.isclose(vol_mature, 1.5, rtol=1e-9)
+
+        # Harvest should be just the D=25 tree (V=0.1)
+        assert np.isclose(harvest, 0.1, rtol=1e-9), \
+            f"Harvest {harvest} should be 0.1 (just smallest tree)"
+
+
+# =============================================================================
 # VOLUME CALCULATION SPOT CHECKS
 # =============================================================================
 
 class TestVolumeCalculation:
-    """Basic sanity checks on volume calculations (not full Tabacchi verification)."""
+    """Basic sanity checks on volume calculations."""
 
     def test_volumes_are_positive(self, trees_df):
         """All calculated volumes should be positive."""

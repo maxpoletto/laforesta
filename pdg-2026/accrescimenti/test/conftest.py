@@ -74,3 +74,23 @@ def data_parcel_c(trees_df, particelle_df):
         ["alberi.csv"], trees_df, particelle_df,
         regions=["Test"], parcels=["C"], species=[]
     )
+
+
+# Harvest-related fixtures
+
+@pytest.fixture(scope="module")
+def comparti_df(clear_caches):
+    """Load test comparti data."""
+    return acc.load_csv("comparti.csv", TEST_DATA_DIR)
+
+
+@pytest.fixture(scope="module")
+def provv_vol_df(clear_caches):
+    """Load test volume-based harvest rules."""
+    return acc.load_csv("provv_vol.csv", TEST_DATA_DIR)
+
+
+@pytest.fixture(scope="module")
+def provv_eta_df(clear_caches):
+    """Load test age-based harvest rules."""
+    return acc.load_csv("provv_eta.csv", TEST_DATA_DIR)
