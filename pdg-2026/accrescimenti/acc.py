@@ -13,7 +13,7 @@ import io
 from pathlib import Path
 import re
 import subprocess
-from typing import Iterable, Optional
+from typing import Callable, Iterable, Optional, cast
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -46,11 +46,11 @@ class SnippetFormatter(ABC):
     """Formats individual components (images, metadata) for template insertion."""
 
     @abstractmethod
-    def format_image(self, filepath: Path, options: dict = None) -> str:
+    def format_image(self, filepath: Path, options: Optional[dict] = None) -> str:
         """Format image reference for this format."""
 
     @abstractmethod
-    def format_metadata(self, data: dict, curve_info: list = None) -> str:
+    def format_metadata(self, data: dict, curve_info: Optional[list] = None) -> str:
         """Format metadata block for this format.
 
         Args:
@@ -86,11 +86,11 @@ class SnippetFormatter(ABC):
 class HTMLSnippetFormatter(SnippetFormatter):
     """HTML snippet formatter."""
 
-    def format_image(self, filepath: Path, options: dict = None) -> str:
-        cls = options['stile'] if options['stile'] else 'graph-image'
+    def format_image(self, filepath: Path, options: Optional[dict] = None) -> str:
+        cls = options['stile'] if options and options['stile'] else 'graph-image'
         return f'<img src="{filepath.name}" class="{cls}">'
 
-    def format_metadata(self, data: dict, curve_info: list = None) -> str:
+    def format_metadata(self, data: dict, curve_info: Optional[list] = None) -> str:
         """Format metadata as HTML."""
         html = '<div class="graph-details">\n'
         html += f'<p><strong>Comprese:</strong> {data["regions"]}</p>\n'
@@ -142,14 +142,14 @@ class HTMLSnippetFormatter(SnippetFormatter):
 class LaTeXSnippetFormatter(SnippetFormatter):
     """LaTeX snippet formatter."""
 
-    def format_image(self, filepath: Path, options: dict = None) -> str:
-        fmt = options['stile'] if options['stile'] else 'width=0.5\\textwidth'
+    def format_image(self, filepath: Path, options: Optional[dict] = None) -> str:
+        fmt = options['stile'] if options and options['stile'] else 'width=0.5\\textwidth'
         latex = '\\begin{center}\n'
         latex += f'  \\includegraphics[{fmt}]{{{filepath.name}}}\n'
         latex += '\\end{center}\n'
         return latex
 
-    def format_metadata(self, data: dict, curve_info: list = None) -> str:
+    def format_metadata(self, data: dict, curve_info: Optional[list] = None) -> str:
         """Format metadata as LaTeX."""
         if not curve_info:
             return ""
@@ -207,10 +207,10 @@ class LaTeXSnippetFormatter(SnippetFormatter):
 class CSVSnippetFormatter(SnippetFormatter):
     """CSV snippet formatter for table-only output."""
 
-    def format_image(self, filepath: Path, options: dict = None) -> str:
+    def format_image(self, filepath: Path, options: Optional[dict] = None) -> str:
         raise NotImplementedError("Formato CSV non supporta immagini (direttive @@g*)")
 
-    def format_metadata(self, data: dict, curve_info: list = None) -> str:
+    def format_metadata(self, data: dict, curve_info: Optional[list] = None) -> str:
         raise NotImplementedError("Formato CSV non supporta metadati")
 
     def format_table(self, headers: list[tuple[str, str]], rows: list[list[str]]) -> str:
@@ -253,7 +253,7 @@ class RegressionFunc(ABC):
         """Predict y values from x using parameters a, b."""
 
     @abstractmethod
-    def _create_lambda(self, a: float, b: float):
+    def _create_lambda(self, a: float, b: float) -> Callable:
         """Create lambda function for prediction."""
 
     @abstractmethod
@@ -309,7 +309,7 @@ class LogarithmicRegression(RegressionFunc):
     def _predict(self, x: np.ndarray, a: float, b: float) -> np.ndarray:
         return a * np.log(x) + b
 
-    def _create_lambda(self, a: float, b: float):
+    def _create_lambda(self, a: float, b: float) -> Callable:
         return lambda x: a * np.log(np.maximum(x, 0.1)) + b
 
     def _format_equation(self, a: float, b: float) -> str:
@@ -330,7 +330,7 @@ class LinearRegression(RegressionFunc):
     def _predict(self, x: np.ndarray, a: float, b: float) -> np.ndarray:
         return a * x + b
 
-    def _create_lambda(self, a: float, b: float):
+    def _create_lambda(self, a: float, b: float) -> Callable:
         return lambda x: a * x + b
 
     def _format_equation(self, a: float, b: float) -> str:
@@ -529,6 +529,8 @@ def calculate_volume_confidence_interval(trees_df: pd.DataFrame) -> tuple[float,
     total_margin = 0.0  # Sum margins (conservative: assumes perfect correlation)
 
     for genere, group in trees_df.groupby('Genere'):
+        genere = cast(str, genere)
+        group = cast(pd.DataFrame, group)
         if genere not in TABACCHI_B:
             raise ValueError(f"Genere '{genere}' non presente in Tabacchi")
 
@@ -540,10 +542,12 @@ def calculate_volume_confidence_interval(trees_df: pd.DataFrame) -> tuple[float,
 
         # Build D0 matrix (n_trees x n_coefficients)
         d0 = np.zeros((n_trees, len(b)))
+        d_values = cast(np.ndarray, group['D(cm)'].values)
+        h_values = cast(np.ndarray, group['h(m)'].values)
         d0[:, 0] = 1
-        d0[:, 1] = (group['D(cm)'].values ** 2) * group['h(m)'].values
+        d0[:, 1] = (d_values ** 2) * h_values
         if len(b) == 3:
-            d0[:, 2] = group['D(cm)'].values
+            d0[:, 2] = d_values
 
         # D1 = sum of rows of D0 (1 x n_coefficients)
         d1 = np.sum(d0, axis=0).reshape(1, -1)
@@ -587,6 +591,8 @@ def calculate_all_trees_volume(trees_df: pd.DataFrame) -> pd.DataFrame:
     result_df['V(m3)'] = 0.0
 
     for idx, row in result_df.iterrows():
+        idx = cast(int, idx)
+        row = cast(pd.Series, row)
         genere = row['Genere']
         diameter = row['D(cm)']
         height = row['h(m)']
@@ -738,8 +744,10 @@ def fit_curves_grouped(groups: Iterable[tuple[tuple[str, str], pd.DataFrame]],
 
     results = []
     for (compresa, genere), group_df in groups:
+        x_values = cast(np.ndarray, group_df['x'].values)
+        y_values = cast(np.ndarray, group_df['y'].values)
         regr = RegressionClass()
-        if regr.fit(group_df['x'].values, group_df['y'].values, min_points=min_points):
+        if regr.fit(x_values, y_values, min_points=min_points):
             results.append({
                 'compresa': compresa,
                 'genere': genere,
@@ -792,7 +800,7 @@ def fit_curves_from_originali(alberi_file: str, funzione: str = 'log') -> pd.Dat
     df['x'] = df['D(cm)']
     df['y'] = df['h(m)']
 
-    groups = [(key, group) for key, group in df.groupby(['Compresa', 'Genere'])]
+    groups = list(df.groupby(['Compresa', 'Genere']))
     return fit_curves_grouped(groups, funzione)
 
 
@@ -878,6 +886,7 @@ def compute_heights(trees_df: pd.DataFrame, equations_df: pd.DataFrame,
 # =============================================================================
 
 # CURVE IPSOMETRICHE ==========================================================
+
 
 def render_gci_graph(data: dict, equations_df: pd.DataFrame,
                      output_path: Path, formatter: SnippetFormatter,
@@ -1037,7 +1046,7 @@ def calculate_cd_data(data: dict, metrica: str, stime_totali: bool,
     for (region, parcel), ptrees in trees.groupby(['Compresa', 'Particella']):
         p = parcels[(region, parcel)]
         area_ha += p['area_ha']
-        bucket_vals = ptrees['Diametro'] if fine else bucket_key.loc[ptrees.index]
+        bucket_vals = ptrees['Diametro'] if fine else cast(pd.Series, bucket_key).loc[ptrees.index]
         if agg_type == AGG_VOLUME:
             agg = ptrees.groupby([bucket_vals, 'Genere'])['V(m3)'].sum().unstack(fill_value=0)
         elif agg_type == AGG_BASAL:
@@ -1162,7 +1171,7 @@ def render_tcd_table(data: dict, formatter: SnippetFormatter, **options) -> dict
         row = [genere]
         row_total = 0.0
         for b in COARSE_BINS:
-            val = values_df.loc[b, genere] if b in values_df.index else 0
+            val = cast(float, values_df.at[b, genere]) if b in values_df.index else 0.0
             row.append(fmt.format(val))
             row_total += val
             col_totals[b] += val
@@ -1309,12 +1318,12 @@ def calculate_tsv_table(data: dict, group_cols: list[str],
     if '_' in group_cols:
         group_cols.remove('_')
         df = df.drop(columns=['_'])
-    return df.sort_values(group_cols,
-        key=lambda col: natsort_keygen()(col) if col.name == 'Particella' else col)
+    return df.sort_values(
+        group_cols,
+        key=lambda col: col.map(natsort_keygen()) if col.name == 'Particella' else col)
 
 
-def render_tsv_table(data: dict, formatter: SnippetFormatter,
-                     **options: dict) -> dict:
+def render_tsv_table(data: dict, formatter: SnippetFormatter, **options) -> dict:
     """
     Generate volume summary table (@@tsv directive).
 
@@ -1410,7 +1419,8 @@ def calculate_ip_table(data: dict, group_cols: list[str],
     rows = []
     for group_key, group_trees in trees.groupby(all_cols):
         row_dict = dict(zip(all_cols, group_key))
-        ip_medio = (group_trees['c(1/a)'] * 2 * group_trees['Ipr(mm)'] / 100 / group_trees['D(cm)']).mean()
+        ip_medio = (group_trees['c(1/a)'] * 2 * group_trees['Ipr(mm)']
+                    / 100 / group_trees['D(cm)']).mean()
 
         if stime_totali:
             volume = 0.0
@@ -1425,12 +1435,12 @@ def calculate_ip_table(data: dict, group_cols: list[str],
         rows.append(row_dict)
 
     df = pd.DataFrame(rows)
-    return df.sort_values(all_cols,
-        key=lambda col: natsort_keygen()(col) if col.name == 'Particella' else col)
+    return df.sort_values(
+        all_cols,
+        key=lambda col: col.map(natsort_keygen()) if col.name == 'Particella' else col)
 
 
-def render_tip_table(data: dict, formatter: SnippetFormatter,
-                     **options: dict) -> dict:
+def render_tip_table(data: dict, formatter: SnippetFormatter, **options) -> dict:
     """Generate IP summary table (@@tip directive)."""
     group_cols = []
     if options['per_compresa']:
@@ -1546,6 +1556,7 @@ def render_gsv_graph(data: dict, output_path: Path,
 
     # For stacking, we need per-genere data even if displaying by compresa/particella
     stacked = options['per_genere'] and group_cols
+    base_cols: list[str] = []
     if stacked:
         base_cols = group_cols.copy()
         group_cols.append('Genere')
@@ -1595,7 +1606,7 @@ def render_gsv_graph(data: dict, output_path: Path,
         # Draw stacked horizontal bars
         left = np.zeros(len(labels))
         for genere in generi:
-            values = pivot_df[genere].values
+            values = cast(np.ndarray, pivot_df[genere].values)
             ax.barh(y_positions, values, left=left, label=genere,
                     color=color_map.get(genere, '#0c63e7'), height=0.8,
                     edgecolor='white', linewidth=0.5)
@@ -1613,13 +1624,11 @@ def render_gsv_graph(data: dict, output_path: Path,
         if options['per_genere']:
             # Per-genere only: one bar per genere
             labels = df['Genere'].tolist()
-            values = df['volume'].values
         elif group_cols:
             labels = ['/'.join(str(row[c]) for c in group_cols) for _, row in df.iterrows()]
-            values = df['volume'].values
         else:
             labels = ['Totale']
-            values = df['volume'].values
+        values = cast(np.ndarray, df['volume'].values)
 
         # Calculate spacing for compresa groups
         spacing = []
@@ -1681,7 +1690,7 @@ def get_age_rule(eta_media: float, provv_eta_df: pd.DataFrame) -> tuple[float, b
         if eta_media >= row['Anni']:
             pp_max = row['PP_max']
             # If PP_max is 100%, use volume rules instead of basal area
-            use_volume_rules = (pp_max >= 100)
+            use_volume_rules = pp_max >= 100
             return pp_max, use_volume_rules
     return 0, False
 
@@ -1919,14 +1928,14 @@ def calculate_tpt_table(data: dict, comparti_df: pd.DataFrame,
         df = df.drop(columns=['_'])
     if not group_cols:
         return df
-    return df.sort_values(group_cols,
-        key=lambda col: natsort_keygen()(col) if col.name == 'Particella' else col)
+    return df.sort_values(
+        group_cols,
+        key=lambda col: col.map(natsort_keygen()) if col.name == 'Particella' else col)
 
 
 def render_tpt_table(data: dict, comparti_df: pd.DataFrame,
                      provv_vol_df: pd.DataFrame, provv_eta_df: pd.DataFrame,
-                     formatter: SnippetFormatter,
-                     **options: dict) -> dict:
+                     formatter: SnippetFormatter, **options) -> dict:
     """
     Render harvest (prelievo totale) table (@@tpt directive).
 
@@ -2081,7 +2090,7 @@ def render_gpt_graph(data: dict, comparti_df: pd.DataFrame,
         labels = ['/'.join(str(row[c]) for c in group_cols) for _, row in df.iterrows()]
     else:
         labels = ['Totale']
-    values = df['harvest'].values
+    values = cast(np.ndarray, df['harvest'].values)
 
     # Calculate spacing for compresa groups
     spacing = []
@@ -2215,7 +2224,7 @@ def process_template(template_text: str, data_dir: Path,
                      parcel_file: str,
                      output_dir: Path,
                      format_type: str,
-                     template_dir: Path = None) -> str:
+                     template_dir: Optional[Path] = None) -> str:
     """
     Process template by substituting @@directives with generated content.
 
@@ -2246,7 +2255,8 @@ def process_template(template_text: str, data_dir: Path,
         filename_counts[base_name] += 1
         return f'{base_name}_{filename_counts[base_name]:02d}.png'
 
-    def render_particelle(comprese: list[str], particelle: list[str], particelle_df: pd.DataFrame, params: dict):
+    def render_particelle(comprese: list[str], particelle: list[str],
+                          particelle_df: pd.DataFrame, params: dict):
         """
         Render information about all parcels in compresa by filling in a model template.
         """
@@ -2290,8 +2300,10 @@ def process_template(template_text: str, data_dir: Path,
             keyword = directive['keyword']
             params = directive['params']
 
-            if format_type == 'csv' and (keyword.startswith('g') or keyword in ('prop', 'particelle')):
-                raise ValueError(f"@@{keyword}: il formato CSV supporta solo direttive @@t* (tabelle)")
+            csv_unsupported = keyword.startswith('g') or keyword in ('prop', 'particelle')
+            if format_type == 'csv' and csv_unsupported:
+                raise ValueError(
+                    f"@@{keyword}: il formato CSV supporta solo direttive @@t* (tabelle)")
 
             alberi_files = params.get('alberi')
             equazioni_files = params.get('equazioni')
@@ -2574,7 +2586,7 @@ def run_genera_equazioni(args):
 
 def run_calcola_incrementi(args):
     """Calculate IP (incremento percentuale) for each tree."""
-    print(f"Calcolo incrementi percentuali")
+    print("Calcolo incrementi percentuali")
     print(f"Input: {args.input}")
     print(f"Output: {args.output}")
 
@@ -2598,8 +2610,9 @@ def run_calcola_altezze_volumi(args):
     trees_df = calculate_all_trees_volume(trees_df)
     print(f"\nCalcolo altezze e volumi: {updated} alberi aggiornati, {unchanged} immutati")
 
-    trees_df.sort_values(by=['Compresa', 'Particella', 'Area saggio', 'n'],
-        key=lambda col: natsort_keygen()(col) if col.name == 'Particella' else col,
+    trees_df.sort_values(
+        by=['Compresa', 'Particella', 'Area saggio', 'n'],
+        key=lambda col: col.map(natsort_keygen()) if col.name == 'Particella' else col,
         inplace=True)
     trees_df.to_csv(args.output, index=False, float_format="%.6f")
     print(f"\nFile salvato: {args.output}")
