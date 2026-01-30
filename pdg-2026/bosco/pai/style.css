@@ -97,10 +97,10 @@ button.small { padding: 5px; font-size: 11px; }
 
 /** Everything above here is inherited from parcel_editor/style.css **/
 
-/* Species list */
+/* Item lists */
 
-#species-list {
-    max-height: 31lh;
+#parcel-list, #species-list {
+    max-height: 20lh;
     overflow-y: auto;
     background: white;
     border: 1px solid #ccc;

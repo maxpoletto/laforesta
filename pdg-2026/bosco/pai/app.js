@@ -5,9 +5,11 @@ const TreeViewer = (function() {
     let map = null;
     let currentBasemap = null;
     let parcelLayer = null;
-    let treeMarkers = {};  // species -> L.LayerGroup
+    let allTreeMarkers = [];  // Array of {marker, species, parcel}
     let speciesColors = {};
     let speciesVisible = {};
+    let parcelVisible = {};
+    let parcelCounts = {};
 
     const $ = id => document.getElementById(id);
 
@@ -90,62 +92,82 @@ const TreeViewer = (function() {
                     !isNaN(parseFloat(row.Lat))
                 );
 
-                // Group by species
+                // Group by species and collect particelle
                 const bySpecies = {};
+                const parcelSet = new Set();
+
                 trees.forEach(tree => {
                     const species = tree.Genere || 'Sconosciuto';
+                    const parcel = tree.Particella || '?';
+
                     if (!bySpecies[species]) {
                         bySpecies[species] = [];
                     }
                     bySpecies[species].push(tree);
+
+                    parcelSet.add(parcel);
+                    parcelCounts[parcel] = (parcelCounts[parcel] || 0) + 1;
                 });
 
-                // Create markers for each species
-                Object.entries(bySpecies).forEach(([species, treesOfSpecies]) => {
+                // Create markers for each tree
+                trees.forEach(tree => {
+                    const species = tree.Genere || 'Sconosciuto';
+                    const parcel = tree.Particella || '?';
+                    const lat = parseFloat(tree.Lat);
+                    const lon = parseFloat(tree.Lon);
+                    const diameter = tree.Diametro || '?';
                     const color = getSpeciesColor(species);
-                    const markers = L.layerGroup();
 
-                    treesOfSpecies.forEach(tree => {
-                        const lat = parseFloat(tree.Lat);
-                        const lon = parseFloat(tree.Lon);
-                        const diameter = tree.Diametro || '?';
-                        const particella = tree.Particella || '?';
-
-                        const marker = L.circleMarker([lat, lon], {
-                            radius: 5,
-                            fillColor: color,
-                            color: '#000',
-                            weight: 1,
-                            opacity: 1,
-                            fillOpacity: 0.8
-                        });
-
-                        marker.bindTooltip(
-                            `<b>${species}</b><br>D: ${diameter} cm<br>Particella: ${particella}`,
-                            { direction: 'top', offset: [0, -5] }
-                        );
-
-                        markers.addLayer(marker);
+                    const marker = L.circleMarker([lat, lon], {
+                        radius: 5,
+                        fillColor: color,
+                        color: '#000',
+                        weight: 1,
+                        opacity: 1,
+                        fillOpacity: 0.8
                     });
 
-                    treeMarkers[species] = markers;
+                    marker.bindTooltip(
+                        `<b>${species}</b><br>D: ${diameter} cm<br>Particella: ${parcel}`,
+                        { direction: 'top', offset: [0, -5] }
+                    );
+
+                    allTreeMarkers.push({ marker, species, parcel });
+
+                    // Initialize visibility state
                     speciesVisible[species] = true;
-                    markers.addTo(map);
+                    parcelVisible[parcel] = true;
                 });
 
-                return { total: trees.length, bySpecies };
+                return { total: trees.length, bySpecies, parcels: Array.from(parcelSet).sort() };
             });
+    }
+
+    function updateTreeVisibility() {
+        allTreeMarkers.forEach(({ marker, species, parcel }) => {
+            const shouldShow = speciesVisible[species] && parcelVisible[parcel];
+            if (shouldShow) {
+                marker.addTo(map);
+            } else {
+                map.removeLayer(marker);
+            }
+        });
     }
 
     function updateSpeciesList() {
         const list = $('species-list');
         list.innerHTML = '';
 
-        const sortedSpecies = Object.keys(treeMarkers).sort();
+        const speciesCounts = {};
+        allTreeMarkers.forEach(({ species }) => {
+            speciesCounts[species] = (speciesCounts[species] || 0) + 1;
+        });
+
+        const sortedSpecies = Object.keys(speciesCounts).sort();
 
         sortedSpecies.forEach(species => {
             const color = speciesColors[species];
-            const count = treeMarkers[species].getLayers().length;
+            const count = speciesCounts[species];
 
             const item = document.createElement('label');
             item.className = 'checkbox-row species-item';
@@ -154,6 +176,34 @@ const TreeViewer = (function() {
                        onchange="TreeViewer.toggleSpecies('${species}', this.checked)" />
                 <span class="color-dot" style="background: ${color}"></span>
                 <span class="species-name">${species}</span>
+                <span class="species-count">(${count})</span>
+            `;
+            list.appendChild(item);
+        });
+    }
+
+    function updateParticelle() {
+        const list = $('parcel-list');
+        list.innerHTML = '';
+
+        const sortedParcelle = Object.keys(parcelCounts).sort((a, b) => {
+            const numA = parseInt(a);
+            const numB = parseInt(b);
+            if (!isNaN(numA) && !isNaN(numB)) {
+                return numA - numB;
+            }
+            return a.localeCompare(b);
+        });
+
+        sortedParcelle.forEach(parcel => {
+            const count = parcelCounts[parcel];
+
+            const item = document.createElement('label');
+            item.className = 'checkbox-row species-item';
+            item.innerHTML = `
+                <input type="checkbox" ${parcelVisible[parcel] ? 'checked' : ''}
+                       onchange="TreeViewer.toggleParticella('${parcel}', this.checked)" />
+                <span class="species-name">${parcel}</span>
                 <span class="species-count">(${count})</span>
             `;
             list.appendChild(item);
@@ -188,12 +238,16 @@ const TreeViewer = (function() {
                     const treeData = await loadTrees();
 
                     updateSpeciesList();
+                    updateParticelle();
                     updateStats(treeData);
 
                     // Fit bounds to parcels
                     if (parcelLayer && parcelLayer.getBounds().isValid()) {
                         map.fitBounds(parcelLayer.getBounds());
                     }
+
+                    // Show trees after bounds are set
+                    updateTreeVisibility();
 
                     updateStatus(`Caricate ${parcelCount} particelle, ${treeData.total} alberi`);
                 } catch (err) {
@@ -210,27 +264,44 @@ const TreeViewer = (function() {
 
         toggleSpecies(species, visible) {
             speciesVisible[species] = visible;
-            if (visible) {
-                treeMarkers[species].addTo(map);
-            } else {
-                map.removeLayer(treeMarkers[species]);
-            }
+            updateTreeVisibility();
         },
 
-        showAll() {
-            Object.keys(treeMarkers).forEach(species => {
+        toggleParticella(parcel, visible) {
+            parcelVisible[parcel] = visible;
+            updateTreeVisibility();
+        },
+
+        showAllSpecies() {
+            Object.keys(speciesVisible).forEach(species => {
                 speciesVisible[species] = true;
-                treeMarkers[species].addTo(map);
             });
+            updateTreeVisibility();
             updateSpeciesList();
         },
 
-        hideAll() {
-            Object.keys(treeMarkers).forEach(species => {
+        hideAllSpecies() {
+            Object.keys(speciesVisible).forEach(species => {
                 speciesVisible[species] = false;
-                map.removeLayer(treeMarkers[species]);
             });
+            updateTreeVisibility();
             updateSpeciesList();
+        },
+
+        showAllParcelle() {
+            Object.keys(parcelVisible).forEach(parcel => {
+                parcelVisible[parcel] = true;
+            });
+            updateTreeVisibility();
+            updateParticelle();
+        },
+
+        hideAllParcelle() {
+            Object.keys(parcelVisible).forEach(parcel => {
+                parcelVisible[parcel] = false;
+            });
+            updateTreeVisibility();
+            updateParticelle();
         }
     };
 })();
