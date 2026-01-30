@@ -76,6 +76,24 @@ def data_parcel_c(trees_df, particelle_df):
     )
 
 
+@pytest.fixture(scope="module")
+def data_parcel_d(trees_df, particelle_df):
+    """Get parcel_data for parcel D only (age=20, basal area 15% rule)."""
+    return acc.parcel_data(
+        ["alberi.csv"], trees_df, particelle_df,
+        regions=["Test"], parcels=["D"], species=[]
+    )
+
+
+@pytest.fixture(scope="module")
+def data_parcel_e(trees_df, particelle_df):
+    """Get parcel_data for parcel E only (age=45, basal area 20% rule)."""
+    return acc.parcel_data(
+        ["alberi.csv"], trees_df, particelle_df,
+        regions=["Test"], parcels=["E"], species=[]
+    )
+
+
 # Harvest-related fixtures
 
 @pytest.fixture(scope="module")

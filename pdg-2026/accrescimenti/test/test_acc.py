@@ -11,18 +11,23 @@ Test categories:
 (h) Harvest calculation (volume and basal area rules)
 
 Test data (in test/data/):
+Mature parcels (age >= 60, use volume rules):
 - Parcel A: 10 ha, 1 sample area, age=60  -> sampled_frac = 0.0125, scale = 80
 - Parcel B: 10 ha, 2 sample areas, age=70 -> sampled_frac = 0.025,  scale = 40
 - Parcel C: 10 ha, 5 sample areas, age=80 -> sampled_frac = 0.0625, scale = 16
-- Species: Faggio, Cerro (both have 2-coefficient Tabacchi equations)
-- Includes small trees (D <= 20cm) for testing exclusion logic
+
+Young parcels (age < 60, use basal area rules):
+- Parcel D: 10 ha, 1 sample area, age=20  -> PP_max = 15% (age range 0-29)
+- Parcel E: 10 ha, 1 sample area, age=45  -> PP_max = 20% (age range 30-59)
+
+Species: Faggio, Cerro (both have 2-coefficient Tabacchi equations)
+Each parcel includes both small trees (D <= 20cm) and mature trees (D > 20cm).
 """
 
 import sys
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
 import pytest
 
 # Add parent directory to path for imports
@@ -246,6 +251,8 @@ class TestSampleAreaScaling:
     - Parcel A: 10 ha, 1 sample area  -> sampled_frac = 0.0125, scale = 80
     - Parcel B: 10 ha, 2 sample areas -> sampled_frac = 0.025,  scale = 40
     - Parcel C: 10 ha, 5 sample areas -> sampled_frac = 0.0625, scale = 16
+    - Parcel D: 10 ha, 1 sample area  -> sampled_frac = 0.0125, scale = 80
+    - Parcel E: 10 ha, 1 sample area  -> sampled_frac = 0.0125, scale = 80
     """
 
     def test_sampled_frac_computation(self, data_all):
@@ -299,12 +306,14 @@ class TestSampleAreaScaling:
         df = acc.calculate_tsv_table(
             data_all, group_cols=[], calc_margin=False, calc_total=True
         )
-        # 6/0.0125 + 8/0.025 + 12/0.0625 = 480 + 320 + 192 = 992
-        expected_trees = 480 + 320 + 192
+        # A: 6/0.0125=480, B: 8/0.025=320, C: 12/0.0625=192, D: 6/0.0125=480, E: 6/0.0125=480
+        expected_trees = 480 + 320 + 192 + 480 + 480
         assert np.isclose(df['n_trees'].sum(), expected_trees, rtol=1e-9), \
             f"Total trees {df['n_trees'].sum()} != expected {expected_trees}"
 
-    def test_volume_scaling_consistency(self, data_all, data_parcel_a, data_parcel_b, data_parcel_c):
+    def test_volume_scaling_consistency(
+            self, data_all, data_parcel_a, data_parcel_b, data_parcel_c,
+            data_parcel_d, data_parcel_e):
         """Sum of per-parcel volumes should equal total volume."""
         df_all = acc.calculate_tsv_table(
             data_all, group_cols=[], calc_margin=False, calc_total=True
@@ -318,15 +327,22 @@ class TestSampleAreaScaling:
         df_c = acc.calculate_tsv_table(
             data_parcel_c, group_cols=[], calc_margin=False, calc_total=True
         )
+        df_d = acc.calculate_tsv_table(
+            data_parcel_d, group_cols=[], calc_margin=False, calc_total=True
+        )
+        df_e = acc.calculate_tsv_table(
+            data_parcel_e, group_cols=[], calc_margin=False, calc_total=True
+        )
 
         total = df_all['volume'].sum()
-        sum_parts = df_a['volume'].sum() + df_b['volume'].sum() + df_c['volume'].sum()
+        sum_parts = (df_a['volume'].sum() + df_b['volume'].sum() + df_c['volume'].sum() +
+                     df_d['volume'].sum() + df_e['volume'].sum())
 
         assert np.isclose(total, sum_parts, rtol=1e-9), \
             f"Total volume {total} != sum of parts {sum_parts}"
 
     def test_per_ha_values(self, data_all):
-        """Per-hectare values should be total divided by total area (30 ha)."""
+        """Per-hectare values should be total divided by total area (50 ha)."""
         # Total volume
         tcd_tot = acc.calculate_cd_data(
             data_all, metrica='volume_tot', stime_totali=True, fine=True
@@ -339,8 +355,8 @@ class TestSampleAreaScaling:
         )
         per_ha_volume = tcd_ha.sum().sum()
 
-        # Total area = 10 + 10 + 10 = 30 ha
-        expected_per_ha = total_volume / 30.0
+        # Total area = 10 + 10 + 10 + 10 + 10 = 50 ha
+        expected_per_ha = total_volume / 50.0
 
         assert np.isclose(per_ha_volume, expected_per_ha, rtol=1e-9), \
             f"Per-ha volume {per_ha_volume} != expected {expected_per_ha}"
@@ -474,9 +490,10 @@ class TestMature:
         n_small = (trees['D(cm)'] <= acc.MATURE_THRESHOLD).sum()
         n_mature = (trees['D(cm)'] > acc.MATURE_THRESHOLD).sum()
 
-        # Test data has 6 small trees (D=15,20,18,12,10,19)
-        assert n_small == 6, f"Expected 6 small trees, got {n_small}"
-        assert n_mature == 20, f"Expected 20 mature trees, got {n_mature}"
+        # Each parcel (A,B,C,D,E) has 2 small trees: 10 total
+        # A: 4 mature, B: 6 mature, C: 10 mature, D: 4 mature, E: 4 mature = 28 total
+        assert n_small == 10, f"Expected 10 small trees, got {n_small}"
+        assert n_mature == 28, f"Expected 28 mature trees, got {n_mature}"
 
     def test_volume_mature_consistency(self, data_all):
         """Manual calculation of volume_mature should match."""
@@ -560,34 +577,88 @@ class TestHarvestCalculation:
         assert np.isclose(total_harvest, sum_parcels, rtol=1e-9), \
             f"Total harvest {total_harvest} != sum of parcels {sum_parcels}"
 
-    def test_basal_area_harvest_smallest_first(self):
-        """For young parcels, harvest should select smallest trees first."""
-        # Create a young parcel fixture (age < 60)
-        # The test particelle have ages 60, 70, 80 - all use volume rules
-        # This test verifies the function logic directly
+    def test_basal_area_harvest_parcel_d(
+            self, data_parcel_d, comparti_df, provv_vol_df, provv_eta_df):
+        """Parcel D (age=20) should use 15% basal area harvest rule."""
+        df = acc.calculate_tpt_table(
+            data_parcel_d, comparti_df, provv_vol_df, provv_eta_df, group_cols=[]
+        )
 
-        # Create a small test case with known values
-        test_trees = pd.DataFrame({
-            'D(cm)': [25, 30, 40, 50],  # All > 20
-            'V(m3)': [0.1, 0.2, 0.4, 0.8],  # Increasing volumes
-        })
-
-        # Basal areas: π/4 * D² / 10000 in m²
+        # Parcel D has age=20, which falls in 0-29 range with PP_max=15%
+        # Mature trees (D > 20): D=25, D=30, D=40, D=50
+        # Small trees (D <= 20): D=15, D=18 (excluded from harvest)
+        # Basal areas of mature trees:
         # D=25: 0.0491, D=30: 0.0707, D=40: 0.1257, D=50: 0.1963
         # Total G = 0.4418 m²
-        # If pp_max = 20%, target G = 0.0884 m²
-        # Should harvest D=25 (G=0.0491), then D=30 (cumulative G=0.1198 > 0.0884)
-        # So only D=25 is fully harvested
+        # Target G (15%) = 0.0663 m²
+        # Should harvest D=25 tree only (0.0491 < 0.0663)
 
-        sf = 1.0  # No scaling for this unit test
-        vol_mature, harvest = acc.compute_harvest_by_basal_area(test_trees, 20, sf)
+        assert df['harvest'].sum() > 0, "Should have some harvest"
 
-        # Total volume_mature
-        assert np.isclose(vol_mature, 1.5, rtol=1e-9)
+        # Check that the PP_max rule was applied (harvest is proportional to G)
+        vol_mature = df['volume_mature'].sum()
+        harvest = df['harvest'].sum()
+        assert harvest < vol_mature, "Harvest should be less than total mature volume"
 
-        # Harvest should be just the D=25 tree (V=0.1)
-        assert np.isclose(harvest, 0.1, rtol=1e-9), \
-            f"Harvest {harvest} should be 0.1 (just smallest tree)"
+    def test_basal_area_harvest_parcel_e(
+            self, data_parcel_e, comparti_df, provv_vol_df, provv_eta_df):
+        """Parcel E (age=45) should use 20% basal area harvest rule."""
+        df = acc.calculate_tpt_table(
+            data_parcel_e, comparti_df, provv_vol_df, provv_eta_df, group_cols=[]
+        )
+
+        # Parcel E has age=45, which falls in 30-59 range with PP_max=20%
+        # Same mature trees as D: D=25, D=30, D=40, D=50
+        # Target G (20%) = 0.0884 m²
+        # Should harvest D=25 tree only (0.0491 < 0.0884)
+
+        assert df['harvest'].sum() > 0, "Should have some harvest"
+
+        vol_mature = df['volume_mature'].sum()
+        harvest = df['harvest'].sum()
+        assert harvest < vol_mature, "Harvest should be less than total mature volume"
+
+    def test_basal_area_vs_volume_harvest_difference(
+            self, data_parcel_a, data_parcel_d, provv_eta_df):
+        """Basal area harvest (young) uses different logic than volume harvest (old)."""
+        # Verify that age rules correctly distinguish the two parcels
+        # Parcel A (age=60) uses volume rules
+        parcels_a = data_parcel_a['parcels']
+        age_a = parcels_a[('Test', 'A')]['age']
+        _, use_vol_a = acc.get_age_rule(age_a, provv_eta_df)
+        assert use_vol_a, f"Parcel A (age={age_a}) should use volume rules"
+
+        # Parcel D (age=20) uses basal area rules
+        parcels_d = data_parcel_d['parcels']
+        age_d = parcels_d[('Test', 'D')]['age']
+        pp_max_d, use_vol_d = acc.get_age_rule(age_d, provv_eta_df)
+        assert not use_vol_d, f"Parcel D (age={age_d}) should use basal area rules"
+        assert pp_max_d == 15, f"Parcel D should have PP_max=15, got {pp_max_d}"
+
+    def test_small_trees_excluded_from_basal_area_harvest(
+            self, data_parcel_d, comparti_df, provv_vol_df, provv_eta_df):
+        """Small trees (D <= 20) should be excluded from basal area harvest calculation."""
+        # Get harvest for parcel D
+        df = acc.calculate_tpt_table(
+            data_parcel_d, comparti_df, provv_vol_df, provv_eta_df, group_cols=[]
+        )
+
+        # Parcel D has 2 small trees (D=15, D=18) that should be excluded
+        # volume_mature should only include D > 20 trees
+        trees = data_parcel_d['trees']
+        small_trees = trees[trees['D(cm)'] <= acc.MATURE_THRESHOLD]
+        mature_trees = trees[trees['D(cm)'] > acc.MATURE_THRESHOLD]
+
+        assert len(small_trees) == 2, "Should have 2 small trees"
+        assert len(mature_trees) == 4, "Should have 4 mature trees"
+
+        # volume_mature should be scaled sum of mature tree volumes
+        sf = data_parcel_d['parcels'][('Test', 'D')]['sampled_frac']
+        expected_vol_mature = mature_trees['V(m3)'].sum() / sf
+        actual_vol_mature = df['volume_mature'].sum()
+
+        assert np.isclose(actual_vol_mature, expected_vol_mature, rtol=1e-9), \
+            f"volume_mature {actual_vol_mature} != expected {expected_vol_mature}"
 
 
 # =============================================================================

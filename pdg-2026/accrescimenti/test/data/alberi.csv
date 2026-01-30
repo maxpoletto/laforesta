@@ -37,3 +37,17 @@ Test,C,4,1,,60,12,26,Faggio,True,6.0,200
 Test,C,4,2,,65,13,27,Cerro,True,6.5,200
 Test,C,5,1,,70,14,28,Faggio,True,7.0,200
 Test,C,5,2,,75,15,29,Cerro,True,7.5,200
+# Parcel D: 1 sample area, age=20 (PP_max=15% basal area), 6 trees (2 small + 4 mature)
+Test,D,1,1,,15,3,12,Faggio,True,1.5,200
+Test,D,1,2,,18,4,14,Cerro,True,1.8,200
+Test,D,1,3,,25,5,18,Faggio,True,2.5,200
+Test,D,1,4,,30,6,20,Cerro,True,3.0,200
+Test,D,1,5,,40,8,22,Faggio,True,4.0,200
+Test,D,1,6,,50,10,25,Cerro,True,5.0,200
+# Parcel E: 1 sample area, age=45 (PP_max=20% basal area), 6 trees (2 small + 4 mature)
+Test,E,1,1,,12,2,10,Faggio,True,1.2,200
+Test,E,1,2,,19,4,14,Cerro,True,1.9,200
+Test,E,1,3,,25,5,18,Faggio,True,2.5,200
+Test,E,1,4,,30,6,20,Cerro,True,3.0,200
+Test,E,1,5,,40,8,22,Faggio,True,4.0,200
+Test,E,1,6,,50,10,25,Cerro,True,5.0,200
