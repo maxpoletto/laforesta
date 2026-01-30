@@ -1353,7 +1353,7 @@ def render_tsv_table(data: dict, formatter: SnippetFormatter, **options) -> dict
 
     df = calculate_tsv_table(data, group_cols,
         options['intervallo_fiduciario'], options['stime_totali'],
-        options.get('solo_mature', False))
+        options['solo_mature'])
 
     headers = []
     show_region = 'Compresa' in group_cols
@@ -1846,20 +1846,20 @@ def calculate_tpt_table(data: dict, comparti_df: pd.DataFrame,
             # Age >= threshold: use volume-based rules
             # Compute volume excluding sottomisura
             above_threshold = part_trees[part_trees['D(cm)'] > MATURE_THRESHOLD]
-            vol_senza_sotto = above_threshold['V(m3)'].sum() / sf
+            vol_mature = above_threshold['V(m3)'].sum() / sf
 
             # Get PP_max from volume rules
-            pp_max = compute_pp_max_volume(vol_senza_sotto / p_area, provv_min, provv_vol_df)
-            harvest = vol_senza_sotto * pp_max / 100
+            pp_max = compute_pp_max_volume(vol_mature / p_area, provv_min, provv_vol_df)
+            harvest = vol_mature * pp_max / 100
         else:
             # Age < threshold: use basal area rules
             pp_max = pp_max_age
-            vol_senza_sotto, harvest = compute_harvest_by_basal_area(part_trees, pp_max, sf)
+            vol_mature, harvest = compute_harvest_by_basal_area(part_trees, pp_max, sf)
 
         parcel_info[(region, parcel)] = {
             'sector': sector, 'age': age, 'area_ha': p_area, 'sf': sf,
             'volume': total_volume,
-            'volume_mature': vol_senza_sotto,
+            'volume_mature': vol_mature,
             'pp_max': pp_max,
             'harvest': harvest,
             'skip': False
@@ -1872,7 +1872,7 @@ def calculate_tpt_table(data: dict, comparti_df: pd.DataFrame,
             group_key = (group_key,)
         row_dict = dict(zip(group_cols, group_key))
 
-        volume, vol_senza_sotto, harvest, area_ha = 0.0, 0.0, 0.0, 0.0
+        volume, vol_mature, harvest, area_ha = 0.0, 0.0, 0.0, 0.0
         any_tree = False
         last_pp_max, last_sector, last_age = 0.0, '', 0
 
@@ -1897,11 +1897,11 @@ def calculate_tpt_table(data: dict, comparti_df: pd.DataFrame,
                     frac = 0
 
                 volume += group_vol
-                vol_senza_sotto += group_vol_senza
+                vol_mature += group_vol_senza
                 harvest += info['harvest'] * frac
             else:
                 volume += info['volume']
-                vol_senza_sotto += info['volume_mature']
+                vol_mature += info['volume_mature']
                 harvest += info['harvest']
 
             area_ha += info['area_ha']
@@ -1918,7 +1918,7 @@ def calculate_tpt_table(data: dict, comparti_df: pd.DataFrame,
             row_dict['pp_max'] = last_pp_max
         row_dict['area_ha'] = area_ha
         row_dict['volume'] = volume
-        row_dict['volume_mature'] = vol_senza_sotto
+        row_dict['volume_mature'] = vol_mature
         row_dict['harvest'] = harvest
         rows.append(row_dict)
 
@@ -1948,9 +1948,10 @@ def render_tpt_table(data: dict, comparti_df: pd.DataFrame,
         options: Dictionary of options:
             - per_compresa, per_particella, per_genere: Grouping flags
             - col_comparto: Show comparto column (default si)
-            - col_volume: Show total volume column (default si)
+            - col_volume: Show total volume column (default no)
             - col_volume_mature: Show volume excluding D<=20cm (default no)
             - col_volume_ha: Show total volume per hectare column (default si)
+            - col_volume_mature_ha: Show volume_mature per hectare column (default si)
             - col_pp_max: Show provvigione percentuale massima column (default si)
             - col_prelievo: Show harvest column (default si)
             - col_prelievo_ha: Show harvest per hectare column (default si)
@@ -1987,10 +1988,12 @@ def render_tpt_table(data: dict, comparti_df: pd.DataFrame,
         headers.append(('Area (ha)', 'r'))
     if options['col_volume']:
         headers.append(('Vol tot (m³)', 'r'))
-    if options['col_volume_mature']:
-        headers.append(('Vol mature (m³)', 'r'))  # senza sottomisura
     if options['col_volume_ha']:
         headers.append(('Vol/ha (m³/ha)', 'r'))
+    if options['col_volume_mature']:
+        headers.append(('Vol mature (m³)', 'r'))  # senza sottomisura
+    if options['col_volume_mature_ha']:
+        headers.append(('Vol mature/ha (m³/ha)', 'r'))
     if options['col_pp_max'] and per_parcel:
         headers.append(('Prelievo \\%', 'r'))
     if options['col_prelievo']:
@@ -2012,10 +2015,12 @@ def render_tpt_table(data: dict, comparti_df: pd.DataFrame,
             display_row.append(f"{row['area_ha']:.2f}")
         if options['col_volume']:
             display_row.append(f"{row['volume']:.2f}")
-        if options['col_volume_mature']:
-            display_row.append(f"{row['volume_mature']:.2f}")
         if options['col_volume_ha']:
             display_row.append(f"{row['volume'] / row['area_ha']:.2f}")
+        if options['col_volume_mature']:
+            display_row.append(f"{row['volume_mature']:.2f}")
+        if options['col_volume_mature_ha']:
+            display_row.append(f"{row['volume_mature'] / row['area_ha']:.2f}")
         if options['col_pp_max'] and per_parcel:
             display_row.append(f"{row['pp_max']:.0f}")
         if options['col_prelievo']:
@@ -2042,10 +2047,12 @@ def render_tpt_table(data: dict, comparti_df: pd.DataFrame,
             total_row.append(f"{total_area:.2f}")
         if options['col_volume']:
             total_row.append(f"{df['volume'].sum():.2f}")
-        if options['col_volume_mature']:
-            total_row.append(f"{df['volume_mature'].sum():.2f}")
         if options['col_volume_ha']:
             total_row.append(f"{df['volume'].sum() / total_area:.2f}")
+        if options['col_volume_mature']:
+            total_row.append(f"{df['volume_mature'].sum():.2f}")
+        if options['col_volume_mature_ha']:
+            total_row.append(f"{df['volume_mature'].sum() / total_area:.2f}")
         if options['col_pp_max'] and per_parcel:
             total_row.append('')  # PP_max doesn't aggregate meaningfully
         if options['col_prelievo']:
@@ -2336,8 +2343,7 @@ def process_template(template_text: str, data_dir: Path,
                         'stime_totali': params.get('stime_totali', 'si').lower() == 'si',
                         'intervallo_fiduciario':
                             params.get('intervallo_fiduciario', 'no').lower() == 'si',
-                        'solo_mature':
-                            params.get('solo_mature', 'si').lower() == 'si',
+                        'solo_mature': params.get('solo_mature', 'no').lower() == 'si',
                         'totali': params.get('totali', 'no').lower() == 'si'
                     }
                     check_allowed_params(keyword, params, options)
@@ -2357,8 +2363,9 @@ def process_template(template_text: str, data_dir: Path,
                         'col_eta': params.get('col_eta', 'si').lower() == 'si',
                         'col_area_ha': params.get('col_area_ha', 'si').lower() == 'si',
                         'col_volume': params.get('col_volume', 'no').lower() == 'si',
+                        'col_volume_ha': params.get('col_volume_ha', 'no').lower() == 'si',
                         'col_volume_mature': params.get('col_volume_mature', 'si').lower() == 'si',
-                        'col_volume_ha': params.get('col_volume_ha', 'si').lower() == 'si',
+                        'col_volume_mature_ha': params.get('col_volume_mature_ha', 'si').lower() == 'si',
                         'col_pp_max': params.get('col_pp_max', 'si').lower() == 'si',
                         'col_prelievo': params.get('col_prelievo', 'si').lower() == 'si',
                         'col_prelievo_ha': params.get('col_prelievo_ha', 'si').lower() == 'si',
