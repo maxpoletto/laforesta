@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Piante Accrescimento Indefinito</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="f.gif" type="image/gif"/>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="style.css" />
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+    <script src="app.js"></script>
+</head>
+<body>
+    <div id="map"></div>
+    <div id="sidebar">
+        <h3>Piante Accrescimento Indefinito</h3>
+        <div id="status">Caricamento...</div>
+        <div id="coords"></div>
+
+        <div class="section">
+            <h4>Mappa</h4>
+            <div class="button-row">
+                <button onclick="TreeViewer.setBasemap('osm')">OpenStreetMap</button>
+                <button onclick="TreeViewer.setBasemap('satellite')">Satellitare</button>
+                <button onclick="TreeViewer.setBasemap('topo')">Topografica</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h4>Specie</h4>
+            <div id="species-list"></div>
+            <div class="button-row">
+                <button onclick="TreeViewer.showAll()">Mostra tutte</button>
+                <button onclick="TreeViewer.hideAll()">Nascondi tutte</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h4>Statistiche</h4>
+            <div id="stats"></div>
+        </div>
+
+        <div class="section">
+            <h4>Legenda</h4>
+            <p class="help-text">
+                Ogni punto rappresenta un albero.
+                Passa il mouse sopra un punto per vedere specie e diametro.
+            </p>
+        </div>
+    </div>
+</body>
+</html>
