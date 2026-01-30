@@ -127,6 +127,8 @@ Di seguito la stima dei volumi di ciascuna compresa, calcolata secondo la metodo
 
 Oltre alla cubatura totale, riportiamo una stima del numero di piante, nonché l'intervallo fiduciario al 95\% della stima dei volumi, ottenuto sempre con la metodologia del Tabacchi. Il margine d'errore per il volume totale è calcolato come la somma dei margini d'errore di ciascuna specie: rappresenta quindi il caso peggiore, in cui le particelle sono completamente correlate tra loro.
 
+I valori elencati includono le piante sottomisura, al di sotto di 20 cm di diametro. Per contro, i volumi usati per la ripresa nella sezione successiva escludono le piante sottomisura.
+
 @@tsv(alberi=alberi-calcolati.csv,per_compresa=si,per_particella=no,per_genere=no,intervallo_fiduciario=si,totali=si)
 
 \subsection*{Stima dei volumi: Serra}
@@ -200,19 +202,28 @@ In base a queste regole, la ripresa totale per compresa è la seguente.
 Di seguito, per ciascuna compresa, la ripresa per particella. Per ogni particella riportiamo anche il comparto, l'età media, e l'area, il che permette di verificare manualmente le percentuali di prelievo secondo i criteri di cui sopra.
 
 \subsection*{Ripresa: Serra}
-{\footnotesize
+\begingroup
+    \setlength{\LTleft}{0pt}
+    {\footnotesize
 @@tpt(alberi=alberi-calcolati.csv,compresa=Serra,comparti=comparti.csv,provv_vol=provv_vol.csv,provv_eta=provv_eta.csv,per_compresa=no,totali=si)
-}
+    }
+\endgroup
 
 \subsection*{Ripresa: Fabrizia}
-{\footnotesize
+\begingroup
+    \setlength{\LTleft}{0pt}
+    {\footnotesize
 @@tpt(alberi=alberi-calcolati.csv,compresa=Fabrizia,comparti=comparti.csv,provv_vol=provv_vol.csv,provv_eta=provv_eta.csv,per_compresa=no,totali=si)
-}
+    }
+\endgroup
 
 \subsection*{Ripresa: Capistrano}
-{\footnotesize
+\begingroup
+    \setlength{\LTleft}{0pt}
+    {\footnotesize
 @@tpt(alberi=alberi-calcolati.csv,compresa=Capistrano,comparti=comparti.csv,provv_vol=provv_vol.csv,provv_eta=provv_eta.csv,per_compresa=no,totali=si)
-}
+    }
+\endgroup
 
 \clearpage
 \section{Dettaglio per particella}
