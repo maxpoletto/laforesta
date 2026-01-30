@@ -100,7 +100,7 @@ button.small { padding: 5px; font-size: 11px; }
 /* Species list */
 
 #species-list {
-    max-height: 300px;
+    max-height: 31lh;
     overflow-y: auto;
     background: white;
     border: 1px solid #ccc;
