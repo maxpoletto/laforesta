@@ -25,6 +25,8 @@ SAMPLE_AREA_HA = 0.125
 MATURE_THRESHOLD = 20 # Diameter (cm) threshold for "mature" trees (smaller are not harvested)
 MIN_TREES_PER_HA = 0.5 # Ignore buckets less than this in classi diametriche graphs.
 
+skip_graphs = False  # Global flag to skip graph generation
+
 # =============================================================================
 # OUTPUT FORMATTING
 # =============================================================================
@@ -954,22 +956,23 @@ def render_gci_graph(data: dict, equations_df: pd.DataFrame,
                     'n_points': int(eq['n'])
                 })
 
-    x_max = max(options['x_max'], trees['D(cm)'].max() + 3)
-    y_max = max(options['y_max'], (trees['h(m)'].max() + 6) // 5 * 5)
-    ax.set_xlabel('Diametro (cm)')
-    ax.set_ylabel('Altezza (m)')
-    ax.set_xlim(-0.5, x_max)
-    ax.set_ylim(0, y_max)
-    ax.set_xticks(range(0, x_max, 1+x_max//10))
-    td = min(ax.get_ylim()[1] // 5, 4)
-    y_ticks = np.arange(0, ax.get_ylim()[1] + 1, td)
-    ax.set_yticks(y_ticks)
-    ax.grid(True, alpha=0.3)
-    ax.set_axisbelow(True)
-    ax.legend(title='Specie', bbox_to_anchor=(1.01, 1.02), alignment='left')
+    if not skip_graphs:
+        x_max = max(options['x_max'], trees['D(cm)'].max() + 3)
+        y_max = max(options['y_max'], (trees['h(m)'].max() + 6) // 5 * 5)
+        ax.set_xlabel('Diametro (cm)')
+        ax.set_ylabel('Altezza (m)')
+        ax.set_xlim(-0.5, x_max)
+        ax.set_ylim(0, y_max)
+        ax.set_xticks(range(0, x_max, 1+x_max//10))
+        td = min(ax.get_ylim()[1] // 5, 4)
+        y_ticks = np.arange(0, ax.get_ylim()[1] + 1, td)
+        ax.set_yticks(y_ticks)
+        ax.grid(True, alpha=0.3)
+        ax.set_axisbelow(True)
+        ax.legend(title='Specie', bbox_to_anchor=(1.01, 1.02), alignment='left')
+        plt.tight_layout()
+        plt.savefig(output_path, bbox_inches='tight')
 
-    plt.tight_layout()
-    plt.savefig(output_path, bbox_inches='tight')
     plt.close(fig)
 
     snippet = formatter.format_image(output_path, options)
@@ -1082,54 +1085,55 @@ def render_gcd_graph(data: dict, output_path: Path,
             - 'filepath': Path to generated PNG
             - 'snippet': Formatted HTML/LaTeX snippet for template substitution
     """
-    species = data['species']
-    metrica = options['metrica']
-    stime_totali = options['stime_totali']
+    if not skip_graphs:
+        species = data['species']
+        metrica = options['metrica']
+        stime_totali = options['stime_totali']
 
-    values_df = calculate_cd_data(data, metrica, stime_totali, fine=True)
-    use_lines = metrica == 'altezza'
+        values_df = calculate_cd_data(data, metrica, stime_totali, fine=True)
+        use_lines = metrica == 'altezza'
 
-    figsize = (4, 3.75)
-    fig, ax = plt.subplots(figsize=figsize)
+        figsize = (4, 3.75)
+        fig, ax = plt.subplots(figsize=figsize)
 
-    bottom = np.zeros(len(values_df.index))
-    for genere in species:
-        if genere not in values_df.columns:
-            continue
-        series = values_df[genere]
-        if use_lines:
-            nonzero = series[series > 0]
-            ax.plot(nonzero.index, nonzero.values, marker='o', markersize=3, linewidth=1.5,
-                    color=color_map[genere], label=genere, alpha=0.85)
-        else:
-            ax.bar(series.index, series.values, bottom=bottom, width=4,
-                   label=genere, color=color_map[genere],
-                   alpha=0.8, edgecolor='white', linewidth=0.5)
-            bottom += series
+        bottom = np.zeros(len(values_df.index))
+        for genere in species:
+            if genere not in values_df.columns:
+                continue
+            series = values_df[genere]
+            if use_lines:
+                nonzero = series[series > 0]
+                ax.plot(nonzero.index, nonzero.values, marker='o', markersize=3, linewidth=1.5,
+                        color=color_map[genere], label=genere, alpha=0.85)
+            else:
+                ax.bar(series.index, series.values, bottom=bottom, width=4,
+                    label=genere, color=color_map[genere],
+                    alpha=0.8, edgecolor='white', linewidth=0.5)
+                bottom += series
 
-    # x_max in cm (fine buckets are 5, 10, 15...)
-    max_bucket = values_df.index.max() if len(values_df) > 0 else 50
-    x_max = options['x_max'] if options['x_max'] > 0 else max_bucket + 5
-    y_max_auto = values_df.max().max() if use_lines else values_df.sum(axis=1).max()
-    y_max = options['y_max'] if options['y_max'] > 0 else y_max_auto * 1.1
+        # x_max in cm (fine buckets are 5, 10, 15...)
+        max_bucket = values_df.index.max() if len(values_df) > 0 else 50
+        x_max = options['x_max'] if options['x_max'] > 0 else max_bucket + 5
+        y_max_auto = values_df.max().max() if use_lines else values_df.sum(axis=1).max()
+        y_max = options['y_max'] if options['y_max'] > 0 else y_max_auto * 1.1
 
-    ax.set_xlabel('Diametro (cm)')
-    ax.set_ylabel(GCD_Y_LABELS[metrica])
-    ax.set_xlim(0, x_max)
-    ax.set_ylim(0, y_max)
-    ax.set_xticks(range(0, x_max + 1, 10))
-    ax.grid(True, alpha=0.3, axis='y')
-    ax.set_axisbelow(True)
+        ax.set_xlabel('Diametro (cm)')
+        ax.set_ylabel(GCD_Y_LABELS[metrica])
+        ax.set_xlim(0, x_max)
+        ax.set_ylim(0, y_max)
+        ax.set_xticks(range(0, x_max + 1, 10))
+        ax.grid(True, alpha=0.3, axis='y')
+        ax.set_axisbelow(True)
 
-    handles, labels = ax.get_legend_handles_labels()
-    if not use_lines:
-        # Reverse legend order to match visual stacking order (top-to-bottom)
-        handles, labels = reversed(handles), reversed(labels)
-    ax.legend(handles, labels, title='Specie', bbox_to_anchor=(1.01, 1.02), alignment='left')
+        handles, labels = ax.get_legend_handles_labels()
+        if not use_lines:
+            # Reverse legend order to match visual stacking order (top-to-bottom)
+            handles, labels = reversed(handles), reversed(labels)
+        ax.legend(handles, labels, title='Specie', bbox_to_anchor=(1.01, 1.02), alignment='left')
 
-    plt.tight_layout()
-    plt.savefig(output_path, bbox_inches='tight')
-    plt.close(fig)
+        plt.tight_layout()
+        plt.savefig(output_path, bbox_inches='tight')
+        plt.close(fig)
 
     snippet = formatter.format_image(output_path, options)
     snippet += '\n' + formatter.format_metadata(data)
@@ -1486,46 +1490,47 @@ def render_gip_graph(data: dict, output_path: Path,
                      formatter: SnippetFormatter, color_map: dict,
                      **options) -> dict:
     """Generate IP line graph (@@gip directive)."""
-    group_cols = []
-    if options['per_compresa']:
-        group_cols.append('Compresa')
-    if options['per_particella']:
-        group_cols.append('Particella')
+    if not skip_graphs:
+        group_cols = []
+        if options['per_compresa']:
+            group_cols.append('Compresa')
+        if options['per_particella']:
+            group_cols.append('Particella')
 
-    df = calculate_ip_table(data, group_cols, options['stime_totali'])
+        df = calculate_ip_table(data, group_cols, options['stime_totali'])
 
-    metrica = options['metrica']
-    if metrica == 'ip':
-        y_col, y_label = 'ip_medio', 'Incremento % medio'
-    else:
-        y_col, y_label = 'incremento_corrente', 'Incremento corrente (m³)'
+        metrica = options['metrica']
+        if metrica == 'ip':
+            y_col, y_label = 'ip_medio', 'Incremento % medio'
+        else:
+            y_col, y_label = 'incremento_corrente', 'Incremento corrente (m³)'
 
-    # Each curve is a unique (optional compresa, optional particella, genere) tuple
-    curve_cols = group_cols + ['Genere']
+        # Each curve is a unique (optional compresa, optional particella, genere) tuple
+        curve_cols = group_cols + ['Genere']
 
-    fig, ax = plt.subplots(figsize=(5, 3.5))
+        fig, ax = plt.subplots(figsize=(5, 3.5))
 
-    for curve_key, curve_df in df.groupby(curve_cols):
-        if isinstance(curve_key, str):
-            curve_key = (curve_key,)
-        label = ' / '.join(str(k) for k in curve_key)
-        genere = curve_key[-1]  # last element is always Genere
-        curve_df = curve_df.sort_values('Diametro')
-        ax.plot(curve_df['Diametro'], curve_df[y_col],
-                marker='o', markersize=3, linewidth=1.5,
-                color=color_map.get(genere, '#0c63e7'),
-                label=label, alpha=0.85)
+        for curve_key, curve_df in df.groupby(curve_cols):
+            if isinstance(curve_key, str):
+                curve_key = (curve_key,)
+            label = ' / '.join(str(k) for k in curve_key)
+            genere = curve_key[-1]  # last element is always Genere
+            curve_df = curve_df.sort_values('Diametro')
+            ax.plot(curve_df['Diametro'], curve_df[y_col],
+                    marker='o', markersize=3, linewidth=1.5,
+                    color=color_map.get(genere, '#0c63e7'),
+                    label=label, alpha=0.85)
 
-    ax.set_xlabel('Diametro (cm)')
-    ax.set_ylabel(y_label)
-    x_max = df['Diametro'].max() + 5
-    ax.set_xticks(range(0, x_max + 1, 10))
-    ax.legend(title='Specie', bbox_to_anchor=(1.01, 1.02), alignment='left')
-    ax.grid(axis='y', alpha=0.3)
+        ax.set_xlabel('Diametro (cm)')
+        ax.set_ylabel(y_label)
+        x_max = df['Diametro'].max() + 5
+        ax.set_xticks(range(0, x_max + 1, 10))
+        ax.legend(title='Specie', bbox_to_anchor=(1.01, 1.02), alignment='left')
+        ax.grid(axis='y', alpha=0.3)
 
-    plt.tight_layout()
-    plt.savefig(output_path, bbox_inches='tight')
-    plt.close(fig)
+        plt.tight_layout()
+        plt.savefig(output_path, bbox_inches='tight')
+        plt.close(fig)
 
     snippet = formatter.format_image(output_path, options)
     snippet += '\n' + formatter.format_metadata(data)
@@ -1548,121 +1553,122 @@ def render_gsv_graph(data: dict, output_path: Path,
     Returns:
         dict with 'filepath' and 'snippet' keys
     """
-    group_cols = []
-    if options['per_compresa']:
-        group_cols.append('Compresa')
-    if options['per_particella']:
-        group_cols.append('Particella')
+    if not skip_graphs:
+        group_cols = []
+        if options['per_compresa']:
+            group_cols.append('Compresa')
+        if options['per_particella']:
+            group_cols.append('Particella')
 
-    # For stacking, we need per-genere data even if displaying by compresa/particella
-    stacked = options['per_genere'] and group_cols
-    base_cols: list[str] = []
-    if stacked:
-        base_cols = group_cols.copy()
-        group_cols.append('Genere')
+        # For stacking, we need per-genere data even if displaying by compresa/particella
+        stacked = options['per_genere'] and group_cols
+        base_cols: list[str] = []
+        if stacked:
+            base_cols = group_cols.copy()
+            group_cols.append('Genere')
 
-    df = calculate_tsv_table(data, group_cols, calc_margin=False, calc_total=True)
-    if df.empty:
-        return {'snippet': '', 'filepath': None}
+        df = calculate_tsv_table(data, group_cols, calc_margin=False, calc_total=True)
+        if df.empty:
+            return {'snippet': '', 'filepath': None}
 
-    if stacked:
-        # Pivot to get genere as columns for stacking
-        pivot_df = df.pivot_table(index=base_cols, columns='Genere',
-                                  values='volume', fill_value=0)
-        labels = ['/'.join(str(x) for x in idx) if isinstance(idx, tuple) else str(idx)
-                  for idx in pivot_df.index]
-        generi = pivot_df.columns.tolist()
+        if stacked:
+            # Pivot to get genere as columns for stacking
+            pivot_df = df.pivot_table(index=base_cols, columns='Genere',
+                                    values='volume', fill_value=0)
+            labels = ['/'.join(str(x) for x in idx) if isinstance(idx, tuple) else str(idx)
+                    for idx in pivot_df.index]
+            generi = pivot_df.columns.tolist()
 
-        # Sort by compresa then particella (natural sort for particella)
-        if 'Particella' in base_cols:
-            sort_keys = [pivot_df.index.get_level_values(c) for c in base_cols]
-            sort_idx = sorted(range(len(labels)), key=lambda i: tuple(
-                natural_sort_key(str(sort_keys[j][i])) if base_cols[j] == 'Particella'
-                else (0, str(sort_keys[j][i])) for j in range(len(base_cols))))
-            labels = [labels[i] for i in sort_idx]
-            pivot_df = pivot_df.iloc[sort_idx]
+            # Sort by compresa then particella (natural sort for particella)
+            if 'Particella' in base_cols:
+                sort_keys = [pivot_df.index.get_level_values(c) for c in base_cols]
+                sort_idx = sorted(range(len(labels)), key=lambda i: tuple(
+                    natural_sort_key(str(sort_keys[j][i])) if base_cols[j] == 'Particella'
+                    else (0, str(sort_keys[j][i])) for j in range(len(base_cols))))
+                labels = [labels[i] for i in sort_idx]
+                pivot_df = pivot_df.iloc[sort_idx]
 
-        # Calculate spacing for compresa groups
-        spacing = []
-        if 'Compresa' in base_cols and 'Particella' in base_cols:
-            comprese = pivot_df.index.get_level_values('Compresa')
-            for i, c in enumerate(comprese):
-                spacing.append(0.3 if i > 0 and c != comprese[i-1] else 0)
+            # Calculate spacing for compresa groups
+            spacing = []
+            if 'Compresa' in base_cols and 'Particella' in base_cols:
+                comprese = pivot_df.index.get_level_values('Compresa')
+                for i, c in enumerate(comprese):
+                    spacing.append(0.3 if i > 0 and c != comprese[i-1] else 0)
+            else:
+                spacing = [0] * len(labels)
+
+            # Calculate y positions with spacing
+            y_positions = []
+            cumulative = 0
+            for s in spacing:
+                cumulative += s
+                y_positions.append(cumulative)
+                cumulative += 1
+
+            # Figure height: ~0.35 inches per bar, minimum 3
+            fig_height = max(3, len(labels) * 0.35 + sum(spacing) * 0.35)
+            fig, ax = plt.subplots(figsize=(5, fig_height))
+
+            # Draw stacked horizontal bars
+            left = np.zeros(len(labels))
+            for genere in generi:
+                values = cast(np.ndarray, pivot_df[genere].values)
+                ax.barh(y_positions, values, left=left, label=genere,
+                        color=color_map.get(genere, '#0c63e7'), height=0.8,
+                        edgecolor='white', linewidth=0.5)
+                left += values
+
+            ax.set_yticks(y_positions)
+            ax.set_yticklabels(labels)
+            ax.invert_yaxis()
+
+            handles, lbl = ax.get_legend_handles_labels()
+            ax.legend(reversed(handles), reversed(lbl),
+                    title='Specie', bbox_to_anchor=(1.01, 1.02), alignment='left')
         else:
-            spacing = [0] * len(labels)
+            # Simple bars (no stacking)
+            if options['per_genere']:
+                # Per-genere only: one bar per genere
+                labels = df['Genere'].tolist()
+            elif group_cols:
+                labels = ['/'.join(str(row[c]) for c in group_cols) for _, row in df.iterrows()]
+            else:
+                labels = ['Totale']
+            values = cast(np.ndarray, df['volume'].values)
 
-        # Calculate y positions with spacing
-        y_positions = []
-        cumulative = 0
-        for s in spacing:
-            cumulative += s
-            y_positions.append(cumulative)
-            cumulative += 1
+            # Calculate spacing for compresa groups
+            spacing = []
+            if 'Compresa' in group_cols and 'Particella' in group_cols:
+                comprese = df['Compresa'].tolist()
+                for i, c in enumerate(comprese):
+                    spacing.append(0.3 if i > 0 and c != comprese[i-1] else 0)
+            else:
+                spacing = [0] * len(labels)
 
-        # Figure height: ~0.35 inches per bar, minimum 3
-        fig_height = max(3, len(labels) * 0.35 + sum(spacing) * 0.35)
-        fig, ax = plt.subplots(figsize=(5, fig_height))
+            y_positions = []
+            cumulative = 0
+            for s in spacing:
+                cumulative += s
+                y_positions.append(cumulative)
+                cumulative += 1
 
-        # Draw stacked horizontal bars
-        left = np.zeros(len(labels))
-        for genere in generi:
-            values = cast(np.ndarray, pivot_df[genere].values)
-            ax.barh(y_positions, values, left=left, label=genere,
-                    color=color_map.get(genere, '#0c63e7'), height=0.8,
+            fig_height = max(3, len(labels) * 0.35 + sum(spacing) * 0.35)
+            fig, ax = plt.subplots(figsize=(5, fig_height))
+
+            ax.barh(y_positions, values, color='#0c63e7', height=0.8,
                     edgecolor='white', linewidth=0.5)
-            left += values
+            ax.set_yticks(y_positions)
+            ax.set_yticklabels(labels)
+            ax.invert_yaxis()
 
-        ax.set_yticks(y_positions)
-        ax.set_yticklabels(labels)
-        ax.invert_yaxis()
+        ax.set_xlabel('Volume (m³)')
+        ax.grid(True, alpha=0.3, axis='x')
+        ax.set_axisbelow(True)
+        ax.set_xlim(0, None)
 
-        handles, lbl = ax.get_legend_handles_labels()
-        ax.legend(reversed(handles), reversed(lbl),
-                  title='Specie', bbox_to_anchor=(1.01, 1.02), alignment='left')
-    else:
-        # Simple bars (no stacking)
-        if options['per_genere']:
-            # Per-genere only: one bar per genere
-            labels = df['Genere'].tolist()
-        elif group_cols:
-            labels = ['/'.join(str(row[c]) for c in group_cols) for _, row in df.iterrows()]
-        else:
-            labels = ['Totale']
-        values = cast(np.ndarray, df['volume'].values)
-
-        # Calculate spacing for compresa groups
-        spacing = []
-        if 'Compresa' in group_cols and 'Particella' in group_cols:
-            comprese = df['Compresa'].tolist()
-            for i, c in enumerate(comprese):
-                spacing.append(0.3 if i > 0 and c != comprese[i-1] else 0)
-        else:
-            spacing = [0] * len(labels)
-
-        y_positions = []
-        cumulative = 0
-        for s in spacing:
-            cumulative += s
-            y_positions.append(cumulative)
-            cumulative += 1
-
-        fig_height = max(3, len(labels) * 0.35 + sum(spacing) * 0.35)
-        fig, ax = plt.subplots(figsize=(5, fig_height))
-
-        ax.barh(y_positions, values, color='#0c63e7', height=0.8,
-                edgecolor='white', linewidth=0.5)
-        ax.set_yticks(y_positions)
-        ax.set_yticklabels(labels)
-        ax.invert_yaxis()
-
-    ax.set_xlabel('Volume (m³)')
-    ax.grid(True, alpha=0.3, axis='x')
-    ax.set_axisbelow(True)
-    ax.set_xlim(0, None)
-
-    plt.tight_layout()
-    plt.savefig(output_path, bbox_inches='tight')
-    plt.close(fig)
+        plt.tight_layout()
+        plt.savefig(output_path, bbox_inches='tight')
+        plt.close(fig)
 
     snippet = formatter.format_image(output_path, options)
     snippet += '\n' + formatter.format_metadata(data)
@@ -2083,55 +2089,56 @@ def render_gpt_graph(data: dict, comparti_df: pd.DataFrame,
     Returns:
         dict with 'filepath' and 'snippet' keys
     """
-    group_cols = []
-    if options['per_compresa']:
-        group_cols.append('Compresa')
-    if options['per_particella']:
-        group_cols.append('Particella')
+    if not skip_graphs:
+        group_cols = []
+        if options['per_compresa']:
+            group_cols.append('Compresa')
+        if options['per_particella']:
+            group_cols.append('Particella')
 
-    df = calculate_tpt_table(data, comparti_df, provv_vol_df, provv_eta_df, group_cols)
-    if df.empty:
-        return {'snippet': '', 'filepath': None}
+        df = calculate_tpt_table(data, comparti_df, provv_vol_df, provv_eta_df, group_cols)
+        if df.empty:
+            return {'snippet': '', 'filepath': None}
 
-    if group_cols:
-        labels = ['/'.join(str(row[c]) for c in group_cols) for _, row in df.iterrows()]
-    else:
-        labels = ['Totale']
-    values = cast(np.ndarray, df['harvest'].values)
+        if group_cols:
+            labels = ['/'.join(str(row[c]) for c in group_cols) for _, row in df.iterrows()]
+        else:
+            labels = ['Totale']
+        values = cast(np.ndarray, df['harvest'].values)
 
-    # Calculate spacing for compresa groups
-    spacing = []
-    if 'Compresa' in group_cols and 'Particella' in group_cols:
-        comprese = df['Compresa'].tolist()
-        for i, c in enumerate(comprese):
-            spacing.append(0.3 if i > 0 and c != comprese[i-1] else 0)
-    else:
-        spacing = [0] * len(labels)
+        # Calculate spacing for compresa groups
+        spacing = []
+        if 'Compresa' in group_cols and 'Particella' in group_cols:
+            comprese = df['Compresa'].tolist()
+            for i, c in enumerate(comprese):
+                spacing.append(0.3 if i > 0 and c != comprese[i-1] else 0)
+        else:
+            spacing = [0] * len(labels)
 
-    y_positions = []
-    cumulative = 0
-    for s in spacing:
-        cumulative += s
-        y_positions.append(cumulative)
-        cumulative += 1
+        y_positions = []
+        cumulative = 0
+        for s in spacing:
+            cumulative += s
+            y_positions.append(cumulative)
+            cumulative += 1
 
-    fig_height = max(3, len(labels) * 0.35 + sum(spacing) * 0.35)
-    fig, ax = plt.subplots(figsize=(5, fig_height))
+        fig_height = max(3, len(labels) * 0.35 + sum(spacing) * 0.35)
+        fig, ax = plt.subplots(figsize=(5, fig_height))
 
-    ax.barh(y_positions, values, color='#0c63e7', height=0.8,
-            edgecolor='white', linewidth=0.5)
-    ax.set_yticks(y_positions)
-    ax.set_yticklabels(labels)
-    ax.invert_yaxis()
+        ax.barh(y_positions, values, color='#0c63e7', height=0.8,
+                edgecolor='white', linewidth=0.5)
+        ax.set_yticks(y_positions)
+        ax.set_yticklabels(labels)
+        ax.invert_yaxis()
 
-    ax.set_xlabel('Prelievo (m³)')
-    ax.grid(True, alpha=0.3, axis='x')
-    ax.set_axisbelow(True)
-    ax.set_xlim(0, None)
+        ax.set_xlabel('Prelievo (m³)')
+        ax.grid(True, alpha=0.3, axis='x')
+        ax.set_axisbelow(True)
+        ax.set_xlim(0, None)
 
-    plt.tight_layout()
-    plt.savefig(output_path, bbox_inches='tight')
-    plt.close(fig)
+        plt.tight_layout()
+        plt.savefig(output_path, bbox_inches='tight')
+        plt.close(fig)
 
     snippet = formatter.format_image(output_path, options)
     snippet += '\n' + formatter.format_metadata(data)
@@ -2365,7 +2372,8 @@ def process_template(template_text: str, data_dir: Path,
                         'col_volume': params.get('col_volume', 'no').lower() == 'si',
                         'col_volume_ha': params.get('col_volume_ha', 'no').lower() == 'si',
                         'col_volume_mature': params.get('col_volume_mature', 'si').lower() == 'si',
-                        'col_volume_mature_ha': params.get('col_volume_mature_ha', 'si').lower() == 'si',
+                        'col_volume_mature_ha':
+                            params.get('col_volume_mature_ha', 'si').lower() == 'si',
                         'col_pp_max': params.get('col_pp_max', 'si').lower() == 'si',
                         'col_prelievo': params.get('col_prelievo', 'si').lower() == 'si',
                         'col_prelievo_ha': params.get('col_prelievo_ha', 'si').lower() == 'si',
@@ -2734,7 +2742,17 @@ Modalità di utilizzo:
     report_group.add_argument('--ometti-generi-sconosciuti', action='store_true',
                              help='Ometti dai grafici generi per cui non abbiamo equazioni')
 
+    # Other options
+    opt_group = parser.add_argument_group('Altre opzioni')
+    opt_group.add_argument('--non-rigenerare-grafici', action='store_true', default=False,
+                           help='Non rigenerare grafici esistenti (per --report)')
+
     args = parser.parse_args()
+
+    if args.non_rigenerare_grafici:
+        #pylint: disable=global-statement
+        global skip_graphs
+        skip_graphs = True
 
     if args.genera_equazioni:
         if not args.fonte_altezze:
