@@ -70,7 +70,7 @@ html: $(FILES_HTML)
 
 html/%.html: template/html/%.html $(DEPS_HTML)
 	cp -f template/html/style.css html/
-	./acc.py --report --formato html --particelle $(CSV_DIR)/particelle.csv --dati $(CSV_DIR) --input template/html/$*.html --output-dir html/
+	./acc.py $(EXTRA_FLAGS) --report --formato html --particelle $(CSV_DIR)/particelle.csv --dati $(CSV_DIR) --input template/html/$*.html --output-dir html/
 
 clean-html:
 	rm -f $(FILES_HTML)
@@ -86,10 +86,10 @@ DEPS_TEX=$(DATA_DEPS) acc.py template/tex/particella.tex
 pdf: $(FILES_PDF)
 
 tex/%.tex: template/tex/%.tex $(DEPS_TEX)
-	./acc.py --report --formato tex --particelle $(CSV_DIR)/particelle.csv --dati $(CSV_DIR) --input template/tex/$*.tex --output-dir tex/
+	./acc.py $(EXTRA_FLAGS) --report --formato tex --particelle $(CSV_DIR)/particelle.csv --dati $(CSV_DIR) --input template/tex/$*.tex --output-dir tex/
 
 tex/%.pdf: template/tex/%.tex $(DEPS_TEX)
-	./acc.py --report --formato pdf --particelle $(CSV_DIR)/particelle.csv --dati $(CSV_DIR) --input template/tex/$*.tex --output-dir tex/
+	./acc.py $(EXTRA_FLAGS) --report --formato pdf --particelle $(CSV_DIR)/particelle.csv --dati $(CSV_DIR) --input template/tex/$*.tex --output-dir tex/
 
 clean-pdf:
 	rm -f $(FILES_PDF) $(FILES_TEX)
@@ -104,7 +104,7 @@ DEPS_CSV=$(DATA_DEPS) acc.py
 csv: $(FILES_CSV)
 
 $(CSV_DIR)/ripresa.csv: template/csv/ripresa.csv $(DEPS_CSV)
-	./acc.py --report --formato csv --particelle $(CSV_DIR)/particelle.csv --dati $(CSV_DIR) --input template/csv/ripresa.csv --output-dir csv/
+	./acc.py $(EXTRA_FLAGS) --report --formato csv --particelle $(CSV_DIR)/particelle.csv --dati $(CSV_DIR) --input template/csv/ripresa.csv --output-dir csv/
 
 clean-csv:
 	rm -f $(FILES_CSV)
