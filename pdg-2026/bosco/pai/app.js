@@ -6,6 +6,7 @@ const TreeViewer = (function() {
     let currentBasemap = null;
     let parcelLayer = null;
     let allTreeMarkers = [];  // Array of {marker, species, parcel}
+    let treeLayer = null;     // LayerGroup containing all visible markers
     let speciesColors = {};
     let speciesVisible = {};
     let parcelVisible = {};
@@ -146,10 +147,11 @@ const TreeViewer = (function() {
     function updateTreeVisibility() {
         allTreeMarkers.forEach(({ marker, species, parcel }) => {
             const shouldShow = speciesVisible[species] && parcelVisible[parcel];
-            if (shouldShow) {
-                marker.addTo(map);
-            } else {
-                map.removeLayer(marker);
+            const isInLayer = treeLayer.hasLayer(marker);
+            if (shouldShow && !isInLayer) {
+                treeLayer.addLayer(marker);
+            } else if (!shouldShow && isInLayer) {
+                treeLayer.removeLayer(marker);
             }
         });
     }
@@ -223,8 +225,11 @@ const TreeViewer = (function() {
 
     return {
         init() {
-            map = L.map('map');
+            map = L.map('map', { preferCanvas: true });
             currentBasemap = basemaps.satellite().addTo(map);
+
+            // Create layer group for tree markers
+            treeLayer = L.layerGroup().addTo(map);
 
             // Coordinate display
             map.on('mousemove', e => {
