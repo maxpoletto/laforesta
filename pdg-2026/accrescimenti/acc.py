@@ -225,7 +225,11 @@ class CSVSnippetFormatter(SnippetFormatter):
 
     def format_prop(self, short_fields: list[tuple[str, str]],
                     paragraph_fields: list[tuple[str, str]]) -> str:
-        raise NotImplementedError("Formato CSV non supporta @@prop")
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow([label for label, _ in short_fields + paragraph_fields])
+        writer.writerow([value for _, value in short_fields + paragraph_fields])
+        return output.getvalue()
 
 
 # =============================================================================
@@ -2282,8 +2286,11 @@ def process_template(template_text: str, data_dir: Path,
         if not template_dir:
             raise ValueError("@@particelle richiede --input per trovare il modello")
 
-        # TODO: support .csv output
-        ext = '.html' if format_type == 'html' else '.tex'
+        match format_type:
+            case 'html': ext = '.html'
+            case 'tex' | 'pdf': ext = '.tex'
+            case 'csv': ext = '.csv'
+            case _: raise ValueError(f"Formato non supportato per @@particelle: {format_type}")
         modello_path = template_dir / (modello + ext)
         if not modello_path.exists():
             raise ValueError(f"Modello non trovato: {modello_path}")
@@ -2314,10 +2321,10 @@ def process_template(template_text: str, data_dir: Path,
             keyword = directive['keyword']
             params = directive['params']
 
-            csv_unsupported = keyword.startswith('g') or keyword in ('prop', 'particelle')
+            csv_unsupported = keyword.startswith('g')
             if format_type == 'csv' and csv_unsupported:
                 raise ValueError(
-                    f"@@{keyword}: il formato CSV supporta solo direttive @@t* (tabelle)")
+                    f"@@{keyword}: il formato CSV non supporta direttive grafiche (@@g*)")
 
             alberi_files = params.get('alberi')
             equazioni_files = params.get('equazioni')
