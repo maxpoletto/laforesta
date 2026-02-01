@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Aree di Saggio</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="../a/f.gif" type="image/gif"/>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="../a/style.css" />
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+    <script src="app.js"></script>
+</head>
+<body>
+    <div id="map"></div>
+    <div id="sidebar">
+        <h3>Aree di Saggio</h3>
+        <div id="status">Caricamento...</div>
+        <div id="coords"></div>
+
+        <div class="section">
+            <h4>Mappa</h4>
+            <div class="button-row">
+                <button onclick="SampleAreaViewer.setBasemap('osm')">OpenStreetMap</button>
+                <button onclick="SampleAreaViewer.setBasemap('satellite')">Satellitare</button>
+                <button onclick="SampleAreaViewer.setBasemap('topo')">Topografica</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h4>Particelle</h4>
+            <div id="parcel-list"></div>
+            <div class="button-row">
+                <button onclick="SampleAreaViewer.showAllParcelle()">Mostra tutte</button>
+                <button onclick="SampleAreaViewer.hideAllParcelle()">Nascondi tutte</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h4>Statistiche</h4>
+            <div id="stats"></div>
+        </div>
+
+        <div class="section">
+            <h4>Legenda</h4>
+            <p class="help-text">
+                Ogni punto rappresenta un'area di saggio.
+                Passa il mouse sopra un punto per vedere compresa, particella e quota.
+            </p>
+        </div>
+    </div>
+</body>
+</html>
