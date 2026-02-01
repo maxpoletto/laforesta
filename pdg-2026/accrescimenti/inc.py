@@ -260,7 +260,7 @@ def project_one_year(
         df['height_m'] = df.apply(
             lambda row: height_curves.get_height(
                 row['diameter_cm'], row['region'], row['species']
-            ) or row['height_m'],  # Fall back to existing height if no curve
+            ), # type: ignore[arg-type]
             axis=1
         )
 
@@ -387,7 +387,6 @@ def summarize_by_parcel(
     for result in results:
         df = result.trees
         year = result.year
-        #pylint: disable-cell-var-from-loop
         grouped = df.groupby(group_cols).apply(
             lambda g: pd.Series({
                 'year': year, # pylint: disable=cell-var-from-loop
@@ -405,7 +404,7 @@ def summarize_by_parcel(
 
 # --- Example usage ---
 
-def create_sample_data():
+def create_sample_data(curves: HeightCurves) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Create sample tree and parcel data for testing."""
 
     # Sample tree data
@@ -417,13 +416,17 @@ def create_sample_data():
         'parcel': np.random.choice(['A1', 'A2', 'B1'], n_trees),
         'species': np.random.choice(['Picea abies', 'Fagus sylvatica'], n_trees),
         'diameter_cm': np.random.uniform(10, 50, n_trees),
-        'height_m': np.random.uniform(8, 30, n_trees),
-        'volume_m3': np.random.uniform(0.05, 2.0, n_trees),  # Would normally be calculated
         'ipr_mm': np.random.uniform(5, 25, n_trees),  # Last 10 rings in mm
     })
 
-    # Make volume roughly consistent with diameter (simplified)
-    trees['volume_m3'] = 0.00005 * trees['diameter_cm']**2 * trees['height_m']
+    trees['height_m'] = trees.apply(
+        lambda row: curves.get_height(row['diameter_cm'],
+                                      row['region'], row['species']), # type: ignore[arg-type]
+        axis=1)
+
+    trees['volume_m3'] = trees.apply(
+        lambda row: estimate_volume(row['diameter_cm'], row['height_m']),
+        axis=1)
 
     # Parcel metadata
     parcels = pd.DataFrame({
@@ -464,8 +467,8 @@ def create_sample_height_curves() -> HeightCurves:
 
 def main():    # Demo
     """Entry point."""
-    trees, parcels = create_sample_data()
     height_curves = create_sample_height_curves()
+    trees, parcels = create_sample_data(height_curves)
 
     print("=== Input Data ===")
     print(f"Trees: {len(trees)} records")
@@ -499,8 +502,7 @@ def main():    # Demo
         decay_growth_rate=True,
         growth_decay_factor=0.99,
         height_curves=height_curves,
-        recalculate_volume=True,
-        form_factor=0.45
+        recalculate_volume=True
     )
 
     for r in results_with_curves[::5]:  # Every 5 years
