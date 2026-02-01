@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Query dati - Accrescimenti Forestali</title>
+    <title>La Foresta - Dati Forestali</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -65,8 +65,8 @@
 </head>
 <body>
 <div class="container">
-    <h1>Query dati forestali</h1>
-    <div id="status">Caricamento DuckDB...</div>
+    <h1>Dati Forestali</h1>
+    <div id="status">Caricamento dati...</div>
     <div id="tables-list" class="tables-list"></div>
     <textarea id="query">SELECT * FROM alberi LIMIT 20;</textarea>
     <br>
@@ -78,10 +78,14 @@
 import * as duckdb from 'https://esm.sh/@duckdb/duckdb-wasm@1.29.0';
 
 const CSV_FILES = [
-    'ads', 'alberi-calcolati', 'alberi-modello', 'alberi',
-    'alsometrie-calcolate', 'alsometrie', 'altezze', 'comparti',
-    'equazioni_ipsometro', 'equazioni_originali', 'equazioni_tabelle',
-    'incrementi', 'particelle', 'provv_eta', 'provv_vol', 'ripresa'
+    ['particelle', 'Comprese e particelle forestali'],
+    ['comparti', 'Comparti forestali'],
+    ['aree-di-saggio', 'Aree di saggio per il piano di gestione'],
+    ['alberi', 'Tutti gli alberi delle aree di saggio'],
+    ['alberi-calcolati', 'Come "alberi", ma con altezze calcolate tramite equazioni interpolanti'],
+    ['altezze', 'Sottoinsieme di alberi con misure di altezza tramite ipsometro laser'],
+    ['alberi-modello', 'Diametri e altezze degli alberi modello'],
+    ['ripresa', 'Provvigione per particella']
 ];
 
 const statusEl = document.getElementById('status');
@@ -105,17 +109,18 @@ async function init() {
         await db.instantiate(bundle.mainModule);
         conn = await db.connect();
 
-        statusEl.textContent = 'Caricamento tabelle CSV...';
-        for (const name of CSV_FILES) {
+        for (const [name, description] of CSV_FILES) {
             const tableName = name.replace(/-/g, '_');
-            const url = new URL(`csv/${name}.csv`, window.location.href).href;
+            const url = new URL(`../data/${name}.csv`, window.location.href).href;
             await db.registerFileURL(`${name}.csv`, url, duckdb.DuckDBDataProtocol.HTTP, false);
             await conn.query(`CREATE TABLE ${tableName} AS SELECT * FROM read_csv_auto('${name}.csv')`);
         }
 
-        const tablesInfo = CSV_FILES.map(n => `<code>${n.replace(/-/g, '_')}</code>`).join(', ');
-        document.getElementById('tables-list').innerHTML = `Tabelle disponibili: ${tablesInfo}`;
-        statusEl.textContent = 'Pronto.';
+        const tablesInfo = CSV_FILES.map(([name, desc]) =>
+            `<b>${name.replace(/-/g, '_')}</b>: ${desc}`
+        ).join('<br>');
+        document.getElementById('tables-list').innerHTML = `Tabelle disponibili:<br>${tablesInfo}`;
+        statusEl.style.visibility = 'hidden';
         runBtn.disabled = false;
         const params = new URLSearchParams(window.location.search);
         if (params.has('q')) {
