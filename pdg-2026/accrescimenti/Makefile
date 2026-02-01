@@ -1,4 +1,4 @@
-CSV_DIR=csv
+CSV_DIR=../../bosco/data
 
 .PHONY: \
 	equazioni clean-equazioni \
