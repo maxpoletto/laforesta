@@ -1,0 +1,9 @@
+# Regole di prelievo in base all'età.
+# Se l'età media delle piante nella particella è almeno
+# 'anni', allora il prelievo percentuale non può superare 'PP_max'.
+# Per età >= 60 si usano le regole di volume (provv_vol.csv).
+# Per età < 60, PP_max si applica all'area basimetrica.
+Anni,PP_max
+60,100
+30,20
+0,15
