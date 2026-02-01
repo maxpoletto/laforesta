@@ -25,7 +25,7 @@ SAMPLE_AREA_HA = 0.125
 MATURE_THRESHOLD = 20 # Diameter (cm) threshold for "mature" trees (smaller are not harvested)
 MIN_TREES_PER_HA = 0.5 # Ignore buckets less than this in classi diametriche graphs.
 
-skip_graphs = False  # Global flag to skip graph generation
+skip_graphs = False  # Global flag to skip graph generation pylint: disable=invalid-name
 
 # =============================================================================
 # OUTPUT FORMATTING
