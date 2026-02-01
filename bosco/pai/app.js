@@ -46,7 +46,7 @@ const TreeViewer = (function() {
     }
 
     function loadParcels() {
-        return fetch('data/particelle.geojson')
+        return fetch('../data/particelle.geojson')
             .then(r => r.json())
             .then(data => {
                 // Filter to only Serra features
@@ -77,7 +77,7 @@ const TreeViewer = (function() {
     }
 
     function loadTrees() {
-        return fetch('data/piante-accrescimento-indefinito.csv')
+        return fetch('../data/piante-accrescimento-indefinito.csv')
             .then(r => r.text())
             .then(csvText => {
                 const result = Papa.parse(csvText, {
