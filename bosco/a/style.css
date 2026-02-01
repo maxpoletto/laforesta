@@ -1,3 +1,5 @@
+/* Common styles for map-based viewers (pai, ads, ep) */
+
 body { margin: 0; padding: 0; font-family: sans-serif; }
 #map { position: absolute; top: 0; bottom: 0; left: 0; right: 320px; }
 #sidebar {
@@ -44,7 +46,6 @@ button.small { padding: 5px; font-size: 11px; }
 .section { margin: 20px 0; border-top: 1px solid #ccc; padding-top: 15px; }
 
 /* Button rows */
-
 .button-row {
     display: flex;
     gap: 5px;
@@ -56,7 +57,6 @@ button.small { padding: 5px; font-size: 11px; }
 }
 
 /* Checkbox row */
-
 .checkbox-row {
     display: flex;
     align-items: center;
@@ -70,7 +70,6 @@ button.small { padding: 5px; font-size: 11px; }
 }
 
 /* Help section */
-
 .help-list {
     list-style: none;
     padding: 0;
@@ -95,10 +94,7 @@ button.small { padding: 5px; font-size: 11px; }
     border-radius: 2px;
 }
 
-/** Everything above here is inherited from parcel_editor/style.css **/
-
-/* Item lists */
-
+/* Item lists (parcels, species, etc.) */
 #parcel-list, #species-list {
     max-height: 20lh;
     overflow-y: auto;
@@ -109,32 +105,24 @@ button.small { padding: 5px; font-size: 11px; }
     padding: 5px 0;
 }
 
-.species-item {
+.list-item, .parcel-item, .species-item {
     padding: 4px 8px;
 }
 
-.species-item:hover {
+.list-item:hover, .parcel-item:hover, .species-item:hover {
     background: #f0f0f0;
 }
 
-.species-name {
+.item-name, .parcel-name, .species-name {
     flex: 1;
 }
 
-.species-count {
+.item-count, .parcel-count, .species-count {
     color: #666;
     font-size: 11px;
 }
 
-.species-item .color-dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    flex-shrink: 0;
-}
-
 /* Stats section */
-
 #stats {
     background: white;
     border: 1px solid #ccc;
@@ -145,4 +133,13 @@ button.small { padding: 5px; font-size: 11px; }
 
 #stats p {
     margin: 5px 0;
+}
+
+/* Species-specific styles for pai viewer */
+
+.species-item .color-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
 }
