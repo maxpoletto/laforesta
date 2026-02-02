@@ -8,6 +8,7 @@ const SampleAreaViewer = (function() {
     let allMarkers = [];  // Array of {marker, compresa, parcel, cp}
     let areaLayer = null;  // LayerGroup containing all visible markers
     let parcelVisible = {};
+    let parcelData = {};
     let numAreas = {};
     let measureMode = false;
     let measurePoints = [];
@@ -31,7 +32,7 @@ const SampleAreaViewer = (function() {
         $('status').textContent = msg;
     }
 
-    function loadParcels() {
+    function loadParcelsGeo() {
         return fetch('../data/particelle.geojson')
             .then(r => r.json())
             .then(data => {
@@ -47,6 +48,24 @@ const SampleAreaViewer = (function() {
 
                 return data.features.length;
             });
+    }
+
+    function loadParcels() {
+        return fetch('../data/particelle.csv')
+            .then(r => r.text())
+            .then(csvText => {
+                const result = Papa.parse(csvText, {
+                    header: true,
+                    skipEmptyLines: true
+                });
+            result.data.forEach(row => {
+                const compresa = row['Compresa'] || 'Sconosciuta';
+                const parcel = row['Particella'] || '?';
+                const cp = `${compresa}-${parcel}`;
+                parcelData[cp] = { area: row['Area (ha)'] }
+            });
+            return parcelData;
+        })
     }
 
     function loadSampleAreas() {
@@ -69,8 +88,8 @@ const SampleAreaViewer = (function() {
                 const parcels = new Map();
 
                 areas.forEach(area => {
-                    const compresa = area.Compresa || 'Sconosciuta';
-                    const parcel = area.Particella || '?';
+                    const compresa = area['Compresa'] || 'Sconosciuta';
+                    const parcel = area['Particella'] || '?';
                     const cp = `${compresa}-${parcel}`;
                     numAreas[cp] = (numAreas[cp] || 0) + 1;
                     if (!parcels.has(cp)) {
@@ -80,13 +99,14 @@ const SampleAreaViewer = (function() {
 
                 // Create markers for each sample area
                 areas.forEach(area => {
-                    const compresa = area.Compresa || 'Sconosciuta';
-                    const parcel = area.Particella || '?';
+                    const compresa = area['Compresa'] || 'Sconosciuta';
+                    const parcel = area['Particella'] || '?';
+                    const ads = area['Area saggio'] || '?';
                     const cp = `${compresa}-${parcel}`;
                     const lat = parseFloat(area.Lat);
                     const lon = parseFloat(area.Lon);
-                    const altitude = area.Quota || '?';
-
+                    const ha = parcelData[cp]?.area || '?';
+                    const altitude = area['Quota'] || '?';
                     const marker = L.circleMarker([lat, lon], {
                         radius: 6,
                         fillColor: '#ffd700',  // Yellow for visibility
@@ -97,7 +117,7 @@ const SampleAreaViewer = (function() {
                     });
 
                     marker.bindTooltip(
-                        `<b>Area di saggio</b><br>Compresa: ${compresa}<br>Particella: ${parcel}<br>Quota: ${altitude} m`,
+                        `<b>Area di saggio ${ads}</b><br>Particella: ${parcel} (${ha} ha)<br>Quota: ${altitude} m`,
                         { direction: 'top', offset: [0, -5] }
                     );
 
@@ -282,7 +302,9 @@ const SampleAreaViewer = (function() {
             // Load data sequentially (parcels first, then sample areas)
             (async () => {
                 try {
-                    const parcelCount = await loadParcels();
+                    const parcelCount = await loadParcelsGeo();
+                    const parcelData = await loadParcels();
+                    console.log('Loaded parcel data:', parcelData);
                     const areaData = await loadSampleAreas();
 
                     updateParticelle(areaData.parcels);
