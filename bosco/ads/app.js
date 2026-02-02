@@ -13,6 +13,9 @@ const SampleAreaViewer = (function() {
     let measureMode = false;
     let measurePoints = [];
     let measureLayer = null;
+    let locationMode = false;
+    let locationMarker = null;
+    let locationCircle = null;
 
     const $ = id => document.getElementById(id);
 
@@ -203,6 +206,66 @@ const SampleAreaViewer = (function() {
         }
     }
 
+    function toggleLocation() {
+        locationMode = !locationMode;
+        const btn = document.querySelector('.location-button');
+
+        if (locationMode) {
+            btn.style.backgroundColor = '#4CAF50';
+            map.locate({ watch: true, enableHighAccuracy: true });
+        } else {
+            btn.style.backgroundColor = '';
+            map.stopLocate();
+            if (locationMarker) {
+                map.removeLayer(locationMarker);
+                locationMarker = null;
+            }
+            if (locationCircle) {
+                map.removeLayer(locationCircle);
+                locationCircle = null;
+            }
+        }
+    }
+
+    function onLocationFound(e) {
+        const radius = e.accuracy;
+
+        // Remove old marker and circle
+        if (locationMarker) map.removeLayer(locationMarker);
+        if (locationCircle) map.removeLayer(locationCircle);
+
+        // Add accuracy circle
+        locationCircle = L.circle(e.latlng, {
+            radius: radius,
+            color: '#4CAF50',
+            fillColor: '#4CAF50',
+            fillOpacity: 0.15,
+            weight: 2
+        }).addTo(map);
+
+        // Add marker
+        locationMarker = L.circleMarker(e.latlng, {
+            radius: 8,
+            fillColor: '#4CAF50',
+            color: '#fff',
+            weight: 2,
+            opacity: 1,
+            fillOpacity: 1
+        }).addTo(map);
+
+        locationMarker.bindTooltip(
+            `<b>Posizione attuale</b><br>Precisione: ±${radius.toFixed(0)} m`,
+            { permanent: false, direction: 'top' }
+        );
+    }
+
+    function onLocationError(e) {
+        alert('Impossibile determinare la posizione: ' + e.message);
+        locationMode = false;
+        const btn = document.querySelector('.location-button');
+        btn.style.backgroundColor = '';
+    }
+
     function addMeasurePoint(latlng) {
         if (!measureMode) return;
 
@@ -283,6 +346,28 @@ const SampleAreaViewer = (function() {
                 }
             });
             map.addControl(new MeasureControl());
+
+            // Add location control
+            const LocationControl = L.Control.extend({
+                options: { position: 'topleft' },
+                onAdd: function() {
+                    const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+                    container.innerHTML = `
+                        <a href="#" class="location-button" title="Mostra posizione" style="width: 30px; height: 30px; line-height: 30px; text-align: center; font-size: 18px; text-decoration: none;">📍</a>
+                    `;
+                    L.DomEvent.on(container, 'click', function(e) {
+                        L.DomEvent.stopPropagation(e);
+                        L.DomEvent.preventDefault(e);
+                        toggleLocation();
+                    });
+                    return container;
+                }
+            });
+            map.addControl(new LocationControl());
+
+            // Location event handlers
+            map.on('locationfound', onLocationFound);
+            map.on('locationerror', onLocationError);
 
             // Handle map clicks for measurement
             map.on('click', function(e) {
