@@ -415,6 +415,7 @@ const ParcelEditor = (function() {
             // Create map with shared features (measure, location, coords)
             mapWrapper = MapCommon.create('map', {
                 basemap: 'satellite',
+                enableMeasure: false,
             });
             map = mapWrapper.getLeafletMap();
 
@@ -424,7 +425,7 @@ const ParcelEditor = (function() {
                 position: 'topleft',
                 draw: {
                     polygon: { allowIntersection: false, shapeOptions: styles.default },
-                    polyline: false, rectangle: false, circle: false,
+                    polyline: true, rectangle: false, circle: false,
                     marker: false, circlemarker: false
                 },
                 edit: false
