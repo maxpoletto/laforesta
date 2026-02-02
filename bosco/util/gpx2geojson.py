@@ -193,6 +193,8 @@ def main():
                        help='Region/layer label for all features (e.g., "Serra", "Monte Cocuzzo")')
     parser.add_argument('-d', '--distance', type=float, default=0.0, metavar='N',
                        help='Keep only points at least N meters apart (default: 0, no reduction)')
+    parser.add_argument('-output', '-o', type=Path,
+                       help='Output GeoJSON file (default: stdout)')
     parser.add_argument('gpx_files', nargs='+',
                        help='One or more GPX files to convert')
     parser.add_argument('--pretty', action='store_true',
@@ -207,13 +209,16 @@ def main():
     geojson = convert_gpx_to_geojson(gpx_paths, args.region, args.distance)
 
     # Output to stdout
+    f = sys.stdout
+    if args.output:
+        f = open(args.output, 'w', encoding='utf-8')
     if args.pretty:
-        json.dump(geojson, sys.stdout, indent=2, ensure_ascii=False)
+        json.dump(geojson, f, indent=2, ensure_ascii=False)
     else:
-        json.dump(geojson, sys.stdout, ensure_ascii=False)
+        json.dump(geojson, f, ensure_ascii=False)
 
-    print(file=sys.stdout)  # Final newline
-
+    print(file=f)  # Final newline
+    f.close() if args.output else None
 
 if __name__ == '__main__':
     main()
