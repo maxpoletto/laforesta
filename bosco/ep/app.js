@@ -3,8 +3,8 @@ const ParcelEditor = (function() {
     'use strict';
 
     // State
+    let mapWrapper = null;
     let map = null;
-    let currentBasemap = null;
     let drawnItems = null;
     let drawControl = null;
 
@@ -13,19 +13,6 @@ const ParcelEditor = (function() {
     let selectedLayerName = null;
     let selectedParcel = null;
     let parcelCounter = 0;
-
-    // Constants
-    const basemaps = {
-        osm: () => L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap'
-        }),
-        satellite: () => L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-            attribution: '© Esri'
-        }),
-        topo: () => L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenTopoMap'
-        })
-    };
 
     const styles = {
         default: { color: '#3388ff', weight: 2, opacity: 1, fillOpacity: 0.2 },
@@ -425,8 +412,11 @@ const ParcelEditor = (function() {
     // Public API
     return {
         init(filename = null) {
-            map = L.map('map');
-            currentBasemap = basemaps.satellite().addTo(map);
+            // Create map with shared features (measure, location, coords)
+            mapWrapper = MapCommon.create('map', {
+                basemap: 'satellite',
+            });
+            map = mapWrapper.getLeafletMap();
 
             drawnItems = new L.FeatureGroup().addTo(map);
 
@@ -465,11 +455,6 @@ const ParcelEditor = (function() {
                     e.originalEvent.target.classList.contains('leaflet-tile')) {
                     deselectParcel();
                 }
-            });
-
-            // Coordinates display
-            map.on('mousemove', e => {
-                $('coords').textContent = `${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}`;
             });
 
             // Layer selector
@@ -532,8 +517,7 @@ const ParcelEditor = (function() {
         },
 
         setBasemap(name) {
-            map.removeLayer(currentBasemap);
-            currentBasemap = basemaps[name]().addTo(map);
+            mapWrapper.setBasemap(name);
         },
 
         resetOffset() {

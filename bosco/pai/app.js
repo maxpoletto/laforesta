@@ -2,8 +2,8 @@
 const TreeViewer = (function() {
     'use strict';
 
-    let map = null;
-    let currentBasemap = null;
+    let mapWrapper = null;
+    let leafletMap = null;
     let parcelLayer = null;
     let allTreeMarkers = [];  // Array of {marker, species, parcel}
     let treeLayer = null;     // LayerGroup containing all visible markers
@@ -13,18 +13,6 @@ const TreeViewer = (function() {
     let parcelCounts = {};
 
     const $ = id => document.getElementById(id);
-
-    const basemaps = {
-        osm: () => L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap'
-        }),
-        satellite: () => L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-            attribution: '© Esri'
-        }),
-        topo: () => L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenTopoMap'
-        })
-    };
 
     // Color palette for species
     const colorPalette = [
@@ -63,14 +51,8 @@ const TreeViewer = (function() {
                         weight: 2,
                         opacity: 0.8,
                         fillOpacity: 0.1
-                    },
-                    // Do not display popups until parcel names are correct.
-                    // onEachFeature: (feature, layer) => {
-                    //     if (feature.properties?.name) {
-                    //         layer.bindPopup(`<b>${feature.properties.name}</b>`);
-                    //     }
-                    // }
-                }).addTo(map);
+                    }
+                }).addTo(leafletMap);
 
                 return serraFeatures.length;
             });
@@ -135,7 +117,6 @@ const TreeViewer = (function() {
 
                     allTreeMarkers.push({ marker, species, parcel });
 
-                    // Initialize visibility state
                     speciesVisible[species] = true;
                     parcelVisible[parcel] = true;
                 });
@@ -225,18 +206,16 @@ const TreeViewer = (function() {
 
     return {
         init() {
-            map = L.map('map', { preferCanvas: true });
-            currentBasemap = basemaps.satellite().addTo(map);
+            // Create map with shared features (measure, location, coords)
+            mapWrapper = MapCommon.create('map', {
+                basemap: 'satellite'
+            });
+            leafletMap = mapWrapper.getLeafletMap();
 
             // Create layer group for tree markers
-            treeLayer = L.layerGroup().addTo(map);
+            treeLayer = L.layerGroup().addTo(leafletMap);
 
-            // Coordinate display
-            map.on('mousemove', e => {
-                $('coords').textContent = `${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}`;
-            });
-
-            // Load data sequentially (parcels first, then trees)
+            // Load data
             (async () => {
                 try {
                     const parcelCount = await loadParcels();
@@ -246,14 +225,11 @@ const TreeViewer = (function() {
                     updateParticelle();
                     updateStats(treeData);
 
-                    // Fit bounds to parcels
                     if (parcelLayer && parcelLayer.getBounds().isValid()) {
-                        map.fitBounds(parcelLayer.getBounds());
+                        leafletMap.fitBounds(parcelLayer.getBounds());
                     }
 
-                    // Show trees after bounds are set
                     updateTreeVisibility();
-
                     updateStatus(`Caricate ${parcelCount} particelle, ${treeData.total} alberi`);
                 } catch (err) {
                     updateStatus('Errore nel caricamento: ' + err.message);
@@ -263,8 +239,7 @@ const TreeViewer = (function() {
         },
 
         setBasemap(name) {
-            map.removeLayer(currentBasemap);
-            currentBasemap = basemaps[name]().addTo(map);
+            mapWrapper.setBasemap(name);
         },
 
         toggleSpecies(species, visible) {

@@ -2,34 +2,16 @@
 const SampleAreaViewer = (function() {
     'use strict';
 
-    let map = null;
-    let currentBasemap = null;
+    let mapWrapper = null;
+    let leafletMap = null;
     let parcelLayer = null;
     let allMarkers = [];  // Array of {marker, compresa, parcel, cp}
     let areaLayer = null;  // LayerGroup containing all visible markers
     let parcelVisible = {};
     let parcelData = {};
     let numAreas = {};
-    let measureMode = false;
-    let measurePoints = [];
-    let measureLayer = null;
-    let locationMode = false;
-    let locationMarker = null;
-    let locationCircle = null;
 
     const $ = id => document.getElementById(id);
-
-    const basemaps = {
-        osm: () => L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap'
-        }),
-        satellite: () => L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-            attribution: '© Esri'
-        }),
-        topo: () => L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenTopoMap'
-        })
-    };
 
     function updateStatus(msg) {
         $('status').textContent = msg;
@@ -39,7 +21,6 @@ const SampleAreaViewer = (function() {
         return fetch('../data/particelle.geojson')
             .then(r => r.json())
             .then(data => {
-                // Include all parcel features
                 parcelLayer = L.geoJSON(data, {
                     style: {
                         color: '#3388ff',
@@ -47,7 +28,7 @@ const SampleAreaViewer = (function() {
                         opacity: 0.8,
                         fillOpacity: 0.1
                     }
-                }).addTo(map);
+                }).addTo(leafletMap);
 
                 return data.features.length;
             });
@@ -61,14 +42,14 @@ const SampleAreaViewer = (function() {
                     header: true,
                     skipEmptyLines: true
                 });
-            result.data.forEach(row => {
-                const compresa = row['Compresa'] || 'Sconosciuta';
-                const parcel = row['Particella'] || '?';
-                const cp = `${compresa}-${parcel}`;
-                parcelData[cp] = { area: row['Area (ha)'] }
+                result.data.forEach(row => {
+                    const compresa = row['Compresa'] || 'Sconosciuta';
+                    const parcel = row['Particella'] || '?';
+                    const cp = `${compresa}-${parcel}`;
+                    parcelData[cp] = { area: row['Area (ha)'] };
+                });
+                return parcelData;
             });
-            return parcelData;
-        })
     }
 
     function loadSampleAreas() {
@@ -110,9 +91,10 @@ const SampleAreaViewer = (function() {
                     const lon = parseFloat(area.Lon);
                     const ha = parcelData[cp]?.area || '?';
                     const altitude = area['Quota'] || '?';
+
                     const marker = L.circleMarker([lat, lon], {
                         radius: 6,
-                        fillColor: '#ffd700',  // Yellow for visibility
+                        fillColor: '#ffd700',
                         color: '#000',
                         weight: 1,
                         opacity: 1,
@@ -125,7 +107,6 @@ const SampleAreaViewer = (function() {
                     );
 
                     allMarkers.push({ marker, compresa, parcel, cp });
-
                     parcelVisible[cp] = true;
                 });
 
@@ -154,11 +135,9 @@ const SampleAreaViewer = (function() {
             const infoA = parcels.get(a);
             const infoB = parcels.get(b);
 
-            // First sort by compresa
             const compresaCompare = infoA.compresa.localeCompare(infoB.compresa);
             if (compresaCompare !== 0) return compresaCompare;
 
-            // Then sort by parcel ID
             const numA = parseInt(infoA.parcel);
             const numB = parseInt(infoB.parcel);
             if (!isNaN(numA) && !isNaN(numB)) {
@@ -184,136 +163,6 @@ const SampleAreaViewer = (function() {
         });
     }
 
-
-    function toggleMeasure() {
-        measureMode = !measureMode;
-        const btn = document.querySelector('.measure-button');
-        if (measureMode) {
-            btn.style.backgroundColor = '#ffd700';
-            map.getContainer().style.cursor = 'crosshair';
-        } else {
-            btn.style.backgroundColor = '';
-            map.getContainer().style.cursor = '';
-            clearMeasure();
-        }
-    }
-
-    function clearMeasure() {
-        measurePoints = [];
-        if (measureLayer) {
-            map.removeLayer(measureLayer);
-            measureLayer = null;
-        }
-    }
-
-    function toggleLocation() {
-        locationMode = !locationMode;
-        const btn = document.querySelector('.location-button');
-
-        if (locationMode) {
-            btn.style.backgroundColor = '#4CAF50';
-            map.locate({ watch: true, enableHighAccuracy: true });
-        } else {
-            btn.style.backgroundColor = '';
-            map.stopLocate();
-            if (locationMarker) {
-                map.removeLayer(locationMarker);
-                locationMarker = null;
-            }
-            if (locationCircle) {
-                map.removeLayer(locationCircle);
-                locationCircle = null;
-            }
-        }
-    }
-
-    function onLocationFound(e) {
-        const radius = e.accuracy;
-
-        // Remove old marker and circle
-        if (locationMarker) map.removeLayer(locationMarker);
-        if (locationCircle) map.removeLayer(locationCircle);
-
-        // Add accuracy circle
-        locationCircle = L.circle(e.latlng, {
-            radius: radius,
-            color: '#4CAF50',
-            fillColor: '#4CAF50',
-            fillOpacity: 0.15,
-            weight: 2
-        }).addTo(map);
-
-        // Add marker
-        locationMarker = L.circleMarker(e.latlng, {
-            radius: 8,
-            fillColor: '#4CAF50',
-            color: '#fff',
-            weight: 2,
-            opacity: 1,
-            fillOpacity: 1
-        }).addTo(map);
-
-        locationMarker.bindTooltip(
-            `<b>Posizione attuale</b><br>Precisione: ±${radius.toFixed(0)} m`,
-            { permanent: false, direction: 'top' }
-        );
-    }
-
-    function onLocationError(e) {
-        alert('Impossibile determinare la posizione: ' + e.message);
-        locationMode = false;
-        const btn = document.querySelector('.location-button');
-        btn.style.backgroundColor = '';
-    }
-
-    function addMeasurePoint(latlng) {
-        if (!measureMode) return;
-
-        measurePoints.push(latlng);
-
-        if (!measureLayer) {
-            measureLayer = L.layerGroup().addTo(map);
-        }
-
-        // Draw markers
-        L.circleMarker(latlng, {
-            radius: 4,
-            fillColor: '#ff0000',
-            color: '#fff',
-            weight: 2,
-            opacity: 1,
-            fillOpacity: 0.8
-        }).addTo(measureLayer);
-
-        // Draw line if we have multiple points
-        if (measurePoints.length > 1) {
-            L.polyline(measurePoints, {
-                color: '#ff0000',
-                weight: 2,
-                opacity: 0.7
-            }).addTo(measureLayer);
-
-            // Calculate total distance
-            let totalDistance = 0;
-            for (let i = 1; i < measurePoints.length; i++) {
-                totalDistance += map.distance(measurePoints[i - 1], measurePoints[i]);
-            }
-
-            // Show distance label at last point
-            const distText = totalDistance >= 1000
-                ? `${(totalDistance / 1000).toFixed(2)} km`
-                : `${totalDistance.toFixed(1)} m`;
-
-            L.marker(latlng, {
-                icon: L.divIcon({
-                    className: 'measure-label',
-                    html: `<div style="background: white; padding: 2px 6px; border: 2px solid #ff0000; border-radius: 3px; font-size: 12px; font-weight: bold; white-space: nowrap;">${distText}</div>`,
-                    iconSize: null
-                })
-            }).addTo(measureLayer);
-        }
-    }
-
     function updateStats(data) {
         const stats = $('stats');
         const parcelCount = data.parcels.size;
@@ -326,83 +175,30 @@ const SampleAreaViewer = (function() {
 
     return {
         init() {
-            map = L.map('map', { preferCanvas: true });
-            currentBasemap = basemaps.satellite().addTo(map);
-
-            // Add measurement control
-            const MeasureControl = L.Control.extend({
-                options: { position: 'topleft' },
-                onAdd: function() {
-                    const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
-                    container.innerHTML = `
-                        <a href="#" class="measure-button" title="Misura distanza" style="width: 30px; height: 30px; line-height: 30px; text-align: center; font-size: 18px; text-decoration: none;">📏</a>
-                    `;
-                    L.DomEvent.on(container, 'click', function(e) {
-                        L.DomEvent.stopPropagation(e);
-                        L.DomEvent.preventDefault(e);
-                        toggleMeasure();
-                    });
-                    return container;
-                }
+            // Create map with shared features (measure, location, coords)
+            mapWrapper = MapCommon.create('map', {
+                basemap: 'satellite'
             });
-            map.addControl(new MeasureControl());
-
-            // Add location control
-            const LocationControl = L.Control.extend({
-                options: { position: 'topleft' },
-                onAdd: function() {
-                    const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
-                    container.innerHTML = `
-                        <a href="#" class="location-button" title="Mostra posizione" style="width: 30px; height: 30px; line-height: 30px; text-align: center; font-size: 18px; text-decoration: none;">📍</a>
-                    `;
-                    L.DomEvent.on(container, 'click', function(e) {
-                        L.DomEvent.stopPropagation(e);
-                        L.DomEvent.preventDefault(e);
-                        toggleLocation();
-                    });
-                    return container;
-                }
-            });
-            map.addControl(new LocationControl());
-
-            // Location event handlers
-            map.on('locationfound', onLocationFound);
-            map.on('locationerror', onLocationError);
-
-            // Handle map clicks for measurement
-            map.on('click', function(e) {
-                if (measureMode) {
-                    addMeasurePoint(e.latlng);
-                }
-            });
+            leafletMap = mapWrapper.getLeafletMap();
 
             // Create layer group for area markers
-            areaLayer = L.layerGroup().addTo(map);
+            areaLayer = L.layerGroup().addTo(leafletMap);
 
-            // Coordinate display
-            map.on('mousemove', e => {
-                $('coords').textContent = `${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}`;
-            });
-
-            // Load data sequentially (parcels first, then sample areas)
+            // Load data
             (async () => {
                 try {
                     const parcelCount = await loadParcelsGeo();
-                    const parcelData = await loadParcels();
-                    console.log('Loaded parcel data:', parcelData);
+                    await loadParcels();
                     const areaData = await loadSampleAreas();
 
                     updateParticelle(areaData.parcels);
                     updateStats(areaData);
 
-                    // Fit bounds to parcels
                     if (parcelLayer && parcelLayer.getBounds().isValid()) {
-                        map.fitBounds(parcelLayer.getBounds());
+                        leafletMap.fitBounds(parcelLayer.getBounds());
                     }
 
-                    // Show areas after bounds are set
                     updateAreaVisibility();
-
                     updateStatus(`Caricate ${parcelCount} particelle, ${areaData.total} aree di saggio`);
                 } catch (err) {
                     updateStatus('Errore nel caricamento: ' + err.message);
@@ -412,8 +208,7 @@ const SampleAreaViewer = (function() {
         },
 
         setBasemap(name) {
-            map.removeLayer(currentBasemap);
-            currentBasemap = basemaps[name]().addTo(map);
+            mapWrapper.setBasemap(name);
         },
 
         toggleParticella(cp, visible) {
@@ -426,7 +221,6 @@ const SampleAreaViewer = (function() {
                 parcelVisible[cp] = true;
             });
             updateAreaVisibility();
-            // Re-render the parcel list to update checkboxes
             const parcels = new Map();
             allMarkers.forEach(({ compresa, parcel, cp }) => {
                 if (!parcels.has(cp)) {
@@ -441,7 +235,6 @@ const SampleAreaViewer = (function() {
                 parcelVisible[cp] = false;
             });
             updateAreaVisibility();
-            // Re-render the parcel list to update checkboxes
             const parcels = new Map();
             allMarkers.forEach(({ compresa, parcel, cp }) => {
                 if (!parcels.has(cp)) {
