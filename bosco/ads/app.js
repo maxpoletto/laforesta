@@ -9,6 +9,9 @@ const SampleAreaViewer = (function() {
     let areaLayer = null;  // LayerGroup containing all visible markers
     let parcelVisible = {};
     let parcelCounts = {};
+    let measureMode = false;
+    let measurePoints = [];
+    let measureLayer = null;
 
     const $ = id => document.getElementById(id);
 
@@ -163,6 +166,76 @@ const SampleAreaViewer = (function() {
         });
     }
 
+
+    function toggleMeasure() {
+        measureMode = !measureMode;
+        const btn = document.querySelector('.measure-button');
+        if (measureMode) {
+            btn.style.backgroundColor = '#ffd700';
+            map.getContainer().style.cursor = 'crosshair';
+        } else {
+            btn.style.backgroundColor = '';
+            map.getContainer().style.cursor = '';
+            clearMeasure();
+        }
+    }
+
+    function clearMeasure() {
+        measurePoints = [];
+        if (measureLayer) {
+            map.removeLayer(measureLayer);
+            measureLayer = null;
+        }
+    }
+
+    function addMeasurePoint(latlng) {
+        if (!measureMode) return;
+
+        measurePoints.push(latlng);
+
+        if (!measureLayer) {
+            measureLayer = L.layerGroup().addTo(map);
+        }
+
+        // Draw markers
+        L.circleMarker(latlng, {
+            radius: 4,
+            fillColor: '#ff0000',
+            color: '#fff',
+            weight: 2,
+            opacity: 1,
+            fillOpacity: 0.8
+        }).addTo(measureLayer);
+
+        // Draw line if we have multiple points
+        if (measurePoints.length > 1) {
+            L.polyline(measurePoints, {
+                color: '#ff0000',
+                weight: 2,
+                opacity: 0.7
+            }).addTo(measureLayer);
+
+            // Calculate total distance
+            let totalDistance = 0;
+            for (let i = 1; i < measurePoints.length; i++) {
+                totalDistance += map.distance(measurePoints[i - 1], measurePoints[i]);
+            }
+
+            // Show distance label at last point
+            const distText = totalDistance >= 1000
+                ? `${(totalDistance / 1000).toFixed(2)} km`
+                : `${totalDistance.toFixed(1)} m`;
+
+            L.marker(latlng, {
+                icon: L.divIcon({
+                    className: 'measure-label',
+                    html: `<div style="background: white; padding: 2px 6px; border: 2px solid #ff0000; border-radius: 3px; font-size: 12px; font-weight: bold; white-space: nowrap;">${distText}</div>`,
+                    iconSize: null
+                })
+            }).addTo(measureLayer);
+        }
+    }
+
     function updateStats(data) {
         const stats = $('stats');
         const parcelCount = data.parcelMap.size;
@@ -177,6 +250,31 @@ const SampleAreaViewer = (function() {
         init() {
             map = L.map('map', { preferCanvas: true });
             currentBasemap = basemaps.satellite().addTo(map);
+
+            // Add measurement control
+            const MeasureControl = L.Control.extend({
+                options: { position: 'topleft' },
+                onAdd: function() {
+                    const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+                    container.innerHTML = `
+                        <a href="#" class="measure-button" title="Misura distanza" style="width: 30px; height: 30px; line-height: 30px; text-align: center; font-size: 18px; text-decoration: none;">📏</a>
+                    `;
+                    L.DomEvent.on(container, 'click', function(e) {
+                        L.DomEvent.stopPropagation(e);
+                        L.DomEvent.preventDefault(e);
+                        toggleMeasure();
+                    });
+                    return container;
+                }
+            });
+            map.addControl(new MeasureControl());
+
+            // Handle map clicks for measurement
+            map.on('click', function(e) {
+                if (measureMode) {
+                    addMeasurePoint(e.latlng);
+                }
+            });
 
             // Create layer group for area markers
             areaLayer = L.layerGroup().addTo(map);
