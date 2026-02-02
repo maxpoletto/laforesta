@@ -16,6 +16,9 @@ const ParcelEditor = (function() {
     let parcelCounter = 0;
     let roadCounter = 0;
 
+    // Undo state: saves GeoJSON when editing starts
+    let undoState = null;  // { type: 'parcel'|'road', feature, geojson }
+
     const styles = {
         default: { color: '#3388ff', weight: 2, opacity: 1, fillOpacity: 0.2 },
         otherLayer: { color: '#ff6600', weight: 1, opacity: 1, fillOpacity: 0.1 },
@@ -153,10 +156,18 @@ const ParcelEditor = (function() {
             deselectRoad();
         }
         selectedParcel = parcel;
+
+        // Save state for undo
+        undoState = {
+            type: 'parcel',
+            feature: parcel,
+            geojson: parcel.mapLayer.toGeoJSON()
+        };
+
         parcel.mapLayer.setStyle(styles.selected);
         parcel.mapLayer.editing.enable();
         updateParcelList();
-        updateStatus(`Particella selezionata: ${parcel.name}`);
+        updateStatus(`Particella selezionata: ${parcel.name} (Ctrl+Z per annullare)`);
     }
 
     function deselectParcel() {
@@ -164,6 +175,7 @@ const ParcelEditor = (function() {
             selectedParcel.mapLayer.editing?.disable();
             updateParcelStyle(selectedParcel);
             selectedParcel = null;
+            undoState = null;  // Clear undo state
             updateParcelList();
         }
     }
@@ -230,10 +242,18 @@ const ParcelEditor = (function() {
             deselectParcel();
         }
         selectedRoad = road;
+
+        // Save state for undo
+        undoState = {
+            type: 'road',
+            feature: road,
+            geojson: road.mapLayer.toGeoJSON()
+        };
+
         road.mapLayer.setStyle(styles.roadSelected);
         road.mapLayer.editing.enable();
         updateRoadList();
-        updateStatus(`Strada selezionata: ${road.name}`);
+        updateStatus(`Strada selezionata: ${road.name} (Ctrl+Z per annullare)`);
     }
 
     function deselectRoad() {
@@ -241,8 +261,49 @@ const ParcelEditor = (function() {
             selectedRoad.mapLayer.editing?.disable();
             updateRoadStyle(selectedRoad);
             selectedRoad = null;
+            undoState = null;  // Clear undo state
             updateRoadList();
         }
+    }
+
+    function undoEdit() {
+        if (!undoState) return;
+
+        const { type, feature, geojson } = undoState;
+        const layerName = feature.mapLayer.layerName;
+
+        // Restore coordinates from saved GeoJSON
+        const coords = geojson.geometry.coordinates;
+        let newLatLngs, newLayer;
+
+        if (type === 'parcel') {
+            const depth = geojson.geometry.type === 'Polygon' ? 1 : 2;
+            newLatLngs = L.GeoJSON.coordsToLatLngs(coords, depth);
+            newLayer = L.polygon(newLatLngs, feature.mapLayer.options);
+        } else {  // road
+            newLatLngs = L.GeoJSON.coordsToLatLngs(coords, 0);
+            newLayer = L.polyline(newLatLngs, feature.mapLayer.options);
+        }
+
+        // Replace the layer
+        drawnItems.removeLayer(feature.mapLayer);
+        feature.mapLayer = newLayer;
+        drawnItems.addLayer(newLayer);
+
+        // Restore metadata
+        if (type === 'parcel') {
+            newLayer.parcelData = feature;
+            newLayer.layerName = layerName;
+            addParcelClickHandler(newLayer);
+            selectParcel(feature);  // Re-select with new undo state
+        } else {
+            newLayer.roadData = feature;
+            newLayer.layerName = layerName;
+            addRoadClickHandler(newLayer);
+            selectRoad(feature);  // Re-select with new undo state
+        }
+
+        updateStatus('Modifiche annullate');
     }
 
     function updateRoadStyle(road) {
@@ -703,11 +764,14 @@ const ParcelEditor = (function() {
                 deselectRoad();
             });
 
-            // ESC key to deselect
+            // Keyboard shortcuts
             document.addEventListener('keydown', e => {
                 if (e.key === 'Escape') {
                     deselectParcel();
                     deselectRoad();
+                } else if (e.key === 'z' && (e.ctrlKey || e.metaKey)) {
+                    e.preventDefault();
+                    undoEdit();
                 }
             });
 
