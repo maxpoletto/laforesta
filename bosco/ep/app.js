@@ -149,6 +149,9 @@ const ParcelEditor = (function() {
 
     function selectParcel(parcel) {
         deselectParcel();
+        if (selectedRoad) {
+            deselectRoad();
+        }
         selectedParcel = parcel;
         parcel.mapLayer.setStyle(styles.selected);
         parcel.mapLayer.editing.enable();
@@ -694,10 +697,15 @@ const ParcelEditor = (function() {
                 }
             });
 
-            // Click background to deselect
-            map.on('click', e => {
-                if (e.originalEvent.target === map._container ||
-                    e.originalEvent.target.classList.contains('leaflet-tile')) {
+            // Click map to deselect (feature clicks stop propagation)
+            map.on('click', () => {
+                deselectParcel();
+                deselectRoad();
+            });
+
+            // ESC key to deselect
+            document.addEventListener('keydown', e => {
+                if (e.key === 'Escape') {
                     deselectParcel();
                     deselectRoad();
                 }
