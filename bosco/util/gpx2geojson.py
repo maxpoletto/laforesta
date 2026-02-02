@@ -12,13 +12,47 @@ Usage:
 
 import argparse
 import json
+import math
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
 
 
-def parse_gpx_file(file_path: Path) -> list[dict[str, Any]]:
+def distance_meters(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """
+    Calculate approximate distance in meters between two lat/lon points.
+    Uses a simple Euclidean approximation, accurate enough for short distances.
+    """
+    lat_diff = (lat2 - lat1) * 111000  # 1 degree latitude ≈ 111km
+    lon_diff = (lon2 - lon1) * 111000 * math.cos(math.radians(lat1))  # Adjust for latitude
+    return math.sqrt(lat_diff**2 + lon_diff**2)
+
+
+def thin_coordinates(coords: list[list[float]], min_distance: float) -> list[list[float]]:
+    """
+    Reduce point density by keeping only points at least min_distance meters apart.
+    Always keeps the first and last points.
+    """
+    if min_distance <= 0 or len(coords) <= 2:
+        return coords
+
+    result = [coords[0]]  # Always keep first point
+    last_kept = coords[0]
+
+    for coord in coords[1:-1]:  # Check middle points
+        lon, lat = coord[0], coord[1]
+        last_lon, last_lat = last_kept[0], last_kept[1]
+
+        if distance_meters(last_lat, last_lon, lat, lon) >= min_distance:
+            result.append(coord)
+            last_kept = coord
+
+    result.append(coords[-1])  # Always keep last point
+    return result
+
+
+def parse_gpx_file(file_path: Path, min_distance: float = 0.0) -> list[dict[str, Any]]:
     """
     Parse a GPX file and extract all tracks and routes as GeoJSON features.
 
@@ -63,6 +97,7 @@ def parse_gpx_file(file_path: Path) -> list[dict[str, Any]]:
                     coordinates.append([float(lon), float(lat), ele])
 
             if len(coordinates) >= 2:  # LineString needs at least 2 points
+                coordinates = thin_coordinates(coordinates, min_distance)
                 features.append({
                     'type': 'Feature',
                     'geometry': {
@@ -91,6 +126,7 @@ def parse_gpx_file(file_path: Path) -> list[dict[str, Any]]:
                 coordinates.append([float(lon), float(lat), ele])
 
         if len(coordinates) >= 2:
+            coordinates = thin_coordinates(coordinates, min_distance)
             features.append({
                 'type': 'Feature',
                 'geometry': {
@@ -107,11 +143,12 @@ def parse_gpx_file(file_path: Path) -> list[dict[str, Any]]:
     return features
 
 
-def convert_gpx_to_geojson(gpx_files: list[Path], region_label: str) -> dict[str, Any]:
+def convert_gpx_to_geojson(gpx_files: list[Path], region_label: str, min_distance: float = 0.0) -> dict[str, Any]:
     """
     Convert multiple GPX files to a single GeoJSON FeatureCollection.
 
     All features are tagged with the specified region/layer label.
+    Points are thinned to keep only those at least min_distance meters apart.
     """
     all_features = []
     files_processed = 0
@@ -123,7 +160,7 @@ def convert_gpx_to_geojson(gpx_files: list[Path], region_label: str) -> dict[str
             files_failed += 1
             continue
 
-        features = parse_gpx_file(gpx_file)
+        features = parse_gpx_file(gpx_file, min_distance)
 
         # Add layer label to each feature
         for feature in features:
@@ -137,6 +174,8 @@ def convert_gpx_to_geojson(gpx_files: list[Path], region_label: str) -> dict[str
           file=sys.stderr)
     if files_failed > 0:
         print(f"Warning: {files_failed} file(s) failed", file=sys.stderr)
+    if min_distance > 0:
+        print(f"Thinning: kept points at least {min_distance}m apart", file=sys.stderr)
 
     return {
         'type': 'FeatureCollection',
@@ -152,6 +191,8 @@ def main():
     )
     parser.add_argument('-r', '--region', required=True,
                        help='Region/layer label for all features (e.g., "Serra", "Monte Cocuzzo")')
+    parser.add_argument('-d', '--distance', type=float, default=0.0, metavar='N',
+                       help='Keep only points at least N meters apart (default: 0, no reduction)')
     parser.add_argument('gpx_files', nargs='+',
                        help='One or more GPX files to convert')
     parser.add_argument('--pretty', action='store_true',
@@ -163,7 +204,7 @@ def main():
     gpx_paths = [Path(f) for f in args.gpx_files]
 
     # Convert
-    geojson = convert_gpx_to_geojson(gpx_paths, args.region)
+    geojson = convert_gpx_to_geojson(gpx_paths, args.region, args.distance)
 
     # Output to stdout
     if args.pretty:
