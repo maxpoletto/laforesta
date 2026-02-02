@@ -411,9 +411,6 @@ const ParcelEditor = (function() {
 
     // Load/Export
     function loadGeoJSON(data) {
-        // Clear existing
-        clearAll(false);
-
         // Group features by layer property
         const featuresByLayer = {};
         (data.features || []).forEach(feature => {
@@ -424,9 +421,17 @@ const ParcelEditor = (function() {
             featuresByLayer[layerName].push(feature);
         });
 
-        // Create layers and add parcels and roads
+        let newParcels = 0;
+        let newRoads = 0;
+        const newLayers = [];
+
+        // Merge features into existing layers or create new ones
         Object.entries(featuresByLayer).forEach(([layerName, features]) => {
-            createLayer(layerName);
+            const isNewLayer = !layers[layerName];
+            if (isNewLayer) {
+                createLayer(layerName);
+                newLayers.push(layerName);
+            }
 
             features.forEach(feature => {
                 if (feature.geometry?.type === 'Polygon' || feature.geometry?.type === 'MultiPolygon') {
@@ -438,6 +443,7 @@ const ParcelEditor = (function() {
                     drawnItems.addLayer(mapLayer);
                     addParcelToLayer(layerName, mapLayer);
                     addParcelClickHandler(mapLayer);
+                    newParcels++;
                 } else if (feature.geometry?.type === 'LineString') {
                     // Handle LineStrings (roads)
                     const latlngs = L.GeoJSON.coordsToLatLngs(feature.geometry.coordinates, 0);
@@ -446,25 +452,34 @@ const ParcelEditor = (function() {
                     drawnItems.addLayer(mapLayer);
                     addRoadToLayer(layerName, mapLayer);
                     addRoadClickHandler(mapLayer);
+                    newRoads++;
                 }
             });
         });
 
-        // Select first layer
-        const firstLayer = Object.keys(layers).sort()[0];
+        // Update UI
         updateLayerSelector();
-        selectLayer(firstLayer);
 
-        // Fit bounds
-        if (drawnItems.getBounds().isValid()) {
-            map.fitBounds(drawnItems.getBounds());
-        } else {
-            map.setView([38.65, 16.3], 12); // Default to center of Calabria
+        // If this is the first load or we added new layers, select appropriately
+        if (!selectedLayerName && Object.keys(layers).length > 0) {
+            const firstLayer = Object.keys(layers).sort()[0];
+            selectLayer(firstLayer);
+        } else if (selectedLayerName && layers[selectedLayerName]) {
+            // Refresh current layer to show new items
+            selectLayer(selectedLayerName);
         }
 
-        const parcelCount = Object.values(layers).reduce((sum, l) => sum + l.parcels.length, 0);
-        const roadCount = Object.values(layers).reduce((sum, l) => sum + l.roads.length, 0);
-        updateStatus(`Caricate ${parcelCount} particelle e ${roadCount} strade in ${Object.keys(layers).length} comprese`);
+        // Fit bounds if this looks like an initial load
+        if (Object.keys(layers).length === newLayers.length && drawnItems.getBounds().isValid()) {
+            map.fitBounds(drawnItems.getBounds());
+        }
+
+        const totalParcels = Object.values(layers).reduce((sum, l) => sum + l.parcels.length, 0);
+        const totalRoads = Object.values(layers).reduce((sum, l) => sum + l.roads.length, 0);
+        const msg = newLayers.length > 0
+            ? `Aggiunte ${newParcels} particelle e ${newRoads} strade (${newLayers.length} nuove comprese). Totale: ${totalParcels} particelle, ${totalRoads} strade in ${Object.keys(layers).length} comprese`
+            : `Aggiunte ${newParcels} particelle e ${newRoads} strade alle comprese esistenti. Totale: ${totalParcels} particelle, ${totalRoads} strade`;
+        updateStatus(msg);
     }
 
     function exportGeoJSON() {
