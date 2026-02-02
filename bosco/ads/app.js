@@ -8,7 +8,7 @@ const SampleAreaViewer = (function() {
     let allMarkers = [];  // Array of {marker, compresa, parcel, cp}
     let areaLayer = null;  // LayerGroup containing all visible markers
     let parcelVisible = {};
-    let parcelCounts = {};
+    let numAreas = {};
     let measureMode = false;
     let measurePoints = [];
     let measureLayer = null;
@@ -66,19 +66,15 @@ const SampleAreaViewer = (function() {
                 );
 
                 // Collect parcels with compresa names
-                const parcelMap = new Map();
+                const parcels = new Map();
 
                 areas.forEach(area => {
                     const compresa = area.Compresa || 'Sconosciuta';
                     const parcel = area.Particella || '?';
-                    const cp = area.CP || `${compresa}-${parcel}`;
-
-                    // Track parcel counts by CP
-                    parcelCounts[cp] = (parcelCounts[cp] || 0) + 1;
-
-                    // Store compresa/parcel mapping for display
-                    if (!parcelMap.has(cp)) {
-                        parcelMap.set(cp, { compresa, parcel });
+                    const cp = `${compresa}-${parcel}`;
+                    numAreas[cp] = (numAreas[cp] || 0) + 1;
+                    if (!parcels.has(cp)) {
+                        parcels.set(cp, { compresa, parcel });
                     }
                 });
 
@@ -86,7 +82,7 @@ const SampleAreaViewer = (function() {
                 areas.forEach(area => {
                     const compresa = area.Compresa || 'Sconosciuta';
                     const parcel = area.Particella || '?';
-                    const cp = area.CP || `${compresa}-${parcel}`;
+                    const cp = `${compresa}-${parcel}`;
                     const lat = parseFloat(area.Lat);
                     const lon = parseFloat(area.Lon);
                     const altitude = area.Quota || '?';
@@ -107,11 +103,10 @@ const SampleAreaViewer = (function() {
 
                     allMarkers.push({ marker, compresa, parcel, cp });
 
-                    // Initialize visibility state
                     parcelVisible[cp] = true;
                 });
 
-                return { total: areas.length, parcelMap };
+                return { total: areas.length, parcels };
             });
     }
 
@@ -127,14 +122,14 @@ const SampleAreaViewer = (function() {
         });
     }
 
-    function updateParticelle(parcelMap) {
+    function updateParticelle(parcels) {
         const list = $('parcel-list');
         list.innerHTML = '';
 
         // Sort parcels by compresa, then by parcel ID
-        const sortedParcels = Array.from(parcelMap.keys()).sort((a, b) => {
-            const infoA = parcelMap.get(a);
-            const infoB = parcelMap.get(b);
+        const sortedParcels = Array.from(parcels.keys()).sort((a, b) => {
+            const infoA = parcels.get(a);
+            const infoB = parcels.get(b);
 
             // First sort by compresa
             const compresaCompare = infoA.compresa.localeCompare(infoB.compresa);
@@ -150,8 +145,8 @@ const SampleAreaViewer = (function() {
         });
 
         sortedParcels.forEach(cp => {
-            const info = parcelMap.get(cp);
-            const count = parcelCounts[cp];
+            const info = parcels.get(cp);
+            const count = numAreas[cp];
             const label = `${info.compresa} / ${info.parcel}`;
 
             const item = document.createElement('label');
@@ -238,7 +233,7 @@ const SampleAreaViewer = (function() {
 
     function updateStats(data) {
         const stats = $('stats');
-        const parcelCount = data.parcelMap.size;
+        const parcelCount = data.parcels.size;
 
         let html = `<p>Aree di saggio: <b>${data.total}</b></p>`;
         html += `<p>Particelle: <b>${parcelCount}</b></p>`;
@@ -290,7 +285,7 @@ const SampleAreaViewer = (function() {
                     const parcelCount = await loadParcels();
                     const areaData = await loadSampleAreas();
 
-                    updateParticelle(areaData.parcelMap);
+                    updateParticelle(areaData.parcels);
                     updateStats(areaData);
 
                     // Fit bounds to parcels
@@ -325,13 +320,13 @@ const SampleAreaViewer = (function() {
             });
             updateAreaVisibility();
             // Re-render the parcel list to update checkboxes
-            const parcelMap = new Map();
+            const parcels = new Map();
             allMarkers.forEach(({ compresa, parcel, cp }) => {
-                if (!parcelMap.has(cp)) {
-                    parcelMap.set(cp, { compresa, parcel });
+                if (!parcels.has(cp)) {
+                    parcels.set(cp, { compresa, parcel });
                 }
             });
-            updateParticelle(parcelMap);
+            updateParticelle(parcels);
         },
 
         hideAllParcelle() {
@@ -340,13 +335,13 @@ const SampleAreaViewer = (function() {
             });
             updateAreaVisibility();
             // Re-render the parcel list to update checkboxes
-            const parcelMap = new Map();
+            const parcels = new Map();
             allMarkers.forEach(({ compresa, parcel, cp }) => {
-                if (!parcelMap.has(cp)) {
-                    parcelMap.set(cp, { compresa, parcel });
+                if (!parcels.has(cp)) {
+                    parcels.set(cp, { compresa, parcel });
                 }
             });
-            updateParticelle(parcelMap);
+            updateParticelle(parcels);
         }
     };
 })();
