@@ -50,30 +50,41 @@ select {
     border-radius: 4px;
 }
 
-/* Parcel list specific to editor (different from common parcel-list) */
-#parcel-list {
+/* Feature lists (parcels and roads) */
+.feature-list {
     max-height: 200px;
 }
-#parcel-list:empty::after {
-    content: 'No parcels';
+
+.feature-list:empty::after {
     display: block;
     padding: 8px;
     color: #999;
     font-size: 12px;
 }
-.parcel-item {
+
+#parcel-list:empty::after {
+    content: 'Nessuna particella';
+}
+
+#road-list:empty::after {
+    content: 'Nessuna strada';
+}
+
+.list-item {
     border-bottom: 1px solid #eee;
     cursor: pointer;
     display: flex;
     justify-content: space-between;
     align-items: center;
 }
-.parcel-item:last-child { border-bottom: none; }
-.parcel-item.selected { background: #e3f2fd; }
-.parcel-item .parcel-actions { display: flex; gap: 8px; }
-.parcel-item .edit-btn { color: #2196F3; cursor: pointer; }
-.parcel-item .delete-btn { color: #f44336; cursor: pointer; }
-.parcel-item input.rename-input {
+
+.list-item:last-child { border-bottom: none; }
+.list-item.selected { background: #e3f2fd; }
+.list-item .item-name { flex: 1; padding: 4px; }
+.list-item .item-actions { display: flex; gap: 8px; }
+.list-item .edit-btn { color: #2196F3; cursor: pointer; }
+.list-item .delete-btn { color: #f44336; cursor: pointer; }
+.list-item input.rename-input {
     flex: 1;
     padding: 2px 4px;
     border: 1px solid #2196F3;

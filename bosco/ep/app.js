@@ -359,10 +359,10 @@ const ParcelEditor = (function() {
         layer.parcels.forEach(parcel => {
             const isSelected = selectedParcel === parcel;
             const item = document.createElement('div');
-            item.className = 'parcel-item' + (isSelected ? ' selected' : '');
+            item.className = 'list-item' + (isSelected ? ' selected' : '');
             item.innerHTML = `
-                <span class="parcel-name" onclick="ParcelEditor.onParcelClick(${parcel.id})">${parcel.name}</span>
-                <span class="parcel-actions">
+                <span class="item-name" onclick="ParcelEditor.onParcelClick(${parcel.id})">${parcel.name}</span>
+                <span class="item-actions">
                     <span class="edit-btn" onclick="ParcelEditor.startRename(${parcel.id})" title="Rinomina">✎</span>
                     <span class="delete-btn" onclick="ParcelEditor.onDeleteParcel(${parcel.id})" title="Elimina">✕</span>
                 </span>
@@ -381,10 +381,10 @@ const ParcelEditor = (function() {
         layer.roads.forEach(road => {
             const isSelected = selectedRoad === road;
             const item = document.createElement('div');
-            item.className = 'parcel-item' + (isSelected ? ' selected' : '');
+            item.className = 'list-item' + (isSelected ? ' selected' : '');
             item.innerHTML = `
-                <span class="parcel-name" onclick="ParcelEditor.onRoadClick(${road.id})">${road.name}</span>
-                <span class="parcel-actions">
+                <span class="item-name" onclick="ParcelEditor.onRoadClick(${road.id})">${road.name}</span>
+                <span class="item-actions">
                     <span class="edit-btn" onclick="ParcelEditor.startRoadRename(${road.id})" title="Rinomina">✎</span>
                     <span class="delete-btn" onclick="ParcelEditor.onDeleteRoad(${road.id})" title="Elimina">✕</span>
                 </span>
@@ -549,7 +549,7 @@ const ParcelEditor = (function() {
         const parcel = findParcelById(parcelId);
         if (!parcel) return;
 
-        const items = $('parcel-list').querySelectorAll('.parcel-item');
+        const items = $('parcel-list').querySelectorAll('.list-item');
         const layer = getSelectedLayer();
         const index = layer.parcels.indexOf(parcel);
         if (index < 0 || !items[index]) return;
@@ -558,7 +558,7 @@ const ParcelEditor = (function() {
         item.innerHTML = `
             <input type="text" class="rename-input" value="${parcel.name}"
                    onkeydown="ParcelEditor.handleRenameKey(event, ${parcelId})" />
-            <span class="parcel-actions">
+            <span class="item-actions">
                 <span class="edit-btn" onclick="ParcelEditor.finishRename(${parcelId})" title="Salva">✓</span>
                 <span class="delete-btn" onclick="ParcelEditor.updateParcelList()" title="Annulla">✕</span>
             </span>
@@ -591,7 +591,7 @@ const ParcelEditor = (function() {
         const road = findRoadById(roadId);
         if (!road) return;
 
-        const items = $('road-list').querySelectorAll('.parcel-item');
+        const items = $('road-list').querySelectorAll('.list-item');
         const layer = getSelectedLayer();
         const index = layer.roads.indexOf(road);
         if (index < 0 || !items[index]) return;
@@ -600,7 +600,7 @@ const ParcelEditor = (function() {
         item.innerHTML = `
             <input type="text" class="rename-input" value="${road.name}"
                    onkeydown="ParcelEditor.handleRoadRenameKey(event, ${roadId})" />
-            <span class="parcel-actions">
+            <span class="item-actions">
                 <span class="edit-btn" onclick="ParcelEditor.finishRoadRename(${roadId})" title="Salva">✓</span>
                 <span class="delete-btn" onclick="ParcelEditor.updateRoadList()" title="Annulla">✕</span>
             </span>
