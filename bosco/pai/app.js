@@ -12,8 +12,6 @@ const TreeViewer = (function() {
     let parcelVisible = {};
     let parcelCounts = {};
 
-    const $ = id => document.getElementById(id);
-
     // Color palette for species
     const colorPalette = [
         '#e41a1c', '#377eb8', '#4daf4a', '#984ea3', '#ff7f00',

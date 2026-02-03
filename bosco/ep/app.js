@@ -31,8 +31,6 @@ const ParcelEditor = (function() {
         roadSelected: { color: '#ffff00', weight: 4, opacity: 1 }
     };
 
-    const $ = id => document.getElementById(id);
-
     function updateStatus(msg) {
         $('status').textContent = msg;
     }

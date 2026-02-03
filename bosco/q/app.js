@@ -1,5 +1,7 @@
 import * as duckdb from 'https://esm.sh/@duckdb/duckdb-wasm@1.29.0';
 
+const $ = id => document.getElementById(id);
+
 // Query examples for the help modal
 const QUERY_EXAMPLES = [
     {
@@ -18,7 +20,7 @@ const QUERY_EXAMPLES = [
 
 // Populate query examples modal
 function populateExamples() {
-    const list = document.getElementById('query-examples-list');
+    const list = $('query-examples-list');
     list.innerHTML = '';
     QUERY_EXAMPLES.forEach(example => {
         const li = document.createElement('li');
@@ -33,16 +35,16 @@ function populateExamples() {
 
 // Modal controls
 window.showExamples = function() {
-    document.getElementById('examples-modal').style.display = 'block';
+    $('examples-modal').style.display = 'block';
 };
 
 window.hideExamples = function() {
-    document.getElementById('examples-modal').style.display = 'none';
+    $('examples-modal').style.display = 'none';
 };
 
 // Close modal when clicking outside of it
 window.onclick = function(event) {
-    const modal = document.getElementById('examples-modal');
+    const modal = $('examples-modal');
     if (event.target === modal) {
         modal.style.display = 'none';
     }
@@ -59,11 +61,11 @@ const CSV_FILES = [
     ['ripresa', 'Provvigione per particella']
 ];
 
-const statusEl = document.getElementById('status');
-const errorEl = document.getElementById('error');
-const resultEl = document.getElementById('result-container');
-const queryEl = document.getElementById('query');
-const runBtn = document.getElementById('run');
+const statusEl = $('status');
+const errorEl = $('error');
+const resultEl = $('result-container');
+const queryEl = $('query');
+const runBtn = $('run');
 
 let conn;
 
@@ -90,7 +92,7 @@ async function init() {
         const tablesInfo = CSV_FILES.map(([name, desc]) =>
             `<b>${name.replace(/-/g, '_')}</b>: ${desc}`
         ).join('<br>');
-        document.getElementById('tables-list').innerHTML = `Tabelle disponibili:<br>${tablesInfo}`;
+        $('tables-list').innerHTML = `Tabelle disponibili:<br>${tablesInfo}`;
         statusEl.style.visibility = 'hidden';
         runBtn.disabled = false;
         const params = new URLSearchParams(window.location.search);

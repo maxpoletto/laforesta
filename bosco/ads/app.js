@@ -11,8 +11,6 @@ const SampleAreaViewer = (function() {
     let parcelData = {};
     let numAreas = {};
 
-    const $ = id => document.getElementById(id);
-
     function updateStatus(msg) {
         $('status').textContent = msg;
     }

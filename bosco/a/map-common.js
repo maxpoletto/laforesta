@@ -1,5 +1,8 @@
 // Shared map functionality for bosco apps
 // Provides: map creation, basemaps, coordinate display, measurement, location tracking
+
+const $ = id => document.getElementById(id);
+
 const MapCommon = (function() {
     'use strict';
 
@@ -59,7 +62,7 @@ const MapCommon = (function() {
 
         // --- Coordinate display ---
         function setupCoords() {
-            const coordsEl = document.getElementById(config.coordsElement);
+            const coordsEl = $(config.coordsElement);
             if (!coordsEl) return;
 
             leafletMap.on('mousemove', e => {
@@ -165,8 +168,8 @@ const MapCommon = (function() {
 
         // --- Sidebar control ---
         function toggleSidebar() {
-            const sidebar = document.getElementById('sidebar');
-            const mapContainer = document.getElementById('map');
+            const sidebar = $('sidebar');
+            const mapContainer = $('map');
             if (!sidebar || !mapContainer) return;
 
             const isHidden = sidebar.classList.toggle('hidden');
@@ -289,7 +292,7 @@ const MapCommon = (function() {
         if (config.enableLocation) {
             setupLocation();
         }
-        if (document.getElementById('sidebar')) {
+        if ($('sidebar')) {
             setupSidebarToggle();
         }
 
