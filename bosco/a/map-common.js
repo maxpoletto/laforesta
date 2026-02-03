@@ -73,7 +73,7 @@ const MapCommon = (function() {
         // --- Measurement tool ---
         function toggleMeasure() {
             measureMode = !measureMode;
-            const btn = document.querySelector('.mc-measure-button');
+            const btn = $('mc-measure-button');
 
             if (measureMode) {
                 if (btn) btn.style.backgroundColor = '#ffd700';
@@ -133,7 +133,7 @@ const MapCommon = (function() {
                 L.marker(latlng, {
                     icon: L.divIcon({
                         className: 'mc-measure-label',
-                        html: `<div style="background: white; padding: 2px 6px; border: 2px solid #ff0000; border-radius: 3px; font-size: 12px; font-weight: bold; white-space: nowrap;">${distText}</div>`,
+                        html: `<div class="mc-measure-label-content">${distText}</div>`,
                         iconSize: null
                     })
                 }).addTo(measureLayer);
@@ -146,8 +146,7 @@ const MapCommon = (function() {
                 onAdd: function() {
                     const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
                     container.innerHTML = `
-                        <a href="#" class="mc-measure-button" title="Misura distanza"
-                           style="width: 30px; height: 30px; line-height: 30px; text-align: center; font-size: 18px; text-decoration: none;">📏</a>
+                        <a href="#" id="mc-measure-button" class="mc-control-button" title="Misura distanza">📏</a>
                     `;
                     L.DomEvent.on(container, 'click', function(e) {
                         L.DomEvent.stopPropagation(e);
@@ -187,8 +186,7 @@ const MapCommon = (function() {
                 onAdd: function() {
                     const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
                     container.innerHTML = `
-                        <a href="#" class="mc-sidebar-button" title="Mostra/nascondi pannello"
-                           style="width: 30px; height: 30px; line-height: 30px; text-align: center; font-size: 18px; text-decoration: none;">☰</a>
+                        <a href="#" id="mc-sidebar-button" class="mc-control-button" title="Mostra/nascondi pannello">☰</a>
                     `;
                     L.DomEvent.on(container, 'click', function(e) {
                         L.DomEvent.stopPropagation(e);
@@ -204,7 +202,7 @@ const MapCommon = (function() {
         // --- Location tracking ---
         function toggleLocation() {
             locationMode = !locationMode;
-            const btn = document.querySelector('.mc-location-button');
+            const btn = $('mc-location-button');
 
             if (locationMode) {
                 if (btn) btn.style.backgroundColor = '#4CAF50';
@@ -255,7 +253,7 @@ const MapCommon = (function() {
         function onLocationError(e) {
             alert('Impossibile determinare la posizione: ' + e.message);
             locationMode = false;
-            const btn = document.querySelector('.mc-location-button');
+            const btn = $('mc-location-button');
             if (btn) btn.style.backgroundColor = '';
         }
 
@@ -265,8 +263,7 @@ const MapCommon = (function() {
                 onAdd: function() {
                     const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
                     container.innerHTML = `
-                        <a href="#" class="mc-location-button" title="Mostra posizione"
-                           style="width: 30px; height: 30px; line-height: 30px; text-align: center; font-size: 18px; text-decoration: none;">📍</a>
+                        <a href="#" id="mc-location-button" class="mc-control-button" title="Mostra posizione">📍</a>
                     `;
                     L.DomEvent.on(container, 'click', function(e) {
                         L.DomEvent.stopPropagation(e);

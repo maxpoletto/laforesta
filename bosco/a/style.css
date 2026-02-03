@@ -1,6 +1,7 @@
 /* Common styles for map-based viewers (pai, ads, ep) */
 
 body { margin: 0; padding: 0; font-family: sans-serif; }
+
 #map {
     position: absolute;
     top: 0;
@@ -9,6 +10,27 @@ body { margin: 0; padding: 0; font-family: sans-serif; }
     right: 320px;
     transition: right 0.3s ease;
 }
+
+/* Map controls (measure, location, sidebar toggle) */
+.mc-control-button {
+    width: 30px;
+    height: 30px;
+    line-height: 30px;
+    text-align: center;
+    font-size: 18px;
+    text-decoration: none;
+}
+/* Measurement distance label */
+.mc-measure-label-content {
+    background: white;
+    padding: 2px 6px;
+    border: 2px solid #ff0000;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: bold;
+    white-space: nowrap;
+}
+
 #map.sidebar-hidden {
     right: 0;
 }
