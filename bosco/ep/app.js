@@ -58,6 +58,14 @@ const ParcelEditor = (function() {
         return selectedLayerName ? layers[selectedLayerName] : null;
     }
 
+    function sortParcels(layer) {
+        layer.parcels.sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    function sortRoads(layer) {
+        layer.roads.sort((a, b) => a.name.localeCompare(b.name));
+    }
+
     function createLayer(name) {
         if (layers[name]) return false;
         layers[name] = {
@@ -135,6 +143,7 @@ const ParcelEditor = (function() {
         mapLayer.layerName = layerName;
 
         layer.parcels.push(parcel);
+        sortParcels(layer);
         return parcel;
     }
 
@@ -221,6 +230,7 @@ const ParcelEditor = (function() {
         mapLayer.layerName = layerName;
 
         layer.roads.push(road);
+        sortRoads(layer);
         return road;
     }
 
@@ -396,7 +406,7 @@ const ParcelEditor = (function() {
         const selector = $('layer-selector');
         selector.innerHTML = '';
 
-        const names = Object.keys(layers).sort();
+        const names = Object.keys(layers).sort((a, b) => b.localeCompare(a));
         if (names.length === 0) {
             const opt = document.createElement('option');
             opt.value = '';
@@ -530,7 +540,7 @@ const ParcelEditor = (function() {
 
         // If this is the first load or we added new layers, select appropriately
         if (!selectedLayerName && Object.keys(layers).length > 0) {
-            const firstLayer = Object.keys(layers).sort()[0];
+            const firstLayer = Object.keys(layers).sort((a, b) => b.localeCompare(a))[0];
             selectLayer(firstLayer);
         } else if (selectedLayerName && layers[selectedLayerName]) {
             // Refresh current layer to show new items
@@ -553,7 +563,7 @@ const ParcelEditor = (function() {
     function exportGeoJSON() {
         const features = [];
 
-        Object.entries(layers).forEach(([layerName, layer]) => {
+        Object.entries(layers).sort((a, b) => b[0].localeCompare(a[0])).forEach(([layerName, layer]) => {
             // Export parcels
             layer.parcels.forEach(parcel => {
                 const geojson = parcel.mapLayer.toGeoJSON();
@@ -665,6 +675,7 @@ const ParcelEditor = (function() {
 
         parcel.name = input.value.trim() || 'Senza nome';
         parcel.mapLayer.bindPopup(`<b>${parcel.name}</b>`);
+        sortParcels(parcel.mapLayer);
         updateParcelList();
         updateStatus(`Particella rinominata a "${parcel.name}"`);
     }
@@ -707,6 +718,7 @@ const ParcelEditor = (function() {
 
         road.name = input.value.trim() || 'Senza nome';
         road.mapLayer.bindPopup(`<b>${road.name}</b>`);
+        sortRoads(road.mapLayer);
         updateRoadList();
         updateStatus(`Strada rinominata a "${road.name}"`);
     }
