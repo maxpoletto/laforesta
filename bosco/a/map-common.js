@@ -163,6 +163,41 @@ const MapCommon = (function() {
             });
         }
 
+        // --- Sidebar control ---
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const mapContainer = document.getElementById('map');
+            if (!sidebar || !mapContainer) return;
+
+            const isHidden = sidebar.classList.toggle('hidden');
+            mapContainer.classList.toggle('sidebar-hidden', isHidden);
+
+            // Wait for CSS transition to complete, then resize map without panning
+            setTimeout(() => {
+                leafletMap.invalidateSize({ pan: false });
+            }, 300);
+        }
+
+        function setupSidebarToggle() {
+            const SidebarControl = L.Control.extend({
+                options: { position: 'topleft' },
+                onAdd: function() {
+                    const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+                    container.innerHTML = `
+                        <a href="#" class="mc-sidebar-button" title="Mostra/nascondi pannello"
+                           style="width: 30px; height: 30px; line-height: 30px; text-align: center; font-size: 18px; text-decoration: none;">☰</a>
+                    `;
+                    L.DomEvent.on(container, 'click', function(e) {
+                        L.DomEvent.stopPropagation(e);
+                        L.DomEvent.preventDefault(e);
+                        toggleSidebar();
+                    });
+                    return container;
+                }
+            });
+            leafletMap.addControl(new SidebarControl());
+        }
+
         // --- Location tracking ---
         function toggleLocation() {
             locationMode = !locationMode;
@@ -254,11 +289,12 @@ const MapCommon = (function() {
         if (config.enableLocation) {
             setupLocation();
         }
+        if (document.getElementById('sidebar')) {
+            setupSidebarToggle();
+        }
 
-        // --- Return wrapper object ---
-        // This abstraction layer allows future migration to other map libraries
         return {
-            // Get underlying Leaflet map for app-specific operations
+            // Expose underlying Leaflet map for app-specific operations
             getLeafletMap() {
                 return leafletMap;
             },
