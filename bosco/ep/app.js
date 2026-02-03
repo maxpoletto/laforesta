@@ -2,6 +2,8 @@
 const ParcelEditor = (function() {
     'use strict';
 
+    const OFFSET_ROADS = false;
+
     // State
     let mapWrapper = null;
     let map = null;
@@ -360,20 +362,22 @@ const ParcelEditor = (function() {
         });
 
         // Apply to roads
-        layer.roads.forEach(road => {
-            const geom = road.mapLayer.toGeoJSON().geometry;
-            const newCoords = offsetCoordinates(geom.coordinates, deltaLon, deltaLat);
-            const newLatLngs = L.GeoJSON.coordsToLatLngs(newCoords, 0);
-            const style = road.mapLayer.options;
+        if (OFFSET_ROADS) {
+            layer.roads.forEach(road => {
+                const geom = road.mapLayer.toGeoJSON().geometry;
+                const newCoords = offsetCoordinates(geom.coordinates, deltaLon, deltaLat);
+                const newLatLngs = L.GeoJSON.coordsToLatLngs(newCoords, 0);
+                const style = road.mapLayer.options;
 
-            drawnItems.removeLayer(road.mapLayer);
-            const newLayer = L.polyline(newLatLngs, style);
-            newLayer.roadData = road;
-            newLayer.layerName = layerName;
-            road.mapLayer = newLayer;
-            drawnItems.addLayer(newLayer);
-            addRoadClickHandler(newLayer);
-        });
+                drawnItems.removeLayer(road.mapLayer);
+                const newLayer = L.polyline(newLatLngs, style);
+                newLayer.roadData = road;
+                newLayer.layerName = layerName;
+                road.mapLayer = newLayer;
+                drawnItems.addLayer(newLayer);
+                addRoadClickHandler(newLayer);
+            });
+        }
 
         if (wasEditingParcel) {
             wasEditingParcel.mapLayer.setStyle(styles.selected);
