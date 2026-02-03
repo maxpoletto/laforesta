@@ -58,13 +58,29 @@
                 </div>
                 <button onclick="ParcelEditor.resetOffset()" class="small">Azzera correzione</button>
 
-                <h5>Particelle</h5>
-                <div id="parcel-list" class="feature-list"></div>
-
-                <h5>Viabilità</h5>
-                <div id="road-list" class="feature-list"></div>
+                <h5>Elementi</h5>
+                <div id="element-list" class="feature-list"></div>
 
                 <button class="danger small" onclick="ParcelEditor.deleteCurrentLayer()">Elimina questa compresa</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h4>Strumenti</h4>
+            <div class="tool-buttons">
+                <button onclick="ParcelEditor.startTool('snip')" title="Taglia un lato di un poligono, convertendolo in linea">Poligono → linea</button>
+                <button onclick="ParcelEditor.startTool('close')" title="Chiude una sezione di linea in poligono">Linea → poligono</button>
+                <button onclick="ParcelEditor.startTool('complete')" title="Completa una linea usando il confine di un poligono">Linea+confine → poligono</button>
+                <button onclick="ParcelEditor.startTool('split')" title="Divide una linea in due eliminando un vertice">Linea → 2 linee</button>
+                <button onclick="ParcelEditor.startTool('join')" title="Unisce due linee in una">2 linee → linea</button>
+            </div>
+
+            <div id="tool-workflow" style="display: none;">
+                <div class="tool-active-header">
+                    <span>Strumento: </span><strong id="tool-active-name"></strong>
+                </div>
+                <div id="tool-step-text" class="tool-step"></div>
+                <button class="small danger" onclick="ParcelEditor.cancelTool()">Annulla (Esc)</button>
             </div>
         </div>
 

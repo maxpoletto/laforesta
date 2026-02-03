@@ -53,6 +53,7 @@ select {
 /* Feature lists (parcels and roads) */
 .feature-list {
     max-height: 200px;
+    overflow-y: auto;
 }
 
 .feature-list:empty::after {
@@ -68,6 +69,10 @@ select {
 
 #road-list:empty::after {
     content: 'Nessuna strada';
+}
+
+#element-list:empty::after {
+    content: 'Nessun elemento';
 }
 
 .list-item {
@@ -98,3 +103,60 @@ input[type="file"] { margin: 10px 0; width: 100%; font-size: 12px; }
 .color-dot.blue { background: #3388ff; }
 .color-dot.orange { background: #ff6600; }
 .color-dot.green { background: #00ff00; }
+
+/* Tool buttons */
+.tool-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin: 5px 0;
+}
+
+.tool-buttons button {
+    text-align: left;
+    padding: 6px 10px;
+    font-size: 12px;
+}
+
+/* Tool workflow panel */
+#tool-workflow {
+    background: #fff8dc;
+    border: 1px solid #e6d490;
+    border-radius: 4px;
+    padding: 8px;
+    margin-top: 10px;
+}
+
+.tool-active-header {
+    font-size: 12px;
+    margin-bottom: 5px;
+}
+
+.tool-step {
+    font-size: 12px;
+    color: #333;
+    padding: 5px 0;
+    border-top: 1px solid #e6d490;
+    margin: 5px 0;
+}
+
+/* Unified element list */
+#element-list {
+    max-height: 250px;
+}
+
+#element-list:empty::after {
+    content: 'Nessun elemento';
+    display: block;
+    padding: 8px;
+    color: #999;
+    font-size: 12px;
+}
+
+.item-type-icon {
+    display: inline-block;
+    width: 16px;
+    font-size: 10px;
+    color: #666;
+    text-align: center;
+}

@@ -2,7 +2,7 @@
 const ParcelEditor = (function() {
     'use strict';
 
-    const OFFSET_ROADS = false;
+    const OFFSET_ROADS = true;
 
     // State
     let mapWrapper = null;
@@ -20,6 +20,16 @@ const ParcelEditor = (function() {
 
     // Undo state: saves GeoJSON when editing starts
     let undoState = null;  // { type: 'parcel'|'road', feature, geojson }
+
+    // Tool state for polygon/line manipulation
+    let toolState = {
+        active: null,        // 'snip' | 'close' | 'complete' | null
+        step: 0,             // Current workflow step
+        sourceFeature: null, // Line or polygon being modified
+        targetFeature: null, // Polygon providing boundary (for 'complete')
+        vertices: [],        // Collected {latlng, index} objects
+        vertexMarkers: []    // Visual feedback markers
+    };
 
     const styles = {
         default: { color: '#3388ff', weight: 2, opacity: 1, fillOpacity: 0.2 },
@@ -339,6 +349,714 @@ const ParcelEditor = (function() {
         });
     }
 
+    // Tool workflow management
+    const toolSteps = {
+        snip: [
+            'Clicca un poligono da tagliare',
+            'Clicca il primo estremo (Sv1)',
+            'Clicca un vertice da eliminare (Sv2)',
+            'Clicca il secondo estremo (Sv3)'
+        ],
+        close: [
+            'Clicca una linea da chiudere',
+            'Clicca il primo vertice (Lv1)',
+            'Clicca il secondo vertice (Lv2)'
+        ],
+        complete: [
+            'Clicca una linea da completare',
+            'Clicca il primo vertice della linea (Lv1)',
+            'Clicca il secondo vertice della linea (Lv2)',
+            'Clicca un poligono di confine',
+            'Clicca il primo vertice del confine (Pv1)',
+            'Clicca i vertici intermedio (Pv2) e finale (Pv3)'
+        ],
+        split: [
+            'Clicca una linea da dividere',
+            'Clicca il vertice di divisione (verrà eliminato)'
+        ],
+        join: [
+            'Clicca la prima linea',
+            'Clicca il primo vertice (L1v1)',
+            'Clicca il secondo vertice (L1v2)',
+            'Clicca la seconda linea',
+            'Clicca il primo vertice (L2v1)',
+            'Clicca il secondo vertice (L2v2)'
+        ]
+    };
+
+    function startTool(toolName) {
+        if (!selectedLayerName) {
+            updateStatus('Seleziona una compresa prima di usare gli strumenti');
+            return;
+        }
+
+        // Cancel any existing tool
+        cancelTool();
+
+        // Deselect current selections
+        deselectParcel();
+        deselectRoad();
+
+        toolState.active = toolName;
+        toolState.step = 0;
+        toolState.sourceFeature = null;
+        toolState.targetFeature = null;
+        toolState.vertices = [];
+
+        updateToolStatus();
+        $('tool-workflow').style.display = 'block';
+        $('tool-active-name').textContent = {
+            snip: 'Poligono → linea',
+            close: 'Linea → poligono',
+            complete: 'Linea+confine → poligono',
+            split: 'Linea → 2 linee',
+            join: '2 linee → linea'
+        }[toolName];
+
+        updateStatus(`Strumento attivo: ${toolState.active}`);
+    }
+
+    function cancelTool() {
+        if (!toolState.active) return;
+
+        // Remove vertex markers
+        toolState.vertexMarkers.forEach(m => map.removeLayer(m));
+        toolState.vertexMarkers = [];
+
+        // Disable editing on features if enabled
+        if (toolState.sourceFeature) {
+            const mapLayer = toolState.sourceFeature.mapLayer;
+            if (mapLayer.editing) mapLayer.editing.disable();
+            updateFeatureStyle(toolState.sourceFeature);
+        }
+        if (toolState.targetFeature) {
+            const mapLayer = toolState.targetFeature.mapLayer;
+            if (mapLayer.editing) mapLayer.editing.disable();
+            updateFeatureStyle(toolState.targetFeature);
+        }
+
+        toolState.active = null;
+        toolState.step = 0;
+        toolState.sourceFeature = null;
+        toolState.targetFeature = null;
+        toolState.vertices = [];
+
+        $('tool-workflow').style.display = 'none';
+        updateStatus('Strumento annullato');
+    }
+
+    function updateToolStatus() {
+        if (!toolState.active) return;
+
+        const steps = toolSteps[toolState.active];
+        const stepText = steps[toolState.step] || 'Esecuzione...';
+        $('tool-step-text').textContent = `Passo ${toolState.step + 1}/${steps.length}: ${stepText}`;
+    }
+
+    function updateFeatureStyle(feature) {
+        if (feature.mapLayer.parcelData) {
+            updateParcelStyle(feature);
+        } else if (feature.mapLayer.roadData) {
+            updateRoadStyle(feature);
+        }
+    }
+
+    function advanceToolStep() {
+        toolState.step++;
+        updateToolStatus();
+
+        const steps = toolSteps[toolState.active];
+        if (toolState.step >= steps.length) {
+            executeTool();
+        }
+    }
+
+    function executeTool() {
+        try {
+            if (toolState.active === 'snip') {
+                executeSnip();
+            } else if (toolState.active === 'close') {
+                executeClose();
+            } else if (toolState.active === 'complete') {
+                executeComplete();
+            } else if (toolState.active === 'split') {
+                executeSplit();
+            } else if (toolState.active === 'join') {
+                executeJoin();
+            }
+        } catch (err) {
+            updateStatus('Errore: ' + err.message);
+            console.error(err);
+        }
+
+        // Clean up
+        toolState.vertexMarkers.forEach(m => map.removeLayer(m));
+        toolState.vertexMarkers = [];
+        toolState.active = null;
+        toolState.step = 0;
+        toolState.sourceFeature = null;
+        toolState.targetFeature = null;
+        toolState.vertices = [];
+        $('tool-workflow').style.display = 'none';
+
+        updateElementList();
+    }
+
+    // Get indices for a path from 'from' to 'to' around a polygon
+    // direction: 1 = clockwise, -1 = counter-clockwise
+    function getPathIndices(from, to, n, direction) {
+        const indices = [from];
+        let current = from;
+        while (current !== to) {
+            current = (current + direction + n) % n;
+            indices.push(current);
+        }
+        return indices;
+    }
+
+    // Create a vertex highlight marker
+    function createVertexMarker(latlng, label) {
+        const marker = L.circleMarker(latlng, {
+            radius: 10,
+            color: '#ff00ff',
+            fillColor: '#ff00ff',
+            fillOpacity: 0.5,
+            weight: 2
+        });
+        marker.bindTooltip(label, { permanent: true, direction: 'top', offset: [0, -10] });
+        marker.addTo(map);
+        toolState.vertexMarkers.push(marker);
+        return marker;
+    }
+
+    // Handle feature click during tool workflow
+    function handleToolFeatureClick(feature, isPolygon) {
+        if (!toolState.active) return false;
+
+        const tool = toolState.active;
+        const step = toolState.step;
+
+        // Step 0: Select source feature
+        if (step === 0) {
+            if (tool === 'snip' && isPolygon) {
+                toolState.sourceFeature = feature;
+                feature.mapLayer.setStyle(styles.selected);
+                enableVertexClicks(feature.mapLayer, 'source');
+                advanceToolStep();
+                return true;
+            } else if ((tool === 'close' || tool === 'complete' || tool === 'split' || tool === 'join') && !isPolygon) {
+                toolState.sourceFeature = feature;
+                feature.mapLayer.setStyle(styles.roadSelected);
+                enableVertexClicks(feature.mapLayer, 'source');
+                advanceToolStep();
+                return true;
+            }
+        }
+
+        // Step 3 for 'complete': Select target polygon
+        if (tool === 'complete' && step === 3 && isPolygon) {
+            toolState.targetFeature = feature;
+            feature.mapLayer.setStyle(styles.selected);
+            enableVertexClicks(feature.mapLayer, 'target');
+            advanceToolStep();
+            return true;
+        }
+
+        // Step 3 for 'join': Select second line
+        if (tool === 'join' && step === 3 && !isPolygon) {
+            toolState.targetFeature = feature;
+            feature.mapLayer.setStyle(styles.roadSelected);
+            enableVertexClicks(feature.mapLayer, 'target');
+            advanceToolStep();
+            return true;
+        }
+
+        return false;
+    }
+
+    // Create clickable vertex markers for tool selection (not using Leaflet edit mode)
+    function enableVertexClicks(mapLayer, featureRole) {
+        // Get vertices from the layer
+        const latlngs = mapLayer.getLatLngs();
+
+        // Flatten for polygons (which have nested arrays)
+        let vertices;
+        if (Array.isArray(latlngs[0]) && latlngs[0].length && latlngs[0][0].lat !== undefined) {
+            // Polygon: [[latlng, latlng, ...]]
+            vertices = latlngs[0];
+        } else if (latlngs[0] && latlngs[0].lat !== undefined) {
+            // LineString: [latlng, latlng, ...]
+            vertices = latlngs;
+        } else {
+            vertices = latlngs.flat();
+        }
+
+        // Create clickable markers for each vertex
+        vertices.forEach((latlng, idx) => {
+            const marker = L.circleMarker(latlng, {
+                radius: 8,
+                color: '#0066ff',
+                fillColor: '#0066ff',
+                fillOpacity: 0.3,
+                weight: 2,
+                className: 'vertex-select-marker'
+            });
+
+            marker.on('click', (e) => {
+                L.DomEvent.stopPropagation(e);
+                handleVertexClick(latlng, idx, featureRole);
+            });
+
+            marker.addTo(map);
+            toolState.vertexMarkers.push(marker);
+        });
+    }
+
+    // Handle vertex click during tool workflow
+    function handleVertexClick(latlng, index, featureRole) {
+        if (!toolState.active) return;
+
+        const tool = toolState.active;
+        const step = toolState.step;
+
+        // Determine expected vertex based on tool and step
+        let label = '';
+        let shouldAdvance = true;
+
+        if (tool === 'snip') {
+            if (step === 1) label = 'Sv1';
+            else if (step === 2) label = 'Sv2';
+            else if (step === 3) label = 'Sv3';
+        } else if (tool === 'close') {
+            if (step === 1) label = 'Lv1';
+            else if (step === 2) label = 'Lv2';
+        } else if (tool === 'complete') {
+            if (step === 1) label = 'Lv1';
+            else if (step === 2) label = 'Lv2';
+            else if (step === 4) label = 'Pv1';
+            else if (step === 5) {
+                // Pv2 and Pv3 on same step
+                // At this point vertices = [lv1, lv2, pv1], length = 3
+                if (toolState.vertices.length === 3) {
+                    label = 'Pv2';
+                    shouldAdvance = false;  // Wait for Pv3
+                } else {
+                    label = 'Pv3';
+                }
+            }
+        } else if (tool === 'split') {
+            if (step === 1) label = 'V';
+        } else if (tool === 'join') {
+            if (step === 1) label = 'L1v1';
+            else if (step === 2) label = 'L1v2';
+            else if (step === 4) label = 'L2v1';
+            else if (step === 5) label = 'L2v2';
+        }
+
+        if (!label) return;
+
+        toolState.vertices.push({ latlng, index });
+        createVertexMarker(latlng, label);
+        updateStatus(`Vertice ${label} selezionato`);
+
+        if (shouldAdvance) {
+            advanceToolStep();
+        }
+    }
+
+    // Execute snip: polygon -> line
+    function executeSnip() {
+        const feature = toolState.sourceFeature;
+        const [sv1, sv2, sv3] = toolState.vertices;
+        const mapLayer = feature.mapLayer;
+        const layerName = mapLayer.layerName;
+        const layer = layers[layerName];
+
+        // Get polygon coordinates (outer ring only)
+        const geom = mapLayer.toGeoJSON().geometry;
+        const coords = geom.coordinates[0].slice(0, -1);  // Remove closing point
+        const n = coords.length;
+
+        // Edge case: all three vertices are the same -> delete that vertex
+        if (sv1.index === sv2.index && sv2.index === sv3.index) {
+            const newCoords = coords.filter((_, i) => i !== sv1.index);
+            if (newCoords.length < 2) {
+                throw new Error('Troppo pochi vertici rimanenti');
+            }
+
+            // Convert to line
+            const latlngs = L.GeoJSON.coordsToLatLngs(newCoords, 0);
+            const newLine = L.polyline(latlngs, styles.road);
+            newLine.roadName = feature.name;
+
+            // Remove old polygon, add new line
+            drawnItems.removeLayer(mapLayer);
+            layer.parcels = layer.parcels.filter(p => p !== feature);
+            drawnItems.addLayer(newLine);
+            addRoadToLayer(layerName, newLine);
+            addRoadClickHandler(newLine);
+
+            updateStatus(`Vertice eliminato, poligono convertito in linea`);
+            return;
+        }
+
+        // Sv1 and Sv3 are the endpoints, Sv2 indicates which path to REMOVE
+        // Keep the path that does NOT include Sv2
+        // Path 1: sv1 -> sv3 clockwise
+        // Path 2: sv1 -> sv3 counter-clockwise
+        const pathCW = getPathIndices(sv1.index, sv3.index, n, 1);
+        const pathCCW = getPathIndices(sv1.index, sv3.index, n, -1);
+
+        let keepPath;
+        if (pathCW.includes(sv2.index)) {
+            // Sv2 is on clockwise path, so keep counter-clockwise
+            keepPath = pathCCW;
+        } else if (pathCCW.includes(sv2.index)) {
+            // Sv2 is on counter-clockwise path, so keep clockwise
+            keepPath = pathCW;
+        } else {
+            throw new Error('Sv2 non trovato su nessun percorso');
+        }
+
+        // Extract coordinates for the kept path
+        const lineCoords = keepPath.map(i => coords[i]);
+
+        // Create line
+        const latlngs = L.GeoJSON.coordsToLatLngs(lineCoords, 0);
+        const newLine = L.polyline(latlngs, styles.road);
+        newLine.roadName = feature.name;
+
+        // Remove old polygon, add new line
+        drawnItems.removeLayer(mapLayer);
+        layer.parcels = layer.parcels.filter(p => p !== feature);
+        drawnItems.addLayer(newLine);
+        addRoadToLayer(layerName, newLine);
+        addRoadClickHandler(newLine);
+
+        updateStatus(`Poligono tagliato in linea con ${lineCoords.length} vertici`);
+    }
+
+    // Execute close: line -> polygon
+    function executeClose() {
+        const feature = toolState.sourceFeature;
+        const [lv1, lv2] = toolState.vertices;
+        const mapLayer = feature.mapLayer;
+        const layerName = mapLayer.layerName;
+        const layer = layers[layerName];
+
+        // Get line coordinates
+        const geom = mapLayer.toGeoJSON().geometry;
+        const coords = geom.coordinates;
+
+        // Ensure lv1 comes before lv2
+        let idx1 = lv1.index;
+        let idx2 = lv2.index;
+        if (idx1 > idx2) {
+            [idx1, idx2] = [idx2, idx1];
+        }
+
+        // Extract segment to close as polygon
+        const polygonCoords = coords.slice(idx1, idx2 + 1);
+        if (polygonCoords.length < 3) {
+            throw new Error('Troppo pochi vertici per creare un poligono');
+        }
+
+        // Create polygon (close the ring)
+        const closedCoords = [...polygonCoords, polygonCoords[0]];
+        const polyLatLngs = L.GeoJSON.coordsToLatLngs([closedCoords], 1);
+        const newPolygon = L.polygon(polyLatLngs, styles.default);
+        newPolygon.parcelName = feature.name;
+
+        // Remove old line
+        drawnItems.removeLayer(mapLayer);
+        layer.roads = layer.roads.filter(r => r !== feature);
+
+        // Add new polygon
+        drawnItems.addLayer(newPolygon);
+        addParcelToLayer(layerName, newPolygon);
+        addParcelClickHandler(newPolygon);
+
+        // Create leftover lines if any
+        if (idx1 > 0) {
+            const leftCoords = coords.slice(0, idx1 + 1);
+            if (leftCoords.length >= 2) {
+                const leftLine = L.polyline(L.GeoJSON.coordsToLatLngs(leftCoords, 0), styles.road);
+                leftLine.roadName = feature.name + ' (rimanente 1)';
+                drawnItems.addLayer(leftLine);
+                addRoadToLayer(layerName, leftLine);
+                addRoadClickHandler(leftLine);
+            }
+        }
+
+        if (idx2 < coords.length - 1) {
+            const rightCoords = coords.slice(idx2);
+            if (rightCoords.length >= 2) {
+                const rightLine = L.polyline(L.GeoJSON.coordsToLatLngs(rightCoords, 0), styles.road);
+                rightLine.roadName = feature.name + ' (rimanente 2)';
+                drawnItems.addLayer(rightLine);
+                addRoadToLayer(layerName, rightLine);
+                addRoadClickHandler(rightLine);
+            }
+        }
+
+        updateStatus(`Linea chiusa in poligono con ${polygonCoords.length} vertici`);
+    }
+
+    // Execute complete: line + polygon boundary -> polygon
+    function executeComplete() {
+        const lineFeature = toolState.sourceFeature;
+        const polyFeature = toolState.targetFeature;
+        const [lv1, lv2, pv1, pv2, pv3] = toolState.vertices;
+        const lineLayer = lineFeature.mapLayer;
+        const polyLayer = polyFeature.mapLayer;
+        const layerName = lineLayer.layerName;
+        const layer = layers[layerName];
+
+        // Get line coordinates
+        const lineGeom = lineLayer.toGeoJSON().geometry;
+        const lineCoords = lineGeom.coordinates;
+
+        // Ensure lv1 comes before lv2
+        let idx1 = lv1.index;
+        let idx2 = lv2.index;
+        if (idx1 > idx2) {
+            [idx1, idx2] = [idx2, idx1];
+        }
+
+        // Get polygon coordinates (outer ring, without closing point)
+        const polyGeom = polyLayer.toGeoJSON().geometry;
+        const polyCoords = polyGeom.coordinates[0].slice(0, -1);
+        const n = polyCoords.length;
+
+        // Determine path from pv1 to pv3 through pv2
+        const pathCW = getPathIndices(pv1.index, pv3.index, n, 1);
+        const pathCCW = getPathIndices(pv1.index, pv3.index, n, -1);
+
+        let boundaryPath;
+        if (pathCW.includes(pv2.index)) {
+            boundaryPath = pathCW;
+        } else if (pathCCW.includes(pv2.index)) {
+            boundaryPath = pathCCW;
+        } else {
+            throw new Error('Pv2 non trovato su nessun percorso');
+        }
+
+        // Extract boundary coordinates: [Pv1, ..., Pv2, ..., Pv3]
+        const boundaryCoords = boundaryPath.map(i => polyCoords[i]);
+
+        // Build new polygon: line segment + reversed boundary
+        // Line from idx1 to idx2: [Lv1, ..., Lv2]
+        const lineSegment = lineCoords.slice(idx1, idx2 + 1);
+
+        // Boundary needs to be reversed so Pv3 connects to Lv2, and Pv1 connects back to Lv1
+        // Reversed: [Pv3, ..., Pv2, ..., Pv1]
+        const reversedBoundary = boundaryCoords.slice().reverse();
+        const newPolygonCoords = [...lineSegment, ...reversedBoundary];
+
+        if (newPolygonCoords.length < 3) {
+            throw new Error('Troppo pochi vertici per creare un poligono');
+        }
+
+        // Close the ring
+        const closedCoords = [...newPolygonCoords, newPolygonCoords[0]];
+        const polyLatLngs = L.GeoJSON.coordsToLatLngs([closedCoords], 1);
+        const newPolygon = L.polygon(polyLatLngs, styles.default);
+        newPolygon.parcelName = lineFeature.name;
+
+        // Remove old line
+        drawnItems.removeLayer(lineLayer);
+        layer.roads = layer.roads.filter(r => r !== lineFeature);
+
+        // Disable editing on target polygon
+        polyLayer.editing.disable();
+        updateParcelStyle(polyFeature);
+
+        // Add new polygon
+        drawnItems.addLayer(newPolygon);
+        addParcelToLayer(layerName, newPolygon);
+        addParcelClickHandler(newPolygon);
+
+        // Create leftover lines if any
+        if (idx1 > 0) {
+            const leftCoords = lineCoords.slice(0, idx1 + 1);
+            if (leftCoords.length >= 2) {
+                const leftLine = L.polyline(L.GeoJSON.coordsToLatLngs(leftCoords, 0), styles.road);
+                leftLine.roadName = lineFeature.name + ' (rimanente 1)';
+                drawnItems.addLayer(leftLine);
+                addRoadToLayer(layerName, leftLine);
+                addRoadClickHandler(leftLine);
+            }
+        }
+
+        if (idx2 < lineCoords.length - 1) {
+            const rightCoords = lineCoords.slice(idx2);
+            if (rightCoords.length >= 2) {
+                const rightLine = L.polyline(L.GeoJSON.coordsToLatLngs(rightCoords, 0), styles.road);
+                rightLine.roadName = lineFeature.name + ' (rimanente 2)';
+                drawnItems.addLayer(rightLine);
+                addRoadToLayer(layerName, rightLine);
+                addRoadClickHandler(rightLine);
+            }
+        }
+
+        updateStatus(`Linea completata in poligono con ${newPolygonCoords.length} vertici`);
+    }
+
+    // Execute split: line -> 2 lines
+    function executeSplit() {
+        const feature = toolState.sourceFeature;
+        const [splitVertex] = toolState.vertices;
+        const mapLayer = feature.mapLayer;
+        const layerName = mapLayer.layerName;
+        const layer = layers[layerName];
+
+        // Get line coordinates
+        const geom = mapLayer.toGeoJSON().geometry;
+        const coords = geom.coordinates;
+        const idx = splitVertex.index;
+
+        // Can't split at endpoints
+        if (idx === 0 || idx === coords.length - 1) {
+            throw new Error('Non puoi dividere agli estremi della linea');
+        }
+
+        // Create two lines, excluding the split vertex
+        const leftCoords = coords.slice(0, idx);
+        const rightCoords = coords.slice(idx + 1);
+
+        if (leftCoords.length < 2 || rightCoords.length < 2) {
+            throw new Error('La divisione creerebbe linee troppo corte');
+        }
+
+        // Remove old line
+        drawnItems.removeLayer(mapLayer);
+        layer.roads = layer.roads.filter(r => r !== feature);
+
+        // Create left line
+        const leftLine = L.polyline(L.GeoJSON.coordsToLatLngs(leftCoords, 0), styles.road);
+        leftLine.roadName = feature.name + ' (1)';
+        drawnItems.addLayer(leftLine);
+        addRoadToLayer(layerName, leftLine);
+        addRoadClickHandler(leftLine);
+
+        // Create right line
+        const rightLine = L.polyline(L.GeoJSON.coordsToLatLngs(rightCoords, 0), styles.road);
+        rightLine.roadName = feature.name + ' (2)';
+        drawnItems.addLayer(rightLine);
+        addRoadToLayer(layerName, rightLine);
+        addRoadClickHandler(rightLine);
+
+        updateStatus(`Linea divisa in 2 linee`);
+    }
+
+    // Execute join: 2 lines -> line
+    function executeJoin() {
+        const line1Feature = toolState.sourceFeature;
+        const line2Feature = toolState.targetFeature;
+        const [l1v1, l1v2, l2v1, l2v2] = toolState.vertices;
+        const line1Layer = line1Feature.mapLayer;
+        const line2Layer = line2Feature.mapLayer;
+        const layerName = line1Layer.layerName;
+        const layer = layers[layerName];
+
+        // Get line coordinates
+        const coords1 = line1Layer.toGeoJSON().geometry.coordinates;
+        const coords2 = line2Layer.toGeoJSON().geometry.coordinates;
+
+        // Extract segments respecting user's pick order (L1v1→L1v2→L2v1→L2v2)
+        let segment1, segment2;
+        let idx1_min, idx1_max, idx2_min, idx2_max;
+
+        if (l1v1.index <= l1v2.index) {
+            segment1 = coords1.slice(l1v1.index, l1v2.index + 1);
+            idx1_min = l1v1.index;
+            idx1_max = l1v2.index;
+        } else {
+            segment1 = coords1.slice(l1v2.index, l1v1.index + 1).reverse();
+            idx1_min = l1v2.index;
+            idx1_max = l1v1.index;
+        }
+
+        if (l2v1.index <= l2v2.index) {
+            segment2 = coords2.slice(l2v1.index, l2v2.index + 1);
+            idx2_min = l2v1.index;
+            idx2_max = l2v2.index;
+        } else {
+            segment2 = coords2.slice(l2v2.index, l2v1.index + 1).reverse();
+            idx2_min = l2v2.index;
+            idx2_max = l2v1.index;
+        }
+
+        if (segment1.length < 1 || segment2.length < 1) {
+            throw new Error('Segmenti troppo corti');
+        }
+
+        // Join: L1v1..L1v2..L2v1..L2v2
+        const joinedCoords = [...segment1, ...segment2];
+
+        if (joinedCoords.length < 2) {
+            throw new Error('La linea risultante è troppo corta');
+        }
+
+        // Remove old lines
+        drawnItems.removeLayer(line1Layer);
+        drawnItems.removeLayer(line2Layer);
+        layer.roads = layer.roads.filter(r => r !== line1Feature && r !== line2Feature);
+
+        // Create joined line
+        const joinedLine = L.polyline(L.GeoJSON.coordsToLatLngs(joinedCoords, 0), styles.road);
+        joinedLine.roadName = line1Feature.name;
+        drawnItems.addLayer(joinedLine);
+        addRoadToLayer(layerName, joinedLine);
+        addRoadClickHandler(joinedLine);
+
+        // Create leftover lines from line 1
+        if (idx1_min > 0) {
+            const leftCoords = coords1.slice(0, idx1_min + 1);
+            if (leftCoords.length >= 2) {
+                const leftLine = L.polyline(L.GeoJSON.coordsToLatLngs(leftCoords, 0), styles.road);
+                leftLine.roadName = line1Feature.name + ' (rimanente)';
+                drawnItems.addLayer(leftLine);
+                addRoadToLayer(layerName, leftLine);
+                addRoadClickHandler(leftLine);
+            }
+        }
+        if (idx1_max < coords1.length - 1) {
+            const rightCoords = coords1.slice(idx1_max);
+            if (rightCoords.length >= 2) {
+                const rightLine = L.polyline(L.GeoJSON.coordsToLatLngs(rightCoords, 0), styles.road);
+                rightLine.roadName = line1Feature.name + ' (rimanente)';
+                drawnItems.addLayer(rightLine);
+                addRoadToLayer(layerName, rightLine);
+                addRoadClickHandler(rightLine);
+            }
+        }
+
+        // Create leftover lines from line 2
+        if (idx2_min > 0) {
+            const leftCoords = coords2.slice(0, idx2_min + 1);
+            if (leftCoords.length >= 2) {
+                const leftLine = L.polyline(L.GeoJSON.coordsToLatLngs(leftCoords, 0), styles.road);
+                leftLine.roadName = line2Feature.name + ' (rimanente)';
+                drawnItems.addLayer(leftLine);
+                addRoadToLayer(layerName, leftLine);
+                addRoadClickHandler(leftLine);
+            }
+        }
+        if (idx2_max < coords2.length - 1) {
+            const rightCoords = coords2.slice(idx2_max);
+            if (rightCoords.length >= 2) {
+                const rightLine = L.polyline(L.GeoJSON.coordsToLatLngs(rightCoords, 0), styles.road);
+                rightLine.roadName = line2Feature.name + ' (rimanente)';
+                drawnItems.addLayer(rightLine);
+                addRoadToLayer(layerName, rightLine);
+                addRoadClickHandler(rightLine);
+            }
+        }
+
+        updateStatus(`2 linee unite in una linea con ${joinedCoords.length} vertici`);
+    }
+
     // Apply offset delta to a layer's parcels and roads
     function applyLayerOffset(layerName) {
         const layer = layers[layerName];
@@ -426,46 +1144,51 @@ const ParcelEditor = (function() {
     }
 
     function updateParcelList() {
-        const list = $('parcel-list');
-        list.innerHTML = '';
-
-        const layer = getSelectedLayer();
-        if (!layer) return;
-
-        layer.parcels.forEach(parcel => {
-            const isSelected = selectedParcel === parcel;
-            const item = document.createElement('div');
-            item.className = 'list-item' + (isSelected ? ' selected' : '');
-            item.innerHTML = `
-                <span class="item-name" onclick="ParcelEditor.onParcelClick(${parcel.id})">${parcel.name}</span>
-                <span class="item-actions">
-                    <span class="edit-btn" onclick="ParcelEditor.startRename(${parcel.id})" title="Rinomina">✎</span>
-                    <span class="delete-btn" onclick="ParcelEditor.onDeleteParcel(${parcel.id})" title="Elimina">✕</span>
-                </span>
-            `;
-            list.appendChild(item);
-        });
+        // For compatibility, just update the element list
+        updateElementList();
     }
 
     function updateRoadList() {
-        const list = $('road-list');
+        // For compatibility, just update the element list
+        updateElementList();
+    }
+
+    function updateElementList() {
+        const list = $('element-list');
+        if (!list) return;
         list.innerHTML = '';
+        list.className = 'feature-list';
 
         const layer = getSelectedLayer();
         if (!layer) return;
 
-        layer.roads.forEach(road => {
-            const isSelected = selectedRoad === road;
-            const item = document.createElement('div');
-            item.className = 'list-item' + (isSelected ? ' selected' : '');
-            item.innerHTML = `
-                <span class="item-name" onclick="ParcelEditor.onRoadClick(${road.id})">${road.name}</span>
+        // Combine parcels and roads, sort by name
+        const elements = [
+            ...layer.parcels.map(p => ({ type: 'parcel', item: p })),
+            ...layer.roads.map(r => ({ type: 'road', item: r }))
+        ];
+        elements.sort((a, b) => a.item.name.localeCompare(b.item.name));
+
+        elements.forEach(({ type, item }) => {
+            const isSelected = (type === 'parcel' && selectedParcel === item) ||
+                              (type === 'road' && selectedRoad === item);
+            const div = document.createElement('div');
+            div.className = 'list-item' + (isSelected ? ' selected' : '');
+
+            const typeIcon = type === 'parcel' ? '▢' : '─';
+            const clickFn = type === 'parcel' ? 'onParcelClick' : 'onRoadClick';
+            const renameFn = type === 'parcel' ? 'startRename' : 'startRoadRename';
+            const deleteFn = type === 'parcel' ? 'onDeleteParcel' : 'onDeleteRoad';
+
+            div.innerHTML = `
+                <span class="item-type-icon">${typeIcon}</span>
+                <span class="item-name" onclick="ParcelEditor.${clickFn}(${item.id})">${item.name}</span>
                 <span class="item-actions">
-                    <span class="edit-btn" onclick="ParcelEditor.startRoadRename(${road.id})" title="Rinomina">✎</span>
-                    <span class="delete-btn" onclick="ParcelEditor.onDeleteRoad(${road.id})" title="Elimina">✕</span>
+                    <span class="edit-btn" onclick="ParcelEditor.${renameFn}(${item.id})" title="Rinomina">✎</span>
+                    <span class="delete-btn" onclick="ParcelEditor.${deleteFn}(${item.id})" title="Elimina">✕</span>
                 </span>
             `;
-            list.appendChild(item);
+            list.appendChild(div);
         });
     }
 
@@ -619,9 +1342,17 @@ const ParcelEditor = (function() {
         mapLayer.on('click', function(e) {
             L.DomEvent.stopPropagation(e);
             const parcel = mapLayer.parcelData;
-            if (parcel && mapLayer.layerName === selectedLayerName) {
-                selectParcel(parcel);
+            if (!parcel || mapLayer.layerName !== selectedLayerName) return;
+
+            // Check if tool workflow is active
+            if (toolState.active) {
+                if (!handleToolFeatureClick(parcel, true)) {
+                    updateStatus('Questa feature non è valida per questo passo');
+                }
+                return;
             }
+
+            selectParcel(parcel);
         });
     }
 
@@ -629,29 +1360,53 @@ const ParcelEditor = (function() {
         mapLayer.on('click', function(e) {
             L.DomEvent.stopPropagation(e);
             const road = mapLayer.roadData;
-            if (road && mapLayer.layerName === selectedLayerName) {
-                selectRoad(road);
+            if (!road || mapLayer.layerName !== selectedLayerName) return;
+
+            // Check if tool workflow is active
+            if (toolState.active) {
+                if (!handleToolFeatureClick(road, false)) {
+                    updateStatus('Questa feature non è valida per questo passo');
+                }
+                return;
             }
+
+            selectRoad(road);
         });
     }
 
-    // Rename functionality
+    // Rename functionality - find item in unified element list
+    function findElementListItem(id, type) {
+        const list = $('element-list');
+        if (!list) return null;
+
+        const items = list.querySelectorAll('.list-item');
+        for (const item of items) {
+            const nameEl = item.querySelector('.item-name');
+            if (!nameEl) continue;
+
+            const onclick = nameEl.getAttribute('onclick') || '';
+            const fn = type === 'parcel' ? 'onParcelClick' : 'onRoadClick';
+            if (onclick.includes(`${fn}(${id})`)) {
+                return item;
+            }
+        }
+        return null;
+    }
+
     function startRename(parcelId) {
         const parcel = findParcelById(parcelId);
         if (!parcel) return;
 
-        const items = $('parcel-list').querySelectorAll('.list-item');
-        const layer = getSelectedLayer();
-        const index = layer.parcels.indexOf(parcel);
-        if (index < 0 || !items[index]) return;
+        const item = findElementListItem(parcelId, 'parcel');
+        if (!item) return;
 
-        const item = items[index];
         item.innerHTML = `
+            <span class="item-type-icon">▢</span>
             <input type="text" class="rename-input" value="${parcel.name}"
                    onkeydown="ParcelEditor.handleRenameKey(event, ${parcelId})" />
             <span class="item-actions">
                 <span class="edit-btn" onclick="ParcelEditor.finishRename(${parcelId})" title="Salva">✓</span>
-                <span class="delete-btn" onclick="ParcelEditor.updateParcelList()" title="Annulla">✕</span>
+                <span class="delete-btn" onclick="ParcelEditor.updateElementList()" title="Annulla">✕</span>
             </span>
         `;
         const input = item.querySelector('.rename-input');
@@ -661,20 +1416,21 @@ const ParcelEditor = (function() {
 
     function handleRenameKey(event, parcelId) {
         if (event.key === 'Enter') finishRename(parcelId);
-        else if (event.key === 'Escape') updateParcelList();
+        else if (event.key === 'Escape') updateElementList();
     }
 
     function finishRename(parcelId) {
         const parcel = findParcelById(parcelId);
         if (!parcel) return;
 
-        const input = $('parcel-list').querySelector('.rename-input');
+        const input = $('element-list').querySelector('.rename-input');
         if (!input) return;
 
         parcel.name = input.value.trim() || 'Senza nome';
         parcel.mapLayer.bindPopup(`<b>${parcel.name}</b>`);
-        sortParcels(parcel.mapLayer);
-        updateParcelList();
+        const layer = layers[parcel.mapLayer.layerName];
+        if (layer) sortParcels(layer);
+        updateElementList();
         updateStatus(`Particella rinominata a "${parcel.name}"`);
     }
 
@@ -683,18 +1439,16 @@ const ParcelEditor = (function() {
         const road = findRoadById(roadId);
         if (!road) return;
 
-        const items = $('road-list').querySelectorAll('.list-item');
-        const layer = getSelectedLayer();
-        const index = layer.roads.indexOf(road);
-        if (index < 0 || !items[index]) return;
+        const item = findElementListItem(roadId, 'road');
+        if (!item) return;
 
-        const item = items[index];
         item.innerHTML = `
+            <span class="item-type-icon">─</span>
             <input type="text" class="rename-input" value="${road.name}"
                    onkeydown="ParcelEditor.handleRoadRenameKey(event, ${roadId})" />
             <span class="item-actions">
                 <span class="edit-btn" onclick="ParcelEditor.finishRoadRename(${roadId})" title="Salva">✓</span>
-                <span class="delete-btn" onclick="ParcelEditor.updateRoadList()" title="Annulla">✕</span>
+                <span class="delete-btn" onclick="ParcelEditor.updateElementList()" title="Annulla">✕</span>
             </span>
         `;
         const input = item.querySelector('.rename-input');
@@ -704,20 +1458,21 @@ const ParcelEditor = (function() {
 
     function handleRoadRenameKey(event, roadId) {
         if (event.key === 'Enter') finishRoadRename(roadId);
-        else if (event.key === 'Escape') updateRoadList();
+        else if (event.key === 'Escape') updateElementList();
     }
 
     function finishRoadRename(roadId) {
         const road = findRoadById(roadId);
         if (!road) return;
 
-        const input = $('road-list').querySelector('.rename-input');
+        const input = $('element-list').querySelector('.rename-input');
         if (!input) return;
 
         road.name = input.value.trim() || 'Senza nome';
         road.mapLayer.bindPopup(`<b>${road.name}</b>`);
-        sortRoads(road.mapLayer);
-        updateRoadList();
+        const layer = layers[road.mapLayer.layerName];
+        if (layer) sortRoads(layer);
+        updateElementList();
         updateStatus(`Strada rinominata a "${road.name}"`);
     }
 
@@ -781,8 +1536,12 @@ const ParcelEditor = (function() {
             // Keyboard shortcuts
             document.addEventListener('keydown', e => {
                 if (e.key === 'Escape') {
-                    deselectParcel();
-                    deselectRoad();
+                    if (toolState.active) {
+                        cancelTool();
+                    } else {
+                        deselectParcel();
+                        deselectRoad();
+                    }
                 } else if (e.key === 'z' && (e.ctrlKey || e.metaKey)) {
                     e.preventDefault();
                     undoEdit();
@@ -920,7 +1679,12 @@ const ParcelEditor = (function() {
 
         startRoadRename,
         handleRoadRenameKey,
-        finishRoadRename
+        finishRoadRename,
+
+        // Tool functions
+        startTool,
+        cancelTool,
+        updateElementList
     };
 })();
 
