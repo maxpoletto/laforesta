@@ -142,7 +142,7 @@ const ParcelEditor = (function() {
         parcelCounter++;
         const parcel = {
             id: parcelCounter,
-            name: mapLayer.parcelName || `Particella ${parcelCounter}`,
+            name: mapLayer.parcelName || `Poligono ${parcelCounter}`,
             mapLayer: mapLayer  // Single source of truth for coordinates
         };
 
@@ -230,7 +230,7 @@ const ParcelEditor = (function() {
         roadCounter++;
         const road = {
             id: roadCounter,
-            name: mapLayer.roadName || `Strada ${roadCounter}`,
+            name: mapLayer.roadName || `Linea ${roadCounter}`,
             mapLayer: mapLayer
         };
 
