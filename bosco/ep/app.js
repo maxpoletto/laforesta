@@ -165,7 +165,9 @@ const ParcelEditor = (function() {
         return parcel;
     }
 
-    function deleteParcel(parcel) {
+    function deleteParcel(parcel, confirmed = false) {
+        if (!confirmed && !confirm(`Elimina "${parcel.name}"?`)) return;
+
         const layer = layers[parcel.mapLayer.layerName];
         if (!layer) return;
 
@@ -176,7 +178,7 @@ const ParcelEditor = (function() {
         drawnItems.removeLayer(parcel.mapLayer);
         layer.parcels = layer.parcels.filter(p => p !== parcel);
         updateParcelList();
-        updateStatus('Particella eliminata');
+        updateStatus('Elemento eliminato');
     }
 
     function selectParcel(parcel) {
@@ -252,7 +254,9 @@ const ParcelEditor = (function() {
         return road;
     }
 
-    function deleteRoad(road) {
+    function deleteRoad(road, confirmed = false) {
+        if (!confirmed && !confirm(`Elimina "${road.name}"?`)) return;
+
         const layer = layers[road.mapLayer.layerName];
         if (!layer) return;
 
@@ -263,7 +267,7 @@ const ParcelEditor = (function() {
         drawnItems.removeLayer(road.mapLayer);
         layer.roads = layer.roads.filter(r => r !== road);
         updateRoadList();
-        updateStatus('Strada eliminata');
+        updateStatus('Elemento eliminato');
     }
 
     function selectRoad(road) {
@@ -1730,7 +1734,13 @@ const ParcelEditor = (function() {
         if (!parcel) return;
 
         parcel.visible = parcel.visible === false ? true : false;
-        updateParcelStyle(parcel);
+
+        // If hiding and currently selected, deselect to hide edit controls
+        if (parcel.visible === false && selectedParcel === parcel) {
+            deselectParcel();
+        } else {
+            updateParcelStyle(parcel);
+        }
         updateElementList();
     }
 
@@ -1739,7 +1749,13 @@ const ParcelEditor = (function() {
         if (!road) return;
 
         road.visible = road.visible === false ? true : false;
-        updateRoadStyle(road);
+
+        // If hiding and currently selected, deselect to hide edit controls
+        if (road.visible === false && selectedRoad === road) {
+            deselectRoad();
+        } else {
+            updateRoadStyle(road);
+        }
         updateElementList();
     }
 
