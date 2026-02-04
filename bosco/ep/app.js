@@ -4,6 +4,8 @@ const ParcelEditor = (function() {
 
     const OFFSET_ROADS = true;
 
+    let layersVisible = true;
+
     // State
     let mapWrapper = null;
     let map = null;
@@ -1702,6 +1704,22 @@ const ParcelEditor = (function() {
         updateStatus(`Strato "${name}" ${layer.visible ? 'visibile' : 'nascosto'}`);
     }
 
+    function toggleAllLayers() {
+        layersVisible = !layersVisible;
+        Object.keys(layers).forEach(name => {
+            layers[name].visible = layersVisible;
+        });
+        updateParcelStyles();
+        updateRoadStyles();
+        updateLayerList();
+        updateStatus(`Tutti gli strati ${layersVisible ? 'visibili' : 'nascosti'}`);
+        if (!layersVisible) {
+            $('toggle-all-layers-btn').innerText = 'Mostra tutti';
+        } else {
+            $('toggle-all-layers-btn').innerText = 'Nascondi tutti';
+        }
+    }
+
     function renameLayer(oldName) {
         const newName = prompt('Nuovo nome dello strato:', oldName);
         if (!newName || !newName.trim() || newName.trim() === oldName) return;
@@ -2056,6 +2074,7 @@ const ParcelEditor = (function() {
 
         exportGeoJSON,
         clearAll,
+        toggleAllLayers,
         updateParcelList,
         updateRoadList,
 

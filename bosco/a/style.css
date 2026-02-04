@@ -55,13 +55,13 @@ h5 { margin: 12px 0 5px 0; font-size: 12px; color: #666; }
 
 button {
     width: 100%;
-    padding: 8px;
+    padding: 4px;
     margin: 5px 0;
     cursor: pointer;
     border: 1px solid #ccc;
     border-radius: 4px;
     background: white;
-    font-size: 13px;
+    font-size: 12px;
 }
 button:hover { background: #e0e0e0; }
 button.primary { background: #4CAF50; color: white; border-color: #4CAF50; }

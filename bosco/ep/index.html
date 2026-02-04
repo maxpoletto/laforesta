@@ -44,7 +44,10 @@
         <div class="section">
             <h4>Strati</h4>
             <div id="layer-list" class="feature-list"></div>
-            <button class="primary small" onclick="ParcelEditor.createNewLayer()">Nuovo strato</button>
+            <div class="button-row">
+                <button class="primary" onclick="ParcelEditor.createNewLayer()">Nuovo strato</button>
+                <button id="toggle-all-layers-btn" class="primary" onclick="ParcelEditor.toggleAllLayers()">Nascondi tutti</button>
+            </div>
         </div>
 
         <div class="section" id="elements-section" style="display: none;">
