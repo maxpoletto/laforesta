@@ -1426,14 +1426,14 @@ const ParcelEditor = (function() {
 
         let newParcels = 0;
         let newRoads = 0;
-        const newLayers = [];
+        let newLayers = 0;
 
         // Merge features into existing layers or create new ones
         Object.entries(featuresByLayer).forEach(([layerName, features]) => {
             const isNewLayer = !layers[layerName];
             if (isNewLayer) {
                 createLayer(layerName);
-                newLayers.push(layerName);
+                newLayers++;
             }
 
             features.forEach(feature => {
@@ -1460,28 +1460,39 @@ const ParcelEditor = (function() {
             });
         });
 
+        return { newParcels, newRoads, newLayers };
+    }
+
+    function initUI(loadResults) {
         // Update UI
         updateLayerList();
 
-        // If this is the first load or we added new layers, select appropriately
+        // Select appropriate layer
         if (!selectedLayerName && Object.keys(layers).length > 0) {
             const firstLayer = Object.keys(layers).sort()[0];
             selectLayer(firstLayer);
         } else if (selectedLayerName && layers[selectedLayerName]) {
-            // Refresh current layer to show new items
             selectLayer(selectedLayerName);
         }
 
-        // Fit bounds if this looks like an initial load
-        if (Object.keys(layers).length === newLayers.length && drawnItems.getBounds().isValid()) {
+        if (drawnItems.getBounds().isValid()) {
             map.fitBounds(drawnItems.getBounds());
         }
 
+        // Show status
         const totalParcels = Object.values(layers).reduce((sum, l) => sum + l.parcels.length, 0);
         const totalRoads = Object.values(layers).reduce((sum, l) => sum + l.roads.length, 0);
-        const msg = newLayers.length > 0
-            ? `Aggiunti ${newParcels} poligoni e ${newRoads} linee (${newLayers.length} nuovi strati). Totale: ${totalParcels} poligoni, ${totalRoads} linee in ${Object.keys(layers).length} strati`
-            : `Aggiunti ${newParcels} poligoni e ${newRoads} linee agli strati esistenti. Totale: ${totalParcels} poligoni, ${totalRoads} linee`;
+
+        const totalNewParcels = loadResults.reduce((sum, r) => sum + r.newParcels, 0);
+        const totalNewRoads = loadResults.reduce((sum, r) => sum + r.newRoads, 0);
+        const totalNewLayers = loadResults.reduce((sum, r) => sum + r.newLayers, 0);
+
+        const fileCount = loadResults.length;
+        const msg = fileCount > 1
+            ? `Caricati ${fileCount} file: ${totalNewParcels} poligoni e ${totalNewRoads} linee (${totalNewLayers} nuovi strati). Totale: ${totalParcels} poligoni, ${totalRoads} linee in ${Object.keys(layers).length} strati`
+            : totalNewLayers > 0
+                ? `Aggiunti ${totalNewParcels} poligoni e ${totalNewRoads} linee (${totalNewLayers} nuovi strati). Totale: ${totalParcels} poligoni, ${totalRoads} linee in ${Object.keys(layers).length} strati`
+                : `Aggiunti ${totalNewParcels} poligoni e ${totalNewRoads} linee agli strati esistenti. Totale: ${totalParcels} poligoni, ${totalRoads} linee`;
         updateStatus(msg);
     }
 
@@ -1932,24 +1943,41 @@ const ParcelEditor = (function() {
             $('load-file').addEventListener('change', e => {
                 const files = e.target.files;
                 if (!files || files.length === 0) return;
-                Array.from(files).forEach(file => {
-                    const reader = new FileReader();
-                    reader.onload = evt => {
-                        try {
-                            const data = JSON.parse(evt.target.result);
-                            loadGeoJSON(data);
-                        } catch (err) {
-                            updateStatus('Errore nel caricamento del GeoJSON: ' + err.message);
-                        }
-                    };
-                    reader.readAsText(file);
+
+                // Load all files, then process together
+                const filePromises = Array.from(files).map(file => {
+                    return new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = evt => {
+                            try {
+                                const data = JSON.parse(evt.target.result);
+                                resolve(data);
+                            } catch (err) {
+                                reject(err);
+                            }
+                        };
+                        reader.onerror = reject;
+                        reader.readAsText(file);
+                    });
                 });
+
+                Promise.all(filePromises)
+                    .then(datasets => {
+                        const results = datasets.map(data => loadGeoJSON(data));
+                        initUI(results);
+                    })
+                    .catch(err => {
+                        updateStatus('Errore nel caricamento dei file: ' + err.message);
+                    });
             });
 
             if (filename) {
                 fetch(filename)
                     .then(r => r.ok ? r.json() : Promise.reject())
-                    .then(data => loadGeoJSON(data))
+                    .then(data => {
+                        const result = loadGeoJSON(data);
+                        initUI([result]);
+                    })
                     .catch(() => {});
             } else {
                 // Default view: center of Calabria
