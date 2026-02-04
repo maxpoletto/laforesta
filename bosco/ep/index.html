@@ -24,6 +24,15 @@
         <div id="coords"></div>
 
         <div class="section">
+            <h4>Mappa</h4>
+            <div class="button-row">
+                <button onclick="ParcelEditor.setBasemap('osm')">OpenStreetMap</button>
+                <button onclick="ParcelEditor.setBasemap('satellite')">Satellitare</button>
+                <button onclick="ParcelEditor.setBasemap('topo')">Topografica</button>
+            </div>
+        </div>
+
+        <div class="section">
             <h4>Dati</h4>
             <input type="file" id="load-file" accept=".geojson,.json" />
             <div class="button-row">
@@ -88,15 +97,6 @@
                     <button id="tool-finish-btn" class="small primary" onclick="ParcelEditor.finishNewline()" style="display: none;">Fine (Invio)</button>
                     <button class="small danger" onclick="ParcelEditor.cancelTool()">Annulla (Esc)</button>
                 </div>
-            </div>
-        </div>
-
-        <div class="section">
-            <h4>Mappa</h4>
-            <div class="button-row">
-                <button onclick="ParcelEditor.setBasemap('osm')">OpenStreetMap</button>
-                <button onclick="ParcelEditor.setBasemap('satellite')">Satellitare</button>
-                <button onclick="ParcelEditor.setBasemap('topo')">Topografica</button>
             </div>
         </div>
 
