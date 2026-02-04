@@ -1782,28 +1782,46 @@ const ParcelEditor = (function() {
             return;
         }
 
-        const targetName = prompt(`Sposta in quale strato?\nStrati disponibili: ${otherLayers.join(', ')}`);
-        if (!targetName || !targetName.trim()) return;
+        const item = findElementListItem(parcelId, 'parcel');
+        if (!item) return;
 
-        const trimmedTarget = targetName.trim();
-        if (!layers[trimmedTarget]) {
-            updateStatus(`Strato "${trimmedTarget}" non trovato`);
-            return;
-        }
+        const options = otherLayers.map(name => `<option value="${name}">${name}</option>`).join('');
+        item.innerHTML = `
+            <select class="move-select" style="flex-grow: 1; margin-right: 5px;">
+                ${options}
+            </select>
+            <span class="item-actions">
+                <span class="edit-btn" onclick="ParcelEditor.finishMoveParcel(${parcelId})" title="Conferma">✓</span>
+                <span class="delete-btn" onclick="ParcelEditor.updateElementList()" title="Annulla">✕</span>
+            </span>
+        `;
+        const select = item.querySelector('.move-select');
+        select.focus();
+    }
+
+    function finishMoveParcel(parcelId) {
+        const parcel = findParcelById(parcelId);
+        if (!parcel) return;
+
+        const select = $('element-list').querySelector('.move-select');
+        if (!select) return;
+
+        const targetName = select.value;
+        const currentLayer = parcel.mapLayer.layerName;
 
         // Remove from current layer
         const sourceLayer = layers[currentLayer];
         sourceLayer.parcels = sourceLayer.parcels.filter(p => p !== parcel);
 
         // Add to target layer
-        parcel.mapLayer.layerName = trimmedTarget;
-        layers[trimmedTarget].parcels.push(parcel);
-        sortParcels(layers[trimmedTarget]);
+        parcel.mapLayer.layerName = targetName;
+        layers[targetName].parcels.push(parcel);
+        sortParcels(layers[targetName]);
 
         // Update style
         updateParcelStyle(parcel);
         updateElementList();
-        updateStatus(`Elemento spostato in "${trimmedTarget}"`);
+        updateStatus(`Elemento spostato in "${targetName}"`);
     }
 
     function moveRoadToLayer(roadId) {
@@ -1818,28 +1836,46 @@ const ParcelEditor = (function() {
             return;
         }
 
-        const targetName = prompt(`Sposta in quale strato?\nStrati disponibili: ${otherLayers.join(', ')}`);
-        if (!targetName || !targetName.trim()) return;
+        const item = findElementListItem(roadId, 'road');
+        if (!item) return;
 
-        const trimmedTarget = targetName.trim();
-        if (!layers[trimmedTarget]) {
-            updateStatus(`Strato "${trimmedTarget}" non trovato`);
-            return;
-        }
+        const options = otherLayers.map(name => `<option value="${name}">${name}</option>`).join('');
+        item.innerHTML = `
+            <select class="move-select" style="flex-grow: 1; margin-right: 5px;">
+                ${options}
+            </select>
+            <span class="item-actions">
+                <span class="edit-btn" onclick="ParcelEditor.finishMoveRoad(${roadId})" title="Conferma">✓</span>
+                <span class="delete-btn" onclick="ParcelEditor.updateElementList()" title="Annulla">✕</span>
+            </span>
+        `;
+        const select = item.querySelector('.move-select');
+        select.focus();
+    }
+
+    function finishMoveRoad(roadId) {
+        const road = findRoadById(roadId);
+        if (!road) return;
+
+        const select = $('element-list').querySelector('.move-select');
+        if (!select) return;
+
+        const targetName = select.value;
+        const currentLayer = road.mapLayer.layerName;
 
         // Remove from current layer
         const sourceLayer = layers[currentLayer];
         sourceLayer.roads = sourceLayer.roads.filter(r => r !== road);
 
         // Add to target layer
-        road.mapLayer.layerName = trimmedTarget;
-        layers[trimmedTarget].roads.push(road);
-        sortRoads(layers[trimmedTarget]);
+        road.mapLayer.layerName = targetName;
+        layers[targetName].roads.push(road);
+        sortRoads(layers[targetName]);
 
         // Update style
         updateRoadStyle(road);
         updateElementList();
-        updateStatus(`Elemento spostato in "${trimmedTarget}"`);
+        updateStatus(`Elemento spostato in "${targetName}"`);
     }
 
     // Public API
@@ -2056,7 +2092,9 @@ const ParcelEditor = (function() {
         toggleParcelVisibility,
         toggleRoadVisibility,
         moveParcelToLayer,
+        finishMoveParcel,
         moveRoadToLayer,
+        finishMoveRoad,
 
         startRename,
         handleRenameKey,
