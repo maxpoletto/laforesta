@@ -42,50 +42,27 @@
         </div>
 
         <div class="section">
-            <h4>Compresa</h4>
-            <div class="layer-selector-row">
-                <select id="layer-selector"></select>
-                <button onclick="ParcelEditor.createNewLayer()" title="Nuova compresa">+</button>
-            </div>
+            <h4>Strati</h4>
+            <div id="layer-list" class="feature-list"></div>
+            <button class="primary small" onclick="ParcelEditor.createNewLayer()">Nuovo strato</button>
+        </div>
 
-            <div id="layer-controls">
-                <label class="checkbox-row">
-                    <input type="checkbox" id="layer-visible" checked />
-                    Visibile?
-                </label>
-
-                <h5>Correzione coordinate</h5>
-                <div class="offset-control">
-                    <label>E-W:</label>
-                    <input type="range" id="offset-ew" min="-200" max="200" value="0" step="1">
-                    <span class="value" id="offset-ew-value">0m</span>
-                </div>
-                <div class="offset-control">
-                    <label>N-S:</label>
-                    <input type="range" id="offset-ns" min="-200" max="200" value="0" step="1">
-                    <span class="value" id="offset-ns-value">0m</span>
-                </div>
-                <button onclick="ParcelEditor.resetOffset()" class="small">Azzera correzione</button>
-
-                <h5>Elementi</h5>
-                <div id="element-list" class="feature-list"></div>
-
-                <button class="danger small" onclick="ParcelEditor.deleteCurrentLayer()">Elimina questa compresa</button>
-            </div>
+        <div class="section" id="elements-section" style="display: none;">
+            <h4>Elementi</h4>
+            <div id="element-list" class="feature-list"></div>
         </div>
 
         <div class="section">
             <h4>Strumenti</h4>
-            <div class="tool-buttons">
+            <div class="tool-buttons-row">
                 <button onclick="ParcelEditor.startTool('newpoly')" title="Crea un nuovo poligono copiando segmenti da altri oggetti" class="primary">Nuovo poligono</button>
                 <button onclick="ParcelEditor.startTool('newline')" title="Crea una nuova linea copiando segmenti da altri oggetti" class="primary">Nuova linea</button>
             </div>
-            <h5>Trasformazioni</h5>
-            <div class="tool-buttons">
-                <button onclick="ParcelEditor.startTool('snip')" title="Elimina un vertice, aprendo il poligono in linea">Poligono → linea</button>
-                <button onclick="ParcelEditor.startTool('close')" title="Chiude una sezione di linea in poligono">Linea → poligono</button>
-                <button onclick="ParcelEditor.startTool('split')" title="Divide una linea in due eliminando un vertice">Linea → 2 linee</button>
-                <button onclick="ParcelEditor.startTool('join')" title="Unisce due linee collegando gli estremi">2 linee → linea</button>
+            <div class="tool-icons-row">
+                <button onclick="ParcelEditor.startTool('snip')" title="Poligono → linea" class="tool-icon">⬠→╲</button>
+                <button onclick="ParcelEditor.startTool('close')" title="Linea → poligono" class="tool-icon">╲→⬠</button>
+                <button onclick="ParcelEditor.startTool('split')" title="Taglia linea" class="tool-icon">⛓️‍💥</button>
+                <button onclick="ParcelEditor.startTool('join')" title="Unisci linee" class="tool-icon">🔗</button>
             </div>
 
             <div id="tool-workflow" style="display: none;">
@@ -100,20 +77,19 @@
             </div>
         </div>
 
-        <div class="section">
-            <h4>Legenda</h4>
-            <ul class="help-list">
-                <li><span class="color-dot blue"></span>Compresa selezionata (particelle)</li>
-                <li><span class="color-dot orange"></span>Altre comprese (particelle)</li>
-                <li><span class="color-dot green"></span>Particella selezionata (modificabile)</li>
-                <li><span style="display:inline-block;width:12px;height:3px;background:#cc3333;margin-right:5px;"></span>Viabilità (compresa selezionata)</li>
-                <li><span style="display:inline-block;width:12px;height:3px;background:#ffff00;margin-right:5px;"></span>Strada selezionata (modificabile)</li>
-                <li><span style="display:inline-block;width:12px;height:3px;background:#9900ff;margin-right:5px;border-style:dashed;"></span>Nuovo poligono/linea (anteprima)</li>
-            </ul>
-            <p class="help-text">
-                Clicca una particella o strada nella compresa selezionata per modificarne i vertici.
-                Usa lo strumento poligono per disegnare nuove particelle, o polilinea per strade.
-            </p>
+        <div class="section" id="offset-section" style="display: none;">
+            <h4>Correzione coordinate</h4>
+            <div class="offset-control">
+                <label>E-W:</label>
+                <input type="range" id="offset-ew" min="-200" max="200" value="0" step="1">
+                <span class="value" id="offset-ew-value">0m</span>
+            </div>
+            <div class="offset-control">
+                <label>N-S:</label>
+                <input type="range" id="offset-ns" min="-200" max="200" value="0" step="1">
+                <span class="value" id="offset-ns-value">0m</span>
+            </div>
+            <button onclick="ParcelEditor.resetOffset()" class="small">Azzera</button>
         </div>
     </div>
 </body>

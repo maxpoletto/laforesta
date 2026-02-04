@@ -107,9 +107,8 @@ const ParcelEditor = (function() {
         delete layers[name];
 
         // Select another layer or none
-        const remaining = Object.keys(layers);
+        const remaining = Object.keys(layers).sort();
         selectLayer(remaining.length > 0 ? remaining[0] : null);
-        updateLayerSelector();
     }
 
     function selectLayer(name) {
@@ -130,14 +129,19 @@ const ParcelEditor = (function() {
             $('offset-ns').value = layer.offset.ns;
             $('offset-ew-value').textContent = `${layer.offset.ew}m`;
             $('offset-ns-value').textContent = `${layer.offset.ns}m`;
-            $('layer-visible').checked = layer.visible;
         }
+
+        // Show/hide sections based on whether a layer is selected
+        const elementsSection = $('elements-section');
+        const offsetSection = $('offset-section');
+        if (elementsSection) elementsSection.style.display = name ? 'block' : 'none';
+        if (offsetSection) offsetSection.style.display = name ? 'block' : 'none';
 
         updateParcelStyles();
         updateRoadStyles();
-        updateParcelList();
-        updateRoadList();
-        updateStatus(name ? `Compresa attiva: ${name}` : 'Nessuna compresa selezionata');
+        updateLayerList();
+        updateElementList();
+        updateStatus(name ? `Strato attivo: ${name}` : 'Nessuno strato selezionato');
     }
 
     // Parcel management
@@ -209,7 +213,7 @@ const ParcelEditor = (function() {
         const layer = layers[parcel.mapLayer.layerName];
         if (!layer) return;
 
-        if (!layer.visible) {
+        if (!layer.visible || parcel.visible === false) {
             parcel.mapLayer.setStyle(styles.hidden);
         } else if (parcel.mapLayer.layerName === selectedLayerName) {
             parcel.mapLayer.setStyle(styles.default);
@@ -336,7 +340,7 @@ const ParcelEditor = (function() {
         const layer = layers[road.mapLayer.layerName];
         if (!layer) return;
 
-        if (!layer.visible) {
+        if (!layer.visible || road.visible === false) {
             road.mapLayer.setStyle(styles.hidden);
         } else if (road.mapLayer.layerName === selectedLayerName) {
             road.mapLayer.setStyle(styles.road);
@@ -383,7 +387,7 @@ const ParcelEditor = (function() {
 
     function startTool(toolName) {
         if (!selectedLayerName) {
-            updateStatus('Seleziona una compresa prima di usare gli strumenti');
+            updateStatus('Seleziona uno strato prima di usare gli strumenti');
             return;
         }
 
@@ -1302,29 +1306,35 @@ const ParcelEditor = (function() {
     }
 
     // UI updates
-    function updateLayerSelector() {
-        const selector = $('layer-selector');
-        selector.innerHTML = '';
+    function updateLayerList() {
+        const list = $('layer-list');
+        if (!list) return;
+        list.innerHTML = '';
 
-        const names = Object.keys(layers).sort((a, b) => b.localeCompare(a));
-        if (names.length === 0) {
-            const opt = document.createElement('option');
-            opt.value = '';
-            opt.textContent = '(nessuna compresa)';
-            selector.appendChild(opt);
-            $('layer-controls').style.display = 'none';
-            return;
-        }
-
-        $('layer-controls').style.display = 'block';
+        const names = Object.keys(layers).sort((a, b) => a.localeCompare(b));
 
         names.forEach(name => {
-            const opt = document.createElement('option');
-            opt.value = name;
-            opt.textContent = name;
-            if (name === selectedLayerName) opt.selected = true;
-            selector.appendChild(opt);
+            const layer = layers[name];
+            const isSelected = name === selectedLayerName;
+            const div = document.createElement('div');
+            div.className = 'list-item' + (isSelected ? ' selected' : '') + (layer.visible ? '' : ' hidden');
+
+            const visIcon = layer.visible ? '◉' : '◌';
+            div.innerHTML = `
+                <span class="item-name" onclick="ParcelEditor.onLayerClick('${name}')">${name}</span>
+                <span class="item-actions">
+                    <span class="edit-btn" onclick="ParcelEditor.renameLayer('${name}')" title="Rinomina">✎</span>
+                    <span class="hide-btn" onclick="ParcelEditor.toggleLayerVisibility('${name}')" title="Mostra/nascondi">${visIcon}</span>
+                    <span class="delete-btn" onclick="ParcelEditor.deleteLayerByName('${name}')" title="Elimina">✕</span>
+                </span>
+            `;
+            list.appendChild(div);
         });
+    }
+
+    // Keep old name for compatibility
+    function updateLayerSelector() {
+        updateLayerList();
     }
 
     function updateParcelList() {
@@ -1356,12 +1366,16 @@ const ParcelEditor = (function() {
         elements.forEach(({ type, item }) => {
             const isSelected = (type === 'parcel' && selectedParcel === item) ||
                               (type === 'road' && selectedRoad === item);
+            const isHidden = item.visible === false;
             const div = document.createElement('div');
-            div.className = 'list-item' + (isSelected ? ' selected' : '');
+            div.className = 'list-item' + (isSelected ? ' selected' : '') + (isHidden ? ' hidden' : '');
 
             const typeIcon = type === 'parcel' ? '▢' : '─';
+            const visIcon = isHidden ? '◌' : '◉';
             const clickFn = type === 'parcel' ? 'onParcelClick' : 'onRoadClick';
             const renameFn = type === 'parcel' ? 'startRename' : 'startRoadRename';
+            const hideFn = type === 'parcel' ? 'toggleParcelVisibility' : 'toggleRoadVisibility';
+            const moveFn = type === 'parcel' ? 'moveParcelToLayer' : 'moveRoadToLayer';
             const deleteFn = type === 'parcel' ? 'onDeleteParcel' : 'onDeleteRoad';
 
             div.innerHTML = `
@@ -1369,6 +1383,8 @@ const ParcelEditor = (function() {
                 <span class="item-name" onclick="ParcelEditor.${clickFn}(${item.id})">${item.name}</span>
                 <span class="item-actions">
                     <span class="edit-btn" onclick="ParcelEditor.${renameFn}(${item.id})" title="Rinomina">✎</span>
+                    <span class="hide-btn" onclick="ParcelEditor.${hideFn}(${item.id})" title="Mostra/nascondi">${visIcon}</span>
+                    <span class="move-btn" onclick="ParcelEditor.${moveFn}(${item.id})" title="Sposta in altro strato">↗</span>
                     <span class="delete-btn" onclick="ParcelEditor.${deleteFn}(${item.id})" title="Elimina">✕</span>
                 </span>
             `;
@@ -1441,11 +1457,11 @@ const ParcelEditor = (function() {
         });
 
         // Update UI
-        updateLayerSelector();
+        updateLayerList();
 
         // If this is the first load or we added new layers, select appropriately
         if (!selectedLayerName && Object.keys(layers).length > 0) {
-            const firstLayer = Object.keys(layers).sort((a, b) => b.localeCompare(a))[0];
+            const firstLayer = Object.keys(layers).sort()[0];
             selectLayer(firstLayer);
         } else if (selectedLayerName && layers[selectedLayerName]) {
             // Refresh current layer to show new items
@@ -1460,15 +1476,15 @@ const ParcelEditor = (function() {
         const totalParcels = Object.values(layers).reduce((sum, l) => sum + l.parcels.length, 0);
         const totalRoads = Object.values(layers).reduce((sum, l) => sum + l.roads.length, 0);
         const msg = newLayers.length > 0
-            ? `Aggiunte ${newParcels} particelle e ${newRoads} strade (${newLayers.length} nuove comprese). Totale: ${totalParcels} particelle, ${totalRoads} strade in ${Object.keys(layers).length} comprese`
-            : `Aggiunte ${newParcels} particelle e ${newRoads} strade alle comprese esistenti. Totale: ${totalParcels} particelle, ${totalRoads} strade`;
+            ? `Aggiunti ${newParcels} poligoni e ${newRoads} linee (${newLayers.length} nuovi strati). Totale: ${totalParcels} poligoni, ${totalRoads} linee in ${Object.keys(layers).length} strati`
+            : `Aggiunti ${newParcels} poligoni e ${newRoads} linee agli strati esistenti. Totale: ${totalParcels} poligoni, ${totalRoads} linee`;
         updateStatus(msg);
     }
 
     function exportGeoJSON() {
         const features = [];
 
-        Object.entries(layers).sort((a, b) => b[0].localeCompare(a[0])).forEach(([layerName, layer]) => {
+        Object.entries(layers).sort((a, b) => a[0].localeCompare(b[0])).forEach(([layerName, layer]) => {
             // Export parcels
             layer.parcels.forEach(parcel => {
                 const geojson = parcel.mapLayer.toGeoJSON();
@@ -1506,7 +1522,7 @@ const ParcelEditor = (function() {
 
     function clearAll(confirm_needed = true) {
         if (confirm_needed && Object.keys(layers).length > 0) {
-            if (!confirm('Cancellare tutte le comprese e particelle?')) return;
+            if (!confirm('Cancellare tutti gli strati e gli elementi?')) return;
         }
 
         deselectParcel();
@@ -1516,10 +1532,9 @@ const ParcelEditor = (function() {
         selectedLayerName = null;
         parcelCounter = 0;
         roadCounter = 0;
-        updateLayerSelector();
-        updateParcelList();
-        updateRoadList();
-        updateStatus('Tutte comprese cancellate');
+        updateLayerList();
+        updateElementList();
+        updateStatus('Tutti gli strati cancellati');
     }
 
     function addParcelClickHandler(mapLayer) {
@@ -1660,6 +1675,146 @@ const ParcelEditor = (function() {
         updateStatus(`Strada rinominata a "${road.name}"`);
     }
 
+    // Layer visibility and rename
+    function toggleLayerVisibility(name) {
+        const layer = layers[name];
+        if (!layer) return;
+
+        layer.visible = !layer.visible;
+        updateParcelStyles();
+        updateRoadStyles();
+        updateLayerList();
+        updateStatus(`Strato "${name}" ${layer.visible ? 'visibile' : 'nascosto'}`);
+    }
+
+    function renameLayer(oldName) {
+        const newName = prompt('Nuovo nome dello strato:', oldName);
+        if (!newName || !newName.trim() || newName.trim() === oldName) return;
+
+        const trimmedName = newName.trim();
+        if (layers[trimmedName]) {
+            updateStatus('Esiste già uno strato con questo nome');
+            return;
+        }
+
+        // Move layer data to new name
+        layers[trimmedName] = layers[oldName];
+        delete layers[oldName];
+
+        // Update all elements to reference the new layer name
+        layers[trimmedName].parcels.forEach(p => {
+            p.mapLayer.layerName = trimmedName;
+        });
+        layers[trimmedName].roads.forEach(r => {
+            r.mapLayer.layerName = trimmedName;
+        });
+
+        // Update selection if needed
+        if (selectedLayerName === oldName) {
+            selectedLayerName = trimmedName;
+        }
+
+        updateLayerList();
+        updateStatus(`Strato rinominato da "${oldName}" a "${trimmedName}"`);
+    }
+
+    function deleteLayerByName(name) {
+        if (!confirm(`Elimina lo strato "${name}" e tutti i suoi elementi?`)) return;
+        deleteLayer(name);
+        updateStatus(`Eliminato strato: ${name}`);
+    }
+
+    // Element visibility and move
+    function toggleParcelVisibility(parcelId) {
+        const parcel = findParcelById(parcelId);
+        if (!parcel) return;
+
+        parcel.visible = parcel.visible === false ? true : false;
+        updateParcelStyle(parcel);
+        updateElementList();
+    }
+
+    function toggleRoadVisibility(roadId) {
+        const road = findRoadById(roadId);
+        if (!road) return;
+
+        road.visible = road.visible === false ? true : false;
+        updateRoadStyle(road);
+        updateElementList();
+    }
+
+    function moveParcelToLayer(parcelId) {
+        const parcel = findParcelById(parcelId);
+        if (!parcel) return;
+
+        const currentLayer = parcel.mapLayer.layerName;
+        const otherLayers = Object.keys(layers).filter(n => n !== currentLayer).sort();
+
+        if (otherLayers.length === 0) {
+            updateStatus('Non ci sono altri strati');
+            return;
+        }
+
+        const targetName = prompt(`Sposta in quale strato?\nStrati disponibili: ${otherLayers.join(', ')}`);
+        if (!targetName || !targetName.trim()) return;
+
+        const trimmedTarget = targetName.trim();
+        if (!layers[trimmedTarget]) {
+            updateStatus(`Strato "${trimmedTarget}" non trovato`);
+            return;
+        }
+
+        // Remove from current layer
+        const sourceLayer = layers[currentLayer];
+        sourceLayer.parcels = sourceLayer.parcels.filter(p => p !== parcel);
+
+        // Add to target layer
+        parcel.mapLayer.layerName = trimmedTarget;
+        layers[trimmedTarget].parcels.push(parcel);
+        sortParcels(layers[trimmedTarget]);
+
+        // Update style
+        updateParcelStyle(parcel);
+        updateElementList();
+        updateStatus(`Elemento spostato in "${trimmedTarget}"`);
+    }
+
+    function moveRoadToLayer(roadId) {
+        const road = findRoadById(roadId);
+        if (!road) return;
+
+        const currentLayer = road.mapLayer.layerName;
+        const otherLayers = Object.keys(layers).filter(n => n !== currentLayer).sort();
+
+        if (otherLayers.length === 0) {
+            updateStatus('Non ci sono altri strati');
+            return;
+        }
+
+        const targetName = prompt(`Sposta in quale strato?\nStrati disponibili: ${otherLayers.join(', ')}`);
+        if (!targetName || !targetName.trim()) return;
+
+        const trimmedTarget = targetName.trim();
+        if (!layers[trimmedTarget]) {
+            updateStatus(`Strato "${trimmedTarget}" non trovato`);
+            return;
+        }
+
+        // Remove from current layer
+        const sourceLayer = layers[currentLayer];
+        sourceLayer.roads = sourceLayer.roads.filter(r => r !== road);
+
+        // Add to target layer
+        road.mapLayer.layerName = trimmedTarget;
+        layers[trimmedTarget].roads.push(road);
+        sortRoads(layers[trimmedTarget]);
+
+        // Update style
+        updateRoadStyle(road);
+        updateElementList();
+        updateStatus(`Elemento spostato in "${trimmedTarget}"`);
+    }
+
     // Public API
     return {
         init(filename = null) {
@@ -1686,7 +1841,7 @@ const ParcelEditor = (function() {
             // New feature drawn
             map.on(L.Draw.Event.CREATED, e => {
                 if (!selectedLayerName) {
-                    updateStatus('Seleziona o crea una compresa prima di disegnare');
+                    updateStatus('Seleziona o crea uno strato prima di disegnare');
                     return;
                 }
 
@@ -1738,20 +1893,6 @@ const ParcelEditor = (function() {
                 }
             });
 
-            // Layer selector
-            $('layer-selector').addEventListener('change', e => {
-                selectLayer(e.target.value);
-            });
-
-            // Visibility checkbox
-            $('layer-visible').addEventListener('change', e => {
-                const layer = getSelectedLayer();
-                if (layer) {
-                    layer.visible = e.target.checked;
-                    updateParcelStyles();
-                }
-            });
-
             // Offset controls
             $('offset-ew').addEventListener('input', e => {
                 const layer = getSelectedLayer();
@@ -1794,7 +1935,7 @@ const ParcelEditor = (function() {
                     .then(data => loadGeoJSON(data))
                     .catch(() => {});
             }
-            updateLayerSelector();
+            updateLayerList();
         },
 
         setBasemap(name) {
@@ -1815,27 +1956,18 @@ const ParcelEditor = (function() {
         },
 
         createNewLayer() {
-            const name = prompt('Nome della compresa:');
+            const name = prompt('Nome dello strato:');
             if (!name || !name.trim()) return;
 
             if (layers[name.trim()]) {
-                updateStatus('La compresa esiste già');
+                updateStatus('Lo strato esiste già');
                 return;
             }
 
             createLayer(name.trim());
-            updateLayerSelector();
+            updateLayerList();
             selectLayer(name.trim());
-            updateStatus(`Creata compresa: ${name.trim()}`);
-        },
-
-        deleteCurrentLayer() {
-            if (!selectedLayerName) return;
-            if (!confirm(`Elimina la compresa "${selectedLayerName}" e tutte le sue particelle?`)) return;
-
-            const name = selectedLayerName;
-            deleteLayer(name);
-            updateStatus(`Eliminata compresa: ${name}`);
+            updateStatus(`Creato strato: ${name.trim()}`);
         },
 
         exportGeoJSON,
@@ -1843,6 +1975,16 @@ const ParcelEditor = (function() {
         updateParcelList,
         updateRoadList,
 
+        // Layer functions
+        onLayerClick(name) {
+            selectLayer(name);
+        },
+
+        toggleLayerVisibility,
+        renameLayer,
+        deleteLayerByName,
+
+        // Element functions
         onParcelClick(id) {
             const parcel = findParcelById(id);
             if (parcel) selectParcel(parcel);
@@ -1862,6 +2004,11 @@ const ParcelEditor = (function() {
             const road = findRoadById(id);
             if (road) deleteRoad(road);
         },
+
+        toggleParcelVisibility,
+        toggleRoadVisibility,
+        moveParcelToLayer,
+        moveRoadToLayer,
 
         startRename,
         handleRenameKey,
