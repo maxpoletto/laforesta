@@ -283,14 +283,14 @@ const MapCommon = (function() {
         if (config.enableCoords) {
             setupCoords();
         }
-        if (config.enableMeasure) {
-            setupMeasure();
+        if ($('sidebar')) {
+            setupSidebarToggle();
         }
         if (config.enableLocation) {
             setupLocation();
         }
-        if ($('sidebar')) {
-            setupSidebarToggle();
+        if (config.enableMeasure) {
+            setupMeasure();
         }
 
         return {

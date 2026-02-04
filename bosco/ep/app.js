@@ -1899,25 +1899,68 @@ const ParcelEditor = (function() {
     // Public API
     return {
         init(filename = null) {
+            // Localize Leaflet.Draw to Italian
+            L.drawLocal.draw.toolbar.buttons.polygon = 'Disegna un poligono';
+            L.drawLocal.draw.toolbar.buttons.polyline = 'Disegna una linea';
+            L.drawLocal.draw.handlers.polygon.tooltip.start = 'Clicca per iniziare a disegnare';
+            L.drawLocal.draw.handlers.polygon.tooltip.cont = 'Clicca per continuare';
+            L.drawLocal.draw.handlers.polygon.tooltip.end = 'Clicca il primo punto per chiudere';
+            L.drawLocal.draw.handlers.polyline.tooltip.start = 'Clicca per iniziare a disegnare';
+            L.drawLocal.draw.handlers.polyline.tooltip.cont = 'Clicca per continuare';
+            L.drawLocal.draw.handlers.polyline.tooltip.end = 'Clicca l\'ultimo punto per terminare';
+
             // Create map with shared features (measure, location, coords)
             mapWrapper = MapCommon.create('map', {
                 basemap: 'satellite',
                 enableMeasure: false,
+                leafletOptions: {
+                    preferCanvas: true,
+                    zoomControl: false  // We'll add it with Italian labels
+                }
             });
             map = mapWrapper.getLeafletMap();
+
+            // Add zoom control with Italian labels
+            L.control.zoom({
+                position: 'topleft',
+                zoomInTitle: 'Ingrandisci',
+                zoomOutTitle: 'Rimpicciolisci'
+            }).addTo(map);
 
             drawnItems = new L.FeatureGroup().addTo(map);
 
             drawControl = new L.Control.Draw({
                 position: 'topleft',
                 draw: {
-                    polygon: { allowIntersection: false, shapeOptions: styles.default },
-                    polyline: true, rectangle: false, circle: false,
-                    marker: false, circlemarker: false
+                    polygon: {
+                        allowIntersection: false,
+                        shapeOptions: styles.default,
+                        showArea: true,
+                    },
+                    polyline: { showLength: true },
+                    rectangle: false,
+                    circle: false,
+                    marker: false,
+                    circlemarker: false
                 },
                 edit: false
             });
             map.addControl(drawControl);
+
+            // Fix tooltip positioning on draw start
+            map.on(L.Draw.Event.DRAWSTART, e => {
+                // Show tooltips only after first mousemove (when properly positioned)
+                map.once('mousemove', () => {
+                    const tooltips = document.querySelectorAll('.leaflet-draw-tooltip');
+                    tooltips.forEach(t => t.classList.add('positioned'));
+                });
+            });
+
+            map.on(L.Draw.Event.DRAWSTOP, e => {
+                // Reset tooltip visibility for next draw
+                const tooltips = document.querySelectorAll('.leaflet-draw-tooltip');
+                tooltips.forEach(t => t.classList.remove('positioned'));
+            });
 
             // New feature drawn
             map.on(L.Draw.Event.CREATED, e => {

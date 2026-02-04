@@ -178,3 +178,23 @@ input[type="file"] { margin: 10px 0; width: 100%; font-size: 12px; }
     color: #666;
     text-align: center;
 }
+
+/* Hide Leaflet.Draw action toolbar (instruction bars) - tooltips are sufficient */
+.leaflet-draw-actions {
+    display: none !important;
+}
+
+/* Highlight active draw toolbar button */
+.leaflet-draw-toolbar a.leaflet-draw-draw-polyline.leaflet-draw-toolbar-button-enabled,
+.leaflet-draw-toolbar a.leaflet-draw-draw-polygon.leaflet-draw-toolbar-button-enabled {
+    background-color: #ffd700 !important;
+}
+
+/* Hide draw tooltips by default until properly positioned */
+.leaflet-draw-tooltip {
+    opacity: 0 !important;
+    transition: opacity 0.15s ease-in;
+}
+.leaflet-draw-tooltip.positioned {
+    opacity: 1 !important;
+}
