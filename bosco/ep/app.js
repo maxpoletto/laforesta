@@ -1930,19 +1930,20 @@ const ParcelEditor = (function() {
 
             // File loader
             $('load-file').addEventListener('change', e => {
-                const file = e.target.files[0];
-                if (!file) return;
-
-                const reader = new FileReader();
-                reader.onload = evt => {
-                    try {
-                        const data = JSON.parse(evt.target.result);
-                        loadGeoJSON(data);
-                    } catch (err) {
-                        updateStatus('Errore nel caricamento del GeoJSON: ' + err.message);
-                    }
-                };
-                reader.readAsText(file);
+                const files = e.target.files;
+                if (!files || files.length === 0) return;
+                Array.from(files).forEach(file => {
+                    const reader = new FileReader();
+                    reader.onload = evt => {
+                        try {
+                            const data = JSON.parse(evt.target.result);
+                            loadGeoJSON(data);
+                        } catch (err) {
+                            updateStatus('Errore nel caricamento del GeoJSON: ' + err.message);
+                        }
+                    };
+                    reader.readAsText(file);
+                });
             });
 
             if (filename) {
