@@ -73,11 +73,10 @@
             </div>
             <h5>Trasformazioni</h5>
             <div class="tool-buttons">
-                <button onclick="ParcelEditor.startTool('snip')" title="Taglia un lato di un poligono, convertendolo in linea">Poligono → linea</button>
+                <button onclick="ParcelEditor.startTool('snip')" title="Elimina un vertice, aprendo il poligono in linea">Poligono → linea</button>
                 <button onclick="ParcelEditor.startTool('close')" title="Chiude una sezione di linea in poligono">Linea → poligono</button>
-                <button onclick="ParcelEditor.startTool('complete')" title="Completa una linea usando il confine di un poligono">Linea+confine → poligono</button>
                 <button onclick="ParcelEditor.startTool('split')" title="Divide una linea in due eliminando un vertice">Linea → 2 linee</button>
-                <button onclick="ParcelEditor.startTool('join')" title="Unisce due linee in una">2 linee → linea</button>
+                <button onclick="ParcelEditor.startTool('join')" title="Unisce due linee collegando gli estremi">2 linee → linea</button>
             </div>
 
             <div id="tool-workflow" style="display: none;">

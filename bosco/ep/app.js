@@ -23,10 +23,10 @@ const ParcelEditor = (function() {
 
     // Tool state for polygon/line manipulation
     let toolState = {
-        active: null,        // 'snip' | 'close' | 'complete' | 'newpoly' | 'newline' | null
+        active: null,        // 'snip' | 'close' | 'split' | 'join' | 'newpoly' | 'newline' | null
         step: 0,             // Current workflow step
         sourceFeature: null, // Line or polygon being modified
-        targetFeature: null, // Polygon providing boundary (for 'complete')
+        targetFeature: null, // Second line (for 'join')
         vertices: [],        // Collected {latlng, index} objects
         vertexMarkers: [],   // Visual feedback markers
         // For newpoly/newline tools:
@@ -358,23 +358,13 @@ const ParcelEditor = (function() {
     // Tool workflow management
     const toolSteps = {
         snip: [
-            'Clicca un poligono da tagliare',
-            'Clicca il primo estremo (Sv1)',
-            'Clicca un vertice da eliminare (Sv2)',
-            'Clicca il secondo estremo (Sv3)'
+            'Clicca un poligono da aprire',
+            'Clicca il vertice da eliminare'
         ],
         close: [
             'Clicca una linea da chiudere',
             'Clicca il primo vertice (Lv1)',
             'Clicca il secondo vertice (Lv2)'
-        ],
-        complete: [
-            'Clicca una linea da completare',
-            'Clicca il primo vertice della linea (Lv1)',
-            'Clicca il secondo vertice della linea (Lv2)',
-            'Clicca un poligono di confine',
-            'Clicca il primo vertice del confine (Pv1)',
-            'Clicca i vertici intermedio (Pv2) e finale (Pv3)'
         ],
         split: [
             'Clicca una linea da dividere',
@@ -382,11 +372,9 @@ const ParcelEditor = (function() {
         ],
         join: [
             'Clicca la prima linea',
-            'Clicca il primo vertice (L1v1)',
-            'Clicca il secondo vertice (L1v2)',
+            'Clicca un estremo da collegare',
             'Clicca la seconda linea',
-            'Clicca il primo vertice (L2v1)',
-            'Clicca il secondo vertice (L2v2)'
+            'Clicca un estremo da collegare'
         ],
         // newpoly and newline have dynamic steps, handled separately
         newpoly: [],
@@ -424,7 +412,6 @@ const ParcelEditor = (function() {
         $('tool-active-name').textContent = {
             snip: 'Poligono → linea',
             close: 'Linea → poligono',
-            complete: 'Linea+confine → poligono',
             split: 'Linea → 2 linee',
             join: '2 linee → linea',
             newpoly: 'Nuovo poligono',
@@ -555,8 +542,6 @@ const ParcelEditor = (function() {
                 executeSnip();
             } else if (toolState.active === 'close') {
                 executeClose();
-            } else if (toolState.active === 'complete') {
-                executeComplete();
             } else if (toolState.active === 'split') {
                 executeSplit();
             } else if (toolState.active === 'join') {
@@ -626,29 +611,26 @@ const ParcelEditor = (function() {
                 enableVertexClicks(feature.mapLayer, 'source');
                 advanceToolStep();
                 return true;
-            } else if ((tool === 'close' || tool === 'complete' || tool === 'split' || tool === 'join') && !isPolygon) {
+            } else if ((tool === 'close' || tool === 'split') && !isPolygon) {
                 toolState.sourceFeature = feature;
                 feature.mapLayer.setStyle(styles.roadSelected);
                 enableVertexClicks(feature.mapLayer, 'source');
                 advanceToolStep();
                 return true;
+            } else if (tool === 'join' && !isPolygon) {
+                toolState.sourceFeature = feature;
+                feature.mapLayer.setStyle(styles.roadSelected);
+                enableEndpointClicks(feature.mapLayer, 'source');
+                advanceToolStep();
+                return true;
             }
         }
 
-        // Step 3 for 'complete': Select target polygon
-        if (tool === 'complete' && step === 3 && isPolygon) {
-            toolState.targetFeature = feature;
-            feature.mapLayer.setStyle(styles.selected);
-            enableVertexClicks(feature.mapLayer, 'target');
-            advanceToolStep();
-            return true;
-        }
-
-        // Step 3 for 'join': Select second line
-        if (tool === 'join' && step === 3 && !isPolygon) {
+        // Step 2 for 'join': Select second line
+        if (tool === 'join' && step === 2 && !isPolygon) {
             toolState.targetFeature = feature;
             feature.mapLayer.setStyle(styles.roadSelected);
-            enableVertexClicks(feature.mapLayer, 'target');
+            enableEndpointClicks(feature.mapLayer, 'target');
             advanceToolStep();
             return true;
         }
@@ -729,6 +711,40 @@ const ParcelEditor = (function() {
         });
     }
 
+    // Create clickable markers for line endpoints only (for join tool)
+    function enableEndpointClicks(mapLayer, featureRole) {
+        const latlngs = mapLayer.getLatLngs();
+
+        // For lines, latlngs is [latlng, latlng, ...]
+        const vertices = latlngs;
+        if (vertices.length < 2) return;
+
+        // Only create markers for first and last vertex
+        const endpoints = [
+            { latlng: vertices[0], idx: 0 },
+            { latlng: vertices[vertices.length - 1], idx: vertices.length - 1 }
+        ];
+
+        endpoints.forEach(({ latlng, idx }) => {
+            const marker = L.circleMarker(latlng, {
+                radius: 10,
+                color: '#ff6600',
+                fillColor: '#ff6600',
+                fillOpacity: 0.5,
+                weight: 2,
+                bubblingMouseEvents: false
+            });
+
+            marker.on('click', (e) => {
+                L.DomEvent.stopPropagation(e);
+                handleVertexClick(latlng, idx, featureRole);
+            });
+
+            marker.addTo(map);
+            toolState.vertexMarkers.push(marker);
+        });
+    }
+
     // Remove a marker from the map and clean up its events
     function removeMarker(marker) {
         if (!marker) return;
@@ -753,47 +769,26 @@ const ParcelEditor = (function() {
 
         // Determine expected vertex based on tool and step
         let label = '';
-        let shouldAdvance = true;
 
         if (tool === 'snip') {
-            if (step === 1) label = 'Sv1';
-            else if (step === 2) label = 'Sv2';
-            else if (step === 3) label = 'Sv3';
+            if (step === 1) label = 'V';  // Single vertex to delete
         } else if (tool === 'close') {
             if (step === 1) label = 'Lv1';
             else if (step === 2) label = 'Lv2';
-        } else if (tool === 'complete') {
-            if (step === 1) label = 'Lv1';
-            else if (step === 2) label = 'Lv2';
-            else if (step === 4) label = 'Pv1';
-            else if (step === 5) {
-                // Pv2 and Pv3 on same step
-                // At this point vertices = [lv1, lv2, pv1], length = 3
-                if (toolState.vertices.length === 3) {
-                    label = 'Pv2';
-                    shouldAdvance = false;  // Wait for Pv3
-                } else {
-                    label = 'Pv3';
-                }
-            }
         } else if (tool === 'split') {
             if (step === 1) label = 'V';
         } else if (tool === 'join') {
-            if (step === 1) label = 'L1v1';
-            else if (step === 2) label = 'L1v2';
-            else if (step === 4) label = 'L2v1';
-            else if (step === 5) label = 'L2v2';
+            if (step === 1) label = 'E1';  // Endpoint from first line
+            else if (step === 3) label = 'E2';  // Endpoint from second line
         }
 
         if (!label) return;
 
         toolState.vertices.push({ latlng, index });
         createVertexMarker(latlng, label);
-        updateStatus(`Vertice ${label} selezionato`);
+        updateStatus(`Vertice selezionato`);
 
-        if (shouldAdvance) {
-            advanceToolStep();
-        }
+        advanceToolStep();
     }
 
     // Handle vertex click for newpoly/newline tools
@@ -1036,10 +1031,10 @@ const ParcelEditor = (function() {
         updateElementList();
     }
 
-    // Execute snip: polygon -> line
+    // Execute snip: polygon -> line (delete one vertex, open the polygon)
     function executeSnip() {
         const feature = toolState.sourceFeature;
-        const [sv1, sv2, sv3] = toolState.vertices;
+        const [vertex] = toolState.vertices;
         const mapLayer = feature.mapLayer;
         const layerName = mapLayer.layerName;
         const layer = layers[layerName];
@@ -1049,49 +1044,20 @@ const ParcelEditor = (function() {
         const coords = geom.coordinates[0].slice(0, -1);  // Remove closing point
         const n = coords.length;
 
-        // Edge case: all three vertices are the same -> delete that vertex
-        if (sv1.index === sv2.index && sv2.index === sv3.index) {
-            const newCoords = coords.filter((_, i) => i !== sv1.index);
-            if (newCoords.length < 2) {
-                throw new Error('Troppo pochi vertici rimanenti');
-            }
-
-            // Convert to line
-            const latlngs = L.GeoJSON.coordsToLatLngs(newCoords, 0);
-            const newLine = L.polyline(latlngs, styles.road);
-            newLine.roadName = feature.name;
-
-            // Remove old polygon, add new line
-            drawnItems.removeLayer(mapLayer);
-            layer.parcels = layer.parcels.filter(p => p !== feature);
-            drawnItems.addLayer(newLine);
-            addRoadToLayer(layerName, newLine);
-            addRoadClickHandler(newLine);
-
-            updateStatus(`Vertice eliminato, poligono convertito in linea`);
-            return;
+        if (n < 4) {
+            throw new Error('Poligono troppo piccolo per essere aperto');
         }
 
-        // Sv1 and Sv3 are the endpoints, Sv2 indicates which path to REMOVE
-        // Keep the path that does NOT include Sv2
-        // Path 1: sv1 -> sv3 clockwise
-        // Path 2: sv1 -> sv3 counter-clockwise
-        const pathCW = getPathIndices(sv1.index, sv3.index, n, 1);
-        const pathCCW = getPathIndices(sv1.index, sv3.index, n, -1);
+        // Delete the selected vertex and create a line starting from the next vertex
+        // Example: A-B-C-D-E-F-A, delete C -> line D-E-F-A-B
+        const deleteIdx = vertex.index;
 
-        let keepPath;
-        if (pathCW.includes(sv2.index)) {
-            // Sv2 is on clockwise path, so keep counter-clockwise
-            keepPath = pathCCW;
-        } else if (pathCCW.includes(sv2.index)) {
-            // Sv2 is on counter-clockwise path, so keep clockwise
-            keepPath = pathCW;
-        } else {
-            throw new Error('Sv2 non trovato su nessun percorso');
+        // Build line coordinates starting from vertex after deleted, going all the way around
+        const lineCoords = [];
+        for (let i = 1; i < n; i++) {
+            const idx = (deleteIdx + i) % n;
+            lineCoords.push(coords[idx]);
         }
-
-        // Extract coordinates for the kept path
-        const lineCoords = keepPath.map(i => coords[i]);
 
         // Create line
         const latlngs = L.GeoJSON.coordsToLatLngs(lineCoords, 0);
@@ -1105,7 +1071,7 @@ const ParcelEditor = (function() {
         addRoadToLayer(layerName, newLine);
         addRoadClickHandler(newLine);
 
-        updateStatus(`Poligono tagliato in linea con ${lineCoords.length} vertici`);
+        updateStatus(`Poligono aperto in linea con ${lineCoords.length} vertici`);
     }
 
     // Execute close: line -> polygon
@@ -1174,106 +1140,6 @@ const ParcelEditor = (function() {
         updateStatus(`Linea chiusa in poligono con ${polygonCoords.length} vertici`);
     }
 
-    // Execute complete: line + polygon boundary -> polygon
-    function executeComplete() {
-        const lineFeature = toolState.sourceFeature;
-        const polyFeature = toolState.targetFeature;
-        const [lv1, lv2, pv1, pv2, pv3] = toolState.vertices;
-        const lineLayer = lineFeature.mapLayer;
-        const polyLayer = polyFeature.mapLayer;
-        const layerName = lineLayer.layerName;
-        const layer = layers[layerName];
-
-        // Get line coordinates
-        const lineGeom = lineLayer.toGeoJSON().geometry;
-        const lineCoords = lineGeom.coordinates;
-
-        // Ensure lv1 comes before lv2
-        let idx1 = lv1.index;
-        let idx2 = lv2.index;
-        if (idx1 > idx2) {
-            [idx1, idx2] = [idx2, idx1];
-        }
-
-        // Get polygon coordinates (outer ring, without closing point)
-        const polyGeom = polyLayer.toGeoJSON().geometry;
-        const polyCoords = polyGeom.coordinates[0].slice(0, -1);
-        const n = polyCoords.length;
-
-        // Determine path from pv1 to pv3 through pv2
-        const pathCW = getPathIndices(pv1.index, pv3.index, n, 1);
-        const pathCCW = getPathIndices(pv1.index, pv3.index, n, -1);
-
-        let boundaryPath;
-        if (pathCW.includes(pv2.index)) {
-            boundaryPath = pathCW;
-        } else if (pathCCW.includes(pv2.index)) {
-            boundaryPath = pathCCW;
-        } else {
-            throw new Error('Pv2 non trovato su nessun percorso');
-        }
-
-        // Extract boundary coordinates: [Pv1, ..., Pv2, ..., Pv3]
-        const boundaryCoords = boundaryPath.map(i => polyCoords[i]);
-
-        // Build new polygon: line segment + reversed boundary
-        // Line from idx1 to idx2: [Lv1, ..., Lv2]
-        const lineSegment = lineCoords.slice(idx1, idx2 + 1);
-
-        // Boundary needs to be reversed so Pv3 connects to Lv2, and Pv1 connects back to Lv1
-        // Reversed: [Pv3, ..., Pv2, ..., Pv1]
-        const reversedBoundary = boundaryCoords.slice().reverse();
-        const newPolygonCoords = [...lineSegment, ...reversedBoundary];
-
-        if (newPolygonCoords.length < 3) {
-            throw new Error('Troppo pochi vertici per creare un poligono');
-        }
-
-        // Close the ring
-        const closedCoords = [...newPolygonCoords, newPolygonCoords[0]];
-        const polyLatLngs = L.GeoJSON.coordsToLatLngs([closedCoords], 1);
-        const newPolygon = L.polygon(polyLatLngs, styles.default);
-        newPolygon.parcelName = lineFeature.name;
-
-        // Remove old line
-        drawnItems.removeLayer(lineLayer);
-        layer.roads = layer.roads.filter(r => r !== lineFeature);
-
-        // Disable editing on target polygon
-        polyLayer.editing.disable();
-        updateParcelStyle(polyFeature);
-
-        // Add new polygon
-        drawnItems.addLayer(newPolygon);
-        addParcelToLayer(layerName, newPolygon);
-        addParcelClickHandler(newPolygon);
-
-        // Create leftover lines if any
-        if (idx1 > 0) {
-            const leftCoords = lineCoords.slice(0, idx1 + 1);
-            if (leftCoords.length >= 2) {
-                const leftLine = L.polyline(L.GeoJSON.coordsToLatLngs(leftCoords, 0), styles.road);
-                leftLine.roadName = lineFeature.name + ' (rimanente 1)';
-                drawnItems.addLayer(leftLine);
-                addRoadToLayer(layerName, leftLine);
-                addRoadClickHandler(leftLine);
-            }
-        }
-
-        if (idx2 < lineCoords.length - 1) {
-            const rightCoords = lineCoords.slice(idx2);
-            if (rightCoords.length >= 2) {
-                const rightLine = L.polyline(L.GeoJSON.coordsToLatLngs(rightCoords, 0), styles.road);
-                rightLine.roadName = lineFeature.name + ' (rimanente 2)';
-                drawnItems.addLayer(rightLine);
-                addRoadToLayer(layerName, rightLine);
-                addRoadClickHandler(rightLine);
-            }
-        }
-
-        updateStatus(`Linea completata in poligono con ${newPolygonCoords.length} vertici`);
-    }
-
     // Execute split: line -> 2 lines
     function executeSplit() {
         const feature = toolState.sourceFeature;
@@ -1321,11 +1187,11 @@ const ParcelEditor = (function() {
         updateStatus(`Linea divisa in 2 linee`);
     }
 
-    // Execute join: 2 lines -> line
+    // Execute join: 2 lines -> line (connect at selected endpoints)
     function executeJoin() {
         const line1Feature = toolState.sourceFeature;
         const line2Feature = toolState.targetFeature;
-        const [l1v1, l1v2, l2v1, l2v2] = toolState.vertices;
+        const [e1, e2] = toolState.vertices;
         const line1Layer = line1Feature.mapLayer;
         const line2Layer = line2Feature.mapLayer;
         const layerName = line1Layer.layerName;
@@ -1335,40 +1201,30 @@ const ParcelEditor = (function() {
         const coords1 = line1Layer.toGeoJSON().geometry.coordinates;
         const coords2 = line2Layer.toGeoJSON().geometry.coordinates;
 
-        // Extract segments respecting user's pick order (L1v1→L1v2→L2v1→L2v2)
+        // Determine orientation based on which endpoints were selected
+        // e1 is from line 1, e2 is from line 2
+        // We want: line1 (oriented so e1 is at end) + line2 (oriented so e2 is at start)
+
         let segment1, segment2;
-        let idx1_min, idx1_max, idx2_min, idx2_max;
 
-        if (l1v1.index <= l1v2.index) {
-            segment1 = coords1.slice(l1v1.index, l1v2.index + 1);
-            idx1_min = l1v1.index;
-            idx1_max = l1v2.index;
+        // If e1 is at the end of line1 (last index), use line1 as-is
+        // If e1 is at the start of line1 (index 0), reverse line1
+        if (e1.index === 0) {
+            segment1 = coords1.slice().reverse();
         } else {
-            segment1 = coords1.slice(l1v2.index, l1v1.index + 1).reverse();
-            idx1_min = l1v2.index;
-            idx1_max = l1v1.index;
+            segment1 = coords1.slice();
         }
 
-        if (l2v1.index <= l2v2.index) {
-            segment2 = coords2.slice(l2v1.index, l2v2.index + 1);
-            idx2_min = l2v1.index;
-            idx2_max = l2v2.index;
+        // If e2 is at the start of line2 (index 0), use line2 as-is
+        // If e2 is at the end of line2 (last index), reverse line2
+        if (e2.index === 0) {
+            segment2 = coords2.slice();
         } else {
-            segment2 = coords2.slice(l2v2.index, l2v1.index + 1).reverse();
-            idx2_min = l2v2.index;
-            idx2_max = l2v1.index;
+            segment2 = coords2.slice().reverse();
         }
 
-        if (segment1.length < 1 || segment2.length < 1) {
-            throw new Error('Segmenti troppo corti');
-        }
-
-        // Join: L1v1..L1v2..L2v1..L2v2
+        // Join the two lines
         const joinedCoords = [...segment1, ...segment2];
-
-        if (joinedCoords.length < 2) {
-            throw new Error('La linea risultante è troppo corta');
-        }
 
         // Remove old lines
         drawnItems.removeLayer(line1Layer);
@@ -1381,50 +1237,6 @@ const ParcelEditor = (function() {
         drawnItems.addLayer(joinedLine);
         addRoadToLayer(layerName, joinedLine);
         addRoadClickHandler(joinedLine);
-
-        // Create leftover lines from line 1
-        if (idx1_min > 0) {
-            const leftCoords = coords1.slice(0, idx1_min + 1);
-            if (leftCoords.length >= 2) {
-                const leftLine = L.polyline(L.GeoJSON.coordsToLatLngs(leftCoords, 0), styles.road);
-                leftLine.roadName = line1Feature.name + ' (rimanente)';
-                drawnItems.addLayer(leftLine);
-                addRoadToLayer(layerName, leftLine);
-                addRoadClickHandler(leftLine);
-            }
-        }
-        if (idx1_max < coords1.length - 1) {
-            const rightCoords = coords1.slice(idx1_max);
-            if (rightCoords.length >= 2) {
-                const rightLine = L.polyline(L.GeoJSON.coordsToLatLngs(rightCoords, 0), styles.road);
-                rightLine.roadName = line1Feature.name + ' (rimanente)';
-                drawnItems.addLayer(rightLine);
-                addRoadToLayer(layerName, rightLine);
-                addRoadClickHandler(rightLine);
-            }
-        }
-
-        // Create leftover lines from line 2
-        if (idx2_min > 0) {
-            const leftCoords = coords2.slice(0, idx2_min + 1);
-            if (leftCoords.length >= 2) {
-                const leftLine = L.polyline(L.GeoJSON.coordsToLatLngs(leftCoords, 0), styles.road);
-                leftLine.roadName = line2Feature.name + ' (rimanente)';
-                drawnItems.addLayer(leftLine);
-                addRoadToLayer(layerName, leftLine);
-                addRoadClickHandler(leftLine);
-            }
-        }
-        if (idx2_max < coords2.length - 1) {
-            const rightCoords = coords2.slice(idx2_max);
-            if (rightCoords.length >= 2) {
-                const rightLine = L.polyline(L.GeoJSON.coordsToLatLngs(rightCoords, 0), styles.road);
-                rightLine.roadName = line2Feature.name + ' (rimanente)';
-                drawnItems.addLayer(rightLine);
-                addRoadToLayer(layerName, rightLine);
-                addRoadClickHandler(rightLine);
-            }
-        }
 
         updateStatus(`2 linee unite in una linea con ${joinedCoords.length} vertici`);
     }
