@@ -1951,6 +1951,9 @@ const ParcelEditor = (function() {
                     .then(r => r.ok ? r.json() : Promise.reject())
                     .then(data => loadGeoJSON(data))
                     .catch(() => {});
+            } else {
+                // Default view: center of Calabria
+                map.setView([39.0, 16.5], 9);
             }
             updateLayerList();
         },
@@ -2043,4 +2046,4 @@ const ParcelEditor = (function() {
     };
 })();
 
-document.addEventListener('DOMContentLoaded', () => ParcelEditor.init("particelle.geojson"));
+document.addEventListener('DOMContentLoaded', () => ParcelEditor.init());
