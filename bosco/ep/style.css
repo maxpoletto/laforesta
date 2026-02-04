@@ -142,6 +142,12 @@ input[type="file"] { margin: 10px 0; width: 100%; font-size: 12px; }
     margin: 5px 0;
 }
 
+.tool-workflow-buttons {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
 /* Unified element list */
 #element-list {
     max-height: 250px;

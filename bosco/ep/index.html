@@ -68,6 +68,11 @@
         <div class="section">
             <h4>Strumenti</h4>
             <div class="tool-buttons">
+                <button onclick="ParcelEditor.startTool('newpoly')" title="Crea un nuovo poligono copiando segmenti da altri oggetti" class="primary">Nuovo poligono</button>
+                <button onclick="ParcelEditor.startTool('newline')" title="Crea una nuova linea copiando segmenti da altri oggetti" class="primary">Nuova linea</button>
+            </div>
+            <h5>Trasformazioni</h5>
+            <div class="tool-buttons">
                 <button onclick="ParcelEditor.startTool('snip')" title="Taglia un lato di un poligono, convertendolo in linea">Poligono → linea</button>
                 <button onclick="ParcelEditor.startTool('close')" title="Chiude una sezione di linea in poligono">Linea → poligono</button>
                 <button onclick="ParcelEditor.startTool('complete')" title="Completa una linea usando il confine di un poligono">Linea+confine → poligono</button>
@@ -80,7 +85,10 @@
                     <span>Strumento: </span><strong id="tool-active-name"></strong>
                 </div>
                 <div id="tool-step-text" class="tool-step"></div>
-                <button class="small danger" onclick="ParcelEditor.cancelTool()">Annulla (Esc)</button>
+                <div class="tool-workflow-buttons">
+                    <button id="tool-finish-btn" class="small primary" onclick="ParcelEditor.finishNewline()" style="display: none;">Fine (Invio)</button>
+                    <button class="small danger" onclick="ParcelEditor.cancelTool()">Annulla (Esc)</button>
+                </div>
             </div>
         </div>
 
@@ -101,6 +109,7 @@
                 <li><span class="color-dot green"></span>Particella selezionata (modificabile)</li>
                 <li><span style="display:inline-block;width:12px;height:3px;background:#cc3333;margin-right:5px;"></span>Viabilità (compresa selezionata)</li>
                 <li><span style="display:inline-block;width:12px;height:3px;background:#ffff00;margin-right:5px;"></span>Strada selezionata (modificabile)</li>
+                <li><span style="display:inline-block;width:12px;height:3px;background:#9900ff;margin-right:5px;border-style:dashed;"></span>Nuovo poligono/linea (anteprima)</li>
             </ul>
             <p class="help-text">
                 Clicca una particella o strada nella compresa selezionata per modificarne i vertici.

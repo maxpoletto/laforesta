@@ -23,12 +23,18 @@ const ParcelEditor = (function() {
 
     // Tool state for polygon/line manipulation
     let toolState = {
-        active: null,        // 'snip' | 'close' | 'complete' | null
+        active: null,        // 'snip' | 'close' | 'complete' | 'newpoly' | 'newline' | null
         step: 0,             // Current workflow step
         sourceFeature: null, // Line or polygon being modified
         targetFeature: null, // Polygon providing boundary (for 'complete')
         vertices: [],        // Collected {latlng, index} objects
-        vertexMarkers: []    // Visual feedback markers
+        vertexMarkers: [],   // Visual feedback markers
+        // For newpoly/newline tools:
+        accumulatedCoords: [],   // [lng, lat] coordinates for new shape
+        previewLayer: null,      // Leaflet polyline showing accumulated path
+        closeMarker: null,       // Special marker on first point to close (newpoly only)
+        currentObjectType: null, // 'line' or 'polygon' for current selection
+        segmentCount: 0          // Number of segments added
     };
 
     const styles = {
@@ -381,7 +387,10 @@ const ParcelEditor = (function() {
             'Clicca la seconda linea',
             'Clicca il primo vertice (L2v1)',
             'Clicca il secondo vertice (L2v2)'
-        ]
+        ],
+        // newpoly and newline have dynamic steps, handled separately
+        newpoly: [],
+        newline: []
     };
 
     function startTool(toolName) {
@@ -403,6 +412,13 @@ const ParcelEditor = (function() {
         toolState.targetFeature = null;
         toolState.vertices = [];
 
+        // Reset newpoly-specific state
+        toolState.accumulatedCoords = [];
+        toolState.previewLayer = null;
+        toolState.closeMarker = null;
+        toolState.currentObjectType = null;
+        toolState.segmentCount = 0;
+
         updateToolStatus();
         $('tool-workflow').style.display = 'block';
         $('tool-active-name').textContent = {
@@ -410,7 +426,9 @@ const ParcelEditor = (function() {
             close: 'Linea → poligono',
             complete: 'Linea+confine → poligono',
             split: 'Linea → 2 linee',
-            join: '2 linee → linea'
+            join: '2 linee → linea',
+            newpoly: 'Nuovo poligono',
+            newline: 'Nuova linea'
         }[toolName];
 
         updateStatus(`Strumento attivo: ${toolState.active}`);
@@ -419,8 +437,8 @@ const ParcelEditor = (function() {
     function cancelTool() {
         if (!toolState.active) return;
 
-        // Remove vertex markers
-        toolState.vertexMarkers.forEach(m => map.removeLayer(m));
+        // Remove vertex markers (with event cleanup)
+        toolState.vertexMarkers.forEach(m => removeMarker(m));
         toolState.vertexMarkers = [];
 
         // Disable editing on features if enabled
@@ -435,11 +453,24 @@ const ParcelEditor = (function() {
             updateFeatureStyle(toolState.targetFeature);
         }
 
+        // Clean up newpoly-specific elements
+        if (toolState.previewLayer) {
+            map.removeLayer(toolState.previewLayer);
+            toolState.previewLayer = null;
+        }
+        if (toolState.closeMarker) {
+            removeMarker(toolState.closeMarker);
+            toolState.closeMarker = null;
+        }
+
         toolState.active = null;
         toolState.step = 0;
         toolState.sourceFeature = null;
         toolState.targetFeature = null;
         toolState.vertices = [];
+        toolState.accumulatedCoords = [];
+        toolState.currentObjectType = null;
+        toolState.segmentCount = 0;
 
         $('tool-workflow').style.display = 'none';
         updateStatus('Strumento annullato');
@@ -448,9 +479,56 @@ const ParcelEditor = (function() {
     function updateToolStatus() {
         if (!toolState.active) return;
 
+        // Show/hide the finish button for newline tool
+        const finishBtn = $('tool-finish-btn');
+        if (finishBtn) {
+            const showFinish = toolState.active === 'newline' && toolState.step === 0 && toolState.segmentCount > 0;
+            finishBtn.style.display = showFinish ? 'inline-block' : 'none';
+        }
+
+        // Handle newpoly/newline tools with dynamic steps
+        if (toolState.active === 'newpoly' || toolState.active === 'newline') {
+            const stepText = getNewShapeStepText();
+            const segInfo = toolState.segmentCount > 0
+                ? ` (${toolState.segmentCount} segmenti, ${toolState.accumulatedCoords.length} punti)`
+                : '';
+            $('tool-step-text').textContent = stepText + segInfo;
+            return;
+        }
+
         const steps = toolSteps[toolState.active];
         const stepText = steps[toolState.step] || 'Esecuzione...';
         $('tool-step-text').textContent = `Passo ${toolState.step + 1}/${steps.length}: ${stepText}`;
+    }
+
+    function getNewShapeStepText() {
+        // step 0: waiting for object selection
+        // step 1: picked object, waiting for first vertex
+        // step 2: picked first vertex, waiting for second
+        // step 3: (polygon only) picked second vertex, waiting for third
+        const { active, step, currentObjectType, segmentCount } = toolState;
+        const isNewpoly = active === 'newpoly';
+
+        if (step === 0) {
+            if (segmentCount === 0) {
+                return 'Clicca un oggetto (linea o poligono)';
+            } else if (isNewpoly) {
+                return 'Clicca un oggetto, oppure clicca il punto iniziale per chiudere';
+            } else {
+                return 'Clicca un oggetto, oppure premi Invio/Fine per terminare';
+            }
+        }
+
+        if (currentObjectType === 'line') {
+            if (step === 1) return 'Clicca il primo vertice della linea';
+            if (step === 2) return 'Clicca il secondo vertice della linea';
+        } else if (currentObjectType === 'polygon') {
+            if (step === 1) return 'Clicca il primo vertice del poligono';
+            if (step === 2) return 'Clicca il vertice di direzione';
+            if (step === 3) return 'Clicca il vertice finale';
+        }
+
+        return 'Selezione...';
     }
 
     function updateFeatureStyle(feature) {
@@ -489,8 +567,8 @@ const ParcelEditor = (function() {
             console.error(err);
         }
 
-        // Clean up
-        toolState.vertexMarkers.forEach(m => map.removeLayer(m));
+        // Clean up (with event cleanup)
+        toolState.vertexMarkers.forEach(m => removeMarker(m));
         toolState.vertexMarkers = [];
         toolState.active = null;
         toolState.step = 0;
@@ -523,7 +601,6 @@ const ParcelEditor = (function() {
             fillOpacity: 0.5,
             weight: 2
         });
-        marker.bindTooltip(label, { permanent: true, direction: 'top', offset: [0, -10] });
         marker.addTo(map);
         toolState.vertexMarkers.push(marker);
         return marker;
@@ -535,6 +612,11 @@ const ParcelEditor = (function() {
 
         const tool = toolState.active;
         const step = toolState.step;
+
+        // Handle newpoly/newline tools separately (they share the same logic)
+        if (tool === 'newpoly' || tool === 'newline') {
+            return handleNewShapeFeatureClick(feature, isPolygon);
+        }
 
         // Step 0: Select source feature
         if (step === 0) {
@@ -574,6 +656,41 @@ const ParcelEditor = (function() {
         return false;
     }
 
+    // Handle feature click for newpoly/newline tools
+    function handleNewShapeFeatureClick(feature, isPolygon) {
+        if (toolState.step !== 0) return false;
+
+        // Clear previous vertex markers (but keep close marker and preview)
+        toolState.vertexMarkers.forEach(m => {
+            if (m !== toolState.closeMarker) {
+                removeMarker(m);
+            }
+        });
+        toolState.vertexMarkers = toolState.closeMarker ? [toolState.closeMarker] : [];
+
+        // Reset current selection state
+        if (toolState.sourceFeature) {
+            updateFeatureStyle(toolState.sourceFeature);
+        }
+        toolState.sourceFeature = feature;
+        toolState.currentObjectType = isPolygon ? 'polygon' : 'line';
+        toolState.vertices = [];
+
+        // Highlight selected feature
+        if (isPolygon) {
+            feature.mapLayer.setStyle(styles.selected);
+        } else {
+            feature.mapLayer.setStyle(styles.roadSelected);
+        }
+
+        // Enable vertex clicks
+        enableVertexClicks(feature.mapLayer, 'source');
+
+        toolState.step = 1;
+        updateToolStatus();
+        return true;
+    }
+
     // Create clickable vertex markers for tool selection (not using Leaflet edit mode)
     function enableVertexClicks(mapLayer, featureRole) {
         // Get vertices from the layer
@@ -599,7 +716,7 @@ const ParcelEditor = (function() {
                 fillColor: '#0066ff',
                 fillOpacity: 0.3,
                 weight: 2,
-                className: 'vertex-select-marker'
+                bubblingMouseEvents: false  // Don't let events bubble to layers below
             });
 
             marker.on('click', (e) => {
@@ -612,12 +729,27 @@ const ParcelEditor = (function() {
         });
     }
 
+    // Remove a marker from the map and clean up its events
+    function removeMarker(marker) {
+        if (!marker) return;
+        marker.off();  // Remove all event listeners
+        if (map.hasLayer(marker)) {
+            map.removeLayer(marker);
+        }
+    }
+
     // Handle vertex click during tool workflow
     function handleVertexClick(latlng, index, featureRole) {
         if (!toolState.active) return;
 
         const tool = toolState.active;
         const step = toolState.step;
+
+        // Handle newpoly/newline tools separately (they share the same logic)
+        if (tool === 'newpoly' || tool === 'newline') {
+            handleNewShapeVertexClick(latlng, index);
+            return;
+        }
 
         // Determine expected vertex based on tool and step
         let label = '';
@@ -662,6 +794,246 @@ const ParcelEditor = (function() {
         if (shouldAdvance) {
             advanceToolStep();
         }
+    }
+
+    // Handle vertex click for newpoly/newline tools
+    function handleNewShapeVertexClick(latlng, index) {
+        const { step, currentObjectType, vertices } = toolState;
+
+        if (currentObjectType === 'line') {
+            // Lines need 2 vertices
+            if (step === 1) {
+                toolState.vertices.push({ latlng, index });
+                createVertexMarker(latlng, `L${toolState.segmentCount + 1}v1`);
+                toolState.step = 2;
+                updateToolStatus();
+            } else if (step === 2) {
+                toolState.vertices.push({ latlng, index });
+                createVertexMarker(latlng, `L${toolState.segmentCount + 1}v2`);
+                // Collect segment from line
+                addNewpolySegmentFromLine();
+            }
+        } else if (currentObjectType === 'polygon') {
+            // Polygons need 3 vertices
+            if (step === 1) {
+                toolState.vertices.push({ latlng, index });
+                createVertexMarker(latlng, `P${toolState.segmentCount + 1}v1`);
+                toolState.step = 2;
+                updateToolStatus();
+            } else if (step === 2) {
+                toolState.vertices.push({ latlng, index });
+                createVertexMarker(latlng, `P${toolState.segmentCount + 1}v2`);
+                toolState.step = 3;
+                updateToolStatus();
+            } else if (step === 3) {
+                toolState.vertices.push({ latlng, index });
+                createVertexMarker(latlng, `P${toolState.segmentCount + 1}v3`);
+                // Collect segment from polygon
+                addNewpolySegmentFromPolygon();
+            }
+        }
+    }
+
+    // Add segment from a line to the new polygon
+    function addNewpolySegmentFromLine() {
+        const [v1, v2] = toolState.vertices;
+        const mapLayer = toolState.sourceFeature.mapLayer;
+        const coords = mapLayer.toGeoJSON().geometry.coordinates;
+
+        // Extract segment v1 to v2 (inclusive)
+        let segmentCoords;
+        if (v1.index <= v2.index) {
+            segmentCoords = coords.slice(v1.index, v2.index + 1);
+        } else {
+            segmentCoords = coords.slice(v2.index, v1.index + 1).reverse();
+        }
+
+        finishNewpolySegment(segmentCoords);
+    }
+
+    // Add segment from a polygon to the new polygon
+    function addNewpolySegmentFromPolygon() {
+        const [v1, v2, v3] = toolState.vertices;
+        const mapLayer = toolState.sourceFeature.mapLayer;
+        const coords = mapLayer.toGeoJSON().geometry.coordinates[0].slice(0, -1); // Remove closing point
+        const n = coords.length;
+
+        // Determine path from v1 to v3 through v2
+        const pathCW = getPathIndices(v1.index, v3.index, n, 1);
+        const pathCCW = getPathIndices(v1.index, v3.index, n, -1);
+
+        let pathIndices;
+        if (pathCW.includes(v2.index)) {
+            pathIndices = pathCW;
+        } else if (pathCCW.includes(v2.index)) {
+            pathIndices = pathCCW;
+        } else {
+            updateStatus('Errore: v2 non trovato su nessun percorso');
+            return;
+        }
+
+        const segmentCoords = pathIndices.map(i => coords[i]);
+        finishNewpolySegment(segmentCoords);
+    }
+
+    // Common logic after collecting a segment
+    function finishNewpolySegment(segmentCoords) {
+        // Add to accumulated coordinates
+        toolState.accumulatedCoords.push(...segmentCoords);
+        toolState.segmentCount++;
+
+        // Reset feature style
+        updateFeatureStyle(toolState.sourceFeature);
+        toolState.sourceFeature = null;
+        toolState.currentObjectType = null;
+        toolState.vertices = [];
+
+        // Clear vertex markers except close marker (with event cleanup)
+        toolState.vertexMarkers.forEach(m => {
+            if (m !== toolState.closeMarker) {
+                removeMarker(m);
+            }
+        });
+        toolState.vertexMarkers = toolState.closeMarker ? [toolState.closeMarker] : [];
+
+        // Update preview
+        updateNewShapePreview();
+
+        // Create close marker for newpoly only (not for newline)
+        if (toolState.active === 'newpoly' && !toolState.closeMarker && toolState.accumulatedCoords.length > 0) {
+            createCloseMarker();
+        }
+
+        // Go back to step 0 to select next object
+        toolState.step = 0;
+        updateToolStatus();
+        updateStatus(`Segmento ${toolState.segmentCount} aggiunto (${toolState.accumulatedCoords.length} punti totali)`);
+    }
+
+    // Update the preview polyline
+    function updateNewShapePreview() {
+        if (toolState.previewLayer) {
+            map.removeLayer(toolState.previewLayer);
+        }
+
+        if (toolState.accumulatedCoords.length >= 2) {
+            const latlngs = L.GeoJSON.coordsToLatLngs(toolState.accumulatedCoords, 0);
+            toolState.previewLayer = L.polyline(latlngs, {
+                color: '#9900ff',
+                weight: 3,
+                opacity: 0.8,
+                dashArray: '8, 8',
+                interactive: false  // Don't capture mouse events
+            });
+            toolState.previewLayer.addTo(map);
+        }
+    }
+
+    // Create the close marker on the first point
+    function createCloseMarker() {
+        const firstCoord = toolState.accumulatedCoords[0];
+        const latlng = L.GeoJSON.coordsToLatLng(firstCoord);
+
+        toolState.closeMarker = L.circleMarker(latlng, {
+            radius: 12,
+            color: '#00cc00',
+            fillColor: '#00ff00',
+            fillOpacity: 0.7,
+            weight: 3,
+            bubblingMouseEvents: false
+        });
+
+
+        toolState.closeMarker.on('click', (e) => {
+            L.DomEvent.stopPropagation(e);
+            executeNewpoly();
+        });
+
+        toolState.closeMarker.addTo(map);
+        toolState.vertexMarkers.push(toolState.closeMarker);
+    }
+
+    // Execute newpoly: create the polygon from accumulated coords
+    function executeNewpoly() {
+        if (toolState.accumulatedCoords.length < 3) {
+            updateStatus('Servono almeno 3 punti per creare un poligono');
+            return;
+        }
+
+        const layerName = selectedLayerName;
+        const layer = layers[layerName];
+
+        // Close the ring
+        const closedCoords = [...toolState.accumulatedCoords, toolState.accumulatedCoords[0]];
+        const polyLatLngs = L.GeoJSON.coordsToLatLngs([closedCoords], 1);
+        const newPolygon = L.polygon(polyLatLngs, styles.default);
+
+        // Add to layer
+        drawnItems.addLayer(newPolygon);
+        const parcel = addParcelToLayer(layerName, newPolygon);
+        addParcelClickHandler(newPolygon);
+
+        updateStatus(`Nuovo poligono creato con ${toolState.accumulatedCoords.length} vertici`);
+
+        // Clean up (with event cleanup)
+        if (toolState.previewLayer) {
+            map.removeLayer(toolState.previewLayer);
+        }
+        toolState.vertexMarkers.forEach(m => removeMarker(m));
+        toolState.vertexMarkers = [];
+        toolState.previewLayer = null;
+        toolState.closeMarker = null;
+        toolState.accumulatedCoords = [];
+        toolState.segmentCount = 0;
+        toolState.active = null;
+        toolState.step = 0;
+        toolState.sourceFeature = null;
+        toolState.currentObjectType = null;
+        toolState.vertices = [];
+
+        $('tool-workflow').style.display = 'none';
+        updateElementList();
+    }
+
+    // Execute newline: create the line from accumulated coords
+    function executeNewline() {
+        if (toolState.accumulatedCoords.length < 2) {
+            updateStatus('Servono almeno 2 punti per creare una linea');
+            return;
+        }
+
+        const layerName = selectedLayerName;
+        const layer = layers[layerName];
+
+        // Create line (no closing needed)
+        const lineLatLngs = L.GeoJSON.coordsToLatLngs(toolState.accumulatedCoords, 0);
+        const newLine = L.polyline(lineLatLngs, styles.road);
+
+        // Add to layer
+        drawnItems.addLayer(newLine);
+        const road = addRoadToLayer(layerName, newLine);
+        addRoadClickHandler(newLine);
+
+        updateStatus(`Nuova linea creata con ${toolState.accumulatedCoords.length} vertici`);
+
+        // Clean up (with event cleanup)
+        if (toolState.previewLayer) {
+            map.removeLayer(toolState.previewLayer);
+        }
+        toolState.vertexMarkers.forEach(m => removeMarker(m));
+        toolState.vertexMarkers = [];
+        toolState.previewLayer = null;
+        toolState.closeMarker = null;
+        toolState.accumulatedCoords = [];
+        toolState.segmentCount = 0;
+        toolState.active = null;
+        toolState.step = 0;
+        toolState.sourceFeature = null;
+        toolState.currentObjectType = null;
+        toolState.vertices = [];
+
+        $('tool-workflow').style.display = 'none';
+        updateElementList();
     }
 
     // Execute snip: polygon -> line
@@ -1542,6 +1914,12 @@ const ParcelEditor = (function() {
                         deselectParcel();
                         deselectRoad();
                     }
+                } else if (e.key === 'Enter') {
+                    // Complete newline tool with Enter
+                    if (toolState.active === 'newline' && toolState.step === 0 && toolState.segmentCount > 0) {
+                        e.preventDefault();
+                        executeNewline();
+                    }
                 } else if (e.key === 'z' && (e.ctrlKey || e.metaKey)) {
                     e.preventDefault();
                     undoEdit();
@@ -1684,6 +2062,7 @@ const ParcelEditor = (function() {
         // Tool functions
         startTool,
         cancelTool,
+        finishNewline: executeNewline,
         updateElementList
     };
 })();
