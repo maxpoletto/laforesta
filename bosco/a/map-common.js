@@ -66,7 +66,7 @@ const MapCommon = (function() {
             if (!coordsEl) return;
 
             leafletMap.on('mousemove', e => {
-                coordsEl.textContent = `${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}`;
+                coordsEl.textContent = `(${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)})`;
             });
         }
 

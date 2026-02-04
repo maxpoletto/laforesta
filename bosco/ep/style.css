@@ -116,19 +116,6 @@ input[type="file"] { margin: 10px 0; width: 100%; font-size: 12px; }
     font-size: 12px;
 }
 
-/* Tool buttons row (side by side) */
-.tool-buttons-row {
-    display: flex;
-    gap: 5px;
-    margin: 5px 0;
-}
-
-.tool-buttons-row button {
-    flex: 1;
-    padding: 8px 10px;
-    font-size: 12px;
-}
-
 /* Tool icons row (4 small buttons) */
 .tool-icons-row {
     display: flex;
@@ -138,7 +125,7 @@ input[type="file"] { margin: 10px 0; width: 100%; font-size: 12px; }
 
 .tool-icons-row button.tool-icon {
     flex: 1;
-    padding: 6px 4px;
+    padding: 4px 4px;
     font-size: 14px;
     min-width: 0;
 }
