@@ -51,13 +51,14 @@ window.onclick = function(event) {
 };
 
 const CSV_FILES = [
-    ['particelle', 'Comprese e particelle forestali'],
     ['comparti', 'Comparti forestali'],
+    ['particelle', 'Comprese e particelle forestali'],
     ['aree-di-saggio', 'Aree di saggio per il piano di gestione'],
     ['alberi', 'Tutti gli alberi delle aree di saggio'],
     ['alberi-calcolati', 'Come "alberi", ma con altezze calcolate tramite equazioni interpolanti'],
     ['altezze', 'Sottoinsieme di alberi con misure di altezza tramite ipsometro laser'],
     ['alberi-modello', 'Diametri e altezze degli alberi modello'],
+    ['piante-accrescimento-indefinito', 'Piante ad accrescimento indefinito'],
     ['ripresa', 'Provvigione per particella']
 ];
 
