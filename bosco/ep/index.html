@@ -32,13 +32,19 @@
             </div>
         </div>
 
-        <div class="section">
-            <h4>Dati</h4>
-            <input type="file" id="load-file" multiple accept=".geojson,.json" />
-            <div class="button-row">
-                <button class="primary" onclick="ParcelEditor.exportGeoJSON()">Esporta</button>
-                <button class="danger" onclick="ParcelEditor.clearAll()">Cancella</button>
+        <div class="section" id="offset-section" style="display: none;">
+            <h4>Correzione coordinate</h4>
+            <div class="offset-control">
+                <label>E-W:</label>
+                <input type="range" id="offset-ew" min="-200" max="200" value="0" step="1">
+                <span class="value" id="offset-ew-value">0m</span>
             </div>
+            <div class="offset-control">
+                <label>N-S:</label>
+                <input type="range" id="offset-ns" min="-200" max="200" value="0" step="1">
+                <span class="value" id="offset-ns-value">0m</span>
+            </div>
+            <button onclick="ParcelEditor.resetOffset()" class="small">Azzera</button>
         </div>
 
         <div class="section">
@@ -80,19 +86,13 @@
             </div>
         </div>
 
-        <div class="section" id="offset-section" style="display: none;">
-            <h4>Correzione coordinate</h4>
-            <div class="offset-control">
-                <label>E-W:</label>
-                <input type="range" id="offset-ew" min="-200" max="200" value="0" step="1">
-                <span class="value" id="offset-ew-value">0m</span>
+        <div class="section">
+            <h4>Dati</h4>
+            <input type="file" id="load-file" multiple accept=".geojson,.json" />
+            <div class="button-row">
+                <button class="primary" onclick="ParcelEditor.exportGeoJSON()">Esporta</button>
+                <button class="danger" onclick="ParcelEditor.clearAll()">Cancella</button>
             </div>
-            <div class="offset-control">
-                <label>N-S:</label>
-                <input type="range" id="offset-ns" min="-200" max="200" value="0" step="1">
-                <span class="value" id="offset-ns-value">0m</span>
-            </div>
-            <button onclick="ParcelEditor.resetOffset()" class="small">Azzera</button>
         </div>
     </div>
 </body>
