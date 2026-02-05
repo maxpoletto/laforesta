@@ -35,14 +35,9 @@ const TreeViewer = (function() {
         return fetch('../data/particelle.geojson')
             .then(r => r.json())
             .then(data => {
-                // Filter to only Serra features
-                const serraFeatures = data.features.filter(
-                    f => f.properties?.layer === 'Serra'
-                );
-
                 parcelLayer = L.geoJSON({
                     type: 'FeatureCollection',
-                    features: serraFeatures
+                    features: data.features
                 }, {
                     style: {
                         color: '#3388ff',
@@ -52,7 +47,7 @@ const TreeViewer = (function() {
                     }
                 }).addTo(leafletMap);
 
-                return serraFeatures.length;
+                return data.features.length;
             });
     }
 
