@@ -29,7 +29,7 @@ const MapCommon = (function() {
             enableLocation: options.enableLocation !== false,
             enableCoords: options.enableCoords !== false,
             coordsElement: options.coordsElement || 'coords',
-            leafletOptions: options.leafletOptions || { preferCanvas: true }
+            leafletOptions: options.leafletOptions || { preferCanvas: true, zoomControl: false }
         };
 
         // Create Leaflet map
@@ -279,6 +279,15 @@ const MapCommon = (function() {
             leafletMap.on('locationerror', onLocationError);
         }
 
+        function setupZoom() {
+            // Add zoom control with Italian labels
+            L.control.zoom({
+                position: 'topleft',
+                zoomInTitle: 'Ingrandisci',
+                zoomOutTitle: 'Rimpicciolisci'
+            }).addTo(leafletMap);
+        }
+
         // --- Initialize features ---
         if (config.enableCoords) {
             setupCoords();
@@ -289,6 +298,7 @@ const MapCommon = (function() {
         if (config.enableLocation) {
             setupLocation();
         }
+        setupZoom();
         if (config.enableMeasure) {
             setupMeasure();
         }

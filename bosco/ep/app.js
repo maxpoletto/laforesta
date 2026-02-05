@@ -1913,19 +1913,8 @@ const ParcelEditor = (function() {
             mapWrapper = MapCommon.create('map', {
                 basemap: 'satellite',
                 enableMeasure: false,
-                leafletOptions: {
-                    preferCanvas: true,
-                    zoomControl: false  // We'll add it with Italian labels
-                }
             });
             map = mapWrapper.getLeafletMap();
-
-            // Add zoom control with Italian labels
-            L.control.zoom({
-                position: 'topleft',
-                zoomInTitle: 'Ingrandisci',
-                zoomOutTitle: 'Rimpicciolisci'
-            }).addTo(map);
 
             drawnItems = new L.FeatureGroup().addTo(map);
 
