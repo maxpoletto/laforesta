@@ -92,6 +92,7 @@ const TreeViewer = (function() {
                     const lat = parseFloat(tree.Lat);
                     const lon = parseFloat(tree.Lon);
                     const diameter = tree.Diametro || '?';
+                    const number = tree.Numero || '?';
                     const color = getSpeciesColor(species);
 
                     const marker = L.circleMarker([lat, lon], {
@@ -104,7 +105,7 @@ const TreeViewer = (function() {
                     });
 
                     marker.bindTooltip(
-                        `<b>${species}</b><br>D: ${diameter} cm<br>Particella: ${parcel}`,
+                        `<b>${species}</b><br>D: ${diameter} cm<br>Particella: ${parcel} / n° ${number}`,
                         { direction: 'top', offset: [0, -5] }
                     );
 
