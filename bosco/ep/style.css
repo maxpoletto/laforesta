@@ -42,7 +42,7 @@ select {
     border-radius: 4px;
 }
 
-/* Feature lists (parcels and roads) */
+/* Feature lists */
 .feature-list {
     max-height: 200px;
     overflow-y: auto;
@@ -53,14 +53,6 @@ select {
     padding: 8px;
     color: #999;
     font-size: 12px;
-}
-
-#parcel-list:empty::after {
-    content: 'Nessuna particella';
-}
-
-#road-list:empty::after {
-    content: 'Nessuna strada';
 }
 
 #element-list:empty::after {
@@ -158,17 +150,9 @@ input[type="file"] { margin: 10px 0; width: 100%; font-size: 12px; }
     margin-top: 8px;
 }
 
-/* Unified element list */
+/* Element list */
 #element-list {
     max-height: 250px;
-}
-
-#element-list:empty::after {
-    content: 'Nessun elemento';
-    display: block;
-    padding: 8px;
-    color: #999;
-    font-size: 12px;
 }
 
 .item-type-icon {
