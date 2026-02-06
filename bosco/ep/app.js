@@ -36,9 +36,9 @@ const ParcelEditor = (function() {
     };
 
     const styles = {
-        default: { color: '#3388ff', weight: 2, opacity: 1, fillOpacity: 0.2 },
-        otherLayer: { color: '#ff6600', weight: 1, opacity: 1, fillOpacity: 0.1 },
-        selected: { color: '#00ff00', weight: 3, opacity: 1, fillOpacity: 0.4 },
+        poly: { color: '#3388ff', weight: 2, opacity: 1, fillOpacity: 0.2 },
+        polyOtherLayer: { color: '#ff6600', weight: 1, opacity: 1, fillOpacity: 0.1 },
+        polySelected: { color: '#00ff00', weight: 3, opacity: 1, fillOpacity: 0.4 },
         hidden: { opacity: 0, fillOpacity: 0 },
         line: { color: '#cc3333', weight: 3, opacity: 0.8 },
         lineOtherLayer: { color: '#cc6666', weight: 2, opacity: 0.5 },
@@ -178,7 +178,7 @@ const ParcelEditor = (function() {
             geojson: element.toGeoJSON()
         };
 
-        const style = element.type === 'line' ? styles.lineSelected : styles.selected;
+        const style = element.type === 'line' ? styles.lineSelected : styles.polySelected;
         element.setStyle(style);
         element.editing.enable();
         updateElementList();
@@ -204,9 +204,9 @@ const ParcelEditor = (function() {
         if (!layer.visible || element.visible === false) {
             element.setStyle(styles.hidden);
         } else if (element.layerName === selectedLayerName) {
-            element.setStyle(element.type === 'line' ? styles.line : styles.default);
+            element.setStyle(element.type === 'line' ? styles.line : styles.poly);
         } else {
-            element.setStyle(element.type === 'line' ? styles.lineOtherLayer : styles.otherLayer);
+            element.setStyle(element.type === 'line' ? styles.lineOtherLayer : styles.polyOtherLayer);
         }
     }
 
@@ -506,7 +506,7 @@ const ParcelEditor = (function() {
         if (step === 0) {
             if (tool === 'snip' && isPolygon) {
                 toolState.sourceFeature = element;
-                element.setStyle(styles.selected);
+                element.setStyle(styles.polySelected);
                 enableVertexClicks(element, 'source');
                 advanceToolStep();
                 return true;
@@ -559,7 +559,7 @@ const ParcelEditor = (function() {
 
         // Highlight selected feature
         if (isPolygon) {
-            element.setStyle(styles.selected);
+            element.setStyle(styles.polySelected);
         } else {
             element.setStyle(styles.lineSelected);
         }
@@ -859,7 +859,7 @@ const ParcelEditor = (function() {
         // Close the ring
         const closedCoords = [...toolState.accumulatedCoords, toolState.accumulatedCoords[0]];
         const polyLatLngs = L.GeoJSON.coordsToLatLngs([closedCoords], 1);
-        const newPolygon = L.polygon(polyLatLngs, styles.default);
+        const newPolygon = L.polygon(polyLatLngs, styles.poly);
 
         // Add to layer
         drawnItems.addLayer(newPolygon);
@@ -997,7 +997,7 @@ const ParcelEditor = (function() {
         // Create polygon (close the ring)
         const closedCoords = [...polygonCoords, polygonCoords[0]];
         const polyLatLngs = L.GeoJSON.coordsToLatLngs([closedCoords], 1);
-        const newPolygon = L.polygon(polyLatLngs, styles.default);
+        const newPolygon = L.polygon(polyLatLngs, styles.poly);
         newPolygon.elementName = element.name;
 
         // Remove old line
@@ -1185,7 +1185,7 @@ const ParcelEditor = (function() {
         });
 
         if (wasEditing && selectedElement) {
-            const style = selectedElement.type === 'line' ? styles.lineSelected : styles.selected;
+            const style = selectedElement.type === 'line' ? styles.lineSelected : styles.polySelected;
             selectedElement.setStyle(style);
             selectedElement.editing.enable();
         }
@@ -1293,7 +1293,7 @@ const ParcelEditor = (function() {
                     // Handle polygons
                     const depth = feature.geometry.type === 'Polygon' ? 1 : 2;
                     const latlngs = L.GeoJSON.coordsToLatLngs(feature.geometry.coordinates, depth);
-                    const mapLayer = L.polygon(latlngs, styles.otherLayer);
+                    const mapLayer = L.polygon(latlngs, styles.polyOtherLayer);
                     mapLayer.elementName = feature.properties?.name;
                     drawnItems.addLayer(mapLayer);
                     addElementToLayer(layerName, mapLayer, 'polygon');
@@ -1627,7 +1627,7 @@ const ParcelEditor = (function() {
                 draw: {
                     polygon: {
                         allowIntersection: false,
-                        shapeOptions: styles.default,
+                        shapeOptions: styles.poly,
                         showArea: true,
                     },
                     polyline: { showLength: true },
