@@ -2,8 +2,6 @@
 const ParcelEditor = (function() {
     'use strict';
 
-    const OFFSET_LINES = true;
-
     let layersVisible = true;
 
     // State
@@ -1149,9 +1147,6 @@ const ParcelEditor = (function() {
 
         // Apply to all elements
         layer.elements.forEach(element => {
-            // Skip lines if OFFSET_LINES is false
-            if (element.type === 'line' && !OFFSET_LINES) return;
-
             const geom = element.toGeoJSON().geometry;
             const newCoords = offsetCoordinates(geom.coordinates, deltaLon, deltaLat);
             const style = element.options;
