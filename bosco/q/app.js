@@ -14,7 +14,7 @@ const QUERY_EXAMPLES = [
     },
     {
         description: 'Particelle in ordine decrescente di superficie campionata',
-        query: 'SELECT Compresa, Particella, ANY_VALUE(p."Area (ha)") AS "Area (ha)", COUNT(*) as "N. aree saggio", ROUND(COUNT(*) * 12.5 / ANY_VALUE(p."Area (ha)"),2) as "% campionato",  FROM particelle p NATURAL JOIN aree_di_saggio a GROUP BY p.Compresa, P.Particella ORDER BY "% campionato" DESC;'
+        query: 'SELECT Compresa, Particella, ANY_VALUE(p."Area (ha)") AS "Area (ha)", COUNT(*) as "N. aree saggio", ROUND(COUNT(*) * 12.5 / ANY_VALUE(p."Area (ha)"),2) as "% campionato",  FROM particelle p JOIN aree_di_saggio a USING (Compresa, Particella) GROUP BY Compresa, Particella ORDER BY "% campionato" DESC;'
     }
 ];
 
