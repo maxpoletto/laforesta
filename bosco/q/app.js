@@ -92,7 +92,7 @@ async function init() {
             const tableName = name.replace(/-/g, '_');
             const url = new URL(`../data/${name}.csv`, window.location.href).href;
             await db.registerFileURL(`${name}.csv`, url, duckdb.DuckDBDataProtocol.HTTP, true);
-            await conn.query(`CREATE TABLE ${tableName} AS SELECT * FROM read_csv_auto('${name}.csv')`);
+            await conn.query(`CREATE TABLE ${tableName} AS SELECT * FROM read_csv('${name}.csv', header=true, delim=',', quote='"')`);
         }
 
         const tablesInfo = CSV_FILES.map(([name, desc]) =>
