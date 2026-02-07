@@ -25,9 +25,14 @@ function populateExamples() {
     QUERY_EXAMPLES.forEach(example => {
         const li = document.createElement('li');
         const a = document.createElement('a');
-        a.href = `?q=${encodeURIComponent(example.query)}`;
-        a.target = '_blank';
+        a.href = '#';
         a.textContent = example.description;
+        a.addEventListener('click', e => {
+            e.preventDefault();
+            queryEl.value = example.query;
+            window.hideExamples();
+            window.runQuery();
+        });
         li.appendChild(a);
         list.appendChild(li);
     });
