@@ -283,8 +283,8 @@ const ParcelEditor = (function() {
         ],
         close: [
             'Clicca una linea da chiudere',
-            'Clicca il primo vertice (Lv1)',
-            'Clicca il secondo vertice (Lv2)'
+            'Clicca il primo vertice',
+            'Clicca il secondo vertice'
         ],
         split: [
             'Clicca una linea da dividere',
@@ -487,7 +487,7 @@ const ParcelEditor = (function() {
     }
 
     // Create a vertex highlight marker
-    function createVertexMarker(latlng, label) {
+    function createVertexMarker(latlng) {
         const marker = L.circleMarker(latlng, {
             radius: 10,
             color: '#ff00ff',
@@ -676,25 +676,8 @@ const ParcelEditor = (function() {
             return;
         }
 
-        // Determine expected vertex based on tool and step
-        let label = '';
-
-        if (tool === 'snip') {
-            if (step === 1) label = 'V';  // Single vertex to delete
-        } else if (tool === 'close') {
-            if (step === 1) label = 'Lv1';
-            else if (step === 2) label = 'Lv2';
-        } else if (tool === 'split') {
-            if (step === 1) label = 'V';
-        } else if (tool === 'join') {
-            if (step === 1) label = 'E1';  // Endpoint from first line
-            else if (step === 3) label = 'E2';  // Endpoint from second line
-        }
-
-        if (!label) return;
-
         toolState.vertices.push({ latlng, index });
-        createVertexMarker(latlng, label);
+        createVertexMarker(latlng);
         updateStatus(`Vertice selezionato`);
 
         advanceToolStep();
@@ -708,12 +691,12 @@ const ParcelEditor = (function() {
             // Lines need 2 vertices
             if (step === 1) {
                 toolState.vertices.push({ latlng, index });
-                createVertexMarker(latlng, `L${toolState.segmentCount + 1}v1`);
+                createVertexMarker(latlng);
                 toolState.step = 2;
                 updateToolStatus();
             } else if (step === 2) {
                 toolState.vertices.push({ latlng, index });
-                createVertexMarker(latlng, `L${toolState.segmentCount + 1}v2`);
+                createVertexMarker(latlng);
                 // Collect segment from line
                 addNewpolySegmentFromLine();
             }
@@ -721,17 +704,17 @@ const ParcelEditor = (function() {
             // Polygons need 3 vertices
             if (step === 1) {
                 toolState.vertices.push({ latlng, index });
-                createVertexMarker(latlng, `P${toolState.segmentCount + 1}v1`);
+                createVertexMarker(latlng);
                 toolState.step = 2;
                 updateToolStatus();
             } else if (step === 2) {
                 toolState.vertices.push({ latlng, index });
-                createVertexMarker(latlng, `P${toolState.segmentCount + 1}v2`);
+                createVertexMarker(latlng);
                 toolState.step = 3;
                 updateToolStatus();
             } else if (step === 3) {
                 toolState.vertices.push({ latlng, index });
-                createVertexMarker(latlng, `P${toolState.segmentCount + 1}v3`);
+                createVertexMarker(latlng);
                 // Collect segment from polygon
                 addNewpolySegmentFromPolygon();
             }
