@@ -163,6 +163,13 @@ input[type="file"] { margin: 10px 0; width: 100%; font-size: 12px; }
     text-align: center;
 }
 
+.item-area {
+    font-size: 11px;
+    color: #888;
+    white-space: nowrap;
+    padding-right: 4px;
+}
+
 /* Hide Leaflet.Draw action toolbar (instruction bars) - tooltips are sufficient */
 .leaflet-draw-actions {
     display: none !important;

@@ -280,6 +280,146 @@ function testJoin() {
     console.log('  join: PASS');
 }
 
+// --- Area calculation tests ---
+
+const DEG_TO_RAD = Math.PI / 180;
+const EARTH_RADIUS = 6378137.0; // WGS84 semi-major axis in meters
+
+// Leaflet.Draw's L.GeometryUtil.geodesicArea implementation
+// Takes [{lat, lng}, ...], returns area in m²
+function geodesicArea(latlngs) {
+    const n = latlngs.length;
+    let area = 0;
+    for (let i = 0; i < n; i++) {
+        const p1 = latlngs[i];
+        const p2 = latlngs[(i + 1) % n];
+        area += (p2.lng - p1.lng) * DEG_TO_RAD *
+                (2 + Math.sin(p1.lat * DEG_TO_RAD) + Math.sin(p2.lat * DEG_TO_RAD));
+    }
+    return Math.abs(area * EARTH_RADIUS * EARTH_RADIUS / 2);
+}
+
+// Local-projection Shoelace: project to meters from bounding-box lower-left, then Shoelace
+function shoelaceAreaM2(latlngs) {
+    // Find lower-left corner of bounding box
+    let minLat = Infinity, minLng = Infinity;
+    for (const p of latlngs) {
+        if (p.lat < minLat) minLat = p.lat;
+        if (p.lng < minLng) minLng = p.lng;
+    }
+
+    // Convert to local meters (offset from lower-left)
+    const cosLat = Math.cos(minLat * DEG_TO_RAD);
+    const mPerDegLat = 111132.92;
+    const mPerDegLng = 111132.92 * cosLat;
+
+    const pts = latlngs.map(p => ({
+        x: (p.lng - minLng) * mPerDegLng,
+        y: (p.lat - minLat) * mPerDegLat,
+    }));
+
+    // Shoelace formula
+    let area = 0;
+    const n = pts.length;
+    for (let i = 0; i < n; i++) {
+        const j = (i + 1) % n;
+        area += pts[i].x * pts[j].y;
+        area -= pts[j].x * pts[i].y;
+    }
+    return Math.abs(area / 2);
+}
+
+function testArea() {
+    console.log('Testing area calculations...');
+
+    // Pentagon in Calabria (~39°N, 16.5°E), roughly 500m across
+    const center = { lat: 39.0, lng: 16.5 };
+    const r = 0.003; // ~300m in degrees
+    const pentagon = [];
+    for (let i = 0; i < 5; i++) {
+        const angle = (2 * Math.PI * i / 5) - Math.PI / 2;
+        pentagon.push({
+            lat: center.lat + r * Math.cos(angle),
+            lng: center.lng + r * Math.sin(angle)
+        });
+    }
+
+    const geodesic = geodesicArea(pentagon);
+    const shoelace = shoelaceAreaM2(pentagon);
+    const geodesicHa = geodesic / 10000;
+    const shoelaceHa = shoelace / 10000;
+    const relError = Math.abs(geodesic - shoelace) / shoelace;
+
+    console.log(`  Pentagon (~300m radius at 39°N):`);
+    console.log(`    geodesicArea: ${geodesicHa.toFixed(4)} ha (${geodesic.toFixed(1)} m²)`);
+    console.log(`    shoelace:     ${shoelaceHa.toFixed(4)} ha (${shoelace.toFixed(1)} m²)`);
+    console.log(`    relative error: ${(relError * 100).toFixed(4)}%`);
+    console.assert(relError < 0.01, `Error too large: ${(relError * 100).toFixed(4)}%`);
+
+    // Large polygon: ~5km across (agricultural scale)
+    const bigR = 0.03;
+    const bigHex = [];
+    for (let i = 0; i < 6; i++) {
+        const angle = (2 * Math.PI * i / 6);
+        bigHex.push({
+            lat: center.lat + bigR * Math.cos(angle),
+            lng: center.lng + bigR * Math.sin(angle)
+        });
+    }
+
+    const bigGeodesic = geodesicArea(bigHex);
+    const bigShoelace = shoelaceAreaM2(bigHex);
+    const bigRelError = Math.abs(bigGeodesic - bigShoelace) / bigShoelace;
+
+    console.log(`  Hexagon (~3km radius at 39°N):`);
+    console.log(`    geodesicArea: ${(bigGeodesic / 10000).toFixed(4)} ha`);
+    console.log(`    shoelace:     ${(bigShoelace / 10000).toFixed(4)} ha`);
+    console.log(`    relative error: ${(bigRelError * 100).toFixed(4)}%`);
+    console.assert(bigRelError < 0.01, `Error too large: ${(bigRelError * 100).toFixed(4)}%`);
+
+    // Test at equator (different latitude)
+    const eqPentagon = [];
+    for (let i = 0; i < 5; i++) {
+        const angle = (2 * Math.PI * i / 5) - Math.PI / 2;
+        eqPentagon.push({
+            lat: 0.0 + r * Math.cos(angle),
+            lng: 30.0 + r * Math.sin(angle)
+        });
+    }
+
+    const eqGeodesic = geodesicArea(eqPentagon);
+    const eqShoelace = shoelaceAreaM2(eqPentagon);
+    const eqRelError = Math.abs(eqGeodesic - eqShoelace) / eqShoelace;
+
+    console.log(`  Pentagon (~300m radius at equator):`);
+    console.log(`    geodesicArea: ${(eqGeodesic / 10000).toFixed(4)} ha`);
+    console.log(`    shoelace:     ${(eqShoelace / 10000).toFixed(4)} ha`);
+    console.log(`    relative error: ${(eqRelError * 100).toFixed(4)}%`);
+    console.assert(eqRelError < 0.01, `Error too large: ${(eqRelError * 100).toFixed(4)}%`);
+
+    // Test at high latitude (60°N, Norway)
+    const hiPentagon = [];
+    for (let i = 0; i < 5; i++) {
+        const angle = (2 * Math.PI * i / 5) - Math.PI / 2;
+        hiPentagon.push({
+            lat: 60.0 + r * Math.cos(angle),
+            lng: 10.0 + r * Math.sin(angle)
+        });
+    }
+
+    const hiGeodesic = geodesicArea(hiPentagon);
+    const hiShoelace = shoelaceAreaM2(hiPentagon);
+    const hiRelError = Math.abs(hiGeodesic - hiShoelace) / hiShoelace;
+
+    console.log(`  Pentagon (~300m radius at 60°N):`);
+    console.log(`    geodesicArea: ${(hiGeodesic / 10000).toFixed(4)} ha`);
+    console.log(`    shoelace:     ${(hiShoelace / 10000).toFixed(4)} ha`);
+    console.log(`    relative error: ${(hiRelError * 100).toFixed(4)}%`);
+    console.assert(hiRelError < 0.01, `Error too large: ${(hiRelError * 100).toFixed(4)}%`);
+
+    console.log('  area: PASS');
+}
+
 // Run all tests
 function runTests() {
     console.log('=== Algorithm Tests ===\n');
@@ -290,6 +430,7 @@ function runTests() {
         testClose();
         testSplit();
         testJoin();
+        testArea();
         console.log('\n=== All tests passed ===');
     } catch (err) {
         console.error('\nTest failed:', err.message);

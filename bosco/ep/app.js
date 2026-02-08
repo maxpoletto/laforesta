@@ -45,6 +45,18 @@ const ParcelEditor = (function() {
         lineSelected: { color: '#ffff00', weight: 4, opacity: 1 }
     };
 
+    // Convert m² to hectares, formatted to 1 decimal place
+    function formatArea(element) {
+        if (element.type !== 'polygon') return '';
+        const areaM2 = L.GeometryUtil.geodesicArea(element.getLatLngs()[0]);
+        return `${(areaM2 / 10000).toFixed(1)} ha`;
+    }
+
+    function makePopupContent(element) {
+        const area = formatArea(element);
+        return area ? `<b>${element.name}</b><br>${area}` : `<b>${element.name}</b>`;
+    }
+
     function updateStatus(msg) {
         $('status').textContent = msg;
     }
@@ -157,6 +169,7 @@ const ParcelEditor = (function() {
         drawnItems.addLayer(element);
         initElementProps(layerName, element, type);
         addElementClickHandler(element);
+        element.bindPopup(() => makePopupContent(element));
         return element;
     }
 
@@ -193,6 +206,7 @@ const ParcelEditor = (function() {
         drawnItems.removeLayer(oldElement);
         drawnItems.addLayer(newElement);
         addElementClickHandler(newElement);
+        newElement.bindPopup(() => makePopupContent(newElement));
 
         return newElement;
     }
@@ -1138,10 +1152,13 @@ const ParcelEditor = (function() {
 
             const typeIcon = element.type === 'polygon' ? '▢' : '─';
             const visIcon = isHidden ? '◌' : '◉';
+            const area = formatArea(element);
+            const areaHtml = area ? `<span class="item-area">${area}</span>` : '';
 
             div.innerHTML = `
                 <span class="item-type-icon">${typeIcon}</span>
                 <span class="item-name" onclick="ParcelEditor.onElementClick(${element.id})">${element.name}</span>
+                ${areaHtml}
                 <span class="item-actions">
                     <span class="edit-btn" onclick="ParcelEditor.startRename(${element.id})" title="Rinomina">✎</span>
                     <span class="hide-btn" onclick="ParcelEditor.toggleElementVisibility(${element.id})" title="Mostra/nascondi">${visIcon}</span>
@@ -1350,7 +1367,6 @@ const ParcelEditor = (function() {
         if (!input) return;
 
         element.name = input.value.trim() || 'Senza nome';
-        element.bindPopup(`<b>${element.name}</b>`);
         const layer = layers[element.layerName];
         if (layer) sortElements(layer);
         updateElementList();
@@ -1553,7 +1569,6 @@ const ParcelEditor = (function() {
 
                 const type = e.layerType === 'polyline' ? 'line' : 'polygon';
                 const element = addElement(selectedLayerName, e.layer, type);
-                element.bindPopup(`<b>${element.name}</b>`);
                 selectElement(element);
                 updateElementList();
                 updateStatus(`${type === 'line' ? 'Creata linea' : 'Creato poligono'} ${element.name}`);
