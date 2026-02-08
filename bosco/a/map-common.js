@@ -304,48 +304,8 @@ const MapCommon = (function() {
         }
 
         return {
-            // Expose underlying Leaflet map for app-specific operations
-            getLeafletMap() {
-                return leafletMap;
-            },
-
-            // Basemap control
+            getLeafletMap() { return leafletMap; },
             setBasemap,
-
-            // Layer operations
-            addLayerGroup() {
-                const group = L.layerGroup().addTo(leafletMap);
-                return group;
-            },
-
-            addGeoJSON(data, options = {}) {
-                const layer = L.geoJSON(data, options).addTo(leafletMap);
-                return layer;
-            },
-
-            // View operations
-            fitBounds(bounds, options) {
-                leafletMap.fitBounds(bounds, options);
-            },
-
-            setView(center, zoom) {
-                leafletMap.setView(center, zoom);
-            },
-
-            // Event handling
-            on(event, handler) {
-                leafletMap.on(event, handler);
-            },
-
-            // Marker creation
-            addCircleMarker(latlng, options) {
-                return L.circleMarker(latlng, options).addTo(leafletMap);
-            },
-
-            // Utility
-            distance(latlng1, latlng2) {
-                return leafletMap.distance(latlng1, latlng2);
-            }
         };
     }
 
