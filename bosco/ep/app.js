@@ -131,7 +131,7 @@ const ParcelEditor = (function() {
     }
 
     // Element management
-    function addElementToLayer(layerName, element, type) {
+    function initElementProps(layerName, element, type) {
         const layer = layers[layerName];
         if (!layer) return null;
 
@@ -152,6 +152,51 @@ const ParcelEditor = (function() {
         return element;
     }
 
+    function addElement(layerName, element, type, name = null) {
+        if (name !== null) element.name = name;
+        drawnItems.addLayer(element);
+        initElementProps(layerName, element, type);
+        addElementClickHandler(element);
+        return element;
+    }
+
+    function removeElement(element) {
+        const layer = layers[element.layerName];
+        if (!layer) return;
+        drawnItems.removeLayer(element);
+        layer.elements = layer.elements.filter(el => el !== element);
+    }
+
+    function replaceElement(oldElement, newCoords, style) {
+        const layerName = oldElement.layerName;
+        const layer = layers[layerName];
+        if (!layer) return null;
+
+        const geom = oldElement.toGeoJSON().geometry;
+        let newElement;
+        if (oldElement.type === 'polygon') {
+            const depth = geom.type === 'Polygon' ? 1 : 2;
+            newElement = L.polygon(L.GeoJSON.coordsToLatLngs(newCoords, depth), style);
+        } else {
+            newElement = L.polyline(L.GeoJSON.coordsToLatLngs(newCoords, 0), style);
+        }
+
+        newElement.id = oldElement.id;
+        newElement.name = oldElement.name;
+        newElement.type = oldElement.type;
+        newElement.layerName = layerName;
+        newElement.visible = oldElement.visible;
+
+        const idx = layer.elements.indexOf(oldElement);
+        if (idx !== -1) layer.elements[idx] = newElement;
+
+        drawnItems.removeLayer(oldElement);
+        drawnItems.addLayer(newElement);
+        addElementClickHandler(newElement);
+
+        return newElement;
+    }
+
     function deleteElement(element, confirmed = false) {
         if (!confirmed && !confirm(`Elimina "${element.name}"?`)) return;
 
@@ -162,8 +207,7 @@ const ParcelEditor = (function() {
             deselectElement();
         }
 
-        drawnItems.removeLayer(element);
-        layer.elements = layer.elements.filter(el => el !== element);
+        removeElement(element);
         updateElementList();
         updateStatus('Elemento eliminato');
     }
@@ -224,45 +268,11 @@ const ParcelEditor = (function() {
         if (!undoState) return;
 
         const { element, geojson } = undoState;
-        const layerName = element.layerName;
-        const layer = layers[layerName];
-        if (!layer) return;
-
-        // Restore coordinates from saved GeoJSON
-        const coords = geojson.geometry.coordinates;
-        let newLatLngs, newLayer;
-
-        if (element.type === 'polygon') {
-            const depth = geojson.geometry.type === 'Polygon' ? 1 : 2;
-            newLatLngs = L.GeoJSON.coordsToLatLngs(coords, depth);
-            newLayer = L.polygon(newLatLngs, element.options);
-        } else {  // line
-            newLatLngs = L.GeoJSON.coordsToLatLngs(coords, 0);
-            newLayer = L.polyline(newLatLngs, element.options);
+        const newElement = replaceElement(element, geojson.geometry.coordinates, element.options);
+        if (newElement) {
+            selectElement(newElement);
+            updateStatus('Modifiche annullate');
         }
-
-        // Copy properties to new layer
-        newLayer.id = element.id;
-        newLayer.name = element.name;
-        newLayer.type = element.type;
-        newLayer.layerName = layerName;
-        newLayer.visible = element.visible;
-
-        // Replace the layer in the elements array
-        const idx = layer.elements.indexOf(element);
-        if (idx !== -1) {
-            layer.elements[idx] = newLayer;
-        }
-
-        // Replace on map
-        drawnItems.removeLayer(element);
-        drawnItems.addLayer(newLayer);
-
-        // Set up click handler and re-select
-        addElementClickHandler(newLayer);
-        selectElement(newLayer);  // Re-select with new undo state
-
-        updateStatus('Modifiche annullate');
     }
 
     // Tool workflow management
@@ -840,35 +850,14 @@ const ParcelEditor = (function() {
 
         toolState.closeMarker.on('click', (e) => {
             L.DomEvent.stopPropagation(e);
-            executeNewpoly();
+            executeNewShape();
         });
 
         toolState.closeMarker.addTo(map);
         toolState.vertexMarkers.push(toolState.closeMarker);
     }
 
-    // Execute newpoly: create the polygon from accumulated coords
-    function executeNewpoly() {
-        if (toolState.accumulatedCoords.length < 3) {
-            updateStatus('Servono almeno 3 punti per creare un poligono');
-            return;
-        }
-
-        const layerName = selectedLayerName;
-
-        // Close the ring
-        const closedCoords = [...toolState.accumulatedCoords, toolState.accumulatedCoords[0]];
-        const polyLatLngs = L.GeoJSON.coordsToLatLngs([closedCoords], 1);
-        const newPolygon = L.polygon(polyLatLngs, styles.poly);
-
-        // Add to layer
-        drawnItems.addLayer(newPolygon);
-        addElementToLayer(layerName, newPolygon, 'polygon');
-        addElementClickHandler(newPolygon);
-
-        updateStatus(`Nuovo poligono creato con ${toolState.accumulatedCoords.length} vertici`);
-
-        // Clean up (with event cleanup)
+    function cleanupNewShapeTool() {
         if (toolState.previewLayer) {
             map.removeLayer(toolState.previewLayer);
         }
@@ -888,44 +877,28 @@ const ParcelEditor = (function() {
         updateElementList();
     }
 
-    // Execute newline: create the line from accumulated coords
-    function executeNewline() {
-        if (toolState.accumulatedCoords.length < 2) {
-            updateStatus('Servono almeno 2 punti per creare una linea');
+    function executeNewShape() {
+        const isPolygon = toolState.active === 'newpoly';
+        const minPoints = isPolygon ? 3 : 2;
+        const coords = toolState.accumulatedCoords;
+
+        if (coords.length < minPoints) {
+            updateStatus(`Servono almeno ${minPoints} punti per creare ${isPolygon ? 'un poligono' : 'una linea'}`);
             return;
         }
 
-        const layerName = selectedLayerName;
-
-        // Create line (no closing needed)
-        const lineLatLngs = L.GeoJSON.coordsToLatLngs(toolState.accumulatedCoords, 0);
-        const newLine = L.polyline(lineLatLngs, styles.line);
-
-        // Add to layer
-        drawnItems.addLayer(newLine);
-        addElementToLayer(layerName, newLine, 'line');
-        addElementClickHandler(newLine);
-
-        updateStatus(`Nuova linea creata con ${toolState.accumulatedCoords.length} vertici`);
-
-        // Clean up (with event cleanup)
-        if (toolState.previewLayer) {
-            map.removeLayer(toolState.previewLayer);
+        if (isPolygon) {
+            const closedCoords = [...coords, coords[0]];
+            const latlngs = L.GeoJSON.coordsToLatLngs([closedCoords], 1);
+            addElement(selectedLayerName, L.polygon(latlngs, styles.poly), 'polygon');
+            updateStatus(`Nuovo poligono creato con ${coords.length} vertici`);
+        } else {
+            const latlngs = L.GeoJSON.coordsToLatLngs(coords, 0);
+            addElement(selectedLayerName, L.polyline(latlngs, styles.line), 'line');
+            updateStatus(`Nuova linea creata con ${coords.length} vertici`);
         }
-        toolState.vertexMarkers.forEach(m => removeMarker(m));
-        toolState.vertexMarkers = [];
-        toolState.previewLayer = null;
-        toolState.closeMarker = null;
-        toolState.accumulatedCoords = [];
-        toolState.segmentCount = 0;
-        toolState.active = null;
-        toolState.step = 0;
-        toolState.sourceFeature = null;
-        toolState.currentObjectType = null;
-        toolState.vertices = [];
 
-        $('tool-workflow').style.display = 'none';
-        updateElementList();
+        cleanupNewShapeTool();
     }
 
     // Execute snip: polygon -> line (delete one vertex, open the polygon)
@@ -958,14 +931,10 @@ const ParcelEditor = (function() {
         // Create line
         const latlngs = L.GeoJSON.coordsToLatLngs(lineCoords, 0);
         const newLine = L.polyline(latlngs, styles.line);
-        newLine.name = element.name;
 
         // Remove old polygon, add new line
-        drawnItems.removeLayer(element);
-        layer.elements = layer.elements.filter(el => el !== element);
-        drawnItems.addLayer(newLine);
-        addElementToLayer(layerName, newLine, 'line');
-        addElementClickHandler(newLine);
+        removeElement(element);
+        addElement(layerName, newLine, 'line', element.name);
 
         updateStatus(`Poligono aperto in linea con ${lineCoords.length} vertici`);
     }
@@ -998,26 +967,17 @@ const ParcelEditor = (function() {
         const closedCoords = [...polygonCoords, polygonCoords[0]];
         const polyLatLngs = L.GeoJSON.coordsToLatLngs([closedCoords], 1);
         const newPolygon = L.polygon(polyLatLngs, styles.poly);
-        newPolygon.name = element.name;
 
-        // Remove old line
-        drawnItems.removeLayer(element);
-        layer.elements = layer.elements.filter(el => el !== element);
-
-        // Add new polygon
-        drawnItems.addLayer(newPolygon);
-        addElementToLayer(layerName, newPolygon, 'polygon');
-        addElementClickHandler(newPolygon);
+        // Remove old line, add new polygon
+        removeElement(element);
+        addElement(layerName, newPolygon, 'polygon', element.name);
 
         // Create leftover lines if any
         if (idx1 > 0) {
             const leftCoords = coords.slice(0, idx1 + 1);
             if (leftCoords.length >= 2) {
                 const leftLine = L.polyline(L.GeoJSON.coordsToLatLngs(leftCoords, 0), styles.line);
-                leftLine.name = element.name + ' (rimanente 1)';
-                drawnItems.addLayer(leftLine);
-                addElementToLayer(layerName, leftLine, 'line');
-                addElementClickHandler(leftLine);
+                addElement(layerName, leftLine, 'line', element.name + ' (rimanente 1)');
             }
         }
 
@@ -1025,10 +985,7 @@ const ParcelEditor = (function() {
             const rightCoords = coords.slice(idx2);
             if (rightCoords.length >= 2) {
                 const rightLine = L.polyline(L.GeoJSON.coordsToLatLngs(rightCoords, 0), styles.line);
-                rightLine.name = element.name + ' (rimanente 2)';
-                drawnItems.addLayer(rightLine);
-                addElementToLayer(layerName, rightLine, 'line');
-                addElementClickHandler(rightLine);
+                addElement(layerName, rightLine, 'line', element.name + ' (rimanente 2)');
             }
         }
 
@@ -1060,23 +1017,14 @@ const ParcelEditor = (function() {
             throw new Error('La divisione creerebbe linee troppo corte');
         }
 
-        // Remove old line
-        drawnItems.removeLayer(element);
-        layer.elements = layer.elements.filter(el => el !== element);
+        // Remove old line, create two new lines
+        removeElement(element);
 
-        // Create left line
         const leftLine = L.polyline(L.GeoJSON.coordsToLatLngs(leftCoords, 0), styles.line);
-        leftLine.name = element.name + ' (1)';
-        drawnItems.addLayer(leftLine);
-        addElementToLayer(layerName, leftLine, 'line');
-        addElementClickHandler(leftLine);
+        addElement(layerName, leftLine, 'line', element.name + ' (1)');
 
-        // Create right line
         const rightLine = L.polyline(L.GeoJSON.coordsToLatLngs(rightCoords, 0), styles.line);
-        rightLine.name = element.name + ' (2)';
-        drawnItems.addLayer(rightLine);
-        addElementToLayer(layerName, rightLine, 'line');
-        addElementClickHandler(rightLine);
+        addElement(layerName, rightLine, 'line', element.name + ' (2)');
 
         updateStatus(`Linea divisa in 2 linee`);
     }
@@ -1118,17 +1066,12 @@ const ParcelEditor = (function() {
         // Join the two lines
         const joinedCoords = [...segment1, ...segment2];
 
-        // Remove old lines
-        drawnItems.removeLayer(line1);
-        drawnItems.removeLayer(line2);
-        layer.elements = layer.elements.filter(el => el !== line1 && el !== line2);
+        // Remove old lines, create joined line
+        removeElement(line1);
+        removeElement(line2);
 
-        // Create joined line
         const joinedLine = L.polyline(L.GeoJSON.coordsToLatLngs(joinedCoords, 0), styles.line);
-        joinedLine.name = line1.name;
-        drawnItems.addLayer(joinedLine);
-        addElementToLayer(layerName, joinedLine, 'line');
-        addElementClickHandler(joinedLine);
+        addElement(layerName, joinedLine, 'line', line1.name);
 
         updateStatus(`2 linee unite in una linea con ${joinedCoords.length} vertici`);
     }
@@ -1147,40 +1090,11 @@ const ParcelEditor = (function() {
 
         // Apply to all elements
         layer.elements.forEach(element => {
-            const geom = element.toGeoJSON().geometry;
-            const newCoords = offsetCoordinates(geom.coordinates, deltaLon, deltaLat);
-            const style = element.options;
+            const newCoords = offsetCoordinates(element.toGeoJSON().geometry.coordinates, deltaLon, deltaLat);
+            const newElement = replaceElement(element, newCoords, element.options);
 
-            let newLayer;
-            if (element.type === 'polygon') {
-                const depth = geom.type === 'Polygon' ? 1 : 2;
-                const newLatLngs = L.GeoJSON.coordsToLatLngs(newCoords, depth);
-                newLayer = L.polygon(newLatLngs, style);
-            } else {
-                const newLatLngs = L.GeoJSON.coordsToLatLngs(newCoords, 0);
-                newLayer = L.polyline(newLatLngs, style);
-            }
-
-            // Copy properties
-            newLayer.id = element.id;
-            newLayer.name = element.name;
-            newLayer.type = element.type;
-            newLayer.layerName = layerName;
-            newLayer.visible = element.visible;
-
-            // Replace in array
-            const idx = layer.elements.indexOf(element);
-            if (idx !== -1) {
-                layer.elements[idx] = newLayer;
-            }
-
-            drawnItems.removeLayer(element);
-            drawnItems.addLayer(newLayer);
-            addElementClickHandler(newLayer);
-
-            // Update wasEditing reference if this was the selected element
             if (wasEditing === element) {
-                selectedElement = newLayer;
+                selectedElement = newElement;
             }
         });
 
@@ -1290,23 +1204,15 @@ const ParcelEditor = (function() {
 
             features.forEach(feature => {
                 if (feature.geometry?.type === 'Polygon' || feature.geometry?.type === 'MultiPolygon') {
-                    // Handle polygons
                     const depth = feature.geometry.type === 'Polygon' ? 1 : 2;
                     const latlngs = L.GeoJSON.coordsToLatLngs(feature.geometry.coordinates, depth);
                     const element = L.polygon(latlngs, styles.polyOtherLayer);
-                    element.name = feature.properties?.name;
-                    drawnItems.addLayer(element);
-                    addElementToLayer(layerName, element, 'polygon');
-                    addElementClickHandler(element);
+                    addElement(layerName, element, 'polygon', feature.properties?.name);
                     newPolygons++;
                 } else if (feature.geometry?.type === 'LineString') {
-                    // Handle lines
                     const latlngs = L.GeoJSON.coordsToLatLngs(feature.geometry.coordinates, 0);
                     const element = L.polyline(latlngs, styles.lineOtherLayer);
-                    element.name = feature.properties?.name;
-                    drawnItems.addLayer(element);
-                    addElementToLayer(layerName, element, 'line');
-                    addElementClickHandler(element);
+                    addElement(layerName, element, 'line', feature.properties?.name);
                     newLines++;
                 }
             });
@@ -1662,25 +1568,12 @@ const ParcelEditor = (function() {
                     return;
                 }
 
-                let element = e.layer;
-                drawnItems.addLayer(element);
-
-                // Check if it's a polyline (line) or polygon
-                if (e.layerType === 'polyline') {
-                    element = addElementToLayer(selectedLayerName, element, 'line');
-                    addElementClickHandler(element);
-                    element.bindPopup(`<b>${element.name}</b>`);
-                    selectElement(element);
-                    updateElementList();
-                    updateStatus(`Creata linea ${element.name}`);
-                } else {
-                    element = addElementToLayer(selectedLayerName, element, 'polygon');
-                    addElementClickHandler(element);
-                    element.bindPopup(`<b>${element.name}</b>`);
-                    selectElement(element);
-                    updateElementList();
-                    updateStatus(`Creato poligono ${element.name}`);
-                }
+                const type = e.layerType === 'polyline' ? 'line' : 'polygon';
+                const element = addElement(selectedLayerName, e.layer, type);
+                element.bindPopup(`<b>${element.name}</b>`);
+                selectElement(element);
+                updateElementList();
+                updateStatus(`${type === 'line' ? 'Creata linea' : 'Creato poligono'} ${element.name}`);
             });
 
             // Click map to deselect (feature clicks stop propagation)
@@ -1700,7 +1593,7 @@ const ParcelEditor = (function() {
                     // Complete newline tool with Enter
                     if (toolState.active === 'newline' && toolState.step === 0 && toolState.segmentCount > 0) {
                         e.preventDefault();
-                        executeNewline();
+                        executeNewShape();
                     }
                 } else if (e.key === 'z' && (e.ctrlKey || e.metaKey)) {
                     e.preventDefault();
@@ -1841,7 +1734,7 @@ const ParcelEditor = (function() {
         // Tool functions
         startTool,
         cancelTool,
-        finishNewline: executeNewline,
+        finishNewline: executeNewShape,
         updateElementList
     };
 })();
