@@ -1,4 +1,4 @@
-// Element Editor - Layer-based editing with unified polygon/line handling
+// Element Editor - Layer-based editing of polygons and lines
 const ParcelEditor = (function() {
     'use strict';
 
@@ -130,26 +130,26 @@ const ParcelEditor = (function() {
         updateStatus(name ? `Strato attivo: ${name}` : 'Nessuno strato selezionato');
     }
 
-    // Element management (unified for polygons and lines)
-    function addElementToLayer(layerName, mapLayer, type) {
+    // Element management
+    function addElementToLayer(layerName, element, type) {
         const layer = layers[layerName];
         if (!layer) return null;
 
         elementCounter++;
         const defaultName = type === 'line'
-            ? (mapLayer.elementName || `Linea ${elementCounter}`)
-            : (mapLayer.elementName || `Poligono ${elementCounter}`);
+            ? (element.name || `Linea ${elementCounter}`)
+            : (element.name || `Poligono ${elementCounter}`);
 
         // Store properties directly on the Leaflet layer
-        mapLayer.id = elementCounter;
-        mapLayer.name = defaultName;
-        mapLayer.type = type;  // 'polygon' or 'line'
-        mapLayer.layerName = layerName;
-        mapLayer.visible = true;
+        element.id = elementCounter;
+        element.name = defaultName;
+        element.type = type;  // 'polygon' or 'line'
+        element.layerName = layerName;
+        element.visible = true;
 
-        layer.elements.push(mapLayer);
+        layer.elements.push(element);
         sortElements(layer);
-        return mapLayer;
+        return element;
     }
 
     function deleteElement(element, confirmed = false) {
@@ -958,7 +958,7 @@ const ParcelEditor = (function() {
         // Create line
         const latlngs = L.GeoJSON.coordsToLatLngs(lineCoords, 0);
         const newLine = L.polyline(latlngs, styles.line);
-        newLine.elementName = element.name;
+        newLine.name = element.name;
 
         // Remove old polygon, add new line
         drawnItems.removeLayer(element);
@@ -998,7 +998,7 @@ const ParcelEditor = (function() {
         const closedCoords = [...polygonCoords, polygonCoords[0]];
         const polyLatLngs = L.GeoJSON.coordsToLatLngs([closedCoords], 1);
         const newPolygon = L.polygon(polyLatLngs, styles.poly);
-        newPolygon.elementName = element.name;
+        newPolygon.name = element.name;
 
         // Remove old line
         drawnItems.removeLayer(element);
@@ -1014,7 +1014,7 @@ const ParcelEditor = (function() {
             const leftCoords = coords.slice(0, idx1 + 1);
             if (leftCoords.length >= 2) {
                 const leftLine = L.polyline(L.GeoJSON.coordsToLatLngs(leftCoords, 0), styles.line);
-                leftLine.elementName = element.name + ' (rimanente 1)';
+                leftLine.name = element.name + ' (rimanente 1)';
                 drawnItems.addLayer(leftLine);
                 addElementToLayer(layerName, leftLine, 'line');
                 addElementClickHandler(leftLine);
@@ -1025,7 +1025,7 @@ const ParcelEditor = (function() {
             const rightCoords = coords.slice(idx2);
             if (rightCoords.length >= 2) {
                 const rightLine = L.polyline(L.GeoJSON.coordsToLatLngs(rightCoords, 0), styles.line);
-                rightLine.elementName = element.name + ' (rimanente 2)';
+                rightLine.name = element.name + ' (rimanente 2)';
                 drawnItems.addLayer(rightLine);
                 addElementToLayer(layerName, rightLine, 'line');
                 addElementClickHandler(rightLine);
@@ -1066,14 +1066,14 @@ const ParcelEditor = (function() {
 
         // Create left line
         const leftLine = L.polyline(L.GeoJSON.coordsToLatLngs(leftCoords, 0), styles.line);
-        leftLine.elementName = element.name + ' (1)';
+        leftLine.name = element.name + ' (1)';
         drawnItems.addLayer(leftLine);
         addElementToLayer(layerName, leftLine, 'line');
         addElementClickHandler(leftLine);
 
         // Create right line
         const rightLine = L.polyline(L.GeoJSON.coordsToLatLngs(rightCoords, 0), styles.line);
-        rightLine.elementName = element.name + ' (2)';
+        rightLine.name = element.name + ' (2)';
         drawnItems.addLayer(rightLine);
         addElementToLayer(layerName, rightLine, 'line');
         addElementClickHandler(rightLine);
@@ -1125,7 +1125,7 @@ const ParcelEditor = (function() {
 
         // Create joined line
         const joinedLine = L.polyline(L.GeoJSON.coordsToLatLngs(joinedCoords, 0), styles.line);
-        joinedLine.elementName = line1.name;
+        joinedLine.name = line1.name;
         drawnItems.addLayer(joinedLine);
         addElementToLayer(layerName, joinedLine, 'line');
         addElementClickHandler(joinedLine);
@@ -1293,20 +1293,20 @@ const ParcelEditor = (function() {
                     // Handle polygons
                     const depth = feature.geometry.type === 'Polygon' ? 1 : 2;
                     const latlngs = L.GeoJSON.coordsToLatLngs(feature.geometry.coordinates, depth);
-                    const mapLayer = L.polygon(latlngs, styles.polyOtherLayer);
-                    mapLayer.elementName = feature.properties?.name;
-                    drawnItems.addLayer(mapLayer);
-                    addElementToLayer(layerName, mapLayer, 'polygon');
-                    addElementClickHandler(mapLayer);
+                    const element = L.polygon(latlngs, styles.polyOtherLayer);
+                    element.name = feature.properties?.name;
+                    drawnItems.addLayer(element);
+                    addElementToLayer(layerName, element, 'polygon');
+                    addElementClickHandler(element);
                     newPolygons++;
                 } else if (feature.geometry?.type === 'LineString') {
                     // Handle lines
                     const latlngs = L.GeoJSON.coordsToLatLngs(feature.geometry.coordinates, 0);
-                    const mapLayer = L.polyline(latlngs, styles.lineOtherLayer);
-                    mapLayer.elementName = feature.properties?.name;
-                    drawnItems.addLayer(mapLayer);
-                    addElementToLayer(layerName, mapLayer, 'line');
-                    addElementClickHandler(mapLayer);
+                    const element = L.polyline(latlngs, styles.lineOtherLayer);
+                    element.name = feature.properties?.name;
+                    drawnItems.addLayer(element);
+                    addElementToLayer(layerName, element, 'line');
+                    addElementClickHandler(element);
                     newLines++;
                 }
             });
@@ -1662,21 +1662,21 @@ const ParcelEditor = (function() {
                     return;
                 }
 
-                const mapLayer = e.layer;
-                drawnItems.addLayer(mapLayer);
+                let element = e.layer;
+                drawnItems.addLayer(element);
 
                 // Check if it's a polyline (line) or polygon
                 if (e.layerType === 'polyline') {
-                    const element = addElementToLayer(selectedLayerName, mapLayer, 'line');
-                    addElementClickHandler(mapLayer);
-                    mapLayer.bindPopup(`<b>${element.name}</b>`);
+                    element = addElementToLayer(selectedLayerName, element, 'line');
+                    addElementClickHandler(element);
+                    element.bindPopup(`<b>${element.name}</b>`);
                     selectElement(element);
                     updateElementList();
                     updateStatus(`Creata linea ${element.name}`);
                 } else {
-                    const element = addElementToLayer(selectedLayerName, mapLayer, 'polygon');
-                    addElementClickHandler(mapLayer);
-                    mapLayer.bindPopup(`<b>${element.name}</b>`);
+                    element = addElementToLayer(selectedLayerName, element, 'polygon');
+                    addElementClickHandler(element);
+                    element.bindPopup(`<b>${element.name}</b>`);
                     selectElement(element);
                     updateElementList();
                     updateStatus(`Creato poligono ${element.name}`);
@@ -1819,7 +1819,7 @@ const ParcelEditor = (function() {
         renameLayer,
         deleteLayerByName,
 
-        // Element functions (unified)
+        // Element functions
         onElementClick(id) {
             const element = findElementById(id);
             if (element) selectElement(element);
