@@ -63,6 +63,44 @@ COL_ANNI = 'Anni'
 COL_PPM = 'PPM'
 COL_PP_MAX_RULE = 'PP_max'
 
+@dataclass
+class RenderResult:
+    """Result of a render_* function: snippet for template insertion, optional file path."""
+    snippet: str
+    filepath: Path | None = None
+
+@dataclass
+class CurveInfo:
+    """Metadata for one regression curve (used in @@gci graph legends)."""
+    genere: str
+    equation: str
+    r_squared: float
+    n_points: int
+
+@dataclass
+class Directive:
+    """A parsed @@keyword(params) template directive."""
+    keyword: str
+    params: dict
+    full_text: str
+
+@dataclass
+class ParcelStats:
+    """Per-parcel metadata computed from tree data and parcel metadata."""
+    area_ha: float
+    sector: str
+    age: float
+    n_sample_areas: int
+    sampled_frac: float
+
+@dataclass
+class ParcelData:
+    """Filtered tree data and associated parcel statistics."""
+    trees: pd.DataFrame
+    regions: list[str]
+    species: list[str]
+    parcels: dict[tuple[str, str], ParcelStats]
+
 # =============================================================================
 # OUTPUT FORMATTING
 # =============================================================================
@@ -88,7 +126,7 @@ class SnippetFormatter(ABC):
         """Format image reference for this format."""
 
     @abstractmethod
-    def format_metadata(self, data: dict, curve_info: Optional[list] = None) -> str:
+    def format_metadata(self, data: 'ParcelData', curve_info: Optional[list] = None) -> str:
         """Format metadata block for this format.
 
         Args:
@@ -128,18 +166,18 @@ class HTMLSnippetFormatter(SnippetFormatter):
         cls = options[OPT_STILE] if options and options[OPT_STILE] else 'graph-image'
         return f'<img src="{filepath.name}" class="{cls}">'
 
-    def format_metadata(self, data: dict, curve_info: Optional[list] = None) -> str:
+    def format_metadata(self, data: 'ParcelData', curve_info: Optional[list] = None) -> str:
         """Format metadata as HTML."""
         html = '<div class="graph-details">\n'
-        html += f'<p><strong>Comprese:</strong> {data["regions"]}</p>\n'
-        html += f'<p><strong>Generi:</strong> {data["species"]}</p>\n'
-        html += f'<p><strong>Alberi campionati:</strong> {data["trees"].shape[0]:d}</p>\n'
+        html += f'<p><strong>Comprese:</strong> {data.regions}</p>\n'
+        html += f'<p><strong>Generi:</strong> {data.species}</p>\n'
+        html += f'<p><strong>Alberi campionati:</strong> {data.trees.shape[0]:d}</p>\n'
         if curve_info:
             i = 'i' if len(curve_info) > 1 else 'e'
             html += f'<br><p><strong>Equazion{i} interpolant{i}:</strong></p>\n'
             for curve in curve_info:
-                html += (f'<p>{curve["genere"]}: {curve["equation"]} '
-                         f'(R² = {curve["r_squared"]:.2f}, n = {curve["n_points"]})</p>\n')
+                html += (f'<p>{curve.genere}: {curve.equation} '
+                         f'(R² = {curve.r_squared:.2f}, n = {curve.n_points})</p>\n')
         html += '</div>\n'
         return html
 
@@ -187,7 +225,7 @@ class LaTeXSnippetFormatter(SnippetFormatter):
         latex += '\\end{center}\n'
         return latex
 
-    def format_metadata(self, data: dict, curve_info: Optional[list] = None) -> str:
+    def format_metadata(self, data: 'ParcelData', curve_info: Optional[list] = None) -> str:
         """Format metadata as LaTeX."""
         if not curve_info:
             return ""
@@ -195,10 +233,10 @@ class LaTeXSnippetFormatter(SnippetFormatter):
         i = 'i' if len(curve_info) > 1 else 'e'
         latex += f'\n\\textbf{{Equazion{i} interpolant{i}:}}\\\\\n'
         for curve in curve_info:
-            eq = curve['equation'].replace('*', r'\times ')
+            eq = curve.equation.replace('*', r'\times ')
             eq = eq.replace('ln', r'\ln')
-            latex += (f"{curve['genere']}: ${eq}$ ($R^2$ = {curve['r_squared']:.2f}, "
-                        f"$n$ = {curve['n_points']})\\\\\n")
+            latex += (f"{curve.genere}: ${eq}$ ($R^2$ = {curve.r_squared:.2f}, "
+                        f"$n$ = {curve.n_points})\\\\\n")
         latex += '\\end{quote}\n'
         return latex
 
@@ -248,7 +286,7 @@ class CSVSnippetFormatter(SnippetFormatter):
     def format_image(self, filepath: Path, options: Optional[dict] = None) -> str:
         raise NotImplementedError("Formato CSV non supporta immagini (direttive @@g*)")
 
-    def format_metadata(self, data: dict, curve_info: Optional[list] = None) -> str:
+    def format_metadata(self, data: 'ParcelData', curve_info: Optional[list] = None) -> str:
         raise NotImplementedError("Formato CSV non supporta metadati")
 
     def format_table(self, headers: list[tuple[str, str]], rows: list[list[str]]) -> str:
@@ -638,7 +676,7 @@ def calculate_all_trees_volume(trees_df: pd.DataFrame) -> pd.DataFrame:
 
 region_cache = {}
 def parcel_data(tree_files: list[str], tree_df: pd.DataFrame, parcel_df: pd.DataFrame,
-                regions: list[str], parcels: list[str], species: list[str]) -> dict:
+                regions: list[str], parcels: list[str], species: list[str]) -> 'ParcelData':
     """
     Compute parcel data.
 
@@ -705,24 +743,24 @@ def parcel_data(tree_files: list[str], tree_df: pd.DataFrame, parcel_df: pd.Data
             raise ValueError(f"Nessuna area di saggio per particella {region}/{parcel}")
         sampled_frac = n_sample_areas * SAMPLE_AREA_HA / area_ha
 
-        parcel_stats[(region, parcel)] = {
-            'area_ha': area_ha,
-            'sector': md[COL_COMPARTO],
-            'age': md[COL_ETA_MEDIA],
-            'n_sample_areas': n_sample_areas,
-            'sampled_frac': sampled_frac,
-        }
+        parcel_stats[(region, parcel)] = ParcelStats(
+            area_ha=area_ha,
+            sector=md[COL_COMPARTO],
+            age=md[COL_ETA_MEDIA],
+            n_sample_areas=n_sample_areas,
+            sampled_frac=sampled_frac,
+        )
 
     # Compute diameter bucket: D in (0,5] -> 5, D in (5,10] -> 10, etc.
     trees_region_species[COL_DIAMETRO] = (
         (np.floor((trees_region_species[COL_DIAMETER_CM] - 1) / 5) + 1) * 5).astype(int)
 
-    data = {
-        'trees': trees_region_species,
-        'regions': sorted(trees_region[COL_COMPRESA].unique()),
-        'species': sorted(trees_region_species[COL_GENERE].unique()),
-        'parcels': parcel_stats,
-    }
+    data = ParcelData(
+        trees=trees_region_species,
+        regions=sorted(trees_region[COL_COMPRESA].unique()),
+        species=sorted(trees_region_species[COL_GENERE].unique()),
+        parcels=parcel_stats,
+    )
     region_cache[key] = data
     return data
 
@@ -913,9 +951,9 @@ def compute_heights(trees_df: pd.DataFrame, equations_df: pd.DataFrame,
 # CURVE IPSOMETRICHE ==========================================================
 
 
-def render_gci_graph(data: dict, equations_df: pd.DataFrame,
+def render_gci_graph(data: ParcelData, equations_df: pd.DataFrame,
                      output_path: Path, formatter: SnippetFormatter,
-                     color_map: dict, **options) -> dict:
+                     color_map: dict, **options) -> RenderResult:
     """
     Generate height-diameter graphs.
 
@@ -932,9 +970,9 @@ def render_gci_graph(data: dict, equations_df: pd.DataFrame,
         - 'snippet': Formatted HTML/LaTeX snippet for template substitution
     """
     #pylint: disable=too-many-locals
-    trees = data['trees']
-    species = data['species']
-    regions = data['regions']
+    trees = data.trees
+    species = data.species
+    regions = data.regions
 
     figsize = (4, 3)
     fig, ax = plt.subplots(figsize=figsize)
@@ -972,12 +1010,12 @@ def render_gci_graph(data: dict, equations_df: pd.DataFrame,
                 ax.plot(x_smooth, y_smooth, color=color_map[sp],
                     linestyle='--', alpha=0.8, linewidth=1.5)
 
-                curve_info.append({
-                    'genere': sp,
-                    'equation': eq_str,
-                    'r_squared': eq['r2'],
-                    'n_points': int(eq['n'])
-                })
+                curve_info.append(CurveInfo(
+                    genere=sp,
+                    equation=eq_str,
+                    r_squared=eq['r2'],
+                    n_points=int(eq['n']),
+                ))
 
     if not skip_graphs:
         x_max = max(options[OPT_X_MAX], trees[COL_DIAMETER_CM].max() + 3)
@@ -1001,10 +1039,7 @@ def render_gci_graph(data: dict, equations_df: pd.DataFrame,
     snippet = formatter.format_image(output_path, options)
     snippet += '\n' + formatter.format_metadata(data, curve_info=curve_info)
 
-    return {
-        'filepath': output_path,
-        'snippet': snippet
-    }
+    return RenderResult(filepath=output_path, snippet=snippet)
 
 
 # CLASSI DIAMETRICHE ==========================================================
@@ -1029,7 +1064,7 @@ COARSE_BINS = [COARSE_BIN0, COARSE_BIN1, COARSE_BIN2]
 AGG_COUNT, AGG_VOLUME, AGG_BASAL, AGG_HEIGHT = 0, 1, 2, 3
 
 
-def calculate_cd_data(data: dict, metrica: str, stime_totali: bool,
+def calculate_cd_data(data: ParcelData, metrica: str, stime_totali: bool,
                        fine: bool = True) -> pd.DataFrame:
     """Calculate diameter class data for @@gcd/@@tcd directives.
 
@@ -1041,9 +1076,9 @@ def calculate_cd_data(data: dict, metrica: str, stime_totali: bool,
 
     Returns DataFrame indexed by bucket with species as columns.
     """
-    trees = data['trees']
-    parcels = data['parcels']
-    species = data['species']
+    trees = data.trees
+    parcels = data.parcels
+    species = data.species
 
     if metrica.startswith('volume'):
         agg_type = AGG_VOLUME
@@ -1071,7 +1106,7 @@ def calculate_cd_data(data: dict, metrica: str, stime_totali: bool,
     results, area_ha = {}, 0
     for (region, parcel), ptrees in trees.groupby([COL_COMPRESA, COL_PARTICELLA]):
         p = parcels[(region, parcel)]
-        area_ha += p['area_ha']
+        area_ha += p.area_ha
         bucket_vals = ptrees[COL_DIAMETRO] if fine else cast(pd.Series, bucket_key).loc[ptrees.index]
         if agg_type == AGG_VOLUME:
             agg = ptrees.groupby([bucket_vals, COL_GENERE])[COL_V_M3].sum().unstack(fill_value=0)
@@ -1082,7 +1117,7 @@ def calculate_cd_data(data: dict, metrica: str, stime_totali: bool,
         else:
             agg = ptrees.groupby([bucket_vals, COL_GENERE]).size().unstack(fill_value=0)
         if stime_totali:
-            agg = agg / p['sampled_frac']
+            agg = agg / p.sampled_frac
         results[(region, parcel)] = agg
 
     combined = pd.concat(results.values()).groupby(level=0).sum()
@@ -1091,8 +1126,8 @@ def calculate_cd_data(data: dict, metrica: str, stime_totali: bool,
     return combined.reindex(columns=species, fill_value=0).sort_index()
 
 
-def render_gcd_graph(data: dict, output_path: Path,
-                     formatter: SnippetFormatter, color_map: dict, **options) -> dict:
+def render_gcd_graph(data: ParcelData, output_path: Path,
+                     formatter: SnippetFormatter, color_map: dict, **options) -> RenderResult:
     """
     Generate diameter class histograms.
 
@@ -1109,7 +1144,7 @@ def render_gcd_graph(data: dict, output_path: Path,
             - 'snippet': Formatted HTML/LaTeX snippet for template substitution
     """
     if not skip_graphs:
-        species = data['species']
+        species = data.species
         metrica = options[OPT_METRICA]
         stime_totali = options[OPT_STIME_TOTALI]
 
@@ -1161,13 +1196,10 @@ def render_gcd_graph(data: dict, output_path: Path,
     snippet = formatter.format_image(output_path, options)
     snippet += '\n' + formatter.format_metadata(data)
 
-    return {
-        'filepath': output_path,
-        'snippet': snippet
-    }
+    return RenderResult(filepath=output_path, snippet=snippet)
 
 
-def render_tcd_table(data: dict, formatter: SnippetFormatter, **options) -> dict:
+def render_tcd_table(data: ParcelData, formatter: SnippetFormatter, **options) -> RenderResult:
     """
     Generate diameter class table (@@tcd directive).
 
@@ -1182,7 +1214,7 @@ def render_tcd_table(data: dict, formatter: SnippetFormatter, **options) -> dict
     Returns:
         dict with 'snippet' key containing formatted table
     """
-    species = data['species']
+    species = data.species
     metrica = options[OPT_METRICA]
     stime_totali = options[OPT_STIME_TOTALI]
     use_decimals = metrica.startswith('volume') or metrica.startswith('G') or metrica == 'altezza'
@@ -1210,11 +1242,11 @@ def render_tcd_table(data: dict, formatter: SnippetFormatter, **options) -> dict
     total_row.append(fmt.format(sum(col_totals.values())))
     rows.append(total_row)
 
-    return {'snippet': formatter.format_table(headers, rows)}
+    return RenderResult(snippet=formatter.format_table(headers, rows))
 
 
 def render_prop(particelle_df: pd.DataFrame, compresa: str, particella: str,
-                formatter: SnippetFormatter) -> dict:
+                formatter: SnippetFormatter) -> RenderResult:
     """
     Render parcel properties (@@prop directive).
 
@@ -1250,7 +1282,7 @@ def render_prop(particelle_df: pd.DataFrame, compresa: str, particella: str,
         (COL_PIANO_TAGLIO, row[COL_PIANO_TAGLIO]),
     ]
 
-    return {'snippet': formatter.format_prop(short_fields, paragraph_fields)}
+    return RenderResult(snippet=formatter.format_prop(short_fields, paragraph_fields))
 
 
 # STIMA VOLUMI ================================================================
@@ -1313,7 +1345,7 @@ ColSpec = tuple  # (header, align, format_fn, total_fn, condition)
 
 def _render_table(df: pd.DataFrame, group_cols: list[str],
                   col_specs: list[ColSpec], formatter: SnippetFormatter,
-                  add_totals: bool) -> dict:
+                  add_totals: bool) -> RenderResult:
     """Generic table renderer from a DataFrame and column specifications.
 
     Args:
@@ -1345,10 +1377,10 @@ def _render_table(df: pd.DataFrame, group_cols: list[str],
                 total_row.append(tot_fn(df))
         display_rows.append(total_row)
 
-    return {'snippet': formatter.format_table(headers, display_rows)}
+    return RenderResult(snippet=formatter.format_table(headers, display_rows))
 
 
-def calculate_tsv_table(data: dict, group_cols: list[str],
+def calculate_tsv_table(data: ParcelData, group_cols: list[str],
                         calc_margin: bool, calc_total: bool,
                         calc_mature: bool = False) -> pd.DataFrame:
     """Calculate the table rows for the @@tsv directive. Returns a DataFrame.
@@ -1361,11 +1393,11 @@ def calculate_tsv_table(data: dict, group_cols: list[str],
         calc_mature: If True, include volume_mature column (trees with D > 20cm only)
     """
     #pylint: disable=too-many-locals
-    trees = data['trees']
+    trees = data.trees
     if COL_V_M3 not in trees.columns:
         raise ValueError("@@tsv richiede dati con volumi (manca la colonna COL_V_M3). "
                          "Esegui --calcola-altezze-volumi per calcolarli.")
-    parcels = data['parcels']
+    parcels = data.parcels
 
     if not group_cols:
         trees = trees.copy()
@@ -1384,7 +1416,7 @@ def calculate_tsv_table(data: dict, group_cols: list[str],
                     p = parcels[(region, parcel)]
                 except KeyError as e:
                     raise ValueError(f"Particella {region}/{parcel} non trovata") from e
-                sf = p['sampled_frac']
+                sf = p.sampled_frac
                 n_trees += len(ptrees) / sf
                 volume += ptrees[COL_V_M3].sum() / sf
                 if calc_mature:
@@ -1420,7 +1452,7 @@ def calculate_tsv_table(data: dict, group_cols: list[str],
         key=lambda col: col.map(natsort_keygen()) if col.name == COL_PARTICELLA else col)
 
 
-def render_tsv_table(data: dict, formatter: SnippetFormatter, **options) -> dict:
+def render_tsv_table(data: ParcelData, formatter: SnippetFormatter, **options) -> RenderResult:
     """
     Generate volume summary table (@@tsv directive).
 
@@ -1478,7 +1510,7 @@ def render_tsv_table(data: dict, formatter: SnippetFormatter, **options) -> dict
     return _render_table(df, group_cols, col_specs, formatter, options[OPT_TOTALI])
 
 
-def calculate_ip_table(data: dict, group_cols: list[str],
+def calculate_ip_table(data: ParcelData, group_cols: list[str],
                        stime_totali: bool) -> pd.DataFrame:
     """Calculate the table rows for the @@tip/@@gip directives. Returns a DataFrame.
 
@@ -1487,8 +1519,8 @@ def calculate_ip_table(data: dict, group_cols: list[str],
       - incremento_corrente: sum(V(m3)) * mean(IP) / 100
     When stime_totali is True, volumes are scaled by 1/sampled_frac per parcel.
     """
-    trees = data['trees']
-    parcels = data['parcels']
+    trees = data.trees
+    parcels = data.parcels
     for col in (group_cols + [COL_COEFF_A, COL_IPR_MM, COL_DIAMETER_CM, COL_V_M3]):
         if col not in trees.columns:
             raise ValueError(f"@@tip/@@gip richiede la colonna '{col}'. "
@@ -1505,7 +1537,7 @@ def calculate_ip_table(data: dict, group_cols: list[str],
         if stime_totali:
             volume = 0.0
             for (region, parcel), ptrees in group_trees.groupby([COL_COMPRESA, COL_PARTICELLA]):
-                sf = parcels[(region, parcel)]['sampled_frac']
+                sf = parcels[(region, parcel)].sampled_frac
                 volume += ptrees[COL_V_M3].sum() / sf
         else:
             volume = group_trees[COL_V_M3].sum()
@@ -1520,7 +1552,7 @@ def calculate_ip_table(data: dict, group_cols: list[str],
         key=lambda col: col.map(natsort_keygen()) if col.name == COL_PARTICELLA else col)
 
 
-def render_tip_table(data: dict, formatter: SnippetFormatter, **options) -> dict:
+def render_tip_table(data: ParcelData, formatter: SnippetFormatter, **options) -> RenderResult:
     """Generate IP summary table (@@tip directive)."""
     group_cols = []
     if options[OPT_PER_COMPRESA]:
@@ -1548,9 +1580,9 @@ def render_tip_table(data: dict, formatter: SnippetFormatter, **options) -> dict
     return _render_table(df, group_cols, col_specs, formatter, options[OPT_TOTALI])
 
 
-def render_gip_graph(data: dict, output_path: Path,
+def render_gip_graph(data: ParcelData, output_path: Path,
                      formatter: SnippetFormatter, color_map: dict,
-                     **options) -> dict:
+                     **options) -> RenderResult:
     """Generate IP line graph (@@gip directive)."""
     if not skip_graphs:
         group_cols = []
@@ -1596,7 +1628,7 @@ def render_gip_graph(data: dict, output_path: Path,
 
     snippet = formatter.format_image(output_path, options)
     snippet += '\n' + formatter.format_metadata(data)
-    return {'filepath': output_path, 'snippet': snippet}
+    return RenderResult(filepath=output_path, snippet=snippet)
 
 
 BARH_GROUP_SPACING = 0.3   # Extra vertical gap between compresa groups in bar charts
@@ -1635,9 +1667,9 @@ def _barh_layout(n_bars: int, group_values: Iterable | None = None
     return y_positions, fig_height
 
 
-def render_gsv_graph(data: dict, output_path: Path,
+def render_gsv_graph(data: ParcelData, output_path: Path,
                      formatter: SnippetFormatter, color_map: dict,
-                     **options) -> dict:
+                     **options) -> RenderResult:
     """
     Generate volume summary horizontal bar graph (@@gsv directive).
 
@@ -1667,7 +1699,7 @@ def render_gsv_graph(data: dict, output_path: Path,
 
         df = calculate_tsv_table(data, group_cols, calc_margin=False, calc_total=True)
         if df.empty:
-            return {'snippet': '', 'filepath': None}
+            return RenderResult(snippet='')
 
         if stacked:
             # Pivot to get genere as columns for stacking
@@ -1744,7 +1776,7 @@ def render_gsv_graph(data: dict, output_path: Path,
     snippet = formatter.format_image(output_path, options)
     snippet += '\n' + formatter.format_metadata(data)
 
-    return {'filepath': output_path, 'snippet': snippet}
+    return RenderResult(filepath=output_path, snippet=snippet)
 
 
 # RIPRESA =====================================================================
@@ -1847,7 +1879,7 @@ def compute_harvest_by_basal_area(trees_df: pd.DataFrame, pp_max_basal: float,
     return total_volume, cumulative_volume
 
 
-def calculate_tpt_table(data: dict, comparti_df: pd.DataFrame,
+def calculate_tpt_table(data: ParcelData, comparti_df: pd.DataFrame,
                         provv_vol_df: pd.DataFrame, provv_eta_df: pd.DataFrame,
                         group_cols: list[str]) -> pd.DataFrame:
     """
@@ -1880,11 +1912,11 @@ def calculate_tpt_table(data: dict, comparti_df: pd.DataFrame,
         sector, age, area_ha, volume, volume_mature, pp_max, harvest
     """
     #pylint: disable=too-many-locals
-    trees = data['trees']
+    trees = data.trees
     if COL_V_M3 not in trees.columns:
         raise ValueError("@@tpt richiede dati con volumi (colonna V(m3) mancante). "
                          "Esegui --calcola-altezze-volumi per calcolarli.")
-    parcels = data['parcels']
+    parcels = data.parcels
 
     added_dummy = False
     if not group_cols:
@@ -1904,11 +1936,11 @@ def calculate_tpt_table(data: dict, comparti_df: pd.DataFrame,
         except KeyError as e:
             raise ValueError(f"Particella {region}/{parcel} non trovata") from e
 
-        sector, p_area, sf, age = p['sector'], p['area_ha'], p['sampled_frac'], p['age']
+        sector, p_area, sf, age = p.sector, p.area_ha, p.sampled_frac, p.age
         try:
             provv_min = sector_pm[sector]
         except KeyError as e:
-            raise ValueError(f"Comparto {p['sector']} non trovato") from e
+            raise ValueError(f"Comparto {p.sector} non trovato") from e
 
         if provv_min < 0:  # Ceduo
             parcel_info[(region, parcel)] = {'skip': True}
@@ -2011,9 +2043,9 @@ def calculate_tpt_table(data: dict, comparti_df: pd.DataFrame,
         key=lambda col: col.map(natsort_keygen()) if col.name == COL_PARTICELLA else col)
 
 
-def render_tpt_table(data: dict, comparti_df: pd.DataFrame,
+def render_tpt_table(data: ParcelData, comparti_df: pd.DataFrame,
                      provv_vol_df: pd.DataFrame, provv_eta_df: pd.DataFrame,
-                     formatter: SnippetFormatter, **options) -> dict:
+                     formatter: SnippetFormatter, **options) -> RenderResult:
     """
     Render harvest (prelievo totale) table (@@tpt directive).
 
@@ -2051,9 +2083,9 @@ def render_tpt_table(data: dict, comparti_df: pd.DataFrame,
 
     df = calculate_tpt_table(data, comparti_df, provv_vol_df, provv_eta_df, group_cols)
     if df.empty:
-        return {'snippet': ''}
+        return RenderResult(snippet='')
 
-    per_parcel = COL_PARTICELLA in group_cols or len(data['parcels']) == 1
+    per_parcel = COL_PARTICELLA in group_cols or len(data.parcels) == 1
 
     # When per_genere, area_ha is duplicated across species; dedupe for totals
     if COL_GENERE in group_cols:
@@ -2108,10 +2140,10 @@ def render_tpt_table(data: dict, comparti_df: pd.DataFrame,
     return _render_table(df, group_cols, col_specs, formatter, options[OPT_TOTALI])
 
 
-def render_gpt_graph(data: dict, comparti_df: pd.DataFrame,
+def render_gpt_graph(data: ParcelData, comparti_df: pd.DataFrame,
                      provv_vol_df: pd.DataFrame, provv_eta_df: pd.DataFrame,
                      output_path: Path, formatter: SnippetFormatter,
-                     **options) -> dict:
+                     **options) -> RenderResult:
     """
     Generate harvest horizontal bar graph (@@gpt directive).
 
@@ -2136,7 +2168,7 @@ def render_gpt_graph(data: dict, comparti_df: pd.DataFrame,
 
         df = calculate_tpt_table(data, comparti_df, provv_vol_df, provv_eta_df, group_cols)
         if df.empty:
-            return {'snippet': '', 'filepath': None}
+            return RenderResult(snippet='')
 
         if group_cols:
             labels = ['/'.join(str(row[c]) for c in group_cols) for _, row in df.iterrows()]
@@ -2168,7 +2200,7 @@ def render_gpt_graph(data: dict, comparti_df: pd.DataFrame,
     snippet = formatter.format_image(output_path, options)
     snippet += '\n' + formatter.format_metadata(data)
 
-    return {'filepath': output_path, 'snippet': snippet}
+    return RenderResult(filepath=output_path, snippet=snippet)
 
 
 # =============================================================================
@@ -2209,7 +2241,7 @@ def _bool_opt(params: dict, key: str, enabled: bool = True) -> bool:
     return params.get(key, 'si' if enabled else 'no').lower() == 'si'
 
 
-def parse_template_directive(line: str) -> Optional[dict]:
+def parse_template_directive(line: str) -> Optional[Directive]:
     """
     Parse a template directive like @@gci(compresa=Serra, genere=Abete).
 
@@ -2257,11 +2289,7 @@ def parse_template_directive(line: str) -> Optional[dict]:
                     # Scalar value (last one wins if repeated)
                     params[key] = value
 
-    return {
-        'keyword': keyword,
-        'params': params,
-        'full_text': full_text
-    }
+    return Directive(keyword=keyword, params=params, full_text=full_text)
 
 DIRECTIVE_PATTERN = re.compile(r'@@(\w+)\((.*?)\)')
 def process_template(template_text: str, data_dir: Path,
@@ -2344,8 +2372,8 @@ def process_template(template_text: str, data_dir: Path,
             return match.group(0)  # Return unchanged if parsing fails
 
         try:
-            keyword = directive['keyword']
-            params = directive['params']
+            keyword = directive.keyword
+            params = directive.params
 
             csv_unsupported = keyword.startswith('g')
             if format_type == 'csv' and csv_unsupported:
@@ -2366,7 +2394,7 @@ def process_template(template_text: str, data_dir: Path,
                 if len(comprese) != 1 or len(particelle) != 1 or len(params) != 2:
                     raise ValueError("@@prop richiede esattamente compresa=X e particella=Y")
                 result = render_prop(particelle_df, comprese[0], particelle[0], formatter)
-                return result['snippet']
+                return result.snippet
 
             if keyword == 'particelle':
                 return render_particelle(comprese, particelle, particelle_df, params)
@@ -2512,10 +2540,10 @@ def process_template(template_text: str, data_dir: Path,
                 case _:
                     raise ValueError(f"Comando sconosciuto: {keyword}")
 
-            return result['snippet']
+            return result.snippet
 
         except Exception as e:
-            raise ValueError(f"ERRORE nella generazione di {directive['full_text']}: {e}") from e
+            raise ValueError(f"ERRORE nella generazione di {directive.full_text}: {e}") from e
 
     match format_type:
         case 'html':

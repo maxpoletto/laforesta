@@ -197,11 +197,11 @@ class TestCrossQueryConsistency:
         tcd_basal = tcd_df.sum().sum()
 
         # Manual calculation from trees
-        trees = data_all['trees']
-        parcels = data_all['parcels']
+        trees = data_all.trees
+        parcels = data_all.parcels
         manual_basal = 0.0
         for (region, parcel), ptrees in trees.groupby([COL_COMPRESA, COL_PARTICELLA]):
-            sf = parcels[(region, parcel)]['sampled_frac']
+            sf = parcels[(region, parcel)].sampled_frac
             basal = np.pi / 4 * ptrees[COL_DIAMETER_CM] ** 2 / 10000  # m²
             manual_basal += basal.sum() / sf
 
@@ -260,19 +260,19 @@ class TestSampleAreaScaling:
 
     def test_sampled_frac_computation(self, data_all):
         """Verify sampled_frac is computed correctly."""
-        parcels = data_all['parcels']
+        parcels = data_all.parcels
 
         # Parcel A: 1 sample area, 10 ha -> 1 * 0.125 / 10 = 0.0125
-        assert np.isclose(parcels[('Test', 'A')]['sampled_frac'], 0.0125), \
-            f"Parcel A sampled_frac wrong: {parcels[('Test', 'A')]['sampled_frac']}"
+        assert np.isclose(parcels[('Test', 'A')].sampled_frac, 0.0125), \
+            f"Parcel A sampled_frac wrong: {parcels[('Test', 'A')].sampled_frac}"
 
         # Parcel B: 2 sample areas, 10 ha -> 2 * 0.125 / 10 = 0.025
-        assert np.isclose(parcels[('Test', 'B')]['sampled_frac'], 0.025), \
-            f"Parcel B sampled_frac wrong: {parcels[('Test', 'B')]['sampled_frac']}"
+        assert np.isclose(parcels[('Test', 'B')].sampled_frac, 0.025), \
+            f"Parcel B sampled_frac wrong: {parcels[('Test', 'B')].sampled_frac}"
 
         # Parcel C: 5 sample areas, 10 ha -> 5 * 0.125 / 10 = 0.0625
-        assert np.isclose(parcels[('Test', 'C')]['sampled_frac'], 0.0625), \
-            f"Parcel C sampled_frac wrong: {parcels[('Test', 'C')]['sampled_frac']}"
+        assert np.isclose(parcels[('Test', 'C')].sampled_frac, 0.0625), \
+            f"Parcel C sampled_frac wrong: {parcels[('Test', 'C')].sampled_frac}"
 
     def test_tree_scaling_parcel_a(self, data_parcel_a):
         """Parcel A: 6 sampled trees should scale to 6 * 80 = 480 estimated trees."""
@@ -419,7 +419,7 @@ class TestConfidenceInterval:
 
     def test_margin_is_positive(self, data_all):
         """Confidence interval margin should be positive."""
-        trees = data_all['trees']
+        trees = data_all.trees
         _, margin = acc.calculate_volume_confidence_interval(trees)
         assert margin > 0, f"Margin should be positive, got {margin}"
 
@@ -430,14 +430,14 @@ class TestConfidenceInterval:
             ["alberi.csv"], trees_df, particelle_df,
             regions=["Test"], parcels=["A"], species=[]
         )
-        _, margin_a = acc.calculate_volume_confidence_interval(data_a['trees'])
+        _, margin_a = acc.calculate_volume_confidence_interval(data_a.trees)
 
         # All parcels (more trees)
         data_all = acc.parcel_data(
             ["alberi.csv"], trees_df, particelle_df,
             regions=["Test"], parcels=[], species=[]
         )
-        _, margin_all = acc.calculate_volume_confidence_interval(data_all['trees'])
+        _, margin_all = acc.calculate_volume_confidence_interval(data_all.trees)
 
         # More trees -> larger absolute margin (not necessarily proportionally)
         assert margin_all > margin_a, \
@@ -489,7 +489,7 @@ class TestMature:
 
     def test_small_trees_count(self, data_all):
         """Verify the number of small trees in test data."""
-        trees = data_all['trees']
+        trees = data_all.trees
         n_small = (trees[COL_DIAMETER_CM] <= acc.MATURE_THRESHOLD).sum()
         n_mature = (trees[COL_DIAMETER_CM] > acc.MATURE_THRESHOLD).sum()
 
@@ -500,13 +500,13 @@ class TestMature:
 
     def test_volume_mature_consistency(self, data_all):
         """Manual calculation of volume_mature should match."""
-        trees = data_all['trees']
-        parcels = data_all['parcels']
+        trees = data_all.trees
+        parcels = data_all.parcels
 
         # Manual calculation
         manual_vol_mature = 0.0
         for (region, parcel), ptrees in trees.groupby([COL_COMPRESA, COL_PARTICELLA]):
-            sf = parcels[(region, parcel)]['sampled_frac']
+            sf = parcels[(region, parcel)].sampled_frac
             above = ptrees[ptrees[COL_DIAMETER_CM] > acc.MATURE_THRESHOLD]
             manual_vol_mature += above[COL_V_M3].sum() / sf
 
@@ -626,14 +626,14 @@ class TestHarvestCalculation:
         """Basal area harvest (young) uses different logic than volume harvest (old)."""
         # Verify that age rules correctly distinguish the two parcels
         # Parcel A (age=60) uses volume rules
-        parcels_a = data_parcel_a['parcels']
-        age_a = parcels_a[('Test', 'A')]['age']
+        parcels_a = data_parcel_a.parcels
+        age_a = parcels_a[('Test', 'A')].age
         _, use_vol_a = acc.get_age_rule(age_a, provv_eta_df)
         assert use_vol_a, f"Parcel A (age={age_a}) should use volume rules"
 
         # Parcel D (age=20) uses basal area rules
-        parcels_d = data_parcel_d['parcels']
-        age_d = parcels_d[('Test', 'D')]['age']
+        parcels_d = data_parcel_d.parcels
+        age_d = parcels_d[('Test', 'D')].age
         pp_max_d, use_vol_d = acc.get_age_rule(age_d, provv_eta_df)
         assert not use_vol_d, f"Parcel D (age={age_d}) should use basal area rules"
         assert pp_max_d == 15, f"Parcel D should have PP_max=15, got {pp_max_d}"
@@ -648,7 +648,7 @@ class TestHarvestCalculation:
 
         # Parcel D has 2 small trees (D=15, D=18) that should be excluded
         # volume_mature should only include D > 20 trees
-        trees = data_parcel_d['trees']
+        trees = data_parcel_d.trees
         small_trees = trees[trees[COL_DIAMETER_CM] <= acc.MATURE_THRESHOLD]
         mature_trees = trees[trees[COL_DIAMETER_CM] > acc.MATURE_THRESHOLD]
 
@@ -656,7 +656,7 @@ class TestHarvestCalculation:
         assert len(mature_trees) == 4, "Should have 4 mature trees"
 
         # volume_mature should be scaled sum of mature tree volumes
-        sf = data_parcel_d['parcels'][('Test', 'D')]['sampled_frac']
+        sf = data_parcel_d.parcels[('Test', 'D')].sampled_frac
         expected_vol_mature = mature_trees[COL_V_M3].sum() / sf
         actual_vol_mature = df['volume_mature'].sum()
 
