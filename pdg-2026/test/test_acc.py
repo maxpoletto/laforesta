@@ -28,6 +28,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import pytest
 
 # Add parent directory to path for imports
@@ -691,18 +692,20 @@ class TestVolumeCalculation:
     def test_faggio_volume_formula(self):
         """Spot check Faggio volume formula: V = (0.81151 + 0.038965 * D² * h) / 1000."""
         # D=30, h=20 -> V = (0.81151 + 0.038965 * 900 * 20) / 1000 = 0.702 m³
-        volume = acc.calculate_one_tree_volume(30, 20, 'Faggio')
+        df = pd.DataFrame({'D(cm)': [30.0], 'h(m)': [20.0], 'Genere': ['Faggio']})
+        result = acc.calculate_all_trees_volume(df)
         expected = (0.81151 + 0.038965 * 900 * 20) / 1000
-        assert np.isclose(volume, expected, rtol=1e-6), \
-            f"Faggio volume {volume} != expected {expected}"
+        assert np.isclose(result['V(m3)'].iloc[0], expected, rtol=1e-6), \
+            f"Faggio volume {result['V(m3)'].iloc[0]} != expected {expected}"
 
     def test_cerro_volume_formula(self):
         """Spot check Cerro volume formula: V = (-0.043221 + 0.038079 * D² * h) / 1000."""
         # D=30, h=20 -> V = (-0.043221 + 0.038079 * 900 * 20) / 1000 = 0.685 m³
-        volume = acc.calculate_one_tree_volume(30, 20, 'Cerro')
+        df = pd.DataFrame({'D(cm)': [30.0], 'h(m)': [20.0], 'Genere': ['Cerro']})
+        result = acc.calculate_all_trees_volume(df)
         expected = (-0.043221 + 0.038079 * 900 * 20) / 1000
-        assert np.isclose(volume, expected, rtol=1e-6), \
-            f"Cerro volume {volume} != expected {expected}"
+        assert np.isclose(result['V(m3)'].iloc[0], expected, rtol=1e-6), \
+            f"Cerro volume {result['V(m3)'].iloc[0]} != expected {expected}"
 
 
 # =============================================================================

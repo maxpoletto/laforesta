@@ -489,36 +489,6 @@ TABACCHI: dict[str, TabacchiParams] = {
 }
 
 
-def calculate_one_tree_volume(diameter: float, height: float, genere: str) -> float:
-    """
-    Calculate volume for a single tree using Tabacchi equations.
-
-    Args:
-        diameter: Diameter in cm (D)
-        height: Height in m (h)
-        genere: Species name
-
-    Returns:
-        Volume in m³
-
-    Raises:
-        ValueError: If genere is not in Tabacchi tables
-    """
-    if genere not in TABACCHI:
-        raise ValueError(f"Genere '{genere}' non trovato nelle tavole di Tabacchi")
-
-    b = TABACCHI[genere].b
-
-    # Volume equation: V = b0 + b1 * D² * h [+ b2 * D]
-    d2h = (diameter ** 2) * height
-    if len(b) == 2:
-        volume = (b[0] + b[1] * d2h) / 1000  # Convert to m³
-    else:  # len(b) == 3
-        volume = (b[0] + b[1] * d2h + b[2] * diameter) / 1000
-
-    return volume
-
-
 def calculate_volume_confidence_interval(trees_df: pd.DataFrame) -> tuple[float, float]:
     """
     Calculate confidence interval margin for a group of trees using Tabacchi equations.
@@ -601,22 +571,28 @@ def calculate_all_trees_volume(trees_df: pd.DataFrame) -> pd.DataFrame:
     if missing:
         raise ValueError(f"Colonne mancanti: {missing}")
 
+    # Validate: no missing data
+    na_mask = trees_df['D(cm)'].isna() | trees_df['h(m)'].isna()
+    if na_mask.any():
+        idx = na_mask.idxmax()
+        raise ValueError(f"Dati mancanti per riga {idx}: "
+                         f"D={trees_df.at[idx, 'D(cm)']}, h={trees_df.at[idx, 'h(m)']}")
+
     result_df = trees_df.copy()
     result_df['V(m3)'] = 0.0
 
-    for idx, row in result_df.iterrows():
-        idx = cast(int, idx)
-        row = cast(pd.Series, row)
-        genere = row['Genere']
-        diameter = row['D(cm)']
-        height = row['h(m)']
-
-        if pd.isna(diameter) or pd.isna(height):
-            raise ValueError(f"Dati mancanti per riga {idx}: D={diameter}, h={height}")
+    for genere, group in result_df.groupby('Genere'):
         if genere not in TABACCHI:
             raise ValueError(f"Genere '{genere}' non trovato nelle tavole di Tabacchi")
-
-        result_df.at[idx, 'V(m3)'] = calculate_one_tree_volume(diameter, height, genere)
+        b = TABACCHI[genere].b
+        d = group['D(cm)']
+        h = group['h(m)']
+        d2h = d ** 2 * h
+        if len(b) == 2:
+            vol = (b[0] + b[1] * d2h) / 1000
+        else:
+            vol = (b[0] + b[1] * d2h + b[2] * d) / 1000
+        result_df.loc[group.index, 'V(m3)'] = vol
 
     return result_df
 
