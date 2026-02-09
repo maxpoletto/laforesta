@@ -1337,6 +1337,27 @@ OPT_PROVV_VOL = 'provv_vol'
 OPT_PROVV_ETA = 'provv_eta'
 OPT_EQUAZIONI = 'equazioni'
 
+# Output format types (in a class so match/case treats them as value patterns)
+class Fmt:
+    HTML = 'html'
+    TEX  = 'tex'
+    PDF  = 'pdf'
+    CSV  = 'csv'
+
+# Template directive keywords (in a class so match/case treats them as value patterns)
+class Dir:
+    GCI  = 'gci'
+    GCD  = 'gcd'
+    TCD  = 'tcd'
+    TSV  = 'tsv'
+    GSV  = 'gsv'
+    TPT  = 'tpt'
+    GPT  = 'gpt'
+    TIP  = 'tip'
+    GIP  = 'gip'
+    PROP = 'prop'
+    PARTICELLE = 'particelle'
+
 # Column spec for table rendering: (header, align, format_fn, total_fn, condition).
 # - format_fn(row) -> str: format one data cell from a DataFrame row.
 # - total_fn: column name (str) to sum with :.2f, callable(df) -> str, or None (empty).
@@ -2341,9 +2362,9 @@ def process_template(template_text: str, data_dir: Path,
             raise ValueError("@@particelle richiede --input per trovare il modello")
 
         match format_type:
-            case 'html': ext = '.html'
-            case 'tex' | 'pdf': ext = '.tex'
-            case 'csv': ext = '.csv'
+            case Fmt.HTML: ext = '.html'
+            case Fmt.TEX | Fmt.PDF: ext = '.tex'
+            case Fmt.CSV: ext = '.csv'
             case _: raise ValueError(f"Formato non supportato per @@particelle: {format_type}")
         modello_path = template_dir / (modello + ext)
         if not modello_path.exists():
@@ -2376,34 +2397,34 @@ def process_template(template_text: str, data_dir: Path,
             params = directive.params
 
             csv_unsupported = keyword.startswith('g')
-            if format_type == 'csv' and csv_unsupported:
+            if format_type == Fmt.CSV and csv_unsupported:
                 raise ValueError(
                     f"@@{keyword}: il formato CSV non supporta direttive grafiche (@@g*)")
 
             alberi_files = params.get('alberi')
             equazioni_files = params.get(OPT_EQUAZIONI)
 
-            if not alberi_files and keyword not in ('prop', 'particelle'):
+            if not alberi_files and keyword not in (Dir.PROP, Dir.PARTICELLE):
                 raise ValueError(f"@@{keyword} richiede alberi=FILE")
 
             comprese = params.get('compresa', [])
             particelle = params.get('particella', [])
             generi = params.get('genere', [])
 
-            if keyword == 'prop':
+            if keyword == Dir.PROP:
                 if len(comprese) != 1 or len(particelle) != 1 or len(params) != 2:
                     raise ValueError("@@prop richiede esattamente compresa=X e particella=Y")
                 result = render_prop(particelle_df, comprese[0], particelle[0], formatter)
                 return result.snippet
 
-            if keyword == 'particelle':
+            if keyword == Dir.PARTICELLE:
                 return render_particelle(comprese, particelle, particelle_df, params)
 
             trees_df = load_trees(alberi_files, data_dir)
             data = parcel_data(alberi_files, trees_df, particelle_df, comprese, particelle, generi)
 
             match keyword:
-                case 'tsv':
+                case Dir.TSV:
                     options = {
                         OPT_PER_COMPRESA: _bool_opt(params, OPT_PER_COMPRESA),
                         OPT_PER_PARTICELLA: _bool_opt(params, OPT_PER_PARTICELLA),
@@ -2415,7 +2436,7 @@ def process_template(template_text: str, data_dir: Path,
                     }
                     check_allowed_params(keyword, params, options)
                     result = render_tsv_table(data, formatter, **options)
-                case 'tpt':
+                case Dir.TPT:
                     if 'genere' in params:
                         raise ValueError("@@tpt non supporta il parametro 'genere' "
                                          "(usa 'per_genere=si' per raggruppare per specie)")
@@ -2445,7 +2466,7 @@ def process_template(template_text: str, data_dir: Path,
                     provv_eta_df = load_csv(params[OPT_PROVV_ETA], data_dir)
                     result = render_tpt_table(data, comparti_df, provv_vol_df,
                                               provv_eta_df, formatter, **options)
-                case 'tip':
+                case Dir.TIP:
                     options = {
                         OPT_PER_COMPRESA: _bool_opt(params, OPT_PER_COMPRESA, False),
                         OPT_PER_PARTICELLA: _bool_opt(params, OPT_PER_PARTICELLA, False),
@@ -2454,7 +2475,7 @@ def process_template(template_text: str, data_dir: Path,
                     }
                     check_allowed_params(keyword, params, options)
                     result = render_tip_table(data, formatter, **options)
-                case 'gip':
+                case Dir.GIP:
                     options = {
                         OPT_PER_COMPRESA: _bool_opt(params, OPT_PER_COMPRESA, False),
                         OPT_PER_PARTICELLA: _bool_opt(params, OPT_PER_PARTICELLA, False),
@@ -2467,7 +2488,7 @@ def process_template(template_text: str, data_dir: Path,
                     filename = _build_graph_filename(comprese, particelle, generi, keyword)
                     result = render_gip_graph(data, output_dir / filename,
                                               formatter, color_map, **options)
-                case 'gcd':
+                case Dir.GCD:
                     options = {
                         OPT_X_MAX: int(params.get(OPT_X_MAX, 0)),
                         OPT_Y_MAX: int(params.get(OPT_Y_MAX, 0)),
@@ -2483,7 +2504,7 @@ def process_template(template_text: str, data_dir: Path,
                     filename = _build_graph_filename(comprese, particelle, generi, keyword)
                     result = render_gcd_graph(data, output_dir / filename,
                                               formatter, color_map, **options)
-                case 'tcd':
+                case Dir.TCD:
                     options = {
                         OPT_METRICA: params.get(OPT_METRICA, 'alberi_ha'),
                         OPT_STIME_TOTALI: _bool_opt(params, OPT_STIME_TOTALI),
@@ -2494,7 +2515,7 @@ def process_template(template_text: str, data_dir: Path,
                          'alberi_tot', 'G_tot', 'volume_tot', 'altezza'],
                         '@@tcd')
                     result = render_tcd_table(data, formatter, **options)
-                case 'gci':
+                case Dir.GCI:
                     options = {
                         OPT_EQUAZIONI: True,
                         OPT_X_MAX: int(params.get(OPT_X_MAX, 0)),
@@ -2507,7 +2528,7 @@ def process_template(template_text: str, data_dir: Path,
                     filename = _build_graph_filename(comprese, particelle, generi, keyword)
                     result = render_gci_graph(data, equations_df, output_dir / filename,
                                               formatter, color_map, **options)
-                case 'gsv':
+                case Dir.GSV:
                     options = {
                         OPT_PER_COMPRESA: _bool_opt(params, OPT_PER_COMPRESA),
                         OPT_PER_PARTICELLA: _bool_opt(params, OPT_PER_PARTICELLA),
@@ -2518,7 +2539,7 @@ def process_template(template_text: str, data_dir: Path,
                     filename = _build_graph_filename(comprese, particelle, generi, keyword)
                     result = render_gsv_graph(data, output_dir / filename,
                                               formatter, color_map, **options)
-                case 'gpt':
+                case Dir.GPT:
                     if OPT_PER_GENERE in params:
                         raise ValueError("@@gpt non supporta il parametro 'per_genere'")
                     options = {
@@ -2546,11 +2567,11 @@ def process_template(template_text: str, data_dir: Path,
             raise ValueError(f"ERRORE nella generazione di {directive.full_text}: {e}") from e
 
     match format_type:
-        case 'html':
+        case Fmt.HTML:
             formatter = HTMLSnippetFormatter()
-        case 'csv':
+        case Fmt.CSV:
             formatter = CSVSnippetFormatter()
-        case 'tex' | 'pdf':
+        case Fmt.TEX | Fmt.PDF:
             formatter = LaTeXSnippetFormatter()
         case _:
             raise ValueError(f"Formato non supportato: {format_type}")
@@ -2699,7 +2720,7 @@ def run_report(args):
     output_file = output_dir / Path(args.input).name
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write(processed)
-    if args.formato == 'pdf':
+    if args.formato == Fmt.PDF:
         for _ in range(2):
             subprocess.run(
                 ['pdflatex', '-interaction=nonstopmode', output_file.name],
@@ -2786,7 +2807,7 @@ Modalità di utilizzo:
 
     # Specific options for --report
     report_group = parser.add_argument_group('Opzioni per --report')
-    report_group.add_argument('--formato', choices=['csv', 'html', 'tex', 'pdf'], default='pdf',
+    report_group.add_argument('--formato', choices=[Fmt.CSV, Fmt.HTML, Fmt.TEX, Fmt.PDF], default=Fmt.PDF,
                              help='Formato output (default: pdf)')
     report_group.add_argument('--ometti-generi-sconosciuti', action='store_true',
                              help='Ometti dai grafici generi per cui non abbiamo equazioni')
