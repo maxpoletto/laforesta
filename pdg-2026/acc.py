@@ -2,7 +2,7 @@
 # pylint: disable=too-many-lines
 # pylint: disable=singleton-comparison
 """
-Forest Analysis: estiamtion of forest characteristics and growth ("accrescimenti").
+Forest Analysis: estimation of forest characteristics and growth ("accrescimenti").
 """
 
 from abc import ABC, abstractmethod
@@ -1220,27 +1220,65 @@ def render_prop(particelle_df: pd.DataFrame, compresa: str, particella: str,
 
 # STIMA VOLUMI ================================================================
 
-PART_PATTERN = re.compile(r'^(\d+)([a-zA-Z]*)$')
-def natural_sort_key(value: str) -> tuple:
-    """
-    Generate a sort key for natural (alphanumeric) sorting.
+# DataFrame column names shared between calculate_* and render_* functions.
+# Common columns (used across tsv, tpt, gsv, gpt)
+COL_VOLUME = 'volume'
+COL_VOLUME_MATURE = 'volume_mature'
+COL_AREA_HA = 'area_ha'
+# tsv-specific
+COL_N_TREES = 'n_trees'
+COL_VOL_LO = 'vol_lo'
+COL_VOL_HI = 'vol_hi'
+# tip-specific
+COL_IP_MEDIO = 'ip_medio'
+COL_INCR_CORRENTE = 'incremento_corrente'
+# tpt-specific
+COL_SECTOR = 'sector'
+COL_AGE = 'age'
+COL_PP_MAX = 'pp_max'
+COL_HARVEST = 'harvest'
 
-    Handles particelle like "2a", "10b", etc. so that:
-    - Numeric parts sort numerically (9 < 10)
-    - Alphabetic suffixes sort alphabetically (2a < 2b)
+# Column spec for table rendering: (header, align, format_fn, total_fn, condition).
+# - format_fn(row) -> str: format one data cell from a DataFrame row.
+# - total_fn: column name (str) to sum with :.2f, callable(df) -> str, or None (empty).
+# - condition: bool gate — only active specs are rendered.
+ColSpec = tuple  # (header, align, format_fn, total_fn, condition)
+
+def _render_table(df: pd.DataFrame, group_cols: list[str],
+                  col_specs: list[ColSpec], formatter: SnippetFormatter,
+                  add_totals: bool) -> dict:
+    """Generic table renderer from a DataFrame and column specifications.
 
     Args:
-        value: String to generate sort key for
-
-    Returns:
-        Tuple of (numeric_part, alphabetic_part) for sorting
+        df: Data to render.
+        group_cols: Columns used for grouping (appear first as left-aligned headers).
+        col_specs: List of (header, align, format_fn, total_fn, condition) tuples.
+        formatter: Output format (HTML/LaTeX/CSV).
+        add_totals: Whether to append a totals row (only if group_cols is non-empty).
     """
-    match = PART_PATTERN.match(value)
-    if match:
-        numeric = int(match.group(1))
-        alpha = match.group(2)
-        return (numeric, alpha)
-    return (float('inf'), str(value))
+    active = [(h, a, fmt, tot) for h, a, fmt, tot, cond in col_specs if cond]
+
+    headers = [(col, 'l') for col in group_cols]
+    headers += [(h, a) for h, a, _, _ in active]
+
+    display_rows = []
+    for _, row in df.iterrows():
+        display_row = [str(row[col]) for col in group_cols]
+        display_row += [fmt(row) for _, _, fmt, _ in active]
+        display_rows.append(display_row)
+
+    if add_totals and group_cols:
+        total_row = ['Totale'] + [''] * (len(group_cols) - 1)
+        for _, _, _, tot_fn in active:
+            if tot_fn is None:
+                total_row.append('')
+            elif isinstance(tot_fn, str):
+                total_row.append(f"{df[tot_fn].sum():.2f}")
+            else:
+                total_row.append(tot_fn(df))
+        display_rows.append(total_row)
+
+    return {'snippet': formatter.format_table(headers, display_rows)}
 
 
 def calculate_tsv_table(data: dict, group_cols: list[str],
@@ -1297,13 +1335,13 @@ def calculate_tsv_table(data: dict, group_cols: list[str],
             if calc_margin:
                 _, margin = calculate_volume_confidence_interval(group_trees)
 
-        row_dict['n_trees'] = n_trees
+        row_dict[COL_N_TREES] = n_trees
         row_dict[COL_VOLUME] = volume
         if calc_mature:
             row_dict[COL_VOLUME_MATURE] = vol_mature
         if calc_margin:
-            row_dict['vol_lo'] = volume - margin
-            row_dict['vol_hi'] = volume + margin
+            row_dict[COL_VOL_LO] = volume - margin
+            row_dict[COL_VOL_HI] = volume + margin
         rows.append(row_dict)
 
     df = pd.DataFrame(rows)
@@ -1347,47 +1385,30 @@ def render_tsv_table(data: dict, formatter: SnippetFormatter, **options) -> dict
         options['intervallo_fiduciario'], options['stime_totali'],
         options['solo_mature'])
 
-    headers = []
-    show_region = 'Compresa' in group_cols
-    show_parcel = 'Particella' in group_cols
-    show_species = 'Genere' in group_cols
-
-    if show_region:
-        headers.append(('Compresa', 'l'))
-    if show_parcel:
-        headers.append(('Particella', 'l'))
-    if show_species:
-        headers.append(('Genere', 'l'))
-    headers.append(('N. Alberi', 'r'))
-    headers.append(('Volume (m³)', 'r'))
-    if options.get('solo_mature', False):
-        headers.append(('Vol. mature (m³)', 'r'))
-    if options['intervallo_fiduciario']:
-        headers.append(('IF inf (m³)', 'r'))
-        headers.append(('IF sup (m³)', 'r'))
-
-    # Format numeric columns as strings.
-    df_display = df.copy()
-    df_display['n_trees'] = df_display['n_trees'].apply(lambda x: f"{x:.0f}")
-    for col in [COL_VOLUME, COL_VOLUME_MATURE, 'vol_lo', 'vol_hi']:
-        if col in df_display.columns:
-            df_display[col] = df_display[col].apply(lambda x: f"{x:.2f}")
-
-    # Add totals row. Note that if there are no grouping columns,
-    # the result already includes (just) the total row.
-    display_rows = df_display.values.tolist()
-    if options['totali'] and group_cols:
-        total_row = ['Totale'] + [''] * (len(group_cols) - 1)
-        total_row.append(f"{df['n_trees'].sum():.0f}")
-        total_row.append(f"{df[COL_VOLUME].sum():.2f}")
-        if COL_VOLUME_MATURE in df.columns:
-            total_row.append(f"{df[COL_VOLUME_MATURE].sum():.2f}")
-        if 'vol_lo' in df.columns:
-            total_row.append(f"{df['vol_lo'].sum():.2f}")
-            total_row.append(f"{df['vol_hi'].sum():.2f}")
-        display_rows.append(total_row)
-
-    return {'snippet': formatter.format_table(headers, display_rows)}
+    has_ci = options['intervallo_fiduciario']
+    col_specs = [
+        ('N. Alberi', 'r',
+         lambda r: f"{r[COL_N_TREES]:.0f}",
+         lambda d: f"{d[COL_N_TREES].sum():.0f}",
+         True),
+        ('Volume (m³)', 'r',
+         lambda r: f"{r[COL_VOLUME]:.2f}",
+         COL_VOLUME,
+         True),
+        ('Vol. mature (m³)', 'r',
+         lambda r: f"{r[COL_VOLUME_MATURE]:.2f}",
+         COL_VOLUME_MATURE,
+         options.get('solo_mature', False)),
+        ('IF inf (m³)', 'r',
+         lambda r: f"{r[COL_VOL_LO]:.2f}",
+         COL_VOL_LO,
+         has_ci),
+        ('IF sup (m³)', 'r',
+         lambda r: f"{r[COL_VOL_HI]:.2f}",
+         COL_VOL_HI,
+         has_ci),
+    ]
+    return _render_table(df, group_cols, col_specs, formatter, options['totali'])
 
 
 def calculate_ip_table(data: dict, group_cols: list[str],
@@ -1422,8 +1443,8 @@ def calculate_ip_table(data: dict, group_cols: list[str],
         else:
             volume = group_trees['V(m3)'].sum()
 
-        row_dict['ip_medio'] = ip_medio
-        row_dict['incremento_corrente'] = volume * ((1 + ip_medio / 100)**2 - 1)
+        row_dict[COL_IP_MEDIO] = ip_medio
+        row_dict[COL_INCR_CORRENTE] = volume * ((1 + ip_medio / 100)**2 - 1)
         rows.append(row_dict)
 
     df = pd.DataFrame(rows)
@@ -1442,36 +1463,22 @@ def render_tip_table(data: dict, formatter: SnippetFormatter, **options) -> dict
 
     df = calculate_ip_table(data, group_cols, options['stime_totali'])
 
-    headers = []
-    if options['per_compresa']:
-        headers.append(('Compresa', 'l'))
-    if options['per_particella']:
-        headers.append(('Particella', 'l'))
-    headers.append(('Genere', 'l'))
-    headers.append(('Diametro', 'r'))
-    headers.append(('Incr. pct.', 'r'))
-    headers.append(('Incr. corr. (m³)', 'r'))
-
-    df_display = df.copy()
-    # Convert bucket (5, 10, 15...) to range label ("1-5", "6-10", "11-15"...)
-    df_display['Diametro'] = df_display['Diametro'].apply(lambda n: f"{n-4}-{n}")
-    df_display['ip_medio'] = df_display['ip_medio'].apply(lambda x: f"{x:.2f}")
-    df_display['incremento_corrente'] = df_display['incremento_corrente'].apply(
-        lambda x: f"{x:.2f}")
-
-    # Keep only display columns in order
-    col_order = [h[0] for h in headers]
-    rename = {'ip_medio': 'Incr. pct.',
-              'incremento_corrente': 'Incr. corr. (m³)'}
-    df_display = df_display.rename(columns=rename)
-    df_display = df_display[col_order]
-    display_rows = df_display.values.tolist()
-    if options['totali']:
-        total_row = ['Totale'] + [''] * (len(headers) - 2)
-        total_row.append(f"{df['incremento_corrente'].sum():.2f}")
-        display_rows.append(total_row)
-    rows = [list(map(str, row)) for row in display_rows]
-    return {'snippet': formatter.format_table(headers, rows)}
+    col_specs = [
+        ('Genere', 'l',
+         lambda r: str(r['Genere']),
+         None, True),
+        ('Diametro', 'r',
+         lambda r: f"{r['Diametro'] - 4}-{r['Diametro']}",
+         None, True),
+        ('Incr. pct.', 'r',
+         lambda r: f"{r[COL_IP_MEDIO]:.2f}",
+         None, True),
+        ('Incr. corr. (m³)', 'r',
+         lambda r: f"{r[COL_INCR_CORRENTE]:.2f}",
+         COL_INCR_CORRENTE,
+         True),
+    ]
+    return _render_table(df, group_cols, col_specs, formatter, options['totali'])
 
 
 def render_gip_graph(data: dict, output_path: Path,
@@ -1489,9 +1496,9 @@ def render_gip_graph(data: dict, output_path: Path,
 
         metrica = options['metrica']
         if metrica == 'ip':
-            y_col, y_label = 'ip_medio', 'Incremento % medio'
+            y_col, y_label = COL_IP_MEDIO, 'Incremento % medio'
         else:
-            y_col, y_label = 'incremento_corrente', 'Incremento corrente (m³)'
+            y_col, y_label = COL_INCR_CORRENTE, 'Incremento corrente (m³)'
 
         # Each curve is a unique (optional compresa, optional particella, genere) tuple
         curve_cols = group_cols + ['Genere']
@@ -1606,8 +1613,9 @@ def render_gsv_graph(data: dict, output_path: Path,
             # Sort by compresa then particella (natural sort for particella)
             if 'Particella' in base_cols:
                 sort_keys = [pivot_df.index.get_level_values(c) for c in base_cols]
+                _natsort = natsort_keygen()
                 sort_idx = sorted(range(len(labels)), key=lambda i: tuple(
-                    natural_sort_key(str(sort_keys[j][i])) if base_cols[j] == 'Particella'
+                    _natsort(str(sort_keys[j][i])) if base_cols[j] == 'Particella'
                     else (0, str(sort_keys[j][i])) for j in range(len(base_cols))))
                 labels = [labels[i] for i in sort_idx]
                 pivot_df = pivot_df.iloc[sort_idx]
@@ -1674,14 +1682,6 @@ def render_gsv_graph(data: dict, output_path: Path,
 
 # RIPRESA =====================================================================
 
-# Column names for tpt (prelievo totale) DataFrames, shared between calculate_ and render_.
-COL_SECTOR = 'sector'
-COL_AGE = 'age'
-COL_AREA_HA = 'area_ha'
-COL_VOLUME = 'volume'
-COL_VOLUME_MATURE = 'volume_mature'
-COL_PP_MAX = 'pp_max'
-COL_HARVEST = 'harvest'
 
 def get_age_rule(eta_media: float, provv_eta_df: pd.DataFrame) -> tuple[float, bool]:
     """
@@ -1995,9 +1995,7 @@ def render_tpt_table(data: dict, comparti_df: pd.DataFrame,
     else:
         total_area = df[COL_AREA_HA].sum()
 
-    # Column spec: (header, align, format_fn, total_fn, condition)
-    # format_fn(row) -> str: format one data cell
-    # total_fn: column name to sum, callable(df, total_area) -> str, or None (empty cell)
+    # total_fn lambdas close over total_area (computed above)
     col_specs = [
         ('Comp.', 'l',
          lambda r: str(r[COL_SECTOR]),
@@ -2009,7 +2007,7 @@ def render_tpt_table(data: dict, comparti_df: pd.DataFrame,
          options['col_eta'] and per_parcel),
         ('Area (ha)', 'r',
          lambda r: f"{r[COL_AREA_HA]:.2f}",
-         lambda _df, ta: f"{ta:.2f}",
+         lambda _d: f"{total_area:.2f}",
          options['col_area_ha']),
         ('Vol tot (m³)', 'r',
          lambda r: f"{r[COL_VOLUME]:.2f}",
@@ -2017,7 +2015,7 @@ def render_tpt_table(data: dict, comparti_df: pd.DataFrame,
          options['col_volume']),
         ('Vol/ha (m³/ha)', 'r',
          lambda r: f"{r[COL_VOLUME] / r[COL_AREA_HA]:.2f}",
-         lambda _df, ta: f"{_df[COL_VOLUME].sum() / ta:.2f}",
+         lambda d: f"{d[COL_VOLUME].sum() / total_area:.2f}",
          options['col_volume_ha']),
         ('Vol mature (m³)', 'r',
          lambda r: f"{r[COL_VOLUME_MATURE]:.2f}",
@@ -2025,7 +2023,7 @@ def render_tpt_table(data: dict, comparti_df: pd.DataFrame,
          options['col_volume_mature']),
         ('Vol mature/ha (m³/ha)', 'r',
          lambda r: f"{r[COL_VOLUME_MATURE] / r[COL_AREA_HA]:.2f}",
-         lambda _df, ta: f"{_df[COL_VOLUME_MATURE].sum() / ta:.2f}",
+         lambda d: f"{d[COL_VOLUME_MATURE].sum() / total_area:.2f}",
          options['col_volume_mature_ha']),
         ('Prelievo \\%', 'r',
          lambda r: f"{r[COL_PP_MAX]:.0f}",
@@ -2037,35 +2035,10 @@ def render_tpt_table(data: dict, comparti_df: pd.DataFrame,
          options['col_prelievo']),
         ('Prel/ha (m³/ha)', 'r',
          lambda r: f"{r[COL_HARVEST] / r[COL_AREA_HA]:.2f}",
-         lambda _df, ta: f"{_df[COL_HARVEST].sum() / ta:.2f}",
+         lambda d: f"{d[COL_HARVEST].sum() / total_area:.2f}",
          options['col_prelievo_ha']),
     ]
-    active_specs = [(h, a, fmt, tot) for h, a, fmt, tot, cond in col_specs if cond]
-
-    # Build headers
-    headers = [(col, 'l') for col in group_cols]
-    headers += [(h, a) for h, a, _, _ in active_specs]
-
-    # Build display rows
-    display_rows = []
-    for _, row in df.iterrows():
-        display_row = [str(row[col]) for col in group_cols]
-        display_row += [fmt(row) for _, _, fmt, _ in active_specs]
-        display_rows.append(display_row)
-
-    # Add totals row if requested (and there are grouping columns)
-    if options['totali'] and group_cols:
-        total_row = ['Totale'] + [''] * (len(group_cols) - 1)
-        for _, _, _, tot_fn in active_specs:
-            if tot_fn is None:
-                total_row.append('')
-            elif isinstance(tot_fn, str):
-                total_row.append(f"{df[tot_fn].sum():.2f}")
-            else:
-                total_row.append(tot_fn(df, total_area))
-        display_rows.append(total_row)
-
-    return {'snippet': formatter.format_table(headers, display_rows)}
+    return _render_table(df, group_cols, col_specs, formatter, options['totali'])
 
 
 def render_gpt_graph(data: dict, comparti_df: pd.DataFrame,
@@ -2286,7 +2259,7 @@ def process_template(template_text: str, data_dir: Path,
         compresa = comprese[0]
         parcel_rows = particelle_df[(particelle_df['Compresa'] == compresa) &
                                     (particelle_df['Governo'] == 'Fustaia')]
-        parcel_list = sorted(parcel_rows['Particella'].unique(), key=natural_sort_key)
+        parcel_list = sorted(parcel_rows['Particella'].unique(), key=natsort_keygen())
         if particelle:
             parcel_list = [p for p in parcel_list if p in particelle]
 
@@ -2515,7 +2488,7 @@ def list_parcels(particelle_file: str) -> None:
     for compresa in sorted(df['Compresa'].unique()):
         compresa_data = df[df['Compresa'] == compresa]
         particelle = sorted(compresa_data['Particella'].astype(str).unique(),
-                          key=natural_sort_key)
+                          key=natsort_keygen())
         for particella in particelle:
             print(f"  {compresa},{particella}")
 
@@ -2525,7 +2498,7 @@ def get_color_map() -> dict:
     Create consistent color mapping for species.
 
     Returns:
-        Dict mapping species -> matplotlib color (as RGBA tuple)
+        Dict mapping species -> matplotlib hex color string
     """
     # Manual color mapping for the 14 Tabacchi species
     # Organized by type: deciduous (yellows/greens), conifers (blues), special (pinks/reds)
@@ -2551,17 +2524,7 @@ def get_color_map() -> dict:
         SP_SORBO:         '#BE385A',  # rosewood - rowan
     }
 
-    # Convert hex to RGBA tuples for matplotlib
-    def hex_to_rgba(hex_color):
-        hex_color = hex_color.lstrip('#')
-        if len(hex_color) == 8:  # RRGGBBAA
-            r, g, b, a = [int(hex_color[i:i+2], 16) / 255.0 for i in (0, 2, 4, 6)]
-        else:  # RRGGBB
-            r, g, b = [int(hex_color[i:i+2], 16) / 255.0 for i in (0, 2, 4)]
-            a = 1.0
-        return (r, g, b, a)
-
-    return {species: hex_to_rgba(color) for species, color in color_palette.items()}
+    return color_palette
 
 
 # =============================================================================
