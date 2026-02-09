@@ -9,6 +9,7 @@ from abc import ABC, abstractmethod
 import argparse
 from collections import defaultdict
 import csv
+from dataclasses import dataclass
 import io
 from pathlib import Path
 import re
@@ -347,137 +348,145 @@ class LinearRegression(RegressionFunc):
 # VOLUME CALCULATION (Tabacchi equations)
 # =============================================================================
 
-# Lower-triangular covariance matrices for volume equation coefficients (by species).
-TABACCHI_COV = {
-    'Abete': np.array([
-        [  4.9584,     0,         0 ],
-        [  1.1274e-3,  7.6175e-7, 0 ],
-        [ -7.1820e-1, -2.0243e-4, 1.1287e-1 ],
-    ]),
-    'Acero': np.array([
-        [  9.8852e-1,  0],
-        [ -4.7366e-4,  8.4075e-7]
-    ]),
-    'Castagno': np.array([
-        [  6.5052,     0,         0 ],
-        [  2.0090e-3,  1.2430e-6, 0 ],
-        [ -1.0771,    -3.9067e-4, 1.9110e-1 ]
-    ]),
-    'Cerro': np.array([
-        [  4.5573e-1, 0 ],
-        [ -1.8540e-4, 3.6935e-7 ]
-    ]),
-    'Ciliegio': np.array([
-        [  1.5377e1,   0,         0 ],
-        [  8.9101e-3,  9.7080e-6, 0 ],
-        [ -2.6997,    -1.8132e-3, 4.9690e-1 ]
-    ]),
-    'Douglas': np.array([
-        [  6.2135e1,   0,         0 ],
-        [  6.9406e-3,  1.2592e-6, 0 ],
-        [ -6.8517,    -8.2763e-4, 7.7268e-1 ]
-    ]),
-    'Faggio': np.array([
-        [  1.2573,    0 ],
-        [ -3.2331e-4, 6.4872e-7 ]
-    ]),
-    'Leccio': np.array([
-        [  8.9968,     0,         0 ],
-        [  4.6303e-3,  3.9302e-6, 0 ],
-        [ -1.6058,    -9.3376e-4, 3.0078e-1 ]
-    ]),
-    'Ontano': np.array([
-        [  4.9867e1,   0,         0 ],
-        [  1.3116e-2,  5.3498e-6, 0 ],
-        [ -7.1964,    -2.0513e-3, 1.0716 ]
-    ]),
-    'Pino': np.array([
-        [  3.2482,    0 ],
-        [ -7.5710e-4, 3.0428e-7 ]
-    ]),
-    'Pino Laricio': np.array([
-        [  3.2482,    0 ],
-        [ -7.5710e-4, 3.0428e-7 ]
-    ]),
-    'Pino Marittimo': np.array([
-        [  2.6524e-1, 0 ],
-        [ -1.2270e-4, 5.9640e-7 ]
-    ]),
-    'Pino Nero': np.array([
-        [  2.9797e1,   0,         0 ],
-        [  4.5880e-3,  1.3001e-6, 0 ],
-        [ -3.0604,    -5.4676e-4, 3.3202e-1 ]
-    ]),
-    'Sorbo': np.array([
-        [  1.5377e1,   0,         0 ],
-        [  8.9101e-3,  9.7080e-6, 0 ],
-        [ -2.6997,    -1.8132e-3, 4.9690e-1 ]
-    ]),
-}
+# Species name constants (the known set of Tabacchi species).
+SP_ABETE = 'Abete'
+SP_ACERO = 'Acero'
+SP_CASTAGNO = 'Castagno'
+SP_CERRO = 'Cerro'
+SP_CILIEGIO = 'Ciliegio'
+SP_DOUGLAS = 'Douglas'
+SP_FAGGIO = 'Faggio'
+SP_LECCIO = 'Leccio'
+SP_ONTANO = 'Ontano'
+SP_PINO = 'Pino'
+SP_PINO_LARICIO = 'Pino Laricio'
+SP_PINO_MARITTIMO = 'Pino Marittimo'
+SP_PINO_NERO = 'Pino Nero'
+SP_SORBO = 'Sorbo'
 
-# Volume equation coefficients (as row vectors).
-TABACCHI_B = {
-    'Abete':          np.array([ -1.8381,    3.7836e-2, 3.9934e-1 ]),
-    'Acero':          np.array([  1.6905,    3.7082e-2 ]),
-    'Castagno':       np.array([ -2,         3.6524e-2, 7.4466e-1 ]),
-    'Cerro':          np.array([ -4.3221e-2, 3.8079e-2 ]),
-    'Ciliegio':       np.array([  2.3118,    3.1278e-2, 3.7159e-1 ]),
-    'Douglas':        np.array([ -7.9946,    3.3343e-2, 1.2186 ]),
-    'Faggio':         np.array([  8.1151e-1, 3.8965e-2 ]),
-    'Leccio':         np.array([ -2.2219,    3.9685e-2, 6.2762e-1 ]),
-    'Ontano':         np.array([ -2.2932e1,  3.2641e-2, 2.991 ]),
-    'Pino':           np.array([  6.4383,    3.8594e-2 ]),
-    'Pino Laricio':   np.array([  6.4383,    3.8594e-2 ]),
-    'Pino Marittimo': np.array([  2.9963,    3.8302e-2 ]),
-    'Pino Nero':      np.array([ -2.1480e1,  3.3448e-2, 2.9088]),
-    'Sorbo':          np.array([  2.3118,    3.1278e-2, 3.7159e-1 ]),
-}
 
-# Degrees of freedom for t-statistic (n - 2)
-TABACCHI_NS = {
-    'Abete': 46,
-    'Acero': 37,
-    'Castagno': 85,
-    'Cerro': 88,
-    'Ciliegio': 22,
-    'Douglas': 35,
-    'Faggio': 91,
-    'Leccio': 83,
-    'Ontano': 35,
-    'Pino': 50,
-    'Pino Laricio': 50,
-    'Pino Marittimo': 26,
-    'Pino Nero': 63,
-    'Sorbo': 22,
-}
+@dataclass
+class TabacchiParams:
+    """Volume equation parameters for a single species (from Tabacchi tables)."""
+    b: np.ndarray       # coefficient vector
+    cov: np.ndarray      # covariance matrix (stored lower-triangular, made symmetric at init)
+    n: int               # degrees of freedom (n - 2)
+    s2: float            # residual variance
 
-# Residual variance (s²)
-TABACCHI_S2 = {
-    'Abete': 1.5284e-5,
-    'Acero': 2.2710e-5,
-    'Castagno': 3.0491e-5,
-    'Cerro': 2.5866e-5,
-    'Ciliegio': 4.0506e-5,
-    'Douglas': 9.0103e-6,
-    'Faggio': 5.1468e-5,
-    'Leccio': 6.0915e-5,
-    'Ontano': 3.9958e-5,
-    'Pino': 6.3906e-6,
-    'Pino Laricio': 6.3906e-6,
-    'Pino Marittimo': 1.4031e-5,
-    'Pino Nero': 1.7090e-5,
-    'Sorbo': 4.0506e-5,
-}
+def _make_symmetric(m: np.ndarray) -> np.ndarray:
+    """Convert lower-triangular matrix to full symmetric."""
+    return m + m.T - np.diag(np.diag(m))
 
-# Make covariance matrices symmetric
-def make_symmetric():
-    """Make covariance matrices symmetric."""
-    # pylint: disable=consider-using-dict-items
-    for genere in TABACCHI_COV:
-        m = TABACCHI_COV[genere]
-        TABACCHI_COV[genere] = m + m.T - np.diag(np.diag(m))
-    # pylint: enable=consider-using-dict-items
-make_symmetric()
+# Single dict of Tabacchi volume equation parameters, keyed by species.
+# Adding a species = adding one entry here instead of updating 4 separate dicts.
+TABACCHI: dict[str, TabacchiParams] = {
+    SP_ABETE: TabacchiParams(
+        b   = np.array([ -1.8381,    3.7836e-2, 3.9934e-1 ]),
+        cov = _make_symmetric(np.array([
+            [  4.9584,     0,         0 ],
+            [  1.1274e-3,  7.6175e-7, 0 ],
+            [ -7.1820e-1, -2.0243e-4, 1.1287e-1 ]])),
+        n   = 46,
+        s2  = 1.5284e-5),
+    SP_ACERO: TabacchiParams(
+        b   = np.array([  1.6905,    3.7082e-2 ]),
+        cov = _make_symmetric(np.array([
+            [  9.8852e-1,  0],
+            [ -4.7366e-4,  8.4075e-7]])),
+        n   = 37,
+        s2  = 2.2710e-5),
+    SP_CASTAGNO: TabacchiParams(
+        b   = np.array([ -2,         3.6524e-2, 7.4466e-1 ]),
+        cov = _make_symmetric(np.array([
+            [  6.5052,     0,         0 ],
+            [  2.0090e-3,  1.2430e-6, 0 ],
+            [ -1.0771,    -3.9067e-4, 1.9110e-1 ]])),
+        n   = 85,
+        s2  = 3.0491e-5),
+    SP_CERRO: TabacchiParams(
+        b   = np.array([ -4.3221e-2, 3.8079e-2 ]),
+        cov = _make_symmetric(np.array([
+            [  4.5573e-1, 0 ],
+            [ -1.8540e-4, 3.6935e-7 ]])),
+        n   = 88,
+        s2  = 2.5866e-5),
+    SP_CILIEGIO: TabacchiParams(
+        b   = np.array([  2.3118,    3.1278e-2, 3.7159e-1 ]),
+        cov = _make_symmetric(np.array([
+            [  1.5377e1,   0,         0 ],
+            [  8.9101e-3,  9.7080e-6, 0 ],
+            [ -2.6997,    -1.8132e-3, 4.9690e-1 ]])),
+        n   = 22,
+        s2  = 4.0506e-5),
+    SP_DOUGLAS: TabacchiParams(
+        b   = np.array([ -7.9946,    3.3343e-2, 1.2186 ]),
+        cov = _make_symmetric(np.array([
+            [  6.2135e1,   0,         0 ],
+            [  6.9406e-3,  1.2592e-6, 0 ],
+            [ -6.8517,    -8.2763e-4, 7.7268e-1 ]])),
+        n   = 35,
+        s2  = 9.0103e-6),
+    SP_FAGGIO: TabacchiParams(
+        b   = np.array([  8.1151e-1, 3.8965e-2 ]),
+        cov = _make_symmetric(np.array([
+            [  1.2573,    0 ],
+            [ -3.2331e-4, 6.4872e-7 ]])),
+        n   = 91,
+        s2  = 5.1468e-5),
+    SP_LECCIO: TabacchiParams(
+        b   = np.array([ -2.2219,    3.9685e-2, 6.2762e-1 ]),
+        cov = _make_symmetric(np.array([
+            [  8.9968,     0,         0 ],
+            [  4.6303e-3,  3.9302e-6, 0 ],
+            [ -1.6058,    -9.3376e-4, 3.0078e-1 ]])),
+        n   = 83,
+        s2  = 6.0915e-5),
+    SP_ONTANO: TabacchiParams(
+        b   = np.array([ -2.2932e1,  3.2641e-2, 2.991 ]),
+        cov = _make_symmetric(np.array([
+            [  4.9867e1,   0,         0 ],
+            [  1.3116e-2,  5.3498e-6, 0 ],
+            [ -7.1964,    -2.0513e-3, 1.0716 ]])),
+        n   = 35,
+        s2  = 3.9958e-5),
+    SP_PINO: TabacchiParams(
+        b   = np.array([  6.4383,    3.8594e-2 ]),
+        cov = _make_symmetric(np.array([
+            [  3.2482,    0 ],
+            [ -7.5710e-4, 3.0428e-7 ]])),
+        n   = 50,
+        s2  = 6.3906e-6),
+    SP_PINO_LARICIO: TabacchiParams(
+        b   = np.array([  6.4383,    3.8594e-2 ]),
+        cov = _make_symmetric(np.array([
+            [  3.2482,    0 ],
+            [ -7.5710e-4, 3.0428e-7 ]])),
+        n   = 50,
+        s2  = 6.3906e-6),
+    SP_PINO_MARITTIMO: TabacchiParams(
+        b   = np.array([  2.9963,    3.8302e-2 ]),
+        cov = _make_symmetric(np.array([
+            [  2.6524e-1, 0 ],
+            [ -1.2270e-4, 5.9640e-7 ]])),
+        n   = 26,
+        s2  = 1.4031e-5),
+    SP_PINO_NERO: TabacchiParams(
+        b   = np.array([ -2.1480e1,  3.3448e-2, 2.9088]),
+        cov = _make_symmetric(np.array([
+            [  2.9797e1,   0,         0 ],
+            [  4.5880e-3,  1.3001e-6, 0 ],
+            [ -3.0604,    -5.4676e-4, 3.3202e-1 ]])),
+        n   = 63,
+        s2  = 1.7090e-5),
+    SP_SORBO: TabacchiParams(
+        b   = np.array([  2.3118,    3.1278e-2, 3.7159e-1 ]),
+        cov = _make_symmetric(np.array([
+            [  1.5377e1,   0,         0 ],
+            [  8.9101e-3,  9.7080e-6, 0 ],
+            [ -2.6997,    -1.8132e-3, 4.9690e-1 ]])),
+        n   = 22,
+        s2  = 4.0506e-5),
+}
 
 
 def calculate_one_tree_volume(diameter: float, height: float, genere: str) -> float:
@@ -495,10 +504,10 @@ def calculate_one_tree_volume(diameter: float, height: float, genere: str) -> fl
     Raises:
         ValueError: If genere is not in Tabacchi tables
     """
-    if genere not in TABACCHI_B:
+    if genere not in TABACCHI:
         raise ValueError(f"Genere '{genere}' non trovato nelle tavole di Tabacchi")
 
-    b = TABACCHI_B[genere]
+    b = TABACCHI[genere].b
 
     # Volume equation: V = b0 + b1 * D² * h [+ b2 * D]
     d2h = (diameter ** 2) * height
@@ -537,14 +546,13 @@ def calculate_volume_confidence_interval(trees_df: pd.DataFrame) -> tuple[float,
     for genere, group in trees_df.groupby('Genere'):
         genere = cast(str, genere)
         group = cast(pd.DataFrame, group)
-        if genere not in TABACCHI_B:
+        if genere not in TABACCHI:
             raise ValueError(f"Genere '{genere}' non presente in Tabacchi")
 
         n_trees = len(group)
-        b = TABACCHI_B[genere]
-        cov = TABACCHI_COV[genere]
-        s2 = TABACCHI_S2[genere]
-        df = TABACCHI_NS[genere] - 2
+        tp = TABACCHI[genere]
+        b, cov, s2 = tp.b, tp.cov, tp.s2
+        df = tp.n - 2
 
         # Build D0 matrix (n_trees x n_coefficients)
         d0 = np.zeros((n_trees, len(b)))
@@ -605,7 +613,7 @@ def calculate_all_trees_volume(trees_df: pd.DataFrame) -> pd.DataFrame:
 
         if pd.isna(diameter) or pd.isna(height):
             raise ValueError(f"Dati mancanti per riga {idx}: D={diameter}, h={height}")
-        if genere not in TABACCHI_B:
+        if genere not in TABACCHI:
             raise ValueError(f"Genere '{genere}' non trovato nelle tavole di Tabacchi")
 
         result_df.at[idx, 'V(m3)'] = calculate_one_tree_volume(diameter, height, genere)
@@ -2547,24 +2555,24 @@ def get_color_map() -> dict:
     # Organized by type: deciduous (yellows/greens), conifers (blues), special (pinks/reds)
     color_palette = {
         # Deciduous broadleaves (yellow-green spectrum)
-        'Faggio': '#F4F269',          # canary-yellow
-        'Castagno': '#CEE26B',        # lime-cream
-        'Acero': '#A8D26D',           # willow-green
-        'Cerro': '#82C26E',           # moss-green
-        'Ontano': '#5CB270',          # emerald
-        'Leccio': '#4DA368',          # emerald-dark (adjusted for distinction)
+        SP_FAGGIO:        '#F4F269',  # canary-yellow
+        SP_CASTAGNO:      '#CEE26B',  # lime-cream
+        SP_ACERO:         '#A8D26D',  # willow-green
+        SP_CERRO:         '#82C26E',  # moss-green
+        SP_ONTANO:        '#5CB270',  # emerald
+        SP_LECCIO:        '#4DA368',  # emerald-dark (adjusted for distinction)
 
         # Conifers (blue-aqua spectrum)
-        'Abete': '#0c63e7',           # royal-blue - firs
-        'Douglas': '#07c8f9',         # sky-aqua
-        'Pino': '#09a6f3',            # fresh-sky - common pines
-        'Pino Nero': '#0a85ed',       # brilliant-azure
-        'Pino Laricio': '#0a85ed',    # brilliant-azure
+        SP_ABETE:         '#0c63e7',  # royal-blue - firs
+        SP_DOUGLAS:       '#07c8f9',  # sky-aqua
+        SP_PINO:          '#09a6f3',  # fresh-sky - common pines
+        SP_PINO_NERO:     '#0a85ed',  # brilliant-azure
+        SP_PINO_LARICIO:  '#0a85ed',  # brilliant-azure
 
         # Rare (coral/pink spectrum)
-        'Pino Marittimo': '#FB6363',  # vibrant-coral
-        'Ciliegio': '#DC4E5E',        # lobster-pink - cherry
-        'Sorbo': '#BE385A',           # rosewood - rowan
+        SP_PINO_MARITTIMO: '#FB6363', # vibrant-coral
+        SP_CILIEGIO:      '#DC4E5E',  # lobster-pink - cherry
+        SP_SORBO:         '#BE385A',  # rosewood - rowan
     }
 
     # Convert hex to RGBA tuples for matplotlib
