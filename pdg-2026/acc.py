@@ -1987,88 +1987,81 @@ def render_tpt_table(data: dict, comparti_df: pd.DataFrame,
 
     per_parcel = 'Particella' in group_cols or len(data['parcels']) == 1
 
-    headers = []
-    for col in group_cols:
-        headers.append((col, 'l'))
-    if options['col_comparto'] and per_parcel:
-        headers.append(('Comp.', 'l'))
-    if options['col_eta'] and per_parcel:
-        headers.append(('Età (aa)', 'r'))
-    if options['col_area_ha']:
-        headers.append(('Area (ha)', 'r'))
-    if options['col_volume']:
-        headers.append(('Vol tot (m³)', 'r'))
-    if options['col_volume_ha']:
-        headers.append(('Vol/ha (m³/ha)', 'r'))
-    if options['col_volume_mature']:
-        headers.append(('Vol mature (m³)', 'r'))  # senza sottomisura
-    if options['col_volume_mature_ha']:
-        headers.append(('Vol mature/ha (m³/ha)', 'r'))
-    if options['col_pp_max'] and per_parcel:
-        headers.append(('Prelievo \\%', 'r'))
-    if options['col_prelievo']:
-        headers.append(('Prel tot (m³)', 'r'))
-    if options['col_prelievo_ha']:
-        headers.append(('Prel/ha (m³/ha)', 'r'))
+    # When per_genere, area_ha is duplicated across species; dedupe for totals
+    if 'Genere' in group_cols:
+        parcel_cols = [c for c in group_cols if c != 'Genere'] or ['area_ha']
+        total_area = df.drop_duplicates(subset=parcel_cols)['area_ha'].sum()
+    else:
+        total_area = df['area_ha'].sum()
+
+    # Column spec: (header, align, format_fn, total_fn, condition)
+    # format_fn(row) -> str: format one data cell
+    # total_fn: column name to sum, callable(df, total_area) -> str, or None (empty cell)
+    col_specs = [
+        ('Comp.', 'l',
+         lambda r: str(r['sector']),
+         None,
+         options['col_comparto'] and per_parcel),
+        ('Età (aa)', 'r',
+         lambda r: f"{r['age']:.0f}",
+         None,
+         options['col_eta'] and per_parcel),
+        ('Area (ha)', 'r',
+         lambda r: f"{r['area_ha']:.2f}",
+         lambda _df, ta: f"{ta:.2f}",
+         options['col_area_ha']),
+        ('Vol tot (m³)', 'r',
+         lambda r: f"{r['volume']:.2f}",
+         'volume',
+         options['col_volume']),
+        ('Vol/ha (m³/ha)', 'r',
+         lambda r: f"{r['volume'] / r['area_ha']:.2f}",
+         lambda _df, ta: f"{_df['volume'].sum() / ta:.2f}",
+         options['col_volume_ha']),
+        ('Vol mature (m³)', 'r',
+         lambda r: f"{r['volume_mature']:.2f}",
+         'volume_mature',
+         options['col_volume_mature']),
+        ('Vol mature/ha (m³/ha)', 'r',
+         lambda r: f"{r['volume_mature'] / r['area_ha']:.2f}",
+         lambda _df, ta: f"{_df['volume_mature'].sum() / ta:.2f}",
+         options['col_volume_mature_ha']),
+        ('Prelievo \\%', 'r',
+         lambda r: f"{r['pp_max']:.0f}",
+         None,
+         options['col_pp_max'] and per_parcel),
+        ('Prel tot (m³)', 'r',
+         lambda r: f"{r['harvest']:.2f}",
+         'harvest',
+         options['col_prelievo']),
+        ('Prel/ha (m³/ha)', 'r',
+         lambda r: f"{r['harvest'] / r['area_ha']:.2f}",
+         lambda _df, ta: f"{_df['harvest'].sum() / ta:.2f}",
+         options['col_prelievo_ha']),
+    ]
+    active_specs = [(h, a, fmt, tot) for h, a, fmt, tot, cond in col_specs if cond]
+
+    # Build headers
+    headers = [(col, 'l') for col in group_cols]
+    headers += [(h, a) for h, a, _, _ in active_specs]
 
     # Build display rows
     display_rows = []
     for _, row in df.iterrows():
-        display_row = []
-        for col in group_cols:
-            display_row.append(str(row[col]))
-        if options['col_comparto'] and per_parcel:
-            display_row.append(str(row['sector']))
-        if options['col_eta'] and per_parcel:
-            display_row.append(f"{row['age']:.0f}")
-        if options['col_area_ha']:
-            display_row.append(f"{row['area_ha']:.2f}")
-        if options['col_volume']:
-            display_row.append(f"{row['volume']:.2f}")
-        if options['col_volume_ha']:
-            display_row.append(f"{row['volume'] / row['area_ha']:.2f}")
-        if options['col_volume_mature']:
-            display_row.append(f"{row['volume_mature']:.2f}")
-        if options['col_volume_mature_ha']:
-            display_row.append(f"{row['volume_mature'] / row['area_ha']:.2f}")
-        if options['col_pp_max'] and per_parcel:
-            display_row.append(f"{row['pp_max']:.0f}")
-        if options['col_prelievo']:
-            display_row.append(f"{row['harvest']:.2f}")
-        if options['col_prelievo_ha']:
-            display_row.append(f"{row['harvest'] / row['area_ha']:.2f}")
+        display_row = [str(row[col]) for col in group_cols]
+        display_row += [fmt(row) for _, _, fmt, _ in active_specs]
         display_rows.append(display_row)
 
     # Add totals row if requested (and there are grouping columns)
     if options['totali'] and group_cols:
-        # When per_genere, area_ha is duplicated across species; dedupe for totals
-        if 'Genere' in group_cols:
-            parcel_cols = [c for c in group_cols if c != 'Genere'] or ['area_ha']
-            total_area = df.drop_duplicates(subset=parcel_cols)['area_ha'].sum()
-        else:
-            total_area = df['area_ha'].sum()
-
         total_row = ['Totale'] + [''] * (len(group_cols) - 1)
-        if options['col_comparto'] and per_parcel:
-            total_row.append('')
-        if options['col_eta'] and per_parcel:
-            total_row.append('')
-        if options['col_area_ha']:
-            total_row.append(f"{total_area:.2f}")
-        if options['col_volume']:
-            total_row.append(f"{df['volume'].sum():.2f}")
-        if options['col_volume_ha']:
-            total_row.append(f"{df['volume'].sum() / total_area:.2f}")
-        if options['col_volume_mature']:
-            total_row.append(f"{df['volume_mature'].sum():.2f}")
-        if options['col_volume_mature_ha']:
-            total_row.append(f"{df['volume_mature'].sum() / total_area:.2f}")
-        if options['col_pp_max'] and per_parcel:
-            total_row.append('')  # PP_max doesn't aggregate meaningfully
-        if options['col_prelievo']:
-            total_row.append(f"{df['harvest'].sum():.2f}")
-        if options['col_prelievo_ha']:
-            total_row.append(f"{df['harvest'].sum() / total_area:.2f}")
+        for _, _, _, tot_fn in active_specs:
+            if tot_fn is None:
+                total_row.append('')
+            elif isinstance(tot_fn, str):
+                total_row.append(f"{df[tot_fn].sum():.2f}")
+            else:
+                total_row.append(tot_fn(df, total_area))
         display_rows.append(total_row)
 
     return {'snippet': formatter.format_table(headers, display_rows)}
