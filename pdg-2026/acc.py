@@ -1314,9 +1314,9 @@ def calculate_tsv_table(data: dict, group_cols: list[str],
                 _, margin = calculate_volume_confidence_interval(group_trees)
 
         row_dict['n_trees'] = n_trees
-        row_dict['volume'] = volume
+        row_dict[COL_VOLUME] = volume
         if calc_mature:
-            row_dict['volume_mature'] = vol_mature
+            row_dict[COL_VOLUME_MATURE] = vol_mature
         if calc_margin:
             row_dict['vol_lo'] = volume - margin
             row_dict['vol_hi'] = volume + margin
@@ -1385,7 +1385,7 @@ def render_tsv_table(data: dict, formatter: SnippetFormatter, **options) -> dict
     # Format numeric columns as strings.
     df_display = df.copy()
     df_display['n_trees'] = df_display['n_trees'].apply(lambda x: f"{x:.0f}")
-    for col in ['volume', 'volume_mature', 'vol_lo', 'vol_hi']:
+    for col in [COL_VOLUME, COL_VOLUME_MATURE, 'vol_lo', 'vol_hi']:
         if col in df_display.columns:
             df_display[col] = df_display[col].apply(lambda x: f"{x:.2f}")
 
@@ -1395,9 +1395,9 @@ def render_tsv_table(data: dict, formatter: SnippetFormatter, **options) -> dict
     if options['totali'] and group_cols:
         total_row = ['Totale'] + [''] * (len(group_cols) - 1)
         total_row.append(f"{df['n_trees'].sum():.0f}")
-        total_row.append(f"{df['volume'].sum():.2f}")
-        if 'volume_mature' in df.columns:
-            total_row.append(f"{df['volume_mature'].sum():.2f}")
+        total_row.append(f"{df[COL_VOLUME].sum():.2f}")
+        if COL_VOLUME_MATURE in df.columns:
+            total_row.append(f"{df[COL_VOLUME_MATURE].sum():.2f}")
         if 'vol_lo' in df.columns:
             total_row.append(f"{df['vol_lo'].sum():.2f}")
             total_row.append(f"{df['vol_hi'].sum():.2f}")
@@ -1578,7 +1578,7 @@ def render_gsv_graph(data: dict, output_path: Path,
         if stacked:
             # Pivot to get genere as columns for stacking
             pivot_df = df.pivot_table(index=base_cols, columns='Genere',
-                                    values='volume', fill_value=0)
+                                    values=COL_VOLUME, fill_value=0)
             labels = ['/'.join(str(x) for x in idx) if isinstance(idx, tuple) else str(idx)
                     for idx in pivot_df.index]
             generi = pivot_df.columns.tolist()
@@ -1638,7 +1638,7 @@ def render_gsv_graph(data: dict, output_path: Path,
                 labels = ['/'.join(str(row[c]) for c in group_cols) for _, row in df.iterrows()]
             else:
                 labels = ['Totale']
-            values = cast(np.ndarray, df['volume'].values)
+            values = cast(np.ndarray, df[COL_VOLUME].values)
 
             # Calculate spacing for compresa groups
             spacing = []
@@ -1681,6 +1681,15 @@ def render_gsv_graph(data: dict, output_path: Path,
 
 
 # RIPRESA =====================================================================
+
+# Column names for tpt (prelievo totale) DataFrames, shared between calculate_ and render_.
+COL_SECTOR = 'sector'
+COL_AGE = 'age'
+COL_AREA_HA = 'area_ha'
+COL_VOLUME = 'volume'
+COL_VOLUME_MATURE = 'volume_mature'
+COL_PP_MAX = 'pp_max'
+COL_HARVEST = 'harvest'
 
 def get_age_rule(eta_media: float, provv_eta_df: pd.DataFrame) -> tuple[float, bool]:
     """
@@ -1867,11 +1876,11 @@ def calculate_tpt_table(data: dict, comparti_df: pd.DataFrame,
             vol_mature, harvest = compute_harvest_by_basal_area(part_trees, pp_max, sf)
 
         parcel_info[(region, parcel)] = {
-            'sector': sector, 'age': age, 'area_ha': p_area, 'sf': sf,
-            'volume': total_volume,
-            'volume_mature': vol_mature,
-            'pp_max': pp_max,
-            'harvest': harvest,
+            COL_SECTOR: sector, COL_AGE: age, COL_AREA_HA: p_area, 'sf': sf,
+            COL_VOLUME: total_volume,
+            COL_VOLUME_MATURE: vol_mature,
+            COL_PP_MAX: pp_max,
+            COL_HARVEST: harvest,
             'skip': False
         }
 
@@ -1901,35 +1910,35 @@ def calculate_tpt_table(data: dict, comparti_df: pd.DataFrame,
                 group_vol_senza = above_thresh['V(m3)'].sum() / info['sf']
 
                 # Fraction of parcel's volume_mature
-                if info['volume_mature'] > 0:
-                    frac = group_vol_senza / info['volume_mature']
+                if info[COL_VOLUME_MATURE] > 0:
+                    frac = group_vol_senza / info[COL_VOLUME_MATURE]
                 else:
                     frac = 0
 
                 volume += group_vol
                 vol_mature += group_vol_senza
-                harvest += info['harvest'] * frac
+                harvest += info[COL_HARVEST] * frac
             else:
-                volume += info['volume']
-                vol_mature += info['volume_mature']
-                harvest += info['harvest']
+                volume += info[COL_VOLUME]
+                vol_mature += info[COL_VOLUME_MATURE]
+                harvest += info[COL_HARVEST]
 
-            area_ha += info['area_ha']
-            last_pp_max = info['pp_max']
-            last_sector = info['sector']
-            last_age = info['age']
+            area_ha += info[COL_AREA_HA]
+            last_pp_max = info[COL_PP_MAX]
+            last_sector = info[COL_SECTOR]
+            last_age = info[COL_AGE]
 
         if not any_tree:
             continue
 
         if per_parcel:
-            row_dict['sector'] = last_sector
-            row_dict['age'] = last_age
-            row_dict['pp_max'] = last_pp_max
-        row_dict['area_ha'] = area_ha
-        row_dict['volume'] = volume
-        row_dict['volume_mature'] = vol_mature
-        row_dict['harvest'] = harvest
+            row_dict[COL_SECTOR] = last_sector
+            row_dict[COL_AGE] = last_age
+            row_dict[COL_PP_MAX] = last_pp_max
+        row_dict[COL_AREA_HA] = area_ha
+        row_dict[COL_VOLUME] = volume
+        row_dict[COL_VOLUME_MATURE] = vol_mature
+        row_dict[COL_HARVEST] = harvest
         rows.append(row_dict)
 
     df = pd.DataFrame(rows)
@@ -1989,54 +1998,54 @@ def render_tpt_table(data: dict, comparti_df: pd.DataFrame,
 
     # When per_genere, area_ha is duplicated across species; dedupe for totals
     if 'Genere' in group_cols:
-        parcel_cols = [c for c in group_cols if c != 'Genere'] or ['area_ha']
-        total_area = df.drop_duplicates(subset=parcel_cols)['area_ha'].sum()
+        parcel_cols = [c for c in group_cols if c != 'Genere'] or [COL_AREA_HA]
+        total_area = df.drop_duplicates(subset=parcel_cols)[COL_AREA_HA].sum()
     else:
-        total_area = df['area_ha'].sum()
+        total_area = df[COL_AREA_HA].sum()
 
     # Column spec: (header, align, format_fn, total_fn, condition)
     # format_fn(row) -> str: format one data cell
     # total_fn: column name to sum, callable(df, total_area) -> str, or None (empty cell)
     col_specs = [
         ('Comp.', 'l',
-         lambda r: str(r['sector']),
+         lambda r: str(r[COL_SECTOR]),
          None,
          options['col_comparto'] and per_parcel),
         ('Età (aa)', 'r',
-         lambda r: f"{r['age']:.0f}",
+         lambda r: f"{r[COL_AGE]:.0f}",
          None,
          options['col_eta'] and per_parcel),
         ('Area (ha)', 'r',
-         lambda r: f"{r['area_ha']:.2f}",
+         lambda r: f"{r[COL_AREA_HA]:.2f}",
          lambda _df, ta: f"{ta:.2f}",
          options['col_area_ha']),
         ('Vol tot (m³)', 'r',
-         lambda r: f"{r['volume']:.2f}",
-         'volume',
+         lambda r: f"{r[COL_VOLUME]:.2f}",
+         COL_VOLUME,
          options['col_volume']),
         ('Vol/ha (m³/ha)', 'r',
-         lambda r: f"{r['volume'] / r['area_ha']:.2f}",
-         lambda _df, ta: f"{_df['volume'].sum() / ta:.2f}",
+         lambda r: f"{r[COL_VOLUME] / r[COL_AREA_HA]:.2f}",
+         lambda _df, ta: f"{_df[COL_VOLUME].sum() / ta:.2f}",
          options['col_volume_ha']),
         ('Vol mature (m³)', 'r',
-         lambda r: f"{r['volume_mature']:.2f}",
-         'volume_mature',
+         lambda r: f"{r[COL_VOLUME_MATURE]:.2f}",
+         COL_VOLUME_MATURE,
          options['col_volume_mature']),
         ('Vol mature/ha (m³/ha)', 'r',
-         lambda r: f"{r['volume_mature'] / r['area_ha']:.2f}",
-         lambda _df, ta: f"{_df['volume_mature'].sum() / ta:.2f}",
+         lambda r: f"{r[COL_VOLUME_MATURE] / r[COL_AREA_HA]:.2f}",
+         lambda _df, ta: f"{_df[COL_VOLUME_MATURE].sum() / ta:.2f}",
          options['col_volume_mature_ha']),
         ('Prelievo \\%', 'r',
-         lambda r: f"{r['pp_max']:.0f}",
+         lambda r: f"{r[COL_PP_MAX]:.0f}",
          None,
          options['col_pp_max'] and per_parcel),
         ('Prel tot (m³)', 'r',
-         lambda r: f"{r['harvest']:.2f}",
-         'harvest',
+         lambda r: f"{r[COL_HARVEST]:.2f}",
+         COL_HARVEST,
          options['col_prelievo']),
         ('Prel/ha (m³/ha)', 'r',
-         lambda r: f"{r['harvest'] / r['area_ha']:.2f}",
-         lambda _df, ta: f"{_df['harvest'].sum() / ta:.2f}",
+         lambda r: f"{r[COL_HARVEST] / r[COL_AREA_HA]:.2f}",
+         lambda _df, ta: f"{_df[COL_HARVEST].sum() / ta:.2f}",
          options['col_prelievo_ha']),
     ]
     active_specs = [(h, a, fmt, tot) for h, a, fmt, tot, cond in col_specs if cond]
@@ -2101,7 +2110,7 @@ def render_gpt_graph(data: dict, comparti_df: pd.DataFrame,
             labels = ['/'.join(str(row[c]) for c in group_cols) for _, row in df.iterrows()]
         else:
             labels = ['Totale']
-        values = cast(np.ndarray, df['harvest'].values)
+        values = cast(np.ndarray, df[COL_HARVEST].values)
 
         # Calculate spacing for compresa groups
         spacing = []
