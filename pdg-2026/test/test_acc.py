@@ -35,6 +35,8 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import acc
+from acc import (COL_COMPRESA, COL_DIAMETER_CM, COL_GENERE, COL_HEIGHT_M,
+                 COL_PARTICELLA, COL_V_M3)
 
 # Fixtures are defined in conftest.py
 
@@ -56,7 +58,7 @@ class TestAggregationConsistency:
 
         # Per-particella breakdown
         df_per_parcel = acc.calculate_tsv_table(
-            data_all, group_cols=['Particella'], calc_margin=False, calc_total=True
+            data_all, group_cols=[COL_PARTICELLA], calc_margin=False, calc_total=True
         )
         sum_per_parcel = df_per_parcel['volume'].sum()
 
@@ -71,7 +73,7 @@ class TestAggregationConsistency:
         total_trees = df_total['n_trees'].sum()
 
         df_per_parcel = acc.calculate_tsv_table(
-            data_all, group_cols=['Particella'], calc_margin=False, calc_total=True
+            data_all, group_cols=[COL_PARTICELLA], calc_margin=False, calc_total=True
         )
         sum_per_parcel = df_per_parcel['n_trees'].sum()
 
@@ -86,7 +88,7 @@ class TestAggregationConsistency:
         total_volume = df_total['volume'].sum()
 
         df_per_species = acc.calculate_tsv_table(
-            data_all, group_cols=['Genere'], calc_margin=False, calc_total=True
+            data_all, group_cols=[COL_GENERE], calc_margin=False, calc_total=True
         )
         sum_per_species = df_per_species['volume'].sum()
 
@@ -101,7 +103,7 @@ class TestAggregationConsistency:
         total_volume = df_total['volume'].sum()
 
         df_detailed = acc.calculate_tsv_table(
-            data_all, group_cols=['Particella', 'Genere'],
+            data_all, group_cols=[COL_PARTICELLA, COL_GENERE],
             calc_margin=False, calc_total=True
         )
         sum_detailed = df_detailed['volume'].sum()
@@ -120,7 +122,7 @@ class TestAggregationConsistency:
 
         # Per-particella breakdown
         df_per_parcel = acc.calculate_ip_table(
-            data_all, group_cols=['Particella'], stime_totali=True
+            data_all, group_cols=[COL_PARTICELLA], stime_totali=True
         )
         sum_per_parcel = df_per_parcel['incremento_corrente'].sum()
 
@@ -198,9 +200,9 @@ class TestCrossQueryConsistency:
         trees = data_all['trees']
         parcels = data_all['parcels']
         manual_basal = 0.0
-        for (region, parcel), ptrees in trees.groupby(['Compresa', 'Particella']):
+        for (region, parcel), ptrees in trees.groupby([COL_COMPRESA, COL_PARTICELLA]):
             sf = parcels[(region, parcel)]['sampled_frac']
-            basal = np.pi / 4 * ptrees['D(cm)'] ** 2 / 10000  # m²
+            basal = np.pi / 4 * ptrees[COL_DIAMETER_CM] ** 2 / 10000  # m²
             manual_basal += basal.sum() / sf
 
         assert np.isclose(tcd_basal, manual_basal, rtol=1e-9), \
@@ -455,12 +457,12 @@ class TestConfidenceInterval:
     def test_ci_per_species(self, data_all):
         """Each species should have valid CI bounds."""
         df = acc.calculate_tsv_table(
-            data_all, group_cols=['Genere'], calc_margin=True, calc_total=True
+            data_all, group_cols=[COL_GENERE], calc_margin=True, calc_total=True
         )
 
         for _, row in df.iterrows():
             assert row['vol_lo'] < row['volume'] < row['vol_hi'], \
-                f"Species {row['Genere']}: CI [{row['vol_lo']}, {row['vol_hi']}] " \
+                f"Species {row[COL_GENERE]}: CI [{row['vol_lo']}, {row['vol_hi']}] " \
                 f"should bracket {row['volume']}"
 
 
@@ -488,8 +490,8 @@ class TestMature:
     def test_small_trees_count(self, data_all):
         """Verify the number of small trees in test data."""
         trees = data_all['trees']
-        n_small = (trees['D(cm)'] <= acc.MATURE_THRESHOLD).sum()
-        n_mature = (trees['D(cm)'] > acc.MATURE_THRESHOLD).sum()
+        n_small = (trees[COL_DIAMETER_CM] <= acc.MATURE_THRESHOLD).sum()
+        n_mature = (trees[COL_DIAMETER_CM] > acc.MATURE_THRESHOLD).sum()
 
         # Each parcel (A,B,C,D,E) has 2 small trees: 10 total
         # A: 4 mature, B: 6 mature, C: 10 mature, D: 4 mature, E: 4 mature = 28 total
@@ -503,10 +505,10 @@ class TestMature:
 
         # Manual calculation
         manual_vol_mature = 0.0
-        for (region, parcel), ptrees in trees.groupby(['Compresa', 'Particella']):
+        for (region, parcel), ptrees in trees.groupby([COL_COMPRESA, COL_PARTICELLA]):
             sf = parcels[(region, parcel)]['sampled_frac']
-            above = ptrees[ptrees['D(cm)'] > acc.MATURE_THRESHOLD]
-            manual_vol_mature += above['V(m3)'].sum() / sf
+            above = ptrees[ptrees[COL_DIAMETER_CM] > acc.MATURE_THRESHOLD]
+            manual_vol_mature += above[COL_V_M3].sum() / sf
 
         # Via calculate_tsv_table
         df = acc.calculate_tsv_table(
@@ -569,7 +571,7 @@ class TestHarvestCalculation:
         )
         df_parcels = acc.calculate_tpt_table(
             data_all, comparti_df, provv_vol_df, provv_eta_df,
-            group_cols=['Particella']
+            group_cols=[COL_PARTICELLA]
         )
 
         total_harvest = df_total['harvest'].sum()
@@ -647,15 +649,15 @@ class TestHarvestCalculation:
         # Parcel D has 2 small trees (D=15, D=18) that should be excluded
         # volume_mature should only include D > 20 trees
         trees = data_parcel_d['trees']
-        small_trees = trees[trees['D(cm)'] <= acc.MATURE_THRESHOLD]
-        mature_trees = trees[trees['D(cm)'] > acc.MATURE_THRESHOLD]
+        small_trees = trees[trees[COL_DIAMETER_CM] <= acc.MATURE_THRESHOLD]
+        mature_trees = trees[trees[COL_DIAMETER_CM] > acc.MATURE_THRESHOLD]
 
         assert len(small_trees) == 2, "Should have 2 small trees"
         assert len(mature_trees) == 4, "Should have 4 mature trees"
 
         # volume_mature should be scaled sum of mature tree volumes
         sf = data_parcel_d['parcels'][('Test', 'D')]['sampled_frac']
-        expected_vol_mature = mature_trees['V(m3)'].sum() / sf
+        expected_vol_mature = mature_trees[COL_V_M3].sum() / sf
         actual_vol_mature = df['volume_mature'].sum()
 
         assert np.isclose(actual_vol_mature, expected_vol_mature, rtol=1e-9), \
@@ -671,41 +673,41 @@ class TestVolumeCalculation:
 
     def test_volumes_are_positive(self, trees_df):
         """All calculated volumes should be positive."""
-        assert (trees_df['V(m3)'] > 0).all(), "All volumes should be positive"
+        assert (trees_df[COL_V_M3] > 0).all(), "All volumes should be positive"
 
     def test_volume_increases_with_size(self, trees_df):
         """Larger trees (D*h) should generally have larger volumes."""
         # Group by species to compare within species
-        for genere, group in trees_df.groupby('Genere'):
+        for genere, group in trees_df.groupby(COL_GENERE):
             if len(group) < 2:
                 continue
             # Sort by D²*h
             group = group.copy()
-            group['d2h'] = group['D(cm)'] ** 2 * group['h(m)']
+            group['d2h'] = group[COL_DIAMETER_CM] ** 2 * group[COL_HEIGHT_M]
             group = group.sort_values('d2h')
 
             # Volumes should be monotonically increasing (within species)
-            volumes = group['V(m3)'].values
+            volumes = group[COL_V_M3].values
             assert all(volumes[i] <= volumes[i+1] for i in range(len(volumes)-1)), \
                 f"Volumes for {genere} should increase with tree size"
 
     def test_faggio_volume_formula(self):
         """Spot check Faggio volume formula: V = (0.81151 + 0.038965 * D² * h) / 1000."""
         # D=30, h=20 -> V = (0.81151 + 0.038965 * 900 * 20) / 1000 = 0.702 m³
-        df = pd.DataFrame({'D(cm)': [30.0], 'h(m)': [20.0], 'Genere': ['Faggio']})
+        df = pd.DataFrame({COL_DIAMETER_CM: [30.0], COL_HEIGHT_M: [20.0], COL_GENERE: ['Faggio']})
         result = acc.calculate_all_trees_volume(df)
         expected = (0.81151 + 0.038965 * 900 * 20) / 1000
-        assert np.isclose(result['V(m3)'].iloc[0], expected, rtol=1e-6), \
-            f"Faggio volume {result['V(m3)'].iloc[0]} != expected {expected}"
+        assert np.isclose(result[COL_V_M3].iloc[0], expected, rtol=1e-6), \
+            f"Faggio volume {result[COL_V_M3].iloc[0]} != expected {expected}"
 
     def test_cerro_volume_formula(self):
         """Spot check Cerro volume formula: V = (-0.043221 + 0.038079 * D² * h) / 1000."""
         # D=30, h=20 -> V = (-0.043221 + 0.038079 * 900 * 20) / 1000 = 0.685 m³
-        df = pd.DataFrame({'D(cm)': [30.0], 'h(m)': [20.0], 'Genere': ['Cerro']})
+        df = pd.DataFrame({COL_DIAMETER_CM: [30.0], COL_HEIGHT_M: [20.0], COL_GENERE: ['Cerro']})
         result = acc.calculate_all_trees_volume(df)
         expected = (-0.043221 + 0.038079 * 900 * 20) / 1000
-        assert np.isclose(result['V(m3)'].iloc[0], expected, rtol=1e-6), \
-            f"Cerro volume {result['V(m3)'].iloc[0]} != expected {expected}"
+        assert np.isclose(result[COL_V_M3].iloc[0], expected, rtol=1e-6), \
+            f"Cerro volume {result[COL_V_M3].iloc[0]} != expected {expected}"
 
 
 # =============================================================================
