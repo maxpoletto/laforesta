@@ -2180,6 +2180,11 @@ def check_param_values(options: dict, key: str, valid_values: list[str], directi
                          f"Valori validi: {', '.join(valid_values)}")
 
 
+def _bool_opt(params: dict, key: str, enabled: bool = True) -> bool:
+    """Parse a si/no boolean option from template directive params."""
+    return params.get(key, 'si' if enabled else 'no').lower() == 'si'
+
+
 def parse_template_directive(line: str) -> Optional[dict]:
     """
     Parse a template directive like @@gci(compresa=Serra, genere=Abete).
@@ -2348,14 +2353,13 @@ def process_template(template_text: str, data_dir: Path,
             match keyword:
                 case 'tsv':
                     options = {
-                        'per_compresa': params.get('per_compresa', 'si').lower() == 'si',
-                        'per_particella': params.get('per_particella', 'si').lower() == 'si',
-                        'per_genere': params.get('per_genere', 'si').lower() == 'si',
-                        'stime_totali': params.get('stime_totali', 'si').lower() == 'si',
-                        'intervallo_fiduciario':
-                            params.get('intervallo_fiduciario', 'no').lower() == 'si',
-                        'solo_mature': params.get('solo_mature', 'no').lower() == 'si',
-                        'totali': params.get('totali', 'no').lower() == 'si'
+                        'per_compresa': _bool_opt(params, 'per_compresa'),
+                        'per_particella': _bool_opt(params, 'per_particella'),
+                        'per_genere': _bool_opt(params, 'per_genere'),
+                        'stime_totali': _bool_opt(params, 'stime_totali'),
+                        'intervallo_fiduciario': _bool_opt(params, 'intervallo_fiduciario', False),
+                        'solo_mature': _bool_opt(params, 'solo_mature', False),
+                        'totali': _bool_opt(params, 'totali', False),
                     }
                     check_allowed_params(keyword, params, options)
                     result = render_tsv_table(data, formatter, **options)
@@ -2367,21 +2371,20 @@ def process_template(template_text: str, data_dir: Path,
                         'comparti': True,
                         'provv_vol': True,
                         'provv_eta': True,
-                        'per_compresa': params.get('per_compresa', 'si').lower() == 'si',
-                        'per_particella': params.get('per_particella', 'si').lower() == 'si',
-                        'per_genere': params.get('per_genere', 'no').lower() == 'si',
-                        'col_comparto': params.get('col_comparto', 'si').lower() == 'si',
-                        'col_eta': params.get('col_eta', 'si').lower() == 'si',
-                        'col_area_ha': params.get('col_area_ha', 'si').lower() == 'si',
-                        'col_volume': params.get('col_volume', 'no').lower() == 'si',
-                        'col_volume_ha': params.get('col_volume_ha', 'no').lower() == 'si',
-                        'col_volume_mature': params.get('col_volume_mature', 'si').lower() == 'si',
-                        'col_volume_mature_ha':
-                            params.get('col_volume_mature_ha', 'si').lower() == 'si',
-                        'col_pp_max': params.get('col_pp_max', 'si').lower() == 'si',
-                        'col_prelievo': params.get('col_prelievo', 'si').lower() == 'si',
-                        'col_prelievo_ha': params.get('col_prelievo_ha', 'si').lower() == 'si',
-                        'totali': params.get('totali', 'no').lower() == 'si',
+                        'per_compresa': _bool_opt(params, 'per_compresa'),
+                        'per_particella': _bool_opt(params, 'per_particella'),
+                        'per_genere': _bool_opt(params, 'per_genere', False),
+                        'col_comparto': _bool_opt(params, 'col_comparto'),
+                        'col_eta': _bool_opt(params, 'col_eta'),
+                        'col_area_ha': _bool_opt(params, 'col_area_ha'),
+                        'col_volume': _bool_opt(params, 'col_volume', False),
+                        'col_volume_ha': _bool_opt(params, 'col_volume_ha', False),
+                        'col_volume_mature': _bool_opt(params, 'col_volume_mature'),
+                        'col_volume_mature_ha': _bool_opt(params, 'col_volume_mature_ha'),
+                        'col_pp_max': _bool_opt(params, 'col_pp_max'),
+                        'col_prelievo': _bool_opt(params, 'col_prelievo'),
+                        'col_prelievo_ha': _bool_opt(params, 'col_prelievo_ha'),
+                        'totali': _bool_opt(params, 'totali', False),
                     }
                     check_allowed_params(keyword, params, options)
                     check_required_params(keyword, params, ['comparti', 'provv_vol', 'provv_eta'])
@@ -2392,18 +2395,18 @@ def process_template(template_text: str, data_dir: Path,
                                               provv_eta_df, formatter, **options)
                 case 'tip':
                     options = {
-                        'per_compresa': params.get('per_compresa', 'no').lower() == 'si',
-                        'per_particella': params.get('per_particella', 'no').lower() == 'si',
-                        'stime_totali': params.get('stime_totali', 'si').lower() == 'si',
-                        'totali': params.get('totali', 'no').lower() == 'si',
+                        'per_compresa': _bool_opt(params, 'per_compresa', False),
+                        'per_particella': _bool_opt(params, 'per_particella', False),
+                        'stime_totali': _bool_opt(params, 'stime_totali'),
+                        'totali': _bool_opt(params, 'totali', False),
                     }
                     check_allowed_params(keyword, params, options)
                     result = render_tip_table(data, formatter, **options)
                 case 'gip':
                     options = {
-                        'per_compresa': params.get('per_compresa', 'no').lower() == 'si',
-                        'per_particella': params.get('per_particella', 'no').lower() == 'si',
-                        'stime_totali': params.get('stime_totali', 'si').lower() == 'si',
+                        'per_compresa': _bool_opt(params, 'per_compresa', False),
+                        'per_particella': _bool_opt(params, 'per_particella', False),
+                        'stime_totali': _bool_opt(params, 'stime_totali'),
                         'metrica': params.get('metrica', 'ip'),
                         'stile': params.get('stile'),
                     }
@@ -2418,7 +2421,7 @@ def process_template(template_text: str, data_dir: Path,
                         'y_max': int(params.get('y_max', 0)),
                         'stile': params.get('stile'),
                         'metrica': params.get('metrica', 'alberi_ha'),
-                        'stime_totali': params.get('stime_totali', 'si').lower() == 'si',
+                        'stime_totali': _bool_opt(params, 'stime_totali'),
                     }
                     check_allowed_params(keyword, params, options)
                     check_param_values(options, 'metrica',
@@ -2431,7 +2434,7 @@ def process_template(template_text: str, data_dir: Path,
                 case 'tcd':
                     options = {
                         'metrica': params.get('metrica', 'alberi_ha'),
-                        'stime_totali': params.get('stime_totali', 'si').lower() == 'si',
+                        'stime_totali': _bool_opt(params, 'stime_totali'),
                     }
                     check_allowed_params(keyword, params, options)
                     check_param_values(options, 'metrica',
@@ -2454,9 +2457,9 @@ def process_template(template_text: str, data_dir: Path,
                                               formatter, color_map, **options)
                 case 'gsv':
                     options = {
-                        'per_compresa': params.get('per_compresa', 'si').lower() == 'si',
-                        'per_particella': params.get('per_particella', 'si').lower() == 'si',
-                        'per_genere': params.get('per_genere', 'no').lower() == 'si',
+                        'per_compresa': _bool_opt(params, 'per_compresa'),
+                        'per_particella': _bool_opt(params, 'per_particella'),
+                        'per_genere': _bool_opt(params, 'per_genere', False),
                         'stile': params.get('stile'),
                     }
                     check_allowed_params(keyword, params, options)
@@ -2470,9 +2473,9 @@ def process_template(template_text: str, data_dir: Path,
                         'comparti': True,
                         'provv_vol': True,
                         'provv_eta': True,
-                        'per_compresa': params.get('per_compresa', 'si').lower() == 'si',
-                        'per_particella': params.get('per_particella', 'si').lower() == 'si',
-                        'stile': params.get('stile')
+                        'per_compresa': _bool_opt(params, 'per_compresa'),
+                        'per_particella': _bool_opt(params, 'per_particella'),
+                        'stile': params.get('stile'),
                     }
                     check_allowed_params(keyword, params, options)
                     check_required_params(keyword, params, ['comparti', 'provv_vol', 'provv_eta'])
