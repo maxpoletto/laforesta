@@ -90,7 +90,7 @@ class HTMLSnippetFormatter(SnippetFormatter):
     """HTML snippet formatter."""
 
     def format_image(self, filepath: Path, options: Optional[dict] = None) -> str:
-        cls = options['stile'] if options and options['stile'] else 'graph-image'
+        cls = options[OPT_STILE] if options and options[OPT_STILE] else 'graph-image'
         return f'<img src="{filepath.name}" class="{cls}">'
 
     def format_metadata(self, data: dict, curve_info: Optional[list] = None) -> str:
@@ -146,7 +146,7 @@ class LaTeXSnippetFormatter(SnippetFormatter):
     """LaTeX snippet formatter."""
 
     def format_image(self, filepath: Path, options: Optional[dict] = None) -> str:
-        fmt = options['stile'] if options and options['stile'] else 'width=0.5\\textwidth'
+        fmt = options[OPT_STILE] if options and options[OPT_STILE] else 'width=0.5\\textwidth'
         latex = '\\begin{center}\n'
         latex += f'  \\includegraphics[{fmt}]{{{filepath.name}}}\n'
         latex += '\\end{center}\n'
@@ -945,8 +945,8 @@ def render_gci_graph(data: dict, equations_df: pd.DataFrame,
                 })
 
     if not skip_graphs:
-        x_max = max(options['x_max'], trees['D(cm)'].max() + 3)
-        y_max = max(options['y_max'], (trees['h(m)'].max() + 6) // 5 * 5)
+        x_max = max(options[OPT_X_MAX], trees['D(cm)'].max() + 3)
+        y_max = max(options[OPT_Y_MAX], (trees['h(m)'].max() + 6) // 5 * 5)
         ax.set_xlabel('Diametro (cm)')
         ax.set_ylabel('Altezza (m)')
         ax.set_xlim(-0.5, x_max)
@@ -1075,8 +1075,8 @@ def render_gcd_graph(data: dict, output_path: Path,
     """
     if not skip_graphs:
         species = data['species']
-        metrica = options['metrica']
-        stime_totali = options['stime_totali']
+        metrica = options[OPT_METRICA]
+        stime_totali = options[OPT_STIME_TOTALI]
 
         values_df = calculate_cd_data(data, metrica, stime_totali, fine=True)
         use_lines = metrica == 'altezza'
@@ -1101,9 +1101,9 @@ def render_gcd_graph(data: dict, output_path: Path,
 
         # x_max in cm (fine buckets are 5, 10, 15...)
         max_bucket = values_df.index.max() if len(values_df) > 0 else 50
-        x_max = options['x_max'] if options['x_max'] > 0 else max_bucket + 5
+        x_max = options[OPT_X_MAX] if options[OPT_X_MAX] > 0 else max_bucket + 5
         y_max_auto = values_df.max().max() if use_lines else values_df.sum(axis=1).max()
-        y_max = options['y_max'] if options['y_max'] > 0 else y_max_auto * 1.1
+        y_max = options[OPT_Y_MAX] if options[OPT_Y_MAX] > 0 else y_max_auto * 1.1
 
         ax.set_xlabel('Diametro (cm)')
         ax.set_ylabel(GCD_Y_LABELS[metrica])
@@ -1148,8 +1148,8 @@ def render_tcd_table(data: dict, formatter: SnippetFormatter, **options) -> dict
         dict with 'snippet' key containing formatted table
     """
     species = data['species']
-    metrica = options['metrica']
-    stime_totali = options['stime_totali']
+    metrica = options[OPT_METRICA]
+    stime_totali = options[OPT_STIME_TOTALI]
     use_decimals = metrica.startswith('volume') or metrica.startswith('G') or metrica == 'altezza'
 
     values_df = calculate_cd_data(data, metrica, stime_totali, fine=False)
@@ -1237,6 +1237,38 @@ COL_SECTOR = 'sector'
 COL_AGE = 'age'
 COL_PP_MAX = 'pp_max'
 COL_HARVEST = 'harvest'
+
+# Option keys shared between process_directive and render_*/calculate_* functions.
+# Common options (used across multiple directives)
+OPT_PER_COMPRESA = 'per_compresa'
+OPT_PER_PARTICELLA = 'per_particella'
+OPT_PER_GENERE = 'per_genere'
+OPT_STIME_TOTALI = 'stime_totali'
+OPT_TOTALI = 'totali'
+OPT_STILE = 'stile'
+OPT_METRICA = 'metrica'
+# tsv-specific
+OPT_INTERVALLO_FIDUCIARIO = 'intervallo_fiduciario'
+OPT_SOLO_MATURE = 'solo_mature'
+# tpt column toggles
+OPT_COL_COMPARTO = 'col_comparto'
+OPT_COL_ETA = 'col_eta'
+OPT_COL_AREA_HA = 'col_area_ha'
+OPT_COL_VOLUME = 'col_volume'
+OPT_COL_VOLUME_HA = 'col_volume_ha'
+OPT_COL_VOLUME_MATURE = 'col_volume_mature'
+OPT_COL_VOLUME_MATURE_HA = 'col_volume_mature_ha'
+OPT_COL_PP_MAX = 'col_pp_max'
+OPT_COL_PRELIEVO = 'col_prelievo'
+OPT_COL_PRELIEVO_HA = 'col_prelievo_ha'
+# Graph axis limits
+OPT_X_MAX = 'x_max'
+OPT_Y_MAX = 'y_max'
+# Required file parameters (used as option keys for validation)
+OPT_COMPARTI = 'comparti'
+OPT_PROVV_VOL = 'provv_vol'
+OPT_PROVV_ETA = 'provv_eta'
+OPT_EQUAZIONI = 'equazioni'
 
 # Column spec for table rendering: (header, align, format_fn, total_fn, condition).
 # - format_fn(row) -> str: format one data cell from a DataFrame row.
@@ -1374,18 +1406,18 @@ def render_tsv_table(data: dict, formatter: SnippetFormatter, **options) -> dict
         dict with 'snippet' key containing formatted table
     """
     group_cols = []
-    if options['per_compresa']:
+    if options[OPT_PER_COMPRESA]:
         group_cols.append('Compresa')
-    if options['per_particella']:
+    if options[OPT_PER_PARTICELLA]:
         group_cols.append('Particella')
-    if options['per_genere']:
+    if options[OPT_PER_GENERE]:
         group_cols.append('Genere')
 
     df = calculate_tsv_table(data, group_cols,
-        options['intervallo_fiduciario'], options['stime_totali'],
-        options['solo_mature'])
+        options[OPT_INTERVALLO_FIDUCIARIO], options[OPT_STIME_TOTALI],
+        options[OPT_SOLO_MATURE])
 
-    has_ci = options['intervallo_fiduciario']
+    has_ci = options[OPT_INTERVALLO_FIDUCIARIO]
     col_specs = [
         ('N. Alberi', 'r',
          lambda r: f"{r[COL_N_TREES]:.0f}",
@@ -1398,7 +1430,7 @@ def render_tsv_table(data: dict, formatter: SnippetFormatter, **options) -> dict
         ('Vol. mature (m³)', 'r',
          lambda r: f"{r[COL_VOLUME_MATURE]:.2f}",
          COL_VOLUME_MATURE,
-         options.get('solo_mature', False)),
+         options.get(OPT_SOLO_MATURE, False)),
         ('IF inf (m³)', 'r',
          lambda r: f"{r[COL_VOL_LO]:.2f}",
          COL_VOL_LO,
@@ -1408,7 +1440,7 @@ def render_tsv_table(data: dict, formatter: SnippetFormatter, **options) -> dict
          COL_VOL_HI,
          has_ci),
     ]
-    return _render_table(df, group_cols, col_specs, formatter, options['totali'])
+    return _render_table(df, group_cols, col_specs, formatter, options[OPT_TOTALI])
 
 
 def calculate_ip_table(data: dict, group_cols: list[str],
@@ -1456,12 +1488,12 @@ def calculate_ip_table(data: dict, group_cols: list[str],
 def render_tip_table(data: dict, formatter: SnippetFormatter, **options) -> dict:
     """Generate IP summary table (@@tip directive)."""
     group_cols = []
-    if options['per_compresa']:
+    if options[OPT_PER_COMPRESA]:
         group_cols.append('Compresa')
-    if options['per_particella']:
+    if options[OPT_PER_PARTICELLA]:
         group_cols.append('Particella')
 
-    df = calculate_ip_table(data, group_cols, options['stime_totali'])
+    df = calculate_ip_table(data, group_cols, options[OPT_STIME_TOTALI])
 
     col_specs = [
         ('Genere', 'l',
@@ -1478,7 +1510,7 @@ def render_tip_table(data: dict, formatter: SnippetFormatter, **options) -> dict
          COL_INCR_CORRENTE,
          True),
     ]
-    return _render_table(df, group_cols, col_specs, formatter, options['totali'])
+    return _render_table(df, group_cols, col_specs, formatter, options[OPT_TOTALI])
 
 
 def render_gip_graph(data: dict, output_path: Path,
@@ -1487,14 +1519,14 @@ def render_gip_graph(data: dict, output_path: Path,
     """Generate IP line graph (@@gip directive)."""
     if not skip_graphs:
         group_cols = []
-        if options['per_compresa']:
+        if options[OPT_PER_COMPRESA]:
             group_cols.append('Compresa')
-        if options['per_particella']:
+        if options[OPT_PER_PARTICELLA]:
             group_cols.append('Particella')
 
-        df = calculate_ip_table(data, group_cols, options['stime_totali'])
+        df = calculate_ip_table(data, group_cols, options[OPT_STIME_TOTALI])
 
-        metrica = options['metrica']
+        metrica = options[OPT_METRICA]
         if metrica == 'ip':
             y_col, y_label = COL_IP_MEDIO, 'Incremento % medio'
         else:
@@ -1586,13 +1618,13 @@ def render_gsv_graph(data: dict, output_path: Path,
     """
     if not skip_graphs:
         group_cols = []
-        if options['per_compresa']:
+        if options[OPT_PER_COMPRESA]:
             group_cols.append('Compresa')
-        if options['per_particella']:
+        if options[OPT_PER_PARTICELLA]:
             group_cols.append('Particella')
 
         # For stacking, we need per-genere data even if displaying by compresa/particella
-        stacked = options['per_genere'] and group_cols
+        stacked = options[OPT_PER_GENERE] and group_cols
         base_cols: list[str] = []
         if stacked:
             base_cols = group_cols.copy()
@@ -1644,7 +1676,7 @@ def render_gsv_graph(data: dict, output_path: Path,
                     title='Specie', bbox_to_anchor=(1.01, 1.02), alignment='left')
         else:
             # Simple bars (no stacking)
-            if options['per_genere']:
+            if options[OPT_PER_GENERE]:
                 # Per-genere only: one bar per genere
                 labels = df['Genere'].tolist()
             elif group_cols:
@@ -1975,11 +2007,11 @@ def render_tpt_table(data: dict, comparti_df: pd.DataFrame,
         dict with 'snippet' key containing formatted table
     """
     group_cols = []
-    if options['per_compresa']:
+    if options[OPT_PER_COMPRESA]:
         group_cols.append('Compresa')
-    if options['per_particella']:
+    if options[OPT_PER_PARTICELLA]:
         group_cols.append('Particella')
-    if options['per_genere']:
+    if options[OPT_PER_GENERE]:
         group_cols.append('Genere')
 
     df = calculate_tpt_table(data, comparti_df, provv_vol_df, provv_eta_df, group_cols)
@@ -2000,45 +2032,45 @@ def render_tpt_table(data: dict, comparti_df: pd.DataFrame,
         ('Comp.', 'l',
          lambda r: str(r[COL_SECTOR]),
          None,
-         options['col_comparto'] and per_parcel),
+         options[OPT_COL_COMPARTO] and per_parcel),
         ('Età (aa)', 'r',
          lambda r: f"{r[COL_AGE]:.0f}",
          None,
-         options['col_eta'] and per_parcel),
+         options[OPT_COL_ETA] and per_parcel),
         ('Area (ha)', 'r',
          lambda r: f"{r[COL_AREA_HA]:.2f}",
          lambda _d: f"{total_area:.2f}",
-         options['col_area_ha']),
+         options[OPT_COL_AREA_HA]),
         ('Vol tot (m³)', 'r',
          lambda r: f"{r[COL_VOLUME]:.2f}",
          COL_VOLUME,
-         options['col_volume']),
+         options[OPT_COL_VOLUME]),
         ('Vol/ha (m³/ha)', 'r',
          lambda r: f"{r[COL_VOLUME] / r[COL_AREA_HA]:.2f}",
          lambda d: f"{d[COL_VOLUME].sum() / total_area:.2f}",
-         options['col_volume_ha']),
+         options[OPT_COL_VOLUME_HA]),
         ('Vol mature (m³)', 'r',
          lambda r: f"{r[COL_VOLUME_MATURE]:.2f}",
          COL_VOLUME_MATURE,
-         options['col_volume_mature']),
+         options[OPT_COL_VOLUME_MATURE]),
         ('Vol mature/ha (m³/ha)', 'r',
          lambda r: f"{r[COL_VOLUME_MATURE] / r[COL_AREA_HA]:.2f}",
          lambda d: f"{d[COL_VOLUME_MATURE].sum() / total_area:.2f}",
-         options['col_volume_mature_ha']),
+         options[OPT_COL_VOLUME_MATURE_HA]),
         ('Prelievo \\%', 'r',
          lambda r: f"{r[COL_PP_MAX]:.0f}",
          None,
-         options['col_pp_max'] and per_parcel),
+         options[OPT_COL_PP_MAX] and per_parcel),
         ('Prel tot (m³)', 'r',
          lambda r: f"{r[COL_HARVEST]:.2f}",
          COL_HARVEST,
-         options['col_prelievo']),
+         options[OPT_COL_PRELIEVO]),
         ('Prel/ha (m³/ha)', 'r',
          lambda r: f"{r[COL_HARVEST] / r[COL_AREA_HA]:.2f}",
          lambda d: f"{d[COL_HARVEST].sum() / total_area:.2f}",
-         options['col_prelievo_ha']),
+         options[OPT_COL_PRELIEVO_HA]),
     ]
-    return _render_table(df, group_cols, col_specs, formatter, options['totali'])
+    return _render_table(df, group_cols, col_specs, formatter, options[OPT_TOTALI])
 
 
 def render_gpt_graph(data: dict, comparti_df: pd.DataFrame,
@@ -2062,9 +2094,9 @@ def render_gpt_graph(data: dict, comparti_df: pd.DataFrame,
     """
     if not skip_graphs:
         group_cols = []
-        if options['per_compresa']:
+        if options[OPT_PER_COMPRESA]:
             group_cols.append('Compresa')
-        if options['per_particella']:
+        if options[OPT_PER_PARTICELLA]:
             group_cols.append('Particella')
 
         df = calculate_tpt_table(data, comparti_df, provv_vol_df, provv_eta_df, group_cols)
@@ -2168,8 +2200,8 @@ def parse_template_directive(line: str) -> Optional[dict]:
     full_text = match.group(0)
 
     # Keys that should always be lists (filter parameters + file parameters)
-    list_keys = {'compresa', 'particella', 'genere', 'alberi', 'equazioni',
-                 'comparti', 'provv_vol', 'provv_eta'}
+    list_keys = {'compresa', 'particella', 'genere', 'alberi', OPT_EQUAZIONI,
+                 OPT_COMPARTI, OPT_PROVV_VOL, OPT_PROVV_ETA}
 
     params = {}
     if params_str.strip():
@@ -2286,7 +2318,7 @@ def process_template(template_text: str, data_dir: Path,
                     f"@@{keyword}: il formato CSV non supporta direttive grafiche (@@g*)")
 
             alberi_files = params.get('alberi')
-            equazioni_files = params.get('equazioni')
+            equazioni_files = params.get(OPT_EQUAZIONI)
 
             if not alberi_files and keyword not in ('prop', 'particelle'):
                 raise ValueError(f"@@{keyword} richiede alberi=FILE")
@@ -2310,13 +2342,13 @@ def process_template(template_text: str, data_dir: Path,
             match keyword:
                 case 'tsv':
                     options = {
-                        'per_compresa': _bool_opt(params, 'per_compresa'),
-                        'per_particella': _bool_opt(params, 'per_particella'),
-                        'per_genere': _bool_opt(params, 'per_genere'),
-                        'stime_totali': _bool_opt(params, 'stime_totali'),
-                        'intervallo_fiduciario': _bool_opt(params, 'intervallo_fiduciario', False),
-                        'solo_mature': _bool_opt(params, 'solo_mature', False),
-                        'totali': _bool_opt(params, 'totali', False),
+                        OPT_PER_COMPRESA: _bool_opt(params, OPT_PER_COMPRESA),
+                        OPT_PER_PARTICELLA: _bool_opt(params, OPT_PER_PARTICELLA),
+                        OPT_PER_GENERE: _bool_opt(params, OPT_PER_GENERE),
+                        OPT_STIME_TOTALI: _bool_opt(params, OPT_STIME_TOTALI),
+                        OPT_INTERVALLO_FIDUCIARIO: _bool_opt(params, OPT_INTERVALLO_FIDUCIARIO, False),
+                        OPT_SOLO_MATURE: _bool_opt(params, OPT_SOLO_MATURE, False),
+                        OPT_TOTALI: _bool_opt(params, OPT_TOTALI, False),
                     }
                     check_allowed_params(keyword, params, options)
                     result = render_tsv_table(data, formatter, **options)
@@ -2325,63 +2357,63 @@ def process_template(template_text: str, data_dir: Path,
                         raise ValueError("@@tpt non supporta il parametro 'genere' "
                                          "(usa 'per_genere=si' per raggruppare per specie)")
                     options = {
-                        'comparti': True,
-                        'provv_vol': True,
-                        'provv_eta': True,
-                        'per_compresa': _bool_opt(params, 'per_compresa'),
-                        'per_particella': _bool_opt(params, 'per_particella'),
-                        'per_genere': _bool_opt(params, 'per_genere', False),
-                        'col_comparto': _bool_opt(params, 'col_comparto'),
-                        'col_eta': _bool_opt(params, 'col_eta'),
-                        'col_area_ha': _bool_opt(params, 'col_area_ha'),
-                        'col_volume': _bool_opt(params, 'col_volume', False),
-                        'col_volume_ha': _bool_opt(params, 'col_volume_ha', False),
-                        'col_volume_mature': _bool_opt(params, 'col_volume_mature'),
-                        'col_volume_mature_ha': _bool_opt(params, 'col_volume_mature_ha'),
-                        'col_pp_max': _bool_opt(params, 'col_pp_max'),
-                        'col_prelievo': _bool_opt(params, 'col_prelievo'),
-                        'col_prelievo_ha': _bool_opt(params, 'col_prelievo_ha'),
-                        'totali': _bool_opt(params, 'totali', False),
+                        OPT_COMPARTI: True,
+                        OPT_PROVV_VOL: True,
+                        OPT_PROVV_ETA: True,
+                        OPT_PER_COMPRESA: _bool_opt(params, OPT_PER_COMPRESA),
+                        OPT_PER_PARTICELLA: _bool_opt(params, OPT_PER_PARTICELLA),
+                        OPT_PER_GENERE: _bool_opt(params, OPT_PER_GENERE, False),
+                        OPT_COL_COMPARTO: _bool_opt(params, OPT_COL_COMPARTO),
+                        OPT_COL_ETA: _bool_opt(params, OPT_COL_ETA),
+                        OPT_COL_AREA_HA: _bool_opt(params, OPT_COL_AREA_HA),
+                        OPT_COL_VOLUME: _bool_opt(params, OPT_COL_VOLUME, False),
+                        OPT_COL_VOLUME_HA: _bool_opt(params, OPT_COL_VOLUME_HA, False),
+                        OPT_COL_VOLUME_MATURE: _bool_opt(params, OPT_COL_VOLUME_MATURE),
+                        OPT_COL_VOLUME_MATURE_HA: _bool_opt(params, OPT_COL_VOLUME_MATURE_HA),
+                        OPT_COL_PP_MAX: _bool_opt(params, OPT_COL_PP_MAX),
+                        OPT_COL_PRELIEVO: _bool_opt(params, OPT_COL_PRELIEVO),
+                        OPT_COL_PRELIEVO_HA: _bool_opt(params, OPT_COL_PRELIEVO_HA),
+                        OPT_TOTALI: _bool_opt(params, OPT_TOTALI, False),
                     }
                     check_allowed_params(keyword, params, options)
-                    check_required_params(keyword, params, ['comparti', 'provv_vol', 'provv_eta'])
-                    comparti_df = load_csv(params['comparti'], data_dir)
-                    provv_vol_df = load_csv(params['provv_vol'], data_dir)
-                    provv_eta_df = load_csv(params['provv_eta'], data_dir)
+                    check_required_params(keyword, params, [OPT_COMPARTI, OPT_PROVV_VOL, OPT_PROVV_ETA])
+                    comparti_df = load_csv(params[OPT_COMPARTI], data_dir)
+                    provv_vol_df = load_csv(params[OPT_PROVV_VOL], data_dir)
+                    provv_eta_df = load_csv(params[OPT_PROVV_ETA], data_dir)
                     result = render_tpt_table(data, comparti_df, provv_vol_df,
                                               provv_eta_df, formatter, **options)
                 case 'tip':
                     options = {
-                        'per_compresa': _bool_opt(params, 'per_compresa', False),
-                        'per_particella': _bool_opt(params, 'per_particella', False),
-                        'stime_totali': _bool_opt(params, 'stime_totali'),
-                        'totali': _bool_opt(params, 'totali', False),
+                        OPT_PER_COMPRESA: _bool_opt(params, OPT_PER_COMPRESA, False),
+                        OPT_PER_PARTICELLA: _bool_opt(params, OPT_PER_PARTICELLA, False),
+                        OPT_STIME_TOTALI: _bool_opt(params, OPT_STIME_TOTALI),
+                        OPT_TOTALI: _bool_opt(params, OPT_TOTALI, False),
                     }
                     check_allowed_params(keyword, params, options)
                     result = render_tip_table(data, formatter, **options)
                 case 'gip':
                     options = {
-                        'per_compresa': _bool_opt(params, 'per_compresa', False),
-                        'per_particella': _bool_opt(params, 'per_particella', False),
-                        'stime_totali': _bool_opt(params, 'stime_totali'),
-                        'metrica': params.get('metrica', 'ip'),
-                        'stile': params.get('stile'),
+                        OPT_PER_COMPRESA: _bool_opt(params, OPT_PER_COMPRESA, False),
+                        OPT_PER_PARTICELLA: _bool_opt(params, OPT_PER_PARTICELLA, False),
+                        OPT_STIME_TOTALI: _bool_opt(params, OPT_STIME_TOTALI),
+                        OPT_METRICA: params.get(OPT_METRICA, 'ip'),
+                        OPT_STILE: params.get(OPT_STILE),
                     }
                     check_allowed_params(keyword, params, options)
-                    check_param_values(options, 'metrica', ['ip', 'ic'], '@@gip')
+                    check_param_values(options, OPT_METRICA, ['ip', 'ic'], '@@gip')
                     filename = _build_graph_filename(comprese, particelle, generi, keyword)
                     result = render_gip_graph(data, output_dir / filename,
                                               formatter, color_map, **options)
                 case 'gcd':
                     options = {
-                        'x_max': int(params.get('x_max', 0)),
-                        'y_max': int(params.get('y_max', 0)),
-                        'stile': params.get('stile'),
-                        'metrica': params.get('metrica', 'alberi_ha'),
-                        'stime_totali': _bool_opt(params, 'stime_totali'),
+                        OPT_X_MAX: int(params.get(OPT_X_MAX, 0)),
+                        OPT_Y_MAX: int(params.get(OPT_Y_MAX, 0)),
+                        OPT_STILE: params.get(OPT_STILE),
+                        OPT_METRICA: params.get(OPT_METRICA, 'alberi_ha'),
+                        OPT_STIME_TOTALI: _bool_opt(params, OPT_STIME_TOTALI),
                     }
                     check_allowed_params(keyword, params, options)
-                    check_param_values(options, 'metrica',
+                    check_param_values(options, OPT_METRICA,
                         ['alberi_ha', 'G_ha', 'volume_ha',
                          'alberi_tot', 'G_tot', 'volume_tot', 'altezza'],
                         '@@gcd')
@@ -2390,55 +2422,55 @@ def process_template(template_text: str, data_dir: Path,
                                               formatter, color_map, **options)
                 case 'tcd':
                     options = {
-                        'metrica': params.get('metrica', 'alberi_ha'),
-                        'stime_totali': _bool_opt(params, 'stime_totali'),
+                        OPT_METRICA: params.get(OPT_METRICA, 'alberi_ha'),
+                        OPT_STIME_TOTALI: _bool_opt(params, OPT_STIME_TOTALI),
                     }
                     check_allowed_params(keyword, params, options)
-                    check_param_values(options, 'metrica',
+                    check_param_values(options, OPT_METRICA,
                         ['alberi_ha', 'G_ha', 'volume_ha',
                          'alberi_tot', 'G_tot', 'volume_tot', 'altezza'],
                         '@@tcd')
                     result = render_tcd_table(data, formatter, **options)
                 case 'gci':
                     options = {
-                        'equazioni': True,
-                        'x_max': int(params.get('x_max', 0)),
-                        'y_max': int(params.get('y_max', 0)),
-                        'stile': params.get('stile'),
+                        OPT_EQUAZIONI: True,
+                        OPT_X_MAX: int(params.get(OPT_X_MAX, 0)),
+                        OPT_Y_MAX: int(params.get(OPT_Y_MAX, 0)),
+                        OPT_STILE: params.get(OPT_STILE),
                     }
                     check_allowed_params(keyword, params, options)
-                    check_required_params(keyword, params, ['equazioni'])
+                    check_required_params(keyword, params, [OPT_EQUAZIONI])
                     equations_df = load_csv(equazioni_files, data_dir)
                     filename = _build_graph_filename(comprese, particelle, generi, keyword)
                     result = render_gci_graph(data, equations_df, output_dir / filename,
                                               formatter, color_map, **options)
                 case 'gsv':
                     options = {
-                        'per_compresa': _bool_opt(params, 'per_compresa'),
-                        'per_particella': _bool_opt(params, 'per_particella'),
-                        'per_genere': _bool_opt(params, 'per_genere', False),
-                        'stile': params.get('stile'),
+                        OPT_PER_COMPRESA: _bool_opt(params, OPT_PER_COMPRESA),
+                        OPT_PER_PARTICELLA: _bool_opt(params, OPT_PER_PARTICELLA),
+                        OPT_PER_GENERE: _bool_opt(params, OPT_PER_GENERE, False),
+                        OPT_STILE: params.get(OPT_STILE),
                     }
                     check_allowed_params(keyword, params, options)
                     filename = _build_graph_filename(comprese, particelle, generi, keyword)
                     result = render_gsv_graph(data, output_dir / filename,
                                               formatter, color_map, **options)
                 case 'gpt':
-                    if 'per_genere' in params:
+                    if OPT_PER_GENERE in params:
                         raise ValueError("@@gpt non supporta il parametro 'per_genere'")
                     options = {
-                        'comparti': True,
-                        'provv_vol': True,
-                        'provv_eta': True,
-                        'per_compresa': _bool_opt(params, 'per_compresa'),
-                        'per_particella': _bool_opt(params, 'per_particella'),
-                        'stile': params.get('stile'),
+                        OPT_COMPARTI: True,
+                        OPT_PROVV_VOL: True,
+                        OPT_PROVV_ETA: True,
+                        OPT_PER_COMPRESA: _bool_opt(params, OPT_PER_COMPRESA),
+                        OPT_PER_PARTICELLA: _bool_opt(params, OPT_PER_PARTICELLA),
+                        OPT_STILE: params.get(OPT_STILE),
                     }
                     check_allowed_params(keyword, params, options)
-                    check_required_params(keyword, params, ['comparti', 'provv_vol', 'provv_eta'])
-                    comparti_df = load_csv(params['comparti'], data_dir)
-                    provv_vol_df = load_csv(params['provv_vol'], data_dir)
-                    provv_eta_df = load_csv(params['provv_eta'], data_dir)
+                    check_required_params(keyword, params, [OPT_COMPARTI, OPT_PROVV_VOL, OPT_PROVV_ETA])
+                    comparti_df = load_csv(params[OPT_COMPARTI], data_dir)
+                    provv_vol_df = load_csv(params[OPT_PROVV_VOL], data_dir)
+                    provv_eta_df = load_csv(params[OPT_PROVV_ETA], data_dir)
                     filename = _build_graph_filename(comprese, particelle, generi, keyword)
                     result = render_gpt_graph(data, comparti_df, provv_vol_df, provv_eta_df,
                                               output_dir / filename, formatter, **options)
