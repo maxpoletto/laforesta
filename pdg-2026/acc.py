@@ -1541,6 +1541,42 @@ def render_gip_graph(data: dict, output_path: Path,
     return {'filepath': output_path, 'snippet': snippet}
 
 
+BARH_GROUP_SPACING = 0.3   # Extra vertical gap between compresa groups in bar charts
+BARH_INCHES_PER_BAR = 0.35 # Approximate figure height per bar
+BARH_MIN_HEIGHT = 3        # Minimum figure height in inches
+
+def _barh_layout(n_bars: int, group_values: Iterable | None = None
+                ) -> tuple[list[float], float]:
+    """Compute y_positions and fig_height for grouped horizontal bar charts.
+
+    Args:
+        n_bars: Number of bars to draw.
+        group_values: If provided, insert spacing between consecutive groups
+            (e.g. compresa values). Adjacent bars with different group values
+            get extra vertical spacing.
+
+    Returns:
+        (y_positions, fig_height)
+    """
+    if group_values is not None:
+        groups = list(group_values)
+        spacing = [BARH_GROUP_SPACING if i > 0 and groups[i] != groups[i-1] else 0
+                   for i in range(len(groups))]
+    else:
+        spacing = [0] * n_bars
+
+    y_positions = []
+    cumulative = 0.0
+    for s in spacing:
+        cumulative += s
+        y_positions.append(cumulative)
+        cumulative += 1
+
+    fig_height = max(BARH_MIN_HEIGHT,
+                     n_bars * BARH_INCHES_PER_BAR + sum(spacing) * BARH_INCHES_PER_BAR)
+    return y_positions, fig_height
+
+
 def render_gsv_graph(data: dict, output_path: Path,
                      formatter: SnippetFormatter, color_map: dict,
                      **options) -> dict:
@@ -1592,25 +1628,10 @@ def render_gsv_graph(data: dict, output_path: Path,
                 labels = [labels[i] for i in sort_idx]
                 pivot_df = pivot_df.iloc[sort_idx]
 
-            # Calculate spacing for compresa groups
-            spacing = []
-            if 'Compresa' in base_cols and 'Particella' in base_cols:
-                comprese = pivot_df.index.get_level_values('Compresa')
-                for i, c in enumerate(comprese):
-                    spacing.append(0.3 if i > 0 and c != comprese[i-1] else 0)
-            else:
-                spacing = [0] * len(labels)
-
-            # Calculate y positions with spacing
-            y_positions = []
-            cumulative = 0
-            for s in spacing:
-                cumulative += s
-                y_positions.append(cumulative)
-                cumulative += 1
-
-            # Figure height: ~0.35 inches per bar, minimum 3
-            fig_height = max(3, len(labels) * 0.35 + sum(spacing) * 0.35)
+            comprese = (pivot_df.index.get_level_values('Compresa')
+                        if 'Compresa' in base_cols and 'Particella' in base_cols
+                        else None)
+            y_positions, fig_height = _barh_layout(len(labels), comprese)
             fig, ax = plt.subplots(figsize=(5, fig_height))
 
             # Draw stacked horizontal bars
@@ -1640,23 +1661,10 @@ def render_gsv_graph(data: dict, output_path: Path,
                 labels = ['Totale']
             values = cast(np.ndarray, df[COL_VOLUME].values)
 
-            # Calculate spacing for compresa groups
-            spacing = []
-            if 'Compresa' in group_cols and 'Particella' in group_cols:
-                comprese = df['Compresa'].tolist()
-                for i, c in enumerate(comprese):
-                    spacing.append(0.3 if i > 0 and c != comprese[i-1] else 0)
-            else:
-                spacing = [0] * len(labels)
-
-            y_positions = []
-            cumulative = 0
-            for s in spacing:
-                cumulative += s
-                y_positions.append(cumulative)
-                cumulative += 1
-
-            fig_height = max(3, len(labels) * 0.35 + sum(spacing) * 0.35)
+            comprese = (df['Compresa'].tolist()
+                        if 'Compresa' in group_cols and 'Particella' in group_cols
+                        else None)
+            y_positions, fig_height = _barh_layout(len(labels), comprese)
             fig, ax = plt.subplots(figsize=(5, fig_height))
 
             ax.barh(y_positions, values, color='#0c63e7', height=0.8,
@@ -2112,23 +2120,10 @@ def render_gpt_graph(data: dict, comparti_df: pd.DataFrame,
             labels = ['Totale']
         values = cast(np.ndarray, df[COL_HARVEST].values)
 
-        # Calculate spacing for compresa groups
-        spacing = []
-        if 'Compresa' in group_cols and 'Particella' in group_cols:
-            comprese = df['Compresa'].tolist()
-            for i, c in enumerate(comprese):
-                spacing.append(0.3 if i > 0 and c != comprese[i-1] else 0)
-        else:
-            spacing = [0] * len(labels)
-
-        y_positions = []
-        cumulative = 0
-        for s in spacing:
-            cumulative += s
-            y_positions.append(cumulative)
-            cumulative += 1
-
-        fig_height = max(3, len(labels) * 0.35 + sum(spacing) * 0.35)
+        comprese = (df['Compresa'].tolist()
+                    if 'Compresa' in group_cols and 'Particella' in group_cols
+                    else None)
+        y_positions, fig_height = _barh_layout(len(labels), comprese)
         fig, ax = plt.subplots(figsize=(5, fig_height))
 
         ax.barh(y_positions, values, color='#0c63e7', height=0.8,
