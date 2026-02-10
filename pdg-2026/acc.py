@@ -39,7 +39,7 @@ COL_PARTICELLA = 'Particella'
 COL_DIAMETRO = 'Diametro'       # Computed: diameter bucket (5 cm classes)
 COL_FUSTAIA = 'Fustaia'         # Boolean column in trees data
 COL_AREA_SAGGIO = 'Area saggio'
-COL_COEFF_A = 'c(1/a)'
+COL_COEFF_PRESSLER = 'c(1/a)'
 COL_IPR_MM = 'Ipr(mm)'
 # Parcel metadata (particelle_df)
 COL_AREA_PARCEL = 'Area (ha)'
@@ -1542,7 +1542,7 @@ def calculate_ip_table(data: ParcelData, group_cols: list[str],
     """
     trees = data.trees
     parcels = data.parcels
-    for col in (group_cols + [COL_COEFF_A, COL_IPR_MM, COL_DIAMETER_CM, COL_V_M3]):
+    for col in (group_cols + [COL_COEFF_PRESSLER, COL_IPR_MM, COL_DIAMETER_CM, COL_V_M3]):
         if col not in trees.columns:
             raise ValueError(f"@@tip/@@gip richiede la colonna '{col}'. "
                              "Esegui --calcola-incrementi e --calcola-altezze-volumi.")
@@ -1552,7 +1552,7 @@ def calculate_ip_table(data: ParcelData, group_cols: list[str],
     rows = []
     for group_key, group_trees in trees.groupby(all_cols):
         row_dict = dict(zip(all_cols, group_key))
-        ip_medio = (group_trees[COL_COEFF_A] * 2 * group_trees[COL_IPR_MM]
+        ip_medio = (group_trees[COL_COEFF_PRESSLER] * 2 * group_trees[COL_IPR_MM]
                     / 100 / group_trees[COL_DIAMETER_CM]).mean()
 
         if stime_totali:
@@ -2676,7 +2676,7 @@ def run_calcola_incrementi(args):
     print(f"Output: {args.output}")
 
     trees_df = load_trees(args.input)
-    trees_df['IP'] = trees_df[COL_COEFF_A] * 2 * trees_df[COL_IPR_MM] / 100 / trees_df[COL_DIAMETER_CM]
+    trees_df['IP'] = trees_df[COL_COEFF_PRESSLER] * 2 * trees_df[COL_IPR_MM] / 100 / trees_df[COL_DIAMETER_CM]
     trees_df.to_csv(args.output, index=False, float_format="%.6f")
     print(f"\nFile salvato: {args.output}")
 
