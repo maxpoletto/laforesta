@@ -245,9 +245,9 @@ class LaTeXSnippetFormatter(SnippetFormatter):
            Headers is a list of tuples (header, justification).
            Justification is 'l' for left, 'r' for right, 'c' for center.
         """
-        col_specs = [h[1] for h in headers]
+        just = [h[1] for h in headers]
         # Use longtable instead of tabular to allow page breaks
-        latex = f'\\begin{{longtable}}{{ {"".join(col_specs)} }}\n'
+        latex = f'\\begin{{longtable}}{{ {"".join(just)} }}\n'
         latex += '\\hline\n'
         latex += ' & '.join([h[0] for h in headers]) + ' \\\\\n'
         latex += '\\hline\n'
@@ -1304,6 +1304,7 @@ COL_SECTOR = 'sector'
 COL_AGE = 'age'
 COL_PP_MAX = 'pp_max'
 COL_HARVEST = 'harvest'
+ROW_TOTAL = 'Totale'
 
 # Option keys shared between process_directive and render_*/calculate_* functions.
 # Common options (used across multiple directives)
@@ -1337,14 +1338,14 @@ OPT_PROVV_VOL = 'provv_vol'
 OPT_PROVV_ETA = 'provv_eta'
 OPT_EQUAZIONI = 'equazioni'
 
-# Output format types (in a class so match/case treats them as value patterns)
+# Output format types
 class Fmt:
     HTML = 'html'
     TEX  = 'tex'
     PDF  = 'pdf'
     CSV  = 'csv'
 
-# Template directive keywords (in a class so match/case treats them as value patterns)
+# Template directive keywords
 class Dir:
     GCI  = 'gci'
     GCD  = 'gcd'
@@ -1358,44 +1359,54 @@ class Dir:
     PROP = 'prop'
     PARTICELLE = 'particelle'
 
-# Column spec for table rendering: (header, align, format_fn, total_fn, condition).
-# - format_fn(row) -> str: format one data cell from a DataFrame row.
-# - total_fn: column name (str) to sum with :.2f, callable(df) -> str, or None (empty).
-# - condition: bool gate — only active specs are rendered.
-ColSpec = tuple  # (header, align, format_fn, total_fn, condition)
+# Column spec for table rendering
+@dataclass
+class ColSpec:
+    title: str                      # Column title
+    align: str                      # Alignment: 'l', 'r', or 'c'
+    formatter: Callable             # Function to format a cell from a DataFrame row
+    total: str | Callable | None    # Total specification: column name to sum, or callable(df) -> str, or None for no total
+    enabled: bool                   # True if column should be rendered
 
-def _render_table(df: pd.DataFrame, group_cols: list[str],
-                  col_specs: list[ColSpec], formatter: SnippetFormatter,
-                  add_totals: bool) -> RenderResult:
+def render_table(df: pd.DataFrame, group_cols: list[str],
+                 col_specs: list[ColSpec], formatter: SnippetFormatter,
+                 add_totals: bool) -> RenderResult:
     """Generic table renderer from a DataFrame and column specifications.
 
     Args:
         df: Data to render.
         group_cols: Columns used for grouping (appear first as left-aligned headers).
-        col_specs: List of (header, align, format_fn, total_fn, condition) tuples.
+        col_specs: List of column specifications
         formatter: Output format (HTML/LaTeX/CSV).
-        add_totals: Whether to append a totals row (only if group_cols is non-empty).
+        add_totals: Whether to append a totals row
     """
-    active = [(h, a, fmt, tot) for h, a, fmt, tot, cond in col_specs if cond]
-
+    col_specs = [c for c in col_specs if c.enabled]
     headers = [(col, 'l') for col in group_cols]
-    headers += [(h, a) for h, a, _, _ in active]
+    headers += [(c.title, c.align) for c in col_specs]
 
     display_rows = []
     for _, row in df.iterrows():
         display_row = [str(row[col]) for col in group_cols]
-        display_row += [fmt(row) for _, _, fmt, _ in active]
+        display_row += [c.formatter(row) for c in col_specs]
         display_rows.append(display_row)
 
-    if add_totals and group_cols:
-        total_row = ['Totale'] + [''] * (len(group_cols) - 1)
-        for _, _, _, tot_fn in active:
-            if tot_fn is None:
-                total_row.append('')
-            elif isinstance(tot_fn, str):
-                total_row.append(f"{df[tot_fn].sum():.2f}")
+    if add_totals:
+        total_row = [ROW_TOTAL]
+        # We need to "eat" one column to make room for the totals label.
+        if group_cols:
+            total_row += [''] * (len(group_cols) - 1)
+        else:
+            if col_specs[0].total is not None:
+                raise ValueError("La prima colonna della tabella non può essere aggregabile se non ci sono colonne di raggruppamento")
             else:
-                total_row.append(tot_fn(df))
+                col_specs = col_specs[1:]  # Skip first column
+        for c in col_specs:
+            if c.total is None:
+                total_row.append('')
+            elif isinstance(c.total, str):
+                total_row.append(f"{df[c.total].sum():.2f}")
+            else:
+                total_row.append(c.total(df))
         display_rows.append(total_row)
 
     return RenderResult(snippet=formatter.format_table(headers, display_rows))
@@ -1507,28 +1518,28 @@ def render_tsv_table(data: ParcelData, formatter: SnippetFormatter, **options) -
 
     has_ci = options[OPT_INTERVALLO_FIDUCIARIO]
     col_specs = [
-        ('N. Alberi', 'r',
+        ColSpec('N. Alberi', 'r',
          lambda r: f"{r[COL_N_TREES]:.0f}",
          lambda d: f"{d[COL_N_TREES].sum():.0f}",
          True),
-        ('Volume (m³)', 'r',
+        ColSpec('Volume (m³)', 'r',
          lambda r: f"{r[COL_VOLUME]:.2f}",
          COL_VOLUME,
          True),
-        ('Vol. mature (m³)', 'r',
+        ColSpec('Vol. mature (m³)', 'r',
          lambda r: f"{r[COL_VOLUME_MATURE]:.2f}",
          COL_VOLUME_MATURE,
          options.get(OPT_SOLO_MATURE, False)),
-        ('IF inf (m³)', 'r',
+        ColSpec('IF inf (m³)', 'r',
          lambda r: f"{r[COL_VOL_LO]:.2f}",
          COL_VOL_LO,
          has_ci),
-        ('IF sup (m³)', 'r',
+        ColSpec('IF sup (m³)', 'r',
          lambda r: f"{r[COL_VOL_HI]:.2f}",
          COL_VOL_HI,
          has_ci),
     ]
-    return _render_table(df, group_cols, col_specs, formatter, options[OPT_TOTALI])
+    return render_table(df, group_cols, col_specs, formatter, options[OPT_TOTALI])
 
 
 def calculate_ip_table(data: ParcelData, group_cols: list[str],
@@ -1584,21 +1595,21 @@ def render_tip_table(data: ParcelData, formatter: SnippetFormatter, **options) -
     df = calculate_ip_table(data, group_cols, options[OPT_STIME_TOTALI])
 
     col_specs = [
-        (COL_GENERE, 'l',
+        ColSpec(COL_GENERE, 'l',
          lambda r: str(r[COL_GENERE]),
          None, True),
-        (COL_DIAMETRO, 'r',
+        ColSpec(COL_DIAMETRO, 'r',
          lambda r: f"{r[COL_DIAMETRO] - 4}-{r[COL_DIAMETRO]}",
          None, True),
-        ('Incr. pct.', 'r',
+        ColSpec('Incr. pct.', 'r',
          lambda r: f"{r[COL_IP_MEDIO]:.2f}",
          None, True),
-        ('Incr. corr. (m³)', 'r',
+        ColSpec('Incr. corr. (m³)', 'r',
          lambda r: f"{r[COL_INCR_CORRENTE]:.2f}",
          COL_INCR_CORRENTE,
          True),
     ]
-    return _render_table(df, group_cols, col_specs, formatter, options[OPT_TOTALI])
+    return render_table(df, group_cols, col_specs, formatter, options[OPT_TOTALI])
 
 
 def render_gip_graph(data: ParcelData, output_path: Path,
@@ -1733,9 +1744,9 @@ def render_gsv_graph(data: ParcelData, output_path: Path,
             # Sort by compresa then particella (natural sort for particella)
             if COL_PARTICELLA in base_cols:
                 sort_keys = [pivot_df.index.get_level_values(c) for c in base_cols]
-                _natsort = natsort_keygen()
+                natsort = natsort_keygen()
                 sort_idx = sorted(range(len(labels)), key=lambda i: tuple(
-                    _natsort(str(sort_keys[j][i])) if base_cols[j] == COL_PARTICELLA
+                    natsort(str(sort_keys[j][i])) if base_cols[j] == COL_PARTICELLA
                     else (0, str(sort_keys[j][i])) for j in range(len(base_cols))))
                 labels = [labels[i] for i in sort_idx]
                 pivot_df = pivot_df.iloc[sort_idx]
@@ -2117,48 +2128,48 @@ def render_tpt_table(data: ParcelData, comparti_df: pd.DataFrame,
 
     # total_fn lambdas close over total_area (computed above)
     col_specs = [
-        ('Comp.', 'l',
+        ColSpec('Comp.', 'l',
          lambda r: str(r[COL_SECTOR]),
          None,
          options[OPT_COL_COMPARTO] and per_parcel),
-        ('Età (aa)', 'r',
+        ColSpec('Età (aa)', 'r',
          lambda r: f"{r[COL_AGE]:.0f}",
          None,
          options[OPT_COL_ETA] and per_parcel),
-        (COL_AREA_PARCEL, 'r',
+        ColSpec(COL_AREA_PARCEL, 'r',
          lambda r: f"{r[COL_AREA_HA]:.2f}",
          lambda _d: f"{total_area:.2f}",
          options[OPT_COL_AREA_HA]),
-        ('Vol tot (m³)', 'r',
+        ColSpec('Vol tot (m³)', 'r',
          lambda r: f"{r[COL_VOLUME]:.2f}",
          COL_VOLUME,
          options[OPT_COL_VOLUME]),
-        ('Vol/ha (m³/ha)', 'r',
+        ColSpec('Vol/ha (m³/ha)', 'r',
          lambda r: f"{r[COL_VOLUME] / r[COL_AREA_HA]:.2f}",
          lambda d: f"{d[COL_VOLUME].sum() / total_area:.2f}",
          options[OPT_COL_VOLUME_HA]),
-        ('Vol mature (m³)', 'r',
+        ColSpec('Vol mature (m³)', 'r',
          lambda r: f"{r[COL_VOLUME_MATURE]:.2f}",
          COL_VOLUME_MATURE,
          options[OPT_COL_VOLUME_MATURE]),
-        ('Vol mature/ha (m³/ha)', 'r',
+        ColSpec('Vol mature/ha (m³/ha)', 'r',
          lambda r: f"{r[COL_VOLUME_MATURE] / r[COL_AREA_HA]:.2f}",
          lambda d: f"{d[COL_VOLUME_MATURE].sum() / total_area:.2f}",
          options[OPT_COL_VOLUME_MATURE_HA]),
-        ('Prelievo \\%', 'r',
+        ColSpec('Prelievo \\%', 'r',
          lambda r: f"{r[COL_PP_MAX]:.0f}",
          None,
          options[OPT_COL_PP_MAX] and per_parcel),
-        ('Prel tot (m³)', 'r',
+        ColSpec('Prel tot (m³)', 'r',
          lambda r: f"{r[COL_HARVEST]:.2f}",
          COL_HARVEST,
          options[OPT_COL_PRELIEVO]),
-        ('Prel/ha (m³/ha)', 'r',
+        ColSpec('Prel/ha (m³/ha)', 'r',
          lambda r: f"{r[COL_HARVEST] / r[COL_AREA_HA]:.2f}",
          lambda d: f"{d[COL_HARVEST].sum() / total_area:.2f}",
          options[OPT_COL_PRELIEVO_HA]),
     ]
-    return _render_table(df, group_cols, col_specs, formatter, options[OPT_TOTALI])
+    return render_table(df, group_cols, col_specs, formatter, options[OPT_TOTALI])
 
 
 def render_gpt_graph(data: ParcelData, comparti_df: pd.DataFrame,
