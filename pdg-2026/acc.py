@@ -751,9 +751,9 @@ def parcel_data(tree_files: list[str], tree_df: pd.DataFrame, parcel_df: pd.Data
             sampled_frac=sampled_frac,
         )
 
-    # Compute diameter bucket: D in (0,5] -> 5, D in (5,10] -> 10, etc.
+    # Compute diameter bucket: D in (2.5, 7.5] -> 5, D in (7.5, 12.5] -> 10, etc.
     trees_region_species[COL_DIAMETRO] = (
-        (np.floor((trees_region_species[COL_DIAMETER_CM] - 1) / 5) + 1) * 5).astype(int)
+        np.ceil((trees_region_species[COL_DIAMETER_CM] - 2.5) / 5) * 5).astype(int)
 
     data = ParcelData(
         trees=trees_region_species,
