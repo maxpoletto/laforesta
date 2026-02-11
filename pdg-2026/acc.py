@@ -1590,10 +1590,10 @@ def render_tip_table(data: ParcelData, formatter: SnippetFormatter, **options) -
     df = calculate_ip_table(data, group_cols, options[OPT_STIME_TOTALI])
 
     col_specs = [
-        ColSpec(COL_GENERE, 'l',
+        ColSpec('Genere', 'l',
          lambda r: str(r[COL_GENERE]),
          None, True),
-        ColSpec(COL_DIAMETRO, 'r',
+        ColSpec('D (cm)', 'r',
          lambda r: f"{r[COL_DIAMETRO]}",
          None, True),
         ColSpec('Incr. pct.', 'r',
@@ -2050,7 +2050,7 @@ def render_tpt_table(data: ParcelData, rules: HarvestRulesFunc,
          lambda r: f"{r[COL_AGE]:.0f}",
          None,
          options[OPT_COL_ETA] and per_parcel),
-        ColSpec(COL_AREA_PARCEL, 'r',
+        ColSpec('Area (ha)', 'r',
          lambda r: f"{r[COL_AREA_HA]:.2f}",
          lambda _: f"{total_area:.2f}",
          options[OPT_COL_AREA_HA]),
