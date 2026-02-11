@@ -1594,7 +1594,7 @@ def render_tip_table(data: ParcelData, formatter: SnippetFormatter, **options) -
          lambda r: str(r[COL_GENERE]),
          None, True),
         ColSpec(COL_DIAMETRO, 'r',
-         lambda r: f"{r[COL_DIAMETRO] - 4}-{r[COL_DIAMETRO]}",
+         lambda r: f"{r[COL_DIAMETRO]}",
          None, True),
         ColSpec('Incr. pct.', 'r',
          lambda r: f"{r[COL_IP_MEDIO]:.2f}",
