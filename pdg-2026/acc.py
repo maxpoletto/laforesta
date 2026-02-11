@@ -1583,7 +1583,7 @@ def calculate_growth_rates(data: ParcelData, group_cols: list[str],
 
         row_dict[COL_IP_MEDIO] = ip_medio
         row_dict[COL_DELTA_D] = delta_d
-        row_dict[COL_INCR_CORRENTE] = volume * ((1 + ip_medio / 100)**2 - 1)
+        row_dict[COL_INCR_CORRENTE] = volume * ip_medio / 100
         rows.append(row_dict)
 
     df = pd.DataFrame(rows)
@@ -1671,6 +1671,55 @@ def render_gip_graph(data: ParcelData, output_path: Path,
     return RenderResult(filepath=output_path, snippet=snippet)
 
 
+def _simulate_year_step(sim: pd.DataFrame, weight: np.ndarray,
+                        rate_dict: dict, available_diams: dict,
+                        rate_cols: list[str], mortalita: float) -> int:
+    """Advance the tree growth simulation by one year.
+
+    Updates sim (volumes, diameters) and weight (mortality) in place.
+    Returns the number of trees that required fallback to nearest diameter.
+    """
+    key_cols = rate_cols + [COL_GENERE, COL_DIAMETRO]
+    prefix_cols = rate_cols + [COL_GENERE]
+
+    keys = list(zip(*(sim[c] for c in key_cols)))
+    rates = [rate_dict.get(k) for k in keys]
+    ips = np.array([r[0] if r else np.nan for r in rates])
+    dds = np.array([r[1] if r else np.nan for r in rates])
+
+    # Fallback to nearest available diameter bucket
+    fallbacks = 0
+    missing = np.isnan(ips)
+    if missing.any():
+        fallbacks = int(missing.sum())
+        for i in np.where(missing)[0]:
+            row = sim.iloc[i]
+            prefix = tuple(row[c] for c in prefix_cols)
+            diams = available_diams.get(prefix)
+            if not diams:
+                ips[i], dds[i] = 0.0, 0.0
+                continue
+            d = int(row[COL_DIAMETRO])
+            idx = bisect.bisect_left(diams, d)
+            if idx == 0:
+                nearest = diams[0]
+            elif idx >= len(diams):
+                nearest = diams[-1]
+            elif d - diams[idx - 1] <= diams[idx] - d:
+                nearest = diams[idx - 1]
+            else:
+                nearest = diams[idx]
+            r = rate_dict.get(prefix + (nearest,), (0.0, 0.0))
+            ips[i], dds[i] = r
+
+    sim[COL_V_M3] = sim[COL_V_M3].values * (1 + ips / 100)
+    sim[COL_DIAMETER_CM] = sim[COL_DIAMETER_CM].values + dds
+    sim[COL_DIAMETRO] = (np.ceil((sim[COL_DIAMETER_CM] - 2.5) / 5) * 5).astype(int)
+    weight *= (1 - mortalita / 100)
+
+    return fallbacks
+
+
 def calculate_tcr_table(data: ParcelData, group_cols: list[str],
                         anni: int, mortalita: float,
                         incrementi_particella: bool) -> pd.DataFrame:
@@ -1712,47 +1761,8 @@ def calculate_tcr_table(data: ParcelData, group_cols: list[str],
 
     fallback_count = 0
     for _ in range(anni):
-        # Look up growth rates by current diameter bucket
-        if incrementi_particella:
-            keys = list(zip(sim[COL_COMPRESA], sim[COL_PARTICELLA],
-                           sim[COL_GENERE], sim[COL_DIAMETRO]))
-        else:
-            keys = list(zip(sim[COL_COMPRESA], sim[COL_GENERE], sim[COL_DIAMETRO]))
-        rates = [rate_dict.get(k) for k in keys]
-        ips = np.array([r[0] if r else np.nan for r in rates])
-        dds = np.array([r[1] if r else np.nan for r in rates])
-
-        # Fallback to nearest available diameter bucket
-        missing = np.isnan(ips)
-        if missing.any():
-            fallback_count += int(missing.sum())
-            for i in np.where(missing)[0]:
-                row = sim.iloc[i]
-                if incrementi_particella:
-                    prefix = (row[COL_COMPRESA], row[COL_PARTICELLA], row[COL_GENERE])
-                else:
-                    prefix = (row[COL_COMPRESA], row[COL_GENERE])
-                diams = available_diams.get(prefix)
-                if not diams:
-                    ips[i], dds[i] = 0.0, 0.0
-                    continue
-                d = int(row[COL_DIAMETRO])
-                idx = bisect.bisect_left(diams, d)
-                if idx == 0:
-                    nearest = diams[0]
-                elif idx >= len(diams):
-                    nearest = diams[-1]
-                elif d - diams[idx - 1] <= diams[idx] - d:
-                    nearest = diams[idx - 1]
-                else:
-                    nearest = diams[idx]
-                r = rate_dict.get(prefix + (nearest,), (0.0, 0.0))
-                ips[i], dds[i] = r
-
-        sim[COL_V_M3] = sim[COL_V_M3].values * (1 + ips / 100)
-        sim[COL_DIAMETER_CM] = sim[COL_DIAMETER_CM].values + dds
-        sim[COL_DIAMETRO] = (np.ceil((sim[COL_DIAMETER_CM] - 2.5) / 5) * 5).astype(int)
-        weight *= (1 - mortalita / 100)
+        fallback_count += _simulate_year_step(
+            sim, weight, rate_dict, available_diams, rate_cols, mortalita)
 
     # Bake mortality into volume
     sim[COL_V_M3] = sim[COL_V_M3].values * weight

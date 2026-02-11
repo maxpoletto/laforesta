@@ -88,7 +88,7 @@ async function runQuery() {
     if (!sql) return;
     const url = new URL(window.location);
     url.searchParams.set('q', sql);
-    history.replaceState(null, '', url);
+    history.pushState(null, '', url);
     errorEl.textContent = '';
     resultEl.innerHTML = '';
     try {
