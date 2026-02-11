@@ -22,6 +22,8 @@ import pandas as pd
 from natsort import natsort_keygen
 from scipy import stats
 
+from harvest_rules import max_harvest, HarvestRulesFunc
+
 SAMPLE_AREA_HA = 0.125
 MATURE_THRESHOLD = 20 # Diameter (cm) threshold for "mature" trees (smaller are not harvested)
 MIN_TREES_PER_HA = 0.5 # Ignore buckets less than this in classi diametriche graphs.
@@ -57,11 +59,6 @@ COL_ETA_MEDIA = 'Età media'
 # Alsometric (ALS) curve data
 COL_DIAM_130 = 'Diam 130cm'
 COL_ALT_INDICATIVA = 'Altezza indicativa'
-# Harvest rules (provv_eta_df, provv_vol_df, comparti_df)
-COL_PROVV_MINIMA = 'Provvigione minima'
-COL_ANNI = 'Anni'
-COL_PPM = 'PPM'
-COL_PP_MAX_RULE = 'PP_max'
 
 @dataclass
 class RenderResult:
@@ -649,7 +646,8 @@ def calculate_all_trees_volume(trees_df: pd.DataFrame) -> pd.DataFrame:
     if na_mask.any():
         idx = na_mask.idxmax()
         raise ValueError(f"Dati mancanti per riga {idx}: "
-                         f"D={trees_df.at[idx, COL_DIAMETER_CM]}, h={trees_df.at[idx, COL_HEIGHT_M]}")
+                         f"D={trees_df.at[idx, COL_DIAMETER_CM]}, "
+                         f"h={trees_df.at[idx, COL_HEIGHT_M]}")
 
     result_df = trees_df.copy()
     result_df[COL_V_M3] = 0.0
@@ -1333,9 +1331,6 @@ OPT_COL_PRELIEVO_HA = 'col_prelievo_ha'
 OPT_X_MAX = 'x_max'
 OPT_Y_MAX = 'y_max'
 # Required file parameters (used as option keys for validation)
-OPT_COMPARTI = 'comparti'
-OPT_PROVV_VOL = 'provv_vol'
-OPT_PROVV_ETA = 'provv_eta'
 OPT_EQUAZIONI = 'equazioni'
 
 # Output format types
@@ -1814,129 +1809,59 @@ def render_gsv_graph(data: ParcelData, output_path: Path,
 # RIPRESA =====================================================================
 
 
-def get_age_rule(eta_media: float, provv_eta_df: pd.DataFrame) -> tuple[float, bool]:
-    """
-    Get the harvest rule for a given age.
+def compute_harvest(trees_df: pd.DataFrame, sampled_frac: float,
+                     volume_limit: float, area_limit: float) -> tuple[float, float]:
+    """Harvest trees smallest-first until either limit is reached.
 
     Args:
-        eta_media: Mean age of trees in the particella
-        provv_eta_df: Age-based harvest rules (Anni, PP_max columns)
+        trees_df: Parcel trees with D(cm), V(m3) columns
+        sampled_frac: Sampling fraction
+        volume_limit: Max harvest volume (m3, absolute for parcel)
+        area_limit: Max harvest basal area (m2, absolute for parcel)
 
     Returns:
-        Tuple of (pp_max_percentage, use_volume_rules).
-        If use_volume_rules is True, pp_max applies to volume.
-        If False, pp_max applies to basal area.
+        (volume_mature, harvest_volume), both scaled.
     """
-    # Rules are in descending order of Anni, take first match where età >= Anni
-    for _, row in provv_eta_df.iterrows():
-        if eta_media >= row[COL_ANNI]:
-            pp_max = row[COL_PP_MAX_RULE]
-            # If PP_max is 100%, use volume rules instead of basal area
-            use_volume_rules = pp_max >= 100
-            return pp_max, use_volume_rules
-    return 0, False
-
-
-def compute_pp_max_volume(volume_mature_per_ha: float,
-                          provvigione_minima: float,
-                          provv_vol_df: pd.DataFrame) -> float:
-    """
-    Compute maximum harvest percentage based on volume rules.
-
-    Args:
-        volume_mature_per_ha: Volume per hectare excluding D <= 20cm trees
-        provvigione_minima: Minimum stock for this comparto (from comparti table)
-        provv_vol_df: Volume-based harvest rules (PPM, PP_max columns)
-
-    Returns:
-        Maximum harvest percentage (0-100)
-    """
-    # Rules are in descending order of PPM, take first match where v > PPM * pm / 100
-    for _, row in provv_vol_df.iterrows():
-        threshold = row[COL_PPM] * provvigione_minima / 100
-        if volume_mature_per_ha > threshold:
-            return row[COL_PP_MAX_RULE]
-    return 0
-
-
-def compute_harvest_by_basal_area(trees_df: pd.DataFrame, pp_max_basal: float,
-                                   sampled_frac: float) -> tuple[float, float]:
-    """
-    Compute harvest volume by selecting trees up to a basal area limit.
-
-    Trees are harvested starting from smallest diameter (D > 20cm) until
-    the cumulative basal area reaches pp_max_basal% of total basal area.
-
-    Args:
-        trees_df: DataFrame with D(cm), V(m3) columns for a single parcel
-        pp_max_basal: Maximum percentage of basal area that can be harvested
-        sampled_frac: Sampling fraction for this parcel
-
-    Returns:
-        Tuple of (volume_mature, harvest_volume), both scaled.
-    """
-    # Filter to trees above sottomisura threshold
+    assert trees_df[COL_COMPRESA].nunique() == 1 and trees_df[COL_PARTICELLA].nunique() == 1
     harvestable = trees_df[trees_df[COL_DIAMETER_CM] > MATURE_THRESHOLD].copy()
-
     if harvestable.empty:
         return 0.0, 0.0
 
-    # Compute basal area for each tree (m²)
+    # G in m2 per tree: D is in cm, D2 in cm2, /10000 converts cm2 -> m2
     harvestable['G'] = np.pi / 4 * harvestable[COL_DIAMETER_CM] ** 2 / 10000
-
-    # Total volume and basal area (scaled)
     total_volume = harvestable[COL_V_M3].sum() / sampled_frac
-    total_basal = harvestable['G'].sum() / sampled_frac
 
-    # Target basal area to harvest
-    target_basal = total_basal * pp_max_basal / 100
-
-    # Sort by diameter (smallest first) and accumulate
     harvestable = harvestable.sort_values(COL_DIAMETER_CM)
-
-    cumulative_basal = 0.0
-    cumulative_volume = 0.0
+    cum_vol, cum_area = 0.0, 0.0
 
     for _, tree in harvestable.iterrows():
-        tree_basal = tree['G'] / sampled_frac
-        tree_volume = tree[COL_V_M3] / sampled_frac
-
-        if cumulative_basal + tree_basal > target_basal:
-            # This tree would exceed the limit - stop here
+        tv = tree[COL_V_M3] / sampled_frac
+        ta = tree['G'] / sampled_frac
+        if cum_vol + tv > volume_limit or cum_area + ta > area_limit:
             break
+        cum_vol += tv
+        cum_area += ta
 
-        cumulative_basal += tree_basal
-        cumulative_volume += tree_volume
-
-    return total_volume, cumulative_volume
+    return total_volume, cum_vol
 
 
-def calculate_tpt_table(data: ParcelData, comparti_df: pd.DataFrame,
-                        provv_vol_df: pd.DataFrame, provv_eta_df: pd.DataFrame,
+def calculate_tpt_table(data: ParcelData, rules: HarvestRulesFunc,
                         group_cols: list[str]) -> pd.DataFrame:
     """
     Calculate harvest (prelievo totale) table data for the @@tpt directive.
 
     Algorithm per particella:
-    1. Filter to Fustaia only (ceduo is excluded via Provvigione minima = -1)
-    2. Get age-based rule: if age >= 60, use volume rules; else use basal area rules
-    3. For volume rules (age >= 60):
-       - Compute volume_mature (trees with D > 20cm)
-       - Find PP_max from provv_vol based on volume_mature/ha
-       - harvest = volume_mature * PP_max / 100
-    4. For basal area rules (age < 60):
-       - Find PP_max from provv_eta (applies to basal area)
-       - Harvest trees D > 20cm from smallest to largest until cumulative
-         basal area reaches PP_max% of total basal area
+    1. Compute volume and basal area of mature trees (D > 20cm) per hectare
+    2. Call rules() to get (volume_limit_ha, area_limit_ha)
+    3. Scale limits to parcel area and call compute_harvest() which iterates
+       trees smallest-to-largest, stopping when either limit is reached
 
-    pp_max is always computed at the particella level. If Genere is in group_cols,
-    the harvest breakdown by species uses pro-rata allocation.
+    pp_max is computed as effective harvest percentage (harvest / vol_mature * 100).
+    If Genere is in group_cols, the harvest breakdown by species uses pro-rata allocation.
 
     Args:
         data: Output from parcel_data
-        comparti_df: Comparto -> Provvigione minima mapping
-        provv_vol_df: Volume-based harvest rules
-        provv_eta_df: Age-based harvest rules
+        rules: HarvestRulesFunc
         group_cols: List of grouping columns (Compresa, Particella, Genere)
 
     Returns:
@@ -1958,7 +1883,6 @@ def calculate_tpt_table(data: ParcelData, comparti_df: pd.DataFrame,
         added_dummy = True
 
     per_parcel = COL_PARTICELLA in group_cols or len(parcels) == 1
-    sector_pm = dict(zip(comparti_df[COL_COMPARTO], comparti_df[COL_PROVV_MINIMA]))
 
     # First pass: compute harvest for each particella
     parcel_info = {}
@@ -1969,34 +1893,28 @@ def calculate_tpt_table(data: ParcelData, comparti_df: pd.DataFrame,
             raise ValueError(f"Particella {region}/{parcel} non trovata") from e
 
         sector, p_area, sf, age = p.sector, p.area_ha, p.sampled_frac, p.age
-        try:
-            provv_min = sector_pm[sector]
-        except KeyError as e:
-            raise ValueError(f"Comparto {p.sector} non trovato") from e
 
-        if provv_min < 0:  # Ceduo
+        # Compute per-ha stats of mature trees for rules lookup
+        mature = part_trees[part_trees[COL_DIAMETER_CM] > MATURE_THRESHOLD]
+        vol_mature_per_ha = mature[COL_V_M3].sum() / sf / p_area
+        basal_per_ha = (np.pi / 4 * mature[COL_DIAMETER_CM] ** 2 / 10000).sum() / sf / p_area
+
+        vol_limit_ha, area_limit_ha = rules(sector, age, vol_mature_per_ha, basal_per_ha)
+        if vol_limit_ha == 0 and area_limit_ha == 0:
             parcel_info[(region, parcel)] = {'skip': True}
             continue
+
+        # Scale limits to absolute parcel values
+        vol_limit = vol_limit_ha * p_area
+        area_limit = area_limit_ha * p_area
 
         # Total volume (all trees)
         total_volume = part_trees[COL_V_M3].sum() / sf
 
-        # Get age-based rule
-        pp_max_age, use_volume_rules = get_age_rule(age, provv_eta_df)
+        vol_mature, harvest = compute_harvest(part_trees, sf, vol_limit, area_limit)
 
-        if use_volume_rules:
-            # Age >= threshold: use volume-based rules
-            # Compute volume excluding sottomisura
-            above_threshold = part_trees[part_trees[COL_DIAMETER_CM] > MATURE_THRESHOLD]
-            vol_mature = above_threshold[COL_V_M3].sum() / sf
-
-            # Get PP_max from volume rules
-            pp_max = compute_pp_max_volume(vol_mature / p_area, provv_min, provv_vol_df)
-            harvest = vol_mature * pp_max / 100
-        else:
-            # Age < threshold: use basal area rules
-            pp_max = pp_max_age
-            vol_mature, harvest = compute_harvest_by_basal_area(part_trees, pp_max, sf)
+        # Effective harvest percentage
+        pp_max = harvest / vol_mature * 100 if vol_mature > 0 else 0
 
         parcel_info[(region, parcel)] = {
             COL_SECTOR: sector, COL_AGE: age, COL_AREA_HA: p_area, 'sf': sf,
@@ -2075,17 +1993,14 @@ def calculate_tpt_table(data: ParcelData, comparti_df: pd.DataFrame,
         key=lambda col: col.map(natsort_keygen()) if col.name == COL_PARTICELLA else col)
 
 
-def render_tpt_table(data: ParcelData, comparti_df: pd.DataFrame,
-                     provv_vol_df: pd.DataFrame, provv_eta_df: pd.DataFrame,
+def render_tpt_table(data: ParcelData, rules: HarvestRulesFunc,
                      formatter: SnippetFormatter, **options) -> RenderResult:
     """
     Render harvest (prelievo totale) table (@@tpt directive).
 
     Args:
         data: Output from parcel_data
-        comparti_df: Comparto -> Provvigione minima mapping
-        provv_vol_df: Volume-based harvest rules
-        provv_eta_df: Age-based harvest rules
+        rules: HarvestRulesFunc
         formatter: HTML or LaTeX snippet formatter
         options: Dictionary of options:
             - per_compresa, per_particella, per_genere: Grouping flags
@@ -2100,7 +2015,7 @@ def render_tpt_table(data: ParcelData, comparti_df: pd.DataFrame,
             - totali: Add totals row
 
         comparto and pp_max only appear if per_particella is True.
-        Note: pp_max is computed from volume_mature (D > 20cm).
+        Note: pp_max is the effective harvest percentage (harvest / vol_mature * 100).
 
     Returns:
         dict with 'snippet' key containing formatted table
@@ -2113,7 +2028,7 @@ def render_tpt_table(data: ParcelData, comparti_df: pd.DataFrame,
     if options[OPT_PER_GENERE]:
         group_cols.append(COL_GENERE)
 
-    df = calculate_tpt_table(data, comparti_df, provv_vol_df, provv_eta_df, group_cols)
+    df = calculate_tpt_table(data, rules, group_cols)
     if df.empty:
         return RenderResult(snippet='')
 
@@ -2138,7 +2053,7 @@ def render_tpt_table(data: ParcelData, comparti_df: pd.DataFrame,
          options[OPT_COL_ETA] and per_parcel),
         ColSpec(COL_AREA_PARCEL, 'r',
          lambda r: f"{r[COL_AREA_HA]:.2f}",
-         lambda _d: f"{total_area:.2f}",
+         lambda _: f"{total_area:.2f}",
          options[OPT_COL_AREA_HA]),
         ColSpec('Vol tot (m³)', 'r',
          lambda r: f"{r[COL_VOLUME]:.2f}",
@@ -2172,8 +2087,7 @@ def render_tpt_table(data: ParcelData, comparti_df: pd.DataFrame,
     return render_table(df, group_cols, col_specs, formatter, options[OPT_TOTALI])
 
 
-def render_gpt_graph(data: ParcelData, comparti_df: pd.DataFrame,
-                     provv_vol_df: pd.DataFrame, provv_eta_df: pd.DataFrame,
+def render_gpt_graph(data: ParcelData, rules: HarvestRulesFunc,
                      output_path: Path, formatter: SnippetFormatter,
                      **options) -> RenderResult:
     """
@@ -2181,9 +2095,7 @@ def render_gpt_graph(data: ParcelData, comparti_df: pd.DataFrame,
 
     Args:
         data: Output from parcel_data
-        comparti_df: Comparto -> Provvigione minima mapping
-        provv_vol_df: Volume-based harvest rules
-        provv_eta_df: Age-based harvest rules
+        rules: HarvestRulesFunc
         output_path: Where to save the PNG
         formatter: HTML or LaTeX snippet formatter
         options: per_compresa, per_particella flags (per_genere not supported)
@@ -2198,7 +2110,7 @@ def render_gpt_graph(data: ParcelData, comparti_df: pd.DataFrame,
         if options[OPT_PER_PARTICELLA]:
             group_cols.append(COL_PARTICELLA)
 
-        df = calculate_tpt_table(data, comparti_df, provv_vol_df, provv_eta_df, group_cols)
+        df = calculate_tpt_table(data, rules, group_cols)
         if df.empty:
             return RenderResult(snippet='')
 
@@ -2299,8 +2211,7 @@ def parse_template_directive(line: str) -> Optional[Directive]:
     full_text = match.group(0)
 
     # Keys that should always be lists (filter parameters + file parameters)
-    list_keys = {'compresa', 'particella', 'genere', 'alberi', OPT_EQUAZIONI,
-                 OPT_COMPARTI, OPT_PROVV_VOL, OPT_PROVV_ETA}
+    list_keys = {'compresa', 'particella', 'genere', 'alberi', OPT_EQUAZIONI}
 
     params = {}
     if params_str.strip():
@@ -2452,9 +2363,6 @@ def process_template(template_text: str, data_dir: Path,
                         raise ValueError("@@tpt non supporta il parametro 'genere' "
                                          "(usa 'per_genere=si' per raggruppare per specie)")
                     options = {
-                        OPT_COMPARTI: True,
-                        OPT_PROVV_VOL: True,
-                        OPT_PROVV_ETA: True,
                         OPT_PER_COMPRESA: _bool_opt(params, OPT_PER_COMPRESA),
                         OPT_PER_PARTICELLA: _bool_opt(params, OPT_PER_PARTICELLA),
                         OPT_PER_GENERE: _bool_opt(params, OPT_PER_GENERE, False),
@@ -2471,12 +2379,8 @@ def process_template(template_text: str, data_dir: Path,
                         OPT_TOTALI: _bool_opt(params, OPT_TOTALI, False),
                     }
                     check_allowed_params(keyword, params, options)
-                    check_required_params(keyword, params, [OPT_COMPARTI, OPT_PROVV_VOL, OPT_PROVV_ETA])
-                    comparti_df = load_csv(params[OPT_COMPARTI], data_dir)
-                    provv_vol_df = load_csv(params[OPT_PROVV_VOL], data_dir)
-                    provv_eta_df = load_csv(params[OPT_PROVV_ETA], data_dir)
-                    result = render_tpt_table(data, comparti_df, provv_vol_df,
-                                              provv_eta_df, formatter, **options)
+                    result = render_tpt_table(data, max_harvest,
+                                              formatter, **options)
                 case Dir.TIP:
                     options = {
                         OPT_PER_COMPRESA: _bool_opt(params, OPT_PER_COMPRESA, False),
@@ -2554,20 +2458,13 @@ def process_template(template_text: str, data_dir: Path,
                     if OPT_PER_GENERE in params:
                         raise ValueError("@@gpt non supporta il parametro 'per_genere'")
                     options = {
-                        OPT_COMPARTI: True,
-                        OPT_PROVV_VOL: True,
-                        OPT_PROVV_ETA: True,
                         OPT_PER_COMPRESA: _bool_opt(params, OPT_PER_COMPRESA),
                         OPT_PER_PARTICELLA: _bool_opt(params, OPT_PER_PARTICELLA),
                         OPT_STILE: params.get(OPT_STILE),
                     }
                     check_allowed_params(keyword, params, options)
-                    check_required_params(keyword, params, [OPT_COMPARTI, OPT_PROVV_VOL, OPT_PROVV_ETA])
-                    comparti_df = load_csv(params[OPT_COMPARTI], data_dir)
-                    provv_vol_df = load_csv(params[OPT_PROVV_VOL], data_dir)
-                    provv_eta_df = load_csv(params[OPT_PROVV_ETA], data_dir)
                     filename = _build_graph_filename(comprese, particelle, generi, keyword)
-                    result = render_gpt_graph(data, comparti_df, provv_vol_df, provv_eta_df,
+                    result = render_gpt_graph(data, max_harvest,
                                               output_dir / filename, formatter, **options)
                 case _:
                     raise ValueError(f"Comando sconosciuto: {keyword}")

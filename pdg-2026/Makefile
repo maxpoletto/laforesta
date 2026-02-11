@@ -57,14 +57,14 @@ $(CSV_DIR)/incrementi.csv: $(CSV_DIR)/alberi-calcolati.csv
 # Data dependencies
 #
 
-DATA_DEPS=$(FILES_EQUAZIONI) $(CSV_DIR)/alberi.csv $(CSV_DIR)/alberi-calcolati.csv $(CSV_DIR)/particelle.csv $(CSV_DIR)/comparti.csv $(CSV_DIR)/provv_vol.csv $(CSV_DIR)/provv_eta.csv
+DATA_DEPS=$(FILES_EQUAZIONI) $(CSV_DIR)/alberi.csv $(CSV_DIR)/alberi-calcolati.csv $(CSV_DIR)/particelle.csv
 
 #
 # HTML output
 #
 
 FILES_HTML=html/index.html
-DEPS_HTML=$(DATA_DEPS) acc.py template/html/style.css
+DEPS_HTML=$(DATA_DEPS) acc.py harvest_rules.py template/html/style.css
 
 html: $(FILES_HTML)
 
@@ -81,7 +81,7 @@ clean-html:
 
 FILES_PDF=tex/relazione.pdf
 FILES_TEX=tex/relazione.tex
-DEPS_TEX=$(DATA_DEPS) acc.py template/tex/particella.tex
+DEPS_TEX=$(DATA_DEPS) acc.py harvest_rules.py template/tex/particella.tex
 
 pdf: $(FILES_PDF)
 
@@ -99,7 +99,7 @@ clean-pdf:
 #
 
 FILES_CSV=csv/ripresa.csv
-DEPS_CSV=$(DATA_DEPS) acc.py
+DEPS_CSV=$(DATA_DEPS) acc.py harvest_rules.py
 
 csv: $(FILES_CSV)
 
