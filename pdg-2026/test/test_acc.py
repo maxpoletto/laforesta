@@ -118,11 +118,11 @@ class TestAggregationConsistency:
         Note: ip_medio (percentage) does NOT sum - only incremento_corrente does.
         """
         # Total across all
-        df_total = acc.calculate_ip_table(data_all, group_cols=[], stime_totali=True)
+        df_total = acc.calculate_growth_rates(data_all, group_cols=[], stime_totali=True)
         total_ic = df_total['incremento_corrente'].sum()
 
         # Per-particella breakdown
-        df_per_parcel = acc.calculate_ip_table(
+        df_per_parcel = acc.calculate_growth_rates(
             data_all, group_cols=[COL_PARTICELLA], stime_totali=True
         )
         sum_per_parcel = df_per_parcel['incremento_corrente'].sum()
