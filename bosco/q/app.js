@@ -18,45 +18,7 @@ const QUERY_EXAMPLES = [
     }
 ];
 
-// Populate query examples modal
-function populateExamples() {
-    const list = $('query-examples-list');
-    list.innerHTML = '';
-    QUERY_EXAMPLES.forEach(example => {
-        const li = document.createElement('li');
-        const a = document.createElement('a');
-        a.href = '#';
-        a.textContent = example.description;
-        a.addEventListener('click', e => {
-            e.preventDefault();
-            queryEl.value = example.query;
-            window.hideExamples();
-            window.runQuery();
-        });
-        li.appendChild(a);
-        list.appendChild(li);
-    });
-}
-
-// Modal controls
-window.showExamples = function() {
-    $('examples-modal').style.display = 'block';
-};
-
-window.hideExamples = function() {
-    $('examples-modal').style.display = 'none';
-};
-
-// Close modal when clicking outside of it
-window.onclick = function(event) {
-    const modal = $('examples-modal');
-    if (event.target === modal) {
-        modal.style.display = 'none';
-    }
-};
-
 const CSV_FILES = [
-    ['comparti', 'Comparti forestali'],
     ['particelle', 'Comprese e particelle forestali'],
     ['aree-di-saggio', 'Aree di saggio per il piano di gestione'],
     ['alberi', 'Tutti gli alberi delle aree di saggio'],
@@ -75,46 +37,53 @@ const runBtn = $('run');
 
 let conn;
 
-async function init() {
-    try {
-        const BUNDLES = duckdb.getJsDelivrBundles();
-        const bundle = await duckdb.selectBundle(BUNDLES);
-        const workerUrl = URL.createObjectURL(
-            new Blob([`importScripts("${bundle.mainWorker}");`], { type: 'text/javascript' })
-        );
-        const worker = new Worker(workerUrl);
-        const logger = new duckdb.ConsoleLogger();
-        const db = new duckdb.AsyncDuckDB(logger, worker);
-        await db.instantiate(bundle.mainModule);
-        conn = await db.connect();
+function populateExamples() {
+    const list = $('queries-list');
+    QUERY_EXAMPLES.forEach(example => {
+        const li = document.createElement('li');
+        const a = document.createElement('a');
+        a.href = '#';
+        a.textContent = example.description;
+        a.addEventListener('click', e => {
+            e.preventDefault();
+            queryEl.value = example.query;
+            runQuery();
+        });
+        li.appendChild(a);
+        list.appendChild(li);
+    });
+}
 
-        for (const [name, description] of CSV_FILES) {
-            const tableName = name.replace(/-/g, '_');
-            const url = new URL(`../data/${name}.csv`, window.location.href).href;
-            const resp = await fetch(url);
-            const buf = new Uint8Array(await resp.arrayBuffer());
-            await db.registerFileBuffer(`${name}.csv`, buf);
-            await conn.query(`CREATE TABLE ${tableName} AS SELECT * FROM read_csv('${name}.csv', header=true, delim=',', quote='"')`);
-        }
+function populateTables() {
+    const tablesInfo = CSV_FILES.map(([name, desc]) =>
+        `<li><b>${name.replace(/-/g, '_')}</b>: ${desc}</li>`
+    ).join('\n');
+    $('tables-list').innerHTML = tablesInfo;
+}
 
-        const tablesInfo = CSV_FILES.map(([name, desc]) =>
-            `<b>${name.replace(/-/g, '_')}</b>: ${desc}`
-        ).join('<br>');
-        $('tables-list').innerHTML = tablesInfo;
-        statusEl.style.visibility = 'hidden';
-        runBtn.disabled = false;
-        const params = new URLSearchParams(window.location.search);
-        if (params.has('q')) {
-            queryEl.value = params.get('q');
-            window.runQuery();
-        }
-    } catch (e) {
-        statusEl.textContent = 'Errore durante il caricamento.';
-        errorEl.textContent = e.message;
+async function initDB() {
+    const BUNDLES = duckdb.getJsDelivrBundles();
+    const bundle = await duckdb.selectBundle(BUNDLES);
+    const workerUrl = URL.createObjectURL(
+        new Blob([`importScripts("${bundle.mainWorker}");`], { type: 'text/javascript' })
+    );
+    const worker = new Worker(workerUrl);
+    const logger = new duckdb.ConsoleLogger();
+    const db = new duckdb.AsyncDuckDB(logger, worker);
+    await db.instantiate(bundle.mainModule);
+    conn = await db.connect();
+
+    for (const [name, description] of CSV_FILES) {
+        const tableName = name.replace(/-/g, '_');
+        const url = new URL(`../data/${name}.csv`, window.location.href).href;
+        const resp = await fetch(url);
+        const buf = new Uint8Array(await resp.arrayBuffer());
+        await db.registerFileBuffer(`${name}.csv`, buf);
+        await conn.query(`CREATE TABLE ${tableName} AS SELECT * FROM read_csv('${name}.csv', header=true, delim=',', quote='"')`);
     }
 }
 
-window.runQuery = async function() {
+async function runQuery() {
     const sql = queryEl.value.trim();
     if (!sql) return;
     const url = new URL(window.location);
@@ -152,14 +121,36 @@ window.runQuery = async function() {
     } catch (e) {
         errorEl.textContent = e.message;
     }
-};
+}
 
-queryEl.addEventListener('keydown', e => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-        e.preventDefault();
-        window.runQuery();
+function initHandlers() {
+    runBtn.addEventListener('click', runQuery);
+    queryEl.addEventListener('keydown', e => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+            e.preventDefault();
+            runQuery();
+        }
+    });
+}
+
+async function init() {
+    try {
+        populateTables();
+        populateExamples();
+        initHandlers();
+        await initDB();
+
+        statusEl.style.visibility = 'hidden';
+        runBtn.disabled = false;
+        const params = new URLSearchParams(window.location.search);
+        if (params.has('q')) {
+            queryEl.value = params.get('q');
+            runQuery();
+        }
+    } catch (e) {
+        statusEl.textContent = 'Errore durante il caricamento.';
+        errorEl.textContent = e.message;
     }
-});
+}
 
-populateExamples();
 init();

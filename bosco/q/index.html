@@ -12,25 +12,12 @@
 <div class="container">
     <h1>Dati Forestali</h1>
     <div id="status">Caricamento dati...</div>
-    <details class="tables-list"><summary>Tabelle disponibili</summary><div id="tables-list"></div></details>
+    <details class="summary-list"><summary>Tabelle disponibili</summary><ul id="tables-list"></ul></details>
+    <details class="summary-list"><summary>Query predefinite</summary><ul id="queries-list"></ul></details>
     <textarea id="query">SELECT * FROM alberi LIMIT 20;</textarea>
-    <div>
-        <button id="run" onclick="runQuery()" disabled>Esegui (Ctrl+Invio)</button>
-        <button class="secondary" onclick="showExamples()">Esempi</button>
-    </div>
+    <button id="run" disabled>Esegui (Ctrl+Invio)</button>
     <div id="error"></div>
     <div id="result-container"></div>
-</div>
-
-<!-- Modal for query examples -->
-<div id="examples-modal" class="modal">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h2>Esempi di quesiti utili</h2>
-            <span class="close" onclick="hideExamples()">&times;</span>
-        </div>
-        <ul id="query-examples-list" class="query-examples"></ul>
-    </div>
 </div>
 </body>
 </html>
