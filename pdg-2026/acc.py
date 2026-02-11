@@ -1901,7 +1901,7 @@ def calculate_tpt_table(data: ParcelData, rules: HarvestRulesFunc,
 
         vol_limit_ha, area_limit_ha = rules(sector, age, vol_mature_per_ha, basal_per_ha)
         if vol_limit_ha == 0 and area_limit_ha == 0:
-            parcel_info[(region, parcel)] = {'skip': True}
+            parcel_info[(region, parcel)] = None
             continue
 
         # Scale limits to absolute parcel values
@@ -1922,7 +1922,6 @@ def calculate_tpt_table(data: ParcelData, rules: HarvestRulesFunc,
             COL_VOLUME_MATURE: vol_mature,
             COL_PP_MAX: pp_max,
             COL_HARVEST: harvest,
-            'skip': False
         }
 
     # Second pass: aggregate by group_cols
@@ -1938,7 +1937,7 @@ def calculate_tpt_table(data: ParcelData, rules: HarvestRulesFunc,
 
         for (region, parcel), part_trees in group_trees.groupby([COL_COMPRESA, COL_PARTICELLA]):
             info = parcel_info[(region, parcel)]
-            if info['skip']:
+            if info is None:
                 continue
 
             any_tree = True
