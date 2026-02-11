@@ -36,7 +36,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import acc
-from acc import (COL_COMPRESA, COL_DIAMETER_CM, COL_GENERE, COL_HEIGHT_M,
+from acc import (COL_COMPRESA, COL_DIAMETER_CM, COL_DIAMETRO, COL_GENERE, COL_HEIGHT_M,
                  COL_PARTICELLA, COL_V_M3)
 
 # Fixtures are defined in conftest.py
@@ -118,12 +118,12 @@ class TestAggregationConsistency:
         Note: ip_medio (percentage) does NOT sum - only incremento_corrente does.
         """
         # Total across all
-        df_total = acc.calculate_growth_rates(data_all, group_cols=[], stime_totali=True)
+        df_total = acc.calculate_growth_rates(data_all, group_cols=[COL_GENERE, COL_DIAMETRO], stime_totali=True)
         total_ic = df_total['incremento_corrente'].sum()
 
         # Per-particella breakdown
         df_per_parcel = acc.calculate_growth_rates(
-            data_all, group_cols=[COL_PARTICELLA], stime_totali=True
+            data_all, group_cols=[COL_PARTICELLA, COL_GENERE, COL_DIAMETRO], stime_totali=True
         )
         sum_per_parcel = df_per_parcel['incremento_corrente'].sum()
 
@@ -640,8 +640,9 @@ class TestComputeHarvest:
 
     def test_empty_harvestable(self):
         """No mature trees -> (0, 0)."""
-        import pandas as pd
         trees = pd.DataFrame({
+            acc.COL_COMPRESA: 'Serra',
+            acc.COL_PARTICELLA: '1',
             acc.COL_DIAMETER_CM: [10.0, 15.0],
             acc.COL_V_M3: [0.1, 0.2],
         })
@@ -651,8 +652,9 @@ class TestComputeHarvest:
 
     def test_volume_limit_stops_harvest(self):
         """Volume limit should stop harvest before all trees taken."""
-        import pandas as pd
         trees = pd.DataFrame({
+            acc.COL_COMPRESA: 'Serra',
+            acc.COL_PARTICELLA: '1',
             acc.COL_DIAMETER_CM: [25.0, 30.0, 40.0, 50.0],
             acc.COL_V_M3: [0.3, 0.5, 1.0, 2.0],
         })
@@ -664,8 +666,9 @@ class TestComputeHarvest:
 
     def test_area_limit_stops_harvest(self):
         """Basal area limit should stop harvest before all trees taken."""
-        import pandas as pd
         trees = pd.DataFrame({
+            acc.COL_COMPRESA: 'Serra',
+            acc.COL_PARTICELLA: '1',
             acc.COL_DIAMETER_CM: [25.0, 30.0, 40.0],
             acc.COL_V_M3: [0.3, 0.5, 1.0],
         })
@@ -721,6 +724,84 @@ class TestVolumeCalculation:
         expected = (-0.043221 + 0.038079 * 900 * 20) / 1000
         assert np.isclose(result[COL_V_M3].iloc[0], expected, rtol=1e-6), \
             f"Cerro volume {result[COL_V_M3].iloc[0]} != expected {expected}"
+
+
+# =============================================================================
+# (i) TCR: INCREMENTO CORRENTE vs PROJECTED VOLUME
+# =============================================================================
+
+def _make_parcel_data(trees_data: list[dict]) -> acc.ParcelData:
+    """Build a minimal ParcelData from a list of tree dicts.
+
+    Each dict must have: D (cm), V (m³), genere, L10 (mm), c (Pressler coef).
+    All trees are placed in compresa='X', particella='1', area saggio=1.
+    Parcel: 10 ha, 1 sample area -> sampled_frac = 0.0125.
+    """
+    rows = []
+    for t in trees_data:
+        d = t['D']
+        rows.append({
+            acc.COL_COMPRESA: 'X',
+            acc.COL_PARTICELLA: '1',
+            acc.COL_AREA_SAGGIO: 1,
+            acc.COL_GENERE: t.get('genere', 'Faggio'),
+            acc.COL_DIAMETER_CM: d,
+            acc.COL_V_M3: t['V'],
+            acc.COL_DIAMETRO: int(np.ceil((d - 2.5) / 5) * 5),
+            acc.COL_L10_MM: t.get('L10', 5.0),
+            acc.COL_COEFF_PRESSLER: t.get('c', 200),
+        })
+    trees_df = pd.DataFrame(rows)
+    parcels = {
+        ('X', '1'): acc.ParcelStats(
+            area_ha=10.0, sector='A', age=60,
+            n_sample_areas=1, sampled_frac=acc.SAMPLE_AREA_HA / 10.0),
+    }
+    return acc.ParcelData(
+        trees=trees_df, regions=['X'], species=['Faggio'],
+        parcels=parcels)
+
+
+class TestTcrIncrementoCorrente:
+    """Test that incremento corrente in the tcr table is consistent with
+    the volume projection."""
+
+    def test_all_mature_ic_matches_volume_delta(self):
+        """When all trees are mature (D > 20), V_year0 + ic == V_year1 exactly."""
+        data = _make_parcel_data([
+            {'D': 25.0, 'V': 0.4},
+            {'D': 30.0, 'V': 0.7},
+            {'D': 40.0, 'V': 1.5},
+            {'D': 50.0, 'V': 2.8},
+        ])
+        df = acc.calculate_tcr_table(data, group_cols=[], years=1, mortalita=0)
+
+        v0 = df[acc.COL_VOLUME_MATURE].iloc[0]
+        v1 = df[acc.COL_VOLUME_MATURE_PROJ].iloc[0]
+        ic = df[acc.COL_INCR_CORR].iloc[0]
+
+        assert np.isclose(v0 + ic, v1, rtol=1e-12), \
+            f"V0 ({v0:.6f}) + ic ({ic:.6f}) = {v0+ic:.6f} != V1 ({v1:.6f})"
+
+    def test_graduating_tree_ic_less_than_volume_delta(self):
+        """When a tree graduates from immature to mature,
+        V_year0 + ic < V_year1 (the graduated tree's full volume enters
+        the mature pool, but only its growth increment was in ic)."""
+        # D=20 is immature (threshold is D > 20). With L10=5.0 and c=200,
+        # delta_d = 2 * 5.0 / 100 = 0.1 cm, so D_year1 = 20.1 > 20: graduates.
+        data = _make_parcel_data([
+            {'D': 20.0, 'V': 0.3},   # will graduate
+            {'D': 30.0, 'V': 0.7},   # already mature
+            {'D': 40.0, 'V': 1.5},   # already mature
+        ])
+        df = acc.calculate_tcr_table(data, group_cols=[], years=1, mortalita=0)
+
+        v0 = df[acc.COL_VOLUME_MATURE].iloc[0]
+        v1 = df[acc.COL_VOLUME_MATURE_PROJ].iloc[0]
+        ic = df[acc.COL_INCR_CORR].iloc[0]
+
+        assert v0 + ic < v1, \
+            f"V0 ({v0:.6f}) + ic ({ic:.6f}) = {v0+ic:.6f} should be < V1 ({v1:.6f})"
 
 
 # =============================================================================

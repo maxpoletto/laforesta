@@ -1297,7 +1297,7 @@ COL_VOL_LO = 'vol_lo'
 COL_VOL_HI = 'vol_hi'
 # tip-specific
 COL_IP_MEDIO = 'ip_medio'
-COL_INCR_CORRENTE = 'incremento_corrente'
+COL_INCR_CORR = 'incremento_corrente'
 COL_DELTA_D = 'delta_d'
 # tcr-specific
 COL_VOLUME_PROJ = 'volume_proj'
@@ -1332,13 +1332,13 @@ OPT_COL_VOLUME_MATURE_HA = 'col_volume_mature_ha'
 OPT_COL_PP_MAX = 'col_pp_max'
 OPT_COL_PRELIEVO = 'col_prelievo'
 OPT_COL_PRELIEVO_HA = 'col_prelievo_ha'
+OPT_COL_INCR_CORR = 'col_incr_corr'
 # Graph axis limits
 OPT_X_MAX = 'x_max'
 OPT_Y_MAX = 'y_max'
 # tcr-specific
 OPT_ANNI = 'anni'
 OPT_MORTALITA = 'mortalita'
-OPT_INCREMENTI_PARTICELLA = 'incrementi_particella'
 # Required file parameters (used as option keys for validation)
 OPT_EQUAZIONI = 'equazioni'
 
@@ -1554,7 +1554,7 @@ def calculate_growth_rates(data: ParcelData, group_cols: list[str],
     group_cols must include COL_GENERE and COL_DIAMETRO.  Computes per group:
       - ip_medio: mean Pressler percentage increment
       - delta_d: mean annual diameter increment (cm)
-      - incremento_corrente: volume * ((1 + ip/100)^2 - 1)
+      - incremento_corrente: volume * ip/100
     When stime_totali is True, volumes are scaled by 1/sampled_frac per parcel.
     """
     trees = data.trees
@@ -1584,7 +1584,7 @@ def calculate_growth_rates(data: ParcelData, group_cols: list[str],
 
         row_dict[COL_IP_MEDIO] = ip_medio
         row_dict[COL_DELTA_D] = delta_d
-        row_dict[COL_INCR_CORRENTE] = volume * ip_medio / 100
+        row_dict[COL_INCR_CORR] = volume * ip_medio / 100
         rows.append(row_dict)
 
     df = pd.DataFrame(rows)
@@ -1615,8 +1615,8 @@ def render_tip_table(data: ParcelData, formatter: SnippetFormatter, **options) -
          lambda r: f"{r[COL_IP_MEDIO]:.2f}",
          None, True),
         ColSpec('Incr. corr. (m³)', 'r',
-         lambda r: f"{r[COL_INCR_CORRENTE]:.2f}",
-         COL_INCR_CORRENTE,
+         lambda r: f"{r[COL_INCR_CORR]:.2f}",
+         COL_INCR_CORR,
          True),
     ]
     return render_table(df, group_cols, col_specs, formatter, options[OPT_TOTALI])
@@ -1640,7 +1640,7 @@ def render_gip_graph(data: ParcelData, output_path: Path,
         if metrica == 'ip':
             y_col, y_label = COL_IP_MEDIO, 'Incremento % medio'
         else:
-            y_col, y_label = COL_INCR_CORRENTE, 'Incremento corrente (m³)'
+            y_col, y_label = COL_INCR_CORR, 'Incremento corrente (m³)'
 
         # Each curve is a unique (optional compresa, optional particella, genere) tuple
         curve_cols = [c for c in group_cols if c != COL_DIAMETRO]
@@ -1675,24 +1675,23 @@ def render_gip_graph(data: ParcelData, output_path: Path,
 
 
 def year_step(sim: pd.DataFrame, weight: np.ndarray,
-              rate_dict: dict, available_diams: dict,
-              rate_cols: list[str], mortalita: float) -> int:
+              growth_by_group: dict, available_diams: dict,
+              groupby_cols: list[str], mortalita: float) -> int:
     """Advance the tree growth simulation by one year.
 
     Updates sim (volumes, diameters) and weight (mortality) in place.
     Returns the number of trees that required fallback to nearest diameter.
     """
-    key_cols = rate_cols + [COL_GENERE, COL_DIAMETRO]
-    prefix_cols = rate_cols + [COL_GENERE]
+    prefix_cols = [c for c in groupby_cols if c != COL_DIAMETRO]
 
-    keys = list(zip(*(sim[c] for c in key_cols)))
-    rates = [rate_dict.get(k) for k in keys]
-    ips = np.array([r[0] if r else np.nan for r in rates])
-    dds = np.array([r[1] if r else np.nan for r in rates])
+    keys = list(zip(*(sim[c] for c in groupby_cols)))
+    growth = [growth_by_group.get(k) for k in keys]
+    ip = np.array([r[0] if r else np.nan for r in growth])
+    dd = np.array([r[1] if r else np.nan for r in growth])
 
     # Fallback to nearest available diameter bucket
     fallbacks = 0
-    missing = np.isnan(ips)
+    missing = np.isnan(ip)
     if missing.any():
         fallbacks = int(missing.sum())
         for i in np.where(missing)[0]:
@@ -1700,7 +1699,7 @@ def year_step(sim: pd.DataFrame, weight: np.ndarray,
             prefix = tuple(row[c] for c in prefix_cols)
             diams = available_diams.get(prefix)
             if not diams:
-                ips[i], dds[i] = 0.0, 0.0
+                ip[i], dd[i] = 0.0, 0.0
                 continue
             d = int(row[COL_DIAMETRO])
             idx = bisect.bisect_left(diams, d)
@@ -1712,11 +1711,11 @@ def year_step(sim: pd.DataFrame, weight: np.ndarray,
                 nearest = diams[idx - 1]
             else:
                 nearest = diams[idx]
-            r = rate_dict.get(prefix + (nearest,), (0.0, 0.0))
-            ips[i], dds[i] = r
+            r = growth_by_group.get(prefix + (nearest,), (0.0, 0.0))
+            ip[i], dd[i] = r
 
-    sim[COL_V_M3] = sim[COL_V_M3].values * (1 + ips / 100)
-    sim[COL_DIAMETER_CM] = sim[COL_DIAMETER_CM].values + dds
+    sim[COL_V_M3] = sim[COL_V_M3].values * (1 + ip / 100)
+    sim[COL_DIAMETER_CM] = sim[COL_DIAMETER_CM].values + dd
     sim[COL_DIAMETRO] = (np.ceil((sim[COL_DIAMETER_CM] - 2.5) / 5) * 5).astype(int)
     weight *= (1 - mortalita / 100)
 
@@ -1724,8 +1723,7 @@ def year_step(sim: pd.DataFrame, weight: np.ndarray,
 
 
 def calculate_tcr_table(data: ParcelData, group_cols: list[str],
-                        years: int, mortalita: float,
-                        incrementi_particella: bool) -> pd.DataFrame:
+                        years: int, mortalita: float) -> pd.DataFrame:
     """Compute growth projection table: year-0 vs year-N volumes per group.
 
     Runs a per-tree simulation for `years` years using Pressler growth rates,
@@ -1740,18 +1738,16 @@ def calculate_tcr_table(data: ParcelData, group_cols: list[str],
                               calc_margin=False, calc_total=True, calc_mature=True)
 
     # Growth rates by (compresa, [particella,] genere, diametro)
-    rate_cols = [COL_COMPRESA]
-    if incrementi_particella:
-        rate_cols.append(COL_PARTICELLA)
-    growth_df = calculate_growth_rates(data, rate_cols, stime_totali=True)
+    groupby_cols = [COL_COMPRESA]
+    groupby_cols = groupby_cols + [COL_GENERE, COL_DIAMETRO]
+    growth_df = calculate_growth_rates(data, groupby_cols, stime_totali=True)
 
     # Build lookup dict and available-diameters index for fallback
-    rate_key_cols = rate_cols + [COL_GENERE, COL_DIAMETRO]
-    rate_dict = {}
+    growth_by_group = {}
     available_diams = defaultdict(list)
     for _, row in growth_df.iterrows():
-        key = tuple(row[c] for c in rate_key_cols)
-        rate_dict[key] = (row[COL_IP_MEDIO], row[COL_DELTA_D])
+        key = tuple(row[c] for c in groupby_cols)
+        growth_by_group[key] = (row[COL_IP_MEDIO], row[COL_DELTA_D])
         prefix = key[:-1]
         available_diams[prefix].append(int(row[COL_DIAMETRO]))
     for prefix in available_diams:
@@ -1765,7 +1761,7 @@ def calculate_tcr_table(data: ParcelData, group_cols: list[str],
     fallback_count = 0
     for _ in range(years):
         fallback_count += year_step(
-            sim, weight, rate_dict, available_diams, rate_cols, mortalita)
+            sim, weight, growth_by_group, available_diams, groupby_cols, mortalita)
 
     # Bake mortality into volume
     sim[COL_V_M3] = sim[COL_V_M3].values * weight
@@ -1786,21 +1782,38 @@ def calculate_tcr_table(data: ParcelData, group_cols: list[str],
         result = pd.concat([df0.reset_index(drop=True),
                            dfN.reset_index(drop=True)], axis=1)
 
-    # Add area_ha per group
-    if group_cols:
-        area_rows = []
-        for group_key, group_trees in trees.groupby(group_cols):
+    # Per-tree ic using compresa-level growth rates (ip from growth_by_group).
+    # ip is constant within each (compresa, genere, diametro) bucket, so summing
+    # per-tree V*ip/100 across any grouping gives exact agreement with the
+    # bucket-level ic from calculate_growth_rates.
+    tree_keys = list(zip(*(trees[c] for c in groupby_cols)))
+    tree_ip = np.array([growth_by_group.get(k, (0, 0))[0] for k in tree_keys])
+    tree_ic = pd.Series(trees[COL_V_M3].values * tree_ip / 100, index=trees.index)
+
+    # Add area_ha and incremento corrente per group
+    meta_rows = []
+    for group_key, group_trees in (
+            trees.groupby(group_cols) if group_cols else [('_', trees)]):
+        row = {}
+        if group_cols:
             if not isinstance(group_key, tuple):
                 group_key = (group_key,)
             row = dict(zip(group_cols, group_key))
-            parcel_keys = set(zip(group_trees[COL_COMPRESA],
-                                  group_trees[COL_PARTICELLA]))
-            row[COL_AREA_HA] = sum(parcels[k].area_ha for k in parcel_keys)
-            area_rows.append(row)
-        result = result.merge(pd.DataFrame(area_rows), on=group_cols)
+        area, ic_sum = 0.0, 0.0
+        for (region, parcel), ptrees in group_trees.groupby(
+                [COL_COMPRESA, COL_PARTICELLA]):
+            p = parcels[(region, parcel)]
+            area += p.area_ha
+            ic_sum += tree_ic[ptrees.index].sum() / p.sampled_frac
+        row[COL_AREA_HA] = area
+        row[COL_INCR_CORR] = ic_sum
+        meta_rows.append(row)
+    meta_df = pd.DataFrame(meta_rows)
+    if group_cols:
+        result = result.merge(meta_df, on=group_cols)
     else:
-        parcel_keys = set(zip(trees[COL_COMPRESA], trees[COL_PARTICELLA]))
-        result[COL_AREA_HA] = sum(parcels[k].area_ha for k in parcel_keys)
+        result[COL_AREA_HA] = meta_df[COL_AREA_HA].iloc[0]
+        result[COL_INCR_CORR] = meta_df[COL_INCR_CORR].iloc[0]
 
     if fallback_count:
         print(f"  @@tcr: {fallback_count} ricerche con fallback al diametro più vicino")
@@ -1820,8 +1833,7 @@ def render_tcr_table(data: ParcelData, formatter: SnippetFormatter,
         group_cols.append(COL_GENERE)
 
     years = options[OPT_ANNI]
-    df = calculate_tcr_table(data, group_cols, years, options[OPT_MORTALITA],
-                             options[OPT_INCREMENTI_PARTICELLA])
+    df = calculate_tcr_table(data, group_cols, years, options[OPT_MORTALITA])
 
     # Area deduplication for totals (same pattern as render_tpt_table)
     if COL_GENERE in group_cols:
@@ -1852,6 +1864,11 @@ def render_tcr_table(data: ParcelData, formatter: SnippetFormatter,
          lambda r: f"{r[COL_VOLUME_MATURE_PROJ] / r[COL_AREA_HA]:.2f}",
          lambda d: f"{d[COL_VOLUME_MATURE_PROJ].sum() / total_area:.2f}",
          options[OPT_COL_VOLUME_MATURE_HA]),
+        ColSpec(f'Incr. corr. (m³)', 'r',
+         lambda r: f"{r[COL_INCR_CORR]:.2f}",
+         lambda d: f"{d[COL_INCR_CORR].sum() / total_area:.2f}",
+         options[OPT_COL_INCR_CORR]),
+
     ]
     return render_table(df, group_cols, col_specs, formatter, options[OPT_TOTALI])
 
@@ -2607,11 +2624,10 @@ def process_template(template_text: str, data_dir: Path,
                         OPT_PER_GENERE: _bool_opt(params, OPT_PER_GENERE, False),
                         OPT_ANNI: int(params.get(OPT_ANNI, '0')),
                         OPT_MORTALITA: float(params.get(OPT_MORTALITA, '0')),
-                        OPT_INCREMENTI_PARTICELLA: _bool_opt(
-                            params, OPT_INCREMENTI_PARTICELLA, False),
                         OPT_COL_VOLUME_MATURE: _bool_opt(params, OPT_COL_VOLUME_MATURE),
                         OPT_COL_VOLUME_MATURE_HA: _bool_opt(
                             params, OPT_COL_VOLUME_MATURE_HA),
+                        OPT_COL_INCR_CORR: _bool_opt(params, OPT_COL_INCR_CORR, True),
                         OPT_TOTALI: _bool_opt(params, OPT_TOTALI, False),
                     }
                     check_allowed_params(keyword, params, options)
