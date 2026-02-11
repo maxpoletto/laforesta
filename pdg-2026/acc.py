@@ -41,8 +41,8 @@ COL_PARTICELLA = 'Particella'
 COL_DIAMETRO = 'Diametro'       # Computed: diameter bucket (5 cm classes)
 COL_FUSTAIA = 'Fustaia'         # Boolean column in trees data
 COL_AREA_SAGGIO = 'Area saggio'
-COL_COEFF_PRESSLER = 'c(1/a)'
-COL_IPR_MM = 'Ipr(mm)'
+COL_COEFF_PRESSLER = 'c'
+COL_IPR_MM = 'L10(mm)'
 # Parcel metadata (particelle_df)
 COL_AREA_PARCEL = 'Area (ha)'
 COL_COMPARTO = 'Comparto'

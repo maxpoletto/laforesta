@@ -7,7 +7,7 @@
 # Cerro:  V = (-0.043221 + 0.038079 * D² * h) / 1000
 #
 # Note: Trees with D <= 20cm are "sottomisura" and excluded from harvest calculations
-Compresa,Particella,Area saggio,n,poll,D(cm),Classe diametrica,h(m),Genere,Fustaia,Ipr(mm),c(1/a)
+Compresa,Particella,Area saggio,n,poll,D(cm),Classe diametrica,h(m),Genere,Fustaia,L10(mm),c
 # Parcel A: 1 sample area, 6 trees (2 sottomisura + 4 above threshold)
 Test,A,1,1,,15,3,12,Faggio,True,1.5,200
 Test,A,1,2,,20,4,15,Cerro,True,2.0,200
