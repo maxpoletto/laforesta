@@ -83,12 +83,9 @@ async function initDB() {
     }
 }
 
-async function runQuery() {
+async function executeQuery() {
     const sql = queryEl.value.trim();
     if (!sql) return;
-    const url = new URL(window.location);
-    url.searchParams.set('q', sql);
-    history.pushState(null, '', url);
     errorEl.textContent = '';
     resultEl.innerHTML = '';
     try {
@@ -123,6 +120,23 @@ async function runQuery() {
     }
 }
 
+function runQuery() {
+    const sql = queryEl.value.trim();
+    if (!sql) return;
+    const url = new URL(window.location);
+    url.searchParams.set('q', sql);
+    history.pushState(null, '', url);
+    executeQuery();
+}
+
+function loadQueryFromURL() {
+    const q = new URLSearchParams(window.location.search).get('q');
+    if (q) {
+        queryEl.value = q;
+        executeQuery();
+    }
+}
+
 function initHandlers() {
     runBtn.addEventListener('click', runQuery);
     queryEl.addEventListener('keydown', e => {
@@ -131,6 +145,7 @@ function initHandlers() {
             runQuery();
         }
     });
+    window.addEventListener('popstate', loadQueryFromURL);
 }
 
 async function init() {
@@ -142,11 +157,7 @@ async function init() {
 
         statusEl.style.visibility = 'hidden';
         runBtn.disabled = false;
-        const params = new URLSearchParams(window.location.search);
-        if (params.has('q')) {
-            queryEl.value = params.get('q');
-            runQuery();
-        }
+        loadQueryFromURL();
     } catch (e) {
         statusEl.textContent = 'Errore durante il caricamento.';
         errorEl.textContent = e.message;
