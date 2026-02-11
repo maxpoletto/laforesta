@@ -12,11 +12,12 @@
 <div class="container">
     <h1>Dati Forestali</h1>
     <div id="status">Caricamento dati...</div>
-    <div id="tables-list" class="tables-list"></div>
+    <details class="tables-list"><summary>Tabelle disponibili</summary><div id="tables-list"></div></details>
     <textarea id="query">SELECT * FROM alberi LIMIT 20;</textarea>
-    <br>
-    <button id="run" onclick="runQuery()" disabled>Esegui (Ctrl+Invio)</button>
-    <button class="secondary" onclick="showExamples()">Esempi</button>
+    <div>
+        <button id="run" onclick="runQuery()" disabled>Esegui (Ctrl+Invio)</button>
+        <button class="secondary" onclick="showExamples()">Esempi</button>
+    </div>
     <div id="error"></div>
     <div id="result-container"></div>
 </div>

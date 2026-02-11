@@ -100,7 +100,7 @@ async function init() {
         const tablesInfo = CSV_FILES.map(([name, desc]) =>
             `<b>${name.replace(/-/g, '_')}</b>: ${desc}`
         ).join('<br>');
-        $('tables-list').innerHTML = `Tabelle disponibili:<br>${tablesInfo}`;
+        $('tables-list').innerHTML = tablesInfo;
         statusEl.style.visibility = 'hidden';
         runBtn.disabled = false;
         const params = new URLSearchParams(window.location.search);
