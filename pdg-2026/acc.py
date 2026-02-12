@@ -2158,6 +2158,121 @@ def _simulate_harvest_on_parcel(
     return volume_before, cum_vol, volume_after, species_shares
 
 
+def _mature_vol_per_ha(sim: pd.DataFrame, region: str, parcel: str,
+                       stats: ParcelStats) -> float:
+    """Compute mature effective volume per hectare for a parcel in the simulation."""
+    mask = ((sim[COL_COMPRESA] == region) & (sim[COL_PARTICELLA] == parcel) &
+            (sim[COL_DIAMETER_CM] > MATURE_THRESHOLD))
+    eff_vol = (sim.loc[mask, COL_V_M3] * sim.loc[mask, COL_WEIGHT]).sum()
+    return eff_vol / stats.sampled_frac / stats.area_ha
+
+
+def schedule_harvests(
+    data: ParcelData,
+    past_harvests: pd.DataFrame | None,
+    year_range: tuple[int, int],
+    min_gap: int,
+    target_volume: float,
+    mortalita: float = 0.0,
+    rules: HarvestRulesFunc = max_harvest,
+    tree_selection: TreeSelectionFunc = select_from_bottom,
+) -> list[dict]:
+    """Schedule harvests using a greedy algorithm with year-by-year growth simulation.
+
+    Only considers parcels where governo == Fustaia.
+
+    Returns list of dicts, one per (year, parcel) harvest event, with keys:
+        year, Compresa, Particella, harvest, volume_before, volume_after, _species_shares
+    """
+    trees = data.trees
+    parcels = data.parcels
+
+    # Identify fustaia parcels only
+    fustaia_keys = [(r, p) for (r, p), s in parcels.items()
+                    if s.governo == GOV_FUSTAIA]
+    if not fustaia_keys:
+        return []
+
+    # Build growth lookup
+    growth_by_group, available_diams, groupby_cols = _build_growth_lookup(data)
+
+    # Build sim DataFrame with weight and diam_growth columns
+    sim = trees[[COL_COMPRESA, COL_PARTICELLA, COL_AREA_SAGGIO,
+                 COL_GENERE, COL_DIAMETER_CM, COL_V_M3, COL_DIAMETRO]].copy()
+    sim[COL_WEIGHT] = 1.0
+    sim[COL_DIAM_GROWTH] = 0.0
+
+    # Filter sim to fustaia parcel trees only
+    fustaia_set = set(fustaia_keys)
+    sim_parcel_keys = list(zip(sim[COL_COMPRESA], sim[COL_PARTICELLA]))
+    sim = sim[[k in fustaia_set for k in sim_parcel_keys]].copy()
+
+    # Build last_harvest dict from past harvests
+    last_harvest: dict[tuple[str, str], int] = {}
+    if past_harvests is not None and not past_harvests.empty:
+        for _, row in past_harvests.iterrows():
+            key = (row[COL_COMPRESA], row[COL_PARTICELLA])
+            if key in fustaia_set:
+                last_harvest[key] = max(last_harvest.get(key, 0), int(row['Anno']))
+
+    first_year, last_year = year_range
+    events = []
+    diam_growth_arr = None
+
+    for y in range(first_year, last_year + 1):
+        # Compute mature vol/ha for each fustaia parcel and sort descending
+        parcel_priority = []
+        for region, parcel in fustaia_keys:
+            vol_ha = _mature_vol_per_ha(sim, region, parcel, parcels[(region, parcel)])
+            parcel_priority.append((vol_ha, region, parcel))
+        parcel_priority.sort(reverse=True)
+
+        year_total = 0.0
+        for _, region, parcel in parcel_priority:
+            # Min-gap check
+            if last_harvest.get((region, parcel), 0) > y - min_gap:
+                continue
+
+            result = _simulate_harvest_on_parcel(
+                sim, region, parcel, parcels[(region, parcel)],
+                rules, tree_selection)
+            if result is None:
+                continue
+
+            vol_before, harvest, vol_after, species_shares = result
+            if harvest == 0:
+                continue
+
+            events.append({
+                COL_YEAR: y,
+                COL_COMPRESA: region,
+                COL_PARTICELLA: parcel,
+                COL_HARVEST: harvest,
+                COL_VOLUME_BEFORE: vol_before,
+                COL_VOLUME_AFTER: vol_after,
+                '_species_shares': species_shares,
+            })
+            last_harvest[(region, parcel)] = y
+            year_total += harvest
+            if year_total >= target_volume:
+                break
+
+        if year_total < target_volume:
+            print(f"  @@tpdt anno {y}: obiettivo {target_volume:.0f} m³, "
+                  f"raggiunto {year_total:.0f} m³")
+
+        # Growth step
+        weight = sim[COL_WEIGHT].values.copy()
+        diam_growth_arr = sim[COL_DIAM_GROWTH].values if y > first_year else None
+        diam_growth_arr, _ = year_step(
+            sim, weight, growth_by_group, available_diams,
+            groupby_cols, mortalita, diam_growth_arr)
+        sim[COL_WEIGHT] = weight
+        sim[COL_DIAM_GROWTH] = diam_growth_arr
+
+    return events
+
+
 def compute_harvest(trees_df: pd.DataFrame, sampled_frac: float,
                      volume_limit: float, area_limit: float) -> tuple[float, float]:
     """Harvest trees smallest-first until either limit is reached.
