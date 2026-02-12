@@ -774,6 +774,17 @@ def parcel_data(tree_files: list[str], tree_df: pd.DataFrame, parcel_df: pd.Data
     return data
 
 file_cache = {}
+def read_past_harvests(path: Path) -> pd.DataFrame:
+    """Read past harvests CSV (columns: Anno, Compresa, Particella)."""
+    df = pd.read_csv(path, comment='#')
+    required = {'Anno', COL_COMPRESA, COL_PARTICELLA}
+    missing = required - set(df.columns)
+    if missing:
+        raise ValueError(f"Calendario tagli {path}: colonne mancanti: {missing}")
+    df[COL_PARTICELLA] = df[COL_PARTICELLA].astype(str)
+    return df
+
+
 def load_csv(filenames: list[str] | str, data_dir: Path | None = None) -> pd.DataFrame:
     """Load CSV file(s), skipping comment lines starting with #."""
     if isinstance(filenames, str):
@@ -1322,6 +1333,7 @@ ROW_TOTAL = 'Totale'
 COL_YEAR = 'year'
 COL_VOLUME_BEFORE = 'volume_before'
 COL_VOLUME_AFTER = 'volume_after'
+COL_SPECIES_SHARES = '_species_shares'
 
 # Option keys shared between process_directive and render_*/calculate_* functions.
 # Common options (used across multiple directives)
@@ -2250,7 +2262,7 @@ def schedule_harvests(
                 COL_HARVEST: harvest,
                 COL_VOLUME_BEFORE: vol_before,
                 COL_VOLUME_AFTER: vol_after,
-                '_species_shares': species_shares,
+                COL_SPECIES_SHARES: species_shares,
             })
             last_harvest[(region, parcel)] = y
             year_total += harvest
@@ -2534,6 +2546,92 @@ def render_tpt_table(data: ParcelData, rules: HarvestRulesFunc,
                 lambda r: f"{r[COL_HARVEST] / r[COL_AREA_HA]:.1f}",
                 lambda d: f"{d[COL_HARVEST].sum() / total_area:.1f}",
                 options[OPT_COL_PRELIEVO_HA] and not genere_only),
+    ]
+    return render_table(df, group_cols, col_specs, formatter, options[OPT_TOTALI])
+
+
+def calculate_tpdt_table(
+    data: ParcelData,
+    past_harvests: pd.DataFrame | None,
+    year_range: tuple[int, int],
+    min_gap: int,
+    target_volume: float,
+    mortalita: float,
+    rules: HarvestRulesFunc,
+    tree_selection: TreeSelectionFunc,
+    group_cols: list[str],
+) -> pd.DataFrame:
+    """Compute harvest schedule table grouped by year and optional columns.
+
+    Calls schedule_harvests() then aggregates. When COL_GENERE is in group_cols,
+    each event is expanded into per-species rows using pro-rata allocation.
+    """
+    events = schedule_harvests(
+        data, past_harvests, year_range, min_gap, target_volume,
+        mortalita, rules, tree_selection)
+    if not events:
+        return pd.DataFrame()
+
+    df = pd.DataFrame(events)
+    numeric_cols = [COL_HARVEST, COL_VOLUME_BEFORE, COL_VOLUME_AFTER]
+
+    # Expand per-species if requested
+    if COL_GENERE in group_cols:
+        expanded = []
+        for _, row in df.iterrows():
+            shares = row[COL_SPECIES_SHARES]
+            for genere, frac in shares.items():
+                new_row = {c: row[c] for c in [COL_YEAR, COL_COMPRESA, COL_PARTICELLA]}
+                new_row[COL_GENERE] = genere
+                for c in numeric_cols:
+                    new_row[c] = row[c] * frac
+                expanded.append(new_row)
+        df = pd.DataFrame(expanded)
+
+    # Group and sum
+    agg_cols = [COL_YEAR] + group_cols
+    # Keep only columns that exist (COL_GENERE may not be in df if not requested)
+    agg_cols = [c for c in agg_cols if c in df.columns]
+    df = df.groupby(agg_cols, as_index=False)[numeric_cols].sum()
+
+    # Sort by year, then by group_cols (natsort for Particella)
+    sort_cols = [COL_YEAR] + group_cols
+    df = df.sort_values(
+        sort_cols,
+        key=lambda col: col.map(natsort_keygen()) if col.name == COL_PARTICELLA else col)
+
+    return df
+
+
+def render_tpdt_table(data: ParcelData, past_harvests: pd.DataFrame | None,
+                      rules: HarvestRulesFunc,
+                      formatter: SnippetFormatter, **options) -> RenderResult:
+    """Render harvest schedule table (@@tpdt directive)."""
+    group_cols = []
+    if options[OPT_PER_COMPRESA]:
+        group_cols.append(COL_COMPRESA)
+    if options[OPT_PER_PARTICELLA]:
+        group_cols.append(COL_PARTICELLA)
+    if options[OPT_PER_GENERE]:
+        group_cols.append(COL_GENERE)
+
+    df = calculate_tpdt_table(
+        data, past_harvests,
+        year_range=(options[OPT_ANNO_INIZIO], options[OPT_ANNO_FINE]),
+        min_gap=options[OPT_INTERVALLO],
+        target_volume=options[OPT_VOLUME_OBIETTIVO],
+        mortalita=options[OPT_MORTALITA],
+        rules=rules,
+        tree_selection=select_from_bottom,
+        group_cols=group_cols)
+    if df.empty:
+        return RenderResult(snippet='')
+
+    col_specs = [
+        ColSpec('Anno', 'l', lambda r: str(int(r[COL_YEAR])), None, True),
+        ColSpec('Vol prima (m³)', 'r', COL_VOLUME_BEFORE, COL_VOLUME_BEFORE, True),
+        ColSpec('Prelievo (m³)', 'r', COL_HARVEST, COL_HARVEST, True),
+        ColSpec('Vol dopo (m³)', 'r', COL_VOLUME_AFTER, COL_VOLUME_AFTER, True),
     ]
     return render_table(df, group_cols, col_specs, formatter, options[OPT_TOTALI])
 
@@ -2832,6 +2930,29 @@ def process_template(template_text: str, data_dir: Path,
                     check_allowed_params(keyword, params, options)
                     result = render_tpt_table(data, max_harvest,
                                               formatter, **options)
+                case Dir.TPDT:
+                    calendario_path = params.get(OPT_CALENDARIO)
+                    past_harvests = (
+                        read_past_harvests(data_dir / calendario_path)
+                        if calendario_path else None)
+                    options = {
+                        OPT_PER_COMPRESA: _bool_opt(params, OPT_PER_COMPRESA),
+                        OPT_PER_PARTICELLA: _bool_opt(params, OPT_PER_PARTICELLA),
+                        OPT_PER_GENERE: _bool_opt(params, OPT_PER_GENERE, False),
+                        OPT_ANNO_INIZIO: int(params.get(OPT_ANNO_INIZIO, 2026)),
+                        OPT_ANNO_FINE: int(params.get(OPT_ANNO_FINE, 2040)),
+                        OPT_INTERVALLO: int(params.get(OPT_INTERVALLO, 10)),
+                        OPT_VOLUME_OBIETTIVO: float(params[OPT_VOLUME_OBIETTIVO]),
+                        OPT_MORTALITA: float(params.get(OPT_MORTALITA, 0)),
+                        OPT_TOTALI: _bool_opt(params, OPT_TOTALI, False),
+                    }
+                    check_allowed_params(keyword, params,
+                                         options | {OPT_CALENDARIO: True})
+                    check_required_params(keyword, params,
+                                          [OPT_VOLUME_OBIETTIVO])
+                    result = render_tpdt_table(data, past_harvests,
+                                               max_harvest,
+                                               formatter, **options)
                 case Dir.TIP:
                     options = {
                         OPT_PER_COMPRESA: _bool_opt(params, OPT_PER_COMPRESA, False),

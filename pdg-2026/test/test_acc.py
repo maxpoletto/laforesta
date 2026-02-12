@@ -1230,6 +1230,72 @@ class TestScheduleHarvests:
         assert len(parcel_z) == 0, "Ceduo parcel Z should never be harvested"
 
 
+class TestCalculateTpdtTable:
+    """Tests for calculate_tpdt_table grouping and aggregation."""
+
+    COMMON_KWARGS = dict(
+        year_range=(2026, 2027), min_gap=10, target_volume=99999,
+        mortalita=0.0, tree_selection=acc.select_from_bottom,
+    )
+
+    def test_per_particella(self, data_all, harvest_rules):
+        """Per-particella grouping: one row per (year, parcel)."""
+        df = acc.calculate_tpdt_table(
+            data_all, past_harvests=None,
+            rules=harvest_rules,
+            group_cols=[acc.COL_PARTICELLA],
+            **self.COMMON_KWARGS)
+        assert not df.empty
+        # Each row should have a unique (year, particella) combination
+        dupes = df.duplicated(subset=[acc.COL_YEAR, acc.COL_PARTICELLA])
+        assert not dupes.any()
+
+    def test_year_only(self, data_all, harvest_rules):
+        """No group_cols: one row per year with totals."""
+        df = acc.calculate_tpdt_table(
+            data_all, past_harvests=None,
+            rules=harvest_rules,
+            group_cols=[],
+            **self.COMMON_KWARGS)
+        assert not df.empty
+        # One row per year
+        assert df[acc.COL_YEAR].nunique() == len(df)
+
+    def test_per_genere_sums_to_parcel(self, data_all, harvest_rules):
+        """Per-genere allocation sums to total per year."""
+        df_total = acc.calculate_tpdt_table(
+            data_all, past_harvests=None,
+            rules=harvest_rules,
+            group_cols=[],
+            **self.COMMON_KWARGS)
+        df_genere = acc.calculate_tpdt_table(
+            data_all, past_harvests=None,
+            rules=harvest_rules,
+            group_cols=[acc.COL_GENERE],
+            **self.COMMON_KWARGS)
+        if df_total.empty:
+            return
+        # Sum of per-genere harvest per year should equal total harvest per year
+        genere_by_year = df_genere.groupby(acc.COL_YEAR)[acc.COL_HARVEST].sum()
+        for _, row in df_total.iterrows():
+            year = row[acc.COL_YEAR]
+            assert np.isclose(
+                genere_by_year[year], row[acc.COL_HARVEST], rtol=1e-9), \
+                f"Year {year}: genere sum {genere_by_year[year]} != total {row[acc.COL_HARVEST]}"
+
+    def test_sorted_by_year(self, data_all, harvest_rules):
+        """Output is sorted by year."""
+        df = acc.calculate_tpdt_table(
+            data_all, past_harvests=None,
+            rules=harvest_rules,
+            group_cols=[acc.COL_PARTICELLA],
+            **self.COMMON_KWARGS)
+        if df.empty:
+            return
+        years = df[acc.COL_YEAR].values
+        assert list(years) == sorted(years)
+
+
 # =============================================================================
 # MAIN
 # =============================================================================
