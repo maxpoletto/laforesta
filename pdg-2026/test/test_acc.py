@@ -158,8 +158,10 @@ class TestAggregationConsistency:
         })
         parcels = {
             ('R', 'A'): ParcelStats(area_ha=10, sector='A', age=60,
+                                    governo='Fustaia',
                                     n_sample_areas=4, sampled_frac=0.5),
             ('R', 'B'): ParcelStats(area_ha=10, sector='A', age=60,
+                                    governo='Fustaia',
                                     n_sample_areas=8, sampled_frac=1.0),
         }
         data = ParcelData(trees=trees, regions=['R'], species=['Faggio'],
@@ -806,7 +808,7 @@ def _make_parcel_data(trees_data: list[dict]) -> acc.ParcelData:
     trees_df = pd.DataFrame(rows)
     parcels = {
         ('X', '1'): acc.ParcelStats(
-            area_ha=10.0, sector='A', age=60,
+            area_ha=10.0, sector='A', age=60, governo='Fustaia',
             n_sample_areas=1, sampled_frac=acc.SAMPLE_AREA_HA / 10.0),
     }
     return acc.ParcelData(

@@ -88,6 +88,7 @@ class ParcelStats:
     area_ha: float
     sector: str
     age: float
+    governo: str
     n_sample_areas: int
     sampled_frac: float
 
@@ -756,6 +757,7 @@ def parcel_data(tree_files: list[str], tree_df: pd.DataFrame, parcel_df: pd.Data
             area_ha=area_ha,
             sector=md[COL_COMPARTO],
             age=md[COL_ETA_MEDIA],
+            governo=md[COL_GOVERNO],
             n_sample_areas=n_sample_areas,
             sampled_frac=sampled_frac,
         )
@@ -1316,6 +1318,10 @@ COL_AGE = 'age'
 COL_PP_MAX = 'pp_max'
 COL_HARVEST = 'harvest'
 ROW_TOTAL = 'Totale'
+# tpdt-specific
+COL_YEAR = 'year'
+COL_VOLUME_BEFORE = 'volume_before'
+COL_VOLUME_AFTER = 'volume_after'
 
 # Option keys shared between process_directive and render_*/calculate_* functions.
 # Common options (used across multiple directives)
@@ -1347,6 +1353,12 @@ OPT_Y_MAX = 'y_max'
 # tcr-specific
 OPT_ANNI = 'anni'
 OPT_MORTALITA = 'mortalita'
+# tpdt-specific
+OPT_ANNO_INIZIO = 'anno_inizio'
+OPT_ANNO_FINE = 'anno_fine'
+OPT_INTERVALLO = 'intervallo'
+OPT_VOLUME_OBIETTIVO = 'volume_obiettivo'
+OPT_CALENDARIO = 'calendario'
 # Required file parameters (used as option keys for validation)
 OPT_EQUAZIONI = 'equazioni'
 
@@ -1365,6 +1377,7 @@ class Dir:
     TSV  = 'tsv'
     GSV  = 'gsv'
     TPT  = 'tpt'
+    TPDT = 'tpdt'
     GPT  = 'gpt'
     TIP  = 'tip'
     GIP  = 'gip'
