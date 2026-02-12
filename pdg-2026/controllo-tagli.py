@@ -20,19 +20,23 @@ DEFAULT_MIN_YEARS = 10
 REQUIRED_COLUMNS = {'Anno', 'Compresa', 'Particella'}
 
 
-def read_harvests(paths: list[Path]) -> dict[tuple[str, str], list[int]]:
+def read_harvests(paths: list[Path],
+                  solo_fustaia: bool = False) -> dict[tuple[str, str], list[int]]:
     """Read harvest events from CSV files, grouped by (compresa, particella).
 
     Returns a dict mapping (compresa, particella) -> sorted list of years.
     """
+    required = REQUIRED_COLUMNS | ({'Governo'} if solo_fustaia else set())
     events: dict[tuple[str, str], set[int]] = defaultdict(set)
     for path in paths:
         with open(path, newline='', encoding='utf-8-sig') as f:
             reader = csv.DictReader(f)
-            missing = REQUIRED_COLUMNS - set(reader.fieldnames or [])
+            missing = required - set(reader.fieldnames or [])
             if missing:
                 sys.exit(f"Errore: {path} manca le colonne {missing}")
             for row in reader:
+                if solo_fustaia and row['Governo'].strip() != 'Fustaia':
+                    continue
                 key = (row['Compresa'].strip(), row['Particella'].strip())
                 events[key].add(int(row['Anno']))
     return {k: sorted(v) for k, v in events.items()}
@@ -66,9 +70,11 @@ def main():
                         help=f'Intervallo minimo tra tagli (default: {DEFAULT_MIN_YEARS})')
     parser.add_argument('--anche-futuro', action='store_true', default=False,
                         help='Includi anche tagli futuri (anno corrente o successivi)')
+    parser.add_argument('--solo-fustaia', action='store_true', default=True,
+                        help='Considera solo i tagli con Governo=Fustaia')
     args = parser.parse_args()
 
-    harvests = read_harvests(args.files)
+    harvests = read_harvests(args.files, args.solo_fustaia)
     violations = check_spacing(harvests, args.intervallo, args.anche_futuro)
 
     if violations:
