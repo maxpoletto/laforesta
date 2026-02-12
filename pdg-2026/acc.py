@@ -1229,7 +1229,7 @@ def render_tcd_table(data: ParcelData, formatter: SnippetFormatter, **options) -
     values_df = calculate_cd_data(data, metrica, stime_totali, fine=False)
 
     headers = [(COL_GENERE, 'l')] + [(b, 'r') for b in COARSE_BINS] + [('Totale', 'r')]
-    fmt = "{:.2f}" if use_decimals else "{:.0f}"
+    fmt = "{:.1f}" if use_decimals else "{:.0f}"
 
     rows = []
     col_totals = {b: 0.0 for b in COARSE_BINS}
@@ -1375,11 +1375,16 @@ class Dir:
 # Column spec for table rendering
 @dataclass
 class ColSpec:
-    title: str                      # Column title
-    align: str                      # Alignment: 'l', 'r', or 'c'
-    formatter: Callable             # Function to format a cell from a DataFrame row
-    total: str | Callable | None    # Total specification: column name to sum, or callable(df) -> str, or None for no total
-    enabled: bool                   # True if column should be rendered
+    # Column title
+    title: str
+    # Alignment: 'l', 'r', or 'c'
+    align: str
+    # Format spec: column name to display as .1f, or custom format function
+    format: str | Callable
+    # Total spec: column name to sum, or callable(df) -> str, or None for no total
+    total: str | Callable | None
+    # True if column should be rendered
+    enabled: bool
 
 def render_table(df: pd.DataFrame, group_cols: list[str],
                  col_specs: list[ColSpec], formatter: SnippetFormatter,
@@ -1400,7 +1405,11 @@ def render_table(df: pd.DataFrame, group_cols: list[str],
     display_rows = []
     for _, row in df.iterrows():
         display_row = [str(row[col]) for col in group_cols]
-        display_row += [c.formatter(row) for c in col_specs]
+        for c in col_specs:
+            if isinstance(c.format, str):
+                display_row.append(f"{row[c.format]:.1f}")
+            else:
+                display_row.append(c.format(row))
         display_rows.append(display_row)
 
     if add_totals:
@@ -1417,7 +1426,7 @@ def render_table(df: pd.DataFrame, group_cols: list[str],
             if c.total is None:
                 total_row.append('')
             elif isinstance(c.total, str):
-                total_row.append(f"{df[c.total].sum():.2f}")
+                total_row.append(f"{df[c.total].sum():.1f}")
             else:
                 total_row.append(c.total(df))
         display_rows.append(total_row)
@@ -1532,25 +1541,13 @@ def render_tsv_table(data: ParcelData, formatter: SnippetFormatter, **options) -
     has_ci = options[OPT_INTERVALLO_FIDUCIARIO]
     col_specs = [
         ColSpec('N. Alberi', 'r',
-         lambda r: f"{r[COL_N_TREES]:.0f}",
-         lambda d: f"{d[COL_N_TREES].sum():.0f}",
-         True),
-        ColSpec('Volume (m³)', 'r',
-         lambda r: f"{r[COL_VOLUME]:.2f}",
-         COL_VOLUME,
-         True),
-        ColSpec('Vol. mature (m³)', 'r',
-         lambda r: f"{r[COL_VOLUME_MATURE]:.2f}",
-         COL_VOLUME_MATURE,
-         options.get(OPT_SOLO_MATURE, False)),
-        ColSpec('IF inf (m³)', 'r',
-         lambda r: f"{r[COL_VOL_LO]:.2f}",
-         COL_VOL_LO,
-         has_ci),
-        ColSpec('IF sup (m³)', 'r',
-         lambda r: f"{r[COL_VOL_HI]:.2f}",
-         COL_VOL_HI,
-         has_ci),
+                lambda r: f"{r[COL_N_TREES]:.0f}",
+                lambda d: f"{d[COL_N_TREES].sum():.0f}", True),
+        ColSpec('Volume (m³)', 'r', COL_VOLUME, COL_VOLUME, True),
+        ColSpec('Vol. mature (m³)', 'r', COL_VOLUME_MATURE, COL_VOLUME_MATURE,
+                options.get(OPT_SOLO_MATURE, False)),
+        ColSpec('IF inf (m³)', 'r', COL_VOL_LO, COL_VOL_LO, has_ci),
+        ColSpec('IF sup (m³)', 'r', COL_VOL_HI, COL_VOL_HI, has_ci),
     ]
     return render_table(df, group_cols, col_specs, formatter, options[OPT_TOTALI])
 
@@ -1613,19 +1610,10 @@ def render_tip_table(data: ParcelData, formatter: SnippetFormatter, **options) -
     df = calculate_growth_rates(data, group_cols, options[OPT_STIME_TOTALI])
 
     col_specs = [
-        ColSpec('Genere', 'l',
-         lambda r: str(r[COL_GENERE]),
-         None, True),
-        ColSpec('D (cm)', 'r',
-         lambda r: f"{r[COL_DIAMETRO]}",
-         None, True),
-        ColSpec('Incr. pct.', 'r',
-         lambda r: f"{r[COL_IP_MEDIO]:.2f}",
-         None, True),
-        ColSpec('Incr. corr. (m³)', 'r',
-         lambda r: f"{r[COL_INCR_CORR]:.2f}",
-         COL_INCR_CORR,
-         True),
+        ColSpec('Genere', 'l', lambda r: str(r[COL_GENERE]), None, True),
+        ColSpec('D (cm)', 'r', lambda r: f"{r[COL_DIAMETRO]}", None, True),
+        ColSpec('Incr. pct.', 'r', COL_IP_MEDIO, None, True),
+        ColSpec('Incr. corr. (m³)', 'r', COL_INCR_CORR, COL_INCR_CORR, True),
     ]
     return render_table(df, group_cols, col_specs, formatter, options[OPT_TOTALI])
 
@@ -1883,30 +1871,21 @@ def render_tcr_table(data: ParcelData, formatter: SnippetFormatter,
 
     n = f"+{years}aa"
     col_specs = [
-        ColSpec('Area (ha)', 'r',
-         lambda r: f"{r[COL_AREA_HA]:.2f}",
-         lambda _: f"{total_area:.2f}",
-         not genere_only),
-        ColSpec('Volume (m³)', 'r',
-         lambda r: f"{r[COL_VOLUME_MATURE]:.2f}",
-         COL_VOLUME_MATURE,
-         options[OPT_COL_VOLUME_MATURE]),
-        ColSpec(f'Volume {n} (m³)', 'r',
-         lambda r: f"{r[COL_VOLUME_MATURE_PROJ]:.2f}",
-         COL_VOLUME_MATURE_PROJ,
-         options[OPT_COL_VOLUME_MATURE]),
-        ColSpec(f'Incr. corr. (m³)', 'r',
-         lambda r: f"{r[COL_INCR_CORR]:.2f}",
-         COL_INCR_CORR,
-         options[OPT_COL_INCR_CORR]),
+        ColSpec('Area (ha)', 'r', COL_AREA_HA, lambda _: f"{total_area:.1f}", not genere_only),
+        ColSpec('Volume (m³)', 'r', COL_VOLUME_MATURE, COL_VOLUME_MATURE,
+                options[OPT_COL_VOLUME_MATURE]),
+        ColSpec(f'Volume {n} (m³)', 'r', COL_VOLUME_MATURE_PROJ, COL_VOLUME_MATURE_PROJ,
+                options[OPT_COL_VOLUME_MATURE]),
+        ColSpec(f'Incr. corr. (m³)', 'r', COL_INCR_CORR, COL_INCR_CORR,
+                options[OPT_COL_INCR_CORR]),
         ColSpec('Volume/ha', 'r',
-         lambda r: f"{r[COL_VOLUME_MATURE] / r[COL_AREA_HA]:.2f}",
-         lambda d: f"{d[COL_VOLUME_MATURE].sum() / total_area:.2f}",
-         options[OPT_COL_VOLUME_MATURE_HA] and not genere_only),
+                lambda r: f"{r[COL_VOLUME_MATURE] / r[COL_AREA_HA]:.1f}",
+                lambda d: f"{d[COL_VOLUME_MATURE].sum() / total_area:.1f}",
+                options[OPT_COL_VOLUME_MATURE_HA] and not genere_only),
         ColSpec(f'Volume {n}/ha', 'r',
-         lambda r: f"{r[COL_VOLUME_MATURE_PROJ] / r[COL_AREA_HA]:.2f}",
-         lambda d: f"{d[COL_VOLUME_MATURE_PROJ].sum() / total_area:.2f}",
-         options[OPT_COL_VOLUME_MATURE_HA] and not genere_only),
+                lambda r: f"{r[COL_VOLUME_MATURE_PROJ] / r[COL_AREA_HA]:.1f}",
+                lambda d: f"{d[COL_VOLUME_MATURE_PROJ].sum() / total_area:.1f}",
+                options[OPT_COL_VOLUME_MATURE_HA] and not genere_only),
     ]
     return render_table(df, group_cols, col_specs, formatter, options[OPT_TOTALI])
 
@@ -2299,46 +2278,30 @@ def render_tpt_table(data: ParcelData, rules: HarvestRulesFunc,
 
     # total_fn lambdas close over total_area (computed above)
     col_specs = [
-        ColSpec('Comp.', 'l',
-         lambda r: str(r[COL_SECTOR]),
-         None,
-         options[OPT_COL_COMPARTO] and per_parcel),
-        ColSpec('Età (aa)', 'r',
-         lambda r: f"{r[COL_AGE]:.0f}",
-         None,
-         options[OPT_COL_ETA] and per_parcel),
-        ColSpec('Area (ha)', 'r',
-         lambda r: f"{r[COL_AREA_HA]:.2f}",
-         lambda _: f"{total_area:.2f}",
+        ColSpec('Comp.', 'l', lambda r: str(r[COL_SECTOR]), None,
+                options[OPT_COL_COMPARTO] and per_parcel),
+        ColSpec('Età (aa)', 'r', lambda r: f"{r[COL_AGE]:.0f}", None,
+                options[OPT_COL_ETA] and per_parcel),
+        ColSpec('Area (ha)', 'r', COL_AREA_HA, lambda _: f"{total_area:.1f}",
          options[OPT_COL_AREA_HA] and not genere_only),
-        ColSpec('Vol tot (m³)', 'r',
-         lambda r: f"{r[COL_VOLUME]:.2f}",
-         COL_VOLUME,
-         options[OPT_COL_VOLUME]),
+        ColSpec('Vol tot (m³)', 'r', COL_VOLUME, COL_VOLUME, options[OPT_COL_VOLUME]),
         ColSpec('Vol/ha (m³/ha)', 'r',
-         lambda r: f"{r[COL_VOLUME] / r[COL_AREA_HA]:.2f}",
-         lambda d: f"{d[COL_VOLUME].sum() / total_area:.2f}",
-         options[OPT_COL_VOLUME_HA] and not genere_only),
-        ColSpec('Vol mature (m³)', 'r',
-         lambda r: f"{r[COL_VOLUME_MATURE]:.2f}",
-         COL_VOLUME_MATURE,
-         options[OPT_COL_VOLUME_MATURE]),
+            lambda r: f"{r[COL_VOLUME] / r[COL_AREA_HA]:.1f}",
+            lambda d: f"{d[COL_VOLUME].sum() / total_area:.1f}",
+            options[OPT_COL_VOLUME_HA] and not genere_only),
+        ColSpec('Vol mature (m³)', 'r', COL_VOLUME_MATURE, COL_VOLUME_MATURE,
+                options[OPT_COL_VOLUME_MATURE]),
         ColSpec('Vol mature/ha (m³/ha)', 'r',
-         lambda r: f"{r[COL_VOLUME_MATURE] / r[COL_AREA_HA]:.2f}",
-         lambda d: f"{d[COL_VOLUME_MATURE].sum() / total_area:.2f}",
-         options[OPT_COL_VOLUME_MATURE_HA] and not genere_only),
-        ColSpec('Prelievo \\%', 'r',
-         lambda r: f"{r[COL_PP_MAX]:.0f}",
-         None,
-         options[OPT_COL_PP_MAX] and per_parcel),
-        ColSpec('Prel tot (m³)', 'r',
-         lambda r: f"{r[COL_HARVEST]:.2f}",
-         COL_HARVEST,
-         options[OPT_COL_PRELIEVO]),
+                lambda r: f"{r[COL_VOLUME_MATURE] / r[COL_AREA_HA]:.1f}",
+                lambda d: f"{d[COL_VOLUME_MATURE].sum() / total_area:.1f}",
+                options[OPT_COL_VOLUME_MATURE_HA] and not genere_only),
+        ColSpec('Prelievo \\%', 'r', lambda r: f"{r[COL_PP_MAX]:.0f}",
+                None, options[OPT_COL_PP_MAX] and per_parcel),
+        ColSpec('Prel tot (m³)', 'r', COL_HARVEST, COL_HARVEST, options[OPT_COL_PRELIEVO]),
         ColSpec('Prel/ha (m³/ha)', 'r',
-         lambda r: f"{r[COL_HARVEST] / r[COL_AREA_HA]:.2f}",
-         lambda d: f"{d[COL_HARVEST].sum() / total_area:.2f}",
-         options[OPT_COL_PRELIEVO_HA] and not genere_only),
+                lambda r: f"{r[COL_HARVEST] / r[COL_AREA_HA]:.1f}",
+                lambda d: f"{d[COL_HARVEST].sum() / total_area:.1f}",
+                options[OPT_COL_PRELIEVO_HA] and not genere_only),
     ]
     return render_table(df, group_cols, col_specs, formatter, options[OPT_TOTALI])
 
