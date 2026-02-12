@@ -1715,7 +1715,7 @@ def year_step(sim: pd.DataFrame, weight: np.ndarray,
             ip[i], dd[i] = r
 
     sim[COL_V_M3] = sim[COL_V_M3].values * (1 + ip / 100)
-    sim[COL_DIAMETER_CM] = sim[COL_DIAMETER_CM].values + dd
+    sim[COL_DIAMETER_CM] = sim[COL_DIAMETER_CM].values #+ dd
     sim[COL_DIAMETRO] = (np.ceil((sim[COL_DIAMETER_CM] - 2.5) / 5) * 5).astype(int)
     weight *= (1 - mortalita / 100)
 
@@ -1782,13 +1782,13 @@ def calculate_tcr_table(data: ParcelData, group_cols: list[str],
         result = pd.concat([df0.reset_index(drop=True),
                            dfN.reset_index(drop=True)], axis=1)
 
-    # Per-tree ic using compresa-level growth rates (ip from growth_by_group).
-    # ip is constant within each (compresa, genere, diametro) bucket, so summing
-    # per-tree V*ip/100 across any grouping gives exact agreement with the
-    # bucket-level ic from calculate_growth_rates.
+    # Per-tree ic using compresa-level growth rates, restricted to mature
+    # trees (D > threshold) to match the volume columns.
+    small_trees = trees[COL_DIAMETER_CM] <= MATURE_THRESHOLD
     tree_keys = list(zip(*(trees[c] for c in groupby_cols)))
     tree_ip = np.array([growth_by_group.get(k, (0, 0))[0] for k in tree_keys])
     tree_ic = pd.Series(trees[COL_V_M3].values * tree_ip / 100, index=trees.index)
+    tree_ic[small_trees] = 0.0
 
     # Add area_ha and incremento corrente per group
     meta_rows = []

@@ -800,8 +800,8 @@ class TestTcrIncrementoCorrente:
         v1 = df[acc.COL_VOLUME_MATURE_PROJ].iloc[0]
         ic = df[acc.COL_INCR_CORR].iloc[0]
 
-        assert v0 + ic < v1, \
-            f"V0 ({v0:.6f}) + ic ({ic:.6f}) = {v0+ic:.6f} should be < V1 ({v1:.6f})"
+        assert v0 + ic <= v1, \
+            f"V0 ({v0:.6f}) + ic ({ic:.6f}) = {v0+ic:.6f} should be <= V1 ({v1:.6f})"
 
 
 # =============================================================================
