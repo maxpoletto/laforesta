@@ -2075,6 +2075,89 @@ def render_gsv_graph(data: ParcelData, output_path: Path,
 # RIPRESA =====================================================================
 
 
+COL_WEIGHT = '_weight'
+COL_DIAM_GROWTH = '_diam_growth'
+
+def _simulate_harvest_on_parcel(
+    sim: pd.DataFrame,
+    region: str, parcel: str,
+    stats: ParcelStats,
+    rules: HarvestRulesFunc,
+    tree_selection: TreeSelectionFunc,
+) -> tuple[float, float, float, dict[str, float]] | None:
+    """Compute and apply harvest for one parcel, removing trees from sim.
+
+    Returns (volume_before, harvest_amount, volume_after, species_shares)
+    or None if no harvest is allowed (zero limits, no mature trees).
+    species_shares: dict mapping genere -> fraction of mature volume.
+
+    Modifies sim in place by dropping harvested tree rows.
+    """
+    mask = (sim[COL_COMPRESA] == region) & (sim[COL_PARTICELLA] == parcel)
+    ptrees = sim[mask]
+    if ptrees.empty:
+        return None
+
+    sf = stats.sampled_frac
+    area_ha = stats.area_ha
+
+    # Effective volume per tree (accounting for mortality weight)
+    eff_vol = ptrees[COL_V_M3] * ptrees[COL_WEIGHT]
+    volume_before = eff_vol.sum() / sf
+
+    # Mature trees only
+    mature_mask = ptrees[COL_DIAMETER_CM] > MATURE_THRESHOLD
+    mature = ptrees[mature_mask]
+    if mature.empty:
+        return None
+
+    mature_eff_vol = eff_vol[mature.index]
+    vol_mature = mature_eff_vol.sum() / sf
+    # G in m2 per tree, weighted
+    mature_G = np.pi / 4 * mature[COL_DIAMETER_CM] ** 2 / 10000 * mature[COL_WEIGHT]
+    basal_mature = mature_G.sum() / sf
+
+    vol_mature_per_ha = vol_mature / area_ha
+    basal_per_ha = basal_mature / area_ha
+
+    vol_limit_ha, area_limit_ha = rules(stats.sector, stats.age,
+                                        vol_mature_per_ha, basal_per_ha)
+    if vol_limit_ha == 0 and area_limit_ha == 0:
+        return None
+
+    # Species shares of mature volume (for pro-rata allocation)
+    species_shares = {}
+    if vol_mature > 0:
+        for genere, g_trees in mature.groupby(COL_GENERE):
+            species_shares[genere] = mature_eff_vol[g_trees.index].sum() / sf / vol_mature
+
+    # Absolute limits for the parcel
+    vol_limit = vol_limit_ha * area_ha
+    area_limit = area_limit_ha * area_ha
+
+    # Select trees in harvest order and accumulate until limits reached
+    ordered_idx = tree_selection(mature)
+    harvested_indices = []
+    cum_vol, cum_area = 0.0, 0.0
+    for idx in ordered_idx:
+        tv = eff_vol[idx] / sf
+        ta = mature_G[idx] / sf
+        if cum_vol + tv > vol_limit or cum_area + ta > area_limit:
+            break
+        cum_vol += tv
+        cum_area += ta
+        harvested_indices.append(idx)
+
+    if not harvested_indices:
+        return None
+
+    # Drop harvested trees from sim
+    sim.drop(harvested_indices, inplace=True)
+
+    volume_after = volume_before - cum_vol
+    return volume_before, cum_vol, volume_after, species_shares
+
+
 def compute_harvest(trees_df: pd.DataFrame, sampled_frac: float,
                      volume_limit: float, area_limit: float) -> tuple[float, float]:
     """Harvest trees smallest-first until either limit is reached.

@@ -38,6 +38,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import acc
 from acc import (COL_COEFF_PRESSLER, COL_COMPRESA, COL_DIAMETER_CM, COL_DIAMETRO,
                  COL_GENERE, COL_HEIGHT_M, COL_L10_MM, COL_PARTICELLA, COL_V_M3,
+                 COL_WEIGHT, COL_AREA_SAGGIO,
                  ParcelData, ParcelStats)
 
 # Fixtures are defined in conftest.py
@@ -942,6 +943,166 @@ class TestDiameterClass:
         result = acc.diameter_class(d)
         assert len(result) == 0
         assert np.issubdtype(result.dtype, np.integer)
+
+
+# =============================================================================
+# (i) TPDT — Harvest scheduling
+# =============================================================================
+
+def _make_sim(trees_data):
+    """Build a sim DataFrame for _simulate_harvest_on_parcel tests.
+
+    trees_data: list of (region, parcel, sample_area, diameter_cm, volume_m3, genere) tuples.
+    """
+    rows = []
+    for region, parcel, sa, d, v, genere in trees_data:
+        rows.append({
+            COL_COMPRESA: region,
+            COL_PARTICELLA: parcel,
+            COL_AREA_SAGGIO: sa,
+            COL_DIAMETER_CM: d,
+            COL_V_M3: v,
+            COL_GENERE: genere,
+            COL_DIAMETRO: acc.diameter_class(pd.Series([d])).iloc[0],
+            COL_WEIGHT: 1.0,
+        })
+    return pd.DataFrame(rows)
+
+
+# Simple rules: 25% volume harvest for comparto 'A' age >= 60, zero for comparto 'F'
+def _simple_rules(comparto, eta_media, volume_per_ha, area_basimetrica_per_ha):
+    if comparto == 'F':
+        return 0.0, 0.0
+    return volume_per_ha * 0.25, math.inf
+
+
+class TestSelectFromBottom:
+    def test_orders_by_diameter(self):
+        trees = pd.DataFrame({
+            COL_DIAMETER_CM: [40.0, 25.0, 55.0, 30.0],
+        })
+        result = acc.select_from_bottom(trees)
+        assert list(result) == [1, 3, 0, 2]
+
+
+class TestSimulateHarvestOnParcel:
+    """Tests for _simulate_harvest_on_parcel."""
+
+    def test_harvest_removes_trees_and_returns_volumes(self):
+        """Basic harvest: removes correct trees, returns correct volumes."""
+        # 1 sample area, 10 ha -> sampled_frac = 0.0125, scale factor = 80
+        stats = ParcelStats(area_ha=10, sector='A', age=60, governo='Fustaia',
+                            n_sample_areas=1, sampled_frac=0.0125)
+        sim = _make_sim([
+            # Small tree (not harvested)
+            ('R', 'P1', 1, 15.0, 0.1, 'Faggio'),
+            # 3 mature trees, sorted by diameter: 25, 35, 50
+            ('R', 'P1', 1, 25.0, 0.5, 'Faggio'),
+            ('R', 'P1', 1, 35.0, 1.0, 'Cerro'),
+            ('R', 'P1', 1, 50.0, 2.0, 'Faggio'),
+        ])
+        n_before = len(sim)
+        result = acc._simulate_harvest_on_parcel(
+            sim, 'R', 'P1', stats, _simple_rules, acc.select_from_bottom)
+
+        assert result is not None
+        vol_before, harvest, vol_after, species_shares = result
+        # vol_before = sum of all trees' V * weight / sf
+        expected_vol_before = (0.1 + 0.5 + 1.0 + 2.0) / 0.0125
+        assert np.isclose(vol_before, expected_vol_before)
+        # Harvest should be > 0 and <= vol_before
+        assert harvest > 0
+        assert harvest <= vol_before
+        # vol_after = vol_before - harvest
+        assert np.isclose(vol_after, vol_before - harvest)
+        # Some rows should have been dropped
+        assert len(sim) < n_before
+        # Species shares should sum to 1
+        assert np.isclose(sum(species_shares.values()), 1.0)
+
+    def test_returns_none_for_ceduo(self):
+        """Returns None when rules return (0, 0) for ceduo comparto."""
+        stats = ParcelStats(area_ha=10, sector='F', age=60, governo='Ceduo',
+                            n_sample_areas=1, sampled_frac=0.0125)
+        sim = _make_sim([
+            ('R', 'P1', 1, 30.0, 1.0, 'Faggio'),
+        ])
+        result = acc._simulate_harvest_on_parcel(
+            sim, 'R', 'P1', stats, _simple_rules, acc.select_from_bottom)
+        assert result is None
+        # No trees removed
+        assert len(sim) == 1
+
+    def test_returns_none_for_no_mature_trees(self):
+        """Returns None when there are no mature trees."""
+        stats = ParcelStats(area_ha=10, sector='A', age=60, governo='Fustaia',
+                            n_sample_areas=1, sampled_frac=0.0125)
+        sim = _make_sim([
+            ('R', 'P1', 1, 15.0, 0.1, 'Faggio'),
+            ('R', 'P1', 1, 18.0, 0.15, 'Cerro'),
+        ])
+        result = acc._simulate_harvest_on_parcel(
+            sim, 'R', 'P1', stats, _simple_rules, acc.select_from_bottom)
+        assert result is None
+
+    def test_respects_volume_limit(self):
+        """Harvest stops when volume limit is reached."""
+        # With 25% rule and high volume, should not harvest everything
+        stats = ParcelStats(area_ha=10, sector='A', age=60, governo='Fustaia',
+                            n_sample_areas=1, sampled_frac=0.0125)
+        sim = _make_sim([
+            ('R', 'P1', 1, 25.0, 0.5, 'Faggio'),
+            ('R', 'P1', 1, 30.0, 0.8, 'Faggio'),
+            ('R', 'P1', 1, 40.0, 1.5, 'Faggio'),
+            ('R', 'P1', 1, 50.0, 2.5, 'Faggio'),
+            ('R', 'P1', 1, 60.0, 4.0, 'Faggio'),
+        ])
+        result = acc._simulate_harvest_on_parcel(
+            sim, 'R', 'P1', stats, _simple_rules, acc.select_from_bottom)
+        assert result is not None
+        vol_before, harvest, vol_after, _ = result
+        # Mature volume per ha = sum(V) / sf / area = (0.5+0.8+1.5+2.5+4.0)/0.0125/10 = 744
+        # 25% of 744 = 186 m3/ha -> limit = 186 * 10 = 1860 m3
+        # Harvest should be <= limit
+        vol_mature_per_ha = (0.5 + 0.8 + 1.5 + 2.5 + 4.0) / 0.0125 / 10
+        limit = vol_mature_per_ha * 0.25 * 10
+        assert harvest <= limit + 1e-9
+
+    def test_weight_affects_volumes(self):
+        """Trees with reduced weight contribute less volume."""
+        sf = 0.0125
+        stats = ParcelStats(area_ha=10, sector='A', age=60, governo='Fustaia',
+                            n_sample_areas=1, sampled_frac=sf)
+        sim = _make_sim([
+            ('R', 'P1', 1, 30.0, 1.0, 'Faggio'),
+            ('R', 'P1', 1, 40.0, 2.0, 'Faggio'),
+        ])
+        # Set weight to 0.5 (simulating 50% mortality)
+        sim[COL_WEIGHT] = 0.5
+        # Use generous rules (50%) so at least one tree fits under the limit
+        generous = lambda c, a, v, b: (v * 0.50, math.inf)
+        result = acc._simulate_harvest_on_parcel(
+            sim, 'R', 'P1', stats, generous, acc.select_from_bottom)
+        assert result is not None
+        vol_before, harvest, vol_after, _ = result
+        # vol_before = (1.0*0.5 + 2.0*0.5) / 0.0125 = 120
+        assert np.isclose(vol_before, (1.0 * 0.5 + 2.0 * 0.5) / sf)
+
+    def test_species_shares(self):
+        """Species shares reflect mature volume fractions."""
+        stats = ParcelStats(area_ha=10, sector='A', age=60, governo='Fustaia',
+                            n_sample_areas=1, sampled_frac=0.0125)
+        sim = _make_sim([
+            ('R', 'P1', 1, 30.0, 1.0, 'Faggio'),
+            ('R', 'P1', 1, 40.0, 3.0, 'Cerro'),
+        ])
+        result = acc._simulate_harvest_on_parcel(
+            sim, 'R', 'P1', stats, _simple_rules, acc.select_from_bottom)
+        assert result is not None
+        _, _, _, species_shares = result
+        # Faggio: 1.0/(1.0+3.0) = 0.25, Cerro: 3.0/(1.0+3.0) = 0.75
+        assert np.isclose(species_shares['Faggio'], 0.25)
+        assert np.isclose(species_shares['Cerro'], 0.75)
 
 
 # =============================================================================
