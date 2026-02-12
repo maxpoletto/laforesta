@@ -1577,17 +1577,23 @@ def calculate_growth_rates(data: ParcelData, group_cols: list[str],
         row_dict = dict(zip(group_cols, group_key))
         ip_per_tree = (group_trees[COL_COEFF_PRESSLER] * 2 * group_trees[COL_L10_MM]
                        / 100 / group_trees[COL_DIAMETER_CM])
-        volumes = group_trees[COL_V_M3]
-        ip_medio = (ip_per_tree * volumes).sum() / volumes.sum()
         delta_d = (2 * group_trees[COL_L10_MM] / 100).mean()
 
         if stime_totali:
+            # Compute volume-weighted mean ip per parcel, because different
+            # parcels may have different scaling factors (sampling rate).
             volume = 0.0
+            ipxv = 0.0
             for (region, parcel), ptrees in group_trees.groupby([COL_COMPRESA, COL_PARTICELLA]):
                 sf = parcels[(region, parcel)].sampled_frac
-                volume += ptrees[COL_V_M3].sum() / sf
+                v = ptrees[COL_V_M3]
+                volume += v.sum() / sf
+                ipxv += (ip_per_tree[ptrees.index] * v).sum() / sf
+            ip_medio = ipxv / volume
         else:
-            volume = group_trees[COL_V_M3].sum()
+            v = group_trees[COL_V_M3]
+            volume = v.sum()
+            ip_medio = (ip_per_tree * v).sum() / volume
 
         row_dict[COL_IP_MEDIO] = ip_medio
         row_dict[COL_DELTA_D] = delta_d

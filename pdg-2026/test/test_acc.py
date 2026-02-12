@@ -36,8 +36,9 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import acc
-from acc import (COL_COMPRESA, COL_DIAMETER_CM, COL_DIAMETRO, COL_GENERE, COL_HEIGHT_M,
-                 COL_PARTICELLA, COL_V_M3)
+from acc import (COL_COEFF_PRESSLER, COL_COMPRESA, COL_DIAMETER_CM, COL_DIAMETRO,
+                 COL_GENERE, COL_HEIGHT_M, COL_L10_MM, COL_PARTICELLA, COL_V_M3,
+                 ParcelData, ParcelStats)
 
 # Fixtures are defined in conftest.py
 
@@ -129,6 +130,57 @@ class TestAggregationConsistency:
 
         assert np.isclose(total_ic, sum_per_parcel, rtol=1e-6), \
             f"Total IC {total_ic} != sum of per-parcel IC {sum_per_parcel}"
+
+    def test_tip_volume_weighted_ip_with_unequal_sampling(self):
+        """ip_medio must use expansion-factor-weighted volumes when stime_totali=True.
+
+        With two parcels having different sampling fractions (sf), using raw sample
+        volumes as weights gives the wrong ip_medio and IC.  The correct IC is the
+        sum of per-parcel expanded tree increments: sum_p (1/sf_p) * sum_i(ip_i * v_i / 100).
+        """
+        # Parcel A: sf=0.5, one tree with v=10 m³, ip=5%
+        # Parcel B: sf=1.0, one tree with v=10 m³, ip=3%
+        # Both trees: same species (Faggio), same diameter class (25)
+        #
+        # ip for Pressler: ip = c * 2 * L10 / 100 / D
+        # Choose c=1, D=25 cm so ip = 2*L10/100/25 = L10/1250
+        # Tree A: ip=5% -> L10 = 5 * 1250 = 6250 mm
+        # Tree B: ip=3% -> L10 = 3 * 1250 = 3750 mm
+        trees = pd.DataFrame({
+            COL_COMPRESA: ['R', 'R'],
+            COL_PARTICELLA: ['A', 'B'],
+            COL_GENERE: ['Faggio', 'Faggio'],
+            COL_DIAMETER_CM: [25.0, 25.0],
+            COL_DIAMETRO: [25, 25],
+            COL_V_M3: [10.0, 10.0],
+            COL_COEFF_PRESSLER: [1.0, 1.0],
+            COL_L10_MM: [6250.0, 3750.0],
+        })
+        parcels = {
+            ('R', 'A'): ParcelStats(area_ha=10, sector='A', age=60,
+                                    n_sample_areas=4, sampled_frac=0.5),
+            ('R', 'B'): ParcelStats(area_ha=10, sector='A', age=60,
+                                    n_sample_areas=8, sampled_frac=1.0),
+        }
+        data = ParcelData(trees=trees, regions=['R'], species=['Faggio'],
+                          parcels=parcels)
+
+        df = acc.calculate_growth_rates(
+            data, group_cols=[COL_GENERE, COL_DIAMETRO], stime_totali=True)
+        assert len(df) == 1
+        row = df.iloc[0]
+
+        # Correct IC = (10*5/100)/0.5 + (10*3/100)/1.0 = 1.0 + 0.3 = 1.3
+        # Wrong IC (unweighted) = 30 * 4.0 / 100 = 1.2
+        expected_ic = 10 * 0.05 / 0.5 + 10 * 0.03 / 1.0  # = 1.3
+        assert np.isclose(row['incremento_corrente'], expected_ic, rtol=1e-9), \
+            f"IC {row['incremento_corrente']} != expected {expected_ic}"
+
+        # ip_medio should be consistent: IC = volume * ip_medio / 100
+        volume = 10 / 0.5 + 10 / 1.0  # = 30
+        expected_ip = expected_ic * 100 / volume  # = 1.3 * 100 / 30 ≈ 4.333...
+        assert np.isclose(row['ip_medio'], expected_ip, rtol=1e-9), \
+            f"ip_medio {row['ip_medio']} != expected {expected_ip}"
 
 
 # =============================================================================
