@@ -1835,19 +1835,25 @@ def render_tcr_table(data: ParcelData, formatter: SnippetFormatter,
     years = options[OPT_ANNI]
     df = calculate_tcr_table(data, group_cols, years, options[OPT_MORTALITA])
 
-    # Area deduplication for totals (same pattern as render_tpt_table)
-    if COL_GENERE in group_cols:
-        parcel_cols = [c for c in group_cols if c != COL_GENERE] or [COL_AREA_HA]
-        total_area = df.drop_duplicates(subset=parcel_cols)[COL_AREA_HA].sum()
-    else:
-        total_area = df[COL_AREA_HA].sum()
+    # When grouping only by species, area cannot be meaningfully assigned to
+    # individual species in a mixed forest, so hide area and per-hectare columns.
+    genere_only = group_cols == [COL_GENERE]
+
+    # Area deduplication for totals: genere creates duplicate spatial rows
+    total_area = 0
+    if not genere_only:
+        if COL_GENERE in group_cols:
+            parcel_cols = [c for c in group_cols if c != COL_GENERE]
+            total_area = df.drop_duplicates(subset=parcel_cols)[COL_AREA_HA].sum()
+        else:
+            total_area = df[COL_AREA_HA].sum()
 
     n = f"+{years}aa"
     col_specs = [
         ColSpec('Area (ha)', 'r',
          lambda r: f"{r[COL_AREA_HA]:.2f}",
          lambda _: f"{total_area:.2f}",
-         True),
+         not genere_only),
         ColSpec('Volume (m³)', 'r',
          lambda r: f"{r[COL_VOLUME_MATURE]:.2f}",
          COL_VOLUME_MATURE,
@@ -1856,19 +1862,18 @@ def render_tcr_table(data: ParcelData, formatter: SnippetFormatter,
          lambda r: f"{r[COL_VOLUME_MATURE_PROJ]:.2f}",
          COL_VOLUME_MATURE_PROJ,
          options[OPT_COL_VOLUME_MATURE]),
+        ColSpec(f'Incr. corr. (m³)', 'r',
+         lambda r: f"{r[COL_INCR_CORR]:.2f}",
+         COL_INCR_CORR,
+         options[OPT_COL_INCR_CORR]),
         ColSpec('Volume/ha', 'r',
          lambda r: f"{r[COL_VOLUME_MATURE] / r[COL_AREA_HA]:.2f}",
          lambda d: f"{d[COL_VOLUME_MATURE].sum() / total_area:.2f}",
-         options[OPT_COL_VOLUME_MATURE_HA]),
+         options[OPT_COL_VOLUME_MATURE_HA] and not genere_only),
         ColSpec(f'Volume {n}/ha', 'r',
          lambda r: f"{r[COL_VOLUME_MATURE_PROJ] / r[COL_AREA_HA]:.2f}",
          lambda d: f"{d[COL_VOLUME_MATURE_PROJ].sum() / total_area:.2f}",
-         options[OPT_COL_VOLUME_MATURE_HA]),
-        ColSpec(f'Incr. corr. (m³)', 'r',
-         lambda r: f"{r[COL_INCR_CORR]:.2f}",
-         lambda d: f"{d[COL_INCR_CORR].sum() / total_area:.2f}",
-         options[OPT_COL_INCR_CORR]),
-
+         options[OPT_COL_VOLUME_MATURE_HA] and not genere_only),
     ]
     return render_table(df, group_cols, col_specs, formatter, options[OPT_TOTALI])
 
@@ -2248,9 +2253,13 @@ def render_tpt_table(data: ParcelData, rules: HarvestRulesFunc,
 
     per_parcel = COL_PARTICELLA in group_cols or len(data.parcels) == 1
 
-    # When per_genere, area_ha is duplicated across species; dedupe for totals
-    if COL_GENERE in group_cols:
-        parcel_cols = [c for c in group_cols if c != COL_GENERE] or [COL_AREA_HA]
+    # When grouping only by species, area cannot be meaningfully assigned to
+    # individual species in a mixed forest, so hide area and per-hectare columns.
+    genere_only = group_cols == [COL_GENERE]
+
+    # Area deduplication for totals: genere creates duplicate spatial rows
+    if not genere_only and COL_GENERE in group_cols:
+        parcel_cols = [c for c in group_cols if c != COL_GENERE]
         total_area = df.drop_duplicates(subset=parcel_cols)[COL_AREA_HA].sum()
     else:
         total_area = df[COL_AREA_HA].sum()
@@ -2268,7 +2277,7 @@ def render_tpt_table(data: ParcelData, rules: HarvestRulesFunc,
         ColSpec('Area (ha)', 'r',
          lambda r: f"{r[COL_AREA_HA]:.2f}",
          lambda _: f"{total_area:.2f}",
-         options[OPT_COL_AREA_HA]),
+         options[OPT_COL_AREA_HA] and not genere_only),
         ColSpec('Vol tot (m³)', 'r',
          lambda r: f"{r[COL_VOLUME]:.2f}",
          COL_VOLUME,
@@ -2276,7 +2285,7 @@ def render_tpt_table(data: ParcelData, rules: HarvestRulesFunc,
         ColSpec('Vol/ha (m³/ha)', 'r',
          lambda r: f"{r[COL_VOLUME] / r[COL_AREA_HA]:.2f}",
          lambda d: f"{d[COL_VOLUME].sum() / total_area:.2f}",
-         options[OPT_COL_VOLUME_HA]),
+         options[OPT_COL_VOLUME_HA] and not genere_only),
         ColSpec('Vol mature (m³)', 'r',
          lambda r: f"{r[COL_VOLUME_MATURE]:.2f}",
          COL_VOLUME_MATURE,
@@ -2284,7 +2293,7 @@ def render_tpt_table(data: ParcelData, rules: HarvestRulesFunc,
         ColSpec('Vol mature/ha (m³/ha)', 'r',
          lambda r: f"{r[COL_VOLUME_MATURE] / r[COL_AREA_HA]:.2f}",
          lambda d: f"{d[COL_VOLUME_MATURE].sum() / total_area:.2f}",
-         options[OPT_COL_VOLUME_MATURE_HA]),
+         options[OPT_COL_VOLUME_MATURE_HA] and not genere_only),
         ColSpec('Prelievo \\%', 'r',
          lambda r: f"{r[COL_PP_MAX]:.0f}",
          None,
@@ -2296,7 +2305,7 @@ def render_tpt_table(data: ParcelData, rules: HarvestRulesFunc,
         ColSpec('Prel/ha (m³/ha)', 'r',
          lambda r: f"{r[COL_HARVEST] / r[COL_AREA_HA]:.2f}",
          lambda d: f"{d[COL_HARVEST].sum() / total_area:.2f}",
-         options[OPT_COL_PRELIEVO_HA]),
+         options[OPT_COL_PRELIEVO_HA] and not genere_only),
     ]
     return render_table(df, group_cols, col_specs, formatter, options[OPT_TOTALI])
 
