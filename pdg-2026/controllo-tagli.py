@@ -12,6 +12,8 @@ import argparse
 import csv
 import sys
 from collections import defaultdict
+from datetime import date
+from math import inf
 from pathlib import Path
 
 DEFAULT_MIN_YEARS = 10
@@ -37,16 +39,19 @@ def read_harvests(paths: list[Path]) -> dict[tuple[str, str], list[int]]:
 
 
 def check_spacing(harvests: dict[tuple[str, str], list[int]],
-                   min_years: int) -> list[str]:
+                  min_years: int, future_also: bool = False) -> list[str]:
     """Return violation messages for parcels harvested too frequently."""
+    cutoff = date.today().year if not future_also else inf
     violations = []
     for (compresa, particella), years in sorted(harvests.items()):
         for prev, cur in zip(years, years[1:]):
+            if cur >= cutoff:
+                continue
             if cur - prev < min_years:
                 violations.append(
                     f"La particella {compresa}/{particella} "
                     f"è stata tagliata nel {prev} e poi nel {cur} "
-                    f"(meno di {min_years} anni)"
+                    f"({cur-prev} anni)"
                 )
     return violations
 
@@ -57,12 +62,14 @@ def main():
                     "meno di N anni dopo il taglio precedente.")
     parser.add_argument('files', nargs='+', type=Path,
                         help='CSV con colonne Anno, Compresa, Particella')
-    parser.add_argument('-n', '--min-years', type=int, default=DEFAULT_MIN_YEARS,
+    parser.add_argument('-n', '--intervallo', type=int, default=DEFAULT_MIN_YEARS,
                         help=f'Intervallo minimo tra tagli (default: {DEFAULT_MIN_YEARS})')
+    parser.add_argument('--anche-futuro', action='store_true', default=False,
+                        help='Includi anche tagli futuri (anno corrente o successivi)')
     args = parser.parse_args()
 
     harvests = read_harvests(args.files)
-    violations = check_spacing(harvests, args.min_years)
+    violations = check_spacing(harvests, args.intervallo, args.anche_futuro)
 
     if violations:
         for v in violations:
