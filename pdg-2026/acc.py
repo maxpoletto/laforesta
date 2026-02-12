@@ -1676,50 +1676,70 @@ def render_gip_graph(data: ParcelData, output_path: Path,
 
 def year_step(sim: pd.DataFrame, weight: np.ndarray,
               growth_by_group: dict, available_diams: dict,
-              groupby_cols: list[str], mortalita: float) -> int:
+              groupby_cols: list[str], mortalita: float,
+              diam_growth: np.ndarray | None = None) -> tuple[np.ndarray, int]:
     """Advance the tree growth simulation by one year.
 
+    If diam_growth is provided, applies diameter growth from the previous
+    year before looking up new growth rates.  In this way, volume growth uses
+    the year's starting diameter class, and trees that cross the maturity threshold
+    bring their volume into the mature pool only in the following year ("ingrowth").
+
     Updates sim (volumes, diameters) and weight (mortality) in place.
-    Returns the number of trees that required fallback to nearest diameter.
+    Returns (delta_d, fallback_count) — delta_d is diam_growth for the next year
     """
-    prefix_cols = [c for c in groupby_cols if c != COL_DIAMETRO]
 
-    keys = list(zip(*(sim[c] for c in groupby_cols)))
-    growth = [growth_by_group.get(k) for k in keys]
-    ip = np.array([r[0] if r else np.nan for r in growth])
-    dd = np.array([r[1] if r else np.nan for r in growth])
+    def find_nearest_diameter(diams: list[int], target: int) -> int:
+        """Return the element of diams closest to target."""
+        idx = bisect.bisect_left(diams, target)
+        if idx == 0:
+            return diams[0]
+        if idx >= len(diams):
+            return diams[-1]
+        if target - diams[idx - 1] <= diams[idx] - target:
+            return diams[idx - 1]
+        return diams[idx]
 
-    # Fallback to nearest available diameter bucket
-    fallbacks = 0
-    missing = np.isnan(ip)
-    if missing.any():
+    def lookup_growth(sim: pd.DataFrame, growth_by_group: dict,
+                      available_diams: dict,
+                      groupby_cols: list[str]) -> tuple[np.ndarray, np.ndarray, int]:
+        """Look up percent growth and diameter change each tree row from the growth table.
+
+        Returns (inc_pct, delta_d, fallback_count).  When a tree's exact diameter bucket
+        is not in the growth table, falls back to the nearest available bucket.
+        """
+        prefix_cols = [c for c in groupby_cols if c != COL_DIAMETRO]
+
+        keys = list(zip(*(sim[c] for c in groupby_cols)))
+        growth = [growth_by_group.get(k) for k in keys]
+        inc_pct = np.array([r[0] if r else np.nan for r in growth])
+        delta_d = np.array([r[1] if r else np.nan for r in growth])
+
+        missing = np.isnan(inc_pct)
         fallbacks = int(missing.sum())
         for i in np.where(missing)[0]:
             row = sim.iloc[i]
             prefix = tuple(row[c] for c in prefix_cols)
             diams = available_diams.get(prefix)
             if not diams:
-                ip[i], dd[i] = 0.0, 0.0
+                inc_pct[i], delta_d[i] = 0.0, 0.0
                 continue
-            d = int(row[COL_DIAMETRO])
-            idx = bisect.bisect_left(diams, d)
-            if idx == 0:
-                nearest = diams[0]
-            elif idx >= len(diams):
-                nearest = diams[-1]
-            elif d - diams[idx - 1] <= diams[idx] - d:
-                nearest = diams[idx - 1]
-            else:
-                nearest = diams[idx]
-            r = growth_by_group.get(prefix + (nearest,), (0.0, 0.0))
-            ip[i], dd[i] = r
+            nearest = find_nearest_diameter(diams, int(row[COL_DIAMETRO]))
+            inc_pct[i], delta_d[i] = growth_by_group.get(prefix + (nearest,), (0.0, 0.0))
 
-    sim[COL_V_M3] = sim[COL_V_M3].values * (1 + ip / 100)
-    sim[COL_DIAMETER_CM] = sim[COL_DIAMETER_CM].values #+ dd
-    sim[COL_DIAMETRO] = (np.ceil((sim[COL_DIAMETER_CM] - 2.5) / 5) * 5).astype(int)
+        return inc_pct, delta_d, fallbacks
+
+    if diam_growth is not None:
+        sim[COL_DIAMETER_CM] = sim[COL_DIAMETER_CM].values + diam_growth
+        sim[COL_DIAMETRO] = (
+            np.ceil((sim[COL_DIAMETER_CM] - 2.5) / 5) * 5).astype(int)
+
+    inc_pct, delta_d, fallbacks = lookup_growth(
+        sim, growth_by_group, available_diams, groupby_cols)
+    sim[COL_V_M3] = sim[COL_V_M3].values * (1 + inc_pct / 100)
     weight *= (1 - mortalita / 100)
 
-    return fallbacks
+    return delta_d, fallbacks
 
 
 def calculate_tcr_table(data: ParcelData, group_cols: list[str],
@@ -1759,9 +1779,12 @@ def calculate_tcr_table(data: ParcelData, group_cols: list[str],
     weight = np.ones(len(sim))
 
     fallback_count = 0
+    diam_growth = None
     for _ in range(years):
-        fallback_count += year_step(
-            sim, weight, growth_by_group, available_diams, groupby_cols, mortalita)
+        diam_growth, fallbacks = year_step(
+            sim, weight, growth_by_group, available_diams,
+            groupby_cols, mortalita, diam_growth)
+        fallback_count += fallbacks
 
     # Bake mortality into volume
     sim[COL_V_M3] = sim[COL_V_M3].values * weight
@@ -1816,7 +1839,10 @@ def calculate_tcr_table(data: ParcelData, group_cols: list[str],
         result[COL_INCR_CORR] = meta_df[COL_INCR_CORR].iloc[0]
 
     if fallback_count:
-        print(f"  @@tcr: {fallback_count} ricerche con fallback al diametro più vicino")
+        total_lookups = len(sim) * years
+        pct = 100 * fallback_count / total_lookups
+        print(f"  @@tcr: {pct:.2f}% ricerche con fallback al diametro più vicino"
+              f" ({fallback_count}/{total_lookups})")
 
     return result
 
