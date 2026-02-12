@@ -805,6 +805,92 @@ class TestTcrIncrementoCorrente:
 
 
 # =============================================================================
+# DIAMETER CLASS
+# =============================================================================
+
+class TestDiameterClass:
+    """Test acc.diameter_class() assigns correct diameter classes."""
+
+    def test_class_midpoints(self):
+        """Typical values map to the class whose midpoint they're nearest to."""
+        d = pd.Series([5.0, 10.0, 15.0, 20.0, 25.0])
+        result = acc.diameter_class(d)
+        pd.testing.assert_series_equal(result, pd.Series([5, 10, 15, 20, 25]), check_names=False)
+
+    def test_boundary_upper_inclusive(self):
+        """Upper boundary (midpoint + width/2) belongs to the class."""
+        # 7.5 is the upper boundary of class 5 -> should map to 5
+        d = pd.Series([7.5, 12.5, 17.5])
+        result = acc.diameter_class(d)
+        pd.testing.assert_series_equal(result, pd.Series([5, 10, 15]), check_names=False)
+
+    def test_boundary_lower_exclusive(self):
+        """Lower boundary (midpoint - width/2) does NOT belong to the class."""
+        # 2.5 is the lower boundary of class 5 -> should map to 0 (class below)
+        d = pd.Series([2.5, 7.5 + 0.01])
+        result = acc.diameter_class(d)
+        assert result.iloc[0] == 0, "2.5 should map to class 0, not 5"
+        assert result.iloc[1] == 10, "7.51 should map to class 10"
+
+    def test_values_within_class(self):
+        """Values strictly within a class map correctly."""
+        # All of these are in (2.5, 7.5] -> class 5
+        d = pd.Series([3.0, 4.0, 5.0, 6.0, 7.0, 7.5])
+        result = acc.diameter_class(d)
+        expected = pd.Series([5, 5, 5, 5, 5, 5])
+        pd.testing.assert_series_equal(result, expected, check_names=False)
+
+    def test_small_diameters(self):
+        """Very small diameters (in the first class)."""
+        d = pd.Series([0.1, 1.0, 2.0, 2.5])
+        result = acc.diameter_class(d)
+        expected = pd.Series([0, 0, 0, 0])
+        pd.testing.assert_series_equal(result, expected, check_names=False)
+
+    def test_zero_diameter(self):
+        """Zero diameter maps to class 0."""
+        d = pd.Series([0.0])
+        result = acc.diameter_class(d)
+        assert result.iloc[0] == 0
+
+    def test_large_diameters(self):
+        """Large diameters map to correct classes."""
+        d = pd.Series([50.0, 77.3, 100.0])
+        result = acc.diameter_class(d)
+        expected = pd.Series([50, 75, 100])
+        pd.testing.assert_series_equal(result, expected, check_names=False)
+
+    def test_custom_width(self):
+        """Non-default class width works correctly."""
+        d = pd.Series([5.0, 10.0, 15.0, 20.0])
+        result = acc.diameter_class(d, width=10)
+        # width=10: (5, 15] -> 10, (15, 25] -> 20
+        expected = pd.Series([0, 10, 10, 20])
+        pd.testing.assert_series_equal(result, expected, check_names=False)
+
+    def test_custom_width_boundaries(self):
+        """Boundaries with non-default width."""
+        # width=10: lower boundary of class 10 is 5.0 (exclusive), upper is 15.0 (inclusive)
+        d = pd.Series([5.0, 5.01, 15.0, 15.01])
+        result = acc.diameter_class(d, width=10)
+        expected = pd.Series([0, 10, 10, 20])
+        pd.testing.assert_series_equal(result, expected, check_names=False)
+
+    def test_returns_int_dtype(self):
+        """Result should have integer dtype."""
+        d = pd.Series([3.7, 8.2, 14.9])
+        result = acc.diameter_class(d)
+        assert np.issubdtype(result.dtype, np.integer)
+
+    def test_empty_input(self):
+        """Empty Series returns empty integer Series."""
+        d = pd.Series([], dtype=float)
+        result = acc.diameter_class(d)
+        assert len(result) == 0
+        assert np.issubdtype(result.dtype, np.integer)
+
+
+# =============================================================================
 # MAIN
 # =============================================================================
 

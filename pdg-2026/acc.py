@@ -669,6 +669,16 @@ def calculate_all_trees_volume(trees_df: pd.DataFrame) -> pd.DataFrame:
     return result_df
 
 
+def diameter_class(d: pd.DataFrame, width: int = 5) -> pd.DataFrame:
+    """
+    Returns a dataframe containing the width-cm diameter classes corresponding to
+    the diameters (in cm) in d.
+
+    For example, with width = 5, D in (2.5, 7.5] -> 5, D in (7.5, 12.5] -> 10.
+    """
+    return (np.ceil((d - (width/2)) / width) * width).astype(int)
+
+
 # =============================================================================
 # DATA PREPARATION
 # =============================================================================
@@ -750,9 +760,7 @@ def parcel_data(tree_files: list[str], tree_df: pd.DataFrame, parcel_df: pd.Data
             sampled_frac=sampled_frac,
         )
 
-    # Compute diameter bucket: D in (2.5, 7.5] -> 5, D in (7.5, 12.5] -> 10, etc.
-    trees_region_species[COL_DIAMETRO] = (
-        np.ceil((trees_region_species[COL_DIAMETER_CM] - 2.5) / 5) * 5).astype(int)
+    trees_region_species[COL_DIAMETRO] = diameter_class(trees_region_species[COL_DIAMETER_CM])
 
     data = ParcelData(
         trees=trees_region_species,
@@ -1731,8 +1739,7 @@ def year_step(sim: pd.DataFrame, weight: np.ndarray,
 
     if diam_growth is not None:
         sim[COL_DIAMETER_CM] = sim[COL_DIAMETER_CM].values + diam_growth
-        sim[COL_DIAMETRO] = (
-            np.ceil((sim[COL_DIAMETER_CM] - 2.5) / 5) * 5).astype(int)
+        sim[COL_DIAMETRO] = diameter_class(sim[COL_DIAMETER_CM])
 
     inc_pct, delta_d, fallbacks = lookup_growth(
         sim, growth_by_group, available_diams, groupby_cols)
