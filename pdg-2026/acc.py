@@ -1691,6 +1691,14 @@ def render_gip_graph(data: ParcelData, output_path: Path,
     return RenderResult(filepath=output_path, snippet=snippet)
 
 
+# Type: takes mature harvestable trees, returns their indices in harvest order
+TreeSelectionFunc = Callable[[pd.DataFrame], pd.Index]
+
+def select_from_bottom(trees: pd.DataFrame) -> pd.Index:
+    """Thinning from below: smallest mature trees first."""
+    return trees.sort_values(COL_DIAMETER_CM).index
+
+
 def year_step(sim: pd.DataFrame, weight: np.ndarray,
               growth_by_group: dict, available_diams: dict,
               groupby_cols: list[str], mortalita: float,
@@ -1758,6 +1766,25 @@ def year_step(sim: pd.DataFrame, weight: np.ndarray,
     return delta_d, fallbacks
 
 
+def _build_growth_lookup(data: ParcelData) -> tuple[dict, dict, list[str]]:
+    """Build growth rate lookup tables from parcel data.
+
+    Returns (growth_by_group, available_diams, groupby_cols).
+    """
+    groupby_cols = [COL_COMPRESA, COL_GENERE, COL_DIAMETRO]
+    growth_df = calculate_growth_rates(data, groupby_cols, stime_totali=True)
+    growth_by_group = {}
+    available_diams = defaultdict(list)
+    for _, row in growth_df.iterrows():
+        key = tuple(row[c] for c in groupby_cols)
+        growth_by_group[key] = (row[COL_IP_MEDIO], row[COL_DELTA_D])
+        prefix = key[:-1]
+        available_diams[prefix].append(int(row[COL_DIAMETRO]))
+    for prefix in available_diams:
+        available_diams[prefix] = sorted(set(available_diams[prefix]))
+    return growth_by_group, available_diams, groupby_cols
+
+
 def calculate_tcr_table(data: ParcelData, group_cols: list[str],
                         years: int, mortalita: float) -> pd.DataFrame:
     """Compute growth projection table: year-0 vs year-N volumes per group.
@@ -1773,21 +1800,7 @@ def calculate_tcr_table(data: ParcelData, group_cols: list[str],
     df0 = calculate_tsv_table(data, list(group_cols),
                               calc_margin=False, calc_total=True, calc_mature=True)
 
-    # Growth rates by (compresa, [particella,] genere, diametro)
-    groupby_cols = [COL_COMPRESA]
-    groupby_cols = groupby_cols + [COL_GENERE, COL_DIAMETRO]
-    growth_df = calculate_growth_rates(data, groupby_cols, stime_totali=True)
-
-    # Build lookup dict and available-diameters index for fallback
-    growth_by_group = {}
-    available_diams = defaultdict(list)
-    for _, row in growth_df.iterrows():
-        key = tuple(row[c] for c in groupby_cols)
-        growth_by_group[key] = (row[COL_IP_MEDIO], row[COL_DELTA_D])
-        prefix = key[:-1]
-        available_diams[prefix].append(int(row[COL_DIAMETRO]))
-    for prefix in available_diams:
-        available_diams[prefix] = sorted(set(available_diams[prefix]))
+    growth_by_group, available_diams, groupby_cols = _build_growth_lookup(data)
 
     # Copy tree records for simulation
     sim = trees[[COL_COMPRESA, COL_PARTICELLA, COL_AREA_SAGGIO,
