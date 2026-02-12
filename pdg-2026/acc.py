@@ -1557,7 +1557,7 @@ def calculate_growth_rates(data: ParcelData, group_cols: list[str],
     """Calculate the table rows for the @@tip/@@gip directives. Returns a DataFrame.
 
     group_cols must include COL_GENERE and COL_DIAMETRO.  Computes per group:
-      - ip_medio: mean Pressler percentage increment
+      - ip_medio: volume-weighted mean Pressler percentage increment
       - delta_d: mean annual diameter increment (cm)
       - incremento_corrente: volume * ip/100
     When stime_totali is True, volumes are scaled by 1/sampled_frac per parcel.
@@ -1575,8 +1575,10 @@ def calculate_growth_rates(data: ParcelData, group_cols: list[str],
     rows = []
     for group_key, group_trees in trees.groupby(group_cols):
         row_dict = dict(zip(group_cols, group_key))
-        ip_medio = (group_trees[COL_COEFF_PRESSLER] * 2 * group_trees[COL_L10_MM]
-                    / 100 / group_trees[COL_DIAMETER_CM]).mean()
+        ip_per_tree = (group_trees[COL_COEFF_PRESSLER] * 2 * group_trees[COL_L10_MM]
+                       / 100 / group_trees[COL_DIAMETER_CM])
+        volumes = group_trees[COL_V_M3]
+        ip_medio = (ip_per_tree * volumes).sum() / volumes.sum()
         delta_d = (2 * group_trees[COL_L10_MM] / 100).mean()
 
         if stime_totali:
