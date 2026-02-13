@@ -34,8 +34,11 @@ const errorEl = $('error');
 const resultEl = $('result-container');
 const queryEl = $('query');
 const runBtn = $('run');
+const exportBtn = $('export');
 
 let conn;
+let lastColumns = [];
+let lastRows = [];
 
 function populateExamples() {
     const list = $('queries-list');
@@ -97,6 +100,10 @@ async function executeQuery() {
             return obj;
         });
 
+        lastColumns = columns;
+        lastRows = rows;
+        exportBtn.disabled = rows.length === 0;
+
         if (rows.length === 0) {
             resultEl.innerHTML = '<p style="color:#555">Nessun risultato.</p>';
             return;
@@ -137,8 +144,27 @@ function loadQueryFromURL() {
     }
 }
 
+function csvField(v) {
+    if (v === null || v === undefined) return '';
+    const s = String(v);
+    if (s.includes(',') || s.includes('"') || s.includes('\n')) return '"' + s.replace(/"/g, '""') + '"';
+    return s;
+}
+
+function exportCSV() {
+    const lines = [lastColumns.map(csvField).join(',')];
+    for (const row of lastRows) lines.push(lastColumns.map(col => csvField(row[col])).join(','));
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'dati_forestali.csv';
+    a.click();
+    URL.revokeObjectURL(a.href);
+}
+
 function initHandlers() {
     runBtn.addEventListener('click', runQuery);
+    exportBtn.addEventListener('click', exportCSV);
     queryEl.addEventListener('keydown', e => {
         if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
             e.preventDefault();

@@ -39,10 +39,10 @@ textarea {
     resize: vertical;
 }
 
+.buttons { display: flex; gap: 8px; margin-top: 8px; }
+
 button {
-    margin-top: 8px;
     padding: 8px 20px;
-    align-self: flex-start;
     background-color: #3498db;
     color: white;
     border: none;
