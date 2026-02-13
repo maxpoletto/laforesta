@@ -1168,6 +1168,13 @@ const ParcelEditor = (function() {
             `;
             list.appendChild(div);
         });
+
+        // Sync toggle-all-elements button text
+        const toggleBtn = $('toggle-all-elements-btn');
+        if (toggleBtn) {
+            const allHidden = layer.elements.length > 0 && layer.elements.every(el => el.visible === false);
+            toggleBtn.innerText = allHidden ? 'Mostra tutti' : 'Nascondi tutti';
+        }
     }
 
     function findElementById(id) {
@@ -1451,6 +1458,26 @@ const ParcelEditor = (function() {
         updateElementList();
     }
 
+    function toggleAllElements() {
+        const layer = getSelectedLayer();
+        if (!layer || layer.elements.length === 0) return;
+
+        const allHidden = layer.elements.every(el => el.visible === false);
+        const newVisible = allHidden;
+
+        layer.elements.forEach(el => {
+            el.visible = newVisible;
+        });
+
+        if (!newVisible && selectedElement && selectedElement.layerName === selectedLayerName) {
+            deselectElement();
+        }
+
+        updateElementStyles();
+        updateElementList();
+        updateStatus(`Tutti gli elementi ${newVisible ? 'visibili' : 'nascosti'}`);
+    }
+
     function moveElementToLayer(elementId) {
         const element = findElementById(elementId);
         if (!element) return;
@@ -1722,6 +1749,7 @@ const ParcelEditor = (function() {
         },
 
         toggleElementVisibility,
+        toggleAllElements,
         moveElementToLayer,
         finishMoveElement,
 
