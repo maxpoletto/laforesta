@@ -2115,7 +2115,6 @@ def _simulate_harvest_on_parcel(
 
     # Effective volume per tree (accounting for mortality weight)
     eff_vol = ptrees[COL_V_M3] * ptrees[COL_WEIGHT]
-    volume_before = eff_vol.sum() / sf
 
     # Mature trees only
     mature_mask = ptrees[COL_DIAMETER_CM] > MATURE_THRESHOLD
@@ -2124,12 +2123,12 @@ def _simulate_harvest_on_parcel(
         return None
 
     mature_eff_vol = eff_vol[mature.index]
-    vol_mature = mature_eff_vol.sum() / sf
+    volume_before = mature_eff_vol.sum() / sf
     # G in m2 per tree, weighted
     mature_G = np.pi / 4 * mature[COL_DIAMETER_CM] ** 2 / 10000 * mature[COL_WEIGHT]
     basal_mature = mature_G.sum() / sf
 
-    vol_mature_per_ha = vol_mature / area_ha
+    vol_mature_per_ha = volume_before / area_ha
     basal_per_ha = basal_mature / area_ha
 
     vol_limit_ha, area_limit_ha = rules(stats.sector, stats.age,
@@ -2139,9 +2138,9 @@ def _simulate_harvest_on_parcel(
 
     # Species shares of mature volume (for pro-rata allocation)
     species_shares = {}
-    if vol_mature > 0:
+    if volume_before > 0:
         for genere, g_trees in mature.groupby(COL_GENERE):
-            species_shares[genere] = mature_eff_vol[g_trees.index].sum() / sf / vol_mature
+            species_shares[genere] = mature_eff_vol[g_trees.index].sum() / sf / volume_before
 
     # Absolute limits for the parcel
     vol_limit = vol_limit_ha * area_ha
@@ -2944,7 +2943,7 @@ def process_template(template_text: str, data_dir: Path,
                         OPT_INTERVALLO: int(params.get(OPT_INTERVALLO, 10)),
                         OPT_VOLUME_OBIETTIVO: float(params[OPT_VOLUME_OBIETTIVO]),
                         OPT_MORTALITA: float(params.get(OPT_MORTALITA, 0)),
-                        OPT_TOTALI: _bool_opt(params, OPT_TOTALI, False),
+                        OPT_TOTALI: _bool_opt(params, OPT_TOTALI),
                     }
                     check_allowed_params(keyword, params,
                                          options | {OPT_CALENDARIO: True})
