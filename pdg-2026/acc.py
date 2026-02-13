@@ -2243,18 +2243,19 @@ def schedule_harvests(
         parcel_priority.sort(reverse=True)
 
         year_total = 0.0
+        n_gap_skip = 0
+        n_no_harvest = 0
         for _, region, parcel in parcel_priority:
             # Min-gap check
             if last_harvest.get((region, parcel), 0) > y - min_gap:
+                n_gap_skip += 1
                 continue
 
             result = _simulate_harvest_on_parcel(
                 sim, region, parcel, parcels[(region, parcel)],
                 rules, tree_selection)
-            if result is None:
-                continue
-
-            if result.harvest == 0:
+            if result is None or result.harvest == 0:
+                n_no_harvest += 1
                 continue
 
             events.append({
@@ -2271,9 +2272,13 @@ def schedule_harvests(
             if year_total >= target_volume:
                 break
 
+        n_harvested = sum(1 for e in events if e[COL_YEAR] == y)
+        n_total = len(parcel_priority)
         if year_total < target_volume:
             print(f"  @@tpdt anno {y}: obiettivo {target_volume:.0f} m³, "
-                  f"raggiunto {year_total:.0f} m³")
+                  f"raggiunto {year_total:.0f} m³ "
+                  f"({n_harvested} tagliate, {n_gap_skip} in pausa, "
+                  f"{n_no_harvest} non idonee, {n_total} totali)")
 
         # Growth step
         weight = sim[COL_WEIGHT].values.copy()
