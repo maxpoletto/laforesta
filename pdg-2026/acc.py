@@ -100,6 +100,21 @@ class ParcelData:
     species: list[str]
     parcels: dict[tuple[str, str], ParcelStats]
 
+@dataclass
+class GrowthTables:
+    """Growth rate lookup tables built from parcel data."""
+    by_group: dict          # (compresa, genere, diametro) -> (inc_pct, delta_d)
+    available_diams: dict   # (compresa, genere) -> sorted list of diameter classes
+    groupby_cols: list[str]
+
+@dataclass
+class HarvestResult:
+    """Result of simulating a harvest on one parcel."""
+    volume_before: float
+    harvest: float
+    volume_after: float
+    species_shares: dict[str, float]
+
 # =============================================================================
 # OUTPUT FORMATTING
 # =============================================================================
@@ -1712,8 +1727,7 @@ def select_from_bottom(trees: pd.DataFrame) -> pd.Index:
 
 
 def year_step(sim: pd.DataFrame, weight: np.ndarray,
-              growth_by_group: dict, available_diams: dict,
-              groupby_cols: list[str], mortalita: float,
+              growth: GrowthTables, mortalita: float,
               diam_growth: np.ndarray | None = None) -> tuple[np.ndarray, int]:
     """Advance the tree growth simulation by one year.
 
@@ -1737,32 +1751,31 @@ def year_step(sim: pd.DataFrame, weight: np.ndarray,
             return diams[idx - 1]
         return diams[idx]
 
-    def lookup_growth(sim: pd.DataFrame, growth_by_group: dict,
-                      available_diams: dict,
-                      groupby_cols: list[str]) -> tuple[np.ndarray, np.ndarray, int]:
+    def lookup_growth(sim: pd.DataFrame,
+                      growth: GrowthTables) -> tuple[np.ndarray, np.ndarray, int]:
         """Look up percent growth and diameter change each tree row from the growth table.
 
         Returns (inc_pct, delta_d, fallback_count).  When a tree's exact diameter bucket
         is not in the growth table, falls back to the nearest available bucket.
         """
-        prefix_cols = [c for c in groupby_cols if c != COL_DIAMETRO]
+        prefix_cols = [c for c in growth.groupby_cols if c != COL_DIAMETRO]
 
-        keys = list(zip(*(sim[c] for c in groupby_cols)))
-        growth = [growth_by_group.get(k) for k in keys]
-        inc_pct = np.array([r[0] if r else np.nan for r in growth])
-        delta_d = np.array([r[1] if r else np.nan for r in growth])
+        keys = list(zip(*(sim[c] for c in growth.groupby_cols)))
+        rates = [growth.by_group.get(k) for k in keys]
+        inc_pct = np.array([r[0] if r else np.nan for r in rates])
+        delta_d = np.array([r[1] if r else np.nan for r in rates])
 
         missing = np.isnan(inc_pct)
         fallbacks = int(missing.sum())
         for i in np.where(missing)[0]:
             row = sim.iloc[i]
             prefix = tuple(row[c] for c in prefix_cols)
-            diams = available_diams.get(prefix)
+            diams = growth.available_diams.get(prefix)
             if not diams:
                 inc_pct[i], delta_d[i] = 0.0, 0.0
                 continue
             nearest = find_nearest_diameter(diams, int(row[COL_DIAMETRO]))
-            inc_pct[i], delta_d[i] = growth_by_group.get(prefix + (nearest,), (0.0, 0.0))
+            inc_pct[i], delta_d[i] = growth.by_group.get(prefix + (nearest,), (0.0, 0.0))
 
         return inc_pct, delta_d, fallbacks
 
@@ -1770,31 +1783,27 @@ def year_step(sim: pd.DataFrame, weight: np.ndarray,
         sim[COL_DIAMETER_CM] = sim[COL_DIAMETER_CM].values + diam_growth
         sim[COL_DIAMETRO] = diameter_class(sim[COL_DIAMETER_CM])
 
-    inc_pct, delta_d, fallbacks = lookup_growth(
-        sim, growth_by_group, available_diams, groupby_cols)
+    inc_pct, delta_d, fallbacks = lookup_growth(sim, growth)
     sim[COL_V_M3] = sim[COL_V_M3].values * (1 + inc_pct / 100)
     weight *= (1 - mortalita / 100)
 
     return delta_d, fallbacks
 
 
-def _build_growth_lookup(data: ParcelData) -> tuple[dict, dict, list[str]]:
-    """Build growth rate lookup tables from parcel data.
-
-    Returns (growth_by_group, available_diams, groupby_cols).
-    """
+def build_growth_tables(data: ParcelData) -> GrowthTables:
+    """Build growth rate lookup tables from parcel data."""
     groupby_cols = [COL_COMPRESA, COL_GENERE, COL_DIAMETRO]
     growth_df = calculate_growth_rates(data, groupby_cols, stime_totali=True)
-    growth_by_group = {}
+    by_group = {}
     available_diams = defaultdict(list)
     for _, row in growth_df.iterrows():
         key = tuple(row[c] for c in groupby_cols)
-        growth_by_group[key] = (row[COL_IP_MEDIO], row[COL_DELTA_D])
+        by_group[key] = (row[COL_IP_MEDIO], row[COL_DELTA_D])
         prefix = key[:-1]
         available_diams[prefix].append(int(row[COL_DIAMETRO]))
     for prefix in available_diams:
         available_diams[prefix] = sorted(set(available_diams[prefix]))
-    return growth_by_group, available_diams, groupby_cols
+    return GrowthTables(by_group, available_diams, groupby_cols)
 
 
 def calculate_tcr_table(data: ParcelData, group_cols: list[str],
@@ -1812,7 +1821,7 @@ def calculate_tcr_table(data: ParcelData, group_cols: list[str],
     df0 = calculate_tsv_table(data, list(group_cols),
                               calc_margin=False, calc_total=True, calc_mature=True)
 
-    growth_by_group, available_diams, groupby_cols = _build_growth_lookup(data)
+    growth = build_growth_tables(data)
 
     # Copy tree records for simulation
     sim = trees[[COL_COMPRESA, COL_PARTICELLA, COL_AREA_SAGGIO,
@@ -1823,8 +1832,7 @@ def calculate_tcr_table(data: ParcelData, group_cols: list[str],
     diam_growth = None
     for _ in range(years):
         diam_growth, fallbacks = year_step(
-            sim, weight, growth_by_group, available_diams,
-            groupby_cols, mortalita, diam_growth)
+            sim, weight, growth, mortalita, diam_growth)
         fallback_count += fallbacks
 
     # Bake mortality into volume
@@ -1849,8 +1857,8 @@ def calculate_tcr_table(data: ParcelData, group_cols: list[str],
     # Per-tree ic using compresa-level growth rates, restricted to mature
     # trees (D > threshold) to match the volume columns.
     small_trees = trees[COL_DIAMETER_CM] <= MATURE_THRESHOLD
-    tree_keys = list(zip(*(trees[c] for c in groupby_cols)))
-    tree_ip = np.array([growth_by_group.get(k, (0, 0))[0] for k in tree_keys])
+    tree_keys = list(zip(*(trees[c] for c in growth.groupby_cols)))
+    tree_ip = np.array([growth.by_group.get(k, (0, 0))[0] for k in tree_keys])
     tree_ic = pd.Series(trees[COL_V_M3].values * tree_ip / 100, index=trees.index)
     tree_ic[small_trees] = 0.0
 
@@ -2096,14 +2104,11 @@ def _simulate_harvest_on_parcel(
     stats: ParcelStats,
     rules: HarvestRulesFunc,
     tree_selection: TreeSelectionFunc,
-) -> tuple[float, float, float, dict[str, float]] | None:
+) -> HarvestResult | None:
     """Compute and apply harvest for one parcel, removing trees from sim.
 
-    Returns (volume_before, harvest_amount, volume_after, species_shares)
-    or None if no harvest is allowed (zero limits, no mature trees).
-    species_shares: dict mapping genere -> fraction of mature volume.
-
-    Modifies sim in place by dropping harvested tree rows.
+    Returns HarvestResult or None if no harvest is allowed (zero limits,
+    no mature trees).  Modifies sim in place by dropping harvested tree rows.
     """
     mask = (sim[COL_COMPRESA] == region) & (sim[COL_PARTICELLA] == parcel)
     ptrees = sim[mask]
@@ -2165,8 +2170,7 @@ def _simulate_harvest_on_parcel(
     # Drop harvested trees from sim
     sim.drop(harvested_indices, inplace=True)
 
-    volume_after = volume_before - cum_vol
-    return volume_before, cum_vol, volume_after, species_shares
+    return HarvestResult(volume_before, cum_vol, volume_before - cum_vol, species_shares)
 
 
 def _mature_vol_per_ha(sim: pd.DataFrame, region: str, parcel: str,
@@ -2205,7 +2209,7 @@ def schedule_harvests(
         return []
 
     # Build growth lookup
-    growth_by_group, available_diams, groupby_cols = _build_growth_lookup(data)
+    growth = build_growth_tables(data)
 
     # Build sim DataFrame with weight and diam_growth columns
     sim = trees[[COL_COMPRESA, COL_PARTICELLA, COL_AREA_SAGGIO,
@@ -2250,21 +2254,20 @@ def schedule_harvests(
             if result is None:
                 continue
 
-            vol_before, harvest, vol_after, species_shares = result
-            if harvest == 0:
+            if result.harvest == 0:
                 continue
 
             events.append({
                 COL_YEAR: y,
                 COL_COMPRESA: region,
                 COL_PARTICELLA: parcel,
-                COL_HARVEST: harvest,
-                COL_VOLUME_BEFORE: vol_before,
-                COL_VOLUME_AFTER: vol_after,
-                COL_SPECIES_SHARES: species_shares,
+                COL_HARVEST: result.harvest,
+                COL_VOLUME_BEFORE: result.volume_before,
+                COL_VOLUME_AFTER: result.volume_after,
+                COL_SPECIES_SHARES: result.species_shares,
             })
             last_harvest[(region, parcel)] = y
-            year_total += harvest
+            year_total += result.harvest
             if year_total >= target_volume:
                 break
 
@@ -2276,8 +2279,7 @@ def schedule_harvests(
         weight = sim[COL_WEIGHT].values.copy()
         diam_growth_arr = sim[COL_DIAM_GROWTH].values if y > first_year else None
         diam_growth_arr, _ = year_step(
-            sim, weight, growth_by_group, available_diams,
-            groupby_cols, mortalita, diam_growth_arr)
+            sim, weight, growth, mortalita, diam_growth_arr)
         sim[COL_WEIGHT] = weight
         sim[COL_DIAM_GROWTH] = diam_growth_arr
 

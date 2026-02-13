@@ -1006,19 +1006,18 @@ class TestSimulateHarvestOnParcel:
             sim, 'R', 'P1', stats, _simple_rules, acc.select_from_bottom)
 
         assert result is not None
-        vol_before, harvest, vol_after, species_shares = result
-        # vol_before = sum of all trees' V * weight / sf
-        expected_vol_before = (0.1 + 0.5 + 1.0 + 2.0) / 0.0125
-        assert np.isclose(vol_before, expected_vol_before)
+        # vol_before = sum of mature trees' V * weight / sf
+        expected_vol_before = (0.5 + 1.0 + 2.0) / 0.0125
+        assert np.isclose(result.volume_before, expected_vol_before)
         # Harvest should be > 0 and <= vol_before
-        assert harvest > 0
-        assert harvest <= vol_before
+        assert result.harvest > 0
+        assert result.harvest <= result.volume_before
         # vol_after = vol_before - harvest
-        assert np.isclose(vol_after, vol_before - harvest)
+        assert np.isclose(result.volume_after, result.volume_before - result.harvest)
         # Some rows should have been dropped
         assert len(sim) < n_before
         # Species shares should sum to 1
-        assert np.isclose(sum(species_shares.values()), 1.0)
+        assert np.isclose(sum(result.species_shares.values()), 1.0)
 
     def test_returns_none_for_ceduo(self):
         """Returns None when rules return (0, 0) for ceduo comparto."""
@@ -1060,13 +1059,12 @@ class TestSimulateHarvestOnParcel:
         result = acc._simulate_harvest_on_parcel(
             sim, 'R', 'P1', stats, _simple_rules, acc.select_from_bottom)
         assert result is not None
-        vol_before, harvest, vol_after, _ = result
         # Mature volume per ha = sum(V) / sf / area = (0.5+0.8+1.5+2.5+4.0)/0.0125/10 = 744
         # 25% of 744 = 186 m3/ha -> limit = 186 * 10 = 1860 m3
         # Harvest should be <= limit
         vol_mature_per_ha = (0.5 + 0.8 + 1.5 + 2.5 + 4.0) / 0.0125 / 10
         limit = vol_mature_per_ha * 0.25 * 10
-        assert harvest <= limit + 1e-9
+        assert result.harvest <= limit + 1e-9
 
     def test_weight_affects_volumes(self):
         """Trees with reduced weight contribute less volume."""
@@ -1084,9 +1082,8 @@ class TestSimulateHarvestOnParcel:
         result = acc._simulate_harvest_on_parcel(
             sim, 'R', 'P1', stats, generous, acc.select_from_bottom)
         assert result is not None
-        vol_before, harvest, vol_after, _ = result
         # vol_before = (1.0*0.5 + 2.0*0.5) / 0.0125 = 120
-        assert np.isclose(vol_before, (1.0 * 0.5 + 2.0 * 0.5) / sf)
+        assert np.isclose(result.volume_before, (1.0 * 0.5 + 2.0 * 0.5) / sf)
 
     def test_species_shares(self):
         """Species shares reflect mature volume fractions."""
@@ -1099,10 +1096,9 @@ class TestSimulateHarvestOnParcel:
         result = acc._simulate_harvest_on_parcel(
             sim, 'R', 'P1', stats, _simple_rules, acc.select_from_bottom)
         assert result is not None
-        _, _, _, species_shares = result
         # Faggio: 1.0/(1.0+3.0) = 0.25, Cerro: 3.0/(1.0+3.0) = 0.75
-        assert np.isclose(species_shares['Faggio'], 0.25)
-        assert np.isclose(species_shares['Cerro'], 0.75)
+        assert np.isclose(result.species_shares['Faggio'], 0.25)
+        assert np.isclose(result.species_shares['Cerro'], 0.75)
 
 
 class TestScheduleHarvests:
