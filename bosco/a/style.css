@@ -76,6 +76,16 @@ button.danger { background: #f44336; color: white; border-color: #f44336; }
 button.danger:hover { background: #da190b; }
 button.small { padding: 5px; font-size: 11px; }
 
+select {
+    width: 100%;
+    padding: 4px;
+    margin: 5px 0;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background: white;
+    font-size: 12px;
+}
+
 #status {
     margin: 10px 0;
     padding: 10px;

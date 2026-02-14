@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Proprietà Particelle</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="../a/f.gif" type="image/gif"/>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="../a/style.css" />
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+    <script src="../a/map-common.js"></script>
+    <script src="app.js"></script>
+</head>
+<body>
+    <div id="map"></div>
+    <div id="sidebar">
+        <h3><a href="../" class="back-link">←</a>Proprietà Particelle</h3>
+        <div id="status">Caricamento...</div>
+        <div id="coords"></div>
+
+        <div class="section">
+            <h4>Mappa</h4>
+            <div class="button-row">
+                <button onclick="ParcelProps.setBasemap('osm')">OpenStreetMap</button>
+                <button onclick="ParcelProps.setBasemap('satellite')">Satellitare</button>
+                <button onclick="ParcelProps.setBasemap('topo')">Topografica</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h4>Visualizza proprietà</h4>
+            <select id="property-select" onchange="ParcelProps.setProperty(this.value)">
+                <option value="">Nessuna</option>
+                <option value="eta">Età media</option>
+                <option value="governo">Governo</option>
+                <option value="altitudine">Altitudine media</option>
+            </select>
+            <div id="legend"></div>
+        </div>
+
+        <div class="section">
+            <h4>Statistiche</h4>
+            <div id="stats"></div>
+        </div>
+    </div>
+</body>
+</html>
