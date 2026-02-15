@@ -690,6 +690,22 @@ const ParcelProps = (function() {
     }
 
     // ---------------------------------------------------------------------------
+    // Satellite info modal
+    // ---------------------------------------------------------------------------
+
+    function initInfoModal() {
+        const modal = $('sat-info-modal');
+        function open(e) { e.preventDefault(); modal.classList.remove('hidden'); }
+        function close(e) { e.preventDefault(); modal.classList.add('hidden'); }
+        $('info-toggle-prop').addEventListener('click', open);
+        $('info-toggle-diff').addEventListener('click', open);
+        $('sat-info-close').addEventListener('click', close);
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) close(e);
+        });
+    }
+
+    // ---------------------------------------------------------------------------
     // Public API
     // ---------------------------------------------------------------------------
 
@@ -697,6 +713,7 @@ const ParcelProps = (function() {
         init() {
             mapWrapper = MapCommon.create('map', { basemap: 'satellite' });
             leafletMap = mapWrapper.getLeafletMap();
+            initInfoModal();
 
             (async () => {
                 try {
