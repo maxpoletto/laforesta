@@ -8,45 +8,68 @@ const ParcelProps = (function() {
         opacity: 0.8,
         fillOpacity: 0.1
     };
+    const NO_DATA_STYLE = { ...DEFAULT_STYLE, fillColor: '#ccc', fillOpacity: 0.3 };
 
     // Color ramps
     const CONTINUOUS_COLORS = { low: [0, 100, 0], high: [154, 205, 50] }; // dark green → yellow-green
     const BINARY_COLORS = { Fustaia: '#228B22', Ceduo: '#FFD700' };
 
-    // Property definitions: how to extract a value from a CSV row
+    // Property definitions: getValue receives { particelle, ripresa } source rows
     const PROPERTIES = {
         eta: {
             label: 'Età media',
             unit: 'anni',
             type: 'continuous',
-            getValue: row => parseFloat(row['Età media'])
+            getValue: s => parseFloat(s.particelle?.['Età media'])
         },
         governo: {
             label: 'Governo',
             type: 'binary',
             categories: BINARY_COLORS,
-            getValue: row => row['Governo']
+            getValue: s => s.particelle?.['Governo']
         },
         altitudine: {
             label: 'Altitudine media',
             unit: 'm',
             type: 'continuous',
-            getValue: row => {
-                const min = parseFloat(row['Altitudine min']);
-                const max = parseFloat(row['Altitudine max']);
+            getValue: s => {
+                const min = parseFloat(s.particelle?.['Altitudine min']);
+                const max = parseFloat(s.particelle?.['Altitudine max']);
                 return (min + max) / 2;
             }
+        },
+        vol_tot: {
+            label: 'Volume totale',
+            unit: 'm³',
+            type: 'continuous',
+            getValue: s => parseFloat(s.ripresa?.['Vol tot (m³)'])
+        },
+        vol_ha: {
+            label: 'Volume/ha',
+            unit: 'm³/ha',
+            type: 'continuous',
+            getValue: s => parseFloat(s.ripresa?.['Vol/ha (m³/ha)'])
+        },
+        prelievo: {
+            label: 'Prelievo',
+            unit: 'm³',
+            type: 'continuous',
+            getValue: s => parseFloat(s.ripresa?.['Prelievo (m³)'])
         }
     };
 
     let mapWrapper = null;
     let leafletMap = null;
     let parcelLayer = null;
-    let parcelData = {};    // keyed by CP: { feature, csv row, leaflet layer }
+    let parcelData = {};    // keyed by CP: { feature, layer, particelle, ripresa }
     let currentProperty = '';
 
     function updateStatus(msg) {
         $('status').textContent = msg;
+    }
+
+    function makeCP(row) {
+        return row.Compresa + '-' + row.Particella;
     }
 
     function interpolateColor(t) {
@@ -56,52 +79,63 @@ const ParcelProps = (function() {
         return `rgb(${r},${g},${b})`;
     }
 
-    function buildTooltip(row) {
-        const altMin = parseFloat(row['Altitudine min']);
-        const altMax = parseFloat(row['Altitudine max']);
+    function buildTooltip(particelle, ripresa) {
+        const altMin = parseFloat(particelle['Altitudine min']);
+        const altMax = parseFloat(particelle['Altitudine max']);
         const altMedia = (!isNaN(altMin) && !isNaN(altMax))
             ? ((altMin + altMax) / 2).toFixed(0)
             : '?';
 
-        return `<b>${row.CP}</b><br>`
-            + `Area: ${row['Area (ha)']} ha<br>`
-            + `Età media: ${row['Età media']} anni<br>`
-            + `Governo: ${row['Governo']}<br>`
+        let html = `<b>${makeCP(particelle)}</b><br>`
+            + `Area: ${particelle['Area (ha)']} ha<br>`
+            + `Età media: ${particelle['Età media']} anni<br>`
+            + `Governo: ${particelle['Governo']}<br>`
             + `Altitudine media: ${altMedia} m<br>`
-            + `Esposizione: ${row['Esposizione']}<br>`
-            + `Pendenza: ${row['Pendenza %']}%`;
+            + `Esposizione: ${particelle['Esposizione']}<br>`
+            + `Pendenza: ${particelle['Pendenza %']}%`;
+
+        if (ripresa) {
+            html += `<br>Vol tot: ${ripresa['Vol tot (m³)']} m³`
+                + `<br>Vol/ha: ${ripresa['Vol/ha (m³/ha)']} m³/ha`
+                + `<br>Prelievo: ${ripresa['Prelievo (m³)']} m³`;
+        }
+
+        return html;
+    }
+
+    function indexByCP(csvText) {
+        const result = Papa.parse(csvText, { header: true, skipEmptyLines: true });
+        const index = {};
+        result.data.forEach(row => {
+            if (row.Compresa && row.Particella) index[makeCP(row)] = row;
+        });
+        return index;
     }
 
     function loadData() {
         return Promise.all([
             fetch('../data/serra.geojson').then(r => r.json()),
-            fetch('../data/particelle.csv').then(r => r.text())
-        ]).then(([geojson, csvText]) => {
-            const csv = Papa.parse(csvText, { header: true, skipEmptyLines: true });
+            fetch('../data/particelle.csv').then(r => r.text()),
+            fetch('../data/ripresa.csv').then(r => r.text())
+        ]).then(([geojson, particelleCsv, ripresaCsv]) => {
+            const particelleByCP = indexByCP(particelleCsv);
+            const ripresaByCP = indexByCP(ripresaCsv);
 
-            // Index CSV rows by CP
-            const csvByCP = {};
-            csv.data.forEach(row => {
-                if (row.CP) csvByCP[row.CP] = row;
-            });
-
-            // Create GeoJSON layer and join with CSV
             parcelLayer = L.geoJSON(geojson, {
                 style: DEFAULT_STYLE,
                 onEachFeature(feature, layer) {
                     const cp = feature.properties.name;
-                    const row = csvByCP[cp];
+                    const particelle = particelleByCP[cp] || null;
+                    const ripresa = ripresaByCP[cp] || null;
 
-                    if (!row) {
-                        console.error(`No CSV data for parcel: ${cp}`);
-                        return;
+                    parcelData[cp] = { feature, layer, particelle, ripresa };
+
+                    if (particelle) {
+                        layer.bindTooltip(buildTooltip(particelle, ripresa), {
+                            direction: 'top',
+                            offset: [0, -5]
+                        });
                     }
-
-                    parcelData[cp] = { feature, row, layer };
-                    layer.bindTooltip(buildTooltip(row), {
-                        direction: 'top',
-                        offset: [0, -5]
-                    });
                 }
             }).addTo(leafletMap);
 
@@ -113,14 +147,12 @@ const ParcelProps = (function() {
         currentProperty = propKey;
 
         if (!propKey) {
-            // Reset to default style
             Object.values(parcelData).forEach(({ layer }) => layer.setStyle(DEFAULT_STYLE));
             $('legend').innerHTML = '';
             return;
         }
 
         const prop = PROPERTIES[propKey];
-
         if (prop.type === 'continuous') {
             applyContinuous(prop);
         } else {
@@ -129,25 +161,27 @@ const ParcelProps = (function() {
     }
 
     function applyContinuous(prop) {
-        // Collect valid values to find min/max
-        const entries = [];
-        Object.values(parcelData).forEach(({ row, layer }) => {
-            const val = prop.getValue(row);
+        const withValue = [];
+        const withoutValue = [];
+
+        Object.values(parcelData).forEach(entry => {
+            const val = prop.getValue(entry);
             if (isNaN(val)) {
-                console.error(`Missing ${prop.label} for parcel: ${row.CP}`);
-                layer.setStyle({ ...DEFAULT_STYLE, fillColor: '#999', fillOpacity: 0.4 });
+                withoutValue.push(entry);
             } else {
-                entries.push({ val, layer });
+                withValue.push({ val, layer: entry.layer });
             }
         });
 
-        if (entries.length === 0) return;
+        withoutValue.forEach(({ layer }) => layer.setStyle(NO_DATA_STYLE));
 
-        const min = Math.min(...entries.map(e => e.val));
-        const max = Math.max(...entries.map(e => e.val));
+        if (withValue.length === 0) return;
+
+        const min = Math.min(...withValue.map(e => e.val));
+        const max = Math.max(...withValue.map(e => e.val));
         const range = max - min || 1;
 
-        entries.forEach(({ val, layer }) => {
+        withValue.forEach(({ val, layer }) => {
             const t = (val - min) / range;
             layer.setStyle({
                 ...DEFAULT_STYLE,
@@ -160,14 +194,13 @@ const ParcelProps = (function() {
     }
 
     function applyBinary(prop) {
-        Object.values(parcelData).forEach(({ row, layer }) => {
-            const val = prop.getValue(row);
-            const color = prop.categories[val];
+        Object.values(parcelData).forEach(entry => {
+            const val = prop.getValue(entry);
+            const color = val && prop.categories[val];
             if (!color) {
-                console.error(`Unknown ${prop.label} value "${val}" for parcel: ${row.CP}`);
-                layer.setStyle({ ...DEFAULT_STYLE, fillColor: '#999', fillOpacity: 0.4 });
+                entry.layer.setStyle(NO_DATA_STYLE);
             } else {
-                layer.setStyle({
+                entry.layer.setStyle({
                     ...DEFAULT_STYLE,
                     fillColor: color,
                     fillOpacity: 0.6
@@ -247,7 +280,8 @@ const ParcelProps = (function() {
     function updateStats() {
         const count = Object.keys(parcelData).length;
         const totalArea = Object.values(parcelData)
-            .reduce((sum, { row }) => sum + (parseFloat(row['Area (ha)']) || 0), 0);
+            .reduce((sum, { particelle }) =>
+                sum + (parseFloat(particelle?.['Area (ha)']) || 0), 0);
 
         const stats = $('stats');
         stats.innerHTML = '';
