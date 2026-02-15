@@ -11,6 +11,7 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+    <script src="https://unpkg.com/geotiff@2.1.3/dist-browser/geotiff.js"></script>
     <script src="../a/map-common.js"></script>
     <script src="app.js"></script>
 </head>
@@ -34,13 +35,29 @@
             <h4>Visualizza proprietà</h4>
             <select id="property-select" onchange="ParcelProps.setProperty(this.value)">
                 <option value="">Nessuna</option>
-                <option value="eta">Età media</option>
-                <option value="governo">Governo</option>
-                <option value="altitudine">Altitudine media</option>
-                <option value="vol_tot">Volume totale (m³)</option>
-                <option value="vol_ha">Volume/ha (m³/ha)</option>
-                <option value="prelievo">Prelievo (m³)</option>
+                <optgroup label="Proprietà particelle">
+                    <option value="eta">Età media</option>
+                    <option value="governo">Governo</option>
+                    <option value="altitudine">Altitudine media</option>
+                    <option value="vol_tot">Volume totale (m³)</option>
+                    <option value="vol_ha">Volume/ha (m³/ha)</option>
+                    <option value="prelievo">Prelievo (m³)</option>
+                </optgroup>
+                <optgroup label="Satellite">
+                    <option value="sat:ndvi">NDVI</option>
+                    <option value="sat:ndmi">NDMI</option>
+                    <option value="sat:evi">EVI</option>
+                    <option value="sat:b08">B08 (NIR)</option>
+                    <option value="sat:b04">B04 (Rosso)</option>
+                    <option value="sat:b02">B02 (Blu)</option>
+                    <option value="sat:b11">B11 (SWIR)</option>
+                </optgroup>
             </select>
+            <div id="satellite-date-row" style="display:none; margin-top:5px">
+                <label style="font-size:12px">Data: </label>
+                <select id="satellite-date" onchange="ParcelProps.setSatelliteDate(this.value)">
+                </select>
+            </div>
             <div id="legend"></div>
         </div>
 
