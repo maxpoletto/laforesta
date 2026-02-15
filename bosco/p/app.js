@@ -98,6 +98,7 @@ const ParcelProps = (function() {
     // Diff state
     let diffOverlay = null;
     let diffCurrentIndex = '';
+    let forestMask = null; // Uint8Array, 1 = inside forest, computed lazily
 
     function updateStatus(msg) {
         $('status').textContent = msg;
@@ -374,6 +375,53 @@ const ParcelProps = (function() {
         }
     }
 
+    function getForestMask() {
+        if (forestMask) return forestMask;
+
+        const { width, height, bbox_leaflet } = satManifest;
+        const south = bbox_leaflet[0][0], west = bbox_leaflet[0][1];
+        const north = bbox_leaflet[1][0], east = bbox_leaflet[1][1];
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+
+        // Rasterize all parcel polygons
+        ctx.fillStyle = '#fff';
+        Object.values(parcelData).forEach(({ feature }) => {
+            const geom = feature.geometry;
+            const polygons = geom.type === 'Polygon'
+                ? [geom.coordinates]
+                : geom.coordinates;
+
+            polygons.forEach(rings => {
+                ctx.beginPath();
+                rings.forEach(ring => {
+                    ring.forEach(([lon, lat], k) => {
+                        const x = (lon - west) / (east - west) * width;
+                        const y = (north - lat) / (north - south) * height;
+                        if (k === 0) ctx.moveTo(x, y);
+                        else ctx.lineTo(x, y);
+                    });
+                    ctx.closePath();
+                });
+                ctx.fill('evenodd');
+            });
+        });
+
+        // Read back as boolean mask
+        const imgData = ctx.getImageData(0, 0, width, height);
+        forestMask = new Uint8Array(width * height);
+        for (let i = 0; i < forestMask.length; i++) {
+            forestMask[i] = imgData.data[i * 4] > 0 ? 1 : 0;
+        }
+        return forestMask;
+    }
+
+    const OUTSIDE_ALPHA = 60;
+    const INSIDE_ALPHA = 210;
+
     async function showDiff(indexName, date1, date2) {
         removeDiffOverlay();
 
@@ -384,6 +432,9 @@ const ParcelProps = (function() {
         const url2 = '../data/satellite/' + date2 + '/' + indexName + '.tif';
         const [r1, r2] = await Promise.all([loadRaster(url1), loadRaster(url2)]);
 
+        const limitToForest = $('diff-forest-only').checked;
+        const mask = limitToForest ? getForestMask() : null;
+
         // Compute pixel-wise difference (anno2 - anno1) in real index units
         const n = r1.raster.length;
         const diff = new Float32Array(n);
@@ -391,8 +442,11 @@ const ParcelProps = (function() {
         for (let i = 0; i < n; i++) {
             const d = uint8ToIndex(r2.raster[i]) - uint8ToIndex(r1.raster[i]);
             diff[i] = d;
-            if (d < minDiff) minDiff = d;
-            if (d > maxDiff) maxDiff = d;
+            // When limiting to forest, only forest pixels affect the scale
+            if (!mask || mask[i]) {
+                if (d < minDiff) minDiff = d;
+                if (d > maxDiff) maxDiff = d;
+            }
         }
         const maxAbs = Math.max(Math.abs(minDiff), Math.abs(maxDiff)) || 0.01;
 
@@ -404,7 +458,6 @@ const ParcelProps = (function() {
         const imgData = ctx.createImageData(r1.width, r1.height);
 
         for (let i = 0; i < n; i++) {
-            // Normalize diff to [0, 255]: -maxAbs→0, 0→128, +maxAbs→255
             const normalized = Math.round(((diff[i] / maxAbs) + 1) * 127.5);
             const clamped = Math.max(0, Math.min(255, normalized));
             const [r, g, b] = colormapLookup(DIFF_RAMP, clamped);
@@ -412,7 +465,7 @@ const ParcelProps = (function() {
             imgData.data[px] = r;
             imgData.data[px + 1] = g;
             imgData.data[px + 2] = b;
-            imgData.data[px + 3] = 200;
+            imgData.data[px + 3] = mask ? (mask[i] ? INSIDE_ALPHA : OUTSIDE_ALPHA) : INSIDE_ALPHA;
         }
         ctx.putImageData(imgData, 0, 0);
 
@@ -425,7 +478,7 @@ const ParcelProps = (function() {
         parcelLayer.bringToFront();
 
         renderDiffLegend(indexName, date1, date2, maxAbs);
-        updateStatus(label + ' ' + date2.slice(0,4) + ' - ' + label + ' ' + date1.slice(0,4));
+        updateStatus(label + ' ' + date2.slice(0,4) + ' \u2212 ' + label + ' ' + date1.slice(0,4));
     }
 
     function renderDiffLegend(indexName, date1, date2, maxAbs) {
@@ -471,16 +524,16 @@ const ParcelProps = (function() {
 
     function applyDiff(indexName) {
         diffCurrentIndex = indexName;
-        const yearsRow = $('diff-years-row');
+        const opts = $('diff-options');
 
         if (!indexName) {
-            yearsRow.style.display = 'none';
+            opts.classList.add('hidden');
             removeDiffOverlay();
             $('diff-legend').textContent = '';
             return;
         }
 
-        yearsRow.style.display = '';
+        opts.classList.remove('hidden');
 
         // Clear the property satellite overlay so they don't stack
         removeSatOverlay();
@@ -506,7 +559,7 @@ const ParcelProps = (function() {
         if (propKey) {
             removeDiffOverlay();
             $('diff-select').value = '';
-            $('diff-years-row').style.display = 'none';
+            $('diff-options').classList.add('hidden');
             $('diff-legend').textContent = '';
             diffCurrentIndex = '';
         }

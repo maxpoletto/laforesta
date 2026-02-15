@@ -85,17 +85,21 @@
                 <option value="ndmi">NDMI</option>
                 <option value="evi">EVI</option>
             </select>
-            <div id="diff-years-row" style="display:none; margin-top:5px">
-                <div style="display:flex;gap:8px;align-items:center;font-size:12px">
-                    <div style="flex:1">
+            <div id="diff-options" class="diff-options hidden">
+                <div class="diff-years">
+                    <div class="diff-year-col">
                         <label>Anno 1:</label>
-                        <select id="diff-year1" onchange="ParcelProps.updateDiff()" style="width:100%"></select>
+                        <select id="diff-year1" onchange="ParcelProps.updateDiff()"></select>
                     </div>
-                    <div style="flex:1">
+                    <div class="diff-year-col">
                         <label>Anno 2:</label>
-                        <select id="diff-year2" onchange="ParcelProps.updateDiff()" style="width:100%"></select>
+                        <select id="diff-year2" onchange="ParcelProps.updateDiff()"></select>
                     </div>
                 </div>
+                <label class="checkbox-row" id="diff-forest-only-row">
+                    <input type="checkbox" id="diff-forest-only" onchange="ParcelProps.updateDiff()">
+                    Limita al bosco
+                </label>
             </div>
             <div id="diff-legend"></div>
         </div>
