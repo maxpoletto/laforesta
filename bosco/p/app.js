@@ -22,6 +22,13 @@ const ParcelProps = (function() {
         [255, [0, 100, 0]],
     ];
 
+    // Diverging colormap for difference display: red → white → green
+    const DIFF_RAMP = [
+        [0,   [180, 30, 30]],
+        [128, [255, 255, 255]],
+        [255, [30, 130, 30]],
+    ];
+
     // Property definitions: getValue receives { particelle, ripresa } source rows
     const PROPERTIES = {
         eta: {
@@ -87,6 +94,10 @@ const ParcelProps = (function() {
     let satOverlay = null;
     let satCurrentLayer = '';  // e.g. 'ndvi'
     let satCurrentDate = '';
+
+    // Diff state
+    let diffOverlay = null;
+    let diffCurrentIndex = '';
 
     function updateStatus(msg) {
         $('status').textContent = msg;
@@ -191,6 +202,7 @@ const ParcelProps = (function() {
             // Initialize satellite
             satManifest = manifest;
             initSatelliteDateSelector();
+            initDiffYearSelectors();
 
             return Object.keys(parcelData).length;
         });
@@ -229,13 +241,7 @@ const ParcelProps = (function() {
         const url = '../data/satellite/' + date + '/' + layerName + '.tif';
         updateStatus('Caricamento ' + layerName.toUpperCase() + ' ' + date + '...');
 
-        const response = await fetch(url);
-        const arrayBuffer = await response.arrayBuffer();
-        const tiff = await GeoTIFF.fromArrayBuffer(arrayBuffer);
-        const image = await tiff.getImage();
-        const [raster] = await image.readRasters();
-        const width = image.getWidth();
-        const height = image.getHeight();
+        const { raster, width, height } = await loadRaster(url);
 
         // Render to canvas
         const canvas = document.createElement('canvas');
@@ -322,12 +328,188 @@ const ParcelProps = (function() {
     }
 
     // ---------------------------------------------------------------------------
+    // Shared GeoTIFF loading
+    // ---------------------------------------------------------------------------
+
+    async function loadRaster(url) {
+        const resp = await fetch(url);
+        const buf = await resp.arrayBuffer();
+        const tiff = await GeoTIFF.fromArrayBuffer(buf);
+        const image = await tiff.getImage();
+        const [raster] = await image.readRasters();
+        return { raster, width: image.getWidth(), height: image.getHeight() };
+    }
+
+    // Decode uint8 index value to real [-1, 1]
+    function uint8ToIndex(v) {
+        return v / 127.5 - 1;
+    }
+
+    // ---------------------------------------------------------------------------
+    // Difference display
+    // ---------------------------------------------------------------------------
+
+    function initDiffYearSelectors() {
+        const years = satManifest.dates.map(d => d.slice(0, 4));
+        ['diff-year1', 'diff-year2'].forEach((id, i) => {
+            const sel = $(id);
+            sel.textContent = '';
+            satManifest.dates.forEach((date, j) => {
+                const opt = document.createElement('option');
+                opt.value = date;
+                opt.textContent = years[j];
+                sel.appendChild(opt);
+            });
+            // Default: year1 = earliest, year2 = latest
+            sel.value = i === 0
+                ? satManifest.dates[0]
+                : satManifest.dates[satManifest.dates.length - 1];
+        });
+    }
+
+    function removeDiffOverlay() {
+        if (diffOverlay) {
+            leafletMap.removeLayer(diffOverlay);
+            diffOverlay = null;
+        }
+    }
+
+    async function showDiff(indexName, date1, date2) {
+        removeDiffOverlay();
+
+        const label = indexName.toUpperCase();
+        updateStatus('Caricamento ' + label + ' ' + date1.slice(0,4) + ' e ' + date2.slice(0,4) + '...');
+
+        const url1 = '../data/satellite/' + date1 + '/' + indexName + '.tif';
+        const url2 = '../data/satellite/' + date2 + '/' + indexName + '.tif';
+        const [r1, r2] = await Promise.all([loadRaster(url1), loadRaster(url2)]);
+
+        // Compute pixel-wise difference (anno2 - anno1) in real index units
+        const n = r1.raster.length;
+        const diff = new Float32Array(n);
+        let minDiff = Infinity, maxDiff = -Infinity;
+        for (let i = 0; i < n; i++) {
+            const d = uint8ToIndex(r2.raster[i]) - uint8ToIndex(r1.raster[i]);
+            diff[i] = d;
+            if (d < minDiff) minDiff = d;
+            if (d > maxDiff) maxDiff = d;
+        }
+        const maxAbs = Math.max(Math.abs(minDiff), Math.abs(maxDiff)) || 0.01;
+
+        // Render to canvas with diverging colormap
+        const canvas = document.createElement('canvas');
+        canvas.width = r1.width;
+        canvas.height = r1.height;
+        const ctx = canvas.getContext('2d');
+        const imgData = ctx.createImageData(r1.width, r1.height);
+
+        for (let i = 0; i < n; i++) {
+            // Normalize diff to [0, 255]: -maxAbs→0, 0→128, +maxAbs→255
+            const normalized = Math.round(((diff[i] / maxAbs) + 1) * 127.5);
+            const clamped = Math.max(0, Math.min(255, normalized));
+            const [r, g, b] = colormapLookup(DIFF_RAMP, clamped);
+            const px = i * 4;
+            imgData.data[px] = r;
+            imgData.data[px + 1] = g;
+            imgData.data[px + 2] = b;
+            imgData.data[px + 3] = 200;
+        }
+        ctx.putImageData(imgData, 0, 0);
+
+        diffOverlay = L.imageOverlay(
+            canvas.toDataURL(),
+            satManifest.bbox_leaflet,
+            { opacity: 0.85 }
+        ).addTo(leafletMap);
+
+        parcelLayer.bringToFront();
+
+        renderDiffLegend(indexName, date1, date2, maxAbs);
+        updateStatus(label + ' ' + date2.slice(0,4) + ' - ' + label + ' ' + date1.slice(0,4));
+    }
+
+    function renderDiffLegend(indexName, date1, date2, maxAbs) {
+        const legend = $('diff-legend');
+        legend.textContent = '';
+
+        const container = document.createElement('div');
+        container.style.marginTop = '8px';
+
+        const label = indexName.toUpperCase();
+        const title = document.createElement('div');
+        title.style.cssText = 'font-size:12px;font-weight:bold;margin-bottom:4px';
+        title.textContent = label + ' ' + date2.slice(0,4) + ' \u2212 ' + label + ' ' + date1.slice(0,4);
+        container.appendChild(title);
+
+        // Gradient bar
+        const bar = document.createElement('div');
+        bar.style.cssText = 'display:flex;height:16px;border:1px solid #ccc;border-radius:2px;overflow:hidden';
+        const STEPS = 30;
+        for (let i = 0; i <= STEPS; i++) {
+            const val = Math.round(i / STEPS * 255);
+            const [r, g, b] = colormapLookup(DIFF_RAMP, val);
+            const cell = document.createElement('div');
+            cell.style.cssText = 'flex:1;background:rgb(' + r + ',' + g + ',' + b + ')';
+            bar.appendChild(cell);
+        }
+        container.appendChild(bar);
+
+        // Labels (symmetric around 0)
+        const labels = document.createElement('div');
+        labels.style.cssText = 'display:flex;justify-content:space-between;font-size:11px;margin-top:2px';
+        const absStr = maxAbs.toFixed(2);
+        const halfStr = (maxAbs / 2).toFixed(2);
+        ['-' + absStr, '-' + halfStr, '0', '+' + halfStr, '+' + absStr].forEach(t => {
+            const span = document.createElement('span');
+            span.textContent = t;
+            labels.appendChild(span);
+        });
+        container.appendChild(labels);
+
+        legend.appendChild(container);
+    }
+
+    function applyDiff(indexName) {
+        diffCurrentIndex = indexName;
+        const yearsRow = $('diff-years-row');
+
+        if (!indexName) {
+            yearsRow.style.display = 'none';
+            removeDiffOverlay();
+            $('diff-legend').textContent = '';
+            return;
+        }
+
+        yearsRow.style.display = '';
+
+        // Clear the property satellite overlay so they don't stack
+        removeSatOverlay();
+        $('property-select').value = '';
+        $('satellite-date-row').style.display = 'none';
+        $('legend').textContent = '';
+        Object.values(parcelData).forEach(({ layer }) =>
+            layer.setStyle({ ...DEFAULT_STYLE, fillOpacity: 0 }));
+        currentProperty = '';
+
+        showDiff(indexName, $('diff-year1').value, $('diff-year2').value);
+    }
+
+    // ---------------------------------------------------------------------------
     // Property application (parcel coloring + satellite)
     // ---------------------------------------------------------------------------
 
     function applyProperty(propKey) {
         currentProperty = propKey;
         const dateRow = $('satellite-date-row');
+
+        // Clear diff when a property is selected
+        if (propKey) {
+            removeDiffOverlay();
+            $('diff-select').value = '';
+            $('diff-years-row').style.display = 'none';
+            $('diff-legend').textContent = '';
+            diffCurrentIndex = '';
+        }
 
         if (propKey.startsWith('sat:')) {
             // Satellite layer
@@ -546,6 +728,16 @@ const ParcelProps = (function() {
             if (currentProperty.startsWith('sat:')) {
                 const layerName = currentProperty.slice(4);
                 showSatelliteLayer(layerName, date);
+            }
+        },
+
+        setDiff(indexName) {
+            applyDiff(indexName);
+        },
+
+        updateDiff() {
+            if (diffCurrentIndex) {
+                showDiff(diffCurrentIndex, $('diff-year1').value, $('diff-year2').value);
             }
         }
     };

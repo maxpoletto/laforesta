@@ -62,6 +62,29 @@
         </div>
 
         <div class="section">
+            <h4>Visualizza differenze</h4>
+            <select id="diff-select" onchange="ParcelProps.setDiff(this.value)">
+                <option value="">Nessuna</option>
+                <option value="ndvi">NDVI</option>
+                <option value="ndmi">NDMI</option>
+                <option value="evi">EVI</option>
+            </select>
+            <div id="diff-years-row" style="display:none; margin-top:5px">
+                <div style="display:flex;gap:8px;align-items:center;font-size:12px">
+                    <div style="flex:1">
+                        <label>Anno 1:</label>
+                        <select id="diff-year1" onchange="ParcelProps.updateDiff()" style="width:100%"></select>
+                    </div>
+                    <div style="flex:1">
+                        <label>Anno 2:</label>
+                        <select id="diff-year2" onchange="ParcelProps.updateDiff()" style="width:100%"></select>
+                    </div>
+                </div>
+            </div>
+            <div id="diff-legend"></div>
+        </div>
+
+        <div class="section">
             <h4>Statistiche</h4>
             <div id="stats"></div>
         </div>
