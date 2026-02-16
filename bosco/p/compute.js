@@ -2,8 +2,6 @@
 
 'use strict';
 
-const MIN_DIFF_RANGE = 0.01; // floor to prevent division by zero in normalization
-
 // Interpolate through a ramp of [position, [r, g, b]] stops.
 // Returns [r, g, b] array.
 function colormapLookup(ramp, val) {
@@ -22,11 +20,6 @@ function colormapLookup(ramp, val) {
     return ramp[ramp.length - 1][1];
 }
 
-// Decode uint8 [0,255] to real index [-1, +1].
-function uint8ToIndex(v) {
-    return v / 127.5 - 1;
-}
-
 // Linear interpolation between two [r, g, b] colors.
 // t in [0, 1]: 0 = low, 1 = high.
 function interpolateColor(t, low, high) {
@@ -39,14 +32,14 @@ function interpolateColor(t, low, high) {
 
 // Compute pixel-wise difference between two uint8 rasters.
 // If mask is provided (Uint8Array, >0 inside), only masked pixels affect the range.
-// Returns { diff: Float32Array, minDiff, maxDiff, maxAbs }.
+// Returns { diff: Int16Array, minDiff, maxDiff, maxAbs } with values in [-255, +255].
 function computeDiff(raster1, raster2, mask) {
     const n = raster1.length;
-    const diff = new Float32Array(n);
+    const diff = new Int16Array(n);
     let minDiff = Infinity, maxDiff = -Infinity;
 
     for (let i = 0; i < n; i++) {
-        const d = uint8ToIndex(raster2[i]) - uint8ToIndex(raster1[i]);
+        const d = raster2[i] - raster1[i];
         diff[i] = d;
         if (!mask || mask[i]) {
             if (d < minDiff) minDiff = d;
@@ -54,11 +47,11 @@ function computeDiff(raster1, raster2, mask) {
         }
     }
 
-    const maxAbs = Math.max(Math.abs(minDiff), Math.abs(maxDiff)) || MIN_DIFF_RANGE;
+    const maxAbs = Math.max(Math.abs(minDiff), Math.abs(maxDiff)) || 1;
     return { diff, minDiff, maxDiff, maxAbs };
 }
 
-// Normalize a diff value to uint8 [0, 255] for colormap lookup.
+// Normalize an integer diff value in [-maxAbs, +maxAbs] to uint8 [0, 255].
 // diff=0 -> 128, diff=+maxAbs -> 255, diff=-maxAbs -> 0.
 function normalizeDiff(diffVal, maxAbs) {
     const normalized = Math.round(((diffVal / maxAbs) + 1) * 127.5);
@@ -75,7 +68,7 @@ function geoToPixel(lon, lat, bbox, width, height) {
 
 if (typeof module !== 'undefined') {
     module.exports = {
-        colormapLookup, uint8ToIndex, interpolateColor,
+        colormapLookup, interpolateColor,
         computeDiff, normalizeDiff, geoToPixel,
     };
 }

@@ -4,7 +4,7 @@
 'use strict';
 
 const {
-    colormapLookup, uint8ToIndex, interpolateColor,
+    colormapLookup, interpolateColor,
     computeDiff, normalizeDiff, geoToPixel,
 } = require('./compute.js');
 
@@ -66,23 +66,6 @@ function testColormapLookup() {
 }
 
 // ---------------------------------------------------------------------------
-// uint8ToIndex
-// ---------------------------------------------------------------------------
-
-function testUint8ToIndex() {
-    console.log('Testing uint8ToIndex...');
-
-    assertClose(uint8ToIndex(0), -1.0, 1e-6, 'val 0');
-    assertClose(uint8ToIndex(255), 1.0, 1e-6, 'val 255');
-    // 128 -> 128/127.5 - 1 = 0.003921...
-    assertClose(uint8ToIndex(128), 128 / 127.5 - 1, 1e-6, 'val 128');
-    // 127.5 would map to exactly 0, but uint8 can't represent it; verify neighbors
-    assertClose(uint8ToIndex(127), 127 / 127.5 - 1, 1e-6, 'val 127');
-
-    console.log('  uint8ToIndex: PASS');
-}
-
-// ---------------------------------------------------------------------------
 // interpolateColor
 // ---------------------------------------------------------------------------
 
@@ -110,40 +93,42 @@ function testInterpolateColor() {
 function testComputeDiff() {
     console.log('Testing computeDiff...');
 
-    // Identical rasters -> all zeros, maxAbs = 0.01 (floor)
+    // Identical rasters -> all zeros, maxAbs = 1 (floor)
     const r1 = new Uint8Array([100, 100, 100]);
     const r2 = new Uint8Array([100, 100, 100]);
     let result = computeDiff(r1, r2, null);
-    assertClose(result.diff[0], 0, 1e-6, 'identical diff[0]');
-    assertClose(result.diff[1], 0, 1e-6, 'identical diff[1]');
-    assertClose(result.maxAbs, 0.01, 1e-6, 'identical maxAbs floor');
+    console.assert(result.diff[0] === 0, 'identical diff[0]');
+    console.assert(result.diff[1] === 0, 'identical diff[1]');
+    console.assert(result.maxAbs === 1, 'identical maxAbs floor');
 
     // One pixel brighter in raster2
     const r3 = new Uint8Array([100, 100, 100]);
     const r4 = new Uint8Array([100, 200, 100]);
     result = computeDiff(r3, r4, null);
-    console.assert(result.diff[1] > 0, 'brighter pixel should have positive diff');
-    assertClose(result.maxDiff, result.diff[1], 1e-6, 'maxDiff matches bright pixel');
+    console.assert(result.diff[1] === 100, 'brighter pixel diff = 100');
+    console.assert(result.maxDiff === 100, 'maxDiff matches bright pixel');
+    console.assert(result.minDiff === 0, 'minDiff is 0 for unchanged pixels');
 
     // With mask: only masked pixels affect min/max
     const r5 = new Uint8Array([50, 100, 200]);
     const r6 = new Uint8Array([200, 100, 50]);
     const mask = new Uint8Array([0, 1, 0]); // only middle pixel is masked
     result = computeDiff(r5, r6, mask);
-    // Middle pixel: uint8ToIndex(100) - uint8ToIndex(100) = 0
-    assertClose(result.minDiff, 0, 1e-6, 'masked minDiff');
-    assertClose(result.maxDiff, 0, 1e-6, 'masked maxDiff');
-    assertClose(result.maxAbs, 0.01, 1e-6, 'masked maxAbs floor');
-    // But unmasked pixels still have their diff values computed
-    console.assert(result.diff[0] > 0, 'unmasked pixel 0 has diff');
-    console.assert(result.diff[2] < 0, 'unmasked pixel 2 has diff');
+    // Middle pixel: 100 - 100 = 0
+    console.assert(result.minDiff === 0, 'masked minDiff');
+    console.assert(result.maxDiff === 0, 'masked maxDiff');
+    console.assert(result.maxAbs === 1, 'masked maxAbs floor');
+    // Unmasked pixels still have their diff values computed
+    console.assert(result.diff[0] === 150, 'unmasked pixel 0: 200-50=150');
+    console.assert(result.diff[2] === -150, 'unmasked pixel 2: 50-200=-150');
 
     // Symmetric: maxAbs = max(|min|, |max|)
     const r7 = new Uint8Array([0,   255]);
     const r8 = new Uint8Array([255, 0]);
     result = computeDiff(r7, r8, null);
-    assertClose(result.maxAbs, Math.max(Math.abs(result.minDiff), Math.abs(result.maxDiff)),
-        1e-6, 'maxAbs is symmetric max');
+    console.assert(result.maxAbs === 255, 'full range maxAbs = 255');
+    console.assert(result.minDiff === -255, 'full range minDiff = -255');
+    console.assert(result.maxDiff === 255, 'full range maxDiff = 255');
 
     console.log('  computeDiff: PASS');
 }
@@ -155,7 +140,7 @@ function testComputeDiff() {
 function testNormalizeDiff() {
     console.log('Testing normalizeDiff...');
 
-    const maxAbs = 0.5;
+    const maxAbs = 100;
 
     // diff=0 -> middle (128)
     assertClose(normalizeDiff(0, maxAbs), 128, 1, 'zero diff');
@@ -209,7 +194,6 @@ function runTests() {
 
     try {
         testColormapLookup();
-        testUint8ToIndex();
         testInterpolateColor();
         testComputeDiff();
         testNormalizeDiff();

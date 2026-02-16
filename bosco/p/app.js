@@ -450,8 +450,9 @@ const ParcelProps = (function() {
 
     function renderDiffLegend(indexName, date1, date2, maxAbs) {
         const label = indexName.toUpperCase();
-        const absStr = maxAbs.toFixed(2);
-        const halfStr = (maxAbs / 2).toFixed(2);
+        const displayMax = maxAbs / 127.5; // convert from uint8 diff to index scale [-1, +1]
+        const absStr = displayMax.toFixed(2);
+        const halfStr = (displayMax / 2).toFixed(2);
 
         createGradientLegend($('diff-legend'), {
             title: label + ' ' + date2.slice(0,4) + ' \u2212 ' + label + ' ' + date1.slice(0,4),
