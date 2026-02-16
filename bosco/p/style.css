@@ -45,3 +45,8 @@
     font-size: 12px;
     margin: 4px 0;
 }
+
+/* Time series section */
+#ts-modal.modal-content { max-width: 640px; }
+#ts-section.hidden { display: none; }
+#ts-hint.hidden { display: none; }

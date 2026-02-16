@@ -38,7 +38,7 @@ function interpolateColor(t, low, high) {
 }
 
 // Compute pixel-wise difference between two uint8 rasters.
-// If mask is provided (Uint8Array, 1 = inside), only masked pixels affect the range.
+// If mask is provided (Uint8Array, >0 inside), only masked pixels affect the range.
 // Returns { diff: Float32Array, minDiff, maxDiff, maxAbs }.
 function computeDiff(raster1, raster2, mask) {
     const n = raster1.length;

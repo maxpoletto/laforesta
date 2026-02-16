@@ -13,6 +13,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
     <script src="https://unpkg.com/geotiff@2.1.3/dist-browser/geotiff.js"></script>
+    <script src="https://unpkg.com/chart.js@4.4.7/dist/chart.umd.js"></script>
     <script src="../a/map-common.js"></script>
     <script src="compute.js"></script>
     <script src="app.js"></script>
@@ -35,6 +36,13 @@
                     <p><b>NDMI</b> = (B08−B11) / (B08+B11): contenuto idrico della chioma, indipendentemente dalla sua struttura. Utile per valutare stress idrico e stimare biomassa. [<a href="https://doi.org/10.1016/S0034-4257(96)00067-3" target="_blank">Gao, 1996</a>]</p>
                     <p><b>EVI</b> = 2.5·(B08−B04) / (B08+6·B04−7.5·B02+1): simile a NDVI ma con correzione atmosferica tramite la banda blu. Non satura nelle foreste dense. La vegetazione sana cade normalmente nel range 0.20–0.80. [<a href="https://doi.org/10.1016/S0034-4257(02)00096-2" target="_blank">Huete et al., 2002</a>]</p>
             <p class="modal-footer">Dati: <a href="https://dataspace.copernicus.eu/data-collections/copernicus-sentinel-missions/sentinel-2" target="_blank">Copernicus Sentinel-2</a>, <a href="https://custom-scripts.sentinel-hub.com/custom-scripts/sentinel/sentinel-2/" target="_blank">Sentinel Hub</a>. Vedi anche: <a href="https://doi.org/10.1016/j.jag.2025.104560" target="_blank">Yan et al. 2025</a>, <a href="https://clearsky.vision/knowledge/sentinel2-indices-cheatsheet" target="_blank">ClearSky 2025</a>.</p>
+        </div>
+    </div>
+    <div id="ts-modal" class="modal-overlay hidden">
+        <div class="modal-content ts-modal-content">
+            <a href="#" class="modal-close" id="ts-close">&times;</a>
+            <h4 id="ts-title"></h4>
+            <canvas id="ts-canvas"></canvas>
         </div>
     </div>
     <div id="map"></div>
@@ -81,7 +89,14 @@
             </div>
             <div id="legend"></div>
         </div>
-
+        <div id="ts-section" class="section hidden">
+            <h4>Valori medi storici</h4>
+            <div class="button-row">
+                <button onclick="ParcelProps.showForestTimeSeries()">Per bosco intero</button>
+                <button id="ts-parcel-btn" onclick="ParcelProps.toggleParcelTimeSeries()">Per particella</button>
+            </div>
+            <div id="ts-hint" class="help-text hidden">Clicca su una particella nella mappa...</div>
+        </div>
         <div class="section">
             <h4>Visualizza differenze <a href="#" class="info-toggle" id="info-toggle-diff">(?)</a></h4>
             <select id="diff-select" onchange="ParcelProps.setDiff(this.value)">

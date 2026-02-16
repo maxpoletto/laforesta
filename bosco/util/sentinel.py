@@ -7,10 +7,6 @@ Sentinel-2 L2A imagery, downloads selected bands via the Sentinel Hub
 Process API, computes vegetation indices (NDVI, NDMI, EVI), and saves
 as single-band uint8 GeoTIFFs.
 
-Usage:
-    ./sentinel.py find [--max-cloud 5]
-    ./sentinel.py fetch <YYYY-MM-DD>
-
 Requirements:
     pip install requests numpy rasterio
 
@@ -36,6 +32,7 @@ import numpy as np
 import rasterio
 import requests
 from rasterio.crs import CRS
+from rasterio.features import rasterize
 from rasterio.transform import from_bounds
 
 # ---------------------------------------------------------------------------
@@ -61,9 +58,9 @@ PROCESS_URL = "https://sh.dataspace.copernicus.eu/api/v1/process"
 # ---------------------------------------------------------------------------
 BANDS = ["B02", "B04", "B08", "B11"]
 RESOLUTION_M = 10
-MAX_CLOUD_DEFAULT = 5.0
-SEARCH_MONTH_RANGE = (6, 7)  # June through July
-FIRST_YEAR = 2015             # Sentinel-2A launch year
+MAX_CLOUD_DEFAULT = 0.1
+SEARCH_MONTH_RANGE = (1, 12)
+FIRST_YEAR = 2015            # Sentinel-2A launch year
 WGS84 = CRS.from_epsg(4326)
 
 
@@ -400,6 +397,139 @@ def cmd_fetch(args):
 
 
 # ---------------------------------------------------------------------------
+# Precompute: parcel mask + time series averages
+# ---------------------------------------------------------------------------
+
+MANIFEST_PATH = OUTPUT_DIR / "manifest.json"
+
+# Maps uint8 [0,255] back to index [-1,+1]. Python equivalent of compute.js:uint8ToIndex.
+def uint8_to_index(v):
+    return v / 127.5 - 1
+
+
+def rasterize_parcels(geojson_path, bbox, w, h):
+    """Rasterize parcel polygons into a uint8 mask.
+
+    Returns (mask, parcel_names) where mask pixel values are:
+      0 = outside all parcels
+      1..N = parcel index (matching parcel_names list, 1-based)
+    """
+    with open(geojson_path) as f:
+        gj = json.load(f)
+
+    west, south, east, north = bbox
+    transform = from_bounds(west, south, east, north, w, h)
+
+    # Sort by name for deterministic ordering
+    features = sorted(gj["features"], key=lambda f: f["properties"]["name"])
+    parcel_names = [f["properties"]["name"] for f in features]
+
+    shapes = [(feat["geometry"], idx) for idx, feat in enumerate(features, start=1)]
+
+    mask = rasterize(
+        shapes,
+        out_shape=(h, w),
+        transform=transform,
+        fill=0,
+        dtype=np.uint8,
+    )
+    return mask, parcel_names
+
+
+def compute_timeseries(mask, parcel_names, manifest_path):
+    """Compute per-parcel and forest-wide averages for all layers and dates.
+
+    Returns dict ready for JSON serialization:
+      { parcels, dates, layers, means: { forest: {layer: [val, ...]}, parcels: {cp: {layer: [val, ...]}} } }
+    """
+    with open(manifest_path) as f:
+        manifest = json.load(f)
+
+    dates = manifest["dates"]
+    layers = manifest["bands"] + manifest["indices"]
+    is_index = {name: name in manifest["indices"] for name in layers}
+
+    # Precompute pixel masks
+    forest_pixels = mask > 0
+    forest_count = int(np.sum(forest_pixels))
+    parcel_masks = {}
+    for idx, name in enumerate(parcel_names, start=1):
+        pmask = mask == idx
+        parcel_masks[name] = (pmask, int(np.sum(pmask)))
+
+    means_forest = {layer: [] for layer in layers}
+    means_parcels = {name: {layer: [] for layer in layers} for name in parcel_names}
+
+    for date in dates:
+        for layer in layers:
+            path = OUTPUT_DIR / date / (layer + ".tif")
+            with rasterio.open(path) as src:
+                data = src.read(1)
+
+            # Convert to real values
+            if is_index[layer]:
+                real = uint8_to_index(data.astype(np.float64))
+            else:
+                real = data.astype(np.float64) / 255.0
+
+            # Forest-wide average (only pixels inside any parcel)
+            forest_mean = float(np.mean(real[forest_pixels])) if forest_count > 0 else 0.0
+            means_forest[layer].append(round(forest_mean, 4))
+
+            # Per-parcel averages
+            for name in parcel_names:
+                pmask, pcount = parcel_masks[name]
+                val = float(np.mean(real[pmask])) if pcount > 0 else 0.0
+                means_parcels[name][layer].append(round(val, 4))
+
+    return {
+        "parcels": parcel_names,
+        "dates": dates,
+        "layers": layers,
+        "means": {
+            "forest": means_forest,
+            "parcels": means_parcels,
+        },
+    }
+
+
+def cmd_precompute(_args):  # noqa: ARG001
+    """Build parcel mask GeoTIFF and time series JSON."""
+    bbox = bbox_from_geojson(GEOJSON_PATH)
+    w, h = pixel_dims(bbox)
+    print(f"Bounding box: {bbox}")
+    print(f"Dimensions:   {w} x {h} pixels\n")
+
+    print("Rasterizing parcels...")
+    mask, parcel_names = rasterize_parcels(GEOJSON_PATH, bbox, w, h)
+
+    # Print pixel counts per parcel
+    for idx, name in enumerate(parcel_names, start=1):
+        count = int(np.sum(mask == idx))
+        print(f"  {name}: {count} pixels")
+    forest_count = int(np.sum(mask > 0))
+    print(f"  Total forest: {forest_count} pixels")
+
+    # Save parcel mask
+    mask_path = OUTPUT_DIR / "parcel-mask.tif"
+    save_geotiff(mask_path, mask, bbox, w, h)
+    print(f"\nSaved {mask_path.relative_to(DATA_DIR)}")
+
+    # Compute and save time series
+    print("\nComputing time series averages...")
+    ts = compute_timeseries(mask, parcel_names, MANIFEST_PATH)
+    ts_path = OUTPUT_DIR / "timeseries.json"
+    with open(ts_path, "w") as f:
+        json.dump(ts, f, indent=2)
+    print(f"Saved {ts_path.relative_to(DATA_DIR)} ({ts_path.stat().st_size / 1024:.1f} KB)")
+
+    # Quick sanity check
+    ndvi_forest = ts["means"]["forest"].get("ndvi", [])
+    if ndvi_forest:
+        print(f"\nNDVI forest averages: {ndvi_forest}")
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -418,8 +548,10 @@ def main():
     p_fetch = sub.add_parser("fetch", help="Download bands and indices")
     p_fetch.add_argument("date", help="Scene date (YYYY-MM-DD)")
 
+    sub.add_parser("precompute", help="Build parcel mask and time series JSON")
+
     args = parser.parse_args()
-    {"find": cmd_find, "fetch": cmd_fetch}[args.command](args)
+    {"find": cmd_find, "fetch": cmd_fetch, "precompute": cmd_precompute}[args.command](args)
 
 
 if __name__ == "__main__":

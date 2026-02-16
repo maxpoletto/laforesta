@@ -100,7 +100,15 @@ const ParcelProps = (function() {
     // Diff state
     let diffOverlay = null;
     let diffCurrentIndex = '';
-    let forestMask = null; // Uint8Array, 1 = inside forest, computed lazily
+
+    // Precomputed data (loaded at startup)
+    let parcelMaskPromise = null; // resolves to { raster, width, height }
+    let parcelMask = null;        // Uint8Array, 0 outside forest, parcel ID inside forest
+    let timeseriesData = null;    // from timeseries.json
+
+    // Time series chart state
+    let tsChart = null;           // current Chart.js instance
+    let tsParcelClickMode = false;
 
     function updateStatus(msg) {
         $('status').textContent = msg;
@@ -205,12 +213,16 @@ const ParcelProps = (function() {
     }
 
     function loadData() {
+        // Start loading parcel mask early (used by diff + timeseries)
+        parcelMaskPromise = loadRaster('../data/satellite/parcel-mask.tif');
+
         return Promise.all([
             fetch('../data/serra.geojson').then(r => r.json()),
             fetch('../data/particelle.csv').then(r => r.text()),
             fetch('../data/ripresa.csv').then(r => r.text()),
             fetch('../data/satellite/manifest.json').then(r => r.json()),
-        ]).then(([geojson, particelleCsv, ripresaCsv, manifest]) => {
+            fetch('../data/satellite/timeseries.json').then(r => r.json()),
+        ]).then(([geojson, particelleCsv, ripresaCsv, manifest, timeseries]) => {
             const particelleByCP = indexByCP(particelleCsv);
             const ripresaByCP = indexByCP(ripresaCsv);
 
@@ -229,11 +241,14 @@ const ParcelProps = (function() {
                             offset: [0, -5]
                         });
                     }
+
+                    layer.on('click', function() { handleParcelClick(cp); });
                 }
             }).addTo(leafletMap);
 
             // Initialize satellite
             satManifest = manifest;
+            timeseriesData = timeseries;
             initSatelliteDateSelector();
             initDiffYearSelectors();
 
@@ -331,16 +346,21 @@ const ParcelProps = (function() {
     }
 
     // ---------------------------------------------------------------------------
-    // Shared GeoTIFF loading
+    // Cached GeoTIFF loading
     // ---------------------------------------------------------------------------
 
+    const rasterCache = new Map();
+
     async function loadRaster(url) {
+        if (rasterCache.has(url)) return rasterCache.get(url);
         const resp = await fetch(url);
         const buf = await resp.arrayBuffer();
         const tiff = await GeoTIFF.fromArrayBuffer(buf);
         const image = await tiff.getImage();
         const [raster] = await image.readRasters();
-        return { raster, width: image.getWidth(), height: image.getHeight() };
+        const result = { raster, width: image.getWidth(), height: image.getHeight() };
+        rasterCache.set(url, result);
+        return result;
     }
 
     // ---------------------------------------------------------------------------
@@ -372,49 +392,11 @@ const ParcelProps = (function() {
         }
     }
 
-    function getForestMask() {
-        if (forestMask) return forestMask;
-
-        const { width, height, bbox_leaflet } = satManifest;
-        const bbox = {
-            south: bbox_leaflet[0][0], west: bbox_leaflet[0][1],
-            north: bbox_leaflet[1][0], east: bbox_leaflet[1][1],
-        };
-
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-
-        // Rasterize all parcel polygons
-        ctx.fillStyle = '#fff';
-        Object.values(parcelData).forEach(({ feature }) => {
-            const geom = feature.geometry;
-            const polygons = geom.type === 'Polygon'
-                ? [geom.coordinates]
-                : geom.coordinates;
-
-            polygons.forEach(rings => {
-                ctx.beginPath();
-                rings.forEach(ring => {
-                    ring.forEach(([lon, lat], k) => {
-                        const { x, y } = geoToPixel(lon, lat, bbox, width, height);
-                        if (k === 0) ctx.moveTo(x, y);
-                        else ctx.lineTo(x, y);
-                    });
-                    ctx.closePath();
-                });
-                ctx.fill('evenodd');
-            });
-        });
-
-        // Read back as boolean mask
-        const imgData = ctx.getImageData(0, 0, width, height);
-        forestMask = new Uint8Array(width * height);
-        for (let i = 0; i < forestMask.length; i++) {
-            forestMask[i] = imgData.data[i * 4] > 0 ? 1 : 0;
-        }
-        return forestMask;
+    async function getParcelMask() {
+        if (parcelMask) return parcelMask;
+        const { raster } = await parcelMaskPromise;
+        parcelMask = raster;
+        return parcelMask;
     }
 
     const SAT_OVERLAY_ALPHA = 200;
@@ -432,7 +414,7 @@ const ParcelProps = (function() {
         const [r1, r2] = await Promise.all([loadRaster(url1), loadRaster(url2)]);
 
         const limitToForest = $('diff-forest-only').checked;
-        const mask = limitToForest ? getForestMask() : null;
+        const mask = limitToForest ? await getParcelMask() : null;
 
         const { diff, maxAbs } = computeDiff(r1.raster, r2.raster, mask);
 
@@ -495,6 +477,8 @@ const ParcelProps = (function() {
         removeSatOverlay();
         $('property-select').value = '';
         $('satellite-date-row').classList.remove('satellite-date-row-visible');
+        $('ts-section').classList.add('hidden');
+        parcelClickModeOff();
         $('legend').textContent = '';
         Object.values(parcelData).forEach(({ layer }) =>
             layer.setStyle({ ...DEFAULT_STYLE, fillOpacity: 0 }));
@@ -524,6 +508,8 @@ const ParcelProps = (function() {
             // Satellite layer
             const layerName = propKey.slice(4);
             $('satellite-date-row').classList.add('satellite-date-row-visible');
+            $('ts-section').classList.remove('hidden');
+            parcelClickModeOff();
             // Reset parcel fill to transparent so satellite shows through
             Object.values(parcelData).forEach(({ layer }) =>
                 layer.setStyle({ ...DEFAULT_STYLE, fillOpacity: 0 }));
@@ -533,6 +519,8 @@ const ParcelProps = (function() {
 
         // Non-satellite: hide date selector, remove overlay
         $('satellite-date-row').classList.remove('satellite-date-row-visible');
+        $('ts-section').classList.add('hidden');
+        parcelClickModeOff();
         removeSatOverlay();
 
         if (!propKey) {
@@ -692,6 +680,98 @@ const ParcelProps = (function() {
     }
 
     // ---------------------------------------------------------------------------
+    // Time series bar charts
+    // ---------------------------------------------------------------------------
+
+    const TS_BAR_COLOR = '#006400';
+
+    function initTimeSeriesModal() {
+        const modal = $('ts-modal');
+        function close(e) { e.preventDefault(); modal.classList.add('hidden'); }
+        $('ts-close').addEventListener('click', close);
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) close(e);
+        });
+    }
+
+    function showTimeSeriesChart(title, values) {
+        const modal = $('ts-modal');
+        $('ts-title').textContent = title;
+        modal.classList.remove('hidden');
+
+        if (tsChart) { tsChart.destroy(); tsChart = null; }
+
+        const labels = timeseriesData.dates.map(d => d.slice(0, 7));
+        tsChart = new Chart($('ts-canvas'), {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [{
+                    data: values,
+                    backgroundColor: TS_BAR_COLOR,
+                }],
+            },
+            options: {
+                animation: false,
+                responsive: true,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { title: { display: false } },
+                    y: { beginAtZero: false },
+                },
+            },
+        });
+    }
+
+    function currentSatelliteLayerName() {
+        return currentProperty.startsWith('sat:') ? currentProperty.slice(4) : null;
+    }
+
+    function showForestTimeSeries() {
+        const layer = currentSatelliteLayerName();
+        if (!layer || !timeseriesData) return;
+        const label = SATELLITE_LAYERS[layer].label;
+        showTimeSeriesChart(
+            label + ' \u2014 Bosco intero',
+            timeseriesData.means.forest[layer]
+        );
+    }
+
+    function parcelClickModeOn() {
+        tsParcelClickMode = true;
+        $('ts-hint').classList.remove('hidden');
+        $('ts-parcel-btn').textContent = 'Annulla';
+    }
+
+    function parcelClickModeOff() {
+        tsParcelClickMode = false;
+        $('ts-hint').classList.add('hidden');
+        $('ts-parcel-btn').textContent = 'Per particella';
+    }
+
+    function toggleParcelTimeSeries() {
+        if (tsParcelClickMode) {
+            parcelClickModeOff();
+        } else {
+            parcelClickModeOn();
+        }
+    }
+
+    function handleParcelClick(cp) {
+        if (!tsParcelClickMode) return;
+        parcelClickModeOff();
+
+        const layer = currentSatelliteLayerName();
+        if (!layer || !timeseriesData) return;
+
+        const parcelMeans = timeseriesData.means.parcels[cp];
+        if (!parcelMeans) return;
+
+        const label = SATELLITE_LAYERS[layer].label;
+        showTimeSeriesChart(label + ' \u2014 ' + cp, parcelMeans[layer]);
+    }
+
+    // ---------------------------------------------------------------------------
     // Public API
     // ---------------------------------------------------------------------------
 
@@ -700,6 +780,7 @@ const ParcelProps = (function() {
             mapWrapper = MapCommon.create('map', { basemap: 'satellite' });
             leafletMap = mapWrapper.getLeafletMap();
             initInfoModal();
+            initTimeSeriesModal();
 
             (async () => {
                 try {
@@ -742,6 +823,14 @@ const ParcelProps = (function() {
             if (diffCurrentIndex) {
                 showDiff(diffCurrentIndex, $('diff-year1').value, $('diff-year2').value);
             }
+        },
+
+        showForestTimeSeries() {
+            showForestTimeSeries();
+        },
+
+        toggleParcelTimeSeries() {
+            toggleParcelTimeSeries();
         }
     };
 })();
