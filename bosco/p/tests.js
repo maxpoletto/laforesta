@@ -5,7 +5,7 @@
 
 const {
     colormapLookup, interpolateColor,
-    computeDiff, normalizeDiff, geoToPixel,
+    computeDiff, diffToRgba, geoToPixel,
 } = require('./compute.js');
 
 function assertClose(actual, expected, tolerance, msg) {
@@ -134,27 +134,62 @@ function testComputeDiff() {
 }
 
 // ---------------------------------------------------------------------------
-// normalizeDiff
+// diffToRgba
 // ---------------------------------------------------------------------------
 
-function testNormalizeDiff() {
-    console.log('Testing normalizeDiff...');
+function testDiffToRgba() {
+    console.log('Testing diffToRgba...');
 
-    const maxAbs = 100;
+    // Simple black-to-white ramp: normalized 0 -> black, 255 -> white
+    const bwRamp = [
+        [0,   [0, 0, 0]],
+        [255, [255, 255, 255]],
+    ];
 
-    // diff=0 -> middle (128)
-    assertClose(normalizeDiff(0, maxAbs), 128, 1, 'zero diff');
+    // Zero diff -> normalized to 128 -> mid-gray
+    const zeroDiff = new Int16Array([0]);
+    let rgba = diffToRgba(zeroDiff, 100, bwRamp, null, 210, 60);
+    assertClose(rgba[0], 128, 1, 'zero diff -> mid-gray R');
+    assertClose(rgba[1], 128, 1, 'zero diff -> mid-gray G');
+    assertClose(rgba[2], 128, 1, 'zero diff -> mid-gray B');
+    console.assert(rgba[3] === 210, 'no mask -> insideAlpha');
 
-    // diff=+maxAbs -> 255
-    assertClose(normalizeDiff(maxAbs, maxAbs), 255, 0, 'positive max');
+    // +maxAbs -> normalized to 255 -> white
+    const posDiff = new Int16Array([100]);
+    rgba = diffToRgba(posDiff, 100, bwRamp, null, 210, 60);
+    console.assert(rgba[0] === 255, '+maxAbs -> white R');
+    console.assert(rgba[3] === 210, '+maxAbs alpha');
 
-    // diff=-maxAbs -> 0
-    assertClose(normalizeDiff(-maxAbs, maxAbs), 0, 0, 'negative max');
+    // -maxAbs -> normalized to 0 -> black
+    const negDiff = new Int16Array([-100]);
+    rgba = diffToRgba(negDiff, 100, bwRamp, null, 210, 60);
+    console.assert(rgba[0] === 0, '-maxAbs -> black R');
 
-    // diff=+maxAbs/2 -> ~191
-    assertClose(normalizeDiff(maxAbs / 2, maxAbs), 191, 1, 'half positive');
+    // Mask: inside pixel gets insideAlpha, outside gets outsideAlpha
+    const twoDiff = new Int16Array([0, 0]);
+    const mask = new Uint8Array([1, 0]);
+    rgba = diffToRgba(twoDiff, 100, bwRamp, mask, 210, 60);
+    console.assert(rgba[3] === 210, 'masked inside alpha');
+    console.assert(rgba[7] === 60, 'masked outside alpha');
 
-    console.log('  normalizeDiff: PASS');
+    // Multiple pixels with diverging ramp (matches DIFF_RAMP structure)
+    const diffRamp = [
+        [0,   [180, 30, 30]],
+        [128, [255, 255, 255]],
+        [255, [30, 130, 30]],
+    ];
+    const multiDiff = new Int16Array([-50, 0, 50]);
+    rgba = diffToRgba(multiDiff, 50, diffRamp, null, 255, 0);
+    // -maxAbs -> ramp position 0 -> red
+    assertClose(rgba[0], 180, 1, 'negative -> red R');
+    // 0 -> ramp position 128 -> white
+    assertClose(rgba[4], 255, 1, 'zero -> white R');
+    assertClose(rgba[5], 255, 1, 'zero -> white G');
+    // +maxAbs -> ramp position 255 -> green
+    assertClose(rgba[8], 30, 1, 'positive -> green R');
+    assertClose(rgba[9], 130, 1, 'positive -> green G');
+
+    console.log('  diffToRgba: PASS');
 }
 
 // ---------------------------------------------------------------------------
@@ -196,7 +231,7 @@ function runTests() {
         testColormapLookup();
         testInterpolateColor();
         testComputeDiff();
-        testNormalizeDiff();
+        testDiffToRgba();
         testGeoToPixel();
         console.log('\n=== All tests passed ===');
     } catch (err) {

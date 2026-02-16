@@ -418,22 +418,12 @@ const ParcelProps = (function() {
 
         const { diff, maxAbs } = computeDiff(r1.raster, r2.raster, mask);
 
-        // Render to canvas with diverging colormap
         const canvas = document.createElement('canvas');
         canvas.width = r1.width;
         canvas.height = r1.height;
         const ctx = canvas.getContext('2d');
         const imgData = ctx.createImageData(r1.width, r1.height);
-
-        for (let i = 0; i < diff.length; i++) {
-            const clamped = normalizeDiff(diff[i], maxAbs);
-            const [r, g, b] = colormapLookup(DIFF_RAMP, clamped);
-            const px = i * 4;
-            imgData.data[px] = r;
-            imgData.data[px + 1] = g;
-            imgData.data[px + 2] = b;
-            imgData.data[px + 3] = mask ? (mask[i] ? INSIDE_ALPHA : OUTSIDE_ALPHA) : INSIDE_ALPHA;
-        }
+        imgData.data.set(diffToRgba(diff, maxAbs, DIFF_RAMP, mask, INSIDE_ALPHA, OUTSIDE_ALPHA));
         ctx.putImageData(imgData, 0, 0);
 
         diffOverlay = L.imageOverlay(

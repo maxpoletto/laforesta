@@ -51,11 +51,23 @@ function computeDiff(raster1, raster2, mask) {
     return { diff, minDiff, maxDiff, maxAbs };
 }
 
-// Normalize an integer diff value in [-maxAbs, +maxAbs] to uint8 [0, 255].
-// diff=0 -> 128, diff=+maxAbs -> 255, diff=-maxAbs -> 0.
-function normalizeDiff(diffVal, maxAbs) {
-    const normalized = Math.round(((diffVal / maxAbs) + 1) * 127.5);
-    return Math.max(0, Math.min(255, normalized));
+// Render an integer diff raster to RGBA pixels using a diverging colormap.
+// diff: Int16Array from computeDiff. ramp: colormap for colormapLookup.
+// mask: optional Uint8Array; >0 = inside. insideAlpha/outsideAlpha: alpha for masked/unmasked.
+// Returns Uint8ClampedArray of length diff.length * 4.
+function diffToRgba(diff, maxAbs, ramp, mask, insideAlpha, outsideAlpha) {
+    const rgba = new Uint8ClampedArray(diff.length * 4);
+    for (let i = 0; i < diff.length; i++) {
+        const normalized = Math.max(0, Math.min(255,
+            Math.round(((diff[i] / maxAbs) + 1) * 127.5)));
+        const [r, g, b] = colormapLookup(ramp, normalized);
+        const px = i * 4;
+        rgba[px] = r;
+        rgba[px + 1] = g;
+        rgba[px + 2] = b;
+        rgba[px + 3] = mask ? (mask[i] ? insideAlpha : outsideAlpha) : insideAlpha;
+    }
+    return rgba;
 }
 
 // Convert geographic coordinates to pixel coordinates.
@@ -69,6 +81,6 @@ function geoToPixel(lon, lat, bbox, width, height) {
 if (typeof module !== 'undefined') {
     module.exports = {
         colormapLookup, interpolateColor,
-        computeDiff, normalizeDiff, geoToPixel,
+        computeDiff, diffToRgba, geoToPixel,
     };
 }
