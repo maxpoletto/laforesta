@@ -76,10 +76,10 @@ const MapCommon = (function() {
             const btn = $('mc-measure-button');
 
             if (measureMode) {
-                if (btn) btn.style.backgroundColor = '#ffd700';
+                if (btn) btn.classList.add('mc-active');
                 leafletMap.getContainer().style.cursor = 'crosshair';
             } else {
-                if (btn) btn.style.backgroundColor = '';
+                if (btn) btn.classList.remove('mc-active');
                 leafletMap.getContainer().style.cursor = '';
                 clearMeasure();
             }
@@ -205,10 +205,10 @@ const MapCommon = (function() {
             const btn = $('mc-location-button');
 
             if (locationMode) {
-                if (btn) btn.style.backgroundColor = '#4CAF50';
+                if (btn) btn.classList.add('mc-active-location');
                 leafletMap.locate({ watch: true, enableHighAccuracy: true });
             } else {
-                if (btn) btn.style.backgroundColor = '';
+                if (btn) btn.classList.remove('mc-active-location');
                 leafletMap.stopLocate();
                 if (locationMarker) {
                     leafletMap.removeLayer(locationMarker);
@@ -254,7 +254,7 @@ const MapCommon = (function() {
             alert('Impossibile determinare la posizione: ' + e.message);
             locationMode = false;
             const btn = $('mc-location-button');
-            if (btn) btn.style.backgroundColor = '';
+            if (btn) btn.classList.remove('mc-active-location');
         }
 
         function setupLocation() {

@@ -11,10 +11,10 @@ const ParcelProps = (function() {
     const NO_DATA_STYLE = { ...DEFAULT_STYLE, fillColor: '#ccc', fillOpacity: 0.3 };
 
     // Color ramps
-    const CONTINUOUS_COLORS = { low: [0, 100, 0], high: [154, 205, 50] }; // dark green → yellow-green
+    const CONTINUOUS_COLORS = { low: [0, 100, 0], high: [154, 205, 50] }; // dark green -> yellow-green
     const BINARY_COLORS = { Fustaia: '#228B22', Ceduo: '#FFD700' };
 
-    // Vegetation index colormap: uint8 [0,255] → [r, g, b]
+    // Vegetation index colormap: uint8 [0,255] -> [r, g, b]
     // 0 (-1.0) = brown, 128 (0.0) = beige, 255 (+1.0) = dark green
     const INDEX_RAMP = [
         [0,   [139, 90, 43]],
@@ -22,17 +22,19 @@ const ParcelProps = (function() {
         [255, [0, 100, 0]],
     ];
 
-    // Diverging colormap for difference display: red → white → green
+    // Diverging colormap for difference display: red -> white -> green
     const DIFF_RAMP = [
         [0,   [180, 30, 30]],
         [128, [255, 255, 255]],
         [255, [30, 130, 30]],
     ];
 
+    const GRADIENT_STEPS = 30;
+
     // Property definitions: getValue receives { particelle, ripresa } source rows
     const PROPERTIES = {
         eta: {
-            label: 'Età media',
+            label: 'Eta media',
             unit: 'anni',
             type: 'continuous',
             getValue: s => parseFloat(s.particelle?.['Età media'])
@@ -55,19 +57,19 @@ const ParcelProps = (function() {
         },
         vol_tot: {
             label: 'Volume totale',
-            unit: 'm³',
+            unit: 'm\u00b3',
             type: 'continuous',
             getValue: s => parseFloat(s.ripresa?.['Vol tot (m³)'])
         },
         vol_ha: {
             label: 'Volume/ha',
-            unit: 'm³/ha',
+            unit: 'm\u00b3/ha',
             type: 'continuous',
             getValue: s => parseFloat(s.ripresa?.['Vol/ha (m³/ha)'])
         },
         prelievo: {
             label: 'Prelievo',
-            unit: 'm³',
+            unit: 'm\u00b3',
             type: 'continuous',
             getValue: s => parseFloat(s.ripresa?.['Prelievo (m³)'])
         }
@@ -108,31 +110,61 @@ const ParcelProps = (function() {
         return row.Compresa + '-' + row.Particella;
     }
 
-    function interpolateColor(t) {
-        const r = Math.round(CONTINUOUS_COLORS.low[0] + t * (CONTINUOUS_COLORS.high[0] - CONTINUOUS_COLORS.low[0]));
-        const g = Math.round(CONTINUOUS_COLORS.low[1] + t * (CONTINUOUS_COLORS.high[1] - CONTINUOUS_COLORS.low[1]));
-        const b = Math.round(CONTINUOUS_COLORS.low[2] + t * (CONTINUOUS_COLORS.high[2] - CONTINUOUS_COLORS.low[2]));
-        return `rgb(${r},${g},${b})`;
+    function rgbStr(rgb) {
+        return 'rgb(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ')';
+    }
+
+    function continuousColorStr(t) {
+        return rgbStr(interpolateColor(t, CONTINUOUS_COLORS.low, CONTINUOUS_COLORS.high));
     }
 
     // ---------------------------------------------------------------------------
-    // Colormap: interpolate through a ramp of [position, [r, g, b]] stops
+    // Gradient legend builder
     // ---------------------------------------------------------------------------
 
-    function colormapLookup(ramp, val) {
-        if (val <= ramp[0][0]) return ramp[0][1];
-        for (let i = 1; i < ramp.length; i++) {
-            if (val <= ramp[i][0]) {
-                const t = (val - ramp[i - 1][0]) / (ramp[i][0] - ramp[i - 1][0]);
-                const a = ramp[i - 1][1], b = ramp[i][1];
-                return [
-                    Math.round(a[0] + t * (b[0] - a[0])),
-                    Math.round(a[1] + t * (b[1] - a[1])),
-                    Math.round(a[2] + t * (b[2] - a[2])),
-                ];
-            }
+    function createGradientLegend(targetEl, opts) {
+        targetEl.textContent = '';
+
+        const container = document.createElement('div');
+        container.className = 'legend-container';
+
+        if (opts.title) {
+            const title = document.createElement('div');
+            title.className = 'legend-title';
+            title.textContent = opts.title;
+            container.appendChild(title);
         }
-        return ramp[ramp.length - 1][1];
+
+        // Gradient bar
+        const bar = document.createElement('div');
+        bar.className = 'legend-bar';
+        const steps = opts.steps || GRADIENT_STEPS;
+        for (let i = 0; i <= steps; i++) {
+            const cell = document.createElement('div');
+            cell.className = 'legend-bar-cell';
+            cell.style.background = rgbStr(opts.colorFn(i, steps));
+            bar.appendChild(cell);
+        }
+        container.appendChild(bar);
+
+        // Labels
+        const labels = document.createElement('div');
+        labels.className = 'legend-labels';
+        opts.labelTexts.forEach(t => {
+            const span = document.createElement('span');
+            span.textContent = t;
+            labels.appendChild(span);
+        });
+        container.appendChild(labels);
+
+        if (opts.unit) {
+            const unit = document.createElement('div');
+            unit.className = 'legend-unit';
+            unit.textContent = opts.unit;
+            container.appendChild(unit);
+        }
+
+        targetEl.appendChild(container);
     }
 
     // ---------------------------------------------------------------------------
@@ -265,7 +297,7 @@ const ParcelProps = (function() {
                 imgData.data[px + 1] = val;
                 imgData.data[px + 2] = val;
             }
-            imgData.data[px + 3] = 200; // semi-transparent
+            imgData.data[px + 3] = SAT_OVERLAY_ALPHA;
         }
         ctx.putImageData(imgData, 0, 0);
 
@@ -279,53 +311,23 @@ const ParcelProps = (function() {
         parcelLayer.bringToFront();
 
         renderSatelliteLegend(layerName, isIndex);
-        updateStatus(SATELLITE_LAYERS[layerName].label + ' — ' + date);
+        updateStatus(SATELLITE_LAYERS[layerName].label + ' \u2014 ' + date);
     }
 
     function renderSatelliteLegend(layerName, isIndex) {
-        const legend = $('legend');
-        legend.textContent = '';
-
-        const container = document.createElement('div');
-        container.style.marginTop = '8px';
-
-        const title = document.createElement('div');
-        title.style.cssText = 'font-size:12px;font-weight:bold;margin-bottom:4px';
-        title.textContent = SATELLITE_LAYERS[layerName].label + ' — ' + satCurrentDate;
-        container.appendChild(title);
-
-        // Gradient bar
-        const bar = document.createElement('div');
-        bar.style.cssText = 'display:flex;height:16px;border:1px solid #ccc;border-radius:2px;overflow:hidden';
-        const STEPS = 30;
-        for (let i = 0; i <= STEPS; i++) {
-            const cell = document.createElement('div');
-            const val = Math.round(i / STEPS * 255);
-            let r, g, b;
-            if (isIndex) {
-                [r, g, b] = colormapLookup(INDEX_RAMP, val);
-            } else {
-                r = g = b = val;
-            }
-            cell.style.cssText = 'flex:1;background:rgb(' + r + ',' + g + ',' + b + ')';
-            bar.appendChild(cell);
-        }
-        container.appendChild(bar);
-
-        // Labels
-        const labels = document.createElement('div');
-        labels.style.cssText = 'display:flex;justify-content:space-between;font-size:11px;margin-top:2px';
         const labelTexts = isIndex
             ? ['-1.0', '-0.5', '0', '+0.5', '+1.0']
             : ['0', '0.25', '0.5', '0.75', '1.0'];
-        labelTexts.forEach(t => {
-            const span = document.createElement('span');
-            span.textContent = t;
-            labels.appendChild(span);
-        });
-        container.appendChild(labels);
 
-        legend.appendChild(container);
+        createGradientLegend($('legend'), {
+            title: SATELLITE_LAYERS[layerName].label + ' \u2014 ' + satCurrentDate,
+            colorFn(i, steps) {
+                const val = Math.round(i / steps * 255);
+                if (isIndex) return colormapLookup(INDEX_RAMP, val);
+                return [val, val, val];
+            },
+            labelTexts,
+        });
     }
 
     // ---------------------------------------------------------------------------
@@ -339,11 +341,6 @@ const ParcelProps = (function() {
         const image = await tiff.getImage();
         const [raster] = await image.readRasters();
         return { raster, width: image.getWidth(), height: image.getHeight() };
-    }
-
-    // Decode uint8 index value to real [-1, 1]
-    function uint8ToIndex(v) {
-        return v / 127.5 - 1;
     }
 
     // ---------------------------------------------------------------------------
@@ -379,8 +376,10 @@ const ParcelProps = (function() {
         if (forestMask) return forestMask;
 
         const { width, height, bbox_leaflet } = satManifest;
-        const south = bbox_leaflet[0][0], west = bbox_leaflet[0][1];
-        const north = bbox_leaflet[1][0], east = bbox_leaflet[1][1];
+        const bbox = {
+            south: bbox_leaflet[0][0], west: bbox_leaflet[0][1],
+            north: bbox_leaflet[1][0], east: bbox_leaflet[1][1],
+        };
 
         const canvas = document.createElement('canvas');
         canvas.width = width;
@@ -399,8 +398,7 @@ const ParcelProps = (function() {
                 ctx.beginPath();
                 rings.forEach(ring => {
                     ring.forEach(([lon, lat], k) => {
-                        const x = (lon - west) / (east - west) * width;
-                        const y = (north - lat) / (north - south) * height;
+                        const { x, y } = geoToPixel(lon, lat, bbox, width, height);
                         if (k === 0) ctx.moveTo(x, y);
                         else ctx.lineTo(x, y);
                     });
@@ -419,6 +417,7 @@ const ParcelProps = (function() {
         return forestMask;
     }
 
+    const SAT_OVERLAY_ALPHA = 200;
     const OUTSIDE_ALPHA = 60;
     const INSIDE_ALPHA = 210;
 
@@ -435,20 +434,7 @@ const ParcelProps = (function() {
         const limitToForest = $('diff-forest-only').checked;
         const mask = limitToForest ? getForestMask() : null;
 
-        // Compute pixel-wise difference (anno2 - anno1) in real index units
-        const n = r1.raster.length;
-        const diff = new Float32Array(n);
-        let minDiff = Infinity, maxDiff = -Infinity;
-        for (let i = 0; i < n; i++) {
-            const d = uint8ToIndex(r2.raster[i]) - uint8ToIndex(r1.raster[i]);
-            diff[i] = d;
-            // When limiting to forest, only forest pixels affect the scale
-            if (!mask || mask[i]) {
-                if (d < minDiff) minDiff = d;
-                if (d > maxDiff) maxDiff = d;
-            }
-        }
-        const maxAbs = Math.max(Math.abs(minDiff), Math.abs(maxDiff)) || 0.01;
+        const { diff, maxAbs } = computeDiff(r1.raster, r2.raster, mask);
 
         // Render to canvas with diverging colormap
         const canvas = document.createElement('canvas');
@@ -457,9 +443,8 @@ const ParcelProps = (function() {
         const ctx = canvas.getContext('2d');
         const imgData = ctx.createImageData(r1.width, r1.height);
 
-        for (let i = 0; i < n; i++) {
-            const normalized = Math.round(((diff[i] / maxAbs) + 1) * 127.5);
-            const clamped = Math.max(0, Math.min(255, normalized));
+        for (let i = 0; i < diff.length; i++) {
+            const clamped = normalizeDiff(diff[i], maxAbs);
             const [r, g, b] = colormapLookup(DIFF_RAMP, clamped);
             const px = i * 4;
             imgData.data[px] = r;
@@ -482,44 +467,17 @@ const ParcelProps = (function() {
     }
 
     function renderDiffLegend(indexName, date1, date2, maxAbs) {
-        const legend = $('diff-legend');
-        legend.textContent = '';
-
-        const container = document.createElement('div');
-        container.style.marginTop = '8px';
-
         const label = indexName.toUpperCase();
-        const title = document.createElement('div');
-        title.style.cssText = 'font-size:12px;font-weight:bold;margin-bottom:4px';
-        title.textContent = label + ' ' + date2.slice(0,4) + ' \u2212 ' + label + ' ' + date1.slice(0,4);
-        container.appendChild(title);
-
-        // Gradient bar
-        const bar = document.createElement('div');
-        bar.style.cssText = 'display:flex;height:16px;border:1px solid #ccc;border-radius:2px;overflow:hidden';
-        const STEPS = 30;
-        for (let i = 0; i <= STEPS; i++) {
-            const val = Math.round(i / STEPS * 255);
-            const [r, g, b] = colormapLookup(DIFF_RAMP, val);
-            const cell = document.createElement('div');
-            cell.style.cssText = 'flex:1;background:rgb(' + r + ',' + g + ',' + b + ')';
-            bar.appendChild(cell);
-        }
-        container.appendChild(bar);
-
-        // Labels (symmetric around 0)
-        const labels = document.createElement('div');
-        labels.style.cssText = 'display:flex;justify-content:space-between;font-size:11px;margin-top:2px';
         const absStr = maxAbs.toFixed(2);
         const halfStr = (maxAbs / 2).toFixed(2);
-        ['-' + absStr, '-' + halfStr, '0', '+' + halfStr, '+' + absStr].forEach(t => {
-            const span = document.createElement('span');
-            span.textContent = t;
-            labels.appendChild(span);
-        });
-        container.appendChild(labels);
 
-        legend.appendChild(container);
+        createGradientLegend($('diff-legend'), {
+            title: label + ' ' + date2.slice(0,4) + ' \u2212 ' + label + ' ' + date1.slice(0,4),
+            colorFn(i, steps) {
+                return colormapLookup(DIFF_RAMP, Math.round(i / steps * 255));
+            },
+            labelTexts: ['-' + absStr, '-' + halfStr, '0', '+' + halfStr, '+' + absStr],
+        });
     }
 
     function applyDiff(indexName) {
@@ -533,17 +491,16 @@ const ParcelProps = (function() {
             return;
         }
 
-        opts.classList.remove('hidden');
-
-        // Clear the property satellite overlay so they don't stack
+        // Clear property/satellite state so they don't stack
         removeSatOverlay();
         $('property-select').value = '';
-        $('satellite-date-row').style.display = 'none';
+        $('satellite-date-row').classList.remove('satellite-date-row-visible');
         $('legend').textContent = '';
         Object.values(parcelData).forEach(({ layer }) =>
             layer.setStyle({ ...DEFAULT_STYLE, fillOpacity: 0 }));
         currentProperty = '';
 
+        opts.classList.remove('hidden');
         showDiff(indexName, $('diff-year1').value, $('diff-year2').value);
     }
 
@@ -553,7 +510,6 @@ const ParcelProps = (function() {
 
     function applyProperty(propKey) {
         currentProperty = propKey;
-        const dateRow = $('satellite-date-row');
 
         // Clear diff when a property is selected
         if (propKey) {
@@ -567,7 +523,7 @@ const ParcelProps = (function() {
         if (propKey.startsWith('sat:')) {
             // Satellite layer
             const layerName = propKey.slice(4);
-            dateRow.style.display = '';
+            $('satellite-date-row').classList.add('satellite-date-row-visible');
             // Reset parcel fill to transparent so satellite shows through
             Object.values(parcelData).forEach(({ layer }) =>
                 layer.setStyle({ ...DEFAULT_STYLE, fillOpacity: 0 }));
@@ -576,7 +532,7 @@ const ParcelProps = (function() {
         }
 
         // Non-satellite: hide date selector, remove overlay
-        dateRow.style.display = 'none';
+        $('satellite-date-row').classList.remove('satellite-date-row-visible');
         removeSatOverlay();
 
         if (!propKey) {
@@ -618,7 +574,7 @@ const ParcelProps = (function() {
             const t = (val - min) / range;
             layer.setStyle({
                 ...DEFAULT_STYLE,
-                fillColor: interpolateColor(t),
+                fillColor: continuousColorStr(t),
                 fillOpacity: 0.6
             });
         });
@@ -649,42 +605,20 @@ const ParcelProps = (function() {
     // ---------------------------------------------------------------------------
 
     function renderContinuousLegend(prop, min, max) {
-        const legend = $('legend');
-        legend.textContent = '';
-
-        const container = document.createElement('div');
-        container.style.marginTop = '8px';
-
-        // Gradient bar
-        const bar = document.createElement('div');
-        bar.style.cssText = 'display:flex;height:16px;border:1px solid #ccc;border-radius:2px;overflow:hidden';
-        const GRADIENT_STEPS = 20;
-        for (let i = 0; i <= GRADIENT_STEPS; i++) {
-            const cell = document.createElement('div');
-            cell.style.cssText = 'flex:1;background:' + interpolateColor(i / GRADIENT_STEPS);
-            bar.appendChild(cell);
-        }
-        container.appendChild(bar);
-
-        // Labels
-        const labels = document.createElement('div');
-        labels.style.cssText = 'display:flex;justify-content:space-between;font-size:11px;margin-top:2px';
         const LABEL_STEPS = 5;
+        const labelTexts = [];
         for (let i = 0; i <= LABEL_STEPS; i++) {
-            const span = document.createElement('span');
-            const val = min + (max - min) * i / LABEL_STEPS;
-            span.textContent = val.toFixed(0);
-            labels.appendChild(span);
+            labelTexts.push((min + (max - min) * i / LABEL_STEPS).toFixed(0));
         }
-        container.appendChild(labels);
 
-        // Unit
-        const unit = document.createElement('div');
-        unit.style.cssText = 'text-align:center;font-size:11px;color:#666;margin-top:2px';
-        unit.textContent = prop.unit;
-        container.appendChild(unit);
-
-        legend.appendChild(container);
+        createGradientLegend($('legend'), {
+            colorFn(i, steps) {
+                return interpolateColor(i / steps, CONTINUOUS_COLORS.low, CONTINUOUS_COLORS.high);
+            },
+            steps: 20,
+            labelTexts,
+            unit: prop.unit,
+        });
     }
 
     function renderBinaryLegend(prop) {
@@ -692,16 +626,15 @@ const ParcelProps = (function() {
         legend.textContent = '';
 
         const container = document.createElement('div');
-        container.style.marginTop = '8px';
+        container.className = 'legend-container';
 
         Object.entries(prop.categories).forEach(([label, color]) => {
             const row = document.createElement('div');
-            row.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:12px;margin:4px 0';
+            row.className = 'legend-row';
 
             const dot = document.createElement('span');
             dot.className = 'color-dot';
             dot.style.background = color;
-            dot.style.display = 'inline-block';
             row.appendChild(dot);
 
             const text = document.createElement('span');

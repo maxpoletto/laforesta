@@ -1,0 +1,47 @@
+/* Diff options */
+.diff-options { margin-top: 5px; }
+.diff-options.hidden { display: none; }
+.diff-years {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    font-size: 12px;
+}
+.diff-year-col { flex: 1; }
+.diff-year-col select { width: 100%; }
+
+/* Satellite date row */
+.satellite-date-row { display: none; margin-top: 5px; }
+.satellite-date-row.satellite-date-row-visible { display: block; }
+.satellite-date-label { font-size: 12px; }
+
+/* Legend components */
+.legend-container { margin-top: 8px; }
+.legend-title { font-size: 12px; font-weight: bold; margin-bottom: 4px; }
+.legend-bar {
+    display: flex;
+    height: 16px;
+    border: 1px solid #ccc;
+    border-radius: 2px;
+    overflow: hidden;
+}
+.legend-bar-cell { flex: 1; }
+.legend-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    margin-top: 2px;
+}
+.legend-unit {
+    text-align: center;
+    font-size: 11px;
+    color: #666;
+    margin-top: 2px;
+}
+.legend-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    margin: 4px 0;
+}
