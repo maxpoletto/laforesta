@@ -106,8 +106,8 @@ h4 { margin: 10px 0 5px 0; }
 h5 { margin: 12px 0 5px 0; font-size: 12px; color: #666; }
 
 /* Map-common button active states */
-.mc-active { background-color: #ffd700; }
-.mc-active-location { background-color: #4CAF50; }
+.mc-active { background-color: #ffd700 !important; }
+.mc-active-location { background-color: #4CAF50 !important; }
 
 button {
     width: 100%;
