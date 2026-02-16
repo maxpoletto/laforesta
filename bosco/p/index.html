@@ -21,17 +21,20 @@
     <div id="sat-info-modal" class="modal-overlay hidden">
         <div class="modal-content">
             <a href="#" class="modal-close" id="sat-info-close">&times;</a>
-            <h4>Dati satellite Sentinel-2</h4>
-            <h5>Bande spettrali</h5>
-            <p><b>B02</b> (blu, 490 nm) — riflettanza nel visibile, sensibile alla clorofilla e alla correzione atmosferica.</p>
-            <p><b>B04</b> (rosso, 665 nm) — fortemente assorbito dalla clorofilla; bassa riflettanza = vegetazione sana.</p>
-            <p><b>B08</b> (NIR, 842 nm) — riflesso dalla struttura fogliare; alta riflettanza = chioma densa.</p>
-            <p><b>B11</b> (SWIR, 1610 nm) — sensibile al contenuto d'acqua e alla struttura del legno.</p>
-            <h5>Indici calcolati</h5>
-            <p><b>NDVI</b> = (B08−B04) / (B08+B04) — vigore vegetativo. Valori alti (&gt;0.6) indicano vegetazione densa e sana.</p>
-            <p><b>NDMI</b> = (B08−B11) / (B08+B11) — contenuto idrico della chioma. Utile per valutare lo stress idrico e stimare la biomassa.</p>
-            <p><b>EVI</b> = 2.5·(B08−B04) / (B08+6·B04−7.5·B02+1) — simile a NDVI ma con correzione atmosferica tramite la banda blu. Non satura nelle foreste dense.</p>
-            <p class="modal-footer">Dati: Copernicus Sentinel-2 L2A, risoluzione 10 m. Vedi anche: <a href="https://doi.org/10.1016/j.jag.2025.104560" target="_blank">Yan et al. 2025</a></p>
+            <h4>Dati aziendali</h4>
+                <p>Età media e volumi ottenuti dal piano di gestione 2026–2040.</p>
+                <p>Altitudine media calcolata come media aritmetica del punto più alto e punto più basso.</p>
+            <h4>Dati satellitari</h4>
+                <h5>Bande spettrali</h5>
+                    <p><b>B02</b> (blu, 490 nm ± 30 nm, 10 m / px): assorbita dalla clorofilla, dispersa dall'atmosfera. Penetra zone ombreggiate. Le aree boschive appaiono più scure.</p>
+                    <p><b>B04</b> (rosso, 665 nm ± 15 nm, 10 m / px): riflessa dal fogliamo morto, fortemente assorbita dalla clorofilla. Le aree boschive sane e dense appaiono più scure.</p>
+                    <p><b>B08</b> (NIR (infrarosso vicino), 842 nm ± 60 nm, 10 m / px): riflessa dalle foglie. Le chiome dense appaiono più chiare.</p>
+                    <p><b>B11</b> (SWIR (infrarosso a onde corte), 1610 nm ± 45 nm, 20 m / px): sensibile al contenuto d'acqua e alla struttura del legno. Le zone umide appaiono più scure di quelle asciutte, e le conifere più scure delle latifoglie.</p>
+                <h5>Indici calcolati</h5>
+                    <p><b>NDVI</b> = (B08−B04) / (B08+B04): &ldquo;vigore vegetativo&rdquo;. Valori alti (&gt;0.6) indicano vegetazione densa e sana. (Corpi d'acqua: &lt 0, terreno nudo &approx; 0.) [<a href="https://en.wikipedia.org/wiki/Normalized_difference_vegetation_index" target="_blank">Wikipedia</a>]</p>
+                    <p><b>NDMI</b> = (B08−B11) / (B08+B11): contenuto idrico della chioma, indipendentemente dalla sua struttura. Utile per valutare stress idrico e stimare biomassa. [<a href="https://doi.org/10.1016/S0034-4257(96)00067-3" target="_blank">Gao, 1996</a>]</p>
+                    <p><b>EVI</b> = 2.5·(B08−B04) / (B08+6·B04−7.5·B02+1): simile a NDVI ma con correzione atmosferica tramite la banda blu. Non satura nelle foreste dense. La vegetazione sana cade normalmente nel range 0.20–0.80. [<a href="https://doi.org/10.1016/S0034-4257(02)00096-2" target="_blank">Huete et al., 2002</a>]</p>
+            <p class="modal-footer">Dati: <a href="https://dataspace.copernicus.eu/data-collections/copernicus-sentinel-missions/sentinel-2" target="_blank">Copernicus Sentinel-2</a>, <a href="https://custom-scripts.sentinel-hub.com/custom-scripts/sentinel/sentinel-2/" target="_blank">Sentinel Hub</a>. Vedi anche: <a href="https://doi.org/10.1016/j.jag.2025.104560" target="_blank">Yan et al. 2025</a>, <a href="https://clearsky.vision/knowledge/sentinel2-indices-cheatsheet" target="_blank">ClearSky 2025</a>.</p>
         </div>
     </div>
     <div id="map"></div>
@@ -62,13 +65,13 @@
                     <option value="prelievo">Prelievo (m³)</option>
                 </optgroup>
                 <optgroup label="Satellite">
+                    <option value="sat:b02">B02 (Blu)</option>
+                    <option value="sat:b04">B04 (Rosso)</option>
+                    <option value="sat:b08">B08 (NIR)</option>
+                    <option value="sat:b11">B11 (SWIR)</option>
                     <option value="sat:ndvi">NDVI</option>
                     <option value="sat:ndmi">NDMI</option>
                     <option value="sat:evi">EVI</option>
-                    <option value="sat:b08">B08 (NIR)</option>
-                    <option value="sat:b04">B04 (Rosso)</option>
-                    <option value="sat:b02">B02 (Blu)</option>
-                    <option value="sat:b11">B11 (SWIR)</option>
                 </optgroup>
             </select>
             <div id="satellite-date-row" class="satellite-date-row">

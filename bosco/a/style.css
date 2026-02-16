@@ -86,11 +86,11 @@ h4 { margin: 10px 0 5px 0; }
     overflow-y: auto;
     position: relative;
     box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
-    font-size: 13px;
+    font-size: 14px;
     line-height: 1.5;
 }
-.modal-content h4 { margin: 0 0 12px; font-size: 15px; }
-.modal-content h5 { margin: 14px 0 6px; font-size: 13px; color: #444; }
+.modal-content h4 { margin: 12px 0 6px 0; font-size: 16px; }
+.modal-content h5 { margin: 8px 0 8px 0; font-size: 15px; color: #444; }
 .modal-content p { margin: 0 0 6px; }
 .modal-close {
     position: absolute;
