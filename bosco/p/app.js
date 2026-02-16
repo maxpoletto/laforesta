@@ -708,7 +708,7 @@ const ParcelProps = (function() {
                 plugins: { legend: { display: false } },
                 scales: {
                     x: { title: { display: false } },
-                    y: { beginAtZero: false },
+                    y: { beginAtZero: true },
                 },
             },
         });
