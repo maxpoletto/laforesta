@@ -240,7 +240,7 @@ const SamplingPlanner = (function() {
             }
 
             // Show results (all values are internally computed, not user input)
-            $('results-section').style.display = '';
+            $('results-section').classList.remove('hidden');
             const statsEl = $('stats');
             statsEl.textContent = '';
             statsEl.appendChild(document.createTextNode(
@@ -259,11 +259,91 @@ const SamplingPlanner = (function() {
         },
 
         showDetails() {
-            /* Task 5 */
+            const compresaName = $('compresa-select').value;
+            const features = comprese[compresaName];
+            if (!features || features.length === 0) return;
+
+            const modal = $('details-modal');
+
+            // Build per-parcel stats: count of sample points and area in ha
+            const parcelStats = {};
+            for (const f of features) {
+                const name = f.properties.name;
+                parcelStats[name] = { count: 0, areaHa: featureArea(f) / 10000 };
+            }
+            for (const pt of samplePoints) {
+                if (parcelStats[pt.parcel]) parcelStats[pt.parcel].count++;
+            }
+
+            // Sort by parcel name using natural string sort
+            const sorted = Object.keys(parcelStats).sort(
+                (a, b) => a.localeCompare(b, undefined, { numeric: true })
+            );
+
+            // Extract short parcel name (part after the dash)
+            function shortName(name) {
+                const idx = name.indexOf('-');
+                return idx >= 0 ? name.slice(idx + 1) : name;
+            }
+
+            // Build table
+            let totalCount = 0;
+            let totalAreaHa = 0;
+            let html = '<table><thead><tr>' +
+                '<th>Particella</th><th>N. ADC</th><th>ADC/ha</th>' +
+                '</tr></thead><tbody>';
+            for (const name of sorted) {
+                const s = parcelStats[name];
+                totalCount += s.count;
+                totalAreaHa += s.areaHa;
+                const density = s.areaHa > 0 ? (s.count / s.areaHa).toFixed(2) : '—';
+                html += '<tr><td>' + shortName(name) + '</td>' +
+                    '<td>' + s.count + '</td>' +
+                    '<td>' + density + '</td></tr>';
+            }
+            const totalDensity = totalAreaHa > 0
+                ? (totalCount / totalAreaHa).toFixed(2) : '—';
+            html += '</tbody><tfoot><tr>' +
+                '<td><b>Totale</b></td>' +
+                '<td><b>' + totalCount + '</b></td>' +
+                '<td><b>' + totalDensity + '</b></td>' +
+                '</tr></tfoot></table>';
+
+            $('details-title').textContent =
+                'Aree di campionamento per ' + compresaName;
+            $('details-body').innerHTML = html;
+
+            // Set up close handlers once
+            if (!modal._handlersSet) {
+                $('details-close').addEventListener('click', e => {
+                    e.preventDefault();
+                    modal.classList.add('hidden');
+                });
+                modal.addEventListener('click', e => {
+                    if (e.target === modal) modal.classList.add('hidden');
+                });
+                modal._handlersSet = true;
+            }
+
+            modal.classList.remove('hidden');
         },
 
         exportCSV() {
-            /* Task 5 */
+            if (samplePoints.length === 0) return;
+            const compresaName = $('compresa-select').value;
+            const lines = ['Compresa,Particella,ADC,Lng,Lat'];
+            for (const pt of samplePoints) {
+                lines.push(
+                    compresaName + ',' + pt.parcel + ',' + pt.adc + ',' +
+                    pt.lng.toFixed(6) + ',' + pt.lat.toFixed(6)
+                );
+            }
+            const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'aree_di_campionamento.csv';
+            a.click();
+            URL.revokeObjectURL(a.href);
         }
     };
 })();

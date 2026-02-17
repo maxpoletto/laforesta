@@ -8,6 +8,7 @@
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="../a/style.css" />
+    <link rel="stylesheet" href="style.css" />
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="../a/map-common.js"></script>
@@ -15,7 +16,7 @@
 </head>
 <body>
     <div id="details-modal" class="modal-overlay hidden">
-        <div class="modal-content" style="max-width: 640px;">
+        <div class="modal-content modal-wide">
             <a href="#" class="modal-close" id="details-close">&times;</a>
             <h4 id="details-title"></h4>
             <div id="details-body"></div>
@@ -44,15 +45,13 @@
         <div class="section">
             <h4>Parametri</h4>
             <label class="help-text">Diametro aree di campionamento (m)</label>
-            <input type="number" id="diameter" min="1" step="1" value="13"
-                   style="width:100%;padding:4px;margin:5px 0;border:1px solid #ccc;border-radius:4px;font-size:12px;box-sizing:border-box">
+            <input type="number" id="diameter" min="1" step="1" value="13">
             <label class="help-text">Percentuale di copertura (%)</label>
-            <input type="number" id="coverage" min="0.01" max="100" step="0.1" value="1"
-                   style="width:100%;padding:4px;margin:5px 0;border:1px solid #ccc;border-radius:4px;font-size:12px;box-sizing:border-box">
+            <input type="number" id="coverage" min="0.01" max="100" step="0.1" value="1">
             <button class="primary" onclick="SamplingPlanner.plan()">Pianifica</button>
         </div>
 
-        <div id="results-section" class="section" style="display: none;">
+        <div id="results-section" class="section hidden">
             <h4>Risultati</h4>
             <div id="stats"></div>
             <div class="button-row">

@@ -1,0 +1,40 @@
+/* pac/ — Sampling planner styles */
+
+.modal-wide { max-width: 640px; }
+
+#results-section.hidden { display: none; }
+
+input[type="number"] {
+    width: 100%;
+    padding: 4px;
+    margin: 5px 0;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 12px;
+    box-sizing: border-box;
+}
+
+/* Details modal table */
+#details-body table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+#details-body th,
+#details-body td {
+    padding: 3px 6px;
+    text-align: right;
+}
+#details-body th:first-child,
+#details-body td:first-child {
+    text-align: left;
+}
+#details-body thead tr {
+    border-bottom: 2px solid #ccc;
+}
+#details-body tbody tr {
+    border-bottom: 1px solid #eee;
+}
+#details-body tfoot tr {
+    border-top: 2px solid #ccc;
+}
