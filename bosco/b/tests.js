@@ -5,7 +5,7 @@
 
 const {
     colormapLookup, interpolateColor,
-    computeDiff, diffToRgba, geoToPixel,
+    computeDiff, diffToRgba,
 } = require('./compute.js');
 
 function assertClose(actual, expected, tolerance, msg) {
@@ -193,34 +193,6 @@ function testDiffToRgba() {
 }
 
 // ---------------------------------------------------------------------------
-// geoToPixel
-// ---------------------------------------------------------------------------
-
-function testGeoToPixel() {
-    console.log('Testing geoToPixel...');
-
-    const bbox = { south: 39.0, west: 16.0, north: 40.0, east: 17.0 };
-    const width = 100, height = 200;
-
-    // Southwest corner -> (0, height)
-    let p = geoToPixel(16.0, 39.0, bbox, width, height);
-    assertClose(p.x, 0, 1e-6, 'SW x');
-    assertClose(p.y, height, 1e-6, 'SW y');
-
-    // Northeast corner -> (width, 0)
-    p = geoToPixel(17.0, 40.0, bbox, width, height);
-    assertClose(p.x, width, 1e-6, 'NE x');
-    assertClose(p.y, 0, 1e-6, 'NE y');
-
-    // Center -> (width/2, height/2)
-    p = geoToPixel(16.5, 39.5, bbox, width, height);
-    assertClose(p.x, width / 2, 1e-6, 'center x');
-    assertClose(p.y, height / 2, 1e-6, 'center y');
-
-    console.log('  geoToPixel: PASS');
-}
-
-// ---------------------------------------------------------------------------
 // Run all tests
 // ---------------------------------------------------------------------------
 
@@ -232,7 +204,6 @@ function runTests() {
         testInterpolateColor();
         testComputeDiff();
         testDiffToRgba();
-        testGeoToPixel();
         console.log('\n=== All tests passed ===');
     } catch (err) {
         console.error('\nTest failed:', err.message);

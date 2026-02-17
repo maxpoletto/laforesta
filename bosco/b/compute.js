@@ -72,17 +72,9 @@ function diffToRgba(diff, maxAbs, ramp, mask, insideAlpha, outsideAlpha) {
     return rgba;
 }
 
-// Convert geographic coordinates to pixel coordinates.
-// bbox = { south, west, north, east }.
-function geoToPixel(lon, lat, bbox, width, height) {
-    const x = (lon - bbox.west) / (bbox.east - bbox.west) * width;
-    const y = (bbox.north - lat) / (bbox.north - bbox.south) * height;
-    return { x, y };
-}
-
 if (typeof module !== 'undefined') {
     module.exports = {
         colormapLookup, interpolateColor,
-        computeDiff, diffToRgba, geoToPixel,
+        computeDiff, diffToRgba,
     };
 }
