@@ -19,7 +19,12 @@ body {
     box-sizing: border-box;
 }
 
-h1 { color: #2c3e50; text-align: center; margin: 0; }
+h1 {
+    color: #2c3e50;
+    text-align: center;
+    margin: 0;
+    font-family: 'Lora', serif;
+}
 .back-link {
     color: #006400;
     text-decoration: none;
