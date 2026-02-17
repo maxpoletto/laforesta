@@ -1,14 +1,14 @@
 /* Diff options */
 .diff-options { margin-top: 5px; }
 .diff-options.hidden { display: none; }
-.diff-years {
+.diff-dates {
     display: flex;
     gap: 8px;
     align-items: center;
     font-size: 12px;
 }
-.diff-year-col { flex: 1; }
-.diff-year-col select { width: 100%; }
+.diff-date-col { flex: 1; }
+.diff-date-col select { width: 100%; }
 
 /* Satellite date row */
 .satellite-date-row { display: none; margin-top: 5px; }

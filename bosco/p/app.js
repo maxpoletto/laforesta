@@ -250,7 +250,7 @@ const ParcelProps = (function() {
             satManifest = manifest;
             timeseriesData = timeseries;
             initSatelliteDateSelector();
-            initDiffYearSelectors();
+            initDiffDateSelectors();
 
             return Object.keys(parcelData).length;
         });
@@ -367,18 +367,18 @@ const ParcelProps = (function() {
     // Difference display
     // ---------------------------------------------------------------------------
 
-    function initDiffYearSelectors() {
-        const years = satManifest.dates.map(d => d.slice(0, 4));
-        ['diff-year1', 'diff-year2'].forEach((id, i) => {
+    function initDiffDateSelectors() {
+        const dates = satManifest.dates.map(d => d.slice(0, 7));
+        ['diff-date1', 'diff-date2'].forEach((id, i) => {
             const sel = $(id);
             sel.textContent = '';
             satManifest.dates.forEach((date, j) => {
                 const opt = document.createElement('option');
                 opt.value = date;
-                opt.textContent = years[j];
+                opt.textContent = dates[j];
                 sel.appendChild(opt);
             });
-            // Default: year1 = earliest, year2 = latest
+            // Default: date1 = earliest, date2 = latest
             sel.value = i === 0
                 ? satManifest.dates[0]
                 : satManifest.dates[satManifest.dates.length - 1];
@@ -476,7 +476,7 @@ const ParcelProps = (function() {
         currentProperty = '';
 
         opts.classList.remove('hidden');
-        showDiff(indexName, $('diff-year1').value, $('diff-year2').value);
+        showDiff(indexName, $('diff-date1').value, $('diff-date2').value);
     }
 
     // ---------------------------------------------------------------------------
@@ -812,7 +812,7 @@ const ParcelProps = (function() {
 
         updateDiff() {
             if (diffCurrentIndex) {
-                showDiff(diffCurrentIndex, $('diff-year1').value, $('diff-year2').value);
+                showDiff(diffCurrentIndex, $('diff-date1').value, $('diff-date2').value);
             }
         },
 
