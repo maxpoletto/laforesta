@@ -19,11 +19,14 @@ Authentication (for 'fetch' only):
          export CDSE_CLIENT_SECRET="..."
 """
 
+from __future__ import annotations
+
 import argparse
 import io
 import json
 import math
 import os
+import re
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -31,21 +34,13 @@ from pathlib import Path
 import numpy as np
 import rasterio
 import requests
-from rasterio.crs import CRS
 from rasterio.features import rasterize
 from rasterio.transform import from_bounds
 
 # ---------------------------------------------------------------------------
-# Paths
+# Copernicus API endpoints and authorization
 # ---------------------------------------------------------------------------
-SCRIPT_DIR = Path(__file__).resolve().parent
-DATA_DIR = SCRIPT_DIR.parent / "data"
-GEOJSON_PATH = DATA_DIR / "serra.geojson"
-OUTPUT_DIR = DATA_DIR / "satellite"
 
-# ---------------------------------------------------------------------------
-# API endpoints
-# ---------------------------------------------------------------------------
 CATALOG_URL = "https://catalogue.dataspace.copernicus.eu/odata/v1/Products"
 TOKEN_URL = (
     "https://identity.dataspace.copernicus.eu"
@@ -53,55 +48,8 @@ TOKEN_URL = (
 )
 PROCESS_URL = "https://sh.dataspace.copernicus.eu/api/v1/process"
 
-# ---------------------------------------------------------------------------
-# Configuration
-# ---------------------------------------------------------------------------
-BANDS = ["B02", "B04", "B08", "B11"]
-RESOLUTION_M = 10
-MAX_CLOUD_DEFAULT = 0.1
-SEARCH_MONTH_RANGE = (1, 12)
-FIRST_YEAR = 2015            # Sentinel-2A launch year
-WGS84 = CRS.from_epsg(4326)
 
-
-# ---------------------------------------------------------------------------
-# Geometry helpers
-# ---------------------------------------------------------------------------
-
-def bbox_from_geojson(path):
-    """Return [west, south, east, north] bounding box from a GeoJSON file."""
-    with open(path) as f:
-        gj = json.load(f)
-    lons, lats = [], []
-    for feature in gj["features"]:
-        geom = feature["geometry"]
-        if geom["type"] == "Polygon":
-            rings = geom["coordinates"]
-        elif geom["type"] == "MultiPolygon":
-            rings = [r for poly in geom["coordinates"] for r in poly]
-        else:
-            continue
-        for ring in rings:
-            for coord in ring:
-                lons.append(coord[0])
-                lats.append(coord[1])
-    return [min(lons), min(lats), max(lons), max(lats)]
-
-
-def pixel_dims(bbox):
-    """Compute (width, height) in pixels for a WGS84 bbox at RESOLUTION_M."""
-    west, south, east, north = bbox
-    mid_lat_rad = math.radians((south + north) / 2)
-    w = round((east - west) * 111320 * math.cos(mid_lat_rad) / RESOLUTION_M)
-    h = round((north - south) * 111320 / RESOLUTION_M)
-    return w, h
-
-
-# ---------------------------------------------------------------------------
-# CDSE authentication
-# ---------------------------------------------------------------------------
-
-def get_access_token():
+def get_access_token() -> str:
     """OAuth2 client_credentials token from CDSE."""
     client_id = os.environ.get("CDSE_CLIENT_ID")
     client_secret = os.environ.get("CDSE_CLIENT_SECRET")
@@ -129,28 +77,119 @@ def get_access_token():
 
 
 # ---------------------------------------------------------------------------
-# Catalog search
+# Local paths
 # ---------------------------------------------------------------------------
 
-def cmd_find(args):
-    """Find cloud-free L2A scenes in June-July of each year."""
-    bbox = bbox_from_geojson(GEOJSON_PATH)
+SCRIPT_DIR = Path(__file__).resolve().parent
+DATA_DIR = SCRIPT_DIR.parent / "data"
+GEOJSON_PATH = DATA_DIR / "serra.geojson"
+OUTPUT_DIR = DATA_DIR / "satellite"
+
+
+# ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
+
+BANDS = ["B02", "B04", "B08", "B11"]
+INDICES = ["ndvi", "ndmi", "evi"]
+EXPECTED_TIFFS = [b.lower() + ".tif" for b in BANDS] + [i + ".tif" for i in INDICES]
+RESOLUTION_M = 10
+MAX_CLOUD_DEFAULT = 0.1
+FIRST_YEAR = 2015            # Sentinel-2A launch year
+WGS84 = rasterio.CRS.from_epsg(4326)
+DATE_DIR_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def bbox_from_geojson(path: Path) -> list[float]:
+    """Return [west, south, east, north] bounding box from a GeoJSON file."""
+    with open(path, encoding='utf-8') as f:
+        gj = json.load(f)
+    lons, lats = [], []
+    for feature in gj["features"]:
+        geom = feature["geometry"]
+        if geom["type"] == "Polygon":
+            rings = geom["coordinates"]
+        elif geom["type"] == "MultiPolygon":
+            rings = [r for poly in geom["coordinates"] for r in poly]
+        else:
+            continue
+        for ring in rings:
+            for coord in ring:
+                lons.append(coord[0])
+                lats.append(coord[1])
+    return [min(lons), min(lats), max(lons), max(lats)]
+
+
+def pixel_dims(bbox: list[float]) -> tuple[int, int]:
+    """Compute (width, height) in pixels for a WGS84 bbox at RESOLUTION_M."""
+    west, south, east, north = bbox
+    mid_lat_rad = math.radians((south + north) / 2)
+    w = round((east - west) * 111320 * math.cos(mid_lat_rad) / RESOLUTION_M)
+    h = round((north - south) * 111320 / RESOLUTION_M)
+    return w, h
+
+
+def reflectance_to_uint8(arr: np.ndarray) -> np.ndarray:
+    """Reflectance [0, ~1] -> uint8 [0, 255]."""
+    return (arr.clip(0, 1) * 255).astype(np.uint8)
+
+
+def uint8_to_reflectance(arr: np.ndarray) -> np.ndarray:
+    """uint8 [0, 255] -> reflectance [0, 1]."""
+    return arr.astype(np.float64) / 255.0
+
+
+def index_to_uint8(arr: np.ndarray) -> np.ndarray:
+    """Index [-1, 1] -> uint8 [0, 255].  128 ~ 0."""
+    return ((arr + 1.0) * 127.5).clip(0, 255).astype(np.uint8)
+
+
+def uint8_to_index(arr: np.ndarray) -> np.ndarray:
+    """uint8 [0,255] -> index [-1,+1]."""
+    return arr.astype(np.float64) / 127.5 - 1
+
+
+# ---------------------------------------------------------------------------
+# Find command (catalog search)
+# ---------------------------------------------------------------------------
+
+def cmd_find(args: argparse.Namespace) -> None:
+    """Find cloud-free L2A scenes, optionally filtered by month."""
+    bbox = bbox_from_geojson(args.geojson)
     width, height = pixel_dims(bbox)
     print(f"Bounding box: {bbox}")
-    print(f"Pixel dimensions: {width} x {height} ({width * height:,} pixels)\n")
+    print(f"Pixel dimensions: {width} x {height} ({width * height:,} pixels)")
+
+    # Parse --months (e.g. "6,11") into a set of ints
+    if args.months:
+        target_months = set(int(m) for m in args.months.split(","))
+    else:
+        target_months = set(range(1, 13))
+    print(f"Months:       {sorted(target_months)}\n")
 
     west, south, east, north = bbox
     wkt = (
         f"POLYGON(({west} {south},{east} {south},"
         f"{east} {north},{west} {north},{west} {south}))"
     )
-    current_year = datetime.now().year
+    year_start = args.year_start or FIRST_YEAR
+    year_end = args.year_end or datetime.now().year
+    # Query window spans min..max of target months
+    m_start = min(target_months)
+    m_end = max(target_months)
     all_scenes = []
 
-    for year in range(FIRST_YEAR, current_year + 1):
-        m_start, m_end = SEARCH_MONTH_RANGE
+    for year in range(year_start, year_end + 1):
         date_start = f"{year}-{m_start:02d}-01T00:00:00.000Z"
-        date_end = f"{year}-{m_end:02d}-31T23:59:59.999Z"
+        # First day of next month as exclusive upper bound (avoids invalid day-31)
+        if m_end == 12:
+            date_end = f"{year + 1}-01-01T00:00:00.000Z"
+        else:
+            date_end = f"{year}-{m_end + 1:02d}-01T00:00:00.000Z"
 
         filter_parts = [
             "Collection/Name eq 'SENTINEL-2'",
@@ -177,6 +216,10 @@ def cmd_find(args):
         resp.raise_for_status()
 
         for p in resp.json().get("value", []):
+            date_str = p["ContentDate"]["Start"][:10]
+            month = int(date_str[5:7])
+            if month not in target_months:
+                continue
             cloud = next(
                 (
                     a["Value"]
@@ -186,7 +229,7 @@ def cmd_find(args):
                 None,
             )
             all_scenes.append({
-                "date": p["ContentDate"]["Start"][:10],
+                "date": date_str,
                 "cloud": cloud,
                 "name": p["Name"],
                 "id": p["Id"],
@@ -198,29 +241,42 @@ def cmd_find(args):
         print("No scenes found.")
         return
 
-    # Find best (lowest cloud) per year
-    best_per_year = {}
+    # Find best (lowest cloud) per group
+    best = {}
     for s in all_scenes:
-        year = s["date"][:4]
-        if year not in best_per_year or (s["cloud"] or 100) < (best_per_year[year]["cloud"] or 100):
-            best_per_year[year] = s
+        key = s["date"][:4] if args.overall_best else s["date"][:7]
+        if key not in best or s["cloud"] < best[key]["cloud"]:
+            best[key] = s
+
+    best_scenes = set(id(s) for s in best.values())
+    group_label = "year" if args.overall_best else "year-month"
 
     print(f"{'Date':<12} {'Cloud':>6}  Product")
     print("-" * 78)
     for s in all_scenes:
-        marker = " <--" if s is best_per_year.get(s["date"][:4]) else ""
-        cloud_str = f"{s['cloud']:.1f}%" if s["cloud"] is not None else "?"
+        marker = " <--" if id(s) in best_scenes else ""
+        cloud_str = f"{s['cloud']:.1f}%"
         print(f"{s['date']:<12} {cloud_str:>6}  {s['name']}{marker}")
 
-    print(f"\n{len(all_scenes)} scenes across {len(best_per_year)} years")
-    print("<-- = lowest cloud cover per year (best candidate)")
+    print(f"\n{len(all_scenes)} scenes, {len(best)} {group_label} groups")
+    print(f"<-- = lowest cloud cover per {group_label} (best candidate)")
+
+    if args.pick:
+        picked = sorted(s["date"] for s in best.values())
+        args.pick.parent.mkdir(parents=True, exist_ok=True)
+        with open(args.pick, "w", encoding='utf-8') as f:
+            for d in picked:
+                f.write(d + "\n")
+        print(f"\nWrote {len(picked)} dates to {args.pick}")
 
 
 # ---------------------------------------------------------------------------
-# Band download via Sentinel Hub Process API
+# Fetch command (download of band data)
 # ---------------------------------------------------------------------------
 
-def fetch_band(bbox, width, height, date_str, band_name, token):
+
+def fetch_band(bbox: list[float], width: int, height: int,
+               date_str: str, band_name: str, token: str) -> np.ndarray:
     """Download one band as a float32 GeoTIFF. Returns a 2D numpy array."""
     # Sentinel Hub returns reflectance [0, 1] by default (no units specified).
     evalscript = f"""//VERSION=3
@@ -276,11 +332,7 @@ function evaluatePixel(s) {{
         return src.read(1)  # 2D float32 array
 
 
-# ---------------------------------------------------------------------------
-# Vegetation indices
-# ---------------------------------------------------------------------------
-
-def compute_indices(bands):
+def compute_indices(bands: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
     """Compute NDVI, NDMI, EVI from float32 reflectance arrays."""
     b02, b04, b08, b11 = bands["B02"], bands["B04"], bands["B08"], bands["B11"]
     eps = np.float32(1e-10)
@@ -291,21 +343,8 @@ def compute_indices(bands):
     }
 
 
-# ---------------------------------------------------------------------------
-# Output
-# ---------------------------------------------------------------------------
-
-def reflectance_to_uint8(arr):
-    """Reflectance [0, ~1] -> uint8 [0, 255]."""
-    return (arr.clip(0, 1) * 255).astype(np.uint8)
-
-
-def index_to_uint8(arr):
-    """Index [-1, 1] -> uint8 [0, 255].  128 ~ 0."""
-    return ((arr + 1.0) * 127.5).clip(0, 255).astype(np.uint8)
-
-
-def save_geotiff(path, data_uint8, bbox, width, height):
+def save_geotiff(path: Path, data_uint8: np.ndarray,
+                 bbox: list[float], width: int, height: int) -> None:
     """Write a single-band uint8 GeoTIFF with DEFLATE compression."""
     west, south, east, north = bbox
     transform = from_bounds(west, south, east, north, width, height)
@@ -324,21 +363,10 @@ def save_geotiff(path, data_uint8, bbox, width, height):
         dst.write(data_uint8, 1)
 
 
-# ---------------------------------------------------------------------------
-# Fetch command
-# ---------------------------------------------------------------------------
-
-def cmd_fetch(args):
-    """Download bands and compute indices for a specific date."""
-    bbox = bbox_from_geojson(GEOJSON_PATH)
-    width, height = pixel_dims(bbox)
-    date_str = args.date
-    print(f"Bounding box: {bbox}")
-    print(f"Dimensions:   {width} x {height} pixels")
-    print(f"Date:         {date_str}")
-    print(f"Bands:        {', '.join(BANDS)}\n")
-
-    token = get_access_token()
+def fetch_one_date(date_str: str, bbox: list[float], width: int, height: int,
+                   output_dir: Path, token: str) -> bool:
+    """Download bands and compute indices for a single date. Returns True on success."""
+    print(f"\n--- {date_str} ---")
 
     # Download bands
     bands = {}
@@ -350,71 +378,82 @@ def cmd_fetch(args):
 
     # Check for empty data (no satellite pass on this date)
     if all(b.max() == 0 for b in bands.values()):
-        print("\nWarning: all bands are zero. No data for this date?", file=sys.stderr)
-        sys.exit(1)
+        print(f"  Warning: all bands are zero — skipping {date_str}", file=sys.stderr)
+        return False
 
     # Compute indices
     indices = compute_indices(bands)
     for name, arr in indices.items():
-        print(f"  {name.upper():<6} min={arr.min():.3f}  max={arr.max():.3f}  mean={arr.mean():.3f}")
+        print(f"  {name.upper():<6} (min={arr.min():.3f}, max={arr.max():.3f})")
 
     # Save
-    out_dir = OUTPUT_DIR / date_str
+    out_dir = output_dir / date_str
     for name, arr in bands.items():
         path = out_dir / f"{name.lower()}.tif"
         save_geotiff(path, reflectance_to_uint8(arr), bbox, width, height)
-        print(f"  Saved {path.relative_to(DATA_DIR)}")
+        print(f"  Saved {path}")
 
     for name, arr in indices.items():
         path = out_dir / f"{name}.tif"
         save_geotiff(path, index_to_uint8(arr), bbox, width, height)
-        print(f"  Saved {path.relative_to(DATA_DIR)}")
-
-    # Metadata
-    metadata = {
-        "date": date_str,
-        "bbox": bbox,
-        "bbox_leaflet": [[bbox[1], bbox[0]], [bbox[3], bbox[2]]],
-        "width": width,
-        "height": height,
-        "resolution_m": RESOLUTION_M,
-        "bands": {
-            b: "uint8, reflectance [0,1] -> [0,255]" for b in BANDS
-        },
-        "indices": {
-            "ndvi": "uint8, [-1,1] -> [0,255], 128=zero",
-            "ndmi": "uint8, [-1,1] -> [0,255], 128=zero",
-            "evi":  "uint8, [-1,1] -> [0,255], 128=zero",
-        },
-    }
-    meta_path = out_dir / "metadata.json"
-    with open(meta_path, "w") as f:
-        json.dump(metadata, f, indent=2)
-    print(f"  Saved {meta_path.relative_to(DATA_DIR)}")
+        print(f"  Saved {path}")
 
     total_kb = sum(p.stat().st_size for p in out_dir.iterdir()) / 1024
-    print(f"\nTotal: {total_kb:.0f} KB in {out_dir.relative_to(DATA_DIR)}")
+    print(f"  Total: {total_kb:.0f} KB")
+    return True
+
+
+def cmd_fetch(args: argparse.Namespace) -> None:
+    """Download bands and compute indices for one or more dates."""
+    bbox = bbox_from_geojson(args.geojson)
+    width, height = pixel_dims(bbox)
+    print(f"Bounding box: {bbox}")
+    print(f"Dimensions:   {width} x {height} pixels")
+    print(f"Bands:        {', '.join(BANDS)}")
+
+    # Collect dates from positional arg or --dates-file
+    if args.date and args.dates_file:
+        print("Error: specify either a date or --dates-file, not both.", file=sys.stderr)
+        sys.exit(1)
+    if args.dates_file:
+        dates = []
+        with open(args.dates_file, encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#"):
+                    dates.append(line)
+        if not dates:
+            print(f"Error: no dates in {args.dates_file}", file=sys.stderr)
+            sys.exit(1)
+        print(f"Dates:        {len(dates)} from {args.dates_file}")
+    elif args.date:
+        dates = [args.date]
+        print(f"Date:         {args.date}")
+    else:
+        print("Error: specify a date or --dates-file.", file=sys.stderr)
+        sys.exit(1)
+
+    token = get_access_token()
+    ok = 0
+    for date_str in dates:
+        if fetch_one_date(date_str, bbox, width, height, args.output_dir, token):
+            ok += 1
+    print(f"\nFetched {ok}/{len(dates)} dates.")
 
 
 # ---------------------------------------------------------------------------
-# Precompute: parcel mask + time series averages
+# Precompute command: compute time series, forest parcel mask, and manifest
 # ---------------------------------------------------------------------------
 
-MANIFEST_PATH = OUTPUT_DIR / "manifest.json"
-
-# Maps uint8 [0,255] back to index [-1,+1]. Python equivalent of compute.js:uint8ToIndex.
-def uint8_to_index(v):
-    return v / 127.5 - 1
-
-
-def rasterize_parcels(geojson_path, bbox, w, h):
+def rasterize_parcels(geojson_path: Path, bbox: list[float],
+                      w: int, h: int) -> tuple[np.ndarray, list[str]]:
     """Rasterize parcel polygons into a uint8 mask.
 
     Returns (mask, parcel_names) where mask pixel values are:
       0 = outside all parcels
       1..N = parcel index (matching parcel_names list, 1-based)
     """
-    with open(geojson_path) as f:
+    with open(geojson_path, encoding='utf-8') as f:
         gj = json.load(f)
 
     west, south, east, north = bbox
@@ -436,18 +475,32 @@ def rasterize_parcels(geojson_path, bbox, w, h):
     return mask, parcel_names
 
 
-def compute_timeseries(mask, parcel_names, manifest_path):
+def discover_dates(output_dir: Path) -> list[str]:
+    """Scan for date subdirs containing all expected TIFFs."""
+    dates = []
+    for entry in sorted(output_dir.iterdir()):
+        if not entry.is_dir() or not DATE_DIR_RE.match(entry.name):
+            continue
+        files = {f.name for f in entry.iterdir()}
+        if all(t in files for t in EXPECTED_TIFFS):
+            dates.append(entry.name)
+    return dates
+
+
+def compute_timeseries(mask: np.ndarray, parcel_names: list[str],
+                       dates: list[str], output_dir: Path) -> dict:
     """Compute per-parcel and forest-wide averages for all layers and dates.
 
     Returns dict ready for JSON serialization:
-      { parcels, dates, layers, means: { forest: {layer: [val, ...]}, parcels: {cp: {layer: [val, ...]}} } }
+      { parcels, dates, layers,
+        means: { forest: {layer: [val, ...]},
+                 parcels: {cp: {layer: [val, ...]} }
+               }
+      }
     """
-    with open(manifest_path) as f:
-        manifest = json.load(f)
-
-    dates = manifest["dates"]
-    layers = manifest["bands"] + manifest["indices"]
-    is_index = {name: name in manifest["indices"] for name in layers}
+    bands_lower = [b.lower() for b in BANDS]
+    layers = bands_lower + INDICES
+    index_set = set(INDICES)
 
     # Precompute pixel masks
     forest_pixels = mask > 0
@@ -462,15 +515,15 @@ def compute_timeseries(mask, parcel_names, manifest_path):
 
     for date in dates:
         for layer in layers:
-            path = OUTPUT_DIR / date / (layer + ".tif")
+            path = output_dir / date / (layer + ".tif")
             with rasterio.open(path) as src:
                 data = src.read(1)
 
             # Convert to real values
-            if is_index[layer]:
-                real = uint8_to_index(data.astype(np.float64))
+            if layer in index_set:
+                real = uint8_to_index(data)
             else:
-                real = data.astype(np.float64) / 255.0
+                real = uint8_to_reflectance(data)
 
             # Forest-wide average (only pixels inside any parcel)
             forest_mean = float(np.mean(real[forest_pixels])) if forest_count > 0 else 0.0
@@ -493,17 +546,41 @@ def compute_timeseries(mask, parcel_names, manifest_path):
     }
 
 
-def cmd_precompute(_args):  # noqa: ARG001
-    """Build parcel mask GeoTIFF and time series JSON."""
-    bbox = bbox_from_geojson(GEOJSON_PATH)
+def cmd_precompute(args: argparse.Namespace) -> None:
+    """Discover dates, generate manifest, build parcel mask + time series."""
+    output_dir = args.output_dir
+    bbox = bbox_from_geojson(args.geojson)
     w, h = pixel_dims(bbox)
     print(f"Bounding box: {bbox}")
     print(f"Dimensions:   {w} x {h} pixels\n")
 
-    print("Rasterizing parcels...")
-    mask, parcel_names = rasterize_parcels(GEOJSON_PATH, bbox, w, h)
+    # Discover date directories
+    dates = discover_dates(output_dir)
+    if not dates:
+        print(f"No complete date directories found in {output_dir}", file=sys.stderr)
+        sys.exit(1)
+    print(f"Found {len(dates)} dates: {dates[0]} .. {dates[-1]}")
 
-    # Print pixel counts per parcel
+    # Generate manifest.json
+    manifest = {
+        "dates": dates,
+        "bands": [b.lower() for b in BANDS],
+        "indices": INDICES,
+        "bbox": bbox,
+        "bbox_leaflet": [[bbox[1], bbox[0]], [bbox[3], bbox[2]]],
+        "width": w,
+        "height": h,
+        "resolution_m": RESOLUTION_M,
+    }
+    manifest_path = output_dir / "manifest.json"
+    with open(manifest_path, "w", encoding='utf-8') as f:
+        json.dump(manifest, f, indent=2)
+    print(f"Saved {manifest_path}")
+
+    # Rasterize parcels
+    print("\nRasterizing parcels...")
+    mask, parcel_names = rasterize_parcels(args.geojson, bbox, w, h)
+
     for idx, name in enumerate(parcel_names, start=1):
         count = int(np.sum(mask == idx))
         print(f"  {name}: {count} pixels")
@@ -511,17 +588,17 @@ def cmd_precompute(_args):  # noqa: ARG001
     print(f"  Total forest: {forest_count} pixels")
 
     # Save parcel mask
-    mask_path = OUTPUT_DIR / "parcel-mask.tif"
+    mask_path = output_dir / "parcel-mask.tif"
     save_geotiff(mask_path, mask, bbox, w, h)
-    print(f"\nSaved {mask_path.relative_to(DATA_DIR)}")
+    print(f"\nSaved {mask_path}")
 
     # Compute and save time series
     print("\nComputing time series averages...")
-    ts = compute_timeseries(mask, parcel_names, MANIFEST_PATH)
-    ts_path = OUTPUT_DIR / "timeseries.json"
-    with open(ts_path, "w") as f:
+    ts = compute_timeseries(mask, parcel_names, dates, output_dir)
+    ts_path = output_dir / "timeseries.json"
+    with open(ts_path, "w", encoding='utf-8') as f:
         json.dump(ts, f, indent=2)
-    print(f"Saved {ts_path.relative_to(DATA_DIR)} ({ts_path.stat().st_size / 1024:.1f} KB)")
+    print(f"Saved {ts_path} ({ts_path.stat().st_size / 1024:.1f} KB)")
 
     # Quick sanity check
     ndvi_forest = ts["means"]["forest"].get("ndvi", [])
@@ -533,22 +610,63 @@ def cmd_precompute(_args):  # noqa: ARG001
 # Main
 # ---------------------------------------------------------------------------
 
-def main():
+def main() -> None:
+    """Entry point and command line parsing."""
+
+    def add_common_args(subparser: argparse.ArgumentParser) -> None:
+        """Add --geojson and --output-dir to a subcommand parser."""
+        subparser.add_argument(
+            "--geojson", type=Path, default=GEOJSON_PATH,
+            help=f"Path to GeoJSON file (default: {GEOJSON_PATH})",
+        )
+        subparser.add_argument(
+            "--output-dir", type=Path, default=OUTPUT_DIR,
+            help=f"Satellite data directory (default: {OUTPUT_DIR})",
+        )
+
     parser = argparse.ArgumentParser(
         description="Sentinel-2 data for forest biomass analysis",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_find = sub.add_parser("find", help="Find cloud-free scenes")
+    add_common_args(p_find)
     p_find.add_argument(
         "--max-cloud", type=float, default=MAX_CLOUD_DEFAULT,
         help=f"Max cloud cover %% (default {MAX_CLOUD_DEFAULT})",
     )
+    p_find.add_argument(
+        "--year-start", type=int, default=None,
+        help=f"First year to search (default {FIRST_YEAR})",
+    )
+    p_find.add_argument(
+        "--year-end", type=int, default=None,
+        help="Last year to search (default: current year)",
+    )
+    p_find.add_argument(
+        "--months", type=str, default=None,
+        help="Comma-separated months to include (e.g. 6,11). Default: all.",
+    )
+    p_find.add_argument(
+        "--pick", type=Path, default=None,
+        help="Write best dates (one per line) to this file.",
+    )
+    p_find.add_argument(
+        "--overall-best", action="store_true",
+        help="Pick one best per year (across all months) instead of per year-month.",
+    )
 
     p_fetch = sub.add_parser("fetch", help="Download bands and indices")
-    p_fetch.add_argument("date", help="Scene date (YYYY-MM-DD)")
+    add_common_args(p_fetch)
+    p_fetch.add_argument("date", nargs="?", default=None, help="Scene date (YYYY-MM-DD)")
+    p_fetch.add_argument(
+        "--dates-file", type=Path, default=None,
+        help="File with one date per line (instead of positional date).",
+    )
 
-    sub.add_parser("precompute", help="Build parcel mask and time series JSON")
+    p_precompute = sub.add_parser("precompute",
+                                  help="Precompute time series of mean values, generate manifest")
+    add_common_args(p_precompute)
 
     args = parser.parse_args()
     {"find": cmd_find, "fetch": cmd_fetch, "precompute": cmd_precompute}[args.command](args)
