@@ -309,9 +309,29 @@ const MapCommon = (function() {
         };
     }
 
+    const DEG_TO_RAD = Math.PI / 180;
+    const EARTH_RADIUS = 6378137.0; // WGS84 semi-major axis in meters
+
+    // Geodesic area of a polygon. Takes [{lat, lng}, ...], returns area in m².
+    // Same algorithm as Leaflet.draw's L.GeometryUtil.geodesicArea.
+    function geodesicArea(latlngs) {
+        const n = latlngs.length;
+        let area = 0;
+        for (let i = 0; i < n; i++) {
+            const p1 = latlngs[i];
+            const p2 = latlngs[(i + 1) % n];
+            area += (p2.lng - p1.lng) * DEG_TO_RAD *
+                    (2 + Math.sin(p1.lat * DEG_TO_RAD) + Math.sin(p2.lat * DEG_TO_RAD));
+        }
+        return Math.abs(area * EARTH_RADIUS * EARTH_RADIUS / 2);
+    }
+
     // Public API
     return {
         create,
+        geodesicArea,
         BASEMAPS
     };
 })();
+
+if (typeof module !== 'undefined') module.exports = MapCommon;

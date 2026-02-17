@@ -1,7 +1,13 @@
 // Test algorithms for polygon/line manipulation tools
-// Run with: node test-algorithms.js
+// Run with: node tests.js
 
 'use strict';
+
+// Minimal mocks so map-common.js can be loaded in Node
+// (the IIFE only references browser globals when create() is called)
+global.document = { getElementById: () => null };
+const MapCommon = require('../a/map-common.js');
+const { geodesicArea } = MapCommon;
 
 // Mock the path index function
 function getPathIndices(from, to, n, direction) {
@@ -283,21 +289,6 @@ function testJoin() {
 // --- Area calculation tests ---
 
 const DEG_TO_RAD = Math.PI / 180;
-const EARTH_RADIUS = 6378137.0; // WGS84 semi-major axis in meters
-
-// Leaflet.Draw's L.GeometryUtil.geodesicArea implementation
-// Takes [{lat, lng}, ...], returns area in m²
-function geodesicArea(latlngs) {
-    const n = latlngs.length;
-    let area = 0;
-    for (let i = 0; i < n; i++) {
-        const p1 = latlngs[i];
-        const p2 = latlngs[(i + 1) % n];
-        area += (p2.lng - p1.lng) * DEG_TO_RAD *
-                (2 + Math.sin(p1.lat * DEG_TO_RAD) + Math.sin(p2.lat * DEG_TO_RAD));
-    }
-    return Math.abs(area * EARTH_RADIUS * EARTH_RADIUS / 2);
-}
 
 // Local-projection Shoelace: project to meters from bounding-box lower-left, then Shoelace
 function shoelaceAreaM2(latlngs) {
