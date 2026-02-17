@@ -445,7 +445,7 @@ const ParcelProps = (function() {
         const halfStr = (displayMax / 2).toFixed(2);
 
         createGradientLegend($('diff-legend'), {
-            title: label + ' ' + date2.slice(0,4) + ' \u2212 ' + label + ' ' + date1.slice(0,4),
+            title: label + ' ' + date2.slice(0,7) + ' \u2212 ' + label + ' ' + date1.slice(0,7),
             colorFn(i, steps) {
                 return colormapLookup(DIFF_RAMP, Math.round(i / steps * 255));
             },
