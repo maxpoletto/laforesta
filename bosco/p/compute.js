@@ -52,8 +52,10 @@ function computeDiff(raster1, raster2, mask) {
 }
 
 // Render an integer diff raster to RGBA pixels using a diverging colormap.
-// diff: Int16Array from computeDiff. ramp: colormap for colormapLookup.
-// mask: optional Uint8Array; >0 = inside. insideAlpha/outsideAlpha: alpha for masked/unmasked.
+// diff: Int16Array from computeDiff.
+// ramp: colormap for colormapLookup.
+// mask: optional Uint8Array; >0 = inside.
+// insideAlpha/outsideAlpha: alpha for masked/unmasked.
 // Returns Uint8ClampedArray of length diff.length * 4.
 function diffToRgba(diff, maxAbs, ramp, mask, insideAlpha, outsideAlpha) {
     const rgba = new Uint8ClampedArray(diff.length * 4);
