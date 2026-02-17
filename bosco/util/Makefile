@@ -34,9 +34,12 @@ precompute:
 	$(SENTINEL) precompute $(FILES)
 
 sync:
-      rsync -avz --delete -e ssh $(OUTPUT_DIR)/ $(TARGET)/
+	rsync -avz --delete -e ssh $(OUTPUT_DIR)/ $(TARGET)/
 
-deploy: find fetch precompute sync
+deploy: fetch precompute sync
 
 clean-satellite:
+	rm -f $(DATES_WINTER) $(DATES_SUMMER) $(DATES_FILE)
+
+clean-all-satellite:
 	rm -fr $(OUTPUT_DIR)
