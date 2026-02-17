@@ -318,7 +318,7 @@ const ParcelProps = (function() {
 
         satOverlay = L.imageOverlay(
             canvas.toDataURL(),
-            satManifest.bbox_leaflet,
+            satManifest.bbox,
             { opacity: 0.85 }
         ).addTo(leafletMap);
 
@@ -428,7 +428,7 @@ const ParcelProps = (function() {
 
         diffOverlay = L.imageOverlay(
             canvas.toDataURL(),
-            satManifest.bbox_leaflet,
+            satManifest.bbox,
             { opacity: 0.85 }
         ).addTo(leafletMap);
 

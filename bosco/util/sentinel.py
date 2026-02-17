@@ -445,6 +445,18 @@ def cmd_fetch(args: argparse.Namespace) -> None:
 # Precompute command: compute time series, forest parcel mask, and manifest
 # ---------------------------------------------------------------------------
 
+def discover_dates(output_dir: Path) -> list[str]:
+    """Scan for date subdirs containing all expected TIFFs."""
+    dates = []
+    for entry in sorted(output_dir.iterdir()):
+        if not entry.is_dir() or not DATE_DIR_RE.match(entry.name):
+            continue
+        files = {f.name for f in entry.iterdir()}
+        if all(t in files for t in EXPECTED_TIFFS):
+            dates.append(entry.name)
+    return dates
+
+
 def rasterize_parcels(geojson_path: Path, bbox: list[float],
                       w: int, h: int) -> tuple[np.ndarray, list[str]]:
     """Rasterize parcel polygons into a uint8 mask.
@@ -473,18 +485,6 @@ def rasterize_parcels(geojson_path: Path, bbox: list[float],
         dtype=np.uint8,
     )
     return mask, parcel_names
-
-
-def discover_dates(output_dir: Path) -> list[str]:
-    """Scan for date subdirs containing all expected TIFFs."""
-    dates = []
-    for entry in sorted(output_dir.iterdir()):
-        if not entry.is_dir() or not DATE_DIR_RE.match(entry.name):
-            continue
-        files = {f.name for f in entry.iterdir()}
-        if all(t in files for t in EXPECTED_TIFFS):
-            dates.append(entry.name)
-    return dates
 
 
 def compute_timeseries(mask: np.ndarray, parcel_names: list[str],
@@ -566,8 +566,7 @@ def cmd_precompute(args: argparse.Namespace) -> None:
         "dates": dates,
         "bands": [b.lower() for b in BANDS],
         "indices": INDICES,
-        "bbox": bbox,
-        "bbox_leaflet": [[bbox[1], bbox[0]], [bbox[3], bbox[2]]],
+        "bbox": [[bbox[1], bbox[0]], [bbox[3], bbox[2]]],
         "width": w,
         "height": h,
         "resolution_m": RESOLUTION_M,
