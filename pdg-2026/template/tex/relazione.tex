@@ -1,6 +1,7 @@
 \documentclass[a4paper,11pt]{article}
 \usepackage[utf8]{inputenc}
 \usepackage[italian]{babel}
+\usepackage{amsmath}
 \usepackage{url}
 \usepackage{graphicx}
 \usepackage{geometry}
@@ -57,23 +58,92 @@ Di seguito sono riportati alcuni chiarimenti sui rilevamenti e i metodi di calco
 Le 177 aree di saggio già descritte nella relazione iniziale, ciascuna della dimensione di $\frac{1}{8}$ ha, sono state soggette a cavallettamento totale, fornendo i diametri di circa 9,900 piante. Per un sottoinsieme casuale di 1880 piante è stata rilevata anche l'altezza tramite ipsometro laser. Per un ulteriore sottoinsieme di circa 200 piante è stato misurato l'incremento periodico di raggio $L_{10}$, ovvero lo spessore dei 10 anelli legnosi periferici successivi.
 
 \subsection{Calcolo delle curve ipsometriche}
-\label{sec:curve-ipso}
-Le curve ipsometriche sono state calcolate per ogni combinazione di specie e compresa comprendente più di 10 alberi campione. L'equazione interpolante ha forma logaritmica, $h = a \ln d + b$, dove $d$ è il diametro in cm e $h$ è l'altezza in metri.
+
+Le curve ipsometriche sono state calcolate per regressione sulle altezze e i diametri delle 1880 piante misurate, per ogni combinazione di specie e compresa comprendente più di 10 alberi campione. Le equazioni interpolante hanno forma logaritmica, $h = a \ln d + b$, dove $d$ è il diametro in cm e $h$ è l'altezza in metri.
 
 \subsection{Calcolo dei volumi}
+\label{sec:note-volumi}
 
 I volumi dei soprassuoli sono calcolati secondo la metodologia alle pp.20--27 di~\cite{tabacchi:2011}. Nello specifico:
 
 \begin{itemize}
     \item Per ogni albero cavallettato, l'altezza è stimata usando le equazioni interpolanti di cui sopra.
     \item Per tutti gli alberi di una singola specie in ciascuna area di saggio, il volume del fusto e dei rami grossi viene calcolato usando un'equazione di previsione della forma $v = b_1 + b_2d^2 + b_3d$, dove i coefficienti $b_i$ provengono da~\cite{tabacchi:2011}. Analogamente, la varianza della somma di questi volumi è calcolata usando le matrici di varianza e i coefficienti del Tabacchi.
-    \item L'intervallo fiduciario della stima dei volumi dell'intera area di saggio è dato da $\sqrt{\sum_{s}{f_s^2}}$, dove $f_s$ è l'intervallo fiduciario di ciascuna specie, perché le equazioni di previsione sono state calibrate sulla base di campioni indipendenti.
+    \item L'intervallo fiduciario della stima dei volumi dell'intera area di saggio è dato da $\sqrt{\sum_{s}{f_s^2}}$, dove $f_s$ è l'intervallo fiduciario di ciascuna specie $s$, perché le equazioni di previsione sono state calibrate sulla base di campioni indipendenti.
     \item Infine, il volume dell'intera particella viene calcolato scalando la somma delle superfici delle aree di saggio all'intera particella. Anche in questo caso l'intervallo fiduciario è prudenziale, e presume che tutte le superfici di una particella siano completamente correlate tra di loro.
 \end{itemize}
 
 Da notare che i valori elencati nella sezione~\ref{sec:volumi} includono le piante sottomisura, al di sotto dei 17,5 cm di diametro (classe diametrica inferiore a 20 cm). Per contro, naturalmente, i volumi usati per la ripresa escludono queste piante.
 
 \subsection{Calcolo della ripresa}
+\label{sec:note-ripresa}
+
+Secondo le prescrizioni di massima della~\cite{calabria:2011}, artt. 48 e 49, il prelievo durante i tagli colturali nelle fustaie è limitato in funzione della massa disponibile e dell'area basimetrica di ciascuna particella.
+
+In base alla classe economica del comparto, si stabilisce una provvigione minima. Per la nostra azienda, le classi economiche sono le seguenti:
+
+\begin{center}
+    \small
+    \begin{tabular}{llr}
+    \hline
+                     &                                          & Provvigione \\
+    Classe economica & Caratteristiche                          & minima (m³/ha)\\
+    \hline
+    A                & Fustaia di abete                         & 350 \\
+    B                & Fustaia mista di conifere e latifoglie   & 350 \\
+    C                & Fustaia di pino                          & 250 \\
+    D                & Fustaia di pino nero e latifoglie        & 250 \\
+    E                & Fustaia di faggio e conifere             & 350 \\
+    \hline
+    \end{tabular}
+\end{center}
+
+Il prelievo massimo volumetrico è quindi dato dalla seguente tabella:
+
+\begin{center}
+    \small
+    \begin{tabular}{lr}
+    \hline
+    Eccedenza su provvigione minima         & Prelievo massimo \\
+    \hline
+    $\ge 80\%$                              & 25\% \\
+    $\ge 60\%, < 80\%$                      & 20\% \\
+    $\ge 40\%, < 60\%$                      & 15\% \\
+    $\ge 20\%, < 40\%$                      & 10\% \\
+    $< 20\%$                                &  0\% \\
+    \hline
+    \end{tabular}
+\end{center}
+
+Inoltre, per fustaie fino a 60 anni di età, il prelievo non può superare una determinata percentuale dell'area basimetrica, secondo la seguente tabella:
+
+\begin{center}
+    \small
+    \begin{tabular}{lr}
+    \hline
+    Età media                   & Limite area basimetrica \\
+    \hline
+    $\ge 30$ anni, $< 60$ anni  & 20\% \\
+    $<30$ anni                  & 15\% \\
+    \hline
+    \end{tabular}
+\end{center}
+
+Per ottemperare a questi duplici requisiti, procediamo con una simulazione basata su tutte le piante campionate. Per ogni particella $p$:
+\begin{enumerate}
+\item Poniamo $v$ pari al volume delle piante mature, calcolate come alla sezione~\ref{sec:note-volumi}, e $a$ pari all'area (ha) di $p$.
+\item Poniamo $pp_{max}$ pari al prelievo massimo percentuale, calcolato in base alla classe economica di $p$ e a $v$ e $a$, secondo le prime due tabelle sopra.
+\item Poniamo $ap_{max}$ pari al limite percentuale di area basimetrica in funzione dell'età media di $p$, secondo la terza tabella sopra.
+\item Poniamo $p_{max} = v\cdot\frac{pp_{max}}{100}$ (prelievo massimo assoluto) e $a_{max} = a\cdot\frac{aa_{max}}{100}$ (area basimetrica massima assoluta).
+\item Dato $a_s$ quale superficie di tutte le aree di saggio dentro $p$, calcoliamo un fattore di ridimensionamento $s$, pari a $\frac{a}{a_s}$.
+\item Poniamo volume e area corrente $v_c = a_c = 0$.
+\item Ora, per ogni albero $b$ campionato in $p$ e selezionato in un ordine predefinito, e posti $v_b$ e $a_b$ rispettivamente il volume e l'area basimetrica di $b$, simuliamo il prelievo di $b$: se $v_c + v_b\cdot s \leq p_{max}$ e $a_c + a_b\cdot s \leq a_{max}$, poniamo $v_c = v_c + v_b\cdot s$ e $a_c = a_c + a_b\cdot s$. Altrimenti interrompiamo la simulazione e riportiamo il valore di $v_c$ quale limite di prelievo in m$^3$.
+\end{enumerate}
+
+Volendo eseguire tagli colturali atti a rafforzare le piante mature, selezioniamo le piante campione partendo dal basso, in ordine crescente di classe diametrica dai 20 cm in su.
+
+
+
 
 \cite{corona:2007}
 \cite{marziliano:2011}
