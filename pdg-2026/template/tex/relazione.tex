@@ -154,6 +154,31 @@ Inoltre, per fustaie fino a 60 anni di età, il prelievo non può superare una d
 
 \subsection{Calcolo degli incrementi}
 
+Per ogni albero campione $i$ per cui è stato rilevato l'incremento periodico di raggio $L_{10}$ (spessore degli ultimi 10 anelli legnosi, in mm), calcoliamo l'incremento percentuale secondo
+la formula di Pressler modificata:
+\[
+  ip_i = c_i \cdot \frac{2\,L_{10,i}}{100\,d_i}
+\]
+dove $d_i$ è il diametro (cm) e $c_i$ è il coefficiente di Pressler dell'albero, pari a 200 nel caso standard e variabile per tenere conto di correzioni specie-specifiche o stazionali.
+
+Per ogni raggruppamento di interesse (specie e classe diametrica, ed eventualmente compresa o particella), calcoliamo:
+
+\begin{enumerate}
+\item L'incremento percentuale medio $\overline{ip}$, ottenuto come media ponderata sui volumi dei singoli alberi:
+\[ \overline{ip} = \frac{\sum_i ip_i \cdot v_i}{\sum_i v_i} \]
+dove $v_i$ è il volume dell'albero $i$. Quando si calcolano le stime totali (anziché per ettaro campionato), i volumi vengono scalati in proporzione alla frazione campionata di ciascuna particella.
+
+\item L'incremento corrente $I_c$ (m$^3$), dato dal volume complessivo del gruppo moltiplicato per l'incremento percentuale medio:
+\[ I_c = V \cdot \frac{\overline{ip}}{100} \]
+dove $V = \sum_i v_i$ è il volume totale del raggruppamento (eventualmente scalato come sopra).
+\end{enumerate}
+
+La ponderazione per volume fa sì che gli alberi di maggiori
+dimensioni — che contribuiscono in modo preponderante alla
+massa legnosa — pesino di più nella stima dell'incremento
+del gruppo.
+
+
 \subsection{Aggiornamento del programma dei tagli}
 
 \section{Curve ipsometriche e classi diametriche}
