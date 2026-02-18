@@ -36,8 +36,8 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import acc
-from acc import (COL_COEFF_PRESSLER, COL_COMPRESA, COL_DIAMETER_CM, COL_DIAMETRO,
-                 COL_GENERE, COL_HEIGHT_M, COL_L10_MM, COL_PARTICELLA, COL_V_M3,
+from acc import (COL_COEFF_PRESSLER, COL_COMPRESA, COL_D_CM, COL_CD_CM,
+                 COL_GENERE, COL_H_M, COL_L10_MM, COL_PARTICELLA, COL_V_M3,
                  COL_WEIGHT, COL_AREA_SAGGIO,
                  ParcelData, ParcelStats)
 
@@ -120,12 +120,12 @@ class TestAggregationConsistency:
         Note: ip_medio (percentage) does NOT sum - only incremento_corrente does.
         """
         # Total across all
-        df_total = acc.calculate_growth_rates(data_all, group_cols=[COL_GENERE, COL_DIAMETRO], stime_totali=True)
+        df_total = acc.calculate_growth_rates(data_all, group_cols=[COL_GENERE, COL_CD_CM], stime_totali=True)
         total_ic = df_total['incremento_corrente'].sum()
 
         # Per-particella breakdown
         df_per_parcel = acc.calculate_growth_rates(
-            data_all, group_cols=[COL_PARTICELLA, COL_GENERE, COL_DIAMETRO], stime_totali=True
+            data_all, group_cols=[COL_PARTICELLA, COL_GENERE, COL_CD_CM], stime_totali=True
         )
         sum_per_parcel = df_per_parcel['incremento_corrente'].sum()
 
@@ -151,8 +151,8 @@ class TestAggregationConsistency:
             COL_COMPRESA: ['R', 'R'],
             COL_PARTICELLA: ['A', 'B'],
             COL_GENERE: ['Faggio', 'Faggio'],
-            COL_DIAMETER_CM: [25.0, 25.0],
-            COL_DIAMETRO: [25, 25],
+            COL_D_CM: [25.0, 25.0],
+            COL_CD_CM: [25, 25],
             COL_V_M3: [10.0, 10.0],
             COL_COEFF_PRESSLER: [1.0, 1.0],
             COL_L10_MM: [6250.0, 3750.0],
@@ -169,7 +169,7 @@ class TestAggregationConsistency:
                           parcels=parcels)
 
         df = acc.calculate_growth_rates(
-            data, group_cols=[COL_GENERE, COL_DIAMETRO], stime_totali=True)
+            data, group_cols=[COL_GENERE, COL_CD_CM], stime_totali=True)
         assert len(df) == 1
         row = df.iloc[0]
 
@@ -258,7 +258,7 @@ class TestCrossQueryConsistency:
         manual_basal = 0.0
         for (region, parcel), ptrees in trees.groupby([COL_COMPRESA, COL_PARTICELLA]):
             sf = parcels[(region, parcel)].sampled_frac
-            basal = np.pi / 4 * ptrees[COL_DIAMETER_CM] ** 2 / 10000  # m²
+            basal = np.pi / 4 * ptrees[COL_D_CM] ** 2 / 10000  # m²
             manual_basal += basal.sum() / sf
 
         assert np.isclose(tcd_basal, manual_basal, rtol=1e-9), \
@@ -540,8 +540,8 @@ class TestMature:
     def test_small_trees_count(self, data_all):
         """Verify the number of small trees in test data."""
         trees = data_all.trees
-        n_small = (trees[COL_DIAMETER_CM] <= acc.MATURE_THRESHOLD).sum()
-        n_mature = (trees[COL_DIAMETER_CM] > acc.MATURE_THRESHOLD).sum()
+        n_small = (trees[COL_D_CM] <= acc.MATURE_THRESHOLD).sum()
+        n_mature = (trees[COL_D_CM] > acc.MATURE_THRESHOLD).sum()
 
         # Each parcel (A,B,C,D,E) has 2 small trees: 10 total
         # A: 4 mature, B: 6 mature, C: 10 mature, D: 4 mature, E: 4 mature = 28 total
@@ -557,7 +557,7 @@ class TestMature:
         manual_vol_mature = 0.0
         for (region, parcel), ptrees in trees.groupby([COL_COMPRESA, COL_PARTICELLA]):
             sf = parcels[(region, parcel)].sampled_frac
-            above = ptrees[ptrees[COL_DIAMETER_CM] > acc.MATURE_THRESHOLD]
+            above = ptrees[ptrees[COL_D_CM] > acc.MATURE_THRESHOLD]
             manual_vol_mature += above[COL_V_M3].sum() / sf
 
         # Via calculate_tsv_table
@@ -627,8 +627,8 @@ class TestHarvestCalculation:
         df = acc.calculate_tpt_table(data_parcel_d, harvest_rules, group_cols=[])
 
         trees = data_parcel_d.trees
-        small_trees = trees[trees[COL_DIAMETER_CM] <= acc.MATURE_THRESHOLD]
-        mature_trees = trees[trees[COL_DIAMETER_CM] > acc.MATURE_THRESHOLD]
+        small_trees = trees[trees[COL_D_CM] <= acc.MATURE_THRESHOLD]
+        mature_trees = trees[trees[COL_D_CM] > acc.MATURE_THRESHOLD]
 
         assert len(small_trees) == 2, "Should have 2 small trees"
         assert len(mature_trees) == 4, "Should have 4 mature trees"
@@ -698,7 +698,7 @@ class TestComputeHarvest:
         trees = pd.DataFrame({
             acc.COL_COMPRESA: 'Serra',
             acc.COL_PARTICELLA: '1',
-            acc.COL_DIAMETER_CM: [10.0, 15.0],
+            acc.COL_D_CM: [10.0, 15.0],
             acc.COL_V_M3: [0.1, 0.2],
         })
         vol_mature, harvest = acc.compute_harvest(trees, 0.0125, 1000, 1000)
@@ -710,7 +710,7 @@ class TestComputeHarvest:
         trees = pd.DataFrame({
             acc.COL_COMPRESA: 'Serra',
             acc.COL_PARTICELLA: '1',
-            acc.COL_DIAMETER_CM: [25.0, 30.0, 40.0, 50.0],
+            acc.COL_D_CM: [25.0, 30.0, 40.0, 50.0],
             acc.COL_V_M3: [0.3, 0.5, 1.0, 2.0],
         })
         sf = 1.0  # No scaling for simplicity
@@ -724,7 +724,7 @@ class TestComputeHarvest:
         trees = pd.DataFrame({
             acc.COL_COMPRESA: 'Serra',
             acc.COL_PARTICELLA: '1',
-            acc.COL_DIAMETER_CM: [25.0, 30.0, 40.0],
+            acc.COL_D_CM: [25.0, 30.0, 40.0],
             acc.COL_V_M3: [0.3, 0.5, 1.0],
         })
         sf = 1.0
@@ -754,7 +754,7 @@ class TestVolumeCalculation:
                 continue
             # Sort by D²*h
             group = group.copy()
-            group['d2h'] = group[COL_DIAMETER_CM] ** 2 * group[COL_HEIGHT_M]
+            group['d2h'] = group[COL_D_CM] ** 2 * group[COL_H_M]
             group = group.sort_values('d2h')
 
             # Volumes should be monotonically increasing (within species)
@@ -765,7 +765,7 @@ class TestVolumeCalculation:
     def test_faggio_volume_formula(self):
         """Spot check Faggio volume formula: V = (0.81151 + 0.038965 * D² * h) / 1000."""
         # D=30, h=20 -> V = (0.81151 + 0.038965 * 900 * 20) / 1000 = 0.702 m³
-        df = pd.DataFrame({COL_DIAMETER_CM: [30.0], COL_HEIGHT_M: [20.0], COL_GENERE: ['Faggio']})
+        df = pd.DataFrame({COL_D_CM: [30.0], COL_H_M: [20.0], COL_GENERE: ['Faggio']})
         result = acc.calculate_all_trees_volume(df)
         expected = (0.81151 + 0.038965 * 900 * 20) / 1000
         assert np.isclose(result[COL_V_M3].iloc[0], expected, rtol=1e-6), \
@@ -774,7 +774,7 @@ class TestVolumeCalculation:
     def test_cerro_volume_formula(self):
         """Spot check Cerro volume formula: V = (-0.043221 + 0.038079 * D² * h) / 1000."""
         # D=30, h=20 -> V = (-0.043221 + 0.038079 * 900 * 20) / 1000 = 0.685 m³
-        df = pd.DataFrame({COL_DIAMETER_CM: [30.0], COL_HEIGHT_M: [20.0], COL_GENERE: ['Cerro']})
+        df = pd.DataFrame({COL_D_CM: [30.0], COL_H_M: [20.0], COL_GENERE: ['Cerro']})
         result = acc.calculate_all_trees_volume(df)
         expected = (-0.043221 + 0.038079 * 900 * 20) / 1000
         assert np.isclose(result[COL_V_M3].iloc[0], expected, rtol=1e-6), \
@@ -800,9 +800,9 @@ def _make_parcel_data(trees_data: list[dict]) -> acc.ParcelData:
             acc.COL_PARTICELLA: '1',
             acc.COL_AREA_SAGGIO: 1,
             acc.COL_GENERE: t.get('genere', 'Faggio'),
-            acc.COL_DIAMETER_CM: d,
+            acc.COL_D_CM: d,
             acc.COL_V_M3: t['V'],
-            acc.COL_DIAMETRO: int(np.ceil((d - 2.5) / 5) * 5),
+            acc.COL_CD_CM: int(np.ceil((d - 2.5) / 5) * 5),
             acc.COL_L10_MM: t.get('L10', 5.0),
             acc.COL_COEFF_PRESSLER: t.get('c', 200),
         })
@@ -960,10 +960,10 @@ def _make_sim(trees_data):
             COL_COMPRESA: region,
             COL_PARTICELLA: parcel,
             COL_AREA_SAGGIO: sa,
-            COL_DIAMETER_CM: d,
+            COL_D_CM: d,
             COL_V_M3: v,
             COL_GENERE: genere,
-            COL_DIAMETRO: acc.diameter_class(pd.Series([d])).iloc[0],
+            COL_CD_CM: acc.diameter_class(pd.Series([d])).iloc[0],
             COL_WEIGHT: 1.0,
         })
     return pd.DataFrame(rows)
@@ -979,7 +979,7 @@ def _simple_rules(comparto, eta_media, volume_per_ha, area_basimetrica_per_ha):
 class TestSelectFromBottom:
     def test_orders_by_diameter(self):
         trees = pd.DataFrame({
-            COL_DIAMETER_CM: [40.0, 25.0, 55.0, 30.0],
+            COL_D_CM: [40.0, 25.0, 55.0, 30.0],
         })
         result = acc.select_from_bottom(trees)
         assert list(result) == [1, 3, 0, 2]
@@ -1205,8 +1205,8 @@ class TestScheduleHarvests:
         ceduo_trees = pd.DataFrame([{
             acc.COL_COMPRESA: 'Test', acc.COL_PARTICELLA: 'Z',
             acc.COL_AREA_SAGGIO: 1, 'n': 1, 'poll': '',
-            acc.COL_DIAMETER_CM: 30.0, 'Classe diametrica': 6,
-            acc.COL_HEIGHT_M: 20.0, acc.COL_GENERE: 'Faggio',
+            acc.COL_D_CM: 30.0, 'Classe diametrica': 6,
+            acc.COL_H_M: 20.0, acc.COL_GENERE: 'Faggio',
             acc.COL_FUSTAIA: True, acc.COL_L10_MM: 3.0,
             acc.COL_COEFF_PRESSLER: 200,
         }])

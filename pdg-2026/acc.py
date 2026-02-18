@@ -33,13 +33,13 @@ skip_graphs = False  # Global flag to skip graph generation pylint: disable=inva
 
 # Input DataFrame column names (from CSV files).
 # Trees data
-COL_DIAMETER_CM = 'D(cm)'
-COL_HEIGHT_M = 'h(m)'
+COL_D_CM = 'D(cm)'
+COL_H_M = 'h(m)'
 COL_V_M3 = 'V(m3)'
 COL_GENERE = 'Genere'
 COL_COMPRESA = 'Compresa'
 COL_PARTICELLA = 'Particella'
-COL_DIAMETRO = 'Diametro'       # Computed: diameter bucket (5 cm classes)
+COL_CD_CM = 'Classe diam.'      # Computed: diameter bucket (5 cm classes)
 COL_FUSTAIA = 'Fustaia'         # Boolean column in trees data
 COL_AREA_SAGGIO = 'Area saggio'
 COL_COEFF_PRESSLER = 'c'
@@ -60,6 +60,13 @@ COL_ETA_MEDIA = 'Età media'
 # Alsometric (ALS) curve data
 COL_DIAM_130 = 'Diam 130cm'
 COL_ALT_INDICATIVA = 'Altezza indicativa'
+
+GROUP_COLS_ALIGN = {
+    COL_COMPRESA: 'l',
+    COL_PARTICELLA: 'l',
+    COL_GENERE: 'l',
+    COL_CD_CM: 'r'
+}
 
 @dataclass
 class RenderResult:
@@ -613,8 +620,8 @@ def calculate_volume_confidence_interval(trees_df: pd.DataFrame) -> tuple[float,
 
         # Build D0 matrix (n_trees x n_coefficients)
         d0 = np.zeros((n_trees, len(b)))
-        d_values = cast(np.ndarray, group[COL_DIAMETER_CM].values)
-        h_values = cast(np.ndarray, group[COL_HEIGHT_M].values)
+        d_values = cast(np.ndarray, group[COL_D_CM].values)
+        h_values = cast(np.ndarray, group[COL_H_M].values)
         d0[:, 0] = 1
         d0[:, 1] = (d_values ** 2) * h_values
         if len(b) == 3:
@@ -653,18 +660,18 @@ def calculate_all_trees_volume(trees_df: pd.DataFrame) -> pd.DataFrame:
     Returns:
         DataFrame with added/updated V(m3) column
     """
-    required = [COL_DIAMETER_CM, COL_HEIGHT_M, COL_GENERE]
+    required = [COL_D_CM, COL_H_M, COL_GENERE]
     missing = [col for col in required if col not in trees_df.columns]
     if missing:
         raise ValueError(f"Colonne mancanti: {missing}")
 
     # Validate: no missing data
-    na_mask = trees_df[COL_DIAMETER_CM].isna() | trees_df[COL_HEIGHT_M].isna()
+    na_mask = trees_df[COL_D_CM].isna() | trees_df[COL_H_M].isna()
     if na_mask.any():
         idx = na_mask.idxmax()
         raise ValueError(f"Dati mancanti per riga {idx}: "
-                         f"D={trees_df.at[idx, COL_DIAMETER_CM]}, "
-                         f"h={trees_df.at[idx, COL_HEIGHT_M]}")
+                         f"D={trees_df.at[idx, COL_D_CM]}, "
+                         f"h={trees_df.at[idx, COL_H_M]}")
 
     result_df = trees_df.copy()
     result_df[COL_V_M3] = 0.0
@@ -673,8 +680,8 @@ def calculate_all_trees_volume(trees_df: pd.DataFrame) -> pd.DataFrame:
         if genere not in TABACCHI:
             raise ValueError(f"Genere '{genere}' non trovato nelle tavole di Tabacchi")
         b = TABACCHI[genere].b
-        d = group[COL_DIAMETER_CM]
-        h = group[COL_HEIGHT_M]
+        d = group[COL_D_CM]
+        h = group[COL_H_M]
         d2h = d ** 2 * h
         if len(b) == 2:
             vol = (b[0] + b[1] * d2h) / 1000
@@ -777,7 +784,7 @@ def parcel_data(tree_files: list[str], tree_df: pd.DataFrame, parcel_df: pd.Data
             sampled_frac=sampled_frac,
         )
 
-    trees_region_species[COL_DIAMETRO] = diameter_class(trees_region_species[COL_DIAMETER_CM])
+    trees_region_species[COL_CD_CM] = diameter_class(trees_region_species[COL_D_CM])
 
     data = ParcelData(
         trees=trees_region_species,
@@ -874,8 +881,8 @@ def fit_curves_from_ipsometro(ipsometro_file: str, funzione: str = 'log') -> pd.
         DataFrame with columns [compresa, genere, funzione, a, b, r2, n]
     """
     df = load_csv(ipsometro_file, None)
-    df['x'] = df[COL_DIAMETER_CM]
-    df['y'] = df[COL_HEIGHT_M]
+    df['x'] = df[COL_D_CM]
+    df['y'] = df[COL_H_M]
     groups = []
 
     for (compresa, genere), group in df.groupby([COL_COMPRESA, COL_GENERE]):
@@ -895,8 +902,8 @@ def fit_curves_from_originali(alberi_file: str, funzione: str = 'log') -> pd.Dat
         DataFrame with columns [compresa, genere, funzione, a, b, r2, n]
     """
     df = load_trees(alberi_file)
-    df['x'] = df[COL_DIAMETER_CM]
-    df['y'] = df[COL_HEIGHT_M]
+    df['x'] = df[COL_D_CM]
+    df['y'] = df[COL_H_M]
 
     groups = list(df.groupby([COL_COMPRESA, COL_GENERE]))
     return fit_curves_grouped(groups, funzione)
@@ -947,7 +954,7 @@ def compute_heights(trees_df: pd.DataFrame, equations_df: pd.DataFrame,
     trees_unchanged = 0
 
     result_df = trees_df.copy()
-    result_df[COL_HEIGHT_M] = result_df[COL_HEIGHT_M].astype(float)
+    result_df[COL_H_M] = result_df[COL_H_M].astype(float)
 
     for (compresa, genere), group in trees_df.groupby([COL_COMPRESA, COL_GENERE]):
         eq_row = equations_df[
@@ -963,14 +970,14 @@ def compute_heights(trees_df: pd.DataFrame, equations_df: pd.DataFrame,
 
         eq = eq_row.iloc[0]
         indices = group.index
-        diameters = trees_df.loc[indices, COL_DIAMETER_CM].astype(float)
+        diameters = trees_df.loc[indices, COL_D_CM].astype(float)
 
         if eq['funzione'] == 'ln':
             new_heights = eq['a'] * np.log(np.maximum(diameters, 0.1)) + eq['b']
         else:  # 'lin'
             new_heights = eq['a'] * diameters + eq['b']
 
-        result_df.loc[indices, COL_HEIGHT_M] = new_heights.astype(float)
+        result_df.loc[indices, COL_H_M] = new_heights.astype(float)
         trees_updated += len(group)
 
         if verbose:
@@ -1015,8 +1022,8 @@ def render_gci_graph(data: ParcelData, equations_df: pd.DataFrame,
     # First pass: scatter points (once per species)
     for sp in species:
         sp_data = trees[trees[COL_GENERE] == sp]
-        x = sp_data[COL_DIAMETER_CM].values
-        y = sp_data[COL_HEIGHT_M].values
+        x = sp_data[COL_D_CM].values
+        y = sp_data[COL_H_M].values
         ax.scatter(x, y, color=color_map[sp], label=sp, alpha=0.7, linewidth=2, s=1)
 
     # Second pass: regression curves (per compresa/genere pair)
@@ -1024,7 +1031,7 @@ def render_gci_graph(data: ParcelData, equations_df: pd.DataFrame,
     for region in regions:
         for sp in species:
             sp_data = trees[trees[COL_GENERE] == sp]
-            x = sp_data[COL_DIAMETER_CM].values
+            x = sp_data[COL_D_CM].values
 
             # Look up pre-computed equation from equations.csv, if any
             eq_row = equations_df[
@@ -1053,8 +1060,8 @@ def render_gci_graph(data: ParcelData, equations_df: pd.DataFrame,
                 ))
 
     if not skip_graphs:
-        x_max = max(options[OPT_X_MAX], trees[COL_DIAMETER_CM].max() + 3)
-        y_max = max(options[OPT_Y_MAX], (trees[COL_HEIGHT_M].max() + 6) // 5 * 5)
+        x_max = max(options[OPT_X_MAX], trees[COL_D_CM].max() + 3)
+        y_max = max(options[OPT_Y_MAX], (trees[COL_H_M].max() + 6) // 5 * 5)
         ax.set_xlabel('Diametro (cm)')
         ax.set_ylabel('Altezza (m)')
         ax.set_xlim(-0.5, x_max)
@@ -1126,28 +1133,28 @@ def calculate_cd_data(data: ParcelData, metrica: str, stime_totali: bool,
     per_ha = metrica.endswith('_ha')
 
     if fine:
-        bucket_key = COL_DIAMETRO
+        bucket_key = COL_CD_CM
     else:
         def coarse_bin(d):
             return COARSE_BIN0 if d <= 30 else COARSE_BIN1 if d <= 50 else COARSE_BIN2
-        bucket_key = trees[COL_DIAMETRO].apply(coarse_bin)
+        bucket_key = trees[COL_CD_CM].apply(coarse_bin)
 
     # For height, compute mean directly (no per-parcel scaling)
     if agg_type == AGG_HEIGHT:
-        bucket_vals = trees[COL_DIAMETRO] if fine else bucket_key
-        combined = trees.groupby([bucket_vals, COL_GENERE])[COL_HEIGHT_M].mean().unstack(fill_value=0)
+        bucket_vals = trees[COL_CD_CM] if fine else bucket_key
+        combined = trees.groupby([bucket_vals, COL_GENERE])[COL_H_M].mean().unstack(fill_value=0)
         return combined.reindex(columns=species, fill_value=0).sort_index()
 
     results, area_ha = {}, 0
     for (region, parcel), ptrees in trees.groupby([COL_COMPRESA, COL_PARTICELLA]):
         p = parcels[(region, parcel)]
         area_ha += p.area_ha
-        bucket_vals = ptrees[COL_DIAMETRO] if fine else cast(pd.Series, bucket_key).loc[ptrees.index]
+        bucket_vals = ptrees[COL_CD_CM] if fine else cast(pd.Series, bucket_key).loc[ptrees.index]
         if agg_type == AGG_VOLUME:
             agg = ptrees.groupby([bucket_vals, COL_GENERE])[COL_V_M3].sum().unstack(fill_value=0)
         elif agg_type == AGG_BASAL:
             # Basal area: π/4 * D² in cm², convert to m²
-            basal = np.pi / 4 * ptrees[COL_DIAMETER_CM] ** 2 / 10000
+            basal = np.pi / 4 * ptrees[COL_D_CM] ** 2 / 10000
             agg = basal.groupby([bucket_vals, ptrees[COL_GENERE]]).sum().unstack(fill_value=0)
         else:
             agg = ptrees.groupby([bucket_vals, COL_GENERE]).size().unstack(fill_value=0)
@@ -1439,7 +1446,7 @@ def render_table(df: pd.DataFrame, group_cols: list[str],
         add_totals: Whether to append a totals row
     """
     col_specs = [c for c in col_specs if c.enabled]
-    headers = [(col, 'l') for col in group_cols]
+    headers = [(col, GROUP_COLS_ALIGN[col]) for col in group_cols]
     headers += [(c.title, c.align) for c in col_specs]
 
     display_rows = []
@@ -1514,7 +1521,7 @@ def calculate_tsv_table(data: ParcelData, group_cols: list[str],
                 n_trees += len(ptrees) / sf
                 volume += ptrees[COL_V_M3].sum() / sf
                 if calc_mature:
-                    above_thresh = ptrees[ptrees[COL_DIAMETER_CM] > MATURE_THRESHOLD]
+                    above_thresh = ptrees[ptrees[COL_D_CM] > MATURE_THRESHOLD]
                     vol_mature += above_thresh[COL_V_M3].sum() / sf
                 if calc_margin:
                     _, pmargin = calculate_volume_confidence_interval(ptrees)
@@ -1523,7 +1530,7 @@ def calculate_tsv_table(data: ParcelData, group_cols: list[str],
             n_trees = len(group_trees)
             volume = group_trees[COL_V_M3].sum()
             if calc_mature:
-                above_thresh = group_trees[group_trees[COL_DIAMETER_CM] > MATURE_THRESHOLD]
+                above_thresh = group_trees[group_trees[COL_D_CM] > MATURE_THRESHOLD]
                 vol_mature = above_thresh[COL_V_M3].sum()
             if calc_margin:
                 _, margin = calculate_volume_confidence_interval(group_trees)
@@ -1604,10 +1611,10 @@ def calculate_growth_rates(data: ParcelData, group_cols: list[str],
     """
     trees = data.trees
     parcels = data.parcels
-    for col in (COL_GENERE, COL_DIAMETRO):
+    for col in (COL_GENERE, COL_CD_CM):
         if col not in group_cols:
             raise ValueError(f"group_cols deve includere '{col}'")
-    for col in (group_cols + [COL_COEFF_PRESSLER, COL_L10_MM, COL_DIAMETER_CM, COL_V_M3]):
+    for col in (group_cols + [COL_COEFF_PRESSLER, COL_L10_MM, COL_D_CM, COL_V_M3]):
         if col not in trees.columns:
             raise ValueError(f"Direttiva richiede la colonna '{col}'. "
                              "Esegui --calcola-incrementi e --calcola-altezze-volumi.")
@@ -1616,7 +1623,7 @@ def calculate_growth_rates(data: ParcelData, group_cols: list[str],
     for group_key, group_trees in trees.groupby(group_cols):
         row_dict = dict(zip(group_cols, group_key))
         ip_per_tree = (group_trees[COL_COEFF_PRESSLER] * 2 * group_trees[COL_L10_MM]
-                       / 100 / group_trees[COL_DIAMETER_CM])
+                       / 100 / group_trees[COL_D_CM])
         delta_d = (2 * group_trees[COL_L10_MM] / 100).mean()
 
         if stime_totali:
@@ -1653,13 +1660,11 @@ def render_tip_table(data: ParcelData, formatter: SnippetFormatter, **options) -
         group_cols.append(COL_COMPRESA)
     if options[OPT_PER_PARTICELLA]:
         group_cols.append(COL_PARTICELLA)
-    group_cols += [COL_GENERE, COL_DIAMETRO]
+    group_cols += [COL_GENERE, COL_CD_CM]
 
     df = calculate_growth_rates(data, group_cols, options[OPT_STIME_TOTALI])
 
     col_specs = [
-        ColSpec('Genere', 'l', lambda r: str(r[COL_GENERE]), None, True),
-        ColSpec('D (cm)', 'r', lambda r: f"{r[COL_DIAMETRO]}", None, True),
         ColSpec('Incr. pct.', 'r', COL_IP_MEDIO, None, True),
         ColSpec('Incr. corr. (m³)', 'r', COL_INCR_CORR, COL_INCR_CORR, True),
     ]
@@ -1676,7 +1681,7 @@ def render_gip_graph(data: ParcelData, output_path: Path,
             group_cols.append(COL_COMPRESA)
         if options[OPT_PER_PARTICELLA]:
             group_cols.append(COL_PARTICELLA)
-        group_cols += [COL_GENERE, COL_DIAMETRO]
+        group_cols += [COL_GENERE, COL_CD_CM]
 
         df = calculate_growth_rates(data, group_cols, options[OPT_STIME_TOTALI])
 
@@ -1687,7 +1692,7 @@ def render_gip_graph(data: ParcelData, output_path: Path,
             y_col, y_label = COL_INCR_CORR, 'Incremento corrente (m³)'
 
         # Each curve is a unique (optional compresa, optional particella, genere) tuple
-        curve_cols = [c for c in group_cols if c != COL_DIAMETRO]
+        curve_cols = [c for c in group_cols if c != COL_CD_CM]
 
         fig, ax = plt.subplots(figsize=(5, 3.5))
 
@@ -1696,15 +1701,15 @@ def render_gip_graph(data: ParcelData, output_path: Path,
                 curve_key = (curve_key,)
             label = ' / '.join(str(k) for k in curve_key)
             genere = curve_key[-1]  # last element is always Genere
-            curve_df = curve_df.sort_values(COL_DIAMETRO)
-            ax.plot(curve_df[COL_DIAMETRO], curve_df[y_col],
+            curve_df = curve_df.sort_values(COL_CD_CM)
+            ax.plot(curve_df[COL_CD_CM], curve_df[y_col],
                     marker='o', markersize=3, linewidth=1.5,
                     color=color_map.get(genere, '#0c63e7'),
                     label=label, alpha=0.85)
 
         ax.set_xlabel('Diametro (cm)')
         ax.set_ylabel(y_label)
-        x_max = df[COL_DIAMETRO].max() + 5
+        x_max = df[COL_CD_CM].max() + 5
         ax.set_xticks(range(0, x_max + 1, 10))
         ax.legend(title='Specie', bbox_to_anchor=(1.01, 1.02), alignment='left')
         ax.grid(axis='y', alpha=0.3)
@@ -1723,7 +1728,7 @@ TreeSelectionFunc = Callable[[pd.DataFrame], pd.Index]
 
 def select_from_bottom(trees: pd.DataFrame) -> pd.Index:
     """Thinning from below: smallest mature trees first."""
-    return trees.sort_values(COL_DIAMETER_CM).index
+    return trees.sort_values(COL_D_CM).index
 
 
 def year_step(sim: pd.DataFrame, weight: np.ndarray,
@@ -1758,7 +1763,7 @@ def year_step(sim: pd.DataFrame, weight: np.ndarray,
         Returns (inc_pct, delta_d, fallback_count).  When a tree's exact diameter bucket
         is not in the growth table, falls back to the nearest available bucket.
         """
-        prefix_cols = [c for c in growth.groupby_cols if c != COL_DIAMETRO]
+        prefix_cols = [c for c in growth.groupby_cols if c != COL_CD_CM]
 
         keys = list(zip(*(sim[c] for c in growth.groupby_cols)))
         rates = [growth.by_group.get(k) for k in keys]
@@ -1774,14 +1779,14 @@ def year_step(sim: pd.DataFrame, weight: np.ndarray,
             if not diams:
                 inc_pct[i], delta_d[i] = 0.0, 0.0
                 continue
-            nearest = find_nearest_diameter(diams, int(row[COL_DIAMETRO]))
+            nearest = find_nearest_diameter(diams, int(row[COL_CD_CM]))
             inc_pct[i], delta_d[i] = growth.by_group.get(prefix + (nearest,), (0.0, 0.0))
 
         return inc_pct, delta_d, fallbacks
 
     if diam_growth is not None:
-        sim[COL_DIAMETER_CM] = sim[COL_DIAMETER_CM].values + diam_growth
-        sim[COL_DIAMETRO] = diameter_class(sim[COL_DIAMETER_CM])
+        sim[COL_D_CM] = sim[COL_D_CM].values + diam_growth
+        sim[COL_CD_CM] = diameter_class(sim[COL_D_CM])
 
     inc_pct, delta_d, fallbacks = lookup_growth(sim, growth)
     sim[COL_V_M3] = sim[COL_V_M3].values * (1 + inc_pct / 100)
@@ -1792,7 +1797,7 @@ def year_step(sim: pd.DataFrame, weight: np.ndarray,
 
 def build_growth_tables(data: ParcelData) -> GrowthTables:
     """Build growth rate lookup tables from parcel data."""
-    groupby_cols = [COL_COMPRESA, COL_GENERE, COL_DIAMETRO]
+    groupby_cols = [COL_COMPRESA, COL_GENERE, COL_CD_CM]
     growth_df = calculate_growth_rates(data, groupby_cols, stime_totali=True)
     by_group = {}
     available_diams = defaultdict(list)
@@ -1800,7 +1805,7 @@ def build_growth_tables(data: ParcelData) -> GrowthTables:
         key = tuple(row[c] for c in groupby_cols)
         by_group[key] = (row[COL_IP_MEDIO], row[COL_DELTA_D])
         prefix = key[:-1]
-        available_diams[prefix].append(int(row[COL_DIAMETRO]))
+        available_diams[prefix].append(int(row[COL_CD_CM]))
     for prefix in available_diams:
         available_diams[prefix] = sorted(set(available_diams[prefix]))
     return GrowthTables(by_group, available_diams, groupby_cols)
@@ -1825,7 +1830,7 @@ def calculate_tcr_table(data: ParcelData, group_cols: list[str],
 
     # Copy tree records for simulation
     sim = trees[[COL_COMPRESA, COL_PARTICELLA, COL_AREA_SAGGIO,
-                 COL_GENERE, COL_DIAMETER_CM, COL_V_M3, COL_DIAMETRO]].copy()
+                 COL_GENERE, COL_D_CM, COL_V_M3, COL_CD_CM]].copy()
     weight = np.ones(len(sim))
 
     fallback_count = 0
@@ -1856,7 +1861,7 @@ def calculate_tcr_table(data: ParcelData, group_cols: list[str],
 
     # Per-tree ic using compresa-level growth rates, restricted to mature
     # trees (D > threshold) to match the volume columns.
-    small_trees = trees[COL_DIAMETER_CM] <= MATURE_THRESHOLD
+    small_trees = trees[COL_D_CM] <= MATURE_THRESHOLD
     tree_keys = list(zip(*(trees[c] for c in growth.groupby_cols)))
     tree_ip = np.array([growth.by_group.get(k, (0, 0))[0] for k in tree_keys])
     tree_ic = pd.Series(trees[COL_V_M3].values * tree_ip / 100, index=trees.index)
@@ -2122,7 +2127,7 @@ def _simulate_harvest_on_parcel(
     eff_vol = ptrees[COL_V_M3] * ptrees[COL_WEIGHT]
 
     # Mature trees only
-    mature_mask = ptrees[COL_DIAMETER_CM] > MATURE_THRESHOLD
+    mature_mask = ptrees[COL_D_CM] > MATURE_THRESHOLD
     mature = ptrees[mature_mask]
     if mature.empty:
         return None
@@ -2130,7 +2135,7 @@ def _simulate_harvest_on_parcel(
     mature_eff_vol = eff_vol[mature.index]
     volume_before = mature_eff_vol.sum() / sf
     # G in m2 per tree, weighted
-    mature_G = np.pi / 4 * mature[COL_DIAMETER_CM] ** 2 / 10000 * mature[COL_WEIGHT]
+    mature_G = np.pi / 4 * mature[COL_D_CM] ** 2 / 10000 * mature[COL_WEIGHT]
     basal_mature = mature_G.sum() / sf
 
     vol_mature_per_ha = volume_before / area_ha
@@ -2177,7 +2182,7 @@ def _mature_vol_per_ha(sim: pd.DataFrame, region: str, parcel: str,
                        stats: ParcelStats) -> float:
     """Compute mature effective volume per hectare for a parcel in the simulation."""
     mask = ((sim[COL_COMPRESA] == region) & (sim[COL_PARTICELLA] == parcel) &
-            (sim[COL_DIAMETER_CM] > MATURE_THRESHOLD))
+            (sim[COL_D_CM] > MATURE_THRESHOLD))
     eff_vol = (sim.loc[mask, COL_V_M3] * sim.loc[mask, COL_WEIGHT]).sum()
     return eff_vol / stats.sampled_frac / stats.area_ha
 
@@ -2213,7 +2218,7 @@ def schedule_harvests(
 
     # Build sim DataFrame with weight and diam_growth columns
     sim = trees[[COL_COMPRESA, COL_PARTICELLA, COL_AREA_SAGGIO,
-                 COL_GENERE, COL_DIAMETER_CM, COL_V_M3, COL_DIAMETRO]].copy()
+                 COL_GENERE, COL_D_CM, COL_V_M3, COL_CD_CM]].copy()
     sim[COL_WEIGHT] = 1.0
     sim[COL_DIAM_GROWTH] = 0.0
 
@@ -2305,15 +2310,15 @@ def compute_harvest(trees_df: pd.DataFrame, sampled_frac: float,
         (volume_mature, harvest_volume), both scaled.
     """
     assert trees_df[COL_COMPRESA].nunique() == 1 and trees_df[COL_PARTICELLA].nunique() == 1
-    harvestable = trees_df[trees_df[COL_DIAMETER_CM] > MATURE_THRESHOLD].copy()
+    harvestable = trees_df[trees_df[COL_D_CM] > MATURE_THRESHOLD].copy()
     if harvestable.empty:
         return 0.0, 0.0
 
     # G in m2 per tree: D is in cm, D2 in cm2, /10000 converts cm2 -> m2
-    harvestable['G'] = np.pi / 4 * harvestable[COL_DIAMETER_CM] ** 2 / 10000
+    harvestable['G'] = np.pi / 4 * harvestable[COL_D_CM] ** 2 / 10000
     total_volume = harvestable[COL_V_M3].sum() / sampled_frac
 
-    harvestable = harvestable.sort_values(COL_DIAMETER_CM)
+    harvestable = harvestable.sort_values(COL_D_CM)
     cum_vol, cum_area = 0.0, 0.0
 
     for _, tree in harvestable.iterrows():
@@ -2377,9 +2382,9 @@ def calculate_tpt_table(data: ParcelData, rules: HarvestRulesFunc,
         sector, p_area, sf, age = p.sector, p.area_ha, p.sampled_frac, p.age
 
         # Compute per-ha stats of mature trees for rules lookup
-        mature = part_trees[part_trees[COL_DIAMETER_CM] > MATURE_THRESHOLD]
+        mature = part_trees[part_trees[COL_D_CM] > MATURE_THRESHOLD]
         vol_mature_per_ha = mature[COL_V_M3].sum() / sf / p_area
-        basal_per_ha = (np.pi / 4 * mature[COL_DIAMETER_CM] ** 2 / 10000).sum() / sf / p_area
+        basal_per_ha = (np.pi / 4 * mature[COL_D_CM] ** 2 / 10000).sum() / sf / p_area
 
         vol_limit_ha, area_limit_ha = rules(sector, age, vol_mature_per_ha, basal_per_ha)
         if vol_limit_ha == 0 and area_limit_ha == 0:
@@ -2427,7 +2432,7 @@ def calculate_tpt_table(data: ParcelData, rules: HarvestRulesFunc,
             # For per-genere breakdown, compute this group's share of the parcel
             if COL_GENERE in group_cols:
                 # Pro-rata allocation based on volume_mature
-                above_thresh = part_trees[part_trees[COL_DIAMETER_CM] > MATURE_THRESHOLD]
+                above_thresh = part_trees[part_trees[COL_D_CM] > MATURE_THRESHOLD]
                 group_vol = part_trees[COL_V_M3].sum() / info['sf']
                 group_vol_senza = above_thresh[COL_V_M3].sum() / info['sf']
 
@@ -3179,7 +3184,7 @@ def run_calcola_incrementi(args):
     print(f"Output: {args.output}")
 
     trees_df = load_trees(args.input)
-    trees_df['IP'] = trees_df[COL_COEFF_PRESSLER] * 2 * trees_df[COL_L10_MM] / 100 / trees_df[COL_DIAMETER_CM]
+    trees_df['IP'] = trees_df[COL_COEFF_PRESSLER] * 2 * trees_df[COL_L10_MM] / 100 / trees_df[COL_D_CM]
     trees_df.to_csv(args.output, index=False, float_format="%.6f")
     print(f"\nFile salvato: {args.output}")
 
