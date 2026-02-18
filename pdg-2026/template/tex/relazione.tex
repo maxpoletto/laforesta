@@ -4,6 +4,7 @@
 \usepackage{url}
 \usepackage{graphicx}
 \usepackage{geometry}
+\usepackage{hyperref}
 \usepackage{float}
 \usepackage{longtable}
 \usepackage{verbatim}
@@ -13,14 +14,18 @@
 % Typography: serif body text
 \usepackage{libertinus}
 \usepackage[T1]{fontenc}
-
 % Sans-serif section titles (Gill Sans-like)
 \usepackage{gillius}
 \usepackage{sectsty}
 \allsectionsfont{\sffamily}
+
+\usepackage[style=authoryear]{biblatex}
+\addbibresource{ref.bib}
+
 \title{\sffamily Documentazione integrativa al Piano di Assestamento}
-\date{\sffamily Gennaio 2026}
+\date{\sffamily Febbraio 2026}
 \author{\sffamily Società Agricola La Foresta\\\sffamily Serra San Bruno}
+
 \begin{document}
 \maketitle
 
@@ -42,9 +47,20 @@ La relazione si articola in 7 parti.
 \section{Note metodologiche}
 \label{sec:note-metodologia}
 
+Di seguito sono riportati alcuni chiarimenti sui rilevamenti e i metodi di calcolo usati nella stesura di questa relazione.
+
 \subsection{Campionamento}
 
+Le 177 aree di saggio già descritte nella relazione iniziale, ciascuna della dimensione di $\frac{1}{8}$ ha, sono state soggette a cavallettamento totale, fornendo i diametri di circa 9,900 piante. Per un sottoinsieme casuale di 1880 piante è stata rilevata anche l'altezza tramite ipsometro laser. Per un ulteriore sottoinsieme di circa 200 piante è stato misurato l'incremento periodico di raggio $L_{10}$, ovvero lo spessore dei 10 anelli legnosi periferici successivi.
+
 \subsection{Calcolo dei volumi}
+
+I volumi dei soprassuoli sono calcolati secondo la metodologia alle pp.20--27 di~\cite{tabacchi:2011}.
+
+Oltre alla cubatura totale, riportiamo una stima del numero di piante, nonché l'intervallo fiduciario al 95\% della stima dei volumi, ottenuto sempre con la metodologia del Tabacchi. Il margine d'errore per il volume totale è calcolato come la somma dei margini d'errore di ciascuna specie: rappresenta quindi il caso peggiore, in cui le particelle sono completamente correlate tra loro.
+
+I valori elencati includono le piante sottomisura, al di sotto dei 17,5 cm di diametro (classe diametrica inferiore a 20 cm). Per contro, naturalmente, i volumi usati per la ripresa escludono le piante sottomisura.
+
 
 \subsection{Calcolo della ripresa}
 
@@ -52,224 +68,13 @@ La relazione si articola in 7 parti.
 
 \subsection{Aggiornamento del programma dei tagli}
 
-\section{Curve ipsometriche e classi diametriche}
-\label{sec:ipsometrie-diametri}
+\input{sec-ipsometrie-diametri}
+\input{sec-volumi}
+\input{sec-ripresa}
+\input{sec-ceduo}
+\input{sec-piano}
+\input{sec-per-particella}
 
-In questa sezione è riportata, per ciascuna compresa, la distribuzione grafica in classi diametriche del numero di piante per ettaro. Presentiamo un solo grafico di questo tipo per ciascuna compresa, in modo da evidenziare la partecipazione delle diverse specie. Sono esclusi i diametri (grossi) per i quali la frequenza di alberi è inferiore a 0,5 piante / ettaro.
-
-Sono riportate inoltre, per ciascuna compresa e per ciascuna specie ivi prevalente, le curve ipsometriche in forma grafica, complete delle relative equazioni interpolanti.
-
-Le equazioni sono calcolate con un modello di regressione logaritmico, solo per combinazioni di compresa e genere per le quali sono state misurate almeno 10 piante ($n \geq 10$).
-
-\clearpage
-
-\subsection{Serra}
-
-La distribuzione in classi diametriche a Serra è la seguente. Il bosco è dominato dall'abete, ma sono presenti anche faggio, castagno, douglas, e pino nero.
-
-\subsection*{Serra: Classi diametriche}
-@@gcd(compresa=Serra,alberi=alberi.csv)
-
-\subsection*{Serra: curve ipsometriche, veduta d'insieme}
-Presentiamo le curve ipsometriche per le specie prevalenti nella compresa di Serra: abete, castagno, douglas, faggio, pino nero. Le rimanenti specie sono troppo poco frequenti per permettere un'analisi significativa delle altezze.
-
-@@gci(compresa=Serra,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv,genere=Abete,genere=Castagno,genere=Douglas,genere=Faggio,genere=Pino Nero)
-\clearpage
-
-\subsection*{Serra: ipsometria abete}
-@@gci(compresa=Serra,genere=Abete,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
-
-\subsection*{Serra: ipsometria castagno}
-@@gci(compresa=Serra,genere=Castagno,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
-\clearpage
-
-\subsection*{Serra: ipsometria douglas}
-@@gci(compresa=Serra,genere=Douglas,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
-
-\subsection*{Serra: ipsometria faggio}
-@@gci(compresa=Serra,genere=Faggio,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
-\clearpage
-
-\subsection*{Serra: ipsometria pino nero}
-@@gci(compresa=Serra,genere=Pino Nero,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
-\clearpage
-
-\subsection{Fabrizia}
-
-La distribuzione in classi diametriche a Fabrizia è la seguente. Il bosco è dominato dal faggio, con una cospicua presenza di abete e pino nero.
-
-\subsection*{Fabrizia: Classi diametriche}
-@@gcd(compresa=Fabrizia,alberi=alberi.csv)
-
-\subsection*{Fabrizia: curve ipsometriche, veduta d'insieme}
-Le specie prevalenti, per le quali abbiamo potuto calcolare le equazioni interpolanti, sono abete, douglas, faggio e pino nero.
-@@gci(compresa=Fabrizia,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv,genere=Abete,genere=Douglas,genere=Faggio,genere=Pino Nero)
-\clearpage
-
-\subsection*{Fabrizia: ipsometria abete}
-@@gci(compresa=Fabrizia,genere=Abete,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
-
-\subsection*{Fabrizia: ipsometria douglas}
-@@gci(compresa=Fabrizia,genere=Douglas,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
-\clearpage
-
-\subsection*{Fabrizia: ipsometria faggio}
-@@gci(compresa=Fabrizia,genere=Faggio,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
-
-\subsection*{Fabrizia: ipsometria pino nero}
-@@gci(compresa=Fabrizia,genere=Pino Nero,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
-\clearpage
-
-\subsection{Capistrano}
-
-La distribuzione in classi diametriche a Capistrano è la seguente. Il bosco è dominato da abeti e pini.
-\subsection*{Capistrano: Classi diametriche}
-@@gcd(compresa=Capistrano,alberi=alberi.csv)
-
-\subsection*{Capistrano: curve ipsometriche, veduta d'insieme}
-Le specie prevalenti, per le quali abbiamo potuto calcolare le equazioni interpolanti, sono abete, douglas, pino marittimo e pino nero.
-@@gci(compresa=Capistrano,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
-\clearpage
-
-\subsection*{Capistrano: ipsometria abete}
-@@gci(compresa=Capistrano,genere=Abete,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
-
-\subsection*{Capistrano: ipsometria douglas}
-@@gci(compresa=Capistrano,genere=Douglas,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
-\clearpage
-
-\subsection*{Capistrano: ipsometria pino marittimo}
-@@gci(compresa=Capistrano,genere=Pino Marittimo,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
-
-\subsection*{Capistrano: ipsometria pino nero}
-@@gci(compresa=Capistrano,genere=Pino Nero,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
-
-\clearpage
-\section{Stima dei volumi}
-\label{sec:volumi}
-
-Di seguito la stima dei volumi di ciascuna compresa, calcolata secondo la metodologia alle pp.20--27 di {\em Stima del volume e della fitomassa delle principali specie forestali italiane}, Tabacchi {\em et al.} 2011, scaricabile all'indirizzo {\small \url{https://www.inventarioforestale.org/wp-content/uploads/2022/10/tavole_cubatura.pdf}}.
-
-Oltre alla cubatura totale, riportiamo una stima del numero di piante, nonché l'intervallo fiduciario al 95\% della stima dei volumi, ottenuto sempre con la metodologia del Tabacchi. Il margine d'errore per il volume totale è calcolato come la somma dei margini d'errore di ciascuna specie: rappresenta quindi il caso peggiore, in cui le particelle sono completamente correlate tra loro.
-
-I valori elencati includono le piante sottomisura, al di sotto di 20 cm di diametro. Per contro, i volumi usati per la ripresa nella sezione successiva escludono le piante sottomisura.
-
-@@tsv(alberi=alberi-calcolati.csv,per_compresa=si,per_particella=no,per_genere=no,intervallo_fiduciario=si,totali=si)
-
-\subsection*{Stima dei volumi: Serra}
-@@tsv(alberi=alberi-calcolati.csv,compresa=Serra,per_compresa=no,per_particella=si,per_genere=no,intervallo_fiduciario=si,totali=si)
-\clearpage
-
-\subsection*{Stima dei volumi: Fabrizia}
-@@tsv(alberi=alberi-calcolati.csv,compresa=Fabrizia,per_compresa=no,per_particella=si,per_genere=no,intervallo_fiduciario=si,totali=si)
-
-\subsection*{Stima dei volumi: Capistrano}
-@@tsv(alberi=alberi-calcolati.csv,compresa=Capistrano,per_compresa=no,per_particella=si,per_genere=no,intervallo_fiduciario=si,totali=si)
-
-\clearpage
-\section{Ripresa attuale}
-\label{sec:ripresa}
-
-La ripresa per le particelle governate a fustaia è calcolata secondo i criteri definiti dalle Prescrizioni di Massima e di Polizia Forestale della Regione Calabria del 2011, e in particolare dagli articoli 48 e 49.
-
-In sintesi, la provvigione minima di una particella dipende dalla provvigione minima del comparto corrispondente, secondo la seguente tabella:
-
-\begin{center}
-\begin{tabular}{llr}
-\hline
-         &                 & Provvigione \\
-Comparto & Caratteristiche & minima (m³/ha)\\
-\hline
-A        & Popolamenti a prevalenza di faggio, o misti di conifere e latifoglie & 350 \\
-B        & Popolamenti a prevalenza di faggio, o misti di conifere e latifoglie & 350 \\
-C        & Pinete di pino nero e laricio, popolamenti misti & 250 \\
-D        & Pinete di pino nero e laricio, popolamenti misti & 250 \\
-E        & Popolamenti a prevalenza di faggio, o misti di conifere e latifoglie & 350 \\
-\hline
-\end{tabular}
-\end{center}
-
-Il prelievo massimo consentito in una particella è calcolato in base a due criteri, l'entità della provvigione e l'età media del popolamento.
-
-Il volume massimo del prelievo in una particella è determinato dall'eccesso della provvigione effettiva rispetto alla provvigione minima della particella, secondo la seguente tabella.
-
-\begin{center}
-\begin{tabular}{lr}
-\hline
-Eccedenza percentuale sulla         & Prelievo massimo \\
-provvigione minima                  & percentuale \\
-\hline
-$\ge 80$        & 25 \\
-$\ge 60, < 80$  & 20 \\
-$\ge 40, < 60$  & 15 \\
-$\ge 20, < 40$  & 10 \\
-$< 20$          &  0 \\
-\hline
-\end{tabular}
-\end{center}
-
-Inoltre, per fustaie fino a 60 anni di età, il prelievo non può superare una determinata percentuale dell'area basimetrica, secondo la seguente tabella:
-\begin{center}
-\begin{tabular}{lr}
-\hline
-Età media & Percentuale massima \\
-(anni)    & area basimetrica \\
-\hline
-$\ge 30, < 60$  & 20 \\
-$<30$           & 15 \\
-\hline
-\end{tabular}
-\end{center}
-
-In base a queste regole, la ripresa totale per compresa è la seguente.
-
-@@tpt(alberi=alberi-calcolati.csv,per_compresa=si,per_particella=no,col_prelievo=si,totali=si)
-
-Di seguito, per ciascuna compresa, la ripresa per particella. Per ogni particella riportiamo anche il comparto e l'età media per permettere di verificare manualmente le percentuali massime di prelievo secondo i criteri di cui sopra.
-
-\subsection*{Ripresa: Serra}
-\begingroup
-    \setlength{\LTleft}{0pt}
-    {\footnotesize
-@@tpt(alberi=alberi-calcolati.csv,compresa=Serra,per_compresa=no,totali=si)
-    }
-\endgroup
-
-\subsection*{Ripresa: Fabrizia}
-\begingroup
-    \setlength{\LTleft}{0pt}
-    {\footnotesize
-@@tpt(alberi=alberi-calcolati.csv,compresa=Fabrizia,per_compresa=no,totali=si)
-    }
-\endgroup
-
-\subsection*{Ripresa: Capistrano}
-\begingroup
-    \setlength{\LTleft}{0pt}
-    {\footnotesize
-@@tpt(alberi=alberi-calcolati.csv,compresa=Capistrano,per_compresa=no,totali=si)
-    }
-\endgroup
-
-\clearpage
-\section{Ceduo}
-\label{sec:ceduo}
-
-\clearpage
-\section{Piano dei tagli}
-\label{sec:piano}
-
-@@tpdt(alberi=alberi-calcolati.csv,calendario=calendario-tagli-2011-2025.csv,volume_obiettivo=20000,totali=si)
-
-\clearpage
-\section{Dettaglio per particella}
-\label{sec:per-particella}
-
-Di seguito, per ogni compresa e ogni particella, riportiamo in dettaglio le caratteristiche della particella e dei soprassuoli, il piano degli interventi silvicolturali, e i volumi e la ripresa divisi per specie.
-
-\setlength{\LTleft}{0pt}
-@@particelle(compresa=Serra,modello=particella)
-@@particelle(compresa=Fabrizia,modello=particella)
-@@particelle(compresa=Capistrano,modello=particella)
+\printbibliography
 
 \end{document}

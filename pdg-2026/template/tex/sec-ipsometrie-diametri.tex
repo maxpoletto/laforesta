@@ -1,0 +1,93 @@
+\section{Curve ipsometriche e classi diametriche}
+\label{sec:ipsometrie-diametri}
+
+In questa sezione è riportata, per ciascuna compresa, la distribuzione grafica in classi diametriche del numero di piante per ettaro. Presentiamo un solo grafico di questo tipo per ciascuna compresa, in modo da evidenziare la partecipazione delle diverse specie. Sono esclusi i diametri (grossi) per i quali la frequenza di alberi è inferiore a 0,5 piante / ettaro.
+
+Sono riportate inoltre, per ciascuna compresa e per ciascuna specie ivi prevalente, le curve ipsometriche in forma grafica, complete delle relative equazioni interpolanti.
+
+Le equazioni sono calcolate con un modello di regressione logaritmico, solo per combinazioni di compresa e genere per le quali sono state misurate almeno 10 piante ($n \geq 10$).
+
+\clearpage
+
+\subsection{Serra}
+
+La distribuzione in classi diametriche a Serra è la seguente. Il bosco è dominato dall'abete, ma sono presenti anche faggio, castagno, douglas, e pino nero.
+
+\subsection*{Serra: Classi diametriche}
+@@gcd(compresa=Serra,alberi=alberi.csv)
+
+\subsection*{Serra: curve ipsometriche, veduta d'insieme}
+Presentiamo le curve ipsometriche per le specie prevalenti nella compresa di Serra: abete, castagno, douglas, faggio, pino nero. Le rimanenti specie sono troppo poco frequenti per permettere un'analisi significativa delle altezze.
+
+@@gci(compresa=Serra,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv,genere=Abete,genere=Castagno,genere=Douglas,genere=Faggio,genere=Pino Nero)
+\clearpage
+
+\subsection*{Serra: ipsometria abete}
+@@gci(compresa=Serra,genere=Abete,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
+
+\subsection*{Serra: ipsometria castagno}
+@@gci(compresa=Serra,genere=Castagno,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
+\clearpage
+
+\subsection*{Serra: ipsometria douglas}
+@@gci(compresa=Serra,genere=Douglas,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
+
+\subsection*{Serra: ipsometria faggio}
+@@gci(compresa=Serra,genere=Faggio,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
+\clearpage
+
+\subsection*{Serra: ipsometria pino nero}
+@@gci(compresa=Serra,genere=Pino Nero,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
+\clearpage
+
+\subsection{Fabrizia}
+
+La distribuzione in classi diametriche a Fabrizia è la seguente. Il bosco è dominato dal faggio, con una cospicua presenza di abete e pino nero.
+
+\subsection*{Fabrizia: Classi diametriche}
+@@gcd(compresa=Fabrizia,alberi=alberi.csv)
+
+\subsection*{Fabrizia: curve ipsometriche, veduta d'insieme}
+Le specie prevalenti, per le quali abbiamo potuto calcolare le equazioni interpolanti, sono abete, douglas, faggio e pino nero.
+@@gci(compresa=Fabrizia,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv,genere=Abete,genere=Douglas,genere=Faggio,genere=Pino Nero)
+\clearpage
+
+\subsection*{Fabrizia: ipsometria abete}
+@@gci(compresa=Fabrizia,genere=Abete,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
+
+\subsection*{Fabrizia: ipsometria douglas}
+@@gci(compresa=Fabrizia,genere=Douglas,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
+\clearpage
+
+\subsection*{Fabrizia: ipsometria faggio}
+@@gci(compresa=Fabrizia,genere=Faggio,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
+
+\subsection*{Fabrizia: ipsometria pino nero}
+@@gci(compresa=Fabrizia,genere=Pino Nero,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
+\clearpage
+
+\subsection{Capistrano}
+
+La distribuzione in classi diametriche a Capistrano è la seguente. Il bosco è dominato da abeti e pini.
+\subsection*{Capistrano: Classi diametriche}
+@@gcd(compresa=Capistrano,alberi=alberi.csv)
+
+\subsection*{Capistrano: curve ipsometriche, veduta d'insieme}
+Le specie prevalenti, per le quali abbiamo potuto calcolare le equazioni interpolanti, sono abete, douglas, pino marittimo e pino nero.
+@@gci(compresa=Capistrano,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
+\clearpage
+
+\subsection*{Capistrano: ipsometria abete}
+@@gci(compresa=Capistrano,genere=Abete,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
+
+\subsection*{Capistrano: ipsometria douglas}
+@@gci(compresa=Capistrano,genere=Douglas,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
+\clearpage
+
+\subsection*{Capistrano: ipsometria pino marittimo}
+@@gci(compresa=Capistrano,genere=Pino Marittimo,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
+
+\subsection*{Capistrano: ipsometria pino nero}
+@@gci(compresa=Capistrano,genere=Pino Nero,alberi=altezze.csv,equazioni=equazioni_ipsometro.csv)
+
+\clearpage

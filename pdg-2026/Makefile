@@ -79,23 +79,39 @@ clean-html:
 # LaTeX / PDF output
 #
 
-FILES_PDF=tex/relazione.pdf
-FILES_TEX=tex/relazione.tex
+BASENAME=relazione
+FILE_PDF=tex/$(BASENAME).pdf
+FILE_TEX=tex/$(BASENAME).tex
 DEPS_BIB=template/tex/ref.bib
 DEPS_TEX=$(DATA_DEPS) acc.py harvest_rules.py template/tex/particella.tex
 
-pdf: $(FILES_PDF)
+SECTIONS_TEX= \
+	tex/sec-ipsometrie-diametri.tex \
+	tex/sec-volumi.tex \
+	tex/sec-ripresa.tex \
+	tex/sec-ceduo.tex \
+	tex/sec-piano.tex \
+	tex/sec-per-particella.tex
 
-tex/%.tex: template/tex/%.tex $(DEPS_TEX) $(DEPS_BIB)
-	@cp $(DEPS_BIB) tex/
+pdf: $(FILE_PDF)
+
+# Run acc.py on any template file to expand macros into tex/
+tex/%.tex: template/tex/%.tex $(DEPS_TEX)
 	./acc.py $(EXTRA_FLAGS) --report --formato tex --particelle $(CSV_DIR)/particelle.csv --dati $(CSV_DIR) --input template/tex/$*.tex --output-dir tex/
 
-tex/%.pdf: template/tex/%.tex $(DEPS_TEX) $(DEPS_BIB)
-	@cp $(DEPS_BIB) tex/
-	./acc.py $(EXTRA_FLAGS) --report --formato pdf --particelle $(CSV_DIR)/particelle.csv --dati $(CSV_DIR) --input template/tex/$*.tex --output-dir tex/
+# Compile the assembled document
+$(FILE_PDF): $(FILE_TEX) $(SECTIONS_TEX) $(DEPS_BIB)
+	cp $(DEPS_BIB) tex/
+	cd tex && pdflatex $(BASENAME)
+	cd tex && biber $(BASENAME)
+	cd tex && pdflatex $(BASENAME)
+	cd tex && pdflatex $(BASENAME)
 
 clean-pdf:
-	rm -f $(FILES_PDF) $(FILES_TEX)
+	rm -f $(FILE_PDF) $(FILE_TEX) $(SECTIONS_TEX)
+
+clean-pdf-all:
+	rm -f tex/*
 
 #
 # CSV output
