@@ -26,20 +26,21 @@
 
 \section{Introduzione}
 
-Il presente documento contiene la documentazione integrativa al Piano di Assestamento della Società Agricola La Foresta, come richiesto dal Dipartimento Politiche Della Montagna Foreste Forestazione e Difesa del Suolo della Regione Calabria con Protocollo 464707 del 25/06/2025.
+Il presente documento contiene la documentazione integrativa al Piano di Assestamento della Società Agricola La Foresta, come richiesto dal Dipartimento Politiche della Montagna, Foreste, Forestazione e Difesa del Suolo della Regione Calabria con Protocollo 464707 del 25/06/2025.
 
-\section{Curve ipsometriche e classi diametriche}
+La relazione si articola in 7 parti.
+\begin{itemize}
+\item La parte~\ref{sec:note-metodologia} chiarisce alcuni metodi usati per redigere il piano, in particolare per quanto riguarda il calcolo degli incrementi e l'elaborazione del programma di taglio.
+\item La parte~\ref{sec:ipsometrie-diametri} risponde al punto 1 della richiesta della regione: illustra per ogni specie principale le relative curve ipsometriche con equazioni interpolanti e la distribuzione grafica in classi diametriche del numero di alberi per ettaro.
+\item La parte~\ref{sec:volumi} risponde al punto 2 della richiesta: presenta la cubatura di tutti i soprassuoli usando le tavole prescritte dalle linee guida.
+\item La parte~\ref{sec:ripresa} risponde al punto 3 della richiesta: quantifica la ripresa in relazione alla stima dei volumi.
+\item La parte~\ref{sec:ceduo} risponde al punto 4 della richiesta: espone il piano di regolarizzazione dei cedui di castagno.
+\item La parte~\ref{sec:piano} presenta un piano di tagli aggiornato, redatto tenendo conto degli incrementi secondo i criteri descritti nella parte~\ref{sec:note-metodologia}.
+\item La parte~\ref{sec:per-particella}, infine, risponde ai punti 5 e 6 della richiesta. Per ogni particella, indica le necessità colturali dei soprassuoli, descrive gli interventi colturali da eseguire, e fornisce, per ogni specie e classe diametrica, il numero di alberi per ettaro, il volume e l'area basimetrica per ettaro, la distribuzione delle altezze, e gli incrementi percentuali e correnti. Espone inoltre i volumi e la ripresa totali, suddivisi per specie.
+\end{itemize}
 
-In questa sezione è riportata, per ciascuna compresa, la distribuzione grafica in classi diametriche del numero di piante per ettaro. Presentiamo un solo grafico di questo tipo per ciascuna compresa, in modo da evidenziare la partecipazione delle diverse specie.
-
-Sono riportate inoltre, per ciascuna compresa e per ciascuna specie ivi prevalente, le curve ipsometriche in forma grafica, complete delle relative equazioni interpolanti.
-
-Le equazioni sono calcolate con un modello di regressione logaritmico, solo per combinazioni di compresa e genere per le quali sono state campionate almeno 10 piante ($n \geq 10$).
-
-Sono esclusi i diametri (grossi) per i quali la frequenza di alberi è inferiore a 0,5 piante / ettaro.
-\clearpage
-
-\section{Note sulla metodologia}
+\section{Note metodologiche}
+\label{sec:note-metodologia}
 
 \subsection{Campionamento}
 
@@ -50,6 +51,17 @@ Sono esclusi i diametri (grossi) per i quali la frequenza di alberi è inferiore
 \subsection{Calcolo degli incrementi}
 
 \subsection{Aggiornamento del programma dei tagli}
+
+\section{Curve ipsometriche e classi diametriche}
+\label{sec:ipsometrie-diametri}
+
+In questa sezione è riportata, per ciascuna compresa, la distribuzione grafica in classi diametriche del numero di piante per ettaro. Presentiamo un solo grafico di questo tipo per ciascuna compresa, in modo da evidenziare la partecipazione delle diverse specie. Sono esclusi i diametri (grossi) per i quali la frequenza di alberi è inferiore a 0,5 piante / ettaro.
+
+Sono riportate inoltre, per ciascuna compresa e per ciascuna specie ivi prevalente, le curve ipsometriche in forma grafica, complete delle relative equazioni interpolanti.
+
+Le equazioni sono calcolate con un modello di regressione logaritmico, solo per combinazioni di compresa e genere per le quali sono state misurate almeno 10 piante ($n \geq 10$).
+
+\clearpage
 
 \subsection{Serra}
 
@@ -134,6 +146,7 @@ Le specie prevalenti, per le quali abbiamo potuto calcolare le equazioni interpo
 
 \clearpage
 \section{Stima dei volumi}
+\label{sec:volumi}
 
 Di seguito la stima dei volumi di ciascuna compresa, calcolata secondo la metodologia alle pp.20--27 di {\em Stima del volume e della fitomassa delle principali specie forestali italiane}, Tabacchi {\em et al.} 2011, scaricabile all'indirizzo {\small \url{https://www.inventarioforestale.org/wp-content/uploads/2022/10/tavole_cubatura.pdf}}.
 
@@ -155,6 +168,7 @@ I valori elencati includono le piante sottomisura, al di sotto di 20 cm di diame
 
 \clearpage
 \section{Ripresa attuale}
+\label{sec:ripresa}
 
 La ripresa per le particelle governate a fustaia è calcolata secondo i criteri definiti dalle Prescrizioni di Massima e di Polizia Forestale della Regione Calabria del 2011, e in particolare dagli articoli 48 e 49.
 
@@ -238,12 +252,18 @@ Di seguito, per ciascuna compresa, la ripresa per particella. Per ogni particell
 \endgroup
 
 \clearpage
-\section{Ripresa futura}
+\section{Ceduo}
+\label{sec:ceduo}
 
+\clearpage
+\section{Piano dei tagli}
+\label{sec:piano}
 
+@@tpdt(alberi=alberi-calcolati.csv,calendario=calendario-tagli-2011-2025.csv,volume_obiettivo=20000,totali=si)
 
 \clearpage
 \section{Dettaglio per particella}
+\label{sec:per-particella}
 
 Di seguito, per ogni compresa e ogni particella, riportiamo in dettaglio le caratteristiche della particella e dei soprassuoli, il piano degli interventi silvicolturali, e i volumi e la ripresa divisi per specie.
 

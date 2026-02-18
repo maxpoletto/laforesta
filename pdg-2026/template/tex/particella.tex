@@ -57,21 +57,21 @@
         \setlength{\LTleft}{0pt}
         \vspace{-\baselineskip}
         \begin{flushleft}
-            @@tip(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,per_compresa=no,per_particella=no,stime_totali=si,totali=si)
+            @@tip(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,per_compresa=no,per_particella=no,totali=si)
         \end{flushleft}
     \endgroup
 \end{minipage}%
 \hfill
 \begin{minipage}[t][][c]{0.5\textwidth}
     \begin{flushright}
-        @@gip(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,per_compresa=no,per_particella=no,stime_totali=si,metrica=ip,stile=width=\textwidth)
+        @@gip(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,per_compresa=no,per_particella=no,metrica=ip,stile=width=\textwidth)
         \vspace*{1em}
-        @@gip(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,per_compresa=no,per_particella=no,stime_totali=si,metrica=ic,stile=width=\textwidth)
+        @@gip(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,per_compresa=no,per_particella=no,metrica=ic,stile=width=\textwidth)
     \end{flushright}
 \end{minipage}
 
 \subsubsection*{Volumi}
-@@tsv(compresa=@@compresa,particella=@@particella,alberi=alberi-calcolati.csv,per_genere=si,per_compresa=no,per_particella=no,intervallo_fiduciario=si,totali=si,stime_totali=si)
+@@tsv(compresa=@@compresa,particella=@@particella,alberi=alberi-calcolati.csv,per_genere=si,per_compresa=no,per_particella=no,intervallo_fiduciario=si,totali=si)
 
 \subsubsection*{Ripresa}
 @@tpt(compresa=@@compresa,particella=@@particella,alberi=alberi-calcolati.csv,per_compresa=no,per_particella=no,per_genere=si,col_area_ha=no,totali=si)
