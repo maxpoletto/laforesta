@@ -56,16 +56,29 @@ Di seguito sono riportati alcuni chiarimenti sui rilevamenti e i metodi di calco
 
 Le 177 aree di saggio già descritte nella relazione iniziale, ciascuna della dimensione di $\frac{1}{8}$ ha, sono state soggette a cavallettamento totale, fornendo i diametri di circa 9,900 piante. Per un sottoinsieme casuale di 1880 piante è stata rilevata anche l'altezza tramite ipsometro laser. Per un ulteriore sottoinsieme di circa 200 piante è stato misurato l'incremento periodico di raggio $L_{10}$, ovvero lo spessore dei 10 anelli legnosi periferici successivi.
 
+\subsection{Calcolo delle curve ipsometriche}
+\label{sec:curve-ipso}
+Le curve ipsometriche sono state calcolate per ogni combinazione di specie e compresa comprendente più di 10 alberi campione. L'equazione interpolante ha forma logaritmica, $h = a \ln d + b$, dove $d$ è il diametro in cm e $h$ è l'altezza in metri.
+
 \subsection{Calcolo dei volumi}
 
-I volumi dei soprassuoli sono calcolati secondo la metodologia alle pp.20--27 di~\cite{tabacchi:2011}.
+I volumi dei soprassuoli sono calcolati secondo la metodologia alle pp.20--27 di~\cite{tabacchi:2011}. Nello specifico:
 
-Oltre alla cubatura totale, riportiamo una stima del numero di piante, nonché l'intervallo fiduciario al 95\% della stima dei volumi, ottenuto sempre con la metodologia del Tabacchi. Il margine d'errore per il volume totale è calcolato come la somma dei margini d'errore di ciascuna specie: rappresenta quindi il caso peggiore, in cui le particelle sono completamente correlate tra loro.
+\begin{itemize}
+    \item Per ogni albero cavallettato, l'altezza è stimata usando le equazioni interpolanti di cui sopra.
+    \item Per tutti gli alberi di una singola specie in ciascuna area di saggio, il volume del fusto e dei rami grossi viene calcolato usando un'equazione di previsione della forma $v = b_1 + b_2d^2 + b_3d$, dove i coefficienti $b_i$ provengono da~\cite{tabacchi:2011}. Analogamente, la varianza della somma di questi volumi è calcolata usando le matrici di varianza e i coefficienti del Tabacchi.
+    \item L'intervallo fiduciario della stima dei volumi dell'intera area di saggio è dato da $\sqrt{\sum_{s}{f_s^2}}$, dove $f_s$ è l'intervallo fiduciario di ciascuna specie, perché le equazioni di previsione sono state calibrate sulla base di campioni indipendenti.
+    \item Infine, il volume dell'intera particella viene calcolato scalando la somma delle superfici delle aree di saggio all'intera particella. Anche in questo caso l'intervallo fiduciario è prudenziale, e presume che tutte le superfici di una particella siano completamente correlate tra di loro.
+\end{itemize}
 
-I valori elencati includono le piante sottomisura, al di sotto dei 17,5 cm di diametro (classe diametrica inferiore a 20 cm). Per contro, naturalmente, i volumi usati per la ripresa escludono le piante sottomisura.
-
+Da notare che i valori elencati nella sezione~\ref{sec:volumi} includono le piante sottomisura, al di sotto dei 17,5 cm di diametro (classe diametrica inferiore a 20 cm). Per contro, naturalmente, i volumi usati per la ripresa escludono queste piante.
 
 \subsection{Calcolo della ripresa}
+
+\cite{corona:2007}
+\cite{marziliano:2011}
+\cite{tabacchi:2011}
+\cite{usher:1966}
 
 \subsection{Calcolo degli incrementi}
 
