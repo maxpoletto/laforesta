@@ -22,6 +22,9 @@
 \usepackage[style=authoryear]{biblatex}
 \addbibresource{ref.bib}
 
+\newif\ifincludesections \includesectionsfalse
+\newcommand{\maybeinput}[1]{\ifincludesections \input{#1} \fi}
+
 \title{\sffamily Documentazione integrativa al Piano di Assestamento}
 \date{\sffamily Febbraio 2026}
 \author{\sffamily Società Agricola La Foresta\\\sffamily Serra San Bruno}
@@ -29,7 +32,7 @@
 \begin{document}
 \maketitle
 
-\section{Introduzione}
+\section{Introduziones}
 
 Il presente documento contiene la documentazione integrativa al Piano di Assestamento della Società Agricola La Foresta, come richiesto dal Dipartimento Politiche della Montagna, Foreste, Forestazione e Difesa del Suolo della Regione Calabria con Protocollo 464707 del 25/06/2025.
 
@@ -68,12 +71,29 @@ I valori elencati includono le piante sottomisura, al di sotto dei 17,5 cm di di
 
 \subsection{Aggiornamento del programma dei tagli}
 
-\input{sec-ipsometrie-diametri}
-\input{sec-volumi}
-\input{sec-ripresa}
-\input{sec-ceduo}
-\input{sec-piano}
-\input{sec-per-particella}
+\section{Curve ipsometriche e classi diametriche}
+\label{sec:ipsometrie-diametri}
+\maybeinput{sec-ipsometrie-diametri}
+
+\section{Stima dei volumi}
+\label{sec:volumi}
+\maybeinput{sec-volumi}
+
+\section{Ripresa attuale}
+\label{sec:ripresa}
+\maybeinput{sec-ripresa}
+
+\section{Ceduo}
+\label{sec:ceduo}
+\maybeinput{sec-ceduo}
+
+\section{Piano dei tagli}
+\label{sec:piano}
+\maybeinput{sec-piano}
+
+\section{Dettaglio per particella}
+\label{sec:per-particella}
+\maybeinput{sec-per-particella}
 
 \printbibliography
 
