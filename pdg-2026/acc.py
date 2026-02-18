@@ -1259,11 +1259,14 @@ def render_tcd_table(data: ParcelData, formatter: SnippetFormatter, **options) -
     species = data.species
     metrica = options[OPT_METRICA]
     stime_totali = options[OPT_STIME_TOTALI]
+    totals = metrica != 'altezza'
     use_decimals = metrica.startswith('volume') or metrica.startswith('G') or metrica == 'altezza'
 
     values_df = calculate_cd_data(data, metrica, stime_totali, fine=False)
 
-    headers = [(COL_GENERE, 'l')] + [(b, 'r') for b in COARSE_BINS] + [('Totale', 'r')]
+    headers = [(COL_GENERE, 'l')] + [(b, 'r') for b in COARSE_BINS]
+    if totals:
+        headers += [('Totale', 'r')]
     fmt = "{:.1f}" if use_decimals else "{:.0f}"
 
     rows = []
@@ -1274,15 +1277,18 @@ def render_tcd_table(data: ParcelData, formatter: SnippetFormatter, **options) -
         for b in COARSE_BINS:
             val = cast(float, values_df.at[b, genere]) if b in values_df.index else 0.0
             row.append(fmt.format(val))
-            row_total += val
-            col_totals[b] += val
-        row.append(fmt.format(row_total))
+            if totals:
+                row_total += val
+                col_totals[b] += val
+        if totals:
+            row.append(fmt.format(row_total))
         rows.append(row)
 
     # Add totals row
-    total_row = ['Totale'] + [fmt.format(col_totals[b]) for b in COARSE_BINS]
-    total_row.append(fmt.format(sum(col_totals.values())))
-    rows.append(total_row)
+    if totals:
+        total_row = ['Totale'] + [fmt.format(col_totals[b]) for b in COARSE_BINS]
+        total_row.append(fmt.format(sum(col_totals.values())))
+        rows.append(total_row)
 
     return RenderResult(snippet=formatter.format_table(headers, rows))
 
@@ -2954,7 +2960,7 @@ def process_template(template_text: str, data_dir: Path,
                         OPT_ANNO_INIZIO: int(params.get(OPT_ANNO_INIZIO, 2026)),
                         OPT_INTERVALLO: int(params.get(OPT_INTERVALLO, 10)),
                         OPT_MORTALITA: float(params.get(OPT_MORTALITA, 0)),
-                        OPT_TOTALI: _bool_opt(params, OPT_TOTALI),
+                        OPT_TOTALI: _bool_opt(params, OPT_TOTALI, False),
                         OPT_VOLUME_OBIETTIVO: float(params[OPT_VOLUME_OBIETTIVO]),
                     }
                     check_allowed_params(keyword, params,
