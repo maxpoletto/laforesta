@@ -3235,9 +3235,24 @@ def run_report(args):
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write(processed)
     if args.formato == Fmt.PDF:
-        for _ in range(2):
+        print("Esecuzione pdflatex no.1")
+        subprocess.run(
+            ['pdflatex', '-interaction=nonstopmode', output_file.stem],
+            cwd=output_dir,
+            capture_output=True,
+            check=True
+        )
+        print("Esecuzione biber")
+        subprocess.run(
+            ['biber', output_file.stem],
+            cwd=output_dir,
+            capture_output=True,
+            check=True
+        )
+        for i in range(2):
+            print(f"Esecuzione pdflatex no.{i+2}")
             subprocess.run(
-                ['pdflatex', '-interaction=nonstopmode', output_file.name],
+                ['pdflatex', '-interaction=nonstopmode', output_file.stem],
                 cwd=output_dir,
                 capture_output=True,
                 check=True

@@ -81,14 +81,17 @@ clean-html:
 
 FILES_PDF=tex/relazione.pdf
 FILES_TEX=tex/relazione.tex
+DEPS_BIB=template/tex/ref.bib
 DEPS_TEX=$(DATA_DEPS) acc.py harvest_rules.py template/tex/particella.tex
 
 pdf: $(FILES_PDF)
 
-tex/%.tex: template/tex/%.tex $(DEPS_TEX)
+tex/%.tex: template/tex/%.tex $(DEPS_TEX) $(DEPS_BIB)
+	@cp $(DEPS_BIB) tex/
 	./acc.py $(EXTRA_FLAGS) --report --formato tex --particelle $(CSV_DIR)/particelle.csv --dati $(CSV_DIR) --input template/tex/$*.tex --output-dir tex/
 
-tex/%.pdf: template/tex/%.tex $(DEPS_TEX)
+tex/%.pdf: template/tex/%.tex $(DEPS_TEX) $(DEPS_BIB)
+	@cp $(DEPS_BIB) tex/
 	./acc.py $(EXTRA_FLAGS) --report --formato pdf --particelle $(CSV_DIR)/particelle.csv --dati $(CSV_DIR) --input template/tex/$*.tex --output-dir tex/
 
 clean-pdf:
