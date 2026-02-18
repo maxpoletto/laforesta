@@ -1360,7 +1360,7 @@ OPT_TOTALI = 'totali'
 OPT_STILE = 'stile'
 OPT_METRICA = 'metrica'
 # tsv-specific
-OPT_INTERVALLO_FIDUCIARIO = 'intervallo_fiduciario'
+OPT_INTERV_FIDUC = 'intervallo_fiduciario'
 OPT_SOLO_MATURE = 'solo_mature'
 # tpt column toggles
 OPT_COL_COMPARTO = 'col_comparto'
@@ -1575,10 +1575,10 @@ def render_tsv_table(data: ParcelData, formatter: SnippetFormatter, **options) -
         group_cols.append(COL_GENERE)
 
     df = calculate_tsv_table(data, group_cols,
-        options[OPT_INTERVALLO_FIDUCIARIO], options[OPT_STIME_TOTALI],
+        options[OPT_INTERV_FIDUC], options[OPT_STIME_TOTALI],
         options[OPT_SOLO_MATURE])
 
-    has_ci = options[OPT_INTERVALLO_FIDUCIARIO]
+    has_ci = options[OPT_INTERV_FIDUC]
     col_specs = [
         ColSpec('N. Alberi', 'r',
                 lambda r: f"{r[COL_N_TREES]:.0f}",
@@ -2878,8 +2878,8 @@ def process_template(template_text: str, data_dir: Path,
                 raise ValueError(
                     f"@@{keyword}: il formato CSV non supporta direttive grafiche (@@g*)")
 
-            alberi_files = params.get('alberi')
-            equazioni_files = params.get(OPT_EQUAZIONI)
+            alberi_files = cast(list[str], params.get('alberi'))
+            equazioni_files = cast(list[str], params.get(OPT_EQUAZIONI))
 
             if not alberi_files and keyword not in (Dir.PROP, Dir.PARTICELLE):
                 raise ValueError(f"@@{keyword} richiede alberi=FILE")
@@ -2906,9 +2906,9 @@ def process_template(template_text: str, data_dir: Path,
                         OPT_PER_COMPRESA: _bool_opt(params, OPT_PER_COMPRESA),
                         OPT_PER_PARTICELLA: _bool_opt(params, OPT_PER_PARTICELLA),
                         OPT_PER_GENERE: _bool_opt(params, OPT_PER_GENERE),
-                        OPT_STIME_TOTALI: _bool_opt(params, OPT_STIME_TOTALI),
-                        OPT_INTERVALLO_FIDUCIARIO: _bool_opt(params, OPT_INTERVALLO_FIDUCIARIO, False),
+                        OPT_INTERV_FIDUC: _bool_opt(params, OPT_INTERV_FIDUC, False),
                         OPT_SOLO_MATURE: _bool_opt(params, OPT_SOLO_MATURE, False),
+                        OPT_STIME_TOTALI: _bool_opt(params, OPT_STIME_TOTALI),
                         OPT_TOTALI: _bool_opt(params, OPT_TOTALI, False),
                     }
                     check_allowed_params(keyword, params, options)
@@ -2921,16 +2921,16 @@ def process_template(template_text: str, data_dir: Path,
                         OPT_PER_COMPRESA: _bool_opt(params, OPT_PER_COMPRESA),
                         OPT_PER_PARTICELLA: _bool_opt(params, OPT_PER_PARTICELLA),
                         OPT_PER_GENERE: _bool_opt(params, OPT_PER_GENERE, False),
+                        OPT_COL_AREA_HA: _bool_opt(params, OPT_COL_AREA_HA),
                         OPT_COL_COMPARTO: _bool_opt(params, OPT_COL_COMPARTO),
                         OPT_COL_ETA: _bool_opt(params, OPT_COL_ETA),
-                        OPT_COL_AREA_HA: _bool_opt(params, OPT_COL_AREA_HA),
-                        OPT_COL_VOLUME: _bool_opt(params, OPT_COL_VOLUME, False),
-                        OPT_COL_VOLUME_HA: _bool_opt(params, OPT_COL_VOLUME_HA, False),
-                        OPT_COL_VOLUME_MATURE: _bool_opt(params, OPT_COL_VOLUME_MATURE),
-                        OPT_COL_VOLUME_MATURE_HA: _bool_opt(params, OPT_COL_VOLUME_MATURE_HA),
                         OPT_COL_PP_MAX: _bool_opt(params, OPT_COL_PP_MAX),
-                        OPT_COL_PRELIEVO: _bool_opt(params, OPT_COL_PRELIEVO),
                         OPT_COL_PRELIEVO_HA: _bool_opt(params, OPT_COL_PRELIEVO_HA),
+                        OPT_COL_PRELIEVO: _bool_opt(params, OPT_COL_PRELIEVO),
+                        OPT_COL_VOLUME_HA: _bool_opt(params, OPT_COL_VOLUME_HA, False),
+                        OPT_COL_VOLUME_MATURE_HA: _bool_opt(params, OPT_COL_VOLUME_MATURE_HA),
+                        OPT_COL_VOLUME_MATURE: _bool_opt(params, OPT_COL_VOLUME_MATURE),
+                        OPT_COL_VOLUME: _bool_opt(params, OPT_COL_VOLUME, False),
                         OPT_TOTALI: _bool_opt(params, OPT_TOTALI, False),
                     }
                     check_allowed_params(keyword, params, options)
@@ -2945,12 +2945,12 @@ def process_template(template_text: str, data_dir: Path,
                         OPT_PER_COMPRESA: _bool_opt(params, OPT_PER_COMPRESA),
                         OPT_PER_PARTICELLA: _bool_opt(params, OPT_PER_PARTICELLA),
                         OPT_PER_GENERE: _bool_opt(params, OPT_PER_GENERE, False),
-                        OPT_ANNO_INIZIO: int(params.get(OPT_ANNO_INIZIO, 2026)),
                         OPT_ANNO_FINE: int(params.get(OPT_ANNO_FINE, 2040)),
+                        OPT_ANNO_INIZIO: int(params.get(OPT_ANNO_INIZIO, 2026)),
                         OPT_INTERVALLO: int(params.get(OPT_INTERVALLO, 10)),
-                        OPT_VOLUME_OBIETTIVO: float(params[OPT_VOLUME_OBIETTIVO]),
                         OPT_MORTALITA: float(params.get(OPT_MORTALITA, 0)),
                         OPT_TOTALI: _bool_opt(params, OPT_TOTALI),
+                        OPT_VOLUME_OBIETTIVO: float(params[OPT_VOLUME_OBIETTIVO]),
                     }
                     check_allowed_params(keyword, params,
                                          options | {OPT_CALENDARIO: True})
@@ -2972,9 +2972,9 @@ def process_template(template_text: str, data_dir: Path,
                     options = {
                         OPT_PER_COMPRESA: _bool_opt(params, OPT_PER_COMPRESA, False),
                         OPT_PER_PARTICELLA: _bool_opt(params, OPT_PER_PARTICELLA, False),
-                        OPT_STIME_TOTALI: _bool_opt(params, OPT_STIME_TOTALI),
                         OPT_METRICA: params.get(OPT_METRICA, 'ip'),
                         OPT_STILE: params.get(OPT_STILE),
+                        OPT_STIME_TOTALI: _bool_opt(params, OPT_STIME_TOTALI),
                     }
                     check_allowed_params(keyword, params, options)
                     check_param_values(options, OPT_METRICA, ['ip', 'ic'], '@@gip')
@@ -2987,11 +2987,10 @@ def process_template(template_text: str, data_dir: Path,
                         OPT_PER_PARTICELLA: _bool_opt(params, OPT_PER_PARTICELLA),
                         OPT_PER_GENERE: _bool_opt(params, OPT_PER_GENERE, False),
                         OPT_ANNI: int(params.get(OPT_ANNI, '0')),
-                        OPT_MORTALITA: float(params.get(OPT_MORTALITA, '0')),
-                        OPT_COL_VOLUME_MATURE: _bool_opt(params, OPT_COL_VOLUME_MATURE),
-                        OPT_COL_VOLUME_MATURE_HA: _bool_opt(
-                            params, OPT_COL_VOLUME_MATURE_HA),
                         OPT_COL_INCR_CORR: _bool_opt(params, OPT_COL_INCR_CORR, True),
+                        OPT_COL_VOLUME_MATURE_HA: _bool_opt(params, OPT_COL_VOLUME_MATURE_HA),
+                        OPT_COL_VOLUME_MATURE: _bool_opt(params, OPT_COL_VOLUME_MATURE),
+                        OPT_MORTALITA: float(params.get(OPT_MORTALITA, '0')),
                         OPT_TOTALI: _bool_opt(params, OPT_TOTALI, False),
                     }
                     check_allowed_params(keyword, params, options)
@@ -3001,11 +3000,11 @@ def process_template(template_text: str, data_dir: Path,
                     result = render_tcr_table(data, formatter, **options)
                 case Dir.GCD:
                     options = {
+                        OPT_METRICA: params.get(OPT_METRICA, 'alberi_ha'),
+                        OPT_STILE: params.get(OPT_STILE),
+                        OPT_STIME_TOTALI: _bool_opt(params, OPT_STIME_TOTALI),
                         OPT_X_MAX: int(params.get(OPT_X_MAX, 0)),
                         OPT_Y_MAX: int(params.get(OPT_Y_MAX, 0)),
-                        OPT_STILE: params.get(OPT_STILE),
-                        OPT_METRICA: params.get(OPT_METRICA, 'alberi_ha'),
-                        OPT_STIME_TOTALI: _bool_opt(params, OPT_STIME_TOTALI),
                     }
                     check_allowed_params(keyword, params, options)
                     check_param_values(options, OPT_METRICA,
@@ -3029,9 +3028,9 @@ def process_template(template_text: str, data_dir: Path,
                 case Dir.GCI:
                     options = {
                         OPT_EQUAZIONI: True,
+                        OPT_STILE: params.get(OPT_STILE),
                         OPT_X_MAX: int(params.get(OPT_X_MAX, 0)),
                         OPT_Y_MAX: int(params.get(OPT_Y_MAX, 0)),
-                        OPT_STILE: params.get(OPT_STILE),
                     }
                     check_allowed_params(keyword, params, options)
                     check_required_params(keyword, params, [OPT_EQUAZIONI])
