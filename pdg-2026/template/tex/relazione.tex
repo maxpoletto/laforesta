@@ -129,21 +129,23 @@ Inoltre, per fustaie fino a 60 anni di età, il prelievo non può superare una d
     \end{tabular}
 \end{center}
 
-Per ottemperare a questi duplici requisiti, procediamo con una simulazione basata su tutte le piante campionate. Per ogni particella $p$:
+  Per ottemperare a questi duplici requisiti, procediamo con una simulazione
+  albero per albero, basata sulle piante campionate.
+  Per ogni particella~$p$, di area $a$~(ha):
+
 \begin{enumerate}
-\item Poniamo $v$ pari al volume delle piante mature, calcolate come alla sezione~\ref{sec:note-volumi}, e $a$ pari all'area (ha) di $p$.
-\item Poniamo $pp_{max}$ pari al prelievo massimo percentuale, calcolato in base alla classe economica di $p$ e a $v$ e $a$, secondo le prime due tabelle sopra.
-\item Poniamo $ap_{max}$ pari al limite percentuale di area basimetrica in funzione dell'età media di $p$, secondo la terza tabella sopra.
-\item Poniamo $p_{max} = v\cdot\frac{pp_{max}}{100}$ (prelievo massimo assoluto) e $a_{max} = a\cdot\frac{aa_{max}}{100}$ (area basimetrica massima assoluta).
-\item Dato $a_s$ quale superficie di tutte le aree di saggio dentro $p$, calcoliamo un fattore di ridimensionamento $s$, pari a $\frac{a}{a_s}$.
-\item Poniamo volume e area corrente $v_c = a_c = 0$.
-\item Ora, per ogni albero $b$ campionato in $p$ e selezionato in un ordine predefinito, e posti $v_b$ e $a_b$ rispettivamente il volume e l'area basimetrica di $b$, simuliamo il prelievo di $b$: se $v_c + v_b\cdot s \leq p_{max}$ e $a_c + a_b\cdot s \leq a_{max}$, poniamo $v_c = v_c + v_b\cdot s$ e $a_c = a_c + a_b\cdot s$. Altrimenti interrompiamo la simulazione e riportiamo il valore di $v_c$ quale limite di prelievo in m$^3$.
+\item Calcoliamo il volume totale $v$ (m$^3$) delle piante mature (sezione~\ref{sec:note-volumi}) e l'area basimetrica totale $g$  (m$^2$) delle stesse.
+
+\item In base alla classe economica di $p$ e alla provvigione $v/a$, ricaviamo dalle prime due tabelle sopra il prelievo massimo percentuale $pp_{\max}$, e poniamo il prelievo massimo assoluto $V_{\max} = v \cdot pp_{\max}/100$.
+
+\item In base all'età media di $p$, ricaviamo dalla terza tabella il limite percentuale di area basimetrica $gp_{\max}$, e poniamo il limite assoluto $G_{\max} = g \cdot gp_{\max}/100$.
+
+\item Calcoliamo il fattore di espansione $s = a / a_s$, dove $a_s$ è la superficie complessiva delle aree di saggio in~$p$.
+
+\item Ordiniamo le piante mature campionate per classe diametrica crescente (dai 20~cm in su), in modo da simulare un taglio colturale dal basso volto a rafforzare le piante di maggiori dimensioni.
+
+\item Scorriamo le piante nell'ordine stabilito, accumulando il volume e l'area basimetrica (scalati per $s$) di ciascun albero $b$. Per ogni albero $b$, se l'aggiunta di $b$ non farebbe superare né $V_{\max}$ né $G_{\max}$, lo includiamo nel prelievo; altrimenti la simulazione si arresta. Il volume accumulato al termine costituisce il prelievo massimo per la particella.
 \end{enumerate}
-
-Volendo eseguire tagli colturali atti a rafforzare le piante mature, selezioniamo le piante campione partendo dal basso, in ordine crescente di classe diametrica dai 20 cm in su.
-
-
-
 
 \cite{corona:2007}
 \cite{marziliano:2011}
