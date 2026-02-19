@@ -31,6 +31,14 @@ MATURE_THRESHOLD = 20 # Diameter (cm) threshold for "mature" trees (smaller are 
 MIN_TREES_PER_HA = 0.5 # Ignore buckets less than this in classi diametriche graphs.
 
 skip_graphs = False  # Global flag to skip graph generation pylint: disable=invalid-name
+_decimal_comma = False  # pylint: disable=invalid-name
+
+def fmt_num(value: float, decimals: int) -> str:
+    """Format a number with the configured decimal separator."""
+    s = f"{value:.{decimals}f}"
+    if _decimal_comma:
+        s = s.replace('.', ',')
+    return s
 
 # Input DataFrame column names (from CSV files).
 # Trees data
@@ -199,7 +207,7 @@ class HTMLSnippetFormatter(SnippetFormatter):
             html += f'<br><p><strong>Equazion{i} interpolant{i}:</strong></p>\n'
             for curve in curve_info:
                 html += (f'<p>{curve.genere}: {curve.equation} '
-                         f'(R² = {curve.r_squared:.2f}, n = {curve.n_points})</p>\n')
+                         f'(R² = {fmt_num(curve.r_squared, 2)}, n = {curve.n_points})</p>\n')
         html += '</div>\n'
         return html
 
@@ -257,7 +265,8 @@ class LaTeXSnippetFormatter(SnippetFormatter):
         for curve in curve_info:
             eq = curve.equation.replace('*', r'\times ')
             eq = eq.replace('ln', r'\ln')
-            latex += (f"{curve.genere}: ${eq}$ ($R^2$ = {curve.r_squared:.2f}, "
+            eq = eq.replace(',', '{,}')
+            latex += (f"{curve.genere}: ${eq}$ ($R^2$ = {fmt_num(curve.r_squared, 2)}, "
                         f"$n$ = {curve.n_points})\\\\\n")
         latex += '\\end{quote}\n'
         return latex
@@ -424,7 +433,7 @@ class LogarithmicRegression(RegressionFunc):
         return lambda x: a * np.log(np.maximum(x, 0.1)) + b
 
     def _format_equation(self, a: float, b: float) -> str:
-        return f"y = {a:.2f}*ln(x) + {b:.2f}"
+        return f"y = {fmt_num(a, 2)}*ln(x) + {fmt_num(b, 2)}"
 
 
 class LinearRegression(RegressionFunc):
@@ -445,7 +454,7 @@ class LinearRegression(RegressionFunc):
         return lambda x: a * x + b
 
     def _format_equation(self, a: float, b: float) -> str:
-        return f"y = {a:.2f}*x + {b:.2f}"
+        return f"y = {fmt_num(a, 2)}*x + {fmt_num(b, 2)}"
 
 
 # =============================================================================
@@ -872,7 +881,7 @@ def fit_curves_grouped(groups: Iterable[tuple[tuple[str, str], pd.DataFrame]],
                 'r2': regr.r2,
                 'n': regr.n_points
             })
-            print(f"  {compresa} - {genere}: {regr} (R² = {regr.r2:.2f}, n = {regr.n_points})")
+            print(f"  {compresa} - {genere}: {regr} (R² = {fmt_num(regr.r2, 2)}, n = {regr.n_points})")
         else:
             print(f"  {compresa} - {genere}: dati insufficienti (n < {min_points})")
 
@@ -1054,10 +1063,10 @@ def render_gci_graph(data: ParcelData, equations_df: pd.DataFrame,
                 x_smooth = np.linspace(1, x.max(), 100)
                 if eq['funzione'] == 'ln':
                     y_smooth = eq['a'] * np.log(x_smooth) + eq['b']
-                    eq_str = f"y = {eq['a']:.2f}*ln(x) + {eq['b']:.2f}"
+                    eq_str = f"y = {fmt_num(eq['a'], 2)}*ln(x) + {fmt_num(eq['b'], 2)}"
                 else:  # 'lin'
                     y_smooth = eq['a'] * x_smooth + eq['b']
-                    eq_str = f"y = {eq['a']:.2f}*x + {eq['b']:.2f}"
+                    eq_str = f"y = {fmt_num(eq['a'], 2)}*x + {fmt_num(eq['b'], 2)}"
 
                 ax.plot(x_smooth, y_smooth, color=color_map[sp],
                     linestyle='--', alpha=0.8, linewidth=1.5)
@@ -1277,7 +1286,7 @@ def render_tcd_table(data: ParcelData, formatter: SnippetFormatter, **options) -
     headers = [(COL_GENERE, 'l')] + [(b, 'r') for b in COARSE_BINS]
     if totals:
         headers += [('Totale', 'r')]
-    fmt = "{:.1f}" if use_decimals else "{:.0f}"
+    dec = 1 if use_decimals else 0
 
     rows = []
     col_totals = {b: 0.0 for b in COARSE_BINS}
@@ -1286,18 +1295,18 @@ def render_tcd_table(data: ParcelData, formatter: SnippetFormatter, **options) -
         row_total = 0.0
         for b in COARSE_BINS:
             val = cast(float, values_df.at[b, genere]) if b in values_df.index else 0.0
-            row.append(fmt.format(val))
+            row.append(fmt_num(val, dec))
             if totals:
                 row_total += val
                 col_totals[b] += val
         if totals:
-            row.append(fmt.format(row_total))
+            row.append(fmt_num(row_total, dec))
         rows.append(row)
 
     # Add totals row
     if totals:
-        total_row = ['Totale'] + [fmt.format(col_totals[b]) for b in COARSE_BINS]
-        total_row.append(fmt.format(sum(col_totals.values())))
+        total_row = ['Totale'] + [fmt_num(col_totals[b], dec) for b in COARSE_BINS]
+        total_row.append(fmt_num(sum(col_totals.values()), dec))
         rows.append(total_row)
 
     return RenderResult(snippet=formatter.format_table(headers, rows))
@@ -1323,7 +1332,7 @@ def render_prop(particelle_df: pd.DataFrame, compresa: str, particella: str,
         raise ValueError(f"Particella '{particella}' non trovata in compresa '{compresa}'")
     row = row.iloc[0]
 
-    area = f"{row[COL_AREA_PARCEL]:.2f} ha"
+    area = f"{fmt_num(row[COL_AREA_PARCEL], 2)} ha"
     altitudine = f"{int(row[COL_ALT_MIN])}-{int(row[COL_ALT_MAX])} m"
 
     short_fields = [
@@ -1477,7 +1486,7 @@ def render_table(df: pd.DataFrame, group_cols: list[str],
         display_row = [str(row[col]) for col in group_cols]
         for c in col_specs:
             if isinstance(c.format, str):
-                display_row.append(f"{row[c.format]:.1f}")
+                display_row.append(fmt_num(row[c.format], 1))
             else:
                 display_row.append(c.format(row))
         display_rows.append(display_row)
@@ -1496,7 +1505,7 @@ def render_table(df: pd.DataFrame, group_cols: list[str],
             if c.total is None:
                 total_row.append('')
             elif isinstance(c.total, str):
-                total_row.append(f"{df[c.total].sum():.1f}")
+                total_row.append(fmt_num(df[c.total].sum(), 1))
             else:
                 total_row.append(c.total(df))
         display_rows.append(total_row)
@@ -1611,8 +1620,8 @@ def render_tsv_table(data: ParcelData, formatter: SnippetFormatter, **options) -
     has_ci = options[OPT_INTERV_FIDUC]
     col_specs = [
         ColSpec('N. Alberi', 'r',
-                lambda r: f"{r[COL_N_TREES]:.0f}",
-                lambda d: f"{d[COL_N_TREES].sum():.0f}", True),
+                lambda r: fmt_num(r[COL_N_TREES], 0),
+                lambda d: fmt_num(d[COL_N_TREES].sum(), 0), True),
         ColSpec('Volume (m³)', 'r', COL_VOLUME, COL_VOLUME, True),
         ColSpec('Vol. mature (m³)', 'r', COL_VOLUME_MATURE, COL_VOLUME_MATURE,
                 options.get(OPT_SOLO_MATURE, False)),
@@ -2019,8 +2028,8 @@ def schedule_harvests(
         n_harvested = sum(1 for e in events if e[COL_YEAR] == y)
         n_total = len(parcel_priority)
         if year_total < target_volume:
-            print(f"  @@tpdt anno {y}: obiettivo {target_volume:.0f} m³, "
-                  f"raggiunto {year_total:.0f} m³ "
+            print(f"  @@tpdt anno {y}: obiettivo {fmt_num(target_volume, 0)} m³, "
+                  f"raggiunto {fmt_num(year_total, 0)} m³ "
                   f"({n_harvested} tagliate, {n_gap_skip} in pausa, "
                   f"{n_no_harvest} non idonee, {n_total} totali)")
 
@@ -2272,27 +2281,27 @@ def render_tpt_table(data: ParcelData, rules: HarvestRulesFunc,
     col_specs = [
         ColSpec('Classe', 'l', lambda r: str(r[COL_SECTOR]), None,
                 options[OPT_COL_COMPARTO] and per_parcel),
-        ColSpec('Età', 'r', lambda r: f"{r[COL_AGE]:.0f}", None,
+        ColSpec('Età', 'r', lambda r: fmt_num(r[COL_AGE], 0), None,
                 options[OPT_COL_ETA] and per_parcel),
-        ColSpec('Area (ha)', 'r', COL_AREA_HA, lambda _: f"{total_area:.1f}",
+        ColSpec('Area (ha)', 'r', COL_AREA_HA, lambda _: fmt_num(total_area, 1),
          options[OPT_COL_AREA_HA] and not genere_only),
         ColSpec('Vol tot (m³)', 'r', COL_VOLUME, COL_VOLUME, options[OPT_COL_VOLUME]),
         ColSpec('Vol/ha (m³/ha)', 'r',
-            lambda r: f"{r[COL_VOLUME] / r[COL_AREA_HA]:.1f}",
-            lambda d: f"{d[COL_VOLUME].sum() / total_area:.1f}",
+            lambda r: fmt_num(r[COL_VOLUME] / r[COL_AREA_HA], 1),
+            lambda d: fmt_num(d[COL_VOLUME].sum() / total_area, 1),
             options[OPT_COL_VOLUME_HA] and not genere_only),
         ColSpec('Provv. (m³)', 'r', COL_VOLUME_MATURE, COL_VOLUME_MATURE,
                 options[OPT_COL_VOLUME_MATURE]),
         ColSpec('Provv. (m³/ha)', 'r',
-                lambda r: f"{r[COL_VOLUME_MATURE] / r[COL_AREA_HA]:.1f}",
-                lambda d: f"{d[COL_VOLUME_MATURE].sum() / total_area:.1f}",
+                lambda r: fmt_num(r[COL_VOLUME_MATURE] / r[COL_AREA_HA], 1),
+                lambda d: fmt_num(d[COL_VOLUME_MATURE].sum() / total_area, 1),
                 options[OPT_COL_VOLUME_MATURE_HA] and not genere_only),
-        ColSpec('Prel \\%', 'r', lambda r: f"{r[COL_PP_MAX]:.0f}",
+        ColSpec('Prel \\%', 'r', lambda r: fmt_num(r[COL_PP_MAX], 0),
                 None, options[OPT_COL_PP_MAX] and per_parcel),
         ColSpec('Prel tot (m³)', 'r', COL_HARVEST, COL_HARVEST, options[OPT_COL_PRELIEVO]),
         ColSpec('Prel/ha (m³/ha)', 'r',
-                lambda r: f"{r[COL_HARVEST] / r[COL_AREA_HA]:.1f}",
-                lambda d: f"{d[COL_HARVEST].sum() / total_area:.1f}",
+                lambda r: fmt_num(r[COL_HARVEST] / r[COL_AREA_HA], 1),
+                lambda d: fmt_num(d[COL_HARVEST].sum() / total_area, 1),
                 options[OPT_COL_PRELIEVO_HA] and not genere_only),
     ]
     return render_table(df, group_cols, col_specs, formatter, options[OPT_TOTALI])
@@ -2401,19 +2410,19 @@ def render_tpdt_table(data: ParcelData, past_harvests: pd.DataFrame | None,
         ColSpec('Anno', 'l', lambda r: str(int(r[COL_YEAR])), None, True),
         ColSpec('Classe', 'l', lambda r: str(r[COL_SECTOR]), None,
                 options[OPT_COL_COMPARTO] and per_parcel),
-        ColSpec('Età', 'r', lambda r: f"{r[COL_AGE]:.0f}", None,
+        ColSpec('Età', 'r', lambda r: fmt_num(r[COL_AGE], 0), None,
                 options[OPT_COL_ETA] and per_parcel),
         ColSpec('Provv. prima\n(m³/ha)', 'r',
-                lambda r: f"{r[COL_VOLUME_BEFORE] / r[COL_AREA_HA]:.1f}",
+                lambda r: fmt_num(r[COL_VOLUME_BEFORE] / r[COL_AREA_HA], 1),
                 None,
                 options[OPT_COL_PRIMA_DOPO]),
         ColSpec('Prelievo (m³)', 'r', COL_HARVEST, COL_HARVEST, True),
         ColSpec('Prel \\%', 'r',
-                lambda r: f"{r[COL_HARVEST] / r[COL_VOLUME_BEFORE] * 100:.0f}"
+                lambda r: fmt_num(r[COL_HARVEST] / r[COL_VOLUME_BEFORE] * 100, 0)
                     if r[COL_VOLUME_BEFORE] > 0 else '—',
                 None, options[OPT_COL_PP_MAX] and per_parcel),
         ColSpec('Provv. dopo\n(m³/ha)', 'r',
-                lambda r: f"{r[COL_VOLUME_AFTER] / r[COL_AREA_HA]:.1f}",
+                lambda r: fmt_num(r[COL_VOLUME_AFTER] / r[COL_AREA_HA], 1),
                 None,
                 options[OPT_COL_PRIMA_DOPO]),
     ]
@@ -3026,6 +3035,9 @@ Modalità di utilizzo:
     opt_group = parser.add_argument_group('Altre opzioni')
     opt_group.add_argument('--non-rigenerare-grafici', action='store_true', default=False,
                            help='Non rigenerare grafici esistenti (per --report)')
+    opt_group.add_argument('--separatore-decimale', choices=['punto', 'virgola'],
+                           default='virgola',
+                           help='Separatore decimale: punto (default) o virgola')
 
     args = parser.parse_args()
 
@@ -3033,6 +3045,10 @@ Modalità di utilizzo:
         #pylint: disable=global-statement
         global skip_graphs
         skip_graphs = True
+
+    if args.separatore_decimale == 'virgola':
+        global _decimal_comma  # pylint: disable=global-statement
+        _decimal_comma = True
 
     if args.genera_equazioni:
         if not args.fonte_altezze:
