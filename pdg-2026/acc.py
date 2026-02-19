@@ -1834,42 +1834,6 @@ def build_growth_tables(data: ParcelData) -> GrowthTables:
     return GrowthTables(by_group, available_diams, groupby_cols)
 
 
-BARH_GROUP_SPACING = 0.3   # Extra vertical gap between compresa groups in bar charts
-BARH_INCHES_PER_BAR = 0.35 # Approximate figure height per bar
-BARH_MIN_HEIGHT = 3        # Minimum figure height in inches
-
-def _barh_layout(n_bars: int, group_values: Iterable | None = None
-                ) -> tuple[list[float], float]:
-    """Compute y_positions and fig_height for grouped horizontal bar charts.
-
-    Args:
-        n_bars: Number of bars to draw.
-        group_values: If provided, insert spacing between consecutive groups
-            (e.g. compresa values). Adjacent bars with different group values
-            get extra vertical spacing.
-
-    Returns:
-        (y_positions, fig_height)
-    """
-    if group_values is not None:
-        groups = list(group_values)
-        spacing = [BARH_GROUP_SPACING if i > 0 and groups[i] != groups[i-1] else 0
-                   for i in range(len(groups))]
-    else:
-        spacing = [0] * n_bars
-
-    y_positions = []
-    cumulative = 0.0
-    for s in spacing:
-        cumulative += s
-        y_positions.append(cumulative)
-        cumulative += 1
-
-    fig_height = max(BARH_MIN_HEIGHT,
-                     n_bars * BARH_INCHES_PER_BAR + sum(spacing) * BARH_INCHES_PER_BAR)
-    return y_positions, fig_height
-
-
 # RIPRESA =====================================================================
 
 COL_WEIGHT = '_weight'
