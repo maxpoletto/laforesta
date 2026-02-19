@@ -86,12 +86,12 @@ DEPS_BIB=template/tex/ref.bib
 DEPS_TEX=$(DATA_DEPS) acc.py harvest_rules.py template/tex/particella.tex
 
 SECTIONS_TEX= \
-	tex/sec-ipsometrie-diametri.tex \
+	tex/sec-ipsometrie.tex \
 	tex/sec-volumi.tex \
 	tex/sec-ripresa.tex \
 	tex/sec-ceduo.tex \
 	tex/sec-piano.tex \
-	tex/sec-per-particella.tex
+	tex/sec-particelle.tex
 
 pdf: $(FILE_PDF)
 

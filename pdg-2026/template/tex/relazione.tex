@@ -23,7 +23,7 @@
 \usepackage[style=alphabetic,backend=biber]{biblatex}
 \addbibresource{ref.bib}
 
-\newif\ifincludesections \includesectionsfalse
+\newif\ifincludesections \includesectionstrue
 \newcommand{\maybeinput}[1]{\ifincludesections \input{#1} \fi}
 
 \title{\sffamily Documentazione integrativa al Piano di Assestamento}
@@ -40,7 +40,7 @@ Il presente documento contiene la documentazione integrativa al Piano di Assesta
 La relazione si articola in 7 parti.
 \begin{itemize}
 \item La parte~\ref{sec:note-metodologia} chiarisce alcuni metodi usati per redigere il piano, in particolare per quanto riguarda il calcolo degli incrementi e l'elaborazione del programma di taglio.
-\item La parte~\ref{sec:ipsometrie-diametri} risponde al punto 1 della richiesta della regione: illustra per ogni specie principale le relative curve ipsometriche con equazioni interpolanti e la distribuzione grafica in classi diametriche del numero di alberi per ettaro.
+\item La parte~\ref{sec:ipsometrie} risponde al punto 1 della richiesta della regione: illustra per ogni specie principale le relative curve ipsometriche con equazioni interpolanti e la distribuzione grafica in classi diametriche del numero di alberi per ettaro.
 \item La parte~\ref{sec:volumi} risponde al punto 2 della richiesta: presenta la cubatura di tutti i soprassuoli usando le tavole prescritte dalle linee guida.
 \item La parte~\ref{sec:ripresa} risponde al punto 3 della richiesta: quantifica la ripresa in relazione alla stima dei volumi.
 \item La parte~\ref{sec:ceduo} risponde al punto 4 della richiesta: espone il piano di regolarizzazione dei cedui di castagno.
@@ -58,7 +58,7 @@ Di seguito sono riportati alcuni chiarimenti sui rilevamenti e i metodi di calco
 Le 177 aree di saggio già descritte nella relazione iniziale, ciascuna della dimensione di $\frac{1}{8}$ ha, sono state soggette a cavallettamento totale, fornendo i diametri di circa 9,900 piante. Per un sottoinsieme casuale di 1880 piante è stata rilevata anche l'altezza tramite ipsometro laser. Per un ulteriore sottoinsieme di {\bf circa 200 piante} è stato misurato l'incremento periodico di raggio $L_{10}$, ovvero lo spessore dei 10 anelli legnosi periferici successivi.
 
 \subsection{Calcolo delle curve ipsometriche}
-
+\label{sec:note:ipsometrie}
 Le curve ipsometriche sono state calcolate per regressione sulle altezze e i diametri delle 1880 piante misurate, per ogni combinazione di specie e compresa comprendente più di 10 alberi campione. Le equazioni interpolante hanno forma logaritmica, $h = a \ln d + b$, dove $d$ è il diametro in cm e $h$ è l'altezza in metri.
 
 \subsection{Calcolo dei volumi}
@@ -234,8 +234,8 @@ Per ogni anno dell'orizzonte di simulazione:
 Il risultato della simulazione è un programma dei tagli che indica, per ogni anno e particella, il volume prima dell'intervento, il prelievo e il volume residuo.
 
 \section{Curve ipsometriche e classi diametriche}
-\label{sec:ipsometrie-diametri}
-\maybeinput{sec-ipsometrie-diametri}
+\label{sec:ipsometrie}
+\maybeinput{sec-ipsometrie}
 
 \section{Stima dei volumi}
 \label{sec:volumi}
@@ -256,8 +256,8 @@ Il risultato della simulazione è un programma dei tagli che indica, per ogni an
 \input{sec-piano}
 
 \section{Dettaglio per particella}
-\label{sec:per-particella}
-\maybeinput{sec-per-particella}
+\label{sec:particelle}
+\maybeinput{sec-particelle}
 
 \printbibliography
 
