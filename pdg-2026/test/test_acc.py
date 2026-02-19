@@ -676,17 +676,35 @@ class TestPrelievoMassimo:
         assert area_limit == math.inf
 
     def test_basal_area_rules_young(self):
-        """Age 0-29 -> 15% of basal area."""
+        """Age 0-29 -> both volume and 15% basal area limits."""
         from harvest_rules import max_harvest
-        vol_limit, area_limit = max_harvest('A', 20, 300.0, 25.0)
-        assert vol_limit == math.inf
+        # 500 m3/ha: 500/350 = 142.8% -> pp_max = 15%
+        vol_limit, area_limit = max_harvest('A', 20, 500.0, 25.0)
+        assert np.isclose(vol_limit, 500.0 * 15 / 100)
         assert np.isclose(area_limit, 25.0 * 15 / 100)
 
     def test_basal_area_rules_middle(self):
-        """Age 30-59 -> 20% of basal area."""
+        """Age 30-59 -> both volume and 20% basal area limits."""
         from harvest_rules import max_harvest
+        # 500 m3/ha: 500/350 = 142.8% -> pp_max = 15%
+        vol_limit, area_limit = max_harvest('A', 45, 500.0, 25.0)
+        assert np.isclose(vol_limit, 500.0 * 15 / 100)
+        assert np.isclose(area_limit, 25.0 * 20 / 100)
+
+    def test_volume_floor_blocks_young(self):
+        """Age < 60, volume below floor -> vol_limit=0 blocks harvest."""
+        from harvest_rules import max_harvest
+        # 300 m3/ha <= 120% of 350 = 420 -> pp_max = 0
+        vol_limit, area_limit = max_harvest('A', 20, 300.0, 25.0)
+        assert vol_limit == 0.0
+        assert np.isclose(area_limit, 25.0 * 15 / 100)
+
+    def test_volume_floor_blocks_middle(self):
+        """Age 30-59, volume below floor -> vol_limit=0 blocks harvest."""
+        from harvest_rules import max_harvest
+        # 300 m3/ha <= 120% of 350 = 420 -> pp_max = 0
         vol_limit, area_limit = max_harvest('A', 45, 300.0, 25.0)
-        assert vol_limit == math.inf
+        assert vol_limit == 0.0
         assert np.isclose(area_limit, 25.0 * 20 / 100)
 
 

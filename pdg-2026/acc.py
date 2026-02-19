@@ -2310,7 +2310,7 @@ def schedule_harvests(
 
 
 def compute_harvest(trees_df: pd.DataFrame, sampled_frac: float,
-                     volume_limit: float, area_limit: float) -> tuple[float, float]:
+                    volume_limit: float, area_limit: float) -> tuple[float, float]:
     """Harvest trees smallest-first until either limit is reached.
 
     Args:
@@ -2485,7 +2485,7 @@ def calculate_tpt_table(data: ParcelData, rules: HarvestRulesFunc,
     if added_dummy:
         group_cols.remove('_')
         df = df.drop(columns=['_'])
-    if not group_cols:
+    if not group_cols or df.empty:
         return df
     return df.sort_values(
         group_cols,

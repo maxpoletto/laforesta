@@ -49,14 +49,14 @@ def max_harvest(comparto: str, eta_media: int,
     if provv_min < 0:
         return 0.0, 0.0  # Ceduo
 
+    pp_max = _volume_pp_max(volume_per_ha, provv_min)
+    vol_max = volume_per_ha * pp_max / 100
     for min_age, pp_max_basal in _AGE_RULES:
         if eta_media >= min_age:
             if pp_max_basal is None:
-                # Volume rules
-                pp_max = _volume_pp_max(volume_per_ha, provv_min)
-                return volume_per_ha * pp_max / 100, math.inf
+                return vol_max, math.inf
             else:
-                return math.inf, area_basimetrica_per_ha * pp_max_basal / 100
+                return vol_max, area_basimetrica_per_ha * pp_max_basal / 100
 
     return 0.0, 0.0
 

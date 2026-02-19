@@ -99,26 +99,32 @@ def data_parcel_e(trees_df, particelle_df):
 
 # Test harvest rules: single comparto 'A' with provv_min=200,
 # same age/volume thresholds as production.
-_PROVV_MINIMA_TEST = {'A': 200}
-_VOLUME_RULES_TEST = [(180, 25), (160, 20), (140, 15), (120, 10), (0, 0)]
+_PROVV_MINIMA_TEST = {'A': 20}
+_MIN_VOLUME_PCT_TEST = 120
+_VOLUME_RULES_TEST = [(180, 25), (160, 20), (140, 15), (_MIN_VOLUME_PCT_TEST, 10), (0, 0)]
 _AGE_RULES_TEST = [(60, None), (30, 20), (0, 15)]
 
+def _volume_pp_max_test(volume_per_ha, provv_min):
+    for threshold_ppm, pp_max in _VOLUME_RULES_TEST:
+        if volume_per_ha > threshold_ppm * provv_min / 100:
+            return pp_max
+    return 0.0
+
 def _test_prelievo_massimo(comparto, eta_media, volume_per_ha, area_basimetrica_per_ha):
-    """Test harvest rules matching the old test CSVs."""
+    """Test harvest rules matching production logic."""
     provv_min = _PROVV_MINIMA_TEST.get(comparto)
     if provv_min is None:
         raise ValueError(f"Comparto sconosciuto: {comparto}")
     if provv_min < 0:
         return 0.0, 0.0
+    pp_max = _volume_pp_max_test(volume_per_ha, provv_min)
+    vol_max = volume_per_ha * pp_max / 100
     for min_age, pp_max_basal in _AGE_RULES_TEST:
         if eta_media >= min_age:
             if pp_max_basal is None:
-                for threshold_ppm, pp_max in _VOLUME_RULES_TEST:
-                    if volume_per_ha > threshold_ppm * provv_min / 100:
-                        return volume_per_ha * pp_max / 100, math.inf
-                return 0.0, math.inf
+                return vol_max, math.inf
             else:
-                return math.inf, area_basimetrica_per_ha * pp_max_basal / 100
+                return vol_max, area_basimetrica_per_ha * pp_max_basal / 100
     return 0.0, 0.0
 
 @pytest.fixture(scope="module")
