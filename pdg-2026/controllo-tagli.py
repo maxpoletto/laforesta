@@ -82,7 +82,7 @@ def main():
             print(v, file=sys.stderr)
         sys.exit(1)
     else:
-        print(f"OK: nessuna particella tagliata meno di {args.min_years} anni dopo il taglio precedente.")
+        print(f"OK: nessuna particella tagliata meno di {args.intervallo} anni dopo il taglio precedente.")
 
 
 if __name__ == '__main__':
