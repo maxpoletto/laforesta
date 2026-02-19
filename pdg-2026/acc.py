@@ -1358,9 +1358,6 @@ COL_VOL_HI = 'vol_hi'
 COL_IP_MEDIO = 'ip_medio'
 COL_INCR_CORR = 'incremento_corrente'
 COL_DELTA_D = 'delta_d'
-# tcr-specific
-COL_VOLUME_PROJ = 'volume_proj'
-COL_VOLUME_MATURE_PROJ = 'volume_mature_proj'
 # tpt-specific
 COL_SECTOR = 'sector'
 COL_AGE = 'age'
@@ -1400,13 +1397,11 @@ OPT_COL_INCR_CORR = 'col_incr_corr'
 # Graph axis limits
 OPT_X_MAX = 'x_max'
 OPT_Y_MAX = 'y_max'
-# tcr-specific
-OPT_ANNI = 'anni'
-OPT_MORTALITA = 'mortalita'
 # tpdt-specific
 OPT_ANNO_INIZIO = 'anno_inizio'
 OPT_ANNO_FINE = 'anno_fine'
 OPT_INTERVALLO = 'intervallo'
+OPT_MORTALITA = 'mortalita'
 OPT_VOLUME_OBIETTIVO = 'volume_obiettivo'
 OPT_CALENDARIO = 'calendario'
 # tpdt column toggles
@@ -1429,7 +1424,6 @@ class Dir:
     PARTICELLE = 'particelle'
     PROP = 'prop'
     TCD  = 'tcd'
-    TCR  = 'tcr'
     TIP  = 'tip'
     TPDT = 'tpdt'
     TPT  = 'tpt'
@@ -1838,136 +1832,6 @@ def build_growth_tables(data: ParcelData) -> GrowthTables:
     for prefix in available_diams:
         available_diams[prefix] = sorted(set(available_diams[prefix]))
     return GrowthTables(by_group, available_diams, groupby_cols)
-
-
-def calculate_tcr_table(data: ParcelData, group_cols: list[str],
-                        years: int, mortalita: float) -> pd.DataFrame:
-    """Compute growth projection table: year-0 vs year-N volumes per group.
-
-    Runs a per-tree simulation for `years` years using Pressler growth rates,
-    with optional mortality and height re-estimation.
-    """
-    #pylint: disable=too-many-locals
-    trees = data.trees
-    parcels = data.parcels
-
-    # Year-0 volumes
-    df0 = calculate_tsv_table(data, list(group_cols),
-                              calc_margin=False, calc_total=True, calc_mature=True)
-
-    growth = build_growth_tables(data)
-
-    # Copy tree records for simulation
-    sim = trees[[COL_COMPRESA, COL_PARTICELLA, COL_AREA_SAGGIO,
-                 COL_GENERE, COL_D_CM, COL_V_M3, COL_CD_CM]].copy()
-    weight = np.ones(len(sim))
-
-    fallback_count = 0
-    diam_growth = None
-    for _ in range(years):
-        diam_growth, fallbacks = year_step(
-            sim, weight, growth, mortalita, diam_growth)
-        fallback_count += fallbacks
-
-    # Bake mortality into volume
-    sim[COL_V_M3] = sim[COL_V_M3].values * weight
-
-    # Year-N volumes via same aggregation
-    sim_data = ParcelData(trees=sim, regions=data.regions,
-                          species=data.species, parcels=data.parcels)
-    dfN = calculate_tsv_table(sim_data, list(group_cols),
-                              calc_margin=False, calc_total=True, calc_mature=True)
-
-    # Merge year-0 and year-N
-    dfN = dfN.rename(columns={
-        COL_VOLUME_MATURE: COL_VOLUME_MATURE_PROJ,
-    }).drop(columns=[COL_N_TREES])
-    if group_cols:
-        result = df0.merge(dfN, on=group_cols)
-    else:
-        result = pd.concat([df0.reset_index(drop=True),
-                           dfN.reset_index(drop=True)], axis=1)
-
-    # Per-tree ic using compresa-level growth rates, restricted to mature
-    # trees (D > threshold) to match the volume columns.
-    small_trees = trees[COL_D_CM] <= MATURE_THRESHOLD
-    tree_keys = list(zip(*(trees[c] for c in growth.groupby_cols)))
-    tree_ip = np.array([growth.by_group.get(k, (0, 0))[0] for k in tree_keys])
-    tree_ic = pd.Series(trees[COL_V_M3].values * tree_ip / 100, index=trees.index)
-    tree_ic[small_trees] = 0.0
-
-    # Add area_ha and incremento corrente per group
-    meta_rows = []
-    for group_key, group_trees in (
-            trees.groupby(group_cols) if group_cols else [('_', trees)]):
-        row = {}
-        if group_cols:
-            if not isinstance(group_key, tuple):
-                group_key = (group_key,)
-            row = dict(zip(group_cols, group_key))
-        area, ic_sum = 0.0, 0.0
-        for (region, parcel), ptrees in group_trees.groupby(
-                [COL_COMPRESA, COL_PARTICELLA]):
-            p = parcels[(region, parcel)]
-            area += p.area_ha
-            ic_sum += tree_ic[ptrees.index].sum() / p.sampled_frac
-        row[COL_AREA_HA] = area
-        row[COL_INCR_CORR] = ic_sum
-        meta_rows.append(row)
-    meta_df = pd.DataFrame(meta_rows)
-    if group_cols:
-        result = result.merge(meta_df, on=group_cols)
-    else:
-        result[COL_AREA_HA] = meta_df[COL_AREA_HA].iloc[0]
-        result[COL_INCR_CORR] = meta_df[COL_INCR_CORR].iloc[0]
-
-    if fallback_count:
-        total_lookups = len(sim) * years
-        pct = 100 * fallback_count / total_lookups
-        print(f"  @@tcr: {pct:.2f}% ricerche con fallback al diametro più vicino"
-              f" ({fallback_count}/{total_lookups})")
-
-    return result
-
-
-def render_tcr_table(data: ParcelData, formatter: SnippetFormatter,
-                     **options) -> RenderResult:
-    """Render growth projection table (@@tcr directive)."""
-    group_cols = []
-    if options[OPT_PER_COMPRESA]:
-        group_cols.append(COL_COMPRESA)
-    if options[OPT_PER_PARTICELLA]:
-        group_cols.append(COL_PARTICELLA)
-    if options[OPT_PER_GENERE]:
-        group_cols.append(COL_GENERE)
-
-    years = options[OPT_ANNI]
-    df = calculate_tcr_table(data, group_cols, years, options[OPT_MORTALITA])
-
-    # When grouping only by species, area cannot be meaningfully assigned to
-    # individual species in a mixed forest, so hide area and per-hectare columns.
-    genere_only = group_cols == [COL_GENERE]
-    total_area = dedup_total_area(df, group_cols)
-
-    n = f"+{years}aa"
-    col_specs = [
-        ColSpec('Area (ha)', 'r', COL_AREA_HA, lambda _: f"{total_area:.1f}", not genere_only),
-        ColSpec('Volume (m³)', 'r', COL_VOLUME_MATURE, COL_VOLUME_MATURE,
-                options[OPT_COL_VOLUME_MATURE]),
-        ColSpec(f'Volume {n} (m³)', 'r', COL_VOLUME_MATURE_PROJ, COL_VOLUME_MATURE_PROJ,
-                options[OPT_COL_VOLUME_MATURE]),
-        ColSpec(f'Incr. corr. (m³)', 'r', COL_INCR_CORR, COL_INCR_CORR,
-                options[OPT_COL_INCR_CORR]),
-        ColSpec('Volume/ha', 'r',
-                lambda r: f"{r[COL_VOLUME_MATURE] / r[COL_AREA_HA]:.1f}",
-                lambda d: f"{d[COL_VOLUME_MATURE].sum() / total_area:.1f}",
-                options[OPT_COL_VOLUME_MATURE_HA] and not genere_only),
-        ColSpec(f'Volume {n}/ha', 'r',
-                lambda r: f"{r[COL_VOLUME_MATURE_PROJ] / r[COL_AREA_HA]:.1f}",
-                lambda d: f"{d[COL_VOLUME_MATURE_PROJ].sum() / total_area:.1f}",
-                options[OPT_COL_VOLUME_MATURE_HA] and not genere_only),
-    ]
-    return render_table(df, group_cols, col_specs, formatter, options[OPT_TOTALI])
 
 
 BARH_GROUP_SPACING = 0.3   # Extra vertical gap between compresa groups in bar charts
@@ -2875,23 +2739,6 @@ def process_template(template_text: str, data_dir: Path,
                     filename = _build_graph_filename(comprese, particelle, generi, keyword)
                     result = render_gip_graph(data, output_dir / filename,
                                               formatter, color_map, **options)
-                case Dir.TCR:
-                    options = {
-                        OPT_PER_COMPRESA: _bool_opt(params, OPT_PER_COMPRESA),
-                        OPT_PER_PARTICELLA: _bool_opt(params, OPT_PER_PARTICELLA),
-                        OPT_PER_GENERE: _bool_opt(params, OPT_PER_GENERE, False),
-                        OPT_ANNI: int(params.get(OPT_ANNI, '0')),
-                        OPT_COL_INCR_CORR: _bool_opt(params, OPT_COL_INCR_CORR, True),
-                        OPT_COL_VOLUME_MATURE_HA: _bool_opt(params, OPT_COL_VOLUME_MATURE_HA),
-                        OPT_COL_VOLUME_MATURE: _bool_opt(params, OPT_COL_VOLUME_MATURE),
-                        OPT_MORTALITA: float(params.get(OPT_MORTALITA, '0')),
-                        OPT_TOTALI: _bool_opt(params, OPT_TOTALI, False),
-                    }
-                    check_allowed_params(keyword, params, options)
-                    check_required_params(keyword, params, [OPT_ANNI])
-                    if options[OPT_ANNI] <= 0:
-                        raise ValueError("@@tcr richiede anni=N con N > 0")
-                    result = render_tcr_table(data, formatter, **options)
                 case Dir.GCD:
                     options = {
                         OPT_METRICA: params.get(OPT_METRICA, 'alberi_ha'),
