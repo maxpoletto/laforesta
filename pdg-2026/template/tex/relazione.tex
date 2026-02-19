@@ -23,7 +23,7 @@
 \usepackage[style=alphabetic,backend=biber]{biblatex}
 \addbibresource{ref.bib}
 
-\newif\ifincludesections \includesectionstrue
+\newif\ifincludesections \includesectionsfalse
 \newcommand{\maybeinput}[1]{\ifincludesections \input{#1} \fi}
 
 \title{\sffamily Documentazione integrativa al Piano di Assestamento}
@@ -45,7 +45,7 @@ La relazione si articola in 7 parti.
 \item La parte~\ref{sec:ripresa} risponde al punto 3 della richiesta: quantifica la ripresa in relazione alla stima dei volumi.
 \item La parte~\ref{sec:ceduo} risponde al punto 4 della richiesta: espone il piano di regolarizzazione dei cedui di castagno.
 \item La parte~\ref{sec:piano} presenta un piano di tagli aggiornato, redatto tenendo conto degli incrementi secondo i criteri descritti nella parte~\ref{sec:note-metodologia}.
-\item La parte~\ref{sec:per-particella}, infine, risponde ai punti 5 e 6 della richiesta. Per ogni particella, indica le necessità colturali dei soprassuoli, descrive gli interventi colturali da eseguire, e fornisce, per ogni specie e classe diametrica, il numero di alberi per ettaro, il volume e l'area basimetrica per ettaro, la distribuzione delle altezze, e gli incrementi percentuali e correnti. Espone inoltre i volumi e la ripresa totali, suddivisi per specie.
+\item La parte~\ref{sec:particelle}, infine, risponde ai punti 5 e 6 della richiesta. Per ogni particella, indica le necessità colturali dei soprassuoli, descrive gli interventi colturali da eseguire, e fornisce, per ogni specie e classe diametrica, il numero di alberi per ettaro, il volume e l'area basimetrica per ettaro, la distribuzione delle altezze, e gli incrementi percentuali e correnti. Espone inoltre i volumi e la ripresa totali, suddivisi per specie.
 \end{itemize}
 
 \section{Note metodologiche}
@@ -68,10 +68,10 @@ I volumi presenti in ciascuna particella $p$ sono stimati secondo la metodologia
 
 \begin{enumerate}
     \item Per ogni albero cavallettato, l'altezza è stimata usando le equazioni interpolanti di cui sopra.
-    \item Per tutti gli alberi di una singola specie $f$ campionati in $p$, il volume del fusto e dei rami grossi viene calcolato usando un'equazione di previsione della forma $v_f = b_1 + b_2d^2 + b_3d$, dove i coefficienti $b_i$ provengono dal Tabacchi. Analogamente, il margine di errore $e_f$ della stima di questo volume è calcolato usando le matrici di varianza e i coefficienti del Tabacchi.
+    \item Per tutti gli alberi di una singola specie $f$ campionati in $p$, il volume del fusto e dei rami grossi viene calcolato usando un'equazione di previsione della forma $v_f = b_{f1} + b_{f2}d^2 + b_{f3}d$, dove i coefficienti $b_{fi}$ provengono dal Tabacchi. Analogamente, il margine di errore $e_f$ della stima di questo volume è calcolato usando le matrici di varianza e i coefficienti del Tabacchi.
     \item Il volume totale degli alberi campionati è dato quindi da $v_c = \sum_{f} v_f$. Il margine di errore è calcolato prudenzialmente come $e_c = \sum_{f} e_f$: ciò presume che le piante delle diverse specie nella particella siano perfettamente correlate, nonostante le equazioni di previsione di Tabacchi siano state calibrate sulla base di campioni indipendenti.
     \item Calcoliamo quindi un fattore di scala $s = a / a_s$, dove~$a$ è la superficie di~$p$ e~$a_s$ è la superficie complessiva delle aree di saggio in~$p$.
-    \item Il volume dell'intera particella viene calcolato scalando il volume stimato nelle aree di saggio, $v = s\cdot v_c$, e il margine di errore $e = s\cdot e_c$. Questo margine di errore è prudenziale, nel senso che presume che tutte le superfici di una particella siano correlate tra di loro.
+    \item Il volume dell'intera particella viene calcolato scalando il volume stimato nelle aree di saggio, $v = s\cdot v_c$, e il margine di errore $e = s\cdot e_c$. Pure questo margine di errore è prudenziale, nel senso che presume che tutte le superfici di una particella siano correlate tra di loro.
 \end{enumerate}
 
 Da notare che i valori elencati nella sezione~\ref{sec:volumi} includono le piante sottomisura, al di sotto dei 17,5 cm di diametro (classe diametrica inferiore a 20 cm). Per contro, naturalmente, i volumi usati per la ripresa escludono queste piante.
@@ -219,7 +219,7 @@ Per ogni anno dell'orizzonte di simulazione:
     \begin{itemize}
         \item Se l'ultimo intervento è avvenuto meno di $t$ anni prima, la particella viene esclusa.
         \item Altrimenti, si simula un taglio colturale dal basso secondo le regole descritte nella sezione~\ref{sec:note-ripresa}, applicando i medesimi vincoli di volume e area basimetrica. Gli alberi prelevati vengono rimossi dalla simulazione.
-        \item Il volume prelevato si accumula nel totale annuo; quando questo raggiunge $V_o$, non si effettuano ulteriori tagli nell'anno corrente.
+        \item Il volume prelevato si accumula nel totale annuo; quando questo raggiunge $V_o$, non si interviene in ulteriori particelle nell'anno corrente.
     \end{itemize}
 
     \item \textbf{Crescita.} Al termine dei tagli, tutte le piante rimanenti crescono di un anno:
@@ -239,22 +239,21 @@ Il risultato della simulazione è un programma dei tagli che indica, per ogni an
 
 \section{Stima dei volumi}
 \label{sec:volumi}
-\maybeinput{sec-volumi}
+\input{sec-volumi}
 
 \section{Ripresa attuale}
 \label{sec:ripresa}
-\maybeinput{sec-ripresa}
+\input{sec-ripresa}
 
 \section{Ceduo}
 \label{sec:ceduo}
-\maybeinput{sec-ceduo}
+\input{sec-ceduo}
 
 \section{Piano dei tagli}
 \label{sec:piano}
-\maybeinput{sec-piano}
-
 \input{sec-piano}
 
+\clearpage
 \section{Dettaglio per particella}
 \label{sec:particelle}
 \maybeinput{sec-particelle}
