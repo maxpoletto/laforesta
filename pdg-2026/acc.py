@@ -1441,6 +1441,19 @@ class ColSpec:
     # True if column should be rendered
     enabled: bool
 
+def dedup_total_area(df: pd.DataFrame, identity_cols: list[str]) -> float:
+    """Sum area_ha, deduplicating rows created by expansion based on species.
+
+    identity_cols: all grouping columns (e.g. group_cols, or
+    [COL_YEAR] + group_cols for tables with a year dimension).
+    COL_GENERE, if present, is excluded from deduplication so that
+    each spatial unit's area is counted once.
+    """
+    dedup_cols = [c for c in identity_cols if c != COL_GENERE]
+    if dedup_cols and len(dedup_cols) < len(identity_cols):
+        df = df.drop_duplicates(subset=dedup_cols)
+    return df[COL_AREA_HA].sum()
+
 def render_table(df: pd.DataFrame, group_cols: list[str],
                  col_specs: list[ColSpec], formatter: SnippetFormatter,
                  add_totals: bool) -> RenderResult:
@@ -1926,15 +1939,7 @@ def render_tcr_table(data: ParcelData, formatter: SnippetFormatter,
     # When grouping only by species, area cannot be meaningfully assigned to
     # individual species in a mixed forest, so hide area and per-hectare columns.
     genere_only = group_cols == [COL_GENERE]
-
-    # Area deduplication for totals: genere creates duplicate spatial rows
-    total_area = 0
-    if not genere_only:
-        if COL_GENERE in group_cols:
-            parcel_cols = [c for c in group_cols if c != COL_GENERE]
-            total_area = df.drop_duplicates(subset=parcel_cols)[COL_AREA_HA].sum()
-        else:
-            total_area = df[COL_AREA_HA].sum()
+    total_area = dedup_total_area(df, group_cols)
 
     n = f"+{years}aa"
     col_specs = [
@@ -2531,13 +2536,7 @@ def render_tpt_table(data: ParcelData, rules: HarvestRulesFunc,
     # When grouping only by species, area cannot be meaningfully assigned to
     # individual species in a mixed forest, so hide area and per-hectare columns.
     genere_only = group_cols == [COL_GENERE]
-
-    # Area deduplication for totals: genere creates duplicate spatial rows
-    if not genere_only and COL_GENERE in group_cols:
-        parcel_cols = [c for c in group_cols if c != COL_GENERE]
-        total_area = df.drop_duplicates(subset=parcel_cols)[COL_AREA_HA].sum()
-    else:
-        total_area = df[COL_AREA_HA].sum()
+    total_area = dedup_total_area(df, group_cols)
 
     # total_fn lambdas close over total_area (computed above)
     col_specs = [
@@ -2594,24 +2593,28 @@ def calculate_tpdt_table(
     df = pd.DataFrame(events)
     numeric_cols = [COL_HARVEST, COL_VOLUME_BEFORE, COL_VOLUME_AFTER]
 
+    df[COL_AREA_HA] = df.apply(
+        lambda r: data.parcels[(r[COL_COMPRESA], r[COL_PARTICELLA])].area_ha,
+        axis=1)
+
     # Expand per-species if requested
     if COL_GENERE in group_cols:
         expanded = []
         for _, row in df.iterrows():
             shares = row[COL_SPECIES_SHARES]
             for genere, frac in shares.items():
-                new_row = {c: row[c] for c in [COL_YEAR, COL_COMPRESA, COL_PARTICELLA]}
+                new_row = {c: row[c] for c in [COL_YEAR, COL_COMPRESA,
+                                                COL_PARTICELLA, COL_AREA_HA]}
                 new_row[COL_GENERE] = genere
                 for c in numeric_cols:
                     new_row[c] = row[c] * frac
                 expanded.append(new_row)
         df = pd.DataFrame(expanded)
 
-    # Group and sum
+    # Group and sum (area_ha sums alongside volumes)
     agg_cols = [COL_YEAR] + group_cols
-    # Keep only columns that exist (COL_GENERE may not be in df if not requested)
     agg_cols = [c for c in agg_cols if c in df.columns]
-    df = df.groupby(agg_cols, as_index=False)[numeric_cols].sum()
+    df = df.groupby(agg_cols, as_index=False)[numeric_cols + [COL_AREA_HA]].sum()
 
     # Sort by year, then by group_cols (natsort for Particella)
     sort_cols = [COL_YEAR] + group_cols
@@ -2646,14 +2649,20 @@ def render_tpdt_table(data: ParcelData, past_harvests: pd.DataFrame | None,
     if df.empty:
         return RenderResult(snippet='')
 
+    total_area = dedup_total_area(df, [COL_YEAR] + group_cols)
+
     col_specs = [
         ColSpec('Anno', 'l', lambda r: str(int(r[COL_YEAR])), None, True),
-        ColSpec('Vol prima (m³)', 'r', COL_VOLUME_BEFORE, COL_VOLUME_BEFORE, True),
+        ColSpec('Provv. prima (m³/ha)', 'r',
+                lambda r: f"{r[COL_VOLUME_BEFORE] / r[COL_AREA_HA]:.1f}",
+                lambda d: f"{d[COL_VOLUME_BEFORE].sum() / total_area:.1f}",
+                options[OPT_COL_PRIMA_DOPO]),
         ColSpec('Prelievo (m³)', 'r', COL_HARVEST, COL_HARVEST, True),
-        ColSpec('Vol dopo (m³)', 'r', COL_VOLUME_AFTER, COL_VOLUME_AFTER, True),
+        ColSpec('Provv. dopo (m³/ha)', 'r',
+                lambda r: f"{r[COL_VOLUME_AFTER] / r[COL_AREA_HA]:.1f}",
+                lambda d: f"{d[COL_VOLUME_AFTER].sum() / total_area:.1f}",
+                options[OPT_COL_PRIMA_DOPO]),
     ]
-    if not options[OPT_COL_PRIMA_DOPO]:
-        col_specs = [col_specs[0], col_specs[2]]
     return render_table(df, group_cols, col_specs, formatter, options[OPT_TOTALI])
 
 
