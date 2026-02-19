@@ -1399,6 +1399,8 @@ OPT_ANNO_FINE = 'anno_fine'
 OPT_INTERVALLO = 'intervallo'
 OPT_VOLUME_OBIETTIVO = 'volume_obiettivo'
 OPT_CALENDARIO = 'calendario'
+# tpdt column toggles
+OPT_COL_PRIMA_DOPO = 'prima_dopo'
 # Required file parameters (used as option keys for validation)
 OPT_EQUAZIONI = 'equazioni'
 
@@ -2650,6 +2652,8 @@ def render_tpdt_table(data: ParcelData, past_harvests: pd.DataFrame | None,
         ColSpec('Prelievo (m³)', 'r', COL_HARVEST, COL_HARVEST, True),
         ColSpec('Vol dopo (m³)', 'r', COL_VOLUME_AFTER, COL_VOLUME_AFTER, True),
     ]
+    if not options[OPT_COL_PRIMA_DOPO]:
+        col_specs = [col_specs[0], col_specs[2]]
     return render_table(df, group_cols, col_specs, formatter, options[OPT_TOTALI])
 
 
@@ -2956,6 +2960,7 @@ def process_template(template_text: str, data_dir: Path,
                         OPT_PER_COMPRESA: _bool_opt(params, OPT_PER_COMPRESA),
                         OPT_PER_PARTICELLA: _bool_opt(params, OPT_PER_PARTICELLA),
                         OPT_PER_GENERE: _bool_opt(params, OPT_PER_GENERE, False),
+                        OPT_COL_PRIMA_DOPO: _bool_opt(params, OPT_COL_PRIMA_DOPO),
                         OPT_ANNO_FINE: int(params.get(OPT_ANNO_FINE, 2040)),
                         OPT_ANNO_INIZIO: int(params.get(OPT_ANNO_INIZIO, 2026)),
                         OPT_INTERVALLO: int(params.get(OPT_INTERVALLO, 10)),
