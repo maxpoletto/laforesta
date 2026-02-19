@@ -191,6 +191,7 @@ L'incremento corrente $\Delta V$ (m$^3$) di un gruppo di piante è dato quindi d
 Si noti che per ottenere i volumi totali dell'area assestamentale i volumi effettivamente campionati vengono scalati in proporzione alla superficie campionata, come sopra nella sezione~\ref{sec:note-volumi}.
 
 \subsection{Aggiornamento del programma dei tagli}
+\label{sec:note:piano}
 
 Il programma di tagli proposto nella relazione originale ha due difetti: per diverse particelle propone interventi colturali (seppure al di sotto dei limiti stabiliti) a intervalli minori di 10 anni, e non tiene conto degli incrementi nel valutare l'entità di interventi futuri.
 
@@ -223,8 +224,10 @@ Per ogni anno dell'orizzonte di simulazione:
 
     \item \textbf{Crescita.} Al termine dei tagli, tutte le piante rimanenti crescono di un anno:
     \begin{itemize}
-        \item il volume di ciascun albero viene aggiornato per crescita e mortalità: $v \leftarrow v\cdot(1 + pv/100)\cdot(1 - m/100)$. Il tasso di crescita $pv$ è specifico di ciascun albero; il tasso di mortalità $m$, proprio della popolazione, viene modellato quale riduzione uniforme del volume di ogni individuo;
-        \item il diametro viene incrementato di $\Delta d$, con conseguente eventuale passaggio alla classe diametrica superiore.
+        \item Il volume di ciascun albero viene aggiornato per crescita e mortalità:
+        \[v \leftarrow v\cdot(1 + pv/100)\cdot(1 - m/100) \]
+        Il tasso di crescita $pv$ è specifico di ciascun albero; il tasso di mortalità $m$, proprio della popolazione, viene modellato quale riduzione uniforme del volume di ogni individuo.
+        \item Il diametro viene incrementato di $\Delta d$, con conseguente eventuale passaggio alla classe diametrica superiore.
     \end{itemize}
 \end{enumerate}
 
@@ -249,6 +252,8 @@ Il risultato della simulazione è un programma dei tagli che indica, per ogni an
 \section{Piano dei tagli}
 \label{sec:piano}
 \maybeinput{sec-piano}
+
+\input{sec-piano}
 
 \section{Dettaglio per particella}
 \label{sec:per-particella}
