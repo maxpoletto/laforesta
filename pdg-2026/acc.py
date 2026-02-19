@@ -9,6 +9,7 @@ from abc import ABC, abstractmethod
 import argparse
 import bisect
 from collections import defaultdict
+from copy import copy
 import csv
 from dataclasses import dataclass
 import io
@@ -211,7 +212,7 @@ class HTMLSnippetFormatter(SnippetFormatter):
         justify = [justify_style[h[1]] for h in headers]
         html = '<table class="volume-table">\n'
         html += '  <thead>\n    <tr>\n'
-        for header, j in zip([h[0] for h in headers], justify):
+        for header, j in zip([h[0].replace('\n', '<br>') for h in headers], justify):
             html += f'      <th class="{j}">{header}</th>\n'
         html += '    </tr>\n  </thead>\n'
         html += '  <tbody>\n'
@@ -267,16 +268,25 @@ class LaTeXSnippetFormatter(SnippetFormatter):
            Justification is 'l' for left, 'r' for right, 'c' for center.
         """
         just = [h[1] for h in headers]
+
+        def _latex_header(title, align):
+            if '\n' in title:
+                lines = title.split('\n')
+                return '\\shortstack[' + align + ']{' + '\\\\'.join(lines) + '}'
+            return title
+
+        header_titles = [_latex_header(h[0], h[1]) for h in headers]
+
         # Use longtable instead of tabular to allow page breaks
         latex = f'\\begin{{longtable}}{{ {"".join(just)} }}\n'
         latex += '\\hline\n'
-        latex += ' & '.join([h[0] for h in headers]) + ' \\\\\n'
+        latex += ' & '.join(header_titles) + ' \\\\\n'
         latex += '\\hline\n'
         latex += '\\endfirsthead\n'  # End of first page header
         latex += '\\multicolumn{' + str(len(headers)) + '}{c}'
         latex += '{\\textit{(continua dalla pagina precedente)}} \\\\\n'
         latex += '\\hline\n'
-        latex += ' & '.join([h[0] for h in headers]) + ' \\\\\n'
+        latex += ' & '.join(header_titles) + ' \\\\\n'
         latex += '\\hline\n'
         latex += '\\endhead\n'  # Header for subsequent pages
         latex += '\\hline\n'
@@ -314,7 +324,7 @@ class CSVSnippetFormatter(SnippetFormatter):
         """Format table as CSV."""
         output = io.StringIO()
         writer = csv.writer(output)
-        writer.writerow([h[0] for h in headers])
+        writer.writerow([h[0].replace('\n', ' ') for h in headers])
         writer.writerows(rows)
         return output.getvalue()
 
@@ -2226,6 +2236,9 @@ def schedule_harvests(
     if not fustaia_keys:
         return []
 
+    # Mutable copies of parcel stats so we can increment age year by year
+    sim_parcels = {k: copy(parcels[k]) for k in fustaia_keys}
+
     # Build growth lookup
     growth = build_growth_tables(data)
 
@@ -2256,7 +2269,7 @@ def schedule_harvests(
         # Compute mature vol/ha for each fustaia parcel and sort descending
         parcel_priority = []
         for region, parcel in fustaia_keys:
-            vol_ha = _mature_vol_per_ha(sim, region, parcel, parcels[(region, parcel)])
+            vol_ha = _mature_vol_per_ha(sim, region, parcel, sim_parcels[(region, parcel)])
             parcel_priority.append((vol_ha, region, parcel))
         parcel_priority.sort(reverse=True)
 
@@ -2270,7 +2283,7 @@ def schedule_harvests(
                 continue
 
             result = _simulate_harvest_on_parcel(
-                sim, region, parcel, parcels[(region, parcel)],
+                sim, region, parcel, sim_parcels[(region, parcel)],
                 rules, tree_selection)
             if result is None or result.harvest == 0:
                 n_no_harvest += 1
@@ -2305,6 +2318,10 @@ def schedule_harvests(
             sim, weight, growth, mortalita, diam_growth_arr)
         sim[COL_WEIGHT] = weight
         sim[COL_DIAM_GROWTH] = diam_growth_arr
+
+        # Age progression: each parcel ages one year
+        for p in sim_parcels.values():
+            p.age += 1
 
     return events
 
@@ -2540,9 +2557,9 @@ def render_tpt_table(data: ParcelData, rules: HarvestRulesFunc,
 
     # total_fn lambdas close over total_area (computed above)
     col_specs = [
-        ColSpec('Comp.', 'l', lambda r: str(r[COL_SECTOR]), None,
+        ColSpec('Classe', 'l', lambda r: str(r[COL_SECTOR]), None,
                 options[OPT_COL_COMPARTO] and per_parcel),
-        ColSpec('Età (aa)', 'r', lambda r: f"{r[COL_AGE]:.0f}", None,
+        ColSpec('Età', 'r', lambda r: f"{r[COL_AGE]:.0f}", None,
                 options[OPT_COL_ETA] and per_parcel),
         ColSpec('Area (ha)', 'r', COL_AREA_HA, lambda _: f"{total_area:.1f}",
          options[OPT_COL_AREA_HA] and not genere_only),
@@ -2551,13 +2568,13 @@ def render_tpt_table(data: ParcelData, rules: HarvestRulesFunc,
             lambda r: f"{r[COL_VOLUME] / r[COL_AREA_HA]:.1f}",
             lambda d: f"{d[COL_VOLUME].sum() / total_area:.1f}",
             options[OPT_COL_VOLUME_HA] and not genere_only),
-        ColSpec('Vol mature (m³)', 'r', COL_VOLUME_MATURE, COL_VOLUME_MATURE,
+        ColSpec('Provv. (m³)', 'r', COL_VOLUME_MATURE, COL_VOLUME_MATURE,
                 options[OPT_COL_VOLUME_MATURE]),
-        ColSpec('Vol mature/ha (m³/ha)', 'r',
+        ColSpec('Provv. (m³/ha)', 'r',
                 lambda r: f"{r[COL_VOLUME_MATURE] / r[COL_AREA_HA]:.1f}",
                 lambda d: f"{d[COL_VOLUME_MATURE].sum() / total_area:.1f}",
                 options[OPT_COL_VOLUME_MATURE_HA] and not genere_only),
-        ColSpec('Prelievo \\%', 'r', lambda r: f"{r[COL_PP_MAX]:.0f}",
+        ColSpec('Prel \\%', 'r', lambda r: f"{r[COL_PP_MAX]:.0f}",
                 None, options[OPT_COL_PP_MAX] and per_parcel),
         ColSpec('Prel tot (m³)', 'r', COL_HARVEST, COL_HARVEST, options[OPT_COL_PRELIEVO]),
         ColSpec('Prel/ha (m³/ha)', 'r',
@@ -2611,8 +2628,12 @@ def calculate_tpdt_table(
                 expanded.append(new_row)
         df = pd.DataFrame(expanded)
 
-    # Group and sum (area_ha sums alongside volumes)
+    # Group and sum (area_ha sums alongside volumes).
+    # Always include COL_COMPRESA in groupby when per-parcel, so the
+    # (compresa, particella) key is available for sector/age lookup.
     agg_cols = [COL_YEAR] + group_cols
+    if COL_PARTICELLA in group_cols and COL_COMPRESA not in agg_cols:
+        agg_cols.append(COL_COMPRESA)
     agg_cols = [c for c in agg_cols if c in df.columns]
     df = df.groupby(agg_cols, as_index=False)[numeric_cols + [COL_AREA_HA]].sum()
 
@@ -2621,6 +2642,17 @@ def calculate_tpdt_table(
     df = df.sort_values(
         sort_cols,
         key=lambda col: col.map(natsort_keygen()) if col.name == COL_PARTICELLA else col)
+
+    # Derive sector and age when per-parcel rows are available
+    if COL_PARTICELLA in group_cols:
+        first_year = year_range[0]
+        df[COL_SECTOR] = df.apply(
+            lambda r: data.parcels[(r[COL_COMPRESA], r[COL_PARTICELLA])].sector,
+            axis=1)
+        df[COL_AGE] = df.apply(
+            lambda r: data.parcels[(r[COL_COMPRESA], r[COL_PARTICELLA])].age
+                      + (r[COL_YEAR] - first_year),
+            axis=1)
 
     return df
 
@@ -2649,16 +2681,25 @@ def render_tpdt_table(data: ParcelData, past_harvests: pd.DataFrame | None,
     if df.empty:
         return RenderResult(snippet='')
 
+    per_parcel = COL_PARTICELLA in group_cols or len(data.parcels) == 1
     total_area = dedup_total_area(df, [COL_YEAR] + group_cols)
 
     col_specs = [
         ColSpec('Anno', 'l', lambda r: str(int(r[COL_YEAR])), None, True),
-        ColSpec('Provv. prima (m³/ha)', 'r',
+        ColSpec('Classe', 'l', lambda r: str(r[COL_SECTOR]), None,
+                options[OPT_COL_COMPARTO] and per_parcel),
+        ColSpec('Età', 'r', lambda r: f"{r[COL_AGE]:.0f}", None,
+                options[OPT_COL_ETA] and per_parcel),
+        ColSpec('Provv. prima\n(m³/ha)', 'r',
                 lambda r: f"{r[COL_VOLUME_BEFORE] / r[COL_AREA_HA]:.1f}",
                 lambda d: f"{d[COL_VOLUME_BEFORE].sum() / total_area:.1f}",
                 options[OPT_COL_PRIMA_DOPO]),
         ColSpec('Prelievo (m³)', 'r', COL_HARVEST, COL_HARVEST, True),
-        ColSpec('Provv. dopo (m³/ha)', 'r',
+        ColSpec('Prel \\%', 'r',
+                lambda r: f"{r[COL_HARVEST] / r[COL_VOLUME_BEFORE] * 100:.0f}"
+                    if r[COL_VOLUME_BEFORE] > 0 else '—',
+                None, options[OPT_COL_PP_MAX] and per_parcel),
+        ColSpec('Provv. dopo\n(m³/ha)', 'r',
                 lambda r: f"{r[COL_VOLUME_AFTER] / r[COL_AREA_HA]:.1f}",
                 lambda d: f"{d[COL_VOLUME_AFTER].sum() / total_area:.1f}",
                 options[OPT_COL_PRIMA_DOPO]),
@@ -2969,6 +3010,9 @@ def process_template(template_text: str, data_dir: Path,
                         OPT_PER_COMPRESA: _bool_opt(params, OPT_PER_COMPRESA),
                         OPT_PER_PARTICELLA: _bool_opt(params, OPT_PER_PARTICELLA),
                         OPT_PER_GENERE: _bool_opt(params, OPT_PER_GENERE, False),
+                        OPT_COL_COMPARTO: _bool_opt(params, OPT_COL_COMPARTO),
+                        OPT_COL_ETA: _bool_opt(params, OPT_COL_ETA),
+                        OPT_COL_PP_MAX: _bool_opt(params, OPT_COL_PP_MAX),
                         OPT_COL_PRIMA_DOPO: _bool_opt(params, OPT_COL_PRIMA_DOPO),
                         OPT_ANNO_FINE: int(params.get(OPT_ANNO_FINE, 2040)),
                         OPT_ANNO_INIZIO: int(params.get(OPT_ANNO_INIZIO, 2026)),

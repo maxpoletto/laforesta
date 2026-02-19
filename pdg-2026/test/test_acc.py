@@ -1309,6 +1309,143 @@ class TestCalculateTpdtTable:
         years = df[acc.COL_YEAR].values
         assert list(years) == sorted(years)
 
+    def test_sector_and_age_columns_present(self, data_all, harvest_rules):
+        """Per-particella tpdt table should include sector and age columns."""
+        df = acc.calculate_tpdt_table(
+            data_all, past_harvests=None,
+            rules=harvest_rules,
+            group_cols=[acc.COL_COMPRESA, acc.COL_PARTICELLA],
+            **self.COMMON_KWARGS)
+        if df.empty:
+            return
+        assert acc.COL_SECTOR in df.columns, "sector column missing"
+        assert acc.COL_AGE in df.columns, "age column missing"
+
+    def test_age_increases_with_year(self, data_all, harvest_rules):
+        """Age in tpdt table should increase by 1 per year for the same parcel."""
+        df = acc.calculate_tpdt_table(
+            data_all, past_harvests=None,
+            rules=harvest_rules,
+            group_cols=[acc.COL_COMPRESA, acc.COL_PARTICELLA],
+            year_range=(2026, 2040), min_gap=2, target_volume=99999,
+            mortalita=0.0, tree_selection=acc.select_from_bottom)
+        if df.empty:
+            return
+        # For each parcel that appears in multiple years, check age delta = year delta
+        for (comp, part), g in df.groupby([acc.COL_COMPRESA, acc.COL_PARTICELLA]):
+            if len(g) < 2:
+                continue
+            g = g.sort_values(acc.COL_YEAR)
+            years = g[acc.COL_YEAR].values
+            ages = g[acc.COL_AGE].values
+            for i in range(1, len(years)):
+                assert ages[i] - ages[0] == years[i] - years[0], \
+                    f"Parcel {comp}/{part}: age delta {ages[i]-ages[0]} != " \
+                    f"year delta {years[i]-years[0]}"
+
+    def test_sector_matches_parcel_data(self, data_all, harvest_rules):
+        """Sector in tpdt table should match the parcel's sector from ParcelData."""
+        df = acc.calculate_tpdt_table(
+            data_all, past_harvests=None,
+            rules=harvest_rules,
+            group_cols=[acc.COL_COMPRESA, acc.COL_PARTICELLA],
+            **self.COMMON_KWARGS)
+        if df.empty:
+            return
+        for _, row in df.iterrows():
+            key = (row[acc.COL_COMPRESA], row[acc.COL_PARTICELLA])
+            expected_sector = data_all.parcels[key].sector
+            assert row[acc.COL_SECTOR] == expected_sector, \
+                f"Parcel {key}: sector {row[acc.COL_SECTOR]} != {expected_sector}"
+
+    def test_no_sector_age_without_per_particella(self, data_all, harvest_rules):
+        """Without per_particella, sector and age columns should not be present."""
+        df = acc.calculate_tpdt_table(
+            data_all, past_harvests=None,
+            rules=harvest_rules,
+            group_cols=[],
+            **self.COMMON_KWARGS)
+        if df.empty:
+            return
+        assert acc.COL_SECTOR not in df.columns
+        assert acc.COL_AGE not in df.columns
+
+
+class TestScheduleHarvestsAgeProgression:
+    """Test that schedule_harvests increments parcel age year-over-year."""
+
+    def test_age_does_not_mutate_original(self, data_all, harvest_rules):
+        """schedule_harvests should not modify the original ParcelData ages."""
+        original_ages = {k: v.age for k, v in data_all.parcels.items()}
+        acc.schedule_harvests(
+            data_all, past_harvests=None,
+            year_range=(2026, 2030), min_gap=2,
+            target_volume=99999,
+            rules=harvest_rules)
+        for k, v in data_all.parcels.items():
+            assert v.age == original_ages[k], \
+                f"Parcel {k}: age was mutated from {original_ages[k]} to {v.age}"
+
+    def test_age_threshold_crossing_changes_harvest(self):
+        """A parcel crossing age 60 during simulation should switch harvest rules.
+
+        Before age 60: no harvest allowed (0, 0).
+        At age 60: volume-based harvest (25% vol, no basal area limit).
+        Without age progression, a parcel at age 59 would never become eligible.
+        """
+        trees_data = [
+            {'D': 25.0, 'V': 0.5, 'genere': 'Faggio', 'L10': 5.0, 'c': 200},
+            {'D': 30.0, 'V': 0.8, 'genere': 'Faggio', 'L10': 5.0, 'c': 200},
+            {'D': 40.0, 'V': 1.5, 'genere': 'Faggio', 'L10': 5.0, 'c': 200},
+            {'D': 50.0, 'V': 2.5, 'genere': 'Faggio', 'L10': 5.0, 'c': 200},
+        ]
+        rows = []
+        for t in trees_data:
+            d = t['D']
+            rows.append({
+                acc.COL_COMPRESA: 'X',
+                acc.COL_PARTICELLA: '1',
+                acc.COL_AREA_SAGGIO: 1,
+                acc.COL_GENERE: t['genere'],
+                acc.COL_D_CM: d,
+                acc.COL_V_M3: t['V'],
+                acc.COL_CD_CM: acc.diameter_class(pd.Series([d])).iloc[0],
+                acc.COL_L10_MM: t['L10'],
+                acc.COL_COEFF_PRESSLER: t['c'],
+            })
+        trees_df = pd.DataFrame(rows)
+
+        # Age 59: one year before crossing the 60 threshold
+        parcels = {
+            ('X', '1'): acc.ParcelStats(
+                area_ha=10.0, sector='A', age=59, governo='Fustaia',
+                n_sample_areas=1, sampled_frac=acc.SAMPLE_AREA_HA / 10.0),
+        }
+        data = acc.ParcelData(
+            trees=trees_df, regions=['X'], species=['Faggio'],
+            parcels=parcels)
+
+        # Rules: age < 60 → no harvest; age >= 60 → 25% volume
+        def age_sensitive_rules(comparto, eta_media, volume_per_ha, area_per_ha):
+            if eta_media >= 60:
+                return volume_per_ha * 0.25, math.inf
+            return 0.0, 0.0
+
+        # Year 1 (2026): age=59 → no harvest
+        # Year 2 (2027): age=60 → harvest enabled by age progression
+        events = acc.schedule_harvests(
+            data, past_harvests=None,
+            year_range=(2026, 2027), min_gap=1,
+            target_volume=99999,
+            rules=age_sensitive_rules)
+
+        year_1 = [e for e in events if e[acc.COL_YEAR] == 2026]
+        year_2 = [e for e in events if e[acc.COL_YEAR] == 2027]
+
+        assert len(year_1) == 0, "Age 59: should not harvest"
+        assert len(year_2) == 1, "Age 60: should harvest after age progresses"
+        assert year_2[0][acc.COL_HARVEST] > 0
+
 
 # =============================================================================
 # MAIN
