@@ -1346,7 +1346,7 @@ def render_prop(particelle_df: pd.DataFrame, compresa: str, particella: str,
 # STIMA VOLUMI ================================================================
 
 # DataFrame column names shared between calculate_* and render_* functions.
-# Common columns (used across tsv, tpt, gsv, gpt)
+# Common columns (used across tsv, tpt)
 COL_VOLUME = 'volume'
 COL_VOLUME_MATURE = 'volume_mature'
 COL_AREA_HA = 'area_ha'
@@ -1423,19 +1423,17 @@ class Fmt:
 
 # Template directive keywords
 class Dir:
-    GCI  = 'gci'
     GCD  = 'gcd'
-    TCD  = 'tcd'
-    TSV  = 'tsv'
-    GSV  = 'gsv'
-    TPT  = 'tpt'
-    TPDT = 'tpdt'
-    GPT  = 'gpt'
-    TIP  = 'tip'
+    GCI  = 'gci'
     GIP  = 'gip'
-    TCR  = 'tcr'
-    PROP = 'prop'
     PARTICELLE = 'particelle'
+    PROP = 'prop'
+    TCD  = 'tcd'
+    TCR  = 'tcr'
+    TIP  = 'tip'
+    TPDT = 'tpdt'
+    TPT  = 'tpt'
+    TSV  = 'tsv'
 
 # Column spec for table rendering
 @dataclass
@@ -2008,120 +2006,7 @@ def _barh_layout(n_bars: int, group_values: Iterable | None = None
     return y_positions, fig_height
 
 
-def render_gsv_graph(data: ParcelData, output_path: Path,
-                     formatter: SnippetFormatter, color_map: dict,
-                     **options) -> RenderResult:
-    """
-    Generate volume summary horizontal bar graph (@@gsv directive).
-
-    Args:
-        data: Output from parcel_data
-        output_path: Where to save the PNG
-        formatter: HTML or LaTeX snippet formatter
-        color_map: Species -> color mapping
-        options: per_compresa, per_particella, per_genere flags
-
-    Returns:
-        dict with 'filepath' and 'snippet' keys
-    """
-    if not skip_graphs:
-        group_cols = []
-        if options[OPT_PER_COMPRESA]:
-            group_cols.append(COL_COMPRESA)
-        if options[OPT_PER_PARTICELLA]:
-            group_cols.append(COL_PARTICELLA)
-
-        # For stacking, we need per-genere data even if displaying by compresa/particella
-        stacked = options[OPT_PER_GENERE] and group_cols
-        base_cols: list[str] = []
-        if stacked:
-            base_cols = group_cols.copy()
-            group_cols.append(COL_GENERE)
-
-        df = calculate_tsv_table(data, group_cols, calc_margin=False, calc_total=True)
-        if df.empty:
-            return RenderResult(snippet='')
-
-        if stacked:
-            # Pivot to get genere as columns for stacking
-            pivot_df = df.pivot_table(index=base_cols, columns=COL_GENERE,
-                                    values=COL_VOLUME, fill_value=0)
-            labels = ['/'.join(str(x) for x in idx) if isinstance(idx, tuple) else str(idx)
-                    for idx in pivot_df.index]
-            generi = pivot_df.columns.tolist()
-
-            # Sort by compresa then particella (natural sort for particella)
-            if COL_PARTICELLA in base_cols:
-                sort_keys = [pivot_df.index.get_level_values(c) for c in base_cols]
-                natsort = natsort_keygen()
-                sort_idx = sorted(range(len(labels)), key=lambda i: tuple(
-                    natsort(str(sort_keys[j][i])) if base_cols[j] == COL_PARTICELLA
-                    else (0, str(sort_keys[j][i])) for j in range(len(base_cols))))
-                labels = [labels[i] for i in sort_idx]
-                pivot_df = pivot_df.iloc[sort_idx]
-
-            comprese = (pivot_df.index.get_level_values(COL_COMPRESA)
-                        if COL_COMPRESA in base_cols and COL_PARTICELLA in base_cols
-                        else None)
-            y_positions, fig_height = _barh_layout(len(labels), comprese)
-            fig, ax = plt.subplots(figsize=(5, fig_height))
-
-            # Draw stacked horizontal bars
-            left = np.zeros(len(labels))
-            for genere in generi:
-                values = cast(np.ndarray, pivot_df[genere].values)
-                ax.barh(y_positions, values, left=left, label=genere,
-                        color=color_map.get(genere, '#0c63e7'), height=0.8,
-                        edgecolor='white', linewidth=0.5)
-                left += values
-
-            ax.set_yticks(y_positions)
-            ax.set_yticklabels(labels)
-            ax.invert_yaxis()
-
-            handles, lbl = ax.get_legend_handles_labels()
-            ax.legend(reversed(handles), reversed(lbl),
-                    title='Specie', bbox_to_anchor=(1.01, 1.02), alignment='left')
-        else:
-            # Simple bars (no stacking)
-            if options[OPT_PER_GENERE]:
-                # Per-genere only: one bar per genere
-                labels = df[COL_GENERE].tolist()
-            elif group_cols:
-                labels = ['/'.join(str(row[c]) for c in group_cols) for _, row in df.iterrows()]
-            else:
-                labels = ['Totale']
-            values = cast(np.ndarray, df[COL_VOLUME].values)
-
-            comprese = (df[COL_COMPRESA].tolist()
-                        if COL_COMPRESA in group_cols and COL_PARTICELLA in group_cols
-                        else None)
-            y_positions, fig_height = _barh_layout(len(labels), comprese)
-            fig, ax = plt.subplots(figsize=(5, fig_height))
-
-            ax.barh(y_positions, values, color='#0c63e7', height=0.8,
-                    edgecolor='white', linewidth=0.5)
-            ax.set_yticks(y_positions)
-            ax.set_yticklabels(labels)
-            ax.invert_yaxis()
-
-        ax.set_xlabel('Volume (m³)')
-        ax.grid(True, alpha=0.3, axis='x')
-        ax.set_axisbelow(True)
-        ax.set_xlim(0, None)
-
-        plt.tight_layout()
-        plt.savefig(output_path, bbox_inches='tight')
-        plt.close(fig)
-
-    snippet = formatter.format_image(output_path, options)
-    snippet += '\n' + formatter.format_metadata(data)
-
-    return RenderResult(filepath=output_path, snippet=snippet)
-
-
 # RIPRESA =====================================================================
-
 
 COL_WEIGHT = '_weight'
 COL_DIAM_GROWTH = '_diam_growth'
@@ -2707,66 +2592,6 @@ def render_tpdt_table(data: ParcelData, past_harvests: pd.DataFrame | None,
     return render_table(df, group_cols, col_specs, formatter, options[OPT_TOTALI])
 
 
-def render_gpt_graph(data: ParcelData, rules: HarvestRulesFunc,
-                     output_path: Path, formatter: SnippetFormatter,
-                     **options) -> RenderResult:
-    """
-    Generate harvest horizontal bar graph (@@gpt directive).
-
-    Args:
-        data: Output from parcel_data
-        rules: HarvestRulesFunc
-        output_path: Where to save the PNG
-        formatter: HTML or LaTeX snippet formatter
-        options: per_compresa, per_particella flags (per_genere not supported)
-
-    Returns:
-        dict with 'filepath' and 'snippet' keys
-    """
-    if not skip_graphs:
-        group_cols = []
-        if options[OPT_PER_COMPRESA]:
-            group_cols.append(COL_COMPRESA)
-        if options[OPT_PER_PARTICELLA]:
-            group_cols.append(COL_PARTICELLA)
-
-        df = calculate_tpt_table(data, rules, group_cols)
-        if df.empty:
-            return RenderResult(snippet='')
-
-        if group_cols:
-            labels = ['/'.join(str(row[c]) for c in group_cols) for _, row in df.iterrows()]
-        else:
-            labels = ['Totale']
-        values = cast(np.ndarray, df[COL_HARVEST].values)
-
-        comprese = (df[COL_COMPRESA].tolist()
-                    if COL_COMPRESA in group_cols and COL_PARTICELLA in group_cols
-                    else None)
-        y_positions, fig_height = _barh_layout(len(labels), comprese)
-        fig, ax = plt.subplots(figsize=(5, fig_height))
-
-        ax.barh(y_positions, values, color='#0c63e7', height=0.8,
-                edgecolor='white', linewidth=0.5)
-        ax.set_yticks(y_positions)
-        ax.set_yticklabels(labels)
-        ax.invert_yaxis()
-
-        ax.set_xlabel('Prelievo (m³)')
-        ax.grid(True, alpha=0.3, axis='x')
-        ax.set_axisbelow(True)
-        ax.set_xlim(0, None)
-
-        plt.tight_layout()
-        plt.savefig(output_path, bbox_inches='tight')
-        plt.close(fig)
-
-    snippet = formatter.format_image(output_path, options)
-    snippet += '\n' + formatter.format_metadata(data)
-
-    return RenderResult(filepath=output_path, snippet=snippet)
-
-
 # =============================================================================
 # TEMPLATE PROCESSING
 # =============================================================================
@@ -3107,29 +2932,6 @@ def process_template(template_text: str, data_dir: Path,
                     filename = _build_graph_filename(comprese, particelle, generi, keyword)
                     result = render_gci_graph(data, equations_df, output_dir / filename,
                                               formatter, color_map, **options)
-                case Dir.GSV:
-                    options = {
-                        OPT_PER_COMPRESA: _bool_opt(params, OPT_PER_COMPRESA),
-                        OPT_PER_PARTICELLA: _bool_opt(params, OPT_PER_PARTICELLA),
-                        OPT_PER_GENERE: _bool_opt(params, OPT_PER_GENERE, False),
-                        OPT_STILE: params.get(OPT_STILE),
-                    }
-                    check_allowed_params(keyword, params, options)
-                    filename = _build_graph_filename(comprese, particelle, generi, keyword)
-                    result = render_gsv_graph(data, output_dir / filename,
-                                              formatter, color_map, **options)
-                case Dir.GPT:
-                    if OPT_PER_GENERE in params:
-                        raise ValueError("@@gpt non supporta il parametro 'per_genere'")
-                    options = {
-                        OPT_PER_COMPRESA: _bool_opt(params, OPT_PER_COMPRESA),
-                        OPT_PER_PARTICELLA: _bool_opt(params, OPT_PER_PARTICELLA),
-                        OPT_STILE: params.get(OPT_STILE),
-                    }
-                    check_allowed_params(keyword, params, options)
-                    filename = _build_graph_filename(comprese, particelle, generi, keyword)
-                    result = render_gpt_graph(data, max_harvest,
-                                              output_dir / filename, formatter, **options)
                 case _:
                     raise ValueError(f"Comando sconosciuto: {keyword}")
 
