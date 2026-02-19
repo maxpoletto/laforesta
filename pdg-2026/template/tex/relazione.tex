@@ -23,7 +23,7 @@
 \usepackage[style=alphabetic,backend=biber]{biblatex}
 \addbibresource{ref.bib}
 
-\newif\ifincludesections \includesectionsfalse
+\newif\ifincludesections \includesectionstrue
 \newcommand{\maybeinput}[1]{\ifincludesections \input{#1} \fi}
 \newcommand{\nota}[1]{{\bf {\em #1}}}
 
@@ -237,7 +237,7 @@ Il risultato della simulazione è un programma dei tagli che indica, per ogni an
 
 \section{Curve ipsometriche e classi diametriche}
 \label{sec:ipsometrie}
-\maybeinput{sec-ipsometrie}
+\input{sec-ipsometrie}
 
 \section{Stima dei volumi}
 \label{sec:volumi}
