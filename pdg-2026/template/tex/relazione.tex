@@ -20,7 +20,7 @@
 \usepackage{sectsty}
 \allsectionsfont{\sffamily}
 \setlength{\parindent}{0pt}
-\usepackage[style=authoryear]{biblatex}
+\usepackage[style=alphabetic,backend=biber]{biblatex}
 \addbibresource{ref.bib}
 
 \newif\ifincludesections \includesectionsfalse
@@ -64,7 +64,7 @@ Le curve ipsometriche sono state calcolate per regressione sulle altezze e i dia
 \subsection{Calcolo dei volumi}
 \label{sec:note-volumi}
 
-I volumi presenti in ciascuna particella $p$ sono stimati secondo la metodologia alle pp.20--27 di~\cite{tabacchi:2011}. Nello specifico:
+I volumi presenti in ciascuna particella $p$ sono stimati secondo la metodologia alle pp.20--27 di Tabacchi~\cite{tabacchi:2011}. Nello specifico:
 
 \begin{enumerate}
     \item Per ogni albero cavallettato, l'altezza è stimata usando le equazioni interpolanti di cui sopra.
@@ -79,7 +79,7 @@ Da notare che i valori elencati nella sezione~\ref{sec:volumi} includono le pian
 \subsection{Calcolo della ripresa}
 \label{sec:note-ripresa}
 
-Secondo le prescrizioni di massima della~\cite{calabria:2011}, artt. 48 e 49, il prelievo durante i tagli colturali nelle fustaie è limitato in funzione della massa disponibile e dell'area basimetrica di ciascuna particella.
+Secondo le prescrizioni di massima della Regione Calabria~\cite{calabria:2011}, artt. 48 e 49, il prelievo durante i tagli colturali nelle fustaie è limitato in funzione della massa disponibile e dell'area basimetrica di ciascuna particella.
 
 In base alla classe economica del comparto, si stabilisce una provvigione minima. Per la nostra azienda, le classi economiche sono le seguenti:
 
@@ -192,7 +192,43 @@ Si noti che per ottenere i volumi totali dell'area assestamentale i volumi effet
 
 \subsection{Aggiornamento del programma dei tagli}
 
-\cite{usher:1966}
+Il programma di tagli proposto nella relazione originale ha due difetti: per diverse particelle propone interventi colturali (seppure al di sotto dei limiti stabiliti) a intervalli minori di 10 anni, e non tiene conto degli incrementi nel valutare l'entità di interventi futuri.
+
+Abbiamo cercato di affrontare entrambe le problematiche tramite una simulazione a tempo discreto ispirata al metodo matriciale di Usher~\cite{usher:1966}, comunemente usato nella modellizzazione delle dinamiche forestali. La simulazione opera su un orizzonte temporale definito (ad es.\ 2026--2040) con passo annuale, e ad ogni anno seleziona le particelle da sottoporre a taglio tenendo conto sia della crescita avvenuta sia dei vincoli normativi.
+
+\subsubsection{Parametri della simulazione}
+
+La simulazione richiede i seguenti parametri:
+\begin{itemize}
+\item un \emph{volume obiettivo} annuo $V_o$ (m$^3$), che rappresenta il prelievo complessivo desiderato dall'azienda in un dato anno, sempre che le condizioni di produttività del bosco lo permettano;
+\item un \emph{intervallo minimo} $t$ (anni) tra due interventi successivi sulla stessa particella;
+\item un tasso di \emph{mortalità} annuo $m$ (\%), applicato uniformemente a tutte le piante. In assenza di precisi dati stazionali, si adotta un tasso del 1\%~\cite{lacasia:2025}.
+\end{itemize}
+
+\subsubsection{Tabella di crescita}
+Prima della simulazione, si costruisce una tabella di crescita a partire dagli incrementi osservati (sezione precedente). Per ogni combinazione di compresa, specie e classe diametrica, la tabella riporta l'incremento percentuale medio $pv$ e l'incremento corrente di diametro $\Delta d$. Quando per una data combinazione non sono disponibili dati diretti, si utilizza il valore della classe diametrica più vicina della stessa specie e compresa.
+
+\subsubsection{Ciclo annuale}
+
+Per ogni anno dell'orizzonte di simulazione:
+
+\begin{enumerate}
+    \item \textbf{Ordinamento.} Le particelle vengono ordinate per provvigione matura decrescente (m$^3$/ha), in modo da intervenire prioritariamente sui soprassuoli più densi, riducendone la competizione e permettendo ulteriore crescita in quelli meno densi.
+    \item \textbf{Selezione e taglio.} Per ciascuna particella, nell'ordine stabilito:
+    \begin{itemize}
+        \item Se l'ultimo intervento è avvenuto meno di $t$ anni prima, la particella viene esclusa.
+        \item Altrimenti, si simula un taglio colturale dal basso secondo le regole descritte nella sezione~\ref{sec:note-ripresa}, applicando i medesimi vincoli di volume e area basimetrica. Gli alberi prelevati vengono rimossi dalla simulazione.
+        \item Il volume prelevato si accumula nel totale annuo; quando questo raggiunge $V_o$, non si effettuano ulteriori tagli nell'anno corrente.
+    \end{itemize}
+
+    \item \textbf{Crescita.} Al termine dei tagli, tutte le piante rimanenti crescono di un anno:
+    \begin{itemize}
+        \item il volume di ciascun albero viene aggiornato per crescita e mortalità: $v \leftarrow v\cdot(1 + pv/100)\cdot(1 - m/100)$. Il tasso di crescita $pv$ è specifico di ciascun albero; il tasso di mortalità $m$, proprio della popolazione, viene modellato quale riduzione uniforme del volume di ogni individuo;
+        \item il diametro viene incrementato di $\Delta d$, con conseguente eventuale passaggio alla classe diametrica superiore.
+    \end{itemize}
+\end{enumerate}
+
+Il risultato della simulazione è un programma dei tagli che indica, per ogni anno e particella, il volume prima dell'intervento, il prelievo e il volume residuo.
 
 \section{Curve ipsometriche e classi diametriche}
 \label{sec:ipsometrie-diametri}
