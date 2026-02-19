@@ -3210,6 +3210,11 @@ def run_calcola_altezze_volumi(args):
     trees_df = load_trees(args.input)
     equations_df = load_csv(args.equazioni)
 
+    if args.coeff_pressler is not None:
+        trees_df[COL_COEFF_PRESSLER] = args.coeff_pressler
+        trees_df['IP'] = trees_df[COL_COEFF_PRESSLER] * 2 * trees_df[COL_L10_MM] / 100 / trees_df[COL_D_CM]
+        print(f"Coefficiente di Pressler = {args.coeff_pressler} per tutti gli alberi")
+
     trees_df, updated, unchanged = compute_heights(trees_df, equations_df, verbose=True)
     trees_df = calculate_all_trees_volume(trees_df)
     print(f"\nCalcolo altezze e volumi: {updated} alberi aggiornati, {unchanged} immutati")
@@ -3330,6 +3335,11 @@ Modalità di utilizzo:
                             help='Directory base per file dati (per --report)')
     files_group.add_argument('--particelle',
                             help='File CSV con dati particelle')
+
+    # Specific options for --calcola-altezze-volumi
+    av_group = parser.add_argument_group('Opzioni per --calcola-altezze-volumi')
+    av_group.add_argument('--coeff-pressler', type=float, default=None,
+                          help='Imposta coefficiente di Pressler per tutti gli alberi')
 
     # Specific options for --genera-equazioni
     eq_group = parser.add_argument_group('Opzioni per --genera-equazioni')

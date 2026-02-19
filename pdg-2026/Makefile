@@ -39,7 +39,7 @@ clean-equazioni:
 altvol: $(CSV_DIR)/alberi-calcolati.csv
 
 $(CSV_DIR)/alberi-calcolati.csv: $(CSV_DIR)/alberi.csv $(CSV_DIR)/equazioni_ipsometro.csv
-	./acc.py --calcola-altezze-volumi --equazioni $(CSV_DIR)/equazioni_ipsometro.csv --input $(CSV_DIR)/alberi.csv --output $(CSV_DIR)/alberi-calcolati.csv
+	./acc.py --calcola-altezze-volumi --coeff-pressler 200 --equazioni $(CSV_DIR)/equazioni_ipsometro.csv --input $(CSV_DIR)/alberi.csv --output $(CSV_DIR)/alberi-calcolati.csv
 
 clean-altvol:
 	rm -f $(CSV_DIR)/alberi-calcolati.csv
