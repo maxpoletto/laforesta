@@ -1,7 +1,6 @@
 \documentclass[a4paper,11pt]{article}
 \usepackage[utf8]{inputenc}
 \usepackage[italian]{babel}
-\usepackage{amsmath}
 \usepackage{url}
 \usepackage{graphicx}
 \usepackage{geometry}
@@ -19,7 +18,7 @@
 \usepackage{gillius}
 \usepackage{sectsty}
 \allsectionsfont{\sffamily}
-
+\setlength{\parindent}{0pt}
 \usepackage[style=authoryear]{biblatex}
 \addbibresource{ref.bib}
 
@@ -55,7 +54,7 @@ Di seguito sono riportati alcuni chiarimenti sui rilevamenti e i metodi di calco
 
 \subsection{Campionamento}
 
-Le 177 aree di saggio già descritte nella relazione iniziale, ciascuna della dimensione di $\frac{1}{8}$ ha, sono state soggette a cavallettamento totale, fornendo i diametri di circa 9,900 piante. Per un sottoinsieme casuale di 1880 piante è stata rilevata anche l'altezza tramite ipsometro laser. Per un ulteriore sottoinsieme di circa 200 piante è stato misurato l'incremento periodico di raggio $L_{10}$, ovvero lo spessore dei 10 anelli legnosi periferici successivi.
+Le 177 aree di saggio già descritte nella relazione iniziale, ciascuna della dimensione di $\frac{1}{8}$ ha, sono state soggette a cavallettamento totale, fornendo i diametri di circa 9,900 piante. Per un sottoinsieme casuale di 1880 piante è stata rilevata anche l'altezza tramite ipsometro laser. Per un ulteriore sottoinsieme di {\bf circa 200 piante} è stato misurato l'incremento periodico di raggio $L_{10}$, ovvero lo spessore dei 10 anelli legnosi periferici successivi.
 
 \subsection{Calcolo delle curve ipsometriche}
 
@@ -68,7 +67,7 @@ I volumi dei soprassuoli sono calcolati secondo la metodologia alle pp.20--27 di
 
 \begin{itemize}
     \item Per ogni albero cavallettato, l'altezza è stimata usando le equazioni interpolanti di cui sopra.
-    \item Per tutti gli alberi di una singola specie in ciascuna area di saggio, il volume del fusto e dei rami grossi viene calcolato usando un'equazione di previsione della forma $v = b_1 + b_2d^2 + b_3d$, dove i coefficienti $b_i$ provengono da~\cite{tabacchi:2011}. Analogamente, la varianza della somma di questi volumi è calcolata usando le matrici di varianza e i coefficienti del Tabacchi.
+    \item Per tutti gli alberi di una singola specie in ciascuna area di saggio, il volume del fusto e dei rami grossi viene calcolato usando un'equazione di previsione della forma $v = b_1 + b_2d^2 + b_3d$, dove i coefficienti $b_i$ provengono dal Tabacchi. Analogamente, la varianza della somma di questi volumi è calcolata usando le matrici di varianza e i coefficienti del Tabacchi.
     \item L'intervallo fiduciario della stima dei volumi dell'intera area di saggio è dato da $\sqrt{\sum_{s}{f_s^2}}$, dove $f_s$ è l'intervallo fiduciario di ciascuna specie $s$, perché le equazioni di previsione sono state calibrate sulla base di campioni indipendenti.
     \item Infine, il volume dell'intera particella viene calcolato scalando la somma delle superfici delle aree di saggio all'intera particella. Anche in questo caso l'intervallo fiduciario è prudenziale, e presume che tutte le superfici di una particella siano completamente correlate tra di loro.
 \end{itemize}
@@ -147,39 +146,50 @@ Inoltre, per fustaie fino a 60 anni di età, il prelievo non può superare una d
 \item Scorriamo le piante nell'ordine stabilito, accumulando il volume e l'area basimetrica (scalati per $s$) di ciascun albero $b$. Per ogni albero $b$, se l'aggiunta di $b$ non farebbe superare né $V_{\max}$ né $G_{\max}$, lo includiamo nel prelievo; altrimenti la simulazione si arresta. Il volume accumulato al termine costituisce il prelievo massimo per la particella.
 \end{enumerate}
 
-\cite{corona:2007}
-\cite{marziliano:2011}
-\cite{tabacchi:2011}
-\cite{usher:1966}
-
 \subsection{Calcolo degli incrementi}
 
-Per ogni albero campione $i$ per cui è stato rilevato l'incremento periodico di raggio $L_{10}$ (spessore degli ultimi 10 anelli legnosi, in mm), calcoliamo l'incremento percentuale secondo
-la formula di Pressler modificata:
+Per ogni albero campione $i$ assumiamo un incremento periodico di raggio $L_{10}$ (spessore degli ultimi 10 anelli legnosi, in mm) {\bf in base al $L_{10}$ effettivamente misurato su un albero campione nella stessa area di saggio}. Calcoliamo l'incremento percentuale $pv_i$ secondo la formula di Pressler. Definendo l'incremento corrente di diametro in cm anno$^{-1}$
+
+\[ \Delta d_i = \frac{2L_{10}}{100} \]
+
+otteniamo
+
+\[ pv_i = c \cdot \frac{100\Delta d_i}{d_i} = c \cdot \frac{2L_{10}}{d_i} \]
+
+dove $d_i$ è il diametro (cm) e $c$ è il coefficiente di Pressler. Prudenzialmente poniamo $c = 2$ per tutta la superficie boscata, nonostante studi svolti sull'Appennino Calabrese suggeriscano valori più alti (\cite{marziliano:2011} riscontra coefficienti di Schneider $K$ nell'intervallo $415-715$; analiticamente $c = K / 200$).
+
+Per ogni area assestamentale (particella o compresa), procediamo alla determinazione dell'incremento percentuale medio $pv_j$ della classe diametrica $j$ quale media ponderata sui volumi dei singoli alberi campione, come secondo~\cite{corona:2007}: 
+
+\[ pv_j = \frac{\sum_{i=1}^{n_j} pv_{ij}v_{ij}}{\sum_{i=1}^{n_j} v_{ij}} \]
+
+dove $pv_{ij}$ è l'incremento percentuale di volume dell'$i$-esimo albero campionato della classe diametrica $j$, $v_{ij}$ è il suo volume calcolato come sopra alla sezione~\ref{sec:note-volumi}, e $n_j$ è il numero di alberi campionati appartenente alla classe $j$.
+
+Analogamente, l'incremento percentuale $pV$ di tutti gli alberi nell'area assestamentale è la media ponderata sui volumi delle classi diametriche:
+
+\[ pV = \frac{\sum_{j=1}^{M} pv_jV_j}{\sum_{j=1}^{M} V_j} \]
+
+dove $V_j$ è il volume totale della $j$-esima classe diametrica e $M$ è il numero di classi diametriche.
+
+Algebraicamente ciò si riduce a
+
 \[
-  ip_i = c_i \cdot \frac{2\,L_{10,i}}{100\,d_i}
+    pV = \frac{\sum_{j=1}^{M}\left[\frac{\sum_{i=1}^{n_j} pv_{ij}v_{ij}}{\sum_{i=1}^{n_j}v_{ij}}V_j\right]}{\sum_{j=1}^{M}\sum_{i=1}^{n_j} v_{ij}}
+       = \frac{\sum_{i=1}^{N}pv_iv_i}{\sum_{i=1}^{N}v_i}
 \]
-dove $d_i$ è il diametro (cm) e $c_i$ è il coefficiente di Pressler dell'albero, pari a 200 nel caso standard e variabile per tenere conto di correzioni specie-specifiche o stazionali.
 
-Per ogni raggruppamento di interesse (specie e classe diametrica, ed eventualmente compresa o particella), calcoliamo:
+dove $N$ è il numero di tutti gli alberi $i$ campionati nell'area assestamentale.
 
-\begin{enumerate}
-\item L'incremento percentuale medio $\overline{ip}$, ottenuto come media ponderata sui volumi dei singoli alberi:
-\[ \overline{ip} = \frac{\sum_i ip_i \cdot v_i}{\sum_i v_i} \]
-dove $v_i$ è il volume dell'albero $i$. Quando si calcolano le stime totali (anziché per ettaro campionato), i volumi vengono scalati in proporzione alla frazione campionata di ciascuna particella.
+(La ponderazione per volume fa sì che gli alberi di maggiori dimensioni, che contribuiscono di pìu alla massa legnosa, pesino di più nella stima dell'incremento di gruppo.)
 
-\item L'incremento corrente $I_c$ (m$^3$), dato dal volume complessivo del gruppo moltiplicato per l'incremento percentuale medio:
-\[ I_c = V \cdot \frac{\overline{ip}}{100} \]
-dove $V = \sum_i v_i$ è il volume totale del raggruppamento (eventualmente scalato come sopra).
-\end{enumerate}
+L'incremento corrente $\Delta V$ (m$^3$) di un gruppo di piante è dato quindi dal volume complessivo del gruppo moltiplicato per l'incremento percentuale medio:
 
-La ponderazione per volume fa sì che gli alberi di maggiori
-dimensioni — che contribuiscono in modo preponderante alla
-massa legnosa — pesino di più nella stima dell'incremento
-del gruppo.
+\[ \Delta V = V \cdot \frac{pV\cdot V}{100} \]
 
+Si noti che per ottenere i volumi totali dell'area assestamentale i volumi effettivamente campionati vengono scalati in proporzione alla superficie campionata, come sopra nella sezione~\ref{sec:note-volumi}.
 
 \subsection{Aggiornamento del programma dei tagli}
+
+\cite{usher:1966}
 
 \section{Curve ipsometriche e classi diametriche}
 \label{sec:ipsometrie-diametri}
