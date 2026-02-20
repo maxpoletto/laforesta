@@ -193,17 +193,83 @@ function testDiffToRgba() {
 }
 
 // ---------------------------------------------------------------------------
+// Multi-polygon parcel data structure
+// ---------------------------------------------------------------------------
+
+function testMultiPolygonParcelData() {
+    console.log('Testing multi-polygon parcel data...');
+
+    // Simulate the parcelData building logic from app.js loadData().
+    // Multiple GeoJSON features with the same name should accumulate layers.
+    const parcelData = {};
+
+    // Mock layers (objects with setStyle method that records calls)
+    function mockLayer(id) {
+        return { id, styles: [], setStyle(s) { this.styles.push(s); } };
+    }
+
+    const features = [
+        { name: 'ParcelA', layer: mockLayer('A1') },
+        { name: 'ParcelA', layer: mockLayer('A2') },
+        { name: 'ParcelB', layer: mockLayer('B1') },
+        { name: 'ParcelA', layer: mockLayer('A3') },
+    ];
+
+    // Replicate the loadData accumulation pattern
+    for (const { name, layer } of features) {
+        if (parcelData[name]) {
+            parcelData[name].layers.push(layer);
+        } else {
+            parcelData[name] = { layers: [layer], particelle: null, ripresa: null };
+        }
+    }
+
+    // Verify unique keys
+    const keys = Object.keys(parcelData);
+    console.assert(keys.length === 2, `expected 2 parcels, got ${keys.length}`);
+
+    // Verify layer counts
+    console.assert(parcelData['ParcelA'].layers.length === 3,
+        `ParcelA should have 3 layers, got ${parcelData['ParcelA'].layers.length}`);
+    console.assert(parcelData['ParcelB'].layers.length === 1,
+        `ParcelB should have 1 layer, got ${parcelData['ParcelB'].layers.length}`);
+
+    // Replicate setStyleAll helper from app.js
+    function setStyleAll(entry, style) {
+        entry.layers.forEach(l => l.setStyle(style));
+    }
+
+    // Apply style to ParcelA — all 3 layers should get it
+    const style = { fillColor: 'red', fillOpacity: 0.5 };
+    setStyleAll(parcelData['ParcelA'], style);
+
+    for (const layer of parcelData['ParcelA'].layers) {
+        console.assert(layer.styles.length === 1,
+            `layer ${layer.id}: expected 1 style call, got ${layer.styles.length}`);
+        console.assert(layer.styles[0] === style,
+            `layer ${layer.id}: wrong style applied`);
+    }
+
+    // ParcelB should not have received any style yet
+    console.assert(parcelData['ParcelB'].layers[0].styles.length === 0,
+        'ParcelB should not have been styled');
+
+    console.log('  multi-polygon parcel data: PASS');
+}
+
+// ---------------------------------------------------------------------------
 // Run all tests
 // ---------------------------------------------------------------------------
 
 function runTests() {
-    console.log('=== p/compute.js Tests ===\n');
+    console.log('=== b/ Tests ===\n');
 
     try {
         testColormapLookup();
         testInterpolateColor();
         testComputeDiff();
         testDiffToRgba();
+        testMultiPolygonParcelData();
         console.log('\n=== All tests passed ===');
     } catch (err) {
         console.error('\nTest failed:', err.message);

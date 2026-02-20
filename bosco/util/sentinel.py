@@ -451,9 +451,14 @@ def rasterize_parcels(geojson_path: Path, bbox: list[float],
                       w: int, h: int) -> tuple[np.ndarray, list[str]]:
     """Rasterize parcel polygons into a uint8 mask.
 
-    Returns (mask, parcel_names) where mask pixel values are:
-      0 = outside all parcels
-      1..N = parcel index (matching parcel_names list, 1-based)
+    Multiple GeoJSON features with the same name are treated as fragments
+    of a single parcel (multi-polygon).
+
+    Returns (mask, parcel_names) where:
+      - parcel_names is a sorted list of unique parcel names
+      - mask pixel values are: 0 = outside all parcels,
+        1..N = parcel index (matching parcel_names, 1-based).
+        All fragments of a multi-polygon parcel share the same index.
     """
     with open(geojson_path, encoding='utf-8') as f:
         gj = json.load(f)
@@ -461,11 +466,14 @@ def rasterize_parcels(geojson_path: Path, bbox: list[float],
     west, south, east, north = bbox
     transform = from_bounds(west, south, east, north, w, h)
 
-    # Sort by name for deterministic ordering
+    # Build sorted unique name list; assign each name a single index.
     features = sorted(gj["features"], key=lambda f: f["properties"]["name"])
-    parcel_names = [f["properties"]["name"] for f in features]
+    parcel_names = sorted(set(f["properties"]["name"] for f in features))
+    name_to_idx = {name: idx for idx, name in enumerate(parcel_names, start=1)}
 
-    shapes = [(feat["geometry"], idx) for idx, feat in enumerate(features, start=1)]
+    # All fragments of the same parcel get the same raster index.
+    shapes = [(feat["geometry"], name_to_idx[feat["properties"]["name"]])
+              for feat in features]
 
     mask = rasterize(
         shapes,

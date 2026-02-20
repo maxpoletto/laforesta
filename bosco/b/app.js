@@ -88,7 +88,7 @@ const ParcelProps = (function() {
     let mapWrapper = null;
     let leafletMap = null;
     let parcelLayer = null;
-    let parcelData = {};    // keyed by CP: { feature, layer, particelle, ripresa }
+    let parcelData = {};    // keyed by CP: { layers: [layer, ...], particelle, ripresa }
     let currentProperty = '';
 
     // Satellite state
@@ -120,6 +120,11 @@ const ParcelProps = (function() {
 
     function rgbStr(rgb) {
         return 'rgb(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ')';
+    }
+
+    /** Apply a Leaflet style to all layers of a parcel entry. */
+    function setStyleAll(entry, style) {
+        entry.layers.forEach(l => l.setStyle(style));
     }
 
     function continuousColorStr(t) {
@@ -233,7 +238,12 @@ const ParcelProps = (function() {
                     const particelle = particelleByCP[cp] || null;
                     const ripresa = ripresaByCP[cp] || null;
 
-                    parcelData[cp] = { feature, layer, particelle, ripresa };
+                    // Multi-polygon parcels: accumulate layers for same name
+                    if (parcelData[cp]) {
+                        parcelData[cp].layers.push(layer);
+                    } else {
+                        parcelData[cp] = { layers: [layer], particelle, ripresa };
+                    }
 
                     if (particelle) {
                         layer.bindTooltip(buildTooltip(particelle, ripresa), {
@@ -471,8 +481,8 @@ const ParcelProps = (function() {
         $('ts-section').classList.add('hidden');
         parcelClickModeOff();
         $('legend').textContent = '';
-        Object.values(parcelData).forEach(({ layer }) =>
-            layer.setStyle({ ...DEFAULT_STYLE, fillOpacity: 0 }));
+        Object.values(parcelData).forEach(e =>
+            setStyleAll(e, { ...DEFAULT_STYLE, fillOpacity: 0 }));
         currentProperty = '';
 
         opts.classList.remove('hidden');
@@ -502,8 +512,8 @@ const ParcelProps = (function() {
             $('ts-section').classList.remove('hidden');
             parcelClickModeOff();
             // Reset parcel fill to transparent so satellite shows through
-            Object.values(parcelData).forEach(({ layer }) =>
-                layer.setStyle({ ...DEFAULT_STYLE, fillOpacity: 0 }));
+            Object.values(parcelData).forEach(e =>
+                setStyleAll(e, { ...DEFAULT_STYLE, fillOpacity: 0 }));
             showSatelliteLayer(layerName, satCurrentDate);
             return;
         }
@@ -515,7 +525,7 @@ const ParcelProps = (function() {
         removeSatOverlay();
 
         if (!propKey) {
-            Object.values(parcelData).forEach(({ layer }) => layer.setStyle(DEFAULT_STYLE));
+            Object.values(parcelData).forEach(e => setStyleAll(e, DEFAULT_STYLE));
             $('legend').textContent = '';
             return;
         }
@@ -537,11 +547,11 @@ const ParcelProps = (function() {
             if (isNaN(val)) {
                 withoutValue.push(entry);
             } else {
-                withValue.push({ val, layer: entry.layer });
+                withValue.push({ val, entry });
             }
         });
 
-        withoutValue.forEach(({ layer }) => layer.setStyle(NO_DATA_STYLE));
+        withoutValue.forEach(e => setStyleAll(e, NO_DATA_STYLE));
 
         if (withValue.length === 0) return;
 
@@ -549,9 +559,9 @@ const ParcelProps = (function() {
         const max = Math.max(...withValue.map(e => e.val));
         const range = max - min || 1;
 
-        withValue.forEach(({ val, layer }) => {
+        withValue.forEach(({ val, entry }) => {
             const t = (val - min) / range;
-            layer.setStyle({
+            setStyleAll(entry, {
                 ...DEFAULT_STYLE,
                 fillColor: continuousColorStr(t),
                 fillOpacity: 0.6
@@ -566,9 +576,9 @@ const ParcelProps = (function() {
             const val = prop.getValue(entry);
             const color = val && prop.categories[val];
             if (!color) {
-                entry.layer.setStyle(NO_DATA_STYLE);
+                setStyleAll(entry, NO_DATA_STYLE);
             } else {
-                entry.layer.setStyle({
+                setStyleAll(entry, {
                     ...DEFAULT_STYLE,
                     fillColor: color,
                     fillOpacity: 0.6
