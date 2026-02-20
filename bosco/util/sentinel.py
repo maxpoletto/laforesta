@@ -77,16 +77,6 @@ def get_access_token() -> str:
 
 
 # ---------------------------------------------------------------------------
-# Local paths
-# ---------------------------------------------------------------------------
-
-SCRIPT_DIR = Path(__file__).resolve().parent
-DATA_DIR = SCRIPT_DIR.parent / "data"
-GEOJSON_PATH = DATA_DIR / "serra.geojson"
-OUTPUT_DIR = DATA_DIR / "satellite"
-
-
-# ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
 
@@ -615,12 +605,10 @@ def main() -> None:
     def add_common_args(subparser: argparse.ArgumentParser) -> None:
         """Add --geojson and --output-dir to a subcommand parser."""
         subparser.add_argument(
-            "--geojson", type=Path, default=GEOJSON_PATH,
-            help=f"Path to GeoJSON file (default: {GEOJSON_PATH})",
+            "--geojson", type=Path, required=True, help="Path to GeoJSON file (required)",
         )
         subparser.add_argument(
-            "--output-dir", type=Path, default=OUTPUT_DIR,
-            help=f"Satellite data directory (default: {OUTPUT_DIR})",
+            "--output-dir", type=Path, required=True, help="Satellite data directory (required)",
         )
 
     parser = argparse.ArgumentParser(
