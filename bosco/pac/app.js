@@ -21,7 +21,7 @@ const SamplingPlanner = (function() {
     }
 
     function loadParcels() {
-        return fetch('../data/serra.geojson')
+        return fetch('../data/terreni.geojson')
             .then(r => r.json())
             .then(data => {
                 const polygons = data.features.filter(

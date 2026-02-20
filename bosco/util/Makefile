@@ -3,7 +3,7 @@
 SENTINEL = ./sentinel.py
 
 DATA_DIR = ../data
-GEOJSON = $(DATA_DIR)/serra.geojson
+GEOJSON = $(DATA_DIR)/terreni.geojson
 OUTPUT_DIR = $(DATA_DIR)/satellite
 DATES_FILE = $(OUTPUT_DIR)/dates.txt
 FILES = --geojson $(GEOJSON) --output-dir $(OUTPUT_DIR)
@@ -26,6 +26,10 @@ $(DATES_WINTER):
 
 $(DATES_FILE): $(DATES_SUMMER) $(DATES_WINTER)
 	sort $^ >| $@
+
+dates_summer: $(DATES_SUMMER)
+dates_winter: $(DATES_WINTER)
+dates: dates_winter dates_summer
 
 fetch: $(DATES_FILE)
 	$(SENTINEL) fetch $(FILES) --dates-file $<

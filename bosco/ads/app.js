@@ -16,7 +16,7 @@ const SampleAreaViewer = (function() {
     }
 
     function loadParcelsGeo() {
-        return fetch('../data/particelle.geojson')
+        return fetch('../data/terreni.geojson')
             .then(r => r.json())
             .then(data => {
                 parcelLayer = L.geoJSON(data, {

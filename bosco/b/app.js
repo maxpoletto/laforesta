@@ -217,7 +217,7 @@ const ParcelProps = (function() {
         parcelMaskPromise = loadRaster('../data/satellite/parcel-mask.tif');
 
         return Promise.all([
-            fetch('../data/serra.geojson').then(r => r.json()),
+            fetch('../data/terreni.geojson').then(r => r.json()),
             fetch('../data/particelle.csv').then(r => r.text()),
             fetch('../data/ripresa.csv').then(r => r.text()),
             fetch('../data/satellite/manifest.json').then(r => r.json()),
