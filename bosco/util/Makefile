@@ -1,4 +1,4 @@
-.PHONY: find fetch precompute sync deploy
+.PHONY: find fetch precompute sync deploy test
 
 SENTINEL = ./sentinel.py
 
@@ -47,3 +47,6 @@ clean-satellite:
 
 clean-all-satellite:
 	rm -fr $(OUTPUT_DIR)
+
+test:
+	./test_sentinel.py
