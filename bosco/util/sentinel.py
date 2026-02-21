@@ -94,12 +94,21 @@ DATE_DIR_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 # Helpers
 # ---------------------------------------------------------------------------
 
-def bbox_from_geojson(path: Path) -> list[float]:
-    """Return [west, south, east, north] bounding box from a GeoJSON file."""
+def bbox_from_geojson(path: Path, region: str | None = None) -> list[float]:
+    """Return [west, south, east, north] bounding box from a GeoJSON file.
+
+    If region is given, only features whose properties.layer matches are included.
+    """
     with open(path, encoding='utf-8') as f:
         gj = json.load(f)
+    features = gj["features"]
+    if region:
+        features = [f for f in features if f["properties"].get("layer") == region]
+        if not features:
+            print(f"Error: no features for region '{region}'", file=sys.stderr)
+            sys.exit(1)
     lons, lats = [], []
-    for feature in gj["features"]:
+    for feature in features:
         geom = feature["geometry"]
         if geom["type"] == "Polygon":
             rings = geom["coordinates"]
@@ -149,7 +158,7 @@ def uint8_to_index(arr: np.ndarray) -> np.ndarray:
 
 def cmd_find(args: argparse.Namespace) -> None:
     """Find cloud-free L2A scenes, optionally filtered by month."""
-    bbox = bbox_from_geojson(args.geojson)
+    bbox = bbox_from_geojson(args.geojson, args.region)
     width, height = pixel_dims(bbox)
     print(f"Bounding box: {bbox}")
     print(f"Pixel dimensions: {width} x {height} ({width * height:,} pixels)")
@@ -395,7 +404,7 @@ def fetch_one_date(date_str: str, bbox: list[float], width: int, height: int,
 
 def cmd_fetch(args: argparse.Namespace) -> None:
     """Download bands and compute indices for one or more dates."""
-    bbox = bbox_from_geojson(args.geojson)
+    bbox = bbox_from_geojson(args.geojson, args.region)
     width, height = pixel_dims(bbox)
     print(f"Bounding box: {bbox}")
     print(f"Dimensions:   {width} x {height} pixels")
@@ -448,11 +457,14 @@ def discover_dates(output_dir: Path) -> list[str]:
 
 
 def rasterize_parcels(geojson_path: Path, bbox: list[float],
-                      w: int, h: int) -> tuple[np.ndarray, list[str]]:
+                      w: int, h: int,
+                      region: str | None = None) -> tuple[np.ndarray, list[str]]:
     """Rasterize parcel polygons into a uint8 mask.
 
     Multiple GeoJSON features with the same name are treated as fragments
     of a single parcel (multi-polygon).
+
+    If region is given, only features whose properties.layer matches are included.
 
     Returns (mask, parcel_names) where:
       - parcel_names is a sorted list of unique parcel names
@@ -466,8 +478,11 @@ def rasterize_parcels(geojson_path: Path, bbox: list[float],
     west, south, east, north = bbox
     transform = from_bounds(west, south, east, north, w, h)
 
-    # Build sorted unique name list; assign each name a single index.
-    features = sorted(gj["features"], key=lambda f: f["properties"]["name"])
+    # Filter by region if requested, then sort by name.
+    features = gj["features"]
+    if region:
+        features = [f for f in features if f["properties"].get("layer") == region]
+    features = sorted(features, key=lambda f: f["properties"]["name"])
     parcel_names = sorted(set(f["properties"]["name"] for f in features))
     name_to_idx = {name: idx for idx, name in enumerate(parcel_names, start=1)}
 
@@ -547,7 +562,7 @@ def compute_timeseries(mask: np.ndarray, parcel_names: list[str],
 def cmd_precompute(args: argparse.Namespace) -> None:
     """Discover dates, generate manifest, build parcel mask + time series."""
     output_dir = args.output_dir
-    bbox = bbox_from_geojson(args.geojson)
+    bbox = bbox_from_geojson(args.geojson, args.region)
     w, h = pixel_dims(bbox)
     print(f"Bounding box: {bbox}")
     print(f"Dimensions:   {w} x {h} pixels\n")
@@ -576,7 +591,7 @@ def cmd_precompute(args: argparse.Namespace) -> None:
 
     # Rasterize parcels
     print("\nRasterizing parcels...")
-    mask, parcel_names = rasterize_parcels(args.geojson, bbox, w, h)
+    mask, parcel_names = rasterize_parcels(args.geojson, bbox, w, h, args.region)
 
     for idx, name in enumerate(parcel_names, start=1):
         count = int(np.sum(mask == idx))
@@ -611,12 +626,16 @@ def main() -> None:
     """Entry point and command line parsing."""
 
     def add_common_args(subparser: argparse.ArgumentParser) -> None:
-        """Add --geojson and --output-dir to a subcommand parser."""
+        """Add --geojson, --output-dir, and --region to a subcommand parser."""
         subparser.add_argument(
             "--geojson", type=Path, required=True, help="Path to GeoJSON file (required)",
         )
         subparser.add_argument(
             "--output-dir", type=Path, required=True, help="Satellite data directory (required)",
+        )
+        subparser.add_argument(
+            "--region", type=str, default=None,
+            help="Restrict to a single region (GeoJSON layer name)",
         )
 
     parser = argparse.ArgumentParser(

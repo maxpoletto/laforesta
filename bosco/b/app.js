@@ -9,6 +9,7 @@ const ParcelProps = (function() {
         fillOpacity: 0.1
     };
     const NO_DATA_STYLE = { ...DEFAULT_STYLE, fillColor: '#ccc', fillOpacity: 0.3 };
+    const DIMMED_STYLE = { fillOpacity: 0, opacity: 0.3, color: '#999', weight: 1 };
 
     // Color ramps
     const CONTINUOUS_COLORS = { low: [0, 100, 0], high: [154, 205, 50] }; // dark green -> yellow-green
@@ -88,10 +89,14 @@ const ParcelProps = (function() {
     let mapWrapper = null;
     let leafletMap = null;
     let parcelLayer = null;
-    let parcelData = {};    // keyed by CP: { layers: [layer, ...], particelle, ripresa }
+    let parcelData = {};    // keyed by CP: { layers, particelle, ripresa, tooltipHtml }
     let currentProperty = '';
 
-    // Satellite state
+    // Per-compresa state
+    let comprese = {};          // compresa name -> [GeoJSON features]
+    let currentCompresa = null;
+
+    // Satellite state (per-compresa, reloaded on switch)
     let satManifest = null;
     let satOverlay = null;
     let satCurrentLayer = '';  // e.g. 'ndvi'
@@ -101,7 +106,7 @@ const ParcelProps = (function() {
     let diffOverlay = null;
     let diffCurrentIndex = '';
 
-    // Precomputed data (loaded at startup)
+    // Precomputed data (per-compresa, reloaded on switch)
     let parcelMaskPromise = null; // resolves to { raster, width, height }
     let parcelMask = null;        // Uint8Array, 0 outside forest, parcel ID inside forest
     let timeseriesData = null;    // from timeseries.json
@@ -129,6 +134,18 @@ const ParcelProps = (function() {
 
     function continuousColorStr(t) {
         return rgbStr(interpolateColor(t, CONTINUOUS_COLORS.low, CONTINUOUS_COLORS.high));
+    }
+
+    /** Check if a parcel CP belongs to the currently selected compresa. */
+    function isActiveParcel(cp) {
+        return cp.startsWith(currentCompresa + '-');
+    }
+
+    /** Iterate only parcel entries belonging to the current compresa. */
+    function forActiveEntries(fn) {
+        Object.entries(parcelData).forEach(([cp, entry]) => {
+            if (isActiveParcel(cp)) fn(entry, cp);
+        });
     }
 
     // ---------------------------------------------------------------------------
@@ -218,18 +235,21 @@ const ParcelProps = (function() {
     }
 
     function loadData() {
-        // Start loading parcel mask early (used by diff + timeseries)
-        parcelMaskPromise = loadRaster('../data/satellite/parcel-mask.tif');
-
         return Promise.all([
             fetch('../data/terreni.geojson').then(r => r.json()),
             fetch('../data/particelle.csv').then(r => r.text()),
             fetch('../data/ripresa.csv').then(r => r.text()),
-            fetch('../data/satellite/manifest.json').then(r => r.json()),
-            fetch('../data/satellite/timeseries.json').then(r => r.json()),
-        ]).then(([geojson, particelleCsv, ripresaCsv, manifest, timeseries]) => {
+        ]).then(([geojson, particelleCsv, ripresaCsv]) => {
             const particelleByCP = indexByCP(particelleCsv);
             const ripresaByCP = indexByCP(ripresaCsv);
+
+            // Group features by compresa (properties.layer)
+            comprese = {};
+            geojson.features.forEach(f => {
+                const name = f.properties.layer;
+                if (!comprese[name]) comprese[name] = [];
+                comprese[name].push(f);
+            });
 
             parcelLayer = L.geoJSON(geojson, {
                 style: DEFAULT_STYLE,
@@ -238,15 +258,20 @@ const ParcelProps = (function() {
                     const particelle = particelleByCP[cp] || null;
                     const ripresa = ripresaByCP[cp] || null;
 
+                    // Build tooltip HTML once, store for rebinding on compresa switch
+                    const tooltipHtml = particelle
+                        ? buildTooltip(particelle, ripresa)
+                        : null;
+
                     // Multi-polygon parcels: accumulate layers for same name
                     if (parcelData[cp]) {
                         parcelData[cp].layers.push(layer);
                     } else {
-                        parcelData[cp] = { layers: [layer], particelle, ripresa };
+                        parcelData[cp] = { layers: [layer], particelle, ripresa, tooltipHtml };
                     }
 
-                    if (particelle) {
-                        layer.bindTooltip(buildTooltip(particelle, ripresa), {
+                    if (tooltipHtml) {
+                        layer.bindTooltip(tooltipHtml, {
                             direction: 'top',
                             offset: [0, -5]
                         });
@@ -256,14 +281,99 @@ const ParcelProps = (function() {
                 }
             }).addTo(leafletMap);
 
-            // Initialize satellite
-            satManifest = manifest;
-            timeseriesData = timeseries;
-            initSatelliteDateSelector();
-            initDiffDateSelectors();
+            // Populate compresa selector
+            const select = $('compresa-select');
+            Object.keys(comprese).sort().forEach(name => {
+                const count = new Set(comprese[name].map(f => f.properties.name)).size;
+                const opt = document.createElement('option');
+                opt.value = name;
+                opt.textContent = name + ' (' + count + ' particelle)';
+                select.appendChild(opt);
+            });
+            select.addEventListener('change', function() {
+                switchCompresa(this.value);
+            });
 
             return Object.keys(parcelData).length;
         });
+    }
+
+    // ---------------------------------------------------------------------------
+    // Per-compresa switching
+    // ---------------------------------------------------------------------------
+
+    function satDataUrl(path) {
+        return '../data/satellite/' + currentCompresa + '/' + path;
+    }
+
+    async function switchCompresa(name) {
+        currentCompresa = name;
+
+        // Restyle parcels: active vs dimmed
+        Object.entries(parcelData).forEach(([cp, entry]) => {
+            if (isActiveParcel(cp)) {
+                setStyleAll(entry, DEFAULT_STYLE);
+                // Rebind tooltip
+                if (entry.tooltipHtml) {
+                    entry.layers.forEach(l => {
+                        l.unbindTooltip();
+                        l.bindTooltip(entry.tooltipHtml, {
+                            direction: 'top',
+                            offset: [0, -5]
+                        });
+                    });
+                }
+            } else {
+                setStyleAll(entry, DIMMED_STYLE);
+                entry.layers.forEach(l => l.unbindTooltip());
+            }
+        });
+
+        // Fit map to selected compresa
+        const features = comprese[name];
+        if (features) {
+            const group = L.geoJSON({ type: 'FeatureCollection', features });
+            leafletMap.fitBounds(group.getBounds());
+        }
+
+        // Clear raster state
+        removeSatOverlay();
+        removeDiffOverlay();
+        rasterCache.clear();
+        parcelMask = null;
+        parcelMaskPromise = null;
+
+        // Load satellite data for this compresa
+        try {
+            const [manifest, timeseries] = await Promise.all([
+                fetch(satDataUrl('manifest.json')).then(r => r.json()),
+                fetch(satDataUrl('timeseries.json')).then(r => r.json()),
+            ]);
+            satManifest = manifest;
+            timeseriesData = timeseries;
+            parcelMaskPromise = loadRaster(satDataUrl('parcel-mask.tif'));
+
+            initSatelliteDateSelector();
+            initDiffDateSelectors();
+        } catch (err) {
+            console.error('Failed to load satellite data for ' + name + ':', err);
+            satManifest = null;
+            timeseriesData = null;
+        }
+
+        // Re-apply current view if a property or diff is active
+        if (currentProperty) {
+            applyProperty(currentProperty);
+        } else if (diffCurrentIndex) {
+            applyDiff(diffCurrentIndex);
+        } else {
+            // Clear legends
+            $('legend').textContent = '';
+            $('diff-legend').textContent = '';
+        }
+
+        updateStats();
+        updateStatus(name + ' \u2014 ' + Object.keys(parcelData).filter(isActiveParcel).length + ' particelle');
     }
 
     // ---------------------------------------------------------------------------
@@ -273,6 +383,7 @@ const ParcelProps = (function() {
     function initSatelliteDateSelector() {
         const sel = $('satellite-date');
         sel.textContent = '';
+        if (!satManifest) return;
         satManifest.dates.forEach(date => {
             const opt = document.createElement('option');
             opt.value = date;
@@ -296,7 +407,9 @@ const ParcelProps = (function() {
         satCurrentDate = date;
         removeSatOverlay();
 
-        const url = '../data/satellite/' + date + '/' + layerName + '.tif';
+        if (!satManifest) return;
+
+        const url = satDataUrl(date + '/' + layerName + '.tif');
         updateStatus('Caricamento ' + layerName.toUpperCase() + ' ' + date + '...');
 
         const { raster, width, height } = await loadRaster(url);
@@ -378,6 +491,7 @@ const ParcelProps = (function() {
     // ---------------------------------------------------------------------------
 
     function initDiffDateSelectors() {
+        if (!satManifest) return;
         const dates = satManifest.dates.map(d => d.slice(0, 7));
         ['diff-date1', 'diff-date2'].forEach((id, i) => {
             const sel = $(id);
@@ -404,6 +518,7 @@ const ParcelProps = (function() {
 
     async function getParcelMask() {
         if (parcelMask) return parcelMask;
+        if (!parcelMaskPromise) return null;
         const { raster } = await parcelMaskPromise;
         parcelMask = raster;
         return parcelMask;
@@ -416,11 +531,13 @@ const ParcelProps = (function() {
     async function showDiff(indexName, date1, date2) {
         removeDiffOverlay();
 
+        if (!satManifest) return;
+
         const label = indexName.toUpperCase();
         updateStatus('Caricamento ' + label + ' ' + date1.slice(0,4) + ' e ' + date2.slice(0,4) + '...');
 
-        const url1 = '../data/satellite/' + date1 + '/' + indexName + '.tif';
-        const url2 = '../data/satellite/' + date2 + '/' + indexName + '.tif';
+        const url1 = satDataUrl(date1 + '/' + indexName + '.tif');
+        const url2 = satDataUrl(date2 + '/' + indexName + '.tif');
         const [r1, r2] = await Promise.all([loadRaster(url1), loadRaster(url2)]);
 
         const limitToForest = $('diff-forest-only').checked;
@@ -481,8 +598,8 @@ const ParcelProps = (function() {
         $('ts-section').classList.add('hidden');
         parcelClickModeOff();
         $('legend').textContent = '';
-        Object.values(parcelData).forEach(e =>
-            setStyleAll(e, { ...DEFAULT_STYLE, fillOpacity: 0 }));
+        // Only clear fill on active parcels; dimmed stay dimmed
+        forActiveEntries(e => setStyleAll(e, { ...DEFAULT_STYLE, fillOpacity: 0 }));
         currentProperty = '';
 
         opts.classList.remove('hidden');
@@ -511,9 +628,8 @@ const ParcelProps = (function() {
             $('satellite-date-row').classList.add('satellite-date-row-visible');
             $('ts-section').classList.remove('hidden');
             parcelClickModeOff();
-            // Reset parcel fill to transparent so satellite shows through
-            Object.values(parcelData).forEach(e =>
-                setStyleAll(e, { ...DEFAULT_STYLE, fillOpacity: 0 }));
+            // Reset active parcel fill to transparent so satellite shows through
+            forActiveEntries(e => setStyleAll(e, { ...DEFAULT_STYLE, fillOpacity: 0 }));
             showSatelliteLayer(layerName, satCurrentDate);
             return;
         }
@@ -525,7 +641,7 @@ const ParcelProps = (function() {
         removeSatOverlay();
 
         if (!propKey) {
-            Object.values(parcelData).forEach(e => setStyleAll(e, DEFAULT_STYLE));
+            forActiveEntries(e => setStyleAll(e, DEFAULT_STYLE));
             $('legend').textContent = '';
             return;
         }
@@ -542,7 +658,7 @@ const ParcelProps = (function() {
         const withValue = [];
         const withoutValue = [];
 
-        Object.values(parcelData).forEach(entry => {
+        forActiveEntries(entry => {
             const val = prop.getValue(entry);
             if (isNaN(val)) {
                 withoutValue.push(entry);
@@ -572,7 +688,7 @@ const ParcelProps = (function() {
     }
 
     function applyBinary(prop) {
-        Object.values(parcelData).forEach(entry => {
+        forActiveEntries(entry => {
             const val = prop.getValue(entry);
             const color = val && prop.categories[val];
             if (!color) {
@@ -637,14 +753,16 @@ const ParcelProps = (function() {
     }
 
     // ---------------------------------------------------------------------------
-    // Stats
+    // Stats (scoped to current compresa)
     // ---------------------------------------------------------------------------
 
     function updateStats() {
-        const count = Object.keys(parcelData).length;
-        const totalArea = Object.values(parcelData)
-            .reduce((sum, { particelle }) =>
-                sum + (parseFloat(particelle?.['Area (ha)']) || 0), 0);
+        const activeKeys = Object.keys(parcelData).filter(isActiveParcel);
+        const count = activeKeys.length;
+        const totalArea = activeKeys.reduce((sum, cp) => {
+            const { particelle } = parcelData[cp];
+            return sum + (parseFloat(particelle?.['Area (ha)']) || 0);
+        }, 0);
 
         const stats = $('stats');
         stats.textContent = '';
@@ -733,7 +851,7 @@ const ParcelProps = (function() {
         if (!layer || !timeseriesData) return;
         const label = SATELLITE_LAYERS[layer].label;
         showTimeSeriesChart(
-            label + ' \u2014 Bosco intero',
+            label + ' \u2014 ' + currentCompresa,
             timeseriesData.means.forest[layer]
         );
     }
@@ -759,7 +877,7 @@ const ParcelProps = (function() {
     }
 
     function handleParcelClick(cp) {
-        if (!tsParcelClickMode) return;
+        if (!tsParcelClickMode || !isActiveParcel(cp)) return;
         parcelClickModeOff();
 
         const layer = currentSatelliteLayerName();
@@ -786,13 +904,14 @@ const ParcelProps = (function() {
             (async () => {
                 try {
                     const count = await loadData();
-                    updateStats();
-
-                    if (parcelLayer && parcelLayer.getBounds().isValid()) {
-                        leafletMap.fitBounds(parcelLayer.getBounds());
-                    }
-
                     updateStatus('Caricate ' + count + ' particelle');
+
+                    // Select first compresa (satellite data loaded inside switchCompresa)
+                    const first = Object.keys(comprese).sort()[0];
+                    if (first) {
+                        $('compresa-select').value = first;
+                        await switchCompresa(first);
+                    }
                 } catch (err) {
                     updateStatus('Errore nel caricamento: ' + err.message);
                     console.error(err);

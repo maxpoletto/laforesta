@@ -19,10 +19,9 @@ from rasterio.transform import from_bounds
 from sentinel import (
     BANDS,
     INDICES,
-    index_to_uint8,
+    bbox_from_geojson,
     rasterize_parcels,
     compute_timeseries,
-    reflectance_to_uint8,
 )
 
 # ---------------------------------------------------------------------------
@@ -234,6 +233,66 @@ class TestComputeTimeseries:
         ts = compute_timeseries(mask, names, dates, sat_dir)
 
         assert set(ts["means"]["parcels"].keys()) == set(ts["parcels"])
+
+
+# ---------------------------------------------------------------------------
+# Tests: --region filtering
+# ---------------------------------------------------------------------------
+
+# GeoJSON with two comprese: "Alpha" (left) and "Beta" (right).
+MULTI_COMPRESA_GEOJSON = {
+    "type": "FeatureCollection",
+    "features": [
+        {
+            "type": "Feature",
+            "properties": {"name": "Alpha-1", "layer": "Alpha", "id": 1},
+            "geometry": _poly(0.0, 0.0, 0.3, 1.0),
+        },
+        {
+            "type": "Feature",
+            "properties": {"name": "Beta-1", "layer": "Beta", "id": 2},
+            "geometry": _poly(0.7, 0.0, 1.0, 1.0),
+        },
+    ],
+}
+
+
+@pytest.fixture
+def multi_region_path(tmp_path):
+    p = tmp_path / "multi.geojson"
+    p.write_text(json.dumps(MULTI_COMPRESA_GEOJSON))
+    return p
+
+
+class TestCompresaFiltering:
+    def test_bbox_full(self, multi_region_path):
+        """Without --region, bbox spans everything."""
+        bbox = bbox_from_geojson(multi_region_path)
+        assert bbox[0] == pytest.approx(0.0)
+        assert bbox[2] == pytest.approx(1.0)
+
+    def test_bbox_alpha_only(self, multi_region_path):
+        """With --region Alpha, bbox is restricted to left side."""
+        bbox = bbox_from_geojson(multi_region_path, region="Alpha")
+        assert bbox[2] == pytest.approx(0.3)  # east edge of Alpha
+
+    def test_bbox_beta_only(self, multi_region_path):
+        """With --region Beta, bbox is restricted to right side."""
+        bbox = bbox_from_geojson(multi_region_path, region="Beta")
+        assert bbox[0] == pytest.approx(0.7)  # west edge of Beta
+
+    def test_rasterize_region_filter(self, multi_region_path):
+        """rasterize_parcels with region only includes matching features."""
+        bbox = bbox_from_geojson(multi_region_path, region="Alpha")
+        w, h = 10, 10
+        mask, names = rasterize_parcels(multi_region_path, bbox, w, h, region="Alpha")
+        assert names == ["Alpha-1"]
+        assert np.any(mask > 0)
+
+    def test_bbox_unknown_region(self, multi_region_path):
+        """Unknown region should cause sys.exit."""
+        with pytest.raises(SystemExit):
+            bbox_from_geojson(multi_region_path, region="NonExistent")
 
 
 # ---------------------------------------------------------------------------
