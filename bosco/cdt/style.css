@@ -1,0 +1,128 @@
+/* Calendario di taglio - grid styles */
+@import url('../a/app-common.css');
+
+#controls {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin: 8px 0;
+    flex-wrap: wrap;
+}
+
+#legend {
+    display: flex;
+    gap: 12px;
+    font-size: 12px;
+    align-items: center;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.legend-swatch {
+    width: 14px;
+    height: 14px;
+    border-radius: 2px;
+    border: 1px solid #999;
+}
+
+#grid-container {
+    overflow: auto;
+    flex: 1;
+    min-height: 0;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+#grid {
+    border: none;
+    width: auto;
+    font-size: 11px;
+    table-layout: fixed;
+}
+
+#grid th, #grid td {
+    padding: 0;
+    text-align: center;
+    border-color: #ccc;
+}
+
+/* Year column */
+#grid .year-cell {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: #f0f0f0;
+    font-weight: bold;
+    padding: 2px 6px;
+    white-space: nowrap;
+    min-width: 40px;
+}
+
+/* Compresa header row */
+#grid .compresa-header {
+    background: #e0e0e0;
+    font-weight: bold;
+    font-size: 12px;
+    padding: 4px 2px;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+/* Parcel header row */
+#grid .parcel-header {
+    background: #f0f0f0;
+    font-size: 10px;
+    padding: 2px;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    min-width: 24px;
+    max-width: 32px;
+    width: 24px;
+}
+
+/* Two-row sticky header: compresa row at top, parcel row below */
+#grid thead tr:first-child th {
+    top: 0;
+    z-index: 3;
+}
+#grid thead tr:nth-child(2) th {
+    top: 25px;
+    z-index: 3;
+}
+
+/* Year column in headers */
+#grid thead th.year-cell {
+    z-index: 4;
+}
+
+/* Data cells */
+#grid .cell {
+    width: 24px;
+    min-width: 24px;
+    max-width: 32px;
+    height: 20px;
+}
+
+/* Governo type colors */
+.gov-fustaia     { background-color: #006400; }
+.gov-ceduo       { background-color: #DAA520; }
+.gov-rimboschimento { background-color: #8B4513; }
+
+/* Row shading */
+#grid tbody tr:nth-child(even) .cell:not([class*="gov-"]) {
+    background-color: #fafafa;
+}
+
+/* Unmatched parcels box */
+#unmatched {
+    margin-top: 8px;
+    font-size: 12px;
+    color: #888;
+}
+#unmatched:empty { display: none; }

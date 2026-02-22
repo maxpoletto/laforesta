@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="../a/f.gif" type="image/gif"/>
+    <title>La Foresta - Calendario di Taglio</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600&family=Source+Sans+3:wght@300;400;600&display=swap">
+    <link rel="stylesheet" href="style.css" />
+    <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+    <script src="app.js" defer></script>
+</head>
+<body>
+<div class="container">
+    <h1><a href="../" class="back-link">←</a>Calendario di taglio</h1>
+    <div id="controls">
+        <select id="file-select"></select>
+        <div id="legend"></div>
+    </div>
+    <div id="status">Caricamento dati...</div>
+    <div id="grid-container">
+        <table id="grid"></table>
+    </div>
+    <div id="unmatched"></div>
+</div>
+</body>
+</html>
