@@ -8,22 +8,22 @@
         { path: '../data/registro-gestione-2016-2025.csv', label: 'Registro gestione 2016\u20132025' },
     ];
 
-    const GOVERNO_COLORS = {
-        'Fustaia':        { color: '#006400', label: 'Fustaia' },
-        'Ceduo':          { color: '#DAA520', label: 'Ceduo' },
-        'Rimboschimento': { color: '#8B4513', label: 'Rimboschimento' },
-    };
-
     const GOVERNO_CLASS = {
         'Fustaia':        'gov-fustaia',
         'Ceduo':          'gov-ceduo',
         'Rimboschimento': 'gov-rimboschimento',
     };
 
+    const GOVERNO_LEGEND = [
+        { cls: 'gov-fustaia',        label: 'Fustaia' },
+        { cls: 'gov-ceduo',          label: 'Ceduo' },
+        { cls: 'gov-rimboschimento', label: 'Rimboschimento' },
+    ];
+
     // Reverse alphabetical: Serra, Fabrizia, Capistrano
     const COMPRESA_ORDER = ['Serra', 'Fabrizia', 'Capistrano'];
 
-    let validParcels = new Set(); // set of "Compresa-Particella" strings
+    let validParcels = new Set(); // "Compresa-Particella" strings
 
     const $ = id => document.getElementById(id);
 
@@ -47,8 +47,7 @@
         return fetch('../data/particelle.csv')
             .then(r => r.text())
             .then(text => {
-                const rows = parseCsv(text);
-                rows.forEach(row => {
+                parseCsv(text).forEach(row => {
                     const compresa = (row['Compresa'] || '').trim();
                     const particella = (row['Particella'] || '').trim();
                     if (compresa && particella) {
@@ -71,12 +70,11 @@
 
     function buildLegend() {
         const container = $('legend');
-        Object.values(GOVERNO_COLORS).forEach(({ color, label }) => {
+        GOVERNO_LEGEND.forEach(({ cls, label }) => {
             const item = document.createElement('span');
             item.className = 'legend-item';
             const swatch = document.createElement('span');
-            swatch.className = 'legend-swatch';
-            swatch.style.backgroundColor = color;
+            swatch.className = 'legend-swatch ' + cls;
             item.appendChild(swatch);
             item.appendChild(document.createTextNode(label));
             container.appendChild(item);
@@ -91,8 +89,7 @@
         fetch(path)
             .then(r => r.text())
             .then(text => {
-                const rows = parseCsv(text);
-                render(rows);
+                render(parseCsv(text));
                 setStatus('');
             })
             .catch(err => setStatus('Errore: ' + err.message));
@@ -121,103 +118,88 @@
             if (!harvests.has(key)) {
                 harvests.set(key, { compresa, particella, yearGov: new Map() });
             }
-            // If a parcel appears multiple times in the same year, keep the last entry
             harvests.get(key).yearGov.set(anno, governo);
         });
 
-        // Build sorted column list grouped by compresa
+        // Build sorted row list grouped by compresa
         const byCompresa = new Map();
-        for (const [key, info] of harvests) {
-            if (!byCompresa.has(info.compresa)) byCompresa.set(info.compresa, []);
-            byCompresa.get(info.compresa).push(info.particella);
+        for (const [, info] of harvests) {
+            if (!byCompresa.has(info.compresa)) byCompresa.set(info.compresa, new Set());
+            byCompresa.get(info.compresa).add(info.particella);
         }
-        // Deduplicate parcels within each compresa
         for (const [comp, parcels] of byCompresa) {
-            byCompresa.set(comp, [...new Set(parcels)].sort(naturalSort));
+            byCompresa.set(comp, [...parcels].sort(naturalSort));
         }
 
-        // Ordered columns: compresa in COMPRESA_ORDER, parcels sorted naturally
-        const columns = []; // array of { compresa, particella, key }
-        const compresaSpans = []; // array of { compresa, count }
-        for (const comp of COMPRESA_ORDER) {
-            const parcels = byCompresa.get(comp);
-            if (!parcels || parcels.length === 0) continue;
-            compresaSpans.push({ compresa: comp, count: parcels.length });
-            parcels.forEach(p => columns.push({
-                compresa: comp,
-                particella: p,
-                key: comp + '-' + p,
-            }));
-        }
-
-        // Year range
+        // Year range (columns)
         const sortedYears = [...years].sort((a, b) => a - b);
         if (sortedYears.length === 0) {
             setStatus('Nessun dato trovato.');
             return;
         }
-        const minYear = sortedYears[0];
-        const maxYear = sortedYears[sortedYears.length - 1];
         const allYears = [];
-        for (let y = minYear; y <= maxYear; y++) allYears.push(y);
+        for (let y = sortedYears[0]; y <= sortedYears[sortedYears.length - 1]; y++) {
+            allYears.push(y);
+        }
 
         // Build table
         const table = $('grid');
         clearChildren(table);
 
-        // Header
+        // Header: corner + year labels
         const thead = document.createElement('thead');
-
-        // Row 1: compresa spans
-        const tr1 = document.createElement('tr');
-        const thCorner1 = document.createElement('th');
-        thCorner1.className = 'year-cell compresa-header';
-        thCorner1.rowSpan = 2;
-        tr1.appendChild(thCorner1);
-        compresaSpans.forEach(({ compresa, count }) => {
+        const headerRow = document.createElement('tr');
+        const corner = document.createElement('th');
+        corner.className = 'corner';
+        headerRow.appendChild(corner);
+        allYears.forEach(year => {
             const th = document.createElement('th');
-            th.className = 'compresa-header';
-            th.colSpan = count;
-            th.textContent = compresa;
-            tr1.appendChild(th);
+            th.textContent = year;
+            headerRow.appendChild(th);
         });
-        thead.appendChild(tr1);
-
-        // Row 2: parcel names
-        const tr2 = document.createElement('tr');
-        columns.forEach(col => {
-            const th = document.createElement('th');
-            th.className = 'parcel-header';
-            th.textContent = col.particella;
-            th.title = col.compresa + ' ' + col.particella;
-            tr2.appendChild(th);
-        });
-        thead.appendChild(tr2);
+        thead.appendChild(headerRow);
         table.appendChild(thead);
 
-        // Body
+        // Body: one compresa separator row + one row per parcel
         const tbody = document.createElement('tbody');
-        allYears.forEach(year => {
-            const tr = document.createElement('tr');
-            const tdYear = document.createElement('td');
-            tdYear.className = 'year-cell';
-            tdYear.textContent = year;
-            tr.appendChild(tdYear);
+        for (const comp of COMPRESA_ORDER) {
+            const parcels = byCompresa.get(comp);
+            if (!parcels || parcels.length === 0) continue;
 
-            columns.forEach(col => {
-                const td = document.createElement('td');
-                td.className = 'cell';
-                const info = harvests.get(col.key);
-                const governo = info && info.yearGov.get(year);
-                if (governo) {
-                    const cls = GOVERNO_CLASS[governo];
-                    if (cls) td.classList.add(cls);
-                    td.title = col.compresa + ' ' + col.particella + ' \u2014 ' + year + ' \u2014 ' + governo;
-                }
-                tr.appendChild(td);
+            // Compresa separator row
+            const sepRow = document.createElement('tr');
+            sepRow.className = 'compresa-row';
+            const sepTd = document.createElement('td');
+            sepTd.colSpan = allYears.length + 1;
+            sepTd.textContent = comp;
+            sepRow.appendChild(sepTd);
+            tbody.appendChild(sepRow);
+
+            // Parcel rows
+            parcels.forEach(particella => {
+                const key = comp + '-' + particella;
+                const info = harvests.get(key);
+                const tr = document.createElement('tr');
+
+                const labelTd = document.createElement('td');
+                labelTd.className = 'parcel-cell';
+                labelTd.textContent = particella;
+                tr.appendChild(labelTd);
+
+                allYears.forEach(year => {
+                    const td = document.createElement('td');
+                    td.className = 'cell';
+                    const governo = info && info.yearGov.get(year);
+                    if (governo) {
+                        const cls = GOVERNO_CLASS[governo];
+                        if (cls) td.classList.add(cls);
+                        td.title = comp + ' ' + particella + ' \u2014 ' + year + ' \u2014 ' + governo;
+                    }
+                    tr.appendChild(td);
+                });
+                tbody.appendChild(tr);
             });
-            tbody.appendChild(tr);
-        });
+        }
         table.appendChild(tbody);
 
         // Unmatched
