@@ -1,0 +1,57 @@
+/* Shared styles for non-map apps (q, cdt) */
+
+body {
+    font-family: Arial, sans-serif;
+    margin: 5px;
+    background-color: #f5f5f5;
+    line-height: 1.6;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    background-color: white;
+    padding: 20px;
+    border-radius: 4px;
+    height: calc(100vh - 10px);
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+}
+
+h1 {
+    color: #2c3e50;
+    text-align: center;
+    margin: 0;
+    font-family: 'Lora', serif;
+}
+.back-link {
+    color: #006400;
+    text-decoration: none;
+    margin-right: 4px;
+}
+.back-link:hover { opacity: 0.7; }
+
+#status { margin: 5px 0; color: #555; font-style: italic; }
+
+table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 13px;
+    border: 1px solid #ddd;
+}
+
+th, td {
+    border: 1px solid #ddd;
+    padding: 6px 10px;
+    text-align: left;
+}
+
+th { background-color: #3498db; color: white; position: sticky; top: 0; }
+tr:nth-child(even) { background-color: #f9f9f9; }
+
+select {
+    padding: 6px 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
