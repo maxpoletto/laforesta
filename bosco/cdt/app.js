@@ -159,7 +159,6 @@
             const key = compresa + '-' + particella;
             if (!validParcels.has(key)) {
                 unmatched.add(key);
-                return;
             }
 
             years.add(anno);
@@ -220,8 +219,13 @@
         table.appendChild(thead);
 
         // Body: compresa separator rows + parcel rows
+        // Include any comprese not in COMPRESA_ORDER (e.g. from unmatched parcels)
+        const compresaList = [...COMPRESA_ORDER];
+        for (const comp of byCompresa.keys()) {
+            if (!compresaList.includes(comp)) compresaList.push(comp);
+        }
         const tbody = document.createElement('tbody');
-        for (const comp of COMPRESA_ORDER) {
+        for (const comp of compresaList) {
             const parcels = byCompresa.get(comp);
             if (!parcels || parcels.length === 0) continue;
 
@@ -236,11 +240,13 @@
             parcels.forEach(particella => {
                 const key = comp + '-' + particella;
                 const info = harvests.get(key);
+                const isUnmatched = unmatched.has(key);
                 const tr = document.createElement('tr');
 
                 const labelTd = document.createElement('td');
                 labelTd.className = 'parcel-cell';
-                labelTd.textContent = particella;
+                if (isUnmatched) labelTd.classList.add('unmatched-parcel');
+                labelTd.textContent = particella + (isUnmatched ? '*' : '');
                 tr.appendChild(labelTd);
 
                 visibleYears.forEach(year => {
@@ -263,7 +269,7 @@
         const unmatchedEl = $('unmatched');
         if (unmatched.size > 0) {
             const sorted = [...unmatched].sort(naturalSort);
-            unmatchedEl.textContent = 'Particelle non trovate in anagrafica: ' +
+            unmatchedEl.textContent = '* Non in anagrafica: ' +
                 sorted.map(k => k.replace('-', ' ')).join(', ');
         } else {
             unmatchedEl.textContent = '';

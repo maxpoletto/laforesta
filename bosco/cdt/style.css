@@ -183,6 +183,12 @@
     background-color: #fafafa;
 }
 
+/* Unmatched parcel label in grid */
+#grid .unmatched-parcel {
+    color: #999;
+    font-style: italic;
+}
+
 /* Unmatched parcels box */
 #unmatched {
     margin-top: 8px;
