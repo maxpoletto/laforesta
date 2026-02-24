@@ -3,10 +3,10 @@
     'use strict';
 
     const FILES = [
-        { path: '../data/calendario-tagli-2011-2025.csv', label: 'Calendario tagli 2011\u20132025' },
+        { path: '../data/calendario-2011-2025-cropanese.csv', label: 'Calendario tagli 2011\u20132025 (Cropanese)' },
+        { path: '../data/calendario-2011-2025-malvaso.csv', label: 'Calendario tagli 2011\u20132025 (Malvaso)' },
         { path: '../data/registro-gestione-2016-2025.csv', label: 'Registro gestione 2016\u20132025' },
         { path: '../data/calendario-tagli-mannesi.csv', label: 'Calendario tagli (dati mannesi)' },
-        { path: '../data/calendario-tagli-2026-2040.csv', label: 'Calendario tagli 2026\u20132040' },
     ];
 
     const GOVERNO_CLASS = {
@@ -21,11 +21,11 @@
         { cls: 'gov-rimboschimento', label: 'Rimboschimento' },
     ];
 
-    const CALENDAR_COLORS = [
-        { cls: 'cal-0', label: 'Tagli 2011\u20132025' },
-        { cls: 'cal-1', label: 'Registro gestione' },
-        { cls: 'cal-2', label: 'Dati mannesi' },
-        { cls: 'cal-3', label: 'Tagli 2026\u20132040' },
+    const CALENDAR_LEGEND = [
+        { cls: 'cal-0', label: FILES[0].label },
+        { cls: 'cal-1', label: FILES[1].label },
+        { cls: 'cal-2', label: FILES[2].label },
+        { cls: 'cal-3', label: FILES[3].label },
     ];
 
     // Reverse alphabetical: Serra, Fabrizia, Capistrano
@@ -249,7 +249,7 @@
                 }
                 // Store merged metadata for rendering
                 currentData = { harvests: null, byCompresa: unionByCompresa, allYears, unmatched: unionUnmatched };
-                buildLegend(CALENDAR_COLORS);
+                buildLegend(CALENDAR_LEGEND);
                 updateSlider(allYears);
                 renderGrid();
                 setStatus('');
@@ -329,8 +329,8 @@
                             const info = data && data.harvests.get(key);
                             const governo = info && info.yearGov.get(year);
                             if (governo) {
-                                sub.className = CALENDAR_COLORS[i].cls;
-                                tooltipParts.push(CALENDAR_COLORS[i].label + ': ' + governo);
+                                sub.className = CALENDAR_LEGEND[i].cls;
+                                tooltipParts.push(CALENDAR_LEGEND[i].label + ': ' + governo);
                             }
                             container.appendChild(sub);
                         });
@@ -374,6 +374,7 @@
         populateDropdown();
         buildLegend(GOVERNO_LEGEND);
         setupSlider();
+        $('compare-all').checked = false;
         $('compare-all').addEventListener('change', function() {
             if (this.checked) enterCompareMode();
             else exitCompareMode();
