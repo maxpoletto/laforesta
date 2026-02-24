@@ -30,6 +30,7 @@ button:disabled { background-color: #bdc3c7; cursor: not-allowed; }
 
 #error { color: #c0392b; margin: 10px 0; white-space: pre-wrap; font-family: monospace; }
 #result-container { overflow: auto; margin-top: 15px; flex: 1; min-height: 0; border-bottom: 2px solid #ddd; }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
 
 .summary-list { font-size: 13px; color: #555; margin-bottom: 15px; }
 .summary-list summary { cursor: pointer; font-weight: bold; color: #34495e; }

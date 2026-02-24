@@ -102,7 +102,11 @@ async function executeQuery() {
     resultEl.innerHTML = '';
     try {
         const result = await conn.query(sql);
+        const NUMERIC_TYPE_IDS = new Set([2, 3, 7]); // Arrow: Int, Float, Decimal
         const columns = result.schema.fields.map(f => f.name);
+        const numericCols = new Set(
+            result.schema.fields.filter(f => NUMERIC_TYPE_IDS.has(f.type.typeId)).map(f => f.name)
+        );
         const rows = result.toArray().map(row => {
             const obj = {};
             for (const col of columns) obj[col] = row[col];
@@ -119,13 +123,17 @@ async function executeQuery() {
         }
 
         let html = '<table><thead><tr>';
-        for (const col of columns) html += `<th>${col}</th>`;
+        for (const col of columns) {
+            const cls = numericCols.has(col) ? ' class="num"' : '';
+            html += `<th${cls}>${col}</th>`;
+        }
         html += '</tr></thead><tbody>';
         for (const row of rows) {
             html += '<tr>';
             for (const col of columns) {
                 const v = row[col];
-                html += `<td>${v === null || v === undefined ? '' : v}</td>`;
+                const cls = numericCols.has(col) ? ' class="num"' : '';
+                html += `<td${cls}>${v === null || v === undefined ? '' : v}</td>`;
             }
             html += '</tr>';
         }
