@@ -6,7 +6,7 @@
         { path: '../data/calendario-2011-2025-cropanese.csv', label: 'Calendario tagli 2011\u20132025 (Cropanese)' },
         { path: '../data/calendario-2011-2025-malvaso.csv', label: 'Calendario tagli 2011\u20132025 (Malvaso)' },
         { path: '../data/registro-gestione-2016-2025.csv', label: 'Registro gestione 2016\u20132025' },
-        { path: '../data/calendario-tagli-mannesi.csv', label: 'Calendario tagli (dati mannesi)' },
+        { path: '../data/calendario-mannesi.csv', label: 'Calendario tagli (dati mannesi)' },
     ];
 
     const GOVERNO_CLASS = {
