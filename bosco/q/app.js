@@ -15,7 +15,15 @@ const QUERY_EXAMPLES = [
     {
         description: 'Particelle in ordine decrescente di superficie campionata',
         query: 'SELECT Compresa, Particella, ANY_VALUE(p."Area (ha)") AS "Area (ha)", COUNT(*) as "N. aree saggio", ROUND(COUNT(*) * 12.5 / ANY_VALUE(p."Area (ha)"),2) as "% campionato",  FROM particelle p JOIN aree_di_saggio a USING (Compresa, Particella) GROUP BY Compresa, Particella ORDER BY "% campionato" DESC;'
-    }
+    },
+    {
+        description: 'Produttività totale per particella e anno',
+        query: 'SELECT Anno,Compresa,Particella,ROUND(SUM(abete+pino+douglas+faggio+castagno+ontano+altro)) AS "Q.li" FROM mannesi GROUP BY Compresa,Particella,Anno ORDER BY Anno ASC,Compresa DESC,Particella ASC;'
+    },
+    {
+        description: 'Produttività trattori per anno',
+        query: 'SELECT anno as Anno, ROUND(SUM("Equus")) AS "Equus", ROUND(SUM("Fiat 110-90")) AS "Fiat 110-90", ROUND(SUM("Fiat 80-66")) AS "Fiat 80-66", ROUND(SUM("Landini 135")) AS "Landini 135", ROUND(SUM("New Holland T5050")) AS "New Holland T5050" FROM mannesi WHERE anno > 2021 GROUP BY anno;'
+    },
 ];
 
 const CSV_FILES = [
@@ -25,6 +33,7 @@ const CSV_FILES = [
     ['alberi-calcolati', 'Come "alberi", ma con altezze calcolate tramite equazioni interpolanti'],
     ['altezze', 'Sottoinsieme di alberi con misure di altezza tramite ipsometro laser'],
     ['alberi-modello', 'Diametri e altezze degli alberi modello'],
+    ['mannesi', 'Archivio interventi boschivi'],
     ['piante-accrescimento-indefinito', 'Piante ad accrescimento indefinito'],
     ['ripresa', 'Provvigione per particella']
 ];
