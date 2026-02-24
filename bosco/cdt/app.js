@@ -3,6 +3,7 @@
     'use strict';
 
     const FILES = [
+        { path: '../data/calendario-tagli-mannesi.csv', label: 'Calendario tagli (dati mannesi)' },
         { path: '../data/calendario-tagli-2011-2025.csv', label: 'Calendario tagli 2011\u20132025' },
         { path: '../data/calendario-tagli-2026-2040.csv', label: 'Calendario tagli 2026\u20132040' },
         { path: '../data/registro-gestione-2016-2025.csv', label: 'Registro gestione 2016\u20132025' },
