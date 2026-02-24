@@ -191,6 +191,29 @@
     font-style: italic;
 }
 
+/* Compare mode: sub-cells within a grid cell */
+.cell-compare {
+    display: flex;
+    width: 100%;
+    height: 100%;
+}
+.cell-compare > span {
+    flex: 1;
+}
+.cal-0 { background-color: orange; }
+.cal-1 { background-color: #006400; }
+.cal-2 { background-color: yellowgreen; }
+.cal-3 { background-color: bisque; }
+
+/* Compare checkbox */
+#compare-label {
+    font-size: 12px;
+    white-space: nowrap;
+    margin-left: auto;
+    cursor: pointer;
+    user-select: none;
+}
+
 /* Unmatched parcels box */
 #unmatched {
     margin-top: 8px;

@@ -3,10 +3,10 @@
     'use strict';
 
     const FILES = [
-        { path: '../data/calendario-tagli-mannesi.csv', label: 'Calendario tagli (dati mannesi)' },
         { path: '../data/calendario-tagli-2011-2025.csv', label: 'Calendario tagli 2011\u20132025' },
-        { path: '../data/calendario-tagli-2026-2040.csv', label: 'Calendario tagli 2026\u20132040' },
         { path: '../data/registro-gestione-2016-2025.csv', label: 'Registro gestione 2016\u20132025' },
+        { path: '../data/calendario-tagli-mannesi.csv', label: 'Calendario tagli (dati mannesi)' },
+        { path: '../data/calendario-tagli-2026-2040.csv', label: 'Calendario tagli 2026\u20132040' },
     ];
 
     const GOVERNO_CLASS = {
@@ -21,6 +21,13 @@
         { cls: 'gov-rimboschimento', label: 'Rimboschimento' },
     ];
 
+    const CALENDAR_COLORS = [
+        { cls: 'cal-0', label: 'Tagli 2011\u20132025' },
+        { cls: 'cal-1', label: 'Registro gestione' },
+        { cls: 'cal-2', label: 'Dati mannesi' },
+        { cls: 'cal-3', label: 'Tagli 2026\u20132040' },
+    ];
+
     // Reverse alphabetical: Serra, Fabrizia, Capistrano
     const COMPRESA_ORDER = ['Serra', 'Fabrizia', 'Capistrano'];
 
@@ -28,6 +35,13 @@
 
     // Current dataset (set by loadFile, read by renderGrid)
     let currentData = null; // { harvests, byCompresa, allYears, unmatched }
+
+    // Compare mode state
+    let compareMode = false;
+    let compareData = null; // array of processData results, one per FILE
+
+    // Cache: path → processData result (never fetch/parse a file twice)
+    const dataCache = new Map();
 
     const $ = id => document.getElementById(id);
 
@@ -72,9 +86,10 @@
         sel.addEventListener('change', () => loadFile(FILES[sel.value].path));
     }
 
-    function buildLegend() {
+    function buildLegend(items) {
         const container = $('legend');
-        GOVERNO_LEGEND.forEach(({ cls, label }) => {
+        clearChildren(container);
+        items.forEach(({ cls, label }) => {
             const item = document.createElement('span');
             item.className = 'legend-item';
             const swatch = document.createElement('span');
@@ -128,15 +143,25 @@
 
     // --- Data loading ---
 
+    function fetchAndProcess(path) {
+        if (dataCache.has(path)) return Promise.resolve(dataCache.get(path));
+        return fetch(path)
+            .then(r => r.text())
+            .then(text => {
+                const data = processData(parseCsv(text));
+                if (data) dataCache.set(path, data);
+                return data;
+            });
+    }
+
     function loadFile(path) {
         setStatus('Caricamento...');
         clearChildren($('grid'));
         $('unmatched').textContent = '';
 
-        fetch(path)
-            .then(r => r.text())
-            .then(text => {
-                currentData = processData(parseCsv(text));
+        fetchAndProcess(path)
+            .then(data => {
+                currentData = data;
                 if (!currentData) return;
                 updateSlider(currentData.allYears);
                 renderGrid();
@@ -192,14 +217,58 @@
         return { harvests, byCompresa, allYears, unmatched };
     }
 
-    // --- Grid rendering ---
+    function enterCompareMode() {
+        compareMode = true;
+        $('file-select').disabled = true;
+        setStatus('Caricamento...');
+        clearChildren($('grid'));
+
+        Promise.all(FILES.map(f => fetchAndProcess(f.path)))
+            .then(results => {
+                compareData = results; // some may be null
+                // Build union of years across all datasets
+                const allYearsSet = new Set();
+                const unionByCompresa = new Map();
+                const unionUnmatched = new Set();
+                compareData.forEach(data => {
+                    if (!data) return;
+                    data.allYears.forEach(y => allYearsSet.add(y));
+                    for (const [comp, parcels] of data.byCompresa) {
+                        if (!unionByCompresa.has(comp)) unionByCompresa.set(comp, new Set());
+                        parcels.forEach(p => unionByCompresa.get(comp).add(p));
+                    }
+                    data.unmatched.forEach(k => unionUnmatched.add(k));
+                });
+                const sorted = [...allYearsSet].sort((a, b) => a - b);
+                if (sorted.length === 0) { setStatus('Nessun dato trovato.'); return; }
+                const allYears = [];
+                for (let y = sorted[0]; y <= sorted[sorted.length - 1]; y++) allYears.push(y);
+                // Sort parcels within each compresa
+                for (const [comp, parcels] of unionByCompresa) {
+                    unionByCompresa.set(comp, [...parcels].sort(naturalSort));
+                }
+                // Store merged metadata for rendering
+                currentData = { harvests: null, byCompresa: unionByCompresa, allYears, unmatched: unionUnmatched };
+                buildLegend(CALENDAR_COLORS);
+                updateSlider(allYears);
+                renderGrid();
+                setStatus('');
+            })
+            .catch(err => setStatus('Errore: ' + err.message));
+    }
+
+    function exitCompareMode() {
+        compareMode = false;
+        compareData = null;
+        $('file-select').disabled = false;
+        buildLegend(GOVERNO_LEGEND);
+        loadFile(FILES[$('file-select').value].path);
+    }
 
     function renderGrid() {
         if (!currentData) return;
-        const { harvests, byCompresa, unmatched } = currentData;
+        const { byCompresa, unmatched } = currentData;
         const [yearFrom, yearTo] = getYearRange();
-
-        // Filter years to slider range
         const visibleYears = currentData.allYears.filter(y => y >= yearFrom && y <= yearTo);
 
         const table = $('grid');
@@ -220,7 +289,6 @@
         table.appendChild(thead);
 
         // Body: compresa separator rows + parcel rows
-        // Include any comprese not in COMPRESA_ORDER (e.g. from unmatched parcels)
         const compresaList = [...COMPRESA_ORDER];
         for (const comp of byCompresa.keys()) {
             if (!compresaList.includes(comp)) compresaList.push(comp);
@@ -240,7 +308,6 @@
 
             parcels.forEach(particella => {
                 const key = comp + '-' + particella;
-                const info = harvests.get(key);
                 const isUnmatched = unmatched.has(key);
                 const tr = document.createElement('tr');
 
@@ -250,17 +317,43 @@
                 labelTd.textContent = particella + (isUnmatched ? '*' : '');
                 tr.appendChild(labelTd);
 
-                visibleYears.forEach(year => {
-                    const td = document.createElement('td');
-                    td.className = 'cell';
-                    const governo = info && info.yearGov.get(year);
-                    if (governo) {
-                        const cls = GOVERNO_CLASS[governo];
-                        if (cls) td.classList.add(cls);
-                        td.title = comp + ' ' + particella + ' \u2014 ' + year + ' \u2014 ' + governo;
-                    }
-                    tr.appendChild(td);
-                });
+                if (compareMode) {
+                    visibleYears.forEach(year => {
+                        const td = document.createElement('td');
+                        td.className = 'cell';
+                        const container = document.createElement('div');
+                        container.className = 'cell-compare';
+                        const tooltipParts = [];
+                        compareData.forEach((data, i) => {
+                            const sub = document.createElement('span');
+                            const info = data && data.harvests.get(key);
+                            const governo = info && info.yearGov.get(year);
+                            if (governo) {
+                                sub.className = CALENDAR_COLORS[i].cls;
+                                tooltipParts.push(CALENDAR_COLORS[i].label + ': ' + governo);
+                            }
+                            container.appendChild(sub);
+                        });
+                        if (tooltipParts.length > 0) {
+                            td.title = comp + ' ' + particella + ' \u2014 ' + year + '\n' + tooltipParts.join('\n');
+                        }
+                        td.appendChild(container);
+                        tr.appendChild(td);
+                    });
+                } else {
+                    const info = currentData.harvests.get(key);
+                    visibleYears.forEach(year => {
+                        const td = document.createElement('td');
+                        td.className = 'cell';
+                        const governo = info && info.yearGov.get(year);
+                        if (governo) {
+                            const cls = GOVERNO_CLASS[governo];
+                            if (cls) td.classList.add(cls);
+                            td.title = comp + ' ' + particella + ' \u2014 ' + year + ' \u2014 ' + governo;
+                        }
+                        tr.appendChild(td);
+                    });
+                }
                 tbody.appendChild(tr);
             });
         }
@@ -270,7 +363,7 @@
         const unmatchedEl = $('unmatched');
         if (unmatched.size > 0) {
             const sorted = [...unmatched].sort(naturalSort);
-            unmatchedEl.textContent = '* Non in anagrafica: ' +
+            unmatchedEl.textContent = '* Particelle sconosciute: ' +
                 sorted.map(k => k.replace('-', ' ')).join(', ');
         } else {
             unmatchedEl.textContent = '';
@@ -279,8 +372,12 @@
 
     function init() {
         populateDropdown();
-        buildLegend();
+        buildLegend(GOVERNO_LEGEND);
         setupSlider();
+        $('compare-all').addEventListener('change', function() {
+            if (this.checked) enterCompareMode();
+            else exitCompareMode();
+        });
         loadParticelle()
             .then(() => loadFile(FILES[0].path))
             .catch(err => setStatus('Errore inizializzazione: ' + err.message));
