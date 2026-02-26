@@ -100,46 +100,9 @@
         });
     }
 
-    // --- Year range slider ---
+    // --- Year range slider (shared module) ---
 
-    function setupSlider() {
-        $('year-min').addEventListener('input', onSliderInput);
-        $('year-max').addEventListener('input', onSliderInput);
-    }
-
-    function onSliderInput() {
-        const lo = $('year-min');
-        const hi = $('year-max');
-        // Clamp: min thumb can't exceed max, and vice versa
-        if (parseInt(lo.value, 10) > parseInt(hi.value, 10)) {
-            if (this === lo) lo.value = hi.value;
-            else hi.value = lo.value;
-        }
-        updateYearLabel();
-        renderGrid();
-    }
-
-    function updateSlider(allYears) {
-        const lo = $('year-min');
-        const hi = $('year-max');
-        const min = allYears[0];
-        const max = allYears[allYears.length - 1];
-        lo.min = hi.min = min;
-        lo.max = hi.max = max;
-        lo.value = min;
-        hi.value = max;
-        updateYearLabel();
-    }
-
-    function updateYearLabel() {
-        const a = $('year-min').value;
-        const b = $('year-max').value;
-        $('year-label').textContent = a === b ? a : a + '\u2013' + b;
-    }
-
-    function getYearRange() {
-        return [parseInt($('year-min').value, 10), parseInt($('year-max').value, 10)];
-    }
+    let yearSlider = null; // initialized in init()
 
     // --- Data loading ---
 
@@ -163,7 +126,7 @@
             .then(data => {
                 currentData = data;
                 if (!currentData) return;
-                updateSlider(currentData.allYears);
+                yearSlider.setRange(currentData.allYears);
                 renderGrid();
                 setStatus('');
             })
@@ -250,7 +213,7 @@
                 // Store merged metadata for rendering
                 currentData = { harvests: null, byCompresa: unionByCompresa, allYears, unmatched: unionUnmatched };
                 buildLegend(CALENDAR_LEGEND);
-                updateSlider(allYears);
+                yearSlider.setRange(allYears);
                 renderGrid();
                 setStatus('');
             })
@@ -268,7 +231,7 @@
     function renderGrid() {
         if (!currentData) return;
         const { byCompresa, unmatched } = currentData;
-        const [yearFrom, yearTo] = getYearRange();
+        const [yearFrom, yearTo] = yearSlider.getRange();
         const visibleYears = currentData.allYears.filter(y => y >= yearFrom && y <= yearTo);
 
         const table = $('grid');
@@ -373,7 +336,7 @@
     function init() {
         populateDropdown();
         buildLegend(GOVERNO_LEGEND);
-        setupSlider();
+        yearSlider = createRangeSlider($('year-min'), $('year-max'), $('year-label'), renderGrid);
         $('compare-all').checked = false;
         $('compare-all').addEventListener('change', function() {
             if (this.checked) enterCompareMode();

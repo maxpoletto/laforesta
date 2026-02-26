@@ -1,5 +1,6 @@
 /* Calendario di taglio - grid styles */
 @import url('../a/app-common.css');
+@import url('../a/range-slider.css');
 
 #controls {
     display: flex;
@@ -30,7 +31,7 @@
     border: 1px solid #999;
 }
 
-/* Year range slider */
+/* Year range slider — layout (slider CSS is shared) */
 #year-range {
     display: flex;
     align-items: center;
@@ -41,65 +42,6 @@
     white-space: nowrap;
     min-width: 7em;
     text-align: right;
-}
-.range-slider {
-    position: relative;
-    width: 160px;
-    height: 20px;
-}
-.range-slider input[type="range"] {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    margin: 0;
-    -webkit-appearance: none;
-    appearance: none;
-    background: none;
-    pointer-events: none;
-    height: 20px;
-}
-/* Track: only drawn by the first (min) input */
-.range-slider input[type="range"]:first-child::-webkit-slider-runnable-track {
-    height: 4px;
-    background: #ccc;
-    border-radius: 2px;
-}
-.range-slider input[type="range"]:first-child::-moz-range-track {
-    height: 4px;
-    background: #ccc;
-    border-radius: 2px;
-}
-/* Hide track on the max input so it doesn't overdraw */
-.range-slider input[type="range"]:last-child::-webkit-slider-runnable-track {
-    background: transparent;
-}
-.range-slider input[type="range"]:last-child::-moz-range-track {
-    background: transparent;
-}
-/* Thumbs: re-enable pointer events */
-.range-slider input[type="range"]::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    background: #006400;
-    border: 2px solid white;
-    box-shadow: 0 0 2px rgba(0,0,0,0.4);
-    cursor: pointer;
-    pointer-events: auto;
-    margin-top: -5px;
-}
-.range-slider input[type="range"]::-moz-range-thumb {
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    background: #006400;
-    border: 2px solid white;
-    box-shadow: 0 0 2px rgba(0,0,0,0.4);
-    cursor: pointer;
-    pointer-events: auto;
 }
 
 #grid-container {
