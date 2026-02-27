@@ -1635,7 +1635,7 @@ def calculate_growth_rates(data: ParcelData, group_cols: list[str],
                            stime_totali: bool) -> pd.DataFrame:
     """Calculate the table rows for the @@tip/@@gip directives. Returns a DataFrame.
 
-    group_cols must include COL_GENERE and COL_DIAMETRO.  Computes per group:
+    group_cols must include COL_GENERE and COL_CD_CM.  Computes per group:
       - ip_medio: volume-weighted mean Pressler percentage increment
       - delta_d: mean annual diameter increment (cm)
       - incremento_corrente: volume * ip/100
