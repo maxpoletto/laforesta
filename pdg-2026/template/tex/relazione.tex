@@ -1,6 +1,7 @@
 \documentclass[a4paper,11pt]{article}
 \usepackage[utf8]{inputenc}
 \usepackage[italian]{babel}
+\usepackage{amsmath}
 \usepackage{cancel}
 \usepackage{url}
 \usepackage{graphicx}
@@ -23,7 +24,7 @@
 \usepackage[style=alphabetic,backend=biber]{biblatex}
 \addbibresource{ref.bib}
 
-\newif\ifincludesections \includesectionstrue
+\newif\ifincludesections \includesectionsfalse
 \newcommand{\maybeinput}[1]{\ifincludesections \input{#1} \fi}
 \newcommand{\nota}[1]{{\bf {\em #1}}}
 
@@ -147,7 +148,9 @@ Per ottemperare a questi duplici requisiti, procediamo con una simulazione alber
 
 \subsection{Calcolo degli incrementi}
 
-Per ogni albero campione $i$ assumiamo un incremento periodico di raggio $L_{10}$ (spessore degli ultimi 10 anelli legnosi, in mm) \nota{in base al $L_{10}$ effettivamente misurato su un albero campione nella stessa area di saggio}. Calcoliamo l'incremento percentuale $pv_i$ secondo la formula di Pressler. Definendo l'incremento corrente di diametro in cm anno$^{-1}$
+Per un sottoinsieme di alberi campione misuriamo l'incremento periodico di raggio $L_{10}$ (spessore degli ultimi 10 anelli legnosi, in mm) tramite carotaggio o abbattimento.\footnote{\nota{Nel presente piano l'incremento è stato stimato
+attribuendo a ogni albero campione il $L_{10}$ di un albero carotato nella
+stessa area di saggio, indipendentemente dalla classe diametrica.}} Calcoliamo l'incremento percentuale di volume dell'$i$-esimo albero, $pv_i$, secondo la formula di Pressler. Definendo l'incremento corrente di diametro in cm anno$^{-1}$
 
 \[ \Delta d_i = \frac{2L_{10}}{100} \]
 
@@ -155,41 +158,57 @@ otteniamo
 
 \[ pv_i = c \cdot \frac{100\Delta d_i}{d_i} = c \cdot \frac{2L_{10}}{d_i} \]
 
-dove $d_i$ è il diametro (cm) e $c$ è il coefficiente di Pressler. Prudenzialmente poniamo $c = 2$ per tutta la superficie boscata, nonostante studi svolti sull'Appennino Calabrese suggeriscano valori più alti (\cite{marziliano:2011} riscontra coefficienti di Schneider $K$ nell'intervallo $415-715$; analiticamente $c = K / 200$).
+dove $d_i$ è il diametro (cm) e $c$ è il coefficiente di Pressler. Prudenzialmente poniamo $c = 2$ per tutta la superficie boscata, nonostante studi svolti sull'Appennino Calabrese suggeriscano valori più alti (\cite{marziliano:2011} riscontra coefficienti di Schneider $K$ nell'intervallo $415$--$715$; analiticamente $c = K / 200$).
 
-Per ogni area assestamentale (particella o compresa), procediamo alla determinazione dell'incremento percentuale medio $pv_j$ della classe diametrica $j$ quale media ponderata sui volumi dei singoli alberi campione, come in~\cite{corona:2007}: 
+Per ogni area assestamentale (particella o compresa) e specie, determiniamo l'incremento percentuale medio $pv_j$ della classe diametrica $j$ quale media ponderata sui volumi degli alberi carotati appartenenti a quella classe, come in~\cite{corona:2007}:
 
-\[ pv_j = \frac{\sum_{i=1}^{n_j} pv_{ij}v_{ij}}{\sum_{i=1}^{n_j} v_{ij}} \]
+\[ pv_j = \frac{\sum_{i=1}^{m_j} pv_{ij}v_{ij}}{\sum_{i=1}^{m_j} v_{ij}} \]
 
-dove $pv_{ij}$ è l'incremento percentuale di volume dell'$i$-esimo albero campionato della classe diametrica $j$, $v_{ij}$ è il suo volume calcolato come sopra alla sezione~\ref{sec:note-volumi}, e $n_j$ è il numero di alberi campionati appartenente alla classe $j$.
+dove $pv_{ij}$ è l'incremento percentuale di volume dell'$i$-esimo albero carotato della classe diametrica $j$, $v_{ij}$ è il suo volume calcolato come sopra alla sezione~\ref{sec:note-volumi}, e $m_j$ è il numero di alberi carotati nella classe $j$.
 
-Analogamente, l'incremento percentuale $pV$ di tutti gli alberi nell'area assestamentale è la media ponderata sui volumi delle classi diametriche:
+Il volume complessivo degli alberi nella classe $j$ è dato da
 
-\[ pV = \frac{\sum_{j=1}^{M} pv_jV_j}{\sum_{j=1}^{M} V_j} \]
+\[ V_j = s\cdot\sum_{i=1}^{n_j} v_{ij} \]
 
-dove $M$ è il numero di classi diametriche e $V_j$ è il volume totale della $j$-esima classe diametrica,
+dove $n_j$ è il numero totale di alberi campionati nella classe $j$, e $s$ è un fattore di scala come sopra alla sezione~\ref{sec:note-volumi}. (Si noti che $n_j \gg m_j$.)
 
-\[ V_j = \sum_{i=1}^{n_j} s\cdot v_{ij} \] 
+Quindi l'incremento percentuale $pV$ di tutti gli alberi nell'area assestamentale è la media ponderata sui volumi delle classi diametriche:
 
-e $s$ è un fattore di scala come sopra alla sezione~\ref{sec:note-volumi}.
+\begin{equation}
+    \label{eq:pV}
+    pV = \frac{\sum_{j=1}^{M} pv_jV_j}{\sum_{j=1}^{M} V_j}
+\end{equation}
+dove $M$ è il numero di classi diametriche e $V_j$ è il volume totale della classe $j$.
 
-Algebraicamente ciò si riduce a
+La ponderazione per volume fa sì che gli alberi di maggiori dimensioni, che contribuiscono di più alla massa legnosa, pesino di più nella stima dell'incremento di gruppo.
 
-\[
-    pV = \frac{\sum_{j=1}^{M}\left[\frac{\sum_{i=1}^{n_j} pv_{ij}v_{ij}}{\sum_{i=1}^{n_j}v_{ij}}\sum_{i=1}^{n_j} s\cdot v_{ij}\right]}{\sum_{j=1}^{M}\sum_{i=1}^{n_j} s\cdot v_{ij}}
-       = \frac{\sum_{j=1}^{M}\left[s\cdot\frac{\sum_{i=1}^{n_j} pv_{ij}v_{ij}}{\sum_{i=1}^{n_j}v_{ij}}\sum_{i=1}^{n_j} v_{ij}\right]}{\sum_{j=1}^{M}s\cdot\sum_{i=1}^{n_j} v_{ij}}
-       = \frac{\sum_{i=1}^{N}pv_iv_i}{\sum_{i=1}^{N}v_i}
-\]
+Equivalentemente, a ogni albero campione $i$ non carotato possiamo attribuire l'incremento percentuale della sua classe diametrica $j$, $pv_i = pv_j$, e sostituire l'equazione~\ref{eq:pV} con un calcolo ponderato sui volumi dei singoli alberi:
+\begin{equation}
+    \label{eq:pV2}
+    pV = \frac{\sum_{i=1}^{N}pv_iv_i}{\sum_{i=1}^{N}v_i}
+\end{equation}
 
-dove $N = \sum_{j}{n_j}$ è il numero di tutti gli alberi $i$ campionati nell'area assestamentale.
-
-(La ponderazione per volume fa sì che gli alberi di maggiori dimensioni, che contribuiscono di più alla massa legnosa, pesino di più nella stima dell'incremento di gruppo.)
+dove $N$ è il numero di tutti gli alberi campionati nell'area assestamentale.
 
 L'incremento corrente $\Delta V$ (m$^3$) di un gruppo di piante è dato quindi dal volume complessivo del gruppo moltiplicato per l'incremento percentuale medio:
 
 \[ \Delta V = V \cdot \frac{pV}{100} \]
 
 Si noti che per ottenere i volumi totali dell'area assestamentale i volumi effettivamente campionati vengono scalati in proporzione alla superficie campionata, come sopra nella sezione~\ref{sec:note-volumi}.
+
+% Group the sum in eq:pV2 by diameter class $j$. The numerator becomes (ignoring $s$, which cancels):
+%
+% $$
+% \sum_j \left[\underbrace{\sum_{i \in \text{cored}} pv_iv_i}_{\text{actual } pv_i} + \underbrace{pv_j \sum_{i \in \text{non-cored}} v_i}_{\text{assigned } pv_j}\right]$$
+%
+% For equivalence with eq:pV we need this to equal $\sum_j pv_j \sum_{i=1}^{n_j} v_i$, i.e.:
+%
+%  $$pv_j \sum_{i \in \text{cored}} v_i = \sum_{i \in \text{cored}} pv_iv_i$$
+%
+% But this is the definition of $pv_j$ at line 164, rearranged:
+%
+%  $$pv_j = \frac{\sum_{i=1}^{m_j} pv_iv_i}{\sum_{i=1}^{m_j} v_i} \quad \Longrightarrow \quad pv_j \sum_{i \in \text{cored}} v_i = \sum_{i \in \text{cored}} pv_iv_i \quad$$
+
 
 \subsection{Aggiornamento del programma dei tagli}
 \label{sec:note:piano}
