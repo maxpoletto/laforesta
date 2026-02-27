@@ -1,4 +1,4 @@
-"""Tests for produzione.py — production data preprocessing."""
+"""Tests for production.py — preprocessing of production data."""
 
 import json
 import sys
@@ -9,12 +9,12 @@ import pytest
 
 # Import from same directory
 sys.path.insert(0, str(Path(__file__).parent))
-from produzione import build_timeseries, parse_csv
+from production import build_timeseries, parse_csv
 
 
 @pytest.fixture
 def valid_parcels():
-    """Simulated GeoJSON valid parcels for two compresas."""
+    """Simulated GeoJSON valid parcels for two regions."""
     return {
         "Serra": {"Serra-1", "Serra-2", "Serra-3"},
         "Fabrizia": {"Fabrizia-1", "Fabrizia-2"},
@@ -45,7 +45,7 @@ class TestBuildTimeseries:
         assert set(ts["parcels"]) == {"Serra-1", "Serra-2", "Serra-3"}
 
     def test_contiguous_years(self, valid_parcels):
-        """Years should be a contiguous range from min to max across all compresas."""
+        """Years should be a contiguous range from min to max across all regions."""
         rows = make_rows(
             (2018, "Serra", "1", 10),
             (2022, "Fabrizia", "1", 20),

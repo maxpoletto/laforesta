@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 """
-Preprocess per-parcel annual production CSV into per-compresa JSON files.
+Preprocess annual production CSV into per-region JSON files with
+per-parcel production time series data.
 
-Reads produzione-particelle-anno.csv and terreni.geojson, produces one
-timeseries.json per compresa under the output directory.
-
-Usage:
-    python produzione.py \
+Example usage:
+    python production.py \
         --csv ../data/produzione-particelle-anno.csv \
         --geojson ../data/terreni.geojson \
         --output-dir ../data/produzione
@@ -20,9 +18,12 @@ import json
 import sys
 from pathlib import Path
 
+REGION_COL = 'Compresa'
+PARCEL_COL = 'Particella'
+YEAR_COL = 'Anno'
 
 def load_valid_parcels(geojson_path: str) -> dict[str, set[str]]:
-    """Return {compresa: set of CP keys} from GeoJSON features."""
+    """Return {region: set of region-parcel keys} from GeoJSON features."""
     with open(geojson_path) as f:
         gj = json.load(f)
     parcels: dict[str, set[str]] = {}
@@ -46,34 +47,34 @@ def build_timeseries(
     valid_parcels: dict[str, set[str]],
 ) -> dict[str, dict]:
     """
-    Build per-compresa timeseries data.
+    Build per-region timeseries data.
 
-    Returns {compresa: {years, parcels, unit, values, forest_total}}.
-    Warns on stderr about CP keys not in GeoJSON.
+    Returns {region: {years, parcels, unit, values, forest_total}}.
+    Warns on stderr about region-parcel keys not in GeoJSON.
     """
-    # Collect all years across ALL compresas for a contiguous range
+    # Collect all years across ALL regions for a contiguous range
     all_years: set[int] = set()
     # Group rows by compresa
-    rows_by_compresa: dict[str, list[dict]] = {}
+    rows_by_region: dict[str, list[dict]] = {}
     warned: set[str] = set()
 
     for row in rows:
-        compresa = row["Compresa"].strip()
-        particella = row["Particella"].strip()
-        anno = int(row["Anno"])
-        all_years.add(anno)
+        region = row[REGION_COL].strip()
+        parcel = row[PARCEL_COL].strip()
+        year = int(row[YEAR_COL])
+        all_years.add(year)
 
-        if compresa not in rows_by_compresa:
-            rows_by_compresa[compresa] = []
-        rows_by_compresa[compresa].append(row)
+        if region not in rows_by_region:
+            rows_by_region[region] = []
+        rows_by_region[region].append(row)
 
         # Check validity
-        cp = f"{compresa}-{particella}"
-        if cp not in warned and (
-            compresa not in valid_parcels or cp not in valid_parcels[compresa]
+        rp = f"{region}-{parcel}"
+        if rp not in warned and (
+            region not in valid_parcels or rp not in valid_parcels[region]
         ):
-            print(f"Warning: {cp} not in GeoJSON, skipping", file=sys.stderr)
-            warned.add(cp)
+            print(f"Warning: {rp} not in GeoJSON, skipping", file=sys.stderr)
+            warned.add(rp)
 
     if not all_years:
         return {}
@@ -85,7 +86,7 @@ def build_timeseries(
 
     result: dict[str, dict] = {}
 
-    for compresa, comp_valid in valid_parcels.items():
+    for region, comp_valid in valid_parcels.items():
         parcel_list = sorted(comp_valid)
         n_years = len(years)
 
@@ -95,14 +96,14 @@ def build_timeseries(
         }
 
         # Fill in CSV data
-        for row in rows_by_compresa.get(compresa, []):
-            particella = row["Particella"].strip()
-            cp = f"{compresa}-{particella}"
-            if cp not in values:
+        for row in rows_by_region.get(region, []):
+            parcel = row["Particella"].strip()
+            rp = f"{region}-{parcel}"
+            if rp not in values:
                 continue  # unknown parcel, already warned
-            anno = int(row["Anno"])
+            year = int(row["Anno"])
             qli = int(row["Q.li"])
-            values[cp][year_to_idx[anno]] = qli
+            values[rp][year_to_idx[year]] = qli
 
         # Forest total: sum across all valid parcels per year
         forest_total = [0] * n_years
@@ -110,7 +111,7 @@ def build_timeseries(
             for i, v in enumerate(arr):
                 forest_total[i] += v
 
-        result[compresa] = {
+        result[region] = {
             "years": years,
             "parcels": parcel_list,
             "unit": "quintali",
@@ -123,7 +124,7 @@ def build_timeseries(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Generate per-compresa production timeseries JSON"
+        description="Generate per-region production timeseries JSON"
     )
     parser.add_argument("--csv", required=True, help="Path to production CSV")
     parser.add_argument("--geojson", required=True, help="Path to terreni.geojson")
@@ -135,11 +136,11 @@ def main():
     timeseries = build_timeseries(rows, valid_parcels)
 
     output_dir = Path(args.output_dir)
-    for compresa, data in timeseries.items():
-        comp_dir = output_dir / compresa
+    for region, data in timeseries.items():
+        comp_dir = output_dir / region
         comp_dir.mkdir(parents=True, exist_ok=True)
         out_path = comp_dir / "timeseries.json"
-        with open(out_path, "w") as f:
+        with open(out_path, "w", encoding="utf-8") as f:
             json.dump(data, f, separators=(",", ":"))
         print(f"Wrote {out_path} ({len(data['parcels'])} parcels, {len(data['years'])} years)")
 

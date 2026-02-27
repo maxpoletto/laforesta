@@ -1,10 +1,14 @@
-.PHONY: dates fetch precompute sync deploy test
+.PHONY: dates fetch precompute sync deploy test produzione
 
 SENTINEL = ./sentinel.py
+PRODUCTION = ./production.py
 
 DATA_DIR = ../data
 GEOJSON = $(DATA_DIR)/terreni.geojson
 SAT_DIR = $(DATA_DIR)/satellite
+
+PROD_DIR = $(DATA_DIR)/produzione
+PROD_CSV = $(DATA_DIR)/produzione-particelle-anno.csv
 
 COMPRESE = Serra Fabrizia
 
@@ -14,7 +18,7 @@ MAX_CLOUD_SUMMER = 1
 MONTHS_WINTER = 1,2
 MAX_CLOUD_WINTER = 10
 
-TARGET = laforesta.it:/var/www/laforestadotit/html/bosco/data/satellite
+TARGET = laforesta.it:/var/www/laforestadotit/html/bosco/data
 
 # Per-region output dirs: ../data/satellite/Serra/, ../data/satellite/Fabrizia/
 # Each gets its own dates files, fetched bands, and precomputed data.
@@ -55,8 +59,16 @@ fetch: $(foreach c,$(COMPRESE),fetch-$(c))
 
 precompute: $(foreach c,$(COMPRESE),precompute-$(c))
 
-sync:
-	rsync -avz --delete -e ssh $(SAT_DIR)/ $(TARGET)/
+sync-satellite:
+	rsync -avz --delete -e ssh $(SAT_DIR)/ $(TARGET)/satellite/
+
+production:
+	$(PRODUCTION) --geojson $(GEOJSON) --csv $(PROD_CSV) --output-dir $(PROD_DIR)
+
+sync-production:
+	rsync -avz --delete -e ssh $(PROD_DIR)/ $(TARGET)/produzione/
+
+sync: sync-satellite sync-production
 
 deploy: fetch precompute sync
 
@@ -66,5 +78,9 @@ clean-satellite:
 clean-all-satellite:
 	rm -fr $(SAT_DIR)
 
+clean-all-production:
+	rm -fr $(PROD_DIR)
+
 test:
 	./test_sentinel.py
+	python -m pytest test_production.py
