@@ -106,6 +106,10 @@ const ParcelProps = (function() {
     let diffOverlay = null;
     let diffCurrentIndex = '';
 
+    // Production data (per-compresa, reloaded on switch)
+    let prodData = null;          // from produzione timeseries.json
+    let prodYearSlider = null;    // shared RangeSlider instance
+
     // Precomputed data (per-compresa, reloaded on switch)
     let parcelMaskPromise = null; // resolves to { raster, width, height }
     let parcelMask = null;        // Uint8Array, 0 outside forest, parcel ID inside forest
@@ -361,6 +365,13 @@ const ParcelProps = (function() {
             timeseriesData = null;
         }
 
+        // Load production data for this compresa
+        try {
+            prodData = await fetch('../data/produzione/' + name + '/timeseries.json').then(r => r.json());
+        } catch (err) {
+            prodData = null;
+        }
+
         // Re-apply current view if a property or diff is active
         if (currentProperty) {
             applyProperty(currentProperty);
@@ -595,6 +606,7 @@ const ParcelProps = (function() {
         removeSatOverlay();
         $('property-select').value = '';
         $('satellite-date-row').classList.remove('satellite-date-row-visible');
+        $('prod-year-row').classList.remove('prod-year-row-visible');
         $('ts-section').classList.add('hidden');
         parcelClickModeOff();
         $('legend').textContent = '';
@@ -603,7 +615,19 @@ const ParcelProps = (function() {
         currentProperty = '';
 
         opts.classList.remove('hidden');
-        showDiff(indexName, $('diff-date1').value, $('diff-date2').value);
+
+        if (indexName.startsWith('prod:')) {
+            $('sat-diff-dates').classList.add('hidden');
+            $('diff-forest-only-row').classList.add('hidden');
+            $('prod-diff-dates').classList.remove('hidden');
+            initProdDiffYearSelectors();
+            showProductionDiff();
+        } else {
+            $('prod-diff-dates').classList.add('hidden');
+            $('sat-diff-dates').classList.remove('hidden');
+            $('diff-forest-only-row').classList.remove('hidden');
+            showDiff(indexName, $('diff-date1').value, $('diff-date2').value);
+        }
     }
 
     // ---------------------------------------------------------------------------
@@ -613,19 +637,40 @@ const ParcelProps = (function() {
     function applyProperty(propKey) {
         currentProperty = propKey;
 
-        // Clear diff when a property is selected
+        // Clear all overlays and diff state when switching properties
+        removeSatOverlay();
+        removeDiffOverlay();
         if (propKey) {
-            removeDiffOverlay();
             $('diff-select').value = '';
             $('diff-options').classList.add('hidden');
             $('diff-legend').textContent = '';
             diffCurrentIndex = '';
         }
 
+        if (propKey.startsWith('prod:')) {
+            // Production property
+            $('satellite-date-row').classList.remove('satellite-date-row-visible');
+            $('prod-year-row').classList.add('prod-year-row-visible');
+            $('ts-section').classList.remove('hidden');
+            parcelClickModeOff();
+            if (prodData) {
+                if (!prodYearSlider) {
+                    prodYearSlider = createRangeSlider(
+                        $('prod-year-min'), $('prod-year-max'),
+                        $('prod-year-label'), applyProductionProperty
+                    );
+                }
+                prodYearSlider.setRange(prodData.years);
+            }
+            applyProductionProperty();
+            return;
+        }
+
         if (propKey.startsWith('sat:')) {
             // Satellite layer
             const layerName = propKey.slice(4);
             $('satellite-date-row').classList.add('satellite-date-row-visible');
+            $('prod-year-row').classList.remove('prod-year-row-visible');
             $('ts-section').classList.remove('hidden');
             parcelClickModeOff();
             // Reset active parcel fill to transparent so satellite shows through
@@ -634,11 +679,11 @@ const ParcelProps = (function() {
             return;
         }
 
-        // Non-satellite: hide date selector, remove overlay
+        // Non-satellite, non-production: hide date selectors
         $('satellite-date-row').classList.remove('satellite-date-row-visible');
+        $('prod-year-row').classList.remove('prod-year-row-visible');
         $('ts-section').classList.add('hidden');
         parcelClickModeOff();
-        removeSatOverlay();
 
         if (!propKey) {
             forActiveEntries(e => setStyleAll(e, DEFAULT_STYLE));
@@ -813,14 +858,13 @@ const ParcelProps = (function() {
         });
     }
 
-    function showTimeSeriesChart(title, values) {
+    function showTimeSeriesChart(title, labels, values) {
         const modal = $('ts-modal');
         $('ts-title').textContent = title;
         modal.classList.remove('hidden');
 
         if (tsChart) { tsChart.destroy(); tsChart = null; }
 
-        const labels = timeseriesData.dates.map(d => d.slice(0, 7));
         tsChart = new Chart($('ts-canvas'), {
             type: 'bar',
             data: {
@@ -847,11 +891,21 @@ const ParcelProps = (function() {
     }
 
     function showForestTimeSeries() {
+        if (currentProperty.startsWith('prod:')) {
+            if (!prodData) return;
+            showTimeSeriesChart(
+                'Produzione \u2014 ' + currentCompresa,
+                prodData.years.map(String),
+                prodData.forest_total
+            );
+            return;
+        }
         const layer = currentSatelliteLayerName();
         if (!layer || !timeseriesData) return;
         const label = SATELLITE_LAYERS[layer].label;
         showTimeSeriesChart(
             label + ' \u2014 ' + currentCompresa,
+            timeseriesData.dates.map(d => d.slice(0, 7)),
             timeseriesData.means.forest[layer]
         );
     }
@@ -880,6 +934,17 @@ const ParcelProps = (function() {
         if (!tsParcelClickMode || !isActiveParcel(cp)) return;
         parcelClickModeOff();
 
+        if (currentProperty.startsWith('prod:')) {
+            if (!prodData) return;
+            const values = prodData.values[cp] || prodData.years.map(() => 0);
+            showTimeSeriesChart(
+                'Produzione \u2014 ' + cp,
+                prodData.years.map(String),
+                values
+            );
+            return;
+        }
+
         const layer = currentSatelliteLayerName();
         if (!layer || !timeseriesData) return;
 
@@ -887,7 +952,115 @@ const ParcelProps = (function() {
         if (!parcelMeans) return;
 
         const label = SATELLITE_LAYERS[layer].label;
-        showTimeSeriesChart(label + ' \u2014 ' + cp, parcelMeans[layer]);
+        showTimeSeriesChart(
+            label + ' \u2014 ' + cp,
+            timeseriesData.dates.map(d => d.slice(0, 7)),
+            parcelMeans[layer]
+        );
+    }
+
+    // ---------------------------------------------------------------------------
+    // Production property display
+    // ---------------------------------------------------------------------------
+
+    function applyProductionProperty() {
+        if (!prodData) {
+            forActiveEntries(e => setStyleAll(e, NO_DATA_STYLE));
+            $('legend').textContent = '';
+            return;
+        }
+
+        const [yearMin, yearMax] = prodYearSlider.getRange();
+        const yearIdxStart = yearMin - prodData.years[0];
+        const yearIdxEnd = yearMax - prodData.years[0];
+
+        // Sum values for each active parcel over the selected year range
+        const withValue = [];
+        forActiveEntries((entry, cp) => {
+            const arr = prodData.values[cp];
+            let sum = 0;
+            if (arr) {
+                for (let i = yearIdxStart; i <= yearIdxEnd; i++) sum += arr[i];
+            }
+            withValue.push({ val: sum, entry });
+        });
+
+        if (withValue.length === 0) return;
+
+        const min = Math.min(...withValue.map(e => e.val));
+        const max = Math.max(...withValue.map(e => e.val));
+        const range = max - min || 1;
+
+        withValue.forEach(({ val, entry }) => {
+            const t = (val - min) / range;
+            setStyleAll(entry, {
+                ...DEFAULT_STYLE,
+                fillColor: continuousColorStr(t),
+                fillOpacity: 0.6
+            });
+        });
+
+        renderContinuousLegend({ unit: 'quintali' }, min, max);
+    }
+
+    // ---------------------------------------------------------------------------
+    // Production diff display
+    // ---------------------------------------------------------------------------
+
+    function initProdDiffYearSelectors() {
+        if (!prodData) return;
+        ['prod-diff-year1', 'prod-diff-year2'].forEach((id, i) => {
+            const sel = $(id);
+            sel.textContent = '';
+            prodData.years.forEach(year => {
+                const opt = document.createElement('option');
+                opt.value = year;
+                opt.textContent = year;
+                sel.appendChild(opt);
+            });
+            sel.value = i === 0
+                ? prodData.years[0]
+                : prodData.years[prodData.years.length - 1];
+        });
+    }
+
+    function showProductionDiff() {
+        if (!prodData) return;
+
+        const year1 = parseInt($('prod-diff-year1').value, 10);
+        const year2 = parseInt($('prod-diff-year2').value, 10);
+        const idx1 = year1 - prodData.years[0];
+        const idx2 = year2 - prodData.years[0];
+
+        // Compute per-parcel diff and maxAbs
+        const diffs = [];
+        forActiveEntries((entry, cp) => {
+            const arr = prodData.values[cp];
+            const v1 = arr ? arr[idx1] : 0;
+            const v2 = arr ? arr[idx2] : 0;
+            diffs.push({ diff: v2 - v1, entry, cp });
+        });
+
+        const maxAbs = Math.max(1, ...diffs.map(d => Math.abs(d.diff)));
+
+        diffs.forEach(({ diff, entry }) => {
+            const color = rgbStr(divergingParcelColor(diff, maxAbs, DIFF_RAMP));
+            setStyleAll(entry, {
+                ...DEFAULT_STYLE,
+                fillColor: color,
+                fillOpacity: 0.6
+            });
+        });
+
+        // Legend
+        createGradientLegend($('diff-legend'), {
+            title: 'Produzione ' + year2 + ' \u2212 ' + year1,
+            colorFn(i, steps) {
+                return colormapLookup(DIFF_RAMP, Math.round(i / steps * 255));
+            },
+            labelTexts: [(-maxAbs).toLocaleString(), '0', '+' + maxAbs.toLocaleString()],
+            unit: 'quintali',
+        });
     }
 
     // ---------------------------------------------------------------------------
@@ -940,7 +1113,10 @@ const ParcelProps = (function() {
         },
 
         updateDiff() {
-            if (diffCurrentIndex) {
+            if (!diffCurrentIndex) return;
+            if (diffCurrentIndex.startsWith('prod:')) {
+                showProductionDiff();
+            } else {
                 showDiff(diffCurrentIndex, $('diff-date1').value, $('diff-date2').value);
             }
         },

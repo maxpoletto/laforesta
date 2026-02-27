@@ -72,9 +72,17 @@ function diffToRgba(diff, maxAbs, ramp, mask, insideAlpha, outsideAlpha) {
     return rgba;
 }
 
+// Map a scalar diff value to an [r, g, b] color using a diverging ramp.
+// diff in [-maxAbs, +maxAbs] maps to ramp position [0, 255].
+function divergingParcelColor(diff, maxAbs, ramp) {
+    const normalized = Math.max(0, Math.min(255,
+        Math.round(((diff / maxAbs) + 1) * 127.5)));
+    return colormapLookup(ramp, normalized);
+}
+
 if (typeof module !== 'undefined') {
     module.exports = {
         colormapLookup, interpolateColor,
-        computeDiff, diffToRgba,
+        computeDiff, diffToRgba, divergingParcelColor,
     };
 }

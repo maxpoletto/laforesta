@@ -5,7 +5,7 @@
 
 const {
     colormapLookup, interpolateColor,
-    computeDiff, diffToRgba,
+    computeDiff, diffToRgba, divergingParcelColor,
 } = require('./compute.js');
 
 function assertClose(actual, expected, tolerance, msg) {
@@ -193,6 +193,36 @@ function testDiffToRgba() {
 }
 
 // ---------------------------------------------------------------------------
+// divergingParcelColor
+// ---------------------------------------------------------------------------
+
+function testDivergingParcelColor() {
+    console.log('Testing divergingParcelColor...');
+
+    const diffRamp = [
+        [0,   [180, 30, 30]],
+        [128, [255, 255, 255]],
+        [255, [30, 130, 30]],
+    ];
+
+    // Zero diff -> midpoint of ramp -> white
+    assertArrayClose(divergingParcelColor(0, 100, diffRamp), [255, 255, 255], 1, 'zero diff');
+
+    // +maxAbs -> ramp end -> green
+    assertArrayClose(divergingParcelColor(100, 100, diffRamp), [30, 130, 30], 1, '+maxAbs');
+
+    // -maxAbs -> ramp start -> red
+    assertArrayClose(divergingParcelColor(-100, 100, diffRamp), [180, 30, 30], 1, '-maxAbs');
+
+    // Half positive -> between white and green
+    const half = divergingParcelColor(50, 100, diffRamp);
+    assertClose(half[0], (255 + 30) / 2, 2, 'half+ R');
+    assertClose(half[1], (255 + 130) / 2, 2, 'half+ G');
+
+    console.log('  divergingParcelColor: PASS');
+}
+
+// ---------------------------------------------------------------------------
 // Multi-polygon parcel data structure
 // ---------------------------------------------------------------------------
 
@@ -269,6 +299,7 @@ function runTests() {
         testInterpolateColor();
         testComputeDiff();
         testDiffToRgba();
+        testDivergingParcelColor();
         testMultiPolygonParcelData();
         console.log('\n=== All tests passed ===');
     } catch (err) {

@@ -1,8 +1,10 @@
 @import url('../a/range-slider.css');
 
+/* Generic hidden — used by JS toggling throughout the sidebar */
+.hidden { display: none !important; }
+
 /* Diff options */
 .diff-options { margin-top: 5px; }
-.diff-options.hidden { display: none; }
 .diff-dates {
     display: flex;
     gap: 8px;
@@ -21,6 +23,7 @@
 .prod-year-row { display: none; margin-top: 5px; }
 .prod-year-row.prod-year-row-visible { display: flex; align-items: center; gap: 8px; }
 .prod-year-label { font-size: 12px; }
+#prod-year-label { width: 10ch; }
 
 /* Legend components */
 .legend-container { margin-top: 8px; }
@@ -55,5 +58,3 @@
 
 /* Time series section */
 #ts-modal.modal-content { max-width: 640px; }
-#ts-section.hidden { display: none; }
-#ts-hint.hidden { display: none; }
