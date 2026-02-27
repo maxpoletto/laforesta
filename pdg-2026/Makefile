@@ -89,6 +89,7 @@ SECTIONS_TEX= \
 	tex/sec-ipsometrie.tex \
 	tex/sec-volumi.tex \
 	tex/sec-ripresa.tex \
+	tex/sec-metodo.tex \
 	tex/sec-ceduo.tex \
 	tex/sec-piano.tex \
 	tex/sec-particelle.tex

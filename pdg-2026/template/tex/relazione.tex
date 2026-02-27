@@ -24,7 +24,7 @@
 \usepackage[style=alphabetic,backend=biber]{biblatex}
 \addbibresource{ref.bib}
 
-\newif\ifincludesections \includesectionsfalse
+\newif\ifincludesections \includesectionstrue
 \newcommand{\maybeinput}[1]{\ifincludesections \input{#1} \fi}
 \newcommand{\nota}[1]{{\bf {\em #1}}}
 
@@ -45,6 +45,7 @@ La relazione si articola in 7 parti.
 \item La parte~\ref{sec:ipsometrie} risponde al punto 1 della richiesta della regione: illustra per ogni specie principale le relative curve ipsometriche con equazioni interpolanti e la distribuzione grafica in classi diametriche del numero di alberi per ettaro.
 \item La parte~\ref{sec:volumi} risponde al punto 2 della richiesta: presenta la cubatura di tutti i soprassuoli usando le tavole prescritte dalle linee guida.
 \item La parte~\ref{sec:ripresa} risponde al punto 3 della richiesta: quantifica la ripresa in relazione alla stima dei volumi.
+\item La parte~\ref{sec:metodo} fornisce un riassunto del metodo di gestione forestale praticato dalla nostra azienda.
 \item La parte~\ref{sec:ceduo} risponde al punto 4 della richiesta: espone il piano di regolarizzazione dei cedui di castagno.
 \item La parte~\ref{sec:piano} presenta un piano di tagli aggiornato, redatto tenendo conto degli incrementi secondo i criteri descritti nella parte~\ref{sec:note-metodologia}.
 \item La parte~\ref{sec:particelle}, infine, risponde ai punti 5 e 6 della richiesta. Per ogni particella, indica le necessità colturali dei soprassuoli, descrive gli interventi colturali da eseguire, e fornisce, per ogni specie e classe diametrica, il numero di alberi per ettaro, il volume e l'area basimetrica per ettaro, la distribuzione delle altezze, e gli incrementi percentuali e correnti. Espone inoltre i volumi e la ripresa totali, suddivisi per specie.
@@ -267,6 +268,10 @@ Il risultato della simulazione è un programma dei tagli che indica, per ogni an
 \section{Ripresa attuale}
 \label{sec:ripresa}
 \input{sec-ripresa}
+
+\section{Metodo di gestione}
+\label{sec:metodo}
+\input{sec-metodo}
 
 \section{Ceduo}
 \label{sec:ceduo}
