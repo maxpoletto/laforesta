@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Compares two Excel files, using specified key columns to match rows
-# Usage: diff-tool.py file1.xlsx file2.xlsx sheet_name key_col1 [key_col2 ...]
+# Usage: excel_diff.py file1.xlsx file2.xlsx sheet_name key_col1 [key_col2 ...]
 import sys
 import pandas as pd
 
