@@ -5,11 +5,11 @@ const ParcelProps = (function() {
     const DEFAULT_STYLE = {
         color: '#3388ff',
         weight: 2,
-        opacity: 0.8,
+        opacity: 1,
         fillOpacity: 0.1
     };
     const NO_DATA_STYLE = { ...DEFAULT_STYLE, fillColor: '#ccc', fillOpacity: 0.3 };
-    const DIMMED_STYLE = { fillOpacity: 0, opacity: 0.3, color: '#99ccff', weight: 1 };
+    const DIMMED_STYLE = { fillOpacity: 0, opacity: 0.4, color: '#3388ff', weight: 2 };
 
     // Color ramps
     const CONTINUOUS_COLORS = { low: [0, 100, 0], high: [154, 205, 50] }; // dark green -> yellow-green
