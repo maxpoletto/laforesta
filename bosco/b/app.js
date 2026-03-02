@@ -417,6 +417,7 @@ const ParcelProps = (function() {
         satCurrentLayer = layerName;
         satCurrentDate = date;
         removeSatOverlay();
+        refreshTooltips();
 
         if (!satManifest) return;
 
@@ -631,6 +632,48 @@ const ParcelProps = (function() {
     }
 
     // ---------------------------------------------------------------------------
+    // Dynamic tooltips (value for current criterion appended to static tooltip)
+    // ---------------------------------------------------------------------------
+
+    /** Return an HTML snippet for the currently visualized value, or ''. */
+    function getDynamicTooltipLine(cp) {
+        if (currentProperty.startsWith('sat:')) {
+            if (!timeseriesData) return '';
+            const layer = currentProperty.slice(4);
+            const parcelMeans = timeseriesData.means.parcels[cp];
+            if (!parcelMeans || !parcelMeans[layer]) return '';
+            const dateIdx = timeseriesData.dates.indexOf(satCurrentDate);
+            if (dateIdx < 0) return '';
+            const val = parcelMeans[layer][dateIdx];
+            if (val == null || isNaN(val)) return '';
+            return '<br><b>' + SATELLITE_LAYERS[layer].label + ': ' + val.toFixed(3) + '</b>';
+        }
+        if (currentProperty.startsWith('prod:')) {
+            if (!prodData || !prodYearSlider) return '';
+            const arr = prodData.values[cp];
+            if (!arr) return '';
+            const [yearMin, yearMax] = prodYearSlider.getRange();
+            const idxStart = yearMin - prodData.years[0];
+            const idxEnd = yearMax - prodData.years[0];
+            let sum = 0;
+            for (let i = idxStart; i <= idxEnd; i++) sum += arr[i];
+            return '<br><b>Produzione: ' + Math.round(sum) + ' q</b>';
+        }
+        return '';
+    }
+
+    /** Update all active parcel tooltips with current dynamic value. */
+    function refreshTooltips() {
+        forActiveEntries((entry, cp) => {
+            if (!entry.tooltipHtml) return;
+            const content = entry.tooltipHtml + getDynamicTooltipLine(cp);
+            entry.layers.forEach(l => {
+                if (l.getTooltip()) l.setTooltipContent(content);
+            });
+        });
+    }
+
+    // ---------------------------------------------------------------------------
     // Property application (parcel coloring + satellite)
     // ---------------------------------------------------------------------------
 
@@ -688,6 +731,7 @@ const ParcelProps = (function() {
         if (!propKey) {
             forActiveEntries(e => setStyleAll(e, DEFAULT_STYLE));
             $('legend').textContent = '';
+            refreshTooltips();
             return;
         }
 
@@ -697,6 +741,7 @@ const ParcelProps = (function() {
         } else {
             applyBinary(prop);
         }
+        refreshTooltips();
     }
 
     function applyContinuous(prop) {
@@ -1001,6 +1046,7 @@ const ParcelProps = (function() {
         });
 
         renderContinuousLegend({ unit: 'quintali' }, min, max);
+        refreshTooltips();
     }
 
     // ---------------------------------------------------------------------------
