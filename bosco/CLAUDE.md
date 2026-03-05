@@ -40,4 +40,4 @@ cd util && make test        # run sentinel and production tests
 
 Requires env vars `CDSE_CLIENT_ID` and `CDSE_CLIENT_SECRET` for Copernicus authentication.
 
-Regions are parameterized: currently Serra and Fabrizia. Cloud thresholds: summer (Jun–Jul) 1%, winter (Jan–Feb) 10%.
+Regions are parameterized: currently Serra, Fabrizia, Capistrano. Cloud thresholds: summer (Jun–Jul) 1%, winter (Jan–Feb) 10%.
