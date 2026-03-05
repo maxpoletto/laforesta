@@ -12,7 +12,7 @@ const ParcelProps = (function() {
     const DIMMED_STYLE = { fillOpacity: 0, opacity: 0.4, color: '#3388ff', weight: 2 };
 
     // Color ramps
-    const CONTINUOUS_COLORS = { low: [0, 100, 0], high: [154, 205, 50] }; // dark green -> yellow-green
+    const CONTINUOUS_COLORS = { low: [154, 205, 50], high: [0, 100, 0] }; // yellow-green -> dark-green
     const BINARY_COLORS = { Fustaia: '#228B22', Ceduo: '#FFD700' };
 
     // Vegetation index colormap: uint8 [0,255] -> [r, g, b]
