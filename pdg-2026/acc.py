@@ -1414,7 +1414,7 @@ OPT_MORTALITA = 'mortalita'
 OPT_VOLUME_OBIETTIVO = 'volume_obiettivo'
 OPT_CALENDARIO = 'calendario'
 # tpdt column toggles
-OPT_COL_PRIMA_DOPO = 'prima_dopo'
+OPT_COL_PRIMA_DOPO = 'col_prima_dopo'
 # Required file parameters (used as option keys for validation)
 OPT_EQUAZIONI = 'equazioni'
 
@@ -2687,6 +2687,10 @@ def process_template(template_text: str, data_dir: Path,
                                          options | {OPT_CALENDARIO: True})
                     check_required_params(keyword, params,
                                           [OPT_VOLUME_OBIETTIVO])
+                    if options[OPT_COL_PRIMA_DOPO] and not options[OPT_PER_PARTICELLA]:
+                        raise ValueError("@@tpdt richiede 'per_particella=si' se si usa "
+                                         "'col_prima_dopo=si', altrimenti i volumi prima/dopo "
+                                         "non sono confrontabili")
                     result = render_tpdt_table(data, past_harvests,
                                                max_harvest,
                                                formatter, **options)
