@@ -10,7 +10,7 @@ SAT_DIR = $(DATA_DIR)/satellite
 PROD_DIR = $(DATA_DIR)/produzione
 PROD_CSV = $(DATA_DIR)/produzione-particelle-anno.csv
 
-COMPRESE = Serra Fabrizia
+COMPRESE = Serra Fabrizia Capistrano
 
 MONTHS_SUMMER = 6,7
 MAX_CLOUD_SUMMER = 1
