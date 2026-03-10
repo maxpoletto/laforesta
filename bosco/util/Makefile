@@ -1,9 +1,11 @@
-.PHONY: dates fetch precompute sync deploy test produzione
+.PHONY: dates fetch precompute sync deploy test produzione calendario
 
 SENTINEL = ./sentinel.py
 PRODUCTION = ./production.py
+CALENDARIO = ./calendario_mannesi.py
 
 DATA_DIR = ../data
+MANNESI_CSV = $(DATA_DIR)/mannesi.csv
 GEOJSON = $(DATA_DIR)/terreni.geojson
 SAT_DIR = $(DATA_DIR)/satellite
 
@@ -81,6 +83,14 @@ clean-all-satellite:
 clean-all-production:
 	rm -fr $(PROD_DIR)
 
+calendario: $(DATA_DIR)/calendario-mannesi.csv $(DATA_DIR)/calendario-mannesi-effettivo.csv
+
+$(DATA_DIR)/calendario-mannesi.csv: $(MANNESI_CSV) $(DATA_DIR)/particelle.csv $(CALENDARIO)
+	$(CALENDARIO) $(MANNESI_CSV) $@
+
+$(DATA_DIR)/calendario-mannesi-effettivo.csv: $(MANNESI_CSV) $(CALENDARIO)
+	$(CALENDARIO) --effettivo $(MANNESI_CSV) $@
+
 test:
 	./test_sentinel.py
-	python -m pytest test_production.py
+	python -m pytest test_production.py test_calendario_mannesi.py
