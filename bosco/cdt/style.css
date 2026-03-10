@@ -149,6 +149,32 @@
 .cal-2 { background-color: yellowgreen; }
 .cal-3 { background-color: #006400; }
 
+/* Ceduo hatch overlay in compare mode */
+.compare-ceduo {
+    background-image: repeating-linear-gradient(
+        45deg,
+        transparent,
+        transparent 2px,
+        rgba(0, 0, 0, 0.25) 2px,
+        rgba(0, 0, 0, 0.25) 4px
+    );
+}
+
+/* Governo legend swatches for compare mode */
+.legend-swatch.legend-fustaia {
+    background-color: #888;
+}
+.legend-swatch.legend-ceduo {
+    background-color: #888;
+    background-image: repeating-linear-gradient(
+        45deg,
+        transparent,
+        transparent 2px,
+        rgba(0, 0, 0, 0.25) 2px,
+        rgba(0, 0, 0, 0.25) 4px
+    );
+}
+
 /* Compare checkbox */
 #compare-label {
     font-size: 12px;

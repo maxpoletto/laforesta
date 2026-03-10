@@ -23,6 +23,11 @@
 
     const CALENDAR_LEGEND = FILES.map((f, i) => ({ cls: 'cal-' + i, label: f.label }));
 
+    const COMPARE_GOVERNO_LEGEND = [
+        { cls: 'legend-fustaia',  label: 'Fustaia' },
+        { cls: 'legend-ceduo',    label: 'Ceduo' },
+    ];
+
     // Reverse alphabetical: Serra, Fabrizia, Capistrano
     const COMPRESA_ORDER = ['Serra', 'Fabrizia', 'Capistrano'];
 
@@ -207,7 +212,7 @@
                 }
                 // Store merged metadata for rendering
                 currentData = { harvests: null, byCompresa: unionByCompresa, allYears, unmatched: unionUnmatched };
-                buildLegend(CALENDAR_LEGEND);
+                buildLegend([...CALENDAR_LEGEND, ...COMPARE_GOVERNO_LEGEND]);
                 yearSlider.setRange(allYears);
                 renderGrid();
                 setStatus('');
@@ -288,6 +293,7 @@
                             const governo = info && info.yearGov.get(year);
                             if (governo) {
                                 sub.className = CALENDAR_LEGEND[i].cls;
+                                if (governo === 'Ceduo') sub.classList.add('compare-ceduo');
                                 tooltipParts.push(CALENDAR_LEGEND[i].label + ': ' + governo);
                             }
                             container.appendChild(sub);
