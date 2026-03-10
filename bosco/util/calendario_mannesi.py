@@ -5,6 +5,7 @@ import sys
 import pandas as pd
 
 df = pd.read_csv(sys.argv[1])
+df["Ceduo?"] = df["Ceduo?"].map({"TRUE": 1, "FALSE": 0})
 cal = (
     df.groupby(["Anno", "Compresa", "Particella"], sort=True)["Ceduo?"]
     .apply(lambda s: "Ceduo" if s.mean() > 0.5 else "Fustaia")
