@@ -3,10 +3,10 @@
     'use strict';
 
     const FILES = [
-        { path: '../data/calendario-2011-2025-cropanese.csv', label: 'Calendario tagli 2011\u20132025 (Cropanese)' },
         { path: '../data/calendario-2011-2025-malvaso.csv', label: 'Calendario tagli 2011\u20132025 (Malvaso)' },
         { path: '../data/registro-gestione-2016-2025.csv', label: 'Registro gestione 2016\u20132025' },
         { path: '../data/calendario-mannesi.csv', label: 'Calendario tagli (dati mannesi)' },
+        { path: '../data/calendario-mannesi-effettivo.csv', label: 'Calendario tagli (dati mannesi, ceduo/fustaia effettivi)' },
     ];
 
     const GOVERNO_CLASS = {
@@ -21,12 +21,7 @@
         { cls: 'gov-rimboschimento', label: 'Rimboschimento' },
     ];
 
-    const CALENDAR_LEGEND = [
-        { cls: 'cal-0', label: FILES[0].label },
-        { cls: 'cal-1', label: FILES[1].label },
-        { cls: 'cal-2', label: FILES[2].label },
-        { cls: 'cal-3', label: FILES[3].label },
-    ];
+    const CALENDAR_LEGEND = FILES.map((f, i) => ({ cls: 'cal-' + i, label: f.label }));
 
     // Reverse alphabetical: Serra, Fabrizia, Capistrano
     const COMPRESA_ORDER = ['Serra', 'Fabrizia', 'Capistrano'];
