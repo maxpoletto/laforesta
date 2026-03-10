@@ -16,9 +16,9 @@ from pathlib import Path
 
 import pandas as pd
 
-RED = "\033[31m"
-BOLD = "\033[1m"
-RESET = "\033[0m"
+RED = "" #"\033[31m"
+BOLD = "" #"\033[1m"
+RESET = "" #"\033[0m"
 
 DEDUP_KEY = ["Data", "VDP", "Squadra", "Q.li", "Tipo"]
 SORT_COLS = ["_date", "VDP", "Squadra", "Q.li", "Tipo"]
