@@ -1167,7 +1167,7 @@ const ParcelProps = (function() {
             diffs.push({ diff: getDiff(cp) || 0, entry });
         });
 
-        const maxAbs = Math.max(1, ...diffs.map(d => Math.abs(d.diff)));
+        const maxAbs = Math.max(1e-9, ...diffs.map(d => Math.abs(d.diff)));
 
         diffs.forEach(({ diff, entry }) => {
             setStyleAll(entry, {
