@@ -31,6 +31,7 @@ const ParcelProps = (function() {
     ];
 
     const GRADIENT_STEPS = 30;
+    const M2_PER_HA = 10000;
 
     // Property definitions: getValue receives { particelle, ripresa } source rows
     const PROPERTIES = {
@@ -108,6 +109,9 @@ const ParcelProps = (function() {
 
     // Per-parcel satellite means mode
     let satParcelMeans = false;
+
+    // Area source: false = geometric (from GeoJSON), true = cadastral (from CSV)
+    let useCadastralArea = false;
 
     // Production data (per-compresa, reloaded on switch)
     let prodData = null;          // from produzione timeseries.json
@@ -218,16 +222,15 @@ const ParcelProps = (function() {
     // Data loading
     // ---------------------------------------------------------------------------
 
-    function buildTooltip(particelle, ripresa) {
+    /** Build the tooltip body (everything after header + area line). */
+    function buildTooltipBody(particelle, ripresa) {
         const altMin = parseFloat(particelle['Altitudine min']);
         const altMax = parseFloat(particelle['Altitudine max']);
         const altMedia = (!isNaN(altMin) && !isNaN(altMax))
             ? ((altMin + altMax) / 2).toFixed(0)
             : '?';
 
-        let html = '<b>' + makeCP(particelle) + '</b><br>'
-            + 'Area: ' + particelle['Area (ha)'] + ' ha<br>'
-            + 'Età media: ' + particelle['Età media'] + ' anni<br>'
+        let html = 'Età media: ' + particelle['Età media'] + ' anni<br>'
             + 'Governo: ' + particelle['Governo'] + '<br>'
             + 'Altitudine media: ' + altMedia + ' m<br>'
             + 'Esposizione: ' + particelle['Esposizione'] + '<br>'
@@ -240,6 +243,17 @@ const ParcelProps = (function() {
         }
 
         return html;
+    }
+
+    /** Assemble full tooltip HTML for a parcel, using current area source. */
+    function buildFullTooltip(cp) {
+        const entry = parcelData[cp];
+        if (!entry.tooltipBody) return null;
+        const areaHa = useCadastralArea ? entry.csvAreaHa : entry.geoAreaHa;
+        return '<b>' + cp + '</b><br>'
+            + 'Area: ' + areaHa.toFixed(2) + ' ha<br>'
+            + entry.tooltipBody
+            + getDynamicTooltipLine(cp);
     }
 
     function indexByCP(csvText) {
@@ -275,24 +289,21 @@ const ParcelProps = (function() {
                     const cp = feature.properties.name;
                     const particelle = particelleByCP[cp] || null;
                     const ripresa = ripresaByCP[cp] || null;
+                    const featureAreaHa = feature.properties._areaM2 / M2_PER_HA;
 
-                    // Build tooltip HTML once, store for rebinding on compresa switch
-                    const tooltipHtml = particelle
-                        ? buildTooltip(particelle, ripresa)
-                        : null;
-
-                    // Multi-polygon parcels: accumulate layers for same name
+                    // Multi-polygon parcels: accumulate layers + area for same name
                     if (parcelData[cp]) {
                         parcelData[cp].layers.push(layer);
+                        parcelData[cp].geoAreaHa += featureAreaHa;
                     } else {
-                        parcelData[cp] = { layers: [layer], particelle, ripresa, tooltipHtml };
-                    }
-
-                    if (tooltipHtml) {
-                        layer.bindTooltip(tooltipHtml, {
-                            direction: 'top',
-                            offset: [0, -5]
-                        });
+                        const tooltipBody = particelle
+                            ? buildTooltipBody(particelle, ripresa)
+                            : null;
+                        parcelData[cp] = {
+                            layers: [layer], particelle, ripresa, tooltipBody,
+                            geoAreaHa: featureAreaHa,
+                            csvAreaHa: parseFloat(particelle?.['Area (ha)']) || 0,
+                        };
                     }
 
                     layer.on('click', function() { handleParcelClick(cp); });
@@ -331,11 +342,12 @@ const ParcelProps = (function() {
         Object.entries(parcelData).forEach(([cp, entry]) => {
             if (isActiveParcel(cp)) {
                 setStyleAll(entry, DEFAULT_STYLE);
-                // Rebind tooltip
-                if (entry.tooltipHtml) {
+                // Rebind tooltip with current area source
+                const html = buildFullTooltip(cp);
+                if (html) {
                     entry.layers.forEach(l => {
                         l.unbindTooltip();
-                        l.bindTooltip(entry.tooltipHtml, {
+                        l.bindTooltip(html, {
                             direction: 'top',
                             offset: [0, -5]
                         });
@@ -770,11 +782,11 @@ const ParcelProps = (function() {
         return '<br><b>\u0394 ' + label + ': ' + formatDelta(v2 - v1, 3) + '</b>';
     }
 
-    /** Update all active parcel tooltips with current dynamic value. */
+    /** Update all active parcel tooltips with current area source + dynamic value. */
     function refreshTooltips() {
         forActiveEntries((entry, cp) => {
-            if (!entry.tooltipHtml) return;
-            const content = entry.tooltipHtml + getDynamicTooltipLine(cp);
+            if (!entry.tooltipBody) return;
+            const content = buildFullTooltip(cp);
             entry.layers.forEach(l => {
                 if (l.getTooltip()) l.setTooltipContent(content);
             });
@@ -958,12 +970,15 @@ const ParcelProps = (function() {
     // Stats (scoped to current compresa)
     // ---------------------------------------------------------------------------
 
+    function getParcelAreaHa(entry) {
+        return useCadastralArea ? entry.csvAreaHa : entry.geoAreaHa;
+    }
+
     function updateStats() {
         const activeKeys = Object.keys(parcelData).filter(isActiveParcel);
         const count = activeKeys.length;
         const totalArea = activeKeys.reduce((sum, cp) => {
-            const { particelle } = parcelData[cp];
-            return sum + (parseFloat(particelle?.['Area (ha)']) || 0);
+            return sum + getParcelAreaHa(parcelData[cp]);
         }, 0);
 
         const stats = $('stats');
@@ -1224,6 +1239,12 @@ const ParcelProps = (function() {
         }
     }
 
+    function toggleCadastralArea(checked) {
+        useCadastralArea = checked;
+        refreshTooltips();
+        updateStats();
+    }
+
     function toggleParcelMeans(checked) {
         satParcelMeans = checked;
         // Sync both checkboxes
@@ -1307,6 +1328,10 @@ const ParcelProps = (function() {
 
         toggleParcelMeans(checked) {
             toggleParcelMeans(checked);
+        },
+
+        toggleCadastralArea(checked) {
+            toggleCadastralArea(checked);
         }
     };
 })();
