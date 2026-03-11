@@ -268,6 +268,7 @@ const ParcelProps = (function() {
                 comprese[name].push(f);
             });
 
+            MapCommon.sortFeaturesByArea(geojson);
             parcelLayer = L.geoJSON(geojson, {
                 style: DEFAULT_STYLE,
                 onEachFeature(feature, layer) {

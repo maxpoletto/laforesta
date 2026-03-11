@@ -37,8 +37,9 @@ const SamplingPlanner = (function() {
                 });
 
                 // Display parcels on map with tooltips
-                parcelLayer = L.geoJSON(
-                    { type: 'FeatureCollection', features: polygons },
+                const polygonCollection = { type: 'FeatureCollection', features: polygons };
+                MapCommon.sortFeaturesByArea(polygonCollection);
+                parcelLayer = L.geoJSON(polygonCollection,
                     {
                         style: PARCEL_STYLE,
                         onEachFeature(feature, layer) {

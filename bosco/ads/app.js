@@ -19,6 +19,7 @@ const SampleAreaViewer = (function() {
         return fetch('../data/terreni.geojson')
             .then(r => r.json())
             .then(data => {
+                MapCommon.sortFeaturesByArea(data);
                 parcelLayer = L.geoJSON(data, {
                     style: {
                         color: '#3388ff',

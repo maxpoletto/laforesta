@@ -35,10 +35,8 @@ const TreeViewer = (function() {
         return fetch('../data/terreni.geojson')
             .then(r => r.json())
             .then(data => {
-                parcelLayer = L.geoJSON({
-                    type: 'FeatureCollection',
-                    features: data.features
-                }, {
+                MapCommon.sortFeaturesByArea(data);
+                parcelLayer = L.geoJSON(data, {
                     style: {
                         color: '#3388ff',
                         weight: 2,

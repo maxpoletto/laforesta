@@ -1187,6 +1187,7 @@ const ParcelEditor = (function() {
 
     // Load/Export
     function loadGeoJSON(data) {
+        MapCommon.sortFeaturesByArea(data);
         // Group features by layer property
         const featuresByLayer = {};
         (data.features || []).forEach(feature => {

@@ -326,10 +326,42 @@ const MapCommon = (function() {
         return Math.abs(area * EARTH_RADIUS * EARTH_RADIUS / 2);
     }
 
+    // Convert GeoJSON coordinate ring [[lng, lat], ...] to [{lat, lng}, ...]
+    function ringToLatLngs(ring) {
+        return ring.map(c => ({ lat: c[1], lng: c[0] }));
+    }
+
+    // Geodesic area of a GeoJSON feature in m² (exterior minus holes).
+    function geoJSONFeatureArea(feature) {
+        const geom = feature.geometry;
+        if (!geom) return 0;
+        const polygons = geom.type === 'Polygon' ? [geom.coordinates]
+            : geom.type === 'MultiPolygon' ? geom.coordinates : [];
+        let total = 0;
+        for (const rings of polygons) {
+            total += geodesicArea(ringToLatLngs(rings[0]));
+            for (let i = 1; i < rings.length; i++) {
+                total -= geodesicArea(ringToLatLngs(rings[i]));
+            }
+        }
+        return total;
+    }
+
+    // Precompute geodesic area (m²) on each feature, sort largest-first
+    // so smaller polygons render on top.
+    function sortFeaturesByArea(geojson) {
+        geojson.features.forEach(f => {
+            f.properties._areaM2 = geoJSONFeatureArea(f);
+        });
+        geojson.features.sort((a, b) => b.properties._areaM2 - a.properties._areaM2);
+        return geojson;
+    }
+
     // Public API
     return {
         create,
         geodesicArea,
+        sortFeaturesByArea,
         BASEMAPS
     };
 })();
