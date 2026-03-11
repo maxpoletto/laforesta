@@ -575,6 +575,7 @@ const ParcelProps = (function() {
 
         renderDiffLegend(indexName, date1, date2, maxAbs);
         updateStatus(label + ' ' + date2.slice(0,4) + ' \u2212 ' + label + ' ' + date1.slice(0,4));
+        refreshTooltips();
     }
 
     function renderDiffLegend(indexName, date1, date2, maxAbs) {
@@ -600,6 +601,7 @@ const ParcelProps = (function() {
             opts.classList.add('hidden');
             removeDiffOverlay();
             $('diff-legend').textContent = '';
+            refreshTooltips();
             return;
         }
 
@@ -659,7 +661,39 @@ const ParcelProps = (function() {
             for (let i = idxStart; i <= idxEnd; i++) sum += arr[i];
             return '<br><b>Produzione: ' + Math.round(sum) + ' q</b>';
         }
+        if (diffCurrentIndex) {
+            return getDiffTooltipLine(cp);
+        }
         return '';
+    }
+
+    function formatDelta(val, decimals) {
+        const s = decimals > 0 ? val.toFixed(decimals) : Math.round(val).toString();
+        return (val >= 0 ? '+' : '') + s;
+    }
+
+    /** Return an HTML snippet for the diff value of the current parcel, or ''. */
+    function getDiffTooltipLine(cp) {
+        if (diffCurrentIndex.startsWith('prod:')) {
+            if (!prodData) return '';
+            const arr = prodData.values[cp];
+            if (!arr) return '';
+            const y1 = parseInt($('prod-diff-year1').value, 10);
+            const y2 = parseInt($('prod-diff-year2').value, 10);
+            const delta = (arr[y2 - prodData.years[0]] || 0) - (arr[y1 - prodData.years[0]] || 0);
+            return '<br><b>\u0394 Produzione: ' + formatDelta(delta, 0) + ' q</b>';
+        }
+        if (!timeseriesData) return '';
+        const parcelMeans = timeseriesData.means.parcels[cp];
+        if (!parcelMeans || !parcelMeans[diffCurrentIndex]) return '';
+        const idx1 = timeseriesData.dates.indexOf($('diff-date1').value);
+        const idx2 = timeseriesData.dates.indexOf($('diff-date2').value);
+        if (idx1 < 0 || idx2 < 0) return '';
+        const v1 = parcelMeans[diffCurrentIndex][idx1];
+        const v2 = parcelMeans[diffCurrentIndex][idx2];
+        if (v1 == null || v2 == null || isNaN(v1) || isNaN(v2)) return '';
+        const label = SATELLITE_LAYERS[diffCurrentIndex].label;
+        return '<br><b>\u0394 ' + label + ': ' + formatDelta(v2 - v1, 3) + '</b>';
     }
 
     /** Update all active parcel tooltips with current dynamic value. */
@@ -1107,6 +1141,7 @@ const ParcelProps = (function() {
             labelTexts: [(-maxAbs).toLocaleString(), '0', '+' + maxAbs.toLocaleString()],
             unit: 'quintali',
         });
+        refreshTooltips();
     }
 
     // ---------------------------------------------------------------------------
