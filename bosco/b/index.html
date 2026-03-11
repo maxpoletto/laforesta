@@ -98,6 +98,10 @@
                 <label class="satellite-date-label">Data: </label>
                 <select id="satellite-date" onchange="ParcelProps.setSatelliteDate(this.value)">
                 </select>
+                <label class="checkbox-row">
+                    <input type="checkbox" id="sat-parcel-means-prop" onchange="ParcelProps.toggleParcelMeans(this.checked)">
+                    Medie per particella
+                </label>
             </div>
             <div id="prod-year-row" class="prod-year-row">
                 <label class="prod-year-label">Periodo: </label>
@@ -147,10 +151,16 @@
                         <select id="prod-diff-year2" onchange="ParcelProps.updateDiff()"></select>
                     </div>
                 </div>
-                <label class="checkbox-row hidden" id="diff-forest-only-row">
-                    <input type="checkbox" id="diff-forest-only" onchange="ParcelProps.updateDiff()">
-                    Limita al bosco
-                </label>
+                <div id="diff-sat-checkboxes" class="hidden">
+                    <label class="checkbox-row">
+                        <input type="checkbox" id="diff-forest-only" onchange="ParcelProps.updateDiff()">
+                        Limita al bosco
+                    </label>
+                    <label class="checkbox-row">
+                        <input type="checkbox" id="sat-parcel-means-diff" onchange="ParcelProps.toggleParcelMeans(this.checked)">
+                        Medie per particella
+                    </label>
+                </div>
             </div>
             <div id="diff-legend"></div>
         </div>

@@ -106,6 +106,9 @@ const ParcelProps = (function() {
     let diffOverlay = null;
     let diffCurrentIndex = '';
 
+    // Per-parcel satellite means mode
+    let satParcelMeans = false;
+
     // Production data (per-compresa, reloaded on switch)
     let prodData = null;          // from produzione timeseries.json
     let prodYearSlider = null;    // shared RangeSlider instance
@@ -138,6 +141,16 @@ const ParcelProps = (function() {
 
     function continuousColorStr(t) {
         return rgbStr(interpolateColor(t, CONTINUOUS_COLORS.low, CONTINUOUS_COLORS.high));
+    }
+
+    /** Map a satellite float value to a CSS color using the layer's native colormap. */
+    function satValueColor(layerName, val) {
+        const isIndex = SATELLITE_LAYERS[layerName].isIndex;
+        const uint8 = Math.max(0, Math.min(255, Math.round(
+            isIndex ? (val + 1) * 127.5 : val * 255
+        )));
+        const rgb = isIndex ? colormapLookup(INDEX_RAMP, uint8) : [uint8, uint8, uint8];
+        return rgbStr(rgb);
     }
 
     /** Check if a parcel CP belongs to the currently selected compresa. */
@@ -413,9 +426,40 @@ const ParcelProps = (function() {
         }
     }
 
+    /** Color parcels by per-parcel mean satellite value for the given date. */
+    function showSatelliteParcelMeans(layerName, date) {
+        removeSatOverlay();
+        if (!timeseriesData) return;
+        const dateIdx = timeseriesData.dates.indexOf(date);
+        if (dateIdx < 0) return;
+
+        forActiveEntries((entry, cp) => {
+            const val = timeseriesData.means.parcels[cp]?.[layerName]?.[dateIdx];
+            if (val == null || isNaN(val)) {
+                setStyleAll(entry, NO_DATA_STYLE);
+            } else {
+                setStyleAll(entry, {
+                    ...DEFAULT_STYLE,
+                    fillColor: satValueColor(layerName, val),
+                    fillOpacity: 0.6
+                });
+            }
+        });
+
+        renderSatelliteLegend(layerName, SATELLITE_LAYERS[layerName].isIndex);
+        updateStatus(SATELLITE_LAYERS[layerName].label + ' \u2014 ' + date + ' (medie)');
+        refreshTooltips();
+    }
+
     async function showSatelliteLayer(layerName, date) {
         satCurrentLayer = layerName;
         satCurrentDate = date;
+
+        if (satParcelMeans) {
+            showSatelliteParcelMeans(layerName, date);
+            return;
+        }
+
         removeSatOverlay();
         refreshTooltips();
 
@@ -540,7 +584,34 @@ const ParcelProps = (function() {
     const OUTSIDE_ALPHA = 60;
     const INSIDE_ALPHA = 210;
 
+    /** Color parcels by per-parcel mean satellite diff between two dates. */
+    function showSatelliteParcelDiff(indexName, date1, date2) {
+        removeDiffOverlay();
+        if (!timeseriesData) return;
+        const idx1 = timeseriesData.dates.indexOf(date1);
+        const idx2 = timeseriesData.dates.indexOf(date2);
+        if (idx1 < 0 || idx2 < 0) return;
+
+        const label = SATELLITE_LAYERS[indexName].label;
+        colorParcelsDiverging(
+            cp => {
+                const pm = timeseriesData.means.parcels[cp];
+                if (!pm?.[indexName]) return 0;
+                return (pm[indexName][idx2] ?? 0) - (pm[indexName][idx1] ?? 0);
+            },
+            label + ' ' + date2.slice(0,7) + ' \u2212 ' + label + ' ' + date1.slice(0,7),
+            v => v.toFixed(3),
+            ''
+        );
+        refreshTooltips();
+    }
+
     async function showDiff(indexName, date1, date2) {
+        if (satParcelMeans) {
+            showSatelliteParcelDiff(indexName, date1, date2);
+            return;
+        }
+
         removeDiffOverlay();
 
         if (!satManifest) return;
@@ -621,14 +692,16 @@ const ParcelProps = (function() {
 
         if (indexName.startsWith('prod:')) {
             $('sat-diff-dates').classList.add('hidden');
-            $('diff-forest-only-row').classList.add('hidden');
+            $('diff-sat-checkboxes').classList.add('hidden');
             $('prod-diff-dates').classList.remove('hidden');
             initProdDiffYearSelectors();
             showProductionDiff();
         } else {
             $('prod-diff-dates').classList.add('hidden');
             $('sat-diff-dates').classList.remove('hidden');
-            $('diff-forest-only-row').classList.remove('hidden');
+            $('diff-sat-checkboxes').classList.remove('hidden');
+            $('sat-parcel-means-diff').checked = satParcelMeans;
+            syncForestOnlyState();
             showDiff(indexName, $('diff-date1').value, $('diff-date2').value);
         }
     }
@@ -747,11 +820,14 @@ const ParcelProps = (function() {
             // Satellite layer
             const layerName = propKey.slice(4);
             $('satellite-date-row').classList.add('satellite-date-row-visible');
+            $('sat-parcel-means-prop').checked = satParcelMeans;
             $('prod-year-row').classList.remove('prod-year-row-visible');
             $('ts-section').classList.remove('hidden');
             parcelClickModeOff();
             // Reset active parcel fill to transparent so satellite shows through
-            forActiveEntries(e => setStyleAll(e, { ...DEFAULT_STYLE, fillOpacity: 0 }));
+            if (!satParcelMeans) {
+                forActiveEntries(e => setStyleAll(e, { ...DEFAULT_STYLE, fillOpacity: 0 }));
+            }
             showSatelliteLayer(layerName, satCurrentDate);
             return;
         }
@@ -778,20 +854,18 @@ const ParcelProps = (function() {
         refreshTooltips();
     }
 
-    function applyContinuous(prop) {
+    /** Color active parcels by a continuous value with min/max normalization. */
+    function colorParcelsContinuous(getValue, unit) {
         const withValue = [];
-        const withoutValue = [];
 
-        forActiveEntries(entry => {
-            const val = prop.getValue(entry);
-            if (isNaN(val)) {
-                withoutValue.push(entry);
+        forActiveEntries((entry, cp) => {
+            const val = getValue(entry, cp);
+            if (val == null || isNaN(val)) {
+                setStyleAll(entry, NO_DATA_STYLE);
             } else {
                 withValue.push({ val, entry });
             }
         });
-
-        withoutValue.forEach(e => setStyleAll(e, NO_DATA_STYLE));
 
         if (withValue.length === 0) return;
 
@@ -800,15 +874,18 @@ const ParcelProps = (function() {
         const range = max - min || 1;
 
         withValue.forEach(({ val, entry }) => {
-            const t = (val - min) / range;
             setStyleAll(entry, {
                 ...DEFAULT_STYLE,
-                fillColor: continuousColorStr(t),
+                fillColor: continuousColorStr((val - min) / range),
                 fillOpacity: 0.6
             });
         });
 
-        renderContinuousLegend(prop, min, max);
+        renderContinuousLegend({ unit }, min, max);
+    }
+
+    function applyContinuous(prop) {
+        colorParcelsContinuous(entry => prop.getValue(entry), prop.unit);
     }
 
     function applyBinary(prop) {
@@ -1053,33 +1130,12 @@ const ParcelProps = (function() {
         const yearIdxStart = yearMin - prodData.years[0];
         const yearIdxEnd = yearMax - prodData.years[0];
 
-        // Sum values for each active parcel over the selected year range
-        const withValue = [];
-        forActiveEntries((entry, cp) => {
+        colorParcelsContinuous((_, cp) => {
             const arr = prodData.values[cp];
             let sum = 0;
-            if (arr) {
-                for (let i = yearIdxStart; i <= yearIdxEnd; i++) sum += arr[i];
-            }
-            withValue.push({ val: sum, entry });
-        });
-
-        if (withValue.length === 0) return;
-
-        const min = Math.min(...withValue.map(e => e.val));
-        const max = Math.max(...withValue.map(e => e.val));
-        const range = max - min || 1;
-
-        withValue.forEach(({ val, entry }) => {
-            const t = (val - min) / range;
-            setStyleAll(entry, {
-                ...DEFAULT_STYLE,
-                fillColor: continuousColorStr(t),
-                fillOpacity: 0.6
-            });
-        });
-
-        renderContinuousLegend({ unit: 'quintali' }, min, max);
+            if (arr) for (let i = yearIdxStart; i <= yearIdxEnd; i++) sum += arr[i];
+            return sum;
+        }, 'quintali');
         refreshTooltips();
     }
 
@@ -1104,6 +1160,34 @@ const ParcelProps = (function() {
         });
     }
 
+    /** Color active parcels by a diverging diff value. */
+    function colorParcelsDiverging(getDiff, title, formatMax, unit) {
+        const diffs = [];
+        forActiveEntries((entry, cp) => {
+            diffs.push({ diff: getDiff(cp) || 0, entry });
+        });
+
+        const maxAbs = Math.max(1, ...diffs.map(d => Math.abs(d.diff)));
+
+        diffs.forEach(({ diff, entry }) => {
+            setStyleAll(entry, {
+                ...DEFAULT_STYLE,
+                fillColor: rgbStr(divergingParcelColor(diff, maxAbs, DIFF_RAMP)),
+                fillOpacity: 0.6
+            });
+        });
+
+        const maxLabel = formatMax(maxAbs);
+        createGradientLegend($('diff-legend'), {
+            title,
+            colorFn(i, steps) {
+                return colormapLookup(DIFF_RAMP, Math.round(i / steps * 255));
+            },
+            labelTexts: ['-' + maxLabel, '0', '+' + maxLabel],
+            unit,
+        });
+    }
+
     function showProductionDiff() {
         if (!prodData) return;
 
@@ -1112,36 +1196,46 @@ const ParcelProps = (function() {
         const idx1 = year1 - prodData.years[0];
         const idx2 = year2 - prodData.years[0];
 
-        // Compute per-parcel diff and maxAbs
-        const diffs = [];
-        forActiveEntries((entry, cp) => {
-            const arr = prodData.values[cp];
-            const v1 = arr ? arr[idx1] : 0;
-            const v2 = arr ? arr[idx2] : 0;
-            diffs.push({ diff: v2 - v1, entry, cp });
-        });
-
-        const maxAbs = Math.max(1, ...diffs.map(d => Math.abs(d.diff)));
-
-        diffs.forEach(({ diff, entry }) => {
-            const color = rgbStr(divergingParcelColor(diff, maxAbs, DIFF_RAMP));
-            setStyleAll(entry, {
-                ...DEFAULT_STYLE,
-                fillColor: color,
-                fillOpacity: 0.6
-            });
-        });
-
-        // Legend
-        createGradientLegend($('diff-legend'), {
-            title: 'Produzione ' + year2 + ' \u2212 ' + year1,
-            colorFn(i, steps) {
-                return colormapLookup(DIFF_RAMP, Math.round(i / steps * 255));
+        colorParcelsDiverging(
+            cp => {
+                const arr = prodData.values[cp];
+                return arr ? arr[idx2] - arr[idx1] : 0;
             },
-            labelTexts: [(-maxAbs).toLocaleString(), '0', '+' + maxAbs.toLocaleString()],
-            unit: 'quintali',
-        });
+            'Produzione ' + year2 + ' \u2212 ' + year1,
+            v => Math.round(v).toLocaleString(),
+            'quintali'
+        );
         refreshTooltips();
+    }
+
+    // ---------------------------------------------------------------------------
+    // Per-parcel satellite means toggle
+    // ---------------------------------------------------------------------------
+
+    /** Sync the "limita al bosco" checkbox: forced on + disabled when per-parcel is active. */
+    function syncForestOnlyState() {
+        const el = $('diff-forest-only');
+        if (satParcelMeans) {
+            el.checked = true;
+            el.disabled = true;
+        } else {
+            el.disabled = false;
+        }
+    }
+
+    function toggleParcelMeans(checked) {
+        satParcelMeans = checked;
+        // Sync both checkboxes
+        $('sat-parcel-means-prop').checked = checked;
+        $('sat-parcel-means-diff').checked = checked;
+
+        if (currentProperty.startsWith('sat:')) {
+            const layerName = currentProperty.slice(4);
+            showSatelliteLayer(layerName, satCurrentDate);
+        } else if (diffCurrentIndex && !diffCurrentIndex.startsWith('prod:')) {
+            syncForestOnlyState();
+            showDiff(diffCurrentIndex, $('diff-date1').value, $('diff-date2').value);
+        }
     }
 
     // ---------------------------------------------------------------------------
@@ -1208,6 +1302,10 @@ const ParcelProps = (function() {
 
         toggleParcelTimeSeries() {
             toggleParcelTimeSeries();
+        },
+
+        toggleParcelMeans(checked) {
+            toggleParcelMeans(checked);
         }
     };
 })();
