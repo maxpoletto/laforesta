@@ -16,10 +16,6 @@ from pathlib import Path
 
 import pandas as pd
 
-RED = "" #"\033[31m"
-BOLD = "" #"\033[1m"
-RESET = "" #"\033[0m"
-
 DEDUP_KEY = ["Data", "VDP", "Squadra", "Q.li", "Tipo"]
 SORT_COLS = ["_date", "VDP", "Squadra", "Q.li", "Tipo"]
 NORMALIZE_COLS = ["Ceduo?"]
@@ -170,8 +166,8 @@ def _row_dict(row, cols, governo_map):
     return d
 
 
-def print_table(rows, cols, markers=None, highlights=None):
-    """Print aligned table with optional -/+ markers and red highlights."""
+def print_table(rows, cols, markers=None):
+    """Print aligned table with optional -/+ markers."""
     marker_w = (max(len(m) for m in markers) + 1) if markers else 0
     widths = {c: len(c) for c in cols}
     for r in rows:
@@ -183,12 +179,7 @@ def print_table(rows, cols, markers=None, highlights=None):
     print("-" * len(header))
     for i, r in enumerate(rows):
         pfx = (markers[i].ljust(marker_w - 1) + " ") if markers else ""
-        parts = []
-        for c in cols:
-            val = r.get(c, "").rjust(widths[c])
-            if highlights and i < len(highlights) and c in highlights[i]:
-                val = RED + val + RESET
-            parts.append(val)
+        parts = [r.get(c, "").rjust(widths[c]) for c in cols]
         print(pfx + "  ".join(parts))
 
 
@@ -204,14 +195,13 @@ def _print_diff_group(items, cols, governo_map, label, skipped=0, skip_label="")
         for c in diffs:
             if c not in all_cols:
                 all_cols.append(c)
-    print(f"{BOLD}--- {len(items)} righe: {label} ---{RESET}")
-    table_rows, markers, highlights = [], [], []
+    print(f"--- {len(items)} righe: {label} ---")
+    table_rows, markers = [], []
     for orow, nrow, diffs in items:
         for marker, row in [("-", orow), ("+", nrow)]:
             table_rows.append(_row_dict(row, all_cols, governo_map))
             markers.append(marker)
-            highlights.append(set(diffs) if marker == "+" else set())
-    print_table(table_rows, all_cols, markers, highlights)
+    print_table(table_rows, all_cols, markers)
     print()
 
 
@@ -219,7 +209,7 @@ def _print_diff_group(items, cols, governo_map, label, skipped=0, skip_label="")
 
 def print_diff_section(changed, only_old, only_new, governo_map,
                        show_new=False):
-    print(f"\n{BOLD}=== DIFFERENZE ==={RESET}")
+    print(f"\n=== DIFFERENZE ===")
     print(f"  Totale modificate:    {len(changed)}")
     print(f"  Solo nel vecchio:     {len(only_old)}")
     print(f"  Solo nel nuovo:       {len(only_new)}\n")
@@ -256,12 +246,12 @@ def print_diff_section(changed, only_old, only_new, governo_map,
         _print_diff_group(other_rows, DEDUP_KEY, governo_map, "altre modifiche")
 
     if only_old:
-        print(f"{BOLD}--- Solo nel vecchio ({len(only_old)}) ---{RESET}")
+        print(f"--- Solo nel vecchio ({len(only_old)}) ---")
         print_table([_row_dict(r, SUMMARY_COLS, governo_map) for r in only_old],
                     SUMMARY_COLS)
         print()
     if only_new and show_new:
-        print(f"{BOLD}--- Solo nel nuovo ({len(only_new)}) ---{RESET}")
+        print(f"--- Solo nel nuovo ({len(only_new)}) ---")
         print_table([_row_dict(r, SUMMARY_COLS, governo_map) for r in only_new],
                     SUMMARY_COLS)
         print()
@@ -310,25 +300,24 @@ def main() -> None:
 
     print_diff_section(changed, only_old, only_new, governo_map, show_new)
 
-    print(f"{BOLD}=== DUPLICATI (file nuovo): {len(new_dupes)} righe ==={RESET}")
+    print(f"=== DUPLICATI (file nuovo): {len(new_dupes)} righe ===")
     if len(new_dupes) > 0:
         print_table([_row_dict(new_dupes.iloc[i], SUMMARY_COLS, governo_map)
                      for i in range(len(new_dupes))], SUMMARY_COLS)
     print()
 
-    hl = [{"Ceduo?", "Governo"}]
     fustaia_ceduo = find_governo_ceduo_mismatches(
         new_uniq, governo_map, "Fustaia", "TRUE")
-    print(f"{BOLD}=== FUSTAIA CON CEDUO=TRUE: {len(fustaia_ceduo)} righe ==={RESET}")
+    print(f"=== FUSTAIA CON CEDUO=TRUE: {len(fustaia_ceduo)} righe ===")
     if fustaia_ceduo:
-        print_table(fustaia_ceduo, SUMMARY_COLS, highlights=hl * len(fustaia_ceduo))
+        print_table(fustaia_ceduo, SUMMARY_COLS)
     print()
 
     ceduo_no_ceduo = find_governo_ceduo_mismatches(
         new_uniq, governo_map, "Ceduo", "FALSE")
-    print(f"{BOLD}=== CEDUO CON CEDUO=FALSE: {len(ceduo_no_ceduo)} righe ==={RESET}")
+    print(f"=== CEDUO CON CEDUO=FALSE: {len(ceduo_no_ceduo)} righe ===")
     if ceduo_no_ceduo:
-        print_table(ceduo_no_ceduo, SUMMARY_COLS, highlights=hl * len(ceduo_no_ceduo))
+        print_table(ceduo_no_ceduo, SUMMARY_COLS)
     print()
 
 
