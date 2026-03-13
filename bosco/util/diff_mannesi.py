@@ -41,6 +41,7 @@ _EXPLAINED = {"Note", "Particella", "CP", "Compresa", "Ceduo?"}
 
 def read_csv(path: str) -> pd.DataFrame:
     df = pd.read_csv(path, encoding="utf-8-sig")
+    df = df.dropna(subset=DEDUP_KEY, how="all")
     df["_date"] = pd.to_datetime(df["Data"])
     for col in NORMALIZE_COLS:
         if col in df.columns:
@@ -66,7 +67,11 @@ def load_governo_lookup(mannesi_path: str) -> dict[tuple[str, str], str]:
 
 
 def cell(value) -> str:
-    return "" if pd.isna(value) else str(value)
+    if pd.isna(value):
+        return ""
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return str(value)
 
 
 # ── Sorting / dedup ───────────────────────────────────────────────
@@ -264,22 +269,16 @@ def print_diff_section(changed, only_old, only_new, governo_map,
 
 # ── Governo/Ceduo? mismatches ─────────────────────────────────────
 
-def find_governo_ceduo_mismatches(df, governo_map):
-    results, seen = [], set()
+def find_governo_ceduo_mismatches(df, governo_map, governo, ceduo):
+    """Find rows where Governo and Ceduo? have the given (mismatched) values."""
+    results = []
     for i in range(len(df)):
         row = df.iloc[i]
         cp = (cell(row["Compresa"]), cell(row["Particella"]))
-        governo = governo_map.get(cp)
-        if governo is None:
+        if governo_map.get(cp) != governo:
             continue
-        ceduo = cell(row["Ceduo?"]).upper()
-        if not ((governo == "Fustaia" and ceduo == "TRUE")
-                or (governo == "Ceduo" and ceduo == "FALSE")):
+        if cell(row["Ceduo?"]).upper() != ceduo:
             continue
-        key = (*cp, ceduo)
-        if key in seen:
-            continue
-        seen.add(key)
         d = {c: cell(row[c]) for c in SUMMARY_COLS if c != "Governo"}
         d["Governo"] = governo
         results.append(d)
@@ -317,11 +316,19 @@ def main() -> None:
                      for i in range(len(new_dupes))], SUMMARY_COLS)
     print()
 
-    mismatches = find_governo_ceduo_mismatches(new_uniq, governo_map)
-    print(f"{BOLD}=== INCOERENZE GOVERNO/CEDUO: {len(mismatches)} righe ==={RESET}")
-    if mismatches:
-        print_table(mismatches, SUMMARY_COLS,
-                    highlights=[{"Ceduo?", "Governo"}] * len(mismatches))
+    hl = [{"Ceduo?", "Governo"}]
+    fustaia_ceduo = find_governo_ceduo_mismatches(
+        new_uniq, governo_map, "Fustaia", "TRUE")
+    print(f"{BOLD}=== FUSTAIA CON CEDUO=TRUE: {len(fustaia_ceduo)} righe ==={RESET}")
+    if fustaia_ceduo:
+        print_table(fustaia_ceduo, SUMMARY_COLS, highlights=hl * len(fustaia_ceduo))
+    print()
+
+    ceduo_no_ceduo = find_governo_ceduo_mismatches(
+        new_uniq, governo_map, "Ceduo", "FALSE")
+    print(f"{BOLD}=== CEDUO CON CEDUO=FALSE: {len(ceduo_no_ceduo)} righe ==={RESET}")
+    if ceduo_no_ceduo:
+        print_table(ceduo_no_ceduo, SUMMARY_COLS, highlights=hl * len(ceduo_no_ceduo))
     print()
 
 
