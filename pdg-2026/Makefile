@@ -6,7 +6,7 @@ CSV_DIR=../bosco/data
 	html clean-html \
 	pdf clean-pdf \
     all clean \
-	test
+	test regenerate-golden
 
 all: equazioni altvol pdf
 clean: clean-equazioni clean-altvol clean-pdf
@@ -135,3 +135,6 @@ clean-csv:
 
 test:
 	pytest --cov=acc --cov-report=term-missing test/
+
+regenerate-golden:
+	python3 test/generate_golden.py
