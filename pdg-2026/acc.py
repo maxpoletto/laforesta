@@ -49,6 +49,7 @@ COL_GENERE = 'Genere'
 COL_COMPRESA = 'Compresa'
 COL_PARTICELLA = 'Particella'
 COL_CD_CM = 'Classe diam.'      # Computed: diameter bucket (5 cm classes)
+COL_SCALE = '_scale'            # Computed: 1/sampled_frac (scaling factor per tree)
 COL_FUSTAIA = 'Fustaia'         # Boolean column in trees data
 COL_AREA_SAGGIO = 'Area saggio'
 COL_COEFF_PRESSLER = 'c'
@@ -721,6 +722,11 @@ def diameter_class(d: pd.DataFrame, width: int = 5) -> pd.DataFrame:
     return (np.ceil((d - (width/2)) / width) * width).astype(int)
 
 
+def basal_area_m2(d_cm):
+    """Basal area in m² from diameter in cm: π/4 * (D/100)²."""
+    return np.pi / 4 * d_cm ** 2 / 10000
+
+
 # =============================================================================
 # DATA PREPARATION
 # =============================================================================
@@ -804,6 +810,14 @@ def parcel_data(tree_files: list[str], tree_df: pd.DataFrame, parcel_df: pd.Data
         )
 
     trees_region_species[COL_CD_CM] = diameter_class(trees_region_species[COL_D_CM])
+
+    # Pre-compute scale factor (1/sampled_frac) for each tree, so downstream
+    # code can do vectorized scaling instead of per-parcel groupby loops.
+    sf_map = {k: 1 / ps.sampled_frac for k, ps in parcel_stats.items()}
+    trees_region_species[COL_SCALE] = [
+        sf_map[(r, p)]
+        for r, p in zip(trees_region_species[COL_COMPRESA],
+                        trees_region_species[COL_PARTICELLA])]
 
     data = ParcelData(
         trees=trees_region_species,
@@ -1172,8 +1186,7 @@ def calculate_diameter_class_data(data: ParcelData, metrica: str, stime_totali: 
         if agg_type == AGG_VOLUME:
             agg = ptrees.groupby([bucket_vals, COL_GENERE])[COL_V_M3].sum().unstack(fill_value=0)
         elif agg_type == AGG_BASAL:
-            # Basal area: π/4 * D² in cm², convert to m²
-            basal = np.pi / 4 * ptrees[COL_D_CM] ** 2 / 10000
+            basal = basal_area_m2(ptrees[COL_D_CM])
             agg = basal.groupby([bucket_vals, ptrees[COL_GENERE]]).sum().unstack(fill_value=0)
         else:
             agg = ptrees.groupby([bucket_vals, COL_GENERE]).size().unstack(fill_value=0)
@@ -1879,8 +1892,7 @@ def _simulate_harvest_on_parcel(
 
     mature_eff_vol = eff_vol[mature.index]
     volume_before = mature_eff_vol.sum() / sf
-    # G in m2 per tree, weighted
-    mature_G = np.pi / 4 * mature[COL_D_CM] ** 2 / 10000 * mature[COL_WEIGHT]
+    mature_G = basal_area_m2(mature[COL_D_CM]) * mature[COL_WEIGHT]
     basal_mature = mature_G.sum() / sf
 
     vol_mature_per_ha = volume_before / area_ha
@@ -2066,8 +2078,7 @@ def compute_harvest(trees_df: pd.DataFrame, sampled_frac: float,
     if harvestable.empty:
         return 0.0, 0.0
 
-    # G in m2 per tree: D is in cm, D2 in cm2, /10000 converts cm2 -> m2
-    harvestable['G'] = np.pi / 4 * harvestable[COL_D_CM] ** 2 / 10000
+    harvestable['G'] = basal_area_m2(harvestable[COL_D_CM])
     total_volume = harvestable[COL_V_M3].sum() / sampled_frac
 
     harvestable = harvestable.sort_values(COL_D_CM)
@@ -2136,7 +2147,7 @@ def calculate_harvest_table(data: ParcelData, rules: HarvestRulesFunc,
         # Compute per-ha stats of mature trees for rules lookup
         mature = part_trees[part_trees[COL_D_CM] > MATURE_THRESHOLD]
         vol_mature_per_ha = mature[COL_V_M3].sum() / sf / p_area
-        basal_per_ha = (np.pi / 4 * mature[COL_D_CM] ** 2 / 10000).sum() / sf / p_area
+        basal_per_ha = basal_area_m2(mature[COL_D_CM]).sum() / sf / p_area
 
         vol_limit_ha, area_limit_ha = rules(sector, age, vol_mature_per_ha, basal_per_ha)
         if vol_limit_ha == 0 and area_limit_ha == 0:
