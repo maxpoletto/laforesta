@@ -47,47 +47,47 @@ def main():
     data_fab1 = pd_filtered(regions=['Fabrizia'], parcels=['1'])
     data_cap3 = pd_filtered(regions=['Capistrano'], parcels=['3'])
 
-    # @@tsv — matches sec-volumi.tex and particella.tex invocations
-    print('@@tsv:')
-    save(acc.calculate_tsv_table(data_all,
+    # @@volumi — matches sec-volumi.tex and particella.tex invocations
+    print('@@volumi:')
+    save(acc.calculate_volume_table(data_all,
         group_cols=[acc.COL_COMPRESA],
         calc_margin=True, calc_total=True), 'tsv-per_compresa')
-    save(acc.calculate_tsv_table(data_serra,
+    save(acc.calculate_volume_table(data_serra,
         group_cols=[acc.COL_PARTICELLA],
         calc_margin=True, calc_total=True), 'tsv-serra-per_particella')
-    save(acc.calculate_tsv_table(data_fab1,
+    save(acc.calculate_volume_table(data_fab1,
         group_cols=[acc.COL_GENERE],
         calc_margin=True, calc_total=True), 'tsv-fab1-per_genere')
 
-    # @@tpt — matches sec-ripresa.tex, particella.tex, relazione.tex
-    print('@@tpt:')
-    save(acc.calculate_tpt_table(data_all, max_harvest,
+    # @@prelievi — matches sec-ripresa.tex, particella.tex, relazione.tex
+    print('@@prelievi:')
+    save(acc.calculate_harvest_table(data_all, max_harvest,
         group_cols=[acc.COL_COMPRESA]), 'tpt-per_compresa')
-    save(acc.calculate_tpt_table(data_serra, max_harvest,
+    save(acc.calculate_harvest_table(data_serra, max_harvest,
         group_cols=[acc.COL_PARTICELLA]), 'tpt-serra-per_particella')
-    save(acc.calculate_tpt_table(data_cap3, max_harvest,
+    save(acc.calculate_harvest_table(data_cap3, max_harvest,
         group_cols=[acc.COL_GENERE]), 'tpt-cap3-per_genere')
-    save(acc.calculate_tpt_table(data_serra, max_harvest,
+    save(acc.calculate_harvest_table(data_serra, max_harvest,
         group_cols=[acc.COL_PARTICELLA, acc.COL_GENERE]),
         'tpt-serra-per_particella_genere')
 
-    # @@tip — matches particella.tex
-    print('@@tip:')
-    save(acc.calculate_growth_rates(data_fab1,
+    # @@tabella_incremento_percentuale — matches particella.tex
+    print('@@tabella_incremento_percentuale:')
+    save(acc.calculate_pct_growth_table(data_fab1,
         group_cols=[acc.COL_GENERE, acc.COL_CD_CM],
         stime_totali=True), 'tip-fab1')
-    save(acc.calculate_growth_rates(data_cap3,
+    save(acc.calculate_pct_growth_table(data_cap3,
         group_cols=[acc.COL_GENERE, acc.COL_CD_CM],
         stime_totali=True), 'tip-cap3')
 
-    # @@tcd — matches particella.tex (coarse bins, 4 metrics)
-    print('@@tcd:')
+    # @@tabella_classi_diametriche — matches particella.tex (coarse bins, 4 metrics)
+    print('@@tabella_classi_diametriche:')
     for metrica in ['alberi_ha', 'volume_ha', 'G_ha', 'altezza']:
-        save_indexed(acc.calculate_cd_data(data_fab1,
+        save_indexed(acc.calculate_diameter_class_data(data_fab1,
             metrica=metrica, stime_totali=True, fine=False),
             f'tcd-fab1-{metrica}')
     # Fine volume_tot for cross-check
-    save_indexed(acc.calculate_cd_data(data_all,
+    save_indexed(acc.calculate_diameter_class_data(data_all,
         metrica='volume_tot', stime_totali=True, fine=True),
         'tcd-all-volume_tot-fine')
 

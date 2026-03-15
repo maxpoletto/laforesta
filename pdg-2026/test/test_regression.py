@@ -113,14 +113,14 @@ def _assert_frames_close(actual: pd.DataFrame, expected: pd.DataFrame,
                 f"{label}, column '{col}': {act_vals} != {exp_vals}")
 
 
-# ── @@tsv (calculate_tsv_table) ──────────────────────────────────────────────
+# ── @@volumi (calculate_volume_table) ──────────────────────────────────────────────
 
 class TestTsvRegression:
-    """Regression tests matching @@tsv invocations in templates."""
+    """Regression tests matching @@volumi invocations in templates."""
 
     def test_per_compresa(self, data_all):
         """sec-volumi.tex: per_compresa=si, per_particella=no, with CI."""
-        actual = acc.calculate_tsv_table(data_all,
+        actual = acc.calculate_volume_table(data_all,
             group_cols=[acc.COL_COMPRESA],
             calc_margin=True, calc_total=True)
         expected = _load_golden('tsv-per_compresa')
@@ -128,7 +128,7 @@ class TestTsvRegression:
 
     def test_serra_per_particella(self, data_serra):
         """sec-volumi.tex: single compresa, per_particella=si, with CI."""
-        actual = acc.calculate_tsv_table(data_serra,
+        actual = acc.calculate_volume_table(data_serra,
             group_cols=[acc.COL_PARTICELLA],
             calc_margin=True, calc_total=True)
         expected = _load_golden('tsv-serra-per_particella')
@@ -136,55 +136,55 @@ class TestTsvRegression:
 
     def test_fab1_per_genere(self, data_fab1):
         """particella.tex: single particella, per_genere=si, with CI."""
-        actual = acc.calculate_tsv_table(data_fab1,
+        actual = acc.calculate_volume_table(data_fab1,
             group_cols=[acc.COL_GENERE],
             calc_margin=True, calc_total=True)
         expected = _load_golden('tsv-fab1-per_genere')
         _assert_frames_close(actual, expected, 'tsv-fab1-per_genere')
 
 
-# ── @@tpt (calculate_tpt_table) ──────────────────────────────────────────────
+# ── @@prelievi (calculate_harvest_table) ──────────────────────────────────────────────
 
 class TestTptRegression:
-    """Regression tests matching @@tpt invocations in templates."""
+    """Regression tests matching @@prelievi invocations in templates."""
 
     def test_per_compresa(self, data_all):
         """sec-ripresa.tex: per_compresa=si, per_particella=no."""
-        actual = acc.calculate_tpt_table(data_all, max_harvest,
+        actual = acc.calculate_harvest_table(data_all, max_harvest,
             group_cols=[acc.COL_COMPRESA])
         expected = _load_golden('tpt-per_compresa')
         _assert_frames_close(actual, expected, 'tpt-per_compresa')
 
     def test_serra_per_particella(self, data_serra):
         """sec-ripresa.tex: single compresa, per_particella=si."""
-        actual = acc.calculate_tpt_table(data_serra, max_harvest,
+        actual = acc.calculate_harvest_table(data_serra, max_harvest,
             group_cols=[acc.COL_PARTICELLA])
         expected = _load_golden('tpt-serra-per_particella')
         _assert_frames_close(actual, expected, 'tpt-serra-per_particella')
 
     def test_cap3_per_genere(self, data_cap3):
         """particella.tex: single particella, per_genere=si."""
-        actual = acc.calculate_tpt_table(data_cap3, max_harvest,
+        actual = acc.calculate_harvest_table(data_cap3, max_harvest,
             group_cols=[acc.COL_GENERE])
         expected = _load_golden('tpt-cap3-per_genere')
         _assert_frames_close(actual, expected, 'tpt-cap3-per_genere')
 
     def test_serra_per_particella_genere(self, data_serra):
         """relazione.tex: per_particella=si, per_genere=si."""
-        actual = acc.calculate_tpt_table(data_serra, max_harvest,
+        actual = acc.calculate_harvest_table(data_serra, max_harvest,
             group_cols=[acc.COL_PARTICELLA, acc.COL_GENERE])
         expected = _load_golden('tpt-serra-per_particella_genere')
         _assert_frames_close(actual, expected, 'tpt-serra-per_particella_genere')
 
 
-# ── @@tip (calculate_growth_rates) ───────────────────────────────────────────
+# ── @@tabella_incremento_percentuale (calculate_pct_growth_table) ───────────────────────────────────────────
 
 class TestTipRegression:
-    """Regression tests matching @@tip invocations in templates."""
+    """Regression tests matching @@tabella_incremento_percentuale invocations in templates."""
 
     def test_fab1(self, data_fab1):
         """particella.tex: single particella, genere+cd_cm."""
-        actual = acc.calculate_growth_rates(data_fab1,
+        actual = acc.calculate_pct_growth_table(data_fab1,
             group_cols=[acc.COL_GENERE, acc.COL_CD_CM],
             stime_totali=True)
         expected = _load_golden('tip-fab1')
@@ -192,22 +192,22 @@ class TestTipRegression:
 
     def test_cap3(self, data_cap3):
         """particella.tex: single particella, genere+cd_cm."""
-        actual = acc.calculate_growth_rates(data_cap3,
+        actual = acc.calculate_pct_growth_table(data_cap3,
             group_cols=[acc.COL_GENERE, acc.COL_CD_CM],
             stime_totali=True)
         expected = _load_golden('tip-cap3')
         _assert_frames_close(actual, expected, 'tip-cap3')
 
 
-# ── @@tcd (calculate_cd_data) ────────────────────────────────────────────────
+# ── @@tabella_classi_diametriche (calculate_diameter_class_data) ────────────────────────────────────────────────
 
 class TestTcdRegression:
-    """Regression tests matching @@tcd invocations in templates."""
+    """Regression tests matching @@tabella_classi_diametriche invocations in templates."""
 
     @pytest.mark.parametrize("metrica", ['alberi_ha', 'volume_ha', 'G_ha', 'altezza'])
     def test_fab1_coarse(self, data_fab1, metrica):
         """particella.tex: single particella, coarse bins, each metric."""
-        actual = acc.calculate_cd_data(data_fab1,
+        actual = acc.calculate_diameter_class_data(data_fab1,
             metrica=metrica, stime_totali=True, fine=False)
         expected = _load_golden_indexed(f'tcd-fab1-{metrica}')
         # Align index types (coarse bins are strings)
@@ -218,7 +218,7 @@ class TestTcdRegression:
 
     def test_all_volume_tot_fine(self, data_all):
         """Cross-check: fine volume_tot over all parcels."""
-        actual = acc.calculate_cd_data(data_all,
+        actual = acc.calculate_diameter_class_data(data_all,
             metrica='volume_tot', stime_totali=True, fine=True)
         expected = _load_golden_indexed('tcd-all-volume_tot-fine')
         pd.testing.assert_frame_equal(actual, expected, rtol=RTOL,

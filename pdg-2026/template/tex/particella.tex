@@ -9,44 +9,44 @@
 
 \begin{minipage}[t][][c]{0.5\textwidth}
     \noindent \textsf{Alberi per ettaro}
-    @@gcd(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,stile=width=\textwidth,metrica=alberi_ha)
+    @@grafico_classi_diametriche(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,stile=width=\textwidth,metrica=alberi_ha)
     \begingroup
         \setlength{\LTleft}{0pt}
         \begin{flushright}
-            @@tcd(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,metrica=alberi_ha)
+            @@tabella_classi_diametriche(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,metrica=alberi_ha)
         \end{flushright}
     \endgroup
 \end{minipage}%
 \hfill
 \begin{minipage}[t][][c]{0.5\textwidth}
     \noindent \textsf{Volumi per ettaro}
-    @@gcd(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,stile=width=\textwidth,metrica=volume_ha)
+    @@grafico_classi_diametriche(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,stile=width=\textwidth,metrica=volume_ha)
     \begingroup
         \setlength{\LTleft}{0pt}
         \begin{flushright}
-            @@tcd(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,metrica=volume_ha)
+            @@tabella_classi_diametriche(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,metrica=volume_ha)
         \end{flushright}
     \endgroup
 \end{minipage}
 \\
 \begin{minipage}[t][][c]{0.5\textwidth}
     \noindent \textsf{Area basimetrica per ettaro}
-    @@gcd(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,stile=width=\textwidth,metrica=G_ha)
+    @@grafico_classi_diametriche(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,stile=width=\textwidth,metrica=G_ha)
     \begingroup
         \setlength{\LTleft}{0pt}
         \begin{flushright}
-            @@tcd(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,metrica=G_ha)
+            @@tabella_classi_diametriche(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,metrica=G_ha)
         \end{flushright}
     \endgroup
 \end{minipage}
 \hfill
 \begin{minipage}[t][][c]{0.5\textwidth}
     \noindent \textsf{Altezza media}
-    @@gcd(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,stile=width=\textwidth,metrica=altezza)
+    @@grafico_classi_diametriche(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,stile=width=\textwidth,metrica=altezza)
     \begingroup
         \setlength{\LTleft}{0pt}
         \begin{flushright}
-            @@tcd(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,metrica=altezza)
+            @@tabella_classi_diametriche(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,metrica=altezza)
         \end{flushright}
     \endgroup
 \end{minipage}
@@ -57,24 +57,24 @@
         \setlength{\LTleft}{0pt}
         \vspace{-\baselineskip}
         \begin{flushleft}
-            @@tip(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,per_compresa=no,per_particella=no,totali=si)
+            @@tabella_incremento_percentuale(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,per_compresa=no,per_particella=no,totali=si)
         \end{flushleft}
     \endgroup
 \end{minipage}%
 \hfill
 \begin{minipage}[t][][c]{0.5\textwidth}
     \begin{flushright}
-        @@gip(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,per_compresa=no,per_particella=no,metrica=ip,stile=width=\textwidth)
+        @@grafico_incremento_percentuale(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,per_compresa=no,per_particella=no,metrica=ip,stile=width=\textwidth)
         \vspace*{1em}
-        @@gip(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,per_compresa=no,per_particella=no,metrica=ic,stile=width=\textwidth)
+        @@grafico_incremento_percentuale(alberi=alberi-calcolati.csv,compresa=@@compresa,particella=@@particella,per_compresa=no,per_particella=no,metrica=ic,stile=width=\textwidth)
     \end{flushright}
 \end{minipage}
 
 \subsubsection*{Volumi}
-@@tsv(compresa=@@compresa,particella=@@particella,alberi=alberi-calcolati.csv,per_genere=si,per_compresa=no,per_particella=no,intervallo_fiduciario=si,totali=si)
+@@volumi(compresa=@@compresa,particella=@@particella,alberi=alberi-calcolati.csv,per_genere=si,per_compresa=no,per_particella=no,intervallo_fiduciario=si,totali=si)
 
 \subsubsection*{Ripresa}
-@@tpt(compresa=@@compresa,particella=@@particella,alberi=alberi-calcolati.csv,per_compresa=no,per_particella=no,per_genere=si,col_area_ha=no,totali=si)
+@@prelievi(compresa=@@compresa,particella=@@particella,alberi=alberi-calcolati.csv,per_compresa=no,per_particella=no,per_genere=si,col_area_ha=no,totali=si)
 
 }
 \clearpage

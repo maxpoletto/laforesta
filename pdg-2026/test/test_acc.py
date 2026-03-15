@@ -3,7 +3,7 @@ Tests for acc.py forest analysis module.
 
 Test categories:
 (a) Aggregation consistency - total vs per-particella breakdown
-(b) Cross-query consistency - @@tsv totals match @@tcd sums, @@tsv/@@tpt consistency
+(b) Cross-query consistency - @@volumi totals match @@tabella_classi_diametriche sums, @@volumi/@@prelievi consistency
 (c) Correct scaling with different sample areas
 (d) Edge cases
 (f) Confidence interval sanity
@@ -52,15 +52,15 @@ class TestAggregationConsistency:
     """Test that aggregated totals match sum of per-particella breakdowns."""
 
     def test_tsv_volume_aggregation(self, data_all):
-        """@@tsv total volume should equal sum of per-particella volumes."""
+        """@@volumi total volume should equal sum of per-particella volumes."""
         # Total (no per_particella breakdown)
-        df_total = acc.calculate_tsv_table(
+        df_total = acc.calculate_volume_table(
             data_all, group_cols=[], calc_margin=False, calc_total=True
         )
         total_volume = df_total['volume'].sum()
 
         # Per-particella breakdown
-        df_per_parcel = acc.calculate_tsv_table(
+        df_per_parcel = acc.calculate_volume_table(
             data_all, group_cols=[COL_PARTICELLA], calc_margin=False, calc_total=True
         )
         sum_per_parcel = df_per_parcel['volume'].sum()
@@ -69,13 +69,13 @@ class TestAggregationConsistency:
             f"Total {total_volume} != sum of per-parcel {sum_per_parcel}"
 
     def test_tsv_tree_count_aggregation(self, data_all):
-        """@@tsv total tree count should equal sum of per-particella counts."""
-        df_total = acc.calculate_tsv_table(
+        """@@volumi total tree count should equal sum of per-particella counts."""
+        df_total = acc.calculate_volume_table(
             data_all, group_cols=[], calc_margin=False, calc_total=True
         )
         total_trees = df_total['n_trees'].sum()
 
-        df_per_parcel = acc.calculate_tsv_table(
+        df_per_parcel = acc.calculate_volume_table(
             data_all, group_cols=[COL_PARTICELLA], calc_margin=False, calc_total=True
         )
         sum_per_parcel = df_per_parcel['n_trees'].sum()
@@ -84,13 +84,13 @@ class TestAggregationConsistency:
             f"Total {total_trees} != sum of per-parcel {sum_per_parcel}"
 
     def test_tsv_volume_by_species_aggregation(self, data_all):
-        """@@tsv per-genere volumes should sum to total."""
-        df_total = acc.calculate_tsv_table(
+        """@@volumi per-genere volumes should sum to total."""
+        df_total = acc.calculate_volume_table(
             data_all, group_cols=[], calc_margin=False, calc_total=True
         )
         total_volume = df_total['volume'].sum()
 
-        df_per_species = acc.calculate_tsv_table(
+        df_per_species = acc.calculate_volume_table(
             data_all, group_cols=[COL_GENERE], calc_margin=False, calc_total=True
         )
         sum_per_species = df_per_species['volume'].sum()
@@ -99,13 +99,13 @@ class TestAggregationConsistency:
             f"Total {total_volume} != sum by species {sum_per_species}"
 
     def test_tsv_volume_parcel_species_aggregation(self, data_all):
-        """@@tsv per-particella-per-genere should sum to total."""
-        df_total = acc.calculate_tsv_table(
+        """@@volumi per-particella-per-genere should sum to total."""
+        df_total = acc.calculate_volume_table(
             data_all, group_cols=[], calc_margin=False, calc_total=True
         )
         total_volume = df_total['volume'].sum()
 
-        df_detailed = acc.calculate_tsv_table(
+        df_detailed = acc.calculate_volume_table(
             data_all, group_cols=[COL_PARTICELLA, COL_GENERE],
             calc_margin=False, calc_total=True
         )
@@ -115,16 +115,16 @@ class TestAggregationConsistency:
             f"Total {total_volume} != sum of detailed {sum_detailed}"
 
     def test_tip_incremento_corrente_aggregation(self, data_all):
-        """@@tip incremento_corrente should sum correctly across breakdowns.
+        """@@tabella_incremento_percentuale incremento_corrente should sum correctly across breakdowns.
 
         Note: ip_medio (percentage) does NOT sum - only incremento_corrente does.
         """
         # Total across all
-        df_total = acc.calculate_growth_rates(data_all, group_cols=[COL_GENERE, COL_CD_CM], stime_totali=True)
+        df_total = acc.calculate_pct_growth_table(data_all, group_cols=[COL_GENERE, COL_CD_CM], stime_totali=True)
         total_ic = df_total['incremento_corrente'].sum()
 
         # Per-particella breakdown
-        df_per_parcel = acc.calculate_growth_rates(
+        df_per_parcel = acc.calculate_pct_growth_table(
             data_all, group_cols=[COL_PARTICELLA, COL_GENERE, COL_CD_CM], stime_totali=True
         )
         sum_per_parcel = df_per_parcel['incremento_corrente'].sum()
@@ -168,7 +168,7 @@ class TestAggregationConsistency:
         data = ParcelData(trees=trees, regions=['R'], species=['Faggio'],
                           parcels=parcels)
 
-        df = acc.calculate_growth_rates(
+        df = acc.calculate_pct_growth_table(
             data, group_cols=[COL_GENERE, COL_CD_CM], stime_totali=True)
         assert len(df) == 1
         row = df.iloc[0]
@@ -194,46 +194,46 @@ class TestCrossQueryConsistency:
     """Test that different directives report consistent data."""
 
     def test_tsv_tcd_volume_consistency(self, data_all):
-        """@@tsv total volume should match sum of @@tcd volume buckets."""
-        # @@tsv total
-        df_tsv = acc.calculate_tsv_table(
+        """@@volumi total volume should match sum of @@tabella_classi_diametriche volume buckets."""
+        # @@volumi total
+        df_tsv = acc.calculate_volume_table(
             data_all, group_cols=[], calc_margin=False, calc_total=True
         )
         tsv_volume = df_tsv['volume'].sum()
 
-        # @@tcd volume_tot (fine buckets, summed)
-        tcd_df = acc.calculate_cd_data(
+        # @@tabella_classi_diametriche volume_tot (fine buckets, summed)
+        tcd_df = acc.calculate_diameter_class_data(
             data_all, metrica='volume_tot', stime_totali=True, fine=True
         )
         tcd_volume = tcd_df.sum().sum()
 
         assert np.isclose(tsv_volume, tcd_volume, rtol=1e-9), \
-            f"@@tsv volume {tsv_volume} != @@tcd volume {tcd_volume}"
+            f"@@volumi volume {tsv_volume} != @@tabella_classi_diametriche volume {tcd_volume}"
 
     def test_tsv_tcd_tree_count_consistency(self, data_all):
-        """@@tsv tree count should match sum of @@tcd tree count buckets."""
-        df_tsv = acc.calculate_tsv_table(
+        """@@volumi tree count should match sum of @@tabella_classi_diametriche tree count buckets."""
+        df_tsv = acc.calculate_volume_table(
             data_all, group_cols=[], calc_margin=False, calc_total=True
         )
         tsv_trees = df_tsv['n_trees'].sum()
 
-        tcd_df = acc.calculate_cd_data(
+        tcd_df = acc.calculate_diameter_class_data(
             data_all, metrica='alberi_tot', stime_totali=True, fine=True
         )
         tcd_trees = tcd_df.sum().sum()
 
         assert np.isclose(tsv_trees, tcd_trees, rtol=1e-9), \
-            f"@@tsv trees {tsv_trees} != @@tcd trees {tcd_trees}"
+            f"@@volumi trees {tsv_trees} != @@tabella_classi_diametriche trees {tcd_trees}"
 
     def test_tcd_fine_coarse_consistency(self, data_all):
-        """@@tcd fine buckets should sum to coarse buckets."""
+        """@@tabella_classi_diametriche fine buckets should sum to coarse buckets."""
         # Fine buckets (5, 10, 15, ...)
-        fine_df = acc.calculate_cd_data(
+        fine_df = acc.calculate_diameter_class_data(
             data_all, metrica='volume_tot', stime_totali=True, fine=True
         )
 
         # Coarse buckets (1-30, 31-50, 50+)
-        coarse_df = acc.calculate_cd_data(
+        coarse_df = acc.calculate_diameter_class_data(
             data_all, metrica='volume_tot', stime_totali=True, fine=False
         )
 
@@ -245,9 +245,9 @@ class TestCrossQueryConsistency:
             f"Fine total {fine_total} != coarse total {coarse_total}"
 
     def test_tcd_basal_area_consistency(self, data_all):
-        """@@tcd basal area computed two ways should match."""
+        """@@tabella_classi_diametriche basal area computed two ways should match."""
         # Via tcd
-        tcd_df = acc.calculate_cd_data(
+        tcd_df = acc.calculate_diameter_class_data(
             data_all, metrica='G_tot', stime_totali=True, fine=True
         )
         tcd_basal = tcd_df.sum().sum()
@@ -262,35 +262,35 @@ class TestCrossQueryConsistency:
             manual_basal += basal.sum() / sf
 
         assert np.isclose(tcd_basal, manual_basal, rtol=1e-9), \
-            f"@@tcd G {tcd_basal} != manual G {manual_basal}"
+            f"@@tabella_classi_diametriche G {tcd_basal} != manual G {manual_basal}"
 
     def test_tsv_tpt_volume_consistency(self, data_all, harvest_rules):
-        """@@tsv and @@tpt should report the same total volume."""
-        df_tsv = acc.calculate_tsv_table(
+        """@@volumi and @@prelievi should report the same total volume."""
+        df_tsv = acc.calculate_volume_table(
             data_all, group_cols=[], calc_margin=False, calc_total=True,
             calc_mature=True
         )
-        df_tpt = acc.calculate_tpt_table(data_all, harvest_rules, group_cols=[])
+        df_tpt = acc.calculate_harvest_table(data_all, harvest_rules, group_cols=[])
 
         tsv_vol = df_tsv['volume'].sum()
         tpt_vol = df_tpt['volume'].sum()
 
         assert np.isclose(tsv_vol, tpt_vol, rtol=1e-9), \
-            f"@@tsv volume {tsv_vol} != @@tpt volume {tpt_vol}"
+            f"@@volumi volume {tsv_vol} != @@prelievi volume {tpt_vol}"
 
     def test_tsv_tpt_volume_mature_consitency(self, data_all, harvest_rules):
-        """@@tsv and @@tpt should report the same volume_mature."""
-        df_tsv = acc.calculate_tsv_table(
+        """@@volumi and @@prelievi should report the same volume_mature."""
+        df_tsv = acc.calculate_volume_table(
             data_all, group_cols=[], calc_margin=False, calc_total=True,
             calc_mature=True
         )
-        df_tpt = acc.calculate_tpt_table(data_all, harvest_rules, group_cols=[])
+        df_tpt = acc.calculate_harvest_table(data_all, harvest_rules, group_cols=[])
 
         tsv_vol_ss = df_tsv['volume_mature'].sum()
         tpt_vol_ss = df_tpt['volume_mature'].sum()
 
         assert np.isclose(tsv_vol_ss, tpt_vol_ss, rtol=1e-9), \
-            f"@@tsv vol_ss {tsv_vol_ss} != @@tpt vol_ss {tpt_vol_ss}"
+            f"@@volumi vol_ss {tsv_vol_ss} != @@prelievi vol_ss {tpt_vol_ss}"
 
 
 # =============================================================================
@@ -326,7 +326,7 @@ class TestSampleAreaScaling:
 
     def test_tree_scaling_parcel_a(self, data_parcel_a):
         """Parcel A: 6 sampled trees should scale to 6 * 80 = 480 estimated trees."""
-        df = acc.calculate_tsv_table(
+        df = acc.calculate_volume_table(
             data_parcel_a, group_cols=[], calc_margin=False, calc_total=True
         )
         # 6 trees / 0.0125 = 480
@@ -336,7 +336,7 @@ class TestSampleAreaScaling:
 
     def test_tree_scaling_parcel_b(self, data_parcel_b):
         """Parcel B: 8 sampled trees should scale to 8 * 40 = 320 estimated trees."""
-        df = acc.calculate_tsv_table(
+        df = acc.calculate_volume_table(
             data_parcel_b, group_cols=[], calc_margin=False, calc_total=True
         )
         # 8 trees / 0.025 = 320
@@ -346,7 +346,7 @@ class TestSampleAreaScaling:
 
     def test_tree_scaling_parcel_c(self, data_parcel_c):
         """Parcel C: 12 sampled trees should scale to 12 * 16 = 192 estimated trees."""
-        df = acc.calculate_tsv_table(
+        df = acc.calculate_volume_table(
             data_parcel_c, group_cols=[], calc_margin=False, calc_total=True
         )
         # 12 trees / 0.0625 = 192
@@ -356,7 +356,7 @@ class TestSampleAreaScaling:
 
     def test_total_scaled_trees(self, data_all):
         """Total scaled trees across all parcels."""
-        df = acc.calculate_tsv_table(
+        df = acc.calculate_volume_table(
             data_all, group_cols=[], calc_margin=False, calc_total=True
         )
         # A: 6/0.0125=480, B: 8/0.025=320, C: 12/0.0625=192, D: 6/0.0125=480, E: 6/0.0125=480
@@ -368,22 +368,22 @@ class TestSampleAreaScaling:
             self, data_all, data_parcel_a, data_parcel_b, data_parcel_c,
             data_parcel_d, data_parcel_e):
         """Sum of per-parcel volumes should equal total volume."""
-        df_all = acc.calculate_tsv_table(
+        df_all = acc.calculate_volume_table(
             data_all, group_cols=[], calc_margin=False, calc_total=True
         )
-        df_a = acc.calculate_tsv_table(
+        df_a = acc.calculate_volume_table(
             data_parcel_a, group_cols=[], calc_margin=False, calc_total=True
         )
-        df_b = acc.calculate_tsv_table(
+        df_b = acc.calculate_volume_table(
             data_parcel_b, group_cols=[], calc_margin=False, calc_total=True
         )
-        df_c = acc.calculate_tsv_table(
+        df_c = acc.calculate_volume_table(
             data_parcel_c, group_cols=[], calc_margin=False, calc_total=True
         )
-        df_d = acc.calculate_tsv_table(
+        df_d = acc.calculate_volume_table(
             data_parcel_d, group_cols=[], calc_margin=False, calc_total=True
         )
-        df_e = acc.calculate_tsv_table(
+        df_e = acc.calculate_volume_table(
             data_parcel_e, group_cols=[], calc_margin=False, calc_total=True
         )
 
@@ -397,13 +397,13 @@ class TestSampleAreaScaling:
     def test_per_ha_values(self, data_all):
         """Per-hectare values should be total divided by total area (50 ha)."""
         # Total volume
-        tcd_tot = acc.calculate_cd_data(
+        tcd_tot = acc.calculate_diameter_class_data(
             data_all, metrica='volume_tot', stime_totali=True, fine=True
         )
         total_volume = tcd_tot.sum().sum()
 
         # Per-hectare volume
-        tcd_ha = acc.calculate_cd_data(
+        tcd_ha = acc.calculate_diameter_class_data(
             data_all, metrica='volume_ha', stime_totali=True, fine=True
         )
         per_ha_volume = tcd_ha.sum().sum()
@@ -429,7 +429,7 @@ class TestEdgeCases:
             regions=["Test"], parcels=["A"], species=["Faggio"]
         )
 
-        df = acc.calculate_tsv_table(data, group_cols=[], calc_margin=False, calc_total=True)
+        df = acc.calculate_volume_table(data, group_cols=[], calc_margin=False, calc_total=True)
         assert df['n_trees'].sum() > 0
         assert df['volume'].sum() > 0
 
@@ -451,7 +451,7 @@ class TestEdgeCases:
 
     def test_zero_values_in_diameter_classes(self, data_parcel_a):
         """Species with no trees in a diameter class should have zero."""
-        tcd_df = acc.calculate_cd_data(
+        tcd_df = acc.calculate_diameter_class_data(
             data_parcel_a, metrica='alberi_tot', stime_totali=True, fine=True
         )
         # All values should be >= 0 (no NaN or negative)
@@ -495,7 +495,7 @@ class TestConfidenceInterval:
 
     def test_ci_bounds_bracket_volume(self, data_all):
         """Confidence interval should bracket the point estimate."""
-        df = acc.calculate_tsv_table(
+        df = acc.calculate_volume_table(
             data_all, group_cols=[], calc_margin=True, calc_total=True
         )
         row = df.iloc[0]
@@ -506,7 +506,7 @@ class TestConfidenceInterval:
 
     def test_ci_per_species(self, data_all):
         """Each species should have valid CI bounds."""
-        df = acc.calculate_tsv_table(
+        df = acc.calculate_volume_table(
             data_all, group_cols=[COL_GENERE], calc_margin=True, calc_total=True
         )
 
@@ -525,7 +525,7 @@ class TestMature:
 
     def test_volume_mature_excludes_small_trees(self, data_all):
         """volume_mature should exclude trees with D <= 20cm."""
-        df = acc.calculate_tsv_table(
+        df = acc.calculate_volume_table(
             data_all, group_cols=[], calc_margin=False, calc_total=True,
             calc_mature=True
         )
@@ -560,8 +560,8 @@ class TestMature:
             above = ptrees[ptrees[COL_D_CM] > acc.MATURE_THRESHOLD]
             manual_vol_mature += above[COL_V_M3].sum() / sf
 
-        # Via calculate_tsv_table
-        df = acc.calculate_tsv_table(
+        # Via calculate_volume_table
+        df = acc.calculate_volume_table(
             data_all, group_cols=[], calc_margin=False, calc_total=True,
             calc_mature=True
         )
@@ -580,7 +580,7 @@ class TestHarvestCalculation:
 
     def test_volume_harvest_excludes_sottomisura(self, data_all, harvest_rules):
         """Volume-based harvest should use volume_mature."""
-        df = acc.calculate_tpt_table(data_all, harvest_rules, group_cols=[])
+        df = acc.calculate_harvest_table(data_all, harvest_rules, group_cols=[])
 
         vol_mature = df['volume_mature'].sum()
         harvest = df['harvest'].sum()
@@ -590,8 +590,8 @@ class TestHarvestCalculation:
 
     def test_harvest_per_parcel(self, data_all, harvest_rules):
         """Harvest totals should equal sum of per-parcel harvests."""
-        df_total = acc.calculate_tpt_table(data_all, harvest_rules, group_cols=[])
-        df_parcels = acc.calculate_tpt_table(
+        df_total = acc.calculate_harvest_table(data_all, harvest_rules, group_cols=[])
+        df_parcels = acc.calculate_harvest_table(
             data_all, harvest_rules, group_cols=[COL_PARTICELLA]
         )
 
@@ -603,7 +603,7 @@ class TestHarvestCalculation:
 
     def test_basal_area_harvest_parcel_d(self, data_parcel_d, harvest_rules):
         """Parcel D (age=20) should use 15% basal area harvest rule."""
-        df = acc.calculate_tpt_table(data_parcel_d, harvest_rules, group_cols=[])
+        df = acc.calculate_harvest_table(data_parcel_d, harvest_rules, group_cols=[])
 
         assert df['harvest'].sum() > 0, "Should have some harvest"
 
@@ -613,7 +613,7 @@ class TestHarvestCalculation:
 
     def test_basal_area_harvest_parcel_e(self, data_parcel_e, harvest_rules):
         """Parcel E (age=45) should use 20% basal area harvest rule."""
-        df = acc.calculate_tpt_table(data_parcel_e, harvest_rules, group_cols=[])
+        df = acc.calculate_harvest_table(data_parcel_e, harvest_rules, group_cols=[])
 
         assert df['harvest'].sum() > 0, "Should have some harvest"
 
@@ -624,7 +624,7 @@ class TestHarvestCalculation:
     def test_small_trees_excluded_from_basal_area_harvest(
             self, data_parcel_d, harvest_rules):
         """Small trees (D <= 20) should be excluded from basal area harvest calculation."""
-        df = acc.calculate_tpt_table(data_parcel_d, harvest_rules, group_cols=[])
+        df = acc.calculate_harvest_table(data_parcel_d, harvest_rules, group_cols=[])
 
         trees = data_parcel_d.trees
         small_trees = trees[trees[COL_D_CM] <= acc.MATURE_THRESHOLD]
@@ -1167,7 +1167,7 @@ class TestScheduleHarvests:
 
 
 class TestCalculateTpdtTable:
-    """Tests for calculate_tpdt_table grouping and aggregation."""
+    """Tests for calculate_harvest_plan grouping and aggregation."""
 
     COMMON_KWARGS = dict(
         year_range=(2026, 2027), min_gap=10, target_volume=99999,
@@ -1176,7 +1176,7 @@ class TestCalculateTpdtTable:
 
     def test_per_particella(self, data_all, harvest_rules):
         """Per-particella grouping: one row per (year, parcel)."""
-        df = acc.calculate_tpdt_table(
+        df = acc.calculate_harvest_plan(
             data_all, past_harvests=None,
             rules=harvest_rules,
             group_cols=[acc.COL_PARTICELLA],
@@ -1188,7 +1188,7 @@ class TestCalculateTpdtTable:
 
     def test_year_only(self, data_all, harvest_rules):
         """No group_cols: one row per year with totals."""
-        df = acc.calculate_tpdt_table(
+        df = acc.calculate_harvest_plan(
             data_all, past_harvests=None,
             rules=harvest_rules,
             group_cols=[],
@@ -1199,12 +1199,12 @@ class TestCalculateTpdtTable:
 
     def test_per_genere_sums_to_parcel(self, data_all, harvest_rules):
         """Per-genere allocation sums to total per year."""
-        df_total = acc.calculate_tpdt_table(
+        df_total = acc.calculate_harvest_plan(
             data_all, past_harvests=None,
             rules=harvest_rules,
             group_cols=[],
             **self.COMMON_KWARGS)
-        df_genere = acc.calculate_tpdt_table(
+        df_genere = acc.calculate_harvest_plan(
             data_all, past_harvests=None,
             rules=harvest_rules,
             group_cols=[acc.COL_GENERE],
@@ -1221,7 +1221,7 @@ class TestCalculateTpdtTable:
 
     def test_sorted_by_year(self, data_all, harvest_rules):
         """Output is sorted by year."""
-        df = acc.calculate_tpdt_table(
+        df = acc.calculate_harvest_plan(
             data_all, past_harvests=None,
             rules=harvest_rules,
             group_cols=[acc.COL_PARTICELLA],
@@ -1233,7 +1233,7 @@ class TestCalculateTpdtTable:
 
     def test_sector_and_age_columns_present(self, data_all, harvest_rules):
         """Per-particella tpdt table should include sector and age columns."""
-        df = acc.calculate_tpdt_table(
+        df = acc.calculate_harvest_plan(
             data_all, past_harvests=None,
             rules=harvest_rules,
             group_cols=[acc.COL_COMPRESA, acc.COL_PARTICELLA],
@@ -1245,7 +1245,7 @@ class TestCalculateTpdtTable:
 
     def test_age_increases_with_year(self, data_all, harvest_rules):
         """Age in tpdt table should increase by 1 per year for the same parcel."""
-        df = acc.calculate_tpdt_table(
+        df = acc.calculate_harvest_plan(
             data_all, past_harvests=None,
             rules=harvest_rules,
             group_cols=[acc.COL_COMPRESA, acc.COL_PARTICELLA],
@@ -1267,7 +1267,7 @@ class TestCalculateTpdtTable:
 
     def test_sector_matches_parcel_data(self, data_all, harvest_rules):
         """Sector in tpdt table should match the parcel's sector from ParcelData."""
-        df = acc.calculate_tpdt_table(
+        df = acc.calculate_harvest_plan(
             data_all, past_harvests=None,
             rules=harvest_rules,
             group_cols=[acc.COL_COMPRESA, acc.COL_PARTICELLA],
@@ -1282,7 +1282,7 @@ class TestCalculateTpdtTable:
 
     def test_no_sector_age_without_per_particella(self, data_all, harvest_rules):
         """Without per_particella, sector and age columns should not be present."""
-        df = acc.calculate_tpdt_table(
+        df = acc.calculate_harvest_plan(
             data_all, past_harvests=None,
             rules=harvest_rules,
             group_cols=[],

@@ -44,8 +44,8 @@ Lists all (compresa, particella) tuples.
 
 - `@@cd(parameters)` — Diameter class histogram with metadata
 - `@@ci(parameters)` — Height-diameter scatter plot with regression curves
-- `@@tsv(parameters)` — Volume table with optional confidence intervals
-- `@@tpt(parameters)` — Harvest (prelievo totale) table based on volume/age rules
+- `@@volumi(parameters)` — Volume table with optional confidence intervals
+- `@@prelievi(parameters)` — Harvest (prelievo totale) table based on volume/age rules
 
 ### Common Parameters
 
@@ -56,19 +56,19 @@ Lists all (compresa, particella) tuples.
 | `compresa=NAME` | compresa name | Filter by compresa (default: all) | No | all |
 | `particella=NAME` | particella name | Filter by particella (requires compresa) | No | all |
 | `genere=GENERE` | species name | Filter by species (default: all) | No | all |
-| `per_compresa` | `si`, `no` | Group by compresa (default: `si`) | No | `@@tsv`, `@@tpt` |
-| `per_particella` | `si`, `no` | Group by particella (default: `si`) | No | `@@tsv`, `@@tpt` |
-| `per_genere` | `si`, `no` | Group by genere (default: `si`) | No | `@@tsv`, `@@tpt` |
-| `totali` | `si`, `no` | Add totals row (default: `no`) | No | `@@tsv`, `@@tpt` |
+| `per_compresa` | `si`, `no` | Group by compresa (default: `si`) | No | `@@volumi`, `@@prelievi` |
+| `per_particella` | `si`, `no` | Group by particella (default: `si`) | No | `@@volumi`, `@@prelievi` |
+| `per_genere` | `si`, `no` | Group by genere (default: `si`) | No | `@@volumi`, `@@prelievi` |
+| `totali` | `si`, `no` | Add totals row (default: `no`) | No | `@@volumi`, `@@prelievi` |
 
-### `@@tsv` Parameters
+### `@@volumi` Parameters
 
 | Parameter | Values | Description |
 |-----------|--------|-------------|
 | `stime_totali` | `si`, `no` | Show estimated total volumes (default: `no`) |
 | `intervallo_fiduciario` | `si`, `no` | Show confidence intervals (default: `no`) |
 
-### `@@tpt` Parameters
+### `@@prelievi` Parameters
 
 | Parameter | Values | Description | Required |
 |-----------|--------|-------------|----------|

@@ -85,7 +85,7 @@ class RenderResult:
 
 @dataclass
 class CurveInfo:
-    """Metadata for one regression curve (used in @@gci graph legends)."""
+    """Metadata for one regression curve (used in @@grafico_classi_ipsometriche graph legends)."""
     genere: str
     equation: str
     r_squared: float
@@ -1012,7 +1012,7 @@ def compute_heights(trees_df: pd.DataFrame, equations_df: pd.DataFrame,
 # CURVE IPSOMETRICHE ==========================================================
 
 
-def render_gci_graph(data: ParcelData, equations_df: pd.DataFrame,
+def render_hypsometric_graph(data: ParcelData, equations_df: pd.DataFrame,
                      output_path: Path, formatter: SnippetFormatter,
                      color_map: dict, **options) -> RenderResult:
     """
@@ -1115,19 +1115,19 @@ GCD_Y_LABELS = {
     'altezza': 'Altezza media (m)',
 }
 
-# Coarse bins for @@tcd table
+# Coarse bins for @@tabella_classi_diametriche table
 COARSE_BIN0 = "1-30 cm"
 COARSE_BIN1 = "31-50 cm"
 COARSE_BIN2 = "50+ cm"
 COARSE_BINS = [COARSE_BIN0, COARSE_BIN1, COARSE_BIN2]
 
-# Aggregation types for calculate_cd_data
+# Aggregation types for calculate_diameter_class_data
 AGG_COUNT, AGG_VOLUME, AGG_BASAL, AGG_HEIGHT = 0, 1, 2, 3
 
 
-def calculate_cd_data(data: ParcelData, metrica: str, stime_totali: bool,
+def calculate_diameter_class_data(data: ParcelData, metrica: str, stime_totali: bool,
                        fine: bool = True) -> pd.DataFrame:
-    """Calculate diameter class data for @@gcd/@@tcd directives.
+    """Calculate diameter class data for @@grafico_classi_diametriche/@@tabella_classi_diametriche directives.
 
     Args:
         data: Output from region_data
@@ -1187,7 +1187,7 @@ def calculate_cd_data(data: ParcelData, metrica: str, stime_totali: bool,
     return combined.reindex(columns=species, fill_value=0).sort_index()
 
 
-def render_gcd_graph(data: ParcelData, output_path: Path,
+def render_diameter_class_graph(data: ParcelData, output_path: Path,
                      formatter: SnippetFormatter, color_map: dict, **options) -> RenderResult:
     """
     Generate diameter class histograms.
@@ -1209,7 +1209,7 @@ def render_gcd_graph(data: ParcelData, output_path: Path,
         metrica = options[OPT_METRICA]
         stime_totali = options[OPT_STIME_TOTALI]
 
-        values_df = calculate_cd_data(data, metrica, stime_totali, fine=True)
+        values_df = calculate_diameter_class_data(data, metrica, stime_totali, fine=True)
         use_lines = metrica == 'altezza'
 
         figsize = (4, 3.75)
@@ -1260,9 +1260,9 @@ def render_gcd_graph(data: ParcelData, output_path: Path,
     return RenderResult(filepath=output_path, snippet=snippet)
 
 
-def render_tcd_table(data: ParcelData, formatter: SnippetFormatter, **options) -> RenderResult:
+def render_diameter_class_table(data: ParcelData, formatter: SnippetFormatter, **options) -> RenderResult:
     """
-    Generate diameter class table (@@tcd directive).
+    Generate diameter class table (@@tabella_classi_diametriche directive).
 
     Creates a table with rows for each species and columns for diameter ranges:
     (0,30], (30,50], (50,max].
@@ -1281,7 +1281,7 @@ def render_tcd_table(data: ParcelData, formatter: SnippetFormatter, **options) -
     totals = metrica != 'altezza'
     use_decimals = metrica.startswith('volume') or metrica.startswith('G') or metrica == 'altezza'
 
-    values_df = calculate_cd_data(data, metrica, stime_totali, fine=False)
+    values_df = calculate_diameter_class_data(data, metrica, stime_totali, fine=False)
 
     headers = [(COL_GENERE, 'l')] + [(b, 'r') for b in COARSE_BINS]
     if totals:
@@ -1427,16 +1427,16 @@ class Fmt:
 
 # Template directive keywords
 class Dir:
-    GCD  = 'gcd'
-    GCI  = 'gci'
-    GIP  = 'gip'
+    DIAMETER_CLASS_GRAPH = 'grafico_classi_diametriche'
+    DIAMETER_CLASS_TABLE = 'tabella_classi_diametriche'
+    HARVEST_PLAN = 'piano_di_taglio'
+    HARVEST_TABLE = 'prelievi'
+    HYPSOMETRIC_GRAPH = 'grafico_classi_ipsometriche'
     PARTICELLE = 'particelle'
+    PCT_GROWTH_GRAPH = 'grafico_incremento_percentuale'
+    PCT_GROWTH_TABLE = 'tabella_incremento_percentuale'
     PROP = 'prop'
-    TCD  = 'tcd'
-    TIP  = 'tip'
-    TPDT = 'tpdt'
-    TPT  = 'tpt'
-    TSV  = 'tsv'
+    VOLUME_TABLE = 'volumi'
 
 # Column spec for table rendering
 @dataclass
@@ -1513,10 +1513,10 @@ def render_table(df: pd.DataFrame, group_cols: list[str],
     return RenderResult(snippet=formatter.format_table(headers, display_rows))
 
 
-def calculate_tsv_table(data: ParcelData, group_cols: list[str],
+def calculate_volume_table(data: ParcelData, group_cols: list[str],
                         calc_margin: bool, calc_total: bool,
                         calc_mature: bool = False) -> pd.DataFrame:
-    """Calculate the table rows for the @@tsv directive. Returns a DataFrame.
+    """Calculate the table rows for the @@volumi directive. Returns a DataFrame.
 
     Args:
         data: Output from parcel_data
@@ -1528,7 +1528,7 @@ def calculate_tsv_table(data: ParcelData, group_cols: list[str],
     #pylint: disable=too-many-locals
     trees = data.trees
     if COL_V_M3 not in trees.columns:
-        raise ValueError("@@tsv richiede dati con volumi (manca la colonna COL_V_M3). "
+        raise ValueError("@@volumi richiede dati con volumi (manca la colonna COL_V_M3). "
                          "Esegui --calcola-altezze-volumi per calcolarli.")
     parcels = data.parcels
 
@@ -1585,9 +1585,9 @@ def calculate_tsv_table(data: ParcelData, group_cols: list[str],
         key=lambda col: col.map(natsort_keygen()) if col.name == COL_PARTICELLA else col)
 
 
-def render_tsv_table(data: ParcelData, formatter: SnippetFormatter, **options) -> RenderResult:
+def render_volume_table(data: ParcelData, formatter: SnippetFormatter, **options) -> RenderResult:
     """
-    Generate volume summary table (@@tsv directive).
+    Generate volume summary table (@@volumi directive).
 
     Args:
         data: Output from region_data
@@ -1613,7 +1613,7 @@ def render_tsv_table(data: ParcelData, formatter: SnippetFormatter, **options) -
     if options[OPT_PER_GENERE]:
         group_cols.append(COL_GENERE)
 
-    df = calculate_tsv_table(data, group_cols,
+    df = calculate_volume_table(data, group_cols,
         options[OPT_INTERV_FIDUC], options[OPT_STIME_TOTALI],
         options[OPT_SOLO_MATURE])
 
@@ -1631,9 +1631,9 @@ def render_tsv_table(data: ParcelData, formatter: SnippetFormatter, **options) -
     return render_table(df, group_cols, col_specs, formatter, options[OPT_TOTALI])
 
 
-def calculate_growth_rates(data: ParcelData, group_cols: list[str],
+def calculate_pct_growth_table(data: ParcelData, group_cols: list[str],
                            stime_totali: bool) -> pd.DataFrame:
-    """Calculate the table rows for the @@tip/@@gip directives. Returns a DataFrame.
+    """Calculate the table rows for the @@tabella_incremento_percentuale/@@grafico_incremento_percentuale directives. Returns a DataFrame.
 
     group_cols must include COL_GENERE and COL_CD_CM.  Computes per group:
       - ip_medio: volume-weighted mean Pressler percentage increment
@@ -1685,8 +1685,8 @@ def calculate_growth_rates(data: ParcelData, group_cols: list[str],
         key=lambda col: col.map(natsort_keygen()) if col.name == COL_PARTICELLA else col)
 
 
-def render_tip_table(data: ParcelData, formatter: SnippetFormatter, **options) -> RenderResult:
-    """Generate IP summary table (@@tip directive)."""
+def render_pct_growth_table(data: ParcelData, formatter: SnippetFormatter, **options) -> RenderResult:
+    """Generate IP summary table (@@tabella_incremento_percentuale directive)."""
     group_cols = []
     if options[OPT_PER_COMPRESA]:
         group_cols.append(COL_COMPRESA)
@@ -1694,7 +1694,7 @@ def render_tip_table(data: ParcelData, formatter: SnippetFormatter, **options) -
         group_cols.append(COL_PARTICELLA)
     group_cols += [COL_GENERE, COL_CD_CM]
 
-    df = calculate_growth_rates(data, group_cols, options[OPT_STIME_TOTALI])
+    df = calculate_pct_growth_table(data, group_cols, options[OPT_STIME_TOTALI])
 
     col_specs = [
         ColSpec('Incr. pct.', 'r', COL_IP_MEDIO, None, True),
@@ -1703,10 +1703,10 @@ def render_tip_table(data: ParcelData, formatter: SnippetFormatter, **options) -
     return render_table(df, group_cols, col_specs, formatter, options[OPT_TOTALI])
 
 
-def render_gip_graph(data: ParcelData, output_path: Path,
+def render_pct_growth_graph(data: ParcelData, output_path: Path,
                      formatter: SnippetFormatter, color_map: dict,
                      **options) -> RenderResult:
-    """Generate IP line graph (@@gip directive)."""
+    """Generate IP line graph (@@grafico_incremento_percentuale directive)."""
     if not skip_graphs:
         group_cols = []
         if options[OPT_PER_COMPRESA]:
@@ -1715,7 +1715,7 @@ def render_gip_graph(data: ParcelData, output_path: Path,
             group_cols.append(COL_PARTICELLA)
         group_cols += [COL_GENERE, COL_CD_CM]
 
-        df = calculate_growth_rates(data, group_cols, options[OPT_STIME_TOTALI])
+        df = calculate_pct_growth_table(data, group_cols, options[OPT_STIME_TOTALI])
 
         metrica = options[OPT_METRICA]
         if metrica == 'ip':
@@ -1830,7 +1830,7 @@ def year_step(sim: pd.DataFrame, weight: np.ndarray,
 def build_growth_tables(data: ParcelData) -> GrowthTables:
     """Build growth rate lookup tables from parcel data."""
     groupby_cols = [COL_COMPRESA, COL_GENERE, COL_CD_CM]
-    growth_df = calculate_growth_rates(data, groupby_cols, stime_totali=True)
+    growth_df = calculate_pct_growth_table(data, groupby_cols, stime_totali=True)
     by_group = {}
     available_diams = defaultdict(list)
     for _, row in growth_df.iterrows():
@@ -2028,7 +2028,7 @@ def schedule_harvests(
         n_harvested = sum(1 for e in events if e[COL_YEAR] == y)
         n_total = len(parcel_priority)
         if year_total < target_volume:
-            print(f"  @@tpdt anno {y}: obiettivo {fmt_num(target_volume, 0)} m³, "
+            print(f"  @@piano_di_taglio anno {y}: obiettivo {fmt_num(target_volume, 0)} m³, "
                   f"raggiunto {fmt_num(year_total, 0)} m³ "
                   f"({n_harvested} tagliate, {n_gap_skip} in pausa, "
                   f"{n_no_harvest} non idonee, {n_total} totali)")
@@ -2084,10 +2084,10 @@ def compute_harvest(trees_df: pd.DataFrame, sampled_frac: float,
     return total_volume, cum_vol
 
 
-def calculate_tpt_table(data: ParcelData, rules: HarvestRulesFunc,
+def calculate_harvest_table(data: ParcelData, rules: HarvestRulesFunc,
                         group_cols: list[str]) -> pd.DataFrame:
     """
-    Calculate harvest (prelievo totale) table data for the @@tpt directive.
+    Calculate harvest (prelievo totale) table data for the @@prelievi directive.
 
     Algorithm per particella:
     1. Compute volume and basal area of mature trees (D > 20cm) per hectare
@@ -2110,7 +2110,7 @@ def calculate_tpt_table(data: ParcelData, rules: HarvestRulesFunc,
     #pylint: disable=too-many-locals
     trees = data.trees
     if COL_V_M3 not in trees.columns:
-        raise ValueError("@@tpt richiede dati con volumi (colonna V(m3) mancante). "
+        raise ValueError("@@prelievi richiede dati con volumi (colonna V(m3) mancante). "
                          "Esegui --calcola-altezze-volumi per calcolarli.")
     parcels = data.parcels
 
@@ -2231,10 +2231,10 @@ def calculate_tpt_table(data: ParcelData, rules: HarvestRulesFunc,
         key=lambda col: col.map(natsort_keygen()) if col.name == COL_PARTICELLA else col)
 
 
-def render_tpt_table(data: ParcelData, rules: HarvestRulesFunc,
+def render_harvest_table(data: ParcelData, rules: HarvestRulesFunc,
                      formatter: SnippetFormatter, **options) -> RenderResult:
     """
-    Render harvest (prelievo totale) table (@@tpt directive).
+    Render harvest (prelievo totale) table (@@prelievi directive).
 
     Args:
         data: Output from parcel_data
@@ -2266,7 +2266,7 @@ def render_tpt_table(data: ParcelData, rules: HarvestRulesFunc,
     if options[OPT_PER_GENERE]:
         group_cols.append(COL_GENERE)
 
-    df = calculate_tpt_table(data, rules, group_cols)
+    df = calculate_harvest_table(data, rules, group_cols)
     if df.empty:
         return RenderResult(snippet='')
 
@@ -2307,7 +2307,7 @@ def render_tpt_table(data: ParcelData, rules: HarvestRulesFunc,
     return render_table(df, group_cols, col_specs, formatter, options[OPT_TOTALI])
 
 
-def calculate_tpdt_table(
+def calculate_harvest_plan(
     data: ParcelData,
     past_harvests: pd.DataFrame | None,
     year_range: tuple[int, int],
@@ -2379,10 +2379,10 @@ def calculate_tpdt_table(
     return df
 
 
-def render_tpdt_table(data: ParcelData, past_harvests: pd.DataFrame | None,
+def render_harvest_plan(data: ParcelData, past_harvests: pd.DataFrame | None,
                       rules: HarvestRulesFunc,
                       formatter: SnippetFormatter, **options) -> RenderResult:
-    """Render harvest schedule table (@@tpdt directive)."""
+    """Render harvest schedule table (@@piano_di_taglio directive)."""
     group_cols = []
     if options[OPT_PER_COMPRESA]:
         group_cols.append(COL_COMPRESA)
@@ -2391,7 +2391,7 @@ def render_tpdt_table(data: ParcelData, past_harvests: pd.DataFrame | None,
     if options[OPT_PER_GENERE]:
         group_cols.append(COL_GENERE)
 
-    df = calculate_tpdt_table(
+    df = calculate_harvest_plan(
         data, past_harvests,
         year_range=(options[OPT_ANNO_INIZIO], options[OPT_ANNO_FINE]),
         min_gap=options[OPT_INTERVALLO],
@@ -2469,11 +2469,11 @@ def _bool_opt(params: dict, key: str, enabled: bool = True) -> bool:
 
 def parse_template_directive(line: str) -> Optional[Directive]:
     """
-    Parse a template directive like @@gci(compresa=Serra, genere=Abete).
+    Parse a template directive like @@grafico_classi_ipsometriche(compresa=Serra, genere=Abete).
 
     Filter keys (compresa, particella, genere) are always lists (even single values):
-        @@gcd(compresa=Serra) -> {'compresa': ['Serra']}
-        @@gcd(compresa=Serra, compresa=Fabrizia) -> {'compresa': ['Serra', 'Fabrizia']}
+        @@grafico_classi_diametriche(compresa=Serra) -> {'compresa': ['Serra']}
+        @@grafico_classi_diametriche(compresa=Serra, compresa=Fabrizia) -> {'compresa': ['Serra', 'Fabrizia']}
 
     Other keys remain scalar values.
 
@@ -2628,7 +2628,7 @@ def process_template(template_text: str, data_dir: Path,
             data = parcel_data(alberi_files, trees_df, particelle_df, comprese, particelle, generi)
 
             match keyword:
-                case Dir.TSV:
+                case Dir.VOLUME_TABLE:
                     options = {
                         OPT_PER_COMPRESA: _bool_opt(params, OPT_PER_COMPRESA),
                         OPT_PER_PARTICELLA: _bool_opt(params, OPT_PER_PARTICELLA),
@@ -2639,10 +2639,10 @@ def process_template(template_text: str, data_dir: Path,
                         OPT_TOTALI: _bool_opt(params, OPT_TOTALI, False),
                     }
                     check_allowed_params(keyword, params, options)
-                    result = render_tsv_table(data, formatter, **options)
-                case Dir.TPT:
+                    result = render_volume_table(data, formatter, **options)
+                case Dir.HARVEST_TABLE:
                     if 'genere' in params:
-                        raise ValueError("@@tpt non supporta il parametro 'genere' "
+                        raise ValueError("@@prelievi non supporta il parametro 'genere' "
                                          "(usa 'per_genere=si' per raggruppare per specie)")
                     options = {
                         OPT_PER_COMPRESA: _bool_opt(params, OPT_PER_COMPRESA),
@@ -2661,9 +2661,9 @@ def process_template(template_text: str, data_dir: Path,
                         OPT_TOTALI: _bool_opt(params, OPT_TOTALI, False),
                     }
                     check_allowed_params(keyword, params, options)
-                    result = render_tpt_table(data, max_harvest,
+                    result = render_harvest_table(data, max_harvest,
                                               formatter, **options)
-                case Dir.TPDT:
+                case Dir.HARVEST_PLAN:
                     calendario_path = params.get(OPT_CALENDARIO)
                     past_harvests = (
                         read_past_harvests(data_dir / calendario_path)
@@ -2688,13 +2688,13 @@ def process_template(template_text: str, data_dir: Path,
                     check_required_params(keyword, params,
                                           [OPT_VOLUME_OBIETTIVO])
                     if options[OPT_COL_PRIMA_DOPO] and not options[OPT_PER_PARTICELLA]:
-                        raise ValueError("@@tpdt richiede 'per_particella=si' se si usa "
+                        raise ValueError("@@piano_di_taglio richiede 'per_particella=si' se si usa "
                                          "'col_prima_dopo=si', altrimenti i volumi prima/dopo "
                                          "non sono confrontabili")
-                    result = render_tpdt_table(data, past_harvests,
+                    result = render_harvest_plan(data, past_harvests,
                                                max_harvest,
                                                formatter, **options)
-                case Dir.TIP:
+                case Dir.PCT_GROWTH_TABLE:
                     options = {
                         OPT_PER_COMPRESA: _bool_opt(params, OPT_PER_COMPRESA, False),
                         OPT_PER_PARTICELLA: _bool_opt(params, OPT_PER_PARTICELLA, False),
@@ -2702,8 +2702,8 @@ def process_template(template_text: str, data_dir: Path,
                         OPT_TOTALI: _bool_opt(params, OPT_TOTALI, False),
                     }
                     check_allowed_params(keyword, params, options)
-                    result = render_tip_table(data, formatter, **options)
-                case Dir.GIP:
+                    result = render_pct_growth_table(data, formatter, **options)
+                case Dir.PCT_GROWTH_GRAPH:
                     options = {
                         OPT_PER_COMPRESA: _bool_opt(params, OPT_PER_COMPRESA, False),
                         OPT_PER_PARTICELLA: _bool_opt(params, OPT_PER_PARTICELLA, False),
@@ -2712,11 +2712,11 @@ def process_template(template_text: str, data_dir: Path,
                         OPT_STIME_TOTALI: _bool_opt(params, OPT_STIME_TOTALI),
                     }
                     check_allowed_params(keyword, params, options)
-                    check_param_values(options, OPT_METRICA, ['ip', 'ic'], '@@gip')
+                    check_param_values(options, OPT_METRICA, ['ip', 'ic'], '@@grafico_incremento_percentuale')
                     filename = _build_graph_filename(comprese, particelle, generi, keyword)
-                    result = render_gip_graph(data, output_dir / filename,
+                    result = render_pct_growth_graph(data, output_dir / filename,
                                               formatter, color_map, **options)
-                case Dir.GCD:
+                case Dir.DIAMETER_CLASS_GRAPH:
                     options = {
                         OPT_METRICA: params.get(OPT_METRICA, 'alberi_ha'),
                         OPT_STILE: params.get(OPT_STILE),
@@ -2728,11 +2728,11 @@ def process_template(template_text: str, data_dir: Path,
                     check_param_values(options, OPT_METRICA,
                         ['alberi_ha', 'G_ha', 'volume_ha',
                          'alberi_tot', 'G_tot', 'volume_tot', 'altezza'],
-                        '@@gcd')
+                        '@@grafico_classi_diametriche')
                     filename = _build_graph_filename(comprese, particelle, generi, keyword)
-                    result = render_gcd_graph(data, output_dir / filename,
+                    result = render_diameter_class_graph(data, output_dir / filename,
                                               formatter, color_map, **options)
-                case Dir.TCD:
+                case Dir.DIAMETER_CLASS_TABLE:
                     options = {
                         OPT_METRICA: params.get(OPT_METRICA, 'alberi_ha'),
                         OPT_STIME_TOTALI: _bool_opt(params, OPT_STIME_TOTALI),
@@ -2741,9 +2741,9 @@ def process_template(template_text: str, data_dir: Path,
                     check_param_values(options, OPT_METRICA,
                         ['alberi_ha', 'G_ha', 'volume_ha',
                          'alberi_tot', 'G_tot', 'volume_tot', 'altezza'],
-                        '@@tcd')
-                    result = render_tcd_table(data, formatter, **options)
-                case Dir.GCI:
+                        '@@tabella_classi_diametriche')
+                    result = render_diameter_class_table(data, formatter, **options)
+                case Dir.HYPSOMETRIC_GRAPH:
                     options = {
                         OPT_EQUAZIONI: True,
                         OPT_STILE: params.get(OPT_STILE),
@@ -2754,7 +2754,7 @@ def process_template(template_text: str, data_dir: Path,
                     check_required_params(keyword, params, [OPT_EQUAZIONI])
                     equations_df = load_csv(equazioni_files, data_dir)
                     filename = _build_graph_filename(comprese, particelle, generi, keyword)
-                    result = render_gci_graph(data, equations_df, output_dir / filename,
+                    result = render_hypsometric_graph(data, equations_df, output_dir / filename,
                                               formatter, color_map, **options)
                 case _:
                     raise ValueError(f"Comando sconosciuto: {keyword}")

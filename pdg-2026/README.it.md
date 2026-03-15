@@ -44,8 +44,8 @@ Elenca tutte le tuple (compresa, particella).
 
 - `@@cd(parametri)` — Istogramma delle classi diametriche con metadati
 - `@@ci(parametri)` — Grafico a dispersione altezza-diametro con curve di regressione
-- `@@tsv(parametri)` — Tabella volumi con intervalli di fiducia opzionali
-- `@@tpt(parametri)` — Tabella prelievo totale basata su regole volume/età
+- `@@volumi(parametri)` — Tabella volumi con intervalli di fiducia opzionali
+- `@@prelievi(parametri)` — Tabella prelievo totale basata su regole volume/età
 
 ### Parametri Comuni
 
@@ -56,19 +56,19 @@ Elenca tutte le tuple (compresa, particella).
 | `compresa=NOME` | nome compresa | Filtra per compresa (default: tutte) | No | tutti |
 | `particella=NOME` | nome particella | Filtra per particella (richiede compresa) | No | tutti |
 | `genere=GENERE` | nome specie | Filtra per specie (default: tutte) | No | tutti |
-| `per_compresa` | `si`, `no` | Raggruppa per compresa (default: `si`) | No | `@@tsv`, `@@tpt` |
-| `per_particella` | `si`, `no` | Raggruppa per particella (default: `si`) | No | `@@tsv`, `@@tpt` |
-| `per_genere` | `si`, `no` | Raggruppa per genere (default: `si`) | No | `@@tsv`, `@@tpt` |
-| `totali` | `si`, `no` | Aggiungi riga totali (default: `no`) | No | `@@tsv`, `@@tpt` |
+| `per_compresa` | `si`, `no` | Raggruppa per compresa (default: `si`) | No | `@@volumi`, `@@prelievi` |
+| `per_particella` | `si`, `no` | Raggruppa per particella (default: `si`) | No | `@@volumi`, `@@prelievi` |
+| `per_genere` | `si`, `no` | Raggruppa per genere (default: `si`) | No | `@@volumi`, `@@prelievi` |
+| `totali` | `si`, `no` | Aggiungi riga totali (default: `no`) | No | `@@volumi`, `@@prelievi` |
 
-### Parametri `@@tsv`
+### Parametri `@@volumi`
 
 | Parametro | Valori | Descrizione |
 |-----------|--------|-------------|
 | `stime_totali` | `si`, `no` | Mostra volumi totali stimati (default: `no`) |
 | `intervallo_fiduciario` | `si`, `no` | Mostra intervalli di fiducia (default: `no`) |
 
-### Parametri `@@tpt`
+### Parametri `@@prelievi`
 
 | Parametro | Valori | Descrizione | Obbligatorio |
 |-----------|--------|-------------|--------------|

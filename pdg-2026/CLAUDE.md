@@ -1,6 +1,6 @@
 # pdg-2026: Piano di Gestione
 
-Generates the 2026 forest management plan document from field survey data. Produces PDF (via LaTeX), HTML, and CSV outputs by expanding template directives (`@@gcd`, `@@tcd`, `@@ci`, etc.) with computed forest statistics.
+Generates the 2026 forest management plan document from field survey data. Produces PDF (via LaTeX), HTML, and CSV outputs by expanding template directives (`@@grafico_classi_diametriche`, `@@tabella_classi_diametriche`, `@@ci`, etc.) with computed forest statistics.
 
 # Key Files
 

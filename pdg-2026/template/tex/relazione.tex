@@ -24,7 +24,7 @@
 \usepackage[style=alphabetic,backend=biber]{biblatex}
 \addbibresource{ref.bib}
 
-\newif\ifincludesections \includesectionstrue
+\newif\ifincludesections \includesectionsfalse
 \newcommand{\maybeinput}[1]{\ifincludesections \input{#1} \fi}
 \newcommand{\nota}[1]{{\bf {\em #1}}}
 
@@ -34,6 +34,10 @@
 
 \begin{document}
 \maketitle
+
+@@prelievi(compresa=Serra,particella=1,alberi=alberi-calcolati.csv,per_compresa=no,per_particella=si,per_genere=si,col_area_ha=si,totali=si,col_eta=no,col_pp_max=no,col_comparto=no)
+
+@@prelievi(compresa=Serra,alberi=alberi-calcolati.csv,per_compresa=no,per_particella=si,per_genere=si,col_area_ha=si,totali=si,col_eta=no,col_pp_max=no,col_comparto=no)
 
 \section{Introduzione}
 
