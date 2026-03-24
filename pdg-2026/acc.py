@@ -117,6 +117,13 @@ class ParcelData:
     species: list[str]
     parcels: dict[tuple[str, str], ParcelStats]
 
+    def __post_init__(self):
+        if COL_SCALE not in self.trees.columns:
+            sf_map = {k: 1 / ps.sampled_frac for k, ps in self.parcels.items()}
+            self.trees[COL_SCALE] = [
+                sf_map[(r, p)]
+                for r, p in zip(self.trees[COL_COMPRESA], self.trees[COL_PARTICELLA])]
+
 @dataclass
 class GrowthTables:
     """Growth rate lookup tables built from parcel data."""
@@ -811,14 +818,6 @@ def parcel_data(tree_files: list[str], tree_df: pd.DataFrame, parcel_df: pd.Data
 
     trees_region_species[COL_CD_CM] = diameter_class(trees_region_species[COL_D_CM])
 
-    # Pre-compute scale factor (1/sampled_frac) for each tree, so downstream
-    # code can do vectorized scaling instead of per-parcel groupby loops.
-    sf_map = {k: 1 / ps.sampled_frac for k, ps in parcel_stats.items()}
-    trees_region_species[COL_SCALE] = [
-        sf_map[(r, p)]
-        for r, p in zip(trees_region_species[COL_COMPRESA],
-                        trees_region_species[COL_PARTICELLA])]
-
     data = ParcelData(
         trees=trees_region_species,
         regions=sorted(trees_region[COL_COMPRESA].unique()),
@@ -1135,10 +1134,6 @@ COARSE_BIN1 = "31-50 cm"
 COARSE_BIN2 = "50+ cm"
 COARSE_BINS = [COARSE_BIN0, COARSE_BIN1, COARSE_BIN2]
 
-# Aggregation types for calculate_diameter_class_data
-AGG_COUNT, AGG_VOLUME, AGG_BASAL, AGG_HEIGHT = 0, 1, 2, 3
-
-
 def calculate_diameter_class_data(data: ParcelData, metrica: str, stime_totali: bool,
                        fine: bool = True) -> pd.DataFrame:
     """Calculate diameter class data for @@grafico_classi_diametriche/@@tabella_classi_diametriche directives.
@@ -1154,15 +1149,6 @@ def calculate_diameter_class_data(data: ParcelData, metrica: str, stime_totali: 
     trees = data.trees
     parcels = data.parcels
     species = data.species
-
-    if metrica.startswith('volume'):
-        agg_type = AGG_VOLUME
-    elif metrica.startswith('G'):
-        agg_type = AGG_BASAL
-    elif metrica == 'altezza':
-        agg_type = AGG_HEIGHT
-    else:
-        agg_type = AGG_COUNT
     per_ha = metrica.endswith('_ha')
 
     if fine:
@@ -1172,31 +1158,30 @@ def calculate_diameter_class_data(data: ParcelData, metrica: str, stime_totali: 
             return COARSE_BIN0 if d <= 30 else COARSE_BIN1 if d <= 50 else COARSE_BIN2
         bucket_key = trees[COL_CD_CM].apply(coarse_bin)
 
-    # For height, compute mean directly (no per-parcel scaling)
-    if agg_type == AGG_HEIGHT:
-        bucket_vals = trees[COL_CD_CM] if fine else bucket_key
+    bucket_vals = trees[COL_CD_CM] if fine else bucket_key
+
+    # For height, compute mean directly (no scaling)
+    if metrica == 'altezza':
         combined = trees.groupby([bucket_vals, COL_GENERE])[COL_H_M].mean().unstack(fill_value=0)
         return combined.reindex(columns=species, fill_value=0).sort_index()
 
-    results, area_ha = {}, 0
-    for (region, parcel), ptrees in trees.groupby([COL_COMPRESA, COL_PARTICELLA]):
-        p = parcels[(region, parcel)]
-        area_ha += p.area_ha
-        bucket_vals = ptrees[COL_CD_CM] if fine else cast(pd.Series, bucket_key).loc[ptrees.index]
-        if agg_type == AGG_VOLUME:
-            agg = ptrees.groupby([bucket_vals, COL_GENERE])[COL_V_M3].sum().unstack(fill_value=0)
-        elif agg_type == AGG_BASAL:
-            basal = basal_area_m2(ptrees[COL_D_CM])
-            agg = basal.groupby([bucket_vals, ptrees[COL_GENERE]]).sum().unstack(fill_value=0)
-        else:
-            agg = ptrees.groupby([bucket_vals, COL_GENERE]).size().unstack(fill_value=0)
-        if stime_totali:
-            agg = agg / p.sampled_frac
-        results[(region, parcel)] = agg
+    # Per-tree value: volume, basal area, or 1 (for counting)
+    if metrica.startswith('volume'):
+        raw = trees[COL_V_M3]
+    elif metrica.startswith('G'):
+        raw = basal_area_m2(trees[COL_D_CM])
+    else:
+        raw = pd.Series(1.0, index=trees.index)
 
-    combined = pd.concat(results.values()).groupby(level=0).sum()
+    # Aggregate per (diameter_bucket, species) -> pivot to species columns.
+    # When stime_totali, each tree's value is weighted by 1/sampled_frac
+    # so that per-parcel sampling densities are accounted for.
+    values = (raw * trees[COL_SCALE]) if stime_totali else raw
+    combined = values.groupby([bucket_vals, trees[COL_GENERE]]).sum().unstack(fill_value=0)
+
     if per_ha:
-        combined = combined / area_ha
+        parcel_keys = set(zip(trees[COL_COMPRESA], trees[COL_PARTICELLA]))
+        combined = combined / sum(parcels[k].area_ha for k in parcel_keys)
     return combined.reindex(columns=species, fill_value=0).sort_index()
 
 
@@ -1554,30 +1539,25 @@ def calculate_volume_table(data: ParcelData, group_cols: list[str],
     for group_key, group_trees in trees.groupby(group_cols):
         row_dict = dict(zip(group_cols, group_key))
 
-        n_trees, volume, vol_mature, margin = 0.0, 0.0, 0.0, 0.0
-        if calc_total:
-            # First scale per-parcel, then aggregate (sampling density varies across parcels)
-            for (region, parcel), ptrees in group_trees.groupby([COL_COMPRESA, COL_PARTICELLA]):
-                try:
-                    p = parcels[(region, parcel)]
-                except KeyError as e:
-                    raise ValueError(f"Particella {region}/{parcel} non trovata") from e
-                sf = p.sampled_frac
-                n_trees += len(ptrees) / sf
-                volume += ptrees[COL_V_M3].sum() / sf
-                if calc_mature:
-                    above_thresh = ptrees[ptrees[COL_D_CM] > MATURE_THRESHOLD]
-                    vol_mature += above_thresh[COL_V_M3].sum() / sf
-                if calc_margin:
+        # When calc_total, weight each tree by 1/sampled_frac to extrapolate
+        # from sample plots to full parcel estimates.
+        scale = group_trees[COL_SCALE] if calc_total else 1
+        n_trees = group_trees[COL_SCALE].sum() if calc_total else float(len(group_trees))
+        volume = (group_trees[COL_V_M3] * scale).sum()
+        vol_mature = 0.0
+        if calc_mature:
+            mature_mask = group_trees[COL_D_CM] > MATURE_THRESHOLD
+            vol_mature = (group_trees.loc[mature_mask, COL_V_M3] * (
+                group_trees.loc[mature_mask, COL_SCALE] if calc_total else 1)).sum()
+        # CI must be computed per parcel (non-linear function of tree data)
+        margin = 0.0
+        if calc_margin:
+            if calc_total:
+                for (region, parcel), ptrees in group_trees.groupby(
+                        [COL_COMPRESA, COL_PARTICELLA]):
                     _, pmargin = calculate_volume_confidence_interval(ptrees)
-                    margin += pmargin / sf
-        else:
-            n_trees = len(group_trees)
-            volume = group_trees[COL_V_M3].sum()
-            if calc_mature:
-                above_thresh = group_trees[group_trees[COL_D_CM] > MATURE_THRESHOLD]
-                vol_mature = above_thresh[COL_V_M3].sum()
-            if calc_margin:
+                    margin += pmargin / parcels[(region, parcel)].sampled_frac
+            else:
                 _, margin = calculate_volume_confidence_interval(group_trees)
 
         row_dict[COL_N_TREES] = n_trees
@@ -1671,21 +1651,12 @@ def calculate_pct_growth_table(data: ParcelData, group_cols: list[str],
                        / 100 / group_trees[COL_D_CM])
         delta_d = (2 * group_trees[COL_L10_MM] / 100).mean()
 
-        if stime_totali:
-            # Compute volume-weighted mean ip per parcel, because different
-            # parcels may have different scaling factors (sampling rate).
-            volume = 0.0
-            ipxv = 0.0
-            for (region, parcel), ptrees in group_trees.groupby([COL_COMPRESA, COL_PARTICELLA]):
-                sf = parcels[(region, parcel)].sampled_frac
-                v = ptrees[COL_V_M3]
-                volume += v.sum() / sf
-                ipxv += (ip_per_tree[ptrees.index] * v).sum() / sf
-            ip_medio = ipxv / volume
-        else:
-            v = group_trees[COL_V_M3]
-            volume = v.sum()
-            ip_medio = (ip_per_tree * v).sum() / volume
+        # Volume-weighted mean ip; scale weights by 1/sampled_frac when
+        # extrapolating to totals (parcels have different sampling densities).
+        scale = group_trees[COL_SCALE] if stime_totali else 1
+        v = group_trees[COL_V_M3]
+        volume = (v * scale).sum()
+        ip_medio = (ip_per_tree * v * scale).sum() / volume
 
         row_dict[COL_IP_MEDIO] = ip_medio
         row_dict[COL_DELTA_D] = delta_d
