@@ -133,11 +133,11 @@ class GrowthTables:
 
 @dataclass
 class HarvestResult:
-    """Result of simulating a harvest on one parcel."""
-    volume_before: float
-    harvest: float
-    volume_after: float
-    species_shares: dict[str, float]
+    """Result of harvesting one parcel."""
+    volume_before: float    # mature volume before harvest
+    harvest: float          # volume harvested
+    species_shares: dict[str, float]  # fraction of mature volume per species
+    harvested_indices: list  # DataFrame indices of harvested trees
 
 # =============================================================================
 # OUTPUT FORMATTING
@@ -732,6 +732,37 @@ def diameter_class(d: pd.DataFrame, width: int = 5) -> pd.DataFrame:
 def basal_area_m2(d_cm):
     """Basal area in m² from diameter in cm: π/4 * (D/100)²."""
     return np.pi / 4 * d_cm ** 2 / 10000
+
+
+MATURE_FILTER = lambda t: t[COL_D_CM] > MATURE_THRESHOLD
+
+
+def calculate_area_and_volume(trees: pd.DataFrame,
+                              filter_fn: Callable | None = None,
+                              weight: pd.Series | None = None,
+                              ) -> tuple[float, float]:
+    """Scaled volume (m³) and basal area (m²) for a set of trees.
+
+    Args:
+        trees: Tree DataFrame with COL_V_M3, COL_D_CM, COL_SCALE columns
+        filter_fn: predicate(trees) -> boolean mask (e.g., MATURE_FILTER)
+        weight: optional per-tree factor (e.g., mortality weight in simulation)
+
+    Returns:
+        (volume, basal_area), both scaled by COL_SCALE.
+    """
+    if filter_fn is not None:
+        mask = filter_fn(trees)
+        trees = trees[mask]
+        if weight is not None:
+            weight = weight[mask]
+    if trees.empty:
+        return 0.0, 0.0
+    scale = trees[COL_SCALE]
+    w = weight if weight is not None else 1
+    volume = (trees[COL_V_M3] * w * scale).sum()
+    basal = (basal_area_m2(trees[COL_D_CM]) * w * scale).sum()
+    return volume, basal
 
 
 # =============================================================================
@@ -1832,87 +1863,70 @@ def build_growth_tables(data: ParcelData) -> GrowthTables:
 COL_WEIGHT = '_weight'
 COL_DIAM_GROWTH = '_diam_growth'
 
-def _simulate_harvest_on_parcel(
-    sim: pd.DataFrame,
-    region: str, parcel: str,
-    stats: ParcelStats,
-    rules: HarvestRulesFunc,
-    tree_selection: TreeSelectionFunc,
-) -> HarvestResult | None:
-    """Compute and apply harvest for one parcel, removing trees from sim.
+def _mature_vol_per_ha(sim: pd.DataFrame, region: str, parcel: str,
+                       stats: ParcelStats) -> float:
+    """Compute mature effective volume per hectare for a parcel in the simulation."""
+    parcel_trees = sim[(sim[COL_COMPRESA] == region) & (sim[COL_PARTICELLA] == parcel)]
+    vol, _ = calculate_area_and_volume(parcel_trees, MATURE_FILTER,
+                                       weight=parcel_trees[COL_WEIGHT])
+    return vol / stats.area_ha
 
-    Returns HarvestResult or None if no harvest is allowed (zero limits,
-    no mature trees).  Modifies sim in place by dropping harvested tree rows.
+
+def harvest_parcel(trees: pd.DataFrame, stats: ParcelStats,
+                   rules: HarvestRulesFunc,
+                   selection_fn: TreeSelectionFunc,
+                   weight: pd.Series | None = None,
+                   ) -> HarvestResult | None:
+    """Compute harvest for one parcel's trees.
+
+    Filters mature trees, applies harvest rules to determine limits, then
+    selects trees (via selection_fn) up to those limits.
+
+    Does not mutate trees — caller should drop result.harvested_indices if needed.
+
+    Args:
+        trees: Trees for this parcel (must have COL_SCALE)
+        stats: ParcelStats for this parcel
+        rules: returns (vol_limit_ha, area_limit_ha) given sector/age/stats
+        selection_fn: orders mature trees for harvest (e.g., smallest-first)
+        weight: per-tree mortality factor for simulation (default: 1)
     """
-    mask = (sim[COL_COMPRESA] == region) & (sim[COL_PARTICELLA] == parcel)
-    ptrees = sim[mask]
-    if ptrees.empty:
+    vol_mature, basal = calculate_area_and_volume(trees, MATURE_FILTER, weight=weight)
+    if vol_mature == 0:
         return None
 
-    sf = stats.sampled_frac
-    area_ha = stats.area_ha
-
-    # Effective volume per tree (accounting for mortality weight)
-    eff_vol = ptrees[COL_V_M3] * ptrees[COL_WEIGHT]
-
-    # Mature trees only
-    mature_mask = ptrees[COL_D_CM] > MATURE_THRESHOLD
-    mature = ptrees[mature_mask]
-    if mature.empty:
-        return None
-
-    mature_eff_vol = eff_vol[mature.index]
-    volume_before = mature_eff_vol.sum() / sf
-    mature_G = basal_area_m2(mature[COL_D_CM]) * mature[COL_WEIGHT]
-    basal_mature = mature_G.sum() / sf
-
-    vol_mature_per_ha = volume_before / area_ha
-    basal_per_ha = basal_mature / area_ha
-
-    vol_limit_ha, area_limit_ha = rules(stats.sector, stats.age,
-                                        vol_mature_per_ha, basal_per_ha)
+    vol_limit_ha, area_limit_ha = rules(
+        stats.sector, stats.age, vol_mature / stats.area_ha, basal / stats.area_ha)
     if vol_limit_ha == 0 and area_limit_ha == 0:
         return None
 
-    # Species shares of mature volume (for pro-rata allocation)
-    species_shares = {}
-    if volume_before > 0:
-        for genere, g_trees in mature.groupby(COL_GENERE):
-            species_shares[genere] = mature_eff_vol[g_trees.index].sum() / sf / volume_before
+    # Per-tree scaled values for the selection loop
+    mature = trees[MATURE_FILTER(trees)]
+    w = weight[mature.index] if weight is not None else 1
+    scale = mature[COL_SCALE]
+    tree_vol = mature[COL_V_M3] * w * scale
+    tree_basal = basal_area_m2(mature[COL_D_CM]) * w * scale
 
-    # Absolute limits for the parcel
-    vol_limit = vol_limit_ha * area_ha
-    area_limit = area_limit_ha * area_ha
-
-    # Select trees in harvest order and accumulate until limits reached
-    ordered_idx = tree_selection(mature)
-    harvested_indices = []
+    # Select trees in harvest order, accumulate until limits
+    vol_limit = vol_limit_ha * stats.area_ha
+    area_limit = area_limit_ha * stats.area_ha
+    ordered_idx = selection_fn(mature)
+    harvested = []
     cum_vol, cum_area = 0.0, 0.0
     for idx in ordered_idx:
-        tv = eff_vol[idx] / sf
-        ta = mature_G[idx] / sf
+        tv, ta = tree_vol[idx], tree_basal[idx]
         if cum_vol + tv > vol_limit or cum_area + ta > area_limit:
             break
         cum_vol += tv
         cum_area += ta
-        harvested_indices.append(idx)
+        harvested.append(idx)
 
-    if not harvested_indices:
-        return None
+    # Species shares of mature volume (for pro-rata allocation)
+    species_shares = {}
+    for genere, g_trees in mature.groupby(COL_GENERE):
+        species_shares[genere] = tree_vol[g_trees.index].sum() / vol_mature
 
-    # Drop harvested trees from sim
-    sim.drop(harvested_indices, inplace=True)
-
-    return HarvestResult(volume_before, cum_vol, volume_before - cum_vol, species_shares)
-
-
-def _mature_vol_per_ha(sim: pd.DataFrame, region: str, parcel: str,
-                       stats: ParcelStats) -> float:
-    """Compute mature effective volume per hectare for a parcel in the simulation."""
-    mask = ((sim[COL_COMPRESA] == region) & (sim[COL_PARTICELLA] == parcel) &
-            (sim[COL_D_CM] > MATURE_THRESHOLD))
-    eff_vol = (sim.loc[mask, COL_V_M3] * sim.loc[mask, COL_WEIGHT]).sum()
-    return eff_vol / stats.sampled_frac / stats.area_ha
+    return HarvestResult(vol_mature, cum_vol, species_shares, harvested)
 
 
 def schedule_harvests(
@@ -1949,7 +1963,7 @@ def schedule_harvests(
 
     # Build sim DataFrame with weight and diam_growth columns
     sim = trees[[COL_COMPRESA, COL_PARTICELLA, COL_AREA_SAGGIO,
-                 COL_GENERE, COL_D_CM, COL_V_M3, COL_CD_CM]].copy()
+                 COL_GENERE, COL_D_CM, COL_V_M3, COL_CD_CM, COL_SCALE]].copy()
     sim[COL_WEIGHT] = 1.0
     sim[COL_DIAM_GROWTH] = 0.0
 
@@ -1987,12 +2001,16 @@ def schedule_harvests(
                 n_gap_skip += 1
                 continue
 
-            result = _simulate_harvest_on_parcel(
-                sim, region, parcel, sim_parcels[(region, parcel)],
-                rules, tree_selection)
+            parcel_mask = (sim[COL_COMPRESA] == region) & (sim[COL_PARTICELLA] == parcel)
+            parcel_trees = sim[parcel_mask]
+            result = harvest_parcel(
+                parcel_trees, sim_parcels[(region, parcel)],
+                rules, tree_selection, weight=parcel_trees[COL_WEIGHT])
             if result is None or result.harvest == 0:
                 n_no_harvest += 1
                 continue
+
+            sim.drop(result.harvested_indices, inplace=True)
 
             events.append({
                 COL_YEAR: y,
@@ -2000,7 +2018,7 @@ def schedule_harvests(
                 COL_PARTICELLA: parcel,
                 COL_HARVEST: result.harvest,
                 COL_VOLUME_BEFORE: result.volume_before,
-                COL_VOLUME_AFTER: result.volume_after,
+                COL_VOLUME_AFTER: result.volume_before - result.harvest,
                 COL_SPECIES_SHARES: result.species_shares,
             })
             last_harvest[(region, parcel)] = y
@@ -2031,54 +2049,14 @@ def schedule_harvests(
     return events
 
 
-def compute_harvest(trees_df: pd.DataFrame, sampled_frac: float,
-                    volume_limit: float, area_limit: float) -> tuple[float, float]:
-    """Harvest trees smallest-first until either limit is reached.
-
-    Args:
-        trees_df: Parcel trees with D(cm), V(m3) columns
-        sampled_frac: Sampling fraction
-        volume_limit: Max harvest volume (m3, absolute for parcel)
-        area_limit: Max harvest basal area (m2, absolute for parcel)
-
-    Returns:
-        (volume_mature, harvest_volume), both scaled.
-    """
-    assert trees_df[COL_COMPRESA].nunique() == 1 and trees_df[COL_PARTICELLA].nunique() == 1
-    harvestable = trees_df[trees_df[COL_D_CM] > MATURE_THRESHOLD].copy()
-    if harvestable.empty:
-        return 0.0, 0.0
-
-    harvestable['G'] = basal_area_m2(harvestable[COL_D_CM])
-    total_volume = harvestable[COL_V_M3].sum() / sampled_frac
-
-    harvestable = harvestable.sort_values(COL_D_CM)
-    cum_vol, cum_area = 0.0, 0.0
-
-    for _, tree in harvestable.iterrows():
-        tv = tree[COL_V_M3] / sampled_frac
-        ta = tree['G'] / sampled_frac
-        if cum_vol + tv > volume_limit or cum_area + ta > area_limit:
-            break
-        cum_vol += tv
-        cum_area += ta
-
-    return total_volume, cum_vol
-
-
 def calculate_harvest_table(data: ParcelData, rules: HarvestRulesFunc,
                         group_cols: list[str]) -> pd.DataFrame:
     """
     Calculate harvest (prelievo totale) table data for the @@prelievi directive.
 
-    Algorithm per particella:
-    1. Compute volume and basal area of mature trees (D > 20cm) per hectare
-    2. Call rules() to get (volume_limit_ha, area_limit_ha)
-    3. Scale limits to parcel area and call compute_harvest() which iterates
-       trees smallest-to-largest, stopping when either limit is reached
-
-    pp_max is computed as effective harvest percentage (harvest / vol_mature * 100).
-    If Genere is in group_cols, the harvest breakdown by species uses pro-rata allocation.
+    Calls harvest_parcel() per parcel to compute harvest volumes, then aggregates
+    by group_cols. When Genere is in group_cols, harvest is allocated pro-rata
+    using species shares from harvest_parcel().
 
     Args:
         data: Output from parcel_data
@@ -2113,36 +2091,21 @@ def calculate_harvest_table(data: ParcelData, rules: HarvestRulesFunc,
         except KeyError as e:
             raise ValueError(f"Particella {region}/{parcel} non trovata") from e
 
-        sector, p_area, sf, age = p.sector, p.area_ha, p.sampled_frac, p.age
-
-        # Compute per-ha stats of mature trees for rules lookup
-        mature = part_trees[part_trees[COL_D_CM] > MATURE_THRESHOLD]
-        vol_mature_per_ha = mature[COL_V_M3].sum() / sf / p_area
-        basal_per_ha = basal_area_m2(mature[COL_D_CM]).sum() / sf / p_area
-
-        vol_limit_ha, area_limit_ha = rules(sector, age, vol_mature_per_ha, basal_per_ha)
-        if vol_limit_ha == 0 and area_limit_ha == 0:
+        vol_total, _ = calculate_area_and_volume(part_trees)
+        result = harvest_parcel(part_trees, p, rules, select_from_bottom)
+        if result is None:
             parcel_info[(region, parcel)] = None
             continue
 
-        # Scale limits to absolute parcel values
-        vol_limit = vol_limit_ha * p_area
-        area_limit = area_limit_ha * p_area
-
-        # Total volume (all trees)
-        total_volume = part_trees[COL_V_M3].sum() / sf
-
-        vol_mature, harvest = compute_harvest(part_trees, sf, vol_limit, area_limit)
-
-        # Effective harvest percentage
-        pp_max = harvest / vol_mature * 100 if vol_mature > 0 else 0
+        pp_max = result.harvest / result.volume_before * 100 if result.volume_before > 0 else 0
 
         parcel_info[(region, parcel)] = {
-            COL_SECTOR: sector, COL_AGE: age, COL_AREA_HA: p_area, 'sf': sf,
-            COL_VOLUME: total_volume,
-            COL_VOLUME_MATURE: vol_mature,
+            COL_SECTOR: p.sector, COL_AGE: p.age, COL_AREA_HA: p.area_ha,
+            COL_VOLUME: vol_total,
+            COL_VOLUME_MATURE: result.volume_before,
             COL_PP_MAX: pp_max,
-            COL_HARVEST: harvest,
+            COL_HARVEST: result.harvest,
+            COL_SPECIES_SHARES: result.species_shares,
         }
 
     # Second pass: aggregate by group_cols
@@ -2163,21 +2126,14 @@ def calculate_harvest_table(data: ParcelData, rules: HarvestRulesFunc,
 
             any_tree = True
 
-            # For per-genere breakdown, compute this group's share of the parcel
             if COL_GENERE in group_cols:
-                # Pro-rata allocation based on volume_mature
-                above_thresh = part_trees[part_trees[COL_D_CM] > MATURE_THRESHOLD]
-                group_vol = part_trees[COL_V_M3].sum() / info['sf']
-                group_vol_senza = above_thresh[COL_V_M3].sum() / info['sf']
-
-                # Fraction of parcel's volume_mature
-                if info[COL_VOLUME_MATURE] > 0:
-                    frac = group_vol_senza / info[COL_VOLUME_MATURE]
-                else:
-                    frac = 0
-
+                # Pro-rata harvest allocation using pre-computed species shares
+                genere = part_trees[COL_GENERE].iloc[0]
+                frac = info[COL_SPECIES_SHARES].get(genere, 0)
+                group_vol, _ = calculate_area_and_volume(part_trees)
+                group_vol_mature, _ = calculate_area_and_volume(part_trees, MATURE_FILTER)
                 volume += group_vol
-                vol_mature += group_vol_senza
+                vol_mature += group_vol_mature
                 harvest += info[COL_HARVEST] * frac
             else:
                 volume += info[COL_VOLUME]
