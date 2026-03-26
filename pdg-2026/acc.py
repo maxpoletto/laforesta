@@ -706,7 +706,7 @@ def calculate_all_trees_volume(trees_df: pd.DataFrame) -> pd.DataFrame:
     for genere, group in result_df.groupby(COL_GENERE):
         if genere not in TABACCHI:
             raise ValueError(f"Genere '{genere}' non trovato nelle tavole di Tabacchi")
-        b = TABACCHI[genere].b
+        b = TABACCHI[genere].b  # type: ignore[reportGeneralTypeIssues]
         d = group[COL_D_CM]
         h = group[COL_H_M]
         d2h = d ** 2 * h
@@ -719,14 +719,14 @@ def calculate_all_trees_volume(trees_df: pd.DataFrame) -> pd.DataFrame:
     return result_df
 
 
-def diameter_class(d: pd.DataFrame, width: int = 5) -> pd.DataFrame:
+def diameter_class(d: pd.Series, width: int = 5) -> pd.Series:
     """
     Returns a dataframe containing the width-cm diameter classes corresponding to
     the diameters (in cm) in d.
 
     For example, with width = 5, D in (2.5, 7.5] -> 5, D in (7.5, 12.5] -> 10.
     """
-    return (np.ceil((d - (width/2)) / width) * width).astype(int)
+    return (np.ceil((d - (width/2)) / width) * width).astype(int)  # type: ignore[reportReturnType]
 
 
 def basal_area_m2(d_cm):
@@ -753,9 +753,9 @@ def calculate_area_and_volume(trees: pd.DataFrame,
     """
     if filter_fn is not None:
         mask = filter_fn(trees)
-        trees = trees[mask]
+        trees = trees[mask]  # type: ignore[reportGeneralTypeIssues]
         if weight is not None:
-            weight = weight[mask]
+            weight = weight[mask]  # type: ignore[reportGeneralTypeIssues]
     if trees.empty:
         return 0.0, 0.0
     scale = trees[COL_SCALE]
@@ -800,7 +800,7 @@ def parcel_data(tree_files: list[str], tree_df: pd.DataFrame, parcel_df: pd.Data
         """Return new DataFrame with rows of df where df[column] is in values."""
         if not values:
             return df
-        return df[df[column].isin(values)]
+        return df[df[column].isin(values)]  # type: ignore[reportGeneralTypeIssues]
 
     if parcels and not regions:
         raise ValueError("Se si specifica la particella occorre specificare la compresa")
@@ -822,7 +822,7 @@ def parcel_data(tree_files: list[str], tree_df: pd.DataFrame, parcel_df: pd.Data
                          f"particelle '{parcels}' generi '{species}'")
 
     parcel_stats = {}
-    for (region, parcel), trees in trees_region.groupby([COL_COMPRESA, COL_PARTICELLA]):
+    for (region, parcel), trees in trees_region.groupby([COL_COMPRESA, COL_PARTICELLA]):  # type: ignore[reportGeneralTypeIssues]
         md_row = parcel_df[
             (parcel_df[COL_COMPRESA] == region) &
             (parcel_df[COL_PARTICELLA] == parcel)
@@ -847,7 +847,7 @@ def parcel_data(tree_files: list[str], tree_df: pd.DataFrame, parcel_df: pd.Data
             sampled_frac=sampled_frac,
         )
 
-    trees_region_species[COL_CD_CM] = diameter_class(trees_region_species[COL_D_CM])
+    trees_region_species[COL_CD_CM] = diameter_class(trees_region_species[COL_D_CM])  # type: ignore[reportGeneralTypeIssues]
 
     data = ParcelData(
         trees=trees_region_species,
@@ -925,7 +925,7 @@ def fit_curves_grouped(groups: Iterable[tuple[tuple[str, str], pd.DataFrame]],
                 'r2': regr.r2,
                 'n': regr.n_points
             })
-            print(f"  {compresa} - {genere}: {regr} (R² = {fmt_num(regr.r2, 2)}, n = {regr.n_points})")
+            print(f"  {compresa} - {genere}: {regr} (R² = {fmt_num(regr.r2, 2)}, n = {regr.n_points})")  # type: ignore[reportGeneralTypeIssues]
         else:
             print(f"  {compresa} - {genere}: dati insufficienti (n < {min_points})")
 
@@ -948,7 +948,7 @@ def fit_curves_from_ipsometro(ipsometro_file: str, funzione: str = 'log') -> pd.
     df['y'] = df[COL_H_M]
     groups = []
 
-    for (compresa, genere), group in df.groupby([COL_COMPRESA, COL_GENERE]):
+    for (compresa, genere), group in df.groupby([COL_COMPRESA, COL_GENERE]):  # type: ignore[reportGeneralTypeIssues]
         groups.append(((compresa, genere), group))
     return fit_curves_grouped(groups, funzione)
 
@@ -969,7 +969,7 @@ def fit_curves_from_originali(alberi_file: str, funzione: str = 'log') -> pd.Dat
     df['y'] = df[COL_H_M]
 
     groups = list(df.groupby([COL_COMPRESA, COL_GENERE]))
-    return fit_curves_grouped(groups, funzione)
+    return fit_curves_grouped(groups, funzione)  # type: ignore[reportGeneralTypeIssues]
 
 
 def fit_curves_from_tabelle(tabelle_file: str, particelle_file: str,
@@ -1019,7 +1019,7 @@ def compute_heights(trees_df: pd.DataFrame, equations_df: pd.DataFrame,
     result_df = trees_df.copy()
     result_df[COL_H_M] = result_df[COL_H_M].astype(float)
 
-    for (compresa, genere), group in trees_df.groupby([COL_COMPRESA, COL_GENERE]):
+    for (compresa, genere), group in trees_df.groupby([COL_COMPRESA, COL_GENERE]):  # type: ignore[reportGeneralTypeIssues]
         eq_row = equations_df[
             (equations_df['compresa'] == compresa) &
             (equations_df['genere'] == genere)
@@ -1085,16 +1085,16 @@ def render_hypsometric_graph(data: ParcelData, equations_df: pd.DataFrame,
     # First pass: scatter points (once per species)
     for sp in species:
         sp_data = trees[trees[COL_GENERE] == sp]
-        x = sp_data[COL_D_CM].values
-        y = sp_data[COL_H_M].values
-        ax.scatter(x, y, color=color_map[sp], label=sp, alpha=0.7, linewidth=2, s=1)
+        x = sp_data[COL_D_CM].values  # type: ignore[reportGeneralTypeIssues]
+        y = sp_data[COL_H_M].values  # type: ignore[reportGeneralTypeIssues]
+        ax.scatter(x, y, color=color_map[sp], label=sp, alpha=0.7, linewidth=2, s=1)  # type: ignore[reportGeneralTypeIssues]
 
     # Second pass: regression curves (per compresa/genere pair)
     curve_info = []
     for region in regions:
         for sp in species:
             sp_data = trees[trees[COL_GENERE] == sp]
-            x = sp_data[COL_D_CM].values
+            x = sp_data[COL_D_CM].values  # type: ignore[reportGeneralTypeIssues]
 
             # Look up pre-computed equation from equations.csv, if any
             eq_row = equations_df[
@@ -1104,7 +1104,7 @@ def render_hypsometric_graph(data: ParcelData, equations_df: pd.DataFrame,
 
             if len(eq_row) > 0:
                 eq = eq_row.iloc[0]
-                x_smooth = np.linspace(1, x.max(), 100)
+                x_smooth = np.linspace(1, x.max(), 100)  # type: ignore[reportGeneralTypeIssues]
                 if eq['funzione'] == 'ln':
                     y_smooth = eq['a'] * np.log(x_smooth) + eq['b']
                     eq_str = f"y = {fmt_num(eq['a'], 2)}*ln(x) + {fmt_num(eq['b'], 2)}"
@@ -1193,8 +1193,8 @@ def calculate_diameter_class_data(data: ParcelData, metrica: str, stime_totali: 
 
     # For height, compute mean directly (no scaling)
     if metrica == 'altezza':
-        combined = trees.groupby([bucket_vals, COL_GENERE])[COL_H_M].mean().unstack(fill_value=0)
-        return combined.reindex(columns=species, fill_value=0).sort_index()
+        combined = trees.groupby([bucket_vals, COL_GENERE])[COL_H_M].mean().unstack(fill_value=0)  # type: ignore[reportGeneralTypeIssues]
+        return combined.reindex(columns=species, fill_value=0).sort_index()  # type: ignore[reportGeneralTypeIssues]
 
     # Per-tree value: volume, basal area, or 1 (for counting)
     if metrica.startswith('volume'):
@@ -1208,12 +1208,12 @@ def calculate_diameter_class_data(data: ParcelData, metrica: str, stime_totali: 
     # When stime_totali, each tree's value is weighted by 1/sampled_frac
     # so that per-parcel sampling densities are accounted for.
     values = (raw * trees[COL_SCALE]) if stime_totali else raw
-    combined = values.groupby([bucket_vals, trees[COL_GENERE]]).sum().unstack(fill_value=0)
+    combined = values.groupby([bucket_vals, trees[COL_GENERE]]).sum().unstack(fill_value=0)  # type: ignore[reportGeneralTypeIssues]
 
     if per_ha:
         parcel_keys = set(zip(trees[COL_COMPRESA], trees[COL_PARTICELLA]))
         combined = combined / sum(parcels[k].area_ha for k in parcel_keys)
-    return combined.reindex(columns=species, fill_value=0).sort_index()
+    return combined.reindex(columns=species, fill_value=0).sort_index()  # type: ignore[reportGeneralTypeIssues]
 
 
 def render_diameter_class_graph(data: ParcelData, output_path: Path,
@@ -1251,25 +1251,25 @@ def render_diameter_class_graph(data: ParcelData, output_path: Path,
             series = values_df[genere]
             if use_lines:
                 nonzero = series[series > 0]
-                ax.plot(nonzero.index, nonzero.values, marker='o', markersize=3, linewidth=1.5,
+                ax.plot(nonzero.index, nonzero.values, marker='o', markersize=3, linewidth=1.5,  # type: ignore[reportGeneralTypeIssues]
                         color=color_map[genere], label=genere, alpha=0.85)
             else:
-                ax.bar(series.index, series.values, bottom=bottom, width=4,
+                ax.bar(series.index, series.values, bottom=bottom, width=4,  # type: ignore[reportGeneralTypeIssues]
                     label=genere, color=color_map[genere],
                     alpha=0.8, edgecolor='white', linewidth=0.5)
                 bottom += series
 
         # x_max in cm (fine buckets are 5, 10, 15...)
         max_bucket = values_df.index.max() if len(values_df) > 0 else 50
-        x_max = options[OPT_X_MAX] if options[OPT_X_MAX] > 0 else max_bucket + 5
+        x_max = options[OPT_X_MAX] if options[OPT_X_MAX] > 0 else max_bucket + 5  # type: ignore[reportGeneralTypeIssues]
         y_max_auto = values_df.max().max() if use_lines else values_df.sum(axis=1).max()
         y_max = options[OPT_Y_MAX] if options[OPT_Y_MAX] > 0 else y_max_auto * 1.1
 
         ax.set_xlabel('Diametro (cm)')
         ax.set_ylabel(GCD_Y_LABELS[metrica])
-        ax.set_xlim(0, x_max)
+        ax.set_xlim(0, x_max)  # type: ignore[reportGeneralTypeIssues]
         ax.set_ylim(0, y_max)
-        ax.set_xticks(range(0, x_max + 1, 10))
+        ax.set_xticks(range(0, x_max + 1, 10))  # type: ignore[reportGeneralTypeIssues]
         ax.grid(True, alpha=0.3, axis='y')
         ax.set_axisbelow(True)
 
@@ -1492,7 +1492,7 @@ def dedup_total_area(df: pd.DataFrame, identity_cols: list[str]) -> float:
     dedup_cols = [c for c in identity_cols if c != COL_GENERE]
     if dedup_cols and len(dedup_cols) < len(identity_cols):
         df = df.drop_duplicates(subset=dedup_cols)
-    return df[COL_AREA_HA].sum()
+    return df[COL_AREA_HA].sum()  # type: ignore[reportGeneralTypeIssues]
 
 def render_table(df: pd.DataFrame, group_cols: list[str],
                  col_specs: list[ColSpec], formatter: SnippetFormatter,
@@ -1515,7 +1515,7 @@ def render_table(df: pd.DataFrame, group_cols: list[str],
         display_row = [str(row[col]) for col in group_cols]
         for c in col_specs:
             if isinstance(c.format, str):
-                display_row.append(fmt_num(row[c.format], 1))
+                display_row.append(fmt_num(row[c.format], 1))  # type: ignore[reportGeneralTypeIssues]
             else:
                 display_row.append(c.format(row))
         display_rows.append(display_row)
@@ -1534,7 +1534,7 @@ def render_table(df: pd.DataFrame, group_cols: list[str],
             if c.total is None:
                 total_row.append('')
             elif isinstance(c.total, str):
-                total_row.append(fmt_num(df[c.total].sum(), 1))
+                total_row.append(fmt_num(df[c.total].sum(), 1))  # type: ignore[reportGeneralTypeIssues]
             else:
                 total_row.append(c.total(df))
         display_rows.append(total_row)
@@ -1568,7 +1568,7 @@ def calculate_volume_table(data: ParcelData, group_cols: list[str],
 
     rows = []
     for group_key, group_trees in trees.groupby(group_cols):
-        row_dict = dict(zip(group_cols, group_key))
+        row_dict = dict(zip(group_cols, group_key))  # type: ignore[reportGeneralTypeIssues]
 
         # When calc_total, weight each tree by 1/sampled_frac to extrapolate
         # from sample plots to full parcel estimates.
@@ -1584,20 +1584,20 @@ def calculate_volume_table(data: ParcelData, group_cols: list[str],
         margin = 0.0
         if calc_margin:
             if calc_total:
-                for (region, parcel), ptrees in group_trees.groupby(
+                for (region, parcel), ptrees in group_trees.groupby(  # type: ignore[reportGeneralTypeIssues]
                         [COL_COMPRESA, COL_PARTICELLA]):
                     _, pmargin = calculate_volume_confidence_interval(ptrees)
-                    margin += pmargin / parcels[(region, parcel)].sampled_frac
+                    margin += pmargin / parcels[(region, parcel)].sampled_frac  # type: ignore[reportGeneralTypeIssues]
             else:
                 _, margin = calculate_volume_confidence_interval(group_trees)
 
-        row_dict[COL_N_TREES] = n_trees
-        row_dict[COL_VOLUME] = volume
+        row_dict[COL_N_TREES] = n_trees  # type: ignore[reportGeneralTypeIssues]
+        row_dict[COL_VOLUME] = volume  # type: ignore[reportGeneralTypeIssues]
         if calc_mature:
-            row_dict[COL_VOLUME_MATURE] = vol_mature
+            row_dict[COL_VOLUME_MATURE] = vol_mature  # type: ignore[reportGeneralTypeIssues]
         if calc_margin:
-            row_dict[COL_VOL_LO] = volume - margin
-            row_dict[COL_VOL_HI] = volume + margin
+            row_dict[COL_VOL_LO] = volume - margin  # type: ignore[reportGeneralTypeIssues]
+            row_dict[COL_VOL_HI] = volume + margin  # type: ignore[reportGeneralTypeIssues]
         rows.append(row_dict)
 
     df = pd.DataFrame(rows)
@@ -1677,7 +1677,7 @@ def calculate_pct_growth_table(data: ParcelData, group_cols: list[str],
 
     rows = []
     for group_key, group_trees in trees.groupby(group_cols):
-        row_dict = dict(zip(group_cols, group_key))
+        row_dict = dict(zip(group_cols, group_key))  # type: ignore[reportGeneralTypeIssues]
         ip_per_tree = (group_trees[COL_COEFF_PRESSLER] * 2 * group_trees[COL_L10_MM]
                        / 100 / group_trees[COL_D_CM])
         delta_d = (2 * group_trees[COL_L10_MM] / 100).mean()
@@ -1689,9 +1689,9 @@ def calculate_pct_growth_table(data: ParcelData, group_cols: list[str],
         volume = (v * scale).sum()
         ip_medio = (ip_per_tree * v * scale).sum() / volume
 
-        row_dict[COL_IP_MEDIO] = ip_medio
-        row_dict[COL_DELTA_D] = delta_d
-        row_dict[COL_INCR_CORR] = volume * ip_medio / 100
+        row_dict[COL_IP_MEDIO] = ip_medio  # type: ignore[reportGeneralTypeIssues]
+        row_dict[COL_DELTA_D] = delta_d  # type: ignore[reportGeneralTypeIssues]
+        row_dict[COL_INCR_CORR] = volume * ip_medio / 100  # type: ignore[reportGeneralTypeIssues]
         rows.append(row_dict)
 
     df = pd.DataFrame(rows)
@@ -1746,8 +1746,8 @@ def render_pct_growth_graph(data: ParcelData, output_path: Path,
         for curve_key, curve_df in df.groupby(curve_cols):
             if isinstance(curve_key, str):
                 curve_key = (curve_key,)
-            label = ' / '.join(str(k) for k in curve_key)
-            genere = curve_key[-1]  # last element is always Genere
+            label = ' / '.join(str(k) for k in curve_key)  # type: ignore[reportGeneralTypeIssues]
+            genere = curve_key[-1]  # last element is always Genere  # type: ignore[reportGeneralTypeIssues]
             curve_df = curve_df.sort_values(COL_CD_CM)
             ax.plot(curve_df[COL_CD_CM], curve_df[y_col],
                     marker='o', markersize=3, linewidth=1.5,
@@ -1833,10 +1833,10 @@ def year_step(sim: pd.DataFrame, weight: np.ndarray,
 
     if diam_growth is not None:
         sim[COL_D_CM] = sim[COL_D_CM].values + diam_growth
-        sim[COL_CD_CM] = diameter_class(sim[COL_D_CM])
+        sim[COL_CD_CM] = diameter_class(sim[COL_D_CM])  # type: ignore[reportGeneralTypeIssues]
 
     inc_pct, delta_d, fallbacks = lookup_growth(sim, growth)
-    sim[COL_V_M3] = sim[COL_V_M3].values * (1 + inc_pct / 100)
+    sim[COL_V_M3] = sim[COL_V_M3].values * (1 + inc_pct / 100)  # type: ignore[reportGeneralTypeIssues]
     weight *= (1 - mortalita / 100)
 
     return delta_d, fallbacks
@@ -1852,7 +1852,7 @@ def build_growth_tables(data: ParcelData) -> GrowthTables:
         key = tuple(row[c] for c in groupby_cols)
         by_group[key] = (row[COL_IP_MEDIO], row[COL_DELTA_D])
         prefix = key[:-1]
-        available_diams[prefix].append(int(row[COL_CD_CM]))
+        available_diams[prefix].append(int(row[COL_CD_CM]))  # type: ignore[reportGeneralTypeIssues]
     for prefix in available_diams:
         available_diams[prefix] = sorted(set(available_diams[prefix]))
     return GrowthTables(by_group, available_diams, groupby_cols)
@@ -1867,8 +1867,8 @@ def _mature_vol_per_ha(sim: pd.DataFrame, region: str, parcel: str,
                        stats: ParcelStats) -> float:
     """Compute mature effective volume per hectare for a parcel in the simulation."""
     parcel_trees = sim[(sim[COL_COMPRESA] == region) & (sim[COL_PARTICELLA] == parcel)]
-    vol, _ = calculate_area_and_volume(parcel_trees, MATURE_FILTER,
-                                       weight=parcel_trees[COL_WEIGHT])
+    vol, _ = calculate_area_and_volume(parcel_trees, MATURE_FILTER,  # type: ignore[reportGeneralTypeIssues]
+                                       weight=parcel_trees[COL_WEIGHT])  # type: ignore[reportGeneralTypeIssues]
     return vol / stats.area_ha
 
 
@@ -1896,7 +1896,7 @@ def harvest_parcel(trees: pd.DataFrame, stats: ParcelStats,
         return None
 
     vol_limit_ha, area_limit_ha = rules(
-        stats.sector, stats.age, vol_mature / stats.area_ha, basal / stats.area_ha)
+        stats.sector, stats.age, vol_mature / stats.area_ha, basal / stats.area_ha)  # type: ignore[reportGeneralTypeIssues]
     if vol_limit_ha == 0 and area_limit_ha == 0:
         return None
 
@@ -1910,7 +1910,7 @@ def harvest_parcel(trees: pd.DataFrame, stats: ParcelStats,
     # Select trees in harvest order, accumulate until limits
     vol_limit = vol_limit_ha * stats.area_ha
     area_limit = area_limit_ha * stats.area_ha
-    ordered_idx = selection_fn(mature)
+    ordered_idx = selection_fn(mature)  # type: ignore[reportGeneralTypeIssues]
     harvested = []
     cum_vol, cum_area = 0.0, 0.0
     for idx in ordered_idx:
@@ -1926,7 +1926,7 @@ def harvest_parcel(trees: pd.DataFrame, stats: ParcelStats,
     for genere, g_trees in mature.groupby(COL_GENERE):
         species_shares[genere] = tree_vol[g_trees.index].sum() / vol_mature
 
-    return HarvestResult(vol_mature, cum_vol, species_shares, harvested)
+    return HarvestResult(vol_mature, cum_vol, species_shares, harvested)  # type: ignore[reportGeneralTypeIssues]
 
 
 def schedule_harvests(
@@ -1978,7 +1978,7 @@ def schedule_harvests(
         for _, row in past_harvests.iterrows():
             key = (row[COL_COMPRESA], row[COL_PARTICELLA])
             if key in fustaia_set:
-                last_harvest[key] = max(last_harvest.get(key, 0), int(row['Anno']))
+                last_harvest[key] = max(last_harvest.get(key, 0), int(row['Anno']))  # type: ignore[reportGeneralTypeIssues]
 
     first_year, last_year = year_range
     events = []
@@ -1988,7 +1988,7 @@ def schedule_harvests(
         # Compute mature vol/ha for each fustaia parcel and sort descending
         parcel_priority = []
         for region, parcel in fustaia_keys:
-            vol_ha = _mature_vol_per_ha(sim, region, parcel, sim_parcels[(region, parcel)])
+            vol_ha = _mature_vol_per_ha(sim, region, parcel, sim_parcels[(region, parcel)])  # type: ignore[reportGeneralTypeIssues]
             parcel_priority.append((vol_ha, region, parcel))
         parcel_priority.sort(reverse=True)
 
@@ -2004,13 +2004,13 @@ def schedule_harvests(
             parcel_mask = (sim[COL_COMPRESA] == region) & (sim[COL_PARTICELLA] == parcel)
             parcel_trees = sim[parcel_mask]
             result = harvest_parcel(
-                parcel_trees, sim_parcels[(region, parcel)],
-                rules, tree_selection, weight=parcel_trees[COL_WEIGHT])
+                parcel_trees, sim_parcels[(region, parcel)],  # type: ignore[reportGeneralTypeIssues]
+                rules, tree_selection, weight=parcel_trees[COL_WEIGHT])  # type: ignore[reportGeneralTypeIssues]
             if result is None or result.harvest == 0:
                 n_no_harvest += 1
                 continue
 
-            sim.drop(result.harvested_indices, inplace=True)
+            sim.drop(result.harvested_indices, inplace=True)  # type: ignore[reportGeneralTypeIssues]
 
             events.append({
                 COL_YEAR: y,
@@ -2035,10 +2035,10 @@ def schedule_harvests(
                   f"{n_no_harvest} non idonee, {n_total} totali)")
 
         # Growth step
-        weight = sim[COL_WEIGHT].values.copy()
-        diam_growth_arr = sim[COL_DIAM_GROWTH].values if y > first_year else None
+        weight = sim[COL_WEIGHT].values.copy()  # type: ignore[reportGeneralTypeIssues]
+        diam_growth_arr = sim[COL_DIAM_GROWTH].values if y > first_year else None  # type: ignore[reportGeneralTypeIssues]
         diam_growth_arr, _ = year_step(
-            sim, weight, growth, mortalita, diam_growth_arr)
+            sim, weight, growth, mortalita, diam_growth_arr)  # type: ignore[reportGeneralTypeIssues]
         sim[COL_WEIGHT] = weight
         sim[COL_DIAM_GROWTH] = diam_growth_arr
 
@@ -2085,9 +2085,9 @@ def calculate_harvest_table(data: ParcelData, rules: HarvestRulesFunc,
 
     # First pass: compute harvest for each particella
     parcel_info = {}
-    for (region, parcel), part_trees in trees.groupby([COL_COMPRESA, COL_PARTICELLA]):
+    for (region, parcel), part_trees in trees.groupby([COL_COMPRESA, COL_PARTICELLA]):  # type: ignore[reportGeneralTypeIssues]
         try:
-            p = parcels[(region, parcel)]
+            p = parcels[(region, parcel)]  # type: ignore[reportGeneralTypeIssues]
         except KeyError as e:
             raise ValueError(f"Particella {region}/{parcel} non trovata") from e
 
@@ -2119,7 +2119,7 @@ def calculate_harvest_table(data: ParcelData, rules: HarvestRulesFunc,
         any_tree = False
         last_pp_max, last_sector, last_age = 0.0, '', 0
 
-        for (region, parcel), part_trees in group_trees.groupby([COL_COMPRESA, COL_PARTICELLA]):
+        for (region, parcel), part_trees in group_trees.groupby([COL_COMPRESA, COL_PARTICELLA]):  # type: ignore[reportGeneralTypeIssues]
             info = parcel_info[(region, parcel)]
             if info is None:
                 continue
@@ -2279,7 +2279,7 @@ def calculate_harvest_plan(
         expanded = []
         for _, row in df.iterrows():
             shares = row[COL_SPECIES_SHARES]
-            for genere, frac in shares.items():
+            for genere, frac in shares.items():  # type: ignore[reportGeneralTypeIssues]
                 new_row = {c: row[c] for c in [COL_YEAR, COL_COMPRESA,
                                                 COL_PARTICELLA, COL_AREA_HA]}
                 new_row[COL_GENERE] = genere
@@ -2299,7 +2299,7 @@ def calculate_harvest_plan(
 
     # Sort by year, then by group_cols (natsort for Particella)
     sort_cols = [COL_YEAR] + group_cols
-    df = df.sort_values(
+    df = df.sort_values(  # type: ignore[reportGeneralTypeIssues]
         sort_cols,
         key=lambda col: col.map(natsort_keygen()) if col.name == COL_PARTICELLA else col)
 
@@ -2517,7 +2517,7 @@ def process_template(template_text: str, data_dir: Path,
         compresa = comprese[0]
         parcel_rows = particelle_df[(particelle_df[COL_COMPRESA] == compresa) &
                                     (particelle_df[COL_GOVERNO] == GOV_FUSTAIA)]
-        parcel_list = sorted(parcel_rows[COL_PARTICELLA].unique(), key=natsort_keygen())
+        parcel_list = sorted(parcel_rows[COL_PARTICELLA].unique(), key=natsort_keygen())  # type: ignore[reportGeneralTypeIssues]
         if particelle:
             parcel_list = [p for p in parcel_list if p in particelle]
 
@@ -2739,7 +2739,7 @@ def list_parcels(particelle_file: str) -> None:
     # Group by Compresa and list particelle
     for compresa in sorted(df[COL_COMPRESA].unique()):
         compresa_data = df[df[COL_COMPRESA] == compresa]
-        particelle = sorted(compresa_data[COL_PARTICELLA].astype(str).unique(),
+        particelle = sorted(compresa_data[COL_PARTICELLA].astype(str).unique(),  # type: ignore[reportGeneralTypeIssues]
                           key=natsort_keygen())
         for particella in particelle:
             print(f"  {compresa},{particella}")
