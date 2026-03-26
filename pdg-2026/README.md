@@ -1,12 +1,12 @@
-# acc.py
+# pdg.py
 
-Forest analysis tool for height/volume calculations and report generation
+Forest analysis tool for height/volume calculations and report generation.
 
 ## Modes
 
 ### 1. Generate equations (height-diameter regression curves)
 ```bash
-./acc.py --genera-equazioni --funzione={log,lin} --fonte-altezze={tabelle,ipsometro,originali} \
+./pdg.py --genera-equazioni --funzione={log,lin} --fonte-altezze={tabelle,ipsometro,originali} \
          --input INPUT_FILE --output EQUATION_FILE --particelle PARCEL_METADATA
 ```
 
@@ -15,87 +15,139 @@ Output CSV: `compresa,genere,funzione,a,b,r2,n`
 
 ### 2. Calculate heights and volumes
 ```bash
-./acc.py --calcola-altezze-volumi --equazioni EQUATION_FILE --input INPUT_FILE --output OUTPUT_FILE
+./pdg.py --calcola-altezze-volumi --equazioni EQUATION_FILE --input INPUT_FILE --output OUTPUT_FILE \
+         [--coeff-pressler VALUE]
 ```
 
 In one pass:
 1. Applies height equations to estimate tree heights (unchanged if no equation exists)
 2. Computes volume V(m³) for each tree using Tabacchi equations
 
-This ensures heights and volumes are always consistent.
+`--coeff-pressler` overrides the Pressler coefficient for all trees.
 
-### 3. Generate report
+### 3. Calculate growth increments
 ```bash
-./acc.py --report --formato={html,latex,pdf} --dati DATA_DIR \
-         --particelle PARCEL_METADATA --input TEMPLATE_FILE --output-dir PATH
+./pdg.py --calcola-incrementi --input INPUT_FILE --output OUTPUT_FILE
+```
+
+Computes percentage growth increment (IP) for each tree and writes the result to output CSV.
+
+### 4. Generate report
+```bash
+./pdg.py --report --formato={csv,html,tex,pdf} --dati DATA_DIR \
+         --particelle PARCEL_METADATA --input TEMPLATE_FILE --output-dir PATH \
+         [--ometti-generi-sconosciuti] [--non-rigenerare-grafici] \
+         [--separatore-decimale {punto,virgola}]
 ```
 
 Processes template, substituting `@@directives` with graphs/tables. PDF mode runs pdflatex.
 Each directive specifies its data files via `alberi=` and `equazioni=` parameters (relative to `--dati`).
 
-### 4. List parcels
+Options:
+- `--ometti-generi-sconosciuti`: omit species with no equations from graphs
+- `--non-rigenerare-grafici`: skip regenerating existing graph files
+- `--separatore-decimale`: decimal separator in output (`virgola` = Italian style, default)
+
+### 5. List parcels
 ```bash
-./acc.py --lista-particelle --particelle PARCEL_METADATA
+./pdg.py --lista-particelle --particelle PARCEL_METADATA
 ```
 
 Lists all (compresa, particella) tuples.
 
 ## Template Directives
 
-- `@@cd(parameters)` — Diameter class histogram with metadata
-- `@@ci(parameters)` — Height-diameter scatter plot with regression curves
-- `@@volumi(parameters)` — Volume table with optional confidence intervals
-- `@@prelievi(parameters)` — Harvest (prelievo totale) table based on volume/age rules
+### Graphs
+- `@@grafico_classi_diametriche(params)` — Diameter class histogram
+- `@@grafico_classi_ipsometriche(params)` — Height-diameter scatter plot with regression curves
+- `@@grafico_incremento_percentuale(params)` — Percentage growth graph by diameter class
+
+### Tables
+- `@@volumi(params)` — Volume table with optional confidence intervals
+- `@@tabella_classi_diametriche(params)` — Diameter class table
+- `@@tabella_incremento_percentuale(params)` — Percentage growth table
+- `@@prelievi(params)` — Harvest table based on comparto/age rules
+- `@@piano_di_taglio(params)` — Multi-period harvest plan (cutting schedule simulation)
+
+### Structural
+- `@@particelle(compresa=X, modello=BASENAME)` — Expand a sub-template for each parcel in a compresa. The sub-template can use `@@compresa` and `@@particella` as placeholders, and may contain further directives.
+- `@@prop(compresa=X, particella=Y)` — Insert parcel properties (metadata) inline
 
 ### Common Parameters
 
-| Parameter | Values | Description | Required | Applicable to |
-|-----------|--------|-------------|----------|---------------|
-| `alberi=FILE` | filename | Tree data CSV (relative to `--dati`) | **Yes** | all |
-| `equazioni=FILE` | filename | Equations CSV (relative to `--dati`) | **Yes** for `@@ci` | `@@ci` only |
-| `compresa=NAME` | compresa name | Filter by compresa (default: all) | No | all |
-| `particella=NAME` | particella name | Filter by particella (requires compresa) | No | all |
-| `genere=GENERE` | species name | Filter by species (default: all) | No | all |
-| `per_compresa` | `si`, `no` | Group by compresa (default: `si`) | No | `@@volumi`, `@@prelievi` |
-| `per_particella` | `si`, `no` | Group by particella (default: `si`) | No | `@@volumi`, `@@prelievi` |
-| `per_genere` | `si`, `no` | Group by genere (default: `si`) | No | `@@volumi`, `@@prelievi` |
-| `totali` | `si`, `no` | Add totals row (default: `no`) | No | `@@volumi`, `@@prelievi` |
+| Parameter | Values | Description | Required |
+|-----------|--------|-------------|----------|
+| `alberi=FILE` | filename | Tree data CSV (relative to `--dati`) | **Yes** (all except `@@prop`, `@@particelle`) |
+| `equazioni=FILE` | filename | Equations CSV (relative to `--dati`) | **Yes** for `@@grafico_classi_ipsometriche` |
+| `compresa=NAME` | compresa name | Filter by compresa (default: all) | No |
+| `particella=NAME` | particella name | Filter by particella (requires compresa) | No |
+| `genere=GENERE` | species name | Filter by species (default: all) | No |
+| `per_compresa` | `si`, `no` | Group by compresa (default: `si`) | No |
+| `per_particella` | `si`, `no` | Group by particella (default: `si`) | No |
+| `per_genere` | `si`, `no` | Group by genere (default varies by directive) | No |
+| `totali` | `si`, `no` | Add totals row (default: `no`) | No |
+| `stime_totali` | `si`, `no` | Use estimated totals scaled to parcel area (default: `si`) | No |
+
+**Multi-value parameters**: `alberi`, `equazioni`, `compresa`, `particella`, and `genere` can be repeated:
+```
+@@grafico_classi_diametriche(alberi=trees1.csv, alberi=trees2.csv, compresa=Serra, compresa=Fabrizia)
+@@grafico_classi_ipsometriche(alberi=trees.csv, equazioni=eq1.csv, equazioni=eq2.csv, compresa=Serra)
+```
+Multiple `alberi`/`equazioni` files are concatenated; multiple filters are combined with OR.
+
+### Graph Parameters
+
+| Parameter | Values | Description |
+|-----------|--------|-------------|
+| `metrica` | see below | Metric to plot (default varies by directive) |
+| `stile` | freeform | CSS class (HTML) or `\includegraphics` options (LaTeX) |
+| `x_max` | integer | Override x-axis maximum (0 = auto) |
+| `y_max` | integer | Override y-axis maximum (0 = auto) |
+
+`@@grafico_classi_diametriche` metrics: `alberi_ha`, `G_ha`, `volume_ha`, `alberi_tot`, `G_tot`, `volume_tot`, `altezza` (default: `alberi_ha`).
+
+`@@grafico_incremento_percentuale` metrics: `ip`, `ic` (default: `ip`). `per_compresa` and `per_particella` default to `no`.
 
 ### `@@volumi` Parameters
 
 | Parameter | Values | Description |
 |-----------|--------|-------------|
-| `stime_totali` | `si`, `no` | Show estimated total volumes (default: `no`) |
 | `intervallo_fiduciario` | `si`, `no` | Show confidence intervals (default: `no`) |
+| `solo_mature` | `si`, `no` | Only include mature trees (D > 20 cm) (default: `no`) |
 
 ### `@@prelievi` Parameters
 
+Harvest rules are defined in `harvest_rules.py` (comparto-based limits from volume and age tables).
+
+| Parameter | Values | Description |
+|-----------|--------|-------------|
+| `col_comparto` | `si`, `no` | Show comparto column (default: `si`) |
+| `col_eta` | `si`, `no` | Show mean age column (default: `si`) |
+| `col_area_ha` | `si`, `no` | Show area in hectares (default: `si`) |
+| `col_volume` | `si`, `no` | Show total volume (default: `no`) |
+| `col_volume_ha` | `si`, `no` | Show volume per hectare (default: `no`) |
+| `col_volume_mature` | `si`, `no` | Show mature-tree volume (default: `si`) |
+| `col_volume_mature_ha` | `si`, `no` | Show mature-tree volume per hectare (default: `si`) |
+| `col_pp_max` | `si`, `no` | Show PP_max % (default: `si`) |
+| `col_prelievo_ha` | `si`, `no` | Show harvest per hectare (default: `si`) |
+| `col_prelievo` | `si`, `no` | Show total harvest (default: `si`) |
+
+Note: the `genere` filter is not allowed — use `per_genere=si` to group by species.
+
+### `@@piano_di_taglio` Parameters
+
 | Parameter | Values | Description | Required |
 |-----------|--------|-------------|----------|
-| `comparti=FILE` | filename | Comparto rules CSV (relative to `--dati`) | **Yes** |
-| `provv_vol=FILE` | filename | Volume-based harvest rules CSV | **Yes** |
-| `provv_eta=FILE` | filename | Age-based harvest rules CSV | **Yes** |
-| `comparto` | `si`, `no` | Show comparto column (default: `si`) | No |
-| `col_volume` | `si`, `no` | Show total volume column (default: `no`) | No |
-| `col_pp_max` | `si`, `no` | Show PP_max % column (default: `no`) | No |
-| `col_prel_ha` | `si`, `no` | Show harvest per hectare (default: `si`) | No |
-| `col_prel_tot` | `si`, `no` | Show total harvest (default: `si`) | No |
-
-**Harvest algorithm** (per particella):
-1. Let v = total volume per hectare, for all species
-2. Look up provvigione_minima (pm) from comparto
-3. Find PP_max from volume rules: first row where v > PPM × pm / 100
-4. Cap PP_max using age rules: first row where età_media > Anni
-5. Harvestable volume per species per hectare = species volume per hectare × PP_max / 100
-
-Note: "Ceduo" particelle (Comparto F) are excluded from harvest calculations.
-
-**Multi-value parameters**: `alberi`, `equazioni`, `compresa`, `particella`, and `genere` can be repeated:
-```
-@@cd(alberi=trees1.csv, alberi=trees2.csv, compresa=Serra, compresa=Fabrizia)
-@@ci(alberi=trees.csv, equazioni=eq1.csv, equazioni=eq2.csv, compresa=Serra)
-```
-Multiple `alberi`/`equazioni` files are concatenated; multiple filters are combined with OR.
+| `volume_obiettivo` | number | Target standing volume (m³/ha) for the plan | **Yes** |
+| `anno_inizio` | year | First harvest year (default: 2026) | No |
+| `anno_fine` | year | Last harvest year (default: 2040) | No |
+| `intervallo` | years | Harvest interval (default: 10) | No |
+| `mortalita` | fraction | Annual mortality rate (default: 0) | No |
+| `calendario=FILE` | filename | Past harvests CSV (relative to `--dati`) | No |
+| `col_comparto` | `si`, `no` | Show comparto column (default: `si`) | No |
+| `col_eta` | `si`, `no` | Show mean age column (default: `si`) | No |
+| `col_pp_max` | `si`, `no` | Show PP_max % (default: `si`) | No |
+| `col_prima_dopo` | `si`, `no` | Show before/after volumes (default: `si`, requires `per_particella=si`) | No |
 
 ## File Formats
 
@@ -114,5 +166,6 @@ Multiple `alberi`/`equazioni` files are concatenated; multiple filters are combi
 
 ## Implementation Notes
 
-- **Regression curves** in `@@ci` graphs use `EQUATION_FILE` (not recomputed from current data) to reflect original fit quality
+- **Regression curves** in `@@grafico_classi_ipsometriche` use the equations file (not recomputed from current data) to reflect original fit quality
 - **Volume confidence intervals**: Conservative aggregation (sum of margins) for mixed species
+- **Harvest rules** are encoded in `harvest_rules.py` as a function of comparto, age, volume, and basal area
