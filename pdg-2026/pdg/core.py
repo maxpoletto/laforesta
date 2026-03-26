@@ -17,7 +17,7 @@ from pdg.computation import (
     COL_ESPOSIZIONE, COL_STAZIONE, COL_SOPRASSUOLO, COL_PIANO_TAGLIO,
     COL_ALT_MIN, COL_ALT_MAX, COL_LOCALITA, COL_ETA_MEDIA,
     GROUP_COLS_ALIGN,
-    ParcelData, ParcelStats, CurveInfo,
+    ParcelData, ParcelStats,
     basal_area_m2, calculate_area_and_volume, calculate_volume_confidence_interval,
     diameter_class,
     SP_ABETE, SP_ACERO, SP_CASTAGNO, SP_CERRO, SP_CILIEGIO, SP_DOUGLAS,
@@ -26,7 +26,7 @@ from pdg.computation import (
 )
 from pdg.io import load_csv, load_trees, read_past_harvests, file_cache
 from pdg.formatters import (
-    OPT_STILE,
+    OPT_STILE, CurveInfo,
     fmt_num, RenderResult, ColSpec,
     SnippetFormatter,
 )

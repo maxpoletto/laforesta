@@ -64,14 +64,6 @@ GROUP_COLS_ALIGN = {
 # =============================================================================
 
 @dataclass
-class CurveInfo:
-    """Metadata for one regression curve (used in @@grafico_classi_ipsometriche graph legends)."""
-    genere: str
-    equation: str
-    r_squared: float
-    n_points: int
-
-@dataclass
 class ParcelStats:
     """Per-parcel metadata computed from tree data and parcel metadata."""
     area_ha: float

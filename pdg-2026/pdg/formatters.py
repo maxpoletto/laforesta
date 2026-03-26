@@ -7,6 +7,14 @@ import io
 from pathlib import Path
 
 
+@dataclass
+class CurveInfo:
+    """Metadata for one regression curve (used in @@grafico_classi_ipsometriche graph legends)."""
+    genere: str
+    equation: str
+    r_squared: float
+    n_points: int
+
 
 # Option key used by format_image to extract the style parameter.
 OPT_STILE = 'stile'
@@ -67,7 +75,7 @@ class SnippetFormatter(ABC):
         """Format image reference for this format."""
 
     @abstractmethod
-    def format_metadata(self, data, curve_info: list | None = None) -> str:
+    def format_metadata(self, data, curve_info: list[CurveInfo] | None = None) -> str:
         """Format metadata block for this format."""
 
     @abstractmethod
@@ -94,7 +102,7 @@ class HTMLSnippetFormatter(SnippetFormatter):
         cls = options[OPT_STILE] if options and options[OPT_STILE] else 'graph-image'
         return f'<img src="{filepath.name}" class="{cls}">'
 
-    def format_metadata(self, data, curve_info: list | None = None) -> str:
+    def format_metadata(self, data, curve_info: list[CurveInfo] | None = None) -> str:
         """Format metadata as HTML."""
         html = '<div class="graph-details">\n'
         html += f'<p><strong>Comprese:</strong> {data.regions}</p>\n'
@@ -153,7 +161,7 @@ class LaTeXSnippetFormatter(SnippetFormatter):
         latex += '\\end{center}\n'
         return latex
 
-    def format_metadata(self, data, curve_info: list | None = None) -> str:
+    def format_metadata(self, data, curve_info: list[CurveInfo] | None = None) -> str:
         """Format metadata as LaTeX."""
         if not curve_info:
             return ""
@@ -224,7 +232,7 @@ class CSVSnippetFormatter(SnippetFormatter):
     def format_image(self, filepath: Path, options: dict | None = None) -> str:
         raise NotImplementedError("Formato CSV non supporta immagini (direttive @@g*)")
 
-    def format_metadata(self, data, curve_info: list | None = None) -> str:
+    def format_metadata(self, data, curve_info: list[CurveInfo] | None = None) -> str:
         raise NotImplementedError("Formato CSV non supporta metadati")
 
     def format_table(self, headers: list[tuple[str, str]], rows: list[list[str]]) -> str:
