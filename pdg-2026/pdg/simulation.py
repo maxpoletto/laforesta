@@ -66,24 +66,17 @@ def select_from_bottom(trees: pd.DataFrame) -> pd.Index:
 # GROWTH RATE CALCULATION
 # =============================================================================
 
-def calculate_pct_growth_table(data: ParcelData, group_cols: list[str],
-                           stime_totali: bool) -> pd.DataFrame:
-    """Calculate the table rows for the @@tabella_incremento_percentuale/@@grafico_incremento_percentuale directives. Returns a DataFrame.
+def growth_per_group(trees: pd.DataFrame, group_cols: list[str],
+                     stime_totali: bool) -> pd.DataFrame:
+    """Compute per-group growth metrics from tree data.
 
     group_cols must include COL_GENERE and COL_CD_CM.  Computes per group:
       - ip_medio: volume-weighted mean Pressler percentage increment
       - delta_d: mean annual diameter increment (cm)
       - incremento_corrente: volume * ip/100
-    When stime_totali is True, volumes are scaled by 1/sampled_frac per parcel.
+    When stime_totali is True, volumes are scaled by COL_SCALE per tree.
     """
-    trees = data.trees
-    for col in (COL_GENERE, COL_CD_CM):
-        if col not in group_cols:
-            raise ValueError(f"group_cols deve includere '{col}'")
-    for col in (group_cols + [COL_COEFF_PRESSLER, COL_L10_MM, COL_D_CM, COL_V_M3]):
-        if col not in trees.columns:
-            raise ValueError(f"Direttiva richiede la colonna '{col}'. "
-                             "Esegui --calcola-incrementi e --calcola-altezze-volumi.")
+    assert COL_GENERE in group_cols and COL_CD_CM in group_cols
 
     rows = []
     for group_key, group_trees in trees.groupby(group_cols):
@@ -178,10 +171,10 @@ def year_step(sim: pd.DataFrame, weight: np.ndarray,
     return delta_d, fallbacks
 
 
-def build_growth_tables(data: ParcelData) -> GrowthTables:
+def growth_tables(data: ParcelData) -> GrowthTables:
     """Build growth rate lookup tables from parcel data."""
     groupby_cols = [COL_COMPRESA, COL_GENERE, COL_CD_CM]
-    growth_df = calculate_pct_growth_table(data, groupby_cols, stime_totali=True)
+    growth_df = growth_per_group(data.trees, groupby_cols, stime_totali=True)
     by_group = {}
     available_diams = defaultdict(list)
     for _, row in growth_df.iterrows():
@@ -294,7 +287,7 @@ def schedule_harvests(
     sim_parcels = {k: copy(parcels[k]) for k in fustaia_keys}
 
     # Build growth lookup
-    growth = build_growth_tables(data)
+    growth = growth_tables(data)
 
     # Build sim DataFrame with weight and diam_growth columns
     sim = trees[[COL_COMPRESA, COL_PARTICELLA, COL_AREA_SAGGIO,

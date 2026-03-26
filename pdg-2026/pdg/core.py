@@ -12,7 +12,7 @@ from pdg.harvest_rules import HarvestRulesFunc, max_harvest
 from pdg.computation import (
     SAMPLE_AREA_HA, MATURE_THRESHOLD, MATURE_FILTER,
     COL_D_CM, COL_H_M, COL_V_M3, COL_GENERE, COL_COMPRESA, COL_PARTICELLA,
-    COL_CD_CM, COL_SCALE, COL_AREA_SAGGIO,
+    COL_CD_CM, COL_SCALE, COL_AREA_SAGGIO, COL_COEFF_PRESSLER, COL_L10_MM,
     COL_AREA_PARCEL, COL_COMPARTO, COL_GOVERNO, GOV_FUSTAIA,
     COL_ESPOSIZIONE, COL_STAZIONE, COL_SOPRASSUOLO, COL_PIANO_TAGLIO,
     COL_ALT_MIN, COL_ALT_MAX, COL_LOCALITA, COL_ETA_MEDIA,
@@ -35,7 +35,7 @@ from pdg.simulation import (
     COL_YEAR, COL_HARVEST, COL_VOLUME_BEFORE, COL_VOLUME_AFTER, COL_SPECIES_SHARES,
     COL_WEIGHT,
     TreeSelectionFunc, select_from_bottom,
-    calculate_pct_growth_table, harvest_parcel, schedule_harvests,
+    growth_per_group, harvest_parcel, schedule_harvests,
 )
 
 # =============================================================================
@@ -723,6 +723,15 @@ def render_volume_table(data: ParcelData, formatter: SnippetFormatter, **options
 # INCREMENTO PERCENTUALE
 # =============================================================================
 
+_GROWTH_REQUIRED_COLS = [COL_COEFF_PRESSLER, COL_L10_MM, COL_D_CM, COL_V_M3]
+
+def check_growth_columns(trees: pd.DataFrame) -> None:
+    """Validate that trees has the columns needed for growth computation."""
+    for col in _GROWTH_REQUIRED_COLS:
+        if col not in trees.columns:
+            raise ValueError(f"Direttiva richiede la colonna '{col}'. "
+                             "Esegui --calcola-incrementi e --calcola-altezze-volumi.")
+
 def render_pct_growth_table(data: ParcelData, formatter: SnippetFormatter, **options) -> RenderResult:
     """Generate IP summary table (@@tabella_incremento_percentuale directive)."""
     group_cols = []
@@ -732,7 +741,8 @@ def render_pct_growth_table(data: ParcelData, formatter: SnippetFormatter, **opt
         group_cols.append(COL_PARTICELLA)
     group_cols += [COL_GENERE, COL_CD_CM]
 
-    df = calculate_pct_growth_table(data, group_cols, options[OPT_STIME_TOTALI])
+    check_growth_columns(data.trees)
+    df = growth_per_group(data.trees, group_cols, options[OPT_STIME_TOTALI])
 
     col_specs = [
         ColSpec('Incr. pct.', 'r', COL_IP_MEDIO, None, True),
@@ -753,7 +763,8 @@ def render_pct_growth_graph(data: ParcelData, output_path: Path,
             group_cols.append(COL_PARTICELLA)
         group_cols += [COL_GENERE, COL_CD_CM]
 
-        df = calculate_pct_growth_table(data, group_cols, options[OPT_STIME_TOTALI])
+        check_growth_columns(data.trees)
+        df = growth_per_group(data.trees, group_cols, options[OPT_STIME_TOTALI])
 
         metrica = options[OPT_METRICA]
         if metrica == 'ip':

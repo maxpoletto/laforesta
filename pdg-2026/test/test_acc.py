@@ -52,7 +52,7 @@ from pdg.simulation import (
     COL_WEIGHT, COL_YEAR, COL_HARVEST,
     COL_VOLUME_BEFORE, COL_VOLUME_AFTER, COL_SPECIES_SHARES,
     select_from_bottom, harvest_parcel, schedule_harvests,
-    calculate_pct_growth_table,
+    growth_per_group,
 )
 
 from pdg.core import (
@@ -141,12 +141,12 @@ class TestAggregationConsistency:
         Note: ip_medio (percentage) does NOT sum - only incremento_corrente does.
         """
         # Total across all
-        df_total = calculate_pct_growth_table(data_all, group_cols=[COL_GENERE, COL_CD_CM], stime_totali=True)
+        df_total = growth_per_group(data_all.trees, group_cols=[COL_GENERE, COL_CD_CM], stime_totali=True)
         total_ic = df_total['incremento_corrente'].sum()
 
         # Per-particella breakdown
-        df_per_parcel = calculate_pct_growth_table(
-            data_all, group_cols=[COL_PARTICELLA, COL_GENERE, COL_CD_CM], stime_totali=True
+        df_per_parcel = growth_per_group(
+            data_all.trees, group_cols=[COL_PARTICELLA, COL_GENERE, COL_CD_CM], stime_totali=True
         )
         sum_per_parcel = df_per_parcel['incremento_corrente'].sum()
 
@@ -189,8 +189,8 @@ class TestAggregationConsistency:
         data = ParcelData(trees=trees, regions=['R'], species=['Faggio'],
                           parcels=parcels)
 
-        df = calculate_pct_growth_table(
-            data, group_cols=[COL_GENERE, COL_CD_CM], stime_totali=True)
+        df = growth_per_group(
+            data.trees, group_cols=[COL_GENERE, COL_CD_CM], stime_totali=True)
         assert len(df) == 1
         row = df.iloc[0]
 

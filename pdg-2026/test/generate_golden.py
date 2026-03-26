@@ -11,7 +11,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from pdg.computation import COL_PARTICELLA, COL_COMPRESA, COL_GENERE, COL_CD_CM
 from pdg.io import file_cache, load_csv, load_trees
-from pdg.simulation import calculate_pct_growth_table
+from pdg.simulation import growth_per_group
 from pdg.core import (
     region_cache, parcel_data,
     calculate_volume_table, calculate_harvest_table,
@@ -80,10 +80,10 @@ def main():
 
     # @@tabella_incremento_percentuale — matches particella.tex
     print('@@tabella_incremento_percentuale:')
-    save(calculate_pct_growth_table(data_fab1,
+    save(growth_per_group(data_fab1.trees,
         group_cols=[COL_GENERE, COL_CD_CM],
         stime_totali=True), 'tip-fab1')
-    save(calculate_pct_growth_table(data_cap3,
+    save(growth_per_group(data_cap3.trees,
         group_cols=[COL_GENERE, COL_CD_CM],
         stime_totali=True), 'tip-cap3')
 

@@ -24,7 +24,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from pdg.computation import COL_PARTICELLA, COL_COMPRESA, COL_GENERE, COL_CD_CM
 from pdg.io import file_cache, load_csv, load_trees
-from pdg.simulation import calculate_pct_growth_table
+from pdg.simulation import growth_per_group
 from pdg.core import (
     region_cache, parcel_data,
     calculate_volume_table, calculate_harvest_table,
@@ -184,14 +184,14 @@ class TestTptRegression:
         _assert_frames_close(actual, expected, 'tpt-serra-per_particella_genere')
 
 
-# ── @@tabella_incremento_percentuale (calculate_pct_growth_table) ───────────────────────────────────────────
+# ── @@tabella_incremento_percentuale (growth_per_group) ───────────────────────────────────────────
 
 class TestTipRegression:
     """Regression tests matching @@tabella_incremento_percentuale invocations in templates."""
 
     def test_fab1(self, data_fab1):
         """particella.tex: single particella, genere+cd_cm."""
-        actual = calculate_pct_growth_table(data_fab1,
+        actual = growth_per_group(data_fab1.trees,
             group_cols=[COL_GENERE, COL_CD_CM],
             stime_totali=True)
         expected = _load_golden('tip-fab1')
@@ -199,7 +199,7 @@ class TestTipRegression:
 
     def test_cap3(self, data_cap3):
         """particella.tex: single particella, genere+cd_cm."""
-        actual = calculate_pct_growth_table(data_cap3,
+        actual = growth_per_group(data_cap3.trees,
             group_cols=[COL_GENERE, COL_CD_CM],
             stime_totali=True)
         expected = _load_golden('tip-cap3')
