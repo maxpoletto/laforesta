@@ -20,13 +20,13 @@ FILES_EQUAZIONI=$(CSV_DIR)/equazioni_originali.csv $(CSV_DIR)/equazioni_ipsometr
 equazioni: $(FILES_EQUAZIONI)
 
 $(CSV_DIR)/equazioni_originali.csv: $(CSV_DIR)/alberi.csv
-	./acc.py --genera-equazioni --funzione log --fonte-altezze originali --input $(CSV_DIR)/alberi.csv --output $(CSV_DIR)/equazioni_originali.csv
+	./pdg.py --genera-equazioni --funzione log --fonte-altezze originali --input $(CSV_DIR)/alberi.csv --output $(CSV_DIR)/equazioni_originali.csv
 
 $(CSV_DIR)/equazioni_ipsometro.csv: $(CSV_DIR)/altezze.csv
-	./acc.py --genera-equazioni --funzione log --fonte-altezze ipsometro --input $(CSV_DIR)/altezze.csv --output $(CSV_DIR)/equazioni_ipsometro.csv
+	./pdg.py --genera-equazioni --funzione log --fonte-altezze ipsometro --input $(CSV_DIR)/altezze.csv --output $(CSV_DIR)/equazioni_ipsometro.csv
 
 $(CSV_DIR)/equazioni_tabelle.csv: $(CSV_DIR)/alsometrie.csv $(CSV_DIR)/particelle.csv
-	./acc.py --genera-equazioni --funzione log --fonte-altezze tabelle --particelle $(CSV_DIR)/particelle.csv --input $(CSV_DIR)/alsometrie.csv --output $(CSV_DIR)/equazioni_tabelle.csv
+	./pdg.py --genera-equazioni --funzione log --fonte-altezze tabelle --particelle $(CSV_DIR)/particelle.csv --input $(CSV_DIR)/alsometrie.csv --output $(CSV_DIR)/equazioni_tabelle.csv
 
 clean-equazioni:
 	rm -f $(FILES_EQUAZIONI)
@@ -39,7 +39,7 @@ clean-equazioni:
 altvol: $(CSV_DIR)/alberi-calcolati.csv
 
 $(CSV_DIR)/alberi-calcolati.csv: $(CSV_DIR)/alberi.csv $(CSV_DIR)/equazioni_ipsometro.csv
-	./acc.py --calcola-altezze-volumi --coeff-pressler 200 --equazioni $(CSV_DIR)/equazioni_ipsometro.csv --input $(CSV_DIR)/alberi.csv --output $(CSV_DIR)/alberi-calcolati.csv
+	./pdg.py --calcola-altezze-volumi --coeff-pressler 200 --equazioni $(CSV_DIR)/equazioni_ipsometro.csv --input $(CSV_DIR)/alberi.csv --output $(CSV_DIR)/alberi-calcolati.csv
 
 clean-altvol:
 	rm -f $(CSV_DIR)/alberi-calcolati.csv
@@ -51,7 +51,7 @@ clean-altvol:
 incrementi: $(CSV_DIR)/incrementi.csv
 
 $(CSV_DIR)/incrementi.csv: $(CSV_DIR)/alberi-calcolati.csv
-	./acc.py --calcola-incrementi --input $(CSV_DIR)/alberi-calcolati.csv --output $(CSV_DIR)/incrementi.csv
+	./pdg.py --calcola-incrementi --input $(CSV_DIR)/alberi-calcolati.csv --output $(CSV_DIR)/incrementi.csv
 
 #
 # Data dependencies
@@ -64,13 +64,13 @@ DATA_DEPS=$(FILES_EQUAZIONI) $(CSV_DIR)/alberi.csv $(CSV_DIR)/alberi-calcolati.c
 #
 
 FILES_HTML=html/index.html
-DEPS_HTML=$(DATA_DEPS) acc.py harvest_rules.py template/html/style.css
+DEPS_HTML=$(DATA_DEPS) pdg.py $(wildcard pdg/*.py) harvest_rules.py template/html/style.css
 
 html: $(FILES_HTML)
 
 html/%.html: template/html/%.html $(DEPS_HTML)
 	cp -f template/html/style.css html/
-	./acc.py $(EXTRA_FLAGS) --report --formato html --particelle $(CSV_DIR)/particelle.csv --dati $(CSV_DIR) --input template/html/$*.html --output-dir html/
+	./pdg.py $(EXTRA_FLAGS) --report --formato html --particelle $(CSV_DIR)/particelle.csv --dati $(CSV_DIR) --input template/html/$*.html --output-dir html/
 
 clean-html:
 	rm -f $(FILES_HTML)
@@ -83,7 +83,7 @@ BASENAME=relazione
 FILE_PDF=tex/$(BASENAME).pdf
 FILE_TEX=tex/$(BASENAME).tex
 DEPS_BIB=template/tex/ref.bib
-DEPS_TEX=$(DATA_DEPS) acc.py harvest_rules.py template/tex/particella.tex
+DEPS_TEX=$(DATA_DEPS) pdg.py $(wildcard pdg/*.py) harvest_rules.py template/tex/particella.tex
 
 SECTIONS_TEX= \
 	tex/sec-ipsometrie.tex \
@@ -96,9 +96,9 @@ SECTIONS_TEX= \
 
 pdf: $(FILE_PDF)
 
-# Run acc.py on any template file to expand macros into tex/
+# Run pdg.py on any template file to expand macros into tex/
 tex/%.tex: template/tex/%.tex $(DEPS_TEX)
-	./acc.py $(EXTRA_FLAGS) --report --formato tex --particelle $(CSV_DIR)/particelle.csv --dati $(CSV_DIR) --input template/tex/$*.tex --output-dir tex/
+	./pdg.py $(EXTRA_FLAGS) --report --formato tex --particelle $(CSV_DIR)/particelle.csv --dati $(CSV_DIR) --input template/tex/$*.tex --output-dir tex/
 
 # Compile the assembled document
 $(FILE_PDF): $(FILE_TEX) $(SECTIONS_TEX) $(DEPS_BIB)
@@ -119,12 +119,11 @@ clean-pdf-all:
 #
 
 FILES_CSV=csv/ripresa.csv
-DEPS_CSV=$(DATA_DEPS) acc.py harvest_rules.py
-
+DEPS_CSV=$(DATA_DEPS) pdg.py $(wildcard pdg/*.py)
 csv: $(FILES_CSV)
 
 $(CSV_DIR)/ripresa.csv: template/csv/ripresa.csv $(DEPS_CSV)
-	./acc.py $(EXTRA_FLAGS) --report --formato csv --particelle $(CSV_DIR)/particelle.csv --dati $(CSV_DIR) --input template/csv/ripresa.csv --output-dir csv/
+	./pdg.py $(EXTRA_FLAGS) --report --formato csv --particelle $(CSV_DIR)/particelle.csv --dati $(CSV_DIR) --input template/csv/ripresa.csv --output-dir csv/
 
 clean-csv:
 	rm -f $(FILES_CSV)
@@ -134,7 +133,7 @@ clean-csv:
 #
 
 test:
-	pytest --cov=acc --cov-report=term-missing test/
+	pytest --cov=pdg --cov-report=term-missing test/
 
 regenerate-golden:
 	python3 test/generate_golden.py

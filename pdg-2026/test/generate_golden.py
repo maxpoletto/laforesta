@@ -9,22 +9,29 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-import acc
-from harvest_rules import max_harvest
+from pdg.computation import COL_PARTICELLA, COL_COMPRESA, COL_GENERE, COL_CD_CM
+from pdg.io import file_cache, load_csv, load_trees
+from pdg.simulation import calculate_pct_growth_table
+from pdg.core import (
+    region_cache, parcel_data,
+    calculate_volume_table, calculate_harvest_table,
+    calculate_diameter_class_data,
+)
+from pdg.harvest_rules import max_harvest
 
 TEST_DIR = Path(__file__).parent / "data"
 
 
 def main():
-    acc.file_cache.clear()
-    acc.region_cache.clear()
-    trees_df = acc.load_trees(['regression-alberi.csv'], TEST_DIR)
-    particelle_df = acc.load_csv('regression-particelle.csv', TEST_DIR)
-    particelle_df[acc.COL_PARTICELLA] = particelle_df[acc.COL_PARTICELLA].astype(str)
+    file_cache.clear()
+    region_cache.clear()
+    trees_df = load_trees(['regression-alberi.csv'], TEST_DIR)
+    particelle_df = load_csv('regression-particelle.csv', TEST_DIR)
+    particelle_df[COL_PARTICELLA] = particelle_df[COL_PARTICELLA].astype(str)
 
     def pd_filtered(regions=None, parcels=None):
-        acc.region_cache.clear()
-        return acc.parcel_data(
+        region_cache.clear()
+        return parcel_data(
             ['regression-alberi.csv'], trees_df, particelle_df,
             regions=regions or [], parcels=parcels or [], species=[])
 
@@ -49,45 +56,45 @@ def main():
 
     # @@volumi — matches sec-volumi.tex and particella.tex invocations
     print('@@volumi:')
-    save(acc.calculate_volume_table(data_all,
-        group_cols=[acc.COL_COMPRESA],
+    save(calculate_volume_table(data_all,
+        group_cols=[COL_COMPRESA],
         calc_margin=True, calc_total=True), 'tsv-per_compresa')
-    save(acc.calculate_volume_table(data_serra,
-        group_cols=[acc.COL_PARTICELLA],
+    save(calculate_volume_table(data_serra,
+        group_cols=[COL_PARTICELLA],
         calc_margin=True, calc_total=True), 'tsv-serra-per_particella')
-    save(acc.calculate_volume_table(data_fab1,
-        group_cols=[acc.COL_GENERE],
+    save(calculate_volume_table(data_fab1,
+        group_cols=[COL_GENERE],
         calc_margin=True, calc_total=True), 'tsv-fab1-per_genere')
 
     # @@prelievi — matches sec-ripresa.tex, particella.tex, relazione.tex
     print('@@prelievi:')
-    save(acc.calculate_harvest_table(data_all, max_harvest,
-        group_cols=[acc.COL_COMPRESA]), 'tpt-per_compresa')
-    save(acc.calculate_harvest_table(data_serra, max_harvest,
-        group_cols=[acc.COL_PARTICELLA]), 'tpt-serra-per_particella')
-    save(acc.calculate_harvest_table(data_cap3, max_harvest,
-        group_cols=[acc.COL_GENERE]), 'tpt-cap3-per_genere')
-    save(acc.calculate_harvest_table(data_serra, max_harvest,
-        group_cols=[acc.COL_PARTICELLA, acc.COL_GENERE]),
+    save(calculate_harvest_table(data_all, max_harvest,
+        group_cols=[COL_COMPRESA]), 'tpt-per_compresa')
+    save(calculate_harvest_table(data_serra, max_harvest,
+        group_cols=[COL_PARTICELLA]), 'tpt-serra-per_particella')
+    save(calculate_harvest_table(data_cap3, max_harvest,
+        group_cols=[COL_GENERE]), 'tpt-cap3-per_genere')
+    save(calculate_harvest_table(data_serra, max_harvest,
+        group_cols=[COL_PARTICELLA, COL_GENERE]),
         'tpt-serra-per_particella_genere')
 
     # @@tabella_incremento_percentuale — matches particella.tex
     print('@@tabella_incremento_percentuale:')
-    save(acc.calculate_pct_growth_table(data_fab1,
-        group_cols=[acc.COL_GENERE, acc.COL_CD_CM],
+    save(calculate_pct_growth_table(data_fab1,
+        group_cols=[COL_GENERE, COL_CD_CM],
         stime_totali=True), 'tip-fab1')
-    save(acc.calculate_pct_growth_table(data_cap3,
-        group_cols=[acc.COL_GENERE, acc.COL_CD_CM],
+    save(calculate_pct_growth_table(data_cap3,
+        group_cols=[COL_GENERE, COL_CD_CM],
         stime_totali=True), 'tip-cap3')
 
     # @@tabella_classi_diametriche — matches particella.tex (coarse bins, 4 metrics)
     print('@@tabella_classi_diametriche:')
     for metrica in ['alberi_ha', 'volume_ha', 'G_ha', 'altezza']:
-        save_indexed(acc.calculate_diameter_class_data(data_fab1,
+        save_indexed(calculate_diameter_class_data(data_fab1,
             metrica=metrica, stime_totali=True, fine=False),
             f'tcd-fab1-{metrica}')
     # Fine volume_tot for cross-check
-    save_indexed(acc.calculate_diameter_class_data(data_all,
+    save_indexed(calculate_diameter_class_data(data_all,
         metrica='volume_tot', stime_totali=True, fine=True),
         'tcd-all-volume_tot-fine')
 

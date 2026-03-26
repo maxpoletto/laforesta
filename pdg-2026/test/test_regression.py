@@ -1,5 +1,5 @@
 """
-Regression tests for acc.py calculate_* functions.
+Regression tests for pdg calculate_* functions.
 
 These tests compare the output of calculate_* functions against golden reference
 CSVs generated from a 3-parcel subset of the real data:
@@ -22,8 +22,15 @@ import pandas as pd
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-import acc
-from harvest_rules import max_harvest
+from pdg.computation import COL_PARTICELLA, COL_COMPRESA, COL_GENERE, COL_CD_CM
+from pdg.io import file_cache, load_csv, load_trees
+from pdg.simulation import calculate_pct_growth_table
+from pdg.core import (
+    region_cache, parcel_data,
+    calculate_volume_table, calculate_harvest_table,
+    calculate_diameter_class_data,
+)
+from pdg.harvest_rules import max_harvest
 
 TEST_DIR = Path(__file__).parent / "data"
 
@@ -37,20 +44,20 @@ RTOL = 1e-5
 @pytest.fixture(scope="module")
 def regression_env():
     """Load the regression test data set (3 parcels from real data)."""
-    acc.file_cache.clear()
-    acc.region_cache.clear()
-    trees_df = acc.load_trees(['regression-alberi.csv'], TEST_DIR)
-    particelle_df = acc.load_csv('regression-particelle.csv', TEST_DIR)
-    particelle_df[acc.COL_PARTICELLA] = particelle_df[acc.COL_PARTICELLA].astype(str)
+    file_cache.clear()
+    region_cache.clear()
+    trees_df = load_trees(['regression-alberi.csv'], TEST_DIR)
+    particelle_df = load_csv('regression-particelle.csv', TEST_DIR)
+    particelle_df[COL_PARTICELLA] = particelle_df[COL_PARTICELLA].astype(str)
     yield trees_df, particelle_df
-    acc.file_cache.clear()
-    acc.region_cache.clear()
+    file_cache.clear()
+    region_cache.clear()
 
 
 def _parcel_data(regression_env, regions=None, parcels=None):
     trees_df, particelle_df = regression_env
-    acc.region_cache.clear()
-    return acc.parcel_data(
+    region_cache.clear()
+    return parcel_data(
         ['regression-alberi.csv'], trees_df, particelle_df,
         regions=regions or [], parcels=parcels or [], species=[])
 
@@ -120,24 +127,24 @@ class TestTsvRegression:
 
     def test_per_compresa(self, data_all):
         """sec-volumi.tex: per_compresa=si, per_particella=no, with CI."""
-        actual = acc.calculate_volume_table(data_all,
-            group_cols=[acc.COL_COMPRESA],
+        actual = calculate_volume_table(data_all,
+            group_cols=[COL_COMPRESA],
             calc_margin=True, calc_total=True)
         expected = _load_golden('tsv-per_compresa')
         _assert_frames_close(actual, expected, 'tsv-per_compresa')
 
     def test_serra_per_particella(self, data_serra):
         """sec-volumi.tex: single compresa, per_particella=si, with CI."""
-        actual = acc.calculate_volume_table(data_serra,
-            group_cols=[acc.COL_PARTICELLA],
+        actual = calculate_volume_table(data_serra,
+            group_cols=[COL_PARTICELLA],
             calc_margin=True, calc_total=True)
         expected = _load_golden('tsv-serra-per_particella')
         _assert_frames_close(actual, expected, 'tsv-serra-per_particella')
 
     def test_fab1_per_genere(self, data_fab1):
         """particella.tex: single particella, per_genere=si, with CI."""
-        actual = acc.calculate_volume_table(data_fab1,
-            group_cols=[acc.COL_GENERE],
+        actual = calculate_volume_table(data_fab1,
+            group_cols=[COL_GENERE],
             calc_margin=True, calc_total=True)
         expected = _load_golden('tsv-fab1-per_genere')
         _assert_frames_close(actual, expected, 'tsv-fab1-per_genere')
@@ -150,29 +157,29 @@ class TestTptRegression:
 
     def test_per_compresa(self, data_all):
         """sec-ripresa.tex: per_compresa=si, per_particella=no."""
-        actual = acc.calculate_harvest_table(data_all, max_harvest,
-            group_cols=[acc.COL_COMPRESA])
+        actual = calculate_harvest_table(data_all, max_harvest,
+            group_cols=[COL_COMPRESA])
         expected = _load_golden('tpt-per_compresa')
         _assert_frames_close(actual, expected, 'tpt-per_compresa')
 
     def test_serra_per_particella(self, data_serra):
         """sec-ripresa.tex: single compresa, per_particella=si."""
-        actual = acc.calculate_harvest_table(data_serra, max_harvest,
-            group_cols=[acc.COL_PARTICELLA])
+        actual = calculate_harvest_table(data_serra, max_harvest,
+            group_cols=[COL_PARTICELLA])
         expected = _load_golden('tpt-serra-per_particella')
         _assert_frames_close(actual, expected, 'tpt-serra-per_particella')
 
     def test_cap3_per_genere(self, data_cap3):
         """particella.tex: single particella, per_genere=si."""
-        actual = acc.calculate_harvest_table(data_cap3, max_harvest,
-            group_cols=[acc.COL_GENERE])
+        actual = calculate_harvest_table(data_cap3, max_harvest,
+            group_cols=[COL_GENERE])
         expected = _load_golden('tpt-cap3-per_genere')
         _assert_frames_close(actual, expected, 'tpt-cap3-per_genere')
 
     def test_serra_per_particella_genere(self, data_serra):
         """relazione.tex: per_particella=si, per_genere=si."""
-        actual = acc.calculate_harvest_table(data_serra, max_harvest,
-            group_cols=[acc.COL_PARTICELLA, acc.COL_GENERE])
+        actual = calculate_harvest_table(data_serra, max_harvest,
+            group_cols=[COL_PARTICELLA, COL_GENERE])
         expected = _load_golden('tpt-serra-per_particella_genere')
         _assert_frames_close(actual, expected, 'tpt-serra-per_particella_genere')
 
@@ -184,16 +191,16 @@ class TestTipRegression:
 
     def test_fab1(self, data_fab1):
         """particella.tex: single particella, genere+cd_cm."""
-        actual = acc.calculate_pct_growth_table(data_fab1,
-            group_cols=[acc.COL_GENERE, acc.COL_CD_CM],
+        actual = calculate_pct_growth_table(data_fab1,
+            group_cols=[COL_GENERE, COL_CD_CM],
             stime_totali=True)
         expected = _load_golden('tip-fab1')
         _assert_frames_close(actual, expected, 'tip-fab1')
 
     def test_cap3(self, data_cap3):
         """particella.tex: single particella, genere+cd_cm."""
-        actual = acc.calculate_pct_growth_table(data_cap3,
-            group_cols=[acc.COL_GENERE, acc.COL_CD_CM],
+        actual = calculate_pct_growth_table(data_cap3,
+            group_cols=[COL_GENERE, COL_CD_CM],
             stime_totali=True)
         expected = _load_golden('tip-cap3')
         _assert_frames_close(actual, expected, 'tip-cap3')
@@ -207,7 +214,7 @@ class TestTcdRegression:
     @pytest.mark.parametrize("metrica", ['alberi_ha', 'volume_ha', 'G_ha', 'altezza'])
     def test_fab1_coarse(self, data_fab1, metrica):
         """particella.tex: single particella, coarse bins, each metric."""
-        actual = acc.calculate_diameter_class_data(data_fab1,
+        actual = calculate_diameter_class_data(data_fab1,
             metrica=metrica, stime_totali=True, fine=False)
         expected = _load_golden_indexed(f'tcd-fab1-{metrica}')
         # Align index types (coarse bins are strings)
@@ -218,7 +225,7 @@ class TestTcdRegression:
 
     def test_all_volume_tot_fine(self, data_all):
         """Cross-check: fine volume_tot over all parcels."""
-        actual = acc.calculate_diameter_class_data(data_all,
+        actual = calculate_diameter_class_data(data_all,
             metrica='volume_tot', stime_totali=True, fine=True)
         expected = _load_golden_indexed('tcd-all-volume_tot-fine')
         pd.testing.assert_frame_equal(actual, expected, rtol=RTOL,

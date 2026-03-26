@@ -1,5 +1,5 @@
 """
-Tests for acc.py forest analysis module.
+Tests for the pdg forest analysis module.
 
 Test categories:
 (a) Aggregation consistency - total vs per-particella breakdown
@@ -35,11 +35,32 @@ import pytest
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import acc
-from acc import (COL_COEFF_PRESSLER, COL_COMPRESA, COL_D_CM, COL_CD_CM,
-                 COL_GENERE, COL_H_M, COL_L10_MM, COL_PARTICELLA, COL_V_M3,
-                 COL_WEIGHT, COL_AREA_SAGGIO,
-                 ParcelData, ParcelStats)
+from pdg.computation import (
+    MATURE_THRESHOLD, SAMPLE_AREA_HA,
+    COL_COEFF_PRESSLER, COL_COMPRESA, COL_D_CM, COL_CD_CM,
+    COL_GENERE, COL_H_M, COL_L10_MM, COL_PARTICELLA, COL_V_M3,
+    COL_AREA_SAGGIO, COL_SCALE, COL_FUSTAIA,
+    COL_AREA_PARCEL, COL_COMPARTO, COL_GOVERNO, COL_ETA_MEDIA,
+    COL_LOCALITA, COL_ALT_MIN, COL_ALT_MAX,
+    COL_ESPOSIZIONE, COL_STAZIONE, COL_SOPRASSUOLO, COL_PIANO_TAGLIO,
+    ParcelData, ParcelStats,
+    calculate_all_trees_volume, calculate_volume_confidence_interval,
+    diameter_class,
+)
+
+from pdg.simulation import (
+    COL_WEIGHT, COL_YEAR, COL_HARVEST,
+    COL_VOLUME_BEFORE, COL_VOLUME_AFTER, COL_SPECIES_SHARES,
+    select_from_bottom, harvest_parcel, schedule_harvests,
+    calculate_pct_growth_table,
+)
+
+from pdg.core import (
+    COL_SECTOR, COL_AGE, COL_PP_MAX,
+    parcel_data,
+    calculate_volume_table, calculate_harvest_table,
+    calculate_harvest_plan, calculate_diameter_class_data,
+)
 
 # Fixtures are defined in conftest.py
 
@@ -54,13 +75,13 @@ class TestAggregationConsistency:
     def test_tsv_volume_aggregation(self, data_all):
         """@@volumi total volume should equal sum of per-particella volumes."""
         # Total (no per_particella breakdown)
-        df_total = acc.calculate_volume_table(
+        df_total = calculate_volume_table(
             data_all, group_cols=[], calc_margin=False, calc_total=True
         )
         total_volume = df_total['volume'].sum()
 
         # Per-particella breakdown
-        df_per_parcel = acc.calculate_volume_table(
+        df_per_parcel = calculate_volume_table(
             data_all, group_cols=[COL_PARTICELLA], calc_margin=False, calc_total=True
         )
         sum_per_parcel = df_per_parcel['volume'].sum()
@@ -70,12 +91,12 @@ class TestAggregationConsistency:
 
     def test_tsv_tree_count_aggregation(self, data_all):
         """@@volumi total tree count should equal sum of per-particella counts."""
-        df_total = acc.calculate_volume_table(
+        df_total = calculate_volume_table(
             data_all, group_cols=[], calc_margin=False, calc_total=True
         )
         total_trees = df_total['n_trees'].sum()
 
-        df_per_parcel = acc.calculate_volume_table(
+        df_per_parcel = calculate_volume_table(
             data_all, group_cols=[COL_PARTICELLA], calc_margin=False, calc_total=True
         )
         sum_per_parcel = df_per_parcel['n_trees'].sum()
@@ -85,12 +106,12 @@ class TestAggregationConsistency:
 
     def test_tsv_volume_by_species_aggregation(self, data_all):
         """@@volumi per-genere volumes should sum to total."""
-        df_total = acc.calculate_volume_table(
+        df_total = calculate_volume_table(
             data_all, group_cols=[], calc_margin=False, calc_total=True
         )
         total_volume = df_total['volume'].sum()
 
-        df_per_species = acc.calculate_volume_table(
+        df_per_species = calculate_volume_table(
             data_all, group_cols=[COL_GENERE], calc_margin=False, calc_total=True
         )
         sum_per_species = df_per_species['volume'].sum()
@@ -100,12 +121,12 @@ class TestAggregationConsistency:
 
     def test_tsv_volume_parcel_species_aggregation(self, data_all):
         """@@volumi per-particella-per-genere should sum to total."""
-        df_total = acc.calculate_volume_table(
+        df_total = calculate_volume_table(
             data_all, group_cols=[], calc_margin=False, calc_total=True
         )
         total_volume = df_total['volume'].sum()
 
-        df_detailed = acc.calculate_volume_table(
+        df_detailed = calculate_volume_table(
             data_all, group_cols=[COL_PARTICELLA, COL_GENERE],
             calc_margin=False, calc_total=True
         )
@@ -120,11 +141,11 @@ class TestAggregationConsistency:
         Note: ip_medio (percentage) does NOT sum - only incremento_corrente does.
         """
         # Total across all
-        df_total = acc.calculate_pct_growth_table(data_all, group_cols=[COL_GENERE, COL_CD_CM], stime_totali=True)
+        df_total = calculate_pct_growth_table(data_all, group_cols=[COL_GENERE, COL_CD_CM], stime_totali=True)
         total_ic = df_total['incremento_corrente'].sum()
 
         # Per-particella breakdown
-        df_per_parcel = acc.calculate_pct_growth_table(
+        df_per_parcel = calculate_pct_growth_table(
             data_all, group_cols=[COL_PARTICELLA, COL_GENERE, COL_CD_CM], stime_totali=True
         )
         sum_per_parcel = df_per_parcel['incremento_corrente'].sum()
@@ -168,7 +189,7 @@ class TestAggregationConsistency:
         data = ParcelData(trees=trees, regions=['R'], species=['Faggio'],
                           parcels=parcels)
 
-        df = acc.calculate_pct_growth_table(
+        df = calculate_pct_growth_table(
             data, group_cols=[COL_GENERE, COL_CD_CM], stime_totali=True)
         assert len(df) == 1
         row = df.iloc[0]
@@ -196,13 +217,13 @@ class TestCrossQueryConsistency:
     def test_tsv_tcd_volume_consistency(self, data_all):
         """@@volumi total volume should match sum of @@tabella_classi_diametriche volume buckets."""
         # @@volumi total
-        df_tsv = acc.calculate_volume_table(
+        df_tsv = calculate_volume_table(
             data_all, group_cols=[], calc_margin=False, calc_total=True
         )
         tsv_volume = df_tsv['volume'].sum()
 
         # @@tabella_classi_diametriche volume_tot (fine buckets, summed)
-        tcd_df = acc.calculate_diameter_class_data(
+        tcd_df = calculate_diameter_class_data(
             data_all, metrica='volume_tot', stime_totali=True, fine=True
         )
         tcd_volume = tcd_df.sum().sum()
@@ -212,12 +233,12 @@ class TestCrossQueryConsistency:
 
     def test_tsv_tcd_tree_count_consistency(self, data_all):
         """@@volumi tree count should match sum of @@tabella_classi_diametriche tree count buckets."""
-        df_tsv = acc.calculate_volume_table(
+        df_tsv = calculate_volume_table(
             data_all, group_cols=[], calc_margin=False, calc_total=True
         )
         tsv_trees = df_tsv['n_trees'].sum()
 
-        tcd_df = acc.calculate_diameter_class_data(
+        tcd_df = calculate_diameter_class_data(
             data_all, metrica='alberi_tot', stime_totali=True, fine=True
         )
         tcd_trees = tcd_df.sum().sum()
@@ -228,12 +249,12 @@ class TestCrossQueryConsistency:
     def test_tcd_fine_coarse_consistency(self, data_all):
         """@@tabella_classi_diametriche fine buckets should sum to coarse buckets."""
         # Fine buckets (5, 10, 15, ...)
-        fine_df = acc.calculate_diameter_class_data(
+        fine_df = calculate_diameter_class_data(
             data_all, metrica='volume_tot', stime_totali=True, fine=True
         )
 
         # Coarse buckets (1-30, 31-50, 50+)
-        coarse_df = acc.calculate_diameter_class_data(
+        coarse_df = calculate_diameter_class_data(
             data_all, metrica='volume_tot', stime_totali=True, fine=False
         )
 
@@ -247,7 +268,7 @@ class TestCrossQueryConsistency:
     def test_tcd_basal_area_consistency(self, data_all):
         """@@tabella_classi_diametriche basal area computed two ways should match."""
         # Via tcd
-        tcd_df = acc.calculate_diameter_class_data(
+        tcd_df = calculate_diameter_class_data(
             data_all, metrica='G_tot', stime_totali=True, fine=True
         )
         tcd_basal = tcd_df.sum().sum()
@@ -266,11 +287,11 @@ class TestCrossQueryConsistency:
 
     def test_tsv_tpt_volume_consistency(self, data_all, harvest_rules):
         """@@volumi and @@prelievi should report the same total volume."""
-        df_tsv = acc.calculate_volume_table(
+        df_tsv = calculate_volume_table(
             data_all, group_cols=[], calc_margin=False, calc_total=True,
             calc_mature=True
         )
-        df_tpt = acc.calculate_harvest_table(data_all, harvest_rules, group_cols=[])
+        df_tpt = calculate_harvest_table(data_all, harvest_rules, group_cols=[])
 
         tsv_vol = df_tsv['volume'].sum()
         tpt_vol = df_tpt['volume'].sum()
@@ -280,11 +301,11 @@ class TestCrossQueryConsistency:
 
     def test_tsv_tpt_volume_mature_consitency(self, data_all, harvest_rules):
         """@@volumi and @@prelievi should report the same volume_mature."""
-        df_tsv = acc.calculate_volume_table(
+        df_tsv = calculate_volume_table(
             data_all, group_cols=[], calc_margin=False, calc_total=True,
             calc_mature=True
         )
-        df_tpt = acc.calculate_harvest_table(data_all, harvest_rules, group_cols=[])
+        df_tpt = calculate_harvest_table(data_all, harvest_rules, group_cols=[])
 
         tsv_vol_ss = df_tsv['volume_mature'].sum()
         tpt_vol_ss = df_tpt['volume_mature'].sum()
@@ -326,7 +347,7 @@ class TestSampleAreaScaling:
 
     def test_tree_scaling_parcel_a(self, data_parcel_a):
         """Parcel A: 6 sampled trees should scale to 6 * 80 = 480 estimated trees."""
-        df = acc.calculate_volume_table(
+        df = calculate_volume_table(
             data_parcel_a, group_cols=[], calc_margin=False, calc_total=True
         )
         # 6 trees / 0.0125 = 480
@@ -336,7 +357,7 @@ class TestSampleAreaScaling:
 
     def test_tree_scaling_parcel_b(self, data_parcel_b):
         """Parcel B: 8 sampled trees should scale to 8 * 40 = 320 estimated trees."""
-        df = acc.calculate_volume_table(
+        df = calculate_volume_table(
             data_parcel_b, group_cols=[], calc_margin=False, calc_total=True
         )
         # 8 trees / 0.025 = 320
@@ -346,7 +367,7 @@ class TestSampleAreaScaling:
 
     def test_tree_scaling_parcel_c(self, data_parcel_c):
         """Parcel C: 12 sampled trees should scale to 12 * 16 = 192 estimated trees."""
-        df = acc.calculate_volume_table(
+        df = calculate_volume_table(
             data_parcel_c, group_cols=[], calc_margin=False, calc_total=True
         )
         # 12 trees / 0.0625 = 192
@@ -356,7 +377,7 @@ class TestSampleAreaScaling:
 
     def test_total_scaled_trees(self, data_all):
         """Total scaled trees across all parcels."""
-        df = acc.calculate_volume_table(
+        df = calculate_volume_table(
             data_all, group_cols=[], calc_margin=False, calc_total=True
         )
         # A: 6/0.0125=480, B: 8/0.025=320, C: 12/0.0625=192, D: 6/0.0125=480, E: 6/0.0125=480
@@ -368,22 +389,22 @@ class TestSampleAreaScaling:
             self, data_all, data_parcel_a, data_parcel_b, data_parcel_c,
             data_parcel_d, data_parcel_e):
         """Sum of per-parcel volumes should equal total volume."""
-        df_all = acc.calculate_volume_table(
+        df_all = calculate_volume_table(
             data_all, group_cols=[], calc_margin=False, calc_total=True
         )
-        df_a = acc.calculate_volume_table(
+        df_a = calculate_volume_table(
             data_parcel_a, group_cols=[], calc_margin=False, calc_total=True
         )
-        df_b = acc.calculate_volume_table(
+        df_b = calculate_volume_table(
             data_parcel_b, group_cols=[], calc_margin=False, calc_total=True
         )
-        df_c = acc.calculate_volume_table(
+        df_c = calculate_volume_table(
             data_parcel_c, group_cols=[], calc_margin=False, calc_total=True
         )
-        df_d = acc.calculate_volume_table(
+        df_d = calculate_volume_table(
             data_parcel_d, group_cols=[], calc_margin=False, calc_total=True
         )
-        df_e = acc.calculate_volume_table(
+        df_e = calculate_volume_table(
             data_parcel_e, group_cols=[], calc_margin=False, calc_total=True
         )
 
@@ -397,13 +418,13 @@ class TestSampleAreaScaling:
     def test_per_ha_values(self, data_all):
         """Per-hectare values should be total divided by total area (50 ha)."""
         # Total volume
-        tcd_tot = acc.calculate_diameter_class_data(
+        tcd_tot = calculate_diameter_class_data(
             data_all, metrica='volume_tot', stime_totali=True, fine=True
         )
         total_volume = tcd_tot.sum().sum()
 
         # Per-hectare volume
-        tcd_ha = acc.calculate_diameter_class_data(
+        tcd_ha = calculate_diameter_class_data(
             data_all, metrica='volume_ha', stime_totali=True, fine=True
         )
         per_ha_volume = tcd_ha.sum().sum()
@@ -424,19 +445,19 @@ class TestEdgeCases:
 
     def test_single_parcel_single_species(self, trees_df, particelle_df):
         """Test with single parcel and single species."""
-        data = acc.parcel_data(
+        data = parcel_data(
             ["alberi.csv"], trees_df, particelle_df,
             regions=["Test"], parcels=["A"], species=["Faggio"]
         )
 
-        df = acc.calculate_volume_table(data, group_cols=[], calc_margin=False, calc_total=True)
+        df = calculate_volume_table(data, group_cols=[], calc_margin=False, calc_total=True)
         assert df['n_trees'].sum() > 0
         assert df['volume'].sum() > 0
 
     def test_empty_filter_raises(self, trees_df, particelle_df):
         """Empty filter results should raise ValueError."""
         with pytest.raises(ValueError, match="Nessun dato trovato"):
-            acc.parcel_data(
+            parcel_data(
                 ["alberi.csv"], trees_df, particelle_df,
                 regions=["Test"], parcels=["A"], species=["NonExistent"]
             )
@@ -444,14 +465,14 @@ class TestEdgeCases:
     def test_particella_without_compresa_raises(self, trees_df, particelle_df):
         """Specifying particella without compresa should raise."""
         with pytest.raises(ValueError, match="compresa"):
-            acc.parcel_data(
+            parcel_data(
                 ["alberi.csv"], trees_df, particelle_df,
                 regions=[], parcels=["A"], species=[]
             )
 
     def test_zero_values_in_diameter_classes(self, data_parcel_a):
         """Species with no trees in a diameter class should have zero."""
-        tcd_df = acc.calculate_diameter_class_data(
+        tcd_df = calculate_diameter_class_data(
             data_parcel_a, metrica='alberi_tot', stime_totali=True, fine=True
         )
         # All values should be >= 0 (no NaN or negative)
@@ -470,24 +491,24 @@ class TestConfidenceInterval:
     def test_margin_is_positive(self, data_all):
         """Confidence interval margin should be positive."""
         trees = data_all.trees
-        _, margin = acc.calculate_volume_confidence_interval(trees)
+        _, margin = calculate_volume_confidence_interval(trees)
         assert margin > 0, f"Margin should be positive, got {margin}"
 
     def test_margin_increases_with_volume(self, trees_df, particelle_df):
         """Larger samples should have larger absolute margins."""
         # Single parcel
-        data_a = acc.parcel_data(
+        data_a = parcel_data(
             ["alberi.csv"], trees_df, particelle_df,
             regions=["Test"], parcels=["A"], species=[]
         )
-        _, margin_a = acc.calculate_volume_confidence_interval(data_a.trees)
+        _, margin_a = calculate_volume_confidence_interval(data_a.trees)
 
         # All parcels (more trees)
-        data_all = acc.parcel_data(
+        data_all = parcel_data(
             ["alberi.csv"], trees_df, particelle_df,
             regions=["Test"], parcels=[], species=[]
         )
-        _, margin_all = acc.calculate_volume_confidence_interval(data_all.trees)
+        _, margin_all = calculate_volume_confidence_interval(data_all.trees)
 
         # More trees -> larger absolute margin (not necessarily proportionally)
         assert margin_all > margin_a, \
@@ -495,7 +516,7 @@ class TestConfidenceInterval:
 
     def test_ci_bounds_bracket_volume(self, data_all):
         """Confidence interval should bracket the point estimate."""
-        df = acc.calculate_volume_table(
+        df = calculate_volume_table(
             data_all, group_cols=[], calc_margin=True, calc_total=True
         )
         row = df.iloc[0]
@@ -506,7 +527,7 @@ class TestConfidenceInterval:
 
     def test_ci_per_species(self, data_all):
         """Each species should have valid CI bounds."""
-        df = acc.calculate_volume_table(
+        df = calculate_volume_table(
             data_all, group_cols=[COL_GENERE], calc_margin=True, calc_total=True
         )
 
@@ -525,7 +546,7 @@ class TestMature:
 
     def test_volume_mature_excludes_small_trees(self, data_all):
         """volume_mature should exclude trees with D <= 20cm."""
-        df = acc.calculate_volume_table(
+        df = calculate_volume_table(
             data_all, group_cols=[], calc_margin=False, calc_total=True,
             calc_mature=True
         )
@@ -540,8 +561,8 @@ class TestMature:
     def test_small_trees_count(self, data_all):
         """Verify the number of small trees in test data."""
         trees = data_all.trees
-        n_small = (trees[COL_D_CM] <= acc.MATURE_THRESHOLD).sum()
-        n_mature = (trees[COL_D_CM] > acc.MATURE_THRESHOLD).sum()
+        n_small = (trees[COL_D_CM] <= MATURE_THRESHOLD).sum()
+        n_mature = (trees[COL_D_CM] > MATURE_THRESHOLD).sum()
 
         # Each parcel (A,B,C,D,E) has 2 small trees: 10 total
         # A: 4 mature, B: 6 mature, C: 10 mature, D: 4 mature, E: 4 mature = 28 total
@@ -557,11 +578,11 @@ class TestMature:
         manual_vol_mature = 0.0
         for (region, parcel), ptrees in trees.groupby([COL_COMPRESA, COL_PARTICELLA]):
             sf = parcels[(region, parcel)].sampled_frac
-            above = ptrees[ptrees[COL_D_CM] > acc.MATURE_THRESHOLD]
+            above = ptrees[ptrees[COL_D_CM] > MATURE_THRESHOLD]
             manual_vol_mature += above[COL_V_M3].sum() / sf
 
         # Via calculate_volume_table
-        df = acc.calculate_volume_table(
+        df = calculate_volume_table(
             data_all, group_cols=[], calc_margin=False, calc_total=True,
             calc_mature=True
         )
@@ -580,7 +601,7 @@ class TestHarvestCalculation:
 
     def test_volume_harvest_excludes_sottomisura(self, data_all, harvest_rules):
         """Volume-based harvest should use volume_mature."""
-        df = acc.calculate_harvest_table(data_all, harvest_rules, group_cols=[])
+        df = calculate_harvest_table(data_all, harvest_rules, group_cols=[])
 
         vol_mature = df['volume_mature'].sum()
         harvest = df['harvest'].sum()
@@ -590,8 +611,8 @@ class TestHarvestCalculation:
 
     def test_harvest_per_parcel(self, data_all, harvest_rules):
         """Harvest totals should equal sum of per-parcel harvests."""
-        df_total = acc.calculate_harvest_table(data_all, harvest_rules, group_cols=[])
-        df_parcels = acc.calculate_harvest_table(
+        df_total = calculate_harvest_table(data_all, harvest_rules, group_cols=[])
+        df_parcels = calculate_harvest_table(
             data_all, harvest_rules, group_cols=[COL_PARTICELLA]
         )
 
@@ -603,7 +624,7 @@ class TestHarvestCalculation:
 
     def test_basal_area_harvest_parcel_d(self, data_parcel_d, harvest_rules):
         """Parcel D (age=20) should use 15% basal area harvest rule."""
-        df = acc.calculate_harvest_table(data_parcel_d, harvest_rules, group_cols=[])
+        df = calculate_harvest_table(data_parcel_d, harvest_rules, group_cols=[])
 
         assert df['harvest'].sum() > 0, "Should have some harvest"
 
@@ -613,7 +634,7 @@ class TestHarvestCalculation:
 
     def test_basal_area_harvest_parcel_e(self, data_parcel_e, harvest_rules):
         """Parcel E (age=45) should use 20% basal area harvest rule."""
-        df = acc.calculate_harvest_table(data_parcel_e, harvest_rules, group_cols=[])
+        df = calculate_harvest_table(data_parcel_e, harvest_rules, group_cols=[])
 
         assert df['harvest'].sum() > 0, "Should have some harvest"
 
@@ -624,11 +645,11 @@ class TestHarvestCalculation:
     def test_small_trees_excluded_from_basal_area_harvest(
             self, data_parcel_d, harvest_rules):
         """Small trees (D <= 20) should be excluded from basal area harvest calculation."""
-        df = acc.calculate_harvest_table(data_parcel_d, harvest_rules, group_cols=[])
+        df = calculate_harvest_table(data_parcel_d, harvest_rules, group_cols=[])
 
         trees = data_parcel_d.trees
-        small_trees = trees[trees[COL_D_CM] <= acc.MATURE_THRESHOLD]
-        mature_trees = trees[trees[COL_D_CM] > acc.MATURE_THRESHOLD]
+        small_trees = trees[trees[COL_D_CM] <= MATURE_THRESHOLD]
+        mature_trees = trees[trees[COL_D_CM] > MATURE_THRESHOLD]
 
         assert len(small_trees) == 2, "Should have 2 small trees"
         assert len(mature_trees) == 4, "Should have 4 mature trees"
@@ -646,20 +667,20 @@ class TestPrelievoMassimo:
 
     def test_ceduo_returns_zero(self):
         """Ceduo compartments should return (0, 0)."""
-        from harvest_rules import max_harvest
+        from pdg.harvest_rules import max_harvest
         vol_limit, area_limit = max_harvest('F', 80, 400.0, 30.0)
         assert vol_limit == 0.0
         assert area_limit == 0.0
 
     def test_unknown_comparto_raises(self):
         """Unknown comparto should raise ValueError."""
-        from harvest_rules import max_harvest
+        from pdg.harvest_rules import max_harvest
         with pytest.raises(ValueError, match="Comparto sconosciuto"):
             max_harvest('Z', 60, 300.0, 20.0)
 
     def test_volume_rules_high_stock(self):
         """Age >= 60, high stock -> 25% volume limit."""
-        from harvest_rules import max_harvest
+        from pdg.harvest_rules import max_harvest
         # Comparto A: provv_min=350, volume=700 m3/ha
         # 700 > 180% * 350 = 630 -> pp_max = 25%
         vol_limit, area_limit = max_harvest('A', 80, 700.0, 40.0)
@@ -668,7 +689,7 @@ class TestPrelievoMassimo:
 
     def test_volume_rules_low_stock(self):
         """Age >= 60, low stock -> 0% (below all thresholds)."""
-        from harvest_rules import max_harvest
+        from pdg.harvest_rules import max_harvest
         # Comparto A: provv_min=350, volume=100 m3/ha
         # 100 <= 120% * 350 = 420 -> pp_max = 0
         vol_limit, area_limit = max_harvest('A', 80, 100.0, 10.0)
@@ -677,7 +698,7 @@ class TestPrelievoMassimo:
 
     def test_basal_area_rules_young(self):
         """Age 0-29 -> both volume and 15% basal area limits."""
-        from harvest_rules import max_harvest
+        from pdg.harvest_rules import max_harvest
         # 500 m3/ha: 500/350 = 142.8% -> pp_max = 15%
         vol_limit, area_limit = max_harvest('A', 20, 500.0, 25.0)
         assert np.isclose(vol_limit, 500.0 * 15 / 100)
@@ -685,7 +706,7 @@ class TestPrelievoMassimo:
 
     def test_basal_area_rules_middle(self):
         """Age 30-59 -> both volume and 20% basal area limits."""
-        from harvest_rules import max_harvest
+        from pdg.harvest_rules import max_harvest
         # 500 m3/ha: 500/350 = 142.8% -> pp_max = 15%
         vol_limit, area_limit = max_harvest('A', 45, 500.0, 25.0)
         assert np.isclose(vol_limit, 500.0 * 15 / 100)
@@ -693,7 +714,7 @@ class TestPrelievoMassimo:
 
     def test_volume_floor_blocks_young(self):
         """Age < 60, volume below floor -> vol_limit=0 blocks harvest."""
-        from harvest_rules import max_harvest
+        from pdg.harvest_rules import max_harvest
         # 300 m3/ha <= 120% of 350 = 420 -> pp_max = 0
         vol_limit, area_limit = max_harvest('A', 20, 300.0, 25.0)
         assert vol_limit == 0.0
@@ -701,7 +722,7 @@ class TestPrelievoMassimo:
 
     def test_volume_floor_blocks_middle(self):
         """Age 30-59, volume below floor -> vol_limit=0 blocks harvest."""
-        from harvest_rules import max_harvest
+        from pdg.harvest_rules import max_harvest
         # 300 m3/ha <= 120% of 350 = 420 -> pp_max = 0
         vol_limit, area_limit = max_harvest('A', 45, 300.0, 25.0)
         assert vol_limit == 0.0
@@ -716,8 +737,8 @@ def _harvest_stats(area_ha=1.0, sf=1.0):
 
 def _harvest_trees(**cols):
     """Build a trees DataFrame with COL_SCALE for harvest_parcel tests."""
-    cols.setdefault(acc.COL_GENERE, ['Faggio'] * len(cols[acc.COL_D_CM]))
-    cols.setdefault(acc.COL_SCALE, [1.0] * len(cols[acc.COL_D_CM]))
+    cols.setdefault(COL_GENERE, ['Faggio'] * len(cols[COL_D_CM]))
+    cols.setdefault(COL_SCALE, [1.0] * len(cols[COL_D_CM]))
     return pd.DataFrame(cols)
 
 
@@ -726,22 +747,22 @@ class TestHarvestParcelLimits:
 
     def test_no_mature_trees(self):
         """No mature trees -> None."""
-        trees = _harvest_trees(**{acc.COL_D_CM: [10.0, 15.0], acc.COL_V_M3: [0.1, 0.2]})
+        trees = _harvest_trees(**{COL_D_CM: [10.0, 15.0], COL_V_M3: [0.1, 0.2]})
         # Rules that would allow harvest (but there are no mature trees)
-        result = acc.harvest_parcel(trees, _harvest_stats(),
-            lambda *a: (1000, 1000), acc.select_from_bottom)
+        result = harvest_parcel(trees, _harvest_stats(),
+            lambda *a: (1000, 1000), select_from_bottom)
         assert result is None
 
     def test_volume_limit_stops_harvest(self):
         """Volume limit should stop harvest before all trees taken."""
         trees = _harvest_trees(**{
-            acc.COL_D_CM: [25.0, 30.0, 40.0, 50.0],
-            acc.COL_V_M3: [0.3, 0.5, 1.0, 2.0],
+            COL_D_CM: [25.0, 30.0, 40.0, 50.0],
+            COL_V_M3: [0.3, 0.5, 1.0, 2.0],
         })
         # Per-ha limit 1.0, area 1.0 ha -> absolute limit 1.0 m³
         # Should take D=25 (0.3) + D=30 (0.5) = 0.8, skip D=40 (would exceed)
-        result = acc.harvest_parcel(trees, _harvest_stats(),
-            lambda *a: (1.0, math.inf), acc.select_from_bottom)
+        result = harvest_parcel(trees, _harvest_stats(),
+            lambda *a: (1.0, math.inf), select_from_bottom)
         assert result is not None
         assert np.isclose(result.volume_before, 3.8)  # 0.3+0.5+1.0+2.0
         assert np.isclose(result.harvest, 0.8)         # 0.3+0.5
@@ -749,13 +770,13 @@ class TestHarvestParcelLimits:
     def test_area_limit_stops_harvest(self):
         """Basal area limit should stop harvest before all trees taken."""
         trees = _harvest_trees(**{
-            acc.COL_D_CM: [25.0, 30.0, 40.0],
-            acc.COL_V_M3: [0.3, 0.5, 1.0],
+            COL_D_CM: [25.0, 30.0, 40.0],
+            COL_V_M3: [0.3, 0.5, 1.0],
         })
         # G(D=25) = π/4 * 0.25² ≈ 0.049 m², G(D=30) ≈ 0.071 m²
         # area_limit = 0.06 -> take only D=25
-        result = acc.harvest_parcel(trees, _harvest_stats(),
-            lambda *a: (math.inf, 0.06), acc.select_from_bottom)
+        result = harvest_parcel(trees, _harvest_stats(),
+            lambda *a: (math.inf, 0.06), select_from_bottom)
         assert result is not None
         assert np.isclose(result.harvest, 0.3)
 
@@ -791,7 +812,7 @@ class TestVolumeCalculation:
         """Spot check Faggio volume formula: V = (0.81151 + 0.038965 * D² * h) / 1000."""
         # D=30, h=20 -> V = (0.81151 + 0.038965 * 900 * 20) / 1000 = 0.702 m³
         df = pd.DataFrame({COL_D_CM: [30.0], COL_H_M: [20.0], COL_GENERE: ['Faggio']})
-        result = acc.calculate_all_trees_volume(df)
+        result = calculate_all_trees_volume(df)
         expected = (0.81151 + 0.038965 * 900 * 20) / 1000
         assert np.isclose(result[COL_V_M3].iloc[0], expected, rtol=1e-6), \
             f"Faggio volume {result[COL_V_M3].iloc[0]} != expected {expected}"
@@ -800,7 +821,7 @@ class TestVolumeCalculation:
         """Spot check Cerro volume formula: V = (-0.043221 + 0.038079 * D² * h) / 1000."""
         # D=30, h=20 -> V = (-0.043221 + 0.038079 * 900 * 20) / 1000 = 0.685 m³
         df = pd.DataFrame({COL_D_CM: [30.0], COL_H_M: [20.0], COL_GENERE: ['Cerro']})
-        result = acc.calculate_all_trees_volume(df)
+        result = calculate_all_trees_volume(df)
         expected = (-0.043221 + 0.038079 * 900 * 20) / 1000
         assert np.isclose(result[COL_V_M3].iloc[0], expected, rtol=1e-6), \
             f"Cerro volume {result[COL_V_M3].iloc[0]} != expected {expected}"
@@ -811,26 +832,26 @@ class TestVolumeCalculation:
 # =============================================================================
 
 class TestDiameterClass:
-    """Test acc.diameter_class() assigns correct diameter classes."""
+    """Test diameter_class() assigns correct diameter classes."""
 
     def test_class_midpoints(self):
         """Typical values map to the class whose midpoint they're nearest to."""
         d = pd.Series([5.0, 10.0, 15.0, 20.0, 25.0])
-        result = acc.diameter_class(d)
+        result = diameter_class(d)
         pd.testing.assert_series_equal(result, pd.Series([5, 10, 15, 20, 25]), check_names=False)
 
     def test_boundary_upper_inclusive(self):
         """Upper boundary (midpoint + width/2) belongs to the class."""
         # 7.5 is the upper boundary of class 5 -> should map to 5
         d = pd.Series([7.5, 12.5, 17.5])
-        result = acc.diameter_class(d)
+        result = diameter_class(d)
         pd.testing.assert_series_equal(result, pd.Series([5, 10, 15]), check_names=False)
 
     def test_boundary_lower_exclusive(self):
         """Lower boundary (midpoint - width/2) does NOT belong to the class."""
         # 2.5 is the lower boundary of class 5 -> should map to 0 (class below)
         d = pd.Series([2.5, 7.5 + 0.01])
-        result = acc.diameter_class(d)
+        result = diameter_class(d)
         assert result.iloc[0] == 0, "2.5 should map to class 0, not 5"
         assert result.iloc[1] == 10, "7.51 should map to class 10"
 
@@ -838,34 +859,34 @@ class TestDiameterClass:
         """Values strictly within a class map correctly."""
         # All of these are in (2.5, 7.5] -> class 5
         d = pd.Series([3.0, 4.0, 5.0, 6.0, 7.0, 7.5])
-        result = acc.diameter_class(d)
+        result = diameter_class(d)
         expected = pd.Series([5, 5, 5, 5, 5, 5])
         pd.testing.assert_series_equal(result, expected, check_names=False)
 
     def test_small_diameters(self):
         """Very small diameters (in the first class)."""
         d = pd.Series([0.1, 1.0, 2.0, 2.5])
-        result = acc.diameter_class(d)
+        result = diameter_class(d)
         expected = pd.Series([0, 0, 0, 0])
         pd.testing.assert_series_equal(result, expected, check_names=False)
 
     def test_zero_diameter(self):
         """Zero diameter maps to class 0."""
         d = pd.Series([0.0])
-        result = acc.diameter_class(d)
+        result = diameter_class(d)
         assert result.iloc[0] == 0
 
     def test_large_diameters(self):
         """Large diameters map to correct classes."""
         d = pd.Series([50.0, 77.3, 100.0])
-        result = acc.diameter_class(d)
+        result = diameter_class(d)
         expected = pd.Series([50, 75, 100])
         pd.testing.assert_series_equal(result, expected, check_names=False)
 
     def test_custom_width(self):
         """Non-default class width works correctly."""
         d = pd.Series([5.0, 10.0, 15.0, 20.0])
-        result = acc.diameter_class(d, width=10)
+        result = diameter_class(d, width=10)
         # width=10: (5, 15] -> 10, (15, 25] -> 20
         expected = pd.Series([0, 10, 10, 20])
         pd.testing.assert_series_equal(result, expected, check_names=False)
@@ -874,20 +895,20 @@ class TestDiameterClass:
         """Boundaries with non-default width."""
         # width=10: lower boundary of class 10 is 5.0 (exclusive), upper is 15.0 (inclusive)
         d = pd.Series([5.0, 5.01, 15.0, 15.01])
-        result = acc.diameter_class(d, width=10)
+        result = diameter_class(d, width=10)
         expected = pd.Series([0, 10, 10, 20])
         pd.testing.assert_series_equal(result, expected, check_names=False)
 
     def test_returns_int_dtype(self):
         """Result should have integer dtype."""
         d = pd.Series([3.7, 8.2, 14.9])
-        result = acc.diameter_class(d)
+        result = diameter_class(d)
         assert np.issubdtype(result.dtype, np.integer)
 
     def test_empty_input(self):
         """Empty Series returns empty integer Series."""
         d = pd.Series([], dtype=float)
-        result = acc.diameter_class(d)
+        result = diameter_class(d)
         assert len(result) == 0
         assert np.issubdtype(result.dtype, np.integer)
 
@@ -910,9 +931,9 @@ def _make_sim(trees_data, sampled_frac=0.0125):
             COL_D_CM: d,
             COL_V_M3: v,
             COL_GENERE: genere,
-            COL_CD_CM: acc.diameter_class(pd.Series([d])).iloc[0],
+            COL_CD_CM: diameter_class(pd.Series([d])).iloc[0],
             COL_WEIGHT: 1.0,
-            acc.COL_SCALE: 1 / sampled_frac,
+            COL_SCALE: 1 / sampled_frac,
         })
     return pd.DataFrame(rows)
 
@@ -929,7 +950,7 @@ class TestSelectFromBottom:
         trees = pd.DataFrame({
             COL_D_CM: [40.0, 25.0, 55.0, 30.0],
         })
-        result = acc.select_from_bottom(trees)
+        result = select_from_bottom(trees)
         assert list(result) == [1, 3, 0, 2]
 
 
@@ -949,7 +970,7 @@ class TestHarvestParcel:
             ('R', 'P1', 1, 35.0, 1.0, 'Cerro'),
             ('R', 'P1', 1, 50.0, 2.0, 'Faggio'),
         ])
-        result = acc.harvest_parcel(sim, stats, _simple_rules, acc.select_from_bottom)
+        result = harvest_parcel(sim, stats, _simple_rules, select_from_bottom)
 
         assert result is not None
         # vol_before = sum of mature trees' V / sf
@@ -968,7 +989,7 @@ class TestHarvestParcel:
         sim = _make_sim([
             ('R', 'P1', 1, 30.0, 1.0, 'Faggio'),
         ])
-        result = acc.harvest_parcel(sim, stats, _simple_rules, acc.select_from_bottom)
+        result = harvest_parcel(sim, stats, _simple_rules, select_from_bottom)
         assert result is None
 
     def test_returns_none_for_no_mature_trees(self):
@@ -979,7 +1000,7 @@ class TestHarvestParcel:
             ('R', 'P1', 1, 15.0, 0.1, 'Faggio'),
             ('R', 'P1', 1, 18.0, 0.15, 'Cerro'),
         ])
-        result = acc.harvest_parcel(sim, stats, _simple_rules, acc.select_from_bottom)
+        result = harvest_parcel(sim, stats, _simple_rules, select_from_bottom)
         assert result is None
 
     def test_respects_volume_limit(self):
@@ -993,7 +1014,7 @@ class TestHarvestParcel:
             ('R', 'P1', 1, 50.0, 2.5, 'Faggio'),
             ('R', 'P1', 1, 60.0, 4.0, 'Faggio'),
         ])
-        result = acc.harvest_parcel(sim, stats, _simple_rules, acc.select_from_bottom)
+        result = harvest_parcel(sim, stats, _simple_rules, select_from_bottom)
         assert result is not None
         vol_mature_per_ha = (0.5 + 0.8 + 1.5 + 2.5 + 4.0) / 0.0125 / 10
         limit = vol_mature_per_ha * 0.25 * 10
@@ -1010,7 +1031,7 @@ class TestHarvestParcel:
         ])
         sim[COL_WEIGHT] = 0.5
         generous = lambda c, a, v, b: (v * 0.50, math.inf)
-        result = acc.harvest_parcel(sim, stats, generous, acc.select_from_bottom,
+        result = harvest_parcel(sim, stats, generous, select_from_bottom,
                                     weight=sim[COL_WEIGHT])
         assert result is not None
         # vol_before = (1.0*0.5 + 2.0*0.5) / sf = 120
@@ -1024,7 +1045,7 @@ class TestHarvestParcel:
             ('R', 'P1', 1, 30.0, 1.0, 'Faggio'),
             ('R', 'P1', 1, 40.0, 3.0, 'Cerro'),
         ])
-        result = acc.harvest_parcel(sim, stats, _simple_rules, acc.select_from_bottom)
+        result = harvest_parcel(sim, stats, _simple_rules, select_from_bottom)
         assert result is not None
         assert np.isclose(result.species_shares['Faggio'], 0.25)
         assert np.isclose(result.species_shares['Cerro'], 0.75)
@@ -1035,7 +1056,7 @@ class TestScheduleHarvests:
 
     def test_basic_schedule(self, data_all, harvest_rules):
         """Parcels are harvested in mature-vol-per-ha order, target caps year."""
-        events = acc.schedule_harvests(
+        events = schedule_harvests(
             data_all, past_harvests=None,
             year_range=(2026, 2027), min_gap=10,
             target_volume=99999,  # very high -> harvest all eligible
@@ -1043,15 +1064,15 @@ class TestScheduleHarvests:
         assert len(events) > 0
         # All events should have expected keys
         for e in events:
-            assert acc.COL_YEAR in e
-            assert acc.COL_HARVEST in e
-            assert e[acc.COL_HARVEST] > 0
-            assert np.isclose(e[acc.COL_VOLUME_AFTER],
-                              e[acc.COL_VOLUME_BEFORE] - e[acc.COL_HARVEST])
+            assert COL_YEAR in e
+            assert COL_HARVEST in e
+            assert e[COL_HARVEST] > 0
+            assert np.isclose(e[COL_VOLUME_AFTER],
+                              e[COL_VOLUME_BEFORE] - e[COL_HARVEST])
 
     def test_min_gap_enforcement(self, data_all, harvest_rules):
         """Parcels not re-harvested within min_gap years."""
-        events = acc.schedule_harvests(
+        events = schedule_harvests(
             data_all, past_harvests=None,
             year_range=(2026, 2035), min_gap=10,
             target_volume=99999,
@@ -1059,22 +1080,22 @@ class TestScheduleHarvests:
         # Track last harvest year per parcel
         last = {}
         for e in events:
-            key = (e[acc.COL_COMPRESA], e[acc.COL_PARTICELLA])
+            key = (e[COL_COMPRESA], e[COL_PARTICELLA])
             if key in last:
-                assert e[acc.COL_YEAR] - last[key] >= 10, \
-                    f"Parcel {key} harvested at years {last[key]} and {e[acc.COL_YEAR]}"
-            last[key] = e[acc.COL_YEAR]
+                assert e[COL_YEAR] - last[key] >= 10, \
+                    f"Parcel {key} harvested at years {last[key]} and {e[COL_YEAR]}"
+            last[key] = e[COL_YEAR]
 
     def test_target_volume_cap(self, data_all, harvest_rules):
         """Year total should not greatly exceed target volume."""
         target = 50.0  # small target
-        events = acc.schedule_harvests(
+        events = schedule_harvests(
             data_all, past_harvests=None,
             year_range=(2026, 2026), min_gap=10,
             target_volume=target,
             rules=harvest_rules)
         if events:
-            year_total = sum(e[acc.COL_HARVEST] for e in events)
+            year_total = sum(e[COL_HARVEST] for e in events)
             # Could exceed by at most one parcel's harvest, but should be
             # in the right ballpark (not 10x over)
             assert year_total < target * 10
@@ -1085,15 +1106,15 @@ class TestScheduleHarvests:
         # -> parcel A not eligible until 2030
         past = pd.DataFrame({
             'Anno': [2020],
-            acc.COL_COMPRESA: ['Test'],
-            acc.COL_PARTICELLA: ['A'],
+            COL_COMPRESA: ['Test'],
+            COL_PARTICELLA: ['A'],
         })
-        events = acc.schedule_harvests(
+        events = schedule_harvests(
             data_all, past_harvests=past,
             year_range=(2026, 2029), min_gap=10,
             target_volume=99999,
             rules=harvest_rules)
-        parcel_a_events = [e for e in events if e[acc.COL_PARTICELLA] == 'A']
+        parcel_a_events = [e for e in events if e[COL_PARTICELLA] == 'A']
         assert len(parcel_a_events) == 0, "Parcel A should be blocked by past harvest"
 
     def test_growth_increases_volume(self, data_all, harvest_rules):
@@ -1103,55 +1124,55 @@ class TestScheduleHarvests:
         # parcels are blocked. So we can't directly compare volumes.
         # Instead, check that events in later years (from different parcels)
         # show reasonable volumes.
-        events = acc.schedule_harvests(
+        events = schedule_harvests(
             data_all, past_harvests=None,
             year_range=(2026, 2028), min_gap=2,
             target_volume=99999,
             rules=harvest_rules)
         assert len(events) > 0
         # At least some harvesting should happen
-        years = {e[acc.COL_YEAR] for e in events}
+        years = {e[COL_YEAR] for e in events}
         assert len(years) >= 1
 
     def test_ceduo_parcels_excluded(self, trees_df, particelle_df):
         """Parcels with governo != Fustaia are never scheduled."""
         # Add a ceduo parcel to the metadata
         ceduo_row = pd.DataFrame([{
-            acc.COL_COMPRESA: 'Test', acc.COL_PARTICELLA: 'Z',
-            'CP': 'Test-Z', acc.COL_AREA_PARCEL: 10.0,
-            acc.COL_COMPARTO: 'F', acc.COL_GOVERNO: 'Ceduo',
-            acc.COL_ETA_MEDIA: 40,
-            acc.COL_LOCALITA: 'Loc Z',
-            acc.COL_ALT_MIN: 800, acc.COL_ALT_MAX: 900,
-            acc.COL_ESPOSIZIONE: 'N', 'Pendenza %': 10,
-            acc.COL_STAZIONE: 'Stazione Z',
-            acc.COL_SOPRASSUOLO: 'Ceduo di test',
-            acc.COL_PIANO_TAGLIO: 'Taglio Z', 'Note': '',
+            COL_COMPRESA: 'Test', COL_PARTICELLA: 'Z',
+            'CP': 'Test-Z', COL_AREA_PARCEL: 10.0,
+            COL_COMPARTO: 'F', COL_GOVERNO: 'Ceduo',
+            COL_ETA_MEDIA: 40,
+            COL_LOCALITA: 'Loc Z',
+            COL_ALT_MIN: 800, COL_ALT_MAX: 900,
+            COL_ESPOSIZIONE: 'N', 'Pendenza %': 10,
+            COL_STAZIONE: 'Stazione Z',
+            COL_SOPRASSUOLO: 'Ceduo di test',
+            COL_PIANO_TAGLIO: 'Taglio Z', 'Note': '',
         }])
         particelle_ext = pd.concat([particelle_df, ceduo_row], ignore_index=True)
 
         # Add some trees for parcel Z
         ceduo_trees = pd.DataFrame([{
-            acc.COL_COMPRESA: 'Test', acc.COL_PARTICELLA: 'Z',
-            acc.COL_AREA_SAGGIO: 1, 'n': 1, 'poll': '',
-            acc.COL_D_CM: 30.0, 'Classe diametrica': 6,
-            acc.COL_H_M: 20.0, acc.COL_GENERE: 'Faggio',
-            acc.COL_FUSTAIA: True, acc.COL_L10_MM: 3.0,
-            acc.COL_COEFF_PRESSLER: 200,
+            COL_COMPRESA: 'Test', COL_PARTICELLA: 'Z',
+            COL_AREA_SAGGIO: 1, 'n': 1, 'poll': '',
+            COL_D_CM: 30.0, 'Classe diametrica': 6,
+            COL_H_M: 20.0, COL_GENERE: 'Faggio',
+            COL_FUSTAIA: True, COL_L10_MM: 3.0,
+            COL_COEFF_PRESSLER: 200,
         }])
         trees_ext = pd.concat([trees_df, ceduo_trees], ignore_index=True)
-        trees_ext = acc.calculate_all_trees_volume(trees_ext)
+        trees_ext = calculate_all_trees_volume(trees_ext)
 
-        data = acc.parcel_data(
+        data = parcel_data(
             ["alberi.csv"], trees_ext, particelle_ext,
             regions=["Test"], parcels=[], species=[])
 
-        events = acc.schedule_harvests(
+        events = schedule_harvests(
             data, past_harvests=None,
             year_range=(2026, 2026), min_gap=10,
             target_volume=99999,
             rules=_simple_rules)
-        parcel_z = [e for e in events if e[acc.COL_PARTICELLA] == 'Z']
+        parcel_z = [e for e in events if e[COL_PARTICELLA] == 'Z']
         assert len(parcel_z) == 0, "Ceduo parcel Z should never be harvested"
 
 
@@ -1160,95 +1181,95 @@ class TestCalculateTpdtTable:
 
     COMMON_KWARGS = dict(
         year_range=(2026, 2027), min_gap=10, target_volume=99999,
-        mortalita=0.0, tree_selection=acc.select_from_bottom,
+        mortalita=0.0, tree_selection=select_from_bottom,
     )
 
     def test_per_particella(self, data_all, harvest_rules):
         """Per-particella grouping: one row per (year, parcel)."""
-        df = acc.calculate_harvest_plan(
+        df = calculate_harvest_plan(
             data_all, past_harvests=None,
             rules=harvest_rules,
-            group_cols=[acc.COL_PARTICELLA],
+            group_cols=[COL_PARTICELLA],
             **self.COMMON_KWARGS)
         assert not df.empty
         # Each row should have a unique (year, particella) combination
-        dupes = df.duplicated(subset=[acc.COL_YEAR, acc.COL_PARTICELLA])
+        dupes = df.duplicated(subset=[COL_YEAR, COL_PARTICELLA])
         assert not dupes.any()
 
     def test_year_only(self, data_all, harvest_rules):
         """No group_cols: one row per year with totals."""
-        df = acc.calculate_harvest_plan(
+        df = calculate_harvest_plan(
             data_all, past_harvests=None,
             rules=harvest_rules,
             group_cols=[],
             **self.COMMON_KWARGS)
         assert not df.empty
         # One row per year
-        assert df[acc.COL_YEAR].nunique() == len(df)
+        assert df[COL_YEAR].nunique() == len(df)
 
     def test_per_genere_sums_to_parcel(self, data_all, harvest_rules):
         """Per-genere allocation sums to total per year."""
-        df_total = acc.calculate_harvest_plan(
+        df_total = calculate_harvest_plan(
             data_all, past_harvests=None,
             rules=harvest_rules,
             group_cols=[],
             **self.COMMON_KWARGS)
-        df_genere = acc.calculate_harvest_plan(
+        df_genere = calculate_harvest_plan(
             data_all, past_harvests=None,
             rules=harvest_rules,
-            group_cols=[acc.COL_GENERE],
+            group_cols=[COL_GENERE],
             **self.COMMON_KWARGS)
         if df_total.empty:
             return
         # Sum of per-genere harvest per year should equal total harvest per year
-        genere_by_year = df_genere.groupby(acc.COL_YEAR)[acc.COL_HARVEST].sum()
+        genere_by_year = df_genere.groupby(COL_YEAR)[COL_HARVEST].sum()
         for _, row in df_total.iterrows():
-            year = row[acc.COL_YEAR]
+            year = row[COL_YEAR]
             assert np.isclose(
-                genere_by_year[year], row[acc.COL_HARVEST], rtol=1e-9), \
-                f"Year {year}: genere sum {genere_by_year[year]} != total {row[acc.COL_HARVEST]}"
+                genere_by_year[year], row[COL_HARVEST], rtol=1e-9), \
+                f"Year {year}: genere sum {genere_by_year[year]} != total {row[COL_HARVEST]}"
 
     def test_sorted_by_year(self, data_all, harvest_rules):
         """Output is sorted by year."""
-        df = acc.calculate_harvest_plan(
+        df = calculate_harvest_plan(
             data_all, past_harvests=None,
             rules=harvest_rules,
-            group_cols=[acc.COL_PARTICELLA],
+            group_cols=[COL_PARTICELLA],
             **self.COMMON_KWARGS)
         if df.empty:
             return
-        years = df[acc.COL_YEAR].values
+        years = df[COL_YEAR].values
         assert list(years) == sorted(years)
 
     def test_sector_and_age_columns_present(self, data_all, harvest_rules):
         """Per-particella tpdt table should include sector and age columns."""
-        df = acc.calculate_harvest_plan(
+        df = calculate_harvest_plan(
             data_all, past_harvests=None,
             rules=harvest_rules,
-            group_cols=[acc.COL_COMPRESA, acc.COL_PARTICELLA],
+            group_cols=[COL_COMPRESA, COL_PARTICELLA],
             **self.COMMON_KWARGS)
         if df.empty:
             return
-        assert acc.COL_SECTOR in df.columns, "sector column missing"
-        assert acc.COL_AGE in df.columns, "age column missing"
+        assert COL_SECTOR in df.columns, "sector column missing"
+        assert COL_AGE in df.columns, "age column missing"
 
     def test_age_increases_with_year(self, data_all, harvest_rules):
         """Age in tpdt table should increase by 1 per year for the same parcel."""
-        df = acc.calculate_harvest_plan(
+        df = calculate_harvest_plan(
             data_all, past_harvests=None,
             rules=harvest_rules,
-            group_cols=[acc.COL_COMPRESA, acc.COL_PARTICELLA],
+            group_cols=[COL_COMPRESA, COL_PARTICELLA],
             year_range=(2026, 2040), min_gap=2, target_volume=99999,
-            mortalita=0.0, tree_selection=acc.select_from_bottom)
+            mortalita=0.0, tree_selection=select_from_bottom)
         if df.empty:
             return
         # For each parcel that appears in multiple years, check age delta = year delta
-        for (comp, part), g in df.groupby([acc.COL_COMPRESA, acc.COL_PARTICELLA]):
+        for (comp, part), g in df.groupby([COL_COMPRESA, COL_PARTICELLA]):
             if len(g) < 2:
                 continue
-            g = g.sort_values(acc.COL_YEAR)
-            years = g[acc.COL_YEAR].values
-            ages = g[acc.COL_AGE].values
+            g = g.sort_values(COL_YEAR)
+            years = g[COL_YEAR].values
+            ages = g[COL_AGE].values
             for i in range(1, len(years)):
                 assert ages[i] - ages[0] == years[i] - years[0], \
                     f"Parcel {comp}/{part}: age delta {ages[i]-ages[0]} != " \
@@ -1256,30 +1277,30 @@ class TestCalculateTpdtTable:
 
     def test_sector_matches_parcel_data(self, data_all, harvest_rules):
         """Sector in tpdt table should match the parcel's sector from ParcelData."""
-        df = acc.calculate_harvest_plan(
+        df = calculate_harvest_plan(
             data_all, past_harvests=None,
             rules=harvest_rules,
-            group_cols=[acc.COL_COMPRESA, acc.COL_PARTICELLA],
+            group_cols=[COL_COMPRESA, COL_PARTICELLA],
             **self.COMMON_KWARGS)
         if df.empty:
             return
         for _, row in df.iterrows():
-            key = (row[acc.COL_COMPRESA], row[acc.COL_PARTICELLA])
+            key = (row[COL_COMPRESA], row[COL_PARTICELLA])
             expected_sector = data_all.parcels[key].sector
-            assert row[acc.COL_SECTOR] == expected_sector, \
-                f"Parcel {key}: sector {row[acc.COL_SECTOR]} != {expected_sector}"
+            assert row[COL_SECTOR] == expected_sector, \
+                f"Parcel {key}: sector {row[COL_SECTOR]} != {expected_sector}"
 
     def test_no_sector_age_without_per_particella(self, data_all, harvest_rules):
         """Without per_particella, sector and age columns should not be present."""
-        df = acc.calculate_harvest_plan(
+        df = calculate_harvest_plan(
             data_all, past_harvests=None,
             rules=harvest_rules,
             group_cols=[],
             **self.COMMON_KWARGS)
         if df.empty:
             return
-        assert acc.COL_SECTOR not in df.columns
-        assert acc.COL_AGE not in df.columns
+        assert COL_SECTOR not in df.columns
+        assert COL_AGE not in df.columns
 
 
 class TestScheduleHarvestsAgeProgression:
@@ -1288,7 +1309,7 @@ class TestScheduleHarvestsAgeProgression:
     def test_age_does_not_mutate_original(self, data_all, harvest_rules):
         """schedule_harvests should not modify the original ParcelData ages."""
         original_ages = {k: v.age for k, v in data_all.parcels.items()}
-        acc.schedule_harvests(
+        schedule_harvests(
             data_all, past_harvests=None,
             year_range=(2026, 2030), min_gap=2,
             target_volume=99999,
@@ -1314,25 +1335,25 @@ class TestScheduleHarvestsAgeProgression:
         for t in trees_data:
             d = t['D']
             rows.append({
-                acc.COL_COMPRESA: 'X',
-                acc.COL_PARTICELLA: '1',
-                acc.COL_AREA_SAGGIO: 1,
-                acc.COL_GENERE: t['genere'],
-                acc.COL_D_CM: d,
-                acc.COL_V_M3: t['V'],
-                acc.COL_CD_CM: acc.diameter_class(pd.Series([d])).iloc[0],
-                acc.COL_L10_MM: t['L10'],
-                acc.COL_COEFF_PRESSLER: t['c'],
+                COL_COMPRESA: 'X',
+                COL_PARTICELLA: '1',
+                COL_AREA_SAGGIO: 1,
+                COL_GENERE: t['genere'],
+                COL_D_CM: d,
+                COL_V_M3: t['V'],
+                COL_CD_CM: diameter_class(pd.Series([d])).iloc[0],
+                COL_L10_MM: t['L10'],
+                COL_COEFF_PRESSLER: t['c'],
             })
         trees_df = pd.DataFrame(rows)
 
         # Age 59: one year before crossing the 60 threshold
         parcels = {
-            ('X', '1'): acc.ParcelStats(
+            ('X', '1'): ParcelStats(
                 area_ha=10.0, sector='A', age=59, governo='Fustaia',
-                n_sample_areas=1, sampled_frac=acc.SAMPLE_AREA_HA / 10.0),
+                n_sample_areas=1, sampled_frac=SAMPLE_AREA_HA / 10.0),
         }
-        data = acc.ParcelData(
+        data = ParcelData(
             trees=trees_df, regions=['X'], species=['Faggio'],
             parcels=parcels)
 
@@ -1344,18 +1365,18 @@ class TestScheduleHarvestsAgeProgression:
 
         # Year 1 (2026): age=59 → no harvest
         # Year 2 (2027): age=60 → harvest enabled by age progression
-        events = acc.schedule_harvests(
+        events = schedule_harvests(
             data, past_harvests=None,
             year_range=(2026, 2027), min_gap=1,
             target_volume=99999,
             rules=age_sensitive_rules)
 
-        year_1 = [e for e in events if e[acc.COL_YEAR] == 2026]
-        year_2 = [e for e in events if e[acc.COL_YEAR] == 2027]
+        year_1 = [e for e in events if e[COL_YEAR] == 2026]
+        year_2 = [e for e in events if e[COL_YEAR] == 2027]
 
         assert len(year_1) == 0, "Age 59: should not harvest"
         assert len(year_2) == 1, "Age 60: should harvest after age progresses"
-        assert year_2[0][acc.COL_HARVEST] > 0
+        assert year_2[0][COL_HARVEST] > 0
 
 
 # =============================================================================
