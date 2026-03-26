@@ -16,7 +16,7 @@ import io
 from pathlib import Path
 import re
 import subprocess
-from typing import Callable, Iterable, Optional, cast
+from typing import Callable, Iterable, cast
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -160,11 +160,11 @@ class SnippetFormatter(ABC):
     """Formats individual components (images, metadata) for template insertion."""
 
     @abstractmethod
-    def format_image(self, filepath: Path, options: Optional[dict] = None) -> str:
+    def format_image(self, filepath: Path, options: dict | None = None) -> str:
         """Format image reference for this format."""
 
     @abstractmethod
-    def format_metadata(self, data: 'ParcelData', curve_info: Optional[list] = None) -> str:
+    def format_metadata(self, data: ParcelData, curve_info: list | None = None) -> str:
         """Format metadata block for this format.
 
         Args:
@@ -200,11 +200,11 @@ class SnippetFormatter(ABC):
 class HTMLSnippetFormatter(SnippetFormatter):
     """HTML snippet formatter."""
 
-    def format_image(self, filepath: Path, options: Optional[dict] = None) -> str:
+    def format_image(self, filepath: Path, options: dict | None = None) -> str:
         cls = options[OPT_STILE] if options and options[OPT_STILE] else 'graph-image'
         return f'<img src="{filepath.name}" class="{cls}">'
 
-    def format_metadata(self, data: 'ParcelData', curve_info: Optional[list] = None) -> str:
+    def format_metadata(self, data: ParcelData, curve_info: list | None = None) -> str:
         """Format metadata as HTML."""
         html = '<div class="graph-details">\n'
         html += f'<p><strong>Comprese:</strong> {data.regions}</p>\n'
@@ -256,14 +256,14 @@ class HTMLSnippetFormatter(SnippetFormatter):
 class LaTeXSnippetFormatter(SnippetFormatter):
     """LaTeX snippet formatter."""
 
-    def format_image(self, filepath: Path, options: Optional[dict] = None) -> str:
+    def format_image(self, filepath: Path, options: dict | None = None) -> str:
         fmt = options[OPT_STILE] if options and options[OPT_STILE] else 'width=0.5\\textwidth'
         latex = '\\begin{center}\n'
         latex += f'  \\includegraphics[{fmt}]{{{filepath.name}}}\n'
         latex += '\\end{center}\n'
         return latex
 
-    def format_metadata(self, data: 'ParcelData', curve_info: Optional[list] = None) -> str:
+    def format_metadata(self, data: ParcelData, curve_info: list | None = None) -> str:
         """Format metadata as LaTeX."""
         if not curve_info:
             return ""
@@ -331,10 +331,10 @@ class LaTeXSnippetFormatter(SnippetFormatter):
 class CSVSnippetFormatter(SnippetFormatter):
     """CSV snippet formatter for table-only output."""
 
-    def format_image(self, filepath: Path, options: Optional[dict] = None) -> str:
+    def format_image(self, filepath: Path, options: dict | None = None) -> str:
         raise NotImplementedError("Formato CSV non supporta immagini (direttive @@g*)")
 
-    def format_metadata(self, data: 'ParcelData', curve_info: Optional[list] = None) -> str:
+    def format_metadata(self, data: ParcelData, curve_info: list | None = None) -> str:
         raise NotImplementedError("Formato CSV non supporta metadati")
 
     def format_table(self, headers: list[tuple[str, str]], rows: list[list[str]]) -> str:
@@ -771,7 +771,7 @@ def calculate_area_and_volume(trees: pd.DataFrame,
 
 region_cache = {}
 def parcel_data(tree_files: list[str], tree_df: pd.DataFrame, parcel_df: pd.DataFrame,
-                regions: list[str], parcels: list[str], species: list[str]) -> 'ParcelData':
+                regions: list[str], parcels: list[str], species: list[str]) -> ParcelData:
     """
     Compute parcel data.
 
@@ -2405,7 +2405,7 @@ def _bool_opt(params: dict, key: str, enabled: bool = True) -> bool:
     return params.get(key, 'si' if enabled else 'no').lower() == 'si'
 
 
-def parse_template_directive(line: str) -> Optional[Directive]:
+def parse_template_directive(line: str) -> Directive | None:
     """
     Parse a template directive like @@grafico_classi_ipsometriche(compresa=Serra, genere=Abete).
 
@@ -2459,7 +2459,7 @@ def process_template(template_text: str, data_dir: Path,
                      parcel_file: str,
                      output_dir: Path,
                      format_type: str,
-                     template_dir: Optional[Path] = None) -> str:
+                     template_dir: Path | None = None) -> str:
     """
     Process template by substituting @@directives with generated content.
 
