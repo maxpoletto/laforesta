@@ -4,10 +4,15 @@ Generates the 2026 forest management plan document from field survey data. Produ
 
 # Key Files
 
-- `acc.py` — Main analysis engine (~3k lines): data loading, regression fitting, volume computation, report template expansion.
+- `pdg/` — Main package (refactored from former `acc.py` monolith):
+  - `core.py` — Entry point: report template expansion, top-level orchestration.
+  - `computation.py` — Data models (`ParcelData`, `ParcelStats`), regression fitting, volume/area computation.
+  - `simulation.py` — Harvest simulation engine, growth tables, `harvest_parcel`, `schedule_harvests`.
+  - `io.py` — CSV/data loading and writing.
+  - `formatters.py` — Output formatting (numbers, tables, snippets).
+  - `harvest_rules.py` — Harvest policy logic: volume-based and age-based rules per comparto (A–F). Ceduo parcels (comparto F) always return (0, 0).
 - `inc.py` — Growth projection model: Pressler's formula, transition matrices.
-- `harvest_rules.py` — Harvest policy logic: volume-based and age-based rules per comparto (A–F). Ceduo parcels (comparto F) always return (0, 0).
-- `template/` — Report templates (HTML, LaTeX, CSV) containing `@@` directives that acc.py expands.
+- `template/` — Report templates (HTML, LaTeX, CSV) containing `@@` directives that `pdg/core.py` expands.
 
 # Build Pipeline
 
