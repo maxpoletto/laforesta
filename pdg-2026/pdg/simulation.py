@@ -14,7 +14,7 @@ from pdg.harvest_rules import HarvestRulesFunc, max_harvest
 from pdg.computation import (
     COL_COMPRESA, COL_PARTICELLA, COL_AREA_SAGGIO,
     COL_GENERE, COL_D_CM, COL_V_M3, COL_CD_CM, COL_SCALE,
-    COL_COEFF_PRESSLER, COL_L10_MM,
+    COL_PRESSLER, COL_L10_MM,
     GOV_FUSTAIA, MATURE_FILTER,
     ParcelData, ParcelStats,
     basal_area_m2, calculate_area_and_volume, diameter_class,
@@ -81,7 +81,7 @@ def growth_per_group(trees: pd.DataFrame, group_cols: list[str],
     rows = []
     for group_key, group_trees in trees.groupby(group_cols):
         row_dict = dict(zip(group_cols, group_key))  # type: ignore[reportGeneralTypeIssues]
-        ip_per_tree = (group_trees[COL_COEFF_PRESSLER] * 2 * group_trees[COL_L10_MM]
+        ip_per_tree = (group_trees[COL_PRESSLER] * 2 * group_trees[COL_L10_MM]
                        / 100 / group_trees[COL_D_CM])
         delta_d = (2 * group_trees[COL_L10_MM] / 100).mean()
 

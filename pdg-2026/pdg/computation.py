@@ -33,7 +33,7 @@ COL_CD_CM = 'Classe diam.'      # Computed: diameter bucket (5 cm classes)
 COL_SCALE = '_scale'            # Computed: 1/sampled_frac (scaling factor per tree)
 COL_FUSTAIA = 'Fustaia'         # Boolean column in trees data
 COL_AREA_SAGGIO = 'Area saggio'
-COL_COEFF_PRESSLER = 'c'
+COL_PRESSLER = 'c'
 COL_L10_MM = 'L10(mm)'
 # Parcel metadata (particelle_df)
 COL_AREA_PARCEL = 'Area (ha)'

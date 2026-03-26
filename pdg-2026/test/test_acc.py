@@ -37,7 +37,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from pdg.computation import (
     MATURE_THRESHOLD, SAMPLE_AREA_HA,
-    COL_COEFF_PRESSLER, COL_COMPRESA, COL_D_CM, COL_CD_CM,
+    COL_PRESSLER, COL_COMPRESA, COL_D_CM, COL_CD_CM,
     COL_GENERE, COL_H_M, COL_L10_MM, COL_PARTICELLA, COL_V_M3,
     COL_AREA_SAGGIO, COL_SCALE, COL_FUSTAIA,
     COL_AREA_PARCEL, COL_COMPARTO, COL_GOVERNO, COL_ETA_MEDIA,
@@ -175,7 +175,7 @@ class TestAggregationConsistency:
             COL_D_CM: [25.0, 25.0],
             COL_CD_CM: [25, 25],
             COL_V_M3: [10.0, 10.0],
-            COL_COEFF_PRESSLER: [1.0, 1.0],
+            COL_PRESSLER: [1.0, 1.0],
             COL_L10_MM: [6250.0, 3750.0],
         })
         parcels = {
@@ -1158,7 +1158,7 @@ class TestScheduleHarvests:
             COL_D_CM: 30.0, 'Classe diametrica': 6,
             COL_H_M: 20.0, COL_GENERE: 'Faggio',
             COL_FUSTAIA: True, COL_L10_MM: 3.0,
-            COL_COEFF_PRESSLER: 200,
+            COL_PRESSLER: 200,
         }])
         trees_ext = pd.concat([trees_df, ceduo_trees], ignore_index=True)
         trees_ext = calculate_all_trees_volume(trees_ext)
@@ -1343,7 +1343,7 @@ class TestScheduleHarvestsAgeProgression:
                 COL_V_M3: t['V'],
                 COL_CD_CM: diameter_class(pd.Series([d])).iloc[0],
                 COL_L10_MM: t['L10'],
-                COL_COEFF_PRESSLER: t['c'],
+                COL_PRESSLER: t['c'],
             })
         trees_df = pd.DataFrame(rows)
 

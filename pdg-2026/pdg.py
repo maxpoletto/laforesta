@@ -17,7 +17,7 @@ from natsort import natsort_keygen
 from pdg.harvest_rules import max_harvest
 from pdg.computation import (
     COL_COMPRESA, COL_PARTICELLA, COL_GENERE,
-    COL_D_CM, COL_H_M, COL_V_M3, COL_COEFF_PRESSLER, COL_L10_MM,
+    COL_D_CM, COL_H_M, COL_V_M3, COL_PRESSLER, COL_L10_MM,
     COL_GOVERNO, GOV_FUSTAIA, COL_AREA_SAGGIO,
     calculate_all_trees_volume, compute_heights,
     fit_curves_from_ipsometro, fit_curves_from_originali, fit_curves_from_tabelle,
@@ -482,7 +482,7 @@ def run_calcola_incrementi(args):
     print(f"Output: {args.output}")
 
     trees_df = load_trees(args.input)
-    trees_df['IP'] = trees_df[COL_COEFF_PRESSLER] * 2 * trees_df[COL_L10_MM] / 100 / trees_df[COL_D_CM]
+    trees_df['IP'] = trees_df[COL_PRESSLER] * 2 * trees_df[COL_L10_MM] / 100 / trees_df[COL_D_CM]
     trees_df.to_csv(args.output, index=False, float_format="%.6f")
     print(f"\nFile salvato: {args.output}")
 
@@ -498,8 +498,8 @@ def run_calcola_altezze_volumi(args):
     equations_df = load_csv(args.equazioni)
 
     if args.coeff_pressler is not None:
-        trees_df[COL_COEFF_PRESSLER] = args.coeff_pressler
-        trees_df['IP'] = trees_df[COL_COEFF_PRESSLER] * 2 * trees_df[COL_L10_MM] / 100 / trees_df[COL_D_CM]
+        trees_df[COL_PRESSLER] = args.coeff_pressler
+        trees_df['IP'] = trees_df[COL_PRESSLER] * 2 * trees_df[COL_L10_MM] / 100 / trees_df[COL_D_CM]
         print(f"Coefficiente di Pressler = {args.coeff_pressler} per tutti gli alberi")
 
     trees_df, updated, unchanged = compute_heights(trees_df, equations_df, verbose=True)

@@ -12,7 +12,7 @@ from pdg.harvest_rules import HarvestRulesFunc, max_harvest
 from pdg.computation import (
     SAMPLE_AREA_HA, MATURE_THRESHOLD, MATURE_FILTER,
     COL_D_CM, COL_H_M, COL_V_M3, COL_GENERE, COL_COMPRESA, COL_PARTICELLA,
-    COL_CD_CM, COL_SCALE, COL_AREA_SAGGIO, COL_COEFF_PRESSLER, COL_L10_MM,
+    COL_CD_CM, COL_SCALE, COL_AREA_SAGGIO, COL_PRESSLER, COL_L10_MM,
     COL_AREA_PARCEL, COL_COMPARTO, COL_GOVERNO, GOV_FUSTAIA,
     COL_ESPOSIZIONE, COL_STAZIONE, COL_SOPRASSUOLO, COL_PIANO_TAGLIO,
     COL_ALT_MIN, COL_ALT_MAX, COL_LOCALITA, COL_ETA_MEDIA,
@@ -723,7 +723,7 @@ def render_volume_table(data: ParcelData, formatter: SnippetFormatter, **options
 # INCREMENTO PERCENTUALE
 # =============================================================================
 
-_GROWTH_REQUIRED_COLS = [COL_COEFF_PRESSLER, COL_L10_MM, COL_D_CM, COL_V_M3]
+_GROWTH_REQUIRED_COLS = [COL_PRESSLER, COL_L10_MM, COL_D_CM, COL_V_M3]
 
 def check_growth_columns(trees: pd.DataFrame) -> None:
     """Validate that trees has the columns needed for growth computation."""
