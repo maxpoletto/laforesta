@@ -60,7 +60,6 @@ def calculate_pct_growth_table(data: ParcelData, group_cols: list[str],
     When stime_totali is True, volumes are scaled by 1/sampled_frac per parcel.
     """
     trees = data.trees
-    parcels = data.parcels
     for col in (COL_GENERE, COL_CD_CM):
         if col not in group_cols:
             raise ValueError(f"group_cols deve includere '{col}'")

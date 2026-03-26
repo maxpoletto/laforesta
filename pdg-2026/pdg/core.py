@@ -1061,7 +1061,6 @@ def render_harvest_plan(data: ParcelData, past_harvests: pd.DataFrame | None,
         return RenderResult(snippet='')
 
     per_parcel = COL_PARTICELLA in group_cols or len(data.parcels) == 1
-    total_area = dedup_total_area(df, [COL_YEAR] + group_cols)
 
     col_specs = [
         ColSpec('Anno', 'l', lambda r: str(int(r[COL_YEAR])), None, True),
