@@ -96,20 +96,6 @@ class ParcelData:
                 sf_map[(r, p)]
                 for r, p in zip(self.trees[COL_COMPRESA], self.trees[COL_PARTICELLA])]
 
-@dataclass
-class GrowthTables:
-    """Growth rate lookup tables built from parcel data."""
-    by_group: dict          # (compresa, genere, diametro) -> (inc_pct, delta_d)
-    available_diams: dict   # (compresa, genere) -> sorted list of diameter classes
-    groupby_cols: list[str]
-
-@dataclass
-class HarvestResult:
-    """Result of harvesting one parcel."""
-    volume_before: float    # mature volume before harvest
-    harvest: float          # volume harvested
-    species_shares: dict[str, float]  # fraction of mature volume per species
-    harvested_indices: list  # DataFrame indices of harvested trees
 
 # =============================================================================
 # REGRESSION / CURVE FITTING

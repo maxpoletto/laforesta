@@ -3,6 +3,7 @@
 import bisect
 from collections import defaultdict
 from copy import copy
+from dataclasses import dataclass
 from typing import Callable
 
 import numpy as np
@@ -14,10 +15,26 @@ from pdg.computation import (
     COL_COMPRESA, COL_PARTICELLA, COL_AREA_SAGGIO,
     COL_GENERE, COL_D_CM, COL_V_M3, COL_CD_CM, COL_SCALE,
     COL_COEFF_PRESSLER, COL_L10_MM,
-    GOV_FUSTAIA, MATURE_THRESHOLD, MATURE_FILTER,
-    ParcelData, ParcelStats, GrowthTables, HarvestResult,
+    GOV_FUSTAIA, MATURE_FILTER,
+    ParcelData, ParcelStats,
     basal_area_m2, calculate_area_and_volume, diameter_class,
 )
+
+
+@dataclass
+class GrowthTables:
+    """Growth rate lookup tables built from parcel data."""
+    by_group: dict          # (compresa, genere, diametro) -> (inc_pct, delta_d)
+    available_diams: dict   # (compresa, genere) -> sorted list of diameter classes
+    groupby_cols: list[str]
+
+@dataclass
+class HarvestResult:
+    """Result of harvesting one parcel."""
+    volume_before: float    # mature volume before harvest
+    harvest: float          # volume harvested
+    species_shares: dict[str, float]  # fraction of mature volume per species
+    harvested_indices: list  # DataFrame indices of harvested trees
 from pdg.formatters import fmt_num
 
 # Internal column names for simulation state
