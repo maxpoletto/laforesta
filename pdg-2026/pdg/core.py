@@ -878,19 +878,21 @@ def calculate_harvest_table(data: ParcelData,
                         harvest_df.reset_index(drop=True)], axis=1)
     df[COL_HARVEST] = df[COL_HARVEST].fillna(0)
 
-    # --- Add area_ha per group (from parcel data, not from tree aggregation) ---
+    # Add area_ha per group (from parcel data)
     spatial_cols = [c for c in group_cols if c != COL_GENERE]
     area_map: dict[tuple, float] = {}
     for (region, parcel) in parcel_harvests:
+        # Sum all parcels in the same group (region) if grouping by region only.
         key = harvest_group_key(region, parcel, None, spatial_cols)
         area_map[key] = area_map.get(key, 0.0) + data.parcels[(region, parcel)].area_ha
     if spatial_cols:
         df[COL_AREA_HA] = df[spatial_cols].apply(
             lambda r: area_map[tuple(r)], axis=1)
     else:
-        df[COL_AREA_HA] = area_map.get((), 0.0)
+        # No spatial grouping: assign total area to single result row
+        df[COL_AREA_HA] = area_map[()]
 
-    # --- Add per-parcel metadata (sector, age, pp_max) ---
+    # Add per-parcel metadata (sector, age, pp_max)
     per_parcel = COL_PARTICELLA in group_cols or len(data.parcels) == 1
     if per_parcel:
         if COL_PARTICELLA not in group_cols:
@@ -924,7 +926,7 @@ def calculate_harvest_table(data: ParcelData,
                     if parcel_harvests[(r[COL_COMPRESA], r[COL_PARTICELLA])].volume_before > 0
                     else 0), axis=1)
 
-    # Ensure column order matches golden file expectations
+    # Ensure column order matches golden file expectations (for tests)
     # Order: group_cols, [sector, age, pp_max], area_ha, volume, volume_mature, harvest
     ordered_cols = list(group_cols)
     if per_parcel:
