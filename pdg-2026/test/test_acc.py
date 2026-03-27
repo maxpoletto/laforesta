@@ -51,6 +51,7 @@ from pdg.computation import (
 from pdg.simulation import (
     COL_WEIGHT, COL_YEAR, COL_HARVEST,
     COL_VOLUME_BEFORE, COL_VOLUME_AFTER, COL_SPECIES_SHARES,
+    HarvestResult,
     select_from_bottom, harvest_parcel, schedule_harvests,
     growth_per_group,
 )
@@ -58,6 +59,7 @@ from pdg.simulation import (
 from pdg.core import (
     COL_SECTOR, COL_AGE, COL_PP_MAX,
     parcel_data,
+    compute_parcel_harvests,
     calculate_volumes, calculate_harvest_table,
     calculate_harvest_plan, calculate_diameter_class_data,
 )
@@ -595,6 +597,31 @@ class TestMature:
 # =============================================================================
 # (h) HARVEST CALCULATION
 # =============================================================================
+
+class TestComputeParcelHarvests:
+    """Test the per-parcel harvest extraction."""
+
+    def test_returns_dict_of_harvest_results(self, data_all, harvest_rules):
+        """Should return a HarvestResult per harvestable parcel."""
+        result = compute_parcel_harvests(data_all, harvest_rules)
+        assert isinstance(result, dict)
+        assert len(result) > 0
+        for key, hr in result.items():
+            assert isinstance(key, tuple) and len(key) == 2
+            assert isinstance(hr, HarvestResult)
+            assert hr.harvest >= 0
+            assert hr.volume_before > 0
+
+    def test_matches_harvest_table_totals(self, data_all, harvest_rules):
+        """Total harvest from compute_parcel_harvests should match calculate_harvest_table."""
+        parcel_harvests = compute_parcel_harvests(data_all, harvest_rules)
+        total_from_parcels = sum(hr.harvest for hr in parcel_harvests.values())
+
+        df = calculate_harvest_table(data_all, harvest_rules, group_cols=[])
+        total_from_table = df['harvest'].sum()
+
+        assert np.isclose(total_from_parcels, total_from_table, rtol=1e-9)
+
 
 class TestHarvestCalculation:
     """Test harvest (prelievo) calculations."""
@@ -1377,6 +1404,28 @@ class TestScheduleHarvestsAgeProgression:
         assert len(year_1) == 0, "Age 59: should not harvest"
         assert len(year_2) == 1, "Age 60: should harvest after age progresses"
         assert year_2[0][COL_HARVEST] > 0
+
+
+class TestParcelDataFilter:
+    """Test ParcelData.filter_parcels."""
+
+    def test_filter_preserves_trees(self, data_all):
+        """Filtered data should only contain trees from specified parcels."""
+        all_keys = list(data_all.parcels.keys())
+        subset = set(all_keys[:2])  # First two parcels
+        filtered = data_all.filter_parcels(subset)
+
+        assert set(filtered.parcels.keys()) == subset
+        for _, row in filtered.trees.iterrows():
+            key = (row[COL_COMPRESA], row[COL_PARTICELLA])
+            assert key in subset
+
+    def test_filter_preserves_scale(self, data_all):
+        """COL_SCALE should be preserved (not recomputed) in filtered data."""
+        all_keys = set(data_all.parcels.keys())
+        filtered = data_all.filter_parcels(all_keys)
+        # Same data, scale should match
+        assert (filtered.trees[COL_SCALE] == data_all.trees[COL_SCALE]).all()
 
 
 # =============================================================================

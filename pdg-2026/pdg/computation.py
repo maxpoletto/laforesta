@@ -88,6 +88,17 @@ class ParcelData:
                 sf_map[(r, p)]
                 for r, p in zip(self.trees[COL_COMPRESA], self.trees[COL_PARTICELLA])]
 
+    def filter_parcels(self, keys: set[tuple[str, str]]) -> 'ParcelData':
+        """Return a new ParcelData with only the specified parcels."""
+        mask = pd.MultiIndex.from_arrays(
+            [self.trees[COL_COMPRESA], self.trees[COL_PARTICELLA]]
+        ).isin(keys)
+        return ParcelData(
+            trees=self.trees[mask].copy(),
+            regions=self.regions,
+            species=self.species,
+            parcels={k: v for k, v in self.parcels.items() if k in keys})
+
 
 # =============================================================================
 # REGRESSION / CURVE FITTING

@@ -34,7 +34,7 @@ from pdg.simulation import (
     COL_IP_MEDIO, COL_INCR_CORR, COL_DELTA_D,
     COL_YEAR, COL_HARVEST, COL_VOLUME_BEFORE, COL_VOLUME_AFTER, COL_SPECIES_SHARES,
     COL_WEIGHT,
-    TreeSelectionFunc, select_from_bottom,
+    HarvestResult, TreeSelectionFunc, select_from_bottom,
     growth_per_group, harvest_parcel, schedule_harvests,
 )
 
@@ -808,6 +808,28 @@ def render_pct_growth_graph(data: ParcelData, output_path: Path,
 # RIPRESA (HARVEST TABLE)
 # =============================================================================
 
+def compute_parcel_harvests(data: ParcelData, rules: HarvestRulesFunc,
+                           ) -> dict[tuple[str, str], HarvestResult]:
+    """Compute harvest for each parcel. Returns only harvestable parcels.
+
+    Calls harvest_parcel() per parcel to determine harvest limits and tree
+    selection. Parcels with no mature trees or where rules return zero limits
+    are omitted from the result.
+    """
+    trees = data.trees
+    if COL_V_M3 not in trees.columns:
+        raise ValueError("Richiede dati con volumi (colonna V(m3) mancante). "
+                         "Esegui --calcola-altezze-volumi per calcolarli.")
+    result = {}
+    for (region, parcel), part_trees in trees.groupby(  # type: ignore[reportGeneralTypeIssues]
+            [COL_COMPRESA, COL_PARTICELLA]):
+        p = data.parcels[(region, parcel)]  # type: ignore[reportGeneralTypeIssues]
+        hr = harvest_parcel(part_trees, p, rules, select_from_bottom)
+        if hr is not None:
+            result[(region, parcel)] = hr  # type: ignore[reportGeneralTypeIssues]
+    return result
+
+
 def calculate_harvest_table(data: ParcelData, rules: HarvestRulesFunc,
                         group_cols: list[str]) -> pd.DataFrame:
     """
@@ -819,9 +841,6 @@ def calculate_harvest_table(data: ParcelData, rules: HarvestRulesFunc,
     """
     #pylint: disable=too-many-locals
     trees = data.trees
-    if COL_V_M3 not in trees.columns:
-        raise ValueError("@@prelievi richiede dati con volumi (colonna V(m3) mancante). "
-                         "Esegui --calcola-altezze-volumi per calcolarli.")
     parcels = data.parcels
 
     added_dummy = False
@@ -834,28 +853,25 @@ def calculate_harvest_table(data: ParcelData, rules: HarvestRulesFunc,
     per_parcel = COL_PARTICELLA in group_cols or len(parcels) == 1
 
     # First pass: compute harvest for each particella
-    parcel_info = {}
-    for (region, parcel), part_trees in trees.groupby([COL_COMPRESA, COL_PARTICELLA]):  # type: ignore[reportGeneralTypeIssues]
-        try:
-            p = parcels[(region, parcel)]  # type: ignore[reportGeneralTypeIssues]
-        except KeyError as e:
-            raise ValueError(f"Particella {region}/{parcel} non trovata") from e
-
-        vol_total, _ = calculate_area_and_volume(part_trees)
-        result = harvest_parcel(part_trees, p, rules, select_from_bottom)
-        if result is None:
+    harvest_results = compute_parcel_harvests(data, rules)
+    parcel_info: dict[tuple, dict | None] = {}
+    for (region, parcel), _part_trees in trees.groupby([COL_COMPRESA, COL_PARTICELLA]):  # type: ignore[reportGeneralTypeIssues]
+        hr = harvest_results.get((region, parcel))  # type: ignore[reportGeneralTypeIssues]
+        if hr is None:
             parcel_info[(region, parcel)] = None
             continue
 
-        pp_max = result.harvest / result.volume_before * 100 if result.volume_before > 0 else 0
+        p = parcels[(region, parcel)]  # type: ignore[reportGeneralTypeIssues]
+        vol_total, _ = calculate_area_and_volume(_part_trees)
+        pp_max = hr.harvest / hr.volume_before * 100 if hr.volume_before > 0 else 0
 
         parcel_info[(region, parcel)] = {
             COL_SECTOR: p.sector, COL_AGE: p.age, COL_AREA_HA: p.area_ha,
             COL_VOLUME: vol_total,
-            COL_VOLUME_MATURE: result.volume_before,
+            COL_VOLUME_MATURE: hr.volume_before,
             COL_PP_MAX: pp_max,
-            COL_HARVEST: result.harvest,
-            COL_SPECIES_SHARES: result.species_shares,
+            COL_HARVEST: hr.harvest,
+            COL_SPECIES_SHARES: hr.species_shares,
         }
 
     # Second pass: aggregate by group_cols
