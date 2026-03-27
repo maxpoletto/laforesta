@@ -58,7 +58,7 @@ from pdg.simulation import (
 from pdg.core import (
     COL_SECTOR, COL_AGE, COL_PP_MAX,
     parcel_data,
-    calculate_volume_table, calculate_harvest_table,
+    calculate_volumes, calculate_harvest_table,
     calculate_harvest_plan, calculate_diameter_class_data,
 )
 
@@ -75,13 +75,13 @@ class TestAggregationConsistency:
     def test_tsv_volume_aggregation(self, data_all):
         """@@volumi total volume should equal sum of per-particella volumes."""
         # Total (no per_particella breakdown)
-        df_total = calculate_volume_table(
+        df_total = calculate_volumes(
             data_all, group_cols=[], calc_margin=False, calc_total=True
         )
         total_volume = df_total['volume'].sum()
 
         # Per-particella breakdown
-        df_per_parcel = calculate_volume_table(
+        df_per_parcel = calculate_volumes(
             data_all, group_cols=[COL_PARTICELLA], calc_margin=False, calc_total=True
         )
         sum_per_parcel = df_per_parcel['volume'].sum()
@@ -91,12 +91,12 @@ class TestAggregationConsistency:
 
     def test_tsv_tree_count_aggregation(self, data_all):
         """@@volumi total tree count should equal sum of per-particella counts."""
-        df_total = calculate_volume_table(
+        df_total = calculate_volumes(
             data_all, group_cols=[], calc_margin=False, calc_total=True
         )
         total_trees = df_total['n_trees'].sum()
 
-        df_per_parcel = calculate_volume_table(
+        df_per_parcel = calculate_volumes(
             data_all, group_cols=[COL_PARTICELLA], calc_margin=False, calc_total=True
         )
         sum_per_parcel = df_per_parcel['n_trees'].sum()
@@ -106,12 +106,12 @@ class TestAggregationConsistency:
 
     def test_tsv_volume_by_species_aggregation(self, data_all):
         """@@volumi per-genere volumes should sum to total."""
-        df_total = calculate_volume_table(
+        df_total = calculate_volumes(
             data_all, group_cols=[], calc_margin=False, calc_total=True
         )
         total_volume = df_total['volume'].sum()
 
-        df_per_species = calculate_volume_table(
+        df_per_species = calculate_volumes(
             data_all, group_cols=[COL_GENERE], calc_margin=False, calc_total=True
         )
         sum_per_species = df_per_species['volume'].sum()
@@ -121,12 +121,12 @@ class TestAggregationConsistency:
 
     def test_tsv_volume_parcel_species_aggregation(self, data_all):
         """@@volumi per-particella-per-genere should sum to total."""
-        df_total = calculate_volume_table(
+        df_total = calculate_volumes(
             data_all, group_cols=[], calc_margin=False, calc_total=True
         )
         total_volume = df_total['volume'].sum()
 
-        df_detailed = calculate_volume_table(
+        df_detailed = calculate_volumes(
             data_all, group_cols=[COL_PARTICELLA, COL_GENERE],
             calc_margin=False, calc_total=True
         )
@@ -217,7 +217,7 @@ class TestCrossQueryConsistency:
     def test_tsv_tcd_volume_consistency(self, data_all):
         """@@volumi total volume should match sum of @@tabella_classi_diametriche volume buckets."""
         # @@volumi total
-        df_tsv = calculate_volume_table(
+        df_tsv = calculate_volumes(
             data_all, group_cols=[], calc_margin=False, calc_total=True
         )
         tsv_volume = df_tsv['volume'].sum()
@@ -233,7 +233,7 @@ class TestCrossQueryConsistency:
 
     def test_tsv_tcd_tree_count_consistency(self, data_all):
         """@@volumi tree count should match sum of @@tabella_classi_diametriche tree count buckets."""
-        df_tsv = calculate_volume_table(
+        df_tsv = calculate_volumes(
             data_all, group_cols=[], calc_margin=False, calc_total=True
         )
         tsv_trees = df_tsv['n_trees'].sum()
@@ -287,7 +287,7 @@ class TestCrossQueryConsistency:
 
     def test_tsv_tpt_volume_consistency(self, data_all, harvest_rules):
         """@@volumi and @@prelievi should report the same total volume."""
-        df_tsv = calculate_volume_table(
+        df_tsv = calculate_volumes(
             data_all, group_cols=[], calc_margin=False, calc_total=True,
             calc_mature=True
         )
@@ -301,7 +301,7 @@ class TestCrossQueryConsistency:
 
     def test_tsv_tpt_volume_mature_consitency(self, data_all, harvest_rules):
         """@@volumi and @@prelievi should report the same volume_mature."""
-        df_tsv = calculate_volume_table(
+        df_tsv = calculate_volumes(
             data_all, group_cols=[], calc_margin=False, calc_total=True,
             calc_mature=True
         )
@@ -347,7 +347,7 @@ class TestSampleAreaScaling:
 
     def test_tree_scaling_parcel_a(self, data_parcel_a):
         """Parcel A: 6 sampled trees should scale to 6 * 80 = 480 estimated trees."""
-        df = calculate_volume_table(
+        df = calculate_volumes(
             data_parcel_a, group_cols=[], calc_margin=False, calc_total=True
         )
         # 6 trees / 0.0125 = 480
@@ -357,7 +357,7 @@ class TestSampleAreaScaling:
 
     def test_tree_scaling_parcel_b(self, data_parcel_b):
         """Parcel B: 8 sampled trees should scale to 8 * 40 = 320 estimated trees."""
-        df = calculate_volume_table(
+        df = calculate_volumes(
             data_parcel_b, group_cols=[], calc_margin=False, calc_total=True
         )
         # 8 trees / 0.025 = 320
@@ -367,7 +367,7 @@ class TestSampleAreaScaling:
 
     def test_tree_scaling_parcel_c(self, data_parcel_c):
         """Parcel C: 12 sampled trees should scale to 12 * 16 = 192 estimated trees."""
-        df = calculate_volume_table(
+        df = calculate_volumes(
             data_parcel_c, group_cols=[], calc_margin=False, calc_total=True
         )
         # 12 trees / 0.0625 = 192
@@ -377,7 +377,7 @@ class TestSampleAreaScaling:
 
     def test_total_scaled_trees(self, data_all):
         """Total scaled trees across all parcels."""
-        df = calculate_volume_table(
+        df = calculate_volumes(
             data_all, group_cols=[], calc_margin=False, calc_total=True
         )
         # A: 6/0.0125=480, B: 8/0.025=320, C: 12/0.0625=192, D: 6/0.0125=480, E: 6/0.0125=480
@@ -389,22 +389,22 @@ class TestSampleAreaScaling:
             self, data_all, data_parcel_a, data_parcel_b, data_parcel_c,
             data_parcel_d, data_parcel_e):
         """Sum of per-parcel volumes should equal total volume."""
-        df_all = calculate_volume_table(
+        df_all = calculate_volumes(
             data_all, group_cols=[], calc_margin=False, calc_total=True
         )
-        df_a = calculate_volume_table(
+        df_a = calculate_volumes(
             data_parcel_a, group_cols=[], calc_margin=False, calc_total=True
         )
-        df_b = calculate_volume_table(
+        df_b = calculate_volumes(
             data_parcel_b, group_cols=[], calc_margin=False, calc_total=True
         )
-        df_c = calculate_volume_table(
+        df_c = calculate_volumes(
             data_parcel_c, group_cols=[], calc_margin=False, calc_total=True
         )
-        df_d = calculate_volume_table(
+        df_d = calculate_volumes(
             data_parcel_d, group_cols=[], calc_margin=False, calc_total=True
         )
-        df_e = calculate_volume_table(
+        df_e = calculate_volumes(
             data_parcel_e, group_cols=[], calc_margin=False, calc_total=True
         )
 
@@ -450,7 +450,7 @@ class TestEdgeCases:
             regions=["Test"], parcels=["A"], species=["Faggio"]
         )
 
-        df = calculate_volume_table(data, group_cols=[], calc_margin=False, calc_total=True)
+        df = calculate_volumes(data, group_cols=[], calc_margin=False, calc_total=True)
         assert df['n_trees'].sum() > 0
         assert df['volume'].sum() > 0
 
@@ -516,7 +516,7 @@ class TestConfidenceInterval:
 
     def test_ci_bounds_bracket_volume(self, data_all):
         """Confidence interval should bracket the point estimate."""
-        df = calculate_volume_table(
+        df = calculate_volumes(
             data_all, group_cols=[], calc_margin=True, calc_total=True
         )
         row = df.iloc[0]
@@ -527,7 +527,7 @@ class TestConfidenceInterval:
 
     def test_ci_per_species(self, data_all):
         """Each species should have valid CI bounds."""
-        df = calculate_volume_table(
+        df = calculate_volumes(
             data_all, group_cols=[COL_GENERE], calc_margin=True, calc_total=True
         )
 
@@ -546,7 +546,7 @@ class TestMature:
 
     def test_volume_mature_excludes_small_trees(self, data_all):
         """volume_mature should exclude trees with D <= 20cm."""
-        df = calculate_volume_table(
+        df = calculate_volumes(
             data_all, group_cols=[], calc_margin=False, calc_total=True,
             calc_mature=True
         )
@@ -581,8 +581,8 @@ class TestMature:
             above = ptrees[ptrees[COL_D_CM] > MATURE_THRESHOLD]
             manual_vol_mature += above[COL_V_M3].sum() / sf
 
-        # Via calculate_volume_table
-        df = calculate_volume_table(
+        # Via calculate_volumes
+        df = calculate_volumes(
             data_all, group_cols=[], calc_margin=False, calc_total=True,
             calc_mature=True
         )

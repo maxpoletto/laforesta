@@ -624,7 +624,7 @@ def render_prop(particelle_df: pd.DataFrame, compresa: str, particella: str,
 # STIMA VOLUMI
 # =============================================================================
 
-def calculate_volume_table(data: ParcelData, group_cols: list[str],
+def calculate_volumes(data: ParcelData, group_cols: list[str],
                         calc_margin: bool, calc_total: bool,
                         calc_mature: bool = False) -> pd.DataFrame:
     """Calculate the table rows for the @@volumi directive. Returns a DataFrame.
@@ -701,7 +701,7 @@ def render_volume_table(data: ParcelData, formatter: SnippetFormatter, **options
     if options[OPT_PER_GENERE]:
         group_cols.append(COL_GENERE)
 
-    df = calculate_volume_table(data, group_cols,
+    df = calculate_volumes(data, group_cols,
         options[OPT_INTERV_FIDUC], options[OPT_STIME_TOTALI],
         options[OPT_SOLO_MATURE])
 

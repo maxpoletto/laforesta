@@ -14,7 +14,7 @@ from pdg.io import file_cache, load_csv, load_trees
 from pdg.simulation import growth_per_group
 from pdg.core import (
     region_cache, parcel_data,
-    calculate_volume_table, calculate_harvest_table,
+    calculate_volumes, calculate_harvest_table,
     calculate_diameter_class_data,
 )
 from pdg.harvest_rules import max_harvest
@@ -56,13 +56,13 @@ def main():
 
     # @@volumi — matches sec-volumi.tex and particella.tex invocations
     print('@@volumi:')
-    save(calculate_volume_table(data_all,
+    save(calculate_volumes(data_all,
         group_cols=[COL_COMPRESA],
         calc_margin=True, calc_total=True), 'tsv-per_compresa')
-    save(calculate_volume_table(data_serra,
+    save(calculate_volumes(data_serra,
         group_cols=[COL_PARTICELLA],
         calc_margin=True, calc_total=True), 'tsv-serra-per_particella')
-    save(calculate_volume_table(data_fab1,
+    save(calculate_volumes(data_fab1,
         group_cols=[COL_GENERE],
         calc_margin=True, calc_total=True), 'tsv-fab1-per_genere')
 
