@@ -83,7 +83,7 @@ BASENAME=relazione
 FILE_PDF=tex/$(BASENAME).pdf
 FILE_TEX=tex/$(BASENAME).tex
 DEPS_BIB=template/tex/ref.bib
-DEPS_TEX=$(DATA_DEPS) pdg.py $(wildcard pdg/*.py) harvest_rules.py template/tex/particella.tex
+DEPS_TEX=$(DATA_DEPS) pdg.py $(wildcard pdg/*.py) template/tex/particella.tex
 
 SECTIONS_TEX= \
 	tex/sec-ipsometrie.tex \
