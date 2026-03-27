@@ -10,7 +10,7 @@ from natsort import natsort_keygen
 
 from pdg.harvest_rules import HarvestRulesFunc, max_harvest
 from pdg.computation import (
-    SAMPLE_AREA_HA, MATURE_THRESHOLD, MATURE_FILTER,
+    SAMPLE_AREA_HA, MATURE_THRESHOLD,
     COL_D_CM, COL_H_M, COL_V_M3, COL_GENERE, COL_COMPRESA, COL_PARTICELLA,
     COL_CD_CM, COL_SCALE, COL_AREA_SAGGIO, COL_PRESSLER, COL_L10_MM,
     COL_AREA_PARCEL, COL_COMPARTO, COL_GOVERNO, GOV_FUSTAIA,
@@ -18,7 +18,7 @@ from pdg.computation import (
     COL_ALT_MIN, COL_ALT_MAX, COL_LOCALITA, COL_ETA_MEDIA,
     GROUP_COLS_ALIGN,
     ParcelData, ParcelStats,
-    basal_area_m2, calculate_area_and_volume, calculate_volume_confidence_interval,
+    basal_area_m2, calculate_volume_confidence_interval,
     diameter_class,
     SP_ABETE, SP_ACERO, SP_CASTAGNO, SP_CERRO, SP_CILIEGIO, SP_DOUGLAS,
     SP_FAGGIO, SP_LECCIO, SP_ONTANO, SP_PINO, SP_PINO_LARICIO,
@@ -247,19 +247,6 @@ def get_color_map() -> dict:
 # RENDERING HELPERS
 # =============================================================================
 
-def dedup_total_area(df: pd.DataFrame, identity_cols: list[str]) -> float:
-    """Sum area_ha, deduplicating rows created by expansion based on species.
-
-    identity_cols: all grouping columns (e.g. group_cols, or
-    [COL_YEAR] + group_cols for tables with a year dimension).
-    COL_GENERE, if present, is excluded from deduplication so that
-    each spatial unit's area is counted once.
-    """
-    dedup_cols = [c for c in identity_cols if c != COL_GENERE]
-    if dedup_cols and len(dedup_cols) < len(identity_cols):
-        df = df.drop_duplicates(subset=dedup_cols)
-    return df[COL_AREA_HA].sum()  # type: ignore[reportGeneralTypeIssues]
-
 def render_table(df: pd.DataFrame, group_cols: list[str],
                  col_specs: list[ColSpec], formatter: SnippetFormatter,
                  add_totals: bool) -> RenderResult:
@@ -282,8 +269,10 @@ def render_table(df: pd.DataFrame, group_cols: list[str],
         for c in col_specs:
             if isinstance(c.format, str):
                 display_row.append(fmt_num(row[c.format], 1))  # type: ignore[reportGeneralTypeIssues]
-            else:
+            elif isinstance(c.format, Callable):
                 display_row.append(c.format(row))
+            else:
+                assert False, f"Invalid format for column '{c.title}'"
         display_rows.append(display_row)
 
     if add_totals:
@@ -301,8 +290,10 @@ def render_table(df: pd.DataFrame, group_cols: list[str],
                 total_row.append('')
             elif isinstance(c.total, str):
                 total_row.append(fmt_num(df[c.total].sum(), 1))  # type: ignore[reportGeneralTypeIssues]
-            else:
+            elif isinstance(c.total, Callable):
                 total_row.append(c.total(df))
+            else:
+                assert False, f"Invalid format for column '{c.title}'"
         display_rows.append(total_row)
 
     return RenderResult(snippet=formatter.format_table(headers, display_rows))
@@ -624,9 +615,9 @@ def render_prop(particelle_df: pd.DataFrame, compresa: str, particella: str,
 # STIMA VOLUMI
 # =============================================================================
 
-def calculate_volumes(data: ParcelData, group_cols: list[str],
-                        calc_margin: bool, calc_total: bool,
-                        calc_mature: bool = False) -> pd.DataFrame:
+def calculate_volumes(data: ParcelData, group_cols: list[str], calc_ntrees: bool = True,
+                      calc_margin: bool = False, calc_total: bool = False,
+                      calc_mature: bool = False) -> pd.DataFrame:
     """Calculate the table rows for the @@volumi directive. Returns a DataFrame.
 
     Args:
@@ -655,7 +646,6 @@ def calculate_volumes(data: ParcelData, group_cols: list[str],
         # When calc_total, weight each tree by 1/sampled_frac to extrapolate
         # from sample plots to full parcel estimates.
         scale = group_trees[COL_SCALE] if calc_total else 1
-        n_trees = group_trees[COL_SCALE].sum() if calc_total else float(len(group_trees))
         volume = (group_trees[COL_V_M3] * scale).sum()
         vol_mature = 0.0
         if calc_mature:
@@ -673,7 +663,9 @@ def calculate_volumes(data: ParcelData, group_cols: list[str],
             else:
                 _, margin = calculate_volume_confidence_interval(group_trees)
 
-        row_dict[COL_N_TREES] = n_trees  # type: ignore[reportGeneralTypeIssues]
+        if calc_ntrees:
+            row_dict[COL_N_TREES] = (group_trees[COL_SCALE].sum()
+                                     if calc_total else float(len(group_trees)))
         row_dict[COL_VOLUME] = volume  # type: ignore[reportGeneralTypeIssues]
         if calc_mature:
             row_dict[COL_VOLUME_MATURE] = vol_mature  # type: ignore[reportGeneralTypeIssues]
@@ -723,11 +715,11 @@ def render_volume_table(data: ParcelData, formatter: SnippetFormatter, **options
 # INCREMENTO PERCENTUALE
 # =============================================================================
 
-_GROWTH_REQUIRED_COLS = [COL_PRESSLER, COL_L10_MM, COL_D_CM, COL_V_M3]
+GROWTH_REQUIRED_COLS = [COL_PRESSLER, COL_L10_MM, COL_D_CM, COL_V_M3]
 
 def check_growth_columns(trees: pd.DataFrame) -> None:
     """Validate that trees has the columns needed for growth computation."""
-    for col in _GROWTH_REQUIRED_COLS:
+    for col in GROWTH_REQUIRED_COLS:
         if col not in trees.columns:
             raise ValueError(f"Direttiva richiede la colonna '{col}'. "
                              "Esegui --calcola-incrementi e --calcola-altezze-volumi.")
@@ -809,7 +801,7 @@ def render_pct_growth_graph(data: ParcelData, output_path: Path,
 # =============================================================================
 
 def compute_parcel_harvests(data: ParcelData, rules: HarvestRulesFunc,
-                           ) -> dict[tuple[str, str], HarvestResult]:
+                            ) -> dict[tuple[str, str], HarvestResult]:
     """Compute harvest for each parcel. Returns only harvestable parcels.
 
     Calls harvest_parcel() per parcel to determine harvest limits and tree
@@ -830,104 +822,116 @@ def compute_parcel_harvests(data: ParcelData, rules: HarvestRulesFunc,
     return result
 
 
-def calculate_harvest_table(data: ParcelData, rules: HarvestRulesFunc,
-                        group_cols: list[str]) -> pd.DataFrame:
+def calculate_harvest_table(data: ParcelData,
+                            parcel_harvests: dict[tuple[str, str], HarvestResult],
+                            group_cols: list[str]) -> pd.DataFrame:
+    """Compute harvest table: volume inventory + per-parcel harvest aggregation.
+
+    Calls calculate_volumes for inventory data (volume, volume_mature), then
+    merges with harvest volumes aggregated from parcel_harvests. When Genere is
+    in group_cols, harvest is allocated pro-rata by species shares.
     """
-    Calculate harvest (prelievo totale) table data for the @@prelievi directive.
+    def harvest_group_key(region: str, parcel: str, genere: str | None,
+                          group_cols: list[str]) -> tuple:
+        """Build a group key tuple from parcel identity and optional species."""
+        key = []
+        for col in group_cols:
+            if col == COL_COMPRESA:
+                key.append(region)
+            elif col == COL_PARTICELLA:
+                key.append(parcel)
+            elif col == COL_GENERE:
+                key.append(genere)
+        return tuple(key)
 
-    Calls harvest_parcel() per parcel to compute harvest volumes, then aggregates
-    by group_cols. When Genere is in group_cols, harvest is allocated pro-rata
-    using species shares from harvest_parcel().
-    """
-    #pylint: disable=too-many-locals
-    trees = data.trees
-    parcels = data.parcels
+    if not parcel_harvests:
+        return pd.DataFrame()
 
-    added_dummy = False
-    if not group_cols:
-        trees = trees.copy()
-        trees['_'] = 'Totale'
-        group_cols = ['_']
-        added_dummy = True
+    # Filter to harvestable parcels so volumes match harvest scope
+    harvestable_data = data.filter_parcels(set(parcel_harvests.keys()))
 
-    per_parcel = COL_PARTICELLA in group_cols or len(parcels) == 1
+    vol_df = calculate_volumes(harvestable_data, group_cols, calc_ntrees=False,
+                               calc_margin=False, calc_total=True, calc_mature=True)
 
-    # First pass: compute harvest for each particella
-    harvest_results = compute_parcel_harvests(data, rules)
-    parcel_info: dict[tuple, dict | None] = {}
-    for (region, parcel), _part_trees in trees.groupby([COL_COMPRESA, COL_PARTICELLA]):  # type: ignore[reportGeneralTypeIssues]
-        hr = harvest_results.get((region, parcel))  # type: ignore[reportGeneralTypeIssues]
-        if hr is None:
-            parcel_info[(region, parcel)] = None
-            continue
+    # Aggregate harvest by group_cols
+    harvest_rows: dict[tuple, float] = {}
+    for (region, parcel), hr in parcel_harvests.items():
+        if COL_GENERE in group_cols:
+            for genere, frac in hr.species_shares.items():
+                key = harvest_group_key(region, parcel, genere, group_cols)
+                harvest_rows[key] = harvest_rows.get(key, 0.0) + hr.harvest * frac
+        else:
+            key = harvest_group_key(region, parcel, None, group_cols)
+            harvest_rows[key] = harvest_rows.get(key, 0.0) + hr.harvest
 
-        p = parcels[(region, parcel)]  # type: ignore[reportGeneralTypeIssues]
-        vol_total, _ = calculate_area_and_volume(_part_trees)
-        pp_max = hr.harvest / hr.volume_before * 100 if hr.volume_before > 0 else 0
+    harvest_df = pd.DataFrame([
+        dict(zip(group_cols, key), **{COL_HARVEST: harvest})
+        for key, harvest in harvest_rows.items()
+    ]) if group_cols else pd.DataFrame([{COL_HARVEST: sum(harvest_rows.values())}])
 
-        parcel_info[(region, parcel)] = {
-            COL_SECTOR: p.sector, COL_AGE: p.age, COL_AREA_HA: p.area_ha,
-            COL_VOLUME: vol_total,
-            COL_VOLUME_MATURE: hr.volume_before,
-            COL_PP_MAX: pp_max,
-            COL_HARVEST: hr.harvest,
-            COL_SPECIES_SHARES: hr.species_shares,
-        }
+    # Merge volume + harvest
+    if group_cols:
+        df = vol_df.merge(harvest_df, on=group_cols, how='left')
+    else:
+        # Single-row case: no join columns, just concatenate
+        df = pd.concat([vol_df.reset_index(drop=True),
+                        harvest_df.reset_index(drop=True)], axis=1)
+    df[COL_HARVEST] = df[COL_HARVEST].fillna(0)
 
-    # Second pass: aggregate by group_cols
-    rows = []
-    for group_key, group_trees in trees.groupby(group_cols):
-        if not isinstance(group_key, tuple):
-            group_key = (group_key,)
-        row_dict = dict(zip(group_cols, group_key))
+    # --- Add area_ha per group (from parcel data, not from tree aggregation) ---
+    spatial_cols = [c for c in group_cols if c != COL_GENERE]
+    area_map: dict[tuple, float] = {}
+    for (region, parcel) in parcel_harvests:
+        key = harvest_group_key(region, parcel, None, spatial_cols)
+        area_map[key] = area_map.get(key, 0.0) + data.parcels[(region, parcel)].area_ha
+    if spatial_cols:
+        df[COL_AREA_HA] = df[spatial_cols].apply(
+            lambda r: area_map[tuple(r)], axis=1)
+    else:
+        df[COL_AREA_HA] = area_map.get((), 0.0)
 
-        volume, vol_mature, harvest, area_ha = 0.0, 0.0, 0.0, 0.0
-        any_tree = False
-        last_pp_max, last_sector, last_age = 0.0, '', 0
+    # --- Add per-parcel metadata (sector, age, pp_max) ---
+    per_parcel = COL_PARTICELLA in group_cols or len(data.parcels) == 1
+    if per_parcel:
+        if COL_PARTICELLA not in group_cols:
+            # Single parcel in data: metadata is constant across all rows
+            key = next(iter(parcel_harvests))
+            p = data.parcels[key]
+            hr = parcel_harvests[key]
+            df[COL_SECTOR] = p.sector
+            df[COL_AGE] = p.age
+            df[COL_PP_MAX] = hr.harvest / hr.volume_before * 100 if hr.volume_before > 0 else 0
+        elif COL_COMPRESA not in df.columns:
+            # Single compresa in data: look up via particella only
+            compresa = next(iter(data.parcels))[0]
+            df[COL_SECTOR] = df[COL_PARTICELLA].map(
+                lambda p, c=compresa: data.parcels[(c, p)].sector)
+            df[COL_AGE] = df[COL_PARTICELLA].map(
+                lambda p, c=compresa: data.parcels[(c, p)].age)
+            df[COL_PP_MAX] = df[COL_PARTICELLA].map(
+                lambda p, c=compresa: (
+                    parcel_harvests[(c, p)].harvest / parcel_harvests[(c, p)].volume_before * 100
+                    if parcel_harvests[(c, p)].volume_before > 0 else 0))
+        else:
+            df[COL_SECTOR] = df.apply(
+                lambda r: data.parcels[(r[COL_COMPRESA], r[COL_PARTICELLA])].sector, axis=1)
+            df[COL_AGE] = df.apply(
+                lambda r: data.parcels[(r[COL_COMPRESA], r[COL_PARTICELLA])].age, axis=1)
+            df[COL_PP_MAX] = df.apply(
+                lambda r: (
+                    parcel_harvests[(r[COL_COMPRESA], r[COL_PARTICELLA])].harvest /
+                    parcel_harvests[(r[COL_COMPRESA], r[COL_PARTICELLA])].volume_before * 100
+                    if parcel_harvests[(r[COL_COMPRESA], r[COL_PARTICELLA])].volume_before > 0
+                    else 0), axis=1)
 
-        for (region, parcel), part_trees in group_trees.groupby([COL_COMPRESA, COL_PARTICELLA]):  # type: ignore[reportGeneralTypeIssues]
-            info = parcel_info[(region, parcel)]
-            if info is None:
-                continue
+    # Ensure column order matches golden file expectations
+    # Order: group_cols, [sector, age, pp_max], area_ha, volume, volume_mature, harvest
+    ordered_cols = list(group_cols)
+    if per_parcel:
+        ordered_cols += [COL_SECTOR, COL_AGE, COL_PP_MAX]
+    ordered_cols += [COL_AREA_HA, COL_VOLUME, COL_VOLUME_MATURE, COL_HARVEST]
+    df = df[[c for c in ordered_cols if c in df.columns]]
 
-            any_tree = True
-
-            if COL_GENERE in group_cols:
-                # Pro-rata harvest allocation using pre-computed species shares
-                genere = part_trees[COL_GENERE].iloc[0]
-                frac = info[COL_SPECIES_SHARES].get(genere, 0)
-                group_vol, _ = calculate_area_and_volume(part_trees)
-                group_vol_mature, _ = calculate_area_and_volume(part_trees, MATURE_FILTER)
-                volume += group_vol
-                vol_mature += group_vol_mature
-                harvest += info[COL_HARVEST] * frac
-            else:
-                volume += info[COL_VOLUME]
-                vol_mature += info[COL_VOLUME_MATURE]
-                harvest += info[COL_HARVEST]
-
-            area_ha += info[COL_AREA_HA]
-            last_pp_max = info[COL_PP_MAX]
-            last_sector = info[COL_SECTOR]
-            last_age = info[COL_AGE]
-
-        if not any_tree:
-            continue
-
-        if per_parcel:
-            row_dict[COL_SECTOR] = last_sector
-            row_dict[COL_AGE] = last_age
-            row_dict[COL_PP_MAX] = last_pp_max
-        row_dict[COL_AREA_HA] = area_ha
-        row_dict[COL_VOLUME] = volume
-        row_dict[COL_VOLUME_MATURE] = vol_mature
-        row_dict[COL_HARVEST] = harvest
-        rows.append(row_dict)
-
-    df = pd.DataFrame(rows)
-    if added_dummy:
-        group_cols.remove('_')
-        df = df.drop(columns=['_'])
     if not group_cols or df.empty:
         return df
     return df.sort_values(
@@ -936,7 +940,7 @@ def calculate_harvest_table(data: ParcelData, rules: HarvestRulesFunc,
 
 
 def render_harvest_table(data: ParcelData, rules: HarvestRulesFunc,
-                     formatter: SnippetFormatter, **options) -> RenderResult:
+                         formatter: SnippetFormatter, **options) -> RenderResult:
     """Render harvest (prelievo totale) table (@@prelievi directive)."""
     group_cols = []
     if options[OPT_PER_COMPRESA]:
@@ -946,7 +950,11 @@ def render_harvest_table(data: ParcelData, rules: HarvestRulesFunc,
     if options[OPT_PER_GENERE]:
         group_cols.append(COL_GENERE)
 
-    df = calculate_harvest_table(data, rules, group_cols)
+    parcel_harvests = compute_parcel_harvests(data, rules)
+    if not parcel_harvests:
+        return RenderResult(snippet='')
+
+    df = calculate_harvest_table(data, parcel_harvests, group_cols)
     if df.empty:
         return RenderResult(snippet='')
 
@@ -955,9 +963,8 @@ def render_harvest_table(data: ParcelData, rules: HarvestRulesFunc,
     # When grouping only by species, area cannot be meaningfully assigned to
     # individual species in a mixed forest, so hide area and per-hectare columns.
     genere_only = group_cols == [COL_GENERE]
-    total_area = dedup_total_area(df, group_cols)
 
-    # total_fn lambdas close over total_area (computed above)
+    total_area = sum(data.parcels[k].area_ha for k in parcel_harvests)
     col_specs = [
         ColSpec('Classe', 'l', lambda r: str(r[COL_SECTOR]), None,
                 options[OPT_COL_COMPARTO] and per_parcel),

@@ -288,12 +288,12 @@ class TestCrossQueryConsistency:
             f"@@tabella_classi_diametriche G {tcd_basal} != manual G {manual_basal}"
 
     def test_tsv_tpt_volume_consistency(self, data_all, harvest_rules):
-        """@@volumi and @@prelievi should report the same total volume."""
+        """Harvest table volumes come from calculate_volumes — verify consistency."""
         df_tsv = calculate_volumes(
             data_all, group_cols=[], calc_margin=False, calc_total=True,
             calc_mature=True
         )
-        df_tpt = calculate_harvest_table(data_all, harvest_rules, group_cols=[])
+        df_tpt = calculate_harvest_table(data_all, compute_parcel_harvests(data_all, harvest_rules), group_cols=[])
 
         tsv_vol = df_tsv['volume'].sum()
         tpt_vol = df_tpt['volume'].sum()
@@ -302,12 +302,12 @@ class TestCrossQueryConsistency:
             f"@@volumi volume {tsv_vol} != @@prelievi volume {tpt_vol}"
 
     def test_tsv_tpt_volume_mature_consitency(self, data_all, harvest_rules):
-        """@@volumi and @@prelievi should report the same volume_mature."""
+        """Harvest table volume_mature comes from calculate_volumes — verify consistency."""
         df_tsv = calculate_volumes(
             data_all, group_cols=[], calc_margin=False, calc_total=True,
             calc_mature=True
         )
-        df_tpt = calculate_harvest_table(data_all, harvest_rules, group_cols=[])
+        df_tpt = calculate_harvest_table(data_all, compute_parcel_harvests(data_all, harvest_rules), group_cols=[])
 
         tsv_vol_ss = df_tsv['volume_mature'].sum()
         tpt_vol_ss = df_tpt['volume_mature'].sum()
@@ -617,7 +617,7 @@ class TestComputeParcelHarvests:
         parcel_harvests = compute_parcel_harvests(data_all, harvest_rules)
         total_from_parcels = sum(hr.harvest for hr in parcel_harvests.values())
 
-        df = calculate_harvest_table(data_all, harvest_rules, group_cols=[])
+        df = calculate_harvest_table(data_all, parcel_harvests, group_cols=[])
         total_from_table = df['harvest'].sum()
 
         assert np.isclose(total_from_parcels, total_from_table, rtol=1e-9)
@@ -628,7 +628,7 @@ class TestHarvestCalculation:
 
     def test_volume_harvest_excludes_sottomisura(self, data_all, harvest_rules):
         """Volume-based harvest should use volume_mature."""
-        df = calculate_harvest_table(data_all, harvest_rules, group_cols=[])
+        df = calculate_harvest_table(data_all, compute_parcel_harvests(data_all, harvest_rules), group_cols=[])
 
         vol_mature = df['volume_mature'].sum()
         harvest = df['harvest'].sum()
@@ -638,9 +638,10 @@ class TestHarvestCalculation:
 
     def test_harvest_per_parcel(self, data_all, harvest_rules):
         """Harvest totals should equal sum of per-parcel harvests."""
-        df_total = calculate_harvest_table(data_all, harvest_rules, group_cols=[])
+        ph = compute_parcel_harvests(data_all, harvest_rules)
+        df_total = calculate_harvest_table(data_all, ph, group_cols=[])
         df_parcels = calculate_harvest_table(
-            data_all, harvest_rules, group_cols=[COL_PARTICELLA]
+            data_all, ph, group_cols=[COL_PARTICELLA]
         )
 
         total_harvest = df_total['harvest'].sum()
@@ -651,7 +652,7 @@ class TestHarvestCalculation:
 
     def test_basal_area_harvest_parcel_d(self, data_parcel_d, harvest_rules):
         """Parcel D (age=20) should use 15% basal area harvest rule."""
-        df = calculate_harvest_table(data_parcel_d, harvest_rules, group_cols=[])
+        df = calculate_harvest_table(data_parcel_d, compute_parcel_harvests(data_parcel_d, harvest_rules), group_cols=[])
 
         assert df['harvest'].sum() > 0, "Should have some harvest"
 
@@ -661,7 +662,7 @@ class TestHarvestCalculation:
 
     def test_basal_area_harvest_parcel_e(self, data_parcel_e, harvest_rules):
         """Parcel E (age=45) should use 20% basal area harvest rule."""
-        df = calculate_harvest_table(data_parcel_e, harvest_rules, group_cols=[])
+        df = calculate_harvest_table(data_parcel_e, compute_parcel_harvests(data_parcel_e, harvest_rules), group_cols=[])
 
         assert df['harvest'].sum() > 0, "Should have some harvest"
 
@@ -672,7 +673,7 @@ class TestHarvestCalculation:
     def test_small_trees_excluded_from_basal_area_harvest(
             self, data_parcel_d, harvest_rules):
         """Small trees (D <= 20) should be excluded from basal area harvest calculation."""
-        df = calculate_harvest_table(data_parcel_d, harvest_rules, group_cols=[])
+        df = calculate_harvest_table(data_parcel_d, compute_parcel_harvests(data_parcel_d, harvest_rules), group_cols=[])
 
         trees = data_parcel_d.trees
         small_trees = trees[trees[COL_D_CM] <= MATURE_THRESHOLD]

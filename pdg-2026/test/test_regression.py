@@ -28,6 +28,7 @@ from pdg.simulation import growth_per_group
 from pdg.core import (
     region_cache, parcel_data,
     calculate_volumes, calculate_harvest_table,
+    compute_parcel_harvests,
     calculate_diameter_class_data,
 )
 from pdg.harvest_rules import max_harvest
@@ -157,28 +158,32 @@ class TestTptRegression:
 
     def test_per_compresa(self, data_all):
         """sec-ripresa.tex: per_compresa=si, per_particella=no."""
-        actual = calculate_harvest_table(data_all, max_harvest,
+        actual = calculate_harvest_table(data_all,
+            compute_parcel_harvests(data_all, max_harvest),
             group_cols=[COL_COMPRESA])
         expected = _load_golden('tpt-per_compresa')
         _assert_frames_close(actual, expected, 'tpt-per_compresa')
 
     def test_serra_per_particella(self, data_serra):
         """sec-ripresa.tex: single compresa, per_particella=si."""
-        actual = calculate_harvest_table(data_serra, max_harvest,
+        actual = calculate_harvest_table(data_serra,
+            compute_parcel_harvests(data_serra, max_harvest),
             group_cols=[COL_PARTICELLA])
         expected = _load_golden('tpt-serra-per_particella')
         _assert_frames_close(actual, expected, 'tpt-serra-per_particella')
 
     def test_cap3_per_genere(self, data_cap3):
         """particella.tex: single particella, per_genere=si."""
-        actual = calculate_harvest_table(data_cap3, max_harvest,
+        actual = calculate_harvest_table(data_cap3,
+            compute_parcel_harvests(data_cap3, max_harvest),
             group_cols=[COL_GENERE])
         expected = _load_golden('tpt-cap3-per_genere')
         _assert_frames_close(actual, expected, 'tpt-cap3-per_genere')
 
     def test_serra_per_particella_genere(self, data_serra):
         """relazione.tex: per_particella=si, per_genere=si."""
-        actual = calculate_harvest_table(data_serra, max_harvest,
+        actual = calculate_harvest_table(data_serra,
+            compute_parcel_harvests(data_serra, max_harvest),
             group_cols=[COL_PARTICELLA, COL_GENERE])
         expected = _load_golden('tpt-serra-per_particella_genere')
         _assert_frames_close(actual, expected, 'tpt-serra-per_particella_genere')

@@ -15,6 +15,7 @@ from pdg.simulation import growth_per_group
 from pdg.core import (
     region_cache, parcel_data,
     calculate_volumes, calculate_harvest_table,
+    compute_parcel_harvests,
     calculate_diameter_class_data,
 )
 from pdg.harvest_rules import max_harvest
@@ -68,13 +69,17 @@ def main():
 
     # @@prelievi — matches sec-ripresa.tex, particella.tex, relazione.tex
     print('@@prelievi:')
-    save(calculate_harvest_table(data_all, max_harvest,
+    save(calculate_harvest_table(data_all,
+        compute_parcel_harvests(data_all, max_harvest),
         group_cols=[COL_COMPRESA]), 'tpt-per_compresa')
-    save(calculate_harvest_table(data_serra, max_harvest,
+    save(calculate_harvest_table(data_serra,
+        compute_parcel_harvests(data_serra, max_harvest),
         group_cols=[COL_PARTICELLA]), 'tpt-serra-per_particella')
-    save(calculate_harvest_table(data_cap3, max_harvest,
+    save(calculate_harvest_table(data_cap3,
+        compute_parcel_harvests(data_cap3, max_harvest),
         group_cols=[COL_GENERE]), 'tpt-cap3-per_genere')
-    save(calculate_harvest_table(data_serra, max_harvest,
+    save(calculate_harvest_table(data_serra,
+        compute_parcel_harvests(data_serra, max_harvest),
         group_cols=[COL_PARTICELLA, COL_GENERE]),
         'tpt-serra-per_particella_genere')
 
