@@ -113,6 +113,7 @@ OPT_ANNO_FINE = 'anno_fine'
 OPT_INTERVALLO = 'intervallo'
 OPT_MORTALITA = 'mortalita'
 OPT_PRUDENZA = 'prudenza'
+OPT_RIDUZIONE = 'riduzione'
 OPT_VOLUME_OBIETTIVO = 'volume_obiettivo'
 OPT_CALENDARIO = 'calendario'
 # tpdt column toggles
@@ -1104,6 +1105,10 @@ def render_harvest_plan(data: ParcelData, past_harvests: pd.DataFrame | None,
         prudence=options.get(OPT_PRUDENZA, 100.0))
     if df.empty:
         return RenderResult(snippet='')
+
+    reduction = options.get(OPT_RIDUZIONE, 100.0)
+    if reduction != 100.0:
+        df[COL_HARVEST] = df[COL_HARVEST] * reduction / 100
 
     per_parcel = COL_PARTICELLA in group_cols or len(data.parcels) == 1
 
