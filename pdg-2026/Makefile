@@ -85,6 +85,8 @@ FILE_TEX=tex/$(BASENAME).tex
 DEPS_BIB=template/tex/ref.bib
 DEPS_TEX=$(DATA_DEPS) pdg.py $(wildcard pdg/*.py) template/tex/particella.tex
 
+TEX_FLAGS=-interaction=batchmode -halt-on-error
+
 SECTIONS_TEX= \
 	tex/sec-ipsometrie.tex \
 	tex/sec-volumi.tex \
@@ -98,15 +100,15 @@ pdf: $(FILE_PDF)
 
 # Run pdg.py on any template file to expand macros into tex/
 tex/%.tex: template/tex/%.tex $(DEPS_TEX)
-	./pdg.py $(EXTRA_FLAGS) --report --formato tex --particelle $(CSV_DIR)/particelle.csv --dati $(CSV_DIR) --input template/tex/$*.tex --output-dir tex/
+	./pdg.py $(EXTRA_FLAGS) --report --formato tex --log-simulazione --particelle $(CSV_DIR)/particelle.csv --dati $(CSV_DIR) --input template/tex/$*.tex --output-dir tex/
 
 # Compile the assembled document
 $(FILE_PDF): $(FILE_TEX) $(SECTIONS_TEX) $(DEPS_BIB)
 	cp $(DEPS_BIB) tex/
-	cd tex && pdflatex $(BASENAME)
+	cd tex && pdflatex $(TEX_FLAGS) $(BASENAME)
 	cd tex && biber $(BASENAME)
-	cd tex && pdflatex $(BASENAME)
-	cd tex && pdflatex $(BASENAME)
+	cd tex && pdflatex $(TEX_FLAGS) $(BASENAME)
+	cd tex && pdflatex $(TEX_FLAGS) $(BASENAME)
 
 clean-pdf:
 	rm -f $(FILE_PDF) $(FILE_TEX) $(SECTIONS_TEX)
