@@ -694,8 +694,9 @@ def render_volume_table(data: ParcelData, formatter: SnippetFormatter, **options
         group_cols.append(COL_GENERE)
 
     df = calculate_volumes(data, group_cols,
-        options[OPT_INTERV_FIDUC], options[OPT_STIME_TOTALI],
-        options[OPT_SOLO_MATURE])
+                           calc_ntrees=True, calc_margin=options[OPT_INTERV_FIDUC],
+                           calc_total=options[OPT_STIME_TOTALI],
+                           calc_mature=options[OPT_SOLO_MATURE])
 
     has_ci = options[OPT_INTERV_FIDUC]
     col_specs = [
