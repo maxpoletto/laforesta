@@ -79,12 +79,16 @@ class SnippetFormatter(ABC):
         """Format metadata block for this format."""
 
     @abstractmethod
-    def format_table(self, headers: list[tuple[str, str]], rows: list[list[str]]) -> str:
+    def format_table(self, headers: list[tuple[str, str]], rows: list[list[str]],
+                     row_groups: list[int] | None = None) -> str:
         """Format a data table for this format.
 
         Args:
             headers: Column headers as (title, alignment) tuples
             rows: Data rows (each row is a list of strings)
+            row_groups: Row indices where a new group starts (for visual separation).
+                        The first group (index 0) gets no separator; subsequent groups
+                        get a visual break (hline in LaTeX, CSS class in HTML).
         Returns:
             Formatted table snippet
         """
@@ -117,21 +121,25 @@ class HTMLSnippetFormatter(SnippetFormatter):
         html += '</div>\n'
         return html
 
-    def format_table(self, headers: list[tuple[str, str]], rows: list[list[str]]) -> str:
+    def format_table(self, headers: list[tuple[str, str]], rows: list[list[str]],
+                     row_groups: list[int] | None = None) -> str:
         """Format table as HTML.
         Headers is a list of tuples (header, justification).
         Justification is 'l' for left, 'r' for right, 'c' for center.
         """
         justify_style = {'l': 'col_left', 'r': 'col_right', 'c': 'col_center'}
         justify = [justify_style[h[1]] for h in headers]
+        # Group breaks that need a separator (skip the first group).
+        group_breaks = set(row_groups[1:]) if row_groups else set()
         html = '<table class="volume-table">\n'
         html += '  <thead>\n    <tr>\n'
         for header, j in zip([h[0].replace('\n', '<br>') for h in headers], justify):
             html += f'      <th class="{j}">{header}</th>\n'
         html += '    </tr>\n  </thead>\n'
         html += '  <tbody>\n'
-        for row in rows:
-            html += '    <tr>\n'
+        for i, row in enumerate(rows):
+            cls = ' class="group-first"' if i in group_breaks else ''
+            html += f'    <tr{cls}>\n'
             for cell, j in zip(row, justify):
                 html += f'      <td class="{j}">{cell}</td>\n'
             html += '    </tr>\n'
@@ -177,12 +185,15 @@ class LaTeXSnippetFormatter(SnippetFormatter):
         latex += '\\end{quote}\n'
         return latex
 
-    def format_table(self, headers: list[tuple[str, str]], rows: list[list[str]]) -> str:
+    def format_table(self, headers: list[tuple[str, str]], rows: list[list[str]],
+                     row_groups: list[int] | None = None) -> str:
         """Format table as LaTeX using longtable for page breaks.
            Headers is a list of tuples (header, justification).
            Justification is 'l' for left, 'r' for right, 'c' for center.
         """
         just = [h[1] for h in headers]
+        # Group breaks that need a separator (skip the first group).
+        group_breaks = set(row_groups[1:]) if row_groups else set()
 
         def _latex_header(title, align):
             if '\n' in title:
@@ -210,7 +221,9 @@ class LaTeXSnippetFormatter(SnippetFormatter):
         latex += '\\endfoot\n'  # Footer for all pages except last
         latex += '\\hline\n'
         latex += '\\endlastfoot\n'  # Footer for last page
-        for row in rows:
+        for i, row in enumerate(rows):
+            if i in group_breaks:
+                latex += '\\hline\n'
             latex += ' & '.join(row) + ' \\\\\n'
         latex += '\\end{longtable}\n'
         return latex
@@ -235,7 +248,8 @@ class CSVSnippetFormatter(SnippetFormatter):
     def format_metadata(self, data, curve_info: list[CurveInfo] | None = None) -> str:
         raise NotImplementedError("Formato CSV non supporta metadati")
 
-    def format_table(self, headers: list[tuple[str, str]], rows: list[list[str]]) -> str:
+    def format_table(self, headers: list[tuple[str, str]], rows: list[list[str]],
+                     row_groups: list[int] | None = None) -> str:
         """Format table as CSV."""
         output = io.StringIO()
         writer = csv.writer(output)

@@ -251,7 +251,7 @@ def get_color_map() -> dict:
 
 def render_table(df: pd.DataFrame, group_cols: list[str],
                  col_specs: list[ColSpec], formatter: SnippetFormatter,
-                 add_totals: bool) -> RenderResult:
+                 add_totals: bool, group_by_col: str | None = None) -> RenderResult:
     """Generic table renderer from a DataFrame and column specifications.
 
     Args:
@@ -260,6 +260,7 @@ def render_table(df: pd.DataFrame, group_cols: list[str],
         col_specs: List of column specifications
         formatter: Output format (HTML/LaTeX/CSV).
         add_totals: Whether to append a totals row
+        group_by_col: DataFrame column whose value changes define visual row groups.
     """
     col_specs = [c for c in col_specs if c.enabled]
     headers = [(col, GROUP_COLS_ALIGN[col]) for col in group_cols]
@@ -298,7 +299,14 @@ def render_table(df: pd.DataFrame, group_cols: list[str],
                 assert False, f"Invalid format for column '{c.title}'"
         display_rows.append(total_row)
 
-    return RenderResult(snippet=formatter.format_table(headers, display_rows))
+    row_groups = None
+    if group_by_col is not None:
+        values = df[group_by_col].tolist()
+        row_groups = [i for i in range(len(values))
+                      if i == 0 or values[i] != values[i - 1]]
+
+    return RenderResult(snippet=formatter.format_table(headers, display_rows,
+                                                       row_groups=row_groups))
 
 
 # =============================================================================
@@ -1132,4 +1140,5 @@ def render_harvest_plan(data: ParcelData, past_harvests: pd.DataFrame | None,
                 None,
                 options[OPT_COL_PRIMA_DOPO]),
     ]
-    return render_table(df, group_cols, col_specs, formatter, options[OPT_TOTALI])
+    return render_table(df, group_cols, col_specs, formatter, options[OPT_TOTALI],
+                        group_by_col=COL_YEAR)
