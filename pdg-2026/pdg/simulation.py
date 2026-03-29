@@ -4,6 +4,7 @@ import bisect
 from collections import defaultdict
 from copy import copy
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Callable
 
 import numpy as np
@@ -191,6 +192,38 @@ def growth_tables(data: ParcelData) -> GrowthTables:
 # HARVEST
 # =============================================================================
 
+def snapshot_volumes(sim: pd.DataFrame) -> dict[tuple[str, str], float]:
+    """Compute total effective volume per parcel from simulation state."""
+    vol = sim[COL_V_M3] * sim[COL_WEIGHT] * sim[COL_SCALE]
+    return vol.groupby([sim[COL_COMPRESA], sim[COL_PARTICELLA]]).sum().to_dict()
+
+
+def write_volume_log(volume_log: dict[int, dict[tuple[str, str], float]],
+                     filepath: str | Path) -> None:
+    """Write per-parcel volume log from simulation to CSV.
+
+    Rows: (Compresa, Particella) sorted by compresa then particella (natural order).
+    Columns: years.
+    Cells: total volume (m³) at the beginning of each year.
+    """
+    years = sorted(volume_log.keys())
+    all_keys: set[tuple[str, str]] = set()
+    for year_data in volume_log.values():
+        all_keys.update(year_data.keys())
+
+    natsort_key = natsort_keygen()
+    sorted_keys = sorted(all_keys, key=lambda k: (k[0], natsort_key(k[1])))
+
+    rows = []
+    for compresa, particella in sorted_keys:
+        row: dict[str, str | float] = {COL_COMPRESA: compresa, COL_PARTICELLA: particella}
+        for year in years:
+            row[str(year)] = volume_log[year].get((compresa, particella), 0.0)
+        rows.append(row)
+
+    pd.DataFrame(rows).to_csv(filepath, index=False, float_format="%.1f")
+
+
 def _mature_vol_per_ha(sim: pd.DataFrame, region: str, parcel: str,
                        stats: ParcelStats) -> float:
     """Compute mature effective volume per hectare for a parcel in the simulation."""
@@ -266,6 +299,7 @@ def schedule_harvests(
     mortalita: float = 0.0,
     rules: HarvestRulesFunc = max_harvest,
     tree_selection: TreeSelectionFunc = select_from_bottom,
+    volume_log: dict[int, dict[tuple[str, str], float]] | None = None,
 ) -> list[dict]:
     """Schedule harvests using a greedy algorithm with year-by-year growth simulation.
 
@@ -313,6 +347,9 @@ def schedule_harvests(
     diam_growth_arr = None
 
     for y in range(first_year, last_year + 1):
+        if volume_log is not None:
+            volume_log[y] = snapshot_volumes(sim)
+
         # Compute mature vol/ha for each fustaia parcel and sort descending
         parcel_priority = []
         for region, parcel in fustaia_keys:
@@ -373,5 +410,8 @@ def schedule_harvests(
         # Age progression: each parcel ages one year
         for p in sim_parcels.values():
             p.age += 1
+
+    if volume_log is not None:
+        volume_log[last_year + 1] = snapshot_volumes(sim)
 
     return events

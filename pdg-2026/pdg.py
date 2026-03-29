@@ -27,6 +27,7 @@ from pdg.formatters import (
     OPT_STILE, fmt_num, set_decimal_comma,
     SnippetFormatter, HTMLSnippetFormatter, LaTeXSnippetFormatter, CSVSnippetFormatter,
 )
+from pdg.simulation import write_volume_log
 from pdg.core import (
     OPT_PER_COMPRESA, OPT_PER_PARTICELLA, OPT_PER_GENERE,
     OPT_STIME_TOTALI, OPT_TOTALI, OPT_METRICA,
@@ -172,7 +173,8 @@ def process_template(template_text: str, data_dir: Path,
                      parcel_file: str,
                      output_dir: Path,
                      format_type: str,
-                     template_dir: Path | None = None) -> str:
+                     template_dir: Path | None = None,
+                     log_simulazione: bool = False) -> str:
     """
     Process template by substituting @@directives with generated content.
 
@@ -189,6 +191,7 @@ def process_template(template_text: str, data_dir: Path,
     """
     # Track filenames to make duplicates unique
     filename_counts = defaultdict(int)
+    harvest_plan_count = 0
     def _build_graph_filename(comprese: list[str], particelle: list[str],
                               generi: list[str], keyword: str) -> str:
         """Build a filename for a graph based on the parameters (all lists)."""
@@ -315,6 +318,8 @@ def process_template(template_text: str, data_dir: Path,
                     result = render_harvest_table(data, max_harvest,
                                               formatter, **options)
                 case Dir.HARVEST_PLAN:
+                    nonlocal harvest_plan_count
+                    harvest_plan_count += 1
                     calendario_path = params.get(OPT_CALENDARIO)
                     past_harvests = (
                         read_past_harvests(data_dir / calendario_path)
@@ -342,9 +347,16 @@ def process_template(template_text: str, data_dir: Path,
                         raise ValueError("@@piano_di_taglio richiede 'per_particella=si' se si usa "
                                          "'col_prima_dopo=si', altrimenti i volumi prima/dopo "
                                          "non sono confrontabili")
+                    volume_log = {} if log_simulazione else None
                     result = render_harvest_plan(data, past_harvests,
                                                max_harvest,
-                                               formatter, **options)
+                                               formatter,
+                                               volume_log=volume_log,
+                                               **options)
+                    if volume_log:
+                        log_path = f'simulazione_pdt_{harvest_plan_count}.csv'
+                        write_volume_log(volume_log, log_path)
+                        print(f"  Log simulazione salvato in {log_path}")
                 case Dir.PCT_GROWTH_TABLE:
                     options = {
                         OPT_PER_COMPRESA: _bool_opt(params, OPT_PER_COMPRESA, False),
@@ -527,7 +539,8 @@ def run_report(args):
         template_text = f.read()
 
     processed = process_template(template_text, Path(args.dati), args.particelle,
-                                 output_dir, args.formato, Path(args.input).parent)
+                                 output_dir, args.formato, Path(args.input).parent,
+                                 log_simulazione=args.log_simulazione)
     output_file = output_dir / Path(args.input).name
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write(processed)
@@ -651,6 +664,8 @@ Modalità di utilizzo:
     opt_group = parser.add_argument_group('Altre opzioni')
     opt_group.add_argument('--non-rigenerare-grafici', action='store_true', default=False,
                            help='Non rigenerare grafici esistenti (per --report)')
+    opt_group.add_argument('--log-simulazione', action='store_true', default=False,
+                           help='Scrivi CSV con volumi per particella per ogni @@piano_di_taglio')
     opt_group.add_argument('--separatore-decimale', choices=['punto', 'virgola'],
                            default='virgola',
                            help='Separatore decimale: punto (default) o virgola')

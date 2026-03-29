@@ -1010,6 +1010,7 @@ def calculate_harvest_plan(
     rules: HarvestRulesFunc,
     tree_selection: TreeSelectionFunc,
     group_cols: list[str],
+    volume_log: dict | None = None,
 ) -> pd.DataFrame:
     """Compute harvest schedule table grouped by year and optional columns.
 
@@ -1018,7 +1019,7 @@ def calculate_harvest_plan(
     """
     events = schedule_harvests(
         data, past_harvests, year_range, min_gap, target_volume,
-        mortalita, rules, tree_selection)
+        mortalita, rules, tree_selection, volume_log=volume_log)
     if not events:
         return pd.DataFrame()
 
@@ -1074,7 +1075,9 @@ def calculate_harvest_plan(
 
 def render_harvest_plan(data: ParcelData, past_harvests: pd.DataFrame | None,
                       rules: HarvestRulesFunc,
-                      formatter: SnippetFormatter, **options) -> RenderResult:
+                      formatter: SnippetFormatter,
+                      volume_log: dict | None = None,
+                      **options) -> RenderResult:
     """Render harvest schedule table (@@piano_di_taglio directive)."""
     group_cols = []
     if options[OPT_PER_COMPRESA]:
@@ -1092,7 +1095,8 @@ def render_harvest_plan(data: ParcelData, past_harvests: pd.DataFrame | None,
         mortalita=options[OPT_MORTALITA],
         rules=rules,
         tree_selection=select_from_bottom,
-        group_cols=group_cols)
+        group_cols=group_cols,
+        volume_log=volume_log)
     if df.empty:
         return RenderResult(snippet='')
 
