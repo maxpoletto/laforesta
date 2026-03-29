@@ -1140,5 +1140,6 @@ def render_harvest_plan(data: ParcelData, past_harvests: pd.DataFrame | None,
                 None,
                 options[OPT_COL_PRIMA_DOPO]),
     ]
+    has_year_groups = len(df) > df[COL_YEAR].nunique()
     return render_table(df, group_cols, col_specs, formatter, options[OPT_TOTALI],
-                        group_by_col=COL_YEAR)
+                        group_by_col=COL_YEAR if has_year_groups else None)
