@@ -1078,6 +1078,26 @@ class TestHarvestParcel:
         assert np.isclose(result.species_shares['Faggio'], 0.25)
         assert np.isclose(result.species_shares['Cerro'], 0.75)
 
+    def test_prudence_reduces_harvest(self):
+        """Prudence < 100 reduces harvest volume by tightening limits."""
+        stats = ParcelStats(area_ha=10, sector='A', age=60, governo='Fustaia',
+                            n_sample_areas=1, sampled_frac=0.0125)
+        # Rules: harvest up to 50% of volume. With 4 equal trees (each 80 m³
+        # scaled), full limit = 160 m³ → 2 trees; half limit = 80 m³ → 1 tree.
+        generous = lambda c, a, v, b: (v * 0.50, math.inf)
+        sim = _make_sim([
+            ('R', 'P1', 1, 25.0, 1.0, 'Faggio'),
+            ('R', 'P1', 1, 30.0, 1.0, 'Faggio'),
+            ('R', 'P1', 1, 40.0, 1.0, 'Faggio'),
+            ('R', 'P1', 1, 50.0, 1.0, 'Faggio'),
+        ])
+        full = harvest_parcel(sim, stats, generous, select_from_bottom)
+        half = harvest_parcel(sim, stats, generous, select_from_bottom, prudence=50.0)
+        assert full is not None and half is not None
+        assert len(full.harvested_indices) == 2
+        assert len(half.harvested_indices) == 1
+        assert half.harvest < full.harvest
+
 
 class TestScheduleHarvests:
     """Integration tests for schedule_harvests using real test data."""
@@ -1209,7 +1229,7 @@ class TestCalculateTpdtTable:
 
     COMMON_KWARGS = dict(
         year_range=(2026, 2027), min_gap=10, target_volume=99999,
-        mortalita=0.0, tree_selection=select_from_bottom,
+        mortality=0.0, tree_selection=select_from_bottom,
     )
 
     def test_per_particella(self, data_all, harvest_rules):
@@ -1288,7 +1308,7 @@ class TestCalculateTpdtTable:
             rules=harvest_rules,
             group_cols=[COL_COMPRESA, COL_PARTICELLA],
             year_range=(2026, 2040), min_gap=2, target_volume=99999,
-            mortalita=0.0, tree_selection=select_from_bottom)
+            mortality=0.0, tree_selection=select_from_bottom)
         if df.empty:
             return
         # For each parcel that appears in multiple years, check age delta = year delta
