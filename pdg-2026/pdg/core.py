@@ -112,6 +112,7 @@ OPT_ANNO_INIZIO = 'anno_inizio'
 OPT_ANNO_FINE = 'anno_fine'
 OPT_INTERVALLO = 'intervallo'
 OPT_MORTALITA = 'mortalita'
+OPT_PRUDENZA = 'prudenza'
 OPT_VOLUME_OBIETTIVO = 'volume_obiettivo'
 OPT_CALENDARIO = 'calendario'
 # tpdt column toggles
@@ -1007,11 +1008,12 @@ def calculate_harvest_plan(
     year_range: tuple[int, int],
     min_gap: int,
     target_volume: float,
-    mortalita: float,
+    mortality: float,
     rules: HarvestRulesFunc,
     tree_selection: TreeSelectionFunc,
     group_cols: list[str],
     volume_log: dict | None = None,
+    prudence: float = 100.0,
 ) -> pd.DataFrame:
     """Compute harvest schedule table grouped by year and optional columns.
 
@@ -1020,7 +1022,8 @@ def calculate_harvest_plan(
     """
     events = schedule_harvests(
         data, past_harvests, year_range, min_gap, target_volume,
-        mortalita, rules, tree_selection, volume_log=volume_log)
+        mortality, rules, tree_selection, volume_log=volume_log,
+        prudence=prudence)
     if not events:
         return pd.DataFrame()
 
@@ -1093,11 +1096,12 @@ def render_harvest_plan(data: ParcelData, past_harvests: pd.DataFrame | None,
         year_range=(options[OPT_ANNO_INIZIO], options[OPT_ANNO_FINE]),
         min_gap=options[OPT_INTERVALLO],
         target_volume=options[OPT_VOLUME_OBIETTIVO],
-        mortalita=options[OPT_MORTALITA],
+        mortality=options[OPT_MORTALITA],
         rules=rules,
         tree_selection=select_from_bottom,
         group_cols=group_cols,
-        volume_log=volume_log)
+        volume_log=volume_log,
+        prudence=options.get(OPT_PRUDENZA, 100.0))
     if df.empty:
         return RenderResult(snippet='')
 

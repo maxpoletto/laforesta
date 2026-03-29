@@ -109,7 +109,7 @@ def growth_per_group(trees: pd.DataFrame, group_cols: list[str],
 # =============================================================================
 
 def year_step(sim: pd.DataFrame, weight: np.ndarray,
-              growth: GrowthTables, mortalita: float,
+              growth: GrowthTables, mortality: float,
               diam_growth: np.ndarray | None = None) -> tuple[np.ndarray, int]:
     """Advance the tree growth simulation by one year.
 
@@ -167,7 +167,7 @@ def year_step(sim: pd.DataFrame, weight: np.ndarray,
 
     inc_pct, delta_d, fallbacks = lookup_growth(sim, growth)
     sim[COL_V_M3] = sim[COL_V_M3].values * (1 + inc_pct / 100)  # type: ignore[reportGeneralTypeIssues]
-    weight *= (1 - mortalita / 100)
+    weight *= (1 - mortality / 100)
 
     return delta_d, fallbacks
 
@@ -237,6 +237,7 @@ def harvest_parcel(trees: pd.DataFrame, stats: ParcelStats,
                    rules: HarvestRulesFunc,
                    selection_fn: TreeSelectionFunc,
                    weight: pd.Series | None = None,
+                   prudence: float = 100.0,
                    ) -> HarvestResult | None:
     """Compute harvest for one parcel's trees.
 
@@ -269,8 +270,8 @@ def harvest_parcel(trees: pd.DataFrame, stats: ParcelStats,
     tree_basal = basal_area_m2(mature[COL_D_CM]) * w * scale
 
     # Select trees in harvest order, accumulate until limits
-    vol_limit = vol_limit_ha * stats.area_ha
-    area_limit = area_limit_ha * stats.area_ha
+    vol_limit = vol_limit_ha * stats.area_ha * prudence / 100
+    area_limit = area_limit_ha * stats.area_ha * prudence / 100
     ordered_idx = selection_fn(mature)  # type: ignore[reportGeneralTypeIssues]
     harvested = []
     cum_vol, cum_area = 0.0, 0.0
@@ -296,10 +297,11 @@ def schedule_harvests(
     year_range: tuple[int, int],
     min_gap: int,
     target_volume: float,
-    mortalita: float = 0.0,
+    mortality: float = 0.0,
     rules: HarvestRulesFunc = max_harvest,
     tree_selection: TreeSelectionFunc = select_from_bottom,
     volume_log: dict[int, dict[tuple[str, str], float]] | None = None,
+    prudence: float = 100.0,
 ) -> list[dict]:
     """Schedule harvests using a greedy algorithm with year-by-year growth simulation.
 
@@ -370,7 +372,8 @@ def schedule_harvests(
             parcel_trees = sim[parcel_mask]
             result = harvest_parcel(
                 parcel_trees, sim_parcels[(region, parcel)],  # type: ignore[reportGeneralTypeIssues]
-                rules, tree_selection, weight=parcel_trees[COL_WEIGHT])  # type: ignore[reportGeneralTypeIssues]
+                rules, tree_selection, weight=parcel_trees[COL_WEIGHT],  # type: ignore[reportGeneralTypeIssues]
+                prudence=prudence)
             if result is None or result.harvest == 0:
                 n_no_harvest += 1
                 continue
@@ -403,7 +406,7 @@ def schedule_harvests(
         weight = sim[COL_WEIGHT].values.copy()  # type: ignore[reportGeneralTypeIssues]
         diam_growth_arr = sim[COL_DIAM_GROWTH].values if y > first_year else None  # type: ignore[reportGeneralTypeIssues]
         diam_growth_arr, _ = year_step(
-            sim, weight, growth, mortalita, diam_growth_arr)  # type: ignore[reportGeneralTypeIssues]
+            sim, weight, growth, mortality, diam_growth_arr)  # type: ignore[reportGeneralTypeIssues]
         sim[COL_WEIGHT] = weight
         sim[COL_DIAM_GROWTH] = diam_growth_arr
 
