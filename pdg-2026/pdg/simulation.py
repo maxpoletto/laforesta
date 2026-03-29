@@ -308,6 +308,7 @@ def schedule_harvests(
     volume_log: dict[int, dict[tuple[str, str], float]] | None = None,
     prudence: float = 100.0,
     ordine: str = ORDINE_VOL_HA,
+    particelle_min: int = 0,
 ) -> list[dict]:
     """Schedule harvests using a greedy algorithm with year-by-year growth simulation.
 
@@ -384,6 +385,7 @@ def schedule_harvests(
         parcel_priority.sort()
 
         year_total = 0.0
+        year_parcels = 0
         n_gap_skip = 0
         n_no_harvest = 0
         for *_, region, parcel in parcel_priority:
@@ -415,7 +417,8 @@ def schedule_harvests(
             })
             last_harvest[(region, parcel)] = y
             year_total += result.harvest
-            if year_total >= target_volume:
+            year_parcels += 1
+            if year_total >= target_volume and year_parcels >= particelle_min:
                 break
 
         n_harvested = sum(1 for e in events if e[COL_YEAR] == y)

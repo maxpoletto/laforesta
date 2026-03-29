@@ -38,7 +38,7 @@ from pdg.core import (
     OPT_COL_PP_MAX, OPT_COL_PRELIEVO, OPT_COL_PRELIEVO_HA, OPT_COL_INCR_CORR,
     OPT_X_MAX, OPT_Y_MAX,
     OPT_ANNO_INIZIO, OPT_ANNO_FINE, OPT_INTERVALLO,
-    OPT_MORTALITA, OPT_PRUDENZA, OPT_RIDUZIONE, OPT_VOLUME_OBIETTIVO, OPT_CALENDARIO, OPT_ORDINE,
+    OPT_MORTALITA, OPT_PRUDENZA, OPT_RIDUZIONE, OPT_VOLUME_OBIETTIVO, OPT_CALENDARIO, OPT_ORDINE, OPT_PARTICELLE_MIN,
     OPT_COL_PRIMA_DOPO, OPT_EQUAZIONI,
     read_past_harvests, parcel_data,
     get_color_map,
@@ -341,6 +341,7 @@ def process_template(template_text: str, data_dir: Path,
                         OPT_TOTALI: _bool_opt(params, OPT_TOTALI, False),
                         OPT_VOLUME_OBIETTIVO: float(params[OPT_VOLUME_OBIETTIVO]),
                         OPT_ORDINE: params.get(OPT_ORDINE, ORDINE_VOL_HA),
+                        OPT_PARTICELLE_MIN: int(params.get(OPT_PARTICELLE_MIN, 0)),
                     }
                     _VALID_ORDINE = {ORDINE_VOL_HA, ORDINE_VOL_TOT, ORDINE_DATA}
                     if options[OPT_ORDINE] not in _VALID_ORDINE:

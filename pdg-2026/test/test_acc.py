@@ -1527,6 +1527,105 @@ class TestScheduleHarvestsOrdering:
         assert events_no_ordine[0][COL_PARTICELLA] == first_default
 
 
+class TestParticelleMin:
+    """Test particelle_min: minimum number of harvested parcels per year."""
+
+    @staticmethod
+    def _make_data():
+        """Build synthetic two-parcel dataset (same as ordering tests)."""
+        rows = []
+        for d, v in [(35.0, 1.2), (40.0, 1.8), (45.0, 2.5), (50.0, 3.0)]:
+            rows.append({
+                COL_COMPRESA: 'R', COL_PARTICELLA: 'P1',
+                COL_AREA_SAGGIO: 1, COL_GENERE: 'Faggio',
+                COL_D_CM: d, COL_V_M3: v,
+                COL_CD_CM: diameter_class(pd.Series([d])).iloc[0],
+                COL_L10_MM: 5.0, COL_PRESSLER: 200,
+            })
+        for d, v in [(25.0, 0.6), (30.0, 0.9), (35.0, 1.2), (40.0, 1.8)]:
+            rows.append({
+                COL_COMPRESA: 'R', COL_PARTICELLA: 'P2',
+                COL_AREA_SAGGIO: 1, COL_GENERE: 'Faggio',
+                COL_D_CM: d, COL_V_M3: v,
+                COL_CD_CM: diameter_class(pd.Series([d])).iloc[0],
+                COL_L10_MM: 5.0, COL_PRESSLER: 200,
+            })
+        trees = pd.DataFrame(rows)
+        parcels = {
+            ('R', 'P1'): ParcelStats(
+                area_ha=1.0, sector='A', age=80, governo='Fustaia',
+                n_sample_areas=1, sampled_frac=SAMPLE_AREA_HA / 1.0),
+            ('R', 'P2'): ParcelStats(
+                area_ha=20.0, sector='A', age=80, governo='Fustaia',
+                n_sample_areas=1, sampled_frac=SAMPLE_AREA_HA / 20.0),
+        }
+        return ParcelData(trees=trees, regions=['R'], species=['Faggio'],
+                          parcels=parcels)
+
+    @staticmethod
+    def _simple_rules(comparto, eta_media, volume_per_ha, area_per_ha):
+        return volume_per_ha * 0.25, math.inf
+
+    def test_without_particelle_min_stops_after_one(self):
+        """With very low target_volume and no particelle_min, only 1 parcel harvested."""
+        data = self._make_data()
+        events = schedule_harvests(
+            data, past_harvests=None,
+            year_range=(2026, 2026), min_gap=10,
+            target_volume=0.001,
+            rules=self._simple_rules)
+        year_parcels = [e for e in events if e[COL_YEAR] == 2026]
+        assert len(year_parcels) == 1
+
+    def test_particelle_min_forces_extra_harvests(self):
+        """particelle_min=2 forces harvesting both parcels even if target_volume is met."""
+        data = self._make_data()
+        events = schedule_harvests(
+            data, past_harvests=None,
+            year_range=(2026, 2026), min_gap=10,
+            target_volume=0.001,
+            particelle_min=2,
+            rules=self._simple_rules)
+        year_parcels = [e for e in events if e[COL_YEAR] == 2026]
+        assert len(year_parcels) == 2
+
+    def test_particelle_min_zero_is_default(self):
+        """Default particelle_min=0 behaves like no constraint."""
+        data = self._make_data()
+        events_default = schedule_harvests(
+            data, past_harvests=None,
+            year_range=(2026, 2026), min_gap=10,
+            target_volume=0.001,
+            rules=self._simple_rules)
+        events_zero = schedule_harvests(
+            data, past_harvests=None,
+            year_range=(2026, 2026), min_gap=10,
+            target_volume=0.001,
+            particelle_min=0,
+            rules=self._simple_rules)
+        assert len(events_default) == len(events_zero)
+
+    def test_particelle_min_respects_min_gap(self):
+        """particelle_min cannot override min_gap: blocked parcels stay blocked."""
+        data = self._make_data()
+        # P1 harvested recently (2020) -> blocked by min_gap=10 in 2026
+        past = pd.DataFrame({
+            'Anno': [2020],
+            COL_COMPRESA: ['R'],
+            COL_PARTICELLA: ['P1'],
+        })
+        events = schedule_harvests(
+            data, past_harvests=past,
+            year_range=(2026, 2026), min_gap=10,
+            target_volume=0.001,
+            particelle_min=2,
+            rules=self._simple_rules)
+        year_parcels = [e for e in events if e[COL_YEAR] == 2026]
+        # Only P2 can be harvested; particelle_min=2 can't force P1 past min_gap
+        assert len(year_parcels) == 1
+        assert year_parcels[0][COL_PARTICELLA] == 'P2'
+
+
 class TestParcelDataFilter:
     """Test ParcelData.filter_parcels."""
 
