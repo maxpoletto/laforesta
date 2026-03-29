@@ -34,6 +34,7 @@ from pdg.simulation import (
     COL_IP_MEDIO, COL_INCR_CORR, COL_DELTA_D,
     COL_YEAR, COL_HARVEST, COL_VOLUME_BEFORE, COL_VOLUME_AFTER, COL_SPECIES_SHARES,
     COL_WEIGHT,
+    ORDINE_VOL_HA,
     HarvestResult, TreeSelectionFunc, select_from_bottom,
     growth_per_group, harvest_parcel, schedule_harvests,
 )
@@ -115,6 +116,7 @@ OPT_MORTALITA = 'mortalita'
 OPT_PRUDENZA = 'prudenza'
 OPT_RIDUZIONE = 'riduzione'
 OPT_VOLUME_OBIETTIVO = 'volume_obiettivo'
+OPT_ORDINE = 'ordine'
 OPT_CALENDARIO = 'calendario'
 # tpdt column toggles
 OPT_COL_PRIMA_DOPO = 'col_prima_dopo'
@@ -1023,6 +1025,7 @@ def calculate_harvest_plan(
     group_cols: list[str],
     volume_log: dict | None = None,
     prudence: float = 100.0,
+    ordine: str = ORDINE_VOL_HA,
 ) -> pd.DataFrame:
     """Compute harvest schedule table grouped by year and optional columns.
 
@@ -1032,7 +1035,7 @@ def calculate_harvest_plan(
     events = schedule_harvests(
         data, past_harvests, year_range, min_gap, target_volume,
         mortality, rules, tree_selection, volume_log=volume_log,
-        prudence=prudence)
+        prudence=prudence, ordine=ordine)
     if not events:
         return pd.DataFrame()
 
@@ -1110,7 +1113,8 @@ def render_harvest_plan(data: ParcelData, past_harvests: pd.DataFrame | None,
         tree_selection=select_from_bottom,
         group_cols=group_cols,
         volume_log=volume_log,
-        prudence=options.get(OPT_PRUDENZA, 100.0))
+        prudence=options.get(OPT_PRUDENZA, 100.0),
+        ordine=options.get(OPT_ORDINE, ORDINE_VOL_HA))
     if df.empty:
         return RenderResult(snippet='')
 

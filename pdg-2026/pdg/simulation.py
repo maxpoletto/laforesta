@@ -47,6 +47,11 @@ COL_IP_MEDIO = 'ip_medio'
 COL_INCR_CORR = 'incremento_corrente'
 COL_DELTA_D = 'delta_d'
 
+# Parcel ordering strategies for schedule_harvests
+ORDINE_VOL_HA = 'vol_ha'    # highest mature volume per hectare first (default)
+ORDINE_VOL_TOT = 'vol_tot'  # highest total mature volume first
+ORDINE_DATA = 'data'        # oldest last-harvest date first, ties broken by vol/ha
+
 # Internal DataFrame column names for harvest plan events (shared with core.py)
 COL_YEAR = 'year'
 COL_HARVEST = 'harvest'
@@ -302,10 +307,16 @@ def schedule_harvests(
     tree_selection: TreeSelectionFunc = select_from_bottom,
     volume_log: dict[int, dict[tuple[str, str], float]] | None = None,
     prudence: float = 100.0,
+    ordine: str = ORDINE_VOL_HA,
 ) -> list[dict]:
     """Schedule harvests using a greedy algorithm with year-by-year growth simulation.
 
     Only considers parcels where governo == Fustaia.
+
+    Args:
+        ordine: Parcel priority within each year. 'vol_ha' = highest mature
+            volume/ha first (default); 'vol_tot' = highest total mature volume
+            first; 'data' = oldest last-harvest date first, ties by vol/ha.
 
     Returns list of dicts, one per (year, parcel) harvest event, with keys:
         year, Compresa, Particella, harvest, volume_before, volume_after, _species_shares
@@ -352,17 +363,30 @@ def schedule_harvests(
         if volume_log is not None:
             volume_log[y] = snapshot_volumes(sim)
 
-        # Compute mature vol/ha for each fustaia parcel and sort descending
-        parcel_priority = []
+        # Compute mature vol/ha for each fustaia parcel and build priority list.
+        parcel_vols = {}
         for region, parcel in fustaia_keys:
             vol_ha = _mature_vol_per_ha(sim, region, parcel, sim_parcels[(region, parcel)])  # type: ignore[reportGeneralTypeIssues]
-            parcel_priority.append((vol_ha, region, parcel))
-        parcel_priority.sort(reverse=True)
+            parcel_vols[(region, parcel)] = vol_ha
+
+        if ordine == ORDINE_VOL_TOT:
+            parcel_priority = [
+                (-vol_ha * sim_parcels[(r, p)].area_ha, r, p)
+                for (r, p), vol_ha in parcel_vols.items()]
+        elif ordine == ORDINE_DATA:
+            parcel_priority = [
+                (last_harvest.get((r, p), 0), -vol_ha, r, p)
+                for (r, p), vol_ha in parcel_vols.items()]
+        else:  # ORDINE_VOL_HA (default)
+            parcel_priority = [
+                (-vol_ha, r, p)
+                for (r, p), vol_ha in parcel_vols.items()]
+        parcel_priority.sort()
 
         year_total = 0.0
         n_gap_skip = 0
         n_no_harvest = 0
-        for _, region, parcel in parcel_priority:
+        for *_, region, parcel in parcel_priority:
             # Min-gap check
             if last_harvest.get((region, parcel), 0) > y - min_gap:
                 n_gap_skip += 1

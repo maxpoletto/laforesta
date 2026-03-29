@@ -1427,6 +1427,106 @@ class TestScheduleHarvestsAgeProgression:
         assert year_2[0][COL_HARVEST] > 0
 
 
+class TestScheduleHarvestsOrdering:
+    """Test parcel ordering via the 'ordine' parameter."""
+
+    # Two parcels:
+    #   P1: small area (1 ha), high vol/ha  -> vol/ha winner
+    #   P2: large area (20 ha), lower vol/ha, higher total vol -> vol_tot winner
+    # Past harvest: P2 in 2000 (old), P1 in 2010 (recent) -> data winner = P2
+    # Both past harvests are old enough that min_gap=10 doesn't block in 2026.
+    #
+    # With target_volume low enough to stop after the first parcel, the first
+    # event reveals which parcel was prioritized.
+
+    @staticmethod
+    def _make_data():
+        """Build synthetic two-parcel dataset."""
+        rows = []
+        # P1: 4 large trees in 1 ha -> high vol/ha
+        for d, v in [(35.0, 1.2), (40.0, 1.8), (45.0, 2.5), (50.0, 3.0)]:
+            rows.append({
+                COL_COMPRESA: 'R', COL_PARTICELLA: 'P1',
+                COL_AREA_SAGGIO: 1, COL_GENERE: 'Faggio',
+                COL_D_CM: d, COL_V_M3: v,
+                COL_CD_CM: diameter_class(pd.Series([d])).iloc[0],
+                COL_L10_MM: 5.0, COL_PRESSLER: 200,
+            })
+        # P2: 4 smaller trees in 20 ha -> lower vol/ha but more total vol
+        for d, v in [(25.0, 0.6), (30.0, 0.9), (35.0, 1.2), (40.0, 1.8)]:
+            rows.append({
+                COL_COMPRESA: 'R', COL_PARTICELLA: 'P2',
+                COL_AREA_SAGGIO: 1, COL_GENERE: 'Faggio',
+                COL_D_CM: d, COL_V_M3: v,
+                COL_CD_CM: diameter_class(pd.Series([d])).iloc[0],
+                COL_L10_MM: 5.0, COL_PRESSLER: 200,
+            })
+        trees = pd.DataFrame(rows)
+
+        parcels = {
+            ('R', 'P1'): ParcelStats(
+                area_ha=1.0, sector='A', age=80, governo='Fustaia',
+                n_sample_areas=1, sampled_frac=SAMPLE_AREA_HA / 1.0),
+            ('R', 'P2'): ParcelStats(
+                area_ha=20.0, sector='A', age=80, governo='Fustaia',
+                n_sample_areas=1, sampled_frac=SAMPLE_AREA_HA / 20.0),
+        }
+        data = ParcelData(trees=trees, regions=['R'], species=['Faggio'],
+                          parcels=parcels)
+        past = pd.DataFrame({
+            'Anno': [2010, 2000],
+            COL_COMPRESA: ['R', 'R'],
+            COL_PARTICELLA: ['P1', 'P2'],
+        })
+        return data, past
+
+    @staticmethod
+    def _simple_rules(comparto, eta_media, volume_per_ha, area_per_ha):
+        return volume_per_ha * 0.25, math.inf
+
+    def _first_parcel(self, data, past, ordine):
+        events = schedule_harvests(
+            data, past_harvests=past,
+            year_range=(2026, 2026), min_gap=10,
+            target_volume=0.001,  # stop after first parcel
+            rules=self._simple_rules,
+            ordine=ordine)
+        assert len(events) >= 1, f"Expected at least one event with ordine={ordine}"
+        return events[0][COL_PARTICELLA]
+
+    def test_vol_ha_ordering(self):
+        """ordine=vol_ha: P1 first (higher vol/ha)."""
+        data, past = self._make_data()
+        assert self._first_parcel(data, past, 'vol_ha') == 'P1'
+
+    def test_vol_tot_ordering(self):
+        """ordine=vol_tot: P2 first (higher total volume due to scale)."""
+        data, past = self._make_data()
+        assert self._first_parcel(data, past, 'vol_tot') == 'P2'
+
+    def test_data_ordering(self):
+        """ordine=data: P2 first (last harvest 2000 < P1's 2020)."""
+        data, past = self._make_data()
+        assert self._first_parcel(data, past, 'data') == 'P2'
+
+    def test_data_ordering_tiebreak_by_vol_ha(self):
+        """ordine=data: parcels with same last-harvest date break ties by vol/ha."""
+        data, _ = self._make_data()
+        # No past harvests: both parcels have implicit date 0 -> tie -> vol/ha wins
+        assert self._first_parcel(data, None, 'data') == 'P1'
+
+    def test_default_is_vol_ha(self):
+        """Default ordine should be vol_ha (backward compatible)."""
+        data, past = self._make_data()
+        first_default = self._first_parcel(data, past, 'vol_ha')
+        events_no_ordine = schedule_harvests(
+            data, past_harvests=past,
+            year_range=(2026, 2026), min_gap=10,
+            target_volume=0.001,
+            rules=self._simple_rules)
+        assert events_no_ordine[0][COL_PARTICELLA] == first_default
+
+
 class TestParcelDataFilter:
     """Test ParcelData.filter_parcels."""
 

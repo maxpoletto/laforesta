@@ -27,7 +27,7 @@ from pdg.formatters import (
     OPT_STILE, fmt_num, set_decimal_comma,
     SnippetFormatter, HTMLSnippetFormatter, LaTeXSnippetFormatter, CSVSnippetFormatter,
 )
-from pdg.simulation import write_volume_log
+from pdg.simulation import ORDINE_VOL_HA, ORDINE_VOL_TOT, ORDINE_DATA, write_volume_log
 from pdg.core import (
     OPT_PER_COMPRESA, OPT_PER_PARTICELLA, OPT_PER_GENERE,
     OPT_STIME_TOTALI, OPT_TOTALI, OPT_METRICA,
@@ -38,7 +38,7 @@ from pdg.core import (
     OPT_COL_PP_MAX, OPT_COL_PRELIEVO, OPT_COL_PRELIEVO_HA, OPT_COL_INCR_CORR,
     OPT_X_MAX, OPT_Y_MAX,
     OPT_ANNO_INIZIO, OPT_ANNO_FINE, OPT_INTERVALLO,
-    OPT_MORTALITA, OPT_PRUDENZA, OPT_RIDUZIONE, OPT_VOLUME_OBIETTIVO, OPT_CALENDARIO,
+    OPT_MORTALITA, OPT_PRUDENZA, OPT_RIDUZIONE, OPT_VOLUME_OBIETTIVO, OPT_CALENDARIO, OPT_ORDINE,
     OPT_COL_PRIMA_DOPO, OPT_EQUAZIONI,
     read_past_harvests, parcel_data,
     get_color_map,
@@ -340,7 +340,12 @@ def process_template(template_text: str, data_dir: Path,
                         OPT_RIDUZIONE: float(params.get(OPT_RIDUZIONE, 100)),
                         OPT_TOTALI: _bool_opt(params, OPT_TOTALI, False),
                         OPT_VOLUME_OBIETTIVO: float(params[OPT_VOLUME_OBIETTIVO]),
+                        OPT_ORDINE: params.get(OPT_ORDINE, ORDINE_VOL_HA),
                     }
+                    _VALID_ORDINE = {ORDINE_VOL_HA, ORDINE_VOL_TOT, ORDINE_DATA}
+                    if options[OPT_ORDINE] not in _VALID_ORDINE:
+                        raise ValueError(f"@@piano_di_taglio: ordine='{options[OPT_ORDINE]}' "
+                                         f"non valido (valori ammessi: {', '.join(sorted(_VALID_ORDINE))})")
                     check_allowed_params(keyword, params,
                                          options | {OPT_CALENDARIO: True})
                     check_required_params(keyword, params,
