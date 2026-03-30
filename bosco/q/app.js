@@ -5,24 +5,32 @@ const $ = id => document.getElementById(id);
 // Query examples for the help modal
 const QUERY_EXAMPLES = [
     {
-        description: 'Classi diametriche per genere',
+        description: 'Dendrometria: classi diametriche per genere',
         query: 'SELECT ROUND(("D(cm)"-1) / 5 +1)*5 AS Diametro, Genere, COUNT(*) as "N. piante" FROM alberi_calcolati GROUP BY Genere, Diametro ORDER BY Genere, Diametro ASC;'
     },
     {
-        description: 'Particelle in ordine decrescente di prelievo',
-        query: 'SELECT Compresa, Particella, "Vol tot (m³)", "Vol/ha (m³/ha)", "Prelievo (m³)" FROM ripresa ORDER BY "Prelievo (m³)" DESC;'
-    },
-    {
-        description: 'Particelle in ordine decrescente di superficie campionata',
+        description: 'Pianificazione: particelle in ordine decrescente di superficie campionata',
         query: 'SELECT Compresa, Particella, ANY_VALUE(p."Area (ha)") AS "Area (ha)", COUNT(*) as "N. aree saggio", ROUND(COUNT(*) * 12.5 / ANY_VALUE(p."Area (ha)"),2) as "% campionato",  FROM particelle p JOIN aree_di_saggio a USING (Compresa, Particella) GROUP BY Compresa, Particella ORDER BY "% campionato" DESC;'
     },
     {
-        description: 'Produttività totale per particella e anno',
-        query: 'SELECT Anno,Compresa,Particella,ROUND(SUM(abete+pino+douglas+faggio+castagno+ontano+altro)) AS "Q.li" FROM mannesi GROUP BY Compresa,Particella,Anno ORDER BY Anno ASC,Compresa DESC,Particella ASC;'
+        description: 'Pianificazione: particelle in ordine decrescente di prelievo pianificato',
+        query: 'SELECT Compresa, Particella, "Vol tot (m³)", "Vol/ha (m³/ha)", "Prelievo (m³)" FROM ripresa ORDER BY "Prelievo (m³)" DESC;'
     },
     {
-        description: 'Produttività trattori per anno',
-        query: 'SELECT anno as Anno, ROUND(SUM("Equus")) AS "Equus", ROUND(SUM("Fiat 110-90")) AS "Fiat 110-90", ROUND(SUM("Fiat 80-66")) AS "Fiat 80-66", ROUND(SUM("Landini 135")) AS "Landini 135", ROUND(SUM("New Holland T5050")) AS "New Holland T5050" FROM mannesi WHERE anno > 2021 GROUP BY anno;'
+        description: 'Storico: produttività totale per particella e anno (esclusi cedui, inclusi interventi per piante catastrofate)',
+        query: 'SELECT Anno, Compresa, Particella, ROUND(SUM("Q.li")/9, 0) as MC FROM mannesi WHERE "Ceduo?"=False GROUP BY Anno, Compresa, Particella ORDER BY Anno, Compresa, Particella;'
+    },
+    {
+        description: 'Storico: particelle in ordine decrescente di produttività totale per anno (esclusi cedui, inclusi interventi per piante catastrofate)',
+        query: 'SELECT Anno, Compresa, Particella, ROUND(SUM("Q.li")/9, 0) as MC FROM mannesi WHERE "Ceduo?"=False GROUP BY Anno, Compresa, Particella ORDER BY MC DESC;'
+    },
+    {
+        description: 'Storico: prelievo piante catastrofate per compresa e anno (esclusi cedui)',
+        query: 'SELECT Anno, Compresa, ROUND(SUM("Q.li")/9, 0) as MC FROM mannesi WHERE "Ceduo?"=False AND Particella=\'X\' GROUP BY Anno, Compresa ORDER BY Anno, Compresa;'
+    },
+    {
+        description: 'Storico: produttività trattori per anno',
+        query: 'SELECT anno as Anno, ROUND(SUM("Equus")) AS "Equus (q)", ROUND(SUM("Fiat 110-90")) AS "Fiat 110-90 (q)", ROUND(SUM("Fiat 80-66")) AS "Fiat 80-66 (q)", ROUND(SUM("Landini 135")) AS "Landini 135 (q)", ROUND(SUM("New Holland T5050")) AS "New Holland T5050 (q)" FROM mannesi WHERE anno > 2021 GROUP BY anno;'
     },
 ];
 
