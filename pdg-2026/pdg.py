@@ -79,7 +79,7 @@ class Dir:
     HARVEST_PLAN = 'piano_di_taglio'
     HARVEST_TABLE = 'prelievi'
     HYPSOMETRIC_GRAPH = 'grafico_classi_ipsometriche'
-    PARTICELLE = 'particelle'
+    PARCELS = 'particelle'
     PCT_GROWTH_GRAPH = 'grafico_incremento_percentuale'
     PCT_GROWTH_TABLE = 'tabella_incremento_percentuale'
     COPPICE_SCHEDULE = 'calendario_ceduo'
@@ -269,7 +269,7 @@ def process_template(template_text: str, data_dir: Path,
             alberi_files = cast(list[str], params.get('alberi'))
             equazioni_files = cast(list[str], params.get(OPT_EQUAZIONI))
 
-            if not alberi_files and keyword not in (Dir.PROP, Dir.PARTICELLE):
+            if not alberi_files and keyword not in (Dir.PROP, Dir.PARCELS, Dir.COPPICE_SCHEDULE):
                 raise ValueError(f"@@{keyword} richiede alberi=FILE")
 
             comprese = params.get('compresa', [])
@@ -282,8 +282,38 @@ def process_template(template_text: str, data_dir: Path,
                 result = render_prop(particelle_df, comprese[0], particelle[0], formatter)
                 return result.snippet
 
-            if keyword == Dir.PARTICELLE:
+            if keyword == Dir.PARCELS:
                 return render_particelle(comprese, particelle, particelle_df, params)
+
+            if keyword == Dir.COPPICE_SCHEDULE:
+                particelle_path = params.get(OPT_PARTICELLE)
+                if not particelle_path:
+                    raise ValueError("@@calendario_ceduo richiede 'particelle=FILE'")
+                adiacenze_path = params.get(OPT_ADIACENZE)
+                if not adiacenze_path:
+                    raise ValueError("@@calendario_ceduo richiede 'adiacenze=FILE'")
+                calendario_path = params.get(OPT_CALENDARIO)
+
+                ceduo_parcels = load_coppice_parcels(data_dir / particelle_path)
+                adjacencies = load_adjacencies(data_dir / adiacenze_path)
+                ceduo_last = (
+                    last_harvests_from_calendario(data_dir / calendario_path)
+                    if calendario_path else {})
+
+                anno_inizio = int(params.get(OPT_ANNO_INIZIO, 2027))
+                anno_fine = int(params.get(OPT_ANNO_FINE, 2040))
+                check_allowed_params(keyword, params,
+                    {OPT_PARTICELLE: True, OPT_ADIACENZE: True,
+                        OPT_CALENDARIO: True, OPT_ANNO_INIZIO: True,
+                        OPT_ANNO_FINE: True})
+                check_required_params(keyword, params,
+                    [OPT_PARTICELLE, OPT_ADIACENZE])
+
+                ceduo_events = schedule_coppice(
+                    ceduo_parcels, adjacencies, ceduo_last,
+                    (anno_inizio, anno_fine))
+                result = render_coppice_schedule(ceduo_events, formatter)
+                return result.snippet
 
             trees_df = load_trees(alberi_files, data_dir)
             data = parcel_data(alberi_files, trees_df, particelle_df, comprese, particelle, generi)
@@ -377,34 +407,6 @@ def process_template(template_text: str, data_dir: Path,
                         log_path = f'simulazione_pdt_{harvest_plan_count}.csv'
                         write_volume_log(volume_log, log_path)
                         print(f"  Log simulazione salvato in {log_path}")
-                case Dir.COPPICE_SCHEDULE:
-                    particelle_path = params.get(OPT_PARTICELLE)
-                    if not particelle_path:
-                        raise ValueError("@@calendario_ceduo richiede 'particelle=FILE'")
-                    adiacenze_path = params.get(OPT_ADIACENZE)
-                    if not adiacenze_path:
-                        raise ValueError("@@calendario_ceduo richiede 'adiacenze=FILE'")
-                    calendario_path = params.get(OPT_CALENDARIO)
-
-                    ceduo_parcels = load_coppice_parcels(data_dir / particelle_path)
-                    adjacencies = load_adjacencies(data_dir / adiacenze_path)
-                    ceduo_last = (
-                        last_harvests_from_calendario(data_dir / calendario_path)
-                        if calendario_path else {})
-
-                    anno_inizio = int(params.get(OPT_ANNO_INIZIO, 2027))
-                    anno_fine = int(params.get(OPT_ANNO_FINE, 2040))
-                    check_allowed_params(keyword, params,
-                        {OPT_PARTICELLE: True, OPT_ADIACENZE: True,
-                         OPT_CALENDARIO: True, OPT_ANNO_INIZIO: True,
-                         OPT_ANNO_FINE: True})
-                    check_required_params(keyword, params,
-                        [OPT_PARTICELLE, OPT_ADIACENZE])
-
-                    ceduo_events = schedule_coppice(
-                        ceduo_parcels, adjacencies, ceduo_last,
-                        (anno_inizio, anno_fine))
-                    result = render_coppice_schedule(ceduo_events, formatter)
                 case Dir.PCT_GROWTH_TABLE:
                     options = {
                         OPT_PER_COMPRESA: _bool_opt(params, OPT_PER_COMPRESA, False),
