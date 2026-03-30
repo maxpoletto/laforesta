@@ -18,7 +18,7 @@ const CUSTOM_QUERIES = [
     },
     {
         description: 'Storico: produttività totale per particella e anno (esclusi cedui, inclusi interventi per piante catastrofate)',
-        query: 'SELECT Anno, Compresa, Particella, ROUND(SUM("Q.li")/9, 0) as MC FROM mannesi WHERE "Ceduo?"=False GROUP BY Anno, Compresa, Particella ORDER BY Anno, Compresa, Particella;'
+        query: 'SELECT Anno, Compresa, Particella, ROUND(SUM("Q.li")/9, 0) as MC FROM mannesi WHERE "Ceduo?"=False GROUP BY Anno, Compresa, Particella ORDER BY Anno, Compresa, nat_sort(Particella);'
     },
     {
         description: 'Storico: particelle in ordine decrescente di produttività totale per anno (esclusi cedui, inclusi interventi per piante catastrofate)',
@@ -26,7 +26,7 @@ const CUSTOM_QUERIES = [
     },
     {
         description: 'Storico: prelievo medio per particella durante gli anni di intervento (esclusi cedui, inclusi interventi per piante catastrofate)',
-        query: 'SELECT Compresa,Particella,ROUND(MEAN(MC), 0) as "MC Medio" FROM (SELECT Anno, Compresa, Particella, ROUND(SUM("Q.li")/9, 0) as MC FROM mannesi WHERE "Ceduo?"=False GROUP BY Anno, Compresa, Particella) GROUP BY Compresa,Particella ORDER BY Compresa,Particella;'
+        query: 'SELECT Compresa,Particella,ROUND(MEAN(MC), 0) as "MC Medio" FROM (SELECT Anno, Compresa, Particella, ROUND(SUM("Q.li")/9, 0) as MC FROM mannesi WHERE "Ceduo?"=False GROUP BY Anno, Compresa, Particella) GROUP BY Compresa,Particella ORDER BY Compresa, nat_sort(Particella);'
     },
     {
         description: 'Storico: prelievo piante catastrofate per compresa e anno (esclusi cedui)',
@@ -98,6 +98,7 @@ async function initDB() {
     const db = new duckdb.AsyncDuckDB(logger, worker);
     await db.instantiate(bundle.mainModule);
     conn = await db.connect();
+    await conn.query(`CREATE MACRO nat_sort(s) AS CASE WHEN regexp_matches(s, '\\d') THEN lpad(regexp_extract(s, '(\\d+)', 1), 5, '0') || COALESCE(regexp_extract(s, '\\d+(.*)', 1), '') ELSE COALESCE(s, '') END`);
 
     for (const [name, description] of CSV_FILES) {
         const tableName = name.replace(/-/g, '_');
