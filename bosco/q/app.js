@@ -25,6 +25,10 @@ const QUERY_EXAMPLES = [
         query: 'SELECT Anno, Compresa, Particella, ROUND(SUM("Q.li")/9, 0) as MC FROM mannesi WHERE "Ceduo?"=False GROUP BY Anno, Compresa, Particella ORDER BY MC DESC;'
     },
     {
+        description: 'Storico: prelievo medio per particella durante gli anni di intervento (esclusi cedui, inclusi interventi per piante catastrofate)',
+        query: 'SELECT Compresa,Particella,ROUND(MEAN(MC), 0) as "MC Medio" FROM (SELECT Anno, Compresa, Particella, ROUND(SUM("Q.li")/9, 0) as MC FROM mannesi WHERE "Ceduo?"=False GROUP BY Anno, Compresa, Particella) GROUP BY Compresa,Particella ORDER BY Compresa,Particella;'
+    },
+    {
         description: 'Storico: prelievo piante catastrofate per compresa e anno (esclusi cedui)',
         query: 'SELECT Anno, Compresa, ROUND(SUM("Q.li")/9, 0) as MC FROM mannesi WHERE "Ceduo?"=False AND Particella=\'X\' GROUP BY Anno, Compresa ORDER BY Anno, Compresa;'
     },
