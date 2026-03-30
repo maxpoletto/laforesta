@@ -26,7 +26,7 @@ const CUSTOM_QUERIES = [
     },
     {
         description: 'Storico: prelievo medio per particella durante gli anni di intervento (esclusi cedui, inclusi interventi per piante catastrofate)',
-        query: 'SELECT Compresa,Particella,ROUND(MEAN(MC), 0) as "MC Medio" FROM (SELECT Anno, Compresa, Particella, ROUND(SUM("Q.li")/9, 0) as MC FROM mannesi WHERE "Ceduo?"=False GROUP BY Anno, Compresa, Particella) GROUP BY Compresa,Particella ORDER BY Compresa, nat_sort(Particella);'
+        query: 'SELECT Compresa,Particella,MAX(MC) as "MC Max", ROUND(MEAN(MC), 0) as "MC Medio", MIN(MC) as "MC Min" FROM (SELECT Anno, Compresa, Particella, ROUND(SUM("Q.li")/9, 0) as MC FROM mannesi WHERE "Ceduo?"=False GROUP BY Anno, Compresa, Particella) GROUP BY Compresa,Particella ORDER BY Compresa, nat_sort(Particella);'
     },
     {
         description: 'Storico: prelievo piante catastrofate per compresa e anno (esclusi cedui)',
