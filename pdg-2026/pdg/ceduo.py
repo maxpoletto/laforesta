@@ -50,6 +50,57 @@ ParcelKey = tuple[str, str]  # (compresa, particella)
 Adjacencies = set[tuple[ParcelKey, ParcelKey]]  # sorted pairs: first < second
 
 
+# =============================================================================
+# I/O
+# =============================================================================
+
+def load_coppice_parcels(particelle_path: Path) -> list[CoppiceParcel]:
+    """Load coppice parcels from particelle.csv (Governo=Ceduo only)."""
+    df = pd.read_csv(particelle_path, encoding='utf-8-sig', comment='#')
+    df = df[df[COL_GOVERNO] == GOV_CEDUO]
+    df[COL_PARTICELLA] = df[COL_PARTICELLA].astype(str)
+    natsort_key = natsort_keygen()
+    df = df.sort_values(
+        [COL_COMPRESA, COL_PARTICELLA],
+        key=lambda col: col.map(natsort_key) if col.name == COL_PARTICELLA else col)
+    return [
+        CoppiceParcel(row[COL_COMPRESA], row[COL_PARTICELLA],
+                      row[COL_AREA_PARCEL], int(row[COL_PARAMETRO]))
+        for _, row in df.iterrows()
+    ]
+
+
+def load_adjacencies(adiacenze_path: Path) -> Adjacencies:
+    """Load adjacency pairs from cedui-adiacenti.csv as sorted-pair set."""
+    df = pd.read_csv(adiacenze_path, encoding='utf-8-sig', comment='#')
+    df[COL_ADJ_A] = df[COL_ADJ_A].astype(str)
+    df[COL_ADJ_B] = df[COL_ADJ_B].astype(str)
+    adj: Adjacencies = set()
+    for _, row in df.iterrows():
+        key_a = (row[COL_COMPRESA], row[COL_ADJ_A])
+        key_b = (row[COL_COMPRESA], row[COL_ADJ_B])
+        pair = (min(key_a, key_b), max(key_a, key_b))
+        adj.add(pair)
+    return adj
+
+
+def last_harvests_from_calendario(calendario_path: Path) -> dict[ParcelKey, int]:
+    """Extract most recent harvest year per Ceduo parcel from calendario CSV."""
+    df = pd.read_csv(calendario_path, comment='#')
+    df[COL_PARTICELLA] = df[COL_PARTICELLA].astype(str)
+    if COL_GOVERNO in df.columns:
+        df = df[df[COL_GOVERNO] == GOV_CEDUO]
+    result: dict[ParcelKey, int] = {}
+    for _, row in df.iterrows():
+        key = (row[COL_COMPRESA], row[COL_PARTICELLA])
+        result[key] = max(result.get(key, 0), int(row[COL_ANNO]))
+    return result
+
+
+# =============================================================================
+# SCHEDULING
+# =============================================================================
+
 def _has_adjacency_conflict(key: ParcelKey, year: int,
                             adjacencies: Adjacencies,
                             scheduled_years: dict[ParcelKey, list[int]]) -> bool:

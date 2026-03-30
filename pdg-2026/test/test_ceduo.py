@@ -5,7 +5,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from pdg.ceduo import CoppiceParcel, CoppiceEvent, schedule_coppice
+from pdg.ceduo import (
+    CoppiceParcel, CoppiceEvent, schedule_coppice,
+    load_coppice_parcels, load_adjacencies, last_harvests_from_calendario,
+)
+
+TEST_DATA_DIR = Path(__file__).parent / 'data'
 
 
 class TestScheduleCoppice:
@@ -149,3 +154,31 @@ class TestScheduleCoppice:
         b_events = [e for e in events if e.particella == 'B']
         # B blocked by A's 2027, 2029, 2031 -> blocked [2026..2032]
         assert b_events[0].year == 2033
+
+
+class TestIO:
+    """Test I/O helpers for coppice data."""
+
+    def test_load_coppice_parcels(self):
+        """Loads only Ceduo parcels with correct fields."""
+        parcels = load_coppice_parcels(TEST_DATA_DIR / 'particelle-ceduo.csv')
+        assert len(parcels) == 2  # C is Fustaia, excluded
+        assert parcels[0].compresa == 'X'
+        assert parcels[0].particella == 'A'
+        assert parcels[0].area_ha == 8.0
+        assert parcels[0].intervallo == 12
+        assert parcels[1].particella == 'B'
+        assert parcels[1].intervallo == 15
+
+    def test_load_adjacencies(self):
+        """Builds sorted-pair adjacency set."""
+        adj = load_adjacencies(TEST_DATA_DIR / 'adiacenze-ceduo.csv')
+        assert (('X', 'A'), ('X', 'B')) in adj
+        assert len(adj) == 1
+
+    def test_last_harvests_from_calendario(self):
+        """Extracts max year per Ceduo parcel, ignores Fustaia."""
+        last = last_harvests_from_calendario(TEST_DATA_DIR / 'calendario-ceduo.csv')
+        assert last[('X', 'A')] == 2015
+        assert last[('X', 'B')] == 2018  # max of 2016, 2018
+        assert ('X', 'C') not in last    # Fustaia excluded
