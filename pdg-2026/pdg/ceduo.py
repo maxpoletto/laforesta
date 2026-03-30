@@ -17,6 +17,8 @@ SUB_HARVEST_GAP = 2         # Minimum years between sub-harvests of same parcel
 # Column names specific to coppice output
 COL_YEAR = 'year'
 COL_AREA_HA = 'area_ha'
+COL_AREA_TOTALE_HA = 'area_totale_ha'
+COL_INTERVALLO = 'intervallo'
 COL_CYCLE_START = 'cycle_start'
 
 # Column names in input CSVs
@@ -43,7 +45,9 @@ class CoppiceEvent:
     compresa: str
     particella: str
     area_ha: float
-    cycle_start: int  # year of first sub-harvest in this cycle (== year for first)
+    area_totale_ha: float  # total parcel area
+    intervallo: int        # rotation interval (years)
+    cycle_start: int       # year of first sub-harvest in this cycle (== year for first)
 
 
 ParcelKey = tuple[str, str]  # (compresa, particella)
@@ -139,7 +143,8 @@ def _schedule_one_cycle(
         if cycle_start is None:
             cycle_start = year
         cycle_events.append(CoppiceEvent(
-            year, parcel.compresa, parcel.particella, chunk, cycle_start))
+            year, parcel.compresa, parcel.particella, chunk,
+            parcel.area_ha, parcel.intervallo, cycle_start))
 
         remaining -= chunk
         year += SUB_HARVEST_GAP

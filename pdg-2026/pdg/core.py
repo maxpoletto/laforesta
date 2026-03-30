@@ -33,6 +33,8 @@ from pdg.formatters import (
 from pdg.ceduo import (
     CoppiceEvent,
     COL_YEAR as CEDUO_COL_YEAR, COL_AREA_HA as CEDUO_COL_AREA_HA,
+    COL_AREA_TOTALE_HA as CEDUO_COL_AREA_TOTALE_HA,
+    COL_INTERVALLO as CEDUO_COL_INTERVALLO,
     COL_CYCLE_START as CEDUO_COL_CYCLE_START,
 )
 from pdg.simulation import (
@@ -1205,13 +1207,15 @@ def render_coppice_schedule(
         COL_COMPRESA: e.compresa,
         COL_PARTICELLA: e.particella,
         CEDUO_COL_AREA_HA: e.area_ha,
+        CEDUO_COL_AREA_TOTALE_HA: e.area_totale_ha,
+        CEDUO_COL_INTERVALLO: e.intervallo,
         CEDUO_COL_CYCLE_START: e.cycle_start,
     } for e in events]
     df = pd.DataFrame(rows)
 
     def _note(r):
         if r[CEDUO_COL_CYCLE_START] != r[CEDUO_COL_YEAR]:
-            return f'Continuazione intervento {int(r[CEDUO_COL_CYCLE_START])}'
+            return f'Cont. intervento {int(r[CEDUO_COL_CYCLE_START])}'
         return ''
 
     group_cols: list[str] = []
@@ -1219,7 +1223,10 @@ def render_coppice_schedule(
         ColSpec('Anno', 'l', lambda r: str(int(r[CEDUO_COL_YEAR])), None, True),
         ColSpec('Compresa', 'l', lambda r: str(r[COL_COMPRESA]), None, True),
         ColSpec('Particella', 'l', lambda r: str(r[COL_PARTICELLA]), None, True),
-        ColSpec('Superficie (ha)', 'r', CEDUO_COL_AREA_HA, None, True),
+        ColSpec('Superficie\nintervento (ha)', 'r', CEDUO_COL_AREA_HA, None, True),
+        ColSpec('Superficie\ntotale (ha)', 'r', CEDUO_COL_AREA_TOTALE_HA, None, True),
+        ColSpec('Turno\n(a)', 'r',
+                lambda r: str(int(r[CEDUO_COL_INTERVALLO])), None, True),
         ColSpec('Note', 'l', _note, None, True),
     ]
     has_year_groups = len(df) > df[CEDUO_COL_YEAR].nunique()
