@@ -3,7 +3,7 @@ import * as duckdb from 'https://esm.sh/@duckdb/duckdb-wasm@1.29.0';
 const $ = id => document.getElementById(id);
 
 // Query examples for the help modal
-const QUERY_EXAMPLES = [
+const CUSTOM_QUERIES = [
     {
         description: 'Dendrometria: classi diametriche per genere',
         query: 'SELECT ROUND(("D(cm)"-1) / 5 +1)*5 AS Diametro, Genere, COUNT(*) as "N. piante" FROM alberi_calcolati GROUP BY Genere, Diametro ORDER BY Genere, Diametro ASC;'
@@ -60,16 +60,18 @@ const exportBtn = $('export');
 let conn;
 let lastColumns = [];
 let lastRows = [];
+let activeDescription = null;
 
 function populateExamples() {
     const list = $('queries-list');
-    QUERY_EXAMPLES.forEach(example => {
+    CUSTOM_QUERIES.forEach(example => {
         const li = document.createElement('li');
         const a = document.createElement('a');
         a.href = '#';
         a.textContent = example.description;
         a.addEventListener('click', e => {
             e.preventDefault();
+            activeDescription = example.description;
             queryEl.value = example.query;
             runQuery();
         });
@@ -112,6 +114,7 @@ async function executeQuery() {
     if (!sql) return;
     errorEl.textContent = '';
     resultEl.innerHTML = '';
+    document.getElementById('query-title')?.remove();
     try {
         const result = await conn.query(sql);
         const NUMERIC_TYPE_IDS = new Set([2, 3, 7]); // Arrow: Int, Float, Decimal
@@ -131,26 +134,31 @@ async function executeQuery() {
 
         if (rows.length === 0) {
             resultEl.innerHTML = '<p style="color:#555">Nessun risultato.</p>';
-            return;
-        }
-
-        let html = '<table><thead><tr>';
-        for (const col of columns) {
-            const cls = numericCols.has(col) ? ' class="num"' : '';
-            html += `<th${cls}>${col}</th>`;
-        }
-        html += '</tr></thead><tbody>';
-        for (const row of rows) {
-            html += '<tr>';
+        } else {
+            let html = '<table><thead><tr>';
             for (const col of columns) {
-                const v = row[col];
                 const cls = numericCols.has(col) ? ' class="num"' : '';
-                html += `<td${cls}>${v === null || v === undefined ? '' : v}</td>`;
+                html += `<th${cls}>${col}</th>`;
             }
-            html += '</tr>';
+            html += '</tr></thead><tbody>';
+            for (const row of rows) {
+                html += '<tr>';
+                for (const col of columns) {
+                    const v = row[col];
+                    const cls = numericCols.has(col) ? ' class="num"' : '';
+                    html += `<td${cls}>${v === null || v === undefined ? '' : v}</td>`;
+                }
+                html += '</tr>';
+            }
+            html += '</tbody></table>';
+            resultEl.innerHTML = html;
         }
-        html += '</tbody></table>';
-        resultEl.innerHTML = html;
+        if (activeDescription) {
+            const title = document.createElement('h2');
+            title.id = 'query-title';
+            title.textContent = activeDescription;
+            resultEl.before(title);
+        }
     } catch (e) {
         errorEl.textContent = e.message;
     }
@@ -168,6 +176,7 @@ function runQuery() {
 function loadQueryFromURL() {
     const q = new URLSearchParams(window.location.search).get('q');
     if (q) {
+        activeDescription = null;
         queryEl.value = q;
         executeQuery();
     }
@@ -199,6 +208,11 @@ function initHandlers() {
             e.preventDefault();
             runQuery();
         }
+    });
+    queryEl.addEventListener('input', () => {
+        activeDescription = null;
+        const title = document.getElementById('query-title');
+        if (title) title.remove();
     });
     window.addEventListener('popstate', loadQueryFromURL);
 }

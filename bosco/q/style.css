@@ -13,7 +13,7 @@ textarea {
     resize: vertical;
 }
 
-.buttons { display: flex; gap: 8px; margin-top: 8px; }
+.buttons { display: flex; gap: 8px; margin-top: 8px; margin-bottom: 15px;}
 
 button {
     padding: 8px 20px;
@@ -28,8 +28,9 @@ button {
 button:hover { background-color: #2980b9; }
 button:disabled { background-color: #bdc3c7; cursor: not-allowed; }
 
-#error { color: #c0392b; margin: 10px 0; white-space: pre-wrap; font-family: monospace; }
+#error { color: #c0392b; margin: 0px 0; white-space: pre-wrap; font-family: monospace; }
 #result-container { overflow: auto; margin-top: 15px; flex: 1; min-height: 0; border-bottom: 2px solid #ddd; }
+#query-title { font-size: 15px; font-weight: 600; color: #34495e; margin: 12px 0 0px 0; }
 
 .summary-list { font-size: 13px; color: #555; margin-bottom: 15px; }
 .summary-list summary { cursor: pointer; font-weight: bold; color: #34495e; }
