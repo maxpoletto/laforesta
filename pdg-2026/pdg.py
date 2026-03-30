@@ -27,6 +27,10 @@ from pdg.formatters import (
     OPT_STILE, fmt_num, set_decimal_comma,
     SnippetFormatter, HTMLSnippetFormatter, LaTeXSnippetFormatter, CSVSnippetFormatter,
 )
+from pdg.ceduo import (
+    load_coppice_parcels, load_adjacencies, last_harvests_from_calendario,
+    schedule_coppice,
+)
 from pdg.simulation import ORDINE_VOL_HA, ORDINE_VOL_TOT, ORDINE_DATA, write_volume_log
 from pdg.core import (
     OPT_PER_COMPRESA, OPT_PER_PARTICELLA, OPT_PER_GENERE,
@@ -40,12 +44,12 @@ from pdg.core import (
     OPT_ANNO_INIZIO, OPT_ANNO_FINE, OPT_INTERVALLO, OPT_INTERVALLO_ANNO,
     OPT_MORTALITA, OPT_PRUDENZA, OPT_RIDUZIONE, OPT_VOLUME_OBIETTIVO, OPT_CALENDARIO, OPT_ORDINE, OPT_PARTICELLE_MIN,
     parse_gap_overrides,
-    OPT_COL_PRIMA_DOPO, OPT_EQUAZIONI,
+    OPT_COL_PRIMA_DOPO, OPT_PARTICELLE, OPT_ADIACENZE, OPT_EQUAZIONI,
     read_past_harvests, parcel_data,
     get_color_map,
     render_hypsometric_graph, render_diameter_class_graph, render_diameter_class_table,
     render_prop, render_volume_table, render_harvest_table, render_harvest_plan,
-    render_pct_growth_table, render_pct_growth_graph,
+    render_pct_growth_table, render_pct_growth_graph, render_coppice_schedule,
     skip_graphs,
 )
 
@@ -78,6 +82,7 @@ class Dir:
     PARTICELLE = 'particelle'
     PCT_GROWTH_GRAPH = 'grafico_incremento_percentuale'
     PCT_GROWTH_TABLE = 'tabella_incremento_percentuale'
+    COPPICE_SCHEDULE = 'calendario_ceduo'
     PROP = 'prop'
     VOLUME_TABLE = 'volumi'
 
@@ -372,6 +377,34 @@ def process_template(template_text: str, data_dir: Path,
                         log_path = f'simulazione_pdt_{harvest_plan_count}.csv'
                         write_volume_log(volume_log, log_path)
                         print(f"  Log simulazione salvato in {log_path}")
+                case Dir.COPPICE_SCHEDULE:
+                    particelle_path = params.get(OPT_PARTICELLE)
+                    if not particelle_path:
+                        raise ValueError("@@calendario_ceduo richiede 'particelle=FILE'")
+                    adiacenze_path = params.get(OPT_ADIACENZE)
+                    if not adiacenze_path:
+                        raise ValueError("@@calendario_ceduo richiede 'adiacenze=FILE'")
+                    calendario_path = params.get(OPT_CALENDARIO)
+
+                    ceduo_parcels = load_coppice_parcels(data_dir / particelle_path)
+                    adjacencies = load_adjacencies(data_dir / adiacenze_path)
+                    ceduo_last = (
+                        last_harvests_from_calendario(data_dir / calendario_path)
+                        if calendario_path else {})
+
+                    anno_inizio = int(params.get(OPT_ANNO_INIZIO, 2027))
+                    anno_fine = int(params.get(OPT_ANNO_FINE, 2040))
+                    check_allowed_params(keyword, params,
+                        {OPT_PARTICELLE: True, OPT_ADIACENZE: True,
+                         OPT_CALENDARIO: True, OPT_ANNO_INIZIO: True,
+                         OPT_ANNO_FINE: True})
+                    check_required_params(keyword, params,
+                        [OPT_PARTICELLE, OPT_ADIACENZE])
+
+                    ceduo_events = schedule_coppice(
+                        ceduo_parcels, adjacencies, ceduo_last,
+                        (anno_inizio, anno_fine))
+                    result = render_coppice_schedule(ceduo_events, formatter)
                 case Dir.PCT_GROWTH_TABLE:
                     options = {
                         OPT_PER_COMPRESA: _bool_opt(params, OPT_PER_COMPRESA, False),

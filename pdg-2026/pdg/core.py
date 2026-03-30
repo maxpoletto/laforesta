@@ -30,6 +30,11 @@ from pdg.formatters import (
     fmt_num, RenderResult, ColSpec,
     SnippetFormatter,
 )
+from pdg.ceduo import (
+    CoppiceEvent,
+    COL_YEAR as CEDUO_COL_YEAR, COL_AREA_HA as CEDUO_COL_AREA_HA,
+    COL_CYCLE_START as CEDUO_COL_CYCLE_START,
+)
 from pdg.simulation import (
     COL_IP_MEDIO, COL_INCR_CORR, COL_DELTA_D,
     COL_YEAR, COL_HARVEST, COL_VOLUME_BEFORE, COL_VOLUME_AFTER, COL_SPECIES_SHARES,
@@ -122,6 +127,9 @@ OPT_PARTICELLE_MIN = 'particelle_min'
 OPT_CALENDARIO = 'calendario'
 # tpdt column toggles
 OPT_COL_PRIMA_DOPO = 'col_prima_dopo'
+# calendario_ceduo options
+OPT_PARTICELLE = 'particelle'
+OPT_ADIACENZE = 'adiacenze'
 # Required file parameters (used as option keys for validation)
 OPT_EQUAZIONI = 'equazioni'
 
@@ -1178,3 +1186,42 @@ def render_harvest_plan(data: ParcelData, past_harvests: pd.DataFrame | None,
     has_year_groups = len(df) > df[COL_YEAR].nunique()
     return render_table(df, group_cols, col_specs, formatter, options[OPT_TOTALI],
                         group_by_col=COL_YEAR if has_year_groups else None)
+
+
+# =============================================================================
+# CALENDARIO CEDUO (COPPICE SCHEDULE)
+# =============================================================================
+
+def render_coppice_schedule(
+    events: list[CoppiceEvent],
+    formatter: SnippetFormatter,
+) -> RenderResult:
+    """Render coppice schedule table (@@calendario_ceduo directive)."""
+    if not events:
+        return RenderResult(snippet='')
+
+    rows = [{
+        CEDUO_COL_YEAR: e.year,
+        COL_COMPRESA: e.compresa,
+        COL_PARTICELLA: e.particella,
+        CEDUO_COL_AREA_HA: e.area_ha,
+        CEDUO_COL_CYCLE_START: e.cycle_start,
+    } for e in events]
+    df = pd.DataFrame(rows)
+
+    def _note(r):
+        if r[CEDUO_COL_CYCLE_START] != r[CEDUO_COL_YEAR]:
+            return f'Continuazione intervento {int(r[CEDUO_COL_CYCLE_START])}'
+        return ''
+
+    group_cols: list[str] = []
+    col_specs = [
+        ColSpec('Anno', 'l', lambda r: str(int(r[CEDUO_COL_YEAR])), None, True),
+        ColSpec('Compresa', 'l', lambda r: str(r[COL_COMPRESA]), None, True),
+        ColSpec('Particella', 'l', lambda r: str(r[COL_PARTICELLA]), None, True),
+        ColSpec('Superficie (ha)', 'r', CEDUO_COL_AREA_HA, None, True),
+        ColSpec('Note', 'l', _note, None, True),
+    ]
+    has_year_groups = len(df) > df[CEDUO_COL_YEAR].nunique()
+    return render_table(df, group_cols, col_specs, formatter, False,
+                        group_by_col=CEDUO_COL_YEAR if has_year_groups else None)
