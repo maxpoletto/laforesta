@@ -112,6 +112,7 @@ OPT_Y_MAX = 'y_max'
 OPT_ANNO_INIZIO = 'anno_inizio'
 OPT_ANNO_FINE = 'anno_fine'
 OPT_INTERVALLO = 'intervallo'
+OPT_INTERVALLO_ANNO = 'intervallo_anno'
 OPT_MORTALITA = 'mortalita'
 OPT_PRUDENZA = 'prudenza'
 OPT_RIDUZIONE = 'riduzione'
@@ -123,6 +124,30 @@ OPT_CALENDARIO = 'calendario'
 OPT_COL_PRIMA_DOPO = 'col_prima_dopo'
 # Required file parameters (used as option keys for validation)
 OPT_EQUAZIONI = 'equazioni'
+
+
+def parse_gap_overrides(raw: list[str] | None,
+                        anno_inizio: int, anno_fine: int) -> dict[int, int] | None:
+    """Parse intervallo_anno values like '2028/5' into {year: gap} dict.
+
+    Validates that each year is within [anno_inizio, anno_fine].
+    Returns None if raw is None or empty.
+    """
+    if not raw:
+        return None
+    overrides: dict[int, int] = {}
+    for entry in raw:
+        parts = entry.split('/')
+        if len(parts) != 2:
+            raise ValueError(
+                f"{OPT_INTERVALLO_ANNO}: formato '{entry}' non valido, deve essere 'anno/intervallo'")
+        year, gap = int(parts[0]), int(parts[1])
+        if year < anno_inizio or year > anno_fine:
+            raise ValueError(
+                f"{OPT_INTERVALLO_ANNO}: anno {year} fuori dall'intervallo "
+                f"[{anno_inizio}, {anno_fine}]")
+        overrides[year] = gap
+    return overrides
 
 
 region_cache = {}
@@ -1028,6 +1053,7 @@ def calculate_harvest_plan(
     prudence: float = 100.0,
     ordine: str = ORDINE_VOL_HA,
     particelle_min: int = 0,
+    gap_overrides: dict[int, int] | None = None,
 ) -> pd.DataFrame:
     """Compute harvest schedule table grouped by year and optional columns.
 
@@ -1037,7 +1063,8 @@ def calculate_harvest_plan(
     events = schedule_harvests(
         data, past_harvests, year_range, min_gap, target_volume,
         mortality, rules, tree_selection, volume_log=volume_log,
-        prudence=prudence, ordine=ordine, particelle_min=particelle_min)
+        prudence=prudence, ordine=ordine, particelle_min=particelle_min,
+        gap_overrides=gap_overrides)
     if not events:
         return pd.DataFrame()
 
@@ -1117,7 +1144,8 @@ def render_harvest_plan(data: ParcelData, past_harvests: pd.DataFrame | None,
         volume_log=volume_log,
         prudence=options.get(OPT_PRUDENZA, 100.0),
         ordine=options.get(OPT_ORDINE, ORDINE_VOL_HA),
-        particelle_min=options.get(OPT_PARTICELLE_MIN, 0))
+        particelle_min=options.get(OPT_PARTICELLE_MIN, 0),
+        gap_overrides=options.get(OPT_INTERVALLO_ANNO))
     if df.empty:
         return RenderResult(snippet='')
 

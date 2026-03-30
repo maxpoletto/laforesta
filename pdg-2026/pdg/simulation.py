@@ -309,6 +309,7 @@ def schedule_harvests(
     prudence: float = 100.0,
     ordine: str = ORDINE_VOL_HA,
     particelle_min: int = 0,
+    gap_overrides: dict[int, int] | None = None,
 ) -> list[dict]:
     """Schedule harvests using a greedy algorithm with year-by-year growth simulation.
 
@@ -389,8 +390,9 @@ def schedule_harvests(
         n_gap_skip = 0
         n_no_harvest = 0
         for *_, region, parcel in parcel_priority:
-            # Min-gap check
-            if last_harvest.get((region, parcel), 0) > y - min_gap:
+            # Min-gap check (per-year override takes precedence)
+            effective_gap = gap_overrides.get(y, min_gap) if gap_overrides else min_gap
+            if last_harvest.get((region, parcel), 0) > y - effective_gap:
                 n_gap_skip += 1
                 continue
 

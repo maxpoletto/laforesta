@@ -37,8 +37,9 @@ from pdg.core import (
     OPT_COL_VOLUME_MATURE, OPT_COL_VOLUME_MATURE_HA,
     OPT_COL_PP_MAX, OPT_COL_PRELIEVO, OPT_COL_PRELIEVO_HA, OPT_COL_INCR_CORR,
     OPT_X_MAX, OPT_Y_MAX,
-    OPT_ANNO_INIZIO, OPT_ANNO_FINE, OPT_INTERVALLO,
+    OPT_ANNO_INIZIO, OPT_ANNO_FINE, OPT_INTERVALLO, OPT_INTERVALLO_ANNO,
     OPT_MORTALITA, OPT_PRUDENZA, OPT_RIDUZIONE, OPT_VOLUME_OBIETTIVO, OPT_CALENDARIO, OPT_ORDINE, OPT_PARTICELLE_MIN,
+    parse_gap_overrides,
     OPT_COL_PRIMA_DOPO, OPT_EQUAZIONI,
     read_past_harvests, parcel_data,
     get_color_map,
@@ -139,7 +140,8 @@ def parse_template_directive(line: str) -> Directive | None:
     full_text = match.group(0)
 
     # Keys that should always be lists (filter parameters + file parameters)
-    list_keys = {'compresa', 'particella', 'genere', 'alberi', OPT_EQUAZIONI}
+    list_keys = {'compresa', 'particella', 'genere', 'alberi', OPT_EQUAZIONI,
+                  OPT_INTERVALLO_ANNO}
 
     params = {}
     if params_str.strip():
@@ -324,6 +326,8 @@ def process_template(template_text: str, data_dir: Path,
                     past_harvests = (
                         read_past_harvests(data_dir / calendario_path)
                         if calendario_path else None)
+                    anno_inizio = int(params.get(OPT_ANNO_INIZIO, 2026))
+                    anno_fine = int(params.get(OPT_ANNO_FINE, 2040))
                     options = {
                         OPT_PER_COMPRESA: _bool_opt(params, OPT_PER_COMPRESA),
                         OPT_PER_PARTICELLA: _bool_opt(params, OPT_PER_PARTICELLA),
@@ -332,9 +336,12 @@ def process_template(template_text: str, data_dir: Path,
                         OPT_COL_ETA: _bool_opt(params, OPT_COL_ETA),
                         OPT_COL_PP_MAX: _bool_opt(params, OPT_COL_PP_MAX),
                         OPT_COL_PRIMA_DOPO: _bool_opt(params, OPT_COL_PRIMA_DOPO),
-                        OPT_ANNO_FINE: int(params.get(OPT_ANNO_FINE, 2040)),
-                        OPT_ANNO_INIZIO: int(params.get(OPT_ANNO_INIZIO, 2026)),
+                        OPT_ANNO_FINE: anno_fine,
+                        OPT_ANNO_INIZIO: anno_inizio,
                         OPT_INTERVALLO: int(params.get(OPT_INTERVALLO, 10)),
+                        OPT_INTERVALLO_ANNO: parse_gap_overrides(
+                            params.get(OPT_INTERVALLO_ANNO),
+                            anno_inizio, anno_fine),
                         OPT_MORTALITA: float(params.get(OPT_MORTALITA, 0)),
                         OPT_PRUDENZA: float(params.get(OPT_PRUDENZA, 100)),
                         OPT_RIDUZIONE: float(params.get(OPT_RIDUZIONE, 100)),

@@ -58,7 +58,7 @@ from pdg.simulation import (
 
 from pdg.core import (
     COL_SECTOR, COL_AGE, COL_PP_MAX,
-    parcel_data,
+    parcel_data, parse_gap_overrides,
     compute_parcel_harvests,
     calculate_volumes, calculate_harvest_table,
     calculate_harvest_plan, calculate_diameter_class_data,
@@ -1624,6 +1624,121 @@ class TestParticelleMin:
         # Only P2 can be harvested; particelle_min=2 can't force P1 past min_gap
         assert len(year_parcels) == 1
         assert year_parcels[0][COL_PARTICELLA] == 'P2'
+
+
+class TestGapOverrides:
+    """Test per-year min_gap overrides (intervallo_anno)."""
+
+    @staticmethod
+    def _make_data():
+        """Two-parcel synthetic dataset (both harvestable)."""
+        rows = []
+        for d, v in [(35.0, 1.2), (40.0, 1.8), (45.0, 2.5), (50.0, 3.0)]:
+            rows.append({
+                COL_COMPRESA: 'R', COL_PARTICELLA: 'P1',
+                COL_AREA_SAGGIO: 1, COL_GENERE: 'Faggio',
+                COL_D_CM: d, COL_V_M3: v,
+                COL_CD_CM: diameter_class(pd.Series([d])).iloc[0],
+                COL_L10_MM: 5.0, COL_PRESSLER: 200,
+            })
+        for d, v in [(25.0, 0.6), (30.0, 0.9), (35.0, 1.2), (40.0, 1.8)]:
+            rows.append({
+                COL_COMPRESA: 'R', COL_PARTICELLA: 'P2',
+                COL_AREA_SAGGIO: 1, COL_GENERE: 'Faggio',
+                COL_D_CM: d, COL_V_M3: v,
+                COL_CD_CM: diameter_class(pd.Series([d])).iloc[0],
+                COL_L10_MM: 5.0, COL_PRESSLER: 200,
+            })
+        trees = pd.DataFrame(rows)
+        parcels = {
+            ('R', 'P1'): ParcelStats(
+                area_ha=1.0, sector='A', age=80, governo='Fustaia',
+                n_sample_areas=1, sampled_frac=SAMPLE_AREA_HA / 1.0),
+            ('R', 'P2'): ParcelStats(
+                area_ha=1.0, sector='A', age=80, governo='Fustaia',
+                n_sample_areas=1, sampled_frac=SAMPLE_AREA_HA / 1.0),
+        }
+        return ParcelData(trees=trees, regions=['R'], species=['Faggio'],
+                          parcels=parcels)
+
+    @staticmethod
+    def _simple_rules(comparto, eta_media, volume_per_ha, area_per_ha):
+        return volume_per_ha * 0.25, math.inf
+
+    def test_override_unblocks_parcel(self):
+        """A parcel blocked by default min_gap becomes harvestable with a per-year override."""
+        data = self._make_data()
+        # P1 harvested in 2020.  With min_gap=10, blocked until 2030.
+        past = pd.DataFrame({
+            'Anno': [2020],
+            COL_COMPRESA: ['R'],
+            COL_PARTICELLA: ['P1'],
+        })
+
+        # Without override: P1 blocked in 2026 (only 6 years, need 10)
+        events_default = schedule_harvests(
+            data, past_harvests=past,
+            year_range=(2026, 2026), min_gap=10,
+            target_volume=99999,
+            rules=self._simple_rules)
+        assert not any(e[COL_PARTICELLA] == 'P1' for e in events_default)
+
+        # With override: gap=5 in 2026 -> P1 eligible (6 years >= 5)
+        events_override = schedule_harvests(
+            data, past_harvests=past,
+            year_range=(2026, 2026), min_gap=10,
+            target_volume=99999,
+            gap_overrides={2026: 5},
+            rules=self._simple_rules)
+        assert any(e[COL_PARTICELLA] == 'P1' for e in events_override)
+
+    def test_override_only_affects_specified_year(self):
+        """Override for one year does not affect other years."""
+        data = self._make_data()
+        past = pd.DataFrame({
+            'Anno': [2020],
+            COL_COMPRESA: ['R'],
+            COL_PARTICELLA: ['P1'],
+        })
+        # Override only in 2027, not 2026
+        events = schedule_harvests(
+            data, past_harvests=past,
+            year_range=(2026, 2027), min_gap=10,
+            target_volume=99999,
+            gap_overrides={2027: 5},
+            rules=self._simple_rules)
+        p1_2026 = [e for e in events
+                    if e[COL_PARTICELLA] == 'P1' and e[COL_YEAR] == 2026]
+        p1_2027 = [e for e in events
+                    if e[COL_PARTICELLA] == 'P1' and e[COL_YEAR] == 2027]
+        assert len(p1_2026) == 0, "2026 should still use default min_gap=10"
+        assert len(p1_2027) == 1, "2027 should use override gap=5"
+
+
+class TestParseGapOverrides:
+    """Test parse_gap_overrides validation."""
+
+    def test_valid_overrides(self):
+        result = parse_gap_overrides(['2028/5', '2032/7'], 2026, 2040)
+        assert result == {2028: 5, 2032: 7}
+
+    def test_none_input(self):
+        assert parse_gap_overrides(None, 2026, 2040) is None
+
+    def test_empty_list(self):
+        assert parse_gap_overrides([], 2026, 2040) is None
+
+    def test_year_before_range(self):
+        with pytest.raises(ValueError, match="fuori"):
+            parse_gap_overrides(['2025/5'], 2026, 2040)
+
+    def test_year_after_range(self):
+        with pytest.raises(ValueError, match="fuori"):
+            parse_gap_overrides(['2041/5'], 2026, 2040)
+
+    def test_malformed_entry(self):
+        with pytest.raises(ValueError, match="formato"):
+            parse_gap_overrides(['bad'], 2026, 2040)
 
 
 class TestParcelDataFilter:
