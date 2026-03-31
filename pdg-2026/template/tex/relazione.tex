@@ -61,7 +61,7 @@ Le 177 aree di saggio già descritte nella relazione iniziale, ciascuna della di
 
 \subsection{Calcolo delle curve ipsometriche}
 \label{sec:note:ipsometrie}
-Le curve ipsometriche sono state calcolate per regressione sulle altezze e i diametri delle 1880 piante misurate, per ogni combinazione di specie e compresa comprendente più di 10 alberi campione. Le equazioni interpolante hanno forma logaritmica, $h = a \ln d + b$, dove $d$ è il diametro in cm e $h$ è l'altezza in metri.
+Le curve ipsometriche sono state calcolate per regressione sulle altezze e i diametri delle 1880 piante misurate, per ogni combinazione di specie e compresa comprendente più di 10 alberi campione. Le equazioni interpolanti hanno forma logaritmica, $h = a \ln d + b$, dove $d$ è il diametro in cm e $h$ è l'altezza in metri.
 
 \subsection{Calcolo dei volumi}
 \label{sec:note-volumi}
@@ -73,7 +73,7 @@ I volumi presenti in ciascuna particella $p$ sono stimati secondo la metodologia
     \item Per tutti gli alberi di una singola specie $f$ campionati in $p$, il volume del fusto e dei rami grossi viene calcolato usando un'equazione di previsione della forma $v_f = b_{f0} + b_{f1}d^2h + b_{f2}d$, dove i coefficienti $b_{fi}$ provengono dal Tabacchi. Analogamente, il margine di errore $e_f$ della stima di questo volume è calcolato usando le matrici di varianza e i coefficienti del Tabacchi.
     \item Il volume totale degli alberi campionati è dato quindi da $v_c = \sum_{f} v_f$. Il margine di errore è calcolato prudenzialmente come $e_c = \sum_{f} e_f$: ciò presume che le piante delle diverse specie nella particella siano perfettamente correlate, nonostante le equazioni di previsione di Tabacchi siano state calibrate sulla base di campioni indipendenti.
     \item Calcoliamo quindi un fattore di scala $s = a / a_s$, dove~$a$ è la superficie di~$p$ e~$a_s$ è la superficie complessiva delle aree di saggio in~$p$.
-    \item Il volume dell'intera particella viene calcolato scalando il volume stimato nelle aree di saggio, $v = s\cdot v_c$, e il margine di errore $e = s\cdot e_c$. Pure questo margine di errore è prudenziale, nel senso che presume che tutte le superfici di una particella siano correlate tra di loro. I limiti deli intervalli fiduciari al 95\% elencati nella sezione~\ref{sec:volumi} sono $v \pm e$.
+    \item Il volume dell'intera particella viene calcolato scalando il volume stimato nelle aree di saggio, $v = s\cdot v_c$, e il margine di errore, $e = s\cdot e_c$. Pure questo margine di errore è prudenziale, nel senso che presume che tutte le superfici di una particella siano correlate tra di loro. I limiti deli intervalli fiduciari al 95\% elencati nella sezione~\ref{sec:volumi} corrispondono a $v \pm e$.
 \end{enumerate}
 
 Da notare che i valori elencati nella sezione~\ref{sec:volumi} includono le piante sottomisura, al di sotto dei 17,5 cm di diametro (classe diametrica inferiore a 20 cm). Per contro, naturalmente, i volumi usati per il calcolo della ripresa e degli interventi di taglio escludono queste piante.
