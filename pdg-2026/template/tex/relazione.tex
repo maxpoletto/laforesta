@@ -70,7 +70,7 @@ I volumi presenti in ciascuna particella $p$ sono stimati secondo la metodologia
 
 \begin{enumerate}
     \item Per ogni albero cavallettato ma non misurato in altezza, l'altezza è stimata usando le equazioni interpolanti di cui sopra.
-    \item Per un qualsiasi albero di specie $f$, il volume del fusto e dei rami grossi viene calcolato usando un'equazione di previsione della forma $v = b_{f0} + b_{f1}d^2h + b_{f2}d$, dove i coefficienti $b_{fi}$ provengono dal Tabacchi. Il volume totale di tutti gli $n_f$ alberi della specie $f$ campionati nella particella $p$ è quindi dato da $v_f = b_{f0} + b_{f1}\sum_{i=1}^{n_f} d_i^2h_i + b_{f2}\sum_{i=1}^{n_f} d_i$. Analogamente, il margine di errore $e_f$ della stima di questo volume complessivo è calcolato usando le matrici di varianza e i coefficienti del Tabacchi.
+    \item Per un qualsiasi albero di specie $f$, il volume del fusto e dei rami grossi viene calcolato usando un'equazione di previsione della forma $v = b_{f0} + b_{f1}d^2h + b_{f2}d$, dove i coefficienti $b_{fi}$ provengono dal Tabacchi. Il volume totale di tutti gli $n_f$ alberi della specie $f$ campionati nella particella $p$ è quindi dato da $v_f = b_{f0}n_f + b_{f1}\sum_{i=1}^{n_f} d_i^2h_i + b_{f2}\sum_{i=1}^{n_f} d_i$. Analogamente, il margine di errore $e_f$ della stima di questo volume complessivo è calcolato usando le matrici di varianza e i coefficienti del Tabacchi.
     \item Il volume totale degli alberi campionati è dato quindi da $v_c = \sum_{f} v_f$. Il margine di errore è calcolato prudenzialmente come $e_c = \sum_{f} e_f$: ciò presume che le piante delle diverse specie nella particella siano perfettamente correlate, nonostante le equazioni di previsione di Tabacchi siano state calibrate sulla base di campioni indipendenti.
     \item Calcoliamo quindi un fattore di scala $s = a / a_s$, dove~$a$ è la superficie di~$p$ e~$a_s$ è la superficie complessiva delle aree di saggio in~$p$.
     \item Il volume dell'intera particella viene calcolato scalando il volume stimato nelle aree di saggio, $v = s\cdot v_c$, e il margine di errore, $e = s\cdot e_c$. Pure questo margine di errore è prudenziale, nel senso che presume che tutte le superfici di una particella siano correlate tra di loro. I limiti deli intervalli fiduciari al 95\% elencati nella sezione~\ref{sec:volumi} corrispondono a $v \pm e$.
@@ -118,7 +118,7 @@ Il prelievo massimo volumetrico è quindi dato dalla seguente tabella:
     \end{tabular}
 \end{center}
 
-Inoltre, per fustaie fino a 60 anni di età, il prelievo non può superare una determinata percentuale dell'area basimetrica, secondo la seguente tabella:
+Inoltre, per fustaie fino a 60 anni di età, il prelievo non può superare una determinata percentuale dell'area basimetrica, $g$, secondo la seguente tabella:
 
 \begin{center}
     \small
