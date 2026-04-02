@@ -29,14 +29,14 @@
 
 \title{\sffamily Documentazione integrativa al Piano di Assestamento}
 \date{\sffamily Aprile 2026}
-\author{\sffamily Società Agricola La Foresta\\\sffamily Serra San Bruno}
+\author{\sffamily Società Agricola La Foresta S.R.L.\\\sffamily Serra San Bruno}
 
 \begin{document}
 \maketitle
 
 \section{Introduzione}
 
-Il presente documento contiene la documentazione integrativa al Piano di Assestamento della Società Agricola La Foresta, come richiesto dal Dipartimento Politiche della Montagna, Foreste, Forestazione e Difesa del Suolo della Regione Calabria con Protocollo 464707 del 25/06/2025.
+Il presente documento contiene la documentazione integrativa al Piano di Assestamento della Società Agricola La Foresta S.R.L., come richiesto dal Dipartimento Politiche della Montagna, Foreste, Forestazione e Difesa del Suolo della Regione Calabria con Protocollo 464707 del 25/06/2025.
 
 La relazione si articola in 7 parti.
 \begin{itemize}
@@ -44,7 +44,7 @@ La relazione si articola in 7 parti.
 \item La parte~\ref{sec:ipsometrie} risponde al punto 1 della richiesta della regione: illustra per ogni specie principale le relative curve ipsometriche con equazioni interpolanti e la distribuzione grafica in classi diametriche del numero di alberi per ettaro.
 \item La parte~\ref{sec:volumi} risponde al punto 2 della richiesta: presenta la cubatura di tutti i soprassuoli usando le tavole prescritte dalle linee guida.
 \item La parte~\ref{sec:ripresa} risponde al punto 3 della richiesta: quantifica la ripresa in relazione alla stima dei volumi.
-\item La parte~\ref{sec:metodo} fornisce un riassunto del metodo di gestione forestale praticato dalla nostra azienda.
+\item La parte~\ref{sec:metodo} fornisce un riassunto del metodo di gestione forestale praticato dall'azienda.
 \item La parte~\ref{sec:ceduo} risponde al punto 4 della richiesta: espone il piano di regolarizzazione dei cedui di castagno.
 \item La parte~\ref{sec:piano} presenta un piano di tagli aggiornato, redatto tenendo conto degli incrementi secondo i criteri descritti nella parte~\ref{sec:note-metodologia} e il metodo di gestione descritto nella parte~\ref{sec:metodo}.
 \item La parte~\ref{sec:particelle}, infine, risponde ai punti 5 e 6 della richiesta. Per ogni particella, indica le necessità colturali dei soprassuoli, descrive gli interventi colturali da eseguire, e fornisce, per ogni specie e classe diametrica, il numero di alberi per ettaro, il volume e l'area basimetrica per ettaro, la distribuzione delle altezze, e gli incrementi percentuali e correnti. Espone inoltre i volumi e la ripresa totali, suddivisi per specie.
@@ -69,8 +69,8 @@ Le curve ipsometriche sono state calcolate per regressione sulle altezze e i dia
 I volumi presenti in ciascuna particella $p$ sono stimati secondo la metodologia alle pp.20--27 di Tabacchi~\cite{tabacchi:2011}. Nello specifico:
 
 \begin{enumerate}
-    \item Per ogni albero cavallettato, l'altezza è stimata usando le equazioni interpolanti di cui sopra.
-    \item Per tutti gli alberi di una singola specie $f$ campionati in $p$, il volume del fusto e dei rami grossi viene calcolato usando un'equazione di previsione della forma $v_f = b_{f0} + b_{f1}d^2h + b_{f2}d$, dove i coefficienti $b_{fi}$ provengono dal Tabacchi. Analogamente, il margine di errore $e_f$ della stima di questo volume è calcolato usando le matrici di varianza e i coefficienti del Tabacchi.
+    \item Per ogni albero cavallettato ma non misurato in altezza, l'altezza è stimata usando le equazioni interpolanti di cui sopra.
+    \item Per un qualsiasi albero di specie $f$, il volume del fusto e dei rami grossi viene calcolato usando un'equazione di previsione della forma $v = b_{f0} + b_{f1}d^2h + b_{f2}d$, dove i coefficienti $b_{fi}$ provengono dal Tabacchi. Il volume totale di tutti gli $n_f$ alberi della specie $f$ campionati nella particella $p$ è quindi dato da $v_f = b_{f0} + b_{f1}\sum_{i=1}^{n_f} d_i^2h_i + b_{f2}\sum_{i=1}^{n_f} d_i$. Analogamente, il margine di errore $e_f$ della stima di questo volume complessivo è calcolato usando le matrici di varianza e i coefficienti del Tabacchi.
     \item Il volume totale degli alberi campionati è dato quindi da $v_c = \sum_{f} v_f$. Il margine di errore è calcolato prudenzialmente come $e_c = \sum_{f} e_f$: ciò presume che le piante delle diverse specie nella particella siano perfettamente correlate, nonostante le equazioni di previsione di Tabacchi siano state calibrate sulla base di campioni indipendenti.
     \item Calcoliamo quindi un fattore di scala $s = a / a_s$, dove~$a$ è la superficie di~$p$ e~$a_s$ è la superficie complessiva delle aree di saggio in~$p$.
     \item Il volume dell'intera particella viene calcolato scalando il volume stimato nelle aree di saggio, $v = s\cdot v_c$, e il margine di errore, $e = s\cdot e_c$. Pure questo margine di errore è prudenziale, nel senso che presume che tutte le superfici di una particella siano correlate tra di loro. I limiti deli intervalli fiduciari al 95\% elencati nella sezione~\ref{sec:volumi} corrispondono a $v \pm e$.
@@ -83,7 +83,7 @@ Da notare che i valori elencati nella sezione~\ref{sec:volumi} includono le pian
 
 Secondo le prescrizioni di massima della Regione Calabria~\cite{calabria:2011}, artt. 48 e 49, il prelievo durante i tagli colturali nelle fustaie è limitato in funzione della massa disponibile e dell'area basimetrica di ciascuna particella.
 
-In base alla classe economica del comparto, si stabilisce una provvigione minima. Per la nostra azienda, le classi economiche sono le seguenti:
+In base alla classe economica del comparto, si stabilisce una provvigione minima. Per la Società Agricola La Foresta, le classi economiche sono le seguenti:
 
 \begin{center}
     \small
