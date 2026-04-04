@@ -7,7 +7,7 @@ from pathlib import Path
 import pandas as pd
 from natsort import natsort_keygen
 
-from pdg.computation import COL_COMPRESA, COL_PARTICELLA, COL_GOVERNO, COL_AREA_PARCEL
+from pdg.computation import COL_COMPRESA, COL_PARTICELLA, COL_GOVERNO, COL_AREA_PARCEL, GOV_CEDUO
 
 # Domain constants
 MAX_HARVEST_AREA_HA = 10   # Maximum area per sub-harvest
@@ -24,7 +24,6 @@ COL_CYCLE_START = 'cycle_start'
 # Column names in input CSVs
 COL_PARAMETRO = 'Parametro'
 COL_ANNO = 'Anno'
-GOV_CEDUO = 'Ceduo'
 COL_ADJ_A = 'A'
 COL_ADJ_B = 'B'
 

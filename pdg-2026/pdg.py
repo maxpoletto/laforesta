@@ -18,7 +18,7 @@ from pdg.harvest_rules import max_harvest
 from pdg.computation import (
     COL_COMPRESA, COL_PARTICELLA, COL_GENERE,
     COL_D_CM, COL_H_M, COL_V_M3, COL_PRESSLER, COL_L10_MM,
-    COL_GOVERNO, GOV_FUSTAIA, COL_AREA_SAGGIO,
+    COL_GOVERNO, GOV_FUSTAIA, GOV_CEDUO, COL_AREA_SAGGIO,
     calculate_all_trees_volume, compute_heights,
     fit_curves_from_ipsometro, fit_curves_from_originali, fit_curves_from_tabelle,
 )
@@ -238,8 +238,10 @@ def process_template(template_text: str, data_dir: Path,
             modello_text = f.read()
 
         compresa = comprese[0]
+        ceduo = _bool_opt(params, 'ceduo', enabled=False)
+        governo = GOV_CEDUO if ceduo else GOV_FUSTAIA
         parcel_rows = particelle_df[(particelle_df[COL_COMPRESA] == compresa) &
-                                    (particelle_df[COL_GOVERNO] == GOV_FUSTAIA)]
+                                    (particelle_df[COL_GOVERNO] == governo)]
         parcel_list = sorted(parcel_rows[COL_PARTICELLA].unique(), key=natsort_keygen())  # type: ignore[reportGeneralTypeIssues]
         if particelle:
             parcel_list = [p for p in parcel_list if p in particelle]

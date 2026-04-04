@@ -40,6 +40,7 @@ COL_AREA_PARCEL = 'Area (ha)'
 COL_COMPARTO = 'Comparto'
 COL_GOVERNO = 'Governo'
 GOV_FUSTAIA = 'Fustaia'         # Value of COL_GOVERNO (not a column name)
+GOV_CEDUO = 'Ceduo'             # Value of COL_GOVERNO (not a column name)
 COL_ESPOSIZIONE = 'Esposizione'
 COL_STAZIONE = 'Stazione'
 COL_SOPRASSUOLO = 'Soprassuolo'
