@@ -83,7 +83,7 @@ BASENAME=relazione
 FILE_PDF=tex/$(BASENAME).pdf
 FILE_TEX=tex/$(BASENAME).tex
 DEPS_BIB=template/tex/ref.bib
-DEPS_TEX=$(DATA_DEPS) pdg.py $(wildcard pdg/*.py) template/tex/particella.tex
+DEPS_TEX=$(DATA_DEPS) pdg.py $(wildcard pdg/*.py) template/tex/particella-ceduo.tex template/tex/particella-fustaia.tex
 
 TEX_FLAGS=-interaction=batchmode -halt-on-error
 

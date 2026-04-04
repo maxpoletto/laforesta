@@ -1,6 +1,18 @@
-Di seguito, per ogni compresa e ogni particella, riportiamo in dettaglio le caratteristiche della particella e dei soprassuoli, il piano degli interventi silvicolturali, e i volumi e la ripresa divisi per specie.
+\clearpage
+\label{sec:particelle}
+\section{Dettaglio per particella}
+
+Di seguito, per ogni compresa e ogni particella, riportiamo in dettaglio le caratteristiche della particella e dei soprassuoli e il piano degli interventi silvicolturali.
+
+Elenchiamo prima tutte le particelle governate a fustaia. Per queste particelle forniamo anche i dati dendrometrici (numero di alberi per ettaro, volume per ettaro, area basimetrica per ettaro, altezza media, incremento percentuale di volume) divisi per specie e classe diametrica, nonché la ripresa attuale divisa per specie.
+
+Elenchiamo poi le particelle governate a ceduo, per le quali forniamo il numero di ceppaie per ettaro.
 
 \setlength{\LTleft}{0pt}
-@@particelle(compresa=Serra,modello=particella)
-@@particelle(compresa=Fabrizia,modello=particella)
-@@particelle(compresa=Capistrano,modello=particella)
+@@particelle(compresa=Serra,modello=particella-fustaia,ceduo=no)
+@@particelle(compresa=Fabrizia,modello=particella-fustaia,ceduo=no)
+@@particelle(compresa=Capistrano,modello=particella-fustaia,ceduo=no)
+
+@@particelle(compresa=Serra,modello=particella-ceduo,ceduo=si)
+@@particelle(compresa=Fabrizia,modello=particella-ceduo,ceduo=si)
+@@particelle(compresa=Capistrano,modello=particella-ceduo,ceduo=si)
