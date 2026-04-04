@@ -83,7 +83,7 @@ BASENAME=relazione
 FILE_PDF=tex/$(BASENAME).pdf
 FILE_TEX=tex/$(BASENAME).tex
 DEPS_BIB=template/tex/ref.bib
-DEPS_TEX=$(DATA_DEPS) pdg.py $(wildcard pdg/*.py) template/tex/particella-ceduo.tex template/tex/particella-fustaia.tex
+DEPS_TEX=$(DATA_DEPS) pdg.py $(wildcard pdg/*.py)
 
 TEX_FLAGS=-interaction=batchmode -halt-on-error
 
@@ -97,6 +97,8 @@ SECTIONS_TEX= \
 	tex/sec-particelle.tex
 
 pdf: $(FILE_PDF)
+
+tex/sec-particelle.tex: template/tex/sec-particelle.tex template/tex/particella-ceduo.tex template/tex/particella-fustaia.tex $(DEPS_TEX)
 
 # Run pdg.py on any template file to expand macros into tex/
 tex/%.tex: template/tex/%.tex $(DEPS_TEX)
