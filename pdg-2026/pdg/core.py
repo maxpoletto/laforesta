@@ -13,7 +13,7 @@ from pdg.computation import (
     SAMPLE_AREA_HA, MATURE_THRESHOLD,
     COL_D_CM, COL_H_M, COL_V_M3, COL_GENERE, COL_COMPRESA, COL_PARTICELLA,
     COL_CD_CM, COL_SCALE, COL_AREA_SAGGIO, COL_PRESSLER, COL_L10_MM,
-    COL_AREA_PARCEL, COL_COMPARTO, COL_GOVERNO, GOV_FUSTAIA,
+    COL_AREA_PARCEL, COL_COMPARTO, COL_GOVERNO, GOV_FUSTAIA, GOV_CEDUO,
     COL_ESPOSIZIONE, COL_STAZIONE, COL_SOPRASSUOLO, COL_PIANO_TAGLIO,
     COL_ALT_MIN, COL_ALT_MAX, COL_LOCALITA, COL_ETA_MEDIA,
     GROUP_COLS_ALIGN,
@@ -630,15 +630,17 @@ def render_diameter_class_table(data: ParcelData, formatter: SnippetFormatter, *
 # PARCEL PROPERTIES
 # =============================================================================
 
-def render_prop(particelle_df: pd.DataFrame, compresa: str, particella: str,
-                formatter: SnippetFormatter) -> RenderResult:
-    """Render parcel properties (@@prop directive)."""
-    row = particelle_df[(particelle_df[COL_COMPRESA] == compresa) &
-                        (particelle_df[COL_PARTICELLA] == particella)]
-    if row.empty:
+def _parcel_row(particelle_df: pd.DataFrame, compresa: str, particella: str) -> pd.Series:
+    """Look up a single parcel metadata row."""
+    rows = particelle_df[(particelle_df[COL_COMPRESA] == compresa) &
+                         (particelle_df[COL_PARTICELLA] == particella)]
+    if rows.empty:
         raise ValueError(f"Particella '{particella}' non trovata in compresa '{compresa}'")
-    row = row.iloc[0]
+    return rows.iloc[0]
 
+
+def _prop_fields(row: pd.Series) -> tuple[list, list]:
+    """Build standard short and paragraph fields for parcel properties."""
     area = f"{fmt_num(row[COL_AREA_PARCEL], 2)} ha"
     altitudine = f"{int(row[COL_ALT_MIN])}-{int(row[COL_ALT_MAX])} m"
 
@@ -655,7 +657,54 @@ def render_prop(particelle_df: pd.DataFrame, compresa: str, particella: str,
         (COL_SOPRASSUOLO, row[COL_SOPRASSUOLO]),
         (COL_PIANO_TAGLIO, row[COL_PIANO_TAGLIO]),
     ]
+    return short_fields, paragraph_fields
 
+
+def render_prop(particelle_df: pd.DataFrame, compresa: str, particella: str,
+                formatter: SnippetFormatter) -> RenderResult:
+    """Render parcel properties (@@prop directive)."""
+    row = _parcel_row(particelle_df, compresa, particella)
+    short_fields, paragraph_fields = _prop_fields(row)
+    return RenderResult(snippet=formatter.format_prop(short_fields, paragraph_fields))
+
+
+def calculate_stumps(trees_df: pd.DataFrame, compresa: str, particella: str,
+                     area_ha: float) -> tuple[float, float]:
+    """Count coppice stumps (ceppaie) scaled to per-hectare and parcel total.
+
+    Args:
+        trees_df: ceduo-only tree DataFrame (from load_trees(ceduo=True))
+
+    Returns:
+        (stumps_per_ha, stumps_total)
+    """
+    parcel_trees = trees_df[(trees_df[COL_COMPRESA] == compresa) &
+                            (trees_df[COL_PARTICELLA] == particella)]
+    n_sample_areas = parcel_trees.drop_duplicates(
+        subset=[COL_COMPRESA, COL_PARTICELLA, COL_AREA_SAGGIO]).shape[0]
+    if n_sample_areas == 0:
+        raise ValueError(f"Nessuna area di saggio per particella {compresa}/{particella}")
+    sampled_area_ha = n_sample_areas * SAMPLE_AREA_HA
+    n_per_ha = len(parcel_trees) / sampled_area_ha
+    n_total = n_per_ha * area_ha
+    return n_per_ha, n_total
+
+
+def render_prop_coppice(particelle_df: pd.DataFrame, compresa: str, particella: str,
+                        trees_df: pd.DataFrame,
+                        formatter: SnippetFormatter) -> RenderResult:
+    """Render coppice parcel properties (@@prop_ceduo directive)."""
+    row = _parcel_row(particelle_df, compresa, particella)
+    if row[COL_GOVERNO] != GOV_CEDUO:
+        raise ValueError(f"Particella {compresa}/{particella}: "
+                         f"Governo è '{row[COL_GOVERNO]}', atteso '{GOV_CEDUO}'")
+    short_fields, paragraph_fields = _prop_fields(row)
+    n_per_ha, n_total = calculate_stumps(
+        trees_df, compresa, particella, row[COL_AREA_PARCEL])
+    short_fields.extend([
+        ('Ceppaie', fmt_num(n_total, 0)),
+        ('Ceppaie / ha', fmt_num(n_per_ha, 0)),
+    ])
     return RenderResult(snippet=formatter.format_prop(short_fields, paragraph_fields))
 
 

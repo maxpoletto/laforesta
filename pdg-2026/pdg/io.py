@@ -20,12 +20,14 @@ def load_csv(filenames: list[str] | str, data_dir: Path | None = None) -> pd.Dat
             ignore_index=True)
     return file_cache[key]
 
-def load_trees(filenames: list[str] | str, data_dir: Path | None = None) -> pd.DataFrame:
-    """Load trees from CSV file(s), skipping comment lines starting with #."""
+def load_trees(filenames: list[str] | str, data_dir: Path | None = None,
+               ceduo: bool = False) -> pd.DataFrame:
+    """Load trees from CSV file(s), keeping only fustaia or ceduo rows."""
     df = load_csv(filenames, data_dir)
-    df.drop(df[df[COL_FUSTAIA]==False].index,inplace=True)
-    df[COL_PARTICELLA] = df[COL_PARTICELLA].astype(str)
-    return df
+    mask = ~df[COL_FUSTAIA] if ceduo else df[COL_FUSTAIA]
+    result = df[mask].copy()
+    result[COL_PARTICELLA] = result[COL_PARTICELLA].astype(str)
+    return result
 
 def read_past_harvests(path: Path) -> pd.DataFrame:
     """Read past harvests CSV (columns: Anno, Compresa, Particella)."""

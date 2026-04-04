@@ -48,7 +48,8 @@ from pdg.core import (
     read_past_harvests, parcel_data,
     get_color_map,
     render_hypsometric_graph, render_diameter_class_graph, render_diameter_class_table,
-    render_prop, render_volume_table, render_harvest_table, render_harvest_plan,
+    render_prop, render_prop_coppice,
+    render_volume_table, render_harvest_table, render_harvest_plan,
     render_pct_growth_table, render_pct_growth_graph, render_coppice_schedule,
     skip_graphs,
 )
@@ -84,6 +85,7 @@ class Dir:
     PCT_GROWTH_TABLE = 'tabella_incremento_percentuale'
     COPPICE_SCHEDULE = 'calendario_ceduo'
     PROP = 'prop'
+    PROP_CEDUO = 'prop_ceduo'
     VOLUME_TABLE = 'volumi'
 
 
@@ -282,6 +284,16 @@ def process_template(template_text: str, data_dir: Path,
                 if len(comprese) != 1 or len(particelle) != 1 or len(params) != 2:
                     raise ValueError("@@prop richiede esattamente compresa=X e particella=Y")
                 result = render_prop(particelle_df, comprese[0], particelle[0], formatter)
+                return result.snippet
+
+            if keyword == Dir.PROP_CEDUO:
+                if len(comprese) != 1 or len(particelle) != 1:
+                    raise ValueError("@@prop_ceduo richiede esattamente compresa=X e particella=Y")
+                if not alberi_files:
+                    raise ValueError("@@prop_ceduo richiede alberi=FILE")
+                trees_df = load_trees(alberi_files, data_dir, ceduo=True)
+                result = render_prop_coppice(
+                    particelle_df, comprese[0], particelle[0], trees_df, formatter)
                 return result.snippet
 
             if keyword == Dir.PARCELS:
