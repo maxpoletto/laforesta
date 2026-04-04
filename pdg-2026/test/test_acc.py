@@ -56,13 +56,16 @@ from pdg.simulation import (
     growth_per_group,
 )
 
+from pdg.io import load_trees
 from pdg.core import (
     COL_SECTOR, COL_AGE, COL_PP_MAX,
     parcel_data, parse_gap_overrides,
     compute_parcel_harvests,
     calculate_volumes, calculate_harvest_table,
     calculate_harvest_plan, calculate_diameter_class_data,
+    calculate_stumps, render_prop_coppice,
 )
+from pdg.formatters import HTMLSnippetFormatter
 
 # Fixtures are defined in conftest.py
 
@@ -1761,6 +1764,76 @@ class TestParcelDataFilter:
         filtered = data_all.filter_parcels(all_keys)
         # Same data, scale should match
         assert (filtered.trees[COL_SCALE] == data_all.trees[COL_SCALE]).all()
+
+
+# =============================================================================
+# (i) COPPICE PROP (@@prop_ceduo)
+# =============================================================================
+
+TEST_DATA_DIR = Path(__file__).parent / "data"
+
+class TestLoadTreesCeduo:
+    """load_trees ceduo flag: filtering and cache safety."""
+
+    def test_ceduo_true_returns_only_ceduo(self, clear_caches):
+        """load_trees(ceduo=True) returns only Fustaia=False trees."""
+        df = load_trees(["alberi.csv"], TEST_DATA_DIR, ceduo=True)
+        assert len(df) > 0
+        assert not df[COL_FUSTAIA].any()
+
+    def test_ceduo_false_returns_only_fustaia(self, clear_caches):
+        """load_trees(ceduo=False) returns only Fustaia=True trees."""
+        df = load_trees(["alberi.csv"], TEST_DATA_DIR, ceduo=False)
+        assert len(df) > 0
+        assert df[COL_FUSTAIA].all()
+
+    def test_cache_not_mutated(self, clear_caches):
+        """Calling with both flags doesn't corrupt the underlying cache."""
+        fustaia_1 = load_trees(["alberi.csv"], TEST_DATA_DIR, ceduo=False)
+        n_fustaia = len(fustaia_1)
+        # Interleave a ceduo load
+        ceduo = load_trees(["alberi.csv"], TEST_DATA_DIR, ceduo=True)
+        fustaia_2 = load_trees(["alberi.csv"], TEST_DATA_DIR, ceduo=False)
+        assert len(fustaia_2) == n_fustaia
+        assert len(ceduo) > 0
+
+
+class TestCoppiceProp:
+    """Tests for calculate_stumps and render_prop_coppice."""
+
+    def test_calculate_stumps_scaling(self, clear_caches):
+        """Stump count correctly scales by sampled area.
+
+        Parcel F: 7 ceduo trees, 2 sample areas.
+        sampled_area = 2 * 0.125 = 0.25 ha
+        n_per_ha = 7 / 0.25 = 28, n_total = 28 * 8 = 224
+        """
+        ceduo_df = load_trees(["alberi.csv"], TEST_DATA_DIR, ceduo=True)
+        n_per_ha, n_total = calculate_stumps(ceduo_df, 'Test', 'F', 8.0)
+        assert n_per_ha == pytest.approx(28.0)
+        assert n_total == pytest.approx(224.0)
+
+    def test_calculate_stumps_missing_parcel(self, clear_caches):
+        """Raises for a parcel with no sample areas."""
+        ceduo_df = load_trees(["alberi.csv"], TEST_DATA_DIR, ceduo=True)
+        with pytest.raises(ValueError, match="Nessuna area di saggio"):
+            calculate_stumps(ceduo_df, 'Test', 'Z', 10.0)
+
+    def test_render_prop_coppice_output(self, particelle_df, clear_caches):
+        """Output includes standard prop fields plus Ceppaie."""
+        ceduo_df = load_trees(["alberi.csv"], TEST_DATA_DIR, ceduo=True)
+        result = render_prop_coppice(
+            particelle_df, 'Test', 'F', ceduo_df, HTMLSnippetFormatter())
+        assert 'Ceduo' in result.snippet
+        assert 'Ceppaie:</strong> 224' in result.snippet
+        assert 'Ceppaie / ha:</strong> 28' in result.snippet
+
+    def test_render_prop_coppice_rejects_fustaia(self, particelle_df, clear_caches):
+        """Raises ValueError if the parcel is not Ceduo."""
+        ceduo_df = load_trees(["alberi.csv"], TEST_DATA_DIR, ceduo=True)
+        with pytest.raises(ValueError, match="atteso 'Ceduo'"):
+            render_prop_coppice(
+                particelle_df, 'Test', 'A', ceduo_df, HTMLSnippetFormatter())
 
 
 # =============================================================================
