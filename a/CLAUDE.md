@@ -1,112 +1,245 @@
-# Bosco: Forestry company management application
+# Abies: integrated management of forestry company operations
 
-This is a full-stack app with Python backend used to manage production
-operations of a forestry company, including forest harvests, lumber production,
-biomass energy production, etc.
+Abies is a full-stack web app used to manage production operations of a forestry
+company, including forest harvests, sawmill production, biomass energy
+generation.
 
-It is intended to help with day to day operations and track production.
+It is intended to help with day to day operations, track production, and monitor
+forest health and productivity.
 
-# Context
+# User base
 
-The target audience is relatively unsophisticated computer users. They currently
-use Microsoft 365 Business and dislike its slowness. They use Word and Excel
-daily, but only in a basic way: for example, they do not know how to set up
-pivot tables or use Excel lookup functions. They tend to be instinctively
-suspicious of and impatient with computers.
+The target audience is office workers and field staff at a small (40-employee)
+lumber company that also produces electricity from biomass. They currently use
+Microsoft 365 Business and complain about its slowness. They are unsophisticated
+computer users. They employ Word and Excel daily, but only use basic features
+(e.g., they do not know how to set up Excel pivot tables). Simplicity and speed
+are key requirements.
 
 # Priorities
 
 1. Correctness
 2. Security
-3. Speed (the UI should be snappy and not require much bandwidth)
-4. Ease of maintenance
+3. Speed (the UI is snappy and works well over 3G)
+4. Low maintenance over time
+
+# Functional overview
+
+The app covers the following areas:
+
+- Forest harvesting. A log of the daily activities of crews of lumberjacks,
+  including how much wood of different species was harvested where and with what
+  tractors. The tool also generates PDF record slips that the crews fill out and
+  provide to the office staff for data entry.
+
+- Forest health and planning. Geospatial tool that displays historical harvest
+  data, supports planning and execution of forest surveys (by setting up
+  sampling locations and allowing recording of geo-referenced annotations), and
+  displays other geo-based information about the forest, including satellite
+  imagery and health metrics.
+
+- Sawmill operations. A log of daily sawmill operations, including volume and
+  type of wood products, maintenance activities, failures or other incidents,
+  etc., as well as monthly rollups of income and other parameters.
+
+- Biomass plant operations. A log of daily biomass operations (amount of biomass
+  consumed, energy produced, various operational parameters), as well as monthly
+  rollups of energy produced, energy consumed, income broken down by various
+  parameters, etc.
+
+- Photovoltaic plant operations. Daily log of production, monthly log of
+  verified production and revenue.
+
+- Fuel operations. Log of operations on the company's diesel fuel tank (e.g.,
+  who refueled what vehicle and how much fuel they used).
+
+Each of these functional areas is handled in a distinct tab of the app and is
+separate from the others. However, the outputs of some areas are inputs to
+others (for example, wood from the forest flows into the sawmill and biomass
+plant).
+
+Historical data can be displayed in searchable tables and in graphical charts,
+as well as in the forest maps.
+
+# Architecture overview
+
+The app is a SPA-lite: Django serves a single shell page after authentication,
+and vanilla JS handles client-side routing, data caching, and content rendering.
+There is no JS framework.
+
+- Vanilla JS on the client, with minimal dependencies:
+  - @maxpoletto/sortable-table for tabular data display
+  - Chart.js for data visualization
+  - Leaflet for mapping
+- Django on the server, served via Apache with mod_wsgi:
+  - JSON endpoints for data (consumed by sortable-table, Chart.js, and Leaflet)
+  - HTML fragment endpoints for forms (injected into the shell)
+  - django-allauth for authentication
+  - django-simple-history for audits
+- SQLite for storage.
 
 # Security
 
-Data security (both privacy and integrity) is important in this use case because
-we will be storing the core of the company's operations.
+Data security (both privacy and integrity) is important because the app stored
+the core of the company's operations.
 
 ## Authorization
 
-The app must be access-controlled on the server side. Authorization must support
-MS 365 credentials and user/password pairs.
+The app is access-controlled on the server side. Authorization supports MS 365
+credentials and user/password pairs via django-allauth.
 
 In the future we may need to support other OAuth identity providers.
-
-We will use django-allauth to provide this functionality.
-
-## Auditing
-
-The app records all writes using django-simple-history and makes them available
-for review through an audit table in the UI. The audit table is searchable and
-sortable via the sortable-table Javascript widget (more on this below).
 
 ## Permission model
 
 We have a three-role permission model, 'admin', 'writer' and 'reader'. Readers
 are read-only, writers can also modify data, 'admins' can also create new users.
 
-The audit log is viewable by everyone and intended to keep things transparent
-and above-board.
+If using username/password pairs, users can change their own password.
 
-If using username/password, users can change their password.
+## Auditing
 
-# General app structure
+The app records all writes using django-simple-history.
 
-For now the app needs to provide two types of functionality, what we will call
-data management and task management.
+The audit log is readable and searchable by all users. (More on this below in
+the UI section.)
+ 
+# UI
 
-## Data management
+## Principles and design choices
 
-Data management is about tracking production and consumption data: for example,
-recording individual harvest operations ("on date D, team T harvested X tons of
-logs of species S from forest parcel P") or resource usage ("on date D, tractor
-M was refueled with Y liters of gasoline").
+* Clean, minimal design, with an emphasis on readability: no drop shadows, no
+  fancy borders.
+* High information density without being overwhelming. Overall, efficient use
+  of the browser window real estate.
+* Muted, pastel color scheme with green and yellow accents, adopted
+  from the existing bosco apps.
+* Clearly breadcrumbs for navigation ("What part of the app am I in?").
+* Simple, site-wide CSS with no redundancy. No inline styles in HTML.
 
-To see an example of harvest operations data, see bosco/data/mannesi.csv.
+## Architecture
 
-For each data set / type of data, we provide mechanisms for data entry and
-analysis.
+The app is structured as a SPA-lite. After authentication, Django renders a
+single shell page that persists for the duration of the session. All subsequent
+navigation happens client-side without full page reloads.
+
+### The shell
+
+The shell is a single Django template containing:
+- Top navigation with tabs for each functional area (harvest, sawmill, etc.)
+- Breadcrumbs
+- A date range slider (shared across all tabs, sticky)
+- A content area where tab content is rendered
+
+The shell is rendered once and never reloads during normal use.
+
+### Routing
+
+Clicking a tab updates the URL via `history.pushState()` and renders the
+appropriate content. The back button works via `popstate`. All URLs are
+bookmarkable: loading a bookmarked URL renders the shell and activates the
+correct tab.
+
+### Data display
+
+Data for tables and charts is fetched from Django as JSON and rendered
+client-side by sortable-table and Chart.js respectively.
+
+Tabular data is fetched in one-year chunks; the date range slider controls which
+years are displayed and defaults to the current year.
+
+Most graphical and map data is pre-processed into compact static JSON
+server-side, allowing the full time range to be served at once.
+
+### Caching
+
+Fetched data is cached client-side in memory, keyed by (tab, year):
+
+1. On tab switch or date range change, render from cache immediately if
+   available.
+2. Fire a background conditional GET (using ETags). If the server returns
+   304 Not Modified, done. If it returns new data, update the cache and
+   re-render.
+
+Tab switching and slider changes feel instant for previously-viewed data.
+
+### Server-side precomputation
+
+XXX
 
 ### Data entry
 
-The data entry feature is a web-page equivalent of adding a new row of a
-spreadsheet (which is how most data entry happens today, and why, e.g.,
-mannesi.csv is so painful to work with).
+Data entry forms are Django-rendered HTML fetched as fragments into the
+shell's content area:
 
-More on the mannesi-specific UI below.
+1. User clicks "Add" or "Edit".
+2. JS fetches the form HTML from Django (including CSRF token, field values,
+   validation state).
+3. The form replaces the current tab content within the shell.
+4. Client-side JS validates for immediate feedback; server-side validation
+   is authoritative.
+5. On submit, JS intercepts the form POST via `fetch()`.
+6. On success: return to the list view (still cached).
+   On validation error: replace the form with Django's re-rendered HTML
+   (including error messages).
 
-### Data visualization and analysis
+Each form has custom HTML and custom client-side validation JS as needed, but
+common patterns (percentage-group validation, form interception, error display)
+are extracted into shared libraries.
 
-There are three basic types of data visualization:
+### Dependencies
 
-1. Viewing the data in tabular form, as one would in Excel. This is the
-   same/standard for all data, basically displaying the underlying table.
-2. Charts / graphs of one data set only (e.g., productivity by team or by parcel
-   over time). This is custom code for each data set, but with clean, modular
-   interfaces.
-3. Joins of different data sets, for example, using part of the outputs of the
-   harvest process as one of the inputs of the biomass plant. Again, custom
-   code.
+JS dependencies (Leaflet, Chart.js, sortable-table) are minified and vendored,
+served from Django's static/vendor. A Makefile target (`make update-vendor`)
+re-copies from source when needed.
 
-## Task management
 
-Task management is a very basic project management tool, basically a task
-tracker with a Gantt chart UI, also capable of reminders. We will discuss that
-in a later phase of the project.
+# Storage
 
-# UX
+## Database
 
-## Key principles and design choices
+We use SQLite for storage, not a server DB like Postgres.
 
-* Clean, minimal design, with an emphasis on readability: no drop shadows, no
-  fancy borders, but also not too much whitespace.
-* High information density without being overwhelming. Overall, an efficient use
-  of the browser window real estate.
-* Pastel, not overly saturated colors. Color theme (e.g., green, yellow) adopted
-  from the existing bosco apps.
-* Clearly visible breadcrumbs for navigation ("What part of the site am I in?").
-* Simple, site-wide CSS with no redundancy.
+Arguments for SQLite:
+  - Small user base (a small forestry company, < 10 concurrent users).
+  - WAL mode handles concurrent reads + writes fine at this scale.
+  - Zero moving parts: no database server process to maintain, crash, or misconfigure.
+  - Backup = copy one file.
+  - Django's ORM abstracts the DB, so migrating to Postgres later is a DATABASES setting change + migrate.
+
+## Concurrency
+
+We handle concurrent modification with row-level optimistic locking.
+
+To detect stale edits, we store a version counter on harvest that increments on
+every save. The edit includes the version as a hidden field; the server checks
+the version on POST, and if the version has changed that indicates a write
+conflict.
+
+## Disconnected operation
+
+There is no need for disconnected operation. We require that the server be
+reachable. (However, we do explicitly consider low-bandwidth operation, so the
+website is light and simple.)
+
+## Backups
+
+On the backend, we run a nightly backup of the database. We retain nightly
+backups for a month, and once a month copy a backup offsite for permanent
+retention.
+
+## Data migration
+
+Importing different kinds of data is done through roughly-single-use ETL scripts
+that parse CSV files and normalize them.
+
+
+
+# Detailed description
+
+XXX
+
+----- Stopped rewriting here
 
 ## Overview
 
@@ -187,38 +320,6 @@ Note, because of "modifica dati", data entry forms work both in create and edit
 modes. In edit mode, the form is prepopulated with existing values. We detect
 stale edits as described in storage below.
 
-# UI architecture
-
-Server-rendered with progressive enhancement, using Django templates and forms,
-JS added for real-time validation:
-
-- Django renders the form HTML.
-- JS validates client-side for snappy UX but the server never trusts the client.
-- Django's form validation runs server-side on submit (the authoritative check).
-- Traditional form POST, redirect on success.
-
-Each data entry page (and other similar pages) has its own Django template with
-custom form HTML, rather than using a generic auto-generated form. Likewise in
-general for client-side JS and server-side validation, though it is a top
-priority to not duplicate code and to move common code into libraries.
-
-While the code is generally custom per data set, the overall structure is
-modular. I.e., it is possible to add a new HTML edit page, validation
-javascript, and server-side data conversion functionality easily, side-by-side
-with others, using existing patterns.
-
-All tabular data is displayed uniformly using the sortable-table component
-(vendored from ~/src/jsutil/sortable-table).
-
-Graphical displays use Chart.js.
-
-Common CSS and JS from bosco apps (bosco/a, e.g., range-slider.*) are also
-incorporated as dependencies.
-
-JS dependencies (Leaflet, ChartJS, Sortable-Table) are minified and vendored,
-served from Django's static/vendor. A Makefile target (make update-vendor)
-re-copies from source when needed.
-
 # Data model
 
 ## Common tables
@@ -259,45 +360,6 @@ and consumption data.
 Satellite imagery (GeoTIFF), GeoJSON geometries, and production timeseries JSON
 remain as files served from disk. Only tabular operational data that needs
 user-editable CRUD moves to the database.
-
-# Storage
-
-## Database
-
-We use SQLite for storage, not a server DB like Postgres.
-
-Arguments for SQLite:
-  - Small user base (a small forestry company, < 10 concurrent users).
-  - WAL mode handles concurrent reads + writes fine at this scale.
-  - Zero moving parts: no database server process to maintain, crash, or misconfigure.
-  - Backup = copy one file.
-  - Django's ORM abstracts the DB, so migrating to Postgres later is a DATABASES setting change + migrate.
-
-## Concurrency
-
-We handle concurrent modification with row-level optimistic locking.
-
-To detect stale edits, we store a version counter on harvest that increments on
-every save. The edit includes the version as a hidden field; the server checks
-the version on POST, and if the version has changed that indicates a write
-conflict.
-
-## Disconnected operation
-
-There is no need for disconnected operation. We require that the server be
-reachable. (However, we do explicitly consider low-bandwidth operation, so the
-website is light and simple.)
-
-## Backups
-
-On the backend, we run a nightly backup of the database. We retain nightly
-backups for a month, and once a month copy a backup offsite for permanent
-retention.
-
-## Data migration
-
-Importing different kinds of data is done through roughly-single-use ETL scripts
-that parse CSV files and normalize them.
 
 # Relationship to "bosco" apps
 
