@@ -233,7 +233,57 @@ retention.
 Importing different kinds of data is done through roughly-single-use ETL scripts
 that parse CSV files and normalize them.
 
+# Data storage
 
+As mentioned above, core relational data is stored in SQLite on the server.
+
+In addition, summary statistics are computed periodically and stored as JSON
+files for consumption by visualization tools (charts and maps).
+
+## Database model
+
+## Enums
+
+- forest_type: one of 'high_forest' (fustaia) or 'coppice' (ceduo)
+
+
+## Common tables
+
+
+
+- region: (id, name). Denotes a forest region or "compresa".
+- class: (id, name, forest_type, )
+- parcel: (id, name, region_id, area (hectares), )
+
+corresponds to all fields in bosco/data/particelle.csv (including long
+  textual columns), plus an entry for each region with parcel name 'X' (meaning
+  all/any, for certain kind of cleanup work). Each parcel has a unique id.
+- tractor: (id, manufacturer, model, year, active)
+- species: (id, common name, latin name, active)
+- team: (id, name, active)
+
+The `active` flag supports soft-delete: deactivated entries no longer appear as
+choices for new data entry but are preserved in historical data.
+
+## Harvest-related
+
+- operation_type: enum (tronchi, cippato, ramaglia, pertiche_puntelli, pertiche_tronchi)
+- note: enum (none, PSR, fitosanitario, catastrofato)
+- harvest: (id, date, operation_type, parcel_id, team_id, vdp (int, nullable),
+  prot (int, nullable), quintals (float), note (enum), extra_note (text),
+  version (int), created_at, modified_at)
+- harvest_species: (harvest_id, species_id, percent) — PK is (harvest_id, species_id)
+- harvest_tractor: (harvest_id, tractor_id, percent) — PK is (harvest_id, tractor_id)
+
+Note that "Coppice" (ceduo) is both a stored property of parcels and a computed
+property of individual harvest operations (true if castagno > 50%). It is
+possible to extract some coppices from a parcel that is otherwise high forest
+(fustaia).
+
+## Other tables
+
+We will enrich the data model over time to incorporate other kinds of production
+and consumption data.
 
 # Detailed description
 
@@ -322,38 +372,6 @@ stale edits as described in storage below.
 
 # Data model
 
-## Common tables
-
-- region: (id, name)
-- parcel: corresponds to all fields in bosco/data/particelle.csv (including long
-  textual columns), plus an entry for each region with parcel name 'X' (meaning
-  all/any, for certain kind of cleanup work). Each parcel has a unique id.
-- tractor: (id, manufacturer, model, year, active)
-- species: (id, common name, latin name, active)
-- team: (id, name, active)
-
-The `active` flag supports soft-delete: deactivated entries no longer appear as
-choices for new data entry but are preserved in historical data.
-
-## Harvest-related
-
-- operation_type: enum (tronchi, cippato, ramaglia, pertiche_puntelli, pertiche_tronchi)
-- note: enum (none, PSR, fitosanitario, catastrofato)
-- harvest: (id, date, operation_type, parcel_id, team_id, vdp (int, nullable),
-  prot (int, nullable), quintals (float), note (enum), extra_note (text),
-  version (int), created_at, modified_at)
-- harvest_species: (harvest_id, species_id, percent) — PK is (harvest_id, species_id)
-- harvest_tractor: (harvest_id, tractor_id, percent) — PK is (harvest_id, tractor_id)
-
-Note that "Coppice" (ceduo) is both a stored property of parcels and a computed
-property of individual harvest operations (true if castagno > 50%). It is
-possible to extract some coppices from a parcel that is otherwise high forest
-(fustaia).
-
-## Other tables
-
-We will enrich the data model over time to incorporate other kinds of production
-and consumption data.
 
 ## Non-database data
 
@@ -399,6 +417,8 @@ patterns established by `harvest`.
 Authentication is handled by django-allauth (no custom auth app). Audit history
 is handled by django-simple-history (added to models via mixin, no custom app).
 
+# Internationalization
+
 # Code location, deployment, and releases
 
 The Django project is rooted at laforesta/a in the code repository, and will be
@@ -423,5 +443,3 @@ Client-side JS tests use the existing `node tests.js` pattern (see bosco/b/).
   all be **in** English. For examples, columns or variables might be parcel_id
   and region_id, not particella_id and compresa_id.
 * Obsessive focus on simplicity and DRY. See also ~maxp/.claude/CLAUDE.md.
-
-
