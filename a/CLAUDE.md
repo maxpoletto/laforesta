@@ -10,11 +10,11 @@ forest health and productivity.
 # User base
 
 The target audience is office workers and field staff at a small (40-employee)
-lumber company that also produces electricity from biomass. They currently use
-Microsoft 365 Business and complain about its slowness. They are unsophisticated
-computer users. They employ Word and Excel daily, but only use basic features
-(e.g., they do not know how to set up Excel pivot tables). Simplicity and speed
-are key requirements.
+lumber company that also produces electricity from biomass and solar. They
+currently use Microsoft 365 Business and complain about its slowness. They are
+unsophisticated computer users. They employ Word and Excel daily but only use
+basic features (e.g., they do not know how to set up Excel pivot tables).
+Simplicity and speed are key requirements.
 
 # Priorities
 
@@ -25,38 +25,39 @@ are key requirements.
 
 # Functional overview
 
-The app covers the following areas:
+The app covers the following functional areas, which we call _domains_:
+
+- Forest visualization and planning. Geospatial tool that displays historical
+  harvest data, supports planning and execution of forest surveys (setting up
+  sampling locations; recording geo-referenced annotations; etc.), and displays
+  other geo-located information about the forest, including satellite imagery
+  and health metrics.
 
 - Forest harvesting. A log of the daily activities of crews of lumberjacks,
   including how much wood of different species was harvested where and with what
-  tractors. The tool also generates PDF record slips that the crews fill out and
-  provide to the office staff for data entry.
+  tractors. The tool also supports day-to-day operations by generating PDF
+  record slips that the crews fill out and provide to the office staff for data
+  entry.
 
-- Forest health and planning. Geospatial tool that displays historical harvest
-  data, supports planning and execution of forest surveys (by setting up
-  sampling locations and allowing recording of geo-referenced annotations), and
-  displays other geo-based information about the forest, including satellite
-  imagery and health metrics.
-
-- Sawmill operations. A log of daily sawmill operations, including volume and
+- Sawmill. A log of daily sawmill operations, including volume and
   type of wood products, maintenance activities, failures or other incidents,
   etc., as well as monthly rollups of income and other parameters.
 
-- Biomass plant operations. A log of daily biomass operations (amount of biomass
+- Biomass plant. A log of daily biomass operations (amount of biomass
   consumed, energy produced, various operational parameters), as well as monthly
   rollups of energy produced, energy consumed, income broken down by various
   parameters, etc.
 
-- Photovoltaic plant operations. Daily log of production, monthly log of
+- Photovoltaic plant. Daily log of production, monthly log of
   verified production and revenue.
 
-- Fuel operations. Log of operations on the company's diesel fuel tank (e.g.,
-  who refueled what vehicle and how much fuel they used).
+- Fuel facility. Log of operations on the company's diesel fuel tank: who
+  refueled what vehicle, how much fuel they used, refueling of the fuel tank
+  itself, etc.
 
-Each of these functional areas is handled in a distinct tab of the app and is
-separate from the others. However, the outputs of some areas are inputs to
-others (for example, wood from the forest flows into the sawmill and biomass
-plant).
+Each of these domains is handled in a distinct tab of the app and is separate
+from the others. However, the outputs of some areas are inputs to others (for
+example, wood from the forest flows into the sawmill and biomass plant).
 
 Historical data can be displayed in searchable tables and in graphical charts,
 as well as in the forest maps.
@@ -80,7 +81,7 @@ There is no JS framework.
 
 # Security
 
-Data security (both privacy and integrity) is important because the app stored
+Data security (both privacy and integrity) is important because the app stores
 the core of the company's operations.
 
 ## Authorization
@@ -106,29 +107,16 @@ the UI section.)
  
 # UI
 
-## Principles and design choices
-
-* Clean, minimal design, with an emphasis on readability: no drop shadows, no
-  fancy borders.
-* High information density without being overwhelming. Overall, efficient use
-  of the browser window real estate.
-* Muted, pastel color scheme with green and yellow accents, adopted
-  from the existing bosco apps.
-* Clearly breadcrumbs for navigation ("What part of the app am I in?").
-* Simple, site-wide CSS with no redundancy. No inline styles in HTML.
-
 ## Architecture
 
 The app is structured as a SPA-lite. After authentication, Django renders a
 single shell page that persists for the duration of the session. All subsequent
 navigation happens client-side without full page reloads.
 
-### The shell
+### Shell
 
-The shell is a single Django template containing:
-- Top navigation with tabs for each functional area (harvest, sawmill, etc.)
-- Breadcrumbs
-- A date range slider (shared across all tabs, sticky)
+The shell is a single Django template containing just:
+- The header (more on this in "Detailed description" below)
 - A content area where tab content is rendered
 
 The shell is rendered once and never reloads during normal use.
@@ -153,19 +141,31 @@ server-side, allowing the full time range to be served at once.
 
 ### Caching
 
-Fetched data is cached client-side in memory, keyed by (tab, year):
+Fetched data is cached client-side in memory, keyed by (data_id, year).
 
-1. On tab switch or date range change, render from cache immediately if
+'data_id' identifies a particular dataset and display type, e.g., "table of
+harvest operations" or "graph of monthly sawmill production".
+
+1. On tab switch or date range change, the app renders from cache immediately if
    available.
-2. Fire a background conditional GET (using ETags). If the server returns
-   304 Not Modified, done. If it returns new data, update the cache and
-   re-render.
+2. The app also fires a background conditional GET (using ETags). If the server
+   returns 304 Not Modified, no action is required. If it returns new data,
+   the app updates the cache and re-renders.
 
 Tab switching and slider changes feel instant for previously-viewed data.
 
 ### Server-side precomputation
 
-XXX
+A server-side job digests detailed data (always stored in relational form in
+SQLite) into compact JSON form for specific types of display (specific
+'data_id's).
+
+The job runs from cron every 5 minutes (more frequent updates are unnecessary).
+If a particular source table has not changed, it ignores it. Otherwise, it
+regenerates the JSON representation.
+
+Details about which data is pre-processed for which view are in the detailed
+per-tab descriptions.
 
 ### Data entry
 
@@ -187,85 +187,321 @@ Each form has custom HTML and custom client-side validation JS as needed, but
 common patterns (percentage-group validation, form interception, error display)
 are extracted into shared libraries.
 
-### Dependencies
+### CSS
 
-JS dependencies (Leaflet, Chart.js, sortable-table) are minified and vendored,
-served from Django's static/vendor. A Makefile target (`make update-vendor`)
+No style is define in-line in HTML. All style is defined in CSS files. 
+
+Most styles are maintained in a single common.css style file. Styles that are
+only required on one page appear in a page-specific style file.
+
+### Javascript dependencies
+
+All JS dependencies (Leaflet, Chart.js, sortable-table, (Google) fonts, etc.)
+are minified and vendored, served from Django's static/vendor. There are no
+external dependencies at runtime. A Makefile target (`make update-vendor`)
 re-copies from source when needed.
 
+## Design patterns
+
+## Objectives
+
+The objectives of the visual design are:
+
+- Readability: data is presented simply and clearly, with good use of screen
+  real estate on both desktop and mobile.
+- Predictability: consistent visual guidelines, no unexpected behavior.
+- Discoverability: navigation is easy and fast.
+- Restfulness: cognitive and visual load are low.
+
+### Fonts and colors
+
+DM Sans is used throughout.
+
+The UI is strictly two-dimensional: there are no drop-shadows or other 3-D elements.
+
+Page margins are moderate (15 px) on desktop and almost disappear (2 px) on mobile.
+
+Buttons have subtly rounded corners. They are dark green and turn lighter when hovered over.
+
+Horizontal rules outline the page header as well as collapsible elements  (more
+on these in "Detailed description" below). They are relatively thin (4px) and
+dark green.
+
+### Tabular data
+
+All tabular data appears in sortable-tables.
+
+- All fields are sortable.
+- All tables are searchable via a text input immediately above the table, on the
+  left. Search is immediate (no search button) after a 1/2-second sleep to
+  debounce rapid keyboard input.
+  - Conceptually (not necessarily in actual implementation), the search operates
+    as follows:
+    1. Split the search text on whitespace.
+    1. For every row, join all fields into a single string.
+    1. Return all rows that contain all elements of the search text in the given
+        order.
+  - The search acts purely as a filter. The table does not move, but displays only
+    matching rows. Any pre-existing sort order is preserved.
+  - A table displays rows as far down as the bottom of the viewport. If there
+    are more rows, the table has a scrollbar that is separate from the page
+    scrollbar. (On mobile, there is enough lateral space to allow the user to
+    also scroll the page, not just the table).
+- Tables that allow row modification have a "pencil" icon on the right of each
+  row.
+- Tables that allow row deletion also have a "garbage can" icon on the right.
+  (The type of table is specified in "Detailed description" below.)
+- Tables that allow row addition have a "+" button below the bottom row, on the right.
+- Tables have 1px medium-grey borders and column headers have light grey background.
+
+#### Graphs and charts
+
+All charts have y-axes that begin at 0.
+
+All color maps range from yellow-green (for low values) to dark green (for high values).
+
+Graphs occupy the full screen width and legends appear below the graph (on both
+desktop anbd mobile).
 
 # Storage
 
-## Database
+As mentioned previously, core relational data is stored in SQLite on the server.
 
-We use SQLite for storage, not a server DB like Postgres.
+SQLite is appropriate because:
+  - The app has a small user base, and is read-mostly.
+  - WAL mode handles concurrent reads and writes fine at this scale.
+  - No moving parts: no database server process to maintain.
+  - Simple backups (copy one file).
+  - Django's ORM abstracts the DB, so migrating to Postgres later is
+    straightforward.
 
-Arguments for SQLite:
-  - Small user base (a small forestry company, < 10 concurrent users).
-  - WAL mode handles concurrent reads + writes fine at this scale.
-  - Zero moving parts: no database server process to maintain, crash, or misconfigure.
-  - Backup = copy one file.
-  - Django's ORM abstracts the DB, so migrating to Postgres later is a DATABASES setting change + migrate.
+In addition, summary statistics are computed periodically and stored as
+compressed JSON files on the server filesystem for consumption by visualization
+tools (charts and maps). (The files are compressed at creation time to decrease
+load during serving.)
+
+Satellite imagery (GeoTIFF) and GeoJSON geometries (for geo data) are also
+stored as files on disk.
 
 ## Concurrency
 
-We handle concurrent modification with row-level optimistic locking.
-
-To detect stale edits, we store a version counter on harvest that increments on
-every save. The edit includes the version as a hidden field; the server checks
-the version on POST, and if the version has changed that indicates a write
-conflict.
+We handle concurrent modification of database data with row-level optimistic
+locking. Every table has an implicit version column (not listed in the schemas
+below) that increments on every save. The edit includes the version as a hidden
+field; the server checks the version on POST, and if the version has changed
+that indicates a write conflict.
 
 ## Disconnected operation
 
-There is no need for disconnected operation. We require that the server be
-reachable. (However, we do explicitly consider low-bandwidth operation, so the
-website is light and simple.)
+The app does not support disconnected operation but works well on relatively
+low-bandwidth (e.g., 3G) connections thanks to pervasive caching, pagination of
+relational data, and compressed, pre-processed data files.
 
 ## Backups
 
-On the backend, we run a nightly backup of the database. We retain nightly
-backups for a month, and once a month copy a backup offsite for permanent
-retention.
+A cron job on the server runs a nightly backup of the database.
 
-## Data migration
+Compressed nightly backups are retained for a month, and one copy a month
+(arbitrarily on the first day of the month) is uploaded to OneDrive using the
+Microsoft Graph API.
 
-Importing different kinds of data is done through roughly-single-use ETL scripts
-that parse CSV files and normalize them.
+Setting up Microsoft Graph OAuth credentials is part of the initial
+configuration flow of the server app (in the shell, not via a web UI).
 
-# Data storage
+## Data import
 
-As mentioned above, core relational data is stored in SQLite on the server.
+Importing data is done through single-use ETL scripts that parse existing CSV
+files and normalize them.
 
-In addition, summary statistics are computed periodically and stored as JSON
-files for consumption by visualization tools (charts and maps).
+## Data export
+
+Every domanin tab includes a button (upper right) that allows its data to be
+exported as a CSV file.
 
 ## Database model
 
-## Enums
+Here we describe only common tables used across the app. Per-domain tables
+appear in the detailed app description below.
 
-- forest_type: one of 'high_forest' (fustaia) or 'coppice' (ceduo)
+- region: (id:int, name:string)
+  - Denotes a forest region or "compresa".
+
+- class: (id:int, name:string, coppice:bool,min_harvest_volume:int)
+  - Represents a parcel type or economic class. It may be coppice or high
+    forest (coppice=false).
+  - Characterized by a minimum volume (m3/ha) before harvesting is permitted.
+
+- harvest_plan: (id:int, description:text, interval:int)
+  - Represents a harvest plan for a parcel.
+  - 'interval' denotes harvest interval for coppice parcels.
+
+- parcel: (id;int, name:string, region_id:int, class_id:int, area_ha:int,
+  year:int, location_name:string, altitude_min_m:int, altitude_max_m:int,
+  aspect:str, grade_pct:int, desc_veg:string, desc_geo:string,
+  harvest_plan_id:int)
+  - Represents a forest parcel. 'name' is typically an alphanumeric string like
+    '11' or '2a'.
+  - 'area_ha' is surface area in hectares.
+  - 'year' is the average birth year of mature trees, used to compute average
+    age.
+  - altitudes are in meters.
+  - 'desc_veg' and 'desc_geo' are string that describe the vegetative and
+    geologic state of the parcel, respectively.
+
+- tractor: (id:int, manufacturer:string, model:string, year:int, active:bool)
+  - Represents a tractor. 'year' denotes date of manufacture.
+  - Retired tractors have active=false.
+
+- worker: (id:int, first_name:string, last_name:string, year:int, notes:string, active:bool)
+  - Represents a worker, e.g., a lumberjack.
+  - 'year' denotes birth year and is optional.
+  - Workers who are no longer employed have active=false.
+
+- crew: (id:int, name:string, active:bool)
+  - Represents a team of workers, e.g., a group of lumberjacks.
+
+- staffing: (crew_id:int, worker_id:int)
+  - Maps workers to crews. A worker may appear in at most one crew at a time, so
+    worker_ids in this table are distinct.
+  - A crew need not have staffing for it to be used, e.g., in harvest tables.
+    Staffing details are optional.
+
+- species: (id:int, common_name:string, latin_name:string)
+  - Represents a tree species.
+
+# Internationalization
+
+By default Abies supports Italian and US English, using Django's
+LocaleMiddleware and Javascript's Intl APIs.
+
+Users can set their preferred locale persistently in the settings page. See
+below.
+
+In addition to text strings, locale influences the representation of numbers
+(thousands and decimal separators) and dates.
+
+The _code_ itself (variable names, function names, etc.) is all in English. We
+use terms like 'coppice' in the code instead of 'ceduo', and so on.
+
+# Mobile
+
+The app is usable on mobile in portrait mode (without needing to switch to landscape).
+
+More on this is in the detailed description below.
+
+# Django project structure
+
+The Django project is organized into apps by domain.
+
+- `core` includes common models (see above), the shell temnplate, and common
+  CSS/JS.
+- Then there are apps for each domain: 'forest', 'harvest', 'biomass', 'pv',
+  'fuel', etc., that contain models and templates for each domain.
+
+# Code location, deployment, and releases
+
+The Django project is rooted at laforesta/abies in the code repository, and is
+served from a similar location once deployed (i.e.,
+https://laforesta.it/abies/).
+
+Abies is designed to be deployed on a single server (e.g., laforesta.it).
+
+Official releases are numbered using git tag.
+
+Abies is deployed via a Docker image that includes all dependencies, and it
+mounts the host filesystem for:
+
+- SQLite database file;
+- Pre-processed JSON files;
+- Backups.
+
+# Testing
+
+Python tests use pytest-django with pytest-cov for coverage reporting
+(--cov-report=term-missing), matching the existing pdg-2026 test setup. Tests
+cover models, views, form validation, and ETL scripts.
+
+Client-side JS tests use the existing `node tests.js` pattern (see bosco/b/).
+
+To speed up end-to-end tests, the test instance of Abies does not use Docker.
+
+# Relationship to existing "bosco" apps
+
+The Forest Visualization domain of Abies subsumes "boscoscopio" and certain
+other "bosco" apps. The "bosco" apps remain unchanged for now but will
+eventually be taken offline and replaces entirely by Abies.
+
+# Detailed description
+
+## Login page
+
+The login page is mostly blank. In the center, inside a black-bordered square,
+is the company logo and name, entry fields for username and password, and a "Log
+in with Microsoft button".
+
+Upon successful login, users land on the Forest Visualization page.
+
+## Frame
+
+All pages share the same header setup. The top of the page contains, from left to right:
+
+- The logo and name of the company.
+- The name of the currently active domain (Forest, Harvesting, Sawmill, Biomass, Photovoltaic,
+  Fuel, Audit, Settings).
+- A hamburger icon that opens to a menu with the list of the other domains.
+
+This header is fixed. Content scrolls beneath it.
+
+The same frame appears on mobile, though the company name is omitted.
+
+## Settings page
+
+The settings page contains several collapsible sections,  all collapsed by
+default.
+
+### Language
+
+Every user (reader, writer, admin) sees a setting to configure app language.
+This takes the form of a pull-down menu with available options (initially,
+'English' and 'Italiano').
+
+### Workers
+
+Writers can create new workers.
+
+Workers appear in a sortable-table that lists last name, first name, birth year
+(optional), team name (optional), and a checkbox for whether active or not.
+
+Above the table is a checkbox for "Show inactive". It is unchecked by default to
+avoid clutter.
+
+The worker sortable-table allows 
 
 
-## Common tables
+Readers and writers can create new users, XXX
 
+We need to be able to define parameters such as valid mannesi work teams,
+tractors, wood species, etc.
 
+We want this functionality to be available to writers (to create or edit
+parameters) and readers (to view their values) independently of creating new
+accounts. As a result, this is a custom page, not a Django admin interface.
 
-- region: (id, name). Denotes a forest region or "compresa".
-- class: (id, name, forest_type, )
-- parcel: (id, name, region_id, area (hectares), )
+It is not possible to delete a parameter (tractor, team, species, etc.) if it
+exists in the historical data, but it is possible to deactivate it so that it no
+longer appears as a choice for new data entry or data modification.
 
-corresponds to all fields in bosco/data/particelle.csv (including long
-  textual columns), plus an entry for each region with parcel name 'X' (meaning
-  all/any, for certain kind of cleanup work). Each parcel has a unique id.
-- tractor: (id, manufacturer, model, year, active)
-- species: (id, common name, latin name, active)
-- team: (id, name, active)
+If a parameter does not exist in historical data, it may be deleted.
 
-The `active` flag supports soft-delete: deactivated entries no longer appear as
-choices for new data entry but are preserved in historical data.
+## Audit page
 
-## Harvest-related
+## Forest visualization
+
+TBD.
+
+## Harvesting
+
+### Data model
 
 - operation_type: enum (tronchi, cippato, ramaglia, pertiche_puntelli, pertiche_tronchi)
 - note: enum (none, PSR, fitosanitario, catastrofato)
@@ -280,28 +516,8 @@ property of individual harvest operations (true if castagno > 50%). It is
 possible to extract some coppices from a parcel that is otherwise high forest
 (fustaia).
 
-## Other tables
+### UI
 
-We will enrich the data model over time to incorporate other kinds of production
-and consumption data.
-
-# Detailed description
-
-XXX
-
------ Stopped rewriting here
-
-## Overview
-
-After login the user arrives at a simple landing page that will eventually
-display different functional areas, e.g., "Mannesi" (harvests), "Segheria", ecc.
-as well as tools like task management ("gestione attività") and the existing
-"Bosco" apps (see below), as well as a settings section ("Impostazioni"). The
-first things to be built are the harvest and settings sections.
-
-## Harvest section
-
-The Harvest section is titled "Mannesi" and contains links for:
 - "Aggiungi dati", which sends us to the data entry page.
 - "Modifica dati" displays a list of all the entries and allows the user to
   select one to edit (then goes to the data entry page).
@@ -323,27 +539,6 @@ for that row (prepopulated with existing values). On successful save (or
 cancel), the server redirects back to the list with filters preserved via query
 parameters. On a write conflict (version mismatch), the form re-renders with
 the current data from the database and an error message.
-
-## Other sections
-
-We will add more tools over time.
-
-## Settings section
-
-We need to be able to define parameters such as valid mannesi work teams,
-tractors, wood species, etc.
-
-We want this functionality to be available to writers (to create or edit
-parameters) and readers (to view their values) independently of creating new
-accounts. As a result, this is a custom page, not a Django admin interface.
-
-It is not possible to delete a parameter (tractor, team, species, etc.) if it
-exists in the historical data, but it is possible to deactivate it so that it no
-longer appears as a choice for new data entry or data modification.
-
-If a parameter does not exist in historical data, it may be deleted.
-
-## Mannesi data entry UX example
 
 For mannesi we have entry fields for date, team name, type of operation, amount
 of material harvested, percentage breakdown by species and by tractor, etc.
@@ -370,76 +565,16 @@ Note, because of "modifica dati", data entry forms work both in create and edit
 modes. In edit mode, the form is prepopulated with existing values. We detect
 stale edits as described in storage below.
 
-# Data model
 
+## Biomass power plant
 
-## Non-database data
+TBD.
 
-Satellite imagery (GeoTIFF), GeoJSON geometries, and production timeseries JSON
-remain as files served from disk. Only tabular operational data that needs
-user-editable CRUD moves to the database.
+## Photovoltaic plant
 
-# Relationship to "bosco" apps
+TBD.
 
-The existing bosco/index.html landing page is subsumed into the landing page for
-this app. The bosco apps are no longer world-accessible.
+## Fuel facility
 
-Existing bosco/ apps are served as Django static files behind Django's
-authentication middleware. We fetch the static data (primary satellite images
-and GeoJSON) via a custom view that points to the existing bosco/data directory.
+TBD.
 
-In phase 1, mannesi.csv and particelle.csv move to the database. Bosco apps
-that currently load these files will instead fetch the data from Django views.
-
-In later phases, other operational CSVs (alberi, aree-di-saggio, calendario*,
-registro*) will also move to the database once their schemas are revised.
-
-Note that the CSV files themselves will not be deleted: they are still consumed
-by the harvest plan document pipeline in pdg-2026/.
-
-Note also that the data pipeline in bosco/util may need to change slightly to
-publish processed data to an appropriate Docker bind mount or similar.
-
-# Django project structure
-
-The Django project is organized into apps by domain:
-
-- `core` — shared models (region, parcel, species, team, tractor) and the
-  settings ("Impostazioni") views that manage them. Also contains base
-  templates, common CSS/JS, and the landing page.
-- `harvest` — harvest models (harvest, harvest_species, harvest_tractor),
-  data entry forms, views, and visualization.
-
-As new datasets move to the database (alberi, aree-di-saggio, etc.), each
-becomes its own app with its own models, forms, and views, following the same
-patterns established by `harvest`.
-
-Authentication is handled by django-allauth (no custom auth app). Audit history
-is handled by django-simple-history (added to models via mixin, no custom app).
-
-# Internationalization
-
-# Code location, deployment, and releases
-
-The Django project is rooted at laforesta/a in the code repository, and will be
-served from a similar location once deployed (i.e., https://laforesta.it/a/).
-
-The app is designed to be deployed on a single server (e.g., laforesta.it).
-The server already serves other sites: we use a Docker container for isolation.
-
-We periodically publish numbered releases using git tag.
-
-# Testing
-
-Python tests use pytest-django with pytest-cov for coverage reporting
-(--cov-report=term-missing), matching the existing pdg-2026 test setup. Tests
-cover models, views, form validation, and ETL scripts.
-
-Client-side JS tests use the existing `node tests.js` pattern (see bosco/b/).
-
-# Development notes
-
-* UI text is in Italian, but code (variable names, function names, etc) should
-  all be **in** English. For examples, columns or variables might be parcel_id
-  and region_id, not particella_id and compresa_id.
-* Obsessive focus on simplicity and DRY. See also ~maxp/.claude/CLAUDE.md.
