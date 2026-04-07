@@ -55,7 +55,7 @@ The app covers the following functional areas, which we call _domains_:
   refueled what vehicle, how much fuel they used, refueling of the fuel tank
   itself, etc.
 
-Each of these domains is handled in a distinct tab of the app and is separate
+Each of these domains is handled in a distinct page of the app and is separate
 from the others. However, the outputs of some areas are inputs to others (for
 example, wood from the forest flows into the sawmill and biomass plant).
 
@@ -113,20 +113,35 @@ The app is structured as a SPA-lite. After authentication, Django renders a
 single shell page that persists for the duration of the session. All subsequent
 navigation happens client-side without full page reloads.
 
-### Shell
+### Shell and header
 
 The shell is a single Django template containing just:
-- The header (more on this in "Detailed description" below)
-- A content area where tab content is rendered
+- The header, shared by all domain pages.
+- A content area where the domain-specific page content is rendered.
 
 The shell is rendered once and never reloads during normal use.
 
+The header contains, from left to right:
+
+- The logo and name of the company.
+- The name of the currently active domain (Forest, Harvesting, Sawmill, Biomass,
+  Photovoltaic, Fuel, Audit, Settings).
+- A hamburger icon that opens to a menu with the list of the other domains.
+
+The header is fixed in the viewport. Content scrolls beneath it.
+
+The same frame appears on mobile, though the company name is omitted.
+
+We do not display multiple tabs in the header because they do not scale well as
+we add domains and do not work on mobile in portrait mode.
+
+
 ### Routing
 
-Clicking a tab updates the URL via `history.pushState()` and renders the
+Changing domain changes  the URL via `history.pushState()` and renders the
 appropriate content. The back button works via `popstate`. All URLs are
 bookmarkable: loading a bookmarked URL renders the shell and activates the
-correct tab.
+correct domain page.
 
 ### Data display
 
@@ -173,19 +188,25 @@ Data entry forms are Django-rendered HTML fetched as fragments into the
 shell's content area:
 
 1. User clicks "Add" or "Edit".
-2. JS fetches the form HTML from Django (including CSRF token, field values,
+1. JS fetches the form HTML from Django (including CSRF token, field values,
    validation state).
-3. The form replaces the current tab content within the shell.
-4. Client-side JS validates for immediate feedback; server-side validation
-   is authoritative.
-5. On submit, JS intercepts the form POST via `fetch()`.
-6. On success: return to the list view (still cached).
-   On validation error: replace the form with Django's re-rendered HTML
-   (including error messages).
+1. The form is rendered within a modal that overlays the current page content.
+1. Client-side JS validates for immediate feedback; the submit button is
+   inactive until the JS validation passes.
+1. On submit, JS intercepts the form POST via `fetch()`.
+1. Server-side validation is authoritative.
+1. On server-side success: the JS updates the underlying cached data (typically
+   a sortable-table). The modal disappears and we return to the previous view (e.g., the sortable-table).   
+1. On server-side error: the modal displays Django's HTML error messages and
+   allows the user to re-enter data.
 
 Each form has custom HTML and custom client-side validation JS as needed, but
-common patterns (percentage-group validation, form interception, error display)
-are extracted into shared libraries.
+common patterns (form interception, error display) are extracted into shared
+libraries.
+
+Fields that are enum-like (correspond to finite sets of values defined within
+the app itself) are implemented as pull-downs. These include worker names, crew
+names, tractor names, tree species names (see below for details).
 
 ### CSS
 
@@ -217,15 +238,23 @@ The objectives of the visual design are:
 
 DM Sans is used throughout.
 
-The UI is strictly two-dimensional: there are no drop-shadows or other 3-D elements.
+The UI is strictly two-dimensional: there are no drop-shadows, text inputs are
+flat, scroll bars are flat.
 
 Page margins are moderate (15 px) on desktop and almost disappear (2 px) on mobile.
 
-Buttons have subtly rounded corners. They are dark green and turn lighter when hovered over.
+Text inputs have very slightly rounded corners (2-4 px radius).
+
+Buttons have rounded corners (4-8px radius). They are dark green and turn
+lighter when hovered over.
 
 Horizontal rules outline the page header as well as collapsible elements  (more
-on these in "Detailed description" below). They are relatively thin (4px) and
-dark green.
+on these in "Detailed description" below). They are thin (4px), dark green, and
+rectangular.
+
+### Modals
+
+Modals have rounded corners and thin dark green borders. Their background is white but they cause the rest of the page to darken by about 50%.
 
 ### Tabular data
 
@@ -243,10 +272,10 @@ All tabular data appears in sortable-tables.
         order.
   - The search acts purely as a filter. The table does not move, but displays only
     matching rows. Any pre-existing sort order is preserved.
-  - A table displays rows as far down as the bottom of the viewport. If there
-    are more rows, the table has a scrollbar that is separate from the page
-    scrollbar. (On mobile, there is enough lateral space to allow the user to
-    also scroll the page, not just the table).
+- A table displays rows as far down as the bottom of the viewport. If there are
+  more rows, the table has a scrollbar that is separate from the page scrollbar.
+  (On mobile, there is enough lateral space to allow the user to also scroll the
+  page, not just the table).
 - Tables that allow row modification have a "pencil" icon on the right of each
   row.
 - Tables that allow row deletion also have a "garbage can" icon on the right.
@@ -315,7 +344,7 @@ files and normalize them.
 
 ## Data export
 
-Every domanin tab includes a button (upper right) that allows its data to be
+Every domanin page includes a button (upper right) that allows its data to be
 exported as a CSV file.
 
 ## Database model
@@ -435,65 +464,79 @@ eventually be taken offline and replaces entirely by Abies.
 
 ## Login page
 
-The login page is mostly blank. In the center, inside a black-bordered square,
-is the company logo and name, entry fields for username and password, and a "Log
-in with Microsoft button".
+The login page is mostly blank. In the center, inside a dark-green-bordered
+square, is the company logo and name, entry fields for username and password,
+and a "Log in with Microsoft button".
 
 Upon successful login, users land on the Forest Visualization page.
 
-## Frame
-
-All pages share the same header setup. The top of the page contains, from left to right:
-
-- The logo and name of the company.
-- The name of the currently active domain (Forest, Harvesting, Sawmill, Biomass, Photovoltaic,
-  Fuel, Audit, Settings).
-- A hamburger icon that opens to a menu with the list of the other domains.
-
-This header is fixed. Content scrolls beneath it.
-
-The same frame appears on mobile, though the company name is omitted.
-
 ## Settings page
 
-The settings page contains several collapsible sections,  all collapsed by
-default.
+The settings page contains several collapsible sections separated by horizontal
+rules. All sections are collapsed by default.
 
-### Language
+### Personal settings
 
-Every user (reader, writer, admin) sees a setting to configure app language.
-This takes the form of a pull-down menu with available options (initially,
-'English' and 'Italiano').
+Every user (reader, writer, admin) sees a setting to configure their app
+language. This takes the form of a pull-down menu with available options
+(initially, 'English' and 'Italiano').
 
-### Workers
+Every user can also change their password, if their authz method is user/pass
+and not OAuth. This is done through two simple text-entry fields, "new password"
+and "repeat new password". They must of course match.
 
-Writers can create new workers.
+### Workers, crews, tractors, and trees
 
-Workers appear in a sortable-table that lists last name, first name, birth year
-(optional), team name (optional), and a checkbox for whether active or not.
+Writers can create and edit workers, crews, tractors, and tree species.
 
-Above the table is a checkbox for "Show inactive". It is unchecked by default to
-avoid clutter.
+Each of these entities is configured in its own collapsible section.
 
-The worker sortable-table allows 
+Each section contains a corresponding sortable table.
 
+Each of these sortable tables supports adding and editing entities, but not
+removing them.
 
-Readers and writers can create new users, XXX
+In each table the rightmost column is titled "active" and contains a checkbox
+that denotes whether the entity (worker, tractor, etc.) should appear  in new
+input forms.
 
-We need to be able to define parameters such as valid mannesi work teams,
-tractors, wood species, etc.
+Above each table, on the right of the search box, is a checkbox for "Only
+active". It is checked by default to avoid clutter.
 
-We want this functionality to be available to writers (to create or edit
-parameters) and readers (to view their values) independently of creating new
-accounts. As a result, this is a custom page, not a Django admin interface.
+The tables differ in the columns that they display (and therefore the data entry
+fields that the corresponding input modal provides):
 
-It is not possible to delete a parameter (tractor, team, species, etc.) if it
-exists in the historical data, but it is possible to deactivate it so that it no
-longer appears as a choice for new data entry or data modification.
+- Workers: last name, first name, birth year (optional), team name (optional), notes (optional).
 
-If a parameter does not exist in historical data, it may be deleted.
+- Crews: name, notes (optional).
+
+- Tractors: manufacturer, model, year.
+
+- Trees: common name, Latin name.
+
+### App users
+
+Admins can create new app users and edit existing users.
+
+The sortable-table contains the following columns:
+
+- username (may be OAuth identifier)
+- password (or blank if OAuth)
+- login method (one of password or OAuth)
+- created-at time
+- active (checkbox)
+
+Admin can reset a user's password, change the login method, and mark the user
+active or inactive.
 
 ## Audit page
+
+The audit page displays a sort-table table with the following columns:
+
+- time and date, user, change.
+
+This information comes from django-simple-history. The table is not editable,
+but it is searchable and sortabl like all other sortable-tables.
 
 ## Forest visualization
 
