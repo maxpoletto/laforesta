@@ -105,15 +105,13 @@ The app records all writes using django-simple-history.
 The audit log is readable and searchable by all users. (More on this below in
 the UI section.)
  
-# UI
-
-## Architecture
+# UI architecture
 
 The app is structured as a SPA-lite. After authentication, Django renders a
 single shell page that persists for the duration of the session. All subsequent
 navigation happens client-side without full page reloads.
 
-### Shell and header
+## Shell and header
 
 The shell is a single Django template containing just:
 - The header, shared by all domain pages.
@@ -121,55 +119,68 @@ The shell is a single Django template containing just:
 
 The shell is rendered once and never reloads during normal use.
 
-The header contains, from left to right:
-
-- The logo and name of the company.
+The header is adaptive for desktop and mobile. On narrow displays it contains only:
+- The log of the company.
 - The name of the currently active domain (Forest, Harvesting, Sawmill, Biomass,
-  Photovoltaic, Fuel, Audit, Settings).
-- A hamburger icon that opens to a menu with the list of the other domains.
+  Photovoltaic, Fuel, Audit, Settings)
+- A hamburger icon for a menu that allows switching to other domains.
+
+On wider displays it contains:
+- The logo and name of the company.
+- The names of the domains as tabs, with the currently active domain highlighted.
+- No hamburger icon.
 
 The header is fixed in the viewport. Content scrolls beneath it.
 
-The same frame appears on mobile, though the company name is omitted.
+## Routing and URLs
 
-We do not display multiple tabs in the header because they do not scale well as
-we add domains and do not work on mobile in portrait mode.
+URLs are human readable and are the canonical representation of the view state.
+They encode the domain (in the path), and any data filters, chart selection,
+etc. as query parameters.
 
+Changing domain or page-specific parameters changes the URL via
+`history.pushState()` and renders the appropriate content. The back button works
+via `popstate`.
 
-### Routing
+All URLs are bookmarkable. A user can send a URL to a colleague and it
+reproduces what they were looking at.
 
-Changing domain changes  the URL via `history.pushState()` and renders the
-appropriate content. The back button works via `popstate`. All URLs are
-bookmarkable: loading a bookmarked URL renders the shell and activates the
-correct domain page.
+Because of this design choice and the relatively flat tabbed navigation
+structure, we omit any explicit "breadcrumb" navigation component.
 
-### Data display
+The paths and options for each domain are specified in the detailed descriptions
+below.
 
-Data for tables and charts is fetched from Django as JSON and rendered
-client-side by sortable-table and Chart.js respectively.
+## Data display
 
-Tabular data is fetched in one-year chunks; the date range slider controls which
-years are displayed and defaults to the current year.
+Tabular data is displayed in sortable-table (more on this below). Graphical data
+is displayed using Chart.js. Geographic data is displayed using Leaflet.
 
-Most graphical and map data is pre-processed into compact static JSON
-server-side, allowing the full time range to be served at once.
+Bulk data for populating tables is fetched from Django as compressed JSON (as an
+array of arrays, rather than an array of dicts, to reduce size).
 
-### Caching
+Graphical and map data is likewise delivered as compressed JSON, but that data
+is the result of server-side pre-processing to provide only the information
+required for the given chart or map.
+
+## Caching
 
 Fetched data is cached client-side in memory, keyed by (data_id, year).
 
 'data_id' identifies a particular dataset and display type, e.g., "table of
 harvest operations" or "graph of monthly sawmill production".
 
-1. On tab switch or date range change, the app renders from cache immediately if
+1. When changing domains, the app renders from cache immediately if data is
    available.
 2. The app also fires a background conditional GET (using ETags). If the server
    returns 304 Not Modified, no action is required. If it returns new data,
    the app updates the cache and re-renders.
 
-Tab switching and slider changes feel instant for previously-viewed data.
+Domain switching feels instant for previously-viewed data.
 
-### Server-side precomputation
+## Server-side precomputation
+
+XXX
 
 A server-side job digests detailed data (always stored in relational form in
 SQLite) into compact JSON form for specific types of display (specific
@@ -179,10 +190,10 @@ The job runs from cron every 5 minutes (more frequent updates are unnecessary).
 If a particular source table has not changed, it ignores it. Otherwise, it
 regenerates the JSON representation.
 
-Details about which data is pre-processed for which view are in the detailed
-per-tab descriptions.
+Information about which data is pre-processed for which view is in the detailed
+descriptions below.
 
-### Data entry
+## Data entry
 
 Data entry forms are Django-rendered HTML fetched as fragments into the
 shell's content area:
@@ -208,21 +219,26 @@ Fields that are enum-like (correspond to finite sets of values defined within
 the app itself) are implemented as pull-downs. These include worker names, crew
 names, tractor names, tree species names (see below for details).
 
-### CSS
+## Error reporting
 
-No style is define in-line in HTML. All style is defined in CSS files. 
+Errors (network errors, etc.) appear as small modals centered in the viewport
+(see below). They contain a short explanation and a dismiss button.
+
+## CSS
+
+No style is defined in-line in HTML. All style is defined in CSS files. 
 
 Most styles are maintained in a single common.css style file. Styles that are
 only required on one page appear in a page-specific style file.
 
-### Javascript dependencies
+## Javascript dependencies
 
 All JS dependencies (Leaflet, Chart.js, sortable-table, (Google) fonts, etc.)
 are minified and vendored, served from Django's static/vendor. There are no
 external dependencies at runtime. A Makefile target (`make update-vendor`)
 re-copies from source when needed.
 
-## Design patterns
+# UI design patterns
 
 ## Objectives
 
@@ -234,7 +250,7 @@ The objectives of the visual design are:
 - Discoverability: navigation is easy and fast.
 - Restfulness: cognitive and visual load are low.
 
-### Fonts and colors
+## Fonts and colors
 
 DM Sans is used throughout.
 
@@ -254,9 +270,12 @@ rectangular.
 
 ### Modals
 
-Modals have rounded corners and thin dark green borders. Their background is white but they cause the rest of the page to darken by about 50%.
+Modals have rounded corners and thin dark green borders. Their background is
+white but they cause the rest of the page to darken by about 50%.
 
-### Tabular data
+Modals are used for error reporting and for help information (where available).
+
+## Tabular data
 
 All tabular data appears in sortable-tables.
 
@@ -283,14 +302,20 @@ All tabular data appears in sortable-tables.
 - Tables that allow row addition have a "+" button below the bottom row, on the right.
 - Tables have 1px medium-grey borders and column headers have light grey background.
 
-#### Graphs and charts
+## Graphs and charts
 
 All charts have y-axes that begin at 0.
 
 All color maps range from yellow-green (for low values) to dark green (for high values).
 
 Graphs occupy the full screen width and legends appear below the graph (on both
-desktop anbd mobile).
+desktop and mobile).
+
+## Accessibility considerations
+
+In its initial version, given the target staff, Abies has no special
+accessibility features (high contrast, etc.), though of course enlarging fonts
+in the browser is always an option for users.
 
 # Storage
 
@@ -344,7 +369,7 @@ files and normalize them.
 
 ## Data export
 
-Every domanin page includes a button (upper right) that allows its data to be
+Every domain page includes a button (upper right) that allows its data to be
 exported as a CSV file.
 
 ## Database model
@@ -355,26 +380,25 @@ appear in the detailed app description below.
 - region: (id:int, name:string)
   - Denotes a forest region or "compresa".
 
-- class: (id:int, name:string, coppice:bool,min_harvest_volume:int)
-  - Represents a parcel type or economic class. It may be coppice or high
-    forest (coppice=false).
+- eclass: (id:int, name:string, coppice:bool, min_harvest_volume:int)
+  - Represents a parcel economic class. It may be coppice or high forest
+    (coppice=false).
   - Characterized by a minimum volume (m3/ha) before harvesting is permitted.
 
 - harvest_plan: (id:int, description:text, interval:int)
   - Represents a harvest plan for a parcel.
   - 'interval' denotes harvest interval for coppice parcels.
 
-- parcel: (id;int, name:string, region_id:int, class_id:int, area_ha:int,
+- parcel: (id:int, name:string, region_id:int, class_id:int, area_ha:int,
   year:int, location_name:string, altitude_min_m:int, altitude_max_m:int,
   aspect:str, grade_pct:int, desc_veg:string, desc_geo:string,
   harvest_plan_id:int)
   - Represents a forest parcel. 'name' is typically an alphanumeric string like
     '11' or '2a'.
   - 'area_ha' is surface area in hectares.
-  - 'year' is the average birth year of mature trees, used to compute average
-    age.
+  - 'ave_age' is the average age of trees in the parcel.
   - altitudes are in meters.
-  - 'desc_veg' and 'desc_geo' are string that describe the vegetative and
+  - 'desc_veg' and 'desc_geo' are strings that describe the vegetative and
     geologic state of the parcel, respectively.
 
 - tractor: (id:int, manufacturer:string, model:string, year:int, active:bool)
@@ -395,19 +419,22 @@ appear in the detailed app description below.
   - A crew need not have staffing for it to be used, e.g., in harvest tables.
     Staffing details are optional.
 
-- species: (id:int, common_name:string, latin_name:string)
+- `species`: (id:int, common_name:string, latin_name:string, active:bool)
   - Represents a tree species.
 
 # Internationalization
 
-By default Abies supports Italian and US English, using Django's
-LocaleMiddleware and Javascript's Intl APIs.
+The app initially only supports Italian. The URL paths are in Italian also.
 
-Users can set their preferred locale persistently in the settings page. See
-below.
+But there are no inline strings in the code. All are named constants (in both
+Python on the backend and JS on the front-end) to make a future
+internationalization easier. Path names are also named constants. (The
+assumption is that any future language choice will be at the level of the entire
+app, not individual users.)
 
-In addition to text strings, locale influences the representation of numbers
-(thousands and decimal separators) and dates.
+Numbers and dates are represented using Italian locale.
+
+Exported CSV uses semi-colons as separators.
 
 The _code_ itself (variable names, function names, etc.) is all in English. We
 use terms like 'coppice' in the code instead of 'ceduo', and so on.
@@ -422,7 +449,7 @@ More on this is in the detailed description below.
 
 The Django project is organized into apps by domain.
 
-- `core` includes common models (see above), the shell temnplate, and common
+- `core` includes common models (see above), the shell template, and common
   CSS/JS.
 - Then there are apps for each domain: 'forest', 'harvest', 'biomass', 'pv',
   'fuel', etc., that contain models and templates for each domain.
@@ -452,13 +479,14 @@ cover models, views, form validation, and ETL scripts.
 
 Client-side JS tests use the existing `node tests.js` pattern (see bosco/b/).
 
-To speed up end-to-end tests, the test instance of Abies does not use Docker.
+The test instance of Abies is deployed locally and does not use Docker, to speed
+up testing and debugging.
 
 # Relationship to existing "bosco" apps
 
 The Forest Visualization domain of Abies subsumes "boscoscopio" and certain
 other "bosco" apps. The "bosco" apps remain unchanged for now but will
-eventually be taken offline and replaces entirely by Abies.
+eventually be taken offline and replaced entirely by Abies.
 
 # Detailed description
 
@@ -473,21 +501,21 @@ Upon successful login, users land on the Forest Visualization page.
 ## Settings page
 
 The settings page contains several collapsible sections separated by horizontal
-rules. All sections are collapsed by default.
+rules. All sections are collapsed by default. Not all sections are visible to
+all users (details below): if a section is not visible, it is completely hidden,
+not just collapsed.
 
 ### Personal settings
 
-Every user (reader, writer, admin) sees a setting to configure their app
-language. This takes the form of a pull-down menu with available options
-(initially, 'English' and 'Italiano').
-
-Every user can also change their password, if their authz method is user/pass
-and not OAuth. This is done through two simple text-entry fields, "new password"
-and "repeat new password". They must of course match.
+This section is visible to all users (reader, writer, admin) who use password
+authentication. It provides two simple text-entry fields, "new password" and
+"repeat new password". They must of course match.
 
 ### Workers, crews, tractors, and trees
 
-Writers can create and edit workers, crews, tractors, and tree species.
+This section is visible only to writers.
+
+They can create and edit workers, crews, tractors, and tree species.
 
 Each of these entities is configured in its own collapsible section.
 
@@ -497,8 +525,8 @@ Each of these sortable tables supports adding and editing entities, but not
 removing them.
 
 In each table the rightmost column is titled "active" and contains a checkbox
-that denotes whether the entity (worker, tractor, etc.) should appear  in new
-input forms.
+that denotes whether the entity (worker, tractor, etc.) should appear as an
+option in new input forms.
 
 Above each table, on the right of the search box, is a checkbox for "Only
 active". It is checked by default to avoid clutter.
@@ -506,7 +534,7 @@ active". It is checked by default to avoid clutter.
 The tables differ in the columns that they display (and therefore the data entry
 fields that the corresponding input modal provides):
 
-- Workers: last name, first name, birth year (optional), team name (optional), notes (optional).
+- Workers: last name, first name, birth year (optional), crew name (optional), notes (optional).
 
 - Crews: name, notes (optional).
 
@@ -515,6 +543,8 @@ fields that the corresponding input modal provides):
 - Trees: common name, Latin name.
 
 ### App users
+
+This section is visible only to admins.
 
 Admins can create new app users and edit existing users.
 
@@ -531,12 +561,14 @@ active or inactive.
 
 ## Audit page
 
-The audit page displays a sort-table table with the following columns:
+This page is visible to all users.
+
+The audit page displays a sortable-table table with the following columns:
 
 - time and date, user, change.
 
 This information comes from django-simple-history. The table is not editable,
-but it is searchable and sortabl like all other sortable-tables.
+but it is searchable and sortable like all other sortable-tables.
 
 ## Forest visualization
 
@@ -620,4 +652,3 @@ TBD.
 ## Fuel facility
 
 TBD.
-
