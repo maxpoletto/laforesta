@@ -27,35 +27,35 @@ Simplicity and speed are key requirements.
 
 Version 1 of the app covers the following functional areas, which we call _domains_:
 
-- Forest visualization and planning. Geospatial tool that displays historical
-  harvest data, supports planning and execution of forest surveys (setting up
-  sampling locations; recording geo-referenced annotations; etc.), and displays
-  other geo-located information about the forest, including satellite imagery
-  and health metrics.
+- "Bosco": forest visualization and planning. Geospatial tool that displays
+  historical harvest data, supports planning and execution of forest surveys
+  (setting up sampling locations; recording geo-referenced annotations; etc.),
+  and displays other geo-located information about the forest, including
+  satellite imagery and health metrics.
 
-- Forest harvesting. A log of the daily activities of crews of lumberjacks,
-  including how much wood of different species was harvested where and with what
-  tractors. The tool also supports day-to-day operations by generating PDF
-  record slips that the crews fill out and provide to the office staff for data
-  entry.
+- "Prelievi": forest harvesting. A log of the daily activities of crews of
+  lumberjacks, including how much wood of different species was harvested where
+  and with what tractors. The tool also supports day-to-day operations by
+  generating PDF record slips that the crews fill out and provide to the office
+  staff for data entry.
 
-Future versions will also cover the following domains.
+Future versions may also cover the following domains.
 
-- Sawmill. A log of daily sawmill operations, including volume and
+- "Segheria": sawmill. A log of daily sawmill operations, including volume and
   type of wood products, maintenance activities, failures or other incidents,
   etc., as well as monthly rollups of income and other parameters.
 
-- Biomass plant. A log of daily biomass operations (amount of biomass
-  consumed, energy produced, various operational parameters), as well as monthly
-  rollups of energy produced, energy consumed, income broken down by various
-  parameters, etc.
+- "Biomassa": biomass plant. A log of daily biomass operations (amount of
+  biomass consumed, energy produced, various operational parameters), as well as
+  monthly rollups of energy produced, energy consumed, income broken down by
+  various parameters, etc.
 
-- Photovoltaic plant. Daily log of production, monthly log of
+- "Fotovoltaico": photovoltaic plant. Daily log of production, monthly log of
   verified production and revenue.
 
-- Fuel facility. Log of operations on the company's diesel fuel tank: who
-  refueled what vehicle, how much fuel they used, refueling of the fuel tank
-  itself, etc.
+- "Rifornimenti": luel facility. Log of operations on the company's diesel fuel
+  tank: who refueled what vehicle, how much fuel they used, refueling of the
+  fuel tank itself, etc.
 
 Each of these domains is handled in a distinct page of the app and is separate
 from the others. However, the outputs of some areas are inputs to others (for
@@ -401,7 +401,8 @@ Maps have the following visual structure:
 
 The top of the navigation bar always contains, top to bottom:
 - A status panel
-- A map type selector. Buttons for OSM, Topo, Satellite.
+- A map type selector. Buttons for OSM, Topo, Satellite. Satellite is the
+  default.
 - A pull-down region ("compresa") selector. Choosing a region centers it on the
   map and sets the zoom level to the most detailed level that still includes the
   full region in the viewport.
@@ -483,8 +484,9 @@ exported as a CSV file.
 
 ## Database model
 
-Here we describe only common tables used across the app. Per-domain tables
-appear in the detailed app description below.
+Here we describe the core relationabl tables that underpin the app. Per-domain
+JSON digests appear in the detailed descriptions below. All tables have implicit
+version (int), created_at, and modified_at columns that we omit for clarity.
 
 - region: (id:int, name:string)
   - Denotes a forest region or "compresa".
@@ -494,8 +496,9 @@ appear in the detailed app description below.
     (coppice=false).
   - Characterized by a minimum volume (m3/ha) before harvesting is permitted.
 
-- harvest_plan: (id:int, description:text, interval:int)
+- harvest_plan: (id:int, year1:int, year2:int, description:text, interval:int)
   - Represents a harvest plan for a parcel.
+  - 'year1' and 'year2' denote the start and end of the plan.
   - 'interval' denotes harvest interval for coppice parcels.
 
 - parcel: (id:int, name:string, region_id:int, class_id:int, area_ha:int,
@@ -510,26 +513,49 @@ appear in the detailed app description below.
   - 'desc_veg' and 'desc_geo' are strings that describe the vegetative and
     geologic state of the parcel, respectively.
 
+- sample_area: (id:int, number:int, parcel_id:int, lat:real, lng:real,
+  altitude_m:int, year:int)
+  - Represents a sample area.
+  - 'parcel_id' maps to the parcel that this sample area was recorded as
+    belonging to. Due to human errors, lat/lng may not be within the bounds of
+    the stated parcel. (Both sets of data are present to allow finding these
+    errors automatically in the future.)
+  - 'year' denotes the year of the harvest plan that the sample was used for.
+
 - tractor: (id:int, manufacturer:string, model:string, year:int, active:bool)
   - Represents a tractor. 'year' denotes date of manufacture.
   - Retired tractors have active=false.
 
-- worker: (id:int, first_name:string, last_name:string, year:int, notes:string, active:bool)
-  - Represents a worker, e.g., a lumberjack.
-  - 'year' denotes birth year and is optional.
-  - Workers who are no longer employed have active=false.
-
-- crew: (id:int, name:string, active:bool)
+- crew: (id:int, name:string, notes:string, active:bool)
   - Represents a team of workers, e.g., a group of lumberjacks.
 
-- staffing: (crew_id:int, worker_id:int)
-  - Maps workers to crews. A worker may appear in at most one crew at a time, so
-    worker_ids in this table are distinct.
-  - A crew need not have staffing for it to be used, e.g., in harvest tables.
-    Staffing details are optional.
-
-- `species`: (id:int, common_name:string, latin_name:string, active:bool)
+- species: (id:int, common_name:string, latin_name:string, active:bool)
   - Represents a tree species.
+
+- optype: (id:int, name:string)
+  - Implements an extensible enum: (1: "Tronchi", 2: "Cippato", 3: "Ramaglia",
+    4: "Pertiche-Puntelli", 5: "Pertiche-Tronchi")
+
+- note: (id:int, name:string)
+  - Implements an extensible enum: (1: "PSR", 2: "Fitosanitario", 3:
+    "Catastrofate")
+
+- harvest: (id:int, date:int, optype_id:int, parcel_id:int, crew_id:int,
+  record1:int, record2:int, quintals:float, note_id:int, extra_note:text)
+  - Denotes a harvest operation by one crew on a given day.
+  - Record1 and record2 are optional and indicate the id on a paper
+    bill-of-goods form provided by the crew. They correspond to "vdp" and "prot"
+    in the mannesi.csv file, respectively.
+
+- harvest_species: (harvest_id:int, species_id:int, percent:int) — PK is
+  (harvest_id, species_id)
+
+- harvest_tractor: (harvest_id:int, tractor_id:int, percent:int) — PK is
+  (harvest_id, tractor_id)
+
+  Harvest_species and harvest_tractor denote the production breakdown of a
+  single harvest operation. The percentages for species and tractors must sum to
+  100.
 
 # Internationalization
 
@@ -545,7 +571,7 @@ Numbers and dates are represented using Italian locale.
 
 Exported CSV uses semi-colons as separators.
 
-The _code_ itself (variable names, function names, etc.) is all in English. We
+The code itself (variable names, function names, etc.) is all in English. We
 use terms like 'coppice' in the code instead of 'ceduo', and so on.
 
 # Mobile
@@ -558,10 +584,11 @@ More on this is in the detailed description below.
 
 The Django project is organized into apps by domain.
 
-- `core` includes common models (see above), the shell template, and common
+- `base` includes common models (see above), the shell template, and common
   CSS/JS.
-- Then there are apps for each domain: 'forest', 'harvest', 'biomass', 'pv',
-  'fuel', etc., that contain models and templates for each domain.
+- Then there are apps for each domain: 'bosco', 'prelievi', 'biomassa',
+  'fotovoltaico', 'rifornimenti', etc., that contain models and templates for
+  each domain.
 
 # Code location, deployment, and releases
 
@@ -599,6 +626,10 @@ eventually be taken offline and replaced entirely by Abies.
 
 # Detailed description
 
+The following sections describe the login page and then each of the v1 domain
+pages, in the order in which the corresponding tabs appear in the desktop
+version from left to right (or in the selection menu on mobile, top to bottom).
+
 ## Login page
 
 The login page is mostly blank. In the center, inside a dark-green-bordered
@@ -607,7 +638,196 @@ and a "Log in with Microsoft button".
 
 Upon successful login, users land on the Forest Visualization page.
 
-## Settings page
+## Bosco page
+
+The "bosco" page is the initial landing page of Abies. In version 1 it is close
+to a clone of the Boscoscopio app, with the addition of data from other Bosco
+apps ("aree di saggio", "piante ad accrescimento indefinito") and bookmarkable
+URLs.
+
+- Path: /abies/bosco
+- Query parameters:
+  - Map type (mt={o,t,s} (OSM, Topo, Sat))
+  - Map center (Lat/lng) (mc=NN.NNNNNN,NN.NNNNNN)
+  - Map zoom level (mz=NN)
+  - Region (c={[region name]})
+  - Mode (m=N): denotes display mode (see below)
+  - Parameter (q=N): denotes parameter to display (see below)
+  - Parcels (p=...): denotes parcels to display (see below)
+  - Species (s=...): denotes species to display (see below)
+  - Dates (d1=YYYYMMDD, d2=YYYYMMDD): used for historical comparisons (see below)
+  - Boolean flags (false if not present):
+    - Cadastral area (fc): whether to display cadastral or computed area ("Aree
+      catastali" in Boscoscopio)
+    - Parcel averages (fa): whether satellite values should be rendered
+      per-satellite-pixel or average per parcel ("medie per particella" in
+      Boscoscopio)
+
+### Visual appearance
+
+The page layout is as described under "Maps" above. The lower part of the
+control panel has radio buttons titled:
+
+- Caratteristiche (default)
+- Evoluzione
+- Aree di saggio
+- Piante ad accrescimento indefinito
+
+When each button is selected, the rest of the control panel looks as follows:
+
+- Caratteristiche
+
+  Panel contains pull-down with the same list of features as those in the
+  "Visualizza caratteristiche" part of Boscoscopio. The behavior is identical.
+  Below the pulldown is a checkbox for "Aree catastali".
+
+  Map shows heatmap per pixel or per parcel, depending on type of data and
+  whether "media per particella" is checked, identically to Boscoscopio.
+  Color range is yellow-green (low values) to dark-green (high values), except for raw normalized satellite data (0 = black -> 1 = white).
+
+- Evoluzione
+
+  Panel contains pull-down with the same list of features as in the "Visualizza differenze" part of Boscoscopio, plus pull-downs for two dates (years, or year-months) to compare. The behavior is identical to Boscoscopio with "limita al bosco" always set to true.
+
+  Below the pull-downs are checkboxes for "media per particella" and "aree catastali".
+
+  Map shows red-to-green heatmap showing (new - old) values per pixel, or
+  average diffs per parcel if "media per particella" is selected. High values
+  map to dark green, low values map to dark red, white in the middle.
+
+- Aree di saggio
+
+  Panel contains scrollable list of  parcels for the current region, identical
+  to bosco/ads (but for only the current region, not all regions). There is a
+  checkbox to the left of each parcel name, and the number of contained sample
+  areas in parentheses to the right. Below the panel of parcels, there are
+  "mostra tutte" and "nascondi tutte" buttons.
+
+  Map displays parcel borders and yellow dots corresponding to the sample areas.
+
+- Piante ad accrescimento indefinito
+
+  Shows two scrollable lists, like bosco/pai. Top list is parcels in the current
+  region, identical to "aree di saggio" above. Lower list is species to display.
+  Each species has a checkbox (to display or not, a color-coded dot, a name, and
+  a count in parentheses, identically to bosco/pai.) Both lists have "mostra
+  tutte" and "nascondi tutte" buttons with the obvious semantics.
+
+  Map displays parcel borders and colored dots corresponding to the trees.
+
+### Query parameter details
+
+- Caratteristiche
+  - m=1
+  - q=1-14 (corresponding to the entries in the pulldown menu)
+  - fc=1 if "aree catastali" is checked
+
+- Evoluzione
+  - m=2
+  - q=1-4 (corresponding to the entries in the pulldown menu)
+  - d1=YYYYMMDD,d2=YYYYMMDD (start and end dates of comparison).
+    
+    If the granularity of data is year, then dates are of the form YYYY0101.
+    If the granularity is month, then the dates are of them form YYYYMM01.
+
+  - fa=1 if "media per particella" is checked.
+  - fc=1 if "aree catastali" is checked.
+
+- Aree di saggio
+  - m=3
+  - p=[comma-separated list of parcels (e.g., "1,2,4a,4b,14,15c")]
+
+- Piante ad accrescimento indefinito
+  - m=4
+  - p=[comma-separated list of parcels (e.g., "1,2,4a,4b,14,15c")]
+  - s=[comma-separated list of down-cased species names, with spaces replaced by
+    underscores, e.g., "abete_rosso,castagno,betulla_bianca"]
+
+### Data tables
+
+Statistical data:
+- parcels.json: JSON version of the parcel table (columns TBD)
+- sample_areas.json: JSON version of the sample_area table
+- permanent_trees.json: JSON version of the permanent_tree table
+- parcel_year_production.json: a digest that conceptually is a "SELECT region,
+  parcel, year, SUM(quintals) FROM harvest GROUP BY region, parcel, year", organized like the timeseries.json files in Boscoscopio.
+
+Map data:
+- particelle.geojson as in Boscoscopio
+- satellite data as in Boscoscopio
+
+## Prelievi page
+
+The prelievi page supports recording and display of harvesting operations.
+
+- Path: /abies/prelievi
+- Query parameters:
+  - Sort column: sc=N
+  - Sort order: so=0/1 (ascending/descending)
+  - Filter: f=(URL-encoded version of sortable table search string)
+
+### Visual appearance
+
+In v1, this page simply displays all harvest operations in a sortable-table,
+exactly as described in "Tabular data" above.
+
+Additionally, above the sortable table, the interface includes a double-ended
+date slider (see bosco/a/range-slider.*) with year granularity that allows
+display to be restricted to a given range of year.
+
+Columns are:
+Data, Compresa, Particella, Squadra, VDP, Q.li, Note, Altre note, (quintal columns by species in alphabetical order), (quintal columns by tractor in alphabetical order).
+
+The add/edit form displays:
+
+- a date picker;
+- pull-downs for "Compresa", "Particella", "Squadra", "Note";
+- short text input for "VDP" (verification: must be unique among cached values
+  client-side, and unique across all values server-side);
+- longer text input for "Altre note";
+- numerical input for "Q.li" (verified to be a float).
+
+For values by species and tractor, the form requires not quintals but
+percentages.
+
+For these fields, we list all possible choices and provide next to each one both
+a numerical entry text input and a "100%" button for the common case.
+
+Specie:
+Abete: [box] [100%] Castagno: [box] [100%] ...
+
+Trattori:
+Fiat: [box] [100%] Volvo: [box] [100%] ...
+
+Pressing a button sets the corresponding box to 100 and the others to 0.
+
+### Data tables
+
+- parcels.json: as above
+- crews.json: JSON version of the crew
+- prelievi.json: a de-normalized version of the harvest table, containing
+  everything in the sortable-table as well as percentage values (to support
+  prepopulating the edit form).
+
+Successful writes on the backend cause regeneration of the
+parcel_year_production.json file used by the bosco page.
+
+## Audit page ("Controllo")
+
+Path: /abies/controllo
+
+This page is visible to all users.
+
+The audit page displays a sortable-table table with the following columns:
+
+- time and date, user, table name, action (insert/edit/delete), value before, value after
+
+This information comes from django-simple-history. The table is not editable,
+but it is searchable and sortable like all other sortable-tables.
+
+## Settings page ("Impostazioni")
+
+Path: /abies/impostazioni
 
 The settings page contains several collapsible sections separated by horizontal
 rules. All sections are collapsed by default. Not all sections are visible to
@@ -620,7 +840,7 @@ This section is visible to all users (reader, writer, admin) who use password
 authentication. It provides two simple text-entry fields, "new password" and
 "repeat new password". They must of course match.
 
-### Workers, crews, tractors, and trees
+### Crews, tractors, and trees
 
 This section is visible only to writers.
 
@@ -634,15 +854,13 @@ Each of these sortable tables supports adding and editing entities, but not
 removing them.
 
 In each table the rightmost column is titled "active" and denotes whether the
-entity (worker, tractor, etc.) should appear as an option in new input forms.
+entity (crew, tractor, etc.) should appear as an option in new input forms.
 
 Above each table, on the right of the search box, is a checkbox for "Only
 active". It is checked by default to avoid clutter.
 
 The tables differ in the columns that they display (and therefore the data entry
 fields that the corresponding input modal provides):
-
-- Workers: last name, first name, birth year (optional), crew name (optional), notes (optional).
 
 - Crews: name, notes (optional).
 
@@ -682,97 +900,3 @@ The initial admin account is configured at server installation time.
 
 The admin must add an OAuth user in order for the email address to be
 whitelisted for OAuth access.
-
-## Audit page
-
-This page is visible to all users.
-
-The audit page displays a sortable-table table with the following columns:
-
-- time and date, user, table name, action (insert/edit/delete), value before, value after
-
-This information comes from django-simple-history. The table is not editable,
-but it is searchable and sortable like all other sortable-tables.
-
-## Forest visualization
-
-TBD.
-
-## Harvesting
-
-### Data model
-
-- operation_type: enum (tronchi, cippato, ramaglia, pertiche_puntelli, pertiche_tronchi)
-- note: enum (none, PSR, fitosanitario, catastrofato)
-- harvest: (id, date, operation_type, parcel_id, team_id, vdp (int, nullable),
-  prot (int, nullable), quintals (float), note (enum), extra_note (text),
-  version (int), created_at, modified_at)
-- harvest_species: (harvest_id, species_id, percent) — PK is (harvest_id, species_id)
-- harvest_tractor: (harvest_id, tractor_id, percent) — PK is (harvest_id, tractor_id)
-
-Note that "Coppice" (ceduo) is both a stored property of parcels and a computed
-property of individual harvest operations (true if castagno > 50%). It is
-possible to extract some coppices from a parcel that is otherwise high forest
-(fustaia).
-
-### UI
-
-- "Aggiungi dati", which sends us to the data entry page.
-- "Modifica dati" displays a list of all the entries and allows the user to
-  select one to edit (then goes to the data entry page).
-- "Visualizza dati", which for now just lists the raw data.
-
-Both "Modifica" and "Visualizza" show filters according to the following criteria:
-- Date (a double-ended slider with year granularity, see bosco/a/range-slider.*).
-- Team
-- Tractor
-- Region
-- Parcel within region
-- Species (any matching species)
-- Note value (see Data model for valid enum values)
-
-The data is displayed in a sortable-table.
-
-In "Modifica" mode, each row has an "edit" link that navigates to the edit form
-for that row (prepopulated with existing values). On successful save (or
-cancel), the server redirects back to the list with filters preserved via query
-parameters. On a write conflict (version mismatch), the form re-renders with
-the current data from the database and an error message.
-
-For mannesi we have entry fields for date, team name, type of operation, amount
-of material harvested, percentage breakdown by species and by tractor, etc.
-
-Some fields (e.g., team names) come from a finite predefined list that can be
-configured via the Settings section (see above). These
-fields should be implemented as pull-downs, such that tabbing over to them and
-starting to type also selects the right row in the pull-down.
-
-Some fields (species and tractors) can have multiple values that must add to
-100% (e.g., harvest operation was 80% fir, 20% pine, using 50% tractor A and 50%
-tractor B). For these fields, we list all values and provide next to each one
-both a numerical entry text input and a "100%" button for the common case.
-
-Fir: [box] [100%] Beech: [box] [100%] ...
-
-Pressing a button sets the corresponding box to 100 and the others to 0.
-
-We should also consider other ways to make the data entry faster, e.g.,
-prepopulating the date field with the current date or the most recently entered
-date.
-
-Note, because of "modifica dati", data entry forms work both in create and edit
-modes. In edit mode, the form is prepopulated with existing values. We detect
-stale edits as described in storage below.
-
-
-## Biomass power plant
-
-TBD.
-
-## Photovoltaic plant
-
-TBD.
-
-## Fuel facility
-
-TBD.
