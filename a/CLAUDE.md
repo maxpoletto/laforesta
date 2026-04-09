@@ -25,7 +25,7 @@ Simplicity and speed are key requirements.
 
 # Functional overview
 
-The app covers the following functional areas, which we call _domains_:
+Version 1 of the app covers the following functional areas, which we call _domains_:
 
 - Forest visualization and planning. Geospatial tool that displays historical
   harvest data, supports planning and execution of forest surveys (setting up
@@ -38,6 +38,8 @@ The app covers the following functional areas, which we call _domains_:
   tractors. The tool also supports day-to-day operations by generating PDF
   record slips that the crews fill out and provide to the office staff for data
   entry.
+
+Future versions will also cover the following domains.
 
 - Sawmill. A log of daily sawmill operations, including volume and
   type of wood products, maintenance activities, failures or other incidents,
@@ -84,19 +86,29 @@ There is no JS framework.
 Data security (both privacy and integrity) is important because the app stores
 the core of the company's operations.
 
-## Authorization
-
-The app is access-controlled on the server side. Authorization supports MS 365
-credentials and user/password pairs via django-allauth.
-
-In the future we may need to support other OAuth identity providers.
-
 ## Permission model
 
-We have a three-role permission model, 'admin', 'writer' and 'reader'. Readers
-are read-only, writers can also modify data, 'admins' can also create new users.
+We have a three-role permission model, "admin", "writer", and "reader". Readers
+have read-only access. Writers can modify any data not related to access
+control, performing insertions/edits/deletes on any tables that allow it (see
+details below). "admins" can also create and edit users.
 
 If using username/password pairs, users can change their own password.
+
+## Authorization
+
+The app is access-controlled on the server side.
+
+Authorization supports MS 365 credentials and user/password pairs via
+django-allauth,
+[integrated](https://django-axes.readthedocs.io/en/latest/6_integration.html#integration-with-django-allauth)
+with django-axes for basic brute-force protection.
+
+OAuth must be pre-provisioned (the email address whitelisted) by an admin.
+
+Session expiration is server-configurable and defaults to 12 hours.
+
+In the future we may need to support other OAuth identity providers.
 
 ## Auditing
 
@@ -151,78 +163,136 @@ structure, we omit any explicit "breadcrumb" navigation component.
 The paths and options for each domain are specified in the detailed descriptions
 below.
 
-## Data display
+## Data storage and serving
 
-Tabular data is displayed in sortable-table (more on this below). Graphical data
-is displayed using Chart.js. Geographic data is displayed using Leaflet.
+All data except some geographic data (e.g., satellite images) lives in
+relational form in SQLite on the server.
 
-Bulk data for populating tables is fetched from Django as compressed JSON (as an
-array of arrays, rather than an array of dicts, to reduce size).
+However, to reduce latency, it is always served as compressed pre-computed JSON.
+This JSON representation is generated server-side whenever a related SQLite
+table changes. The mapping of relational tables to JSON files is specified in
+the detailed domain descriptions.
 
-Graphical and map data is likewise delivered as compressed JSON, but that data
-is the result of server-side pre-processing to provide only the information
-required for the given chart or map.
+For tabular data, the format is an array of arrays. The first entry denotes
+table headers and subsequent entries are pure data. Every entry has a hidden
+"row_id" field, used for updates (see below).
 
 ## Caching
 
-Fetched data is cached client-side in memory, keyed by (data_id, year).
+Fetched data is cached client-side in memory. The cache is keyed by a "data_id"
+that identifies a particular dataset corresponding to a server-side JSON file,
+e.g., "daily harvest operations" or "monthly sawmill production", and it stores
+the last refresh time.
 
-'data_id' identifies a particular dataset and display type, e.g., "table of
-harvest operations" or "graph of monthly sawmill production".
+The maximum size of the cache is the sum of all tabular and pre-processed data,
+on the order of 10-20 MB uncompressed, plus 10-100 MB of satellite imagery in
+the worst case.
 
-1. When changing domains, the app renders from cache immediately if data is
-   available.
-2. The app also fires a background conditional GET (using ETags). If the server
-   returns 304 Not Modified, no action is required. If it returns new data,
-   the app updates the cache and re-renders.
+Page reloads clear all cache state.
+
+When changing domain pages:
+
+1. The app renders from cache immediately if data is available.
+
+1. The app also sends background conditional GETs to the server with
+   If-Modified-Since for every dataset displayed in the domain page. If the
+   server returns 304 Not Modified, no action is required. If it returns 200 OK,
+   the app updates the cache with the newly received data and re-renders. In
+   both cases it updates the dataset's last refresh time.
+
+Conditional GETs also run once every 5 minutes (on a timer) for every dataset
+visible in a particular domain page (i.e., the page will refresh even if the
+user performs no navigation).
 
 Domain switching feels instant for previously-viewed data.
 
-## Server-side precomputation
+## Data entry and cache updates
 
-XXX
+Data entry forms are Django-rendered HTML fetched as fragments into the shell's
+content area.
 
-A server-side job digests detailed data (always stored in relational form in
-SQLite) into compact JSON form for specific types of display (specific
-'data_id's).
-
-The job runs from cron every 5 minutes (more frequent updates are unnecessary).
-If a particular source table has not changed, it ignores it. Otherwise, it
-regenerates the JSON representation.
-
-Information about which data is pre-processed for which view is in the detailed
-descriptions below.
-
-## Data entry
-
-Data entry forms are Django-rendered HTML fetched as fragments into the
-shell's content area:
-
-1. User clicks "Add" or "Edit".
-1. JS fetches the form HTML from Django (including CSRF token, field values,
-   validation state).
-1. The form is rendered within a modal that overlays the current page content.
-1. Client-side JS validates for immediate feedback; the submit button is
-   inactive until the JS validation passes.
-1. On submit, JS intercepts the form POST via `fetch()`.
-1. Server-side validation is authoritative.
-1. On server-side success: the JS updates the underlying cached data (typically
-   a sortable-table). The modal disappears and we return to the previous view (e.g., the sortable-table).   
-1. On server-side error: the modal displays Django's HTML error messages and
-   allows the user to re-enter data.
-
-Each form has custom HTML and custom client-side validation JS as needed, but
-common patterns (form interception, error display) are extracted into shared
-libraries.
+Each form has custom HTML and validation JS as needed, but common patterns (form
+interception, error display) are extracted into shared libraries.
 
 Fields that are enum-like (correspond to finite sets of values defined within
 the app itself) are implemented as pull-downs. These include worker names, crew
-names, tractor names, tree species names (see below for details).
+names, tractor names, and tree species names (see below for details).
+
+The process of data entry runs as follows:
+
+1. The user initiates a data addition or edit by clicking on a UI button (the
+   visual details of this are below).
+1. JS fetches the form HTML from Django (including the CSRF token).
+1. The form is rendered in the current page (it replaces the current view). The
+   URL *does not change*. This is the one exception to the "canonical
+   representation of view state" rule, since we never need to share the input
+   form.
+1. Client-side JS validation provides immediate feedback: the submit button is
+   inactive until JS validation passes.
+1. On submit, JS intercepts and forwards the POST request (including the CSRF
+   token, present in the "csrfmiddlewaretoken" hidden field), and waits for a
+   response.
+1. The server provides authoritative validation.
+
+The server response has one of three values. The payload is always JSON.
+
+1. Success: Code = 200 OK, payload = { data_id: X, row_id: Y, "record": [
+   Y, ... ] }
+
+   The client updates row Y of entry X in the case with the new record and
+   refreshes the tabular display.
+
+   Note that a future background conditional GET might refresh other cache
+   entries, such as those corresponding to digested data for graphs. Concrete
+   example: user enters data corresponding to a new harvest operation. Tabular
+   of harvest operations updates immediately. Digested data for bar chart of
+   monthly harvests might be loaded after the next conditional GET.
+
+1. Validation error: Code = 400 Bad request, payload = { status:
+   "validation_error", message: "...", html: "..." }
+
+   The page displays the error message in a modal and again displays the blank
+   HTML form given by the "html" field.
+
+   This rarely happens, since most server-side validation is consistent with
+   client-side validation.
+
+1. Conflict: Code = 400 Bad request, payload = { status: "conflict", message:
+   "...", data_id: X, row_id: Y, "record": [ Y, ... ], html: "..."}
+
+   This error happens on attempted edit or delete. Another user edited or
+   deleted the entry between the time when the current page's last cache refresh
+   and the time of submit. The HTML contains the form populated with the current
+   server state. If the record has been deleted on the server, the message
+   provides this information and the user can click "submit" to re-add the
+   record. If the user escapes out of the edit form, the cached data is updated
+   with the returned record, as for a successful update.
+
+## Data deletion and cache updates
+
+If the user deletes a record (more on the UI details of this below), the UI
+displays an alert warning that the action cannot be undone. 
+
+If the user confirms, a POST is sent to the server as for data insertion / edit
+above.
+
+1. Successful responses contain a row_id but no record field. The client removes
+   the given id from the cache.
+
+1. No validation errors are possible.
+
+1. Conflict means that a row was edited since last cache refresh. The response
+   contains no HTML but a valid record. The cache is updated as for a successful
+   update. The error message is displayed in a modal and the user has the chance
+   to try deletion again.
 
 ## Error reporting
 
-Errors (network errors, etc.) appear as small modals centered in the viewport
-(see below). They contain a short explanation and a dismiss button.
+Errors are reported in modals. Errors include validation errors, conflicts, and
+other conditions such as network errors.
+
+An error modal contains the error message and a dismiss button. It can also be
+dismissed with the "escape" key.
 
 ## CSS
 
@@ -268,12 +338,15 @@ Horizontal rules outline the page header as well as collapsible elements  (more
 on these in "Detailed description" below). They are thin (4px), dark green, and
 rectangular.
 
-### Modals
+## Data display overview
 
-Modals have rounded corners and thin dark green borders. Their background is
-white but they cause the rest of the page to darken by about 50%.
+Within each domain page, information is displayed consistently in one of three
+ways:
+- Tabular data is consistently displayed in sortable-table (more on this below).
+- Graphical data is displayed using Chart.js.
+- Geographic data is displayed using Leaflet.
 
-Modals are used for error reporting and for help information (where available).
+Some visual elements may be hidden within collapsible sections.
 
 ## Tabular data
 
@@ -295,14 +368,18 @@ All tabular data appears in sortable-tables.
   more rows, the table has a scrollbar that is separate from the page scrollbar.
   (On mobile, there is enough lateral space to allow the user to also scroll the
   page, not just the table).
-- Tables that allow row modification have a "pencil" icon on the right of each
-  row.
-- Tables that allow row deletion also have a "garbage can" icon on the right.
-  (The type of table is specified in "Detailed description" below.)
-- Tables that allow row addition have a "+" button below the bottom row, on the right.
 - Tables have 1px medium-grey borders and column headers have light grey background.
 
+Additionally, for users with role "writer" or "admin", tables may (depending on their semantics, see detailed descriptions below) allow modification:
+
+- Tables that allow row addition have a "+" button below the bottom row, on the
+  right.
+- Tables that allow row editing have a "pencil" icon on the right of each row.
+- Tables that allow row deletion also have a "garbage can" icon on the right.
+
 ## Graphs and charts
+
+All graphs and charts are implemented in Chart.js.
 
 All charts have y-axes that begin at 0.
 
@@ -310,6 +387,38 @@ All color maps range from yellow-green (for low values) to dark green (for high 
 
 Graphs occupy the full screen width and legends appear below the graph (on both
 desktop and mobile).
+
+## Maps
+
+Maps have the following visual structure:
+
+- A navigation bar on the right.
+- The following Leaflet tools appear in the upper left corner, top to bottom:
+  - A hamburger button to hide/display the navigation bar.
+  - A location pin.
+  - Zoom +/- buttons
+  - A ruler
+
+The top of the navigation bar always contains, top to bottom:
+- A status panel
+- A map type selector. Buttons for OSM, Topo, Satellite.
+- A pull-down region ("compresa") selector. Choosing a region centers it on the
+  map and sets the zoom level to the most detailed level that still includes the
+  full region in the viewport.
+
+Below these elements are application-specific controls, organized in collapsible
+sections.
+
+This structure is very similar to that of the Boscoscopio app (laforesta/bosco/b).
+
+## Modals
+
+Modals have a consistent style, with slightly rounded corners and thin dark
+green borders. Their background is white but they cause the rest of the page to
+darken by about 50%.
+
+They are used to display error message (with red text) and  help information
+where available (e.g., "?" links next to map navbar elements).
 
 ## Accessibility considerations
 
@@ -524,9 +633,8 @@ Each section contains a corresponding sortable table.
 Each of these sortable tables supports adding and editing entities, but not
 removing them.
 
-In each table the rightmost column is titled "active" and contains a checkbox
-that denotes whether the entity (worker, tractor, etc.) should appear as an
-option in new input forms.
+In each table the rightmost column is titled "active" and denotes whether the
+entity (worker, tractor, etc.) should appear as an option in new input forms.
 
 Above each table, on the right of the search box, is a checkbox for "Only
 active". It is checked by default to avoid clutter.
@@ -550,14 +658,30 @@ Admins can create new app users and edit existing users.
 
 The sortable-table contains the following columns:
 
-- username (may be OAuth identifier)
-- password (or blank if OAuth)
-- login method (one of password or OAuth)
-- created-at time
-- active (checkbox)
+- First and last name.
+- Username or OAuth identifier.
+- Login method (one of password or OAuth).
+- Created-at time.
+- Active status.
 
-Admin can reset a user's password, change the login method, and mark the user
-active or inactive.
+Users are editable ("pencil" icon next to each row) and creatable ("plus" icon
+at bottom of table).
+
+The user input/edit form has the following fields:
+
+- Login method radio button (password or OAuth).
+- Username text input (or expected email address for OAuth).
+- Password (repeated text input, values must match). Only visible if login
+  method is password.
+- Role (pull-down menu with three choices (reader/writer/admin)).
+- Active status (checkbox). Only active users can log in.
+
+Changes take place when the admin presses the "Submit" button.
+
+The initial admin account is configured at server installation time.
+
+The admin must add an OAuth user in order for the email address to be
+whitelisted for OAuth access.
 
 ## Audit page
 
@@ -565,7 +689,7 @@ This page is visible to all users.
 
 The audit page displays a sortable-table table with the following columns:
 
-- time and date, user, change.
+- time and date, user, table name, action (insert/edit/delete), value before, value after
 
 This information comes from django-simple-history. The table is not editable,
 but it is searchable and sortable like all other sortable-tables.
