@@ -53,7 +53,7 @@ Future versions may also cover the following domains.
 - "Fotovoltaico": photovoltaic plant. Daily log of production, monthly log of
   verified production and revenue.
 
-- "Rifornimenti": luel facility. Log of operations on the company's diesel fuel
+- "Rifornimenti": fuel facility. Log of operations on the company's diesel fuel
   tank: who refueled what vehicle, how much fuel they used, refueling of the
   fuel tank itself, etc.
 
@@ -132,7 +132,7 @@ The shell is a single Django template containing just:
 The shell is rendered once and never reloads during normal use.
 
 The header is adaptive for desktop and mobile. On narrow displays it contains only:
-- The log of the company.
+- The logo of the company.
 - The name of the currently active domain (Forest, Harvesting, Sawmill, Biomass,
   Photovoltaic, Fuel, Audit, Settings)
 - A hamburger icon for a menu that allows switching to other domains.
@@ -244,8 +244,8 @@ The server response has one of three values. The payload is always JSON.
 
    Note that a future background conditional GET might refresh other cache
    entries, such as those corresponding to digested data for graphs. Concrete
-   example: user enters data corresponding to a new harvest operation. Tabular
-   of harvest operations updates immediately. Digested data for bar chart of
+   example: user enters data corresponding to a new harvest operation. The
+   tabular display of harvest operations updates immediately. Digested data for bar chart of
    monthly harvests might be loaded after the next conditional GET.
 
 1. Validation error: Code = 400 Bad request, payload = { status:
@@ -484,7 +484,7 @@ exported as a CSV file.
 
 ## Database model
 
-Here we describe the core relationabl tables that underpin the app. Per-domain
+Here we describe the core relational tables that underpin the app. Per-domain
 JSON digests appear in the detailed descriptions below. All tables have implicit
 version (int), created_at, and modified_at columns that we omit for clarity.
 
@@ -623,6 +623,55 @@ up testing and debugging.
 The Forest Visualization domain of Abies subsumes "boscoscopio" and certain
 other "bosco" apps. The "bosco" apps remain unchanged for now but will
 eventually be taken offline and replaced entirely by Abies.
+
+# Build order
+
+v1 ships in two stages. Stage 1 is the production MVP; Stage 2 follows on a
+separate track.
+
+## Stage 1: Prelievi MVP
+
+This is the first production release. It exercises every major subsystem of the
+architecture (auth, shell, router, cache, conditional GETs, form injection,
+optimistic locking, audit, CSV export, ETL) against the simplest UI, and it is
+the domain where real users can begin entering data earliest.
+
+Stage 1 includes:
+
+- Shell page, header, client-side router, client cache, error modal, CSV export
+  button.
+- Authentication (both password and MS 365 OAuth) via django-allauth +
+  django-axes.
+- `base` app: common models (region, eclass, parcel, crew, tractor, species,
+  optype, note, harvest, harvest_species, harvest_tractor), ETL scripts for
+  initial data import, JSON digest generation, and shared templates/static/CSS.
+- `prelievi` app: the Prelievi page (sortable-table + date range slider),
+  add/edit/delete form, and the prelievi.json digest.
+- `controllo` app: the audit page. Nearly free once django-simple-history is
+  wired up, so include it in Stage 1 so staff can see their own activity as
+  they start using the app.
+- `impostazioni` app: all Settings sections (Personal settings,
+  Crews/Tractors/Trees, App Users). App Users is required in Stage 1 so that
+  early beta users can be onboarded.
+- Bosco tab: placeholder content (e.g., a link to the existing Boscoscopio app)
+  so the tab is not broken.
+
+Until Stage 2 ships, the landing page after login is Prelievi, not Bosco.
+
+## Stage 2: Bosco
+
+A port of Boscoscopio into the Abies shell, with the additions described in the
+Bosco page section below (aree di saggio, piante ad accrescimento indefinito,
+bookmarkable URLs). Novelty is low relative to Stage 1 because much of the
+code can be lifted from the existing bosco/b app, so Stage 2 can proceed
+independently once the Stage 1 architecture is stable.
+
+When Stage 2 ships, the landing page reverts to Bosco.
+
+## Future stages
+
+The remaining domains (Segheria, Biomassa, Fotovoltaico, Rifornimenti) are
+separate post-v1 stages and are not scoped here.
 
 # Detailed description
 
