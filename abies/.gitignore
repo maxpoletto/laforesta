@@ -9,6 +9,7 @@ __pycache__/
 data/
 
 # IDE
+.claude/settings.local.json
 .vscode/
 
 # OS
