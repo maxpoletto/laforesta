@@ -567,6 +567,11 @@ version (int), created_at, and modified_at columns that we omit for clarity.
 - species: (id:int, common_name:string, latin_name:string, active:bool)
   - Represents a tree species.
 
+- preserved_tree: (id:int, species_id:int, region_id:int, parcel_id:int,
+  lat:real, lng:real, note:string)
+  - Represents a tree that has been marked for preservation (should not be
+    harvested). Used for the "Piante ad accrescimento indefinito" view.
+
 - optype: (id:int, name:string)
   - Implements an extensible enum: (1: "Tronchi", 2: "Cippato", 3: "Ramaglia",
     4: "Pertiche-Puntelli", 5: "Pertiche-Tronchi")
@@ -575,8 +580,9 @@ version (int), created_at, and modified_at columns that we omit for clarity.
   - Implements an extensible enum: (1: "PSR", 2: "Fitosanitario", 3:
     "Catastrofate")
 
-- harvest: (id:int, date:int, optype_id:int, parcel_id:int, crew_id:int,
-  record1:int, record2:int, quintals:float, note_id:int, extra_note:text)
+- harvest: (id:int, date:string /* ISO 8601 */, optype_id:int, parcel_id:int,
+  crew_id:int, record1:int, record2:int, quintals:float, note_id:int,
+  extra_note:text)
   - Denotes a harvest operation by one crew on a given day.
   - Record1 and record2 are optional and indicate the id on a paper
     bill-of-goods form provided by the crew. They correspond to "vdp" and "prot"
@@ -904,7 +910,7 @@ When each button is selected, the rest of the control panel looks as follows:
 Statistical data:
 - parcels.json: JSON version of the parcel table (columns TBD)
 - sample_areas.json: JSON version of the sample_area table
-- permanent_trees.json: JSON version of the permanent_tree table
+- preserved_trees.json: JSON version of the preserved_tree table
 - parcel_year_production.json: a digest that conceptually is a "SELECT region,
   parcel, year, SUM(quintals) FROM harvest GROUP BY region, parcel, year", organized like the timeseries.json files in Boscoscopio.
 
