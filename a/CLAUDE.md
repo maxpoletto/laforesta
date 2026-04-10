@@ -169,13 +169,48 @@ All data except some geographic data (e.g., satellite images) lives in
 relational form in SQLite on the server.
 
 However, to reduce latency, it is always served as compressed pre-computed JSON.
-This JSON representation is generated server-side whenever a related SQLite
-table changes. The mapping of relational tables to JSON files is specified in
-the detailed domain descriptions.
+The mapping of relational tables to JSON files is specified in the detailed
+domain descriptions.
 
 For tabular data, the format is an array of arrays. The first entry denotes
 table headers and subsequent entries are pure data. Every entry has a hidden
 "row_id" field, used for updates (see below).
+
+### JSON digest regeneration
+
+Digests are regenerated lazily on read, not on write. This avoids wasted work
+during batch data entry (where the inserting user's view is already kept current
+via cache sync from the POST response).
+
+A small table tracks staleness:
+
+    digest_status(name TEXT PRIMARY KEY, stale BOOLEAN DEFAULT FALSE)
+
+Write path: after a successful save, the view marks affected digests as stale:
+`UPDATE digest_status SET stale = TRUE WHERE name IN (...)`. This is the only
+write-path cost.
+
+Read path (conditional GET for a digest):
+1. Check stale flag for the requested digest (one PK lookup).
+2. If not stale: normal If-Modified-Since check against file mtime, return 304
+   or 200.
+3. If stale: regenerate the digest, then serve the new file. Regeneration
+   proceeds as follows:
+   a. Generate the digest and write it to a temp file (gzip-compressed).
+   b. `os.rename()` the temp file to the digest path (POSIX-atomic).
+   c. Clear the stale flag: `UPDATE digest_status SET stale = FALSE WHERE
+      name = ? AND stale = TRUE`. The `AND stale = TRUE` acts as a
+      compare-and-swap so that concurrent readers don't regenerate twice.
+
+   This ordering ensures that on any crash, the stale flag may over-report but
+   never under-report: a digest file on disk is always complete and valid.
+
+All digest generation logic lives in `apps/base/digests.py`, since digests
+often span multiple domain tables (e.g., a prelievi write also updates
+`parcel_year_production.json` used by bosco).
+
+Digest files are gzip-compressed (stored as `.json.gz`) and served with
+`Content-Encoding: gzip`.
 
 ## Caching
 
@@ -597,7 +632,7 @@ More on this is in the detailed description below.
     │   │   ├── views.py                # shell view, login view
     │   │   ├── urls.py
     │   │   ├── migrations/
-    │   │   ├── digests.py              # shared digest-generation helpers
+    │   │   ├── digests.py              # all JSON digest generation
     │   │   ├── templates/base/
     │   │   │   ├── shell.html          # the long-lived SPA shell
     │   │   │   └── login.html
@@ -618,7 +653,6 @@ More on this is in the detailed description below.
     │   │   ├── models.py               # harvest, harvest_species, harvest_tractor
     │   │   ├── views.py                # JSON endpoints, form fragments, POST
     │   │   ├── urls.py
-    │   │   ├── digests.py              # prelievi.json generation
     │   │   ├── templates/prelievi/
     │   │   │   └── _form.html          # add/edit form fragment
     │   │   └── static/prelievi/
@@ -922,6 +956,11 @@ Trattori:
 Fiat: [box] [100%] Volvo: [box] [100%] ...
 
 Pressing a button sets the corresponding box to 100 and the others to 0.
+
+The form has two submit buttons: "Salva" (save and return to the table view)
+and "Salva e aggiungi" (save and present a blank form for the next entry).
+"Salva e aggiungi" supports the common batch-entry workflow where office staff
+enter a stack of paper slips in sequence.
 
 ### Data tables
 
