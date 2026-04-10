@@ -246,6 +246,10 @@ user performs no navigation).
 
 Domain switching feels instant for previously-viewed data.
 
+When a domain page is loaded for the first time (empty cache), a modal displays
+"Caricamento..." until the initial data fetch completes. Subsequent cache
+refreshes happen silently in the background.
+
 ## Data entry and cache updates
 
 Data entry forms are Django-rendered HTML fetched as fragments into the shell's
@@ -626,8 +630,13 @@ version (int), created_at, and modified_at columns that we omit for clarity.
   (harvest_op_id, tractor_id)
 
   Harvest_species and harvest_tractor denote the production breakdown of a
-  single harvest operation. The percentages for species and tractors must sum to
-  100.
+  single harvest operation. The percentages for species and tractors must each
+  sum to 100, enforced by client-side JS validation and server-side Django
+  validation (not by SQL constraints).
+
+  Deleting a harvest_op cascades to its harvest_species and harvest_tractor
+  rows. Crews, tractors, and species are never deleted — they are deactivated
+  via their `active` flag.
 
 # Internationalization
 
@@ -964,9 +973,10 @@ The prelievi page supports recording and display of harvesting operations.
 In v1, this page simply displays all harvest operations in a sortable-table,
 exactly as described in "Tabular data" above.
 
-Additionally, above the sortable table, the interface includes a double-ended
-date slider (see bosco/a/range-slider.*) with year granularity that allows
-display to be restricted to a given range of year.
+The full dataset is served as a single compressed JSON digest. All filtering
+is client-side: a double-ended date slider (see bosco/a/range-slider.*) with
+year granularity restricts the displayed range, and the search box filters
+within that range. No server round-trips for filtering.
 
 Columns are:
 Data, Compresa, Particella, Squadra, VDP, Q.li, Note, Altre note, (quintal columns by species in alphabetical order), (quintal columns by tractor in alphabetical order).
