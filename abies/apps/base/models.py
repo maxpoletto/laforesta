@@ -115,12 +115,14 @@ class Species(TimestampedModel):
     """Tree species."""
     common_name = models.CharField(max_length=100, unique=True)
     latin_name = models.CharField(max_length=100, blank=True)
+    sort_order = models.IntegerField(default=0)
     active = models.BooleanField(default=True)
     history = HistoricalRecords()
 
     class Meta:
         verbose_name = S.SPECIES
         verbose_name_plural = S.SPECIES_PLURAL
+        ordering = ['sort_order']
 
     def __str__(self):
         return self.common_name

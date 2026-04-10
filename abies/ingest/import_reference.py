@@ -45,15 +45,15 @@ ECLASSES = [
     ('F', True),
 ]
 
-# (common_name, latin_name)
+# (common_name, latin_name, sort_order) — 'Altro' sorts last.
 SPECIES = [
-    ('Abete', 'Abies alba'),
-    ('Pino', 'Pinus nigra'),
-    ('Douglas', 'Pseudotsuga menziesii'),
-    ('Faggio', 'Fagus sylvatica'),
-    ('Castagno', 'Castanea sativa'),
-    ('Ontano', 'Alnus cordata'),
-    ('Altro', ''),
+    ('Abete', 'Abies alba', 10),
+    ('Castagno', 'Castanea sativa', 20),
+    ('Douglas', 'Pseudotsuga menziesii', 30),
+    ('Faggio', 'Fagus sylvatica', 40),
+    ('Ontano', 'Alnus cordata', 50),
+    ('Pino', 'Pinus nigra', 60),
+    ('Altro', '', 999),
 ]
 
 # (manufacturer, model, year)
@@ -98,8 +98,14 @@ def import_eclasses():
 
 
 def import_species():
-    for common, latin in SPECIES:
-        Species.objects.get_or_create(common_name=common, defaults={'latin_name': latin})
+    for common, latin, order in SPECIES:
+        obj, created = Species.objects.get_or_create(
+            common_name=common,
+            defaults={'latin_name': latin, 'sort_order': order},
+        )
+        if not created and obj.sort_order != order:
+            obj.sort_order = order
+            obj.save(update_fields=['sort_order'])
     print(f'Species: {Species.objects.count()}')
 
 

@@ -1,7 +1,7 @@
 PYTHON = python3
 MANAGE = $(PYTHON) manage.py
 
-.PHONY: check migrate import admin dev
+.PHONY: check migrate import digest admin dev
 
 check:
 	$(MANAGE) check
@@ -15,7 +15,10 @@ import:
 	$(PYTHON) ingest/import_parcels.py
 	$(PYTHON) ingest/import_mannesi.py
 
+digest:
+	$(MANAGE) shell -c "from apps.base.digests import generate_all; generate_all()"
+
 admin:
 	$(MANAGE) createsuperuser
 
-dev: migrate import admin
+dev: migrate import digest admin
