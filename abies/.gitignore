@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+
+# Django
+data/
+
+# IDE
+.vscode/
+
+# OS
+.DS_Store
