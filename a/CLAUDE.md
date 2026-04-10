@@ -1,5 +1,31 @@
 # Abies: integrated management of forestry company operations
 
+<!-- TOC (line numbers are approximate — re-run grep '^#{1,2} ' to refresh)
+  User base .................. 25
+  Priorities ................. 34
+  Functional overview ........ 41
+  Glossary ................... 82
+  Architecture overview ...... 98
+  Security .................. 115
+  UI architecture ........... 168
+  UI design patterns ........ 409
+  Storage ................... 528
+  Internationalization ...... 689
+  Mobile .................... 706
+  Project structure ......... 712
+  Code location / deployment  794
+  Testing ................... 811
+  Development environment ... 825
+  Relationship to bosco apps  846
+  Build order ............... 852
+  Detailed description ...... 901
+    Login page .............. 907
+    Bosco page .............. 915
+    Prelievi page ........... 1033
+    Audit page .............. 1095
+    Settings page ........... 1108
+-->
+
 Abies is a full-stack web app used to manage production operations of a forestry
 company, including forest harvests, sawmill production, biomass energy
 generation.
@@ -10,10 +36,10 @@ forest health and productivity.
 # User base
 
 The target audience is office workers and field staff at a small (40-employee)
-lumber company that also produces electricity from biomass and solar. They
-currently use Microsoft 365 Business and complain about its slowness. They are
-unsophisticated computer users. They employ Word and Excel daily but only use
-basic features (e.g., they do not know how to set up Excel pivot tables).
+lumber company in Italy that also produces electricity from biomass and solar.
+They currently use Microsoft 365 Business and complain about its slowness. They
+are unsophisticated computer users. They employ Word and Excel daily but only
+use basic features (e.g., they do not know how to set up Excel pivot tables).
 Simplicity and speed are key requirements.
 
 # Priorities
