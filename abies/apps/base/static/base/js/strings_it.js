@@ -23,6 +23,7 @@ export const ERROR_NETWORK = 'Errore di rete. Riprovare.';
 export const ERROR_CONFLICT = 'Il record è stato modificato da un altro utente.';
 export const ERROR_GENERIC = 'Errore imprevisto.';
 export const ERROR_DELETED = 'Il record è stato eliminato da un altro utente.';
+export const ERROR_RATE_LIMIT = 'Troppe richieste. Riprovare tra un minuto.';
 
 // Tab names
 export const TAB_BOSCO = 'Bosco';

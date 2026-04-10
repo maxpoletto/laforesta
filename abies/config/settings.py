@@ -111,6 +111,9 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'axes.middleware.AxesMiddleware',
     'simple_history.middleware.HistoryRequestMiddleware',
+    'apps.base.middleware.CSPMiddleware',
+    'apps.base.middleware.NonceMiddleware',
+    'apps.base.middleware.RateLimitMiddleware',
 ]
 
 # --- URLs / WSGI -------------------------------------------------------------

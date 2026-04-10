@@ -16,6 +16,7 @@ EXPORT_CSV = 'Esporta CSV'
 ERROR_NETWORK = 'Errore di rete. Riprovare.'
 ERROR_CONFLICT = 'Il record è stato modificato da un altro utente.'
 ERROR_GENERIC = 'Errore imprevisto.'
+ERROR_RATE_LIMIT = 'Troppe richieste. Riprovare tra un minuto.'
 
 # Tab names (same as app verbose names but title-cased for display)
 TAB_BOSCO = 'Bosco'

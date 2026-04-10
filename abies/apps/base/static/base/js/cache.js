@@ -39,8 +39,7 @@ export function get(dataId) {
 }
 
 /**
- * Manually update the cache for a data ID (e.g., after a successful POST
- * that returns an updated row).
+ * Manually replace the entire cached dataset for a data ID.
  */
 export function set(dataId, data) {
   const entry = store.get(dataId);
@@ -50,6 +49,38 @@ export function set(dataId, data) {
   } else {
     store.set(dataId, { data, lastModified: null, refreshedAt: Date.now() });
   }
+}
+
+/**
+ * Update or insert a single row in a cached digest.
+ * Assumes digest format: { columns: [...], rows: [[row_id, ...], ...] }
+ * where the first element of each row is the row_id.
+ *
+ * @param {string} dataId
+ * @param {number} rowId
+ * @param {Array} record — full row array matching the digest columns
+ */
+export function updateRow(dataId, rowId, record) {
+  const entry = store.get(dataId);
+  if (!entry?.data?.rows) return;
+  const idx = entry.data.rows.findIndex(r => r[0] === rowId);
+  if (idx >= 0) {
+    entry.data.rows[idx] = record;
+  } else {
+    entry.data.rows.push(record);
+  }
+}
+
+/**
+ * Remove a single row from a cached digest by row_id.
+ *
+ * @param {string} dataId
+ * @param {number} rowId
+ */
+export function removeRow(dataId, rowId) {
+  const entry = store.get(dataId);
+  if (!entry?.data?.rows) return;
+  entry.data.rows = entry.data.rows.filter(r => r[0] !== rowId);
 }
 
 /**
