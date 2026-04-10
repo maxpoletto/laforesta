@@ -1,0 +1,315 @@
+ /*
+ * SortableTable CSS - configurable styles
+ */
+
+:root {
+    --st-primary-color: #2196F3;     /* Accent color */
+    --st-border-color: #ddd;         /* Border color */
+    --st-header-bg: #f7f7f7;         /* Header background */
+    --st-hover-bg: #f9f9f9;          /* Row hover background */
+    --st-font-size: 13px;              /* Base font size */
+    --st-padding: 8px;                 /* Base padding */
+    --st-border-radius: 4px;           /* Border radius for buttons and container */
+}
+
+/* Container */
+.sortable-table-container {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Controls and Pagination */
+.sortable-table-controls {
+    padding: calc(var(--st-padding) * 2);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: #fff;
+    flex-shrink: 0;
+}
+
+.sortable-table-pagination {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: calc(var(--st-font-size) + 1px);
+    color: #666;
+}
+
+/* Pagination Buttons */
+.sortable-table-pagination button {
+    padding: 6px 12px;
+    border: 1px solid var(--st-border-color);
+    background: white;
+    border-radius: var(--st-border-radius);
+    cursor: pointer;
+    font-size: calc(var(--st-font-size) - 1px);
+    font-weight: 500;
+    transition: all 0.2s ease;
+    min-width: 36px;
+}
+
+.sortable-table-pagination button:hover:not(:disabled) {
+    background: #f0f0f0;
+    border-color: var(--st-primary-color);
+    transform: translateY(-1px);
+}
+
+.sortable-table-pagination button:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.sortable-table-pagination button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: #f8f8f8;
+}
+
+/* Page Info */
+.sortable-table-pagination .page-info {
+    font-size: calc(var(--st-font-size) - 1px);
+    color: #666;
+    min-width: 120px;
+    text-align: center;
+    font-weight: 500;
+}
+
+.sortable-table-pagination .current-page-number {
+    cursor: pointer;
+    color: var(--st-primary-color);
+    font-weight: 600;
+    padding: 2px 4px;
+    border-radius: 2px;
+    transition: background-color 0.2s ease;
+}
+
+.sortable-table-pagination .current-page-number:hover {
+    background: rgba(33, 150, 243, 0.1);
+    text-decoration: underline;
+}
+
+.sortable-table-pagination .page-number-input {
+    width: 50px;
+    text-align: center;
+    border: 2px solid var(--st-primary-color);
+    border-radius: var(--st-border-radius);
+    padding: 4px;
+    font-size: calc(var(--st-font-size) - 1px);
+    font-weight: 600;
+    outline: none;
+}
+
+/* Table Wrapper */
+.sortable-table-wrapper {
+    overflow: auto;
+    border: 1px solid var(--st-border-color);
+    border-radius: var(--st-border-radius);
+    background: white;
+}
+
+/* Table */
+.sortable-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--st-font-size);
+    table-layout: fixed;
+}
+
+/* Headers */
+.sortable-table-head .sortable-table-header {
+    background: var(--st-header-bg);
+    padding: calc(var(--st-padding) * 1.5) var(--st-padding);
+    text-align: left;
+    font-weight: 600;
+    border-bottom: 2px solid var(--st-border-color);
+    position: sticky;
+    top: 0;
+    white-space: nowrap;
+    color: #333;
+    z-index: 10;
+}
+
+.sortable-table-header.sortable {
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.2s ease;
+}
+
+.sortable-table-header.sortable:hover {
+    background: #e8e8e8;
+}
+
+/* Right-align numeric and date headers */
+.sortable-table-header.numeric {
+    text-align: right;
+}
+
+/* Sort Indicators */
+.sort-indicator {
+    margin-left: 6px;
+    opacity: 0.4;
+    font-size: 12px;
+    display: inline-block;
+    transition: all 0.2s ease;
+}
+
+.sortable-table-header:hover .sort-indicator {
+    opacity: 0.7;
+}
+
+.sort-indicator.asc,
+.sort-indicator.desc {
+    opacity: 1;
+    color: var(--st-primary-color);
+    font-weight: bold;
+}
+
+/* Table Body */
+.sortable-table-body .sortable-table-row {
+    transition: background-color 0.15s ease;
+}
+
+.sortable-table-body .sortable-table-row:hover {
+    background: var(--st-hover-bg);
+}
+
+.sortable-table-body .sortable-table-row:nth-child(even) {
+    background: rgba(0, 0, 0, 0.02);
+}
+
+.sortable-table-body .sortable-table-row:nth-child(even):hover {
+    background: var(--st-hover-bg);
+}
+
+/* Cells */
+.sortable-table-cell {
+    padding: var(--st-padding);
+    border-bottom: 1px solid #eee;
+    vertical-align: middle;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #333;
+}
+
+/* Right-align numeric and date cells */
+.sortable-table-cell.numeric {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Empty State */
+.sortable-table-empty {
+    text-align: center;
+    padding: calc(var(--st-padding) * 4);
+    color: #999;
+    font-style: italic;
+    background: #fafafa;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .sortable-table-controls {
+        padding: var(--st-padding);
+    }
+
+    .sortable-table-pagination {
+        gap: 8px;
+        font-size: calc(var(--st-font-size) - 1px);
+    }
+
+    .sortable-table-pagination button {
+        padding: 4px 8px;
+        min-width: 32px;
+    }
+
+    .sortable-table {
+        font-size: calc(var(--st-font-size) - 1px);
+    }
+
+    .sortable-table-header,
+    .sortable-table-cell {
+        padding: calc(var(--st-padding) * 0.75);
+    }
+}
+
+/* Custom Theme Classes */
+.sortable-table-container.theme-compact {
+    --st-padding: 4px;
+    --st-font-size: 12px;
+}
+
+.sortable-table-container.theme-spacious {
+    --st-padding: 12px;
+    --st-font-size: 14px;
+}
+
+.sortable-table-container.theme-minimal {
+    --st-border-color: transparent;
+    --st-header-bg: transparent;
+}
+
+.sortable-table-container.theme-bordered .sortable-table-cell {
+    border-right: 1px solid #eee;
+}
+
+.sortable-table-container.theme-solid .sortable-table-body .sortable-table-row {
+    background: #fefefe;
+}
+
+/* Loading State */
+.sortable-table-container.loading {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.sortable-table-container.loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 20px;
+    margin: -10px 0 0 -10px;
+    border: 2px solid var(--st-primary-color);
+    border-radius: 50%;
+    border-top-color: transparent;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Utility Classes */
+.sortable-table-container.no-pagination .sortable-table-controls {
+    display: none;
+}
+
+.sortable-table-container.fixed-height {
+    height: 400px;
+}
+
+.sortable-table-container.full-width {
+    width: 100%;
+}
+
+/* Print Styles */
+@media print {
+    .sortable-table-controls {
+        display: none;
+    }
+
+    .sortable-table-wrapper {
+        border: none;
+        overflow: visible;
+    }
+
+    .sortable-table-header {
+        position: static;
+    }
+}
