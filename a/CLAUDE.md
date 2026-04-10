@@ -172,9 +172,14 @@ However, to reduce latency, it is always served as compressed pre-computed JSON.
 The mapping of relational tables to JSON files is specified in the detailed
 domain descriptions.
 
-For tabular data, the format is an array of arrays. The first entry denotes
-table headers and subsequent entries are pure data. Every entry has a hidden
-"row_id" field, used for updates (see below).
+For tabular data, the format is a JSON object with two fields:
+
+    { "columns": ["row_id", "Data", "Compresa", ...],
+      "rows": [[1, "2024-03-15", "Alpe", ...], ...] }
+
+`columns` lists column names once; `rows` is an array of arrays containing pure
+data. Every row's first element is `row_id`, used for updates (see below). The
+client maps columns by name, so adding a column does not break cached data.
 
 ### JSON digest regeneration
 
