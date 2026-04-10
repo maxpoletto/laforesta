@@ -54,18 +54,3 @@ export async function postJSON(url, body) {
   return { data, status: resp.status };
 }
 
-/**
- * Fetch an HTML fragment (for form injection).
- *
- * @param {string} url
- * @returns {Promise<string>}
- */
-export async function fetchHTML(url) {
-  const resp = await fetch(url, {
-    headers: { 'X-CSRFToken': csrfToken() },
-  });
-  if (!resp.ok) {
-    throw new Error(`GET ${url}: ${resp.status}`);
-  }
-  return resp.text();
-}

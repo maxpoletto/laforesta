@@ -19,6 +19,9 @@ const urls = new Map();
 /** IDs currently visible — only these get background-refreshed. */
 const visible = new Set();
 
+/** Listeners notified when a data ID is updated via background refresh. */
+const listeners = new Map();
+
 /** Timer handle for background refresh. */
 let timer = null;
 
@@ -113,6 +116,25 @@ export async function load(dataId) {
 }
 
 /**
+ * Register a callback invoked when a data ID is updated by background refresh.
+ * Returns an unsubscribe function.
+ *
+ * @param {string} dataId
+ * @param {function} callback
+ * @returns {function} unsubscribe
+ */
+export function onUpdate(dataId, callback) {
+  if (!listeners.has(dataId)) listeners.set(dataId, new Set());
+  listeners.get(dataId).add(callback);
+  return () => listeners.get(dataId).delete(callback);
+}
+
+function notify(dataId) {
+  const cbs = listeners.get(dataId);
+  if (cbs) for (const cb of cbs) cb();
+}
+
+/**
  * Mark which data IDs are currently visible.  Only visible IDs participate
  * in background refresh.
  *
@@ -176,5 +198,6 @@ export async function refreshVisible() {
   }
 
   await Promise.all(jobs);
+  for (const dataId of changed) notify(dataId);
   return changed;
 }

@@ -7,6 +7,7 @@
 
 import * as router from './router.js';
 import * as cache from './cache.js';
+import * as prelievi from '../../prelievi/js/prelievi.js';
 
 // Domain page modules — all loaded eagerly at boot.
 // Each exports { mount(params), unmount(), onQueryChange(params) }.
@@ -23,7 +24,7 @@ function placeholder(name) {
 
 // Register routes.
 router.addRoute('bosco', placeholder('Bosco'));
-router.addRoute('prelievi', placeholder('Prelievi'));
+router.addRoute('prelievi', prelievi);
 router.addRoute('controllo', placeholder('Controllo'));
 router.addRoute('impostazioni', placeholder('Impostazioni'));
 

@@ -226,6 +226,7 @@ function buildSTColumns(digestColumns, columnDefs, actions) {
       key: name,
       label: def.label ?? name,
       type: def.type ?? 'string',
+      hidden: def.hidden || false,
       formatter: def.formatter,
       width: def.width,
       className: def.className,

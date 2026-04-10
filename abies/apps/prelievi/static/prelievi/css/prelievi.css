@@ -1,0 +1,15 @@
+/* Prelievi page — domain-specific styles. */
+
+.prelievi-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 8px;
+}
+
+.prelievi-slider-label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #444;
+  min-width: 80px;
+}

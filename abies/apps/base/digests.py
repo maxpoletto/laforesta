@@ -111,8 +111,8 @@ def generate_prelievi() -> None:
     ]
 
     columns = (
-        ['row_id', 'Data', 'Compresa', 'Particella', 'Squadra', 'VDP',
-         'Q.li', 'Note', 'Altre note']
+        ['row_id', 'version', 'Data', 'Compresa', 'Particella', 'Squadra',
+         'VDP', 'Q.li', 'Note', 'Altre note']
         + species_names
         + tractor_labels
         + [f'{n} %' for n in species_names]
@@ -145,7 +145,8 @@ def generate_prelievi() -> None:
         tr_pct_vals = [tr_pcts.get(tid, 0) for tid in tractor_ids]
 
         row = (
-            [op.id, op.date.isoformat(), op.parcel.region.name, op.parcel.name,
+            [op.id, op.version, op.date.isoformat(),
+             op.parcel.region.name, op.parcel.name,
              op.crew.name, op.record1, quintals,
              op.note.name if op.note else '', op.extra_note]
             + sp_quintals + tr_quintals
@@ -177,7 +178,8 @@ def build_harvest_record(op) -> list:
     tr_quintals = [round(quintals * tr_pcts.get(tid, 0) / 100, 2) for tid in tractor_ids]
 
     return (
-        [op.id, op.date.isoformat(), op.parcel.region.name, op.parcel.name,
+        [op.id, op.version, op.date.isoformat(),
+         op.parcel.region.name, op.parcel.name,
          op.crew.name, op.record1, quintals,
          op.note.name if op.note else '', op.extra_note]
         + sp_quintals + tr_quintals

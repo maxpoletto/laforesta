@@ -6,7 +6,7 @@
  * can deduplicate retries.
  */
 
-import { fetchHTML, postJSON } from './api.js';
+import { postJSON } from './api.js';
 import { showError } from './modals.js';
 import * as S from './strings.js';
 
@@ -14,18 +14,22 @@ import * as S from './strings.js';
  * Fetch a form fragment from the server and display it in #content.
  * Injects a fresh idempotency nonce as a hidden field.
  *
- * @param {string} url — form endpoint (GET returns HTML fragment)
+ * The endpoint returns JSON: { html: "..." }.
+ *
+ * @param {string} url — form endpoint (GET returns JSON with html field)
  * @returns {Promise<HTMLFormElement|null>}
  */
 export async function fetchForm(url) {
-  let html;
+  let data;
   try {
-    html = await fetchHTML(url);
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`${resp.status}`);
+    data = await resp.json();
   } catch {
     showError(S.ERROR_NETWORK);
     return null;
   }
-  return renderFormHTML(html);
+  return renderFormHTML(data.html);
 }
 
 /**

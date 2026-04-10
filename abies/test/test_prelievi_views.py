@@ -141,7 +141,7 @@ class TestSaveView:
         data = resp.json()
         assert data['data_id'] == 'prelievi'
         assert data['row_id'] > 0
-        assert data['record'][1] == '2024-07-01'  # date is second column
+        assert data['record'][2] == '2024-07-01'  # date is third column (after row_id, version)
 
         # Verify DB
         op = HarvestOp.objects.get(id=data['row_id'])
