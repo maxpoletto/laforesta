@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="{% static 'base/css/common.css' %}">
   <link rel="stylesheet" href="{% static 'prelievi/css/prelievi.css' %}">
 </head>
-<body data-role="{{ user.role }}" data-csrf="{{ csrf_token }}">
+<body data-role="{{ user.role }}" data-login-method="{{ user.login_method }}" data-csrf="{{ csrf_token }}">
 
   <header id="header">
     <div class="header-left">

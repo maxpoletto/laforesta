@@ -9,6 +9,7 @@ import * as router from './router.js';
 import * as cache from './cache.js';
 import * as prelievi from '../../prelievi/js/prelievi.js';
 import * as controllo from '../../controllo/js/controllo.js';
+import * as impostazioni from '../../impostazioni/js/impostazioni.js';
 
 // Domain page modules — all loaded eagerly at boot.
 // Each exports { mount(params), unmount(), onQueryChange(params) }.
@@ -27,7 +28,7 @@ function placeholder(name) {
 router.addRoute('bosco', placeholder('Bosco'));
 router.addRoute('prelievi', prelievi);
 router.addRoute('controllo', controllo);
-router.addRoute('impostazioni', placeholder('Impostazioni'));
+router.addRoute('impostazioni', impostazioni);
 
 // Boot.
 router.init();

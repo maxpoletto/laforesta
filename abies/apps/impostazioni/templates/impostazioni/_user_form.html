@@ -1,0 +1,68 @@
+<form id="settings-form">
+  <input type="hidden" name="row_id" value="{{ obj.id|default_if_none:'' }}">
+
+  <div class="form-group">
+    <label>Metodo di accesso</label>
+    <div class="form-row" style="gap:1.5rem;margin-bottom:0">
+      {% for value, label in login_methods %}
+      <label>
+        <input type="radio" name="login_method" value="{{ value }}"
+               {% if obj and obj.login_method == value or not obj and forloop.first %}checked{% endif %}>
+        {{ label }}
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label for="id_username">Nome utente</label>
+    <input type="text" id="id_username" name="username" required
+           value="{{ obj.username|default:'' }}">
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <label for="id_first_name">Nome</label>
+      <input type="text" id="id_first_name" name="first_name"
+             value="{{ obj.first_name|default:'' }}">
+    </div>
+    <div class="form-group">
+      <label for="id_last_name">Cognome</label>
+      <input type="text" id="id_last_name" name="last_name"
+             value="{{ obj.last_name|default:'' }}">
+    </div>
+  </div>
+
+  <div class="form-group password-fields">
+    <label for="id_password1">Password</label>
+    <input type="password" id="id_password1" name="password1">
+  </div>
+
+  <div class="form-group password-fields">
+    <label for="id_password2">Ripeti password</label>
+    <input type="password" id="id_password2" name="password2">
+  </div>
+
+  <div class="form-group">
+    <label for="id_role">Ruolo</label>
+    <select id="id_role" name="role">
+      {% for value, label in roles %}
+      <option value="{{ value }}"
+        {% if obj and obj.role == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label>
+      <input type="hidden" name="is_active" value="false">
+      <input type="checkbox" name="is_active" value="true"
+             {% if obj.is_active or not obj %}checked{% endif %}>
+      Attivo
+    </label>
+  </div>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">Salva</button>
+  </div>
+</form>

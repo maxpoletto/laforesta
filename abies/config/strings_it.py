@@ -52,6 +52,10 @@ LABEL_MANUFACTURER = 'Costruttore'
 LABEL_MODEL = 'Modello'
 LABEL_YEAR = 'Anno'
 LABEL_LATIN_NAME = 'Nome latino'
+LABEL_FIRST_NAME = 'Nome'
+LABEL_LAST_NAME = 'Cognome'
+LABEL_LOGIN_METHOD = 'Metodo di accesso'
+LABEL_CREATED_AT = 'Creato il'
 
 # Audit
 COL_TIMESTAMP = 'Data/Ora'
@@ -70,6 +74,13 @@ TABLE_SPECIES = 'Specie'
 ACTION_INSERT = 'Inserimento'
 ACTION_UPDATE = 'Modifica'
 ACTION_DELETE = 'Eliminazione'
+
+# Settings
+PASSWORD_MISMATCH = 'Le password non coincidono.'
+PASSWORD_CHANGED = 'Password modificata.'
+ERR_PASSWORD_REQUIRED = 'Password obbligatoria.'
+ERR_NAME_REQUIRED = 'Nome obbligatorio.'
+ERR_USERNAME_REQUIRED = 'Nome utente obbligatorio.'
 
 # ---------------------------------------------------------------------------
 # App verbose names
