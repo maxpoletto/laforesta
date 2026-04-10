@@ -7,25 +7,16 @@
 
 import * as router from './router.js';
 import * as cache from './cache.js';
+import * as bosco from '../../bosco/js/bosco.js';
 import * as prelievi from '../../prelievi/js/prelievi.js';
 import * as controllo from '../../controllo/js/controllo.js';
 import * as impostazioni from '../../impostazioni/js/impostazioni.js';
 
 // Domain page modules — all loaded eagerly at boot.
 // Each exports { mount(params), unmount(), onQueryChange(params) }.
-// Placeholders for domains not yet implemented.
-
-function placeholder(name) {
-  const el = document.getElementById('content');
-  return {
-    mount() { el.textContent = name; },
-    unmount() { el.replaceChildren(); },
-    onQueryChange() {},
-  };
-}
 
 // Register routes.
-router.addRoute('bosco', placeholder('Bosco'));
+router.addRoute('bosco', bosco);
 router.addRoute('prelievi', prelievi);
 router.addRoute('controllo', controllo);
 router.addRoute('impostazioni', impostazioni);
