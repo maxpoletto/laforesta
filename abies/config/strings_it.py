@@ -1,6 +1,16 @@
 """Italian UI strings for Abies."""
 
 # ---------------------------------------------------------------------------
+# App verbose names
+# ---------------------------------------------------------------------------
+
+APP_BASE = 'Base'
+APP_PRELIEVI = 'Prelievi'
+APP_BOSCO = 'Bosco'
+APP_CONTROLLO = 'Controllo'
+APP_IMPOSTAZIONI = 'Impostazioni'
+
+# ---------------------------------------------------------------------------
 # Model verbose names (singular, plural)
 # ---------------------------------------------------------------------------
 

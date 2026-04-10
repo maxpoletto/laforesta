@@ -1,10 +1,12 @@
 from django.apps import AppConfig
 
+from config import strings as S
+
 
 class BaseConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
     name = 'apps.base'
-    verbose_name = 'Base'
+    verbose_name = S.APP_BASE
 
     def ready(self):
         from django.db.backends.signals import connection_created
