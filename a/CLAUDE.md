@@ -580,15 +580,88 @@ The app is usable on mobile in portrait mode (without needing to switch to lands
 
 More on this is in the detailed description below.
 
-# Django project structure
+# Project structure
 
-The Django project is organized into apps by domain.
+## Directory layout
 
-- `base` includes common models (see above), the shell template, and common
-  CSS/JS.
-- Then there are apps for each domain: 'bosco', 'prelievi', 'biomassa',
-  'fotovoltaico', 'rifornimenti', etc., that contain models and templates for
-  each domain.
+    abies/
+    ├── manage.py
+    ├── config/                         # Django project settings
+    │   ├── settings.py
+    │   ├── urls.py
+    │   └── wsgi.py
+    ├── apps/                           # Django apps
+    │   ├── base/                       # shared models, shell, common JS/CSS
+    │   │   ├── models.py               # region, eclass, parcel, sample_area,
+    │   │   │                           # crew, tractor, species, optype, note
+    │   │   ├── views.py                # shell view, login view
+    │   │   ├── urls.py
+    │   │   ├── migrations/
+    │   │   ├── digests.py              # shared digest-generation helpers
+    │   │   ├── templates/base/
+    │   │   │   ├── shell.html          # the long-lived SPA shell
+    │   │   │   └── login.html
+    │   │   └── static/base/
+    │   │       ├── css/common.css
+    │   │       ├── js/
+    │   │       │   ├── app.js          # boot: imports domains, inits router
+    │   │       │   ├── router.js       # pushState / popstate / route table
+    │   │       │   ├── cache.js        # in-memory cache, conditional GETs
+    │   │       │   ├── api.js          # fetch helpers
+    │   │       │   ├── forms.js        # form fetch, intercept, validate, submit
+    │   │       │   ├── modals.js       # error and help modals
+    │   │       │   ├── table.js        # sortable-table wrapper + CSV export
+    │   │       │   └── strings.js      # Italian UI string constants
+    │   │       └── vendor/             # vendored: Leaflet, Chart.js,
+    │   │                               # sortable-table, DM Sans
+    │   ├── prelievi/                   # Prelievi domain
+    │   │   ├── models.py               # harvest, harvest_species, harvest_tractor
+    │   │   ├── views.py                # JSON endpoints, form fragments, POST
+    │   │   ├── urls.py
+    │   │   ├── digests.py              # prelievi.json generation
+    │   │   ├── templates/prelievi/
+    │   │   │   └── _form.html          # add/edit form fragment
+    │   │   └── static/prelievi/
+    │   │       ├── css/prelievi.css
+    │   │       └── js/prelievi.js      # PrelieviPage class
+    │   ├── bosco/                      # Bosco domain (Stage 2)
+    │   ├── controllo/                  # Audit domain
+    │   └── impostazioni/               # Settings domain
+    ├── ingest/                         # one-time ETL / data import scripts
+    ├── data/                           # host-mounted runtime dir (gitignored)
+    │   ├── db.sqlite3
+    │   ├── digests/                    # pre-computed JSON files
+    │   └── geo/                        # GeoJSON, satellite imagery
+    ├── docs/
+    ├── test/
+    ├── Dockerfile
+    ├── Makefile
+    └── requirements.txt
+
+Apps are organized under `apps/` with dotted paths in `INSTALLED_APPS` (e.g.,
+`apps.prelievi`). `config/` holds the Django project settings.
+
+## JS module conventions
+
+Client-side code uses ES modules (`<script type="module">`). The shell page
+loads `base/js/app.js` as its sole entry point. `app.js` imports shared modules
+(router, cache, api, forms, etc.) and each domain's page module.
+
+All domain modules are loaded at boot, not lazy-loaded per tab click. Total JS
+is small (order of tens of KB), and paying the load cost once per session keeps
+tab switching instant.
+
+Each domain module exports a page class with a known interface: `mount(params)`,
+`unmount()`, `onQueryChange(params)`. `app.js` registers these in a static route
+table keyed by URL path.
+
+Release builds use minified JS, produced by a `make minify` Makefile target.
+
+## Static file conventions
+
+Each Django app owns its static files under `static/<app_name>/`, following
+Django's default namespacing convention. Templates follow the same pattern
+(`templates/<app_name>/`). Common CSS and JS live in `base`.
 
 # Code location, deployment, and releases
 
