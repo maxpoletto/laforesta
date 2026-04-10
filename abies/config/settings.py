@@ -1,5 +1,7 @@
 """Django settings for Abies."""
 
+import os
+from datetime import timedelta
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -10,9 +12,11 @@ DATA_DIR = BASE_DIR / 'data'
 DIGEST_DIR = DATA_DIR / 'digests'
 GEO_DIR = DATA_DIR / 'geo'
 
-SECRET_KEY = 'django-insecure-change-me-before-deployment'
+SECRET_KEY = os.environ.get(
+    'DJANGO_SECRET_KEY', 'django-insecure-change-me-before-deployment',
+)
 
-DEBUG = True
+DEBUG = os.environ.get('DJANGO_DEBUG', '1') == '1'
 
 ALLOWED_HOSTS = ['*']
 
@@ -25,7 +29,15 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.sites',
+    # Third-party
+    'allauth',
+    'allauth.account',
+    'allauth.socialaccount',
+    'allauth.socialaccount.providers.microsoft',
+    'axes',
     'simple_history',
+    # Project
     'apps.base',
     'apps.prelievi',
     'apps.bosco',
@@ -33,9 +45,16 @@ INSTALLED_APPS = [
     'apps.impostazioni',
 ]
 
+SITE_ID = 1
+
 # --- Auth --------------------------------------------------------------------
 
 AUTH_USER_MODEL = 'base.User'
+
+AUTHENTICATION_BACKENDS = [
+    'axes.backends.AxesStandaloneBackend',
+    'allauth.account.auth_backends.AuthenticationBackend',
+]
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
@@ -46,6 +65,39 @@ AUTH_PASSWORD_VALIDATORS = [
 
 SESSION_COOKIE_AGE = 43200  # 12 hours
 
+LOGIN_URL = '/abies/login/'
+LOGIN_REDIRECT_URL = '/abies/prelievi'
+
+# --- allauth -----------------------------------------------------------------
+
+ACCOUNT_LOGIN_METHODS = {'username'}
+ACCOUNT_SIGNUP_FIELDS = ['username*', 'password1*', 'password2*']
+ACCOUNT_EMAIL_VERIFICATION = 'none'
+ACCOUNT_LOGIN_ON_GET = True
+# Disable allauth's own signup — users are created by admins.
+ACCOUNT_ADAPTER = 'apps.base.auth.NoSignupAdapter'
+
+SOCIALACCOUNT_AUTO_SIGNUP = False
+SOCIALACCOUNT_EMAIL_AUTHENTICATION = True
+SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True
+# MS 365 OAuth: configure client_id/secret via Django admin or env vars.
+SOCIALACCOUNT_PROVIDERS = {
+    'microsoft': {
+        'APP': {
+            'client_id': os.environ.get('MS_OAUTH_CLIENT_ID', ''),
+            'secret': os.environ.get('MS_OAUTH_SECRET', ''),
+        },
+        'TENANT': os.environ.get('MS_OAUTH_TENANT', 'common'),
+    },
+}
+
+# --- django-axes -------------------------------------------------------------
+
+AXES_FAILURE_LIMIT = 5
+AXES_COOLOFF_TIME = timedelta(minutes=30)
+AXES_LOCKOUT_PARAMETERS = ['username', 'ip_address']
+AXES_RESET_ON_SUCCESS = True
+
 # --- Middleware --------------------------------------------------------------
 
 MIDDLEWARE = [
@@ -54,8 +106,10 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'allauth.account.middleware.AccountMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'axes.middleware.AxesMiddleware',
     'simple_history.middleware.HistoryRequestMiddleware',
 ]
 

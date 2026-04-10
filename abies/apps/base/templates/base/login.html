@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Abies — Accesso</title>
+  {% load static %}
+  <link rel="stylesheet" href="{% static 'base/css/login.css' %}">
+</head>
+<body>
+  <div class="login-box">
+    <h1>La Foresta</h1>
+
+    {% if form.errors or error_message %}
+    <p class="error">
+      {% if error_message %}{{ error_message }}
+      {% else %}Nome utente o password non validi.
+      {% endif %}
+    </p>
+    {% endif %}
+
+    <form method="post" action="{% url 'login' %}">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ next }}">
+      <div class="field">
+        <label for="id_username">Nome utente</label>
+        <input id="id_username" type="text" name="username" autofocus
+               autocomplete="username" required>
+      </div>
+      <div class="field">
+        <label for="id_password">Password</label>
+        <input id="id_password" type="password" name="password"
+               autocomplete="current-password" required>
+      </div>
+      <button type="submit" class="btn btn-primary">Accedi</button>
+    </form>
+
+    <div class="separator">oppure</div>
+
+    <a href="{% url 'microsoft_login' %}" class="btn btn-ms">
+      Accedi con Microsoft
+    </a>
+  </div>
+</body>
+</html>
