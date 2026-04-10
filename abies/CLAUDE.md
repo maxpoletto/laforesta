@@ -658,7 +658,10 @@ version (int), created_at, and modified_at columns that we omit for clarity.
 - crew: (id:int, name:string, notes:string, active:bool)
   - Represents a team of workers, e.g., a group of lumberjacks.
 
-- species: (id:int, common_name:string, latin_name:string, active:bool)
+- species: (id:int, common_name:string, latin_name:string, sort_order:int,
+  active:bool)
+  - sort_order controls display ordering everywhere species appear. Catch-all
+    entries like "Altro" use a high value (999) to sort last.
   - Represents a tree species.
 
 - preserved_tree: (id:int, species_id:int, region_id:int, parcel_id:int,
