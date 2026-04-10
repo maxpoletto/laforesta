@@ -703,9 +703,24 @@ The app initially only supports Italian. The URL paths are in Italian also.
 
 But there are no inline strings in the code. All are named constants (in both
 Python on the backend and JS on the front-end) to make a future
-internationalization easier. Path names are also named constants. (The
+internationalization easier. Path names are also named constants. The
 assumption is that any future language choice will be at the level of the entire
-app, not individual users.)
+app, not individual users.
+
+## String constant scheme
+
+On the backend, `config/strings_it.py` defines all user-facing string constants
+(model verbose names, form labels, error messages, etc.) as module-level
+variables. `config/strings.py` re-exports the active language module:
+
+    from config.strings_it import *
+
+To switch language, change this single import to point at a different language
+file (e.g., `config/strings_en`). All code imports strings via
+`from config import strings as S` and references constants like `S.PARCEL`.
+
+On the frontend, the same pattern applies: `strings_it.js` defines all
+constants, `strings.js` re-exports the active language.
 
 Numbers and dates are represented using Italian locale.
 
