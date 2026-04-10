@@ -22,6 +22,7 @@ from django.http import FileResponse, HttpResponse
 from django.utils.http import http_date, parse_http_date_safe
 
 from apps.base.models import DigestStatus
+from config import strings as S
 
 
 # ---------------------------------------------------------------------------
@@ -252,6 +253,112 @@ def generate_parcel_year_production() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Audit digest
+# ---------------------------------------------------------------------------
+
+_ACTION_MAP = {'+': S.ACTION_INSERT, '~': S.ACTION_UPDATE, '-': S.ACTION_DELETE}
+
+
+def generate_audit() -> None:
+    """Audit log from django-simple-history across all tracked models."""
+    from apps.base.models import Crew, Species, Tractor, User
+    from apps.prelievi.models import HarvestOp
+
+    configs = [
+        (HarvestOp.history, S.TABLE_HARVEST_OP, {
+            'date': S.COL_DATE, 'parcel_id': S.COL_PARCEL,
+            'crew_id': S.COL_CREW, 'optype_id': S.COL_OPTYPE,
+            'quintals': S.COL_QUINTALS, 'record1': S.COL_VDP,
+            'record2': S.COL_PROT, 'note_id': S.COL_NOTE,
+            'extra_note': S.COL_EXTRA_NOTE,
+        }),
+        (User.history, S.TABLE_USER, {
+            'username': S.LABEL_USERNAME, 'role': S.LABEL_ROLE,
+            'is_active': S.COL_ACTIVE,
+        }),
+        (Crew.history, S.TABLE_CREW, {
+            'name': S.LABEL_NAME, 'notes': S.LABEL_NOTES,
+            'active': S.COL_ACTIVE,
+        }),
+        (Tractor.history, S.TABLE_TRACTOR, {
+            'manufacturer': S.LABEL_MANUFACTURER,
+            'model': S.LABEL_MODEL, 'year': S.LABEL_YEAR,
+            'active': S.COL_ACTIVE,
+        }),
+        (Species.history, S.TABLE_SPECIES, {
+            'common_name': S.LABEL_NAME,
+            'latin_name': S.LABEL_LATIN_NAME,
+            'active': S.COL_ACTIVE,
+        }),
+    ]
+
+    rows = []
+    row_id = 0
+    for manager, table_label, field_labels in configs:
+        row_id = _audit_rows(manager, table_label, field_labels, rows, row_id)
+
+    rows.sort(key=lambda r: r[1], reverse=True)
+
+    columns = ['row_id', S.COL_TIMESTAMP, S.COL_USER, S.COL_TABLE,
+               S.COL_ACTION, S.COL_OLD_VALUE, S.COL_NEW_VALUE]
+    _write_gzip_json({'columns': columns, 'rows': rows}, _dest('audit'))
+    print(f'audit.json.gz: {len(rows)} rows')
+
+
+def _audit_rows(manager, table_label, field_labels, rows, row_id):
+    """Append audit rows for one historical model.  Returns updated row_id."""
+    prev_map: dict[int, object] = {}
+
+    for entry in manager.select_related('history_user').order_by('history_date', 'history_id'):
+        pk = entry.id
+        ht = entry.history_type
+        user = ''
+        if entry.history_user:
+            u = entry.history_user
+            user = f'{u.first_name} {u.last_name}'.strip() or u.username
+
+        ts = entry.history_date.strftime('%Y-%m-%d %H:%M')
+        action = _ACTION_MAP.get(ht, ht)
+
+        if ht == '+':
+            before, after = '', _format_fields(entry, field_labels)
+        elif ht == '~' and pk in prev_map:
+            before, after = _format_diff(prev_map[pk], entry, field_labels)
+        elif ht == '-':
+            before, after = _format_fields(entry, field_labels), ''
+        else:
+            before, after = '', _format_fields(entry, field_labels)
+
+        row_id += 1
+        rows.append([row_id, ts, user, table_label, action, before, after])
+        prev_map[pk] = entry
+
+    return row_id
+
+
+def _format_fields(entry, field_labels: dict) -> str:
+    """Format all tracked fields as 'label: value; ...'."""
+    parts = []
+    for field, label in field_labels.items():
+        val = getattr(entry, field, None)
+        if val is not None and val != '':
+            parts.append(f'{label}: {val}')
+    return '; '.join(parts)
+
+
+def _format_diff(prev, current, field_labels: dict) -> tuple[str, str]:
+    """Format only the changed fields as before/after strings."""
+    before_parts, after_parts = [], []
+    for field, label in field_labels.items():
+        old = getattr(prev, field, None)
+        new = getattr(current, field, None)
+        if old != new:
+            before_parts.append(f'{label}: {old if old is not None else ""}')
+            after_parts.append(f'{label}: {new if new is not None else ""}')
+    return '; '.join(before_parts), '; '.join(after_parts)
+
+
+# ---------------------------------------------------------------------------
 # Generator registry
 # ---------------------------------------------------------------------------
 
@@ -260,6 +367,7 @@ _GENERATORS: dict[str, callable] = {
     'parcels': generate_parcels,
     'crews': generate_crews,
     'parcel_year_production': generate_parcel_year_production,
+    'audit': generate_audit,
 }
 
 

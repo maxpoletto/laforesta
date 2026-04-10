@@ -75,7 +75,7 @@ def save_view(request):
             op = HarvestOp.objects.create(**parsed)
 
         _write_junctions(op, sp_pcts, tr_pcts)
-        mark_stale('prelievi', 'parcel_year_production')
+        mark_stale('prelievi', 'parcel_year_production', 'audit')
 
     op = HarvestOp.objects.select_related('parcel__region', 'crew', 'note').get(id=op.id)
     record = build_harvest_record(op)
@@ -115,7 +115,7 @@ def delete_view(request):
 
     with transaction.atomic():
         op.delete()
-        mark_stale('prelievi', 'parcel_year_production')
+        mark_stale('prelievi', 'parcel_year_production', 'audit')
 
     response_data = {'data_id': 'prelievi', 'row_id': row_id}
 

@@ -33,6 +33,44 @@ TAB_PRELIEVI = 'Prelievi'
 TAB_CONTROLLO = 'Controllo'
 TAB_IMPOSTAZIONI = 'Impostazioni'
 
+# Column / field labels (used in audit digest and shared with JS)
+COL_DATE = 'Data'
+COL_PARCEL = 'Particella'
+COL_CREW = 'Squadra'
+COL_OPTYPE = 'Tipo'
+COL_QUINTALS = 'Q.li'
+COL_VDP = 'VDP'
+COL_PROT = 'Prot'
+COL_NOTE = 'Note'
+COL_EXTRA_NOTE = 'Altre note'
+COL_ACTIVE = 'Attivo'
+LABEL_USERNAME = 'Nome utente'
+LABEL_ROLE = 'Ruolo'
+LABEL_NAME = 'Nome'
+LABEL_NOTES = 'Note'
+LABEL_MANUFACTURER = 'Costruttore'
+LABEL_MODEL = 'Modello'
+LABEL_YEAR = 'Anno'
+LABEL_LATIN_NAME = 'Nome latino'
+
+# Audit
+COL_TIMESTAMP = 'Data/Ora'
+COL_USER = 'Utente'
+COL_TABLE = 'Tabella'
+COL_ACTION = 'Azione'
+COL_OLD_VALUE = 'Valore precedente'
+COL_NEW_VALUE = 'Valore successivo'
+
+TABLE_HARVEST_OP = 'Prelievo'
+TABLE_USER = 'Utente'
+TABLE_CREW = 'Squadra'
+TABLE_TRACTOR = 'Trattore'
+TABLE_SPECIES = 'Specie'
+
+ACTION_INSERT = 'Inserimento'
+ACTION_UPDATE = 'Modifica'
+ACTION_DELETE = 'Eliminazione'
+
 # ---------------------------------------------------------------------------
 # App verbose names
 # ---------------------------------------------------------------------------
