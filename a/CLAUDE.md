@@ -64,6 +64,22 @@ example, wood from the forest flows into the sawmill and biomass plant).
 Historical data can be displayed in searchable tables and in graphical charts,
 as well as in the forest maps.
 
+# Glossary
+
+- Particella: a parcel of forest land. Usually but not always contiguous. Atomic
+  unit for harvest planning.
+- Compresa: a forest region comprising multiple particelle.
+- Mannesi: a lumberjack. Existing / legacy harvest table is 'mannesi.{xlsx,csv}'.
+- VDP and Prot: "verbale di pesata" and "protocollo", id numbers of lumberjack
+  harvest operations in mannesi file.
+- Bosco apps: Current web-apps in laforesta/bosco. Includes bosco/ads (aree di
+  saggio, sample areas), bosco/pai (piante ad accrescimento indefinito, trees to
+  be preserved), boscoscopio (geo-based stats).
+- PSR: Programma di Sviluppo Rurale. Funding plan for some harvest operations.
+- Fitosanitario: a harvest operation performed for forest disease containment.
+- Catastrofate: a harvest operation performed to remove trees damaged by
+  weather events.
+
 # Architecture overview
 
 The app is a SPA-lite: Django serves a single shell page after authentication,
@@ -770,6 +786,27 @@ Client-side JS tests use the existing `node tests.js` pattern (see bosco/b/).
 
 The test instance of Abies is deployed locally and does not use Docker, to speed
 up testing and debugging.
+
+# Development environment
+
+The dev instance runs directly on the host (no Docker) using `manage.py
+runserver` and a Python virtualenv (latest Python, currently 3.14).
+
+The `data/` directory at the project root holds `db.sqlite3`, `digests/`, and
+`geo/`, identically to production but without Docker mounts.
+
+Makefile targets for dev setup:
+
+- `make migrate`: run Django migrations to create/update tables.
+- `make import`: run ETL scripts (`ingest/`) to populate `db.sqlite3` from
+  existing CSVs in `bosco/data/`.
+- `make geo`: import geo data into `data/geo/` using existing bosco scripts.
+- `make digest`: precompute all JSON digests. Calls `apps/base/digests.py`
+  to avoid divergence with the lazy-on-read production path. Also useful for
+  debugging digest generation outside of the request cycle.
+- `make admin`: create the initial admin user (prompts for username/password).
+- `make dev`: runs `migrate`, `import`, `geo`, `digest`, and `admin` in
+  sequence — one command to go from zero to a working dev instance.
 
 # Relationship to existing "bosco" apps
 
