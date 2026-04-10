@@ -226,6 +226,41 @@ class TestSaveView:
         assert resp.status_code == 400
         assert 'VDP' in resp.json()['message']
 
+    def test_validation_error_bad_quintals(self, writer_client, harvest_fixtures):
+        f = harvest_fixtures
+        resp = self._post(writer_client, {
+            'date': '2024-07-01', 'parcel_id': str(f['parcels'][0].id),
+            'crew_id': str(f['crews'][0].id), 'optype_id': str(f['optypes'][0].id),
+            'quintals': '-5', 'note_id': '', 'record1': '', 'record2': '',
+            'extra_note': '',
+        })
+        assert resp.status_code == 400
+        assert S.ERR_QUINTALS_POSITIVE in resp.json()['message']
+
+    def test_validation_error_non_numeric_quintals(self, writer_client, harvest_fixtures):
+        f = harvest_fixtures
+        resp = self._post(writer_client, {
+            'date': '2024-07-01', 'parcel_id': str(f['parcels'][0].id),
+            'crew_id': str(f['crews'][0].id), 'optype_id': str(f['optypes'][0].id),
+            'quintals': 'abc', 'note_id': '', 'record1': '', 'record2': '',
+            'extra_note': '',
+        })
+        assert resp.status_code == 400
+        assert S.ERR_QUINTALS_POSITIVE in resp.json()['message']
+
+    def test_validation_error_tractor_sum(self, writer_client, harvest_fixtures):
+        f = harvest_fixtures
+        resp = self._post(writer_client, {
+            'date': '2024-07-01', 'parcel_id': str(f['parcels'][0].id),
+            'crew_id': str(f['crews'][0].id), 'optype_id': str(f['optypes'][0].id),
+            'quintals': '10', 'note_id': '', 'record1': '', 'record2': '',
+            'extra_note': '',
+            f'sp_{f["species"][0].id}': '100',
+            f'tr_{f["tractors"][0].id}': '50',  # doesn't sum to 100
+        })
+        assert resp.status_code == 400
+        assert 'trattori' in resp.json()['message'].lower()
+
     def test_reader_forbidden(self, reader_client, harvest_fixtures):
         f = harvest_fixtures
         resp = self._post(reader_client, {

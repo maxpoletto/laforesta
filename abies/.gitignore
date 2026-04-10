@@ -7,6 +7,7 @@ __pycache__/
 
 # Django
 data/
+staticfiles/
 
 # IDE
 .claude/settings.local.json

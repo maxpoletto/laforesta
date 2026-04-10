@@ -6,10 +6,52 @@ from decimal import Decimal
 from django.db import IntegrityError
 
 from apps.base.models import (
-    Crew, Eclass, Parcel, Region, Species, Tractor, User, Role,
-    DigestStatus, UsedNonce,
+    Crew, Eclass, HarvestDetail, HarvestPlan, Note, Optype, Parcel,
+    Region, Species, Tractor, User, Role, DigestStatus, UsedNonce,
 )
 from apps.prelievi.models import HarvestOp, HarvestSpecies, HarvestTractor
+
+
+# ---------------------------------------------------------------------------
+# TimestampedModel / version
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# __str__ methods
+# ---------------------------------------------------------------------------
+
+class TestStr:
+    def test_region(self, regions):
+        assert str(regions[0]) == 'Capistrano'
+
+    def test_eclass(self, eclasses):
+        assert str(eclasses[0]) == 'A'
+
+    def test_crew(self, crews):
+        assert str(crews[0]) == 'Alfa'
+
+    def test_tractor(self, tractors):
+        assert str(tractors[0]) == 'Fiat 110-90'
+
+    def test_species(self, species):
+        assert str(species[0]) == 'Abete'
+
+    def test_optype(self, optypes):
+        assert str(optypes[0]) == 'Tronchi'
+
+    def test_note(self, notes):
+        assert str(notes[0]) == 'PSR'
+
+    def test_parcel(self, parcels):
+        assert str(parcels[0]) == 'Capistrano-1'
+
+    def test_harvest_plan(self, db):
+        hp = HarvestPlan.objects.create(year_start=2020, year_end=2030)
+        assert str(hp) == '2020–2030'
+
+    def test_harvest_detail(self, db):
+        hd = HarvestDetail.objects.create(description='Cut firs 20-40cm')
+        assert str(hd) == 'Cut firs 20-40cm'
 
 
 # ---------------------------------------------------------------------------

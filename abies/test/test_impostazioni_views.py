@@ -144,6 +144,16 @@ class TestTractors:
         data = resp.json()
         assert len(data['rows']) == 2
 
+    def test_form_add(self, writer_client, db):
+        resp = writer_client.get('/abies/api/impostazioni/tractors/form/')
+        assert resp.status_code == 200
+        assert '<form' in resp.json()['html']
+
+    def test_form_edit(self, writer_client, tractors):
+        resp = writer_client.get(f'/abies/api/impostazioni/tractors/form/{tractors[0].id}/')
+        assert resp.status_code == 200
+        assert 'Fiat' in resp.json()['html']
+
     def test_save_create(self, writer_client, db):
         resp = _post(writer_client, '/abies/api/impostazioni/tractors/save/', {
             'manufacturer': 'John Deere', 'model': '5100M', 'year': '2020', 'active': 'true',
@@ -159,6 +169,21 @@ class TestTractors:
         assert resp.status_code == 200
         assert Tractor.objects.get(manufacturer='Kubota').year is None
 
+    def test_save_conflict(self, writer_client, tractors):
+        resp = _post(writer_client, '/abies/api/impostazioni/tractors/save/', {
+            'row_id': str(tractors[0].id), 'version': '999',
+            'manufacturer': 'X', 'model': 'Y', 'year': '', 'active': 'true',
+        })
+        assert resp.status_code == 400
+        assert resp.json()['status'] == 'conflict'
+
+    def test_save_validation_error(self, writer_client, db):
+        resp = _post(writer_client, '/abies/api/impostazioni/tractors/save/', {
+            'manufacturer': '', 'model': '', 'year': '', 'active': 'true',
+        })
+        assert resp.status_code == 400
+        assert resp.json()['status'] == 'validation_error'
+
 
 # ---------------------------------------------------------------------------
 # Species
@@ -170,12 +195,37 @@ class TestSpecies:
         data = resp.json()
         assert len(data['rows']) == 3
 
+    def test_form_add(self, writer_client, db):
+        resp = writer_client.get('/abies/api/impostazioni/species/form/')
+        assert resp.status_code == 200
+        assert '<form' in resp.json()['html']
+
+    def test_form_edit(self, writer_client, species):
+        resp = writer_client.get(f'/abies/api/impostazioni/species/form/{species[0].id}/')
+        assert resp.status_code == 200
+        assert 'Abete' in resp.json()['html']
+
     def test_save_create(self, writer_client, db):
         resp = _post(writer_client, '/abies/api/impostazioni/species/save/', {
             'common_name': 'Faggio', 'latin_name': 'Fagus sylvatica', 'active': 'true',
         })
         assert resp.status_code == 200
         assert Species.objects.filter(common_name='Faggio').exists()
+
+    def test_save_conflict(self, writer_client, species):
+        resp = _post(writer_client, '/abies/api/impostazioni/species/save/', {
+            'row_id': str(species[0].id), 'version': '999',
+            'common_name': 'X', 'latin_name': '', 'active': 'true',
+        })
+        assert resp.status_code == 400
+        assert resp.json()['status'] == 'conflict'
+
+    def test_save_validation_error(self, writer_client, db):
+        resp = _post(writer_client, '/abies/api/impostazioni/species/save/', {
+            'common_name': '', 'latin_name': '', 'active': 'true',
+        })
+        assert resp.status_code == 400
+        assert resp.json()['status'] == 'validation_error'
 
 
 # ---------------------------------------------------------------------------
@@ -267,3 +317,24 @@ class TestUsers:
             'role': Role.READER, 'is_active': 'true',
         })
         assert resp.status_code == 400
+
+    def test_create_password_mismatch(self, admin_client):
+        resp = _post(admin_client, '/abies/api/impostazioni/users/save/', {
+            'username': 'mismatch', 'first_name': '', 'last_name': '',
+            'login_method': LoginMethod.PASSWORD,
+            'password1': 'testpass123!', 'password2': 'different123!',
+            'role': Role.READER, 'is_active': 'true',
+        })
+        assert resp.status_code == 400
+        assert resp.json()['message'] == S.PASSWORD_MISMATCH
+
+    def test_update_password_mismatch(self, admin_client, writer_user):
+        resp = _post(admin_client, '/abies/api/impostazioni/users/save/', {
+            'row_id': str(writer_user.id),
+            'username': writer_user.username, 'first_name': '', 'last_name': '',
+            'login_method': LoginMethod.PASSWORD,
+            'password1': 'newpass123!', 'password2': 'other123!',
+            'role': Role.WRITER, 'is_active': 'true',
+        })
+        assert resp.status_code == 400
+        assert resp.json()['message'] == S.PASSWORD_MISMATCH

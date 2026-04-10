@@ -1,7 +1,8 @@
 PYTHON = python3
 MANAGE = $(PYTHON) manage.py
+BOSCO_DATA = ../bosco/data
 
-.PHONY: check migrate import digest admin dev update-vendor test
+.PHONY: check migrate import geo digest admin dev update-vendor minify test
 
 check:
 	$(MANAGE) check
@@ -15,16 +16,24 @@ import:
 	$(PYTHON) ingest/import_parcels.py
 	$(PYTHON) ingest/import_mannesi.py
 
+geo:
+	mkdir -p data/geo
+	/bin/cp $(BOSCO_DATA)/particelle.geojson data/geo/
+	/bin/cp $(BOSCO_DATA)/terreni.geojson data/geo/
+
 digest:
 	$(MANAGE) shell -c "from apps.base.digests import generate_all; generate_all()"
 
 admin:
 	$(MANAGE) createsuperuser
 
-dev: migrate import digest admin
+dev: migrate import geo digest admin
 
 test:
 	$(PYTHON) -m pytest --cov --cov-report=term-missing -q
+
+collectstatic:
+	$(MANAGE) collectstatic --noinput
 
 # --- Vendor dependencies ----------------------------------------------------
 
@@ -41,3 +50,22 @@ update-vendor:
 	/bin/cp $(NPM_TMP)/node_modules/@maxpoletto/sortable-table/src/sortable-table.js $(VENDOR)/sortable-table/
 	/bin/cp $(NPM_TMP)/node_modules/@maxpoletto/sortable-table/src/sortable-table.css $(VENDOR)/sortable-table/
 	@echo "Vendor JS/CSS updated. DM Sans fonts are managed manually."
+
+# --- Minification -----------------------------------------------------------
+
+JS_DIRS = apps/base/static/base/js \
+          apps/prelievi/static/prelievi/js \
+          apps/controllo/static/controllo/js \
+          apps/impostazioni/static/impostazioni/js \
+          apps/bosco/static/bosco/js
+
+minify:
+	@command -v terser >/dev/null 2>&1 || { echo "Install terser: npm i -g terser"; exit 1; }
+	@for dir in $(JS_DIRS); do \
+		for f in $$dir/*.js; do \
+			[ -f "$$f" ] || continue; \
+			echo "Minifying $$f"; \
+			terser "$$f" --compress --mangle -o "$$f"; \
+		done; \
+	done
+	@echo "Done. Run 'git checkout -- apps/*/static/*/js/' to restore sources."

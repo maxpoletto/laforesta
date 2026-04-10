@@ -2,3 +2,9 @@ django>=6.0,<7.0
 django-allauth[socialaccount]>=65.0,<66.0
 django-axes>=8.0,<9.0
 django-simple-history>=3.11,<4.0
+gunicorn>=23.0,<24.0
+
+# Dev / test
+pytest>=9.0,<10.0
+pytest-cov>=7.0,<8.0
+pytest-django>=4.12,<5.0

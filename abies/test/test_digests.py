@@ -10,10 +10,10 @@ from django.conf import settings
 
 from apps.base.digests import (
     generate_prelievi, generate_parcels, generate_crews,
-    generate_parcel_year_production, mark_stale, regenerate_if_stale,
-    _write_gzip_json,
+    generate_parcel_year_production, generate_audit, generate_all,
+    mark_stale, regenerate_if_stale, _write_gzip_json,
 )
-from apps.base.models import DigestStatus
+from apps.base.models import Crew, DigestStatus, Role, User
 from apps.prelievi.models import HarvestOp, HarvestSpecies, HarvestTractor
 
 
@@ -186,3 +186,39 @@ class TestGenerateParcelYearProduction:
             data = json.load(f)
         assert len(data['rows']) == 1  # same parcel, same year
         assert data['rows'][0][3] == 80.0  # 50 + 30
+
+
+# ---------------------------------------------------------------------------
+# generate_audit — user display name
+# ---------------------------------------------------------------------------
+
+class TestGenerateAudit:
+    def test_user_with_name(self, db):
+        user = User.objects.create_user(
+            username='jdoe', password='testpass123!',
+            first_name='John', last_name='Doe', role=Role.WRITER,
+        )
+        c = Crew(name='TestCrew', active=True)
+        c._history_user = user
+        c.save()
+
+        generate_audit()
+        path = settings.DIGEST_DIR / 'audit.json.gz'
+        with gzip.open(path, 'rt') as f:
+            data = json.load(f)
+        # Find the crew insert row — user column should show "John Doe"
+        crew_rows = [r for r in data['rows'] if 'TestCrew' in (r[6] or '')]
+        assert len(crew_rows) >= 1
+        assert crew_rows[0][2] == 'John Doe'
+
+
+# ---------------------------------------------------------------------------
+# generate_all
+# ---------------------------------------------------------------------------
+
+class TestGenerateAll:
+    def test_generates_all_digests(self, db, parcels, crews, species, tractors, optypes):
+        generate_all()
+        for name in ('prelievi', 'parcels', 'crews', 'parcel_year_production', 'audit'):
+            path = settings.DIGEST_DIR / f'{name}.json.gz'
+            assert path.exists(), f'{name}.json.gz not generated'
