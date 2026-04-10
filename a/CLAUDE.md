@@ -801,6 +801,9 @@ cover models, views, form validation, and ETL scripts.
 
 Client-side JS tests use the existing `node tests.js` pattern (see bosco/b/).
 
+No browser-based E2E testing framework in v1. UI is verified by manual smoke
+testing.
+
 The test instance of Abies is deployed locally and does not use Docker, to speed
 up testing and debugging.
 
