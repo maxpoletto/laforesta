@@ -262,7 +262,8 @@ The process of data entry runs as follows:
 
 1. The user initiates a data addition or edit by clicking on a UI button (the
    visual details of this are below).
-1. JS fetches the form HTML from Django (including the CSRF token).
+1. JS fetches the form HTML from Django (including the CSRF token and an
+   idempotency nonce as a hidden field).
 1. The form is rendered in the current page (it replaces the current view). The
    URL *does not change*. This is the one exception to the "canonical
    representation of view state" rule, since we never need to share the input
@@ -270,8 +271,13 @@ The process of data entry runs as follows:
 1. Client-side JS validation provides immediate feedback: the submit button is
    inactive until JS validation passes.
 1. On submit, JS intercepts and forwards the POST request (including the CSRF
-   token, present in the "csrfmiddlewaretoken" hidden field), and waits for a
-   response.
+   token and idempotency nonce), and waits for a response.
+1. The server checks the nonce: if it has already been used (i.e., a previous
+   request with the same nonce succeeded), it returns the original success
+   response without writing again. This prevents duplicate records when the
+   network drops between server-commit and client-receive and the client retries.
+   Used nonces are stored in the database with a timestamp. The nightly backup
+   cron job also prunes nonces older than 24 hours.
 1. The server provides authoritative validation.
 
 The server response has one of three values. The payload is always JSON.
@@ -528,6 +534,13 @@ Here we describe the core relational tables that underpin the app. Per-domain
 JSON digests appear in the detailed descriptions below. All tables have implicit
 version (int), created_at, and modified_at columns that we omit for clarity.
 
+- user: extends AbstractUser with (role:string, login_method:string)
+  - role is one of 'admin', 'writer', 'reader'.
+  - login_method is one of 'password', 'oauth'.
+  - Inherits from AbstractUser: username, password, email, first_name,
+    last_name, is_active, date_joined.
+  - AUTH_USER_MODEL = 'apps.base.User' must be set before the first migration.
+
 - region: (id:int, name:string)
   - Denotes a forest region or "compresa".
 
@@ -542,7 +555,7 @@ version (int), created_at, and modified_at columns that we omit for clarity.
   - 'interval' denotes harvest interval for coppice parcels.
 
 - parcel: (id:int, name:string, region_id:int, class_id:int, area_ha:int,
-  year:int, location_name:string, altitude_min_m:int, altitude_max_m:int,
+  ave_age:int, location_name:string, altitude_min_m:int, altitude_max_m:int,
   aspect:str, grade_pct:int, desc_veg:string, desc_geo:string,
   harvest_plan_id:int)
   - Represents a forest parcel. 'name' is typically an alphanumeric string like
@@ -554,13 +567,13 @@ version (int), created_at, and modified_at columns that we omit for clarity.
     geologic state of the parcel, respectively.
 
 - sample_area: (id:int, number:int, parcel_id:int, lat:real, lng:real,
-  altitude_m:int, year:int)
+  altitude_m:int, plan_year:int)
   - Represents a sample area.
   - 'parcel_id' maps to the parcel that this sample area was recorded as
     belonging to. Due to human errors, lat/lng may not be within the bounds of
     the stated parcel. (Both sets of data are present to allow finding these
     errors automatically in the future.)
-  - 'year' denotes the year of the harvest plan that the sample was used for.
+  - 'plan_year' denotes the year of the harvest plan that the sample was used for.
 
 - tractor: (id:int, manufacturer:string, model:string, year:int, active:bool)
   - Represents a tractor. 'year' denotes date of manufacture.
