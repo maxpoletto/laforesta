@@ -1,6 +1,7 @@
 """Coppice (ceduo) scheduling: rotation-based harvest calendar with adjacency constraints."""
 
 import heapq
+import math
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -128,24 +129,23 @@ def _schedule_one_cycle(
     scheduled_years: dict[ParcelKey, list[int]],
 ) -> list[CoppiceEvent]:
     """Schedule one harvest cycle (possibly multiple sub-harvests) for a parcel."""
-    remaining = parcel.area_ha
+    n_harvests = math.ceil(parcel.area_ha / MAX_HARVEST_AREA_HA)
+    chunk = parcel.area_ha / n_harvests
     year = eligible
     cycle_events: list[CoppiceEvent] = []
     cycle_start: int | None = None
 
-    while remaining > 0 and year <= last_year:
+    while len(cycle_events) < n_harvests and year <= last_year:
         if _has_adjacency_conflict(key, year, adjacencies, scheduled_years):
             year += 1
             continue
 
-        chunk = min(MAX_HARVEST_AREA_HA, remaining)
         if cycle_start is None:
             cycle_start = year
         cycle_events.append(CoppiceEvent(
             year, parcel.compresa, parcel.particella, chunk,
             parcel.area_ha, parcel.intervallo, cycle_start))
 
-        remaining -= chunk
         year += SUB_HARVEST_GAP
 
     return cycle_events
