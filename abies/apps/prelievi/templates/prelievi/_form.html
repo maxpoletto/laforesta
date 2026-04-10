@@ -1,0 +1,119 @@
+<form id="prelievi-form">
+  <input type="hidden" name="row_id" value="{{ op.id|default_if_none:'' }}">
+  <input type="hidden" name="version" value="{{ op.version|default:'1' }}">
+
+  <div class="form-row">
+    <div class="form-group">
+      <label for="id_date">Data</label>
+      <input type="date" id="id_date" name="date" required
+             value="{% if op %}{{ op.date|date:'Y-m-d' }}{% endif %}">
+    </div>
+    <div class="form-group">
+      <label for="id_quintals">Q.li</label>
+      <input type="number" id="id_quintals" name="quintals" step="0.01" min="0.01" required
+             value="{% if op %}{{ op.quintals }}{% endif %}">
+    </div>
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <label for="id_region">Compresa</label>
+      <select id="id_region" name="region_id">
+        {% for r in regions %}
+        <option value="{{ r.id }}"
+          {% if op and op.parcel.region_id == r.id %}selected{% endif %}>{{ r.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="id_parcel">Particella</label>
+      <select id="id_parcel" name="parcel_id" required>
+        {% for p in parcels %}
+        <option value="{{ p.id }}" data-region="{{ p.region_id }}"
+          {% if op and op.parcel_id == p.id %}selected{% endif %}>{{ p.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <label for="id_crew">Squadra</label>
+      <select id="id_crew" name="crew_id" required>
+        {% for c in crews %}
+        <option value="{{ c.id }}"
+          {% if op and op.crew_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="id_optype">Tipo</label>
+      <select id="id_optype" name="optype_id" required>
+        {% for ot in optypes %}
+        <option value="{{ ot.id }}"
+          {% if op and op.optype_id == ot.id %}selected{% endif %}>{{ ot.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <label for="id_record1">VDP</label>
+      <input type="number" id="id_record1" name="record1"
+             value="{% if op.record1 %}{{ op.record1 }}{% endif %}">
+    </div>
+    <div class="form-group">
+      <label for="id_record2">Prot</label>
+      <input type="number" id="id_record2" name="record2"
+             value="{% if op.record2 %}{{ op.record2 }}{% endif %}">
+    </div>
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <label for="id_note">Note</label>
+      <select id="id_note" name="note_id">
+        <option value="">---</option>
+        {% for n in notes %}
+        <option value="{{ n.id }}"
+          {% if op and op.note_id == n.id %}selected{% endif %}>{{ n.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="id_extra_note">Altre note</label>
+      <input type="text" id="id_extra_note" name="extra_note"
+             value="{{ op.extra_note|default:'' }}">
+    </div>
+  </div>
+
+  <div class="form-section">
+    <h3>Specie</h3>
+    {% for id, name, pct in species_data %}
+    <div class="pct-row">
+      <label>{{ name }}</label>
+      <input type="number" name="sp_{{ id }}" min="0" max="100" value="{{ pct }}">
+      <button type="button" class="btn btn-secondary btn-100"
+              data-group="sp" data-target="sp_{{ id }}">100%</button>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="form-section">
+    <h3>Trattori</h3>
+    {% for id, name, pct in tractor_data %}
+    <div class="pct-row">
+      <label>{{ name }}</label>
+      <input type="number" name="tr_{{ id }}" min="0" max="100" value="{{ pct }}">
+      <button type="button" class="btn btn-secondary btn-100"
+              data-group="tr" data-target="tr_{{ id }}">100%</button>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">Salva</button>
+    <button type="submit" class="btn btn-primary" data-action="save-and-add">Salva e aggiungi</button>
+  </div>
+</form>

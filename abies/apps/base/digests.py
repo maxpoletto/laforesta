@@ -18,6 +18,8 @@ from pathlib import Path
 
 from django.conf import settings
 from django.db.models import Sum
+from django.http import FileResponse, HttpResponse
+from django.utils.http import http_date, parse_http_date_safe
 
 from apps.base.models import DigestStatus
 
@@ -63,6 +65,21 @@ def regenerate_if_stale(name: str) -> Path:
         # Compare-and-swap: only clear if still stale (avoids race).
         DigestStatus.objects.filter(name=name, stale=True).update(stale=False)
     return dest
+
+
+def serve_digest(request, name: str):
+    """Serve a named digest with conditional GET and lazy regeneration."""
+    path = regenerate_if_stale(name)
+    mtime = os.path.getmtime(path)
+    ims = request.META.get('HTTP_IF_MODIFIED_SINCE')
+    if ims:
+        ims_ts = parse_http_date_safe(ims)
+        if ims_ts is not None and ims_ts >= int(mtime):
+            return HttpResponse(status=304)
+    response = FileResponse(open(path, 'rb'), content_type='application/json')
+    response['Content-Encoding'] = 'gzip'
+    response['Last-Modified'] = http_date(mtime)
+    return response
 
 
 # ---------------------------------------------------------------------------
@@ -138,6 +155,35 @@ def generate_prelievi() -> None:
 
     _write_gzip_json({'columns': columns, 'rows': rows}, _dest('prelievi'))
     print(f'prelievi.json.gz: {len(rows)} rows, {len(columns)} columns')
+
+
+def build_harvest_record(op) -> list:
+    """Build a single prelievi digest row.  Used by save views for cache sync.
+
+    The caller must ensure *op* has ``parcel.region``, ``crew``, and ``note``
+    loaded (via ``select_related``).
+    """
+    from apps.base.models import Species, Tractor
+    from apps.prelievi.models import HarvestSpecies, HarvestTractor
+
+    species_ids = list(Species.objects.order_by('sort_order').values_list('id', flat=True))
+    tractor_ids = list(Tractor.objects.order_by('manufacturer', 'model').values_list('id', flat=True))
+
+    sp_pcts = dict(HarvestSpecies.objects.filter(harvest_op=op).values_list('species_id', 'percent'))
+    tr_pcts = dict(HarvestTractor.objects.filter(harvest_op=op).values_list('tractor_id', 'percent'))
+
+    quintals = float(op.quintals)
+    sp_quintals = [round(quintals * sp_pcts.get(sid, 0) / 100, 2) for sid in species_ids]
+    tr_quintals = [round(quintals * tr_pcts.get(tid, 0) / 100, 2) for tid in tractor_ids]
+
+    return (
+        [op.id, op.date.isoformat(), op.parcel.region.name, op.parcel.name,
+         op.crew.name, op.record1, quintals,
+         op.note.name if op.note else '', op.extra_note]
+        + sp_quintals + tr_quintals
+        + [sp_pcts.get(sid, 0) for sid in species_ids]
+        + [tr_pcts.get(tid, 0) for tid in tractor_ids]
+    )
 
 
 # ---------------------------------------------------------------------------

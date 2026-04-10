@@ -18,6 +18,15 @@ ERROR_CONFLICT = 'Il record è stato modificato da un altro utente.'
 ERROR_GENERIC = 'Errore imprevisto.'
 ERROR_RATE_LIMIT = 'Troppe richieste. Riprovare tra un minuto.'
 
+# Validation
+ERR_DATE_REQUIRED = 'Data obbligatoria.'
+ERR_QUINTALS_POSITIVE = 'I quintali devono essere positivi.'
+ERR_SPECIES_PCT_SUM = 'Le percentuali delle specie devono sommare a 100.'
+ERR_TRACTOR_PCT_SUM = 'Le percentuali dei trattori devono sommare a 100.'
+ERR_VDP_DUPLICATE = 'VDP {} è già utilizzato.'
+ERR_NOT_FOUND = 'Record non trovato.'
+ERR_FORBIDDEN = 'Non autorizzato.'
+
 # Tab names (same as app verbose names but title-cased for display)
 TAB_BOSCO = 'Bosco'
 TAB_PRELIEVI = 'Prelievi'

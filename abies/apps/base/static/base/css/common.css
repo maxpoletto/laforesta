@@ -213,6 +213,61 @@ input:focus, select:focus, textarea:focus {
   border-color: #006400;
 }
 
+/* --- Form layout --------------------------------------------------------- */
+
+.form-row {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.form-row > .form-group { flex: 1; margin-bottom: 0; }
+
+.form-group {
+  margin-bottom: 0.75rem;
+}
+
+.form-group label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 500;
+  margin-bottom: 0.25rem;
+  color: #444;
+}
+
+.form-section {
+  margin-top: 1rem;
+}
+
+.form-section h3 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: #333;
+}
+
+.pct-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.pct-row label {
+  min-width: 120px;
+  font-size: 0.85rem;
+}
+
+.pct-row input[type="number"] { width: 70px; }
+
+.pct-row .btn { padding: 0.25rem 0.5rem; font-size: 0.8rem; }
+
+.form-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+}
+
 /* --- Collapsible sections ------------------------------------------------- */
 
 .collapsible-header {
@@ -312,4 +367,6 @@ input:focus, select:focus, textarea:focus {
   .header-tabs { display: none; }
   .header-logout { display: none; }
   .hamburger { display: block; }
+
+  .form-row { flex-direction: column; gap: 0; }
 }
