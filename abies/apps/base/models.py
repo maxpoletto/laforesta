@@ -2,6 +2,7 @@
 
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+from simple_history.models import HistoricalRecords
 
 from config import strings as S
 
@@ -40,6 +41,7 @@ class User(AbstractUser):
     login_method = models.CharField(
         max_length=10, choices=LoginMethod.choices, default=LoginMethod.PASSWORD,
     )
+    history = HistoricalRecords()
 
     class Meta(AbstractUser.Meta):
         verbose_name = S.USER
@@ -86,6 +88,8 @@ class Crew(TimestampedModel):
         verbose_name = S.CREW
         verbose_name_plural = S.CREWS
 
+    history = HistoricalRecords()
+
     def __str__(self):
         return self.name
 
@@ -96,6 +100,8 @@ class Tractor(TimestampedModel):
     model = models.CharField(max_length=100)
     year = models.IntegerField(null=True, blank=True)
     active = models.BooleanField(default=True)
+
+    history = HistoricalRecords()
 
     class Meta:
         verbose_name = S.TRACTOR
@@ -110,6 +116,7 @@ class Species(TimestampedModel):
     common_name = models.CharField(max_length=100, unique=True)
     latin_name = models.CharField(max_length=100, blank=True)
     active = models.BooleanField(default=True)
+    history = HistoricalRecords()
 
     class Meta:
         verbose_name = S.SPECIES

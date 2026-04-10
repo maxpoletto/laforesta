@@ -1,1 +1,2 @@
 django>=6.0,<7.0
+django-simple-history>=3.11,<4.0

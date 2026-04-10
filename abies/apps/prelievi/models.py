@@ -1,6 +1,7 @@
 """Prelievi domain models — harvest operations."""
 
 from django.db import models
+from simple_history.models import HistoricalRecords
 
 from apps.base.models import Crew, Note, Optype, Parcel, Species, TimestampedModel, Tractor
 from config import strings as S
@@ -17,6 +18,7 @@ class HarvestOp(TimestampedModel):
     quintals = models.DecimalField(max_digits=10, decimal_places=2)
     note = models.ForeignKey(Note, on_delete=models.SET_NULL, null=True, blank=True)
     extra_note = models.TextField(blank=True)
+    history = HistoricalRecords()
 
     class Meta:
         verbose_name = S.HARVEST_OP
