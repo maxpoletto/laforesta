@@ -1,7 +1,7 @@
 PYTHON = python3
 MANAGE = $(PYTHON) manage.py
 
-.PHONY: check migrate import digest admin dev update-vendor
+.PHONY: check migrate import digest admin dev update-vendor test
 
 check:
 	$(MANAGE) check
@@ -22,6 +22,9 @@ admin:
 	$(MANAGE) createsuperuser
 
 dev: migrate import digest admin
+
+test:
+	$(PYTHON) -m pytest --cov --cov-report=term-missing -q
 
 # --- Vendor dependencies ----------------------------------------------------
 

@@ -1,6 +1,7 @@
 """Base views — login, logout, shell."""
 
 from axes.decorators import axes_dispatch
+from django.conf import settings
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, HttpResponse
@@ -21,7 +22,7 @@ class LoginView(View):
 
     def get(self, request: HttpRequest) -> HttpResponse:
         if request.user.is_authenticated:
-            return redirect('shell')
+            return redirect(settings.LOGIN_REDIRECT_URL)
         return render(request, 'base/login.html', {'next': request.GET.get('next', '')})
 
     def post(self, request: HttpRequest) -> HttpResponse:
