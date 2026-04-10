@@ -1,0 +1,44 @@
+{% load static %}<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Abies — La Foresta</title>
+  <link rel="stylesheet" href="{% static 'vendor/fonts/dm-sans/dm-sans.css' %}">
+  <link rel="stylesheet" href="{% static 'vendor/leaflet/leaflet.css' %}">
+  <link rel="stylesheet" href="{% static 'vendor/sortable-table/sortable-table.css' %}">
+  <link rel="stylesheet" href="{% static 'base/css/common.css' %}">
+</head>
+<body data-role="{{ user.role }}" data-csrf="{{ csrf_token }}">
+
+  <header id="header">
+    <div class="header-left">
+      <span class="header-logo">La Foresta</span>
+    </div>
+    <nav class="header-tabs" id="header-tabs">
+      <a class="tab" href="/abies/bosco" data-tab="bosco">Bosco</a>
+      <a class="tab" href="/abies/prelievi" data-tab="prelievi">Prelievi</a>
+      <a class="tab" href="/abies/controllo" data-tab="controllo">Controllo</a>
+      <a class="tab" href="/abies/impostazioni" data-tab="impostazioni">Impostazioni</a>
+    </nav>
+    <div class="header-right">
+      <a class="header-logout" href="{% url 'logout' %}">Esci</a>
+      <button class="hamburger" id="hamburger" aria-label="Menu">&#9776;</button>
+    </div>
+  </header>
+
+  <nav class="mobile-menu" id="mobile-menu">
+    <a class="mobile-tab" href="/abies/bosco" data-tab="bosco">Bosco</a>
+    <a class="mobile-tab" href="/abies/prelievi" data-tab="prelievi">Prelievi</a>
+    <a class="mobile-tab" href="/abies/controllo" data-tab="controllo">Controllo</a>
+    <a class="mobile-tab" href="/abies/impostazioni" data-tab="impostazioni">Impostazioni</a>
+    <a class="mobile-tab mobile-logout" href="{% url 'logout' %}">Esci</a>
+  </nav>
+
+  <main id="content"></main>
+
+  <div id="modal-container"></div>
+
+  <script type="module" src="{% static 'base/js/app.js' %}"></script>
+</body>
+</html>

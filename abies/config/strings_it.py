@@ -1,6 +1,29 @@
 """Italian UI strings for Abies."""
 
 # ---------------------------------------------------------------------------
+# Shell / chrome
+# ---------------------------------------------------------------------------
+
+COMPANY_NAME = 'La Foresta'
+LOGOUT = 'Esci'
+LOADING = 'Caricamento...'
+DISMISS = 'Chiudi'
+SAVE = 'Salva'
+SAVE_AND_ADD = 'Salva e aggiungi'
+DELETE_CONFIRM = 'Questa azione non può essere annullata. Confermi?'
+SEARCH_PLACEHOLDER = 'Cerca...'
+EXPORT_CSV = 'Esporta CSV'
+ERROR_NETWORK = 'Errore di rete. Riprovare.'
+ERROR_CONFLICT = 'Il record è stato modificato da un altro utente.'
+ERROR_GENERIC = 'Errore imprevisto.'
+
+# Tab names (same as app verbose names but title-cased for display)
+TAB_BOSCO = 'Bosco'
+TAB_PRELIEVI = 'Prelievi'
+TAB_CONTROLLO = 'Controllo'
+TAB_IMPOSTAZIONI = 'Impostazioni'
+
+# ---------------------------------------------------------------------------
 # App verbose names
 # ---------------------------------------------------------------------------
 

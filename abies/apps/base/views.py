@@ -2,10 +2,17 @@
 
 from axes.decorators import axes_dispatch
 from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 from django.utils.decorators import method_decorator
 from django.views import View
+
+
+@login_required
+def shell_view(request: HttpRequest) -> HttpResponse:
+    """The long-lived SPA shell.  All post-login navigation happens here."""
+    return render(request, 'base/shell.html')
 
 
 @method_decorator(axes_dispatch, name='dispatch')
