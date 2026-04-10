@@ -126,6 +126,23 @@ Session expiration is server-configurable and defaults to 12 hours.
 
 In the future we may need to support other OAuth identity providers.
 
+## Password policy
+
+Django's default `AUTH_PASSWORD_VALIDATORS` are enabled: minimum length (8
+characters), common password check, numeric-only check, similarity to username.
+
+## Rate limiting
+
+django-axes handles login brute-force protection. Data entry endpoints are
+rate-limited per user (e.g., 60 requests/minute) to guard against runaway
+scripts or bugs.
+
+## Content security
+
+The shell page sets a Content-Security-Policy header that blocks inline scripts.
+All user-provided content (notes, descriptions, etc.) rendered into the DOM must
+use `textContent`, never `innerHTML`, to prevent XSS.
+
 ## Auditing
 
 The app records all writes using django-simple-history.
