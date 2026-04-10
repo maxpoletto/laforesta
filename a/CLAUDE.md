@@ -1,29 +1,29 @@
 # Abies: integrated management of forestry company operations
 
 <!-- TOC (line numbers are approximate — re-run grep '^#{1,2} ' to refresh)
-  User base .................. 25
-  Priorities ................. 34
-  Functional overview ........ 41
-  Glossary ................... 82
-  Architecture overview ...... 98
-  Security .................. 115
-  UI architecture ........... 168
-  UI design patterns ........ 409
-  Storage ................... 528
-  Internationalization ...... 689
-  Mobile .................... 706
-  Project structure ......... 712
-  Code location / deployment  794
-  Testing ................... 811
-  Development environment ... 825
-  Relationship to bosco apps  846
-  Build order ............... 852
-  Detailed description ...... 901
-    Login page .............. 907
-    Bosco page .............. 915
-    Prelievi page ........... 1033
-    Audit page .............. 1095
-    Settings page ........... 1108
+  User base .................. 36
+  Priorities ................. 45
+  Functional overview ........ 52
+  Glossary ................... 93
+  Architecture overview ..... 109
+  Security .................. 126
+  UI architecture ........... 179
+  UI design patterns ........ 420
+  Storage ................... 539
+  Internationalization ...... 700
+  Mobile .................... 717
+  Project structure ......... 723
+  Code location / deployment  805
+  Testing ................... 822
+  Development environment ... 836
+  Relationship to bosco apps  857
+  Build order ............... 863
+  Detailed description ...... 912
+    Login page .............. 918
+    Bosco page .............. 927
+    Prelievi page ........... 1045
+    Audit page .............. 1108
+    Settings page ........... 1121
 -->
 
 Abies is a full-stack web app used to manage production operations of a forestry
@@ -192,8 +192,8 @@ The shell is rendered once and never reloads during normal use.
 
 The header is adaptive for desktop and mobile. On narrow displays it contains only:
 - The logo of the company.
-- The name of the currently active domain (Forest, Harvesting, Sawmill, Biomass,
-  Photovoltaic, Fuel, Audit, Settings)
+- The name of the currently active domain (Bosco, Prelievi, Segheria, Biomassa,
+  Fotovoltaico, Rifornimenti, Controllo, Impostazioni)
 - A hamburger icon for a menu that allows switching to other domains.
 
 On wider displays it contains:
@@ -443,7 +443,7 @@ Text inputs have very slightly rounded corners (2-4 px radius).
 Buttons have rounded corners (4-8px radius). They are dark green and turn
 lighter when hovered over.
 
-Horizontal rules outline the page header as well as collapsible elements  (more
+Horizontal rules outline the page header as well as collapsible elements (more
 on these in "Detailed description" below). They are thin (4px), dark green, and
 rectangular.
 
@@ -527,7 +527,7 @@ Modals have a consistent style, with slightly rounded corners and thin dark
 green borders. Their background is white but they cause the rest of the page to
 darken by about 50%.
 
-They are used to display error message (with red text) and  help information
+They are used to display error message (with red text) and help information
 where available (e.g., "?" links next to map navbar elements).
 
 ## Accessibility considerations
@@ -548,10 +548,10 @@ SQLite is appropriate because:
   - Django's ORM abstracts the DB, so migrating to Postgres later is
     straightforward.
 
-In addition, summary statistics are computed periodically and stored as
-compressed JSON files on the server filesystem for consumption by visualization
-tools (charts and maps). (The files are compressed at creation time to decrease
-load during serving.)
+In addition, summary statistics are stored as compressed JSON digest files on
+the server filesystem for consumption by visualization tools (charts and maps).
+These digests are regenerated lazily on read (see "JSON digest regeneration"
+above).
 
 Satellite imagery (GeoTIFF) and GeoJSON geometries (for geo data) are also
 stored as files on disk.
@@ -567,8 +567,8 @@ that indicates a write conflict.
 ## Disconnected operation
 
 The app does not support disconnected operation but works well on relatively
-low-bandwidth (e.g., 3G) connections thanks to pervasive caching, pagination of
-relational data, and compressed, pre-processed data files.
+low-bandwidth (e.g., 3G) connections thanks to pervasive caching, compressed
+pre-processed data files, and client-side filtering.
 
 ## Backups
 
@@ -921,11 +921,12 @@ The login page is mostly blank. In the center, inside a dark-green-bordered
 square, is the company logo and name, entry fields for username and password,
 and a "Log in with Microsoft button".
 
-Upon successful login, users land on the Forest Visualization page.
+Upon successful login, users land on the default domain page (Prelievi in
+Stage 1, Bosco once Stage 2 ships).
 
 ## Bosco page
 
-The "bosco" page is the initial landing page of Abies. In version 1 it is close
+The "bosco" page is the eventual landing page of Abies. It is close
 to a clone of the Boscoscopio app, with the addition of data from other Bosco
 apps ("aree di saggio", "piante ad accrescimento indefinito") and bookmarkable
 URLs.
@@ -1013,7 +1014,7 @@ When each button is selected, the rest of the control panel looks as follows:
   - d1=YYYYMMDD,d2=YYYYMMDD (start and end dates of comparison).
     
     If the granularity of data is year, then dates are of the form YYYY0101.
-    If the granularity is month, then the dates are of them form YYYYMM01.
+    If the granularity is month, then the dates are of the form YYYYMM01.
 
   - fa=1 if "media per particella" is checked.
   - fc=1 if "aree catastali" is checked.
@@ -1035,7 +1036,7 @@ Statistical data:
 - sample_areas.json: JSON version of the sample_area table
 - preserved_trees.json: JSON version of the preserved_tree table
 - parcel_year_production.json: a digest that conceptually is a "SELECT region,
-  parcel, year, SUM(quintals) FROM harvest GROUP BY region, parcel, year", organized like the timeseries.json files in Boscoscopio.
+  parcel, year, SUM(quintals) FROM harvest_op GROUP BY region, parcel, year", organized like the timeseries.json files in Boscoscopio.
 
 Map data:
 - particelle.geojson as in Boscoscopio
@@ -1047,6 +1048,7 @@ The prelievi page supports recording and display of harvesting operations.
 
 - Path: /abies/prelievi
 - Query parameters:
+  - Year range: y1=YYYY, y2=YYYY (date slider bounds)
   - Sort column: sc=N
   - Sort order: so=0/1 (ascending/descending)
   - Filter: f=(URL-encoded version of sortable table search string)
@@ -1067,7 +1069,7 @@ Data, Compresa, Particella, Squadra, VDP, Q.li, Note, Altre note, (quintal colum
 The add/edit form displays:
 
 - a date picker;
-- pull-downs for "Compresa", "Particella", "Squadra", "Note";
+- pull-downs for "Compresa", "Particella", "Squadra", "Tipo" (optype), "Note";
 - short text input for "VDP" (verification: must be unique among cached values
   client-side, and unique across all values server-side);
 - longer text input for "Altre note";
@@ -1100,8 +1102,8 @@ enter a stack of paper slips in sequence.
   everything in the sortable-table as well as percentage values (to support
   prepopulating the edit form).
 
-Successful writes on the backend cause regeneration of the
-parcel_year_production.json file used by the bosco page.
+Successful writes on the backend mark the prelievi.json and
+parcel_year_production.json digests as stale.
 
 ## Audit page ("Controllo")
 
@@ -1135,7 +1137,7 @@ authentication. It provides two simple text-entry fields, "new password" and
 
 This section is visible only to writers.
 
-They can create and edit workers, crews, tractors, and tree species.
+They can create and edit crews, tractors, and tree species.
 
 Each of these entities is configured in its own collapsible section.
 
