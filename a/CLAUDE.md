@@ -549,10 +549,22 @@ version (int), created_at, and modified_at columns that we omit for clarity.
     (coppice=false).
   - Characterized by a minimum volume (m3/ha) before harvesting is permitted.
 
-- harvest_plan: (id:int, year1:int, year2:int, description:text, interval:int)
-  - Represents a harvest plan for a parcel.
-  - 'year1' and 'year2' denote the start and end of the plan.
-  - 'interval' denotes harvest interval for coppice parcels.
+- harvest_plan: (id:int, year_start:int, year_end:int, description:text)
+  - Denotes a multi-year harvest plan, comprising all or most parcels.
+
+- harvest_plan_item: (id:int, harvest_plan_id:int, parcel_id:int, year:int,
+  quintals:int)
+  - Denotes a calendar item in the harvest plan, i.e., that the given parcel
+    will be cut in the given year, with a goal of quintals mass.
+
+- harvest_detail: (id:int, description:text, interval:int)
+  - A reusable harvest instruction, e.g., "Preferentially cut white firs of
+    diameter 20-40cm". 'interval' denotes the harvest interval for coppice
+    parcels (nullable for non-coppice).
+
+- parcel_plan_detail: (harvest_plan_id:int, parcel_id:int,
+  harvest_detail_id:int) — PK is (harvest_plan_id, parcel_id)
+  - Maps a harvest detail to a parcel within a plan.
 
 - parcel: (id:int, name:string, region_id:int, class_id:int, area_ha:int,
   ave_age:int, location_name:string, altitude_min_m:int, altitude_max_m:int,
@@ -565,6 +577,7 @@ version (int), created_at, and modified_at columns that we omit for clarity.
   - altitudes are in meters.
   - 'desc_veg' and 'desc_geo' are strings that describe the vegetative and
     geologic state of the parcel, respectively.
+  - 'harvest_plan_id' (nullable) points to the parcel's current harvest plan.
 
 - sample_area: (id:int, number:int, parcel_id:int, lat:real, lng:real,
   altitude_m:int, plan_year:int)
@@ -598,7 +611,7 @@ version (int), created_at, and modified_at columns that we omit for clarity.
   - Implements an extensible enum: (1: "PSR", 2: "Fitosanitario", 3:
     "Catastrofate")
 
-- harvest: (id:int, date:string /* ISO 8601 */, optype_id:int, parcel_id:int,
+- harvest_op: (id:int, date:string /* ISO 8601 */, optype_id:int, parcel_id:int,
   crew_id:int, record1:int, record2:int, quintals:float, note_id:int,
   extra_note:text)
   - Denotes a harvest operation by one crew on a given day.
@@ -606,11 +619,11 @@ version (int), created_at, and modified_at columns that we omit for clarity.
     bill-of-goods form provided by the crew. They correspond to "vdp" and "prot"
     in the mannesi.csv file, respectively.
 
-- harvest_species: (harvest_id:int, species_id:int, percent:int) — PK is
-  (harvest_id, species_id)
+- harvest_species: (harvest_op_id:int, species_id:int, percent:int) — PK is
+  (harvest_op_id, species_id)
 
-- harvest_tractor: (harvest_id:int, tractor_id:int, percent:int) — PK is
-  (harvest_id, tractor_id)
+- harvest_tractor: (harvest_op_id:int, tractor_id:int, percent:int) — PK is
+  (harvest_op_id, tractor_id)
 
   Harvest_species and harvest_tractor denote the production breakdown of a
   single harvest operation. The percentages for species and tractors must sum to
@@ -674,7 +687,7 @@ More on this is in the detailed description below.
     │   │       └── vendor/             # vendored: Leaflet, Chart.js,
     │   │                               # sortable-table, DM Sans
     │   ├── prelievi/                   # Prelievi domain
-    │   │   ├── models.py               # harvest, harvest_species, harvest_tractor
+    │   │   ├── models.py               # harvest_op, harvest_species, harvest_tractor
     │   │   ├── views.py                # JSON endpoints, form fragments, POST
     │   │   ├── urls.py
     │   │   ├── templates/prelievi/
@@ -774,7 +787,7 @@ Stage 1 includes:
 - Authentication (both password and MS 365 OAuth) via django-allauth +
   django-axes.
 - `base` app: common models (region, eclass, parcel, crew, tractor, species,
-  optype, note, harvest, harvest_species, harvest_tractor), ETL scripts for
+  optype, note, harvest_op, harvest_species, harvest_tractor), ETL scripts for
   initial data import, JSON digest generation, and shared templates/static/CSS.
 - `prelievi` app: the Prelievi page (sortable-table + date range slider),
   add/edit/delete form, and the prelievi.json digest.
