@@ -3,7 +3,7 @@
 .prelievi-slider-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;                       /* match .table-toolbar gap */
   padding-bottom: 8px;
 }
 
@@ -11,13 +11,28 @@
   font-size: 0.85rem;
   font-weight: 500;
   color: #444;
+  min-width: 35px;                /* match .table-search-label width */
+}
+
+.prelievi-slider-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 300px;                   /* match .table-search width */
+}
+
+.prelievi-slider-controls .range-slider {
+  flex: 1;
+  width: auto;                    /* override the fixed 160px in common.css */
 }
 
 .prelievi-slider-label {
   font-size: 0.85rem;
   color: #666;
-  min-width: 80px;
+  white-space: nowrap;
 }
+
+.btn-reset-filters { margin-left: 12px; }
 
 /* Allow species/tractor column headers to wrap onto two lines.
    Must beat .sortable-table-head .sortable-table-header (specificity 0-2-0). */

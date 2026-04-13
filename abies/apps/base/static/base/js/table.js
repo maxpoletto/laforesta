@@ -82,6 +82,14 @@ export class TableWrapper {
   /** Current search text. */
   getSearchText() { return this._searchText; }
 
+  /** Programmatically set search text (e.g., for reset). */
+  setSearchText(text) {
+    this._searchText = text;
+    const input = this._el?.querySelector('.table-search');
+    if (input) input.value = text;
+    this._applyFilters();
+  }
+
   /** Tear down DOM and timers. */
   destroy() {
     if (this._debounceTimer) clearTimeout(this._debounceTimer);

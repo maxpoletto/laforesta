@@ -319,6 +319,7 @@ input:focus, select:focus, textarea:focus {
   font-size: 0.85rem;
   font-weight: 500;
   color: #444;
+  min-width: 35px;
 }
 .table-search { width: 300px; max-width: 300px; }
 .table-csv-btn { margin-left: auto; }

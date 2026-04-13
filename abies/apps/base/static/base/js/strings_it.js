@@ -37,6 +37,7 @@ export const TAB_IMPOSTAZIONI = 'Impostazioni';
 
 // Prelievi
 export const LABEL_YEARS = 'Anni';
+export const RESET_FILTERS = 'Azzera filtri';
 
 // Prelievi columns
 export const COL_DATE = 'Data';

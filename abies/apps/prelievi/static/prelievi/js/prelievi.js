@@ -136,6 +136,20 @@ function showTableView(data, params) {
   const years = extractYears(data.rows);
   slider = buildSlider(sliderRow, years, p.y1, p.y2);
 
+  // Reset button — clears both year range and search filter.
+  const resetBtn = document.createElement('button');
+  resetBtn.className = 'btn btn-secondary btn-reset-filters';
+  resetBtn.textContent = S.RESET_FILTERS;
+  resetBtn.addEventListener('click', () => {
+    if (slider) {
+      slider.setValues(years[0], years[years.length - 1]);
+      if (table) table.setExternalFilter(yearFilter());
+    }
+    if (table) table.setSearchText('');
+    syncURL();
+  });
+  sliderRow.appendChild(resetBtn);
+
   // Table.
   const sort = p.sc
     ? { column: p.sc, ascending: p.so }
@@ -186,6 +200,11 @@ function buildSlider(container, years, initY1, initY2) {
   const label = document.createElement('span');
   label.className = 'prelievi-slider-label';
 
+  // Group label + slider in a box the same width as the search input below,
+  // so their right edges align.
+  const controls = document.createElement('div');
+  controls.className = 'prelievi-slider-controls';
+
   const wrapper = document.createElement('div');
   wrapper.className = 'range-slider';
   const minInput = document.createElement('input');
@@ -194,7 +213,8 @@ function buildSlider(container, years, initY1, initY2) {
   maxInput.type = 'range';
   wrapper.append(minInput, maxInput);
 
-  container.append(title, label, wrapper);
+  controls.append(label, wrapper);
+  container.append(title, controls);
 
   const rs = createRangeSlider(minInput, maxInput, label, () => {
     if (table) table.setExternalFilter(yearFilter());
