@@ -2,12 +2,13 @@ PYTHON = python3
 MANAGE = $(PYTHON) manage.py
 BOSCO_DATA = ../bosco/data
 
-.PHONY: check migrate import geo digest admin dev update-vendor minify test
+.PHONY: check migrate import geo digest admin dev clean update-vendor minify test
 
 check:
 	$(MANAGE) check
 
 migrate:
+	mkdir -p data
 	$(MANAGE) makemigrations
 	$(MANAGE) migrate
 
@@ -22,12 +23,18 @@ geo:
 	/bin/cp $(BOSCO_DATA)/terreni.geojson data/geo/
 
 digest:
-	$(MANAGE) shell -c "from apps.base.digests import generate_all; generate_all()"
+	$(MANAGE) shell --no-imports -c "from apps.base.digests import generate_all; generate_all()"
 
 admin:
-	$(MANAGE) createsuperuser
+	@$(MANAGE) shell --no-imports -c "from apps.base.models import User; exit(0 if User.objects.filter(is_superuser=True).exists() else 1)" \
+		&& echo "Admin user already exists, skipping." \
+		|| $(MANAGE) createsuperuser
 
 dev: migrate import geo digest admin
+
+clean:
+	rm -rf data/
+	find apps/*/migrations -name '*.py' ! -name '__init__.py' -delete
 
 test:
 	$(PYTHON) -m pytest --cov --cov-report=term-missing -q
