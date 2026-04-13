@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Import harvest operations from mannesi.csv.
 
-Idempotent at the row level: skips rows whose (date, crew, optype, parcel,
-record1) combination already exists.  For a clean re-import, delete all
-HarvestOp rows first.
+Idempotent: clears all existing HarvestOp rows (cascading to junction tables)
+before re-importing.
 """
 
 import csv
@@ -159,6 +158,12 @@ def run():
             pct = _pct(row.get(f'{col_prefix} %', ''))
             if pct > 0:
                 tractor_deferred.append((op_idx, tractor_cache[(mfr, model)], pct))
+
+    # Clear existing data so re-runs don't append.
+    # Cascade deletes junction tables (HarvestSpecies, HarvestTractor).
+    deleted, _ = HarvestOp.objects.all().delete()
+    if deleted:
+        print(f'Cleared {deleted} existing records')
 
     # Bulk-create ops (no history tracking for ETL — that's intentional).
     HarvestOp.objects.bulk_create(ops_batch, batch_size=BATCH_SIZE)
