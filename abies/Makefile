@@ -57,7 +57,7 @@ update-vendor:
 	/bin/cp $(NPM_TMP)/node_modules/chart.js/dist/chart.umd.js $(VENDOR)/chartjs/
 	/bin/cp $(NPM_TMP)/node_modules/@maxpoletto/sortable-table/src/sortable-table.js $(VENDOR)/sortable-table/
 	/bin/cp $(NPM_TMP)/node_modules/@maxpoletto/sortable-table/src/sortable-table.css $(VENDOR)/sortable-table/
-	@echo "Vendor JS/CSS updated. DM Sans fonts are managed manually."
+	@echo "Vendor JS/CSS updated. Roboto fonts are managed manually."
 
 # --- Minification -----------------------------------------------------------
 

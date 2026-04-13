@@ -431,7 +431,7 @@ The objectives of the visual design are:
 
 ## Fonts and colors
 
-DM Sans is used throughout.
+Roboto is used throughout.
 
 The UI is strictly two-dimensional: there are no drop-shadows, text inputs are
 flat, scroll bars are flat.
@@ -771,7 +771,7 @@ More on this is in the detailed description below.
     │   │       │   ├── table.js        # sortable-table wrapper + CSV export
     │   │       │   └── strings.js      # Italian UI string constants
     │   │       └── vendor/             # vendored: Leaflet, Chart.js,
-    │   │                               # sortable-table, DM Sans
+    │   │                               # sortable-table, Roboto
     │   ├── prelievi/                   # Prelievi domain
     │   │   ├── models.py               # harvest_op, harvest_species, harvest_tractor
     │   │   ├── views.py                # JSON endpoints, form fragments, POST
