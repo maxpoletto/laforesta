@@ -61,7 +61,7 @@ export async function mount(params) {
     canModify: false,
     sort,
     searchText: p.f,
-    csvFilename: 'controllo.csv',
+    csvFilename: S.CSV_AUDIT,
     onSort: () => syncURL(),
     onSearch: () => syncURL(),
   });

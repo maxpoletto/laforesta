@@ -89,6 +89,14 @@ export const LABEL_ROLE = 'Ruolo';
 export const LABEL_LOGIN_METHOD = 'Metodo di accesso';
 export const LABEL_CREATED_AT = 'Creato il';
 
+// CSV export filenames
+export const CSV_PRELIEVI = 'prelievi.csv';
+export const CSV_CREWS = 'squadre.csv';
+export const CSV_TRACTORS = 'trattori.csv';
+export const CSV_SPECIES = 'specie.csv';
+export const CSV_USERS = 'utenti.csv';
+export const CSV_AUDIT = 'controllo.csv';
+
 // Roles
 export const ROLE_ADMIN = 'admin';
 export const ROLE_WRITER = 'writer';

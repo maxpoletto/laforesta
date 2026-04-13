@@ -129,7 +129,7 @@ function showTableView(data, params) {
     } : {},
     sort,
     searchText: p.f,
-    csvFilename: 'prelievi.csv',
+    csvFilename: S.CSV_PRELIEVI,
     onSort: () => syncURL(),
     onSearch: () => syncURL(),
   });

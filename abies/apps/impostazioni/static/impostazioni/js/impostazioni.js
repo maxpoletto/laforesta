@@ -30,6 +30,7 @@ const ENTITY_SECTIONS = [
     dataUrl: `${API}crews/data/`,
     formUrl: `${API}crews/form/`,
     saveUrl: `${API}crews/save/`,
+    csvFilename: S.CSV_CREWS,
   },
   {
     key: 'tractors',
@@ -38,6 +39,7 @@ const ENTITY_SECTIONS = [
     dataUrl: `${API}tractors/data/`,
     formUrl: `${API}tractors/form/`,
     saveUrl: `${API}tractors/save/`,
+    csvFilename: S.CSV_TRACTORS,
   },
   {
     key: 'species',
@@ -46,6 +48,7 @@ const ENTITY_SECTIONS = [
     dataUrl: `${API}species/data/`,
     formUrl: `${API}species/form/`,
     saveUrl: `${API}species/save/`,
+    csvFilename: S.CSV_SPECIES,
   },
   {
     key: 'users',
@@ -54,6 +57,7 @@ const ENTITY_SECTIONS = [
     dataUrl: `${API}users/data/`,
     formUrl: `${API}users/form/`,
     saveUrl: `${API}users/save/`,
+    csvFilename: S.CSV_USERS,
   },
 ];
 
@@ -244,7 +248,7 @@ async function loadEntityData(cfg, state, container) {
       onEdit: (rowId) => openForm(cfg, state, rowId),
       onAdd: () => openForm(cfg, state, null),
     },
-    csvFilename: `${cfg.key}.csv`,
+    csvFilename: cfg.csvFilename,
   });
 
   applyActiveFilter(state);
