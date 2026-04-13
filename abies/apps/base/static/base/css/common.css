@@ -327,6 +327,11 @@ input:focus, select:focus, textarea:focus {
 /* Override SortableTable defaults to match our theme. */
 .sortable-table-container { --st-primary-color: #006400; font-family: inherit; }
 
+/* Prevent columns from compressing below their specified widths.
+   --st-table-min-width is set by TableWrapper from the sum of column widths.
+   When the total exceeds the container, the wrapper scrolls horizontally. */
+.sortable-table { min-width: var(--st-table-min-width, 0); }
+
 .col-actions { text-align: center; }
 
 /* --- Action icons (table row pencil/trash/plus) --------------------------- */

@@ -19,15 +19,37 @@ const SAVE_URL = '/abies/api/prelievi/save/';
 const DELETE_URL = '/abies/api/prelievi/delete/';
 const PAGE_PATH = '/abies/prelievi';
 
+// ---------------------------------------------------------------------------
+// Number formatters
+// ---------------------------------------------------------------------------
+
+/** Format quintals: one decimal, comma separator. */
+function formatQuintals(value) {
+  if (value == null || value === '') return '';
+  return typeof value === 'number' ? value.toFixed(1).replace('.', ',') : value;
+}
+
+/** Format quintals: one decimal, comma separator. Blank for zero. */
+function formatQuintalsBlankZero(value) {
+  if (!value) return '';
+  return typeof value === 'number' ? value.toFixed(1).replace('.', ',') : value;
+}
+
+/** Format plain integer — no thousands separator. Blank for null. */
+function formatInteger(value) {
+  if (value == null || value === '') return '';
+  return String(value);
+}
+
 /** Column definitions for the fixed digest columns. */
 const STATIC_COLS = {
   'Data': { label: S.COL_DATE, type: 'date', width: '90px' },
   'Compresa': { label: S.COL_REGION, width: '80px' },
   'Particella': { label: S.COL_PARCEL, width: '70px' },
-  'Squadra': { label: S.COL_CREW, width: '120px' },
-  'VDP': { label: S.COL_VDP, type: 'number', width: '55px' },
-  'Q.li': { label: S.COL_QUINTALS, type: 'number', width: '55px' },
-  'Note': { label: S.COL_NOTE, width: '70px' },
+  'Squadra': { label: S.COL_CREW, width: '108px' },
+  'VDP': { label: S.COL_VDP, type: 'number', width: '55px', formatter: formatInteger },
+  'Q.li': { label: S.COL_QUINTALS, type: 'number', width: '55px', formatter: formatQuintals },
+  'Note': { label: S.COL_NOTE, width: '110px' },
   'Altre note': { label: S.COL_EXTRA_NOTE, width: '90px' },
   'version': { label: 'version', hidden: true },
 };
@@ -432,8 +454,18 @@ function buildColumnDefs(columns) {
       defs[name] = { label: name, hidden: true };
       continue;
     }
-    defs[name] = STATIC_COLS[name] || {
-      label: name, type: 'number', width: '52px', className: 'col-wrap-header',
+    if (STATIC_COLS[name]) {
+      defs[name] = STATIC_COLS[name];
+      continue;
+    }
+    // Dynamic quintal column: species names are single words, tractor labels
+    // contain a space (manufacturer + model).
+    const isTractor = name.includes(' ');
+    defs[name] = {
+      label: name, type: 'number',
+      width: isTractor ? '100px' : '90px',
+      className: 'col-wrap-header',
+      formatter: formatQuintalsBlankZero,
     };
   }
   return defs;

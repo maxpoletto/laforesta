@@ -14,5 +14,10 @@
   min-width: 80px;
 }
 
-/* Allow species/tractor column headers to wrap onto two lines. */
-.col-wrap-header { white-space: normal; }
+/* Allow species/tractor column headers to wrap onto two lines.
+   Must beat .sortable-table-head .sortable-table-header (specificity 0-2-0). */
+.sortable-table-head .sortable-table-header.col-wrap-header {
+  white-space: normal;
+  line-height: 1.2;
+  text-align: left;
+}

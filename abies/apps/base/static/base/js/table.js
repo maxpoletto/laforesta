@@ -10,6 +10,7 @@ import * as S from './strings.js';
 const DEBOUNCE_MS = 500;
 const ROW_ID_COL = 0;
 const ROWS_PER_PAGE = 25;
+const DEFAULT_COL_WIDTH = '100';  // px fallback for columns without explicit width
 
 /**
  * Wraps SortableTable with:
@@ -156,6 +157,14 @@ export class TableWrapper {
       emptyMessage: S.NO_RESULTS,
       onSort: (col, asc) => this.onSort?.(col, asc),
     });
+
+    // Set min-width so columns keep their specified widths and the wrapper
+    // scrolls horizontally when the total exceeds the viewport.
+    const totalWidth = this._stColumns.reduce((sum, col) => {
+      if (col.hidden) return sum;
+      return sum + parseInt(col.width || DEFAULT_COL_WIDTH, 10);
+    }, 0);
+    this._tableEl.style.setProperty('--st-table-min-width', totalWidth + 'px');
 
     // Action-icon delegation on the stable container element, avoiding
     // SortableTable's onRowClick which stacks listeners on re-render.
