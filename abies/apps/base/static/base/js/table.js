@@ -9,7 +9,7 @@ import * as S from './strings.js';
 
 const DEBOUNCE_MS = 500;
 const ROW_ID_COL = 0;
-const MAX_ROWS = 1_000_000;  // effectively disables pagination
+const ROWS_PER_PAGE = 25;
 
 /**
  * Wraps SortableTable with:
@@ -151,8 +151,7 @@ export class TableWrapper {
       container: this._tableEl,
       data: digest.rows,
       columns: this._stColumns,
-      rowsPerPage: MAX_ROWS,
-      showPagination: false,
+      rowsPerPage: ROWS_PER_PAGE,
       sort: sort || undefined,
       emptyMessage: S.NO_RESULTS,
       onSort: (col, asc) => this.onSort?.(col, asc),

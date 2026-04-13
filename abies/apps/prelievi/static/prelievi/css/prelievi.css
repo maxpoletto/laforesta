@@ -13,3 +13,6 @@
   color: #444;
   min-width: 80px;
 }
+
+/* Allow species/tractor column headers to wrap onto two lines. */
+.col-wrap-header { white-space: normal; }

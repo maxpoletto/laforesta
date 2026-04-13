@@ -20,14 +20,14 @@ const PAGE_PATH = '/abies/prelievi';
 
 /** Column definitions for the fixed digest columns. */
 const STATIC_COLS = {
-  'Data': { label: S.COL_DATE, type: 'date' },
-  'Compresa': { label: S.COL_REGION },
-  'Particella': { label: S.COL_PARCEL },
-  'Squadra': { label: S.COL_CREW },
-  'VDP': { label: S.COL_VDP, type: 'number' },
-  'Q.li': { label: S.COL_QUINTALS, type: 'number' },
-  'Note': { label: S.COL_NOTE },
-  'Altre note': { label: S.COL_EXTRA_NOTE },
+  'Data': { label: S.COL_DATE, type: 'date', width: '90px' },
+  'Compresa': { label: S.COL_REGION, width: '80px' },
+  'Particella': { label: S.COL_PARCEL, width: '70px' },
+  'Squadra': { label: S.COL_CREW, width: '120px' },
+  'VDP': { label: S.COL_VDP, type: 'number', width: '55px' },
+  'Q.li': { label: S.COL_QUINTALS, type: 'number', width: '55px' },
+  'Note': { label: S.COL_NOTE, width: '70px' },
+  'Altre note': { label: S.COL_EXTRA_NOTE, width: '90px' },
   'version': { label: 'version', hidden: true },
 };
 
@@ -429,7 +429,9 @@ function buildColumnDefs(columns) {
       defs[name] = { label: name, hidden: true };
       continue;
     }
-    defs[name] = STATIC_COLS[name] || { label: name, type: 'number' };
+    defs[name] = STATIC_COLS[name] || {
+      label: name, type: 'number', width: '52px', className: 'col-wrap-header',
+    };
   }
   return defs;
 }
