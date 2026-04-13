@@ -138,7 +138,7 @@ function showTableView(data, params) {
 
   // Reset button — clears both year range and search filter.
   const resetBtn = document.createElement('button');
-  resetBtn.className = 'btn btn-secondary btn-reset-filters';
+  resetBtn.className = 'btn btn-primary btn-reset-filters';
   resetBtn.textContent = S.RESET_FILTERS;
   resetBtn.addEventListener('click', () => {
     if (slider) {
