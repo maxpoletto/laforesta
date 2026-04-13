@@ -34,6 +34,32 @@
 
 .btn-reset-filters { margin-left: 12px; }
 
+/* --- Form layout --------------------------------------------------------- */
+
+#prelievi-form .form-row {
+  display: grid;
+  grid-template-columns: 150px 160px 200px;
+  gap: 0 1rem;
+}
+
+#prelievi-form input,
+#prelievi-form select { width: 100%; }
+
+#id_parcel { width: 80px; }
+#id_quintals { width: 80px; }
+
+.form-pct-sections {
+  display: flex;
+  gap: 4rem;
+  margin-top: 1rem;
+}
+
+.form-pct-sections > .form-section { flex: none; }
+.form-pct-sections .pct-row label { min-width: 140px; }
+.form-pct-sections .form-section:first-child .pct-row label { min-width: 80px; }
+
+/* --- Table column headers ------------------------------------------------ */
+
 /* Allow species/tractor column headers to wrap onto two lines.
    Must beat .sortable-table-head .sortable-table-header (specificity 0-2-0). */
 .sortable-table-head .sortable-table-header.col-wrap-header {

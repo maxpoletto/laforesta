@@ -193,7 +193,6 @@ def _parse_body(body):
 
     note_id = body.get('note_id')
     record1 = body.get('record1')
-    record2 = body.get('record2')
 
     parsed = {
         'date': date,
@@ -202,10 +201,14 @@ def _parse_body(body):
         'optype_id': int(body['optype_id']),
         'note_id': int(note_id) if note_id else None,
         'record1': int(record1) if record1 else None,
-        'record2': int(record2) if record2 else None,
         'quintals': quintals,
         'extra_note': body.get('extra_note', ''),
     }
+    # record2 (Prot) is display-only for legacy data; only overwrite if
+    # explicitly present in the submission (i.e., never from the current form).
+    if 'record2' in body:
+        record2 = body['record2']
+        parsed['record2'] = int(record2) if record2 else None
     return row_id, parsed, errors
 
 

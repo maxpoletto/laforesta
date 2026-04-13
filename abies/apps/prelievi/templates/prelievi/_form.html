@@ -5,17 +5,9 @@
   <div class="form-row">
     <div class="form-group">
       <label for="id_date">Data</label>
-      <input type="date" id="id_date" name="date" required
+      <input type="date" id="id_date" name="date" lang="it" required
              value="{% if op %}{{ op.date|date:'Y-m-d' }}{% endif %}">
     </div>
-    <div class="form-group">
-      <label for="id_quintals">Q.li</label>
-      <input type="number" id="id_quintals" name="quintals" step="0.01" min="0.01" required
-             value="{% if op %}{{ op.quintals }}{% endif %}">
-    </div>
-  </div>
-
-  <div class="form-row">
     <div class="form-group">
       <label for="id_region">Compresa</label>
       <select id="id_region" name="region_id">
@@ -55,6 +47,11 @@
         {% endfor %}
       </select>
     </div>
+    <div class="form-group">
+      <label for="id_quintals">Q.li</label>
+      <input type="number" id="id_quintals" name="quintals" step="0.1" min="0.1" required
+             value="{% if op %}{{ op.quintals|stringformat:".1f" }}{% endif %}">
+    </div>
   </div>
 
   <div class="form-row">
@@ -63,14 +60,6 @@
       <input type="number" id="id_record1" name="record1"
              value="{% if op.record1 %}{{ op.record1 }}{% endif %}">
     </div>
-    <div class="form-group">
-      <label for="id_record2">Prot</label>
-      <input type="number" id="id_record2" name="record2"
-             value="{% if op.record2 %}{{ op.record2 }}{% endif %}">
-    </div>
-  </div>
-
-  <div class="form-row">
     <div class="form-group">
       <label for="id_note">Note</label>
       <select id="id_note" name="note_id">
@@ -88,28 +77,29 @@
     </div>
   </div>
 
-  <div class="form-section">
-    <h3>Specie</h3>
-    {% for id, name, pct in species_data %}
-    <div class="pct-row">
-      <label>{{ name }}</label>
-      <input type="number" name="sp_{{ id }}" min="0" max="100" value="{{ pct }}">
-      <button type="button" class="btn btn-secondary btn-100"
-              data-group="sp" data-target="sp_{{ id }}">100%</button>
+  <div class="form-pct-sections">
+    <div class="form-section">
+      <h3>Specie</h3>
+      {% for id, name, pct in species_data %}
+      <div class="pct-row">
+        <label>{{ name }}</label>
+        <input type="number" name="sp_{{ id }}" min="0" max="100" value="{{ pct }}">
+        <button type="button" class="btn btn-secondary btn-100"
+                data-group="sp" data-target="sp_{{ id }}">100%</button>
+      </div>
+      {% endfor %}
     </div>
-    {% endfor %}
-  </div>
-
-  <div class="form-section">
-    <h3>Trattori</h3>
-    {% for id, name, pct in tractor_data %}
-    <div class="pct-row">
-      <label>{{ name }}</label>
-      <input type="number" name="tr_{{ id }}" min="0" max="100" value="{{ pct }}">
-      <button type="button" class="btn btn-secondary btn-100"
-              data-group="tr" data-target="tr_{{ id }}">100%</button>
+    <div class="form-section">
+      <h3>Trattori</h3>
+      {% for id, name, pct in tractor_data %}
+      <div class="pct-row">
+        <label>{{ name }}</label>
+        <input type="number" name="tr_{{ id }}" min="0" max="100" value="{{ pct }}">
+        <button type="button" class="btn btn-secondary btn-100"
+                data-group="tr" data-target="tr_{{ id }}">100%</button>
+      </div>
+      {% endfor %}
     </div>
-    {% endfor %}
   </div>
 
   <div class="form-actions">
