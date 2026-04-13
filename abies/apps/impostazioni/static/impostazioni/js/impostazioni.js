@@ -22,6 +22,8 @@ const API = '/abies/api/impostazioni/';
 // Section configuration
 // ---------------------------------------------------------------------------
 
+const ACTIVE_COL_DEF = { label: S.COL_ACTIVE, type: 'boolean', width: '50px' };
+
 const ENTITY_SECTIONS = [
   {
     key: 'crews',
@@ -31,6 +33,10 @@ const ENTITY_SECTIONS = [
     formUrl: `${API}crews/form/`,
     saveUrl: `${API}crews/save/`,
     csvFilename: S.CSV_CREWS,
+    columnDefs: {
+      [S.LABEL_NAME]: { label: S.LABEL_NAME, width: '180px' },
+      [S.COL_ACTIVE]: ACTIVE_COL_DEF,
+    },
   },
   {
     key: 'tractors',
@@ -40,6 +46,7 @@ const ENTITY_SECTIONS = [
     formUrl: `${API}tractors/form/`,
     saveUrl: `${API}tractors/save/`,
     csvFilename: S.CSV_TRACTORS,
+    columnDefs: { [S.COL_ACTIVE]: ACTIVE_COL_DEF },
   },
   {
     key: 'species',
@@ -49,6 +56,7 @@ const ENTITY_SECTIONS = [
     formUrl: `${API}species/form/`,
     saveUrl: `${API}species/save/`,
     csvFilename: S.CSV_SPECIES,
+    columnDefs: { [S.COL_ACTIVE]: ACTIVE_COL_DEF },
   },
   {
     key: 'users',
@@ -58,10 +66,10 @@ const ENTITY_SECTIONS = [
     formUrl: `${API}users/form/`,
     saveUrl: `${API}users/save/`,
     csvFilename: S.CSV_USERS,
+    columnDefs: { [S.COL_ACTIVE]: ACTIVE_COL_DEF },
   },
 ];
 
-const ACTIVE_COL_NAME = S.COL_ACTIVE;
 
 // State per entity section: { table, digest, loaded }
 const sections = {};
@@ -73,6 +81,7 @@ const sections = {};
 export function mount() {
   const el = document.getElementById('content');
   el.replaceChildren();
+  el.classList.add('page-settings');
 
   const role = document.body.dataset.role;
   const loginMethod = document.body.dataset.loginMethod;
@@ -92,6 +101,7 @@ export function mount() {
 }
 
 export function unmount() {
+  document.getElementById('content').classList.remove('page-settings');
   for (const state of Object.values(sections)) {
     if (state.table) { state.table.destroy(); state.table = null; }
   }
@@ -242,7 +252,7 @@ async function loadEntityData(cfg, state, container) {
   state.table = new TableWrapper({
     container,
     digest: data,
-    columnDefs: {},  // use server-provided column names as-is
+    columnDefs: cfg.columnDefs || {},
     canModify: true,
     actions: {
       onEdit: (rowId) => openForm(cfg, state, rowId),
@@ -257,7 +267,7 @@ async function loadEntityData(cfg, state, container) {
 function applyActiveFilter(state) {
   if (!state.table || !state.digest) return;
   const cols = state.digest.columns;
-  const activeIdx = cols.indexOf(ACTIVE_COL_NAME);
+  const activeIdx = cols.indexOf(S.COL_ACTIVE);
   if (activeIdx < 0 || !state.activeOnly) {
     state.table.setExternalFilter(null);
   } else {

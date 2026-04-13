@@ -17,6 +17,8 @@ export const CANCEL = 'Annulla';
 export const SEARCH_PLACEHOLDER = 'Cerca...';
 export const EXPORT_CSV = 'Esporta CSV';
 export const NO_RESULTS = 'Nessun risultato.';
+export const BOOL_YES = 'Sì';
+export const BOOL_NO = 'No';
 
 // Errors
 export const ERROR_NETWORK = 'Errore di rete. Riprovare.';
@@ -76,7 +78,7 @@ export const LABEL_EXTRA_NOTE = 'Altre note';
 export const LABEL_QUINTALS = 'Q.li';
 export const LABEL_SPECIES = 'Specie';
 export const LABEL_TRACTORS = 'Trattori';
-export const LABEL_MANUFACTURER = 'Costruttore';
+export const LABEL_MANUFACTURER = 'Marca';
 export const LABEL_MODEL = 'Modello';
 export const LABEL_YEAR = 'Anno';
 export const LABEL_NAME = 'Nome';

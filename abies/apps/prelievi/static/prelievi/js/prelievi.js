@@ -11,6 +11,7 @@ import { showError } from '../../base/js/modals.js';
 import { createRangeSlider } from '../../base/js/range-slider.js';
 import * as S from '../../base/js/strings.js';
 
+const CSS_URL = '/static/prelievi/css/prelievi.css';
 const DATA_ID = 'prelievi';
 const DATA_URL = '/abies/api/prelievi/data/';
 const FORM_URL = '/abies/api/prelievi/form/';
@@ -54,6 +55,7 @@ function canModify() {
 
 export async function mount(params) {
   inForm = false;
+  loadCSS(CSS_URL);
   const el = document.getElementById('content');
   el.replaceChildren();
 
@@ -80,6 +82,7 @@ export async function mount(params) {
 }
 
 export function unmount() {
+  unloadCSS(CSS_URL);
   if (unsubCache) { unsubCache(); unsubCache = null; }
   removeEscapeHandler();
   destroyTable();
@@ -434,4 +437,16 @@ function buildColumnDefs(columns) {
     };
   }
   return defs;
+}
+
+function loadCSS(url) {
+  if (document.querySelector(`link[href="${url}"]`)) return;
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = url;
+  document.head.appendChild(link);
+}
+
+function unloadCSS(url) {
+  document.querySelector(`link[href="${url}"]`)?.remove();
 }

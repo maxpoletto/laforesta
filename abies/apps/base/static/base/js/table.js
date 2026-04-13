@@ -226,7 +226,7 @@ function buildSTColumns(digestColumns, columnDefs, actions) {
       label: def.label ?? name,
       type: def.type ?? 'string',
       hidden: def.hidden || false,
-      formatter: def.formatter,
+      formatter: def.formatter || (def.type === 'boolean' ? formatBool : undefined),
       width: def.width,
       className: def.className,
     };
@@ -269,9 +269,15 @@ function matchesSearch(row, terms) {
 // CSV helpers
 // ---------------------------------------------------------------------------
 
+/** Format a boolean for display. */
+function formatBool(value) {
+  return value ? S.BOOL_YES : S.BOOL_NO;
+}
+
 /** Format a value for Italian CSV (comma decimals, DD/MM/YYYY dates). */
 function formatCSV(value, type) {
   if (value == null || value === '') return '';
+  if (type === 'boolean') return formatBool(value);
   if (type === 'number' && typeof value === 'number') {
     return String(value).replace('.', ',');
   }

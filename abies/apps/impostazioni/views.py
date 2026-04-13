@@ -46,11 +46,11 @@ def password_view(request):
 # Crews
 # ---------------------------------------------------------------------------
 
-CREW_COLS = ['row_id', 'version', S.LABEL_NAME, S.LABEL_NOTES, S.COL_ACTIVE]
+CREW_COLS = ['row_id', S.LABEL_NAME, S.LABEL_NOTES, S.COL_ACTIVE]
 
 
 def _crew_row(c):
-    return [c.id, c.version, c.name, c.notes, c.active]
+    return [c.id, c.name, c.notes, c.active]
 
 
 @login_required
@@ -88,12 +88,12 @@ def crews_save(request):
 # Tractors
 # ---------------------------------------------------------------------------
 
-TRACTOR_COLS = ['row_id', 'version', S.LABEL_MANUFACTURER, S.LABEL_MODEL,
+TRACTOR_COLS = ['row_id', S.LABEL_MANUFACTURER, S.LABEL_MODEL,
                 S.LABEL_YEAR, S.COL_ACTIVE]
 
 
 def _tractor_row(t):
-    return [t.id, t.version, t.manufacturer, t.model, t.year or '', t.active]
+    return [t.id, t.manufacturer, t.model, t.year or '', t.active]
 
 
 @login_required
@@ -133,11 +133,11 @@ def tractors_save(request):
 # Species
 # ---------------------------------------------------------------------------
 
-SPECIES_COLS = ['row_id', 'version', S.LABEL_NAME, S.LABEL_LATIN_NAME, S.COL_ACTIVE]
+SPECIES_COLS = ['row_id', S.LABEL_NAME, S.LABEL_LATIN_NAME, S.COL_ACTIVE]
 
 
 def _species_row(s):
-    return [s.id, s.version, s.common_name, s.latin_name, s.active]
+    return [s.id, s.common_name, s.latin_name, s.active]
 
 
 @login_required
