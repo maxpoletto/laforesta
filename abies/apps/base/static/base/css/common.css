@@ -324,8 +324,8 @@ input:focus, select:focus, textarea:focus {
   overflow: hidden;
 }
 
-/* Override SortableTable accent color to match our theme. */
-.sortable-table-container { --st-primary-color: #006400; }
+/* Override SortableTable defaults to match our theme. */
+.sortable-table-container { --st-primary-color: #006400; font-family: inherit; }
 
 .col-actions { text-align: center; }
 
