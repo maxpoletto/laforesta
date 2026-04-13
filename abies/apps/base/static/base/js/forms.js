@@ -65,12 +65,19 @@ export function renderFormHTML(html) {
  * @param {function(data: object, isSaveAndAdd: boolean): void} callbacks.onSuccess
  * @param {function(data: object): void} [callbacks.onConflict]
  * @param {function(data: object): void} [callbacks.onValidationError]
+ * @param {function(body: object): string|null} [callbacks.validate]
+ *   — client-side pre-submit check; return error string to block, null to proceed.
  */
 export function interceptSubmit(form, postUrl, callbacks) {
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const isSaveAndAdd = e.submitter?.dataset.action === 'save-and-add';
     const body = Object.fromEntries(new FormData(form));
+
+    if (callbacks.validate) {
+      const err = callbacks.validate(body);
+      if (err) { showError(err); return; }
+    }
 
     let data, status;
     try {

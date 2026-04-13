@@ -322,11 +322,31 @@ async function showEditForm(rowId) {
   wireForm(form);
 }
 
+/** Client-side validation before POST. Returns error message or null. */
+function validateForm(body) {
+  // Future date check.
+  if (body.date && body.date > new Date().toISOString().slice(0, 10)) {
+    return S.ERR_DATE_FUTURE;
+  }
+  // Species percentages must sum to 100.
+  let spSum = 0;
+  let trSum = 0;
+  for (const [key, val] of Object.entries(body)) {
+    const n = parseInt(val, 10) || 0;
+    if (key.startsWith('sp_')) spSum += n;
+    else if (key.startsWith('tr_')) trSum += n;
+  }
+  if (spSum !== 100) return S.ERR_SPECIES_PCT_SUM;
+  if (trSum !== 100) return S.ERR_TRACTOR_PCT_SUM;
+  return null;
+}
+
 function wireForm(form) {
   wireRegionCascade(form);
   wire100Buttons(form);
 
   interceptSubmit(form, SAVE_URL, {
+    validate: validateForm,
     onSuccess(data, isSaveAndAdd) {
       cache.updateRow(DATA_ID, data.row_id, data.record);
       if (isSaveAndAdd) {

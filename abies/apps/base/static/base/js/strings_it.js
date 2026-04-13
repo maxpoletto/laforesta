@@ -29,6 +29,11 @@ export const ERROR_GENERIC = 'Errore imprevisto.';
 export const ERROR_DELETED = 'Il record è stato eliminato da un altro utente.';
 export const ERROR_RATE_LIMIT = 'Troppe richieste. Riprovare tra un minuto.';
 
+// Validation (client-side)
+export const ERR_DATE_FUTURE = 'La data non può essere nel futuro.';
+export const ERR_SPECIES_PCT_SUM = 'Le percentuali delle specie devono sommare a 100.';
+export const ERR_TRACTOR_PCT_SUM = 'Le percentuali dei trattori devono sommare a 100.';
+
 // Tab names
 export const TAB_BOSCO = 'Bosco';
 export const TAB_PRELIEVI = 'Prelievi';

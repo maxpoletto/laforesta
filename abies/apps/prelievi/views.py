@@ -1,6 +1,7 @@
 """Prelievi API views: data, form, save, delete."""
 
 import json
+from datetime import date as date_type
 from decimal import Decimal, InvalidOperation
 
 from django.contrib.auth.decorators import login_required
@@ -50,12 +51,12 @@ def save_view(request):
 
     row_id, parsed, errors = _parse_body(body)
     if errors:
-        return _validation_error(errors, row_id, request)
+        return _validation_error(errors, row_id, request, body)
 
     # Species / tractor percentages
     sp_pcts, tr_pcts, pct_errors = _parse_percentages(body)
     if pct_errors:
-        return _validation_error(pct_errors, row_id, request)
+        return _validation_error(pct_errors, row_id, request, body)
 
     # VDP uniqueness
     record1 = parsed['record1']
@@ -64,7 +65,7 @@ def save_view(request):
         if row_id:
             dup = dup.exclude(id=row_id)
         if dup.exists():
-            return _validation_error([S.ERR_VDP_DUPLICATE.format(record1)], row_id, request)
+            return _validation_error([S.ERR_VDP_DUPLICATE.format(record1)], row_id, request, body)
 
     with transaction.atomic():
         if row_id:
@@ -130,8 +131,12 @@ def delete_view(request):
 # Internal helpers
 # ---------------------------------------------------------------------------
 
-def _form_context(op_id=None):
-    """Build template context for the prelievi form."""
+def _form_context(op_id=None, vals=None):
+    """Build template context for the prelievi form.
+
+    *vals* is the raw POST body dict, used to re-populate the form after a
+    validation error on a new entry (where there is no *op* to read from).
+    """
     op = None
     sp_pcts = {}
     tr_pcts = {}
@@ -146,9 +151,19 @@ def _form_context(op_id=None):
         tr_pcts = dict(
             HarvestTractor.objects.filter(harvest_op=op).values_list('tractor_id', 'percent'),
         )
+    elif vals:
+        for key, val in vals.items():
+            if key.startswith('sp_') and val:
+                sp_pcts[int(key[3:])] = int(val)
+            elif key.startswith('tr_') and val:
+                tr_pcts[int(key[3:])] = int(val)
+
+    # vals dict for re-populating non-percentage fields on new-entry errors.
+    v = vals or {}
 
     return {
         'op': op,
+        'vals': v,
         'regions': Region.objects.order_by('name'),
         'parcels': Parcel.objects.exclude(name='X')
                         .select_related('region').order_by('region__name', 'name'),
@@ -166,8 +181,10 @@ def _form_context(op_id=None):
     }
 
 
-def _render_form(op_id, request):
-    return render_to_string('prelievi/_form.html', _form_context(op_id), request=request)
+def _render_form(op_id, request, vals=None):
+    return render_to_string(
+        'prelievi/_form.html', _form_context(op_id, vals), request=request,
+    )
 
 
 def _parse_body(body):
@@ -182,6 +199,12 @@ def _parse_body(body):
     date = body.get('date')
     if not date:
         errors.append(S.ERR_DATE_REQUIRED)
+    else:
+        try:
+            if date_type.fromisoformat(date) > date_type.today():
+                errors.append(S.ERR_DATE_FUTURE)
+        except ValueError:
+            errors.append(S.ERR_DATE_REQUIRED)
 
     try:
         quintals = Decimal(body.get('quintals', '0'))
@@ -232,9 +255,9 @@ def _parse_percentages(body):
                 tr_pcts[int(key[3:])] = pct
 
     errors = []
-    if sp_pcts and sum(sp_pcts.values()) != 100:
+    if sum(sp_pcts.values()) != 100:
         errors.append(S.ERR_SPECIES_PCT_SUM)
-    if tr_pcts and sum(tr_pcts.values()) != 100:
+    if sum(tr_pcts.values()) != 100:
         errors.append(S.ERR_TRACTOR_PCT_SUM)
     return sp_pcts, tr_pcts, errors
 
@@ -279,9 +302,9 @@ def _write_junctions(op, sp_pcts, tr_pcts):
     ])
 
 
-def _validation_error(errors, row_id, request):
+def _validation_error(errors, row_id, request, vals=None):
     return JsonResponse({
         'status': 'validation_error',
         'message': ' '.join(errors),
-        'html': _render_form(row_id, request),
+        'html': _render_form(row_id, request, vals),
     }, status=400)

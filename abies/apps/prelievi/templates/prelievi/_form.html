@@ -6,14 +6,15 @@
     <div class="form-group">
       <label for="id_date">Data</label>
       <input type="date" id="id_date" name="date" lang="it" required
-             value="{% if op %}{{ op.date|date:'Y-m-d' }}{% endif %}">
+             value="{% if op %}{{ op.date|date:'Y-m-d' }}{% else %}{{ vals.date }}{% endif %}">
     </div>
     <div class="form-group">
       <label for="id_region">Compresa</label>
       <select id="id_region" name="region_id">
         {% for r in regions %}
         <option value="{{ r.id }}"
-          {% if op and op.parcel.region_id == r.id %}selected{% endif %}>{{ r.name }}</option>
+          {% if op and op.parcel.region_id == r.id %}selected
+          {% elif vals.region_id == r.id|stringformat:"d" %}selected{% endif %}>{{ r.name }}</option>
         {% endfor %}
       </select>
     </div>
@@ -22,7 +23,8 @@
       <select id="id_parcel" name="parcel_id" required>
         {% for p in parcels %}
         <option value="{{ p.id }}" data-region="{{ p.region_id }}"
-          {% if op and op.parcel_id == p.id %}selected{% endif %}>{{ p.name }}</option>
+          {% if op and op.parcel_id == p.id %}selected
+          {% elif vals.parcel_id == p.id|stringformat:"d" %}selected{% endif %}>{{ p.name }}</option>
         {% endfor %}
       </select>
     </div>
@@ -34,7 +36,8 @@
       <select id="id_crew" name="crew_id" required>
         {% for c in crews %}
         <option value="{{ c.id }}"
-          {% if op and op.crew_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+          {% if op and op.crew_id == c.id %}selected
+          {% elif vals.crew_id == c.id|stringformat:"d" %}selected{% endif %}>{{ c.name }}</option>
         {% endfor %}
       </select>
     </div>
@@ -43,14 +46,15 @@
       <select id="id_optype" name="optype_id" required>
         {% for ot in optypes %}
         <option value="{{ ot.id }}"
-          {% if op and op.optype_id == ot.id %}selected{% endif %}>{{ ot.name }}</option>
+          {% if op and op.optype_id == ot.id %}selected
+          {% elif vals.optype_id == ot.id|stringformat:"d" %}selected{% endif %}>{{ ot.name }}</option>
         {% endfor %}
       </select>
     </div>
     <div class="form-group">
       <label for="id_quintals">Q.li</label>
       <input type="number" id="id_quintals" name="quintals" step="0.1" min="0.1" required
-             value="{% if op %}{{ op.quintals|stringformat:".1f" }}{% endif %}">
+             value="{% if op %}{{ op.quintals|stringformat:'.1f' }}{% else %}{{ vals.quintals }}{% endif %}">
     </div>
   </div>
 
@@ -58,7 +62,7 @@
     <div class="form-group">
       <label for="id_record1">VDP</label>
       <input type="number" id="id_record1" name="record1"
-             value="{% if op.record1 %}{{ op.record1 }}{% endif %}">
+             value="{% if op.record1 %}{{ op.record1 }}{% elif vals.record1 %}{{ vals.record1 }}{% endif %}">
     </div>
     <div class="form-group">
       <label for="id_note">Note</label>
@@ -66,14 +70,15 @@
         <option value="">---</option>
         {% for n in notes %}
         <option value="{{ n.id }}"
-          {% if op and op.note_id == n.id %}selected{% endif %}>{{ n.name }}</option>
+          {% if op and op.note_id == n.id %}selected
+          {% elif vals.note_id == n.id|stringformat:"d" %}selected{% endif %}>{{ n.name }}</option>
         {% endfor %}
       </select>
     </div>
     <div class="form-group">
       <label for="id_extra_note">Altre note</label>
       <input type="text" id="id_extra_note" name="extra_note"
-             value="{{ op.extra_note|default:'' }}">
+             value="{% if op %}{{ op.extra_note|default:'' }}{% else %}{{ vals.extra_note|default:'' }}{% endif %}">
     </div>
   </div>
 

@@ -1082,30 +1082,40 @@ year granularity restricts the displayed range, and the search box filters
 within that range. No server round-trips for filtering.
 
 Columns are:
-Data, Compresa, Particella, Squadra, VDP, Q.li, Note, Altre note, (quintal columns by species in alphabetical order), (quintal columns by tractor in alphabetical order).
+Data, Compresa, Particella, Squadra, VDP, Q.li, Note, Altre note, (quintal
+columns by species in sort_order), (quintal columns by tractor in alphabetical
+order).
 
-The add/edit form displays:
+All quintal values display with one decimal and comma separator (Italian locale,
+e.g., "164,0"). Per-species and per-tractor quintal columns show blank for zero.
+VDP displays as a plain integer (no thousands separator). Columns have fixed
+widths; the table scrolls horizontally when the viewport is too narrow.
 
-- a date picker;
-- pull-downs for "Compresa", "Particella", "Squadra", "Tipo" (optype), "Note";
-- short text input for "VDP" (verification: must be unique among cached values
-  client-side, and unique across all values server-side);
-- longer text input for "Altre note";
-- numerical input for "Q.li" (verified to be a float).
+The add/edit form is laid out as a compact grid (three fields per row):
 
-For values by species and tractor, the form requires not quintals but
-percentages.
+- Row 1: date picker, "Compresa" pull-down (cascades to filter Particella),
+  "Particella" pull-down.
+- Row 2: "Squadra" pull-down, "Tipo" (optype) pull-down, "Q.li" numeric input
+  (step 0.1).
+- Row 3: "VDP" numeric input, "Note" pull-down, "Altre note" text input.
 
-For these fields, we list all possible choices and provide next to each one both
-a numerical entry text input and a "100%" button for the common case.
+Prot (record2) is not shown in the form — it is display-only for legacy data.
+Existing Prot values are preserved on edit; new records never have a Prot value.
 
-Specie:
-Abete: [box] [100%] Castagno: [box] [100%] ...
+VDP must be unique (checked server-side against all records).
 
-Trattori:
-Fiat: [box] [100%] Volvo: [box] [100%] ...
+Species and tractor percentage sections appear side-by-side below the main
+fields. For each, all active choices are listed with a numeric input and a
+"100%" quick-set button. Species and tractor percentages must each sum to 100
+(validated both client-side and server-side). Pressing a "100%" button sets
+that input to 100 and the others in the same group to 0.
 
-Pressing a button sets the corresponding box to 100 and the others to 0.
+Additional validation (client-side and server-side):
+- Date cannot be in the future.
+- Q.li must be positive.
+
+On validation error for a new entry, the form re-populates with the submitted
+values so the user does not lose their input.
 
 The form has two submit buttons: "Salva" (save and return to the table view)
 and "Salva e aggiungi" (save and present a blank form for the next entry).
