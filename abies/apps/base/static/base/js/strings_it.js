@@ -14,8 +14,10 @@ export const DELETE_CONFIRM = 'Questa azione non può essere annullata. Confermi
 export const CANCEL = 'Annulla';
 
 // Tables
+export const FILTER_LABEL = 'Filtra';
 export const SEARCH_PLACEHOLDER = 'Cerca...';
 export const EXPORT_CSV = 'Esporta CSV';
+export const ADD_LABEL = 'Aggiungi';
 export const NO_RESULTS = 'Nessun risultato.';
 export const BOOL_YES = 'Sì';
 export const BOOL_NO = 'No';
@@ -32,6 +34,9 @@ export const TAB_BOSCO = 'Bosco';
 export const TAB_PRELIEVI = 'Prelievi';
 export const TAB_CONTROLLO = 'Controllo';
 export const TAB_IMPOSTAZIONI = 'Impostazioni';
+
+// Prelievi
+export const LABEL_YEARS = 'Anni';
 
 // Prelievi columns
 export const COL_DATE = 'Data';

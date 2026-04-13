@@ -315,7 +315,12 @@ input:focus, select:focus, textarea:focus {
   flex-shrink: 0;
 }
 
-.table-search { width: 250px; }
+.table-search-label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #444;
+}
+.table-search { width: 300px; max-width: 300px; }
 .table-csv-btn { margin-left: auto; }
 
 .table-scroll {
@@ -352,6 +357,8 @@ input:focus, select:focus, textarea:focus {
   justify-content: flex-end;
   padding: 6px 0;
 }
+
+.btn-add { font-size: 0.85rem; }
 
 /* --- Loading overlay ------------------------------------------------------ */
 

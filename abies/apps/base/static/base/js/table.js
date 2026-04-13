@@ -106,8 +106,8 @@ export class TableWrapper {
       const row = document.createElement('div');
       row.className = 'action-add';
       const btn = document.createElement('button');
-      btn.className = 'action-icon';
-      btn.textContent = '+';
+      btn.className = 'btn btn-secondary btn-add';
+      btn.textContent = '+ ' + S.ADD_LABEL;
       btn.addEventListener('click', () => this.actions.onAdd());
       row.appendChild(btn);
       this._el.appendChild(row);
@@ -120,6 +120,11 @@ export class TableWrapper {
   _buildToolbar() {
     const bar = document.createElement('div');
     bar.className = 'table-toolbar';
+
+    const label = document.createElement('label');
+    label.className = 'table-search-label';
+    label.textContent = S.FILTER_LABEL;
+    bar.appendChild(label);
 
     const search = document.createElement('input');
     search.type = 'text';
@@ -134,6 +139,7 @@ export class TableWrapper {
         this.onSearch?.(this._searchText);
       }, DEBOUNCE_MS);
     });
+    label.htmlFor = search.id = 'table-search-' + (++TableWrapper._idSeq);
     bar.appendChild(search);
 
     const csvBtn = document.createElement('button');
@@ -220,6 +226,8 @@ export class TableWrapper {
   }
 }
 
+TableWrapper._idSeq = 0;
+
 // ---------------------------------------------------------------------------
 // Column builder (module-private)
 // ---------------------------------------------------------------------------
@@ -250,7 +258,7 @@ function buildSTColumns(digestColumns, columnDefs, actions) {
     const html = parts.join(' ');
     cols.push({
       key: '_actions', label: '', sortable: false,
-      width: '56px', className: 'col-actions',
+      width: '61px', className: 'col-actions',
       formatter: () => html,
     });
   }

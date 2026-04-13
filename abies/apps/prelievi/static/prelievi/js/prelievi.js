@@ -179,6 +179,10 @@ function onCacheUpdate() {
 function buildSlider(container, years, initY1, initY2) {
   if (years.length < 2) return null;
 
+  const title = document.createElement('span');
+  title.className = 'prelievi-slider-title';
+  title.textContent = S.LABEL_YEARS;
+
   const label = document.createElement('span');
   label.className = 'prelievi-slider-label';
 
@@ -190,7 +194,7 @@ function buildSlider(container, years, initY1, initY2) {
   maxInput.type = 'range';
   wrapper.append(minInput, maxInput);
 
-  container.append(label, wrapper);
+  container.append(title, label, wrapper);
 
   const rs = createRangeSlider(minInput, maxInput, label, () => {
     if (table) table.setExternalFilter(yearFilter());
