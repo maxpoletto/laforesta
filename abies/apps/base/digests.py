@@ -113,7 +113,7 @@ def generate_prelievi() -> None:
 
     columns = (
         ['row_id', 'version', 'Data', 'Compresa', 'Particella', 'Squadra',
-         'VDP', 'Q.li', 'Note', 'Altre note']
+         'Tipo', 'VDP', 'Q.li', 'Note', 'Altre note']
         + species_names
         + tractor_labels
         + [f'{n} %' for n in species_names]
@@ -131,7 +131,7 @@ def generate_prelievi() -> None:
 
     rows = []
     ops = (HarvestOp.objects
-           .select_related('parcel__region', 'crew', 'note')
+           .select_related('parcel__region', 'crew', 'note', 'optype')
            .order_by('-date', 'id'))
     for op in ops.iterator():
         quintals = float(op.quintals)
@@ -148,7 +148,7 @@ def generate_prelievi() -> None:
         row = (
             [op.id, op.version, op.date.isoformat(),
              op.parcel.region.name, op.parcel.name,
-             op.crew.name, op.record1, quintals,
+             op.crew.name, op.optype.name, op.record1, quintals,
              op.note.name if op.note else '', op.extra_note]
             + sp_quintals + tr_quintals
             + sp_pct_vals + tr_pct_vals
@@ -181,7 +181,7 @@ def build_harvest_record(op) -> list:
     return (
         [op.id, op.version, op.date.isoformat(),
          op.parcel.region.name, op.parcel.name,
-         op.crew.name, op.record1, quintals,
+         op.crew.name, op.optype.name, op.record1, quintals,
          op.note.name if op.note else '', op.extra_note]
         + sp_quintals + tr_quintals
         + [sp_pcts.get(sid, 0) for sid in species_ids]

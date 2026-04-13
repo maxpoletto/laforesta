@@ -10,6 +10,10 @@ import { postJSON } from '../../base/js/api.js';
 import { showError } from '../../base/js/modals.js';
 import { createRangeSlider } from '../../base/js/range-slider.js';
 import * as S from '../../base/js/strings.js';
+import { matchesSearch } from '../../base/js/table.js';
+import {
+  aggregateTimeSeries, aggregateSpeciesByParcel, renderStackedBar,
+} from './charts.js';
 
 const CSS_URL = '/static/prelievi/css/prelievi.css';
 const DATA_ID = 'prelievi';
@@ -47,6 +51,7 @@ const STATIC_COLS = {
   'Compresa': { label: S.COL_REGION, width: '80px' },
   'Particella': { label: S.COL_PARCEL, width: '70px' },
   'Squadra': { label: S.COL_CREW, width: '108px' },
+  'Tipo': { label: S.COL_OPTYPE, hidden: true },
   'VDP': { label: S.COL_VDP, type: 'number', width: '55px', formatter: formatInteger },
   'Q.li': { label: S.COL_QUINTALS, type: 'number', width: '55px', formatter: formatQuintals },
   'Note': { label: S.COL_NOTE, width: '110px' },
@@ -64,6 +69,20 @@ let slider = null;
 let unsubCache = null;
 let inForm = false;
 let escapeHandler = null;
+
+// Chart state.
+let chartA = null;
+let chartB = null;
+let chartACanvas = null;
+let chartBCanvas = null;
+let chartAOpen = false;
+let chartBOpen = false;
+let chartADirty = true;
+let chartBDirty = true;
+let chartABreakdown = 'total';
+let chartAByMonth = false;
+let speciesCols = [];
+let colMap = {};
 
 cache.register(DATA_ID, DATA_URL);
 
@@ -96,6 +115,8 @@ export async function mount(params) {
 
   colDate = data.columns.indexOf('Data');
   colVersion = data.columns.indexOf('version');
+  _buildColMap(data.columns);
+  _classifyColumns(data.columns);
 
   showTableView(data, params);
 
@@ -107,6 +128,7 @@ export function unmount() {
   unloadCSS(CSS_URL);
   if (unsubCache) { unsubCache(); unsubCache = null; }
   removeEscapeHandler();
+  _destroyCharts();
   destroyTable();
   cache.setVisible([]);
 }
@@ -147,8 +169,12 @@ function showTableView(data, params) {
     }
     if (table) table.setSearchText('');
     syncURL();
+    _updateCharts();
   });
   sliderRow.appendChild(resetBtn);
+
+  // Chart sections (collapsible, above the table).
+  _buildChartSections(el);
 
   // Table.
   const sort = p.sc
@@ -170,10 +196,11 @@ function showTableView(data, params) {
     searchText: p.f,
     csvFilename: S.CSV_PRELIEVI,
     onSort: () => syncURL(),
-    onSearch: () => syncURL(),
+    onSearch: () => { syncURL(); _updateCharts(); },
   });
 
   table.setExternalFilter(yearFilter());
+  _updateCharts();
 }
 
 function destroyTable() {
@@ -219,6 +246,7 @@ function buildSlider(container, years, initY1, initY2) {
   const rs = createRangeSlider(minInput, maxInput, label, () => {
     if (table) table.setExternalFilter(yearFilter());
     syncURL();
+    _updateCharts();
   });
 
   rs.setRange(years);
@@ -300,6 +328,150 @@ function syncURL() {
 
   const qs = params.toString();
   router.navigate(PAGE_PATH + (qs ? '?' + qs : ''), true);
+}
+
+// ---------------------------------------------------------------------------
+// Charts
+// ---------------------------------------------------------------------------
+
+function _buildColMap(columns) {
+  colMap = {};
+  for (let i = 0; i < columns.length; i++) colMap[columns[i]] = i;
+}
+
+function _classifyColumns(columns) {
+  speciesCols = [];
+  for (const name of columns) {
+    if (name === 'row_id' || STATIC_COLS[name] || name.endsWith(' %')) continue;
+    // Species are single words; tractor labels contain a space.
+    if (!name.includes(' ')) speciesCols.push(name);
+  }
+}
+
+function _getFilteredRows() {
+  const data = cache.get(DATA_ID);
+  if (!data) return [];
+  const yf = yearFilter();
+  const text = table ? table.getSearchText() : '';
+  const terms = text.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  return data.rows.filter(row => {
+    if (yf && !yf(row)) return false;
+    if (terms.length && !matchesSearch(row, terms)) return false;
+    return true;
+  });
+}
+
+function _updateCharts() {
+  chartADirty = true;
+  chartBDirty = true;
+  if (chartAOpen) _renderChartA();
+  if (chartBOpen) _renderChartB();
+}
+
+function _renderChartA() {
+  if (!chartACanvas) return;
+  const rows = _getFilteredRows();
+  const data = aggregateTimeSeries(rows, colMap, chartABreakdown, chartAByMonth, speciesCols);
+  chartA = renderStackedBar(chartACanvas, data, chartA);
+  chartADirty = false;
+}
+
+function _renderChartB() {
+  if (!chartBCanvas) return;
+  const rows = _getFilteredRows();
+  const data = aggregateSpeciesByParcel(rows, colMap, speciesCols);
+  chartB = renderStackedBar(chartBCanvas, data, chartB);
+  chartBDirty = false;
+}
+
+function _destroyCharts() {
+  if (chartA) { chartA.destroy(); chartA = null; }
+  if (chartB) { chartB.destroy(); chartB = null; }
+  chartACanvas = null;
+  chartBCanvas = null;
+  chartAOpen = false;
+  chartBOpen = false;
+  chartADirty = true;
+  chartBDirty = true;
+}
+
+function _buildChartSections(el) {
+  // --- Chart A: Production over time ---
+  const [headerA, bodyA] = _collapsible(S.CHART_PRODUCTION);
+
+  const controlsA = document.createElement('div');
+  controlsA.className = 'chart-controls';
+
+  const sel = document.createElement('select');
+  for (const [value, label] of [
+    ['total', S.CHART_TOTAL], ['compresa', S.COL_REGION],
+    ['particella', S.COL_PARCEL], ['squadra', S.COL_CREW],
+    ['specie', S.LABEL_SPECIES], ['tipo', S.COL_OPTYPE],
+  ]) {
+    const opt = document.createElement('option');
+    opt.value = value;
+    opt.textContent = label;
+    sel.appendChild(opt);
+  }
+  sel.addEventListener('change', () => { chartABreakdown = sel.value; _renderChartA(); });
+  controlsA.appendChild(sel);
+
+  const monthLabel = document.createElement('label');
+  monthLabel.className = 'chart-month-toggle';
+  const monthCb = document.createElement('input');
+  monthCb.type = 'checkbox';
+  monthCb.addEventListener('change', () => { chartAByMonth = monthCb.checked; _renderChartA(); });
+  monthLabel.append(monthCb, ' ' + S.CHART_BY_MONTHS);
+  controlsA.appendChild(monthLabel);
+
+  bodyA.appendChild(controlsA);
+
+  chartACanvas = document.createElement('canvas');
+  const boxA = document.createElement('div');
+  boxA.className = 'chart-container';
+  boxA.appendChild(chartACanvas);
+  bodyA.appendChild(boxA);
+
+  headerA.addEventListener('click', () => {
+    headerA.classList.toggle('open');
+    bodyA.classList.toggle('open');
+    chartAOpen = bodyA.classList.contains('open');
+    if (chartAOpen && chartADirty) _renderChartA();
+  });
+
+  el.append(headerA, bodyA);
+
+  // --- Chart B: Species by parcel ---
+  const [headerB, bodyB] = _collapsible(S.CHART_SPECIES_BY_PARCEL);
+
+  chartBCanvas = document.createElement('canvas');
+  const boxB = document.createElement('div');
+  boxB.className = 'chart-container';
+  boxB.appendChild(chartBCanvas);
+  bodyB.appendChild(boxB);
+
+  headerB.addEventListener('click', () => {
+    headerB.classList.toggle('open');
+    bodyB.classList.toggle('open');
+    chartBOpen = bodyB.classList.contains('open');
+    if (chartBOpen && chartBDirty) _renderChartB();
+  });
+
+  el.append(headerB, bodyB);
+}
+
+function _collapsible(title) {
+  const header = document.createElement('div');
+  header.className = 'collapsible-header';
+  const span = document.createElement('span');
+  span.textContent = title;
+  const arrow = document.createElement('span');
+  arrow.className = 'arrow';
+  header.append(span, arrow);
+
+  const body = document.createElement('div');
+  body.className = 'collapsible-body';
+  return [header, body];
 }
 
 // ---------------------------------------------------------------------------

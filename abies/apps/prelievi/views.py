@@ -78,7 +78,7 @@ def save_view(request):
         _write_junctions(op, sp_pcts, tr_pcts)
         mark_stale('prelievi', 'parcel_year_production', 'audit')
 
-    op = HarvestOp.objects.select_related('parcel__region', 'crew', 'note').get(id=op.id)
+    op = HarvestOp.objects.select_related('parcel__region', 'crew', 'note', 'optype').get(id=op.id)
     record = build_harvest_record(op)
     response_data = {'data_id': 'prelievi', 'row_id': op.id, 'record': record}
 
@@ -103,7 +103,7 @@ def delete_view(request):
     version = int(body.get('version', 0))
 
     try:
-        op = HarvestOp.objects.select_related('parcel__region', 'crew', 'note').get(id=row_id)
+        op = HarvestOp.objects.select_related('parcel__region', 'crew', 'note', 'optype').get(id=row_id)
     except HarvestOp.DoesNotExist:
         return JsonResponse({'message': S.ERR_NOT_FOUND}, status=404)
 
@@ -272,7 +272,7 @@ def _update_op(row_id, parsed, body):
 
     if op.version != version:
         op_full = HarvestOp.objects.select_related(
-            'parcel__region', 'crew', 'note',
+            'parcel__region', 'crew', 'note', 'optype',
         ).get(id=row_id)
         record = build_harvest_record(op_full)
         return JsonResponse({

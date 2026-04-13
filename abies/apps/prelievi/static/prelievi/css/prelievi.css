@@ -58,6 +58,35 @@
 .form-pct-sections .pct-row label { min-width: 140px; }
 .form-pct-sections .form-section:first-child .pct-row label { min-width: 80px; }
 
+/* --- Chart sections ------------------------------------------------------- */
+
+.chart-controls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.chart-controls select {
+  width: auto;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.85rem;
+}
+
+.chart-month-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #444;
+  cursor: pointer;
+}
+
+.chart-month-toggle input[type="checkbox"] { width: auto; }
+
+.chart-container { height: 350px; }
+
 /* --- Table column headers ------------------------------------------------ */
 
 /* Allow species/tractor column headers to wrap onto two lines.

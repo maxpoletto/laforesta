@@ -279,7 +279,7 @@ function buildSTColumns(digestColumns, columnDefs, actions) {
 // ---------------------------------------------------------------------------
 
 /** Ordered-term search: every term must appear in row text, in given order. */
-function matchesSearch(row, terms) {
+export function matchesSearch(row, terms) {
   const text = row.map(v => String(v ?? '')).join(' ').toLowerCase();
   let pos = 0;
   for (const t of terms) {

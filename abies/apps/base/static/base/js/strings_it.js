@@ -44,6 +44,13 @@ export const TAB_IMPOSTAZIONI = 'Impostazioni';
 export const LABEL_YEARS = 'Anni';
 export const RESET_FILTERS = 'Azzera filtri';
 
+// Charts
+export const CHART_PRODUCTION = 'Produzione';
+export const CHART_SPECIES_BY_PARCEL = 'Specie per particella';
+export const CHART_TOTAL = 'Totale';
+export const CHART_BY_MONTHS = 'Mesi';
+export const CHART_OTHER = 'Altro';
+
 // Prelievi columns
 export const COL_DATE = 'Data';
 export const COL_REGION = 'Compresa';
