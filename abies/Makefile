@@ -28,7 +28,8 @@ digest:
 admin:
 	@$(MANAGE) shell --no-imports -c "from apps.base.models import User; exit(0 if User.objects.filter(is_superuser=True).exists() else 1)" \
 		&& echo "Admin user already exists, skipping." \
-		|| $(MANAGE) createsuperuser
+		|| ( $(MANAGE) createsuperuser && \
+		     $(MANAGE) shell --no-imports -c "from apps.base.models import User; u = User.objects.get(is_superuser=True); u.role = 'admin'; u.save(update_fields=['role'])" )
 
 dev: migrate import geo digest admin
 
