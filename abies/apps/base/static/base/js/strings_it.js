@@ -51,6 +51,9 @@ export const CHART_TOTAL = 'Totale';
 export const CHART_BY_MONTHS = 'Mesi';
 export const CHART_OTHER = 'Altro';
 
+// Page sections
+export const SECTION_INTERVENTI = 'Interventi';
+
 // Prelievi columns
 export const COL_DATE = 'Data';
 export const COL_REGION = 'Compresa';

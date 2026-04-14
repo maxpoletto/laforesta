@@ -1,24 +1,25 @@
 /* Prelievi page — domain-specific styles. */
 
-.prelievi-slider-row {
+/* --- Top filter bar: slider + search + reset + CSV export ---------------- */
+
+.prelievi-filter-bar {
   display: flex;
   align-items: center;
-  gap: 8px;                       /* match .table-toolbar gap */
-  padding-bottom: 8px;
+  gap: 8px;
 }
 
-.prelievi-slider-title {
+.prelievi-filter-label {
   font-size: 0.85rem;
   font-weight: 500;
   color: #444;
-  min-width: 35px;                /* match .table-search-label width */
+  min-width: 35px;
 }
 
 .prelievi-slider-controls {
   display: flex;
   align-items: center;
   gap: 8px;
-  width: 300px;                   /* match .table-search width */
+  width: 300px;
 }
 
 .prelievi-slider-controls .range-slider {
@@ -32,7 +33,9 @@
   white-space: nowrap;
 }
 
-.btn-reset-filters { margin-left: 12px; }
+.prelievi-search { width: 300px; max-width: 300px; }
+
+.prelievi-csv-btn { margin-left: auto; }
 
 /* --- Form layout --------------------------------------------------------- */
 

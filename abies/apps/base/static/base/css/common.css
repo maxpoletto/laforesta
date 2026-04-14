@@ -272,6 +272,7 @@ input:focus, select:focus, textarea:focus {
 /* --- Collapsible sections ------------------------------------------------- */
 
 .collapsible-header {
+  margin-top: 20px;
   display: flex;
   align-items: center;
   justify-content: space-between;

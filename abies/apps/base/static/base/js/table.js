@@ -14,8 +14,8 @@ const DEFAULT_COL_WIDTH = '100';  // px fallback for columns without explicit wi
 
 /**
  * Wraps SortableTable with:
- *   - Search box (upper left, 500 ms debounce)
- *   - CSV export button (upper right)
+ *   - Built-in toolbar (search + CSV export), or external wiring for
+ *     page-level filter bars via wireSearchInput() / exportCSV()
  *   - Edit/delete action icons per row (writers/admins)
  *   - Add button below table (writers/admins)
  */
@@ -33,6 +33,9 @@ export class TableWrapper {
    * @param {{column: string, ascending: boolean}} [opts.sort]
    * @param {string} [opts.searchText]
    * @param {string} [opts.csvFilename]
+   * @param {boolean} [opts.inlineToolbar=true] — when false, the built-in
+   *   search box and CSV button are omitted.  The caller is responsible for
+   *   providing them and wiring them via wireSearchInput() and exportCSV().
    * @param {function(string, boolean): void} [opts.onSort]
    * @param {function(string): void} [opts.onSearch]
    */
@@ -42,11 +45,13 @@ export class TableWrapper {
     this.canModify = opts.canModify || false;
     this.actions = opts.actions || {};
     this.csvFilename = opts.csvFilename || 'export.csv';
+    this.inlineToolbar = opts.inlineToolbar !== false;
     this.onSort = opts.onSort || null;
     this.onSearch = opts.onSearch || null;
     this._searchText = opts.searchText || '';
     this._externalFilter = null;
     this._debounceTimer = null;
+    this._searchInputEl = null;
     this._stColumns = [];
     this._table = null;
     this._el = null;
@@ -85,8 +90,7 @@ export class TableWrapper {
   /** Programmatically set search text (e.g., for reset). */
   setSearchText(text) {
     this._searchText = text;
-    const input = this._el?.querySelector('.table-search');
-    if (input) input.value = text;
+    if (this._searchInputEl) this._searchInputEl.value = text;
     this._applyFilters();
   }
 
@@ -104,7 +108,7 @@ export class TableWrapper {
     this._el = document.createElement('div');
     this._el.className = 'table-page';
 
-    this._buildToolbar();
+    if (this.inlineToolbar) this._buildToolbar();
 
     this._tableEl = document.createElement('div');
     this._tableEl.className = 'table-scroll';
@@ -138,25 +142,36 @@ export class TableWrapper {
     search.type = 'text';
     search.className = 'table-search';
     search.placeholder = S.SEARCH_PLACEHOLDER;
-    search.value = this._searchText;
-    search.addEventListener('input', () => {
-      clearTimeout(this._debounceTimer);
-      this._debounceTimer = setTimeout(() => {
-        this._searchText = search.value;
-        this._applyFilters();
-        this.onSearch?.(this._searchText);
-      }, DEBOUNCE_MS);
-    });
+    this.wireSearchInput(search);
     label.htmlFor = search.id = 'table-search-' + (++TableWrapper._idSeq);
     bar.appendChild(search);
 
     const csvBtn = document.createElement('button');
     csvBtn.className = 'btn btn-primary table-csv-btn';
     csvBtn.textContent = S.EXPORT_CSV;
-    csvBtn.addEventListener('click', () => this._exportCSV());
+    csvBtn.addEventListener('click', () => this.exportCSV());
     bar.appendChild(csvBtn);
 
     this._el.appendChild(bar);
+  }
+
+  /**
+   * Attach debounced search handling to an external input element.
+   * Use this when the search box lives outside the table's own toolbar
+   * (e.g., a page-level filter bar).  The input's value is initialized
+   * from the current search text, and setSearchText() will keep it in sync.
+   */
+  wireSearchInput(inputEl) {
+    this._searchInputEl = inputEl;
+    inputEl.value = this._searchText;
+    inputEl.addEventListener('input', () => {
+      clearTimeout(this._debounceTimer);
+      this._debounceTimer = setTimeout(() => {
+        this._searchText = inputEl.value;
+        this._applyFilters();
+        this.onSearch?.(this._searchText);
+      }, DEBOUNCE_MS);
+    });
   }
 
   _initTable(digest, sort) {
@@ -218,7 +233,8 @@ export class TableWrapper {
 
   // -- CSV export ----------------------------------------------------------
 
-  _exportCSV() {
+  /** Export currently-loaded rows as an Italian-locale CSV (semicolon-delimited). */
+  exportCSV() {
     if (!this._table) return;
 
     const exportCols = this._stColumns
