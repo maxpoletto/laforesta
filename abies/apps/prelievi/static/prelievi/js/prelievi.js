@@ -51,7 +51,7 @@ const STATIC_COLS = {
   'Compresa': { label: S.COL_REGION, width: '80px' },
   'Particella': { label: S.COL_PARCEL, width: '70px' },
   'Squadra': { label: S.COL_CREW, width: '108px' },
-  'Tipo': { label: S.COL_OPTYPE, hidden: true },
+  'Tipo': { label: S.COL_OPTYPE, width: '120px' },
   'VDP': { label: S.COL_VDP, type: 'number', width: '55px', formatter: formatInteger },
   'Q.li': { label: S.COL_QUINTALS, type: 'number', width: '55px', formatter: formatQuintals },
   'Note': { label: S.COL_NOTE, width: '110px' },
