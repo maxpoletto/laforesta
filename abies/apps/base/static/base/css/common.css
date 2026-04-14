@@ -450,7 +450,7 @@ input:focus, select:focus, textarea:focus {
 
 /* --- Settings page ------------------------------------------------------- */
 
-.page-settings { max-width: 700px; }
+.page-settings { max-width: 950px; }
 .page-settings input[type="password"] { width: 300px; }
 
 /* --- Responsive ----------------------------------------------------------- */

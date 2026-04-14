@@ -129,6 +129,7 @@ export const LABEL_NAME = 'Nome';
 export const LABEL_LATIN_NAME = 'Nome latino';
 export const LABEL_NOTES = 'Note';
 export const LABEL_USERNAME = 'Nome utente';
+export const LABEL_EMAIL = 'Email';
 export const LABEL_FIRST_NAME = 'Nome';
 export const LABEL_LAST_NAME = 'Cognome';
 export const LABEL_ROLE = 'Ruolo';

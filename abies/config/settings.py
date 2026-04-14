@@ -76,6 +76,9 @@ ACCOUNT_EMAIL_VERIFICATION = 'none'
 ACCOUNT_LOGIN_ON_GET = True
 # Disable allauth's own signup — users are created by admins.
 ACCOUNT_ADAPTER = 'apps.base.auth.NoSignupAdapter'
+# Match OAuth logins to admin-whitelisted users by email (Microsoft's Graph
+# API does not flag emails as verified, so allauth's default match fails).
+SOCIALACCOUNT_ADAPTER = 'apps.base.auth.WhitelistSocialAdapter'
 
 SOCIALACCOUNT_AUTO_SIGNUP = False
 SOCIALACCOUNT_EMAIL_AUTHENTICATION = True

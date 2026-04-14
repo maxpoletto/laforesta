@@ -66,7 +66,12 @@ const ENTITY_SECTIONS = [
     formUrl: `${API}users/form/`,
     saveUrl: `${API}users/save/`,
     csvFilename: S.CSV_USERS,
-    columnDefs: { [S.COL_ACTIVE]: ACTIVE_COL_DEF },
+    columnDefs: {
+      [S.LABEL_LAST_NAME]: { label: S.LABEL_LAST_NAME, width: '140px' },
+      [S.LABEL_EMAIL]: { label: S.LABEL_EMAIL, width: '240px' },
+      [S.LABEL_LOGIN_METHOD]: { label: S.LABEL_LOGIN_METHOD, width: '140px' },
+      [S.COL_ACTIVE]: ACTIVE_COL_DEF,
+    },
   },
 ];
 

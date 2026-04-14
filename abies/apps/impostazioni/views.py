@@ -177,11 +177,17 @@ def species_save(request):
 # ---------------------------------------------------------------------------
 
 USER_COLS = ['row_id', S.LABEL_FIRST_NAME, S.LABEL_LAST_NAME, S.LABEL_USERNAME,
-             S.LABEL_LOGIN_METHOD, S.LABEL_CREATED_AT, S.COL_ACTIVE]
+             S.LABEL_EMAIL, S.LABEL_LOGIN_METHOD, S.LABEL_CREATED_AT, S.COL_ACTIVE]
+
+ROLE_LABELS = [
+    (Role.ADMIN, S.ROLE_ADMIN),
+    (Role.WRITER, S.ROLE_WRITER),
+    (Role.READER, S.ROLE_READER),
+]
 
 
 def _user_row(u):
-    return [u.id, u.first_name, u.last_name, u.username,
+    return [u.id, u.first_name, u.last_name, u.username, u.email,
             u.login_method, u.date_joined.strftime('%Y-%m-%d'), u.is_active]
 
 
@@ -197,7 +203,7 @@ def users_form(request, obj_id=None):
     obj = User.objects.get(id=obj_id) if obj_id else None
     html = render_to_string('impostazioni/_user_form.html', {
         'obj': obj,
-        'roles': Role.choices,
+        'roles': ROLE_LABELS,
         'login_methods': LoginMethod.choices,
     }, request=request)
     return JsonResponse({'html': html})
@@ -215,6 +221,10 @@ def users_save(request):
     if not username:
         return _error(S.ERR_USERNAME_REQUIRED)
 
+    email = body.get('email', '').strip()
+    if not email:
+        return _error(S.ERR_EMAIL_REQUIRED)
+
     login_method = body.get('login_method', LoginMethod.PASSWORD)
     role = body.get('role', Role.READER)
     active = body.get('is_active') == 'true'
@@ -223,10 +233,6 @@ def users_save(request):
 
     pw1 = body.get('password1', '')
     pw2 = body.get('password2', '')
-
-    # For OAuth users, the "username" field is the expected email address;
-    # allauth matches incoming OAuth identities against user.email.
-    email = username if login_method == LoginMethod.OAUTH else ''
 
     if row_id:
         user = User.objects.get(id=row_id)
