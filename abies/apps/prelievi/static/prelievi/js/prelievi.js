@@ -23,6 +23,12 @@ const SAVE_URL = '/abies/api/prelievi/save/';
 const DELETE_URL = '/abies/api/prelievi/delete/';
 const PAGE_PATH = '/abies/prelievi';
 
+// Collapsible sections, keyed by the single-char token used in the URL `o`
+// parameter ('a' = Produzione chart, 'b' = Specie-per-particella chart,
+// 'i' = Interventi table).
+const SECTION_KEYS = ['a', 'b', 'i'];
+const DEFAULT_OPEN = 'i';                 // default when `o` param is absent
+
 // ---------------------------------------------------------------------------
 // Number formatters
 // ---------------------------------------------------------------------------
@@ -70,20 +76,42 @@ let unsubCache = null;
 let inForm = false;
 let escapeHandler = null;
 
-// Chart state.
-let chartA = null;
-let chartB = null;
-let chartACanvas = null;
-let chartBCanvas = null;
-let chartAOpen = false;
-let chartBOpen = false;
-let chartADirty = true;
-let chartBDirty = true;
-let chartABreakdown = 'total';
-let chartAByMonth = false;
+// Column classification and index map — resolved on first data load.
 let speciesCols = [];
 let tractorCols = [];
 let colMap = {};
+
+// Section state.  Chart sections carry their own open state, canvas,
+// Chart.js instance, dirty flag, and render function.  The 'i' section
+// just hosts the TableWrapper's container.
+const sections = {
+  a: {
+    title: S.CHART_PRODUCTION,
+    open: false, dirty: true,
+    canvas: null, instance: null, header: null, body: null,
+    breakdown: 'total', byMonth: false,
+    render: () => _renderChart(sections.a),
+    aggregate: () => aggregateTimeSeries(
+      _getFilteredRows(), colMap,
+      sections.a.breakdown, sections.a.byMonth,
+      speciesCols, tractorCols,
+    ),
+  },
+  b: {
+    title: S.CHART_SPECIES_BY_PARCEL,
+    open: false, dirty: true,
+    canvas: null, instance: null, header: null, body: null,
+    render: () => _renderChart(sections.b),
+    aggregate: () => aggregateSpeciesByParcel(
+      _getFilteredRows(), colMap, speciesCols,
+    ),
+  },
+  i: {
+    title: S.SECTION_INTERVENTI,
+    open: true,
+    header: null, body: null,
+  },
+};
 
 cache.register(DATA_ID, DATA_URL);
 
@@ -155,11 +183,9 @@ function showTableView(data, params) {
   // Top filter bar: year slider + search + reset + CSV export.
   const fb = _buildFilterBar(el, data, p);
 
-  // Chart sections (collapsible, closed by default).
-  _buildChartSections(el);
-
-  // Table section (collapsible, open by default).
-  const tableContainer = _buildTableSection(el);
+  // Three collapsible sections (chart A, chart B, interventi/table).
+  // Section 'i'.body becomes the TableWrapper's container.
+  _buildSections(el, p);
 
   // Table itself.
   const sort = p.sc
@@ -168,7 +194,7 @@ function showTableView(data, params) {
 
   const modify = canModify();
   table = new TableWrapper({
-    container: tableContainer,
+    container: sections.i.body,
     digest: data,
     columnDefs: buildColumnDefs(data.columns),
     inlineToolbar: false,                 // we provide search + CSV in the filter bar
@@ -356,37 +382,29 @@ function _getFilteredRows() {
 }
 
 function _updateCharts() {
-  chartADirty = true;
-  chartBDirty = true;
-  if (chartAOpen) _renderChartA();
-  if (chartBOpen) _renderChartB();
+  for (const k of SECTION_KEYS) {
+    const s = sections[k];
+    if (!s.render) continue;
+    s.dirty = true;
+    if (s.open) s.render();
+  }
 }
 
-function _renderChartA() {
-  if (!chartACanvas) return;
-  const rows = _getFilteredRows();
-  const data = aggregateTimeSeries(rows, colMap, chartABreakdown, chartAByMonth, speciesCols, tractorCols);
-  chartA = renderStackedBar(chartACanvas, data, chartA);
-  chartADirty = false;
-}
-
-function _renderChartB() {
-  if (!chartBCanvas) return;
-  const rows = _getFilteredRows();
-  const data = aggregateSpeciesByParcel(rows, colMap, speciesCols);
-  chartB = renderStackedBar(chartBCanvas, data, chartB);
-  chartBDirty = false;
+/** Render a chart section from its (filtered) aggregation output. */
+function _renderChart(s) {
+  if (!s.canvas) return;
+  s.instance = renderStackedBar(s.canvas, s.aggregate(), s.instance);
+  s.dirty = false;
 }
 
 function _destroyCharts() {
-  if (chartA) { chartA.destroy(); chartA = null; }
-  if (chartB) { chartB.destroy(); chartB = null; }
-  chartACanvas = null;
-  chartBCanvas = null;
-  chartAOpen = false;
-  chartBOpen = false;
-  chartADirty = true;
-  chartBDirty = true;
+  for (const s of Object.values(sections)) {
+    if (s.instance) { s.instance.destroy(); s.instance = null; }
+    s.canvas = null;
+    s.header = null;
+    s.body = null;
+    s.dirty = true;
+  }
 }
 
 function _buildFilterBar(el, data, p) {
@@ -434,22 +452,40 @@ function _buildFilterBar(el, data, p) {
   return { searchInput, csvBtn };
 }
 
-function _buildTableSection(el) {
-  const [header, body] = _collapsible(S.SECTION_INTERVENTI, true);
-  header.addEventListener('click', () => {
-    header.classList.toggle('open');
-    body.classList.toggle('open');
-  });
-  el.append(header, body);
-  return body;
+/** Build all three collapsible sections (a, b, i) and wire toggle + URL sync. */
+function _buildSections(el, p) {
+  // Initialize open state + chart A config from URL params before building.
+  sections.a.breakdown = p.b;
+  sections.a.byMonth = p.m;
+  for (const k of SECTION_KEYS) {
+    sections[k].open = p.o.includes(k);
+  }
+
+  _buildSection(el, sections.a, _buildChartABody);
+  _buildSection(el, sections.b, _buildChartBBody);
+  _buildSection(el, sections.i, null);     // table; body is populated by caller
 }
 
-function _buildChartSections(el) {
-  // --- Chart A: Production over time ---
-  const [headerA, bodyA] = _collapsible(S.CHART_PRODUCTION);
+function _buildSection(el, s, buildBody) {
+  const [header, body] = _collapsible(s.title, s.open);
+  s.header = header;
+  s.body = body;
+  if (buildBody) buildBody(body, s);
 
-  const controlsA = document.createElement('div');
-  controlsA.className = 'chart-controls';
+  header.addEventListener('click', () => {
+    s.open = !s.open;
+    header.classList.toggle('open', s.open);
+    body.classList.toggle('open', s.open);
+    if (s.open && s.render && s.dirty) s.render();
+    syncURL();
+  });
+
+  el.append(header, body);
+}
+
+function _buildChartABody(body, s) {
+  const controls = document.createElement('div');
+  controls.className = 'chart-controls';
 
   const sel = document.createElement('select');
   for (const [value, label] of [
@@ -461,53 +497,44 @@ function _buildChartSections(el) {
     const opt = document.createElement('option');
     opt.value = value;
     opt.textContent = label;
+    if (value === s.breakdown) opt.selected = true;
     sel.appendChild(opt);
   }
-  sel.addEventListener('change', () => { chartABreakdown = sel.value; _renderChartA(); });
-  controlsA.appendChild(sel);
+  sel.addEventListener('change', () => {
+    s.breakdown = sel.value;
+    s.render();
+    syncURL();
+  });
+  controls.appendChild(sel);
 
   const monthLabel = document.createElement('label');
   monthLabel.className = 'chart-month-toggle';
   const monthCb = document.createElement('input');
   monthCb.type = 'checkbox';
-  monthCb.addEventListener('change', () => { chartAByMonth = monthCb.checked; _renderChartA(); });
+  monthCb.checked = s.byMonth;
+  monthCb.addEventListener('change', () => {
+    s.byMonth = monthCb.checked;
+    s.render();
+    syncURL();
+  });
   monthLabel.append(monthCb, ' ' + S.CHART_BY_MONTHS);
-  controlsA.appendChild(monthLabel);
+  controls.appendChild(monthLabel);
 
-  bodyA.appendChild(controlsA);
+  body.appendChild(controls);
 
-  chartACanvas = document.createElement('canvas');
-  const boxA = document.createElement('div');
-  boxA.className = 'chart-container';
-  boxA.appendChild(chartACanvas);
-  bodyA.appendChild(boxA);
+  s.canvas = document.createElement('canvas');
+  const box = document.createElement('div');
+  box.className = 'chart-container';
+  box.appendChild(s.canvas);
+  body.appendChild(box);
+}
 
-  headerA.addEventListener('click', () => {
-    headerA.classList.toggle('open');
-    bodyA.classList.toggle('open');
-    chartAOpen = bodyA.classList.contains('open');
-    if (chartAOpen && chartADirty) _renderChartA();
-  });
-
-  el.append(headerA, bodyA);
-
-  // --- Chart B: Species by parcel ---
-  const [headerB, bodyB] = _collapsible(S.CHART_SPECIES_BY_PARCEL);
-
-  chartBCanvas = document.createElement('canvas');
-  const boxB = document.createElement('div');
-  boxB.className = 'chart-container';
-  boxB.appendChild(chartBCanvas);
-  bodyB.appendChild(boxB);
-
-  headerB.addEventListener('click', () => {
-    headerB.classList.toggle('open');
-    bodyB.classList.toggle('open');
-    chartBOpen = bodyB.classList.contains('open');
-    if (chartBOpen && chartBDirty) _renderChartB();
-  });
-
-  el.append(headerB, bodyB);
+function _buildChartBBody(body, s) {
+  s.canvas = document.createElement('canvas');
+  const box = document.createElement('div');
+  box.className = 'chart-container';
+  box.appendChild(s.canvas);
+  body.appendChild(box);
 }
 
 function _collapsible(title, open = false) {
