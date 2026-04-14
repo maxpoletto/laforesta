@@ -2,6 +2,7 @@
 
 import json
 
+from allauth.account.models import EmailAddress
 from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.password_validation import validate_password
@@ -223,9 +224,14 @@ def users_save(request):
     pw1 = body.get('password1', '')
     pw2 = body.get('password2', '')
 
+    # For OAuth users, the "username" field is the expected email address;
+    # allauth matches incoming OAuth identities against user.email.
+    email = username if login_method == LoginMethod.OAUTH else ''
+
     if row_id:
         user = User.objects.get(id=row_id)
         user.username = username
+        user.email = email
         user.first_name = first_name
         user.last_name = last_name
         user.role = role
@@ -245,13 +251,17 @@ def users_save(request):
             if err:
                 return err
         user = User.objects.create_user(
-            username=username, password=pw1 or None,
+            username=username, email=email, password=pw1 or None,
             first_name=first_name, last_name=last_name,
             role=role, login_method=login_method, is_active=active,
         )
         if login_method != LoginMethod.PASSWORD:
             user.set_unusable_password()
             user.save()
+
+    # allauth matches incoming OAuth logins against verified EmailAddress
+    # rows, not against user.email.  Keep those rows in sync with the user.
+    _sync_email_address(user)
 
     mark_stale('audit')
 
@@ -265,6 +275,19 @@ def users_save(request):
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
+
+def _sync_email_address(user):
+    """Keep allauth's EmailAddress table aligned with user.email.
+
+    OAuth users get exactly one verified primary row matching user.email.
+    Password users get none (we don't use email auth for them).
+    """
+    EmailAddress.objects.filter(user=user).delete()
+    if user.login_method == LoginMethod.OAUTH and user.email:
+        EmailAddress.objects.create(
+            user=user, email=user.email, verified=True, primary=True,
+        )
+
 
 def _list(model, columns, row_fn):
     rows = [row_fn(obj) for obj in model.objects.order_by('pk')]
