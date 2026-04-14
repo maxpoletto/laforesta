@@ -1066,25 +1066,50 @@ The prelievi page supports recording and display of harvesting operations.
 
 - Path: /abies/prelievi
 - Query parameters:
-  - Year range: y1=YYYY, y2=YYYY (date slider bounds)
-  - Sort column: sc=N
-  - Sort order: so=0/1 (ascending/descending)
-  - Filter: f=(URL-encoded version of sortable table search string)
+  - Year range: `y1=YYYY`, `y2=YYYY` (date slider bounds)
+  - Sort column: `sc=N`
+  - Sort order: `so=0/1` (ascending/descending)
+  - Filter: `f=...` (URL-encoded sortable-table search string)
+  - Open collapsible sections: `o=...`, a concatenation of single-char
+    tokens identifying which sections are expanded.  Tokens: `a` =
+    Produzione chart, `b` = Specie-per-particella chart, `i` = Interventi
+    (the table itself).  Absent means the default (`i` only).  An explicit
+    empty value (`?o=`) means all sections collapsed.
+  - Production chart breakdown: `b=total|compresa|particella|squadra|specie|trattore|tipo`
+    (absent = `total`).
+  - Production chart monthly granularity: `m=1` (absent = year granularity).
 
 ### Visual appearance
 
-In v1, this page simply displays all harvest operations in a sortable-table,
-exactly as described in "Tabular data" above.
+A top filter bar hosts the year slider (`Anni`), search box (`Filtra`),
+"Azzera filtri" reset, and "Esporta CSV" export.  Below it sit three
+collapsible sections, separated by the standard dark-green 4px rule:
 
-The full dataset is served as a single compressed JSON digest. All filtering
-is client-side: a double-ended date slider (see bosco/a/range-slider.*) with
-year granularity restricts the displayed range, and the search box filters
-within that range. No server round-trips for filtering.
+1. **Produzione** — stacked bar chart of total quintals over time, with a
+   per-chart pull-down selector for the breakdown dimension (Totale /
+   Compresa / Particella / Squadra / Specie / Trattore / Tipo) and a
+   "mesi" checkbox that toggles between year-granularity and
+   month-granularity buckets.  When the category count exceeds 12, the
+   tail is collapsed into an "Altro" series.
+2. **Specie per particella** — stacked bar chart with `<compresa>/<particella>`
+   on the x-axis and one species stack per bar, sorted by total.
+3. **Interventi** — the full harvest-operations sortable-table described
+   in "Tabular data" above.
 
-Columns are:
-Data, Compresa, Particella, Squadra, VDP, Q.li, Note, Altre note, (quintal
-columns by species in sort_order), (quintal columns by tractor in alphabetical
-order).
+Sections 1 and 2 are collapsed by default; section 3 is open.  Chart
+sections render lazily (only when first opened) and re-render whenever
+the active filter set changes.
+
+The full dataset is served as a single compressed JSON digest.  All
+filtering is client-side: a double-ended date slider (see
+`bosco/a/range-slider.*`) with year granularity restricts the displayed
+range, and the search box filters within that range.  Both charts and the
+table react to the same filter set.  No server round-trips for filtering.
+
+Table columns are:
+Data, Compresa, Particella, Squadra, VDP, Tipo, Q.li, Note, Altre note,
+(quintal columns by species in sort_order), (quintal columns by tractor
+in alphabetical order).
 
 All quintal values display with one decimal and comma separator (Italian locale,
 e.g., "164,0"). Per-species and per-tractor quintal columns show blank for zero.
