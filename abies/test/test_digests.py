@@ -217,7 +217,10 @@ class TestGenerateAudit:
 # ---------------------------------------------------------------------------
 
 class TestGenerateAll:
-    def test_generates_all_digests(self, db, parcels, crews, species, tractors, optypes):
+    def test_generates_all_digests(self, db, parcels, crews, species, tractors, optypes,
+                                   tmp_path, settings):
+        # Redirect to tmp_path so the test doesn't clobber dev digests.
+        settings.DIGEST_DIR = tmp_path
         generate_all()
         for name in ('prelievi', 'parcels', 'crews', 'parcel_year_production', 'audit'):
             path = settings.DIGEST_DIR / f'{name}.json.gz'
