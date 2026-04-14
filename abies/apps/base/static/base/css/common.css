@@ -65,6 +65,11 @@ body {
   gap: 12px;
 }
 
+.header-user {
+  font-size: 0.85rem;
+  color: #444;
+}
+
 .header-logout {
   font-size: 0.85rem;
   color: #666;
@@ -197,6 +202,7 @@ body {
 input[type="text"],
 input[type="number"],
 input[type="password"],
+input[type="email"],
 input[type="date"],
 select,
 textarea {
@@ -234,6 +240,11 @@ input:focus, select:focus, textarea:focus {
   font-weight: 500;
   margin-bottom: 0.25rem;
   color: #444;
+}
+
+.form-group small {
+  display: block;
+  margin-top: 0.25rem;
 }
 
 .form-section {
@@ -459,6 +470,7 @@ input:focus, select:focus, textarea:focus {
   #content { padding: 2px; }
 
   .header-tabs { display: none; }
+  .header-user { display: none; }
   .header-logout { display: none; }
   .hamburger { display: block; }
 

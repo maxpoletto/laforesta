@@ -368,13 +368,15 @@ function showFormModal(html, cfg, state) {
 }
 
 /**
- * For the user form: toggle password fields based on login_method radio.
+ * For the user form: toggle password-login-only fields (username,
+ * password, repeat-password) based on login_method radio.  OAuth users
+ * are matched by email, so we auto-use email as username server-side.
  */
 function wirePasswordToggle(form) {
   const radios = form.querySelectorAll('input[name="login_method"]');
   if (!radios.length) return;
 
-  const pwFields = form.querySelectorAll('.password-fields');
+  const pwFields = form.querySelectorAll('.password-login-only');
   function toggle() {
     const method = form.querySelector('input[name="login_method"]:checked')?.value;
     const show = method === 'password';

@@ -217,15 +217,20 @@ def users_save(request):
     row_id = body.get('row_id')
     row_id = int(row_id) if row_id else None
 
-    username = body.get('username', '').strip()
-    if not username:
-        return _error(S.ERR_USERNAME_REQUIRED)
-
     email = body.get('email', '').strip()
     if not email:
         return _error(S.ERR_EMAIL_REQUIRED)
 
     login_method = body.get('login_method', LoginMethod.PASSWORD)
+
+    # OAuth users are matched by email; we only need a unique username for
+    # Django's bookkeeping, so reuse the email rather than asking the admin.
+    if login_method == LoginMethod.OAUTH:
+        username = email
+    else:
+        username = body.get('username', '').strip()
+        if not username:
+            return _error(S.ERR_USERNAME_REQUIRED)
     role = body.get('role', Role.READER)
     active = body.get('is_active') == 'true'
     first_name = body.get('first_name', '').strip()

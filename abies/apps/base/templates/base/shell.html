@@ -19,9 +19,12 @@
       <a class="tab" href="/abies/bosco" data-tab="bosco">Bosco</a>
       <a class="tab" href="/abies/prelievi" data-tab="prelievi">Prelievi</a>
       <a class="tab" href="/abies/controllo" data-tab="controllo">Controllo</a>
+      {% if user.role != 'reader' or user.login_method == 'password' %}
       <a class="tab" href="/abies/impostazioni" data-tab="impostazioni">Impostazioni</a>
+      {% endif %}
     </nav>
     <div class="header-right">
+      <span class="header-user">{{ user.first_name|default:user.username }}</span>
       <a class="header-logout" href="{% url 'logout' %}">Esci</a>
       <button class="hamburger" id="hamburger" aria-label="Menu">&#9776;</button>
     </div>
@@ -31,7 +34,9 @@
     <a class="mobile-tab" href="/abies/bosco" data-tab="bosco">Bosco</a>
     <a class="mobile-tab" href="/abies/prelievi" data-tab="prelievi">Prelievi</a>
     <a class="mobile-tab" href="/abies/controllo" data-tab="controllo">Controllo</a>
+    {% if user.role != 'reader' or user.login_method == 'password' %}
     <a class="mobile-tab" href="/abies/impostazioni" data-tab="impostazioni">Impostazioni</a>
+    {% endif %}
     <a class="mobile-tab mobile-logout" href="{% url 'logout' %}">Esci</a>
   </nav>
 
