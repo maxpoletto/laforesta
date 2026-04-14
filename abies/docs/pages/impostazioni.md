@@ -50,7 +50,8 @@ Admins can create new app users and edit existing users.
 The sortable-table contains the following columns:
 
 - First and last name.
-- Username or OAuth identifier.
+- Username.
+- Email.
 - Login method (one of password or OAuth).
 - Created-at time.
 - Active status.
@@ -61,15 +62,23 @@ at bottom of table).
 The user input/edit form has the following fields:
 
 - Login method radio button (password or OAuth).
-- Username text input (or expected email address for OAuth).
-- Password (repeated text input, values must match). Only visible if login
-  method is password.
-- Role (pull-down menu with three choices (reader/writer/admin)).
+- Email (required for both login methods; for OAuth, must match the
+  Entra account email used for login).
+- Username (required for password login only; auto-populated from email
+  for OAuth users).  Hidden from the form when OAuth is selected.
+- Password (repeated text input, values must match).  Hidden when OAuth
+  is selected.
+- First name, Last name.
+- Role (pull-down menu: Membro/Redattore/Amministratore — reader/
+  writer/admin).
 - Active status (checkbox). Only active users can log in.
 
 Changes take place when the admin presses the "Submit" button.
 
 The initial admin account is configured at server installation time.
 
-The admin must add an OAuth user in order for the email address to be
-whitelisted for OAuth access.
+The admin must add an OAuth user (with matching email) to whitelist
+them for OAuth access.
+
+The Impostazioni tab itself is hidden for users who would see no
+sections (reader + OAuth).

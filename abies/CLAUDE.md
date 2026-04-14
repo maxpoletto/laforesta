@@ -148,7 +148,43 @@ django-allauth,
 [integrated](https://django-axes.readthedocs.io/en/latest/6_integration.html#integration-with-django-allauth)
 with django-axes for basic brute-force protection.
 
-OAuth must be pre-provisioned (the email address whitelisted) by an admin.
+OAuth users are pre-provisioned by an admin via the Settings page.  Each
+user record carries their email; a matching verified
+`allauth.EmailAddress` row is created on save.
+
+### MS 365 OAuth configuration
+
+The app pins OAuth to a single Entra tenant to minimise the attack
+surface — only accounts within that tenant can authenticate at all.
+Configuration lives in three env vars read at startup by
+`config/settings.py`:
+
+- `MS_OAUTH_CLIENT_ID` — Entra application (client) ID
+- `MS_OAUTH_SECRET` — Entra application client secret
+- `MS_OAUTH_TENANT` — Entra tenant ID (GUID or
+  `<name>.onmicrosoft.com`).  Defaults to `common` if unset, which only
+  works for multi-tenant apps.
+
+Redirect URIs registered on the Entra app (both needed):
+- `http://localhost:8000/abies/accounts/microsoft/login/callback/` (dev)
+- `https://<prod-host>/abies/accounts/microsoft/login/callback/` (prod)
+
+In dev, export the env vars in your shell (or source a gitignored
+file).  In production, supply them via a root-owned, `0600`-permission
+env file read by systemd (`EnvironmentFile=`) or by Docker
+(`env_file:`).
+
+### Whitelist social adapter
+
+`apps.base.auth.WhitelistSocialAdapter` overrides allauth's
+`pre_social_login` to match incoming logins by email against the
+admin-provisioned user (case-insensitive, active, login_method=oauth).
+This bypasses allauth's default requirement that the incoming email be
+flagged verified — Microsoft's Graph API does not assert verification,
+even though email ownership is verified at account creation.  Trust is
+rooted in the pinned Entra tenant.  If a new OAuth provider is added
+that does not itself verify email ownership at account creation, the
+adapter must be revisited.
 
 Session expiration is server-configurable and defaults to 12 hours.
 
