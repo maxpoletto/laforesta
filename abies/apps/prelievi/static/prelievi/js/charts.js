@@ -41,12 +41,21 @@ export function aggregateTimeSeries(rows, colMap, breakdown, byMonth, speciesCol
     return _aggregateColumnsByBucket(rows, dateIdx, colMap, bucket, byColumns);
   }
 
-  const dimIdx = breakdown === 'total' ? null : colMap[{
-    compresa: 'Compresa', particella: 'Particella',
-    squadra: 'Squadra', tipo: 'Tipo',
-  }[breakdown]];
+  return _aggregateByBucket(rows, dateIdx, qIdx, bucket, _dimFn(breakdown, colMap));
+}
 
-  return _aggregateByBucket(rows, dateIdx, qIdx, bucket, dimIdx);
+/** Build a row → category-name function for the single-column breakdowns. */
+function _dimFn(breakdown, colMap) {
+  if (breakdown === 'total') return () => S.CHART_TOTAL;
+  if (breakdown === 'particella') {
+    const ri = colMap['Compresa'];
+    const pi = colMap['Particella'];
+    return row => `${row[ri]}/${row[pi]}`;  // disambiguate parcels across regions
+  }
+  const idx = colMap[{
+    compresa: 'Compresa', squadra: 'Squadra', tipo: 'Tipo',
+  }[breakdown]];
+  return row => row[idx] || '?';
 }
 
 /**
@@ -63,7 +72,7 @@ export function aggregateSpeciesByParcel(rows, colMap, speciesCols) {
   const parcels = {};
 
   for (const row of rows) {
-    const key = row[regionIdx] + ' ' + row[parcelIdx];
+    const key = `${row[regionIdx]}/${row[parcelIdx]}`;
     if (!parcels[key]) parcels[key] = {};
     for (const sp of speciesCols) {
       parcels[key][sp] = (parcels[key][sp] || 0) + (row[colMap[sp]] || 0);
@@ -137,12 +146,12 @@ export function renderStackedBar(canvas, chartData, existing) {
 // Internal helpers
 // ---------------------------------------------------------------------------
 
-/** Aggregate rows by time bucket, with optional categorical dimension. */
-function _aggregateByBucket(rows, dateIdx, qIdx, bucket, dimIdx) {
+/** Aggregate rows by time bucket, with a row → category function. */
+function _aggregateByBucket(rows, dateIdx, qIdx, bucket, dimFn) {
   const buckets = {};
   for (const row of rows) {
     const key = bucket(row[dateIdx]);
-    const dim = dimIdx != null ? (row[dimIdx] || '?') : S.CHART_TOTAL;
+    const dim = dimFn(row);
     if (!buckets[key]) buckets[key] = {};
     buckets[key][dim] = (buckets[key][dim] || 0) + (row[qIdx] || 0);
   }
