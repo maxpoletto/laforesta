@@ -306,11 +306,19 @@ function readParams(params) {
     sc: params.sc || null,
     so: params.so !== undefined ? params.so === '0' : true,
     f: params.f || '',
+    // Open sections: explicit string of single-char tokens when present,
+    // falling back to DEFAULT_OPEN when absent.  `?o=` (empty) is valid
+    // and means "all sections closed".
+    o: params.o !== undefined ? params.o : DEFAULT_OPEN,
+    b: params.b || 'total',
+    m: params.m === '1',
   };
 }
 
 function applyParams(params) {
   const p = readParams(params);
+
+  // Year slider.
   if (slider && (p.y1 != null || p.y2 != null)) {
     const data = cache.get(DATA_ID);
     if (data) {
@@ -318,6 +326,35 @@ function applyParams(params) {
       slider.setValues(p.y1 ?? years[0], p.y2 ?? years[years.length - 1]);
       if (table) table.setExternalFilter(yearFilter());
     }
+  }
+
+  // Chart A configuration.
+  const a = sections.a;
+  if (a.body) {
+    if (a.breakdown !== p.b) {
+      a.breakdown = p.b;
+      const sel = a.body.querySelector('select');
+      if (sel) sel.value = p.b;
+      a.dirty = true;
+    }
+    if (a.byMonth !== p.m) {
+      a.byMonth = p.m;
+      const cb = a.body.querySelector('.chart-month-toggle input');
+      if (cb) cb.checked = p.m;
+      a.dirty = true;
+    }
+  }
+
+  // Open sections.
+  for (const k of SECTION_KEYS) {
+    const s = sections[k];
+    const shouldBeOpen = p.o.includes(k);
+    if (s.body && s.open !== shouldBeOpen) {
+      s.open = shouldBeOpen;
+      s.header.classList.toggle('open', shouldBeOpen);
+      s.body.classList.toggle('open', shouldBeOpen);
+    }
+    if (s.open && s.render && s.dirty) s.render();
   }
 }
 
@@ -343,6 +380,14 @@ function syncURL() {
     const f = table.getSearchText();
     if (f) params.set('f', f);
   }
+
+  // Open sections: only serialize if different from the default ('i').
+  const openKeys = SECTION_KEYS.filter(k => sections[k].open).join('');
+  if (openKeys !== DEFAULT_OPEN) params.set('o', openKeys);
+
+  // Chart A config: only serialize non-default values.
+  if (sections.a.breakdown !== 'total') params.set('b', sections.a.breakdown);
+  if (sections.a.byMonth) params.set('m', '1');
 
   const qs = params.toString();
   router.navigate(PAGE_PATH + (qs ? '?' + qs : ''), true);
