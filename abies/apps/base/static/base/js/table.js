@@ -267,9 +267,13 @@ export class TableWrapper {
 
   // -- CSV export ----------------------------------------------------------
 
-  /** Export currently-loaded rows as a CSV using the configured csvFormat. */
-  exportCSV() {
-    if (!this._table) return;
+  /**
+   * Build the current rows as a CSV string using the configured csvFormat.
+   * Includes a UTF-8 BOM for Excel compatibility.  Returns '' if the table
+   * has no data yet.
+   */
+  getCSV() {
+    if (!this._table) return '';
 
     const fmt = this.csvFormat;
     const sep = fmt.separator;
@@ -283,7 +287,13 @@ export class TableWrapper {
       exportCols.map(({ col, i }) => csvEscape(formatCSV(row[i], col.type, fmt, this.labels), sep)).join(sep),
     ).join('\n');
 
-    downloadText('\ufeff' + header + '\n' + body, this.csvFilename);
+    return '\ufeff' + header + '\n' + body;
+  }
+
+  /** Export currently-loaded rows as a CSV file. */
+  exportCSV() {
+    const text = this.getCSV();
+    if (text) downloadText(text, this.csvFilename);
   }
 }
 

@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>TableWrapper — English defaults smoke test</title>
+  <link rel="stylesheet" href="../../vendor/fonts/roboto/roboto.css">
+  <link rel="stylesheet" href="../../vendor/sortable-table/sortable-table.css">
+  <link rel="stylesheet" href="../css/common.css">
+  <style>
+    body { padding: 20px; max-width: 1000px; }
+    h2 { margin-top: 1rem; }
+    .intro { background: #f5f5f5; padding: 10px 14px; border-left: 4px solid #006400;
+             margin-bottom: 20px; font-size: 0.9rem; }
+    .intro code { background: #fff; padding: 1px 4px; border: 1px solid #ddd; }
+    .results { margin-top: 20px; font-family: monospace; font-size: 0.85rem; }
+    .results .pass { color: #006400; }
+    .results .fail { color: #c00; font-weight: bold; }
+    .summary-pass { color: #006400; }
+    .summary-fail { color: #c00; }
+    .summary-line { font-size: 1rem; margin-bottom: 10px; }
+    pre { background: #f5f5f5; padding: 8px; overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <h1>TableWrapper — English defaults smoke test</h1>
+
+  <div class="intro">
+    <p>Constructs a <code>TableWrapper</code> with no <code>labels</code>
+       or <code>csvFormat</code> option and asserts the English defaults
+       propagate through both UI and CSV output.</p>
+    <p>Access this file via Django's dev static server:<br>
+       <code>http://localhost:8000/static/base/test/table-english.html</code>
+    </p>
+  </div>
+
+  <div id="t"></div>
+
+  <h2>Assertions</h2>
+  <div id="results" class="results">Running...</div>
+
+  <h2>CSV output</h2>
+  <pre id="csv-output"></pre>
+
+  <script src="../../vendor/sortable-table/sortable-table.js"></script>
+  <script type="module">
+    import { TableWrapper } from '../js/table.js';
+
+    // --- Fixture ----------------------------------------------------------
+    // Includes a separator character (",") in a Name value to exercise
+    // csvEscape with the English default separator.
+    const digest = {
+      columns: ['row_id', 'Name', 'Price', 'Date', 'Active'],
+      rows: [
+        [1, 'Alpha, comma', 12.5, '2024-03-15', true],
+        [2, 'Beta',        99.99, '2025-01-02', false],
+        [3, 'Gamma',        3.141, '2023-12-31', true],
+      ],
+    };
+
+    const table = new TableWrapper({
+      container: document.getElementById('t'),
+      digest,
+      columnDefs: {
+        Name:   { label: 'Name',   width: '180px' },
+        Price:  { label: 'Price',  type: 'number',  width: '100px' },
+        Date:   { label: 'Date',   type: 'date',    width: '120px' },
+        Active: { label: 'Active', type: 'boolean', width: '80px' },
+      },
+      canModify: true,
+      actions: {
+        onAdd:    ()      => console.log('onAdd'),
+        onEdit:   (rowId) => console.log('onEdit', rowId),
+        onDelete: (rowId) => console.log('onDelete', rowId),
+      },
+      csvFilename: 'table-english-test.csv',
+    });
+
+    // --- Assertions -------------------------------------------------------
+    const checks = [];
+    const check = (name, cond, detail) => checks.push({ name, pass: !!cond, detail });
+
+    // UI labels
+    const toolbar     = document.querySelector('.table-toolbar');
+    const filterLabel = toolbar?.querySelector('.table-search-label');
+    const searchInput = toolbar?.querySelector('.table-search');
+    const csvBtn      = toolbar?.querySelector('.table-csv-btn');
+    const addBtn      = document.querySelector('.btn-add');
+    check('filter label is "Filter"',
+          filterLabel?.textContent === 'Filter',
+          `got: ${JSON.stringify(filterLabel?.textContent)}`);
+    check('search placeholder is "Search..."',
+          searchInput?.placeholder === 'Search...',
+          `got: ${JSON.stringify(searchInput?.placeholder)}`);
+    check('CSV button text is "Export CSV"',
+          csvBtn?.textContent === 'Export CSV',
+          `got: ${JSON.stringify(csvBtn?.textContent)}`);
+    check('Add button text is "+ Add"',
+          addBtn?.textContent === '+ Add',
+          `got: ${JSON.stringify(addBtn?.textContent)}`);
+
+    // Boolean cell rendering ("Yes" / "No")
+    const rowTexts = [...document.querySelectorAll('.sortable-table-row')]
+      .map(tr => [...tr.children].map(td => td.textContent));
+    const flatCells = rowTexts.flat();
+    check('boolean cells render "Yes" / "No"',
+          flatCells.includes('Yes') && flatCells.includes('No'),
+          `cells: ${JSON.stringify(rowTexts)}`);
+
+    // Action icon tooltips
+    const editIcon   = document.querySelector('.action-edit');
+    const deleteIcon = document.querySelector('.action-delete');
+    check('edit icon tooltip is "Edit"',
+          editIcon?.getAttribute('title') === 'Edit',
+          `got: ${JSON.stringify(editIcon?.getAttribute('title'))}`);
+    check('delete icon tooltip is "Delete"',
+          deleteIcon?.getAttribute('title') === 'Delete',
+          `got: ${JSON.stringify(deleteIcon?.getAttribute('title'))}`);
+
+    // CSV output (BOM is invisible in the <pre>; it's covered by an assertion below).
+    const csv = table.getCSV();
+    document.getElementById('csv-output').textContent = csv;
+
+    check('CSV has UTF-8 BOM',
+          csv.startsWith('\ufeff'),
+          'first chars: ' + JSON.stringify(csv.slice(0, 4)));
+    check('CSV uses comma separator (header)',
+          csv.includes('Name,Price,Date,Active'),
+          'looking for "Name,Price,Date,Active" in:\n' + csv);
+    check('CSV uses period decimals (12.5 preserved)',
+          /\b12\.5\b/.test(csv) && !/\b12,5\b/.test(csv),
+          'looking for "12.5", not "12,5"');
+    check('CSV uses ISO dates (YYYY-MM-DD)',
+          csv.includes('2024-03-15') && !csv.includes('15/03/2024'),
+          'looking for "2024-03-15", not "15/03/2024"');
+    check('CSV quotes values containing the separator',
+          csv.includes('"Alpha, comma"'),
+          'looking for quoted "Alpha, comma"');
+    check('CSV renders boolean as "Yes"/"No"',
+          /\b(Yes|No)\b/.test(csv) && !/Sì|\bS[iì]\b/.test(csv),
+          'csv:\n' + csv);
+
+    // Empty-state message (search for nothing).  SortableTable wraps the
+    // message in its own element's whitespace, so compare after trim().
+    table.setSearchText('zzznomatch');
+    const emptyMsg = document.querySelector('.sortable-table-empty');
+    check('empty-state message is "No results."',
+          emptyMsg?.textContent.trim() === 'No results.',
+          `got: ${JSON.stringify(emptyMsg?.textContent)}`);
+    table.setSearchText('');  // restore
+
+    // --- Render report ---------------------------------------------------
+    const passed = checks.filter(c => c.pass).length;
+    const failed = checks.length - passed;
+    const summaryText = `${passed}/${checks.length} assertions passed` +
+                        (failed > 0 ? ` — ${failed} FAILED` : ' ✓');
+
+    const box = document.getElementById('results');
+    box.replaceChildren();
+
+    const summary = document.createElement('div');
+    summary.className = 'summary-line ' + (failed === 0 ? 'summary-pass' : 'summary-fail');
+    summary.textContent = summaryText;
+    box.appendChild(summary);
+
+    for (const c of checks) {
+      const line = document.createElement('div');
+      line.className = c.pass ? 'pass' : 'fail';
+      line.textContent = (c.pass ? '✓ ' : '✗ ') + c.name +
+                         (c.pass ? '' : '  —  ' + c.detail);
+      box.appendChild(line);
+    }
+  </script>
+</body>
+</html>
