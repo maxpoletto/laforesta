@@ -14,6 +14,11 @@ let currentDomain = null;
 let currentPage = null;
 let contentEl = null;
 
+// Per-domain last-visited URL.  Populated on tab click so that clicking a
+// different tab restores its last state instead of resetting it.  Cleared
+// on full page reload (module-level state).
+const lastUrlPerDomain = new Map();
+
 /**
  * Register a domain → page module.
  *
@@ -99,7 +104,19 @@ export function init() {
       e.preventDefault();
       // Close mobile menu if open.
       document.getElementById('mobile-menu').classList.remove('open');
-      navigate(el.getAttribute('href'));
+
+      const target = el.dataset.tab;
+      // Stash current URL under current domain so that coming back here via
+      // another tab click restores filter / sort / chart state.
+      if (currentDomain) {
+        lastUrlPerDomain.set(currentDomain, location.pathname + location.search);
+      }
+      // Switching to a different tab: restore its last URL if we have one.
+      // Clicking the current tab: go to the bare href — i.e., reset state.
+      const dest = target !== currentDomain && lastUrlPerDomain.has(target)
+        ? lastUrlPerDomain.get(target)
+        : el.getAttribute('href');
+      navigate(dest);
     });
   }
 
