@@ -101,7 +101,8 @@ class TestCrews:
         })
         assert resp.status_code == 200
         data = resp.json()
-        assert data['record'][2] == 'Gamma'
+        # _crew_row returns [id, name, notes, active]; name is at index 1.
+        assert data['record'][1] == 'Gamma'
         assert Crew.objects.filter(name='Gamma').exists()
 
     def test_save_update(self, writer_client, crews):

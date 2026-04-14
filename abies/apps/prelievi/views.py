@@ -53,10 +53,12 @@ def save_view(request):
     if errors:
         return _validation_error(errors, row_id, request, body)
 
-    # Species / tractor percentages
-    sp_pcts, tr_pcts, pct_errors = _parse_percentages(body)
-    if pct_errors:
-        return _validation_error(pct_errors, row_id, request, body)
+    # Pre-flight version check for updates; surface conflicts before the
+    # other validations so the user re-submits against current state.
+    if row_id is not None:
+        conflict = _check_update_conflict(row_id, body, request)
+        if conflict is not None:
+            return conflict
 
     # VDP uniqueness
     record1 = parsed['record1']
@@ -67,11 +69,16 @@ def save_view(request):
         if dup.exists():
             return _validation_error([S.ERR_VDP_DUPLICATE.format(record1)], row_id, request, body)
 
+    # Species / tractor percentages
+    sp_pcts, tr_pcts, pct_errors = _parse_percentages(body)
+    if pct_errors:
+        return _validation_error(pct_errors, row_id, request, body)
+
     with transaction.atomic():
         if row_id:
-            op = _update_op(row_id, parsed, body)
+            op = _update_op(row_id, parsed, body, request)
             if isinstance(op, JsonResponse):
-                return op  # conflict
+                return op  # race conflict
         else:
             op = HarvestOp.objects.create(**parsed)
 
@@ -262,24 +269,42 @@ def _parse_percentages(body):
     return sp_pcts, tr_pcts, errors
 
 
-def _update_op(row_id, parsed, body):
-    """Update an existing HarvestOp with optimistic locking.
+def _conflict_response(row_id, request):
+    """Build the update-flow conflict response (used on pre-check and on
+    races inside the transaction)."""
+    op = HarvestOp.objects.select_related(
+        'parcel__region', 'crew', 'note', 'optype',
+    ).get(id=row_id)
+    return JsonResponse({
+        'status': 'conflict', 'message': S.ERROR_CONFLICT,
+        'data_id': 'prelievi', 'row_id': row_id,
+        'record': build_harvest_record(op),
+        'html': _render_form(row_id, request),
+    }, status=400)
 
-    Returns the updated op, or a JsonResponse on version conflict.
-    """
+
+def _check_update_conflict(row_id, body, request):
+    """Pre-flight version check.  Returns a conflict JsonResponse if the
+    submitted version is stale, a 404 if the row is gone, or None if OK.
+    The authoritative check inside `transaction.atomic()` still runs in
+    `_update_op` to handle races with concurrent writers."""
+    try:
+        actual_version = HarvestOp.objects.values_list('version', flat=True).get(id=row_id)
+    except HarvestOp.DoesNotExist:
+        return JsonResponse({'message': S.ERR_NOT_FOUND}, status=404)
+    if actual_version == int(body.get('version', 0)):
+        return None
+    return _conflict_response(row_id, request)
+
+
+def _update_op(row_id, parsed, body, request):
+    """Update an existing HarvestOp under row lock.  Returns the updated op,
+    or a conflict JsonResponse if a concurrent writer bumped the version
+    since `_check_update_conflict` passed."""
     version = int(body.get('version', 0))
     op = HarvestOp.objects.select_for_update().get(id=row_id)
-
     if op.version != version:
-        op_full = HarvestOp.objects.select_related(
-            'parcel__region', 'crew', 'note', 'optype',
-        ).get(id=row_id)
-        record = build_harvest_record(op_full)
-        return JsonResponse({
-            'status': 'conflict', 'message': S.ERROR_CONFLICT,
-            'data_id': 'prelievi', 'row_id': row_id, 'record': record,
-            'html': _render_form(row_id, None),
-        }, status=400)
+        return _conflict_response(row_id, request)
 
     for field, value in parsed.items():
         setattr(op, field, value)

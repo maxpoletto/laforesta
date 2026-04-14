@@ -157,6 +157,8 @@ class TestSaveView:
             'crew_id': str(f['crews'][0].id), 'optype_id': str(f['optypes'][0].id),
             'quintals': '10', 'note_id': '', 'record1': '', 'record2': '',
             'extra_note': '',
+            f'sp_{f["species"][0].id}': '100',
+            f'tr_{f["tractors"][0].id}': '100',
         })
         assert DigestStatus.objects.get(name='prelievi').stale is True
         assert DigestStatus.objects.get(name='parcel_year_production').stale is True
@@ -278,6 +280,8 @@ class TestSaveView:
             'crew_id': str(f['crews'][0].id), 'optype_id': str(f['optypes'][0].id),
             'quintals': '10', 'note_id': '', 'record1': '', 'record2': '',
             'extra_note': '', 'nonce': 'idempotent-1',
+            f'sp_{f["species"][0].id}': '100',
+            f'tr_{f["tractors"][0].id}': '100',
         }
         resp1 = self._post(writer_client, payload)
         assert resp1.status_code == 200
