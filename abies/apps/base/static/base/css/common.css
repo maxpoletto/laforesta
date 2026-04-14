@@ -302,7 +302,12 @@ input:focus, select:focus, textarea:focus {
 .mb-1 { margin-bottom: 0.5rem; }
 .mb-2 { margin-bottom: 1rem; }
 
-/* --- Table wrapper -------------------------------------------------------- */
+/* ========================================================================== */
+/* TableWrapper — portable section; pairs with base/js/table.js.              */
+/* Depends on SortableTable (vendor) and host-provided .btn / .btn-primary.   */
+/* Theming is driven by --st-primary-color; action-icon hover color is        */
+/* currently hard-coded but should move to a custom CSS property eventually.  */
+/* ========================================================================== */
 
 .table-page {
   display: flex;
@@ -342,8 +347,7 @@ input:focus, select:focus, textarea:focus {
 
 .col-actions { text-align: center; }
 
-/* --- Action icons (table row pencil/trash/plus) --------------------------- */
-
+/* Action icons (per-row pencil/X) and add-button row. */
 .action-icon {
   background: none;
   border: none;
@@ -362,6 +366,10 @@ input:focus, select:focus, textarea:focus {
 }
 
 .btn-add { font-size: 0.85rem; }
+
+/* ========================================================================== */
+/* End TableWrapper                                                           */
+/* ========================================================================== */
 
 /* --- Loading overlay ------------------------------------------------------ */
 

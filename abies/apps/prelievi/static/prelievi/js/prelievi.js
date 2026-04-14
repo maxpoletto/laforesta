@@ -180,6 +180,8 @@ function showTableView(data, params) {
     sort,
     searchText: p.f,
     csvFilename: S.CSV_PRELIEVI,
+    labels: S.TABLE_LABELS,
+    csvFormat: S.TABLE_CSV_FORMAT,
     onSort: () => syncURL(),
     onSearch: () => { syncURL(); _updateCharts(); },
   });

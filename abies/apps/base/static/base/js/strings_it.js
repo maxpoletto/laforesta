@@ -21,6 +21,28 @@ export const ADD_LABEL = 'Aggiungi';
 export const NO_RESULTS = 'Nessun risultato.';
 export const BOOL_YES = 'Sì';
 export const BOOL_NO = 'No';
+export const ACTION_EDIT = 'Modifica';
+export const ACTION_DELETE = 'Elimina';
+
+// TableWrapper localization: labels bundle and CSV format for Italian.
+// Passed as `labels` / `csvFormat` options when constructing a TableWrapper.
+export const TABLE_LABELS = {
+  search: FILTER_LABEL,
+  searchPlaceholder: SEARCH_PLACEHOLDER,
+  exportCSV: EXPORT_CSV,
+  add: ADD_LABEL,
+  empty: NO_RESULTS,
+  actionEdit: ACTION_EDIT,
+  actionDelete: ACTION_DELETE,
+  boolYes: BOOL_YES,
+  boolNo: BOOL_NO,
+};
+
+export const TABLE_CSV_FORMAT = {
+  separator: ';',
+  decimal: ',',
+  dateFormat: 'DD/MM/YYYY',
+};
 
 // Errors
 export const ERROR_NETWORK = 'Errore di rete. Riprovare.';

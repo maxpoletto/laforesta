@@ -3,14 +3,41 @@
  *
  * Consumes digest format: { columns: string[], rows: any[][] }.
  * row_id is always the first column (hidden).
+ *
+ * Locale-agnostic: all user-facing strings and CSV formatting defaults to
+ * English.  Callers inject a `labels` and/or `csvFormat` option to localize.
  */
-
-import * as S from './strings.js';
 
 const DEBOUNCE_MS = 500;
 const ROW_ID_COL = 0;
 const ROWS_PER_PAGE = 25;
 const DEFAULT_COL_WIDTH = '100';  // px fallback for columns without explicit width
+
+/** English defaults for all user-facing strings. */
+const DEFAULT_LABELS = {
+  search: 'Filter',
+  searchPlaceholder: 'Search...',
+  exportCSV: 'Export CSV',
+  add: 'Add',
+  empty: 'No results.',
+  actionEdit: 'Edit',
+  actionDelete: 'Delete',
+  boolYes: 'Yes',
+  boolNo: 'No',
+};
+
+/**
+ * CSV output format.  Defaults produce a locale-neutral CSV:
+ *   - comma separator, period decimal
+ *   - ISO-8601 dates (YYYY-MM-DD)
+ * `dateFormat` is a template whose YYYY/MM/DD tokens are substituted from
+ * incoming ISO date strings.
+ */
+const DEFAULT_CSV_FORMAT = {
+  separator: ',',
+  decimal: '.',
+  dateFormat: 'YYYY-MM-DD',
+};
 
 /**
  * Wraps SortableTable with:
@@ -36,6 +63,11 @@ export class TableWrapper {
    * @param {boolean} [opts.inlineToolbar=true] — when false, the built-in
    *   search box and CSV button are omitted.  The caller is responsible for
    *   providing them and wiring them via wireSearchInput() and exportCSV().
+   * @param {Partial<typeof DEFAULT_LABELS>} [opts.labels] — overrides for the
+   *   English defaults (see DEFAULT_LABELS).  Any keys omitted fall back to
+   *   the English defaults.
+   * @param {Partial<typeof DEFAULT_CSV_FORMAT>} [opts.csvFormat] — overrides
+   *   for the default CSV format (see DEFAULT_CSV_FORMAT).
    * @param {function(string, boolean): void} [opts.onSort]
    * @param {function(string): void} [opts.onSearch]
    */
@@ -46,6 +78,8 @@ export class TableWrapper {
     this.actions = opts.actions || {};
     this.csvFilename = opts.csvFilename || 'export.csv';
     this.inlineToolbar = opts.inlineToolbar !== false;
+    this.labels = { ...DEFAULT_LABELS, ...(opts.labels || {}) };
+    this.csvFormat = { ...DEFAULT_CSV_FORMAT, ...(opts.csvFormat || {}) };
     this.onSort = opts.onSort || null;
     this.onSearch = opts.onSearch || null;
     this._searchText = opts.searchText || '';
@@ -119,7 +153,7 @@ export class TableWrapper {
       row.className = 'action-add';
       const btn = document.createElement('button');
       btn.className = 'btn btn-primary btn-add';
-      btn.textContent = '+ ' + S.ADD_LABEL;
+      btn.textContent = '+ ' + this.labels.add;
       btn.addEventListener('click', () => this.actions.onAdd());
       row.appendChild(btn);
       this._el.appendChild(row);
@@ -135,20 +169,20 @@ export class TableWrapper {
 
     const label = document.createElement('label');
     label.className = 'table-search-label';
-    label.textContent = S.FILTER_LABEL;
+    label.textContent = this.labels.search;
     bar.appendChild(label);
 
     const search = document.createElement('input');
     search.type = 'text';
     search.className = 'table-search';
-    search.placeholder = S.SEARCH_PLACEHOLDER;
+    search.placeholder = this.labels.searchPlaceholder;
     this.wireSearchInput(search);
     label.htmlFor = search.id = 'table-search-' + (++TableWrapper._idSeq);
     bar.appendChild(search);
 
     const csvBtn = document.createElement('button');
     csvBtn.className = 'btn btn-primary table-csv-btn';
-    csvBtn.textContent = S.EXPORT_CSV;
+    csvBtn.textContent = this.labels.exportCSV;
     csvBtn.addEventListener('click', () => this.exportCSV());
     bar.appendChild(csvBtn);
 
@@ -175,7 +209,7 @@ export class TableWrapper {
   }
 
   _initTable(digest, sort) {
-    this._stColumns = buildSTColumns(digest.columns, this.columnDefs, this.actions);
+    this._stColumns = buildSTColumns(digest.columns, this.columnDefs, this.actions, this.labels);
 
     this._table = new window.SortableTable({
       container: this._tableEl,
@@ -183,7 +217,7 @@ export class TableWrapper {
       columns: this._stColumns,
       rowsPerPage: ROWS_PER_PAGE,
       sort: sort || undefined,
-      emptyMessage: S.NO_RESULTS,
+      emptyMessage: this.labels.empty,
       onSort: (col, asc) => this.onSort?.(col, asc),
     });
 
@@ -233,17 +267,20 @@ export class TableWrapper {
 
   // -- CSV export ----------------------------------------------------------
 
-  /** Export currently-loaded rows as an Italian-locale CSV (semicolon-delimited). */
+  /** Export currently-loaded rows as a CSV using the configured csvFormat. */
   exportCSV() {
     if (!this._table) return;
+
+    const fmt = this.csvFormat;
+    const sep = fmt.separator;
 
     const exportCols = this._stColumns
       .map((col, i) => ({ col, i }))
       .filter(({ col }) => !col.hidden && col.key !== '_actions');
 
-    const header = exportCols.map(({ col }) => csvEscape(col.label)).join(';');
+    const header = exportCols.map(({ col }) => csvEscape(col.label, sep)).join(sep);
     const body = this._table.data.map(row =>
-      exportCols.map(({ col, i }) => csvEscape(formatCSV(row[i], col.type))).join(';'),
+      exportCols.map(({ col, i }) => csvEscape(formatCSV(row[i], col.type, fmt, this.labels), sep)).join(sep),
     ).join('\n');
 
     downloadText('\ufeff' + header + '\n' + body, this.csvFilename);
@@ -256,7 +293,7 @@ TableWrapper._idSeq = 0;
 // Column builder (module-private)
 // ---------------------------------------------------------------------------
 
-function buildSTColumns(digestColumns, columnDefs, actions) {
+function buildSTColumns(digestColumns, columnDefs, actions, labels) {
   const cols = digestColumns.map(name => {
     if (name === 'row_id') {
       return { key: 'row_id', label: 'ID', type: 'number', hidden: true };
@@ -267,7 +304,7 @@ function buildSTColumns(digestColumns, columnDefs, actions) {
       label: def.label ?? name,
       type: def.type ?? 'string',
       hidden: def.hidden || false,
-      formatter: def.formatter || (def.type === 'boolean' ? formatBool : undefined),
+      formatter: def.formatter || (def.type === 'boolean' ? (v) => formatBool(v, labels) : undefined),
       width: def.width,
       className: def.className,
     };
@@ -276,9 +313,9 @@ function buildSTColumns(digestColumns, columnDefs, actions) {
   if (actions.onEdit || actions.onDelete) {
     const parts = [];
     if (actions.onEdit)
-      parts.push('<span class="action-icon action-edit" title="Modifica">\u270E</span>');
+      parts.push(`<span class="action-icon action-edit" title="${escAttr(labels.actionEdit)}">\u270E</span>`);
     if (actions.onDelete)
-      parts.push('<span class="action-icon action-delete" title="Elimina">\u2715</span>');
+      parts.push(`<span class="action-icon action-delete" title="${escAttr(labels.actionDelete)}">\u2715</span>`);
     const html = parts.join(' ');
     cols.push({
       key: '_actions', label: '', sortable: false,
@@ -288,6 +325,11 @@ function buildSTColumns(digestColumns, columnDefs, actions) {
   }
 
   return cols;
+}
+
+/** Minimal HTML attribute-value escape (we build title="..." by concatenation). */
+function escAttr(s) {
+  return String(s).replace(/[&"]/g, c => (c === '&' ? '&amp;' : '&quot;'));
 }
 
 // ---------------------------------------------------------------------------
@@ -310,29 +352,30 @@ export function matchesSearch(row, terms) {
 // CSV helpers
 // ---------------------------------------------------------------------------
 
-/** Format a boolean for display. */
-function formatBool(value) {
-  return value ? S.BOOL_YES : S.BOOL_NO;
+/** Format a boolean for display using the configured yes/no labels. */
+function formatBool(value, labels) {
+  return value ? labels.boolYes : labels.boolNo;
 }
 
-/** Format a value for Italian CSV (comma decimals, DD/MM/YYYY dates). */
-function formatCSV(value, type) {
+/** Format a value for CSV using the configured decimal and date formats. */
+function formatCSV(value, type, csvFormat, labels) {
   if (value == null || value === '') return '';
-  if (type === 'boolean') return formatBool(value);
+  if (type === 'boolean') return formatBool(value, labels);
   if (type === 'number' && typeof value === 'number') {
-    return String(value).replace('.', ',');
+    return csvFormat.decimal === '.' ? String(value) : String(value).replace('.', csvFormat.decimal);
   }
   if (type === 'date' && typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) {
-    const [y, m, d] = value.split('-');
-    return `${d}/${m}/${y}`;
+    const [YYYY, MM, DD] = value.split('-');
+    const tokens = { YYYY, MM, DD };
+    return csvFormat.dateFormat.replace(/YYYY|MM|DD/g, t => tokens[t]);
   }
   return String(value);
 }
 
-/** Escape a semicolon-delimited CSV field. */
-function csvEscape(value) {
+/** Escape a CSV field for the given separator. */
+function csvEscape(value, separator) {
   const s = String(value);
-  return (s.includes(';') || s.includes('"') || s.includes('\n'))
+  return (s.includes(separator) || s.includes('"') || s.includes('\n'))
     ? '"' + s.replace(/"/g, '""') + '"'
     : s;
 }

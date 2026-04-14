@@ -259,6 +259,8 @@ async function loadEntityData(cfg, state, container) {
       onAdd: () => openForm(cfg, state, null),
     },
     csvFilename: cfg.csvFilename,
+    labels: S.TABLE_LABELS,
+    csvFormat: S.TABLE_CSV_FORMAT,
   });
 
   applyActiveFilter(state);

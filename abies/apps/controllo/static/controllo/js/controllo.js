@@ -62,6 +62,8 @@ export async function mount(params) {
     sort,
     searchText: p.f,
     csvFilename: S.CSV_AUDIT,
+    labels: S.TABLE_LABELS,
+    csvFormat: S.TABLE_CSV_FORMAT,
     onSort: () => syncURL(),
     onSearch: () => syncURL(),
   });
