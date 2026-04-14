@@ -119,6 +119,7 @@ export function renderStackedBar(canvas, chartData, existing) {
       plugins: {
         legend: { position: 'bottom' },
         tooltip: {
+          animation: false,
           callbacks: {
             label: ctx =>
               `${ctx.dataset.label}: ${ctx.raw.toFixed(1).replace('.', ',')}`,
