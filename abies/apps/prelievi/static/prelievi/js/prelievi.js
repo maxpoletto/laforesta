@@ -82,6 +82,7 @@ let chartBDirty = true;
 let chartABreakdown = 'total';
 let chartAByMonth = false;
 let speciesCols = [];
+let tractorCols = [];
 let colMap = {};
 
 cache.register(DATA_ID, DATA_URL);
@@ -332,10 +333,12 @@ function _buildColMap(columns) {
 
 function _classifyColumns(columns) {
   speciesCols = [];
+  tractorCols = [];
   for (const name of columns) {
     if (name === 'row_id' || STATIC_COLS[name] || name.endsWith(' %')) continue;
     // Species are single words; tractor labels contain a space.
-    if (!name.includes(' ')) speciesCols.push(name);
+    if (name.includes(' ')) tractorCols.push(name);
+    else speciesCols.push(name);
   }
 }
 
@@ -362,7 +365,7 @@ function _updateCharts() {
 function _renderChartA() {
   if (!chartACanvas) return;
   const rows = _getFilteredRows();
-  const data = aggregateTimeSeries(rows, colMap, chartABreakdown, chartAByMonth, speciesCols);
+  const data = aggregateTimeSeries(rows, colMap, chartABreakdown, chartAByMonth, speciesCols, tractorCols);
   chartA = renderStackedBar(chartACanvas, data, chartA);
   chartADirty = false;
 }
@@ -452,7 +455,8 @@ function _buildChartSections(el) {
   for (const [value, label] of [
     ['total', S.CHART_TOTAL], ['compresa', S.COL_REGION],
     ['particella', S.COL_PARCEL], ['squadra', S.COL_CREW],
-    ['specie', S.LABEL_SPECIES], ['tipo', S.COL_OPTYPE],
+    ['specie', S.LABEL_SPECIES], ['trattore', S.COL_TRACTOR],
+    ['tipo', S.COL_OPTYPE],
   ]) {
     const opt = document.createElement('option');
     opt.value = value;

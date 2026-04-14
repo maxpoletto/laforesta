@@ -88,6 +88,7 @@ export const COL_EXTRA_NOTE = 'Altre note';
 export const COL_OPTYPE = 'Tipo';
 export const COL_PROT = 'Prot';
 export const COL_ACTIVE = 'Attivo';
+export const COL_TRACTOR = 'Trattore';
 
 // Settings
 export const SETTINGS_PASSWORD = 'Cambio password';

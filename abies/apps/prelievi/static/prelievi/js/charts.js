@@ -24,18 +24,21 @@ const COLORS = [
  *
  * @param {any[][]} rows — filtered digest rows
  * @param {Object} colMap — { columnName: columnIndex }
- * @param {string} breakdown — 'total'|'compresa'|'particella'|'squadra'|'specie'|'tipo'
+ * @param {string} breakdown — 'total'|'compresa'|'particella'|'squadra'|'tipo'|'specie'|'trattore'
  * @param {boolean} byMonth — year or month granularity
  * @param {string[]} speciesCols — species quintal column names
+ * @param {string[]} tractorCols — tractor quintal column names
  * @returns {{ labels: string[], datasets: Array<{label, data, backgroundColor}> }}
  */
-export function aggregateTimeSeries(rows, colMap, breakdown, byMonth, speciesCols) {
+export function aggregateTimeSeries(rows, colMap, breakdown, byMonth, speciesCols, tractorCols) {
   const dateIdx = colMap['Data'];
   const qIdx = colMap['Q.li'];
   const bucket = byMonth ? d => d.substring(0, 7) : d => d.substring(0, 4);
 
-  if (breakdown === 'specie') {
-    return _aggregateColumnsByBucket(rows, dateIdx, colMap, bucket, speciesCols);
+  // Breakdowns that pivot on multiple numeric columns (species/tractors).
+  const byColumns = { specie: speciesCols, trattore: tractorCols }[breakdown];
+  if (byColumns) {
+    return _aggregateColumnsByBucket(rows, dateIdx, colMap, bucket, byColumns);
   }
 
   const dimIdx = breakdown === 'total' ? null : colMap[{
