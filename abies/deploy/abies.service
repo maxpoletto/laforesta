@@ -1,0 +1,28 @@
+[Unit]
+Description=Abies (forestry management app)
+Requires=docker.service
+After=docker.service network-online.target
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+
+# Remove any stale container left over from an unclean shutdown.
+# Leading '-' tells systemd to ignore failure if nothing to remove.
+ExecStartPre=-/usr/bin/docker rm -f abies
+
+ExecStart=/usr/bin/docker run \
+  --name abies \
+  --rm \
+  -p 127.0.0.1:8000:8000 \
+  --env-file /etc/abies/env \
+  -v /var/lib/abies/data:/app/data \
+  -v /var/lib/abies/static:/app/staticfiles \
+  abies:latest
+
+ExecStop=/usr/bin/docker stop abies
+
+[Install]
+WantedBy=multi-user.target

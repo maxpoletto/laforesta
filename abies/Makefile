@@ -2,7 +2,8 @@ PYTHON = python3
 MANAGE = $(PYTHON) manage.py
 BOSCO_DATA = ../bosco/data
 
-.PHONY: check migrate import geo digest admin dev clean update-vendor minify test
+.PHONY: check migrate import geo digest admin dev clean update-vendor minify test \
+        image release deploy
 
 check:
 	$(MANAGE) check
@@ -77,3 +78,29 @@ minify:
 		done; \
 	done
 	@echo "Done. Run 'git checkout -- apps/*/static/*/js/' to restore sources."
+
+# --- Docker image + release -------------------------------------------------
+
+# Short git SHA of HEAD; "dirty" suffix if the working tree has changes.
+GIT_SHA := $(shell git rev-parse --short HEAD 2>/dev/null || echo nogit)
+DIRTY   := $(shell git diff --quiet 2>/dev/null || echo -dirty)
+TAG     := $(GIT_SHA)$(DIRTY)
+
+image:
+	docker build -t abies:$(TAG) -t abies:latest .
+	@echo "Built abies:$(TAG) (and abies:latest)"
+
+release: image
+	docker save abies:$(TAG) | gzip > abies-$(TAG).tar.gz
+	@echo "Wrote abies-$(TAG).tar.gz ($$(du -h abies-$(TAG).tar.gz | cut -f1))"
+
+# Ship the release tarball to the server.  Override host/user with:
+#   make deploy DEPLOY_HOST=other.host DEPLOY_USER=max
+DEPLOY_HOST ?= laforesta.it
+DEPLOY_USER ?= root
+
+deploy: release
+	scp abies-$(TAG).tar.gz $(DEPLOY_USER)@$(DEPLOY_HOST):/tmp/
+	@echo
+	@echo "Uploaded.  Finish on the server:"
+	@echo "  ssh $(DEPLOY_USER)@$(DEPLOY_HOST) 'sudo /root/abies-deploy/install-release.sh $(TAG)'"
