@@ -1,0 +1,25 @@
+# VCS + editor cruft
+.git
+.gitignore
+.vscode
+.claude
+.pytest_cache
+.coverage
+
+# Local runtime state (bind-mounted in production)
+data/
+staticfiles/
+
+# Build outputs
+*.pyc
+__pycache__
+*.egg-info
+
+# Tests / dev-only
+test/
+TODO.md
+oauth.txt
+claude-resume
+
+# Vendor npm cache from update-vendor
+/tmp/abies-vendor
