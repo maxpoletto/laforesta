@@ -18,7 +18,27 @@ SECRET_KEY = os.environ.get(
 
 DEBUG = os.environ.get('DJANGO_DEBUG', '1') == '1'
 
-ALLOWED_HOSTS = ['*']
+# Comma-separated host list via env; '*' is only acceptable in dev.
+_hosts = os.environ.get('DJANGO_ALLOWED_HOSTS', '').strip()
+if _hosts:
+    ALLOWED_HOSTS = [h.strip() for h in _hosts.split(',') if h.strip()]
+elif DEBUG:
+    ALLOWED_HOSTS = ['*']
+else:
+    raise RuntimeError('DJANGO_ALLOWED_HOSTS must be set when DEBUG=0')
+
+# Comma-separated origins for CSRF (e.g. 'https://laforesta.it').
+_csrf = os.environ.get('DJANGO_CSRF_TRUSTED_ORIGINS', '').strip()
+CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf.split(',') if o.strip()]
+
+# Apache terminates TLS and forwards plain HTTP; trust the X-Forwarded-Proto
+# header so Django recognises the request as secure for cookie flags, etc.
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+USE_X_FORWARDED_HOST = True
+
+if not DEBUG:
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
 
 # --- Apps -------------------------------------------------------------------
 
