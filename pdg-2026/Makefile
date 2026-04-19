@@ -96,6 +96,8 @@ SECTIONS_TEX= \
 	tex/sec-piano.tex \
 	tex/sec-particelle.tex
 
+ILLUSTRATIONS_PNG=tex/tabella_ceduo_*.png
+
 pdf: $(FILE_PDF)
 
 tex/sec-particelle.tex: template/tex/sec-particelle.tex template/tex/particella-ceduo.tex template/tex/particella-fustaia.tex $(DEPS_TEX)
@@ -113,7 +115,7 @@ $(FILE_PDF): $(FILE_TEX) $(SECTIONS_TEX) $(DEPS_BIB)
 	cd tex && pdflatex $(TEX_FLAGS) $(BASENAME)
 
 clean-pdf:
-	rm -f $(FILE_PDF) $(FILE_TEX) $(SECTIONS_TEX)
+	rm -f $(FILE_PDF) $(FILE_TEX) $(SECTIONS_TEX) $(ILLUSTRATIONS_PNG)
 
 clean-pdf-all:
 	rm -f tex/*
