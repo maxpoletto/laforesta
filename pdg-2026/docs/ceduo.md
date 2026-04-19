@@ -40,3 +40,13 @@ Past harvest dates come from calendario-mannesi.csv. Parcels with no harvest his
 @@calendario_ceduo(particelle=FILE,calendario=FILE,adiacenze=FILE,anno_inizio=M,anno_fine=N)
 
 Output: a table with columns Anno, Compresa, Particella, Superficie (ha), Note. The "Note" column says "Continuazione intervento YYYY" for second and subsequent sub-harvests where YYYY is the year of the first sub-harvest of that cycle.
+
+@@tabella_ceduo(particelle=FILE,calendario=FILE,adiacenze=FILE,anno_inizio=M,anno_fine=N)
+
+Output: a Gantt-style chart illustrating the lifetime of each batch of 50
+preserved shoots ("matricine"). One row per ceduo parcel (sorted in natural
+order by compresa then particella), one bar per sub-harvest. A bar starts at its
+sub-harvest year and ends `2 * parametro` years later (the batch is kept through
+the following harvest and cut at the second one). Parcels larger than 10 ha have
+multiple sub-harvest slots and therefore taller rows. Bars extending beyond
+`anno_fine` are drawn with a rightward overflow arrow.

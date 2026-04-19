@@ -40,3 +40,14 @@ Le date degli ultimi interventi provengono da calendario-mannesi.csv. Le partice
 @@calendario_ceduo(particelle=FILE,calendario=FILE,adiacenze=FILE,anno_inizio=M,anno_fine=N)
 
 Output: tabella con colonne Anno, Compresa, Particella, Superficie (ha), Note. La colonna "Note" riporta "Continuazione intervento AAAA" per il secondo e successivi sub-interventi, dove AAAA e' l'anno del primo sub-intervento del ciclo.
+
+@@tabella_ceduo(particelle=FILE,calendario=FILE,adiacenze=FILE,anno_inizio=M,anno_fine=N)
+
+Output: un grafico tipo Gantt che illustra la vita di ogni lotto di 50 matricine
+rilasciate. Una riga per ogni particella ceduo (ordinate in ordine naturale per
+compresa e poi particella), una barra per ogni sub-intervento. Ogni barra inizia
+nell'anno del sub-intervento e termina `2 * parametro` anni dopo (le matricine
+sono mantenute per due turni successivi e tagliate al secondo). Le particelle
+oltre i 10 ha hanno piu' slot di sub-intervento e quindi righe piu' alte. Le
+barre che si estendono oltre `anno_fine` sono indicate con una freccia verso
+destra.
