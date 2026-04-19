@@ -26,13 +26,14 @@ class TestScheduleCoppice:
         assert all(e.cycle_start == e.year for e in events)
 
     def test_standalone_large_parcel(self):
-        """Example 2: 25 ha, intervallo=12, last harvest 2015 -> sub-harvests."""
+        """Example 2: 25 ha, intervallo=12, last harvest 2015 -> 3 equal sub-harvests."""
         parcels = [CoppiceParcel('X', 'A', 25.0, 12)]
         events = schedule_coppice(parcels, set(), {('X', 'A'): 2015}, (2027, 2045))
         year_area = [(e.year, e.area_ha) for e in events]
+        chunk = 25.0 / 3
         assert year_area == [
-            (2027, 10.0), (2029, 10.0), (2031, 5.0),
-            (2039, 10.0), (2041, 10.0), (2043, 5.0),
+            (2027, chunk), (2029, chunk), (2031, chunk),
+            (2039, chunk), (2041, chunk), (2043, chunk),
         ]
         # First sub-harvest of each cycle: cycle_start == year
         assert events[0].cycle_start == 2027
@@ -74,9 +75,10 @@ class TestScheduleCoppice:
         events = schedule_coppice(parcels, set(), {('X', 'A'): 2015}, (2027, 2040))
         year_area = [(e.year, e.area_ha) for e in events]
         # First cycle fits: 2027, 2029, 2031. Second cycle: 2039 fits, 2041 > 2040.
+        chunk = 25.0 / 3
         assert year_area == [
-            (2027, 10.0), (2029, 10.0), (2031, 5.0),
-            (2039, 10.0),
+            (2027, chunk), (2029, chunk), (2031, chunk),
+            (2039, chunk),
         ]
 
     # ----- Adjacency constraint tests -----
@@ -96,7 +98,7 @@ class TestScheduleCoppice:
         assert b_years == [(2029, 8.0), (2041, 8.0)]
 
     def test_adjacent_large_parcels(self):
-        """Example 4: Two adjacent 12 ha, intervallo=12, last 2015/2016."""
+        """Example 4: Two adjacent 12 ha, intervallo=12, last 2015/2016. Each splits into 2x6 ha."""
         parcels = [
             CoppiceParcel('X', 'A', 12.0, 12),
             CoppiceParcel('X', 'B', 12.0, 12),
@@ -106,8 +108,8 @@ class TestScheduleCoppice:
         events = schedule_coppice(parcels, adj, last, (2027, 2050))
         a_events = [(e.year, e.area_ha) for e in events if e.particella == 'A']
         b_events = [(e.year, e.area_ha) for e in events if e.particella == 'B']
-        assert a_events == [(2027, 10.0), (2029, 2.0), (2039, 10.0), (2041, 2.0)]
-        assert b_events == [(2031, 10.0), (2033, 2.0), (2043, 10.0), (2045, 2.0)]
+        assert a_events == [(2027, 6.0), (2029, 6.0), (2039, 6.0), (2041, 6.0)]
+        assert b_events == [(2031, 6.0), (2033, 6.0), (2043, 6.0), (2045, 6.0)]
 
     def test_chain_adjacency_not_transitive(self):
         """A-B and B-C adjacent: A and C can be scheduled same year."""
