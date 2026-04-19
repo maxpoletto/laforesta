@@ -52,6 +52,15 @@ from pdg.simulation import (
 
 skip_graphs = False  # pylint: disable=invalid-name
 
+
+def _should_render(path: Path) -> bool:
+    """Draw + savefig unless --non-rigenerare-grafici is on *and* the target already exists.
+
+    Interpreting the flag literally: "don't regenerate existing graphs". A missing
+    target is still generated so the LaTeX \\includegraphics reference resolves.
+    """
+    return not skip_graphs or not path.exists()
+
 # =============================================================================
 # MATPLOTLIB CONFIGURATION
 # =============================================================================
@@ -415,7 +424,7 @@ def render_hypsometric_graph(data: ParcelData, equations_df: pd.DataFrame,
                     n_points=int(eq['n']),
                 ))
 
-    if not skip_graphs:
+    if _should_render(output_path):
         x_max = max(options[OPT_X_MAX], trees[COL_D_CM].max() + 3)
         y_max = max(options[OPT_Y_MAX], (trees[COL_H_M].max() + 6) // 5 * 5)
         ax.set_xlabel('Diametro (cm)')
@@ -526,7 +535,7 @@ def render_diameter_class_graph(data: ParcelData, output_path: Path,
     Returns:
         RenderResult with snippet and filepath.
     """
-    if not skip_graphs:
+    if _should_render(output_path):
         species = data.species
         metrica = options[OPT_METRICA]
         stime_totali = options[OPT_STIME_TOTALI]
@@ -845,7 +854,7 @@ def render_pct_growth_graph(data: ParcelData, output_path: Path,
                      formatter: SnippetFormatter, color_map: dict,
                      **options) -> RenderResult:
     """Generate IP line graph (@@grafico_incremento_percentuale directive)."""
-    if not skip_graphs:
+    if _should_render(output_path):
         group_cols = []
         if options[OPT_PER_COMPRESA]:
             group_cols.append(COL_COMPRESA)
@@ -1288,24 +1297,36 @@ def render_coppice_schedule(
 # =============================================================================
 
 # Vertical inches per lane (one of the 2 * n_sub_harvests slots inside a parcel row).
-GANTT_LANE_INCHES = 0.09
+GANTT_LANE_INCHES = 0.18
 # Blank space between parcel rows, expressed in lane-height units.
 GANTT_PARCEL_GAP_LANES = 0.5
 # Bar height as fraction of one lane slot — leaves vertical breathing room.
-GANTT_BAR_HEIGHT_FRAC = 0.85
+GANTT_BAR_HEIGHT_FRAC = 0.78
 # Horizontal inset (years) applied to each end of a bar so consecutive bars in
 # the same lane are visibly separated instead of merging into a continuous line.
 GANTT_BAR_H_INSET = 0.35
 # Figure width per year of planning window.
-GANTT_FIG_WIDTH_PER_YEAR = 0.12
+GANTT_FIG_WIDTH_PER_YEAR = 0.14
 GANTT_MIN_FIG_WIDTH = 5.0
 GANTT_MIN_FIG_HEIGHT = 2.0
 # Major tick spacing on the year axis.
 GANTT_X_MAJOR_TICK = 5
-# Fill color for all bars. Alternate patterns per cycle may come later.
-GANTT_BAR_COLOR = '#5b8a72'
-# Length (years) of the overflow arrow drawn for bars extending past anno_fine.
-GANTT_ARROW_LEN_YEARS = 1.5
+# Outline color used for all bars, labels, and overflow tips.
+GANTT_BAR_COLOR = 'black'
+GANTT_BAR_LINEWIDTH = 0.7
+# Horizontal length (years) of the chevron tip drawn on bars whose batch ends
+# after anno_fine.
+GANTT_OVERFLOW_TIP_YEARS = 1.2
+GANTT_LABEL_FONTSIZE = 4.5
+
+
+def _gantt_bar_label(bar) -> str:
+    """`Intervento N, Y1-Y2` or `Intervento N/M, Y1-Y2` when the parcel is split."""
+    if bar.n_sub > 1:
+        n = f'{bar.cycle_idx}/{bar.sub_idx}'
+    else:
+        n = f'{bar.cycle_idx}'
+    return f'Intervento {n}, {bar.start_year}-{bar.end_year}'
 
 
 def render_coppice_gantt(
@@ -1319,9 +1340,14 @@ def render_coppice_gantt(
 
     Each row is a coppice parcel. Each bar represents the lifetime of a batch
     of 50 preserved shoots seeded by one sub-harvest: start = harvest year,
-    end = harvest year + 2 * intervallo. Bars extending past anno_fine are
-    drawn with an overflow arrow instead of a right border.
+    end = harvest year + 2 * intervallo. Bars are drawn as outline-only
+    rectangles with a label inside. Bars whose end year exceeds anno_fine
+    are drawn as open-right polygons with a chevron tip that extends past
+    the plotted window.
     """
+    # pylint: disable=import-outside-toplevel
+    from matplotlib.patches import Polygon, Rectangle
+
     first_year, last_year = year_range
 
     if not rows:
@@ -1347,34 +1373,46 @@ def render_coppice_gantt(
         y_cursor += row.n_lanes + GANTT_PARCEL_GAP_LANES
     total_y = y_cursor - (GANTT_PARCEL_GAP_LANES if n_rows else 0)
 
-    # Bars.
     x_right_limit = last_year + 1  # exclusive upper bound on the year axis
+    h = GANTT_BAR_HEIGHT_FRAC
     for row, y_bottom in row_layouts:
         for bar in row.bars:
             # Lane 0 = top of row; flip so higher lane index sits lower in the row.
             lane_center_y = y_bottom + (row.n_lanes - 1 - bar.lane) + 0.5
             lo = bar.start_year + GANTT_BAR_H_INSET
             hi_full = bar.end_year - GANTT_BAR_H_INSET
+            is_overflow = bar.end_year > last_year
             hi = min(hi_full, x_right_limit)
-            if hi > lo:
-                ax.barh(
-                    lane_center_y,
-                    width=hi - lo, left=lo,
-                    height=GANTT_BAR_HEIGHT_FRAC,
-                    color=GANTT_BAR_COLOR, edgecolor='none')
-            if bar.end_year > last_year:
-                arrow_end = x_right_limit
-                arrow_start = max(lo, arrow_end - GANTT_ARROW_LEN_YEARS)
-                ax.annotate(
-                    '',
-                    xy=(arrow_end, lane_center_y),
-                    xytext=(arrow_start, lane_center_y),
-                    arrowprops={
-                        'arrowstyle': '->',
-                        'color': GANTT_BAR_COLOR,
-                        'lw': 0.8,
-                    },
-                    annotation_clip=False)
+            if hi <= lo:
+                continue
+
+            if is_overflow:
+                tip_x = x_right_limit + GANTT_OVERFLOW_TIP_YEARS
+                verts = [
+                    (lo, lane_center_y - h / 2),
+                    (x_right_limit, lane_center_y - h / 2),
+                    (tip_x, lane_center_y),
+                    (x_right_limit, lane_center_y + h / 2),
+                    (lo, lane_center_y + h / 2),
+                ]
+                ax.add_patch(Polygon(
+                    verts, closed=True,
+                    facecolor='none', edgecolor=GANTT_BAR_COLOR,
+                    linewidth=GANTT_BAR_LINEWIDTH,
+                    clip_on=False))
+            else:
+                ax.add_patch(Rectangle(
+                    (lo, lane_center_y - h / 2), hi - lo, h,
+                    facecolor='none', edgecolor=GANTT_BAR_COLOR,
+                    linewidth=GANTT_BAR_LINEWIDTH))
+
+            ax.text(
+                (lo + hi) / 2, lane_center_y,
+                _gantt_bar_label(bar),
+                ha='center', va='center',
+                fontsize=GANTT_LABEL_FONTSIZE,
+                color=GANTT_BAR_COLOR,
+                clip_on=True)
 
     # y-axis: one tick per parcel centered on its row.
     ax.set_yticks([y_b + r.n_lanes / 2 for r, y_b in row_layouts])
@@ -1401,7 +1439,7 @@ def render_coppice_gantt(
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
 
-    if not skip_graphs:
+    if _should_render(output_path):
         plt.tight_layout()
         plt.savefig(output_path, bbox_inches='tight')
     plt.close(fig)

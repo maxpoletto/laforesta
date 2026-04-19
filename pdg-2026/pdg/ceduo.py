@@ -56,6 +56,9 @@ class CoppiceBar:
     start_year: int           # harvest year (batch seeded)
     end_year: int             # start_year + 2 * intervallo (batch cut)
     lane: int                 # 0..n_lanes-1 within the parcel row
+    cycle_idx: int            # 1-based index of the harvest cycle on this parcel
+    sub_idx: int              # 1-based sub-harvest index within the cycle
+    n_sub: int                # sub-harvests per cycle for this parcel (1 if ≤ 10 ha)
 
 
 @dataclass
@@ -271,14 +274,17 @@ def coppice_gantt_bars(
             cycles.setdefault(e.cycle_start, []).append(e)
 
         bars: list[CoppiceBar] = []
-        for cycle_idx, cycle_start in enumerate(sorted(cycles)):
+        for cycle_idx0, cycle_start in enumerate(sorted(cycles)):
             cycle_events = sorted(cycles[cycle_start], key=lambda e: e.year)
-            for sub_idx, e in enumerate(cycle_events):
-                lane = BATCH_LIFETIME_CYCLES * sub_idx + (cycle_idx % BATCH_LIFETIME_CYCLES)
+            for sub_idx0, e in enumerate(cycle_events):
+                lane = BATCH_LIFETIME_CYCLES * sub_idx0 + (cycle_idx0 % BATCH_LIFETIME_CYCLES)
                 bars.append(CoppiceBar(
                     start_year=e.year,
                     end_year=e.year + BATCH_LIFETIME_CYCLES * e.intervallo,
                     lane=lane,
+                    cycle_idx=cycle_idx0 + 1,
+                    sub_idx=sub_idx0 + 1,
+                    n_sub=n_sub,
                 ))
 
         rows.append(CoppiceRow(

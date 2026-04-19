@@ -351,7 +351,13 @@ def process_template(template_text: str, data_dir: Path,
                 check_allowed_params(keyword, params, gantt_opts)
                 ceduo_parcels, ceduo_events, ceduo_year_range = (
                     _load_coppice_schedule(keyword, params, data_dir))
+                # Schedule with all parcels (adjacency constraints are global),
+                # then filter the display rows by compresa/particella.
                 rows = coppice_gantt_bars(ceduo_parcels, ceduo_events)
+                if comprese:
+                    rows = [r for r in rows if r.compresa in comprese]
+                if particelle:
+                    rows = [r for r in rows if r.particella in particelle]
                 filename = _build_graph_filename(
                     comprese, particelle, generi, keyword)
                 result = render_coppice_gantt(

@@ -208,8 +208,13 @@ class TestCoppiceGanttBars:
         row = rows[0]
         assert (row.compresa, row.particella) == ('X', 'A')
         assert row.n_lanes == 2
-        triples = [(b.start_year, b.end_year, b.lane) for b in row.bars]
-        assert triples == [(1, 31, 0), (16, 46, 1), (31, 61, 0)]
+        tuples = [(b.start_year, b.end_year, b.lane, b.cycle_idx, b.sub_idx, b.n_sub)
+                  for b in row.bars]
+        assert tuples == [
+            (1, 31, 0, 1, 1, 1),
+            (16, 46, 1, 2, 1, 1),
+            (31, 61, 0, 3, 1, 1),
+        ]
 
     def test_16ha_two_sub_harvests(self):
         """User's second example: 16 ha / interval 15, sub-harvests in consecutive years.
@@ -230,11 +235,13 @@ class TestCoppiceGanttBars:
         assert len(rows) == 1
         row = rows[0]
         assert row.n_lanes == 4
-        triples = sorted((b.start_year, b.end_year, b.lane) for b in row.bars)
-        assert triples == [
-            (1, 31, 0), (2, 32, 2),
-            (16, 46, 1), (17, 47, 3),
-            (31, 61, 0), (32, 62, 2),
+        tuples = sorted(
+            (b.start_year, b.end_year, b.lane, b.cycle_idx, b.sub_idx, b.n_sub)
+            for b in row.bars)
+        assert tuples == [
+            (1, 31, 0, 1, 1, 2), (2, 32, 2, 1, 2, 2),
+            (16, 46, 1, 2, 1, 2), (17, 47, 3, 2, 2, 2),
+            (31, 61, 0, 3, 1, 2), (32, 62, 2, 3, 2, 2),
         ]
 
     def test_empty_parcel_still_has_row(self):
@@ -261,12 +268,13 @@ class TestCoppiceGanttBars:
         assert row.n_lanes == 6
         # Sub-slots 0,1,2 in cycle 0 → lanes 0,2,4; in cycle 1 → lanes 1,3,5.
         by_start = {b.start_year: b for b in row.bars}
-        assert by_start[2027].lane == 0 and by_start[2027].end_year == 2051
-        assert by_start[2029].lane == 2 and by_start[2029].end_year == 2053
-        assert by_start[2031].lane == 4 and by_start[2031].end_year == 2055
-        assert by_start[2039].lane == 1 and by_start[2039].end_year == 2063
-        assert by_start[2041].lane == 3 and by_start[2041].end_year == 2065
-        assert by_start[2043].lane == 5 and by_start[2043].end_year == 2067
+        assert by_start[2027].lane == 0 and by_start[2027].cycle_idx == 1 and by_start[2027].sub_idx == 1
+        assert by_start[2029].lane == 2 and by_start[2029].cycle_idx == 1 and by_start[2029].sub_idx == 2
+        assert by_start[2031].lane == 4 and by_start[2031].cycle_idx == 1 and by_start[2031].sub_idx == 3
+        assert by_start[2039].lane == 1 and by_start[2039].cycle_idx == 2 and by_start[2039].sub_idx == 1
+        assert by_start[2041].lane == 3 and by_start[2041].cycle_idx == 2 and by_start[2041].sub_idx == 2
+        assert by_start[2043].lane == 5 and by_start[2043].cycle_idx == 2 and by_start[2043].sub_idx == 3
+        assert all(b.n_sub == 3 for b in row.bars)
 
     def test_partial_cycle_at_end(self):
         """A cycle truncated within the planning window still lays out correctly."""
@@ -279,8 +287,10 @@ class TestCoppiceGanttBars:
         rows = coppice_gantt_bars([parcel], events)
         row = rows[0]
         assert row.n_lanes == 4
-        triples = sorted((b.start_year, b.end_year, b.lane) for b in row.bars)
-        assert triples == [(1, 31, 0), (2, 32, 2), (16, 46, 1)]
+        tuples = sorted(
+            (b.start_year, b.end_year, b.lane, b.cycle_idx, b.sub_idx)
+            for b in row.bars)
+        assert tuples == [(1, 31, 0, 1, 1), (2, 32, 2, 1, 2), (16, 46, 1, 2, 1)]
 
     def test_rows_follow_input_parcel_order(self):
         """Row order follows the input parcel list (natsort happens upstream)."""
