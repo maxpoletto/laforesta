@@ -50,6 +50,23 @@ class CoppiceEvent:
     cycle_start: int       # year of first sub-harvest in this cycle (== year for first)
 
 
+@dataclass
+class CoppiceBar:
+    """One gantt-chart bar: the lifetime of a preserved-shoot batch seeded by one sub-harvest."""
+    start_year: int           # harvest year (batch seeded)
+    end_year: int             # start_year + 2 * intervallo (batch cut)
+    lane: int                 # 0..n_lanes-1 within the parcel row
+
+
+@dataclass
+class CoppiceRow:
+    """One parcel's row in the gantt chart."""
+    compresa: str
+    particella: str
+    n_lanes: int              # 2 * n_sub_harvests, ≥ 2 even for empty rows
+    bars: list[CoppiceBar]
+
+
 ParcelKey = tuple[str, str]  # (compresa, particella)
 Adjacencies = set[tuple[ParcelKey, ParcelKey]]  # sorted pairs: first < second
 
@@ -206,3 +223,69 @@ def schedule_coppice(
 
     events.sort(key=lambda e: (e.year, e.compresa, natsort_key(e.particella)))
     return events
+
+
+# =============================================================================
+# GANTT LAYOUT
+# =============================================================================
+
+# Preserved shoots from one sub-harvest survive two harvest cycles before being cut:
+# - harvest N seeds batch;
+# - harvest N+1 keeps it alongside a new batch;
+# - harvest N+2 cuts it.
+# So a batch's lifetime = 2 * intervallo years.
+BATCH_LIFETIME_CYCLES = 2
+
+# Minimum lanes per parcel row — lets empty rows still occupy visible height.
+MIN_LANES_PER_PARCEL = 2
+
+
+def coppice_gantt_bars(
+    parcels: list[CoppiceParcel],
+    events: list[CoppiceEvent],
+) -> list[CoppiceRow]:
+    """Compute Gantt rows/bars illustrating preserved-shoot batch lifetimes.
+
+    Each scheduled sub-harvest event seeds a bar spanning
+    [event.year, event.year + 2 * intervallo]. Within a parcel, bars are laid
+    out on 2 * n_sub_harvests lanes: for each sub-slot, consecutive cycles
+    alternate between an odd/even lane so the two concurrently-live batches
+    do not overlap, and batch N+2 reuses batch N's lane (batch N is cut just
+    as batch N+2 is seeded).
+
+    Rows follow the order of the input `parcels` list.
+    """
+    # Group events by parcel key.
+    by_parcel: dict[ParcelKey, list[CoppiceEvent]] = {}
+    for e in events:
+        by_parcel.setdefault((e.compresa, e.particella), []).append(e)
+
+    rows: list[CoppiceRow] = []
+    for p in parcels:
+        key = (p.compresa, p.particella)
+        n_sub = math.ceil(p.area_ha / MAX_HARVEST_AREA_HA)
+        n_lanes = max(BATCH_LIFETIME_CYCLES * n_sub, MIN_LANES_PER_PARCEL)
+
+        cycles: dict[int, list[CoppiceEvent]] = {}
+        for e in by_parcel.get(key, []):
+            cycles.setdefault(e.cycle_start, []).append(e)
+
+        bars: list[CoppiceBar] = []
+        for cycle_idx, cycle_start in enumerate(sorted(cycles)):
+            cycle_events = sorted(cycles[cycle_start], key=lambda e: e.year)
+            for sub_idx, e in enumerate(cycle_events):
+                lane = BATCH_LIFETIME_CYCLES * sub_idx + (cycle_idx % BATCH_LIFETIME_CYCLES)
+                bars.append(CoppiceBar(
+                    start_year=e.year,
+                    end_year=e.year + BATCH_LIFETIME_CYCLES * e.intervallo,
+                    lane=lane,
+                ))
+
+        rows.append(CoppiceRow(
+            compresa=p.compresa,
+            particella=p.particella,
+            n_lanes=n_lanes,
+            bars=bars,
+        ))
+
+    return rows

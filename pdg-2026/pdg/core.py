@@ -31,7 +31,7 @@ from pdg.formatters import (
     SnippetFormatter,
 )
 from pdg.ceduo import (
-    CoppiceEvent,
+    CoppiceEvent, CoppiceRow,
     COL_YEAR as CEDUO_COL_YEAR, COL_AREA_HA as CEDUO_COL_AREA_HA,
     COL_AREA_TOTALE_HA as CEDUO_COL_AREA_TOTALE_HA,
     COL_INTERVALLO as CEDUO_COL_INTERVALLO,
@@ -1281,3 +1281,130 @@ def render_coppice_schedule(
     has_year_groups = len(df) > df[CEDUO_COL_YEAR].nunique()
     return render_table(df, group_cols, col_specs, formatter, False,
                         group_by_col=CEDUO_COL_YEAR if has_year_groups else None)
+
+
+# =============================================================================
+# TABELLA CEDUO (COPPICE GANTT CHART)
+# =============================================================================
+
+# Vertical inches per lane (one of the 2 * n_sub_harvests slots inside a parcel row).
+GANTT_LANE_INCHES = 0.09
+# Blank space between parcel rows, expressed in lane-height units.
+GANTT_PARCEL_GAP_LANES = 0.5
+# Bar height as fraction of one lane slot — leaves vertical breathing room.
+GANTT_BAR_HEIGHT_FRAC = 0.85
+# Horizontal inset (years) applied to each end of a bar so consecutive bars in
+# the same lane are visibly separated instead of merging into a continuous line.
+GANTT_BAR_H_INSET = 0.35
+# Figure width per year of planning window.
+GANTT_FIG_WIDTH_PER_YEAR = 0.12
+GANTT_MIN_FIG_WIDTH = 5.0
+GANTT_MIN_FIG_HEIGHT = 2.0
+# Major tick spacing on the year axis.
+GANTT_X_MAJOR_TICK = 5
+# Fill color for all bars. Alternate patterns per cycle may come later.
+GANTT_BAR_COLOR = '#5b8a72'
+# Length (years) of the overflow arrow drawn for bars extending past anno_fine.
+GANTT_ARROW_LEN_YEARS = 1.5
+
+
+def render_coppice_gantt(
+    rows: list[CoppiceRow],
+    year_range: tuple[int, int],
+    output_path: Path,
+    formatter: SnippetFormatter,
+    options: dict | None = None,
+) -> RenderResult:
+    """Render a Gantt-style chart of preserved-shoot batches (@@tabella_ceduo).
+
+    Each row is a coppice parcel. Each bar represents the lifetime of a batch
+    of 50 preserved shoots seeded by one sub-harvest: start = harvest year,
+    end = harvest year + 2 * intervallo. Bars extending past anno_fine are
+    drawn with an overflow arrow instead of a right border.
+    """
+    first_year, last_year = year_range
+
+    if not rows:
+        return RenderResult(snippet='')
+
+    # Figure dimensions: sum of lane counts + inter-row gaps drives height;
+    # planning window drives width.
+    n_rows = len(rows)
+    total_lane_units = (
+        sum(r.n_lanes for r in rows) + GANTT_PARCEL_GAP_LANES * max(n_rows - 1, 0))
+    fig_height = max(GANTT_MIN_FIG_HEIGHT, total_lane_units * GANTT_LANE_INCHES + 0.6)
+    fig_width = max(
+        GANTT_MIN_FIG_WIDTH,
+        (last_year - first_year + 1) * GANTT_FIG_WIDTH_PER_YEAR)
+    fig, ax = plt.subplots(figsize=(fig_width, fig_height))
+
+    # Lay out rows top-down: first parcel at highest y. matplotlib y grows upward,
+    # so assign y_bottom values starting from 0 and iterating in reverse.
+    row_layouts: list[tuple[CoppiceRow, float]] = []
+    y_cursor = 0.0
+    for row in reversed(rows):
+        row_layouts.insert(0, (row, y_cursor))
+        y_cursor += row.n_lanes + GANTT_PARCEL_GAP_LANES
+    total_y = y_cursor - (GANTT_PARCEL_GAP_LANES if n_rows else 0)
+
+    # Bars.
+    x_right_limit = last_year + 1  # exclusive upper bound on the year axis
+    for row, y_bottom in row_layouts:
+        for bar in row.bars:
+            # Lane 0 = top of row; flip so higher lane index sits lower in the row.
+            lane_center_y = y_bottom + (row.n_lanes - 1 - bar.lane) + 0.5
+            lo = bar.start_year + GANTT_BAR_H_INSET
+            hi_full = bar.end_year - GANTT_BAR_H_INSET
+            hi = min(hi_full, x_right_limit)
+            if hi > lo:
+                ax.barh(
+                    lane_center_y,
+                    width=hi - lo, left=lo,
+                    height=GANTT_BAR_HEIGHT_FRAC,
+                    color=GANTT_BAR_COLOR, edgecolor='none')
+            if bar.end_year > last_year:
+                arrow_end = x_right_limit
+                arrow_start = max(lo, arrow_end - GANTT_ARROW_LEN_YEARS)
+                ax.annotate(
+                    '',
+                    xy=(arrow_end, lane_center_y),
+                    xytext=(arrow_start, lane_center_y),
+                    arrowprops={
+                        'arrowstyle': '->',
+                        'color': GANTT_BAR_COLOR,
+                        'lw': 0.8,
+                    },
+                    annotation_clip=False)
+
+    # y-axis: one tick per parcel centered on its row.
+    ax.set_yticks([y_b + r.n_lanes / 2 for r, y_b in row_layouts])
+    ax.set_yticklabels([f'{r.compresa} / {r.particella}' for r, _ in row_layouts])
+    ax.tick_params(axis='y', length=0)
+
+    # Thin separator lines between consecutive parcel rows.
+    for sep_row, sep_y_bottom in row_layouts[1:]:
+        ax.axhline(
+            sep_y_bottom + sep_row.n_lanes + GANTT_PARCEL_GAP_LANES / 2,
+            color='#cccccc', lw=0.4, zorder=0.5)
+
+    # x-axis: major ticks every GANTT_X_MAJOR_TICK years, minor every year.
+    ax.set_xlim(first_year, x_right_limit)
+    ax.set_ylim(0, total_y)
+    major_start = ((first_year + GANTT_X_MAJOR_TICK - 1) // GANTT_X_MAJOR_TICK
+                   * GANTT_X_MAJOR_TICK)
+    ax.set_xticks(list(range(major_start, last_year + 1, GANTT_X_MAJOR_TICK)))
+    ax.set_xticks(list(range(first_year, last_year + 1)), minor=True)
+    ax.set_xlabel('Anno')
+    ax.grid(True, axis='x', which='major', alpha=0.3, linewidth=0.4)
+    ax.grid(True, axis='x', which='minor', alpha=0.15, linewidth=0.3)
+    ax.set_axisbelow(True)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+
+    if not skip_graphs:
+        plt.tight_layout()
+        plt.savefig(output_path, bbox_inches='tight')
+    plt.close(fig)
+
+    snippet = formatter.format_image(output_path, options)
+    return RenderResult(snippet=snippet, filepath=output_path)

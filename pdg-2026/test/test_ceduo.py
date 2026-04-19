@@ -8,6 +8,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from pdg.ceduo import (
     CoppiceParcel, CoppiceEvent, schedule_coppice,
     load_coppice_parcels, load_adjacencies, last_harvests_from_calendario,
+    coppice_gantt_bars,
 )
 
 TEST_DATA_DIR = Path(__file__).parent / 'data'
@@ -182,3 +183,113 @@ class TestIO:
         assert last[('X', 'A')] == 2015
         assert last[('X', 'B')] == 2018  # max of 2016, 2018
         assert ('X', 'C') not in last    # Fustaia excluded
+
+
+def _evt(year, cycle_start, area_ha=10.0, intervallo=15,
+         compresa='X', particella='A', area_totale_ha=10.0) -> CoppiceEvent:
+    return CoppiceEvent(year, compresa, particella, area_ha,
+                        area_totale_ha, intervallo, cycle_start)
+
+
+class TestCoppiceGanttBars:
+    """Test the Gantt bar layout for preserved-shoot batch lifetimes."""
+
+    def test_10ha_single_sub_harvest(self):
+        """User's first example: 10 ha / interval 15, single sub-harvest per cycle.
+
+        Three cycles produce three bars on two alternating lanes.
+        """
+        parcel = CoppiceParcel('X', 'A', 10.0, 15)
+        events = [
+            _evt(1, 1), _evt(16, 16), _evt(31, 31),
+        ]
+        rows = coppice_gantt_bars([parcel], events)
+        assert len(rows) == 1
+        row = rows[0]
+        assert (row.compresa, row.particella) == ('X', 'A')
+        assert row.n_lanes == 2
+        triples = [(b.start_year, b.end_year, b.lane) for b in row.bars]
+        assert triples == [(1, 31, 0), (16, 46, 1), (31, 61, 0)]
+
+    def test_16ha_two_sub_harvests(self):
+        """User's second example: 16 ha / interval 15, sub-harvests in consecutive years.
+
+        Each sub-slot alternates between two lanes across cycles; the two sub-slots
+        occupy disjoint lane pairs, giving 4 lanes total.
+        """
+        parcel = CoppiceParcel('X', 'A', 16.0, 15)
+        events = [
+            _evt(1, 1, area_ha=8.0, area_totale_ha=16.0),
+            _evt(2, 1, area_ha=8.0, area_totale_ha=16.0),
+            _evt(16, 16, area_ha=8.0, area_totale_ha=16.0),
+            _evt(17, 16, area_ha=8.0, area_totale_ha=16.0),
+            _evt(31, 31, area_ha=8.0, area_totale_ha=16.0),
+            _evt(32, 31, area_ha=8.0, area_totale_ha=16.0),
+        ]
+        rows = coppice_gantt_bars([parcel], events)
+        assert len(rows) == 1
+        row = rows[0]
+        assert row.n_lanes == 4
+        triples = sorted((b.start_year, b.end_year, b.lane) for b in row.bars)
+        assert triples == [
+            (1, 31, 0), (2, 32, 2),
+            (16, 46, 1), (17, 47, 3),
+            (31, 61, 0), (32, 62, 2),
+        ]
+
+    def test_empty_parcel_still_has_row(self):
+        """Parcels with no scheduled events still produce a row (for display)."""
+        parcel = CoppiceParcel('X', 'A', 8.0, 12)
+        rows = coppice_gantt_bars([parcel], [])
+        assert len(rows) == 1
+        assert rows[0].bars == []
+        assert rows[0].n_lanes == 2  # minimum row height
+
+    def test_three_sub_harvests(self):
+        """25 ha parcel: n_sub=3 (ceil(25/10)), so 6 lanes; each sub-slot uses its own pair."""
+        parcel = CoppiceParcel('X', 'A', 25.0, 12)
+        events = [
+            _evt(2027, 2027, area_ha=10.0, area_totale_ha=25.0, intervallo=12),
+            _evt(2029, 2027, area_ha=10.0, area_totale_ha=25.0, intervallo=12),
+            _evt(2031, 2027, area_ha=5.0, area_totale_ha=25.0, intervallo=12),
+            _evt(2039, 2039, area_ha=10.0, area_totale_ha=25.0, intervallo=12),
+            _evt(2041, 2039, area_ha=10.0, area_totale_ha=25.0, intervallo=12),
+            _evt(2043, 2039, area_ha=5.0, area_totale_ha=25.0, intervallo=12),
+        ]
+        rows = coppice_gantt_bars([parcel], events)
+        row = rows[0]
+        assert row.n_lanes == 6
+        # Sub-slots 0,1,2 in cycle 0 → lanes 0,2,4; in cycle 1 → lanes 1,3,5.
+        by_start = {b.start_year: b for b in row.bars}
+        assert by_start[2027].lane == 0 and by_start[2027].end_year == 2051
+        assert by_start[2029].lane == 2 and by_start[2029].end_year == 2053
+        assert by_start[2031].lane == 4 and by_start[2031].end_year == 2055
+        assert by_start[2039].lane == 1 and by_start[2039].end_year == 2063
+        assert by_start[2041].lane == 3 and by_start[2041].end_year == 2065
+        assert by_start[2043].lane == 5 and by_start[2043].end_year == 2067
+
+    def test_partial_cycle_at_end(self):
+        """A cycle truncated within the planning window still lays out correctly."""
+        parcel = CoppiceParcel('X', 'A', 16.0, 15)
+        events = [
+            _evt(1, 1, area_ha=8.0, area_totale_ha=16.0),
+            _evt(2, 1, area_ha=8.0, area_totale_ha=16.0),
+            _evt(16, 16, area_ha=8.0, area_totale_ha=16.0),
+        ]
+        rows = coppice_gantt_bars([parcel], events)
+        row = rows[0]
+        assert row.n_lanes == 4
+        triples = sorted((b.start_year, b.end_year, b.lane) for b in row.bars)
+        assert triples == [(1, 31, 0), (2, 32, 2), (16, 46, 1)]
+
+    def test_rows_follow_input_parcel_order(self):
+        """Row order follows the input parcel list (natsort happens upstream)."""
+        parcels = [
+            CoppiceParcel('X', 'A', 8.0, 12),
+            CoppiceParcel('X', 'B', 8.0, 12),
+            CoppiceParcel('Y', 'A', 8.0, 12),
+        ]
+        rows = coppice_gantt_bars(parcels, [])
+        assert [(r.compresa, r.particella) for r in rows] == [
+            ('X', 'A'), ('X', 'B'), ('Y', 'A'),
+        ]

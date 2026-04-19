@@ -29,7 +29,7 @@ from pdg.formatters import (
 )
 from pdg.ceduo import (
     load_coppice_parcels, load_adjacencies, last_harvests_from_calendario,
-    schedule_coppice,
+    schedule_coppice, coppice_gantt_bars,
 )
 from pdg.simulation import ORDINE_VOL_HA, ORDINE_VOL_TOT, ORDINE_DATA, write_volume_log
 from pdg.core import (
@@ -50,7 +50,8 @@ from pdg.core import (
     render_hypsometric_graph, render_diameter_class_graph, render_diameter_class_table,
     render_prop, render_prop_coppice,
     render_volume_table, render_harvest_table, render_harvest_plan,
-    render_pct_growth_table, render_pct_growth_graph, render_coppice_schedule,
+    render_pct_growth_table, render_pct_growth_graph,
+    render_coppice_schedule, render_coppice_gantt,
     skip_graphs,
 )
 
@@ -84,6 +85,7 @@ class Dir:
     PCT_GROWTH_GRAPH = 'grafico_incremento_percentuale'
     PCT_GROWTH_TABLE = 'tabella_incremento_percentuale'
     COPPICE_SCHEDULE = 'calendario_ceduo'
+    COPPICE_GANTT = 'tabella_ceduo'
     PROP = 'prop'
     PROP_CEDUO = 'prop_ceduo'
     VOLUME_TABLE = 'volumi'
@@ -177,6 +179,43 @@ def parse_template_directive(line: str) -> Directive | None:
 # =============================================================================
 
 DIRECTIVE_PATTERN = re.compile(r'@@(\w+)\((.*?)\)')
+
+
+# Options shared by @@calendario_ceduo and @@tabella_ceduo.
+COPPICE_SCHEDULE_OPTS = {
+    OPT_PARTICELLE: True, OPT_ADIACENZE: True,
+    OPT_CALENDARIO: True, OPT_ANNO_INIZIO: True, OPT_ANNO_FINE: True,
+}
+
+
+def _load_coppice_schedule(
+    keyword: str, params: dict, data_dir: Path,
+):
+    """Load inputs and run the coppice scheduler.
+
+    Shared by @@calendario_ceduo and @@tabella_ceduo: they take the same scheduling
+    inputs (particelle, adiacenze, calendario, anno_inizio, anno_fine). Each caller
+    is responsible for its own check_allowed_params (since they differ in allowed
+    display options like `stile`).
+
+    Returns (parcels, events, (anno_inizio, anno_fine)).
+    """
+    check_required_params(keyword, params, [OPT_PARTICELLE, OPT_ADIACENZE])
+    particelle_path = params[OPT_PARTICELLE]
+    adiacenze_path = params[OPT_ADIACENZE]
+    calendario_path = params.get(OPT_CALENDARIO)
+
+    anno_inizio = int(params.get(OPT_ANNO_INIZIO, 2027))
+    anno_fine = int(params.get(OPT_ANNO_FINE, 2040))
+
+    parcels = load_coppice_parcels(data_dir / particelle_path)
+    adjacencies = load_adjacencies(data_dir / adiacenze_path)
+    last_harvests = (
+        last_harvests_from_calendario(data_dir / calendario_path)
+        if calendario_path else {})
+    events = schedule_coppice(
+        parcels, adjacencies, last_harvests, (anno_inizio, anno_fine))
+    return parcels, events, (anno_inizio, anno_fine)
 
 def process_template(template_text: str, data_dir: Path,
                      parcel_file: str,
@@ -273,7 +312,9 @@ def process_template(template_text: str, data_dir: Path,
             alberi_files = cast(list[str], params.get('alberi'))
             equazioni_files = cast(list[str], params.get(OPT_EQUAZIONI))
 
-            if not alberi_files and keyword not in (Dir.PROP, Dir.PARCELS, Dir.COPPICE_SCHEDULE):
+            if not alberi_files and keyword not in (
+                    Dir.PROP, Dir.PARCELS,
+                    Dir.COPPICE_SCHEDULE, Dir.COPPICE_GANTT):
                 raise ValueError(f"@@{keyword} richiede alberi=FILE")
 
             comprese = params.get('compresa', [])
@@ -300,33 +341,22 @@ def process_template(template_text: str, data_dir: Path,
                 return render_particelle(comprese, particelle, particelle_df, params)
 
             if keyword == Dir.COPPICE_SCHEDULE:
-                particelle_path = params.get(OPT_PARTICELLE)
-                if not particelle_path:
-                    raise ValueError("@@calendario_ceduo richiede 'particelle=FILE'")
-                adiacenze_path = params.get(OPT_ADIACENZE)
-                if not adiacenze_path:
-                    raise ValueError("@@calendario_ceduo richiede 'adiacenze=FILE'")
-                calendario_path = params.get(OPT_CALENDARIO)
-
-                ceduo_parcels = load_coppice_parcels(data_dir / particelle_path)
-                adjacencies = load_adjacencies(data_dir / adiacenze_path)
-                ceduo_last = (
-                    last_harvests_from_calendario(data_dir / calendario_path)
-                    if calendario_path else {})
-
-                anno_inizio = int(params.get(OPT_ANNO_INIZIO, 2027))
-                anno_fine = int(params.get(OPT_ANNO_FINE, 2040))
-                check_allowed_params(keyword, params,
-                    {OPT_PARTICELLE: True, OPT_ADIACENZE: True,
-                        OPT_CALENDARIO: True, OPT_ANNO_INIZIO: True,
-                        OPT_ANNO_FINE: True})
-                check_required_params(keyword, params,
-                    [OPT_PARTICELLE, OPT_ADIACENZE])
-
-                ceduo_events = schedule_coppice(
-                    ceduo_parcels, adjacencies, ceduo_last,
-                    (anno_inizio, anno_fine))
+                check_allowed_params(keyword, params, COPPICE_SCHEDULE_OPTS)
+                _, ceduo_events, _ = _load_coppice_schedule(keyword, params, data_dir)
                 result = render_coppice_schedule(ceduo_events, formatter)
+                return result.snippet
+
+            if keyword == Dir.COPPICE_GANTT:
+                gantt_opts = COPPICE_SCHEDULE_OPTS | {OPT_STILE: True}
+                check_allowed_params(keyword, params, gantt_opts)
+                ceduo_parcels, ceduo_events, ceduo_year_range = (
+                    _load_coppice_schedule(keyword, params, data_dir))
+                rows = coppice_gantt_bars(ceduo_parcels, ceduo_events)
+                filename = _build_graph_filename(
+                    comprese, particelle, generi, keyword)
+                result = render_coppice_gantt(
+                    rows, ceduo_year_range, output_dir / filename, formatter,
+                    options={OPT_STILE: params.get(OPT_STILE)})
                 return result.snippet
 
             trees_df = load_trees(alberi_files, data_dir)
