@@ -111,7 +111,7 @@ I volumi presenti in ciascuna particella $p$ sono stimati secondo la metodologia
     \item Per ogni albero cavallettato ma non misurato in altezza, l'altezza è stimata usando le equazioni interpolanti di cui sopra.
     \item Per un qualsiasi albero di specie $f$, il volume del fusto e dei rami grossi viene calcolato usando un'equazione di previsione della forma $v = b_{f0} + b_{f1}d^2h + b_{f2}d$, dove i coefficienti $b_{fi}$ provengono dal Tabacchi. Il volume totale di tutti gli $n_f$ alberi della specie $f$ campionati nella particella $p$ è quindi dato da $v_f = b_{f0}n_f + b_{f1}\sum_{i=1}^{n_f} d_i^2h_i + b_{f2}\sum_{i=1}^{n_f} d_i$. Analogamente, il margine di errore $e_f$ della stima di questo volume complessivo è calcolato usando le matrici di varianza e i coefficienti del Tabacchi.
     \item Il volume totale degli alberi campionati è dato quindi da $v_c = \sum_{f} v_f$. Il margine di errore è calcolato prudenzialmente come $e_c = \sum_{f} e_f$: ciò presume che le piante delle diverse specie nella particella siano perfettamente correlate, nonostante le equazioni di previsione di Tabacchi siano state calibrate sulla base di campioni indipendenti.
-    \item Calcoliamo quindi un fattore di scala $s = a / a_s$, dove~$a$ è la superficie di~$p$ e~$a_s$ è la superficie complessiva delle aree di saggio in~$p$.
+    \item Si definisce quindi un fattore di scala $s = a / a_s$, dove~$a$ è la superficie di~$p$ e~$a_s$ è la superficie complessiva delle aree di saggio in~$p$.
     \item Il volume dell'intera particella viene calcolato scalando il volume stimato nelle aree di saggio, $v = s\cdot v_c$, e il margine di errore, $e = s\cdot e_c$. Pure questo margine di errore è prudenziale, nel senso che presume che tutte le superfici di una particella siano correlate tra di loro. I limiti deli intervalli fiduciari al 95\% elencati nella sezione~\ref{sec:volumi} corrispondono a $v \pm e$.
 \end{enumerate}
 
@@ -171,33 +171,33 @@ Inoltre, per fustaie fino a 60 anni di età, il prelievo non può superare una d
     \end{tabular}
 \end{center}
 
-Per ottemperare a questi duplici requisiti, procediamo con una simulazione albero per albero basata sulle piante campionate. Per ogni particella~$p$ di area $a$~(ha):
+Per ottemperare a questi duplici requisiti, si procede con una simulazione albero per albero basata sulle piante campionate. Per ogni particella~$p$ di area $a$~(ha):
 
 \begin{enumerate}
-\item Calcoliamo il volume totale $v$ (m$^3$) delle piante mature (vedere sezione~\ref{sec:note-volumi}) e l'area basimetrica totale $g$ (m$^2$) delle stesse.
+\item Si calcola il volume totale $v$ (m$^3$) delle piante mature (vedere sezione~\ref{sec:note-volumi}) e l'area basimetrica totale $g$ (m$^2$) delle stesse.
 
-\item In base alla classe economica di $p$ e alla provvigione $v/a$, ricaviamo dalle prime due tabelle sopra il prelievo massimo percentuale $pp_{\max}$, e poniamo il prelievo massimo assoluto $V_{\max} = v \cdot pp_{\max}/100$.
+\item In base alla classe economica di $p$ e alla provvigione $v/a$, dalle prime due tabelle sopra si ricava il prelievo massimo percentuale $pp_{\max}$, e si pone il prelievo massimo assoluto $V_{\max} = v \cdot pp_{\max}/100$.
 
-\item In base all'età media di $p$, ricaviamo dalla terza tabella il limite percentuale di area basimetrica $gp_{\max}$, e poniamo il limite assoluto $G_{\max} = g \cdot gp_{\max}/100$.
+\item In base all'età media di $p$, dalla terza tabella si ricava il limite percentuale di area basimetrica $gp_{\max}$, e si pone il limite assoluto $G_{\max} = g \cdot gp_{\max}/100$.
 
-\item Ordiniamo le piante mature campionate per classe diametrica crescente (dai 20~cm in su), in modo da simulare un taglio colturale dal basso volto a rafforzare le piante di maggiori dimensioni.
+\item Le piante mature campionate si ordinano per classe diametrica crescente (dai 20~cm in su), in modo da simulare un taglio colturale dal basso volto a rafforzare le piante di maggiori dimensioni.
 
-\item Scorriamo le piante nell'ordine stabilito, accumulando il volume e l'area basimetrica (scalati per $s$, come sopra nella sezione~\ref{sec:note-volumi}) di ciascun albero $b$. Per ogni albero $b$, se l'aggiunta di $b$ non farebbe superare né $V_{\max}$ né $G_{\max}$, lo includiamo nel prelievo; altrimenti la simulazione si arresta. Il volume accumulato al termine costituisce il prelievo massimo per la particella.
+\item Si scorrono le piante nell'ordine stabilito, accumulando il volume e l'area basimetrica (scalati per $s$, come sopra nella sezione~\ref{sec:note-volumi}) di ciascun albero $b$. Per ogni albero $b$, se l'aggiunta di $b$ non farebbe superare né $V_{\max}$ né $G_{\max}$, lo si include nel prelievo; altrimenti la simulazione si arresta. Il volume accumulato al termine costituisce il prelievo massimo per la particella.
 \end{enumerate}
 
 \subsection{Calcolo degli incrementi}
 
-Per un sottoinsieme di alberi campione misuriamo l'incremento periodico di raggio $L_{10}$ (spessore degli ultimi 10 anelli legnosi, in mm) tramite carotaggio o abbattimento. Calcoliamo l'incremento percentuale di volume dell'$i$-esimo albero, $pv_i$, secondo la formula di Pressler. Definendo l'incremento corrente di diametro in cm anno$^{-1}$
+Per un sottoinsieme di alberi campione l'incremento periodico di raggio $L_{10}$ (spessore degli ultimi 10 anelli legnosi, in mm) viene misurato tramite carotaggio o abbattimento. La formula di Pressler fornisce l'incremento percentuale di volume dell'$i$-esimo albero, $pv_i$. Definendo l'incremento corrente di diametro in cm anno$^{-1}$
 
 \[ \Delta d_i = \frac{2L_{10}}{100} \]
 
-otteniamo
+si ha
 
 \[ pv_i = c \cdot \frac{100\Delta d_i}{d_i} = c \cdot \frac{2L_{10}}{d_i} \]
 
-dove $d_i$ è il diametro (cm) e $c$ è il coefficiente di Pressler. Prudenzialmente poniamo $c = 2$ per tutta la superficie boscata, nonostante studi svolti sull'Appennino Calabrese suggeriscano valori più alti (\cite{marziliano:2011} riscontra coefficienti di Schneider $K$ nell'intervallo $415$--$715$; analiticamente $c = K / 200$).
+dove $d_i$ è il diametro (cm) e $c$ è il coefficiente di Pressler. Prudenzialmente si pone $c = 2$ per tutta la superficie boscata, nonostante studi svolti sull'Appennino Calabrese suggeriscano valori più alti (\cite{marziliano:2011} riscontra coefficienti di Schneider $K$ nell'intervallo $415$--$715$; analiticamente $c = K / 200$).
 
-Per ogni area assestamentale (particella o compresa) e specie, determiniamo l'incremento percentuale medio $pv_j$ della classe diametrica $j$ quale media ponderata sui volumi degli alberi carotati appartenenti a quella classe, come in~\cite{corona:2007}:
+Per ogni area assestamentale (particella o compresa) e specie, l'incremento percentuale medio $pv_j$ della classe diametrica $j$ è determinato come media ponderata sui volumi degli alberi carotati appartenenti a quella classe, come in~\cite{corona:2007}:
 
 \[ pv_j = \frac{\sum_{i=1}^{m_j} pv_{ij}v_{ij}}{\sum_{i=1}^{m_j} v_{ij}} \]
 
@@ -219,7 +219,7 @@ dove $M$ è il numero di classi diametriche e $V_j$ è il volume totale della cl
 
 La ponderazione per volume fa sì che gli alberi di maggiori dimensioni, che contribuiscono di più alla massa legnosa, pesino di più nella stima dell'incremento di gruppo.
 
-Equivalentemente, a ogni albero campione $i$ non carotato possiamo attribuire l'incremento percentuale della sua classe diametrica $j$, $pv_i = pv_j$, e sostituire l'equazione~\ref{eq:pV} con un calcolo ponderato sui volumi dei singoli alberi:
+Equivalentemente, a ogni albero campione $i$ non carotato si può attribuire l'incremento percentuale della sua classe diametrica $j$, $pv_i = pv_j$, sostituendo l'equazione~\ref{eq:pV} con un calcolo ponderato sui volumi dei singoli alberi:
 \begin{equation}
     \label{eq:pV2}
     pV = \frac{\sum_{i=1}^{N}pv_iv_i}{\sum_{i=1}^{N}v_i}
@@ -252,7 +252,7 @@ Si noti che per ottenere i volumi totali dell'area assestamentale i volumi effet
 
 Il programma di tagli proposto nella relazione originale ha due difetti: per diverse particelle propone interventi colturali (seppure al di sotto dei limiti stabiliti) a intervalli minori di 10 anni, e non tiene conto degli incrementi nel valutare l'entità di interventi futuri.
 
-Abbiamo cercato di affrontare entrambe le problematiche tramite una simulazione a tempo discreto ispirata al metodo matriciale di Usher~\cite{usher:1966}, comunemente usato nella modellizzazione delle dinamiche forestali. La simulazione opera su un orizzonte temporale definito (ad es.\ 2026--2040) con passo annuale, e ad ogni anno seleziona le particelle da sottoporre a taglio tenendo conto sia della crescita avvenuta sia dei vincoli normativi.
+Entrambe le problematiche sono state affrontate tramite una simulazione a tempo discreto ispirata al metodo matriciale di Usher~\cite{usher:1966}, comunemente usato nella modellizzazione delle dinamiche forestali. La simulazione opera su un orizzonte temporale definito (ad es.\ 2026--2040) con passo annuale, e ad ogni anno seleziona le particelle da sottoporre a taglio tenendo conto sia della crescita avvenuta sia dei vincoli normativi.
 
 \subsubsection{Parametri della simulazione}
 
