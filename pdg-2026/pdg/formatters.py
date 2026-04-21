@@ -159,6 +159,27 @@ class HTMLSnippetFormatter(SnippetFormatter):
         return html
 
 
+# LaTeX special characters that must be escaped in user-supplied text.
+_LATEX_ESCAPES = {
+    '\\': r'\textbackslash{}',
+    '{':  r'\{',
+    '}':  r'\}',
+    '#':  r'\#',
+    '$':  r'\$',
+    '%':  r'\%',
+    '&':  r'\&',
+    '_':  r'\_',
+    '~':  r'\textasciitilde{}',
+    '^':  r'\textasciicircum{}',
+}
+
+
+def _latex_escape(s) -> str:
+    """Escape LaTeX special characters in user-supplied text."""
+    s = '' if s is None else str(s)
+    return ''.join(_LATEX_ESCAPES.get(ch, ch) for ch in s)
+
+
 class LaTeXSnippetFormatter(SnippetFormatter):
     """LaTeX snippet formatter."""
 
@@ -231,11 +252,12 @@ class LaTeXSnippetFormatter(SnippetFormatter):
     def format_prop(self, short_fields: list[tuple[str, str]],
                     paragraph_fields: list[tuple[str, str]]) -> str:
         """Format parcel properties as LaTeX."""
-        formatted = [f'\\textbf{{{label}:}} {value}' for label, value in short_fields]
+        formatted = [f'\\textbf{{{label}:}} {_latex_escape(value)}'
+                     for label, value in short_fields]
         lines = [' $\\cdot$ '.join(formatted[i:i+2]) for i in range(0, len(formatted), 2)]
         latex = '\\noindent ' + ' \\\\\n'.join(lines) + '\n\n'
         for label, value in paragraph_fields:
-            latex += f'\\noindent\\textbf{{{label}:}} {value}\n\n'
+            latex += f'\\noindent\\textbf{{{label}:}} {_latex_escape(value)}\n\n'
         return latex
 
 

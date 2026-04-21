@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from pdg.formatters import (
     LaTeXSnippetFormatter, HTMLSnippetFormatter, CSVSnippetFormatter,
-    ColSpec,
+    ColSpec, _latex_escape,
 )
 from pdg.core import render_table
 
@@ -164,3 +164,39 @@ class TestRenderTableGroupBy:
                 break
             if in_data and '\\hline' in line:
                 pytest.fail(f"Unexpected \\hline: {line}")
+
+
+class TestLaTeXEscape:
+    """_latex_escape should escape LaTeX specials; format_prop should apply it to values."""
+
+    def test_percent(self):
+        assert _latex_escape('pendenza 30%') == 'pendenza 30\\%'
+
+    def test_all_specials(self):
+        assert _latex_escape('& % $ # _ { } ~ ^ \\') == \
+            '\\& \\% \\$ \\# \\_ \\{ \\} \\textasciitilde{} \\textasciicircum{} \\textbackslash{}'
+
+    def test_plain_text_unchanged(self):
+        assert _latex_escape('Faggeta su pendio soleggiato') == 'Faggeta su pendio soleggiato'
+
+    def test_none_and_empty(self):
+        assert _latex_escape(None) == ''
+        assert _latex_escape('') == ''
+
+    def test_non_string(self):
+        assert _latex_escape(42) == '42'
+
+    def test_format_prop_escapes_value(self):
+        fmt = LaTeXSnippetFormatter()
+        short = [('Area', '1,23 ha'), ('Località', 'Monte & Valle')]
+        paragraph = [('Stazione', 'Pendenza 30%, roccia affiorante')]
+        out = fmt.format_prop(short, paragraph)
+        assert '30\\%' in out
+        assert 'Monte \\& Valle' in out
+        assert '30%,' not in out  # bare % must not survive
+
+    def test_format_prop_does_not_escape_labels(self):
+        """Labels are hard-coded constants; escaping them would break intentional markup."""
+        fmt = LaTeXSnippetFormatter()
+        out = fmt.format_prop([('Prel \\%', '5')], [])
+        assert '\\textbf{Prel \\%:}' in out
