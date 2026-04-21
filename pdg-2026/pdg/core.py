@@ -1321,12 +1321,12 @@ GANTT_LABEL_FONTSIZE = 4.5
 
 
 def _gantt_bar_label(bar) -> str:
-    """`Intervento N, Y1-Y2` or `Intervento N/M, Y1-Y2` when the parcel is split."""
+    """`Intervento N, Y` or `Intervento N/M, Y` when the parcel is split."""
     if bar.n_sub > 1:
         n = f'{bar.cycle_idx}/{bar.sub_idx}'
     else:
         n = f'{bar.cycle_idx}'
-    return f'Intervento {n}, {bar.start_year}-{bar.end_year}'
+    return f'Intervento {n}, {bar.start_year}'
 
 
 def render_coppice_gantt(
@@ -1416,7 +1416,8 @@ def render_coppice_gantt(
 
     # y-axis: one tick per parcel centered on its row.
     ax.set_yticks([y_b + r.n_lanes / 2 for r, y_b in row_layouts])
-    ax.set_yticklabels([f'{r.compresa} / {r.particella}' for r, _ in row_layouts])
+    ax.set_yticklabels([f'{r.compresa} {r.particella}\n({r.matricine} mat. / ha)'
+                        for r, _ in row_layouts])
     ax.tick_params(axis='y', length=0)
 
     # Thin separator lines between consecutive parcel rows.

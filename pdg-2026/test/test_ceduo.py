@@ -170,8 +170,10 @@ class TestIO:
         assert parcels[0].particella == 'A'
         assert parcels[0].area_ha == 8.0
         assert parcels[0].intervallo == 12
+        assert parcels[0].matricine == 50
         assert parcels[1].particella == 'B'
         assert parcels[1].intervallo == 15
+        assert parcels[1].matricine == 75
 
     def test_load_adjacencies(self):
         """Builds sorted-pair adjacency set."""
@@ -305,3 +307,13 @@ class TestCoppiceGanttBars:
         assert [(r.compresa, r.particella) for r in rows] == [
             ('X', 'A'), ('X', 'B'), ('Y', 'A'),
         ]
+
+    def test_matricine_propagates_to_row(self):
+        """The per-ha matricine count is copied from parcel to row."""
+        parcels = [
+            CoppiceParcel('X', 'A', 8.0, 12, matricine=50),
+            CoppiceParcel('X', 'B', 8.0, 15, matricine=75),
+        ]
+        rows = coppice_gantt_bars(parcels, [])
+        assert rows[0].matricine == 50
+        assert rows[1].matricine == 75

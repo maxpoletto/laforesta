@@ -24,6 +24,7 @@ COL_CYCLE_START = 'cycle_start'
 
 # Column names in input CSVs
 COL_PARAMETRO = 'Parametro'
+COL_MATRICINE = 'Matricine'
 COL_ANNO = 'Anno'
 COL_ADJ_A = 'A'
 COL_ADJ_B = 'B'
@@ -36,6 +37,7 @@ class CoppiceParcel:
     particella: str
     area_ha: float
     intervallo: int
+    matricine: int = 0     # preserved shoots per ha released at each harvest
 
 
 @dataclass
@@ -66,6 +68,7 @@ class CoppiceRow:
     """One parcel's row in the gantt chart."""
     compresa: str
     particella: str
+    matricine: int            # preserved shoots per ha released at each harvest
     n_lanes: int              # 2 * n_sub_harvests, ≥ 2 even for empty rows
     bars: list[CoppiceBar]
 
@@ -89,7 +92,8 @@ def load_coppice_parcels(particelle_path: Path) -> list[CoppiceParcel]:
         key=lambda col: col.map(natsort_key) if col.name == COL_PARTICELLA else col)
     return [
         CoppiceParcel(row[COL_COMPRESA], row[COL_PARTICELLA],
-                      row[COL_AREA_PARCEL], int(row[COL_PARAMETRO]))
+                      row[COL_AREA_PARCEL], int(row[COL_PARAMETRO]),
+                      int(row[COL_MATRICINE]))
         for _, row in df.iterrows()
     ]
 
@@ -290,6 +294,7 @@ def coppice_gantt_bars(
         rows.append(CoppiceRow(
             compresa=p.compresa,
             particella=p.particella,
+            matricine=p.matricine,
             n_lanes=n_lanes,
             bars=bars,
         ))
