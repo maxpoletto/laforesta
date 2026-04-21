@@ -10,6 +10,7 @@
 \usepackage{float}
 \usepackage{longtable}
 \usepackage{verbatim}
+\usepackage{parskip}
 \geometry{margin=2cm}
 \setlength{\LTleft}{1cm}
 
@@ -20,11 +21,10 @@
 \usepackage{gillius}
 \usepackage{sectsty}
 \allsectionsfont{\sffamily}
-\setlength{\parindent}{0pt}
 \usepackage[style=alphabetic,backend=biber]{biblatex}
 \addbibresource{ref.bib}
 
-\newif\ifincludesections \includesectionstrue
+\newif\ifincludesections \includesectionsfalse
 \newcommand{\maybeinput}[1]{\ifincludesections \input{#1} \fi}
 
 \begin{document}
@@ -55,7 +55,7 @@ DELL'ACCADEMIA ITALIANA DI SCIENZE FORESTALI
 }
 \vspace{1.8cm}
 
-{\fontsize{36}{45}{\bf RELAZIONE}}
+{\fontsize{36}{45}{\rm RELAZIONE}}
 \vfill
 
 \begin{flushleft}
@@ -92,7 +92,7 @@ La relazione si articola in 7 parti.
 \section{Note metodologiche}
 \label{sec:note-metodologia}
 
-Di seguito sono riportati alcuni chiarimenti sui rilevamenti e i metodi di calcolo usati nella stesura di questa relazione.
+Questa sezione chiarisce alcuni aspetti dei rilevamenti e dei metodi di calcolo usati nella stesura della relazione.
 
 \subsection{Campionamento}
 
