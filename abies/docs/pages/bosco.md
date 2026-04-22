@@ -1,9 +1,43 @@
 # Bosco page
 
-The "bosco" page is the eventual landing page of Abies. It is close
-to a clone of the Boscoscopio app, with the addition of data from other Bosco
-apps ("aree di saggio", "piante ad accrescimento indefinito") and bookmarkable
-URLs.
+## Overview
+
+The "bosco" page is the eventual landing page of Abies. It is derived from the
+Boscoscopio app, but with substantial additional data.
+
+1. Parcel metadata
+
+    - Location, altitude, exposure, surface area (cadastral and computed), etc.
+    - Info about geology
+    - Info about vegetation
+
+2. Dendrometric information by diameter class and species.
+
+    - Tree count
+    - Tree volume
+    - Tree basimetric area
+    - Average height
+    - % increment
+
+3. Historical production
+
+    - By parcel
+    - By region
+
+4. Sampled trees
+
+    - Sample areas
+    - Trees within a sample area
+    - Preserved trees
+
+5. Marks ("martellate")
+
+    - Per-mark-operation metadata
+    - Individual trees
+
+6. Satellite data
+
+## URL structure
 
 - Path: /abies/bosco
 - Query parameters:
@@ -42,14 +76,19 @@ When each button is selected, the rest of the control panel looks as follows:
   Below the pulldown is a checkbox for "Aree catastali".
 
   Map shows heatmap per pixel or per parcel, depending on type of data and
-  whether "media per particella" is checked, identically to Boscoscopio.
-  Color range is yellow-green (low values) to dark-green (high values), except for raw normalized satellite data (0 = black -> 1 = white).
+  whether "media per particella" is checked, identically to Boscoscopio. Color
+  range is yellow-green (low values) to dark-green (high values), except for raw
+  normalized satellite data (0 = black -> 1 = white).
 
 - Evoluzione
 
-  Panel contains pull-down with the same list of features as in the "Visualizza differenze" part of Boscoscopio, plus pull-downs for two dates (years, or year-months) to compare. The behavior is identical to Boscoscopio with "limita al bosco" always set to true.
+  Panel contains pull-down with the same list of features as in the "Visualizza
+  differenze" part of Boscoscopio, plus pull-downs for two dates (years, or
+  year-months) to compare. The behavior is identical to Boscoscopio with "limita
+  al bosco" always set to true.
 
-  Below the pull-downs are checkboxes for "media per particella" and "aree catastali".
+  Below the pull-downs are checkboxes for "media per particella" and "aree
+  catastali".
 
   Map shows red-to-green heatmap showing (new - old) values per pixel, or
   average diffs per parcel if "media per particella" is selected. High values
@@ -57,7 +96,7 @@ When each button is selected, the rest of the control panel looks as follows:
 
 - Aree di saggio
 
-  Panel contains scrollable list of  parcels for the current region, identical
+  Panel contains scrollable list of parcels for the current region, identical
   to bosco/ads (but for only the current region, not all regions). There is a
   checkbox to the left of each parcel name, and the number of contained sample
   areas in parentheses to the right. Below the panel of parcels, there are
