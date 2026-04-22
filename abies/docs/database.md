@@ -5,12 +5,16 @@ in the individual page docs under `docs/pages/`.  All tables have implicit
 `version` (int), `created_at`, and `modified_at` columns that we omit below
 for clarity.
 
+## App metadata
+
 - user: extends AbstractUser with (role:string, login_method:string)
   - role is one of 'admin', 'writer', 'reader'.
   - login_method is one of 'password', 'oauth'.
   - Inherits from AbstractUser: username, password, email, first_name,
     last_name, is_active, date_joined.
   - AUTH_USER_MODEL = 'apps.base.User' must be set before the first migration.
+
+## Geographic concepts
 
 - region: (id:int, name:string)
   - Denotes a forest region or "compresa".
@@ -20,70 +24,70 @@ for clarity.
     (coppice=false).
   - Characterized by a minimum volume (m3/ha) before harvesting is permitted.
 
-- harvest_plan: (id:int, year_start:int, year_end:int, description:text)
-  - Denotes a multi-year harvest plan, comprising all or most parcels.
-
-- harvest_plan_item: (id:int, harvest_plan_id:int, parcel_id:int, year:int,
-  quintals:int)
-  - Denotes a calendar item in the harvest plan, i.e., that the given parcel
-    will be cut in the given year, with a goal of quintals mass.
-
-- harvest_detail: (id:int, description:text, interval:int)
-  - A reusable harvest instruction, e.g., "Preferentially cut white firs of
-    diameter 20-40cm". 'interval' denotes the harvest interval for coppice
-    parcels (nullable for non-coppice).
-
-- parcel_plan_detail: (harvest_plan_id:int, parcel_id:int,
-  harvest_detail_id:int) — PK is (harvest_plan_id, parcel_id)
-  - Maps a harvest detail to a parcel within a plan.
-
-- parcel: (id:int, name:string, region_id:int, class_id:int, area_ha:int,
+- parcel: (id:int, name:string, region_id:int, eclass_id:int, area_ha:int,
   ave_age:int, location_name:string, altitude_min_m:int, altitude_max_m:int,
-  aspect:str, grade_pct:int, desc_veg:string, desc_geo:string,
-  harvest_plan_id:int)
+  aspect:str, grade_pct:int, desc_veg:string, desc_geo:string)
   - Represents a forest parcel. 'name' is typically an alphanumeric string like
     '11' or '2a'.
   - 'area_ha' is surface area in hectares.
-  - 'ave_age' is the average age of trees in the parcel.
+  - 'ave_age' is the stated (official) average age of trees in the parcel. It
+    may differ from the computed average of the age of sampled trees.
   - altitudes are in meters.
   - 'desc_veg' and 'desc_geo' are strings that describe the vegetative and
     geologic state of the parcel, respectively.
-  - 'harvest_plan_id' (nullable) points to the parcel's current harvest plan.
 
 - sample_area: (id:int, number:int, parcel_id:int, lat:real, lng:real,
-  altitude_m:int, plan_year:int)
-  - Represents a sample area.
-  - 'parcel_id' maps to the parcel that this sample area was recorded as
-    belonging to. Due to human errors, lat/lng may not be within the bounds of
-    the stated parcel. (Both sets of data are present to allow finding these
-    errors automatically in the future.)
-  - 'plan_year' denotes the year of the harvest plan that the sample was used for.
+  altitude_m:int, r_m:int, group:string, note:string)
+  - Represents a sample area for dendrometric measurements.
+  - 'number' is a manually assigned identifier, which must be unique within a
+    parcel but need not be unique across parcels.
+  - The parcel is always a circle of radius r_m meters centered at (lat, lng).
+  - Due to measurement errors (e.g., at parcel boundaries), (lat, lng) may not
+    be within the bounds of the stated parcel. (Both sets of data are recorded
+    to allow finding these errors automatically in the future.)
+  - 'group' (optional) is a label that can be used to group a set of sample
+    areas (e.g., a project name).
+  - 'note' (optional) is an additional arbitrary string (e.g., for recording
+    local conditions).
 
-- tractor: (id:int, manufacturer:string, model:string, year:int, active:bool)
-  - Represents a tractor. 'year' denotes date of manufacture.
-  - Retired tractors have active=false.
+## Trees
 
-- crew: (id:int, name:string, notes:string, active:bool)
-  - Represents a team of workers, e.g., a group of lumberjacks.
+- tree: (id:int, species_id:int, year:int, lat:real, lng:real, parcel_id:int,
+  preserved:bool, coppice:bool)
+  - Denotes a tree over time. Lat/lng may be null, or may  not fall within the
+    bounds of the given parcel due to measurement error (e.g., near a parcel
+    border).
+  - Year is (estimated) birth year.
+  - If a tree is denoted as preserved, it cannot be marked for felling.
 
-- species: (id:int, common_name:string, latin_name:string, sort_order:int,
-  active:bool)
-  - sort_order controls display ordering everywhere species appear. Catch-all
-    entries like "Altro" use a high value (999) to sort last.
-  - Represents a tree species.
 
-- preserved_tree: (id:int, species_id:int, region_id:int, parcel_id:int,
-  lat:real, lng:real, note:string)
-  - Represents a tree that has been marked for preservation (should not be
-    harvested). Used for the "Piante ad accrescimento indefinito" view.
+## Operations on trees
 
-- optype: (id:int, name:string)
-  - Implements an extensible enum: (1: "Tronchi", 2: "Cippato", 3: "Ramaglia",
-    4: "Pertiche-Puntelli", 5: "Pertiche-Tronchi")
+### Samples
 
-- note: (id:int, name:string)
-  - Implements an extensible enum: (1: "PSR", 2: "Fitosanitario", 3:
-    "Catastrofate")
+- sample: (id:int, sample_area_id:int, date:string /* ISO 8601 */, harvest_plan_id:int)
+  - 'harvest_plan_id' (optional) denotes the harvest plan that the sample was
+    used for.
+
+- tree_sample: (sample_id:int, tree_id:int, shoot:int, number:int, year:int, d_cm:int, h_m:int, L10_mm: int)
+  - Denotes the findings about a particular tree during a particular sampling
+    operation. PK is (sample_id, tree_id). Decoupling trees from tree samples
+    allows us to monitor tree growth over time, if desired.
+
+### Marks
+
+- mark: (id:int, parcel_id:int, date:string /* ISO 8601 */, harvest_plan_item_id:int)
+  - Represents an operation during which the agronomist marks trees for upcoming
+    felling. The date year and parcel should correspond to an existing
+    harvest_plan_item. (If they do not, the condition is highlighted in the UI,
+    but exceptions do sometimes occur, so consistency should not be enforced at
+    the schema level.)
+
+- tree_mark: (mark_id:int, tree_id:int, d_cm:int, h_m:int)
+  - A tree being marked for felling.
+  - Diameter (in cm) and height (in m) indicate size at time of marking.
+
+### Harvests
 
 - harvest_op: (id:int, date:string /* ISO 8601 */, optype_id:int, parcel_id:int,
   crew_id:int, record1:int, record2:int, quintals:float, note_id:int,
@@ -107,3 +111,52 @@ for clarity.
   Deleting a harvest_op cascades to its harvest_species and harvest_tractor
   rows. Crews, tractors, and species are never deleted — they are deactivated
   via their `active` flag.
+
+## Harvest plans
+
+- harvest_plan: (id:int, year_start:int, year_end:int, description:text)
+  - Denotes a multi-year harvest plan, comprising all or most parcels.
+
+- harvest_plan_item: (id:int, harvest_plan_id:int, parcel_id:int, year:int,
+  quintals:int)
+  - Denotes a calendar item in the harvest plan, i.e., that the given parcel
+    will be cut in the given year, with a goal of quintals mass.
+
+- harvest_detail: (id:int, description:text, interval:int)
+  - A reusable harvest instruction, e.g., "Preferentially cut white firs of
+    diameter 20-40cm". 'interval' denotes the harvest interval for coppice
+    parcels (nullable for non-coppice).
+
+- parcel_plan_detail: (harvest_plan_id:int, parcel_id:int,
+  harvest_detail_id:int) — PK is (harvest_plan_id, parcel_id)
+  - Maps a harvest detail to a parcel within a plan.
+
+## Other parameters
+
+Most of these are configurable in the Settings section.
+
+- tractor: (id:int, manufacturer:string, model:string, year:int, active:bool)
+  - Represents a tractor. 'year' denotes date of manufacture.
+  - Retired tractors have active=false.
+
+- crew: (id:int, name:string, notes:string, active:bool)
+  - Represents a team of workers, e.g., a group of lumberjacks.
+
+- species: (id:int, common_name:string, latin_name:string, sort_order:int,
+  active:bool)
+  - Represents a tree species.
+  - sort_order controls display ordering everywhere species appear. Catch-all
+    entries like "Altro" use a high value (999) to sort last.
+
+- preserved_tree: (id:int, species_id:int, region_id:int, parcel_id:int,
+  lat:real, lng:real, note:string)
+  - Represents a tree that has been marked for preservation (should not be
+    harvested). Used for the "Piante ad accrescimento indefinito" view.
+
+- optype: (id:int, name:string)
+  - Implements an extensible enum: (1: "Tronchi", 2: "Cippato", 3: "Ramaglia",
+    4: "Pertiche-Puntelli", 5: "Pertiche-Tronchi")
+
+- note: (id:int, name:string)
+  - Implements an extensible enum: (1: "PSR", 2: "Fitosanitario", 3:
+    "Catastrofate")
