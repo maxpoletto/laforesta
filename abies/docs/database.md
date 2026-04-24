@@ -41,7 +41,8 @@ for clarity.
   - Represents a sample area for dendrometric measurements.
   - 'number' is a manually assigned identifier, which must be unique within a
     parcel but need not be unique across parcels.
-  - The parcel is always a circle of radius r_m meters centered at (lat, lng).
+  - The sample area is always a circle of radius r_m meters centered at (lat,
+    lng).
   - Due to measurement errors (e.g., at parcel boundaries), (lat, lng) may not
     be within the bounds of the stated parcel. (Both sets of data are recorded
     to allow finding these errors automatically in the future.)
@@ -59,6 +60,8 @@ for clarity.
     border).
   - Year is (estimated) birth year.
   - If a tree is denoted as preserved, it cannot be marked for felling.
+  - Coppice is true if this tree has coppice morphology. There may be coppice
+    trees in a non-coppice parcel and vice-versa.
 
 
 ## Operations on trees
@@ -69,10 +72,15 @@ for clarity.
   - 'harvest_plan_id' (optional) denotes the harvest plan that the sample was
     used for.
 
-- tree_sample: (sample_id:int, tree_id:int, shoot:int, number:int, year:int, d_cm:int, h_m:int, L10_mm: int)
+- tree_sample: (sample_id:int, tree_id:int, shoot:int, number:int, d_cm:int,
+  h_m:int, L10_mm: int)
   - Denotes the findings about a particular tree during a particular sampling
-    operation. PK is (sample_id, tree_id). Decoupling trees from tree samples
-    allows us to monitor tree growth over time, if desired.
+    operation. PK is (sample_id, tree_id, shoot).
+  - number is a 1-based externally assigned counter of trees within a sample.
+  - shoot is a sequential 1-based counter identifying shoots from a single coppice stump (identified by tree_id). 0 for non-coppice.
+  - L10_mm denotes the width, in mm, of the outer ten rings of the sampled tree.
+  - Decoupling trees from tree samples allows us to monitor tree growth over
+    time, if desired.
 
 ### Marks
 
@@ -147,11 +155,6 @@ Most of these are configurable in the Settings section.
   - Represents a tree species.
   - sort_order controls display ordering everywhere species appear. Catch-all
     entries like "Altro" use a high value (999) to sort last.
-
-- preserved_tree: (id:int, species_id:int, region_id:int, parcel_id:int,
-  lat:real, lng:real, note:string)
-  - Represents a tree that has been marked for preservation (should not be
-    harvested). Used for the "Piante ad accrescimento indefinito" view.
 
 - optype: (id:int, name:string)
   - Implements an extensible enum: (1: "Tronchi", 2: "Cippato", 3: "Ramaglia",
