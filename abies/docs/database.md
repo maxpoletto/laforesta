@@ -70,10 +70,10 @@ Due to error in GPS measurements and transience of tree markings (spray paint,
 etc.), it is possible for the same physical tree to appear more than once, e.g.
 as part of a sample one year but as marked for cutting some years later (see
 samples and marks below). Sampled trees are used for per-hectare biomass
-estimates. Marked trees are summed directly to cross-check actual harvest mass
-totals. A tree may in principle appear in both roles (sampled one year, marked
-some years later), but this is rare; consumers of either dataset should treat
-them as independent observations.
+estimates. Marked trees are used in high-forest parcels (not in coppices) to
+cross-check actual harvest mass totals. A tree may in principle appear in both
+roles (sampled one year, marked some years later), but this is rare; consumers
+of either dataset should treat them as independent observations.
 
 ## Harvest plans
 
@@ -116,34 +116,45 @@ them as independent observations.
 
 ### Marks
 
+A mark ("martellata" in Italian) is an operation during which an agronomist
+marks trees for upcoming felling. Marks are only performed in high-forest
+parcels; they do not apply to coppice forests.
+
 - mark: (id:int, parcel_id:int, date:string /* ISO 8601 */, harvest_plan_item_id:int)
-  - Represents an operation ("martellata" in Italian) during which an agronomist
-    marks trees for upcoming felling.
   - The date year and parcel should correspond to those of the
     harvest_plan_item. However, exceptions do occur, so consistency is not
     enforced at the schema level (exceptions are highlighted in the UI).
   - Note that a mark is tied to a specific harvest plan item ("cutting parcel P
-    in year Y"), whereas a sample may be more generally associated with an
-    entire harvest plan (or none at all).
+    in year Y") via harvest_plan_item_id, whereas a sample may be more generally
+    associated with an entire harvest plan via harvest_plan_id.
 
 - tree_mark: (mark_id:int, tree_id:int, d_cm:int, h_m:int)
-  - A tree being marked for felling. Primary key (mark_id, tree_id).
+  - A (high-forest) tree being marked for felling. Primary key (mark_id,
+    tree_id).
   - Diameter (in cm) and height (in m) indicate size at time of marking.
 
 ## Harvests (cutting operations)
 
-Although a harvest physically affects individual trees, the schema does not track that link: tree-level identity ends at the mark operation, and harvests record only aggregate biomass.
+Although a harvest physically affects individual trees, the schema does not
+track that link. For high-forest parcels the last per-tree record is the mark;
+for coppice parcels there is no per-tree harvest record at all.
 
 - harvest: (id:int, date:string /* ISO 8601 */, parcel_id:int, mark_id:int
   nullable, product_id:int, crew_id:int, record1:int nullable, record2:int
   nullable, quintals:float, note_id:int, extra_note:text)
   - Denotes a cutting/harvesting operation by one crew on a given day.
-  - mark_id ties the harvest back to the pre-harvest mark. Historical imported
-    data typically lacks mark_id. For new data inserted during day-to-day Abies
-    operation, the mark_id is typically non-null, though the operator can
-    manually override that via an exception process in the UI. If mark_id is
-    non-null, the mark's parcel_id must match the harvest's parcel_id (enforced
-    both in the app and at the schema level (via a SQLite trigger).
+  - If the parcel is a high-forest parcel, mark_id ties the harvest back to the
+    pre-harvest mark.
+
+    As mentioned above, coppice parcels do not use marks. Historical imported
+    data typically also lacks mark_id.
+
+    For new high-forest harvests inserted during day-to-day Abies operation, the
+    mark_id is typically non-null, though the operator can manually override
+    that via an exception process in the UI. If mark_id is non-null, the mark's
+    parcel_id must match the harvest's parcel_id: this is enforced both in the
+    app and at the schema level (via a SQLite trigger).
+
   - product_id denotes the type of produced material (logs, wood chips, etc.).
   - record1 and record2 are optional and indicate the id on a paper
     bill-of-goods form provided by the crew. They correspond to "vdp" and "prot"
