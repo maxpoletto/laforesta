@@ -58,7 +58,7 @@ The add/edit form is laid out as a compact grid (three fields per row):
 
 - Row 1: date picker, "Compresa" pull-down (cascades to filter Particella),
   "Particella" pull-down.
-- Row 2: "Squadra" pull-down, "Tipo" (optype) pull-down, "Q.li" numeric input
+- Row 2: "Squadra" pull-down, "Tipo" (product) pull-down, "Q.li" numeric input
   (step 0.1).
 - Row 3: "VDP" numeric input, "Note" pull-down, "Altre note" text input.
 

@@ -147,9 +147,9 @@ When each button is selected, the rest of the control panel looks as follows:
 Statistical data:
 - parcels.json: JSON version of the parcel table (columns TBD)
 - sample_areas.json: JSON version of the sample_area table
-- preserved_trees.json: JSON version of the preserved_tree table
+- preserved_trees.json: digest of `tree` rows with `preserved=true`.
 - parcel_year_production.json: a digest that conceptually is a "SELECT region,
-  parcel, year, SUM(quintals) FROM harvest_op GROUP BY region, parcel, year", organized like the timeseries.json files in Boscoscopio.
+  parcel, year, SUM(quintals) FROM harvest GROUP BY region, parcel, year", organized like the timeseries.json files in Boscoscopio.
 
 Map data:
 - particelle.geojson as in Boscoscopio
