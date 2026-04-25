@@ -5,8 +5,6 @@ in the individual page docs under `docs/pages/`.  All tables have implicit
 `version` (int), `created_at`, and `modified_at` columns that we omit below
 for clarity.
 
-Note that all fields referred to as 'optional' are nullable.
-
 ## App metadata
 
 - user: extends AbstractUser with (role:string, login_method:string)
@@ -39,7 +37,7 @@ Note that all fields referred to as 'optional' are nullable.
     geologic state of the parcel, respectively.
 
 - sample_area: (id:int, number:int, parcel_id:int, lat:real, lng:real,
-  altitude_m:int, r_m:int, group:string, note:string)
+  altitude_m:int, r_m:int, group:string nullable, note:string nullable)
   - Represents a sample area for dendrometric measurements.
   - 'number' is a manually assigned identifier, which must be unique within a
     parcel but need not be unique across parcels.
@@ -69,73 +67,13 @@ This table may be initialized in bulk via import of existing CSV files (e.g.,
 alberi-calcolati.csv).
 
 Due to error in GPS measurements and transience of tree markings (spray paint,
-etc.), it is possible for the same physical tree to appear more than once, for
-example because it is part of a sample one year but is then marked for cutting
-some years later (see samples and marks below). We don't believe this is a
-problem: samples are used to estimate per-hectare biomass averages, and later
-marks measure actual (non-extrapolated) biomass to be harvested.
-
-## Operations on specific trees
-
-### Samples
-
-- sample: (id:int, sample_area_id:int, date:string /* ISO 8601 */,
-  harvest_plan_id:int)
-  - 'harvest_plan_id' (optional) denotes the harvest plan that the sample was
-    used for.
-
-- tree_sample: (sample_id:int, tree_id:int, shoot:int, number:int, d_cm:int,
-  h_m:int, L10_mm: int)
-  - Denotes the findings about a particular tree during a particular sampling
-    operation. PK is (sample_id, tree_id, shoot).
-  - shoot is a sequential 1-based counter identifying shoots from a single coppice stump (identified by tree_id). 0 for non-coppice.
-  - number is a 1-based externally assigned counter of trees within a sample.
-  - L10_mm denotes the width, in mm, of the outer ten rings of the sampled tree.
-  - Decoupling trees from tree samples allows us to monitor tree growth over
-    time, if desired.
-
-### Marks
-
-- mark: (id:int, parcel_id:int, date:string /* ISO 8601 */, harvest_plan_item_id:int)
-  - Represents an operation ("martellata" in Italian) during which an agronomist
-    marks trees for upcoming felling. The date year and parcel should correspond
-    to an existing harvest_plan_item. (If they do not, the condition is
-    highlighted in the UI, but exceptions do sometimes occur, so consistency
-    should not be enforced at the schema level.)
-  - Note that a mark is tied to a specific harvest plan item ("cutting parcel P
-    in year Y"), whereas a sample may be more generally associated with an entire harvest plan (or none at all).
-
-- tree_mark: (mark_id:int, tree_id:int, d_cm:int, h_m:int)
-  - A tree being marked for felling. Primary key (mark_id, tree_id).
-  - Diameter (in cm) and height (in m) indicate size at time of marking.
-
-## Harvests (cutting operations)
-
-- harvest: (id:int, date:string /* ISO 8601 */, mark_id:int, lumber_id:int,
-  crew_id:int, record1:int, record2:int, quintals:float, note_id:int,
-  extra_note:text)
-  - Denotes a cutting/harvesting operation by one crew on a given day.
-  - mark_id ties the harvest back to the mandatory pre-harvest mark, which also
-    identifies the parcel in question.
-  - lumber_id denotes the type of produced material (logs, wood chips, etc.).
-  - record1 and record2 are optional and indicate the id on a paper
-    bill-of-goods form provided by the crew. They correspond to "vdp" and "prot"
-    in the mannesi.csv file, respectively.
-
-- harvest_species: (harvest_id:int, species_id:int, percent:int) — PK is
-  (harvest_id, species_id)
-
-- harvest_tractor: (harvest_id:int, tractor_id:int, percent:int) — PK is
-  (harvest_id, tractor_id)
-
-  Harvest_species and harvest_tractor denote the production breakdown of a
-  single harvest operation. The percentages for species and tractors must each
-  sum to 100, enforced by client-side JS validation and server-side Django
-  validation (not by SQL constraints).
-
-  Deleting a harvest cascades to its harvest_species and harvest_tractor
-  rows. Crews, tractors, and species are never deleted — they are deactivated
-  via their `active` flag.
+etc.), it is possible for the same physical tree to appear more than once, e.g.
+as part of a sample one year but as marked for cutting some years later (see
+samples and marks below). Sampled trees are used for per-hectare biomass
+estimates. Marked trees are summed directly to cross-check actual harvest mass
+totals. A tree may in principle appear in both roles (sampled one year, marked
+some years later), but this is rare; consumers of either dataset should treat
+them as independent observations.
 
 ## Harvest plans
 
@@ -156,6 +94,76 @@ marks measure actual (non-extrapolated) biomass to be harvested.
   harvest_detail_id:int) — PK is (harvest_plan_id, parcel_id)
   - Maps a harvest detail to a parcel within a plan.
 
+## Operations on specific trees
+
+### Samples
+
+- sample: (id:int, sample_area_id:int, date:string /* ISO 8601 */,
+  harvest_plan_id:int nullable)
+  - 'harvest_plan_id' (optional) denotes the harvest plan that the sample was
+    used for.
+
+- tree_sample: (sample_id:int, tree_id:int, shoot:int, number:int, d_cm:int,
+  h_m:int, L10_mm:int)
+  - Denotes the findings about a particular tree during a particular sampling
+    operation. PK is (sample_id, tree_id, shoot).
+  - shoot is a sequential 1-based counter identifying shoots from a single
+    coppice stump (identified by tree_id). 0 for non-coppice.
+  - number is a 1-based externally assigned counter of trees within a sample.
+  - L10_mm denotes the width, in mm, of the outer ten rings of the sampled tree.
+  - Decoupling trees from tree samples allows us to monitor tree growth over
+    time, if desired.
+
+### Marks
+
+- mark: (id:int, parcel_id:int, date:string /* ISO 8601 */, harvest_plan_item_id:int)
+  - Represents an operation ("martellata" in Italian) during which an agronomist
+    marks trees for upcoming felling.
+  - The date year and parcel should correspond to those of the
+    harvest_plan_item. However, exceptions do occur, so consistency is not
+    enforced at the schema level (exceptions are highlighted in the UI).
+  - Note that a mark is tied to a specific harvest plan item ("cutting parcel P
+    in year Y"), whereas a sample may be more generally associated with an
+    entire harvest plan (or none at all).
+
+- tree_mark: (mark_id:int, tree_id:int, d_cm:int, h_m:int)
+  - A tree being marked for felling. Primary key (mark_id, tree_id).
+  - Diameter (in cm) and height (in m) indicate size at time of marking.
+
+## Harvests (cutting operations)
+
+Although a harvest physically affects individual trees, the schema does not track that link: tree-level identity ends at the mark operation, and harvests record only aggregate biomass.
+
+- harvest: (id:int, date:string /* ISO 8601 */, parcel_id:int, mark_id:int
+  nullable, product_id:int, crew_id:int, record1:int nullable, record2:int
+  nullable, quintals:float, note_id:int, extra_note:text)
+  - Denotes a cutting/harvesting operation by one crew on a given day.
+  - mark_id ties the harvest back to the pre-harvest mark. Historical imported
+    data typically lacks mark_id. For new data inserted during day-to-day Abies
+    operation, the mark_id is typically non-null, though the operator can
+    manually override that via an exception process in the UI. If mark_id is
+    non-null, the mark's parcel_id must match the harvest's parcel_id (enforced
+    both in the app and at the schema level (via a SQLite trigger).
+  - product_id denotes the type of produced material (logs, wood chips, etc.).
+  - record1 and record2 are optional and indicate the id on a paper
+    bill-of-goods form provided by the crew. They correspond to "vdp" and "prot"
+    in the mannesi.csv file, respectively.
+
+- harvest_species: (harvest_id:int, species_id:int, percent:int) — PK is
+  (harvest_id, species_id)
+
+- harvest_tractor: (harvest_id:int, tractor_id:int, percent:int) — PK is
+  (harvest_id, tractor_id)
+
+  Harvest_species and harvest_tractor denote the production breakdown of a
+  single harvest operation. The percentages for species and tractors must each
+  sum to 100, enforced by client-side JS validation and server-side Django
+  validation (not by SQL constraints).
+
+  Deleting a harvest cascades to its harvest_species and harvest_tractor
+  rows. Crews, tractors, and species are never deleted — they are deactivated
+  via their `active` flag.
+
 ## Other parameters
 
 Most of these are configurable in the Settings section.
@@ -173,8 +181,8 @@ Most of these are configurable in the Settings section.
   - sort_order controls display ordering everywhere species appear. Catch-all
     entries like "Altro" use a high value (999) to sort last.
 
-- lumber: (id:int, name:string)
-  - Implements an extensible enum of harvested lumber types: (1: "Tronchi", 2:
+- product: (id:int, name:string)
+  - Implements an extensible enum of harvested product types: (1: "Tronchi", 2:
     "Cippato", 3: "Ramaglia", 4: "Pertiche-Puntelli", 5: "Pertiche-Tronchi")
 
 - note: (id:int, name:string)
