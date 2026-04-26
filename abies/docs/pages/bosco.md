@@ -5,6 +5,15 @@
 The "bosco" page is the eventual landing page of Abies. It is derived from the
 Boscoscopio app, but with substantial additional data.
 
+At a high level, the page provides insight into the state of the forest, in the
+past, present, and future. It provides a map view of the forest. In some cases,
+this view serves to display data directly (e.g., a heatmap of productivity per
+region). In others cases, it serves as a graphical mechanism for the user to
+select a region or parcel of the forest about which they want to learn more
+information (e.g., select a parcel to view dendrometric information about it).
+
+Bosco displays several kinds of information:
+
 1. Parcel metadata
 
     - Location, altitude, exposure, surface area (cadastral and computed), etc.
@@ -13,11 +22,15 @@ Boscoscopio app, but with substantial additional data.
 
 2. Dendrometric information by diameter class and species.
 
-    - Tree count
-    - Tree volume
-    - Tree basimetric area
-    - Average height
-    - % increment
+    - Tree count: stacked bar chart
+    - Tree volume: stacked bar chart
+    - Tree basimetric area: stacked bar chart
+    - Average height: scatter plot
+    - % increment: line graph
+
+    For stacked bar charts, different species are represented by different
+    stacked bar areas. For scatter plots and line graphs, they are
+    different-colored dots or lines.
 
 3. Historical production
 
@@ -38,6 +51,8 @@ Boscoscopio app, but with substantial additional data.
 6. Satellite data
 
 ## URL structure
+
+TODO: Needs to be updated.
 
 - Path: /abies/bosco
 - Query parameters:
@@ -149,7 +164,8 @@ Statistical data:
 - sample_areas.json: JSON version of the sample_area table
 - preserved_trees.json: digest of `tree` rows with `preserved=true`.
 - parcel_year_production.json: a digest that conceptually is a "SELECT region,
-  parcel, year, SUM(quintals) FROM harvest GROUP BY region, parcel, year", organized like the timeseries.json files in Boscoscopio.
+  parcel, year, SUM(quintals) FROM harvest GROUP BY region, parcel, year",
+  organized like the timeseries.json files in Boscoscopio.
 
 Map data:
 - particelle.geojson as in Boscoscopio
