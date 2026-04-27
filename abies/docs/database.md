@@ -53,8 +53,8 @@ for clarity.
 
 ## Trees
 
-- tree: (id:int, species_id:int, year:int, lat:real, lng:real, parcel_id:int,
-  preserved:bool, coppice:bool)
+- tree: (id:int, species_id:int, year:int, lat:real nullable, lng:real nullable,
+  parcel_id:int, preserved:bool, coppice:bool)
   - Denotes a tree over time. Lat/lng may be null, or may not fall within the
     bounds of the given parcel due to measurement error (e.g., near a parcel
     border).
