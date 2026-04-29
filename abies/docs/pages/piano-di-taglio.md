@@ -33,13 +33,15 @@ operate in the context of the selected plan.
 Below the filter bar sit three collapsible sections separated by
 dark-green 4 px horizontal rules:
 
-1. **Calendario** — year-by-year view of the active plan.
+1. **Calendar (calendario)** — year-by-year view of the active plan.
 
-   One sub-block per year.  Each sub-block lists the plan items for
-   that year (rows of `harvest_plan_item`), with columns: particella,
-   compresa, tipo (alto fusto / ceduo), q.li previsti, stato.
+   A flat table with one line per harvest_plan_item, ordered by year and then
+   alphabetically (in natural order) by region and pracel.
 
-   The "stato" column is a computed status chip:
+   Columns are: year, region (compresa), parcel (particella), type
+   (alto fusto / ceduo), expected mass (q.li previsti), state.
+
+   The state column is a computed status chip. In Italian, the values are:
    - *pianificato* — no mark exists for this plan item, no harvest
      yet recorded (high-forest parcels only).
    - *martellato* — a mark exists for this plan item; no harvest
@@ -47,22 +49,26 @@ dark-green 4 px horizontal rules:
    - *raccolto (parz.)* — at least one harvest references this plan
      item's parcel+year, but the q.li harvested are below the goal.
    - *raccolto* — q.li harvested ≥ goal.
-   - *non applicabile* — coppice parcel, where marks do not apply;
-     status proceeds straight to *raccolto* once harvests are
-     recorded.
 
-   Expanding a plan-item row shows its associated mark inline (date,
-   tree count, total estimated mass), with a "vai alla martellata"
-   link that selects the row in section 2.  For high-forest items
-   without a mark, an inline "+ Aggiungi martellata" button opens
-   the new-mark flow.
+   Coppice parcels are not marked. They transition directly from *pianificato*
+   to *raccolto*.
 
-   Writers see a pencil icon per plan item to adjust the q.li goal
-   and notes.  Plans themselves are not authored on this page —
-   adding a plan goes through the CSV import flow under
-   Impostazioni (admin only).
+   Clicking a *raccolto* or *raccolto (parz.)* chip opens the Prelievi page
+   pre-filtered to the plan item's parcel and year, so the user can drill
+   straight from the plan view to the actual harvest operations.
 
-2. **Martellate** — flat table of all mark operations across the
+   Expanding a plan-item row shows its associated mark inline (date, tree count,
+   total estimated mass, note), with a "vai alla martellata" link that selects
+   the row in section 2.  For high-forest items without a mark, an inline "+
+   Aggiungi martellata" button opens the new-mark flow.
+
+   Writers see a pencil icon per plan item to adjust any field, and there is a
+   "+" button at the bottom of the table, analogous to, e.g., the harvest
+   table. Howevever, plans are not generally authored on this page — adding a
+   plan goes through a CSV import flow under the settings page (available to
+   admins and writers).
+
+2. **Marks (martellate)** — flat table of all mark operations across the
    active plan.
 
    Columns: data, particella, n. alberi, massa stimata totale (q),
@@ -77,8 +83,8 @@ dark-green 4 px horizontal rules:
 3. **Alberi martellati** — tree-level table for the currently
    selected mark.
 
-   Columns: specie, D (cm), h (m), volume stimato (m³), lat, lng,
-   PAI (boolean — true if `tree.preserved=true`).
+   Columns: specie, D (cm), h (m), volume stimato (m³), lat, lng.
+   No trees with "preserved=true" may appear in this list.
 
    Volume stimato is computed from D and h via species-specific
    taper functions (same formulas used in `pdg-2026`).
@@ -111,28 +117,21 @@ With a mark selected, click "+" in section 3.  Form:
 - Specie (pulldown).
 - D (cm), h (m).
 - Lat/lng (shared lat-lng component — see Campionamenti).
-- "Pianta da preservare (PAI)" checkbox (default off).
 
-If the PAI checkbox is ticked, the record is **not** stored as a
-`tree_mark` (which means "to be felled").  Instead a new `tree` row
-is created with `preserved=true` and no `tree_mark` row is added.
-This lets the agronomist record both kinds of trees observed on the
-same walk through the same form.
-
-If the PAI checkbox is off, a `tree` row is created (or matched, if
-a near-by existing tree is detected within a configurable proximity
-threshold) and a `tree_mark` row is added linking it to the active
-mark.
+Recording a marked tree always creates a new `tree` row alongside the
+`tree_mark` row.  The schema in principle allows linking a marked tree to a
+pre-existing `tree` (e.g., a previously sampled and physically tagged tree),
+but no UI affordance for that lookup exists yet — see `database.md` for the
+forward-looking note.
 
 The form has "Salva" / "Salva e aggiungi" submit buttons for batch
 entry.
 
 ### Editing / deletion
 
-Pencil opens row in edit form; garbage prompts for confirmation.
-Deleting a mark cascades to its tree-mark rows but does *not* delete
-the underlying tree records (a tree may have been observed in
-multiple operations).
+Pencil opens row in edit form; garbage prompts for confirmation.  Deleting a
+mark cascades to its `tree_mark` rows *and* to the corresponding `tree` rows
+(since marked trees are not currently shared with any other observation type).
 
 ## Cross-page links
 
@@ -157,28 +156,10 @@ TBD — defer until UX is settled.
 
 TBD — defer until UX is settled.  Likely:
 
-- `harvest_plans.json`: list of plans + plan items + computed
-  status per item.
-- `marks.json`: high-level mark table.
-- `mark_trees.json`: denormalized tree+tree_mark for table
-  rendering.
-
-## Open questions
-
-1. Tree-identity matching during mark entry: should the form try to
-   reuse an existing nearby `tree` row (within e.g. 2 m), or always
-   create a new `tree` row?  The schema doc notes that the same
-   physical tree may legitimately appear more than once due to GPS
-   error; over-matching risks tying a real new tree to a stale
-   record.  Likely default: always create new, with a soft warning
-   if a tree of the same species already exists very close by.
-2. Should "stato" status chips link to the relevant Prelievi rows
-   when *raccolto*?  Probably yes: clicking the chip filters
-   Prelievi to the parcel+year.
-3. Is per-mark "massa stimata totale" computed at digest time or at
-   query time?  Digest time is cheaper but adds a stale-flag
-   dependency on tree-mark writes.
-4. Should plan items in coppice parcels be visually compressed in
-   the calendar, since they have no mark to expand into?  Or show
-   them with a placeholder ("coppice — no mark required") for
-   uniformity?
+- `harvest_plans.json`: list of plans + plan items + computed status per item.
+- `marks.json`: high-level mark table, including per-mark `massa stimata
+  totale` (sum over the mark's trees of species-specific volume × density).
+  This sum is materialized in the digest, not computed at query time, with
+  the standard staleness-flag invalidation on `tree_mark` writes — same
+  pattern used for `prelievi.json`.
+- `mark_trees.json`: denormalized tree+tree_mark for table rendering.

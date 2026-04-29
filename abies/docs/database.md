@@ -120,10 +120,13 @@ A mark ("martellata" in Italian) is an operation during which an agronomist
 marks trees for upcoming felling. Marks are only performed in high-forest
 parcels; they do not apply to coppice forests.
 
-- mark: (id:int, parcel_id:int, date:string /* ISO 8601 */, harvest_plan_item_id:int)
+- mark: (id:int, parcel_id:int, date:string /* ISO 8601 */,
+  harvest_plan_item_id:int, note:string)
   - The date year and parcel should correspond to those of the
     harvest_plan_item. However, exceptions do occur, so consistency is not
     enforced at the schema level (exceptions are highlighted in the UI).
+  - "Note" is user-defined: for example, it could be the harvest permit ID
+    issued by the forest agency.
   - Note that a mark is tied to a specific harvest plan item ("cutting parcel P
     in year Y") via harvest_plan_item_id, whereas a sample may be more generally
     associated with an entire harvest plan via harvest_plan_id.
@@ -132,6 +135,20 @@ parcels; they do not apply to coppice forests.
   - A (high-forest) tree being marked for felling. Primary key (mark_id,
     tree_id).
   - Diameter (in cm) and height (in m) indicate size at time of marking.
+  - Currently, recording a marked tree always creates a new `tree` row; deleting
+    a mark cascades to its `tree_mark` rows and to those `tree` rows. This
+    means that the `tree_id` FK on a marked tree is, in practice, not a
+    cross-link to any other observation of the same physical tree.
+
+    Future extension: when sampled trees are physically tagged (numbered tags,
+    e.g., aluminum plates affixed to the trunk), an agronomist marking a tagged
+    tree could look up its existing `tree` row via (region, parcel, sample area
+    number, `tree_sample.number`) and reuse that `tree_id` instead of creating
+    a new row. This would let us automatically deduct marked-and-tagged trees
+    from sample-based biomass extrapolations. The schema already supports this
+    — no change required — but the UI lookup affordance and the
+    deduction-on-extrapolation logic do not yet exist. Until they do, sample
+    areas cover only 1–3% of forest surface so the over-count error is small.
 
 ## Harvests (cutting operations)
 
