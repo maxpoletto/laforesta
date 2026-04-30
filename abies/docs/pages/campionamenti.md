@@ -2,23 +2,24 @@
 
 ## Overview
 
-Recording and exploration of forest sampling operations.  A *sampling*
-takes place in a circular *sample area* (typically ~12 m radius) where
-every tree inside the radius is measured: diameter at breast height,
-total height, outer-10-rings radial width, and (for coppice) shoot
-counter within the stump.  Per-hectare biomass and stand-structure
-statistics are extrapolated from these measurements to the parcel and
-region.
+Recording and exploration of forest sampling operations.  A *sampling* takes
+place in a circular *sample area* (typically ~12 m radius) where every tree
+inside the radius is measured for diameter at breast height and total height.
+For a subset of trees we also take a core sample to measure the "L10 distance",
+the radial with of the 10 outer rings. For coppices, we measure the number of
+shoots on a stump, as well as whether a particular shoot is a standard (a shoot
+that is allowed to grow, see https://en.wikipedia.org/wiki/Coppicing).
+Per-hectare biomass and stand-structure statistics are extrapolated from these
+measurements to the parcel and region.
 
-A *sessione* (TBD name — see "Open questions") is a logical grouping
-of sample-area visits performed over a contiguous period, typically a
-season or a year, and usually tied to a specific harvest plan.  A
-session is not a separate database table; it is derived from
-`sample.date` (year) plus `sample.harvest_plan_id`.  Within a session,
-each sample area is visited at most once.
+A *survey* (Italian: *rilevamento*) is a logical grouping of sample-area visits
+performed over a contiguous period, typically a season or a year, and usually
+tied to a specific harvest plan.  A survey is not a separate database table; it
+is derived from `sample.date` (year) plus `sample.harvest_plan_id`.  Within a
+survey, each sample area is visited at most once.
 
-This page is the canonical surface for entering new sampling data and
-for browsing existing sampling history.
+This page is the canonical surface for entering new sampling data and for
+browsing existing sampling history.
 
 ## Visual layout
 
@@ -32,7 +33,7 @@ A top filter bar (same idiom as Prelievi) hosts:
 Below the filter bar sit three collapsible sections separated by
 dark-green 4 px horizontal rules:
 
-1. **Sessioni** — high-level table of sampling sessions.
+1. **Rilevamenti** — high-level table of surveys.
 
    Columns: anno, piano di taglio, n. rilievi, n. alberi, particelle
    coperte (count), note.  One row per (anno, piano) combination
@@ -156,8 +157,6 @@ TBD — defer until UX is settled.  Likely:
 
 ## Open questions
 
-1. Name for "sessione".  "Campagne" reads as "countrysides".
-   Candidates: *Sessioni*, *Cicli*, *Rilievi-stagione*.
 2. Where session-level metadata (notes, official label) lives, if
    anywhere.  Either a small `sampling_session` table keyed on
    (year, plan_id), or no metadata at all (sessions are pure
