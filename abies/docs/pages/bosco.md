@@ -37,11 +37,7 @@ Bosco displays several kinds of information:
     - By parcel
     - By region
 
-4. Sampled trees
-
-    - Sample areas
-    - Trees within a sample area
-    - Preserved trees
+4. Preserved trees (PAI)
 
 5. Marks ("martellate")
 
@@ -49,6 +45,9 @@ Bosco displays several kinds of information:
     - Individual trees
 
 6. Satellite data
+
+Sample areas and individual sampled trees are not displayed here — that view
+lives on the Campionamenti page.
 
 ## URL structure
 
@@ -79,12 +78,25 @@ fills the viewport; the navbar on the right hosts (top to bottom):
 
 1. The standard map nav header (status panel, OSM/Topo/Satellite
    selector, region pulldown — see "Maps" in `CLAUDE.md`).
-2. **Mode** radio group (this page's primary control):
+2. **Survey** ("Rilevamenti") pulldown — selects the active `survey` (see
+   `campionamenti.md`).  This is a page-level filter that drives every view
+   reading sample-derived data: the per-parcel page's *Dendrometria* section and
+   the dendrometric entries in the *Caratteristiche* metric pulldown. Defaults
+   to the most recent survey overall.  When the active survey's grid does not
+   cover the currently selected region (or a clicked parcel within it),
+   dendrometric views show an empty state ("Nessun dato per questa selezione")
+   and prompt the user to pick a different survey.  Modes that do not read
+   sample data (*Evoluzione*, *PAI*) ignore the selector but it remains visible
+   for stability.
+3. **Mode** radio group (this page's primary control):
    - Caratteristiche (default)
    - Evoluzione
-   - Aree di saggio
    - Piante ad accrescimento indefinito
-3. Per-mode controls (see below).
+4. Per-mode controls (see below).
+
+Sample-area visualization (list of parcels with sample-area counts,
+visited-vs-unvisited coloring, click-to-drill-in) lives on the Campionamenti
+page, not here.
 
 ### Hover and click on the map
 
@@ -122,22 +134,6 @@ fills the viewport; the navbar on the right hosts (top to bottom):
 
   Map shows red-to-green diff heatmap (new − old): high → dark
   green, low → dark red, white at zero.
-
-- **Aree di saggio**
-
-  Scrollable list of parcels in the current region, with a checkbox
-  per parcel and the number of contained sample areas in
-  parentheses.  Below the list, "mostra tutte" / "nascondi tutte"
-  buttons.
-
-  Map displays parcel borders and yellow circles drawn at each
-  sample area's actual `r_m` radius (centered at its lat/lng).
-  Per-tree dots are *not* drawn — that view lives on the
-  Campionamenti page.
-
-  Click on a sample-area circle opens a small popover with the
-  area's number, parcel, group label, and a "vai a Campionamenti"
-  link that pre-filters Campionamenti to that area.
 
 - **Piante ad accrescimento indefinito**
 
@@ -193,9 +189,15 @@ following the standard Abies idiom:
      altezza media / incremento.
    - Species filter: checkbox list of species observed in this
      scope, with "mostra tutte" / "nascondi tutte".
-   - Sample/year selector: which sampling session to display
-     (defaults to the most recent).  At region scope, aggregates
-     across all parcels of the region for the chosen session.
+   - Survey scope: the active survey from the global sidebar
+     selector.  This section does not have its own survey control —
+     changing surveys is a page-level action, not a per-parcel one,
+     to keep behavior predictable as the user navigates between
+     parcels.  At region scope the chart aggregates across all
+     parcels of the region using the active survey's samples.  When
+     the active survey's grid does not touch this scope, the section
+     shows an empty state and points the user to the sidebar
+     selector.
    - Chart: one of
      - Stacked bar (count / volume / basimetric area): x = classe
        diametrica, y = metric, stacks = species.
@@ -215,10 +217,10 @@ following the standard Abies idiom:
      pre-filtered to that operation.
 
 4. **Operazioni recenti** (closed by default)
-   - Three sub-lists: ultimi rilievi (samples), ultime martellate
-     (marks), ultimi prelievi (harvests).  Each entry is a one-line
-     summary with a link to the relevant page (Campionamenti,
-     Piano di taglio, Prelievi) pre-filtered.
+   - Three sub-lists: ultimi rilevamenti (surveys touching this
+     scope), ultime martellate (marks), ultimi prelievi (harvests).
+     Each entry is a one-line summary with a link to the relevant
+     page (Campionamenti, Piano di taglio, Prelievi) pre-filtered.
    - This is the connective tissue between Bosco and the
      operations pages.
 
@@ -242,12 +244,8 @@ Sections render lazily on first expand.
   - fa=1 if "media per particella" is checked.
   - fc=1 if "aree catastali" is checked.
 
-- Aree di saggio
-  - m=3
-  - p=[comma-separated list of parcels (e.g., "1,2,4a,4b,14,15c")]
-
 - Piante ad accrescimento indefinito
-  - m=4
+  - m=3
   - p=[comma-separated list of parcels (e.g., "1,2,4a,4b,14,15c")]
   - s=[comma-separated list of down-cased species names, with spaces replaced by
     underscores, e.g., "abete_rosso,castagno,betulla_bianca"]
