@@ -117,6 +117,10 @@ of either dataset should treat them as independent observations.
   date:string /* ISO 8601 */)
   - Represents a visit to a single sample area during a survey. It happens on a
     specific day.
+  - The sample_area must belong to the survey's grid: a `sample_area_grid` row
+    must exist for `(sample_area_id, survey.sample_grid_id)`. This is enforced
+    both in the app (Django validation) and at the schema level (SQLite
+    triggers on INSERT and UPDATE of `sample`).
 
 - tree_sample: (sample_id:int, tree_id:int, shoot:int, standard:bool,
   number:int, d_cm:int, h_m:int, l10_mm:int)
@@ -134,6 +138,19 @@ of either dataset should treat them as independent observations.
   - l10_mm denotes the width, in mm, of the outer ten rings of the sampled tree.
   - Decoupling trees from tree samples allows us to monitor tree growth over
     time.
+
+#### Deletion semantics
+
+Deleting a `survey` cascades to its `sample` rows and onward to their
+`tree_sample` rows.  Deleting a `sample` cascades to its `tree_sample`
+rows.  `tree` rows are never cascade-deleted along sample paths: a sampled
+tree may be referenced by multiple `tree_sample` rows over time, may be
+flagged preserved, or otherwise carry independent significance.
+
+These cascades can destroy person-weeks of field-survey work.  The UI
+raises strong warnings before any survey or sample delete and forces an
+export of the affected rows (equivalent to "Esporta CSV") before the
+operation can proceed.  See `campionamenti.md` for the flow.
 
 ### Marks
 
