@@ -165,9 +165,13 @@ Configuration lives in three env vars read at startup by
   `<name>.onmicrosoft.com`).  Defaults to `common` if unset, which only
   works for multi-tenant apps.
 
-Redirect URIs registered on the Entra app (both needed):
-- `http://localhost:8000/abies/accounts/microsoft/login/callback/` (dev)
-- `https://<prod-host>/abies/accounts/microsoft/login/callback/` (prod)
+Redirect URIs registered on the Entra app (one per deployment):
+- `http://localhost:8000/accounts/microsoft/login/callback/` (local dev via `manage.py runserver`)
+- `https://abies-dev.laforesta.it/accounts/microsoft/login/callback/` (shared dev VM)
+- `https://abies.laforesta.it/accounts/microsoft/login/callback/` (prod)
+
+The same Entra app handles all three; secrets can be shared (different Django
+SECRET_KEYs per instance, but the OAuth client_id/secret can be reused).
 
 In dev, export the env vars in your shell (or source a gitignored
 file).  In production, supply them via a root-owned, `0600`-permission
@@ -780,11 +784,19 @@ Django's default namespacing convention. Templates follow the same pattern
 
 # Code location, deployment, and releases
 
-The Django project is rooted at laforesta/abies in the code repository, and is
-served from a similar location once deployed (i.e.,
-https://laforesta.it/abies/).
+The Django project is rooted at `laforesta/abies` in the code repository.
 
-Abies is designed to be deployed on a single server (e.g., laforesta.it).
+Production deployment lives at the root of its own subdomain
+(`https://abies.laforesta.it/`); a parallel dev instance at
+`https://abies-dev.laforesta.it/` shares the same VM but with separate data,
+env file, and a basic-auth gate. Apache fronts both, reverse-proxying to the
+container's gunicorn on 127.0.0.1.
+
+Infrastructure (Apache vhosts, Docker engine, host-side data dirs, Let's
+Encrypt via DNS-01, env file rendered from ansible-vault) is provisioned by
+the playbook at `../../system/ansible/foresta.yml`. Releases are deployed by
+`../../system/ansible/abies.yml`. The `deploy/` directory in this repo is
+deprecated -- left for reference but no longer used.
 
 Official releases are numbered using git tag.
 

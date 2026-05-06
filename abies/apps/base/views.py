@@ -31,7 +31,7 @@ class LoginView(View):
         user = authenticate(request, username=username, password=password)
         if user is not None:
             login(request, user)
-            next_url = request.POST.get('next') or '/abies/prelievi'
+            next_url = request.POST.get('next') or settings.LOGIN_REDIRECT_URL
             return redirect(next_url)
         return render(request, 'base/login.html', {
             'error_message': 'Nome utente o password non validi.',

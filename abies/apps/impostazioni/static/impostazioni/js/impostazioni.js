@@ -16,7 +16,7 @@ import * as modals from '../../base/js/modals.js';
 import { showError } from '../../base/js/modals.js';
 import * as S from '../../base/js/strings.js';
 
-const API = '/abies/api/impostazioni/';
+const API = '/api/impostazioni/';
 
 // ---------------------------------------------------------------------------
 // Section configuration

@@ -5,7 +5,7 @@
  * The route table maps domain names to page modules.
  */
 
-const PREFIX = '/abies/';
+const PREFIX = '/';
 
 /** @type {Map<string, {mount: Function, unmount: Function, onQueryChange: Function}>} */
 const routes = new Map();

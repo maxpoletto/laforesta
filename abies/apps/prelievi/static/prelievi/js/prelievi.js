@@ -17,11 +17,11 @@ import {
 
 const CSS_URL = '/static/prelievi/css/prelievi.css';
 const DATA_ID = 'prelievi';
-const DATA_URL = '/abies/api/prelievi/data/';
-const FORM_URL = '/abies/api/prelievi/form/';
-const SAVE_URL = '/abies/api/prelievi/save/';
-const DELETE_URL = '/abies/api/prelievi/delete/';
-const PAGE_PATH = '/abies/prelievi';
+const DATA_URL = '/api/prelievi/data/';
+const FORM_URL = '/api/prelievi/form/';
+const SAVE_URL = '/api/prelievi/save/';
+const DELETE_URL = '/api/prelievi/delete/';
+const PAGE_PATH = '/prelievi';
 
 // Collapsible sections, keyed by the single-char token used in the URL `o`
 // parameter ('a' = Produzione chart, 'b' = Specie-per-particella chart,

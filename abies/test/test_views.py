@@ -23,34 +23,34 @@ def logged_in_client(admin_user):
 
 class TestLoginPage:
     def test_get_renders(self, client):
-        resp = client.get('/abies/login/')
+        resp = client.get('/login/')
         assert resp.status_code == 200
         assert b'Nome utente' in resp.content
 
     def test_post_success_redirects(self, client, admin_user):
-        resp = client.post('/abies/login/', {
+        resp = client.post('/login/', {
             'username': 'testadmin', 'password': 'testpass123!',
         })
         assert resp.status_code == 302
-        assert resp.url == '/abies/prelievi'
+        assert resp.url == '/prelievi'
 
     def test_post_failure_returns_400(self, client, admin_user):
-        resp = client.post('/abies/login/', {
+        resp = client.post('/login/', {
             'username': 'testadmin', 'password': 'wrong',
         })
         assert resp.status_code == 400
         assert 'non validi' in resp.content.decode()
 
     def test_post_with_next(self, client, admin_user):
-        resp = client.post('/abies/login/', {
+        resp = client.post('/login/', {
             'username': 'testadmin', 'password': 'testpass123!',
-            'next': '/abies/impostazioni',
+            'next': '/impostazioni',
         })
         assert resp.status_code == 302
-        assert resp.url == '/abies/impostazioni'
+        assert resp.url == '/impostazioni'
 
     def test_authenticated_user_redirected_to_shell(self, logged_in_client):
-        resp = logged_in_client.get('/abies/login/')
+        resp = logged_in_client.get('/login/')
         assert resp.status_code == 302
 
 
@@ -60,28 +60,28 @@ class TestLoginPage:
 
 class TestShellAccess:
     def test_unauthenticated_redirects_to_login(self, client):
-        resp = client.get('/abies/prelievi')
+        resp = client.get('/prelievi')
         assert resp.status_code == 302
-        assert '/abies/login/' in resp.url
+        assert '/login/' in resp.url
 
     def test_authenticated_gets_shell(self, logged_in_client):
-        resp = logged_in_client.get('/abies/prelievi')
+        resp = logged_in_client.get('/prelievi')
         assert resp.status_code == 200
         assert b'data-role=' in resp.content
         assert b'app.js' in resp.content
 
     def test_shell_serves_all_domain_paths(self, logged_in_client):
-        for path in ('/abies/bosco', '/abies/prelievi',
-                     '/abies/controllo', '/abies/impostazioni'):
+        for path in ('/bosco', '/prelievi',
+                     '/controllo', '/impostazioni'):
             resp = logged_in_client.get(path)
             assert resp.status_code == 200, f'{path} returned {resp.status_code}'
 
     def test_shell_contains_csrf(self, logged_in_client):
-        resp = logged_in_client.get('/abies/prelievi')
+        resp = logged_in_client.get('/prelievi')
         assert b'data-csrf=' in resp.content
 
     def test_shell_contains_user_role(self, logged_in_client):
-        resp = logged_in_client.get('/abies/prelievi')
+        resp = logged_in_client.get('/prelievi')
         assert 'data-role="admin"' in resp.content.decode()
 
 
@@ -91,10 +91,10 @@ class TestShellAccess:
 
 class TestLogout:
     def test_logout_redirects_to_login(self, logged_in_client):
-        resp = logged_in_client.get('/abies/logout/')
+        resp = logged_in_client.get('/logout/')
         assert resp.status_code == 302
 
     def test_logout_clears_session(self, logged_in_client):
-        logged_in_client.get('/abies/logout/')
-        resp = logged_in_client.get('/abies/prelievi')
+        logged_in_client.get('/logout/')
+        resp = logged_in_client.get('/prelievi')
         assert resp.status_code == 302  # redirected to login

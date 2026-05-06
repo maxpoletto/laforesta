@@ -88,7 +88,7 @@ def save_nonce(nonce, user, response_data):
 
 RATE_LIMIT = 60        # max requests per window
 RATE_WINDOW_S = 60     # window size in seconds
-API_PREFIX = '/abies/api/'
+API_PREFIX = '/api/'
 
 
 class RateLimitMiddleware:

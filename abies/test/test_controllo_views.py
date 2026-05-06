@@ -38,7 +38,7 @@ class TestDataView:
         settings.DIGEST_DIR = tmp_path
         generate_audit()
 
-        resp = writer_client.get('/abies/api/controllo/data/')
+        resp = writer_client.get('/api/controllo/data/')
         assert resp.status_code == 200
         assert resp['Content-Type'] == 'application/json'
         assert resp['Content-Encoding'] == 'gzip'
@@ -48,7 +48,7 @@ class TestDataView:
         assert len(data['rows']) >= 1
 
     def test_requires_auth(self, db):
-        resp = Client().get('/abies/api/controllo/data/')
+        resp = Client().get('/api/controllo/data/')
         assert resp.status_code == 302
 
 

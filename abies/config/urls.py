@@ -1,13 +1,23 @@
-"""Abies URL configuration."""
+"""Abies URL configuration.
 
+The app is served at the root of its own subdomain (abies.laforesta.it /
+abies-dev.laforesta.it). No URL prefix is needed -- the subdomain itself
+scopes the deployment.
+"""
+
+from django.conf import settings
 from django.contrib import admin
 from django.urls import include, path
+from django.views.generic import RedirectView
 
 urlpatterns = [
-    path('abies/admin/', admin.site.urls),
-    path('abies/api/prelievi/', include('apps.prelievi.urls')),
-    path('abies/api/controllo/', include('apps.controllo.urls')),
-    path('abies/api/impostazioni/', include('apps.impostazioni.urls')),
-    path('abies/', include('apps.base.urls')),
-    path('abies/accounts/', include('allauth.urls')),
+    # `/` -> the configured landing page. login_required on the shell view
+    # bounces unauthenticated users to LOGIN_URL.
+    path('', RedirectView.as_view(url=settings.LOGIN_REDIRECT_URL, permanent=False)),
+    path('admin/', admin.site.urls),
+    path('api/prelievi/', include('apps.prelievi.urls')),
+    path('api/controllo/', include('apps.controllo.urls')),
+    path('api/impostazioni/', include('apps.impostazioni.urls')),
+    path('accounts/', include('allauth.urls')),
+    path('', include('apps.base.urls')),
 ]

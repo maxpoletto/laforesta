@@ -16,11 +16,11 @@
       <span class="header-logo">La Foresta</span>
     </div>
     <nav class="header-tabs" id="header-tabs">
-      <a class="tab" href="/abies/bosco" data-tab="bosco">Bosco</a>
-      <a class="tab" href="/abies/prelievi" data-tab="prelievi">Prelievi</a>
-      <a class="tab" href="/abies/controllo" data-tab="controllo">Controllo</a>
+      <a class="tab" href="/bosco" data-tab="bosco">Bosco</a>
+      <a class="tab" href="/prelievi" data-tab="prelievi">Prelievi</a>
+      <a class="tab" href="/controllo" data-tab="controllo">Controllo</a>
       {% if user.role != 'reader' or user.login_method == 'password' %}
-      <a class="tab" href="/abies/impostazioni" data-tab="impostazioni">Impostazioni</a>
+      <a class="tab" href="/impostazioni" data-tab="impostazioni">Impostazioni</a>
       {% endif %}
     </nav>
     <div class="header-right">
@@ -31,11 +31,11 @@
   </header>
 
   <nav class="mobile-menu" id="mobile-menu">
-    <a class="mobile-tab" href="/abies/bosco" data-tab="bosco">Bosco</a>
-    <a class="mobile-tab" href="/abies/prelievi" data-tab="prelievi">Prelievi</a>
-    <a class="mobile-tab" href="/abies/controllo" data-tab="controllo">Controllo</a>
+    <a class="mobile-tab" href="/bosco" data-tab="bosco">Bosco</a>
+    <a class="mobile-tab" href="/prelievi" data-tab="prelievi">Prelievi</a>
+    <a class="mobile-tab" href="/controllo" data-tab="controllo">Controllo</a>
     {% if user.role != 'reader' or user.login_method == 'password' %}
-    <a class="mobile-tab" href="/abies/impostazioni" data-tab="impostazioni">Impostazioni</a>
+    <a class="mobile-tab" href="/impostazioni" data-tab="impostazioni">Impostazioni</a>
     {% endif %}
     <a class="mobile-tab mobile-logout" href="{% url 'logout' %}">Esci</a>
   </nav>

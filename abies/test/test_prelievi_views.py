@@ -57,7 +57,7 @@ class TestDataView:
         settings.DIGEST_DIR = tmp_path
         generate_prelievi()
 
-        resp = writer_client.get('/abies/api/prelievi/data/')
+        resp = writer_client.get('/api/prelievi/data/')
         assert resp.status_code == 200
         assert resp['Content-Type'] == 'application/json'
         assert resp['Content-Encoding'] == 'gzip'
@@ -69,14 +69,14 @@ class TestDataView:
         settings.DIGEST_DIR = tmp_path
         generate_prelievi()
 
-        resp1 = writer_client.get('/abies/api/prelievi/data/')
+        resp1 = writer_client.get('/api/prelievi/data/')
         lm = resp1['Last-Modified']
 
-        resp2 = writer_client.get('/abies/api/prelievi/data/', HTTP_IF_MODIFIED_SINCE=lm)
+        resp2 = writer_client.get('/api/prelievi/data/', HTTP_IF_MODIFIED_SINCE=lm)
         assert resp2.status_code == 304
 
     def test_requires_auth(self, db, harvest_fixtures):
-        resp = Client().get('/abies/api/prelievi/data/')
+        resp = Client().get('/api/prelievi/data/')
         assert resp.status_code == 302  # redirect to login
 
 
@@ -86,28 +86,28 @@ class TestDataView:
 
 class TestFormView:
     def test_add_form_returns_html(self, writer_client, harvest_fixtures):
-        resp = writer_client.get('/abies/api/prelievi/form/')
+        resp = writer_client.get('/api/prelievi/form/')
         assert resp.status_code == 200
         data = resp.json()
         assert '<form' in data['html']
         assert 'id_date' in data['html']
 
     def test_edit_form_prepopulated(self, writer_client, harvest_fixtures, sample_op):
-        resp = writer_client.get(f'/abies/api/prelievi/form/{sample_op.id}/')
+        resp = writer_client.get(f'/api/prelievi/form/{sample_op.id}/')
         assert resp.status_code == 200
         html = resp.json()['html']
         assert '2024-06-15' in html
         assert 'selected' in html
 
     def test_form_contains_species_and_tractors(self, writer_client, harvest_fixtures):
-        resp = writer_client.get('/abies/api/prelievi/form/')
+        resp = writer_client.get('/api/prelievi/form/')
         html = resp.json()['html']
         assert 'sp_' in html
         assert 'tr_' in html
         assert '100%' in html
 
     def test_edit_form_shows_percentages(self, writer_client, harvest_fixtures, sample_op):
-        resp = writer_client.get(f'/abies/api/prelievi/form/{sample_op.id}/')
+        resp = writer_client.get(f'/api/prelievi/form/{sample_op.id}/')
         html = resp.json()['html']
         # The first species has 100% on sample_op
         assert 'value="100"' in html
@@ -120,7 +120,7 @@ class TestFormView:
 class TestSaveView:
     def _post(self, client, data):
         return client.post(
-            '/abies/api/prelievi/save/',
+            '/api/prelievi/save/',
             data=json.dumps(data),
             content_type='application/json',
         )
@@ -301,7 +301,7 @@ class TestSaveView:
 class TestDeleteView:
     def _post(self, client, data):
         return client.post(
-            '/abies/api/prelievi/delete/',
+            '/api/prelievi/delete/',
             data=json.dumps(data),
             content_type='application/json',
         )

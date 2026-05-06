@@ -9,8 +9,8 @@ import * as router from '../../base/js/router.js';
 import * as S from '../../base/js/strings.js';
 
 const DATA_ID = 'audit';
-const DATA_URL = '/abies/api/controllo/data/';
-const PAGE_PATH = '/abies/controllo';
+const DATA_URL = '/api/controllo/data/';
+const PAGE_PATH = '/controllo';
 
 const COLUMN_DEFS = {
   [S.COL_TIMESTAMP]: { label: S.COL_TIMESTAMP },
