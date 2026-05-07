@@ -14,9 +14,9 @@ migrate:
 	$(MANAGE) migrate
 
 import:
-	$(PYTHON) ingest/import_reference.py
-	$(PYTHON) ingest/import_parcels.py
-	$(PYTHON) ingest/import_mannesi.py
+	$(MANAGE) import_reference $(BOSCO_DATA)
+	$(MANAGE) import_parcels $(BOSCO_DATA)
+	$(MANAGE) import_mannesi $(BOSCO_DATA)
 
 geo:
 	mkdir -p data/geo
@@ -43,6 +43,15 @@ test:
 
 collectstatic:
 	$(MANAGE) collectstatic --noinput
+
+deploy-dev:
+	./bin/deploy dev
+
+bootstrap-dev:
+	./bin/bootstrap-data dev
+
+docker-prune:
+	docker --context vm-abies image prune
 
 # --- Vendor dependencies ----------------------------------------------------
 
@@ -78,6 +87,3 @@ minify:
 		done; \
 	done
 	@echo "Done. Run 'git checkout -- apps/*/static/*/js/' to restore sources."
-
-deploy-dev:
-	./bin/deploy dev

@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# bin/bootstrap-data <dev|prod>
+#
+# One-time data bootstrap for a fresh abies instance on the VM. Runs the import
+# management commands inside the already-running container, sourcing CSV/GeoJSON
+# files from the local bosco/data tree (../bosco/data relative to abies/).
+# Re-running is safe: import_reference and import_parcels are idempotent
+# (get_or_create), import_mannesi is delete-and-bulk-insert (deterministic
+# re-load). (Idempotent here means "produces the same final state", not "does
+# nothing on second run".)
+#
+# Run after `bin/deploy <instance>` -- the container must be up.
+
+set -euo pipefail
+
+instance="${1:-}"
+[[ "$instance" == "dev" || "$instance" == "prod" ]] || {
+  echo "usage: $(basename "$0") <dev|prod>" >&2
+  exit 1
+}
+
+abies_root="$(git rev-parse --show-toplevel)/abies"
+bosco_data="$(realpath "$abies_root/../bosco/data")"
+[[ -d "$bosco_data" ]] || {
+  echo "error: $bosco_data not found" >&2
+  exit 1
+}
+
+context="${ABIES_DOCKER_CONTEXT:-vm-abies}"
+ctr="abies-${instance}"
+
+# Container must be running for `docker exec` to attach.
+state="$(docker --context "$context" inspect -f '{{.State.Running}}' "$ctr" 2>/dev/null || echo missing)"
+[[ "$state" == "true" ]] || {
+  echo "error: container '$ctr' not running on context '$context'." >&2
+  echo "       run bin/deploy $instance first." >&2
+  exit 1
+}
+
+x() { docker --context "$context" exec "$ctr" "$@"; }
+
+echo "==> copy bosco/data -> $ctr:/tmp/bosco-data"
+docker --context "$context" cp "$bosco_data" "$ctr":/tmp/bosco-data
+
+echo "==> import reference"
+x python manage.py import_reference /tmp/bosco-data
+
+echo "==> import parcels"
+x python manage.py import_parcels /tmp/bosco-data
+
+echo "==> import mannesi"
+x python manage.py import_mannesi /tmp/bosco-data
+
+echo "==> copy geojson into /app/data/geo/"
+x sh -c 'mkdir -p /app/data/geo && cp /tmp/bosco-data/particelle.geojson /tmp/bosco-data/terreni.geojson /app/data/geo/'
+
+echo "==> regenerate digests"
+x python manage.py shell --no-imports -c \
+  "from apps.base.digests import generate_all; generate_all()"
+
+echo "==> remove /tmp/bosco-data"
+# As root because docker cp preserves source ownership (local uid), which the
+# abies container user can't rm under /tmp's sticky bit.
+docker --context "$context" exec --user root "$ctr" rm -rf /tmp/bosco-data
+
+echo "==> done."

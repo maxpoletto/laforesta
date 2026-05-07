@@ -33,7 +33,7 @@ This page is the canonical surface for managing all three.
 
 The page has no page-level filter bar or other control.
 
-The page is a vertical sequence of four collapsible sections separated by
+The page is a vertical sequence of three collapsible sections separated by
 dark-green 4 px horizontal rules:
 
 1. Sampling grids ("Griglie di campionamento") (collapsed by default).
