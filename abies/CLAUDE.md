@@ -796,8 +796,7 @@ Host-side state on the VM (Apache vhosts, Docker engine, certbot/Let's
 Encrypt via DNS-01, the bind-mount data/static/backup directories) is
 provisioned by `../../system/ansible/foresta.yml`. Ansible knows nothing
 about abies images, builds, env files, or the container lifecycle; its job
-ends at "make the VM capable of *hosting* an abies container." The
-`deploy/` directory in this repo is deprecated.
+ends at "make the VM capable of *hosting* an abies container."
 
 Releases are deployed from the laptop via `bin/deploy <dev|prod> [git-ref]`,
 which drives the VM's Docker daemon over a docker context. The script does
