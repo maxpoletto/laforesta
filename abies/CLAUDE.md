@@ -792,20 +792,55 @@ Production deployment lives at the root of its own subdomain
 env file, and a basic-auth gate. Apache fronts both, reverse-proxying to the
 container's gunicorn on 127.0.0.1.
 
-Infrastructure (Apache vhosts, Docker engine, host-side data dirs, Let's
-Encrypt via DNS-01, env file rendered from ansible-vault) is provisioned by
-the playbook at `../../system/ansible/foresta.yml`. Releases are deployed by
-`../../system/ansible/abies.yml`. The `deploy/` directory in this repo is
-deprecated -- left for reference but no longer used.
+Host-side state on the VM (Apache vhosts, Docker engine, certbot/Let's
+Encrypt via DNS-01, the bind-mount data/static/backup directories) is
+provisioned by `../../system/ansible/foresta.yml`. Ansible knows nothing
+about abies images, builds, env files, or the container lifecycle; its job
+ends at "make the VM capable of *hosting* an abies container." The
+`deploy/` directory in this repo is deprecated.
 
-Official releases are numbered using git tag.
+Releases are deployed from the laptop via `bin/deploy <dev|prod> [git-ref]`,
+which drives the VM's Docker daemon over a docker context. The script does
+backup → build → stop → migrate → collectstatic → up; no source tree, no
+git, no env file ever lands on the VM. Container env vars come from
+`compose/.env.{prod,dev}` on the laptop (gitignored; copy from the
+`.example` templates). One-time setup:
 
-Abies is deployed via a Docker image that includes all dependencies, and it
-mounts the host filesystem for:
+```sh
+REMOTE_HOST=<hostname>
+cd ~/src/laforesta/abies
+docker context create vm-abies --docker host=ssh://${USER}@${REMOTE_HOST}
+cp compose/.env.dev.example  compose/.env.dev   # then fill in values
+cp compose/.env.prod.example compose/.env.prod  # then fill in values
+```
 
-- SQLite database file;
-- Pre-processed JSON files;
-- Backups.
+Subsequent deployments:
+```sh
+cd ~/src/laforesta/abies
+bin/deploy dev          # deploy current working tree to abies-dev
+bin/deploy prod v0.1.0  # deploy a tagged release to abies-prod
+```
+
+Official prod releases are numbered with git tags; `bin/deploy prod <tag>`
+refuses to run with a dirty working tree.
+
+Local dev instance runs without containers (`make dev` + `python manage.py
+runserver`).
+
+The VM dev instance (`bin/deploy dev`) deploys the current local working tree --
+uncommitted changes go into the container, which is the point.
+
+`bin/deploy` runs the full sequence (backup → build → stop → migrate →
+collectstatic → up) against the VM via docker context. The compose files, env
+files, and source tree all live locally; the VM holds only the running
+container, the data volumes, and the apache vhosts in front.
+
+The container bind-mounts host paths for:
+
+- SQLite database file (`/var/lib/abies-{prod,dev}/data`);
+- Pre-processed JSON digests (subdir of data);
+- Static files (`/var/lib/abies-{prod,dev}/staticfiles`);
+- DB backups written by `bin/deploy` (`/var/backups/abies-{prod,dev}`).
 
 # Testing
 

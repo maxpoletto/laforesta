@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+# bin/deploy <dev|prod> [git-ref]
+#
+# Drives a deploy on vm-abies via docker context.
+#
+# dev:  ref optional. With a ref, performs fetch+checkout. Without, deploys the
+#       current working tree as-is (uncommitted changes are fair game).
+#
+# prod: ref required (tag or sha). Refuses to deploy with a dirty tree.
+#
+# The docker context name defaults to vm-abies; override with the
+# ABIES_DOCKER_CONTEXT env var. Create the context once with:
+#
+#   docker context create vm-abies --docker host=ssh://maxp@abies.laforesta.it
+
+set -euo pipefail
+
+usage() {
+  echo "usage: $(basename "$0") <dev|prod> [git-ref]" >&2
+  exit 1
+}
+
+instance="${1:-}"
+ref="${2:-}"
+[[ "$instance" == "dev" || "$instance" == "prod" ]] || usage
+
+cd "$(git rev-parse --show-toplevel)/abies"
+
+case "$instance" in
+  dev)
+    if [[ -n "$ref" ]]; then
+      git fetch --tags origin
+      git checkout "$ref"
+    fi
+    ;;
+  prod)
+    [[ -n "$ref" ]] || { echo "error: prod deploy requires explicit git ref (tag or sha)" >&2; exit 1; }
+    [[ -z "$(git status --porcelain)" ]] || {
+      echo "error: working tree has uncommitted changes; refusing prod deploy" >&2
+      exit 1
+    }
+    git fetch --tags origin
+    git checkout "$ref"
+    ;;
+esac
+
+context="${ABIES_DOCKER_CONTEXT:-vm-abies}"
+image="abies:${instance}"
+compose_file="compose/${instance}.yml"
+project="abies-${instance}"
+
+dc() { docker-compose --context "$context" -f "$compose_file" -p "$project" "$@"; }
+
+ts="$(date -u +%Y%m%dT%H%M%SZ)"
+
+# Skip backup on first deploy: nothing to back up yet, and `compose run`
+# would fail trying to pull the not-yet-built image.
+if docker --context "$context" image inspect "$image" >/dev/null 2>&1; then
+  echo "==> backup db.sqlite3 -> backup/db.sqlite3.${ts}"
+  dc run --rm abies python -c "
+import sqlite3
+src = sqlite3.connect('data/db.sqlite3')
+dst = sqlite3.connect('backup/db.sqlite3.${ts}')
+src.backup(dst)
+"
+else
+  echo "==> first deploy -- skipping backup"
+fi
+
+echo "==> build ${image}"
+dc build
+
+echo "==> stop"
+dc down --remove-orphans
+
+echo "==> migrate"
+dc run --rm abies python manage.py migrate --noinput
+
+echo "==> collectstatic"
+dc run --rm abies python manage.py collectstatic --noinput
+
+echo "==> start"
+dc up -d
+
+echo
+dc ps

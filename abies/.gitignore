@@ -20,3 +20,7 @@ staticfiles/
 oauth.txt
 claude-resume
 TODO.md
+
+# Real per-instance env files (the .example versions are the templates).
+compose/.env.prod
+compose/.env.dev

@@ -9,7 +9,8 @@ WORKDIR /app
 
 # --- Python deps (cached layer) ---------------------------------------------
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --root-user-action=ignore --disable-pip-version-check \
+        -r requirements.txt
 
 # --- App source -------------------------------------------------------------
 COPY . .
@@ -32,7 +33,10 @@ VOLUME ["/app/data", "/app/staticfiles"]
 
 EXPOSE 8000
 
-ENTRYPOINT ["/app/docker-entrypoint.sh"]
+# No ENTRYPOINT. Exec-form CMD runs directly when no args given (regular
+# `compose up` -> gunicorn); user-supplied args (`compose run abies python
+# manage.py migrate`) override CMD and run directly. Migrations and
+# collectstatic are orchestrated by bin/deploy, not on container start.
 CMD ["gunicorn", "config.wsgi:application", \
      "--bind", "0.0.0.0:8000", \
      "--workers", "2", \
