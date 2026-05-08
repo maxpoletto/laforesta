@@ -106,7 +106,13 @@ page, not here.
 - **Click** on a parcel: opens the **per-parcel page** as a
   full-screen overlay above the map (see "Per-parcel page" below).
   Closing the overlay restores the map exactly as it was.
-- **Click** on empty map space: dismisses any selection.
+- **Click** on empty map space (no parcel underneath): opens the
+  **per-region page** for the currently selected region (the same
+  layout as the per-parcel page, scoped one level up — see below).
+  This is the only entry point to the per-region view, so the gesture
+  is documented unobtrusively in the sidebar (small-print hint under
+  the region pulldown: "Clicca su una particella per i dettagli, o
+  fuori dalle particelle per il riepilogo della regione").
 
 ### Mode panels
 
@@ -155,20 +161,22 @@ page, not here.
   Click on an existing PAI dot opens a popover with species, year,
   parcel, lat/lng; writers see a pencil and garbage icon.
 
-## Per-parcel page
+## Per-parcel and per-region page
 
-Reached by clicking a parcel on the map.  Rendered as a full-screen
-overlay above the map; dismissable with Escape, the back button, or a
-close button at the top right.  The page is bookmarkable (the URL
-encodes the parcel id) so it can be shared directly.
+Reached by clicking a parcel on the map (per-parcel) or by clicking
+empty map space outside any parcel (per-region; uses the currently
+selected region from the pulldown).  Rendered as a full-screen
+overlay above the map; dismissable with Escape, the back button, or
+a close button at the top right.  The page is bookmarkable (the URL
+encodes the scope) so it can be shared directly.
 
-The same layout serves a per-region view, reached by clicking the
-"info regione" button next to the region pulldown — useful because
-many dendrometric stats (volume/ha, basimetric area/ha, increment)
-are more meaningful at region level than at parcel level.  A small
-breadcrumb at the top of the page indicates scope (regione | regione
-+ particella) and lets the user toggle up to the region-aggregate
-view from a parcel page.
+Both scopes use the same layout — the per-region view is useful
+because many dendrometric stats (volume/ha, basimetric area/ha,
+increment) are more meaningful at region level than at parcel level.
+A small breadcrumb at the top of the page indicates scope (regione |
+regione + particella); from a per-parcel view the breadcrumb's
+"regione" segment is clickable and opens the per-region overlay for
+the parcel's region.
 
 The page is a single scrollable column of collapsible sections,
 following the standard Abies idiom:
