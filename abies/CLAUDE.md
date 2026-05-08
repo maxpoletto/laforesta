@@ -234,13 +234,19 @@ The shell is rendered once and never reloads during normal use.
 
 The header is adaptive for desktop and mobile. On narrow displays it contains only:
 - The logo of the company.
-- The name of the currently active domain (Bosco, Prelievi, Segheria, Biomassa,
-  Fotovoltaico, Rifornimenti, Controllo, Impostazioni)
+- The name of the currently active domain.
 - A hamburger icon for a menu that allows switching to other domains.
 
 On wider displays it contains:
 - The logo and name of the company.
 - The names of the domains as tabs, with the currently active domain highlighted.
+
+The full v1 tab order, left to right, is:
+
+  Bosco · Piano di taglio · Campionamenti · Prelievi · Controllo · Impostazioni
+
+Future domains (Segheria, Biomassa, Fotovoltaico, Rifornimenti) will slot in
+between Prelievi and Controllo when they ship.
 - No hamburger icon.
 
 The header is fixed in the viewport. Content scrolls beneath it.
