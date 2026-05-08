@@ -5,9 +5,16 @@ The prelievi page supports recording and display of harvesting operations.
 - Path: /prelievi
 - Query parameters:
   - Year range: `y1=YYYY`, `y2=YYYY` (date slider bounds)
+  - Region: `c=<region name>` — restricts the displayed set to one
+    region (compresa).  URL-encoded; matches `Region.name` exactly.
+  - Particella: `pa=<particella name>` — restricts further to one
+    parcel within the region.  Requires `c=` to disambiguate, since
+    particella names are only unique within a region.  Ignored if
+    `c=` is absent.
   - Sort column: `sc=N`
   - Sort order: `so=0/1` (ascending/descending)
-  - Filter: `f=...` (URL-encoded sortable-table search string)
+  - Filter: `f=...` (URL-encoded sortable-table search string,
+    applied on top of the `c=` / `pa=` scope).
   - Open collapsible sections: `o=...`, a concatenation of single-char
     tokens identifying which sections are expanded.  Tokens: `a` =
     Produzione chart, `b` = Specie-per-particella chart, `i` = Interventi
@@ -16,6 +23,14 @@ The prelievi page supports recording and display of harvesting operations.
   - Production chart breakdown: `b=total|compresa|particella|squadra|specie|trattore|tipo`
     (absent = `total`).
   - Production chart monthly granularity: `m=1` (absent = year granularity).
+
+`c=` and `pa=` exist primarily to support unambiguous cross-page
+links from Piano di taglio (status-chip click) and Bosco (per-parcel
+"Produzione storica" → Prelievi).  They behave as a hard scope: rows
+outside the (region, particella) are excluded from both the table
+and the chart sections, just as if the user had typed an exact
+match into the search box, but without the false-positive risk of
+substring matches on a homonymous particella in another region.
 
 ## Visual appearance
 

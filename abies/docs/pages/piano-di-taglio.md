@@ -173,9 +173,9 @@ transient UI state, not encoded in the URL.
 ### Cross-page link patterns
 
 - *raccolto* / *raccolto (parz.)* status chip in Calendario →
-  `/prelievi?y1=YYYY&y2=YYYY&f=<region>%20<particella>`: a search
-  string matching the plan item plus the year slider clamped to that
-  year.
+  `/prelievi?c=<region>&pa=<particella>&y1=YYYY&y2=YYYY`: hard scope
+  to the plan item's parcel and clamp the year slider to that year.
+  See `prelievi.md` for the semantics of `c=` and `pa=`.
 - Particella cells in sections 1 and 2 → Bosco per-parcel page (URL
   parameters defined under `bosco.md`).
 
