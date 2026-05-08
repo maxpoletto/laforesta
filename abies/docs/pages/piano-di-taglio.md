@@ -148,7 +148,36 @@ range shows a confirmation prompt before overwriting.
 
 ## URL parameters
 
-TBD — defer until UX is settled.
+- Path: `/piano-di-taglio`
+- Query parameters:
+  - `p=N`: id of the active plan.  Absent → the plan whose
+    `[year_start, year_end]` covers today; if no plan covers today,
+    the plan with the most recent `year_end`.
+  - `o=...`: which sections are expanded — a string concatenation of
+    single-char tokens (order irrelevant).  Tokens: `c` = Calendario,
+    `m` = Martellate, `t` = Alberi martellati.  Absent → default
+    (`c`).  Explicit empty (`?o=`) → all closed.
+  - `mk=N`: id of the selected mark in section 2 (drives section 3).
+    When set, section 3 is forced open regardless of `o=`.
+  - Per-section sortable-table state, prefixed by section letter:
+    - `cf=` / `mf=` / `tf=`: URL-encoded search-box filter.
+    - `csc=N` / `msc=N` / `tsc=N`: sort column index.
+    - `cso=0|1` / `mso=0|1` / `tso=0|1`: sort order (0 = ascending,
+      1 = descending).
+    Defaults: Calendario sorted by year, then region+particella;
+    Martellate by date descending; Alberi martellati by D descending.
+
+Inline plan-item row expansion in Calendario (mark detail) is
+transient UI state, not encoded in the URL.
+
+### Cross-page link patterns
+
+- *raccolto* / *raccolto (parz.)* status chip in Calendario →
+  `/prelievi?y1=YYYY&y2=YYYY&f=<region>%20<particella>`: a search
+  string matching the plan item plus the year slider clamped to that
+  year.
+- Particella cells in sections 1 and 2 → Bosco per-parcel page (URL
+  parameters defined under `bosco.md`).
 
 ## Data tables
 
