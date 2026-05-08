@@ -18,17 +18,15 @@ calendar shows them with a distinct status (see below).
 
 ## Visual layout
 
-A top filter bar hosts:
-
-- "Anni" double-ended year slider (filters all three sections).
-- "Filtra" search box.
-- "Azzera filtri" reset button.
-- "Esporta CSV" export.
-
-To the right of the filter bar, a "Piano" pulldown selects the active
-plan (relevant if multiple historical plans coexist; defaults to the
-plan whose `[year_start, year_end]` covers today).  All three sections
+A top bar hosts a "Piano" pulldown that selects the active plan
+(relevant if multiple historical plans coexist; defaults to the plan
+whose `[year_start, year_end]` covers today).  All three sections
 operate in the context of the selected plan.
+
+There is no page-level filter bar: a plan already bounds the time
+range to ~15 years, and each section that benefits from search has
+its own inline search box and CSV export per the standard
+sortable-table idiom in `CLAUDE.md`.
 
 Below the filter bar sit three collapsible sections separated by
 dark-green 4 px horizontal rules:
