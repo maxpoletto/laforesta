@@ -81,11 +81,14 @@ fills the viewport; the navbar on the right hosts (top to bottom):
 2. **Survey** ("Rilevamenti") pulldown — selects the active `survey` (see
    `campionamenti.md`).  This is a page-level filter that drives every view
    reading sample-derived data: the per-parcel page's *Dendrometria* section and
-   the dendrometric entries in the *Caratteristiche* metric pulldown. Defaults
-   to the most recent survey overall.  When the active survey's grid does not
-   cover the currently selected region (or a clicked parcel within it),
-   dendrometric views show an empty state ("Nessun dato per questa selezione")
-   and prompt the user to pick a different survey.  Modes that do not read
+   the dendrometric entries in the *Caratteristiche* metric pulldown.  Default
+   selection is the most recent survey *whose grid touches the currently
+   selected region*; if the user later switches region, the survey selection is
+   re-evaluated against the new region the same way (and updated only if the
+   prior choice doesn't touch the new region — preserving an explicit override
+   when it still applies).  If no survey's grid touches the region, falls
+   through to the most recent survey overall, and dendrometric views show an
+   empty state ("Nessun dato per questa selezione").  Modes that do not read
    sample data (*Evoluzione*, *PAI*) ignore the selector but it remains visible
    for stability.
 3. **Mode** radio group (this page's primary control):
