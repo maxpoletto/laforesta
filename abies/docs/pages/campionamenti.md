@@ -79,9 +79,9 @@ clarifies the distinction.
 
 Map interactions:
 
-- **Hover** on a sample area: a small tooltip shows just the region and parcel
-  and `numero` of area di campionamento (e.g., `Serra 2a / adc 17`). Kept terse to avoid noise during
-  navigation.
+- **Hover** on a sample area: a small tooltip shows just the region, parcel,
+  and `numero` of the area di campionamento (e.g., `Serra 2a / adc 17`). Kept
+  terse to avoid noise during navigation.
 - **Click** on an existing sample area: opens a popover with the full per-area
   fields (parcel, numero, lat, lng, quota, raggio, note). Writers also see
   pencil and garbage icons in the popover.
@@ -149,9 +149,11 @@ primo campione, data ultimo campione.
 Selecting a survey displays all its corresponding trees in Section 3 (see
 below).
 
-The "Esporta CSV" button at the top right exports the active samples trees in
-the same column shape as the import flow (see "Tree-and-sample CSV import"
-below).
+The "Esporta CSV" button at the top right exports the active survey's full set
+of trees in the same column shape as the import flow (see "Tree-and-sample CSV
+import" below) — useful for round-tripping the whole survey. Section 3 has its
+own separate "Esporta CSV" that exports only the currently displayed subset
+(after the section's search filter and any area-click narrowing).
 
 The "Nuovo rilevamento" button opens a full-page modal with two creation paths:
 
@@ -165,6 +167,10 @@ radius. Visited sample areas are in one color (abies palette dark green),
 unvisited ones are in another (abies palette light green). After creating an
 empty survey via "Crea vuoto" above, all grid dots on the map are in the
 unvisited color, of course.
+
+When no survey is selected (e.g., immediately after page load before a default
+is picked, or after the user explicitly clears the pulldown), the map is empty
+and Section 3 shows its empty state.
 
 Map interactions:
 
@@ -188,8 +194,11 @@ every sampled tree in the database.
 With an active survey, shows all trees from that survey's samples.
 
 With an active survey and sample area, narrows to that area's trees within that
-survey. Also shows the date of the survey (editable), which defaults to today if
-blank.
+survey. The header above the table also shows the date of the *sample* for that
+area in that survey (editable inline; defaults to today if the sample row had no
+date set). Date edits are simple metadata changes — they go through the
+standard form-intercept path and don't trigger the warning + forced-CSV-export
+flow used for destructive cascade operations.
 
 Columns: comprea, particella, area di campionamento, n. albero
 (`tree_sample.number`), specie, tipo (fustaia / ceduo), pollone, matricina, D
@@ -286,8 +295,10 @@ If fustaia is not checked, the D, h, and L10 fields are indented and refer to
 individual shoots. The indented block looks like:
     [numero pollone] [matricina (checkbox, default off)] [D] [h] [L10]
     [aggiungi pollone button]
-The first such entry has numero pollone = 1, not editable.
-`Aggiungi pollone` adds a new row with numero = 2, and so on.
+The numero pollone is non-editable. Its starting value is 1 for a brand-new
+tree, or `max(existing tree_sample.shoot for this tree across all samples) + 1`
+when the operator picked an existing tree from the pulldown. `Aggiungi pollone`
+adds a further row with the next sequential number.
 
 At the bottom of the form are "Salva" / "Salva e aggiungi" submit buttons, the
 latter for batch entry of consecutive trees in the same sample, styled
@@ -336,7 +347,7 @@ field notes).
 ## Cross-page links
 
 - Any particella reference on this page (the area popover in section
-  1, the new-area form, table cells in section 4) links to the Bosco
+  1, the new-area form, table cells in section 3) links to the Bosco
   per-parcel page for that parcel.
 - The per-parcel page on Bosco shows recent surveys touching that
   parcel and links back here pre-filtered to the relevant survey.
