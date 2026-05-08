@@ -1,6 +1,6 @@
 # Audit page ("Controllo")
 
-Path: /abies/controllo
+Path: /controllo
 
 This page is visible to all users.
 

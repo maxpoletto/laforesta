@@ -53,7 +53,7 @@ lives on the Campionamenti page.
 
 TODO: Needs to be updated.
 
-- Path: /abies/bosco
+- Path: /bosco
 - Query parameters:
   - Map type (mt={o,t,s} (OSM, Topo, Sat))
   - Map center (Lat/lng) (mc=NN.NNNNNN,NN.NNNNNN)

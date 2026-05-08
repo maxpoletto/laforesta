@@ -1,6 +1,6 @@
 # Settings page ("Impostazioni")
 
-Path: /abies/impostazioni
+Path: /impostazioni
 
 The settings page contains several collapsible sections separated by horizontal
 rules. All sections are collapsed by default. Not all sections are visible to

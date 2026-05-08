@@ -2,7 +2,7 @@
 
 The prelievi page supports recording and display of harvesting operations.
 
-- Path: /abies/prelievi
+- Path: /prelievi
 - Query parameters:
   - Year range: `y1=YYYY`, `y2=YYYY` (date slider bounds)
   - Sort column: `sc=N`
