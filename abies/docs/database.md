@@ -136,6 +136,7 @@ of either dataset should treat them as independent observations.
       parameter in coppice forest management.)
   - number is a 1-based externally assigned counter of trees within a sample.
   - l10_mm denotes the width, in mm, of the outer ten rings of the sampled tree.
+    Not all trees are cored, so this may be 0 -> no measurement.
   - Decoupling trees from tree samples allows us to monitor tree growth over
     time.
 
