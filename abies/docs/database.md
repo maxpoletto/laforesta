@@ -97,6 +97,23 @@ of either dataset should treat them as independent observations.
   harvest_detail_id:int) — PK is (harvest_plan_id, parcel_id)
   - Maps a harvest detail to a parcel within a plan.
 
+- tree_height_regression: (harvest_plan_id:int, region_id:int, species_id:int,
+  function:string, a:real, b:real, r2:real, n:int) — PK is (harvest_plan_id,
+  region_id, species_id)
+  - Per-(plan, region, species) ipsometric regression coefficients used to
+    auto-populate `h_m` in the mark entry form (see `piano-di-taglio.md`).
+    Each plan cycle re-fits these from fresh sample data, so they are scoped
+    to a plan rather than shared across plans.
+  - `function` is the regression family (currently always `"ln"` — i.e.,
+    `h = a × ln(D) + b`; see `LogarithmicRegression` in
+    `pdg-2026/pdg/computation.py`).
+  - `r2` and `n` (sample count) are stored for diagnostic display, not used
+    in computation.
+  - Imported alongside the harvest plan CSV under Impostazioni →
+    "Importa piano di taglio". A missing (region, species) entry is not an
+    error: the mark form simply leaves `h_m` blank for the operator to
+    enter manually (see `piano-di-taglio.md`).
+
 ## Operations on specific trees
 
 ### Surveys and samples
@@ -124,10 +141,12 @@ of either dataset should treat them as independent observations.
     enforced both in the app (Django validation) and at the schema level
     (SQLite triggers on INSERT and UPDATE of `sample`).
 
-- tree_sample: (sample_id:int, tree_id:int, shoot:int, standard:bool,
-  number:int, d_cm:int, h_m:int, l10_mm:int)
-  - Denotes the findings about a particular tree during a particular sample. PK
-    is (sample_id, tree_id, shoot).
+- tree_sample: (id:int, sample_id:int, tree_id:int, shoot:int, standard:bool,
+  number:int, d_cm:int, h_m:int, l10_mm:int, volume_m3:real nullable,
+  mass_q:real nullable)
+  - Denotes the findings about a particular tree during a particular sample.
+    PK is the synthetic `id`; `UNIQUE(sample_id, tree_id, shoot)` enforces
+    the natural key.
   - Two of the fields relate to coppices:
     - `shoot` is a sequential 1-based counter identifying shoots from a single
       coppice stump (identified by tree_id). 0 for non-coppice.
@@ -139,6 +158,11 @@ of either dataset should treat them as independent observations.
   - number is a 1-based externally assigned counter of trees within a sample.
   - l10_mm denotes the width, in mm, of the outer ten rings of the sampled tree.
     Not all trees are cored, so this may be 0 -> no measurement.
+  - `volume_m3` is computed from (d_cm, h_m, species) via Tabacchi equations
+    at write time (see `pdg-2026/pdg/computation.py`).  `mass_q` is
+    `volume_m3 × species.density`.  Both are NULL for coppice rows
+    (`tree.coppice = true`): coppice harvests are mass-based at the parcel
+    level, not per-tree, so per-shoot volume estimates are not meaningful.
   - Decoupling trees from tree samples allows us to monitor tree growth over
     time.
 
@@ -173,10 +197,19 @@ parcels; they do not apply to coppice forests.
     associated with an entire harvest plan via harvest_plan_id. Each sample
     belongs to a survey rather than directly to a plan.
 
-- tree_mark: (mark_id:int, tree_id:int, d_cm:int, h_m:int)
-  - A (high-forest) tree being marked for felling. Primary key (mark_id,
-    tree_id).
+- tree_mark: (id:int, mark_id:int, tree_id:int, d_cm:int, h_m:int,
+  h_measured:bool, volume_m3:real, mass_q:real)
+  - A (high-forest) tree being marked for felling. PK is the synthetic
+    `id`; `UNIQUE(mark_id, tree_id)` enforces the natural key.
   - Diameter (in cm) and height (in m) indicate size at time of marking.
+  - `h_measured` records whether `h_m` came from a hypsometer measurement
+    in the field (true) or from the per-(plan, region, species) ipsometric
+    regression (false).  During mark entry, `h_m` is auto-populated from the
+    regression (see `tree_height_regression` below) and the operator may
+    override; saving an override sets `h_measured = true`.
+  - `volume_m3` is computed from (d_cm, h_m, species) via Tabacchi equations
+    at write time.  `mass_q` is `volume_m3 × species.density`.  Both are
+    always non-null since marks only exist in high-forest parcels.
   - Currently, recording a marked tree always creates a new `tree` row; deleting
     a mark cascades to its `tree_mark` rows and to those `tree` rows. This
     means that the `tree_id` FK on a marked tree is, in practice, not a
@@ -246,10 +279,13 @@ Most of these are configurable in the Settings section.
   - Represents a team of workers, e.g., a group of lumberjacks.
 
 - species: (id:int, common_name:string, latin_name:string, sort_order:int,
-  active:bool)
+  density:real, active:bool)
   - Represents a tree species.
   - sort_order controls display ordering everywhere species appear. Catch-all
     entries like "Altro" use a high value (999) to sort last.
+  - `density` is wood density in q/m³ (quintals per cubic meter; typical range
+    5–9). Used to derive per-tree mass `m = volume_m3 × density` for both
+    samples and marks.
 
 - product: (id:int, name:string)
   - Implements an extensible enum of harvested product types: (1: "Tronchi", 2:

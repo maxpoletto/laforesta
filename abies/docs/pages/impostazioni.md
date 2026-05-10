@@ -39,7 +39,8 @@ fields that the corresponding input modal provides):
 
 - Tractors: manufacturer, model, year.
 
-- Trees: common name, Latin name.
+- Trees: common name, Latin name, density (q/m³ — see `database.md`;
+  used to derive per-tree mass for samples and marks).
 
 ## App users
 

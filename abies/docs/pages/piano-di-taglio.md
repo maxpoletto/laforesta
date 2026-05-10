@@ -113,8 +113,32 @@ batch tree-marking for that mark.
 With a mark selected, click "+" in section 3.  Form:
 
 - Specie (pulldown).
-- D (cm), h (m).
+- D (cm) — required.
+- h (m) — auto-populated from the per-(plan, region, species)
+  ipsometric regression (`tree_height_regression`) as soon as Specie
+  and D are set, using `h = a × ln(D) + b`.  The field stays editable;
+  the operator types over the suggestion if they actually measured
+  height in the field.  If no regression entry exists for this triple,
+  the field is left blank and the operator must enter h manually
+  (form invalid until they do).
 - Lat/lng (shared lat-lng component — see Campionamenti).
+
+Below the inputs, a read-only gray-italic summary line shows
+`V = X.XX m³ · m = X.X q`, recomputed live as Specie / D / h change.
+V is computed via the species-specific Tabacchi formula (JS only, with
+parameters from `pdg-2026/pdg/computation.py`); m is `V ×
+species.density` (loaded from `species.json` — see "Data tables" on
+`campionamenti.md`).
+
+On submit the request body carries D, h, V, m, lat/lng, and a
+`h_measured` flag.  `h_measured` is set to true if the operator
+edited h after the regression auto-fill (or filled it from blank);
+false if the auto-filled value was accepted as-is.  The server
+validates ranges (D > 0, h > 0, V > 0, m > 0) and stores the
+client-provided V and m without recomputing.  The plan's regression
+table is consulted only by the JS preview path; the server does not
+re-evaluate it on submit, so any regression update after a mark is
+created does not retroactively change recorded marks.
 
 Recording a marked tree always creates a new `tree` row alongside the
 `tree_mark` row.  The schema in principle allows linking a marked tree to a
@@ -141,10 +165,24 @@ mark cascades to its `tree_mark` rows *and* to the corresponding `tree` rows
 ## Plan import
 
 Performed under Impostazioni → "Importa piano di taglio" (admin
-only).  Form takes a CSV (matching `pdg.py` output format) and an
-optional friendly name.  Import is transactional: either the whole
-plan is created or none of it.  Re-importing the same plan year
-range shows a confirmation prompt before overwriting.
+only).  The form takes:
+
+- The plan CSV (matching `pdg.py` output format) — produces
+  `harvest_plan`, `harvest_plan_item`, `harvest_detail`, and
+  `parcel_plan_detail` rows.
+- The ipsometric regression CSV (matching the shape of
+  `bosco/data/equazioni_ipsometro.csv`: `compresa, genere, funzione,
+  a, b, r2, n`) — produces `tree_height_regression` rows scoped to the
+  plan being imported.
+- An optional friendly name and description.
+
+Import is transactional across both files: either the whole plan
+(items + regressions) is created or none of it.  Re-importing the
+same plan year range shows a confirmation prompt before overwriting.
+
+Missing regression rows are not an error — gaps surface only at
+mark-entry time (the form forces manual h entry, see "New marked
+tree" above).
 
 ## URL parameters
 
@@ -181,8 +219,9 @@ transient UI state, not encoded in the URL.
 
 ## Data tables
 
-Four digests serve this page; all four are loaded on first navigation,
+Five digests serve this page; all are loaded on first navigation,
 and all subsequent filtering/searching/selection is purely client-side.
+A sixth digest (`species.json`) is reused from `campionamenti.md`.
 
 ### `harvest_plans.json`
 
@@ -232,10 +271,12 @@ client can join back to the calendar inline-expansion view.  `Anno piano`
 is the year drawn from the linked plan item — usually equal to the year
 of `Data`, but exceptions are allowed (and highlighted in the UI).
 
-`Massa stimata (q)` = sum, across the mark's `tree_mark` rows, of
-species-specific `volume_m3 × density`, expressed in quintals.  Volume is
-computed via the same taper functions used in `pdg-2026`.  Materialization
-plus staleness-flag invalidation mirrors the `prelievi.json` precedent.
+`Massa stimata (q)` = sum of `tree_mark.mass_q` across the mark's
+trees.  Per-tree `mass_q` is stored on the row at write time (see
+`database.md`), so the digest just sums them — no per-row Tabacchi
+recompute, no density lookup at digest-generation time.
+Materialization plus staleness-flag invalidation mirrors the
+`prelievi.json` precedent.
 
 ### `mark_trees.json`
 
@@ -244,8 +285,13 @@ the database; the client filters by `Mark` to the currently selected
 mark.  Invalidated on `tree_mark` writes.
 
 Columns: `row_id`, `version`, `Mark`, `Specie`, `D (cm)`, `h (m)`,
-`Volume (m³)`, `Lat`, `Lng`.  Sorted by `D` descending within each
-`Mark` group.
+`h misurata`, `V (m³)`, `m (q)`, `Lat`, `Lng`.  Sorted by `D` descending
+within each `Mark` group.
+
+`h misurata` carries the boolean `h_measured` — useful for downstream
+quality assessments (proportion of measured-vs-inferred heights per
+mark).  Section 3 surfaces it as a small chip next to h (e.g., a filled
+dot when measured, an outlined dot when inferred).
 
 Preserved trees (`tree.preserved = true`) are excluded by construction
 — see `database.md` for the invariant — so no client-side filtering on
@@ -258,13 +304,16 @@ alternative is one digest per mark (`mark_trees_<id>.json`) lazily
 fetched on Section 2 row-selection and cached client-side per mark.
 Keep the current shape until row counts justify the change.
 
-### Open question — synthetic id on `tree_mark`
+### `tree_height_regressions.json`
 
-`tree_mark` currently has a compound primary key `(mark_id, tree_id)`
-and no synthetic `id`.  Abies's standard digest+cache+POST cycle uses
-an integer `row_id` per row (see CLAUDE.md "Data entry and cache
-updates").  The cleanest fix is to add an auto-increment `id` to
-`tree_mark` (PK becomes `id`; `UNIQUE(mark_id, tree_id)` preserves the
-existing invariant).  The same question applies to `tree_sample` — see
-`campionamenti.md`'s digest section when we get there.  Decide at
-schema-migration time; update `database.md` accordingly.
+Per-(plan, region, species) ipsometric regression coefficients,
+consumed by the JS new-mark form to auto-populate `h_m` from D.
+Invalidated on `tree_height_regression` writes (essentially: on plan
+import).
+
+Columns: `row_id`, `version`, `Piano`, `Compresa`, `Genere`, `Funzione`,
+`a`, `b`, `r2`, `n`.  No natural sort order; the client builds a lookup
+keyed by `(Piano, Compresa, Genere)`.
+
+Tiny by construction (~ regions × species × plans = a few hundred rows at most),
+so loading it eagerly on page entry (and then caching it) is cheap.

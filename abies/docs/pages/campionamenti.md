@@ -200,9 +200,12 @@ date set). Date edits are simple metadata changes — they go through the
 standard form-intercept path and don't trigger the warning + forced-CSV-export
 flow used for destructive cascade operations.
 
-Columns: comprea, particella, area di campionamento, n. albero
+Columns: compresa, particella, area di campionamento, n. albero
 (`tree_sample.number`), specie, tipo (fustaia / ceduo), pollone, matricina, D
-(cm), h (m), L10 (mm), PAI.
+(cm), h (m), L10 (mm), V (m³), m (q), PAI.
+
+V (m³) and m (q) are blank for ceduo rows (no per-shoot volume estimates —
+see `database.md`).
 
 Writers see "+ Aggiungi", pencil, garbage. The "+" is enabled when both a survey
 and sample area are selected in section 2. It opens the manual tree-entry flow
@@ -238,10 +241,16 @@ Required columns: `Compresa`, `Particella`, `Area saggio`, `Albero` (→
 `tree_sample.standard`), `D_cm`, `H_m`, `L10_mm`, `Genere` (→ species),
 `Fustaia` (bool; `Fustaia=false` → `tree.coppice=true`). Importer aborts with a
 helpful message if any of these fields is missing. However, on a per-row level,
-it is ok for L10_mm to be 0 (not all trees are cored).
+it is ok for `L10_mm` to be 0 (not all trees are cored).
 
 Optional columns: `Data` (→ `sample.date`), `PAI` (bool, →
 `tree.preserved`).
+
+`V_m3` is computed at import time based on `D_cm`, `H_m`, and species-specific
+Tabacchi parameters (can reuse Python logic in `pdg-2026`).
+
+`mass_q` is then computed as `V_m3 × species.density` for fustaia rows; left
+NULL for coppice rows.
 
 Flow:
 1. Writer selects the target survey.
@@ -280,6 +289,15 @@ Editable fields:
 - Lat/lng of the individual tree (optional — shared component;
   defaults to the sample-area center).
 - Pianta ad accrescimento indefinito (checkbox)
+
+For fustaia rows, below the D and h inputs the form shows a small,
+read-only summary in gray italic text — `V = X.XX m³ · m = X.X q` —
+recomputed live as D, h, or specie change.  V is computed via the
+species-specific Tabacchi formula (JS-only, see `pdg-2026/pdg/
+computation.py` for the parameter source); m is `V × species.density`
+(density loaded from `species.json` — see "Data tables" below).
+For ceduo rows (per-shoot block), the V/m line is hidden — coppice
+samples do not carry per-shoot volume estimates.
 
 The "numero albero" pulldown has the following entries:
 - The top entry is "nuovo albero", in which case the tree is assigned a new
@@ -367,7 +385,12 @@ TBD — defer. Likely:
 - `surveys.json`: list of surveys with completeness counts.
 - `sample_areas.json`: as on Bosco.
 - `sampled_trees.json`: denormalized tree+tree_sample+sample for
-  table rendering.
+  table rendering, including materialized `V (m³)` and `m (q)` (NULL
+  for ceduo rows).
+- `species.json`: small lookup digest (id, common_name, latin_name,
+  density, sort_order, active) — also used by the live V/m preview
+  in this page's manual entry form and by the equivalent on Piano di
+  taglio.  Invalidated on `species` writes.
 
 ## Knock-on changes
 
