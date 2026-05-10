@@ -380,22 +380,147 @@ field notes).
 
 ## URL parameters
 
-TBD — defer until the rest of the UX is settled.
+- Path: `/campionamenti`
+- Query parameters:
+  - `o=...`: which sections are expanded — single-char tokens, order
+    irrelevant.  Tokens: `g` = Griglie, `r` = Rilevamenti, `t` =
+    Alberi campionati.  Absent → default (`r`); explicit empty
+    (`?o=`) → all closed.
+  - `g=N`: id of the active grid in section 1.  Absent or pointing
+    at a deleted grid → most recently updated grid (or empty state
+    if none exist).
+  - `s=N`: id of the active survey in section 2.  Drives section 3.
+    Absent or pointing at a deleted survey → most recently active
+    survey (or empty state if none exist).
+  - `a=N`: id of the active sample area within the active survey
+    (set by clicking an area on section 2's map).  Narrows section
+    3 to that area's trees and surfaces the sample date inline.
+    Silently cleared if the URL's `a=N` does not belong to the
+    active survey's grid (handles stale shares).
+  - Section 3 sortable-table state:
+    - `tf=...`: URL-encoded search-box filter.
+    - `tsc=N`: sort column index.
+    - `tso=0|1`: sort order (0 = ascending, 1 = descending).
+    Default sort: by Compresa, Particella, n. area, n. albero,
+    pollone (natural reading order).
+  - `mt=o|t|s`: shared map type for both maps (Section 1 and
+    Section 2).  Defaults to `s` (Satellite).
+
+Map center and zoom are *not* encoded — both maps auto-fit to the
+active grid (Section 1) / active survey's grid (Section 2) on every
+render, and pan/zoom is treated as transient view state.  This keeps
+URLs short and avoids the "shared link reproduces a stale viewport"
+trap.
+
+The active grid (`g=`) and active survey (`s=`) are independent
+controls: they can point at different grids without contradiction.
+Section 3 only depends on `s=` and `a=` — `g=` does not narrow it.
 
 ## Data tables
 
-TBD — defer. Likely:
+Six digests serve this page.  Four are eagerly loaded on first
+navigation (small, drive the always-visible Section 2 map and the
+pulldowns); one is lazily loaded per active survey when Section 3
+expands; one is shared with Piano di taglio.
 
-- `grids.json`: list of grids with sample-area counts, regions covered.
-- `surveys.json`: list of surveys with completeness counts.
-- `sample_areas.json`: as on Bosco.
-- `sampled_trees.json`: denormalized tree+tree_sample+sample for
-  table rendering, including materialized `V (m³)` and `m (q)` (NULL
-  for ceduo rows).
-- `species.json`: small lookup digest (id, common_name, latin_name,
-  density, sort_order, active) — also used by the live V/m preview
-  in this page's manual entry form and by the equivalent on Piano di
-  taglio.  Invalidated on `species` writes.
+### `grids.json`
+
+Drives the Section 1 pulldown and active-grid summary line.
+Eager-loaded only when Section 1 opens (Section 1 is closed by
+default).  Invalidated on `sample_grid` and `sample_area` writes.
+
+Columns: `row_id`, `version`, `Nome`, `Descrizione`, `N. aree`,
+`Comprese`, `N. rilevamenti`, `Ultimo aggiornamento`.  Sorted by
+`Ultimo aggiornamento` descending.
+
+`Comprese` is a comma-separated string of distinct region names
+covered by the grid's areas.  `N. rilevamenti` is `COUNT(survey
+WHERE sample_grid_id = this.id)`.  `Ultimo aggiornamento` is
+`max(sample_grid.modified_at, max sample_area.modified_at within
+the grid)`.
+
+### `surveys.json`
+
+Drives the Section 2 pulldown and active-survey summary line.
+Eager-loaded.  Invalidated on `survey`, `sample`, and `sample_area`
+writes.
+
+Columns: `row_id`, `version`, `Nome`, `Descrizione`, `Griglia`
+(grid id), `Piano di taglio` (plan id, nullable), `N. aree visitate`,
+`N. aree totali`, `Data primo`, `Data ultimo`.  Sorted by `Data
+ultimo` descending (most recently active first), falling back to
+`created_at` for surveys without samples yet.
+
+`N. aree visitate` is `COUNT(DISTINCT sample.sample_area_id WHERE
+survey_id = this.id)`.  `N. aree totali` is the size of the survey's
+grid (`COUNT(sample_area WHERE sample_grid_id = survey.sample_grid_id)`).
+Grid name and plan name are looked up client-side via `grids.json` and
+the plan list; not denormalized here to keep invalidation narrow.
+
+### `sample_areas.json`
+
+All sample-area rows across all grids.  Eager-loaded; the client
+filters by active grid (Section 1) or by the active survey's grid
+(Section 2).  Invalidated on `sample_area` writes.
+
+Columns: `row_id`, `version`, `Griglia` (sample_grid_id), `Compresa`,
+`Particella`, `Numero`, `Lat`, `Lng`, `Quota`, `Raggio`, `Note`.
+
+### `samples.json`
+
+All `sample` rows.  Drives Section 2's visited/unvisited map coloring,
+the per-area "n. alberi" hover tooltip, and the inline sample-date
+display in Section 3.  Eager-loaded.  Invalidated on `sample` writes
+and on `tree_sample` writes (since `N. alberi` is materialized).
+
+Columns: `row_id`, `version`, `Survey`, `Sample area`, `Data`,
+`N. alberi`.
+
+`N. alberi` is `COUNT(tree_sample WHERE sample_id = this.id)`,
+materialized so the Section 2 hover tooltip can render without
+loading the heavy per-survey tree digest.
+
+### `sampled_trees_<survey_id>.json` (lazy, per survey)
+
+One digest per survey, denormalized for Section 3.  Lazily fetched
+the first time a given `s=<id>` enters scope (either via URL on page
+entry or via Section 2 pulldown change), and cached client-side per
+survey for the rest of the session.  Invalidated on `tree_sample`
+writes whose sample's survey matches.
+
+Columns: `row_id`, `version`, `Sample area`, `Data campione`,
+`Compresa`, `Particella`, `N. area`, `N. albero`, `Specie`, `Tipo`,
+`Pollone`, `Matricina`, `D (cm)`, `h (m)`, `L10 (mm)`, `V (m³)`,
+`m (q)`, `PAI`, `Lat`, `Lng`.  Sort: by `Compresa`, `Particella`,
+`N. area`, `N. albero`, `Pollone`.
+
+`row_id` = `tree_sample.id` (the synthetic id, see `database.md`).
+`Tipo` is `"fustaia"` or `"ceduo"`, derived from `tree.coppice`.
+`V (m³)` and `m (q)` are NULL for ceduo rows (per `database.md`
+invariant).  `Lat`, `Lng` come from `tree.lat/lng` if set, else fall
+back to the sample-area center.  `Data campione` is `sample.date`
+(useful for cross-tab tracking even when Section 3 isn't narrowed
+to a single area).
+
+This digest is shared between the page's Section 3 sortable-table
+*and* its CSV export from Section 3 / Section 2 (the latter via the
+"export the active survey's full set of trees" button — same data,
+the section-2 export bypasses the section-3 search filter).
+
+Bosco's per-parcel Dendrometria charts read a different digest
+(`parcel_dendrometry.json` — pre-aggregated, not per-tree); they do
+not consume `sampled_trees_<survey_id>.json`.
+
+### `species.json`
+
+Shared with Piano di taglio (mark form).  Small lookup digest
+(`row_id`, `version`, `Nome`, `Nome latino`, `Densità (q/m³)`,
+`Sort order`, `Attiva`) used by:
+- the live V/m preview in this page's manual entry form;
+- the live V/m preview in Piano di taglio's mark form;
+- digest-generation joins for `marks.json` and any other materialized
+  mass total derived from V × density.
+Invalidated on `species` writes.
 
 ## Knock-on changes
 
