@@ -181,12 +181,83 @@ transient UI state, not encoded in the URL.
 
 ## Data tables
 
-TBD — defer until UX is settled.  Likely:
+Four digests serve this page; all four are loaded on first navigation,
+and all subsequent filtering/searching/selection is purely client-side.
 
-- `harvest_plans.json`: list of plans + plan items + computed status per item.
-- `marks.json`: high-level mark table, including per-mark `massa stimata
-  totale` (sum over the mark's trees of species-specific volume × density).
-  This sum is materialized in the digest, not computed at query time, with
-  the standard staleness-flag invalidation on `tree_mark` writes — same
-  pattern used for `prelievi.json`.
-- `mark_trees.json`: denormalized tree+tree_mark for table rendering.
+### `harvest_plans.json`
+
+Populates the Piano pulldown.  Invalidated on `harvest_plan` writes.
+
+Columns: `row_id`, `version`, `Anno inizio`, `Anno fine`, `Descrizione`,
+`N. items`.  Sorted by `Anno inizio` descending.
+
+`row_id` = `harvest_plan.id`; `N. items` is the count of plan items in
+the plan (cheap to materialize, useful for the pulldown label).
+
+### `harvest_plan_items.json`
+
+Section 1 (Calendario) rows.  Invalidated on `harvest_plan_item` writes.
+
+Columns: `row_id`, `version`, `Piano`, `Anno`, `Compresa`, `Particella`,
+`Tipo`, `Q.li previsti`.  Sorted by `Anno`, then natural-order on
+`Compresa`+`Particella`.
+
+`Piano` carries `harvest_plan.id` for client-side filtering by the
+active plan.  `Tipo` is `"alto fusto"` or `"ceduo"`, derived from
+`parcel.eclass.coppice`.
+
+The status chip (*pianificato* / *martellato* / *raccolto* /
+*raccolto parz.*) is **not** materialized.  The client computes it
+per row by joining:
+- the matching mark in `marks.json` (lookup by
+  `harvest_plan_item_id`); and
+- the q.li harvested at `(Compresa, Particella, Anno)` in
+  `parcel_year_production.json` (already produced by Prelievi).
+
+This keeps the invalidation chain shallow: writing a mark or a harvest
+does not regenerate the calendar digest.
+
+### `marks.json`
+
+Section 2 (Martellate) rows, with materialized per-mark `Massa stimata (q)`.
+Invalidated on `mark` and `tree_mark` writes.
+
+Columns: `row_id`, `version`, `Piano`, `Plan item`, `Data`, `Compresa`,
+`Particella`, `N. alberi`, `Massa stimata (q)`, `Anno piano`, `Note`.
+Sorted by `Data` descending.
+
+`Piano` carries the plan id (resolved through `harvest_plan_item`) for
+client-side filtering.  `Plan item` is `harvest_plan_item_id` so the
+client can join back to the calendar inline-expansion view.  `Anno piano`
+is the year drawn from the linked plan item — usually equal to the year
+of `Data`, but exceptions are allowed (and highlighted in the UI).
+
+`Massa stimata (q)` = sum, across the mark's `tree_mark` rows, of
+species-specific `volume_m3 × density`, expressed in quintals.  Volume is
+computed via the same taper functions used in `pdg-2026`.  Materialization
+plus staleness-flag invalidation mirrors the `prelievi.json` precedent.
+
+### `mark_trees.json`
+
+Section 3 (Alberi martellati) rows, covering every `tree_mark` row in
+the database; the client filters by `Mark` to the currently selected
+mark.  Invalidated on `tree_mark` writes.
+
+Columns: `row_id`, `version`, `Mark`, `Specie`, `D (cm)`, `h (m)`,
+`Volume (m³)`, `Lat`, `Lng`.  Sorted by `D` descending within each
+`Mark` group.
+
+Preserved trees (`tree.preserved = true`) are excluded by construction
+— see `database.md` for the invariant — so no client-side filtering on
+that flag is needed.
+
+### Open question — synthetic id on `tree_mark`
+
+`tree_mark` currently has a compound primary key `(mark_id, tree_id)`
+and no synthetic `id`.  Abies's standard digest+cache+POST cycle uses
+an integer `row_id` per row (see CLAUDE.md "Data entry and cache
+updates").  The cleanest fix is to add an auto-increment `id` to
+`tree_mark` (PK becomes `id`; `UNIQUE(mark_id, tree_id)` preserves the
+existing invariant).  The same question applies to `tree_sample` — see
+`campionamenti.md`'s digest section when we get there.  Decide at
+schema-migration time; update `database.md` accordingly.
