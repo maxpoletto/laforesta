@@ -5,12 +5,15 @@ The prelievi page supports recording and display of harvesting operations.
 - Path: /prelievi
 - Query parameters:
   - Year range: `y1=YYYY`, `y2=YYYY` (date slider bounds)
-  - Region: `c=<region name>` — restricts the displayed set to one
-    region (compresa).  URL-encoded; matches `Region.name` exactly.
-  - Particella: `pa=<particella name>` — restricts further to one
-    parcel within the region.  Requires `c=` to disambiguate, since
-    particella names are only unique within a region.  Ignored if
-    `c=` is absent.
+  - Region: `c=N` — id of the region (compresa).  Restricts the
+    displayed set to that region.  Stale / unknown id falls back to
+    the unscoped view.
+  - Particella: `pa=N` — id of the parcel.  Restricts further to one
+    parcel.  `parcel.id` already disambiguates region (parcel names
+    are only unique within a region; the id is globally unique), so
+    `pa=` does not strictly need `c=`.  However, the standard
+    cross-page link pattern emits both for symmetry and to keep the
+    region pulldown in the resulting view set correctly.
   - Sort column: `sc=N`
   - Sort order: `so=0/1` (ascending/descending)
   - Filter: `f=...` (URL-encoded sortable-table search string,
