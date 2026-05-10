@@ -1,6 +1,7 @@
 __pycache__
 /.coverage
 /accrescimenti/dati
+/csv
 /html
 /tex
 /docs/superpowers
