@@ -84,9 +84,18 @@ of either dataset should treat them as independent observations.
   - Denotes a multi-year harvest plan, comprising all or most parcels.
 
 - harvest_plan_item: (id:int, harvest_plan_id:int, parcel_id:int, year:int,
-  quintals:int)
+  volume_m3:real nullable, intervention_area_ha:real nullable,
+  note:string nullable)
   - Denotes a calendar item in the harvest plan, i.e., that the given parcel
-    will be cut in the given year, with a goal of quintals mass.
+    will be cut in the given year.
+  - `volume_m3` is the planned harvest volume in m³ (matches the source unit
+    in `pdg-2026/csv/piano.csv`).  NULL for coppice items: coppice plans
+    list the year+parcel only, with no per-cut volume target.
+  - `intervention_area_ha` is the area cut this year (only set for coppice
+    items where staged cuts split a parcel across multiple years; NULL for
+    a whole-parcel cut).
+  - `note` carries free-text annotations from the import — typically used by
+    coppice continuation rows (e.g., `Cont. intervento 2028`).
 
 - harvest_detail: (id:int, description:text, interval:int)
   - A reusable harvest instruction, e.g., "Preferentially cut white firs of
@@ -159,10 +168,14 @@ of either dataset should treat them as independent observations.
   - l10_mm denotes the width, in mm, of the outer ten rings of the sampled tree.
     Not all trees are cored, so this may be 0 -> no measurement.
   - `volume_m3` is computed from (d_cm, h_m, species) via Tabacchi equations
-    at write time (see `pdg-2026/pdg/computation.py`).  `mass_q` is
-    `volume_m3 × species.density`.  Both are NULL for coppice rows
-    (`tree.coppice = true`): coppice harvests are mass-based at the parcel
-    level, not per-tree, so per-shoot volume estimates are not meaningful.
+    (see `pdg-2026/pdg/computation.py`).  For manual form entry the
+    computation runs in the JS form (live preview) and the server stores the
+    submitted value as-is; for CSV imports — where source files do not always
+    carry pre-computed volumes — the server runs the same Tabacchi formulas
+    in Python at import time.  `mass_q` is `volume_m3 × species.density`.
+    Both are NULL for coppice rows (`tree.coppice = true`): coppice harvests
+    are mass-based at the parcel level, not per-tree, so per-shoot volume
+    estimates are not meaningful.
   - Decoupling trees from tree samples allows us to monitor tree growth over
     time.
 
@@ -196,6 +209,11 @@ parcels; they do not apply to coppice forests.
     in year Y") via harvest_plan_item_id, whereas a survey may be more generally
     associated with an entire harvest plan via harvest_plan_id. Each sample
     belongs to a survey rather than directly to a plan.
+  - `harvest_plan_item_id` is `ON DELETE PROTECT`: deleting a plan item that
+    has marks attached is blocked at the schema level.  This matters during
+    plan re-import (see `piano-di-taglio.md`): the importer surfaces existing
+    marks tied to the old plan as a hard block until the user resolves them
+    manually, rather than silently destroying field-recorded mark data.
 
 - tree_mark: (id:int, mark_id:int, tree_id:int, d_cm:int, h_m:int,
   h_measured:bool, volume_m3:real, mass_q:real)
@@ -233,7 +251,7 @@ for coppice parcels there is no per-tree harvest record at all.
 
 - harvest: (id:int, date:string /* ISO 8601 */, parcel_id:int, mark_id:int
   nullable, product_id:int, crew_id:int, record1:int nullable, record2:int
-  nullable, quintals:float, note_id:int, extra_note:text)
+  nullable, quintals:float, volume_m3:real, note_id:int, extra_note:text)
   - Denotes a cutting/harvesting operation by one crew on a given day.
   - If the parcel is a high-forest parcel, mark_id ties the harvest back to the
     pre-harvest mark.
@@ -248,6 +266,12 @@ for coppice parcels there is no per-tree harvest record at all.
     app and at the schema level (via a SQLite trigger).
 
   - product_id denotes the type of produced material (logs, wood chips, etc.).
+  - `volume_m3` is the harvest's estimated total volume in cubic meters,
+    materialized at write time from the species breakdown:
+    `volume_m3 = SUM_over_species(quintals × percent/100 / species.density)`.
+    Used by the Piano di taglio calendar to compare actual cut volume against
+    the plan/mark target without runtime conversion.  Recomputed on every
+    write that changes `quintals` or any `harvest_species` row.
   - record1 and record2 are optional and indicate the id on a paper
     bill-of-goods form provided by the crew. They correspond to "vdp" and "prot"
     in the mannesi.csv file, respectively.

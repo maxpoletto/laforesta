@@ -270,10 +270,13 @@ Statistical data:
 - `parcels.json`: JSON version of the parcel table (columns TBD).
 - `sample_areas.json`: JSON version of the sample_area table.
 - `preserved_trees.json`: digest of `tree` rows with `preserved=true`.
-- `parcel_year_production.json`: per-parcel-per-year q.li totals,
-  conceptually `SELECT region, parcel, year, SUM(quintals) FROM
-  harvest GROUP BY region, parcel, year`, organized like the
-  timeseries files in Boscoscopio.
+- `parcel_year_production.json`: per-parcel-per-year q.li and m³
+  totals, conceptually `SELECT region, parcel, year, SUM(quintals),
+  SUM(volume_m3) FROM harvest GROUP BY region, parcel, year`,
+  organized like the timeseries files in Boscoscopio.  Both unit
+  sums are exposed (see `prelievi.md`); Bosco's per-parcel
+  *Produzione storica* section reads the q.li column, while the
+  Piano di taglio calendar reads the m³ column for its status chip.
 - `parcel_dendrometry.json`: per-(parcel, session, species, classe
   diametrica) aggregated stats (count, volume, area basimetrica,
   altezza media, incremento) for the per-parcel page's dendrometry

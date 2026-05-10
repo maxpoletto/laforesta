@@ -292,11 +292,16 @@ Editable fields:
 
 For fustaia rows, below the D and h inputs the form shows a small,
 read-only summary in gray italic text — `V = X.XX m³ · m = X.X q` —
-recomputed live as D, h, or specie change.  V is computed via the
-species-specific Tabacchi formula (JS-only, see `pdg-2026/pdg/
-computation.py` for the parameter source); m is `V × species.density`
-(density loaded from `species.json` — see "Data tables" below).
-For ceduo rows (per-shoot block), the V/m line is hidden — coppice
+recomputed live as D, h, or specie change.  V comes from the
+species-specific Tabacchi formula in JS; m is `V × species.density`
+(density loaded from `species.json` — see "Data tables" below).  On
+submit, the server validates ranges and stores the client-provided V
+and m without recomputing — same pattern as the mark form on
+`piano-di-taglio.md`.  Tabacchi parameters live on the server only
+for the batch import path (see "Tree-and-sample CSV import" above);
+`pdg-2026/pdg/computation.py` is the canonical source for both
+copies.  For ceduo rows (per-shoot block), the V/m line is hidden —
+coppice
 samples do not carry per-shoot volume estimates.
 
 The "numero albero" pulldown has the following entries:

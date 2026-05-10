@@ -34,31 +34,42 @@ dark-green 4 px horizontal rules:
 1. **Calendar (calendario)** — year-by-year view of the active plan.
 
    A flat table with one line per harvest_plan_item, ordered by year and then
-   alphabetically (in natural order) by region and pracel.
+   alphabetically (in natural order) by region and parcel.
 
-   Columns are: year, region (compresa), parcel (particella), type
-   (alto fusto / ceduo), expected mass (q.li previsti), state.
+   Columns are: anno, compresa, particella, tipo (alto fusto / ceduo),
+   volume previsto (m³), state.  Volume previsto displays as `—` for
+   coppice items (no per-cut target — see `database.md`).
 
-   The state column is a computed status chip. In Italian, the values are:
-   - *pianificato* — no mark exists for this plan item, no harvest
-     yet recorded (high-forest parcels only).
-   - *martellato* — a mark exists for this plan item; no harvest
-     yet.
-   - *raccolto (parz.)* — at least one harvest references this plan
-     item's parcel+year, but the q.li harvested are below the goal.
-   - *raccolto* — q.li harvested ≥ goal.
+   The state column is a computed status chip.  Comparison happens in m³
+   throughout: harvest volumes come from `harvest.volume_m3` (materialized;
+   see `database.md`); plan / mark targets come in m³ directly.
 
-   Coppice parcels are not marked. They transition directly from *pianificato*
-   to *raccolto*.
+   For **fustaia** items, the chip is computed as follows.  Let
+   `target = mark.volume_m3` if a mark exists for the plan item, else
+   `harvest_plan_item.volume_m3` (the plan's pre-mark estimate); and
+   `actual = SUM(harvest.volume_m3)` over harvests for this parcel+year.
+   - *pianificato* — no mark, no harvest.
+   - *martellato* — mark exists, no harvest.  The chip carries a small
+     "⚠" indicator if `mark.volume_m3 < 0.9 × harvest_plan_item.volume_m3`
+     (the mark came in noticeably under the plan's expectation), with a
+     tooltip that surfaces both numbers.
+   - *raccolto (parz.)* — at least one harvest exists, `actual < target`.
+   - *raccolto* — `actual ≥ target`.
+
+   For **coppice** items, marks are not used; chip values are only
+   *pianificato* (no harvest this year for this parcel) and *raccolto*
+   (at least one harvest this year).  No partial state — coppice plans do
+   not carry a per-cut volume goal to gate against.
 
    Clicking a *raccolto* or *raccolto (parz.)* chip opens the Prelievi page
    pre-filtered to the plan item's parcel and year, so the user can drill
    straight from the plan view to the actual harvest operations.
 
-   Expanding a plan-item row shows its associated mark inline (date, tree count,
-   total estimated mass, note), with a "vai alla martellata" link that selects
-   the row in section 2.  For high-forest items without a mark, an inline "+
-   Aggiungi martellata" button opens the new-mark flow.
+   Expanding a plan-item row shows its associated mark inline (date, tree
+   count, volume stimato totale, massa stimata totale, note), with a "vai
+   alla martellata" link that selects the row in section 2.  For high-forest
+   items without a mark, an inline "+ Aggiungi martellata" button opens the
+   new-mark flow.
 
    Writers see a pencil icon per plan item to adjust any field, and there is a
    "+" button at the bottom of the table, analogous to, e.g., the harvest
@@ -165,24 +176,100 @@ mark cascades to its `tree_mark` rows *and* to the corresponding `tree` rows
 ## Plan import
 
 Performed under Impostazioni → "Importa piano di taglio" (admin
-only).  The form takes:
+only).  The form takes three CSV files plus a free-text plan name;
+the plan's `year_start` and `year_end` are derived from the data
+(union of `Anno` columns across both schedule files), not collected
+separately.
 
-- The plan CSV (matching `pdg.py` output format) — produces
-  `harvest_plan`, `harvest_plan_item`, `harvest_detail`, and
-  `parcel_plan_detail` rows.
-- The ipsometric regression CSV (matching the shape of
-  `bosco/data/equazioni_ipsometro.csv`: `compresa, genere, funzione,
-  a, b, r2, n`) — produces `tree_height_regression` rows scoped to the
-  plan being imported.
-- An optional friendly name and description.
+### Fustaia plan CSV (`piano.csv`)
 
-Import is transactional across both files: either the whole plan
-(items + regressions) is created or none of it.  Re-importing the
-same plan year range shows a confirmation prompt before overwriting.
+Output of `pdg-2026/pdg.py --formato csv` for the
+`@@piano_di_taglio` directive — see `pdg-2026/csv/piano.csv` for an
+example.  One row per fustaia `harvest_plan_item`.
 
-Missing regression rows are not an error — gaps surface only at
-mark-entry time (the form forces manual h entry, see "New marked
-tree" above).
+Columns the importer reads:
+
+- `Compresa` — region name (resolved against `region.name`).
+- `Particella` — parcel name within the region.
+- `Anno` — year of the scheduled cut (int).
+- `Prelievo (m³)` — planned cut volume (real → `harvest_plan_item.volume_m3`).
+
+Other columns (`Classe`, `Età`, `Provv. prima (m³/ha)`, `Prel %`,
+`Provv. dopo (m³/ha)`) are read only as context for the importer's
+diagnostic output; they are not stored in v1.
+
+### Coppice plan CSV (`ceduo.csv`)
+
+Output of the `@@calendario_ceduo` directive — see
+`pdg-2026/csv/ceduo.csv`.  One row per coppice `harvest_plan_item`.
+
+Columns the importer reads:
+
+- `Anno` — year (int).
+- `Compresa`, `Particella` — as above.
+- `Superficie intervento (ha)` — area cut this year
+  (real → `harvest_plan_item.intervention_area_ha`).
+- `Turno (a)` — coppice rotation interval in years
+  (int → `harvest_detail.interval`).  Per-parcel within the plan;
+  the importer warns on inconsistent values across rows for the
+  same parcel.
+- `Note` — free-text annotation per row (string →
+  `harvest_plan_item.note`); typical values are continuation markers
+  like `Cont. intervento 2028`.
+
+`Superficie totale (ha)` is read only for cross-checking against the
+parcel's known area; it is not stored.
+
+For coppice items `harvest_plan_item.volume_m3` stays NULL — coppice
+plans do not gate on a volume target.
+
+### Ipsometric regression CSV (`equazioni_ipsometro.csv`)
+
+Matches the shape of `pdg-2026/csv/equazioni_ipsometro.csv`:
+
+`compresa, genere, funzione, a, b, r2, n`
+
+`compresa` resolves against `region.name`; `genere` against
+`species.common_name`.  `funzione` is currently always `"ln"`.  Each
+row produces one `tree_height_regression` entry scoped to the plan
+being imported.  Missing (region, species) entries are not an error
+— the gap surfaces only at mark-entry time (the form forces manual h
+entry; see "New marked tree" above).  Only fustaia marks consult
+this table, so coppice-only plans may import an empty regression
+CSV.
+
+### Import flow
+
+1. Parse all three CSVs.  Schema-check column presence; abort with a
+   helpful message on missing required columns.  Decimal commas in
+   the source files are handled at parse time (`pd.read_csv(...,
+   decimal=',')`).
+2. Resolve every (Compresa, Particella) and (compresa, genere)
+   lookup.  Any unresolved lookup aborts the whole import (no partial
+   state).
+3. Derive `harvest_plan.year_start = min(Anno across both schedules)`
+   and `year_end = max(Anno across both schedules)`.  Create the plan
+   with the user-supplied name as `description`.
+4. For each coppice parcel that appears in `ceduo.csv`, create one
+   `harvest_detail` (interval = `Turno`) and one `parcel_plan_detail`
+   linking the parcel to it.  Within a plan, deduplicate
+   `harvest_detail` rows on `(description, interval)` — coppice
+   parcels with the same rotation share a single `harvest_detail_id`.
+   Fustaia parcels do not get a `harvest_detail`/`parcel_plan_detail`
+   row in v1 (no instructions or interval to record).
+5. For each row in either schedule, create a `harvest_plan_item`.
+   Fustaia rows set `volume_m3`; coppice rows set
+   `intervention_area_ha` and `note` and leave `volume_m3` NULL.
+6. For each regression-CSV row, create a `tree_height_regression`.
+7. Commit transactionally (all four file flows succeed or none).
+8. Re-importing a plan whose `[year_start, year_end]` overlaps an
+   existing plan shows a confirmation prompt before overwriting.
+   "Overwrite" deletes the old plan in the same transaction
+   (cascading to its plan items, parcel_plan_details,
+   harvest_details, and regression rows).  Marks tied to old plan
+   items are NOT cascade-deleted — `mark.harvest_plan_item_id` is
+   `ON DELETE PROTECT` — and the importer surfaces them as a hard
+   block until the user resolves them manually.
 
 ## URL parameters
 
@@ -238,20 +325,22 @@ the plan (cheap to materialize, useful for the pulldown label).
 Section 1 (Calendario) rows.  Invalidated on `harvest_plan_item` writes.
 
 Columns: `row_id`, `version`, `Piano`, `Anno`, `Compresa`, `Particella`,
-`Tipo`, `Q.li previsti`.  Sorted by `Anno`, then natural-order on
-`Compresa`+`Particella`.
+`Tipo`, `Volume previsto (m³)`, `Sup. intervento (ha)`, `Note`.  Sorted
+by `Anno`, then natural-order on `Compresa`+`Particella`.
 
 `Piano` carries `harvest_plan.id` for client-side filtering by the
 active plan.  `Tipo` is `"alto fusto"` or `"ceduo"`, derived from
-`parcel.eclass.coppice`.
+`parcel.eclass.coppice`.  `Volume previsto (m³)` is NULL for coppice
+rows.  `Sup. intervento (ha)` is NULL for whole-parcel cuts.
 
-The status chip (*pianificato* / *martellato* / *raccolto* /
-*raccolto parz.*) is **not** materialized.  The client computes it
-per row by joining:
+The status chip is **not** materialized.  The client computes it per
+row in m³ by joining:
 - the matching mark in `marks.json` (lookup by
-  `harvest_plan_item_id`); and
-- the q.li harvested at `(Compresa, Particella, Anno)` in
-  `parcel_year_production.json` (already produced by Prelievi).
+  `harvest_plan_item_id`) for the authoritative target after marking
+  and the 0.9-threshold discrepancy flag; and
+- the harvest sum at `(Compresa, Particella, Anno)` in
+  `parcel_year_production.json` (which gains a `Volume (m³)` column —
+  see `prelievi.md`).
 
 This keeps the invalidation chain shallow: writing a mark or a harvest
 does not regenerate the calendar digest.

@@ -106,7 +106,19 @@ enter a stack of paper slips in sequence.
 - crews.json: JSON version of the crew
 - prelievi.json: a de-normalized version of the harvest table, containing
   everything in the sortable-table as well as percentage values (to support
-  prepopulating the edit form).
+  prepopulating the edit form).  Includes a materialized `Volume (m³)`
+  column from `harvest.volume_m3` (see `database.md`); displayed in the
+  table as a small companion to `Q.li`.
+- parcel_year_production.json: per-(region, parcel, year) totals.  Columns:
+  `Compresa`, `Particella`, `Anno`, `Q.li`, `Volume (m³)` — both unit sums
+  are materialized so the Piano di taglio calendar can compute its
+  status chip in m³ without touching prelievi.json.
 
 Successful writes on the backend mark the prelievi.json and
 parcel_year_production.json digests as stale.
+
+`harvest.volume_m3` is itself materialized at write time using the
+species densities current at that moment.  Editing a species' density
+later does *not* retroactively recompute existing harvests — same
+capture-at-write-time pattern used elsewhere — so the digests remain
+valid.  Only newly written harvests pick up the new density value.
