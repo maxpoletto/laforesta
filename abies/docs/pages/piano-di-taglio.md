@@ -251,6 +251,13 @@ Preserved trees (`tree.preserved = true`) are excluded by construction
 — see `database.md` for the invariant — so no client-side filtering on
 that flag is needed.
 
+**Future split**: a typical year carries ~10 marks × ~1000 trees =
+~10k rows.  At larger scales the all-marks-in-one-digest pattern may
+become wasteful — most users only ever look at one mark.  An
+alternative is one digest per mark (`mark_trees_<id>.json`) lazily
+fetched on Section 2 row-selection and cached client-side per mark.
+Keep the current shape until row counts justify the change.
+
 ### Open question — synthetic id on `tree_mark`
 
 `tree_mark` currently has a compound primary key `(mark_id, tree_id)`
