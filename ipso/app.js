@@ -5,7 +5,7 @@
 // (store, gps, numpad). This file is mostly UI wiring.
 'use strict';
 
-const APP_VERSION = '0.2.3';
+const APP_VERSION = '0.2.7';
 
 const State = {
   reference: null,    // parsed reference.json
@@ -92,6 +92,10 @@ async function boot() {
 
   // Request persistent storage (R2). Doesn't require a user gesture.
   requestPersist();
+
+  // Check whether GPS permission was previously denied; banner if so.
+  // The actual prompt is triggered from the Inizia click handler.
+  checkGpsPermission();
 }
 
 async function fetchReference() {
@@ -104,6 +108,38 @@ async function requestPersist() {
   if (!navigator.storage || !navigator.storage.persist) return;
   const granted = await navigator.storage.persist();
   if (!granted) showBanner(S.STORAGE_WARNING);
+}
+
+// Check geolocation permission state at boot; surface a banner if it
+// was previously denied. The actual prompt is fired from the pre-session
+// submit handler (see promptGps()) so the operator deals with it during
+// setup rather than mid-mark.
+async function checkGpsPermission() {
+  if (!navigator.geolocation) return;
+  if (!navigator.permissions || !navigator.permissions.query) return;
+  try {
+    const status = await navigator.permissions.query({ name: 'geolocation' });
+    if (status.state === 'denied') showBanner(S.GPS_PERMISSION_BANNER);
+  } catch (_) { /* unsupported -> no banner */ }
+}
+
+// Fires a one-shot geolocation request from the pre-session submit
+// handler. Two effects, depending on the permission state:
+//  - 'granted': retrieves a fix, warming the GPS chip so the real watcher
+//    in the recording screen lands its first fix faster;
+//  - 'prompt':  surfaces the OS permission dialog;
+//  - 'denied':  immediately errors and surfaces the banner.
+function promptGps() {
+  if (!navigator.geolocation) return;
+  navigator.geolocation.getCurrentPosition(
+    () => {},
+    (err) => {
+      if (err && err.code === err.PERMISSION_DENIED) {
+        showBanner(S.GPS_PERMISSION_BANNER);
+      }
+    },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -181,6 +217,11 @@ function wirePreSession() {
       : document.getElementById('in-particella').value;
     if (!operatore || !data || !compresa) return;
     if (!catastrofata && !particella) return;
+
+    // Fire the GPS permission prompt now (during setup, not mid-mark).
+    // Runs in parallel with the rest of submit — we don't await it
+    // because the operator can still record without GPS if they deny.
+    promptGps();
 
     localStorage.setItem('ipso.operatore', operatore);
 

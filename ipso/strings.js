@@ -63,6 +63,9 @@ const S = {
   // Toasts and errors
   GPS_DENIED:
     'GPS non disponibile: gli alberi verranno registrati senza coordinate.',
+  GPS_PERMISSION_BANNER:
+    'Permesso GPS non concesso. Per registrare le coordinate, abilita la ' +
+    'posizione per ipso.laforesta.it nelle impostazioni del browser.',
   BACKUP_SAVED: (n) => `Backup CSV salvato (${n} alberi).`,
 
   // Pill formatter
