@@ -72,18 +72,20 @@ assertEqual(csv.escapeField(null), '', 'escape: null');
 
 assertEqual(
   csv.formatHeader(),
-  'Data;Compresa;Particella;Catastrofata;Specie;D_cm;H_m;H_measured;Lat;Lng;Acc_m',
+  'Data;Compresa;Particella;Catastrofata;Specie;D_cm;H_m;H_measured;Lat;Lng;Acc_m;Operatore',
   'header literal'
 );
 
-const sess = { data: '2026-05-11', compresa: 'Serra', particella: '1' };
+const sess = {
+  data: '2026-05-11', compresa: 'Serra', particella: '1', operatore: 'Mario Rossi',
+};
 const r1 = {
   specie: 'Abete', d_cm: 42, h_m: 24, h_measured: 0,
   lat: 38.4253101, lng: 16.1204400, acc_m: 7,
 };
 assertEqual(
   csv.formatRow(r1, sess),
-  '11/05/2026;Serra;1;0;Abete;42;24;0;38,425310;16,120440;7',
+  '11/05/2026;Serra;1;0;Abete;42;24;0;38,425310;16,120440;7;Mario Rossi',
   'formatRow happy path'
 );
 
@@ -93,17 +95,26 @@ const r2 = {
 };
 assertEqual(
   csv.formatRow(r2, sess),
-  '11/05/2026;Serra;1;0;Faggio;30;18;1;;;',
+  '11/05/2026;Serra;1;0;Faggio;30;18;1;;;;Mario Rossi',
   'formatRow no GPS'
+);
+
+// Missing operatore on the session row -> empty string in the column.
+const sessNoOp = { data: '2026-05-11', compresa: 'Serra', particella: '1' };
+assertEqual(
+  csv.formatRow(r1, sessNoOp),
+  '11/05/2026;Serra;1;0;Abete;42;24;0;38,425310;16,120440;7;',
+  'formatRow no operatore'
 );
 
 // Catastrofate session: Particella column empty, Catastrofata = 1.
 const sessCat = {
-  data: '2026-05-12', compresa: 'Capistrano', particella: '', catastrofata: true,
+  data: '2026-05-12', compresa: 'Capistrano', particella: '',
+  catastrofata: true, operatore: 'Anna Bianchi',
 };
 assertEqual(
   csv.formatRow(r1, sessCat),
-  '12/05/2026;Capistrano;;1;Abete;42;24;0;38,425310;16,120440;7',
+  '12/05/2026;Capistrano;;1;Abete;42;24;0;38,425310;16,120440;7;Anna Bianchi',
   'formatRow catastrofata'
 );
 

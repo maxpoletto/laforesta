@@ -13,6 +13,7 @@ const HEADER = [
   'Data', 'Compresa', 'Particella', 'Catastrofata', 'Specie',
   'D_cm', 'H_m', 'H_measured',
   'Lat', 'Lng', 'Acc_m',
+  'Operatore',
 ];
 
 // Sentinel used in the filename's particella slot for catastrofate sessions.
@@ -69,6 +70,7 @@ function formatRow(rec, session) {
     fmtFloat(rec.lat, 6),
     fmtFloat(rec.lng, 6),
     fmtInt(rec.acc_m),
+    session.operatore || '',
   ];
   return cells.map(escapeField).join(CSV_SEP);
 }

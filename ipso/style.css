@@ -42,13 +42,19 @@ body {
 .app-bar {
   background: var(--green-dark);
   color: white;
-  padding: 10px 14px;
+  padding: 8px 14px;
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 10px;
 }
 .app-title { font-weight: 600; font-size: 18px; letter-spacing: 0.5px; }
 .app-sub   { font-size: 13px; opacity: 0.85; }
+.app-logo  {
+  margin-left: auto;     /* push to far right */
+  height: 28px;
+  width: auto;
+  display: block;
+}
 
 /* ----------------------------------------------------------------------- */
 /* Main + screen layout                                                    */
