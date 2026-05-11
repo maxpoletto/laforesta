@@ -1,0 +1,364 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-05-11T14:30:19Z",
+  "species": [
+    {
+      "common": "Abete",
+      "latin": "Abies alba",
+      "sort_order": 10,
+      "density": 4.7
+    },
+    {
+      "common": "Castagno",
+      "latin": "Castanea sativa",
+      "sort_order": 20,
+      "density": 5.5
+    },
+    {
+      "common": "Douglas",
+      "latin": "Pseudotsuga menziesii",
+      "sort_order": 30,
+      "density": 5.0
+    },
+    {
+      "common": "Faggio",
+      "latin": "Fagus sylvatica",
+      "sort_order": 40,
+      "density": 7.0
+    },
+    {
+      "common": "Ontano",
+      "latin": "Alnus cordata",
+      "sort_order": 50,
+      "density": 4.6
+    },
+    {
+      "common": "Pino Nero",
+      "latin": "Pinus nigra",
+      "sort_order": 60,
+      "density": 4.7
+    },
+    {
+      "common": "Pino Marittimo",
+      "latin": "Pinus pinaster",
+      "sort_order": 61,
+      "density": 4.7
+    },
+    {
+      "common": "Altro",
+      "latin": "",
+      "sort_order": 999,
+      "density": 5.0
+    }
+  ],
+  "parcels": [
+    {
+      "compresa": "Capistrano",
+      "particella": "1"
+    },
+    {
+      "compresa": "Capistrano",
+      "particella": "2"
+    },
+    {
+      "compresa": "Capistrano",
+      "particella": "3"
+    },
+    {
+      "compresa": "Capistrano",
+      "particella": "4a"
+    },
+    {
+      "compresa": "Capistrano",
+      "particella": "5a"
+    },
+    {
+      "compresa": "Capistrano",
+      "particella": "6a"
+    },
+    {
+      "compresa": "Capistrano",
+      "particella": "7a"
+    },
+    {
+      "compresa": "Capistrano",
+      "particella": "8a"
+    },
+    {
+      "compresa": "Capistrano",
+      "particella": "9a"
+    },
+    {
+      "compresa": "Capistrano",
+      "particella": "12a"
+    },
+    {
+      "compresa": "Capistrano",
+      "particella": "12b"
+    },
+    {
+      "compresa": "Capistrano",
+      "particella": "13"
+    },
+    {
+      "compresa": "Capistrano",
+      "particella": "14a"
+    },
+    {
+      "compresa": "Capistrano",
+      "particella": "15"
+    },
+    {
+      "compresa": "Capistrano",
+      "particella": "16a"
+    },
+    {
+      "compresa": "Capistrano",
+      "particella": "16b"
+    },
+    {
+      "compresa": "Capistrano",
+      "particella": "16c"
+    },
+    {
+      "compresa": "Capistrano",
+      "particella": "17b"
+    },
+    {
+      "compresa": "Fabrizia",
+      "particella": "1"
+    },
+    {
+      "compresa": "Fabrizia",
+      "particella": "2"
+    },
+    {
+      "compresa": "Fabrizia",
+      "particella": "3"
+    },
+    {
+      "compresa": "Fabrizia",
+      "particella": "4"
+    },
+    {
+      "compresa": "Fabrizia",
+      "particella": "5a"
+    },
+    {
+      "compresa": "Fabrizia",
+      "particella": "6"
+    },
+    {
+      "compresa": "Fabrizia",
+      "particella": "7a"
+    },
+    {
+      "compresa": "Fabrizia",
+      "particella": "8"
+    },
+    {
+      "compresa": "Fabrizia",
+      "particella": "9a"
+    },
+    {
+      "compresa": "Fabrizia",
+      "particella": "10a"
+    },
+    {
+      "compresa": "Fabrizia",
+      "particella": "11a"
+    },
+    {
+      "compresa": "Fabrizia",
+      "particella": "11c"
+    },
+    {
+      "compresa": "Fabrizia",
+      "particella": "12a"
+    },
+    {
+      "compresa": "Fabrizia",
+      "particella": "13a"
+    },
+    {
+      "compresa": "Fabrizia",
+      "particella": "14a"
+    },
+    {
+      "compresa": "Serra",
+      "particella": "1"
+    },
+    {
+      "compresa": "Serra",
+      "particella": "2a"
+    },
+    {
+      "compresa": "Serra",
+      "particella": "3"
+    },
+    {
+      "compresa": "Serra",
+      "particella": "4"
+    },
+    {
+      "compresa": "Serra",
+      "particella": "5"
+    },
+    {
+      "compresa": "Serra",
+      "particella": "6"
+    },
+    {
+      "compresa": "Serra",
+      "particella": "7"
+    },
+    {
+      "compresa": "Serra",
+      "particella": "8"
+    },
+    {
+      "compresa": "Serra",
+      "particella": "9"
+    },
+    {
+      "compresa": "Serra",
+      "particella": "10b"
+    },
+    {
+      "compresa": "Serra",
+      "particella": "11"
+    },
+    {
+      "compresa": "Serra",
+      "particella": "12"
+    },
+    {
+      "compresa": "Serra",
+      "particella": "13"
+    },
+    {
+      "compresa": "Serra",
+      "particella": "14"
+    },
+    {
+      "compresa": "Serra",
+      "particella": "15"
+    },
+    {
+      "compresa": "Serra",
+      "particella": "16"
+    },
+    {
+      "compresa": "Serra",
+      "particella": "17"
+    },
+    {
+      "compresa": "Serra",
+      "particella": "18"
+    },
+    {
+      "compresa": "Serra",
+      "particella": "19"
+    },
+    {
+      "compresa": "Serra",
+      "particella": "20"
+    },
+    {
+      "compresa": "Serra",
+      "particella": "21"
+    },
+    {
+      "compresa": "Serra",
+      "particella": "22"
+    },
+    {
+      "compresa": "Serra",
+      "particella": "23"
+    },
+    {
+      "compresa": "Serra",
+      "particella": "24"
+    },
+    {
+      "compresa": "Serra",
+      "particella": "25"
+    },
+    {
+      "compresa": "Serra",
+      "particella": "26"
+    },
+    {
+      "compresa": "Serra",
+      "particella": "27"
+    },
+    {
+      "compresa": "Serra",
+      "particella": "28"
+    },
+    {
+      "compresa": "Serra",
+      "particella": "29"
+    }
+  ],
+  "ipsometrica": {
+    "Capistrano": {
+      "Abete": {
+        "a": 7.0306,
+        "b": -4.2563
+      },
+      "Douglas": {
+        "a": 15.7207,
+        "b": -30.6302
+      },
+      "Pino Marittimo": {
+        "a": 2.2676,
+        "b": 19.4322
+      },
+      "Pino Nero": {
+        "a": 8.5171,
+        "b": -6.9512
+      }
+    },
+    "Fabrizia": {
+      "Abete": {
+        "a": 13.7385,
+        "b": -27.6112
+      },
+      "Douglas": {
+        "a": 12.4789,
+        "b": -14.3502
+      },
+      "Faggio": {
+        "a": 8.7627,
+        "b": -7.0286
+      },
+      "Pino Nero": {
+        "a": 7.2577,
+        "b": -1.3835
+      }
+    },
+    "Serra": {
+      "Abete": {
+        "a": 12.2572,
+        "b": -18.2468
+      },
+      "Castagno": {
+        "a": 6.2274,
+        "b": 2.2153
+      },
+      "Douglas": {
+        "a": 13.3535,
+        "b": -16.0871
+      },
+      "Faggio": {
+        "a": 9.6151,
+        "b": -9.5174
+      },
+      "Pino Nero": {
+        "a": 11.0961,
+        "b": -11.6745
+      }
+    }
+  }
+}
