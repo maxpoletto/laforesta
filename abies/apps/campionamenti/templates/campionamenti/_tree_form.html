@@ -1,0 +1,107 @@
+{% comment %}
+Manual tree+sample entry form (M3d-write).
+
+Coppice (per-shoot) entry isn't shipped yet — the schema is ready,
+but the per-shoot UI block lands in a follow-up.  This form covers
+the fustaia path that maps directly to one tree + one tree_sample.
+{% endcomment %}
+<form id="campionamenti-tree-form">
+  <input type="hidden" name="row_id" value="{{ ts.id|default_if_none:'' }}">
+  <input type="hidden" name="survey_id" value="{{ survey.id }}">
+  <input type="hidden" name="sample_area_id" value="{{ area.id }}">
+
+  <div class="form-readonly-block">
+    <div><strong>Data:</strong> {{ sample_date|date:'Y-m-d' }}</div>
+    <div><strong>Compresa:</strong> {{ area.parcel.region.name }}</div>
+    <div><strong>Particella:</strong> {{ area.parcel.name }}</div>
+    <div><strong>Area di saggio:</strong> {{ area.number }}</div>
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <label for="id_number">N. albero</label>
+      <input type="number" id="id_number" name="number" min="1" step="1" required
+             value="{{ ts.number|default_if_none:'' }}">
+    </div>
+    <div class="form-group">
+      <label for="id_species">Specie</label>
+      <select id="id_species" name="species_id" required>
+        {% for sp in species %}
+          <option value="{{ sp.id }}"
+                  data-density="{{ sp.density }}"
+                  data-name="{{ sp.common_name }}"
+                  {% if tree and tree.species_id == sp.id %}selected{% endif %}>
+            {{ sp.common_name }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>
+        <input type="hidden" name="fustaia" value="false">
+        <input type="checkbox" name="fustaia" value="true"
+               {% if not tree or not tree.coppice %}checked{% endif %}>
+        Fustaia
+      </label>
+    </div>
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <label for="id_d_cm">D (cm)</label>
+      <input type="number" id="id_d_cm" name="d_cm" min="1" step="1" required
+             value="{{ ts.d_cm|default_if_none:'' }}">
+    </div>
+    <div class="form-group">
+      <label for="id_h_m">h (m)</label>
+      <input type="number" id="id_h_m" name="h_m" min="0.1" step="0.01" required
+             value="{{ ts.h_m|default_if_none:'' }}">
+    </div>
+    <div class="form-group">
+      <label for="id_l10_mm">L10 (mm)</label>
+      <input type="number" id="id_l10_mm" name="l10_mm" min="0" step="1"
+             value="{{ ts.l10_mm|default:0 }}">
+    </div>
+  </div>
+
+  <div class="form-row tree-form-preview-row">
+    <span class="tree-form-preview" id="tree-form-vm-preview">
+      <em>V = — m³ · m = — q</em>
+    </span>
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <label for="id_lat">Lat</label>
+      <input type="number" id="id_lat" name="lat" step="any"
+             value="{{ tree.lat|default_if_none:'' }}">
+    </div>
+    <div class="form-group">
+      <label for="id_lng">Lng</label>
+      <input type="number" id="id_lng" name="lng" step="any"
+             value="{{ tree.lng|default_if_none:'' }}">
+    </div>
+    <div class="form-group">
+      <label>
+        <input type="hidden" name="preserved" value="">
+        <input type="checkbox" name="preserved" value="true"
+               {% if tree and tree.preserved %}checked{% endif %}>
+        PAI (pianta ad accrescimento indefinito)
+      </label>
+    </div>
+  </div>
+
+  <!-- Materialized V/m carried as hidden fields so the server stores
+       client-computed values without redoing Tabacchi.  See
+       docs/database.md and docs/pages/campionamenti.md. -->
+  <input type="hidden" name="volume_m3" id="tree-form-volume-m3" value="">
+  <input type="hidden" name="mass_q" id="tree-form-mass-q" value="">
+
+  <div class="form-actions">
+    <button type="button" class="btn" id="tree-form-cancel">Annulla</button>
+    <button type="submit" class="btn btn-primary" data-action="save">Salva</button>
+    <button type="submit" class="btn btn-primary" data-action="save-and-add">
+      Salva e aggiungi
+    </button>
+  </div>
+</form>
