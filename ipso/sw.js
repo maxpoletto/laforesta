@@ -6,7 +6,7 @@
 // only activates after a clean app exit.
 'use strict';
 
-const APP_VERSION = '0.2.2';
+const APP_VERSION = '0.2.3';
 const CACHE = 'ipso-v' + APP_VERSION;
 
 const SHELL = [
@@ -28,6 +28,7 @@ const SHELL = [
   './img/l.gif',
   './img/icon-192.png',
   './img/icon-512.png',
+  './img/icon-512-maskable.png',
 ];
 
 self.addEventListener('install', (e) => {

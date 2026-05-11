@@ -5,7 +5,7 @@
 // (store, gps, numpad). This file is mostly UI wiring.
 'use strict';
 
-const APP_VERSION = '0.2.2';
+const APP_VERSION = '0.2.3';
 
 const State = {
   reference: null,    // parsed reference.json

@@ -29,6 +29,15 @@ If a previous version of ipso was installed and storage is suspect, in
 Chrome go to Site settings → ipso.laforesta.it → Storage → Clear, then
 re-add to home screen.
 
+**If the home-screen icon doesn't update after a deploy** (e.g., still
+shows a generic letter, or the wrong artwork), it's the service worker
+caching the old manifest. Removing-and-readding the shortcut is *not*
+enough — the SW survives that. Fix with: Site settings →
+ipso.laforesta.it → Clear & reset → revisit the URL → Add to Home
+Screen. Same applies to Firefox (Settings → Site permissions →
+Clear). Caveat: this also wipes IndexedDB, so export any in-progress
+session first.
+
 ## Using the app
 
 **Pre-session screen**. Enter your name, the date (defaults to today),

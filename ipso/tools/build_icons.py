@@ -27,6 +27,18 @@ from PIL import Image
 
 PNG_SIZES = (192, 512)
 
+# Maskable icon: Android adaptive-icon launchers apply a circular,
+# squircle, or rounded-square mask to the install icon. The 80% rule
+# (W3C Maskable icon spec) says: everything important must live inside
+# the inner 80% of the canvas. Our logo has a green border touching the
+# canvas edge and "LA FORESTA" text near the bottom — both would get
+# cropped if we used the raw logo as-is. So we render the logo into the
+# inner 80% of a 512x512 white canvas, leaving 10% safe padding on each
+# side that the mask can chew through without hitting brand content.
+MASKABLE_SIZE = 512
+MASKABLE_INNER = int(MASKABLE_SIZE * 0.8)   # 410 px
+MASKABLE_OFFSET = (MASKABLE_SIZE - MASKABLE_INNER) // 2  # 51 px
+
 
 def main() -> int:
     here = Path(__file__).resolve().parent
@@ -52,13 +64,14 @@ def main() -> int:
         shutil.copy(src, dst)
         print(f'wrote {dst.relative_to(ipso_root)} ({dst.stat().st_size} bytes)', file=sys.stderr)
 
-    # PNGs: downsample logo-grande.png to 192 and 512. LANCZOS gives the
-    # cleanest reduction from a 1440px source. The source already has an
-    # alpha channel, so the result has transparent corners on Android.
+    # PNGs: downsample logo-grande.png to 192 and 512 (purpose=any), plus
+    # one 512 maskable variant with padding for adaptive icon contexts.
+    # LANCZOS gives the cleanest reduction from a 1440px source.
     with Image.open(src_logo) as im:
         # Pillow yells if the source isn't RGBA; convert defensively.
         if im.mode != 'RGBA':
             im = im.convert('RGBA')
+
         for size in PNG_SIZES:
             out = img_dir / f'icon-{size}.png'
             resized = im.resize((size, size), Image.Resampling.LANCZOS)
@@ -68,6 +81,28 @@ def main() -> int:
                 f'({size}x{size}, {out.stat().st_size} bytes)',
                 file=sys.stderr,
             )
+
+        # Maskable: white canvas + logo at 80% size, centered. The mask
+        # only ever crops into the white padding; brand content (green
+        # border, trees, text) stays intact under any adaptive shape.
+        canvas = Image.new(
+            'RGBA', (MASKABLE_SIZE, MASKABLE_SIZE), (255, 255, 255, 255),
+        )
+        inner = im.resize(
+            (MASKABLE_INNER, MASKABLE_INNER), Image.Resampling.LANCZOS,
+        )
+        # paste with alpha mask so any transparent pixels in the logo
+        # come through to white, not to the (also white) canvas — net
+        # behaviour is identical here but keeps the call generic.
+        canvas.paste(inner, (MASKABLE_OFFSET, MASKABLE_OFFSET), inner)
+        out = img_dir / 'icon-512-maskable.png'
+        canvas.save(out, format='PNG', optimize=True)
+        print(
+            f'wrote {out.relative_to(ipso_root)} '
+            f'(maskable {MASKABLE_SIZE}x{MASKABLE_SIZE}, '
+            f'{out.stat().st_size} bytes)',
+            file=sys.stderr,
+        )
 
     return 0
 
