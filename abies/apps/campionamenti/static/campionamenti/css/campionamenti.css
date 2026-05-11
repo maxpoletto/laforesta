@@ -1,0 +1,38 @@
+/* Campionamenti page styles (M3b — table only). */
+
+.campionamenti-top-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0;
+  border-bottom: 4px solid #2d5d2c;
+  margin-bottom: 12px;
+}
+
+.campionamenti-pulldown-label {
+  font-weight: bold;
+  margin-right: 4px;
+}
+
+.campionamenti-pulldown {
+  font-size: 14px;
+  padding: 4px 8px;
+  border: 1px solid #888;
+  border-radius: 4px;
+  min-width: 320px;
+}
+
+.campionamenti-section {
+  margin-top: 8px;
+}
+
+.campionamenti-empty {
+  padding: 32px;
+  text-align: center;
+  color: #666;
+  font-style: italic;
+}
+
+.campionamenti-table-host {
+  /* Inherits standard table sizing from common.css. */
+}

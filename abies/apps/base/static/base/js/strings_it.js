@@ -145,6 +145,12 @@ export const CSV_TRACTORS = 'trattori.csv';
 export const CSV_SPECIES = 'specie.csv';
 export const CSV_USERS = 'utenti.csv';
 export const CSV_AUDIT = 'controllo.csv';
+export const CSV_SAMPLED_TREES = 'alberi-campionati.csv';
+
+// Campionamenti
+export const SURVEY_LABEL = 'Rilevamento';
+export const CAMPIONAMENTI_EMPTY =
+  'Seleziona un rilevamento per visualizzare gli alberi campionati.';
 
 // Roles
 export const ROLE_ADMIN = 'admin';

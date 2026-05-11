@@ -9,6 +9,7 @@ import * as router from './router.js';
 import * as cache from './cache.js';
 import * as bosco from '../../bosco/js/bosco.js';
 import * as prelievi from '../../prelievi/js/prelievi.js';
+import * as campionamenti from '../../campionamenti/js/campionamenti.js';
 import * as controllo from '../../controllo/js/controllo.js';
 import * as impostazioni from '../../impostazioni/js/impostazioni.js';
 
@@ -18,6 +19,7 @@ import * as impostazioni from '../../impostazioni/js/impostazioni.js';
 // Register routes.
 router.addRoute('bosco', bosco);
 router.addRoute('prelievi', prelievi);
+router.addRoute('campionamenti', campionamenti);
 router.addRoute('controllo', controllo);
 router.addRoute('impostazioni', impostazioni);
 
