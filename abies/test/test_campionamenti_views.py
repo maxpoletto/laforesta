@@ -122,3 +122,122 @@ class TestDataEndpoints:
         settings.DIGEST_DIR = tmp_path
         resp = reader_client.get('/api/campionamenti/surveys/data/')
         assert resp.status_code == 200
+
+
+class TestTreeForm:
+    def test_form_add_requires_survey_and_area(self, writer_client, sample_setup):
+        # Missing survey / area → 404
+        resp = writer_client.get('/api/campionamenti/tree/form/')
+        assert resp.status_code == 404
+
+    def test_form_add_returns_html(self, writer_client, sample_setup):
+        s = sample_setup
+        resp = writer_client.get(
+            f'/api/campionamenti/tree/form/?survey={s["survey"].id}&area={s["area"].id}'
+        )
+        assert resp.status_code == 200
+        html = resp.json()['html']
+        assert '<form' in html
+        assert s['area'].parcel.name in html
+
+    def test_form_add_rejects_mismatched_grid(self, writer_client, sample_setup,
+                                              regions, eclasses):
+        """Survey on grid A + area on grid B → 404."""
+        from apps.base.models import Parcel, SampleArea, SampleGrid
+        from decimal import Decimal
+        other_grid = SampleGrid.objects.create(name='Other')
+        other_parcel = Parcel.objects.create(
+            name='99', region=regions[0], eclass=eclasses[0],
+            area_ha=Decimal('1.0'),
+        )
+        other_area = SampleArea.objects.create(
+            sample_grid=other_grid, parcel=other_parcel, number='1',
+            lat=0.0, lng=0.0, r_m=12,
+        )
+        s = sample_setup
+        resp = writer_client.get(
+            f'/api/campionamenti/tree/form/?survey={s["survey"].id}&area={other_area.id}'
+        )
+        assert resp.status_code == 404
+
+
+class TestTreeSave:
+    @staticmethod
+    def _post(client, body):
+        import json
+        return client.post(
+            '/api/campionamenti/tree/save/',
+            data=json.dumps(body), content_type='application/json',
+        )
+
+    def test_create_fustaia_tree(self, writer_client, sample_setup):
+        from apps.base.models import Tree, TreeSample
+        s = sample_setup
+        n_before = TreeSample.objects.count()
+        resp = self._post(writer_client, {
+            'survey_id': str(s['survey'].id),
+            'sample_area_id': str(s['area'].id),
+            'species_id': str(s['tree'].species_id),
+            'number': '42',
+            'd_cm': '30', 'h_m': '20.5', 'l10_mm': '12',
+            'volume_m3': '0.7022', 'mass_q': '6.32',
+            'fustaia': 'true',
+            'lat': '0.001', 'lng': '0.001',
+            'preserved': '',
+        })
+        assert resp.status_code == 200, resp.content
+        data = resp.json()
+        assert TreeSample.objects.count() == n_before + 1
+        ts = TreeSample.objects.get(id=data['row_id'])
+        assert ts.number == 42
+        assert ts.tree.coppice is False
+        assert ts.tree.preserved is False
+        assert ts.volume_m3 is not None and ts.mass_q is not None
+
+    def test_create_rejects_mismatched_grid(self, writer_client, sample_setup,
+                                            regions, eclasses):
+        from apps.base.models import Parcel, SampleArea, SampleGrid
+        from decimal import Decimal
+        other_grid = SampleGrid.objects.create(name='Other')
+        other_parcel = Parcel.objects.create(
+            name='99', region=regions[0], eclass=eclasses[0],
+            area_ha=Decimal('1.0'),
+        )
+        other_area = SampleArea.objects.create(
+            sample_grid=other_grid, parcel=other_parcel, number='1',
+            lat=0.0, lng=0.0, r_m=12,
+        )
+        s = sample_setup
+        resp = self._post(writer_client, {
+            'survey_id': str(s['survey'].id),
+            'sample_area_id': str(other_area.id),
+            'species_id': str(s['tree'].species_id),
+            'number': '1', 'd_cm': '30', 'h_m': '20', 'l10_mm': '0',
+            'volume_m3': '0.5', 'mass_q': '4.7',
+            'fustaia': 'true',
+        })
+        assert resp.status_code == 400
+        assert 'griglia' in resp.json()['message'].lower()
+
+    def test_create_rejects_zero_diameter(self, writer_client, sample_setup):
+        s = sample_setup
+        resp = self._post(writer_client, {
+            'survey_id': str(s['survey'].id),
+            'sample_area_id': str(s['area'].id),
+            'species_id': str(s['tree'].species_id),
+            'number': '1', 'd_cm': '0', 'h_m': '20', 'l10_mm': '0',
+            'volume_m3': '0', 'mass_q': '0', 'fustaia': 'true',
+        })
+        assert resp.status_code == 400
+
+    def test_reader_cannot_save(self, reader_client, sample_setup):
+        s = sample_setup
+        resp = self._post(reader_client, {
+            'survey_id': str(s['survey'].id),
+            'sample_area_id': str(s['area'].id),
+            'species_id': str(s['tree'].species_id),
+            'number': '1', 'd_cm': '30', 'h_m': '20',
+            'l10_mm': '0', 'volume_m3': '0.5', 'mass_q': '4.7',
+            'fustaia': 'true',
+        })
+        assert resp.status_code == 403

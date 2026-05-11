@@ -149,8 +149,20 @@ export const CSV_SAMPLED_TREES = 'alberi-campionati.csv';
 
 // Campionamenti
 export const SURVEY_LABEL = 'Rilevamento';
+export const GRID_LABEL = 'Griglia';
+export const SECTION_GRIGLIE = 'Griglie di campionamento';
+export const SECTION_RILEVAMENTI = 'Rilevamenti';
+export const SECTION_ALBERI_CAMPIONATI = 'Alberi campionati';
 export const CAMPIONAMENTI_EMPTY =
   'Seleziona un rilevamento per visualizzare gli alberi campionati.';
+export const CAMPIONAMENTI_PICK_SURVEY_FIRST =
+  'Seleziona prima un rilevamento.';
+export const CAMPIONAMENTI_PICK_AREA_FIRST =
+  'Seleziona prima un\'area di saggio sulla mappa.';
+export const CAMPIONAMENTI_NO_VM_FOR_CEDUO =
+  'V e m non si calcolano per alberi cedui.';
+export const CAMPIONAMENTI_VM_INCOMPLETE =
+  'V e m verranno calcolati quando D, h e specie sono valorizzati.';
 
 // Roles
 export const ROLE_ADMIN = 'admin';

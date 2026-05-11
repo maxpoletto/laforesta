@@ -12,4 +12,9 @@ urlpatterns = [
     path('samples/data/', views.samples_data, name='campionamenti-samples-data'),
     path('trees/<int:survey_id>/', views.sampled_trees_data,
          name='campionamenti-trees-data'),
+    # Tree-sample CRUD (M3d-write).
+    path('tree/form/', views.tree_form_view, name='campionamenti-tree-form-add'),
+    path('tree/form/<int:ts_id>/', views.tree_form_view,
+         name='campionamenti-tree-form-edit'),
+    path('tree/save/', views.tree_save_view, name='campionamenti-tree-save'),
 ]

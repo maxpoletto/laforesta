@@ -90,6 +90,16 @@ ERR_NAME_REQUIRED = 'Nome obbligatorio.'
 ERR_USERNAME_REQUIRED = 'Nome utente obbligatorio.'
 ERR_EMAIL_REQUIRED = 'Email obbligatoria.'
 ERR_DENSITY_INVALID = 'La densità deve essere un numero positivo.'
+ERR_D_POSITIVE = 'Il diametro deve essere positivo.'
+ERR_H_POSITIVE = 'L\'altezza deve essere positiva.'
+ERR_TREE_NUMBER_REQUIRED = 'Numero albero obbligatorio.'
+ERR_AREA_OUT_OF_SURVEY = (
+    'L\'area di saggio non appartiene alla griglia del rilevamento.'
+)
+ERR_COPPICE_NOT_YET_SUPPORTED = (
+    'L\'inserimento manuale di alberi cedui non è ancora supportato. '
+    'Usa l\'import CSV.'
+)
 
 # ---------------------------------------------------------------------------
 # App verbose names
