@@ -6,7 +6,7 @@
 // only activates after a clean app exit.
 'use strict';
 
-const APP_VERSION = '0.1.2';
+const APP_VERSION = '0.2.0';
 const CACHE = 'ipso-v' + APP_VERSION;
 
 const SHELL = [

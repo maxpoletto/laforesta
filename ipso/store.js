@@ -12,7 +12,11 @@
 'use strict';
 
 const DB_NAME = 'ipso';
-const SCHEMA_VERSION = 1;
+// v2 added an optional `catastrofata` boolean on session rows. The bump is
+// documentation: IndexedDB tolerates extra fields without a schema change,
+// but the version bump is the contract for "this code wrote/read v2-shaped
+// session rows".
+const SCHEMA_VERSION = 2;
 
 const STORE_SESSIONS = 'sessions';
 const STORE_TREES = 'trees';
@@ -53,6 +57,10 @@ function openDb() {
         trees.createIndex('by_session_seq', ['session_id', 'seq']);
 
         db.createObjectStore(STORE_META, { keyPath: 'key' });
+      }
+      if (oldVersion < 2) {
+        // No structural change. `catastrofata` is an optional boolean on
+        // session rows; absence is treated as false by readers.
       }
       // Future migrations go here.
     };
@@ -95,8 +103,9 @@ function req(r) {
 // ---------------------------------------------------------------------------
 
 async function startSession(db, fields) {
-  // fields: {data, compresa, particella, operatore}
+  // fields: {data, compresa, particella, operatore, catastrofata}
   const id = uuid();
+  const catastrofata = !!fields.catastrofata;
   const row = {
     id,
     schema_version: SCHEMA_VERSION,
@@ -105,7 +114,10 @@ async function startSession(db, fields) {
     exported_at: null,
     data: fields.data,
     compresa: fields.compresa,
-    particella: fields.particella,
+    // For catastrofate sessions the operator does not pick a parcel; the
+    // server will infer it from the per-tree GPS coordinates.
+    particella: catastrofata ? '' : fields.particella,
+    catastrofata,
     operatore: fields.operatore || '',
     tree_count: 0,
   };

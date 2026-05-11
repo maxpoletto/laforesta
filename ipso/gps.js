@@ -21,7 +21,11 @@
 const GPS_GREEN_M = 20;
 const GPS_YELLOW_M = 50;
 const GPS_STALE_MS = 10000;
-const GPS_RESTART_THRESHOLD_MS = 8000;  // restart if no fix for this long
+// Restart the watcher if no fresh fix has arrived in this long. Tightened
+// from 8 s to 3 s — under canopy the OS sometimes delivers callbacks
+// every several seconds; restarting sooner provokes a fresh delivery
+// without dropping so often that the OS Kalman filter loses its state.
+const GPS_RESTART_THRESHOLD_MS = 3000;
 const GPS_HEARTBEAT_MS = 2000;
 const GPS_ERROR_BACKOFF_MS = 1000;
 
@@ -100,10 +104,12 @@ function createGps(onChange) {
           }, GPS_ERROR_BACKOFF_MS);
         }
       },
-      // maximumAge:0 forces the OS to provide a fresh hardware reading.
-      // maximumAge:>0 lets some Androids skip polling, which is exactly
-      // the watcher-goes-silent failure mode we're patching.
-      { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 }
+      // maximumAge:1000 lets the OS deliver a sub-second-old cached fix
+      // immediately while it polls for a fresher one. For a walking-pace
+      // operator the drift is imperceptible, and this is the difference
+      // between callbacks every ~5 s (maximumAge:0 forces fresh hardware
+      // reads under canopy) and callbacks every ~1-2 s.
+      { enableHighAccuracy: true, maximumAge: 1000, timeout: 30000 }
     );
   }
 

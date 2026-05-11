@@ -72,7 +72,7 @@ assertEqual(csv.escapeField(null), '', 'escape: null');
 
 assertEqual(
   csv.formatHeader(),
-  'Data;Compresa;Particella;Specie;D_cm;H_m;H_measured;Lat;Lng;Acc_m',
+  'Data;Compresa;Particella;Catastrofata;Specie;D_cm;H_m;H_measured;Lat;Lng;Acc_m',
   'header literal'
 );
 
@@ -83,7 +83,7 @@ const r1 = {
 };
 assertEqual(
   csv.formatRow(r1, sess),
-  '11/05/2026;Serra;1;Abete;42;24;0;38,425310;16,120440;7',
+  '11/05/2026;Serra;1;0;Abete;42;24;0;38,425310;16,120440;7',
   'formatRow happy path'
 );
 
@@ -93,8 +93,18 @@ const r2 = {
 };
 assertEqual(
   csv.formatRow(r2, sess),
-  '11/05/2026;Serra;1;Faggio;30;18;1;;;',
+  '11/05/2026;Serra;1;0;Faggio;30;18;1;;;',
   'formatRow no GPS'
+);
+
+// Catastrofate session: Particella column empty, Catastrofata = 1.
+const sessCat = {
+  data: '2026-05-12', compresa: 'Capistrano', particella: '', catastrofata: true,
+};
+assertEqual(
+  csv.formatRow(r1, sessCat),
+  '12/05/2026;Capistrano;;1;Abete;42;24;0;38,425310;16,120440;7',
+  'formatRow catastrofata'
 );
 
 const r3 = {
@@ -122,6 +132,16 @@ assertEqual(
   csv.filename({ data: '2026-05-11', compresa: 'Serra', particella: '2a' }, t0, 'backup', 20),
   'ipso_Serra_2a_2026-05-11_0907_backup_20.csv',
   'filename backup'
+);
+assertEqual(
+  csv.filename({ data: '2026-05-12', compresa: 'Capistrano', particella: '', catastrofata: true }, t0),
+  'ipso_Capistrano_catastrofate_2026-05-12_0907.csv',
+  'filename catastrofate final'
+);
+assertEqual(
+  csv.filename({ data: '2026-05-12', compresa: 'Serra', particella: '', catastrofata: true }, t0, 'backup', 40),
+  'ipso_Serra_catastrofate_2026-05-12_0907_backup_40.csv',
+  'filename catastrofate backup'
 );
 assertEqual(
   csv.filename({ data: '2026-05-11', compresa: 'San Giorgio', particella: '1/b' }, t0),

@@ -5,7 +5,7 @@
 // (store, gps, numpad). This file is mostly UI wiring.
 'use strict';
 
-const APP_VERSION = '0.1.2';
+const APP_VERSION = '0.2.0';
 
 const State = {
   reference: null,    // parsed reference.json
@@ -18,6 +18,7 @@ const State = {
   gps: null,          // GPS controller
   numpad: null,       // numpad controller
   lastTreeRow: null,  // most-recent tree in the current session
+  wakeLock: null,     // active WakeLockSentinel during recording (or null)
 };
 
 // ---------------------------------------------------------------------------
@@ -32,6 +33,7 @@ async function boot() {
   document.getElementById('lbl-data').textContent = S.PRE_DATA;
   document.getElementById('lbl-compresa').textContent = S.PRE_COMPRESA;
   document.getElementById('lbl-particella').textContent = S.PRE_PARTICELLA;
+  document.getElementById('lbl-catastrofata').textContent = S.PRE_CATASTROFATA;
   document.getElementById('btn-start').textContent = S.PRE_START;
   document.getElementById('lbl-specie').textContent = S.REC_SPECIE;
   document.getElementById('lbl-d').textContent = S.REC_D;
@@ -75,6 +77,10 @@ async function boot() {
   wirePreSession();
   wireRecording();
   wireDone();
+
+  // Re-acquire the screen wake lock when the page returns to the
+  // foreground (the Wake Lock API auto-releases on visibility loss).
+  setupWakeLockVisibility();
 
   // Resume-on-open: check for any open sessions before showing pre-session.
   const open = await Store.listOpenSessions(State.db);
@@ -151,19 +157,36 @@ function appendOption(sel, value, label, selected) {
 }
 
 function wirePreSession() {
+  const cb = document.getElementById('in-catastrofata');
+  const particellaField = document.getElementById('field-particella');
+  const particellaSel = document.getElementById('in-particella');
+
+  cb.addEventListener('change', () => {
+    const on = cb.checked;
+    particellaField.hidden = on;
+    // Required attribute drives the implicit HTML5 form validation. Pull
+    // it off when the field is hidden so submit doesn't refuse.
+    if (on) particellaSel.removeAttribute('required');
+    else particellaSel.setAttribute('required', '');
+  });
+
   document.getElementById('pre-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const operatore = document.getElementById('in-operatore').value.trim();
     const data = document.getElementById('in-data').value;
     const compresa = document.getElementById('in-compresa').value;
-    const particella = document.getElementById('in-particella').value;
-    if (!operatore || !data || !compresa || !particella) return;
+    const catastrofata = cb.checked;
+    const particella = catastrofata
+      ? ''
+      : document.getElementById('in-particella').value;
+    if (!operatore || !data || !compresa) return;
+    if (!catastrofata && !particella) return;
 
     localStorage.setItem('ipso.operatore', operatore);
 
     try {
       const sess = await Store.startSession(State.db, {
-        data, compresa, particella, operatore,
+        data, compresa, particella, operatore, catastrofata,
       });
       State.session = sess;
       State.lastTreeRow = null;
@@ -224,13 +247,13 @@ function wireRecording() {
 
 function enterRecording() {
   populateSpecie();
-  document.getElementById('rec-where').textContent =
-    State.session.compresa + ' / ' + State.session.particella;
-  document.getElementById('sub-status').textContent =
-    State.session.compresa + ' / ' + State.session.particella;
+  const where = S.where(State.session);
+  document.getElementById('rec-where').textContent = where;
+  document.getElementById('sub-status').textContent = where;
   resetEntryFields();
   refreshPill();
   startGps();
+  acquireWakeLock();
   showScreen('screen-rec');
 }
 
@@ -281,9 +304,14 @@ function startGps() {
   State.gps = createGps((st) => {
     dot.className = 'gps-dot ' + st.tier;
     if (st.fix && (st.age == null || st.age < 10000)) {
-      text.textContent =
+      let line =
         st.fix.lat.toFixed(5) + ' ' + st.fix.lng.toFixed(5) +
         ' ±' + Math.round(st.fix.acc) + ' m';
+      // Show fix age when noticeable, so the operator can see at a glance
+      // when the indicator is reporting an older reading.
+      const ageSec = st.age != null ? Math.round(st.age / 1000) : 0;
+      if (ageSec >= 2) line += ' · ' + ageSec + 's';
+      text.textContent = line;
     } else if (st.error === 'denied') {
       text.textContent = S.GPS_DENIED;
     } else {
@@ -291,6 +319,42 @@ function startGps() {
     }
   });
   State.gps.start();
+}
+
+// ---------------------------------------------------------------------------
+// Wake lock
+// ---------------------------------------------------------------------------
+
+async function acquireWakeLock() {
+  if (!('wakeLock' in navigator)) return;
+  if (State.wakeLock) return;
+  try {
+    const lock = await navigator.wakeLock.request('screen');
+    State.wakeLock = lock;
+    lock.addEventListener('release', () => {
+      // Auto-released on visibility loss; clear our reference and let the
+      // visibilitychange handler re-acquire when we come back.
+      if (State.wakeLock === lock) State.wakeLock = null;
+    });
+  } catch (_) {
+    // Lock failures are non-fatal — recording still works without the
+    // lock, the OS just gets to throttle us more aggressively.
+  }
+}
+
+function releaseWakeLock() {
+  if (!State.wakeLock) return;
+  const lock = State.wakeLock;
+  State.wakeLock = null;
+  try { lock.release(); } catch (_) {}
+}
+
+function setupWakeLockVisibility() {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    // Only re-acquire while a recording session is active.
+    if (State.session && !State.wakeLock) acquireWakeLock();
+  });
 }
 
 function recomputeAutoH() {
@@ -432,6 +496,11 @@ function wireDone() {
     if (State.gps) { State.gps.stop(); State.gps = null; }
     document.getElementById('sub-status').textContent = '';
     document.getElementById('pre-form').reset();
+    // Clear catastrofata UI state — the form.reset() above unchecks the
+    // box, but we also need to un-hide the particella row that the
+    // change handler had toggled.
+    document.getElementById('field-particella').hidden = false;
+    document.getElementById('in-particella').setAttribute('required', '');
     populateOperatore();
     populateComprese();
     showScreen('screen-pre');
@@ -440,6 +509,7 @@ function wireDone() {
 
 function enterDone(n) {
   if (State.gps) { State.gps.stop(); State.gps = null; }
+  releaseWakeLock();
   document.getElementById('done-body').textContent = S.DONE_BODY(n);
   showScreen('screen-done');
 }
@@ -457,7 +527,7 @@ function showResumeModal(sessions) {
     const meta = document.createElement('div');
     meta.className = 'resume-meta';
     meta.textContent =
-      formatItalianDate(s.data) + ' · ' + s.compresa + '/' + s.particella +
+      formatItalianDate(s.data) + ' · ' + S.where(s) +
       ' · ' + (s.operatore || '—') + ' · ' + (s.tree_count || 0) + ' alberi';
     li.appendChild(meta);
 

@@ -10,10 +10,13 @@ const CSV_BOM = '﻿';
 const CSV_SEP = ';';
 const CSV_NL = '\r\n';
 const HEADER = [
-  'Data', 'Compresa', 'Particella', 'Specie',
+  'Data', 'Compresa', 'Particella', 'Catastrofata', 'Specie',
   'D_cm', 'H_m', 'H_measured',
   'Lat', 'Lng', 'Acc_m',
 ];
+
+// Sentinel used in the filename's particella slot for catastrofate sessions.
+const FILENAME_CATASTROFATE = 'catastrofate';
 
 function pad2(n) { return n < 10 ? '0' + n : '' + n; }
 
@@ -50,10 +53,15 @@ function formatHeader() {
 }
 
 function formatRow(rec, session) {
+  const catastrofata = !!session.catastrofata;
+  // For catastrofate sessions the server infers the parcel from GPS, so
+  // we leave the Particella column blank rather than carry a placeholder.
+  const particella = catastrofata ? '' : session.particella;
   const cells = [
     formatDate(session.data),
     session.compresa,
-    session.particella,
+    particella,
+    catastrofata ? '1' : '0',
     rec.specie,
     fmtInt(rec.d_cm),
     fmtInt(rec.h_m),
@@ -77,7 +85,9 @@ function formatFile(session, trees) {
 // `kind` is 'final' (default) or 'backup' (then includes a seq suffix).
 function filename(session, now, kind, seq) {
   const compresa = sanitize(session.compresa);
-  const particella = sanitize(session.particella);
+  const particella = session.catastrofata
+    ? FILENAME_CATASTROFATE
+    : sanitize(session.particella);
   const date = session.data;  // already YYYY-MM-DD
   const hhmm = pad2(now.getHours()) + pad2(now.getMinutes());
   let base = 'ipso_' + compresa + '_' + particella + '_' + date + '_' + hhmm;
@@ -92,7 +102,7 @@ function sanitize(s) {
 }
 
 const csv = {
-  CSV_BOM, CSV_SEP, CSV_NL, HEADER,
+  CSV_BOM, CSV_SEP, CSV_NL, HEADER, FILENAME_CATASTROFATE,
   formatDate, fmtFloat, fmtInt, escapeField,
   formatHeader, formatRow, formatFile, filename, sanitize,
 };

@@ -11,9 +11,11 @@ const S = {
   PRE_DATA: 'Data',
   PRE_COMPRESA: 'Compresa',
   PRE_PARTICELLA: 'Particella',
+  PRE_CATASTROFATA: 'Piante catastrofate',
   PRE_PICK_COMPRESA: '— scegli una compresa —',
   PRE_PICK_PARTICELLA: '— scegli una particella —',
   PRE_START: 'Inizia',
+  CATASTROFATE: 'catastrofate',
 
   // Recording screen
   REC_GPS_WAITING: 'GPS in attesa…',
@@ -69,6 +71,19 @@ const S = {
     const d = rec.d_cm != null ? `D=${rec.d_cm}` : 'D=—';
     const h = rec.h_m != null ? `h=${rec.h_m}` : 'h=—';
     return `${S.REC_LAST_PREFIX} ${rec.specie}, ${d}, ${h}`;
+  },
+
+  // "Where" formatter used in the recording-screen header, the app-bar
+  // sub-status, and the resume modal. Two shapes depending on session
+  // type: "Serra / 1" for a parcel-bound mark, "Serra · catastrofate"
+  // for a roaming catastrofate session (where Particella is intentionally
+  // unset and the server infers parcel from GPS).
+  where(session) {
+    if (!session) return '';
+    if (session.catastrofata) {
+      return `${session.compresa} · ${S.CATASTROFATE}`;
+    }
+    return `${session.compresa} / ${session.particella}`;
   },
 };
 
