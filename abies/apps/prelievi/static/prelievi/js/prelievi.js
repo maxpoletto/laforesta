@@ -45,6 +45,12 @@ function formatQuintalsBlankZero(value) {
   return typeof value === 'number' ? value.toFixed(1).replace('.', ',') : value;
 }
 
+/** Format volume m³: two decimals, comma separator. */
+function formatVolume(value) {
+  if (value == null || value === '') return '';
+  return typeof value === 'number' ? value.toFixed(2).replace('.', ',') : value;
+}
+
 /** Format plain integer — no thousands separator. Blank for null. */
 function formatInteger(value) {
   if (value == null || value === '') return '';
@@ -57,9 +63,10 @@ const STATIC_COLS = {
   'Compresa': { label: S.COL_REGION, width: '80px' },
   'Particella': { label: S.COL_PARCEL, width: '70px' },
   'Squadra': { label: S.COL_CREW, width: '108px' },
-  'Tipo': { label: S.COL_OPTYPE, width: '120px' },
+  'Tipo': { label: S.COL_PRODUCT, width: '120px' },
   'VDP': { label: S.COL_VDP, type: 'number', width: '55px', formatter: formatInteger },
   'Q.li': { label: S.COL_QUINTALS, type: 'number', width: '55px', formatter: formatQuintals },
+  'Volume (m³)': { label: S.COL_VOLUME_M3, type: 'number', width: '70px', formatter: formatVolume },
   'Note': { label: S.COL_NOTE, width: '110px' },
   'Altre note': { label: S.COL_EXTRA_NOTE, width: '90px' },
   'version': { label: 'version', hidden: true },
@@ -537,7 +544,7 @@ function _buildChartABody(body, s) {
     ['total', S.CHART_TOTAL], ['compresa', S.COL_REGION],
     ['particella', S.COL_PARCEL], ['squadra', S.COL_CREW],
     ['specie', S.LABEL_SPECIES], ['trattore', S.COL_TRACTOR],
-    ['tipo', S.COL_OPTYPE],
+    ['tipo', S.COL_PRODUCT],
   ]) {
     const opt = document.createElement('option');
     opt.value = value;

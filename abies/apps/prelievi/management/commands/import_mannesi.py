@@ -1,6 +1,6 @@
 """Import harvest operations from mannesi.csv.
 
-Clears existing HarvestOp rows (cascading to junction tables) before
+Clears existing Harvest rows (cascading to junction tables) before
 re-importing, so a re-run produces a deterministic result rather than
 appending duplicates. Reference data must already be loaded.
 """
@@ -12,12 +12,12 @@ from pathlib import Path
 from django.core.management.base import BaseCommand, CommandError
 
 from apps.base.management.commands.import_reference import (
-    NOTE_MAP, OPTYPE_MAP,
+    NOTE_MAP, PRODUCT_MAP,
 )
 from apps.base.models import (
-    Crew, Note, Optype, Parcel, Species, Tractor,
+    Crew, Note, Parcel, Product, Species, Tractor,
 )
-from apps.prelievi.models import HarvestOp, HarvestSpecies, HarvestTractor
+from apps.prelievi.models import Harvest, HarvestSpecies, HarvestTractor
 
 # CSV column prefix -> Species.common_name
 SPECIES_COL_MAP = {
@@ -63,6 +63,16 @@ def _pct(s: str) -> int:
         return 0
 
 
+def _harvest_volume_m3(quintals: Decimal,
+                       species_pcts: list[tuple[Species, int]]) -> Decimal:
+    """Compute SUM_over_species(quintals × pct/100 / species.density)."""
+    total = Decimal('0')
+    for species, pct in species_pcts:
+        if species.density and species.density > 0:
+            total += quintals * Decimal(pct) / Decimal(100) / species.density
+    return total.quantize(Decimal('0.001'))
+
+
 class Command(BaseCommand):
     help = "Import harvest operations from mannesi.csv in <data_dir>."
 
@@ -81,7 +91,7 @@ class Command(BaseCommand):
 
         # Build FK lookup caches.
         crew_cache = {c.name: c for c in Crew.objects.all()}
-        optype_cache = {o.name: o for o in Optype.objects.all()}
+        product_cache = {p.name: p for p in Product.objects.all()}
         note_cache = {n.name: n for n in Note.objects.all()}
         species_cache = {s.common_name: s for s in Species.objects.all()}
         tractor_cache = {
@@ -101,7 +111,7 @@ class Command(BaseCommand):
         with open(mannesi_csv, encoding='utf-8-sig') as f:
             rows = list(csv.DictReader(f))
 
-        ops_batch: list[HarvestOp] = []
+        ops_batch: list[Harvest] = []
         species_deferred: list[tuple[int, Species, int]] = []
         tractor_deferred: list[tuple[int, Tractor, int]] = []
 
@@ -123,36 +133,43 @@ class Command(BaseCommand):
                 )
                 continue
 
-            optype = optype_cache.get(OPTYPE_MAP.get(row['Tipo'], ''))
-            if optype is None:
+            product = product_cache.get(PRODUCT_MAP.get(row['Tipo'], ''))
+            if product is None:
                 self.stdout.write(
-                    f'Row {i + 1}: unknown optype {row["Tipo"]!r}, skipping'
+                    f'Row {i + 1}: unknown product {row["Tipo"]!r}, skipping'
                 )
                 continue
 
             note_name = NOTE_MAP.get(row.get('Note', '').strip(), '')
             note = note_cache.get(note_name) if note_name else None
 
-            op = HarvestOp(
+            quintals = Decimal(row['Q.li'].strip())
+
+            row_species_pcts: list[tuple[Species, int]] = []
+            for col_prefix, common_name in SPECIES_COL_MAP.items():
+                pct = _pct(row.get(f'{col_prefix} %', ''))
+                if pct > 0:
+                    row_species_pcts.append((species_cache[common_name], pct))
+
+            volume_m3 = _harvest_volume_m3(quintals, row_species_pcts)
+
+            op = Harvest(
                 date=row['Data'],
-                optype=optype,
+                product=product,
                 parcel=parcel,
                 crew=crew,
                 record1=_int_or_none(row['VDP']),
                 record2=_int_or_none(row.get('Prot.', '')),
-                quintals=Decimal(row['Q.li'].strip()),
+                quintals=quintals,
+                volume_m3=volume_m3,
                 note=note,
                 extra_note=row.get('Altre note', '').strip(),
             )
             op_idx = len(ops_batch)
             ops_batch.append(op)
 
-            for col_prefix, common_name in SPECIES_COL_MAP.items():
-                pct = _pct(row.get(f'{col_prefix} %', ''))
-                if pct > 0:
-                    species_deferred.append(
-                        (op_idx, species_cache[common_name], pct),
-                    )
+            for sp, pct in row_species_pcts:
+                species_deferred.append((op_idx, sp, pct))
 
             for col_prefix, (mfr, model) in TRACTOR_COL_MAP.items():
                 pct = _pct(row.get(f'{col_prefix} %', ''))
@@ -162,22 +179,22 @@ class Command(BaseCommand):
                     )
 
         # Cascade-deletes the junction rows.
-        deleted, _ = HarvestOp.objects.all().delete()
+        deleted, _ = Harvest.objects.all().delete()
         if deleted:
             self.stdout.write(f'Cleared {deleted} existing records')
 
-        HarvestOp.objects.bulk_create(ops_batch, batch_size=BATCH_SIZE)
-        self.stdout.write(f'HarvestOps: {len(ops_batch)} created')
+        Harvest.objects.bulk_create(ops_batch, batch_size=BATCH_SIZE)
+        self.stdout.write(f'Harvests: {len(ops_batch)} created')
 
         species_records = [
-            HarvestSpecies(harvest_op=ops_batch[idx], species=sp, percent=pct)
+            HarvestSpecies(harvest=ops_batch[idx], species=sp, percent=pct)
             for idx, sp, pct in species_deferred
         ]
         HarvestSpecies.objects.bulk_create(species_records, batch_size=BATCH_SIZE)
         self.stdout.write(f'HarvestSpecies: {len(species_records)} created')
 
         tractor_records = [
-            HarvestTractor(harvest_op=ops_batch[idx], tractor=tr, percent=pct)
+            HarvestTractor(harvest=ops_batch[idx], tractor=tr, percent=pct)
             for idx, tr, pct in tractor_deferred
         ]
         HarvestTractor.objects.bulk_create(tractor_records, batch_size=BATCH_SIZE)

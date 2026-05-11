@@ -8,7 +8,7 @@ from django.test import Client
 
 from apps.base.digests import generate_prelievi, mark_stale
 from apps.base.models import DigestStatus
-from apps.prelievi.models import HarvestOp, HarvestSpecies, HarvestTractor
+from apps.prelievi.models import Harvest, HarvestSpecies, HarvestTractor
 
 
 @pytest.fixture
@@ -26,25 +26,25 @@ def reader_client(reader_user):
 
 
 @pytest.fixture
-def harvest_fixtures(regions, eclasses, species, tractors, crews, optypes, notes, parcels):
+def harvest_fixtures(regions, eclasses, species, tractors, crews, products, notes, parcels):
     """Return a dict of all reference fixtures needed for harvest operations."""
     return {
         'regions': regions, 'eclasses': eclasses, 'species': species,
-        'tractors': tractors, 'crews': crews, 'optypes': optypes,
+        'tractors': tractors, 'crews': crews, 'products': products,
         'notes': notes, 'parcels': parcels,
     }
 
 
 @pytest.fixture
 def sample_op(harvest_fixtures):
-    """A saved HarvestOp for edit/delete tests."""
+    """A saved Harvest for edit/delete tests."""
     f = harvest_fixtures
-    op = HarvestOp.objects.create(
+    op = Harvest.objects.create(
         date='2024-06-15', parcel=f['parcels'][0], crew=f['crews'][0],
-        optype=f['optypes'][0], quintals=50, record1=999,
+        product=f['products'][0], quintals=50, record1=999,
     )
-    HarvestSpecies.objects.create(harvest_op=op, species=f['species'][0], percent=100)
-    HarvestTractor.objects.create(harvest_op=op, tractor=f['tractors'][0], percent=100)
+    HarvestSpecies.objects.create(harvest=op, species=f['species'][0], percent=100)
+    HarvestTractor.objects.create(harvest=op, tractor=f['tractors'][0], percent=100)
     return op
 
 
@@ -129,7 +129,7 @@ class TestSaveView:
         f = harvest_fixtures
         resp = self._post(writer_client, {
             'date': '2024-07-01', 'parcel_id': str(f['parcels'][0].id),
-            'crew_id': str(f['crews'][0].id), 'optype_id': str(f['optypes'][0].id),
+            'crew_id': str(f['crews'][0].id), 'product_id': str(f['products'][0].id),
             'quintals': '30', 'note_id': '', 'record1': '', 'record2': '',
             'extra_note': 'test note',
             f'sp_{f["species"][0].id}': '60',
@@ -144,17 +144,17 @@ class TestSaveView:
         assert data['record'][2] == '2024-07-01'  # date is third column (after row_id, version)
 
         # Verify DB
-        op = HarvestOp.objects.get(id=data['row_id'])
+        op = Harvest.objects.get(id=data['row_id'])
         assert float(op.quintals) == 30.0
         assert op.extra_note == 'test note'
-        assert HarvestSpecies.objects.filter(harvest_op=op).count() == 2
-        assert HarvestTractor.objects.filter(harvest_op=op).count() == 1
+        assert HarvestSpecies.objects.filter(harvest=op).count() == 2
+        assert HarvestTractor.objects.filter(harvest=op).count() == 1
 
     def test_create_marks_digest_stale(self, writer_client, harvest_fixtures):
         f = harvest_fixtures
         self._post(writer_client, {
             'date': '2024-07-01', 'parcel_id': str(f['parcels'][0].id),
-            'crew_id': str(f['crews'][0].id), 'optype_id': str(f['optypes'][0].id),
+            'crew_id': str(f['crews'][0].id), 'product_id': str(f['products'][0].id),
             'quintals': '10', 'note_id': '', 'record1': '', 'record2': '',
             'extra_note': '',
             f'sp_{f["species"][0].id}': '100',
@@ -168,7 +168,7 @@ class TestSaveView:
         resp = self._post(writer_client, {
             'row_id': str(sample_op.id), 'version': str(sample_op.version),
             'date': '2024-06-20', 'parcel_id': str(f['parcels'][0].id),
-            'crew_id': str(f['crews'][0].id), 'optype_id': str(f['optypes'][0].id),
+            'crew_id': str(f['crews'][0].id), 'product_id': str(f['products'][0].id),
             'quintals': '60', 'note_id': '', 'record1': '999', 'record2': '',
             'extra_note': '',
             f'sp_{f["species"][0].id}': '100',
@@ -185,7 +185,7 @@ class TestSaveView:
         resp = self._post(writer_client, {
             'row_id': str(sample_op.id), 'version': '999',  # wrong version
             'date': '2024-06-20', 'parcel_id': str(f['parcels'][0].id),
-            'crew_id': str(f['crews'][0].id), 'optype_id': str(f['optypes'][0].id),
+            'crew_id': str(f['crews'][0].id), 'product_id': str(f['products'][0].id),
             'quintals': '60', 'note_id': '', 'record1': '', 'record2': '',
             'extra_note': '',
         })
@@ -197,7 +197,7 @@ class TestSaveView:
         f = harvest_fixtures
         resp = self._post(writer_client, {
             'date': '', 'parcel_id': str(f['parcels'][0].id),
-            'crew_id': str(f['crews'][0].id), 'optype_id': str(f['optypes'][0].id),
+            'crew_id': str(f['crews'][0].id), 'product_id': str(f['products'][0].id),
             'quintals': '10', 'note_id': '', 'record1': '', 'record2': '',
             'extra_note': '',
         })
@@ -209,7 +209,7 @@ class TestSaveView:
         f = harvest_fixtures
         resp = self._post(writer_client, {
             'date': '2024-07-01', 'parcel_id': str(f['parcels'][0].id),
-            'crew_id': str(f['crews'][0].id), 'optype_id': str(f['optypes'][0].id),
+            'crew_id': str(f['crews'][0].id), 'product_id': str(f['products'][0].id),
             'quintals': '10', 'note_id': '', 'record1': '', 'record2': '',
             'extra_note': '',
             f'sp_{f["species"][0].id}': '50',  # doesn't sum to 100
@@ -221,7 +221,7 @@ class TestSaveView:
         f = harvest_fixtures
         resp = self._post(writer_client, {
             'date': '2024-07-01', 'parcel_id': str(f['parcels'][0].id),
-            'crew_id': str(f['crews'][0].id), 'optype_id': str(f['optypes'][0].id),
+            'crew_id': str(f['crews'][0].id), 'product_id': str(f['products'][0].id),
             'quintals': '10', 'note_id': '', 'record1': '999', 'record2': '',
             'extra_note': '',
         })
@@ -232,7 +232,7 @@ class TestSaveView:
         f = harvest_fixtures
         resp = self._post(writer_client, {
             'date': '2024-07-01', 'parcel_id': str(f['parcels'][0].id),
-            'crew_id': str(f['crews'][0].id), 'optype_id': str(f['optypes'][0].id),
+            'crew_id': str(f['crews'][0].id), 'product_id': str(f['products'][0].id),
             'quintals': '-5', 'note_id': '', 'record1': '', 'record2': '',
             'extra_note': '',
         })
@@ -243,7 +243,7 @@ class TestSaveView:
         f = harvest_fixtures
         resp = self._post(writer_client, {
             'date': '2024-07-01', 'parcel_id': str(f['parcels'][0].id),
-            'crew_id': str(f['crews'][0].id), 'optype_id': str(f['optypes'][0].id),
+            'crew_id': str(f['crews'][0].id), 'product_id': str(f['products'][0].id),
             'quintals': 'abc', 'note_id': '', 'record1': '', 'record2': '',
             'extra_note': '',
         })
@@ -254,7 +254,7 @@ class TestSaveView:
         f = harvest_fixtures
         resp = self._post(writer_client, {
             'date': '2024-07-01', 'parcel_id': str(f['parcels'][0].id),
-            'crew_id': str(f['crews'][0].id), 'optype_id': str(f['optypes'][0].id),
+            'crew_id': str(f['crews'][0].id), 'product_id': str(f['products'][0].id),
             'quintals': '10', 'note_id': '', 'record1': '', 'record2': '',
             'extra_note': '',
             f'sp_{f["species"][0].id}': '100',
@@ -267,7 +267,7 @@ class TestSaveView:
         f = harvest_fixtures
         resp = self._post(reader_client, {
             'date': '2024-07-01', 'parcel_id': str(f['parcels'][0].id),
-            'crew_id': str(f['crews'][0].id), 'optype_id': str(f['optypes'][0].id),
+            'crew_id': str(f['crews'][0].id), 'product_id': str(f['products'][0].id),
             'quintals': '10', 'note_id': '', 'record1': '', 'record2': '',
             'extra_note': '',
         })
@@ -277,7 +277,7 @@ class TestSaveView:
         f = harvest_fixtures
         payload = {
             'date': '2024-07-01', 'parcel_id': str(f['parcels'][0].id),
-            'crew_id': str(f['crews'][0].id), 'optype_id': str(f['optypes'][0].id),
+            'crew_id': str(f['crews'][0].id), 'product_id': str(f['products'][0].id),
             'quintals': '10', 'note_id': '', 'record1': '', 'record2': '',
             'extra_note': '', 'nonce': 'idempotent-1',
             f'sp_{f["species"][0].id}': '100',
@@ -291,7 +291,7 @@ class TestSaveView:
         resp2 = self._post(writer_client, payload)
         assert resp2.status_code == 200
         assert resp2.json()['row_id'] == row_id_1
-        assert HarvestOp.objects.count() == 1
+        assert Harvest.objects.count() == 1
 
 
 # ---------------------------------------------------------------------------
@@ -313,7 +313,7 @@ class TestDeleteView:
         })
         assert resp.status_code == 200
         assert resp.json()['row_id'] == sample_op.id
-        assert not HarvestOp.objects.filter(id=sample_op.id).exists()
+        assert not Harvest.objects.filter(id=sample_op.id).exists()
 
     def test_delete_cascades_junctions(self, writer_client, harvest_fixtures, sample_op):
         sp_count_before = HarvestSpecies.objects.count()
@@ -328,7 +328,7 @@ class TestDeleteView:
         })
         assert resp.status_code == 400
         assert resp.json()['status'] == 'conflict'
-        assert HarvestOp.objects.filter(id=sample_op.id).exists()
+        assert Harvest.objects.filter(id=sample_op.id).exists()
 
     def test_delete_not_found(self, writer_client, harvest_fixtures):
         resp = self._post(writer_client, {'row_id': '99999', 'version': '1'})

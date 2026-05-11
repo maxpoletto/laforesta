@@ -6,10 +6,10 @@ from decimal import Decimal
 from django.db import IntegrityError
 
 from apps.base.models import (
-    Crew, Eclass, HarvestDetail, HarvestPlan, Note, Optype, Parcel,
+    Crew, Eclass, HarvestDetail, HarvestPlan, Note, Product, Parcel,
     Region, Species, Tractor, User, Role, DigestStatus, UsedNonce,
 )
-from apps.prelievi.models import HarvestOp, HarvestSpecies, HarvestTractor
+from apps.prelievi.models import Harvest, HarvestSpecies, HarvestTractor
 
 
 # ---------------------------------------------------------------------------
@@ -36,8 +36,8 @@ class TestStr:
     def test_species(self, species):
         assert str(species[0]) == 'Abete'
 
-    def test_optype(self, optypes):
-        assert str(optypes[0]) == 'Tronchi'
+    def test_product(self, products):
+        assert str(products[0]) == 'Tronchi'
 
     def test_note(self, notes):
         assert str(notes[0]) == 'PSR'
@@ -137,51 +137,51 @@ class TestSpeciesOrdering:
 
 
 # ---------------------------------------------------------------------------
-# HarvestOp + cascade
+# Harvest + cascade
 # ---------------------------------------------------------------------------
 
-class TestHarvestOp:
+class TestHarvest:
     @pytest.fixture
-    def harvest_op(self, parcels, crews, optypes):
-        return HarvestOp.objects.create(
-            date='2024-03-15', optype=optypes[0], parcel=parcels[0],
+    def harvest(self, parcels, crews, products):
+        return Harvest.objects.create(
+            date='2024-03-15', product=products[0], parcel=parcels[0],
             crew=crews[0], quintals=Decimal('100.50'),
         )
 
-    def test_create(self, harvest_op):
-        assert harvest_op.pk is not None
-        assert harvest_op.quintals == Decimal('100.50')
+    def test_create(self, harvest):
+        assert harvest.pk is not None
+        assert harvest.quintals == Decimal('100.50')
 
-    def test_nullable_record_fields(self, harvest_op):
-        assert harvest_op.record1 is None
-        assert harvest_op.record2 is None
+    def test_nullable_record_fields(self, harvest):
+        assert harvest.record1 is None
+        assert harvest.record2 is None
 
-    def test_cascade_to_species(self, harvest_op, species):
+    def test_cascade_to_species(self, harvest, species):
         HarvestSpecies.objects.create(
-            harvest_op=harvest_op, species=species[0], percent=100,
+            harvest=harvest, species=species[0], percent=100,
         )
         assert HarvestSpecies.objects.count() == 1
-        harvest_op.delete()
+        harvest.delete()
         assert HarvestSpecies.objects.count() == 0
 
-    def test_cascade_to_tractor(self, harvest_op, tractors):
+    def test_cascade_to_tractor(self, harvest, tractors):
         HarvestTractor.objects.create(
-            harvest_op=harvest_op, tractor=tractors[0], percent=100,
+            harvest=harvest, tractor=tractors[0], percent=100,
         )
         assert HarvestTractor.objects.count() == 1
-        harvest_op.delete()
+        harvest.delete()
         assert HarvestTractor.objects.count() == 0
 
-    def test_species_protect(self, harvest_op, species):
+    def test_species_protect(self, harvest, species):
         HarvestSpecies.objects.create(
-            harvest_op=harvest_op, species=species[0], percent=100,
+            harvest=harvest, species=species[0], percent=100,
         )
         with pytest.raises(Exception):
             species[0].delete()
 
-    def test_crew_protect(self, harvest_op):
+    def test_crew_protect(self, harvest):
         with pytest.raises(Exception):
-            harvest_op.crew.delete()
+            harvest.crew.delete()
 
 
 # ---------------------------------------------------------------------------

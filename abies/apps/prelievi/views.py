@@ -13,8 +13,8 @@ from django.views.decorators.http import require_POST
 from apps.base.auth import require_writer
 from apps.base.digests import build_harvest_record, mark_stale, serve_digest
 from apps.base.middleware import save_nonce
-from apps.base.models import Crew, Note, Optype, Parcel, Region, Species, Tractor
-from apps.prelievi.models import HarvestOp, HarvestSpecies, HarvestTractor
+from apps.base.models import Crew, Note, Parcel, Product, Region, Species, Tractor
+from apps.prelievi.models import Harvest, HarvestSpecies, HarvestTractor
 from config import strings as S
 
 
@@ -46,7 +46,7 @@ def form_view(request, op_id=None):
 @require_writer
 @require_POST
 def save_view(request):
-    """Create or update a harvest operation."""
+    """Create or update a harvest."""
     body = json.loads(request.body)
 
     row_id, parsed, errors = _parse_body(body)
@@ -63,7 +63,7 @@ def save_view(request):
     # VDP uniqueness
     record1 = parsed['record1']
     if record1 is not None:
-        dup = HarvestOp.objects.filter(record1=record1)
+        dup = Harvest.objects.filter(record1=record1)
         if row_id:
             dup = dup.exclude(id=row_id)
         if dup.exists():
@@ -74,18 +74,21 @@ def save_view(request):
     if pct_errors:
         return _validation_error(pct_errors, row_id, request, body)
 
+    # Materialize volume_m3 from species mix and current densities.
+    parsed['volume_m3'] = _compute_volume_m3(parsed['quintals'], sp_pcts)
+
     with transaction.atomic():
         if row_id:
             op = _update_op(row_id, parsed, body, request)
             if isinstance(op, JsonResponse):
                 return op  # race conflict
         else:
-            op = HarvestOp.objects.create(**parsed)
+            op = Harvest.objects.create(**parsed)
 
         _write_junctions(op, sp_pcts, tr_pcts)
         mark_stale('prelievi', 'parcel_year_production', 'audit')
 
-    op = HarvestOp.objects.select_related('parcel__region', 'crew', 'note', 'optype').get(id=op.id)
+    op = Harvest.objects.select_related('parcel__region', 'crew', 'note', 'product').get(id=op.id)
     record = build_harvest_record(op)
     response_data = {'data_id': 'prelievi', 'row_id': op.id, 'record': record}
 
@@ -104,14 +107,14 @@ def save_view(request):
 @require_writer
 @require_POST
 def delete_view(request):
-    """Delete a harvest operation (with version check)."""
+    """Delete a harvest (with version check)."""
     body = json.loads(request.body)
     row_id = int(body['row_id'])
     version = int(body.get('version', 0))
 
     try:
-        op = HarvestOp.objects.select_related('parcel__region', 'crew', 'note', 'optype').get(id=row_id)
-    except HarvestOp.DoesNotExist:
+        op = Harvest.objects.select_related('parcel__region', 'crew', 'note', 'product').get(id=row_id)
+    except Harvest.DoesNotExist:
         return JsonResponse({'message': S.ERR_NOT_FOUND}, status=404)
 
     if op.version != version:
@@ -149,14 +152,14 @@ def _form_context(op_id=None, vals=None):
     tr_pcts = {}
 
     if op_id:
-        op = HarvestOp.objects.select_related(
+        op = Harvest.objects.select_related(
             'parcel__region', 'crew', 'note',
         ).get(id=op_id)
         sp_pcts = dict(
-            HarvestSpecies.objects.filter(harvest_op=op).values_list('species_id', 'percent'),
+            HarvestSpecies.objects.filter(harvest=op).values_list('species_id', 'percent'),
         )
         tr_pcts = dict(
-            HarvestTractor.objects.filter(harvest_op=op).values_list('tractor_id', 'percent'),
+            HarvestTractor.objects.filter(harvest=op).values_list('tractor_id', 'percent'),
         )
     elif vals:
         for key, val in vals.items():
@@ -175,7 +178,7 @@ def _form_context(op_id=None, vals=None):
         'parcels': Parcel.objects.exclude(name='X')
                         .select_related('region').order_by('region__name', 'name'),
         'crews': Crew.objects.filter(active=True).order_by('name'),
-        'optypes': Optype.objects.order_by('name'),
+        'products': Product.objects.order_by('name'),
         'notes': Note.objects.order_by('name'),
         'species_data': [
             (sp.id, sp.common_name, sp_pcts.get(sp.id, 0))
@@ -228,7 +231,7 @@ def _parse_body(body):
         'date': date,
         'parcel_id': int(body['parcel_id']),
         'crew_id': int(body['crew_id']),
-        'optype_id': int(body['optype_id']),
+        'product_id': int(body['product_id']),
         'note_id': int(note_id) if note_id else None,
         'record1': int(record1) if record1 else None,
         'quintals': quintals,
@@ -269,11 +272,32 @@ def _parse_percentages(body):
     return sp_pcts, tr_pcts, errors
 
 
+def _compute_volume_m3(quintals: Decimal, sp_pcts: dict[int, int]) -> Decimal:
+    """Compute the materialized harvest volume in m³.
+
+    `volume_m3 = SUM_over_species(quintals × pct/100 / species.density)`.
+    Captured at write time using current `Species.density` values; later
+    density edits do not retroactively update stored volumes.
+    """
+    if not sp_pcts:
+        return Decimal('0')
+    densities = dict(
+        Species.objects.filter(id__in=sp_pcts.keys()).values_list('id', 'density'),
+    )
+    total = Decimal('0')
+    hundred = Decimal(100)
+    for sid, pct in sp_pcts.items():
+        density = densities.get(sid)
+        if density and density > 0:
+            total += quintals * Decimal(pct) / hundred / density
+    return total.quantize(Decimal('0.001'))
+
+
 def _conflict_response(row_id, request):
     """Build the update-flow conflict response (used on pre-check and on
     races inside the transaction)."""
-    op = HarvestOp.objects.select_related(
-        'parcel__region', 'crew', 'note', 'optype',
+    op = Harvest.objects.select_related(
+        'parcel__region', 'crew', 'note', 'product',
     ).get(id=row_id)
     return JsonResponse({
         'status': 'conflict', 'message': S.ERROR_CONFLICT,
@@ -289,8 +313,8 @@ def _check_update_conflict(row_id, body, request):
     The authoritative check inside `transaction.atomic()` still runs in
     `_update_op` to handle races with concurrent writers."""
     try:
-        actual_version = HarvestOp.objects.values_list('version', flat=True).get(id=row_id)
-    except HarvestOp.DoesNotExist:
+        actual_version = Harvest.objects.values_list('version', flat=True).get(id=row_id)
+    except Harvest.DoesNotExist:
         return JsonResponse({'message': S.ERR_NOT_FOUND}, status=404)
     if actual_version == int(body.get('version', 0)):
         return None
@@ -298,11 +322,11 @@ def _check_update_conflict(row_id, body, request):
 
 
 def _update_op(row_id, parsed, body, request):
-    """Update an existing HarvestOp under row lock.  Returns the updated op,
+    """Update an existing Harvest under row lock.  Returns the updated op,
     or a conflict JsonResponse if a concurrent writer bumped the version
     since `_check_update_conflict` passed."""
     version = int(body.get('version', 0))
-    op = HarvestOp.objects.select_for_update().get(id=row_id)
+    op = Harvest.objects.select_for_update().get(id=row_id)
     if op.version != version:
         return _conflict_response(row_id, request)
 
@@ -314,15 +338,15 @@ def _update_op(row_id, parsed, body, request):
 
 
 def _write_junctions(op, sp_pcts, tr_pcts):
-    """Replace species and tractor junction records for a harvest op."""
-    HarvestSpecies.objects.filter(harvest_op=op).delete()
-    HarvestTractor.objects.filter(harvest_op=op).delete()
+    """Replace species and tractor junction records for a harvest."""
+    HarvestSpecies.objects.filter(harvest=op).delete()
+    HarvestTractor.objects.filter(harvest=op).delete()
     HarvestSpecies.objects.bulk_create([
-        HarvestSpecies(harvest_op=op, species_id=sid, percent=pct)
+        HarvestSpecies(harvest=op, species_id=sid, percent=pct)
         for sid, pct in sp_pcts.items()
     ])
     HarvestTractor.objects.bulk_create([
-        HarvestTractor(harvest_op=op, tractor_id=tid, percent=pct)
+        HarvestTractor(harvest=op, tractor_id=tid, percent=pct)
         for tid, pct in tr_pcts.items()
     ])
 

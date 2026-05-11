@@ -4,9 +4,9 @@ import pytest
 from pathlib import Path
 
 from apps.base.models import (
-    Crew, Eclass, Note, Optype, Parcel, Region, Species, Tractor,
+    Crew, Eclass, Note, Product, Parcel, Region, Species, Tractor,
 )
-from apps.prelievi.models import HarvestOp, HarvestSpecies, HarvestTractor
+from apps.prelievi.models import Harvest, HarvestSpecies, HarvestTractor
 
 BOSCO_DATA = Path(__file__).resolve().parent.parent.parent / 'bosco' / 'data'
 HAS_CSV = (BOSCO_DATA / 'mannesi.csv').exists()
@@ -44,8 +44,8 @@ class TestImportReference:
     def test_tractor_count(self):
         assert Tractor.objects.count() == 5
 
-    def test_optype_count(self):
-        assert Optype.objects.count() == 5
+    def test_product_count(self):
+        assert Product.objects.count() == 5
 
     def test_note_count(self):
         assert Note.objects.count() == 3
@@ -105,8 +105,8 @@ class TestImportMannesi:
         from ingest.import_mannesi import run
         run()
 
-    def test_harvest_op_count(self):
-        assert HarvestOp.objects.count() == 11941
+    def test_harvest_count(self):
+        assert Harvest.objects.count() == 11941
 
     def test_harvest_species_created(self):
         assert HarvestSpecies.objects.count() > 10000
@@ -116,7 +116,7 @@ class TestImportMannesi:
 
     def test_vdp_nd_maps_to_null(self):
         """'nd' VDP values should be stored as NULL."""
-        null_vdps = HarvestOp.objects.filter(record1__isnull=True)
+        null_vdps = Harvest.objects.filter(record1__isnull=True)
         assert null_vdps.exists()
 
     def test_species_percentages_positive(self):

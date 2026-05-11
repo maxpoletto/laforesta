@@ -8,6 +8,6 @@ urlpatterns = [
     path('login/', views.LoginView.as_view(), name='login'),
     path('logout/', views.logout_view, name='logout'),
     # The shell catches all domain paths for client-side routing.
-    re_path(r'^(?:bosco|prelievi|controllo|impostazioni)(?:/.*)?$',
+    re_path(r'^(?:bosco|piano-di-taglio|campionamenti|prelievi|controllo|impostazioni)(?:/.*)?$',
             views.shell_view, name='shell'),
 ]

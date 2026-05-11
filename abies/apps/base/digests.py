@@ -90,13 +90,13 @@ def serve_digest(request, name: str):
 def generate_prelievi() -> None:
     """De-normalized harvest table for the Prelievi sortable-table.
 
-    Columns: row_id, Data, Compresa, Particella, Squadra, VDP, Q.li, Note,
-    Altre note, then one quintal column per species (alphabetical), then one
-    quintal column per tractor (alphabetical).  Also carries percentage values
-    for form pre-population (suffixed with " %").
+    Columns: row_id, version, Data, Compresa, Particella, Squadra, VDP, Tipo,
+    Q.li, Volume (m³), Note, Altre note, then one quintal column per species
+    (sort_order), then one quintal column per tractor (alphabetical).  Also
+    carries percentage values for form pre-population (suffixed with " %").
     """
     from apps.base.models import Species, Tractor
-    from apps.prelievi.models import HarvestOp, HarvestSpecies, HarvestTractor
+    from apps.prelievi.models import Harvest, HarvestSpecies, HarvestTractor
 
     # Stable sort orders for dynamic columns.
     all_species = list(Species.objects.order_by('sort_order').values_list('id', 'common_name'))
@@ -113,25 +113,25 @@ def generate_prelievi() -> None:
 
     columns = (
         ['row_id', 'version', 'Data', 'Compresa', 'Particella', 'Squadra',
-         'VDP', 'Tipo', 'Q.li', 'Note', 'Altre note']
+         'VDP', 'Tipo', 'Q.li', 'Volume (m³)', 'Note', 'Altre note']
         + species_names
         + tractor_labels
         + [f'{n} %' for n in species_names]
         + [f'{l} %' for l in tractor_labels]
     )
 
-    # Prefetch junction tables into dicts keyed by harvest_op_id.
+    # Prefetch junction tables into dicts keyed by harvest_id.
     sp_map: dict[int, dict[int, int]] = {}
-    for hs in HarvestSpecies.objects.all().values_list('harvest_op_id', 'species_id', 'percent'):
+    for hs in HarvestSpecies.objects.all().values_list('harvest_id', 'species_id', 'percent'):
         sp_map.setdefault(hs[0], {})[hs[1]] = hs[2]
 
     tr_map: dict[int, dict[int, int]] = {}
-    for ht in HarvestTractor.objects.all().values_list('harvest_op_id', 'tractor_id', 'percent'):
+    for ht in HarvestTractor.objects.all().values_list('harvest_id', 'tractor_id', 'percent'):
         tr_map.setdefault(ht[0], {})[ht[1]] = ht[2]
 
     rows = []
-    ops = (HarvestOp.objects
-           .select_related('parcel__region', 'crew', 'note', 'optype')
+    ops = (Harvest.objects
+           .select_related('parcel__region', 'crew', 'note', 'product')
            .order_by('-date', 'id'))
     for op in ops.iterator():
         quintals = float(op.quintals)
@@ -148,7 +148,8 @@ def generate_prelievi() -> None:
         row = (
             [op.id, op.version, op.date.isoformat(),
              op.parcel.region.name, op.parcel.name,
-             op.crew.name, op.record1, op.optype.name, quintals,
+             op.crew.name, op.record1, op.product.name, quintals,
+             float(op.volume_m3),
              op.note.name if op.note else '', op.extra_note]
             + sp_quintals + tr_quintals
             + sp_pct_vals + tr_pct_vals
@@ -162,8 +163,8 @@ def generate_prelievi() -> None:
 def build_harvest_record(op) -> list:
     """Build a single prelievi digest row.  Used by save views for cache sync.
 
-    The caller must ensure *op* has ``parcel.region``, ``crew``, and ``note``
-    loaded (via ``select_related``).
+    The caller must ensure *op* has ``parcel.region``, ``crew``, ``note``,
+    and ``product`` loaded (via ``select_related``).
     """
     from apps.base.models import Species, Tractor
     from apps.prelievi.models import HarvestSpecies, HarvestTractor
@@ -171,8 +172,8 @@ def build_harvest_record(op) -> list:
     species_ids = list(Species.objects.order_by('sort_order').values_list('id', flat=True))
     tractor_ids = list(Tractor.objects.order_by('manufacturer', 'model').values_list('id', flat=True))
 
-    sp_pcts = dict(HarvestSpecies.objects.filter(harvest_op=op).values_list('species_id', 'percent'))
-    tr_pcts = dict(HarvestTractor.objects.filter(harvest_op=op).values_list('tractor_id', 'percent'))
+    sp_pcts = dict(HarvestSpecies.objects.filter(harvest=op).values_list('species_id', 'percent'))
+    tr_pcts = dict(HarvestTractor.objects.filter(harvest=op).values_list('tractor_id', 'percent'))
 
     quintals = float(op.quintals)
     sp_quintals = [round(quintals * sp_pcts.get(sid, 0) / 100, 2) for sid in species_ids]
@@ -181,7 +182,8 @@ def build_harvest_record(op) -> list:
     return (
         [op.id, op.version, op.date.isoformat(),
          op.parcel.region.name, op.parcel.name,
-         op.crew.name, op.record1, op.optype.name, quintals,
+         op.crew.name, op.record1, op.product.name, quintals,
+         float(op.volume_m3),
          op.note.name if op.note else '', op.extra_note]
         + sp_quintals + tr_quintals
         + [sp_pcts.get(sid, 0) for sid in species_ids]
@@ -228,24 +230,47 @@ def generate_crews() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Species digest
+# ---------------------------------------------------------------------------
+
+def generate_species() -> None:
+    """Lookup digest used by JS forms (V/m preview) and by other digest
+    generators that need per-species density."""
+    from apps.base.models import Species
+
+    columns = ['row_id', 'version', 'Nome', 'Nome latino', 'Densità (q/m³)',
+               'Sort order', 'Attiva']
+    rows = []
+    for sp in Species.objects.order_by('sort_order'):
+        rows.append([
+            sp.id, sp.version, sp.common_name, sp.latin_name,
+            float(sp.density), sp.sort_order, sp.active,
+        ])
+
+    _write_gzip_json({'columns': columns, 'rows': rows}, _dest('species'))
+    print(f'species.json.gz: {len(rows)} rows')
+
+
+# ---------------------------------------------------------------------------
 # Parcel-year production digest
 # ---------------------------------------------------------------------------
 
 def generate_parcel_year_production() -> None:
-    """SELECT region, parcel, year, SUM(quintals) GROUP BY region, parcel, year."""
-    from apps.prelievi.models import HarvestOp
+    """SELECT region, parcel, year, SUM(quintals), SUM(volume_m3)
+    GROUP BY region, parcel, year."""
+    from apps.prelievi.models import Harvest
 
-    columns = ['Compresa', 'Particella', 'Anno', 'Q.li']
-    qs = (HarvestOp.objects
+    columns = ['Compresa', 'Particella', 'Anno', 'Q.li', 'Volume (m³)']
+    qs = (Harvest.objects
           .values('parcel__region__name', 'parcel__name', 'date__year')
-          .annotate(total=Sum('quintals'))
+          .annotate(total_q=Sum('quintals'), total_v=Sum('volume_m3'))
           .order_by('parcel__region__name', 'parcel__name', 'date__year'))
 
     rows = []
     for r in qs:
         rows.append([
             r['parcel__region__name'], r['parcel__name'],
-            r['date__year'], float(r['total']),
+            r['date__year'], float(r['total_q']), float(r['total_v']),
         ])
 
     _write_gzip_json({'columns': columns, 'rows': rows}, _dest('parcel_year_production'))
@@ -262,13 +287,14 @@ _ACTION_MAP = {'+': S.ACTION_INSERT, '~': S.ACTION_UPDATE, '-': S.ACTION_DELETE}
 def generate_audit() -> None:
     """Audit log from django-simple-history across all tracked models."""
     from apps.base.models import Crew, Species, Tractor, User
-    from apps.prelievi.models import HarvestOp
+    from apps.prelievi.models import Harvest
 
     configs = [
-        (HarvestOp.history, S.TABLE_HARVEST_OP, {
+        (Harvest.history, S.TABLE_HARVEST, {
             'date': S.COL_DATE, 'parcel_id': S.COL_PARCEL,
-            'crew_id': S.COL_CREW, 'optype_id': S.COL_OPTYPE,
-            'quintals': S.COL_QUINTALS, 'record1': S.COL_VDP,
+            'crew_id': S.COL_CREW, 'product_id': S.COL_PRODUCT,
+            'quintals': S.COL_QUINTALS, 'volume_m3': S.COL_VOLUME_M3,
+            'record1': S.COL_VDP,
             'record2': S.COL_PROT, 'note_id': S.COL_NOTE,
             'extra_note': S.COL_EXTRA_NOTE,
         }),
@@ -288,6 +314,7 @@ def generate_audit() -> None:
         (Species.history, S.TABLE_SPECIES, {
             'common_name': S.LABEL_NAME,
             'latin_name': S.LABEL_LATIN_NAME,
+            'density': S.LABEL_DENSITY,
             'active': S.COL_ACTIVE,
         }),
     ]
@@ -366,6 +393,7 @@ _GENERATORS: dict[str, callable] = {
     'prelievi': generate_prelievi,
     'parcels': generate_parcels,
     'crews': generate_crews,
+    'species': generate_species,
     'parcel_year_production': generate_parcel_year_production,
     'audit': generate_audit,
 }

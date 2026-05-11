@@ -1,5 +1,5 @@
 """Import reference entities (regions, eclasses, species, tractors, crews,
-optypes, notes) from CSV files in <data_dir>.
+products, notes) from CSV files in <data_dir>.
 
 Idempotent: safe to re-run. Uses get_or_create throughout. Crew names are
 extracted from mannesi.csv (the only CSV that lists them), so this command
@@ -7,12 +7,13 @@ expects mannesi.csv to live in <data_dir>.
 """
 
 import csv
+from decimal import Decimal
 from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
 
 from apps.base.models import (
-    Crew, Eclass, Note, Optype, Region, Species, Tractor,
+    Crew, Eclass, Note, Product, Region, Species, Tractor,
 )
 
 # --- Static reference data --------------------------------------------------
@@ -29,15 +30,17 @@ ECLASSES = [
     ('F', True),
 ]
 
-# (common_name, latin_name, sort_order). 'Altro' sorts last.
+# (common_name, latin_name, sort_order, density q/m³). 'Altro' sorts last.
+# Density values are fresh-cut wood (the truck-scale weight basis for the
+# harvest record). Admins refine via Settings → Trees.
 SPECIES = [
-    ('Abete', 'Abies alba', 10),
-    ('Castagno', 'Castanea sativa', 20),
-    ('Douglas', 'Pseudotsuga menziesii', 30),
-    ('Faggio', 'Fagus sylvatica', 40),
-    ('Ontano', 'Alnus cordata', 50),
-    ('Pino', 'Pinus nigra', 60),
-    ('Altro', '', 999),
+    ('Abete', 'Abies alba', 10, Decimal('9.00')),
+    ('Castagno', 'Castanea sativa', 20, Decimal('9.20')),
+    ('Douglas', 'Pseudotsuga menziesii', 30, Decimal('8.50')),
+    ('Faggio', 'Fagus sylvatica', 40, Decimal('10.50')),
+    ('Ontano', 'Alnus cordata', 50, Decimal('8.50')),
+    ('Pino', 'Pinus nigra', 60, Decimal('9.00')),
+    ('Altro', '', 999, Decimal('9.00')),
 ]
 
 # (manufacturer, model, year)
@@ -49,8 +52,8 @@ TRACTORS = [
     ('New Holland', 'T5050', None),
 ]
 
-# CSV optype name -> canonical name. Imported by import_mannesi.
-OPTYPE_MAP = {
+# CSV product name -> canonical name. Imported by import_mannesi.
+PRODUCT_MAP = {
     'Tronchi': 'Tronchi',
     'Cippato': 'Cippato',
     'Ramaglia': 'Ramaglia',
@@ -87,7 +90,7 @@ class Command(BaseCommand):
         self._import_species()
         self._import_tractors()
         self._import_crews(mannesi_csv)
-        self._import_optypes()
+        self._import_products()
         self._import_notes()
         self.stdout.write('Reference import complete.')
 
@@ -102,14 +105,24 @@ class Command(BaseCommand):
         self.stdout.write(f'Eclasses: {Eclass.objects.count()}')
 
     def _import_species(self):
-        for common, latin, order in SPECIES:
+        for common, latin, order, density in SPECIES:
             obj, created = Species.objects.get_or_create(
                 common_name=common,
-                defaults={'latin_name': latin, 'sort_order': order},
+                defaults={
+                    'latin_name': latin, 'sort_order': order,
+                    'density': density,
+                },
             )
-            if not created and obj.sort_order != order:
-                obj.sort_order = order
-                obj.save(update_fields=['sort_order'])
+            if not created:
+                update_fields = []
+                if obj.sort_order != order:
+                    obj.sort_order = order
+                    update_fields.append('sort_order')
+                if obj.density != density:
+                    obj.density = density
+                    update_fields.append('density')
+                if update_fields:
+                    obj.save(update_fields=update_fields)
         self.stdout.write(f'Species: {Species.objects.count()}')
 
     def _import_tractors(self):
@@ -127,10 +140,10 @@ class Command(BaseCommand):
             Crew.objects.get_or_create(name=name)
         self.stdout.write(f'Crews: {Crew.objects.count()}')
 
-    def _import_optypes(self):
-        for canonical in OPTYPE_MAP.values():
-            Optype.objects.get_or_create(name=canonical)
-        self.stdout.write(f'Optypes: {Optype.objects.count()}')
+    def _import_products(self):
+        for canonical in PRODUCT_MAP.values():
+            Product.objects.get_or_create(name=canonical)
+        self.stdout.write(f'Products: {Product.objects.count()}')
 
     def _import_notes(self):
         for canonical in NOTE_MAP.values():

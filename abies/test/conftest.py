@@ -4,7 +4,7 @@ import pytest
 from decimal import Decimal
 
 from apps.base.models import (
-    Crew, Eclass, Note, Optype, Parcel, Region, Role, Species, Tractor, User,
+    Crew, Eclass, Note, Parcel, Product, Region, Role, Species, Tractor, User,
 )
 
 
@@ -24,12 +24,13 @@ def eclasses(db):
 @pytest.fixture
 def species(db):
     data = [
-        ('Abete', 'Abies alba', 10),
-        ('Castagno', 'Castanea sativa', 20),
-        ('Altro', '', 999),
+        ('Abete', 'Abies alba', 10, Decimal('9.00')),
+        ('Castagno', 'Castanea sativa', 20, Decimal('9.20')),
+        ('Altro', '', 999, Decimal('9.00')),
     ]
-    return [Species.objects.create(common_name=c, latin_name=l, sort_order=o)
-            for c, l, o in data]
+    return [Species.objects.create(common_name=c, latin_name=l, sort_order=o,
+                                   density=d)
+            for c, l, o, d in data]
 
 
 @pytest.fixture
@@ -49,10 +50,10 @@ def crews(db):
 
 
 @pytest.fixture
-def optypes(db):
+def products(db):
     return [
-        Optype.objects.create(name='Tronchi'),
-        Optype.objects.create(name='Cippato'),
+        Product.objects.create(name='Tronchi'),
+        Product.objects.create(name='Cippato'),
     ]
 
 

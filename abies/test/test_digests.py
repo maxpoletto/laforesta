@@ -14,7 +14,7 @@ from apps.base.digests import (
     mark_stale, regenerate_if_stale, _write_gzip_json,
 )
 from apps.base.models import Crew, DigestStatus, Role, User
-from apps.prelievi.models import HarvestOp, HarvestSpecies, HarvestTractor
+from apps.prelievi.models import Harvest, HarvestSpecies, HarvestTractor
 
 
 # ---------------------------------------------------------------------------
@@ -61,14 +61,14 @@ class TestStaleness:
         assert DigestStatus.objects.filter(name='prelievi').count() == 1
 
     def test_regenerate_clears_stale_flag(self, db, parcels, crews, species,
-                                          tractors, optypes):
+                                          tractors, products):
         mark_stale('prelievi')
         regenerate_if_stale('prelievi')
         ds = DigestStatus.objects.get(name='prelievi')
         assert ds.stale is False
 
     def test_regenerate_creates_file(self, db, parcels, crews, species,
-                                     tractors, optypes):
+                                     tractors, products):
         mark_stale('prelievi')
         path = regenerate_if_stale('prelievi')
         assert path.exists()
@@ -81,14 +81,14 @@ class TestStaleness:
 
 class TestGeneratePrelievi:
     @pytest.fixture
-    def harvest_data(self, parcels, crews, optypes, species, tractors):
-        op = HarvestOp.objects.create(
-            date='2024-06-01', optype=optypes[0], parcel=parcels[0],
+    def harvest_data(self, parcels, crews, products, species, tractors):
+        op = Harvest.objects.create(
+            date='2024-06-01', product=products[0], parcel=parcels[0],
             crew=crews[0], quintals=Decimal('200'),
         )
-        HarvestSpecies.objects.create(harvest_op=op, species=species[0], percent=60)
-        HarvestSpecies.objects.create(harvest_op=op, species=species[1], percent=40)
-        HarvestTractor.objects.create(harvest_op=op, tractor=tractors[0], percent=100)
+        HarvestSpecies.objects.create(harvest=op, species=species[0], percent=60)
+        HarvestSpecies.objects.create(harvest=op, species=species[1], percent=40)
+        HarvestTractor.objects.create(harvest=op, tractor=tractors[0], percent=100)
         return op
 
     def test_output_shape(self, harvest_data):
@@ -171,13 +171,13 @@ class TestGenerateCrews:
 # ---------------------------------------------------------------------------
 
 class TestGenerateParcelYearProduction:
-    def test_aggregation(self, parcels, crews, optypes):
-        HarvestOp.objects.create(
-            date='2024-01-10', optype=optypes[0], parcel=parcels[0],
+    def test_aggregation(self, parcels, crews, products):
+        Harvest.objects.create(
+            date='2024-01-10', product=products[0], parcel=parcels[0],
             crew=crews[0], quintals=Decimal('50'),
         )
-        HarvestOp.objects.create(
-            date='2024-06-15', optype=optypes[0], parcel=parcels[0],
+        Harvest.objects.create(
+            date='2024-06-15', product=products[0], parcel=parcels[0],
             crew=crews[0], quintals=Decimal('30'),
         )
         generate_parcel_year_production()
@@ -217,7 +217,7 @@ class TestGenerateAudit:
 # ---------------------------------------------------------------------------
 
 class TestGenerateAll:
-    def test_generates_all_digests(self, db, parcels, crews, species, tractors, optypes,
+    def test_generates_all_digests(self, db, parcels, crews, species, tractors, products,
                                    tmp_path, settings):
         # Redirect to tmp_path so the test doesn't clobber dev digests.
         settings.DIGEST_DIR = tmp_path

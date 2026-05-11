@@ -1,6 +1,7 @@
 """Impostazioni (settings) views: password, crews, tractors, species, users."""
 
 import json
+from decimal import Decimal, InvalidOperation
 
 from allauth.account.models import EmailAddress
 from django.contrib.auth import update_session_auth_hash
@@ -134,11 +135,12 @@ def tractors_save(request):
 # Species
 # ---------------------------------------------------------------------------
 
-SPECIES_COLS = ['row_id', S.LABEL_NAME, S.LABEL_LATIN_NAME, S.COL_ACTIVE]
+SPECIES_COLS = ['row_id', S.LABEL_NAME, S.LABEL_LATIN_NAME,
+                S.LABEL_DENSITY, S.COL_ACTIVE]
 
 
 def _species_row(s):
-    return [s.id, s.common_name, s.latin_name, s.active]
+    return [s.id, s.common_name, s.latin_name, float(s.density), s.active]
 
 
 @login_required
@@ -158,9 +160,16 @@ def species_form(request, obj_id=None):
 @require_POST
 def species_save(request):
     body = json.loads(request.body)
+    try:
+        density = Decimal(str(body.get('density', '0') or '0'))
+    except InvalidOperation:
+        return _error(S.ERR_DENSITY_INVALID)
+    if density <= 0:
+        return _error(S.ERR_DENSITY_INVALID)
     parsed = {
         'common_name': body.get('common_name', '').strip(),
         'latin_name': body.get('latin_name', '').strip(),
+        'density': density,
         'active': body.get('active') == 'true',
     }
     if not parsed['common_name']:
@@ -168,7 +177,8 @@ def species_save(request):
     obj, err = _save(Species, body, parsed)
     if err:
         return err
-    mark_stale('audit')
+    # species.json is consumed by V/m preview forms; bust on edits.
+    mark_stale('audit', 'species')
     return _saved(obj, _species_row, body, request)
 
 

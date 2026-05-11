@@ -42,12 +42,12 @@
       </select>
     </div>
     <div class="form-group">
-      <label for="id_optype">Tipo</label>
-      <select id="id_optype" name="optype_id" required>
-        {% for ot in optypes %}
-        <option value="{{ ot.id }}"
-          {% if op and op.optype_id == ot.id %}selected
-          {% elif vals.optype_id == ot.id|stringformat:"d" %}selected{% endif %}>{{ ot.name }}</option>
+      <label for="id_product">Tipo</label>
+      <select id="id_product" name="product_id" required>
+        {% for pr in products %}
+        <option value="{{ pr.id }}"
+          {% if op and op.product_id == pr.id %}selected
+          {% elif vals.product_id == pr.id|stringformat:"d" %}selected{% endif %}>{{ pr.name }}</option>
         {% endfor %}
       </select>
     </div>

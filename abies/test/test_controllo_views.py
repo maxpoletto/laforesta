@@ -8,7 +8,7 @@ from django.test import Client
 
 from apps.base.digests import generate_audit
 from apps.base.models import Crew
-from apps.prelievi.models import HarvestOp
+from apps.prelievi.models import Harvest
 from config import strings as S
 
 
@@ -20,11 +20,11 @@ def writer_client(writer_user):
 
 
 @pytest.fixture
-def audit_fixtures(regions, eclasses, species, tractors, crews, optypes, notes, parcels):
+def audit_fixtures(regions, eclasses, species, tractors, crews, products, notes, parcels):
     """Create reference fixtures whose history records feed the audit digest."""
     return {
         'regions': regions, 'eclasses': eclasses, 'species': species,
-        'tractors': tractors, 'crews': crews, 'optypes': optypes,
+        'tractors': tractors, 'crews': crews, 'products': products,
         'notes': notes, 'parcels': parcels,
     }
 
@@ -89,9 +89,9 @@ class TestAuditDigest:
         """Deleting an object produces a row with the old values."""
         settings.DIGEST_DIR = tmp_path
         f = audit_fixtures
-        op = HarvestOp.objects.create(
+        op = Harvest.objects.create(
             date='2024-06-15', parcel=f['parcels'][0], crew=f['crews'][0],
-            optype=f['optypes'][0], quintals=50,
+            product=f['products'][0], quintals=50,
         )
         op.delete()
 
@@ -99,7 +99,7 @@ class TestAuditDigest:
         data = _load_digest(tmp_path / 'audit.json.gz')
 
         delete_rows = [r for r in data['rows']
-                       if r[3] == S.TABLE_HARVEST_OP and r[4] == S.ACTION_DELETE]
+                       if r[3] == S.TABLE_HARVEST and r[4] == S.ACTION_DELETE]
         assert len(delete_rows) >= 1
         assert 'Q.li: 50' in delete_rows[0][5]  # old value contains quintals
 

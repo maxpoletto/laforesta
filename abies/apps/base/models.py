@@ -1,5 +1,7 @@
 """Base models — shared across all domains."""
 
+from decimal import Decimal
+
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from simple_history.models import HistoricalRecords
@@ -116,6 +118,10 @@ class Species(TimestampedModel):
     common_name = models.CharField(max_length=100, unique=True)
     latin_name = models.CharField(max_length=100, blank=True)
     sort_order = models.IntegerField(default=0)
+    density = models.DecimalField(
+        max_digits=5, decimal_places=2, default=Decimal('5.00'),
+        help_text='Wood density in q/m³ (typical range 4–8).',
+    )
     active = models.BooleanField(default=True)
     history = HistoricalRecords()
 
@@ -128,13 +134,13 @@ class Species(TimestampedModel):
         return self.common_name
 
 
-class Optype(models.Model):
-    """Harvest operation type (extensible enum)."""
+class Product(models.Model):
+    """Harvested product type (extensible enum)."""
     name = models.CharField(max_length=100, unique=True)
 
     class Meta:
-        verbose_name = S.OPTYPE
-        verbose_name_plural = S.OPTYPES
+        verbose_name = S.PRODUCT
+        verbose_name_plural = S.PRODUCTS
 
     def __str__(self):
         return self.name
@@ -197,9 +203,6 @@ class Parcel(models.Model):
     grade_pct = models.IntegerField(null=True, blank=True)
     desc_veg = models.TextField(blank=True)
     desc_geo = models.TextField(blank=True)
-    harvest_plan = models.ForeignKey(
-        HarvestPlan, on_delete=models.SET_NULL, null=True, blank=True,
-    )
 
     class Meta:
         verbose_name = S.PARCEL
