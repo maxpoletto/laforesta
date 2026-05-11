@@ -6,7 +6,7 @@
 // only activates after a clean app exit.
 'use strict';
 
-const APP_VERSION = '0.2.1';
+const APP_VERSION = '0.2.2';
 const CACHE = 'ipso-v' + APP_VERSION;
 
 const SHELL = [
@@ -24,10 +24,10 @@ const SHELL = [
   './numpad.js',
   './store.js',
   './reference.json',
-  './icons/f.gif',
-  './icons/l.gif',
-  './icons/icon-192.png',
-  './icons/icon-512.png',
+  './img/f.gif',
+  './img/l.gif',
+  './img/icon-192.png',
+  './img/icon-512.png',
 ];
 
 self.addEventListener('install', (e) => {

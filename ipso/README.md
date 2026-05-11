@@ -119,7 +119,7 @@ numpad.js                custom on-screen numeric keypad
 download.js              browser-download helper
 strings.js               Italian UI strings
 reference.json           bundled reference data (generated)
-icons/                   PNG icons (192, 512, 512-maskable)
+img/                     icons (f.gif, l.gif, icon-192.png, icon-512.png)
 tools/build_reference.py reference-data build script
 tests.js                 node tests for pure-logic modules
 Makefile                 reference / test / serve / deploy targets

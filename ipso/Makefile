@@ -35,4 +35,4 @@ deploy: reference icons test
 	rsync -avz --delete $(DEPLOY_EXCLUDES) ./ $(DEPLOY_HOST):$(DEPLOY_DIR)/
 
 clean:
-	rm -f reference.json icons/*.gif icons/*.png
+	rm -f reference.json img/*.gif img/*.png

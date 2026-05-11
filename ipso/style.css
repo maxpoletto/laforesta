@@ -52,8 +52,9 @@ body {
 .app-logo  {
   margin-left: auto;     /* push to far right */
   height: 28px;
-  width: auto;
+  width: 28px;           /* explicit so the box is reserved even pre-load */
   display: block;
+  object-fit: contain;
 }
 
 /* ----------------------------------------------------------------------- */
