@@ -1,13 +1,24 @@
-"""Base views — login, logout, shell."""
+"""Base views — login, logout, shell, geo file serving."""
+
+import os
+from pathlib import Path
 
 from axes.decorators import axes_dispatch
 from django.conf import settings
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
-from django.http import HttpRequest, HttpResponse
+from django.http import FileResponse, Http404, HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 from django.utils.decorators import method_decorator
+from django.utils.http import http_date, parse_http_date_safe
 from django.views import View
+
+# Whitelist of geo files we serve via `geo_view`.  Anything else 404s,
+# even if it exists under `settings.GEO_DIR`.
+ALLOWED_GEO_FILES = {
+    'particelle.geojson',
+    'terreni.geojson',
+}
 
 
 @login_required
@@ -42,3 +53,28 @@ class LoginView(View):
 def logout_view(request: HttpRequest) -> HttpResponse:
     logout(request)
     return redirect('login')
+
+
+@login_required
+def geo_view(request: HttpRequest, filename: str) -> HttpResponse:
+    """Serve a whitelisted geo file with conditional-GET.
+
+    The geo directory is bind-mounted on prod and lives at
+    `settings.GEO_DIR` in dev.  We don't go through Django's
+    static files because geo data is data, not asset.
+    """
+    if filename not in ALLOWED_GEO_FILES:
+        raise Http404
+    path = Path(settings.GEO_DIR) / filename
+    if not path.is_file():
+        raise Http404
+    mtime = os.path.getmtime(path)
+    ims = request.META.get('HTTP_IF_MODIFIED_SINCE')
+    if ims:
+        ims_ts = parse_http_date_safe(ims)
+        if ims_ts is not None and ims_ts >= int(mtime):
+            return HttpResponse(status=304)
+    response = FileResponse(open(path, 'rb'),
+                            content_type='application/geo+json')
+    response['Last-Modified'] = http_date(mtime)
+    return response

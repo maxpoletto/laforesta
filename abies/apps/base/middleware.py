@@ -16,11 +16,24 @@ from config import strings as S
 
 # Inline styles allowed because vendored libraries (Leaflet) may inject
 # <style> elements or set style attributes dynamically.
+#
+# img-src whitelist covers Leaflet tile providers used by `map-common.js`:
+#   - tile.openstreetmap.org           (OSM basemap)
+#   - server.arcgisonline.com          (Esri World Imagery satellite)
+#   - tile.opentopomap.org             (OpenTopoMap)
+# Any future tile source added to BASEMAPS in map-common.js needs a
+# matching entry here.
+TILE_SOURCES = [
+    "https://*.tile.openstreetmap.org",
+    "https://server.arcgisonline.com",
+    "https://*.tile.opentopomap.org",
+]
+
 CSP_POLICY = "; ".join([
     "default-src 'self'",
     "script-src 'self'",
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data:",
+    f"img-src 'self' data: {' '.join(TILE_SOURCES)}",
     "font-src 'self'",
     "connect-src 'self'",
 ])

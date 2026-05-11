@@ -1,8 +1,10 @@
 /**
  * Campionamenti page.
  *
- * M3b: survey pulldown + sortable table of sampled trees.  Map
- * sections (1 and 2) and manual entry forms come in M3c/M3d.
+ * M3b: survey pulldown + sortable table of sampled trees.
+ * M3c: Section 2 (Rilevamenti) Leaflet map with visited/unvisited
+ *      coloring + click-to-narrow-table interaction.
+ * M3d (pending): Section 1 (Griglie) + manual entry forms + imports.
  */
 
 import * as cache from '../../base/js/cache.js';
@@ -10,12 +12,19 @@ import * as router from '../../base/js/router.js';
 import { TableWrapper } from '../../base/js/table.js';
 import { showError } from '../../base/js/modals.js';
 import * as S from '../../base/js/strings.js';
+import { fetchJSON } from '../../base/js/api.js';
+import { RilevamentiMap } from './rilevamenti-map.js';
 
 const CSS_URL = '/static/campionamenti/css/campionamenti.css';
 const SURVEYS_ID = 'campionamenti-surveys';
+const SAMPLE_AREAS_ID = 'campionamenti-sample-areas';
+const SAMPLES_ID = 'campionamenti-samples';
 const SURVEYS_URL = '/api/campionamenti/surveys/data/';
+const SAMPLE_AREAS_URL = '/api/campionamenti/sample-areas/data/';
+const SAMPLES_URL = '/api/campionamenti/samples/data/';
 const TREES_ID_PREFIX = 'campionamenti-trees-';
 const TREES_URL_PREFIX = '/api/campionamenti/trees/';
+const PARCELLE_GEOJSON_URL = '/api/geo/particelle.geojson';
 const PAGE_PATH = '/campionamenti';
 
 // Number formatters
@@ -63,13 +72,22 @@ const TREES_COLS = {
 
 // Page state.
 let table = null;
+let map = null;
 let activeSurveyId = null;
+let activeAreaId = null;
 let surveysData = null;
+let sampleAreasData = null;
+let samplesData = null;
+let parcelleGeo = null;
 let pulldownEl = null;
 let emptyEl = null;
+let mapSectionEl = null;
 let unsubCache = null;
+let currentTreesId = null;
 
 cache.register(SURVEYS_ID, SURVEYS_URL);
+cache.register(SAMPLE_AREAS_ID, SAMPLE_AREAS_URL);
+cache.register(SAMPLES_ID, SAMPLES_URL);
 
 // ---------------------------------------------------------------------------
 // Lifecycle
@@ -86,14 +104,23 @@ export async function mount(params) {
   el.appendChild(loading);
 
   try {
-    surveysData = await cache.load(SURVEYS_ID);
+    const [s, sa, sm, geo] = await Promise.all([
+      cache.load(SURVEYS_ID),
+      cache.load(SAMPLE_AREAS_ID),
+      cache.load(SAMPLES_ID),
+      fetchJSON(PARCELLE_GEOJSON_URL),
+    ]);
+    surveysData = s;
+    sampleAreasData = sa;
+    samplesData = sm;
+    parcelleGeo = geo.data;
   } catch {
     showError(S.ERROR_NETWORK);
     return;
   }
 
-  buildPageShell(el, params);
-  cache.setVisible([SURVEYS_ID]);
+  buildPageShell(el);
+  cache.setVisible([SURVEYS_ID, SAMPLE_AREAS_ID, SAMPLES_ID]);
 
   // Drive the rest from URL params / defaults.
   applyParams(params);
@@ -103,11 +130,18 @@ export function unmount() {
   unloadCSS(CSS_URL);
   if (unsubCache) { unsubCache(); unsubCache = null; }
   destroyTable();
+  destroyMap();
   cache.setVisible([]);
   pulldownEl = null;
   emptyEl = null;
+  mapSectionEl = null;
   activeSurveyId = null;
+  activeAreaId = null;
   surveysData = null;
+  sampleAreasData = null;
+  samplesData = null;
+  parcelleGeo = null;
+  currentTreesId = null;
 }
 
 export function onQueryChange(params) {
@@ -118,9 +152,10 @@ export function onQueryChange(params) {
 // Page shell
 // ---------------------------------------------------------------------------
 
-function buildPageShell(el, params) {
+function buildPageShell(el) {
   el.replaceChildren();
 
+  // Top bar with survey pulldown.
   const bar = document.createElement('div');
   bar.className = 'campionamenti-top-bar';
 
@@ -133,9 +168,6 @@ function buildPageShell(el, params) {
   sel.id = 'campionamenti-survey-select';
   sel.className = 'campionamenti-pulldown';
 
-  // Populate options.  Surveys digest columns:
-  // row_id, version, Nome, Descrizione, Griglia, Piano di taglio,
-  // N. aree visitate, N. aree totali, Data primo, Data ultimo.
   const surveyIdCol = surveysData.columns.indexOf('row_id');
   const nameCol = surveysData.columns.indexOf('Nome');
   const visitedCol = surveysData.columns.indexOf('N. aree visitate');
@@ -144,9 +176,8 @@ function buildPageShell(el, params) {
   for (const row of surveysData.rows) {
     const opt = document.createElement('option');
     opt.value = String(row[surveyIdCol]);
-    const visited = row[visitedCol];
-    const total = row[totalCol];
-    opt.textContent = `${row[nameCol]} (${visited}/${total} aree)`;
+    opt.textContent =
+      `${row[nameCol]} (${row[visitedCol]}/${row[totalCol]} aree)`;
     sel.appendChild(opt);
   }
 
@@ -158,21 +189,29 @@ function buildPageShell(el, params) {
   bar.append(label, sel);
   el.appendChild(bar);
 
-  const section = document.createElement('div');
-  section.className = 'campionamenti-section';
-  section.id = 'campionamenti-section-trees';
+  // Section 2 (Rilevamenti map).  Created here; the map instance is
+  // built lazily in activateSurvey when we know which areas to draw.
+  mapSectionEl = document.createElement('div');
+  mapSectionEl.className = 'campionamenti-section campionamenti-map-section';
+  mapSectionEl.id = 'campionamenti-section-map';
+  el.appendChild(mapSectionEl);
+
+  // Section 3 (Alberi campionati table).
+  const tableSection = document.createElement('div');
+  tableSection.className = 'campionamenti-section';
+  tableSection.id = 'campionamenti-section-trees';
 
   emptyEl = document.createElement('div');
   emptyEl.className = 'campionamenti-empty';
   emptyEl.textContent = S.CAMPIONAMENTI_EMPTY;
-  section.appendChild(emptyEl);
+  tableSection.appendChild(emptyEl);
 
-  el.appendChild(section);
+  el.appendChild(tableSection);
   pulldownEl = sel;
 }
 
 // ---------------------------------------------------------------------------
-// Survey activation
+// Survey activation (drives map + table)
 // ---------------------------------------------------------------------------
 
 async function activateSurvey(surveyId) {
@@ -185,9 +224,15 @@ async function activateSurvey(surveyId) {
     pulldownEl.value = String(surveyId);
   }
   activeSurveyId = surveyId;
+  activeAreaId = null;     // changing survey clears area selection
 
+  // Map: render this survey's grid + visited overlay.
+  renderMap(surveyId);
+
+  // Table: lazy-fetch the per-survey trees digest.
   const dataId = `${TREES_ID_PREFIX}${surveyId}`;
   cache.register(dataId, `${TREES_URL_PREFIX}${surveyId}/`);
+  currentTreesId = dataId;
 
   let data;
   try {
@@ -198,7 +243,7 @@ async function activateSurvey(surveyId) {
   }
 
   renderTable(data);
-  cache.setVisible([SURVEYS_ID, dataId]);
+  cache.setVisible([SURVEYS_ID, SAMPLE_AREAS_ID, SAMPLES_ID, dataId]);
 
   if (unsubCache) unsubCache();
   unsubCache = cache.onUpdate(dataId, () => {
@@ -208,8 +253,67 @@ async function activateSurvey(surveyId) {
 
 function showEmptyState() {
   destroyTable();
+  destroyMap();
   if (emptyEl) emptyEl.hidden = false;
 }
+
+// ---------------------------------------------------------------------------
+// Map rendering
+// ---------------------------------------------------------------------------
+
+function renderMap(surveyId) {
+  destroyMap();
+  if (!mapSectionEl) return;
+
+  // Look up survey → sample_grid id.
+  const surveyRow = surveysData.rows.find(
+    r => r[surveysData.columns.indexOf('row_id')] === surveyId,
+  );
+  if (!surveyRow) return;
+  const gridId = surveyRow[surveysData.columns.indexOf('Griglia')];
+
+  // Build the list of sample areas in this grid.
+  const c = sampleAreasData.columns;
+  const areas = sampleAreasData.rows
+    .filter(r => r[c.indexOf('Griglia')] === gridId)
+    .map(r => ({
+      id: r[c.indexOf('row_id')],
+      lat: r[c.indexOf('Lat')],
+      lng: r[c.indexOf('Lng')],
+      compresa: r[c.indexOf('Compresa')],
+      particella: r[c.indexOf('Particella')],
+      numero: r[c.indexOf('Numero')],
+    }));
+
+  // Build visited lookup for this survey from samples.json.
+  const sc = samplesData.columns;
+  const visitedById = new Map();
+  for (const r of samplesData.rows) {
+    if (r[sc.indexOf('Survey')] !== surveyId) continue;
+    visitedById.set(r[sc.indexOf('Sample area')], {
+      nAlberi: r[sc.indexOf('N. alberi')],
+    });
+  }
+
+  map = new RilevamentiMap({
+    container: mapSectionEl,
+    geojson: parcelleGeo,
+    onAreaSelect: (areaId) => {
+      activeAreaId = areaId;
+      applyAreaFilter();
+      syncURL();
+    },
+  });
+  map.setAreas(areas, visitedById);
+}
+
+function destroyMap() {
+  if (map) { map.destroy(); map = null; }
+}
+
+// ---------------------------------------------------------------------------
+// Table rendering
+// ---------------------------------------------------------------------------
 
 function renderTable(data) {
   destroyTable();
@@ -235,12 +339,13 @@ function renderTable(data) {
     canModify: false,                       // M3d brings writer affordances
     sort,
     searchText: params.tf,
-    csvFilename: 'alberi-campionati.csv',
+    csvFilename: S.CSV_SAMPLED_TREES,
     labels: S.TABLE_LABELS,
     csvFormat: S.TABLE_CSV_FORMAT,
     onSort: () => syncURL(),
     onSearch: () => syncURL(),
   });
+  applyAreaFilter();
 }
 
 function destroyTable() {
@@ -249,6 +354,30 @@ function destroyTable() {
   if (section) {
     section.querySelectorAll('.campionamenti-table-host').forEach(n => n.remove());
   }
+}
+
+/** Narrow Section 3 to only rows in `activeAreaId`, or all rows when null. */
+function applyAreaFilter() {
+  if (!table) return;
+  if (activeAreaId == null) {
+    table.setExternalFilter(null);
+    return;
+  }
+  table.setExternalFilter((row) => {
+    // `Sample area` is the second column after row_id/version per
+    // sampled_trees_<id>.json shape.  We look it up by name to stay
+    // robust to column reordering.
+    return row[areaCol()] === activeAreaId;
+  });
+}
+
+let _areaColIdx = -1;
+function areaCol() {
+  if (_areaColIdx >= 0) return _areaColIdx;
+  const data = currentTreesId ? cache.get(currentTreesId) : null;
+  if (!data) return -1;
+  _areaColIdx = data.columns.indexOf('Sample area');
+  return _areaColIdx;
 }
 
 function buildColumnDefs(columns) {
@@ -267,18 +396,20 @@ function currentURLParams() {
   const u = new URLSearchParams(location.search);
   return {
     s: u.get('s') ? parseInt(u.get('s'), 10) : null,
+    a: u.get('a') ? parseInt(u.get('a'), 10) : null,
     tsc: u.get('tsc') || null,
-    tso: u.get('tso') !== '1',              // default ascending
+    tso: u.get('tso') !== '1',
     tf: u.get('tf') || '',
   };
 }
 
 function applyParams(params) {
-  const surveyId = params.s ? parseInt(params.s, 10) : null;
+  const p = {
+    s: params.s ? parseInt(params.s, 10) : null,
+    a: params.a ? parseInt(params.a, 10) : null,
+  };
 
-  // Default survey selection.  M3b heuristic: most-recent active
-  // (already sorted in surveys.json), else first available.
-  let target = surveyId;
+  let target = p.s;
   if (target == null && surveysData?.rows.length) {
     const idCol = surveysData.columns.indexOf('row_id');
     target = surveysData.rows[0][idCol];
@@ -290,13 +421,24 @@ function applyParams(params) {
   }
 
   if (target !== activeSurveyId) {
-    activateSurvey(target);
+    activateSurvey(target).then(() => {
+      if (p.a != null) {
+        activeAreaId = p.a;
+        if (map) map.setActiveAreaId(p.a);
+        applyAreaFilter();
+      }
+    });
+  } else if (p.a !== activeAreaId) {
+    activeAreaId = p.a;
+    if (map) map.setActiveAreaId(p.a);
+    applyAreaFilter();
   }
 }
 
 function syncURL() {
   const u = new URLSearchParams();
   if (activeSurveyId != null) u.set('s', String(activeSurveyId));
+  if (activeAreaId != null) u.set('a', String(activeAreaId));
   if (table) {
     const sort = table.getSort();
     if (sort) {
