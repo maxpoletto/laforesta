@@ -238,32 +238,135 @@ class ParcelPlanDetail(models.Model):
         unique_together = [('harvest_plan', 'parcel')]
 
 
-class SampleArea(models.Model):
+class SampleGrid(TimestampedModel):
+    """A named layout of sample areas across one or more regions.
+
+    Multiple surveys can reference the same grid over time.  Each
+    `sample_area` row belongs to exactly one grid via FK.
+    """
+    name = models.CharField(max_length=100, unique=True)
+    description = models.TextField(blank=True)
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = S.SAMPLE_GRID
+        verbose_name_plural = S.SAMPLE_GRIDS
+
+    def __str__(self):
+        return self.name
+
+
+class SampleArea(TimestampedModel):
     """Geo-referenced sample plot (area di saggio)."""
-    number = models.IntegerField()
+    sample_grid = models.ForeignKey(SampleGrid, on_delete=models.CASCADE)
+    # `number` is a manually assigned identifier, usually a numeric string
+    # like "27", occasionally with a suffix like "27 bis" for late
+    # additions.  Unique within a parcel; need not be unique across.
+    number = models.CharField(max_length=20)
     parcel = models.ForeignKey(Parcel, on_delete=models.CASCADE)
     lat = models.FloatField()
     lng = models.FloatField()
     altitude_m = models.IntegerField(null=True, blank=True)
-    plan_year = models.IntegerField()
+    r_m = models.IntegerField(default=12)
+    note = models.CharField(max_length=255, blank=True)
+    history = HistoricalRecords()
 
     class Meta:
         verbose_name = S.SAMPLE_AREA
         verbose_name_plural = S.SAMPLE_AREAS
+        unique_together = [('sample_grid', 'parcel', 'number')]
 
 
-class PreservedTree(models.Model):
-    """Tree marked for preservation (pianta ad accrescimento indefinito)."""
-    species = models.ForeignKey(Species, on_delete=models.PROTECT)
-    region = models.ForeignKey(Region, on_delete=models.PROTECT)
-    parcel = models.ForeignKey(Parcel, on_delete=models.CASCADE)
-    lat = models.FloatField()
-    lng = models.FloatField()
-    note = models.TextField(blank=True)
+class Survey(TimestampedModel):
+    """A high-level sampling operation against a specific grid.
+
+    Optionally linked to a harvest plan; otherwise an ad-hoc research
+    survey.  Completeness is computed: a survey is "complete" when
+    every area in its grid has at least one Sample.
+    """
+    name = models.CharField(max_length=100, unique=True)
+    harvest_plan = models.ForeignKey(
+        HarvestPlan, on_delete=models.SET_NULL, null=True, blank=True,
+    )
+    sample_grid = models.ForeignKey(SampleGrid, on_delete=models.PROTECT)
+    description = models.TextField(blank=True)
+    history = HistoricalRecords()
 
     class Meta:
-        verbose_name = S.PRESERVED_TREE
-        verbose_name_plural = S.PRESERVED_TREES
+        verbose_name = S.SURVEY
+        verbose_name_plural = S.SURVEYS
+
+    def __str__(self):
+        return self.name
+
+
+class Sample(TimestampedModel):
+    """A single visit to one sample area within a survey.
+
+    Schema-level invariant (enforced by SQLite trigger in the migration):
+    `sample_area.sample_grid_id == survey.sample_grid_id`.
+    """
+    sample_area = models.ForeignKey(SampleArea, on_delete=models.CASCADE)
+    survey = models.ForeignKey(Survey, on_delete=models.CASCADE)
+    date = models.DateField()
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = S.SAMPLE
+        verbose_name_plural = S.SAMPLES
+        unique_together = [('sample_area', 'survey')]
+
+
+class Tree(TimestampedModel):
+    """A physical tree, tracked over time.
+
+    Sampled trees can be revisited across surveys (same `tree_id`);
+    marked trees and PAI trees are static observations.  See
+    `database.md` for the cross-sample-identity convention.
+    """
+    species = models.ForeignKey(Species, on_delete=models.PROTECT)
+    year = models.IntegerField(null=True, blank=True)
+    lat = models.FloatField(null=True, blank=True)
+    lng = models.FloatField(null=True, blank=True)
+    parcel = models.ForeignKey(Parcel, on_delete=models.PROTECT)
+    preserved = models.BooleanField(default=False)
+    coppice = models.BooleanField(default=False)
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = S.TREE
+        verbose_name_plural = S.TREES
+
+
+class TreeSample(TimestampedModel):
+    """Measurements taken on a tree during a sample.
+
+    Synthetic `id` PK + UNIQUE(sample, tree, shoot) preserves the
+    natural compound key while keeping row_id semantics uniform with
+    other Abies tables.
+    """
+    sample = models.ForeignKey(Sample, on_delete=models.CASCADE)
+    tree = models.ForeignKey(Tree, on_delete=models.PROTECT)
+    shoot = models.IntegerField(default=0)
+    standard = models.BooleanField(default=False)
+    number = models.IntegerField()
+    d_cm = models.IntegerField()
+    h_m = models.DecimalField(max_digits=5, decimal_places=2)
+    l10_mm = models.IntegerField(default=0)
+    volume_m3 = models.DecimalField(
+        max_digits=8, decimal_places=4, null=True, blank=True,
+        help_text='Tabacchi-derived volume; NULL for coppice rows.',
+    )
+    mass_q = models.DecimalField(
+        max_digits=8, decimal_places=3, null=True, blank=True,
+        help_text='volume_m3 × species.density; NULL for coppice rows.',
+    )
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = S.TREE_SAMPLE
+        verbose_name_plural = S.TREE_SAMPLES
+        unique_together = [('sample', 'tree', 'shoot')]
 
 
 # ---------------------------------------------------------------------------

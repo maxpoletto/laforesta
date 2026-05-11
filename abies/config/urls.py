@@ -16,6 +16,7 @@ urlpatterns = [
     path('', RedirectView.as_view(url=settings.LOGIN_REDIRECT_URL, permanent=False)),
     path('admin/', admin.site.urls),
     path('api/prelievi/', include('apps.prelievi.urls')),
+    path('api/campionamenti/', include('apps.campionamenti.urls')),
     path('api/controllo/', include('apps.controllo.urls')),
     path('api/impostazioni/', include('apps.impostazioni.urls')),
     path('accounts/', include('allauth.urls')),

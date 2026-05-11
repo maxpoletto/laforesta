@@ -208,7 +208,8 @@ class TestSpecies:
 
     def test_save_create(self, writer_client, db):
         resp = _post(writer_client, '/api/impostazioni/species/save/', {
-            'common_name': 'Faggio', 'latin_name': 'Fagus sylvatica', 'active': 'true',
+            'common_name': 'Faggio', 'latin_name': 'Fagus sylvatica',
+            'density': '10.5', 'active': 'true',
         })
         assert resp.status_code == 200
         assert Species.objects.filter(common_name='Faggio').exists()
@@ -216,7 +217,8 @@ class TestSpecies:
     def test_save_conflict(self, writer_client, species):
         resp = _post(writer_client, '/api/impostazioni/species/save/', {
             'row_id': str(species[0].id), 'version': '999',
-            'common_name': 'X', 'latin_name': '', 'active': 'true',
+            'common_name': 'X', 'latin_name': '',
+            'density': '9.0', 'active': 'true',
         })
         assert resp.status_code == 400
         assert resp.json()['status'] == 'conflict'
@@ -256,6 +258,7 @@ class TestUsers:
     def test_create_password_user(self, admin_client):
         resp = _post(admin_client, '/api/impostazioni/users/save/', {
             'username': 'newuser', 'first_name': 'New', 'last_name': 'User',
+            'email': 'newuser@example.com',
             'login_method': LoginMethod.PASSWORD,
             'password1': 'testpass123!', 'password2': 'testpass123!',
             'role': Role.READER, 'is_active': 'true',
@@ -268,6 +271,7 @@ class TestUsers:
     def test_create_oauth_user(self, admin_client):
         resp = _post(admin_client, '/api/impostazioni/users/save/', {
             'username': 'oauthuser@example.com', 'first_name': '', 'last_name': '',
+            'email': 'oauthuser@example.com',
             'login_method': LoginMethod.OAUTH,
             'password1': '', 'password2': '',
             'role': Role.WRITER, 'is_active': 'true',
@@ -279,6 +283,7 @@ class TestUsers:
     def test_create_password_user_requires_password(self, admin_client):
         resp = _post(admin_client, '/api/impostazioni/users/save/', {
             'username': 'nopass', 'first_name': '', 'last_name': '',
+            'email': 'nopass@example.com',
             'login_method': LoginMethod.PASSWORD,
             'password1': '', 'password2': '',
             'role': Role.READER, 'is_active': 'true',
@@ -289,6 +294,7 @@ class TestUsers:
         resp = _post(admin_client, '/api/impostazioni/users/save/', {
             'row_id': str(writer_user.id),
             'username': 'renamed', 'first_name': 'A', 'last_name': 'B',
+            'email': 'renamed@example.com',
             'login_method': LoginMethod.PASSWORD,
             'password1': '', 'password2': '',
             'role': Role.ADMIN, 'is_active': 'true',
@@ -302,6 +308,7 @@ class TestUsers:
         resp = _post(admin_client, '/api/impostazioni/users/save/', {
             'row_id': str(writer_user.id),
             'username': writer_user.username, 'first_name': '', 'last_name': '',
+            'email': 'writer@example.com',
             'login_method': LoginMethod.PASSWORD,
             'password1': 'brandnew99!', 'password2': 'brandnew99!',
             'role': Role.WRITER, 'is_active': 'true',
@@ -313,6 +320,7 @@ class TestUsers:
     def test_username_required(self, admin_client):
         resp = _post(admin_client, '/api/impostazioni/users/save/', {
             'username': '', 'first_name': '', 'last_name': '',
+            'email': 'nouser@example.com',
             'login_method': LoginMethod.PASSWORD,
             'password1': 'testpass123!', 'password2': 'testpass123!',
             'role': Role.READER, 'is_active': 'true',
@@ -322,6 +330,7 @@ class TestUsers:
     def test_create_password_mismatch(self, admin_client):
         resp = _post(admin_client, '/api/impostazioni/users/save/', {
             'username': 'mismatch', 'first_name': '', 'last_name': '',
+            'email': 'mismatch@example.com',
             'login_method': LoginMethod.PASSWORD,
             'password1': 'testpass123!', 'password2': 'different123!',
             'role': Role.READER, 'is_active': 'true',
@@ -333,6 +342,7 @@ class TestUsers:
         resp = _post(admin_client, '/api/impostazioni/users/save/', {
             'row_id': str(writer_user.id),
             'username': writer_user.username, 'first_name': '', 'last_name': '',
+            'email': 'writer@example.com',
             'login_method': LoginMethod.PASSWORD,
             'password1': 'newpass123!', 'password2': 'other123!',
             'role': Role.WRITER, 'is_active': 'true',

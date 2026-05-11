@@ -98,6 +98,7 @@ ERR_DENSITY_INVALID = 'La densità deve essere un numero positivo.'
 APP_BASE = 'Base'
 APP_PRELIEVI = 'Prelievi'
 APP_BOSCO = 'Bosco'
+APP_CAMPIONAMENTI = 'Campionamenti'
 APP_CONTROLLO = 'Controllo'
 APP_IMPOSTAZIONI = 'Impostazioni'
 
@@ -144,11 +145,23 @@ HARVEST_PLAN_ITEMS = 'voci piano di gestione'
 PARCEL_PLAN_DETAIL = 'prescrizione particella'
 PARCEL_PLAN_DETAILS = 'prescrizioni particelle'
 
+SAMPLE_GRID = 'griglia di campionamento'
+SAMPLE_GRIDS = 'griglie di campionamento'
+
 SAMPLE_AREA = 'area di saggio'
 SAMPLE_AREAS = 'aree di saggio'
 
-PRESERVED_TREE = 'pianta ad accrescimento indefinito'
-PRESERVED_TREES = 'piante ad accrescimento indefinito'
+SURVEY = 'rilevamento'
+SURVEYS = 'rilevamenti'
+
+SAMPLE = 'campione'
+SAMPLES = 'campioni'
+
+TREE = 'albero'
+TREES = 'alberi'
+
+TREE_SAMPLE = 'misurazione albero'
+TREE_SAMPLES = 'misurazioni alberi'
 
 DIGEST_STATUS = 'stato digest'
 DIGEST_STATUSES = 'stati digest'

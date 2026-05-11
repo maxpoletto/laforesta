@@ -57,12 +57,33 @@ def mark_stale(*names: str) -> None:
         )
 
 
+def _resolve_generator(name: str):
+    """Look up a digest generator, including dynamic per-entity names.
+
+    Supports static names registered in `_GENERATORS` plus the
+    dynamic `sampled_trees_<survey_id>` pattern used by Campionamenti.
+    Returns None for unknown names.
+    """
+    if name in _GENERATORS:
+        return _GENERATORS[name]
+    if name.startswith('sampled_trees_'):
+        try:
+            survey_id = int(name[len('sampled_trees_'):])
+        except ValueError:
+            return None
+        return lambda: generate_sampled_trees_for_survey(survey_id)
+    return None
+
+
 def regenerate_if_stale(name: str) -> Path:
     """Return the path to *name*'s digest, regenerating first if stale."""
     dest = _dest(name)
     status, _ = DigestStatus.objects.get_or_create(name=name)
     if status.stale or not dest.exists():
-        _GENERATORS[name]()
+        gen = _resolve_generator(name)
+        if gen is None:
+            raise ValueError(f'unknown digest: {name!r}')
+        gen()
         # Compare-and-swap: only clear if still stale (avoids race).
         DigestStatus.objects.filter(name=name, stale=True).update(stale=False)
     return dest
@@ -386,6 +407,175 @@ def _format_diff(prev, current, field_labels: dict) -> tuple[str, str]:
 
 
 # ---------------------------------------------------------------------------
+# Campionamenti digests
+# ---------------------------------------------------------------------------
+
+def generate_grids() -> None:
+    """List of sample grids, with sample-area counts and region coverage.
+
+    Drives Section 1 (Griglie) pulldown and summary line.
+    """
+    from apps.base.models import SampleArea, SampleGrid, Survey
+
+    columns = ['row_id', 'version', 'Nome', 'Descrizione', 'N. aree',
+               'Comprese', 'N. rilevamenti', 'Ultimo aggiornamento']
+    rows = []
+    for g in SampleGrid.objects.order_by('-modified_at'):
+        areas = SampleArea.objects.filter(sample_grid=g) \
+                                  .select_related('parcel__region')
+        n_aree = areas.count()
+        comprese = sorted({sa.parcel.region.name for sa in areas})
+        n_rilev = Survey.objects.filter(sample_grid=g).count()
+        last_area = areas.order_by('-modified_at').values_list(
+            'modified_at', flat=True).first()
+        last_updated = max(filter(None, [g.modified_at, last_area]))
+        rows.append([
+            g.id, g.version, g.name, g.description, n_aree,
+            ', '.join(comprese), n_rilev,
+            last_updated.isoformat() if last_updated else '',
+        ])
+
+    _write_gzip_json({'columns': columns, 'rows': rows}, _dest('grids'))
+    print(f'grids.json.gz: {len(rows)} rows')
+
+
+def generate_surveys() -> None:
+    """List of surveys with completeness counts and date range.
+
+    Drives Section 2 (Rilevamenti) pulldown.
+    """
+    from django.db.models import Count, Max, Min
+    from apps.base.models import Sample, SampleArea, Survey
+
+    columns = ['row_id', 'version', 'Nome', 'Descrizione', 'Griglia',
+               'Piano di taglio', 'N. aree visitate', 'N. aree totali',
+               'Data primo', 'Data ultimo']
+
+    # Pre-compute n_total per grid (count of SampleAreas in that grid).
+    totals_by_grid = dict(
+        SampleArea.objects
+            .values('sample_grid_id')
+            .annotate(n=Count('id'))
+            .values_list('sample_grid_id', 'n'),
+    )
+
+    rows = []
+    qs = Survey.objects.select_related('sample_grid', 'harvest_plan') \
+                       .annotate(
+                           n_visited=Count('sample__sample_area', distinct=True),
+                           first_date=Min('sample__date'),
+                           last_date=Max('sample__date'),
+                       ) \
+                       .order_by('-last_date', '-created_at')
+    for s in qs:
+        rows.append([
+            s.id, s.version, s.name, s.description,
+            s.sample_grid_id,
+            s.harvest_plan_id if s.harvest_plan_id else '',
+            s.n_visited or 0,
+            totals_by_grid.get(s.sample_grid_id, 0),
+            s.first_date.isoformat() if s.first_date else '',
+            s.last_date.isoformat() if s.last_date else '',
+        ])
+
+    _write_gzip_json({'columns': columns, 'rows': rows}, _dest('surveys'))
+    print(f'surveys.json.gz: {len(rows)} rows')
+
+
+def generate_sample_areas() -> None:
+    """All sample-area rows across all grids.
+
+    Drives Section 1 + Section 2 maps (filtered client-side by grid).
+    """
+    from apps.base.models import SampleArea
+
+    columns = ['row_id', 'version', 'Griglia', 'Compresa', 'Particella',
+               'Numero', 'Lat', 'Lng', 'Quota', 'Raggio', 'Note']
+    rows = []
+    for sa in SampleArea.objects.select_related('parcel__region', 'sample_grid') \
+                                .order_by('sample_grid__name',
+                                          'parcel__region__name',
+                                          'parcel__name', 'number'):
+        rows.append([
+            sa.id, sa.version, sa.sample_grid_id,
+            sa.parcel.region.name, sa.parcel.name, sa.number,
+            sa.lat, sa.lng, sa.altitude_m, sa.r_m, sa.note,
+        ])
+
+    _write_gzip_json({'columns': columns, 'rows': rows}, _dest('sample_areas'))
+    print(f'sample_areas.json.gz: {len(rows)} rows')
+
+
+def generate_samples() -> None:
+    """All sample visits with materialized tree counts.
+
+    Drives Section 2 hover tooltips ("N. alberi") and visited-vs-unvisited
+    map coloring (presence of a row = visited).
+    """
+    from django.db.models import Count
+    from apps.base.models import Sample
+
+    columns = ['row_id', 'version', 'Survey', 'Sample area', 'Data',
+               'N. alberi']
+    rows = []
+    qs = Sample.objects.annotate(n_alberi=Count('treesample')) \
+                       .order_by('survey_id', 'sample_area_id')
+    for s in qs:
+        rows.append([
+            s.id, s.version, s.survey_id, s.sample_area_id,
+            s.date.isoformat(), s.n_alberi or 0,
+        ])
+
+    _write_gzip_json({'columns': columns, 'rows': rows}, _dest('samples'))
+    print(f'samples.json.gz: {len(rows)} rows')
+
+
+def generate_sampled_trees_for_survey(survey_id: int) -> None:
+    """Per-survey tree-sample digest.  Lazy on Section 3 / Bosco overlay.
+
+    Filename: sampled_trees_<survey_id>.json.gz.  Invalidated by
+    tree_sample writes whose sample.survey_id matches.
+    """
+    from apps.base.models import TreeSample
+
+    columns = ['row_id', 'version', 'Sample area', 'Data campione',
+               'Compresa', 'Particella', 'N. area', 'N. albero',
+               'Specie', 'Tipo', 'Pollone', 'Matricina',
+               'D (cm)', 'h (m)', 'L10 (mm)', 'V (m³)', 'm (q)',
+               'PAI', 'Lat', 'Lng']
+    rows = []
+    qs = (TreeSample.objects
+          .filter(sample__survey_id=survey_id)
+          .select_related('sample', 'sample__sample_area__parcel__region',
+                          'tree__species', 'tree__parcel')
+          .order_by('sample__sample_area__parcel__region__name',
+                    'sample__sample_area__parcel__name',
+                    'sample__sample_area__number', 'number', 'shoot'))
+    for ts in qs:
+        tree = ts.tree
+        sa = ts.sample.sample_area
+        rows.append([
+            ts.id, ts.version, sa.id, ts.sample.date.isoformat(),
+            sa.parcel.region.name, sa.parcel.name, sa.number,
+            ts.number, tree.species.common_name,
+            'ceduo' if tree.coppice else 'fustaia',
+            ts.shoot, ts.standard,
+            ts.d_cm, float(ts.h_m), ts.l10_mm,
+            float(ts.volume_m3) if ts.volume_m3 is not None else None,
+            float(ts.mass_q) if ts.mass_q is not None else None,
+            tree.preserved,
+            tree.lat if tree.lat is not None else sa.lat,
+            tree.lng if tree.lng is not None else sa.lng,
+        ])
+
+    _write_gzip_json(
+        {'columns': columns, 'rows': rows},
+        _dest(f'sampled_trees_{survey_id}'),
+    )
+    print(f'sampled_trees_{survey_id}.json.gz: {len(rows)} rows')
+
+
+# ---------------------------------------------------------------------------
 # Generator registry
 # ---------------------------------------------------------------------------
 
@@ -396,10 +586,23 @@ _GENERATORS: dict[str, callable] = {
     'species': generate_species,
     'parcel_year_production': generate_parcel_year_production,
     'audit': generate_audit,
+    'grids': generate_grids,
+    'surveys': generate_surveys,
+    'sample_areas': generate_sample_areas,
+    'samples': generate_samples,
 }
 
 
 def generate_all() -> None:
-    """Regenerate every digest (used by `make digest`)."""
+    """Regenerate every digest (used by `make digest`).
+
+    Also produces per-survey `sampled_trees_<id>.json` for every
+    existing Survey, so the dev-time digest directory matches what the
+    serving layer would lazily generate.
+    """
+    from apps.base.models import Survey
+
     for name, gen in _GENERATORS.items():
         gen()
+    for survey_id in Survey.objects.values_list('id', flat=True):
+        generate_sampled_trees_for_survey(survey_id)

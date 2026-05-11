@@ -1,7 +1,9 @@
-"""Tests for ETL scripts (against real CSV data)."""
+"""Tests for ETL management commands (against real CSV data)."""
 
 import pytest
 from pathlib import Path
+
+from django.core.management import call_command
 
 from apps.base.models import (
     Crew, Eclass, Note, Product, Parcel, Region, Species, Tractor,
@@ -22,8 +24,7 @@ skip_no_csv = pytest.mark.skipif(not HAS_CSV, reason='bosco/data CSVs not availa
 class TestImportReference:
     @pytest.fixture(autouse=True)
     def run_import(self, db):
-        from ingest.import_reference import run
-        run()
+        call_command('import_reference', str(BOSCO_DATA))
 
     def test_region_count(self):
         assert Region.objects.count() == 3
@@ -55,8 +56,7 @@ class TestImportReference:
 
     def test_idempotent(self, db):
         """Running twice doesn't duplicate rows."""
-        from ingest.import_reference import run
-        run()
+        call_command('import_reference', str(BOSCO_DATA))
         assert Region.objects.count() == 3
         assert Species.objects.count() == 7
 
@@ -69,10 +69,8 @@ class TestImportReference:
 class TestImportParcels:
     @pytest.fixture(autouse=True)
     def run_import(self, db):
-        from ingest.import_reference import run as ref_run
-        ref_run()
-        from ingest.import_parcels import run
-        run()
+        call_command('import_reference', str(BOSCO_DATA))
+        call_command('import_parcels', str(BOSCO_DATA))
 
     def test_parcel_count(self):
         # 85 real + 3 synthetic X = 88
@@ -98,12 +96,9 @@ class TestImportParcels:
 class TestImportMannesi:
     @pytest.fixture(autouse=True)
     def run_import(self, db):
-        from ingest.import_reference import run as ref_run
-        ref_run()
-        from ingest.import_parcels import run as parcel_run
-        parcel_run()
-        from ingest.import_mannesi import run
-        run()
+        call_command('import_reference', str(BOSCO_DATA))
+        call_command('import_parcels', str(BOSCO_DATA))
+        call_command('import_mannesi', str(BOSCO_DATA))
 
     def test_harvest_count(self):
         assert Harvest.objects.count() == 11941
@@ -125,3 +120,9 @@ class TestImportMannesi:
 
     def test_tractor_percentages_positive(self):
         assert not HarvestTractor.objects.filter(percent__lte=0).exists()
+
+    def test_harvest_has_volume_m3(self):
+        """volume_m3 should be materialized at write time."""
+        h = Harvest.objects.exclude(volume_m3=0).first()
+        assert h is not None
+        assert h.volume_m3 > 0

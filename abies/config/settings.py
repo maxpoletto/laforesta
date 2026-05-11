@@ -61,6 +61,7 @@ INSTALLED_APPS = [
     'apps.base',
     'apps.prelievi',
     'apps.bosco',
+    'apps.campionamenti',
     'apps.controllo',
     'apps.impostazioni',
 ]

@@ -17,6 +17,9 @@ import:
 	$(MANAGE) import_reference $(BOSCO_DATA)
 	$(MANAGE) import_parcels $(BOSCO_DATA)
 	$(MANAGE) import_mannesi $(BOSCO_DATA)
+	$(MANAGE) import_sample_grid $(BOSCO_DATA)
+	$(MANAGE) import_sampled_trees $(BOSCO_DATA)
+	$(MANAGE) import_pai $(BOSCO_DATA)
 
 geo:
 	mkdir -p data/geo
