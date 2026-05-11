@@ -922,15 +922,27 @@ Stage 1 includes:
 
 Until Stage 2 ships, the landing page after login is Prelievi, not Bosco.
 
-## Stage 2: Bosco
+## Stage 2: Campionamenti, Bosco, Piano di taglio
 
-A port of Boscoscopio into the Abies shell, with the additions described in the
-Bosco page section below (aree di saggio, piante ad accrescimento indefinito,
-bookmarkable URLs). Novelty is low relative to Stage 1 because much of the
-code can be lifted from the existing bosco/b app, so Stage 2 can proceed
-independently once the Stage 1 architecture is stable.
+The remaining v1 surface ships across five milestones documented in detail
+in [`docs/implementation-plan.md`](docs/implementation-plan.md):
 
-When Stage 2 ships, the landing page reverts to Bosco.
+```
+M0  Foundation               (no new tab visible)
+M3  Campionamenti            ← first new-feature demo
+M4  Bosco (six sub-phases)   ← progressive, biggest UX impact
+M1  Piano di taglio: Calendario
+M2  Piano di taglio: Marks
+```
+
+Numbering is topological (M0 < M1 < M2 etc.); execution order is
+M0 → M3 → M4 → M1 → M2 because there is no schema-level dependency from
+Bosco / Campionamenti on Piano di taglio (`survey.harvest_plan_id` is
+nullable; `tree` is added in M3 and reused by M2's `tree_mark`).  The
+landing page becomes Bosco at the start of M4.
+
+See `implementation-plan.md` for per-milestone scope, schema deltas,
+digests, exit criteria, and risk callouts.
 
 ## Future stages
 
