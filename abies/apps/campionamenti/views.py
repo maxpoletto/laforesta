@@ -23,7 +23,7 @@ from apps.base.auth import require_writer
 from apps.base.digests import mark_stale, serve_digest
 from apps.base.middleware import save_nonce
 from apps.base.models import (
-    Sample, SampleArea, Species, Survey, Tree, TreeSample,
+    Sample, SampleArea, SampleGrid, Species, Survey, Tree, TreeSample,
 )
 from config import strings as S
 
@@ -98,6 +98,20 @@ def tree_save_view(request):
     if sample is None:
         return _validation_error(
             [S.ERR_AREA_OUT_OF_SURVEY], ts_id, request, body,
+        )
+
+    # Reject duplicate tree-number within the same Sample (same area
+    # + same survey).  Same number across different surveys / sample
+    # areas is fine (cross-sample tree identity convention).
+    dup = TreeSample.objects.filter(
+        sample=sample, number=parsed['number'], shoot=0,
+    )
+    if ts_id:
+        dup = dup.exclude(id=ts_id)
+    if dup.exists():
+        return _validation_error(
+            [S.ERR_TREE_NUMBER_DUPLICATE.format(parsed['number'])],
+            ts_id, request, body,
         )
 
     with transaction.atomic():
@@ -292,4 +306,91 @@ def _validation_error(errors, ts_id, request, body):
         'status': 'validation_error',
         'message': ' '.join(errors),
         'html': html,
+    }, status=400)
+
+
+# ---------------------------------------------------------------------------
+# Grid + Survey CRUD (M3d-write; "Crea vuota/o" path)
+# ---------------------------------------------------------------------------
+
+@login_required
+def grid_form_view(request):
+    """Return the HTML fragment for creating a new (empty) grid."""
+    return JsonResponse({'html': render_to_string(
+        'campionamenti/_grid_form.html', {}, request=request,
+    )})
+
+
+@login_required
+@require_writer
+@require_POST
+def grid_save_view(request):
+    body = json.loads(request.body)
+    name = (body.get('name') or '').strip()
+    description = (body.get('description') or '').strip()
+    if not name:
+        return _simple_validation_error(S.ERR_GRID_NAME_REQUIRED)
+    if SampleGrid.objects.filter(name=name).exists():
+        return _simple_validation_error(S.ERR_GRID_NAME_DUPLICATE)
+
+    with transaction.atomic():
+        grid = SampleGrid.objects.create(name=name, description=description)
+        mark_stale('grids', 'audit')
+
+    response_data = {'data_id': 'grids', 'row_id': grid.id}
+    nonce = body.get('nonce')
+    if nonce:
+        save_nonce(nonce, request.user, response_data)
+    return JsonResponse(response_data)
+
+
+@login_required
+def survey_form_view(request):
+    """Return the HTML fragment for creating a new (empty) survey."""
+    grids = SampleGrid.objects.order_by('-modified_at')
+    return JsonResponse({'html': render_to_string(
+        'campionamenti/_survey_form.html', {'grids': grids}, request=request,
+    )})
+
+
+@login_required
+@require_writer
+@require_POST
+def survey_save_view(request):
+    body = json.loads(request.body)
+    name = (body.get('name') or '').strip()
+    description = (body.get('description') or '').strip()
+    grid_id = body.get('sample_grid_id')
+
+    if not name:
+        return _simple_validation_error(S.ERR_SURVEY_NAME_REQUIRED)
+    if not grid_id:
+        return _simple_validation_error(S.ERR_SURVEY_GRID_REQUIRED)
+    if Survey.objects.filter(name=name).exists():
+        return _simple_validation_error(S.ERR_SURVEY_NAME_DUPLICATE)
+    try:
+        grid = SampleGrid.objects.get(id=int(grid_id))
+    except (SampleGrid.DoesNotExist, ValueError):
+        return _simple_validation_error(S.ERR_SURVEY_GRID_REQUIRED)
+
+    with transaction.atomic():
+        survey = Survey.objects.create(
+            name=name, sample_grid=grid, description=description,
+        )
+        mark_stale('surveys', 'audit')
+
+    response_data = {'data_id': 'surveys', 'row_id': survey.id}
+    nonce = body.get('nonce')
+    if nonce:
+        save_nonce(nonce, request.user, response_data)
+    return JsonResponse(response_data)
+
+
+def _simple_validation_error(message):
+    """Shorter validation-error helper for grid/survey saves (no form
+    re-render — the client just shows the message)."""
+    return JsonResponse({
+        'status': 'validation_error',
+        'message': message,
+        'html': '',
     }, status=400)

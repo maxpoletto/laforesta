@@ -93,6 +93,12 @@ ERR_DENSITY_INVALID = 'La densità deve essere un numero positivo.'
 ERR_D_POSITIVE = 'Il diametro deve essere positivo.'
 ERR_H_POSITIVE = 'L\'altezza deve essere positiva.'
 ERR_TREE_NUMBER_REQUIRED = 'Numero albero obbligatorio.'
+ERR_TREE_NUMBER_DUPLICATE = 'Numero albero {} già utilizzato in questo campione.'
+ERR_GRID_NAME_REQUIRED = 'Nome griglia obbligatorio.'
+ERR_GRID_NAME_DUPLICATE = 'Esiste già una griglia con questo nome.'
+ERR_SURVEY_NAME_REQUIRED = 'Nome rilevamento obbligatorio.'
+ERR_SURVEY_NAME_DUPLICATE = 'Esiste già un rilevamento con questo nome.'
+ERR_SURVEY_GRID_REQUIRED = 'Selezionare una griglia.'
 ERR_AREA_OUT_OF_SURVEY = (
     'L\'area di saggio non appartiene alla griglia del rilevamento.'
 )

@@ -45,6 +45,37 @@
   height: 100%;
 }
 
+.campionamenti-add-btn {
+  margin-left: 8px;
+}
+
+.form-readonly-block {
+  background: #f0f0f0;
+  padding: 8px 12px;
+  border-radius: 4px;
+  margin-bottom: 12px;
+  font-size: 0.9em;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px 16px;
+}
+
+.tree-form-preview-row {
+  margin: 4px 0 12px;
+}
+
+.tree-form-preview {
+  font-style: italic;
+  color: #555;
+}
+
+.form-help {
+  font-size: 0.85em;
+  color: #666;
+  font-style: italic;
+  margin: 8px 0;
+}
+
 .campionamenti-empty {
   padding: 32px;
   text-align: center;

@@ -1,0 +1,38 @@
+{% comment %}
+"Crea vuoto" path for a new survey.  CSV-import path comes later
+(per `docs/pages/campionamenti.md` Section 2).
+{% endcomment %}
+<form id="campionamenti-survey-form">
+  <h2>Nuovo rilevamento</h2>
+
+  <div class="form-group">
+    <label for="id_survey_name">Nome</label>
+    <input type="text" id="id_survey_name" name="name" required
+           maxlength="100" autofocus>
+  </div>
+
+  <div class="form-group">
+    <label for="id_survey_grid">Griglia</label>
+    <select id="id_survey_grid" name="sample_grid_id" required>
+      <option value="">— Seleziona —</option>
+      {% for g in grids %}
+        <option value="{{ g.id }}">{{ g.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label for="id_survey_description">Descrizione (opzionale)</label>
+    <textarea id="id_survey_description" name="description" rows="3"></textarea>
+  </div>
+
+  <p class="form-help">
+    Il rilevamento viene creato vuoto.  Gli alberi si aggiungono
+    successivamente tramite import CSV o inserimento manuale.
+  </p>
+
+  <div class="form-actions">
+    <button type="button" class="btn" id="survey-form-cancel">Annulla</button>
+    <button type="submit" class="btn btn-primary" data-action="save">Crea</button>
+  </div>
+</form>

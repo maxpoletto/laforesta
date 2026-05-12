@@ -37,6 +37,10 @@ const SAMPLES_URL = '/api/campionamenti/samples/data/';
 const TREES_URL_PREFIX = '/api/campionamenti/trees/';
 const TREE_FORM_URL = '/api/campionamenti/tree/form/';
 const TREE_SAVE_URL = '/api/campionamenti/tree/save/';
+const GRID_FORM_URL = '/api/campionamenti/grid/form/';
+const GRID_SAVE_URL = '/api/campionamenti/grid/save/';
+const SURVEY_FORM_URL = '/api/campionamenti/survey/form/';
+const SURVEY_SAVE_URL = '/api/campionamenti/survey/save/';
 const PARCELLE_GEOJSON_URL = '/api/geo/particelle.geojson';
 const PAGE_PATH = '/campionamenti';
 
@@ -257,6 +261,16 @@ function buildGriglieBody(body) {
   label.htmlFor = sel.id = 'campionamenti-grid-select';
 
   topRow.append(label, sel);
+
+  if (canModify()) {
+    const addBtn = document.createElement('button');
+    addBtn.type = 'button';
+    addBtn.className = 'btn btn-primary campionamenti-add-btn';
+    addBtn.textContent = S.NEW_GRID_LABEL;
+    addBtn.addEventListener('click', () => showNewGridForm());
+    topRow.appendChild(addBtn);
+  }
+
   body.appendChild(topRow);
 
   s.summary = document.createElement('div');
@@ -368,6 +382,16 @@ function buildRilevamentiBody(body) {
   label.htmlFor = sel.id = 'campionamenti-survey-select';
 
   topRow.append(label, sel);
+
+  if (canModify()) {
+    const addBtn = document.createElement('button');
+    addBtn.type = 'button';
+    addBtn.className = 'btn btn-primary campionamenti-add-btn';
+    addBtn.textContent = S.NEW_SURVEY_LABEL;
+    addBtn.addEventListener('click', () => showNewSurveyForm());
+    topRow.appendChild(addBtn);
+  }
+
   body.appendChild(topRow);
 
   s.summary = document.createElement('div');
@@ -691,6 +715,69 @@ function syncURL() {
 }
 
 // ---------------------------------------------------------------------------
+// New grid / survey forms (M3d-write — "Crea vuota/o" path)
+// ---------------------------------------------------------------------------
+
+async function showNewGridForm() {
+  inForm = true;
+  const form = await fetchForm(GRID_FORM_URL);
+  if (!form) { returnToPage(); return; }
+  wireGridForm(form);
+  addEscapeHandler();
+}
+
+function wireGridForm(form) {
+  form.querySelector('#grid-form-cancel')?.addEventListener('click', returnToPage);
+  interceptSubmit(form, GRID_SAVE_URL, {
+    onSuccess: async (data) => {
+      try {
+        await cache.load(GRIDS_ID);
+        gridsData = cache.get(GRIDS_ID);
+      } catch {}
+      activeGridId = data.row_id;
+      returnToPage();
+    },
+    onValidationError(data) {
+      // Server returns empty html for simple validation errors
+      // (name required / duplicate).  Error modal already shown
+      // by interceptSubmit; just keep the form visible.
+      if (data.html) {
+        const f = renderFormHTML(data.html);
+        if (f) wireGridForm(f);
+      }
+    },
+  });
+}
+
+async function showNewSurveyForm() {
+  inForm = true;
+  const form = await fetchForm(SURVEY_FORM_URL);
+  if (!form) { returnToPage(); return; }
+  wireSurveyForm(form);
+  addEscapeHandler();
+}
+
+function wireSurveyForm(form) {
+  form.querySelector('#survey-form-cancel')?.addEventListener('click', returnToPage);
+  interceptSubmit(form, SURVEY_SAVE_URL, {
+    onSuccess: async (data) => {
+      try {
+        await cache.load(SURVEYS_ID);
+        surveysData = cache.get(SURVEYS_ID);
+      } catch {}
+      activeSurveyId = data.row_id;
+      returnToPage();
+    },
+    onValidationError(data) {
+      if (data.html) {
+        const f = renderFormHTML(data.html);
+        if (f) wireSurveyForm(f);
+      }
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Manual tree+sample entry form (M3d-write)
 // ---------------------------------------------------------------------------
 
@@ -790,8 +877,15 @@ function wireVMPreview(form) {
 function returnToPage() {
   inForm = false;
   removeEscapeHandler();
-  // Re-render the whole page shell from scratch.  Section open state
-  // and active grid/survey/area come back from URL params.
+  // Re-render the whole page shell from scratch.  Drop in-memory
+  // selection state so applyParams triggers a full re-render of map
+  // + table; otherwise the early-out in applyParams keeps the page
+  // blank because the old DOM nodes were just discarded.
+  destroyTable();
+  destroyGriglieMap();
+  destroyRilevamentiMap();
+  activeGridId = activeSurveyId = activeAreaId = null;
+  if (unsubCache) { unsubCache(); unsubCache = null; }
   const params = Object.fromEntries(new URLSearchParams(location.search));
   buildPageShell(document.getElementById('content'), params);
   applyParams(params);

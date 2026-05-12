@@ -150,6 +150,8 @@ export const CSV_SAMPLED_TREES = 'alberi-campionati.csv';
 // Campionamenti
 export const SURVEY_LABEL = 'Rilevamento';
 export const GRID_LABEL = 'Griglia';
+export const NEW_GRID_LABEL = '+ Nuova griglia';
+export const NEW_SURVEY_LABEL = '+ Nuovo rilevamento';
 export const SECTION_GRIGLIE = 'Griglie di campionamento';
 export const SECTION_RILEVAMENTI = 'Rilevamenti';
 export const SECTION_ALBERI_CAMPIONATI = 'Alberi campionati';

@@ -241,3 +241,117 @@ class TestTreeSave:
             'fustaia': 'true',
         })
         assert resp.status_code == 403
+
+    def test_rejects_duplicate_number_in_sample(self, writer_client, sample_setup):
+        """Spec: within a single Sample, tree numbers must be unique."""
+        s = sample_setup
+        # The sample fixture already has tree with number=1.
+        resp = self._post(writer_client, {
+            'survey_id': str(s['survey'].id),
+            'sample_area_id': str(s['area'].id),
+            'species_id': str(s['tree'].species_id),
+            'number': '1', 'd_cm': '40', 'h_m': '25',
+            'l10_mm': '0', 'volume_m3': '0.8', 'mass_q': '5.7',
+            'fustaia': 'true',
+        })
+        assert resp.status_code == 400
+        assert 'già utilizzato' in resp.json()['message']
+
+
+class TestGridSave:
+    @staticmethod
+    def _post(client, body):
+        import json
+        return client.post(
+            '/api/campionamenti/grid/save/',
+            data=json.dumps(body), content_type='application/json',
+        )
+
+    def test_form_renders(self, writer_client, db):
+        resp = writer_client.get('/api/campionamenti/grid/form/')
+        assert resp.status_code == 200
+        assert '<form' in resp.json()['html']
+
+    def test_create_empty_grid(self, writer_client, db):
+        from apps.base.models import SampleGrid
+        resp = self._post(writer_client, {
+            'name': 'Griglia di prova', 'description': 'desc',
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        g = SampleGrid.objects.get(id=data['row_id'])
+        assert g.name == 'Griglia di prova'
+
+    def test_name_required(self, writer_client, db):
+        resp = self._post(writer_client, {'name': '', 'description': ''})
+        assert resp.status_code == 400
+
+    def test_name_duplicate_rejected(self, writer_client, db):
+        from apps.base.models import SampleGrid
+        SampleGrid.objects.create(name='Dup')
+        resp = self._post(writer_client, {'name': 'Dup', 'description': ''})
+        assert resp.status_code == 400
+
+    def test_reader_forbidden(self, reader_client, db):
+        resp = self._post(reader_client, {'name': 'X'})
+        assert resp.status_code == 403
+
+
+class TestSurveySave:
+    @staticmethod
+    def _post(client, body):
+        import json
+        return client.post(
+            '/api/campionamenti/survey/save/',
+            data=json.dumps(body), content_type='application/json',
+        )
+
+    def test_form_renders(self, writer_client, sample_setup):
+        resp = writer_client.get('/api/campionamenti/survey/form/')
+        assert resp.status_code == 200
+        html = resp.json()['html']
+        assert '<form' in html
+        # Grid pulldown contains the fixture's grid.
+        assert sample_setup['grid'].name in html
+
+    def test_create_empty_survey(self, writer_client, sample_setup):
+        from apps.base.models import Survey
+        resp = self._post(writer_client, {
+            'name': 'Rilevamento di prova',
+            'sample_grid_id': str(sample_setup['grid'].id),
+            'description': 'desc',
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        sv = Survey.objects.get(id=data['row_id'])
+        assert sv.name == 'Rilevamento di prova'
+        assert sv.sample_grid_id == sample_setup['grid'].id
+
+    def test_name_required(self, writer_client, sample_setup):
+        resp = self._post(writer_client, {
+            'name': '', 'sample_grid_id': str(sample_setup['grid'].id),
+        })
+        assert resp.status_code == 400
+
+    def test_grid_required(self, writer_client, db):
+        resp = self._post(writer_client, {'name': 'X', 'sample_grid_id': ''})
+        assert resp.status_code == 400
+
+    def test_grid_must_exist(self, writer_client, db):
+        resp = self._post(writer_client, {'name': 'X', 'sample_grid_id': '9999'})
+        assert resp.status_code == 400
+
+    def test_name_duplicate_rejected(self, writer_client, sample_setup):
+        s = sample_setup
+        resp = self._post(writer_client, {
+            'name': s['survey'].name,
+            'sample_grid_id': str(s['grid'].id),
+        })
+        assert resp.status_code == 400
+
+    def test_reader_forbidden(self, reader_client, sample_setup):
+        s = sample_setup
+        resp = self._post(reader_client, {
+            'name': 'X', 'sample_grid_id': str(s['grid'].id),
+        })
+        assert resp.status_code == 403
