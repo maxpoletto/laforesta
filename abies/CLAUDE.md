@@ -310,6 +310,34 @@ Write path: after a successful save, the view marks affected digests as stale:
 `UPDATE digest_status SET stale = TRUE WHERE name IN (...)`. This is the only
 write-path cost.
 
+**The "affected digests" set is whatever the digest's generator reads,
+transitively.** A write to table T must invalidate every digest D whose
+`generate_D()` reads T — directly or via a join.  Forgetting one is a silent
+bug: the on-disk file stays, the staleness flag stays False, and the next
+read serves a stale digest *even after a page reload* (the cache miss still
+hits the un-regenerated file).
+
+Concrete examples from `apps/campionamenti`:
+
+| Write                                  | Must invalidate                               |
+|----------------------------------------|-----------------------------------------------|
+| `Survey` create/delete                 | `surveys`, `grids` (N. rilevamenti)           |
+| `SampleArea` create/delete             | `sample_areas`, `grids`, `surveys` (N. aree totali) |
+| `Sample` create/delete + date edit     | `samples`, `surveys` (Data primo/ultimo, N. aree visitate), `sampled_trees_<survey>` |
+| `TreeSample` create/delete             | `sampled_trees_<survey>`, `samples` (N. alberi) |
+| `SampleGrid` rename                    | `grids`                                       |
+| `Survey` rename                        | `surveys`                                     |
+
+When you add a new write endpoint, audit every `generate_*()` in
+`apps/base/digests.py` and add `mark_stale()` for each digest that touches
+the written table.  When you change a `generate_*()` to read a new table,
+audit every write endpoint that touches that table.  Tests under
+`TestDigestInvalidation` (`test/test_campionamenti_views.py`) lock the
+contract for the campionamenti surface: each test performs a write and
+re-reads the affected digest via the public endpoint, asserting that the
+materialized columns reflect the change.  Add equivalent tests for any new
+write/digest pair.
+
 Read path (conditional GET for a digest):
 1. Check stale flag for the requested digest (one PK lookup).
 2. If not stale: normal If-Modified-Since check against file mtime, return 304

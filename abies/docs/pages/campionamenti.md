@@ -427,7 +427,8 @@ expands; one is shared with Piano di taglio.
 
 Drives the Section 1 pulldown and active-grid summary line.
 Eager-loaded only when Section 1 opens (Section 1 is closed by
-default).  Invalidated on `sample_grid` and `sample_area` writes.
+default).  Invalidated on `sample_grid`, `sample_area`, and `survey`
+writes (the last because `N. rilevamenti` counts surveys per grid).
 
 Columns: `row_id`, `version`, `Nome`, `Descrizione`, `N. aree`,
 `Comprese`, `N. rilevamenti`, `Ultimo aggiornamento`.  Sorted by
