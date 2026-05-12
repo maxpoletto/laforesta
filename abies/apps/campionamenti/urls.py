@@ -17,6 +17,11 @@ urlpatterns = [
     path('tree/form/<int:ts_id>/', views.tree_form_view,
          name='campionamenti-tree-form-edit'),
     path('tree/save/', views.tree_save_view, name='campionamenti-tree-save'),
+    path('tree/delete/<int:ts_id>/', views.tree_delete_view,
+         name='campionamenti-tree-delete'),
+    # Inline sample-date edit (Section 3 header when area is selected).
+    path('sample/date/', views.sample_date_save_view,
+         name='campionamenti-sample-date-save'),
     # Grid + survey "Crea vuota/o" (M3d-write).
     path('grid/form/', views.grid_form_view, name='campionamenti-grid-form'),
     path('grid/save/', views.grid_save_view, name='campionamenti-grid-save'),
