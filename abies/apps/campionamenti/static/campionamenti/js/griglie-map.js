@@ -19,13 +19,19 @@ export class GriglieMap {
    * @param {object} opts
    * @param {HTMLElement} opts.container
    * @param {object} opts.geojson — particelle.geojson
-   * @param {function(number): void} [opts.onAreaClick]
-   *   Called with sample_area_id when an area is clicked.
+   * @param {function(object): void} [opts.onAreaClick]
+   *   Called with the area row ({id, lat, lng, compresa, particella, numero,
+   *   altitude, r_m, note}) when an area marker is clicked.  The handler
+   *   typically opens a popover.
+   * @param {function(number, number): void} [opts.onEmptyClick]
+   *   Called with (lat, lng) when the user clicks empty map space.
+   *   Used by writers to open the "Inserire una nuova area qui?" prompt.
    */
   constructor(opts) {
     this.container = opts.container;
     this.geojson = opts.geojson;
     this.onAreaClick = opts.onAreaClick || null;
+    this.onEmptyClick = opts.onEmptyClick || null;
     this.markers = new Map();
     this.activeAreaId = null;
 
@@ -33,8 +39,18 @@ export class GriglieMap {
     this.mapEl.className = 'griglie-map';
     this.container.appendChild(this.mapEl);
 
-    this.wrapper = MapCommon.create(this.mapEl, { basemap: 'satellite' });
+    this.wrapper = MapCommon.create(this.mapEl, {
+      basemap: opts.basemap || 'satellite',
+    });
     this.leaflet = this.wrapper.getLeafletMap();
+
+    // Empty-space click → callback.  Markers stop propagation, so this
+    // only fires for clicks on the basemap / parcel polygons.
+    this.leaflet.on('click', (e) => {
+      if (this.onEmptyClick) {
+        this.onEmptyClick(e.latlng.lat, e.latlng.lng);
+      }
+    });
 
     this._renderParcels();
     this.markerLayer = L.layerGroup().addTo(this.leaflet);
@@ -82,7 +98,7 @@ export class GriglieMap {
         L.DomEvent.stopPropagation(e);
         this.activeAreaId = area.id;
         this._refreshHighlight();
-        if (this.onAreaClick) this.onAreaClick(area.id);
+        if (this.onAreaClick) this.onAreaClick(area);
       });
       this.markers.set(area.id, m);
       m.addTo(this.markerLayer);

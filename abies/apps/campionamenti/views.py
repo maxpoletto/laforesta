@@ -9,9 +9,11 @@ processes the submission and returns either {row_id, record} or a
 validation_error / conflict payload.
 """
 
+import csv
+import io
 import json
 from datetime import date as date_type
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
@@ -169,6 +171,188 @@ def tree_save_view(request):
     if nonce:
         save_nonce(nonce, request.user, response_data)
     return JsonResponse(response_data)
+
+
+@login_required
+@require_writer
+@require_POST
+def tree_delete_view(request, ts_id: int):
+    """Delete a single TreeSample row.  The underlying Tree row is
+    *not* deleted — only the measurement, per spec §"Editing /
+    deletion" ("Deleting a single tree_sample row leaves both the
+    sample and the underlying tree row intact").
+    """
+    ts = TreeSample.objects.select_related('sample').filter(id=ts_id).first()
+    if ts is None:
+        return JsonResponse({'status': 'not_found'}, status=404)
+    survey_id = ts.sample.survey_id
+    ts.delete()
+    mark_stale(f'sampled_trees_{survey_id}', 'samples', 'audit')
+    return JsonResponse({
+        'data_id': f'sampled_trees_{survey_id}',
+        'row_id': ts_id,
+    })
+
+
+@login_required
+def area_form_view(request, area_id: int | None = None):
+    """Form fragment for adding or editing a SampleArea.
+
+    Query params (add path): ?grid=<id>&lat=...&lng=... (lat/lng optional —
+    pre-fill from a click on the Griglie map).
+    """
+    area = None
+    grid = None
+    if area_id:
+        area = SampleArea.objects.select_related(
+            'parcel__region', 'sample_grid',
+        ).filter(id=area_id).first()
+        if area is None:
+            raise Http404
+        grid = area.sample_grid
+    else:
+        grid_id = int(request.GET.get('grid', 0)) or None
+        if grid_id is None:
+            raise Http404('grid required')
+        grid = SampleGrid.objects.filter(id=grid_id).first()
+        if grid is None:
+            raise Http404
+    initial_lat = request.GET.get('lat', '')
+    initial_lng = request.GET.get('lng', '')
+
+    regions = list(Region.objects.order_by('name'))
+    parcels = list(Parcel.objects.select_related('region').order_by(
+        'region__name', 'name',
+    ))
+    return JsonResponse({'html': render_to_string(
+        'campionamenti/_area_form.html', {
+            'area': area, 'grid': grid,
+            'regions': regions, 'parcels': parcels,
+            'initial_lat': initial_lat, 'initial_lng': initial_lng,
+        }, request=request,
+    )})
+
+
+@login_required
+@require_writer
+@require_POST
+def area_save_view(request):
+    """Create or update a SampleArea."""
+    body = json.loads(request.body)
+    try:
+        grid_id = int(body['sample_grid_id'])
+        parcel_id = int(body['parcel_id'])
+        number = (body.get('number') or '').strip()
+        lat = float(body['lat'])
+        lng = float(body['lng'])
+        r_m = int(body.get('r_m') or 12)
+    except (KeyError, ValueError, TypeError):
+        return _simple_validation_error(S.ERROR_GENERIC)
+
+    if not number:
+        return _simple_validation_error(S.ERR_AREA_NUMBER_REQUIRED)
+
+    altitude_raw = body.get('altitude_m')
+    altitude = None
+    if altitude_raw not in (None, '', 'null'):
+        try:
+            altitude = int(altitude_raw)
+        except (ValueError, TypeError):
+            altitude = None
+    note = (body.get('note') or '').strip()
+
+    grid = SampleGrid.objects.filter(id=grid_id).first()
+    parcel = Parcel.objects.filter(id=parcel_id).first()
+    if grid is None or parcel is None:
+        return JsonResponse({'status': 'not_found'}, status=404)
+
+    area_id = body.get('row_id')
+    area_id = int(area_id) if area_id else None
+
+    with transaction.atomic():
+        if area_id:
+            area = SampleArea.objects.select_for_update().filter(
+                id=area_id, sample_grid=grid,
+            ).first()
+            if area is None:
+                return JsonResponse({'status': 'not_found'}, status=404)
+            area.parcel = parcel
+            area.number = number
+            area.lat = lat
+            area.lng = lng
+            area.altitude_m = altitude
+            area.r_m = r_m
+            area.note = note
+            area.version += 1
+            area.save()
+        else:
+            area = SampleArea.objects.create(
+                sample_grid=grid, parcel=parcel, number=number,
+                lat=lat, lng=lng, altitude_m=altitude, r_m=r_m, note=note,
+            )
+        mark_stale('sample_areas', 'grids', 'audit')
+
+    response_data = {'data_id': 'sample_areas', 'row_id': area.id}
+    nonce = body.get('nonce')
+    if nonce:
+        save_nonce(nonce, request.user, response_data)
+    return JsonResponse(response_data)
+
+
+@login_required
+@require_writer
+@require_POST
+def area_delete_view(request, area_id: int):
+    """Delete a SampleArea.  Refused if any Sample references it."""
+    area = SampleArea.objects.filter(id=area_id).first()
+    if area is None:
+        return JsonResponse({'status': 'not_found'}, status=404)
+    if Sample.objects.filter(sample_area=area).exists():
+        return _simple_validation_error(S.ERR_AREA_IN_USE)
+    area.delete()
+    mark_stale('sample_areas', 'grids', 'audit')
+    return JsonResponse({'data_id': 'sample_areas', 'row_id': area_id})
+
+
+@login_required
+@require_writer
+@require_POST
+def sample_date_save_view(request):
+    """Set/update a Sample.date for (survey, sample_area).  Creates the
+    Sample row if it does not exist yet (per spec §Section 3: inline
+    date editor "defaults to today if the sample row had no date set").
+    """
+    body = json.loads(request.body)
+    try:
+        survey_id = int(body['survey_id'])
+        area_id = int(body['sample_area_id'])
+        new_date = date_type.fromisoformat(body['date'])
+    except (KeyError, ValueError, TypeError):
+        return _simple_validation_error(S.ERROR_GENERIC)
+
+    survey = Survey.objects.filter(id=survey_id).first()
+    area = SampleArea.objects.filter(id=area_id).first()
+    if survey is None or area is None:
+        return JsonResponse({'status': 'not_found'}, status=404)
+    if area.sample_grid_id != survey.sample_grid_id:
+        return _simple_validation_error(S.ERR_AREA_OUT_OF_SURVEY)
+
+    with transaction.atomic():
+        sample, created = Sample.objects.get_or_create(
+            sample_area=area, survey=survey,
+            defaults={'date': new_date},
+        )
+        if not created and sample.date != new_date:
+            sample.date = new_date
+            sample.version += 1
+            sample.save()
+        mark_stale(f'sampled_trees_{survey_id}', 'samples', 'audit')
+
+    return JsonResponse({
+        'data_id': 'samples',
+        'row_id': sample.id,
+        'date': new_date.isoformat(),
+    })
 
 
 # ---------------------------------------------------------------------------
@@ -460,9 +644,402 @@ def survey_form_view(request):
     creation paths (empty / csv) per `campionamenti.md` §2.
     """
     grids = SampleGrid.objects.order_by('-modified_at')
+    surveys = Survey.objects.order_by('-modified_at')
     return JsonResponse({'html': render_to_string(
-        'campionamenti/_survey_modal.html', {'grids': grids}, request=request,
+        'campionamenti/_survey_modal.html', {
+            'grids': grids, 'surveys': surveys,
+        }, request=request,
     )})
+
+
+@login_required
+@require_writer
+@require_POST
+def grid_edit_view(request, grid_id: int):
+    """Edit a grid's name / description (no cascade)."""
+    grid = SampleGrid.objects.filter(id=grid_id).first()
+    if grid is None:
+        return JsonResponse({'status': 'not_found'}, status=404)
+    body = json.loads(request.body)
+    name = (body.get('name') or '').strip()
+    description = (body.get('description') or '').strip()
+    if not name:
+        return _simple_validation_error(S.ERR_GRID_NAME_REQUIRED)
+    if SampleGrid.objects.filter(name=name).exclude(id=grid.id).exists():
+        return _simple_validation_error(S.ERR_GRID_NAME_DUPLICATE)
+    grid.name = name
+    grid.description = description
+    grid.version += 1
+    grid.save()
+    mark_stale('grids', 'audit')
+    return JsonResponse({'data_id': 'grids', 'row_id': grid.id})
+
+
+@login_required
+@require_writer
+@require_POST
+def grid_delete_view(request, grid_id: int):
+    """Delete a grid.  Refused if any Survey references it (Survey.sample_grid
+    is PROTECT — the only way to "force" delete a populated grid is to delete
+    its surveys first)."""
+    grid = SampleGrid.objects.filter(id=grid_id).first()
+    if grid is None:
+        return JsonResponse({'status': 'not_found'}, status=404)
+    if Survey.objects.filter(sample_grid=grid).exists():
+        return _simple_validation_error(S.ERR_GRID_IN_USE)
+    with transaction.atomic():
+        # SampleArea cascades.
+        grid.delete()
+        mark_stale('grids', 'sample_areas', 'audit')
+    return JsonResponse({'data_id': 'grids', 'row_id': grid_id})
+
+
+@login_required
+@require_writer
+@require_POST
+def survey_edit_view(request, survey_id: int):
+    """Edit a survey's name / description."""
+    survey = Survey.objects.filter(id=survey_id).first()
+    if survey is None:
+        return JsonResponse({'status': 'not_found'}, status=404)
+    body = json.loads(request.body)
+    name = (body.get('name') or '').strip()
+    description = (body.get('description') or '').strip()
+    if not name:
+        return _simple_validation_error(S.ERR_SURVEY_NAME_REQUIRED)
+    if Survey.objects.filter(name=name).exclude(id=survey.id).exists():
+        return _simple_validation_error(S.ERR_SURVEY_NAME_DUPLICATE)
+    survey.name = name
+    survey.description = description
+    survey.version += 1
+    survey.save()
+    mark_stale('surveys', 'audit')
+    return JsonResponse({'data_id': 'surveys', 'row_id': survey.id})
+
+
+# ---------------------------------------------------------------------------
+# CSV imports (Bucket 3) — Grid CSV + Tree-and-sample CSV
+# ---------------------------------------------------------------------------
+
+GRID_CSV_REQUIRED = ['Compresa', 'Particella', 'Area saggio', 'Lon', 'Lat',
+                     'Quota', 'Raggio']
+TREE_CSV_REQUIRED = ['Compresa', 'Particella', 'Area saggio', 'Albero',
+                     'Pollone', 'Matricina', 'D_cm', 'H_m', 'L10_mm',
+                     'Genere', 'Fustaia']
+TREE_CSV_OPTIONAL = ['Data', 'PAI']
+
+
+@login_required
+@require_writer
+@require_POST
+def grid_csv_import_view(request):
+    """Upload a CSV → create a SampleGrid + N SampleAreas in one transaction.
+
+    Multipart form fields:
+      - name        (required)
+      - description (optional)
+      - file        (required, .csv)
+    """
+    name = (request.POST.get('name') or '').strip()
+    description = (request.POST.get('description') or '').strip()
+    upload = request.FILES.get('file')
+
+    if not name:
+        return _simple_validation_error(S.ERR_GRID_NAME_REQUIRED)
+    if upload is None:
+        return _simple_validation_error(S.ERR_CSV_FILE_REQUIRED)
+    if SampleGrid.objects.filter(name=name).exists():
+        return _simple_validation_error(S.ERR_GRID_NAME_DUPLICATE)
+
+    try:
+        rows = _parse_csv(upload, GRID_CSV_REQUIRED)
+    except _CsvError as e:
+        return _simple_validation_error(str(e))
+
+    region_cache = {r.name.lower(): r for r in Region.objects.all()}
+    parcel_cache = {
+        (p.region.name.lower(), p.name): p
+        for p in Parcel.objects.select_related('region')
+    }
+
+    errors = []
+    parsed_rows = []
+    for i, row in enumerate(rows, 2):  # row 2 = first data row (after header)
+        compresa = row['Compresa'].strip()
+        particella = row['Particella'].strip()
+        parcel = parcel_cache.get((compresa.lower(), particella))
+        if parcel is None:
+            errors.append(
+                S.ERR_CSV_ROW_PARCEL.format(i, compresa, particella),
+            )
+            continue
+        try:
+            parsed_rows.append({
+                'parcel': parcel,
+                'number': row['Area saggio'].strip(),
+                'lat': float(row['Lat']),
+                'lng': float(row['Lon']),
+                'altitude': _int_or_none_str(row['Quota']),
+                'r_m': int(float(row['Raggio'])) if row['Raggio'].strip()
+                       else 12,
+                'note': '',
+            })
+        except (ValueError, KeyError) as exc:
+            errors.append(S.ERR_CSV_ROW_PARSE.format(i, str(exc)))
+    if errors:
+        return _csv_error_list(errors)
+    if not parsed_rows:
+        return _simple_validation_error(S.ERR_CSV_EMPTY)
+
+    with transaction.atomic():
+        grid = SampleGrid.objects.create(name=name, description=description)
+        SampleArea.objects.bulk_create([
+            SampleArea(
+                sample_grid=grid,
+                parcel=r['parcel'], number=r['number'],
+                lat=r['lat'], lng=r['lng'],
+                altitude_m=r['altitude'], r_m=r['r_m'], note=r['note'],
+            )
+            for r in parsed_rows
+        ])
+        mark_stale('grids', 'sample_areas', 'audit')
+
+    response_data = {
+        'data_id': 'grids', 'row_id': grid.id,
+        'n_areas': len(parsed_rows),
+    }
+    nonce = request.POST.get('nonce')
+    if nonce:
+        save_nonce(nonce, request.user, response_data)
+    return JsonResponse(response_data)
+
+
+@login_required
+@require_writer
+@require_POST
+def tree_csv_import_view(request):
+    """Upload a CSV → create Samples + Trees + TreeSamples on a survey.
+
+    Multipart form fields:
+      - survey_id (required)
+      - default_date (required if CSV lacks a Data column)
+      - file (required, .csv)
+    """
+    survey_id = request.POST.get('survey_id')
+    upload = request.FILES.get('file')
+    default_date_str = (request.POST.get('default_date') or '').strip()
+
+    if not survey_id:
+        return _simple_validation_error(S.ERR_CSV_SURVEY_REQUIRED)
+    if upload is None:
+        return _simple_validation_error(S.ERR_CSV_FILE_REQUIRED)
+
+    survey = Survey.objects.filter(id=int(survey_id)).select_related(
+        'sample_grid',
+    ).first()
+    if survey is None:
+        return JsonResponse({'status': 'not_found'}, status=404)
+
+    try:
+        rows = _parse_csv(upload, TREE_CSV_REQUIRED)
+    except _CsvError as e:
+        return _simple_validation_error(str(e))
+
+    has_date_column = bool(rows) and 'Data' in rows[0]
+    if not has_date_column and not default_date_str:
+        return _simple_validation_error(S.ERR_CSV_DATE_REQUIRED)
+    default_date = None
+    if default_date_str:
+        try:
+            default_date = date_type.fromisoformat(default_date_str)
+        except ValueError:
+            return _simple_validation_error(S.ERR_CSV_DATE_REQUIRED)
+
+    parcel_cache = {
+        (p.region.name.lower(), p.name): p
+        for p in Parcel.objects.select_related('region')
+    }
+    area_cache = {
+        (sa.parcel.region.name.lower(), sa.parcel.name, sa.number): sa
+        for sa in SampleArea.objects.filter(sample_grid=survey.sample_grid)
+                       .select_related('parcel__region')
+    }
+    species_cache = {s.common_name.lower(): s for s in Species.objects.all()}
+
+    # Tabacchi inputs use English-side species names; reuse the GENERE_MAP
+    # from the management command to handle minor naming drift.
+    from apps.base.management.commands.import_sampled_trees import GENERE_MAP
+    from apps.base.tabacchi import has_species, tabacchi_volume_m3
+
+    errors = []
+    parsed = []
+    for i, row in enumerate(rows, 2):
+        compresa = row['Compresa'].strip()
+        particella = row['Particella'].strip()
+        adc = row['Area saggio'].strip()
+        area = area_cache.get((compresa.lower(), particella, adc))
+        if area is None:
+            errors.append(S.ERR_CSV_ROW_AREA.format(i, compresa, particella, adc))
+            continue
+        try:
+            number = int(row['Albero'])
+            shoot = int(row['Pollone'] or 0)
+            standard = _bool_str(row['Matricina'])
+            d_cm = int(float(row['D_cm']))
+            h_m = Decimal(row['H_m']).quantize(Decimal('0.01'),
+                                              rounding=ROUND_HALF_UP)
+            l10_mm = int(float(row['L10_mm'])) if row['L10_mm'].strip() else 0
+            fustaia = _bool_str(row['Fustaia'])
+            coppice = not fustaia
+            preserved = _bool_str(row.get('PAI', '')) if 'PAI' in row else False
+        except (ValueError, InvalidOperation) as exc:
+            errors.append(S.ERR_CSV_ROW_PARSE.format(i, str(exc)))
+            continue
+
+        genere = row['Genere'].strip()
+        mapped = GENERE_MAP.get(genere, genere)
+        species = species_cache.get(mapped.lower())
+        if species is None:
+            errors.append(S.ERR_CSV_ROW_SPECIES.format(i, genere))
+            continue
+
+        # Per-row date (if column present) else default.
+        if has_date_column and row.get('Data', '').strip():
+            try:
+                row_date = date_type.fromisoformat(row['Data'].strip())
+            except ValueError:
+                errors.append(S.ERR_CSV_ROW_PARSE.format(
+                    i, f'Data: {row["Data"]}',
+                ))
+                continue
+        else:
+            row_date = default_date
+
+        if coppice or not has_species(mapped):
+            volume_m3 = None
+            mass_q = None
+        else:
+            volume_m3 = tabacchi_volume_m3(d_cm, h_m, mapped)
+            mass_q = (volume_m3 * species.density).quantize(
+                Decimal('0.001'), rounding=ROUND_HALF_UP,
+            )
+
+        parsed.append({
+            'area': area, 'date': row_date, 'parcel': area.parcel,
+            'species': species, 'coppice': coppice, 'preserved': preserved,
+            'number': number, 'shoot': shoot, 'standard': standard,
+            'd_cm': d_cm, 'h_m': h_m, 'l10_mm': l10_mm,
+            'volume_m3': volume_m3, 'mass_q': mass_q,
+        })
+    if errors:
+        return _csv_error_list(errors)
+    if not parsed:
+        return _simple_validation_error(S.ERR_CSV_EMPTY)
+
+    with transaction.atomic():
+        # Group rows by (area, date) into Samples (one sample per area+date).
+        sample_by_key = {}
+        for r in parsed:
+            key = (r['area'].id, r['date'])
+            if key in sample_by_key:
+                continue
+            sample, _ = Sample.objects.get_or_create(
+                sample_area=r['area'], survey=survey,
+                defaults={'date': r['date']},
+            )
+            sample_by_key[key] = sample
+
+        # Walk parsed rows: create one Tree + one TreeSample per row.
+        n_trees = 0
+        for r in parsed:
+            sample = sample_by_key[(r['area'].id, r['date'])]
+            tree = Tree.objects.create(
+                species=r['species'], parcel=r['parcel'],
+                preserved=r['preserved'], coppice=r['coppice'],
+            )
+            TreeSample.objects.create(
+                sample=sample, tree=tree, shoot=r['shoot'],
+                standard=r['standard'], number=r['number'],
+                d_cm=r['d_cm'], h_m=r['h_m'], l10_mm=r['l10_mm'],
+                volume_m3=r['volume_m3'], mass_q=r['mass_q'],
+            )
+            n_trees += 1
+
+        mark_stale(
+            f'sampled_trees_{survey.id}', 'samples', 'surveys', 'audit',
+        )
+
+    return JsonResponse({
+        'data_id': 'surveys', 'row_id': survey.id,
+        'n_samples': len(sample_by_key),
+        'n_trees': n_trees,
+    })
+
+
+class _CsvError(Exception):
+    pass
+
+
+def _parse_csv(upload, required_cols):
+    """Decode + parse a Django uploaded CSV file.  Raises _CsvError on
+    malformed file or missing required columns."""
+    try:
+        text = upload.read().decode('utf-8-sig')
+    except UnicodeDecodeError:
+        raise _CsvError(S.ERR_CSV_NOT_UTF8)
+    reader = csv.DictReader(io.StringIO(text))
+    if reader.fieldnames is None:
+        raise _CsvError(S.ERR_CSV_EMPTY)
+    missing = [c for c in required_cols if c not in reader.fieldnames]
+    if missing:
+        raise _CsvError(
+            S.ERR_CSV_MISSING_COLS.format(', '.join(missing)),
+        )
+    return list(reader)
+
+
+def _csv_error_list(errors):
+    """Validation-error response carrying a per-row error list."""
+    return JsonResponse({
+        'status': 'validation_error',
+        'message': errors[0] if errors else '',
+        'errors': errors,
+        'html': '',
+    }, status=400)
+
+
+def _int_or_none_str(s):
+    s = (s or '').strip()
+    if not s:
+        return None
+    try:
+        return int(float(s))
+    except ValueError:
+        return None
+
+
+def _bool_str(s):
+    return str(s).strip().lower() in ('true', '1', 'yes', 'si', 'sì')
+
+
+@login_required
+@require_writer
+@require_POST
+def survey_delete_view(request, survey_id: int):
+    """Delete a survey.  Cascades to its Samples and their TreeSamples
+    (per the FK on_delete=CASCADE chain in models.py).  Tree rows
+    remain (TreeSample.tree is PROTECT).
+    """
+    survey = Survey.objects.filter(id=survey_id).first()
+    if survey is None:
+        return JsonResponse({'status': 'not_found'}, status=404)
+    with transaction.atomic():
+        survey.delete()
+        mark_stale(
+            f'sampled_trees_{survey_id}', 'samples', 'surveys', 'grids',
+            'audit',
+        )
+    return JsonResponse({'data_id': 'surveys', 'row_id': survey_id})
 
 
 @login_required

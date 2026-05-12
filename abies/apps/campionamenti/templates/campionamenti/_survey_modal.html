@@ -54,15 +54,44 @@
   </form>
 
   {# --- Importa da CSV ------------------------------------------------- #}
-  <div class="modal-path-body survey-path-csv">
+  <form class="modal-path-body survey-path-csv"
+        id="campionamenti-survey-form-csv"
+        enctype="multipart/form-data">
+
+    <div class="form-group">
+      <label for="id_survey_csv_target">Rilevamento di destinazione</label>
+      <select id="id_survey_csv_target" name="survey_id" required>
+        <option value="">— Seleziona —</option>
+        {% for sv in surveys %}
+          <option value="{{ sv.id }}">{{ sv.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label for="id_survey_csv_file">File CSV</label>
+      <input type="file" id="id_survey_csv_file" name="file" required
+             accept=".csv,text/csv">
+    </div>
+
+    <div class="form-group">
+      <label for="id_survey_csv_default_date">
+        Data predefinita (se il file non ha colonna "Data")
+      </label>
+      <input type="date" id="id_survey_csv_default_date" name="default_date">
+    </div>
+
     <p class="form-help">
-      Importa un rilevamento da un file CSV (colonne: Compresa,
-      Particella, Area saggio, Albero, Pollone, Matricina, D_cm, H_m,
-      L10_mm, Genere, Fustaia, e opzionali Data e PAI).
+      Colonne attese: <em>Compresa, Particella, Area saggio, Albero,
+      Pollone, Matricina, D_cm, H_m, L10_mm, Genere, Fustaia</em>;
+      opzionali: <em>Data, PAI</em>.
     </p>
-    <p class="form-help"><em>Non ancora disponibile in questa release.</em></p>
+
+    <div class="csv-import-errors" hidden></div>
+
     <div class="form-actions">
       <button type="button" class="btn" id="survey-csv-cancel">Annulla</button>
+      <button type="submit" class="btn btn-primary">Importa</button>
     </div>
-  </div>
+  </form>
 </div>

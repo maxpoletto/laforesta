@@ -32,7 +32,9 @@ export class RilevamentiMap {
     this.mapEl.className = 'rilevamenti-map';
     this.container.appendChild(this.mapEl);
 
-    this.wrapper = MapCommon.create(this.mapEl, { basemap: 'satellite' });
+    this.wrapper = MapCommon.create(this.mapEl, {
+      basemap: opts.basemap || 'satellite',
+    });
     this.leaflet = this.wrapper.getLeafletMap();
 
     // Empty-space click → clear active area.

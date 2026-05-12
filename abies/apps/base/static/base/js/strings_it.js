@@ -165,6 +165,26 @@ export const CAMPIONAMENTI_NO_VM_FOR_CEDUO =
   'V e m non si calcolano per alberi cedui.';
 export const CAMPIONAMENTI_VM_INCOMPLETE =
   'V e m verranno calcolati quando D, h e specie sono valorizzati.';
+export const CAMPIONAMENTI_INSERT_AREA_HERE =
+  'Inserire una nuova area qui?';
+export const CAMPIONAMENTI_NO_AREAS_HINT =
+  'Clicca sulla mappa per aggiungere un\'area, oppure usa il pulsante.';
+export const CAMPIONAMENTI_NO_GRIDS =
+  'Nessuna griglia.  Premi "Nuova griglia" per crearne una.';
+export const ADD_AREA_LABEL = '+ Aggiungi area';
+
+// Shared lat/lng input
+export const USE_CURRENT_LOCATION = 'Usa posizione attuale';
+
+// Cascade-delete warning (Section 1/2 garbage on populated resources)
+export const CASCADE_CONFIRM_TITLE = 'Conferma eliminazione';
+export const CASCADE_WARN_SURVEY =
+  'Questa operazione cancellerà {n_samples} campioni e {n_trees} ' +
+  'misure di alberi che non possono essere recuperati.';
+export const CASCADE_EXPORT_REQUIRED =
+  'Per sicurezza, esporta i dati prima di procedere all\'eliminazione.';
+export const RENAME_TITLE_GRID = 'Modifica griglia';
+export const RENAME_TITLE_SURVEY = 'Modifica rilevamento';
 
 // Roles
 export const ROLE_ADMIN = 'admin';

@@ -54,3 +54,21 @@ export async function postJSON(url, body) {
   return { data, status: resp.status };
 }
 
+/**
+ * POST multipart/form-data (file uploads).  CSRF token is added via
+ * header (the FormData body itself has no token).
+ *
+ * @param {string} url
+ * @param {FormData} formData
+ * @returns {Promise<{data: any, status: number}>}
+ */
+export async function postFormData(url, formData) {
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: { 'X-CSRFToken': csrfToken() },
+    body: formData,
+  });
+  const data = await resp.json();
+  return { data, status: resp.status };
+}
+

@@ -112,6 +112,32 @@ ERR_GRID_AUTO_NO_POINTS = (
 ERR_GRID_AUTO_PARCEL_UNRESOLVED = (
     'Particella non trovata: {} / {}.'
 )
+ERR_AREA_NUMBER_REQUIRED = 'Numero area obbligatorio.'
+ERR_AREA_IN_USE = (
+    'Area di saggio già usata in un campione: non può essere eliminata.'
+)
+ERR_GRID_IN_USE = (
+    'La griglia è usata da uno o più rilevamenti: eliminarli prima.'
+)
+CASCADE_WARN_SURVEY = (
+    'Questa operazione cancellerà {n_samples} campioni e {n_trees} '
+    'misure di alberi che non possono essere recuperati.'
+)
+CASCADE_EXPORT_REQUIRED = (
+    'Per sicurezza, esporta i dati prima di procedere all\'eliminazione.'
+)
+ERR_CSV_FILE_REQUIRED = 'File CSV obbligatorio.'
+ERR_CSV_NOT_UTF8 = 'Il file deve essere codificato in UTF-8.'
+ERR_CSV_EMPTY = 'Il file CSV è vuoto.'
+ERR_CSV_MISSING_COLS = 'Colonne CSV mancanti: {}.'
+ERR_CSV_ROW_PARCEL = 'Riga {}: particella non trovata ({} / {}).'
+ERR_CSV_ROW_AREA = 'Riga {}: area di saggio non trovata ({} / {} / {}).'
+ERR_CSV_ROW_SPECIES = 'Riga {}: specie sconosciuta: {}.'
+ERR_CSV_ROW_PARSE = 'Riga {}: errore di parsing ({}).'
+ERR_CSV_SURVEY_REQUIRED = 'Seleziona prima un rilevamento.'
+ERR_CSV_DATE_REQUIRED = (
+    'Il file CSV non ha una colonna "Data": indicare una data predefinita.'
+)
 
 # ---------------------------------------------------------------------------
 # App verbose names

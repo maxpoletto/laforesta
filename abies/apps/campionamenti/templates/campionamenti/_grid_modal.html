@@ -62,14 +62,37 @@ All three bodies render at once; client toggles via .modal-path-body.active.
   </div>
 
   {# --- Importa da CSV ------------------------------------------------- #}
-  <div class="modal-path-body grid-path-csv">
+  <form class="modal-path-body grid-path-csv"
+        id="campionamenti-grid-form-csv"
+        enctype="multipart/form-data">
+
+    <div class="form-group">
+      <label for="id_grid_csv_name">Nome</label>
+      <input type="text" id="id_grid_csv_name" name="name" required
+             maxlength="100">
+    </div>
+
+    <div class="form-group">
+      <label for="id_grid_csv_description">Descrizione (opzionale)</label>
+      <textarea id="id_grid_csv_description" name="description" rows="2"></textarea>
+    </div>
+
+    <div class="form-group">
+      <label for="id_grid_csv_file">File CSV</label>
+      <input type="file" id="id_grid_csv_file" name="file" required
+             accept=".csv,text/csv">
+    </div>
+
     <p class="form-help">
-      Importa una griglia da un file CSV (colonne: Compresa, Particella,
-      Area saggio, Lon, Lat, Quota, Raggio).
+      Colonne attese: <em>Compresa, Particella, Area saggio, Lon, Lat,
+      Quota, Raggio</em>.
     </p>
-    <p class="form-help"><em>Non ancora disponibile in questa release.</em></p>
+
+    <div class="csv-import-errors" hidden></div>
+
     <div class="form-actions">
       <button type="button" class="btn" id="grid-csv-cancel">Annulla</button>
+      <button type="submit" class="btn btn-primary">Importa</button>
     </div>
-  </div>
+  </form>
 </div>

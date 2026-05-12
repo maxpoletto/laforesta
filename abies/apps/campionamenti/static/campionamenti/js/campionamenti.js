@@ -15,13 +15,14 @@
 import * as cache from '../../base/js/cache.js';
 import * as router from '../../base/js/router.js';
 import { TableWrapper } from '../../base/js/table.js';
-import { showError } from '../../base/js/modals.js';
+import { show as showModal, showError, dismiss as dismissModal } from '../../base/js/modals.js';
 import * as S from '../../base/js/strings.js';
-import { fetchJSON } from '../../base/js/api.js';
+import { fetchJSON, postJSON, postFormData } from '../../base/js/api.js';
 import { fetchForm, renderFormHTML, interceptSubmit } from '../../base/js/forms.js';
 import { RilevamentiMap } from './rilevamenti-map.js';
 import { GriglieMap } from './griglie-map.js';
 import { GridPlanner } from './grid-planner.js';
+import { mountUseLocationButton } from '../../base/js/latlng-input.js';
 import { tabacchiVolumeM3, massQ } from '../../base/js/volume.js';
 
 const CSS_URL = '/static/campionamenti/css/campionamenti.css';
@@ -38,6 +39,17 @@ const SAMPLES_URL = '/api/campionamenti/samples/data/';
 const TREES_URL_PREFIX = '/api/campionamenti/trees/';
 const TREE_FORM_URL = '/api/campionamenti/tree/form/';
 const TREE_SAVE_URL = '/api/campionamenti/tree/save/';
+const TREE_DELETE_URL_PREFIX = '/api/campionamenti/tree/delete/';
+const SAMPLE_DATE_SAVE_URL = '/api/campionamenti/sample/date/';
+const AREA_FORM_URL = '/api/campionamenti/area/form/';
+const AREA_SAVE_URL = '/api/campionamenti/area/save/';
+const AREA_DELETE_URL_PREFIX = '/api/campionamenti/area/delete/';
+const GRID_EDIT_URL_PREFIX = '/api/campionamenti/grid/edit/';
+const GRID_DELETE_URL_PREFIX = '/api/campionamenti/grid/delete/';
+const SURVEY_EDIT_URL_PREFIX = '/api/campionamenti/survey/edit/';
+const SURVEY_DELETE_URL_PREFIX = '/api/campionamenti/survey/delete/';
+const GRID_CSV_IMPORT_URL = '/api/campionamenti/grid/import-csv/';
+const TREE_CSV_IMPORT_URL = '/api/campionamenti/survey/import-csv/';
 const GRID_FORM_URL = '/api/campionamenti/grid/form/';
 const GRID_SAVE_URL = '/api/campionamenti/grid/save/';
 const SURVEY_FORM_URL = '/api/campionamenti/survey/form/';
@@ -47,6 +59,11 @@ const PAGE_PATH = '/campionamenti';
 
 const SECTION_KEYS = ['g', 'r', 't'];
 const DEFAULT_OPEN = 'r';
+
+// mt= URL param → MapCommon basemap key.  Defaults to 's' (Satellite)
+// per campionamenti.md §"URL parameters".
+const MAP_TYPE_TOKENS = { o: 'osm', t: 'topo', s: 'satellite' };
+const DEFAULT_MAP_TYPE = 's';
 
 // --- Formatters -------------------------------------------------------------
 function f2(v) { return typeof v === 'number' ? v.toFixed(2).replace('.', ',') : (v == null ? '' : v); }
@@ -84,7 +101,7 @@ const sections = {
   r: { title: S.SECTION_RILEVAMENTI, open: true, header: null, body: null,
        pulldown: null, summary: null, mapEl: null, map: null },
   t: { title: S.SECTION_ALBERI_CAMPIONATI, open: false, header: null, body: null,
-       host: null, emptyEl: null },
+       host: null, emptyEl: null, headerEl: null },
 };
 
 let table = null;
@@ -173,7 +190,7 @@ function resetSectionRefs() {
     const s = sections[k];
     s.header = s.body = null;
     s.pulldown = s.summary = s.mapEl = s.map = null;
-    s.host = s.emptyEl = null;
+    s.host = s.emptyEl = s.headerEl = null;
   }
 }
 
@@ -238,6 +255,27 @@ function onSectionOpen(s) {
 function buildGriglieBody(body) {
   const s = sections.g;
 
+  // Empty state — no grids exist yet.  Show a centered prompt + the
+  // "Nuova griglia" button (writers only).
+  if (!gridsData?.rows.length) {
+    const empty = document.createElement('div');
+    empty.className = 'campionamenti-empty';
+    empty.textContent = S.CAMPIONAMENTI_NO_GRIDS;
+    body.appendChild(empty);
+    if (canModify()) {
+      const addBtn = document.createElement('button');
+      addBtn.type = 'button';
+      addBtn.className = 'btn btn-primary';
+      addBtn.textContent = S.NEW_GRID_LABEL;
+      addBtn.addEventListener('click', () => showNewGridForm());
+      const wrap = document.createElement('div');
+      wrap.style.textAlign = 'center';
+      wrap.appendChild(addBtn);
+      body.appendChild(wrap);
+    }
+    return;
+  }
+
   const topRow = document.createElement('div');
   topRow.className = 'campionamenti-section-top';
 
@@ -264,6 +302,10 @@ function buildGriglieBody(body) {
   topRow.append(label, sel);
 
   if (canModify()) {
+    appendEditDeleteIcons(topRow, {
+      onEdit: () => showRenameGridForm(),
+      onDelete: () => confirmDeleteGrid(),
+    });
     const addBtn = document.createElement('button');
     addBtn.type = 'button';
     addBtn.className = 'btn btn-primary campionamenti-add-btn';
@@ -282,7 +324,43 @@ function buildGriglieBody(body) {
   s.mapEl.className = 'campionamenti-map-host';
   body.appendChild(s.mapEl);
 
+  if (canModify()) {
+    const hint = document.createElement('div');
+    hint.className = 'form-help';
+    hint.textContent = S.CAMPIONAMENTI_NO_AREAS_HINT;
+    body.appendChild(hint);
+
+    const addAreaBtn = document.createElement('button');
+    addAreaBtn.type = 'button';
+    addAreaBtn.className = 'btn btn-primary';
+    addAreaBtn.textContent = S.ADD_AREA_LABEL;
+    addAreaBtn.addEventListener('click', () => showAddAreaForm());
+    body.appendChild(addAreaBtn);
+  }
+
   s.pulldown = sel;
+}
+
+/**
+ * Append pencil + garbage icons (writers-only affordances on the
+ * Griglie / Rilevamenti pulldowns).  Same SortableTable icon glyphs.
+ */
+function appendEditDeleteIcons(host, { onEdit, onDelete }) {
+  const edit = document.createElement('span');
+  edit.className = 'action-icon action-edit campionamenti-pulldown-icon';
+  edit.title = S.ACTION_EDIT;
+  edit.textContent = '✎';
+  edit.setAttribute('role', 'button');
+  edit.addEventListener('click', onEdit);
+  host.appendChild(edit);
+
+  const del = document.createElement('span');
+  del.className = 'action-icon action-delete campionamenti-pulldown-icon';
+  del.title = S.ACTION_DELETE;
+  del.textContent = '✕';
+  del.setAttribute('role', 'button');
+  del.addEventListener('click', onDelete);
+  host.appendChild(del);
 }
 
 function activateGrid(gridId) {
@@ -335,12 +413,20 @@ function renderGriglieMap(gridId) {
       compresa: r[c.indexOf('Compresa')],
       particella: r[c.indexOf('Particella')],
       numero: r[c.indexOf('Numero')],
+      altitude: r[c.indexOf('Quota')],
+      r_m: r[c.indexOf('Raggio')],
+      note: r[c.indexOf('Note')],
     }));
 
+  const modify = canModify();
   s.map = new GriglieMap({
     container: s.mapEl,
     geojson: parcelleGeo,
-    onAreaClick: null,                      // popover in M3d-write
+    basemap: activeBasemap(),
+    onAreaClick: (area) => showAreaPopover(area),
+    onEmptyClick: modify
+      ? (lat, lng) => promptNewAreaAt(lat, lng)
+      : null,
   });
   s.map.setAreas(areas);
 }
@@ -385,6 +471,10 @@ function buildRilevamentiBody(body) {
   topRow.append(label, sel);
 
   if (canModify()) {
+    appendEditDeleteIcons(topRow, {
+      onEdit: () => showRenameSurveyForm(),
+      onDelete: () => confirmDeleteSurvey(),
+    });
     const addBtn = document.createElement('button');
     addBtn.type = 'button';
     addBtn.className = 'btn btn-primary campionamenti-add-btn';
@@ -505,6 +595,7 @@ function renderRilevamentiMap(surveyId) {
   s.map = new RilevamentiMap({
     container: s.mapEl,
     geojson: parcelleGeo,
+    basemap: activeBasemap(),
     onAreaSelect: (areaId) => {
       activeAreaId = areaId;
       applyAreaFilter();
@@ -533,14 +624,82 @@ function buildAlberiBody(body) {
   s.emptyEl.textContent = S.CAMPIONAMENTI_EMPTY;
   body.appendChild(s.emptyEl);
 
+  // Inline header: shows the date of the active sample when an area
+  // is selected (editable for writers).  Spec §Section 3.
+  s.headerEl = document.createElement('div');
+  s.headerEl.className = 'campionamenti-alberi-header';
+  body.appendChild(s.headerEl);
+
   s.host = document.createElement('div');
   s.host.className = 'campionamenti-table-host';
   body.appendChild(s.host);
 }
 
+function renderAlberiHeader() {
+  const s = sections.t;
+  if (!s.headerEl) return;
+  s.headerEl.replaceChildren();
+  if (activeSurveyId == null || activeAreaId == null) return;
+
+  // Look up the existing Sample (if any) for (survey, area) in samplesData.
+  const sc = samplesData.columns;
+  const row = samplesData.rows.find(
+    r => r[sc.indexOf('Survey')] === activeSurveyId
+      && r[sc.indexOf('Sample area')] === activeAreaId,
+  );
+  const currentDate = row ? row[sc.indexOf('Data')] : todayISO();
+
+  const label = document.createElement('label');
+  label.className = 'campionamenti-pulldown-label';
+  label.textContent = `${S.LABEL_DATE}:`;
+  label.htmlFor = 'campionamenti-sample-date';
+
+  if (canModify()) {
+    const input = document.createElement('input');
+    input.type = 'date';
+    input.id = 'campionamenti-sample-date';
+    input.value = currentDate || '';
+    input.addEventListener('change', () => saveSampleDate(input.value));
+    s.headerEl.append(label, input);
+  } else {
+    const span = document.createElement('span');
+    span.textContent = currentDate || '—';
+    s.headerEl.append(label, span);
+  }
+}
+
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+async function saveSampleDate(dateStr) {
+  if (!dateStr) return;
+  if (activeSurveyId == null || activeAreaId == null) return;
+  try {
+    const { data, status } = await postJSON(SAMPLE_DATE_SAVE_URL, {
+      survey_id: activeSurveyId,
+      sample_area_id: activeAreaId,
+      date: dateStr,
+    });
+    if (status !== 200) {
+      showError(data?.message || S.ERROR_GENERIC);
+      return;
+    }
+    // Refresh samples digest + per-survey trees digest.
+    await cache.load(SAMPLES_ID);
+    samplesData = cache.get(SAMPLES_ID);
+    if (currentTreesId) {
+      try { await cache.load(currentTreesId); } catch {}
+    }
+  } catch {
+    showError(S.ERROR_NETWORK);
+  }
+}
+
 function showAlberiEmpty() {
   destroyTable();
   if (sections.t.emptyEl) sections.t.emptyEl.hidden = false;
+  if (sections.t.headerEl) sections.t.headerEl.replaceChildren();
 }
 
 function renderTable(data) {
@@ -563,7 +722,8 @@ function renderTable(data) {
     canModify: modify,
     actions: modify ? {
       onAdd: () => showAddTreeForm(),
-      // onEdit / onDelete to follow in a later M3d-write iteration.
+      onEdit: (tsId) => showEditTreeForm(tsId),
+      onDelete: (tsId) => confirmDeleteTreeSample(tsId),
     } : {},
     sort,
     searchText: params.tf,
@@ -581,6 +741,7 @@ function destroyTable() {
 }
 
 function applyAreaFilter() {
+  renderAlberiHeader();
   if (!table) return;
   if (activeAreaId == null) {
     table.setExternalFilter(null);
@@ -626,7 +787,14 @@ function readParams(params) {
     tsc: params.tsc || null,
     tso: params.tso !== '1',
     tf: params.tf || '',
+    mt: MAP_TYPE_TOKENS[params.mt] ? params.mt : DEFAULT_MAP_TYPE,
   };
+}
+
+function activeBasemap() {
+  const u = new URLSearchParams(location.search);
+  const tok = u.get('mt');
+  return MAP_TYPE_TOKENS[tok] || MAP_TYPE_TOKENS[DEFAULT_MAP_TYPE];
 }
 
 function currentURLParams() {
@@ -701,6 +869,9 @@ function syncURL() {
   }
   if (activeAreaId != null) u.set('a', String(activeAreaId));
 
+  const mt = new URLSearchParams(location.search).get('mt');
+  if (mt && MAP_TYPE_TOKENS[mt] && mt !== DEFAULT_MAP_TYPE) u.set('mt', mt);
+
   if (table) {
     const sort = table.getSort();
     if (sort) {
@@ -753,6 +924,7 @@ async function showNewGridForm() {
 
   wirePathChooser(modal, onPathSwitch);
   wireGridEmptyForm(modal);
+  wireGridCsvForm(modal);
   modal.querySelectorAll('#grid-form-cancel, #grid-auto-cancel, #grid-csv-cancel')
        .forEach(b => b.addEventListener('click', returnToPage));
   addEscapeHandler();
@@ -785,6 +957,7 @@ async function showNewSurveyForm() {
   if (!modal) { returnToPage(); return; }
   wirePathChooser(modal);
   wireSurveyEmptyForm(modal);
+  wireSurveyCsvForm(modal);
   modal.querySelectorAll('#survey-form-cancel, #survey-csv-cancel')
        .forEach(b => b.addEventListener('click', returnToPage));
   addEscapeHandler();
@@ -803,6 +976,95 @@ function wireSurveyEmptyForm(modal) {
       returnToPage();
     },
     onValidationError(_data) {},
+  });
+}
+
+/**
+ * Wire the "Importa da CSV" body of a modal (grid or survey).  Submit
+ * is multipart, not JSON, so we sidestep interceptSubmit.  On success
+ * we update the affected caches, set the new selection, and return to
+ * the main page.  On validation error we render the per-row error list
+ * inside the form.
+ *
+ * @param {HTMLElement} modal
+ * @param {{formId: string, postUrl: string,
+ *          onSuccess: function(any): Promise<void>}} opts
+ */
+function wireCsvUploadForm(modal, opts) {
+  const form = modal.querySelector(`#${opts.formId}`);
+  if (!form) return;
+  const errorsBox = form.querySelector('.csv-import-errors');
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (errorsBox) { errorsBox.hidden = true; errorsBox.replaceChildren(); }
+    const submitBtn = form.querySelector('button[type="submit"]');
+    if (submitBtn) submitBtn.disabled = true;
+    try {
+      const fd = new FormData(form);
+      const { data, status } = await postFormData(opts.postUrl, fd);
+      if (status === 200) {
+        await opts.onSuccess(data);
+        return;
+      }
+      if (data?.errors && errorsBox) {
+        renderCsvErrors(errorsBox, data.errors);
+      } else {
+        showError(data?.message || S.ERROR_GENERIC);
+      }
+    } catch {
+      showError(S.ERROR_NETWORK);
+    } finally {
+      if (submitBtn) submitBtn.disabled = false;
+    }
+  });
+}
+
+function renderCsvErrors(box, errors) {
+  box.replaceChildren();
+  const ul = document.createElement('ul');
+  for (const e of errors.slice(0, 50)) {
+    const li = document.createElement('li');
+    li.textContent = e;
+    ul.appendChild(li);
+  }
+  if (errors.length > 50) {
+    const more = document.createElement('li');
+    more.textContent = `… +${errors.length - 50} altri errori`;
+    ul.appendChild(more);
+  }
+  box.appendChild(ul);
+  box.hidden = false;
+}
+
+function wireGridCsvForm(modal) {
+  wireCsvUploadForm(modal, {
+    formId: 'campionamenti-grid-form-csv',
+    postUrl: GRID_CSV_IMPORT_URL,
+    onSuccess: async (data) => {
+      await refreshGrids();
+      try {
+        await cache.load(SAMPLE_AREAS_ID);
+        sampleAreasData = cache.get(SAMPLE_AREAS_ID);
+      } catch {}
+      activeGridId = data.row_id;
+      returnToPage();
+    },
+  });
+}
+
+function wireSurveyCsvForm(modal) {
+  wireCsvUploadForm(modal, {
+    formId: 'campionamenti-survey-form-csv',
+    postUrl: TREE_CSV_IMPORT_URL,
+    onSuccess: async (data) => {
+      await refreshSurveys();
+      try {
+        await cache.load(SAMPLES_ID);
+        samplesData = cache.get(SAMPLES_ID);
+      } catch {}
+      activeSurveyId = data.row_id;
+      returnToPage();
+    },
   });
 }
 
@@ -833,6 +1095,530 @@ function wirePathChooser(modal, onSwitch) {
 }
 
 // ---------------------------------------------------------------------------
+// Section 1 — area popover + new-area form (M3d-write)
+// ---------------------------------------------------------------------------
+
+/**
+ * Open a popover on the active Griglie marker with the area's full
+ * fields.  Writers get pencil/garbage icons; delete is refused when
+ * the area is referenced by any Sample.
+ */
+function showAreaPopover(area) {
+  const frag = document.createDocumentFragment();
+  const list = document.createElement('div');
+  list.className = 'form-readonly-block';
+  for (const [label, val] of [
+    ['Compresa', area.compresa],
+    ['Particella', area.particella],
+    ['Numero', area.numero],
+    ['Lat', area.lat?.toFixed?.(5) ?? area.lat],
+    ['Lng', area.lng?.toFixed?.(5) ?? area.lng],
+    ['Quota', area.altitude ?? '—'],
+    ['Raggio', area.r_m],
+    ['Note', area.note || ''],
+  ]) {
+    const row = document.createElement('div');
+    const b = document.createElement('strong');
+    b.textContent = `${label}: `;
+    row.append(b, document.createTextNode(String(val ?? '—')));
+    list.appendChild(row);
+  }
+  frag.appendChild(list);
+
+  const actions = document.createElement('div');
+  actions.className = 'form-actions';
+  const close = document.createElement('button');
+  close.className = 'btn';
+  close.textContent = S.DISMISS;
+  close.addEventListener('click', dismissModal);
+  actions.appendChild(close);
+
+  if (canModify()) {
+    const edit = document.createElement('button');
+    edit.className = 'btn btn-primary';
+    edit.textContent = S.ACTION_EDIT;
+    edit.addEventListener('click', () => {
+      dismissModal();
+      showEditAreaForm(area.id);
+    });
+    const del = document.createElement('button');
+    del.className = 'btn btn-primary';
+    del.textContent = S.ACTION_DELETE;
+    del.addEventListener('click', () => {
+      dismissModal();
+      confirmDeleteArea(area.id);
+    });
+    actions.append(edit, del);
+  }
+  frag.appendChild(actions);
+  showModal(frag);
+}
+
+function promptNewAreaAt(lat, lng) {
+  if (activeGridId == null) return;
+  const frag = document.createDocumentFragment();
+  const p = document.createElement('p');
+  p.textContent = S.CAMPIONAMENTI_INSERT_AREA_HERE;
+  frag.appendChild(p);
+  const actions = document.createElement('div');
+  actions.className = 'form-actions';
+  const cancel = document.createElement('button');
+  cancel.className = 'btn';
+  cancel.textContent = S.CANCEL;
+  cancel.addEventListener('click', dismissModal);
+  const ok = document.createElement('button');
+  ok.className = 'btn btn-primary';
+  ok.textContent = S.SAVE;
+  ok.addEventListener('click', () => {
+    dismissModal();
+    showAddAreaForm({ lat, lng });
+  });
+  actions.append(cancel, ok);
+  frag.appendChild(actions);
+  showModal(frag);
+}
+
+async function showAddAreaForm({ lat, lng } = {}) {
+  if (activeGridId == null) return;
+  inForm = true;
+  const qs = new URLSearchParams({ grid: String(activeGridId) });
+  if (lat != null) qs.set('lat', String(lat));
+  if (lng != null) qs.set('lng', String(lng));
+  const form = await fetchForm(`${AREA_FORM_URL}?${qs}`);
+  if (!form) { returnToPage(); return; }
+  wireAreaForm(form);
+  addEscapeHandler();
+}
+
+async function showEditAreaForm(areaId) {
+  inForm = true;
+  const form = await fetchForm(`${AREA_FORM_URL}${areaId}/`);
+  if (!form) { returnToPage(); return; }
+  wireAreaForm(form);
+  addEscapeHandler();
+}
+
+function wireAreaForm(form) {
+  form.querySelector('#area-form-cancel')?.addEventListener('click', returnToPage);
+  mountUseLocationButton(
+    form.querySelector('#id_area_lat'),
+    form.querySelector('#id_area_lng'),
+  );
+  // Filter Particella by Compresa.
+  wireParcelByRegion(form);
+  interceptSubmit(form, AREA_SAVE_URL, {
+    onSuccess: async () => {
+      try {
+        await cache.load(SAMPLE_AREAS_ID);
+        sampleAreasData = cache.get(SAMPLE_AREAS_ID);
+        await cache.load(GRIDS_ID);
+        gridsData = cache.get(GRIDS_ID);
+      } catch {}
+      returnToPage();
+    },
+    onValidationError(_data) {},
+  });
+}
+
+function wireParcelByRegion(form) {
+  const region = form.querySelector('#id_area_region');
+  const parcel = form.querySelector('#id_area_parcel');
+  if (!region || !parcel) return;
+  const allOpts = [...parcel.options];
+  function refresh() {
+    const rid = region.value;
+    parcel.replaceChildren();
+    for (const opt of allOpts) {
+      if (opt.dataset.regionId === rid) parcel.appendChild(opt.cloneNode(true));
+    }
+  }
+  region.addEventListener('change', refresh);
+  refresh();
+}
+
+function confirmDeleteArea(areaId) {
+  const frag = document.createDocumentFragment();
+  const p = document.createElement('p');
+  p.textContent = S.DELETE_CONFIRM;
+  frag.appendChild(p);
+  const actions = document.createElement('div');
+  actions.className = 'form-actions';
+  const cancel = document.createElement('button');
+  cancel.className = 'btn';
+  cancel.textContent = S.CANCEL;
+  cancel.addEventListener('click', dismissModal);
+  const ok = document.createElement('button');
+  ok.className = 'btn btn-primary';
+  ok.textContent = S.ACTION_DELETE;
+  ok.addEventListener('click', async () => {
+    dismissModal();
+    await deleteArea(areaId);
+  });
+  actions.append(cancel, ok);
+  frag.appendChild(actions);
+  showModal(frag);
+}
+
+async function deleteArea(areaId) {
+  try {
+    const { data, status } = await postJSON(
+      `${AREA_DELETE_URL_PREFIX}${areaId}/`, {},
+    );
+    if (status !== 200) {
+      showError(data?.message || S.ERROR_GENERIC);
+      return;
+    }
+    try {
+      await cache.load(SAMPLE_AREAS_ID);
+      sampleAreasData = cache.get(SAMPLE_AREAS_ID);
+      await cache.load(GRIDS_ID);
+      gridsData = cache.get(GRIDS_ID);
+    } catch {}
+    // Re-render the Griglie map to drop the deleted marker.
+    if (activeGridId != null) renderGriglieMap(activeGridId);
+  } catch {
+    showError(S.ERROR_NETWORK);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Rename + cascade-delete for grids and surveys (Bucket 2)
+// ---------------------------------------------------------------------------
+
+function showRenameGridForm() {
+  if (activeGridId == null) return;
+  const row = gridRow(activeGridId);
+  if (!row) return;
+  const c = gridsData.columns;
+  showRenameModal({
+    title: S.RENAME_TITLE_GRID,
+    name: row[c.indexOf('Nome')] || '',
+    description: row[c.indexOf('Descrizione')] || '',
+    onSave: async ({ name, description }) => {
+      try {
+        const { data, status } = await postJSON(
+          `${GRID_EDIT_URL_PREFIX}${activeGridId}/`, { name, description },
+        );
+        if (status !== 200) {
+          showError(data?.message || S.ERROR_GENERIC);
+          return false;
+        }
+        await refreshGrids();
+        return true;
+      } catch {
+        showError(S.ERROR_NETWORK);
+        return false;
+      }
+    },
+  });
+}
+
+function showRenameSurveyForm() {
+  if (activeSurveyId == null) return;
+  const row = surveyRow(activeSurveyId);
+  if (!row) return;
+  const c = surveysData.columns;
+  showRenameModal({
+    title: S.RENAME_TITLE_SURVEY,
+    name: row[c.indexOf('Nome')] || '',
+    description: row[c.indexOf('Descrizione')] || '',
+    onSave: async ({ name, description }) => {
+      try {
+        const { data, status } = await postJSON(
+          `${SURVEY_EDIT_URL_PREFIX}${activeSurveyId}/`, { name, description },
+        );
+        if (status !== 200) {
+          showError(data?.message || S.ERROR_GENERIC);
+          return false;
+        }
+        await refreshSurveys();
+        renderRilevamentiSummary(activeSurveyId);
+        return true;
+      } catch {
+        showError(S.ERROR_NETWORK);
+        return false;
+      }
+    },
+  });
+}
+
+/** Shared rename modal — just Nome + Descrizione. */
+function showRenameModal({ title, name, description, onSave }) {
+  const frag = document.createDocumentFragment();
+  const h = document.createElement('h2');
+  h.textContent = title;
+  frag.appendChild(h);
+
+  const nameGroup = document.createElement('div');
+  nameGroup.className = 'form-group';
+  const nameLabel = document.createElement('label');
+  nameLabel.textContent = S.LABEL_NAME;
+  const nameInput = document.createElement('input');
+  nameInput.type = 'text';
+  nameInput.maxLength = 100;
+  nameInput.required = true;
+  nameInput.value = name;
+  nameGroup.append(nameLabel, nameInput);
+  frag.appendChild(nameGroup);
+
+  const descGroup = document.createElement('div');
+  descGroup.className = 'form-group';
+  const descLabel = document.createElement('label');
+  descLabel.textContent = 'Descrizione';
+  const descInput = document.createElement('textarea');
+  descInput.rows = 3;
+  descInput.value = description || '';
+  descGroup.append(descLabel, descInput);
+  frag.appendChild(descGroup);
+
+  const actions = document.createElement('div');
+  actions.className = 'form-actions';
+  const cancel = document.createElement('button');
+  cancel.className = 'btn';
+  cancel.textContent = S.CANCEL;
+  cancel.addEventListener('click', dismissModal);
+  const ok = document.createElement('button');
+  ok.className = 'btn btn-primary';
+  ok.textContent = S.SAVE;
+  ok.addEventListener('click', async () => {
+    ok.disabled = true;
+    const success = await onSave({
+      name: nameInput.value.trim(),
+      description: descInput.value.trim(),
+    });
+    if (success) dismissModal();
+    else ok.disabled = false;
+  });
+  actions.append(cancel, ok);
+  frag.appendChild(actions);
+  showModal(frag);
+  setTimeout(() => nameInput.focus(), 0);
+}
+
+function confirmDeleteGrid() {
+  if (activeGridId == null) return;
+  const row = gridRow(activeGridId);
+  if (!row) return;
+  const c = gridsData.columns;
+  const nSurveys = row[c.indexOf('N. rilevamenti')] || 0;
+  if (nSurveys > 0) {
+    // Server refuses with ERR_GRID_IN_USE; surface the same message
+    // without round-tripping.
+    showError('La griglia è usata da uno o più rilevamenti: eliminarli prima.');
+    return;
+  }
+  // No surveys → simple confirm.  Cascade goes to SampleAreas only.
+  const nAreas = row[c.indexOf('N. aree')] || 0;
+  const msg = nAreas > 0
+    ? `${nAreas} aree saranno eliminate. ${S.DELETE_CONFIRM}`
+    : S.DELETE_CONFIRM;
+  simpleConfirmModal(msg, async () => {
+    try {
+      const { data, status } = await postJSON(
+        `${GRID_DELETE_URL_PREFIX}${activeGridId}/`, {},
+      );
+      if (status !== 200) {
+        showError(data?.message || S.ERROR_GENERIC);
+        return;
+      }
+      activeGridId = null;
+      await refreshGrids();
+      // Refresh sample_areas too (cascaded).
+      try {
+        await cache.load(SAMPLE_AREAS_ID);
+        sampleAreasData = cache.get(SAMPLE_AREAS_ID);
+      } catch {}
+      returnToPage();
+    } catch {
+      showError(S.ERROR_NETWORK);
+    }
+  });
+}
+
+function confirmDeleteSurvey() {
+  if (activeSurveyId == null) return;
+  const row = surveyRow(activeSurveyId);
+  if (!row) return;
+  const c = surveysData.columns;
+  const nVisited = row[c.indexOf('N. aree visitate')] || 0;
+
+  if (nVisited === 0) {
+    simpleConfirmModal(S.DELETE_CONFIRM, () => doDeleteSurvey());
+    return;
+  }
+  // Survey has samples → cascade flow with forced CSV export.
+  const nTrees = countTreesInActiveSurvey();
+  showCascadeDeleteModal({
+    warning: S.CASCADE_WARN_SURVEY
+      .replace('{n_samples}', nVisited)
+      .replace('{n_trees}', nTrees),
+    onExportCSV: () => exportSurveyCSV(activeSurveyId),
+    onDelete: () => doDeleteSurvey(),
+  });
+}
+
+async function doDeleteSurvey() {
+  const id = activeSurveyId;
+  try {
+    const { data, status } = await postJSON(
+      `${SURVEY_DELETE_URL_PREFIX}${id}/`, {},
+    );
+    if (status !== 200) {
+      showError(data?.message || S.ERROR_GENERIC);
+      return;
+    }
+    activeSurveyId = null;
+    activeAreaId = null;
+    // Drop the per-survey trees from the cache.
+    if (currentTreesId === `${TREES_ID_PREFIX}${id}`) {
+      currentTreesId = null;
+    }
+    await refreshSurveys();
+    try {
+      await cache.load(SAMPLES_ID);
+      samplesData = cache.get(SAMPLES_ID);
+    } catch {}
+    returnToPage();
+  } catch {
+    showError(S.ERROR_NETWORK);
+  }
+}
+
+function countTreesInActiveSurvey() {
+  if (!currentTreesId) return 0;
+  const d = cache.get(currentTreesId);
+  return d?.rows?.length || 0;
+}
+
+/**
+ * Cascade-delete confirm modal.  The "Elimina" button stays disabled
+ * until the user clicks "Esporta CSV" (forces the operator to keep a
+ * backup of the to-be-deleted rows).
+ */
+function showCascadeDeleteModal({ warning, onExportCSV, onDelete }) {
+  const frag = document.createDocumentFragment();
+  const h = document.createElement('h2');
+  h.textContent = S.CASCADE_CONFIRM_TITLE;
+  h.className = 'cascade-confirm-title';
+  frag.appendChild(h);
+
+  const warn = document.createElement('p');
+  warn.className = 'cascade-confirm-warning';
+  warn.textContent = warning;
+  frag.appendChild(warn);
+
+  const need = document.createElement('p');
+  need.textContent = S.CASCADE_EXPORT_REQUIRED;
+  frag.appendChild(need);
+
+  const actions = document.createElement('div');
+  actions.className = 'form-actions';
+
+  const cancel = document.createElement('button');
+  cancel.className = 'btn';
+  cancel.textContent = S.CANCEL;
+  cancel.addEventListener('click', dismissModal);
+
+  const exportBtn = document.createElement('button');
+  exportBtn.className = 'btn btn-primary';
+  exportBtn.textContent = S.EXPORT_CSV;
+
+  const delBtn = document.createElement('button');
+  delBtn.className = 'btn btn-primary cascade-delete-btn';
+  delBtn.textContent = S.ACTION_DELETE;
+  delBtn.disabled = true;
+
+  exportBtn.addEventListener('click', () => {
+    onExportCSV();
+    delBtn.disabled = false;
+  });
+  delBtn.addEventListener('click', () => {
+    dismissModal();
+    onDelete();
+  });
+
+  actions.append(cancel, exportBtn, delBtn);
+  frag.appendChild(actions);
+  showModal(frag);
+}
+
+function exportSurveyCSV(surveyId) {
+  if (!currentTreesId) return;
+  const d = cache.get(currentTreesId);
+  if (!d) return;
+  const fmt = S.TABLE_CSV_FORMAT;
+  const lines = [];
+  // Columns to include in the export — skip hidden synthetic ones.
+  const visibleCols = d.columns.filter(
+    c => c !== 'version' && c !== 'Sample area',
+  );
+  const idx = visibleCols.map(c => d.columns.indexOf(c));
+  lines.push(visibleCols.join(fmt.separator));
+  for (const row of d.rows) {
+    const parts = idx.map(i => {
+      const v = row[i];
+      if (v == null) return '';
+      if (typeof v === 'number') return String(v).replace('.', fmt.decimal);
+      return String(v).replace(new RegExp(fmt.separator, 'g'), ' ');
+    });
+    lines.push(parts.join(fmt.separator));
+  }
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = S.CSV_SAMPLED_TREES;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function simpleConfirmModal(message, onConfirm) {
+  const frag = document.createDocumentFragment();
+  const p = document.createElement('p');
+  p.textContent = message;
+  frag.appendChild(p);
+  const actions = document.createElement('div');
+  actions.className = 'form-actions';
+  const cancel = document.createElement('button');
+  cancel.className = 'btn';
+  cancel.textContent = S.CANCEL;
+  cancel.addEventListener('click', dismissModal);
+  const ok = document.createElement('button');
+  ok.className = 'btn btn-primary';
+  ok.textContent = S.ACTION_DELETE;
+  ok.addEventListener('click', async () => {
+    dismissModal();
+    await onConfirm();
+  });
+  actions.append(cancel, ok);
+  frag.appendChild(actions);
+  showModal(frag);
+}
+
+async function refreshGrids() {
+  try {
+    await cache.load(GRIDS_ID);
+    gridsData = cache.get(GRIDS_ID);
+  } catch {}
+}
+
+async function refreshSurveys() {
+  try {
+    await cache.load(SURVEYS_ID);
+    surveysData = cache.get(SURVEYS_ID);
+  } catch {}
+}
+
+function gridRow(id) {
+  const c = gridsData.columns;
+  return gridsData.rows.find(r => r[c.indexOf('row_id')] === id);
+}
+
+function surveyRow(id) {
+  const c = surveysData.columns;
+  return surveysData.rows.find(r => r[c.indexOf('row_id')] === id);
+}
+
+// ---------------------------------------------------------------------------
 // Manual tree+sample entry form (M3d-write)
 // ---------------------------------------------------------------------------
 
@@ -853,9 +1639,76 @@ async function showAddTreeForm() {
   addEscapeHandler();
 }
 
+async function showEditTreeForm(tsId) {
+  inForm = true;
+  const form = await fetchForm(`${TREE_FORM_URL}${tsId}/`);
+  if (!form) { returnToPage(); return; }
+  wireTreeForm(form);
+  addEscapeHandler();
+}
+
+/**
+ * Confirm + delete a single TreeSample.  Per spec §"Editing /
+ * deletion", a tree_sample delete is non-cascading (the underlying
+ * tree row is left intact) so no forced-CSV-export flow is needed —
+ * just a standard confirm modal.
+ */
+function confirmDeleteTreeSample(tsId) {
+  const frag = document.createDocumentFragment();
+  const p = document.createElement('p');
+  p.textContent = S.DELETE_CONFIRM;
+  frag.appendChild(p);
+
+  const actions = document.createElement('div');
+  actions.className = 'form-actions';
+
+  const cancel = document.createElement('button');
+  cancel.className = 'btn';
+  cancel.textContent = S.CANCEL;
+  cancel.addEventListener('click', dismissModal);
+
+  const ok = document.createElement('button');
+  ok.className = 'btn btn-primary';
+  ok.textContent = S.ACTION_DELETE;
+  ok.addEventListener('click', async () => {
+    dismissModal();
+    await deleteTreeSample(tsId);
+  });
+
+  actions.append(cancel, ok);
+  frag.appendChild(actions);
+  showModal(frag);
+}
+
+async function deleteTreeSample(tsId) {
+  try {
+    const { data, status } = await postJSON(
+      `${TREE_DELETE_URL_PREFIX}${tsId}/`, {},
+    );
+    if (status !== 200) {
+      showError(data?.message || S.ERROR_GENERIC);
+      return;
+    }
+    if (currentTreesId) {
+      try { await cache.load(currentTreesId); } catch {}
+    }
+    // Also refresh samples digest (materialized N. alberi changed).
+    try {
+      await cache.load(SAMPLES_ID);
+      samplesData = cache.get(SAMPLES_ID);
+    } catch {}
+  } catch {
+    showError(S.ERROR_NETWORK);
+  }
+}
+
 function wireTreeForm(form) {
   wireTreePick(form);
   wireVMPreview(form);
+  mountUseLocationButton(
+    form.querySelector('#id_lat'),
+    form.querySelector('#id_lng'),
+  );
   form.querySelector('#tree-form-cancel')?.addEventListener('click', () => {
     returnToPage();
   });
