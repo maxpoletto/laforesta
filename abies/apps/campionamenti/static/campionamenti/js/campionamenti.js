@@ -21,6 +21,7 @@ import { fetchJSON } from '../../base/js/api.js';
 import { fetchForm, renderFormHTML, interceptSubmit } from '../../base/js/forms.js';
 import { RilevamentiMap } from './rilevamenti-map.js';
 import { GriglieMap } from './griglie-map.js';
+import { GridPlanner } from './grid-planner.js';
 import { tabacchiVolumeM3, massQ } from '../../base/js/volume.js';
 
 const CSS_URL = '/static/campionamenti/css/campionamenti.css';
@@ -722,12 +723,44 @@ async function showNewGridForm() {
   inForm = true;
   const form = await fetchForm(GRID_FORM_URL);
   if (!form) { returnToPage(); return; }
-  wireGridForm(form);
+  const modal = document.getElementById('campionamenti-grid-modal');
+  if (!modal) { returnToPage(); return; }
+
+  // Lazy-init the auto-generate planner when its tab is first shown.
+  // Map + terreni.geojson fetch only run if the user picks that path.
+  let planner = null;
+  const onPathSwitch = (path) => {
+    if (path === 'auto' && !planner) {
+      const host = modal.querySelector('#campionamenti-grid-planner-host');
+      if (host) {
+        planner = new GridPlanner({
+          host,
+          onCreated: async (rowId) => {
+            try {
+              await cache.load(GRIDS_ID);
+              gridsData = cache.get(GRIDS_ID);
+              await cache.load(SAMPLE_AREAS_ID);
+              sampleAreasData = cache.get(SAMPLE_AREAS_ID);
+            } catch {}
+            activeGridId = rowId;
+            returnToPage();
+          },
+        });
+        planner.init();
+      }
+    }
+  };
+
+  wirePathChooser(modal, onPathSwitch);
+  wireGridEmptyForm(modal);
+  modal.querySelectorAll('#grid-form-cancel, #grid-auto-cancel, #grid-csv-cancel')
+       .forEach(b => b.addEventListener('click', returnToPage));
   addEscapeHandler();
 }
 
-function wireGridForm(form) {
-  form.querySelector('#grid-form-cancel')?.addEventListener('click', returnToPage);
+function wireGridEmptyForm(modal) {
+  const form = modal.querySelector('#campionamenti-grid-form-empty');
+  if (!form) return;
   interceptSubmit(form, GRID_SAVE_URL, {
     onSuccess: async (data) => {
       try {
@@ -737,14 +770,9 @@ function wireGridForm(form) {
       activeGridId = data.row_id;
       returnToPage();
     },
-    onValidationError(data) {
-      // Server returns empty html for simple validation errors
-      // (name required / duplicate).  Error modal already shown
-      // by interceptSubmit; just keep the form visible.
-      if (data.html) {
-        const f = renderFormHTML(data.html);
-        if (f) wireGridForm(f);
-      }
+    onValidationError(_data) {
+      // Server returns empty html for simple validation errors;
+      // interceptSubmit's error modal is enough.
     },
   });
 }
@@ -753,12 +781,18 @@ async function showNewSurveyForm() {
   inForm = true;
   const form = await fetchForm(SURVEY_FORM_URL);
   if (!form) { returnToPage(); return; }
-  wireSurveyForm(form);
+  const modal = document.getElementById('campionamenti-survey-modal');
+  if (!modal) { returnToPage(); return; }
+  wirePathChooser(modal);
+  wireSurveyEmptyForm(modal);
+  modal.querySelectorAll('#survey-form-cancel, #survey-csv-cancel')
+       .forEach(b => b.addEventListener('click', returnToPage));
   addEscapeHandler();
 }
 
-function wireSurveyForm(form) {
-  form.querySelector('#survey-form-cancel')?.addEventListener('click', returnToPage);
+function wireSurveyEmptyForm(modal) {
+  const form = modal.querySelector('#campionamenti-survey-form-empty');
+  if (!form) return;
   interceptSubmit(form, SURVEY_SAVE_URL, {
     onSuccess: async (data) => {
       try {
@@ -768,13 +802,34 @@ function wireSurveyForm(form) {
       activeSurveyId = data.row_id;
       returnToPage();
     },
-    onValidationError(data) {
-      if (data.html) {
-        const f = renderFormHTML(data.html);
-        if (f) wireSurveyForm(f);
-      }
-    },
+    onValidationError(_data) {},
   });
+}
+
+/**
+ * Wire the [path-btn] / [modal-path-body] grouping inside a modal so
+ * clicking a chooser button shows that path's body and hides the others.
+ * Shared between Nuova griglia and Nuovo rilevamento modals.
+ *
+ * @param {HTMLElement} modal
+ * @param {function(string): void} [onSwitch] — called with the new
+ *   path id after each switch (used to lazy-init the auto-planner).
+ */
+function wirePathChooser(modal, onSwitch) {
+  const buttons = modal.querySelectorAll('.path-btn');
+  const bodies = modal.querySelectorAll('.modal-path-body');
+  for (const btn of buttons) {
+    btn.addEventListener('click', () => {
+      const path = btn.dataset.path;
+      for (const b of buttons) b.classList.toggle('active', b === btn);
+      for (const body of bodies) {
+        const isActive = body.classList.contains(`grid-path-${path}`)
+                      || body.classList.contains(`survey-path-${path}`);
+        body.classList.toggle('active', isActive);
+      }
+      onSwitch?.(path);
+    });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -799,6 +854,7 @@ async function showAddTreeForm() {
 }
 
 function wireTreeForm(form) {
+  wireTreePick(form);
   wireVMPreview(form);
   form.querySelector('#tree-form-cancel')?.addEventListener('click', () => {
     returnToPage();
@@ -828,6 +884,57 @@ function wireTreeForm(form) {
       }
     },
   });
+}
+
+/**
+ * Wire the "Numero albero" pulldown.  Picking "+ nuovo albero"
+ * leaves every other field freely editable; picking an existing
+ * tree from the list locks specie / fustaia / lat / lng to that
+ * tree's values (the server treats the existing Tree row as
+ * authoritative — see views._parse_tree_body).
+ *
+ * The hidden #id_number field carries the actual numeric value
+ * (server expects integer); options stash it in data-number /
+ * data-next.
+ */
+function wireTreePick(form) {
+  const pick = form.querySelector('#id_tree_pick');
+  const num = form.querySelector('#id_number');
+  if (!pick || !num) return;
+
+  const species = form.querySelector('#id_species');
+  const fustaia = form.querySelector('#id_fustaia');
+  const lat = form.querySelector('#id_lat');
+  const lng = form.querySelector('#id_lng');
+
+  function setLocked(locked) {
+    for (const el of [species, fustaia, lat, lng]) {
+      if (el) el.disabled = locked;
+    }
+  }
+
+  function apply() {
+    const opt = pick.options[pick.selectedIndex];
+    if (!opt) return;
+    if (opt.value === 'new') {
+      num.value = opt.dataset.next || '';
+      setLocked(false);
+      return;
+    }
+    // Existing tree: propagate its number, lock the rest.
+    num.value = opt.dataset.number || '';
+    if (species && opt.dataset.speciesId) species.value = opt.dataset.speciesId;
+    if (fustaia) fustaia.checked = opt.dataset.coppice !== '1';
+    if (lat && opt.dataset.lat !== undefined) lat.value = opt.dataset.lat;
+    if (lng && opt.dataset.lng !== undefined) lng.value = opt.dataset.lng;
+    setLocked(true);
+    // Re-fire dependent listeners (V/m preview reads species/fustaia/D/h).
+    species?.dispatchEvent(new Event('change'));
+    fustaia?.dispatchEvent(new Event('change'));
+  }
+
+  pick.addEventListener('change', apply);
+  apply();
 }
 
 /** Wire the live V/m preview line under the D/h/L10 fields. */

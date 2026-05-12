@@ -4,6 +4,11 @@ Manual tree+sample entry form (M3d-write).
 Coppice (per-shoot) entry isn't shipped yet — the schema is ready,
 but the per-shoot UI block lands in a follow-up.  This form covers
 the fustaia path that maps directly to one tree + one tree_sample.
+
+"Numero albero" is a pulldown driving cross-sample tree identity:
+picking an existing tree reuses its tree.id (and the client locks
+specie / fustaia / lat / lng to that tree's values).  See
+docs/pages/campionamenti.md §"Cross-sample tree identity".
 {% endcomment %}
 <form id="campionamenti-tree-form">
   <input type="hidden" name="row_id" value="{{ ts.id|default_if_none:'' }}">
@@ -19,9 +24,26 @@ the fustaia path that maps directly to one tree + one tree_sample.
 
   <div class="form-row">
     <div class="form-group">
-      <label for="id_number">N. albero</label>
-      <input type="number" id="id_number" name="number" min="1" step="1" required
-             value="{{ ts.number|default_if_none:'' }}">
+      <label for="id_tree_pick">N. albero</label>
+      <select id="id_tree_pick" name="tree_pick" required>
+        <option value="new" data-next="{{ next_number }}"
+                {% if not ts %}selected{% endif %}>
+          + nuovo albero
+        </option>
+        {% for t in prior_trees %}
+          <option value="{{ t.tree_id }}"
+                  data-number="{{ t.number }}"
+                  data-species-id="{{ t.species_id }}"
+                  data-coppice="{{ t.coppice|yesno:'1,0' }}"
+                  data-lat="{{ t.lat|default_if_none:'' }}"
+                  data-lng="{{ t.lng|default_if_none:'' }}"
+                  {% if ts and ts.tree_id == t.tree_id %}selected{% endif %}>
+            n.{{ t.number }} ({{ t.species_common_name }}, d={{ t.last_d_cm }}cm, h={{ t.last_h_m }}m)
+          </option>
+        {% endfor %}
+      </select>
+      <input type="hidden" name="number" id="id_number"
+             value="{{ ts.number|default_if_none:next_number }}">
     </div>
     <div class="form-group">
       <label for="id_species">Specie</label>
@@ -39,8 +61,8 @@ the fustaia path that maps directly to one tree + one tree_sample.
     <div class="form-group">
       <label>
         <input type="hidden" name="fustaia" value="false">
-        <input type="checkbox" name="fustaia" value="true"
-               {% if not tree or not tree.coppice %}checked{% endif %}>
+        <input type="checkbox" name="fustaia" value="true" id="id_fustaia"
+               {% if tree %}{% if not tree.coppice %}checked{% endif %}{% elif fustaia_default %}checked{% endif %}>
         Fustaia
       </label>
     </div>

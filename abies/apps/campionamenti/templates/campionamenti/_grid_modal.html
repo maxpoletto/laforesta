@@ -1,0 +1,75 @@
+{% comment %}
+"Nuova griglia" modal — three creation paths per
+`docs/pages/campionamenti.md` §Section 1:
+  - empty: create an empty grid for manual area entry.
+  - auto:  generate a regular grid across selected comprese.
+  - csv:   upload a CSV (placeholder until Bucket 3).
+
+All three bodies render at once; client toggles via .modal-path-body.active.
+{% endcomment %}
+<div id="campionamenti-grid-modal" class="modal-form">
+  <h2>Nuova griglia di campionamento</h2>
+
+  <div class="modal-path-chooser">
+    <button type="button" class="path-btn active" data-path="empty">
+      Crea vuota
+    </button>
+    <button type="button" class="path-btn" data-path="auto">
+      Genera automaticamente
+    </button>
+    <button type="button" class="path-btn" data-path="csv">
+      Importa da CSV
+    </button>
+  </div>
+
+  {# --- Crea vuota ------------------------------------------------------ #}
+  <form class="modal-path-body grid-path-empty active"
+        id="campionamenti-grid-form-empty">
+    <input type="hidden" name="path" value="empty">
+
+    <div class="form-group">
+      <label for="id_grid_name">Nome</label>
+      <input type="text" id="id_grid_name" name="name" required
+             maxlength="100" autofocus>
+    </div>
+
+    <div class="form-group">
+      <label for="id_grid_description">Descrizione (opzionale)</label>
+      <textarea id="id_grid_description" name="description" rows="3"></textarea>
+    </div>
+
+    <p class="form-help">
+      La griglia viene creata vuota.  Le aree di saggio si aggiungono
+      successivamente tramite import CSV o inserimento manuale dalla mappa.
+    </p>
+
+    <div class="form-actions">
+      <button type="button" class="btn" id="grid-form-cancel">Annulla</button>
+      <button type="submit" class="btn btn-primary" data-action="save">Crea</button>
+    </div>
+  </form>
+
+  {# --- Genera automaticamente ----------------------------------------- #}
+  <div class="modal-path-body grid-path-auto">
+    <p class="form-help">
+      Genera automaticamente una griglia regolare sulle comprese
+      selezionate.
+    </p>
+    <div id="campionamenti-grid-planner-host"></div>
+    <div class="form-actions">
+      <button type="button" class="btn" id="grid-auto-cancel">Annulla</button>
+    </div>
+  </div>
+
+  {# --- Importa da CSV ------------------------------------------------- #}
+  <div class="modal-path-body grid-path-csv">
+    <p class="form-help">
+      Importa una griglia da un file CSV (colonne: Compresa, Particella,
+      Area saggio, Lon, Lat, Quota, Raggio).
+    </p>
+    <p class="form-help"><em>Non ancora disponibile in questa release.</em></p>
+    <div class="form-actions">
+      <button type="button" class="btn" id="grid-csv-cancel">Annulla</button>
+    </div>
+  </div>
+</div>

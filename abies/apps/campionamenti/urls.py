@@ -20,6 +20,8 @@ urlpatterns = [
     # Grid + survey "Crea vuota/o" (M3d-write).
     path('grid/form/', views.grid_form_view, name='campionamenti-grid-form'),
     path('grid/save/', views.grid_save_view, name='campionamenti-grid-save'),
+    path('grid/save-auto/', views.grid_save_auto_view,
+         name='campionamenti-grid-save-auto'),
     path('survey/form/', views.survey_form_view, name='campionamenti-survey-form'),
     path('survey/save/', views.survey_save_view, name='campionamenti-survey-save'),
 ]

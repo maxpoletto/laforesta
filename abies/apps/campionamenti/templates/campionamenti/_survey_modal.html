@@ -1,0 +1,68 @@
+{% comment %}
+"Nuovo rilevamento" modal — two creation paths per
+`docs/pages/campionamenti.md` §Section 2:
+  - empty: create an empty survey on a chosen grid.
+  - csv:   upload a CSV (placeholder until Bucket 3).
+{% endcomment %}
+<div id="campionamenti-survey-modal" class="modal-form">
+  <h2>Nuovo rilevamento</h2>
+
+  <div class="modal-path-chooser">
+    <button type="button" class="path-btn active" data-path="empty">
+      Crea vuoto
+    </button>
+    <button type="button" class="path-btn" data-path="csv">
+      Importa da CSV
+    </button>
+  </div>
+
+  {# --- Crea vuoto ----------------------------------------------------- #}
+  <form class="modal-path-body survey-path-empty active"
+        id="campionamenti-survey-form-empty">
+    <input type="hidden" name="path" value="empty">
+
+    <div class="form-group">
+      <label for="id_survey_name">Nome</label>
+      <input type="text" id="id_survey_name" name="name" required
+             maxlength="100" autofocus>
+    </div>
+
+    <div class="form-group">
+      <label for="id_survey_grid">Griglia</label>
+      <select id="id_survey_grid" name="sample_grid_id" required>
+        <option value="">— Seleziona —</option>
+        {% for g in grids %}
+          <option value="{{ g.id }}">{{ g.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label for="id_survey_description">Descrizione (opzionale)</label>
+      <textarea id="id_survey_description" name="description" rows="3"></textarea>
+    </div>
+
+    <p class="form-help">
+      Il rilevamento viene creato vuoto.  Gli alberi si aggiungono
+      successivamente tramite import CSV o inserimento manuale.
+    </p>
+
+    <div class="form-actions">
+      <button type="button" class="btn" id="survey-form-cancel">Annulla</button>
+      <button type="submit" class="btn btn-primary" data-action="save">Crea</button>
+    </div>
+  </form>
+
+  {# --- Importa da CSV ------------------------------------------------- #}
+  <div class="modal-path-body survey-path-csv">
+    <p class="form-help">
+      Importa un rilevamento da un file CSV (colonne: Compresa,
+      Particella, Area saggio, Albero, Pollone, Matricina, D_cm, H_m,
+      L10_mm, Genere, Fustaia, e opzionali Data e PAI).
+    </p>
+    <p class="form-help"><em>Non ancora disponibile in questa release.</em></p>
+    <div class="form-actions">
+      <button type="button" class="btn" id="survey-csv-cancel">Annulla</button>
+    </div>
+  </div>
+</div>

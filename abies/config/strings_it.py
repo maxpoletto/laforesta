@@ -106,6 +106,12 @@ ERR_COPPICE_NOT_YET_SUPPORTED = (
     'L\'inserimento manuale di alberi cedui non è ancora supportato. '
     'Usa l\'import CSV.'
 )
+ERR_GRID_AUTO_NO_POINTS = (
+    'Nessun punto generato.  Esegui prima "Pianifica".'
+)
+ERR_GRID_AUTO_PARCEL_UNRESOLVED = (
+    'Particella non trovata: {} / {}.'
+)
 
 # ---------------------------------------------------------------------------
 # App verbose names
