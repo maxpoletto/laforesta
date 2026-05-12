@@ -54,13 +54,17 @@
   </form>
 
   {# --- Importa da CSV ------------------------------------------------- #}
+  {% comment %}
+    `novalidate`: see _grid_modal.html for rationale.  Without it, an
+    unset required pulldown silently swallows the submit click.
+  {% endcomment %}
   <form class="modal-path-body survey-path-csv"
         id="campionamenti-survey-form-csv"
-        enctype="multipart/form-data">
+        enctype="multipart/form-data" novalidate>
 
     <div class="form-group">
       <label for="id_survey_csv_target">Rilevamento di destinazione</label>
-      <select id="id_survey_csv_target" name="survey_id" required>
+      <select id="id_survey_csv_target" name="survey_id">
         <option value="">— Seleziona —</option>
         {% for sv in surveys %}
           <option value="{{ sv.id }}">{{ sv.name }}</option>
@@ -70,7 +74,7 @@
 
     <div class="form-group">
       <label for="id_survey_csv_file">File CSV</label>
-      <input type="file" id="id_survey_csv_file" name="file" required
+      <input type="file" id="id_survey_csv_file" name="file"
              accept=".csv,text/csv">
     </div>
 

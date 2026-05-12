@@ -10,7 +10,7 @@ export const LOADING = 'Caricamento...';
 export const DISMISS = 'Chiudi';
 export const SAVE = 'Salva';
 export const SAVE_AND_ADD = 'Salva e aggiungi';
-export const DELETE_CONFIRM = 'Questa azione non può essere annullata. Confermi?';
+export const DELETE_CONFIRM = 'I dati cancellati non potranno essere recuperati. Confermi?';
 export const CANCEL = 'Annulla';
 
 // Tables

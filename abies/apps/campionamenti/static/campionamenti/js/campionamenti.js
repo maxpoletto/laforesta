@@ -918,8 +918,8 @@ async function showNewGridForm() {
               await cache.load(SAMPLE_AREAS_ID);
               sampleAreasData = cache.get(SAMPLE_AREAS_ID);
             } catch {}
-            activeGridId = rowId;
-            returnToPage();
+            // Land on the freshly-generated grid.
+            returnToPage({ g: String(rowId) });
           },
         });
         planner.init();
@@ -944,8 +944,8 @@ function wireGridEmptyForm(modal) {
         await cache.load(GRIDS_ID);
         gridsData = cache.get(GRIDS_ID);
       } catch {}
-      activeGridId = data.row_id;
-      returnToPage();
+      // Pin the just-created grid as active so the user lands on it.
+      returnToPage({ g: String(data.row_id) });
     },
     onValidationError(_data) {
       // Server returns empty html for simple validation errors;
@@ -975,8 +975,10 @@ function wireSurveyEmptyForm(modal) {
     onSuccess: async (data) => {
       // Survey create changes grids.N_rilevamenti too, so refresh both.
       await Promise.all([refreshSurveys(), refreshGrids()]);
-      activeSurveyId = data.row_id;
-      returnToPage();
+      // Pin the just-created survey as active so the user lands on it
+      // (even though its NULL last_date would sort it below populated
+      // surveys in the default-first-row fallback).
+      returnToPage({ s: String(data.row_id) });
     },
     onValidationError(_data) {},
   });
@@ -1049,8 +1051,8 @@ function wireGridCsvForm(modal) {
         await cache.load(SAMPLE_AREAS_ID);
         sampleAreasData = cache.get(SAMPLE_AREAS_ID);
       } catch {}
-      activeGridId = data.row_id;
-      returnToPage();
+      // Land on the newly-imported grid.
+      returnToPage({ g: String(data.row_id) });
     },
   });
 }
@@ -1065,8 +1067,8 @@ function wireSurveyCsvForm(modal) {
         await cache.load(SAMPLES_ID);
         samplesData = cache.get(SAMPLES_ID);
       } catch {}
-      activeSurveyId = data.row_id;
-      returnToPage();
+      // Land on the survey the user just imported into.
+      returnToPage({ s: String(data.row_id) });
     },
   });
 }
@@ -1850,7 +1852,17 @@ function wireVMPreview(form) {
   update();
 }
 
-function returnToPage() {
+/**
+ * Tear down the form-modal and re-render the main page shell.
+ *
+ * @param {object} [overrides] — URL-param overrides merged on top of the
+ *   current `location.search`.  Callers use this to pin a just-created
+ *   entity as the active selection: e.g. `returnToPage({g: '7'})` opens
+ *   the page with grid id 7 as the active grid.  Without overrides we
+ *   honour whatever is in the URL (with the existing "fall back to first
+ *   row if the id is stale" logic in applyParams).
+ */
+function returnToPage(overrides = {}) {
   inForm = false;
   removeEscapeHandler();
   // Re-render the whole page shell from scratch.  Drop in-memory
@@ -1862,8 +1874,20 @@ function returnToPage() {
   destroyRilevamentiMap();
   activeGridId = activeSurveyId = activeAreaId = null;
   if (unsubCache) { unsubCache(); unsubCache = null; }
-  const params = Object.fromEntries(new URLSearchParams(location.search));
-  buildPageShell(document.getElementById('content'), params);
+
+  // Explicit clear before rebuild.  buildPageShell would also do this,
+  // but doing it here as well guarantees the modal-form is GONE as soon
+  // as we return — even if any of the section-build steps below throws,
+  // the user is no longer staring at the now-stale upload form.  This
+  // closes a class of "modal won't close after import" bugs.
+  const el = document.getElementById('content');
+  if (el) el.replaceChildren();
+
+  const params = {
+    ...Object.fromEntries(new URLSearchParams(location.search)),
+    ...overrides,
+  };
+  if (el) buildPageShell(el, params);
   applyParams(params);
   // After a successful save/delete the URL may carry an id that no
   // longer exists (e.g., `s=<deleted_id>`).  applyParams falls back to

@@ -1034,6 +1034,22 @@ class TestTreeCsvImport:
                           default_date='2025-06-01')
         assert resp.status_code == 200, resp.content
 
+    def test_empty_survey_id_returns_clean_400(self, writer_client, sample_setup):
+        """User-reported bug: leaving the target-survey pulldown on
+        '— Seleziona —' used to silently fail (HTML5 `required` blocked the
+        submit and our JS handler never ran).  The form is now `novalidate`
+        and we rely on the server to return a friendly 400 — make sure
+        that path renders the error message clients can show."""
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        resp = writer_client.post(self.URL, {
+            'survey_id': '',      # empty: user didn't pick a survey
+            'default_date': '',
+            'file': SimpleUploadedFile('x.csv', b'a,b\n1,2'),
+        })
+        assert resp.status_code == 400
+        body = resp.json()
+        assert body['message']    # non-empty user-facing message
+
     def test_unknown_area_reports_error(self, writer_client, sample_setup):
         s = sample_setup
         csv_text = (

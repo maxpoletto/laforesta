@@ -62,14 +62,19 @@ All three bodies render at once; client toggles via .modal-path-body.active.
   </div>
 
   {# --- Importa da CSV ------------------------------------------------- #}
+  {% comment %}
+    `novalidate` because HTML5 validation silently blocks the submit event
+    when a required field is empty, leading to a no-op from the user's
+    perspective.  We validate in JS (wireCsvUploadForm) and surface any
+    missing-field message via the standard error modal.
+  {% endcomment %}
   <form class="modal-path-body grid-path-csv"
         id="campionamenti-grid-form-csv"
-        enctype="multipart/form-data">
+        enctype="multipart/form-data" novalidate>
 
     <div class="form-group">
       <label for="id_grid_csv_name">Nome</label>
-      <input type="text" id="id_grid_csv_name" name="name" required
-             maxlength="100">
+      <input type="text" id="id_grid_csv_name" name="name" maxlength="100">
     </div>
 
     <div class="form-group">
@@ -79,7 +84,7 @@ All three bodies render at once; client toggles via .modal-path-body.active.
 
     <div class="form-group">
       <label for="id_grid_csv_file">File CSV</label>
-      <input type="file" id="id_grid_csv_file" name="file" required
+      <input type="file" id="id_grid_csv_file" name="file"
              accept=".csv,text/csv">
     </div>
 

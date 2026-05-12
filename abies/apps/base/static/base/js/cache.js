@@ -90,6 +90,12 @@ export function removeRow(dataId, rowId) {
  * Fetch data, using conditional GET if we have a cached copy.
  * Returns the (possibly updated) data.
  *
+ * Fires `onUpdate` listeners when the server returns fresh data
+ * (status 200), but not on a 304.  This matches `refreshVisible` and
+ * lets in-place callers (e.g., a row delete that just wants the table
+ * to re-render) rely on the same listener as the periodic background
+ * refresh — no need to manually re-render after every write.
+ *
  * @param {string} dataId
  * @returns {Promise<any>}
  */
@@ -112,6 +118,12 @@ export async function load(dataId) {
     lastModified: result.lastModified,
     refreshedAt: Date.now(),
   });
+  // Fire onUpdate listeners so in-place callers (e.g., a row delete that
+  // just wants the table to refresh without a full page rebuild) don't
+  // have to re-implement the re-render themselves.  refreshVisible already
+  // notifies on the same condition; mirroring it here keeps the manual
+  // and background paths consistent.
+  notify(dataId);
   return result.data;
 }
 
