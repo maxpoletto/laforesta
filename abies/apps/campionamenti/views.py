@@ -161,7 +161,11 @@ def tree_save_view(request):
                 mass_q=parsed['mass_q'],
             )
 
-        mark_stale(f'sampled_trees_{sample.survey_id}', 'samples', 'audit')
+        # tree_save can create a new Sample (first tree in an area) which
+        # affects surveys.N_aree_visitate / Data primo / Data ultimo.
+        mark_stale(
+            f'sampled_trees_{sample.survey_id}', 'samples', 'surveys', 'audit',
+        )
 
     response_data = {
         'data_id': f'sampled_trees_{sample.survey_id}',
@@ -290,7 +294,9 @@ def area_save_view(request):
                 sample_grid=grid, parcel=parcel, number=number,
                 lat=lat, lng=lng, altitude_m=altitude, r_m=r_m, note=note,
             )
-        mark_stale('sample_areas', 'grids', 'audit')
+        # `surveys` digest's N. aree totali depends on the area count
+        # per grid → must invalidate surveys on area writes too.
+        mark_stale('sample_areas', 'grids', 'surveys', 'audit')
 
     response_data = {'data_id': 'sample_areas', 'row_id': area.id}
     nonce = body.get('nonce')
@@ -310,7 +316,8 @@ def area_delete_view(request, area_id: int):
     if Sample.objects.filter(sample_area=area).exists():
         return _simple_validation_error(S.ERR_AREA_IN_USE)
     area.delete()
-    mark_stale('sample_areas', 'grids', 'audit')
+    # See area_save_view: surveys digest depends on the per-grid area count.
+    mark_stale('sample_areas', 'grids', 'surveys', 'audit')
     return JsonResponse({'data_id': 'sample_areas', 'row_id': area_id})
 
 
@@ -346,7 +353,11 @@ def sample_date_save_view(request):
             sample.date = new_date
             sample.version += 1
             sample.save()
-        mark_stale(f'sampled_trees_{survey_id}', 'samples', 'audit')
+        # surveys digest's Data primo / Data ultimo / N. aree visitate
+        # all derive from Sample rows → invalidate surveys too.
+        mark_stale(
+            f'sampled_trees_{survey_id}', 'samples', 'surveys', 'audit',
+        )
 
     return JsonResponse({
         'data_id': 'samples',
@@ -1066,7 +1077,9 @@ def survey_save_view(request):
         survey = Survey.objects.create(
             name=name, sample_grid=grid, description=description,
         )
-        mark_stale('surveys', 'audit')
+        # `grids` digest carries N. rilevamenti per grid, so creating a
+        # survey must invalidate grids too.
+        mark_stale('surveys', 'grids', 'audit')
 
     response_data = {'data_id': 'surveys', 'row_id': survey.id}
     nonce = body.get('nonce')

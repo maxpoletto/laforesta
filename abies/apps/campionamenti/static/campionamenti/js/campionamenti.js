@@ -685,9 +685,12 @@ async function saveSampleDate(dateStr) {
       showError(data?.message || S.ERROR_GENERIC);
       return;
     }
-    // Refresh samples digest + per-survey trees digest.
-    await cache.load(SAMPLES_ID);
-    samplesData = cache.get(SAMPLES_ID);
+    // Refresh samples + surveys digests (date affects surveys.Data primo/
+    // ultimo and N. aree visitate when a new sample is created here).
+    await Promise.all([
+      cache.load(SAMPLES_ID).then(() => { samplesData = cache.get(SAMPLES_ID); }),
+      refreshSurveys(),
+    ]);
     if (currentTreesId) {
       try { await cache.load(currentTreesId); } catch {}
     }
@@ -822,8 +825,10 @@ function applyParams(params) {
     if (s.header && s.open !== shouldBeOpen) toggleSection(s, shouldBeOpen);
   }
 
-  // Active grid — default: first grid in pulldown order.
-  let targetGrid = p.g;
+  // Active grid — default to most-recently-updated when the URL is empty
+  // OR points at a grid that no longer exists (handles stale URL after
+  // a delete + back-button, and the post-delete returnToPage path).
+  let targetGrid = p.g != null && gridRow(p.g) ? p.g : null;
   if (targetGrid == null && gridsData?.rows.length) {
     targetGrid = gridsData.rows[0][gridsData.columns.indexOf('row_id')];
   }
@@ -831,8 +836,8 @@ function applyParams(params) {
     activateGrid(targetGrid);
   }
 
-  // Active survey — default: first row of surveys digest.
-  let targetSurvey = p.s;
+  // Active survey — same fallback as grid.
+  let targetSurvey = p.s != null && surveyRow(p.s) ? p.s : null;
   if (targetSurvey == null && surveysData?.rows.length) {
     targetSurvey = surveysData.rows[0][surveysData.columns.indexOf('row_id')];
   }
@@ -968,10 +973,8 @@ function wireSurveyEmptyForm(modal) {
   if (!form) return;
   interceptSubmit(form, SURVEY_SAVE_URL, {
     onSuccess: async (data) => {
-      try {
-        await cache.load(SURVEYS_ID);
-        surveysData = cache.get(SURVEYS_ID);
-      } catch {}
+      // Survey create changes grids.N_rilevamenti too, so refresh both.
+      await Promise.all([refreshSurveys(), refreshGrids()]);
       activeSurveyId = data.row_id;
       returnToPage();
     },
@@ -1208,12 +1211,13 @@ function wireAreaForm(form) {
   wireParcelByRegion(form);
   interceptSubmit(form, AREA_SAVE_URL, {
     onSuccess: async () => {
+      // Area add/edit affects sample_areas (obviously), grids.N_aree, and
+      // surveys.N_aree_totali (every survey on this grid).
       try {
         await cache.load(SAMPLE_AREAS_ID);
         sampleAreasData = cache.get(SAMPLE_AREAS_ID);
-        await cache.load(GRIDS_ID);
-        gridsData = cache.get(GRIDS_ID);
       } catch {}
+      await Promise.all([refreshGrids(), refreshSurveys()]);
       returnToPage();
     },
     onValidationError(_data) {},
@@ -1268,12 +1272,13 @@ async function deleteArea(areaId) {
       showError(data?.message || S.ERROR_GENERIC);
       return;
     }
+    // Area delete affects sample_areas, grids.N_aree, and
+    // surveys.N_aree_totali.
     try {
       await cache.load(SAMPLE_AREAS_ID);
       sampleAreasData = cache.get(SAMPLE_AREAS_ID);
-      await cache.load(GRIDS_ID);
-      gridsData = cache.get(GRIDS_ID);
     } catch {}
+    await Promise.all([refreshGrids(), refreshSurveys()]);
     // Re-render the Griglie map to drop the deleted marker.
     if (activeGridId != null) renderGriglieMap(activeGridId);
   } catch {
@@ -1473,7 +1478,9 @@ async function doDeleteSurvey() {
     if (currentTreesId === `${TREES_ID_PREFIX}${id}`) {
       currentTreesId = null;
     }
-    await refreshSurveys();
+    // Survey delete cascades to samples + tree_samples and decrements
+    // grids.N_rilevamenti.  Refresh all four affected caches.
+    await Promise.all([refreshSurveys(), refreshGrids()]);
     try {
       await cache.load(SAMPLES_ID);
       samplesData = cache.get(SAMPLES_ID);
@@ -1692,10 +1699,12 @@ async function deleteTreeSample(tsId) {
     if (currentTreesId) {
       try { await cache.load(currentTreesId); } catch {}
     }
-    // Also refresh samples digest (materialized N. alberi changed).
+    // Also refresh samples (materialized N. alberi changed) and the
+    // rendered map markers so the hover-tooltip count stays accurate.
     try {
       await cache.load(SAMPLES_ID);
       samplesData = cache.get(SAMPLES_ID);
+      if (activeSurveyId != null) renderRilevamentiMap(activeSurveyId);
     } catch {}
   } catch {
     showError(S.ERROR_NETWORK);
@@ -1714,10 +1723,17 @@ function wireTreeForm(form) {
   });
   interceptSubmit(form, TREE_SAVE_URL, {
     onSuccess: async (data, isSaveAndAdd) => {
-      // Server marked sampled_trees_<survey>.json stale; reload it.
+      // Server marked sampled_trees_<survey>, samples, and surveys
+      // stale (creating the first tree in an area also creates a
+      // Sample, which bumps surveys.N_aree_visitate / Data ultimo).
       if (currentTreesId) {
         try { await cache.load(currentTreesId); } catch {}
       }
+      try {
+        await cache.load(SAMPLES_ID);
+        samplesData = cache.get(SAMPLES_ID);
+      } catch {}
+      await refreshSurveys();
       if (isSaveAndAdd) {
         showAddTreeForm();
       } else {
@@ -1849,6 +1865,11 @@ function returnToPage() {
   const params = Object.fromEntries(new URLSearchParams(location.search));
   buildPageShell(document.getElementById('content'), params);
   applyParams(params);
+  // After a successful save/delete the URL may carry an id that no
+  // longer exists (e.g., `s=<deleted_id>`).  applyParams falls back to
+  // the first row of the digest; syncURL drops the stale param so the
+  // URL stays meaningful and the next reload picks the same default.
+  syncURL();
 }
 
 function addEscapeHandler() {

@@ -771,6 +771,121 @@ class TestGridSaveAuto:
         assert resp.status_code == 403
 
 
+class TestDigestInvalidation:
+    """Regression tests for digest staleness: every write that affects a
+    digest's content must mark that digest stale.  Symptom of a missed
+    invalidation is a stale on-disk file served as-is on the next read.
+    """
+
+    @staticmethod
+    def _grids_n_rilev(client, grid_id, tmp_path, settings):
+        settings.DIGEST_DIR = tmp_path
+        resp = client.get('/api/campionamenti/grids/data/')
+        d = _read_gzip_json(resp)
+        row = next(r for r in d['rows']
+                   if r[d['columns'].index('row_id')] == grid_id)
+        return row[d['columns'].index('N. rilevamenti')]
+
+    @staticmethod
+    def _surveys_n_totali(client, survey_id, tmp_path, settings):
+        settings.DIGEST_DIR = tmp_path
+        resp = client.get('/api/campionamenti/surveys/data/')
+        d = _read_gzip_json(resp)
+        row = next(r for r in d['rows']
+                   if r[d['columns'].index('row_id')] == survey_id)
+        return row[d['columns'].index('N. aree totali')]
+
+    def test_survey_create_invalidates_grids(self, writer_client, sample_setup,
+                                             tmp_path, settings):
+        """User-reported bug: after creating a survey on a grid, the grids
+        digest must regenerate so `N. rilevamenti` reflects the new count.
+        Without this, the next read returns a stale file even after page
+        reload."""
+        import json
+        s = sample_setup
+        # Baseline (fixture has 1 survey on this grid).
+        n_before = self._grids_n_rilev(writer_client, s['grid'].id,
+                                       tmp_path, settings)
+        # Create a second survey.
+        writer_client.post(
+            '/api/campionamenti/survey/save/',
+            data=json.dumps({
+                'name': 'Survey two',
+                'sample_grid_id': str(s['grid'].id),
+            }),
+            content_type='application/json',
+        )
+        n_after = self._grids_n_rilev(writer_client, s['grid'].id,
+                                      tmp_path, settings)
+        assert n_after == n_before + 1, (
+            f'grids.N_rilevamenti should reflect new survey '
+            f'(was {n_before}, now {n_after}); survey_save_view '
+            f'is not marking grids stale.'
+        )
+
+    def test_survey_delete_invalidates_grids(self, writer_client, sample_setup,
+                                             tmp_path, settings):
+        """After deleting a survey, grids.N_rilevamenti must drop."""
+        s = sample_setup
+        # Add a second survey and immediately delete it.
+        extra = Survey.objects.create(name='Extra', sample_grid=s['grid'])
+        n_with_extra = self._grids_n_rilev(writer_client, s['grid'].id,
+                                           tmp_path, settings)
+        writer_client.post(
+            f'/api/campionamenti/survey/delete/{extra.id}/',
+            content_type='application/json',
+        )
+        n_after = self._grids_n_rilev(writer_client, s['grid'].id,
+                                      tmp_path, settings)
+        assert n_after == n_with_extra - 1
+
+    def test_area_create_invalidates_surveys(self, writer_client, sample_setup,
+                                             regions, eclasses,
+                                             tmp_path, settings):
+        """Adding a SampleArea changes N. aree totali for every Survey on
+        that grid → surveys digest must be invalidated."""
+        import json
+        s = sample_setup
+        n_before = self._surveys_n_totali(writer_client, s['survey'].id,
+                                          tmp_path, settings)
+        writer_client.post(
+            '/api/campionamenti/area/save/',
+            data=json.dumps({
+                'sample_grid_id': s['grid'].id,
+                'parcel_id': s['area'].parcel_id,
+                'number': '777',
+                'lat': '0.0', 'lng': '0.0', 'r_m': '12',
+            }),
+            content_type='application/json',
+        )
+        n_after = self._surveys_n_totali(writer_client, s['survey'].id,
+                                         tmp_path, settings)
+        assert n_after == n_before + 1
+
+    def test_area_delete_invalidates_surveys(self, writer_client, sample_setup,
+                                             regions, eclasses,
+                                             tmp_path, settings):
+        s = sample_setup
+        # Create an unused area, then delete it.
+        unused_parcel = Parcel.objects.create(
+            name='unused', region=regions[0], eclass=eclasses[0],
+            area_ha=Decimal('1.0'),
+        )
+        unused = SampleArea.objects.create(
+            sample_grid=s['grid'], parcel=unused_parcel, number='12',
+            lat=0.0, lng=0.0, r_m=12,
+        )
+        n_before = self._surveys_n_totali(writer_client, s['survey'].id,
+                                          tmp_path, settings)
+        writer_client.post(
+            f'/api/campionamenti/area/delete/{unused.id}/',
+            content_type='application/json',
+        )
+        n_after = self._surveys_n_totali(writer_client, s['survey'].id,
+                                         tmp_path, settings)
+        assert n_after == n_before - 1
+
+
 class TestGridCsvImport:
     URL = '/api/campionamenti/grid/import-csv/'
 
