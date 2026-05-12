@@ -5,7 +5,7 @@
 // (store, gps, numpad). This file is mostly UI wiring.
 'use strict';
 
-const APP_VERSION = '0.2.7';
+const APP_VERSION = '0.3.0';
 
 const State = {
   reference: null,    // parsed reference.json
@@ -36,10 +36,17 @@ async function boot() {
   document.getElementById('lbl-catastrofata').textContent = S.PRE_CATASTROFATA;
   document.getElementById('btn-start').textContent = S.PRE_START;
   document.getElementById('lbl-specie').textContent = S.REC_SPECIE;
+  document.getElementById('lbl-numero').textContent = S.REC_NUMERO;
+  document.getElementById('lbl-gruppo').textContent = S.REC_GRUPPO;
   document.getElementById('lbl-d').textContent = S.REC_D;
   document.getElementById('lbl-h').textContent = S.REC_H;
   document.getElementById('btn-save').textContent = S.REC_SAVE;
+  document.getElementById('btn-view-data').textContent = S.REC_VIEW_DATA;
   document.getElementById('btn-end').textContent = S.REC_END;
+  document.getElementById('data-title').textContent = S.DATA_TITLE;
+  document.getElementById('data-groups-h').textContent = S.DATA_GROUPS;
+  document.getElementById('data-trees-h').textContent = S.DATA_TREES;
+  document.getElementById('btn-data-close').textContent = S.DATA_CLOSE;
   document.getElementById('resume-title').textContent = S.RESUME_TITLE;
   document.getElementById('resume-body').textContent = S.RESUME_BODY;
   document.getElementById('end-title').textContent = S.END_TITLE;
@@ -245,9 +252,11 @@ function wirePreSession() {
 function wireRecording() {
   const inD = document.getElementById('in-d');
   const inH = document.getElementById('in-h');
+  const inNumero = document.getElementById('in-numero');
   State.numpad = createNumpad({
     container: document.getElementById('numpad'),
-    inputs: { d: inD, h: inH },
+    inputs: { d: inD, h: inH, numero: inNumero },
+    maxLen: { d: 3, h: 2, numero: 4 },
     onChange: (field) => {
       if (field === 'h' && !State.inAutoFill) State.hMeasured = true;
       if (field === 'd' && !State.hMeasured) recomputeAutoH();
@@ -263,6 +272,8 @@ function wireRecording() {
   });
 
   document.getElementById('btn-save').addEventListener('click', onSave);
+  document.getElementById('btn-view-data').addEventListener('click', enterDataScreen);
+  document.getElementById('btn-data-close').addEventListener('click', exitDataScreen);
   document.getElementById('btn-end').addEventListener('click', () => {
     document.getElementById('end-body').textContent =
       S.END_BODY(State.session.tree_count);
@@ -288,6 +299,12 @@ function wireRecording() {
 
 function enterRecording() {
   populateSpecie();
+  populateGruppo();
+  // Sticky within a session. On a fresh start lastTreeRow is null and the
+  // dropdown starts blank; on resume after force-quit we recover the last
+  // tree's gruppo so the operator picks up where they left off.
+  const lastGruppo = (State.lastTreeRow && State.lastTreeRow.gruppo) || '';
+  document.getElementById('in-gruppo').value = lastGruppo;
   const where = S.where(State.session);
   document.getElementById('rec-where').textContent = where;
   document.getElementById('sub-status').textContent = where;
@@ -296,6 +313,16 @@ function enterRecording() {
   startGps();
   acquireWakeLock();
   showScreen('screen-rec');
+}
+
+function populateGruppo() {
+  const sel = document.getElementById('in-gruppo');
+  if (sel.options.length > 0) return;   // populate once per page life
+  appendOption(sel, '', '—', true);
+  for (let i = 0; i < 26; i++) {
+    const letter = String.fromCharCode(65 + i);
+    appendOption(sel, letter, letter);
+  }
 }
 
 function populateSpecie() {
@@ -321,7 +348,22 @@ function resetEntryFields() {
   State.numpad.setFocus('d');
   State.hMeasured = false;
   document.getElementById('hint-autoh').hidden = true;
+  // Prefill numero asynchronously from the tree list. The numpad starts
+  // empty (above); we only fill if the operator hasn't started typing yet.
+  prefillNumero();
   updateSaveEnabled();
+}
+
+async function prefillNumero() {
+  if (!State.session) return;
+  try {
+    const trees = await Store.listTrees(State.db, State.session.id);
+    const next = session.nextNumeroDefault(trees);
+    if (next == null) return;
+    if (State.numpad.value('numero') === '') {
+      State.numpad.setValue('numero', '' + next);
+    }
+  } catch (_) { /* leave blank on error */ }
 }
 
 function refreshPill() {
@@ -433,11 +475,16 @@ function recomputeAutoH() {
 function currentRecord() {
   const d = parseInt(State.numpad.value('d'), 10);
   const h = parseInt(State.numpad.value('h'), 10);
+  const nStr = State.numpad.value('numero');
+  const n = nStr === '' ? null : parseInt(nStr, 10);
+  const gruppo = document.getElementById('in-gruppo').value || '';
   return {
     specie: State.specie || '',
     d_cm: Number.isFinite(d) ? d : null,
     h_m: Number.isFinite(h) ? h : null,
     h_measured: State.hMeasured ? 1 : 0,
+    numero: Number.isInteger(n) ? n : null,
+    gruppo,
   };
 }
 
@@ -451,6 +498,14 @@ function updateSaveEnabled() {
 async function onSave() {
   const rec = currentRecord();
   if (session.validateTree(rec).length > 0) return;
+
+  // Small trees are not physically numbered in the field, so we force the
+  // stored numero blank regardless of what the operator typed. The counter
+  // ignores blank-numero trees, so the next visible tree continues the
+  // sequence.
+  if (rec.d_cm != null && rec.d_cm <= session.NUMERO_BLANK_D_THRESHOLD) {
+    rec.numero = null;
+  }
 
   // Snapshot GPS atomically into the record (R9).
   const gps = State.gps ? State.gps.snapshot() : null;
@@ -492,6 +547,12 @@ async function onDeleteLast() {
     State.session = await Store.getSession(State.db, State.session.id);
     State.lastTreeRow = await Store.lastTree(State.db, State.session.id);
     refreshPill();
+    // Reset numero to the new default — the operator just freed up a slot
+    // and almost always wants to redo with the same numero. D/h/specie are
+    // intentionally left alone (they reflect the redo state).
+    const trees = await Store.listTrees(State.db, State.session.id);
+    const next = session.nextNumeroDefault(trees);
+    State.numpad.setValue('numero', next == null ? '' : '' + next);
     updateSaveEnabled();
   } catch (e) {
     showToast('Errore eliminazione: ' + e.message);
@@ -515,6 +576,119 @@ function downloadFinal(sess, trees) {
   const text = csv.formatFile(sess, trees);
   const name = csv.filename(sess, new Date(), 'final');
   downloadText(text, name);
+}
+
+// ---------------------------------------------------------------------------
+// Visualizza dati raccolti screen
+// ---------------------------------------------------------------------------
+
+async function enterDataScreen() {
+  if (!State.session) return;
+  let trees;
+  try {
+    trees = await Store.listTrees(State.db, State.session.id);
+  } catch (e) {
+    showToast('Errore caricamento dati: ' + e.message);
+    return;
+  }
+  trees.sort((a, b) => a.seq - b.seq);
+  renderGroupsTable(trees);
+  renderTreesTable(trees);
+  showScreen('screen-data');
+}
+
+function exitDataScreen() {
+  showScreen('screen-rec');
+}
+
+function renderGroupsTable(trees) {
+  const tbl = document.getElementById('data-groups-table');
+  tbl.replaceChildren();
+  const counts = new Map();
+  for (const t of trees) {
+    const g = (t && t.gruppo) || '';
+    if (g) counts.set(g, (counts.get(g) || 0) + 1);
+  }
+  const keys = Array.from(counts.keys()).sort();
+  if (!keys.length) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 2;
+    td.className = 'empty';
+    td.textContent = S.DATA_NO_GROUPS;
+    tr.appendChild(td);
+    tbl.appendChild(tr);
+    return;
+  }
+  const thead = document.createElement('thead');
+  const trh = document.createElement('tr');
+  for (const h of [S.DATA_COL_GRUPPO, S.DATA_COUNT]) {
+    const th = document.createElement('th');
+    th.textContent = h;
+    trh.appendChild(th);
+  }
+  thead.appendChild(trh);
+  tbl.appendChild(thead);
+  const tbody = document.createElement('tbody');
+  for (const k of keys) {
+    const tr = document.createElement('tr');
+    const tdG = document.createElement('td');
+    tdG.textContent = k;
+    const tdC = document.createElement('td');
+    tdC.className = 'num';
+    tdC.textContent = '' + counts.get(k);
+    tr.appendChild(tdG);
+    tr.appendChild(tdC);
+    tbody.appendChild(tr);
+  }
+  tbl.appendChild(tbody);
+}
+
+function renderTreesTable(trees) {
+  const tbl = document.getElementById('data-trees-table');
+  tbl.replaceChildren();
+  if (!trees.length) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 5;
+    td.className = 'empty';
+    td.textContent = S.DATA_EMPTY;
+    tr.appendChild(td);
+    tbl.appendChild(tr);
+    return;
+  }
+  const thead = document.createElement('thead');
+  const trh = document.createElement('tr');
+  const headers = [
+    S.DATA_COL_NUMERO, S.DATA_COL_SPECIE, S.DATA_COL_GRUPPO,
+    S.DATA_COL_D, S.DATA_COL_H,
+  ];
+  for (const h of headers) {
+    const th = document.createElement('th');
+    th.textContent = h;
+    trh.appendChild(th);
+  }
+  thead.appendChild(trh);
+  tbl.appendChild(thead);
+  const tbody = document.createElement('tbody');
+  for (const t of trees) {
+    const tr = document.createElement('tr');
+    const cells = [
+      { v: t.numero == null ? '' : '' + t.numero, num: true },
+      { v: t.specie || '', num: false },
+      { v: t.gruppo || '', num: false },
+      { v: t.d_cm == null ? '' : '' + t.d_cm, num: true },
+      { v: t.h_m == null ? '' : '' + t.h_m, num: true },
+    ];
+    for (const c of cells) {
+      const td = document.createElement('td');
+      td.textContent = c.v;
+      if (c.num) td.className = 'num';
+      tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+  }
+  tbl.appendChild(tbody);
 }
 
 async function downloadBackup(seq) {

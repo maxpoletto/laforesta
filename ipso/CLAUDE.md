@@ -24,17 +24,17 @@ make deploy      # reference → icons → test → rsync to ipso.laforesta.it
 # Module layout
 
 ```
-index.html          app shell
+index.html          app shell (4 screens: pre, rec, done, data)
 style.css           all styles
 manifest.webmanifest PWA manifest (5 icons under img/)
 sw.js               service worker (cache-first, no skipWaiting)
 app.js              state machine, screen wiring, GPS UI, wake lock
-store.js            IndexedDB wrapper (SCHEMA_VERSION = 2)
+store.js            IndexedDB wrapper (SCHEMA_VERSION = 3)
 session.js          pure session-level helpers (resumability, etc.)
 csv.js              CSV serialisation (UTF-8 BOM, ; sep, comma decimal, CRLF)
 ipso.js             ipsometric regression lookup (h = a·ln(D) + b)
 gps.js              self-healing watchPosition with heartbeat + restart
-numpad.js           on-screen numeric keypad
+numpad.js           on-screen numeric keypad (generic over field set)
 download.js         browser-download helper
 strings.js          Italian UI strings + helpers (S.where, S.pill)
 reference.json      bundled reference data (generated)
@@ -42,6 +42,11 @@ img/                f.gif, l.gif, icon-192.png, icon-512.png, icon-512-maskable.
 tools/              build_reference.py, build_icons.py (not shipped)
 tests.js            node tests for pure-logic modules
 ```
+
+The `screen-data` section ("Visualizza dati raccolti") renders two
+read-only tables — per-group counts and a per-tree list — from a
+snapshot of `Store.listTrees`.  It's a side excursion from the
+recording screen and preserves all in-progress field state.
 
 Each `.js` module ends with the CommonJS guard so `tests.js` can
 require it:
@@ -60,25 +65,36 @@ completes it on version N.
 
 # Storage
 
-IndexedDB, schema v2. Session rows carry a `catastrofata` boolean;
-catastrofate rows have `particella = ''` and the CSV emits column
-`Catastrofata=1` between `Particella` and `Specie`. Old v1 rows are
-treated as `catastrofata: false` via `||` fallback. Writes use
-`transaction.oncomplete` (not the request `success` event) so the
-operator never advances past a tree whose row hasn't been durably
-committed.
+IndexedDB, schema v3.
+
+- v2 added `catastrofata` (boolean) on session rows.  Catastrofate
+  rows have `particella = ''` and the CSV emits column
+  `Catastrofata=1`.  Old v1 rows are treated as `catastrofata: false`
+  via the `||` fallback.
+- v3 added `numero` (int|null) and `gruppo` (string) on tree rows.
+  Old v2 rows surface as blank in the visualizza screen and CSV.
+
+No structural migrations across these bumps — IndexedDB tolerates
+extra fields, and the version bump is the contract for the new row
+shape.  Writes use `transaction.oncomplete` (not the request
+`success` event) so the operator never advances past a tree whose
+row hasn't been durably committed.
 
 # CSV format
 
 ```
-Data;Compresa;Particella;Catastrofata;Specie;D_cm;H_m;H_measured;Lat;Lng;Acc_m;Operatore
+Data;Compresa;Particella;Catastrofata;Numero;Specie;D_cm;H_m;H_measured;Lat;Lng;Acc_m;Operatore
 ```
 
 UTF-8 with BOM, `;` separator, `,` decimal, CRLF, `DD/MM/YYYY` dates.
 `H_measured = 1` if the operator typed or edited h; `0` if the auto-h
-estimate was accepted unchanged. `Lat`/`Lng` are 6-fractional comma
-decimal; empty if no fix at save time. `Pino` is split into `Pino Nero`
-and `Pino Marittimo` because their ipsometric regressions diverge.
+estimate was accepted unchanged.  `Numero` is the operator-assigned
+tree number (4-digit max); blank for trees with
+`D ≤ NUMERO_BLANK_D_THRESHOLD` (17 cm).  The `Gruppo` tag is an
+in-app working aid and is intentionally NOT exported.  `Lat`/`Lng`
+are 6-fractional comma decimal; empty if no fix at save time.
+`Pino` is split into `Pino Nero` and `Pino Marittimo` because their
+ipsometric regressions diverge.
 
 # Gotchas
 

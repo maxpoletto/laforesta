@@ -10,7 +10,8 @@ const CSV_BOM = '﻿';
 const CSV_SEP = ';';
 const CSV_NL = '\r\n';
 const HEADER = [
-  'Data', 'Compresa', 'Particella', 'Catastrofata', 'Specie',
+  'Data', 'Compresa', 'Particella', 'Catastrofata',
+  'Numero', 'Specie',
   'D_cm', 'H_m', 'H_measured',
   'Lat', 'Lng', 'Acc_m',
   'Operatore',
@@ -63,6 +64,7 @@ function formatRow(rec, session) {
     session.compresa,
     particella,
     catastrofata ? '1' : '0',
+    fmtInt(rec.numero),
     rec.specie,
     fmtInt(rec.d_cm),
     fmtInt(rec.h_m),

@@ -53,6 +53,16 @@ out).
   with empty coordinates.
 - Pick a species. The pulldown remembers your last choice between
   trees.
+- **Numero** is the operator-assigned tree number (e.g. painted on
+  the trunk). Up to 4 digits. The field may be left blank. If you
+  type a numero `N`, the next entry's numero pre-fills to `N + 1`.
+  Trees with `D ≤ 17 cm` are not physically numbered, so their
+  stored numero is auto-blanked on save regardless of what you
+  typed — the counter ignores them so the next visible-numbered
+  tree continues the sequence.
+- **Gruppo** is an A–Z working tag for grouping trees during a
+  session (e.g. a cluster of trees marked for the same buyer).
+  Sticky across saves; not exported to the CSV.
 - Enter D (diameter in cm) using the on-screen number pad. h (height
   in m) auto-fills from the ipsometric regression for the current
   compresa and species. If a regression is missing for this combination
@@ -63,7 +73,13 @@ out).
   height rather than accepted the regression's estimate.
 - Tap **Salva e prossimo**. The record is written to the device's
   local database before the screen advances; D and h reset; species
-  stays selected.
+  and gruppo stay selected; numero pre-fills to the next default.
+- **Visualizza dati raccolti** opens a snapshot view of the trees
+  recorded so far in the current session. Top table: per-group
+  counts (only A–Z groups with at least one tree). Bottom table:
+  every tree in entry order with number, species, group, D and h.
+  Tap **Chiudi** to return to data entry; all in-progress fields
+  are preserved.
 - The "ultimo" pill at the top shows the most recent record. Tap the
   button on the right to delete it (e.g. after a typo) and re-record.
   Only the most recent record can be undone — earlier records are
@@ -88,9 +104,14 @@ UTF-8 with BOM, semicolon-separated, comma decimal, CRLF line endings,
 Italian date format `DD/MM/YYYY`. Column order:
 
 ```
-Data;Compresa;Particella;Specie;D_cm;H_m;H_measured;Lat;Lng;Acc_m
+Data;Compresa;Particella;Catastrofata;Numero;Specie;D_cm;H_m;H_measured;Lat;Lng;Acc_m;Operatore
 ```
 
+- `Catastrofata` is `1` for storm-damage sessions (Particella is
+  empty in that case), `0` otherwise.
+- `Numero` is the operator-assigned tree number. Empty when the
+  operator left the field blank, and also empty for trees with
+  `D ≤ 17 cm` (small trees aren't physically numbered).
 - `D_cm`, `H_m`, `Acc_m` are integers (no decimal).
 - `H_measured` is `1` if the operator typed or edited the height; `0`
   if the auto-h value was accepted unchanged.
@@ -99,6 +120,8 @@ Data;Compresa;Particella;Specie;D_cm;H_m;H_measured;Lat;Lng;Acc_m
 - `Specie` is the verbatim Italian common name from the species
   pulldown, including `Pino Nero` and `Pino Marittimo` (kept distinct
   because their ipsometric regressions diverge significantly).
+- The in-app **Gruppo** tag is NOT exported. It is a working aid
+  for the operator only.
 
 ## Source data
 

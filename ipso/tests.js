@@ -72,7 +72,7 @@ assertEqual(csv.escapeField(null), '', 'escape: null');
 
 assertEqual(
   csv.formatHeader(),
-  'Data;Compresa;Particella;Catastrofata;Specie;D_cm;H_m;H_measured;Lat;Lng;Acc_m;Operatore',
+  'Data;Compresa;Particella;Catastrofata;Numero;Specie;D_cm;H_m;H_measured;Lat;Lng;Acc_m;Operatore',
   'header literal'
 );
 
@@ -85,8 +85,22 @@ const r1 = {
 };
 assertEqual(
   csv.formatRow(r1, sess),
-  '11/05/2026;Serra;1;0;Abete;42;24;0;38,425310;16,120440;7;Mario Rossi',
-  'formatRow happy path'
+  '11/05/2026;Serra;1;0;;Abete;42;24;0;38,425310;16,120440;7;Mario Rossi',
+  'formatRow happy path, numero blank'
+);
+
+// Same record with a numero set.
+assertEqual(
+  csv.formatRow(Object.assign({}, r1, { numero: 42 }), sess),
+  '11/05/2026;Serra;1;0;42;Abete;42;24;0;38,425310;16,120440;7;Mario Rossi',
+  'formatRow with numero'
+);
+
+// 4-digit numero.
+assertEqual(
+  csv.formatRow(Object.assign({}, r1, { numero: 1234 }), sess),
+  '11/05/2026;Serra;1;0;1234;Abete;42;24;0;38,425310;16,120440;7;Mario Rossi',
+  'formatRow 4-digit numero'
 );
 
 const r2 = {
@@ -95,7 +109,7 @@ const r2 = {
 };
 assertEqual(
   csv.formatRow(r2, sess),
-  '11/05/2026;Serra;1;0;Faggio;30;18;1;;;;Mario Rossi',
+  '11/05/2026;Serra;1;0;;Faggio;30;18;1;;;;Mario Rossi',
   'formatRow no GPS'
 );
 
@@ -103,19 +117,20 @@ assertEqual(
 const sessNoOp = { data: '2026-05-11', compresa: 'Serra', particella: '1' };
 assertEqual(
   csv.formatRow(r1, sessNoOp),
-  '11/05/2026;Serra;1;0;Abete;42;24;0;38,425310;16,120440;7;',
+  '11/05/2026;Serra;1;0;;Abete;42;24;0;38,425310;16,120440;7;',
   'formatRow no operatore'
 );
 
-// Catastrofate session: Particella column empty, Catastrofata = 1.
+// Catastrofate session: Particella column empty, Catastrofata = 1; numero
+// still works.
 const sessCat = {
   data: '2026-05-12', compresa: 'Capistrano', particella: '',
   catastrofata: true, operatore: 'Anna Bianchi',
 };
 assertEqual(
-  csv.formatRow(r1, sessCat),
-  '12/05/2026;Capistrano;;1;Abete;42;24;0;38,425310;16,120440;7;Anna Bianchi',
-  'formatRow catastrofata'
+  csv.formatRow(Object.assign({}, r1, { numero: 7 }), sessCat),
+  '12/05/2026;Capistrano;;1;7;Abete;42;24;0;38,425310;16,120440;7;Anna Bianchi',
+  'formatRow catastrofata + numero'
 );
 
 const r3 = {
@@ -264,6 +279,36 @@ assertEqual(session.shouldBackup(40), true, 'backup: 40');
 assertEqual(session.shouldBackup(19), false, 'backup: 19');
 assertEqual(session.shouldBackup(0), false, 'backup: 0');
 assertEqual(session.shouldBackup(null), false, 'backup: null');
+
+assertEqual(session.NUMERO_BLANK_D_THRESHOLD, 17, 'numero blanking threshold');
+
+assertEqual(session.nextNumeroDefault([]), null, 'nextNumero: empty');
+assertEqual(session.nextNumeroDefault(null), null, 'nextNumero: null');
+assertEqual(
+  session.nextNumeroDefault([{ numero: null }, { numero: null }]),
+  null,
+  'nextNumero: all blanks'
+);
+assertEqual(
+  session.nextNumeroDefault([{ numero: 5 }, { numero: 7 }, { numero: 3 }]),
+  8,
+  'nextNumero: takes max'
+);
+assertEqual(
+  session.nextNumeroDefault([{ numero: 5 }, { numero: null }, { numero: 8 }]),
+  9,
+  'nextNumero: ignores blanks'
+);
+assertEqual(
+  session.nextNumeroDefault([{ numero: 0 }]),
+  1,
+  'nextNumero: zero counts'
+);
+assertEqual(
+  session.nextNumeroDefault([{}, { specie: 'Abete' }]),
+  null,
+  'nextNumero: rows without numero field'
+);
 
 // ---------------------------------------------------------------------------
 // Summary

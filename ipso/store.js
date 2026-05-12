@@ -12,11 +12,12 @@
 'use strict';
 
 const DB_NAME = 'ipso';
-// v2 added an optional `catastrofata` boolean on session rows. The bump is
-// documentation: IndexedDB tolerates extra fields without a schema change,
-// but the version bump is the contract for "this code wrote/read v2-shaped
-// session rows".
-const SCHEMA_VERSION = 2;
+// v2 added an optional `catastrofata` boolean on session rows.
+// v3 added optional `numero` (int|null) and `gruppo` (string) on tree rows.
+// The bumps are documentation: IndexedDB tolerates extra fields without a
+// schema change, but the version bumps are the contract for "this code
+// wrote/read vN-shaped rows".
+const SCHEMA_VERSION = 3;
 
 const STORE_SESSIONS = 'sessions';
 const STORE_TREES = 'trees';
@@ -61,6 +62,10 @@ function openDb() {
       if (oldVersion < 2) {
         // No structural change. `catastrofata` is an optional boolean on
         // session rows; absence is treated as false by readers.
+      }
+      if (oldVersion < 3) {
+        // No structural change. `numero` (int|null) and `gruppo` (string)
+        // are optional fields on tree rows; absence is treated as blank.
       }
       // Future migrations go here.
     };
@@ -159,7 +164,8 @@ async function setSessionStatus(db, id, status) {
 
 // Add a tree to a session. Allocates `seq` inside the same transaction so a
 // retry after partial failure cannot duplicate (plan R8).
-// rec fields (caller supplies): specie, d_cm, h_m, h_measured, lat, lng, acc_m.
+// rec fields (caller supplies): specie, d_cm, h_m, h_measured, lat, lng,
+// acc_m, numero, gruppo.
 async function addTree(db, sessionId, rec) {
   return tx(db, [STORE_SESSIONS, STORE_TREES], 'readwrite', async (t) => {
     const sessStore = t.objectStore(STORE_SESSIONS);
@@ -178,6 +184,8 @@ async function addTree(db, sessionId, rec) {
       lat: rec.lat == null ? null : rec.lat,
       lng: rec.lng == null ? null : rec.lng,
       acc_m: rec.acc_m == null ? null : rec.acc_m,
+      numero: Number.isInteger(rec.numero) ? rec.numero : null,
+      gruppo: rec.gruppo || '',
     };
     const treesStore = t.objectStore(STORE_TREES);
     const id = await req(treesStore.add(row));
@@ -205,7 +213,7 @@ async function updateTree(db, sessionId, treeId, patch) {
       throw new Error('ipso: tree does not belong to session');
     }
     // Whitelist fields callers may patch.
-    for (const k of ['specie', 'd_cm', 'h_m', 'h_measured']) {
+    for (const k of ['specie', 'd_cm', 'h_m', 'h_measured', 'numero', 'gruppo']) {
       if (k in patch) row[k] = patch[k];
     }
     if (patch.h_measured != null) row.h_measured = patch.h_measured ? 1 : 0;

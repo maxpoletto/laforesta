@@ -72,6 +72,17 @@
 
       <div class="dh-row">
         <label class="field dh">
+          <span class="lbl" id="lbl-numero"></span>
+          <input id="in-numero" type="text" inputmode="none" readonly autocomplete="off">
+        </label>
+        <label class="field dh">
+          <span class="lbl" id="lbl-gruppo"></span>
+          <select id="in-gruppo" class="dh-select"></select>
+        </label>
+      </div>
+
+      <div class="dh-row">
+        <label class="field dh">
           <span class="lbl" id="lbl-d"></span>
           <input id="in-d" type="text" inputmode="none" readonly autocomplete="off">
         </label>
@@ -85,7 +96,29 @@
       <div id="numpad" class="numpad"></div>
 
       <button id="btn-save" class="btn-primary btn-big" type="button" disabled></button>
+      <button id="btn-view-data" class="btn-secondary btn-big" type="button"></button>
       <button id="btn-end" class="btn-secondary" type="button"></button>
+    </section>
+
+    <!-- ============= VISUALIZZA DATI RACCOLTI ============= -->
+    <section id="screen-data" class="screen" hidden>
+      <h1 id="data-title"></h1>
+
+      <div class="data-section">
+        <h2 class="data-section-h" id="data-groups-h"></h2>
+        <div id="data-groups-wrap" class="data-table-wrap">
+          <table class="data-table" id="data-groups-table"></table>
+        </div>
+      </div>
+
+      <div class="data-section data-section-trees">
+        <h2 class="data-section-h" id="data-trees-h"></h2>
+        <div id="data-trees-wrap" class="data-table-wrap data-table-scroll">
+          <table class="data-table" id="data-trees-table"></table>
+        </div>
+      </div>
+
+      <button id="btn-data-close" class="btn-secondary btn-big" type="button"></button>
     </section>
 
     <!-- ============= DONE ============= -->

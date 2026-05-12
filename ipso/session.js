@@ -10,6 +10,12 @@
 const D_MIN = 1, D_MAX = 999;
 const H_MIN = 1, H_MAX = 99;
 
+// Trees with D at or below this threshold (cm) aren't physically numbered
+// in the field, so their stored numero is forced to blank regardless of
+// what the operator typed. The counter ignores blank-numero trees, so the
+// next visible-numbered tree continues the sequence.
+const NUMERO_BLANK_D_THRESHOLD = 17;
+
 // Returns next per-session sequence number given an iterable of existing
 // seq values. seq starts at 1.
 function nextSeq(existingSeqs) {
@@ -50,8 +56,23 @@ function shouldBackup(seq) {
   return typeof seq === 'number' && seq > 0 && (seq % BACKUP_EVERY) === 0;
 }
 
+// Default for the next entry's numero field: one above the largest non-null
+// numero across the supplied trees. Returns null if no tree carries a
+// numero (fresh session, or every recorded tree was below the size
+// threshold). Monotonic and derived from the current tree list, so it
+// survives resume and self-corrects after delete-last.
+function nextNumeroDefault(trees) {
+  if (!trees || !trees.length) return null;
+  let max = null;
+  for (const t of trees) {
+    const n = t && t.numero;
+    if (Number.isInteger(n) && (max === null || n > max)) max = n;
+  }
+  return max === null ? null : max + 1;
+}
+
 const session = {
-  D_MIN, D_MAX, H_MIN, H_MAX, BACKUP_EVERY,
-  nextSeq, validateTree, summarizePill, shouldBackup,
+  D_MIN, D_MAX, H_MIN, H_MAX, BACKUP_EVERY, NUMERO_BLANK_D_THRESHOLD,
+  nextSeq, validateTree, summarizePill, shouldBackup, nextNumeroDefault,
 };
 if (typeof module !== 'undefined') module.exports = session;

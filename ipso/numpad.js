@@ -10,13 +10,15 @@
 function createNumpad(opts) {
   // opts:
   //   container : DOM element to mount the buttons into
-  //   inputs    : { d: HTMLInputElement, h: HTMLInputElement }
-  //   onChange  : fn(field, value) called whenever d or h changes (string)
-  //   maxLen    : { d: 3, h: 2 }
+  //   inputs    : { <field>: HTMLInputElement, ... }
+  //   onChange  : fn(field, value) called whenever any field changes
+  //   maxLen    : { <field>: <digits>, ... } (default: 3 per field)
   const { container, inputs, onChange, maxLen } = opts;
-  const max = maxLen || { d: 3, h: 2 };
-  let focus = 'd';   // active field
-  let buf = { d: '', h: '' };
+  const max = maxLen || {};
+  const fields = Object.keys(inputs);
+  let focus = fields[0] || 'd';
+  let buf = {};
+  for (const k of fields) buf[k] = '';
 
   function value(field) { return buf[field]; }
 
@@ -49,7 +51,7 @@ function createNumpad(opts) {
 
   function clear(field) {
     if (field) setValue(field, '');
-    else { setValue('d', ''); setValue('h', ''); }
+    else { for (const k of fields) setValue(k, ''); }
   }
 
   function makeKey(label, handler, klass) {

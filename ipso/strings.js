@@ -21,11 +21,14 @@ const S = {
   REC_GPS_WAITING: 'GPS in attesa…',
   REC_SPECIE: 'Specie',
   REC_PICK_SPECIE: '— scegli —',
+  REC_NUMERO: 'Numero',
+  REC_GRUPPO: 'Gruppo',
   REC_D: 'D (cm)',
   REC_H: 'h (m)',
   REC_AUTO_H_MISSING:
     'Nessuna regressione per questa compresa e specie: inserisci h manualmente.',
   REC_SAVE: 'Salva e prossimo',
+  REC_VIEW_DATA: 'Visualizza dati raccolti',
   REC_END: 'Termina e esporta CSV',
   REC_LAST_PREFIX: 'ultimo:',
   REC_NO_LAST: 'nessun albero registrato',
@@ -33,6 +36,20 @@ const S = {
   REC_DELETE_LAST: 'Elimina',
   REC_CANCEL: 'Annulla',
   REC_TREE_NUMBER: 'albero n.',
+
+  // Visualizza dati raccolti screen
+  DATA_TITLE: 'Dati raccolti',
+  DATA_GROUPS: 'Gruppi',
+  DATA_TREES: 'Alberi',
+  DATA_COUNT: 'Conteggio',
+  DATA_COL_NUMERO: 'N.',
+  DATA_COL_SPECIE: 'Specie',
+  DATA_COL_GRUPPO: 'Gr.',
+  DATA_COL_D: 'D',
+  DATA_COL_H: 'h',
+  DATA_CLOSE: 'Chiudi',
+  DATA_EMPTY: 'Nessun albero registrato.',
+  DATA_NO_GROUPS: 'Nessun gruppo assegnato.',
 
   // Resume modal
   RESUME_TITLE: 'Sessioni non chiuse',

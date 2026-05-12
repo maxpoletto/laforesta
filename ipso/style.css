@@ -132,14 +132,20 @@ input.focus, input:focus, select:focus {
   box-shadow: 0 0 0 2px var(--green-light);
 }
 
-/* D and h side by side */
+/* D and h side by side; Numero / Gruppo row uses the same rhythm. */
 .dh-row { display: flex; gap: 10px; }
 .dh-row .field.dh { flex: 1; }
-.dh-row input {
+.dh-row input,
+.dh-row select.dh-select {
   height: 64px;
   font-size: 32px;
   text-align: center;
   font-variant-numeric: tabular-nums;
+}
+.dh-row select.dh-select {
+  /* Match input styling and centre the single-letter value. */
+  padding: 0 12px;
+  text-align-last: center;
 }
 
 .hint {
@@ -335,6 +341,65 @@ button {
 .resume-meta { font-size: 13px; color: var(--grey-2); }
 .resume-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .resume-actions button { flex: 1; font-size: 14px; padding: 8px 6px; }
+
+/* ----------------------------------------------------------------------- */
+/* Visualizza dati raccolti                                                */
+/* ----------------------------------------------------------------------- */
+
+#screen-data { min-height: 0; }                /* allow inner scroll */
+.data-section { display: flex; flex-direction: column; gap: 6px; min-height: 0; }
+.data-section-trees { flex: 1; min-height: 120px; }
+.data-section-h {
+  margin: 0;
+  font-size: 14px;
+  color: var(--grey-2);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.data-table-wrap {
+  border: 1px solid var(--grey-4);
+  border-radius: 4px;
+  overflow: hidden;
+  background: white;
+}
+.data-table-scroll {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.data-table th,
+.data-table td {
+  padding: 6px 8px;
+  text-align: left;
+  border-bottom: 1px solid var(--grey-4);
+  white-space: nowrap;
+}
+.data-table th {
+  background: var(--grey-5);
+  color: var(--grey-2);
+  font-weight: 600;
+  font-size: 13px;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.data-table td.num { text-align: right; }
+.data-table tr:last-child td { border-bottom: 0; }
+.data-table .empty {
+  text-align: center;
+  color: var(--grey-3);
+  font-style: italic;
+  padding: 16px;
+}
 
 /* ----------------------------------------------------------------------- */
 /* Misc                                                                    */
