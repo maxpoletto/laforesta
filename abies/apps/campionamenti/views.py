@@ -22,7 +22,11 @@ from django.template.loader import render_to_string
 from django.views.decorators.http import require_POST
 
 from apps.base.auth import require_writer
-from apps.base.digests import mark_stale, serve_digest
+from apps.base.digests import (
+    build_grid_record, build_sample_area_record, build_sample_record,
+    build_survey_record, build_tree_sample_record,
+    mark_stale, serve_digest,
+)
 from apps.base.middleware import save_nonce
 from apps.base.models import (
     Parcel, Region, Sample, SampleArea, SampleGrid, Species, Survey, Tree,
@@ -151,7 +155,7 @@ def tree_save_view(request):
     with transaction.atomic():
         if ts_id:
             ts = _update_tree_sample(ts_id, sample, parsed)
-            response_row_id = ts.id
+            created_or_updated_ids = [ts.id]
         elif parsed['coppice']:
             tree = existing_tree or Tree.objects.create(
                 species_id=parsed['species_id'],
@@ -160,7 +164,7 @@ def tree_save_view(request):
                 preserved=parsed['preserved'],
                 coppice=True,
             )
-            created_ids = []
+            created_or_updated_ids = []
             for sh in parsed['shoots']:
                 ts = TreeSample.objects.create(
                     sample=sample, tree=tree, shoot=sh['shoot'],
@@ -169,8 +173,7 @@ def tree_save_view(request):
                     d_cm=sh['d_cm'], h_m=sh['h_m'], l10_mm=sh['l10_mm'],
                     volume_m3=None, mass_q=None,
                 )
-                created_ids.append(ts.id)
-            response_row_id = created_ids[-1]
+                created_or_updated_ids.append(ts.id)
         elif existing_tree is not None:
             # Reuse the existing Tree row.  Do not create a new Tree.
             ts = TreeSample.objects.create(
@@ -181,7 +184,7 @@ def tree_save_view(request):
                 volume_m3=parsed['volume_m3'],
                 mass_q=parsed['mass_q'],
             )
-            response_row_id = ts.id
+            created_or_updated_ids = [ts.id]
         else:
             tree = Tree.objects.create(
                 species_id=parsed['species_id'],
@@ -198,7 +201,7 @@ def tree_save_view(request):
                 volume_m3=parsed['volume_m3'],
                 mass_q=parsed['mass_q'],
             )
-            response_row_id = ts.id
+            created_or_updated_ids = [ts.id]
 
         # tree_save can create a new Sample (first tree in an area) which
         # affects surveys.N_aree_visitate / Data primo / Data ultimo.
@@ -206,9 +209,24 @@ def tree_save_view(request):
             f'sampled_trees_{sample.survey_id}', 'samples', 'surveys', 'audit',
         )
 
+    # Build the cache-update payload — see CLAUDE.md §"Optimistic table
+    # updates".  Re-fetch with select_related so build_tree_sample_record
+    # doesn't N+1 on attributes the digest expects.
+    fresh_ts_qs = TreeSample.objects.filter(
+        id__in=created_or_updated_ids,
+    ).select_related(
+        'sample', 'sample__sample_area__parcel__region',
+        'tree__species', 'tree__parcel',
+    )
+    records = [build_tree_sample_record(ts) for ts in fresh_ts_qs]
+    sample.refresh_from_db()
+    sample.survey  # touch to avoid lazy load in build_survey_record
     response_data = {
         'data_id': f'sampled_trees_{sample.survey_id}',
-        'row_id': response_row_id,
+        'row_id': created_or_updated_ids[-1],
+        'records': records,
+        'sample_record': build_sample_record(sample),
+        'survey_record': build_survey_record(sample.survey),
     }
     nonce = body.get('nonce')
     if nonce:
@@ -225,15 +243,24 @@ def tree_delete_view(request, ts_id: int):
     deletion" ("Deleting a single tree_sample row leaves both the
     sample and the underlying tree row intact").
     """
-    ts = TreeSample.objects.select_related('sample').filter(id=ts_id).first()
+    ts = TreeSample.objects.select_related(
+        'sample__survey',
+    ).filter(id=ts_id).first()
     if ts is None:
         return JsonResponse({'status': 'not_found'}, status=404)
-    survey_id = ts.sample.survey_id
+    sample = ts.sample
+    survey = sample.survey
+    survey_id = survey.id
     ts.delete()
-    mark_stale(f'sampled_trees_{survey_id}', 'samples', 'audit')
+    # N. alberi just dropped; surveys.N_aree_visitate may also change
+    # if this was the last tree on its area.
+    mark_stale(f'sampled_trees_{survey_id}', 'samples', 'surveys', 'audit')
+    sample.refresh_from_db()
     return JsonResponse({
         'data_id': f'sampled_trees_{survey_id}',
         'row_id': ts_id,
+        'sample_record': build_sample_record(sample),
+        'survey_record': build_survey_record(survey),
     })
 
 
@@ -337,7 +364,18 @@ def area_save_view(request):
         # per grid → must invalidate surveys on area writes too.
         mark_stale('sample_areas', 'grids', 'surveys', 'audit')
 
-    response_data = {'data_id': 'sample_areas', 'row_id': area.id}
+    # Reload with select_related so build_sample_area_record doesn't N+1.
+    area = SampleArea.objects.select_related('parcel__region').get(id=area.id)
+    response_data = {
+        'data_id': 'sample_areas',
+        'row_id': area.id,
+        'record': build_sample_area_record(area),
+        'grid_record': build_grid_record(grid),
+        'survey_records': [
+            build_survey_record(sv)
+            for sv in Survey.objects.filter(sample_grid=grid)
+        ],
+    }
     nonce = body.get('nonce')
     if nonce:
         save_nonce(nonce, request.user, response_data)
@@ -349,15 +387,26 @@ def area_save_view(request):
 @require_POST
 def area_delete_view(request, area_id: int):
     """Delete a SampleArea.  Refused if any Sample references it."""
-    area = SampleArea.objects.filter(id=area_id).first()
+    area = SampleArea.objects.select_related('sample_grid').filter(
+        id=area_id,
+    ).first()
     if area is None:
         return JsonResponse({'status': 'not_found'}, status=404)
     if Sample.objects.filter(sample_area=area).exists():
         return _simple_validation_error(S.ERR_AREA_IN_USE)
+    grid = area.sample_grid
     area.delete()
     # See area_save_view: surveys digest depends on the per-grid area count.
     mark_stale('sample_areas', 'grids', 'surveys', 'audit')
-    return JsonResponse({'data_id': 'sample_areas', 'row_id': area_id})
+    return JsonResponse({
+        'data_id': 'sample_areas',
+        'row_id': area_id,
+        'grid_record': build_grid_record(grid),
+        'survey_records': [
+            build_survey_record(sv)
+            for sv in Survey.objects.filter(sample_grid=grid)
+        ],
+    })
 
 
 @login_required
@@ -402,6 +451,8 @@ def sample_date_save_view(request):
         'data_id': 'samples',
         'row_id': sample.id,
         'date': new_date.isoformat(),
+        'record': build_sample_record(sample),
+        'survey_record': build_survey_record(survey),
     })
 
 
@@ -756,7 +807,11 @@ def grid_save_view(request):
         grid = SampleGrid.objects.create(name=name, description=description)
         mark_stale('grids', 'audit')
 
-    response_data = {'data_id': 'grids', 'row_id': grid.id}
+    response_data = {
+        'data_id': 'grids',
+        'row_id': grid.id,
+        'record': build_grid_record(grid),
+    }
     nonce = body.get('nonce')
     if nonce:
         save_nonce(nonce, request.user, response_data)
@@ -797,7 +852,11 @@ def grid_edit_view(request, grid_id: int):
     grid.version += 1
     grid.save()
     mark_stale('grids', 'audit')
-    return JsonResponse({'data_id': 'grids', 'row_id': grid.id})
+    return JsonResponse({
+        'data_id': 'grids',
+        'row_id': grid.id,
+        'record': build_grid_record(grid),
+    })
 
 
 @login_required
@@ -839,7 +898,11 @@ def survey_edit_view(request, survey_id: int):
     survey.version += 1
     survey.save()
     mark_stale('surveys', 'audit')
-    return JsonResponse({'data_id': 'surveys', 'row_id': survey.id})
+    return JsonResponse({
+        'data_id': 'surveys',
+        'row_id': survey.id,
+        'record': build_survey_record(survey),
+    })
 
 
 # ---------------------------------------------------------------------------
@@ -929,9 +992,13 @@ def grid_csv_import_view(request):
         ])
         mark_stale('grids', 'sample_areas', 'audit')
 
+    area_qs = SampleArea.objects.filter(sample_grid=grid) \
+                                 .select_related('parcel__region')
     response_data = {
         'data_id': 'grids', 'row_id': grid.id,
         'n_areas': len(parsed_rows),
+        'record': build_grid_record(grid),
+        'area_records': [build_sample_area_record(sa) for sa in area_qs],
     }
     nonce = request.POST.get('nonce')
     if nonce:
@@ -1195,7 +1262,11 @@ def survey_save_view(request):
         # survey must invalidate grids too.
         mark_stale('surveys', 'grids', 'audit')
 
-    response_data = {'data_id': 'surveys', 'row_id': survey.id}
+    response_data = {
+        'data_id': 'surveys', 'row_id': survey.id,
+        'record': build_survey_record(survey),
+        'grid_record': build_grid_record(grid),
+    }
     nonce = body.get('nonce')
     if nonce:
         save_nonce(nonce, request.user, response_data)
@@ -1259,7 +1330,13 @@ def grid_save_auto_view(request):
         ])
         mark_stale('grids', 'sample_areas', 'audit')
 
-    response_data = {'data_id': 'grids', 'row_id': grid.id}
+    area_qs = SampleArea.objects.filter(sample_grid=grid) \
+                                 .select_related('parcel__region')
+    response_data = {
+        'data_id': 'grids', 'row_id': grid.id,
+        'record': build_grid_record(grid),
+        'area_records': [build_sample_area_record(sa) for sa in area_qs],
+    }
     nonce = body.get('nonce')
     if nonce:
         save_nonce(nonce, request.user, response_data)

@@ -272,7 +272,7 @@ export class GridPlanner {
         this._setStatus(data?.message || S.ERROR_GENERIC);
         return;
       }
-      this.onCreated?.(data.row_id);
+      this.onCreated?.(data.row_id, data);
     } catch (err) {
       this.submitBtn.disabled = false;
       this._setStatus(err?.message || S.ERROR_GENERIC);

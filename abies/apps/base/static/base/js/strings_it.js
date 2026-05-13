@@ -163,8 +163,6 @@ export const CAMPIONAMENTI_PICK_AREA_FIRST =
   'Seleziona prima un\'area di saggio sulla mappa.';
 export const CAMPIONAMENTI_NO_VM_FOR_CEDUO =
   'V e m non si calcolano per alberi cedui.';
-export const CAMPIONAMENTI_VM_INCOMPLETE =
-  'V e m verranno calcolati quando D, h e specie sono valorizzati.';
 export const CAMPIONAMENTI_INSERT_AREA_HERE =
   'Inserire una nuova area qui?';
 export const CAMPIONAMENTI_NO_AREAS_HINT =

@@ -410,33 +410,79 @@ def _format_diff(prev, current, field_labels: dict) -> tuple[str, str]:
 # Campionamenti digests
 # ---------------------------------------------------------------------------
 
+GRID_COLUMNS = ['row_id', 'version', 'Nome', 'Descrizione', 'N. aree',
+                'Comprese', 'N. rilevamenti', 'Ultimo aggiornamento']
+
+
+def build_grid_record(g) -> list:
+    """Build one row of the `grids` digest from a SampleGrid instance.
+
+    Shared between the generator and write views so the column shape is
+    locked in one place (see CLAUDE.md §"Optimistic table updates").
+    """
+    from apps.base.models import SampleArea, Survey
+
+    areas = SampleArea.objects.filter(sample_grid=g) \
+                              .select_related('parcel__region')
+    n_aree = areas.count()
+    comprese = sorted({sa.parcel.region.name for sa in areas})
+    n_rilev = Survey.objects.filter(sample_grid=g).count()
+    last_area = areas.order_by('-modified_at').values_list(
+        'modified_at', flat=True).first()
+    last_updated = max(filter(None, [g.modified_at, last_area]))
+    return [
+        g.id, g.version, g.name, g.description, n_aree,
+        ', '.join(comprese), n_rilev,
+        last_updated.isoformat() if last_updated else '',
+    ]
+
+
 def generate_grids() -> None:
     """List of sample grids, with sample-area counts and region coverage.
 
     Drives Section 1 (Griglie) pulldown and summary line.
     """
-    from apps.base.models import SampleArea, SampleGrid, Survey
+    from apps.base.models import SampleGrid
 
-    columns = ['row_id', 'version', 'Nome', 'Descrizione', 'N. aree',
-               'Comprese', 'N. rilevamenti', 'Ultimo aggiornamento']
-    rows = []
-    for g in SampleGrid.objects.order_by('-modified_at'):
-        areas = SampleArea.objects.filter(sample_grid=g) \
-                                  .select_related('parcel__region')
-        n_aree = areas.count()
-        comprese = sorted({sa.parcel.region.name for sa in areas})
-        n_rilev = Survey.objects.filter(sample_grid=g).count()
-        last_area = areas.order_by('-modified_at').values_list(
-            'modified_at', flat=True).first()
-        last_updated = max(filter(None, [g.modified_at, last_area]))
-        rows.append([
-            g.id, g.version, g.name, g.description, n_aree,
-            ', '.join(comprese), n_rilev,
-            last_updated.isoformat() if last_updated else '',
-        ])
-
-    _write_gzip_json({'columns': columns, 'rows': rows}, _dest('grids'))
+    rows = [build_grid_record(g)
+            for g in SampleGrid.objects.order_by('-modified_at')]
+    _write_gzip_json(
+        {'columns': GRID_COLUMNS, 'rows': rows}, _dest('grids'),
+    )
     print(f'grids.json.gz: {len(rows)} rows')
+
+
+SURVEY_COLUMNS = ['row_id', 'version', 'Nome', 'Descrizione', 'Griglia',
+                  'Piano di taglio', 'N. aree visitate', 'N. aree totali',
+                  'Data primo', 'Data ultimo']
+
+
+def build_survey_record(s) -> list:
+    """Build one row of the `surveys` digest.
+
+    Re-computes the per-survey aggregates (n_visited, first/last date,
+    n_total).  Cheap (one Sample query + one SampleArea count) compared
+    to a full digest regen.  Used by save views after a tree or sample
+    write changes any of those values.
+    """
+    from django.db.models import Count, Max, Min
+    from apps.base.models import Sample, SampleArea
+
+    agg = Sample.objects.filter(survey=s).aggregate(
+        n_visited=Count('sample_area', distinct=True),
+        first_date=Min('date'),
+        last_date=Max('date'),
+    )
+    n_total = SampleArea.objects.filter(sample_grid_id=s.sample_grid_id).count()
+    return [
+        s.id, s.version, s.name, s.description,
+        s.sample_grid_id,
+        s.harvest_plan_id if s.harvest_plan_id else '',
+        agg['n_visited'] or 0,
+        n_total,
+        agg['first_date'].isoformat() if agg['first_date'] else '',
+        agg['last_date'].isoformat() if agg['last_date'] else '',
+    ]
 
 
 def generate_surveys() -> None:
@@ -445,20 +491,17 @@ def generate_surveys() -> None:
     Drives Section 2 (Rilevamenti) pulldown.
     """
     from django.db.models import Count, Max, Min
-    from apps.base.models import Sample, SampleArea, Survey
+    from apps.base.models import SampleArea, Survey
 
-    columns = ['row_id', 'version', 'Nome', 'Descrizione', 'Griglia',
-               'Piano di taglio', 'N. aree visitate', 'N. aree totali',
-               'Data primo', 'Data ultimo']
-
-    # Pre-compute n_total per grid (count of SampleAreas in that grid).
+    # Same shape as build_survey_record but in one query for the
+    # whole-table generator path (build_survey_record's per-row
+    # aggregates would N+1).
     totals_by_grid = dict(
         SampleArea.objects
             .values('sample_grid_id')
             .annotate(n=Count('id'))
             .values_list('sample_grid_id', 'n'),
     )
-
     rows = []
     qs = Survey.objects.select_related('sample_grid', 'harvest_plan') \
                        .annotate(
@@ -478,8 +521,26 @@ def generate_surveys() -> None:
             s.last_date.isoformat() if s.last_date else '',
         ])
 
-    _write_gzip_json({'columns': columns, 'rows': rows}, _dest('surveys'))
+    _write_gzip_json(
+        {'columns': SURVEY_COLUMNS, 'rows': rows}, _dest('surveys'),
+    )
     print(f'surveys.json.gz: {len(rows)} rows')
+
+
+SAMPLE_AREA_COLUMNS = ['row_id', 'version', 'Griglia', 'Compresa',
+                       'Particella', 'Numero', 'Lat', 'Lng', 'Quota',
+                       'Raggio', 'Note']
+
+
+def build_sample_area_record(sa) -> list:
+    """Build one row of the `sample_areas` digest.  Caller must
+    pre-load `parcel.region` (select_related).
+    """
+    return [
+        sa.id, sa.version, sa.sample_grid_id,
+        sa.parcel.region.name, sa.parcel.name, sa.number,
+        sa.lat, sa.lng, sa.altitude_m, sa.r_m, sa.note,
+    ]
 
 
 def generate_sample_areas() -> None:
@@ -489,21 +550,39 @@ def generate_sample_areas() -> None:
     """
     from apps.base.models import SampleArea
 
-    columns = ['row_id', 'version', 'Griglia', 'Compresa', 'Particella',
-               'Numero', 'Lat', 'Lng', 'Quota', 'Raggio', 'Note']
-    rows = []
-    for sa in SampleArea.objects.select_related('parcel__region', 'sample_grid') \
-                                .order_by('sample_grid__name',
-                                          'parcel__region__name',
-                                          'parcel__name', 'number'):
-        rows.append([
-            sa.id, sa.version, sa.sample_grid_id,
-            sa.parcel.region.name, sa.parcel.name, sa.number,
-            sa.lat, sa.lng, sa.altitude_m, sa.r_m, sa.note,
-        ])
-
-    _write_gzip_json({'columns': columns, 'rows': rows}, _dest('sample_areas'))
+    rows = [
+        build_sample_area_record(sa)
+        for sa in (SampleArea.objects
+                   .select_related('parcel__region', 'sample_grid')
+                   .order_by('sample_grid__name',
+                             'parcel__region__name',
+                             'parcel__name', 'number'))
+    ]
+    _write_gzip_json(
+        {'columns': SAMPLE_AREA_COLUMNS, 'rows': rows},
+        _dest('sample_areas'),
+    )
     print(f'sample_areas.json.gz: {len(rows)} rows')
+
+
+SAMPLE_COLUMNS = ['row_id', 'version', 'Survey', 'Sample area', 'Data',
+                  'N. alberi']
+
+
+def build_sample_record(s, n_alberi: int | None = None) -> list:
+    """Build one row of the `samples` digest.
+
+    Pass `n_alberi` when the caller already knows the count to avoid a
+    re-query; otherwise we compute it from the TreeSample table.
+    """
+    from apps.base.models import TreeSample
+
+    if n_alberi is None:
+        n_alberi = TreeSample.objects.filter(sample=s).count()
+    return [
+        s.id, s.version, s.survey_id, s.sample_area_id,
+        s.date.isoformat(), n_alberi or 0,
+    ]
 
 
 def generate_samples() -> None:
@@ -515,19 +594,46 @@ def generate_samples() -> None:
     from django.db.models import Count
     from apps.base.models import Sample
 
-    columns = ['row_id', 'version', 'Survey', 'Sample area', 'Data',
-               'N. alberi']
     rows = []
     qs = Sample.objects.annotate(n_alberi=Count('treesample')) \
                        .order_by('survey_id', 'sample_area_id')
     for s in qs:
-        rows.append([
-            s.id, s.version, s.survey_id, s.sample_area_id,
-            s.date.isoformat(), s.n_alberi or 0,
-        ])
+        rows.append(build_sample_record(s, n_alberi=s.n_alberi or 0))
 
-    _write_gzip_json({'columns': columns, 'rows': rows}, _dest('samples'))
+    _write_gzip_json(
+        {'columns': SAMPLE_COLUMNS, 'rows': rows}, _dest('samples'),
+    )
     print(f'samples.json.gz: {len(rows)} rows')
+
+
+SAMPLED_TREE_COLUMNS = ['row_id', 'version', 'Sample area', 'Data campione',
+                        'Compresa', 'Particella', 'N. area', 'N. albero',
+                        'Specie', 'Tipo', 'Pollone', 'Matricina',
+                        'D (cm)', 'h (m)', 'L10 (mm)', 'V (m³)', 'm (q)',
+                        'PAI', 'Lat', 'Lng']
+
+
+def build_tree_sample_record(ts) -> list:
+    """Build one row of the `sampled_trees_<survey>` digest.
+
+    Caller must pre-load `sample.sample_area.parcel.region` and
+    `tree.species` (select_related).
+    """
+    tree = ts.tree
+    sa = ts.sample.sample_area
+    return [
+        ts.id, ts.version, sa.id, ts.sample.date.isoformat(),
+        sa.parcel.region.name, sa.parcel.name, sa.number,
+        ts.number, tree.species.common_name,
+        'ceduo' if tree.coppice else 'fustaia',
+        ts.shoot, ts.standard,
+        ts.d_cm, float(ts.h_m), ts.l10_mm,
+        float(ts.volume_m3) if ts.volume_m3 is not None else None,
+        float(ts.mass_q) if ts.mass_q is not None else None,
+        tree.preserved,
+        tree.lat if tree.lat is not None else sa.lat,
+        tree.lng if tree.lng is not None else sa.lng,
+    ]
 
 
 def generate_sampled_trees_for_survey(survey_id: int) -> None:
@@ -538,12 +644,6 @@ def generate_sampled_trees_for_survey(survey_id: int) -> None:
     """
     from apps.base.models import TreeSample
 
-    columns = ['row_id', 'version', 'Sample area', 'Data campione',
-               'Compresa', 'Particella', 'N. area', 'N. albero',
-               'Specie', 'Tipo', 'Pollone', 'Matricina',
-               'D (cm)', 'h (m)', 'L10 (mm)', 'V (m³)', 'm (q)',
-               'PAI', 'Lat', 'Lng']
-    rows = []
     qs = (TreeSample.objects
           .filter(sample__survey_id=survey_id)
           .select_related('sample', 'sample__sample_area__parcel__region',
@@ -551,25 +651,9 @@ def generate_sampled_trees_for_survey(survey_id: int) -> None:
           .order_by('sample__sample_area__parcel__region__name',
                     'sample__sample_area__parcel__name',
                     'sample__sample_area__number', 'number', 'shoot'))
-    for ts in qs:
-        tree = ts.tree
-        sa = ts.sample.sample_area
-        rows.append([
-            ts.id, ts.version, sa.id, ts.sample.date.isoformat(),
-            sa.parcel.region.name, sa.parcel.name, sa.number,
-            ts.number, tree.species.common_name,
-            'ceduo' if tree.coppice else 'fustaia',
-            ts.shoot, ts.standard,
-            ts.d_cm, float(ts.h_m), ts.l10_mm,
-            float(ts.volume_m3) if ts.volume_m3 is not None else None,
-            float(ts.mass_q) if ts.mass_q is not None else None,
-            tree.preserved,
-            tree.lat if tree.lat is not None else sa.lat,
-            tree.lng if tree.lng is not None else sa.lng,
-        ])
-
+    rows = [build_tree_sample_record(ts) for ts in qs]
     _write_gzip_json(
-        {'columns': columns, 'rows': rows},
+        {'columns': SAMPLED_TREE_COLUMNS, 'rows': rows},
         _dest(f'sampled_trees_{survey_id}'),
     )
     print(f'sampled_trees_{survey_id}.json.gz: {len(rows)} rows')

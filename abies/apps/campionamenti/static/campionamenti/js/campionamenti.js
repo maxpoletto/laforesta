@@ -711,15 +711,7 @@ async function saveSampleDate(dateStr) {
       showError(data?.message || S.ERROR_GENERIC);
       return;
     }
-    // Refresh samples + surveys digests (date affects surveys.Data primo/
-    // ultimo and N. aree visitate when a new sample is created here).
-    await Promise.all([
-      cache.load(SAMPLES_ID).then(() => { samplesData = cache.get(SAMPLES_ID); }),
-      refreshSurveys(),
-    ]);
-    if (currentTreesId) {
-      try { await cache.load(currentTreesId); } catch {}
-    }
+    applySideEffects(data);
   } catch {
     showError(S.ERROR_NETWORK);
   }
@@ -937,14 +929,10 @@ async function showNewGridForm() {
       if (host) {
         planner = new GridPlanner({
           host,
-          onCreated: async (rowId) => {
-            try {
-              await cache.load(GRIDS_ID);
-              gridsData = cache.get(GRIDS_ID);
-              await cache.load(SAMPLE_AREAS_ID);
-              sampleAreasData = cache.get(SAMPLE_AREAS_ID);
-            } catch {}
-            // Land on the freshly-generated grid.
+          onCreated: (rowId, response) => {
+            // The planner POSTs to grid_save_auto and forwards the
+            // whole response so we can patch caches optimistically.
+            if (response) applySideEffects(response);
             returnToPage({ g: String(rowId) });
           },
         });
@@ -965,11 +953,8 @@ function wireGridEmptyForm(modal) {
   const form = modal.querySelector('#campionamenti-grid-form-empty');
   if (!form) return;
   interceptSubmit(form, GRID_SAVE_URL, {
-    onSuccess: async (data) => {
-      try {
-        await cache.load(GRIDS_ID);
-        gridsData = cache.get(GRIDS_ID);
-      } catch {}
+    onSuccess: (data) => {
+      applySideEffects(data);
       // Pin the just-created grid as active so the user lands on it.
       returnToPage({ g: String(data.row_id) });
     },
@@ -998,9 +983,8 @@ function wireSurveyEmptyForm(modal) {
   const form = modal.querySelector('#campionamenti-survey-form-empty');
   if (!form) return;
   interceptSubmit(form, SURVEY_SAVE_URL, {
-    onSuccess: async (data) => {
-      // Survey create changes grids.N_rilevamenti too, so refresh both.
-      await Promise.all([refreshSurveys(), refreshGrids()]);
+    onSuccess: (data) => {
+      applySideEffects(data);
       // Pin the just-created survey as active so the user lands on it
       // (even though its NULL last_date would sort it below populated
       // surveys in the default-first-row fallback).
@@ -1082,11 +1066,7 @@ function wireGridCsvForm(modal) {
     formId: 'campionamenti-grid-form-csv',
     postUrl: GRID_CSV_IMPORT_URL,
     onSuccess: async (data) => {
-      await refreshGrids();
-      try {
-        await cache.load(SAMPLE_AREAS_ID);
-        sampleAreasData = cache.get(SAMPLE_AREAS_ID);
-      } catch {}
+      applySideEffects(data);
       // Land on the newly-imported grid.
       returnToPage({ g: String(data.row_id) });
     },
@@ -1098,12 +1078,16 @@ function wireSurveyCsvForm(modal) {
     formId: 'campionamenti-survey-form-csv',
     postUrl: TREE_CSV_IMPORT_URL,
     onSuccess: async (data) => {
+      // Bulk tree import — the new TreeSample rows aren't returned
+      // (deliberate: payload could be megabytes).  Refresh the
+      // affected digests via cache.load() instead, then land on the
+      // survey.  See plan §"Open questions" and the M3d directive
+      // that batch imports may stay slow-path.
       await refreshSurveys();
       try {
         await cache.load(SAMPLES_ID);
         samplesData = cache.get(SAMPLES_ID);
       } catch {}
-      // Land on the survey the user just imported into.
       returnToPage({ s: String(data.row_id) });
     },
   });
@@ -1248,14 +1232,11 @@ function wireAreaForm(form) {
   // Filter Particella by Compresa.
   wireParcelByRegion(form);
   interceptSubmit(form, AREA_SAVE_URL, {
-    onSuccess: async () => {
-      // Area add/edit affects sample_areas (obviously), grids.N_aree, and
-      // surveys.N_aree_totali (every survey on this grid).
-      try {
-        await cache.load(SAMPLE_AREAS_ID);
-        sampleAreasData = cache.get(SAMPLE_AREAS_ID);
-      } catch {}
-      await Promise.all([refreshGrids(), refreshSurveys()]);
+    onSuccess: (data) => {
+      // Server returns the area record + grid_record + every affected
+      // survey_record; applySideEffects patches caches + re-renders
+      // the active map / summary.
+      applySideEffects(data);
       returnToPage();
     },
     onValidationError(_data) {},
@@ -1310,15 +1291,8 @@ async function deleteArea(areaId) {
       showError(data?.message || S.ERROR_GENERIC);
       return;
     }
-    // Area delete affects sample_areas, grids.N_aree, and
-    // surveys.N_aree_totali.
-    try {
-      await cache.load(SAMPLE_AREAS_ID);
-      sampleAreasData = cache.get(SAMPLE_AREAS_ID);
-    } catch {}
-    await Promise.all([refreshGrids(), refreshSurveys()]);
-    // Re-render the Griglie map to drop the deleted marker.
-    if (activeGridId != null) renderGriglieMap(activeGridId);
+    cache.removeRow(SAMPLE_AREAS_ID, areaId);
+    applySideEffects(data);
   } catch {
     showError(S.ERROR_NETWORK);
   }
@@ -1346,7 +1320,9 @@ function showRenameGridForm() {
           showError(data?.message || S.ERROR_GENERIC);
           return false;
         }
-        await refreshGrids();
+        applySideEffects(data);
+        updatePulldownOption(sections.g, activeGridId,
+                             gridsData, 'Nome');
         return true;
       } catch {
         showError(S.ERROR_NETWORK);
@@ -1374,8 +1350,10 @@ function showRenameSurveyForm() {
           showError(data?.message || S.ERROR_GENERIC);
           return false;
         }
-        await refreshSurveys();
-        renderRilevamentiSummary(activeSurveyId);
+        applySideEffects(data);
+        // Survey pulldown labels include "(n/m aree)"; rebuild from
+        // the patched surveysData.
+        rebuildSurveyPulldown();
         return true;
       } catch {
         showError(S.ERROR_NETWORK);
@@ -1726,6 +1704,36 @@ function simpleConfirmModal(message, onConfirm) {
   showModal(frag);
 }
 
+/**
+ * Update one option's text in a section's pulldown after a rename.
+ * Looks up the digest row by id, reads `column` for the new label.
+ */
+function updatePulldownOption(section, id, digest, column) {
+  if (!section?.pulldown || !digest) return;
+  const c = digest.columns;
+  const row = digest.rows.find(r => r[c.indexOf('row_id')] === id);
+  if (!row) return;
+  const opt = section.pulldown.querySelector(`option[value="${id}"]`);
+  if (opt) opt.textContent = row[c.indexOf(column)];
+}
+
+/** Survey pulldown label is "<name> (<n>/<m> aree)" — rebuild from cache. */
+function rebuildSurveyPulldown() {
+  const sel = sections.r.pulldown;
+  if (!sel || !surveysData) return;
+  const c = surveysData.columns;
+  const idCol = c.indexOf('row_id');
+  const nameCol = c.indexOf('Nome');
+  const visCol = c.indexOf('N. aree visitate');
+  const totCol = c.indexOf('N. aree totali');
+  for (const opt of sel.options) {
+    const row = surveysData.rows.find(r => r[idCol] === parseInt(opt.value, 10));
+    if (row) {
+      opt.textContent = `${row[nameCol]} (${row[visCol]}/${row[totCol]} aree)`;
+    }
+  }
+}
+
 async function refreshGrids() {
   try {
     await cache.load(GRIDS_ID);
@@ -1738,6 +1746,102 @@ async function refreshSurveys() {
     await cache.load(SURVEYS_ID);
     surveysData = cache.get(SURVEYS_ID);
   } catch {}
+}
+
+/**
+ * Apply all cache-update side effects from a write-view response and
+ * re-render whichever views are affected.  This is the Prelievi
+ * optimistic-update pattern adapted for Campionamenti's multi-cache
+ * surface — see CLAUDE.md §"Optimistic table updates".
+ *
+ * Recognised payload keys (any subset, all optional):
+ *   record          — single row for `data.data_id`
+ *   records         — N rows for `data.data_id` (coppice multi-shoot, CSV)
+ *   sample_record   — patch samplesData (one row)
+ *   survey_record   — patch surveysData (one row)
+ *   survey_records  — patch surveysData (N rows: area write touches every
+ *                     survey on the grid)
+ *   grid_record     — patch gridsData (one row)
+ *   area_records    — patch sampleAreasData (N rows: bulk grid import /
+ *                     auto-generate)
+ *   removed_row_id  — implied: any `data.row_id` whose response carries
+ *                     NO `record`/`records` is treated as a delete on
+ *                     `data.data_id` (callers pass the deleted id as
+ *                     `data.row_id` and the server omits the record).
+ *
+ * After patching the in-memory cache, mirrors the change to the
+ * page-local mirrors (samplesData, surveysData, gridsData,
+ * sampleAreasData) and re-renders maps / table / summary as needed.
+ */
+function applySideEffects(data) {
+  if (!data) return;
+  let touchedTreesDigest = false;
+  let touchedSamples = false;
+  let touchedSurveys = false;
+  let touchedGrids = false;
+  let touchedAreas = false;
+
+  if (data.records && data.data_id) {
+    cache.updateRows(data.data_id, data.records);
+  } else if (data.record && data.data_id) {
+    cache.updateRow(data.data_id, data.row_id, data.record);
+  }
+  // What did the primary `data_id` patch touch?  Used below to decide
+  // which view to re-render.
+  if (data.data_id === currentTreesId) {
+    touchedTreesDigest = true;
+  } else if (data.data_id === SAMPLE_AREAS_ID) {
+    touchedAreas = true;
+  } else if (data.data_id === SAMPLES_ID) {
+    touchedSamples = true;
+  } else if (data.data_id === SURVEYS_ID) {
+    touchedSurveys = true;
+  } else if (data.data_id === GRIDS_ID) {
+    touchedGrids = true;
+  }
+  if (data.sample_record) {
+    cache.updateRow(SAMPLES_ID, data.sample_record[0], data.sample_record);
+    touchedSamples = true;
+  }
+  if (data.survey_record) {
+    cache.updateRow(SURVEYS_ID, data.survey_record[0], data.survey_record);
+    touchedSurveys = true;
+  }
+  if (data.survey_records?.length) {
+    cache.updateRows(SURVEYS_ID, data.survey_records);
+    touchedSurveys = true;
+  }
+  if (data.grid_record) {
+    cache.updateRow(GRIDS_ID, data.grid_record[0], data.grid_record);
+    touchedGrids = true;
+  }
+  if (data.area_records?.length) {
+    cache.updateRows(SAMPLE_AREAS_ID, data.area_records);
+    touchedAreas = true;
+  }
+
+  if (touchedTreesDigest && table && currentTreesId) {
+    table.setData(cache.get(currentTreesId));
+  }
+  if (touchedSamples) {
+    samplesData = cache.get(SAMPLES_ID);
+    // Refresh Section 2 map markers (visited-count tooltip) + Section 3
+    // header date display.
+    if (activeSurveyId != null) renderRilevamentiMap(activeSurveyId);
+    renderAlberiHeader();
+  }
+  if (touchedSurveys) {
+    surveysData = cache.get(SURVEYS_ID);
+    if (activeSurveyId != null) renderRilevamentiSummary(activeSurveyId);
+  }
+  if (touchedGrids) {
+    gridsData = cache.get(GRIDS_ID);
+    if (activeGridId != null) renderGriglieSummary(activeGridId);
+  }
+  if (touchedAreas) {
+    sampleAreasData = cache.get(SAMPLE_AREAS_ID);
+    if (activeGridId != null) renderGriglieMap(activeGridId);
+  }
 }
 
 function gridRow(id) {
@@ -1821,16 +1925,12 @@ async function deleteTreeSample(tsId) {
       showError(data?.message || S.ERROR_GENERIC);
       return;
     }
+    // Optimistic remove + side-effect patches (samples, surveys).
     if (currentTreesId) {
-      try { await cache.load(currentTreesId); } catch {}
+      cache.removeRow(currentTreesId, tsId);
+      if (table) table.setData(cache.get(currentTreesId));
     }
-    // Also refresh samples (materialized N. alberi changed) and the
-    // rendered map markers so the hover-tooltip count stays accurate.
-    try {
-      await cache.load(SAMPLES_ID);
-      samplesData = cache.get(SAMPLES_ID);
-      if (activeSurveyId != null) renderRilevamentiMap(activeSurveyId);
-    } catch {}
+    applySideEffects(data);
   } catch {
     showError(S.ERROR_NETWORK);
   }
@@ -1849,18 +1949,12 @@ function wireTreeForm(form) {
     returnToPage();
   });
   interceptSubmit(form, TREE_SAVE_URL, {
-    onSuccess: async (data, isSaveAndAdd) => {
-      // Server marked sampled_trees_<survey>, samples, and surveys
-      // stale (creating the first tree in an area also creates a
-      // Sample, which bumps surveys.N_aree_visitate / Data ultimo).
-      if (currentTreesId) {
-        try { await cache.load(currentTreesId); } catch {}
-      }
-      try {
-        await cache.load(SAMPLES_ID);
-        samplesData = cache.get(SAMPLES_ID);
-      } catch {}
-      await refreshSurveys();
+    onSuccess: (data, isSaveAndAdd) => {
+      // Optimistic patch: the response carries the new TreeSample
+      // row(s) and the affected Sample + Survey rows; we patch
+      // in-place rather than re-fetching the digest.  See
+      // CLAUDE.md §"Optimistic table updates".
+      applySideEffects(data);
       if (isSaveAndAdd) {
         showAddTreeForm();
       } else {
@@ -1902,11 +1996,21 @@ function wireTreePick(form) {
   const ceduo = form.querySelector('#id_ceduo');
   const lat = form.querySelector('#id_lat');
   const lng = form.querySelector('#id_lng');
+  // row_id is non-empty in edit mode.  The edit path lets the user
+  // adjust the underlying Tree's species / lat / lng (see
+  // views._update_tree_sample), so we must NOT lock those inputs
+  // when row_id is set.
+  const isEditMode = !!form.querySelector('input[name="row_id"]')?.value;
 
   function setLocked(locked) {
     for (const el of [species, ceduo, lat, lng]) {
       if (el) el.disabled = locked;
     }
+    // The "Usa posizione attuale" button is appended to the lng's
+    // form-group later (mountUseLocationButton runs after this).
+    // Re-query each time so we catch it once it's been mounted.
+    const geoBtn = form.querySelector('.latlng-use-location');
+    if (geoBtn) geoBtn.disabled = locked;
   }
 
   function apply() {
@@ -1917,14 +2021,17 @@ function wireTreePick(form) {
       setLocked(false);
       return;
     }
-    // Existing tree: propagate its number, lock the rest.
+    // Existing tree: propagate its number, lock the rest UNLESS we're
+    // editing (the edit path keeps Tree fields editable).  When the
+    // existing tree has NULL lat/lng (option carries empty string),
+    // leave the inputs alone so the template's area-centre default
+    // survives.
     num.value = opt.dataset.number || '';
     if (species && opt.dataset.speciesId) species.value = opt.dataset.speciesId;
     if (ceduo) ceduo.checked = opt.dataset.coppice === '1';
-    if (lat && opt.dataset.lat !== undefined) lat.value = opt.dataset.lat;
-    if (lng && opt.dataset.lng !== undefined) lng.value = opt.dataset.lng;
-    setLocked(true);
-    // Re-fire dependent listeners (V/m preview + fustaia/coppice toggle).
+    if (lat && opt.dataset.lat) lat.value = opt.dataset.lat;
+    if (lng && opt.dataset.lng) lng.value = opt.dataset.lng;
+    setLocked(!isEditMode);
     species?.dispatchEvent(new Event('change'));
     ceduo?.dispatchEvent(new Event('change'));
   }
@@ -2014,26 +2121,25 @@ function wireCoppiceBlock(form) {
     const nextShoot = parseInt(last.dataset.shoot || '0', 10) + 1;
     const clone = last.cloneNode(true);
     clone.dataset.shoot = String(nextShoot);
-    // Clear values + matricina checkbox so each pollone is entered from
-    // scratch.  D/h/L10 inputs are number type so set .value to ''.
     for (const inp of clone.querySelectorAll('input')) {
       if (inp.type === 'checkbox') inp.checked = false;
-      else inp.value = inp.classList.contains('coppice-l10-mm') ? '0' : '';
+      else inp.value = '';
     }
-    // Add a "Rimuovi" button on cloned rows (the first row can never
-    // be removed — there must be at least one pollone).
-    let removeBtn = clone.querySelector('.coppice-remove-btn');
-    if (!removeBtn) {
-      removeBtn = document.createElement('button');
-      removeBtn.type = 'button';
-      removeBtn.className = 'btn coppice-remove-btn';
-      removeBtn.textContent = S.REMOVE_POLLONE;
-      removeBtn.addEventListener('click', () => {
-        clone.remove();
-        renumberLabels();
-      });
-      clone.appendChild(removeBtn);
-    }
+    // cloneNode(true) copies DOM but not event listeners, so any
+    // .coppice-remove-btn on the clone is dead.  Strip it and rebuild
+    // — same as on the first added row (the first pre-template row
+    // has no Remove button at all).
+    const staleRemove = clone.querySelector('.coppice-remove-btn');
+    if (staleRemove) staleRemove.remove();
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'btn coppice-remove-btn';
+    removeBtn.textContent = S.REMOVE_POLLONE;
+    removeBtn.addEventListener('click', () => {
+      clone.remove();
+      renumberLabels();
+    });
+    clone.appendChild(removeBtn);
     shootsHost.appendChild(clone);
     renumberLabels();
   });
@@ -2052,7 +2158,7 @@ function wireCoppiceBlock(form) {
       standard: row.querySelector('.coppice-standard')?.checked || false,
       d_cm: row.querySelector('.coppice-d-cm')?.value || '',
       h_m: row.querySelector('.coppice-h-m')?.value || '',
-      l10_mm: row.querySelector('.coppice-l10-mm')?.value || 0,
+      // L10 isn't meaningful per pollone; server defaults to 0.
     }));
     shootsHidden.value = JSON.stringify(list);
   });
@@ -2069,6 +2175,7 @@ function wireVMPreview(form) {
   const mHidden = form.querySelector('#tree-form-mass-q');
   if (!d || !h || !sp || !preview || !vHidden || !mHidden) return;
 
+  const PLACEHOLDER = 'V = — m³ · m = — q';
   function update() {
     if (ceduo?.checked) {
       preview.textContent = S.CAMPIONAMENTI_NO_VM_FOR_CEDUO;
@@ -2083,7 +2190,10 @@ function wireVMPreview(form) {
     const density = parseFloat(opt?.dataset.density);
     const v = tabacchiVolumeM3(dCm, hM, speciesName);
     if (v == null) {
-      preview.textContent = S.CAMPIONAMENTI_VM_INCOMPLETE;
+      // Stay on the placeholder until all three inputs (D, h, species)
+      // are filled — no chatty hint, the operator sees the V = — m³
+      // line and works it out.
+      preview.textContent = PLACEHOLDER;
       vHidden.value = '';
       mHidden.value = '';
       return;

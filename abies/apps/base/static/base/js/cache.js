@@ -75,6 +75,20 @@ export function updateRow(dataId, rowId, record) {
 }
 
 /**
+ * Update or insert N rows.  Each record's row_id is record[0]
+ * (digest convention).  Used by multi-row writes (e.g. the coppice
+ * tree-save path that creates one TreeSample per shoot in one POST).
+ *
+ * @param {string} dataId
+ * @param {Array<Array>} records
+ */
+export function updateRows(dataId, records) {
+  for (const r of records) {
+    if (Array.isArray(r) && r.length > 0) updateRow(dataId, r[0], r);
+  }
+}
+
+/**
  * Remove a single row from a cached digest by row_id.
  *
  * @param {string} dataId

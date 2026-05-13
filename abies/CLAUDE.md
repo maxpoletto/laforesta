@@ -479,6 +479,46 @@ above.
    update. The error message is displayed in a modal and the user has the chance
    to try deletion again.
 
+### Optimistic table updates — the contract that keeps writes snappy
+
+Every write that mutates a row in a user-visible table MUST return the
+full row in the success response — `record` for single-row writes,
+`records` for bulk writes — shaped identically to the corresponding
+JSON digest.  The client patches the cache via `cache.updateRow`
+(`apps/base/static/base/js/cache.js:66`) or `cache.updateRows`, then
+re-renders the table from the cached data via
+`table.setData(cache.get(dataId))`.  No network round trip on the hot
+path, no server-side digest regeneration on the hot path.  The
+server-side `mark_stale()` flag still runs so the next cold reader (or
+the next background refresh) regenerates the on-disk digest.
+
+When a write also bumps a *materialised* value in another digest
+(e.g., a tree-save changes `samples.N_alberi` and
+`surveys.N_aree_visitate`), the response carries those rows too:
+`sample_record`, `survey_record` (or `_records`), `grid_record`,
+`area_records`.  The Campionamenti client funnels these through a
+single `applySideEffects(data)` helper in
+`apps/campionamenti/static/campionamenti/js/campionamenti.js` that
+patches every affected cache and re-renders the touched view (map,
+summary, table).
+
+**The contract that prevents drift.**  Extract a `build_<digest>_record`
+helper in `apps/base/digests.py` and call it from BOTH the digest
+generator and every write view.  Lock the column-shape contract with
+a test that builds a fresh row through the digest generator and a
+record through the write view, then asserts they are equal.  See
+`build_harvest_record` (`apps/base/digests.py:184`) for the original
+pattern and `build_tree_sample_record` etc. for the Campionamenti
+versions.
+
+**Why this matters.**  Tree-save on Campionamenti was a 5+ second
+round trip during M3d before this pattern landed — the digest
+generator scanned thousands of TreeSample rows on every save.
+Returning the freshly-built row inline cuts that to a single INSERT +
+one helper call, well under 200 ms.  Bulk paths (CSV imports) that
+would carry megabytes of records may stay on the slow path —
+`tree_csv_import_view` is the documented exception.
+
 ## Error reporting
 
 Errors are reported in modals. Errors include validation errors, conflicts, and

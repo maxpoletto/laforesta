@@ -798,6 +798,223 @@ class TestAreaCRUD:
         assert resp.status_code == 403
 
 
+class TestRecordShape:
+    """Per CLAUDE.md §"Optimistic table updates" — every write view
+    returns a `record` (or `records`) shaped identically to the
+    corresponding JSON digest row.  Locks the column-shape contract
+    between the digest generators and the write views.
+    """
+
+    @staticmethod
+    def _post(client, url, body):
+        import json
+        return client.post(
+            url, data=json.dumps(body), content_type='application/json',
+        )
+
+    def test_tree_save_record_matches_digest(self, writer_client, sample_setup):
+        """build_tree_sample_record output == digest row for the same ts."""
+        from apps.base.digests import (
+            SAMPLED_TREE_COLUMNS, build_tree_sample_record,
+        )
+        from apps.base.models import TreeSample
+        s = sample_setup
+        resp = self._post(writer_client, '/api/campionamenti/tree/save/', {
+            'survey_id': str(s['survey'].id),
+            'sample_area_id': str(s['area'].id),
+            'species_id': str(s['tree'].species_id),
+            'number': '42',
+            'd_cm': '30', 'h_m': '20.5', 'l10_mm': '12',
+            'volume_m3': '0.7022', 'mass_q': '6.32',
+            'fustaia': 'true',
+        })
+        assert resp.status_code == 200, resp.content
+        payload = resp.json()
+        # Single-shoot fustaia create → records=[<one row>], no `record`.
+        assert payload.get('records'), payload
+        assert len(payload['records']) == 1
+        record = payload['records'][0]
+        # Match against the canonical row built from the freshly-saved ts.
+        ts = TreeSample.objects.select_related(
+            'sample__survey', 'sample__sample_area__parcel__region',
+            'tree__species', 'tree__parcel',
+        ).get(id=payload['row_id'])
+        assert record == build_tree_sample_record(ts)
+        assert len(record) == len(SAMPLED_TREE_COLUMNS)
+
+    def test_tree_save_coppice_records_match_digest(
+        self, writer_client, sample_setup, species, regions, eclasses,
+    ):
+        """Coppice multi-shoot creates return one record per shoot."""
+        from apps.base.digests import build_tree_sample_record
+        from apps.base.models import Parcel, SampleArea, TreeSample
+        coppice_eclass = next(e for e in eclasses if e.coppice)
+        parcel = Parcel.objects.create(
+            name='cs', region=regions[0], eclass=coppice_eclass,
+            area_ha=Decimal('1.0'),
+        )
+        area = SampleArea.objects.create(
+            sample_grid=sample_setup['grid'], parcel=parcel, number='1',
+            lat=0.0, lng=0.0, r_m=12,
+        )
+        resp = self._post(writer_client, '/api/campionamenti/tree/save/', {
+            'survey_id': str(sample_setup['survey'].id),
+            'sample_area_id': str(area.id),
+            'species_id': str(species[1].id),
+            'number': '1', 'fustaia': 'false',
+            'shoots': json.dumps([
+                {'shoot': 1, 'standard': False, 'd_cm': 5, 'h_m': '8.0'},
+                {'shoot': 2, 'standard': True,  'd_cm': 7, 'h_m': '9.0'},
+            ]),
+            'lat': '0', 'lng': '0',
+        })
+        assert resp.status_code == 200, resp.content
+        payload = resp.json()
+        assert len(payload['records']) == 2
+        ids = [r[0] for r in payload['records']]
+        canonical = {
+            ts.id: build_tree_sample_record(ts)
+            for ts in TreeSample.objects.filter(id__in=ids).select_related(
+                'sample__sample_area__parcel__region',
+                'tree__species', 'tree__parcel',
+            )
+        }
+        for record in payload['records']:
+            assert record == canonical[record[0]]
+
+    def test_tree_save_includes_sample_and_survey_records(
+        self, writer_client, sample_setup,
+    ):
+        s = sample_setup
+        resp = self._post(writer_client, '/api/campionamenti/tree/save/', {
+            'survey_id': str(s['survey'].id),
+            'sample_area_id': str(s['area'].id),
+            'species_id': str(s['tree'].species_id),
+            'number': '42',
+            'd_cm': '30', 'h_m': '20.5', 'l10_mm': '12',
+            'volume_m3': '0.7022', 'mass_q': '6.32',
+            'fustaia': 'true',
+        })
+        from apps.base.digests import (
+            SAMPLE_COLUMNS, SURVEY_COLUMNS, build_sample_record,
+            build_survey_record,
+        )
+        payload = resp.json()
+        assert payload['sample_record'][0] == s['sample'].id
+        assert len(payload['sample_record']) == len(SAMPLE_COLUMNS)
+        s['sample'].refresh_from_db()
+        assert payload['sample_record'] == build_sample_record(s['sample'])
+        s['survey'].refresh_from_db()
+        assert payload['survey_record'] == build_survey_record(s['survey'])
+        assert len(payload['survey_record']) == len(SURVEY_COLUMNS)
+
+    def test_area_save_returns_records(self, writer_client, sample_setup):
+        from apps.base.digests import (
+            build_grid_record, build_sample_area_record, build_survey_record,
+        )
+        from apps.base.models import SampleArea
+        s = sample_setup
+        resp = self._post(writer_client, '/api/campionamenti/area/save/', {
+            'sample_grid_id': s['grid'].id,
+            'parcel_id': s['area'].parcel_id,
+            'number': '7',
+            'lat': '38.5', 'lng': '16.1', 'r_m': '12',
+        })
+        assert resp.status_code == 200, resp.content
+        payload = resp.json()
+        area = SampleArea.objects.select_related(
+            'parcel__region',
+        ).get(id=payload['row_id'])
+        assert payload['record'] == build_sample_area_record(area)
+        s['grid'].refresh_from_db()
+        assert payload['grid_record'] == build_grid_record(s['grid'])
+        # One survey in the fixture; assert it's in survey_records.
+        s['survey'].refresh_from_db()
+        assert any(
+            r == build_survey_record(s['survey'])
+            for r in payload['survey_records']
+        )
+
+    def test_grid_save_returns_record(self, writer_client, db):
+        from apps.base.digests import build_grid_record
+        from apps.base.models import SampleGrid
+        resp = self._post(writer_client, '/api/campionamenti/grid/save/', {
+            'name': 'Griglia X', 'description': 'd',
+        })
+        payload = resp.json()
+        grid = SampleGrid.objects.get(id=payload['row_id'])
+        assert payload['record'] == build_grid_record(grid)
+
+    def test_grid_edit_returns_record(self, writer_client, sample_setup):
+        from apps.base.digests import build_grid_record
+        s = sample_setup
+        resp = self._post(
+            writer_client,
+            f'/api/campionamenti/grid/edit/{s["grid"].id}/',
+            {'name': 'Renamed', 'description': ''},
+        )
+        payload = resp.json()
+        s['grid'].refresh_from_db()
+        assert payload['record'] == build_grid_record(s['grid'])
+
+    def test_survey_save_returns_record(self, writer_client, sample_setup):
+        from apps.base.digests import build_grid_record, build_survey_record
+        from apps.base.models import Survey
+        s = sample_setup
+        resp = self._post(writer_client, '/api/campionamenti/survey/save/', {
+            'name': 'New survey', 'sample_grid_id': s['grid'].id,
+            'description': '',
+        })
+        payload = resp.json()
+        survey = Survey.objects.get(id=payload['row_id'])
+        assert payload['record'] == build_survey_record(survey)
+        s['grid'].refresh_from_db()
+        assert payload['grid_record'] == build_grid_record(s['grid'])
+
+    def test_survey_edit_returns_record(self, writer_client, sample_setup):
+        from apps.base.digests import build_survey_record
+        s = sample_setup
+        resp = self._post(
+            writer_client,
+            f'/api/campionamenti/survey/edit/{s["survey"].id}/',
+            {'name': 'Renamed', 'description': ''},
+        )
+        payload = resp.json()
+        s['survey'].refresh_from_db()
+        assert payload['record'] == build_survey_record(s['survey'])
+
+    def test_sample_date_save_returns_record(self, writer_client, sample_setup):
+        from apps.base.digests import build_sample_record, build_survey_record
+        s = sample_setup
+        resp = self._post(writer_client, '/api/campionamenti/sample/date/', {
+            'survey_id': s['survey'].id,
+            'sample_area_id': s['area'].id,
+            'date': '2025-04-01',
+        })
+        payload = resp.json()
+        s['sample'].refresh_from_db()
+        s['survey'].refresh_from_db()
+        assert payload['record'] == build_sample_record(s['sample'])
+        assert payload['survey_record'] == build_survey_record(s['survey'])
+
+    def test_tree_delete_returns_sample_and_survey(
+        self, writer_client, sample_setup,
+    ):
+        from apps.base.digests import build_sample_record, build_survey_record
+        from apps.base.models import TreeSample
+        s = sample_setup
+        ts_id = TreeSample.objects.first().id
+        resp = writer_client.post(
+            f'/api/campionamenti/tree/delete/{ts_id}/',
+            content_type='application/json',
+        )
+        payload = resp.json()
+        s['sample'].refresh_from_db()
+        s['survey'].refresh_from_db()
+        assert payload['sample_record'] == build_sample_record(s['sample'])
+        assert payload['survey_record'] == build_survey_record(s['survey'])
+
+
 class TestTreeDelete:
     @staticmethod
     def _post(client, ts_id):
