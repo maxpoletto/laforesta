@@ -2,9 +2,18 @@
 
 .campionamenti-section-top {
   display: flex;
+  justify-content: space-between;
   align-items: center;
   gap: 8px;
+  flex-wrap: nowrap;
   margin-bottom: 8px;
+}
+
+.campionamenti-section-left,
+.campionamenti-section-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .campionamenti-pulldown-label {
@@ -16,7 +25,7 @@
   padding: 4px 8px;
   border: 1px solid #888;
   border-radius: 4px;
-  min-width: 320px;
+  width: 300px;
 }
 
 .campionamenti-summary {
@@ -43,10 +52,6 @@
 .rilevamenti-map {
   width: 100%;
   height: 100%;
-}
-
-.campionamenti-add-btn {
-  margin-left: 8px;
 }
 
 .form-readonly-block {

@@ -325,7 +325,7 @@ function buildSTColumns(digestColumns, columnDefs, actions, labels) {
     if (actions.onEdit)
       parts.push(`<span class="action-icon action-edit" title="${escAttr(labels.actionEdit)}">\u270E</span>`);
     if (actions.onDelete)
-      parts.push(`<span class="action-icon action-delete" title="${escAttr(labels.actionDelete)}">\u2715</span>`);
+      parts.push(`<span class="action-icon action-delete" title="${escAttr(labels.actionDelete)}">\u{1F5D1}\u{FE0E}</span>`);
     const html = parts.join(' ');
     cols.push({
       key: '_actions', label: '', sortable: false,

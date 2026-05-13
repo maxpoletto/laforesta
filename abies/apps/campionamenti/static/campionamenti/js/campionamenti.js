@@ -26,11 +26,15 @@ import { mountUseLocationButton } from '../../base/js/latlng-input.js';
 import { tabacchiVolumeM3, massQ } from '../../base/js/volume.js';
 
 const CSS_URL = '/static/campionamenti/css/campionamenti.css';
-const SURVEYS_ID = 'campionamenti-surveys';
-const GRIDS_ID = 'campionamenti-grids';
-const SAMPLE_AREAS_ID = 'campionamenti-sample-areas';
-const SAMPLES_ID = 'campionamenti-samples';
-const TREES_ID_PREFIX = 'campionamenti-trees-';
+// Cache keys MUST match the server's `data_id` strings so that
+// optimistic patches in `applySideEffects` find the right cache entry.
+// See `apps/base/digests.py` for the matching generator names and
+// CLAUDE.md §"Optimistic table updates".
+const SURVEYS_ID = 'surveys';
+const GRIDS_ID = 'grids';
+const SAMPLE_AREAS_ID = 'sample_areas';
+const SAMPLES_ID = 'samples';
+const TREES_ID_PREFIX = 'sampled_trees_';
 
 const SURVEYS_URL = '/api/campionamenti/surveys/data/';
 const GRIDS_URL = '/api/campionamenti/grids/data/';
@@ -278,6 +282,11 @@ function buildGriglieBody(body) {
 
   const topRow = document.createElement('div');
   topRow.className = 'campionamenti-section-top';
+  const left = document.createElement('div');
+  left.className = 'campionamenti-section-left';
+  const right = document.createElement('div');
+  right.className = 'campionamenti-section-right';
+  topRow.append(left, right);
 
   const label = document.createElement('label');
   label.className = 'campionamenti-pulldown-label';
@@ -299,31 +308,30 @@ function buildGriglieBody(body) {
   });
   label.htmlFor = sel.id = 'campionamenti-grid-select';
 
-  topRow.append(label, sel);
+  left.append(label, sel);
+  if (canModify()) {
+    appendEditDeleteIcons(left, {
+      onEdit: () => showRenameGridForm(),
+      onDelete: () => confirmDeleteGrid(),
+    });
+  }
 
-  // CSV export of the active grid's sample areas — symmetric to the
-  // "Importa da CSV" path on the Nuova griglia modal.  Available to
-  // every role (read-only download).
   const exportGridBtn = document.createElement('button');
   exportGridBtn.type = 'button';
-  exportGridBtn.className = 'btn campionamenti-add-btn';
+  exportGridBtn.className = 'btn';
   exportGridBtn.textContent = S.EXPORT_CSV;
   exportGridBtn.addEventListener('click', () => {
     if (activeGridId != null) exportGridAreasCSV(activeGridId);
   });
-  topRow.appendChild(exportGridBtn);
+  right.appendChild(exportGridBtn);
 
   if (canModify()) {
-    appendEditDeleteIcons(topRow, {
-      onEdit: () => showRenameGridForm(),
-      onDelete: () => confirmDeleteGrid(),
-    });
     const addBtn = document.createElement('button');
     addBtn.type = 'button';
-    addBtn.className = 'btn btn-primary campionamenti-add-btn';
+    addBtn.className = 'btn btn-primary';
     addBtn.textContent = S.NEW_GRID_LABEL;
     addBtn.addEventListener('click', () => showNewGridForm());
-    topRow.appendChild(addBtn);
+    right.appendChild(addBtn);
   }
 
   body.appendChild(topRow);
@@ -369,7 +377,9 @@ function appendEditDeleteIcons(host, { onEdit, onDelete }) {
   const del = document.createElement('span');
   del.className = 'action-icon action-delete campionamenti-pulldown-icon';
   del.title = S.ACTION_DELETE;
-  del.textContent = '✕';
+  // U+1F5D1 + U+FE0E — wastebasket, monochrome.  Matches the row
+  // delete glyph in `apps/base/static/base/js/table.js`.
+  del.textContent = '\u{1F5D1}\u{FE0E}';
   del.setAttribute('role', 'button');
   del.addEventListener('click', onDelete);
   host.appendChild(del);
@@ -456,6 +466,11 @@ function buildRilevamentiBody(body) {
 
   const topRow = document.createElement('div');
   topRow.className = 'campionamenti-section-top';
+  const left = document.createElement('div');
+  left.className = 'campionamenti-section-left';
+  const right = document.createElement('div');
+  right.className = 'campionamenti-section-right';
+  topRow.append(left, right);
 
   const label = document.createElement('label');
   label.className = 'campionamenti-pulldown-label';
@@ -480,33 +495,30 @@ function buildRilevamentiBody(body) {
   });
   label.htmlFor = sel.id = 'campionamenti-survey-select';
 
-  topRow.append(label, sel);
+  left.append(label, sel);
+  if (canModify()) {
+    appendEditDeleteIcons(left, {
+      onEdit: () => showRenameSurveyForm(),
+      onDelete: () => confirmDeleteSurvey(),
+    });
+  }
 
-  // Full-survey CSV export — symmetric to the "Importa da CSV" path on
-  // the Nuovo rilevamento modal.  Distinct from the Section 3 CSV button:
-  // this dumps every TreeSample on the active survey in the import shape,
-  // ignoring the table's area / search filter.  Triggers a digest fetch
-  // when the cache hasn't loaded that survey yet.
   const exportSurveyBtn = document.createElement('button');
   exportSurveyBtn.type = 'button';
-  exportSurveyBtn.className = 'btn campionamenti-add-btn';
+  exportSurveyBtn.className = 'btn';
   exportSurveyBtn.textContent = S.EXPORT_CSV;
   exportSurveyBtn.addEventListener('click', () => {
     if (activeSurveyId != null) exportFullSurveyCSV(activeSurveyId);
   });
-  topRow.appendChild(exportSurveyBtn);
+  right.appendChild(exportSurveyBtn);
 
   if (canModify()) {
-    appendEditDeleteIcons(topRow, {
-      onEdit: () => showRenameSurveyForm(),
-      onDelete: () => confirmDeleteSurvey(),
-    });
     const addBtn = document.createElement('button');
     addBtn.type = 'button';
-    addBtn.className = 'btn btn-primary campionamenti-add-btn';
+    addBtn.className = 'btn btn-primary';
     addBtn.textContent = S.NEW_SURVEY_LABEL;
     addBtn.addEventListener('click', () => showNewSurveyForm());
-    topRow.appendChild(addBtn);
+    right.appendChild(addBtn);
   }
 
   body.appendChild(topRow);
@@ -1999,8 +2011,16 @@ function wireTreePick(form) {
   // row_id is non-empty in edit mode.  The edit path lets the user
   // adjust the underlying Tree's species / lat / lng (see
   // views._update_tree_sample), so we must NOT lock those inputs
-  // when row_id is set.
+  // when row_id is set.  But the tree number itself is fixed in edit:
+  // an edit operates on one specific TreeSample, not a pivot to
+  // another tree.  Lock the pulldown and hide "Salva e aggiungi"
+  // (which is a batch-entry affordance, meaningless for edits).
   const isEditMode = !!form.querySelector('input[name="row_id"]')?.value;
+  if (isEditMode) {
+    pick.disabled = true;
+    const saveAndAdd = form.querySelector('button[data-action="save-and-add"]');
+    if (saveAndAdd) saveAndAdd.style.display = 'none';
+  }
 
   function setLocked(locked) {
     for (const el of [species, ceduo, lat, lng]) {
