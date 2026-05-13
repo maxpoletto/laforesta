@@ -186,6 +186,11 @@ export const CASCADE_EXPORT_REQUIRED =
 export const RENAME_TITLE_GRID = 'Modifica griglia';
 export const RENAME_TITLE_SURVEY = 'Modifica rilevamento';
 
+// CSV import status (large files can take many seconds)
+export const CSV_IMPORT_IN_PROGRESS =
+  'Importazione in corso, attendere…  ' +
+  'Non chiudere la finestra né cliccare di nuovo "Importa".';
+
 // Roles
 export const ROLE_ADMIN = 'admin';
 export const ROLE_WRITER = 'writer';

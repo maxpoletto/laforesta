@@ -999,11 +999,20 @@ function wireCsvUploadForm(modal, opts) {
   const form = modal.querySelector(`#${opts.formId}`);
   if (!form) return;
   const errorsBox = form.querySelector('.csv-import-errors');
+  const statusBox = form.querySelector('.csv-import-status');
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (errorsBox) { errorsBox.hidden = true; errorsBox.replaceChildren(); }
     const submitBtn = form.querySelector('button[type="submit"]');
     if (submitBtn) submitBtn.disabled = true;
+    // Large CSVs (e.g., a full annual survey) can take many seconds to
+    // upload + parse + insert.  Without a status line the user thinks
+    // the page is stuck and is tempted to re-click "Importa", which
+    // would queue a duplicate POST as soon as the button re-enables.
+    if (statusBox) {
+      statusBox.textContent = S.CSV_IMPORT_IN_PROGRESS;
+      statusBox.hidden = false;
+    }
     try {
       const fd = new FormData(form);
       const { data, status } = await postFormData(opts.postUrl, fd);
@@ -1020,6 +1029,7 @@ function wireCsvUploadForm(modal, opts) {
       showError(S.ERROR_NETWORK);
     } finally {
       if (submitBtn) submitBtn.disabled = false;
+      if (statusBox) statusBox.hidden = true;
     }
   });
 }
