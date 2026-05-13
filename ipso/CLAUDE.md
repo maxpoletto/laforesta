@@ -119,6 +119,16 @@ ipsometric regressions diverge.
   Site settings → Clear & reset → revisit URL → re-add. Removing
   and re-adding the home-screen shortcut on its own is NOT enough.
   README covers this for end users.
+- **SW fetch handler MUST scope cache lookup to its own cache.**
+  Use `caches.open(CACHE).then(c => c.match(req))`, never the
+  bare `caches.match(req)`. The bare form searches every cache
+  name on the origin, so when a new SW has installed (and
+  pre-populated its own `ipso-v<N+1>` cache) while the old SW is
+  still active, the old SW's fetch handler can return files from
+  the *new* cache — mixing versions and breaking the page with a
+  blank screen (an old `index.html` paired with a new `app.js`
+  that references DOM IDs the old HTML doesn't have, for
+  example).  Surfaced in v0.3.0; fixed in v0.3.1.
 - **GPS cadence under canopy.** `watchPosition` with `maximumAge: 1000`
   (not `0`) gives sub-second-old fixes a free pass and moves callback
   cadence from ~5–10 s to ~1–2 s. `GPS_RESTART_THRESHOLD_MS = 3000`

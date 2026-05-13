@@ -6,7 +6,7 @@
 // only activates after a clean app exit.
 'use strict';
 
-const APP_VERSION = '0.3.0';
+const APP_VERSION = '0.3.1';
 const CACHE = 'ipso-v' + APP_VERSION;
 
 const SHELL = [
@@ -51,13 +51,19 @@ self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET') return;
   e.respondWith((async () => {
-    const cached = await caches.match(req);
+    // IMPORTANT: scope the lookup to THIS SW's cache. The global
+    // `caches.match(req)` searches every cache name in the origin, which
+    // means an old (waiting) SW can serve files from a newer SW's
+    // pre-populated cache (or vice versa), mixing versions and breaking
+    // the page. Bug fixed after v0.2.7→v0.3.0 cross-cache contamination
+    // produced blank screens on first reload after deploy.
+    const cache = await caches.open(CACHE);
+    const cached = await cache.match(req);
     if (cached) return cached;
     try {
       const res = await fetch(req);
       // Don't cache opaque or error responses.
       if (res && res.ok && (res.type === 'basic' || res.type === 'default')) {
-        const cache = await caches.open(CACHE);
         cache.put(req, res.clone());
       }
       return res;
