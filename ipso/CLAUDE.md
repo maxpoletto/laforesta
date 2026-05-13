@@ -27,6 +27,7 @@ make deploy      # reference → icons → test → rsync to ipso.laforesta.it
 index.html          app shell (4 screens: pre, rec, done, data)
 style.css           all styles
 manifest.webmanifest PWA manifest (5 icons under img/)
+version.js          APP_VERSION constant — single source of truth
 sw.js               service worker (cache-first, no skipWaiting)
 app.js              state machine, screen wiring, GPS UI, wake lock
 store.js            IndexedDB wrapper (SCHEMA_VERSION = 3)
@@ -56,12 +57,20 @@ if (typeof module !== 'undefined') module.exports = { ... };
 
 # Versioning
 
-Bump `APP_VERSION` in **both** `app.js` and `sw.js` on every shippable
-change (the SW cache name is derived from it). Old caches are deleted
-in the SW `activate` handler. The SW deliberately does NOT call
-`self.skipWaiting()` — a new SW stays in `waiting` until the app is
-fully closed, so an operator who started a session on version N
-completes it on version N.
+`APP_VERSION` lives in `version.js`.  Bump that single constant on
+every shippable change.  Both consumers read it:
+
+- `index.html` loads `version.js` as the first `<script>` tag, so
+  `APP_VERSION` is in the page's lexical scope by the time
+  `app.js` references it.
+- `sw.js` does `importScripts('./version.js')` at the top and
+  derives `CACHE = 'ipso-v' + APP_VERSION` from it.
+
+The SW cache name therefore tracks the version automatically.  Old
+caches are deleted in the SW `activate` handler.  The SW
+deliberately does NOT call `self.skipWaiting()` — a new SW stays
+in `waiting` until the app is fully closed, so an operator who
+started a session on version N completes it on version N.
 
 # Storage
 

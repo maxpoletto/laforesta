@@ -44,7 +44,7 @@ const S = {
   DATA_COUNT: 'Conteggio',
   DATA_COL_NUMERO: 'N.',
   DATA_COL_SPECIE: 'Specie',
-  DATA_COL_GRUPPO: 'Gr.',
+  DATA_COL_GRUPPO: 'Gruppo',
   DATA_COL_D: 'D',
   DATA_COL_H: 'h',
   DATA_CLOSE: 'Chiudi',
@@ -85,12 +85,16 @@ const S = {
     'posizione per ipso.laforesta.it nelle impostazioni del browser.',
   BACKUP_SAVED: (n) => `Backup CSV salvato (${n} alberi).`,
 
-  // Pill formatter
+  // Pill formatter. Prepends "n. <numero> · " when the operator assigned
+  // a numero to the tree (Number.isInteger), otherwise omits the slot
+  // entirely — for trees auto-blanked by the D ≤ 17 rule there's no
+  // visible number to show.
   pill(rec) {
     if (!rec) return S.REC_NO_LAST;
     const d = rec.d_cm != null ? `D=${rec.d_cm}` : 'D=—';
     const h = rec.h_m != null ? `h=${rec.h_m}` : 'h=—';
-    return `${S.REC_LAST_PREFIX} ${rec.specie}, ${d}, ${h}`;
+    const numPart = Number.isInteger(rec.numero) ? `n. ${rec.numero} · ` : '';
+    return `${S.REC_LAST_PREFIX} ${numPart}${rec.specie}, ${d}, ${h}`;
   },
 
   // "Where" formatter used in the recording-screen header, the app-bar

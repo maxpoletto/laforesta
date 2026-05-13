@@ -265,12 +265,22 @@ assertEqual(session.validateTree(null), ['empty'], 'validate: null');
 assertEqual(
   session.summarizePill({ specie: 'Abete', d_cm: 42, h_m: 24 }),
   'Abete, D=42, h=24',
-  'pill: full'
+  'pill: no numero -> no n. prefix'
 );
 assertEqual(
   session.summarizePill({ specie: 'Pino Nero', d_cm: 30, h_m: null }),
   'Pino Nero, D=30, h=—',
-  'pill: no h'
+  'pill: no h, no numero'
+);
+assertEqual(
+  session.summarizePill({ specie: 'Abete', d_cm: 42, h_m: 24, numero: 7 }),
+  'n. 7 · Abete, D=42, h=24',
+  'pill: numero prepended'
+);
+assertEqual(
+  session.summarizePill({ specie: 'Abete', d_cm: 42, h_m: 24, numero: null }),
+  'Abete, D=42, h=24',
+  'pill: explicit null numero -> no n. prefix'
 );
 assertEqual(session.summarizePill(null), 'nessun albero', 'pill: null');
 

@@ -6,7 +6,8 @@
 // only activates after a clean app exit.
 'use strict';
 
-const APP_VERSION = '0.3.1';
+// APP_VERSION lives in version.js, shared with the page.
+importScripts('./version.js');
 const CACHE = 'ipso-v' + APP_VERSION;
 
 const SHELL = [
@@ -14,6 +15,7 @@ const SHELL = [
   './index.html',
   './manifest.webmanifest',
   './style.css',
+  './version.js',
   './app.js',
   './csv.js',
   './ipso.js',

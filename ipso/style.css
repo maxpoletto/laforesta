@@ -207,6 +207,7 @@ button {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 8px;
   font-size: 13px;
   color: var(--grey-2);
   border-bottom: 1px solid var(--grey-4);
@@ -215,10 +216,24 @@ button {
 .rec-where {
   font-weight: 600;
   color: var(--green-dark);
+  /* Let the parcel label be the one that truncates if the row is
+     narrower than the GPS line — never the other way around. */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.gps { display: flex; align-items: center; gap: 6px; font-family: ui-monospace, Menlo, Consolas, monospace; }
-.gps-text { white-space: nowrap; }
+.gps {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  /* Hold the GPS line at its content width so accuracy / coordinate
+     refreshes can't push it onto a second line. */
+  flex-shrink: 0;
+}
+.gps-text { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .gps-dot {
   width: 10px;
   height: 10px;
@@ -392,7 +407,7 @@ button {
   top: 0;
   z-index: 1;
 }
-.data-table td.num { text-align: right; }
+.data-table th.num, .data-table td.num { text-align: right; }
 .data-table tr:last-child td { border-bottom: 0; }
 .data-table .empty {
   text-align: center;

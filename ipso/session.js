@@ -41,12 +41,15 @@ function validateTree(rec) {
   return errors;
 }
 
-// Italian summary line for the "ultimo" pill.
+// Italian summary line for the "ultimo" pill (without the "ultimo:"
+// prefix; S.pill in strings.js prepends that). Includes "n. <numero> · "
+// when the operator assigned a numero to the tree.
 function summarizePill(rec) {
   if (!rec) return 'nessun albero';
   const d = rec.d_cm != null ? `D=${rec.d_cm}` : 'D=—';
   const h = rec.h_m != null ? `h=${rec.h_m}` : 'h=—';
-  return `${rec.specie}, ${d}, ${h}`;
+  const numPart = Number.isInteger(rec.numero) ? `n. ${rec.numero} · ` : '';
+  return `${numPart}${rec.specie}, ${d}, ${h}`;
 }
 
 // Returns true when seq should trigger a backup CSV download.

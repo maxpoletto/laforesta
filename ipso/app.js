@@ -5,7 +5,7 @@
 // (store, gps, numpad). This file is mostly UI wiring.
 'use strict';
 
-const APP_VERSION = '0.3.1';
+// APP_VERSION is defined in version.js (loaded before this script).
 
 const State = {
   reference: null,    // parsed reference.json
@@ -373,8 +373,7 @@ function refreshPill() {
     pill.textContent = S.REC_NO_LAST;
     btn.hidden = true;
   } else {
-    pill.textContent = S.REC_LAST_PREFIX + ' n.' +
-      State.lastTreeRow.seq + ' · ' + session.summarizePill(State.lastTreeRow);
+    pill.textContent = S.pill(State.lastTreeRow);
     btn.textContent = S.REC_EDIT_LAST + '/' + S.REC_DELETE_LAST;
     btn.hidden = false;
   }
@@ -387,14 +386,12 @@ function startGps() {
   State.gps = createGps((st) => {
     dot.className = 'gps-dot ' + st.tier;
     if (st.fix && (st.age == null || st.age < 10000)) {
-      let line =
+      // Keep the line a fixed shape so it doesn't jitter the rec-header on
+      // narrow screens. The dot already encodes accuracy tier; the
+      // GPS-stale fallback below kicks in when age > 10 s.
+      text.textContent =
         st.fix.lat.toFixed(5) + ' ' + st.fix.lng.toFixed(5) +
         ' ±' + Math.round(st.fix.acc) + ' m';
-      // Show fix age when noticeable, so the operator can see at a glance
-      // when the indicator is reporting an older reading.
-      const ageSec = st.age != null ? Math.round(st.age / 1000) : 0;
-      if (ageSec >= 2) line += ' · ' + ageSec + 's';
-      text.textContent = line;
     } else if (st.error === 'denied') {
       text.textContent = S.GPS_DENIED;
     } else {
@@ -622,9 +619,14 @@ function renderGroupsTable(trees) {
   }
   const thead = document.createElement('thead');
   const trh = document.createElement('tr');
-  for (const h of [S.DATA_COL_GRUPPO, S.DATA_COUNT]) {
+  const cols = [
+    { label: S.DATA_COL_GRUPPO, num: false },
+    { label: S.DATA_COUNT, num: true },
+  ];
+  for (const c of cols) {
     const th = document.createElement('th');
-    th.textContent = h;
+    th.textContent = c.label;
+    if (c.num) th.className = 'num';
     trh.appendChild(th);
   }
   thead.appendChild(trh);
@@ -660,12 +662,16 @@ function renderTreesTable(trees) {
   const thead = document.createElement('thead');
   const trh = document.createElement('tr');
   const headers = [
-    S.DATA_COL_NUMERO, S.DATA_COL_SPECIE, S.DATA_COL_GRUPPO,
-    S.DATA_COL_D, S.DATA_COL_H,
+    { label: S.DATA_COL_NUMERO, num: true },
+    { label: S.DATA_COL_SPECIE, num: false },
+    { label: S.DATA_COL_GRUPPO, num: false },
+    { label: S.DATA_COL_D, num: true },
+    { label: S.DATA_COL_H, num: true },
   ];
   for (const h of headers) {
     const th = document.createElement('th');
-    th.textContent = h;
+    th.textContent = h.label;
+    if (h.num) th.className = 'num';
     trh.appendChild(th);
   }
   thead.appendChild(trh);
