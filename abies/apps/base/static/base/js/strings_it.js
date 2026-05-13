@@ -191,6 +191,17 @@ export const CSV_IMPORT_IN_PROGRESS =
   'Importazione in corso, attendere…  ' +
   'Non chiudere la finestra né cliccare di nuovo "Importa".';
 
+// Coppice (per-shoot) entry
+export const LABEL_POLLONE = 'N. pollone';
+export const LABEL_MATRICINA = 'Matricina';
+export const ADD_POLLONE = '+ Aggiungi pollone';
+export const REMOVE_POLLONE = 'Rimuovi';
+
+// CSV export filenames for the symmetric "Esporta CSV" buttons on
+// the Griglie + Rilevamenti pulldown rows (mirror the import column shape).
+export const CSV_GRID_AREAS = 'aree-saggio.csv';
+export const CSV_SURVEY_TREES = 'alberi-rilevamento.csv';
+
 // Roles
 export const ROLE_ADMIN = 'admin';
 export const ROLE_WRITER = 'writer';

@@ -352,12 +352,13 @@ class TestTreeFormPriorTrees:
         # next_number = max(existing)+1 = 2
         assert 'data-next="2"' in html
 
-    def test_fustaia_default_off_for_coppice_parcel(
+    def test_ceduo_default_on_for_coppice_parcel(
         self, writer_client, sample_setup, regions, eclasses,
     ):
-        """For parcels whose eclass is coppice, fustaia defaults to OFF
-        (spec §"Manual tree + sample entry": "Defaults to fustaia, except
-        in parcels whose eclass.coppice = true, where it defaults to ceduo")."""
+        """For parcels whose eclass is coppice, the Ceduo checkbox
+        defaults to CHECKED (spec §"Manual tree + sample entry":
+        "Defaults to fustaia, except in parcels whose eclass.coppice =
+        true, where it defaults to ceduo")."""
         coppice_eclass = next(e for e in eclasses if e.coppice)
         coppice_parcel = Parcel.objects.create(
             name='99', region=regions[0], eclass=coppice_eclass,
@@ -372,29 +373,26 @@ class TestTreeFormPriorTrees:
             f'&area={coppice_area.id}'
         )
         html = resp.json()['html']
-        # The fustaia checkbox should NOT be checked for coppice areas.
-        # In the form template, "checked" only appears on the fustaia
-        # checkbox.  Match the input line.
-        idx = html.find('id="id_fustaia"')
+        idx = html.find('id="id_ceduo"')
         assert idx >= 0
-        # Look at the entire input tag (up to the closing >).
         tag = html[max(0, idx - 200):idx + 200]
-        assert 'checked' not in tag
+        assert 'checked' in tag
 
-    def test_fustaia_default_on_for_non_coppice_parcel(
+    def test_ceduo_default_off_for_non_coppice_parcel(
         self, writer_client, sample_setup,
     ):
-        """Non-coppice areas default fustaia=on (regression: the existing
-        fixture's parcel uses non-coppice eclass A)."""
+        """Non-coppice areas default Ceduo=off (the common case).
+        Regression: the existing fixture's parcel uses non-coppice
+        eclass A."""
         resp = writer_client.get(
             f'/api/campionamenti/tree/form/?survey={sample_setup["survey"].id}'
             f'&area={sample_setup["area"].id}'
         )
         html = resp.json()['html']
-        idx = html.find('id="id_fustaia"')
+        idx = html.find('id="id_ceduo"')
         assert idx >= 0
         tag = html[max(0, idx - 200):idx + 200]
-        assert 'checked' in tag
+        assert 'checked' not in tag
 
     def test_empty_area_has_only_new(self, writer_client, sample_setup,
                                      regions, eclasses):
@@ -417,6 +415,230 @@ class TestTreeFormPriorTrees:
         assert 'data-next="1"' in html
         # `data-number` is only emitted on prior-tree options.
         assert 'data-number=' not in html
+
+    def test_coppice_tree_listed_with_next_shoot(
+        self, writer_client, sample_setup, species,
+    ):
+        """A coppice tree with shoots [1,2] in this area must appear in
+        the pulldown labelled "ceduo" and carry data-next-shoot=3."""
+        s = sample_setup
+        coppice_tree = Tree.objects.create(
+            species=species[0], parcel=s['area'].parcel,
+            preserved=False, coppice=True,
+        )
+        for sh in (1, 2):
+            TreeSample.objects.create(
+                sample=s['sample'], tree=coppice_tree, shoot=sh,
+                standard=(sh == 2), number=7,
+                d_cm=5 + sh, h_m=Decimal('8.00'), l10_mm=0,
+            )
+        resp = writer_client.get(
+            f'/api/campionamenti/tree/form/?survey={s["survey"].id}'
+            f'&area={s["area"].id}'
+        )
+        html = resp.json()['html']
+        assert 'data-next-shoot="3"' in html
+        assert 'ceduo' in html
+        assert 'n.7' in html
+
+
+class TestTreeSaveCoppice:
+    """Coppice (per-shoot) tree+sample creation via `shoots` JSON."""
+
+    @staticmethod
+    def _post(client, body):
+        import json
+        return client.post(
+            '/api/campionamenti/tree/save/',
+            data=json.dumps(body), content_type='application/json',
+        )
+
+    def test_create_coppice_tree_with_three_shoots(
+        self, writer_client, sample_setup, species, regions, eclasses,
+    ):
+        """One Tree + N TreeSamples, all sharing the same number / tree."""
+        # Use a fresh coppice area so the existing fustaia tree (number=1)
+        # doesn't collide with the coppice tree's number.
+        coppice_eclass = next(e for e in eclasses if e.coppice)
+        parcel = Parcel.objects.create(
+            name='c', region=regions[0], eclass=coppice_eclass,
+            area_ha=Decimal('1.0'),
+        )
+        area = SampleArea.objects.create(
+            sample_grid=sample_setup['grid'], parcel=parcel,
+            number='1', lat=0.0, lng=0.0, r_m=12,
+        )
+        n_trees_before = Tree.objects.count()
+        n_ts_before = TreeSample.objects.count()
+        resp = self._post(writer_client, {
+            'survey_id': str(sample_setup['survey'].id),
+            'sample_area_id': str(area.id),
+            'species_id': str(species[1].id),     # Castagno
+            'number': '1', 'fustaia': 'false',
+            'shoots': json.dumps([
+                {'shoot': 1, 'standard': False, 'd_cm': 5,
+                 'h_m': '8.0', 'l10_mm': 0},
+                {'shoot': 2, 'standard': True,  'd_cm': 7,
+                 'h_m': '9.5', 'l10_mm': 12},
+                {'shoot': 3, 'standard': False, 'd_cm': 4,
+                 'h_m': '7.0', 'l10_mm': 0},
+            ]),
+            'lat': '0', 'lng': '0', 'preserved': '',
+        })
+        assert resp.status_code == 200, resp.content
+        # One new Tree (coppice=True), three new TreeSamples.
+        assert Tree.objects.count() == n_trees_before + 1
+        assert TreeSample.objects.count() == n_ts_before + 3
+        new_tree = Tree.objects.order_by('-id').first()
+        assert new_tree.coppice is True
+        shoots = list(TreeSample.objects.filter(tree=new_tree)
+                      .order_by('shoot').values_list('shoot', 'standard',
+                                                     'd_cm', 'volume_m3',
+                                                     'mass_q'))
+        assert shoots == [
+            (1, False, 5, None, None),
+            (2, True,  7, None, None),
+            (3, False, 4, None, None),
+        ]
+        # All TreeSamples share number=1.
+        assert TreeSample.objects.filter(
+            tree=new_tree,
+        ).values_list('number', flat=True).distinct().count() == 1
+
+    def test_coppice_requires_at_least_one_shoot(
+        self, writer_client, sample_setup, regions, eclasses,
+    ):
+        coppice_eclass = next(e for e in eclasses if e.coppice)
+        parcel = Parcel.objects.create(
+            name='c2', region=regions[0], eclass=coppice_eclass,
+            area_ha=Decimal('1.0'),
+        )
+        area = SampleArea.objects.create(
+            sample_grid=sample_setup['grid'], parcel=parcel, number='1',
+            lat=0.0, lng=0.0, r_m=12,
+        )
+        resp = self._post(writer_client, {
+            'survey_id': str(sample_setup['survey'].id),
+            'sample_area_id': str(area.id),
+            'species_id': str(sample_setup['tree'].species_id),
+            'number': '1', 'fustaia': 'false',
+            'shoots': json.dumps([]),
+        })
+        assert resp.status_code == 400
+        assert 'pollone' in resp.json()['message'].lower()
+
+    def test_coppice_existing_tree_appends_shoots(
+        self, writer_client, sample_setup, species,
+    ):
+        """Picking an existing coppice tree from the pulldown adds new
+        shoots under the same tree_id (no new Tree row)."""
+        s = sample_setup
+        existing = Tree.objects.create(
+            species=species[1], parcel=s['area'].parcel,
+            preserved=False, coppice=True,
+        )
+        TreeSample.objects.create(
+            sample=s['sample'], tree=existing, shoot=1,
+            standard=False, number=42,
+            d_cm=5, h_m=Decimal('8.00'), l10_mm=0,
+        )
+        n_trees_before = Tree.objects.count()
+        # Add a second sample in a new survey so we can append shoots.
+        second_survey = Survey.objects.create(
+            name='Second campaign', sample_grid=s['grid'],
+        )
+        resp = self._post(writer_client, {
+            'survey_id': str(second_survey.id),
+            'sample_area_id': str(s['area'].id),
+            'tree_pick': str(existing.id),
+            'species_id': str(existing.species_id),
+            'number': '42', 'fustaia': 'false',
+            'shoots': json.dumps([
+                {'shoot': 2, 'standard': False, 'd_cm': 6,
+                 'h_m': '8.5', 'l10_mm': 0},
+                {'shoot': 3, 'standard': True,  'd_cm': 8,
+                 'h_m': '9.0', 'l10_mm': 14},
+            ]),
+        })
+        assert resp.status_code == 200, resp.content
+        assert Tree.objects.count() == n_trees_before    # no new tree
+        new_shoots = TreeSample.objects.filter(
+            tree=existing, sample__survey=second_survey,
+        ).order_by('shoot')
+        assert [ts.shoot for ts in new_shoots] == [2, 3]
+        assert [ts.standard for ts in new_shoots] == [False, True]
+
+    def test_coppice_shoot_duplicate_in_sample_refused(
+        self, writer_client, sample_setup, species,
+    ):
+        """Trying to add a pollone that already exists on the same
+        (sample, tree) raises a clean validation error."""
+        s = sample_setup
+        existing = Tree.objects.create(
+            species=species[1], parcel=s['area'].parcel,
+            preserved=False, coppice=True,
+        )
+        TreeSample.objects.create(
+            sample=s['sample'], tree=existing, shoot=1, standard=False,
+            number=99, d_cm=5, h_m=Decimal('8.00'), l10_mm=0,
+        )
+        resp = self._post(writer_client, {
+            'survey_id': str(s['survey'].id),
+            'sample_area_id': str(s['area'].id),
+            'tree_pick': str(existing.id),
+            'species_id': str(existing.species_id),
+            'number': '99', 'fustaia': 'false',
+            'shoots': json.dumps([
+                {'shoot': 1, 'standard': False, 'd_cm': 6,
+                 'h_m': '8.5', 'l10_mm': 0},     # collides
+            ]),
+        })
+        assert resp.status_code == 400
+        msg = resp.json()['message'].lower()
+        assert 'pollone' in msg
+
+    def test_edit_coppice_single_shoot(self, writer_client, sample_setup,
+                                       species):
+        """Editing a single coppice TreeSample updates only that row."""
+        s = sample_setup
+        tree = Tree.objects.create(
+            species=species[1], parcel=s['area'].parcel,
+            preserved=False, coppice=True,
+        )
+        ts1 = TreeSample.objects.create(
+            sample=s['sample'], tree=tree, shoot=1, standard=False,
+            number=15, d_cm=5, h_m=Decimal('8.00'), l10_mm=0,
+        )
+        ts2 = TreeSample.objects.create(
+            sample=s['sample'], tree=tree, shoot=2, standard=True,
+            number=15, d_cm=6, h_m=Decimal('8.50'), l10_mm=12,
+        )
+        n_ts_before = TreeSample.objects.count()
+        resp = self._post(writer_client, {
+            'row_id': str(ts1.id),
+            'survey_id': str(s['survey'].id),
+            'sample_area_id': str(s['area'].id),
+            'tree_pick': str(tree.id),
+            'species_id': str(species[0].id),         # changed
+            'number': '15', 'fustaia': 'false',
+            'shoots': json.dumps([
+                {'shoot': 1, 'standard': True, 'd_cm': 9,
+                 'h_m': '10.0', 'l10_mm': 5},
+            ]),
+            'preserved': '',
+            'lat': '0', 'lng': '0',
+        })
+        assert resp.status_code == 200, resp.content
+        assert TreeSample.objects.count() == n_ts_before
+        ts1.refresh_from_db()
+        ts2.refresh_from_db()
+        # Edited row has the new measurements.
+        assert ts1.d_cm == 9 and ts1.standard is True
+        # Sibling shoot is untouched.
+        assert ts2.d_cm == 6 and ts2.standard is True
+        # The shared Tree's species was updated by the edit.
+        tree.refresh_from_db()
+        assert tree.species_id == species[0].id
 
 
 class TestGridSave:

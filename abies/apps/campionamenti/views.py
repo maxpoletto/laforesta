@@ -88,9 +88,10 @@ def tree_form_view(request, ts_id: int | None = None):
 def tree_save_view(request):
     """Create or update a TreeSample (and its parent Tree row).
 
-    For M3d-write we ship the fustaia path.  Coppice (per-shoot) entry
-    will follow when the form needs it; the schema and Section 3
-    digest are already coppice-aware.
+    Fustaia path: one TreeSample row with shoot=0.
+    Coppice path: N TreeSample rows sharing one Tree, one per shoot
+    (parsed from the `shoots` JSON field).  Edit of a coppice row
+    updates a single TreeSample (no new shoots).
     """
     body = json.loads(request.body)
     ts_id, parsed, errors = _parse_tree_body(body)
@@ -117,23 +118,59 @@ def tree_save_view(request):
                 [S.ERR_TREE_NUMBER_REQUIRED], ts_id, request, body,
             )
 
-    # Reject duplicate tree-number within the same Sample (same area
-    # + same survey).  Same number across different surveys / sample
-    # areas is fine (cross-sample tree identity convention).
-    dup = TreeSample.objects.filter(
-        sample=sample, number=parsed['number'], shoot=0,
-    )
+    # Reject (sample, number) referring to a different tree — within a
+    # sample area, a `number` identifies one physical tree across all
+    # samples in which it appears.  Excluding our target tree (when
+    # known) lets coppice multi-shoot creates and same-tree edits pass.
+    dup = TreeSample.objects.filter(sample=sample, number=parsed['number'])
     if ts_id:
         dup = dup.exclude(id=ts_id)
+    if existing_tree is not None:
+        dup = dup.exclude(tree_id=existing_tree.id)
     if dup.exists():
         return _validation_error(
             [S.ERR_TREE_NUMBER_DUPLICATE.format(parsed['number'])],
             ts_id, request, body,
         )
 
+    # Coppice create with existing tree: detect shoot-number collisions
+    # against existing TreeSamples on this (sample, tree) before commit
+    # so we surface a friendly error instead of an IntegrityError.
+    if parsed['coppice'] and not ts_id and existing_tree is not None:
+        existing_shoots = set(TreeSample.objects.filter(
+            sample=sample, tree=existing_tree,
+        ).values_list('shoot', flat=True))
+        new_shoots = {s['shoot'] for s in parsed['shoots']}
+        collision = sorted(existing_shoots & new_shoots)
+        if collision:
+            return _validation_error(
+                [S.ERR_COPPICE_SHOOT_DUPLICATE.format(collision[0])],
+                ts_id, request, body,
+            )
+
     with transaction.atomic():
         if ts_id:
             ts = _update_tree_sample(ts_id, sample, parsed)
+            response_row_id = ts.id
+        elif parsed['coppice']:
+            tree = existing_tree or Tree.objects.create(
+                species_id=parsed['species_id'],
+                parcel_id=sample.sample_area.parcel_id,
+                lat=parsed['lat'], lng=parsed['lng'],
+                preserved=parsed['preserved'],
+                coppice=True,
+            )
+            created_ids = []
+            for sh in parsed['shoots']:
+                ts = TreeSample.objects.create(
+                    sample=sample, tree=tree, shoot=sh['shoot'],
+                    standard=sh['standard'],
+                    number=parsed['number'],
+                    d_cm=sh['d_cm'], h_m=sh['h_m'], l10_mm=sh['l10_mm'],
+                    volume_m3=None, mass_q=None,
+                )
+                created_ids.append(ts.id)
+            response_row_id = created_ids[-1]
         elif existing_tree is not None:
             # Reuse the existing Tree row.  Do not create a new Tree.
             ts = TreeSample.objects.create(
@@ -144,13 +181,14 @@ def tree_save_view(request):
                 volume_m3=parsed['volume_m3'],
                 mass_q=parsed['mass_q'],
             )
+            response_row_id = ts.id
         else:
             tree = Tree.objects.create(
                 species_id=parsed['species_id'],
                 parcel_id=sample.sample_area.parcel_id,
                 lat=parsed['lat'], lng=parsed['lng'],
                 preserved=parsed['preserved'],
-                coppice=parsed['coppice'],
+                coppice=False,
             )
             ts = TreeSample.objects.create(
                 sample=sample, tree=tree, shoot=0, standard=False,
@@ -160,6 +198,7 @@ def tree_save_view(request):
                 volume_m3=parsed['volume_m3'],
                 mass_q=parsed['mass_q'],
             )
+            response_row_id = ts.id
 
         # tree_save can create a new Sample (first tree in an area) which
         # affects surveys.N_aree_visitate / Data primo / Data ultimo.
@@ -169,7 +208,7 @@ def tree_save_view(request):
 
     response_data = {
         'data_id': f'sampled_trees_{sample.survey_id}',
-        'row_id': ts.id,
+        'row_id': response_row_id,
     }
     nonce = body.get('nonce')
     if nonce:
@@ -424,19 +463,26 @@ def _prior_trees_for_area(area, exclude_ts_id=None):
 
     Same `number` is reused across surveys for the same physical tree
     (cross-sample identity, per campionamenti.md §"Cross-sample tree
-    identity").
+    identity").  For coppice trees the entry also carries `next_shoot`
+    = max(shoot for this tree across all samples) + 1, which the form
+    uses as the starting pollone number when the operator picks this
+    tree from the pulldown.
     """
     qs = (TreeSample.objects
-            .filter(sample__sample_area_id=area.id, shoot=0)
+            .filter(sample__sample_area_id=area.id)
             .select_related('tree__species', 'sample')
-            .order_by('tree_id', '-sample__date'))
+            .order_by('tree_id', '-sample__date', '-shoot'))
     if exclude_ts_id:
         qs = qs.exclude(id=exclude_ts_id)
 
     by_tree = {}
     max_number = 0
+    max_shoot_by_tree = {}
     for ts in qs:
         max_number = max(max_number, ts.number or 0)
+        max_shoot_by_tree[ts.tree_id] = max(
+            max_shoot_by_tree.get(ts.tree_id, 0), ts.shoot or 0,
+        )
         if ts.tree_id in by_tree:
             continue       # already have the most-recent measurement for this tree
         by_tree[ts.tree_id] = {
@@ -450,12 +496,22 @@ def _prior_trees_for_area(area, exclude_ts_id=None):
             'last_d_cm': ts.d_cm,
             'last_h_m': ts.h_m,
         }
+    for tid, row in by_tree.items():
+        row['next_shoot'] = max_shoot_by_tree.get(tid, 0) + 1
     prior = sorted(by_tree.values(), key=lambda r: r['number'])
     return prior, max_number + 1
 
 
 def _parse_tree_body(body):
-    """Extract and validate fields for a fustaia tree+sample save.
+    """Extract and validate fields for a tree+sample save.
+
+    Two branches:
+      - Fustaia (default): reads d_cm/h_m/l10_mm/volume_m3/mass_q from
+        top-level fields.  Creates exactly one TreeSample on save.
+      - Coppice: reads a `shoots` JSON array of {shoot, standard, d_cm,
+        h_m, l10_mm} entries.  Creates N TreeSamples on save (or
+        updates a single one on the edit path — in that case the array
+        carries exactly one row).
 
     `tree_pick` is `'new'` for a brand-new tree (a Tree row will be created)
     or the integer id of an existing Tree in this sample area.  In the latter
@@ -468,32 +524,7 @@ def _parse_tree_body(body):
     ts_id = body.get('row_id')
     ts_id = int(ts_id) if ts_id else None
 
-    try:
-        d_cm = int(body['d_cm'])
-        if d_cm <= 0:
-            errors.append(S.ERR_D_POSITIVE)
-    except (KeyError, ValueError, TypeError):
-        d_cm = 0
-        errors.append(S.ERR_D_POSITIVE)
-
-    try:
-        h_m = Decimal(str(body.get('h_m', '0') or '0'))
-        if h_m <= 0:
-            errors.append(S.ERR_H_POSITIVE)
-    except InvalidOperation:
-        h_m = Decimal('0')
-        errors.append(S.ERR_H_POSITIVE)
-
-    try:
-        l10_mm = int(body.get('l10_mm', 0) or 0)
-    except (ValueError, TypeError):
-        l10_mm = 0
-
     coppice = str(body.get('fustaia', 'true')).lower() in ('false', '0', 'no')
-    if coppice:
-        # Per spec, coppice rows have NULL V and m.  Form for coppice
-        # entry isn't shipped yet (per-shoot block); reject for now.
-        errors.append(S.ERR_COPPICE_NOT_YET_SUPPORTED)
 
     # tree_pick: 'new' or an integer Tree id.  Older payloads without
     # tree_pick default to 'new' so the existing call sites keep working.
@@ -505,25 +536,96 @@ def _parse_tree_body(body):
         except (ValueError, TypeError):
             errors.append(S.ERR_TREE_NUMBER_REQUIRED)
 
+    if coppice:
+        shoots, shoot_errors = _parse_shoots(body.get('shoots'))
+        errors.extend(shoot_errors)
+        # Coppice rows carry no per-tree volume / mass — Tabacchi only
+        # applies to fustaia, per the spec's "V/m blank for ceduo".
+        d_cm = 0
+        h_m = Decimal('0')
+        l10_mm = 0
+    else:
+        shoots = []
+        try:
+            d_cm = int(body['d_cm'])
+            if d_cm <= 0:
+                errors.append(S.ERR_D_POSITIVE)
+        except (KeyError, ValueError, TypeError):
+            d_cm = 0
+            errors.append(S.ERR_D_POSITIVE)
+
+        try:
+            h_m = Decimal(str(body.get('h_m', '0') or '0'))
+            if h_m <= 0:
+                errors.append(S.ERR_H_POSITIVE)
+        except InvalidOperation:
+            h_m = Decimal('0')
+            errors.append(S.ERR_H_POSITIVE)
+
+        try:
+            l10_mm = int(body.get('l10_mm', 0) or 0)
+        except (ValueError, TypeError):
+            l10_mm = 0
+
     parsed = {
         'sample_area_id': int(body['sample_area_id']),
         'survey_id': int(body['survey_id']),
         'species_id': int(body['species_id']) if body.get('species_id') else None,
         'number': int(body.get('number', 0) or 0),
         'd_cm': d_cm,
-        'h_m': h_m.quantize(Decimal('0.01')),
+        'h_m': h_m.quantize(Decimal('0.01')) if not coppice else h_m,
         'l10_mm': l10_mm,
-        'volume_m3': _decimal_or_none(body.get('volume_m3')),
-        'mass_q': _decimal_or_none(body.get('mass_q')),
+        'volume_m3': _decimal_or_none(body.get('volume_m3')) if not coppice else None,
+        'mass_q': _decimal_or_none(body.get('mass_q')) if not coppice else None,
         'lat': _float_or_none(body.get('lat')),
         'lng': _float_or_none(body.get('lng')),
         'preserved': bool(body.get('preserved')),
         'coppice': coppice,
+        'shoots': shoots,
         'tree_pick_existing_id': tree_pick_existing_id,
     }
     if not parsed['number']:
         errors.append(S.ERR_TREE_NUMBER_REQUIRED)
     return ts_id, parsed, errors
+
+
+def _parse_shoots(raw):
+    """Parse the coppice `shoots` JSON array.
+
+    Returns (shoots, errors).  Each shoot dict carries int `shoot`, bool
+    `standard`, int `d_cm` (>0), Decimal `h_m` (>0, 2 d.p.), int `l10_mm`.
+    """
+    if not raw:
+        return [], [S.ERR_COPPICE_NO_SHOOTS]
+    try:
+        items = json.loads(raw) if isinstance(raw, str) else raw
+    except json.JSONDecodeError:
+        return [], [S.ERR_COPPICE_NO_SHOOTS]
+    if not isinstance(items, list) or not items:
+        return [], [S.ERR_COPPICE_NO_SHOOTS]
+
+    shoots = []
+    errors = []
+    for item in items:
+        try:
+            shoot_num = int(item.get('shoot', 0))
+            d_cm = int(item.get('d_cm', 0))
+            h_m = Decimal(str(item.get('h_m', '0') or '0'))
+            l10_mm = int(item.get('l10_mm', 0) or 0)
+            standard = bool(item.get('standard'))
+        except (ValueError, TypeError, InvalidOperation):
+            errors.append(S.ERR_D_POSITIVE)
+            continue
+        if d_cm <= 0:
+            errors.append(S.ERR_D_POSITIVE)
+        if h_m <= 0:
+            errors.append(S.ERR_H_POSITIVE)
+        shoots.append({
+            'shoot': shoot_num, 'standard': standard,
+            'd_cm': d_cm, 'h_m': h_m.quantize(Decimal('0.01')),
+            'l10_mm': l10_mm,
+        })
+    return shoots, errors
 
 
 def _decimal_or_none(v):
@@ -577,11 +679,23 @@ def _update_tree_sample(ts_id, sample, parsed):
     ts = TreeSample.objects.select_for_update().get(id=ts_id)
     ts.sample = sample
     ts.number = parsed['number']
-    ts.d_cm = parsed['d_cm']
-    ts.h_m = parsed['h_m']
-    ts.l10_mm = parsed['l10_mm']
-    ts.volume_m3 = parsed['volume_m3']
-    ts.mass_q = parsed['mass_q']
+    if parsed['coppice']:
+        # Coppice edit form sends exactly one shoot row (the one being
+        # edited); the multi-row "Aggiungi pollone" path is add-only.
+        sh = parsed['shoots'][0]
+        ts.shoot = sh['shoot']
+        ts.standard = sh['standard']
+        ts.d_cm = sh['d_cm']
+        ts.h_m = sh['h_m']
+        ts.l10_mm = sh['l10_mm']
+        ts.volume_m3 = None
+        ts.mass_q = None
+    else:
+        ts.d_cm = parsed['d_cm']
+        ts.h_m = parsed['h_m']
+        ts.l10_mm = parsed['l10_mm']
+        ts.volume_m3 = parsed['volume_m3']
+        ts.mass_q = parsed['mass_q']
     ts.version += 1
     ts.save()
     # Tree fields that can change on edit.

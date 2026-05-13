@@ -301,6 +301,18 @@ function buildGriglieBody(body) {
 
   topRow.append(label, sel);
 
+  // CSV export of the active grid's sample areas — symmetric to the
+  // "Importa da CSV" path on the Nuova griglia modal.  Available to
+  // every role (read-only download).
+  const exportGridBtn = document.createElement('button');
+  exportGridBtn.type = 'button';
+  exportGridBtn.className = 'btn campionamenti-add-btn';
+  exportGridBtn.textContent = S.EXPORT_CSV;
+  exportGridBtn.addEventListener('click', () => {
+    if (activeGridId != null) exportGridAreasCSV(activeGridId);
+  });
+  topRow.appendChild(exportGridBtn);
+
   if (canModify()) {
     appendEditDeleteIcons(topRow, {
       onEdit: () => showRenameGridForm(),
@@ -469,6 +481,20 @@ function buildRilevamentiBody(body) {
   label.htmlFor = sel.id = 'campionamenti-survey-select';
 
   topRow.append(label, sel);
+
+  // Full-survey CSV export — symmetric to the "Importa da CSV" path on
+  // the Nuovo rilevamento modal.  Distinct from the Section 3 CSV button:
+  // this dumps every TreeSample on the active survey in the import shape,
+  // ignoring the table's area / search filter.  Triggers a digest fetch
+  // when the cache hasn't loaded that survey yet.
+  const exportSurveyBtn = document.createElement('button');
+  exportSurveyBtn.type = 'button';
+  exportSurveyBtn.className = 'btn campionamenti-add-btn';
+  exportSurveyBtn.textContent = S.EXPORT_CSV;
+  exportSurveyBtn.addEventListener('click', () => {
+    if (activeSurveyId != null) exportFullSurveyCSV(activeSurveyId);
+  });
+  topRow.appendChild(exportSurveyBtn);
 
   if (canModify()) {
     appendEditDeleteIcons(topRow, {
@@ -1590,6 +1616,93 @@ function exportSurveyCSV(surveyId) {
   URL.revokeObjectURL(a.href);
 }
 
+/**
+ * Section 1 "Esporta CSV": dump the active grid's sample areas in the
+ * same column shape as `_grid_modal.html`'s "Importa da CSV" expects
+ * (Compresa, Particella, Area saggio, Lon, Lat, Quota, Raggio).  This
+ * is a round-trip with the import path — programming GPS devices is
+ * the primary use case per the spec.
+ */
+function exportGridAreasCSV(gridId) {
+  if (!sampleAreasData) return;
+  const c = sampleAreasData.columns;
+  const gridCol = c.indexOf('Griglia');
+  const cols = ['Compresa', 'Particella', 'Area saggio', 'Lon', 'Lat',
+                'Quota', 'Raggio'];
+  const srcCols = ['Compresa', 'Particella', 'Numero', 'Lng', 'Lat',
+                   'Quota', 'Raggio'];
+  const idx = srcCols.map(s => c.indexOf(s));
+  const fmt = S.TABLE_CSV_FORMAT;
+  const lines = [cols.join(fmt.separator)];
+  for (const row of sampleAreasData.rows) {
+    if (row[gridCol] !== gridId) continue;
+    const parts = idx.map(i => csvField(row[i], fmt));
+    lines.push(parts.join(fmt.separator));
+  }
+  downloadCSV(lines, S.CSV_GRID_AREAS);
+}
+
+/**
+ * Section 2 "Esporta CSV": dump every TreeSample on the active survey
+ * in the same column shape as `_survey_modal.html`'s "Importa da CSV"
+ * expects (Compresa, Particella, Area saggio, Albero, Pollone,
+ * Matricina, D_cm, H_m, L10_mm, Genere, Fustaia, Data, PAI).  Distinct
+ * from the Section 3 toolbar's CSV which respects the area / search
+ * filter; this one is the whole survey.
+ *
+ * Lazy-fetches the per-survey digest if not already cached.
+ */
+async function exportFullSurveyCSV(surveyId) {
+  const dataId = `${TREES_ID_PREFIX}${surveyId}`;
+  cache.register(dataId, `${TREES_URL_PREFIX}${surveyId}/`);
+  let d;
+  try { d = await cache.load(dataId); }
+  catch { showError(S.ERROR_NETWORK); return; }
+  if (!d?.rows?.length) {
+    showError(S.NO_RESULTS);
+    return;
+  }
+  const c = d.columns;
+  const cols = ['Compresa', 'Particella', 'Area saggio', 'Albero',
+                'Pollone', 'Matricina', 'D_cm', 'H_m', 'L10_mm',
+                'Genere', 'Fustaia', 'Data', 'PAI'];
+  const srcCols = ['Compresa', 'Particella', 'N. area', 'N. albero',
+                   'Pollone', 'Matricina', 'D (cm)', 'h (m)', 'L10 (mm)',
+                   'Specie', 'Tipo', 'Data campione', 'PAI'];
+  const idx = srcCols.map(s => c.indexOf(s));
+  const tipoCol = c.indexOf('Tipo');
+  const fmt = S.TABLE_CSV_FORMAT;
+  const lines = [cols.join(fmt.separator)];
+  for (const row of d.rows) {
+    const parts = idx.map((i, k) => {
+      if (cols[k] === 'Fustaia') {
+        // Round-trip with import: `Fustaia` = true|false, derived from
+        // the digest's `Tipo` = 'fustaia' | 'ceduo'.
+        return row[tipoCol] === 'fustaia' ? 'true' : 'false';
+      }
+      return csvField(row[i], fmt);
+    });
+    lines.push(parts.join(fmt.separator));
+  }
+  downloadCSV(lines, S.CSV_SURVEY_TREES);
+}
+
+function csvField(v, fmt) {
+  if (v == null) return '';
+  if (typeof v === 'boolean') return v ? 'true' : 'false';
+  if (typeof v === 'number') return String(v).replace('.', fmt.decimal);
+  return String(v).replace(new RegExp(fmt.separator, 'g'), ' ');
+}
+
+function downloadCSV(lines, filename) {
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 function simpleConfirmModal(message, onConfirm) {
   const frag = document.createDocumentFragment();
   const p = document.createElement('p');
@@ -1725,6 +1838,8 @@ async function deleteTreeSample(tsId) {
 
 function wireTreeForm(form) {
   wireTreePick(form);
+  wireCeduoToggle(form);
+  wireCoppiceBlock(form);
   wireVMPreview(form);
   mountUseLocationButton(
     form.querySelector('#id_lat'),
@@ -1784,12 +1899,12 @@ function wireTreePick(form) {
   if (!pick || !num) return;
 
   const species = form.querySelector('#id_species');
-  const fustaia = form.querySelector('#id_fustaia');
+  const ceduo = form.querySelector('#id_ceduo');
   const lat = form.querySelector('#id_lat');
   const lng = form.querySelector('#id_lng');
 
   function setLocked(locked) {
-    for (const el of [species, fustaia, lat, lng]) {
+    for (const el of [species, ceduo, lat, lng]) {
       if (el) el.disabled = locked;
     }
   }
@@ -1805,17 +1920,142 @@ function wireTreePick(form) {
     // Existing tree: propagate its number, lock the rest.
     num.value = opt.dataset.number || '';
     if (species && opt.dataset.speciesId) species.value = opt.dataset.speciesId;
-    if (fustaia) fustaia.checked = opt.dataset.coppice !== '1';
+    if (ceduo) ceduo.checked = opt.dataset.coppice === '1';
     if (lat && opt.dataset.lat !== undefined) lat.value = opt.dataset.lat;
     if (lng && opt.dataset.lng !== undefined) lng.value = opt.dataset.lng;
     setLocked(true);
-    // Re-fire dependent listeners (V/m preview reads species/fustaia/D/h).
+    // Re-fire dependent listeners (V/m preview + fustaia/coppice toggle).
     species?.dispatchEvent(new Event('change'));
-    fustaia?.dispatchEvent(new Event('change'));
+    ceduo?.dispatchEvent(new Event('change'));
   }
 
   pick.addEventListener('change', apply);
   apply();
+}
+
+/**
+ * Toggle visibility + submission of the fustaia / coppice subforms based
+ * on the Ceduo checkbox: unchecked = simple fustaia entry (the common
+ * case), checked = per-shoot coppice block.  Disabled inputs aren't
+ * submitted, so we can disable instead of removing — switching modes
+ * preserves any in-progress entry on the inactive side.
+ */
+function wireCeduoToggle(form) {
+  const ceduo = form.querySelector('#id_ceduo');
+  const fustaiaBlock = form.querySelector('.tree-fustaia-fields');
+  const coppiceBlock = form.querySelector('.tree-coppice-block');
+  if (!ceduo || !fustaiaBlock || !coppiceBlock) return;
+
+  function apply() {
+    const isCoppice = ceduo.checked;
+    fustaiaBlock.hidden = isCoppice;
+    coppiceBlock.hidden = !isCoppice;
+    for (const el of fustaiaBlock.querySelectorAll('input')) {
+      el.disabled = isCoppice;
+    }
+    for (const el of coppiceBlock.querySelectorAll('input')) {
+      el.disabled = !isCoppice;
+    }
+  }
+  ceduo.addEventListener('change', apply);
+  apply();
+}
+
+/**
+ * Wire the coppice per-shoot block:
+ *  - "+ Aggiungi pollone" clones the last row, increments its shoot
+ *    number, blanks the values, attaches a "Rimuovi" button.
+ *  - On form submit, serialise all coppice-shoot rows into the hidden
+ *    `#id_shoots` field as JSON.  Attached before `interceptSubmit`
+ *    so it runs first; that handler then sees the populated payload.
+ *  - When the active tree picks an existing tree (data-next-shoot
+ *    propagates), the first row's shoot number tracks that value.
+ */
+function wireCoppiceBlock(form) {
+  const block = form.querySelector('.tree-coppice-block');
+  if (!block) return;
+  const shootsHost = block.querySelector('.coppice-shoots');
+  const addBtn = block.querySelector('#coppice-add-btn');
+  const ceduo = form.querySelector('#id_ceduo');
+  const pick = form.querySelector('#id_tree_pick');
+  const shootsHidden = form.querySelector('#id_shoots');
+
+  function rows() {
+    return [...shootsHost.querySelectorAll('.coppice-shoot-row')];
+  }
+
+  function renumberLabels() {
+    for (const row of rows()) {
+      const lbl = row.querySelector('.coppice-shoot-label');
+      if (lbl) lbl.textContent = row.dataset.shoot;
+    }
+  }
+
+  function nextShootFromPick() {
+    const opt = pick?.options[pick.selectedIndex];
+    return parseInt(opt?.dataset.nextShoot || '1', 10);
+  }
+
+  // When operator switches the "Numero albero" pulldown to an existing
+  // tree, restart the shoot numbering at that tree's next available
+  // shoot.  Only on the add path (single row); edit path keeps the
+  // shoot number it was rendered with.
+  pick?.addEventListener('change', () => {
+    if (rows().length !== 1) return;
+    if (!addBtn) return;             // edit path: never renumber
+    const first = rows()[0];
+    first.dataset.shoot = String(nextShootFromPick());
+    renumberLabels();
+  });
+
+  addBtn?.addEventListener('click', () => {
+    const all = rows();
+    const last = all[all.length - 1];
+    const nextShoot = parseInt(last.dataset.shoot || '0', 10) + 1;
+    const clone = last.cloneNode(true);
+    clone.dataset.shoot = String(nextShoot);
+    // Clear values + matricina checkbox so each pollone is entered from
+    // scratch.  D/h/L10 inputs are number type so set .value to ''.
+    for (const inp of clone.querySelectorAll('input')) {
+      if (inp.type === 'checkbox') inp.checked = false;
+      else inp.value = inp.classList.contains('coppice-l10-mm') ? '0' : '';
+    }
+    // Add a "Rimuovi" button on cloned rows (the first row can never
+    // be removed — there must be at least one pollone).
+    let removeBtn = clone.querySelector('.coppice-remove-btn');
+    if (!removeBtn) {
+      removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'btn coppice-remove-btn';
+      removeBtn.textContent = S.REMOVE_POLLONE;
+      removeBtn.addEventListener('click', () => {
+        clone.remove();
+        renumberLabels();
+      });
+      clone.appendChild(removeBtn);
+    }
+    shootsHost.appendChild(clone);
+    renumberLabels();
+  });
+
+  form.addEventListener('submit', () => {
+    if (!shootsHidden) return;
+    // Always serialise — the server ignores `shoots` when in fustaia
+    // mode.  Disabling the coppice inputs (wireCeduoToggle) does NOT
+    // remove the hidden field, so blank it explicitly here.
+    if (!ceduo?.checked) {
+      shootsHidden.value = '';
+      return;
+    }
+    const list = rows().map(row => ({
+      shoot: parseInt(row.dataset.shoot || '1', 10),
+      standard: row.querySelector('.coppice-standard')?.checked || false,
+      d_cm: row.querySelector('.coppice-d-cm')?.value || '',
+      h_m: row.querySelector('.coppice-h-m')?.value || '',
+      l10_mm: row.querySelector('.coppice-l10-mm')?.value || 0,
+    }));
+    shootsHidden.value = JSON.stringify(list);
+  });
 }
 
 /** Wire the live V/m preview line under the D/h/L10 fields. */
@@ -1823,14 +2063,14 @@ function wireVMPreview(form) {
   const d = form.querySelector('#id_d_cm');
   const h = form.querySelector('#id_h_m');
   const sp = form.querySelector('#id_species');
-  const fustaiaCb = form.querySelector('input[type="checkbox"][name="fustaia"]');
+  const ceduo = form.querySelector('#id_ceduo');
   const preview = form.querySelector('#tree-form-vm-preview');
   const vHidden = form.querySelector('#tree-form-volume-m3');
   const mHidden = form.querySelector('#tree-form-mass-q');
   if (!d || !h || !sp || !preview || !vHidden || !mHidden) return;
 
   function update() {
-    if (!fustaiaCb?.checked) {
+    if (ceduo?.checked) {
       preview.textContent = S.CAMPIONAMENTI_NO_VM_FOR_CEDUO;
       vHidden.value = '';
       mHidden.value = '';
@@ -1858,7 +2098,7 @@ function wireVMPreview(form) {
   d.addEventListener('input', update);
   h.addEventListener('input', update);
   sp.addEventListener('change', update);
-  fustaiaCb?.addEventListener('change', update);
+  ceduo?.addEventListener('change', update);
   update();
 }
 

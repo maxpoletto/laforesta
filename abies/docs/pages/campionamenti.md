@@ -281,8 +281,9 @@ data, compresa, particella, area di saggio
 Editable fields:
 - numero albero (`tree_sample.number`) (pulldown—see below)
 - specie (pulldown)
-- fustaia (checkbox). Defaults to fustaia, except in parcels whose
-  `eclass.coppice = true`, where it defaults to ceduo.
+- ceduo (checkbox; toggles the per-shoot block below).  Unchecked by
+  default (the common fustaia case); pre-checked in parcels whose
+  `eclass.coppice = true`.
 - D (cm)
 - h (m)
 - L10 (mm) (can be left blank, will default to 0)

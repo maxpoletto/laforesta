@@ -1,19 +1,32 @@
 {% comment %}
 Manual tree+sample entry form (M3d-write).
 
-Coppice (per-shoot) entry isn't shipped yet — the schema is ready,
-but the per-shoot UI block lands in a follow-up.  This form covers
-the fustaia path that maps directly to one tree + one tree_sample.
+Two paths share the same form, gated by the "Ceduo" checkbox:
+  - Unchecked (fustaia, the common case): one TreeSample row.
+    D/h/L10 live on a single row; V/m are computed live by JS.
+  - Checked (ceduo): N TreeSamples sharing one Tree, one per pollone.
+    D/h/L10 (per pollone) live in an indented coppice block, plus a
+    "matricina" toggle and an "Aggiungi pollone" button.  V/m are
+    blank for coppice rows.
+
+Disabled inputs aren't submitted, so the toggle disables the inactive
+side rather than removing it — switching modes preserves any
+in-progress entry on the inactive side.
+
+The `fustaia` POST field uses the hidden+checkbox idiom inverted:
+the hidden carries the default ("true" = fustaia) and the checkbox
+overrides to "false" when checked.  Server-side parsing is unchanged.
 
 "Numero albero" is a pulldown driving cross-sample tree identity:
 picking an existing tree reuses its tree.id (and the client locks
-specie / fustaia / lat / lng to that tree's values).  See
+specie / ceduo / lat / lng to that tree's values).  See
 docs/pages/campionamenti.md §"Cross-sample tree identity".
 {% endcomment %}
 <form id="campionamenti-tree-form">
   <input type="hidden" name="row_id" value="{{ ts.id|default_if_none:'' }}">
   <input type="hidden" name="survey_id" value="{{ survey.id }}">
   <input type="hidden" name="sample_area_id" value="{{ area.id }}">
+  <input type="hidden" name="shoots" id="id_shoots" value="">
 
   <div class="form-readonly-block">
     <div><strong>Data:</strong> {{ sample_date|date:'Y-m-d' }}</div>
@@ -26,7 +39,7 @@ docs/pages/campionamenti.md §"Cross-sample tree identity".
     <div class="form-group">
       <label for="id_tree_pick">N. albero</label>
       <select id="id_tree_pick" name="tree_pick" required>
-        <option value="new" data-next="{{ next_number }}"
+        <option value="new" data-next="{{ next_number }}" data-next-shoot="1"
                 {% if not ts %}selected{% endif %}>
           + nuovo albero
         </option>
@@ -35,10 +48,11 @@ docs/pages/campionamenti.md §"Cross-sample tree identity".
                   data-number="{{ t.number }}"
                   data-species-id="{{ t.species_id }}"
                   data-coppice="{{ t.coppice|yesno:'1,0' }}"
+                  data-next-shoot="{{ t.next_shoot }}"
                   data-lat="{{ t.lat|default_if_none:'' }}"
                   data-lng="{{ t.lng|default_if_none:'' }}"
                   {% if ts and ts.tree_id == t.tree_id %}selected{% endif %}>
-            n.{{ t.number }} ({{ t.species_common_name }}, d={{ t.last_d_cm }}cm, h={{ t.last_h_m }}m)
+            n.{{ t.number }} ({{ t.species_common_name }}{% if t.coppice %}, ceduo{% else %}, d={{ t.last_d_cm }}cm, h={{ t.last_h_m }}m{% endif %})
           </option>
         {% endfor %}
       </select>
@@ -60,36 +74,76 @@ docs/pages/campionamenti.md §"Cross-sample tree identity".
     </div>
     <div class="form-group">
       <label>
-        <input type="hidden" name="fustaia" value="false">
-        <input type="checkbox" name="fustaia" value="true" id="id_fustaia"
-               {% if tree %}{% if not tree.coppice %}checked{% endif %}{% elif fustaia_default %}checked{% endif %}>
-        Fustaia
+        <input type="hidden" name="fustaia" value="true">
+        <input type="checkbox" name="fustaia" value="false" id="id_ceduo"
+               {% if tree %}{% if tree.coppice %}checked{% endif %}{% elif not fustaia_default %}checked{% endif %}>
+        Ceduo
       </label>
     </div>
   </div>
 
-  <div class="form-row">
-    <div class="form-group">
-      <label for="id_d_cm">D (cm)</label>
-      <input type="number" id="id_d_cm" name="d_cm" min="1" step="1" required
-             value="{{ ts.d_cm|default_if_none:'' }}">
+  <div class="tree-fustaia-fields">
+    <div class="form-row">
+      <div class="form-group">
+        <label for="id_d_cm">D (cm)</label>
+        <input type="number" id="id_d_cm" name="d_cm" min="1" step="1"
+               value="{{ ts.d_cm|default_if_none:'' }}">
+      </div>
+      <div class="form-group">
+        <label for="id_h_m">h (m)</label>
+        <input type="number" id="id_h_m" name="h_m" min="0.1" step="0.01"
+               value="{{ ts.h_m|default_if_none:'' }}">
+      </div>
+      <div class="form-group">
+        <label for="id_l10_mm">L10 (mm)</label>
+        <input type="number" id="id_l10_mm" name="l10_mm" min="0" step="1"
+               value="{{ ts.l10_mm|default:0 }}">
+      </div>
     </div>
-    <div class="form-group">
-      <label for="id_h_m">h (m)</label>
-      <input type="number" id="id_h_m" name="h_m" min="0.1" step="0.01" required
-             value="{{ ts.h_m|default_if_none:'' }}">
-    </div>
-    <div class="form-group">
-      <label for="id_l10_mm">L10 (mm)</label>
-      <input type="number" id="id_l10_mm" name="l10_mm" min="0" step="1"
-             value="{{ ts.l10_mm|default:0 }}">
+
+    <div class="form-row tree-form-preview-row">
+      <span class="tree-form-preview" id="tree-form-vm-preview">
+        <em>V = — m³ · m = — q</em>
+      </span>
     </div>
   </div>
 
-  <div class="form-row tree-form-preview-row">
-    <span class="tree-form-preview" id="tree-form-vm-preview">
-      <em>V = — m³ · m = — q</em>
-    </span>
+  <div class="tree-coppice-block" hidden>
+    <p class="form-help">
+      Inserire un pollone per riga.  V e m non si calcolano per alberi
+      cedui.
+    </p>
+    <div class="coppice-shoots">
+      <div class="coppice-shoot-row"
+           data-shoot="{% if ts %}{{ ts.shoot }}{% else %}1{% endif %}">
+        <span class="coppice-shoot-num">N. pollone <span class="coppice-shoot-label">{% if ts %}{{ ts.shoot }}{% else %}1{% endif %}</span></span>
+        <label class="coppice-matricina-label">
+          <input type="checkbox" class="coppice-standard"
+                 {% if ts.standard %}checked{% endif %}>
+          Matricina
+        </label>
+        <label>
+          D (cm)
+          <input type="number" class="coppice-d-cm" min="1" step="1"
+                 value="{{ ts.d_cm|default_if_none:'' }}">
+        </label>
+        <label>
+          h (m)
+          <input type="number" class="coppice-h-m" min="0.1" step="0.01"
+                 value="{{ ts.h_m|default_if_none:'' }}">
+        </label>
+        <label>
+          L10 (mm)
+          <input type="number" class="coppice-l10-mm" min="0" step="1"
+                 value="{{ ts.l10_mm|default:0 }}">
+        </label>
+      </div>
+    </div>
+    {% if not ts %}
+      <button type="button" class="btn coppice-add-btn" id="coppice-add-btn">
+        + Aggiungi pollone
+      </button>
+    {% endif %}
   </div>
 
   <div class="form-row">
@@ -113,9 +167,6 @@ docs/pages/campionamenti.md §"Cross-sample tree identity".
     </div>
   </div>
 
-  <!-- Materialized V/m carried as hidden fields so the server stores
-       client-computed values without redoing Tabacchi.  See
-       docs/database.md and docs/pages/campionamenti.md. -->
   <input type="hidden" name="volume_m3" id="tree-form-volume-m3" value="">
   <input type="hidden" name="mass_q" id="tree-form-mass-q" value="">
 

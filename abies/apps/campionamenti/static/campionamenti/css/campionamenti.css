@@ -69,6 +69,61 @@
   color: #555;
 }
 
+/* Indented per-shoot block shown when "Fustaia" is unchecked.
+ * Each .coppice-shoot-row stacks horizontally on desktop; on narrow
+ * screens it wraps via the inputs' own min-widths. */
+.tree-coppice-block {
+  margin-left: 24px;
+  border-left: 3px solid #2d5d2c;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  background: #f5f7f5;
+}
+
+.coppice-shoot-row {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-bottom: 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px dashed #ccc;
+}
+
+.coppice-shoot-row:last-child {
+  border-bottom: none;
+}
+
+.coppice-shoot-row label {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.9em;
+}
+
+.coppice-shoot-row input[type="number"] {
+  width: 80px;
+}
+
+.coppice-shoot-row .coppice-matricina-label {
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+}
+
+.coppice-shoot-num {
+  font-weight: bold;
+  min-width: 90px;
+}
+
+.coppice-add-btn {
+  margin-top: 4px;
+}
+
+.coppice-remove-btn {
+  margin-left: auto;
+  background: #faa;
+}
+
 .form-help {
   font-size: 0.85em;
   color: #666;

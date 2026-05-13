@@ -102,9 +102,11 @@ ERR_SURVEY_GRID_REQUIRED = 'Selezionare una griglia.'
 ERR_AREA_OUT_OF_SURVEY = (
     'L\'area di saggio non appartiene alla griglia del rilevamento.'
 )
-ERR_COPPICE_NOT_YET_SUPPORTED = (
-    'L\'inserimento manuale di alberi cedui non è ancora supportato. '
-    'Usa l\'import CSV.'
+ERR_COPPICE_NO_SHOOTS = (
+    'Inserire almeno un pollone per un albero ceduo.'
+)
+ERR_COPPICE_SHOOT_DUPLICATE = (
+    'Pollone {} già rilevato in questo campione.'
 )
 ERR_GRID_AUTO_NO_POINTS = (
     'Nessun punto generato.  Esegui prima "Pianifica".'
