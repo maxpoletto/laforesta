@@ -101,7 +101,6 @@ export class GridPlanner {
     }));
     h.appendChild(params);
 
-    // Pianifica button.
     const planBtn = document.createElement('button');
     planBtn.type = 'button';
     planBtn.className = 'btn btn-secondary';
@@ -127,14 +126,27 @@ export class GridPlanner {
     this.leaflet = this.wrapper.getLeafletMap();
     this.pointLayer = L.layerGroup().addTo(this.leaflet);
 
-    // Crea griglia submit.
+    // Bottom button row: [Annulla] [Crea].  Cancel has id `grid-auto-cancel` so
+    // the modal dispatcher binds its handler.
+    const actions = document.createElement('div');
+    actions.className = 'form-actions';
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.className = 'btn';
+    cancelBtn.id = 'grid-auto-cancel';
+    cancelBtn.textContent = 'Annulla';
+    actions.appendChild(cancelBtn);
+
     this.submitBtn = document.createElement('button');
     this.submitBtn.type = 'button';
     this.submitBtn.className = 'btn btn-primary';
-    this.submitBtn.textContent = 'Crea griglia';
+    this.submitBtn.textContent = 'Crea';
     this.submitBtn.disabled = true;
     this.submitBtn.addEventListener('click', () => this._save());
-    h.appendChild(this.submitBtn);
+    actions.appendChild(this.submitBtn);
+
+    h.appendChild(actions);
   }
 
   _labelInput(labelText, tag, attrs) {

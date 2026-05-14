@@ -49,16 +49,19 @@ All three bodies render at once; client toggles via .modal-path-body.active.
     </div>
   </form>
 
-  {# --- Genera automaticamente ----------------------------------------- #}
+  {% comment %}
+    --- Genera automaticamente ---
+    The Annulla / Crea button row is built inside GridPlanner._buildUI
+    so they sit together at the bottom of the planner.  The cancel
+    button keeps id `grid-auto-cancel` so the dispatcher's listener
+    (see wireGridModal in campionamenti.js) still binds.
+  {% endcomment %}
   <div class="modal-path-body grid-path-auto">
     <p class="form-help">
       Genera automaticamente una griglia regolare sulle comprese
       selezionate.
     </p>
     <div id="campionamenti-grid-planner-host"></div>
-    <div class="form-actions">
-      <button type="button" class="btn" id="grid-auto-cancel">Annulla</button>
-    </div>
   </div>
 
   {# --- Importa da CSV ------------------------------------------------- #}
