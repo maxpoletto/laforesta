@@ -2226,7 +2226,7 @@ function wireVMPreview(form) {
     const m = massQ(v, density);
     preview.hidden = false;
     preview.textContent =
-      `V = ${v.toFixed(3).replace('.', ',')} m³   ·   m = ${m.toFixed(2).replace('.', ',')} q`;
+      `V = ${v.toFixed(3).replace('.', ',')} m³  ·  m = ${m.toFixed(2).replace('.', ',')} q`;
     vHidden.value = v.toFixed(4);
     mHidden.value = m.toFixed(3);
   }
