@@ -1,6 +1,7 @@
-<form id="prelievi-form">
-  <input type="hidden" name="row_id" value="{{ op.id|default_if_none:'' }}">
-  <input type="hidden" name="version" value="{{ op.version|default:'1' }}">
+<div class="form-card">
+  <form id="prelievi-form">
+    <input type="hidden" name="row_id" value="{{ op.id|default_if_none:'' }}">
+    <input type="hidden" name="version" value="{{ op.version|default:'1' }}">
 
   <div class="form-row">
     <div class="form-group">
@@ -111,4 +112,5 @@
     <button type="submit" class="btn btn-primary">Salva</button>
     <button type="submit" class="btn btn-primary" data-action="save-and-add">Salva e continua</button>
   </div>
-</form>
+  </form>
+</div>
