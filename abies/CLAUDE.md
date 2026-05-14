@@ -479,6 +479,40 @@ above.
    update. The error message is displayed in a modal and the user has the chance
    to try deletion again.
 
+### Bottom-of-form button layout
+
+Every form (modal or in-page) ends with a single `.form-actions` flex
+row containing the action buttons.  Convention, applied without
+exception:
+
+1. **Cancel first (left).** `<button class="btn">{{ S.CANCEL }}</button>`
+   — always the leftmost child, label "Annulla".
+2. **Primary action last (right).** `class="btn btn-primary"`; label
+   is the verb that commits state ("Salva", "Crea", "Conferma",
+   "Importa"; "Elimina" for destructive flows).
+3. **Optional secondary primary in between.** The typical pair is
+   `[Annulla] [Salva] [Salva e continua]` (tree / harvest forms).
+
+Auxiliary buttons that are *not* commits — e.g. the grid planner's
+"Pianifica" (recompute the preview lattice) — live separately, near
+the controls they relate to, never in the `.form-actions` row.  The
+row is reserved for commit / cancel only.
+
+The shared CSS rule is `.form-actions` in
+`apps/base/static/base/css/common.css`; nothing else should style the
+buttons or their layout.
+
+**Disabled-action affordance.** When an action is impossible in the
+current state (e.g., "Elimina" on an area that already has Samples),
+disable the button with `[disabled]` and set a `title` attribute that
+explains why — never gate the action via a follow-up confirm modal
+that simply refuses.  `.btn:disabled` in common.css greys the button
+and disables hover-darkening.
+
+The secondary "and continue" action is `S.SAVE_AND_CONTINUE`
+(`'Salva e continua'`); the legacy `SAVE_AND_ADD` constant has been
+removed.
+
 ### Optimistic table updates — the contract that keeps writes snappy
 
 Every write that mutates a row in a user-visible table MUST return the
@@ -644,6 +678,43 @@ Below these elements are application-specific controls, organized in collapsible
 sections.
 
 This structure is very similar to that of the Boscoscopio app (laforesta/bosco/b).
+
+**Geojson source for parcel polygons.** Parcels are rendered from
+`data/geo/terreni.geojson`.  Each polygon feature carries
+`properties.layer = "<Compresa>"` (e.g., `"Capistrano"`) and
+`properties.name = "<Compresa>-<particella>"` (e.g.,
+`"Capistrano-10a"`).  `particelle.geojson` is the QGIS export
+companion (outer boundary + viabilità lines) and **must not** be
+used as a map source — binding tooltips against it surfaces raw
+strings like `"03_FABRIZIA"` from the layer prefix.  After fetching,
+call `MapCommon.sortFeaturesByArea(geojson)`
+(`apps/base/static/base/js/map-common.js`) so smaller polygons render
+and tooltip on top of the larger ones containing them; otherwise the
+big "Capistrano" outline can swallow hover events on a nested parcel.
+
+**Parcel hover tooltip.** Every polygon layer binds a sticky tooltip
+rendered by the shared helper `parcelLabel(feature)`
+(`apps/base/static/base/js/geo.js`), which returns
+`"<Compresa> <particella>"`.  Mount with
+`bindTooltip(parcelLabel(f), { sticky: true, direction: 'top' })` so
+the tooltip follows the cursor inside irregular shapes.  Reuse this
+helper in any new map.
+
+**Parcel style.** Both campionamenti maps share `MapCommon.PARCEL_STYLE`
+(warm yellow border, low fill opacity).  Don't inline a style block in
+new map renderers — extend or compose the constant so the look stays
+consistent across maps and basemaps.
+
+**View persistence across re-renders.** Section state objects carry a
+`savedView: { gridId | surveyId, center: [lat, lng], zoom } | null`
+that the map updates on every Leaflet `moveend` / `zoomend` and
+consumes via an `initialView` constructor option.  The stash is
+**identity-keyed**: the renderer accepts a `savedView` only when its
+id matches the current selection — so `returnToPage`-driven full
+re-renders (which transiently clear `activeGridId`) keep the view,
+while switching grid/survey resets to `fitBounds`.  This is what
+makes "save edit → map stays put" feel right.  Mirror the pattern in
+any new map whose contents are re-rendered after data writes.
 
 ## Modals
 
