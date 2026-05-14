@@ -725,6 +725,54 @@ darken by about 50%.
 They are used to display error message (with red text) and help information
 where available (e.g., "?" links next to map navbar elements).
 
+## Form card
+
+Every input/edit form renders inside a `<div class="form-card">`
+wrapper.  The shared rule in `apps/base/static/base/css/common.css`
+sets `max-width: 720px; margin: 0 auto;`, giving the form a centred
+column with ample side margins on wide screens.  Use this wrapper
+for any new form template — both overlay modals (grid, survey,
+injected into `#modal-container`) and inline page forms (area, tree,
+prelievi, rendered into `#content` via `renderFormHTML`) share the
+same treatment.  Do not introduce alternative widths.
+
+The wrapper's `h2` title gets a `12px` bottom margin via
+`.form-card h2` so the first row doesn't collapse against the
+heading.
+
+## Short-entry field width
+
+Short-entry fields — numeric inputs (D, h, L10, quota), lat/lng,
+small pull-downs (species, area number), `<input type="date">` —
+are 120px wide.  Apply via the modifier class:
+`.form-row.narrow > .form-group { flex: 0 0 120px; }`
+(`common.css`).  Add `narrow` to any `.form-row` whose children
+should all be short fields.  This keeps numeric forms compact and
+visually aligned across the app.
+
+Wide fields (full-name inputs, description textareas, the N. albero
+pulldown with cross-sample-identity options) live in plain
+`.form-row` rows where children flex to fill the row.  Do not mix
+narrow + flex children in the same row.
+
+## Read-only fields in edit forms
+
+When a form has fields the user cannot change in the current mode
+(e.g. N. albero / Specie / Ceduo on the Edit-tree form), render them
+as static text using `.readonly-field` (`common.css`) — never as
+`disabled` inputs.  Disabled inputs aren't submitted, so they break
+the wire format and look interactive-but-broken.  Pair the visible
+`<span class="readonly-field">…</span>` with a sibling
+`<input type="hidden" name="…" value="…">` so the form still
+carries the field on submit.
+
+For the Compresa / Particella / Area di saggio header strip at the
+top of the Tree form, use `.form-readonly-flat` — a horizontal row
+of `<label>: value` pairs without a card background.  Reserve the
+legacy `.form-readonly-block` (grey card) for spots where the
+read-only context wants to call attention to itself; the flat
+variant is the default.
+
 ## Accessibility considerations
 
 In its initial version, given the target staff, Abies has no special
