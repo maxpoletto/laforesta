@@ -191,11 +191,6 @@
   border-radius: 4px;
 }
 
-.cascade-delete-btn[disabled] {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
 .csv-import-errors {
   margin: 8px 0;
   padding: 8px 12px;

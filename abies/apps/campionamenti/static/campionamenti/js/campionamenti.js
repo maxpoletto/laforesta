@@ -84,6 +84,15 @@ function fInt(v) { return v == null || v === '' ? '' : String(v); }
 function fBool(v) { return v ? '✓' : ''; }
 function fLat(v) { return typeof v === 'number' ? v.toFixed(5) : (v == null ? '' : v); }
 
+/** True if any cached Sample references `areaId`.  Used to disable
+ *  the Section 1 "Elimina" button at popover-build time. */
+function areaInUse(areaId) {
+  if (!samplesData) return false;
+  const c = samplesData.columns.indexOf('Sample area');
+  if (c < 0) return false;
+  return samplesData.rows.some(r => r[c] === areaId);
+}
+
 const TREES_COLS = {
   'Sample area': { hidden: true },
   'Data campione': { label: S.LABEL_DATE, type: 'date', width: '90px' },
@@ -1214,10 +1223,20 @@ function showAreaPopover(area) {
     const del = document.createElement('button');
     del.className = 'btn btn-primary';
     del.textContent = S.ACTION_DELETE;
-    del.addEventListener('click', () => {
-      dismissModal();
-      confirmDeleteArea(area.id);
-    });
+    // Server refuses deletion of an in-use area with ERR_AREA_IN_USE;
+    // surface that at button-build time so the user doesn't go through
+    // a confirm modal that's about to fail.  The server check stays
+    // for the race-condition case (another writer inserts a sample
+    // between this client's last digest fetch and our POST).
+    if (areaInUse(area.id)) {
+      del.disabled = true;
+      del.title = S.AREA_IN_USE_TOOLTIP;
+    } else {
+      del.addEventListener('click', () => {
+        dismissModal();
+        confirmDeleteArea(area.id);
+      });
+    }
     actions.append(edit, del);
   }
   frag.appendChild(actions);

@@ -200,6 +200,21 @@ body {
 
 .btn-danger:hover { background: #a00; }
 
+/* Disabled buttons (e.g., "Elimina" on an area that has Samples).
+ * Greyed + not-allowed cursor; suppress hover-darkening on the
+ * primary/secondary/danger variants below. */
+.btn:disabled,
+.btn[disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.btn-primary:disabled:hover,
+.btn-primary[disabled]:hover { background: #006400; }
+.btn-secondary:disabled:hover,
+.btn-secondary[disabled]:hover { background: #e8e8e8; }
+.btn-danger:disabled:hover,
+.btn-danger[disabled]:hover { background: #c00; }
+
 /* --- Form elements -------------------------------------------------------- */
 
 input[type="text"],

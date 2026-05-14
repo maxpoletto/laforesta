@@ -171,6 +171,8 @@ export const CAMPIONAMENTI_NO_AREAS_HINT =
 export const CAMPIONAMENTI_NO_GRIDS =
   'Nessuna griglia.  Premi "Nuova griglia" per crearne una.';
 export const ADD_AREA_LABEL = '+ Aggiungi area';
+export const AREA_IN_USE_TOOLTIP =
+  'Area di saggio con campioni: non può essere eliminata.';
 
 // Shared lat/lng input
 export const USE_CURRENT_LOCATION = 'Usa posizione attuale';
