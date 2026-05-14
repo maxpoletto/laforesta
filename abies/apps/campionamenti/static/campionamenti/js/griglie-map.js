@@ -81,13 +81,7 @@ export class GriglieMap {
 
   _renderParcels() {
     this.parcelLayer = L.geoJSON(this.geojson, {
-      style: {
-        color: '#444',
-        weight: 1,
-        opacity: 0.7,
-        fillColor: '#888',
-        fillOpacity: 0.05,
-      },
+      style: MapCommon.PARCEL_STYLE,
       onEachFeature: (feature, lyr) => {
         const label = parcelLabel(feature);
         if (label) lyr.bindTooltip(label, { sticky: true, direction: 'top' });

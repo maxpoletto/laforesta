@@ -357,12 +357,24 @@ const MapCommon = (function() {
         return geojson;
     }
 
+    // Shared Leaflet style for parcel polygons.  Warm yellow against
+    // satellite green/brown gives strong border contrast on every
+    // basemap; fillOpacity stays low so imagery shows through.
+    const PARCEL_STYLE = {
+        color: '#ffd54f',
+        weight: 2,
+        opacity: 0.9,
+        fillColor: '#fff',
+        fillOpacity: 0.04,
+    };
+
     // Public API
     return {
         create,
         geodesicArea,
         sortFeaturesByArea,
-        BASEMAPS
+        BASEMAPS,
+        PARCEL_STYLE,
     };
 })();
 
