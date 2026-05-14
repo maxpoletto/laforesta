@@ -14,7 +14,7 @@ on the Griglie map).  Per `docs/pages/campionamenti.md` §Section 1.
   <input type="hidden" name="sample_grid_id" value="{{ grid.id }}">
   <input type="hidden" name="version" value="{{ area.version|default:0 }}">
 
-  <div class="form-row">
+  <div class="form-row area-form-narrow">
     <div class="form-group">
       <label for="id_area_region">Compresa</label>
       <select id="id_area_region" name="region_id" required>
@@ -42,27 +42,6 @@ on the Griglie map).  Per `docs/pages/campionamenti.md` §Section 1.
       <input type="text" id="id_area_number" name="number" required
              maxlength="20" value="{{ area.number|default:'' }}">
     </div>
-  </div>
-
-  <div class="form-row">
-    <div class="form-group">
-      <label for="id_area_lat">Lat</label>
-      <input type="number" id="id_area_lat" name="lat" step="any" required
-             value="{% if area %}{{ area.lat }}{% else %}{{ initial_lat }}{% endif %}">
-    </div>
-    <div class="form-group">
-      <label for="id_area_lng">Lng</label>
-      <input type="number" id="id_area_lng" name="lng" step="any" required
-             value="{% if area %}{{ area.lng }}{% else %}{{ initial_lng }}{% endif %}">
-    </div>
-  </div>
-
-  <div class="form-row">
-    <div class="form-group">
-      <label for="id_area_altitude">Quota (m)</label>
-      <input type="number" id="id_area_altitude" name="altitude_m" step="1"
-             value="{{ area.altitude_m|default_if_none:'' }}">
-    </div>
     <div class="form-group">
       <label for="id_area_radius">Raggio (m)</label>
       <input type="number" id="id_area_radius" name="r_m" step="1" min="1" required
@@ -70,7 +49,25 @@ on the Griglie map).  Per `docs/pages/campionamenti.md` §Section 1.
     </div>
   </div>
 
-  <div class="form-group">
+  <div class="form-row area-form-narrow" id="area-form-latlng-row">
+    <div class="form-group">
+      <label for="id_area_lat">Lat</label>
+      <input type="number" id="id_area_lat" name="lat" step="0.000001" required
+             value="{% if area %}{{ area.lat }}{% else %}{{ initial_lat }}{% endif %}">
+    </div>
+    <div class="form-group">
+      <label for="id_area_lng">Lng</label>
+      <input type="number" id="id_area_lng" name="lng" step="0.000001" required
+             value="{% if area %}{{ area.lng }}{% else %}{{ initial_lng }}{% endif %}">
+    </div>
+    <div class="form-group">
+      <label for="id_area_altitude">Quota (m)</label>
+      <input type="number" id="id_area_altitude" name="altitude_m" step="1"
+             value="{{ area.altitude_m|default_if_none:'' }}">
+    </div>
+  </div>
+
+  <div class="form-group area-form-note">
     <label for="id_area_note">Note (opzionale)</label>
     <input type="text" id="id_area_note" name="note" maxlength="255"
            value="{{ area.note|default:'' }}">

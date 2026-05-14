@@ -12,6 +12,7 @@ export const SAVE = 'Salva';
 export const SAVE_AND_ADD = 'Salva e aggiungi';
 export const DELETE_CONFIRM = 'I dati cancellati non potranno essere recuperati. Confermi?';
 export const CANCEL = 'Annulla';
+export const CONFIRM = 'Conferma';
 
 // Tables
 export const FILTER_LABEL = 'Filtra';
@@ -166,7 +167,7 @@ export const CAMPIONAMENTI_NO_VM_FOR_CEDUO =
 export const CAMPIONAMENTI_INSERT_AREA_HERE =
   'Inserire una nuova area qui?';
 export const CAMPIONAMENTI_NO_AREAS_HINT =
-  'Clicca sulla mappa per aggiungere un\'area, oppure usa il pulsante.';
+  'Clicca sulla mappa per aggiungere un\'area, o su un\'area per modificarla.';
 export const CAMPIONAMENTI_NO_GRIDS =
   'Nessuna griglia.  Premi "Nuova griglia" per crearne una.';
 export const ADD_AREA_LABEL = '+ Aggiungi area';

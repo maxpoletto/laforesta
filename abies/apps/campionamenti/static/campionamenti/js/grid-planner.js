@@ -65,9 +65,13 @@ export class GridPlanner {
     h.replaceChildren();
     h.classList.add('grid-planner');
 
-    // Grid name + description.
+    // Grid name + description.  `type: 'text'` is mandatory: the
+    // common.css selectors are attribute-explicit (`input[type="text"]`,
+    // `input[type="number"]`, …) and don't match a bare `<input>`, so
+    // without it Nome falls back to user-agent default styling and
+    // visibly mismatches Raggio / Copertura below.
     h.appendChild(this._labelInput('Nome', 'input', {
-      id: 'grid-auto-name', required: true, maxlength: 100,
+      id: 'grid-auto-name', type: 'text', required: true, maxlength: 100,
     }));
     h.appendChild(this._labelInput('Descrizione (opzionale)', 'textarea', {
       id: 'grid-auto-description', rows: 2,

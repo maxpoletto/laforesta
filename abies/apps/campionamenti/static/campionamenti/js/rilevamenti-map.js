@@ -8,6 +8,7 @@
  */
 
 import MapCommon from '../../base/js/map-common.js';
+import { parcelLabel } from '../../base/js/geo.js';
 
 const VISITED_COLOR = '#2d5d2c';     // abies dark green
 const UNVISITED_COLOR = '#8fbf8e';   // abies light green
@@ -17,14 +18,20 @@ export class RilevamentiMap {
   /**
    * @param {object} opts
    * @param {HTMLElement} opts.container
-   * @param {object} opts.geojson — particelle.geojson (sorted-by-area)
+   * @param {object} opts.geojson — terreni.geojson (sorted-by-area)
    * @param {function(number|null): void} opts.onAreaSelect — called with
    *   sample_area_id, or null when the user clicks empty space.
+   * @param {{center: [number,number], zoom: number}} [opts.initialView]
+   *   Open at this view instead of fit-to-parcels.  Used to keep the
+   *   user's pan/zoom across re-renders.
+   * @param {function([number,number], number): void} [opts.onViewChange]
+   *   Called on `moveend` / `zoomend`.
    */
   constructor(opts) {
     this.container = opts.container;
     this.geojson = opts.geojson;
     this.onAreaSelect = opts.onAreaSelect;
+    this.onViewChange = opts.onViewChange || null;
     this.activeAreaId = null;
 
     // Build the map div.
@@ -44,6 +51,7 @@ export class RilevamentiMap {
         if (this.activeAreaId !== null) {
           this.activeAreaId = null;
           this.onAreaSelect(null);
+          this._refreshHighlight();
         }
       }
     });
@@ -52,11 +60,21 @@ export class RilevamentiMap {
     this.markerLayer = L.layerGroup().addTo(this.leaflet);
     this.markers = new Map();    // sample_area_id → CircleMarker
 
-    // Fit to particelle extent on initial render.
-    if (this.parcelLayer) {
+    if (opts.initialView) {
+      this.leaflet.setView(opts.initialView.center, opts.initialView.zoom);
+    } else if (this.parcelLayer) {
       this.leaflet.fitBounds(this.parcelLayer.getBounds(), {
         padding: [20, 20],
       });
+    }
+
+    if (this.onViewChange) {
+      const report = () => {
+        const c = this.leaflet.getCenter();
+        this.onViewChange([c.lat, c.lng], this.leaflet.getZoom());
+      };
+      this.leaflet.on('moveend', report);
+      this.leaflet.on('zoomend', report);
     }
   }
 
@@ -68,6 +86,10 @@ export class RilevamentiMap {
         opacity: 0.7,
         fillColor: '#888',
         fillOpacity: 0.05,
+      },
+      onEachFeature: (feature, lyr) => {
+        const label = parcelLabel(feature);
+        if (label) lyr.bindTooltip(label, { sticky: true, direction: 'top' });
       },
     }).addTo(this.leaflet);
     this.parcelLayer = layer;

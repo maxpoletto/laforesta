@@ -22,6 +22,7 @@ import { fetchForm, renderFormHTML, interceptSubmit } from '../../base/js/forms.
 import { RilevamentiMap } from './rilevamenti-map.js';
 import { GriglieMap } from './griglie-map.js';
 import { GridPlanner } from './grid-planner.js';
+import MapCommon from '../../base/js/map-common.js';
 import { mountUseLocationButton } from '../../base/js/latlng-input.js';
 import { tabacchiVolumeM3, massQ } from '../../base/js/volume.js';
 
@@ -58,7 +59,14 @@ const GRID_FORM_URL = '/api/campionamenti/grid/form/';
 const GRID_SAVE_URL = '/api/campionamenti/grid/save/';
 const SURVEY_FORM_URL = '/api/campionamenti/survey/form/';
 const SURVEY_SAVE_URL = '/api/campionamenti/survey/save/';
-const PARCELLE_GEOJSON_URL = '/api/geo/particelle.geojson';
+// terreni.geojson carries the 99 per-particella polygons with
+// `properties.name = "<Compresa>-<particella>"` (e.g. "Capistrano-10a")
+// and `properties.layer = "<Compresa>"` — the shape `parcelLabel`
+// expects.  `particelle.geojson` is the QGIS-export companion (4 outer
+// boundaries + viabilità lines); it has neither per-particella
+// polygons nor parsable names, so tooltips on it read like
+// "03_FABRIZIA".
+const TERRENI_GEOJSON_URL = '/api/geo/terreni.geojson';
 const PAGE_PATH = '/campionamenti';
 
 const SECTION_KEYS = ['g', 'r', 't'];
@@ -101,9 +109,19 @@ const TREES_COLS = {
 // --- Page state -------------------------------------------------------------
 const sections = {
   g: { title: S.SECTION_GRIGLIE,   open: false, header: null, body: null,
-       pulldown: null, summary: null, mapEl: null, map: null },
+       pulldown: null, summary: null, mapEl: null, map: null,
+       // {gridId, center: [lat,lng], zoom} — stashed across
+       // re-renders so a grid save / area edit doesn't reset the
+       // user's pan/zoom.  Keyed by gridId because `returnToPage`
+       // zeroes the global `activeGridId` before re-running
+       // applyParams; matching by id (not by global flag) lets the
+       // re-render pick up the same view.  Discarded by the renderer
+       // when the gridId changes.
+       savedView: null },
   r: { title: S.SECTION_RILEVAMENTI, open: true, header: null, body: null,
-       pulldown: null, summary: null, mapEl: null, map: null },
+       pulldown: null, summary: null, mapEl: null, map: null,
+       // {surveyId, center, zoom} — same logic, keyed by surveyId.
+       savedView: null },
   t: { title: S.SECTION_ALBERI_CAMPIONATI, open: false, header: null, body: null,
        host: null, emptyEl: null, headerEl: null },
 };
@@ -152,13 +170,16 @@ export async function mount(params) {
       cache.load(GRIDS_ID),
       cache.load(SAMPLE_AREAS_ID),
       cache.load(SAMPLES_ID),
-      fetchJSON(PARCELLE_GEOJSON_URL),
+      fetchJSON(TERRENI_GEOJSON_URL),
     ]);
     surveysData = s;
     gridsData = g;
     sampleAreasData = sa;
     samplesData = sm;
-    parcelleGeo = geo.data;
+    // Sort largest-first so small polygons render — and bind tooltip —
+    // on top of their containing larger neighbours.  Mirrors
+    // `bosco/b/app.js`'s use of the same helper.
+    parcelleGeo = MapCommon.sortFeaturesByArea(geo.data);
   } catch {
     showError(S.ERROR_NETWORK);
     return;
@@ -441,6 +462,8 @@ function renderGriglieMap(gridId) {
     }));
 
   const modify = canModify();
+  const sv = s.savedView;
+  const initialView = (sv && sv.gridId === gridId) ? sv : null;
   s.map = new GriglieMap({
     container: s.mapEl,
     geojson: parcelleGeo,
@@ -449,6 +472,10 @@ function renderGriglieMap(gridId) {
     onEmptyClick: modify
       ? (lat, lng) => promptNewAreaAt(lat, lng)
       : null,
+    initialView,
+    onViewChange: (center, zoom) => {
+      s.savedView = { gridId, center, zoom };
+    },
   });
   s.map.setAreas(areas);
 }
@@ -630,6 +657,8 @@ function renderRilevamentiMap(surveyId) {
     });
   }
 
+  const sv = s.savedView;
+  const initialView = (sv && sv.surveyId === surveyId) ? sv : null;
   s.map = new RilevamentiMap({
     container: s.mapEl,
     geojson: parcelleGeo,
@@ -642,6 +671,10 @@ function renderRilevamentiMap(surveyId) {
       if (areaId != null && !sections.t.open) {
         toggleSection(sections.t, true);
       }
+    },
+    initialView,
+    onViewChange: (center, zoom) => {
+      s.savedView = { surveyId, center, zoom };
     },
   });
   s.map.setAreas(areas, visitedById);
@@ -1205,7 +1238,7 @@ function promptNewAreaAt(lat, lng) {
   cancel.addEventListener('click', dismissModal);
   const ok = document.createElement('button');
   ok.className = 'btn btn-primary';
-  ok.textContent = S.SAVE;
+  ok.textContent = S.CONFIRM;
   ok.addEventListener('click', () => {
     dismissModal();
     showAddAreaForm({ lat, lng });
@@ -1237,9 +1270,13 @@ async function showEditAreaForm(areaId) {
 
 function wireAreaForm(form) {
   form.querySelector('#area-form-cancel')?.addEventListener('click', returnToPage);
+  // Mount the "Usa posizione attuale" button at the end of the
+  // lat/lng/quota row rather than nested inside the lng .form-group,
+  // so it sits inline with the other inputs.
   mountUseLocationButton(
     form.querySelector('#id_area_lat'),
     form.querySelector('#id_area_lng'),
+    { appendTo: form.querySelector('#area-form-latlng-row') },
   );
   // Filter Particella by Compresa.
   wireParcelByRegion(form);

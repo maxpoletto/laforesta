@@ -239,6 +239,13 @@
   margin: 0 auto;
 }
 
+/* Nuova area di saggio — fixed-width fields so the form doesn't
+ * stretch each input across the whole modal on wide screens.
+ * Override the default `.form-row > .form-group { flex: 1 }`. */
+.area-form-narrow > .form-group { flex: 0 0 120px; }
+.area-form-narrow .latlng-use-location { margin-left: auto; align-self: end; }
+.area-form-note input { width: 100%; }
+
 .modal-path-chooser {
   display: flex;
   gap: 8px;
@@ -292,6 +299,14 @@
   display: flex;
   gap: 16px;
 }
+
+/* Nome would otherwise stretch to the full host width (its .form-group
+ * sits outside a .form-row), making it visually inconsistent with the
+ * half-width Raggio / Copertura inputs in .grid-planner-params below.
+ * `calc(50% - 8px)` matches Raggio's flex-1 column algebraically:
+ *   Raggio  = (host - 16px gap) / 2 = host/2 - 8px
+ *   Nome    = 50% - 8px            = host/2 - 8px  */
+.grid-planner #grid-auto-name { width: calc(50% - 8px); }
 
 .grid-planner-map {
   height: 320px;

@@ -71,6 +71,22 @@ export function boundingBox(features) {
   return { minLng, minLat, maxLng, maxLat };
 }
 
+/**
+ * Format a parcel feature as "<compresa> <particella>" for tooltips.
+ * Follows the `bosco/data/terreni.geojson` convention: compresa lives
+ * in `properties.layer`; particella is the slice after the first `-`
+ * of `properties.name`.  Returns '' for non-parcel features.
+ */
+export function parcelLabel(feature) {
+  const p = (feature && feature.properties) || {};
+  const compresa = p.layer || '';
+  const fullName = p.name || '';
+  const dash = fullName.indexOf('-');
+  const particella = dash >= 0 ? fullName.slice(dash + 1) : fullName;
+  if (!compresa && !particella) return '';
+  return `${compresa} ${particella}`.trim();
+}
+
 /** Return the first feature whose polygon contains (lng, lat), or null. */
 export function findContainingParcel(lng, lat, features) {
   for (const f of features) {

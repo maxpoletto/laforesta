@@ -10,6 +10,7 @@
  */
 
 import MapCommon from '../../base/js/map-common.js';
+import { parcelLabel } from '../../base/js/geo.js';
 
 const MARKER_COLOR = '#2d5d2c';
 const MARKER_RADIUS = 7;
@@ -18,7 +19,7 @@ export class GriglieMap {
   /**
    * @param {object} opts
    * @param {HTMLElement} opts.container
-   * @param {object} opts.geojson — particelle.geojson
+   * @param {object} opts.geojson — terreni.geojson (sorted-by-area)
    * @param {function(object): void} [opts.onAreaClick]
    *   Called with the area row ({id, lat, lng, compresa, particella, numero,
    *   altitude, r_m, note}) when an area marker is clicked.  The handler
@@ -26,12 +27,19 @@ export class GriglieMap {
    * @param {function(number, number): void} [opts.onEmptyClick]
    *   Called with (lat, lng) when the user clicks empty map space.
    *   Used by writers to open the "Inserire una nuova area qui?" prompt.
+   * @param {{center: [number,number], zoom: number}} [opts.initialView]
+   *   If given, the map opens at this view instead of fit-to-parcels.
+   *   Used to keep the user's pan/zoom across re-renders.
+   * @param {function([number,number], number): void} [opts.onViewChange]
+   *   Called on `moveend` / `zoomend` so callers can stash the current
+   *   center + zoom.
    */
   constructor(opts) {
     this.container = opts.container;
     this.geojson = opts.geojson;
     this.onAreaClick = opts.onAreaClick || null;
     this.onEmptyClick = opts.onEmptyClick || null;
+    this.onViewChange = opts.onViewChange || null;
     this.markers = new Map();
     this.activeAreaId = null;
 
@@ -55,8 +63,19 @@ export class GriglieMap {
     this._renderParcels();
     this.markerLayer = L.layerGroup().addTo(this.leaflet);
 
-    if (this.parcelLayer) {
+    if (opts.initialView) {
+      this.leaflet.setView(opts.initialView.center, opts.initialView.zoom);
+    } else if (this.parcelLayer) {
       this.leaflet.fitBounds(this.parcelLayer.getBounds(), { padding: [20, 20] });
+    }
+
+    if (this.onViewChange) {
+      const report = () => {
+        const c = this.leaflet.getCenter();
+        this.onViewChange([c.lat, c.lng], this.leaflet.getZoom());
+      };
+      this.leaflet.on('moveend', report);
+      this.leaflet.on('zoomend', report);
     }
   }
 
@@ -68,6 +87,10 @@ export class GriglieMap {
         opacity: 0.7,
         fillColor: '#888',
         fillOpacity: 0.05,
+      },
+      onEachFeature: (feature, lyr) => {
+        const label = parcelLabel(feature);
+        if (label) lyr.bindTooltip(label, { sticky: true, direction: 'top' });
       },
     }).addTo(this.leaflet);
   }
