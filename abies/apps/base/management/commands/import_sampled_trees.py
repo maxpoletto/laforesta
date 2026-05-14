@@ -203,6 +203,9 @@ class Command(BaseCommand):
                 )
                 n_trees += 1
 
+        from apps.base.digests import mark_all_stale
+        mark_all_stale()
+
         self.stdout.write(
             f'Survey: {survey.name}\n'
             f'Samples: {n_samples}\n'

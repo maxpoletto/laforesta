@@ -125,6 +125,9 @@ class Command(BaseCommand):
                 )
                 n_created += 1
 
+        from apps.base.digests import mark_all_stale
+        mark_all_stale()
+
         self.stdout.write(
             f'PAI Trees: {n_created} created, {n_skipped} skipped'
         )

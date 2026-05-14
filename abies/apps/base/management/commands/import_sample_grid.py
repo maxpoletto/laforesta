@@ -103,3 +103,6 @@ class Command(BaseCommand):
         self.stdout.write(
             f'SampleAreas: {n_created} created, {n_skipped} skipped'
         )
+
+        from apps.base.digests import mark_all_stale
+        mark_all_stale()

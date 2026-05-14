@@ -84,3 +84,6 @@ class Command(BaseCommand):
 
         total = Parcel.objects.count()
         self.stdout.write(f'Parcels: {total} ({created} created)')
+
+        from apps.base.digests import mark_all_stale
+        mark_all_stale()

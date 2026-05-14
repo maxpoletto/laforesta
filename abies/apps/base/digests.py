@@ -677,6 +677,22 @@ _GENERATORS: dict[str, callable] = {
 }
 
 
+def mark_all_stale() -> None:
+    """Flag every digest as stale.
+
+    Used by the bulk ETL importers, which bypass the views that
+    normally call `mark_stale()` on writes.  The next read of each
+    digest will trigger lazy regeneration.  Also covers existing
+    `sampled_trees_<survey_id>` rows in DigestStatus so per-survey
+    digests get refreshed on next read.
+    """
+    DigestStatus.objects.update(stale=True)
+    for name in _GENERATORS:
+        DigestStatus.objects.update_or_create(
+            name=name, defaults={'stale': True},
+        )
+
+
 def generate_all() -> None:
     """Regenerate every digest (used by `make digest`).
 

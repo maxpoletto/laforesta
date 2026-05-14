@@ -200,4 +200,7 @@ class Command(BaseCommand):
         HarvestTractor.objects.bulk_create(tractor_records, batch_size=BATCH_SIZE)
         self.stdout.write(f'HarvestTractors: {len(tractor_records)} created')
 
+        from apps.base.digests import mark_all_stale
+        mark_all_stale()
+
         self.stdout.write('Mannesi import complete.')

@@ -92,6 +92,10 @@ class Command(BaseCommand):
         self._import_crews(mannesi_csv)
         self._import_products()
         self._import_notes()
+
+        from apps.base.digests import mark_all_stale
+        mark_all_stale()
+
         self.stdout.write('Reference import complete.')
 
     def _import_regions(self):
