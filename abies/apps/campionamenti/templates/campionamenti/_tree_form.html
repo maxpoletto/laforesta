@@ -144,12 +144,12 @@ docs/pages/campionamenti.md §"Cross-sample tree identity".
   <div class="form-row">
     <div class="form-group">
       <label for="id_lat">Lat</label>
-      <input type="number" id="id_lat" name="lat" step="any"
+      <input type="number" id="id_lat" name="lat" step="0.00001"
              value="{% if tree %}{{ tree.lat|default_if_none:area.lat }}{% else %}{{ area.lat }}{% endif %}">
     </div>
     <div class="form-group">
       <label for="id_lng">Lng</label>
-      <input type="number" id="id_lng" name="lng" step="any"
+      <input type="number" id="id_lng" name="lng" step="0.00001"
              value="{% if tree %}{{ tree.lng|default_if_none:area.lng }}{% else %}{{ area.lng }}{% endif %}">
     </div>
     <div class="form-group">
@@ -169,7 +169,7 @@ docs/pages/campionamenti.md §"Cross-sample tree identity".
     <button type="button" class="btn" id="tree-form-cancel">Annulla</button>
     <button type="submit" class="btn btn-primary" data-action="save">Salva</button>
     <button type="submit" class="btn btn-primary" data-action="save-and-add">
-      Salva e aggiungi
+      Salva e continua
     </button>
   </div>
 </form>

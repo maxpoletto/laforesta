@@ -38,8 +38,8 @@ export function mountUseLocationButton(latEl, lngEl, opts = {}) {
     btn.disabled = true;
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        latEl.value = pos.coords.latitude.toFixed(6);
-        lngEl.value = pos.coords.longitude.toFixed(6);
+        latEl.value = pos.coords.latitude.toFixed(5);
+        lngEl.value = pos.coords.longitude.toFixed(5);
         latEl.dispatchEvent(new Event('change'));
         lngEl.dispatchEvent(new Event('change'));
         btn.disabled = false;

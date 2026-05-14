@@ -283,6 +283,11 @@ input:focus, select:focus, textarea:focus {
   margin-top: 1.25rem;
 }
 
+/* Modal title — give it a bit of breathing room before the first
+ * field.  Without this, browsers' default <h2> margin-bottom collapses
+ * to nearly zero against the first .form-row / .form-group. */
+.modal-form h2 { margin-bottom: 12px; }
+
 /* --- Collapsible sections ------------------------------------------------- */
 
 .collapsible-header {

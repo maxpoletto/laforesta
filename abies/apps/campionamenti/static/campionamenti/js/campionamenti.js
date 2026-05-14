@@ -2050,7 +2050,7 @@ function wireTreePick(form) {
   // views._update_tree_sample), so we must NOT lock those inputs
   // when row_id is set.  But the tree number itself is fixed in edit:
   // an edit operates on one specific TreeSample, not a pivot to
-  // another tree.  Lock the pulldown and hide "Salva e aggiungi"
+  // another tree.  Lock the pulldown and hide "Salva e continua"
   // (which is a batch-entry affordance, meaningless for edits).
   const isEditMode = !!form.querySelector('input[name="row_id"]')?.value;
   if (isEditMode) {
