@@ -329,7 +329,7 @@ function buildSTColumns(digestColumns, columnDefs, actions, labels) {
     const html = parts.join(' ');
     cols.push({
       key: '_actions', label: '', sortable: false,
-      width: '61px', className: 'col-actions',
+      width: '65px', className: 'col-actions',
       formatter: () => html,
     });
   }
