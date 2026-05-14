@@ -1329,19 +1329,21 @@ class TestGridCsvImport:
     URL = '/api/campionamenti/grid/import-csv/'
 
     @staticmethod
-    def _post(client, name, csv_text, description=''):
+    def _post(client, grid_id, csv_text):
         from django.core.files.uploadedfile import SimpleUploadedFile
         return client.post(TestGridCsvImport.URL, {
-            'name': name,
-            'description': description,
+            'sample_grid_id': str(grid_id),
             'file': SimpleUploadedFile(
                 'grid.csv', csv_text.encode('utf-8-sig'),
                 content_type='text/csv',
             ),
         })
 
-    def test_happy_path(self, writer_client, sample_setup):
+    def test_happy_path_appends_to_existing(self, writer_client, sample_setup):
+        """CSV import adds new areas to the chosen grid; no new grid created."""
         s = sample_setup
+        grid = SampleGrid.objects.create(name='Import target')
+        n_grids_before = SampleGrid.objects.count()
         compresa = s['area'].parcel.region.name
         particella = s['area'].parcel.name
         csv_text = (
@@ -1349,47 +1351,119 @@ class TestGridCsvImport:
             f'{compresa},{particella},10,16.1,38.5,500,12\n'
             f'{compresa},{particella},11,16.11,38.51,510,12\n'
         )
-        resp = self._post(writer_client, 'CSV grid', csv_text)
+        resp = self._post(writer_client, grid.id, csv_text)
         assert resp.status_code == 200, resp.content
         data = resp.json()
         assert data['n_areas'] == 2
-        grid = SampleGrid.objects.get(id=data['row_id'])
+        assert data['row_id'] == grid.id
+        assert SampleGrid.objects.count() == n_grids_before  # no new grid
+        assert SampleArea.objects.filter(sample_grid=grid).count() == 2
+        # Response shape mirrors area_save_view: record + area_records.
+        assert 'record' in data and 'area_records' in data
+        assert len(data['area_records']) == 2
+
+    def test_second_import_appends_more(self, writer_client, sample_setup):
+        """Two successive imports on the same grid should accumulate."""
+        s = sample_setup
+        grid = SampleGrid.objects.create(name='Two-pass target')
+        compresa = s['area'].parcel.region.name
+        particella = s['area'].parcel.name
+        csv1 = (
+            'Compresa,Particella,Area saggio,Lon,Lat,Quota,Raggio\n'
+            f'{compresa},{particella},10,16.1,38.5,500,12\n'
+        )
+        csv2 = (
+            'Compresa,Particella,Area saggio,Lon,Lat,Quota,Raggio\n'
+            f'{compresa},{particella},20,16.2,38.6,510,12\n'
+        )
+        assert self._post(writer_client, grid.id, csv1).status_code == 200
+        assert self._post(writer_client, grid.id, csv2).status_code == 200
         assert SampleArea.objects.filter(sample_grid=grid).count() == 2
 
+    def test_duplicate_area_rejected(self, writer_client, sample_setup):
+        """Row with (parcel, number) matching an existing area in this grid
+        is rejected with a per-row error; transaction does not commit any
+        rows from the upload."""
+        s = sample_setup
+        grid = SampleGrid.objects.create(name='Dup target')
+        SampleArea.objects.create(
+            sample_grid=grid, parcel=s['area'].parcel, number='10',
+            lat=16.1, lng=38.5, r_m=12,
+        )
+        n_areas_before = SampleArea.objects.filter(sample_grid=grid).count()
+        compresa = s['area'].parcel.region.name
+        particella = s['area'].parcel.name
+        csv_text = (
+            'Compresa,Particella,Area saggio,Lon,Lat,Quota,Raggio\n'
+            f'{compresa},{particella},10,16.1,38.5,500,12\n'
+        )
+        resp = self._post(writer_client, grid.id, csv_text)
+        assert resp.status_code == 400
+        body = resp.json()
+        assert 'errors' in body
+        assert any('già presente' in e for e in body['errors'])
+        # Transaction rolled back — no rows added.
+        assert SampleArea.objects.filter(sample_grid=grid).count() == n_areas_before
+
+    def test_duplicate_within_csv_rejected(self, writer_client, sample_setup):
+        """Two rows with the same (parcel, number) in one upload — second
+        flagged as duplicate."""
+        s = sample_setup
+        grid = SampleGrid.objects.create(name='Intra-csv dup')
+        compresa = s['area'].parcel.region.name
+        particella = s['area'].parcel.name
+        csv_text = (
+            'Compresa,Particella,Area saggio,Lon,Lat,Quota,Raggio\n'
+            f'{compresa},{particella},10,16.1,38.5,500,12\n'
+            f'{compresa},{particella},10,16.2,38.6,520,12\n'
+        )
+        resp = self._post(writer_client, grid.id, csv_text)
+        assert resp.status_code == 400
+        assert SampleArea.objects.filter(sample_grid=grid).count() == 0
+
+    def test_missing_grid_id(self, writer_client, db):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        resp = writer_client.post(self.URL, {
+            'file': SimpleUploadedFile('x.csv', b'Compresa\n'),
+        })
+        assert resp.status_code == 400
+
+    def test_grid_not_found(self, writer_client, db):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        resp = writer_client.post(self.URL, {
+            'sample_grid_id': '999999',
+            'file': SimpleUploadedFile('x.csv', b'Compresa\n'),
+        })
+        assert resp.status_code == 404
+
     def test_missing_required_column(self, writer_client, sample_setup):
+        grid = SampleGrid.objects.create(name='Bad cols')
         csv_text = (
             'Compresa,Particella,Area saggio,Lon,Lat\n'    # missing Quota,Raggio
             'X,Y,1,16,38\n'
         )
-        resp = self._post(writer_client, 'Bad cols', csv_text)
+        resp = self._post(writer_client, grid.id, csv_text)
         assert resp.status_code == 400
-        assert SampleGrid.objects.filter(name='Bad cols').count() == 0
+        assert SampleArea.objects.filter(sample_grid=grid).count() == 0
 
     def test_unknown_parcel_reports_per_row_errors(self, writer_client, db):
+        grid = SampleGrid.objects.create(name='Bad parcel')
         csv_text = (
             'Compresa,Particella,Area saggio,Lon,Lat,Quota,Raggio\n'
             'Nessuna,1,1,16.0,38.0,500,12\n'
         )
-        resp = self._post(writer_client, 'Bad parcel', csv_text)
+        resp = self._post(writer_client, grid.id, csv_text)
         assert resp.status_code == 400
         body = resp.json()
         assert 'errors' in body
         assert any('Nessuna' in e for e in body['errors'])
 
-    def test_duplicate_name_rejected(self, writer_client, sample_setup):
-        s = sample_setup
-        csv_text = (
-            'Compresa,Particella,Area saggio,Lon,Lat,Quota,Raggio\n'
-            f'{s["area"].parcel.region.name},{s["area"].parcel.name},'
-            f'77,16.1,38.5,500,12\n'
-        )
-        resp = self._post(writer_client, s['grid'].name, csv_text)
-        assert resp.status_code == 400
-
-    def test_reader_forbidden(self, reader_client, db):
+    def test_reader_forbidden(self, reader_client, sample_setup):
         from django.core.files.uploadedfile import SimpleUploadedFile
+        grid = sample_setup['grid']
         resp = reader_client.post(self.URL, {
-            'name': 'X', 'file': SimpleUploadedFile('x.csv', b'a,b\n1,2'),
+            'sample_grid_id': str(grid.id),
+            'file': SimpleUploadedFile('x.csv', b'a,b\n1,2'),
         })
         assert resp.status_code == 403
 

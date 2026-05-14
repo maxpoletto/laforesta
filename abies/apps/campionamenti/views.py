@@ -785,9 +785,13 @@ def _validation_error(errors, ts_id, request, body):
 def grid_form_view(request):
     """Return the HTML fragment for the "Nuova griglia" modal — three
     creation paths (empty / auto / csv) per `campionamenti.md` §1.
+
+    The CSV path imports INTO an existing grid (mirrors the survey CSV
+    import); the target-grid dropdown needs the current list.
     """
+    grids = SampleGrid.objects.order_by('-modified_at')
     return JsonResponse({'html': render_to_string(
-        'campionamenti/_grid_modal.html', {}, request=request,
+        'campionamenti/_grid_modal.html', {'grids': grids}, request=request,
     )})
 
 
@@ -921,37 +925,47 @@ TREE_CSV_OPTIONAL = ['Data', 'PAI']
 @require_writer
 @require_POST
 def grid_csv_import_view(request):
-    """Upload a CSV → create a SampleGrid + N SampleAreas in one transaction.
+    """Upload a CSV → append N SampleAreas to an existing SampleGrid.
 
     Multipart form fields:
-      - name        (required)
-      - description (optional)
-      - file        (required, .csv)
+      - sample_grid_id (required)
+      - file           (required, .csv)
+
+    Mirrors tree_csv_import_view's "import INTO existing parent" shape
+    so a single grid can be populated incrementally from multiple
+    files.  Rejects rows that would duplicate an existing
+    (parcel, number) within the target grid; rejects rows that
+    duplicate each other within the same upload.
     """
-    name = (request.POST.get('name') or '').strip()
-    description = (request.POST.get('description') or '').strip()
+    grid_id = request.POST.get('sample_grid_id')
     upload = request.FILES.get('file')
 
-    if not name:
-        return _simple_validation_error(S.ERR_GRID_NAME_REQUIRED)
+    if not grid_id:
+        return _simple_validation_error(S.ERR_CSV_GRID_REQUIRED)
     if upload is None:
         return _simple_validation_error(S.ERR_CSV_FILE_REQUIRED)
-    if SampleGrid.objects.filter(name=name).exists():
-        return _simple_validation_error(S.ERR_GRID_NAME_DUPLICATE)
+
+    grid = SampleGrid.objects.filter(id=int(grid_id)).first()
+    if grid is None:
+        return JsonResponse({'status': 'not_found'}, status=404)
 
     try:
         rows = _parse_csv(upload, GRID_CSV_REQUIRED)
     except _CsvError as e:
         return _simple_validation_error(str(e))
 
-    region_cache = {r.name.lower(): r for r in Region.objects.all()}
     parcel_cache = {
         (p.region.name.lower(), p.name): p
         for p in Parcel.objects.select_related('region')
     }
+    # Natural key per grid: (parcel_id, number).  Pre-load the existing
+    # areas so we can reject collisions without round-tripping.
+    existing_keys = set(SampleArea.objects.filter(sample_grid=grid)
+                                          .values_list('parcel_id', 'number'))
 
     errors = []
     parsed_rows = []
+    seen_in_csv = set()
     for i, row in enumerate(rows, 2):  # row 2 = first data row (after header)
         compresa = row['Compresa'].strip()
         particella = row['Particella'].strip()
@@ -961,10 +975,18 @@ def grid_csv_import_view(request):
                 S.ERR_CSV_ROW_PARCEL.format(i, compresa, particella),
             )
             continue
+        number = row['Area saggio'].strip()
+        key = (parcel.id, number)
+        if key in existing_keys or key in seen_in_csv:
+            errors.append(S.ERR_CSV_ROW_AREA_DUPLICATE.format(
+                i, compresa, particella, number,
+            ))
+            continue
+        seen_in_csv.add(key)
         try:
             parsed_rows.append({
                 'parcel': parcel,
-                'number': row['Area saggio'].strip(),
+                'number': number,
                 'lat': float(row['Lat']),
                 'lng': float(row['Lon']),
                 'altitude': _int_or_none_str(row['Quota']),
@@ -980,7 +1002,6 @@ def grid_csv_import_view(request):
         return _simple_validation_error(S.ERR_CSV_EMPTY)
 
     with transaction.atomic():
-        grid = SampleGrid.objects.create(name=name, description=description)
         SampleArea.objects.bulk_create([
             SampleArea(
                 sample_grid=grid,
@@ -990,8 +1011,11 @@ def grid_csv_import_view(request):
             )
             for r in parsed_rows
         ])
-        mark_stale('grids', 'sample_areas', 'audit')
+        # Surveys digest carries N. aree totali per grid → stale when
+        # we add areas to a grid that has surveys.
+        mark_stale('grids', 'sample_areas', 'surveys', 'audit')
 
+    grid.refresh_from_db()
     area_qs = SampleArea.objects.filter(sample_grid=grid) \
                                  .select_related('parcel__region')
     response_data = {
@@ -999,6 +1023,10 @@ def grid_csv_import_view(request):
         'n_areas': len(parsed_rows),
         'record': build_grid_record(grid),
         'area_records': [build_sample_area_record(sa) for sa in area_qs],
+        'survey_records': [
+            build_survey_record(sv)
+            for sv in Survey.objects.filter(sample_grid=grid)
+        ],
     }
     nonce = request.POST.get('nonce')
     if nonce:

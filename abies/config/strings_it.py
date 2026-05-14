@@ -137,6 +137,10 @@ ERR_CSV_ROW_AREA = 'Riga {}: area di saggio non trovata ({} / {} / {}).'
 ERR_CSV_ROW_SPECIES = 'Riga {}: specie sconosciuta: {}.'
 ERR_CSV_ROW_PARSE = 'Riga {}: errore di parsing ({}).'
 ERR_CSV_SURVEY_REQUIRED = 'Seleziona prima un rilevamento.'
+ERR_CSV_GRID_REQUIRED = 'Seleziona prima una griglia di destinazione.'
+ERR_CSV_ROW_AREA_DUPLICATE = (
+    'Riga {}: area ({} / {} / {}) già presente nella griglia.'
+)
 ERR_CSV_DATE_REQUIRED = (
     'Il file CSV non ha una colonna "Data": indicare una data predefinita.'
 )
