@@ -2312,7 +2312,7 @@ function returnToPage(overrides = {}) {
   if (unsubCache) { unsubCache(); unsubCache = null; }
 
   // Explicit clear before rebuild.  buildPageShell would also do this,
-  // but doing it here as well guarantees the modal-form is GONE as soon
+  // but doing it here as well guarantees the form-card is GONE as soon
   // as we return — even if any of the section-build steps below throws,
   // the user is no longer staring at the now-stale upload form.  This
   // closes a class of "modal won't close after import" bugs.

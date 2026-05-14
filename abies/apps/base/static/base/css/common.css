@@ -248,6 +248,24 @@ input:focus, select:focus, textarea:focus {
 
 .form-row > .form-group { flex: 1; margin-bottom: 0; }
 
+/* Short-entry field rows.  Add `narrow` to any `.form-row` whose children
+ * should all be short fields (numeric inputs, lat/lng, small pull-downs):
+ *   <div class="form-row narrow">
+ *     <div class="form-group">…D…</div>
+ *     <div class="form-group">…h…</div>
+ *     <div class="form-group">…L10…</div>
+ *   </div>
+ * Wide fields (full-name inputs, descriptions, the N. albero pulldown)
+ * live in plain .form-row rows so children flex to fill. */
+.form-row.narrow > .form-group { flex: 0 0 120px; }
+
+/* "Usa posizione attuale" lat/lng button — appended by JS to a
+ * .form-row that already holds the Lat / Lng inputs.  Align to the
+ * bottom of the row so it sits level with the inputs (the inputs have
+ * labels stacked above them).  No `margin-left: auto`: the button
+ * trails the last input naturally, separated by the row's gap. */
+.latlng-use-location { align-self: end; }
+
 .form-group {
   margin-bottom: 0.75rem;
 }
@@ -298,10 +316,47 @@ input:focus, select:focus, textarea:focus {
   margin-top: 1.25rem;
 }
 
-/* Modal title — give it a bit of breathing room before the first
- * field.  Without this, browsers' default <h2> margin-bottom collapses
- * to nearly zero against the first .form-row / .form-group. */
-.modal-form h2 { margin-bottom: 12px; }
+/* Form card — centered column with ample side margins.  Wraps every
+ * input/edit form, modal or inline.  This is the app-wide standard:
+ * `<div class="form-card">…form contents…</div>`.  Used by overlay
+ * modals (grid, survey) injected into #modal-container and by inline
+ * page forms (area, tree, prelievi) rendered into #content. */
+.form-card {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+/* Form-card title — breathing room before the first field.  Without
+ * this, browsers' default <h2> margin-bottom collapses to nearly zero
+ * against the first .form-row / .form-group. */
+.form-card h2 { margin-bottom: 12px; }
+
+/* Read-only header inside an edit form — Compresa / Particella / Area
+ * pairs displayed as plain text without the grey card the legacy
+ * `.form-readonly-block` provides.  Items render inline; each label
+ * is muted and the value follows in normal weight. */
+.form-readonly-flat {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 24px;
+  margin-bottom: 12px;
+  font-size: 0.9em;
+}
+
+.form-readonly-flat .label {
+  color: #888;
+  margin-right: 4px;
+}
+
+/* Inline read-only field value — used on the Edit-tree form where
+ * N.albero / Specie / Ceduo are displayed but not editable.  Renders
+ * at the height of a form input so the row aligns with editable cells. */
+.readonly-field {
+  display: inline-block;
+  padding: 0.4rem 0;
+  font-size: 0.9rem;
+  color: #333;
+}
 
 /* --- Collapsible sections ------------------------------------------------- */
 

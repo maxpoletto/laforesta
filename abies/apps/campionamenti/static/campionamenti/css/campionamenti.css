@@ -227,18 +227,10 @@
 }
 
 /* "Nuova griglia" / "Nuovo rilevamento" modal — path chooser at top,
- * one of several bodies underneath.
- */
-.modal-form {
-  max-width: 720px;
-  margin: 0 auto;
-}
+ * one of several bodies underneath.  The form-card wrapper class is
+ * defined in common.css; field-width 120px lives there too as
+ * `.form-row.narrow`. */
 
-/* Nuova area di saggio — fixed-width fields so the form doesn't
- * stretch each input across the whole modal on wide screens.
- * Override the default `.form-row > .form-group { flex: 1 }`. */
-.area-form-narrow > .form-group { flex: 0 0 120px; }
-.area-form-narrow .latlng-use-location { margin-left: auto; align-self: end; }
 .area-form-note input { width: 100%; }
 
 .modal-path-chooser {
