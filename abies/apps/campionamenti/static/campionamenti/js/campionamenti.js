@@ -45,7 +45,6 @@ const TREES_URL_PREFIX = '/api/campionamenti/trees/';
 const TREE_FORM_URL = '/api/campionamenti/tree/form/';
 const TREE_SAVE_URL = '/api/campionamenti/tree/save/';
 const TREE_DELETE_URL_PREFIX = '/api/campionamenti/tree/delete/';
-const SAMPLE_DATE_SAVE_URL = '/api/campionamenti/sample/date/';
 const AREA_FORM_URL = '/api/campionamenti/area/form/';
 const AREA_SAVE_URL = '/api/campionamenti/area/save/';
 const AREA_DELETE_URL_PREFIX = '/api/campionamenti/area/delete/';
@@ -132,7 +131,7 @@ const sections = {
        // {surveyId, center, zoom} — same logic, keyed by surveyId.
        savedView: null },
   t: { title: S.SECTION_ALBERI_CAMPIONATI, open: false, header: null, body: null,
-       host: null, emptyEl: null, headerEl: null },
+       host: null, emptyEl: null },
 };
 
 let table = null;
@@ -224,7 +223,7 @@ function resetSectionRefs() {
     const s = sections[k];
     s.header = s.body = null;
     s.pulldown = s.summary = s.mapEl = s.map = null;
-    s.host = s.emptyEl = s.headerEl = null;
+    s.host = s.emptyEl = null;
   }
 }
 
@@ -704,77 +703,14 @@ function buildAlberiBody(body) {
   s.emptyEl.textContent = S.CAMPIONAMENTI_EMPTY;
   body.appendChild(s.emptyEl);
 
-  // Inline header: shows the date of the active sample when an area
-  // is selected (editable for writers).  Spec §Section 3.
-  s.headerEl = document.createElement('div');
-  s.headerEl.className = 'campionamenti-alberi-header';
-  body.appendChild(s.headerEl);
-
   s.host = document.createElement('div');
   s.host.className = 'campionamenti-table-host';
   body.appendChild(s.host);
 }
 
-function renderAlberiHeader() {
-  const s = sections.t;
-  if (!s.headerEl) return;
-  s.headerEl.replaceChildren();
-  if (activeSurveyId == null || activeAreaId == null) return;
-
-  // Look up the existing Sample (if any) for (survey, area) in samplesData.
-  const sc = samplesData.columns;
-  const row = samplesData.rows.find(
-    r => r[sc.indexOf('Survey')] === activeSurveyId
-      && r[sc.indexOf('Sample area')] === activeAreaId,
-  );
-  const currentDate = row ? row[sc.indexOf('Data')] : todayISO();
-
-  const label = document.createElement('label');
-  label.className = 'campionamenti-pulldown-label';
-  label.textContent = `${S.LABEL_DATE}:`;
-  label.htmlFor = 'campionamenti-sample-date';
-
-  if (canModify()) {
-    const input = document.createElement('input');
-    input.type = 'date';
-    input.id = 'campionamenti-sample-date';
-    input.value = currentDate || '';
-    input.addEventListener('change', () => saveSampleDate(input.value));
-    s.headerEl.append(label, input);
-  } else {
-    const span = document.createElement('span');
-    span.textContent = currentDate || '—';
-    s.headerEl.append(label, span);
-  }
-}
-
-function todayISO() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-async function saveSampleDate(dateStr) {
-  if (!dateStr) return;
-  if (activeSurveyId == null || activeAreaId == null) return;
-  try {
-    const { data, status } = await postJSON(SAMPLE_DATE_SAVE_URL, {
-      survey_id: activeSurveyId,
-      sample_area_id: activeAreaId,
-      date: dateStr,
-    });
-    if (status !== 200) {
-      showError(data?.message || S.ERROR_GENERIC);
-      return;
-    }
-    applySideEffects(data);
-  } catch {
-    showError(S.ERROR_NETWORK);
-  }
-}
-
 function showAlberiEmpty() {
   destroyTable();
   if (sections.t.emptyEl) sections.t.emptyEl.hidden = false;
-  if (sections.t.headerEl) sections.t.headerEl.replaceChildren();
 }
 
 function renderTable(data) {
@@ -816,7 +752,6 @@ function destroyTable() {
 }
 
 function applyAreaFilter() {
-  renderAlberiHeader();
   if (!table) return;
   if (activeAreaId == null) {
     table.setExternalFilter(null);
@@ -1893,10 +1828,8 @@ function applySideEffects(data) {
   }
   if (touchedSamples) {
     samplesData = cache.get(SAMPLES_ID);
-    // Refresh Section 2 map markers (visited-count tooltip) + Section 3
-    // header date display.
+    // Refresh Section 2 map markers (visited-count tooltip).
     if (activeSurveyId != null) renderRilevamentiMap(activeSurveyId);
-    renderAlberiHeader();
   }
   if (touchedSurveys) {
     surveysData = cache.get(SURVEYS_ID);
@@ -2251,30 +2184,46 @@ function wireVMPreview(form) {
   const mHidden = form.querySelector('#tree-form-mass-q');
   if (!d || !h || !sp || !preview || !vHidden || !mHidden) return;
 
-  const PLACEHOLDER = 'V = — m³ · m = — q';
   function update() {
     if (ceduo?.checked) {
-      preview.textContent = S.CAMPIONAMENTI_NO_VM_FOR_CEDUO;
+      // Ceduo path uses the .tree-coppice-block; its parent is hidden,
+      // so the preview line is off-screen.  Still clear the hidden
+      // values so a stale fustaia computation doesn't slip into the
+      // submit payload.
+      preview.hidden = true;
+      preview.textContent = '';
       vHidden.value = '';
       mHidden.value = '';
       return;
     }
     const dCm = parseFloat(d.value);
     const hM = parseFloat(h.value);
+    // Hide the preview line entirely until BOTH D and h are nonzero —
+    // the row reserves vertical space (the wrapping .tree-form-preview-row
+    // stays in flow) so the form doesn't jump when the line appears.
+    if (!(dCm > 0 && hM > 0)) {
+      preview.hidden = true;
+      preview.textContent = '';
+      vHidden.value = '';
+      mHidden.value = '';
+      return;
+    }
     const opt = sp.options[sp.selectedIndex];
     const speciesName = opt?.dataset.name;
     const density = parseFloat(opt?.dataset.density);
     const v = tabacchiVolumeM3(dCm, hM, speciesName);
     if (v == null) {
-      // Stay on the placeholder until all three inputs (D, h, species)
-      // are filled — no chatty hint, the operator sees the V = — m³
-      // line and works it out.
-      preview.textContent = PLACEHOLDER;
+      // D + h are filled but the species lookup failed (no Tabacchi
+      // table for it).  Keep the line empty rather than showing a
+      // confusing dash equation.
+      preview.hidden = true;
+      preview.textContent = '';
       vHidden.value = '';
       mHidden.value = '';
       return;
     }
     const m = massQ(v, density);
+    preview.hidden = false;
     preview.textContent =
       `V = ${v.toFixed(3).replace('.', ',')} m³ · m = ${m.toFixed(2).replace('.', ',')} q`;
     vHidden.value = v.toFixed(4);

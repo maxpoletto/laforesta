@@ -147,24 +147,6 @@
   /* Inherits sortable-table sizing from common.css. */
 }
 
-.campionamenti-alberi-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-.campionamenti-alberi-header:empty {
-  display: none;
-}
-
-.campionamenti-alberi-header input[type="date"] {
-  font-size: 14px;
-  padding: 2px 6px;
-  border: 1px solid #888;
-  border-radius: 2px;
-}
-
 .campionamenti-pulldown-icon {
   cursor: pointer;
   font-size: 16px;

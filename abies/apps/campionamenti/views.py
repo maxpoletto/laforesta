@@ -203,6 +203,16 @@ def tree_save_view(request):
             )
             created_or_updated_ids = [ts.id]
 
+        # The tree form carries an editable Data field — apply the
+        # user-chosen date to the parent Sample if it differs from the
+        # current value.  Sample is unique per (survey, area), so this
+        # bumps the date for every other tree in this sample too; same
+        # semantics as the legacy inline date selector this replaces.
+        if parsed['date'] is not None and parsed['date'] != sample.date:
+            sample.date = parsed['date']
+            sample.version += 1
+            sample.save()
+
         # tree_save can create a new Sample (first tree in an area) which
         # affects surveys.N_aree_visitate / Data primo / Data ultimo.
         mark_stale(
@@ -409,53 +419,6 @@ def area_delete_view(request, area_id: int):
     })
 
 
-@login_required
-@require_writer
-@require_POST
-def sample_date_save_view(request):
-    """Set/update a Sample.date for (survey, sample_area).  Creates the
-    Sample row if it does not exist yet (per spec §Section 3: inline
-    date editor "defaults to today if the sample row had no date set").
-    """
-    body = json.loads(request.body)
-    try:
-        survey_id = int(body['survey_id'])
-        area_id = int(body['sample_area_id'])
-        new_date = date_type.fromisoformat(body['date'])
-    except (KeyError, ValueError, TypeError):
-        return _simple_validation_error(S.ERROR_GENERIC)
-
-    survey = Survey.objects.filter(id=survey_id).first()
-    area = SampleArea.objects.filter(id=area_id).first()
-    if survey is None or area is None:
-        return JsonResponse({'status': 'not_found'}, status=404)
-    if area.sample_grid_id != survey.sample_grid_id:
-        return _simple_validation_error(S.ERR_AREA_OUT_OF_SURVEY)
-
-    with transaction.atomic():
-        sample, created = Sample.objects.get_or_create(
-            sample_area=area, survey=survey,
-            defaults={'date': new_date},
-        )
-        if not created and sample.date != new_date:
-            sample.date = new_date
-            sample.version += 1
-            sample.save()
-        # surveys digest's Data primo / Data ultimo / N. aree visitate
-        # all derive from Sample rows → invalidate surveys too.
-        mark_stale(
-            f'sampled_trees_{survey_id}', 'samples', 'surveys', 'audit',
-        )
-
-    return JsonResponse({
-        'data_id': 'samples',
-        'row_id': sample.id,
-        'date': new_date.isoformat(),
-        'record': build_sample_record(sample),
-        'survey_record': build_survey_record(survey),
-    })
-
-
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
@@ -500,7 +463,43 @@ def _render_tree_form(request, ts_id, survey_id, area_id):
         'next_number': next_number,
         # Fustaia default: ceduo when the parcel's eclass is a coppice class.
         'fustaia_default': not area.parcel.eclass.coppice,
+        # Default species pick for the New-tree path: Abete on fustaia,
+        # Castagno on ceduo.  Tolerate missing species (e.g., in tests
+        # with a minimal fixture): falls back to the first species.
+        'default_species_id': (
+            None if ts else _default_species_id(species, area.parcel.eclass.coppice)
+        ),
     }, request=request)
+
+
+def _default_species_id(species, parcel_is_coppice):
+    """Pick the default species for a newly added tree.
+
+    Fustaia parcel → `S.SPECIES_DEFAULT_FUSTAIA`, ceduo parcel →
+    `S.SPECIES_DEFAULT_CEDUO`.  Match on Species.common_name with
+    `__iexact` first, then a substring fallback for variants like
+    "Abete bianco".  Returns `None` when the species list is empty;
+    otherwise the first species in the list if neither match hits.
+    """
+    if not species:
+        return None
+    target = (
+        S.SPECIES_DEFAULT_CEDUO if parcel_is_coppice
+        else S.SPECIES_DEFAULT_FUSTAIA
+    ).lower()
+    exact = next(
+        (sp for sp in species if (sp.common_name or '').lower() == target),
+        None,
+    )
+    if exact is not None:
+        return exact.id
+    partial = next(
+        (sp for sp in species if target in (sp.common_name or '').lower()),
+        None,
+    )
+    if partial is not None:
+        return partial.id
+    return species[0].id
 
 
 def _prior_trees_for_area(area, exclude_ts_id=None):
@@ -575,6 +574,18 @@ def _parse_tree_body(body):
     ts_id = body.get('row_id')
     ts_id = int(ts_id) if ts_id else None
 
+    # Date is editable inline in the tree form (replaces the separate
+    # inline selector that used to live above the alberi table).  The
+    # field is optional in the wire format: missing → keep existing
+    # sample.date (edit) or default to today (new).  Invalid → error.
+    date_raw = body.get('date')
+    parsed_date = None
+    if date_raw not in (None, '', 'null'):
+        try:
+            parsed_date = date_type.fromisoformat(str(date_raw))
+        except (ValueError, TypeError):
+            errors.append(S.ERR_DATE_INVALID)
+
     coppice = str(body.get('fustaia', 'true')).lower() in ('false', '0', 'no')
 
     # tree_pick: 'new' or an integer Tree id.  Older payloads without
@@ -634,6 +645,7 @@ def _parse_tree_body(body):
         'coppice': coppice,
         'shoots': shoots,
         'tree_pick_existing_id': tree_pick_existing_id,
+        'date': parsed_date,
     }
     if not parsed['number']:
         errors.append(S.ERR_TREE_NUMBER_REQUIRED)
@@ -721,7 +733,7 @@ def _find_or_create_sample(parsed):
         return None
     sample, _ = Sample.objects.get_or_create(
         sample_area=area, survey=survey,
-        defaults={'date': date_type.today()},
+        defaults={'date': parsed.get('date') or date_type.today()},
     )
     return sample
 

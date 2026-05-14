@@ -1,175 +1,224 @@
 {% comment %}
 Manual tree+sample entry form (M3d-write).
 
-Two paths share the same form, gated by the "Ceduo" checkbox:
-  - Unchecked (fustaia, the common case): one TreeSample row.
-    D/h/L10 live on a single row; V/m are computed live by JS.
-  - Checked (ceduo): N TreeSamples sharing one Tree, one per pollone.
-    D/h/L10 (per pollone) live in an indented coppice block, plus a
-    "matricina" toggle and an "Aggiungi pollone" button.  V/m are
-    blank for coppice rows.
+Two top-level branches:
+  - New tree (no ts): "Nuovo albero campione" — every field editable,
+    species defaults to S.SPECIES_DEFAULT_FUSTAIA / _CEDUO by parcel
+    eclass.coppice, ceduo checkbox follows fustaia_default.
+  - Edit tree (ts): "Modifica albero campione" — N. albero, Specie,
+    Ceduo are read-only (rendered as static text + hidden inputs to
+    preserve the wire format); Data, D/h/L10, lat/lng, PAI remain
+    editable.  "Salva e continua" is suppressed (batch-entry only).
 
-Disabled inputs aren't submitted, so the toggle disables the inactive
-side rather than removing it — switching modes preserves any
-in-progress entry on the inactive side.
+Sample date lives on the parent Sample row, one per (survey, area).
+The Data input here mirrors that value and lets the user change it;
+on save, tree_save_view bumps Sample.date if it differs.  This
+replaces the legacy inline date selector above the alberi table.
 
-The `fustaia` POST field uses the hidden+checkbox idiom inverted:
-the hidden carries the default ("true" = fustaia) and the checkbox
-overrides to "false" when checked.  Server-side parsing is unchanged.
+Fustaia / ceduo gating: the "Ceduo" checkbox toggles which subblock
+(.tree-fustaia-fields vs .tree-coppice-block) is visible and which
+inputs submit.  Disabled inputs aren't submitted, so the toggle
+disables the inactive side rather than removing it.  On edit, the
+checkbox is rendered as a hidden mirror so wireCeduoToggle still
+applies the right visibility — see {% if ts %} branch below.
 
-"Numero albero" is a pulldown driving cross-sample tree identity:
-picking an existing tree reuses its tree.id (and the client locks
-specie / ceduo / lat / lng to that tree's values).  See
-docs/pages/campionamenti.md §"Cross-sample tree identity".
+The `fustaia` POST field uses the hidden+checkbox idiom: a hidden
+"true" carries the default; a checked checkbox overrides to "false".
+Server-side parsing is unchanged.
+
+"Numero albero" pulldown drives cross-sample tree identity on the
+New path (picking a prior tree reuses its id and locks lat/lng to
+that tree's values).  See docs/pages/campionamenti.md.
 {% endcomment %}
-<form id="campionamenti-tree-form">
-  <input type="hidden" name="row_id" value="{{ ts.id|default_if_none:'' }}">
-  <input type="hidden" name="survey_id" value="{{ survey.id }}">
-  <input type="hidden" name="sample_area_id" value="{{ area.id }}">
-  <input type="hidden" name="shoots" id="id_shoots" value="">
+<div class="form-card">
+  <form id="campionamenti-tree-form">
+    <h2>
+      {% if ts %}Modifica albero campione{% else %}Nuovo albero campione{% endif %}
+    </h2>
 
-  <div class="form-readonly-block">
-    <div><strong>Data:</strong> {{ sample_date|date:'Y-m-d' }}</div>
-    <div><strong>Compresa:</strong> {{ area.parcel.region.name }}</div>
-    <div><strong>Particella:</strong> {{ area.parcel.name }}</div>
-    <div><strong>Area di saggio:</strong> {{ area.number }}</div>
-  </div>
+    <input type="hidden" name="row_id" value="{{ ts.id|default_if_none:'' }}">
+    <input type="hidden" name="survey_id" value="{{ survey.id }}">
+    <input type="hidden" name="sample_area_id" value="{{ area.id }}">
+    <input type="hidden" name="shoots" id="id_shoots" value="">
 
-  <div class="form-row">
-    <div class="form-group">
-      <label for="id_tree_pick">N. albero</label>
-      <select id="id_tree_pick" name="tree_pick" required>
-        <option value="new" data-next="{{ next_number }}" data-next-shoot="1"
-                {% if not ts %}selected{% endif %}>
-          + nuovo albero
-        </option>
-        {% for t in prior_trees %}
-          <option value="{{ t.tree_id }}"
-                  data-number="{{ t.number }}"
-                  data-species-id="{{ t.species_id }}"
-                  data-coppice="{{ t.coppice|yesno:'1,0' }}"
-                  data-next-shoot="{{ t.next_shoot }}"
-                  data-lat="{{ t.lat|default_if_none:'' }}"
-                  data-lng="{{ t.lng|default_if_none:'' }}"
-                  {% if ts and ts.tree_id == t.tree_id %}selected{% endif %}>
-            n.{{ t.number }} ({{ t.species_common_name }}{% if t.coppice %}, ceduo{% else %}, d={{ t.last_d_cm }}cm, h={{ t.last_h_m }}m{% endif %})
-          </option>
-        {% endfor %}
-      </select>
-      <input type="hidden" name="number" id="id_number"
-             value="{{ ts.number|default_if_none:next_number }}">
-    </div>
-    <div class="form-group">
-      <label for="id_species">Specie</label>
-      <select id="id_species" name="species_id" required>
-        {% for sp in species %}
-          <option value="{{ sp.id }}"
-                  data-density="{{ sp.density }}"
-                  data-name="{{ sp.common_name }}"
-                  {% if tree and tree.species_id == sp.id %}selected{% endif %}>
-            {{ sp.common_name }}
-          </option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="form-group">
-      <label>
-        <input type="hidden" name="fustaia" value="true">
-        <input type="checkbox" name="fustaia" value="false" id="id_ceduo"
-               {% if tree %}{% if tree.coppice %}checked{% endif %}{% elif not fustaia_default %}checked{% endif %}>
-        Ceduo
-      </label>
-    </div>
-  </div>
-
-  <div class="tree-fustaia-fields">
-    <div class="form-row">
-      <div class="form-group">
-        <label for="id_d_cm">D (cm)</label>
-        <input type="number" id="id_d_cm" name="d_cm" min="1" step="1"
-               value="{{ ts.d_cm|default_if_none:'' }}">
+    <div class="form-readonly-flat">
+      <div>
+        <span class="label">Compresa:</span>{{ area.parcel.region.name }}
       </div>
-      <div class="form-group">
-        <label for="id_h_m">h (m)</label>
-        <input type="number" id="id_h_m" name="h_m" min="0.1" step="0.01"
-               value="{{ ts.h_m|default_if_none:'' }}">
+      <div>
+        <span class="label">Particella:</span>{{ area.parcel.name }}
       </div>
-      <div class="form-group">
-        <label for="id_l10_mm">L10 (mm)</label>
-        <input type="number" id="id_l10_mm" name="l10_mm" min="0" step="1"
-               value="{{ ts.l10_mm|default:0 }}">
+      <div>
+        <span class="label">Area di saggio:</span>{{ area.number }}
       </div>
     </div>
 
-    <div class="form-row tree-form-preview-row">
-      <span class="tree-form-preview" id="tree-form-vm-preview">
-        <em>V = — m³ · m = — q</em>
-      </span>
+    <div class="form-row narrow">
+      <div class="form-group">
+        <label for="id_tree_pick">N. albero</label>
+        {% if ts %}
+          <span class="readonly-field">{{ ts.number }}</span>
+          <input type="hidden" name="number" id="id_number" value="{{ ts.number }}">
+        {% else %}
+          <select id="id_tree_pick" name="tree_pick" required>
+            <option value="new" data-next="{{ next_number }}" data-next-shoot="1" selected>
+              + nuovo albero
+            </option>
+            {% for t in prior_trees %}
+              <option value="{{ t.tree_id }}"
+                      data-number="{{ t.number }}"
+                      data-species-id="{{ t.species_id }}"
+                      data-coppice="{{ t.coppice|yesno:'1,0' }}"
+                      data-next-shoot="{{ t.next_shoot }}"
+                      data-lat="{{ t.lat|default_if_none:'' }}"
+                      data-lng="{{ t.lng|default_if_none:'' }}">
+                n.{{ t.number }} ({{ t.species_common_name }}{% if t.coppice %}, ceduo{% else %}, d={{ t.last_d_cm }}cm, h={{ t.last_h_m }}m{% endif %})
+              </option>
+            {% endfor %}
+          </select>
+          <input type="hidden" name="number" id="id_number" value="{{ next_number }}">
+        {% endif %}
+      </div>
+      <div class="form-group">
+        <label for="id_date">Data</label>
+        <input type="date" id="id_date" name="date" required
+               value="{{ sample_date|date:'Y-m-d' }}">
+      </div>
     </div>
-  </div>
 
-  <div class="tree-coppice-block" hidden>
-    <p class="form-help">
-      Inserire un pollone per riga.  V e m non si calcolano per alberi
-      cedui.
-    </p>
-    <div class="coppice-shoots">
-      <div class="coppice-shoot-row"
-           data-shoot="{% if ts %}{{ ts.shoot }}{% else %}1{% endif %}">
-        <span class="coppice-shoot-num">N. pollone <span class="coppice-shoot-label">{% if ts %}{{ ts.shoot }}{% else %}1{% endif %}</span></span>
-        <label class="coppice-matricina-label">
-          <input type="checkbox" class="coppice-standard"
-                 {% if ts.standard %}checked{% endif %}>
-          Matricina
-        </label>
+    <div class="form-row narrow">
+      <div class="form-group">
+        <label for="id_species">Specie</label>
+        {% if ts %}
+          <span class="readonly-field">{{ tree.species.common_name }}</span>
+          <input type="hidden" name="species_id" id="id_species" value="{{ tree.species_id }}">
+        {% else %}
+          <select id="id_species" name="species_id" required>
+            {% for sp in species %}
+              <option value="{{ sp.id }}"
+                      data-density="{{ sp.density }}"
+                      data-name="{{ sp.common_name }}"
+                      {% if sp.id == default_species_id %}selected{% endif %}>
+                {{ sp.common_name }}
+              </option>
+            {% endfor %}
+          </select>
+        {% endif %}
+      </div>
+      <div class="form-group">
+        {% if ts %}
+          <label>Ceduo</label>
+          <span class="readonly-field">{% if tree.coppice %}Sì{% else %}No{% endif %}</span>
+          <input type="hidden" name="fustaia"
+                 value="{% if tree.coppice %}false{% else %}true{% endif %}">
+          {# Hidden mirror so wireCeduoToggle reads the right state and
+             swaps .tree-fustaia-fields / .tree-coppice-block visibility.
+             No `name` → not submitted.  See _tree_form.html docstring. #}
+          <input type="checkbox" id="id_ceduo"
+                 {% if tree.coppice %}checked{% endif %} hidden>
+        {% else %}
+          <label>
+            <input type="hidden" name="fustaia" value="true">
+            <input type="checkbox" name="fustaia" value="false" id="id_ceduo"
+                   {% if not fustaia_default %}checked{% endif %}>
+            Ceduo
+          </label>
+        {% endif %}
+      </div>
+      <div class="form-group">
         <label>
-          D (cm)
-          <input type="number" class="coppice-d-cm" min="1" step="1"
+          <input type="hidden" name="preserved" value="">
+          <input type="checkbox" name="preserved" value="true"
+                 {% if tree and tree.preserved %}checked{% endif %}>
+          PAI
+        </label>
+      </div>
+    </div>
+
+    <div class="tree-fustaia-fields">
+      <div class="form-row narrow">
+        <div class="form-group">
+          <label for="id_d_cm">D (cm)</label>
+          <input type="number" id="id_d_cm" name="d_cm" min="1" step="1"
                  value="{{ ts.d_cm|default_if_none:'' }}">
-        </label>
-        <label>
-          h (m)
-          <input type="number" class="coppice-h-m" min="0.1" step="0.01"
+        </div>
+        <div class="form-group">
+          <label for="id_h_m">h (m)</label>
+          <input type="number" id="id_h_m" name="h_m" min="0.1" step="0.01"
                  value="{{ ts.h_m|default_if_none:'' }}">
-        </label>
+        </div>
+        <div class="form-group">
+          <label for="id_l10_mm">L10 (mm)</label>
+          <input type="number" id="id_l10_mm" name="l10_mm" min="0" step="1"
+                 value="{{ ts.l10_mm|default:0 }}">
+        </div>
+      </div>
+
+      {# V/m preview — starts hidden; wireVMPreview unhides it once both
+         D and h are nonzero.  Empty placeholder so the row reserves
+         vertical space and the form doesn't jump when it appears. #}
+      <div class="tree-form-preview-row">
+        <span class="tree-form-preview" id="tree-form-vm-preview" hidden></span>
       </div>
     </div>
-    {% if not ts %}
-      <button type="button" class="btn coppice-add-btn" id="coppice-add-btn">
-        + Aggiungi pollone
-      </button>
-    {% endif %}
-  </div>
 
-  <div class="form-row">
-    <div class="form-group">
-      <label for="id_lat">Lat</label>
-      <input type="number" id="id_lat" name="lat" step="0.00001"
-             value="{% if tree %}{{ tree.lat|default_if_none:area.lat }}{% else %}{{ area.lat }}{% endif %}">
+    <div class="tree-coppice-block" hidden>
+      <p class="form-help">
+        Inserire un pollone per riga.  V e m non si calcolano per alberi
+        cedui.
+      </p>
+      <div class="coppice-shoots">
+        <div class="coppice-shoot-row"
+             data-shoot="{% if ts %}{{ ts.shoot }}{% else %}1{% endif %}">
+          <span class="coppice-shoot-num">N. pollone <span class="coppice-shoot-label">{% if ts %}{{ ts.shoot }}{% else %}1{% endif %}</span></span>
+          <label class="coppice-matricina-label">
+            <input type="checkbox" class="coppice-standard"
+                   {% if ts.standard %}checked{% endif %}>
+            Matricina
+          </label>
+          <label>
+            D (cm)
+            <input type="number" class="coppice-d-cm" min="1" step="1"
+                   value="{{ ts.d_cm|default_if_none:'' }}">
+          </label>
+          <label>
+            h (m)
+            <input type="number" class="coppice-h-m" min="0.1" step="0.01"
+                   value="{{ ts.h_m|default_if_none:'' }}">
+          </label>
+        </div>
+      </div>
+      {% if not ts %}
+        <button type="button" class="btn coppice-add-btn" id="coppice-add-btn">
+          + Aggiungi pollone
+        </button>
+      {% endif %}
     </div>
-    <div class="form-group">
-      <label for="id_lng">Lng</label>
-      <input type="number" id="id_lng" name="lng" step="0.00001"
-             value="{% if tree %}{{ tree.lng|default_if_none:area.lng }}{% else %}{{ area.lng }}{% endif %}">
-    </div>
-    <div class="form-group">
-      <label>
-        <input type="hidden" name="preserved" value="">
-        <input type="checkbox" name="preserved" value="true"
-               {% if tree and tree.preserved %}checked{% endif %}>
-        PAI (pianta ad accrescimento indefinito)
-      </label>
-    </div>
-  </div>
 
-  <input type="hidden" name="volume_m3" id="tree-form-volume-m3" value="">
-  <input type="hidden" name="mass_q" id="tree-form-mass-q" value="">
+    <div class="form-row narrow">
+      <div class="form-group">
+        <label for="id_lat">Lat</label>
+        <input type="number" id="id_lat" name="lat" step="0.00001"
+               value="{% if tree %}{{ tree.lat|default_if_none:area.lat }}{% else %}{{ area.lat }}{% endif %}">
+      </div>
+      <div class="form-group">
+        <label for="id_lng">Lng</label>
+        <input type="number" id="id_lng" name="lng" step="0.00001"
+               value="{% if tree %}{{ tree.lng|default_if_none:area.lng }}{% else %}{{ area.lng }}{% endif %}">
+      </div>
+    </div>
 
-  <div class="form-actions">
-    <button type="button" class="btn" id="tree-form-cancel">Annulla</button>
-    <button type="submit" class="btn btn-primary" data-action="save">Salva</button>
-    <button type="submit" class="btn btn-primary" data-action="save-and-add">
-      Salva e continua
-    </button>
-  </div>
-</form>
+    <input type="hidden" name="volume_m3" id="tree-form-volume-m3" value="">
+    <input type="hidden" name="mass_q" id="tree-form-mass-q" value="">
+
+    <div class="form-actions">
+      <button type="button" class="btn" id="tree-form-cancel">Annulla</button>
+      <button type="submit" class="btn btn-primary" data-action="save">Salva</button>
+      {% if not ts %}
+        <button type="submit" class="btn btn-primary" data-action="save-and-add">
+          Salva e continua
+        </button>
+      {% endif %}
+    </div>
+  </form>
+</div>

@@ -160,6 +160,61 @@ class TestTreeForm:
         )
         assert resp.status_code == 404
 
+    def test_fustaia_parcel_defaults_to_abete(
+        self, writer_client, sample_setup, species,
+    ):
+        """Fustaia parcel (eclass.coppice=False) → Abete is preselected
+        in the species pulldown.  See views._default_species_id."""
+        s = sample_setup
+        assert s['area'].parcel.eclass.coppice is False
+        resp = writer_client.get(
+            f'/api/campionamenti/tree/form/?survey={s["survey"].id}&area={s["area"].id}'
+        )
+        assert resp.status_code == 200
+        html = resp.json()['html']
+        abete = next(sp for sp in species if sp.common_name == 'Abete')
+        assert f'value="{abete.id}"' in html
+        # The selected attribute must appear on Abete's option.
+        # Use a minimal contextual match — the option's data-name carries
+        # the common name, so we look for "data-name=\"Abete\" selected".
+        assert f'data-name="Abete"' in html
+        # selected attribute appears between value="..." and >, so check
+        # the option line wholesale.
+        import re
+        match = re.search(
+            r'<option[^>]*data-name="Abete"[^>]*>', html,
+        )
+        assert match is not None and 'selected' in match.group(0)
+
+    def test_ceduo_parcel_defaults_to_castagno(
+        self, writer_client, sample_setup, regions, eclasses, species,
+    ):
+        """Ceduo parcel (eclass.coppice=True) → Castagno is preselected."""
+        from apps.base.models import Parcel, SampleArea, Survey
+        ceduo_eclass = next(e for e in eclasses if e.coppice)
+        ceduo_parcel = Parcel.objects.create(
+            name='C1', region=regions[0], eclass=ceduo_eclass,
+            area_ha=Decimal('2.0'),
+        )
+        grid = sample_setup['grid']
+        ceduo_area = SampleArea.objects.create(
+            sample_grid=grid, parcel=ceduo_parcel, number='C1',
+            lat=0.0, lng=0.0, r_m=12,
+        )
+        survey = sample_setup['survey']
+        resp = writer_client.get(
+            f'/api/campionamenti/tree/form/?survey={survey.id}&area={ceduo_area.id}'
+        )
+        assert resp.status_code == 200
+        html = resp.json()['html']
+        castagno = next(sp for sp in species if sp.common_name == 'Castagno')
+        assert f'value="{castagno.id}"' in html
+        import re
+        match = re.search(
+            r'<option[^>]*data-name="Castagno"[^>]*>', html,
+        )
+        assert match is not None and 'selected' in match.group(0)
+
 
 class TestTreeSave:
     @staticmethod
@@ -332,6 +387,90 @@ class TestTreeSave:
             'fustaia': 'true',
         })
         assert resp.status_code == 400
+
+    # --- Date editing (round 4) --------------------------------------
+
+    def _save_payload(self, s, number, date_str):
+        """Common scaffolding for tree-save tests below."""
+        return {
+            'survey_id': str(s['survey'].id),
+            'sample_area_id': str(s['area'].id),
+            'species_id': str(s['tree'].species_id),
+            'number': str(number),
+            'd_cm': '30', 'h_m': '20', 'l10_mm': '0',
+            'volume_m3': '0.5', 'mass_q': '4.7',
+            'fustaia': 'true',
+            'date': date_str,
+        }
+
+    def test_create_uses_user_date_on_new_sample(
+        self, writer_client, sample_setup, regions, eclasses,
+    ):
+        """A tree saved on a fresh (survey, area) creates the parent
+        Sample with the user-chosen date — replaces what the deleted
+        sample_date_save_view used to cover."""
+        s = sample_setup
+        new_parcel = Parcel.objects.create(
+            name='2', region=regions[0], eclass=eclasses[0],
+            area_ha=Decimal('1.0'),
+        )
+        new_area = SampleArea.objects.create(
+            sample_grid=s['grid'], parcel=new_parcel, number='2',
+            lat=0.0, lng=0.0, r_m=12,
+        )
+        assert not Sample.objects.filter(
+            survey=s['survey'], sample_area=new_area,
+        ).exists()
+        payload = self._save_payload(s, 1, '2025-03-10')
+        payload['sample_area_id'] = str(new_area.id)
+        resp = self._post(writer_client, payload)
+        assert resp.status_code == 200, resp.content
+        new_sample = Sample.objects.get(
+            survey=s['survey'], sample_area=new_area,
+        )
+        assert new_sample.date.isoformat() == '2025-03-10'
+
+    def test_create_updates_sample_date_when_different(
+        self, writer_client, sample_setup,
+    ):
+        """Adding a tree to an existing sample with a new date bumps the
+        sample's date (same semantics as the legacy inline selector)."""
+        s = sample_setup
+        assert s['sample'].date.isoformat() == '2024-09-15'
+        resp = self._post(writer_client, self._save_payload(s, 99, '2025-04-01'))
+        assert resp.status_code == 200, resp.content
+        s['sample'].refresh_from_db()
+        assert s['sample'].date.isoformat() == '2025-04-01'
+
+    def test_edit_updates_sample_date(self, writer_client, sample_setup):
+        from apps.base.models import TreeSample
+        s = sample_setup
+        ts = TreeSample.objects.get(sample=s['sample'], number=1)
+        payload = self._save_payload(s, 1, '2025-05-20')
+        payload['row_id'] = str(ts.id)
+        resp = self._post(writer_client, payload)
+        assert resp.status_code == 200, resp.content
+        s['sample'].refresh_from_db()
+        assert s['sample'].date.isoformat() == '2025-05-20'
+
+    def test_rejects_invalid_date(self, writer_client, sample_setup):
+        payload = self._save_payload(sample_setup, 1, 'not-a-date')
+        resp = self._post(writer_client, payload)
+        assert resp.status_code == 400
+        assert 'Data' in resp.json()['message']
+
+    def test_response_sample_record_reflects_new_date(
+        self, writer_client, sample_setup,
+    ):
+        """The optimistic-update contract: when the write changes
+        sample.date, the response's sample_record must carry it so the
+        client cache patches without another fetch."""
+        from apps.base.digests import build_sample_record
+        s = sample_setup
+        resp = self._post(writer_client, self._save_payload(s, 50, '2025-06-15'))
+        assert resp.status_code == 200, resp.content
+        s['sample'].refresh_from_db()
+        assert resp.json()['sample_record'] == build_sample_record(s['sample'])
 
 
 class TestTreeFormPriorTrees:
@@ -983,20 +1122,6 @@ class TestRecordShape:
         s['survey'].refresh_from_db()
         assert payload['record'] == build_survey_record(s['survey'])
 
-    def test_sample_date_save_returns_record(self, writer_client, sample_setup):
-        from apps.base.digests import build_sample_record, build_survey_record
-        s = sample_setup
-        resp = self._post(writer_client, '/api/campionamenti/sample/date/', {
-            'survey_id': s['survey'].id,
-            'sample_area_id': s['area'].id,
-            'date': '2025-04-01',
-        })
-        payload = resp.json()
-        s['sample'].refresh_from_db()
-        s['survey'].refresh_from_db()
-        assert payload['record'] == build_sample_record(s['sample'])
-        assert payload['survey_record'] == build_survey_record(s['survey'])
-
     def test_tree_delete_returns_sample_and_survey(
         self, writer_client, sample_setup,
     ):
@@ -1041,79 +1166,6 @@ class TestTreeDelete:
     def test_reader_forbidden(self, reader_client, sample_setup):
         ts_id = TreeSample.objects.first().id
         resp = self._post(reader_client, ts_id)
-        assert resp.status_code == 403
-
-
-class TestSampleDateSave:
-    URL = '/api/campionamenti/sample/date/'
-
-    @staticmethod
-    def _post(client, body):
-        import json
-        return client.post(
-            TestSampleDateSave.URL,
-            data=json.dumps(body), content_type='application/json',
-        )
-
-    def test_update_existing_sample_date(self, writer_client, sample_setup):
-        s = sample_setup
-        resp = self._post(writer_client, {
-            'survey_id': s['survey'].id,
-            'sample_area_id': s['area'].id,
-            'date': '2025-01-15',
-        })
-        assert resp.status_code == 200, resp.content
-        s['sample'].refresh_from_db()
-        assert s['sample'].date.isoformat() == '2025-01-15'
-
-    def test_creates_sample_when_missing(self, writer_client, sample_setup,
-                                         regions, eclasses):
-        """Setting a date on an unvisited area creates the Sample row."""
-        s = sample_setup
-        new_parcel = Parcel.objects.create(
-            name='2', region=regions[0], eclass=eclasses[0],
-            area_ha=Decimal('1.0'),
-        )
-        unvisited = SampleArea.objects.create(
-            sample_grid=s['grid'], parcel=new_parcel, number='2',
-            lat=0.0, lng=0.0, r_m=12,
-        )
-        assert not Sample.objects.filter(
-            survey=s['survey'], sample_area=unvisited,
-        ).exists()
-        resp = self._post(writer_client, {
-            'survey_id': s['survey'].id,
-            'sample_area_id': unvisited.id,
-            'date': '2025-03-10',
-        })
-        assert resp.status_code == 200
-        smp = Sample.objects.get(survey=s['survey'], sample_area=unvisited)
-        assert smp.date.isoformat() == '2025-03-10'
-
-    def test_rejects_mismatched_grid(self, writer_client, sample_setup,
-                                     regions, eclasses):
-        other_grid = SampleGrid.objects.create(name='Other2')
-        other_parcel = Parcel.objects.create(
-            name='9', region=regions[0], eclass=eclasses[0],
-            area_ha=Decimal('1.0'),
-        )
-        other_area = SampleArea.objects.create(
-            sample_grid=other_grid, parcel=other_parcel, number='1',
-            lat=0.0, lng=0.0, r_m=12,
-        )
-        resp = self._post(writer_client, {
-            'survey_id': sample_setup['survey'].id,
-            'sample_area_id': other_area.id,
-            'date': '2025-01-01',
-        })
-        assert resp.status_code == 400
-
-    def test_reader_forbidden(self, reader_client, sample_setup):
-        resp = self._post(reader_client, {
-            'survey_id': sample_setup['survey'].id,
-            'sample_area_id': sample_setup['area'].id,
-            'date': '2025-01-01',
-        })
         assert resp.status_code == 403
 
 

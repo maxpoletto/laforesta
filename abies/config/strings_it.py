@@ -20,6 +20,7 @@ ERROR_RATE_LIMIT = 'Troppe richieste. Riprovare tra un minuto.'
 
 # Validation
 ERR_DATE_REQUIRED = 'Data obbligatoria.'
+ERR_DATE_INVALID = 'Data non valida.'
 ERR_QUINTALS_POSITIVE = 'I quintali devono essere positivi.'
 ERR_SPECIES_PCT_SUM = 'Le percentuali delle specie devono sommare a 100.'
 ERR_TRACTOR_PCT_SUM = 'Le percentuali dei trattori devono sommare a 100.'
@@ -177,6 +178,12 @@ TRACTORS = 'trattori'
 
 SPECIES = 'specie'
 SPECIES_PLURAL = 'specie'
+
+# Default species names for new-tree entry, matched against
+# Species.common_name (case-insensitive).  Picked on the fustaia /
+# ceduo parcel type so the operator's most likely tree is preselected.
+SPECIES_DEFAULT_FUSTAIA = 'abete'
+SPECIES_DEFAULT_CEDUO = 'castagno'
 
 PRODUCT = 'tipo di prodotto'
 PRODUCTS = 'tipi di prodotto'
