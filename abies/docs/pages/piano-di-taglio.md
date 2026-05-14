@@ -135,7 +135,7 @@ With a mark selected, click "+" in section 3.  Form:
 - Lat/lng (shared lat-lng component — see Campionamenti).
 
 Below the inputs, a read-only gray-italic summary line shows
-`V = X.XX m³ · m = X.X q`, recomputed live as Specie / D / h change.
+`V = X.XX m³  ·  m = X.X q`, recomputed live as Specie / D / h change.
 V is computed via the species-specific Tabacchi formula (JS only, with
 parameters from `pdg-2026/pdg/computation.py`); m is `V ×
 species.density` (loaded from `species.json` — see "Data tables" on

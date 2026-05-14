@@ -1945,6 +1945,7 @@ function wireTreeForm(form) {
   mountUseLocationButton(
     form.querySelector('#id_lat'),
     form.querySelector('#id_lng'),
+    { appendTo: form.querySelector('#id_lng')?.closest('.form-row') },
   );
   form.querySelector('#tree-form-cancel')?.addEventListener('click', () => {
     returnToPage();
@@ -2208,7 +2209,7 @@ function wireVMPreview(form) {
       mHidden.value = '';
       return;
     }
-    const opt = sp.options[sp.selectedIndex];
+    const opt = sp.tagName === 'SELECT' ? sp.options[sp.selectedIndex] : sp;
     const speciesName = opt?.dataset.name;
     const density = parseFloat(opt?.dataset.density);
     const v = tabacchiVolumeM3(dCm, hM, speciesName);
@@ -2225,7 +2226,7 @@ function wireVMPreview(form) {
     const m = massQ(v, density);
     preview.hidden = false;
     preview.textContent =
-      `V = ${v.toFixed(3).replace('.', ',')} m³ · m = ${m.toFixed(2).replace('.', ',')} q`;
+      `V = ${v.toFixed(3).replace('.', ',')} m³   ·   m = ${m.toFixed(2).replace('.', ',')} q`;
     vHidden.value = v.toFixed(4);
     mHidden.value = m.toFixed(3);
   }

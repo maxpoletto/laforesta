@@ -248,23 +248,30 @@ input:focus, select:focus, textarea:focus {
 
 .form-row > .form-group { flex: 1; margin-bottom: 0; }
 
-/* Short-entry field rows.  Add `narrow` to any `.form-row` whose children
- * should all be short fields (numeric inputs, lat/lng, small pull-downs):
- *   <div class="form-row narrow">
- *     <div class="form-group">…D…</div>
- *     <div class="form-group">…h…</div>
- *     <div class="form-group">…L10…</div>
- *   </div>
- * Wide fields (full-name inputs, descriptions, the N. albero pulldown)
- * live in plain .form-row rows so children flex to fill. */
-.form-row.narrow > .form-group { flex: 0 0 120px; }
+/* Short-entry field width: 120px.  Two flavours:
+ *   1. Row-level shorthand — `.form-row.narrow` constrains every
+ *      child cell.  Use when ALL cells in the row are short fields.
+ *   2. Per-cell — `.form-group.narrow` inside a plain `.form-row`
+ *      constrains just that one cell while siblings keep `flex: 1`.
+ *      Use when the row mixes a wide cell (e.g. the N. albero
+ *      pulldown with cross-sample-identity options) with a short
+ *      one (e.g. Data).
+ * Both selectors win over the default `.form-row > .form-group { flex: 1 }`
+ * via the `>` combinator's specificity. */
+.form-row.narrow > .form-group,
+.form-row > .form-group.narrow { flex: 0 0 120px; }
 
-/* "Usa posizione attuale" lat/lng button — appended by JS to a
- * .form-row that already holds the Lat / Lng inputs.  Align to the
- * bottom of the row so it sits level with the inputs (the inputs have
- * labels stacked above them).  No `margin-left: auto`: the button
- * trails the last input naturally, separated by the row's gap. */
-.latlng-use-location { align-self: end; }
+/* "Usa GPS" lat/lng button — appended by JS as a flex child of the
+ * .form-row that holds the Lat / Lng inputs.  Sized to the 120px
+ * short-field width so it visually matches the other cells in a
+ * narrow row, and aligned to the bottom so it sits level with the
+ * inputs (whose labels stack above them).  No `margin-left: auto`:
+ * the button trails the last input naturally, separated by the
+ * row's gap. */
+.latlng-use-location {
+  flex: 0 0 120px;
+  align-self: end;
+}
 
 .form-group {
   margin-bottom: 0.75rem;

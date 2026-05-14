@@ -215,6 +215,29 @@ class TestTreeForm:
         )
         assert match is not None and 'selected' in match.group(0)
 
+    def test_edit_form_hidden_species_carries_density_and_name(
+        self, writer_client, sample_setup,
+    ):
+        """On the edit-tree form, #id_species is a hidden <input> rather
+        than a <select>.  wireVMPreview in JS reads density / common_name
+        from the element's dataset, so the hidden input must carry
+        data-density and data-name — otherwise the live V/m preview
+        crashes and the whole form-wiring chain (cancel handler, submit
+        interceptor) aborts."""
+        ts = TreeSample.objects.get(sample=sample_setup['sample'])
+        resp = writer_client.get(f'/api/campionamenti/tree/form/{ts.id}/')
+        assert resp.status_code == 200
+        html = resp.json()['html']
+        import re
+        match = re.search(
+            r'<input[^>]*id="id_species"[^>]*>', html,
+        )
+        assert match is not None
+        tag = match.group(0)
+        assert 'type="hidden"' in tag
+        assert 'data-density="' in tag
+        assert 'data-name="' in tag
+
 
 class TestTreeSave:
     @staticmethod

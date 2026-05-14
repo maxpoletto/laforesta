@@ -175,7 +175,7 @@ export const AREA_IN_USE_TOOLTIP =
   'Area di saggio con campioni: non può essere eliminata.';
 
 // Shared lat/lng input
-export const USE_CURRENT_LOCATION = 'Usa posizione attuale';
+export const USE_CURRENT_LOCATION = 'Usa GPS';
 
 // Cascade-delete warning (Section 1/2 garbage on populated resources)
 export const CASCADE_CONFIRM_TITLE = 'Conferma eliminazione';

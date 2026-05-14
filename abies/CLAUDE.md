@@ -743,17 +743,23 @@ heading.
 ## Short-entry field width
 
 Short-entry fields — numeric inputs (D, h, L10, quota), lat/lng,
-small pull-downs (species, area number), `<input type="date">` —
-are 120px wide.  Apply via the modifier class:
-`.form-row.narrow > .form-group { flex: 0 0 120px; }`
-(`common.css`).  Add `narrow` to any `.form-row` whose children
-should all be short fields.  This keeps numeric forms compact and
-visually aligned across the app.
+small pull-downs (species, area number), `<input type="date">`,
+the "Usa GPS" button — are 120px wide.  Two flavours in
+`common.css`:
+
+- **Row-level shorthand:** `<div class="form-row narrow">` constrains
+  every child cell.  Use when ALL cells in the row are short.
+- **Per-cell:** `<div class="form-group narrow">` inside a plain
+  `<div class="form-row">` constrains just that one cell; siblings
+  keep `flex: 1`.  Use when the row mixes a wide cell (e.g. the
+  N. albero pulldown that carries cross-sample-identity options)
+  with a short one (Data).  This is what the Edit-vs-New variants
+  of the tree form rely on.
 
 Wide fields (full-name inputs, description textareas, the N. albero
-pulldown with cross-sample-identity options) live in plain
-`.form-row` rows where children flex to fill the row.  Do not mix
-narrow + flex children in the same row.
+pulldown) live in plain `.form-row` cells without the `narrow`
+modifier — they flex to fill.  Mixing a wide cell and a narrow
+cell in the same row is fine; use the per-cell flavour above.
 
 ## Read-only fields in edit forms
 

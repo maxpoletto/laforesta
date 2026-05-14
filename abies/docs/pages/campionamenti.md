@@ -292,7 +292,7 @@ Editable fields:
 - Pianta ad accrescimento indefinito (checkbox)
 
 For fustaia rows, below the D and h inputs the form shows a small,
-read-only summary in gray italic text — `V = X.XX m³ · m = X.X q` —
+read-only summary in gray italic text — `V = X.XX m³  ·  m = X.X q` —
 recomputed live as D, h, or specie change.  V comes from the
 species-specific Tabacchi formula in JS; m is `V × species.density`
 (density loaded from `species.json` — see "Data tables" below).  On

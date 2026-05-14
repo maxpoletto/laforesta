@@ -53,8 +53,8 @@ that tree's values).  See docs/pages/campionamenti.md.
       </div>
     </div>
 
-    <div class="form-row narrow">
-      <div class="form-group">
+    <div class="form-row">
+      <div class="form-group{% if ts %} narrow{% endif %}">
         <label for="id_tree_pick">N. albero</label>
         {% if ts %}
           <span class="readonly-field">{{ ts.number }}</span>
@@ -79,7 +79,7 @@ that tree's values).  See docs/pages/campionamenti.md.
           <input type="hidden" name="number" id="id_number" value="{{ next_number }}">
         {% endif %}
       </div>
-      <div class="form-group">
+      <div class="form-group narrow">
         <label for="id_date">Data</label>
         <input type="date" id="id_date" name="date" required
                value="{{ sample_date|date:'Y-m-d' }}">
@@ -91,7 +91,10 @@ that tree's values).  See docs/pages/campionamenti.md.
         <label for="id_species">Specie</label>
         {% if ts %}
           <span class="readonly-field">{{ tree.species.common_name }}</span>
-          <input type="hidden" name="species_id" id="id_species" value="{{ tree.species_id }}">
+          <input type="hidden" name="species_id" id="id_species"
+                 value="{{ tree.species_id }}"
+                 data-density="{{ tree.species.density }}"
+                 data-name="{{ tree.species.common_name }}">
         {% else %}
           <select id="id_species" name="species_id" required>
             {% for sp in species %}
@@ -111,9 +114,6 @@ that tree's values).  See docs/pages/campionamenti.md.
           <span class="readonly-field">{% if tree.coppice %}Sì{% else %}No{% endif %}</span>
           <input type="hidden" name="fustaia"
                  value="{% if tree.coppice %}false{% else %}true{% endif %}">
-          {# Hidden mirror so wireCeduoToggle reads the right state and
-             swaps .tree-fustaia-fields / .tree-coppice-block visibility.
-             No `name` → not submitted.  See _tree_form.html docstring. #}
           <input type="checkbox" id="id_ceduo"
                  {% if tree.coppice %}checked{% endif %} hidden>
         {% else %}
@@ -154,9 +154,6 @@ that tree's values).  See docs/pages/campionamenti.md.
         </div>
       </div>
 
-      {# V/m preview — starts hidden; wireVMPreview unhides it once both
-         D and h are nonzero.  Empty placeholder so the row reserves
-         vertical space and the form doesn't jump when it appears. #}
       <div class="tree-form-preview-row">
         <span class="tree-form-preview" id="tree-form-vm-preview" hidden></span>
       </div>
