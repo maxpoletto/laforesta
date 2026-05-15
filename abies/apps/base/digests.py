@@ -133,8 +133,9 @@ def generate_prelievi() -> None:
     ]
 
     columns = (
-        ['row_id', 'version', 'Data', 'Compresa', 'Particella', 'Squadra',
-         'VDP', 'Tipo', 'Q.li', 'Volume (m³)', 'Note', 'Altre note']
+        ['row_id', 'version', S.COL_DATE, S.COL_COMPRESA, S.COL_PARCEL,
+         S.COL_CREW, S.COL_VDP, S.COL_PRODUCT, S.COL_QUINTALS,
+         S.COL_VOLUME_M3, S.COL_NOTE, S.COL_EXTRA_NOTE]
         + species_names
         + tractor_labels
         + [f'{n} %' for n in species_names]
@@ -219,9 +220,10 @@ def build_harvest_record(op) -> list:
 def generate_parcels() -> None:
     from apps.base.models import Parcel
 
-    columns = ['row_id', 'Compresa', 'Particella', 'Classe', 'Area (ha)',
-               'Età media', 'Località', 'Alt. min', 'Alt. max',
-               'Esposizione', 'Pendenza %']
+    columns = ['row_id', S.COL_COMPRESA, S.COL_PARCEL, S.COL_CLASS,
+               S.COL_AREA_HA, S.COL_AVE_AGE, S.COL_LOCATION,
+               S.COL_ALT_MIN, S.COL_ALT_MAX,
+               S.COL_ASPECT, S.COL_GRADE_PCT]
     rows = []
     for p in Parcel.objects.select_related('region', 'eclass').order_by('region__name', 'name'):
         rows.append([
@@ -241,7 +243,7 @@ def generate_parcels() -> None:
 def generate_crews() -> None:
     from apps.base.models import Crew
 
-    columns = ['row_id', 'Nome', 'Note', 'Attiva']
+    columns = ['row_id', S.COL_NAME, S.COL_NOTE, S.COL_ACTIVE]
     rows = []
     for c in Crew.objects.order_by('name'):
         rows.append([c.id, c.name, c.notes, c.active])
@@ -259,8 +261,8 @@ def generate_species() -> None:
     generators that need per-species density."""
     from apps.base.models import Species
 
-    columns = ['row_id', 'version', 'Nome', 'Nome latino', 'Densità (q/m³)',
-               'Sort order', 'Attiva']
+    columns = ['row_id', 'version', S.COL_NAME, S.COL_LATIN_NAME,
+               S.COL_DENSITY, S.COL_SORT_ORDER, S.COL_ACTIVE]
     rows = []
     for sp in Species.objects.order_by('sort_order'):
         rows.append([
@@ -281,7 +283,8 @@ def generate_parcel_year_production() -> None:
     GROUP BY region, parcel, year."""
     from apps.prelievi.models import Harvest
 
-    columns = ['Compresa', 'Particella', 'Anno', 'Q.li', 'Volume (m³)']
+    columns = [S.COL_COMPRESA, S.COL_PARCEL, S.COL_YEAR,
+               S.COL_QUINTALS, S.COL_VOLUME_M3]
     qs = (Harvest.objects
           .values('parcel__region__name', 'parcel__name', 'date__year')
           .annotate(total_q=Sum('quintals'), total_v=Sum('volume_m3'))
@@ -410,8 +413,9 @@ def _format_diff(prev, current, field_labels: dict) -> tuple[str, str]:
 # Campionamenti digests
 # ---------------------------------------------------------------------------
 
-GRID_COLUMNS = ['row_id', 'version', 'Nome', 'Descrizione', 'N. aree',
-                'Comprese', 'N. rilevamenti', 'Ultimo aggiornamento']
+GRID_COLUMNS = ['row_id', 'version', S.COL_NAME, S.COL_DESCRIPTION,
+                S.COL_N_AREAS, S.COL_REGIONS, S.COL_N_SURVEYS,
+                S.COL_LAST_UPDATE]
 
 
 def build_grid_record(g) -> list:
@@ -452,9 +456,10 @@ def generate_grids() -> None:
     print(f'grids.json.gz: {len(rows)} rows')
 
 
-SURVEY_COLUMNS = ['row_id', 'version', 'Nome', 'Descrizione', 'Griglia',
-                  'Piano di taglio', 'N. aree visitate', 'N. aree totali',
-                  'Data primo', 'Data ultimo']
+SURVEY_COLUMNS = ['row_id', 'version', S.COL_NAME, S.COL_DESCRIPTION,
+                  S.COL_GRID, S.COL_HARVEST_PLAN,
+                  S.COL_N_AREAS_VISITED, S.COL_N_AREAS_TOTAL,
+                  S.COL_DATE_FIRST, S.COL_DATE_LAST]
 
 
 def build_survey_record(s) -> list:
@@ -527,9 +532,9 @@ def generate_surveys() -> None:
     print(f'surveys.json.gz: {len(rows)} rows')
 
 
-SAMPLE_AREA_COLUMNS = ['row_id', 'version', 'Griglia', 'Compresa',
-                       'Particella', 'Numero', 'Lat', 'Lng', 'Quota',
-                       'Raggio', 'Note']
+SAMPLE_AREA_COLUMNS = ['row_id', 'version', S.COL_GRID, S.COL_COMPRESA,
+                       S.COL_PARCEL, S.COL_NUMBER, S.COL_LAT, S.COL_LON,
+                       S.COL_QUOTA, S.COL_RAGGIO, S.COL_NOTE]
 
 
 def build_sample_area_record(sa) -> list:
@@ -565,8 +570,8 @@ def generate_sample_areas() -> None:
     print(f'sample_areas.json.gz: {len(rows)} rows')
 
 
-SAMPLE_COLUMNS = ['row_id', 'version', 'Survey', 'Sample area', 'Data',
-                  'N. alberi']
+SAMPLE_COLUMNS = ['row_id', 'version', S.COL_SURVEY, S.COL_SAMPLE_AREA,
+                  S.COL_DATE, S.COL_N_TREES]
 
 
 def build_sample_record(s, n_alberi: int | None = None) -> list:
@@ -606,11 +611,13 @@ def generate_samples() -> None:
     print(f'samples.json.gz: {len(rows)} rows')
 
 
-SAMPLED_TREE_COLUMNS = ['row_id', 'version', 'Sample area', 'Data campione',
-                        'Compresa', 'Particella', 'N. area', 'N. albero',
-                        'Specie', 'Tipo', 'Pollone', 'Matricina',
-                        'D (cm)', 'h (m)', 'L10 (mm)', 'V (m³)', 'm (q)',
-                        'PAI', 'Lat', 'Lng']
+SAMPLED_TREE_COLUMNS = ['row_id', 'version', S.COL_SAMPLE_AREA,
+                        S.COL_SAMPLE_DATE, S.COL_COMPRESA, S.COL_PARCEL,
+                        S.COL_AREA_NUM, S.COL_TREE_NUM,
+                        S.COL_SPECIES, S.COL_PRODUCT, S.COL_POLLONE,
+                        S.COL_MATRICINA, S.COL_D_CM, S.COL_H_M, S.COL_L10_MM,
+                        S.COL_V_M3, S.COL_MASS_Q,
+                        S.COL_PAI, S.COL_LAT, S.COL_LON]
 
 
 def build_tree_sample_record(ts) -> list:

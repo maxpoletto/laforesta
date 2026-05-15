@@ -16,6 +16,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from apps.base.models import Parcel, Region, SampleArea, SampleGrid
+from config import strings as S
 
 
 GRID_NAME = 'Aree di saggio PDG 2026'
@@ -76,8 +77,8 @@ class Command(BaseCommand):
             n_created = 0
             n_skipped = 0
             for i, row in enumerate(rows, 1):
-                region_name = row['Compresa']
-                parcel_name = row['Particella']
+                region_name = row[S.CSV_COL_COMPRESA]
+                parcel_name = row[S.CSV_COL_PARTICELLA]
                 parcel = parcel_cache.get((region_name, parcel_name))
                 if parcel is None:
                     self.stdout.write(
@@ -86,13 +87,13 @@ class Command(BaseCommand):
                     )
                     n_skipped += 1
                     continue
-                number = row['Area saggio'].strip()
+                number = row[S.CSV_COL_AREA_SAGGIO].strip()
                 obj, was_created = SampleArea.objects.get_or_create(
                     sample_grid=grid, parcel=parcel, number=number,
                     defaults={
-                        'lat': float(row['Lat']),
-                        'lng': float(row['Lon']),
-                        'altitude_m': _int_or_none(row['Quota']),
+                        'lat': float(row[S.CSV_COL_LAT]),
+                        'lng': float(row[S.CSV_COL_LON]),
+                        'altitude_m': _int_or_none(row[S.CSV_COL_QUOTA]),
                         'r_m': DEFAULT_RADIUS_M,
                         'note': '',
                     },

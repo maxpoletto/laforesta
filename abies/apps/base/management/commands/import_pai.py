@@ -20,6 +20,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from apps.base.models import Parcel, Species, Tree
+from config import strings as S
 
 # PAI CSV Genere → Species.common_name.  Falls back to 'Altro' for
 # species not in our seed table (less-common species in the PDG forest).
@@ -103,13 +104,13 @@ class Command(BaseCommand):
             n_skipped = 0
             for i, row in enumerate(rows, 1):
                 parcel = parcel_cache.get(
-                    (row['Compresa'], row['Particella'])
+                    (row[S.CSV_COL_COMPRESA], row[S.CSV_COL_PARTICELLA])
                 )
                 if parcel is None:
                     n_skipped += 1
                     continue
 
-                mapped = GENERE_MAP.get(row['Genere'].strip(), 'Altro')
+                mapped = GENERE_MAP.get(row[S.CSV_COL_GENERE].strip(), 'Altro')
                 species = species_cache.get(mapped)
                 if species is None:
                     n_skipped += 1
@@ -118,8 +119,8 @@ class Command(BaseCommand):
                 Tree.objects.create(
                     species=species,
                     parcel=parcel,
-                    lat=_float_or_none(row['Lat']),
-                    lng=_float_or_none(row['Lon']),
+                    lat=_float_or_none(row[S.CSV_COL_LAT]),
+                    lng=_float_or_none(row[S.CSV_COL_LON]),
                     preserved=True,
                     coppice=False,
                 )

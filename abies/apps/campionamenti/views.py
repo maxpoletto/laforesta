@@ -925,12 +925,15 @@ def survey_edit_view(request, survey_id: int):
 # CSV imports (Bucket 3) — Grid CSV + Tree-and-sample CSV
 # ---------------------------------------------------------------------------
 
-GRID_CSV_REQUIRED = ['Compresa', 'Particella', 'Area saggio', 'Lon', 'Lat',
-                     'Quota', 'Raggio']
-TREE_CSV_REQUIRED = ['Compresa', 'Particella', 'Area saggio', 'Albero',
-                     'Pollone', 'Matricina', 'D_cm', 'H_m', 'L10_mm',
-                     'Genere', 'Fustaia']
-TREE_CSV_OPTIONAL = ['Data', 'PAI']
+GRID_CSV_REQUIRED = [S.CSV_COL_COMPRESA, S.CSV_COL_PARTICELLA,
+                     S.CSV_COL_AREA_SAGGIO, S.CSV_COL_LON, S.CSV_COL_LAT,
+                     S.CSV_COL_QUOTA, S.CSV_COL_RAGGIO]
+TREE_CSV_REQUIRED = [S.CSV_COL_COMPRESA, S.CSV_COL_PARTICELLA,
+                     S.CSV_COL_AREA_SAGGIO, S.CSV_COL_ALBERO,
+                     S.CSV_COL_POLLONE, S.CSV_COL_MATRICINA,
+                     S.CSV_COL_D_CM, S.CSV_COL_H_M, S.CSV_COL_L10_MM,
+                     S.CSV_COL_GENERE, S.CSV_COL_FUSTAIA]
+TREE_CSV_OPTIONAL = [S.CSV_COL_DATA, S.CSV_COL_PAI]
 
 
 @login_required
@@ -979,15 +982,15 @@ def grid_csv_import_view(request):
     parsed_rows = []
     seen_in_csv = set()
     for i, row in enumerate(rows, 2):  # row 2 = first data row (after header)
-        compresa = row['Compresa'].strip()
-        particella = row['Particella'].strip()
+        compresa = row[S.CSV_COL_COMPRESA].strip()
+        particella = row[S.CSV_COL_PARTICELLA].strip()
         parcel = parcel_cache.get((compresa.lower(), particella))
         if parcel is None:
             errors.append(
                 S.ERR_CSV_ROW_PARCEL.format(i, compresa, particella),
             )
             continue
-        number = row['Area saggio'].strip()
+        number = row[S.CSV_COL_AREA_SAGGIO].strip()
         key = (parcel.id, number)
         if key in existing_keys or key in seen_in_csv:
             errors.append(S.ERR_CSV_ROW_AREA_DUPLICATE.format(
@@ -999,11 +1002,11 @@ def grid_csv_import_view(request):
             parsed_rows.append({
                 'parcel': parcel,
                 'number': number,
-                'lat': float(row['Lat']),
-                'lng': float(row['Lon']),
-                'altitude': _int_or_none_str(row['Quota']),
-                'r_m': int(float(row['Raggio'])) if row['Raggio'].strip()
-                       else 12,
+                'lat': float(row[S.CSV_COL_LAT]),
+                'lng': float(row[S.CSV_COL_LON]),
+                'altitude': _int_or_none_str(row[S.CSV_COL_QUOTA]),
+                'r_m': int(float(row[S.CSV_COL_RAGGIO]))
+                       if row[S.CSV_COL_RAGGIO].strip() else 12,
                 'note': '',
             })
         except (ValueError, KeyError) as exc:
@@ -1077,7 +1080,7 @@ def tree_csv_import_view(request):
     except _CsvError as e:
         return _simple_validation_error(str(e))
 
-    has_date_column = bool(rows) and 'Data' in rows[0]
+    has_date_column = bool(rows) and S.CSV_COL_DATA in rows[0]
     if not has_date_column and not default_date_str:
         return _simple_validation_error(S.ERR_CSV_DATE_REQUIRED)
     default_date = None
@@ -1106,29 +1109,31 @@ def tree_csv_import_view(request):
     errors = []
     parsed = []
     for i, row in enumerate(rows, 2):
-        compresa = row['Compresa'].strip()
-        particella = row['Particella'].strip()
-        adc = row['Area saggio'].strip()
+        compresa = row[S.CSV_COL_COMPRESA].strip()
+        particella = row[S.CSV_COL_PARTICELLA].strip()
+        adc = row[S.CSV_COL_AREA_SAGGIO].strip()
         area = area_cache.get((compresa.lower(), particella, adc))
         if area is None:
             errors.append(S.ERR_CSV_ROW_AREA.format(i, compresa, particella, adc))
             continue
         try:
-            number = int(row['Albero'])
-            shoot = int(row['Pollone'] or 0)
-            standard = _bool_str(row['Matricina'])
-            d_cm = int(float(row['D_cm']))
-            h_m = Decimal(row['H_m']).quantize(Decimal('0.01'),
-                                              rounding=ROUND_HALF_UP)
-            l10_mm = int(float(row['L10_mm'])) if row['L10_mm'].strip() else 0
-            fustaia = _bool_str(row['Fustaia'])
+            number = int(row[S.CSV_COL_ALBERO])
+            shoot = int(row[S.CSV_COL_POLLONE] or 0)
+            standard = _bool_str(row[S.CSV_COL_MATRICINA])
+            d_cm = int(float(row[S.CSV_COL_D_CM]))
+            h_m = Decimal(row[S.CSV_COL_H_M]).quantize(Decimal('0.01'),
+                                                       rounding=ROUND_HALF_UP)
+            l10_mm = (int(float(row[S.CSV_COL_L10_MM]))
+                      if row[S.CSV_COL_L10_MM].strip() else 0)
+            fustaia = _bool_str(row[S.CSV_COL_FUSTAIA])
             coppice = not fustaia
-            preserved = _bool_str(row.get('PAI', '')) if 'PAI' in row else False
+            preserved = (_bool_str(row.get(S.CSV_COL_PAI, ''))
+                         if S.CSV_COL_PAI in row else False)
         except (ValueError, InvalidOperation) as exc:
             errors.append(S.ERR_CSV_ROW_PARSE.format(i, str(exc)))
             continue
 
-        genere = row['Genere'].strip()
+        genere = row[S.CSV_COL_GENERE].strip()
         mapped = GENERE_MAP.get(genere, genere)
         species = species_cache.get(mapped.lower())
         if species is None:
@@ -1136,12 +1141,12 @@ def tree_csv_import_view(request):
             continue
 
         # Per-row date (if column present) else default.
-        if has_date_column and row.get('Data', '').strip():
+        if has_date_column and row.get(S.CSV_COL_DATA, '').strip():
             try:
-                row_date = date_type.fromisoformat(row['Data'].strip())
+                row_date = date_type.fromisoformat(row[S.CSV_COL_DATA].strip())
             except ValueError:
                 errors.append(S.ERR_CSV_ROW_PARSE.format(
-                    i, f'Data: {row["Data"]}',
+                    i, f'{S.CSV_COL_DATA}: {row[S.CSV_COL_DATA]}',
                 ))
                 continue
         else:

@@ -18,6 +18,8 @@ ERROR_CONFLICT = 'Il record è stato modificato da un altro utente.'
 ERROR_GENERIC = 'Errore imprevisto.'
 ERROR_RATE_LIMIT = 'Troppe richieste. Riprovare tra un minuto.'
 
+ERR_LOGIN_INVALID = 'Nome utente o password non validi.'
+
 # Validation
 ERR_DATE_REQUIRED = 'Data obbligatoria.'
 ERR_DATE_INVALID = 'Data non valida.'
@@ -145,6 +147,112 @@ ERR_CSV_ROW_AREA_DUPLICATE = (
 ERR_CSV_DATE_REQUIRED = (
     'Il file CSV non ha una colonna "Data": indicare una data predefinita.'
 )
+
+# ---------------------------------------------------------------------------
+# CSV column headers.  These are simultaneously the wire-format identifiers
+# the importer matches against AND the user-facing copy in the import help
+# text.  Both sides reference these constants so they cannot drift.
+# ---------------------------------------------------------------------------
+
+CSV_COL_COMPRESA    = 'Compresa'
+CSV_COL_PARTICELLA  = 'Particella'
+CSV_COL_AREA_SAGGIO = 'Area saggio'
+CSV_COL_LON         = 'Lon'
+CSV_COL_LAT         = 'Lat'
+CSV_COL_QUOTA       = 'Quota'
+CSV_COL_RAGGIO      = 'Raggio'
+CSV_COL_ALBERO      = 'Albero'
+CSV_COL_POLLONE     = 'Pollone'
+CSV_COL_MATRICINA   = 'Matricina'
+CSV_COL_D_CM        = 'D_cm'
+CSV_COL_H_M         = 'H_m'
+CSV_COL_L10_MM      = 'L10_mm'
+CSV_COL_GENERE      = 'Genere'
+CSV_COL_FUSTAIA     = 'Fustaia'
+CSV_COL_DATA        = 'Data'
+CSV_COL_PAI         = 'PAI'
+
+# CSV column headers used by the legacy bosco/data `import_*` management
+# commands.  Where a column also appears in a digest, the names are
+# paired (`CSV_COL_X` / `COL_X`); the values may match (same Italian
+# token used in both contexts) or differ (e.g. `Altitudine min` in the
+# CSV vs `Alt. min` in the digest column).
+CSV_COL_COMPARTO       = 'Comparto'
+CSV_COL_CREW           = 'Squadra'           # paired with COL_CREW
+CSV_COL_PRODUCT        = 'Tipo'              # paired with COL_PRODUCT
+CSV_COL_NOTE           = 'Note'              # paired with COL_NOTE
+CSV_COL_QUINTALS       = 'Q.li'              # paired with COL_QUINTALS
+CSV_COL_VDP            = 'VDP'               # paired with COL_VDP
+CSV_COL_PROT           = 'Prot.'             # paired with COL_PROT (note '.')
+CSV_COL_EXTRA_NOTE     = 'Altre note'        # paired with COL_EXTRA_NOTE
+CSV_COL_AREA_HA        = 'Area (ha)'         # paired with COL_AREA_HA
+CSV_COL_AVE_AGE        = 'Età media'         # paired with COL_AVE_AGE
+CSV_COL_LOCATION       = 'Località'          # paired with COL_LOCATION
+CSV_COL_ASPECT         = 'Esposizione'       # paired with COL_ASPECT
+CSV_COL_GRADE_PCT      = 'Pendenza %'        # paired with COL_GRADE_PCT
+CSV_COL_VEG_DESC       = 'Soprassuolo'       # vegetation description
+CSV_COL_GEO_DESC       = 'Stazione'          # geological station
+CSV_COL_ALT_MIN        = 'Altitudine min'    # paired with COL_ALT_MIN
+CSV_COL_ALT_MAX        = 'Altitudine max'    # paired with COL_ALT_MAX
+CSV_COL_D_CM_LEGACY    = 'D(cm)'
+CSV_COL_H_M_LEGACY     = 'h(m)'
+CSV_COL_L10_MM_LEGACY  = 'L10(mm)'
+CSV_COL_N_LEGACY       = 'n'
+
+# ---------------------------------------------------------------------------
+# Digest column headers (display labels in JSON `columns` arrays).
+# Where a column has a CSV counterpart with a different display form
+# (e.g. CSV `D_cm` vs digest `D (cm)`) the names are paired
+# (`CSV_COL_D_CM` / `COL_D_CM`).  Where the display value equals the
+# CSV value (e.g. `Lat`, `Pollone`), both constants exist with the same
+# value for symmetric usage at call sites.
+# ---------------------------------------------------------------------------
+
+COL_COMPRESA           = 'Compresa'         # paired with CSV_COL_COMPRESA
+COL_QUOTA              = 'Quota'            # paired with CSV_COL_QUOTA
+COL_RAGGIO             = 'Raggio'           # paired with CSV_COL_RAGGIO
+COL_NAME               = 'Nome'             # paired with LABEL_NAME (HTML form)
+COL_LATIN_NAME         = 'Nome latino'
+COL_DENSITY            = 'Densità (q/m³)'
+COL_CLASS              = 'Classe'           # parcel eclass
+COL_AREA_HA            = 'Area (ha)'
+COL_AVE_AGE            = 'Età media'
+COL_LOCATION           = 'Località'
+COL_ALT_MIN            = 'Alt. min'
+COL_ALT_MAX            = 'Alt. max'
+COL_ASPECT             = 'Esposizione'
+COL_GRADE_PCT          = 'Pendenza %'
+COL_SORT_ORDER         = 'Sort order'       # internal English; not localized
+COL_YEAR               = 'Anno'
+COL_DESCRIPTION        = 'Descrizione'
+COL_N_AREAS            = 'N. aree'
+COL_REGIONS            = 'Comprese'
+COL_N_SURVEYS          = 'N. rilevamenti'
+COL_LAST_UPDATE        = 'Ultimo aggiornamento'
+COL_GRID               = 'Griglia'
+COL_HARVEST_PLAN       = 'Piano di taglio'
+COL_N_AREAS_VISITED    = 'N. aree visitate'
+COL_N_AREAS_TOTAL      = 'N. aree totali'
+COL_DATE_FIRST         = 'Data primo'
+COL_DATE_LAST          = 'Data ultimo'
+COL_NUMBER             = 'Numero'
+COL_LAT                = 'Lat'              # paired with CSV_COL_LAT
+COL_LON                = 'Lon'              # paired with CSV_COL_LON
+COL_SURVEY             = 'Rilevamento'
+COL_SAMPLE_AREA        = 'Area di saggio'
+COL_N_TREES            = 'N. alberi'
+COL_SAMPLE_DATE        = 'Data campione'
+COL_AREA_NUM           = 'N. area'
+COL_TREE_NUM           = 'N. albero'
+COL_SPECIES            = 'Specie'
+COL_POLLONE            = 'Pollone'          # paired with CSV_COL_POLLONE
+COL_MATRICINA          = 'Matricina'        # paired with CSV_COL_MATRICINA
+COL_PAI                = 'PAI'              # paired with CSV_COL_PAI
+COL_D_CM               = 'D (cm)'           # paired with CSV_COL_D_CM
+COL_H_M                = 'h (m)'            # paired with CSV_COL_H_M
+COL_L10_MM             = 'L10 (mm)'         # paired with CSV_COL_L10_MM
+COL_V_M3               = 'V (m³)'           # short form (sampled-trees digest)
+COL_MASS_Q             = 'm (q)'
 
 # ---------------------------------------------------------------------------
 # App verbose names

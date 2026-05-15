@@ -13,6 +13,8 @@ from django.utils.decorators import method_decorator
 from django.utils.http import http_date, parse_http_date_safe
 from django.views import View
 
+from config import strings as S
+
 # Whitelist of geo files we serve via `geo_view`.  Anything else 404s,
 # even if it exists under `settings.GEO_DIR`.
 ALLOWED_GEO_FILES = {
@@ -45,7 +47,7 @@ class LoginView(View):
             next_url = request.POST.get('next') or settings.LOGIN_REDIRECT_URL
             return redirect(next_url)
         return render(request, 'base/login.html', {
-            'error_message': 'Nome utente o password non validi.',
+            'error_message': S.ERR_LOGIN_INVALID,
             'next': request.POST.get('next', ''),
         }, status=400)
 

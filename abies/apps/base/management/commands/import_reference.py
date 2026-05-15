@@ -12,6 +12,8 @@ from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
 
+from config import strings as S
+
 from apps.base.models import (
     Crew, Eclass, Note, Product, Region, Species, Tractor,
 )
@@ -139,7 +141,8 @@ class Command(BaseCommand):
     def _import_crews(self, mannesi_csv: Path):
         with open(mannesi_csv, encoding='utf-8-sig') as f:
             reader = csv.DictReader(f)
-            names = sorted({row['Squadra'] for row in reader if row['Squadra']})
+            names = sorted({row[S.CSV_COL_CREW] for row in reader
+                            if row[S.CSV_COL_CREW]})
         for name in names:
             Crew.objects.get_or_create(name=name)
         self.stdout.write(f'Crews: {Crew.objects.count()}')

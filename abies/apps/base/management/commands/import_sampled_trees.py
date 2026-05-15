@@ -36,6 +36,7 @@ from apps.base.models import (
     Parcel, SampleArea, Sample, SampleGrid, Species, Survey, Tree, TreeSample,
 )
 from apps.base.tabacchi import has_species, tabacchi_volume_m3
+from config import strings as S
 
 SURVEY_NAME = 'Campagna 2024-2025'
 SURVEY_DESC = ('Misure di alberi nelle aree di saggio PDG 2026, '
@@ -144,7 +145,8 @@ class Command(BaseCommand):
             # First pass: group rows by (region, parcel, area) → Sample.
             samples_by_key: dict[tuple, Sample] = {}
             for row in rows:
-                key = (row['Compresa'], row['Particella'], row['Area saggio'].strip())
+                key = (row[S.CSV_COL_COMPRESA], row[S.CSV_COL_PARTICELLA],
+                       row[S.CSV_COL_AREA_SAGGIO].strip())
                 if key in samples_by_key:
                     continue
                 sa = sample_area_cache.get(key)
@@ -157,8 +159,10 @@ class Command(BaseCommand):
 
             # Second pass: create Tree + TreeSample rows.
             for i, row in enumerate(rows, 1):
-                key = (row['Compresa'], row['Particella'], row['Area saggio'].strip())
-                parcel = parcel_cache.get((row['Compresa'], row['Particella']))
+                key = (row[S.CSV_COL_COMPRESA], row[S.CSV_COL_PARTICELLA],
+                       row[S.CSV_COL_AREA_SAGGIO].strip())
+                parcel = parcel_cache.get(
+                    (row[S.CSV_COL_COMPRESA], row[S.CSV_COL_PARTICELLA]))
                 if parcel is None:
                     n_skipped_parcel += 1
                     continue
@@ -167,18 +171,18 @@ class Command(BaseCommand):
                     n_skipped_area += 1
                     continue
 
-                genere = row['Genere'].strip()
+                genere = row[S.CSV_COL_GENERE].strip()
                 mapped = GENERE_MAP.get(genere)
                 species = species_cache.get(mapped) if mapped else None
                 if species is None:
                     n_skipped_species += 1
                     continue
 
-                d_cm = int(float(row['D(cm)']))
-                h_m = Decimal(row['h(m)']).quantize(Decimal('0.01'),
-                                                   rounding=ROUND_HALF_UP)
-                l10_mm = _int_or_none(row['L10(mm)']) or 0
-                fustaia = _bool(row['Fustaia'])
+                d_cm = int(float(row[S.CSV_COL_D_CM_LEGACY]))
+                h_m = Decimal(row[S.CSV_COL_H_M_LEGACY]).quantize(
+                    Decimal('0.01'), rounding=ROUND_HALF_UP)
+                l10_mm = _int_or_none(row[S.CSV_COL_L10_MM_LEGACY]) or 0
+                fustaia = _bool(row[S.CSV_COL_FUSTAIA])
                 coppice = not fustaia
 
                 # Compute V via Tabacchi when species is known to Tabacchi;
@@ -198,7 +202,7 @@ class Command(BaseCommand):
                 )
                 TreeSample.objects.create(
                     sample=sample, tree=tree, shoot=0, standard=False,
-                    number=int(row['n']), d_cm=d_cm, h_m=h_m,
+                    number=int(row[S.CSV_COL_N_LEGACY]), d_cm=d_cm, h_m=h_m,
                     l10_mm=l10_mm, volume_m3=volume_m3, mass_q=mass_q,
                 )
                 n_trees += 1

@@ -18,6 +18,7 @@ from apps.base.models import (
     Crew, Note, Parcel, Product, Species, Tractor,
 )
 from apps.prelievi.models import Harvest, HarvestSpecies, HarvestTractor
+from config import strings as S
 
 # CSV column prefix -> Species.common_name
 SPECIES_COL_MAP = {
@@ -116,8 +117,8 @@ class Command(BaseCommand):
         tractor_deferred: list[tuple[int, Tractor, int]] = []
 
         for i, row in enumerate(rows):
-            region_name = row['Compresa']
-            parcel_name = row['Particella']
+            region_name = row[S.CSV_COL_COMPRESA]
+            parcel_name = row[S.CSV_COL_PARTICELLA]
             parcel = parcel_cache.get((region_name, parcel_name))
             if parcel is None:
                 self.stdout.write(
@@ -126,24 +127,26 @@ class Command(BaseCommand):
                 )
                 continue
 
-            crew = crew_cache.get(row['Squadra'])
+            crew = crew_cache.get(row[S.CSV_COL_CREW])
             if crew is None:
                 self.stdout.write(
-                    f'Row {i + 1}: unknown crew {row["Squadra"]!r}, skipping'
+                    f'Row {i + 1}: unknown crew '
+                    f'{row[S.CSV_COL_CREW]!r}, skipping'
                 )
                 continue
 
-            product = product_cache.get(PRODUCT_MAP.get(row['Tipo'], ''))
+            product = product_cache.get(PRODUCT_MAP.get(row[S.CSV_COL_PRODUCT], ''))
             if product is None:
                 self.stdout.write(
-                    f'Row {i + 1}: unknown product {row["Tipo"]!r}, skipping'
+                    f'Row {i + 1}: unknown product '
+                    f'{row[S.CSV_COL_PRODUCT]!r}, skipping'
                 )
                 continue
 
-            note_name = NOTE_MAP.get(row.get('Note', '').strip(), '')
+            note_name = NOTE_MAP.get(row.get(S.CSV_COL_NOTE, '').strip(), '')
             note = note_cache.get(note_name) if note_name else None
 
-            quintals = Decimal(row['Q.li'].strip())
+            quintals = Decimal(row[S.CSV_COL_QUINTALS].strip())
 
             row_species_pcts: list[tuple[Species, int]] = []
             for col_prefix, common_name in SPECIES_COL_MAP.items():
@@ -154,16 +157,16 @@ class Command(BaseCommand):
             volume_m3 = _harvest_volume_m3(quintals, row_species_pcts)
 
             op = Harvest(
-                date=row['Data'],
+                date=row[S.CSV_COL_DATA],
                 product=product,
                 parcel=parcel,
                 crew=crew,
-                record1=_int_or_none(row['VDP']),
-                record2=_int_or_none(row.get('Prot.', '')),
+                record1=_int_or_none(row[S.CSV_COL_VDP]),
+                record2=_int_or_none(row.get(S.CSV_COL_PROT, '')),
                 quintals=quintals,
                 volume_m3=volume_m3,
                 note=note,
-                extra_note=row.get('Altre note', '').strip(),
+                extra_note=row.get(S.CSV_COL_EXTRA_NOTE, '').strip(),
             )
             op_idx = len(ops_batch)
             ops_batch.append(op)

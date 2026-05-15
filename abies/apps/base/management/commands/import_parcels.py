@@ -11,6 +11,7 @@ from pathlib import Path
 from django.core.management.base import BaseCommand, CommandError
 
 from apps.base.models import Eclass, Parcel, Region
+from config import strings as S
 
 
 def _int_or_none(s: str) -> int | None:
@@ -50,22 +51,22 @@ class Command(BaseCommand):
         created = 0
         with open(particelle_csv, encoding='utf-8-sig') as f:
             for row in csv.DictReader(f):
-                region = region_cache[row['Compresa']]
-                eclass = eclass_cache[row['Comparto']]
+                region = region_cache[row[S.CSV_COL_COMPRESA]]
+                eclass = eclass_cache[row[S.CSV_COL_COMPARTO]]
                 _, was_created = Parcel.objects.get_or_create(
-                    name=row['Particella'],
+                    name=row[S.CSV_COL_PARTICELLA],
                     region=region,
                     defaults={
                         'eclass': eclass,
-                        'area_ha': Decimal(row['Area (ha)'].strip()),
-                        'ave_age': _int_or_none(row['Età media']),
-                        'location_name': row.get('Località', '').strip(),
-                        'altitude_min_m': _int_or_none(row['Altitudine min']),
-                        'altitude_max_m': _int_or_none(row['Altitudine max']),
-                        'aspect': row.get('Esposizione', '').strip(),
-                        'grade_pct': _int_or_none(row['Pendenza %']),
-                        'desc_veg': row.get('Soprassuolo', '').strip(),
-                        'desc_geo': row.get('Stazione', '').strip(),
+                        'area_ha': Decimal(row[S.CSV_COL_AREA_HA].strip()),
+                        'ave_age': _int_or_none(row[S.CSV_COL_AVE_AGE]),
+                        'location_name': row.get(S.CSV_COL_LOCATION, '').strip(),
+                        'altitude_min_m': _int_or_none(row[S.CSV_COL_ALT_MIN]),
+                        'altitude_max_m': _int_or_none(row[S.CSV_COL_ALT_MAX]),
+                        'aspect': row.get(S.CSV_COL_ASPECT, '').strip(),
+                        'grade_pct': _int_or_none(row[S.CSV_COL_GRADE_PCT]),
+                        'desc_veg': row.get(S.CSV_COL_VEG_DESC, '').strip(),
+                        'desc_geo': row.get(S.CSV_COL_GEO_DESC, '').strip(),
                     },
                 )
                 if was_created:
