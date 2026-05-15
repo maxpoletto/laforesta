@@ -92,7 +92,7 @@ export function interceptSubmit(form, postUrl, callbacks) {
       return;
     }
 
-    if (data.status === 'conflict') {
+    if (data.status === S.STATUS_CONFLICT) {
       showError(data.message || S.ERROR_CONFLICT);
       callbacks.onConflict?.(data);
     } else {

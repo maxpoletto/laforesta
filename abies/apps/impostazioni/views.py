@@ -41,7 +41,7 @@ def password_view(request):
     request.user.set_password(pw1)
     request.user.save()
     update_session_auth_hash(request, request.user)
-    return JsonResponse({'message': S.PASSWORD_CHANGED})
+    return JsonResponse({S.MESSAGE: S.PASSWORD_CHANGED})
 
 
 # ---------------------------------------------------------------------------
@@ -216,7 +216,7 @@ def users_form(request, obj_id=None):
         'roles': ROLE_LABELS,
         'login_methods': LoginMethod.choices,
     }, request=request)
-    return JsonResponse({'html': html})
+    return JsonResponse({S.HTML: html})
 
 
 @login_required
@@ -224,7 +224,7 @@ def users_form(request, obj_id=None):
 @require_POST
 def users_save(request):
     body = json.loads(request.body)
-    row_id = body.get('row_id')
+    row_id = body.get(S.ROW_ID)
     row_id = int(row_id) if row_id else None
 
     email = body.get('email', '').strip()
@@ -287,7 +287,7 @@ def users_save(request):
     mark_stale('audit')
 
     nonce = body.get('nonce')
-    response_data = {'row_id': user.id, 'record': _user_row(user)}
+    response_data = {S.ROW_ID: user.id, S.RECORD: _user_row(user)}
     if nonce:
         save_nonce(nonce, request.user, response_data)
     return JsonResponse(response_data)
@@ -312,27 +312,27 @@ def _sync_email_address(user):
 
 def _list(model, columns, row_fn):
     rows = [row_fn(obj) for obj in model.objects.order_by('pk')]
-    return JsonResponse({'columns': columns, 'rows': rows})
+    return JsonResponse({S.COLUMNS: columns, S.ROWS: rows})
 
 
 def _form(template, model, obj_id, request):
     obj = model.objects.get(id=obj_id) if obj_id else None
     html = render_to_string(template, {'obj': obj}, request=request)
-    return JsonResponse({'html': html})
+    return JsonResponse({S.HTML: html})
 
 
 def _save(model, body, parsed):
     """Create or update a TimestampedModel with optimistic locking."""
-    row_id = body.get('row_id')
+    row_id = body.get(S.ROW_ID)
     row_id = int(row_id) if row_id else None
 
     with transaction.atomic():
         if row_id:
-            version = int(body.get('version', 0))
+            version = int(body.get(S.VERSION, 0))
             obj = model.objects.select_for_update().get(id=row_id)
             if obj.version != version:
                 return None, JsonResponse({
-                    'status': 'conflict', 'message': S.ERROR_CONFLICT,
+                    S.STATUS: S.STATUS_CONFLICT, S.MESSAGE: S.ERROR_CONFLICT,
                 }, status=400)
             for field, value in parsed.items():
                 setattr(obj, field, value)
@@ -346,14 +346,14 @@ def _save(model, body, parsed):
 
 def _saved(obj, row_fn, body, request):
     nonce = body.get('nonce')
-    response_data = {'row_id': obj.id, 'record': row_fn(obj)}
+    response_data = {S.ROW_ID: obj.id, S.RECORD: row_fn(obj)}
     if nonce:
         save_nonce(nonce, request.user, response_data)
     return JsonResponse(response_data)
 
 
 def _error(message):
-    return JsonResponse({'status': 'validation_error', 'message': message}, status=400)
+    return JsonResponse({S.STATUS: S.STATUS_VALIDATION_ERROR, S.MESSAGE: message}, status=400)
 
 
 def _validate_password(pw1, pw2, user=None):

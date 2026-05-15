@@ -81,7 +81,7 @@ def tree_form_view(request, ts_id: int | None = None):
     """
     survey_id = int(request.GET.get('survey', 0)) or None
     area_id = int(request.GET.get('area', 0)) or None
-    return JsonResponse({'html': _render_tree_form(
+    return JsonResponse({S.HTML: _render_tree_form(
         request, ts_id, survey_id, area_id,
     )})
 
@@ -232,9 +232,9 @@ def tree_save_view(request):
     sample.refresh_from_db()
     sample.survey  # touch to avoid lazy load in build_survey_record
     response_data = {
-        'data_id': f'sampled_trees_{sample.survey_id}',
-        'row_id': created_or_updated_ids[-1],
-        'records': records,
+        S.DATA_ID: f'sampled_trees_{sample.survey_id}',
+        S.ROW_ID: created_or_updated_ids[-1],
+        S.RECORDS: records,
         'sample_record': build_sample_record(sample),
         'survey_record': build_survey_record(sample.survey),
     }
@@ -257,7 +257,7 @@ def tree_delete_view(request, ts_id: int):
         'sample__survey',
     ).filter(id=ts_id).first()
     if ts is None:
-        return JsonResponse({'status': 'not_found'}, status=404)
+        return JsonResponse({S.STATUS: S.STATUS_NOT_FOUND}, status=404)
     sample = ts.sample
     survey = sample.survey
     survey_id = survey.id
@@ -267,8 +267,8 @@ def tree_delete_view(request, ts_id: int):
     mark_stale(f'sampled_trees_{survey_id}', 'samples', 'surveys', 'audit')
     sample.refresh_from_db()
     return JsonResponse({
-        'data_id': f'sampled_trees_{survey_id}',
-        'row_id': ts_id,
+        S.DATA_ID: f'sampled_trees_{survey_id}',
+        S.ROW_ID: ts_id,
         'sample_record': build_sample_record(sample),
         'survey_record': build_survey_record(survey),
     })
@@ -304,7 +304,7 @@ def area_form_view(request, area_id: int | None = None):
     parcels = list(Parcel.objects.select_related('region').order_by(
         'region__name', 'name',
     ))
-    return JsonResponse({'html': render_to_string(
+    return JsonResponse({S.HTML: render_to_string(
         'campionamenti/_area_form.html', {
             'area': area, 'grid': grid,
             'regions': regions, 'parcels': parcels,
@@ -344,9 +344,9 @@ def area_save_view(request):
     grid = SampleGrid.objects.filter(id=grid_id).first()
     parcel = Parcel.objects.filter(id=parcel_id).first()
     if grid is None or parcel is None:
-        return JsonResponse({'status': 'not_found'}, status=404)
+        return JsonResponse({S.STATUS: S.STATUS_NOT_FOUND}, status=404)
 
-    area_id = body.get('row_id')
+    area_id = body.get(S.ROW_ID)
     area_id = int(area_id) if area_id else None
 
     with transaction.atomic():
@@ -355,7 +355,7 @@ def area_save_view(request):
                 id=area_id, sample_grid=grid,
             ).first()
             if area is None:
-                return JsonResponse({'status': 'not_found'}, status=404)
+                return JsonResponse({S.STATUS: S.STATUS_NOT_FOUND}, status=404)
             area.parcel = parcel
             area.number = number
             area.lat = lat
@@ -377,9 +377,9 @@ def area_save_view(request):
     # Reload with select_related so build_sample_area_record doesn't N+1.
     area = SampleArea.objects.select_related('parcel__region').get(id=area.id)
     response_data = {
-        'data_id': 'sample_areas',
-        'row_id': area.id,
-        'record': build_sample_area_record(area),
+        S.DATA_ID: 'sample_areas',
+        S.ROW_ID: area.id,
+        S.RECORD: build_sample_area_record(area),
         'grid_record': build_grid_record(grid),
         'survey_records': [
             build_survey_record(sv)
@@ -401,7 +401,7 @@ def area_delete_view(request, area_id: int):
         id=area_id,
     ).first()
     if area is None:
-        return JsonResponse({'status': 'not_found'}, status=404)
+        return JsonResponse({S.STATUS: S.STATUS_NOT_FOUND}, status=404)
     if Sample.objects.filter(sample_area=area).exists():
         return _simple_validation_error(S.ERR_AREA_IN_USE)
     grid = area.sample_grid
@@ -409,8 +409,8 @@ def area_delete_view(request, area_id: int):
     # See area_save_view: surveys digest depends on the per-grid area count.
     mark_stale('sample_areas', 'grids', 'surveys', 'audit')
     return JsonResponse({
-        'data_id': 'sample_areas',
-        'row_id': area_id,
+        S.DATA_ID: 'sample_areas',
+        S.ROW_ID: area_id,
         'grid_record': build_grid_record(grid),
         'survey_records': [
             build_survey_record(sv)
@@ -571,7 +571,7 @@ def _parse_tree_body(body):
     them in the UI — server treats the existing Tree as authoritative).
     """
     errors = []
-    ts_id = body.get('row_id')
+    ts_id = body.get(S.ROW_ID)
     ts_id = int(ts_id) if ts_id else None
 
     # Date is editable inline in the tree form (replaces the separate
@@ -783,9 +783,9 @@ def _validation_error(errors, ts_id, request, body):
     except Http404:
         html = ''
     return JsonResponse({
-        'status': 'validation_error',
-        'message': ' '.join(errors),
-        'html': html,
+        S.STATUS: S.STATUS_VALIDATION_ERROR,
+        S.MESSAGE: ' '.join(errors),
+        S.HTML: html,
     }, status=400)
 
 
@@ -802,7 +802,7 @@ def grid_form_view(request):
     import); the target-grid dropdown needs the current list.
     """
     grids = SampleGrid.objects.order_by('-modified_at')
-    return JsonResponse({'html': render_to_string(
+    return JsonResponse({S.HTML: render_to_string(
         'campionamenti/_grid_modal.html', {'grids': grids}, request=request,
     )})
 
@@ -824,9 +824,9 @@ def grid_save_view(request):
         mark_stale('grids', 'audit')
 
     response_data = {
-        'data_id': 'grids',
-        'row_id': grid.id,
-        'record': build_grid_record(grid),
+        S.DATA_ID: 'grids',
+        S.ROW_ID: grid.id,
+        S.RECORD: build_grid_record(grid),
     }
     nonce = body.get('nonce')
     if nonce:
@@ -841,7 +841,7 @@ def survey_form_view(request):
     """
     grids = SampleGrid.objects.order_by('-modified_at')
     surveys = Survey.objects.order_by('-modified_at')
-    return JsonResponse({'html': render_to_string(
+    return JsonResponse({S.HTML: render_to_string(
         'campionamenti/_survey_modal.html', {
             'grids': grids, 'surveys': surveys,
         }, request=request,
@@ -855,7 +855,7 @@ def grid_edit_view(request, grid_id: int):
     """Edit a grid's name / description (no cascade)."""
     grid = SampleGrid.objects.filter(id=grid_id).first()
     if grid is None:
-        return JsonResponse({'status': 'not_found'}, status=404)
+        return JsonResponse({S.STATUS: S.STATUS_NOT_FOUND}, status=404)
     body = json.loads(request.body)
     name = (body.get('name') or '').strip()
     description = (body.get('description') or '').strip()
@@ -869,9 +869,9 @@ def grid_edit_view(request, grid_id: int):
     grid.save()
     mark_stale('grids', 'audit')
     return JsonResponse({
-        'data_id': 'grids',
-        'row_id': grid.id,
-        'record': build_grid_record(grid),
+        S.DATA_ID: 'grids',
+        S.ROW_ID: grid.id,
+        S.RECORD: build_grid_record(grid),
     })
 
 
@@ -884,14 +884,14 @@ def grid_delete_view(request, grid_id: int):
     its surveys first)."""
     grid = SampleGrid.objects.filter(id=grid_id).first()
     if grid is None:
-        return JsonResponse({'status': 'not_found'}, status=404)
+        return JsonResponse({S.STATUS: S.STATUS_NOT_FOUND}, status=404)
     if Survey.objects.filter(sample_grid=grid).exists():
         return _simple_validation_error(S.ERR_GRID_IN_USE)
     with transaction.atomic():
         # SampleArea cascades.
         grid.delete()
         mark_stale('grids', 'sample_areas', 'audit')
-    return JsonResponse({'data_id': 'grids', 'row_id': grid_id})
+    return JsonResponse({S.DATA_ID: 'grids', S.ROW_ID: grid_id})
 
 
 @login_required
@@ -901,7 +901,7 @@ def survey_edit_view(request, survey_id: int):
     """Edit a survey's name / description."""
     survey = Survey.objects.filter(id=survey_id).first()
     if survey is None:
-        return JsonResponse({'status': 'not_found'}, status=404)
+        return JsonResponse({S.STATUS: S.STATUS_NOT_FOUND}, status=404)
     body = json.loads(request.body)
     name = (body.get('name') or '').strip()
     description = (body.get('description') or '').strip()
@@ -915,9 +915,9 @@ def survey_edit_view(request, survey_id: int):
     survey.save()
     mark_stale('surveys', 'audit')
     return JsonResponse({
-        'data_id': 'surveys',
-        'row_id': survey.id,
-        'record': build_survey_record(survey),
+        S.DATA_ID: 'surveys',
+        S.ROW_ID: survey.id,
+        S.RECORD: build_survey_record(survey),
     })
 
 
@@ -962,7 +962,7 @@ def grid_csv_import_view(request):
 
     grid = SampleGrid.objects.filter(id=int(grid_id)).first()
     if grid is None:
-        return JsonResponse({'status': 'not_found'}, status=404)
+        return JsonResponse({S.STATUS: S.STATUS_NOT_FOUND}, status=404)
 
     try:
         rows = _parse_csv(upload, GRID_CSV_REQUIRED)
@@ -1034,9 +1034,9 @@ def grid_csv_import_view(request):
     area_qs = SampleArea.objects.filter(sample_grid=grid) \
                                  .select_related('parcel__region')
     response_data = {
-        'data_id': 'grids', 'row_id': grid.id,
+        S.DATA_ID: 'grids', S.ROW_ID: grid.id,
         'n_areas': len(parsed_rows),
-        'record': build_grid_record(grid),
+        S.RECORD: build_grid_record(grid),
         'area_records': [build_sample_area_record(sa) for sa in area_qs],
         'survey_records': [
             build_survey_record(sv)
@@ -1073,7 +1073,7 @@ def tree_csv_import_view(request):
         'sample_grid',
     ).first()
     if survey is None:
-        return JsonResponse({'status': 'not_found'}, status=404)
+        return JsonResponse({S.STATUS: S.STATUS_NOT_FOUND}, status=404)
 
     try:
         rows = _parse_csv(upload, TREE_CSV_REQUIRED)
@@ -1207,7 +1207,7 @@ def tree_csv_import_view(request):
         )
 
     return JsonResponse({
-        'data_id': 'surveys', 'row_id': survey.id,
+        S.DATA_ID: 'surveys', S.ROW_ID: survey.id,
         'n_samples': len(sample_by_key),
         'n_trees': n_trees,
     })
@@ -1238,10 +1238,10 @@ def _parse_csv(upload, required_cols):
 def _csv_error_list(errors):
     """Validation-error response carrying a per-row error list."""
     return JsonResponse({
-        'status': 'validation_error',
-        'message': errors[0] if errors else '',
+        S.STATUS: S.STATUS_VALIDATION_ERROR,
+        S.MESSAGE: errors[0] if errors else '',
         'errors': errors,
-        'html': '',
+        S.HTML: '',
     }, status=400)
 
 
@@ -1269,14 +1269,14 @@ def survey_delete_view(request, survey_id: int):
     """
     survey = Survey.objects.filter(id=survey_id).first()
     if survey is None:
-        return JsonResponse({'status': 'not_found'}, status=404)
+        return JsonResponse({S.STATUS: S.STATUS_NOT_FOUND}, status=404)
     with transaction.atomic():
         survey.delete()
         mark_stale(
             f'sampled_trees_{survey_id}', 'samples', 'surveys', 'grids',
             'audit',
         )
-    return JsonResponse({'data_id': 'surveys', 'row_id': survey_id})
+    return JsonResponse({S.DATA_ID: 'surveys', S.ROW_ID: survey_id})
 
 
 @login_required
@@ -1308,8 +1308,8 @@ def survey_save_view(request):
         mark_stale('surveys', 'grids', 'audit')
 
     response_data = {
-        'data_id': 'surveys', 'row_id': survey.id,
-        'record': build_survey_record(survey),
+        S.DATA_ID: 'surveys', S.ROW_ID: survey.id,
+        S.RECORD: build_survey_record(survey),
         'grid_record': build_grid_record(grid),
     }
     nonce = body.get('nonce')
@@ -1378,8 +1378,8 @@ def grid_save_auto_view(request):
     area_qs = SampleArea.objects.filter(sample_grid=grid) \
                                  .select_related('parcel__region')
     response_data = {
-        'data_id': 'grids', 'row_id': grid.id,
-        'record': build_grid_record(grid),
+        S.DATA_ID: 'grids', S.ROW_ID: grid.id,
+        S.RECORD: build_grid_record(grid),
         'area_records': [build_sample_area_record(sa) for sa in area_qs],
     }
     nonce = body.get('nonce')
@@ -1429,7 +1429,7 @@ def _simple_validation_error(message):
     """Shorter validation-error helper for grid/survey saves (no form
     re-render — the client just shows the message)."""
     return JsonResponse({
-        'status': 'validation_error',
-        'message': message,
-        'html': '',
+        S.STATUS: S.STATUS_VALIDATION_ERROR,
+        S.MESSAGE: message,
+        S.HTML: '',
     }, status=400)

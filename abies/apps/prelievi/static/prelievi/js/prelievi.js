@@ -745,7 +745,7 @@ async function confirmDelete(rowId) {
     return;
   }
 
-  if (resp.data.status === 'conflict' && resp.data.record) {
+  if (resp.data.status === S.STATUS_CONFLICT && resp.data.record) {
     cache.updateRow(DATA_ID, resp.data.row_id, resp.data.record);
     if (table) table.setData(cache.get(DATA_ID));
   }

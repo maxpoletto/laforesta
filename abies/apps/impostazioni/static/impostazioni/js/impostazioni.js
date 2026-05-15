@@ -352,7 +352,7 @@ function showFormModal(html, cfg, state) {
           state.table?.setData(state.digest);
           applyActiveFilter(state);
         }
-      } else if (data.status === 'conflict') {
+      } else if (data.status === S.STATUS_CONFLICT) {
         showError(data.message || S.ERROR_CONFLICT);
       } else {
         // Inline validation error — stays inside the modal form.

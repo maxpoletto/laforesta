@@ -131,7 +131,7 @@ class RateLimitMiddleware:
 
         if len(timestamps) >= RATE_LIMIT:
             return JsonResponse(
-                {'status': 'rate_limited', 'message': S.ERROR_RATE_LIMIT},
+                {S.STATUS: S.STATUS_RATE_LIMITED, S.MESSAGE: S.ERROR_RATE_LIMIT},
                 status=429,
             )
 

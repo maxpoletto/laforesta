@@ -35,7 +35,7 @@ def data_view(request):
 @login_required
 def form_view(request, op_id=None):
     """Return add/edit form HTML fragment."""
-    return JsonResponse({'html': _render_form(op_id, request)})
+    return JsonResponse({S.HTML: _render_form(op_id, request)})
 
 
 # ---------------------------------------------------------------------------
@@ -90,7 +90,7 @@ def save_view(request):
 
     op = Harvest.objects.select_related('parcel__region', 'crew', 'note', 'product').get(id=op.id)
     record = build_harvest_record(op)
-    response_data = {'data_id': 'prelievi', 'row_id': op.id, 'record': record}
+    response_data = {S.DATA_ID: 'prelievi', S.ROW_ID: op.id, S.RECORD: record}
 
     nonce = body.get('nonce')
     if nonce:
@@ -109,26 +109,26 @@ def save_view(request):
 def delete_view(request):
     """Delete a harvest (with version check)."""
     body = json.loads(request.body)
-    row_id = int(body['row_id'])
-    version = int(body.get('version', 0))
+    row_id = int(body[S.ROW_ID])
+    version = int(body.get(S.VERSION, 0))
 
     try:
         op = Harvest.objects.select_related('parcel__region', 'crew', 'note', 'product').get(id=row_id)
     except Harvest.DoesNotExist:
-        return JsonResponse({'message': S.ERR_NOT_FOUND}, status=404)
+        return JsonResponse({S.MESSAGE: S.ERR_NOT_FOUND}, status=404)
 
     if op.version != version:
         record = build_harvest_record(op)
         return JsonResponse({
-            'status': 'conflict', 'message': S.ERROR_CONFLICT,
-            'data_id': 'prelievi', 'row_id': row_id, 'record': record,
+            S.STATUS: S.STATUS_CONFLICT, S.MESSAGE: S.ERROR_CONFLICT,
+            S.DATA_ID: 'prelievi', S.ROW_ID: row_id, S.RECORD: record,
         }, status=400)
 
     with transaction.atomic():
         op.delete()
         mark_stale('prelievi', 'parcel_year_production', 'audit')
 
-    response_data = {'data_id': 'prelievi', 'row_id': row_id}
+    response_data = {S.DATA_ID: 'prelievi', S.ROW_ID: row_id}
 
     nonce = body.get('nonce')
     if nonce:
@@ -203,7 +203,7 @@ def _parse_body(body):
     Returns (row_id, parsed_dict, error_list).
     """
     errors = []
-    row_id = body.get('row_id')
+    row_id = body.get(S.ROW_ID)
     row_id = int(row_id) if row_id else None
 
     date = body.get('date')
@@ -300,10 +300,10 @@ def _conflict_response(row_id, request):
         'parcel__region', 'crew', 'note', 'product',
     ).get(id=row_id)
     return JsonResponse({
-        'status': 'conflict', 'message': S.ERROR_CONFLICT,
-        'data_id': 'prelievi', 'row_id': row_id,
-        'record': build_harvest_record(op),
-        'html': _render_form(row_id, request),
+        S.STATUS: S.STATUS_CONFLICT, S.MESSAGE: S.ERROR_CONFLICT,
+        S.DATA_ID: 'prelievi', S.ROW_ID: row_id,
+        S.RECORD: build_harvest_record(op),
+        S.HTML: _render_form(row_id, request),
     }, status=400)
 
 
@@ -313,10 +313,10 @@ def _check_update_conflict(row_id, body, request):
     The authoritative check inside `transaction.atomic()` still runs in
     `_update_op` to handle races with concurrent writers."""
     try:
-        actual_version = Harvest.objects.values_list('version', flat=True).get(id=row_id)
+        actual_version = Harvest.objects.values_list(S.VERSION, flat=True).get(id=row_id)
     except Harvest.DoesNotExist:
-        return JsonResponse({'message': S.ERR_NOT_FOUND}, status=404)
-    if actual_version == int(body.get('version', 0)):
+        return JsonResponse({S.MESSAGE: S.ERR_NOT_FOUND}, status=404)
+    if actual_version == int(body.get(S.VERSION, 0)):
         return None
     return _conflict_response(row_id, request)
 
@@ -325,7 +325,7 @@ def _update_op(row_id, parsed, body, request):
     """Update an existing Harvest under row lock.  Returns the updated op,
     or a conflict JsonResponse if a concurrent writer bumped the version
     since `_check_update_conflict` passed."""
-    version = int(body.get('version', 0))
+    version = int(body.get(S.VERSION, 0))
     op = Harvest.objects.select_for_update().get(id=row_id)
     if op.version != version:
         return _conflict_response(row_id, request)
@@ -353,7 +353,7 @@ def _write_junctions(op, sp_pcts, tr_pcts):
 
 def _validation_error(errors, row_id, request, vals=None):
     return JsonResponse({
-        'status': 'validation_error',
-        'message': ' '.join(errors),
-        'html': _render_form(row_id, request, vals),
+        S.STATUS: S.STATUS_VALIDATION_ERROR,
+        S.MESSAGE: ' '.join(errors),
+        S.HTML: _render_form(row_id, request, vals),
     }, status=400)
