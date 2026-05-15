@@ -9,7 +9,7 @@ BOSCO_DATA = ../bosco/data
 LANGUAGE_SUFFIX = _it
 
 .PHONY: check migrate import geo digest admin dev clean update-vendor minify test \
-        collectstatic link-templates
+        test-js collectstatic link-templates
 
 check:
 	$(MANAGE) check
@@ -50,8 +50,12 @@ clean:
 	rm -rf data/
 	find apps/*/migrations -name '*.py' ! -name '__init__.py' -delete
 
-test:
+test: test-js
 	$(PYTHON) -m pytest --cov --cov-report=term-missing -q
+
+# Pure-JS tests for shared client-side modules (e.g. geo.js).
+test-js:
+	node test/test_geo.mjs
 
 collectstatic:
 	$(MANAGE) collectstatic --noinput

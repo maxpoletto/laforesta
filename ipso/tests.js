@@ -5,6 +5,7 @@
 const csv = require('./csv.js');
 const ipso = require('./ipso.js');
 const session = require('./session.js');
+const geo = require('./geo.js');
 
 let failed = 0;
 let passed = 0;
@@ -319,6 +320,21 @@ assertEqual(
   null,
   'nextNumero: rows without numero field'
 );
+
+// ---------------------------------------------------------------------------
+// geo.js — vendored from abies. The geometry tests proper live in
+// abies/test/test_geo.mjs; here we only smoke-test that the vendor
+// pipeline produced a loadable CommonJS module with the names the rest
+// of the ipso code expects.
+// ---------------------------------------------------------------------------
+
+console.log('\ngeo.js (vendor smoke)');
+
+for (const name of ['pointInPolygon', 'findContainingParcel', 'parcelLabel',
+                    'featureBbox', 'buildBboxIndex',
+                    'distanceToBoundaryMeters']) {
+  assertEqual(typeof geo[name], 'function', `geo.${name} is exported`);
+}
 
 // ---------------------------------------------------------------------------
 // Summary
