@@ -6,6 +6,7 @@ const csv = require('./csv.js');
 const ipso = require('./ipso.js');
 const session = require('./session.js');
 const geo = require('./geo.js');
+const locator = require('./parcel-locator.js');
 
 let failed = 0;
 let passed = 0;
@@ -334,6 +335,141 @@ for (const name of ['pointInPolygon', 'findContainingParcel', 'parcelLabel',
                     'featureBbox', 'buildBboxIndex',
                     'distanceToBoundaryMeters']) {
   assertEqual(typeof geo[name], 'function', `geo.${name} is exported`);
+}
+
+// ---------------------------------------------------------------------------
+// parcel-locator.js — hysteresis + sticky-override state machines
+// ---------------------------------------------------------------------------
+
+console.log('\nparcel-locator.js');
+
+// Two unit-square parcels A and B, side by side at the equator.
+// A spans lng [0,1], B spans lng [1,2]; both span lat [0,1]. Adjacent
+// along lng=1 so a fix near the boundary is a meaningful edge case.
+function makeFeatures() {
+  const A = { properties: { layer: 'X', name: 'X-A' },
+              geometry: { type: 'Polygon',
+                          coordinates: [[[0,0],[1,0],[1,1],[0,1],[0,0]]] } };
+  const B = { properties: { layer: 'X', name: 'X-B' },
+              geometry: { type: 'Polygon',
+                          coordinates: [[[1,0],[2,0],[2,1],[1,1],[1,0]]] } };
+  geo.buildBboxIndex([A, B]);
+  return { A, B, features: [A, B] };
+}
+
+// --- Hysteresis -----------------------------------------------------------
+
+{
+  const { A, B, features } = makeFeatures();
+  const loc = locator.createLocator(features);
+  const commits = [];
+  loc.subscribe(f => commits.push(f));
+
+  assertEqual(loc.getCommitted(), null, 'locator: initial committed=null');
+
+  // Two fixes inside A — count=2, not yet committed.
+  loc.onFix({ lat: 0.5, lng: 0.5, acc: 10 });
+  loc.onFix({ lat: 0.5, lng: 0.5, acc: 10 });
+  assertEqual(loc.getCommitted(), null, 'locator: 2 fixes is not enough');
+  assertEqual(commits.length, 0, 'locator: no callback before commit');
+
+  // 3rd fix inside A: dist to A boundary ~55 km, acc=10, commit.
+  loc.onFix({ lat: 0.5, lng: 0.5, acc: 10 });
+  assertEqual(loc.getCommitted() === A, true, 'locator: committed=A after 3 fixes');
+  assertEqual(commits.length, 1, 'locator: callback fired once');
+  assertEqual(commits[0] === A, true, 'locator: callback got feature A');
+
+  // A fix still inside A — no transition.
+  loc.onFix({ lat: 0.5, lng: 0.5, acc: 10 });
+  assertEqual(commits.length, 1, 'locator: same parcel does not refire');
+
+  // Walk into B; 2 fixes not enough yet.
+  loc.onFix({ lat: 0.5, lng: 1.5, acc: 10 });
+  loc.onFix({ lat: 0.5, lng: 1.5, acc: 10 });
+  assertEqual(loc.getCommitted() === A, true, 'locator: 2 inside B keeps A');
+
+  // 3rd fix inside B commits the transition.
+  loc.onFix({ lat: 0.5, lng: 1.5, acc: 10 });
+  assertEqual(loc.getCommitted() === B, true, 'locator: committed=B');
+  assertEqual(commits.length, 2, 'locator: callback fired a second time');
+  assertEqual(commits[1] === B, true, 'locator: second callback got B');
+}
+
+// Accuracy gate near a boundary: 3 fixes inside the new candidate but
+// with poor accuracy → no commit.
+{
+  const { A, B, features } = makeFeatures();
+  const loc = locator.createLocator(features);
+
+  // Commit A first (using a far-from-boundary point with tight acc).
+  loc.onFix({ lat: 0.5, lng: 0.5, acc: 5 });
+  loc.onFix({ lat: 0.5, lng: 0.5, acc: 5 });
+  loc.onFix({ lat: 0.5, lng: 0.5, acc: 5 });
+  assertEqual(loc.getCommitted() === A, true, 'locator (acc gate): pre-committed A');
+
+  // Hover just inside B at lng=1.001 — dist to B boundary ≈ 111 m at
+  // the equator. Use acc=500 (worse) → no commit.
+  loc.onFix({ lat: 0.5, lng: 1.001, acc: 500 });
+  loc.onFix({ lat: 0.5, lng: 1.001, acc: 500 });
+  loc.onFix({ lat: 0.5, lng: 1.001, acc: 500 });
+  assertEqual(loc.getCommitted() === A, true,
+              'locator: bad accuracy near boundary keeps A');
+
+  // Same point with tight accuracy → commit.
+  loc.onFix({ lat: 0.5, lng: 1.001, acc: 50 });
+  assertEqual(loc.getCommitted() === B, true,
+              'locator: 4th fix with tight acc commits to B');
+}
+
+// Transition to "outside" (null) when leaving the previous parcel.
+{
+  const { A, features } = makeFeatures();
+  const loc = locator.createLocator(features);
+  loc.onFix({ lat: 0.5, lng: 0.5, acc: 5 });
+  loc.onFix({ lat: 0.5, lng: 0.5, acc: 5 });
+  loc.onFix({ lat: 0.5, lng: 0.5, acc: 5 });
+  assertEqual(loc.getCommitted() === A, true, 'locator (exit): pre-committed A');
+
+  // Three fixes outside both polygons. Boundary check uses A's polygon.
+  loc.onFix({ lat: 5, lng: 5, acc: 10 });
+  loc.onFix({ lat: 5, lng: 5, acc: 10 });
+  loc.onFix({ lat: 5, lng: 5, acc: 10 });
+  assertEqual(loc.getCommitted(), null, 'locator: committed=null after exit');
+}
+
+// --- Sticky override ------------------------------------------------------
+
+{
+  const ov = locator.createOverride();
+  assertEqual(ov.getMode(), 'auto', 'override: initial mode=auto');
+  assertEqual(ov.resolve('A'), 'A', 'override: auto resolves to autoName');
+  assertEqual(ov.isMismatch('A'), false, 'override: auto never mismatches');
+
+  // Outside / no fix: autoName is ''; auto mode still no mismatch.
+  assertEqual(ov.resolve(''), '', 'override: auto with empty auto -> empty');
+  assertEqual(ov.isMismatch(''), false, 'override: auto+empty: not red');
+
+  // Manual selection of B while auto says A → mismatch, sticky.
+  ov.setManual('B');
+  assertEqual(ov.getMode(), 'manual', 'override: setManual -> manual');
+  assertEqual(ov.resolve('A'), 'B', 'override: manual overrides auto');
+  assertEqual(ov.isMismatch('A'), true, 'override: manual!=auto -> mismatch');
+
+  // Manual matches auto → no mismatch.
+  ov.setManual('A');
+  assertEqual(ov.isMismatch('A'), false, 'override: manual==auto -> no mismatch');
+
+  // Manual while auto is '' (outside) → mismatch.
+  ov.setManual('A');
+  assertEqual(ov.isMismatch(''), true,
+              'override: manual while auto empty -> mismatch');
+
+  // Return to auto resets mode but keeps manual value remembered.
+  ov.setAuto();
+  assertEqual(ov.getMode(), 'auto', 'override: setAuto -> auto');
+  assertEqual(ov.resolve('C'), 'C', 'override: auto resumes tracking');
+  assertEqual(ov.isMismatch('C'), false, 'override: auto: never red');
+  assertEqual(ov.getManual(), 'A', 'override: setAuto preserves manual value');
 }
 
 // ---------------------------------------------------------------------------
