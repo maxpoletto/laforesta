@@ -29,11 +29,11 @@ def two_grids(db, regions, eclasses):
     g2 = SampleGrid.objects.create(name='Grid B')
     sa1 = SampleArea.objects.create(
         sample_grid=g1, parcel=parcel, number='1',
-        lat=0.0, lng=0.0, r_m=12,
+        lat=0.0, lon=0.0, r_m=12,
     )
     sa2 = SampleArea.objects.create(
         sample_grid=g2, parcel=parcel, number='1',
-        lat=0.0, lng=0.0, r_m=12,
+        lat=0.0, lon=0.0, r_m=12,
     )
     survey_a = Survey.objects.create(name='SurveyA', sample_grid=g1)
     survey_b = Survey.objects.create(name='SurveyB', sample_grid=g2)

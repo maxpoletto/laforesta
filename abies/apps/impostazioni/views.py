@@ -73,11 +73,11 @@ def crews_form(request, obj_id=None):
 def crews_save(request):
     body = json.loads(request.body)
     parsed = {
-        'name': body.get('name', '').strip(),
-        'notes': body.get('notes', ''),
-        'active': body.get('active') == 'true',
+        S.FIELD_NAME: body.get(S.FIELD_NAME, '').strip(),
+        S.FIELD_NOTES: body.get(S.FIELD_NOTES, ''),
+        S.FIELD_ACTIVE: body.get(S.FIELD_ACTIVE) == 'true',
     }
-    if not parsed['name']:
+    if not parsed[S.FIELD_NAME]:
         return _error(S.ERR_NAME_REQUIRED)
     obj, err = _save(Crew, body, parsed)
     if err:
@@ -115,14 +115,14 @@ def tractors_form(request, obj_id=None):
 @require_POST
 def tractors_save(request):
     body = json.loads(request.body)
-    year = body.get('year', '')
+    year = body.get(S.FIELD_YEAR, '')
     parsed = {
-        'manufacturer': body.get('manufacturer', '').strip(),
-        'model': body.get('model', '').strip(),
-        'year': int(year) if year else None,
-        'active': body.get('active') == 'true',
+        S.FIELD_MANUFACTURER: body.get(S.FIELD_MANUFACTURER, '').strip(),
+        S.FIELD_MODEL: body.get(S.FIELD_MODEL, '').strip(),
+        S.FIELD_YEAR: int(year) if year else None,
+        S.FIELD_ACTIVE: body.get(S.FIELD_ACTIVE) == 'true',
     }
-    if not parsed['manufacturer']:
+    if not parsed[S.FIELD_MANUFACTURER]:
         return _error(S.ERR_NAME_REQUIRED)
     obj, err = _save(Tractor, body, parsed)
     if err:
@@ -161,24 +161,24 @@ def species_form(request, obj_id=None):
 def species_save(request):
     body = json.loads(request.body)
     try:
-        density = Decimal(str(body.get('density', '0') or '0'))
+        density = Decimal(str(body.get(S.FIELD_DENSITY, '0') or '0'))
     except InvalidOperation:
         return _error(S.ERR_DENSITY_INVALID)
     if density <= 0:
         return _error(S.ERR_DENSITY_INVALID)
     parsed = {
-        'common_name': body.get('common_name', '').strip(),
-        'latin_name': body.get('latin_name', '').strip(),
-        'density': density,
-        'active': body.get('active') == 'true',
+        S.FIELD_COMMON_NAME: body.get(S.FIELD_COMMON_NAME, '').strip(),
+        S.FIELD_LATIN_NAME: body.get(S.FIELD_LATIN_NAME, '').strip(),
+        S.FIELD_DENSITY: density,
+        S.FIELD_ACTIVE: body.get(S.FIELD_ACTIVE) == 'true',
     }
-    if not parsed['common_name']:
+    if not parsed[S.FIELD_COMMON_NAME]:
         return _error(S.ERR_NAME_REQUIRED)
     obj, err = _save(Species, body, parsed)
     if err:
         return err
     # species.json is consumed by V/m preview forms; bust on edits.
-    mark_stale('audit', 'species')
+    mark_stale('audit', S.FIELD_SPECIES)
     return _saved(obj, _species_row, body, request)
 
 
@@ -227,24 +227,24 @@ def users_save(request):
     row_id = body.get(S.ROW_ID)
     row_id = int(row_id) if row_id else None
 
-    email = body.get('email', '').strip()
+    email = body.get(S.FIELD_EMAIL, '').strip()
     if not email:
         return _error(S.ERR_EMAIL_REQUIRED)
 
-    login_method = body.get('login_method', LoginMethod.PASSWORD)
+    login_method = body.get(S.FIELD_LOGIN_METHOD, LoginMethod.PASSWORD)
 
     # OAuth users are matched by email; we only need a unique username for
     # Django's bookkeeping, so reuse the email rather than asking the admin.
     if login_method == LoginMethod.OAUTH:
         username = email
     else:
-        username = body.get('username', '').strip()
+        username = body.get(S.FIELD_USERNAME, '').strip()
         if not username:
             return _error(S.ERR_USERNAME_REQUIRED)
-    role = body.get('role', Role.READER)
-    active = body.get('is_active') == 'true'
-    first_name = body.get('first_name', '').strip()
-    last_name = body.get('last_name', '').strip()
+    role = body.get(S.FIELD_ROLE, Role.READER)
+    active = body.get(S.FIELD_IS_ACTIVE) == 'true'
+    first_name = body.get(S.FIELD_FIRST_NAME, '').strip()
+    last_name = body.get(S.FIELD_LAST_NAME, '').strip()
 
     pw1 = body.get('password1', '')
     pw2 = body.get('password2', '')
@@ -286,7 +286,7 @@ def users_save(request):
 
     mark_stale('audit')
 
-    nonce = body.get('nonce')
+    nonce = body.get(S.FIELD_NONCE)
     response_data = {S.ROW_ID: user.id, S.RECORD: _user_row(user)}
     if nonce:
         save_nonce(nonce, request.user, response_data)
@@ -345,7 +345,7 @@ def _save(model, body, parsed):
 
 
 def _saved(obj, row_fn, body, request):
-    nonce = body.get('nonce')
+    nonce = body.get(S.FIELD_NONCE)
     response_data = {S.ROW_ID: obj.id, S.RECORD: row_fn(obj)}
     if nonce:
         save_nonce(nonce, request.user, response_data)

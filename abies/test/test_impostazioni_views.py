@@ -50,7 +50,7 @@ class TestPasswordView:
             'password1': 'newsecure99!', 'password2': 'newsecure99!',
         })
         assert resp.status_code == 200
-        assert resp.json()['message'] == S.PASSWORD_CHANGED
+        assert resp.json()[S.MESSAGE] == S.PASSWORD_CHANGED
         writer_user.refresh_from_db()
         assert writer_user.check_password('newsecure99!')
 
@@ -82,33 +82,33 @@ class TestCrews:
         resp = writer_client.get('/api/impostazioni/crews/data/')
         assert resp.status_code == 200
         data = resp.json()
-        assert data['columns'][0] == 'row_id'
-        assert len(data['rows']) == 2
+        assert data[S.COLUMNS][0] == S.ROW_ID
+        assert len(data[S.ROWS]) == 2
 
     def test_form_add(self, writer_client, db):
         resp = writer_client.get('/api/impostazioni/crews/form/')
         assert resp.status_code == 200
-        assert '<form' in resp.json()['html']
+        assert '<form' in resp.json()[S.HTML]
 
     def test_form_edit(self, writer_client, crews):
         resp = writer_client.get(f'/api/impostazioni/crews/form/{crews[0].id}/')
         assert resp.status_code == 200
-        assert crews[0].name in resp.json()['html']
+        assert crews[0].name in resp.json()[S.HTML]
 
     def test_save_create(self, writer_client, db):
         resp = _post(writer_client, '/api/impostazioni/crews/save/', {
-            'name': 'Gamma', 'notes': 'test notes', 'active': 'true',
+            S.FIELD_NAME: 'Gamma', S.FIELD_NOTES: 'test notes', S.FIELD_ACTIVE: 'true',
         })
         assert resp.status_code == 200
         data = resp.json()
         # _crew_row returns [id, name, notes, active]; name is at index 1.
-        assert data['record'][1] == 'Gamma'
+        assert data[S.RECORD][1] == 'Gamma'
         assert Crew.objects.filter(name='Gamma').exists()
 
     def test_save_update(self, writer_client, crews):
         resp = _post(writer_client, '/api/impostazioni/crews/save/', {
-            'row_id': str(crews[0].id), 'version': str(crews[0].version),
-            'name': 'Renamed', 'notes': '', 'active': 'true',
+            S.ROW_ID: str(crews[0].id), S.VERSION: str(crews[0].version),
+            S.FIELD_NAME: 'Renamed', S.FIELD_NOTES: '', S.FIELD_ACTIVE: 'true',
         })
         assert resp.status_code == 200
         crews[0].refresh_from_db()
@@ -117,18 +117,18 @@ class TestCrews:
 
     def test_save_conflict(self, writer_client, crews):
         resp = _post(writer_client, '/api/impostazioni/crews/save/', {
-            'row_id': str(crews[0].id), 'version': '999',
-            'name': 'Conflict', 'notes': '', 'active': 'true',
+            S.ROW_ID: str(crews[0].id), S.VERSION: '999',
+            S.FIELD_NAME: 'Conflict', S.FIELD_NOTES: '', S.FIELD_ACTIVE: 'true',
         })
         assert resp.status_code == 400
-        assert resp.json()['status'] == 'conflict'
+        assert resp.json()[S.STATUS] == 'conflict'
 
     def test_save_validation_error(self, writer_client, db):
         resp = _post(writer_client, '/api/impostazioni/crews/save/', {
-            'name': '', 'notes': '', 'active': 'true',
+            S.FIELD_NAME: '', S.FIELD_NOTES: '', S.FIELD_ACTIVE: 'true',
         })
         assert resp.status_code == 400
-        assert resp.json()['status'] == 'validation_error'
+        assert resp.json()[S.STATUS] == 'validation_error'
 
     def test_reader_forbidden(self, reader_client, db):
         resp = reader_client.get('/api/impostazioni/crews/data/')
@@ -143,21 +143,21 @@ class TestTractors:
     def test_data(self, writer_client, tractors):
         resp = writer_client.get('/api/impostazioni/tractors/data/')
         data = resp.json()
-        assert len(data['rows']) == 2
+        assert len(data[S.ROWS]) == 2
 
     def test_form_add(self, writer_client, db):
         resp = writer_client.get('/api/impostazioni/tractors/form/')
         assert resp.status_code == 200
-        assert '<form' in resp.json()['html']
+        assert '<form' in resp.json()[S.HTML]
 
     def test_form_edit(self, writer_client, tractors):
         resp = writer_client.get(f'/api/impostazioni/tractors/form/{tractors[0].id}/')
         assert resp.status_code == 200
-        assert 'Fiat' in resp.json()['html']
+        assert 'Fiat' in resp.json()[S.HTML]
 
     def test_save_create(self, writer_client, db):
         resp = _post(writer_client, '/api/impostazioni/tractors/save/', {
-            'manufacturer': 'John Deere', 'model': '5100M', 'year': '2020', 'active': 'true',
+            S.FIELD_MANUFACTURER: 'John Deere', S.FIELD_MODEL: '5100M', S.FIELD_YEAR: '2020', S.FIELD_ACTIVE: 'true',
         })
         assert resp.status_code == 200
         t = Tractor.objects.get(manufacturer='John Deere')
@@ -165,25 +165,25 @@ class TestTractors:
 
     def test_save_create_no_year(self, writer_client, db):
         resp = _post(writer_client, '/api/impostazioni/tractors/save/', {
-            'manufacturer': 'Kubota', 'model': 'M7', 'year': '', 'active': 'true',
+            S.FIELD_MANUFACTURER: 'Kubota', S.FIELD_MODEL: 'M7', S.FIELD_YEAR: '', S.FIELD_ACTIVE: 'true',
         })
         assert resp.status_code == 200
         assert Tractor.objects.get(manufacturer='Kubota').year is None
 
     def test_save_conflict(self, writer_client, tractors):
         resp = _post(writer_client, '/api/impostazioni/tractors/save/', {
-            'row_id': str(tractors[0].id), 'version': '999',
-            'manufacturer': 'X', 'model': 'Y', 'year': '', 'active': 'true',
+            S.ROW_ID: str(tractors[0].id), S.VERSION: '999',
+            S.FIELD_MANUFACTURER: 'X', S.FIELD_MODEL: 'Y', S.FIELD_YEAR: '', S.FIELD_ACTIVE: 'true',
         })
         assert resp.status_code == 400
-        assert resp.json()['status'] == 'conflict'
+        assert resp.json()[S.STATUS] == 'conflict'
 
     def test_save_validation_error(self, writer_client, db):
         resp = _post(writer_client, '/api/impostazioni/tractors/save/', {
-            'manufacturer': '', 'model': '', 'year': '', 'active': 'true',
+            S.FIELD_MANUFACTURER: '', S.FIELD_MODEL: '', S.FIELD_YEAR: '', S.FIELD_ACTIVE: 'true',
         })
         assert resp.status_code == 400
-        assert resp.json()['status'] == 'validation_error'
+        assert resp.json()[S.STATUS] == 'validation_error'
 
 
 # ---------------------------------------------------------------------------
@@ -194,41 +194,41 @@ class TestSpecies:
     def test_data(self, writer_client, species):
         resp = writer_client.get('/api/impostazioni/species/data/')
         data = resp.json()
-        assert len(data['rows']) == 3
+        assert len(data[S.ROWS]) == 3
 
     def test_form_add(self, writer_client, db):
         resp = writer_client.get('/api/impostazioni/species/form/')
         assert resp.status_code == 200
-        assert '<form' in resp.json()['html']
+        assert '<form' in resp.json()[S.HTML]
 
     def test_form_edit(self, writer_client, species):
         resp = writer_client.get(f'/api/impostazioni/species/form/{species[0].id}/')
         assert resp.status_code == 200
-        assert 'Abete' in resp.json()['html']
+        assert 'Abete' in resp.json()[S.HTML]
 
     def test_save_create(self, writer_client, db):
         resp = _post(writer_client, '/api/impostazioni/species/save/', {
-            'common_name': 'Faggio', 'latin_name': 'Fagus sylvatica',
-            'density': '10.5', 'active': 'true',
+            S.FIELD_COMMON_NAME: 'Faggio', S.FIELD_LATIN_NAME: 'Fagus sylvatica',
+            S.FIELD_DENSITY: '10.5', S.FIELD_ACTIVE: 'true',
         })
         assert resp.status_code == 200
         assert Species.objects.filter(common_name='Faggio').exists()
 
     def test_save_conflict(self, writer_client, species):
         resp = _post(writer_client, '/api/impostazioni/species/save/', {
-            'row_id': str(species[0].id), 'version': '999',
-            'common_name': 'X', 'latin_name': '',
-            'density': '9.0', 'active': 'true',
+            S.ROW_ID: str(species[0].id), S.VERSION: '999',
+            S.FIELD_COMMON_NAME: 'X', S.FIELD_LATIN_NAME: '',
+            S.FIELD_DENSITY: '9.0', S.FIELD_ACTIVE: 'true',
         })
         assert resp.status_code == 400
-        assert resp.json()['status'] == 'conflict'
+        assert resp.json()[S.STATUS] == 'conflict'
 
     def test_save_validation_error(self, writer_client, db):
         resp = _post(writer_client, '/api/impostazioni/species/save/', {
-            'common_name': '', 'latin_name': '', 'active': 'true',
+            S.FIELD_COMMON_NAME: '', S.FIELD_LATIN_NAME: '', S.FIELD_ACTIVE: 'true',
         })
         assert resp.status_code == 400
-        assert resp.json()['status'] == 'validation_error'
+        assert resp.json()[S.STATUS] == 'validation_error'
 
 
 # ---------------------------------------------------------------------------
@@ -239,7 +239,7 @@ class TestUsers:
     def test_data(self, admin_client, admin_user):
         resp = admin_client.get('/api/impostazioni/users/data/')
         data = resp.json()
-        assert len(data['rows']) >= 1
+        assert len(data[S.ROWS]) >= 1
 
     def test_writer_forbidden(self, writer_client):
         resp = writer_client.get('/api/impostazioni/users/data/')
@@ -248,20 +248,20 @@ class TestUsers:
     def test_form_add(self, admin_client):
         resp = admin_client.get('/api/impostazioni/users/form/')
         assert resp.status_code == 200
-        assert 'login_method' in resp.json()['html']
+        assert 'login_method' in resp.json()[S.HTML]
 
     def test_form_edit(self, admin_client, writer_user):
         resp = admin_client.get(f'/api/impostazioni/users/form/{writer_user.id}/')
         assert resp.status_code == 200
-        assert writer_user.username in resp.json()['html']
+        assert writer_user.username in resp.json()[S.HTML]
 
     def test_create_password_user(self, admin_client):
         resp = _post(admin_client, '/api/impostazioni/users/save/', {
-            'username': 'newuser', 'first_name': 'New', 'last_name': 'User',
-            'email': 'newuser@example.com',
-            'login_method': LoginMethod.PASSWORD,
+            S.FIELD_USERNAME: 'newuser', S.FIELD_FIRST_NAME: 'New', S.FIELD_LAST_NAME: 'User',
+            S.FIELD_EMAIL: 'newuser@example.com',
+            S.FIELD_LOGIN_METHOD: LoginMethod.PASSWORD,
             'password1': 'testpass123!', 'password2': 'testpass123!',
-            'role': Role.READER, 'is_active': 'true',
+            S.FIELD_ROLE: Role.READER, S.FIELD_IS_ACTIVE: 'true',
         })
         assert resp.status_code == 200
         u = User.objects.get(username='newuser')
@@ -270,11 +270,11 @@ class TestUsers:
 
     def test_create_oauth_user(self, admin_client):
         resp = _post(admin_client, '/api/impostazioni/users/save/', {
-            'username': 'oauthuser@example.com', 'first_name': '', 'last_name': '',
-            'email': 'oauthuser@example.com',
-            'login_method': LoginMethod.OAUTH,
+            S.FIELD_USERNAME: 'oauthuser@example.com', S.FIELD_FIRST_NAME: '', S.FIELD_LAST_NAME: '',
+            S.FIELD_EMAIL: 'oauthuser@example.com',
+            S.FIELD_LOGIN_METHOD: LoginMethod.OAUTH,
             'password1': '', 'password2': '',
-            'role': Role.WRITER, 'is_active': 'true',
+            S.FIELD_ROLE: Role.WRITER, S.FIELD_IS_ACTIVE: 'true',
         })
         assert resp.status_code == 200
         u = User.objects.get(username='oauthuser@example.com')
@@ -282,22 +282,22 @@ class TestUsers:
 
     def test_create_password_user_requires_password(self, admin_client):
         resp = _post(admin_client, '/api/impostazioni/users/save/', {
-            'username': 'nopass', 'first_name': '', 'last_name': '',
-            'email': 'nopass@example.com',
-            'login_method': LoginMethod.PASSWORD,
+            S.FIELD_USERNAME: 'nopass', S.FIELD_FIRST_NAME: '', S.FIELD_LAST_NAME: '',
+            S.FIELD_EMAIL: 'nopass@example.com',
+            S.FIELD_LOGIN_METHOD: LoginMethod.PASSWORD,
             'password1': '', 'password2': '',
-            'role': Role.READER, 'is_active': 'true',
+            S.FIELD_ROLE: Role.READER, S.FIELD_IS_ACTIVE: 'true',
         })
         assert resp.status_code == 400
 
     def test_update_user(self, admin_client, writer_user):
         resp = _post(admin_client, '/api/impostazioni/users/save/', {
-            'row_id': str(writer_user.id),
-            'username': 'renamed', 'first_name': 'A', 'last_name': 'B',
-            'email': 'renamed@example.com',
-            'login_method': LoginMethod.PASSWORD,
+            S.ROW_ID: str(writer_user.id),
+            S.FIELD_USERNAME: 'renamed', S.FIELD_FIRST_NAME: 'A', S.FIELD_LAST_NAME: 'B',
+            S.FIELD_EMAIL: 'renamed@example.com',
+            S.FIELD_LOGIN_METHOD: LoginMethod.PASSWORD,
             'password1': '', 'password2': '',
-            'role': Role.ADMIN, 'is_active': 'true',
+            S.FIELD_ROLE: Role.ADMIN, S.FIELD_IS_ACTIVE: 'true',
         })
         assert resp.status_code == 200
         writer_user.refresh_from_db()
@@ -306,12 +306,12 @@ class TestUsers:
 
     def test_update_user_with_new_password(self, admin_client, writer_user):
         resp = _post(admin_client, '/api/impostazioni/users/save/', {
-            'row_id': str(writer_user.id),
-            'username': writer_user.username, 'first_name': '', 'last_name': '',
-            'email': 'writer@example.com',
-            'login_method': LoginMethod.PASSWORD,
+            S.ROW_ID: str(writer_user.id),
+            S.FIELD_USERNAME: writer_user.username, S.FIELD_FIRST_NAME: '', S.FIELD_LAST_NAME: '',
+            S.FIELD_EMAIL: 'writer@example.com',
+            S.FIELD_LOGIN_METHOD: LoginMethod.PASSWORD,
             'password1': 'brandnew99!', 'password2': 'brandnew99!',
-            'role': Role.WRITER, 'is_active': 'true',
+            S.FIELD_ROLE: Role.WRITER, S.FIELD_IS_ACTIVE: 'true',
         })
         assert resp.status_code == 200
         writer_user.refresh_from_db()
@@ -319,33 +319,33 @@ class TestUsers:
 
     def test_username_required(self, admin_client):
         resp = _post(admin_client, '/api/impostazioni/users/save/', {
-            'username': '', 'first_name': '', 'last_name': '',
-            'email': 'nouser@example.com',
-            'login_method': LoginMethod.PASSWORD,
+            S.FIELD_USERNAME: '', S.FIELD_FIRST_NAME: '', S.FIELD_LAST_NAME: '',
+            S.FIELD_EMAIL: 'nouser@example.com',
+            S.FIELD_LOGIN_METHOD: LoginMethod.PASSWORD,
             'password1': 'testpass123!', 'password2': 'testpass123!',
-            'role': Role.READER, 'is_active': 'true',
+            S.FIELD_ROLE: Role.READER, S.FIELD_IS_ACTIVE: 'true',
         })
         assert resp.status_code == 400
 
     def test_create_password_mismatch(self, admin_client):
         resp = _post(admin_client, '/api/impostazioni/users/save/', {
-            'username': 'mismatch', 'first_name': '', 'last_name': '',
-            'email': 'mismatch@example.com',
-            'login_method': LoginMethod.PASSWORD,
+            S.FIELD_USERNAME: 'mismatch', S.FIELD_FIRST_NAME: '', S.FIELD_LAST_NAME: '',
+            S.FIELD_EMAIL: 'mismatch@example.com',
+            S.FIELD_LOGIN_METHOD: LoginMethod.PASSWORD,
             'password1': 'testpass123!', 'password2': 'different123!',
-            'role': Role.READER, 'is_active': 'true',
+            S.FIELD_ROLE: Role.READER, S.FIELD_IS_ACTIVE: 'true',
         })
         assert resp.status_code == 400
-        assert resp.json()['message'] == S.PASSWORD_MISMATCH
+        assert resp.json()[S.MESSAGE] == S.PASSWORD_MISMATCH
 
     def test_update_password_mismatch(self, admin_client, writer_user):
         resp = _post(admin_client, '/api/impostazioni/users/save/', {
-            'row_id': str(writer_user.id),
-            'username': writer_user.username, 'first_name': '', 'last_name': '',
-            'email': 'writer@example.com',
-            'login_method': LoginMethod.PASSWORD,
+            S.ROW_ID: str(writer_user.id),
+            S.FIELD_USERNAME: writer_user.username, S.FIELD_FIRST_NAME: '', S.FIELD_LAST_NAME: '',
+            S.FIELD_EMAIL: 'writer@example.com',
+            S.FIELD_LOGIN_METHOD: LoginMethod.PASSWORD,
             'password1': 'newpass123!', 'password2': 'other123!',
-            'role': Role.WRITER, 'is_active': 'true',
+            S.FIELD_ROLE: Role.WRITER, S.FIELD_IS_ACTIVE: 'true',
         })
         assert resp.status_code == 400
-        assert resp.json()['message'] == S.PASSWORD_MISMATCH
+        assert resp.json()[S.MESSAGE] == S.PASSWORD_MISMATCH

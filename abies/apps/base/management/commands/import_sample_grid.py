@@ -92,7 +92,7 @@ class Command(BaseCommand):
                     sample_grid=grid, parcel=parcel, number=number,
                     defaults={
                         'lat': float(row[S.CSV_COL_LAT]),
-                        'lng': float(row[S.CSV_COL_LON]),
+                        'lon': float(row[S.CSV_COL_LON]),
                         'altitude_m': _int_or_none(row[S.CSV_COL_QUOTA]),
                         'r_m': DEFAULT_RADIUS_M,
                         'note': '',

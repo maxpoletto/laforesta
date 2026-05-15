@@ -21,11 +21,11 @@ export class GriglieMap {
    * @param {HTMLElement} opts.container
    * @param {object} opts.geojson — terreni.geojson (sorted-by-area)
    * @param {function(object): void} [opts.onAreaClick]
-   *   Called with the area row ({id, lat, lng, compresa, particella, numero,
+   *   Called with the area row ({id, lat, lon, compresa, particella, numero,
    *   altitude, r_m, note}) when an area marker is clicked.  The handler
    *   typically opens a popover.
    * @param {function(number, number): void} [opts.onEmptyClick]
-   *   Called with (lat, lng) when the user clicks empty map space.
+   *   Called with (lat, lon) when the user clicks empty map space.
    *   Used by writers to open the "Inserire una nuova area qui?" prompt.
    * @param {{center: [number,number], zoom: number}} [opts.initialView]
    *   If given, the map opens at this view instead of fit-to-parcels.
@@ -92,14 +92,14 @@ export class GriglieMap {
   /**
    * Render markers for the active grid's sample areas.
    *
-   * @param {Array<{id, lat, lng, compresa, particella, numero}>} areas
+   * @param {Array<{id, lat, lon, compresa, particella, numero}>} areas
    */
   setAreas(areas) {
     this.markerLayer.clearLayers();
     this.markers.clear();
 
     for (const area of areas) {
-      const m = L.circleMarker([area.lat, area.lng], {
+      const m = L.circleMarker([area.lat, area.lon], {
         radius: MARKER_RADIUS,
         color: '#000',
         weight: 1,

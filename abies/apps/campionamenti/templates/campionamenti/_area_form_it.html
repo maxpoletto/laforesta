@@ -50,7 +50,7 @@ on the Griglie map).  Per `docs/pages/campionamenti.md` §Section 1.
       </div>
     </div>
 
-    <div class="form-row narrow" id="area-form-latlng-row">
+    <div class="form-row narrow" id="area-form-latlon-row">
       <div class="form-group">
         <label for="id_area_altitude">Quota (m)</label>
         <input type="number" id="id_area_altitude" name="altitude_m" step="1"
@@ -62,9 +62,9 @@ on the Griglie map).  Per `docs/pages/campionamenti.md` §Section 1.
                value="{% if area %}{{ area.lat }}{% else %}{{ initial_lat }}{% endif %}">
       </div>
       <div class="form-group">
-        <label for="id_area_lng">Lng</label>
-        <input type="number" id="id_area_lng" name="lng" step="any" required
-               value="{% if area %}{{ area.lng }}{% else %}{{ initial_lng }}{% endif %}">
+        <label for="id_area_lon">Lon</label>
+        <input type="number" id="id_area_lon" name="lon" step="any" required
+               value="{% if area %}{{ area.lon }}{% else %}{{ initial_lon }}{% endif %}">
       </div>
     </div>
 

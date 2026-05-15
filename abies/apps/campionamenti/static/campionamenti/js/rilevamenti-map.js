@@ -92,7 +92,7 @@ export class RilevamentiMap {
   /**
    * Render markers for the given sample-area rows.
    *
-   * @param {Array<{id, lat, lng, compresa, particella, numero}>} areas
+   * @param {Array<{id, lat, lon, compresa, particella, numero}>} areas
    * @param {Map<number, {nAlberi: number}>} visitedById — sample_area_id →
    *   visit info from samples.json.  Missing entries = unvisited.
    */
@@ -103,7 +103,7 @@ export class RilevamentiMap {
     for (const area of areas) {
       const visited = visitedById.get(area.id);
       const isVisited = !!visited;
-      const m = L.circleMarker([area.lat, area.lng], {
+      const m = L.circleMarker([area.lat, area.lon], {
         radius: MARKER_RADIUS,
         color: '#000',
         weight: 1,

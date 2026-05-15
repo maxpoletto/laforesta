@@ -31,7 +31,7 @@ def harvest_fixtures(regions, eclasses, species, tractors, crews, products, note
     return {
         'regions': regions, 'eclasses': eclasses, 'species': species,
         'tractors': tractors, 'crews': crews, 'products': products,
-        'notes': notes, 'parcels': parcels,
+        S.FIELD_NOTES: notes, 'parcels': parcels,
     }
 
 
@@ -62,8 +62,8 @@ class TestDataView:
         assert resp['Content-Type'] == 'application/json'
         assert resp['Content-Encoding'] == 'gzip'
         data = json.loads(gzip.decompress(resp.getvalue()))
-        assert 'columns' in data
-        assert len(data['rows']) >= 1
+        assert S.COLUMNS in data
+        assert len(data[S.ROWS]) >= 1
 
     def test_304_on_not_modified(self, writer_client, harvest_fixtures, sample_op, tmp_path, settings):
         settings.DIGEST_DIR = tmp_path
@@ -89,26 +89,26 @@ class TestFormView:
         resp = writer_client.get('/api/prelievi/form/')
         assert resp.status_code == 200
         data = resp.json()
-        assert '<form' in data['html']
-        assert 'id_date' in data['html']
+        assert '<form' in data[S.HTML]
+        assert 'id_date' in data[S.HTML]
 
     def test_edit_form_prepopulated(self, writer_client, harvest_fixtures, sample_op):
         resp = writer_client.get(f'/api/prelievi/form/{sample_op.id}/')
         assert resp.status_code == 200
-        html = resp.json()['html']
+        html = resp.json()[S.HTML]
         assert '2024-06-15' in html
         assert 'selected' in html
 
     def test_form_contains_species_and_tractors(self, writer_client, harvest_fixtures):
         resp = writer_client.get('/api/prelievi/form/')
-        html = resp.json()['html']
+        html = resp.json()[S.HTML]
         assert 'sp_' in html
         assert 'tr_' in html
         assert '100%' in html
 
     def test_edit_form_shows_percentages(self, writer_client, harvest_fixtures, sample_op):
         resp = writer_client.get(f'/api/prelievi/form/{sample_op.id}/')
-        html = resp.json()['html']
+        html = resp.json()[S.HTML]
         # The first species has 100% on sample_op
         assert 'value="100"' in html
 
@@ -128,23 +128,23 @@ class TestSaveView:
     def test_create_success(self, writer_client, harvest_fixtures):
         f = harvest_fixtures
         resp = self._post(writer_client, {
-            'date': '2024-07-01', 'parcel_id': str(f['parcels'][0].id),
-            'crew_id': str(f['crews'][0].id), 'product_id': str(f['products'][0].id),
-            'quintals': '30', 'note_id': '', 'record1': '', 'record2': '',
-            'extra_note': 'test note',
+            S.FIELD_DATE: '2024-07-01', S.FIELD_PARCEL_ID: str(f['parcels'][0].id),
+            S.FIELD_CREW_ID: str(f['crews'][0].id), S.FIELD_PRODUCT_ID: str(f['products'][0].id),
+            S.FIELD_QUINTALS: '30', S.FIELD_NOTE_ID: '', 'record1': '', 'record2': '',
+            S.FIELD_EXTRA_NOTE: 'test note',
             f'sp_{f["species"][0].id}': '60',
             f'sp_{f["species"][1].id}': '40',
             f'tr_{f["tractors"][0].id}': '100',
-            'nonce': 'create-nonce-1',
+            S.FIELD_NONCE: 'create-nonce-1',
         })
         assert resp.status_code == 200
         data = resp.json()
-        assert data['data_id'] == 'prelievi'
-        assert data['row_id'] > 0
-        assert data['record'][2] == '2024-07-01'  # date is third column (after row_id, version)
+        assert data[S.DATA_ID] == 'prelievi'
+        assert data[S.ROW_ID] > 0
+        assert data[S.RECORD][2] == '2024-07-01'  # date is third column (after row_id, version)
 
         # Verify DB
-        op = Harvest.objects.get(id=data['row_id'])
+        op = Harvest.objects.get(id=data[S.ROW_ID])
         assert float(op.quintals) == 30.0
         assert op.extra_note == 'test note'
         assert HarvestSpecies.objects.filter(harvest=op).count() == 2
@@ -153,10 +153,10 @@ class TestSaveView:
     def test_create_marks_digest_stale(self, writer_client, harvest_fixtures):
         f = harvest_fixtures
         self._post(writer_client, {
-            'date': '2024-07-01', 'parcel_id': str(f['parcels'][0].id),
-            'crew_id': str(f['crews'][0].id), 'product_id': str(f['products'][0].id),
-            'quintals': '10', 'note_id': '', 'record1': '', 'record2': '',
-            'extra_note': '',
+            S.FIELD_DATE: '2024-07-01', S.FIELD_PARCEL_ID: str(f['parcels'][0].id),
+            S.FIELD_CREW_ID: str(f['crews'][0].id), S.FIELD_PRODUCT_ID: str(f['products'][0].id),
+            S.FIELD_QUINTALS: '10', S.FIELD_NOTE_ID: '', 'record1': '', 'record2': '',
+            S.FIELD_EXTRA_NOTE: '',
             f'sp_{f["species"][0].id}': '100',
             f'tr_{f["tractors"][0].id}': '100',
         })
@@ -166,11 +166,11 @@ class TestSaveView:
     def test_update_success(self, writer_client, harvest_fixtures, sample_op):
         f = harvest_fixtures
         resp = self._post(writer_client, {
-            'row_id': str(sample_op.id), 'version': str(sample_op.version),
-            'date': '2024-06-20', 'parcel_id': str(f['parcels'][0].id),
-            'crew_id': str(f['crews'][0].id), 'product_id': str(f['products'][0].id),
-            'quintals': '60', 'note_id': '', 'record1': '999', 'record2': '',
-            'extra_note': '',
+            S.ROW_ID: str(sample_op.id), S.VERSION: str(sample_op.version),
+            S.FIELD_DATE: '2024-06-20', S.FIELD_PARCEL_ID: str(f['parcels'][0].id),
+            S.FIELD_CREW_ID: str(f['crews'][0].id), S.FIELD_PRODUCT_ID: str(f['products'][0].id),
+            S.FIELD_QUINTALS: '60', S.FIELD_NOTE_ID: '', 'record1': '999', 'record2': '',
+            S.FIELD_EXTRA_NOTE: '',
             f'sp_{f["species"][0].id}': '100',
             f'tr_{f["tractors"][0].id}': '100',
         })
@@ -183,114 +183,114 @@ class TestSaveView:
     def test_update_conflict(self, writer_client, harvest_fixtures, sample_op):
         f = harvest_fixtures
         resp = self._post(writer_client, {
-            'row_id': str(sample_op.id), 'version': '999',  # wrong version
-            'date': '2024-06-20', 'parcel_id': str(f['parcels'][0].id),
-            'crew_id': str(f['crews'][0].id), 'product_id': str(f['products'][0].id),
-            'quintals': '60', 'note_id': '', 'record1': '', 'record2': '',
-            'extra_note': '',
+            S.ROW_ID: str(sample_op.id), S.VERSION: '999',  # wrong version
+            S.FIELD_DATE: '2024-06-20', S.FIELD_PARCEL_ID: str(f['parcels'][0].id),
+            S.FIELD_CREW_ID: str(f['crews'][0].id), S.FIELD_PRODUCT_ID: str(f['products'][0].id),
+            S.FIELD_QUINTALS: '60', S.FIELD_NOTE_ID: '', 'record1': '', 'record2': '',
+            S.FIELD_EXTRA_NOTE: '',
         })
         assert resp.status_code == 400
-        assert resp.json()['status'] == 'conflict'
-        assert 'record' in resp.json()
+        assert resp.json()[S.STATUS] == 'conflict'
+        assert S.RECORD in resp.json()
 
     def test_validation_error_missing_date(self, writer_client, harvest_fixtures):
         f = harvest_fixtures
         resp = self._post(writer_client, {
-            'date': '', 'parcel_id': str(f['parcels'][0].id),
-            'crew_id': str(f['crews'][0].id), 'product_id': str(f['products'][0].id),
-            'quintals': '10', 'note_id': '', 'record1': '', 'record2': '',
-            'extra_note': '',
+            S.FIELD_DATE: '', S.FIELD_PARCEL_ID: str(f['parcels'][0].id),
+            S.FIELD_CREW_ID: str(f['crews'][0].id), S.FIELD_PRODUCT_ID: str(f['products'][0].id),
+            S.FIELD_QUINTALS: '10', S.FIELD_NOTE_ID: '', 'record1': '', 'record2': '',
+            S.FIELD_EXTRA_NOTE: '',
         })
         assert resp.status_code == 400
-        assert resp.json()['status'] == 'validation_error'
-        assert S.ERR_DATE_REQUIRED in resp.json()['message']
+        assert resp.json()[S.STATUS] == 'validation_error'
+        assert S.ERR_DATE_REQUIRED in resp.json()[S.MESSAGE]
 
     def test_validation_error_species_sum(self, writer_client, harvest_fixtures):
         f = harvest_fixtures
         resp = self._post(writer_client, {
-            'date': '2024-07-01', 'parcel_id': str(f['parcels'][0].id),
-            'crew_id': str(f['crews'][0].id), 'product_id': str(f['products'][0].id),
-            'quintals': '10', 'note_id': '', 'record1': '', 'record2': '',
-            'extra_note': '',
+            S.FIELD_DATE: '2024-07-01', S.FIELD_PARCEL_ID: str(f['parcels'][0].id),
+            S.FIELD_CREW_ID: str(f['crews'][0].id), S.FIELD_PRODUCT_ID: str(f['products'][0].id),
+            S.FIELD_QUINTALS: '10', S.FIELD_NOTE_ID: '', 'record1': '', 'record2': '',
+            S.FIELD_EXTRA_NOTE: '',
             f'sp_{f["species"][0].id}': '50',  # doesn't sum to 100
         })
         assert resp.status_code == 400
-        assert 'specie' in resp.json()['message'].lower()
+        assert 'specie' in resp.json()[S.MESSAGE].lower()
 
     def test_vdp_duplicate(self, writer_client, harvest_fixtures, sample_op):
         f = harvest_fixtures
         resp = self._post(writer_client, {
-            'date': '2024-07-01', 'parcel_id': str(f['parcels'][0].id),
-            'crew_id': str(f['crews'][0].id), 'product_id': str(f['products'][0].id),
-            'quintals': '10', 'note_id': '', 'record1': '999', 'record2': '',
-            'extra_note': '',
+            S.FIELD_DATE: '2024-07-01', S.FIELD_PARCEL_ID: str(f['parcels'][0].id),
+            S.FIELD_CREW_ID: str(f['crews'][0].id), S.FIELD_PRODUCT_ID: str(f['products'][0].id),
+            S.FIELD_QUINTALS: '10', S.FIELD_NOTE_ID: '', 'record1': '999', 'record2': '',
+            S.FIELD_EXTRA_NOTE: '',
         })
         assert resp.status_code == 400
-        assert 'VDP' in resp.json()['message']
+        assert 'VDP' in resp.json()[S.MESSAGE]
 
     def test_validation_error_bad_quintals(self, writer_client, harvest_fixtures):
         f = harvest_fixtures
         resp = self._post(writer_client, {
-            'date': '2024-07-01', 'parcel_id': str(f['parcels'][0].id),
-            'crew_id': str(f['crews'][0].id), 'product_id': str(f['products'][0].id),
-            'quintals': '-5', 'note_id': '', 'record1': '', 'record2': '',
-            'extra_note': '',
+            S.FIELD_DATE: '2024-07-01', S.FIELD_PARCEL_ID: str(f['parcels'][0].id),
+            S.FIELD_CREW_ID: str(f['crews'][0].id), S.FIELD_PRODUCT_ID: str(f['products'][0].id),
+            S.FIELD_QUINTALS: '-5', S.FIELD_NOTE_ID: '', 'record1': '', 'record2': '',
+            S.FIELD_EXTRA_NOTE: '',
         })
         assert resp.status_code == 400
-        assert S.ERR_QUINTALS_POSITIVE in resp.json()['message']
+        assert S.ERR_QUINTALS_POSITIVE in resp.json()[S.MESSAGE]
 
     def test_validation_error_non_numeric_quintals(self, writer_client, harvest_fixtures):
         f = harvest_fixtures
         resp = self._post(writer_client, {
-            'date': '2024-07-01', 'parcel_id': str(f['parcels'][0].id),
-            'crew_id': str(f['crews'][0].id), 'product_id': str(f['products'][0].id),
-            'quintals': 'abc', 'note_id': '', 'record1': '', 'record2': '',
-            'extra_note': '',
+            S.FIELD_DATE: '2024-07-01', S.FIELD_PARCEL_ID: str(f['parcels'][0].id),
+            S.FIELD_CREW_ID: str(f['crews'][0].id), S.FIELD_PRODUCT_ID: str(f['products'][0].id),
+            S.FIELD_QUINTALS: 'abc', S.FIELD_NOTE_ID: '', 'record1': '', 'record2': '',
+            S.FIELD_EXTRA_NOTE: '',
         })
         assert resp.status_code == 400
-        assert S.ERR_QUINTALS_POSITIVE in resp.json()['message']
+        assert S.ERR_QUINTALS_POSITIVE in resp.json()[S.MESSAGE]
 
     def test_validation_error_tractor_sum(self, writer_client, harvest_fixtures):
         f = harvest_fixtures
         resp = self._post(writer_client, {
-            'date': '2024-07-01', 'parcel_id': str(f['parcels'][0].id),
-            'crew_id': str(f['crews'][0].id), 'product_id': str(f['products'][0].id),
-            'quintals': '10', 'note_id': '', 'record1': '', 'record2': '',
-            'extra_note': '',
+            S.FIELD_DATE: '2024-07-01', S.FIELD_PARCEL_ID: str(f['parcels'][0].id),
+            S.FIELD_CREW_ID: str(f['crews'][0].id), S.FIELD_PRODUCT_ID: str(f['products'][0].id),
+            S.FIELD_QUINTALS: '10', S.FIELD_NOTE_ID: '', 'record1': '', 'record2': '',
+            S.FIELD_EXTRA_NOTE: '',
             f'sp_{f["species"][0].id}': '100',
             f'tr_{f["tractors"][0].id}': '50',  # doesn't sum to 100
         })
         assert resp.status_code == 400
-        assert 'trattori' in resp.json()['message'].lower()
+        assert 'trattori' in resp.json()[S.MESSAGE].lower()
 
     def test_reader_forbidden(self, reader_client, harvest_fixtures):
         f = harvest_fixtures
         resp = self._post(reader_client, {
-            'date': '2024-07-01', 'parcel_id': str(f['parcels'][0].id),
-            'crew_id': str(f['crews'][0].id), 'product_id': str(f['products'][0].id),
-            'quintals': '10', 'note_id': '', 'record1': '', 'record2': '',
-            'extra_note': '',
+            S.FIELD_DATE: '2024-07-01', S.FIELD_PARCEL_ID: str(f['parcels'][0].id),
+            S.FIELD_CREW_ID: str(f['crews'][0].id), S.FIELD_PRODUCT_ID: str(f['products'][0].id),
+            S.FIELD_QUINTALS: '10', S.FIELD_NOTE_ID: '', 'record1': '', 'record2': '',
+            S.FIELD_EXTRA_NOTE: '',
         })
         assert resp.status_code == 403
 
     def test_nonce_idempotency(self, writer_client, harvest_fixtures):
         f = harvest_fixtures
         payload = {
-            'date': '2024-07-01', 'parcel_id': str(f['parcels'][0].id),
-            'crew_id': str(f['crews'][0].id), 'product_id': str(f['products'][0].id),
-            'quintals': '10', 'note_id': '', 'record1': '', 'record2': '',
-            'extra_note': '', 'nonce': 'idempotent-1',
+            S.FIELD_DATE: '2024-07-01', S.FIELD_PARCEL_ID: str(f['parcels'][0].id),
+            S.FIELD_CREW_ID: str(f['crews'][0].id), S.FIELD_PRODUCT_ID: str(f['products'][0].id),
+            S.FIELD_QUINTALS: '10', S.FIELD_NOTE_ID: '', 'record1': '', 'record2': '',
+            S.FIELD_EXTRA_NOTE: '', S.FIELD_NONCE: 'idempotent-1',
             f'sp_{f["species"][0].id}': '100',
             f'tr_{f["tractors"][0].id}': '100',
         }
         resp1 = self._post(writer_client, payload)
         assert resp1.status_code == 200
-        row_id_1 = resp1.json()['row_id']
+        row_id_1 = resp1.json()[S.ROW_ID]
 
         # Replay with same nonce — should get same response, no new row
         resp2 = self._post(writer_client, payload)
         assert resp2.status_code == 200
-        assert resp2.json()['row_id'] == row_id_1
+        assert resp2.json()[S.ROW_ID] == row_id_1
         assert Harvest.objects.count() == 1
 
 
@@ -308,35 +308,35 @@ class TestDeleteView:
 
     def test_delete_success(self, writer_client, harvest_fixtures, sample_op):
         resp = self._post(writer_client, {
-            'row_id': str(sample_op.id), 'version': str(sample_op.version),
-            'nonce': 'del-1',
+            S.ROW_ID: str(sample_op.id), S.VERSION: str(sample_op.version),
+            S.FIELD_NONCE: 'del-1',
         })
         assert resp.status_code == 200
-        assert resp.json()['row_id'] == sample_op.id
+        assert resp.json()[S.ROW_ID] == sample_op.id
         assert not Harvest.objects.filter(id=sample_op.id).exists()
 
     def test_delete_cascades_junctions(self, writer_client, harvest_fixtures, sample_op):
         sp_count_before = HarvestSpecies.objects.count()
         self._post(writer_client, {
-            'row_id': str(sample_op.id), 'version': str(sample_op.version),
+            S.ROW_ID: str(sample_op.id), S.VERSION: str(sample_op.version),
         })
         assert HarvestSpecies.objects.count() < sp_count_before
 
     def test_delete_conflict(self, writer_client, harvest_fixtures, sample_op):
         resp = self._post(writer_client, {
-            'row_id': str(sample_op.id), 'version': '999',
+            S.ROW_ID: str(sample_op.id), S.VERSION: '999',
         })
         assert resp.status_code == 400
-        assert resp.json()['status'] == 'conflict'
+        assert resp.json()[S.STATUS] == 'conflict'
         assert Harvest.objects.filter(id=sample_op.id).exists()
 
     def test_delete_not_found(self, writer_client, harvest_fixtures):
-        resp = self._post(writer_client, {'row_id': '99999', 'version': '1'})
+        resp = self._post(writer_client, {S.ROW_ID: '99999', S.VERSION: '1'})
         assert resp.status_code == 404
 
     def test_reader_forbidden(self, reader_client, harvest_fixtures, sample_op):
         resp = self._post(reader_client, {
-            'row_id': str(sample_op.id), 'version': str(sample_op.version),
+            S.ROW_ID: str(sample_op.id), S.VERSION: str(sample_op.version),
         })
         assert resp.status_code == 403
 

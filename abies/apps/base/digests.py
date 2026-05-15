@@ -120,7 +120,7 @@ def generate_prelievi() -> None:
     from apps.prelievi.models import Harvest, HarvestSpecies, HarvestTractor
 
     # Stable sort orders for dynamic columns.
-    all_species = list(Species.objects.order_by('sort_order').values_list('id', 'common_name'))
+    all_species = list(Species.objects.order_by(S.FIELD_SORT_ORDER).values_list('id', 'common_name'))
     all_tractors = list(Tractor.objects.order_by('manufacturer', 'model')
                         .values_list('id', 'pk', 'manufacturer', 'model'))
 
@@ -144,7 +144,7 @@ def generate_prelievi() -> None:
 
     # Prefetch junction tables into dicts keyed by harvest_id.
     sp_map: dict[int, dict[int, int]] = {}
-    for hs in HarvestSpecies.objects.all().values_list('harvest_id', 'species_id', 'percent'):
+    for hs in HarvestSpecies.objects.all().values_list('harvest_id', S.FIELD_SPECIES_ID, 'percent'):
         sp_map.setdefault(hs[0], {})[hs[1]] = hs[2]
 
     tr_map: dict[int, dict[int, int]] = {}
@@ -191,10 +191,10 @@ def build_harvest_record(op) -> list:
     from apps.base.models import Species, Tractor
     from apps.prelievi.models import HarvestSpecies, HarvestTractor
 
-    species_ids = list(Species.objects.order_by('sort_order').values_list('id', flat=True))
+    species_ids = list(Species.objects.order_by(S.FIELD_SORT_ORDER).values_list('id', flat=True))
     tractor_ids = list(Tractor.objects.order_by('manufacturer', 'model').values_list('id', flat=True))
 
-    sp_pcts = dict(HarvestSpecies.objects.filter(harvest=op).values_list('species_id', 'percent'))
+    sp_pcts = dict(HarvestSpecies.objects.filter(harvest=op).values_list(S.FIELD_SPECIES_ID, 'percent'))
     tr_pcts = dict(HarvestTractor.objects.filter(harvest=op).values_list('tractor_id', 'percent'))
 
     quintals = float(op.quintals)
@@ -264,13 +264,13 @@ def generate_species() -> None:
     columns = [S.ROW_ID, S.VERSION, S.COL_NAME, S.COL_LATIN_NAME,
                S.COL_DENSITY, S.COL_SORT_ORDER, S.COL_ACTIVE]
     rows = []
-    for sp in Species.objects.order_by('sort_order'):
+    for sp in Species.objects.order_by(S.FIELD_SORT_ORDER):
         rows.append([
             sp.id, sp.version, sp.common_name, sp.latin_name,
             float(sp.density), sp.sort_order, sp.active,
         ])
 
-    _write_gzip_json({'columns': columns, 'rows': rows}, _dest('species'))
+    _write_gzip_json({'columns': columns, 'rows': rows}, _dest(S.FIELD_SPECIES))
     print(f'species.json.gz: {len(rows)} rows')
 
 
@@ -287,7 +287,7 @@ def generate_parcel_year_production() -> None:
                S.COL_QUINTALS, S.COL_VOLUME_M3]
     qs = (Harvest.objects
           .values('parcel__region__name', 'parcel__name', 'date__year')
-          .annotate(total_q=Sum('quintals'), total_v=Sum('volume_m3'))
+          .annotate(total_q=Sum('quintals'), total_v=Sum(S.FIELD_VOLUME_M3))
           .order_by('parcel__region__name', 'parcel__name', 'date__year'))
 
     rows = []
@@ -317,7 +317,7 @@ def generate_audit() -> None:
         (Harvest.history, S.TABLE_HARVEST, {
             'date': S.COL_DATE, 'parcel_id': S.COL_PARCEL,
             'crew_id': S.COL_CREW, 'product_id': S.COL_PRODUCT,
-            'quintals': S.COL_QUINTALS, 'volume_m3': S.COL_VOLUME_M3,
+            'quintals': S.COL_QUINTALS, S.FIELD_VOLUME_M3: S.COL_VOLUME_M3,
             'record1': S.COL_VDP,
             'record2': S.COL_PROT, 'note_id': S.COL_NOTE,
             'extra_note': S.COL_EXTRA_NOTE,
@@ -485,8 +485,8 @@ def build_survey_record(s) -> list:
         s.harvest_plan_id if s.harvest_plan_id else '',
         agg['n_visited'] or 0,
         n_total,
-        agg['first_date'].isoformat() if agg['first_date'] else '',
-        agg['last_date'].isoformat() if agg['last_date'] else '',
+        agg[S.FIELD_FIRST_DATE].isoformat() if agg[S.FIELD_FIRST_DATE] else '',
+        agg[S.FIELD_LAST_DATE].isoformat() if agg[S.FIELD_LAST_DATE] else '',
     ]
 
 
@@ -544,7 +544,7 @@ def build_sample_area_record(sa) -> list:
     return [
         sa.id, sa.version, sa.sample_grid_id,
         sa.parcel.region.name, sa.parcel.name, sa.number,
-        sa.lat, sa.lng, sa.altitude_m, sa.r_m, sa.note,
+        sa.lat, sa.lon, sa.altitude_m, sa.r_m, sa.note,
     ]
 
 
@@ -561,7 +561,7 @@ def generate_sample_areas() -> None:
                    .select_related('parcel__region', 'sample_grid')
                    .order_by('sample_grid__name',
                              'parcel__region__name',
-                             'parcel__name', 'number'))
+                             'parcel__name', S.FIELD_NUMBER))
     ]
     _write_gzip_json(
         {'columns': SAMPLE_AREA_COLUMNS, 'rows': rows},
@@ -601,7 +601,7 @@ def generate_samples() -> None:
 
     rows = []
     qs = Sample.objects.annotate(n_alberi=Count('treesample')) \
-                       .order_by('survey_id', 'sample_area_id')
+                       .order_by(S.FIELD_SURVEY_ID, S.FIELD_SAMPLE_AREA_ID)
     for s in qs:
         rows.append(build_sample_record(s, n_alberi=s.n_alberi or 0))
 
@@ -639,7 +639,7 @@ def build_tree_sample_record(ts) -> list:
         float(ts.mass_q) if ts.mass_q is not None else None,
         tree.preserved,
         tree.lat if tree.lat is not None else sa.lat,
-        tree.lng if tree.lng is not None else sa.lng,
+        tree.lon if tree.lon is not None else sa.lon,
     ]
 
 
@@ -657,7 +657,7 @@ def generate_sampled_trees_for_survey(survey_id: int) -> None:
                           'tree__species', 'tree__parcel')
           .order_by('sample__sample_area__parcel__region__name',
                     'sample__sample_area__parcel__name',
-                    'sample__sample_area__number', 'number', 'shoot'))
+                    'sample__sample_area__number', S.FIELD_NUMBER, S.FIELD_SHOOT))
     rows = [build_tree_sample_record(ts) for ts in qs]
     _write_gzip_json(
         {'columns': SAMPLED_TREE_COLUMNS, 'rows': rows},
@@ -674,7 +674,7 @@ _GENERATORS: dict[str, callable] = {
     'prelievi': generate_prelievi,
     'parcels': generate_parcels,
     'crews': generate_crews,
-    'species': generate_species,
+    S.FIELD_SPECIES: generate_species,
     'parcel_year_production': generate_parcel_year_production,
     'audit': generate_audit,
     'grids': generate_grids,

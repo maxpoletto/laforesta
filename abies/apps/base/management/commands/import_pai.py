@@ -120,7 +120,7 @@ class Command(BaseCommand):
                     species=species,
                     parcel=parcel,
                     lat=_float_or_none(row[S.CSV_COL_LAT]),
-                    lng=_float_or_none(row[S.CSV_COL_LON]),
+                    lon=_float_or_none(row[S.CSV_COL_LON]),
                     preserved=True,
                     coppice=False,
                 )

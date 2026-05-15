@@ -61,7 +61,7 @@ def save_view(request):
             return conflict
 
     # VDP uniqueness
-    record1 = parsed['record1']
+    record1 = parsed[S.FIELD_RECORD1]
     if record1 is not None:
         dup = Harvest.objects.filter(record1=record1)
         if row_id:
@@ -75,7 +75,7 @@ def save_view(request):
         return _validation_error(pct_errors, row_id, request, body)
 
     # Materialize volume_m3 from species mix and current densities.
-    parsed['volume_m3'] = _compute_volume_m3(parsed['quintals'], sp_pcts)
+    parsed[S.FIELD_VOLUME_M3] = _compute_volume_m3(parsed[S.FIELD_QUINTALS], sp_pcts)
 
     with transaction.atomic():
         if row_id:
@@ -92,7 +92,7 @@ def save_view(request):
     record = build_harvest_record(op)
     response_data = {S.DATA_ID: 'prelievi', S.ROW_ID: op.id, S.RECORD: record}
 
-    nonce = body.get('nonce')
+    nonce = body.get(S.FIELD_NONCE)
     if nonce:
         save_nonce(nonce, request.user, response_data)
 
@@ -130,7 +130,7 @@ def delete_view(request):
 
     response_data = {S.DATA_ID: 'prelievi', S.ROW_ID: row_id}
 
-    nonce = body.get('nonce')
+    nonce = body.get(S.FIELD_NONCE)
     if nonce:
         save_nonce(nonce, request.user, response_data)
 
@@ -156,7 +156,7 @@ def _form_context(op_id=None, vals=None):
             'parcel__region', 'crew', 'note',
         ).get(id=op_id)
         sp_pcts = dict(
-            HarvestSpecies.objects.filter(harvest=op).values_list('species_id', 'percent'),
+            HarvestSpecies.objects.filter(harvest=op).values_list(S.FIELD_SPECIES_ID, 'percent'),
         )
         tr_pcts = dict(
             HarvestTractor.objects.filter(harvest=op).values_list('tractor_id', 'percent'),
@@ -182,7 +182,7 @@ def _form_context(op_id=None, vals=None):
         'notes': Note.objects.order_by('name'),
         'species_data': [
             (sp.id, sp.common_name, sp_pcts.get(sp.id, 0))
-            for sp in Species.objects.filter(active=True).order_by('sort_order')
+            for sp in Species.objects.filter(active=True).order_by(S.FIELD_SORT_ORDER)
         ],
         'tractor_data': [
             (tr.id, f'{tr.manufacturer} {tr.model}'.strip(), tr_pcts.get(tr.id, 0))
@@ -206,7 +206,7 @@ def _parse_body(body):
     row_id = body.get(S.ROW_ID)
     row_id = int(row_id) if row_id else None
 
-    date = body.get('date')
+    date = body.get(S.FIELD_DATE)
     if not date:
         errors.append(S.ERR_DATE_REQUIRED)
     else:
@@ -217,31 +217,31 @@ def _parse_body(body):
             errors.append(S.ERR_DATE_REQUIRED)
 
     try:
-        quintals = Decimal(body.get('quintals', '0'))
+        quintals = Decimal(body.get(S.FIELD_QUINTALS, '0'))
         if quintals <= 0:
             errors.append(S.ERR_QUINTALS_POSITIVE)
     except InvalidOperation:
         errors.append(S.ERR_QUINTALS_POSITIVE)
         quintals = Decimal(0)
 
-    note_id = body.get('note_id')
-    record1 = body.get('record1')
+    note_id = body.get(S.FIELD_NOTE_ID)
+    record1 = body.get(S.FIELD_RECORD1)
 
     parsed = {
-        'date': date,
-        'parcel_id': int(body['parcel_id']),
-        'crew_id': int(body['crew_id']),
-        'product_id': int(body['product_id']),
-        'note_id': int(note_id) if note_id else None,
-        'record1': int(record1) if record1 else None,
-        'quintals': quintals,
-        'extra_note': body.get('extra_note', ''),
+        S.FIELD_DATE: date,
+        S.FIELD_PARCEL_ID: int(body[S.FIELD_PARCEL_ID]),
+        S.FIELD_CREW_ID: int(body[S.FIELD_CREW_ID]),
+        S.FIELD_PRODUCT_ID: int(body[S.FIELD_PRODUCT_ID]),
+        S.FIELD_NOTE_ID: int(note_id) if note_id else None,
+        S.FIELD_RECORD1: int(record1) if record1 else None,
+        S.FIELD_QUINTALS: quintals,
+        S.FIELD_EXTRA_NOTE: body.get(S.FIELD_EXTRA_NOTE, ''),
     }
     # record2 (Prot) is display-only for legacy data; only overwrite if
     # explicitly present in the submission (i.e., never from the current form).
-    if 'record2' in body:
-        record2 = body['record2']
-        parsed['record2'] = int(record2) if record2 else None
+    if S.FIELD_RECORD2 in body:
+        record2 = body[S.FIELD_RECORD2]
+        parsed[S.FIELD_RECORD2] = int(record2) if record2 else None
     return row_id, parsed, errors
 
 

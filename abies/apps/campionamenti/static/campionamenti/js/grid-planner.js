@@ -38,7 +38,7 @@ export class GridPlanner {
     this.host = opts.host;
     this.onCreated = opts.onCreated;
     this.featuresByCompresa = {};   // compresa → [GeoJSON features]
-    this.points = [];                // {lat, lng, compresa, particella}
+    this.points = [];                // {lat, lon, compresa, particella}
     this.leaflet = null;
     this.parcelLayer = null;
     this.pointLayer = null;
@@ -242,7 +242,7 @@ export class GridPlanner {
   _renderPoints() {
     this.pointLayer.clearLayers();
     this.points.forEach((pt, i) => {
-      const m = L.circleMarker([pt.lat, pt.lng], POINT_STYLE);
+      const m = L.circleMarker([pt.lat, pt.lon], POINT_STYLE);
       m.bindTooltip(
         S.TOOLTIP_ADC
           .replace('{n}', i + 1)

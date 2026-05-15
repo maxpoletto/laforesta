@@ -460,7 +460,7 @@ function renderGriglieMap(gridId) {
     .map(r => ({
       id: r[c.indexOf(S.ROW_ID)],
       lat: r[c.indexOf(S.COL_LAT)],
-      lng: r[c.indexOf(S.COL_LON)],
+      lon: r[c.indexOf(S.COL_LON)],
       compresa: r[c.indexOf(S.COL_COMPRESA)],
       particella: r[c.indexOf(S.COL_PARCEL)],
       numero: r[c.indexOf(S.COL_NUMBER)],
@@ -478,7 +478,7 @@ function renderGriglieMap(gridId) {
     basemap: activeBasemap(),
     onAreaClick: (area) => showAreaPopover(area),
     onEmptyClick: modify
-      ? (lat, lng) => promptNewAreaAt(lat, lng)
+      ? (lat, lon) => promptNewAreaAt(lat, lon)
       : null,
     initialView,
     onViewChange: (center, zoom) => {
@@ -650,7 +650,7 @@ function renderRilevamentiMap(surveyId) {
     .map(r => ({
       id: r[c.indexOf(S.ROW_ID)],
       lat: r[c.indexOf(S.COL_LAT)],
-      lng: r[c.indexOf(S.COL_LON)],
+      lon: r[c.indexOf(S.COL_LON)],
       compresa: r[c.indexOf(S.COL_COMPRESA)],
       particella: r[c.indexOf(S.COL_PARCEL)],
       numero: r[c.indexOf(S.COL_NUMBER)],
@@ -1126,7 +1126,7 @@ function showAreaPopover(area) {
     [S.COL_PARCEL, area.particella],
     [S.COL_NUMBER, area.numero],
     [S.COL_LAT, area.lat?.toFixed?.(5) ?? area.lat],
-    [S.COL_LON, area.lng?.toFixed?.(5) ?? area.lng],
+    [S.COL_LON, area.lon?.toFixed?.(5) ?? area.lon],
     [S.COL_QUOTA, area.altitude ?? '—'],
     [S.COL_RAGGIO, area.r_m],
     [S.COL_NOTE, area.note || ''],
@@ -1178,7 +1178,7 @@ function showAreaPopover(area) {
   showModal(frag);
 }
 
-function promptNewAreaAt(lat, lng) {
+function promptNewAreaAt(lat, lon) {
   if (activeGridId == null) return;
   const frag = document.createDocumentFragment();
   const p = document.createElement('p');
@@ -1195,19 +1195,19 @@ function promptNewAreaAt(lat, lng) {
   ok.textContent = S.CONFIRM;
   ok.addEventListener('click', () => {
     dismissModal();
-    showAddAreaForm({ lat, lng });
+    showAddAreaForm({ lat, lon });
   });
   actions.append(cancel, ok);
   frag.appendChild(actions);
   showModal(frag);
 }
 
-async function showAddAreaForm({ lat, lng } = {}) {
+async function showAddAreaForm({ lat, lon } = {}) {
   if (activeGridId == null) return;
   inForm = true;
   const qs = new URLSearchParams({ grid: String(activeGridId) });
-  if (lat != null) qs.set('lat', String(lat));
-  if (lng != null) qs.set('lng', String(lng));
+  if (lat != null) qs.set(S.FIELD_LAT, String(lat));
+  if (lon != null) qs.set(S.FIELD_LON, String(lon));
   const form = await fetchForm(`${AREA_FORM_URL}?${qs}`);
   if (!form) { returnToPage(); return; }
   wireAreaForm(form);
@@ -1225,12 +1225,12 @@ async function showEditAreaForm(areaId) {
 function wireAreaForm(form) {
   form.querySelector('#area-form-cancel')?.addEventListener('click', returnToPage);
   // Mount the "Usa posizione attuale" button at the end of the
-  // lat/lng/quota row rather than nested inside the lng .form-group,
+  // lat/lon/quota row rather than nested inside the lon .form-group,
   // so it sits inline with the other inputs.
   mountUseLocationButton(
     form.querySelector('#id_area_lat'),
-    form.querySelector('#id_area_lng'),
-    { appendTo: form.querySelector('#area-form-latlng-row') },
+    form.querySelector('#id_area_lon'),
+    { appendTo: form.querySelector('#area-form-latlon-row') },
   );
   // Filter Particella by Compresa.
   wireParcelByRegion(form);
@@ -1952,8 +1952,8 @@ function wireTreeForm(form) {
   wireVMPreview(form);
   mountUseLocationButton(
     form.querySelector('#id_lat'),
-    form.querySelector('#id_lng'),
-    { appendTo: form.querySelector('#id_lng')?.closest('.form-row') },
+    form.querySelector('#id_lon'),
+    { appendTo: form.querySelector('#id_lon')?.closest('.form-row') },
   );
   form.querySelector('#tree-form-cancel')?.addEventListener('click', () => {
     returnToPage();
@@ -1989,7 +1989,7 @@ function wireTreeForm(form) {
 /**
  * Wire the "Numero albero" pulldown.  Picking "+ nuovo albero"
  * leaves every other field freely editable; picking an existing
- * tree from the list locks specie / fustaia / lat / lng to that
+ * tree from the list locks specie / fustaia / lat / lon to that
  * tree's values (the server treats the existing Tree row as
  * authoritative — see views._parse_tree_body).
  *
@@ -2005,9 +2005,9 @@ function wireTreePick(form) {
   const species = form.querySelector('#id_species');
   const ceduo = form.querySelector('#id_ceduo');
   const lat = form.querySelector('#id_lat');
-  const lng = form.querySelector('#id_lng');
+  const lon = form.querySelector('#id_lon');
   // row_id is non-empty in edit mode.  The edit path lets the user
-  // adjust the underlying Tree's species / lat / lng (see
+  // adjust the underlying Tree's species / lat / lon (see
   // views._update_tree_sample), so we must NOT lock those inputs
   // when row_id is set.  But the tree number itself is fixed in edit:
   // an edit operates on one specific TreeSample, not a pivot to
@@ -2021,10 +2021,10 @@ function wireTreePick(form) {
   }
 
   function setLocked(locked) {
-    for (const el of [species, ceduo, lat, lng]) {
+    for (const el of [species, ceduo, lat, lon]) {
       if (el) el.disabled = locked;
     }
-    // The "Usa posizione attuale" button is appended to the lng's
+    // The "Usa posizione attuale" button is appended to the lon's
     // form-group later (mountUseLocationButton runs after this).
     // Re-query each time so we catch it once it's been mounted.
     const geoBtn = form.querySelector('.latlng-use-location');
@@ -2041,14 +2041,14 @@ function wireTreePick(form) {
     }
     // Existing tree: propagate its number, lock the rest UNLESS we're
     // editing (the edit path keeps Tree fields editable).  When the
-    // existing tree has NULL lat/lng (option carries empty string),
+    // existing tree has NULL lat/lon (option carries empty string),
     // leave the inputs alone so the template's area-centre default
     // survives.
     num.value = opt.dataset.number || '';
     if (species && opt.dataset.speciesId) species.value = opt.dataset.speciesId;
     if (ceduo) ceduo.checked = opt.dataset.coppice === '1';
     if (lat && opt.dataset.lat) lat.value = opt.dataset.lat;
-    if (lng && opt.dataset.lng) lng.value = opt.dataset.lng;
+    if (lon && opt.dataset.lon) lon.value = opt.dataset.lon;
     setLocked(!isEditMode);
     species?.dispatchEvent(new Event('change'));
     ceduo?.dispatchEvent(new Event('change'));
