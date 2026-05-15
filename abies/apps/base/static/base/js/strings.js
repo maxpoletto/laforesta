@@ -29,3 +29,12 @@ export const STATUS_CONFLICT         = 'conflict';
 export const STATUS_VALIDATION_ERROR = 'validation_error';
 export const STATUS_RATE_LIMITED     = 'rate_limited';
 export const STATUS_NOT_FOUND        = 'not_found';
+
+// Role identifiers — mirror apps/base/models.py Role.TextChoices values.
+export const ROLE_ADMIN  = 'admin';
+export const ROLE_WRITER = 'writer';
+export const ROLE_READER = 'reader';
+
+// Login-method identifiers — mirror apps/base/models.py LoginMethod values.
+export const LOGIN_METHOD_PASSWORD = 'password';
+export const LOGIN_METHOD_OAUTH    = 'oauth';

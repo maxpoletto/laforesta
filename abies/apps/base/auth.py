@@ -6,6 +6,7 @@ from allauth.account.adapter import DefaultAccountAdapter
 from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
 from django.http import JsonResponse
 
+from apps.base.models import Role
 from config import strings as S
 
 
@@ -48,7 +49,7 @@ def require_writer(view):
     """Decorator: 403 for users below writer role."""
     @wraps(view)
     def wrapper(request, *args, **kwargs):
-        if request.user.role not in ('admin', 'writer'):
+        if request.user.role not in (Role.ADMIN, Role.WRITER):
             return JsonResponse({'message': S.ERR_FORBIDDEN}, status=403)
         return view(request, *args, **kwargs)
     return wrapper
@@ -58,7 +59,7 @@ def require_admin(view):
     """Decorator: 403 for non-admin users."""
     @wraps(view)
     def wrapper(request, *args, **kwargs):
-        if request.user.role != 'admin':
+        if request.user.role != Role.ADMIN:
             return JsonResponse({'message': S.ERR_FORBIDDEN}, status=403)
         return view(request, *args, **kwargs)
     return wrapper

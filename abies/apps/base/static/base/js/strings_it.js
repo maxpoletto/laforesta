@@ -277,7 +277,3 @@ export const COL_MATRICINA_SHORT = 'Mat.';
 // Status message fragments
 export const STATUS_NO_SAMPLES = 'nessun campione';
 
-// Roles
-export const ROLE_ADMIN = 'admin';
-export const ROLE_WRITER = 'writer';
-export const ROLE_READER = 'reader';
