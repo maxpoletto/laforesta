@@ -2,8 +2,14 @@ PYTHON = python3
 MANAGE = $(PYTHON) manage.py
 BOSCO_DATA = ../bosco/data
 
+# Active language.  Parallel to `from config.strings_it import *` in
+# config/strings.py and `export * from './strings_it.js'` in strings.js:
+# template files are committed as <name><LANGUAGE_SUFFIX>.html; the
+# unsuffixed <name>.html symlinks are materialized at install time.
+LANGUAGE_SUFFIX = _it
+
 .PHONY: check migrate import geo digest admin dev clean update-vendor minify test \
-        collectstatic
+        collectstatic link-templates
 
 check:
 	$(MANAGE) check
@@ -35,7 +41,10 @@ admin:
 		|| ( $(MANAGE) createsuperuser && \
 		     $(MANAGE) shell --no-imports -c "from apps.base.models import User; u = User.objects.get(is_superuser=True); u.role = 'admin'; u.save(update_fields=['role'])" )
 
-dev: migrate import geo digest admin
+link-templates:
+	$(PYTHON) bin/link-templates.py $(LANGUAGE_SUFFIX)
+
+dev: migrate import geo digest admin link-templates
 
 clean:
 	rm -rf data/

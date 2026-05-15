@@ -15,6 +15,13 @@ RUN pip install --no-cache-dir --root-user-action=ignore --disable-pip-version-c
 # --- App source -------------------------------------------------------------
 COPY . .
 
+# --- Active language -- materialize template symlinks ---------------------
+# Parallels the install-time language selection in config/strings.py and
+# apps/base/static/base/js/strings.js.  Kept consistent with the Makefile
+# (LANGUAGE_SUFFIX); duplication is intentional because python:3.14-slim
+# does not include `make`.
+RUN python3 bin/link-templates.py _it
+
 # --- Non-root user ----------------------------------------------------------
 # Fixed UID so bind-mounted host dirs can be chowned to match.  Host must
 # ensure /var/lib/abies/{data,static} are writable by UID 10001.

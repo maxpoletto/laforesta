@@ -21,6 +21,13 @@ oauth.txt
 claude-resume
 TODO.md
 
+# Materialized template symlinks.  `bin/link-templates.py` creates
+# `<name>.html → <name><LANGUAGE_SUFFIX>.html` at install time.
+# The suffixed sources are committed; the symlinks are not.
+apps/*/templates/**/*.html
+!apps/*/templates/**/*_it.html
+!apps/*/templates/**/*_en.html
+
 # Real per-instance env files (the .example versions are the templates).
 compose/.env.prod
 compose/.env.dev
