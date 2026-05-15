@@ -70,10 +70,10 @@ export class GridPlanner {
     // `input[type="number"]`, …) and don't match a bare `<input>`, so
     // without it Nome falls back to user-agent default styling and
     // visibly mismatches Raggio / Copertura below.
-    h.appendChild(this._labelInput('Nome', 'input', {
+    h.appendChild(this._labelInput(S.LABEL_NAME, 'input', {
       id: 'grid-auto-name', type: 'text', required: true, maxlength: 100,
     }));
-    h.appendChild(this._labelInput('Descrizione (opzionale)', 'textarea', {
+    h.appendChild(this._labelInput(S.LABEL_DESCRIPTION_OPTIONAL, 'textarea', {
       id: 'grid-auto-description', rows: 2,
     }));
 
@@ -81,7 +81,7 @@ export class GridPlanner {
     const compresaGroup = document.createElement('div');
     compresaGroup.className = 'form-group';
     const compresaLabel = document.createElement('label');
-    compresaLabel.textContent = 'Comprese';
+    compresaLabel.textContent = S.LABEL_REGIONS;
     compresaGroup.appendChild(compresaLabel);
     this.compreseListEl = document.createElement('div');
     this.compreseListEl.className = 'grid-planner-compresa-list';
@@ -92,10 +92,10 @@ export class GridPlanner {
     // Parameters: raggio (m) + copertura %.
     const params = document.createElement('div');
     params.className = 'form-row grid-planner-params';
-    params.appendChild(this._labelInput('Raggio (m)', 'input', {
+    params.appendChild(this._labelInput(S.LABEL_RADIUS_M, 'input', {
       id: 'grid-auto-radius', type: 'number', min: 1, step: 1, value: 12,
     }));
-    params.appendChild(this._labelInput('Copertura (%)', 'input', {
+    params.appendChild(this._labelInput(S.LABEL_COVERAGE_PCT, 'input', {
       id: 'grid-auto-coverage', type: 'number',
       min: 0.01, max: 100, step: 0.1, value: 1,
     }));
@@ -104,7 +104,7 @@ export class GridPlanner {
     const planBtn = document.createElement('button');
     planBtn.type = 'button';
     planBtn.className = 'btn btn-secondary';
-    planBtn.textContent = 'Pianifica';
+    planBtn.textContent = S.ACTION_PLAN;
     planBtn.addEventListener('click', () => this._plan());
     h.appendChild(planBtn);
 
@@ -135,13 +135,13 @@ export class GridPlanner {
     cancelBtn.type = 'button';
     cancelBtn.className = 'btn';
     cancelBtn.id = 'grid-auto-cancel';
-    cancelBtn.textContent = 'Annulla';
+    cancelBtn.textContent = S.CANCEL;
     actions.appendChild(cancelBtn);
 
     this.submitBtn = document.createElement('button');
     this.submitBtn.type = 'button';
     this.submitBtn.className = 'btn btn-primary';
-    this.submitBtn.textContent = 'Crea';
+    this.submitBtn.textContent = S.ACTION_CREATE;
     this.submitBtn.disabled = true;
     this.submitBtn.addEventListener('click', () => this._save());
     actions.appendChild(this.submitBtn);
@@ -216,26 +216,26 @@ export class GridPlanner {
   _plan() {
     const features = this._selectedFeatures();
     if (!features.length) {
-      this._setStatus('Seleziona almeno una compresa.');
+      this._setStatus(S.ERR_SELECT_REGION);
       return;
     }
     const radius = parseFloat(this.host.querySelector('#grid-auto-radius').value);
     const pct = parseFloat(this.host.querySelector('#grid-auto-coverage').value);
-    if (!(radius > 0)) { this._setStatus('Raggio deve essere > 0.'); return; }
+    if (!(radius > 0)) { this._setStatus(S.ERR_RADIUS_POSITIVE); return; }
     if (!(pct > 0 && pct <= 100)) {
-      this._setStatus('Copertura deve essere tra 0 e 100%.'); return;
+      this._setStatus(S.ERR_COVERAGE_RANGE); return;
     }
     const totalAreaM2 = features.reduce((s, f) => s + featureArea(f), 0);
     const perPointAreaM2 = Math.PI * radius * radius;
     const targetN = Math.round((totalAreaM2 * pct / 100) / perPointAreaM2);
-    if (targetN < 1) { this._setStatus('Parametri danno 0 punti.'); return; }
+    if (targetN < 1) { this._setStatus(S.ERR_PARAMS_ZERO_POINTS); return; }
 
     this.points = planGridForTarget(features, targetN);
     this._renderPoints();
     this._renderStats(totalAreaM2, perPointAreaM2, targetN);
     this.submitBtn.disabled = this.points.length === 0;
     this._setStatus(
-      `Pianificazione completata: ${this.points.length} punti.`,
+      S.STATUS_PLAN_COMPLETE.replace('{n}', this.points.length),
     );
   }
 
@@ -244,7 +244,10 @@ export class GridPlanner {
     this.points.forEach((pt, i) => {
       const m = L.circleMarker([pt.lat, pt.lng], POINT_STYLE);
       m.bindTooltip(
-        `adc ${i + 1} · ${pt.compresa} ${pt.particella}`,
+        S.TOOLTIP_ADC
+          .replace('{n}', i + 1)
+          .replace('{compresa}', pt.compresa)
+          .replace('{particella}', pt.particella),
       );
       m.addTo(this.pointLayer);
     });
@@ -253,9 +256,11 @@ export class GridPlanner {
   _renderStats(totalAreaM2, perPointAreaM2, targetN) {
     this.statsEl.replaceChildren();
     const lines = [
-      `Punti: ${this.points.length} (obiettivo: ${targetN})`,
-      `Superficie totale: ${(totalAreaM2 / 10000).toFixed(2)} ha`,
-      `Area singola adc: ${perPointAreaM2.toFixed(1)} m²`,
+      S.STATS_POINTS
+        .replace('{n}', this.points.length)
+        .replace('{target}', targetN),
+      S.STATS_TOTAL_AREA_HA.replace('{ha}', (totalAreaM2 / 10000).toFixed(2)),
+      S.STATS_AREA_PER_POINT_M2.replace('{area}', perPointAreaM2.toFixed(1)),
     ];
     for (const t of lines) {
       const div = document.createElement('div');
@@ -272,12 +277,12 @@ export class GridPlanner {
     const name = this.host.querySelector('#grid-auto-name').value.trim();
     const description = this.host.querySelector('#grid-auto-description').value.trim();
     const radius = parseFloat(this.host.querySelector('#grid-auto-radius').value);
-    if (!name) { this._setStatus('Nome richiesto.'); return; }
+    if (!name) { this._setStatus(S.ERR_GRID_NAME_REQUIRED); return; }
     if (!this.points.length) {
-      this._setStatus('Esegui prima "Pianifica".'); return;
+      this._setStatus(S.ERR_PLAN_FIRST); return;
     }
     this.submitBtn.disabled = true;
-    this._setStatus('Salvataggio in corso...');
+    this._setStatus(S.STATUS_SAVING);
     try {
       const { data, status } = await postJSON(SAVE_URL, {
         name, description, r_m: Math.round(radius),

@@ -5,6 +5,8 @@
  * forest visualization is ported into Abies.
  */
 
+import * as S from '../../base/js/strings.js';
+
 const BOSCOSCOPIO_URL = 'https://laforesta.it/bosco/b/';
 
 export function mount() {
@@ -12,13 +14,13 @@ export function mount() {
   el.replaceChildren();
 
   const p = document.createElement('p');
-  p.textContent = 'La visualizzazione del bosco sarà disponibile in una prossima versione.';
+  p.textContent = S.BOSCO_PLACEHOLDER_MESSAGE;
 
   const link = document.createElement('a');
   link.href = BOSCOSCOPIO_URL;
   link.target = '_blank';
   link.rel = 'noopener';
-  link.textContent = 'Apri Boscoscopio';
+  link.textContent = S.BOSCO_OPEN_BOSCOSCOPIO;
 
   const p2 = document.createElement('p');
   p2.appendChild(link);

@@ -203,6 +203,80 @@ export const REMOVE_POLLONE = 'Rimuovi';
 export const CSV_GRID_AREAS = 'aree-saggio.csv';
 export const CSV_SURVEY_TREES = 'alberi-rilevamento.csv';
 
+// Grid-planner / delete-grid (campionamenti.js, grid-planner.js)
+export const LABEL_DESCRIPTION = 'Descrizione';
+export const LABEL_DESCRIPTION_OPTIONAL = 'Descrizione (opzionale)';
+export const LABEL_REGIONS = 'Comprese';
+export const LABEL_RADIUS_M = 'Raggio (m)';
+export const LABEL_COVERAGE_PCT = 'Copertura (%)';
+export const ACTION_PLAN = 'Pianifica';
+export const ACTION_CREATE = 'Crea';
+export const ERR_GRID_HAS_SURVEYS =
+  'La griglia è usata da uno o più rilevamenti: eliminarli prima.';
+export const ERR_GRID_NAME_REQUIRED = 'Nome richiesto.';
+export const ERR_SELECT_REGION = 'Seleziona almeno una compresa.';
+export const ERR_RADIUS_POSITIVE = 'Raggio deve essere > 0.';
+export const ERR_COVERAGE_RANGE = 'Copertura deve essere tra 0 e 100%.';
+export const ERR_PARAMS_ZERO_POINTS = 'Parametri danno 0 punti.';
+export const ERR_PLAN_FIRST = 'Esegui prima "Pianifica".';
+export const STATUS_SAVING = 'Salvataggio in corso...';
+export const STATUS_PLAN_COMPLETE = 'Pianificazione completata: {n} punti.';
+export const STATS_POINTS = 'Punti: {n} (obiettivo: {target})';
+export const STATS_TOTAL_AREA_HA = 'Superficie totale: {ha} ha';
+export const STATS_AREA_PER_POINT_M2 = 'Area singola adc: {area} m²';
+export const TOOLTIP_ADC = 'adc {n} · {compresa} {particella}';
+
+// Bosco placeholder page
+export const BOSCO_PLACEHOLDER_MESSAGE =
+  'La visualizzazione del bosco sarà disponibile in una prossima versione.';
+export const BOSCO_OPEN_BOSCOSCOPIO = 'Apri Boscoscopio';
+
+// Digest column headers (mirror config/strings_it.py COL_* additions).
+// These are looked up against the JSON digest `columns` array and used
+// as keys / labels in `TREES_COLS` for the sortable-table column config.
+export const COL_NAME            = 'Nome';
+export const COL_COMPRESA        = 'Compresa';
+export const COL_DESCRIPTION     = 'Descrizione';
+export const COL_N_AREAS         = 'N. aree';
+export const COL_REGIONS         = 'Comprese';
+export const COL_N_SURVEYS       = 'N. rilevamenti';
+export const COL_LAST_UPDATE     = 'Ultimo aggiornamento';
+export const COL_GRID            = 'Griglia';
+export const COL_HARVEST_PLAN    = 'Piano di taglio';
+export const COL_N_AREAS_VISITED = 'N. aree visitate';
+export const COL_N_AREAS_TOTAL   = 'N. aree totali';
+export const COL_DATE_FIRST      = 'Data primo';
+export const COL_DATE_LAST       = 'Data ultimo';
+export const COL_NUMBER          = 'Numero';
+export const COL_LAT             = 'Lat';
+export const COL_LON             = 'Lon';
+export const COL_QUOTA           = 'Quota';
+export const COL_RAGGIO          = 'Raggio';
+export const COL_SURVEY          = 'Rilevamento';
+export const COL_SAMPLE_AREA     = 'Area di saggio';
+export const COL_N_TREES         = 'N. alberi';
+export const COL_SAMPLE_DATE     = 'Data campione';
+export const COL_AREA_NUM        = 'N. area';
+export const COL_TREE_NUM        = 'N. albero';
+export const COL_SPECIES         = 'Specie';
+export const COL_POLLONE         = 'Pollone';
+export const COL_MATRICINA       = 'Matricina';
+export const COL_D_CM            = 'D (cm)';
+export const COL_H_M             = 'h (m)';
+export const COL_L10_MM          = 'L10 (mm)';
+export const COL_V_M3            = 'V (m³)';
+export const COL_MASS_Q          = 'm (q)';
+export const COL_PAI             = 'PAI';
+
+// Abbreviated column labels used only in the TREES_COLS table header to
+// save horizontal space; not in any digest.
+export const COL_TREE_NUM_SHORT  = 'N. alb.';
+export const COL_POLLONE_SHORT   = 'Poll.';
+export const COL_MATRICINA_SHORT = 'Mat.';
+
+// Status message fragments
+export const STATUS_NO_SAMPLES = 'nessun campione';
+
 // Roles
 export const ROLE_ADMIN = 'admin';
 export const ROLE_WRITER = 'writer';

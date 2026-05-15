@@ -87,31 +87,31 @@ function fLat(v) { return typeof v === 'number' ? v.toFixed(5) : (v == null ? ''
  *  the Section 1 "Elimina" button at popover-build time. */
 function areaInUse(areaId) {
   if (!samplesData) return false;
-  const c = samplesData.columns.indexOf('Sample area');
+  const c = samplesData.columns.indexOf(S.COL_SAMPLE_AREA);
   if (c < 0) return false;
   return samplesData.rows.some(r => r[c] === areaId);
 }
 
 const TREES_COLS = {
-  'Sample area': { hidden: true },
-  'Data campione': { label: S.LABEL_DATE, type: 'date', width: '90px' },
-  'Compresa': { label: S.COL_REGION, width: '90px' },
-  'Particella': { label: S.COL_PARCEL, width: '85px' },
-  'N. area': { label: 'N. area', width: '70px' },
-  'N. albero': { label: 'N. alb.', type: 'number', width: '70px', formatter: fInt },
-  'Specie': { label: S.LABEL_SPECIES, width: '120px' },
-  'Tipo': { label: S.COL_PRODUCT, width: '70px' },
-  'Pollone': { label: 'Poll.', type: 'number', width: '55px', formatter: fInt },
-  'Matricina': { label: 'Mat.', type: 'boolean', width: '55px', formatter: fBool },
-  'D (cm)': { label: 'D (cm)', type: 'number', width: '65px', formatter: fInt },
-  'h (m)': { label: 'h (m)', type: 'number', width: '60px', formatter: f2 },
-  'L10 (mm)': { label: 'L10 (mm)', type: 'number', width: '85px', formatter: fInt },
-  'V (m³)': { label: 'V (m³)', type: 'number', width: '65px', formatter: f2 },
-  'm (q)': { label: 'm (q)', type: 'number', width: '70px', formatter: f1 },
-  'PAI': { label: 'PAI', type: 'boolean', width: '50px', formatter: fBool },
-  'Lat': { label: 'Lat', type: 'number', width: '85px', formatter: fLat },
-  'Lng': { label: 'Lng', type: 'number', width: '85px', formatter: fLat },
-  'version': { label: 'version', hidden: true },
+  [S.COL_SAMPLE_AREA]: { hidden: true },
+  [S.COL_SAMPLE_DATE]: { label: S.LABEL_DATE, type: 'date', width: '90px' },
+  [S.COL_COMPRESA]:    { label: S.COL_COMPRESA, width: '90px' },
+  [S.COL_PARCEL]:      { label: S.COL_PARCEL, width: '85px' },
+  [S.COL_AREA_NUM]:    { label: S.COL_AREA_NUM, width: '70px' },
+  [S.COL_TREE_NUM]:    { label: S.COL_TREE_NUM_SHORT, type: 'number', width: '70px', formatter: fInt },
+  [S.COL_SPECIES]:     { label: S.COL_SPECIES, width: '120px' },
+  [S.COL_PRODUCT]:     { label: S.COL_PRODUCT, width: '70px' },
+  [S.COL_POLLONE]:     { label: S.COL_POLLONE_SHORT, type: 'number', width: '55px', formatter: fInt },
+  [S.COL_MATRICINA]:   { label: S.COL_MATRICINA_SHORT, type: 'boolean', width: '55px', formatter: fBool },
+  [S.COL_D_CM]:        { label: S.COL_D_CM, type: 'number', width: '65px', formatter: fInt },
+  [S.COL_H_M]:         { label: S.COL_H_M, type: 'number', width: '60px', formatter: f2 },
+  [S.COL_L10_MM]:      { label: S.COL_L10_MM, type: 'number', width: '85px', formatter: fInt },
+  [S.COL_V_M3]:        { label: S.COL_V_M3, type: 'number', width: '65px', formatter: f2 },
+  [S.COL_MASS_Q]:      { label: S.COL_MASS_Q, type: 'number', width: '70px', formatter: f1 },
+  [S.COL_PAI]:         { label: S.COL_PAI, type: 'boolean', width: '50px', formatter: fBool },
+  [S.COL_LAT]:         { label: S.COL_LAT, type: 'number', width: '85px', formatter: fLat },
+  [S.COL_LON]:         { label: S.COL_LON, type: 'number', width: '85px', formatter: fLat },
+  [S.COL_VERSION]: { label: S.COL_VERSION, hidden: true },
 };
 
 // --- Page state -------------------------------------------------------------
@@ -323,8 +323,8 @@ function buildGriglieBody(body) {
 
   const sel = document.createElement('select');
   sel.className = 'campionamenti-pulldown';
-  const idCol = gridsData.columns.indexOf('row_id');
-  const nameCol = gridsData.columns.indexOf('Nome');
+  const idCol = gridsData.columns.indexOf(S.COL_ROW_ID);
+  const nameCol = gridsData.columns.indexOf(S.COL_NAME);
   for (const row of gridsData.rows) {
     const opt = document.createElement('option');
     opt.value = String(row[idCol]);
@@ -429,17 +429,17 @@ function renderGriglieSummary(gridId) {
   const s = sections.g;
   if (!s.summary) return;
   const c = gridsData.columns;
-  const row = gridsData.rows.find(r => r[c.indexOf('row_id')] === gridId);
+  const row = gridsData.rows.find(r => r[c.indexOf(S.COL_ROW_ID)] === gridId);
   s.summary.replaceChildren();
   if (!row) return;
-  const desc = row[c.indexOf('Descrizione')] || '';
+  const desc = row[c.indexOf(S.COL_DESCRIPTION)] || '';
 
   const stats = document.createElement('div');
   stats.textContent =
-    `${row[c.indexOf('N. aree')]} aree · ` +
-    `${row[c.indexOf('Comprese')]} · ` +
-    `${row[c.indexOf('N. rilevamenti')]} rilevamenti · ` +
-    `aggiornata ${formatTimestamp(row[c.indexOf('Ultimo aggiornamento')])}`;
+    `${row[c.indexOf(S.COL_N_AREAS)]} aree · ` +
+    `${row[c.indexOf(S.COL_REGIONS)]} · ` +
+    `${row[c.indexOf(S.COL_N_SURVEYS)]} rilevamenti · ` +
+    `aggiornata ${formatTimestamp(row[c.indexOf(S.COL_LAST_UPDATE)])}`;
   s.summary.appendChild(stats);
   if (desc) {
     const d = document.createElement('div');
@@ -456,17 +456,17 @@ function renderGriglieMap(gridId) {
 
   const c = sampleAreasData.columns;
   const areas = sampleAreasData.rows
-    .filter(r => r[c.indexOf('Griglia')] === gridId)
+    .filter(r => r[c.indexOf(S.COL_GRID)] === gridId)
     .map(r => ({
-      id: r[c.indexOf('row_id')],
-      lat: r[c.indexOf('Lat')],
-      lng: r[c.indexOf('Lng')],
-      compresa: r[c.indexOf('Compresa')],
-      particella: r[c.indexOf('Particella')],
-      numero: r[c.indexOf('Numero')],
-      altitude: r[c.indexOf('Quota')],
-      r_m: r[c.indexOf('Raggio')],
-      note: r[c.indexOf('Note')],
+      id: r[c.indexOf(S.COL_ROW_ID)],
+      lat: r[c.indexOf(S.COL_LAT)],
+      lng: r[c.indexOf(S.COL_LON)],
+      compresa: r[c.indexOf(S.COL_COMPRESA)],
+      particella: r[c.indexOf(S.COL_PARCEL)],
+      numero: r[c.indexOf(S.COL_NUMBER)],
+      altitude: r[c.indexOf(S.COL_QUOTA)],
+      r_m: r[c.indexOf(S.COL_RAGGIO)],
+      note: r[c.indexOf(S.COL_NOTE)],
     }));
 
   const modify = canModify();
@@ -513,10 +513,10 @@ function buildRilevamentiBody(body) {
 
   const sel = document.createElement('select');
   sel.className = 'campionamenti-pulldown';
-  const idCol = surveysData.columns.indexOf('row_id');
-  const nameCol = surveysData.columns.indexOf('Nome');
-  const visCol = surveysData.columns.indexOf('N. aree visitate');
-  const totCol = surveysData.columns.indexOf('N. aree totali');
+  const idCol = surveysData.columns.indexOf(S.COL_ROW_ID);
+  const nameCol = surveysData.columns.indexOf(S.COL_NAME);
+  const visCol = surveysData.columns.indexOf(S.COL_N_AREAS_VISITED);
+  const totCol = surveysData.columns.indexOf(S.COL_N_AREAS_TOTAL);
   for (const row of surveysData.rows) {
     const opt = document.createElement('option');
     opt.value = String(row[idCol]);
@@ -604,20 +604,20 @@ function renderRilevamentiSummary(surveyId) {
   const s = sections.r;
   if (!s.summary) return;
   const c = surveysData.columns;
-  const row = surveysData.rows.find(r => r[c.indexOf('row_id')] === surveyId);
+  const row = surveysData.rows.find(r => r[c.indexOf(S.COL_ROW_ID)] === surveyId);
   s.summary.replaceChildren();
   if (!row) return;
-  const desc = row[c.indexOf('Descrizione')] || '';
-  const gridId = row[c.indexOf('Griglia')];
+  const desc = row[c.indexOf(S.COL_DESCRIPTION)] || '';
+  const gridId = row[c.indexOf(S.COL_GRID)];
   const gridName = lookupGridName(gridId);
 
   const stats = document.createElement('div');
   stats.textContent =
     `Griglia: ${gridName} · ` +
-    `${row[c.indexOf('N. aree visitate')]}/${row[c.indexOf('N. aree totali')]} aree visitate · ` +
-    (row[c.indexOf('Data primo')]
-      ? `dal ${row[c.indexOf('Data primo')]} al ${row[c.indexOf('Data ultimo')]}`
-      : 'nessun campione');
+    `${row[c.indexOf(S.COL_N_AREAS_VISITED)]}/${row[c.indexOf(S.COL_N_AREAS_TOTAL)]} aree visitate · ` +
+    (row[c.indexOf(S.COL_DATE_FIRST)]
+      ? `dal ${row[c.indexOf(S.COL_DATE_FIRST)]} al ${row[c.indexOf(S.COL_DATE_LAST)]}`
+      : S.STATUS_NO_SAMPLES);
   s.summary.appendChild(stats);
   if (desc) {
     const d = document.createElement('div');
@@ -629,8 +629,8 @@ function renderRilevamentiSummary(surveyId) {
 
 function lookupGridName(gridId) {
   const c = gridsData.columns;
-  const row = gridsData.rows.find(r => r[c.indexOf('row_id')] === gridId);
-  return row ? row[c.indexOf('Nome')] : '';
+  const row = gridsData.rows.find(r => r[c.indexOf(S.COL_ROW_ID)] === gridId);
+  return row ? row[c.indexOf(S.COL_NAME)] : '';
 }
 
 function renderRilevamentiMap(surveyId) {
@@ -639,29 +639,29 @@ function renderRilevamentiMap(surveyId) {
   if (!s.mapEl) return;
 
   const surveyRow = surveysData.rows.find(
-    r => r[surveysData.columns.indexOf('row_id')] === surveyId,
+    r => r[surveysData.columns.indexOf(S.COL_ROW_ID)] === surveyId,
   );
   if (!surveyRow) return;
-  const gridId = surveyRow[surveysData.columns.indexOf('Griglia')];
+  const gridId = surveyRow[surveysData.columns.indexOf(S.COL_GRID)];
 
   const c = sampleAreasData.columns;
   const areas = sampleAreasData.rows
-    .filter(r => r[c.indexOf('Griglia')] === gridId)
+    .filter(r => r[c.indexOf(S.COL_GRID)] === gridId)
     .map(r => ({
-      id: r[c.indexOf('row_id')],
-      lat: r[c.indexOf('Lat')],
-      lng: r[c.indexOf('Lng')],
-      compresa: r[c.indexOf('Compresa')],
-      particella: r[c.indexOf('Particella')],
-      numero: r[c.indexOf('Numero')],
+      id: r[c.indexOf(S.COL_ROW_ID)],
+      lat: r[c.indexOf(S.COL_LAT)],
+      lng: r[c.indexOf(S.COL_LON)],
+      compresa: r[c.indexOf(S.COL_COMPRESA)],
+      particella: r[c.indexOf(S.COL_PARCEL)],
+      numero: r[c.indexOf(S.COL_NUMBER)],
     }));
 
   const sc = samplesData.columns;
   const visitedById = new Map();
   for (const r of samplesData.rows) {
-    if (r[sc.indexOf('Survey')] !== surveyId) continue;
-    visitedById.set(r[sc.indexOf('Sample area')], {
-      nAlberi: r[sc.indexOf('N. alberi')],
+    if (r[sc.indexOf(S.COL_SURVEY)] !== surveyId) continue;
+    visitedById.set(r[sc.indexOf(S.COL_SAMPLE_AREA)], {
+      nAlberi: r[sc.indexOf(S.COL_N_TREES)],
     });
   }
 
@@ -722,7 +722,7 @@ function renderTable(data) {
   const params = currentURLParams();
   const sort = params.tsc
     ? { column: params.tsc, ascending: params.tso }
-    : { column: 'Compresa', ascending: true };
+    : { column: S.COL_COMPRESA, ascending: true };
 
   const modify = canModify();
   table = new TableWrapper({
@@ -764,7 +764,7 @@ function areaCol() {
   if (_areaColIdx >= 0) return _areaColIdx;
   const data = currentTreesId ? cache.get(currentTreesId) : null;
   if (!data) return -1;
-  _areaColIdx = data.columns.indexOf('Sample area');
+  _areaColIdx = data.columns.indexOf(S.COL_SAMPLE_AREA);
   return _areaColIdx;
 }
 
@@ -837,7 +837,7 @@ function applyParams(params) {
   // a delete + back-button, and the post-delete returnToPage path).
   let targetGrid = p.g != null && gridRow(p.g) ? p.g : null;
   if (targetGrid == null && gridsData?.rows.length) {
-    targetGrid = gridsData.rows[0][gridsData.columns.indexOf('row_id')];
+    targetGrid = gridsData.rows[0][gridsData.columns.indexOf(S.COL_ROW_ID)];
   }
   if (targetGrid != null && targetGrid !== activeGridId) {
     activateGrid(targetGrid);
@@ -846,7 +846,7 @@ function applyParams(params) {
   // Active survey — same fallback as grid.
   let targetSurvey = p.s != null && surveyRow(p.s) ? p.s : null;
   if (targetSurvey == null && surveysData?.rows.length) {
-    targetSurvey = surveysData.rows[0][surveysData.columns.indexOf('row_id')];
+    targetSurvey = surveysData.rows[0][surveysData.columns.indexOf(S.COL_ROW_ID)];
   }
   if (targetSurvey == null) { showAlberiEmpty(); return; }
 
@@ -872,11 +872,11 @@ function syncURL() {
   if (openKeys !== DEFAULT_OPEN) u.set('o', openKeys);
 
   if (activeGridId != null) {
-    const defaultGrid = gridsData?.rows[0]?.[gridsData.columns.indexOf('row_id')];
+    const defaultGrid = gridsData?.rows[0]?.[gridsData.columns.indexOf(S.COL_ROW_ID)];
     if (activeGridId !== defaultGrid) u.set('g', String(activeGridId));
   }
   if (activeSurveyId != null) {
-    const defaultSurvey = surveysData?.rows[0]?.[surveysData.columns.indexOf('row_id')];
+    const defaultSurvey = surveysData?.rows[0]?.[surveysData.columns.indexOf(S.COL_ROW_ID)];
     if (activeSurveyId !== defaultSurvey) u.set('s', String(activeSurveyId));
   }
   if (activeAreaId != null) u.set('a', String(activeAreaId));
@@ -1122,14 +1122,14 @@ function showAreaPopover(area) {
   const list = document.createElement('div');
   list.className = 'form-readonly-block';
   for (const [label, val] of [
-    ['Compresa', area.compresa],
-    ['Particella', area.particella],
-    ['Numero', area.numero],
-    ['Lat', area.lat?.toFixed?.(5) ?? area.lat],
-    ['Lng', area.lng?.toFixed?.(5) ?? area.lng],
-    ['Quota', area.altitude ?? '—'],
-    ['Raggio', area.r_m],
-    ['Note', area.note || ''],
+    [S.COL_COMPRESA, area.compresa],
+    [S.COL_PARCEL, area.particella],
+    [S.COL_NUMBER, area.numero],
+    [S.COL_LAT, area.lat?.toFixed?.(5) ?? area.lat],
+    [S.COL_LON, area.lng?.toFixed?.(5) ?? area.lng],
+    [S.COL_QUOTA, area.altitude ?? '—'],
+    [S.COL_RAGGIO, area.r_m],
+    [S.COL_NOTE, area.note || ''],
   ]) {
     const row = document.createElement('div');
     const b = document.createElement('strong');
@@ -1312,8 +1312,8 @@ function showRenameGridForm() {
   const c = gridsData.columns;
   showRenameModal({
     title: S.RENAME_TITLE_GRID,
-    name: row[c.indexOf('Nome')] || '',
-    description: row[c.indexOf('Descrizione')] || '',
+    name: row[c.indexOf(S.COL_NAME)] || '',
+    description: row[c.indexOf(S.COL_DESCRIPTION)] || '',
     onSave: async ({ name, description }) => {
       try {
         const { data, status } = await postJSON(
@@ -1342,8 +1342,8 @@ function showRenameSurveyForm() {
   const c = surveysData.columns;
   showRenameModal({
     title: S.RENAME_TITLE_SURVEY,
-    name: row[c.indexOf('Nome')] || '',
-    description: row[c.indexOf('Descrizione')] || '',
+    name: row[c.indexOf(S.COL_NAME)] || '',
+    description: row[c.indexOf(S.COL_DESCRIPTION)] || '',
     onSave: async ({ name, description }) => {
       try {
         const { data, status } = await postJSON(
@@ -1388,7 +1388,7 @@ function showRenameModal({ title, name, description, onSave }) {
   const descGroup = document.createElement('div');
   descGroup.className = 'form-group';
   const descLabel = document.createElement('label');
-  descLabel.textContent = 'Descrizione';
+  descLabel.textContent = S.LABEL_DESCRIPTION;
   const descInput = document.createElement('textarea');
   descInput.rows = 3;
   descInput.value = description || '';
@@ -1424,15 +1424,15 @@ function confirmDeleteGrid() {
   const row = gridRow(activeGridId);
   if (!row) return;
   const c = gridsData.columns;
-  const nSurveys = row[c.indexOf('N. rilevamenti')] || 0;
+  const nSurveys = row[c.indexOf(S.COL_N_SURVEYS)] || 0;
   if (nSurveys > 0) {
     // Server refuses with ERR_GRID_IN_USE; surface the same message
     // without round-tripping.
-    showError('La griglia è usata da uno o più rilevamenti: eliminarli prima.');
+    showError(S.ERR_GRID_HAS_SURVEYS);
     return;
   }
   // No surveys → simple confirm.  Cascade goes to SampleAreas only.
-  const nAreas = row[c.indexOf('N. aree')] || 0;
+  const nAreas = row[c.indexOf(S.COL_N_AREAS)] || 0;
   const msg = nAreas > 0
     ? `${nAreas} aree saranno eliminate. ${S.DELETE_CONFIRM}`
     : S.DELETE_CONFIRM;
@@ -1464,7 +1464,7 @@ function confirmDeleteSurvey() {
   const row = surveyRow(activeSurveyId);
   if (!row) return;
   const c = surveysData.columns;
-  const nVisited = row[c.indexOf('N. aree visitate')] || 0;
+  const nVisited = row[c.indexOf(S.COL_N_AREAS_VISITED)] || 0;
 
   if (nVisited === 0) {
     simpleConfirmModal(S.DELETE_CONFIRM, () => doDeleteSurvey());
@@ -1576,7 +1576,7 @@ function exportSurveyCSV(surveyId) {
   const lines = [];
   // Columns to include in the export — skip hidden synthetic ones.
   const visibleCols = d.columns.filter(
-    c => c !== 'version' && c !== 'Sample area',
+    c => c !== S.COL_VERSION && c !== S.COL_SAMPLE_AREA,
   );
   const idx = visibleCols.map(c => d.columns.indexOf(c));
   lines.push(visibleCols.join(fmt.separator));
@@ -1607,11 +1607,14 @@ function exportSurveyCSV(surveyId) {
 function exportGridAreasCSV(gridId) {
   if (!sampleAreasData) return;
   const c = sampleAreasData.columns;
-  const gridCol = c.indexOf('Griglia');
-  const cols = ['Compresa', 'Particella', 'Area saggio', 'Lon', 'Lat',
-                'Quota', 'Raggio'];
-  const srcCols = ['Compresa', 'Particella', 'Numero', 'Lng', 'Lat',
-                   'Quota', 'Raggio'];
+  const gridCol = c.indexOf(S.COL_GRID);
+  // CSV output columns mirror the import format (CSV_COL_*).
+  const cols = [S.CSV_COL_COMPRESA, S.CSV_COL_PARTICELLA, S.CSV_COL_AREA_SAGGIO,
+                S.CSV_COL_LON, S.CSV_COL_LAT,
+                S.CSV_COL_QUOTA, S.CSV_COL_RAGGIO];
+  // Source columns are the digest header names (COL_*).
+  const srcCols = [S.COL_COMPRESA, S.COL_PARCEL, S.COL_NUMBER, S.COL_LON, S.COL_LAT,
+                   S.COL_QUOTA, S.COL_RAGGIO];
   const idx = srcCols.map(s => c.indexOf(s));
   const fmt = S.TABLE_CSV_FORMAT;
   const lines = [cols.join(fmt.separator)];
@@ -1644,19 +1647,24 @@ async function exportFullSurveyCSV(surveyId) {
     return;
   }
   const c = d.columns;
-  const cols = ['Compresa', 'Particella', 'Area saggio', 'Albero',
-                'Pollone', 'Matricina', 'D_cm', 'H_m', 'L10_mm',
-                'Genere', 'Fustaia', 'Data', 'PAI'];
-  const srcCols = ['Compresa', 'Particella', 'N. area', 'N. albero',
-                   'Pollone', 'Matricina', 'D (cm)', 'h (m)', 'L10 (mm)',
-                   'Specie', 'Tipo', 'Data campione', 'PAI'];
+  // CSV output columns mirror the import format (CSV_COL_*).
+  const cols = [S.CSV_COL_COMPRESA, S.CSV_COL_PARTICELLA, S.CSV_COL_AREA_SAGGIO,
+                S.CSV_COL_ALBERO, S.CSV_COL_POLLONE, S.CSV_COL_MATRICINA,
+                S.CSV_COL_D_CM, S.CSV_COL_H_M, S.CSV_COL_L10_MM,
+                S.CSV_COL_GENERE, S.CSV_COL_FUSTAIA, S.CSV_COL_DATA,
+                S.CSV_COL_PAI];
+  // Source columns are the digest header names (COL_*).
+  const srcCols = [S.COL_COMPRESA, S.COL_PARCEL, S.COL_AREA_NUM, S.COL_TREE_NUM,
+                   S.COL_POLLONE, S.COL_MATRICINA,
+                   S.COL_D_CM, S.COL_H_M, S.COL_L10_MM,
+                   S.COL_SPECIES, S.COL_PRODUCT, S.COL_SAMPLE_DATE, S.COL_PAI];
   const idx = srcCols.map(s => c.indexOf(s));
-  const tipoCol = c.indexOf('Tipo');
+  const tipoCol = c.indexOf(S.COL_PRODUCT);
   const fmt = S.TABLE_CSV_FORMAT;
   const lines = [cols.join(fmt.separator)];
   for (const row of d.rows) {
     const parts = idx.map((i, k) => {
-      if (cols[k] === 'Fustaia') {
+      if (cols[k] === S.CSV_COL_FUSTAIA) {
         // Round-trip with import: `Fustaia` = true|false, derived from
         // the digest's `Tipo` = 'fustaia' | 'ceduo'.
         return row[tipoCol] === 'fustaia' ? 'true' : 'false';
@@ -1714,7 +1722,7 @@ function simpleConfirmModal(message, onConfirm) {
 function updatePulldownOption(section, id, digest, column) {
   if (!section?.pulldown || !digest) return;
   const c = digest.columns;
-  const row = digest.rows.find(r => r[c.indexOf('row_id')] === id);
+  const row = digest.rows.find(r => r[c.indexOf(S.COL_ROW_ID)] === id);
   if (!row) return;
   const opt = section.pulldown.querySelector(`option[value="${id}"]`);
   if (opt) opt.textContent = row[c.indexOf(column)];
@@ -1725,10 +1733,10 @@ function rebuildSurveyPulldown() {
   const sel = sections.r.pulldown;
   if (!sel || !surveysData) return;
   const c = surveysData.columns;
-  const idCol = c.indexOf('row_id');
-  const nameCol = c.indexOf('Nome');
-  const visCol = c.indexOf('N. aree visitate');
-  const totCol = c.indexOf('N. aree totali');
+  const idCol = c.indexOf(S.COL_ROW_ID);
+  const nameCol = c.indexOf(S.COL_NAME);
+  const visCol = c.indexOf(S.COL_N_AREAS_VISITED);
+  const totCol = c.indexOf(S.COL_N_AREAS_TOTAL);
   for (const opt of sel.options) {
     const row = surveysData.rows.find(r => r[idCol] === parseInt(opt.value, 10));
     if (row) {
@@ -1847,12 +1855,12 @@ function applySideEffects(data) {
 
 function gridRow(id) {
   const c = gridsData.columns;
-  return gridsData.rows.find(r => r[c.indexOf('row_id')] === id);
+  return gridsData.rows.find(r => r[c.indexOf(S.COL_ROW_ID)] === id);
 }
 
 function surveyRow(id) {
   const c = surveysData.columns;
-  return surveysData.rows.find(r => r[c.indexOf('row_id')] === id);
+  return surveysData.rows.find(r => r[c.indexOf(S.COL_ROW_ID)] === id);
 }
 
 // ---------------------------------------------------------------------------

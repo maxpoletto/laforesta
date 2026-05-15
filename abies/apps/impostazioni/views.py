@@ -48,7 +48,7 @@ def password_view(request):
 # Crews
 # ---------------------------------------------------------------------------
 
-CREW_COLS = ['row_id', S.LABEL_NAME, S.LABEL_NOTES, S.COL_ACTIVE]
+CREW_COLS = [S.COL_ROW_ID, S.LABEL_NAME, S.LABEL_NOTES, S.COL_ACTIVE]
 
 
 def _crew_row(c):
@@ -90,7 +90,7 @@ def crews_save(request):
 # Tractors
 # ---------------------------------------------------------------------------
 
-TRACTOR_COLS = ['row_id', S.LABEL_MANUFACTURER, S.LABEL_MODEL,
+TRACTOR_COLS = [S.COL_ROW_ID, S.LABEL_MANUFACTURER, S.LABEL_MODEL,
                 S.LABEL_YEAR, S.COL_ACTIVE]
 
 
@@ -135,7 +135,7 @@ def tractors_save(request):
 # Species
 # ---------------------------------------------------------------------------
 
-SPECIES_COLS = ['row_id', S.LABEL_NAME, S.LABEL_LATIN_NAME,
+SPECIES_COLS = [S.COL_ROW_ID, S.LABEL_NAME, S.LABEL_LATIN_NAME,
                 S.LABEL_DENSITY, S.COL_ACTIVE]
 
 
@@ -186,7 +186,7 @@ def species_save(request):
 # Users (admin only)
 # ---------------------------------------------------------------------------
 
-USER_COLS = ['row_id', S.LABEL_FIRST_NAME, S.LABEL_LAST_NAME, S.LABEL_USERNAME,
+USER_COLS = [S.COL_ROW_ID, S.LABEL_FIRST_NAME, S.LABEL_LAST_NAME, S.LABEL_USERNAME,
              S.LABEL_EMAIL, S.LABEL_LOGIN_METHOD, S.LABEL_CREATED_AT, S.COL_ACTIVE]
 
 ROLE_LABELS = [
