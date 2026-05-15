@@ -1,4 +1,4 @@
-.PHONY: reference icons test serve deploy clean
+.PHONY: reference geo terreni icons test serve deploy clean
 
 # Output location on the laforesta.it VM. The user is provisioning the
 # subdomain (DNS + apache vhost + TLS) via ../system/ansible separately.
@@ -18,6 +18,18 @@ DEPLOY_EXCLUDES = \
 reference:
 	python3 tools/build_reference.py
 
+# Vendor the shared geometry helpers from abies, stripping ES module
+# syntax and appending a CommonJS guard. Authoritative source lives in
+# abies/apps/base/static/base/js/geo.js.
+geo:
+	python3 tools/vendor_geo.py
+
+# Copy the parcel polygons used for GPS-driven auto-detection. Source
+# is currently in bosco/data/; will move to abies/data/ once bosco/
+# is retired.
+terreni:
+	cp ../bosco/data/terreni.geojson ./terreni.geojson
+
 icons:
 	python3 tools/build_icons.py
 
@@ -31,8 +43,8 @@ serve:
 	@echo "Serving at http://localhost:8000/ — open in a browser."
 	@python3 -m http.server 8000
 
-deploy: reference icons test
+deploy: reference geo terreni icons test
 	rsync -avz --delete $(DEPLOY_EXCLUDES) ./ $(DEPLOY_HOST):$(DEPLOY_DIR)/
 
 clean:
-	rm -f reference.json img/*.gif img/*.png
+	rm -f reference.json geo.js terreni.geojson img/*.gif img/*.png

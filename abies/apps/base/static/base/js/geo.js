@@ -71,6 +71,58 @@ export function boundingBox(features) {
   return { minLng, minLat, maxLng, maxLat };
 }
 
+/** Bounding box of a single Polygon feature, [minLng, minLat, maxLng, maxLat]. */
+export function featureBbox(feature) {
+  let minLng = Infinity, minLat = Infinity;
+  let maxLng = -Infinity, maxLat = -Infinity;
+  for (const c of feature.geometry.coordinates[0]) {
+    if (c[0] < minLng) minLng = c[0];
+    if (c[0] > maxLng) maxLng = c[0];
+    if (c[1] < minLat) minLat = c[1];
+    if (c[1] > maxLat) maxLat = c[1];
+  }
+  return [minLng, minLat, maxLng, maxLat];
+}
+
+/**
+ * Annotate every feature in `features` with a `.bbox` (see `featureBbox`)
+ * and return the same array, so callers can chain. `findContainingParcel`
+ * uses this as a cheap prefilter.
+ */
+export function buildBboxIndex(features) {
+  for (const f of features) f.bbox = featureBbox(f);
+  return features;
+}
+
+/**
+ * Minimum distance, in meters, from (lng, lat) to the boundary of the
+ * given Polygon feature (exterior ring + any holes). Uses an
+ * equirectangular projection anchored at the query point — accurate to
+ * well under 1 m at the few-km scale of a parcel.
+ */
+export function distanceToBoundaryMeters(lng, lat, feature) {
+  const mLat = 111132.92;
+  const mLng = mLat * Math.cos(lat * DEG_TO_RAD);
+  let best = Infinity;
+  for (const ring of feature.geometry.coordinates) {
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const ax = (ring[j][0] - lng) * mLng;
+      const ay = (ring[j][1] - lat) * mLat;
+      const bx = (ring[i][0] - lng) * mLng;
+      const by = (ring[i][1] - lat) * mLat;
+      const dx = bx - ax;
+      const dy = by - ay;
+      const len2 = dx * dx + dy * dy;
+      let t = len2 > 0 ? -(ax * dx + ay * dy) / len2 : 0;
+      if (t < 0) t = 0;
+      else if (t > 1) t = 1;
+      const d = Math.hypot(ax + t * dx, ay + t * dy);
+      if (d < best) best = d;
+    }
+  }
+  return best;
+}
+
 /**
  * Format a parcel feature as "<compresa> <particella>" for tooltips.
  * Follows the `bosco/data/terreni.geojson` convention: compresa lives
@@ -87,9 +139,16 @@ export function parcelLabel(feature) {
   return `${compresa} ${particella}`.trim();
 }
 
-/** Return the first feature whose polygon contains (lng, lat), or null. */
+/**
+ * Return the first feature whose polygon contains (lng, lat), or null.
+ * If features have been annotated with `.bbox` (via `buildBboxIndex`),
+ * the bbox is used as a cheap prefilter; otherwise every feature is
+ * tested with `pointInPolygon`.
+ */
 export function findContainingParcel(lng, lat, features) {
   for (const f of features) {
+    const bb = f.bbox;
+    if (bb && (lng < bb[0] || lng > bb[2] || lat < bb[1] || lat > bb[3])) continue;
     if (pointInPolygon(lng, lat, f.geometry)) return f;
   }
   return null;
