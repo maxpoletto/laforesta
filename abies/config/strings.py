@@ -8,6 +8,7 @@ directly in this file so they aren't duplicated across language files.
 
 from config.strings_it import *  # noqa: F401,F403
 
-# Internal digest column identifiers -- wire format, never displayed.
-COL_ROW_ID  = 'row_id'
-COL_VERSION = 'version'
+# Internal identifiers -- wire format, never displayed.
+# Used both as digest-column keys and as JSON API field names.
+ROW_ID  = 'row_id'
+VERSION = 'version'

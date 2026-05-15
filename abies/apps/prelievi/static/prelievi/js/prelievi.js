@@ -59,17 +59,17 @@ function formatInteger(value) {
 
 /** Column definitions for the fixed digest columns. */
 const STATIC_COLS = {
-  'Data': { label: S.COL_DATE, type: 'date', width: '90px' },
-  'Compresa': { label: S.COL_REGION, width: '80px' },
-  'Particella': { label: S.COL_PARCEL, width: '70px' },
-  'Squadra': { label: S.COL_CREW, width: '108px' },
-  'Tipo': { label: S.COL_PRODUCT, width: '120px' },
-  'VDP': { label: S.COL_VDP, type: 'number', width: '55px', formatter: formatInteger },
-  'Q.li': { label: S.COL_QUINTALS, type: 'number', width: '55px', formatter: formatQuintals },
-  'Volume (m³)': { label: S.COL_VOLUME_M3, type: 'number', width: '70px', formatter: formatVolume },
-  'Note': { label: S.COL_NOTE, width: '110px' },
-  'Altre note': { label: S.COL_EXTRA_NOTE, width: '90px' },
-  'version': { label: 'version', hidden: true },
+  [S.COL_DATE]:        { label: S.COL_DATE, type: 'date', width: '90px' },
+  [S.COL_COMPRESA]:    { label: S.COL_COMPRESA, width: '80px' },
+  [S.COL_PARCEL]:      { label: S.COL_PARCEL, width: '70px' },
+  [S.COL_CREW]:        { label: S.COL_CREW, width: '108px' },
+  [S.COL_PRODUCT]:     { label: S.COL_PRODUCT, width: '120px' },
+  [S.COL_VDP]:         { label: S.COL_VDP, type: 'number', width: '55px', formatter: formatInteger },
+  [S.COL_QUINTALS]:    { label: S.COL_QUINTALS, type: 'number', width: '55px', formatter: formatQuintals },
+  [S.COL_VOLUME_M3]:   { label: S.COL_VOLUME_M3, type: 'number', width: '70px', formatter: formatVolume },
+  [S.COL_NOTE]:        { label: S.COL_NOTE, width: '110px' },
+  [S.COL_EXTRA_NOTE]:  { label: S.COL_EXTRA_NOTE, width: '90px' },
+  [S.VERSION]:     { label: S.VERSION, hidden: true },
 };
 
 // Column indices — resolved on first data load.
@@ -149,8 +149,8 @@ export async function mount(params) {
     return;
   }
 
-  colDate = data.columns.indexOf('Data');
-  colVersion = data.columns.indexOf('version');
+  colDate = data.columns.indexOf(S.COL_DATE);
+  colVersion = data.columns.indexOf(S.VERSION);
   _buildColMap(data.columns);
   _classifyColumns(data.columns);
 
@@ -197,7 +197,7 @@ function showTableView(data, params) {
   // Table itself.
   const sort = p.sc
     ? { column: p.sc, ascending: p.so }
-    : { column: 'Data', ascending: false };
+    : { column: S.COL_DATE, ascending: false };
 
   const modify = canModify();
   table = new TableWrapper({

@@ -9,6 +9,7 @@
 
 export * from './strings_it.js';
 
-// Internal digest column identifiers — wire format, never displayed.
-export const COL_ROW_ID  = 'row_id';
-export const COL_VERSION = 'version';
+// Internal identifiers — wire format, never displayed.
+// Used both as digest-column keys and as JSON API field names.
+export const ROW_ID  = 'row_id';
+export const VERSION = 'version';

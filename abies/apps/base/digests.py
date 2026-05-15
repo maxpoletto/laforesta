@@ -133,7 +133,7 @@ def generate_prelievi() -> None:
     ]
 
     columns = (
-        [S.COL_ROW_ID, S.COL_VERSION, S.COL_DATE, S.COL_COMPRESA, S.COL_PARCEL,
+        [S.ROW_ID, S.VERSION, S.COL_DATE, S.COL_COMPRESA, S.COL_PARCEL,
          S.COL_CREW, S.COL_VDP, S.COL_PRODUCT, S.COL_QUINTALS,
          S.COL_VOLUME_M3, S.COL_NOTE, S.COL_EXTRA_NOTE]
         + species_names
@@ -220,7 +220,7 @@ def build_harvest_record(op) -> list:
 def generate_parcels() -> None:
     from apps.base.models import Parcel
 
-    columns = [S.COL_ROW_ID, S.COL_COMPRESA, S.COL_PARCEL, S.COL_CLASS,
+    columns = [S.ROW_ID, S.COL_COMPRESA, S.COL_PARCEL, S.COL_CLASS,
                S.COL_AREA_HA, S.COL_AVE_AGE, S.COL_LOCATION,
                S.COL_ALT_MIN, S.COL_ALT_MAX,
                S.COL_ASPECT, S.COL_GRADE_PCT]
@@ -243,7 +243,7 @@ def generate_parcels() -> None:
 def generate_crews() -> None:
     from apps.base.models import Crew
 
-    columns = [S.COL_ROW_ID, S.COL_NAME, S.COL_NOTE, S.COL_ACTIVE]
+    columns = [S.ROW_ID, S.COL_NAME, S.COL_NOTE, S.COL_ACTIVE]
     rows = []
     for c in Crew.objects.order_by('name'):
         rows.append([c.id, c.name, c.notes, c.active])
@@ -261,7 +261,7 @@ def generate_species() -> None:
     generators that need per-species density."""
     from apps.base.models import Species
 
-    columns = [S.COL_ROW_ID, S.COL_VERSION, S.COL_NAME, S.COL_LATIN_NAME,
+    columns = [S.ROW_ID, S.VERSION, S.COL_NAME, S.COL_LATIN_NAME,
                S.COL_DENSITY, S.COL_SORT_ORDER, S.COL_ACTIVE]
     rows = []
     for sp in Species.objects.order_by('sort_order'):
@@ -350,7 +350,7 @@ def generate_audit() -> None:
 
     rows.sort(key=lambda r: r[1], reverse=True)
 
-    columns = [S.COL_ROW_ID, S.COL_TIMESTAMP, S.COL_USER, S.COL_TABLE,
+    columns = [S.ROW_ID, S.COL_TIMESTAMP, S.COL_USER, S.COL_TABLE,
                S.COL_ACTION, S.COL_OLD_VALUE, S.COL_NEW_VALUE]
     _write_gzip_json({'columns': columns, 'rows': rows}, _dest('audit'))
     print(f'audit.json.gz: {len(rows)} rows')
@@ -413,7 +413,7 @@ def _format_diff(prev, current, field_labels: dict) -> tuple[str, str]:
 # Campionamenti digests
 # ---------------------------------------------------------------------------
 
-GRID_COLUMNS = [S.COL_ROW_ID, S.COL_VERSION, S.COL_NAME, S.COL_DESCRIPTION,
+GRID_COLUMNS = [S.ROW_ID, S.VERSION, S.COL_NAME, S.COL_DESCRIPTION,
                 S.COL_N_AREAS, S.COL_REGIONS, S.COL_N_SURVEYS,
                 S.COL_LAST_UPDATE]
 
@@ -456,7 +456,7 @@ def generate_grids() -> None:
     print(f'grids.json.gz: {len(rows)} rows')
 
 
-SURVEY_COLUMNS = [S.COL_ROW_ID, S.COL_VERSION, S.COL_NAME, S.COL_DESCRIPTION,
+SURVEY_COLUMNS = [S.ROW_ID, S.VERSION, S.COL_NAME, S.COL_DESCRIPTION,
                   S.COL_GRID, S.COL_HARVEST_PLAN,
                   S.COL_N_AREAS_VISITED, S.COL_N_AREAS_TOTAL,
                   S.COL_DATE_FIRST, S.COL_DATE_LAST]
@@ -532,7 +532,7 @@ def generate_surveys() -> None:
     print(f'surveys.json.gz: {len(rows)} rows')
 
 
-SAMPLE_AREA_COLUMNS = [S.COL_ROW_ID, S.COL_VERSION, S.COL_GRID, S.COL_COMPRESA,
+SAMPLE_AREA_COLUMNS = [S.ROW_ID, S.VERSION, S.COL_GRID, S.COL_COMPRESA,
                        S.COL_PARCEL, S.COL_NUMBER, S.COL_LAT, S.COL_LON,
                        S.COL_QUOTA, S.COL_RAGGIO, S.COL_NOTE]
 
@@ -570,7 +570,7 @@ def generate_sample_areas() -> None:
     print(f'sample_areas.json.gz: {len(rows)} rows')
 
 
-SAMPLE_COLUMNS = [S.COL_ROW_ID, S.COL_VERSION, S.COL_SURVEY, S.COL_SAMPLE_AREA,
+SAMPLE_COLUMNS = [S.ROW_ID, S.VERSION, S.COL_SURVEY, S.COL_SAMPLE_AREA,
                   S.COL_DATE, S.COL_N_TREES]
 
 
@@ -611,7 +611,7 @@ def generate_samples() -> None:
     print(f'samples.json.gz: {len(rows)} rows')
 
 
-SAMPLED_TREE_COLUMNS = [S.COL_ROW_ID, S.COL_VERSION, S.COL_SAMPLE_AREA,
+SAMPLED_TREE_COLUMNS = [S.ROW_ID, S.VERSION, S.COL_SAMPLE_AREA,
                         S.COL_SAMPLE_DATE, S.COL_COMPRESA, S.COL_PARCEL,
                         S.COL_AREA_NUM, S.COL_TREE_NUM,
                         S.COL_SPECIES, S.COL_PRODUCT, S.COL_POLLONE,

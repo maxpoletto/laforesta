@@ -31,8 +31,8 @@ const COLORS = [
  * @returns {{ labels: string[], datasets: Array<{label, data, backgroundColor}> }}
  */
 export function aggregateTimeSeries(rows, colMap, breakdown, byMonth, speciesCols, tractorCols) {
-  const dateIdx = colMap['Data'];
-  const qIdx = colMap['Q.li'];
+  const dateIdx = colMap[S.COL_DATE];
+  const qIdx = colMap[S.COL_QUINTALS];
   const bucket = byMonth ? d => d.substring(0, 7) : d => d.substring(0, 4);
 
   // Breakdowns that pivot on multiple numeric columns (species/tractors).
@@ -48,12 +48,12 @@ export function aggregateTimeSeries(rows, colMap, breakdown, byMonth, speciesCol
 function _dimFn(breakdown, colMap) {
   if (breakdown === 'total') return () => S.CHART_TOTAL;
   if (breakdown === 'particella') {
-    const ri = colMap['Compresa'];
-    const pi = colMap['Particella'];
+    const ri = colMap[S.COL_COMPRESA];
+    const pi = colMap[S.COL_PARCEL];
     return row => `${row[ri]}/${row[pi]}`;  // disambiguate parcels across regions
   }
   const idx = colMap[{
-    compresa: 'Compresa', squadra: 'Squadra', tipo: 'Tipo',
+    compresa: S.COL_COMPRESA, squadra: S.COL_CREW, tipo: S.COL_PRODUCT,
   }[breakdown]];
   return row => row[idx] || '?';
 }
@@ -67,8 +67,8 @@ function _dimFn(breakdown, colMap) {
  * @returns {{ labels: string[], datasets: ... }}
  */
 export function aggregateSpeciesByParcel(rows, colMap, speciesCols) {
-  const parcelIdx = colMap['Particella'];
-  const regionIdx = colMap['Compresa'];
+  const parcelIdx = colMap[S.COL_PARCEL];
+  const regionIdx = colMap[S.COL_COMPRESA];
   const parcels = {};
 
   for (const row of rows) {
