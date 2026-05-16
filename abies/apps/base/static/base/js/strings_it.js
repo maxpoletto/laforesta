@@ -5,7 +5,6 @@
  */
 
 // Shell / chrome
-export const COMPANY_NAME = 'La Foresta';
 export const LOADING = 'Caricamento...';
 export const DISMISS = 'Chiudi';
 export const SAVE = 'Salva';
@@ -56,12 +55,6 @@ export const ERROR_RATE_LIMIT = 'Troppe richieste. Riprovare tra un minuto.';
 export const ERR_DATE_FUTURE = 'La data non può essere nel futuro.';
 export const ERR_SPECIES_PCT_SUM = 'Le percentuali delle specie devono sommare a 100.';
 export const ERR_TRACTOR_PCT_SUM = 'Le percentuali dei trattori devono sommare a 100.';
-
-// Tab names
-export const TAB_BOSCO = 'Bosco';
-export const TAB_PRELIEVI = 'Prelievi';
-export const TAB_CONTROLLO = 'Controllo';
-export const TAB_IMPOSTAZIONI = 'Impostazioni';
 
 // Prelievi
 export const LABEL_YEARS = 'Anni';
@@ -162,8 +155,6 @@ export const CAMPIONAMENTI_PICK_SURVEY_FIRST =
   'Seleziona prima un rilevamento.';
 export const CAMPIONAMENTI_PICK_AREA_FIRST =
   'Seleziona prima un\'area di saggio sulla mappa.';
-export const CAMPIONAMENTI_NO_VM_FOR_CEDUO =
-  'V e m non si calcolano per alberi cedui.';
 export const CAMPIONAMENTI_INSERT_AREA_HERE =
   'Inserire una nuova area qui?';
 export const CAMPIONAMENTI_NO_AREAS_HINT =
@@ -193,9 +184,6 @@ export const CSV_IMPORT_IN_PROGRESS =
   'Non chiudere la finestra né cliccare di nuovo "Importa".';
 
 // Coppice (per-shoot) entry
-export const LABEL_POLLONE = 'N. pollone';
-export const LABEL_MATRICINA = 'Matricina';
-export const ADD_POLLONE = '+ Aggiungi pollone';
 export const REMOVE_POLLONE = 'Rimuovi';
 
 // CSV export filenames for the symmetric "Esporta CSV" buttons on

@@ -4,16 +4,9 @@
 # Shell / chrome
 # ---------------------------------------------------------------------------
 
-COMPANY_NAME = 'La Foresta'
-LOGOUT = 'Esci'
-LOADING = 'Caricamento...'
-DISMISS = 'Chiudi'
 SAVE = 'Salva'
 SAVE_AND_CONTINUE = 'Salva e continua'
 DELETE_CONFIRM = 'I dati cancellati non potranno essere recuperati. Confermi?'
-SEARCH_PLACEHOLDER = 'Cerca...'
-EXPORT_CSV = 'Esporta CSV'
-ERROR_NETWORK = 'Errore di rete. Riprovare.'
 ERROR_CONFLICT = 'Il record è stato modificato da un altro utente.'
 ERROR_GENERIC = 'Errore imprevisto.'
 ERROR_RATE_LIMIT = 'Troppe richieste. Riprovare tra un minuto.'
@@ -30,12 +23,6 @@ ERR_DATE_FUTURE = 'La data non può essere nel futuro.'
 ERR_VDP_DUPLICATE = 'VDP {} è già utilizzato.'
 ERR_NOT_FOUND = 'Record non trovato.'
 ERR_FORBIDDEN = 'Non autorizzato.'
-
-# Tab names (same as app verbose names but title-cased for display)
-TAB_BOSCO = 'Bosco'
-TAB_PRELIEVI = 'Prelievi'
-TAB_CONTROLLO = 'Controllo'
-TAB_IMPOSTAZIONI = 'Impostazioni'
 
 # Column / field labels (used in audit digest and shared with JS)
 COL_DATE = 'Data'
