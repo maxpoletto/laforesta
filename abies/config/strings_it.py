@@ -111,13 +111,6 @@ ERR_AREA_IN_USE = (
 ERR_GRID_IN_USE = (
     'La griglia è usata da uno o più rilevamenti: eliminarli prima.'
 )
-CASCADE_WARN_SURVEY = (
-    'Questa operazione cancellerà {n_samples} campioni e {n_trees} '
-    'misure di alberi che non possono essere recuperati.'
-)
-CASCADE_EXPORT_REQUIRED = (
-    'Per sicurezza, esporta i dati prima di procedere all\'eliminazione.'
-)
 ERR_CSV_FILE_REQUIRED = 'File CSV obbligatorio.'
 ERR_CSV_NOT_UTF8 = 'Il file deve essere codificato in UTF-8.'
 ERR_CSV_EMPTY = 'Il file CSV è vuoto.'
