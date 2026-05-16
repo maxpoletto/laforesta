@@ -12,12 +12,11 @@
 'use strict';
 
 const DB_NAME = 'ipso';
-// v2 added an optional `catastrofata` boolean on session rows.
-// v3 added optional `numero` (int|null) and `gruppo` (string) on tree rows.
-// The bumps are documentation: IndexedDB tolerates extra fields without a
-// schema change, but the version bumps are the contract for "this code
-// wrote/read vN-shaped rows".
-const SCHEMA_VERSION = 3;
+// Bumped each time the on-disk row shape changes. IndexedDB tolerates
+// missing/extra fields without a structural change, so the bump is the
+// contract for "this code wrote/read vN-shaped rows" — not a migration
+// trigger at the moment.
+const SCHEMA_VERSION = 4;
 
 const STORE_SESSIONS = 'sessions';
 const STORE_TREES = 'trees';
@@ -44,30 +43,18 @@ function uuid() {
 function openDb() {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, SCHEMA_VERSION);
-    req.onupgradeneeded = (e) => {
+    req.onupgradeneeded = () => {
       const db = req.result;
-      const oldVersion = e.oldVersion;
-      if (oldVersion < 1) {
-        const sessions = db.createObjectStore(STORE_SESSIONS, { keyPath: 'id' });
-        sessions.createIndex('by_status', 'status');
+      const sessions = db.createObjectStore(STORE_SESSIONS, { keyPath: 'id' });
+      sessions.createIndex('by_status', 'status');
 
-        const trees = db.createObjectStore(STORE_TREES, {
-          keyPath: 'id', autoIncrement: true,
-        });
-        trees.createIndex('by_session', 'session_id');
-        trees.createIndex('by_session_seq', ['session_id', 'seq']);
+      const trees = db.createObjectStore(STORE_TREES, {
+        keyPath: 'id', autoIncrement: true,
+      });
+      trees.createIndex('by_session', 'session_id');
+      trees.createIndex('by_session_seq', ['session_id', 'seq']);
 
-        db.createObjectStore(STORE_META, { keyPath: 'key' });
-      }
-      if (oldVersion < 2) {
-        // No structural change. `catastrofata` is an optional boolean on
-        // session rows; absence is treated as false by readers.
-      }
-      if (oldVersion < 3) {
-        // No structural change. `numero` (int|null) and `gruppo` (string)
-        // are optional fields on tree rows; absence is treated as blank.
-      }
-      // Future migrations go here.
+      db.createObjectStore(STORE_META, { keyPath: 'key' });
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
