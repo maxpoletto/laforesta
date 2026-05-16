@@ -34,7 +34,6 @@ async function boot() {
   document.getElementById('lbl-operatore').textContent = S.PRE_OPERATORE;
   document.getElementById('lbl-data').textContent = S.PRE_DATA;
   document.getElementById('lbl-compresa').textContent = S.PRE_COMPRESA;
-  document.getElementById('lbl-particella').textContent = S.PRE_PARTICELLA;
   document.getElementById('lbl-catastrofata').textContent = S.PRE_CATASTROFATA;
   document.getElementById('btn-start').textContent = S.PRE_START;
   document.getElementById('lbl-specie').textContent = S.REC_SPECIE;
@@ -193,23 +192,6 @@ function populateComprese() {
   const comprese = [...new Set(State.reference.parcels.map((p) => p.compresa))].sort();
   appendOption(sel, '', S.PRE_PICK_COMPRESA, true);
   for (const c of comprese) appendOption(sel, c, c);
-
-  sel.addEventListener('change', () => populateParticelle(sel.value));
-}
-
-function populateParticelle(compresa) {
-  const sel = document.getElementById('in-particella');
-  sel.replaceChildren();
-  if (!compresa) {
-    sel.disabled = true;
-    appendOption(sel, '', S.PRE_PICK_PARTICELLA, true);
-    return;
-  }
-  sel.disabled = false;
-  appendOption(sel, '', S.PRE_PICK_PARTICELLA, true);
-  for (const p of State.reference.parcels) {
-    if (p.compresa === compresa) appendOption(sel, p.particella, p.particella);
-  }
 }
 
 function appendOption(sel, value, label, selected) {
@@ -221,30 +203,13 @@ function appendOption(sel, value, label, selected) {
 }
 
 function wirePreSession() {
-  const cb = document.getElementById('in-catastrofata');
-  const particellaField = document.getElementById('field-particella');
-  const particellaSel = document.getElementById('in-particella');
-
-  cb.addEventListener('change', () => {
-    const on = cb.checked;
-    particellaField.hidden = on;
-    // Required attribute drives the implicit HTML5 form validation. Pull
-    // it off when the field is hidden so submit doesn't refuse.
-    if (on) particellaSel.removeAttribute('required');
-    else particellaSel.setAttribute('required', '');
-  });
-
   document.getElementById('pre-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const operatore = document.getElementById('in-operatore').value.trim();
     const data = document.getElementById('in-data').value;
     const compresa = document.getElementById('in-compresa').value;
-    const catastrofata = cb.checked;
-    const particella = catastrofata
-      ? ''
-      : document.getElementById('in-particella').value;
+    const catastrofata = document.getElementById('in-catastrofata').checked;
     if (!operatore || !data || !compresa) return;
-    if (!catastrofata && !particella) return;
 
     // Fire the GPS permission prompt now (during setup, not mid-mark).
     // Runs in parallel with the rest of submit — we don't await it
@@ -255,7 +220,7 @@ function wirePreSession() {
 
     try {
       const sess = await Store.startSession(State.db, {
-        data, compresa, particella, operatore, catastrofata,
+        data, compresa, operatore, catastrofata,
       });
       State.session = sess;
       State.lastTreeRow = null;
@@ -290,6 +255,23 @@ function wireRecording() {
     State.specie = e.target.value;
     if (!State.hMeasured) recomputeAutoH();
     updateSaveEnabled();
+  });
+
+  // Particella select: sticky-override transitions. The sentinel option
+  // (value AUTO_SENTINEL) toggles auto mode; any other value enters
+  // manual mode. Focus restores the "(automatica)" label on the open
+  // picker; blur restores the closed-state display via refresh.
+  const partSel = document.getElementById('in-particella-rec');
+  partSel.addEventListener('focus', () => {
+    const sentinel = partSel.querySelector('option[value="' + AUTO_SENTINEL + '"]');
+    if (sentinel) sentinel.textContent = S.REC_PARTICELLA_AUTO;
+  });
+  partSel.addEventListener('blur', refreshParticellaSelect);
+  partSel.addEventListener('change', () => {
+    if (!State.override) return;
+    if (partSel.value === AUTO_SENTINEL) State.override.setAuto();
+    else State.override.setManual(partSel.value);
+    refreshParticellaSelect();
   });
 
   document.getElementById('btn-save').addEventListener('click', onSave);
@@ -337,25 +319,98 @@ function enterRecording() {
   showScreen('screen-rec');
 }
 
-// Build the per-session parcel locator: filter terreni to the session's
-// compresa, bbox-index, subscribe a callback that keeps #rec-where in
-// sync with the GPS-detected parcel.
+// Auto-mode sentinel value for the recording-screen particella select.
+// Real particella names are short alphanumeric strings (e.g. "7a"); the
+// "__auto__" form is unambiguous as a non-particella token.
+const AUTO_SENTINEL = '__auto__';
+
+// Build the per-session parcel locator and sticky-override controllers:
+// filter terreni to the session's compresa, bbox-index, populate the
+// particella select, and subscribe a callback that keeps both
+// #rec-where and the select in sync with each GPS commit.
 function setupLocator() {
   State.locator = null;
-  if (!State.terreni || !State.session) return;
+  State.override = createOverride();
+  if (!State.terreni || !State.session) {
+    populateParticellaOptions(null);
+    refreshParticellaSelect();
+    return;
+  }
   const compresa = State.session.compresa;
   const filtered = State.terreni.filter(
     (f) => f.properties && f.properties.layer === compresa
   );
-  if (filtered.length === 0) return;
+  populateParticellaOptions(filtered);
+  if (filtered.length === 0) {
+    refreshParticellaSelect();
+    return;
+  }
   buildBboxIndex(filtered);
   State.locator = createLocator(filtered);
-  State.locator.subscribe(updateRecWhere);
+  State.locator.subscribe(onLocatorCommit);
+  refreshParticellaSelect();
+}
+
+function onLocatorCommit(feature) {
+  updateRecWhere(feature);
+  refreshParticellaSelect();
 }
 
 function updateRecWhere(feature) {
   const txt = feature ? parcelLabel(feature) : S.REC_OUT_OF_BOUNDS;
   document.getElementById('rec-where').textContent = txt;
+}
+
+// Extract the bare particella portion of `feature.properties.name`
+// (which has the form "Compresa-Particella" by terreni.geojson
+// convention). Returns '' for malformed features.
+function particellaName(feature) {
+  const name = (feature && feature.properties && feature.properties.name) || '';
+  const dash = name.indexOf('-');
+  return dash >= 0 ? name.slice(dash + 1) : name;
+}
+
+function currentAutoName() {
+  if (!State.locator) return '';
+  return particellaName(State.locator.getCommitted());
+}
+
+function populateParticellaOptions(features) {
+  const sel = document.getElementById('in-particella-rec');
+  sel.replaceChildren();
+  const sentinel = document.createElement('option');
+  sentinel.value = AUTO_SENTINEL;
+  sentinel.textContent = S.REC_PARTICELLA_AUTO;
+  sel.appendChild(sentinel);
+  if (!features) return;
+  // Use reference.json order for the option list — it's the curated
+  // ordering the rest of the UI also uses. Only include parcels that
+  // exist as polygons (so manual picks can be cross-checked against
+  // GPS).
+  const known = new Set(features.map(particellaName).filter((n) => n));
+  for (const p of State.reference.parcels) {
+    if (p.compresa !== State.session.compresa) continue;
+    if (!known.has(p.particella)) continue;
+    appendOption(sel, p.particella, p.particella);
+  }
+}
+
+function refreshParticellaSelect() {
+  const sel = document.getElementById('in-particella-rec');
+  const ov = State.override;
+  if (!ov) return;
+  const autoName = currentAutoName();
+  const sentinel = sel.querySelector('option[value="' + AUTO_SENTINEL + '"]');
+  if (ov.getMode() === 'manual') {
+    sel.value = ov.getManual();
+    if (sentinel) sentinel.textContent = S.REC_PARTICELLA_AUTO;
+  } else {
+    sel.value = AUTO_SENTINEL;
+    if (sentinel) {
+      sentinel.textContent = autoName || S.REC_PARTICELLA_PLACEHOLDER;
+    }
+  }
+  sel.classList.toggle('error', ov.isMismatch(autoName));
 }
 
 function populateGruppo() {
@@ -519,6 +574,9 @@ function currentRecord() {
   const nStr = State.numpad.value('numero');
   const n = nStr === '' ? null : parseInt(nStr, 10);
   const gruppo = document.getElementById('in-gruppo').value || '';
+  const particella = State.override
+    ? State.override.resolve(currentAutoName())
+    : '';
   return {
     specie: State.specie || '',
     d_cm: Number.isFinite(d) ? d : null,
@@ -526,6 +584,7 @@ function currentRecord() {
     h_measured: State.hMeasured ? 1 : 0,
     numero: Number.isInteger(n) ? n : null,
     gruppo,
+    particella,
   };
 }
 
@@ -758,14 +817,11 @@ function wireDone() {
   document.getElementById('btn-new-session').addEventListener('click', () => {
     State.session = null;
     State.lastTreeRow = null;
+    State.locator = null;
+    State.override = null;
     if (State.gps) { State.gps.stop(); State.gps = null; }
     document.getElementById('sub-status').textContent = '';
     document.getElementById('pre-form').reset();
-    // Clear catastrofata UI state — the form.reset() above unchecks the
-    // box, but we also need to un-hide the particella row that the
-    // change handler had toggled.
-    document.getElementById('field-particella').hidden = false;
-    document.getElementById('in-particella').setAttribute('required', '');
     populateOperatore();
     populateComprese();
     showScreen('screen-pre');

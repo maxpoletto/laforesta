@@ -13,7 +13,6 @@ const S = {
   PRE_PARTICELLA: 'Particella',
   PRE_CATASTROFATA: 'Piante catastrofate',
   PRE_PICK_COMPRESA: '— scegli una compresa —',
-  PRE_PICK_PARTICELLA: '— scegli una particella —',
   PRE_START: 'Inizia',
   CATASTROFATE: 'catastrofate',
 
@@ -100,17 +99,19 @@ const S = {
     return `${S.REC_LAST_PREFIX} ${numPart}${rec.specie}, ${d}, ${h}`;
   },
 
-  // "Where" formatter used in the recording-screen header, the app-bar
-  // sub-status, and the resume modal. Two shapes depending on session
-  // type: "Serra / 1" for a parcel-bound mark, "Serra · catastrofate"
-  // for a roaming catastrofate session (where Particella is intentionally
-  // unset and the server infers parcel from GPS).
+  // "Where" formatter used in the recording-screen header (initial
+  // paint, before GPS commits the first parcel), the app-bar
+  // sub-status, and the resume modal. Particella is per-tree post-v4,
+  // so we no longer have a single representative value at the session
+  // level — the header shows just the compresa (suffixed for
+  // catastrofate sessions). The recording-screen header is then
+  // overwritten dynamically by the parcel-locator subscriber.
   where(session) {
     if (!session) return '';
     if (session.catastrofata) {
       return `${session.compresa} · ${S.CATASTROFATE}`;
     }
-    return `${session.compresa} / ${session.particella}`;
+    return session.compresa;
   },
 };
 

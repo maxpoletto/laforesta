@@ -108,7 +108,7 @@ function req(r) {
 // ---------------------------------------------------------------------------
 
 async function startSession(db, fields) {
-  // fields: {data, compresa, particella, operatore, catastrofata}
+  // fields: {data, compresa, operatore, catastrofata}
   const id = uuid();
   const catastrofata = !!fields.catastrofata;
   const row = {
@@ -119,9 +119,6 @@ async function startSession(db, fields) {
     exported_at: null,
     data: fields.data,
     compresa: fields.compresa,
-    // For catastrofate sessions the operator does not pick a parcel; the
-    // server will infer it from the per-tree GPS coordinates.
-    particella: catastrofata ? '' : fields.particella,
     catastrofata,
     operatore: fields.operatore || '',
     tree_count: 0,
@@ -165,7 +162,7 @@ async function setSessionStatus(db, id, status) {
 // Add a tree to a session. Allocates `seq` inside the same transaction so a
 // retry after partial failure cannot duplicate (plan R8).
 // rec fields (caller supplies): specie, d_cm, h_m, h_measured, lat, lng,
-// acc_m, numero, gruppo.
+// acc_m, numero, gruppo, particella.
 async function addTree(db, sessionId, rec) {
   return tx(db, [STORE_SESSIONS, STORE_TREES], 'readwrite', async (t) => {
     const sessStore = t.objectStore(STORE_SESSIONS);
@@ -186,6 +183,7 @@ async function addTree(db, sessionId, rec) {
       acc_m: rec.acc_m == null ? null : rec.acc_m,
       numero: Number.isInteger(rec.numero) ? rec.numero : null,
       gruppo: rec.gruppo || '',
+      particella: rec.particella || '',
     };
     const treesStore = t.objectStore(STORE_TREES);
     const id = await req(treesStore.add(row));
