@@ -39,6 +39,7 @@ async function boot() {
   document.getElementById('btn-start').textContent = S.PRE_START;
   document.getElementById('lbl-specie').textContent = S.REC_SPECIE;
   document.getElementById('lbl-numero').textContent = S.REC_NUMERO;
+  document.getElementById('lbl-particella-rec').textContent = S.PRE_PARTICELLA;
   document.getElementById('lbl-gruppo').textContent = S.REC_GRUPPO;
   document.getElementById('lbl-d').textContent = S.REC_D;
   document.getElementById('lbl-h').textContent = S.REC_H;

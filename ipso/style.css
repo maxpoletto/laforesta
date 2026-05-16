@@ -148,6 +148,24 @@ input.focus, input:focus, select:focus {
   text-align-last: center;
 }
 
+/* Specie names can be longer than the half-width cell. Left-align so the
+   visible portion is the start of the name rather than the middle (the
+   open OS picker shows the full text). */
+.dh-row select.specie-select {
+  text-align: left;
+  text-align-last: left;
+}
+
+/* Red border for the recording-screen particella select whenever the manual
+   override disagrees with the GPS-detected parcel (incl. no-fix / outside).
+   Persisted on focus so the warning doesn't disappear while the operator
+   interacts with the field. */
+select.error,
+select.error:focus {
+  border-color: var(--red);
+  box-shadow: 0 0 0 2px rgba(197, 39, 39, 0.2);
+}
+
 .hint {
   font-size: 13px;
   color: var(--grey-2);
