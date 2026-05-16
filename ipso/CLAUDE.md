@@ -12,14 +12,18 @@ module map and gotcha log.
 
 ```bash
 make reference   # rebuild reference.json from ../bosco/data/*.csv
+make geo         # vendor geo.js from ../abies/apps/base/static/base/js/geo.js
+make terreni     # copy ../bosco/data/terreni.geojson into ipso/
 make icons       # rebuild img/*.png + *.gif from ../logo/logo-grande.png
-make test        # node tests.js — ~62 tests over csv/ipso/session
+make test        # node tests.js — ~110 tests over csv/ipso/session/geo/locator
 make serve       # python3 -m http.server 8000 (localhost = secure for SW)
-make deploy      # reference → icons → test → rsync to ipso.laforesta.it
+make deploy      # reference → geo → terreni → icons → test → rsync
 ```
 
 `tools/`, `tests.js`, `Makefile`, `README.md` are NOT shipped (see
-`DEPLOY_EXCLUDES` in `Makefile`).
+`DEPLOY_EXCLUDES` in `Makefile`). `geo.js` and `terreni.geojson` are
+generated build artifacts and **gitignored** (see `.gitignore`); they
+must be produced before `make deploy` and they ARE shipped to the host.
 
 # Module layout
 
@@ -30,7 +34,7 @@ manifest.webmanifest PWA manifest (5 icons under img/)
 version.js          APP_VERSION constant — single source of truth
 sw.js               service worker (cache-first, no skipWaiting)
 app.js              state machine, screen wiring, GPS UI, wake lock
-store.js            IndexedDB wrapper (SCHEMA_VERSION = 3)
+store.js            IndexedDB wrapper (SCHEMA_VERSION = 4)
 session.js          pure session-level helpers (resumability, etc.)
 csv.js              CSV serialisation (UTF-8 BOM, ; sep, comma decimal, CRLF)
 ipso.js             ipsometric regression lookup (h = a·ln(D) + b)
@@ -38,9 +42,13 @@ gps.js              self-healing watchPosition with heartbeat + restart
 numpad.js           on-screen numeric keypad (generic over field set)
 download.js         browser-download helper
 strings.js          Italian UI strings + helpers (S.where, S.pill)
+geo.js              point-in-polygon / parcelLabel / distance helpers
+                    (vendored from abies; generated, gitignored)
+parcel-locator.js   hysteresis + sticky-override state machines
 reference.json      bundled reference data (generated)
+terreni.geojson     parcel polygons for GPS auto-detect (generated, gitignored)
 img/                f.gif, l.gif, icon-192.png, icon-512.png, icon-512-maskable.png
-tools/              build_reference.py, build_icons.py (not shipped)
+tools/              build_reference.py, build_icons.py, vendor_geo.py (not shipped)
 tests.js            node tests for pure-logic modules
 ```
 
@@ -74,20 +82,32 @@ started a session on version N completes it on version N.
 
 # Storage
 
-IndexedDB, schema v3.
+IndexedDB, schema v4.
 
-- v2 added `catastrofata` (boolean) on session rows.  Catastrofate
-  rows have `particella = ''` and the CSV emits column
-  `Catastrofata=1`.  Old v1 rows are treated as `catastrofata: false`
-  via the `||` fallback.
-- v3 added `numero` (int|null) and `gruppo` (string) on tree rows.
-  Old v2 rows surface as blank in the visualizza screen and CSV.
+`SCHEMA_VERSION` is bumped each time the on-disk row shape changes, but
+it is a *documentation* contract for "this code wrote/read vN-shaped
+rows" — not a migration trigger.  IndexedDB tolerates missing and
+extra fields without a structural change, so `onupgradeneeded` only
+runs once (on fresh install) to create the three object stores.  Pre-
+launch development databases that are out of date should be wiped by
+hand (devtools → Application → Storage → Clear site data) rather than
+migrated; this assumption will need to change before the first real
+deployment.
 
-No structural migrations across these bumps — IndexedDB tolerates
-extra fields, and the version bump is the contract for the new row
-shape.  Writes use `transaction.oncomplete` (not the request
-`success` event) so the operator never advances past a tree whose
-row hasn't been durably committed.
+v4 shape:
+
+- **session** row: `{id, schema_version, status, started_at,
+  exported_at, data, compresa, catastrofata, operatore, tree_count}`.
+  Particella is **not** on the session — see "Parcel auto-detection"
+  below.
+- **tree** row: `{session_id, seq, ts, specie, d_cm, h_m, h_measured,
+  lat, lng, acc_m, numero, gruppo, particella}`.  `particella` is the
+  per-tree value resolved at save time from the GPS-detected parcel
+  or the operator's manual override.
+
+Writes use `transaction.oncomplete` (not the request `success` event)
+so the operator never advances past a tree whose row hasn't been
+durably committed.
 
 # CSV format
 
@@ -104,6 +124,19 @@ in-app working aid and is intentionally NOT exported.  `Lat`/`Lng`
 are 6-fractional comma decimal; empty if no fix at save time.
 `Pino` is split into `Pino Nero` and `Pino Marittimo` because their
 ipsometric regressions diverge.
+
+`Particella` is per-tree, written from `rec.particella` (GPS-detected
+or manually overridden — see below).  It can be blank when the GPS is
+outside the configured compresa and the operator left auto mode on;
+the row's `Lat`/`Lng`/`Acc_m` columns still record where the tree was
+marked.  The `Catastrofata` column independently flags session type,
+so a catastrofate row still carries the actual particella where it
+was marked.
+
+Filename: `ipso_<compresa>[_catastrofate]_<YYYY-MM-DD>_<HHMM>[_backup_<seq>].csv`.
+Particella is no longer part of the filename — multiple parcels can
+appear in one file, and the HHMM stamp distinguishes multiple
+sessions in the same compresa on the same day.
 
 # Gotchas
 
@@ -160,6 +193,42 @@ to produce `reference.json` (62 parcels, 8 species, 13 regression
 entries across 3 regions). The species list is hardcoded in the build
 script and must stay in sync with
 `../abies/apps/base/management/commands/import_reference.py`.
+
+`tools/vendor_geo.py` reads
+`../abies/apps/base/static/base/js/geo.js` (the authoritative source
+for point-in-polygon / `parcelLabel` / `distanceToBoundaryMeters`,
+shared with the abies map renderers), strips the ES-module
+`import`/`export` syntax, appends a CommonJS guard, and writes
+`ipso/geo.js`.  When `bosco/` is retired, `make terreni` will need to
+point at the new abies/data location.
+
+# Parcel auto-detection
+
+The recording screen tells the operator which `particella` they are
+standing in, using GPS + polygon point-in-polygon against the polygons
+in `terreni.geojson`, filtered to the session's `compresa`.
+
+- **Header label** (`#rec-where`) updates from the static
+  session-compresa string to `parcelLabel(feature)` once the locator
+  commits, or `S.REC_OUT_OF_BOUNDS` ("Fuori dai confini") if the GPS
+  is outside every parcel of the session's compresa.
+- **Recording-screen particella select** holds an `(automatica)`
+  sentinel option plus all known parcels in the compresa.  Closed
+  display shows the resolved value (auto value, manual value, or
+  `—`); the open list always shows the sentinel as `(automatica)`
+  (`focus`/`blur` swap the sentinel's text).
+- **Sticky override.**  Manual selections persist across trees until
+  the operator picks `(automatica)`.  A red border on the select
+  flags any mismatch between the manual value and the current auto
+  value (including auto = no-fix / outside, where the rec
+  necessarily diverges).
+- **Hysteresis.**  `parcel-locator.js` commits a new auto value only
+  after `CONSECUTIVE_FIXES = 3` same-candidate fixes AND
+  `fix.acc < distanceToBoundaryMeters(point, candidate)` — i.e. only
+  when we are confidently inside (or, when leaving, confidently
+  outside) the relevant polygon.  Under-canopy GPS callback cadence
+  is ~1–2 s, so this is ~3–6 s of dwell.  Without the accuracy gate
+  the header would flicker every time GPS jitters across a boundary.
 
 # Deployment
 
