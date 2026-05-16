@@ -79,11 +79,12 @@ assertEqual(
 );
 
 const sess = {
-  data: '2026-05-11', compresa: 'Serra', particella: '1', operatore: 'Mario Rossi',
+  data: '2026-05-11', compresa: 'Serra', operatore: 'Mario Rossi',
 };
 const r1 = {
   specie: 'Abete', d_cm: 42, h_m: 24, h_measured: 0,
   lat: 38.4253101, lng: 16.1204400, acc_m: 7,
+  particella: '1',
 };
 assertEqual(
   csv.formatRow(r1, sess),
@@ -108,6 +109,7 @@ assertEqual(
 const r2 = {
   specie: 'Faggio', d_cm: 30, h_m: 18, h_measured: 1,
   lat: null, lng: null, acc_m: null,
+  particella: '1',
 };
 assertEqual(
   csv.formatRow(r2, sess),
@@ -116,28 +118,34 @@ assertEqual(
 );
 
 // Missing operatore on the session row -> empty string in the column.
-const sessNoOp = { data: '2026-05-11', compresa: 'Serra', particella: '1' };
+const sessNoOp = { data: '2026-05-11', compresa: 'Serra' };
 assertEqual(
   csv.formatRow(r1, sessNoOp),
   '11/05/2026;Serra;1;0;;Abete;42;24;0;38,425310;16,120440;7;',
   'formatRow no operatore'
 );
 
-// Catastrofate session: Particella column empty, Catastrofata = 1; numero
-// still works.
+// Particella source is rec, regardless of catastrofata flag.
 const sessCat = {
-  data: '2026-05-12', compresa: 'Capistrano', particella: '',
+  data: '2026-05-12', compresa: 'Capistrano',
   catastrofata: true, operatore: 'Anna Bianchi',
 };
 assertEqual(
-  csv.formatRow(Object.assign({}, r1, { numero: 7 }), sessCat),
-  '12/05/2026;Capistrano;;1;7;Abete;42;24;0;38,425310;16,120440;7;Anna Bianchi',
-  'formatRow catastrofata + numero'
+  csv.formatRow(Object.assign({}, r1, { numero: 7, particella: '3b' }), sessCat),
+  '12/05/2026;Capistrano;3b;1;7;Abete;42;24;0;38,425310;16,120440;7;Anna Bianchi',
+  'formatRow catastrofata: Particella from rec, Catastrofata=1'
+);
+
+// Empty rec.particella (auto + outside boundaries) -> blank column.
+assertEqual(
+  csv.formatRow(Object.assign({}, r1, { particella: '' }), sess),
+  '11/05/2026;Serra;;0;;Abete;42;24;0;38,425310;16,120440;7;Mario Rossi',
+  'formatRow: blank rec.particella -> blank column'
 );
 
 const r3 = {
   specie: 'Pino Nero', d_cm: 50, h_m: 26, h_measured: 0,
-  lat: 38.4, lng: 16.1, acc_m: 12,
+  lat: 38.4, lng: 16.1, acc_m: 12, particella: '1',
 };
 const file = csv.formatFile(sess, [r1, r3]);
 assertEqual(
@@ -152,29 +160,29 @@ assertEqual(
 
 const t0 = new Date(2026, 4, 11, 9, 7);  // 09:07 local
 assertEqual(
-  csv.filename({ data: '2026-05-11', compresa: 'Serra', particella: '1' }, t0),
-  'ipso_Serra_1_2026-05-11_0907.csv',
+  csv.filename({ data: '2026-05-11', compresa: 'Serra' }, t0),
+  'ipso_Serra_2026-05-11_0907.csv',
   'filename final'
 );
 assertEqual(
-  csv.filename({ data: '2026-05-11', compresa: 'Serra', particella: '2a' }, t0, 'backup', 20),
-  'ipso_Serra_2a_2026-05-11_0907_backup_20.csv',
+  csv.filename({ data: '2026-05-11', compresa: 'Serra' }, t0, 'backup', 20),
+  'ipso_Serra_2026-05-11_0907_backup_20.csv',
   'filename backup'
 );
 assertEqual(
-  csv.filename({ data: '2026-05-12', compresa: 'Capistrano', particella: '', catastrofata: true }, t0),
+  csv.filename({ data: '2026-05-12', compresa: 'Capistrano', catastrofata: true }, t0),
   'ipso_Capistrano_catastrofate_2026-05-12_0907.csv',
   'filename catastrofate final'
 );
 assertEqual(
-  csv.filename({ data: '2026-05-12', compresa: 'Serra', particella: '', catastrofata: true }, t0, 'backup', 40),
+  csv.filename({ data: '2026-05-12', compresa: 'Serra', catastrofata: true }, t0, 'backup', 40),
   'ipso_Serra_catastrofate_2026-05-12_0907_backup_40.csv',
   'filename catastrofate backup'
 );
 assertEqual(
-  csv.filename({ data: '2026-05-11', compresa: 'San Giorgio', particella: '1/b' }, t0),
-  'ipso_San_Giorgio_1_b_2026-05-11_0907.csv',
-  'filename sanitises spaces and slashes'
+  csv.filename({ data: '2026-05-11', compresa: 'San Giorgio' }, t0),
+  'ipso_San_Giorgio_2026-05-11_0907.csv',
+  'filename sanitises spaces in compresa'
 );
 
 // ---------------------------------------------------------------------------

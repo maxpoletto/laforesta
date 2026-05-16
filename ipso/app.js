@@ -755,7 +755,7 @@ function renderTreesTable(trees) {
   if (!trees.length) {
     const tr = document.createElement('tr');
     const td = document.createElement('td');
-    td.colSpan = 5;
+    td.colSpan = 6;
     td.className = 'empty';
     td.textContent = S.DATA_EMPTY;
     tr.appendChild(td);
@@ -767,6 +767,7 @@ function renderTreesTable(trees) {
   const headers = [
     { label: S.DATA_COL_NUMERO, num: true },
     { label: S.DATA_COL_SPECIE, num: false },
+    { label: S.DATA_COL_PARTICELLA, num: false },
     { label: S.DATA_COL_GRUPPO, num: false },
     { label: S.DATA_COL_D, num: true },
     { label: S.DATA_COL_H, num: true },
@@ -785,6 +786,7 @@ function renderTreesTable(trees) {
     const cells = [
       { v: t.numero == null ? '' : '' + t.numero, num: true },
       { v: t.specie || '', num: false },
+      { v: t.particella || '', num: false },
       { v: t.gruppo || '', num: false },
       { v: t.d_cm == null ? '' : '' + t.d_cm, num: true },
       { v: t.h_m == null ? '' : '' + t.h_m, num: true },

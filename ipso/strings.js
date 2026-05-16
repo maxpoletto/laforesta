@@ -46,6 +46,7 @@ const S = {
   DATA_COUNT: 'Conteggio',
   DATA_COL_NUMERO: 'N.',
   DATA_COL_SPECIE: 'Specie',
+  DATA_COL_PARTICELLA: 'Part.',
   DATA_COL_GRUPPO: 'Gruppo',
   DATA_COL_D: 'D',
   DATA_COL_H: 'h',

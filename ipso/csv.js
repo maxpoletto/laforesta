@@ -56,13 +56,14 @@ function formatHeader() {
 
 function formatRow(rec, session) {
   const catastrofata = !!session.catastrofata;
-  // For catastrofate sessions the server infers the parcel from GPS, so
-  // we leave the Particella column blank rather than carry a placeholder.
-  const particella = catastrofata ? '' : session.particella;
+  // Particella is per-tree (auto-detected or manually overridden) so it
+  // is carried on `rec`, not the session. Catastrofate sessions are
+  // identified by the dedicated column; their Particella column is the
+  // actual mark location, not blank.
   const cells = [
     formatDate(session.data),
     session.compresa,
-    particella,
+    rec.particella || '',
     catastrofata ? '1' : '0',
     fmtInt(rec.numero),
     rec.specie,
@@ -84,17 +85,20 @@ function formatFile(session, trees) {
   return CSV_BOM + lines.join(CSV_NL) + CSV_NL;
 }
 
-// Filename: ipso_<compresa>_<particella>_<YYYY-MM-DD>_<HHMM>.csv
+// Filename: ipso_<compresa>[_catastrofate]_<YYYY-MM-DD>_<HHMM>.csv
+// Particella is no longer carried on the session (it's per-tree now), so
+// it does not appear in the filename. The HHMM stamp keeps multiple
+// sessions in the same compresa on the same day distinct.
 // `now` is a Date (caller supplies; tests inject a fixed Date).
 // `kind` is 'final' (default) or 'backup' (then includes a seq suffix).
 function filename(session, now, kind, seq) {
   const compresa = sanitize(session.compresa);
-  const particella = session.catastrofata
-    ? FILENAME_CATASTROFATE
-    : sanitize(session.particella);
   const date = session.data;  // already YYYY-MM-DD
   const hhmm = pad2(now.getHours()) + pad2(now.getMinutes());
-  let base = 'ipso_' + compresa + '_' + particella + '_' + date + '_' + hhmm;
+  const parts = ['ipso', compresa];
+  if (session.catastrofata) parts.push(FILENAME_CATASTROFATE);
+  parts.push(date, hhmm);
+  let base = parts.join('_');
   if (kind === 'backup') base += '_backup_' + seq;
   return base + '.csv';
 }
