@@ -19,6 +19,7 @@ const S = {
 
   // Recording screen
   REC_GPS_WAITING: 'GPS in attesa…',
+  REC_OUT_OF_BOUNDS: 'Fuori dai confini',
   REC_SPECIE: 'Specie',
   REC_PICK_SPECIE: '— scegli —',
   REC_NUMERO: 'Numero',

@@ -9,6 +9,7 @@
 
 const State = {
   reference: null,    // parsed reference.json
+  terreni: null,      // parsed terreni.geojson features array (compresa-wide)
   db: null,           // open IDBDatabase
   session: null,      // current session row (null until pre_session submits)
   specie: '',
@@ -16,6 +17,7 @@ const State = {
   inAutoFill: false,  // true while recomputeAutoH() is writing to h
   saveLockUntil: 0,   // ms timestamp; Salva is disabled while now < this
   gps: null,          // GPS controller
+  locator: null,      // parcel-locator instance (one per recording session)
   numpad: null,       // numpad controller
   lastTreeRow: null,  // most-recent tree in the current session
   wakeLock: null,     // active WakeLockSentinel during recording (or null)
@@ -72,6 +74,16 @@ async function boot() {
     return;
   }
 
+  // terreni.geojson powers GPS-driven parcel detection. A failure here
+  // is non-fatal: recording still works, the parcel pulldown just
+  // doesn't auto-track.
+  try {
+    State.terreni = await fetchTerreni();
+  } catch (e) {
+    State.terreni = null;
+    showToast('Errore caricamento terreni.geojson: ' + e.message);
+  }
+
   try {
     State.db = await Store.openDb();
   } catch (e) {
@@ -109,6 +121,14 @@ async function fetchReference() {
   const r = await fetch('reference.json', { cache: 'reload' });
   if (!r.ok) throw new Error('HTTP ' + r.status);
   return await r.json();
+}
+
+async function fetchTerreni() {
+  const r = await fetch('terreni.geojson', { cache: 'reload' });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const gj = await r.json();
+  if (!gj || !Array.isArray(gj.features)) throw new Error('not a FeatureCollection');
+  return gj.features;
 }
 
 async function requestPersist() {
@@ -308,11 +328,33 @@ function enterRecording() {
   const where = S.where(State.session);
   document.getElementById('rec-where').textContent = where;
   document.getElementById('sub-status').textContent = where;
+  setupLocator();
   resetEntryFields();
   refreshPill();
   startGps();
   acquireWakeLock();
   showScreen('screen-rec');
+}
+
+// Build the per-session parcel locator: filter terreni to the session's
+// compresa, bbox-index, subscribe a callback that keeps #rec-where in
+// sync with the GPS-detected parcel.
+function setupLocator() {
+  State.locator = null;
+  if (!State.terreni || !State.session) return;
+  const compresa = State.session.compresa;
+  const filtered = State.terreni.filter(
+    (f) => f.properties && f.properties.layer === compresa
+  );
+  if (filtered.length === 0) return;
+  buildBboxIndex(filtered);
+  State.locator = createLocator(filtered);
+  State.locator.subscribe(updateRecWhere);
+}
+
+function updateRecWhere(feature) {
+  const txt = feature ? parcelLabel(feature) : S.REC_OUT_OF_BOUNDS;
+  document.getElementById('rec-where').textContent = txt;
 }
 
 function populateGruppo() {
@@ -392,6 +434,7 @@ function startGps() {
       text.textContent =
         st.fix.lat.toFixed(5) + ' ' + st.fix.lng.toFixed(5) +
         ' ±' + Math.round(st.fix.acc) + ' m';
+      if (State.locator) State.locator.onFix(st.fix);
     } else if (st.error === 'denied') {
       text.textContent = S.GPS_DENIED;
     } else {
