@@ -12,7 +12,8 @@ from config.constants import (
     FIELD_FIRST_NAME, FIELD_IS_ACTIVE, FIELD_LAST_NAME, FIELD_LATIN_NAME,
     FIELD_LOGIN_METHOD, FIELD_MANUFACTURER, FIELD_MODEL, FIELD_NAME,
     FIELD_NOTES, FIELD_ROLE, FIELD_USERNAME, FIELD_YEAR, HTML, MESSAGE,
-    RECORD, ROWS, ROW_ID, STATUS, VERSION,
+    RECORD, ROWS, ROW_ID, STATUS, STATUS_CONFLICT, STATUS_VALIDATION_ERROR,
+    VERSION,
 )
 
 
@@ -128,14 +129,14 @@ class TestCrews:
             FIELD_NAME: 'Conflict', FIELD_NOTES: '', FIELD_ACTIVE: 'true',
         })
         assert resp.status_code == 400
-        assert resp.json()[STATUS] == 'conflict'
+        assert resp.json()[STATUS] == STATUS_CONFLICT
 
     def test_save_validation_error(self, writer_client, db):
         resp = _post(writer_client, '/api/impostazioni/crews/save/', {
             FIELD_NAME: '', FIELD_NOTES: '', FIELD_ACTIVE: 'true',
         })
         assert resp.status_code == 400
-        assert resp.json()[STATUS] == 'validation_error'
+        assert resp.json()[STATUS] == STATUS_VALIDATION_ERROR
 
     def test_reader_forbidden(self, reader_client, db):
         resp = reader_client.get('/api/impostazioni/crews/data/')
@@ -183,14 +184,14 @@ class TestTractors:
             FIELD_MANUFACTURER: 'X', FIELD_MODEL: 'Y', FIELD_YEAR: '', FIELD_ACTIVE: 'true',
         })
         assert resp.status_code == 400
-        assert resp.json()[STATUS] == 'conflict'
+        assert resp.json()[STATUS] == STATUS_CONFLICT
 
     def test_save_validation_error(self, writer_client, db):
         resp = _post(writer_client, '/api/impostazioni/tractors/save/', {
             FIELD_MANUFACTURER: '', FIELD_MODEL: '', FIELD_YEAR: '', FIELD_ACTIVE: 'true',
         })
         assert resp.status_code == 400
-        assert resp.json()[STATUS] == 'validation_error'
+        assert resp.json()[STATUS] == STATUS_VALIDATION_ERROR
 
 
 # ---------------------------------------------------------------------------
@@ -228,14 +229,14 @@ class TestSpecies:
             FIELD_DENSITY: '9.0', FIELD_ACTIVE: 'true',
         })
         assert resp.status_code == 400
-        assert resp.json()[STATUS] == 'conflict'
+        assert resp.json()[STATUS] == STATUS_CONFLICT
 
     def test_save_validation_error(self, writer_client, db):
         resp = _post(writer_client, '/api/impostazioni/species/save/', {
             FIELD_COMMON_NAME: '', FIELD_LATIN_NAME: '', FIELD_ACTIVE: 'true',
         })
         assert resp.status_code == 400
-        assert resp.json()[STATUS] == 'validation_error'
+        assert resp.json()[STATUS] == STATUS_VALIDATION_ERROR
 
 
 # ---------------------------------------------------------------------------

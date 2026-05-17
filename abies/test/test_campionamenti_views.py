@@ -78,15 +78,15 @@ class TestDataEndpoints:
         assert resp.status_code == 200
         d = _read_gzip_json(resp)
         assert 'Nome' in d[COLUMNS]
-        assert any(r[d[COLUMNS].index('Nome')] == 'Test grid' for r in d[ROWS])
+        assert any(r[d[COLUMNS].index(S.COL_NAME)] == 'Test grid' for r in d[ROWS])
 
     def test_surveys_data(self, writer_client, sample_setup, tmp_path, settings):
         settings.DIGEST_DIR = tmp_path
         resp = writer_client.get('/api/campionamenti/surveys/data/')
         assert resp.status_code == 200
         d = _read_gzip_json(resp)
-        assert d[ROWS][0][d[COLUMNS].index('N. aree visitate')] == 1
-        assert d[ROWS][0][d[COLUMNS].index('N. aree totali')] == 1
+        assert d[ROWS][0][d[COLUMNS].index(S.COL_N_AREAS_VISITED)] == 1
+        assert d[ROWS][0][d[COLUMNS].index(S.COL_N_AREAS_TOTAL)] == 1
 
     def test_sample_areas_data(self, writer_client, sample_setup, tmp_path, settings):
         settings.DIGEST_DIR = tmp_path
@@ -94,14 +94,14 @@ class TestDataEndpoints:
         assert resp.status_code == 200
         d = _read_gzip_json(resp)
         assert len(d[ROWS]) == 1
-        assert d[ROWS][0][d[COLUMNS].index('Raggio')] == 12
+        assert d[ROWS][0][d[COLUMNS].index(S.COL_RAGGIO)] == 12
 
     def test_samples_data(self, writer_client, sample_setup, tmp_path, settings):
         settings.DIGEST_DIR = tmp_path
         resp = writer_client.get('/api/campionamenti/samples/data/')
         assert resp.status_code == 200
         d = _read_gzip_json(resp)
-        assert d[ROWS][0][d[COLUMNS].index('N. alberi')] == 1
+        assert d[ROWS][0][d[COLUMNS].index(S.COL_N_TREES)] == 1
 
     def test_trees_data(self, writer_client, sample_setup, tmp_path, settings):
         settings.DIGEST_DIR = tmp_path
@@ -111,9 +111,9 @@ class TestDataEndpoints:
         d = _read_gzip_json(resp)
         assert len(d[ROWS]) == 1
         row = d[ROWS][0]
-        assert row[d[COLUMNS].index('Specie')] == 'Abete'
-        assert row[d[COLUMNS].index('Tipo')] == 'fustaia'
-        assert row[d[COLUMNS].index('D (cm)')] == 30
+        assert row[d[COLUMNS].index(S.COL_SPECIES)] == 'Abete'
+        assert row[d[COLUMNS].index(S.COL_PRODUCT)] == 'fustaia'
+        assert row[d[COLUMNS].index(S.COL_D_CM)] == 30
 
     def test_trees_data_unknown_survey(self, writer_client, sample_setup,
                                        tmp_path, settings):
@@ -1308,7 +1308,7 @@ class TestDigestInvalidation:
         d = _read_gzip_json(resp)
         row = next(r for r in d[ROWS]
                    if r[d[COLUMNS].index(ROW_ID)] == grid_id)
-        return row[d[COLUMNS].index('N. rilevamenti')]
+        return row[d[COLUMNS].index(S.COL_N_SURVEYS)]
 
     @staticmethod
     def _surveys_n_totali(client, survey_id, tmp_path, settings):
@@ -1317,7 +1317,7 @@ class TestDigestInvalidation:
         d = _read_gzip_json(resp)
         row = next(r for r in d[ROWS]
                    if r[d[COLUMNS].index(ROW_ID)] == survey_id)
-        return row[d[COLUMNS].index('N. aree totali')]
+        return row[d[COLUMNS].index(S.COL_N_AREAS_TOTAL)]
 
     def test_survey_create_invalidates_grids(self, writer_client, sample_setup,
                                              tmp_path, settings):

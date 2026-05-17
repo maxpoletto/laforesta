@@ -190,7 +190,7 @@ class TestSaveView:
             FIELD_EXTRA_NOTE: '',
         })
         assert resp.status_code == 400
-        assert resp.json()[STATUS] == 'conflict'
+        assert resp.json()[STATUS] == STATUS_CONFLICT
         assert RECORD in resp.json()
 
     def test_validation_error_missing_date(self, writer_client, harvest_fixtures):
@@ -202,7 +202,7 @@ class TestSaveView:
             FIELD_EXTRA_NOTE: '',
         })
         assert resp.status_code == 400
-        assert resp.json()[STATUS] == 'validation_error'
+        assert resp.json()[STATUS] == STATUS_VALIDATION_ERROR
         assert S.ERR_DATE_REQUIRED in resp.json()[MESSAGE]
 
     def test_validation_error_species_sum(self, writer_client, harvest_fixtures):
@@ -327,7 +327,7 @@ class TestDeleteView:
             ROW_ID: str(sample_op.id), VERSION: '999',
         })
         assert resp.status_code == 400
-        assert resp.json()[STATUS] == 'conflict'
+        assert resp.json()[STATUS] == STATUS_CONFLICT
         assert Harvest.objects.filter(id=sample_op.id).exists()
 
     def test_delete_not_found(self, writer_client, harvest_fixtures):
@@ -347,5 +347,5 @@ from config.constants import (
     COLUMNS, DATA_ID, FIELD_CREW_ID, FIELD_DATE, FIELD_EXTRA_NOTE,
     FIELD_NONCE, FIELD_NOTES, FIELD_NOTE_ID, FIELD_PARCEL_ID,
     FIELD_PRODUCT_ID, FIELD_QUINTALS, HTML, MESSAGE, RECORD, ROWS, ROW_ID,
-    STATUS, VERSION,
+    STATUS, STATUS_CONFLICT, STATUS_VALIDATION_ERROR, VERSION,
 )
