@@ -12,6 +12,15 @@ from apps.base.models import (
     Parcel, Sample, SampleArea, SampleGrid, Survey, Tree, TreeSample,
 )
 from config import strings as S
+from config.constants import (
+    AREA_RECORDS, COLUMNS, FIELD_DATE, FIELD_DEFAULT_DATE, FIELD_DESCRIPTION,
+    FIELD_D_CM, FIELD_ERRORS, FIELD_FUSTAIA, FIELD_H_M, FIELD_LAT, FIELD_LON,
+    FIELD_MASS_Q, FIELD_NAME, FIELD_NOTE, FIELD_NUMBER, FIELD_PARCEL_ID,
+    FIELD_PRESERVED, FIELD_R_M, FIELD_SAMPLE_AREA_ID, FIELD_SAMPLE_GRID_ID,
+    FIELD_SHOOT, FIELD_SPECIES_ID, FIELD_STANDARD, FIELD_SURVEY_ID,
+    GRID_RECORD, HTML, MESSAGE, RECORD, RECORDS, ROWS, ROW_ID, SAMPLE_RECORD,
+    SURVEY_RECORD, SURVEY_RECORDS,
+)
 
 
 @pytest.fixture
@@ -68,31 +77,31 @@ class TestDataEndpoints:
         resp = writer_client.get('/api/campionamenti/grids/data/')
         assert resp.status_code == 200
         d = _read_gzip_json(resp)
-        assert 'Nome' in d[S.COLUMNS]
-        assert any(r[d[S.COLUMNS].index('Nome')] == 'Test grid' for r in d[S.ROWS])
+        assert 'Nome' in d[COLUMNS]
+        assert any(r[d[COLUMNS].index('Nome')] == 'Test grid' for r in d[ROWS])
 
     def test_surveys_data(self, writer_client, sample_setup, tmp_path, settings):
         settings.DIGEST_DIR = tmp_path
         resp = writer_client.get('/api/campionamenti/surveys/data/')
         assert resp.status_code == 200
         d = _read_gzip_json(resp)
-        assert d[S.ROWS][0][d[S.COLUMNS].index('N. aree visitate')] == 1
-        assert d[S.ROWS][0][d[S.COLUMNS].index('N. aree totali')] == 1
+        assert d[ROWS][0][d[COLUMNS].index('N. aree visitate')] == 1
+        assert d[ROWS][0][d[COLUMNS].index('N. aree totali')] == 1
 
     def test_sample_areas_data(self, writer_client, sample_setup, tmp_path, settings):
         settings.DIGEST_DIR = tmp_path
         resp = writer_client.get('/api/campionamenti/sample-areas/data/')
         assert resp.status_code == 200
         d = _read_gzip_json(resp)
-        assert len(d[S.ROWS]) == 1
-        assert d[S.ROWS][0][d[S.COLUMNS].index('Raggio')] == 12
+        assert len(d[ROWS]) == 1
+        assert d[ROWS][0][d[COLUMNS].index('Raggio')] == 12
 
     def test_samples_data(self, writer_client, sample_setup, tmp_path, settings):
         settings.DIGEST_DIR = tmp_path
         resp = writer_client.get('/api/campionamenti/samples/data/')
         assert resp.status_code == 200
         d = _read_gzip_json(resp)
-        assert d[S.ROWS][0][d[S.COLUMNS].index('N. alberi')] == 1
+        assert d[ROWS][0][d[COLUMNS].index('N. alberi')] == 1
 
     def test_trees_data(self, writer_client, sample_setup, tmp_path, settings):
         settings.DIGEST_DIR = tmp_path
@@ -100,11 +109,11 @@ class TestDataEndpoints:
         resp = writer_client.get(f'/api/campionamenti/trees/{survey_id}/')
         assert resp.status_code == 200
         d = _read_gzip_json(resp)
-        assert len(d[S.ROWS]) == 1
-        row = d[S.ROWS][0]
-        assert row[d[S.COLUMNS].index('Specie')] == 'Abete'
-        assert row[d[S.COLUMNS].index('Tipo')] == 'fustaia'
-        assert row[d[S.COLUMNS].index('D (cm)')] == 30
+        assert len(d[ROWS]) == 1
+        row = d[ROWS][0]
+        assert row[d[COLUMNS].index('Specie')] == 'Abete'
+        assert row[d[COLUMNS].index('Tipo')] == 'fustaia'
+        assert row[d[COLUMNS].index('D (cm)')] == 30
 
     def test_trees_data_unknown_survey(self, writer_client, sample_setup,
                                        tmp_path, settings):
@@ -113,7 +122,7 @@ class TestDataEndpoints:
         resp = writer_client.get('/api/campionamenti/trees/9999/')
         assert resp.status_code == 200
         d = _read_gzip_json(resp)
-        assert d[S.ROWS] == []
+        assert d[ROWS] == []
 
     def test_requires_auth(self, db):
         resp = Client().get('/api/campionamenti/surveys/data/')
@@ -137,7 +146,7 @@ class TestTreeForm:
             f'/api/campionamenti/tree/form/?survey={s["survey"].id}&area={s["area"].id}'
         )
         assert resp.status_code == 200
-        html = resp.json()[S.HTML]
+        html = resp.json()[HTML]
         assert '<form' in html
         assert s['area'].parcel.name in html
 
@@ -172,7 +181,7 @@ class TestTreeForm:
             f'/api/campionamenti/tree/form/?survey={s["survey"].id}&area={s["area"].id}'
         )
         assert resp.status_code == 200
-        html = resp.json()[S.HTML]
+        html = resp.json()[HTML]
         abete = next(sp for sp in species if sp.common_name == 'Abete')
         assert f'value="{abete.id}"' in html
         # The selected attribute must appear on Abete's option.
@@ -207,7 +216,7 @@ class TestTreeForm:
             f'/api/campionamenti/tree/form/?survey={survey.id}&area={ceduo_area.id}'
         )
         assert resp.status_code == 200
-        html = resp.json()[S.HTML]
+        html = resp.json()[HTML]
         castagno = next(sp for sp in species if sp.common_name == 'Castagno')
         assert f'value="{castagno.id}"' in html
         import re
@@ -228,7 +237,7 @@ class TestTreeForm:
         ts = TreeSample.objects.get(sample=sample_setup['sample'])
         resp = writer_client.get(f'/api/campionamenti/tree/form/{ts.id}/')
         assert resp.status_code == 200
-        html = resp.json()[S.HTML]
+        html = resp.json()[HTML]
         import re
         match = re.search(
             r'<input[^>]*id="id_species"[^>]*>', html,
@@ -254,20 +263,20 @@ class TestTreeSave:
         s = sample_setup
         n_before = TreeSample.objects.count()
         resp = self._post(writer_client, {
-            S.FIELD_SURVEY_ID: str(s['survey'].id),
-            S.FIELD_SAMPLE_AREA_ID: str(s['area'].id),
-            S.FIELD_SPECIES_ID: str(s['tree'].species_id),
-            S.FIELD_NUMBER: '42',
-            S.FIELD_D_CM: '30', S.FIELD_H_M: '20.5', 'l10_mm': '12',
-            'volume_m3': '0.7022', S.FIELD_MASS_Q: '6.32',
-            S.FIELD_FUSTAIA: 'true',
-            S.FIELD_LAT: '0.001', S.FIELD_LON: '0.001',
-            S.FIELD_PRESERVED: '',
+            FIELD_SURVEY_ID: str(s['survey'].id),
+            FIELD_SAMPLE_AREA_ID: str(s['area'].id),
+            FIELD_SPECIES_ID: str(s['tree'].species_id),
+            FIELD_NUMBER: '42',
+            FIELD_D_CM: '30', FIELD_H_M: '20.5', 'l10_mm': '12',
+            'volume_m3': '0.7022', FIELD_MASS_Q: '6.32',
+            FIELD_FUSTAIA: 'true',
+            FIELD_LAT: '0.001', FIELD_LON: '0.001',
+            FIELD_PRESERVED: '',
         })
         assert resp.status_code == 200, resp.content
         data = resp.json()
         assert TreeSample.objects.count() == n_before + 1
-        ts = TreeSample.objects.get(id=data[S.ROW_ID])
+        ts = TreeSample.objects.get(id=data[ROW_ID])
         assert ts.number == 42
         assert ts.tree.coppice is False
         assert ts.tree.preserved is False
@@ -288,36 +297,36 @@ class TestTreeSave:
         )
         s = sample_setup
         resp = self._post(writer_client, {
-            S.FIELD_SURVEY_ID: str(s['survey'].id),
-            S.FIELD_SAMPLE_AREA_ID: str(other_area.id),
-            S.FIELD_SPECIES_ID: str(s['tree'].species_id),
-            S.FIELD_NUMBER: '1', S.FIELD_D_CM: '30', S.FIELD_H_M: '20', 'l10_mm': '0',
-            'volume_m3': '0.5', S.FIELD_MASS_Q: '4.7',
-            S.FIELD_FUSTAIA: 'true',
+            FIELD_SURVEY_ID: str(s['survey'].id),
+            FIELD_SAMPLE_AREA_ID: str(other_area.id),
+            FIELD_SPECIES_ID: str(s['tree'].species_id),
+            FIELD_NUMBER: '1', FIELD_D_CM: '30', FIELD_H_M: '20', 'l10_mm': '0',
+            'volume_m3': '0.5', FIELD_MASS_Q: '4.7',
+            FIELD_FUSTAIA: 'true',
         })
         assert resp.status_code == 400
-        assert 'griglia' in resp.json()[S.MESSAGE].lower()
+        assert 'griglia' in resp.json()[MESSAGE].lower()
 
     def test_create_rejects_zero_diameter(self, writer_client, sample_setup):
         s = sample_setup
         resp = self._post(writer_client, {
-            S.FIELD_SURVEY_ID: str(s['survey'].id),
-            S.FIELD_SAMPLE_AREA_ID: str(s['area'].id),
-            S.FIELD_SPECIES_ID: str(s['tree'].species_id),
-            S.FIELD_NUMBER: '1', S.FIELD_D_CM: '0', S.FIELD_H_M: '20', 'l10_mm': '0',
-            'volume_m3': '0', S.FIELD_MASS_Q: '0', S.FIELD_FUSTAIA: 'true',
+            FIELD_SURVEY_ID: str(s['survey'].id),
+            FIELD_SAMPLE_AREA_ID: str(s['area'].id),
+            FIELD_SPECIES_ID: str(s['tree'].species_id),
+            FIELD_NUMBER: '1', FIELD_D_CM: '0', FIELD_H_M: '20', 'l10_mm': '0',
+            'volume_m3': '0', FIELD_MASS_Q: '0', FIELD_FUSTAIA: 'true',
         })
         assert resp.status_code == 400
 
     def test_reader_cannot_save(self, reader_client, sample_setup):
         s = sample_setup
         resp = self._post(reader_client, {
-            S.FIELD_SURVEY_ID: str(s['survey'].id),
-            S.FIELD_SAMPLE_AREA_ID: str(s['area'].id),
-            S.FIELD_SPECIES_ID: str(s['tree'].species_id),
-            S.FIELD_NUMBER: '1', S.FIELD_D_CM: '30', S.FIELD_H_M: '20',
-            'l10_mm': '0', 'volume_m3': '0.5', S.FIELD_MASS_Q: '4.7',
-            S.FIELD_FUSTAIA: 'true',
+            FIELD_SURVEY_ID: str(s['survey'].id),
+            FIELD_SAMPLE_AREA_ID: str(s['area'].id),
+            FIELD_SPECIES_ID: str(s['tree'].species_id),
+            FIELD_NUMBER: '1', FIELD_D_CM: '30', FIELD_H_M: '20',
+            'l10_mm': '0', 'volume_m3': '0.5', FIELD_MASS_Q: '4.7',
+            FIELD_FUSTAIA: 'true',
         })
         assert resp.status_code == 403
 
@@ -326,15 +335,15 @@ class TestTreeSave:
         s = sample_setup
         # The sample fixture already has tree with number=1.
         resp = self._post(writer_client, {
-            S.FIELD_SURVEY_ID: str(s['survey'].id),
-            S.FIELD_SAMPLE_AREA_ID: str(s['area'].id),
-            S.FIELD_SPECIES_ID: str(s['tree'].species_id),
-            S.FIELD_NUMBER: '1', S.FIELD_D_CM: '40', S.FIELD_H_M: '25',
-            'l10_mm': '0', 'volume_m3': '0.8', S.FIELD_MASS_Q: '5.7',
-            S.FIELD_FUSTAIA: 'true',
+            FIELD_SURVEY_ID: str(s['survey'].id),
+            FIELD_SAMPLE_AREA_ID: str(s['area'].id),
+            FIELD_SPECIES_ID: str(s['tree'].species_id),
+            FIELD_NUMBER: '1', FIELD_D_CM: '40', FIELD_H_M: '25',
+            'l10_mm': '0', 'volume_m3': '0.8', FIELD_MASS_Q: '5.7',
+            FIELD_FUSTAIA: 'true',
         })
         assert resp.status_code == 400
-        assert 'già utilizzato' in resp.json()[S.MESSAGE]
+        assert 'già utilizzato' in resp.json()[MESSAGE]
 
     def test_existing_tree_reuses_tree_id(self, writer_client, sample_setup):
         """Picking an existing tree from the pulldown must NOT create a new
@@ -349,23 +358,23 @@ class TestTreeSave:
         n_ts_before = TreeSample.objects.count()
 
         resp = self._post(writer_client, {
-            S.FIELD_SURVEY_ID: str(second_survey.id),
-            S.FIELD_SAMPLE_AREA_ID: str(s['area'].id),
+            FIELD_SURVEY_ID: str(second_survey.id),
+            FIELD_SAMPLE_AREA_ID: str(s['area'].id),
             'tree_pick': str(s['tree'].id),
-            S.FIELD_SPECIES_ID: str(s['tree'].species_id),
-            S.FIELD_NUMBER: '1',         # propagated from the existing tree
-            S.FIELD_D_CM: '35', S.FIELD_H_M: '21', 'l10_mm': '0',
-            'volume_m3': '0.9', S.FIELD_MASS_Q: '7.1',
-            S.FIELD_FUSTAIA: 'true',
-            S.FIELD_LAT: str(s['tree'].lat or 0.0),
-            S.FIELD_LON: str(s['tree'].lon or 0.0),
+            FIELD_SPECIES_ID: str(s['tree'].species_id),
+            FIELD_NUMBER: '1',         # propagated from the existing tree
+            FIELD_D_CM: '35', FIELD_H_M: '21', 'l10_mm': '0',
+            'volume_m3': '0.9', FIELD_MASS_Q: '7.1',
+            FIELD_FUSTAIA: 'true',
+            FIELD_LAT: str(s['tree'].lat or 0.0),
+            FIELD_LON: str(s['tree'].lon or 0.0),
         })
         assert resp.status_code == 200, resp.content
 
         # One new TreeSample, zero new Trees.
         assert Tree.objects.count() == n_trees_before
         assert TreeSample.objects.count() == n_ts_before + 1
-        ts = TreeSample.objects.get(id=resp.json()[S.ROW_ID])
+        ts = TreeSample.objects.get(id=resp.json()[ROW_ID])
         assert ts.tree_id == s['tree'].id
         assert ts.number == 1                         # propagated
         assert ts.sample.survey_id == second_survey.id
@@ -402,13 +411,13 @@ class TestTreeSave:
         )
 
         resp = self._post(writer_client, {
-            S.FIELD_SURVEY_ID: str(s['survey'].id),
-            S.FIELD_SAMPLE_AREA_ID: str(s['area'].id),    # ours, not other_area
+            FIELD_SURVEY_ID: str(s['survey'].id),
+            FIELD_SAMPLE_AREA_ID: str(s['area'].id),    # ours, not other_area
             'tree_pick': str(other_tree.id),
-            S.FIELD_SPECIES_ID: str(s['tree'].species_id),
-            S.FIELD_NUMBER: '7', S.FIELD_D_CM: '40', S.FIELD_H_M: '20', 'l10_mm': '0',
-            'volume_m3': '0.5', S.FIELD_MASS_Q: '4.0',
-            S.FIELD_FUSTAIA: 'true',
+            FIELD_SPECIES_ID: str(s['tree'].species_id),
+            FIELD_NUMBER: '7', FIELD_D_CM: '40', FIELD_H_M: '20', 'l10_mm': '0',
+            'volume_m3': '0.5', FIELD_MASS_Q: '4.0',
+            FIELD_FUSTAIA: 'true',
         })
         assert resp.status_code == 400
 
@@ -417,14 +426,14 @@ class TestTreeSave:
     def _save_payload(self, s, number, date_str):
         """Common scaffolding for tree-save tests below."""
         return {
-            S.FIELD_SURVEY_ID: str(s['survey'].id),
-            S.FIELD_SAMPLE_AREA_ID: str(s['area'].id),
-            S.FIELD_SPECIES_ID: str(s['tree'].species_id),
-            S.FIELD_NUMBER: str(number),
-            S.FIELD_D_CM: '30', S.FIELD_H_M: '20', 'l10_mm': '0',
-            'volume_m3': '0.5', S.FIELD_MASS_Q: '4.7',
-            S.FIELD_FUSTAIA: 'true',
-            S.FIELD_DATE: date_str,
+            FIELD_SURVEY_ID: str(s['survey'].id),
+            FIELD_SAMPLE_AREA_ID: str(s['area'].id),
+            FIELD_SPECIES_ID: str(s['tree'].species_id),
+            FIELD_NUMBER: str(number),
+            FIELD_D_CM: '30', FIELD_H_M: '20', 'l10_mm': '0',
+            'volume_m3': '0.5', FIELD_MASS_Q: '4.7',
+            FIELD_FUSTAIA: 'true',
+            FIELD_DATE: date_str,
         }
 
     def test_create_uses_user_date_on_new_sample(
@@ -471,7 +480,7 @@ class TestTreeSave:
         s = sample_setup
         ts = TreeSample.objects.get(sample=s['sample'], number=1)
         payload = self._save_payload(s, 1, '2025-05-20')
-        payload[S.ROW_ID] = str(ts.id)
+        payload[ROW_ID] = str(ts.id)
         resp = self._post(writer_client, payload)
         assert resp.status_code == 200, resp.content
         s['sample'].refresh_from_db()
@@ -481,7 +490,7 @@ class TestTreeSave:
         payload = self._save_payload(sample_setup, 1, 'not-a-date')
         resp = self._post(writer_client, payload)
         assert resp.status_code == 400
-        assert 'Data' in resp.json()[S.MESSAGE]
+        assert 'Data' in resp.json()[MESSAGE]
 
     def test_response_sample_record_reflects_new_date(
         self, writer_client, sample_setup,
@@ -494,7 +503,7 @@ class TestTreeSave:
         resp = self._post(writer_client, self._save_payload(s, 50, '2025-06-15'))
         assert resp.status_code == 200, resp.content
         s['sample'].refresh_from_db()
-        assert resp.json()[S.SAMPLE_RECORD] == build_sample_record(s['sample'])
+        assert resp.json()[SAMPLE_RECORD] == build_sample_record(s['sample'])
 
 
 class TestTreeFormPriorTrees:
@@ -507,7 +516,7 @@ class TestTreeFormPriorTrees:
             f'&area={s["area"].id}'
         )
         assert resp.status_code == 200
-        html = resp.json()[S.HTML]
+        html = resp.json()[HTML]
         # The existing fixture has tree number=1 in this area.
         assert 'id="id_tree_pick"' in html
         assert '+ nuovo albero' in html
@@ -535,7 +544,7 @@ class TestTreeFormPriorTrees:
             f'/api/campionamenti/tree/form/?survey={sample_setup["survey"].id}'
             f'&area={coppice_area.id}'
         )
-        html = resp.json()[S.HTML]
+        html = resp.json()[HTML]
         idx = html.find('id="id_ceduo"')
         assert idx >= 0
         tag = html[max(0, idx - 200):idx + 200]
@@ -551,7 +560,7 @@ class TestTreeFormPriorTrees:
             f'/api/campionamenti/tree/form/?survey={sample_setup["survey"].id}'
             f'&area={sample_setup["area"].id}'
         )
-        html = resp.json()[S.HTML]
+        html = resp.json()[HTML]
         idx = html.find('id="id_ceduo"')
         assert idx >= 0
         tag = html[max(0, idx - 200):idx + 200]
@@ -573,7 +582,7 @@ class TestTreeFormPriorTrees:
             f'/api/campionamenti/tree/form/?survey={s["survey"].id}'
             f'&area={empty_area.id}'
         )
-        html = resp.json()[S.HTML]
+        html = resp.json()[HTML]
         assert '+ nuovo albero' in html
         assert 'data-next="1"' in html
         # `data-number` is only emitted on prior-tree options.
@@ -599,7 +608,7 @@ class TestTreeFormPriorTrees:
             f'/api/campionamenti/tree/form/?survey={s["survey"].id}'
             f'&area={s["area"].id}'
         )
-        html = resp.json()[S.HTML]
+        html = resp.json()[HTML]
         assert 'data-next-shoot="3"' in html
         assert 'ceduo' in html
         assert 'n.7' in html
@@ -634,19 +643,19 @@ class TestTreeSaveCoppice:
         n_trees_before = Tree.objects.count()
         n_ts_before = TreeSample.objects.count()
         resp = self._post(writer_client, {
-            S.FIELD_SURVEY_ID: str(sample_setup['survey'].id),
-            S.FIELD_SAMPLE_AREA_ID: str(area.id),
-            S.FIELD_SPECIES_ID: str(species[1].id),     # Castagno
-            S.FIELD_NUMBER: '1', S.FIELD_FUSTAIA: 'false',
+            FIELD_SURVEY_ID: str(sample_setup['survey'].id),
+            FIELD_SAMPLE_AREA_ID: str(area.id),
+            FIELD_SPECIES_ID: str(species[1].id),     # Castagno
+            FIELD_NUMBER: '1', FIELD_FUSTAIA: 'false',
             'shoots': json.dumps([
-                {S.FIELD_SHOOT: 1, S.FIELD_STANDARD: False, S.FIELD_D_CM: 5,
-                 S.FIELD_H_M: '8.0', 'l10_mm': 0},
-                {S.FIELD_SHOOT: 2, S.FIELD_STANDARD: True,  S.FIELD_D_CM: 7,
-                 S.FIELD_H_M: '9.5', 'l10_mm': 12},
-                {S.FIELD_SHOOT: 3, S.FIELD_STANDARD: False, S.FIELD_D_CM: 4,
-                 S.FIELD_H_M: '7.0', 'l10_mm': 0},
+                {FIELD_SHOOT: 1, FIELD_STANDARD: False, FIELD_D_CM: 5,
+                 FIELD_H_M: '8.0', 'l10_mm': 0},
+                {FIELD_SHOOT: 2, FIELD_STANDARD: True,  FIELD_D_CM: 7,
+                 FIELD_H_M: '9.5', 'l10_mm': 12},
+                {FIELD_SHOOT: 3, FIELD_STANDARD: False, FIELD_D_CM: 4,
+                 FIELD_H_M: '7.0', 'l10_mm': 0},
             ]),
-            S.FIELD_LAT: '0', S.FIELD_LON: '0', S.FIELD_PRESERVED: '',
+            FIELD_LAT: '0', FIELD_LON: '0', FIELD_PRESERVED: '',
         })
         assert resp.status_code == 200, resp.content
         # One new Tree (coppice=True), three new TreeSamples.
@@ -681,14 +690,14 @@ class TestTreeSaveCoppice:
             lat=0.0, lon=0.0, r_m=12,
         )
         resp = self._post(writer_client, {
-            S.FIELD_SURVEY_ID: str(sample_setup['survey'].id),
-            S.FIELD_SAMPLE_AREA_ID: str(area.id),
-            S.FIELD_SPECIES_ID: str(sample_setup['tree'].species_id),
-            S.FIELD_NUMBER: '1', S.FIELD_FUSTAIA: 'false',
+            FIELD_SURVEY_ID: str(sample_setup['survey'].id),
+            FIELD_SAMPLE_AREA_ID: str(area.id),
+            FIELD_SPECIES_ID: str(sample_setup['tree'].species_id),
+            FIELD_NUMBER: '1', FIELD_FUSTAIA: 'false',
             'shoots': json.dumps([]),
         })
         assert resp.status_code == 400
-        assert 'pollone' in resp.json()[S.MESSAGE].lower()
+        assert 'pollone' in resp.json()[MESSAGE].lower()
 
     def test_coppice_existing_tree_appends_shoots(
         self, writer_client, sample_setup, species,
@@ -711,16 +720,16 @@ class TestTreeSaveCoppice:
             name='Second campaign', sample_grid=s['grid'],
         )
         resp = self._post(writer_client, {
-            S.FIELD_SURVEY_ID: str(second_survey.id),
-            S.FIELD_SAMPLE_AREA_ID: str(s['area'].id),
+            FIELD_SURVEY_ID: str(second_survey.id),
+            FIELD_SAMPLE_AREA_ID: str(s['area'].id),
             'tree_pick': str(existing.id),
-            S.FIELD_SPECIES_ID: str(existing.species_id),
-            S.FIELD_NUMBER: '42', S.FIELD_FUSTAIA: 'false',
+            FIELD_SPECIES_ID: str(existing.species_id),
+            FIELD_NUMBER: '42', FIELD_FUSTAIA: 'false',
             'shoots': json.dumps([
-                {S.FIELD_SHOOT: 2, S.FIELD_STANDARD: False, S.FIELD_D_CM: 6,
-                 S.FIELD_H_M: '8.5', 'l10_mm': 0},
-                {S.FIELD_SHOOT: 3, S.FIELD_STANDARD: True,  S.FIELD_D_CM: 8,
-                 S.FIELD_H_M: '9.0', 'l10_mm': 14},
+                {FIELD_SHOOT: 2, FIELD_STANDARD: False, FIELD_D_CM: 6,
+                 FIELD_H_M: '8.5', 'l10_mm': 0},
+                {FIELD_SHOOT: 3, FIELD_STANDARD: True,  FIELD_D_CM: 8,
+                 FIELD_H_M: '9.0', 'l10_mm': 14},
             ]),
         })
         assert resp.status_code == 200, resp.content
@@ -746,18 +755,18 @@ class TestTreeSaveCoppice:
             number=99, d_cm=5, h_m=Decimal('8.00'), l10_mm=0,
         )
         resp = self._post(writer_client, {
-            S.FIELD_SURVEY_ID: str(s['survey'].id),
-            S.FIELD_SAMPLE_AREA_ID: str(s['area'].id),
+            FIELD_SURVEY_ID: str(s['survey'].id),
+            FIELD_SAMPLE_AREA_ID: str(s['area'].id),
             'tree_pick': str(existing.id),
-            S.FIELD_SPECIES_ID: str(existing.species_id),
-            S.FIELD_NUMBER: '99', S.FIELD_FUSTAIA: 'false',
+            FIELD_SPECIES_ID: str(existing.species_id),
+            FIELD_NUMBER: '99', FIELD_FUSTAIA: 'false',
             'shoots': json.dumps([
-                {S.FIELD_SHOOT: 1, S.FIELD_STANDARD: False, S.FIELD_D_CM: 6,
-                 S.FIELD_H_M: '8.5', 'l10_mm': 0},     # collides
+                {FIELD_SHOOT: 1, FIELD_STANDARD: False, FIELD_D_CM: 6,
+                 FIELD_H_M: '8.5', 'l10_mm': 0},     # collides
             ]),
         })
         assert resp.status_code == 400
-        msg = resp.json()[S.MESSAGE].lower()
+        msg = resp.json()[MESSAGE].lower()
         assert 'pollone' in msg
 
     def test_edit_coppice_single_shoot(self, writer_client, sample_setup,
@@ -778,18 +787,18 @@ class TestTreeSaveCoppice:
         )
         n_ts_before = TreeSample.objects.count()
         resp = self._post(writer_client, {
-            S.ROW_ID: str(ts1.id),
-            S.FIELD_SURVEY_ID: str(s['survey'].id),
-            S.FIELD_SAMPLE_AREA_ID: str(s['area'].id),
+            ROW_ID: str(ts1.id),
+            FIELD_SURVEY_ID: str(s['survey'].id),
+            FIELD_SAMPLE_AREA_ID: str(s['area'].id),
             'tree_pick': str(tree.id),
-            S.FIELD_SPECIES_ID: str(species[0].id),         # changed
-            S.FIELD_NUMBER: '15', S.FIELD_FUSTAIA: 'false',
+            FIELD_SPECIES_ID: str(species[0].id),         # changed
+            FIELD_NUMBER: '15', FIELD_FUSTAIA: 'false',
             'shoots': json.dumps([
-                {S.FIELD_SHOOT: 1, S.FIELD_STANDARD: True, S.FIELD_D_CM: 9,
-                 S.FIELD_H_M: '10.0', 'l10_mm': 5},
+                {FIELD_SHOOT: 1, FIELD_STANDARD: True, FIELD_D_CM: 9,
+                 FIELD_H_M: '10.0', 'l10_mm': 5},
             ]),
-            S.FIELD_PRESERVED: '',
-            S.FIELD_LAT: '0', S.FIELD_LON: '0',
+            FIELD_PRESERVED: '',
+            FIELD_LAT: '0', FIELD_LON: '0',
         })
         assert resp.status_code == 200, resp.content
         assert TreeSample.objects.count() == n_ts_before
@@ -816,7 +825,7 @@ class TestGridSave:
     def test_form_renders(self, writer_client, db):
         resp = writer_client.get('/api/campionamenti/grid/form/')
         assert resp.status_code == 200
-        html = resp.json()[S.HTML]
+        html = resp.json()[HTML]
         # Modal carries all three creation paths per campionamenti.md §1.
         assert 'data-path="empty"' in html
         assert 'data-path="auto"' in html
@@ -827,25 +836,25 @@ class TestGridSave:
     def test_create_empty_grid(self, writer_client, db):
         from apps.base.models import SampleGrid
         resp = self._post(writer_client, {
-            S.FIELD_NAME: 'Griglia di prova', S.FIELD_DESCRIPTION: 'desc',
+            FIELD_NAME: 'Griglia di prova', FIELD_DESCRIPTION: 'desc',
         })
         assert resp.status_code == 200
         data = resp.json()
-        g = SampleGrid.objects.get(id=data[S.ROW_ID])
+        g = SampleGrid.objects.get(id=data[ROW_ID])
         assert g.name == 'Griglia di prova'
 
     def test_name_required(self, writer_client, db):
-        resp = self._post(writer_client, {S.FIELD_NAME: '', S.FIELD_DESCRIPTION: ''})
+        resp = self._post(writer_client, {FIELD_NAME: '', FIELD_DESCRIPTION: ''})
         assert resp.status_code == 400
 
     def test_name_duplicate_rejected(self, writer_client, db):
         from apps.base.models import SampleGrid
         SampleGrid.objects.create(name='Dup')
-        resp = self._post(writer_client, {S.FIELD_NAME: 'Dup', S.FIELD_DESCRIPTION: ''})
+        resp = self._post(writer_client, {FIELD_NAME: 'Dup', FIELD_DESCRIPTION: ''})
         assert resp.status_code == 400
 
     def test_reader_forbidden(self, reader_client, db):
-        resp = self._post(reader_client, {S.FIELD_NAME: 'X'})
+        resp = self._post(reader_client, {FIELD_NAME: 'X'})
         assert resp.status_code == 403
 
 
@@ -870,7 +879,7 @@ class TestAreaCRUD:
             f'&lat=38.5&lon=16.1'
         )
         assert resp.status_code == 200
-        html = resp.json()[S.HTML]
+        html = resp.json()[HTML]
         assert '<form' in html
         assert 'value="38.5"' in html or 'value="38.50' in html
 
@@ -878,19 +887,19 @@ class TestAreaCRUD:
         s = sample_setup
         resp = writer_client.get(f'/api/campionamenti/area/form/{s["area"].id}/')
         assert resp.status_code == 200
-        html = resp.json()[S.HTML]
+        html = resp.json()[HTML]
         assert s['area'].number in html
 
     def test_create_area(self, writer_client, sample_setup):
         s = sample_setup
         n_before = SampleArea.objects.filter(sample_grid=s['grid']).count()
         resp = self._post(writer_client, '/api/campionamenti/area/save/', {
-            S.FIELD_SAMPLE_GRID_ID: s['grid'].id,
-            S.FIELD_PARCEL_ID: s['area'].parcel_id,
-            S.FIELD_NUMBER: '42',
-            S.FIELD_LAT: '38.6', S.FIELD_LON: '16.2',
+            FIELD_SAMPLE_GRID_ID: s['grid'].id,
+            FIELD_PARCEL_ID: s['area'].parcel_id,
+            FIELD_NUMBER: '42',
+            FIELD_LAT: '38.6', FIELD_LON: '16.2',
             'altitude_m': '500',
-            S.FIELD_R_M: '15', S.FIELD_NOTE: 'test',
+            FIELD_R_M: '15', FIELD_NOTE: 'test',
         })
         assert resp.status_code == 200, resp.content
         assert SampleArea.objects.filter(sample_grid=s['grid']).count() == n_before + 1
@@ -898,12 +907,12 @@ class TestAreaCRUD:
     def test_update_area(self, writer_client, sample_setup):
         s = sample_setup
         resp = self._post(writer_client, '/api/campionamenti/area/save/', {
-            S.ROW_ID: s['area'].id,
-            S.FIELD_SAMPLE_GRID_ID: s['grid'].id,
-            S.FIELD_PARCEL_ID: s['area'].parcel_id,
-            S.FIELD_NUMBER: 'edited',
-            S.FIELD_LAT: '38.6', S.FIELD_LON: '16.2',
-            S.FIELD_R_M: '14',
+            ROW_ID: s['area'].id,
+            FIELD_SAMPLE_GRID_ID: s['grid'].id,
+            FIELD_PARCEL_ID: s['area'].parcel_id,
+            FIELD_NUMBER: 'edited',
+            FIELD_LAT: '38.6', FIELD_LON: '16.2',
+            FIELD_R_M: '14',
         })
         assert resp.status_code == 200
         s['area'].refresh_from_db()
@@ -913,11 +922,11 @@ class TestAreaCRUD:
     def test_number_required(self, writer_client, sample_setup):
         s = sample_setup
         resp = self._post(writer_client, '/api/campionamenti/area/save/', {
-            S.FIELD_SAMPLE_GRID_ID: s['grid'].id,
-            S.FIELD_PARCEL_ID: s['area'].parcel_id,
-            S.FIELD_NUMBER: '',
-            S.FIELD_LAT: '38.5', S.FIELD_LON: '16.1',
-            S.FIELD_R_M: '12',
+            FIELD_SAMPLE_GRID_ID: s['grid'].id,
+            FIELD_PARCEL_ID: s['area'].parcel_id,
+            FIELD_NUMBER: '',
+            FIELD_LAT: '38.5', FIELD_LON: '16.1',
+            FIELD_R_M: '12',
         })
         assert resp.status_code == 400
 
@@ -953,10 +962,10 @@ class TestAreaCRUD:
     def test_reader_forbidden(self, reader_client, sample_setup):
         s = sample_setup
         resp = self._post(reader_client, '/api/campionamenti/area/save/', {
-            S.FIELD_SAMPLE_GRID_ID: s['grid'].id,
-            S.FIELD_PARCEL_ID: s['area'].parcel_id,
-            S.FIELD_NUMBER: '99',
-            S.FIELD_LAT: '38.5', S.FIELD_LON: '16.1', S.FIELD_R_M: '12',
+            FIELD_SAMPLE_GRID_ID: s['grid'].id,
+            FIELD_PARCEL_ID: s['area'].parcel_id,
+            FIELD_NUMBER: '99',
+            FIELD_LAT: '38.5', FIELD_LON: '16.1', FIELD_R_M: '12',
         })
         assert resp.status_code == 403
 
@@ -983,25 +992,25 @@ class TestRecordShape:
         from apps.base.models import TreeSample
         s = sample_setup
         resp = self._post(writer_client, '/api/campionamenti/tree/save/', {
-            S.FIELD_SURVEY_ID: str(s['survey'].id),
-            S.FIELD_SAMPLE_AREA_ID: str(s['area'].id),
-            S.FIELD_SPECIES_ID: str(s['tree'].species_id),
-            S.FIELD_NUMBER: '42',
-            S.FIELD_D_CM: '30', S.FIELD_H_M: '20.5', 'l10_mm': '12',
-            'volume_m3': '0.7022', S.FIELD_MASS_Q: '6.32',
-            S.FIELD_FUSTAIA: 'true',
+            FIELD_SURVEY_ID: str(s['survey'].id),
+            FIELD_SAMPLE_AREA_ID: str(s['area'].id),
+            FIELD_SPECIES_ID: str(s['tree'].species_id),
+            FIELD_NUMBER: '42',
+            FIELD_D_CM: '30', FIELD_H_M: '20.5', 'l10_mm': '12',
+            'volume_m3': '0.7022', FIELD_MASS_Q: '6.32',
+            FIELD_FUSTAIA: 'true',
         })
         assert resp.status_code == 200, resp.content
         payload = resp.json()
         # Single-shoot fustaia create → records=[<one row>], no `record`.
-        assert payload.get(S.RECORDS), payload
-        assert len(payload[S.RECORDS]) == 1
-        record = payload[S.RECORDS][0]
+        assert payload.get(RECORDS), payload
+        assert len(payload[RECORDS]) == 1
+        record = payload[RECORDS][0]
         # Match against the canonical row built from the freshly-saved ts.
         ts = TreeSample.objects.select_related(
             'sample__survey', 'sample__sample_area__parcel__region',
             'tree__species', 'tree__parcel',
-        ).get(id=payload[S.ROW_ID])
+        ).get(id=payload[ROW_ID])
         assert record == build_tree_sample_record(ts)
         assert len(record) == len(SAMPLED_TREE_COLUMNS)
 
@@ -1021,20 +1030,20 @@ class TestRecordShape:
             lat=0.0, lon=0.0, r_m=12,
         )
         resp = self._post(writer_client, '/api/campionamenti/tree/save/', {
-            S.FIELD_SURVEY_ID: str(sample_setup['survey'].id),
-            S.FIELD_SAMPLE_AREA_ID: str(area.id),
-            S.FIELD_SPECIES_ID: str(species[1].id),
-            S.FIELD_NUMBER: '1', S.FIELD_FUSTAIA: 'false',
+            FIELD_SURVEY_ID: str(sample_setup['survey'].id),
+            FIELD_SAMPLE_AREA_ID: str(area.id),
+            FIELD_SPECIES_ID: str(species[1].id),
+            FIELD_NUMBER: '1', FIELD_FUSTAIA: 'false',
             'shoots': json.dumps([
-                {S.FIELD_SHOOT: 1, S.FIELD_STANDARD: False, S.FIELD_D_CM: 5, S.FIELD_H_M: '8.0'},
-                {S.FIELD_SHOOT: 2, S.FIELD_STANDARD: True,  S.FIELD_D_CM: 7, S.FIELD_H_M: '9.0'},
+                {FIELD_SHOOT: 1, FIELD_STANDARD: False, FIELD_D_CM: 5, FIELD_H_M: '8.0'},
+                {FIELD_SHOOT: 2, FIELD_STANDARD: True,  FIELD_D_CM: 7, FIELD_H_M: '9.0'},
             ]),
-            S.FIELD_LAT: '0', S.FIELD_LON: '0',
+            FIELD_LAT: '0', FIELD_LON: '0',
         })
         assert resp.status_code == 200, resp.content
         payload = resp.json()
-        assert len(payload[S.RECORDS]) == 2
-        ids = [r[0] for r in payload[S.RECORDS]]
+        assert len(payload[RECORDS]) == 2
+        ids = [r[0] for r in payload[RECORDS]]
         canonical = {
             ts.id: build_tree_sample_record(ts)
             for ts in TreeSample.objects.filter(id__in=ids).select_related(
@@ -1042,7 +1051,7 @@ class TestRecordShape:
                 'tree__species', 'tree__parcel',
             )
         }
-        for record in payload[S.RECORDS]:
+        for record in payload[RECORDS]:
             assert record == canonical[record[0]]
 
     def test_tree_save_includes_sample_and_survey_records(
@@ -1050,26 +1059,26 @@ class TestRecordShape:
     ):
         s = sample_setup
         resp = self._post(writer_client, '/api/campionamenti/tree/save/', {
-            S.FIELD_SURVEY_ID: str(s['survey'].id),
-            S.FIELD_SAMPLE_AREA_ID: str(s['area'].id),
-            S.FIELD_SPECIES_ID: str(s['tree'].species_id),
-            S.FIELD_NUMBER: '42',
-            S.FIELD_D_CM: '30', S.FIELD_H_M: '20.5', 'l10_mm': '12',
-            'volume_m3': '0.7022', S.FIELD_MASS_Q: '6.32',
-            S.FIELD_FUSTAIA: 'true',
+            FIELD_SURVEY_ID: str(s['survey'].id),
+            FIELD_SAMPLE_AREA_ID: str(s['area'].id),
+            FIELD_SPECIES_ID: str(s['tree'].species_id),
+            FIELD_NUMBER: '42',
+            FIELD_D_CM: '30', FIELD_H_M: '20.5', 'l10_mm': '12',
+            'volume_m3': '0.7022', FIELD_MASS_Q: '6.32',
+            FIELD_FUSTAIA: 'true',
         })
         from apps.base.digests import (
             SAMPLE_COLUMNS, SURVEY_COLUMNS, build_sample_record,
             build_survey_record,
         )
         payload = resp.json()
-        assert payload[S.SAMPLE_RECORD][0] == s['sample'].id
-        assert len(payload[S.SAMPLE_RECORD]) == len(SAMPLE_COLUMNS)
+        assert payload[SAMPLE_RECORD][0] == s['sample'].id
+        assert len(payload[SAMPLE_RECORD]) == len(SAMPLE_COLUMNS)
         s['sample'].refresh_from_db()
-        assert payload[S.SAMPLE_RECORD] == build_sample_record(s['sample'])
+        assert payload[SAMPLE_RECORD] == build_sample_record(s['sample'])
         s['survey'].refresh_from_db()
-        assert payload[S.SURVEY_RECORD] == build_survey_record(s['survey'])
-        assert len(payload[S.SURVEY_RECORD]) == len(SURVEY_COLUMNS)
+        assert payload[SURVEY_RECORD] == build_survey_record(s['survey'])
+        assert len(payload[SURVEY_RECORD]) == len(SURVEY_COLUMNS)
 
     def test_area_save_returns_records(self, writer_client, sample_setup):
         from apps.base.digests import (
@@ -1078,35 +1087,35 @@ class TestRecordShape:
         from apps.base.models import SampleArea
         s = sample_setup
         resp = self._post(writer_client, '/api/campionamenti/area/save/', {
-            S.FIELD_SAMPLE_GRID_ID: s['grid'].id,
-            S.FIELD_PARCEL_ID: s['area'].parcel_id,
-            S.FIELD_NUMBER: '7',
-            S.FIELD_LAT: '38.5', S.FIELD_LON: '16.1', S.FIELD_R_M: '12',
+            FIELD_SAMPLE_GRID_ID: s['grid'].id,
+            FIELD_PARCEL_ID: s['area'].parcel_id,
+            FIELD_NUMBER: '7',
+            FIELD_LAT: '38.5', FIELD_LON: '16.1', FIELD_R_M: '12',
         })
         assert resp.status_code == 200, resp.content
         payload = resp.json()
         area = SampleArea.objects.select_related(
             'parcel__region',
-        ).get(id=payload[S.ROW_ID])
-        assert payload[S.RECORD] == build_sample_area_record(area)
+        ).get(id=payload[ROW_ID])
+        assert payload[RECORD] == build_sample_area_record(area)
         s['grid'].refresh_from_db()
-        assert payload[S.GRID_RECORD] == build_grid_record(s['grid'])
+        assert payload[GRID_RECORD] == build_grid_record(s['grid'])
         # One survey in the fixture; assert it's in survey_records.
         s['survey'].refresh_from_db()
         assert any(
             r == build_survey_record(s['survey'])
-            for r in payload[S.SURVEY_RECORDS]
+            for r in payload[SURVEY_RECORDS]
         )
 
     def test_grid_save_returns_record(self, writer_client, db):
         from apps.base.digests import build_grid_record
         from apps.base.models import SampleGrid
         resp = self._post(writer_client, '/api/campionamenti/grid/save/', {
-            S.FIELD_NAME: 'Griglia X', S.FIELD_DESCRIPTION: 'd',
+            FIELD_NAME: 'Griglia X', FIELD_DESCRIPTION: 'd',
         })
         payload = resp.json()
-        grid = SampleGrid.objects.get(id=payload[S.ROW_ID])
-        assert payload[S.RECORD] == build_grid_record(grid)
+        grid = SampleGrid.objects.get(id=payload[ROW_ID])
+        assert payload[RECORD] == build_grid_record(grid)
 
     def test_grid_edit_returns_record(self, writer_client, sample_setup):
         from apps.base.digests import build_grid_record
@@ -1114,25 +1123,25 @@ class TestRecordShape:
         resp = self._post(
             writer_client,
             f'/api/campionamenti/grid/edit/{s["grid"].id}/',
-            {S.FIELD_NAME: 'Renamed', S.FIELD_DESCRIPTION: ''},
+            {FIELD_NAME: 'Renamed', FIELD_DESCRIPTION: ''},
         )
         payload = resp.json()
         s['grid'].refresh_from_db()
-        assert payload[S.RECORD] == build_grid_record(s['grid'])
+        assert payload[RECORD] == build_grid_record(s['grid'])
 
     def test_survey_save_returns_record(self, writer_client, sample_setup):
         from apps.base.digests import build_grid_record, build_survey_record
         from apps.base.models import Survey
         s = sample_setup
         resp = self._post(writer_client, '/api/campionamenti/survey/save/', {
-            S.FIELD_NAME: 'New survey', S.FIELD_SAMPLE_GRID_ID: s['grid'].id,
-            S.FIELD_DESCRIPTION: '',
+            FIELD_NAME: 'New survey', FIELD_SAMPLE_GRID_ID: s['grid'].id,
+            FIELD_DESCRIPTION: '',
         })
         payload = resp.json()
-        survey = Survey.objects.get(id=payload[S.ROW_ID])
-        assert payload[S.RECORD] == build_survey_record(survey)
+        survey = Survey.objects.get(id=payload[ROW_ID])
+        assert payload[RECORD] == build_survey_record(survey)
         s['grid'].refresh_from_db()
-        assert payload[S.GRID_RECORD] == build_grid_record(s['grid'])
+        assert payload[GRID_RECORD] == build_grid_record(s['grid'])
 
     def test_survey_edit_returns_record(self, writer_client, sample_setup):
         from apps.base.digests import build_survey_record
@@ -1140,11 +1149,11 @@ class TestRecordShape:
         resp = self._post(
             writer_client,
             f'/api/campionamenti/survey/edit/{s["survey"].id}/',
-            {S.FIELD_NAME: 'Renamed', S.FIELD_DESCRIPTION: ''},
+            {FIELD_NAME: 'Renamed', FIELD_DESCRIPTION: ''},
         )
         payload = resp.json()
         s['survey'].refresh_from_db()
-        assert payload[S.RECORD] == build_survey_record(s['survey'])
+        assert payload[RECORD] == build_survey_record(s['survey'])
 
     def test_tree_delete_returns_sample_and_survey(
         self, writer_client, sample_setup,
@@ -1160,8 +1169,8 @@ class TestRecordShape:
         payload = resp.json()
         s['sample'].refresh_from_db()
         s['survey'].refresh_from_db()
-        assert payload[S.SAMPLE_RECORD] == build_sample_record(s['sample'])
-        assert payload[S.SURVEY_RECORD] == build_survey_record(s['survey'])
+        assert payload[SAMPLE_RECORD] == build_sample_record(s['sample'])
+        assert payload[SURVEY_RECORD] == build_survey_record(s['survey'])
 
 
 class TestTreeDelete:
@@ -1208,21 +1217,21 @@ class TestGridSaveAuto:
         s = sample_setup
         # Re-use the fixture parcel via its compresa+name.
         resp = self._post(writer_client, {
-            S.FIELD_NAME: 'Auto grid',
-            S.FIELD_DESCRIPTION: '',
-            S.FIELD_R_M: 12,
+            FIELD_NAME: 'Auto grid',
+            FIELD_DESCRIPTION: '',
+            FIELD_R_M: 12,
             'points': [
                 {'compresa': s['area'].parcel.region.name,
                  'particella': s['area'].parcel.name,
-                 S.FIELD_LAT: 38.5, S.FIELD_LON: 16.1},
+                 FIELD_LAT: 38.5, FIELD_LON: 16.1},
                 {'compresa': s['area'].parcel.region.name,
                  'particella': s['area'].parcel.name,
-                 S.FIELD_LAT: 38.51, S.FIELD_LON: 16.11},
+                 FIELD_LAT: 38.51, FIELD_LON: 16.11},
             ],
         })
         assert resp.status_code == 200, resp.content
         data = resp.json()
-        grid = SampleGrid.objects.get(id=data[S.ROW_ID])
+        grid = SampleGrid.objects.get(id=data[ROW_ID])
         assert grid.name == 'Auto grid'
         # bulk_create made 2 SampleAreas with sequential numbers.
         areas = list(SampleArea.objects.filter(sample_grid=grid).order_by('number'))
@@ -1233,10 +1242,10 @@ class TestGridSaveAuto:
     def test_unknown_compresa_aborts(self, writer_client, sample_setup):
         n_before = SampleGrid.objects.count()
         resp = self._post(writer_client, {
-            S.FIELD_NAME: 'Bad grid', S.FIELD_R_M: 12,
+            FIELD_NAME: 'Bad grid', FIELD_R_M: 12,
             'points': [
                 {'compresa': 'Nessuna', 'particella': '1',
-                 S.FIELD_LAT: 38.5, S.FIELD_LON: 16.1},
+                 FIELD_LAT: 38.5, FIELD_LON: 16.1},
             ],
         })
         assert resp.status_code == 400
@@ -1246,11 +1255,11 @@ class TestGridSaveAuto:
         s = sample_setup
         n_before = SampleGrid.objects.count()
         resp = self._post(writer_client, {
-            S.FIELD_NAME: 'Bad grid 2', S.FIELD_R_M: 12,
+            FIELD_NAME: 'Bad grid 2', FIELD_R_M: 12,
             'points': [
                 {'compresa': s['area'].parcel.region.name,
                  'particella': 'ZZZ',
-                 S.FIELD_LAT: 38.5, S.FIELD_LON: 16.1},
+                 FIELD_LAT: 38.5, FIELD_LON: 16.1},
             ],
         })
         assert resp.status_code == 400
@@ -1259,28 +1268,28 @@ class TestGridSaveAuto:
     def test_duplicate_name_rejected(self, writer_client, sample_setup):
         SampleGrid.objects.create(name='Dup auto')
         resp = self._post(writer_client, {
-            S.FIELD_NAME: 'Dup auto', S.FIELD_R_M: 12,
+            FIELD_NAME: 'Dup auto', FIELD_R_M: 12,
             'points': [
                 {'compresa': sample_setup['area'].parcel.region.name,
                  'particella': sample_setup['area'].parcel.name,
-                 S.FIELD_LAT: 38.5, S.FIELD_LON: 16.1},
+                 FIELD_LAT: 38.5, FIELD_LON: 16.1},
             ],
         })
         assert resp.status_code == 400
 
     def test_empty_points_rejected(self, writer_client, db):
         resp = self._post(writer_client, {
-            S.FIELD_NAME: 'Empty', S.FIELD_R_M: 12, 'points': [],
+            FIELD_NAME: 'Empty', FIELD_R_M: 12, 'points': [],
         })
         assert resp.status_code == 400
 
     def test_reader_forbidden(self, reader_client, sample_setup):
         resp = self._post(reader_client, {
-            S.FIELD_NAME: 'X', S.FIELD_R_M: 12,
+            FIELD_NAME: 'X', FIELD_R_M: 12,
             'points': [
                 {'compresa': sample_setup['area'].parcel.region.name,
                  'particella': sample_setup['area'].parcel.name,
-                 S.FIELD_LAT: 0.0, S.FIELD_LON: 0.0},
+                 FIELD_LAT: 0.0, FIELD_LON: 0.0},
             ],
         })
         assert resp.status_code == 403
@@ -1297,18 +1306,18 @@ class TestDigestInvalidation:
         settings.DIGEST_DIR = tmp_path
         resp = client.get('/api/campionamenti/grids/data/')
         d = _read_gzip_json(resp)
-        row = next(r for r in d[S.ROWS]
-                   if r[d[S.COLUMNS].index(S.ROW_ID)] == grid_id)
-        return row[d[S.COLUMNS].index('N. rilevamenti')]
+        row = next(r for r in d[ROWS]
+                   if r[d[COLUMNS].index(ROW_ID)] == grid_id)
+        return row[d[COLUMNS].index('N. rilevamenti')]
 
     @staticmethod
     def _surveys_n_totali(client, survey_id, tmp_path, settings):
         settings.DIGEST_DIR = tmp_path
         resp = client.get('/api/campionamenti/surveys/data/')
         d = _read_gzip_json(resp)
-        row = next(r for r in d[S.ROWS]
-                   if r[d[S.COLUMNS].index(S.ROW_ID)] == survey_id)
-        return row[d[S.COLUMNS].index('N. aree totali')]
+        row = next(r for r in d[ROWS]
+                   if r[d[COLUMNS].index(ROW_ID)] == survey_id)
+        return row[d[COLUMNS].index('N. aree totali')]
 
     def test_survey_create_invalidates_grids(self, writer_client, sample_setup,
                                              tmp_path, settings):
@@ -1325,8 +1334,8 @@ class TestDigestInvalidation:
         writer_client.post(
             '/api/campionamenti/survey/save/',
             data=json.dumps({
-                S.FIELD_NAME: 'Survey two',
-                S.FIELD_SAMPLE_GRID_ID: str(s['grid'].id),
+                FIELD_NAME: 'Survey two',
+                FIELD_SAMPLE_GRID_ID: str(s['grid'].id),
             }),
             content_type='application/json',
         )
@@ -1366,10 +1375,10 @@ class TestDigestInvalidation:
         writer_client.post(
             '/api/campionamenti/area/save/',
             data=json.dumps({
-                S.FIELD_SAMPLE_GRID_ID: s['grid'].id,
-                S.FIELD_PARCEL_ID: s['area'].parcel_id,
-                S.FIELD_NUMBER: '777',
-                S.FIELD_LAT: '0.0', S.FIELD_LON: '0.0', S.FIELD_R_M: '12',
+                FIELD_SAMPLE_GRID_ID: s['grid'].id,
+                FIELD_PARCEL_ID: s['area'].parcel_id,
+                FIELD_NUMBER: '777',
+                FIELD_LAT: '0.0', FIELD_LON: '0.0', FIELD_R_M: '12',
             }),
             content_type='application/json',
         )
@@ -1408,7 +1417,7 @@ class TestGridCsvImport:
     def _post(client, grid_id, csv_text):
         from django.core.files.uploadedfile import SimpleUploadedFile
         return client.post(TestGridCsvImport.URL, {
-            S.FIELD_SAMPLE_GRID_ID: str(grid_id),
+            FIELD_SAMPLE_GRID_ID: str(grid_id),
             'file': SimpleUploadedFile(
                 'grid.csv', csv_text.encode('utf-8-sig'),
                 content_type='text/csv',
@@ -1431,12 +1440,12 @@ class TestGridCsvImport:
         assert resp.status_code == 200, resp.content
         data = resp.json()
         assert data['n_areas'] == 2
-        assert data[S.ROW_ID] == grid.id
+        assert data[ROW_ID] == grid.id
         assert SampleGrid.objects.count() == n_grids_before  # no new grid
         assert SampleArea.objects.filter(sample_grid=grid).count() == 2
         # Response shape mirrors area_save_view: record + area_records.
-        assert S.RECORD in data and S.AREA_RECORDS in data
-        assert len(data[S.AREA_RECORDS]) == 2
+        assert RECORD in data and AREA_RECORDS in data
+        assert len(data[AREA_RECORDS]) == 2
 
     def test_second_import_appends_more(self, writer_client, sample_setup):
         """Two successive imports on the same grid should accumulate."""
@@ -1476,8 +1485,8 @@ class TestGridCsvImport:
         resp = self._post(writer_client, grid.id, csv_text)
         assert resp.status_code == 400
         body = resp.json()
-        assert S.FIELD_ERRORS in body
-        assert any('già presente' in e for e in body[S.FIELD_ERRORS])
+        assert FIELD_ERRORS in body
+        assert any('già presente' in e for e in body[FIELD_ERRORS])
         # Transaction rolled back — no rows added.
         assert SampleArea.objects.filter(sample_grid=grid).count() == n_areas_before
 
@@ -1507,7 +1516,7 @@ class TestGridCsvImport:
     def test_grid_not_found(self, writer_client, db):
         from django.core.files.uploadedfile import SimpleUploadedFile
         resp = writer_client.post(self.URL, {
-            S.FIELD_SAMPLE_GRID_ID: '999999',
+            FIELD_SAMPLE_GRID_ID: '999999',
             'file': SimpleUploadedFile('x.csv', b'Compresa\n'),
         })
         assert resp.status_code == 404
@@ -1531,14 +1540,14 @@ class TestGridCsvImport:
         resp = self._post(writer_client, grid.id, csv_text)
         assert resp.status_code == 400
         body = resp.json()
-        assert S.FIELD_ERRORS in body
-        assert any('Nessuna' in e for e in body[S.FIELD_ERRORS])
+        assert FIELD_ERRORS in body
+        assert any('Nessuna' in e for e in body[FIELD_ERRORS])
 
     def test_reader_forbidden(self, reader_client, sample_setup):
         from django.core.files.uploadedfile import SimpleUploadedFile
         grid = sample_setup['grid']
         resp = reader_client.post(self.URL, {
-            S.FIELD_SAMPLE_GRID_ID: str(grid.id),
+            FIELD_SAMPLE_GRID_ID: str(grid.id),
             'file': SimpleUploadedFile('x.csv', b'a,b\n1,2'),
         })
         assert resp.status_code == 403
@@ -1551,8 +1560,8 @@ class TestTreeCsvImport:
     def _post(client, survey_id, csv_text, default_date=''):
         from django.core.files.uploadedfile import SimpleUploadedFile
         return client.post(TestTreeCsvImport.URL, {
-            S.FIELD_SURVEY_ID: str(survey_id),
-            S.FIELD_DEFAULT_DATE: default_date,
+            FIELD_SURVEY_ID: str(survey_id),
+            FIELD_DEFAULT_DATE: default_date,
             'file': SimpleUploadedFile(
                 'trees.csv', csv_text.encode('utf-8-sig'),
                 content_type='text/csv',
@@ -1631,13 +1640,13 @@ class TestTreeCsvImport:
         that path renders the error message clients can show."""
         from django.core.files.uploadedfile import SimpleUploadedFile
         resp = writer_client.post(self.URL, {
-            S.FIELD_SURVEY_ID: '',      # empty: user didn't pick a survey
-            S.FIELD_DEFAULT_DATE: '',
+            FIELD_SURVEY_ID: '',      # empty: user didn't pick a survey
+            FIELD_DEFAULT_DATE: '',
             'file': SimpleUploadedFile('x.csv', b'a,b\n1,2'),
         })
         assert resp.status_code == 400
         body = resp.json()
-        assert body[S.MESSAGE]    # non-empty user-facing message
+        assert body[MESSAGE]    # non-empty user-facing message
 
     def test_unknown_area_reports_error(self, writer_client, sample_setup):
         s = sample_setup
@@ -1650,12 +1659,12 @@ class TestTreeCsvImport:
         resp = self._post(writer_client, s['survey'].id, csv_text)
         assert resp.status_code == 400
         body = resp.json()
-        assert any('ZZZ' in e for e in body[S.FIELD_ERRORS])
+        assert any('ZZZ' in e for e in body[FIELD_ERRORS])
 
     def test_reader_forbidden(self, reader_client, sample_setup):
         from django.core.files.uploadedfile import SimpleUploadedFile
         resp = reader_client.post(self.URL, {
-            S.FIELD_SURVEY_ID: str(sample_setup['survey'].id),
+            FIELD_SURVEY_ID: str(sample_setup['survey'].id),
             'file': SimpleUploadedFile('x.csv', b'a,b\n1,2'),
         })
         assert resp.status_code == 403
@@ -1676,7 +1685,7 @@ class TestGridEditDelete:
         s = sample_setup
         resp = self._post(writer_client,
                           f'/api/campionamenti/grid/edit/{s["grid"].id}/',
-                          {S.FIELD_NAME: 'Rinominata', S.FIELD_DESCRIPTION: 'desc'})
+                          {FIELD_NAME: 'Rinominata', FIELD_DESCRIPTION: 'desc'})
         assert resp.status_code == 200
         s['grid'].refresh_from_db()
         assert s['grid'].name == 'Rinominata'
@@ -1685,7 +1694,7 @@ class TestGridEditDelete:
         s = sample_setup
         resp = self._post(writer_client,
                           f'/api/campionamenti/grid/edit/{s["grid"].id}/',
-                          {S.FIELD_NAME: '', S.FIELD_DESCRIPTION: ''})
+                          {FIELD_NAME: '', FIELD_DESCRIPTION: ''})
         assert resp.status_code == 400
 
     def test_edit_grid_duplicate_name(self, writer_client, sample_setup):
@@ -1693,7 +1702,7 @@ class TestGridEditDelete:
         SampleGrid.objects.create(name='Other grid X')
         resp = self._post(writer_client,
                           f'/api/campionamenti/grid/edit/{s["grid"].id}/',
-                          {S.FIELD_NAME: 'Other grid X'})
+                          {FIELD_NAME: 'Other grid X'})
         assert resp.status_code == 400
 
     def test_delete_grid_in_use_refused(self, writer_client, sample_setup):
@@ -1733,7 +1742,7 @@ class TestGridEditDelete:
         s = sample_setup
         resp = self._post(reader_client,
                           f'/api/campionamenti/grid/edit/{s["grid"].id}/',
-                          {S.FIELD_NAME: 'X'})
+                          {FIELD_NAME: 'X'})
         assert resp.status_code == 403
 
 
@@ -1752,7 +1761,7 @@ class TestSurveyEditDelete:
         s = sample_setup
         resp = self._post(writer_client,
                           f'/api/campionamenti/survey/edit/{s["survey"].id}/',
-                          {S.FIELD_NAME: 'Sv rinominato', S.FIELD_DESCRIPTION: 'desc'})
+                          {FIELD_NAME: 'Sv rinominato', FIELD_DESCRIPTION: 'desc'})
         assert resp.status_code == 200
         s['survey'].refresh_from_db()
         assert s['survey'].name == 'Sv rinominato'
@@ -1762,7 +1771,7 @@ class TestSurveyEditDelete:
         Survey.objects.create(name='Other survey X', sample_grid=s['grid'])
         resp = self._post(writer_client,
                           f'/api/campionamenti/survey/edit/{s["survey"].id}/',
-                          {S.FIELD_NAME: 'Other survey X'})
+                          {FIELD_NAME: 'Other survey X'})
         assert resp.status_code == 400
 
     def test_delete_survey_cascades_to_samples_and_tree_samples(
@@ -1802,7 +1811,7 @@ class TestSurveyEditDelete:
         s = sample_setup
         resp = self._post(reader_client,
                           f'/api/campionamenti/survey/edit/{s["survey"].id}/',
-                          {S.FIELD_NAME: 'X'})
+                          {FIELD_NAME: 'X'})
         assert resp.status_code == 403
 
 
@@ -1818,7 +1827,7 @@ class TestSurveySave:
     def test_form_renders(self, writer_client, sample_setup):
         resp = writer_client.get('/api/campionamenti/survey/form/')
         assert resp.status_code == 200
-        html = resp.json()[S.HTML]
+        html = resp.json()[HTML]
         # Modal carries both creation paths per campionamenti.md §2.
         assert 'data-path="empty"' in html
         assert 'data-path="csv"' in html
@@ -1829,41 +1838,41 @@ class TestSurveySave:
     def test_create_empty_survey(self, writer_client, sample_setup):
         from apps.base.models import Survey
         resp = self._post(writer_client, {
-            S.FIELD_NAME: 'Rilevamento di prova',
-            S.FIELD_SAMPLE_GRID_ID: str(sample_setup['grid'].id),
-            S.FIELD_DESCRIPTION: 'desc',
+            FIELD_NAME: 'Rilevamento di prova',
+            FIELD_SAMPLE_GRID_ID: str(sample_setup['grid'].id),
+            FIELD_DESCRIPTION: 'desc',
         })
         assert resp.status_code == 200
         data = resp.json()
-        sv = Survey.objects.get(id=data[S.ROW_ID])
+        sv = Survey.objects.get(id=data[ROW_ID])
         assert sv.name == 'Rilevamento di prova'
         assert sv.sample_grid_id == sample_setup['grid'].id
 
     def test_name_required(self, writer_client, sample_setup):
         resp = self._post(writer_client, {
-            S.FIELD_NAME: '', S.FIELD_SAMPLE_GRID_ID: str(sample_setup['grid'].id),
+            FIELD_NAME: '', FIELD_SAMPLE_GRID_ID: str(sample_setup['grid'].id),
         })
         assert resp.status_code == 400
 
     def test_grid_required(self, writer_client, db):
-        resp = self._post(writer_client, {S.FIELD_NAME: 'X', S.FIELD_SAMPLE_GRID_ID: ''})
+        resp = self._post(writer_client, {FIELD_NAME: 'X', FIELD_SAMPLE_GRID_ID: ''})
         assert resp.status_code == 400
 
     def test_grid_must_exist(self, writer_client, db):
-        resp = self._post(writer_client, {S.FIELD_NAME: 'X', S.FIELD_SAMPLE_GRID_ID: '9999'})
+        resp = self._post(writer_client, {FIELD_NAME: 'X', FIELD_SAMPLE_GRID_ID: '9999'})
         assert resp.status_code == 400
 
     def test_name_duplicate_rejected(self, writer_client, sample_setup):
         s = sample_setup
         resp = self._post(writer_client, {
-            S.FIELD_NAME: s['survey'].name,
-            S.FIELD_SAMPLE_GRID_ID: str(s['grid'].id),
+            FIELD_NAME: s['survey'].name,
+            FIELD_SAMPLE_GRID_ID: str(s['grid'].id),
         })
         assert resp.status_code == 400
 
     def test_reader_forbidden(self, reader_client, sample_setup):
         s = sample_setup
         resp = self._post(reader_client, {
-            S.FIELD_NAME: 'X', S.FIELD_SAMPLE_GRID_ID: str(s['grid'].id),
+            FIELD_NAME: 'X', FIELD_SAMPLE_GRID_ID: str(s['grid'].id),
         })
         assert resp.status_code == 403

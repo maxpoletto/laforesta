@@ -33,6 +33,18 @@ from apps.base.models import (
     TreeSample,
 )
 from config import strings as S
+from config.constants import (
+    AREA_RECORDS, DATA_ID, FIELD_ALTITUDE, FIELD_AREA, FIELD_COPPICE,
+    FIELD_DATE, FIELD_D_CM, FIELD_ERRORS, FIELD_H_M, FIELD_L10_MM, FIELD_LAT,
+    FIELD_LON, FIELD_MASS_Q, FIELD_NEXT_SHOOT, FIELD_NOTE, FIELD_NUMBER,
+    FIELD_PARCEL, FIELD_PARCEL_ID, FIELD_PRESERVED, FIELD_R_M,
+    FIELD_SAMPLE_AREA_ID, FIELD_SAMPLE_GRID_ID, FIELD_SHOOT, FIELD_SHOOTS,
+    FIELD_SORT_ORDER, FIELD_SPECIES, FIELD_SPECIES_ID, FIELD_STANDARD,
+    FIELD_SURVEY_ID, FIELD_TREE_PICK_EXISTING_ID, FIELD_VOLUME_M3,
+    GRID_RECORD, HTML, MESSAGE, RECORD, RECORDS, ROW_ID, SAMPLE_RECORD,
+    STATUS, STATUS_NOT_FOUND, STATUS_VALIDATION_ERROR, SURVEY_RECORD,
+    SURVEY_RECORDS,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -80,8 +92,8 @@ def tree_form_view(request, ts_id: int | None = None):
                                 under which the new tree will be created.
     """
     survey_id = int(request.GET.get('survey', 0)) or None
-    area_id = int(request.GET.get(S.FIELD_AREA, 0)) or None
-    return JsonResponse({S.HTML: _render_tree_form(
+    area_id = int(request.GET.get(FIELD_AREA, 0)) or None
+    return JsonResponse({HTML: _render_tree_form(
         request, ts_id, survey_id, area_id,
     )})
 
@@ -113,9 +125,9 @@ def tree_save_view(request):
     # tree identity per campionamenti.md §"Cross-sample tree identity").
     # Validate it lives in this sample area before we trust it.
     existing_tree = None
-    if parsed[S.FIELD_TREE_PICK_EXISTING_ID] is not None:
+    if parsed[FIELD_TREE_PICK_EXISTING_ID] is not None:
         existing_tree = _resolve_existing_tree(
-            parsed[S.FIELD_TREE_PICK_EXISTING_ID], sample.sample_area_id,
+            parsed[FIELD_TREE_PICK_EXISTING_ID], sample.sample_area_id,
         )
         if existing_tree is None:
             return _validation_error(
@@ -126,25 +138,25 @@ def tree_save_view(request):
     # sample area, a `number` identifies one physical tree across all
     # samples in which it appears.  Excluding our target tree (when
     # known) lets coppice multi-shoot creates and same-tree edits pass.
-    dup = TreeSample.objects.filter(sample=sample, number=parsed[S.FIELD_NUMBER])
+    dup = TreeSample.objects.filter(sample=sample, number=parsed[FIELD_NUMBER])
     if ts_id:
         dup = dup.exclude(id=ts_id)
     if existing_tree is not None:
         dup = dup.exclude(tree_id=existing_tree.id)
     if dup.exists():
         return _validation_error(
-            [S.ERR_TREE_NUMBER_DUPLICATE.format(parsed[S.FIELD_NUMBER])],
+            [S.ERR_TREE_NUMBER_DUPLICATE.format(parsed[FIELD_NUMBER])],
             ts_id, request, body,
         )
 
     # Coppice create with existing tree: detect shoot-number collisions
     # against existing TreeSamples on this (sample, tree) before commit
     # so we surface a friendly error instead of an IntegrityError.
-    if parsed[S.FIELD_COPPICE] and not ts_id and existing_tree is not None:
+    if parsed[FIELD_COPPICE] and not ts_id and existing_tree is not None:
         existing_shoots = set(TreeSample.objects.filter(
             sample=sample, tree=existing_tree,
-        ).values_list(S.FIELD_SHOOT, flat=True))
-        new_shoots = {s[S.FIELD_SHOOT] for s in parsed[S.FIELD_SHOOTS]}
+        ).values_list(FIELD_SHOOT, flat=True))
+        new_shoots = {s[FIELD_SHOOT] for s in parsed[FIELD_SHOOTS]}
         collision = sorted(existing_shoots & new_shoots)
         if collision:
             return _validation_error(
@@ -156,21 +168,21 @@ def tree_save_view(request):
         if ts_id:
             ts = _update_tree_sample(ts_id, sample, parsed)
             created_or_updated_ids = [ts.id]
-        elif parsed[S.FIELD_COPPICE]:
+        elif parsed[FIELD_COPPICE]:
             tree = existing_tree or Tree.objects.create(
-                species_id=parsed[S.FIELD_SPECIES_ID],
+                species_id=parsed[FIELD_SPECIES_ID],
                 parcel_id=sample.sample_area.parcel_id,
-                lat=parsed[S.FIELD_LAT], lon=parsed[S.FIELD_LON],
-                preserved=parsed[S.FIELD_PRESERVED],
+                lat=parsed[FIELD_LAT], lon=parsed[FIELD_LON],
+                preserved=parsed[FIELD_PRESERVED],
                 coppice=True,
             )
             created_or_updated_ids = []
-            for sh in parsed[S.FIELD_SHOOTS]:
+            for sh in parsed[FIELD_SHOOTS]:
                 ts = TreeSample.objects.create(
-                    sample=sample, tree=tree, shoot=sh[S.FIELD_SHOOT],
-                    standard=sh[S.FIELD_STANDARD],
-                    number=parsed[S.FIELD_NUMBER],
-                    d_cm=sh[S.FIELD_D_CM], h_m=sh[S.FIELD_H_M], l10_mm=sh[S.FIELD_L10_MM],
+                    sample=sample, tree=tree, shoot=sh[FIELD_SHOOT],
+                    standard=sh[FIELD_STANDARD],
+                    number=parsed[FIELD_NUMBER],
+                    d_cm=sh[FIELD_D_CM], h_m=sh[FIELD_H_M], l10_mm=sh[FIELD_L10_MM],
                     volume_m3=None, mass_q=None,
                 )
                 created_or_updated_ids.append(ts.id)
@@ -178,28 +190,28 @@ def tree_save_view(request):
             # Reuse the existing Tree row.  Do not create a new Tree.
             ts = TreeSample.objects.create(
                 sample=sample, tree=existing_tree, shoot=0, standard=False,
-                number=parsed[S.FIELD_NUMBER],
-                d_cm=parsed[S.FIELD_D_CM], h_m=parsed[S.FIELD_H_M],
-                l10_mm=parsed[S.FIELD_L10_MM],
-                volume_m3=parsed[S.FIELD_VOLUME_M3],
-                mass_q=parsed[S.FIELD_MASS_Q],
+                number=parsed[FIELD_NUMBER],
+                d_cm=parsed[FIELD_D_CM], h_m=parsed[FIELD_H_M],
+                l10_mm=parsed[FIELD_L10_MM],
+                volume_m3=parsed[FIELD_VOLUME_M3],
+                mass_q=parsed[FIELD_MASS_Q],
             )
             created_or_updated_ids = [ts.id]
         else:
             tree = Tree.objects.create(
-                species_id=parsed[S.FIELD_SPECIES_ID],
+                species_id=parsed[FIELD_SPECIES_ID],
                 parcel_id=sample.sample_area.parcel_id,
-                lat=parsed[S.FIELD_LAT], lon=parsed[S.FIELD_LON],
-                preserved=parsed[S.FIELD_PRESERVED],
+                lat=parsed[FIELD_LAT], lon=parsed[FIELD_LON],
+                preserved=parsed[FIELD_PRESERVED],
                 coppice=False,
             )
             ts = TreeSample.objects.create(
                 sample=sample, tree=tree, shoot=0, standard=False,
-                number=parsed[S.FIELD_NUMBER],
-                d_cm=parsed[S.FIELD_D_CM], h_m=parsed[S.FIELD_H_M],
-                l10_mm=parsed[S.FIELD_L10_MM],
-                volume_m3=parsed[S.FIELD_VOLUME_M3],
-                mass_q=parsed[S.FIELD_MASS_Q],
+                number=parsed[FIELD_NUMBER],
+                d_cm=parsed[FIELD_D_CM], h_m=parsed[FIELD_H_M],
+                l10_mm=parsed[FIELD_L10_MM],
+                volume_m3=parsed[FIELD_VOLUME_M3],
+                mass_q=parsed[FIELD_MASS_Q],
             )
             created_or_updated_ids = [ts.id]
 
@@ -208,8 +220,8 @@ def tree_save_view(request):
         # current value.  Sample is unique per (survey, area), so this
         # bumps the date for every other tree in this sample too; same
         # semantics as the legacy inline date selector this replaces.
-        if parsed[S.FIELD_DATE] is not None and parsed[S.FIELD_DATE] != sample.date:
-            sample.date = parsed[S.FIELD_DATE]
+        if parsed[FIELD_DATE] is not None and parsed[FIELD_DATE] != sample.date:
+            sample.date = parsed[FIELD_DATE]
             sample.version += 1
             sample.save()
 
@@ -232,11 +244,11 @@ def tree_save_view(request):
     sample.refresh_from_db()
     sample.survey  # touch to avoid lazy load in build_survey_record
     response_data = {
-        S.DATA_ID: f'sampled_trees_{sample.survey_id}',
-        S.ROW_ID: created_or_updated_ids[-1],
-        S.RECORDS: records,
-        S.SAMPLE_RECORD: build_sample_record(sample),
-        S.SURVEY_RECORD: build_survey_record(sample.survey),
+        DATA_ID: f'sampled_trees_{sample.survey_id}',
+        ROW_ID: created_or_updated_ids[-1],
+        RECORDS: records,
+        SAMPLE_RECORD: build_sample_record(sample),
+        SURVEY_RECORD: build_survey_record(sample.survey),
     }
     nonce = body.get('nonce')
     if nonce:
@@ -257,7 +269,7 @@ def tree_delete_view(request, ts_id: int):
         'sample__survey',
     ).filter(id=ts_id).first()
     if ts is None:
-        return JsonResponse({S.STATUS: S.STATUS_NOT_FOUND}, status=404)
+        return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
     sample = ts.sample
     survey = sample.survey
     survey_id = survey.id
@@ -267,10 +279,10 @@ def tree_delete_view(request, ts_id: int):
     mark_stale(f'sampled_trees_{survey_id}', 'samples', 'surveys', 'audit')
     sample.refresh_from_db()
     return JsonResponse({
-        S.DATA_ID: f'sampled_trees_{survey_id}',
-        S.ROW_ID: ts_id,
-        S.SAMPLE_RECORD: build_sample_record(sample),
-        S.SURVEY_RECORD: build_survey_record(survey),
+        DATA_ID: f'sampled_trees_{survey_id}',
+        ROW_ID: ts_id,
+        SAMPLE_RECORD: build_sample_record(sample),
+        SURVEY_RECORD: build_survey_record(survey),
     })
 
 
@@ -297,16 +309,16 @@ def area_form_view(request, area_id: int | None = None):
         grid = SampleGrid.objects.filter(id=grid_id).first()
         if grid is None:
             raise Http404
-    initial_lat = request.GET.get(S.FIELD_LAT, '')
-    initial_lon = request.GET.get(S.FIELD_LON, '')
+    initial_lat = request.GET.get(FIELD_LAT, '')
+    initial_lon = request.GET.get(FIELD_LON, '')
 
     regions = list(Region.objects.order_by('name'))
     parcels = list(Parcel.objects.select_related('region').order_by(
         'region__name', 'name',
     ))
-    return JsonResponse({S.HTML: render_to_string(
+    return JsonResponse({HTML: render_to_string(
         'campionamenti/_area_form.html', {
-            S.FIELD_AREA: area, 'grid': grid,
+            FIELD_AREA: area, 'grid': grid,
             'regions': regions, 'parcels': parcels,
             'initial_lat': initial_lat, 'initial_lon': initial_lon,
         }, request=request,
@@ -320,12 +332,12 @@ def area_save_view(request):
     """Create or update a SampleArea."""
     body = json.loads(request.body)
     try:
-        grid_id = int(body[S.FIELD_SAMPLE_GRID_ID])
-        parcel_id = int(body[S.FIELD_PARCEL_ID])
-        number = (body.get(S.FIELD_NUMBER) or '').strip()
-        lat = float(body[S.FIELD_LAT])
-        lon = float(body[S.FIELD_LON])
-        r_m = int(body.get(S.FIELD_R_M) or 12)
+        grid_id = int(body[FIELD_SAMPLE_GRID_ID])
+        parcel_id = int(body[FIELD_PARCEL_ID])
+        number = (body.get(FIELD_NUMBER) or '').strip()
+        lat = float(body[FIELD_LAT])
+        lon = float(body[FIELD_LON])
+        r_m = int(body.get(FIELD_R_M) or 12)
     except (KeyError, ValueError, TypeError):
         return _simple_validation_error(S.ERROR_GENERIC)
 
@@ -339,14 +351,14 @@ def area_save_view(request):
             altitude = int(altitude_raw)
         except (ValueError, TypeError):
             altitude = None
-    note = (body.get(S.FIELD_NOTE) or '').strip()
+    note = (body.get(FIELD_NOTE) or '').strip()
 
     grid = SampleGrid.objects.filter(id=grid_id).first()
     parcel = Parcel.objects.filter(id=parcel_id).first()
     if grid is None or parcel is None:
-        return JsonResponse({S.STATUS: S.STATUS_NOT_FOUND}, status=404)
+        return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
 
-    area_id = body.get(S.ROW_ID)
+    area_id = body.get(ROW_ID)
     area_id = int(area_id) if area_id else None
 
     with transaction.atomic():
@@ -355,7 +367,7 @@ def area_save_view(request):
                 id=area_id, sample_grid=grid,
             ).first()
             if area is None:
-                return JsonResponse({S.STATUS: S.STATUS_NOT_FOUND}, status=404)
+                return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
             area.parcel = parcel
             area.number = number
             area.lat = lat
@@ -377,11 +389,11 @@ def area_save_view(request):
     # Reload with select_related so build_sample_area_record doesn't N+1.
     area = SampleArea.objects.select_related('parcel__region').get(id=area.id)
     response_data = {
-        S.DATA_ID: 'sample_areas',
-        S.ROW_ID: area.id,
-        S.RECORD: build_sample_area_record(area),
-        S.GRID_RECORD: build_grid_record(grid),
-        S.SURVEY_RECORDS: [
+        DATA_ID: 'sample_areas',
+        ROW_ID: area.id,
+        RECORD: build_sample_area_record(area),
+        GRID_RECORD: build_grid_record(grid),
+        SURVEY_RECORDS: [
             build_survey_record(sv)
             for sv in Survey.objects.filter(sample_grid=grid)
         ],
@@ -401,7 +413,7 @@ def area_delete_view(request, area_id: int):
         id=area_id,
     ).first()
     if area is None:
-        return JsonResponse({S.STATUS: S.STATUS_NOT_FOUND}, status=404)
+        return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
     if Sample.objects.filter(sample_area=area).exists():
         return _simple_validation_error(S.ERR_AREA_IN_USE)
     grid = area.sample_grid
@@ -409,10 +421,10 @@ def area_delete_view(request, area_id: int):
     # See area_save_view: surveys digest depends on the per-grid area count.
     mark_stale('sample_areas', 'grids', 'surveys', 'audit')
     return JsonResponse({
-        S.DATA_ID: 'sample_areas',
-        S.ROW_ID: area_id,
-        S.GRID_RECORD: build_grid_record(grid),
-        S.SURVEY_RECORDS: [
+        DATA_ID: 'sample_areas',
+        ROW_ID: area_id,
+        GRID_RECORD: build_grid_record(grid),
+        SURVEY_RECORDS: [
             build_survey_record(sv)
             for sv in Survey.objects.filter(sample_grid=grid)
         ],
@@ -448,16 +460,16 @@ def _render_tree_form(request, ts_id, survey_id, area_id):
             sample_area=area, survey=survey,
         ).first()
 
-    species = list(Species.objects.filter(active=True).order_by(S.FIELD_SORT_ORDER))
+    species = list(Species.objects.filter(active=True).order_by(FIELD_SORT_ORDER))
     prior_trees, next_number = _prior_trees_for_area(area, exclude_ts_id=ts_id)
 
     return render_to_string('campionamenti/_tree_form.html', {
         'ts': ts,
         'tree': ts.tree if ts else None,
         'sample': sample,
-        S.FIELD_AREA: area,
+        FIELD_AREA: area,
         'survey': survey,
-        S.FIELD_SPECIES: species,
+        FIELD_SPECIES: species,
         'sample_date': sample.date if sample else date_type.today(),
         'prior_trees': prior_trees,
         'next_number': next_number,
@@ -537,18 +549,18 @@ def _prior_trees_for_area(area, exclude_ts_id=None):
             continue       # already have the most-recent measurement for this tree
         by_tree[ts.tree_id] = {
             'tree_id': ts.tree_id,
-            S.FIELD_NUMBER: ts.number,
-            S.FIELD_SPECIES_ID: ts.tree.species_id,
+            FIELD_NUMBER: ts.number,
+            FIELD_SPECIES_ID: ts.tree.species_id,
             'species_common_name': ts.tree.species.common_name,
-            S.FIELD_COPPICE: ts.tree.coppice,
-            S.FIELD_LAT: ts.tree.lat,
-            S.FIELD_LON: ts.tree.lon,
+            FIELD_COPPICE: ts.tree.coppice,
+            FIELD_LAT: ts.tree.lat,
+            FIELD_LON: ts.tree.lon,
             'last_d_cm': ts.d_cm,
             'last_h_m': ts.h_m,
         }
     for tid, row in by_tree.items():
-        row[S.FIELD_NEXT_SHOOT] = max_shoot_by_tree.get(tid, 0) + 1
-    prior = sorted(by_tree.values(), key=lambda r: r[S.FIELD_NUMBER])
+        row[FIELD_NEXT_SHOOT] = max_shoot_by_tree.get(tid, 0) + 1
+    prior = sorted(by_tree.values(), key=lambda r: r[FIELD_NUMBER])
     return prior, max_number + 1
 
 
@@ -571,14 +583,14 @@ def _parse_tree_body(body):
     them in the UI — server treats the existing Tree as authoritative).
     """
     errors = []
-    ts_id = body.get(S.ROW_ID)
+    ts_id = body.get(ROW_ID)
     ts_id = int(ts_id) if ts_id else None
 
     # Date is editable inline in the tree form (replaces the separate
     # inline selector that used to live above the alberi table).  The
     # field is optional in the wire format: missing → keep existing
     # sample.date (edit) or default to today (new).  Invalid → error.
-    date_raw = body.get(S.FIELD_DATE)
+    date_raw = body.get(FIELD_DATE)
     parsed_date = None
     if date_raw not in (None, '', 'null'):
         try:
@@ -599,7 +611,7 @@ def _parse_tree_body(body):
             errors.append(S.ERR_TREE_NUMBER_REQUIRED)
 
     if coppice:
-        shoots, shoot_errors = _parse_shoots(body.get(S.FIELD_SHOOTS))
+        shoots, shoot_errors = _parse_shoots(body.get(FIELD_SHOOTS))
         errors.extend(shoot_errors)
         # Coppice rows carry no per-tree volume / mass — Tabacchi only
         # applies to fustaia, per the spec's "V/m blank for ceduo".
@@ -609,7 +621,7 @@ def _parse_tree_body(body):
     else:
         shoots = []
         try:
-            d_cm = int(body[S.FIELD_D_CM])
+            d_cm = int(body[FIELD_D_CM])
             if d_cm <= 0:
                 errors.append(S.ERR_D_POSITIVE)
         except (KeyError, ValueError, TypeError):
@@ -617,7 +629,7 @@ def _parse_tree_body(body):
             errors.append(S.ERR_D_POSITIVE)
 
         try:
-            h_m = Decimal(str(body.get(S.FIELD_H_M, '0') or '0'))
+            h_m = Decimal(str(body.get(FIELD_H_M, '0') or '0'))
             if h_m <= 0:
                 errors.append(S.ERR_H_POSITIVE)
         except InvalidOperation:
@@ -625,29 +637,29 @@ def _parse_tree_body(body):
             errors.append(S.ERR_H_POSITIVE)
 
         try:
-            l10_mm = int(body.get(S.FIELD_L10_MM, 0) or 0)
+            l10_mm = int(body.get(FIELD_L10_MM, 0) or 0)
         except (ValueError, TypeError):
             l10_mm = 0
 
     parsed = {
-        S.FIELD_SAMPLE_AREA_ID: int(body[S.FIELD_SAMPLE_AREA_ID]),
-        S.FIELD_SURVEY_ID: int(body[S.FIELD_SURVEY_ID]),
-        S.FIELD_SPECIES_ID: int(body[S.FIELD_SPECIES_ID]) if body.get(S.FIELD_SPECIES_ID) else None,
-        S.FIELD_NUMBER: int(body.get(S.FIELD_NUMBER, 0) or 0),
-        S.FIELD_D_CM: d_cm,
-        S.FIELD_H_M: h_m.quantize(Decimal('0.01')) if not coppice else h_m,
-        S.FIELD_L10_MM: l10_mm,
-        S.FIELD_VOLUME_M3: _decimal_or_none(body.get(S.FIELD_VOLUME_M3)) if not coppice else None,
-        S.FIELD_MASS_Q: _decimal_or_none(body.get(S.FIELD_MASS_Q)) if not coppice else None,
-        S.FIELD_LAT: _float_or_none(body.get(S.FIELD_LAT)),
-        S.FIELD_LON: _float_or_none(body.get(S.FIELD_LON)),
-        S.FIELD_PRESERVED: bool(body.get(S.FIELD_PRESERVED)),
-        S.FIELD_COPPICE: coppice,
-        S.FIELD_SHOOTS: shoots,
-        S.FIELD_TREE_PICK_EXISTING_ID: tree_pick_existing_id,
-        S.FIELD_DATE: parsed_date,
+        FIELD_SAMPLE_AREA_ID: int(body[FIELD_SAMPLE_AREA_ID]),
+        FIELD_SURVEY_ID: int(body[FIELD_SURVEY_ID]),
+        FIELD_SPECIES_ID: int(body[FIELD_SPECIES_ID]) if body.get(FIELD_SPECIES_ID) else None,
+        FIELD_NUMBER: int(body.get(FIELD_NUMBER, 0) or 0),
+        FIELD_D_CM: d_cm,
+        FIELD_H_M: h_m.quantize(Decimal('0.01')) if not coppice else h_m,
+        FIELD_L10_MM: l10_mm,
+        FIELD_VOLUME_M3: _decimal_or_none(body.get(FIELD_VOLUME_M3)) if not coppice else None,
+        FIELD_MASS_Q: _decimal_or_none(body.get(FIELD_MASS_Q)) if not coppice else None,
+        FIELD_LAT: _float_or_none(body.get(FIELD_LAT)),
+        FIELD_LON: _float_or_none(body.get(FIELD_LON)),
+        FIELD_PRESERVED: bool(body.get(FIELD_PRESERVED)),
+        FIELD_COPPICE: coppice,
+        FIELD_SHOOTS: shoots,
+        FIELD_TREE_PICK_EXISTING_ID: tree_pick_existing_id,
+        FIELD_DATE: parsed_date,
     }
-    if not parsed[S.FIELD_NUMBER]:
+    if not parsed[FIELD_NUMBER]:
         errors.append(S.ERR_TREE_NUMBER_REQUIRED)
     return ts_id, parsed, errors
 
@@ -671,11 +683,11 @@ def _parse_shoots(raw):
     errors = []
     for item in items:
         try:
-            shoot_num = int(item.get(S.FIELD_SHOOT, 0))
-            d_cm = int(item.get(S.FIELD_D_CM, 0))
-            h_m = Decimal(str(item.get(S.FIELD_H_M, '0') or '0'))
-            l10_mm = int(item.get(S.FIELD_L10_MM, 0) or 0)
-            standard = bool(item.get(S.FIELD_STANDARD))
+            shoot_num = int(item.get(FIELD_SHOOT, 0))
+            d_cm = int(item.get(FIELD_D_CM, 0))
+            h_m = Decimal(str(item.get(FIELD_H_M, '0') or '0'))
+            l10_mm = int(item.get(FIELD_L10_MM, 0) or 0)
+            standard = bool(item.get(FIELD_STANDARD))
         except (ValueError, TypeError, InvalidOperation):
             errors.append(S.ERR_D_POSITIVE)
             continue
@@ -684,9 +696,9 @@ def _parse_shoots(raw):
         if h_m <= 0:
             errors.append(S.ERR_H_POSITIVE)
         shoots.append({
-            S.FIELD_SHOOT: shoot_num, S.FIELD_STANDARD: standard,
-            S.FIELD_D_CM: d_cm, S.FIELD_H_M: h_m.quantize(Decimal('0.01')),
-            S.FIELD_L10_MM: l10_mm,
+            FIELD_SHOOT: shoot_num, FIELD_STANDARD: standard,
+            FIELD_D_CM: d_cm, FIELD_H_M: h_m.quantize(Decimal('0.01')),
+            FIELD_L10_MM: l10_mm,
         })
     return shoots, errors
 
@@ -725,15 +737,15 @@ def _find_or_create_sample(parsed):
     """Return the Sample row for (survey, sample_area), creating it if
     needed.  Returns None when the area doesn't belong to the survey's
     grid (caller surfaces a validation error)."""
-    area = SampleArea.objects.select_related(S.FIELD_PARCEL).get(
-        id=parsed[S.FIELD_SAMPLE_AREA_ID],
+    area = SampleArea.objects.select_related(FIELD_PARCEL).get(
+        id=parsed[FIELD_SAMPLE_AREA_ID],
     )
-    survey = Survey.objects.get(id=parsed[S.FIELD_SURVEY_ID])
+    survey = Survey.objects.get(id=parsed[FIELD_SURVEY_ID])
     if area.sample_grid_id != survey.sample_grid_id:
         return None
     sample, _ = Sample.objects.get_or_create(
         sample_area=area, survey=survey,
-        defaults={S.FIELD_DATE: parsed.get(S.FIELD_DATE) or date_type.today()},
+        defaults={FIELD_DATE: parsed.get(FIELD_DATE) or date_type.today()},
     )
     return sample
 
@@ -741,40 +753,40 @@ def _find_or_create_sample(parsed):
 def _update_tree_sample(ts_id, sample, parsed):
     ts = TreeSample.objects.select_for_update().get(id=ts_id)
     ts.sample = sample
-    ts.number = parsed[S.FIELD_NUMBER]
-    if parsed[S.FIELD_COPPICE]:
+    ts.number = parsed[FIELD_NUMBER]
+    if parsed[FIELD_COPPICE]:
         # Coppice edit form sends exactly one shoot row (the one being
         # edited); the multi-row "Aggiungi pollone" path is add-only.
-        sh = parsed[S.FIELD_SHOOTS][0]
-        ts.shoot = sh[S.FIELD_SHOOT]
-        ts.standard = sh[S.FIELD_STANDARD]
-        ts.d_cm = sh[S.FIELD_D_CM]
-        ts.h_m = sh[S.FIELD_H_M]
-        ts.l10_mm = sh[S.FIELD_L10_MM]
+        sh = parsed[FIELD_SHOOTS][0]
+        ts.shoot = sh[FIELD_SHOOT]
+        ts.standard = sh[FIELD_STANDARD]
+        ts.d_cm = sh[FIELD_D_CM]
+        ts.h_m = sh[FIELD_H_M]
+        ts.l10_mm = sh[FIELD_L10_MM]
         ts.volume_m3 = None
         ts.mass_q = None
     else:
-        ts.d_cm = parsed[S.FIELD_D_CM]
-        ts.h_m = parsed[S.FIELD_H_M]
-        ts.l10_mm = parsed[S.FIELD_L10_MM]
-        ts.volume_m3 = parsed[S.FIELD_VOLUME_M3]
-        ts.mass_q = parsed[S.FIELD_MASS_Q]
+        ts.d_cm = parsed[FIELD_D_CM]
+        ts.h_m = parsed[FIELD_H_M]
+        ts.l10_mm = parsed[FIELD_L10_MM]
+        ts.volume_m3 = parsed[FIELD_VOLUME_M3]
+        ts.mass_q = parsed[FIELD_MASS_Q]
     ts.version += 1
     ts.save()
     # Tree fields that can change on edit.
     tree = ts.tree
-    tree.species_id = parsed[S.FIELD_SPECIES_ID]
-    tree.preserved = parsed[S.FIELD_PRESERVED]
-    tree.lat = parsed[S.FIELD_LAT]
-    tree.lon = parsed[S.FIELD_LON]
+    tree.species_id = parsed[FIELD_SPECIES_ID]
+    tree.preserved = parsed[FIELD_PRESERVED]
+    tree.lat = parsed[FIELD_LAT]
+    tree.lon = parsed[FIELD_LON]
     tree.version += 1
     tree.save()
     return ts
 
 
 def _validation_error(errors, ts_id, request, body):
-    survey_id = int(body.get(S.FIELD_SURVEY_ID, 0)) or None
-    area_id = int(body.get(S.FIELD_SAMPLE_AREA_ID, 0)) or None
+    survey_id = int(body.get(FIELD_SURVEY_ID, 0)) or None
+    area_id = int(body.get(FIELD_SAMPLE_AREA_ID, 0)) or None
     # Skip the form re-render when the survey/area combo is itself
     # invalid (Http404 from _render_tree_form would mask the real
     # error).  Client just shows the error message in that case.
@@ -783,9 +795,9 @@ def _validation_error(errors, ts_id, request, body):
     except Http404:
         html = ''
     return JsonResponse({
-        S.STATUS: S.STATUS_VALIDATION_ERROR,
-        S.MESSAGE: ' '.join(errors),
-        S.HTML: html,
+        STATUS: STATUS_VALIDATION_ERROR,
+        MESSAGE: ' '.join(errors),
+        HTML: html,
     }, status=400)
 
 
@@ -802,7 +814,7 @@ def grid_form_view(request):
     import); the target-grid dropdown needs the current list.
     """
     grids = SampleGrid.objects.order_by('-modified_at')
-    return JsonResponse({S.HTML: render_to_string(
+    return JsonResponse({HTML: render_to_string(
         'campionamenti/_grid_modal.html', {'grids': grids}, request=request,
     )})
 
@@ -824,9 +836,9 @@ def grid_save_view(request):
         mark_stale('grids', 'audit')
 
     response_data = {
-        S.DATA_ID: 'grids',
-        S.ROW_ID: grid.id,
-        S.RECORD: build_grid_record(grid),
+        DATA_ID: 'grids',
+        ROW_ID: grid.id,
+        RECORD: build_grid_record(grid),
     }
     nonce = body.get('nonce')
     if nonce:
@@ -841,7 +853,7 @@ def survey_form_view(request):
     """
     grids = SampleGrid.objects.order_by('-modified_at')
     surveys = Survey.objects.order_by('-modified_at')
-    return JsonResponse({S.HTML: render_to_string(
+    return JsonResponse({HTML: render_to_string(
         'campionamenti/_survey_modal.html', {
             'grids': grids, 'surveys': surveys,
         }, request=request,
@@ -855,7 +867,7 @@ def grid_edit_view(request, grid_id: int):
     """Edit a grid's name / description (no cascade)."""
     grid = SampleGrid.objects.filter(id=grid_id).first()
     if grid is None:
-        return JsonResponse({S.STATUS: S.STATUS_NOT_FOUND}, status=404)
+        return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
     body = json.loads(request.body)
     name = (body.get('name') or '').strip()
     description = (body.get('description') or '').strip()
@@ -869,9 +881,9 @@ def grid_edit_view(request, grid_id: int):
     grid.save()
     mark_stale('grids', 'audit')
     return JsonResponse({
-        S.DATA_ID: 'grids',
-        S.ROW_ID: grid.id,
-        S.RECORD: build_grid_record(grid),
+        DATA_ID: 'grids',
+        ROW_ID: grid.id,
+        RECORD: build_grid_record(grid),
     })
 
 
@@ -884,14 +896,14 @@ def grid_delete_view(request, grid_id: int):
     its surveys first)."""
     grid = SampleGrid.objects.filter(id=grid_id).first()
     if grid is None:
-        return JsonResponse({S.STATUS: S.STATUS_NOT_FOUND}, status=404)
+        return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
     if Survey.objects.filter(sample_grid=grid).exists():
         return _simple_validation_error(S.ERR_GRID_IN_USE)
     with transaction.atomic():
         # SampleArea cascades.
         grid.delete()
         mark_stale('grids', 'sample_areas', 'audit')
-    return JsonResponse({S.DATA_ID: 'grids', S.ROW_ID: grid_id})
+    return JsonResponse({DATA_ID: 'grids', ROW_ID: grid_id})
 
 
 @login_required
@@ -901,7 +913,7 @@ def survey_edit_view(request, survey_id: int):
     """Edit a survey's name / description."""
     survey = Survey.objects.filter(id=survey_id).first()
     if survey is None:
-        return JsonResponse({S.STATUS: S.STATUS_NOT_FOUND}, status=404)
+        return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
     body = json.loads(request.body)
     name = (body.get('name') or '').strip()
     description = (body.get('description') or '').strip()
@@ -915,9 +927,9 @@ def survey_edit_view(request, survey_id: int):
     survey.save()
     mark_stale('surveys', 'audit')
     return JsonResponse({
-        S.DATA_ID: 'surveys',
-        S.ROW_ID: survey.id,
-        S.RECORD: build_survey_record(survey),
+        DATA_ID: 'surveys',
+        ROW_ID: survey.id,
+        RECORD: build_survey_record(survey),
     })
 
 
@@ -952,7 +964,7 @@ def grid_csv_import_view(request):
     (parcel, number) within the target grid; rejects rows that
     duplicate each other within the same upload.
     """
-    grid_id = request.POST.get(S.FIELD_SAMPLE_GRID_ID)
+    grid_id = request.POST.get(FIELD_SAMPLE_GRID_ID)
     upload = request.FILES.get('file')
 
     if not grid_id:
@@ -962,7 +974,7 @@ def grid_csv_import_view(request):
 
     grid = SampleGrid.objects.filter(id=int(grid_id)).first()
     if grid is None:
-        return JsonResponse({S.STATUS: S.STATUS_NOT_FOUND}, status=404)
+        return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
 
     try:
         rows = _parse_csv(upload, GRID_CSV_REQUIRED)
@@ -976,7 +988,7 @@ def grid_csv_import_view(request):
     # Natural key per grid: (parcel_id, number).  Pre-load the existing
     # areas so we can reject collisions without round-tripping.
     existing_keys = set(SampleArea.objects.filter(sample_grid=grid)
-                                          .values_list(S.FIELD_PARCEL_ID, S.FIELD_NUMBER))
+                                          .values_list(FIELD_PARCEL_ID, FIELD_NUMBER))
 
     errors = []
     parsed_rows = []
@@ -1000,14 +1012,14 @@ def grid_csv_import_view(request):
         seen_in_csv.add(key)
         try:
             parsed_rows.append({
-                S.FIELD_PARCEL: parcel,
-                S.FIELD_NUMBER: number,
-                S.FIELD_LAT: float(row[S.CSV_COL_LAT]),
-                S.FIELD_LON: float(row[S.CSV_COL_LON]),
-                S.FIELD_ALTITUDE: _int_or_none_str(row[S.CSV_COL_QUOTA]),
-                S.FIELD_R_M: int(float(row[S.CSV_COL_RAGGIO]))
+                FIELD_PARCEL: parcel,
+                FIELD_NUMBER: number,
+                FIELD_LAT: float(row[S.CSV_COL_LAT]),
+                FIELD_LON: float(row[S.CSV_COL_LON]),
+                FIELD_ALTITUDE: _int_or_none_str(row[S.CSV_COL_QUOTA]),
+                FIELD_R_M: int(float(row[S.CSV_COL_RAGGIO]))
                        if row[S.CSV_COL_RAGGIO].strip() else 12,
-                S.FIELD_NOTE: '',
+                FIELD_NOTE: '',
             })
         except (ValueError, KeyError) as exc:
             errors.append(S.ERR_CSV_ROW_PARSE.format(i, str(exc)))
@@ -1020,9 +1032,9 @@ def grid_csv_import_view(request):
         SampleArea.objects.bulk_create([
             SampleArea(
                 sample_grid=grid,
-                parcel=r[S.FIELD_PARCEL], number=r[S.FIELD_NUMBER],
-                lat=r[S.FIELD_LAT], lon=r[S.FIELD_LON],
-                altitude_m=r[S.FIELD_ALTITUDE], r_m=r[S.FIELD_R_M], note=r[S.FIELD_NOTE],
+                parcel=r[FIELD_PARCEL], number=r[FIELD_NUMBER],
+                lat=r[FIELD_LAT], lon=r[FIELD_LON],
+                altitude_m=r[FIELD_ALTITUDE], r_m=r[FIELD_R_M], note=r[FIELD_NOTE],
             )
             for r in parsed_rows
         ])
@@ -1034,11 +1046,11 @@ def grid_csv_import_view(request):
     area_qs = SampleArea.objects.filter(sample_grid=grid) \
                                  .select_related('parcel__region')
     response_data = {
-        S.DATA_ID: 'grids', S.ROW_ID: grid.id,
+        DATA_ID: 'grids', ROW_ID: grid.id,
         'n_areas': len(parsed_rows),
-        S.RECORD: build_grid_record(grid),
-        S.AREA_RECORDS: [build_sample_area_record(sa) for sa in area_qs],
-        S.SURVEY_RECORDS: [
+        RECORD: build_grid_record(grid),
+        AREA_RECORDS: [build_sample_area_record(sa) for sa in area_qs],
+        SURVEY_RECORDS: [
             build_survey_record(sv)
             for sv in Survey.objects.filter(sample_grid=grid)
         ],
@@ -1060,7 +1072,7 @@ def tree_csv_import_view(request):
       - default_date (required if CSV lacks a Data column)
       - file (required, .csv)
     """
-    survey_id = request.POST.get(S.FIELD_SURVEY_ID)
+    survey_id = request.POST.get(FIELD_SURVEY_ID)
     upload = request.FILES.get('file')
     default_date_str = (request.POST.get('default_date') or '').strip()
 
@@ -1073,7 +1085,7 @@ def tree_csv_import_view(request):
         'sample_grid',
     ).first()
     if survey is None:
-        return JsonResponse({S.STATUS: S.STATUS_NOT_FOUND}, status=404)
+        return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
 
     try:
         rows = _parse_csv(upload, TREE_CSV_REQUIRED)
@@ -1162,11 +1174,11 @@ def tree_csv_import_view(request):
             )
 
         parsed.append({
-            S.FIELD_AREA: area, S.FIELD_DATE: row_date, S.FIELD_PARCEL: area.parcel,
-            S.FIELD_SPECIES: species, S.FIELD_COPPICE: coppice, S.FIELD_PRESERVED: preserved,
-            S.FIELD_NUMBER: number, S.FIELD_SHOOT: shoot, S.FIELD_STANDARD: standard,
-            S.FIELD_D_CM: d_cm, S.FIELD_H_M: h_m, S.FIELD_L10_MM: l10_mm,
-            S.FIELD_VOLUME_M3: volume_m3, S.FIELD_MASS_Q: mass_q,
+            FIELD_AREA: area, FIELD_DATE: row_date, FIELD_PARCEL: area.parcel,
+            FIELD_SPECIES: species, FIELD_COPPICE: coppice, FIELD_PRESERVED: preserved,
+            FIELD_NUMBER: number, FIELD_SHOOT: shoot, FIELD_STANDARD: standard,
+            FIELD_D_CM: d_cm, FIELD_H_M: h_m, FIELD_L10_MM: l10_mm,
+            FIELD_VOLUME_M3: volume_m3, FIELD_MASS_Q: mass_q,
         })
     if errors:
         return _csv_error_list(errors)
@@ -1177,28 +1189,28 @@ def tree_csv_import_view(request):
         # Group rows by (area, date) into Samples (one sample per area+date).
         sample_by_key = {}
         for r in parsed:
-            key = (r[S.FIELD_AREA].id, r[S.FIELD_DATE])
+            key = (r[FIELD_AREA].id, r[FIELD_DATE])
             if key in sample_by_key:
                 continue
             sample, _ = Sample.objects.get_or_create(
-                sample_area=r[S.FIELD_AREA], survey=survey,
-                defaults={S.FIELD_DATE: r[S.FIELD_DATE]},
+                sample_area=r[FIELD_AREA], survey=survey,
+                defaults={FIELD_DATE: r[FIELD_DATE]},
             )
             sample_by_key[key] = sample
 
         # Walk parsed rows: create one Tree + one TreeSample per row.
         n_trees = 0
         for r in parsed:
-            sample = sample_by_key[(r[S.FIELD_AREA].id, r[S.FIELD_DATE])]
+            sample = sample_by_key[(r[FIELD_AREA].id, r[FIELD_DATE])]
             tree = Tree.objects.create(
-                species=r[S.FIELD_SPECIES], parcel=r[S.FIELD_PARCEL],
-                preserved=r[S.FIELD_PRESERVED], coppice=r[S.FIELD_COPPICE],
+                species=r[FIELD_SPECIES], parcel=r[FIELD_PARCEL],
+                preserved=r[FIELD_PRESERVED], coppice=r[FIELD_COPPICE],
             )
             TreeSample.objects.create(
-                sample=sample, tree=tree, shoot=r[S.FIELD_SHOOT],
-                standard=r[S.FIELD_STANDARD], number=r[S.FIELD_NUMBER],
-                d_cm=r[S.FIELD_D_CM], h_m=r[S.FIELD_H_M], l10_mm=r[S.FIELD_L10_MM],
-                volume_m3=r[S.FIELD_VOLUME_M3], mass_q=r[S.FIELD_MASS_Q],
+                sample=sample, tree=tree, shoot=r[FIELD_SHOOT],
+                standard=r[FIELD_STANDARD], number=r[FIELD_NUMBER],
+                d_cm=r[FIELD_D_CM], h_m=r[FIELD_H_M], l10_mm=r[FIELD_L10_MM],
+                volume_m3=r[FIELD_VOLUME_M3], mass_q=r[FIELD_MASS_Q],
             )
             n_trees += 1
 
@@ -1207,7 +1219,7 @@ def tree_csv_import_view(request):
         )
 
     return JsonResponse({
-        S.DATA_ID: 'surveys', S.ROW_ID: survey.id,
+        DATA_ID: 'surveys', ROW_ID: survey.id,
         'n_samples': len(sample_by_key),
         'n_trees': n_trees,
     })
@@ -1238,10 +1250,10 @@ def _parse_csv(upload, required_cols):
 def _csv_error_list(errors):
     """Validation-error response carrying a per-row error list."""
     return JsonResponse({
-        S.STATUS: S.STATUS_VALIDATION_ERROR,
-        S.MESSAGE: errors[0] if errors else '',
-        S.FIELD_ERRORS: errors,
-        S.HTML: '',
+        STATUS: STATUS_VALIDATION_ERROR,
+        MESSAGE: errors[0] if errors else '',
+        FIELD_ERRORS: errors,
+        HTML: '',
     }, status=400)
 
 
@@ -1269,14 +1281,14 @@ def survey_delete_view(request, survey_id: int):
     """
     survey = Survey.objects.filter(id=survey_id).first()
     if survey is None:
-        return JsonResponse({S.STATUS: S.STATUS_NOT_FOUND}, status=404)
+        return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
     with transaction.atomic():
         survey.delete()
         mark_stale(
             f'sampled_trees_{survey_id}', 'samples', 'surveys', 'grids',
             'audit',
         )
-    return JsonResponse({S.DATA_ID: 'surveys', S.ROW_ID: survey_id})
+    return JsonResponse({DATA_ID: 'surveys', ROW_ID: survey_id})
 
 
 @login_required
@@ -1286,7 +1298,7 @@ def survey_save_view(request):
     body = json.loads(request.body)
     name = (body.get('name') or '').strip()
     description = (body.get('description') or '').strip()
-    grid_id = body.get(S.FIELD_SAMPLE_GRID_ID)
+    grid_id = body.get(FIELD_SAMPLE_GRID_ID)
 
     if not name:
         return _simple_validation_error(S.ERR_SURVEY_NAME_REQUIRED)
@@ -1308,9 +1320,9 @@ def survey_save_view(request):
         mark_stale('surveys', 'grids', 'audit')
 
     response_data = {
-        S.DATA_ID: 'surveys', S.ROW_ID: survey.id,
-        S.RECORD: build_survey_record(survey),
-        S.GRID_RECORD: build_grid_record(grid),
+        DATA_ID: 'surveys', ROW_ID: survey.id,
+        RECORD: build_survey_record(survey),
+        GRID_RECORD: build_grid_record(grid),
     }
     nonce = body.get('nonce')
     if nonce:
@@ -1345,7 +1357,7 @@ def grid_save_auto_view(request):
     description = (body.get('description') or '').strip()
     points = body.get('points') or []
     try:
-        r_m = int(body.get(S.FIELD_R_M) or 12)
+        r_m = int(body.get(FIELD_R_M) or 12)
     except (ValueError, TypeError):
         r_m = 12
 
@@ -1367,7 +1379,7 @@ def grid_save_auto_view(request):
                 sample_grid=grid,
                 parcel=parcel,
                 number=str(i + 1),
-                lat=pt[S.FIELD_LAT], lon=pt[S.FIELD_LON],
+                lat=pt[FIELD_LAT], lon=pt[FIELD_LON],
                 r_m=r_m,
                 note='',
             )
@@ -1378,9 +1390,9 @@ def grid_save_auto_view(request):
     area_qs = SampleArea.objects.filter(sample_grid=grid) \
                                  .select_related('parcel__region')
     response_data = {
-        S.DATA_ID: 'grids', S.ROW_ID: grid.id,
-        S.RECORD: build_grid_record(grid),
-        S.AREA_RECORDS: [build_sample_area_record(sa) for sa in area_qs],
+        DATA_ID: 'grids', ROW_ID: grid.id,
+        RECORD: build_grid_record(grid),
+        AREA_RECORDS: [build_sample_area_record(sa) for sa in area_qs],
     }
     nonce = body.get('nonce')
     if nonce:
@@ -1429,7 +1441,7 @@ def _simple_validation_error(message):
     """Shorter validation-error helper for grid/survey saves (no form
     re-render — the client just shows the message)."""
     return JsonResponse({
-        S.STATUS: S.STATUS_VALIDATION_ERROR,
-        S.MESSAGE: message,
-        S.HTML: '',
+        STATUS: STATUS_VALIDATION_ERROR,
+        MESSAGE: message,
+        HTML: '',
     }, status=400)

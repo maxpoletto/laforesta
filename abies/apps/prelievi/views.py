@@ -16,6 +16,13 @@ from apps.base.middleware import save_nonce
 from apps.base.models import Crew, Note, Parcel, Product, Region, Species, Tractor
 from apps.prelievi.models import Harvest, HarvestSpecies, HarvestTractor
 from config import strings as S
+from config.constants import (
+    DATA_ID, FIELD_CREW_ID, FIELD_DATE, FIELD_EXTRA_NOTE, FIELD_NONCE,
+    FIELD_NOTE_ID, FIELD_PARCEL_ID, FIELD_PRODUCT_ID, FIELD_QUINTALS,
+    FIELD_RECORD1, FIELD_RECORD2, FIELD_SORT_ORDER, FIELD_SPECIES_ID,
+    FIELD_VOLUME_M3, HTML, MESSAGE, RECORD, ROW_ID, STATUS, STATUS_CONFLICT,
+    STATUS_VALIDATION_ERROR, VERSION,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -35,7 +42,7 @@ def data_view(request):
 @login_required
 def form_view(request, op_id=None):
     """Return add/edit form HTML fragment."""
-    return JsonResponse({S.HTML: _render_form(op_id, request)})
+    return JsonResponse({HTML: _render_form(op_id, request)})
 
 
 # ---------------------------------------------------------------------------
@@ -61,7 +68,7 @@ def save_view(request):
             return conflict
 
     # VDP uniqueness
-    record1 = parsed[S.FIELD_RECORD1]
+    record1 = parsed[FIELD_RECORD1]
     if record1 is not None:
         dup = Harvest.objects.filter(record1=record1)
         if row_id:
@@ -75,7 +82,7 @@ def save_view(request):
         return _validation_error(pct_errors, row_id, request, body)
 
     # Materialize volume_m3 from species mix and current densities.
-    parsed[S.FIELD_VOLUME_M3] = _compute_volume_m3(parsed[S.FIELD_QUINTALS], sp_pcts)
+    parsed[FIELD_VOLUME_M3] = _compute_volume_m3(parsed[FIELD_QUINTALS], sp_pcts)
 
     with transaction.atomic():
         if row_id:
@@ -90,9 +97,9 @@ def save_view(request):
 
     op = Harvest.objects.select_related('parcel__region', 'crew', 'note', 'product').get(id=op.id)
     record = build_harvest_record(op)
-    response_data = {S.DATA_ID: 'prelievi', S.ROW_ID: op.id, S.RECORD: record}
+    response_data = {DATA_ID: 'prelievi', ROW_ID: op.id, RECORD: record}
 
-    nonce = body.get(S.FIELD_NONCE)
+    nonce = body.get(FIELD_NONCE)
     if nonce:
         save_nonce(nonce, request.user, response_data)
 
@@ -109,28 +116,28 @@ def save_view(request):
 def delete_view(request):
     """Delete a harvest (with version check)."""
     body = json.loads(request.body)
-    row_id = int(body[S.ROW_ID])
-    version = int(body.get(S.VERSION, 0))
+    row_id = int(body[ROW_ID])
+    version = int(body.get(VERSION, 0))
 
     try:
         op = Harvest.objects.select_related('parcel__region', 'crew', 'note', 'product').get(id=row_id)
     except Harvest.DoesNotExist:
-        return JsonResponse({S.MESSAGE: S.ERR_NOT_FOUND}, status=404)
+        return JsonResponse({MESSAGE: S.ERR_NOT_FOUND}, status=404)
 
     if op.version != version:
         record = build_harvest_record(op)
         return JsonResponse({
-            S.STATUS: S.STATUS_CONFLICT, S.MESSAGE: S.ERROR_CONFLICT,
-            S.DATA_ID: 'prelievi', S.ROW_ID: row_id, S.RECORD: record,
+            STATUS: STATUS_CONFLICT, MESSAGE: S.ERROR_CONFLICT,
+            DATA_ID: 'prelievi', ROW_ID: row_id, RECORD: record,
         }, status=400)
 
     with transaction.atomic():
         op.delete()
         mark_stale('prelievi', 'parcel_year_production', 'audit')
 
-    response_data = {S.DATA_ID: 'prelievi', S.ROW_ID: row_id}
+    response_data = {DATA_ID: 'prelievi', ROW_ID: row_id}
 
-    nonce = body.get(S.FIELD_NONCE)
+    nonce = body.get(FIELD_NONCE)
     if nonce:
         save_nonce(nonce, request.user, response_data)
 
@@ -156,7 +163,7 @@ def _form_context(op_id=None, vals=None):
             'parcel__region', 'crew', 'note',
         ).get(id=op_id)
         sp_pcts = dict(
-            HarvestSpecies.objects.filter(harvest=op).values_list(S.FIELD_SPECIES_ID, 'percent'),
+            HarvestSpecies.objects.filter(harvest=op).values_list(FIELD_SPECIES_ID, 'percent'),
         )
         tr_pcts = dict(
             HarvestTractor.objects.filter(harvest=op).values_list('tractor_id', 'percent'),
@@ -182,7 +189,7 @@ def _form_context(op_id=None, vals=None):
         'notes': Note.objects.order_by('name'),
         'species_data': [
             (sp.id, sp.common_name, sp_pcts.get(sp.id, 0))
-            for sp in Species.objects.filter(active=True).order_by(S.FIELD_SORT_ORDER)
+            for sp in Species.objects.filter(active=True).order_by(FIELD_SORT_ORDER)
         ],
         'tractor_data': [
             (tr.id, f'{tr.manufacturer} {tr.model}'.strip(), tr_pcts.get(tr.id, 0))
@@ -203,10 +210,10 @@ def _parse_body(body):
     Returns (row_id, parsed_dict, error_list).
     """
     errors = []
-    row_id = body.get(S.ROW_ID)
+    row_id = body.get(ROW_ID)
     row_id = int(row_id) if row_id else None
 
-    date = body.get(S.FIELD_DATE)
+    date = body.get(FIELD_DATE)
     if not date:
         errors.append(S.ERR_DATE_REQUIRED)
     else:
@@ -217,31 +224,31 @@ def _parse_body(body):
             errors.append(S.ERR_DATE_REQUIRED)
 
     try:
-        quintals = Decimal(body.get(S.FIELD_QUINTALS, '0'))
+        quintals = Decimal(body.get(FIELD_QUINTALS, '0'))
         if quintals <= 0:
             errors.append(S.ERR_QUINTALS_POSITIVE)
     except InvalidOperation:
         errors.append(S.ERR_QUINTALS_POSITIVE)
         quintals = Decimal(0)
 
-    note_id = body.get(S.FIELD_NOTE_ID)
-    record1 = body.get(S.FIELD_RECORD1)
+    note_id = body.get(FIELD_NOTE_ID)
+    record1 = body.get(FIELD_RECORD1)
 
     parsed = {
-        S.FIELD_DATE: date,
-        S.FIELD_PARCEL_ID: int(body[S.FIELD_PARCEL_ID]),
-        S.FIELD_CREW_ID: int(body[S.FIELD_CREW_ID]),
-        S.FIELD_PRODUCT_ID: int(body[S.FIELD_PRODUCT_ID]),
-        S.FIELD_NOTE_ID: int(note_id) if note_id else None,
-        S.FIELD_RECORD1: int(record1) if record1 else None,
-        S.FIELD_QUINTALS: quintals,
-        S.FIELD_EXTRA_NOTE: body.get(S.FIELD_EXTRA_NOTE, ''),
+        FIELD_DATE: date,
+        FIELD_PARCEL_ID: int(body[FIELD_PARCEL_ID]),
+        FIELD_CREW_ID: int(body[FIELD_CREW_ID]),
+        FIELD_PRODUCT_ID: int(body[FIELD_PRODUCT_ID]),
+        FIELD_NOTE_ID: int(note_id) if note_id else None,
+        FIELD_RECORD1: int(record1) if record1 else None,
+        FIELD_QUINTALS: quintals,
+        FIELD_EXTRA_NOTE: body.get(FIELD_EXTRA_NOTE, ''),
     }
     # record2 (Prot) is display-only for legacy data; only overwrite if
     # explicitly present in the submission (i.e., never from the current form).
-    if S.FIELD_RECORD2 in body:
-        record2 = body[S.FIELD_RECORD2]
-        parsed[S.FIELD_RECORD2] = int(record2) if record2 else None
+    if FIELD_RECORD2 in body:
+        record2 = body[FIELD_RECORD2]
+        parsed[FIELD_RECORD2] = int(record2) if record2 else None
     return row_id, parsed, errors
 
 
@@ -300,10 +307,10 @@ def _conflict_response(row_id, request):
         'parcel__region', 'crew', 'note', 'product',
     ).get(id=row_id)
     return JsonResponse({
-        S.STATUS: S.STATUS_CONFLICT, S.MESSAGE: S.ERROR_CONFLICT,
-        S.DATA_ID: 'prelievi', S.ROW_ID: row_id,
-        S.RECORD: build_harvest_record(op),
-        S.HTML: _render_form(row_id, request),
+        STATUS: STATUS_CONFLICT, MESSAGE: S.ERROR_CONFLICT,
+        DATA_ID: 'prelievi', ROW_ID: row_id,
+        RECORD: build_harvest_record(op),
+        HTML: _render_form(row_id, request),
     }, status=400)
 
 
@@ -313,10 +320,10 @@ def _check_update_conflict(row_id, body, request):
     The authoritative check inside `transaction.atomic()` still runs in
     `_update_op` to handle races with concurrent writers."""
     try:
-        actual_version = Harvest.objects.values_list(S.VERSION, flat=True).get(id=row_id)
+        actual_version = Harvest.objects.values_list(VERSION, flat=True).get(id=row_id)
     except Harvest.DoesNotExist:
-        return JsonResponse({S.MESSAGE: S.ERR_NOT_FOUND}, status=404)
-    if actual_version == int(body.get(S.VERSION, 0)):
+        return JsonResponse({MESSAGE: S.ERR_NOT_FOUND}, status=404)
+    if actual_version == int(body.get(VERSION, 0)):
         return None
     return _conflict_response(row_id, request)
 
@@ -325,7 +332,7 @@ def _update_op(row_id, parsed, body, request):
     """Update an existing Harvest under row lock.  Returns the updated op,
     or a conflict JsonResponse if a concurrent writer bumped the version
     since `_check_update_conflict` passed."""
-    version = int(body.get(S.VERSION, 0))
+    version = int(body.get(VERSION, 0))
     op = Harvest.objects.select_for_update().get(id=row_id)
     if op.version != version:
         return _conflict_response(row_id, request)
@@ -353,7 +360,7 @@ def _write_junctions(op, sp_pcts, tr_pcts):
 
 def _validation_error(errors, row_id, request, vals=None):
     return JsonResponse({
-        S.STATUS: S.STATUS_VALIDATION_ERROR,
-        S.MESSAGE: ' '.join(errors),
-        S.HTML: _render_form(row_id, request, vals),
+        STATUS: STATUS_VALIDATION_ERROR,
+        MESSAGE: ' '.join(errors),
+        HTML: _render_form(row_id, request, vals),
     }, status=400)

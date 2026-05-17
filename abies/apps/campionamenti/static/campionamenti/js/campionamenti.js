@@ -17,6 +17,9 @@ import * as router from '../../base/js/router.js';
 import { TableWrapper } from '../../base/js/table.js';
 import { show as showModal, showError, dismiss as dismissModal } from '../../base/js/modals.js';
 import * as S from '../../base/js/strings.js';
+import {
+  FIELD_LAT, FIELD_LON, ROW_ID, VERSION,
+} from '../../base/js/constants.js';
 import { fetchJSON, postJSON, postFormData } from '../../base/js/api.js';
 import { fetchForm, renderFormHTML, interceptSubmit } from '../../base/js/forms.js';
 import { RilevamentiMap } from './rilevamenti-map.js';
@@ -111,7 +114,7 @@ const TREES_COLS = {
   [S.COL_PAI]:         { label: S.COL_PAI, type: 'boolean', width: '50px', formatter: fBool },
   [S.COL_LAT]:         { label: S.COL_LAT, type: 'number', width: '85px', formatter: fLat },
   [S.COL_LON]:         { label: S.COL_LON, type: 'number', width: '85px', formatter: fLat },
-  [S.VERSION]: { label: S.VERSION, hidden: true },
+  [VERSION]: { label: VERSION, hidden: true },
 };
 
 // --- Page state -------------------------------------------------------------
@@ -323,7 +326,7 @@ function buildGriglieBody(body) {
 
   const sel = document.createElement('select');
   sel.className = 'campionamenti-pulldown';
-  const idCol = gridsData.columns.indexOf(S.ROW_ID);
+  const idCol = gridsData.columns.indexOf(ROW_ID);
   const nameCol = gridsData.columns.indexOf(S.COL_NAME);
   for (const row of gridsData.rows) {
     const opt = document.createElement('option');
@@ -429,7 +432,7 @@ function renderGriglieSummary(gridId) {
   const s = sections.g;
   if (!s.summary) return;
   const c = gridsData.columns;
-  const row = gridsData.rows.find(r => r[c.indexOf(S.ROW_ID)] === gridId);
+  const row = gridsData.rows.find(r => r[c.indexOf(ROW_ID)] === gridId);
   s.summary.replaceChildren();
   if (!row) return;
   const desc = row[c.indexOf(S.COL_DESCRIPTION)] || '';
@@ -458,7 +461,7 @@ function renderGriglieMap(gridId) {
   const areas = sampleAreasData.rows
     .filter(r => r[c.indexOf(S.COL_GRID)] === gridId)
     .map(r => ({
-      id: r[c.indexOf(S.ROW_ID)],
+      id: r[c.indexOf(ROW_ID)],
       lat: r[c.indexOf(S.COL_LAT)],
       lon: r[c.indexOf(S.COL_LON)],
       compresa: r[c.indexOf(S.COL_COMPRESA)],
@@ -513,7 +516,7 @@ function buildRilevamentiBody(body) {
 
   const sel = document.createElement('select');
   sel.className = 'campionamenti-pulldown';
-  const idCol = surveysData.columns.indexOf(S.ROW_ID);
+  const idCol = surveysData.columns.indexOf(ROW_ID);
   const nameCol = surveysData.columns.indexOf(S.COL_NAME);
   const visCol = surveysData.columns.indexOf(S.COL_N_AREAS_VISITED);
   const totCol = surveysData.columns.indexOf(S.COL_N_AREAS_TOTAL);
@@ -604,7 +607,7 @@ function renderRilevamentiSummary(surveyId) {
   const s = sections.r;
   if (!s.summary) return;
   const c = surveysData.columns;
-  const row = surveysData.rows.find(r => r[c.indexOf(S.ROW_ID)] === surveyId);
+  const row = surveysData.rows.find(r => r[c.indexOf(ROW_ID)] === surveyId);
   s.summary.replaceChildren();
   if (!row) return;
   const desc = row[c.indexOf(S.COL_DESCRIPTION)] || '';
@@ -629,7 +632,7 @@ function renderRilevamentiSummary(surveyId) {
 
 function lookupGridName(gridId) {
   const c = gridsData.columns;
-  const row = gridsData.rows.find(r => r[c.indexOf(S.ROW_ID)] === gridId);
+  const row = gridsData.rows.find(r => r[c.indexOf(ROW_ID)] === gridId);
   return row ? row[c.indexOf(S.COL_NAME)] : '';
 }
 
@@ -639,7 +642,7 @@ function renderRilevamentiMap(surveyId) {
   if (!s.mapEl) return;
 
   const surveyRow = surveysData.rows.find(
-    r => r[surveysData.columns.indexOf(S.ROW_ID)] === surveyId,
+    r => r[surveysData.columns.indexOf(ROW_ID)] === surveyId,
   );
   if (!surveyRow) return;
   const gridId = surveyRow[surveysData.columns.indexOf(S.COL_GRID)];
@@ -648,7 +651,7 @@ function renderRilevamentiMap(surveyId) {
   const areas = sampleAreasData.rows
     .filter(r => r[c.indexOf(S.COL_GRID)] === gridId)
     .map(r => ({
-      id: r[c.indexOf(S.ROW_ID)],
+      id: r[c.indexOf(ROW_ID)],
       lat: r[c.indexOf(S.COL_LAT)],
       lon: r[c.indexOf(S.COL_LON)],
       compresa: r[c.indexOf(S.COL_COMPRESA)],
@@ -837,7 +840,7 @@ function applyParams(params) {
   // a delete + back-button, and the post-delete returnToPage path).
   let targetGrid = p.g != null && gridRow(p.g) ? p.g : null;
   if (targetGrid == null && gridsData?.rows.length) {
-    targetGrid = gridsData.rows[0][gridsData.columns.indexOf(S.ROW_ID)];
+    targetGrid = gridsData.rows[0][gridsData.columns.indexOf(ROW_ID)];
   }
   if (targetGrid != null && targetGrid !== activeGridId) {
     activateGrid(targetGrid);
@@ -846,7 +849,7 @@ function applyParams(params) {
   // Active survey — same fallback as grid.
   let targetSurvey = p.s != null && surveyRow(p.s) ? p.s : null;
   if (targetSurvey == null && surveysData?.rows.length) {
-    targetSurvey = surveysData.rows[0][surveysData.columns.indexOf(S.ROW_ID)];
+    targetSurvey = surveysData.rows[0][surveysData.columns.indexOf(ROW_ID)];
   }
   if (targetSurvey == null) { showAlberiEmpty(); return; }
 
@@ -872,11 +875,11 @@ function syncURL() {
   if (openKeys !== DEFAULT_OPEN) u.set('o', openKeys);
 
   if (activeGridId != null) {
-    const defaultGrid = gridsData?.rows[0]?.[gridsData.columns.indexOf(S.ROW_ID)];
+    const defaultGrid = gridsData?.rows[0]?.[gridsData.columns.indexOf(ROW_ID)];
     if (activeGridId !== defaultGrid) u.set('g', String(activeGridId));
   }
   if (activeSurveyId != null) {
-    const defaultSurvey = surveysData?.rows[0]?.[surveysData.columns.indexOf(S.ROW_ID)];
+    const defaultSurvey = surveysData?.rows[0]?.[surveysData.columns.indexOf(ROW_ID)];
     if (activeSurveyId !== defaultSurvey) u.set('s', String(activeSurveyId));
   }
   if (activeAreaId != null) u.set('a', String(activeAreaId));
@@ -1206,8 +1209,8 @@ async function showAddAreaForm({ lat, lon } = {}) {
   if (activeGridId == null) return;
   inForm = true;
   const qs = new URLSearchParams({ grid: String(activeGridId) });
-  if (lat != null) qs.set(S.FIELD_LAT, String(lat));
-  if (lon != null) qs.set(S.FIELD_LON, String(lon));
+  if (lat != null) qs.set(FIELD_LAT, String(lat));
+  if (lon != null) qs.set(FIELD_LON, String(lon));
   const form = await fetchForm(`${AREA_FORM_URL}?${qs}`);
   if (!form) { returnToPage(); return; }
   wireAreaForm(form);
@@ -1576,7 +1579,7 @@ function exportSurveyCSV(surveyId) {
   const lines = [];
   // Columns to include in the export — skip hidden synthetic ones.
   const visibleCols = d.columns.filter(
-    c => c !== S.VERSION && c !== S.COL_SAMPLE_AREA,
+    c => c !== VERSION && c !== S.COL_SAMPLE_AREA,
   );
   const idx = visibleCols.map(c => d.columns.indexOf(c));
   lines.push(visibleCols.join(fmt.separator));
@@ -1722,7 +1725,7 @@ function simpleConfirmModal(message, onConfirm) {
 function updatePulldownOption(section, id, digest, column) {
   if (!section?.pulldown || !digest) return;
   const c = digest.columns;
-  const row = digest.rows.find(r => r[c.indexOf(S.ROW_ID)] === id);
+  const row = digest.rows.find(r => r[c.indexOf(ROW_ID)] === id);
   if (!row) return;
   const opt = section.pulldown.querySelector(`option[value="${id}"]`);
   if (opt) opt.textContent = row[c.indexOf(column)];
@@ -1733,7 +1736,7 @@ function rebuildSurveyPulldown() {
   const sel = sections.r.pulldown;
   if (!sel || !surveysData) return;
   const c = surveysData.columns;
-  const idCol = c.indexOf(S.ROW_ID);
+  const idCol = c.indexOf(ROW_ID);
   const nameCol = c.indexOf(S.COL_NAME);
   const visCol = c.indexOf(S.COL_N_AREAS_VISITED);
   const totCol = c.indexOf(S.COL_N_AREAS_TOTAL);
@@ -1855,12 +1858,12 @@ function applySideEffects(data) {
 
 function gridRow(id) {
   const c = gridsData.columns;
-  return gridsData.rows.find(r => r[c.indexOf(S.ROW_ID)] === id);
+  return gridsData.rows.find(r => r[c.indexOf(ROW_ID)] === id);
 }
 
 function surveyRow(id) {
   const c = surveysData.columns;
-  return surveysData.rows.find(r => r[c.indexOf(S.ROW_ID)] === id);
+  return surveysData.rows.find(r => r[c.indexOf(ROW_ID)] === id);
 }
 
 // ---------------------------------------------------------------------------

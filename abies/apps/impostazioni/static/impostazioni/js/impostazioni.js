@@ -15,6 +15,9 @@ import { TableWrapper } from '../../base/js/table.js';
 import * as modals from '../../base/js/modals.js';
 import { showError } from '../../base/js/modals.js';
 import * as S from '../../base/js/strings.js';
+import {
+  LOGIN_METHOD_PASSWORD, ROLE_ADMIN, ROLE_WRITER, STATUS_CONFLICT,
+} from '../../base/js/constants.js';
 
 const API = '/api/impostazioni/';
 
@@ -28,7 +31,7 @@ const ENTITY_SECTIONS = [
   {
     key: 'crews',
     title: S.SETTINGS_CREWS,
-    minRole: S.ROLE_WRITER,
+    minRole: ROLE_WRITER,
     dataUrl: `${API}crews/data/`,
     formUrl: `${API}crews/form/`,
     saveUrl: `${API}crews/save/`,
@@ -41,7 +44,7 @@ const ENTITY_SECTIONS = [
   {
     key: 'tractors',
     title: S.SETTINGS_TRACTORS,
-    minRole: S.ROLE_WRITER,
+    minRole: ROLE_WRITER,
     dataUrl: `${API}tractors/data/`,
     formUrl: `${API}tractors/form/`,
     saveUrl: `${API}tractors/save/`,
@@ -51,7 +54,7 @@ const ENTITY_SECTIONS = [
   {
     key: 'species',
     title: S.SETTINGS_SPECIES,
-    minRole: S.ROLE_WRITER,
+    minRole: ROLE_WRITER,
     dataUrl: `${API}species/data/`,
     formUrl: `${API}species/form/`,
     saveUrl: `${API}species/save/`,
@@ -61,7 +64,7 @@ const ENTITY_SECTIONS = [
   {
     key: 'users',
     title: S.SETTINGS_USERS,
-    minRole: S.ROLE_ADMIN,
+    minRole: ROLE_ADMIN,
     dataUrl: `${API}users/data/`,
     formUrl: `${API}users/form/`,
     saveUrl: `${API}users/save/`,
@@ -92,7 +95,7 @@ export function mount() {
   const loginMethod = document.body.dataset.loginMethod;
 
   // Password section — visible to all password-login users.
-  if (loginMethod === S.LOGIN_METHOD_PASSWORD) {
+  if (loginMethod === LOGIN_METHOD_PASSWORD) {
     el.appendChild(buildPasswordSection());
   }
 
@@ -352,7 +355,7 @@ function showFormModal(html, cfg, state) {
           state.table?.setData(state.digest);
           applyActiveFilter(state);
         }
-      } else if (data.status === S.STATUS_CONFLICT) {
+      } else if (data.status === STATUS_CONFLICT) {
         showError(data.message || S.ERROR_CONFLICT);
       } else {
         // Inline validation error — stays inside the modal form.
@@ -379,7 +382,7 @@ function wirePasswordToggle(form) {
   const pwFields = form.querySelectorAll('.password-login-only');
   function toggle() {
     const method = form.querySelector('input[name="login_method"]:checked')?.value;
-    const show = method === S.LOGIN_METHOD_PASSWORD;
+    const show = method === LOGIN_METHOD_PASSWORD;
     for (const el of pwFields) el.style.display = show ? '' : 'none';
   }
   for (const r of radios) r.addEventListener('change', toggle);
@@ -412,8 +415,8 @@ function buildCollapsible(title) {
 }
 
 function hasMinRole(role, minRole) {
-  if (minRole === S.ROLE_ADMIN) return role === S.ROLE_ADMIN;
-  if (minRole === S.ROLE_WRITER) return role === S.ROLE_ADMIN || role === S.ROLE_WRITER;
+  if (minRole === ROLE_ADMIN) return role === ROLE_ADMIN;
+  if (minRole === ROLE_WRITER) return role === ROLE_ADMIN || role === ROLE_WRITER;
   return true;
 }
 

@@ -9,6 +9,7 @@
 import { postJSON } from './api.js';
 import { showError } from './modals.js';
 import * as S from './strings.js';
+import { HTML, STATUS_CONFLICT } from './constants.js';
 
 /**
  * Fetch a form fragment from the server and display it in #content.
@@ -92,7 +93,7 @@ export function interceptSubmit(form, postUrl, callbacks) {
       return;
     }
 
-    if (data.status === S.STATUS_CONFLICT) {
+    if (data.status === STATUS_CONFLICT) {
       showError(data.message || S.ERROR_CONFLICT);
       callbacks.onConflict?.(data);
     } else {

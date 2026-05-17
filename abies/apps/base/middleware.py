@@ -8,6 +8,9 @@ from django.http import JsonResponse
 
 from apps.base.models import UsedNonce
 from config import strings as S
+from config.constants import (
+    MESSAGE, STATUS, STATUS_RATE_LIMITED,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -131,7 +134,7 @@ class RateLimitMiddleware:
 
         if len(timestamps) >= RATE_LIMIT:
             return JsonResponse(
-                {S.STATUS: S.STATUS_RATE_LIMITED, S.MESSAGE: S.ERROR_RATE_LIMIT},
+                {STATUS: STATUS_RATE_LIMITED, MESSAGE: S.ERROR_RATE_LIMIT},
                 status=429,
             )
 

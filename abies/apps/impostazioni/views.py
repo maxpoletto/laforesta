@@ -18,6 +18,14 @@ from apps.base.digests import mark_stale
 from apps.base.middleware import save_nonce
 from apps.base.models import Crew, LoginMethod, Role, Species, Tractor, User
 from config import strings as S
+from config.constants import (
+    COLUMNS, FIELD_ACTIVE, FIELD_COMMON_NAME, FIELD_DENSITY, FIELD_EMAIL,
+    FIELD_FIRST_NAME, FIELD_IS_ACTIVE, FIELD_LAST_NAME, FIELD_LATIN_NAME,
+    FIELD_LOGIN_METHOD, FIELD_MANUFACTURER, FIELD_MODEL, FIELD_NAME,
+    FIELD_NONCE, FIELD_NOTES, FIELD_ROLE, FIELD_SPECIES, FIELD_USERNAME,
+    FIELD_YEAR, HTML, MESSAGE, RECORD, ROWS, ROW_ID, STATUS, STATUS_CONFLICT,
+    STATUS_VALIDATION_ERROR, VERSION,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -41,14 +49,14 @@ def password_view(request):
     request.user.set_password(pw1)
     request.user.save()
     update_session_auth_hash(request, request.user)
-    return JsonResponse({S.MESSAGE: S.PASSWORD_CHANGED})
+    return JsonResponse({MESSAGE: S.PASSWORD_CHANGED})
 
 
 # ---------------------------------------------------------------------------
 # Crews
 # ---------------------------------------------------------------------------
 
-CREW_COLS = [S.ROW_ID, S.LABEL_NAME, S.LABEL_NOTES, S.COL_ACTIVE]
+CREW_COLS = [ROW_ID, S.LABEL_NAME, S.LABEL_NOTES, S.COL_ACTIVE]
 
 
 def _crew_row(c):
@@ -73,11 +81,11 @@ def crews_form(request, obj_id=None):
 def crews_save(request):
     body = json.loads(request.body)
     parsed = {
-        S.FIELD_NAME: body.get(S.FIELD_NAME, '').strip(),
-        S.FIELD_NOTES: body.get(S.FIELD_NOTES, ''),
-        S.FIELD_ACTIVE: body.get(S.FIELD_ACTIVE) == 'true',
+        FIELD_NAME: body.get(FIELD_NAME, '').strip(),
+        FIELD_NOTES: body.get(FIELD_NOTES, ''),
+        FIELD_ACTIVE: body.get(FIELD_ACTIVE) == 'true',
     }
-    if not parsed[S.FIELD_NAME]:
+    if not parsed[FIELD_NAME]:
         return _error(S.ERR_NAME_REQUIRED)
     obj, err = _save(Crew, body, parsed)
     if err:
@@ -90,7 +98,7 @@ def crews_save(request):
 # Tractors
 # ---------------------------------------------------------------------------
 
-TRACTOR_COLS = [S.ROW_ID, S.LABEL_MANUFACTURER, S.LABEL_MODEL,
+TRACTOR_COLS = [ROW_ID, S.LABEL_MANUFACTURER, S.LABEL_MODEL,
                 S.LABEL_YEAR, S.COL_ACTIVE]
 
 
@@ -115,14 +123,14 @@ def tractors_form(request, obj_id=None):
 @require_POST
 def tractors_save(request):
     body = json.loads(request.body)
-    year = body.get(S.FIELD_YEAR, '')
+    year = body.get(FIELD_YEAR, '')
     parsed = {
-        S.FIELD_MANUFACTURER: body.get(S.FIELD_MANUFACTURER, '').strip(),
-        S.FIELD_MODEL: body.get(S.FIELD_MODEL, '').strip(),
-        S.FIELD_YEAR: int(year) if year else None,
-        S.FIELD_ACTIVE: body.get(S.FIELD_ACTIVE) == 'true',
+        FIELD_MANUFACTURER: body.get(FIELD_MANUFACTURER, '').strip(),
+        FIELD_MODEL: body.get(FIELD_MODEL, '').strip(),
+        FIELD_YEAR: int(year) if year else None,
+        FIELD_ACTIVE: body.get(FIELD_ACTIVE) == 'true',
     }
-    if not parsed[S.FIELD_MANUFACTURER]:
+    if not parsed[FIELD_MANUFACTURER]:
         return _error(S.ERR_NAME_REQUIRED)
     obj, err = _save(Tractor, body, parsed)
     if err:
@@ -135,7 +143,7 @@ def tractors_save(request):
 # Species
 # ---------------------------------------------------------------------------
 
-SPECIES_COLS = [S.ROW_ID, S.LABEL_NAME, S.LABEL_LATIN_NAME,
+SPECIES_COLS = [ROW_ID, S.LABEL_NAME, S.LABEL_LATIN_NAME,
                 S.LABEL_DENSITY, S.COL_ACTIVE]
 
 
@@ -161,24 +169,24 @@ def species_form(request, obj_id=None):
 def species_save(request):
     body = json.loads(request.body)
     try:
-        density = Decimal(str(body.get(S.FIELD_DENSITY, '0') or '0'))
+        density = Decimal(str(body.get(FIELD_DENSITY, '0') or '0'))
     except InvalidOperation:
         return _error(S.ERR_DENSITY_INVALID)
     if density <= 0:
         return _error(S.ERR_DENSITY_INVALID)
     parsed = {
-        S.FIELD_COMMON_NAME: body.get(S.FIELD_COMMON_NAME, '').strip(),
-        S.FIELD_LATIN_NAME: body.get(S.FIELD_LATIN_NAME, '').strip(),
-        S.FIELD_DENSITY: density,
-        S.FIELD_ACTIVE: body.get(S.FIELD_ACTIVE) == 'true',
+        FIELD_COMMON_NAME: body.get(FIELD_COMMON_NAME, '').strip(),
+        FIELD_LATIN_NAME: body.get(FIELD_LATIN_NAME, '').strip(),
+        FIELD_DENSITY: density,
+        FIELD_ACTIVE: body.get(FIELD_ACTIVE) == 'true',
     }
-    if not parsed[S.FIELD_COMMON_NAME]:
+    if not parsed[FIELD_COMMON_NAME]:
         return _error(S.ERR_NAME_REQUIRED)
     obj, err = _save(Species, body, parsed)
     if err:
         return err
     # species.json is consumed by V/m preview forms; bust on edits.
-    mark_stale('audit', S.FIELD_SPECIES)
+    mark_stale('audit', FIELD_SPECIES)
     return _saved(obj, _species_row, body, request)
 
 
@@ -186,13 +194,13 @@ def species_save(request):
 # Users (admin only)
 # ---------------------------------------------------------------------------
 
-USER_COLS = [S.ROW_ID, S.LABEL_FIRST_NAME, S.LABEL_LAST_NAME, S.LABEL_USERNAME,
+USER_COLS = [ROW_ID, S.LABEL_FIRST_NAME, S.LABEL_LAST_NAME, S.LABEL_USERNAME,
              S.LABEL_EMAIL, S.LABEL_LOGIN_METHOD, S.LABEL_CREATED_AT, S.COL_ACTIVE]
 
 ROLE_LABELS = [
-    (Role.ADMIN, S.ROLE_ADMIN),
-    (Role.WRITER, S.ROLE_WRITER),
-    (Role.READER, S.ROLE_READER),
+    (Role.ADMIN, S.LABEL_ROLE_ADMIN),
+    (Role.WRITER, S.LABEL_ROLE_WRITER),
+    (Role.READER, S.LABEL_ROLE_READER),
 ]
 
 
@@ -216,7 +224,7 @@ def users_form(request, obj_id=None):
         'roles': ROLE_LABELS,
         'login_methods': LoginMethod.choices,
     }, request=request)
-    return JsonResponse({S.HTML: html})
+    return JsonResponse({HTML: html})
 
 
 @login_required
@@ -224,27 +232,27 @@ def users_form(request, obj_id=None):
 @require_POST
 def users_save(request):
     body = json.loads(request.body)
-    row_id = body.get(S.ROW_ID)
+    row_id = body.get(ROW_ID)
     row_id = int(row_id) if row_id else None
 
-    email = body.get(S.FIELD_EMAIL, '').strip()
+    email = body.get(FIELD_EMAIL, '').strip()
     if not email:
         return _error(S.ERR_EMAIL_REQUIRED)
 
-    login_method = body.get(S.FIELD_LOGIN_METHOD, LoginMethod.PASSWORD)
+    login_method = body.get(FIELD_LOGIN_METHOD, LoginMethod.PASSWORD)
 
     # OAuth users are matched by email; we only need a unique username for
     # Django's bookkeeping, so reuse the email rather than asking the admin.
     if login_method == LoginMethod.OAUTH:
         username = email
     else:
-        username = body.get(S.FIELD_USERNAME, '').strip()
+        username = body.get(FIELD_USERNAME, '').strip()
         if not username:
             return _error(S.ERR_USERNAME_REQUIRED)
-    role = body.get(S.FIELD_ROLE, Role.READER)
-    active = body.get(S.FIELD_IS_ACTIVE) == 'true'
-    first_name = body.get(S.FIELD_FIRST_NAME, '').strip()
-    last_name = body.get(S.FIELD_LAST_NAME, '').strip()
+    role = body.get(FIELD_ROLE, Role.READER)
+    active = body.get(FIELD_IS_ACTIVE) == 'true'
+    first_name = body.get(FIELD_FIRST_NAME, '').strip()
+    last_name = body.get(FIELD_LAST_NAME, '').strip()
 
     pw1 = body.get('password1', '')
     pw2 = body.get('password2', '')
@@ -286,8 +294,8 @@ def users_save(request):
 
     mark_stale('audit')
 
-    nonce = body.get(S.FIELD_NONCE)
-    response_data = {S.ROW_ID: user.id, S.RECORD: _user_row(user)}
+    nonce = body.get(FIELD_NONCE)
+    response_data = {ROW_ID: user.id, RECORD: _user_row(user)}
     if nonce:
         save_nonce(nonce, request.user, response_data)
     return JsonResponse(response_data)
@@ -312,27 +320,27 @@ def _sync_email_address(user):
 
 def _list(model, columns, row_fn):
     rows = [row_fn(obj) for obj in model.objects.order_by('pk')]
-    return JsonResponse({S.COLUMNS: columns, S.ROWS: rows})
+    return JsonResponse({COLUMNS: columns, ROWS: rows})
 
 
 def _form(template, model, obj_id, request):
     obj = model.objects.get(id=obj_id) if obj_id else None
     html = render_to_string(template, {'obj': obj}, request=request)
-    return JsonResponse({S.HTML: html})
+    return JsonResponse({HTML: html})
 
 
 def _save(model, body, parsed):
     """Create or update a TimestampedModel with optimistic locking."""
-    row_id = body.get(S.ROW_ID)
+    row_id = body.get(ROW_ID)
     row_id = int(row_id) if row_id else None
 
     with transaction.atomic():
         if row_id:
-            version = int(body.get(S.VERSION, 0))
+            version = int(body.get(VERSION, 0))
             obj = model.objects.select_for_update().get(id=row_id)
             if obj.version != version:
                 return None, JsonResponse({
-                    S.STATUS: S.STATUS_CONFLICT, S.MESSAGE: S.ERROR_CONFLICT,
+                    STATUS: STATUS_CONFLICT, MESSAGE: S.ERROR_CONFLICT,
                 }, status=400)
             for field, value in parsed.items():
                 setattr(obj, field, value)
@@ -345,15 +353,15 @@ def _save(model, body, parsed):
 
 
 def _saved(obj, row_fn, body, request):
-    nonce = body.get(S.FIELD_NONCE)
-    response_data = {S.ROW_ID: obj.id, S.RECORD: row_fn(obj)}
+    nonce = body.get(FIELD_NONCE)
+    response_data = {ROW_ID: obj.id, RECORD: row_fn(obj)}
     if nonce:
         save_nonce(nonce, request.user, response_data)
     return JsonResponse(response_data)
 
 
 def _error(message):
-    return JsonResponse({S.STATUS: S.STATUS_VALIDATION_ERROR, S.MESSAGE: message}, status=400)
+    return JsonResponse({STATUS: STATUS_VALIDATION_ERROR, MESSAGE: message}, status=400)
 
 
 def _validate_password(pw1, pw2, user=None):

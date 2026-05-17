@@ -12,6 +12,9 @@ from apps.base.middleware import (
 )
 from apps.base.models import UsedNonce
 from config import strings as S
+from config.constants import (
+    DATA_ID, FIELD_DATE, FIELD_NONCE, RECORD, ROW_ID, STATUS,
+)
 
 
 # -- Helpers ----------------------------------------------------------------
@@ -48,12 +51,12 @@ class TestCSPMiddleware:
 
 class TestNonceMiddleware:
     def test_replay_returns_cached_response(self, admin_user):
-        cached = {S.DATA_ID: 'prelievi', S.ROW_ID: 42, S.RECORD: [42, '2024-01-01']}
+        cached = {DATA_ID: 'prelievi', ROW_ID: 42, RECORD: [42, '2024-01-01']}
         save_nonce('nonce-aaa', admin_user, cached)
 
         request = RequestFactory().post(
             '/api/prelievi/save/',
-            data=json.dumps({S.FIELD_NONCE: 'nonce-aaa', S.FIELD_DATE: '2024-01-01'}),
+            data=json.dumps({FIELD_NONCE: 'nonce-aaa', FIELD_DATE: '2024-01-01'}),
             content_type='application/json',
         )
         resp = NonceMiddleware(json_ok_response)(request)
@@ -62,7 +65,7 @@ class TestNonceMiddleware:
     def test_fresh_nonce_passes_through(self, db):
         request = RequestFactory().post(
             '/api/prelievi/save/',
-            data=json.dumps({S.FIELD_NONCE: 'nonce-bbb'}),
+            data=json.dumps({FIELD_NONCE: 'nonce-bbb'}),
             content_type='application/json',
         )
         resp = NonceMiddleware(json_ok_response)(request)
@@ -71,7 +74,7 @@ class TestNonceMiddleware:
     def test_no_nonce_field_passes_through(self, db):
         request = RequestFactory().post(
             '/api/prelievi/save/',
-            data=json.dumps({S.FIELD_DATE: '2024-01-01'}),
+            data=json.dumps({FIELD_DATE: '2024-01-01'}),
             content_type='application/json',
         )
         resp = NonceMiddleware(json_ok_response)(request)
@@ -80,7 +83,7 @@ class TestNonceMiddleware:
     def test_non_json_post_passes_through(self, db):
         request = RequestFactory().post(
             '/api/prelievi/save/',
-            data={S.FIELD_NONCE: 'nonce-ccc'},
+            data={FIELD_NONCE: 'nonce-ccc'},
         )
         resp = NonceMiddleware(json_ok_response)(request)
         assert json.loads(resp.content) == {'result': 'ok'}
@@ -100,9 +103,9 @@ class TestNonceMiddleware:
         assert json.loads(resp.content) == {'result': 'ok'}
 
     def test_save_nonce_creates_record(self, admin_user):
-        save_nonce('nonce-ddd', admin_user, {S.ROW_ID: 1})
+        save_nonce('nonce-ddd', admin_user, {ROW_ID: 1})
         used = UsedNonce.objects.get(nonce='nonce-ddd')
-        assert json.loads(used.response_json) == {S.ROW_ID: 1}
+        assert json.loads(used.response_json) == {ROW_ID: 1}
         assert used.user == admin_user
 
 
@@ -127,7 +130,7 @@ class TestRateLimitMiddleware:
         request.user = admin_user
         resp = mw(request)
         assert resp.status_code == 429
-        assert json.loads(resp.content)[S.STATUS] == 'rate_limited'
+        assert json.loads(resp.content)[STATUS] == 'rate_limited'
 
     def test_non_api_path_not_limited(self, admin_user):
         mw = RateLimitMiddleware(ok_response)

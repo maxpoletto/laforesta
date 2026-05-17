@@ -16,6 +16,9 @@ from apps.base.digests import (
 from apps.base.models import Crew, DigestStatus, Role, User
 from apps.prelievi.models import Harvest, HarvestSpecies, HarvestTractor
 from config import strings as S
+from config.constants import (
+    COLUMNS, ROWS, ROW_ID,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -25,7 +28,7 @@ from config import strings as S
 class TestWriteGzipJSON:
     def test_creates_valid_gzip_json(self, tmp_path):
         dest = tmp_path / 'test.json.gz'
-        data = {S.COLUMNS: ['a', 'b'], S.ROWS: [[1, 2]]}
+        data = {COLUMNS: ['a', 'b'], ROWS: [[1, 2]]}
         _write_gzip_json(data, dest)
         assert dest.exists()
         with gzip.open(dest, 'rt') as f:
@@ -97,18 +100,18 @@ class TestGeneratePrelievi:
         path = settings.DIGEST_DIR / 'prelievi.json.gz'
         with gzip.open(path, 'rt') as f:
             data = json.load(f)
-        assert S.COLUMNS in data
-        assert S.ROWS in data
-        assert data[S.COLUMNS][0] == S.ROW_ID
-        assert len(data[S.ROWS]) == 1
+        assert COLUMNS in data
+        assert ROWS in data
+        assert data[COLUMNS][0] == ROW_ID
+        assert len(data[ROWS]) == 1
 
     def test_species_quintal_columns(self, harvest_data):
         generate_prelievi()
         path = settings.DIGEST_DIR / 'prelievi.json.gz'
         with gzip.open(path, 'rt') as f:
             data = json.load(f)
-        cols = data[S.COLUMNS]
-        row = data[S.ROWS][0]
+        cols = data[COLUMNS]
+        row = data[ROWS][0]
         # Abete at 60% of 200 = 120.0
         abete_idx = cols.index('Abete')
         assert row[abete_idx] == 120.0
@@ -124,9 +127,9 @@ class TestGeneratePrelievi:
         path = settings.DIGEST_DIR / 'prelievi.json.gz'
         with gzip.open(path, 'rt') as f:
             data = json.load(f)
-        cols = data[S.COLUMNS]
+        cols = data[COLUMNS]
         assert 'Abete %' in cols
-        row = data[S.ROWS][0]
+        row = data[ROWS][0]
         assert row[cols.index('Abete %')] == 60
 
     def test_empty_table(self, db, species, tractors):
@@ -134,8 +137,8 @@ class TestGeneratePrelievi:
         path = settings.DIGEST_DIR / 'prelievi.json.gz'
         with gzip.open(path, 'rt') as f:
             data = json.load(f)
-        assert data[S.ROWS] == []
-        assert len(data[S.COLUMNS]) > 0
+        assert data[ROWS] == []
+        assert len(data[COLUMNS]) > 0
 
 
 # ---------------------------------------------------------------------------
@@ -148,8 +151,8 @@ class TestGenerateParcels:
         path = settings.DIGEST_DIR / 'parcels.json.gz'
         with gzip.open(path, 'rt') as f:
             data = json.load(f)
-        assert len(data[S.ROWS]) == 3
-        assert data[S.COLUMNS][0] == S.ROW_ID
+        assert len(data[ROWS]) == 3
+        assert data[COLUMNS][0] == ROW_ID
 
 
 # ---------------------------------------------------------------------------
@@ -162,8 +165,8 @@ class TestGenerateCrews:
         path = settings.DIGEST_DIR / 'crews.json.gz'
         with gzip.open(path, 'rt') as f:
             data = json.load(f)
-        assert len(data[S.ROWS]) == 2
-        names = [r[1] for r in data[S.ROWS]]
+        assert len(data[ROWS]) == 2
+        names = [r[1] for r in data[ROWS]]
         assert 'Alfa' in names
 
 
@@ -185,8 +188,8 @@ class TestGenerateParcelYearProduction:
         path = settings.DIGEST_DIR / 'parcel_year_production.json.gz'
         with gzip.open(path, 'rt') as f:
             data = json.load(f)
-        assert len(data[S.ROWS]) == 1  # same parcel, same year
-        assert data[S.ROWS][0][3] == 80.0  # 50 + 30
+        assert len(data[ROWS]) == 1  # same parcel, same year
+        assert data[ROWS][0][3] == 80.0  # 50 + 30
 
 
 # ---------------------------------------------------------------------------
@@ -208,7 +211,7 @@ class TestGenerateAudit:
         with gzip.open(path, 'rt') as f:
             data = json.load(f)
         # Find the crew insert row — user column should show "John Doe"
-        crew_rows = [r for r in data[S.ROWS] if 'TestCrew' in (r[6] or '')]
+        crew_rows = [r for r in data[ROWS] if 'TestCrew' in (r[6] or '')]
         assert len(crew_rows) >= 1
         assert crew_rows[0][2] == 'John Doe'
 

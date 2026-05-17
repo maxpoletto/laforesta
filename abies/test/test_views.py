@@ -4,6 +4,9 @@ import pytest
 from django.test import Client
 
 from config import strings as S
+from config.constants import (
+    FIELD_PASSWORD, FIELD_USERNAME,
+)
 
 
 @pytest.fixture
@@ -31,21 +34,21 @@ class TestLoginPage:
 
     def test_post_success_redirects(self, client, admin_user):
         resp = client.post('/login/', {
-            S.FIELD_USERNAME: 'testadmin', S.FIELD_PASSWORD: 'testpass123!',
+            FIELD_USERNAME: 'testadmin', FIELD_PASSWORD: 'testpass123!',
         })
         assert resp.status_code == 302
         assert resp.url == '/prelievi'
 
     def test_post_failure_returns_400(self, client, admin_user):
         resp = client.post('/login/', {
-            S.FIELD_USERNAME: 'testadmin', S.FIELD_PASSWORD: 'wrong',
+            FIELD_USERNAME: 'testadmin', FIELD_PASSWORD: 'wrong',
         })
         assert resp.status_code == 400
         assert 'non validi' in resp.content.decode()
 
     def test_post_with_next(self, client, admin_user):
         resp = client.post('/login/', {
-            S.FIELD_USERNAME: 'testadmin', S.FIELD_PASSWORD: 'testpass123!',
+            FIELD_USERNAME: 'testadmin', FIELD_PASSWORD: 'testpass123!',
             'next': '/impostazioni',
         })
         assert resp.status_code == 302

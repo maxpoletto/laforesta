@@ -10,6 +10,7 @@ import { postJSON } from '../../base/js/api.js';
 import { showError } from '../../base/js/modals.js';
 import { createRangeSlider } from '../../base/js/range-slider.js';
 import * as S from '../../base/js/strings.js';
+import { STATUS_CONFLICT, VERSION } from '../../base/js/constants.js';
 import { matchesSearch } from '../../base/js/table.js';
 import {
   aggregateTimeSeries, aggregateSpeciesByParcel, renderStackedBar,
@@ -69,7 +70,7 @@ const STATIC_COLS = {
   [S.COL_VOLUME_M3]:   { label: S.COL_VOLUME_M3, type: 'number', width: '70px', formatter: formatVolume },
   [S.COL_NOTE]:        { label: S.COL_NOTE, width: '110px' },
   [S.COL_EXTRA_NOTE]:  { label: S.COL_EXTRA_NOTE, width: '90px' },
-  [S.VERSION]:     { label: S.VERSION, hidden: true },
+  [VERSION]:     { label: VERSION, hidden: true },
 };
 
 // Column indices — resolved on first data load.
@@ -150,7 +151,7 @@ export async function mount(params) {
   }
 
   colDate = data.columns.indexOf(S.COL_DATE);
-  colVersion = data.columns.indexOf(S.VERSION);
+  colVersion = data.columns.indexOf(VERSION);
   _buildColMap(data.columns);
   _classifyColumns(data.columns);
 
@@ -745,7 +746,7 @@ async function confirmDelete(rowId) {
     return;
   }
 
-  if (resp.data.status === S.STATUS_CONFLICT && resp.data.record) {
+  if (resp.data.status === STATUS_CONFLICT && resp.data.record) {
     cache.updateRow(DATA_ID, resp.data.row_id, resp.data.record);
     if (table) table.setData(cache.get(DATA_ID));
   }

@@ -10,6 +10,9 @@ from apps.base.digests import generate_audit
 from apps.base.models import Crew
 from apps.prelievi.models import Harvest
 from config import strings as S
+from config.constants import (
+    COLUMNS, FIELD_NOTES, ROWS, ROW_ID,
+)
 
 
 @pytest.fixture
@@ -25,7 +28,7 @@ def audit_fixtures(regions, eclasses, species, tractors, crews, products, notes,
     return {
         'regions': regions, 'eclasses': eclasses, 'species': species,
         'tractors': tractors, 'crews': crews, 'products': products,
-        S.FIELD_NOTES: notes, 'parcels': parcels,
+        FIELD_NOTES: notes, 'parcels': parcels,
     }
 
 
@@ -43,9 +46,9 @@ class TestDataView:
         assert resp['Content-Type'] == 'application/json'
         assert resp['Content-Encoding'] == 'gzip'
         data = json.loads(gzip.decompress(resp.getvalue()))
-        assert data[S.COLUMNS][0] == S.ROW_ID
-        assert S.COL_TIMESTAMP in data[S.COLUMNS]
-        assert len(data[S.ROWS]) >= 1
+        assert data[COLUMNS][0] == ROW_ID
+        assert S.COL_TIMESTAMP in data[COLUMNS]
+        assert len(data[ROWS]) >= 1
 
     def test_requires_auth(self, db):
         resp = Client().get('/api/controllo/data/')
@@ -65,7 +68,7 @@ class TestAuditDigest:
 
         # audit_fixtures created crews, species, tractors — each should have
         # at least one 'Inserimento' row.
-        actions = {row[4] for row in data[S.ROWS]}
+        actions = {row[4] for row in data[ROWS]}
         assert S.ACTION_INSERT in actions
 
     def test_update_shows_diff(self, audit_fixtures, tmp_path, settings):
@@ -78,7 +81,7 @@ class TestAuditDigest:
         generate_audit()
         data = _load_digest(tmp_path / 'audit.json.gz')
 
-        update_rows = [r for r in data[S.ROWS]
+        update_rows = [r for r in data[ROWS]
                        if r[3] == S.TABLE_CREW and r[4] == S.ACTION_UPDATE]
         assert len(update_rows) >= 1
         row = update_rows[0]
@@ -98,7 +101,7 @@ class TestAuditDigest:
         generate_audit()
         data = _load_digest(tmp_path / 'audit.json.gz')
 
-        delete_rows = [r for r in data[S.ROWS]
+        delete_rows = [r for r in data[ROWS]
                        if r[3] == S.TABLE_HARVEST and r[4] == S.ACTION_DELETE]
         assert len(delete_rows) >= 1
         assert 'Q.li: 50' in delete_rows[0][5]  # old value contains quintals
@@ -109,14 +112,14 @@ class TestAuditDigest:
         generate_audit()
         data = _load_digest(tmp_path / 'audit.json.gz')
 
-        user_rows = [r for r in data[S.ROWS] if r[3] == S.TABLE_USER]
+        user_rows = [r for r in data[ROWS] if r[3] == S.TABLE_USER]
         assert len(user_rows) >= 1
 
     def test_rows_sorted_desc(self, audit_fixtures, tmp_path, settings):
         settings.DIGEST_DIR = tmp_path
         generate_audit()
         data = _load_digest(tmp_path / 'audit.json.gz')
-        timestamps = [row[1] for row in data[S.ROWS]]
+        timestamps = [row[1] for row in data[ROWS]]
         assert timestamps == sorted(timestamps, reverse=True)
 
 
