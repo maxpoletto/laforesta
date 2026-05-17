@@ -20,17 +20,10 @@
 // state machines are fully testable from node.
 'use strict';
 
-// Resolve geo helpers from whichever container has them: in node tests
-// `require('./geo.js')` yields the module.exports; in the browser
-// geo.js is a sibling classic <script> whose top-level functions are
-// already globals on `globalThis`. We do NOT destructure at the top
-// level — top-level `const findContainingParcel = …` would collide
-// with the global `function findContainingParcel(…)` from geo.js and
-// the whole script would fail to parse. Dereference inside the
-// functions instead.
-const _geo = (typeof require !== 'undefined' && typeof module !== 'undefined')
-  ? require('./geo.js')
-  : globalThis;
+// geo.js's functions are reached as free identifiers: in the browser
+// they are globals declared by the preceding classic <script>; in node
+// tests the test harness puts them on globalThis before requiring this
+// file (see test/tests.js).
 
 // Hysteresis: same-candidate streak length required before a transition
 // is considered. With the GPS callback firing every ~1–2 s under canopy
@@ -44,7 +37,7 @@ function createLocator(features) {
   const subscribers = [];
 
   function onFix(fix) {
-    const cand = _geo.findContainingParcel(fix.lng, fix.lat, features);
+    const cand = findContainingParcel(fix.lng, fix.lat, features);
     if (cand === committed) {
       candidate = null;
       candidateCount = 0;
@@ -58,20 +51,22 @@ function createLocator(features) {
     }
     if (candidateCount < CONSECUTIVE_FIXES) return;
 
+    // We've seen the same candidate for CONSECUTIVE_FIXES in a row, so
+    // `cand === candidate` here. Use the streak variable for clarity.
     // Distance to the boundary we are crossing: the new candidate's
     // boundary if we're entering one, otherwise the currently committed
     // parcel's (i.e. confirming we have left it).
     let boundaryDist;
-    if (cand) {
-      boundaryDist = _geo.distanceToBoundaryMeters(fix.lng, fix.lat, cand);
+    if (candidate) {
+      boundaryDist = distanceToBoundaryMeters(fix.lng, fix.lat, candidate);
     } else if (committed) {
-      boundaryDist = _geo.distanceToBoundaryMeters(fix.lng, fix.lat, committed);
+      boundaryDist = distanceToBoundaryMeters(fix.lng, fix.lat, committed);
     } else {
       boundaryDist = Infinity;
     }
     if (fix.acc >= boundaryDist) return;
 
-    committed = cand;
+    committed = candidate;
     candidate = null;
     candidateCount = 0;
     for (const cb of subscribers) cb(committed);

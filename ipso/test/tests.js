@@ -1,15 +1,18 @@
 // Tests for ipso pure-logic modules.
 // Run with: make test (which depends on `make build`).
 // Tests load modules from build/ rather than src/ because the staged
-// build is the actual deploy artefact, and because some modules
-// (e.g. parcel-locator.js) `require('./geo.js')` as a sibling — that
-// sibling only exists in build/, where the vendored geo.js lands.
+// build is the actual deploy artefact.
 'use strict';
 
 const csv = require('../build/csv.js');
 const ipso = require('../build/ipso.js');
 const session = require('../build/session.js');
 const geo = require('../build/geo.js');
+// parcel-locator.js calls `findContainingParcel` and
+// `distanceToBoundaryMeters` as free identifiers. In the browser those
+// resolve to globals declared by geo.js's classic <script>; in node we
+// install them on globalThis here so the same lookup works.
+Object.assign(globalThis, geo);
 const locator = require('../build/parcel-locator.js');
 
 let failed = 0;
