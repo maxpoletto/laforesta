@@ -49,6 +49,7 @@ dev: migrate import geo digest admin link-templates
 clean:
 	rm -rf data/
 	find apps/*/migrations -name '*.py' ! -name '__init__.py' -delete
+	find apps -type l -delete
 
 test: test-js
 	$(PYTHON) -m pytest --cov --cov-report=term-missing -q
