@@ -8,7 +8,6 @@
 export const LOADING = 'Caricamento...';
 export const DISMISS = 'Chiudi';
 export const SAVE = 'Salva';
-export const SAVE_AND_CONTINUE = 'Salva e continua';
 export const DELETE_CONFIRM = 'I dati cancellati non potranno essere recuperati. Confermi?';
 export const CANCEL = 'Annulla';
 export const CONFIRM = 'Conferma';

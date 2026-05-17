@@ -5,7 +5,6 @@
 # ---------------------------------------------------------------------------
 
 SAVE = 'Salva'
-SAVE_AND_CONTINUE = 'Salva e continua'
 DELETE_CONFIRM = 'I dati cancellati non potranno essere recuperati. Confermi?'
 ERROR_CONFLICT = 'Il record è stato modificato da un altro utente.'
 ERROR_GENERIC = 'Errore imprevisto.'

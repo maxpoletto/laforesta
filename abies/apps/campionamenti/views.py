@@ -46,6 +46,9 @@ from config.constants import (
     SURVEY_RECORDS,
 )
 
+# Quantization for tree-height measurements (centimetre precision).
+TREE_H_QUANTUM = Decimal('0.01')
+
 
 # ---------------------------------------------------------------------------
 # Data endpoints (M3a)
@@ -647,7 +650,7 @@ def _parse_tree_body(body):
         FIELD_SPECIES_ID: int(body[FIELD_SPECIES_ID]) if body.get(FIELD_SPECIES_ID) else None,
         FIELD_NUMBER: int(body.get(FIELD_NUMBER, 0) or 0),
         FIELD_D_CM: d_cm,
-        FIELD_H_M: h_m.quantize(Decimal('0.01')) if not coppice else h_m,
+        FIELD_H_M: h_m.quantize(TREE_H_QUANTUM) if not coppice else h_m,
         FIELD_L10_MM: l10_mm,
         FIELD_VOLUME_M3: _decimal_or_none(body.get(FIELD_VOLUME_M3)) if not coppice else None,
         FIELD_MASS_Q: _decimal_or_none(body.get(FIELD_MASS_Q)) if not coppice else None,
@@ -697,7 +700,7 @@ def _parse_shoots(raw):
             errors.append(S.ERR_H_POSITIVE)
         shoots.append({
             FIELD_SHOOT: shoot_num, FIELD_STANDARD: standard,
-            FIELD_D_CM: d_cm, FIELD_H_M: h_m.quantize(Decimal('0.01')),
+            FIELD_D_CM: d_cm, FIELD_H_M: h_m.quantize(TREE_H_QUANTUM),
             FIELD_L10_MM: l10_mm,
         })
     return shoots, errors
@@ -1133,7 +1136,7 @@ def tree_csv_import_view(request):
             shoot = int(row[S.CSV_COL_POLLONE] or 0)
             standard = _bool_str(row[S.CSV_COL_MATRICINA])
             d_cm = int(float(row[S.CSV_COL_D_CM]))
-            h_m = Decimal(row[S.CSV_COL_H_M]).quantize(Decimal('0.01'),
+            h_m = Decimal(row[S.CSV_COL_H_M]).quantize(TREE_H_QUANTUM,
                                                        rounding=ROUND_HALF_UP)
             l10_mm = (int(float(row[S.CSV_COL_L10_MM]))
                       if row[S.CSV_COL_L10_MM].strip() else 0)

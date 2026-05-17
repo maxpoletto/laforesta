@@ -325,6 +325,9 @@ function showFormModal(html, cfg, state) {
     // Wire password field visibility for user form.
     wirePasswordToggle(form);
 
+    const cancelBtn = form.querySelector('#settings-form-cancel');
+    if (cancelBtn) cancelBtn.addEventListener('click', () => modals.dismiss());
+
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const body = Object.fromEntries(new FormData(form));
