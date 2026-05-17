@@ -1,12 +1,16 @@
-// Tests for ipso pure-logic modules: csv.js, ipso.js, session.js.
-// Run with: node tests.js
+// Tests for ipso pure-logic modules.
+// Run with: make test (which depends on `make build`).
+// Tests load modules from build/ rather than src/ because the staged
+// build is the actual deploy artefact, and because some modules
+// (e.g. parcel-locator.js) `require('./geo.js')` as a sibling — that
+// sibling only exists in build/, where the vendored geo.js lands.
 'use strict';
 
-const csv = require('./csv.js');
-const ipso = require('./ipso.js');
-const session = require('./session.js');
-const geo = require('./geo.js');
-const locator = require('./parcel-locator.js');
+const csv = require('../build/csv.js');
+const ipso = require('../build/ipso.js');
+const session = require('../build/session.js');
+const geo = require('../build/geo.js');
+const locator = require('../build/parcel-locator.js');
 
 let failed = 0;
 let passed = 0;

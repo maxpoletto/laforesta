@@ -1,17 +1,15 @@
 #!/usr/bin/env python3
-"""Generate ipso/geo.js from abies/apps/base/static/base/js/geo.js.
+"""Vendor abies's geo.js as a classic-script CommonJS module.
 
-Run from anywhere; paths are resolved relative to this script's location:
+Usage:
 
-    laforesta/ipso/tools/vendor_geo.py
+    laforesta/ipso/tools/vendor_geo.py <output-path>
 
 reads
 
     laforesta/abies/apps/base/static/base/js/geo.js
 
-writes
-
-    laforesta/ipso/geo.js
+writes the transformed copy to <output-path>.
 
 Transforms:
 - Strip `import` lines (the abies file imports MapCommon for grid-planner
@@ -19,7 +17,7 @@ Transforms:
   are inert until call time, so leaving the function bodies is safe).
 - Strip the `export` keyword from top-level declarations so ipso can load
   the file as a classic <script>.
-- Append a CommonJS guard so `node tests.js` can require() the file.
+- Append a CommonJS guard so node tests can require() the file.
 
 abies remains the single source of truth for these geometry helpers.
 """
@@ -42,9 +40,13 @@ EXPORTS = [
 
 
 def main():
+    if len(sys.argv) != 2:
+        print(f'usage: {sys.argv[0]} <output-path>', file=sys.stderr)
+        sys.exit(2)
+    dst = Path(sys.argv[1])
+
     here = Path(__file__).resolve().parent
     src = here.parent.parent / 'abies' / 'apps' / 'base' / 'static' / 'base' / 'js' / 'geo.js'
-    dst = here.parent / 'geo.js'
 
     text = src.read_text(encoding='utf-8')
 
@@ -66,6 +68,7 @@ def main():
         guard += f'    {name},\n'
     guard += '  };\n}\n'
 
+    dst.parent.mkdir(parents=True, exist_ok=True)
     dst.write_text(body + guard, encoding='utf-8')
     print(f'vendored {src.name} → {dst} ({dst.stat().st_size} bytes)',
           file=sys.stderr)

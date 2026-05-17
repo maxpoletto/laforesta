@@ -1,13 +1,9 @@
 #!/usr/bin/env python3
-"""Generate ipso/reference.json from bosco/data CSVs and abies species list.
+"""Generate a reference.json bundle from bosco/data CSVs + abies species list.
 
-Run from anywhere; paths are resolved relative to this script's location:
+Usage:
 
-    laforesta/ipso/tools/build_reference.py
-
-writes
-
-    laforesta/ipso/reference.json
+    laforesta/ipso/tools/build_reference.py <output-path>
 
 Sources:
 - ../../bosco/data/particelle.csv         parcels (filtered: high-forest only)
@@ -93,6 +89,11 @@ def load_ipsometrica(path: Path) -> dict:
 
 
 def main() -> int:
+    if len(sys.argv) != 2:
+        print(f"usage: {sys.argv[0]} <output-path>", file=sys.stderr)
+        return 2
+    out_path = Path(sys.argv[1])
+
     here = Path(__file__).resolve().parent
     ipso_root = here.parent
     repo_root = ipso_root.parent
@@ -122,13 +123,13 @@ def main() -> int:
         'ipsometrica': ipsometrica,
     }
 
-    out = ipso_root / 'reference.json'
-    with out.open('w', encoding='utf-8') as f:
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open('w', encoding='utf-8') as f:
         json.dump(ref, f, ensure_ascii=False, indent=2, sort_keys=False)
         f.write('\n')
 
     print(
-        f"reference.json: {len(species)} species, {len(parcels)} parcels, "
+        f"{out_path}: {len(species)} species, {len(parcels)} parcels, "
         f"{sum(len(v) for v in ipsometrica.values())} regression entries "
         f"across {len(ipsometrica)} regions",
         file=sys.stderr,

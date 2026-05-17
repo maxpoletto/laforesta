@@ -54,8 +54,8 @@ def main() -> int:
             print(f'missing source file: {p}', file=sys.stderr)
             return 1
 
-    img_dir = ipso_root / 'img'
-    img_dir.mkdir(exist_ok=True)
+    img_dir = ipso_root / 'src' / 'img'
+    img_dir.mkdir(parents=True, exist_ok=True)
 
     # GIFs: copy verbatim. shutil.copy preserves the file as-is, which is
     # exactly what we want for these pre-rendered assets.

@@ -8,17 +8,30 @@ built on the abies side).
 ## Quick start (developer)
 
 ```bash
-make reference   # generate reference.json from bosco/data/*.csv
-make geo         # vendor geo.js from abies's shared geometry helpers
-make terreni     # copy terreni.geojson (parcel polygons used for auto-detect)
-make test        # run node tests
-make serve       # local preview at http://localhost:8000/
-make deploy      # rsync to ipso.laforesta.it (requires DNS+TLS pre-provisioned)
+make build       # stage src/ + generated artefacts into build/
+make test        # build → run node tests
+make serve       # build → local preview at http://localhost:8000/
+make deploy      # build → test → rsync build/ to ipso.laforesta.it
+make deploy-test # deploy with test polygons (test/test.geojson) +
+                 # a synthetic reference.json for the test compresa
+make icons       # rebuild src/img/ icons from ../logo/logo-grande.png
+make clean       # rm -rf build/
 ```
 
-`geo.js` and `terreni.geojson` are generated build artefacts and are
-not tracked in git — run `make geo terreni` after a fresh clone (or
-just `make deploy`, which depends on both).
+Everything that ships lives in `build/` — assembled from `src/` plus
+three generated artefacts (`reference.json`, `geo.js`,
+`terreni.geojson`). `build/` is gitignored; a fresh clone produces it
+with `make build`. The `src/`, `test/`, and `tools/` trees are never
+mutated by build steps.
+
+`make deploy-test` is for in-the-field testing of GPS auto-detect
+against a small set of polygons near the developer
+(`test/test.geojson`). It builds normally, then overlays the test
+polygons and a synthetic `reference.json` whose `parcels` list comes
+from those polygons (so the test compresa appears in the pre-session
+pulldown). Deploys to the same host as `make deploy`; bump
+`APP_VERSION` or clear the phone's site data first so the SW
+refetches the polygons.
 
 The plan that drove the design is at
 `~/.claude/plans/proud-humming-kite.md`.
@@ -155,47 +168,58 @@ Data;Compresa;Particella;Catastrofata;Numero;Specie;D_cm;H_m;H_measured;Lat;Lng;
 
 ## Source data
 
-`reference.json` is generated at build time by `tools/build_reference.py`
-from:
+Three artefacts are produced into `build/` during `make build`:
 
-- `../bosco/data/particelle.csv` (parcels, filtered to high-forest)
-- `../bosco/data/equazioni_ipsometro.csv` (regression coefficients)
+- `build/reference.json` from `tools/build_reference.py`, which reads
+  `../bosco/data/particelle.csv` (parcels, filtered to high-forest)
+  and `../bosco/data/equazioni_ipsometro.csv` (regression
+  coefficients). The species list is hardcoded in the build script,
+  mirroring `../abies/apps/base/management/commands/import_reference.py`,
+  with `Pino` split into `Pino Nero` and `Pino Marittimo`.
+- `build/terreni.geojson` — parcel polygons used for GPS-driven
+  auto-detection, copied verbatim from `../bosco/data/terreni.geojson`.
+- `build/geo.js` — point-in-polygon and label helpers, vendored from
+  `../abies/apps/base/static/base/js/geo.js` by `tools/vendor_geo.py`.
+  abies is the authoritative source so the two apps stay in sync.
 
-Species list is hardcoded in the build script, mirroring
-`../abies/apps/base/management/commands/import_reference.py`, with `Pino`
-split into `Pino Nero` and `Pino Marittimo`.
-
-`terreni.geojson` (parcel polygons used for GPS-driven auto-detection)
-is copied verbatim from `../bosco/data/terreni.geojson` by
-`make terreni`.
-
-`geo.js` (point-in-polygon and label helpers) is vendored from
-`../abies/apps/base/static/base/js/geo.js` by `make geo` — abies is
-the authoritative source so the two apps stay in sync.
+`make deploy-test` builds the same way, then overlays
+`test/test.geojson` (replacing `build/terreni.geojson`) and a
+synthetic `build/reference.json` produced by
+`tools/build_test_reference.py` from those test polygons.
 
 ## Layout
 
 ```
-index.html               app shell
-manifest.webmanifest     PWA manifest
-sw.js                    service worker (offline shell)
-style.css                all styles
-app.js                   state machine and UI wiring
-store.js                 IndexedDB wrapper
-session.js               session-level pure helpers
-csv.js                   CSV serialisation
-ipso.js                  ipsometric regression lookup
-gps.js                   geolocation manager
-numpad.js                custom on-screen numeric keypad
-download.js              browser-download helper
-strings.js               Italian UI strings
-geo.js                   vendored geometry helpers (generated)
-parcel-locator.js        GPS auto-detect + sticky-override state
-reference.json           bundled reference data (generated)
-terreni.geojson          parcel polygons (generated)
-img/                     icons (f.gif, l.gif, icon-192.png, icon-512.png)
-tools/build_reference.py reference-data build script
-tools/vendor_geo.py      geo.js build script
-tests.js                 node tests for pure-logic modules
-Makefile                 reference / geo / terreni / test / serve / deploy
+src/                  handwritten browser source (all committed)
+  index.html          app shell
+  manifest.webmanifest  PWA manifest
+  sw.js               service worker (offline shell)
+  style.css           all styles
+  app.js              state machine and UI wiring
+  store.js            IndexedDB wrapper
+  session.js          session-level pure helpers
+  csv.js              CSV serialisation
+  ipso.js             ipsometric regression lookup
+  gps.js              geolocation manager
+  numpad.js           custom on-screen numeric keypad
+  download.js         browser-download helper
+  strings.js          Italian UI strings
+  parcel-locator.js   GPS auto-detect + sticky-override state
+  img/                icons (f.gif, l.gif, icon-*.png)
+
+test/                 tests and field fixtures (committed)
+  tests.js            node tests for pure-logic modules
+  test.geojson        polygons near the developer for in-the-field testing
+
+tools/                build scripts (committed, never shipped)
+  build_reference.py        reference.json from bosco/data CSVs
+  build_test_reference.py   test reference.json from test.geojson
+  vendor_geo.py             geo.js from abies's ES-module copy
+  build_icons.py            src/img/ from ../logo/logo-grande.png
+
+build/                deploy artefact — gitignored, regenerable
+  ...                 copy of src/ + generated reference.json, geo.js,
+                      terreni.geojson
+
+Makefile              build / test / serve / deploy / deploy-test
 ```

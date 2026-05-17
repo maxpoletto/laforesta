@@ -11,45 +11,57 @@ module map and gotcha log.
 # Commands
 
 ```bash
-make reference   # rebuild reference.json from ../bosco/data/*.csv
-make geo         # vendor geo.js from ../abies/apps/base/static/base/js/geo.js
-make terreni     # copy ../bosco/data/terreni.geojson into ipso/
-make icons       # rebuild img/*.png + *.gif from ../logo/logo-grande.png
-make test        # node tests.js — ~110 tests over csv/ipso/session/geo/locator
-make serve       # python3 -m http.server 8000 (localhost = secure for SW)
-make deploy      # reference → geo → terreni → icons → test → rsync
+make build       # stage src/ + generated artefacts into build/
+make test        # build → run node test/tests.js (~110 tests)
+make serve       # build → python3 -m http.server 8000 in build/
+make deploy      # build → test → rsync build/ to ipso.laforesta.it
+make deploy-test # deploy with test polygons (test/test.geojson)
+                 # + a synthetic reference.json for the test compresa
+make icons       # rebuild src/img/ icons from ../logo/logo-grande.png
+make clean       # rm -rf build/
 ```
 
-`tools/`, `tests.js`, `Makefile`, `README.md` are NOT shipped (see
-`DEPLOY_EXCLUDES` in `Makefile`). `geo.js` and `terreni.geojson` are
-generated build artifacts and **gitignored** (see `.gitignore`); they
-must be produced before `make deploy` and they ARE shipped to the host.
+The deploy artefact is `build/` — everything that ships to the host
+is either copied from `src/` or produced by `tools/*.py`. `src/`,
+`test/`, and `tools/` are never mutated by build steps; `build/` is
+the only place generated files live.
 
 # Module layout
 
 ```
-index.html          app shell (4 screens: pre, rec, done, data)
-style.css           all styles
-manifest.webmanifest PWA manifest (5 icons under img/)
-version.js          APP_VERSION constant — single source of truth
-sw.js               service worker (cache-first, no skipWaiting)
-app.js              state machine, screen wiring, GPS UI, wake lock
-store.js            IndexedDB wrapper (SCHEMA_VERSION = 4)
-session.js          pure session-level helpers (resumability, etc.)
-csv.js              CSV serialisation (UTF-8 BOM, ; sep, comma decimal, CRLF)
-ipso.js             ipsometric regression lookup (h = a·ln(D) + b)
-gps.js              self-healing watchPosition with heartbeat + restart
-numpad.js           on-screen numeric keypad (generic over field set)
-download.js         browser-download helper
-strings.js          Italian UI strings + helpers (S.where, S.pill)
-geo.js              point-in-polygon / parcelLabel / distance helpers
-                    (vendored from abies; generated, gitignored)
-parcel-locator.js   hysteresis + sticky-override state machines
-reference.json      bundled reference data (generated)
-terreni.geojson     parcel polygons for GPS auto-detect (generated, gitignored)
-img/                f.gif, l.gif, icon-192.png, icon-512.png, icon-512-maskable.png
-tools/              build_reference.py, build_icons.py, vendor_geo.py (not shipped)
-tests.js            node tests for pure-logic modules
+src/                # handwritten browser source, all committed
+  index.html        # app shell (4 screens: pre, rec, done, data)
+  style.css         # all styles
+  manifest.webmanifest  PWA manifest
+  version.js        # APP_VERSION constant — single source of truth
+  sw.js             # service worker (cache-first, no skipWaiting)
+  app.js            # state machine, screen wiring, GPS UI, wake lock
+  store.js          # IndexedDB wrapper (SCHEMA_VERSION = 4)
+  session.js        # pure session-level helpers (resumability, etc.)
+  csv.js            # CSV serialisation (UTF-8 BOM, ; sep, comma dec)
+  ipso.js           # ipsometric regression lookup (h = a·ln(D) + b)
+  gps.js            # self-healing watchPosition with heartbeat
+  numpad.js         # on-screen numeric keypad (generic over field set)
+  download.js       # browser-download helper
+  strings.js        # Italian UI strings + helpers (S.where, S.pill)
+  parcel-locator.js # hysteresis + sticky-override state machines
+  img/              # f.gif, l.gif, icon-{192,512,512-maskable}.png
+
+test/               # tests + fixtures, committed
+  tests.js          # node tests for pure-logic modules
+  test.geojson      # small set of polygons for in-the-field GPS testing
+
+tools/              # build scripts, committed, never shipped
+  build_reference.py     reference.json from bosco/data CSVs
+  build_test_reference.py  test reference.json from test/test.geojson
+  vendor_geo.py          geo.js transformed from abies's ES-module copy
+  build_icons.py         src/img/ from ../logo/logo-grande.png
+
+build/              # the deploy artefact — GITIGNORED, fully regenerable
+  <copy of src/>    # rsynced verbatim
+  reference.json    # produced by build_reference.py
+  geo.js            # produced by vendor_geo.py
+  terreni.geojson   # copied from ../bosco/data/ (or test/ for deploy-test)
 ```
 
 The `screen-data` section ("Visualizza dati raccolti") renders two
@@ -187,20 +199,29 @@ sessions in the same compresa on the same day.
 
 # Reference data
 
-`tools/build_reference.py` reads `../bosco/data/particelle.csv` (filters
-`Governo=Fustaia`, `Comparto≠F`) and `../bosco/data/equazioni_ipsometro.csv`
-to produce `reference.json` (62 parcels, 8 species, 13 regression
-entries across 3 regions). The species list is hardcoded in the build
-script and must stay in sync with
+`tools/build_reference.py build/reference.json` reads
+`../bosco/data/particelle.csv` (filters `Governo=Fustaia`,
+`Comparto≠F`) and `../bosco/data/equazioni_ipsometro.csv` to produce
+the curated bundle (62 parcels, 8 species, 13 regression entries
+across 3 regions). The species list is hardcoded in the build script
+and must stay in sync with
 `../abies/apps/base/management/commands/import_reference.py`.
 
-`tools/vendor_geo.py` reads
+`tools/vendor_geo.py build/geo.js` reads
 `../abies/apps/base/static/base/js/geo.js` (the authoritative source
 for point-in-polygon / `parcelLabel` / `distanceToBoundaryMeters`,
 shared with the abies map renderers), strips the ES-module
-`import`/`export` syntax, appends a CommonJS guard, and writes
-`ipso/geo.js`.  When `bosco/` is retired, `make terreni` will need to
+`import`/`export` syntax, and appends a CommonJS guard. When `bosco/`
+is retired, the Makefile's `terreni.geojson` copy step will need to
 point at the new abies/data location.
+
+`tools/build_test_reference.py build/reference.json` substitutes a
+test-flavoured reference.json whose `parcels` list is derived from
+`test/test.geojson` (so the synthetic test compresa appears in the
+pre-session pulldown). Species and ipsometric regressions are
+preserved from the real reference.json — there is unlikely to be a
+regression for the test compresa, so auto-h shows the "missing
+regression" hint and the operator types h manually.
 
 # Parcel auto-detection
 
