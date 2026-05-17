@@ -126,5 +126,31 @@ class HappyPathTest(unittest.TestCase):
             self.assertEqual(fh.read().decode("utf-8"), SAMPLE_CSV)
 
 
+class AuthTest(unittest.TestCase):
+    def setUp(self):
+        self.h = ServerHarness()
+
+    def tearDown(self):
+        self.h.close()
+
+    def test_missing_authorization_returns_401(self):
+        h = {k: v for k, v in VALID_HEADERS.items() if k != "Authorization"}
+        status, _, body = self.h.request("POST", "/upload", SAMPLE_CSV, h)
+        self.assertEqual(status, 401)
+        self.assertEqual(json.loads(body), {"ok": False, "error": "auth"})
+
+    def test_bad_token_returns_401(self):
+        h = dict(VALID_HEADERS, **{"Authorization": "Bearer wrong"})
+        status, _, body = self.h.request("POST", "/upload", SAMPLE_CSV, h)
+        self.assertEqual(status, 401)
+        self.assertEqual(json.loads(body), {"ok": False, "error": "auth"})
+
+    def test_malformed_authorization_returns_401(self):
+        h = dict(VALID_HEADERS, **{"Authorization": "Basic abc"})
+        status, _, body = self.h.request("POST", "/upload", SAMPLE_CSV, h)
+        self.assertEqual(status, 401)
+        self.assertEqual(json.loads(body), {"ok": False, "error": "auth"})
+
+
 if __name__ == "__main__":
     unittest.main()

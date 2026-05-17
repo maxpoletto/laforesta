@@ -6,6 +6,7 @@ deploy story; docs/superpowers/specs/2026-05-17-ipso-upload-design.md
 for the spec.
 """
 
+import hmac
 import http
 import http.server
 import json
@@ -31,6 +32,7 @@ def _json_response(handler, status, payload):
 
 def make_handler(cfg):
     upload_dir = cfg["upload_dir"]
+    token_bytes = cfg["token"].encode("utf-8")
 
     class Handler(http.server.BaseHTTPRequestHandler):
         def log_message(self, format, *args):
@@ -39,6 +41,17 @@ def make_handler(cfg):
         def do_POST(self):
             if self.path != "/upload":
                 _json_response(self, 404, {"ok": False, "error": "not_found"})
+                return
+
+            # Uniform 401 body for both "missing/malformed header" and "wrong
+            # token" — don't disclose which failure mode the caller hit.
+            auth = self.headers.get("Authorization", "")
+            if not auth.startswith("Bearer "):
+                _json_response(self, 401, {"ok": False, "error": "auth"})
+                return
+            presented = auth[len("Bearer "):].encode("utf-8")
+            if not hmac.compare_digest(presented, token_bytes):
+                _json_response(self, 401, {"ok": False, "error": "auth"})
                 return
 
             length = int(self.headers.get("Content-Length") or 0)
