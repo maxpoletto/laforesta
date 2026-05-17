@@ -26,18 +26,26 @@ from pathlib import Path
 
 SCHEMA_VERSION = 1
 
-# Mirrored from abies/apps/base/management/commands/import_reference.py,
-# with Pino split into two species. (common, latin, sort_order, density q/m3)
-SPECIES = [
-    ('Abete',          'Abies alba',           10, 4.70),
-    ('Castagno',       'Castanea sativa',      20, 5.50),
-    ('Douglas',        'Pseudotsuga menziesii', 30, 5.00),
-    ('Faggio',         'Fagus sylvatica',      40, 7.00),
-    ('Ontano',         'Alnus cordata',        50, 4.60),
-    ('Pino Nero',      'Pinus nigra',          60, 4.70),
-    ('Pino Marittimo', 'Pinus pinaster',       61, 4.70),
-    ('Altro',          '',                    999, 5.00),
-]
+# Canonical species list lives at abies/apps/base/data/species.csv —
+# shared with abies's import_reference.py so the two apps stay in
+# sync. Density is fresh-cut q/m³ (matches abies's harvest-weight
+# basis).
+SPECIES_CSV = (
+    Path(__file__).resolve().parent.parent.parent
+    / 'abies' / 'apps' / 'base' / 'data' / 'species.csv'
+)
+
+
+def load_species():
+    with SPECIES_CSV.open(encoding='utf-8') as f:
+        return [
+            (row['common'], row['latin'], int(row['sort_order']),
+             float(row['density_q_m3']))
+            for row in csv.DictReader(f)
+        ]
+
+
+SPECIES = load_species()
 
 COPPICE_ECLASS = 'F'      # Comparto F == coppice
 HIGH_FOREST_GOVERNO = 'Fustaia'

@@ -1,0 +1,21 @@
+common,latin,sort_order,density_q_m3
+Abete,Abies alba,10,9.00
+Abete rosso,Picea abies,20,8.00
+Castagno,Castanea sativa,30,9.20
+Douglas,Pseudotsuga menziesii,40,8.50
+Faggio,Fagus sylvatica,50,10.50
+Acero,Acer pseudoplatanus,60,9.50
+Carpino,Carpinus betulus,70,10.50
+Cerro,Quercus cerris,80,11.00
+Ciliegio,Prunus avium,90,9.50
+Larice,Larix decidua,100,8.50
+Leccio,Quercus ilex,110,11.50
+Ontano,Alnus cordata,120,8.50
+Pino,Pinus,130,9.00
+Pino Marittimo,Pinus pinaster,140,9.50
+Pino Nero,Pinus nigra,150,9.20
+Quercia roverella,Quercus pubescens,160,10.50
+Sorbo,Sorbus domestica,170,10.50
+Tasso,Taxus baccata,180,9.50
+Tiglio,Tilia cordata,190,7.50
+Altro,,999,9.00

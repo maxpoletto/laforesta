@@ -36,7 +36,7 @@ class TestImportReference:
         assert Eclass.objects.get(name='F').coppice is True
 
     def test_species_count(self):
-        assert Species.objects.count() == 7
+        assert Species.objects.count() == 20
 
     def test_species_sort_order(self):
         altro = Species.objects.get(common_name='Altro')
@@ -58,7 +58,7 @@ class TestImportReference:
         """Running twice doesn't duplicate rows."""
         call_command('import_reference', str(BOSCO_DATA))
         assert Region.objects.count() == 3
-        assert Species.objects.count() == 7
+        assert Species.objects.count() == 20
 
 
 # ---------------------------------------------------------------------------

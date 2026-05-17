@@ -7,7 +7,6 @@ expects mannesi.csv to live in <data_dir>.
 """
 
 import csv
-from decimal import Decimal
 from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
@@ -32,18 +31,23 @@ ECLASSES = [
     ('F', True),
 ]
 
-# (common_name, latin_name, sort_order, density q/m³). 'Altro' sorts last.
-# Density values are fresh-cut wood (the truck-scale weight basis for the
-# harvest record). Admins refine via Settings → Trees.
-SPECIES = [
-    ('Abete', 'Abies alba', 10, Decimal('9.00')),
-    ('Castagno', 'Castanea sativa', 20, Decimal('9.20')),
-    ('Douglas', 'Pseudotsuga menziesii', 30, Decimal('8.50')),
-    ('Faggio', 'Fagus sylvatica', 40, Decimal('10.50')),
-    ('Ontano', 'Alnus cordata', 50, Decimal('8.50')),
-    ('Pino', 'Pinus nigra', 60, Decimal('9.00')),
-    ('Altro', '', 999, Decimal('9.00')),
-]
+# Canonical species list lives at apps/base/data/species.csv. Both abies
+# (this command) and ipso (tools/build_reference.py) read it so the two
+# apps stay in sync. Density values are fresh-cut wood — the truck-scale
+# weight basis for the harvest record. Admins refine via Settings → Trees.
+SPECIES_CSV = Path(__file__).resolve().parent.parent.parent / 'data' / 'species.csv'
+
+
+def load_species():
+    with SPECIES_CSV.open(encoding='utf-8') as f:
+        return [
+            (row['common'], row['latin'], int(row['sort_order']),
+             float(row['density_q_m3']))
+            for row in csv.DictReader(f)
+        ]
+
+
+SPECIES = load_species()
 
 # (manufacturer, model, year)
 TRACTORS = [
