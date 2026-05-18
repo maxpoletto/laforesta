@@ -7,7 +7,7 @@ const S = {
 
   // Pre-session screen
   PRE_NEW_SESSION: 'Nuova martellata',
-  PRE_OPERATORE: 'Operatore',
+  PRE_OPERATOR: 'Operatore',
   PRE_DATA: 'Data',
   PRE_COMPRESA: 'Compresa',
   PRE_PARTICELLA: 'Particella',
@@ -23,7 +23,7 @@ const S = {
   REC_PARTICELLA_PLACEHOLDER: '—',
   REC_SPECIE: 'Specie',
   REC_PICK_SPECIE: '— scegli —',
-  REC_NUMERO: 'Numero',
+  REC_NUMBER: 'Numero',
   REC_GRUPPO: 'Gruppo',
   REC_D: 'D (cm)',
   REC_H: 'h (m)',
@@ -44,7 +44,7 @@ const S = {
   DATA_GROUPS: 'Gruppi',
   DATA_TREES: 'Alberi',
   DATA_COUNT: 'Conteggio',
-  DATA_COL_NUMERO: 'N.',
+  DATA_COL_NUMBER: 'N.',
   DATA_COL_SPECIE: 'Specie',
   DATA_COL_PARTICELLA: 'Part.',
   DATA_COL_GRUPPO: 'Gruppo',
@@ -115,8 +115,8 @@ const S = {
   UPLOAD_DONE_BODY: (n) =>
     `${n} alber${n === 1 ? 'o' : 'i'} caricat${n === 1 ? 'o' : 'i'} sul server.`,
 
-  // Pill formatter. Prepends "n. <numero> · " when the operator assigned
-  // a numero to the tree (Number.isInteger), otherwise omits the slot
+  // Pill formatter. Prepends "n. <N> · " when the operator assigned a
+  // number to the tree (Number.isInteger), otherwise omits the slot
   // entirely — for trees auto-blanked by the D ≤ 17 rule there's no
   // visible number to show.
   pill(rec) {

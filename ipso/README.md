@@ -83,7 +83,14 @@ picked here — the app reads it from GPS during recording (see below).
   Trees with `D ≤ 17 cm` are not physically numbered, so their
   stored numero is auto-blanked on save regardless of what you
   typed — the counter ignores them so the next visible-numbered
-  tree continues the sequence.
+  tree continues the sequence. The counter also persists across
+  sessions per operator (matching on name, case- and whitespace-
+  insensitive): if you finish today's session at tree `N`, the
+  first tree of your next session pre-fills to `N + 1` instead of
+  blank. Deleting the most recent tree rolls the counter back to
+  match the new highest numero in the session — so if the trees
+  are `101, 102, 103, 110` and you delete `110`, the next number
+  becomes `104`.
 - **Particella** defaults to **(automatica)** — the pulldown closed
   shows the parcel the GPS sees you in, or a dash if you're outside
   the compresa boundaries. To override (e.g. when the GPS lags or

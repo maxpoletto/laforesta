@@ -307,34 +307,34 @@ assertEqual(session.shouldBackup(19), false, 'backup: 19');
 assertEqual(session.shouldBackup(0), false, 'backup: 0');
 assertEqual(session.shouldBackup(null), false, 'backup: null');
 
-assertEqual(session.NUMERO_BLANK_D_THRESHOLD, 17, 'numero blanking threshold');
+assertEqual(session.NUMBER_BLANK_D_THRESHOLD, 17, 'number blanking threshold');
 
-assertEqual(session.nextNumeroDefault([]), null, 'nextNumero: empty');
-assertEqual(session.nextNumeroDefault(null), null, 'nextNumero: null');
+assertEqual(session.nextNumberDefault([]), null, 'nextNumber: empty');
+assertEqual(session.nextNumberDefault(null), null, 'nextNumber: null');
 assertEqual(
-  session.nextNumeroDefault([{ numero: null }, { numero: null }]),
+  session.nextNumberDefault([{ numero: null }, { numero: null }]),
   null,
-  'nextNumero: all blanks'
+  'nextNumber: all blanks'
 );
 assertEqual(
-  session.nextNumeroDefault([{ numero: 5 }, { numero: 7 }, { numero: 3 }]),
+  session.nextNumberDefault([{ numero: 5 }, { numero: 7 }, { numero: 3 }]),
   8,
-  'nextNumero: takes max'
+  'nextNumber: takes max'
 );
 assertEqual(
-  session.nextNumeroDefault([{ numero: 5 }, { numero: null }, { numero: 8 }]),
+  session.nextNumberDefault([{ numero: 5 }, { numero: null }, { numero: 8 }]),
   9,
-  'nextNumero: ignores blanks'
+  'nextNumber: ignores blanks'
 );
 assertEqual(
-  session.nextNumeroDefault([{ numero: 0 }]),
+  session.nextNumberDefault([{ numero: 0 }]),
   1,
-  'nextNumero: zero counts'
+  'nextNumber: zero counts'
 );
 assertEqual(
-  session.nextNumeroDefault([{}, { specie: 'Abete' }]),
+  session.nextNumberDefault([{}, { specie: 'Abete' }]),
   null,
-  'nextNumero: rows without numero field'
+  'nextNumber: rows without numero field'
 );
 
 // ---------------------------------------------------------------------------
@@ -518,6 +518,82 @@ assertEqual(Store.isResumableStatus(null), false,
             'store: null is not resumable');
 assertEqual(Store.isResumableStatus('nonsense'), false,
             'store: unknown status is not resumable');
+
+assertEqual(Store.normalizeOperator('Mario Rossi'), 'mario rossi',
+            'store: normalizeOperator lowercases');
+assertEqual(Store.normalizeOperator('  Anna Bianchi  '), 'anna bianchi',
+            'store: normalizeOperator trims');
+assertEqual(Store.normalizeOperator(' MARIO ROSSI '),
+            Store.normalizeOperator('mario rossi'),
+            'store: normalizeOperator is idempotent across whitespace+case');
+assertEqual(Store.normalizeOperator(''), '',
+            'store: normalizeOperator empty stays empty');
+assertEqual(Store.normalizeOperator(null), '',
+            'store: normalizeOperator null -> empty string');
+assertEqual(Store.normalizeOperator(undefined), '',
+            'store: normalizeOperator undefined -> empty string');
+
+// nextNumberAfterSave — max-bump on save, never rolls backwards even when
+// the operator types a manually-lower numero mid-session.
+assertEqual(Store.nextNumberAfterSave(null, 100), 101,
+            'next/save: first save initialises counter');
+assertEqual(Store.nextNumberAfterSave(50, 100), 101,
+            'next/save: forward progress bumps counter');
+assertEqual(Store.nextNumberAfterSave(101, 100), 101,
+            'next/save: equal numero leaves counter alone');
+assertEqual(Store.nextNumberAfterSave(200, 100), 200,
+            'next/save: manual lower override does not roll back');
+assertEqual(Store.nextNumberAfterSave(100, null), 100,
+            'next/save: null numero leaves counter alone');
+assertEqual(Store.nextNumberAfterSave(null, null), null,
+            'next/save: null+null stays null');
+assertEqual(Store.nextNumberAfterSave(100, 'oops'), 100,
+            'next/save: non-integer numero ignored');
+
+// nextNumberAfterDelete — recompute from the remaining trees after a
+// delete-last, mirroring nextNumberDefault; leave counter untouched if no
+// numbered trees remain (cross-session memory).
+assertEqual(
+  Store.nextNumberAfterDelete(
+    111,
+    [{ numero: 101 }, { numero: 102 }, { numero: 103 }]
+  ),
+  104,
+  'next/delete: 101,102,103,110 → delete 110 → 104'
+);
+assertEqual(
+  Store.nextNumberAfterDelete(500, [{ numero: 100 }]),
+  101,
+  'next/delete: rolls back even past prior cross-session counter'
+);
+assertEqual(
+  Store.nextNumberAfterDelete(
+    104,
+    [{ numero: 101 }, { numero: 102 }, { numero: 103 }]
+  ),
+  104,
+  'next/delete: same value -> idempotent'
+);
+assertEqual(Store.nextNumberAfterDelete(111, []), 111,
+            'next/delete: empty session preserves prior counter');
+assertEqual(
+  Store.nextNumberAfterDelete(
+    111,
+    [{ numero: null }, { numero: null }]
+  ),
+  111,
+  'next/delete: all-blank remaining preserves prior counter'
+);
+assertEqual(Store.nextNumberAfterDelete(null, []), null,
+            'next/delete: prior=null + empty stays null');
+assertEqual(
+  Store.nextNumberAfterDelete(
+    111,
+    [{ numero: 50 }, {}, { numero: null }, { numero: 99 }]
+  ),
+  100,
+  'next/delete: ignores blanks and missing fields'
+);
 
 // ---------------------------------------------------------------------------
 // upload.js — pure helpers (backoff schedule, response classifier). The

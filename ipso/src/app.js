@@ -32,13 +32,13 @@ async function boot() {
   document.getElementById('footer-version').textContent =
     'v' + APP_VERSION;
   document.getElementById('pre-title').textContent = S.PRE_NEW_SESSION;
-  document.getElementById('lbl-operatore').textContent = S.PRE_OPERATORE;
+  document.getElementById('lbl-operatore').textContent = S.PRE_OPERATOR;
   document.getElementById('lbl-data').textContent = S.PRE_DATA;
   document.getElementById('lbl-compresa').textContent = S.PRE_COMPRESA;
   document.getElementById('lbl-catastrofata').textContent = S.PRE_CATASTROFATA;
   document.getElementById('btn-start').textContent = S.PRE_START;
   document.getElementById('lbl-specie').textContent = S.REC_SPECIE;
-  document.getElementById('lbl-numero').textContent = S.REC_NUMERO;
+  document.getElementById('lbl-numero').textContent = S.REC_NUMBER;
   document.getElementById('lbl-particella-rec').textContent = S.PRE_PARTICELLA;
   document.getElementById('lbl-gruppo').textContent = S.REC_GRUPPO;
   document.getElementById('lbl-d').textContent = S.REC_D;
@@ -92,7 +92,7 @@ async function boot() {
     return;
   }
 
-  populateOperatore();
+  populateOperator();
   populateComprese();
   wirePreSession();
   wireRecording();
@@ -176,7 +176,7 @@ function promptGps() {
 // Pre-session
 // ---------------------------------------------------------------------------
 
-function populateOperatore() {
+function populateOperator() {
   const stored = localStorage.getItem('ipso.operatore') || '';
   document.getElementById('in-operatore').value = stored;
   const today = new Date();
@@ -208,22 +208,22 @@ function appendOption(sel, value, label, selected) {
 function wirePreSession() {
   document.getElementById('pre-form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const operatore = document.getElementById('in-operatore').value.trim();
+    const operator = document.getElementById('in-operatore').value.trim();
     const data = document.getElementById('in-data').value;
     const compresa = document.getElementById('in-compresa').value;
     const catastrofata = document.getElementById('in-catastrofata').checked;
-    if (!operatore || !data || !compresa) return;
+    if (!operator || !data || !compresa) return;
 
     // Fire the GPS permission prompt now (during setup, not mid-mark).
     // Runs in parallel with the rest of submit — we don't await it
     // because the operator can still record without GPS if they deny.
     promptGps();
 
-    localStorage.setItem('ipso.operatore', operatore);
+    localStorage.setItem('ipso.operatore', operator);
 
     try {
       const sess = await Store.startSession(State.db, {
-        data, compresa, operatore, catastrofata,
+        data, compresa, operatore: operator, catastrofata,
       });
       State.session = sess;
       State.lastTreeRow = null;
@@ -241,10 +241,10 @@ function wirePreSession() {
 function wireRecording() {
   const inD = document.getElementById('in-d');
   const inH = document.getElementById('in-h');
-  const inNumero = document.getElementById('in-numero');
+  const inNumber = document.getElementById('in-numero');
   State.numpad = createNumpad({
     container: document.getElementById('numpad'),
-    inputs: { d: inD, h: inH, numero: inNumero },
+    inputs: { d: inD, h: inH, numero: inNumber },
     maxLen: { d: 3, h: 2, numero: 4 },
     onChange: (field) => {
       if (field === 'h' && !State.inAutoFill) State.hMeasured = true;
@@ -449,22 +449,32 @@ function resetEntryFields() {
   State.numpad.setFocus('d');
   State.hMeasured = false;
   document.getElementById('hint-autoh').hidden = true;
-  // Prefill numero asynchronously from the tree list. The numpad starts
-  // empty (above); we only fill if the operator hasn't started typing yet.
-  prefillNumero();
+  // Prefill the number field asynchronously from the tree list. The numpad
+  // starts empty (above); we only fill if the operator hasn't started
+  // typing yet.
+  prefillNumber();
   updateSaveEnabled();
 }
 
-async function prefillNumero() {
+async function prefillNumber() {
   if (!State.session) return;
   try {
     const trees = await Store.listTrees(State.db, State.session.id);
-    const next = session.nextNumeroDefault(trees);
+    const next = await computeNextNumberDefault(trees);
     if (next == null) return;
     if (State.numpad.value('numero') === '') {
       State.numpad.setValue('numero', '' + next);
     }
   } catch (_) { /* leave blank on error */ }
+}
+
+// In-session max+1 takes precedence; on a fresh session (no numbered trees
+// yet) we fall back to the per-operator counter persisted across sessions.
+async function computeNextNumberDefault(trees) {
+  const inSession = session.nextNumberDefault(trees);
+  if (inSession != null) return inSession;
+  if (!State.session) return null;
+  return Store.getNextNumberForOperator(State.db, State.session.operatore);
 }
 
 function refreshPill() {
@@ -603,10 +613,10 @@ async function onSave() {
   if (session.validateTree(rec).length > 0) return;
 
   // Small trees are not physically numbered in the field, so we force the
-  // stored numero blank regardless of what the operator typed. The counter
-  // ignores blank-numero trees, so the next visible tree continues the
+  // stored number blank regardless of what the operator typed. The counter
+  // ignores blank-number trees, so the next visible tree continues the
   // sequence.
-  if (rec.d_cm != null && rec.d_cm <= session.NUMERO_BLANK_D_THRESHOLD) {
+  if (rec.d_cm != null && rec.d_cm <= session.NUMBER_BLANK_D_THRESHOLD) {
     rec.numero = null;
   }
 
@@ -650,11 +660,11 @@ async function onDeleteLast() {
     State.session = await Store.getSession(State.db, State.session.id);
     State.lastTreeRow = await Store.lastTree(State.db, State.session.id);
     refreshPill();
-    // Reset numero to the new default — the operator just freed up a slot
-    // and almost always wants to redo with the same numero. D/h/specie are
-    // intentionally left alone (they reflect the redo state).
+    // Reset the number field to the new default — the operator just freed
+    // up a slot and almost always wants to redo with the same number. D /
+    // h / specie are intentionally left alone (they reflect the redo state).
     const trees = await Store.listTrees(State.db, State.session.id);
-    const next = session.nextNumeroDefault(trees);
+    const next = await computeNextNumberDefault(trees);
     State.numpad.setValue('numero', next == null ? '' : '' + next);
     updateSaveEnabled();
   } catch (e) {
@@ -923,7 +933,7 @@ function renderTreesTable(trees) {
   const thead = document.createElement('thead');
   const trh = document.createElement('tr');
   const headers = [
-    { label: S.DATA_COL_NUMERO, num: true },
+    { label: S.DATA_COL_NUMBER, num: true },
     { label: S.DATA_COL_SPECIE, num: false },
     { label: S.DATA_COL_PARTICELLA, num: false },
     { label: S.DATA_COL_GRUPPO, num: false },
@@ -992,7 +1002,7 @@ function wireDone() {
     if (State.gps) { State.gps.stop(); State.gps = null; }
     document.getElementById('sub-status').textContent = '';
     document.getElementById('pre-form').reset();
-    populateOperatore();
+    populateOperator();
     populateComprese();
     showScreen('screen-pre');
   });

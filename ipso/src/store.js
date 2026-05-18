@@ -22,6 +22,13 @@ const STORE_SESSIONS = 'sessions';
 const STORE_TREES = 'trees';
 const STORE_META = 'meta';
 
+// Meta-store key namespace for per-operator "next tree number" persistence.
+// Full key is `${META_KEY_NEXT_NUMBER_PREFIX}${normalizeOperator(name)}` and
+// the value row is `{key, value: <int>}`.  Max-bumped on save; rewritten to
+// the new in-session max+1 on delete-last so it tracks the same value
+// prefillNumber would compute (see addTree / deleteTree for the gory bits).
+const META_KEY_NEXT_NUMBER_PREFIX = 'next_number:';
+
 const STATUS_OPEN = 'open';
 const STATUS_PENDING_UPLOAD = 'pending_upload';
 const STATUS_EXPORTED = 'exported';
@@ -34,6 +41,41 @@ const UPLOAD_STATUS_LOCAL_ONLY = 'local_only';
 
 function isResumableStatus(s) {
   return s === STATUS_OPEN || s === STATUS_PENDING_UPLOAD;
+}
+
+// Canonical form for operator names: trim + lowercase. Used as the key the
+// per-operator next-number meta entry lives under, so " Mario Rossi " and
+// "mario rossi" share a counter.
+function normalizeOperator(s) {
+  return typeof s === 'string' ? s.trim().toLowerCase() : '';
+}
+
+// Pure rules for evolving the per-operator next-number counter. Extracted
+// from addTree / deleteTree so node tests can hit them directly without an
+// IDB mock. `prior` is the current persisted value (null if no row yet);
+// the return value is what the meta entry should hold afterwards (which may
+// equal `prior` — call sites skip the write in that case).
+function nextNumberAfterSave(prior, number) {
+  if (!Number.isInteger(number)) return prior;
+  const candidate = number + 1;
+  if (prior == null || candidate > prior) return candidate;
+  return prior;
+}
+
+function nextNumberAfterDelete(prior, remainingTrees) {
+  let maxNumber = null;
+  if (remainingTrees) {
+    for (const r of remainingTrees) {
+      if (r && Number.isInteger(r.numero) &&
+          (maxNumber == null || r.numero > maxNumber)) {
+        maxNumber = r.numero;
+      }
+    }
+  }
+  // Empty / all-blank session leaves the counter alone: that meta value
+  // may carry cross-session memory we don't want to discard.
+  if (maxNumber == null) return prior;
+  return maxNumber + 1;
 }
 
 function uuid() {
@@ -179,7 +221,7 @@ async function setSessionUploadStatus(db, id, uploadStatus) {
 // rec fields (caller supplies): specie, d_cm, h_m, h_measured, lat, lng,
 // acc_m, numero, gruppo, particella.
 async function addTree(db, sessionId, rec) {
-  return tx(db, [STORE_SESSIONS, STORE_TREES], 'readwrite', async (t) => {
+  return tx(db, [STORE_SESSIONS, STORE_TREES, STORE_META], 'readwrite', async (t) => {
     const sessStore = t.objectStore(STORE_SESSIONS);
     const sess = await req(sessStore.get(sessionId));
     if (!sess) throw new Error('ipso: session not found: ' + sessionId);
@@ -207,7 +249,36 @@ async function addTree(db, sessionId, rec) {
     sess.tree_count = seq;
     sessStore.put(sess);
 
+    // Persist the operator's next-number counter via the pure rule. On add
+    // we max-bump it so a manual lower-number override can't roll it
+    // backwards mid-session; delete-last is handled in deleteTree and
+    // intentionally rolls back to the new in-session max. This is what a
+    // fresh session for the same operator reads back from prefillNumber().
+    const opKey = normalizeOperator(sess.operatore);
+    if (opKey) {
+      const metaStore = t.objectStore(STORE_META);
+      const metaKey = META_KEY_NEXT_NUMBER_PREFIX + opKey;
+      const existing = await req(metaStore.get(metaKey));
+      const prior = existing && Number.isInteger(existing.value)
+        ? existing.value : null;
+      const next = nextNumberAfterSave(prior, row.numero);
+      if (next !== prior) metaStore.put({ key: metaKey, value: next });
+    }
+
     return row;
+  });
+}
+
+// Returns the persisted "next tree number" for `operator`, or null if
+// nothing was ever recorded for that (normalized) name.
+async function getNextNumberForOperator(db, operator) {
+  const opKey = normalizeOperator(operator);
+  if (!opKey) return null;
+  return tx(db, [STORE_META], 'readonly', async (t) => {
+    const row = await req(
+      t.objectStore(STORE_META).get(META_KEY_NEXT_NUMBER_PREFIX + opKey)
+    );
+    return row && Number.isInteger(row.value) ? row.value : null;
   });
 }
 
@@ -236,7 +307,7 @@ async function updateTree(db, sessionId, treeId, patch) {
 }
 
 async function deleteTree(db, sessionId, treeId) {
-  await tx(db, [STORE_SESSIONS, STORE_TREES], 'readwrite', async (t) => {
+  await tx(db, [STORE_SESSIONS, STORE_TREES, STORE_META], 'readwrite', async (t) => {
     const treesStore = t.objectStore(STORE_TREES);
     const row = await req(treesStore.get(treeId));
     if (!row) return;
@@ -252,6 +323,29 @@ async function deleteTree(db, sessionId, treeId) {
     if (sess && sess.tree_count > 0) {
       sess.tree_count -= 1;
       sessStore.put(sess);
+    }
+
+    // Roll the operator's next-number counter back to match the new
+    // in-session max (e.g. trees 101,102,103,110 → delete-last → 104),
+    // mirroring the in-session nextNumberDefault. The pure rule
+    // (`nextNumberAfterDelete`) leaves `prior` untouched when no numbered
+    // trees remain so cross-session counter state isn't erased.
+    if (sess) {
+      const opKey = normalizeOperator(sess.operatore);
+      if (opKey) {
+        const metaStore = t.objectStore(STORE_META);
+        const metaKey = META_KEY_NEXT_NUMBER_PREFIX + opKey;
+        const remaining = await req(
+          treesStore.index('by_session').getAll(sessionId)
+        );
+        const existing = await req(metaStore.get(metaKey));
+        const prior = existing && Number.isInteger(existing.value)
+          ? existing.value : null;
+        const next = nextNumberAfterDelete(prior, remaining);
+        if (next !== prior) {
+          metaStore.put({ key: metaKey, value: next });
+        }
+      }
     }
   });
 }
@@ -277,11 +371,13 @@ const Store = {
   DB_NAME, SCHEMA_VERSION,
   STATUS_OPEN, STATUS_PENDING_UPLOAD, STATUS_EXPORTED, STATUS_ABANDONED,
   UPLOAD_STATUS_UPLOADED, UPLOAD_STATUS_LOCAL_ONLY,
-  isResumableStatus,
+  isResumableStatus, normalizeOperator,
+  nextNumberAfterSave, nextNumberAfterDelete,
   openDb,
   startSession, getSession, listResumableSessions, setSessionStatus,
   setSessionUploadStatus,
   addTree, listTrees, updateTree, deleteTree, lastTree,
+  getNextNumberForOperator,
   uuid,
 };
 

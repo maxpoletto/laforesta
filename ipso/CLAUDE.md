@@ -26,6 +26,15 @@ is either copied from `src/` or produced by `tools/*.py`. `src/`,
 `test/`, and `tools/` are never mutated by build steps; `build/` is
 the only place generated files live.
 
+# Code style
+
+The code itself (variable names, function names, constants, etc.) is all
+in English.  Italian only appears in: persisted data shapes (DB row keys
+like `numero`/`operatore`/`compresa`/`particella`, CSV column names,
+localStorage keys, DOM IDs) and the UI string content under `strings.js`.
+A `Numero` column in the CSV stays Italian; a function that reads it is
+named `nextNumberDefault`, not `nextNumeroDefault`.
+
 # Module layout
 
 ```
@@ -121,6 +130,17 @@ v5 shape:
   particella}`.  `particella` is the per-tree value resolved at save
   time from the GPS-detected parcel or the operator's manual
   override.
+- **meta** row: `{key, value}`.  Currently used for the per-operator
+  next-tree-number counter under keys `next_number:<normalized
+  operatore>` (trim + lowercase).  Updated atomically inside
+  `addTree` / `deleteTree` and read by `prefillNumero` on a fresh
+  session — so an operator who finished a previous session at tree N
+  starts the next one at N+1 instead of blank.  On save the counter
+  is max-bumped (a manual lower-numero override mid-session won't
+  roll it backwards); on delete-last it's reset to the new in-session
+  max+1, mirroring the in-session `nextNumeroDefault`.  When a delete
+  empties the session of numbered trees the meta is left alone so we
+  don't erase cross-session memory.
 
 Writes use `transaction.oncomplete` (not the request `success` event)
 so the operator never advances past a tree whose row hasn't been
@@ -206,11 +226,12 @@ sessions in the same compresa on the same day.
 
 `tools/build_reference.py build/reference.json` reads
 `../bosco/data/particelle.csv` (filters `Governo=Fustaia`,
-`Comparto≠F`) and `../bosco/data/equazioni_ipsometro.csv` to produce
-the curated bundle (62 parcels, 8 species, 13 regression entries
-across 3 regions). The species list is hardcoded in the build script
-and must stay in sync with
-`../abies/apps/base/management/commands/import_reference.py`.
+`Comparto≠F`), `../bosco/data/equazioni_ipsometro.csv`, and
+`../abies/apps/base/data/species.csv` to produce the curated bundle
+(62 parcels, 21 species, 13 regression entries across 3 regions).
+The species CSV is the canonical source shared with abies's
+`apps/base/management/commands/import_reference.py`, so the two
+apps stay in sync automatically.
 
 `tools/vendor_geo.py build/geo.js` reads
 `../abies/apps/base/static/base/js/geo.js` (the authoritative source
