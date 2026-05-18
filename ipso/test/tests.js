@@ -520,8 +520,186 @@ assertEqual(Store.isResumableStatus('nonsense'), false,
             'store: unknown status is not resumable');
 
 // ---------------------------------------------------------------------------
-// Summary
+// upload.js — pure helpers (backoff schedule, response classifier). The
+// network-touching uploadSession() is exercised via a mocked globalThis.fetch
+// further below.
 // ---------------------------------------------------------------------------
 
-console.log(`\n${passed} passed, ${failed} failed`);
-process.exit(failed > 0 ? 1 : 0);
+console.log('\nupload.js (pure helpers)');
+
+const upload = require('../build/upload.js');
+
+// Backoff schedule: 2,4,8,16,30,30,30,...
+assertEqual(upload.backoffMs(1), 2000, 'backoff: attempt 1');
+assertEqual(upload.backoffMs(2), 4000, 'backoff: attempt 2');
+assertEqual(upload.backoffMs(3), 8000, 'backoff: attempt 3');
+assertEqual(upload.backoffMs(4), 16000, 'backoff: attempt 4');
+assertEqual(upload.backoffMs(5), 30000, 'backoff: attempt 5 (cap)');
+assertEqual(upload.backoffMs(6), 30000, 'backoff: attempt 6 (capped)');
+assertEqual(upload.backoffMs(99), 30000, 'backoff: attempt 99 (capped)');
+assertEqual(upload.backoffMs(0), 0, 'backoff: 0 attempts = 0 ms');
+
+// Error classification
+assertEqual(upload.classifyHttp(200), 'ok', 'classify: 200');
+assertEqual(upload.classifyHttp(401), 'hard:auth', 'classify: 401');
+assertEqual(upload.classifyHttp(409), 'hard:conflict', 'classify: 409');
+assertEqual(upload.classifyHttp(413), 'hard:too_large', 'classify: 413');
+assertEqual(upload.classifyHttp(422), 'hard:invalid_csv', 'classify: 422');
+assertEqual(upload.classifyHttp(429), 'soft:rate_limited', 'classify: 429');
+assertEqual(upload.classifyHttp(500), 'soft:server', 'classify: 500');
+assertEqual(upload.classifyHttp(502), 'soft:server', 'classify: 502');
+assertEqual(upload.classifyHttp(503), 'soft:server', 'classify: 503');
+assertEqual(upload.classifyHttp(599), 'soft:server', 'classify: 599');
+assertEqual(upload.classifyHttp(418), 'hard:invalid_csv',
+            'classify: unknown 4xx -> hard:invalid_csv');
+
+// ---------------------------------------------------------------------------
+// upload.js — uploadSession with mocked globalThis.fetch.
+// ---------------------------------------------------------------------------
+
+console.log('\nupload.uploadSession (mocked fetch)');
+
+async function withMockFetch(handler, fn) {
+  const original = globalThis.fetch;
+  globalThis.fetch = handler;
+  try { return await fn(); } finally { globalThis.fetch = original; }
+}
+
+function mockResponse(status, payload) {
+  return Promise.resolve({
+    status,
+    json: () => Promise.resolve(payload || {}),
+  });
+}
+
+(async () => {
+  // Happy path
+  await withMockFetch(
+    (url, init) => mockResponse(200, { ok: true, duplicate: false, stored_as: 'X.csv' }),
+    async () => {
+      const r = await upload.uploadSession({
+        base: 'https://h', token: 't', schemaVersion: 5,
+        sessionId: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+        csvText: 'data',
+      });
+      assertEqual(r, { duplicate: false, storedAs: 'X.csv' },
+                  'uploadSession: 200 returns duplicate=false');
+    }
+  );
+
+  // 200 duplicate
+  await withMockFetch(
+    () => mockResponse(200, { ok: true, duplicate: true, stored_as: 'X.csv' }),
+    async () => {
+      const r = await upload.uploadSession({
+        base: 'https://h', token: 't', schemaVersion: 5,
+        sessionId: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+        csvText: 'data',
+      });
+      assertEqual(r, { duplicate: true, storedAs: 'X.csv' },
+                  'uploadSession: 200 returns duplicate=true');
+    }
+  );
+
+  // 401 -> UploadError 'hard:auth'
+  await withMockFetch(
+    () => mockResponse(401, { ok: false, error: 'auth' }),
+    async () => {
+      try {
+        await upload.uploadSession({
+          base: 'https://h', token: 't', schemaVersion: 5,
+          sessionId: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee', csvText: 'd',
+        });
+        failed++; console.error('FAIL uploadSession 401: expected throw');
+      } catch (e) {
+        assertEqual(e.klass, 'hard:auth', 'uploadSession 401 -> hard:auth');
+      }
+    }
+  );
+
+  // 409 -> UploadError 'hard:conflict'
+  await withMockFetch(
+    () => mockResponse(409, { ok: false, error: 'conflict' }),
+    async () => {
+      try {
+        await upload.uploadSession({
+          base: 'https://h', token: 't', schemaVersion: 5,
+          sessionId: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee', csvText: 'd',
+        });
+        failed++; console.error('FAIL uploadSession 409: expected throw');
+      } catch (e) {
+        assertEqual(e.klass, 'hard:conflict', 'uploadSession 409 -> hard:conflict');
+      }
+    }
+  );
+
+  // 503 -> UploadError 'soft:server'
+  await withMockFetch(
+    () => mockResponse(503, { ok: false, error: 'server' }),
+    async () => {
+      try {
+        await upload.uploadSession({
+          base: 'https://h', token: 't', schemaVersion: 5,
+          sessionId: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee', csvText: 'd',
+        });
+        failed++; console.error('FAIL uploadSession 503: expected throw');
+      } catch (e) {
+        assertEqual(e.klass, 'soft:server', 'uploadSession 503 -> soft:server');
+      }
+    }
+  );
+
+  // Network error -> 'soft:network'
+  await withMockFetch(
+    () => Promise.reject(new TypeError('network down')),
+    async () => {
+      try {
+        await upload.uploadSession({
+          base: 'https://h', token: 't', schemaVersion: 5,
+          sessionId: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee', csvText: 'd',
+        });
+        failed++; console.error('FAIL uploadSession network: expected throw');
+      } catch (e) {
+        assertEqual(e.klass, 'soft:network',
+                    'uploadSession network failure -> soft:network');
+      }
+    }
+  );
+
+  // Headers + body sent correctly
+  let captured;
+  await withMockFetch(
+    (url, init) => {
+      captured = { url, init };
+      return mockResponse(200, { ok: true, duplicate: false, stored_as: 'X.csv' });
+    },
+    async () => {
+      await upload.uploadSession({
+        base: 'https://example.invalid', token: 'tok',
+        schemaVersion: 5,
+        sessionId: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+        csvText: 'BODY',
+      });
+    }
+  );
+  assertEqual(captured.url, 'https://example.invalid/upload',
+              'uploadSession: url base + /upload');
+  assertEqual(captured.init.method, 'POST', 'uploadSession: method=POST');
+  assertEqual(captured.init.headers.Authorization, 'Bearer tok',
+              'uploadSession: Authorization header');
+  assertEqual(captured.init.headers['Content-Type'], 'text/csv; charset=utf-8',
+              'uploadSession: Content-Type header');
+  assertEqual(captured.init.headers['X-Ipso-Session-Id'],
+              'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+              'uploadSession: X-Ipso-Session-Id header');
+  assertEqual(captured.init.headers['X-Ipso-Schema-Version'], '5',
+              'uploadSession: X-Ipso-Schema-Version header');
+  assertEqual(captured.init.body, 'BODY', 'uploadSession: body=csvText');
+
+  // -------------------------------------------------------------------------
+  // Summary (inside the IIFE so async assertions are counted before exit).
+  // -------------------------------------------------------------------------
+
+  console.log(`\n${passed} passed, ${failed} failed`);
+  process.exit(failed > 0 ? 1 : 0);
+})();
