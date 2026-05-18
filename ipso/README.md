@@ -129,6 +129,14 @@ still happens at session end.
 compresa and a date+time stamp; catastrofate sessions get a
 `_catastrofate` suffix) to Downloads and ends the session.
 
+After Termina, the app also uploads the same CSV to the server (the
+office sees it in the inbox without manual handoff).  A progress
+screen shows the attempt counter; if there's no signal, it retries
+every few seconds (capped at 30 s).  You can hit **Annulla
+caricamento e salva solo sul telefono** to keep the local copy and
+move on — the upload will be offered again at the next app open if
+you change your mind.
+
 **Resume**. If the app is force-killed mid-session, the next open will
 show a Sessioni non chiuse modal listing the unfinished sessions. Each
 offers Riprendi (continue), Esporta CSV (close and download), or
