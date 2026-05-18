@@ -21,9 +21,9 @@ body {
 }
 
 .login-box img {
-  width: 80px;
-  height: 80px;
-  margin-bottom: 0.5rem;
+  width: 150px;
+  height: 150px;
+  margin-bottom: calc(0.5rem + 5px);
 }
 
 .login-box h1 {

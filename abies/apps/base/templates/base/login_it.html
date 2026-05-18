@@ -11,8 +11,7 @@
 </head>
 <body>
   <div class="login-box">
-    <h1>La Foresta</h1>
-
+    <img src="{% static 'base/img/logo-150.png' %}" alt="La Foresta">
     {% if form.errors or error_message %}
     <p class="error">
       {% if error_message %}{{ error_message }}
