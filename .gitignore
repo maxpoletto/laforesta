@@ -1,6 +1,7 @@
 .DS_Store
-foresta.xlsx
-/gpx
 /.claude
-copernicus-oauth.txt
 /.worktrees/
+/gpx
+__pycache__
+copernicus-oauth.txt
+foresta.xlsx
