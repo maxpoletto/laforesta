@@ -43,7 +43,7 @@ def _pick_port():
 class ServerHarness:
     """Spin up server in a thread; stop on close()."""
 
-    def __init__(self):
+    def __init__(self, rate_limit_per_minute=1000):
         self.tmp = tempfile.mkdtemp(prefix="ipso-upload-test-")
         self.port = _pick_port()
         cfg = {
@@ -51,7 +51,7 @@ class ServerHarness:
             "bind_port": self.port,
             "token": VALID_TOKEN,
             "upload_dir": os.path.join(self.tmp, "uploads"),
-            "rate_limit_per_minute": 1000,
+            "rate_limit_per_minute": rate_limit_per_minute,
             "expected_bom": BOM,
             "expected_header_prefix": "Data;Compresa;Particella;Catastrofata;",
         }
@@ -150,6 +150,180 @@ class AuthTest(unittest.TestCase):
         status, _, body = self.h.request("POST", "/upload", SAMPLE_CSV, h)
         self.assertEqual(status, 401)
         self.assertEqual(json.loads(body), {"ok": False, "error": "auth"})
+
+
+class ValidationTest(unittest.TestCase):
+    def setUp(self):
+        self.h = ServerHarness()
+
+    def tearDown(self):
+        self.h.close()
+
+    def test_missing_session_id_returns_422(self):
+        h = {k: v for k, v in VALID_HEADERS.items() if k != "X-Ipso-Session-Id"}
+        status, _, body = self.h.request("POST", "/upload", SAMPLE_CSV, h)
+        self.assertEqual(status, 422)
+        payload = json.loads(body)
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["error"], "invalid_csv")
+
+    def test_malformed_session_id_returns_422(self):
+        h = dict(VALID_HEADERS, **{"X-Ipso-Session-Id": "not-a-uuid"})
+        status, _, body = self.h.request("POST", "/upload", SAMPLE_CSV, h)
+        self.assertEqual(status, 422)
+        self.assertEqual(json.loads(body)["error"], "invalid_csv")
+
+    def test_wrong_content_type_returns_422(self):
+        h = dict(VALID_HEADERS, **{"Content-Type": "application/json"})
+        status, _, body = self.h.request("POST", "/upload", SAMPLE_CSV, h)
+        self.assertEqual(status, 422)
+        self.assertEqual(json.loads(body)["error"], "invalid_csv")
+
+    def test_body_without_bom_returns_422(self):
+        no_bom = SAMPLE_CSV[1:]  # strip BOM
+        status, _, body = self.h.request("POST", "/upload", no_bom, VALID_HEADERS)
+        self.assertEqual(status, 422)
+        self.assertEqual(json.loads(body)["error"], "invalid_csv")
+
+    def test_body_without_expected_header_returns_422(self):
+        bad = BOM + "wrong;header;line\r\n"
+        status, _, body = self.h.request("POST", "/upload", bad, VALID_HEADERS)
+        self.assertEqual(status, 422)
+        self.assertEqual(json.loads(body)["error"], "invalid_csv")
+
+    def test_wrong_method_returns_405(self):
+        status, _, _ = self.h.request("GET", "/upload", None, VALID_HEADERS)
+        self.assertEqual(status, 405)
+
+    def test_wrong_path_returns_404(self):
+        status, _, _ = self.h.request("POST", "/other", SAMPLE_CSV, VALID_HEADERS)
+        self.assertEqual(status, 404)
+
+    def test_get_on_unknown_path_returns_405_not_404(self):
+        # do_GET runs before path inspection: method-not-allowed wins over
+        # path-not-found. Avoids leaking which paths exist via 404 vs. 405.
+        status, _, _ = self.h.request("GET", "/other", None, VALID_HEADERS)
+        self.assertEqual(status, 405)
+
+
+class SizeLimitTest(unittest.TestCase):
+    def setUp(self):
+        self.h = ServerHarness()
+
+    def tearDown(self):
+        self.h.close()
+
+    def test_content_length_above_limit_returns_413(self):
+        # Forge a Content-Length above MAX_BODY_BYTES. We send a smaller
+        # body — the server should reject based on the header alone, before
+        # reading.
+        big = str(server.MAX_BODY_BYTES + 1)
+        h = dict(VALID_HEADERS, **{"Content-Length": big})
+        conn = http.client.HTTPConnection(
+            "127.0.0.1", self.h.port, timeout=2
+        )
+        conn.putrequest("POST", "/upload")
+        for k, v in h.items():
+            conn.putheader(k, v)
+        conn.endheaders()
+        # Server should respond 413 before we send any body bytes.
+        resp = conn.getresponse()
+        self.assertEqual(resp.status, 413)
+        self.assertEqual(json.loads(resp.read())["error"], "too_large")
+        conn.close()
+
+
+class IdempotencyTest(unittest.TestCase):
+    def setUp(self):
+        self.h = ServerHarness()
+
+    def tearDown(self):
+        self.h.close()
+
+    def test_identical_resend_returns_200_duplicate_true(self):
+        a = self.h.request("POST", "/upload", SAMPLE_CSV, VALID_HEADERS)
+        self.assertEqual(a[0], 200)
+        b = self.h.request("POST", "/upload", SAMPLE_CSV, VALID_HEADERS)
+        self.assertEqual(b[0], 200)
+        payload = json.loads(b[2])
+        self.assertTrue(payload["duplicate"])
+
+    def test_different_body_same_uuid_returns_409(self):
+        self.h.request("POST", "/upload", SAMPLE_CSV, VALID_HEADERS)
+        changed = SAMPLE_CSV.replace("Mario Rossi", "Anna Bianchi")
+        status, _, body = self.h.request("POST", "/upload", changed, VALID_HEADERS)
+        self.assertEqual(status, 409)
+        self.assertEqual(json.loads(body), {"ok": False, "error": "conflict"})
+
+        # The original file is preserved.
+        path = os.path.join(
+            self.h.cfg["upload_dir"],
+            "11111111-2222-3333-4444-555555555555.csv",
+        )
+        with open(path, "rb") as fh:
+            self.assertEqual(fh.read().decode("utf-8"), SAMPLE_CSV)
+
+
+class MetaSidecarTest(unittest.TestCase):
+    def setUp(self):
+        self.h = ServerHarness()
+
+    def tearDown(self):
+        self.h.close()
+
+    def test_meta_sidecar_written_with_parsed_fields(self):
+        self.h.request("POST", "/upload", SAMPLE_CSV, VALID_HEADERS)
+        meta_path = os.path.join(
+            self.h.cfg["upload_dir"],
+            "11111111-2222-3333-4444-555555555555.meta.json",
+        )
+        self.assertTrue(os.path.exists(meta_path))
+        with open(meta_path, "r", encoding="utf-8") as fh:
+            meta = json.load(fh)
+        self.assertEqual(meta["operatore"], "Mario Rossi")
+        self.assertEqual(meta["compresa"], "Serra")
+        self.assertEqual(meta["catastrofata"], 0)
+        self.assertEqual(meta["tree_count"], 1)
+        self.assertEqual(meta["schema_version"], "5")
+        self.assertIn("received_at", meta)
+        self.assertIn("remote_addr", meta)
+
+    def test_meta_sidecar_handles_zero_tree_session(self):
+        empty = BOM + CSV_HEADER + "\r\n"
+        self.h.request("POST", "/upload", empty, VALID_HEADERS)
+        meta_path = os.path.join(
+            self.h.cfg["upload_dir"],
+            "11111111-2222-3333-4444-555555555555.meta.json",
+        )
+        with open(meta_path, "r", encoding="utf-8") as fh:
+            meta = json.load(fh)
+        self.assertEqual(meta["operatore"], "")
+        self.assertEqual(meta["compresa"], "")
+        self.assertIsNone(meta["catastrofata"])
+        self.assertEqual(meta["tree_count"], 0)
+
+
+class RateLimitTest(unittest.TestCase):
+    def setUp(self):
+        self.h = ServerHarness(rate_limit_per_minute=3)
+
+    def tearDown(self):
+        self.h.close()
+
+    def test_too_many_requests_returns_429(self):
+        # First 3 requests use the same UUID so they hit the idempotency path
+        # (no rate-limit cost from server work, but the rate-limit decrement
+        # still happens). The 4th gets 429.
+        for _ in range(3):
+            status, _, _ = self.h.request(
+                "POST", "/upload", SAMPLE_CSV, VALID_HEADERS,
+            )
+            self.assertEqual(status, 200)
+        status, _, body = self.h.request(
+            "POST", "/upload", SAMPLE_CSV, VALID_HEADERS
+        )
+        self.assertEqual(status, 429)
+        self.assertEqual(json.loads(body), {"ok": False, "error": "rate_limited"})
 
 
 if __name__ == "__main__":
