@@ -21,6 +21,7 @@ const State = {
   numpad: null,       // numpad controller
   lastTreeRow: null,  // most-recent tree in the current session
   wakeLock: null,     // active WakeLockSentinel during recording (or null)
+  upload: null,       // { sessionId, attempt, abortController, retryTimer, ... } | null
 };
 
 // ---------------------------------------------------------------------------
@@ -95,6 +96,7 @@ async function boot() {
   populateComprese();
   wirePreSession();
   wireRecording();
+  wireUpload();
   wireDone();
 
   // Re-acquire the screen wake lock when the page returns to the
@@ -665,12 +667,161 @@ async function onEnd() {
   try {
     const trees = await Store.listTrees(State.db, State.session.id);
     trees.sort((a, b) => a.seq - b.seq);
-    await Store.setSessionStatus(State.db, State.session.id, Store.STATUS_EXPORTED);
+    await Store.setSessionStatus(State.db, State.session.id, Store.STATUS_PENDING_UPLOAD);
+    State.session.status = Store.STATUS_PENDING_UPLOAD;
+    const csvText = csv.formatFile(State.session, trees);
+    // Always download the local CSV first — it is the trust anchor and
+    // the operator must not lose data if the upload never succeeds.
     downloadFinal(State.session, trees);
-    enterDone(trees.length);
+    enterUploadScreen(State.session.id, csvText, trees.length);
   } catch (e) {
     showToast('Errore esportazione: ' + e.message);
   }
+}
+
+function enterUploadScreen(sessionId, csvText, treeCount) {
+  // Reset any prior state.
+  if (State.upload && State.upload.retryTimer) {
+    clearTimeout(State.upload.retryTimer);
+  }
+  if (State.upload && State.upload.abortController) {
+    try { State.upload.abortController.abort(); } catch (_) {}
+  }
+  // Recording is over — release the GPS watcher so it doesn't drain the
+  // battery while the operator waits for the upload to settle.
+  if (State.gps) { State.gps.stop(); State.gps = null; }
+  State.upload = {
+    sessionId,
+    csvText,
+    treeCount,
+    attempt: 0,
+    abortController: null,
+    retryTimer: null,
+  };
+  document.getElementById('upload-detail').textContent = '';
+  document.getElementById('upload-detail').classList.remove('error');
+  showScreen('screen-upload');
+  acquireWakeLock();
+  scheduleUploadAttempt(0);
+}
+
+function scheduleUploadAttempt(waitMs) {
+  if (!State.upload) return;
+  if (waitMs > 0) {
+    const secs = Math.ceil(waitMs / 1000);
+    document.getElementById('upload-detail').textContent =
+      S.UPLOAD_NEXT_RETRY_IN(secs);
+    State.upload.retryTimer = setTimeout(runUploadAttempt, waitMs);
+  } else {
+    runUploadAttempt();
+  }
+}
+
+async function runUploadAttempt() {
+  if (!State.upload) return;
+  State.upload.retryTimer = null;
+  State.upload.attempt += 1;
+  document.getElementById('upload-attempt').textContent =
+    S.UPLOAD_ATTEMPT(State.upload.attempt);
+
+  const ac = new AbortController();
+  State.upload.abortController = ac;
+  try {
+    await upload.uploadSession({
+      base: UPLOAD_BASE,
+      token: UPLOAD_TOKEN,
+      schemaVersion: Store.SCHEMA_VERSION,
+      sessionId: State.upload.sessionId,
+      csvText: State.upload.csvText,
+      signal: ac.signal,
+    });
+    await onUploadSuccess();
+  } catch (err) {
+    if (err && err.klass === 'aborted') return;  // bail handled elsewhere
+    onUploadAttemptFailed(err);
+  } finally {
+    if (State.upload) State.upload.abortController = null;
+  }
+}
+
+function onUploadAttemptFailed(err) {
+  if (!State.upload) return;
+  const klass = (err && err.klass) || 'soft:network';
+  const isHard = klass.startsWith('hard:');
+  const detailEl = document.getElementById('upload-detail');
+  detailEl.classList.toggle('error', isHard);
+  detailEl.textContent = uploadErrorMessage(klass);
+  if (isHard) {
+    // Stop retrying; operator must bail.
+    document.getElementById('upload-attempt').textContent = '';
+    return;
+  }
+  scheduleUploadAttempt(upload.backoffMs(State.upload.attempt));
+}
+
+function uploadErrorMessage(klass) {
+  switch (klass) {
+    case 'hard:auth':         return S.UPLOAD_ERROR_AUTH;
+    case 'hard:conflict':     return S.UPLOAD_ERROR_CONFLICT;
+    case 'hard:invalid_csv':  return S.UPLOAD_ERROR_INVALID;
+    case 'hard:too_large':    return S.UPLOAD_ERROR_TOO_LARGE;
+    case 'soft:rate_limited': return S.UPLOAD_ERROR_RATE_LIMITED;
+    case 'soft:server':       return S.UPLOAD_ERROR_SERVER;
+    case 'soft:network':      return S.UPLOAD_ERROR_NETWORK;
+    default:                  return klass;
+  }
+}
+
+async function onUploadSuccess() {
+  if (!State.upload) return;
+  const treeCount = State.upload.treeCount;
+  try {
+    await Store.setSessionUploadStatus(
+      State.db, State.upload.sessionId, 'uploaded'
+    );
+    await Store.setSessionStatus(
+      State.db, State.upload.sessionId, Store.STATUS_EXPORTED
+    );
+  } catch (e) {
+    showToast('Errore salvataggio stato upload: ' + e.message);
+  }
+  showToast(S.UPLOAD_SUCCESS_TOAST);
+  endUploadScreen(treeCount, true);
+}
+
+async function onUploadBail() {
+  if (!State.upload) return;
+  if (State.upload.retryTimer) {
+    clearTimeout(State.upload.retryTimer);
+    State.upload.retryTimer = null;
+  }
+  if (State.upload.abortController) {
+    try { State.upload.abortController.abort(); } catch (_) {}
+  }
+  const treeCount = State.upload.treeCount;
+  try {
+    await Store.setSessionUploadStatus(
+      State.db, State.upload.sessionId, 'local_only'
+    );
+    await Store.setSessionStatus(
+      State.db, State.upload.sessionId, Store.STATUS_EXPORTED
+    );
+  } catch (e) {
+    showToast('Errore salvataggio stato: ' + e.message);
+  }
+  showToast(S.UPLOAD_LOCAL_ONLY_TOAST);
+  endUploadScreen(treeCount, false);
+}
+
+function endUploadScreen(treeCount, uploaded) {
+  State.upload = null;
+  // Repurpose the existing done screen, but tailor the body text.
+  document.getElementById('done-title').textContent = S.DONE_TITLE;
+  document.getElementById('done-body').textContent = uploaded
+    ? S.UPLOAD_DONE_BODY(treeCount)
+    : S.DONE_BODY(treeCount);
+  releaseWakeLock();
+  showScreen('screen-done');
 }
 
 function downloadFinal(sess, trees) {
@@ -813,6 +964,16 @@ async function downloadBackup(seq) {
 }
 
 // ---------------------------------------------------------------------------
+// Upload screen
+// ---------------------------------------------------------------------------
+
+function wireUpload() {
+  document.getElementById('upload-title').textContent = S.UPLOAD_TITLE;
+  document.getElementById('btn-upload-bail').textContent = S.UPLOAD_BAIL;
+  document.getElementById('btn-upload-bail').addEventListener('click', onUploadBail);
+}
+
+// ---------------------------------------------------------------------------
 // Done screen
 // ---------------------------------------------------------------------------
 
@@ -843,6 +1004,19 @@ function enterDone(n) {
 // ---------------------------------------------------------------------------
 
 function showResumeModal(sessions) {
+  // Mixed list: STATUS_OPEN sessions need resume/export/discard; new
+  // STATUS_PENDING_UPLOAD sessions need carica-ora / mantieni-solo-locale.
+  const hasUpload = sessions.some(
+    (s) => s.status === Store.STATUS_PENDING_UPLOAD
+  );
+  const hasOpen = sessions.some(
+    (s) => s.status === Store.STATUS_OPEN
+  );
+  document.getElementById('resume-title').textContent = hasUpload && !hasOpen
+    ? S.UPLOAD_RESUME_TITLE
+    : S.RESUME_TITLE;
+  // Body line is generic enough for either case; leave RESUME_BODY in place.
+
   const list = document.getElementById('resume-list');
   list.replaceChildren();
   for (const s of sessions) {
@@ -857,34 +1031,60 @@ function showResumeModal(sessions) {
 
     const actions = document.createElement('div');
     actions.className = 'resume-actions';
-    const resume = mkBtn(S.RESUME_RESUME, 'btn-primary', async () => {
-      State.session = s;
-      State.lastTreeRow = await Store.lastTree(State.db, s.id);
-      hideModal('modal-resume');
-      enterRecording();
-    });
-    const exp = mkBtn(S.RESUME_EXPORT, 'btn-secondary', async () => {
-      const trees = await Store.listTrees(State.db, s.id);
-      trees.sort((a, b) => a.seq - b.seq);
-      await Store.setSessionStatus(State.db, s.id, Store.STATUS_EXPORTED);
-      downloadFinal(s, trees);
-      li.remove();
-      if (!list.children.length) {
+    if (s.status === Store.STATUS_PENDING_UPLOAD) {
+      const carica = mkBtn(S.UPLOAD_RESUME_DO_NOW, 'btn-primary', async () => {
         hideModal('modal-resume');
-        showScreen('screen-pre');
-      }
-    });
-    const discard = mkBtn(S.RESUME_DISCARD, 'btn-danger', async () => {
-      await Store.setSessionStatus(State.db, s.id, Store.STATUS_ABANDONED);
-      li.remove();
-      if (!list.children.length) {
+        const trees = await Store.listTrees(State.db, s.id);
+        trees.sort((a, b) => a.seq - b.seq);
+        const csvText = csv.formatFile(s, trees);
+        // Re-download the local CSV on every entry to screen-upload —
+        // the browser auto-renames duplicates so this can never lose
+        // the original copy. See spec.
+        downloadFinal(s, trees);
+        State.session = s;
+        enterUploadScreen(s.id, csvText, trees.length);
+      });
+      const local = mkBtn(S.UPLOAD_RESUME_KEEP_LOCAL, 'btn-secondary', async () => {
+        await Store.setSessionUploadStatus(State.db, s.id, 'local_only');
+        await Store.setSessionStatus(State.db, s.id, Store.STATUS_EXPORTED);
+        li.remove();
+        if (!list.children.length) {
+          hideModal('modal-resume');
+          showScreen('screen-pre');
+        }
+      });
+      actions.appendChild(carica);
+      actions.appendChild(local);
+    } else {
+      const resume = mkBtn(S.RESUME_RESUME, 'btn-primary', async () => {
+        State.session = s;
+        State.lastTreeRow = await Store.lastTree(State.db, s.id);
         hideModal('modal-resume');
-        showScreen('screen-pre');
-      }
-    });
-    actions.appendChild(resume);
-    actions.appendChild(exp);
-    actions.appendChild(discard);
+        enterRecording();
+      });
+      const exp = mkBtn(S.RESUME_EXPORT, 'btn-secondary', async () => {
+        const trees = await Store.listTrees(State.db, s.id);
+        trees.sort((a, b) => a.seq - b.seq);
+        await Store.setSessionStatus(State.db, s.id, Store.STATUS_EXPORTED);
+        downloadFinal(s, trees);
+        li.remove();
+        if (!list.children.length) {
+          hideModal('modal-resume');
+          showScreen('screen-pre');
+        }
+      });
+      const discard = mkBtn(S.RESUME_DISCARD, 'btn-danger', async () => {
+        await Store.setSessionStatus(State.db, s.id, Store.STATUS_ABANDONED);
+        li.remove();
+        if (!list.children.length) {
+          hideModal('modal-resume');
+          showScreen('screen-pre');
+        }
+      });
+      actions.appendChild(resume);
+      actions.appendChild(exp);
+      actions.appendChild(discard);
+    }
     li.appendChild(actions);
     list.appendChild(li);
   }

@@ -123,6 +123,17 @@
       <button id="btn-data-close" class="btn-secondary btn-big" type="button"></button>
     </section>
 
+    <!-- ============= UPLOAD ============= -->
+    <section id="screen-upload" class="screen" hidden>
+      <h1 id="upload-title"></h1>
+      <div class="upload-status">
+        <div class="upload-spinner" id="upload-spinner" aria-hidden="true"></div>
+        <p class="upload-attempt" id="upload-attempt"></p>
+        <p class="upload-detail" id="upload-detail"></p>
+      </div>
+      <button id="btn-upload-bail" class="btn-secondary btn-big" type="button"></button>
+    </section>
+
     <!-- ============= DONE ============= -->
     <section id="screen-done" class="screen" hidden>
       <h1 id="done-title"></h1>
@@ -181,6 +192,8 @@
   <script src="store.js"></script>
   <script src="geo.js"></script>
   <script src="parcel-locator.js"></script>
+  <script src="upload-config.js"></script>
+  <script src="upload.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

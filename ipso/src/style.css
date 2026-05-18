@@ -448,3 +448,64 @@ button {
 .hidden { display: none !important; }
 
 [hidden] { display: none !important; }
+
+/* ============= UPLOAD SCREEN ============= */
+
+#screen-upload {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 16px;
+  gap: 24px;
+  min-height: 60vh;
+}
+
+#screen-upload h1 {
+  text-align: center;
+  margin: 0;
+}
+
+.upload-status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  flex: 1;
+  justify-content: center;
+}
+
+.upload-spinner {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 6px solid #d8e3d6;
+  border-top-color: var(--green-dark);
+  animation: upload-spin 1s linear infinite;
+}
+
+@keyframes upload-spin {
+  to { transform: rotate(360deg); }
+}
+
+.upload-attempt {
+  font-size: 18px;
+  margin: 0;
+}
+
+.upload-detail {
+  font-size: 14px;
+  color: var(--grey-2);
+  text-align: center;
+  margin: 0;
+  max-width: 30em;
+}
+
+.upload-detail.error {
+  color: #a02020;
+}
+
+/* The bail button stays prominent — the operator can hit it anytime. */
+#btn-upload-bail {
+  width: 100%;
+  max-width: 360px;
+}

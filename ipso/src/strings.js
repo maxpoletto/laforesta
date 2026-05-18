@@ -88,6 +88,33 @@ const S = {
     'posizione per ipso.laforesta.it nelle impostazioni del browser.',
   BACKUP_SAVED: (n) => `Backup CSV salvato (${n} alberi).`,
 
+  // Upload screen
+  UPLOAD_TITLE: 'Caricamento in corso',
+  UPLOAD_ATTEMPT: (n) => `Tentativo ${n}`,
+  UPLOAD_BAIL: 'Annulla caricamento e salva solo sul telefono',
+  UPLOAD_SUCCESS_TOAST: 'Caricamento completato',
+  UPLOAD_LOCAL_ONLY_TOAST: 'Salvato solo sul telefono',
+  UPLOAD_ERROR_AUTH:
+    'Errore di autenticazione. Contatta lo sviluppatore.',
+  UPLOAD_ERROR_CONFLICT:
+    'La sessione risulta già caricata con contenuto diverso. ' +
+    'Contatta l\'ufficio.',
+  UPLOAD_ERROR_INVALID:
+    'Il server ha rifiutato il file. Contatta lo sviluppatore.',
+  UPLOAD_ERROR_TOO_LARGE:
+    'File troppo grande per il server. Contatta lo sviluppatore.',
+  UPLOAD_ERROR_NETWORK: 'Errore di rete. Riprovo…',
+  UPLOAD_ERROR_SERVER: 'Errore del server. Riprovo…',
+  UPLOAD_ERROR_RATE_LIMITED: 'Server occupato. Riprovo…',
+  UPLOAD_NEXT_RETRY_IN: (s) => `Prossimo tentativo fra ${s} s`,
+
+  // Resume modal — upload variant
+  UPLOAD_RESUME_TITLE: 'Sessioni in attesa di caricamento',
+  UPLOAD_RESUME_DO_NOW: 'Carica ora',
+  UPLOAD_RESUME_KEEP_LOCAL: 'Mantieni solo locale',
+  UPLOAD_DONE_BODY: (n) =>
+    `${n} alber${n === 1 ? 'o' : 'i'} caricat${n === 1 ? 'o' : 'i'} sul server.`,
+
   // Pill formatter. Prepends "n. <numero> · " when the operator assigned
   // a numero to the tree (Number.isInteger), otherwise omits the slot
   // entirely — for trees auto-blanked by the D ≤ 17 rule there's no

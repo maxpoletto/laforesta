@@ -27,6 +27,8 @@ const SHELL = [
   './store.js',
   './geo.js',
   './parcel-locator.js',
+  './upload.js',
+  './upload-config.js',
   './reference.json',
   './terreni.geojson',
   './img/f.gif',
