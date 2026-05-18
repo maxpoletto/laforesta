@@ -774,13 +774,17 @@ function uploadErrorMessage(klass) {
 
 async function onUploadSuccess() {
   if (!State.upload) return;
+  // Capture + clear State.upload synchronously so a late bail-tap during the
+  // following awaits can't reach the bail branch and clobber upload_status.
+  const sessionId = State.upload.sessionId;
   const treeCount = State.upload.treeCount;
+  State.upload = null;
   try {
     await Store.setSessionUploadStatus(
-      State.db, State.upload.sessionId, 'uploaded'
+      State.db, sessionId, Store.UPLOAD_STATUS_UPLOADED
     );
     await Store.setSessionStatus(
-      State.db, State.upload.sessionId, Store.STATUS_EXPORTED
+      State.db, sessionId, Store.STATUS_EXPORTED
     );
   } catch (e) {
     showToast('Errore salvataggio stato upload: ' + e.message);
@@ -798,13 +802,16 @@ async function onUploadBail() {
   if (State.upload.abortController) {
     try { State.upload.abortController.abort(); } catch (_) {}
   }
+  // Same race-prevention move as onUploadSuccess.
+  const sessionId = State.upload.sessionId;
   const treeCount = State.upload.treeCount;
+  State.upload = null;
   try {
     await Store.setSessionUploadStatus(
-      State.db, State.upload.sessionId, 'local_only'
+      State.db, sessionId, Store.UPLOAD_STATUS_LOCAL_ONLY
     );
     await Store.setSessionStatus(
-      State.db, State.upload.sessionId, Store.STATUS_EXPORTED
+      State.db, sessionId, Store.STATUS_EXPORTED
     );
   } catch (e) {
     showToast('Errore salvataggio stato: ' + e.message);
@@ -992,13 +999,6 @@ function wireDone() {
   });
 }
 
-function enterDone(n) {
-  if (State.gps) { State.gps.stop(); State.gps = null; }
-  releaseWakeLock();
-  document.getElementById('done-body').textContent = S.DONE_BODY(n);
-  showScreen('screen-done');
-}
-
 // ---------------------------------------------------------------------------
 // Resume modal
 // ---------------------------------------------------------------------------
@@ -1045,7 +1045,7 @@ function showResumeModal(sessions) {
         enterUploadScreen(s.id, csvText, trees.length);
       });
       const local = mkBtn(S.UPLOAD_RESUME_KEEP_LOCAL, 'btn-secondary', async () => {
-        await Store.setSessionUploadStatus(State.db, s.id, 'local_only');
+        await Store.setSessionUploadStatus(State.db, s.id, Store.UPLOAD_STATUS_LOCAL_ONLY);
         await Store.setSessionStatus(State.db, s.id, Store.STATUS_EXPORTED);
         li.remove();
         if (!list.children.length) {

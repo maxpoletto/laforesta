@@ -27,6 +27,11 @@ const STATUS_PENDING_UPLOAD = 'pending_upload';
 const STATUS_EXPORTED = 'exported';
 const STATUS_ABANDONED = 'abandoned';
 
+// upload_status enum (orthogonal to session status). Null on OPEN sessions
+// and on pre-v5 rows.
+const UPLOAD_STATUS_UPLOADED = 'uploaded';
+const UPLOAD_STATUS_LOCAL_ONLY = 'local_only';
+
 function isResumableStatus(s) {
   return s === STATUS_OPEN || s === STATUS_PENDING_UPLOAD;
 }
@@ -158,7 +163,7 @@ async function setSessionUploadStatus(db, id, uploadStatus) {
     const row = await req(store.get(id));
     if (!row) throw new Error('ipso: session not found: ' + id);
     row.upload_status = uploadStatus;
-    if (uploadStatus === 'uploaded') {
+    if (uploadStatus === UPLOAD_STATUS_UPLOADED) {
       row.uploaded_at = new Date().toISOString();
     }
     store.put(row);
@@ -271,6 +276,7 @@ async function lastTree(db, sessionId) {
 const Store = {
   DB_NAME, SCHEMA_VERSION,
   STATUS_OPEN, STATUS_PENDING_UPLOAD, STATUS_EXPORTED, STATUS_ABANDONED,
+  UPLOAD_STATUS_UPLOADED, UPLOAD_STATUS_LOCAL_ONLY,
   isResumableStatus,
   openDb,
   startSession, getSession, listResumableSessions, setSessionStatus,

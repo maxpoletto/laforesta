@@ -52,3 +52,4 @@ icons:
 
 clean:
 	rm -rf build
+	$(MAKE) -C upload-server clean
