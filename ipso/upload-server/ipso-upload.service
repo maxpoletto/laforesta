@@ -1,0 +1,19 @@
+[Unit]
+Description=ipso CSV upload receiver
+After=network.target
+
+[Service]
+Type=simple
+User=ipso-upload
+Group=ipso-upload
+ExecStart=/usr/bin/python3 /opt/ipso-upload/server.py /etc/ipso-upload/config.json
+Restart=on-failure
+RestartSec=5
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+NoNewPrivileges=true
+ReadWritePaths=/var/lib/ipso-upload
+
+[Install]
+WantedBy=multi-user.target
