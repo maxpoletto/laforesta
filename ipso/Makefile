@@ -43,6 +43,7 @@ local-test: build
 
 deploy: build test
 	rsync -avz --delete build/ $(DEPLOY_HOST):$(DEPLOY_DIR)/
+	@$(MAKE) -C upload-server deploy DEPLOY_HOST=$(DEPLOY_HOST)
 
 # Deploy with test polygons and a matching synthetic reference.json so
 # the test compresa appears in the pre-session pulldown. Same target

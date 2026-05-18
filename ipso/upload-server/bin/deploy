@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+
+# Deploy server.py to foresta vm. Mirror of abies/bin/deploy in spirit: ansible
+# owns host state, this script owns the app binary's lifecycle.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+HOST=${1:-ipso.laforesta.it}
+echo "Deploying server.py to $HOST:/opt/ipso-upload/server.py"
+rsync -av server.py "${HOST}:/tmp/ipso-upload-server.py"
+ssh "$HOST" "sudo install -m 0755 -o root -g root /tmp/ipso-upload-server.py /opt/ipso-upload/server.py && rm /tmp/ipso-upload-server.py"
+ssh "$HOST" "sudo systemctl restart ipso-upload"
+sleep 1
+ssh "$HOST" "sudo systemctl status --no-pager ipso-upload | head -10"
+echo "Done. Logs: ssh $HOST 'sudo journalctl -u ipso-upload -f'"

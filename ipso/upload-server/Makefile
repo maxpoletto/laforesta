@@ -7,5 +7,8 @@ test:
 run:
 	python3 server.py config.example.json
 
+deploy:
+	@bin/deploy $(DEPLOY_HOST)
+
 clean:
 	find . -name __pycache__ -type d -exec rm -rf {} +
