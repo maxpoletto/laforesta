@@ -578,7 +578,7 @@ function mockResponse(status, payload) {
     (url, init) => mockResponse(200, { ok: true, duplicate: false, stored_as: 'X.csv' }),
     async () => {
       const r = await upload.uploadSession({
-        base: 'https://h', token: 't', schemaVersion: 5,
+        token: 't', schemaVersion: 5,
         sessionId: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
         csvText: 'data',
       });
@@ -592,7 +592,7 @@ function mockResponse(status, payload) {
     () => mockResponse(200, { ok: true, duplicate: true, stored_as: 'X.csv' }),
     async () => {
       const r = await upload.uploadSession({
-        base: 'https://h', token: 't', schemaVersion: 5,
+        token: 't', schemaVersion: 5,
         sessionId: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
         csvText: 'data',
       });
@@ -607,7 +607,7 @@ function mockResponse(status, payload) {
     async () => {
       try {
         await upload.uploadSession({
-          base: 'https://h', token: 't', schemaVersion: 5,
+          token: 't', schemaVersion: 5,
           sessionId: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee', csvText: 'd',
         });
         failed++; console.error('FAIL uploadSession 401: expected throw');
@@ -623,7 +623,7 @@ function mockResponse(status, payload) {
     async () => {
       try {
         await upload.uploadSession({
-          base: 'https://h', token: 't', schemaVersion: 5,
+          token: 't', schemaVersion: 5,
           sessionId: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee', csvText: 'd',
         });
         failed++; console.error('FAIL uploadSession 409: expected throw');
@@ -639,7 +639,7 @@ function mockResponse(status, payload) {
     async () => {
       try {
         await upload.uploadSession({
-          base: 'https://h', token: 't', schemaVersion: 5,
+          token: 't', schemaVersion: 5,
           sessionId: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee', csvText: 'd',
         });
         failed++; console.error('FAIL uploadSession 503: expected throw');
@@ -655,7 +655,7 @@ function mockResponse(status, payload) {
     async () => {
       try {
         await upload.uploadSession({
-          base: 'https://h', token: 't', schemaVersion: 5,
+          token: 't', schemaVersion: 5,
           sessionId: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee', csvText: 'd',
         });
         failed++; console.error('FAIL uploadSession network: expected throw');
@@ -675,15 +675,15 @@ function mockResponse(status, payload) {
     },
     async () => {
       await upload.uploadSession({
-        base: 'https://example.invalid', token: 'tok',
+        token: 'tok',
         schemaVersion: 5,
         sessionId: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
         csvText: 'BODY',
       });
     }
   );
-  assertEqual(captured.url, 'https://example.invalid/upload',
-              'uploadSession: url base + /upload');
+  assertEqual(captured.url, '/upload',
+              'uploadSession: relative /upload path (same-origin)');
   assertEqual(captured.init.method, 'POST', 'uploadSession: method=POST');
   assertEqual(captured.init.headers.Authorization, 'Bearer tok',
               'uploadSession: Authorization header');

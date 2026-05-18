@@ -266,10 +266,14 @@ template (`templates/apache2-sites/static-ssl.conf.j2`).
 
 # Upload to server
 
-On Termina, the session CSV is uploaded to `${UPLOAD_BASE}/upload`
-in addition to being written to Downloads.  The local CSV is the
-trust anchor — it is written before any network call and on every
-re-entry to `screen-upload` (browsers auto-rename duplicates).
+On Termina, the session CSV is POSTed to `/upload` (relative — always
+same-origin, so no CORS preflight in production) in addition to being
+written to Downloads.  In production, Apache `ProxyPass /upload` routes
+to the upload-server on `127.0.0.1:8765`.  In local dev,
+`tools/local-proxy.py` (via `make local-test`) does the same.  The
+local CSV is the trust anchor — it is written before any network call
+and on every re-entry to `screen-upload` (browsers auto-rename
+duplicates).
 
 The upload screen retries soft errors (5xx, 429, network) forever
 on a `[2,4,8,16,30,30,...]` second backoff capped at 30 s, until

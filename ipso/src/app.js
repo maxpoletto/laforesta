@@ -728,7 +728,6 @@ async function runUploadAttempt() {
   State.upload.abortController = ac;
   try {
     await upload.uploadSession({
-      base: UPLOAD_BASE,
       token: UPLOAD_TOKEN,
       schemaVersion: Store.SCHEMA_VERSION,
       sessionId: State.upload.sessionId,

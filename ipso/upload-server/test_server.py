@@ -43,7 +43,7 @@ def _pick_port():
 class ServerHarness:
     """Spin up server in a thread; stop on close()."""
 
-    def __init__(self, rate_limit_per_minute=1000):
+    def __init__(self, rate_limit_per_minute=1000, allowed_origins=None):
         self.tmp = tempfile.mkdtemp(prefix="ipso-upload-test-")
         self.port = _pick_port()
         cfg = {
@@ -54,6 +54,7 @@ class ServerHarness:
             "rate_limit_per_minute": rate_limit_per_minute,
             "expected_bom": BOM,
             "expected_header_prefix": "Data;Compresa;Particella;Catastrofata;",
+            "allowed_origins": ["*"] if allowed_origins is None else allowed_origins,
         }
         os.makedirs(cfg["upload_dir"])
         self._cfg_path = os.path.join(self.tmp, "config.json")
@@ -344,6 +345,107 @@ class StartupSweepTest(unittest.TestCase):
         self.assertFalse(os.path.exists(stale))
         self.assertTrue(os.path.exists(fresh))
         shutil.rmtree(tmp)
+
+
+class CorsTest(unittest.TestCase):
+    """Default `["*"]` allowlist behavior — permissive."""
+
+    def setUp(self):
+        self.h = ServerHarness()
+
+    def tearDown(self):
+        self.h.close()
+
+    def test_options_preflight_returns_cors_headers(self):
+        status, headers, _ = self.h.request("OPTIONS", "/upload", None, {})
+        self.assertEqual(status, 204)
+        self.assertEqual(headers.get("Access-Control-Allow-Origin"), "*")
+        self.assertIn("POST", headers.get("Access-Control-Allow-Methods", ""))
+        allow_headers = headers.get("Access-Control-Allow-Headers", "")
+        self.assertIn("Authorization", allow_headers)
+        self.assertIn("X-Ipso-Session-Id", allow_headers)
+        self.assertIn("X-Ipso-Schema-Version", allow_headers)
+        self.assertIn("Content-Type", allow_headers)
+
+    def test_post_response_includes_cors_origin(self):
+        status, headers, _ = self.h.request(
+            "POST", "/upload", SAMPLE_CSV, VALID_HEADERS
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(headers.get("Access-Control-Allow-Origin"), "*")
+
+    def test_error_response_includes_cors_origin(self):
+        # 401 must also carry the CORS origin header, else the browser
+        # can't read the error JSON on failed auth.
+        status, headers, _ = self.h.request(
+            "POST", "/upload", SAMPLE_CSV,
+            dict(VALID_HEADERS, **{"Authorization": "Bearer wrong"}),
+        )
+        self.assertEqual(status, 401)
+        self.assertEqual(headers.get("Access-Control-Allow-Origin"), "*")
+
+
+class CorsAllowlistTest(unittest.TestCase):
+    """Restricted allowlist behavior — echo only matching Origins."""
+
+    def setUp(self):
+        self.h = ServerHarness(
+            allowed_origins=["https://ipso.laforesta.it"],
+        )
+
+    def tearDown(self):
+        self.h.close()
+
+    def test_matching_origin_echoed_on_preflight(self):
+        status, headers, _ = self.h.request(
+            "OPTIONS", "/upload", None,
+            {"Origin": "https://ipso.laforesta.it"},
+        )
+        self.assertEqual(status, 204)
+        self.assertEqual(
+            headers.get("Access-Control-Allow-Origin"),
+            "https://ipso.laforesta.it",
+        )
+
+    def test_non_matching_origin_omits_header_on_preflight(self):
+        status, headers, _ = self.h.request(
+            "OPTIONS", "/upload", None, {"Origin": "https://evil.example"},
+        )
+        self.assertEqual(status, 204)
+        self.assertIsNone(headers.get("Access-Control-Allow-Origin"))
+        # Without the header, the browser blocks the actual request.
+
+    def test_matching_origin_echoed_on_post(self):
+        status, headers, _ = self.h.request(
+            "POST", "/upload", SAMPLE_CSV,
+            dict(VALID_HEADERS, **{"Origin": "https://ipso.laforesta.it"}),
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(
+            headers.get("Access-Control-Allow-Origin"),
+            "https://ipso.laforesta.it",
+        )
+
+    def test_non_matching_origin_omits_header_on_post(self):
+        status, headers, _ = self.h.request(
+            "POST", "/upload", SAMPLE_CSV,
+            dict(VALID_HEADERS, **{"Origin": "https://evil.example"}),
+        )
+        # The POST still succeeds server-side (origin check is browser-
+        # enforced), but the response carries no CORS header so the
+        # browser blocks the response body from being read.
+        self.assertEqual(status, 200)
+        self.assertIsNone(headers.get("Access-Control-Allow-Origin"))
+
+    def test_no_origin_header_omits_response_header(self):
+        # curl / non-browser clients send no Origin; the server has
+        # nothing to echo, so the header is omitted. Harmless: CORS only
+        # applies to browser-originated requests.
+        status, headers, _ = self.h.request(
+            "POST", "/upload", SAMPLE_CSV, VALID_HEADERS,
+        )
+        self.assertEqual(status, 200)
+        self.assertIsNone(headers.get("Access-Control-Allow-Origin"))
 
 
 if __name__ == "__main__":

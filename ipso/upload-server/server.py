@@ -30,6 +30,32 @@ MAX_BODY_BYTES = 1024 * 1024
 BEARER_PREFIX = "Bearer "
 CSV_CONTENT_TYPE_PREFIX = "text/csv"
 
+# CORS. The token is the primary security gate; restricting origins is
+# defense-in-depth against browser-based abuse where an attacker scrapes
+# the token from the public PWA bundle and tries to POST from a different
+# page. cfg["allowed_origins"] is a list of origins; if it contains "*"
+# any origin is allowed and the header is echoed as "*". Otherwise the
+# request's Origin header must match one of the entries verbatim.
+CORS_ALLOW_METHODS = "POST, OPTIONS"
+CORS_ALLOW_HEADERS = (
+    "Authorization, Content-Type, X-Ipso-Session-Id, X-Ipso-Schema-Version"
+)
+CORS_MAX_AGE = "3600"
+
+
+def _resolve_cors_origin(allowed_origins, request_origin):
+    """Return the value to echo in Access-Control-Allow-Origin, or None.
+
+    - If "*" is in allowed_origins: return "*" (everyone).
+    - Else, if request_origin is in allowed_origins: return request_origin.
+    - Else: return None (header is omitted; browser blocks the response).
+    """
+    if "*" in allowed_origins:
+        return "*"
+    if request_origin and request_origin in allowed_origins:
+        return request_origin
+    return None
+
 UUID_RE = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
 )
@@ -37,11 +63,17 @@ UUID_RE = re.compile(
 log = logging.getLogger("ipso-upload")
 
 
-def _json_response(handler, status, payload):
+def _json_response(handler, status, payload, allowed_origins=None):
     body = json.dumps(payload).encode("utf-8")
     handler.send_response(status)
     handler.send_header("Content-Type", "application/json; charset=utf-8")
     handler.send_header("Content-Length", str(len(body)))
+    if allowed_origins is not None:
+        origin = _resolve_cors_origin(
+            allowed_origins, handler.headers.get("Origin"),
+        )
+        if origin is not None:
+            handler.send_header("Access-Control-Allow-Origin", origin)
     handler.end_headers()
     handler.wfile.write(body)
 
@@ -150,34 +182,38 @@ def make_handler(cfg):
     token_bytes = cfg["token"].encode("utf-8")
     expected_bom = cfg["expected_bom"]
     expected_header_prefix = cfg["expected_header_prefix"]
+    allowed_origins = list(cfg.get("allowed_origins", ["*"]))
 
     class Handler(http.server.BaseHTTPRequestHandler):
         def log_message(self, format, *args):
             log.info("%s - %s", self.address_string(), format % args)
 
+        def _respond(self, status, payload):
+            _json_response(self, status, payload, allowed_origins)
+
         def _invalid_csv(self, detail):
-            _json_response(self, 422, {
+            self._respond(422, {
                 "ok": False, "error": "invalid_csv", "detail": detail,
             })
 
         def do_GET(self):
-            _json_response(self, 405, {"ok": False, "error": "method_not_allowed"})
+            self._respond(405, {"ok": False, "error": "method_not_allowed"})
 
         def do_POST(self):
             t0 = time.monotonic()
             if self.path != "/upload":
-                _json_response(self, 404, {"ok": False, "error": "not_found"})
+                self._respond(404, {"ok": False, "error": "not_found"})
                 return
 
             # Uniform 401 body for both "missing/malformed header" and "wrong
             # token" — don't disclose which failure mode the caller hit.
             auth = self.headers.get("Authorization", "")
             if not auth.startswith(BEARER_PREFIX):
-                _json_response(self, 401, {"ok": False, "error": "auth"})
+                self._respond(401, {"ok": False, "error": "auth"})
                 return
             presented = auth[len(BEARER_PREFIX):].encode("utf-8")
             if not hmac.compare_digest(presented, token_bytes):
-                _json_response(self, 401, {"ok": False, "error": "auth"})
+                self._respond(401, {"ok": False, "error": "auth"})
                 return
 
             ctype = self.headers.get("Content-Type", "")
@@ -192,14 +228,12 @@ def make_handler(cfg):
 
             client_ip = _client_ip(self)
             if not bucket.take(client_ip):
-                _json_response(self, 429, {
-                    "ok": False, "error": "rate_limited",
-                })
+                self._respond(429, {"ok": False, "error": "rate_limited"})
                 return
 
             length = int(self.headers.get("Content-Length") or 0)
             if length > MAX_BODY_BYTES:
-                _json_response(self, 413, {"ok": False, "error": "too_large"})
+                self._respond(413, {"ok": False, "error": "too_large"})
                 return
             body = self.rfile.read(length) if length else b""
 
@@ -235,15 +269,13 @@ def make_handler(cfg):
                         session_id, len(body), client_ip,
                         int((time.monotonic() - t0) * 1000),
                     )
-                    _json_response(self, 200, {
+                    self._respond(200, {
                         "ok": True,
                         "stored_as": session_id + ".csv",
                         "duplicate": True,
                     })
                 else:
-                    _json_response(self, 409, {
-                        "ok": False, "error": "conflict",
-                    })
+                    self._respond(409, {"ok": False, "error": "conflict"})
                 return
 
             try:
@@ -251,7 +283,7 @@ def make_handler(cfg):
             except FileExistsError:
                 # Concurrent in-flight write to the same uuid — let the
                 # client retry; idempotency catches it on the next attempt.
-                _json_response(self, 503, {"ok": False, "error": "server"})
+                self._respond(503, {"ok": False, "error": "server"})
                 return
             with os.fdopen(fd, "wb") as fh:
                 fh.write(body)
@@ -281,14 +313,26 @@ def make_handler(cfg):
                 meta.get("tree_count", 0), client_ip,
                 int((time.monotonic() - t0) * 1000),
             )
-            _json_response(self, 200, {
+            self._respond(200, {
                 "ok": True,
                 "stored_as": session_id + ".csv",
                 "duplicate": False,
             })
 
         def do_OPTIONS(self):
+            # CORS preflight: browsers send this before any non-simple
+            # cross-origin POST (custom headers + non-text Content-Type).
+            # Only echo Allow-Origin if the request's Origin matches the
+            # configured allowlist (or the allowlist contains "*").
+            origin = _resolve_cors_origin(
+                allowed_origins, self.headers.get("Origin"),
+            )
             self.send_response(204)
+            if origin is not None:
+                self.send_header("Access-Control-Allow-Origin", origin)
+                self.send_header("Access-Control-Allow-Methods", CORS_ALLOW_METHODS)
+                self.send_header("Access-Control-Allow-Headers", CORS_ALLOW_HEADERS)
+                self.send_header("Access-Control-Max-Age", CORS_MAX_AGE)
             self.end_headers()
 
     return Handler

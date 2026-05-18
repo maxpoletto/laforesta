@@ -1,4 +1,4 @@
-.PHONY: build test serve deploy deploy-test icons clean
+.PHONY: build test serve local-test deploy deploy-test icons clean
 
 # Output location on the laforesta.it VM. The user is provisioning the
 # subdomain (DNS + apache vhost + TLS) via ../system/ansible separately.
@@ -28,10 +28,18 @@ test: build
 	$(MAKE) -C upload-server test
 
 # Local HTTPS preview. Service worker registration requires HTTPS or
-# localhost; localhost counts as secure for SW purposes.
+# localhost; localhost counts as secure for SW purposes. Pure static —
+# no /upload backend. Use `make local-test` for the upload-server flow.
 serve: build
 	@echo "Serving build/ at http://localhost:8000/ — open in a browser."
 	@cd build && python3 -m http.server 8000
+
+# Full local stack: build, start ipso-upload on 127.0.0.1:8765, run a
+# small reverse proxy on http://127.0.0.1:8000/ that serves build/ and
+# proxies /upload to the upload-server. Mimics production topology so
+# the browser doesn't see a cross-origin request. Ctrl-C to stop both.
+local-test: build
+	@bin/local-test
 
 deploy: build test
 	rsync -avz --delete build/ $(DEPLOY_HOST):$(DEPLOY_DIR)/

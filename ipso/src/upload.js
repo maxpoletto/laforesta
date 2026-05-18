@@ -53,10 +53,10 @@ class UploadError extends Error {
 // globals); the function accepts them as args so tests can inject a
 // fake config without mucking with globals.
 async function uploadSession(args) {
-  const { base, token, schemaVersion, sessionId, csvText, signal } = args;
+  const { token, schemaVersion, sessionId, csvText, signal } = args;
   let resp;
   try {
-    resp = await fetch(base + '/upload', {
+    resp = await fetch('/upload', {
       method: 'POST',
       headers: {
         'Authorization': 'Bearer ' + token,

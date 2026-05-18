@@ -1,10 +1,14 @@
 """Generate build/upload-config.js from secrets/upload_config.json.
 
-Writes a tiny JS file exposing UPLOAD_BASE and UPLOAD_TOKEN as globals,
-loaded by index.html before upload.js. The token is visible to anyone
-who can fetch the PWA bundle — see the spec for the explicit risk
-tradeoff. The file is regenerated on every `make build` so a stale copy
-cannot survive a token rotation.
+Writes a tiny JS file exposing UPLOAD_TOKEN as a global, loaded by
+index.html before upload.js. The token is visible to anyone who can
+fetch the PWA bundle — see the spec for the explicit risk tradeoff.
+The file is regenerated on every `make build` so a stale copy cannot
+survive a token rotation.
+
+The upload base URL is intentionally NOT carried here: uploadSession()
+posts to the relative path /upload, which is same-origin by construction
+(production: Apache ProxyPass; local dev: tools/local-proxy.py).
 """
 
 import json
@@ -27,11 +31,9 @@ def main(argv):
         return 2
     with open(argv[1], "r", encoding="utf-8") as fh:
         cfg = json.load(fh)
-    base = cfg["upload_base"]
     token = cfg["token"]
     with open(argv[2], "w", encoding="utf-8") as fh:
         fh.write(HEADER)
-        fh.write("const UPLOAD_BASE = " + json.dumps(base) + ";\n")
         fh.write("const UPLOAD_TOKEN = " + json.dumps(token) + ";\n")
     return 0
 
