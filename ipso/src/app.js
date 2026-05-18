@@ -101,10 +101,11 @@ async function boot() {
   // foreground (the Wake Lock API auto-releases on visibility loss).
   setupWakeLockVisibility();
 
-  // Resume-on-open: check for any open sessions before showing pre-session.
-  const open = await Store.listOpenSessions(State.db);
-  if (open && open.length > 0) {
-    showResumeModal(open);
+  // Resume-on-open: check for any sessions awaiting follow-up
+  // (STATUS_OPEN or STATUS_PENDING_UPLOAD) before showing pre-session.
+  const resumable = await Store.listResumableSessions(State.db);
+  if (resumable && resumable.length > 0) {
+    showResumeModal(resumable);
   } else {
     showScreen('screen-pre');
   }

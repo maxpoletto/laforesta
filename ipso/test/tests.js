@@ -488,6 +488,38 @@ function makeFeatures() {
 }
 
 // ---------------------------------------------------------------------------
+// store.js — pure helpers (the IndexedDB code is exercised only in the
+// browser; here we lock the status-set contract that the resume flow relies
+// on).
+// ---------------------------------------------------------------------------
+
+console.log('\nstore.js (pure helpers)');
+
+const { Store } = require('../build/store.js');
+
+assertEqual(Store.SCHEMA_VERSION, 5, 'store: SCHEMA_VERSION bumped to 5');
+
+assertEqual(Store.STATUS_OPEN, 'open', 'store: STATUS_OPEN constant');
+assertEqual(Store.STATUS_PENDING_UPLOAD, 'pending_upload',
+            'store: STATUS_PENDING_UPLOAD constant');
+assertEqual(Store.STATUS_EXPORTED, 'exported', 'store: STATUS_EXPORTED constant');
+assertEqual(Store.STATUS_ABANDONED, 'abandoned',
+            'store: STATUS_ABANDONED constant');
+
+assertEqual(Store.isResumableStatus(Store.STATUS_OPEN), true,
+            'store: OPEN is resumable');
+assertEqual(Store.isResumableStatus(Store.STATUS_PENDING_UPLOAD), true,
+            'store: PENDING_UPLOAD is resumable');
+assertEqual(Store.isResumableStatus(Store.STATUS_EXPORTED), false,
+            'store: EXPORTED is not resumable');
+assertEqual(Store.isResumableStatus(Store.STATUS_ABANDONED), false,
+            'store: ABANDONED is not resumable');
+assertEqual(Store.isResumableStatus(null), false,
+            'store: null is not resumable');
+assertEqual(Store.isResumableStatus('nonsense'), false,
+            'store: unknown status is not resumable');
+
+// ---------------------------------------------------------------------------
 // Summary
 // ---------------------------------------------------------------------------
 

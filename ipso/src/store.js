@@ -16,15 +16,20 @@ const DB_NAME = 'ipso';
 // missing/extra fields without a structural change, so the bump is the
 // contract for "this code wrote/read vN-shaped rows" — not a migration
 // trigger at the moment.
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 
 const STORE_SESSIONS = 'sessions';
 const STORE_TREES = 'trees';
 const STORE_META = 'meta';
 
 const STATUS_OPEN = 'open';
+const STATUS_PENDING_UPLOAD = 'pending_upload';
 const STATUS_EXPORTED = 'exported';
 const STATUS_ABANDONED = 'abandoned';
+
+function isResumableStatus(s) {
+  return s === STATUS_OPEN || s === STATUS_PENDING_UPLOAD;
+}
 
 function uuid() {
   // Prefer crypto.randomUUID; fall back to a v4-ish manual implementation
@@ -109,6 +114,8 @@ async function startSession(db, fields) {
     catastrofata,
     operatore: fields.operatore || '',
     tree_count: 0,
+    upload_status: null,
+    uploaded_at: null,
   };
   await tx(db, [STORE_SESSIONS], 'readwrite', (t) => {
     t.objectStore(STORE_SESSIONS).add(row);
@@ -122,10 +129,13 @@ async function getSession(db, id) {
   );
 }
 
-async function listOpenSessions(db) {
+async function listResumableSessions(db) {
+  // Returns all sessions in a status that wants operator follow-up:
+  // STATUS_OPEN (resume the recording) or STATUS_PENDING_UPLOAD
+  // (retry the upload or confirm local-only).
   return tx(db, [STORE_SESSIONS], 'readonly', async (t) => {
-    const idx = t.objectStore(STORE_SESSIONS).index('by_status');
-    return req(idx.getAll(STATUS_OPEN));
+    const all = await req(t.objectStore(STORE_SESSIONS).getAll());
+    return all.filter((row) => isResumableStatus(row.status));
   });
 }
 
@@ -137,6 +147,19 @@ async function setSessionStatus(db, id, status) {
     row.status = status;
     if (status === STATUS_EXPORTED) {
       row.exported_at = new Date().toISOString();
+    }
+    store.put(row);
+  });
+}
+
+async function setSessionUploadStatus(db, id, uploadStatus) {
+  await tx(db, [STORE_SESSIONS], 'readwrite', async (t) => {
+    const store = t.objectStore(STORE_SESSIONS);
+    const row = await req(store.get(id));
+    if (!row) throw new Error('ipso: session not found: ' + id);
+    row.upload_status = uploadStatus;
+    if (uploadStatus === 'uploaded') {
+      row.uploaded_at = new Date().toISOString();
     }
     store.put(row);
   });
@@ -247,9 +270,11 @@ async function lastTree(db, sessionId) {
 
 const Store = {
   DB_NAME, SCHEMA_VERSION,
-  STATUS_OPEN, STATUS_EXPORTED, STATUS_ABANDONED,
+  STATUS_OPEN, STATUS_PENDING_UPLOAD, STATUS_EXPORTED, STATUS_ABANDONED,
+  isResumableStatus,
   openDb,
-  startSession, getSession, listOpenSessions, setSessionStatus,
+  startSession, getSession, listResumableSessions, setSessionStatus,
+  setSessionUploadStatus,
   addTree, listTrees, updateTree, deleteTree, lastTree,
   uuid,
 };
