@@ -8,8 +8,8 @@ Usage:
 Sources:
 - ../../bosco/data/particelle.csv         parcels (filtered: high-forest only)
 - ../../bosco/data/equazioni_ipsometro.csv ipsometric regression coefficients
-- abies SPECIES list (hardcoded below, mirror of
-  abies/apps/base/management/commands/import_reference.py lines 35-43)
+- ../../abies/apps/base/data/species.csv  species list shared with abies's
+                                          import_reference.py
 
 The Pino species is split into 'Pino Nero' and 'Pino Marittimo' so the auto-h
 regression fires the right coefficients per region. The CSV output writes
