@@ -326,5 +326,25 @@ class RateLimitTest(unittest.TestCase):
         self.assertEqual(json.loads(body), {"ok": False, "error": "rate_limited"})
 
 
+class StartupSweepTest(unittest.TestCase):
+    def test_old_part_files_removed_on_start(self):
+        tmp = tempfile.mkdtemp(prefix="ipso-upload-sweep-")
+        uploads = os.path.join(tmp, "uploads")
+        os.makedirs(uploads)
+        stale = os.path.join(uploads, "abc.part")
+        with open(stale, "w") as fh:
+            fh.write("x")
+        old = time.time() - 3600
+        os.utime(stale, (old, old))
+        fresh = os.path.join(uploads, "xyz.part")
+        with open(fresh, "w") as fh:
+            fh.write("y")
+        # Brand new — should be left alone.
+        server.sweep_stale_parts(uploads, older_than_s=60)
+        self.assertFalse(os.path.exists(stale))
+        self.assertTrue(os.path.exists(fresh))
+        shutil.rmtree(tmp)
+
+
 if __name__ == "__main__":
     unittest.main()

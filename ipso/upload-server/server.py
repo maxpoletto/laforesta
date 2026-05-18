@@ -121,6 +121,29 @@ def _meta_from_csv(after_bom, schema_version, remote_addr):
     }
 
 
+def sweep_stale_parts(upload_dir, older_than_s=60):
+    """Remove .part files older than older_than_s seconds.
+
+    Called at server startup to clean up after a previous process that
+    crashed mid-write. Stale .part files are not visible via the final
+    filename, so they are pure leakage.
+
+    Precondition: upload_dir exists. main() guarantees this via
+    os.makedirs(..., exist_ok=True) before calling.
+    """
+    cutoff = time.time() - older_than_s
+    for name in os.listdir(upload_dir):
+        if not name.endswith(".part"):
+            continue
+        path = os.path.join(upload_dir, name)
+        try:
+            if os.path.getmtime(path) < cutoff:
+                os.unlink(path)
+                log.info("swept stale part: %s", name)
+        except FileNotFoundError:
+            pass
+
+
 def make_handler(cfg):
     upload_dir = cfg["upload_dir"]
     bucket = TokenBucket(cfg.get("rate_limit_per_minute", 10))
@@ -141,6 +164,7 @@ def make_handler(cfg):
             _json_response(self, 405, {"ok": False, "error": "method_not_allowed"})
 
         def do_POST(self):
+            t0 = time.monotonic()
             if self.path != "/upload":
                 _json_response(self, 404, {"ok": False, "error": "not_found"})
                 return
@@ -205,6 +229,12 @@ def make_handler(cfg):
                 if hmac.compare_digest(existing, body):
                     # No meta rewrite on duplicate: preserves the
                     # original received_at / remote_addr.
+                    log.info(
+                        "upload session_id=%s bytes=%d duplicate=true "
+                        "client_ip=%s elapsed_ms=%d",
+                        session_id, len(body), client_ip,
+                        int((time.monotonic() - t0) * 1000),
+                    )
                     _json_response(self, 200, {
                         "ok": True,
                         "stored_as": session_id + ".csv",
@@ -229,6 +259,7 @@ def make_handler(cfg):
                 os.fsync(fh.fileno())
             os.rename(tmp, dest)
 
+            meta = {}
             try:
                 meta = _meta_from_csv(
                     after_bom, self.headers.get("X-Ipso-Schema-Version", ""),
@@ -241,6 +272,15 @@ def make_handler(cfg):
                 log.warning("meta sidecar write failed for %s: %s",
                             session_id, exc)
 
+            log.info(
+                "upload session_id=%s bytes=%d duplicate=false "
+                "operatore=%r compresa=%r tree_count=%d "
+                "client_ip=%s elapsed_ms=%d",
+                session_id, len(body),
+                meta.get("operatore", ""), meta.get("compresa", ""),
+                meta.get("tree_count", 0), client_ip,
+                int((time.monotonic() - t0) * 1000),
+            )
             _json_response(self, 200, {
                 "ok": True,
                 "stored_as": session_id + ".csv",
@@ -267,6 +307,7 @@ def main(argv):
     with open(argv[1], "r", encoding="utf-8") as fh:
         cfg = json.load(fh)
     os.makedirs(cfg["upload_dir"], exist_ok=True)
+    sweep_stale_parts(cfg["upload_dir"])
     srv = make_server(cfg)
     log.info("listening on %s:%d", cfg["bind_host"], cfg["bind_port"])
     try:
