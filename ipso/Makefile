@@ -11,14 +11,21 @@ BOSCO_DATA   = ../bosco/data
 # from build/ — the source tree is never touched. Generated artifacts
 # (reference.json, geo.js, terreni.geojson) live in build/ only.
 build:
+	@if [ ! -f secrets/upload_config.json ]; then \
+	  echo "ERROR: secrets/upload_config.json missing."; \
+	  echo "  Copy secrets/upload_config.json.example and fill in the token."; \
+	  exit 1; \
+	fi
 	mkdir -p build
 	rsync -a --delete src/ build/
-	python3 tools/build_reference.py build/reference.json
-	python3 tools/vendor_geo.py       build/geo.js
-	cp $(BOSCO_DATA)/terreni.geojson  build/terreni.geojson
+	python3 tools/build_reference.py     build/reference.json
+	python3 tools/vendor_geo.py          build/geo.js
+	python3 tools/build_upload_config.py secrets/upload_config.json build/upload-config.js
+	cp $(BOSCO_DATA)/terreni.geojson     build/terreni.geojson
 
 test: build
 	node test/tests.js
+	$(MAKE) -C upload-server test
 
 # Local HTTPS preview. Service worker registration requires HTTPS or
 # localhost; localhost counts as secure for SW purposes.
