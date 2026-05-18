@@ -36,6 +36,15 @@ CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf.split(',') if o.strip()]
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 USE_X_FORWARDED_HOST = True
 
+# Django's default Referrer-Policy is 'same-origin', which strips Referer
+# entirely on cross-origin requests.  OpenStreetMap's tile usage policy
+# requires a Referer header on tile requests (see osm.wiki/Blocked) — under
+# 'same-origin' the browser sends nothing and OSM returns 403.  The modern
+# default 'strict-origin-when-cross-origin' sends only the origin
+# (e.g. 'https://abies.laforesta.it/') on cross-origin requests, which is
+# enough to satisfy OSM without leaking the full URL or query string.
+SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
+
 if not DEBUG:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True

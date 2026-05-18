@@ -264,3 +264,8 @@ export const COL_MATRICINA_SHORT = 'Mat.';
 // Status message fragments
 export const STATUS_NO_SAMPLES = 'nessun campione';
 
+// Basemap-switcher labels (Leaflet control rendered by MapCommon).
+export const BASEMAP_OSM  = 'OSM';
+export const BASEMAP_TOPO = 'Topo';
+export const BASEMAP_SAT  = 'Satellite';
+

@@ -659,17 +659,17 @@ desktop and mobile).
 
 Maps have the following visual structure:
 
-- A navigation bar on the right.
+- A navigation bar on the right (sidebar-bearing pages only; Campionamenti
+  has no sidebar).
 - The following Leaflet tools appear in the upper left corner, top to bottom:
-  - A hamburger button to hide/display the navigation bar.
+  - A hamburger button to hide/display the navigation bar (sidebar pages only).
   - A location pin.
   - Zoom +/- buttons
   - A ruler
+- A basemap selector in the upper right (see below).
 
-The top of the navigation bar always contains, top to bottom:
+The top of the navigation bar (sidebar pages) always contains, top to bottom:
 - A status panel
-- A map type selector. Buttons for OSM, Topo, Satellite. Satellite is the
-  default.
 - A pull-down region ("compresa") selector. Choosing a region centers it on the
   map and sets the zoom level to the most detailed level that still includes the
   full region in the viewport.
@@ -677,7 +677,29 @@ The top of the navigation bar always contains, top to bottom:
 Below these elements are application-specific controls, organized in collapsible
 sections.
 
-This structure is very similar to that of the Boscoscopio app (laforesta/bosco/b).
+This structure derives from the Boscoscopio app (laforesta/bosco/b), with the
+basemap selector moved onto the map itself so the pattern works for
+sidebar-less maps too (Campionamenti).
+
+**Basemap selector.**  A Leaflet control in the top-right corner of every
+map shows the currently active basemap (OSM / Topo / Satellite) as a
+64×64 thumbnail.  Hovering it (or tapping the thumbnail on touch
+devices) expands the control horizontally to show all three choices;
+clicking one selects it and collapses the control back to the active
+thumbnail.  Satellite is the default.  The control is added by
+`MapCommon.create()` automatically (opt out via
+`enableBasemapControl: false`) and works identically on sidebar-bearing
+and sidebar-less maps.  The `mt=` URL parameter (`o` / `t` / `s`)
+round-trips the choice so basemap selection is bookmarkable; on
+Campionamenti, both visible maps share the same setting and update
+together via the `basemapchange` Leaflet event that the control fires
+on selection.  Use `wrapper.syncBasemap(name)` (returned from
+`MapCommon.create`) to mirror a basemap change onto a sibling map
+without re-firing the event.  Implementation: `BasemapControl` inside
+`apps/base/static/base/js/map-common.js`; CSS rules `.mc-basemap-*` in
+`apps/base/static/base/css/common.css`; thumbnail PNGs under
+`apps/base/static/base/img/basemap-{osm,topo,sat}.png` (one tile per
+provider centred on Capistrano, resized to 128×128).
 
 **Geojson source for parcel polygons.** Parcels are rendered from
 `data/geo/terreni.geojson`.  Each polygon feature carries

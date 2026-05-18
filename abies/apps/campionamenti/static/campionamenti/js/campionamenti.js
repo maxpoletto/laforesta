@@ -151,6 +151,10 @@ let currentTreesId = null;
 let _areaColIdx = -1;
 let inForm = false;
 let escapeHandler = null;
+// MapCommon basemap key in effect across all maps on this page.
+// Initialised in mount() from the URL; updated by `basemapchange` events
+// fired from any BasemapControl and by `applyParams` on back/forward.
+let currentMapType = MAP_TYPE_TOKENS[DEFAULT_MAP_TYPE];
 
 function canModify() {
   return ['admin', 'writer'].includes(document.body.dataset.role);
@@ -195,6 +199,12 @@ export async function mount(params) {
     showError(S.ERROR_NETWORK);
     return;
   }
+
+  // Initialise the per-page basemap state from the URL before any map is
+  // constructed.  All subsequent maps (and the BasemapControl on each)
+  // start in sync with this value.
+  const p0 = readParams(params);
+  currentMapType = MAP_TYPE_TOKENS[p0.mt];
 
   buildPageShell(el, params);
   cache.setVisible([SURVEYS_ID, GRIDS_ID, SAMPLE_AREAS_ID, SAMPLES_ID]);
@@ -488,6 +498,7 @@ function renderGriglieMap(gridId) {
       s.savedView = { gridId, center, zoom };
     },
   });
+  bindBasemapEvents(s.map);
   s.map.setAreas(areas);
 }
 
@@ -688,6 +699,7 @@ function renderRilevamentiMap(surveyId) {
       s.savedView = { surveyId, center, zoom };
     },
   });
+  bindBasemapEvents(s.map);
   s.map.setAreas(areas, visitedById);
 }
 
@@ -805,9 +817,25 @@ function readParams(params) {
 }
 
 function activeBasemap() {
-  const u = new URLSearchParams(location.search);
-  const tok = u.get('mt');
-  return MAP_TYPE_TOKENS[tok] || MAP_TYPE_TOKENS[DEFAULT_MAP_TYPE];
+  return currentMapType;
+}
+
+// Cross-map basemap sync.  Fired by either map's BasemapControl when the
+// user clicks a thumbnail; mirrors the change onto the sibling map and
+// writes the URL so the choice is bookmarkable.
+function onBasemapChange(name) {
+  if (name === currentMapType) return;
+  currentMapType = name;
+  if (sections.g.map?.wrapper) sections.g.map.wrapper.syncBasemap(name);
+  if (sections.r.map?.wrapper) sections.r.map.wrapper.syncBasemap(name);
+  syncURL();
+}
+
+// Bind once per map instance.  Safe to call after the map is constructed
+// in activateGrid / activateSurvey.
+function bindBasemapEvents(map) {
+  if (!map?.leaflet) return;
+  map.leaflet.on('basemapchange', (e) => onBasemapChange(e.name));
 }
 
 function currentURLParams() {
@@ -827,6 +855,16 @@ function currentURLParams() {
 
 function applyParams(params) {
   const p = readParams(params);
+
+  // Back/forward: URL `mt` may differ from in-memory state.  Update
+  // currentMapType and mirror onto any live maps; new maps built below
+  // will pick the same value up via `activeBasemap()`.
+  const desiredBasemap = MAP_TYPE_TOKENS[p.mt];
+  if (desiredBasemap !== currentMapType) {
+    currentMapType = desiredBasemap;
+    if (sections.g.map?.wrapper) sections.g.map.wrapper.syncBasemap(desiredBasemap);
+    if (sections.r.map?.wrapper) sections.r.map.wrapper.syncBasemap(desiredBasemap);
+  }
 
   // Sync section open/closed.
   for (const k of SECTION_KEYS) {
@@ -884,8 +922,12 @@ function syncURL() {
   }
   if (activeAreaId != null) u.set('a', String(activeAreaId));
 
-  const mt = new URLSearchParams(location.search).get('mt');
-  if (mt && MAP_TYPE_TOKENS[mt] && mt !== DEFAULT_MAP_TYPE) u.set('mt', mt);
+  // Round-trip the basemap token if it differs from the default.
+  // `currentMapType` is the long-form key ('osm' / 'topo' / 'satellite');
+  // invert MAP_TYPE_TOKENS to get the URL token.
+  const mtToken = Object.keys(MAP_TYPE_TOKENS).find(
+    k => MAP_TYPE_TOKENS[k] === currentMapType);
+  if (mtToken && mtToken !== DEFAULT_MAP_TYPE) u.set('mt', mtToken);
 
   if (table) {
     const sort = table.getSort();
@@ -921,6 +963,7 @@ async function showNewGridForm() {
       if (host) {
         planner = new GridPlanner({
           host,
+          basemap: activeBasemap(),
           onCreated: (rowId, response) => {
             // The planner POSTs to grid_save_auto and forwards the
             // whole response so we can patch caches optimistically.

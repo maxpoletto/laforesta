@@ -33,10 +33,14 @@ export class GridPlanner {
    * @param {HTMLElement} opts.host — element to render the planner UI into.
    * @param {function(number): void} opts.onCreated — called after a
    *   successful save with the new SampleGrid.id.
+   * @param {string} [opts.basemap] — MapCommon basemap key for the modal
+   *   map's initial layer.  Defaults to 'satellite' to preserve previous
+   *   behaviour when the caller doesn't pass one.
    */
   constructor(opts) {
     this.host = opts.host;
     this.onCreated = opts.onCreated;
+    this.basemap = opts.basemap || 'satellite';
     this.featuresByCompresa = {};   // compresa → [GeoJSON features]
     this.points = [];                // {lat, lon, compresa, particella}
     this.leaflet = null;
@@ -122,7 +126,7 @@ export class GridPlanner {
     mapEl.id = 'grid-planner-map';
     mapEl.className = 'grid-planner-map';
     h.appendChild(mapEl);
-    this.wrapper = MapCommon.create(mapEl, { basemap: 'satellite' });
+    this.wrapper = MapCommon.create(mapEl, { basemap: this.basemap });
     this.leaflet = this.wrapper.getLeafletMap();
     this.pointLayer = L.layerGroup().addTo(this.leaflet);
 
