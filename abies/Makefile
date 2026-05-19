@@ -46,6 +46,9 @@ link-templates:
 
 dev: migrate import geo digest admin link-templates
 
+serve:
+	$(PYTHON) manage.py runserver > /dev/null 2>&1 &
+
 clean:
 	rm -rf data/
 	find apps/*/migrations -name '*.py' ! -name '__init__.py' -delete
