@@ -233,7 +233,7 @@ marks trees for upcoming felling. Marks are only performed in high-forest
 parcels; they do not apply to coppice forests.
 
 - mark: (id:int, parcel_id:int, date:string /* ISO 8601 */,
-  harvest_plan_item_id:int, volume_m3:int, note:string)
+  harvest_plan_item_id:int, volume_m3:real, note:string)
   - `date` is the date of the earliest tree_mark of this mark.
   - `volume_m3` is the sum of the volume_m3 of each tree_mark of this mark.
   - The following invariant must hold: (mark.harvest_plan_item.parcel_id is null
@@ -287,7 +287,7 @@ for coppice parcels there is no per-tree harvest record at all.
 
 - harvest: (id:int, date:string /* ISO 8601 */, parcel_id:int,
   harvest_plan_item_id:int nullable, product_id:int, crew_id:int, record1:int
-  nullable, record2:int nullable, quintals:float, volume_m3:real, damaged:bool,
+  nullable, record2:int nullable, mass_q:float, volume_m3:real, damaged:bool,
   unhealthy:bool, psr:bool, note:text)
   - Denotes a cutting/harvesting operation by one crew on a given day.
   - harvest_plan_item_id ties the harvest back to a harvest plan item
@@ -302,10 +302,10 @@ for coppice parcels there is no per-tree harvest record at all.
   - product_id denotes the type of produced material (logs, wood chips, etc.).
   - `volume_m3` is the harvest's estimated total volume in cubic meters,
     materialized at write time from the species breakdown:
-    `volume_m3 = SUM_over_species(quintals × percent/100 / species.density)`.
+    `volume_m3 = SUM_over_species(mass_q × percent/100 / species.density)`.
     Used by the Piano di taglio calendar to compare actual cut volume against
     the plan/mark target without runtime conversion.  Recomputed on every
-    write that changes `quintals` or any `harvest_species` row.
+    write that changes `mass_q` or any `harvest_species` row.
   - `record1` and `record2` are optional and indicate the id on a paper
     bill-of-goods form provided by the crew. They correspond to "vdp" and "prot"
     in the mannesi.csv file, respectively. record2 is legacy and not displayed
