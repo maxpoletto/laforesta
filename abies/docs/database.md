@@ -80,17 +80,32 @@ of either dataset should treat them as independent observations.
 
 ## Harvest plans
 
-- harvest_plan: (id:int, year_start:int, year_end:int, description:text)
+- harvest_plan: (id:int, year_start:int, year_end:int, name:text,
+  description:text)
   - Denotes a multi-year harvest plan, comprising all or most parcels.
+  - `name` is a short name used for selector widgets (e.g., "Piano di taglio
+    2026-2040"), `description` is a longer text (sentence to short paragraph).
 
-- harvest_plan_item: (id:int, harvest_plan_id:int, parcel_id:int, year:int,
-  volume_m3:real nullable, intervention_area_ha:real nullable,
-  note:string nullable)
+- harvest_plan_item: (id:int, harvest_plan_id:int, region_id:int, parcel_id:int,
+  state:int, year_planned:int, date_actual:int, volume_planned_m3:real nullable,
+  volume_marked_m3:real nullable, volume_actual_m3:real nullable,
+  intervention_area_ha:real nullable, note:string nullable)
   - Denotes a calendar item in the harvest plan, i.e., that the given parcel
     will be cut in the given year.
-  - `volume_m3` is the planned harvest volume in m³ (matches the source unit
-    in `pdg-2026/csv/piano.csv`).  NULL for coppice items: coppice plans
-    list the year+parcel only, with no per-cut volume target.
+  - We specify both `region_id` and `parcel_id` because some operations (e.g.,
+    collecting storm-damaged plants) are approved region-wide. A trigger
+    enforces (`region_id` is null XOR `parcel_id` is null).
+  - `state` is an enum with the following values: `planned`, `marked`, `open`,
+    `harvesting`, `closed`. Transitions are only allowed in that order, L-to-R
+    (enforced server-side, not in the DB).
+  - `year_planned` is the planned year.
+  - `date_actual` is the date of the transition planned -> marked.
+  - volumes are all in units of m3. `planned` comes from the plan, `marked` is
+    the (cached, materialized) sum of the volume of all tree_marks whose mark
+    maps back to this harvest_plan_item, `actual` is the sum of the volume of
+    all harvests that map back to this harvest_plan_item. `planned` and `marked`
+    are null for coppice harvest plan items, but `actual` is not (once there
+    have been some harvests).
   - `intervention_area_ha` is the area cut this year (only set for coppice
     items where staged cuts split a parcel across multiple years; NULL for
     a whole-parcel cut).
@@ -249,21 +264,27 @@ Although a harvest physically affects individual trees, the schema does not
 track that link. For high-forest parcels the last per-tree record is the mark;
 for coppice parcels there is no per-tree harvest record at all.
 
-- harvest: (id:int, date:string /* ISO 8601 */, parcel_id:int, mark_id:int
-  nullable, product_id:int, crew_id:int, record1:int nullable, record2:int
-  nullable, quintals:float, volume_m3:real, note_id:int, extra_note:text)
+- harvest: (id:int, date:string /* ISO 8601 */, parcel_id:int,
+  harvest_plan_item_id:int nullable, product_id:int, crew_id:int, record1:int
+  nullable, record2:int nullable, quintals:float, volume_m3:real, damaged:bool,
+  unhealthy:bool, psr:bool, note:text)
   - Denotes a cutting/harvesting operation by one crew on a given day.
-  - If the parcel is a high-forest parcel, mark_id ties the harvest back to the
-    pre-harvest mark.
+  - harvest_plan_item_id ties the harvest back to a harvest plan item
+    (intervento), and therefore, for high forest parcels, indirectly to the
+    previously performed mark.
 
-    As mentioned above, coppice parcels do not use marks. Historical imported
-    data typically also lacks mark_id.
+    Historical imported data lacks the harvest_plan_item_id.
 
-    For new high-forest harvests inserted during day-to-day Abies operation, the
-    mark_id is typically non-null, though the operator can manually override
-    that via an exception process in the UI. If mark_id is non-null, the mark's
-    parcel_id must match the harvest's parcel_id: this is enforced both in the
-    app and at the schema level (via a SQLite trigger).
+    For new harvests inserted during day-to-day Abies operation,
+    harvest_plan_item_id is mandatory.
+
+    Exactly one of the following conditions must be true (enforced both in the
+    backend and via SQL trigger):
+    - harvest_plan_item_id is null (legacy only, not allowed in form input)
+    - harvest_plan_item.parcel_id = harvest.parcel_id and
+      harvest_plan_item.damaged = FALSE and harvest.damaged = FALSE
+    - harvest_plan_item.damaged = TRUE and harvest.damaged = TRUE and
+      harvest_plan_item.region_id = harvest.parcel.region_id
 
   - product_id denotes the type of produced material (logs, wood chips, etc.).
   - `volume_m3` is the harvest's estimated total volume in cubic meters,
@@ -272,9 +293,16 @@ for coppice parcels there is no per-tree harvest record at all.
     Used by the Piano di taglio calendar to compare actual cut volume against
     the plan/mark target without runtime conversion.  Recomputed on every
     write that changes `quintals` or any `harvest_species` row.
-  - record1 and record2 are optional and indicate the id on a paper
+  - `record1` and `record2` are optional and indicate the id on a paper
     bill-of-goods form provided by the crew. They correspond to "vdp" and "prot"
-    in the mannesi.csv file, respectively.
+    in the mannesi.csv file, respectively. record2 is legacy and not displayed
+    to the user.
+  - The boolean flags `damaged`, `unhealthy`, and `PSR` used to be stored in a
+    separate `note` table and correspond to user-visible strings "Catastrofato",
+    "Fitosanitario", and "PSR". (They are displayed in a "Note" column in the
+    harvests table.)
+  - `note` (previously `extra_note`) is an arbitrary text field for short user
+    annotations. (It is displayed in an "Altre note" column.)
 
 - harvest_species: (harvest_id:int, species_id:int, percent:int) — PK is
   (harvest_id, species_id)
@@ -314,7 +342,3 @@ Most of these are configurable in the Settings section.
 - product: (id:int, name:string)
   - Implements an extensible enum of harvested product types: (1: "Tronchi", 2:
     "Cippato", 3: "Ramaglia", 4: "Pertiche-Puntelli", 5: "Pertiche-Tronchi")
-
-- note: (id:int, name:string)
-  - Implements an extensible enum: (1: "PSR", 2: "Fitosanitario", 3:
-    "Catastrofate")
