@@ -245,7 +245,7 @@ Columns the importer reads:
 - `Compresa` — region name (resolved against `region.name`).
 - `Particella` — parcel name within the region.
 - `Anno` — year of the scheduled cut (int).
-- `Prelievo (m³)` — planned cut volume (real → `harvest_plan_item.volume_m3`).
+- `Prelievo (m³)` — planned cut volume (real → `harvest_plan_item.volume_planned_m3`).
 
 Other columns (`Classe`, `Età`, `Provv. prima (m³/ha)`, `Prel %`,
 `Provv. dopo (m³/ha)`) are read only as context for the importer's
@@ -303,10 +303,10 @@ this table.
    parcels with the same rotation share a single `harvest_detail_id`.
    Fustaia parcels do not get a `harvest_detail`/`parcel_plan_detail`
    row in v1 (no instructions or interval to record).
-3. For each row in either schedule, create a `harvest_plan_item`.
+4. For each row in either schedule, create a `harvest_plan_item`.
    Fustaia rows set `volume_planned_m3`; coppice rows set
    `intervention_area_ha` and `note` and leave `volume_*` NULL.
-4. For each regression-CSV row, create a `tree_height_regression`.
+5. For each regression-CSV row, create a `tree_height_regression`.
 
 ## URL parameters
 

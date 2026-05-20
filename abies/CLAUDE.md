@@ -1,5 +1,7 @@
 # Abies: integrated management of forestry company operations
 
+[TODO: need to refresh TOC]
+
 <!-- TOC (line numbers are approximate — re-run grep '^#{1,2} ' to refresh)
   User base .................. 36
   Priorities ................. 45
