@@ -89,7 +89,8 @@ of either dataset should treat them as independent observations.
 - harvest_plan_item: (id:int, harvest_plan_id:int, region_id:int, parcel_id:int,
   state:int, year_planned:int, date_actual:int, volume_planned_m3:real nullable,
   volume_marked_m3:real nullable, volume_actual_m3:real nullable,
-  intervention_area_ha:real nullable, note:string nullable)
+  intervention_area_ha:real nullable, damaged:bool, unhealthy:bool, psr:bool,
+  note:string nullable)
   - Denotes a calendar item in the harvest plan, i.e., that the given parcel
     will be cut in the given year.
   - We specify both `region_id` and `parcel_id` because some operations (e.g.,
@@ -109,6 +110,8 @@ of either dataset should treat them as independent observations.
   - `intervention_area_ha` is the area cut this year (only set for coppice
     items where staged cuts split a parcel across multiple years; NULL for
     a whole-parcel cut).
+  - The boolean flags (`damaged`, `unhealthy`, `psr`) correspond to those in
+    `harvest`. See that table for details.
   - `note` carries free-text annotations from the import — typically used by
     coppice continuation rows (e.g., `Cont. intervento 2028`).
 
@@ -278,14 +281,6 @@ for coppice parcels there is no per-tree harvest record at all.
     For new harvests inserted during day-to-day Abies operation,
     harvest_plan_item_id is mandatory.
 
-    Exactly one of the following conditions must be true (enforced both in the
-    backend and via SQL trigger):
-    - harvest_plan_item_id is null (legacy only, not allowed in form input)
-    - harvest_plan_item.parcel_id = harvest.parcel_id and
-      harvest_plan_item.damaged = FALSE and harvest.damaged = FALSE
-    - harvest_plan_item.damaged = TRUE and harvest.damaged = TRUE and
-      harvest_plan_item.region_id = harvest.parcel.region_id
-
   - product_id denotes the type of produced material (logs, wood chips, etc.).
   - `volume_m3` is the harvest's estimated total volume in cubic meters,
     materialized at write time from the species breakdown:
@@ -301,8 +296,15 @@ for coppice parcels there is no per-tree harvest record at all.
     separate `note` table and correspond to user-visible strings "Catastrofato",
     "Fitosanitario", and "PSR". (They are displayed in a "Note" column in the
     harvests table.)
+    If harvest_plan_item_id is not null, it is always true that for each of
+    these flags F, harvest_plan_item.F == harvest.F. (Enforced by trigger.)
   - `note` (previously `extra_note`) is an arbitrary text field for short user
     annotations. (It is displayed in an "Altre note" column.)
+  - If harvest_plan_item_id is not null, then either
+    (harvest_plan_item.parcel_id is not null AND harvest_plan_item.parcel_id =
+    harvest.parcel_id) OR (harvest_plan_item.region_id is not null AND
+    harvest_plan_item.region_id = harvest.parcel.region_id). (Enforced by
+    trigger.)
 
 - harvest_species: (harvest_id:int, species_id:int, percent:int) — PK is
   (harvest_id, species_id)
