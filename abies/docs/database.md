@@ -112,11 +112,11 @@ of either dataset should treat them as independent observations.
   - `harvest_open_id` and `harvest_close_id` point to entries in
     `harvest_transition`.
   - volumes are all in units of m3. `planned` comes from the plan, `marked` is
-    the (cached, materialized) sum of the volume of all tree_marks whose mark
-    maps back to this harvest_plan_item, `actual` is the sum of the volume of
-    all harvests that map back to this harvest_plan_item. `planned` and `marked`
-    are null for coppice harvest plan items, but `actual` is not (once there
-    have been some harvests).
+    the (cached, materialized) sum of the volume of all marks that map back to
+    this harvest_plan_item, `actual` is the sum of the volume of all harvests
+    that map back to this harvest_plan_item. `planned` and `marked` are null for
+    coppice harvest plan items, but `actual` is not (once there have been some
+    harvests).
   - `intervention_area_ha` is the area cut this year (only set for coppice
     items where staged cuts split a parcel across multiple years; NULL for
     a whole-parcel cut).
@@ -233,10 +233,12 @@ marks trees for upcoming felling. Marks are only performed in high-forest
 parcels; they do not apply to coppice forests.
 
 - mark: (id:int, parcel_id:int, date:string /* ISO 8601 */,
-  harvest_plan_item_id:int, note:string)
-  - The date year and parcel should correspond to those of the
-    harvest_plan_item. However, exceptions do occur, so consistency is not
-    enforced at the schema level (exceptions are highlighted in the UI).
+  harvest_plan_item_id:int, volume_m3:int, note:string)
+  - `date` is the date of the earliest tree_mark of this mark.
+  - `volume_m3` is the sum of the volume_m3 of each tree_mark of this mark.
+  - The following invariant must hold: (mark.harvest_plan_item.parcel_id is null
+    AND mark.harvest_plan_item.region_id == mark.parcel.region_id) OR
+    (mark.harvest_plan_item.parcel_id == mark.parcel_id).
   - "Note" is user-defined: for example, it could be the harvest permit ID
     issued by the forest agency.
   - Note that a mark is tied to a specific harvest plan item ("cutting parcel P
@@ -249,7 +251,7 @@ parcels; they do not apply to coppice forests.
     marks tied to the old plan as a hard block until the user resolves them
     manually, rather than silently destroying field-recorded mark data.
 
-- tree_mark: (id:int, mark_id:int, tree_id:int, d_cm:int, h_m:int,
+- tree_mark: (id:int, date:string /* ISO8601 */, mark_id:int, tree_id:int, d_cm:int, h_m:int,
   h_measured:bool, volume_m3:real, mass_q:real)
   - A (high-forest) tree being marked for felling. PK is the synthetic
     `id`; `UNIQUE(mark_id, tree_id)` enforces the natural key.
