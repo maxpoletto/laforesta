@@ -86,21 +86,31 @@ of either dataset should treat them as independent observations.
   - `name` is a short name used for selector widgets (e.g., "Piano di taglio
     2026-2040"), `description` is a longer text (sentence to short paragraph).
 
-- harvest_plan_item: (id:int, harvest_plan_id:int, region_id:int, parcel_id:int,
-  state:int, year_planned:int, date_actual:int, volume_planned_m3:real nullable,
-  volume_marked_m3:real nullable, volume_actual_m3:real nullable,
-  intervention_area_ha:real nullable, damaged:bool, unhealthy:bool, psr:bool,
-  note:string nullable)
+- harvest_plan_item: (id:int, harvest_plan_id:int, region_id:int nullable,
+  parcel_id:int nullable, state:int, year_planned:int, date_actual:int,
+  harvest_open_id:int nullable, harvest_close_id:int nullable,
+  volume_planned_m3:real nullable, volume_marked_m3:real nullable,
+  volume_actual_m3:real nullable, intervention_area_ha:real nullable,
+  damaged:bool, unhealthy:bool, psr:bool, note:string nullable)
   - Denotes a calendar item in the harvest plan, i.e., that the given parcel
     will be cut in the given year.
   - We specify both `region_id` and `parcel_id` because some operations (e.g.,
     collecting storm-damaged plants) are approved region-wide. A trigger
     enforces (`region_id` is null XOR `parcel_id` is null).
-  - `state` is an enum with the following values: `planned`, `marked`, `open`,
-    `harvesting`, `closed`. Transitions are only allowed in that order, L-to-R
-    (enforced server-side, not in the DB).
+  - `state` is an enum with the following values:
+    - `planned`: start state, no action yet
+    - `marked`: at least one tree_mark has been recorded (marking ongoing)
+    - `open`: mark complete, cutting can start
+    - `harvesting`: at least one harvest has been recorded
+    - `closed`: no more harvests allowed.
+
+    Transitions are only allowed in that order, top to bottom (enforced
+    server-side, not sure if enforceable in the DB).
   - `year_planned` is the planned year.
-  - `date_actual` is the date of the transition planned -> marked.
+  - `date_actual` is the date of the transition planned -> marked (the date of
+    the earliest tree_mark).
+  - `harvest_open_id` and `harvest_close_id` point to entries in
+    `harvest_transition`.
   - volumes are all in units of m3. `planned` comes from the plan, `marked` is
     the (cached, materialized) sum of the volume of all tree_marks whose mark
     maps back to this harvest_plan_item, `actual` is the sum of the volume of
@@ -114,6 +124,12 @@ of either dataset should treat them as independent observations.
     `harvest`. See that table for details.
   - `note` carries free-text annotations from the import — typically used by
     coppice continuation rows (e.g., `Cont. intervento 2028`).
+
+- harvest_transition: (id:int, open:bool, date:string /* ISO8601 */, note:string)
+  - Denotes the opening (open=true) and closing (open=false) of a harved plan
+    item.
+  - `date` is a user-specified date.
+  - `note` is a user-specified text, often a regional permit number.
 
 - harvest_detail: (id:int, description:text, interval:int)
   - A reusable harvest instruction, e.g., "Preferentially cut white firs of
