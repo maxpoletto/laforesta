@@ -74,11 +74,23 @@ widths; the table scrolls horizontally when the viewport is too narrow.
 
 The add/edit form is laid out as a compact grid (three fields per row):
 
-- Row 1: date picker, "Cantiere" pull-down (Compresa/Particella corresponding to
-  harvest_plan_item.state in { `open`,r `harvesting }).
-- Row 2: "Squadra" pull-down, "Tipo" (product) pull-down, "Q.li" numeric input
-  (step 0.1).
-- Row 3: "VDP" numeric input, "Note" pull-down, "Altre note" text input.
+- Row 1: date picker, "Cantiere" pull-down. The Cantiere options are
+  the `harvest_plan_item` rows whose `state ∈ {open, harvesting}`,
+  rendered as `<Compresa>/<Particella>` (or `<Compresa>/(tutti)` for
+  region-wide items). Selection is **required** for new harvests; this
+  is the only path to creating a harvest in v1 (every harvest must
+  tie back to an approved intervento — there is no escape hatch).
+- Row 2: "Squadra" pull-down, "Tipo" (product) pull-down, "Q.li"
+  numeric input (step 0.1).
+- Row 3: "VDP" numeric input, "Altre note" text input.
+
+Below Row 3, a read-only summary line displays the `damaged`,
+`unhealthy`, and `psr` flags of the selected Cantiere — rendered as a
+comma-joined string from `"Catastrofato"`, `"Fitosanitario"`, `"PSR"`
+— and they are auto-applied to the new harvest on save. This matches
+the schema trigger
+`harvest.{damaged,unhealthy,psr} == harvest_plan_item.{...}` so the
+user never sets them directly on the harvest form.
 
 Prot (record2) is not shown in the form — it is display-only for legacy data.
 Existing Prot values are preserved on edit; new records never have a Prot value.

@@ -1,33 +1,36 @@
 # Abies: integrated management of forestry company operations
 
-[TODO: need to refresh TOC]
-
 <!-- TOC (line numbers are approximate — re-run grep '^#{1,2} ' to refresh)
-  User base .................. 36
-  Priorities ................. 45
-  Functional overview ........ 52
-  Glossary ................... 93
-  Architecture overview ..... 109
-  Security .................. 126
-  UI architecture ........... 179
-  UI design patterns ........ 428
-  Storage ................... 547
-  Internationalization ...... 623
-  Mobile .................... 655
-  Project structure ......... 661
-  Code location / deployment  743
-  Testing ................... 760
-  Development environment ... 774
-  Relationship to bosco apps  795
-  Build order ............... 801
-  Detailed description ...... 852
+  User base ...................   40
+  Priorities ..................   49
+  Functional overview .........   56
+  Glossary ....................   97
+  Architecture overview .......  113
+  Security ....................  130
+  UI architecture .............  223
+  UI design patterns ..........  580
+  Storage .....................  812
+  Internationalization ........  888
+  Mobile ......................  920
+  Project structure ...........  926
+  Code location / deployment . 1008
+  Testing .................... 1067
+  Development environment .... 1081
+  Relationship to bosco apps . 1102
+  Build order ................ 1108
+  Detailed description ....... 1169
   See also:
-    docs/database.md              — full DB schema
-    docs/pages/login.md           — login page
-    docs/pages/bosco.md           — Bosco (map) page
-    docs/pages/prelievi.md        — Prelievi (harvests) page
-    docs/pages/controllo.md       — Controllo (audit) page
-    docs/pages/impostazioni.md    — Impostazioni (settings) page
+    docs/database.md                  — full DB schema
+    docs/pages/login.md               — login page
+    docs/pages/bosco.md               — Bosco (map) page
+    docs/pages/campionamenti.md       — Campionamenti (sampling) page
+    docs/pages/piano-di-taglio.md     — Piano di taglio (harvest plan) page
+    docs/pages/prelievi.md            — Prelievi (harvests) page
+    docs/pages/controllo.md           — Controllo (audit) page
+    docs/pages/impostazioni.md        — Impostazioni (settings) page
+    docs/implementation-plan.md       — original M0..M4 milestone plan
+    docs/piano-di-taglio-plan.md      — fine-grained Piano-di-taglio plan
+                                        (supersedes M1/M2 in implementation-plan.md)
 -->
 
 Abies is a full-stack web app used to manage production operations of a forestry
@@ -1160,6 +1163,13 @@ landing page becomes Bosco at the start of M4.
 
 See `implementation-plan.md` for per-milestone scope, schema deltas,
 digests, exit criteria, and risk callouts.
+
+**Note on Piano di taglio:** the M1 / M2 split in
+`implementation-plan.md` is superseded by the redesigned, fine-grained
+plan in [`docs/piano-di-taglio-plan.md`](docs/piano-di-taglio-plan.md)
+(PT-NN commit-sized increments). Refer to that file for the current
+Piano-di-taglio implementation order; the rest of
+`implementation-plan.md` (M0 / M3 / M4) is still authoritative.
 
 ## Future stages
 

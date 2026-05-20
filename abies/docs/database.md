@@ -88,8 +88,7 @@ of either dataset should treat them as independent observations.
     2026-2040"), `description` is a longer text (sentence to short paragraph).
 
 - harvest_plan_item: (id:int, harvest_plan_id:int, region_id:int nullable,
-  parcel_id:int nullable, state:int, year_planned:int, date_actual:int,
-  harvest_open_id:int nullable, harvest_close_id:int nullable,
+  parcel_id:int nullable, state:int, year_planned:int, date_actual:int nullable,
   volume_planned_m3:real nullable, volume_marked_m3:real nullable,
   volume_actual_m3:real nullable, intervention_area_ha:real nullable,
   damaged:bool, unhealthy:bool, psr:bool, note:string nullable)
@@ -98,26 +97,38 @@ of either dataset should treat them as independent observations.
   - We specify both `region_id` and `parcel_id` because some operations (e.g.,
     collecting storm-damaged plants) are approved region-wide. A trigger
     enforces (`region_id` is null XOR `parcel_id` is null).
-  - `state` is an enum with the following values:
-    - `planned`: start state, no action yet
-    - `marked`: at least one tree_mark has been recorded (marking ongoing)
-    - `open`: mark complete, cutting can start
-    - `harvesting`: at least one harvest has been recorded
+  - `state` is an enum with values
+    `planned=0, marked=1, open=2, harvesting=3, closed=4`.
+    - `planned`: start state, no action yet.
+    - `marked`: at least one `tree_mark` has been recorded.
+      Coppice items skip this state — they have no marks and go straight
+      from `planned` to `open`.
+    - `open`: cantiere is open, cutting can start (harvests may be entered).
+    - `harvesting`: at least one harvest has been recorded.
     - `closed`: no more harvests allowed.
 
-    Transitions are only allowed in that order, top to bottom (enforced
-    server-side, not sure if enforceable in the DB).
+    Transitions are **monotonic** — state only advances. Deleting the last
+    `tree_mark` does NOT revert state from `marked` to `planned`; deleting
+    the last `harvest` does NOT revert state from `harvesting` to `open`.
+    Two transitions are automatic (server-side, on first child insert):
+    `planned → marked` on the first `tree_mark` insert under this item,
+    and `open/marked → harvesting` on the first linked `harvest` insert.
+    The other two transitions (`planned/marked → open` and
+    `harvesting → closed`) are manual via `harvest_transition` rows.
   - `year_planned` is the planned year.
-  - `date_actual` is the date of the transition planned -> marked (the date of
-    the earliest tree_mark).
-  - `harvest_open_id` and `harvest_close_id` point to entries in
-    `harvest_transition`.
-  - volumes are all in units of m3. `planned` comes from the plan, `marked` is
-    the (cached, materialized) sum of the volume of all marks that map back to
-    this harvest_plan_item, `actual` is the sum of the volume of all harvests
-    that map back to this harvest_plan_item. `planned` and `marked` are null for
-    coppice harvest plan items, but `actual` is not (once there have been some
-    harvests).
+  - `date_actual` is the date of the earliest `tree_mark` (and so the date
+    of the implicit `planned → marked` transition). NULL while state is
+    still `planned`. For coppice items it is the date of the first
+    `harvest` instead.
+  - Open / close events live in `harvest_transition` and link back via
+    `harvest_transition.harvest_plan_item_id` (one open row, optionally
+    one close row).
+  - Volumes are all in m³. `planned` comes from the plan, `marked` is the
+    (cached, materialized) sum of `tree_mark.volume_m3` for all tree_marks
+    under this item, `actual` is the sum of `harvest.volume_m3` for all
+    harvests linked back to this item. `planned` and `marked` are null
+    for coppice harvest plan items, but `actual` is not (once there have
+    been some harvests).
   - `intervention_area_ha` is the area cut this year (only set for coppice
     items where staged cuts split a parcel across multiple years; NULL for
     a whole-parcel cut).
@@ -125,12 +136,28 @@ of either dataset should treat them as independent observations.
     `harvest`. See that table for details.
   - `note` carries free-text annotations from the import — typically used by
     coppice continuation rows (e.g., `Cont. intervento 2028`).
+  - Deletion is **blocked at the schema level** if any child row exists:
+    all three child FKs (`tree_mark.harvest_plan_item_id`,
+    `harvest_transition.harvest_plan_item_id`,
+    `harvest.harvest_plan_item_id`) are ON DELETE PROTECT. The per-item
+    UI also disables the trash icon unless `state = planned`, since
+    `state > planned` always implies at least one child row exists; the
+    DB constraint is the belt-and-suspenders backstop.
+  - The View/Edit-harvest-plan-item modal carries an "Esporta CSV"
+    button that dumps the item's `tree_mark` and `harvest` rows as a
+    zip (see `piano-di-taglio.md`). The dangerous-delete flow reuses
+    that endpoint as a forced-download step before the user clears
+    the dependencies. In practice plan-item deletion only matters for
+    demo/test cleanup; real operational data should not be deleted.
 
-- harvest_transition: (id:int, open:bool, date:string /* ISO8601 */, note:string)
-  - Denotes the opening (open=true) and closing (open=false) of a harved plan
-    item.
+- harvest_transition: (id:int, harvest_plan_item_id:int, open:bool,
+  date:string /* ISO 8601 */, note:string)
+  - Denotes the opening (`open = true`) and closing (`open = false`) of a
+    harvest plan item. Each item has at most one open row and at most one
+    close row.
   - `date` is a user-specified date.
-  - `note` is a user-specified text, often a regional permit number.
+  - `note` is user-specified text, often a regional permit number.
+  - ON DELETE PROTECT from `harvest_plan_item` (see deletion note above).
 
 - harvest_detail: (id:int, description:text, interval:int)
   - A reusable harvest instruction, e.g., "Preferentially cut white firs of
@@ -229,59 +256,77 @@ operation can proceed.  See `campionamenti.md` for the flow.
 
 ### Marks
 
-[Note: reconsider this. There is a 1-1 relationship between mark and
-harvest_plan_item. Maybe it should be folded into harvest_plan_item.]
-
 A mark ("martellata" in Italian) is an operation during which an agronomist
 marks trees for upcoming felling. Marks are only performed in high-forest
 parcels; they do not apply to coppice forests.
 
-- mark: (id:int, parcel_id:int, date:string /* ISO 8601 */,
-  harvest_plan_item_id:int, volume_m3:real, note:string)
-  - `date` is the date of the earliest tree_mark of this mark.
-  - `volume_m3` is the sum of the volume_m3 of each tree_mark of this mark.
-  - The following invariant must hold: (mark.harvest_plan_item.parcel_id is null
-    AND mark.harvest_plan_item.region_id == mark.parcel.region_id) OR
-    (mark.harvest_plan_item.parcel_id == mark.parcel_id).
-  - "Note" is user-defined: for example, it could be the harvest permit ID
-    issued by the forest agency.
-  - Note that a mark is tied to a specific harvest plan item ("cutting parcel P
-    in year Y") via harvest_plan_item_id, whereas a survey may be more generally
-    associated with an entire harvest plan via harvest_plan_id. Each sample
-    belongs to a survey rather than directly to a plan.
-  - `harvest_plan_item_id` is `ON DELETE PROTECT`: deleting a plan item that
-    has marks attached is blocked at the schema level.  This matters during
-    plan re-import (see `piano-di-taglio.md`): the importer surfaces existing
-    marks tied to the old plan as a hard block until the user resolves them
-    manually, rather than silently destroying field-recorded mark data.
+There is no separate `mark` aggregate row: a mark is simply the set of
+`tree_mark` rows that share a `harvest_plan_item_id`. The per-mark
+aggregate volume is materialized on `harvest_plan_item.volume_marked_m3`
+(see above) so the calendar view never needs to scan `tree_mark` to
+display totals.
 
-- tree_mark: (id:int, date:string /* ISO8601 */, mark_id:int, tree_id:int, d_cm:int, h_m:int,
-  h_measured:bool, volume_m3:real, mass_q:real, lat:real, lon:real, acc_m:int, operator:string)
+- tree_mark: (id:int, harvest_plan_item_id:int, tree_id:int,
+  date:string /* ISO 8601 */, d_cm:int, h_m:int, h_measured:bool,
+  volume_m3:real, mass_q:real, lat:real, lon:real, acc_m:int nullable,
+  operator:string, import_fingerprint:string nullable)
   - A (high-forest) tree being marked for felling. PK is the synthetic
-    `id`; `UNIQUE(mark_id, tree_id)` enforces the natural key.
-  - Diameter (in cm) and height (in m) indicate size at time of marking.
+    `id`; `UNIQUE(harvest_plan_item_id, tree_id)` enforces the natural
+    key.
+  - `harvest_plan_item_id` ties this tree mark back to the intervento.
+    The linked item's parcel (or region, if region-wide) is the parcel
+    the tree was marked in. ON DELETE PROTECT — deleting a plan item
+    with tree_marks is blocked at the DB level (see harvest_plan_item
+    deletion note above).
+  - `date` is the day the mark was recorded.
+  - `d_cm` and `h_m` indicate size at time of marking.
   - `h_measured` records whether `h_m` came from a hypsometer measurement
     in the field (true) or from the per-(plan, region, species) ipsometric
-    regression (false).  During mark entry, `h_m` is auto-populated from the
+    regression (false). During mark entry, `h_m` is auto-populated from the
     regression (see `tree_height_regression` below) and the operator may
     override; saving an override sets `h_measured = true`.
   - `volume_m3` is computed from (d_cm, h_m, species) via Tabacchi equations
-    at write time.  `mass_q` is `volume_m3 × species.density`.  Both are
+    at write time. `mass_q` is `volume_m3 × species.density`. Both are
     always non-null since marks only exist in high-forest parcels.
-  - Currently, recording a marked tree always creates a new `tree` row; deleting
-    a mark cascades to its `tree_mark` rows and to those `tree` rows. This
-    means that the `tree_id` FK on a marked tree is, in practice, not a
-    cross-link to any other observation of the same physical tree.
+  - `lat`, `lon`, `acc_m`, `operator` are populated from the offline-first
+    `ipso` PWA at marking time (see `ipso/`). `acc_m` is the reported GPS
+    accuracy in meters; null when the source has no GPS reading.
+  - `import_fingerprint` is the content hash of the source CSV row, used
+    for idempotent re-uploads (see `piano-di-taglio.md` "Importa CSV
+    martellate"). Null for manually entered tree marks.
+  - Recording a marked tree always creates a new `tree` row; deleting
+    a tree_mark cascades to its `tree` row. This means that the
+    `tree_id` FK is, in practice, not a cross-link to any other
+    observation of the same physical tree.
 
-    Future extension: when sampled trees are physically tagged (numbered tags,
-    e.g., aluminum plates affixed to the trunk), an agronomist marking a tagged
-    tree could look up its existing `tree` row via (region, parcel, sample area
-    number, `tree_sample.number`) and reuse that `tree_id` instead of creating
-    a new row. This would let us automatically deduct marked-and-tagged trees
-    from sample-based biomass extrapolations. The schema already supports this
-    — no change required — but the UI lookup affordance and the
-    deduction-on-extrapolation logic do not yet exist. Until they do, sample
-    areas cover only 1–3% of forest surface so the over-count error is small.
+    Future extension: when sampled trees are physically tagged (numbered
+    tags, e.g., aluminum plates affixed to the trunk), an agronomist
+    marking a tagged tree could look up its existing `tree` row via
+    (region, parcel, sample area number, `tree_sample.number`) and reuse
+    that `tree_id` instead of creating a new row. This would let us
+    automatically deduct marked-and-tagged trees from sample-based biomass
+    extrapolations. The schema already supports this — no change required
+    — but the UI lookup affordance and the deduction-on-extrapolation
+    logic do not yet exist. Until they do, sample areas cover only 1–3%
+    of forest surface so the over-count error is small.
+
+## Harvest plan item materialization
+
+`harvest_plan_item.volume_marked_m3` and `volume_actual_m3` are
+materialized aggregates. The invalidation chain (write → updates) is:
+
+| Write                                       | Bumps                                            |
+|---------------------------------------------|--------------------------------------------------|
+| `tree_mark` insert / update / delete        | `harvest_plan_item.volume_marked_m3`; first insert also auto-advances `state` to `marked` and sets `date_actual` |
+| `harvest` insert / update / delete          | `harvest_plan_item.volume_actual_m3`; first insert also auto-advances `state` to `harvesting` (and sets `date_actual` if still NULL — coppice case) |
+| `harvest_species` insert / update / delete  | `harvest.volume_m3`, then cascades to `harvest_plan_item.volume_actual_m3` |
+| `harvest_transition` insert (open=true)     | `harvest_plan_item.state := open`                |
+| `harvest_transition` insert (open=false)    | `harvest_plan_item.state := closed`              |
+
+All updates also mark the relevant digests stale (per `abies/CLAUDE.md`
+"JSON digest regeneration"). Use `build_harvest_plan_item_record()` in
+`apps/base/digests.py` from both the digest generator and every write
+view, with `TestDigestInvalidation` coverage for each row above.
 
 ## Harvests (cutting operations)
 
@@ -294,14 +339,21 @@ for coppice parcels there is no per-tree harvest record at all.
   nullable, record2:int nullable, mass_q:float, volume_m3:real, damaged:bool,
   unhealthy:bool, psr:bool, note:text)
   - Denotes a cutting/harvesting operation by one crew on a given day.
-  - harvest_plan_item_id ties the harvest back to a harvest plan item
-    (intervento), and therefore, for high forest parcels, indirectly to the
-    previously performed mark.
+  - `harvest_plan_item_id` ties the harvest back to a harvest plan item
+    (intervento), and therefore, for high-forest parcels, indirectly to
+    the tree_marks previously recorded against that item.
 
-    Historical imported data lacks the harvest_plan_item_id.
+    Historical imported data lacks the `harvest_plan_item_id` (it is
+    NULL). For new harvests inserted during day-to-day Abies operation,
+    `harvest_plan_item_id` is mandatory and the selected item must be in
+    state `open` or `harvesting` (see `piano-di-taglio.md` "Cantiere
+    pulldown" and `prelievi.md`). Inserting the first harvest under a
+    given item auto-advances its state to `harvesting`.
 
-    For new harvests inserted during day-to-day Abies operation,
-    harvest_plan_item_id is mandatory.
+    On delete of the referenced `harvest_plan_item`, deletion is blocked
+    (ON DELETE PROTECT). The user must delete the linked harvests first
+    if they really want to drop the plan item. See the plan-item
+    deletion note above.
 
   - product_id denotes the type of produced material (logs, wood chips, etc.).
   - `volume_m3` is the harvest's estimated total volume in cubic meters,
