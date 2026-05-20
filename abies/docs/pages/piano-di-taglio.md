@@ -44,7 +44,7 @@ Below this section are two foldable sections, the high forest calendar section (
 fustaia") and the coppice forest calendar section ("Calendario ceduo"). By
 default, the former is open, the latter closed.
 
-### Nuovo piano modal
+#### Nuovo piano modal
 
 This is a full-page modal, not bookmarkable, analogous to "Nuova griglia di
 campionamento".
@@ -64,6 +64,8 @@ See "Fustaia plan CSV" and "Ceduo plan CSV" below.
 "Ipsometric regression CSV" below.
 
 ### High forest calendar section
+
+Title: Interventi fustaia
 
 This section contains a flat sortable-table of calendar entries for high forest
 parcels.
@@ -175,6 +177,8 @@ The modal displays:
   page.
 
 ### Coppice calendar section
+
+Title: Interventi ceduo
 
 This section contains a flat sortable-table of calendar entries for coppice
 parcels. In v1 it is readonly.
