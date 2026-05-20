@@ -43,24 +43,25 @@ for clarity.
     other geographical arrangements are of course possible.
 
 - sample_area: (id:int, sample_grid_id:int, number:int, parcel_id:int, lat:real,
-  lng:real, altitude_m:int, r_m:int, note:string nullable)
+  lon:real, altitude_m:int, r_m:int, note:string nullable)
   - `number` is a manually assigned identifier, which must be unique within a
     parcel but need not be unique across parcels.
   - The sample area is always a circle of radius r_m meters centered at (lat,
-    lng).
-  - Due to measurement errors (e.g., at parcel boundaries), (lat, lng) may not
-    be within the bounds of the stated parcel. (Both sets of data are recorded
-    to allow finding these errors automatically in the future.)
+    lon).
+  - Due to measurement errors (e.g., at parcel boundaries), (lat, lon) may not
+    be within the bounds of the stated parcel. (Both parcel id and (lat, lon)
+    are recorded to allow finding these errors automatically in the future.)
   - `note` (optional) is an additional arbitrary string (e.g., for recording
     local conditions).
 
 ## Trees
 
-- tree: (id:int, species_id:int, year:int, lat:real nullable, lng:real nullable,
-  parcel_id:int, preserved:bool, coppice:bool)
-  - Denotes a tree over time. Lat/lng may be null, or may not fall within the
+- tree: (id:int, species_id:int, year:int, lat:real nullable, lon:real nullable,
+  acc_m:int nullable, parcel_id:int, preserved:bool, coppice:bool)
+  - Denotes a tree over time. Lat/lon may be null, or may not fall within the
     bounds of the given parcel due to measurement error (e.g., near a parcel
-    border).
+    border). acc_m denotes the reported GPS error in meters, if available (e.g.,
+    during automated mark recording via foresta/ipso).
   - Year is (estimated) birth year.
   - If a tree is denoted as preserved, it cannot be marked for felling.
   - Coppice is true if this tree has coppice morphology. There may be coppice
@@ -228,6 +229,9 @@ operation can proceed.  See `campionamenti.md` for the flow.
 
 ### Marks
 
+[Note: reconsider this. There is a 1-1 relationship between mark and
+harvest_plan_item. Maybe it should be folded into harvest_plan_item.]
+
 A mark ("martellata" in Italian) is an operation during which an agronomist
 marks trees for upcoming felling. Marks are only performed in high-forest
 parcels; they do not apply to coppice forests.
@@ -252,7 +256,7 @@ parcels; they do not apply to coppice forests.
     manually, rather than silently destroying field-recorded mark data.
 
 - tree_mark: (id:int, date:string /* ISO8601 */, mark_id:int, tree_id:int, d_cm:int, h_m:int,
-  h_measured:bool, volume_m3:real, mass_q:real)
+  h_measured:bool, volume_m3:real, mass_q:real, lat:real, lon:real, acc_m:int, operator:string)
   - A (high-forest) tree being marked for felling. PK is the synthetic
     `id`; `UNIQUE(mark_id, tree_id)` enforces the natural key.
   - Diameter (in cm) and height (in m) indicate size at time of marking.
@@ -314,6 +318,10 @@ for coppice parcels there is no per-tree harvest record at all.
     separate `note` table and correspond to user-visible strings "Catastrofato",
     "Fitosanitario", and "PSR". (They are displayed in a "Note" column in the
     harvests table.)
+
+    IMPORTANT: The harvest CSV importer must translate the strings in the CSV to
+    boolean values for this table.
+
     If harvest_plan_item_id is not null, it is always true that for each of
     these flags F, harvest_plan_item.F == harvest.F. (Enforced by trigger.)
   - `note` (previously `extra_note`) is an arbitrary text field for short user
