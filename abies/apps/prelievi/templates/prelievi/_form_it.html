@@ -3,114 +3,151 @@
     <input type="hidden" name="row_id" value="{{ op.id|default_if_none:'' }}">
     <input type="hidden" name="version" value="{{ op.version|default:'1' }}">
 
-  <div class="form-row">
-    <div class="form-group">
-      <label for="id_date">Data</label>
-      <input type="date" id="id_date" name="date" lang="it" required
-             value="{% if op %}{{ op.date|date:'Y-m-d' }}{% else %}{{ vals.date }}{% endif %}">
-    </div>
-    <div class="form-group">
-      <label for="id_region">Compresa</label>
-      <select id="id_region" name="region_id">
-        {% for r in regions %}
-        <option value="{{ r.id }}"
-          {% if op and op.parcel.region_id == r.id %}selected
-          {% elif vals.region_id == r.id|stringformat:"d" %}selected{% endif %}>{{ r.name }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="form-group">
-      <label for="id_parcel">Particella</label>
-      <select id="id_parcel" name="parcel_id" required>
-        {% for p in parcels %}
-        <option value="{{ p.id }}" data-region="{{ p.region_id }}"
-          {% if op and op.parcel_id == p.id %}selected
-          {% elif vals.parcel_id == p.id|stringformat:"d" %}selected{% endif %}>{{ p.name }}</option>
-        {% endfor %}
-      </select>
-    </div>
-  </div>
+    <h2>{% if op %}Modifica prelievo{% else %}Nuovo prelievo{% endif %}</h2>
 
-  <div class="form-row">
-    <div class="form-group">
-      <label for="id_crew">Squadra</label>
-      <select id="id_crew" name="crew_id" required>
-        {% for c in crews %}
-        <option value="{{ c.id }}"
-          {% if op and op.crew_id == c.id %}selected
-          {% elif vals.crew_id == c.id|stringformat:"d" %}selected{% endif %}>{{ c.name }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="form-group">
-      <label for="id_product">Tipo</label>
-      <select id="id_product" name="product_id" required>
-        {% for pr in products %}
-        <option value="{{ pr.id }}"
-          {% if op and op.product_id == pr.id %}selected
-          {% elif vals.product_id == pr.id|stringformat:"d" %}selected{% endif %}>{{ pr.name }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="form-group">
-      <label for="id_quintals">Q.li</label>
-      <input type="number" id="id_quintals" name="quintals" step="0.1" min="0.1" required
-             value="{% if op %}{{ op.quintals|stringformat:'.1f' }}{% else %}{{ vals.quintals }}{% endif %}">
-    </div>
-  </div>
-
-  <div class="form-row">
-    <div class="form-group">
-      <label for="id_record1">VDP</label>
-      <input type="number" id="id_record1" name="record1"
-             value="{% if op.record1 %}{{ op.record1 }}{% elif vals.record1 %}{{ vals.record1 }}{% endif %}">
-    </div>
-    <div class="form-group">
-      <label for="id_note">Note</label>
-      <select id="id_note" name="note_id">
-        <option value="">---</option>
-        {% for n in notes %}
-        <option value="{{ n.id }}"
-          {% if op and op.note_id == n.id %}selected
-          {% elif vals.note_id == n.id|stringformat:"d" %}selected{% endif %}>{{ n.name }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="form-group">
-      <label for="id_extra_note">Altre note</label>
-      <input type="text" id="id_extra_note" name="extra_note"
-             value="{% if op %}{{ op.extra_note|default:'' }}{% else %}{{ vals.extra_note|default:'' }}{% endif %}">
-    </div>
-  </div>
-
-  <div class="form-pct-sections">
-    <div class="form-section">
-      <h3>Specie</h3>
-      {% for id, name, pct in species_data %}
-      <div class="pct-row">
-        <label>{{ name }}</label>
-        <input type="number" name="sp_{{ id }}" min="0" max="100" value="{{ pct }}">
-        <button type="button" class="btn btn-secondary btn-100"
-                data-group="sp" data-target="sp_{{ id }}">100%</button>
+    <div class="form-row narrow">
+      <div class="form-group">
+        <label for="id_date">Data</label>
+        <input type="date" id="id_date" name="date" lang="it" required
+               value="{% if op %}{{ op.date|date:'Y-m-d' }}{% else %}{{ vals.date }}{% endif %}">
       </div>
-      {% endfor %}
     </div>
-    <div class="form-section">
-      <h3>Trattori</h3>
-      {% for id, name, pct in tractor_data %}
-      <div class="pct-row">
-        <label>{{ name }}</label>
-        <input type="number" name="tr_{{ id }}" min="0" max="100" value="{{ pct }}">
-        <button type="button" class="btn btn-secondary btn-100"
-                data-group="tr" data-target="tr_{{ id }}">100%</button>
-      </div>
-      {% endfor %}
-    </div>
-  </div>
 
-  <div class="form-actions">
-    <button type="submit" class="btn btn-primary">Salva</button>
-    <button type="submit" class="btn btn-primary" data-action="save-and-add">Salva e continua</button>
-  </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label for="id_cantiere">Cantiere</label>
+        <select id="id_cantiere" name="harvest_plan_item_id"
+                {% if not op %}required{% endif %}>
+          {% if op and op.harvest_plan_item_id %}
+            {% comment %}
+              Edit path: ensure the linked item shows up even if its
+              state is no longer open (state machine is monotonic).
+              `data-parcel-id` is empty for region-wide cantieri — the
+              Phase-7 JS reveals the Particella pulldown in that case.
+            {% endcomment %}
+            <option value="{{ op.harvest_plan_item_id }}" selected
+                    data-damaged="{{ op.harvest_plan_item.damaged|yesno:'1,0' }}"
+                    data-unhealthy="{{ op.harvest_plan_item.unhealthy|yesno:'1,0' }}"
+                    data-psr="{{ op.harvest_plan_item.psr|yesno:'1,0' }}"
+                    data-region-id="{% if op.harvest_plan_item.parcel_id %}{{ op.harvest_plan_item.parcel.region_id }}{% else %}{{ op.harvest_plan_item.region_id }}{% endif %}"
+                    data-parcel-id="{{ op.harvest_plan_item.parcel_id|default_if_none:'' }}">
+              {{ op.harvest_plan_item.harvest_plan.name }} ·
+              {{ op.harvest_plan_item.year_planned }} ·
+              {% if op.harvest_plan_item.parcel_id %}{{ op.parcel.region.name }} {{ op.parcel.name }}{% else %}{{ op.harvest_plan_item.region.name }} (tutti){% endif %}
+            </option>
+          {% else %}
+            <option value="">---</option>
+          {% endif %}
+          {% for c in cantieri %}
+            {% if not op or c.id != op.harvest_plan_item_id %}
+            <option value="{{ c.id }}"
+                    data-damaged="{{ c.damaged|yesno:'1,0' }}"
+                    data-unhealthy="{{ c.unhealthy|yesno:'1,0' }}"
+                    data-psr="{{ c.psr|yesno:'1,0' }}"
+                    data-region-id="{{ c.region_id }}"
+                    data-parcel-id="{{ c.parcel_id|default_if_none:'' }}"
+                    {% if vals.harvest_plan_item_id == c.id|stringformat:"d" %}selected{% endif %}>
+              {{ c.label }}
+            </option>
+            {% endif %}
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group" id="parcel-group">
+        {% comment %}
+          Visible only when the selected cantiere is region-wide; the
+          Phase-7 JS toggles `[hidden]` on this wrapper based on the
+          `data-parcel-id` attribute of the chosen Cantiere option, and
+          filters the visible parcels by `data-region`.
+        {% endcomment %}
+        <label for="id_parcel">Particella</label>
+        <select id="id_parcel" name="parcel_id">
+          <option value="">---</option>
+          {% for p in parcels %}
+          <option value="{{ p.id }}" data-region="{{ p.region_id }}"
+            {% if op and op.parcel_id == p.id %}selected
+            {% elif vals.parcel_id == p.id|stringformat:"d" %}selected{% endif %}>
+            {{ p.region.name }} {{ p.name }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div class="form-readonly-flat" id="cantiere-flags-display">
+      <span><label>Note cantiere:</label> <span id="cantiere-flags">—</span></span>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label for="id_crew">Squadra</label>
+        <select id="id_crew" name="crew_id" required>
+          {% for c in crews %}
+          <option value="{{ c.id }}"
+            {% if op and op.crew_id == c.id %}selected
+            {% elif vals.crew_id == c.id|stringformat:"d" %}selected{% endif %}>{{ c.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="id_product">Tipo</label>
+        <select id="id_product" name="product_id" required>
+          {% for pr in products %}
+          <option value="{{ pr.id }}"
+            {% if op and op.product_id == pr.id %}selected
+            {% elif vals.product_id == pr.id|stringformat:"d" %}selected{% endif %}>{{ pr.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group narrow">
+        <label for="id_mass_q">Q.li</label>
+        <input type="number" id="id_mass_q" name="mass_q" step="0.1" min="0.1" required
+               value="{% if op %}{{ op.mass_q|stringformat:'.1f' }}{% else %}{{ vals.mass_q }}{% endif %}">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group narrow">
+        <label for="id_record1">VDP</label>
+        <input type="number" id="id_record1" name="record1"
+               value="{% if op.record1 %}{{ op.record1 }}{% elif vals.record1 %}{{ vals.record1 }}{% endif %}">
+      </div>
+      <div class="form-group">
+        <label for="id_note">Altre note</label>
+        <input type="text" id="id_note" name="note"
+               value="{% if op %}{{ op.note|default:'' }}{% else %}{{ vals.note|default:'' }}{% endif %}">
+      </div>
+    </div>
+
+    <div class="form-pct-sections">
+      <div class="form-section">
+        <h3>Specie</h3>
+        {% for id, name, pct in species_data %}
+        <div class="pct-row">
+          <label>{{ name }}</label>
+          <input type="number" name="sp_{{ id }}" min="0" max="100" value="{{ pct }}">
+          <button type="button" class="btn btn-secondary btn-100"
+                  data-group="sp" data-target="sp_{{ id }}">100%</button>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="form-section">
+        <h3>Trattori</h3>
+        {% for id, name, pct in tractor_data %}
+        <div class="pct-row">
+          <label>{{ name }}</label>
+          <input type="number" name="tr_{{ id }}" min="0" max="100" value="{{ pct }}">
+          <button type="button" class="btn btn-secondary btn-100"
+                  data-group="tr" data-target="tr_{{ id }}">100%</button>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button type="button" class="btn" data-action="cancel">Annulla</button>
+      <button type="submit" class="btn btn-primary">Salva</button>
+      <button type="submit" class="btn btn-primary" data-action="save-and-add">Salva e continua</button>
+    </div>
   </form>
 </div>

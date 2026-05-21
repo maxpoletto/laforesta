@@ -106,6 +106,63 @@ ERR_GRID_AUTO_PARCEL_UNRESOLVED = (
     'Particella non trovata: {} / {}.'
 )
 ERR_AREA_NUMBER_REQUIRED = 'Numero area obbligatorio.'
+ERR_PLAN_NAME_REQUIRED = 'Nome piano obbligatorio.'
+ERR_PLAN_NAME_DUPLICATE = 'Esiste già un piano con questo nome.'
+ERR_PLAN_YEAR_RANGE = 'Anno fine deve essere maggiore o uguale ad anno inizio.'
+ERR_PLAN_HAS_ACTIVE_ITEMS = (
+    'Il piano contiene voci non in stato "pianificato". '
+    'Elimina prima le voci dipendenti.'
+)
+ERR_PLAN_ITEM_REGION_XOR_PARCEL = (
+    'Specificare esattamente uno tra compresa (intera) e particella.'
+)
+ERR_PLAN_ITEM_REGION_REQUIRES_FLAG = (
+    'Le voci a livello di compresa richiedono il flag '
+    '"catastrofato" o "fitosanitario".'
+)
+ERR_PLAN_ITEM_NOT_FOUND = 'Voce di piano non trovata.'
+ERR_PLAN_ITEM_STATE_NOT_PLANNED = (
+    'La voce non è in stato "pianificato"; eliminazione non consentita.'
+)
+ERR_PLAN_ITEM_HAS_DEPS = (
+    'La voce ha martellate, prelievi o transizioni di cantiere associati; '
+    'eliminale prima.'
+)
+ERR_PLAN_ITEM_VOLUME_NEGATIVE = 'Il volume previsto deve essere positivo.'
+ERR_PLAN_ITEM_AREA_NEGATIVE = 'La superficie deve essere positiva.'
+ERR_PLAN_ITEM_YEAR_RANGE = (
+    'L\'anno previsto deve cadere nell\'intervallo del piano.'
+)
+ERR_TRANSITION_INVALID_STATE = (
+    'Transizione non consentita dallo stato attuale.'
+)
+ERR_TRANSITION_DATE_REQUIRED = 'Data della transizione obbligatoria.'
+ERR_CSV_NO_FILES = (
+    'Nessun file CSV caricato. Allega almeno un file '
+    '(fustaia, ceduo o equazioni).'
+)
+ERR_CSV_PARCEL_NOT_FOUND = 'Riga {}: particella non trovata ({} / {}).'
+ERR_CSV_REGION_NOT_FOUND = 'Riga {}: compresa non trovata ({}).'
+ERR_CSV_SPECIES_NOT_FOUND = 'Riga {}: specie non trovata ({}).'
+ERR_CSV_FUNCTION_INVALID = (
+    'Riga {}: funzione di regressione non supportata ({}).'
+)
+ERR_CSV_VALUE_PARSE = 'Riga {}: valore non valido nella colonna {} ({}).'
+ERR_CSV_PLAN_REQUIRED = (
+    'Seleziona un piano di destinazione o specifica un nome per crearne uno.'
+)
+ERR_CANTIERE_REQUIRED = (
+    'Selezionare un cantiere aperto.'
+)
+ERR_CANTIERE_STATE_INVALID = (
+    'Il cantiere selezionato non è in stato "aperto" o "in prelievo".'
+)
+ERR_PARCEL_REQUIRED_FOR_REGION_WIDE = (
+    'Cantiere a livello di compresa: specificare la particella.'
+)
+ERR_PARCEL_NOT_IN_REGION = (
+    'La particella selezionata non appartiene alla compresa del cantiere.'
+)
 ERR_AREA_IN_USE = (
     'Area di saggio già usata in un campione: non può essere eliminata.'
 )
@@ -298,6 +355,12 @@ COL_N_REGRESSION = 'n'
 # Prelievi: link to the HarvestPlanItem this harvest is part of.
 COL_CANTIERE = 'Cantiere'
 
+LABEL_OPEN_CANTIERE = 'Apri cantiere'
+LABEL_CLOSE_CANTIERE = 'Chiudi cantiere'
+LABEL_PLAN_NAME = 'Nome piano'
+LABEL_PLAN_DESCRIPTION = 'Descrizione'
+LABEL_PROTOCOL_NUMBER = 'Numero di protocollo'
+
 # ---------------------------------------------------------------------------
 # App verbose names
 # ---------------------------------------------------------------------------
@@ -306,6 +369,7 @@ APP_BASE = 'Base'
 APP_PRELIEVI = 'Prelievi'
 APP_BOSCO = 'Bosco'
 APP_CAMPIONAMENTI = 'Campionamenti'
+APP_PIANO_DI_TAGLIO = 'Piano di taglio'
 APP_CONTROLLO = 'Controllo'
 APP_IMPOSTAZIONI = 'Impostazioni'
 

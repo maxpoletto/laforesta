@@ -73,6 +73,7 @@ INSTALLED_APPS = [
     'apps.campionamenti',
     'apps.controllo',
     'apps.impostazioni',
+    'apps.piano_di_taglio',
 ]
 
 SITE_ID = 1

@@ -1,0 +1,404 @@
+"""Tests for the Piano di taglio backend endpoints.
+
+Covers plan CRUD, plan CSV import, plan-level Esporta CSV, plan-item
+CRUD (including the state-gated delete), per-item Esporta CSV, and the
+cantiere transition save view.  All write paths share the digest-stale
+contract and the nonce-idempotency contract.
+"""
+
+import gzip
+import io
+import json
+import zipfile
+from decimal import Decimal
+
+import pytest
+from django.test import Client
+
+from apps.base.models import (
+    DigestStatus, HarvestPlan, HarvestPlanItem, HarvestPlanItemState,
+    HarvestTransition, ParcelPlanDetail, TreeHeightRegression,
+)
+from config import strings as S
+from config.constants import (
+    COLUMNS, DATA_ID, FIELD_CEDUO_FILE, FIELD_CREW_ID, FIELD_DAMAGED,
+    FIELD_DATE, FIELD_DESCRIPTION, FIELD_FUSTAIA_FILE,
+    FIELD_HARVEST_PLAN_ID, FIELD_HARVEST_PLAN_ITEM_ID,
+    FIELD_INTERVENTION_AREA_HA, FIELD_MASS_Q, FIELD_NAME, FIELD_NONCE,
+    FIELD_NOTE, FIELD_OPEN, FIELD_PARCEL_ID, FIELD_PRODUCT_ID,
+    FIELD_PSR, FIELD_REGION_ID, FIELD_REGRESSION_FILE, FIELD_UNHEALTHY,
+    FIELD_VOLUME_PLANNED_M3, FIELD_YEAR_END, FIELD_YEAR_PLANNED,
+    FIELD_YEAR_START, HTML, MESSAGE, RECORD, ROW_ID, ROWS,
+    STATUS, STATUS_CONFLICT, STATUS_VALIDATION_ERROR,
+    TRANSITION_RECORDS, VERSION,
+)
+
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def writer_client(writer_user):
+    c = Client()
+    c.force_login(writer_user)
+    return c
+
+
+@pytest.fixture
+def reader_client(reader_user):
+    c = Client()
+    c.force_login(reader_user)
+    return c
+
+
+@pytest.fixture
+def plan(db):
+    return HarvestPlan.objects.create(
+        name='Plan 2024-2034', year_start=2024, year_end=2034,
+        description='A plan.',
+    )
+
+
+@pytest.fixture
+def planned_item(plan, parcels):
+    return HarvestPlanItem.objects.create(
+        harvest_plan=plan, parcel=parcels[0], year_planned=2025,
+        volume_planned_m3=Decimal('100.0'),
+        state=HarvestPlanItemState.PLANNED,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Plan CRUD
+# ---------------------------------------------------------------------------
+
+class TestPlanCRUD:
+    def _post(self, client, payload):
+        return client.post(
+            '/api/piano-di-taglio/plan/save/',
+            data=json.dumps(payload), content_type='application/json',
+        )
+
+    def test_create(self, writer_client, db):
+        resp = self._post(writer_client, {
+            FIELD_NAME: 'New plan',
+            FIELD_DESCRIPTION: 'Notes.',
+            FIELD_YEAR_START: 2026, FIELD_YEAR_END: 2036,
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data[DATA_ID] == 'harvest_plans'
+        plan = HarvestPlan.objects.get(id=data[ROW_ID])
+        assert plan.year_start == 2026
+        assert DigestStatus.objects.get(name='harvest_plans').stale is True
+
+    def test_create_duplicate_name(self, writer_client, plan):
+        resp = self._post(writer_client, {
+            FIELD_NAME: plan.name,
+            FIELD_YEAR_START: 2030, FIELD_YEAR_END: 2040,
+        })
+        assert resp.status_code == 400
+        assert S.ERR_PLAN_NAME_DUPLICATE in resp.json()[MESSAGE]
+
+    def test_create_bad_year_range(self, writer_client, db):
+        resp = self._post(writer_client, {
+            FIELD_NAME: 'Bad range',
+            FIELD_YEAR_START: 2030, FIELD_YEAR_END: 2020,
+        })
+        assert resp.status_code == 400
+        assert S.ERR_PLAN_YEAR_RANGE in resp.json()[MESSAGE]
+
+    def test_update(self, writer_client, plan):
+        resp = self._post(writer_client, {
+            ROW_ID: plan.id, VERSION: plan.version,
+            FIELD_NAME: 'Renamed', FIELD_DESCRIPTION: 'Updated',
+            FIELD_YEAR_START: 2024, FIELD_YEAR_END: 2034,
+        })
+        assert resp.status_code == 200
+        plan.refresh_from_db()
+        assert plan.name == 'Renamed'
+        assert plan.version == 2
+
+    def test_update_stale_version(self, writer_client, plan):
+        resp = self._post(writer_client, {
+            ROW_ID: plan.id, VERSION: 999,
+            FIELD_NAME: 'X', FIELD_YEAR_START: 2024, FIELD_YEAR_END: 2034,
+        })
+        assert resp.status_code == 400
+        assert resp.json()[STATUS] == STATUS_CONFLICT
+
+    def test_delete_allowed_when_all_planned(self, writer_client, plan, planned_item):
+        resp = writer_client.post(
+            f'/api/piano-di-taglio/plan/delete/{plan.id}/',
+            content_type='application/json',
+        )
+        assert resp.status_code == 200
+        assert not HarvestPlan.objects.filter(id=plan.id).exists()
+
+    def test_delete_blocked_when_active_item(self, writer_client, plan, planned_item):
+        planned_item.state = HarvestPlanItemState.OPEN
+        planned_item.save()
+        resp = writer_client.post(
+            f'/api/piano-di-taglio/plan/delete/{plan.id}/',
+            content_type='application/json',
+        )
+        assert resp.status_code == 400
+        assert S.ERR_PLAN_HAS_ACTIVE_ITEMS in resp.json()[MESSAGE]
+        assert HarvestPlan.objects.filter(id=plan.id).exists()
+
+
+# ---------------------------------------------------------------------------
+# Plan CSV import + export
+# ---------------------------------------------------------------------------
+
+FUSTAIA_CSV = (
+    'Compresa,Particella,Anno,Prelievo (m³)\r\n'
+    'Capistrano,1,2027,250\r\n'
+)
+CEDUO_CSV = (
+    'Anno,Compresa,Particella,Superficie intervento (ha),Turno (a),Note\r\n'
+    '2028,Capistrano,1,2.5,18,Cont.\r\n'
+)
+REGRESSION_CSV = (
+    'Compresa,Genere,funzione,a,b,r2,n\r\n'
+    'Capistrano,Abete,ln,12.0,3.5,0.85,42\r\n'
+)
+
+
+class TestPlanCSVImport:
+    def _upload(self, client, **kwargs):
+        return client.post(
+            '/api/piano-di-taglio/plan/import-csv/',
+            data=kwargs,
+        )
+
+    def test_import_three_files(self, writer_client, parcels, species):
+        f = self._upload(
+            writer_client,
+            name='CSV plan',
+            description='From CSV.',
+            fustaia_file=io.BytesIO(FUSTAIA_CSV.encode('utf-8')),
+            ceduo_file=io.BytesIO(CEDUO_CSV.encode('utf-8')),
+            regression_file=io.BytesIO(REGRESSION_CSV.encode('utf-8')),
+        )
+        assert f.status_code == 200, f.json()
+        data = f.json()
+        assert data['n_items'] == 2
+        assert data['n_regressions'] == 1
+        plan = HarvestPlan.objects.get(id=data[ROW_ID])
+        assert plan.year_start == 2027
+        assert plan.year_end == 2028
+        # Coppice item gets a ParcelPlanDetail with interval 18.
+        ppd = ParcelPlanDetail.objects.get(harvest_plan=plan)
+        assert ppd.harvest_detail.interval == 18
+
+    def test_import_no_files(self, writer_client, db):
+        resp = self._upload(writer_client, name='No files plan')
+        assert resp.status_code == 400
+        assert S.ERR_CSV_NO_FILES in resp.json()[MESSAGE]
+
+    def test_import_duplicate_name(self, writer_client, plan, parcels):
+        resp = self._upload(
+            writer_client, name=plan.name,
+            fustaia_file=io.BytesIO(FUSTAIA_CSV.encode('utf-8')),
+        )
+        assert resp.status_code == 400
+        assert S.ERR_PLAN_NAME_DUPLICATE in resp.json()[MESSAGE]
+
+    def test_import_unknown_parcel(self, writer_client, db):
+        bad_csv = (
+            'Compresa,Particella,Anno,Prelievo (m³)\r\n'
+            'Nowhere,99,2027,250\r\n'
+        )
+        resp = self._upload(
+            writer_client, name='Bad plan',
+            fustaia_file=io.BytesIO(bad_csv.encode('utf-8')),
+        )
+        assert resp.status_code == 400
+
+
+class TestPlanExport:
+    def test_round_trip(self, writer_client, plan, planned_item):
+        resp = writer_client.get(f'/api/piano-di-taglio/plan/export/{plan.id}/')
+        assert resp.status_code == 200
+        assert resp['Content-Type'] == 'application/zip'
+        zf = zipfile.ZipFile(io.BytesIO(resp.content))
+        assert set(zf.namelist()) == {
+            'piano.csv', 'ceduo.csv', 'equazioni_ipsometro.csv',
+        }
+        # planned_item is fustaia → lands in piano.csv.
+        piano = zf.read('piano.csv').decode('utf-8').splitlines()
+        assert any(planned_item.parcel.region.name in line for line in piano)
+
+
+# ---------------------------------------------------------------------------
+# Item CRUD
+# ---------------------------------------------------------------------------
+
+class TestItemCRUD:
+    def _save(self, client, payload):
+        return client.post(
+            '/api/piano-di-taglio/item/save/',
+            data=json.dumps(payload), content_type='application/json',
+        )
+
+    def test_create_fustaia_item(self, writer_client, plan, parcels):
+        resp = self._save(writer_client, {
+            FIELD_HARVEST_PLAN_ID: plan.id,
+            FIELD_PARCEL_ID: parcels[0].id,
+            FIELD_YEAR_PLANNED: 2027,
+            FIELD_VOLUME_PLANNED_M3: '150',
+            FIELD_NOTE: '',
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        item = HarvestPlanItem.objects.get(id=data[ROW_ID])
+        assert item.year_planned == 2027
+        assert float(item.volume_planned_m3) == 150.0
+
+    def test_create_requires_region_xor_parcel(self, writer_client, plan):
+        resp = self._save(writer_client, {
+            FIELD_HARVEST_PLAN_ID: plan.id,
+            FIELD_YEAR_PLANNED: 2027,
+        })
+        assert resp.status_code == 400
+        assert S.ERR_PLAN_ITEM_REGION_XOR_PARCEL in resp.json()[MESSAGE]
+
+    def test_create_region_wide_requires_flag(self, writer_client, plan, regions):
+        resp = self._save(writer_client, {
+            FIELD_HARVEST_PLAN_ID: plan.id,
+            FIELD_REGION_ID: regions[0].id,
+            FIELD_YEAR_PLANNED: 2027,
+        })
+        assert resp.status_code == 400
+        assert (S.ERR_PLAN_ITEM_REGION_REQUIRES_FLAG
+                in resp.json()[MESSAGE])
+
+    def test_create_region_wide_with_flag(self, writer_client, plan, regions):
+        resp = self._save(writer_client, {
+            FIELD_HARVEST_PLAN_ID: plan.id,
+            FIELD_REGION_ID: regions[0].id,
+            FIELD_YEAR_PLANNED: 2027,
+            FIELD_DAMAGED: True,
+        })
+        assert resp.status_code == 200
+
+    def test_delete_planned(self, writer_client, planned_item):
+        resp = writer_client.post(
+            f'/api/piano-di-taglio/item/delete/{planned_item.id}/',
+            content_type='application/json',
+        )
+        assert resp.status_code == 200
+        assert not HarvestPlanItem.objects.filter(id=planned_item.id).exists()
+
+    def test_delete_blocked_when_not_planned(self, writer_client, planned_item):
+        planned_item.state = HarvestPlanItemState.OPEN
+        planned_item.save()
+        resp = writer_client.post(
+            f'/api/piano-di-taglio/item/delete/{planned_item.id}/',
+            content_type='application/json',
+        )
+        assert resp.status_code == 400
+        assert (S.ERR_PLAN_ITEM_STATE_NOT_PLANNED
+                in resp.json()[MESSAGE])
+
+    def test_item_data_view(self, writer_client, planned_item):
+        resp = writer_client.get(
+            f'/api/piano-di-taglio/item/data/{planned_item.id}/',
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data[ROW_ID] == planned_item.id
+        assert TRANSITION_RECORDS in data
+
+
+# ---------------------------------------------------------------------------
+# Transition save (Apri / Chiudi cantiere)
+# ---------------------------------------------------------------------------
+
+class TestTransitionSave:
+    def _post(self, client, payload):
+        return client.post(
+            '/api/piano-di-taglio/transition/save/',
+            data=json.dumps(payload), content_type='application/json',
+        )
+
+    def test_apri_cantiere_from_planned(self, writer_client, planned_item):
+        resp = self._post(writer_client, {
+            FIELD_HARVEST_PLAN_ITEM_ID: planned_item.id,
+            FIELD_OPEN: True,
+            FIELD_DATE: '2024-09-01',
+            FIELD_NOTE: 'permit 42/2024',
+        })
+        assert resp.status_code == 200
+        planned_item.refresh_from_db()
+        assert planned_item.state == HarvestPlanItemState.OPEN
+        assert planned_item.date_actual.isoformat() == '2024-09-01'
+        assert HarvestTransition.objects.filter(
+            harvest_plan_item=planned_item, open=True,
+        ).exists()
+
+    def test_chiudi_cantiere_from_open(self, writer_client, planned_item):
+        planned_item.state = HarvestPlanItemState.OPEN
+        planned_item.save()
+        resp = self._post(writer_client, {
+            FIELD_HARVEST_PLAN_ITEM_ID: planned_item.id,
+            FIELD_OPEN: False,
+            FIELD_DATE: '2024-12-01',
+        })
+        assert resp.status_code == 200
+        planned_item.refresh_from_db()
+        assert planned_item.state == HarvestPlanItemState.CLOSED
+
+    def test_invalid_transition_rejected(self, writer_client, planned_item):
+        """Chiudi from PLANNED is not in the allowed transitions table."""
+        resp = self._post(writer_client, {
+            FIELD_HARVEST_PLAN_ITEM_ID: planned_item.id,
+            FIELD_OPEN: False,
+            FIELD_DATE: '2024-09-01',
+        })
+        assert resp.status_code == 400
+        assert (S.ERR_TRANSITION_INVALID_STATE
+                in resp.json()[MESSAGE])
+
+
+# ---------------------------------------------------------------------------
+# Per-item Esporta CSV
+# ---------------------------------------------------------------------------
+
+class TestItemExport:
+    def test_item_export_shape(self, writer_client, planned_item):
+        resp = writer_client.get(
+            f'/api/piano-di-taglio/item/export/{planned_item.id}/',
+        )
+        assert resp.status_code == 200
+        assert resp['Content-Type'] == 'application/zip'
+        zf = zipfile.ZipFile(io.BytesIO(resp.content))
+        names = set(zf.namelist())
+        assert f'martellate_{planned_item.id}.csv' in names
+        assert f'prelievi_{planned_item.id}.csv' in names
+
+
+# ---------------------------------------------------------------------------
+# Auth gates
+# ---------------------------------------------------------------------------
+
+class TestAuth:
+    def test_reader_cannot_save_plan(self, reader_client, db):
+        resp = reader_client.post(
+            '/api/piano-di-taglio/plan/save/',
+            data=json.dumps({
+                FIELD_NAME: 'x',
+                FIELD_YEAR_START: 2024, FIELD_YEAR_END: 2030,
+            }),
+            content_type='application/json',
+        )
+        assert resp.status_code == 403
+
+    def test_reader_can_read_plans(self, reader_client, db, tmp_path, settings):
+        settings.DIGEST_DIR = tmp_path
+        from apps.base.digests import generate_harvest_plans
+        generate_harvest_plans()
+        resp = reader_client.get('/api/piano-di-taglio/plans/data/')
+        assert resp.status_code == 200
