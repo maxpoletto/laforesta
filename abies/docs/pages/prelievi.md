@@ -74,12 +74,27 @@ widths; the table scrolls horizontally when the viewport is too narrow.
 
 The add/edit form is laid out as a compact grid (three fields per row):
 
-- Row 1: date picker, "Cantiere" pull-down. The Cantiere options are
-  the `harvest_plan_item` rows whose `state ∈ {open, harvesting}`,
-  rendered as `<Compresa>/<Particella>` (or `<Compresa>/(tutti)` for
-  region-wide items). Selection is **required** for new harvests; this
-  is the only path to creating a harvest in v1 (every harvest must
-  tie back to an approved intervento — there is no escape hatch).
+- Row 1: date picker, "Cantiere" pull-down, "Particella" pull-down.
+  The Cantiere options are the `harvest_plan_item` rows whose `state ∈
+  {open, harvesting}`, rendered as `<Compresa>/<Particella>` (or
+  `<Compresa>/(tutti)` for region-wide items). Selection is
+  **required** for new harvests; this is the only path to creating a
+  harvest in v1 (every harvest must tie back to an approved intervento
+  — there is no escape hatch).
+
+  - **Parcel-scoped Cantiere** (`harvest_plan_item.parcel` set): the
+    parcel is implicit. The Particella pull-down is hidden; the
+    server derives `harvest.parcel_id` from the linked item and
+    ignores any value submitted in the body.
+  - **Region-wide Cantiere** (`harvest_plan_item.region` set,
+    `parcel IS NULL`): the Particella pull-down becomes visible and
+    required. Options are filtered to parcels in the Cantiere's
+    region. This is the normal flow for damaged- or unhealthy-
+    operation interventi that span a whole region — each harvest day
+    still records the specific parcel where work was done. The
+    server validates `parcel.region_id == harvest_plan_item.region_id`
+    and rejects mismatches.
+
 - Row 2: "Squadra" pull-down, "Tipo" (product) pull-down, "Q.li"
   numeric input (step 0.1).
 - Row 3: "VDP" numeric input, "Altre note" text input.
@@ -91,6 +106,16 @@ comma-joined string from `"Catastrofato"`, `"Fitosanitario"`, `"PSR"`
 the schema trigger
 `harvest.{damaged,unhealthy,psr} == harvest_plan_item.{...}` so the
 user never sets them directly on the harvest form.
+
+Legacy CSV-imported rows (from `mannesi.csv`) have
+`harvest_plan_item_id IS NULL` and often carry the placeholder
+particella `"X"` because the source data did not record one. These
+rows remain editable: on the edit path, the server only overwrites
+the Cantiere link and parcel when the submission carries new values
+for them. A user editing a legacy row without touching the Cantiere
+dropdown leaves both the `NULL` link and the `"X"` parcel in place.
+Going forward, every harvest entered through the v1 UI carries a
+real Cantiere and a real parcel.
 
 Prot (record2) is not shown in the form — it is display-only for legacy data.
 Existing Prot values are preserved on edit; new records never have a Prot value.
