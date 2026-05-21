@@ -279,6 +279,25 @@ COL_H_MEASURED           = 'h misurata'                  # display label; bool r
 TYPE_FUSTAIA = 'alto fusto'
 TYPE_CEDUO   = 'ceduo'
 
+# Stand-in displayed in the Particella column for region-wide
+# HarvestPlanItem rows (region set, parcel NULL).
+LABEL_ALL_PARCELS = '(tutti)'
+
+# Harvest-plan digest columns.
+COL_YEAR_START = 'Anno inizio'
+COL_YEAR_END   = 'Anno fine'
+
+# Tree-height-regression digest columns.  Single-letter coefficient
+# names match the CSV header form.
+COL_FUNCTION     = 'funzione'
+COL_A            = 'a'
+COL_B            = 'b'
+COL_R2           = 'r²'
+COL_N_REGRESSION = 'n'
+
+# Prelievi: link to the HarvestPlanItem this harvest is part of.
+COL_CANTIERE = 'Cantiere'
+
 # ---------------------------------------------------------------------------
 # App verbose names
 # ---------------------------------------------------------------------------

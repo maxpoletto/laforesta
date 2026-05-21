@@ -167,12 +167,18 @@ class Product(models.Model):
 # Forest structure
 # ---------------------------------------------------------------------------
 
-class HarvestPlan(models.Model):
-    """Multi-year harvest plan."""
+class HarvestPlan(TimestampedModel):
+    """Multi-year harvest plan.
+
+    Writer-editable from the plan-selector pencil affordance; tracked
+    by HistoricalRecords for audit and carries `version` for optimistic
+    locking, like every other mutable domain table.
+    """
     name = models.CharField(max_length=100, unique=True)
     year_start = models.IntegerField()
     year_end = models.IntegerField()
     description = models.TextField(blank=True)
+    history = HistoricalRecords()
 
     class Meta:
         verbose_name = S.HARVEST_PLAN

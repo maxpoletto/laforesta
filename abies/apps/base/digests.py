@@ -62,21 +62,33 @@ def mark_stale(*names: str) -> None:
         )
 
 
+_DYNAMIC_PREFIX_SAMPLED_TREES = 'sampled_trees_'
+_DYNAMIC_PREFIX_MARK_TREES    = 'mark_trees_'
+
+
 def _resolve_generator(name: str):
     """Look up a digest generator, including dynamic per-entity names.
 
-    Supports static names registered in `_GENERATORS` plus the
-    dynamic `sampled_trees_<survey_id>` pattern used by Campionamenti.
+    Supports static names registered in `_GENERATORS` plus two
+    dynamic patterns:
+      - `sampled_trees_<survey_id>` (Campionamenti)
+      - `mark_trees_<harvest_plan_item_id>` (Piano di taglio)
     Returns None for unknown names.
     """
     if name in _GENERATORS:
         return _GENERATORS[name]
-    if name.startswith('sampled_trees_'):
+    if name.startswith(_DYNAMIC_PREFIX_SAMPLED_TREES):
         try:
-            survey_id = int(name[len('sampled_trees_'):])
+            survey_id = int(name[len(_DYNAMIC_PREFIX_SAMPLED_TREES):])
         except ValueError:
             return None
         return lambda: generate_sampled_trees_for_survey(survey_id)
+    if name.startswith(_DYNAMIC_PREFIX_MARK_TREES):
+        try:
+            item_id = int(name[len(_DYNAMIC_PREFIX_MARK_TREES):])
+        except ValueError:
+            return None
+        return lambda: generate_mark_trees_for_item(item_id)
     return None
 
 
@@ -139,8 +151,8 @@ def generate_prelievi() -> None:
 
     columns = (
         [ROW_ID, VERSION, S.COL_DATE, S.COL_COMPRESA, S.COL_PARCEL,
-         S.COL_CREW, S.COL_VDP, S.COL_PRODUCT, S.COL_QUINTALS,
-         S.COL_VOLUME_M3, S.COL_NOTE, S.COL_EXTRA_NOTE]
+         S.COL_CANTIERE, S.COL_CREW, S.COL_VDP, S.COL_PRODUCT,
+         S.COL_QUINTALS, S.COL_VOLUME_M3, S.COL_NOTE, S.COL_EXTRA_NOTE]
         + species_names
         + tractor_labels
         + [f'{n} %' for n in species_names]
@@ -175,6 +187,7 @@ def generate_prelievi() -> None:
         row = (
             [op.id, op.version, op.date.isoformat(),
              op.parcel.region.name, op.parcel.name,
+             op.harvest_plan_item_id if op.harvest_plan_item_id else '',
              op.crew.name, op.record1, op.product.name, mass_q,
              float(op.volume_m3),
              render_flag_note(op.damaged, op.unhealthy, op.psr), op.note]
@@ -209,6 +222,7 @@ def build_harvest_record(op) -> list:
     return (
         [op.id, op.version, op.date.isoformat(),
          op.parcel.region.name, op.parcel.name,
+         op.harvest_plan_item_id if op.harvest_plan_item_id else '',
          op.crew.name, op.record1, op.product.name, mass_q,
          float(op.volume_m3),
          render_flag_note(op.damaged, op.unhealthy, op.psr), op.note]
@@ -674,6 +688,213 @@ def generate_sampled_trees_for_survey(survey_id: int) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Piano di taglio digests
+# ---------------------------------------------------------------------------
+
+HARVEST_PLAN_COLUMNS = [ROW_ID, VERSION, S.COL_NAME, S.COL_DESCRIPTION,
+                       S.COL_YEAR_START, S.COL_YEAR_END]
+
+
+def build_harvest_plan_record(hp) -> list:
+    """Build one row of the `harvest_plans` digest."""
+    return [
+        hp.id, hp.version, hp.name, hp.description,
+        hp.year_start, hp.year_end,
+    ]
+
+
+def generate_harvest_plans() -> None:
+    """All harvest plans.  Drives the plan-selector pulldown at the top
+    of the Piano di taglio page.
+    """
+    from apps.base.models import HarvestPlan
+
+    rows = [build_harvest_plan_record(hp)
+            for hp in HarvestPlan.objects.order_by('-year_start', 'id')]
+    _write_gzip_json(
+        {'columns': HARVEST_PLAN_COLUMNS, 'rows': rows},
+        _dest('harvest_plans'),
+    )
+    print(f'harvest_plans.json.gz: {len(rows)} rows')
+
+
+HARVEST_PLAN_ITEM_COLUMNS = [
+    ROW_ID, VERSION, S.COL_HARVEST_PLAN,
+    S.COL_YEAR_PLANNED, S.COL_YEAR_ACTUAL,
+    S.COL_COMPRESA, S.COL_PARCEL, S.COL_TYPE, S.COL_STATE, S.COL_NOTE,
+    S.COL_VOLUME_PLANNED, S.COL_VOLUME_MARKED, S.COL_VOLUME_ACTUAL,
+    S.COL_INTERVENTION_AREA_HA, S.COL_PARCEL_AREA_HA, S.COL_TURNO_A,
+    S.COL_EXTRA_NOTE,
+]
+
+
+def _hpi_type(item) -> str:
+    """`Tipo` value for the calendar Tipo column.  Empty for region-wide
+    items (no Eclass to derive from).
+    """
+    if item.parcel_id is None:
+        return ''
+    return S.TYPE_CEDUO if item.parcel.eclass.coppice else S.TYPE_FUSTAIA
+
+
+def _hpi_turno(item) -> int | str:
+    """Coppice rotation interval (years) read via ParcelPlanDetail.
+
+    Returns '' for fustaia items or coppice items without a linked
+    ParcelPlanDetail row.  The (plan, parcel) → harvest_detail link is
+    optional (only coppice parcels get one — see piano-di-taglio.md
+    "Import flow").
+    """
+    if item.parcel_id is None or not item.parcel.eclass.coppice:
+        return ''
+    from apps.base.models import ParcelPlanDetail
+    ppd = (ParcelPlanDetail.objects
+           .filter(harvest_plan_id=item.harvest_plan_id, parcel_id=item.parcel_id)
+           .select_related('harvest_detail')
+           .first())
+    if ppd is None or ppd.harvest_detail.interval is None:
+        return ''
+    return ppd.harvest_detail.interval
+
+
+def build_harvest_plan_item_record(item) -> list:
+    """Build one row of the `harvest_plan_items` digest.
+
+    Caller must pre-load `parcel.region`, `parcel.eclass`, and `region`
+    (the FK directly on the item).  Reads `state` via
+    `get_state_display()` for the human-readable label.
+    """
+    if item.parcel_id is not None:
+        compresa = item.parcel.region.name
+        particella = item.parcel.name
+        parcel_area = float(item.parcel.area_ha)
+    else:
+        compresa = item.region.name
+        particella = S.LABEL_ALL_PARCELS
+        parcel_area = ''
+
+    return [
+        item.id, item.version, item.harvest_plan_id,
+        item.year_planned,
+        item.date_actual.year if item.date_actual else '',
+        compresa, particella, _hpi_type(item),
+        item.get_state_display(),
+        render_flag_note(item.damaged, item.unhealthy, item.psr),
+        float(item.volume_planned_m3) if item.volume_planned_m3 is not None else '',
+        float(item.volume_marked_m3) if item.volume_marked_m3 is not None else '',
+        float(item.volume_actual_m3),
+        float(item.intervention_area_ha) if item.intervention_area_ha is not None else '',
+        parcel_area,
+        _hpi_turno(item),
+        item.note,
+    ]
+
+
+def generate_harvest_plan_items() -> None:
+    """All HarvestPlanItem rows across all plans.
+
+    Client filters by selected plan (`p=N` URL param) and by Tipo to
+    drive the fustaia vs ceduo calendar sections.  Per-item lazy
+    `mark_trees_<id>` digests carry the per-item tree_marks.
+    """
+    from apps.base.models import HarvestPlanItem
+
+    qs = (HarvestPlanItem.objects
+          .select_related('parcel__region', 'parcel__eclass', 'region',
+                          'harvest_plan')
+          .order_by('harvest_plan_id', 'year_planned', 'id'))
+    rows = [build_harvest_plan_item_record(it) for it in qs]
+    _write_gzip_json(
+        {'columns': HARVEST_PLAN_ITEM_COLUMNS, 'rows': rows},
+        _dest('harvest_plan_items'),
+    )
+    print(f'harvest_plan_items.json.gz: {len(rows)} rows')
+
+
+TREE_HEIGHT_REGRESSION_COLUMNS = [
+    ROW_ID, S.COL_HARVEST_PLAN, S.COL_COMPRESA, S.COL_SPECIES,
+    S.COL_FUNCTION, S.COL_A, S.COL_B, S.COL_R2, S.COL_N_REGRESSION,
+]
+
+
+def build_tree_height_regression_record(thr) -> list:
+    """Build one row of the `tree_height_regressions` digest."""
+    return [
+        thr.id, thr.harvest_plan_id,
+        thr.region.name, thr.species.common_name,
+        thr.function, float(thr.a), float(thr.b),
+        float(thr.r2), thr.n,
+    ]
+
+
+def generate_tree_height_regressions() -> None:
+    """Per-(plan, region, species) ipsometric regression coefficients.
+
+    Consumed JS-side by the Nuovo albero martellato modal to auto-fill
+    `h_m` from `d_cm`.  Filtered client-side by active plan.
+    """
+    from apps.base.models import TreeHeightRegression
+
+    qs = (TreeHeightRegression.objects
+          .select_related('region', 'species')
+          .order_by('harvest_plan_id', 'region__name', 'species__common_name'))
+    rows = [build_tree_height_regression_record(thr) for thr in qs]
+    _write_gzip_json(
+        {'columns': TREE_HEIGHT_REGRESSION_COLUMNS, 'rows': rows},
+        _dest('tree_height_regressions'),
+    )
+    print(f'tree_height_regressions.json.gz: {len(rows)} rows')
+
+
+MARK_TREE_COLUMNS = [ROW_ID, VERSION, S.COL_DATE, S.COL_NUMERO,
+                     S.COL_SPECIES, S.COL_D_CM, S.COL_H_M, S.COL_H_MEASURED,
+                     S.COL_V_M3, S.COL_MASS_Q,
+                     S.COL_LAT, S.COL_LON, S.COL_OPERATOR]
+
+
+def build_tree_mark_record(tm, numero: int) -> list:
+    """Build one row of a `mark_trees_<item_id>` digest.
+
+    `numero` is the 1-based display index within the item, computed by
+    the caller (not stored on tree_mark).  Caller must pre-load
+    `tree.species`.
+    """
+    return [
+        tm.id, tm.version, tm.date.isoformat(), numero,
+        tm.tree.species.common_name,
+        tm.d_cm, float(tm.h_m), tm.h_measured,
+        float(tm.volume_m3), float(tm.mass_q),
+        tm.lat, tm.lon, tm.operator,
+    ]
+
+
+def generate_mark_trees_for_item(item_id: int) -> None:
+    """Per-harvest_plan_item tree_mark digest.
+
+    Filename: `mark_trees_<item_id>.json.gz`.  Lazy-loaded by the
+    View/Edit-item modal's Martellate section.  Pattern mirrors
+    `sampled_trees_<survey_id>` in campionamenti.
+
+    Sort: Data desc, then id (tie-break).  `Numero` is a 1-based
+    sequence computed at generation time.
+    """
+    from apps.base.models import TreeMark
+
+    qs = (TreeMark.objects
+          .filter(harvest_plan_item_id=item_id)
+          .select_related('tree__species')
+          .order_by('-date', 'id'))
+    rows = []
+    for i, tm in enumerate(qs, start=1):
+        rows.append(build_tree_mark_record(tm, numero=i))
+    _write_gzip_json(
+        {'columns': MARK_TREE_COLUMNS, 'rows': rows},
+        _dest(f'mark_trees_{item_id}'),
+    )
+    print(f'mark_trees_{item_id}.json.gz: {len(rows)} rows')
+
+
+# ---------------------------------------------------------------------------
 # Generator registry
 # ---------------------------------------------------------------------------
 
@@ -688,6 +909,9 @@ _GENERATORS: dict[str, callable] = {
     'surveys': generate_surveys,
     'sample_areas': generate_sample_areas,
     'samples': generate_samples,
+    'harvest_plans': generate_harvest_plans,
+    'harvest_plan_items': generate_harvest_plan_items,
+    'tree_height_regressions': generate_tree_height_regressions,
 }
 
 
@@ -711,12 +935,19 @@ def generate_all() -> None:
     """Regenerate every digest (used by `make digest`).
 
     Also produces per-survey `sampled_trees_<id>.json` for every
-    existing Survey, so the dev-time digest directory matches what the
-    serving layer would lazily generate.
+    existing Survey and per-item `mark_trees_<id>.json` for every
+    HarvestPlanItem that has at least one TreeMark, so the dev-time
+    digest directory matches what the serving layer would lazily
+    generate.
     """
-    from apps.base.models import Survey
+    from apps.base.models import Survey, TreeMark
 
     for name, gen in _GENERATORS.items():
         gen()
     for survey_id in Survey.objects.values_list('id', flat=True):
         generate_sampled_trees_for_survey(survey_id)
+    item_ids = (TreeMark.objects
+                .values_list('harvest_plan_item_id', flat=True)
+                .distinct())
+    for item_id in item_ids:
+        generate_mark_trees_for_item(item_id)
