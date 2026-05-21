@@ -13,7 +13,7 @@ const HEADER = [
   'Data', 'Compresa', 'Particella', 'Catastrofata',
   'Numero', 'Specie',
   'D_cm', 'H_m', 'H_measured',
-  'Lat', 'Lng', 'Acc_m',
+  'Lat', 'Lon', 'Acc_m',
   'Operatore',
 ];
 

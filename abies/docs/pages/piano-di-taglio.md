@@ -198,7 +198,7 @@ The modal displays:
 
    The table lists `tree_mark` rows under this item. Columns:
 
-       Data; Numero; Specie; D (cm); h (m); h misurata; V (m³); m (q); Lat; Lng; Operatore
+       Data; Numero; Specie; D (cm); h (m); h misurata; V (m³); m (q); Lat; Lon; Operatore
 
    `Numero` is a per-item sequence number derived at render time
    (no `tree_mark.numero` column — it is purely a display index).
@@ -212,7 +212,7 @@ The modal displays:
    campionamenti page). The CSV is in the shape produced by the
    `laforesta/ipso` tool:
 
-       Data;Compresa;Particella;Catastrofata;Numero;Specie;D_cm;H_m;H_measured;Lat;Lng;Acc_m;Operatore
+       Data;Compresa;Particella;Catastrofata;Numero;Specie;D_cm;H_m;H_measured;Lat;Lon;Acc_m;Operatore
 
    Each row becomes one `tree_mark` row under this `harvest_plan_item`.
    `Compresa`/`Particella` from the CSV must match the item's
@@ -480,7 +480,7 @@ at most), so eager loading is cheap.
 that touch this item.
 
 Columns: `row_id`, `version`, `Data`, `Numero`, `Specie`, `D (cm)`,
-`h (m)`, `h misurata`, `V (m³)`, `m (q)`, `Lat`, `Lng`, `Operatore`.
+`h (m)`, `h misurata`, `V (m³)`, `m (q)`, `Lat`, `Lon`, `Operatore`.
 Sorted by `Data` descending, then by `Numero` ascending.
 
 `Numero` is the 1-based row index within the item (computed at

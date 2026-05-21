@@ -198,13 +198,10 @@ CSV_COL_R2                = 'r2'                          # coefficient of deter
 CSV_COL_N_REGRESSION      = 'n'                           # sample count for regression fit
 
 # Ipso CSV column headers (tree-mark import; format produced by
-# laforesta/ipso — see ipso/CLAUDE.md "CSV format").  Where a column
-# name differs from the abies internal field name (ipso emits `Lng`,
-# abies stores `lon`), the importer translates at the boundary.
+# laforesta/ipso — see ipso/CLAUDE.md "CSV format").
 CSV_COL_CATASTROFATA      = 'Catastrofata'                # session-level flag (ignored row-wise)
 CSV_COL_NUMERO            = 'Numero'                      # operator-assigned tree number
 CSV_COL_H_MEASURED        = 'H_measured'                  # 1 if operator typed h, 0 if auto-h
-CSV_COL_LNG               = 'Lng'                         # GPS longitude (ipso spelling)
 CSV_COL_ACC_M             = 'Acc_m'                       # GPS accuracy in metres
 CSV_COL_OPERATORE         = 'Operatore'                   # operator name
 

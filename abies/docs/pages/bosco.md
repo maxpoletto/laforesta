@@ -367,7 +367,7 @@ mode-switch.
   toggling `preserved` or moving location).
 
   Columns: `row_id`, `version`, `Compresa`, `Particella`, `Specie`,
-  `Anno`, `Lat`, `Lng`, `Note`.  `row_id` = `tree.id`.  Sorted by
+  `Anno`, `Lat`, `Lon`, `Note`.  `row_id` = `tree.id`.  Sorted by
   `(Compresa, Particella, Specie, Anno)`.
 
   Drives both the species/parcel scrollable lists and the per-tree

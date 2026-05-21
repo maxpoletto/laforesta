@@ -262,7 +262,7 @@ input:focus, select:focus, textarea:focus {
 .form-row > .form-group.narrow { flex: 0 0 120px; }
 
 /* "Usa GPS" lat/lng button — appended by JS as a flex child of the
- * .form-row that holds the Lat / Lng inputs.  Sized to the 120px
+ * .form-row that holds the Lat / Lon inputs.  Sized to the 120px
  * short-field width so it visually matches the other cells in a
  * narrow row, and aligned to the bottom so it sits level with the
  * inputs (whose labels stack above them).  No `margin-left: auto`:

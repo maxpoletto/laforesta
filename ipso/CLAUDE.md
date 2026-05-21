@@ -149,7 +149,7 @@ durably committed.
 # CSV format
 
 ```
-Data;Compresa;Particella;Catastrofata;Numero;Specie;D_cm;H_m;H_measured;Lat;Lng;Acc_m;Operatore
+Data;Compresa;Particella;Catastrofata;Numero;Specie;D_cm;H_m;H_measured;Lat;Lon;Acc_m;Operatore
 ```
 
 UTF-8 with BOM, `;` separator, `,` decimal, CRLF, `DD/MM/YYYY` dates.
@@ -157,7 +157,7 @@ UTF-8 with BOM, `;` separator, `,` decimal, CRLF, `DD/MM/YYYY` dates.
 estimate was accepted unchanged.  `Numero` is the operator-assigned
 tree number (4-digit max); blank for trees with
 `D ≤ NUMERO_BLANK_D_THRESHOLD` (17 cm).  The `Gruppo` tag is an
-in-app working aid and is intentionally NOT exported.  `Lat`/`Lng`
+in-app working aid and is intentionally NOT exported.  `Lat`/`Lon`
 are 6-fractional comma decimal; empty if no fix at save time.
 `Pino` is split into `Pino Nero` and `Pino Marittimo` because their
 ipsometric regressions diverge.
@@ -165,7 +165,7 @@ ipsometric regressions diverge.
 `Particella` is per-tree, written from `rec.particella` (GPS-detected
 or manually overridden — see below).  It can be blank when the GPS is
 outside the configured compresa and the operator left auto mode on;
-the row's `Lat`/`Lng`/`Acc_m` columns still record where the tree was
+the row's `Lat`/`Lon`/`Acc_m` columns still record where the tree was
 marked.  The `Catastrofata` column independently flags session type,
 so a catastrofate row still carries the actual particella where it
 was marked.

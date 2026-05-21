@@ -466,7 +466,7 @@ filters by active grid (Section 1) or by the active survey's grid
 (Section 2).  Invalidated on `sample_area` writes.
 
 Columns: `row_id`, `version`, `Griglia` (sample_grid_id), `Compresa`,
-`Particella`, `Numero`, `Lat`, `Lng`, `Quota`, `Raggio`, `Note`.
+`Particella`, `Numero`, `Lat`, `Lon`, `Quota`, `Raggio`, `Note`.
 
 ### `samples.json`
 
@@ -493,13 +493,13 @@ writes whose sample's survey matches.
 Columns: `row_id`, `version`, `Sample area`, `Data campione`,
 `Compresa`, `Particella`, `N. area`, `N. albero`, `Specie`, `Tipo`,
 `Pollone`, `Matricina`, `D (cm)`, `h (m)`, `L10 (mm)`, `V (m³)`,
-`m (q)`, `PAI`, `Lat`, `Lng`.  Sort: by `Compresa`, `Particella`,
+`m (q)`, `PAI`, `Lat`, `Lon`.  Sort: by `Compresa`, `Particella`,
 `N. area`, `N. albero`, `Pollone`.
 
 `row_id` = `tree_sample.id` (the synthetic id, see `database.md`).
 `Tipo` is `"fustaia"` or `"ceduo"`, derived from `tree.coppice`.
 `V (m³)` and `m (q)` are NULL for ceduo rows (per `database.md`
-invariant).  `Lat`, `Lng` come from `tree.lat/lng` if set, else fall
+invariant).  `Lat`, `Lon` come from `tree.lat/lon` if set, else fall
 back to the sample-area center.  `Data campione` is `sample.date`
 (useful for cross-tab tracking even when Section 3 isn't narrowed
 to a single area).

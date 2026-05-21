@@ -155,14 +155,14 @@ UTF-8 with BOM, semicolon-separated, comma decimal, CRLF line endings,
 Italian date format `DD/MM/YYYY`. Column order:
 
 ```
-Data;Compresa;Particella;Catastrofata;Numero;Specie;D_cm;H_m;H_measured;Lat;Lng;Acc_m;Operatore
+Data;Compresa;Particella;Catastrofata;Numero;Specie;D_cm;H_m;H_measured;Lat;Lon;Acc_m;Operatore
 ```
 
 - `Particella` is the parcel where this particular tree was marked —
   GPS-detected by default, or whatever the operator chose if they
   overrode the automatic value. May be empty when the tree was
   marked outside any parcel of the configured compresa AND the
-  operator left auto mode on; the row's `Lat`/`Lng` still pin the
+  operator left auto mode on; the row's `Lat`/`Lon` still pin the
   exact position.
 - `Catastrofata` is `1` for storm-damage sessions, `0` otherwise.
   This column is independent of `Particella` — catastrofate rows
@@ -173,7 +173,7 @@ Data;Compresa;Particella;Catastrofata;Numero;Specie;D_cm;H_m;H_measured;Lat;Lng;
 - `D_cm`, `H_m`, `Acc_m` are integers (no decimal).
 - `H_measured` is `1` if the operator typed or edited the height; `0`
   if the auto-h value was accepted unchanged.
-- `Lat`, `Lng` are decimal degrees with 6 fractional digits (comma
+- `Lat`, `Lon` are decimal degrees with 6 fractional digits (comma
   decimal). Empty if there was no GPS fix at save time.
 - `Specie` is the verbatim Italian common name from the species
   pulldown, including `Pino Nero` and `Pino Marittimo` (kept distinct

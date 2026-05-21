@@ -19,7 +19,7 @@ VALID_TOKEN = "test-token-do-not-use-in-prod"
 BOM = "\ufeff"
 CSV_HEADER = (
     "Data;Compresa;Particella;Catastrofata;Numero;Specie;"
-    "D_cm;H_m;H_measured;Lat;Lng;Acc_m;Operatore"
+    "D_cm;H_m;H_measured;Lat;Lon;Acc_m;Operatore"
 )
 CSV_ROW = "11/05/2026;Serra;1;0;;Abete;42;24;0;38,425310;16,120440;7;Mario Rossi"
 SAMPLE_CSV = BOM + CSV_HEADER + "\r\n" + CSV_ROW + "\r\n"

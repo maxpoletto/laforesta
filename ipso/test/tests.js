@@ -81,7 +81,7 @@ assertEqual(csv.escapeField(null), '', 'escape: null');
 
 assertEqual(
   csv.formatHeader(),
-  'Data;Compresa;Particella;Catastrofata;Numero;Specie;D_cm;H_m;H_measured;Lat;Lng;Acc_m;Operatore',
+  'Data;Compresa;Particella;Catastrofata;Numero;Specie;D_cm;H_m;H_measured;Lat;Lon;Acc_m;Operatore',
   'header literal'
 );
 
