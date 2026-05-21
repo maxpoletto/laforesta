@@ -4,7 +4,7 @@ import pytest
 from decimal import Decimal
 
 from apps.base.models import (
-    Crew, Eclass, Note, Parcel, Product, Region, Role, Species, Tractor, User,
+    Crew, Eclass, Parcel, Product, Region, Role, Species, Tractor, User,
 )
 
 
@@ -54,14 +54,6 @@ def products(db):
     return [
         Product.objects.create(name='Tronchi'),
         Product.objects.create(name='Cippato'),
-    ]
-
-
-@pytest.fixture
-def notes(db):
-    return [
-        Note.objects.create(name='PSR'),
-        Note.objects.create(name='Fitosanitario'),
     ]
 
 

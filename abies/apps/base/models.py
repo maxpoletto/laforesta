@@ -9,6 +9,23 @@ from simple_history.models import HistoricalRecords
 from config import strings as S
 
 
+def render_flag_note(damaged: bool, unhealthy: bool, psr: bool) -> str:
+    """Comma-joined Italian string for the damaged/unhealthy/psr flags.
+
+    Used by the prelievi digest, the harvest_plan_items digest, and any
+    UI surface that renders the Note column.  At most two of the three
+    co-occur in practice.  Empty string when no flag is set.
+    """
+    parts = []
+    if damaged:
+        parts.append(S.FLAG_DAMAGED)
+    if unhealthy:
+        parts.append(S.FLAG_UNHEALTHY)
+    if psr:
+        parts.append(S.FLAG_PSR)
+    return ', '.join(parts)
+
+
 # ---------------------------------------------------------------------------
 # Abstract base
 # ---------------------------------------------------------------------------
@@ -146,24 +163,13 @@ class Product(models.Model):
         return self.name
 
 
-class Note(models.Model):
-    """Harvest note category (extensible enum)."""
-    name = models.CharField(max_length=100, unique=True)
-
-    class Meta:
-        verbose_name = S.NOTE
-        verbose_name_plural = S.NOTES
-
-    def __str__(self):
-        return self.name
-
-
 # ---------------------------------------------------------------------------
 # Forest structure
 # ---------------------------------------------------------------------------
 
 class HarvestPlan(models.Model):
     """Multi-year harvest plan."""
+    name = models.CharField(max_length=100, unique=True)
     year_start = models.IntegerField()
     year_end = models.IntegerField()
     description = models.TextField(blank=True)
@@ -173,7 +179,7 @@ class HarvestPlan(models.Model):
         verbose_name_plural = S.HARVEST_PLANS
 
     def __str__(self):
-        return f'{self.year_start}–{self.year_end}'
+        return self.name
 
 
 class HarvestDetail(models.Model):
@@ -213,17 +219,148 @@ class Parcel(models.Model):
         return f'{self.region.name}-{self.name}'
 
 
-class HarvestPlanItem(models.Model):
-    """Scheduled harvest of a parcel within a plan."""
+class HarvestPlanItemState(models.IntegerChoices):
+    """State machine for HarvestPlanItem.
+
+    Transitions are monotonic — state only advances. Auto-transitions:
+    `planned → marked` on first linked TreeMark; `open|marked → harvesting`
+    on first linked Harvest. Manual transitions via HarvestTransition:
+    `planned|marked → open` (Apri cantiere) and `open|harvesting → closed`
+    (Chiudi cantiere). Coppice items skip `marked`.
+    """
+    PLANNED    = 0, S.STATE_PLANNED
+    MARKED     = 1, S.STATE_MARKED
+    OPEN       = 2, S.STATE_OPEN
+    HARVESTING = 3, S.STATE_HARVESTING
+    CLOSED     = 4, S.STATE_CLOSED
+
+
+class HarvestPlanItem(TimestampedModel):
+    """Scheduled harvest of a parcel (or region-wide intervento) within a
+    plan.
+
+    Either `region` or `parcel` is set, never both (enforced by SQLite
+    trigger; see migration 0002_triggers.py). Volumes are materialized
+    aggregates over the linked tree_marks and harvests; see
+    `docs/database.md` for the invalidation chain.
+    """
     harvest_plan = models.ForeignKey(HarvestPlan, on_delete=models.CASCADE)
-    parcel = models.ForeignKey(Parcel, on_delete=models.CASCADE)
-    year = models.IntegerField()
-    quintals = models.IntegerField(default=0)
+    # Region XOR parcel.  Region-wide items exist for damaged / unhealthy
+    # operations approved across an entire region.
+    region = models.ForeignKey(
+        Region, on_delete=models.PROTECT, null=True, blank=True,
+        related_name='harvest_plan_items',
+    )
+    parcel = models.ForeignKey(
+        Parcel, on_delete=models.PROTECT, null=True, blank=True,
+        related_name='harvest_plan_items',
+    )
+    state = models.IntegerField(
+        choices=HarvestPlanItemState.choices,
+        default=HarvestPlanItemState.PLANNED,
+    )
+    year_planned = models.IntegerField()
+    # Date of the implicit planned → marked transition (= date of the
+    # earliest linked TreeMark). For coppice items: date of the first
+    # linked Harvest. NULL while state is still `planned`.
+    date_actual = models.DateField(null=True, blank=True)
+    # Materialized volume aggregates. NULL for coppice items where it
+    # does not apply.
+    volume_planned_m3 = models.DecimalField(
+        max_digits=10, decimal_places=3, null=True, blank=True,
+        help_text='Planned cut volume from CSV import; NULL for coppice.',
+    )
+    volume_marked_m3 = models.DecimalField(
+        max_digits=10, decimal_places=3, null=True, blank=True,
+        help_text='SUM(tree_mark.volume_m3); NULL for coppice items.',
+    )
+    volume_actual_m3 = models.DecimalField(
+        max_digits=10, decimal_places=3, default=0,
+        help_text='SUM(harvest.volume_m3) over linked harvests.',
+    )
+    intervention_area_ha = models.DecimalField(
+        max_digits=7, decimal_places=2, null=True, blank=True,
+        help_text='Coppice staged-cut area; NULL for whole-parcel cuts.',
+    )
+    damaged = models.BooleanField(default=False)
+    unhealthy = models.BooleanField(default=False)
+    psr = models.BooleanField(default=False)
+    note = models.CharField(max_length=255, blank=True)
+    history = HistoricalRecords()
 
     class Meta:
         verbose_name = S.HARVEST_PLAN_ITEM
         verbose_name_plural = S.HARVEST_PLAN_ITEMS
-        unique_together = [('harvest_plan', 'parcel', 'year')]
+
+    def clean(self):
+        """App-side mirror of the SQLite triggers.
+
+        The DB enforces region XOR parcel and the state-monotonic
+        invariant via triggers; this method gives early, localised
+        feedback during form save.
+        """
+        from django.core.exceptions import ValidationError
+        if (self.region_id is None) == (self.parcel_id is None):
+            raise ValidationError(
+                'Exactly one of region or parcel must be set.'
+            )
+        if self.pk is not None:
+            old_state = (
+                type(self).objects.filter(pk=self.pk).values_list('state', flat=True).first()
+            )
+            if old_state is not None and self.state < old_state:
+                raise ValidationError(
+                    f'State cannot regress: {old_state} → {self.state}'
+                )
+
+    def __str__(self):
+        scope = self.parcel or self.region or '?'
+        return f'{self.harvest_plan.name} {self.year_planned} {scope}'
+
+
+class HarvestTransition(models.Model):
+    """Open / close event on a HarvestPlanItem cantiere.
+
+    Each item has at most one open row and at most one close row. The
+    item's `state` is advanced server-side when a transition row is
+    written.
+    """
+    harvest_plan_item = models.ForeignKey(
+        HarvestPlanItem, on_delete=models.PROTECT,
+        related_name='transitions',
+    )
+    open = models.BooleanField(help_text='True = Apri cantiere, False = Chiudi cantiere.')
+    date = models.DateField()
+    note = models.CharField(
+        max_length=255, blank=True,
+        help_text='Typically the regional permit number.',
+    )
+
+    class Meta:
+        verbose_name = S.HARVEST_TRANSITION
+        verbose_name_plural = S.HARVEST_TRANSITIONS
+        unique_together = [('harvest_plan_item', 'open')]
+
+
+class TreeHeightRegression(models.Model):
+    """Per-(plan, region, species) ipsometric regression coefficients.
+
+    Used by the Nuovo albero martellato form to auto-populate `h_m`
+    from `d_cm` via `h = a × ln(D) + b` (when function='ln').
+    """
+    harvest_plan = models.ForeignKey(HarvestPlan, on_delete=models.CASCADE)
+    region = models.ForeignKey(Region, on_delete=models.PROTECT)
+    species = models.ForeignKey(Species, on_delete=models.PROTECT)
+    function = models.CharField(max_length=10, default='ln')
+    a = models.DecimalField(max_digits=10, decimal_places=4)
+    b = models.DecimalField(max_digits=10, decimal_places=4)
+    r2 = models.DecimalField(max_digits=6, decimal_places=4)
+    n = models.IntegerField()
+
+    class Meta:
+        verbose_name = S.TREE_HEIGHT_REGRESSION
+        verbose_name_plural = S.TREE_HEIGHT_REGRESSIONS
+        unique_together = [('harvest_plan', 'region', 'species')]
 
 
 class ParcelPlanDetail(models.Model):
@@ -328,6 +465,10 @@ class Tree(TimestampedModel):
     year = models.IntegerField(null=True, blank=True)
     lat = models.FloatField(null=True, blank=True)
     lon = models.FloatField(null=True, blank=True)
+    acc_m = models.IntegerField(
+        null=True, blank=True,
+        help_text='Reported GPS accuracy in meters (e.g., from ipso PWA).',
+    )
     parcel = models.ForeignKey(Parcel, on_delete=models.PROTECT)
     preserved = models.BooleanField(default=False)
     coppice = models.BooleanField(default=False)
@@ -336,6 +477,41 @@ class Tree(TimestampedModel):
     class Meta:
         verbose_name = S.TREE
         verbose_name_plural = S.TREES
+
+
+class TreeMark(TimestampedModel):
+    """A (high-forest) tree marked for felling, under a HarvestPlanItem.
+
+    Synthetic `id` PK plus UNIQUE(harvest_plan_item, tree) preserves the
+    natural compound key. There is no separate `Mark` aggregate row: the
+    set of TreeMark rows sharing a harvest_plan_item is "the mark" in
+    user-facing language.
+    """
+    harvest_plan_item = models.ForeignKey(
+        HarvestPlanItem, on_delete=models.PROTECT,
+        related_name='tree_marks',
+    )
+    tree = models.ForeignKey(Tree, on_delete=models.CASCADE)
+    date = models.DateField()
+    d_cm = models.IntegerField()
+    h_m = models.DecimalField(max_digits=5, decimal_places=2)
+    h_measured = models.BooleanField(default=False)
+    volume_m3 = models.DecimalField(max_digits=8, decimal_places=4)
+    mass_q = models.DecimalField(max_digits=8, decimal_places=3)
+    lat = models.FloatField()
+    lon = models.FloatField()
+    acc_m = models.IntegerField(null=True, blank=True)
+    operator = models.CharField(max_length=100)
+    # Row-content fingerprint used for idempotent CSV re-imports (see
+    # `docs/pages/piano-di-taglio.md` "Importa CSV martellate").  Null
+    # for manually entered rows.
+    import_fingerprint = models.CharField(max_length=64, null=True, blank=True)
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = S.TREE_MARK
+        verbose_name_plural = S.TREE_MARKS
+        unique_together = [('harvest_plan_item', 'tree')]
 
 
 class TreeSample(TimestampedModel):

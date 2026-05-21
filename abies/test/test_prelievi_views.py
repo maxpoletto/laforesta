@@ -26,12 +26,12 @@ def reader_client(reader_user):
 
 
 @pytest.fixture
-def harvest_fixtures(regions, eclasses, species, tractors, crews, products, notes, parcels):
+def harvest_fixtures(regions, eclasses, species, tractors, crews, products, parcels):
     """Return a dict of all reference fixtures needed for harvest operations."""
     return {
         'regions': regions, 'eclasses': eclasses, 'species': species,
         'tractors': tractors, 'crews': crews, 'products': products,
-        FIELD_NOTES: notes, 'parcels': parcels,
+        'parcels': parcels,
     }
 
 
@@ -41,7 +41,7 @@ def sample_op(harvest_fixtures):
     f = harvest_fixtures
     op = Harvest.objects.create(
         date='2024-06-15', parcel=f['parcels'][0], crew=f['crews'][0],
-        product=f['products'][0], quintals=50, record1=999,
+        product=f['products'][0], mass_q=50, record1=999,
     )
     HarvestSpecies.objects.create(harvest=op, species=f['species'][0], percent=100)
     HarvestTractor.objects.create(harvest=op, tractor=f['tractors'][0], percent=100)

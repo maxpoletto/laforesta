@@ -6,7 +6,7 @@ from pathlib import Path
 from django.core.management import call_command
 
 from apps.base.models import (
-    Crew, Eclass, Note, Product, Parcel, Region, Species, Tractor,
+    Crew, Eclass, Product, Parcel, Region, Species, Tractor,
 )
 from apps.prelievi.models import Harvest, HarvestSpecies, HarvestTractor
 
@@ -47,9 +47,6 @@ class TestImportReference:
 
     def test_product_count(self):
         assert Product.objects.count() == 5
-
-    def test_note_count(self):
-        assert Note.objects.count() == 3
 
     def test_crew_count(self):
         assert Crew.objects.count() >= 20  # at least 20 unique crews

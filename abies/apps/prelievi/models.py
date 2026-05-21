@@ -3,7 +3,9 @@
 from django.db import models
 from simple_history.models import HistoricalRecords
 
-from apps.base.models import Crew, Note, Parcel, Product, Species, TimestampedModel, Tractor
+from apps.base.models import (
+    Crew, HarvestPlanItem, Parcel, Product, Species, TimestampedModel, Tractor,
+)
 from config import strings as S
 
 
@@ -13,15 +15,29 @@ class Harvest(TimestampedModel):
     product = models.ForeignKey(Product, on_delete=models.PROTECT)
     parcel = models.ForeignKey(Parcel, on_delete=models.PROTECT)
     crew = models.ForeignKey(Crew, on_delete=models.PROTECT)
+    # New harvests must link to a HarvestPlanItem in state {open,
+    # harvesting} — enforced at the view layer. Historical CSV-imported
+    # rows leave this NULL.  Deletion of a linked plan item is blocked
+    # at the DB level (ON DELETE PROTECT) so the link cannot orphan;
+    # see `docs/database.md`.
+    harvest_plan_item = models.ForeignKey(
+        HarvestPlanItem, on_delete=models.PROTECT,
+        null=True, blank=True, related_name='harvests',
+    )
     record1 = models.IntegerField(null=True, blank=True)
     record2 = models.IntegerField(null=True, blank=True)
-    quintals = models.DecimalField(max_digits=10, decimal_places=2)
+    mass_q = models.DecimalField(max_digits=10, decimal_places=2)
     volume_m3 = models.DecimalField(
         max_digits=10, decimal_places=3, default=0,
-        help_text='Computed at write time: SUM(quintals × pct/100 / species.density).',
+        help_text='Computed at write time: SUM(mass_q × pct/100 / species.density).',
     )
-    note = models.ForeignKey(Note, on_delete=models.SET_NULL, null=True, blank=True)
-    extra_note = models.TextField(blank=True)
+    # Boolean flags rendered as a comma-joined string in the Note column.
+    # When `harvest_plan_item` is set, the three flags must equal those
+    # on the linked item (enforced by SQLite trigger).
+    damaged = models.BooleanField(default=False)
+    unhealthy = models.BooleanField(default=False)
+    psr = models.BooleanField(default=False)
+    note = models.TextField(blank=True)
     history = HistoricalRecords()
 
     class Meta:

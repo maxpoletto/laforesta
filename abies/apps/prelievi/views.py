@@ -13,16 +13,24 @@ from django.views.decorators.http import require_POST
 from apps.base.auth import require_writer
 from apps.base.digests import build_harvest_record, mark_stale, serve_digest
 from apps.base.middleware import save_nonce
-from apps.base.models import Crew, Note, Parcel, Product, Region, Species, Tractor
+from apps.base.models import Crew, Parcel, Product, Region, Species, Tractor
 from apps.prelievi.models import Harvest, HarvestSpecies, HarvestTractor
 from config import strings as S
 from config.constants import (
-    DATA_ID, FIELD_CREW_ID, FIELD_DATE, FIELD_EXTRA_NOTE, FIELD_NONCE,
-    FIELD_NOTE_ID, FIELD_PARCEL_ID, FIELD_PRODUCT_ID, FIELD_QUINTALS,
+    DATA_ID, FIELD_CREW_ID, FIELD_DATE, FIELD_MASS_Q, FIELD_NONCE,
+    FIELD_NOTE, FIELD_PARCEL_ID, FIELD_PRODUCT_ID,
     FIELD_RECORD1, FIELD_RECORD2, FIELD_SORT_ORDER, FIELD_SPECIES_ID,
     FIELD_VOLUME_M3, HTML, MESSAGE, RECORD, ROW_ID, STATUS, STATUS_CONFLICT,
     STATUS_VALIDATION_ERROR, VERSION,
 )
+
+
+# NOTE: Phase 1 schema landed here removes the `Note` FK on Harvest and
+# renames `quintals → mass_q`, `extra_note → note`.  The form template
+# and save flow are still written for the OLD shape (Compresa /
+# Particella pulldowns + Note FK pulldown).  Full form rewrite — Cantiere
+# pulldown + boolean-flag propagation — lands in PT-47 / PT-70 / PT-71.
+# Until then the prelievi page tests are expected to fail.
 
 
 # ---------------------------------------------------------------------------
@@ -82,7 +90,7 @@ def save_view(request):
         return _validation_error(pct_errors, row_id, request, body)
 
     # Materialize volume_m3 from species mix and current densities.
-    parsed[FIELD_VOLUME_M3] = _compute_volume_m3(parsed[FIELD_QUINTALS], sp_pcts)
+    parsed[FIELD_VOLUME_M3] = _compute_volume_m3(parsed[FIELD_MASS_Q], sp_pcts)
 
     with transaction.atomic():
         if row_id:
@@ -95,7 +103,9 @@ def save_view(request):
         _write_junctions(op, sp_pcts, tr_pcts)
         mark_stale('prelievi', 'parcel_year_production', 'audit')
 
-    op = Harvest.objects.select_related('parcel__region', 'crew', 'note', 'product').get(id=op.id)
+    op = Harvest.objects.select_related(
+        'parcel__region', 'crew', 'product', 'harvest_plan_item',
+    ).get(id=op.id)
     record = build_harvest_record(op)
     response_data = {DATA_ID: 'prelievi', ROW_ID: op.id, RECORD: record}
 
@@ -120,7 +130,9 @@ def delete_view(request):
     version = int(body.get(VERSION, 0))
 
     try:
-        op = Harvest.objects.select_related('parcel__region', 'crew', 'note', 'product').get(id=row_id)
+        op = Harvest.objects.select_related(
+            'parcel__region', 'crew', 'product', 'harvest_plan_item',
+        ).get(id=row_id)
     except Harvest.DoesNotExist:
         return JsonResponse({MESSAGE: S.ERR_NOT_FOUND}, status=404)
 
@@ -160,7 +172,7 @@ def _form_context(op_id=None, vals=None):
 
     if op_id:
         op = Harvest.objects.select_related(
-            'parcel__region', 'crew', 'note',
+            'parcel__region', 'crew', 'harvest_plan_item',
         ).get(id=op_id)
         sp_pcts = dict(
             HarvestSpecies.objects.filter(harvest=op).values_list(FIELD_SPECIES_ID, 'percent'),
@@ -186,7 +198,6 @@ def _form_context(op_id=None, vals=None):
                         .select_related('region').order_by('region__name', 'name'),
         'crews': Crew.objects.filter(active=True).order_by('name'),
         'products': Product.objects.order_by('name'),
-        'notes': Note.objects.order_by('name'),
         'species_data': [
             (sp.id, sp.common_name, sp_pcts.get(sp.id, 0))
             for sp in Species.objects.filter(active=True).order_by(FIELD_SORT_ORDER)
@@ -224,14 +235,13 @@ def _parse_body(body):
             errors.append(S.ERR_DATE_REQUIRED)
 
     try:
-        quintals = Decimal(body.get(FIELD_QUINTALS, '0'))
-        if quintals <= 0:
+        mass_q = Decimal(body.get(FIELD_MASS_Q, '0'))
+        if mass_q <= 0:
             errors.append(S.ERR_QUINTALS_POSITIVE)
     except InvalidOperation:
         errors.append(S.ERR_QUINTALS_POSITIVE)
-        quintals = Decimal(0)
+        mass_q = Decimal(0)
 
-    note_id = body.get(FIELD_NOTE_ID)
     record1 = body.get(FIELD_RECORD1)
 
     parsed = {
@@ -239,10 +249,9 @@ def _parse_body(body):
         FIELD_PARCEL_ID: int(body[FIELD_PARCEL_ID]),
         FIELD_CREW_ID: int(body[FIELD_CREW_ID]),
         FIELD_PRODUCT_ID: int(body[FIELD_PRODUCT_ID]),
-        FIELD_NOTE_ID: int(note_id) if note_id else None,
         FIELD_RECORD1: int(record1) if record1 else None,
-        FIELD_QUINTALS: quintals,
-        FIELD_EXTRA_NOTE: body.get(FIELD_EXTRA_NOTE, ''),
+        FIELD_MASS_Q: mass_q,
+        FIELD_NOTE: body.get(FIELD_NOTE, ''),
     }
     # record2 (Prot) is display-only for legacy data; only overwrite if
     # explicitly present in the submission (i.e., never from the current form).
@@ -279,10 +288,10 @@ def _parse_percentages(body):
     return sp_pcts, tr_pcts, errors
 
 
-def _compute_volume_m3(quintals: Decimal, sp_pcts: dict[int, int]) -> Decimal:
+def _compute_volume_m3(mass_q: Decimal, sp_pcts: dict[int, int]) -> Decimal:
     """Compute the materialized harvest volume in m³.
 
-    `volume_m3 = SUM_over_species(quintals × pct/100 / species.density)`.
+    `volume_m3 = SUM_over_species(mass_q × pct/100 / species.density)`.
     Captured at write time using current `Species.density` values; later
     density edits do not retroactively update stored volumes.
     """
@@ -296,7 +305,7 @@ def _compute_volume_m3(quintals: Decimal, sp_pcts: dict[int, int]) -> Decimal:
     for sid, pct in sp_pcts.items():
         density = densities.get(sid)
         if density and density > 0:
-            total += quintals * Decimal(pct) / hundred / density
+            total += mass_q * Decimal(pct) / hundred / density
     return total.quantize(Decimal('0.001'))
 
 
@@ -304,7 +313,7 @@ def _conflict_response(row_id, request):
     """Build the update-flow conflict response (used on pre-check and on
     races inside the transaction)."""
     op = Harvest.objects.select_related(
-        'parcel__region', 'crew', 'note', 'product',
+        'parcel__region', 'crew', 'product', 'harvest_plan_item',
     ).get(id=row_id)
     return JsonResponse({
         STATUS: STATUS_CONFLICT, MESSAGE: S.ERROR_CONFLICT,

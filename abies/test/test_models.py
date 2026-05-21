@@ -6,7 +6,7 @@ from decimal import Decimal
 from django.db import IntegrityError
 
 from apps.base.models import (
-    Crew, Eclass, HarvestDetail, HarvestPlan, Note, Product, Parcel,
+    Crew, Eclass, HarvestDetail, HarvestPlan, Product, Parcel,
     Region, Species, Tractor, User, Role, DigestStatus, UsedNonce,
 )
 from apps.prelievi.models import Harvest, HarvestSpecies, HarvestTractor
@@ -39,15 +39,14 @@ class TestStr:
     def test_product(self, products):
         assert str(products[0]) == 'Tronchi'
 
-    def test_note(self, notes):
-        assert str(notes[0]) == 'PSR'
-
     def test_parcel(self, parcels):
         assert str(parcels[0]) == 'Capistrano-1'
 
     def test_harvest_plan(self, db):
-        hp = HarvestPlan.objects.create(year_start=2020, year_end=2030)
-        assert str(hp) == '2020–2030'
+        hp = HarvestPlan.objects.create(
+            name='Piano 2020-2030', year_start=2020, year_end=2030,
+        )
+        assert str(hp) == 'Piano 2020-2030'
 
     def test_harvest_detail(self, db):
         hd = HarvestDetail.objects.create(description='Cut firs 20-40cm')
@@ -145,12 +144,12 @@ class TestHarvest:
     def harvest(self, parcels, crews, products):
         return Harvest.objects.create(
             date='2024-03-15', product=products[0], parcel=parcels[0],
-            crew=crews[0], quintals=Decimal('100.50'),
+            crew=crews[0], mass_q=Decimal('100.50'),
         )
 
     def test_create(self, harvest):
         assert harvest.pk is not None
-        assert harvest.quintals == Decimal('100.50')
+        assert harvest.mass_q == Decimal('100.50')
 
     def test_nullable_record_fields(self, harvest):
         assert harvest.record1 is None

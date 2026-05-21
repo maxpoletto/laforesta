@@ -21,7 +21,7 @@ from django.db.models import Sum
 from django.http import FileResponse, HttpResponse
 from django.utils.http import http_date, parse_http_date_safe
 
-from apps.base.models import DigestStatus
+from apps.base.models import DigestStatus, render_flag_note
 from config import strings as S
 from config.constants import (
     FIELD_FIRST_DATE, FIELD_LAST_DATE, FIELD_NUMBER, FIELD_SAMPLE_AREA_ID,
@@ -158,16 +158,16 @@ def generate_prelievi() -> None:
 
     rows = []
     ops = (Harvest.objects
-           .select_related('parcel__region', 'crew', 'note', 'product')
+           .select_related('parcel__region', 'crew', 'product')
            .order_by('-date', 'id'))
     for op in ops.iterator():
-        quintals = float(op.quintals)
+        mass_q = float(op.mass_q)
         sp_pcts = sp_map.get(op.id, {})
         tr_pcts = tr_map.get(op.id, {})
 
         # Quintal columns = total * percent / 100, rounded to 2 decimals.
-        sp_quintals = [round(quintals * sp_pcts.get(sid, 0) / 100, 2) for sid in species_ids]
-        tr_quintals = [round(quintals * tr_pcts.get(tid, 0) / 100, 2) for tid in tractor_ids]
+        sp_quintals = [round(mass_q * sp_pcts.get(sid, 0) / 100, 2) for sid in species_ids]
+        tr_quintals = [round(mass_q * tr_pcts.get(tid, 0) / 100, 2) for tid in tractor_ids]
 
         sp_pct_vals = [sp_pcts.get(sid, 0) for sid in species_ids]
         tr_pct_vals = [tr_pcts.get(tid, 0) for tid in tractor_ids]
@@ -175,9 +175,9 @@ def generate_prelievi() -> None:
         row = (
             [op.id, op.version, op.date.isoformat(),
              op.parcel.region.name, op.parcel.name,
-             op.crew.name, op.record1, op.product.name, quintals,
+             op.crew.name, op.record1, op.product.name, mass_q,
              float(op.volume_m3),
-             op.note.name if op.note else '', op.extra_note]
+             render_flag_note(op.damaged, op.unhealthy, op.psr), op.note]
             + sp_quintals + tr_quintals
             + sp_pct_vals + tr_pct_vals
         )
@@ -190,8 +190,8 @@ def generate_prelievi() -> None:
 def build_harvest_record(op) -> list:
     """Build a single prelievi digest row.  Used by save views for cache sync.
 
-    The caller must ensure *op* has ``parcel.region``, ``crew``, ``note``,
-    and ``product`` loaded (via ``select_related``).
+    The caller must ensure *op* has ``parcel.region``, ``crew``, and
+    ``product`` loaded (via ``select_related``).
     """
     from apps.base.models import Species, Tractor
     from apps.prelievi.models import HarvestSpecies, HarvestTractor
@@ -202,16 +202,16 @@ def build_harvest_record(op) -> list:
     sp_pcts = dict(HarvestSpecies.objects.filter(harvest=op).values_list(FIELD_SPECIES_ID, 'percent'))
     tr_pcts = dict(HarvestTractor.objects.filter(harvest=op).values_list('tractor_id', 'percent'))
 
-    quintals = float(op.quintals)
-    sp_quintals = [round(quintals * sp_pcts.get(sid, 0) / 100, 2) for sid in species_ids]
-    tr_quintals = [round(quintals * tr_pcts.get(tid, 0) / 100, 2) for tid in tractor_ids]
+    mass_q = float(op.mass_q)
+    sp_quintals = [round(mass_q * sp_pcts.get(sid, 0) / 100, 2) for sid in species_ids]
+    tr_quintals = [round(mass_q * tr_pcts.get(tid, 0) / 100, 2) for tid in tractor_ids]
 
     return (
         [op.id, op.version, op.date.isoformat(),
          op.parcel.region.name, op.parcel.name,
-         op.crew.name, op.record1, op.product.name, quintals,
+         op.crew.name, op.record1, op.product.name, mass_q,
          float(op.volume_m3),
-         op.note.name if op.note else '', op.extra_note]
+         render_flag_note(op.damaged, op.unhealthy, op.psr), op.note]
         + sp_quintals + tr_quintals
         + [sp_pcts.get(sid, 0) for sid in species_ids]
         + [tr_pcts.get(tid, 0) for tid in tractor_ids]
@@ -284,7 +284,7 @@ def generate_species() -> None:
 # ---------------------------------------------------------------------------
 
 def generate_parcel_year_production() -> None:
-    """SELECT region, parcel, year, SUM(quintals), SUM(volume_m3)
+    """SELECT region, parcel, year, SUM(mass_q), SUM(volume_m3)
     GROUP BY region, parcel, year."""
     from apps.prelievi.models import Harvest
 
@@ -292,7 +292,7 @@ def generate_parcel_year_production() -> None:
                S.COL_QUINTALS, S.COL_VOLUME_M3]
     qs = (Harvest.objects
           .values('parcel__region__name', 'parcel__name', 'date__year')
-          .annotate(total_q=Sum('quintals'), total_v=Sum(FIELD_VOLUME_M3))
+          .annotate(total_q=Sum('mass_q'), total_v=Sum(FIELD_VOLUME_M3))
           .order_by('parcel__region__name', 'parcel__name', 'date__year'))
 
     rows = []
@@ -322,10 +322,12 @@ def generate_audit() -> None:
         (Harvest.history, S.TABLE_HARVEST, {
             'date': S.COL_DATE, 'parcel_id': S.COL_PARCEL,
             'crew_id': S.COL_CREW, 'product_id': S.COL_PRODUCT,
-            'quintals': S.COL_QUINTALS, FIELD_VOLUME_M3: S.COL_VOLUME_M3,
+            'mass_q': S.COL_QUINTALS, FIELD_VOLUME_M3: S.COL_VOLUME_M3,
             'record1': S.COL_VDP,
-            'record2': S.COL_PROT, 'note_id': S.COL_NOTE,
-            'extra_note': S.COL_EXTRA_NOTE,
+            'record2': S.COL_PROT,
+            'damaged': S.FLAG_DAMAGED, 'unhealthy': S.FLAG_UNHEALTHY,
+            'psr': S.FLAG_PSR, 'note': S.COL_EXTRA_NOTE,
+            'harvest_plan_item_id': S.COL_HARVEST_PLAN,
         }),
         (User.history, S.TABLE_USER, {
             'username': S.LABEL_USERNAME, 'role': S.LABEL_ROLE,

@@ -12,10 +12,10 @@ from pathlib import Path
 from django.core.management.base import BaseCommand, CommandError
 
 from apps.base.management.commands.import_reference import (
-    NOTE_MAP, PRODUCT_MAP,
+    NOTE_FLAG_MAP, PRODUCT_MAP,
 )
 from apps.base.models import (
-    Crew, Note, Parcel, Product, Species, Tractor,
+    Crew, Parcel, Product, Species, Tractor,
 )
 from apps.prelievi.models import Harvest, HarvestSpecies, HarvestTractor
 from config import strings as S
@@ -64,13 +64,13 @@ def _pct(s: str) -> int:
         return 0
 
 
-def _harvest_volume_m3(quintals: Decimal,
+def _harvest_volume_m3(mass_q: Decimal,
                        species_pcts: list[tuple[Species, int]]) -> Decimal:
-    """Compute SUM_over_species(quintals × pct/100 / species.density)."""
+    """Compute SUM_over_species(mass_q × pct/100 / species.density)."""
     total = Decimal('0')
     for species, pct in species_pcts:
         if species.density and species.density > 0:
-            total += quintals * Decimal(pct) / Decimal(100) / species.density
+            total += mass_q * Decimal(pct) / Decimal(100) / species.density
     return total.quantize(Decimal('0.001'))
 
 
@@ -93,7 +93,6 @@ class Command(BaseCommand):
         # Build FK lookup caches.
         crew_cache = {c.name: c for c in Crew.objects.all()}
         product_cache = {p.name: p for p in Product.objects.all()}
-        note_cache = {n.name: n for n in Note.objects.all()}
         species_cache = {s.common_name: s for s in Species.objects.all()}
         tractor_cache = {
             (t.manufacturer, t.model): t for t in Tractor.objects.all()
@@ -143,10 +142,12 @@ class Command(BaseCommand):
                 )
                 continue
 
-            note_name = NOTE_MAP.get(row.get(S.CSV_COL_NOTE, '').strip(), '')
-            note = note_cache.get(note_name) if note_name else None
+            damaged, unhealthy, psr = NOTE_FLAG_MAP.get(
+                row.get(S.CSV_COL_NOTE, '').strip(),
+                (False, False, False),
+            )
 
-            quintals = Decimal(row[S.CSV_COL_QUINTALS].strip())
+            mass_q = Decimal(row[S.CSV_COL_QUINTALS].strip())
 
             row_species_pcts: list[tuple[Species, int]] = []
             for col_prefix, common_name in SPECIES_COL_MAP.items():
@@ -154,7 +155,7 @@ class Command(BaseCommand):
                 if pct > 0:
                     row_species_pcts.append((species_cache[common_name], pct))
 
-            volume_m3 = _harvest_volume_m3(quintals, row_species_pcts)
+            volume_m3 = _harvest_volume_m3(mass_q, row_species_pcts)
 
             op = Harvest(
                 date=row[S.CSV_COL_DATA],
@@ -163,10 +164,12 @@ class Command(BaseCommand):
                 crew=crew,
                 record1=_int_or_none(row[S.CSV_COL_VDP]),
                 record2=_int_or_none(row.get(S.CSV_COL_PROT, '')),
-                quintals=quintals,
+                mass_q=mass_q,
                 volume_m3=volume_m3,
-                note=note,
-                extra_note=row.get(S.CSV_COL_EXTRA_NOTE, '').strip(),
+                damaged=damaged,
+                unhealthy=unhealthy,
+                psr=psr,
+                note=row.get(S.CSV_COL_EXTRA_NOTE, '').strip(),
             )
             op_idx = len(ops_batch)
             ops_batch.append(op)

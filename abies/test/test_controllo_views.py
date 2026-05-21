@@ -23,12 +23,12 @@ def writer_client(writer_user):
 
 
 @pytest.fixture
-def audit_fixtures(regions, eclasses, species, tractors, crews, products, notes, parcels):
+def audit_fixtures(regions, eclasses, species, tractors, crews, products, parcels):
     """Create reference fixtures whose history records feed the audit digest."""
     return {
         'regions': regions, 'eclasses': eclasses, 'species': species,
         'tractors': tractors, 'crews': crews, 'products': products,
-        FIELD_NOTES: notes, 'parcels': parcels,
+        'parcels': parcels,
     }
 
 
@@ -94,7 +94,7 @@ class TestAuditDigest:
         f = audit_fixtures
         op = Harvest.objects.create(
             date='2024-06-15', parcel=f['parcels'][0], crew=f['crews'][0],
-            product=f['products'][0], quintals=50,
+            product=f['products'][0], mass_q=50,
         )
         op.delete()
 

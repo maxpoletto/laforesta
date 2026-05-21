@@ -14,7 +14,7 @@ from django.core.management.base import BaseCommand, CommandError
 from config import strings as S
 
 from apps.base.models import (
-    Crew, Eclass, Note, Product, Region, Species, Tractor,
+    Crew, Eclass, Product, Region, Species, Tractor,
 )
 
 # --- Static reference data --------------------------------------------------
@@ -67,11 +67,13 @@ PRODUCT_MAP = {
     'Pertiche-tronchi castagno': 'Pertiche-Tronchi',
 }
 
-# CSV note name -> canonical name. Imported by import_mannesi.
-NOTE_MAP = {
-    'PSR': 'PSR',
-    'fitosanitario': 'Fitosanitario',
-    'catastrofato': 'Catastrofate',
+# CSV note value -> (damaged, unhealthy, psr) booleans on Harvest /
+# HarvestPlanItem.  Imported by import_mannesi.  These three booleans
+# replace the legacy `note` FK to the (now-removed) Note model.
+NOTE_FLAG_MAP = {
+    'PSR':            (False, False, True),
+    'fitosanitario':  (False, True,  False),
+    'catastrofato':   (True,  False, False),
 }
 
 
@@ -97,7 +99,6 @@ class Command(BaseCommand):
         self._import_tractors()
         self._import_crews(mannesi_csv)
         self._import_products()
-        self._import_notes()
 
         from apps.base.digests import mark_all_stale
         mark_all_stale()
@@ -155,8 +156,3 @@ class Command(BaseCommand):
         for canonical in PRODUCT_MAP.values():
             Product.objects.get_or_create(name=canonical)
         self.stdout.write(f'Products: {Product.objects.count()}')
-
-    def _import_notes(self):
-        for canonical in NOTE_MAP.values():
-            Note.objects.get_or_create(name=canonical)
-        self.stdout.write(f'Notes: {Note.objects.count()}')

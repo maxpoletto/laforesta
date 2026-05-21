@@ -313,6 +313,30 @@ TREES = 'alberi'
 TREE_SAMPLE = 'misurazione albero'
 TREE_SAMPLES = 'misurazioni alberi'
 
+TREE_MARK = 'albero martellato'
+TREE_MARKS = 'alberi martellati'
+
+HARVEST_TRANSITION = 'transizione cantiere'
+HARVEST_TRANSITIONS = 'transizioni cantiere'
+
+TREE_HEIGHT_REGRESSION = 'regressione altezza albero'
+TREE_HEIGHT_REGRESSIONS = 'regressioni altezza albero'
+
+# Harvest-plan-item state machine display labels.  Integer values are
+# encoded as HarvestPlanItemState in apps/base/models.py.
+STATE_PLANNED    = 'pianificato'
+STATE_MARKED     = 'martellato'
+STATE_OPEN       = 'cantiere aperto'
+STATE_HARVESTING = 'in prelievo'
+STATE_CLOSED     = 'cantiere chiuso'
+
+# Plan-item / harvest boolean flag labels (rendered in calendar Note
+# column and in the harvest table Note column).  At most two of the
+# three co-occur in practice; rendered as a comma-joined string.
+FLAG_DAMAGED      = 'Catastrofato'
+FLAG_UNHEALTHY    = 'Fitosanitario'
+FLAG_PSR          = 'PSR'
+
 DIGEST_STATUS = 'stato digest'
 DIGEST_STATUSES = 'stati digest'
 

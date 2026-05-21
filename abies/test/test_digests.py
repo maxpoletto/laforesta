@@ -88,7 +88,7 @@ class TestGeneratePrelievi:
     def harvest_data(self, parcels, crews, products, species, tractors):
         op = Harvest.objects.create(
             date='2024-06-01', product=products[0], parcel=parcels[0],
-            crew=crews[0], quintals=Decimal('200'),
+            crew=crews[0], mass_q=Decimal('200'),
         )
         HarvestSpecies.objects.create(harvest=op, species=species[0], percent=60)
         HarvestSpecies.objects.create(harvest=op, species=species[1], percent=40)
@@ -178,11 +178,11 @@ class TestGenerateParcelYearProduction:
     def test_aggregation(self, parcels, crews, products):
         Harvest.objects.create(
             date='2024-01-10', product=products[0], parcel=parcels[0],
-            crew=crews[0], quintals=Decimal('50'),
+            crew=crews[0], mass_q=Decimal('50'),
         )
         Harvest.objects.create(
             date='2024-06-15', product=products[0], parcel=parcels[0],
-            crew=crews[0], quintals=Decimal('30'),
+            crew=crews[0], mass_q=Decimal('30'),
         )
         generate_parcel_year_production()
         path = settings.DIGEST_DIR / 'parcel_year_production.json.gz'
