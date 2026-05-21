@@ -180,6 +180,34 @@ CSV_COL_H_M_LEGACY     = 'h(m)'
 CSV_COL_L10_MM_LEGACY  = 'L10(mm)'
 CSV_COL_N_LEGACY       = 'n'
 
+# Piano di taglio CSV column headers.  These match the output of
+# `pdg-2026/pdg.py --formato csv` for the three calendar files
+# (`piano.csv`, `ceduo.csv`, `equazioni_ipsometro.csv`).
+# The regression CSV uses lowercase `compresa` / `genere`; case
+# normalisation is the parser's responsibility, so we don't define
+# duplicate lowercase variants of the capitalized headers.
+CSV_COL_ANNO              = 'Anno'                        # scheduled-cut year
+CSV_COL_PRELIEVO_M3       = 'Prelievo (m³)'               # fustaia volume_planned_m3
+CSV_COL_SUPERFICIE_HA     = 'Superficie intervento (ha)'  # ceduo intervention_area_ha
+CSV_COL_SUPERFICIE_TOT_HA = 'Superficie totale (ha)'      # parcel cross-check only
+CSV_COL_TURNO_A           = 'Turno (a)'                   # coppice rotation, years
+CSV_COL_FUNZIONE          = 'funzione'                    # regression function (`ln`)
+CSV_COL_A                 = 'a'                           # regression coefficient
+CSV_COL_B                 = 'b'                           # regression coefficient
+CSV_COL_R2                = 'r2'                          # coefficient of determination
+CSV_COL_N_REGRESSION      = 'n'                           # sample count for regression fit
+
+# Ipso CSV column headers (tree-mark import; format produced by
+# laforesta/ipso — see ipso/CLAUDE.md "CSV format").  Where a column
+# name differs from the abies internal field name (ipso emits `Lng`,
+# abies stores `lon`), the importer translates at the boundary.
+CSV_COL_CATASTROFATA      = 'Catastrofata'                # session-level flag (ignored row-wise)
+CSV_COL_NUMERO            = 'Numero'                      # operator-assigned tree number
+CSV_COL_H_MEASURED        = 'H_measured'                  # 1 if operator typed h, 0 if auto-h
+CSV_COL_LNG               = 'Lng'                         # GPS longitude (ipso spelling)
+CSV_COL_ACC_M             = 'Acc_m'                       # GPS accuracy in metres
+CSV_COL_OPERATORE         = 'Operatore'                   # operator name
+
 # ---------------------------------------------------------------------------
 # Digest column headers (display labels in JSON `columns` arrays).
 # Where a column has a CSV counterpart with a different display form
@@ -234,6 +262,25 @@ COL_H_M                = 'h (m)'            # paired with CSV_COL_H_M
 COL_L10_MM             = 'L10 (mm)'         # paired with CSV_COL_L10_MM
 COL_V_M3               = 'V (m³)'           # short form (sampled-trees digest)
 COL_MASS_Q             = 'm (q)'
+
+# Piano di taglio digest columns (calendar + martellate tables).
+COL_YEAR_PLANNED         = 'Anno previsto'
+COL_YEAR_ACTUAL          = 'Anno effettivo'
+COL_TYPE                 = 'Tipo'                       # alto fusto / ceduo
+COL_STATE                = 'Stato'
+COL_VOLUME_PLANNED       = 'Volume previsto'
+COL_VOLUME_MARKED        = 'Volume martellato'
+COL_VOLUME_ACTUAL        = 'Volume effettivo'
+COL_INTERVENTION_AREA_HA = 'Superficie intervento (ha)'  # paired with CSV_COL_SUPERFICIE_HA
+COL_PARCEL_AREA_HA       = 'Superficie totale (ha)'      # paired with CSV_COL_SUPERFICIE_TOT_HA
+COL_TURNO_A              = 'Turno (a)'                   # paired with CSV_COL_TURNO_A
+COL_OPERATOR             = 'Operatore'                   # paired with CSV_COL_OPERATORE
+COL_NUMERO               = 'Numero'                      # paired with CSV_COL_NUMERO
+COL_H_MEASURED           = 'h misurata'                  # display label; bool rendered yes/no
+
+# Type-of-intervention display labels for COL_TYPE values
+TYPE_FUSTAIA = 'alto fusto'
+TYPE_CEDUO   = 'ceduo'
 
 # ---------------------------------------------------------------------------
 # App verbose names

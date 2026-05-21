@@ -269,3 +269,50 @@ export const BASEMAP_OSM  = 'OSM';
 export const BASEMAP_TOPO = 'Topo';
 export const BASEMAP_SAT  = 'Satellite';
 
+// ---------------------------------------------------------------------------
+// Piano di taglio (mirrors of config/strings_it.py additions).
+// ---------------------------------------------------------------------------
+
+// Harvest-plan-item state machine display labels (mirror STATE_* in
+// config/strings_it.py).  Keyed by integer values from HarvestPlanItemState.
+export const STATE_PLANNED    = 'pianificato';
+export const STATE_MARKED     = 'martellato';
+export const STATE_OPEN       = 'cantiere aperto';
+export const STATE_HARVESTING = 'in prelievo';
+export const STATE_CLOSED     = 'cantiere chiuso';
+
+// Plan-item / harvest boolean flag labels.  At most two of the three
+// co-occur in practice; rendered as a comma-joined string in the
+// calendar's Note column.
+export const FLAG_DAMAGED     = 'Catastrofato';
+export const FLAG_UNHEALTHY   = 'Fitosanitario';
+export const FLAG_PSR         = 'PSR';
+
+// Type-of-intervention labels for the COL_TYPE column.
+export const TYPE_FUSTAIA = 'alto fusto';
+export const TYPE_CEDUO   = 'ceduo';
+
+// Piano di taglio digest column headers (mirror config/strings_it.py).
+export const COL_YEAR_PLANNED         = 'Anno previsto';
+export const COL_YEAR_ACTUAL          = 'Anno effettivo';
+export const COL_TYPE                 = 'Tipo';
+export const COL_STATE                = 'Stato';
+export const COL_VOLUME_PLANNED       = 'Volume previsto';
+export const COL_VOLUME_MARKED        = 'Volume martellato';
+export const COL_VOLUME_ACTUAL        = 'Volume effettivo';
+export const COL_INTERVENTION_AREA_HA = 'Superficie intervento (ha)';
+export const COL_PARCEL_AREA_HA       = 'Superficie totale (ha)';
+export const COL_TURNO_A              = 'Turno (a)';
+export const COL_OPERATOR             = 'Operatore';
+export const COL_NUMERO               = 'Numero';
+export const COL_H_MEASURED           = 'h misurata';
+
+// CSV export filenames (per-plan zip + per-item zip; see piano-di-taglio.md).
+export const CSV_PIANO       = 'piano.csv';
+export const CSV_CEDUO       = 'ceduo.csv';
+export const CSV_EQUAZIONI   = 'equazioni_ipsometro.csv';
+// Per-item exports use the item id; constants here are filename prefixes
+// (the JS code appends `<id>.csv`).
+export const CSV_MARTELLATE_PREFIX = 'martellate_';
+export const CSV_PRELIEVI_PREFIX   = 'prelievi_';
+
