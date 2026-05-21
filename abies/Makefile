@@ -8,8 +8,8 @@ BOSCO_DATA = ../bosco/data
 # unsuffixed <name>.html symlinks are materialized at install time.
 LANGUAGE_SUFFIX = _it
 
-.PHONY: check migrate import geo digest admin dev clean update-vendor minify test \
-        test-js collectstatic link-templates
+.PHONY: check migrate import geo digest admin dev clean reset-schema \
+        update-vendor minify test test-js collectstatic link-templates
 
 check:
 	$(MANAGE) check
@@ -51,8 +51,18 @@ serve:
 
 clean:
 	rm -rf data/
-	find apps/*/migrations -name '*.py' ! -name '__init__.py' -delete
 	find apps -type l -delete
+
+# Dev-only: drop the auto-generated 0001_initial.py so the next
+# `make migrate` regenerates it from the current model state.  Use this
+# during early development when the schema is still churning and you'd
+# rather collapse model edits into a fresh initial than accumulate
+# incremental migrations.  Hand-written migrations (0002_triggers.py,
+# future data fixes, etc.) are preserved.  Once the schema is shipped
+# with real data, stop using this target — every model change must
+# then be an incremental migration.
+reset-schema: clean
+	find apps/*/migrations -name '0001_initial.py' -delete
 
 test: test-js
 	$(PYTHON) -m pytest --cov --cov-report=term-missing -q
