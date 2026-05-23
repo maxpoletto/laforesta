@@ -73,8 +73,8 @@
 /* Modifica piano modal — three tabs; lock width + min-height so
    switching tabs doesn't reflow the modal. */
 .pdt-edit-plan-card {
-  width: 480px;
-  max-width: 480px;
+  width: 580px;
+  max-width: 580px;
 }
 
 .pdt-edit-plan-card .pdt-path-bodies {
@@ -152,7 +152,8 @@
    display:none — needed so the empty-state CTA can suppress them. */
 .pdt-section-toolbar[hidden],
 .pdt-table-host[hidden],
-.collapsible-body .action-add[hidden] {
+.collapsible-body .action-add[hidden],
+.pdt-empty-state[hidden] {
   display: none;
 }
 

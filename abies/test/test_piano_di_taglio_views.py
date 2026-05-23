@@ -324,6 +324,61 @@ class TestPlanExport:
         piano = zf.read('piano.csv').decode('utf-8').splitlines()
         assert any(planned_item.parcel.region.name in line for line in piano)
 
+    def test_export_uses_italian_locale(
+        self, writer_client, plan, planned_item,
+    ):
+        # Italian locale: ';' field separator, ',' decimal mark.  Mirrors
+        # TABLE_CSV_FORMAT used by the per-table CSV export.
+        resp = writer_client.get(f'/api/piano-di-taglio/plan/export/{plan.id}/')
+        zf = zipfile.ZipFile(io.BytesIO(resp.content))
+        piano = zf.read('piano.csv').decode('utf-8')
+        header, data, *_ = piano.splitlines()
+        assert ';' in header and ',' not in header
+        # planned_item volume_planned_m3 = 100.0 → '100' in the export.
+        # Render a non-integer to assert decimal mark.
+        planned_item.volume_planned_m3 = Decimal('12.5')
+        planned_item.save()
+        resp2 = writer_client.get(f'/api/piano-di-taglio/plan/export/{plan.id}/')
+        piano2 = zf.read('piano.csv') if False else (
+            zipfile.ZipFile(io.BytesIO(resp2.content)).read('piano.csv')
+            .decode('utf-8')
+        )
+        assert '12,5' in piano2
+
+    def test_export_includes_full_column_set(
+        self, writer_client, plan, planned_item,
+    ):
+        resp = writer_client.get(f'/api/piano-di-taglio/plan/export/{plan.id}/')
+        zf = zipfile.ZipFile(io.BytesIO(resp.content))
+        piano_header = zf.read('piano.csv').decode('utf-8').splitlines()[0]
+        for col in [S.COL_YEAR_PLANNED, S.COL_YEAR_ACTUAL, S.COL_STATE,
+                    S.COL_NOTE, S.COL_VOLUME_PLANNED, S.COL_VOLUME_MARKED,
+                    S.COL_VOLUME_ACTUAL]:
+            assert col in piano_header, f'missing column {col}'
+
+    def test_round_trip_export_then_reimport(
+        self, writer_client, plan, planned_item, parcels, species,
+    ):
+        # Export a plan with one fustaia item, then re-import the same
+        # CSV (Italian locale + display names) back into the same plan —
+        # should be idempotent and preserve the volume.
+        resp = writer_client.get(f'/api/piano-di-taglio/plan/export/{plan.id}/')
+        zf = zipfile.ZipFile(io.BytesIO(resp.content))
+        fustaia_bytes = zf.read('piano.csv')
+
+        reup = writer_client.post(
+            '/api/piano-di-taglio/plan/import-csv/',
+            data={
+                'harvest_plan_id': plan.id,
+                'fustaia_file': io.BytesIO(fustaia_bytes),
+            },
+        )
+        assert reup.status_code == 200, reup.json()
+        items = HarvestPlanItem.objects.filter(harvest_plan=plan)
+        assert items.count() == 1  # idempotent
+        assert items[0].id == planned_item.id
+        assert float(items[0].volume_planned_m3) == float(planned_item.volume_planned_m3)
+
 
 # ---------------------------------------------------------------------------
 # Item CRUD

@@ -21,9 +21,23 @@ pulldown:
   Piano di taglio [ pull-down to select available plans ] [pencil] [trash]
 
   On the far right are the usual buttons, "Esporta CSV" and "+ Nuovo piano".
-  "Esporta CSV" produces a zip archive of three round-trip-compatible CSVs
-  (`piano.csv`, `ceduo.csv`, `equazioni_ipsometro.csv`) suitable for
-  re-import.
+  "Esporta CSV" produces a zip archive of three CSVs
+  (`piano.csv`, `ceduo.csv`, `equazioni_ipsometro.csv`).
+
+  Each calendar CSV carries the **full visible-table column set**
+  (display names: `Anno previsto`, `Anno effettivo`, `Compresa`,
+  `Particella`, `Stato`, `Note`, `Volume previsto`, `Volume martellato`,
+  `Volume effettivo` for fustaia; analogous list for ceduo). The CSVs
+  are written in the client's locale — **`;` field separator, `,`
+  decimal mark** (Italian) — matching the per-table CSV export
+  (`TABLE_CSV_FORMAT`) and the project-wide CSV convention.
+
+  The exports remain round-trip-compatible: the importer accepts
+  either display names (`Anno previsto`, `Volume previsto`,
+  `Altre note`) or the legacy pdg-2026 names (`Anno`, `Prelievo (m³)`,
+  `Note`), and parses decimals with either `,` or `.`. So a freshly
+  exported plan re-imports cleanly, and the original pdg-2026
+  `piano.csv` / `ceduo.csv` files continue to import unchanged.
 
   Below is the plan description.
 
@@ -134,6 +148,14 @@ The per-row trash icon is disabled (with an explanatory tooltip) unless
 see `database.md`); the user must delete those dependencies one at a time
 first, exporting data per row if they want to keep a record. In practice
 plan-item deletion only happens to clean up after demo/test runs.
+
+Because a deletable item is always in `state = planned` (and therefore
+has no marks / harvests / transitions to back up), the per-item delete
+confirmation does **not** include the forced-CSV-download step that the
+plan-level delete has. The confirmation modal just shows the warning
+and `[Annulla] [Elimina]`. Per-row Esporta CSV remains available from
+the view/edit modal header for operators who want a backup before
+manual deletion of dependent rows.
 
 #### "Add-harvest-plan-item" modal
 
@@ -349,42 +371,63 @@ entry.
 
 ### Fustaia plan CSV (e.g., `piano.csv`)
 
-Currently the output of `pdg-2026/pdg.py --formato csv` for the
-`@@piano_di_taglio` directive — see `pdg-2026/csv/piano.csv` for an example.
-One row per fustaia `harvest_plan_item`.
+Two flavours import equivalently:
 
-Columns the importer reads:
+- The output of `pdg-2026/pdg.py --formato csv` for the
+  `@@piano_di_taglio` directive (see `pdg-2026/csv/piano.csv`). Columns:
+  `Compresa`, `Particella`, `Anno`, `Prelievo (m³)`, plus
+  `Classe / Età / Provv. prima (m³/ha) / Prel % / Provv. dopo (m³/ha)`
+  which are read only as context (not stored).
+- The plan-level Esporta CSV output, using display column names:
+  `Anno previsto`, `Anno effettivo`, `Compresa`, `Particella`, `Stato`,
+  `Note`, `Volume previsto`, `Volume martellato`, `Volume effettivo`.
+
+Columns the importer actually stores:
 
 - `Compresa` — region name (resolved against `region.name`).
 - `Particella` — parcel name within the region.
-- `Anno` — year of the scheduled cut (int).
-- `Prelievo (m³)` — planned cut volume (real → `harvest_plan_item.volume_planned_m3`).
+- `Anno` or `Anno previsto` — year of the scheduled cut (int).
+- `Prelievo (m³)` or `Volume previsto` — planned cut volume (real →
+  `harvest_plan_item.volume_planned_m3`).
 
-Other columns (`Classe`, `Età`, `Provv. prima (m³/ha)`, `Prel %`,
-`Provv. dopo (m³/ha)`) are read only as context for the importer's
-diagnostic output; they are not stored in v1.
+Field delimiter: `;` or `,` (auto-detected). Decimal mark: `,` or `.`
+(both accepted). Encoding: UTF-8 with optional BOM.
 
 ### Ceduo plan CSV (e.g., `ceduo.csv`)
 
-Currently the output of the `@@calendario_ceduo` directive — see
-`pdg-2026/csv/ceduo.csv`. One row per coppice `harvest_plan_item`.
+Two flavours import equivalently:
 
-Columns the importer reads:
+- The output of `pdg-2026`'s `@@calendario_ceduo` directive (see
+  `pdg-2026/csv/ceduo.csv`). Columns: `Anno`, `Compresa`, `Particella`,
+  `Superficie intervento (ha)`, `Superficie totale (ha)`, `Turno (a)`,
+  `Note`.
+- The plan-level Esporta CSV output, with display column names:
+  `Anno previsto`, `Anno effettivo`, `Compresa`, `Particella`, `Stato`,
+  `Note` (flag string), `Superficie intervento (ha)`, `Superficie
+  totale (ha)`, `Turno (a)`, `Volume effettivo`, `Altre note` (the
+  free-text note column).
 
-- `Anno` — year (int).
+Columns the importer actually stores:
+
+- `Anno` or `Anno previsto` — year (int).
 - `Compresa`, `Particella` — as above.
 - `Superficie intervento (ha)` — area cut this year
   (real → `harvest_plan_item.intervention_area_ha`).
 - `Turno (a)` — coppice rotation interval in years
-  (int → `harvest_detail.interval`).  Per-parcel within the plan;
+  (int → `harvest_detail.interval`). Per-parcel within the plan;
   the importer warns on inconsistent values across rows for the
   same parcel.
-- `Note` — free-text annotation per row (string →
+- `Altre note` or `Note` — free-text annotation per row (string →
   `harvest_plan_item.note`); typical values are continuation markers
-  like `Cont. intervento 2028`.
+  like `Cont. intervento 2028`. (When the file uses display names,
+  `Note` holds the flag string, not the free-text note — the importer
+  prefers `Altre note` if both are present.)
 
 `Superficie totale (ha)` is read only for cross-checking against the
 parcel's known area; it is not stored.
+
+Field delimiter: `;` or `,` (auto-detected). Decimal mark: `,` or `.`
+(both accepted). Encoding: UTF-8 with optional BOM.
 
 For coppice items `harvest_plan_item.volume_planned_m3` stays NULL — coppice
 plans do not gate on a volume target.

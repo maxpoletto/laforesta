@@ -226,18 +226,34 @@ def plan_delete_view(request, plan_id: int):
 # Plan CSV import — single endpoint dispatching on which file(s) attached
 # ---------------------------------------------------------------------------
 
-FUSTAIA_CSV_REQUIRED = [
-    S.CSV_COL_COMPRESA, S.CSV_COL_PARTICELLA,
-    S.CSV_COL_ANNO, S.CSV_COL_PRELIEVO_M3,
-]
-CEDUO_CSV_REQUIRED = [
-    S.CSV_COL_ANNO, S.CSV_COL_COMPRESA, S.CSV_COL_PARTICELLA,
-    S.CSV_COL_SUPERFICIE_HA, S.CSV_COL_TURNO_A,
-]
-REGRESSION_CSV_REQUIRED = [
-    S.CSV_COL_COMPRESA, S.CSV_COL_GENERE, S.CSV_COL_FUNZIONE,
-    S.CSV_COL_A, S.CSV_COL_B, S.CSV_COL_R2, S.CSV_COL_N_REGRESSION,
-]
+_DELIM_AUTODETECT = ',;'
+
+# Column aliases — each logical field accepts the legacy pdg-2026 name
+# AND the display-name used by the per-table CSV export, so a freshly
+# exported plan zip round-trips through the importer.
+_FUSTAIA_COL_ALIASES = {
+    'compresa':   [S.CSV_COL_COMPRESA],                       # 'Compresa'
+    'particella': [S.CSV_COL_PARTICELLA],                     # 'Particella'
+    'anno':       [S.COL_YEAR_PLANNED, S.CSV_COL_ANNO],       # 'Anno previsto' | 'Anno'
+    'volume':     [S.COL_VOLUME_PLANNED, S.CSV_COL_PRELIEVO_M3],  # 'Volume previsto' | 'Prelievo (m³)'
+}
+_CEDUO_COL_ALIASES = {
+    'anno':       [S.COL_YEAR_PLANNED, S.CSV_COL_ANNO],
+    'compresa':   [S.CSV_COL_COMPRESA],
+    'particella': [S.CSV_COL_PARTICELLA],
+    'superficie': [S.CSV_COL_SUPERFICIE_HA],                  # 'Superficie intervento (ha)'
+    'turno':      [S.CSV_COL_TURNO_A],                        # 'Turno (a)'
+    'note':       [S.CSV_COL_EXTRA_NOTE, S.CSV_COL_NOTE],     # 'Altre note' | 'Note'
+}
+_REGRESSION_COL_ALIASES = {
+    'compresa': [S.CSV_COL_COMPRESA],
+    'genere':   [S.CSV_COL_GENERE],
+    'funzione': [S.CSV_COL_FUNZIONE],
+    'a':        [S.CSV_COL_A],
+    'b':        [S.CSV_COL_B],
+    'r2':       [S.CSV_COL_R2],
+    'n':        [S.CSV_COL_N_REGRESSION],
+}
 
 _DEFAULT_REGRESSION_FN = 'ln'
 
@@ -281,13 +297,13 @@ def plan_csv_import_view(request):
             return _validation_error([S.ERR_PLAN_NAME_DUPLICATE])
 
     fustaia_rows = _read_optional(
-        request.FILES.get(FIELD_FUSTAIA_FILE), FUSTAIA_CSV_REQUIRED,
+        request.FILES.get(FIELD_FUSTAIA_FILE), _FUSTAIA_COL_ALIASES,
     )
     ceduo_rows = _read_optional(
-        request.FILES.get(FIELD_CEDUO_FILE), CEDUO_CSV_REQUIRED,
+        request.FILES.get(FIELD_CEDUO_FILE), _CEDUO_COL_ALIASES,
     )
     regression_rows = _read_optional(
-        request.FILES.get(FIELD_REGRESSION_FILE), REGRESSION_CSV_REQUIRED,
+        request.FILES.get(FIELD_REGRESSION_FILE), _REGRESSION_COL_ALIASES,
     )
     if (fustaia_rows is None and ceduo_rows is None
             and regression_rows is None):
@@ -423,7 +439,15 @@ def plan_csv_import_view(request):
 
 @login_required
 def plan_export_view(request, plan_id: int):
-    """Return a zip of the three round-trip CSVs for a plan."""
+    """Return a zip of the three plan CSVs (Italian locale: ``;`` field
+    separator, ``,`` decimal — matches the per-table CSV export and
+    CLAUDE.md's CSV convention).
+
+    Each CSV carries the full column set of the corresponding calendar
+    table (display column names, not only the round-trip-required
+    subset).  The importer accepts both naming conventions, so a freshly
+    exported plan re-imports cleanly.
+    """
     plan = HarvestPlan.objects.filter(id=plan_id).first()
     if plan is None:
         return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
@@ -445,47 +469,54 @@ def plan_export_view(request, plan_id: int):
     }
 
     fustaia_buf = io.StringIO()
-    fustaia_w = csv.writer(fustaia_buf)
+    fustaia_w = csv.writer(fustaia_buf, delimiter=';')
     fustaia_w.writerow([
-        S.CSV_COL_COMPRESA, S.CSV_COL_PARTICELLA,
-        S.CSV_COL_ANNO, S.CSV_COL_PRELIEVO_M3,
+        S.COL_YEAR_PLANNED, S.COL_YEAR_ACTUAL,
+        S.COL_COMPRESA, S.COL_PARCEL, S.COL_STATE, S.COL_NOTE,
+        S.COL_VOLUME_PLANNED, S.COL_VOLUME_MARKED, S.COL_VOLUME_ACTUAL,
     ])
 
     ceduo_buf = io.StringIO()
-    ceduo_w = csv.writer(ceduo_buf)
+    ceduo_w = csv.writer(ceduo_buf, delimiter=';')
     ceduo_w.writerow([
-        S.CSV_COL_ANNO, S.CSV_COL_COMPRESA, S.CSV_COL_PARTICELLA,
-        S.CSV_COL_SUPERFICIE_HA, S.CSV_COL_SUPERFICIE_TOT_HA,
-        S.CSV_COL_TURNO_A, S.CSV_COL_NOTE,
+        S.COL_YEAR_PLANNED, S.COL_YEAR_ACTUAL,
+        S.COL_COMPRESA, S.COL_PARCEL, S.COL_STATE, S.COL_NOTE,
+        S.COL_INTERVENTION_AREA_HA, S.COL_PARCEL_AREA_HA,
+        S.COL_TURNO_A, S.COL_VOLUME_ACTUAL, S.COL_EXTRA_NOTE,
     ])
 
     for it in items:
         if it.parcel_id is None:
-            # Region-wide items don't round-trip through these CSVs (no
-            # parcel column).  Skip them — they exist only as manual
-            # entries from the Nuovo intervento modal.
+            # Region-wide items can't round-trip through these CSVs (no
+            # parcel column).  They exist only as manual entries from
+            # the Nuovo intervento modal.
             continue
-        is_coppice = it.parcel.eclass.coppice
-        if is_coppice:
+        anno_eff = it.date_actual.year if it.date_actual else ''
+        flag_note = render_flag_note(it.damaged, it.unhealthy, it.psr)
+        state_label = HarvestPlanItemState(it.state).label
+        if it.parcel.eclass.coppice:
             ceduo_w.writerow([
-                it.year_planned,
-                it.parcel.region.name,
-                it.parcel.name,
+                it.year_planned, anno_eff,
+                it.parcel.region.name, it.parcel.name,
+                state_label, flag_note,
                 _fmt_decimal(it.intervention_area_ha),
                 _fmt_decimal(it.parcel.area_ha),
                 parcel_intervals.get(it.parcel_id, ''),
+                _fmt_decimal(it.volume_actual_m3),
                 it.note or '',
             ])
         else:
             fustaia_w.writerow([
-                it.parcel.region.name,
-                it.parcel.name,
-                it.year_planned,
+                it.year_planned, anno_eff,
+                it.parcel.region.name, it.parcel.name,
+                state_label, flag_note,
                 _fmt_decimal(it.volume_planned_m3),
+                _fmt_decimal(it.volume_marked_m3),
+                _fmt_decimal(it.volume_actual_m3),
             ])
 
     regression_buf = io.StringIO()
-    regression_w = csv.writer(regression_buf)
+    regression_w = csv.writer(regression_buf, delimiter=';')
     regression_w.writerow([
         S.CSV_COL_COMPRESA, S.CSV_COL_GENERE, S.CSV_COL_FUNZIONE,
         S.CSV_COL_A, S.CSV_COL_B, S.CSV_COL_R2, S.CSV_COL_N_REGRESSION,
@@ -862,9 +893,17 @@ class _CsvError:
         self.message = message
 
 
-def _read_optional(upload, required_cols):
-    """Parse an uploaded CSV if present.  Returns a list of dicts, None
-    if no file was uploaded, or a _CsvError sentinel on parse failure.
+def _read_optional(upload, col_aliases):
+    """Parse an uploaded CSV if present.
+
+    Delimiter is auto-detected (``,`` or ``;``) so files exported in
+    either Italian (``;``) or pdg-2026's English (``,``) style both
+    round-trip.  Returns a list of (resolved_column → value) dicts
+    where ``resolved_column`` is keyed by the logical alias name (e.g.,
+    ``'anno'``, ``'volume'``); the parsers below use the alias names
+    directly so they don't have to re-resolve the actual column.
+    Returns None if no file was uploaded, or a ``_CsvError`` sentinel
+    on parse failure.
     """
     if upload is None:
         return None
@@ -872,27 +911,51 @@ def _read_optional(upload, required_cols):
         text = upload.read().decode('utf-8-sig')
     except UnicodeDecodeError:
         return _CsvError(S.ERR_CSV_NOT_UTF8)
-    reader = csv.DictReader(io.StringIO(text))
-    if reader.fieldnames is None:
+    delimiter = _sniff_delimiter(text)
+    reader = csv.DictReader(io.StringIO(text), delimiter=delimiter)
+    fieldnames = reader.fieldnames
+    if fieldnames is None:
         return _CsvError(S.ERR_CSV_EMPTY)
-    missing = [c for c in required_cols if c not in reader.fieldnames]
+    fieldset = set(fieldnames)
+    resolved: dict[str, str] = {}
+    missing: list[str] = []
+    for alias, candidates in col_aliases.items():
+        hit = next((c for c in candidates if c in fieldset), None)
+        if hit is None:
+            # Surface the canonical (first-listed) name in the error.
+            missing.append(candidates[0])
+        else:
+            resolved[alias] = hit
     if missing:
         return _CsvError(S.ERR_CSV_MISSING_COLS.format(', '.join(missing)))
-    return list(reader)
+    return [{alias: r.get(col, '') for alias, col in resolved.items()}
+            for r in reader]
+
+
+def _sniff_delimiter(text: str) -> str:
+    """Pick ',' or ';' for csv.DictReader; default ',' if neither wins."""
+    sample = text[:1024]
+    try:
+        return csv.Sniffer().sniff(sample, delimiters=_DELIM_AUTODETECT).delimiter
+    except csv.Error:
+        # Sniffer can't decide — fall back to whichever appears first in
+        # the header line.
+        head = sample.splitlines()[0] if sample else ''
+        return ';' if (';' in head and ',' not in head) else ','
 
 
 def _parse_fustaia_rows(rows, parcel_cache, errors):
     out = []
     for i, row in enumerate(rows, 2):
-        compresa = (row.get(S.CSV_COL_COMPRESA) or '').strip()
-        particella = (row.get(S.CSV_COL_PARTICELLA) or '').strip()
+        compresa = (row.get('compresa') or '').strip()
+        particella = (row.get('particella') or '').strip()
         parcel = parcel_cache.get((compresa.lower(), particella))
         if parcel is None:
             errors.append(S.ERR_CSV_PARCEL_NOT_FOUND.format(i, compresa, particella))
             continue
         try:
-            year = int(float(row[S.CSV_COL_ANNO]))
-            volume = _decimal_or_none(row[S.CSV_COL_PRELIEVO_M3])
+            year = int(_normalise_number(row['anno']))
+            volume = _decimal_or_none(row['volume'])
         except (ValueError, KeyError) as exc:
             errors.append(S.ERR_CSV_VALUE_PARSE.format(
                 i, S.CSV_COL_ANNO, str(exc),
@@ -909,22 +972,22 @@ def _parse_fustaia_rows(rows, parcel_cache, errors):
 def _parse_ceduo_rows(rows, parcel_cache, errors):
     out = []
     for i, row in enumerate(rows, 2):
-        compresa = (row.get(S.CSV_COL_COMPRESA) or '').strip()
-        particella = (row.get(S.CSV_COL_PARTICELLA) or '').strip()
+        compresa = (row.get('compresa') or '').strip()
+        particella = (row.get('particella') or '').strip()
         parcel = parcel_cache.get((compresa.lower(), particella))
         if parcel is None:
             errors.append(S.ERR_CSV_PARCEL_NOT_FOUND.format(i, compresa, particella))
             continue
         try:
-            year = int(float(row[S.CSV_COL_ANNO]))
-            area = _decimal_or_none(row[S.CSV_COL_SUPERFICIE_HA])
-            interval = int(float(row[S.CSV_COL_TURNO_A]))
+            year = int(_normalise_number(row['anno']))
+            area = _decimal_or_none(row['superficie'])
+            interval = int(_normalise_number(row['turno']))
         except (ValueError, KeyError) as exc:
             errors.append(S.ERR_CSV_VALUE_PARSE.format(
                 i, S.CSV_COL_TURNO_A, str(exc),
             ))
             continue
-        note = (row.get(S.CSV_COL_NOTE) or '').strip()
+        note = (row.get('note') or '').strip()
         out.append({
             FIELD_PARCEL_ID: parcel,
             FIELD_YEAR_PLANNED: year,
@@ -938,9 +1001,9 @@ def _parse_ceduo_rows(rows, parcel_cache, errors):
 def _parse_regression_rows(rows, region_cache, species_cache, errors):
     out = []
     for i, row in enumerate(rows, 2):
-        compresa = (row.get(S.CSV_COL_COMPRESA) or '').strip()
-        genere = (row.get(S.CSV_COL_GENERE) or '').strip()
-        function = (row.get(S.CSV_COL_FUNZIONE) or '').strip().lower()
+        compresa = (row.get('compresa') or '').strip()
+        genere = (row.get('genere') or '').strip()
+        function = (row.get('funzione') or '').strip().lower()
         region = region_cache.get(compresa.lower())
         if region is None:
             errors.append(S.ERR_CSV_REGION_NOT_FOUND.format(i, compresa))
@@ -953,10 +1016,10 @@ def _parse_regression_rows(rows, region_cache, species_cache, errors):
             errors.append(S.ERR_CSV_FUNCTION_INVALID.format(i, function))
             continue
         try:
-            a = Decimal(row[S.CSV_COL_A])
-            b = Decimal(row[S.CSV_COL_B])
-            r2 = Decimal(row[S.CSV_COL_R2])
-            n = int(float(row[S.CSV_COL_N_REGRESSION]))
+            a = Decimal(_normalise_number(row['a']))
+            b = Decimal(_normalise_number(row['b']))
+            r2 = Decimal(_normalise_number(row['r2']))
+            n = int(_normalise_number(row['n']))
         except (InvalidOperation, ValueError, KeyError) as exc:
             errors.append(S.ERR_CSV_VALUE_PARSE.format(
                 i, S.CSV_COL_A, str(exc),
@@ -967,6 +1030,11 @@ def _parse_regression_rows(rows, region_cache, species_cache, errors):
             'function': function, 'a': a, 'b': b, 'r2': r2, 'n': n,
         })
     return out
+
+
+def _normalise_number(s) -> str:
+    """Accept Italian (',' decimal) and English ('.' decimal) input."""
+    return str(s).strip().replace(',', '.')
 
 
 def _parse_plan_body(body):
@@ -1100,22 +1168,31 @@ def _decimal_or_none(v):
     if v in (None, '', 'null'):
         return None
     try:
-        return Decimal(str(v))
+        return Decimal(_normalise_number(v))
     except (TypeError, InvalidOperation):
         return None
 
 
-def _fmt_decimal(v) -> str:
+def _fmt_decimal(v, decimal_sep: str = ',') -> str:
+    """Render a Decimal/number as a CSV cell value.
+
+    `decimal_sep` defaults to ',' (Italian locale, matching the per-table
+    CSV export's TABLE_CSV_FORMAT).  Pass '.' for the legacy
+    pdg-2026-compatible format.
+    """
     if v is None:
         return ''
     if isinstance(v, Decimal):
-        # Strip trailing zeros for round-trip fidelity with the
-        # `.0` / `.00` style pdg-2026 emits.
+        # Strip trailing zeros for compact output.
         s = format(v, 'f')
         if '.' in s:
             s = s.rstrip('0').rstrip('.')
-        return s or '0'
-    return str(v)
+        s = s or '0'
+    else:
+        s = str(v)
+    if decimal_sep != '.' and '.' in s:
+        s = s.replace('.', decimal_sep)
+    return s
 
 
 _SAFE_RE = re.compile(r'[^A-Za-z0-9._-]+')

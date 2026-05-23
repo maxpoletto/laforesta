@@ -822,13 +822,16 @@ function confirmDeleteItem(itemId) {
   const parcel = row[c.indexOf(S.COL_PARCEL)];
   const year = row[c.indexOf(S.COL_YEAR_PLANNED)];
 
+  // Per-item delete is only allowed when state == planned, in which
+  // case the item has no marks / harvests / transitions (DB-level
+  // PROTECT blocks otherwise).  Nothing to back up → skip the
+  // forced-download step.
   showDangerousDeleteModal({
     title: S.DELETE_ITEM_TITLE,
     warning: S.DELETE_ITEM_WARNING
       .replace('{year}', year)
       .replace('{region}', compresa)
       .replace('{parcel}', parcel || ''),
-    onExportCSV: () => downloadItemExport(itemId),
     onDelete: () => doDeleteItem(itemId),
   });
 }
@@ -861,8 +864,12 @@ function downloadItemExport(itemId) {
 }
 
 /**
- * Shared dangerous-delete modal.  Reused by per-item deletion in a
- * later increment.
+ * Shared dangerous-delete modal.  When `onExportCSV` is provided, the
+ * modal includes a forced-download step (Esporta CSV must be clicked
+ * before Elimina enables) — used for plan-level delete where the
+ * planning calendar is worth backing up.  When `onExportCSV` is
+ * omitted (per-item delete in PLANNED state with no deps), the
+ * export step is skipped: Elimina is enabled immediately.
  */
 export function showDangerousDeleteModal({ title, warning, onExportCSV, onDelete }) {
   const frag = document.createDocumentFragment();
@@ -877,9 +884,11 @@ export function showDangerousDeleteModal({ title, warning, onExportCSV, onDelete
   warn.textContent = warning;
   frag.appendChild(warn);
 
-  const need = document.createElement('p');
-  need.textContent = S.CASCADE_EXPORT_REQUIRED;
-  frag.appendChild(need);
+  if (onExportCSV) {
+    const need = document.createElement('p');
+    need.textContent = S.CASCADE_EXPORT_REQUIRED;
+    frag.appendChild(need);
+  }
 
   const actions = document.createElement('div');
   actions.className = 'form-actions';
@@ -889,25 +898,28 @@ export function showDangerousDeleteModal({ title, warning, onExportCSV, onDelete
   cancel.textContent = S.CANCEL;
   cancel.addEventListener('click', dismissModal);
 
-  const exportBtn = document.createElement('button');
-  exportBtn.className = 'btn btn-primary';
-  exportBtn.textContent = S.EXPORT_CSV;
-
   const delBtn = document.createElement('button');
   delBtn.className = 'btn btn-primary cascade-delete-btn';
   delBtn.textContent = S.ACTION_DELETE;
-  delBtn.disabled = true;
+  delBtn.disabled = !!onExportCSV;
 
-  exportBtn.addEventListener('click', () => {
-    onExportCSV();
-    delBtn.disabled = false;
-  });
   delBtn.addEventListener('click', () => {
     dismissModal();
     onDelete();
   });
 
-  actions.append(cancel, exportBtn, delBtn);
+  if (onExportCSV) {
+    const exportBtn = document.createElement('button');
+    exportBtn.className = 'btn btn-primary';
+    exportBtn.textContent = S.EXPORT_CSV;
+    exportBtn.addEventListener('click', () => {
+      onExportCSV();
+      delBtn.disabled = false;
+    });
+    actions.append(cancel, exportBtn, delBtn);
+  } else {
+    actions.append(cancel, delBtn);
+  }
   frag.appendChild(actions);
   showModal(frag);
 }
