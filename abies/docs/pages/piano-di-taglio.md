@@ -109,19 +109,24 @@ entry (see "Add-harvest-plan-item modal"). For example, after storms the forest
 authority may authorize a previously unplanned item to pick up destroyed trees.
 
 **Empty-state CTA.** When the currently active plan has zero fustaia (or
-zero ceduo) items, the section's table is replaced by an inline panel:
+zero ceduo) items, the section's table — along with its search box,
+Esporta CSV button, and `+ Aggiungi` row — is replaced by an inline
+panel:
 
-  Nessun intervento. [Importa calendario CSV] [Importa equazioni CSV]
-  [+ Aggiungi manualmente]
+  Nessun intervento. [Importa calendario CSV] [+ Aggiungi manualmente]
 
-Each button opens the corresponding flow: the two import buttons open the
-Modifica piano modal pre-focused on the matching import tab; `+ Aggiungi
-manualmente` opens the Add-harvest-plan-item modal. `Importa equazioni
-CSV` appears only on the fustaia section. The panel disappears as soon
-as the first item lands.
+`Importa calendario CSV` opens the Modifica piano modal pre-focused on
+the matching import tab; `+ Aggiungi manualmente` opens the
+Add-harvest-plan-item modal. The panel disappears as soon as the first
+item lands, and the table + toolbar + `+ Aggiungi` come back. (Equation
+import is intentionally not surfaced here — equations are reached only
+via the pencil modal.)
 
 Clicking on a row's looking-glass sends to a full-page "view/edit harvest plan
-item" modal.
+item" modal (which surfaces marks/prelievi and the state-transition
+buttons). A per-row pencil is also present as a quick-metadata-edit
+shortcut: it opens the same lightweight form as `+ Aggiungi`,
+pre-populated with the row's fields.
 
 The per-row trash icon is disabled (with an explanatory tooltip) unless
 `state = planned`. Items with any `tree_mark`, `harvest`, or

@@ -425,6 +425,7 @@ function buildTable(s, searchInput) {
     inlineToolbar: false,
     canModify: modify,
     actions: modify ? {
+      onEdit: (rowId) => showEditItemModal(rowId),
       onDelete: (rowId) => confirmDeleteItem(rowId),
     } : {},
     sort: { column: sortCol, ascending: sortAsc },
@@ -488,16 +489,6 @@ function buildEmptyStateCta(s) {
   importCal.addEventListener('click',
     () => openEditPlanModal(EDIT_PLAN_TAB_CALENDAR));
   actions.appendChild(importCal);
-
-  if (s.kind === 'fustaia') {
-    const importReg = document.createElement('button');
-    importReg.type = 'button';
-    importReg.className = 'btn';
-    importReg.textContent = S.EDIT_PLAN_TAB_REGRESSION;
-    importReg.addEventListener('click',
-      () => openEditPlanModal(EDIT_PLAN_TAB_REGRESSION));
-    actions.appendChild(importReg);
-  }
 
   const addManual = document.createElement('button');
   addManual.type = 'button';
@@ -653,6 +644,34 @@ async function showAddItemModal(section) {
   }
   if (!payload?.html) { showError(S.ERROR_GENERIC); return; }
   openItemFormModal(payload.html, section.kind);
+}
+
+/**
+ * Inline-edit affordance for a calendar row (pencil icon).  Opens the
+ * existing item form pre-populated with the item's fields; the form's
+ * row_id hidden carries the id so the save endpoint treats this as an
+ * update.  When PT-60 lands, the per-row looking-glass becomes the
+ * primary affordance for full view/edit (with marks/prelievi); this
+ * pencil stays as a quick-metadata-edit shortcut.
+ */
+async function showEditItemModal(itemId) {
+  if (!itemsData) return;
+  const c = itemsData.columns;
+  const row = itemsData.rows.find(r => r[c.indexOf(ROW_ID)] === itemId);
+  if (!row) return;
+  const tipo = row[c.indexOf(S.COL_TYPE)];
+  const kind = tipo === S.TYPE_CEDUO ? 'ceduo' : 'fustaia';
+
+  let payload;
+  try {
+    const result = await fetchJSON(`${ITEM_FORM_URL}${itemId}/`);
+    payload = result.data;
+  } catch {
+    showError(S.ERROR_NETWORK);
+    return;
+  }
+  if (!payload?.html) { showError(S.ERROR_GENERIC); return; }
+  openItemFormModal(payload.html, kind);
 }
 
 function openItemFormModal(html, kind) {
