@@ -1,0 +1,125 @@
+/* Piano di taglio — page styles. */
+
+.pdt-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 8px 0 4px;
+}
+
+.pdt-header-left,
+.pdt-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pdt-pulldown-label {
+  font-weight: 500;
+  margin-right: 4px;
+}
+
+.pdt-pulldown {
+  min-width: 240px;
+  max-width: 360px;
+}
+
+.pdt-pulldown-icon {
+  cursor: pointer;
+  font-size: 1.1rem;
+  padding: 2px 6px;
+  user-select: none;
+}
+
+.pdt-pulldown-icon:hover {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 3px;
+}
+
+.pdt-description {
+  margin: 4px 0 16px;
+  color: #444;
+}
+
+.pdt-description-meta {
+  font-weight: 500;
+  margin-bottom: 2px;
+}
+
+.pdt-description-text {
+  font-style: italic;
+}
+
+.pdt-empty {
+  color: #888;
+  font-style: italic;
+}
+
+/* Nuovo piano modal — path-chooser tabs. */
+.pdt-new-plan-card {
+  min-width: 480px;
+}
+
+.pdt-path-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid #ccc;
+  margin-bottom: 12px;
+}
+
+.pdt-path-tab {
+  background: transparent;
+  border: none;
+  padding: 8px 14px;
+  cursor: pointer;
+  font: inherit;
+  color: #444;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.pdt-path-tab:hover {
+  color: #000;
+}
+
+.pdt-path-tab.active {
+  color: #1b5e20;
+  border-bottom-color: #1b5e20;
+  font-weight: 500;
+}
+
+.pdt-path-body {
+  display: none;
+}
+
+.pdt-path-body.active {
+  display: block;
+}
+
+/* Calendar section toolbar (search box + per-table CSV export). */
+.pdt-section-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.pdt-search-label {
+  font-weight: 500;
+}
+
+.pdt-search {
+  flex: 1;
+  max-width: 360px;
+}
+
+.pdt-csv-btn {
+  margin-left: auto;
+}
+
+.pdt-table-host {
+  margin-top: 4px;
+}

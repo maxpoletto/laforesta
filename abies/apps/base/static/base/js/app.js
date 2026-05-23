@@ -10,6 +10,7 @@ import * as cache from './cache.js';
 import * as bosco from '../../bosco/js/bosco.js';
 import * as prelievi from '../../prelievi/js/prelievi.js';
 import * as campionamenti from '../../campionamenti/js/campionamenti.js';
+import * as pianoDiTaglio from '../../piano_di_taglio/js/piano-di-taglio.js';
 import * as controllo from '../../controllo/js/controllo.js';
 import * as impostazioni from '../../impostazioni/js/impostazioni.js';
 
@@ -20,6 +21,7 @@ import * as impostazioni from '../../impostazioni/js/impostazioni.js';
 router.addRoute('bosco', bosco);
 router.addRoute('prelievi', prelievi);
 router.addRoute('campionamenti', campionamenti);
+router.addRoute('piano-di-taglio', pianoDiTaglio);
 router.addRoute('controllo', controllo);
 router.addRoute('impostazioni', impostazioni);
 

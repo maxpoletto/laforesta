@@ -292,7 +292,49 @@ export const FLAG_PSR         = 'PSR';
 export const TYPE_FUSTAIA = 'alto fusto';
 export const TYPE_CEDUO   = 'ceduo';
 
+// Plan-selector header (top of the Piano di taglio page).
+export const LABEL_HARVEST_PLAN = 'Piano di taglio';
+export const NEW_PLAN_LABEL     = '+ Nuovo piano';
+export const PDT_NO_PLANS       = 'Nessun piano. Premi "+ Nuovo piano" per crearne uno.';
+
+// Calendar section titles.
+export const SECTION_INTERVENTI_FUSTAIA = 'Interventi fustaia';
+export const SECTION_INTERVENTI_CEDUO   = 'Interventi ceduo';
+export const ADD_ITEM_LABEL             = '+ Aggiungi';
+
+// Nuovo piano modal.
+export const NEW_PLAN_TITLE          = 'Nuovo piano';
+export const NEW_PLAN_TAB_EMPTY      = 'Crea vuoto';
+export const NEW_PLAN_TAB_CALENDAR   = 'Importa calendario da CSV';
+export const NEW_PLAN_TAB_REGRESSION = 'Importa equazioni da CSV';
+export const LABEL_PLAN_NAME         = 'Nome piano';
+export const LABEL_PLAN_DESCRIPTION  = 'Descrizione';
+export const ERR_PLAN_NAME_REQUIRED  = 'Nome piano obbligatorio.';
+export const ERR_PLAN_YEAR_RANGE     =
+  'Anno fine deve essere maggiore o uguale ad anno inizio.';
+export const ERR_CSV_FILE_REQUIRED   = 'File CSV obbligatorio.';
+export const NEW_PLAN_CHECKBOX_CEDUO = 'File contiene il calendario ceduo';
+export const LABEL_CSV_FILE          = 'File CSV';
+export const IMPORT_LABEL            = 'Importa';
+export const EDIT_PLAN_TITLE         = 'Modifica piano';
+
+// Dangerous-delete (plan + per-item).
+export const DELETE_PLAN_TITLE   = 'Elimina piano';
+export const DELETE_PLAN_WARNING =
+  'Il piano "{name}" e tutte le sue voci e regressioni saranno ' +
+  'eliminati definitivamente.';
+export const ERR_PLAN_HAS_ACTIVE_ITEMS =
+  'Il piano contiene voci non in stato "pianificato". ' +
+  'Elimina prima le voci dipendenti.';
+export const ERR_PLAN_ITEM_STATE_NOT_PLANNED =
+  'La voce non è in stato "pianificato"; eliminazione non consentita.';
+export const DELETE_ITEM_TITLE = 'Elimina intervento';
+export const DELETE_ITEM_WARNING =
+  'L\'intervento {year} {region} {parcel} sarà eliminato definitivamente.';
+
 // Piano di taglio digest column headers (mirror config/strings_it.py).
+export const COL_YEAR_START           = 'Anno inizio';
+export const COL_YEAR_END             = 'Anno fine';
 export const COL_YEAR_PLANNED         = 'Anno previsto';
 export const COL_YEAR_ACTUAL          = 'Anno effettivo';
 export const COL_TYPE                 = 'Tipo';
