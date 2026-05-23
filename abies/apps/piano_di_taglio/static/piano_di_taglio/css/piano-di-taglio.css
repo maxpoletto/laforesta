@@ -9,7 +9,14 @@
   margin: 8px 0 4px;
 }
 
-.pdt-header-left,
+.pdt-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
 .pdt-header-right {
   display: flex;
   align-items: center;
@@ -20,11 +27,14 @@
 .pdt-pulldown-label {
   font-weight: 500;
   margin-right: 4px;
+  flex-shrink: 0;
 }
 
 .pdt-pulldown {
-  min-width: 240px;
-  max-width: 360px;
+  /* Shrinks so the trash icon stays on the same line on narrow viewports;
+     icons are flex-shrink: 0 so the pulldown is the only one that gives. */
+  flex: 0 1 320px;
+  min-width: 0;
 }
 
 .pdt-pulldown-icon {
@@ -32,6 +42,7 @@
   font-size: 1.1rem;
   padding: 2px 6px;
   user-select: none;
+  flex-shrink: 0;
 }
 
 .pdt-pulldown-icon:hover {
@@ -99,6 +110,27 @@
   display: block;
 }
 
+/* Empty-state CTA: replaces table+toolbar when the active plan has
+   zero items in this section's family. */
+.pdt-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 24px 12px;
+  color: #555;
+}
+
+.pdt-empty-state-message {
+  font-style: italic;
+}
+
+.pdt-empty-state-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 /* Calendar section toolbar (search box + per-table CSV export). */
 .pdt-section-toolbar {
   display: flex;
@@ -122,4 +154,17 @@
 
 .pdt-table-host {
   margin-top: 4px;
+}
+
+/* Allow two-word column headers (Anno effettivo, Volume previsto, …) to
+   wrap at the space and centre them, instead of forcing single-line via
+   the vendor default. */
+.pdt-table-host .sortable-table-header {
+  white-space: normal;
+  text-align: center;
+  vertical-align: middle;
+  line-height: 1.2;
+}
+.pdt-table-host .sortable-table-header.numeric {
+  text-align: center;
 }

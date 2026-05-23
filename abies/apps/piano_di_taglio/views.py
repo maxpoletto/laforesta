@@ -246,25 +246,39 @@ _DEFAULT_REGRESSION_FN = 'ln'
 @require_writer
 @require_POST
 def plan_csv_import_view(request):
-    """Create a HarvestPlan from one or more uploaded CSVs.
+    """Create a HarvestPlan from CSVs, or upsert CSV rows into an existing one.
 
     Multipart form fields:
-      - ``name``            — required: plan name.
-      - ``description``     — optional plan description.
+      - ``harvest_plan_id`` — optional: target an existing plan for upsert.
+        When set, ``name``/``description`` are ignored and the existing
+        plan's are kept; rows from the CSVs are upserted (see below).
+      - ``name``            — required when ``harvest_plan_id`` is absent.
+      - ``description``     — optional plan description (create path only).
       - ``fustaia_file``    — optional: piano.csv (high-forest schedule).
       - ``ceduo_file``      — optional: ceduo.csv (coppice schedule).
       - ``regression_file`` — optional: equazioni_ipsometro.csv.
 
-    At least one of the three CSV files must be present.  ``year_start``
-    and ``year_end`` are derived from the union of ``Anno`` columns
-    seen across the calendar files (regression CSV has no year column).
+    At least one CSV must be attached.  Upsert keys: calendar items dedup
+    on ``(harvest_plan, parcel, year_planned)``; regressions dedup on
+    ``(harvest_plan, region, species)``.  Re-importing the same file is
+    a no-op; re-importing a revised file overwrites the matching rows
+    in place.
     """
-    name = (request.POST.get(FIELD_NAME) or '').strip()
-    description = (request.POST.get(FIELD_DESCRIPTION) or '').strip()
-    if not name:
-        return _validation_error([S.ERR_PLAN_NAME_REQUIRED])
-    if HarvestPlan.objects.filter(name__iexact=name).exists():
-        return _validation_error([S.ERR_PLAN_NAME_DUPLICATE])
+    plan_id = _int_or_none(request.POST.get(FIELD_HARVEST_PLAN_ID))
+    if plan_id is not None:
+        target_plan = HarvestPlan.objects.filter(id=plan_id).first()
+        if target_plan is None:
+            return _validation_error([S.ERR_PLAN_NOT_FOUND])
+        name = target_plan.name
+        description = target_plan.description
+    else:
+        target_plan = None
+        name = (request.POST.get(FIELD_NAME) or '').strip()
+        description = (request.POST.get(FIELD_DESCRIPTION) or '').strip()
+        if not name:
+            return _validation_error([S.ERR_PLAN_NAME_REQUIRED])
+        if HarvestPlan.objects.filter(name__iexact=name).exists():
+            return _validation_error([S.ERR_PLAN_NAME_DUPLICATE])
 
     fustaia_rows = _read_optional(
         request.FILES.get(FIELD_FUSTAIA_FILE), FUSTAIA_CSV_REQUIRED,
@@ -278,7 +292,6 @@ def plan_csv_import_view(request):
     if (fustaia_rows is None and ceduo_rows is None
             and regression_rows is None):
         return _validation_error([S.ERR_CSV_NO_FILES])
-    # _read_optional returns either rows-list or a _CsvError-tagged tuple.
     for rows in (fustaia_rows, ceduo_rows, regression_rows):
         if isinstance(rows, _CsvError):
             return _validation_error([rows.message])
@@ -308,24 +321,37 @@ def plan_csv_import_view(request):
         [r[FIELD_YEAR_PLANNED] for r in fustaia_parsed]
         + [r[FIELD_YEAR_PLANNED] for r in ceduo_parsed]
     )
-    if all_years:
-        year_start = min(all_years)
-        year_end = max(all_years)
-    else:
-        # Regression-only import: year range still needs a value.  Default to
-        # the current civil year.
-        year_start = year_end = date_type.today().year
 
     with transaction.atomic():
-        plan = HarvestPlan.objects.create(
-            name=name, description=description,
-            year_start=year_start, year_end=year_end,
-        )
+        if target_plan is None:
+            year_start = min(all_years) if all_years else date_type.today().year
+            year_end = max(all_years) if all_years else year_start
+            plan = HarvestPlan.objects.create(
+                name=name, description=description,
+                year_start=year_start, year_end=year_end,
+            )
+        else:
+            plan = target_plan
+            if all_years:
+                new_start = min(plan.year_start, *all_years)
+                new_end = max(plan.year_end, *all_years)
+                if new_start != plan.year_start or new_end != plan.year_end:
+                    plan.year_start = new_start
+                    plan.year_end = new_end
+                    plan.version += 1
+                    plan.save()
 
-        # Coppice harvest_detail / parcel_plan_detail rows: deduplicate
-        # on (description, interval) within this plan so coppice parcels
-        # sharing a rotation share one harvest_detail row.
-        detail_cache: dict[tuple[str, int], HarvestDetail] = {}
+        # Coppice rows need a HarvestDetail per (description, interval).
+        # Seed the cache from existing details under this plan so re-imports
+        # reuse the same rows.
+        detail_cache: dict[tuple[str, int], HarvestDetail] = {
+            (ppd.harvest_detail.description, ppd.harvest_detail.interval):
+                ppd.harvest_detail
+            for ppd in ParcelPlanDetail.objects
+                .filter(harvest_plan=plan)
+                .select_related('harvest_detail')
+            if ppd.harvest_detail.interval is not None
+        }
         for r in ceduo_parsed:
             interval = r[FIELD_TURNO_A]
             desc = f'{S.HARVEST_DETAIL} {interval}a'
@@ -336,37 +362,41 @@ def plan_csv_import_view(request):
                     description=desc, interval=interval,
                 )
                 detail_cache[key] = hd
-            ParcelPlanDetail.objects.get_or_create(
+            ParcelPlanDetail.objects.update_or_create(
                 harvest_plan=plan, parcel=r[FIELD_PARCEL_ID],
                 defaults={'harvest_detail': hd},
             )
 
-        items_created = []
+        n_items = 0
         for r in fustaia_parsed:
-            items_created.append(HarvestPlanItem.objects.create(
+            HarvestPlanItem.objects.update_or_create(
                 harvest_plan=plan,
                 parcel=r[FIELD_PARCEL_ID],
                 year_planned=r[FIELD_YEAR_PLANNED],
-                volume_planned_m3=r[FIELD_VOLUME_PLANNED_M3],
-                state=HarvestPlanItemState.PLANNED,
-            ))
+                defaults={'volume_planned_m3': r[FIELD_VOLUME_PLANNED_M3]},
+            )
+            n_items += 1
         for r in ceduo_parsed:
-            items_created.append(HarvestPlanItem.objects.create(
+            HarvestPlanItem.objects.update_or_create(
                 harvest_plan=plan,
                 parcel=r[FIELD_PARCEL_ID],
                 year_planned=r[FIELD_YEAR_PLANNED],
-                intervention_area_ha=r[FIELD_INTERVENTION_AREA_HA],
-                note=r[FIELD_NOTE],
-                state=HarvestPlanItemState.PLANNED,
-            ))
+                defaults={
+                    'intervention_area_ha': r[FIELD_INTERVENTION_AREA_HA],
+                    'note': r[FIELD_NOTE],
+                },
+            )
+            n_items += 1
 
         for r in regression_parsed:
-            TreeHeightRegression.objects.create(
+            TreeHeightRegression.objects.update_or_create(
                 harvest_plan=plan,
                 region=r[FIELD_REGION_ID],
                 species=r['species'],
-                function=r['function'],
-                a=r['a'], b=r['b'], r2=r['r2'], n=r['n'],
+                defaults={
+                    'function': r['function'],
+                    'a': r['a'], 'b': r['b'], 'r2': r['r2'], 'n': r['n'],
+                },
             )
 
         mark_stale(
@@ -378,7 +408,7 @@ def plan_csv_import_view(request):
         DATA_ID: 'harvest_plans',
         ROW_ID: plan.id,
         RECORD: build_harvest_plan_record(plan),
-        'n_items': len(items_created),
+        'n_items': n_items,
         'n_regressions': len(regression_parsed),
     }
     nonce = request.POST.get(FIELD_NONCE)
@@ -959,17 +989,30 @@ def _parse_plan_body(body):
 
 
 def _parse_item_body(body):
-    """Extract + validate plan-item fields.  Returns (parsed_dict, errors)."""
+    """Extract + validate plan-item fields.  Returns (parsed_dict, errors).
+
+    The form cascade always submits both `region_id` and `parcel_id`.
+    Storage is `region XOR parcel`, so the server normalises: when
+    `parcel_id` is set, the row is parcel-scoped and the submitted
+    `region_id` is dropped (it's redundant — derivable via
+    `parcel.region`).  A blank `parcel_id` means a region-wide item,
+    which is only valid when one of `damaged`/`unhealthy` is checked.
+    """
     errors: list[str] = []
     region_id = _int_or_none(body.get(FIELD_REGION_ID))
     parcel_id = _int_or_none(body.get(FIELD_PARCEL_ID))
-    if (region_id is None) == (parcel_id is None):
-        errors.append(S.ERR_PLAN_ITEM_REGION_XOR_PARCEL)
     damaged = bool(body.get(FIELD_DAMAGED))
     unhealthy = bool(body.get(FIELD_UNHEALTHY))
     psr = bool(body.get(FIELD_PSR))
-    if region_id is not None and not (damaged or unhealthy):
-        errors.append(S.ERR_PLAN_ITEM_REGION_REQUIRES_FLAG)
+    if parcel_id is not None:
+        # Parcel-scoped item: region is implicit through parcel.
+        region_id = None
+    elif region_id is not None:
+        # Region-wide item: only valid for catastrofato / fitosanitario.
+        if not (damaged or unhealthy):
+            errors.append(S.ERR_PLAN_ITEM_REGION_REQUIRES_FLAG)
+    else:
+        errors.append(S.ERR_PLAN_ITEM_COMPRESA_REQUIRED)
     try:
         year_planned = int(body.get(FIELD_YEAR_PLANNED))
     except (TypeError, ValueError):

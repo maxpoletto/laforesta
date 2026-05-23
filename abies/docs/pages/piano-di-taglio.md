@@ -1,4 +1,4 @@
-# Piano di taglio page
+# Piani di taglio page
 
 ## Overview
 
@@ -31,7 +31,7 @@ The layout is very similar to that of "Griglie di campionamento", but without
 the map. The default selected plan is the one with the most recent (latest)
 year_start.
 
-Clicking on pencil leads to a small modal to edit plan name and description.
+Clicking on pencil leads to the "Modifica piano" modal (below).
 
 Click on trash leads to the same flow as deleting grids and samples in the
 samples page (henceforth, "dangerous delete flow"). If any harvest plan item is
@@ -49,22 +49,33 @@ default, the former is open, the latter closed.
 
 #### Nuovo piano modal
 
-This is a full-page modal, not bookmarkable, analogous to "Nuova griglia di
-campionamento".
+A small modal with two inputs: `Nome` (required, unique across plans) and
+`Descrizione` (optional, longer text). On submit it creates an empty plan
+with `year_start = year_end = current civil year`; the year range expands
+implicitly as CSV imports land or can be edited via the pencil modal.
 
-There are three tabs. "Crea vuoto", "Importa calendario da CSV", "Importa
-equazioni da CSV".
+This deliberately does *not* import any CSVs: identity (the plan exists with
+a name) is decoupled from content (calendar entries, equations). Imports
+happen later via the pencil modal or the empty-state CTA in the calendar
+sections.
 
-"Crea vuoto" is identical to the "griglia" version. A new plan must have a
-unique name.
+#### Modifica piano modal (pencil)
 
-"Importa calendario da CSV" has a checkbox to determine whether the file to be
-uploaded is a coppice parcel or a high forest parcel.
+A three-tab modal acting on the currently-selected plan:
 
-See "Fustaia plan CSV" and "Ceduo plan CSV" below.
-
-"Importa equazione da CSV" imports a file with ipsometric parameters. See
-"Ipsometric regression CSV" below.
+- **Dettagli** — name, description, and year range, all editable.
+- **Importa calendario da CSV** — upload `piano.csv` or `ceduo.csv`
+  (checkbox `Ceduo` selects the dispatch). Rows are upserted on
+  `(parcel, year_planned)`: an existing matching item is overwritten
+  with the CSV values, new rows are appended, the plan's
+  `year_start`/`year_end` widen to cover any new years. Re-importing
+  the same file is therefore idempotent, and importing a revised CSV
+  replaces the affected rows in place. See "Fustaia plan CSV" and
+  "Ceduo plan CSV" below.
+- **Importa equazioni da CSV** — upload `equazioni_ipsometro.csv`.
+  Rows are upserted on `(region, species)` so re-importing an updated
+  regression file overwrites the prior coefficients without
+  duplication. See "Ipsometric regression CSV" below.
 
 ### High forest calendar section
 
@@ -97,6 +108,18 @@ Below the table, as always, is a `+ Aggiungi` button for manually creating a new
 entry (see "Add-harvest-plan-item modal"). For example, after storms the forest
 authority may authorize a previously unplanned item to pick up destroyed trees.
 
+**Empty-state CTA.** When the currently active plan has zero fustaia (or
+zero ceduo) items, the section's table is replaced by an inline panel:
+
+  Nessun intervento. [Importa calendario CSV] [Importa equazioni CSV]
+  [+ Aggiungi manualmente]
+
+Each button opens the corresponding flow: the two import buttons open the
+Modifica piano modal pre-focused on the matching import tab; `+ Aggiungi
+manualmente` opens the Add-harvest-plan-item modal. `Importa equazioni
+CSV` appears only on the fustaia section. The panel disappears as soon
+as the first item lands.
+
 Clicking on a row's looking-glass sends to a full-page "view/edit harvest plan
 item" modal.
 
@@ -118,14 +141,24 @@ Fields:
 - Anno previsto (year, required; defaults to current year) →
   `harvest_plan_item.year_planned`.
 - Compresa (required).
-- Particella (optional — leave blank for region-wide items, only valid
-  when one of `damaged` or `unhealthy` is checked; the
-  `region XOR parcel` schema invariant is enforced server-side).
+- Particella (optional — leave blank for region-wide items).
 - Damaged? checkbox ("Catastrofato") → `damaged`.
 - Unhealthy? checkbox ("Fitosanitario") → `unhealthy`.
 - Volume previsto (m³) (optional) → `volume_planned_m3`.
 - Note (optional) → `note`.
 - State starts at `planned` (not user-editable on create).
+
+**Validation.** Compresa is always required. Particella is optional, and
+the vast majority of items specify both Compresa and Particella (the
+typical parcel-scoped intervento). The only constraint on a blank
+Particella: at least one of `damaged` or `unhealthy` must be checked
+(region-wide items exist for catastrofato / fitosanitario events). At
+the storage layer the row is either `region`-only (`parcel_id = NULL`)
+or `parcel`-only (`region_id = NULL`); the `region XOR parcel` SQLite
+trigger enforces this storage invariant. The server normalises the form
+submission accordingly: when `parcel_id` is provided, the row is stored
+as a parcel-level item and any submitted `region_id` is ignored
+(redundant — derivable via `parcel.region`).
 
 (By design, the `PSR` flag is skipped on the manual create form; it is
 populated only via CSV import.)

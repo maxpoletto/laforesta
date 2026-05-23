@@ -113,12 +113,13 @@ ERR_PLAN_HAS_ACTIVE_ITEMS = (
     'Il piano contiene voci non in stato "pianificato". '
     'Elimina prima le voci dipendenti.'
 )
-ERR_PLAN_ITEM_REGION_XOR_PARCEL = (
-    'Specificare esattamente uno tra compresa (intera) e particella.'
+ERR_PLAN_NOT_FOUND = 'Piano non trovato.'
+ERR_PLAN_ITEM_COMPRESA_REQUIRED = (
+    'Compresa obbligatoria.'
 )
 ERR_PLAN_ITEM_REGION_REQUIRES_FLAG = (
-    'Le voci a livello di compresa richiedono il flag '
-    '"catastrofato" o "fitosanitario".'
+    'Le voci a livello di compresa (senza particella) richiedono il '
+    'flag "catastrofato" o "fitosanitario".'
 )
 ERR_PLAN_ITEM_NOT_FOUND = 'Voce di piano non trovata.'
 ERR_PLAN_ITEM_STATE_NOT_PLANNED = (

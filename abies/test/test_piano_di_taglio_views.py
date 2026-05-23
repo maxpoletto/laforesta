@@ -217,6 +217,99 @@ class TestPlanCSVImport:
         )
         assert resp.status_code == 400
 
+    def test_import_into_existing_plan_upserts(
+        self, writer_client, plan, parcels, species,
+    ):
+        # First import: append 1 fustaia row.
+        r1 = self._upload(
+            writer_client, harvest_plan_id=plan.id,
+            fustaia_file=io.BytesIO(FUSTAIA_CSV.encode('utf-8')),
+        )
+        assert r1.status_code == 200, r1.json()
+        assert r1.json()[ROW_ID] == plan.id
+        items = HarvestPlanItem.objects.filter(harvest_plan=plan).order_by('id')
+        assert items.count() == 1
+        assert items[0].year_planned == 2027
+        assert float(items[0].volume_planned_m3) == 250.0
+
+        # Same file again — idempotent, count stays at 1.
+        r2 = self._upload(
+            writer_client, harvest_plan_id=plan.id,
+            fustaia_file=io.BytesIO(FUSTAIA_CSV.encode('utf-8')),
+        )
+        assert r2.status_code == 200
+        assert HarvestPlanItem.objects.filter(harvest_plan=plan).count() == 1
+
+        # Revised file (same parcel + year, different volume) — overwrite.
+        revised = (
+            'Compresa,Particella,Anno,Prelievo (m³)\r\n'
+            'Capistrano,1,2027,500\r\n'
+        )
+        r3 = self._upload(
+            writer_client, harvest_plan_id=plan.id,
+            fustaia_file=io.BytesIO(revised.encode('utf-8')),
+        )
+        assert r3.status_code == 200
+        items = HarvestPlanItem.objects.filter(harvest_plan=plan)
+        assert items.count() == 1
+        assert float(items[0].volume_planned_m3) == 500.0
+
+    def test_import_into_existing_widens_year_range(
+        self, writer_client, plan, parcels,
+    ):
+        # Plan starts at 2024-2034.  Importing a 2027 row stays inside.
+        old_start, old_end = plan.year_start, plan.year_end
+        self._upload(
+            writer_client, harvest_plan_id=plan.id,
+            fustaia_file=io.BytesIO(FUSTAIA_CSV.encode('utf-8')),
+        )
+        plan.refresh_from_db()
+        assert plan.year_start == old_start
+        assert plan.year_end == old_end
+
+        # 2040 is past year_end → widens.
+        future = (
+            'Compresa,Particella,Anno,Prelievo (m³)\r\n'
+            'Capistrano,1,2040,100\r\n'
+        )
+        self._upload(
+            writer_client, harvest_plan_id=plan.id,
+            fustaia_file=io.BytesIO(future.encode('utf-8')),
+        )
+        plan.refresh_from_db()
+        assert plan.year_end == 2040
+
+    def test_import_into_existing_upserts_regression(
+        self, writer_client, plan, parcels, species,
+    ):
+        self._upload(
+            writer_client, harvest_plan_id=plan.id,
+            regression_file=io.BytesIO(REGRESSION_CSV.encode('utf-8')),
+        )
+        regs = TreeHeightRegression.objects.filter(harvest_plan=plan)
+        assert regs.count() == 1
+        assert float(regs[0].a) == 12.0
+
+        revised = (
+            'Compresa,Genere,funzione,a,b,r2,n\r\n'
+            'Capistrano,Abete,ln,15.0,4.0,0.90,55\r\n'
+        )
+        self._upload(
+            writer_client, harvest_plan_id=plan.id,
+            regression_file=io.BytesIO(revised.encode('utf-8')),
+        )
+        regs = TreeHeightRegression.objects.filter(harvest_plan=plan)
+        assert regs.count() == 1
+        assert float(regs[0].a) == 15.0
+
+    def test_import_into_unknown_plan(self, writer_client, db):
+        resp = self._upload(
+            writer_client, harvest_plan_id=9999,
+            fustaia_file=io.BytesIO(FUSTAIA_CSV.encode('utf-8')),
+        )
+        assert resp.status_code == 400
+        assert S.ERR_PLAN_NOT_FOUND in resp.json()[MESSAGE]
+
 
 class TestPlanExport:
     def test_round_trip(self, writer_client, plan, planned_item):
@@ -257,13 +350,32 @@ class TestItemCRUD:
         assert item.year_planned == 2027
         assert float(item.volume_planned_m3) == 150.0
 
-    def test_create_requires_region_xor_parcel(self, writer_client, plan):
+    def test_create_requires_compresa(self, writer_client, plan):
         resp = self._save(writer_client, {
             FIELD_HARVEST_PLAN_ID: plan.id,
             FIELD_YEAR_PLANNED: 2027,
         })
         assert resp.status_code == 400
-        assert S.ERR_PLAN_ITEM_REGION_XOR_PARCEL in resp.json()[MESSAGE]
+        assert S.ERR_PLAN_ITEM_COMPRESA_REQUIRED in resp.json()[MESSAGE]
+
+    def test_create_with_both_region_and_parcel(
+        self, writer_client, plan, parcels,
+    ):
+        # The form cascade always submits both region_id and parcel_id;
+        # the server normalises to parcel-scoped and ignores the
+        # redundant region_id (storage is region XOR parcel).
+        parcel = parcels[0]
+        resp = self._save(writer_client, {
+            FIELD_HARVEST_PLAN_ID: plan.id,
+            FIELD_REGION_ID: parcel.region_id,
+            FIELD_PARCEL_ID: parcel.id,
+            FIELD_YEAR_PLANNED: 2027,
+            FIELD_VOLUME_PLANNED_M3: '50',
+        })
+        assert resp.status_code == 200
+        item = HarvestPlanItem.objects.get(id=resp.json()[ROW_ID])
+        assert item.parcel_id == parcel.id
+        assert item.region_id is None
 
     def test_create_region_wide_requires_flag(self, writer_client, plan, regions):
         resp = self._save(writer_client, {

@@ -197,6 +197,74 @@ No UI consumers yet, but tests in place.
   template). Trash is disabled with tooltip unless `state =
   planned`.
 
+## Phase 5R — UX retrofit (post-Phase-5 review)
+
+After Phase 5 landed, a review surfaced four issues to fix before Phase 6
+opens up the per-item modal:
+
+1. **+Nuovo piano confuses identity and content.** Picking a name while
+   simultaneously choosing an import flavor (fustaia / ceduo) triggered
+   spurious "duplicate name" errors when the operator flipped between
+   tabs to fix a wrong checkbox. Fix: identity (name + description) is
+   set at creation; content (CSV imports) lands later via the pencil
+   modal or the empty-state CTA. The same paradigm will propagate to
+   griglie + rilevamenti in a later phase (out of scope here).
+2. **Add-harvest-plan-item validator rejects parcel-scoped items.** The
+   form sends both `region_id` and `parcel_id` (the cascading pickers),
+   and the old XOR validator treated that as "both set → error". The
+   storage invariant is XOR but the UI contract is "Compresa required,
+   Particella optional"; the server normalises the submission rather
+   than rejecting it.
+3. **Aesthetic polish.** Title should be plural; the trash icon in the
+   pdt-header wraps to a new line on narrow layouts; two-word column
+   headers (`Anno effettivo`, `Volume previsto`, etc.) hog horizontal
+   space because they are forced single-line.
+4. **Empty-state discoverability.** With imports no longer in the create
+   modal, a freshly created empty plan needs an obvious in-page
+   affordance pointing at the import flows; otherwise the operator has
+   to know to open the pencil first.
+
+- **PT-5R-0** Aesthetic fixes (CSS-only). Plural title; widen
+  `.pdt-header-left` so the trash icon doesn't wrap; allow two-word
+  column headers to wrap at the space and centre them; trim
+  `min-width`s where they force the wider single-line layout.
+- **PT-5R-1** Fix `_parse_item_body` in `apps/piano_di_taglio/views.py`:
+  if `parcel_id` is provided, ignore any submitted `region_id` and
+  store the row as parcel-scoped; if `parcel_id` is blank, require
+  `region_id` + `damaged OR unhealthy`; if both are blank, reject
+  with a "Compresa obbligatoria" message (new
+  `ERR_PLAN_ITEM_COMPRESA_REQUIRED`). Drop the old XOR error string
+  from server use; tests adjust accordingly. Update
+  `docs/pages/piano-di-taglio.md` validator wording.
+- **PT-5R-2** Strip `+Nuovo piano` modal to a single panel (no tabs):
+  name + description. Year range is no longer asked at create time —
+  the empty plan defaults to `year_start = year_end = current civil
+  year`, and it expands implicitly on CSV import (handled in PT-5R-3).
+- **PT-5R-3** Pencil modal grows three tabs: `Dettagli` (existing
+  name/description/year-range edit), `Importa calendario da CSV`,
+  `Importa equazioni da CSV`. The import tabs reuse `submitCsvImport`
+  but post to the existing `plan_csv_import_view` with an additional
+  `plan_id` field. Server side: when `plan_id` is set, upsert items
+  into the existing plan rather than creating it — `(parcel,
+  year_planned)` is the dedup key for both fustaia and ceduo rows
+  (an existing match is overwritten, a new row is appended). Widen
+  `year_start` / `year_end` to cover any new years. Upsert regressions
+  on `(region, species)`. Tests cover re-import idempotency and the
+  overwrite-with-revised-values path.
+- **PT-5R-4** Empty-state CTA in fustaia + ceduo calendar sections:
+  when the active plan has zero items of that family, replace the
+  table with an inline panel: `[Importa calendario CSV] [Importa
+  equazioni CSV (fustaia only)] [+ Aggiungi manualmente]`. The two
+  import buttons open the Modifica piano modal pre-focused on the
+  matching tab; `+ Aggiungi manualmente` opens the existing
+  add-item modal.
+
+Verification rides the existing Phase-5 manual smoke checklist plus
+two new cases: (a) re-create a plan with the same name after deleting
+the old one (used to fail when import-flavor was conflated with
+create); (b) `+ Aggiungi` an intervento with Compresa + Particella +
+Anno only (no flag, no volume) — used to fail on the XOR validator.
+
 ## Phase 6 — Frontend: view/edit-item modal
 
 - **PT-60** Modal shell + URL routing for `i=N` parameter, with

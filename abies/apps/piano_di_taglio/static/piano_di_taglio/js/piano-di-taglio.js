@@ -66,6 +66,7 @@ const sections = {
     title: S.SECTION_INTERVENTI_FUSTAIA, open: true,
     kind: 'fustaia',
     header: null, body: null, host: null, table: null,
+    toolbar: null, actionAdd: null, emptyState: null,
     typeMatcher: (tipo) => tipo !== S.TYPE_CEDUO,
     hiddenCols: [
       S.COL_HARVEST_PLAN, S.COL_TYPE,
@@ -78,6 +79,7 @@ const sections = {
     title: S.SECTION_INTERVENTI_CEDUO, open: false,
     kind: 'ceduo',
     header: null, body: null, host: null, table: null,
+    toolbar: null, actionAdd: null, emptyState: null,
     typeMatcher: (tipo) => tipo === S.TYPE_CEDUO,
     hiddenCols: [
       S.COL_HARVEST_PLAN, S.COL_TYPE,
@@ -340,6 +342,7 @@ function buildSection(el, s) {
   toolbar.appendChild(csvBtn);
 
   body.appendChild(toolbar);
+  s.toolbar = toolbar;
 
   s.host = document.createElement('div');
   s.host.className = 'pdt-table-host';
@@ -355,6 +358,11 @@ function buildSection(el, s) {
     addBtn.addEventListener('click', () => showAddItemModal(s));
     addRow.appendChild(addBtn);
     body.appendChild(addRow);
+    s.actionAdd = addRow;
+
+    s.emptyState = buildEmptyStateCta(s);
+    s.emptyState.hidden = true;
+    body.appendChild(s.emptyState);
   }
 
   header.addEventListener('click', () => {
@@ -432,13 +440,74 @@ function buildTable(s, searchInput) {
 }
 
 function applyPlanFilter(s) {
-  if (!s.table || !itemsData) return;
+  if (!itemsData) return;
   const planCol = itemsData.columns.indexOf(S.COL_HARVEST_PLAN);
   const typeCol = itemsData.columns.indexOf(S.COL_TYPE);
-  s.table.setExternalFilter((row) => {
-    if (activePlanId != null && row[planCol] !== activePlanId) return false;
-    return s.typeMatcher(row[typeCol]);
-  });
+  if (s.table) {
+    s.table.setExternalFilter((row) => {
+      if (activePlanId != null && row[planCol] !== activePlanId) return false;
+      return s.typeMatcher(row[typeCol]);
+    });
+  }
+  updateEmptyState(s, planCol, typeCol);
+}
+
+/**
+ * Toggle between the table view and the empty-state CTA based on
+ * whether the active plan has any items in this section's family.
+ * The CTA points at the matching import flow + the manual + Aggiungi
+ * path, so an empty plan offers an obvious next action.
+ */
+function updateEmptyState(s, planCol, typeCol) {
+  if (!s.emptyState) return;
+  const hasItems = activePlanId != null && itemsData?.rows.some(r =>
+    r[planCol] === activePlanId && s.typeMatcher(r[typeCol]),
+  );
+  s.emptyState.hidden = hasItems;
+  if (s.toolbar) s.toolbar.hidden = !hasItems;
+  if (s.host) s.host.hidden = !hasItems;
+  if (s.actionAdd) s.actionAdd.hidden = !hasItems;
+}
+
+function buildEmptyStateCta(s) {
+  const wrap = document.createElement('div');
+  wrap.className = 'pdt-empty-state';
+
+  const msg = document.createElement('div');
+  msg.className = 'pdt-empty-state-message';
+  msg.textContent = S.PDT_SECTION_EMPTY;
+  wrap.appendChild(msg);
+
+  const actions = document.createElement('div');
+  actions.className = 'pdt-empty-state-actions';
+
+  const importCal = document.createElement('button');
+  importCal.type = 'button';
+  importCal.className = 'btn btn-primary';
+  importCal.textContent = S.EDIT_PLAN_TAB_CALENDAR;
+  importCal.addEventListener('click',
+    () => openEditPlanModal(EDIT_PLAN_TAB_CALENDAR));
+  actions.appendChild(importCal);
+
+  if (s.kind === 'fustaia') {
+    const importReg = document.createElement('button');
+    importReg.type = 'button';
+    importReg.className = 'btn';
+    importReg.textContent = S.EDIT_PLAN_TAB_REGRESSION;
+    importReg.addEventListener('click',
+      () => openEditPlanModal(EDIT_PLAN_TAB_REGRESSION));
+    actions.appendChild(importReg);
+  }
+
+  const addManual = document.createElement('button');
+  addManual.type = 'button';
+  addManual.className = 'btn';
+  addManual.textContent = S.PDT_EMPTY_STATE_ADD_MANUAL;
+  addManual.addEventListener('click', () => showAddItemModal(s));
+  actions.appendChild(addManual);
+
+  wrap.appendChild(actions);
+  return wrap;
 }
 
 function buildItemColumnDefs(columns, hiddenCols) {
@@ -825,12 +894,26 @@ export function showDangerousDeleteModal({ title, warning, onExportCSV, onDelete
 }
 
 // ---------------------------------------------------------------------------
-// Edit-plan modal (pencil) — name + description only.  Year range
-// changes only via re-import, so we round-trip the current values from
-// the cached row to preserve them on the wire.
+// Modifica piano modal (pencil) — three tabs.  Identity (name +
+// description + year range) lives under "Dettagli"; the other two
+// tabs upsert CSV rows into the active plan via the plan_csv_import
+// endpoint with `harvest_plan_id` set.
 // ---------------------------------------------------------------------------
 
+const EDIT_PLAN_TAB_DETAILS    = 'details';
+const EDIT_PLAN_TAB_CALENDAR   = 'calendar';
+const EDIT_PLAN_TAB_REGRESSION = 'regression';
+
 function onEditPlan() {
+  openEditPlanModal(EDIT_PLAN_TAB_DETAILS);
+}
+
+/**
+ * Open the Modifica piano modal on a specific tab.  Exported so the
+ * empty-state CTA in the calendar sections can land directly on the
+ * matching import tab.
+ */
+export function openEditPlanModal(initialTab) {
   if (activePlanId == null) return;
   const row = planRow(activePlanId);
   if (!row) return;
@@ -845,22 +928,90 @@ function onEditPlan() {
 
   const frag = document.createDocumentFragment();
   const card = document.createElement('div');
-  card.className = 'form-card';
+  card.className = 'form-card pdt-edit-plan-card';
   frag.appendChild(card);
 
   const h = document.createElement('h2');
   h.textContent = S.EDIT_PLAN_TITLE;
   card.appendChild(h);
 
+  const tabs = document.createElement('div');
+  tabs.className = 'pdt-path-tabs';
+  card.appendChild(tabs);
+
+  const bodies = document.createElement('div');
+  bodies.className = 'pdt-path-bodies';
+  card.appendChild(bodies);
+
+  const tabDefs = [
+    {
+      id: EDIT_PLAN_TAB_DETAILS, label: S.EDIT_PLAN_TAB_DETAILS,
+      build: (host) => buildEditDetailsForm(host, current),
+    },
+    {
+      id: EDIT_PLAN_TAB_CALENDAR, label: S.EDIT_PLAN_TAB_CALENDAR,
+      build: (host) => buildExistingPlanCalendarImport(host),
+    },
+    {
+      id: EDIT_PLAN_TAB_REGRESSION, label: S.EDIT_PLAN_TAB_REGRESSION,
+      build: (host) => buildExistingPlanRegressionImport(host),
+    },
+  ];
+
+  const bodyEls = {};
+  for (const t of tabDefs) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pdt-path-tab';
+    btn.dataset.path = t.id;
+    btn.textContent = t.label;
+    btn.addEventListener('click', () => switchTab(t.id));
+    tabs.appendChild(btn);
+
+    const body = document.createElement('div');
+    body.className = 'pdt-path-body';
+    body.dataset.path = t.id;
+    t.build(body);
+    bodies.appendChild(body);
+    bodyEls[t.id] = body;
+  }
+
+  function switchTab(id) {
+    for (const t of tabs.querySelectorAll('.pdt-path-tab')) {
+      t.classList.toggle('active', t.dataset.path === id);
+    }
+    for (const [k, b] of Object.entries(bodyEls)) {
+      b.classList.toggle('active', k === id);
+    }
+  }
+
+  showModal(frag);
+  switchTab(initialTab || EDIT_PLAN_TAB_DETAILS);
+}
+
+/** Dettagli tab — name, year range, description.  JSON POST to /plan/save/. */
+function buildEditDetailsForm(host, current) {
   const form = document.createElement('form');
   form.className = 'pdt-plan-form';
-  card.appendChild(form);
+  host.appendChild(form);
 
   const nameRow = mkRow(form);
   mkInput(nameRow, {
     id: 'pdt-edit-name', name: 'name', label: S.LABEL_PLAN_NAME,
     type: 'text', required: true, maxLength: 100,
     value: current.name,
+  });
+
+  const yearRow = mkRow(form, 'narrow');
+  mkInput(yearRow, {
+    id: 'pdt-edit-y1', name: 'year_start', label: S.COL_YEAR_START,
+    type: 'number', required: true, min: 1900, max: 2200,
+    value: current.year_start,
+  });
+  mkInput(yearRow, {
+    id: 'pdt-edit-y2', name: 'year_end', label: S.COL_YEAR_END,
+    type: 'number', required: true, min: 1900, max: 2200,
+    value: current.year_end,
   });
 
   const descRow = mkRow(form);
@@ -879,11 +1030,14 @@ function onEditPlan() {
       version: String(current.version),
       name: (fd.get('name') || '').toString().trim(),
       description: (fd.get('description') || '').toString().trim(),
-      year_start: current.year_start,
-      year_end: current.year_end,
+      year_start: parseInt(fd.get('year_start'), 10),
+      year_end: parseInt(fd.get('year_end'), 10),
       nonce: crypto.randomUUID(),
     };
     if (!body.name) { showError(S.ERR_PLAN_NAME_REQUIRED); return; }
+    if (body.year_end < body.year_start) {
+      showError(S.ERR_PLAN_YEAR_RANGE); return;
+    }
     try {
       const { data, status } = await postJSON(PLAN_SAVE_URL, body);
       if (status !== 200) {
@@ -898,96 +1052,34 @@ function onEditPlan() {
       showError(S.ERROR_NETWORK);
     }
   });
-
-  showModal(frag);
 }
 
 // ---------------------------------------------------------------------------
-// Nuovo piano modal — three tabs (Crea vuoto / Importa calendario /
-// Importa equazioni).  Only "Crea vuoto" is wired here; the other two
-// tab bodies remain empty until subsequent increments fill them in.
+// Nuovo piano modal — name + description only.  An empty plan starts
+// with year_start = year_end = current civil year; the range widens
+// later via pencil edit or implicitly on CSV import (PT-5R-3).
+// Identity (name) is deliberately decoupled from content (calendar /
+// equations) — those land via the pencil modal.
 // ---------------------------------------------------------------------------
-
-const NEW_PLAN_PATH_EMPTY      = 'empty';
-const NEW_PLAN_PATH_CALENDAR   = 'calendar';
-const NEW_PLAN_PATH_REGRESSION = 'regression';
 
 function onNewPlan() {
   const frag = document.createDocumentFragment();
   const card = document.createElement('div');
-  card.className = 'form-card pdt-new-plan-card';
+  card.className = 'form-card';
   frag.appendChild(card);
 
   const h = document.createElement('h2');
   h.textContent = S.NEW_PLAN_TITLE;
   card.appendChild(h);
 
-  const tabs = document.createElement('div');
-  tabs.className = 'pdt-path-tabs';
-  card.appendChild(tabs);
-
-  const bodies = document.createElement('div');
-  bodies.className = 'pdt-path-bodies';
-  card.appendChild(bodies);
-
-  const paths = [
-    { id: NEW_PLAN_PATH_EMPTY,      label: S.NEW_PLAN_TAB_EMPTY,      build: buildEmptyPlanForm },
-    { id: NEW_PLAN_PATH_CALENDAR,   label: S.NEW_PLAN_TAB_CALENDAR,   build: buildImportCalendarForm },
-    { id: NEW_PLAN_PATH_REGRESSION, label: S.NEW_PLAN_TAB_REGRESSION, build: buildImportRegressionForm },
-  ];
-
-  const bodyEls = {};
-  for (const p of paths) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'pdt-path-tab';
-    btn.dataset.path = p.id;
-    btn.textContent = p.label;
-    btn.addEventListener('click', () => switchPath(p.id));
-    tabs.appendChild(btn);
-
-    const body = document.createElement('div');
-    body.className = 'pdt-path-body';
-    body.dataset.path = p.id;
-    if (p.build) p.build(body);
-    bodies.appendChild(body);
-    bodyEls[p.id] = body;
-  }
-
-  function switchPath(id) {
-    for (const t of tabs.querySelectorAll('.pdt-path-tab')) {
-      t.classList.toggle('active', t.dataset.path === id);
-    }
-    for (const [k, b] of Object.entries(bodyEls)) {
-      b.classList.toggle('active', k === id);
-    }
-  }
-
-  showModal(frag);
-  switchPath(NEW_PLAN_PATH_EMPTY);
-}
-
-/** "Crea vuoto" tab body — name, year range, description; JSON POST. */
-function buildEmptyPlanForm(host) {
   const form = document.createElement('form');
   form.className = 'pdt-plan-form';
-  host.appendChild(form);
+  card.appendChild(form);
 
   const nameRow = mkRow(form);
   mkInput(nameRow, {
     id: 'pdt-new-plan-name', name: 'name', label: S.LABEL_PLAN_NAME,
     type: 'text', required: true, maxLength: 100,
-  });
-
-  const yearRow = mkRow(form, 'narrow');
-  const today = new Date().getFullYear();
-  mkInput(yearRow, {
-    id: 'pdt-new-plan-y1', name: 'year_start', label: S.COL_YEAR_START,
-    type: 'number', required: true, min: 1900, max: 2200, value: today,
-  });
-  mkInput(yearRow, {
-    id: 'pdt-new-plan-y2', name: 'year_end', label: S.COL_YEAR_END,
-    type: 'number', required: true, min: 1900, max: 2200, value: today + 15,
   });
 
   const descRow = mkRow(form);
@@ -1001,24 +1093,21 @@ function buildEmptyPlanForm(host) {
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(form);
+    const today = new Date().getFullYear();
     const body = {
       name: (fd.get('name') || '').toString().trim(),
-      year_start: parseInt(fd.get('year_start'), 10),
-      year_end: parseInt(fd.get('year_end'), 10),
       description: (fd.get('description') || '').toString().trim(),
+      year_start: today,
+      year_end: today,
       nonce: crypto.randomUUID(),
     };
     if (!body.name) { showError(S.ERR_PLAN_NAME_REQUIRED); return; }
-    if (body.year_end < body.year_start) {
-      showError(S.ERR_PLAN_YEAR_RANGE); return;
-    }
     try {
       const { data, status } = await postJSON(PLAN_SAVE_URL, body);
       if (status !== 200) {
         showError(data?.message || S.ERROR_GENERIC);
         return;
       }
-      // Patch cache in place + re-render shell on the new plan.
       if (data.record) cache.updateRow(PLANS_ID, data.row_id, data.record);
       plansData = cache.get(PLANS_ID);
       activePlanId = data.row_id;
@@ -1029,30 +1118,21 @@ function buildEmptyPlanForm(host) {
       showError(S.ERROR_NETWORK);
     }
   });
+
+  showModal(frag);
 }
 
 /**
- * "Importa calendario da CSV" tab body.  Single file input + a "Ceduo"
- * checkbox: unchecked sends as `fustaia_file`, checked as `ceduo_file`.
- * Multipart POST to /plan/import-csv/ — same endpoint as regression
- * imports.
+ * Importa calendario da CSV — tab body in the pencil modal.  Single
+ * file input + a "Ceduo" checkbox: unchecked sends as `fustaia_file`,
+ * checked as `ceduo_file`.  POSTs to /plan/import-csv/ with
+ * `harvest_plan_id` set so the server upserts rows into the active
+ * plan (dedup key: parcel + year_planned).
  */
-function buildImportCalendarForm(host) {
+function buildExistingPlanCalendarImport(host) {
   const form = document.createElement('form');
   form.className = 'pdt-plan-form';
   host.appendChild(form);
-
-  const nameRow = mkRow(form);
-  mkInput(nameRow, {
-    id: 'pdt-cal-name', name: 'name', label: S.LABEL_PLAN_NAME,
-    type: 'text', required: true, maxLength: 100,
-  });
-
-  const descRow = mkRow(form);
-  mkTextarea(descRow, {
-    id: 'pdt-cal-desc', name: 'description',
-    label: S.LABEL_PLAN_DESCRIPTION, rows: 2,
-  });
 
   const kindRow = document.createElement('div');
   kindRow.className = 'form-row';
@@ -1062,11 +1142,11 @@ function buildImportCalendarForm(host) {
   const ceduoCb = document.createElement('input');
   ceduoCb.type = 'checkbox';
   ceduoCb.name = 'is_ceduo';
-  kindLabel.append(ceduoCb, ' ' + S.NEW_PLAN_CHECKBOX_CEDUO);
+  kindLabel.append(ceduoCb, ' ' + S.EDIT_PLAN_CHECKBOX_CEDUO);
   kindRow.appendChild(kindLabel);
 
   const fileInput = mkFileInput(form, {
-    id: 'pdt-cal-file', label: S.LABEL_CSV_FILE,
+    id: 'pdt-edit-cal-file', label: S.LABEL_CSV_FILE,
   });
 
   const statusBox = mkStatusBox(form);
@@ -1079,15 +1159,12 @@ function buildImportCalendarForm(host) {
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const name = form.querySelector('[name="name"]').value.trim();
-    if (!name) { showError(S.ERR_PLAN_NAME_REQUIRED); return; }
+    if (activePlanId == null) return;
     const file = fileInput.files[0];
     if (!file) { showError(S.ERR_CSV_FILE_REQUIRED); return; }
 
     const fd = new FormData();
-    fd.append('name', name);
-    fd.append('description',
-              form.querySelector('[name="description"]').value.trim());
+    fd.append('harvest_plan_id', String(activePlanId));
     fd.append(ceduoCb.checked ? 'ceduo_file' : 'fustaia_file', file);
     fd.append('nonce', crypto.randomUUID());
 
@@ -1096,30 +1173,18 @@ function buildImportCalendarForm(host) {
 }
 
 /**
- * "Importa equazioni da CSV" tab body.  Same /plan/import-csv/ endpoint
- * as the calendar import; the regression file lands under
- * `regression_file` and the plan year range defaults to the current
- * civil year when no calendar CSV accompanies it.
+ * Importa equazioni da CSV — tab body in the pencil modal.  Same
+ * /plan/import-csv/ endpoint; the regression file lands under
+ * `regression_file` and rows are upserted on (region, species) under
+ * the active plan.
  */
-function buildImportRegressionForm(host) {
+function buildExistingPlanRegressionImport(host) {
   const form = document.createElement('form');
   form.className = 'pdt-plan-form';
   host.appendChild(form);
 
-  const nameRow = mkRow(form);
-  mkInput(nameRow, {
-    id: 'pdt-reg-name', name: 'name', label: S.LABEL_PLAN_NAME,
-    type: 'text', required: true, maxLength: 100,
-  });
-
-  const descRow = mkRow(form);
-  mkTextarea(descRow, {
-    id: 'pdt-reg-desc', name: 'description',
-    label: S.LABEL_PLAN_DESCRIPTION, rows: 2,
-  });
-
   const fileInput = mkFileInput(form, {
-    id: 'pdt-reg-file', label: S.LABEL_CSV_FILE,
+    id: 'pdt-edit-reg-file', label: S.LABEL_CSV_FILE,
   });
 
   const statusBox = mkStatusBox(form);
@@ -1132,15 +1197,12 @@ function buildImportRegressionForm(host) {
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const name = form.querySelector('[name="name"]').value.trim();
-    if (!name) { showError(S.ERR_PLAN_NAME_REQUIRED); return; }
+    if (activePlanId == null) return;
     const file = fileInput.files[0];
     if (!file) { showError(S.ERR_CSV_FILE_REQUIRED); return; }
 
     const fd = new FormData();
-    fd.append('name', name);
-    fd.append('description',
-              form.querySelector('[name="description"]').value.trim());
+    fd.append('harvest_plan_id', String(activePlanId));
     fd.append('regression_file', file);
     fd.append('nonce', crypto.randomUUID());
 

@@ -296,27 +296,29 @@ export const TYPE_CEDUO   = 'ceduo';
 export const LABEL_HARVEST_PLAN = 'Piano di taglio';
 export const NEW_PLAN_LABEL     = '+ Nuovo piano';
 export const PDT_NO_PLANS       = 'Nessun piano. Premi "+ Nuovo piano" per crearne uno.';
+export const PDT_SECTION_EMPTY              = 'Nessun intervento.';
+export const PDT_EMPTY_STATE_ADD_MANUAL     = '+ Aggiungi manualmente';
 
 // Calendar section titles.
 export const SECTION_INTERVENTI_FUSTAIA = 'Interventi fustaia';
 export const SECTION_INTERVENTI_CEDUO   = 'Interventi ceduo';
 export const ADD_ITEM_LABEL             = '+ Aggiungi';
 
-// Nuovo piano modal.
-export const NEW_PLAN_TITLE          = 'Nuovo piano';
-export const NEW_PLAN_TAB_EMPTY      = 'Crea vuoto';
-export const NEW_PLAN_TAB_CALENDAR   = 'Importa calendario da CSV';
-export const NEW_PLAN_TAB_REGRESSION = 'Importa equazioni da CSV';
-export const LABEL_PLAN_NAME         = 'Nome piano';
-export const LABEL_PLAN_DESCRIPTION  = 'Descrizione';
-export const ERR_PLAN_NAME_REQUIRED  = 'Nome piano obbligatorio.';
-export const ERR_PLAN_YEAR_RANGE     =
+// Nuovo piano modal (creation) + Modifica piano modal (pencil, tabbed).
+export const NEW_PLAN_TITLE           = 'Nuovo piano';
+export const LABEL_PLAN_NAME          = 'Nome piano';
+export const LABEL_PLAN_DESCRIPTION   = 'Descrizione';
+export const ERR_PLAN_NAME_REQUIRED   = 'Nome piano obbligatorio.';
+export const ERR_PLAN_YEAR_RANGE      =
   'Anno fine deve essere maggiore o uguale ad anno inizio.';
-export const ERR_CSV_FILE_REQUIRED   = 'File CSV obbligatorio.';
-export const NEW_PLAN_CHECKBOX_CEDUO = 'File contiene il calendario ceduo';
-export const LABEL_CSV_FILE          = 'File CSV';
-export const IMPORT_LABEL            = 'Importa';
-export const EDIT_PLAN_TITLE         = 'Modifica piano';
+export const ERR_CSV_FILE_REQUIRED    = 'File CSV obbligatorio.';
+export const EDIT_PLAN_TITLE          = 'Modifica piano';
+export const EDIT_PLAN_TAB_DETAILS    = 'Dettagli';
+export const EDIT_PLAN_TAB_CALENDAR   = 'Importa calendario da CSV';
+export const EDIT_PLAN_TAB_REGRESSION = 'Importa equazioni da CSV';
+export const EDIT_PLAN_CHECKBOX_CEDUO = 'File contiene il calendario ceduo';
+export const LABEL_CSV_FILE           = 'File CSV';
+export const IMPORT_LABEL             = 'Importa';
 
 // Dangerous-delete (plan + per-item).
 export const DELETE_PLAN_TITLE   = 'Elimina piano';
