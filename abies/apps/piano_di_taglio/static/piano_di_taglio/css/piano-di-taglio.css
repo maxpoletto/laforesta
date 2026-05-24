@@ -132,3 +132,74 @@
 .pdt-table-host .sortable-table-header.numeric {
   text-align: center;
 }
+
+/* --- View/edit-item page --- */
+
+/* Override looking-glass icon in the calendar table so all users (incl.
+   readers) get the affordance — the default actions column requires
+   canModify. */
+.pdt-table-host .sortable-table-row {
+  cursor: pointer;
+}
+
+/* Item-view card — full-width page content, not a 640px modal. */
+.pdt-item-card {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.pdt-item-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.pdt-item-title {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.pdt-item-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.pdt-item-close {
+  font-size: 1.3rem;
+  cursor: pointer;
+  padding: 2px 8px;
+  border: none;
+  background: none;
+  color: #666;
+}
+.pdt-item-close:hover {
+  color: #333;
+}
+
+.pdt-item-meta {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 16px;
+  margin-bottom: 16px;
+  font-size: 0.95rem;
+}
+.pdt-item-meta dt {
+  font-weight: 500;
+  color: #555;
+}
+.pdt-item-meta dd {
+  margin: 0;
+}
+
+.pdt-item-prelievi-total {
+  font-weight: 500;
+  margin: 8px 0;
+}
+
+.pdt-item-prelievi-host {
+  margin-top: 8px;
+}

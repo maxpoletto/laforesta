@@ -353,6 +353,16 @@ export const COL_OPERATOR             = 'Operatore';
 export const COL_NUMERO               = 'Numero';
 export const COL_H_MEASURED           = 'h misurata';
 
+// View/edit-item page.
+export const VIEW_ITEM_TITLE     = 'Intervento';
+export const LABEL_OPEN_CANTIERE  = 'Apri cantiere';
+export const LABEL_CLOSE_CANTIERE = 'Chiudi cantiere';
+export const LABEL_PROTOCOL_NUMBER = 'Numero di protocollo';
+export const ERR_DATE_REQUIRED    = 'Data obbligatoria.';
+export const SECTION_PRELIEVI     = 'Prelievi';
+export const LABEL_VOLUME_TOTAL   = 'Volume totale';
+export const COL_CANTIERE         = 'Cantiere';
+
 // CSV export filenames (per-plan zip + per-item zip; see piano-di-taglio.md).
 export const CSV_PIANO       = 'piano.csv';
 export const CSV_CEDUO       = 'ceduo.csv';

@@ -38,16 +38,22 @@ const PLAN_SAVE_URL = '/api/piano-di-taglio/plan/save/';
 const PLAN_IMPORT_CSV_URL = '/api/piano-di-taglio/plan/import-csv/';
 const PLAN_DELETE_URL = '/api/piano-di-taglio/plan/delete/';
 const PLAN_EXPORT_URL = '/api/piano-di-taglio/plan/export/';
+const ITEM_DATA_URL = '/api/piano-di-taglio/item/data/';
 const ITEM_FORM_URL = '/api/piano-di-taglio/item/form/';
 const ITEM_SAVE_URL = '/api/piano-di-taglio/item/save/';
 const ITEM_DELETE_URL = '/api/piano-di-taglio/item/delete/';
 const ITEM_EXPORT_URL = '/api/piano-di-taglio/item/export/';
+const TRANSITION_SAVE_URL = '/api/piano-di-taglio/transition/save/';
+
+const PRELIEVI_ID = 'prelievi';
+const PRELIEVI_URL = '/api/prelievi/data/';
 
 const PAGE_PATH = '/piano-di-taglio';
 
 cache.register(PLANS_ID, PLANS_URL);
 cache.register(ITEMS_ID, ITEMS_URL);
 cache.register(REGRESSIONS_ID, REGRESSIONS_URL);
+cache.register(PRELIEVI_ID, PRELIEVI_URL);
 
 // --- Page state -------------------------------------------------------------
 
@@ -60,6 +66,9 @@ let unsubItems = null;
 
 let descriptionEl = null;
 let planSelectEl = null;
+let activeItemId = null;
+let prelieviData = null;
+let itemPrelieviTable = null;
 
 // Calendar sections — keyed by the single-char URL `o=` token.  `f`
 // fills in here; `c` (Calendario ceduo) lands in a later increment.
@@ -143,8 +152,10 @@ export function unmount() {
   if (unsubItems) { unsubItems(); unsubItems = null; }
   cache.setVisible([]);
   destroyTables();
+  destroyItemPrelieviTable();
   activePlanId = null;
-  plansData = itemsData = regressionsData = null;
+  activeItemId = null;
+  plansData = itemsData = regressionsData = prelieviData = null;
   descriptionEl = null;
   planSelectEl = null;
 }
@@ -177,6 +188,7 @@ export function onQueryChange(params) {
 function readParams(params) {
   return {
     p: params.p ? parseInt(params.p, 10) : null,
+    i: params.i ? parseInt(params.i, 10) : null,
     o: params.o !== undefined ? params.o : DEFAULT_OPEN,
     ff: params.ff || '',
     fsc: params.fsc || null,
@@ -205,14 +217,22 @@ function applyParams(params) {
     const shouldBeOpen = p.o.includes(k);
     if (s.header && s.open !== shouldBeOpen) toggleSection(s, shouldBeOpen);
   }
+
+  // Item view page — i=N opens the view/edit item page.
+  if (p.i != null && p.i !== activeItemId) {
+    openItemView(p.i);
+  } else if (p.i == null && activeItemId != null) {
+    closeItemView();
+  }
 }
 
-function syncURL() {
+function syncURL(push = false) {
   const u = new URLSearchParams();
   if (activePlanId != null) {
     const defaultPlan = plansData?.rows[0]?.[plansData.columns.indexOf(ROW_ID)];
     if (activePlanId !== defaultPlan) u.set('p', String(activePlanId));
   }
+  if (activeItemId != null) u.set('i', String(activeItemId));
   const openKeys = SECTION_KEYS.filter(k => sections[k].open).join('');
   if (openKeys !== DEFAULT_OPEN) u.set('o', openKeys);
 
@@ -239,7 +259,7 @@ function syncURL() {
   }
 
   const qs = u.toString();
-  router.navigate(PAGE_PATH + (qs ? '?' + qs : ''), true);
+  router.navigate(PAGE_PATH + (qs ? '?' + qs : ''), !push);
 }
 
 // ---------------------------------------------------------------------------
@@ -415,7 +435,7 @@ function buildTable(s, searchInput) {
     inlineToolbar: false,
     canModify: modify,
     actions: modify ? {
-      onEdit: (rowId) => showEditItemModal(rowId),
+      onEdit: (rowId) => navigateToItem(rowId),
       onDelete: (rowId) => confirmDeleteItem(rowId),
     } : {},
     sort: { column: sortCol, ascending: sortAsc },
@@ -428,6 +448,16 @@ function buildTable(s, searchInput) {
   });
   s.table.wireSearchInput(searchInput);
   applyPlanFilter(s);
+
+  // Row-click → navigate to item view page (for all users, not just writers).
+  s.host.addEventListener('click', (e) => {
+    if (e.target.closest('.action-icon')) return;
+    const tr = e.target.closest('.sortable-table-row');
+    if (!tr || !s.table?._table) return;
+    const rowData = s.table._table.data[parseInt(tr.dataset.index, 10)];
+    if (!rowData) return;
+    navigateToItem(rowData[0]);
+  });
 }
 
 function applyPlanFilter(s) {
@@ -500,23 +530,28 @@ function buildItemColumnDefs(columns, hiddenCols) {
   return defs;
 }
 
+function fmtDecimal2(v) {
+  return typeof v === 'number' ? v.toFixed(2).replace('.', ',') : (v == null || v === '' ? '' : v);
+}
+
+function fmtInt(v) {
+  return v == null || v === '' ? '' : String(v);
+}
+
 const ITEM_COL_DEFS = (() => {
-  const fNum = (v) => (typeof v === 'number' ? v.toFixed(2).replace('.', ',') : (v == null || v === '' ? '' : v));
-  const fArea = (v) => (typeof v === 'number' ? v.toFixed(2).replace('.', ',') : (v == null || v === '' ? '' : v));
-  const fInt = (v) => (v == null || v === '' ? '' : String(v));
   return {
-    [S.COL_YEAR_PLANNED]:         { label: S.COL_YEAR_PLANNED, type: 'number', width: '85px', formatter: fInt },
-    [S.COL_YEAR_ACTUAL]:          { label: S.COL_YEAR_ACTUAL,  type: 'number', width: '85px', formatter: fInt },
+    [S.COL_YEAR_PLANNED]:         { label: S.COL_YEAR_PLANNED, type: 'number', width: '85px', formatter: fmtInt },
+    [S.COL_YEAR_ACTUAL]:          { label: S.COL_YEAR_ACTUAL,  type: 'number', width: '85px', formatter: fmtInt },
     [S.COL_COMPRESA]:             { label: S.COL_COMPRESA,     width: '110px' },
     [S.COL_PARCEL]:               { label: S.COL_PARCEL,       width: '90px' },
     [S.COL_STATE]:                { label: S.COL_STATE,        width: '110px' },
     [S.COL_NOTE]:                 { label: S.COL_NOTE,         width: '160px' },
-    [S.COL_VOLUME_PLANNED]:       { label: S.COL_VOLUME_PLANNED, type: 'number', width: '95px', formatter: fNum },
-    [S.COL_VOLUME_MARKED]:        { label: S.COL_VOLUME_MARKED,  type: 'number', width: '95px', formatter: fNum },
-    [S.COL_VOLUME_ACTUAL]:        { label: S.COL_VOLUME_ACTUAL,  type: 'number', width: '95px', formatter: fNum },
-    [S.COL_INTERVENTION_AREA_HA]: { label: S.COL_INTERVENTION_AREA_HA, type: 'number', width: '110px', formatter: fArea },
-    [S.COL_PARCEL_AREA_HA]:       { label: S.COL_PARCEL_AREA_HA,       type: 'number', width: '110px', formatter: fArea },
-    [S.COL_TURNO_A]:              { label: S.COL_TURNO_A,             type: 'number', width: '75px',  formatter: fInt },
+    [S.COL_VOLUME_PLANNED]:       { label: S.COL_VOLUME_PLANNED, type: 'number', width: '95px', formatter: fmtDecimal2 },
+    [S.COL_VOLUME_MARKED]:        { label: S.COL_VOLUME_MARKED,  type: 'number', width: '95px', formatter: fmtDecimal2 },
+    [S.COL_VOLUME_ACTUAL]:        { label: S.COL_VOLUME_ACTUAL,  type: 'number', width: '95px', formatter: fmtDecimal2 },
+    [S.COL_INTERVENTION_AREA_HA]: { label: S.COL_INTERVENTION_AREA_HA, type: 'number', width: '110px', formatter: fmtDecimal2 },
+    [S.COL_PARCEL_AREA_HA]:       { label: S.COL_PARCEL_AREA_HA,       type: 'number', width: '110px', formatter: fmtDecimal2 },
+    [S.COL_TURNO_A]:              { label: S.COL_TURNO_A,             type: 'number', width: '75px',  formatter: fmtInt },
   };
 })();
 
@@ -603,68 +638,50 @@ async function doDeletePlan() {
 
 async function showAddItemModal(section) {
   if (activePlanId == null) return;
+  await fetchAndOpenItemForm(`${ITEM_FORM_URL}?plan=${activePlanId}`, section.kind);
+}
+
+async function fetchAndOpenItemForm(url, kind, opts) {
   let payload;
   try {
-    const url = `${ITEM_FORM_URL}?plan=${activePlanId}`;
-    const result = await fetchJSON(url);
-    payload = result.data;
+    const { data } = await fetchJSON(url);
+    payload = data;
   } catch {
     showError(S.ERROR_NETWORK);
     return;
   }
   if (!payload?.html) { showError(S.ERROR_GENERIC); return; }
-  openItemFormModal(payload.html, section.kind);
+  openItemFormModal(payload.html, kind, opts);
 }
 
-/**
- * Inline-edit affordance for a calendar row (pencil icon).  Opens the
- * existing item form pre-populated with the item's fields; the form's
- * row_id hidden carries the id so the save endpoint treats this as an
- * update.  When PT-60 lands, the per-row looking-glass becomes the
- * primary affordance for full view/edit (with marks/prelievi); this
- * pencil stays as a quick-metadata-edit shortcut.
- */
-async function showEditItemModal(itemId) {
-  if (!itemsData) return;
-  const c = itemsData.columns;
-  const row = itemsData.rows.find(r => r[c.indexOf(ROW_ID)] === itemId);
-  if (!row) return;
-  const tipo = row[c.indexOf(S.COL_TYPE)];
-  const kind = tipo === S.TYPE_CEDUO ? 'ceduo' : 'fustaia';
+function openItemFormModal(html, kind, { onDone } = {}) {
+  const onSuccess = onDone || (() => {});
+  const onCancel = onDone || dismissModal;
 
-  let payload;
-  try {
-    const result = await fetchJSON(`${ITEM_FORM_URL}${itemId}/`);
-    payload = result.data;
-  } catch {
-    showError(S.ERROR_NETWORK);
-    return;
+  function wireAndShow(frag) {
+    const form = frag.querySelector('form');
+    if (!form) { showError(S.ERROR_GENERIC); return; }
+    injectNonce(form);
+    wireItemForm(form, kind);
+    attachItemSubmit(form, kind, onSuccess);
+    wireCancelButtons(form, onCancel);
+    return form;
   }
-  if (!payload?.html) { showError(S.ERROR_GENERIC); return; }
-  openItemFormModal(payload.html, kind);
-}
 
-function openItemFormModal(html, kind) {
   const frag = parseHTMLFragment(html);
-  const form = frag.querySelector('form');
-  if (!form) { showError(S.ERROR_GENERIC); return; }
-  injectNonce(form);
-  wireItemForm(form, kind);
-  attachItemSubmit(form, kind);
-  wireCancelButtons(form, dismissModal);
-
+  wireAndShow(frag);
   const outer = document.createDocumentFragment();
   outer.appendChild(frag);
   showModal(outer);
 }
 
-function replaceItemFormInModal(html, kind) {
+function replaceItemFormInModal(html, kind, onSuccess) {
   const frag = parseHTMLFragment(html);
   const form = frag.querySelector('form');
   if (!form) return;
   injectNonce(form);
   wireItemForm(form, kind);
-  attachItemSubmit(form, kind);
+  attachItemSubmit(form, kind, onSuccess);
   wireCancelButtons(form, dismissModal);
   const modalEl = document.querySelector('#modal-container .modal');
   if (modalEl) {
@@ -681,7 +698,7 @@ function parseHTMLFragment(html) {
   return frag;
 }
 
-function attachItemSubmit(form, kind) {
+function attachItemSubmit(form, kind, onSuccess) {
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const body = Object.fromEntries(new FormData(form));
@@ -700,10 +717,11 @@ function attachItemSubmit(form, kind) {
         updateEmptyState(sections[k]);
       }
       dismissModal();
+      onSuccess();
       return;
     }
     if (data.html) {
-      replaceItemFormInModal(data.html, kind);
+      replaceItemFormInModal(data.html, kind, onSuccess);
     } else {
       showFormError(form, data.message || S.ERROR_GENERIC);
     }
@@ -1078,7 +1096,7 @@ function buildEditDetailsForm(host, current) {
 // ---------------------------------------------------------------------------
 // Nuovo piano modal — name + description only.  An empty plan starts
 // with year_start = year_end = current civil year; the range widens
-// later via pencil edit or implicitly on CSV import (PT-5R-3).
+// later via pencil edit or implicitly on CSV import.
 // Identity (name) is deliberately decoupled from content (calendar /
 // equations) — those land via the pencil modal.
 // ---------------------------------------------------------------------------
@@ -1353,6 +1371,395 @@ function downloadPlanExport(planId) {
   document.body.appendChild(a);
   a.click();
   a.remove();
+}
+
+// ---------------------------------------------------------------------------
+// View/edit-item page
+//
+// When i=N is set in the URL, the calendar list is replaced with a
+// full-width item detail view.  Back-button behaviour is preserved
+// via pushState.
+// ---------------------------------------------------------------------------
+
+function navigateToItem(itemId) {
+  openItemView(itemId, true);
+}
+
+function openItemView(itemId, push = false) {
+  activeItemId = itemId;
+  if (push) syncURL(true);
+  renderItemView(itemId);
+}
+
+function closeItemView(push = false) {
+  destroyItemPrelieviTable();
+  activeItemId = null;
+  if (push) syncURL(true);
+  const el = document.getElementById('content');
+  if (el) {
+    buildPageShell(el);
+    setActivePlan(activePlanId);
+  }
+}
+
+function destroyItemPrelieviTable() {
+  if (itemPrelieviTable) {
+    itemPrelieviTable.destroy();
+    itemPrelieviTable = null;
+  }
+}
+
+async function renderItemView(itemId) {
+  const el = document.getElementById('content');
+  if (!el) return;
+
+  el.replaceChildren();
+  const loading = document.createElement('div');
+  loading.className = 'loading-overlay';
+  loading.textContent = S.LOADING;
+  el.appendChild(loading);
+
+  let payload;
+  try {
+    const { data } = await fetchJSON(`${ITEM_DATA_URL}${itemId}/`);
+    payload = data;
+  } catch {
+    showError(S.ERROR_NETWORK);
+    return;
+  }
+  if (!payload) { showError(S.ERROR_GENERIC); return; }
+
+  const record = payload.record;
+  const transitions = payload.transition_records || [];
+  if (!record) { showError(S.ERROR_GENERIC); return; }
+
+  el.replaceChildren();
+  showItemMetadata(el, itemId, record, transitions);
+}
+
+function showItemMetadata(el, itemId, record, transitions) {
+  const c = itemsData?.columns;
+  if (!c) return;
+
+  const card = document.createElement('div');
+  card.className = 'pdt-item-card';
+
+  // --- Header: title + actions + close ---
+  const header = document.createElement('div');
+  header.className = 'pdt-item-header';
+
+  const title = document.createElement('h2');
+  title.className = 'pdt-item-title';
+  title.textContent = formatItemTitle(record, c);
+  header.appendChild(title);
+
+  const actions = document.createElement('div');
+  actions.className = 'pdt-item-header-actions';
+
+  const exportBtn = document.createElement('button');
+  exportBtn.type = 'button';
+  exportBtn.className = 'btn';
+  exportBtn.textContent = S.EXPORT_CSV;
+  exportBtn.addEventListener('click', () => downloadItemExport(itemId));
+  actions.appendChild(exportBtn);
+
+  // Pencil for inline edit (writers only)
+  if (canModify()) {
+    const pencil = document.createElement('span');
+    pencil.className = 'pdt-pulldown-icon';
+    pencil.textContent = '✎';
+    pencil.title = S.ACTION_EDIT;
+    pencil.addEventListener('click', () => loadItemEditForm(itemId));
+    actions.appendChild(pencil);
+  }
+
+  // Close button (×)
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'pdt-item-close';
+  close.textContent = '×';
+  close.title = S.DISMISS;
+  close.addEventListener('click', () => closeItemView(true));
+  actions.appendChild(close);
+
+  header.appendChild(actions);
+  card.appendChild(header);
+
+  // --- Metadata pane ---
+  const meta = document.createElement('dl');
+  meta.className = 'pdt-item-meta';
+
+  const planName = lookupPlanName(record[c.indexOf(S.COL_HARVEST_PLAN)]);
+  const compresa = record[c.indexOf(S.COL_COMPRESA)];
+  const parcel = record[c.indexOf(S.COL_PARCEL)];
+  const yearPlanned = record[c.indexOf(S.COL_YEAR_PLANNED)];
+  const yearActual = record[c.indexOf(S.COL_YEAR_ACTUAL)];
+  const state = record[c.indexOf(S.COL_STATE)];
+  const note = record[c.indexOf(S.COL_NOTE)];
+  const tipo = record[c.indexOf(S.COL_TYPE)];
+  const volPlanned = record[c.indexOf(S.COL_VOLUME_PLANNED)];
+  const volMarked = record[c.indexOf(S.COL_VOLUME_MARKED)];
+  const volActual = record[c.indexOf(S.COL_VOLUME_ACTUAL)];
+  const areaIntervention = record[c.indexOf(S.COL_INTERVENTION_AREA_HA)];
+  const areaParcel = record[c.indexOf(S.COL_PARCEL_AREA_HA)];
+  const turno = record[c.indexOf(S.COL_TURNO_A)];
+  const isCoppice = tipo === S.TYPE_CEDUO;
+
+  addMetaRow(meta, S.LABEL_HARVEST_PLAN, planName);
+  addMetaRow(meta, S.COL_COMPRESA, compresa);
+  if (parcel) addMetaRow(meta, S.COL_PARCEL, parcel);
+  addMetaRow(meta, S.COL_YEAR_PLANNED, yearPlanned);
+  if (yearActual) addMetaRow(meta, S.COL_YEAR_ACTUAL, yearActual);
+  addMetaRow(meta, S.COL_STATE, state);
+  if (!isCoppice) {
+    addMetaRow(meta, S.COL_VOLUME_PLANNED, fmtVolume(volPlanned));
+    addMetaRow(meta, S.COL_VOLUME_MARKED, fmtVolume(volMarked));
+  } else {
+    addMetaRow(meta, S.COL_INTERVENTION_AREA_HA, fmtArea(areaIntervention));
+    addMetaRow(meta, S.COL_PARCEL_AREA_HA, fmtArea(areaParcel));
+    addMetaRow(meta, S.COL_TURNO_A, turno != null ? String(turno) : '');
+  }
+  addMetaRow(meta, S.COL_VOLUME_ACTUAL, fmtVolume(volActual));
+  if (note) addMetaRow(meta, S.COL_NOTE, note);
+
+  // Transition history
+  if (transitions.length) {
+    const historyLabel = transitions
+      .map(t => `${t[2] ? S.LABEL_OPEN_CANTIERE : S.LABEL_CLOSE_CANTIERE}: ${formatDate(t[3])}${t[4] ? ' — ' + t[4] : ''}`)
+      .join('; ');
+    addMetaRow(meta, S.COL_CANTIERE, historyLabel);
+  }
+
+  card.appendChild(meta);
+
+  // Apri / Chiudi cantiere buttons (writers only).
+  if (canModify()) {
+    const btnRow = document.createElement('div');
+    btnRow.className = 'form-actions';
+    let hasTransition = false;
+
+    if (state === S.STATE_PLANNED || state === S.STATE_MARKED) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn btn-primary';
+      btn.textContent = S.LABEL_OPEN_CANTIERE;
+      btn.addEventListener('click', () => showTransitionForm(itemId, true));
+      btnRow.appendChild(btn);
+      hasTransition = true;
+    }
+    if (state === S.STATE_OPEN || state === S.STATE_HARVESTING) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn btn-primary';
+      btn.textContent = S.LABEL_CLOSE_CANTIERE;
+      btn.addEventListener('click', () => showTransitionForm(itemId, false));
+      btnRow.appendChild(btn);
+      hasTransition = true;
+    }
+
+    if (hasTransition) card.appendChild(btnRow);
+  }
+
+  // Prelievi sub-section (visible once cantiere is open or later).
+  const stateIdx = [S.STATE_OPEN, S.STATE_HARVESTING, S.STATE_CLOSED];
+  if (stateIdx.includes(state)) {
+    appendItemPrelieviSection(card, itemId);
+  }
+
+  el.appendChild(card);
+}
+
+function addMetaRow(dl, label, value) {
+  const dt = document.createElement('dt');
+  dt.textContent = label;
+  const dd = document.createElement('dd');
+  dd.textContent = value ?? '';
+  dl.append(dt, dd);
+}
+
+function formatItemTitle(record, columns) {
+  const compresa = record[columns.indexOf(S.COL_COMPRESA)];
+  const parcel = record[columns.indexOf(S.COL_PARCEL)];
+  const year = record[columns.indexOf(S.COL_YEAR_PLANNED)];
+  const planName = lookupPlanName(record[columns.indexOf(S.COL_HARVEST_PLAN)]);
+  const location = parcel ? `${compresa} ${parcel}` : compresa;
+  return `${S.VIEW_ITEM_TITLE} — ${planName}, ${year}, ${location}`;
+}
+
+function lookupPlanName(planId) {
+  const row = planRow(planId);
+  return row ? row[plansData.columns.indexOf(S.COL_NAME)] : '';
+}
+
+function fmtVolume(v) {
+  const s = fmtDecimal2(v);
+  return s ? s + ' m³' : '';
+}
+
+function fmtArea(v) {
+  const s = fmtDecimal2(v);
+  return s ? s + ' ha' : '';
+}
+
+function formatDate(iso) {
+  if (!iso) return '';
+  const parts = iso.split('-');
+  if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  return iso;
+}
+
+function loadItemEditForm(itemId) {
+  const row = itemsData?.rows.find(r =>
+    r[itemsData.columns.indexOf(ROW_ID)] === itemId,
+  );
+  const tipo = row?.[itemsData.columns.indexOf(S.COL_TYPE)];
+  const kind = tipo === S.TYPE_CEDUO ? 'ceduo' : 'fustaia';
+  fetchAndOpenItemForm(`${ITEM_FORM_URL}${itemId}/`, kind, {
+    onDone: () => renderItemView(itemId),
+  });
+}
+
+// --- Transition form (Apri / Chiudi cantiere) ---
+
+function showTransitionForm(itemId, openFlag) {
+  const frag = document.createDocumentFragment();
+  const card = document.createElement('div');
+  card.className = 'form-card';
+  frag.appendChild(card);
+
+  const h = document.createElement('h2');
+  h.textContent = openFlag ? S.LABEL_OPEN_CANTIERE : S.LABEL_CLOSE_CANTIERE;
+  card.appendChild(h);
+
+  const form = document.createElement('form');
+  card.appendChild(form);
+
+  const dateRow = mkRow(form, 'narrow');
+  mkInput(dateRow, {
+    id: 'pdt-transition-date', name: 'date', label: S.LABEL_DATE,
+    type: 'date', required: true,
+    value: new Date().toISOString().slice(0, 10),
+  });
+
+  const noteRow = mkRow(form);
+  mkInput(noteRow, {
+    id: 'pdt-transition-note', name: 'note', label: S.LABEL_PROTOCOL_NUMBER,
+    type: 'text',
+  });
+
+  mkFormActions(form, {
+    onCancel: dismissModal,
+    submitLabel: S.CONFIRM,
+  });
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(form);
+    const dateVal = (fd.get('date') || '').toString().trim();
+    if (!dateVal) { showFormError(form, S.ERR_DATE_REQUIRED); return; }
+
+    const body = {
+      harvest_plan_item_id: itemId,
+      open: openFlag,
+      date: dateVal,
+      note: (fd.get('note') || '').toString().trim(),
+      nonce: crypto.randomUUID(),
+    };
+
+    try {
+      const { data, status } = await postJSON(TRANSITION_SAVE_URL, body);
+      if (status !== 200) {
+        showFormError(form, data?.message || S.ERROR_GENERIC);
+        return;
+      }
+      // Patch the items cache with the updated record.
+      if (data.item_record) {
+        cache.updateRow(ITEMS_ID, data.row_id, data.item_record);
+        itemsData = cache.get(ITEMS_ID);
+      }
+      dismissModal();
+      renderItemView(itemId);
+    } catch {
+      showFormError(form, S.ERROR_NETWORK);
+    }
+  });
+
+  showModal(frag);
+}
+
+// --- Prelievi sub-section ---
+
+async function appendItemPrelieviSection(card, itemId) {
+  const [header, body] = mkCollapsible(S.SECTION_PRELIEVI, true);
+  card.append(header, body);
+
+  // Load prelievi data (lazy, from cache or network).
+  try {
+    prelieviData = await cache.load(PRELIEVI_ID);
+  } catch {
+    const err = document.createElement('div');
+    err.textContent = S.ERROR_NETWORK;
+    err.style.color = '#c00';
+    body.appendChild(err);
+    return;
+  }
+
+  if (!prelieviData?.rows?.length) return;
+
+  const c = prelieviData.columns;
+  const cantiereCol = c.indexOf(S.COL_CANTIERE);
+  if (cantiereCol < 0) return;
+
+  const filtered = prelieviData.rows.filter(r => r[cantiereCol] === itemId);
+
+  // Volume total
+  const volCol = c.indexOf(S.COL_VOLUME_M3);
+  const total = filtered.reduce((sum, r) => sum + (typeof r[volCol] === 'number' ? r[volCol] : 0), 0);
+  const totalEl = document.createElement('div');
+  totalEl.className = 'pdt-item-prelievi-total';
+  totalEl.textContent = `${S.LABEL_VOLUME_TOTAL}: ${fmtVolume(total)}`;
+  body.appendChild(totalEl);
+
+  if (!filtered.length) return;
+
+  // Build a filtered digest for the table.
+  const filteredDigest = { columns: c, rows: filtered };
+
+  const host = document.createElement('div');
+  host.className = 'pdt-item-prelievi-host';
+  body.appendChild(host);
+
+  destroyItemPrelieviTable();
+  itemPrelieviTable = new TableWrapper({
+    container: host,
+    digest: filteredDigest,
+    columnDefs: buildPrelieviColumnDefs(c),
+    inlineToolbar: false,
+    canModify: false,
+    actions: {},
+    sort: { column: S.COL_DATE, ascending: false },
+    csvFilename: `${S.CSV_PRELIEVI_PREFIX}${itemId}.csv`,
+    labels: S.TABLE_LABELS,
+    csvFormat: S.TABLE_CSV_FORMAT,
+  });
+}
+
+function buildPrelieviColumnDefs(columns) {
+  const fDec1 = (v) => (typeof v === 'number' ? v.toFixed(1).replace('.', ',') : (v == null || v === '' ? '' : v));
+  const hidden = new Set([VERSION, S.COL_CANTIERE]);
+  for (const name of columns) {
+    if (name.endsWith(' %')) hidden.add(name);
+  }
+  const defs = {};
+  for (const name of columns) {
+    if (name === ROW_ID) continue;
+    if (hidden.has(name)) { defs[name] = { label: name, hidden: true }; continue; }
+    if (name === S.COL_DATE) { defs[name] = { label: name, type: 'date', width: '100px' }; continue; }
+    if (name === S.COL_QUINTALS) { defs[name] = { label: name, type: 'number', width: '70px', formatter: fDec1 }; continue; }
+    if (name === S.COL_VOLUME_M3) { defs[name] = { label: name, type: 'number', width: '95px', formatter: fmtDecimal2 }; continue; }
+    defs[name] = { label: name };
+  }
+  return defs;
 }
 
 // ---------------------------------------------------------------------------
