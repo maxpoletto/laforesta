@@ -217,6 +217,119 @@ class TestPlanCSVImport:
         )
         assert resp.status_code == 400
 
+    def test_import_whole_region_fustaia(
+        self, writer_client, plan, regions,
+    ):
+        # Particella = 'X' marks a whole-region item.  Note column must
+        # contain "Catastrofato" or "Fitosanitario".
+        csv_in = (
+            f'Compresa;Particella;Anno;Volume previsto;Note\r\n'
+            f'Capistrano;{S.PARCEL_WHOLE_REGION_MARK};2029;;{S.FLAG_DAMAGED}\r\n'
+        )
+        r = self._upload(
+            writer_client, harvest_plan_id=plan.id,
+            fustaia_file=io.BytesIO(csv_in.encode('utf-8')),
+        )
+        assert r.status_code == 200, r.json()
+        items = HarvestPlanItem.objects.filter(
+            harvest_plan=plan, parcel__isnull=True,
+        )
+        assert items.count() == 1
+        it = items[0]
+        assert it.region.name == 'Capistrano'
+        assert it.damaged is True
+        assert it.unhealthy is False
+        assert it.year_planned == 2029
+
+    def test_import_whole_region_requires_flag(
+        self, writer_client, plan, regions,
+    ):
+        csv_in = (
+            f'Compresa;Particella;Anno;Volume previsto;Note\r\n'
+            f'Capistrano;{S.PARCEL_WHOLE_REGION_MARK};2029;;\r\n'
+        )
+        r = self._upload(
+            writer_client, harvest_plan_id=plan.id,
+            fustaia_file=io.BytesIO(csv_in.encode('utf-8')),
+        )
+        assert r.status_code == 400
+        # Whole-region row with empty Note is rejected.
+        assert 'Compresa' in r.json()[MESSAGE] or 'compresa' in r.json()[MESSAGE]
+
+    def test_import_parcel_scoped_note_sets_flags(
+        self, writer_client, plan, parcels,
+    ):
+        # Round-trip: a parcel-scoped row whose Note column says
+        # "Catastrofato" sets damaged=True on the resulting item.
+        csv_in = (
+            f'Compresa;Particella;Anno;Volume previsto;Note\r\n'
+            f'{parcels[0].region.name};{parcels[0].name};2030;50;{S.FLAG_DAMAGED}\r\n'
+        )
+        r = self._upload(
+            writer_client, harvest_plan_id=plan.id,
+            fustaia_file=io.BytesIO(csv_in.encode('utf-8')),
+        )
+        assert r.status_code == 200, r.json()
+        it = HarvestPlanItem.objects.get(
+            harvest_plan=plan, parcel=parcels[0], year_planned=2030,
+        )
+        assert it.damaged is True
+
+    def test_import_ceduo_altre_note_disambiguates(
+        self, writer_client, plan, parcels, eclasses, regions,
+    ):
+        # When 'Altre note' is present in the header, 'Note' is the flag
+        # string and 'Altre note' is free-text.
+        from apps.base.models import Parcel
+        coppice_eclass = next(e for e in eclasses if e.coppice)
+        coppice_parcel = Parcel.objects.create(
+            name='cop-1', region=regions[0], eclass=coppice_eclass,
+            area_ha=Decimal('3.0'),
+        )
+        csv_in = (
+            f'Anno;Compresa;Particella;Superficie intervento (ha);'
+            f'Turno (a);Note;Altre note\r\n'
+            f'2031;{coppice_parcel.region.name};{coppice_parcel.name};'
+            f'2,5;18;{S.FLAG_DAMAGED};Cont. 2032\r\n'
+        )
+        r = self._upload(
+            writer_client, harvest_plan_id=plan.id,
+            ceduo_file=io.BytesIO(csv_in.encode('utf-8')),
+        )
+        assert r.status_code == 200, r.json()
+        it = HarvestPlanItem.objects.get(
+            harvest_plan=plan, parcel=coppice_parcel, year_planned=2031,
+        )
+        assert it.damaged is True
+        assert it.note == 'Cont. 2032'
+
+    def test_import_ceduo_legacy_note_is_free_text(
+        self, writer_client, plan, parcels, eclasses, regions,
+    ):
+        # Legacy pdg-2026 ceduo CSV: 'Note' is free-text, no flag column.
+        from apps.base.models import Parcel
+        coppice_eclass = next(e for e in eclasses if e.coppice)
+        coppice_parcel = Parcel.objects.create(
+            name='cop-2', region=regions[0], eclass=coppice_eclass,
+            area_ha=Decimal('3.0'),
+        )
+        csv_in = (
+            f'Anno,Compresa,Particella,Superficie intervento (ha),'
+            f'Turno (a),Note\r\n'
+            f'2032,{coppice_parcel.region.name},{coppice_parcel.name},'
+            f'2.5,18,Cont. 2033\r\n'
+        )
+        r = self._upload(
+            writer_client, harvest_plan_id=plan.id,
+            ceduo_file=io.BytesIO(csv_in.encode('utf-8')),
+        )
+        assert r.status_code == 200, r.json()
+        it = HarvestPlanItem.objects.get(
+            harvest_plan=plan, parcel=coppice_parcel, year_planned=2032,
+        )
+        assert it.damaged is False
+        assert it.note == 'Cont. 2033'
+
     def test_import_into_existing_plan_upserts(
         self, writer_client, plan, parcels, species,
     ):
@@ -318,10 +431,10 @@ class TestPlanExport:
         assert resp['Content-Type'] == 'application/zip'
         zf = zipfile.ZipFile(io.BytesIO(resp.content))
         assert set(zf.namelist()) == {
-            'piano.csv', 'ceduo.csv', 'equazioni_ipsometro.csv',
+            'fustaia.csv', 'ceduo.csv', 'equazioni_ipsometro.csv',
         }
         # planned_item is fustaia → lands in piano.csv.
-        piano = zf.read('piano.csv').decode('utf-8').splitlines()
+        piano = zf.read('fustaia.csv').decode('utf-8').splitlines()
         assert any(planned_item.parcel.region.name in line for line in piano)
 
     def test_export_uses_italian_locale(
@@ -331,7 +444,7 @@ class TestPlanExport:
         # TABLE_CSV_FORMAT used by the per-table CSV export.
         resp = writer_client.get(f'/api/piano-di-taglio/plan/export/{plan.id}/')
         zf = zipfile.ZipFile(io.BytesIO(resp.content))
-        piano = zf.read('piano.csv').decode('utf-8')
+        piano = zf.read('fustaia.csv').decode('utf-8')
         header, data, *_ = piano.splitlines()
         assert ';' in header and ',' not in header
         # planned_item volume_planned_m3 = 100.0 → '100' in the export.
@@ -339,8 +452,8 @@ class TestPlanExport:
         planned_item.volume_planned_m3 = Decimal('12.5')
         planned_item.save()
         resp2 = writer_client.get(f'/api/piano-di-taglio/plan/export/{plan.id}/')
-        piano2 = zf.read('piano.csv') if False else (
-            zipfile.ZipFile(io.BytesIO(resp2.content)).read('piano.csv')
+        piano2 = zf.read('fustaia.csv') if False else (
+            zipfile.ZipFile(io.BytesIO(resp2.content)).read('fustaia.csv')
             .decode('utf-8')
         )
         assert '12,5' in piano2
@@ -350,11 +463,44 @@ class TestPlanExport:
     ):
         resp = writer_client.get(f'/api/piano-di-taglio/plan/export/{plan.id}/')
         zf = zipfile.ZipFile(io.BytesIO(resp.content))
-        piano_header = zf.read('piano.csv').decode('utf-8').splitlines()[0]
+        piano_header = zf.read('fustaia.csv').decode('utf-8').splitlines()[0]
         for col in [S.COL_YEAR_PLANNED, S.COL_YEAR_ACTUAL, S.COL_STATE,
                     S.COL_NOTE, S.COL_VOLUME_PLANNED, S.COL_VOLUME_MARKED,
                     S.COL_VOLUME_ACTUAL]:
             assert col in piano_header, f'missing column {col}'
+
+    def test_round_trip_whole_region_item(
+        self, writer_client, plan, regions,
+    ):
+        # A whole-region item exists → exports to fustaia.csv with
+        # Particella='X', Note=flag string → re-import preserves the row.
+        HarvestPlanItem.objects.create(
+            harvest_plan=plan, region=regions[0], parcel=None,
+            year_planned=2033, damaged=True,
+            state=HarvestPlanItemState.PLANNED,
+        )
+        resp = writer_client.get(f'/api/piano-di-taglio/plan/export/{plan.id}/')
+        zf = zipfile.ZipFile(io.BytesIO(resp.content))
+        fustaia_bytes = zf.read(S.CSV_FILE_FUSTAIA)
+        text = fustaia_bytes.decode('utf-8')
+        assert f';{S.PARCEL_WHOLE_REGION_MARK};' in text
+        assert S.FLAG_DAMAGED in text
+
+        before = HarvestPlanItem.objects.filter(
+            harvest_plan=plan, parcel__isnull=True,
+        ).count()
+        reup = writer_client.post(
+            '/api/piano-di-taglio/plan/import-csv/',
+            data={
+                'harvest_plan_id': plan.id,
+                'fustaia_file': io.BytesIO(fustaia_bytes),
+            },
+        )
+        assert reup.status_code == 200, reup.json()
+        after = HarvestPlanItem.objects.filter(
+            harvest_plan=plan, parcel__isnull=True,
+        ).count()
+        assert after == before  # idempotent
 
     def test_round_trip_export_then_reimport(
         self, writer_client, plan, planned_item, parcels, species,
@@ -364,7 +510,7 @@ class TestPlanExport:
         # should be idempotent and preserve the volume.
         resp = writer_client.get(f'/api/piano-di-taglio/plan/export/{plan.id}/')
         zf = zipfile.ZipFile(io.BytesIO(resp.content))
-        fustaia_bytes = zf.read('piano.csv')
+        fustaia_bytes = zf.read('fustaia.csv')
 
         reup = writer_client.post(
             '/api/piano-di-taglio/plan/import-csv/',

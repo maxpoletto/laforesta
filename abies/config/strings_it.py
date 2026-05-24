@@ -114,6 +114,10 @@ ERR_PLAN_HAS_ACTIVE_ITEMS = (
     'Elimina prima le voci dipendenti.'
 )
 ERR_PLAN_NOT_FOUND = 'Piano non trovato.'
+ERR_CSV_WHOLE_REGION_REQUIRES_FLAG = (
+    'Riga {}: voce a livello di compresa (Particella = "{}"): la colonna '
+    'Note deve contenere "Catastrofato" o "Fitosanitario".'
+)
 ERR_PLAN_ITEM_COMPRESA_REQUIRED = (
     'Compresa obbligatoria.'
 )
@@ -339,7 +343,17 @@ TYPE_CEDUO   = 'ceduo'
 
 # Stand-in displayed in the Particella column for region-wide
 # HarvestPlanItem rows (region set, parcel NULL).
-LABEL_ALL_PARCELS = '(tutti)'
+LABEL_ALL_PARCELS = '(tutti)'  # form pulldown placeholder for region-wide
+# Canonical Particella value for region-wide items in CSV import/export
+# (round-trip marker) and in the calendar table display.  Single short
+# character chosen for narrow columns; localizable.
+PARCEL_WHOLE_REGION_MARK = 'X'
+
+# Zip-archive filenames for the plan-level Esporta CSV.  Italian by
+# default; localizable so a future language gets distinct names.
+CSV_FILE_FUSTAIA    = 'fustaia.csv'
+CSV_FILE_CEDUO      = 'ceduo.csv'
+CSV_FILE_REGRESSION = 'equazioni_ipsometro.csv'
 
 # Harvest-plan digest columns.
 COL_YEAR_START = 'Anno inizio'

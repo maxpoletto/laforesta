@@ -205,7 +205,7 @@ class TestGenerateHarvestPlanItems:
         cols = data[COLUMNS]
         row = next(r for r in data[ROWS] if r[cols.index(ROW_ID)] == region_wide_item.id)
         assert row[cols.index(S.COL_COMPRESA)] == 'Capistrano'
-        assert row[cols.index(S.COL_PARCEL)] == S.LABEL_ALL_PARCELS
+        assert row[cols.index(S.COL_PARCEL)] == S.PARCEL_WHOLE_REGION_MARK
         # Region-wide items have no Eclass → Tipo is empty.
         assert row[cols.index(S.COL_TYPE)] == ''
         # Parcel-area cross-check column is empty.

@@ -230,22 +230,35 @@ _DELIM_AUTODETECT = ',;'
 
 # Column aliases — each logical field accepts the legacy pdg-2026 name
 # AND the display-name used by the per-table CSV export, so a freshly
-# exported plan zip round-trips through the importer.
-_FUSTAIA_COL_ALIASES = {
-    'compresa':   [S.CSV_COL_COMPRESA],                       # 'Compresa'
-    'particella': [S.CSV_COL_PARTICELLA],                     # 'Particella'
-    'anno':       [S.COL_YEAR_PLANNED, S.CSV_COL_ANNO],       # 'Anno previsto' | 'Anno'
-    'volume':     [S.COL_VOLUME_PLANNED, S.CSV_COL_PRELIEVO_M3],  # 'Volume previsto' | 'Prelievo (m³)'
+# exported plan zip round-trips through the importer.  `required` raises
+# a missing-column error pre-parse; `optional` keys are absent from row
+# dicts when the CSV doesn't carry them.
+_FUSTAIA_REQUIRED = {
+    'compresa':   [S.CSV_COL_COMPRESA],                          # 'Compresa'
+    'particella': [S.CSV_COL_PARTICELLA],                        # 'Particella'
+    'anno':       [S.COL_YEAR_PLANNED, S.CSV_COL_ANNO],          # 'Anno previsto' | 'Anno'
+    'volume':     [S.COL_VOLUME_PLANNED, S.CSV_COL_PRELIEVO_M3], # 'Volume previsto' | 'Prelievo (m³)'
 }
-_CEDUO_COL_ALIASES = {
+_FUSTAIA_OPTIONAL = {
+    # Holds the flag string ("Catastrofato" / "Fitosanitario" / "PSR")
+    # in Abies exports; required for region-wide rows (Particella = 'X').
+    'note':       [S.COL_NOTE],
+}
+_CEDUO_REQUIRED = {
     'anno':       [S.COL_YEAR_PLANNED, S.CSV_COL_ANNO],
     'compresa':   [S.CSV_COL_COMPRESA],
     'particella': [S.CSV_COL_PARTICELLA],
-    'superficie': [S.CSV_COL_SUPERFICIE_HA],                  # 'Superficie intervento (ha)'
-    'turno':      [S.CSV_COL_TURNO_A],                        # 'Turno (a)'
-    'note':       [S.CSV_COL_EXTRA_NOTE, S.CSV_COL_NOTE],     # 'Altre note' | 'Note'
+    'superficie': [S.CSV_COL_SUPERFICIE_HA],                     # 'Superficie intervento (ha)'
+    'turno':      [S.CSV_COL_TURNO_A],                           # 'Turno (a)'
 }
-_REGRESSION_COL_ALIASES = {
+_CEDUO_OPTIONAL = {
+    # In Abies exports: 'Altre note' = free-text, 'Note' = flag string.
+    # In legacy pdg-2026 exports: only 'Note' is present and is itself
+    # free-text — handled by checking `has_altre_note` at parse time.
+    'free_note':  [S.CSV_COL_EXTRA_NOTE],                        # 'Altre note'
+    'flag_note':  [S.COL_NOTE],                                  # 'Note' (flag string)
+}
+_REGRESSION_REQUIRED = {
     'compresa': [S.CSV_COL_COMPRESA],
     'genere':   [S.CSV_COL_GENERE],
     'funzione': [S.CSV_COL_FUNZIONE],
@@ -297,13 +310,16 @@ def plan_csv_import_view(request):
             return _validation_error([S.ERR_PLAN_NAME_DUPLICATE])
 
     fustaia_rows = _read_optional(
-        request.FILES.get(FIELD_FUSTAIA_FILE), _FUSTAIA_COL_ALIASES,
+        request.FILES.get(FIELD_FUSTAIA_FILE),
+        _FUSTAIA_REQUIRED, _FUSTAIA_OPTIONAL,
     )
     ceduo_rows = _read_optional(
-        request.FILES.get(FIELD_CEDUO_FILE), _CEDUO_COL_ALIASES,
+        request.FILES.get(FIELD_CEDUO_FILE),
+        _CEDUO_REQUIRED, _CEDUO_OPTIONAL,
     )
     regression_rows = _read_optional(
-        request.FILES.get(FIELD_REGRESSION_FILE), _REGRESSION_COL_ALIASES,
+        request.FILES.get(FIELD_REGRESSION_FILE),
+        _REGRESSION_REQUIRED,
     )
     if (fustaia_rows is None and ceduo_rows is None
             and regression_rows is None):
@@ -322,7 +338,7 @@ def plan_csv_import_view(request):
 
     errors: list[str] = []
     fustaia_parsed = _parse_fustaia_rows(
-        fustaia_rows or [], parcel_cache, errors,
+        fustaia_rows or [], parcel_cache, region_cache, errors,
     )
     ceduo_parsed = _parse_ceduo_rows(
         ceduo_rows or [], parcel_cache, errors,
@@ -385,12 +401,29 @@ def plan_csv_import_view(request):
 
         n_items = 0
         for r in fustaia_parsed:
-            HarvestPlanItem.objects.update_or_create(
-                harvest_plan=plan,
-                parcel=r[FIELD_PARCEL_ID],
-                year_planned=r[FIELD_YEAR_PLANNED],
-                defaults={'volume_planned_m3': r[FIELD_VOLUME_PLANNED_M3]},
-            )
+            flag_defaults = {
+                'volume_planned_m3': r[FIELD_VOLUME_PLANNED_M3],
+                'damaged':   r[FIELD_DAMAGED],
+                'unhealthy': r[FIELD_UNHEALTHY],
+                'psr':       r[FIELD_PSR],
+            }
+            if r[FIELD_PARCEL_ID] is not None:
+                # Parcel-scoped: dedup on (plan, parcel, year_planned).
+                HarvestPlanItem.objects.update_or_create(
+                    harvest_plan=plan,
+                    parcel=r[FIELD_PARCEL_ID],
+                    year_planned=r[FIELD_YEAR_PLANNED],
+                    defaults=flag_defaults,
+                )
+            else:
+                # Region-wide: dedup on (plan, region, parcel=NULL, year).
+                HarvestPlanItem.objects.update_or_create(
+                    harvest_plan=plan,
+                    region=r[FIELD_REGION_ID],
+                    parcel=None,
+                    year_planned=r[FIELD_YEAR_PLANNED],
+                    defaults=flag_defaults,
+                )
             n_items += 1
         for r in ceduo_parsed:
             HarvestPlanItem.objects.update_or_create(
@@ -399,7 +432,10 @@ def plan_csv_import_view(request):
                 year_planned=r[FIELD_YEAR_PLANNED],
                 defaults={
                     'intervention_area_ha': r[FIELD_INTERVENTION_AREA_HA],
-                    'note': r[FIELD_NOTE],
+                    'note':      r[FIELD_NOTE],
+                    'damaged':   r[FIELD_DAMAGED],
+                    'unhealthy': r[FIELD_UNHEALTHY],
+                    'psr':       r[FIELD_PSR],
                 },
             )
             n_items += 1
@@ -486,21 +522,27 @@ def plan_export_view(request, plan_id: int):
     ])
 
     for it in items:
-        if it.parcel_id is None:
-            # Region-wide items can't round-trip through these CSVs (no
-            # parcel column).  They exist only as manual entries from
-            # the Nuovo intervento modal.
-            continue
+        is_region_wide = it.parcel_id is None
+        if is_region_wide:
+            compresa = it.region.name
+            particella = S.PARCEL_WHOLE_REGION_MARK
+            parcel_area = ''
+            is_coppice = False  # region-wide items always export as fustaia
+        else:
+            compresa = it.parcel.region.name
+            particella = it.parcel.name
+            parcel_area = _fmt_decimal(it.parcel.area_ha)
+            is_coppice = it.parcel.eclass.coppice
         anno_eff = it.date_actual.year if it.date_actual else ''
         flag_note = render_flag_note(it.damaged, it.unhealthy, it.psr)
         state_label = HarvestPlanItemState(it.state).label
-        if it.parcel.eclass.coppice:
+        if is_coppice:
             ceduo_w.writerow([
                 it.year_planned, anno_eff,
-                it.parcel.region.name, it.parcel.name,
+                compresa, particella,
                 state_label, flag_note,
                 _fmt_decimal(it.intervention_area_ha),
-                _fmt_decimal(it.parcel.area_ha),
+                parcel_area,
                 parcel_intervals.get(it.parcel_id, ''),
                 _fmt_decimal(it.volume_actual_m3),
                 it.note or '',
@@ -508,7 +550,7 @@ def plan_export_view(request, plan_id: int):
         else:
             fustaia_w.writerow([
                 it.year_planned, anno_eff,
-                it.parcel.region.name, it.parcel.name,
+                compresa, particella,
                 state_label, flag_note,
                 _fmt_decimal(it.volume_planned_m3),
                 _fmt_decimal(it.volume_marked_m3),
@@ -534,15 +576,20 @@ def plan_export_view(request, plan_id: int):
 
     zip_buf = io.BytesIO()
     with zipfile.ZipFile(zip_buf, 'w', zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr('piano.csv', fustaia_buf.getvalue())
-        zf.writestr('ceduo.csv', ceduo_buf.getvalue())
-        zf.writestr('equazioni_ipsometro.csv', regression_buf.getvalue())
+        zf.writestr(S.CSV_FILE_FUSTAIA,    fustaia_buf.getvalue())
+        zf.writestr(S.CSV_FILE_CEDUO,      ceduo_buf.getvalue())
+        zf.writestr(S.CSV_FILE_REGRESSION, regression_buf.getvalue())
 
     response = HttpResponse(zip_buf.getvalue(), content_type='application/zip')
     safe_name = _safe_filename(plan.name)
     response['Content-Disposition'] = (
         f'attachment; filename="piano_{safe_name}.zip"'
     )
+    # Browsers happily cache download URLs by default; without this the
+    # next click of "Esporta CSV" returns last time's bytes even after a
+    # plan edit.  no-store also keeps stale-after-deploy bugs from
+    # masquerading as "server isn't reloading my code".
+    response['Cache-Control'] = 'no-store'
     return response
 
 
@@ -807,6 +854,7 @@ def item_export_view(request, item_id: int):
     response['Content-Disposition'] = (
         f'attachment; filename="intervento_{item.id}.zip"'
     )
+    response['Cache-Control'] = 'no-store'
     return response
 
 
@@ -893,17 +941,17 @@ class _CsvError:
         self.message = message
 
 
-def _read_optional(upload, col_aliases):
+def _read_optional(upload, required, optional=None):
     """Parse an uploaded CSV if present.
 
     Delimiter is auto-detected (``,`` or ``;``) so files exported in
     either Italian (``;``) or pdg-2026's English (``,``) style both
-    round-trip.  Returns a list of (resolved_column → value) dicts
-    where ``resolved_column`` is keyed by the logical alias name (e.g.,
-    ``'anno'``, ``'volume'``); the parsers below use the alias names
-    directly so they don't have to re-resolve the actual column.
-    Returns None if no file was uploaded, or a ``_CsvError`` sentinel
-    on parse failure.
+    round-trip.  ``required`` and ``optional`` map logical alias names
+    to candidate column-name lists; the first candidate that appears in
+    the header wins.  Returns a list of alias-keyed dicts; optional
+    aliases that did not resolve are simply absent from each row dict.
+    Each row also carries ``'_fieldset'`` so parsers can branch on
+    header presence (e.g., legacy vs Abies-exported ceduo).
     """
     if upload is None:
         return None
@@ -919,17 +967,43 @@ def _read_optional(upload, col_aliases):
     fieldset = set(fieldnames)
     resolved: dict[str, str] = {}
     missing: list[str] = []
-    for alias, candidates in col_aliases.items():
+    for alias, candidates in required.items():
         hit = next((c for c in candidates if c in fieldset), None)
         if hit is None:
-            # Surface the canonical (first-listed) name in the error.
             missing.append(candidates[0])
         else:
             resolved[alias] = hit
     if missing:
         return _CsvError(S.ERR_CSV_MISSING_COLS.format(', '.join(missing)))
-    return [{alias: r.get(col, '') for alias, col in resolved.items()}
-            for r in reader]
+    for alias, candidates in (optional or {}).items():
+        hit = next((c for c in candidates if c in fieldset), None)
+        if hit is not None:
+            resolved[alias] = hit
+    return [
+        {**{alias: r.get(col, '') for alias, col in resolved.items()},
+         '_fieldset': fieldset}
+        for r in reader
+    ]
+
+
+# Substrings (case-insensitive) recognised in the Note column for
+# flag inference on import.  Matches the per-flag labels used by
+# `render_flag_note` so a round-trip preserves the boolean.
+_FLAG_KEYWORDS = {
+    'damaged':   S.FLAG_DAMAGED.lower(),
+    'unhealthy': S.FLAG_UNHEALTHY.lower(),
+    'psr':       S.FLAG_PSR.lower(),
+}
+
+
+def _parse_flag_keywords(note: str) -> tuple[bool, bool, bool]:
+    """Scan a Note cell for flag keywords. Returns (damaged, unhealthy, psr)."""
+    s = (note or '').lower()
+    return (
+        _FLAG_KEYWORDS['damaged']   in s,
+        _FLAG_KEYWORDS['unhealthy'] in s,
+        _FLAG_KEYWORDS['psr']       in s,
+    )
 
 
 def _sniff_delimiter(text: str) -> str:
@@ -944,15 +1018,43 @@ def _sniff_delimiter(text: str) -> str:
         return ';' if (';' in head and ',' not in head) else ','
 
 
-def _parse_fustaia_rows(rows, parcel_cache, errors):
+def _parse_fustaia_rows(rows, parcel_cache, region_cache, errors):
+    """Parse fustaia.csv rows.  A row is either parcel-scoped (the
+    common case) or whole-region (Particella = ``X`` — see
+    ``S.PARCEL_WHOLE_REGION_MARK``).  The Note column, when present,
+    is scanned for ``Catastrofato`` / ``Fitosanitario`` / ``PSR``
+    substrings to drive the damaged / unhealthy / psr flags — required
+    for whole-region rows, optional for parcel-scoped ones (preserves
+    flags on round-trip).
+    """
     out = []
     for i, row in enumerate(rows, 2):
         compresa = (row.get('compresa') or '').strip()
         particella = (row.get('particella') or '').strip()
-        parcel = parcel_cache.get((compresa.lower(), particella))
-        if parcel is None:
-            errors.append(S.ERR_CSV_PARCEL_NOT_FOUND.format(i, compresa, particella))
-            continue
+        note_raw = (row.get('note') or '').strip()
+        damaged, unhealthy, psr = _parse_flag_keywords(note_raw)
+        is_whole_region = (
+            particella.upper() == S.PARCEL_WHOLE_REGION_MARK.upper()
+        )
+        if is_whole_region:
+            region = region_cache.get(compresa.lower())
+            if region is None:
+                errors.append(S.ERR_CSV_REGION_NOT_FOUND.format(i, compresa))
+                continue
+            if not (damaged or unhealthy):
+                errors.append(S.ERR_CSV_WHOLE_REGION_REQUIRES_FLAG.format(
+                    i, particella,
+                ))
+                continue
+            parcel = None
+        else:
+            region = None
+            parcel = parcel_cache.get((compresa.lower(), particella))
+            if parcel is None:
+                errors.append(S.ERR_CSV_PARCEL_NOT_FOUND.format(
+                    i, compresa, particella,
+                ))
+                continue
         try:
             year = int(_normalise_number(row['anno']))
             volume = _decimal_or_none(row['volume'])
@@ -962,21 +1064,34 @@ def _parse_fustaia_rows(rows, parcel_cache, errors):
             ))
             continue
         out.append({
+            FIELD_REGION_ID: region,
             FIELD_PARCEL_ID: parcel,
             FIELD_YEAR_PLANNED: year,
             FIELD_VOLUME_PLANNED_M3: volume,
+            FIELD_DAMAGED:   damaged,
+            FIELD_UNHEALTHY: unhealthy,
+            FIELD_PSR:       psr,
         })
     return out
 
 
 def _parse_ceduo_rows(rows, parcel_cache, errors):
+    """Parse ceduo.csv rows.  Disambiguates Abies-exported (`Altre note`
+    = free-text + `Note` = flag string) from legacy pdg-2026 (`Note` =
+    free-text, no flag column) via header presence: if `Altre note` is
+    in the header, treat `Note` as the flag string; otherwise treat
+    `Note` as free-text and skip flag parsing.
+    """
     out = []
+    has_altre_note = bool(rows) and S.CSV_COL_EXTRA_NOTE in rows[0]['_fieldset']
     for i, row in enumerate(rows, 2):
         compresa = (row.get('compresa') or '').strip()
         particella = (row.get('particella') or '').strip()
         parcel = parcel_cache.get((compresa.lower(), particella))
         if parcel is None:
-            errors.append(S.ERR_CSV_PARCEL_NOT_FOUND.format(i, compresa, particella))
+            errors.append(S.ERR_CSV_PARCEL_NOT_FOUND.format(
+                i, compresa, particella,
+            ))
             continue
         try:
             year = int(_normalise_number(row['anno']))
@@ -987,13 +1102,24 @@ def _parse_ceduo_rows(rows, parcel_cache, errors):
                 i, S.CSV_COL_TURNO_A, str(exc),
             ))
             continue
-        note = (row.get('note') or '').strip()
+        if has_altre_note:
+            free_note = (row.get('free_note') or '').strip()
+            damaged, unhealthy, psr = _parse_flag_keywords(
+                row.get('flag_note') or '',
+            )
+        else:
+            # Legacy pdg-2026: 'Note' is free-text and there are no flags.
+            free_note = (row.get('flag_note') or row.get('free_note') or '').strip()
+            damaged = unhealthy = psr = False
         out.append({
             FIELD_PARCEL_ID: parcel,
             FIELD_YEAR_PLANNED: year,
             FIELD_INTERVENTION_AREA_HA: area,
             FIELD_TURNO_A: interval,
-            FIELD_NOTE: note,
+            FIELD_NOTE: free_note,
+            FIELD_DAMAGED:   damaged,
+            FIELD_UNHEALTHY: unhealthy,
+            FIELD_PSR:       psr,
         })
     return out
 

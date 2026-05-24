@@ -84,7 +84,8 @@ const sections = {
     hiddenCols: [
       S.COL_HARVEST_PLAN, S.COL_TYPE,
       S.COL_VOLUME_PLANNED, S.COL_VOLUME_MARKED,
-      S.COL_EXTRA_NOTE,
+      // Altre note (free-text) IS shown for ceduo — pdg-2026 uses it
+      // for continuation markers like "Cont. intervento 2028".
     ],
     csvFilename: 'interventi-ceduo.csv',
   },

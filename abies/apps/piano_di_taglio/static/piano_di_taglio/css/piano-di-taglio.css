@@ -71,7 +71,14 @@
 }
 
 /* Modifica piano modal — three tabs; lock width + min-height so
-   switching tabs doesn't reflow the modal. */
+   switching tabs doesn't reflow the modal.  The outer .modal in
+   common.css caps at max-width: 480px, so we widen it here only when
+   the edit-plan card is the modal payload (`:has()` is the scoped
+   override). */
+#modal-container .modal:has(.pdt-edit-plan-card) {
+  max-width: 640px;
+}
+
 .pdt-edit-plan-card {
   width: 580px;
   max-width: 580px;
