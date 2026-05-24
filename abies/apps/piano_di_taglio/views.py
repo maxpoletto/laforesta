@@ -852,8 +852,12 @@ def item_export_view(request, item_id: int):
         zf.writestr(f'prelievi_{item.id}.csv', prelievi_buf.getvalue())
 
     response = HttpResponse(zip_buf.getvalue(), content_type='application/zip')
+    region_name = (item.region or item.parcel.region).name
+    parcel_name = item.parcel.name if item.parcel else ''
+    parts = [str(item.year_planned), region_name, parcel_name]
+    safe_name = _safe_filename('-'.join(p for p in parts if p))
     response['Content-Disposition'] = (
-        f'attachment; filename="intervento_{item.id}.zip"'
+        f'attachment; filename="{safe_name}.zip"'
     )
     response['Cache-Control'] = 'no-store'
     return response
