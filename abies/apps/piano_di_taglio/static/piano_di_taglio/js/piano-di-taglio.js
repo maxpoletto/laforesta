@@ -656,7 +656,7 @@ async function fetchAndOpenItemForm(url, kind, opts) {
 
 function openItemFormModal(html, kind, { onDone } = {}) {
   const onSuccess = onDone || (() => {});
-  const onCancel = onDone || dismissModal;
+  const onCancel = dismissModal;
 
   function wireAndShow(frag) {
     const form = frag.querySelector('form');
