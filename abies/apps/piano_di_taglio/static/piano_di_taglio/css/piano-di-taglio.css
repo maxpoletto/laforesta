@@ -66,59 +66,7 @@
   font-style: italic;
 }
 
-/* Modifica piano modal — three tabs; lock width + min-height so
-   switching tabs doesn't reflow the modal.  The outer .modal in
-   common.css caps at max-width: 480px, so we widen it here only when
-   the edit-plan card is the modal payload (`:has()` is the scoped
-   override). */
-#modal-container .modal:has(.pdt-edit-plan-card) {
-  max-width: 640px;
-}
-
-.pdt-edit-plan-card {
-  width: 580px;
-  max-width: 580px;
-}
-
-.pdt-edit-plan-card .pdt-path-bodies {
-  min-height: 320px;
-}
-
-.pdt-path-tabs {
-  display: flex;
-  gap: 4px;
-  border-bottom: 1px solid #ccc;
-  margin-bottom: 12px;
-}
-
-.pdt-path-tab {
-  background: transparent;
-  border: none;
-  padding: 8px 14px;
-  cursor: pointer;
-  font: inherit;
-  color: #444;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-}
-
-.pdt-path-tab:hover {
-  color: #000;
-}
-
-.pdt-path-tab.active {
-  color: #1b5e20;
-  border-bottom-color: #1b5e20;
-  font-weight: 500;
-}
-
-.pdt-path-body {
-  display: none;
-}
-
-.pdt-path-body.active {
-  display: block;
-}
+/* Tab + modal width rules are now in common.css (.modal-tabs, etc.) */
 
 /* Empty-state CTA: replaces table+toolbar when the active plan has
    zero items in this section's family. */

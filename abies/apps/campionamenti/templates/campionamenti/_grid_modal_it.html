@@ -5,22 +5,22 @@
   - auto:  generate a regular grid across selected comprese.
 
 CSV import lives in the pencil (edit) modal, not at creation time.
-All bodies render at once; client toggles via .modal-path-body.active.
+All bodies render at once; client toggles via .modal-tab-body.active.
 {% endcomment %}
 <div id="campionamenti-grid-modal" class="form-card">
   <h2>Nuova griglia di campionamento</h2>
 
-  <div class="modal-path-chooser">
-    <button type="button" class="path-btn active" data-path="empty">
+  <div class="modal-tabs">
+    <button type="button" class="modal-tab active" data-path="empty">
       Crea vuota
     </button>
-    <button type="button" class="path-btn" data-path="auto">
+    <button type="button" class="modal-tab" data-path="auto">
       Genera automaticamente
     </button>
   </div>
 
   {# --- Crea vuota ------------------------------------------------------ #}
-  <form class="modal-path-body grid-path-empty active"
+  <form class="modal-tab-body grid-path-empty active"
         id="campionamenti-grid-form-empty">
     <input type="hidden" name="path" value="empty">
 
@@ -52,7 +52,7 @@ All bodies render at once; client toggles via .modal-path-body.active.
     so they sit together at the bottom of the planner.  The cancel
     button uses data-action="cancel" so wireCancelButtons() binds it.
   {% endcomment %}
-  <div class="modal-path-body grid-path-auto">
+  <div class="modal-tab-body grid-path-auto">
     <p class="form-help">
       Genera automaticamente una griglia regolare sulle comprese
       selezionate.

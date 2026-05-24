@@ -966,7 +966,7 @@ export function openEditPlanModal(initialTab, { ceduo = false } = {}) {
 
   const frag = document.createDocumentFragment();
   const card = document.createElement('div');
-  card.className = 'form-card pdt-edit-plan-card';
+  card.className = 'form-card';
   frag.appendChild(card);
 
   const h = document.createElement('h2');
@@ -974,11 +974,11 @@ export function openEditPlanModal(initialTab, { ceduo = false } = {}) {
   card.appendChild(h);
 
   const tabs = document.createElement('div');
-  tabs.className = 'pdt-path-tabs';
+  tabs.className = 'modal-tabs';
   card.appendChild(tabs);
 
   const bodies = document.createElement('div');
-  bodies.className = 'pdt-path-bodies';
+  bodies.className = 'modal-tab-bodies';
   card.appendChild(bodies);
 
   const tabDefs = [
@@ -1000,14 +1000,14 @@ export function openEditPlanModal(initialTab, { ceduo = false } = {}) {
   for (const t of tabDefs) {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'pdt-path-tab';
+    btn.className = 'modal-tab';
     btn.dataset.path = t.id;
     btn.textContent = t.label;
     btn.addEventListener('click', () => switchTab(t.id));
     tabs.appendChild(btn);
 
     const body = document.createElement('div');
-    body.className = 'pdt-path-body';
+    body.className = 'modal-tab-body';
     body.dataset.path = t.id;
     t.build(body);
     bodies.appendChild(body);
@@ -1015,7 +1015,7 @@ export function openEditPlanModal(initialTab, { ceduo = false } = {}) {
   }
 
   function switchTab(id) {
-    for (const t of tabs.querySelectorAll('.pdt-path-tab')) {
+    for (const t of tabs.querySelectorAll('.modal-tab')) {
       t.classList.toggle('active', t.dataset.path === id);
     }
     for (const [k, b] of Object.entries(bodyEls)) {

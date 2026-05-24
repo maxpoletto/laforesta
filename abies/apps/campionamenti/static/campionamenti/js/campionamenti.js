@@ -1045,16 +1045,12 @@ function renderCsvErrors(box, errors) {
 }
 
 /**
- * Wire the [path-btn] / [modal-path-body] grouping inside a modal so
- * clicking a chooser button shows that path's body and hides the others.
- *
- * @param {HTMLElement} modal
- * @param {function(string): void} [onSwitch] — called with the new
- *   path id after each switch (used to lazy-init the auto-planner).
+ * Wire the tab bar inside a server-rendered modal so clicking a tab
+ * button shows that tab's body and hides the others.
  */
 function wirePathChooser(modal, onSwitch) {
-  const buttons = modal.querySelectorAll('.path-btn');
-  const bodies = modal.querySelectorAll('.modal-path-body');
+  const buttons = modal.querySelectorAll('.modal-tab');
+  const bodies = modal.querySelectorAll('.modal-tab-body');
   for (const btn of buttons) {
     btn.addEventListener('click', () => {
       const path = btn.dataset.path;
@@ -1406,7 +1402,7 @@ function showEditModal({
   card.appendChild(h);
 
   const tabs = document.createElement('div');
-  tabs.className = 'modal-path-chooser';
+  tabs.className = 'modal-tabs';
   card.appendChild(tabs);
 
   const bodies = document.createElement('div');
@@ -1421,14 +1417,14 @@ function showEditModal({
   for (const t of tabDefs) {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'path-btn';
+    btn.className = 'modal-tab';
     btn.dataset.path = t.id;
     btn.textContent = t.label;
     btn.addEventListener('click', () => switchTab(t.id));
     tabs.appendChild(btn);
 
     const body = document.createElement('div');
-    body.className = 'modal-path-body';
+    body.className = 'modal-tab-body';
     body.dataset.path = t.id;
     bodies.appendChild(body);
     bodyEls[t.id] = body;
@@ -1542,7 +1538,7 @@ function showEditModal({
   });
 
   function switchTab(id) {
-    for (const btn of tabs.querySelectorAll('.path-btn')) {
+    for (const btn of tabs.querySelectorAll('.modal-tab')) {
       btn.classList.toggle('active', btn.dataset.path === id);
     }
     for (const [k, b] of Object.entries(bodyEls)) {
