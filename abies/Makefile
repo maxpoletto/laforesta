@@ -1,7 +1,6 @@
 PYTHON = python3
 MANAGE = $(PYTHON) manage.py
-BOSCO_DATA = ../bosco/data
-PDG_CSV = ../pdg-2026/csv
+DATA_DIR ?= ../abies-data
 
 # Active language.  Parallel to `from config.strings_it import *` in
 # config/strings.py and `export * from './strings_it.js'` in strings.js:
@@ -24,20 +23,20 @@ migrate:
 import: import-base import-data
 
 import-base:
-	$(MANAGE) import_reference $(BOSCO_DATA)
-	$(MANAGE) import_parcels $(BOSCO_DATA)
+	$(MANAGE) import_reference $(DATA_DIR)
+	$(MANAGE) import_parcels $(DATA_DIR)
 
 import-data:
-	$(MANAGE) import_mannesi $(BOSCO_DATA)
-	$(MANAGE) import_sample_grid $(BOSCO_DATA)
-	$(MANAGE) import_sampled_trees $(BOSCO_DATA)
-	$(MANAGE) import_pai $(BOSCO_DATA)
-	$(MANAGE) import_calendar $(PDG_CSV)
+	$(MANAGE) import_mannesi $(DATA_DIR)
+	$(MANAGE) import_sample_grid $(DATA_DIR)
+	$(MANAGE) import_sampled_trees $(DATA_DIR)
+	$(MANAGE) import_pai $(DATA_DIR)
+	$(MANAGE) import_calendar $(DATA_DIR)
 
 geo:
 	mkdir -p data/geo
-	/bin/cp $(BOSCO_DATA)/particelle.geojson data/geo/
-	/bin/cp $(BOSCO_DATA)/terreni.geojson data/geo/
+	/bin/cp $(DATA_DIR)/particelle.geojson data/geo/
+	/bin/cp $(DATA_DIR)/terreni.geojson data/geo/
 
 digest:
 	$(MANAGE) shell --no-imports -c "from apps.base.digests import generate_all; generate_all()"

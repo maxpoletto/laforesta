@@ -1,21 +1,22 @@
 #!/usr/bin/env python3
-"""Generate a reference.json bundle from bosco/data CSVs + abies species list.
+"""Generate a reference.json bundle from data CSVs + abies species list.
 
 Usage:
 
-    laforesta/ipso/tools/build_reference.py <output-path>
+    laforesta/ipso/tools/build_reference.py [--data-dir DIR] <output-path>
 
-Sources:
-- ../../bosco/data/particelle.csv         parcels (filtered: high-forest only)
-- ../../bosco/data/equazioni_ipsometro.csv ipsometric regression coefficients
-- ../../abies/apps/base/data/species.csv  species list shared with abies's
-                                          import_reference.py
+Sources (relative to data-dir, default ../abies-data):
+- particelle.csv         parcels (filtered: high-forest only)
+- equazioni_ipsometro.csv ipsometric regression coefficients
+- (species from abies/apps/base/data/species.csv, always resolved
+   relative to this script)
 
 The Pino species is split into 'Pino Nero' and 'Pino Marittimo' so the auto-h
 regression fires the right coefficients per region. The CSV output writes
 these names verbatim.
 """
 
+import argparse
 import csv
 import json
 import re
@@ -97,18 +98,28 @@ def load_ipsometrica(path: Path) -> dict:
 
 
 def main() -> int:
-    if len(sys.argv) != 2:
-        print(f"usage: {sys.argv[0]} <output-path>", file=sys.stderr)
-        return 2
-    out_path = Path(sys.argv[1])
+    parser = argparse.ArgumentParser(
+        description='Generate reference.json from data CSVs.',
+    )
+    parser.add_argument(
+        '--data-dir', type=Path, default=None,
+        help='Directory containing particelle.csv and '
+             'equazioni_ipsometro.csv (default: ../abies-data '
+             'relative to the ipso project root).',
+    )
+    parser.add_argument('output', type=Path, help='Output path.')
+    args = parser.parse_args()
 
-    here = Path(__file__).resolve().parent
-    ipso_root = here.parent
-    repo_root = ipso_root.parent
-    bosco_data = repo_root / 'bosco' / 'data'
+    out_path = args.output
 
-    particelle = bosco_data / 'particelle.csv'
-    equazioni = bosco_data / 'equazioni_ipsometro.csv'
+    if args.data_dir is not None:
+        data_dir = args.data_dir
+    else:
+        ipso_root = Path(__file__).resolve().parent.parent
+        data_dir = ipso_root.parent / 'abies-data'
+
+    particelle = data_dir / 'particelle.csv'
+    equazioni = data_dir / 'equazioni_ipsometro.csv'
     for p in (particelle, equazioni):
         if not p.is_file():
             print(f"missing source file: {p}", file=sys.stderr)

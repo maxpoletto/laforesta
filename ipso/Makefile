@@ -5,7 +5,7 @@
 DEPLOY_HOST ?= ipso.laforesta.it
 DEPLOY_DIR  ?= /var/www/ipso/html
 
-BOSCO_DATA   = ../bosco/data
+DATA_DIR    ?= ../abies-data
 
 # Stage src/ + generated artifacts into build/. Deploy targets rsync
 # from build/ — the source tree is never touched. Generated artifacts
@@ -18,10 +18,10 @@ build:
 	fi
 	mkdir -p build
 	rsync -a --delete src/ build/
-	python3 tools/build_reference.py     build/reference.json
+	python3 tools/build_reference.py     --data-dir $(DATA_DIR) build/reference.json
 	python3 tools/vendor_geo.py          build/geo.js
 	python3 tools/build_upload_config.py secrets/upload_config.json build/upload-config.js
-	cp $(BOSCO_DATA)/terreni.geojson     build/terreni.geojson
+	cp $(DATA_DIR)/terreni.geojson       build/terreni.geojson
 
 test: build
 	node test/tests.js
