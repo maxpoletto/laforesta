@@ -341,7 +341,11 @@ input:focus, select:focus, textarea:focus {
 
 .pct-row input[type="number"] { width: 70px; }
 
-.pct-row .btn { padding: 0.25rem 0.5rem; font-size: 0.8rem; }
+.pct-row .btn {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.8rem;
+  margin: 0;
+}
 
 .form-actions {
   display: flex;
