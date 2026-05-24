@@ -482,7 +482,8 @@ function buildEmptyStateCta(s) {
   importCal.className = 'btn btn-primary';
   importCal.textContent = S.EDIT_PLAN_TAB_CALENDAR;
   importCal.addEventListener('click',
-    () => openEditPlanModal(EDIT_PLAN_TAB_CALENDAR));
+    () => openEditPlanModal(EDIT_PLAN_TAB_CALENDAR,
+      { ceduo: s.kind === 'ceduo' }));
   actions.appendChild(importCal);
 
   const addManual = document.createElement('button');
@@ -939,7 +940,7 @@ function onEditPlan() {
  * empty-state CTA in the calendar sections can land directly on the
  * matching import tab.
  */
-export function openEditPlanModal(initialTab) {
+export function openEditPlanModal(initialTab, { ceduo = false } = {}) {
   if (activePlanId == null) return;
   const row = planRow(activePlanId);
   if (!row) return;
@@ -976,7 +977,7 @@ export function openEditPlanModal(initialTab) {
     },
     {
       id: EDIT_PLAN_TAB_CALENDAR, label: S.EDIT_PLAN_TAB_CALENDAR,
-      build: (host) => buildExistingPlanCalendarImport(host),
+      build: (host) => buildExistingPlanCalendarImport(host, { ceduo }),
     },
     {
       id: EDIT_PLAN_TAB_REGRESSION, label: S.EDIT_PLAN_TAB_REGRESSION,
@@ -1155,7 +1156,7 @@ function onNewPlan() {
  * `harvest_plan_id` set so the server upserts rows into the active
  * plan (dedup key: parcel + year_planned).
  */
-function buildExistingPlanCalendarImport(host) {
+function buildExistingPlanCalendarImport(host, { ceduo = false } = {}) {
   const form = document.createElement('form');
   form.className = 'pdt-plan-form';
   host.appendChild(form);
@@ -1168,6 +1169,7 @@ function buildExistingPlanCalendarImport(host) {
   const ceduoCb = document.createElement('input');
   ceduoCb.type = 'checkbox';
   ceduoCb.name = 'is_ceduo';
+  ceduoCb.checked = ceduo;
   kindLabel.append(ceduoCb, ' ' + S.EDIT_PLAN_CHECKBOX_CEDUO);
   kindRow.appendChild(kindLabel);
 
