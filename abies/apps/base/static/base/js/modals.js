@@ -5,6 +5,7 @@
 import * as S from './strings.js';
 
 let container = null;
+let dismissCallbacks = [];
 
 function getContainer() {
   if (!container) container = document.getElementById('modal-container');
@@ -54,6 +55,14 @@ export function showError(message) {
 }
 
 /**
+ * Register a one-shot callback that fires when the modal is dismissed.
+ * Useful for resetting page state (e.g., `inForm = false`).
+ */
+export function onDismiss(callback) {
+  dismissCallbacks.push(callback);
+}
+
+/**
  * Dismiss the currently open modal.
  */
 export function dismiss() {
@@ -61,4 +70,6 @@ export function dismiss() {
   el.classList.remove('open');
   el.replaceChildren();
   document.removeEventListener('keydown', onKeyDown);
+  const cbs = dismissCallbacks.splice(0);
+  for (const cb of cbs) cb();
 }

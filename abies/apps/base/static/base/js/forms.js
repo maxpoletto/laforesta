@@ -7,7 +7,7 @@
  */
 
 import { postJSON } from './api.js';
-import { showError } from './modals.js';
+import { show as showModal, showError } from './modals.js';
 import * as S from './strings.js';
 import { HTML, STATUS_CONFLICT } from './constants.js';
 
@@ -112,6 +112,38 @@ export function interceptSubmit(form, postUrl, callbacks) {
 export function wireCancelButtons(container, callback) {
   container.querySelectorAll('[data-action="cancel"]')
     .forEach(b => b.addEventListener('click', callback));
+}
+
+/**
+ * Fetch a form fragment from the server and display it in the overlay modal.
+ * Returns the form element inside #modal-container, or null on error.
+ */
+export async function fetchModalForm(url) {
+  let data;
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`${resp.status}`);
+    data = await resp.json();
+  } catch {
+    showError(S.ERROR_NETWORK);
+    return null;
+  }
+  return renderModalForm(data[HTML] || data.html);
+}
+
+/**
+ * Parse HTML into a fragment, inject a nonce, and show in the overlay modal.
+ * Used for initial render and for re-render after validation errors.
+ * Returns the form element inside the modal.
+ */
+export function renderModalForm(html) {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const frag = document.createDocumentFragment();
+  for (const node of [...doc.body.childNodes]) frag.appendChild(node);
+  const form = frag.querySelector('form');
+  if (form) injectNonce(form);
+  showModal(frag);
+  return document.querySelector('#modal-container form');
 }
 
 /** Show an inline error message inside a form (above .form-actions). */
