@@ -270,7 +270,7 @@ function buildPageShell(el) {
   label.textContent = S.LABEL_HARVEST_PLAN;
 
   const sel = document.createElement('select');
-  sel.className = 'pdt-pulldown';
+  sel.className = 'pdt-pulldown page-pulldown';
   const idCol = plansData.columns.indexOf(ROW_ID);
   const nameCol = plansData.columns.indexOf(S.COL_NAME);
   for (const row of plansData.rows) {
@@ -330,7 +330,7 @@ function buildSection(el, s) {
   searchLabel.textContent = S.FILTER_LABEL;
   const searchInput = document.createElement('input');
   searchInput.type = 'text';
-  searchInput.className = 'pdt-search';
+  searchInput.className = 'table-search';
   searchInput.placeholder = S.SEARCH_PLACEHOLDER;
   searchLabel.htmlFor = searchInput.id = `pdt-search-${s === sections.f ? 'f' : 'c'}`;
   toolbar.append(searchLabel, searchInput);

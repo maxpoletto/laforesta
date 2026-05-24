@@ -335,7 +335,7 @@ function buildGriglieBody(body) {
   label.textContent = S.GRID_LABEL;
 
   const sel = document.createElement('select');
-  sel.className = 'campionamenti-pulldown';
+  sel.className = 'campionamenti-pulldown page-pulldown';
   const idCol = gridsData.columns.indexOf(ROW_ID);
   const nameCol = gridsData.columns.indexOf(S.COL_NAME);
   for (const row of gridsData.rows) {
@@ -526,7 +526,7 @@ function buildRilevamentiBody(body) {
   label.textContent = S.SURVEY_LABEL;
 
   const sel = document.createElement('select');
-  sel.className = 'campionamenti-pulldown';
+  sel.className = 'campionamenti-pulldown page-pulldown';
   const idCol = surveysData.columns.indexOf(ROW_ID);
   const nameCol = surveysData.columns.indexOf(S.COL_NAME);
   const visCol = surveysData.columns.indexOf(S.COL_N_AREAS_VISITED);

@@ -424,6 +424,7 @@ input:focus, select:focus, textarea:focus {
   color: #444;
   min-width: 35px;
 }
+.page-pulldown { width: 300px; }
 .table-search { width: 300px; max-width: 300px; }
 .table-csv-btn { margin-left: auto; }
 
