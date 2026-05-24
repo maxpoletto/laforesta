@@ -476,7 +476,7 @@ function _buildFilterBar(el, data, p) {
   // Search input
   const searchInput = document.createElement('input');
   searchInput.type = 'text';
-  searchInput.className = 'prelievi-search';
+  searchInput.className = 'table-search';
   searchInput.placeholder = S.SEARCH_PLACEHOLDER;
   filterLabel.htmlFor = searchInput.id = 'prelievi-search';
 

@@ -31,10 +31,6 @@
 }
 
 .pdt-pulldown {
-  /* 300px to match the campionamenti convention.  Shrinks below that so
-     the trash icon stays on the same line on narrow viewports; icons are
-     flex-shrink: 0 so the pulldown is the only one that gives. */
-  flex: 0 1 300px;
   min-width: 0;
 }
 
@@ -166,13 +162,6 @@
 
 .pdt-search-label {
   font-weight: 500;
-}
-
-.pdt-search {
-  /* Match the common .table-search width (used by TableWrapper's
-     built-in toolbar on other pages). */
-  width: 300px;
-  max-width: 300px;
 }
 
 .pdt-csv-btn {
