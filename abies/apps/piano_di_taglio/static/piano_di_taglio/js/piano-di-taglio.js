@@ -157,10 +157,8 @@ function destroyTables() {
 function onItemsUpdate() {
   itemsData = cache.get(ITEMS_ID);
   for (const k of SECTION_KEYS) {
-    if (sections[k].table) {
-      sections[k].table.setData(itemsData);
-      applyPlanFilter(sections[k]);
-    }
+    if (sections[k].table) sections[k].table.setData(itemsData);
+    updateEmptyState(sections[k]);
   }
 }
 
@@ -451,18 +449,15 @@ function applyPlanFilter(s) {
       return s.typeMatcher(row[typeCol]);
     });
   }
-  updateEmptyState(s, planCol, typeCol);
+  updateEmptyState(s);
 }
 
-/**
- * Toggle between the table view and the empty-state CTA based on
- * whether the active plan has any items in this section's family.
- * The CTA points at the matching import flow + the manual + Aggiungi
- * path, so an empty plan offers an obvious next action.
- */
-function updateEmptyState(s, planCol, typeCol) {
-  if (!s.emptyState) return;
-  const hasItems = activePlanId != null && itemsData?.rows.some(r =>
+/** Toggle between the table and the empty-state CTA based on item count. */
+function updateEmptyState(s) {
+  if (!s.emptyState || !itemsData) return;
+  const planCol = itemsData.columns.indexOf(S.COL_HARVEST_PLAN);
+  const typeCol = itemsData.columns.indexOf(S.COL_TYPE);
+  const hasItems = activePlanId != null && itemsData.rows.some(r =>
     r[planCol] === activePlanId && s.typeMatcher(r[typeCol]),
   );
   s.emptyState.hidden = hasItems;
@@ -719,7 +714,7 @@ function attachItemSubmit(form, kind) {
       itemsData = cache.get(ITEMS_ID);
       for (const k of SECTION_KEYS) {
         sections[k].table?.setData(itemsData);
-        applyPlanFilter(sections[k]);
+        updateEmptyState(sections[k]);
       }
       dismissModal();
     },
@@ -848,7 +843,7 @@ async function doDeleteItem(itemId) {
     itemsData = cache.get(ITEMS_ID);
     for (const k of SECTION_KEYS) {
       sections[k].table?.setData(itemsData);
-      applyPlanFilter(sections[k]);
+      updateEmptyState(sections[k]);
     }
   } catch {
     showError(S.ERROR_NETWORK);

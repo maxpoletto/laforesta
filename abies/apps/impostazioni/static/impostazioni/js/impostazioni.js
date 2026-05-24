@@ -356,7 +356,6 @@ function showFormModal(html, cfg, state) {
             rows.push(data.record);
           }
           state.table?.setData(state.digest);
-          applyActiveFilter(state);
         }
       } else if (data.status === STATUS_CONFLICT) {
         showError(data.message || S.ERROR_CONFLICT);
