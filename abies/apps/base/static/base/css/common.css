@@ -188,7 +188,6 @@ body {
 }
 .modal-tab-body { display: none; }
 .modal-tab-body.active { display: block; }
-.modal-tab-bodies { min-height: 320px; }
 
 .modal .btn { margin-top: 1rem; }
 

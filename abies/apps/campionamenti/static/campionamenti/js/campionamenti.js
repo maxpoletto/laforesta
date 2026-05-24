@@ -15,15 +15,15 @@
 import * as cache from '../../base/js/cache.js';
 import * as router from '../../base/js/router.js';
 import { TableWrapper } from '../../base/js/table.js';
-import { show as showModal, showError, dismiss as dismissModal } from '../../base/js/modals.js';
+import { show as showModal, showError, dismiss as dismissModal, onDismiss } from '../../base/js/modals.js';
 import * as S from '../../base/js/strings.js';
 import {
   FIELD_LAT, FIELD_LON, ROW_ID, VERSION,
 } from '../../base/js/constants.js';
 import { fetchJSON, postJSON, postFormData } from '../../base/js/api.js';
 import {
-  fetchForm, renderFormHTML, interceptSubmit, wireCancelButtons,
-  showFormError,
+  fetchForm, fetchModalForm, renderFormHTML, renderModalForm,
+  interceptSubmit, wireCancelButtons, showFormError,
 } from '../../base/js/forms.js';
 import { RilevamentiMap } from './rilevamenti-map.js';
 import { GriglieMap } from './griglie-map.js';
@@ -509,6 +509,24 @@ function destroyGriglieMap() {
   if (sections.g.map) { sections.g.map.destroy(); sections.g.map = null; }
 }
 
+function rebuildGridSection(activeId) {
+  const s = sections.g;
+  destroyGriglieMap();
+  s.pulldown = s.summary = s.mapEl = null;
+  if (s.body) { s.body.replaceChildren(); buildGriglieBody(s.body); }
+  if (activeId != null) activateGrid(activeId);
+  syncURL();
+}
+
+function rebuildSurveySection(activeId) {
+  const s = sections.r;
+  destroyRilevamentiMap();
+  s.pulldown = s.summary = s.mapEl = null;
+  if (s.body) { s.body.replaceChildren(); buildRilevamentiBody(s.body); }
+  if (activeId != null) activateSurvey(activeId);
+  syncURL();
+}
+
 // ---------------------------------------------------------------------------
 // Section 2 — Rilevamenti body
 // ---------------------------------------------------------------------------
@@ -952,13 +970,12 @@ function syncURL() {
 
 async function showNewGridForm() {
   inForm = true;
-  const form = await fetchForm(GRID_FORM_URL);
-  if (!form) { returnToPage(); return; }
-  const modal = document.getElementById('campionamenti-grid-modal');
-  if (!modal) { returnToPage(); return; }
+  const form = await fetchModalForm(GRID_FORM_URL);
+  if (!form) { inForm = false; return; }
+  const modal = document.querySelector('#modal-container #campionamenti-grid-modal');
+  if (!modal) { dismissModal(); inForm = false; return; }
+  onDismiss(() => { inForm = false; });
 
-  // Lazy-init the auto-generate planner when its tab is first shown.
-  // Map + terreni.geojson fetch only run if the user picks that path.
   let planner = null;
   const onPathSwitch = (path) => {
     if (path === 'auto' && !planner) {
@@ -968,10 +985,9 @@ async function showNewGridForm() {
           host,
           basemap: activeBasemap(),
           onCreated: (rowId, response) => {
-            // The planner POSTs to grid_save_auto and forwards the
-            // whole response so we can patch caches optimistically.
             if (response) applySideEffects(response);
-            returnToPage({ g: String(rowId) });
+            dismissModal();
+            rebuildGridSection(rowId);
           },
         });
         planner.init();
@@ -981,8 +997,7 @@ async function showNewGridForm() {
 
   wirePathChooser(modal, onPathSwitch);
   wireGridEmptyForm(modal);
-  wireCancelButtons(modal, returnToPage);
-  addEscapeHandler();
+  wireCancelButtons(modal, dismissModal);
 }
 
 function wireGridEmptyForm(modal) {
@@ -991,25 +1006,22 @@ function wireGridEmptyForm(modal) {
   interceptSubmit(form, GRID_SAVE_URL, {
     onSuccess: (data) => {
       applySideEffects(data);
-      // Pin the just-created grid as active so the user lands on it.
-      returnToPage({ g: String(data.row_id) });
+      dismissModal();
+      rebuildGridSection(data.row_id);
     },
-    onValidationError(_data) {
-      // Server returns empty html for simple validation errors;
-      // interceptSubmit's error modal is enough.
-    },
+    onValidationError(_data) {},
   });
 }
 
 async function showNewSurveyForm() {
   inForm = true;
-  const form = await fetchForm(SURVEY_FORM_URL);
-  if (!form) { returnToPage(); return; }
-  const modal = document.getElementById('campionamenti-survey-modal');
-  if (!modal) { returnToPage(); return; }
+  const form = await fetchModalForm(SURVEY_FORM_URL);
+  if (!form) { inForm = false; return; }
+  const modal = document.querySelector('#modal-container #campionamenti-survey-modal');
+  if (!modal) { dismissModal(); inForm = false; return; }
+  onDismiss(() => { inForm = false; });
   wireSurveyEmptyForm(modal);
-  wireCancelButtons(modal, returnToPage);
-  addEscapeHandler();
+  wireCancelButtons(modal, dismissModal);
 }
 
 function wireSurveyEmptyForm(modal) {
@@ -1018,10 +1030,8 @@ function wireSurveyEmptyForm(modal) {
   interceptSubmit(form, SURVEY_SAVE_URL, {
     onSuccess: (data) => {
       applySideEffects(data);
-      // Pin the just-created survey as active so the user lands on it
-      // (even though its NULL last_date would sort it below populated
-      // surveys in the default-first-row fallback).
-      returnToPage({ s: String(data.row_id) });
+      dismissModal();
+      rebuildSurveySection(data.row_id);
     },
     onValidationError(_data) {},
   });
@@ -1166,39 +1176,32 @@ async function showAddAreaForm({ lat, lon } = {}) {
   const qs = new URLSearchParams({ grid: String(activeGridId) });
   if (lat != null) qs.set(FIELD_LAT, String(lat));
   if (lon != null) qs.set(FIELD_LON, String(lon));
-  const form = await fetchForm(`${AREA_FORM_URL}?${qs}`);
-  if (!form) { returnToPage(); return; }
+  const form = await fetchModalForm(`${AREA_FORM_URL}?${qs}`);
+  if (!form) { inForm = false; return; }
+  onDismiss(() => { inForm = false; });
   wireAreaForm(form);
-  addEscapeHandler();
 }
 
 async function showEditAreaForm(areaId) {
   inForm = true;
-  const form = await fetchForm(`${AREA_FORM_URL}${areaId}/`);
-  if (!form) { returnToPage(); return; }
+  const form = await fetchModalForm(`${AREA_FORM_URL}${areaId}/`);
+  if (!form) { inForm = false; return; }
+  onDismiss(() => { inForm = false; });
   wireAreaForm(form);
-  addEscapeHandler();
 }
 
 function wireAreaForm(form) {
-  wireCancelButtons(form, returnToPage);
-  // Mount the "Usa posizione attuale" button at the end of the
-  // lat/lon/quota row rather than nested inside the lon .form-group,
-  // so it sits inline with the other inputs.
+  wireCancelButtons(form, dismissModal);
   mountUseLocationButton(
     form.querySelector('#id_area_lat'),
     form.querySelector('#id_area_lon'),
     { appendTo: form.querySelector('#area-form-latlon-row') },
   );
-  // Filter Particella by Compresa.
   wireParcelByRegion(form);
   interceptSubmit(form, AREA_SAVE_URL, {
     onSuccess: (data) => {
-      // Server returns the area record + grid_record + every affected
-      // survey_record; applySideEffects patches caches + re-renders
-      // the active map / summary.
       applySideEffects(data);
-      returnToPage();
+      dismissModal();
     },
     onValidationError(_data) {},
   });
@@ -1406,6 +1409,7 @@ function showEditModal({
   card.appendChild(tabs);
 
   const bodies = document.createElement('div');
+  bodies.className = 'modal-tab-bodies';
   card.appendChild(bodies);
 
   const tabDefs = [
@@ -1547,6 +1551,15 @@ function showEditModal({
   }
 
   showModal(frag);
+
+  // Lock min-height to the tallest tab so switching doesn't reflow.
+  const allBodies = Object.values(bodyEls);
+  for (const b of allBodies) b.style.display = 'block';
+  let maxH = 0;
+  for (const b of allBodies) maxH = Math.max(maxH, b.offsetHeight);
+  for (const b of allBodies) b.style.display = '';
+  if (maxH > 0) bodies.style.minHeight = `${maxH}px`;
+
   switchTab(TAB_DETAILS);
   setTimeout(() => nameInput.focus(), 0);
 }
@@ -2011,18 +2024,18 @@ async function showAddTreeForm() {
   }
   inForm = true;
   const url = `${TREE_FORM_URL}?survey=${activeSurveyId}&area=${activeAreaId}`;
-  const form = await fetchForm(url);
-  if (!form) { returnToPage(); return; }
+  const form = await fetchModalForm(url);
+  if (!form) { inForm = false; return; }
+  onDismiss(() => { inForm = false; });
   wireTreeForm(form);
-  addEscapeHandler();
 }
 
 async function showEditTreeForm(tsId) {
   inForm = true;
-  const form = await fetchForm(`${TREE_FORM_URL}${tsId}/`);
-  if (!form) { returnToPage(); return; }
+  const form = await fetchModalForm(`${TREE_FORM_URL}${tsId}/`);
+  if (!form) { inForm = false; return; }
+  onDismiss(() => { inForm = false; });
   wireTreeForm(form);
-  addEscapeHandler();
 }
 
 /**
@@ -2088,29 +2101,22 @@ function wireTreeForm(form) {
     form.querySelector('#id_lon'),
     { appendTo: form.querySelector('#id_lon')?.closest('.form-row') },
   );
-  wireCancelButtons(form, returnToPage);
+  wireCancelButtons(form, dismissModal);
   interceptSubmit(form, TREE_SAVE_URL, {
     onSuccess: (data, isSaveAndAdd) => {
-      // Optimistic patch: the response carries the new TreeSample
-      // row(s) and the affected Sample + Survey rows; we patch
-      // in-place rather than re-fetching the digest.  See
-      // CLAUDE.md §"Optimistic table updates".
       applySideEffects(data);
-      if (isSaveAndAdd) {
-        showAddTreeForm();
-      } else {
-        returnToPage();
-      }
+      dismissModal();
+      if (isSaveAndAdd) showAddTreeForm();
     },
     onConflict(data) {
       if (data.html) {
-        const f = renderFormHTML(data.html);
+        const f = renderModalForm(data.html);
         if (f) wireTreeForm(f);
       }
     },
     onValidationError(data) {
       if (data.html) {
-        const f = renderFormHTML(data.html);
+        const f = renderModalForm(data.html);
         if (f) wireTreeForm(f);
       }
     },

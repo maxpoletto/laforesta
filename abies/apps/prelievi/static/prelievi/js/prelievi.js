@@ -6,10 +6,11 @@ import * as cache from '../../base/js/cache.js';
 import * as router from '../../base/js/router.js';
 import { TableWrapper } from '../../base/js/table.js';
 import {
-  fetchForm, renderFormHTML, interceptSubmit, wireCancelButtons,
+  fetchForm, fetchModalForm, renderFormHTML, renderModalForm,
+  interceptSubmit, wireCancelButtons,
 } from '../../base/js/forms.js';
 import { postJSON } from '../../base/js/api.js';
-import { showError } from '../../base/js/modals.js';
+import { showError, dismiss as dismissModal, onDismiss } from '../../base/js/modals.js';
 import { createRangeSlider } from '../../base/js/range-slider.js';
 import * as S from '../../base/js/strings.js';
 import { STATUS_CONFLICT, VERSION } from '../../base/js/constants.js';
@@ -612,17 +613,17 @@ function _collapsible(title, open = false) {
 
 async function showAddForm() {
   inForm = true;
-  destroyTable();
-  const form = await fetchForm(FORM_URL);
-  if (!form) { returnToTable(); return; }
+  const form = await fetchModalForm(FORM_URL);
+  if (!form) { inForm = false; return; }
+  onDismiss(() => { inForm = false; });
   wireForm(form);
 }
 
 async function showEditForm(rowId) {
   inForm = true;
-  destroyTable();
-  const form = await fetchForm(`${FORM_URL}${rowId}/`);
-  if (!form) { returnToTable(); return; }
+  const form = await fetchModalForm(`${FORM_URL}${rowId}/`);
+  if (!form) { inForm = false; return; }
+  onDismiss(() => { inForm = false; });
   wireForm(form);
 }
 
@@ -648,34 +649,33 @@ function validateForm(body) {
 function wireForm(form) {
   wireRegionCascade(form);
   wire100Buttons(form);
-  wireCancelButtons(form, returnToTable);
+  wireCancelButtons(form, dismissModal);
 
   interceptSubmit(form, SAVE_URL, {
     validate: validateForm,
     onSuccess(data, isSaveAndAdd) {
       cache.updateRow(DATA_ID, data.row_id, data.record);
+      dismissModal();
       if (isSaveAndAdd) {
         showAddForm();
       } else {
-        returnToTable();
+        refreshTable();
       }
     },
     onConflict(data) {
       if (data.record) cache.updateRow(DATA_ID, data.row_id, data.record);
       if (data.html) {
-        const newForm = renderFormHTML(data.html);
+        const newForm = renderModalForm(data.html);
         if (newForm) wireForm(newForm);
       }
     },
     onValidationError(data) {
       if (data.html) {
-        const newForm = renderFormHTML(data.html);
+        const newForm = renderModalForm(data.html);
         if (newForm) wireForm(newForm);
       }
     },
   });
-
-  addEscapeHandler();
 }
 
 /** Filter parcel options when region changes. */
@@ -787,6 +787,10 @@ function returnToTable() {
   const params = Object.fromEntries(new URLSearchParams(location.search));
   if (!data) { mount(params); return; }
   showTableView(data, params);
+}
+
+function refreshTable() {
+  if (table) table.setData(cache.get(DATA_ID));
 }
 
 /**

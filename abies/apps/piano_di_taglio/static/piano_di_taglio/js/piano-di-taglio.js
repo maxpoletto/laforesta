@@ -1024,6 +1024,15 @@ export function openEditPlanModal(initialTab, { ceduo = false } = {}) {
   }
 
   showModal(frag);
+
+  // Lock min-height to the tallest tab so switching doesn't reflow.
+  const allBodies = Object.values(bodyEls);
+  for (const b of allBodies) b.style.display = 'block';
+  let maxH = 0;
+  for (const b of allBodies) maxH = Math.max(maxH, b.offsetHeight);
+  for (const b of allBodies) b.style.display = '';
+  if (maxH > 0) bodies.style.minHeight = `${maxH}px`;
+
   switchTab(initialTab || EDIT_PLAN_TAB_DETAILS);
 }
 
