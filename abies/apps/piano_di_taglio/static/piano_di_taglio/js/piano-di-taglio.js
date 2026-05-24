@@ -71,7 +71,6 @@ const sections = {
     hiddenCols: [
       S.COL_HARVEST_PLAN, S.COL_TYPE,
       S.COL_INTERVENTION_AREA_HA, S.COL_PARCEL_AREA_HA, S.COL_TURNO_A,
-      S.COL_EXTRA_NOTE,
     ],
     csvFilename: 'interventi-fustaia.csv',
   },
