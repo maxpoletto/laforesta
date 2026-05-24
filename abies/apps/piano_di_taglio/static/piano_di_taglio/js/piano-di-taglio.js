@@ -15,7 +15,7 @@ import {
   show as showModal, showError, dismiss as dismissModal,
 } from '../../base/js/modals.js';
 import { fetchJSON, postJSON, postFormData } from '../../base/js/api.js';
-import { interceptSubmit } from '../../base/js/forms.js';
+import { interceptSubmit, wireCancelButtons } from '../../base/js/forms.js';
 import * as S from '../../base/js/strings.js';
 import { ROW_ID, VERSION } from '../../base/js/constants.js';
 
@@ -677,7 +677,7 @@ function openItemFormModal(html, kind) {
   injectNonce(form);
   wireItemForm(form, kind);
   attachItemSubmit(form, kind);
-  form.querySelector('[data-action="cancel"]')?.addEventListener('click', dismissModal);
+  wireCancelButtons(form, dismissModal);
 
   const outer = document.createDocumentFragment();
   outer.appendChild(frag);
@@ -691,7 +691,7 @@ function replaceItemFormInModal(html, kind) {
   injectNonce(form);
   wireItemForm(form, kind);
   attachItemSubmit(form, kind);
-  form.querySelector('[data-action="cancel"]')?.addEventListener('click', dismissModal);
+  wireCancelButtons(form, dismissModal);
   const modalEl = document.querySelector('#modal-container .modal');
   if (modalEl) {
     modalEl.replaceChildren();
@@ -891,6 +891,7 @@ export function showDangerousDeleteModal({ title, warning, onExportCSV, onDelete
 
   const cancel = document.createElement('button');
   cancel.className = 'btn';
+  cancel.dataset.action = 'cancel';
   cancel.textContent = S.CANCEL;
   cancel.addEventListener('click', dismissModal);
 
@@ -1386,6 +1387,7 @@ function mkFormActions(form, { onCancel, submitLabel }) {
   const cancel = document.createElement('button');
   cancel.type = 'button';
   cancel.className = 'btn';
+  cancel.dataset.action = 'cancel';
   cancel.textContent = S.CANCEL;
   cancel.addEventListener('click', onCancel);
   const submit = document.createElement('button');

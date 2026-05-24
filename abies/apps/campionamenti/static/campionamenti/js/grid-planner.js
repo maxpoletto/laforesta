@@ -130,15 +130,15 @@ export class GridPlanner {
     this.leaflet = this.wrapper.getLeafletMap();
     this.pointLayer = L.layerGroup().addTo(this.leaflet);
 
-    // Bottom button row: [Annulla] [Crea].  Cancel has id `grid-auto-cancel` so
-    // the modal dispatcher binds its handler.
+    // Bottom button row: [Annulla] [Crea].
+    // Cancel uses data-action="cancel" so wireCancelButtons() binds it.
     const actions = document.createElement('div');
     actions.className = 'form-actions';
 
     const cancelBtn = document.createElement('button');
     cancelBtn.type = 'button';
     cancelBtn.className = 'btn';
-    cancelBtn.id = 'grid-auto-cancel';
+    cancelBtn.dataset.action = 'cancel';
     cancelBtn.textContent = S.CANCEL;
     actions.appendChild(cancelBtn);
 

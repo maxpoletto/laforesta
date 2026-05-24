@@ -14,6 +14,7 @@ import { postJSON } from '../../base/js/api.js';
 import { TableWrapper } from '../../base/js/table.js';
 import * as modals from '../../base/js/modals.js';
 import { showError } from '../../base/js/modals.js';
+import { wireCancelButtons } from '../../base/js/forms.js';
 import * as S from '../../base/js/strings.js';
 import {
   LOGIN_METHOD_PASSWORD, ROLE_ADMIN, ROLE_WRITER, STATUS_CONFLICT,
@@ -325,8 +326,7 @@ function showFormModal(html, cfg, state) {
     // Wire password field visibility for user form.
     wirePasswordToggle(form);
 
-    const cancelBtn = form.querySelector('#settings-form-cancel');
-    if (cancelBtn) cancelBtn.addEventListener('click', () => modals.dismiss());
+    wireCancelButtons(form, () => modals.dismiss());
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();

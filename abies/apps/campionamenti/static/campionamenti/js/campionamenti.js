@@ -21,7 +21,9 @@ import {
   FIELD_LAT, FIELD_LON, ROW_ID, VERSION,
 } from '../../base/js/constants.js';
 import { fetchJSON, postJSON, postFormData } from '../../base/js/api.js';
-import { fetchForm, renderFormHTML, interceptSubmit } from '../../base/js/forms.js';
+import {
+  fetchForm, renderFormHTML, interceptSubmit, wireCancelButtons,
+} from '../../base/js/forms.js';
 import { RilevamentiMap } from './rilevamenti-map.js';
 import { GriglieMap } from './griglie-map.js';
 import { GridPlanner } from './grid-planner.js';
@@ -979,8 +981,7 @@ async function showNewGridForm() {
   wirePathChooser(modal, onPathSwitch);
   wireGridEmptyForm(modal);
   wireGridCsvForm(modal);
-  modal.querySelectorAll('#grid-form-cancel, #grid-auto-cancel, #grid-csv-cancel')
-       .forEach(b => b.addEventListener('click', returnToPage));
+  wireCancelButtons(modal, returnToPage);
   addEscapeHandler();
 }
 
@@ -1009,8 +1010,7 @@ async function showNewSurveyForm() {
   wirePathChooser(modal);
   wireSurveyEmptyForm(modal);
   wireSurveyCsvForm(modal);
-  modal.querySelectorAll('#survey-form-cancel, #survey-csv-cancel')
-       .forEach(b => b.addEventListener('click', returnToPage));
+  wireCancelButtons(modal, returnToPage);
   addEscapeHandler();
 }
 
@@ -1234,6 +1234,7 @@ function promptNewAreaAt(lat, lon) {
   actions.className = 'form-actions';
   const cancel = document.createElement('button');
   cancel.className = 'btn';
+  cancel.dataset.action = 'cancel';
   cancel.textContent = S.CANCEL;
   cancel.addEventListener('click', dismissModal);
   const ok = document.createElement('button');
@@ -1269,7 +1270,7 @@ async function showEditAreaForm(areaId) {
 }
 
 function wireAreaForm(form) {
-  form.querySelector('#area-form-cancel')?.addEventListener('click', returnToPage);
+  wireCancelButtons(form, returnToPage);
   // Mount the "Usa posizione attuale" button at the end of the
   // lat/lon/quota row rather than nested inside the lon .form-group,
   // so it sits inline with the other inputs.
@@ -1317,6 +1318,7 @@ function confirmDeleteArea(areaId) {
   actions.className = 'form-actions';
   const cancel = document.createElement('button');
   cancel.className = 'btn';
+  cancel.dataset.action = 'cancel';
   cancel.textContent = S.CANCEL;
   cancel.addEventListener('click', dismissModal);
   const ok = document.createElement('button');
@@ -1445,6 +1447,7 @@ function showRenameModal({ title, name, description, onSave }) {
   actions.className = 'form-actions';
   const cancel = document.createElement('button');
   cancel.className = 'btn';
+  cancel.dataset.action = 'cancel';
   cancel.textContent = S.CANCEL;
   cancel.addEventListener('click', dismissModal);
   const ok = document.createElement('button');
@@ -1588,6 +1591,7 @@ function showCascadeDeleteModal({ warning, onExportCSV, onDelete }) {
 
   const cancel = document.createElement('button');
   cancel.className = 'btn';
+  cancel.dataset.action = 'cancel';
   cancel.textContent = S.CANCEL;
   cancel.addEventListener('click', dismissModal);
 
@@ -2001,9 +2005,7 @@ function wireTreeForm(form) {
     form.querySelector('#id_lon'),
     { appendTo: form.querySelector('#id_lon')?.closest('.form-row') },
   );
-  form.querySelector('#tree-form-cancel')?.addEventListener('click', () => {
-    returnToPage();
-  });
+  wireCancelButtons(form, returnToPage);
   interceptSubmit(form, TREE_SAVE_URL, {
     onSuccess: (data, isSaveAndAdd) => {
       // Optimistic patch: the response carries the new TreeSample
