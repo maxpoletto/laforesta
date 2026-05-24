@@ -15,7 +15,6 @@ import {
   show as showModal, showError, dismiss as dismissModal,
 } from '../../base/js/modals.js';
 import { fetchJSON, postJSON, postFormData } from '../../base/js/api.js';
-import { interceptSubmit } from '../../base/js/forms.js';
 import * as S from '../../base/js/strings.js';
 import { ROW_ID, VERSION } from '../../base/js/constants.js';
 
@@ -708,8 +707,17 @@ function parseHTMLFragment(html) {
 }
 
 function attachItemSubmit(form, kind) {
-  interceptSubmit(form, ITEM_SAVE_URL, {
-    onSuccess: (data) => {
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const body = Object.fromEntries(new FormData(form));
+    let data, status;
+    try {
+      ({ data, status } = await postJSON(ITEM_SAVE_URL, body));
+    } catch {
+      showFormError(form, S.ERROR_NETWORK);
+      return;
+    }
+    if (status === 200) {
       if (data.record) cache.updateRow(ITEMS_ID, data.row_id, data.record);
       itemsData = cache.get(ITEMS_ID);
       for (const k of SECTION_KEYS) {
@@ -717,14 +725,24 @@ function attachItemSubmit(form, kind) {
         updateEmptyState(sections[k]);
       }
       dismissModal();
-    },
-    onConflict(data) {
-      if (data.html) replaceItemFormInModal(data.html, kind);
-    },
-    onValidationError(data) {
-      if (data.html) replaceItemFormInModal(data.html, kind);
-    },
+      return;
+    }
+    if (data.html) {
+      replaceItemFormInModal(data.html, kind);
+    } else {
+      showFormError(form, data.message || S.ERROR_GENERIC);
+    }
   });
+}
+
+function showFormError(form, message) {
+  let el = form.querySelector('.form-error');
+  if (!el) {
+    el = document.createElement('p');
+    el.className = 'form-error';
+    form.querySelector('.form-actions')?.before(el) || form.appendChild(el);
+  }
+  el.textContent = message;
 }
 
 function injectNonce(form) {
@@ -1061,14 +1079,14 @@ function buildEditDetailsForm(host, current) {
       year_end: parseInt(fd.get('year_end'), 10),
       nonce: crypto.randomUUID(),
     };
-    if (!body.name) { showError(S.ERR_PLAN_NAME_REQUIRED); return; }
+    if (!body.name) { showFormError(form, S.ERR_PLAN_NAME_REQUIRED); return; }
     if (body.year_end < body.year_start) {
-      showError(S.ERR_PLAN_YEAR_RANGE); return;
+      showFormError(form, S.ERR_PLAN_YEAR_RANGE); return;
     }
     try {
       const { data, status } = await postJSON(PLAN_SAVE_URL, body);
       if (status !== 200) {
-        showError(data?.message || S.ERROR_GENERIC);
+        showFormError(form, data?.message || S.ERROR_GENERIC);
         return;
       }
       if (data.record) cache.updateRow(PLANS_ID, data.row_id, data.record);
@@ -1076,7 +1094,7 @@ function buildEditDetailsForm(host, current) {
       onPlansUpdate();
       dismissModal();
     } catch {
-      showError(S.ERROR_NETWORK);
+      showFormError(form, S.ERROR_NETWORK);
     }
   });
 }
@@ -1128,11 +1146,11 @@ function onNewPlan() {
       year_end: today,
       nonce: crypto.randomUUID(),
     };
-    if (!body.name) { showError(S.ERR_PLAN_NAME_REQUIRED); return; }
+    if (!body.name) { showFormError(form, S.ERR_PLAN_NAME_REQUIRED); return; }
     try {
       const { data, status } = await postJSON(PLAN_SAVE_URL, body);
       if (status !== 200) {
-        showError(data?.message || S.ERROR_GENERIC);
+        showFormError(form, data?.message || S.ERROR_GENERIC);
         return;
       }
       if (data.record) cache.updateRow(PLANS_ID, data.row_id, data.record);
@@ -1142,7 +1160,7 @@ function onNewPlan() {
       syncURL();
       dismissModal();
     } catch {
-      showError(S.ERROR_NETWORK);
+      showFormError(form, S.ERROR_NETWORK);
     }
   });
 
@@ -1189,7 +1207,7 @@ function buildExistingPlanCalendarImport(host, { ceduo = false } = {}) {
     e.preventDefault();
     if (activePlanId == null) return;
     const file = fileInput.files[0];
-    if (!file) { showError(S.ERR_CSV_FILE_REQUIRED); return; }
+    if (!file) { showFormError(form, S.ERR_CSV_FILE_REQUIRED); return; }
 
     const fd = new FormData();
     fd.append('harvest_plan_id', String(activePlanId));
@@ -1227,7 +1245,7 @@ function buildExistingPlanRegressionImport(host) {
     e.preventDefault();
     if (activePlanId == null) return;
     const file = fileInput.files[0];
-    if (!file) { showError(S.ERR_CSV_FILE_REQUIRED); return; }
+    if (!file) { showFormError(form, S.ERR_CSV_FILE_REQUIRED); return; }
 
     const fd = new FormData();
     fd.append('harvest_plan_id', String(activePlanId));
@@ -1262,10 +1280,10 @@ async function submitCsvImport(form, fd, statusBox, errorsBox) {
     if (data?.errors?.length) {
       renderCsvErrors(errorsBox, data.errors);
     } else {
-      showError(data?.message || S.ERROR_GENERIC);
+      showFormError(form, data?.message || S.ERROR_GENERIC);
     }
   } catch {
-    showError(S.ERROR_NETWORK);
+    showFormError(form, S.ERROR_NETWORK);
   } finally {
     if (btn) btn.disabled = false;
     statusBox.hidden = true;

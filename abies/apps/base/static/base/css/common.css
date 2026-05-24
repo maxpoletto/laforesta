@@ -161,7 +161,8 @@ body {
   overflow-y: auto;
 }
 
-.modal-error { color: #c00; }
+.modal-error, .form-error { color: #c00; }
+.form-error { margin-top: 10px; }
 
 .modal .btn { margin-top: 1rem; }
 
