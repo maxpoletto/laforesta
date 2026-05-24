@@ -1469,7 +1469,7 @@ function showItemMetadata(el, itemId, record, transitions) {
     pencil.className = 'pdt-pulldown-icon';
     pencil.textContent = '✎';
     pencil.title = S.ACTION_EDIT;
-    pencil.addEventListener('click', () => loadItemEditForm(itemId));
+    pencil.addEventListener('click', () => showItemEditForm(itemId));
     actions.appendChild(pencil);
   }
 
@@ -1608,7 +1608,7 @@ function formatDate(iso) {
   return iso;
 }
 
-function loadItemEditForm(itemId) {
+function showItemEditForm(itemId) {
   const row = itemsData?.rows.find(r =>
     r[itemsData.columns.indexOf(ROW_ID)] === itemId,
   );
