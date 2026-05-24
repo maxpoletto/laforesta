@@ -30,7 +30,7 @@ from apps.base.digests import (
 from apps.base.middleware import save_nonce
 from apps.base.models import (
     Parcel, Region, Sample, SampleArea, SampleGrid, Species, Survey, Tree,
-    TreeSample,
+    TreeSample, parcel_sort_key,
 )
 from config import strings as S
 from config.constants import (
@@ -316,9 +316,8 @@ def area_form_view(request, area_id: int | None = None):
     initial_lon = request.GET.get(FIELD_LON, '')
 
     regions = list(Region.objects.order_by('name'))
-    parcels = list(Parcel.objects.select_related('region').order_by(
-        'region__name', 'name',
-    ))
+    parcels = sorted(Parcel.objects.select_related('region'),
+                     key=parcel_sort_key)
     return JsonResponse({HTML: render_to_string(
         'campionamenti/_area_form.html', {
             FIELD_AREA: area, 'grid': grid,

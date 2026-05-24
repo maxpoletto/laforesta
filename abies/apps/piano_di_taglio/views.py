@@ -44,6 +44,7 @@ from apps.base.models import (
     Parcel,
     Region,
     Species,
+    parcel_sort_key,
     TreeHeightRegression,
     render_flag_note,
 )
@@ -648,8 +649,8 @@ def item_form_view(request, item_id: int | None = None):
         if plan is None:
             raise Http404
     regions = list(Region.objects.order_by('name'))
-    parcels = list(Parcel.objects.select_related('region', 'eclass')
-                                  .order_by('region__name', 'name'))
+    parcels = sorted(Parcel.objects.select_related('region', 'eclass'),
+                     key=parcel_sort_key)
     return JsonResponse({HTML: render_to_string(
         'piano_di_taglio/_item_form.html', {
             'item': item, 'plan': plan,

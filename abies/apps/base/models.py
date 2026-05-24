@@ -1,5 +1,6 @@
 """Base models — shared across all domains."""
 
+import re
 from decimal import Decimal
 
 from django.contrib.auth.models import AbstractUser
@@ -7,6 +8,17 @@ from django.db import models
 from simple_history.models import HistoricalRecords
 
 from config import strings as S
+
+_NATSORT_RE = re.compile(r'(\d+)')
+
+
+def _natsort_key(s: str) -> list:
+    return [int(c) if c.isdigit() else c.lower() for c in _NATSORT_RE.split(s)]
+
+
+def parcel_sort_key(p) -> tuple:
+    """Sort key for natural ordering: region name, then parcel name."""
+    return (p.region.name, _natsort_key(p.name))
 
 
 def render_flag_note(damaged: bool, unhealthy: bool, psr: bool) -> str:

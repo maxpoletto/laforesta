@@ -28,7 +28,7 @@ from apps.base.digests import (
 from apps.base.middleware import save_nonce
 from apps.base.models import (
     Crew, HarvestPlanItem, HarvestPlanItemState, Parcel, Product, Species,
-    Tractor,
+    Tractor, parcel_sort_key,
 )
 from apps.prelievi.models import Harvest, HarvestSpecies, HarvestTractor
 from config import strings as S
@@ -265,9 +265,9 @@ def _form_context(op_id=None, vals=None):
         'op': op,
         'vals': v,
         'cantieri': cantieri,
-        'parcels': Parcel.objects.exclude(name='X')
-                        .select_related('region')
-                        .order_by('region__name', 'name'),
+        'parcels': sorted(Parcel.objects.exclude(name='X')
+                              .select_related('region'),
+                         key=parcel_sort_key),
         'crews': Crew.objects.filter(active=True).order_by('name'),
         'products': Product.objects.order_by('name'),
         'species_data': [
