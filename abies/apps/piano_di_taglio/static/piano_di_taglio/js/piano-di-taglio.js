@@ -1448,41 +1448,42 @@ function showItemMetadata(el, itemId, record, transitions) {
   const header = document.createElement('div');
   header.className = 'pdt-item-header';
 
+  const left = document.createElement('div');
+  left.className = 'pdt-item-header-left';
+
   const title = document.createElement('h2');
   title.className = 'pdt-item-title';
   title.textContent = formatItemTitle(record, c);
-  header.appendChild(title);
+  left.appendChild(title);
 
-  const actions = document.createElement('div');
-  actions.className = 'pdt-item-header-actions';
-
-  const exportBtn = document.createElement('button');
-  exportBtn.type = 'button';
-  exportBtn.className = 'btn';
-  exportBtn.textContent = S.EXPORT_CSV;
-  exportBtn.addEventListener('click', () => downloadItemExport(itemId));
-  actions.appendChild(exportBtn);
-
-  // Pencil for inline edit (writers only)
   if (canModify()) {
     const pencil = document.createElement('span');
     pencil.className = 'pdt-pulldown-icon';
     pencil.textContent = '✎';
     pencil.title = S.ACTION_EDIT;
     pencil.addEventListener('click', () => showItemEditForm(itemId));
-    actions.appendChild(pencil);
+    left.appendChild(pencil);
   }
 
-  // Close button (×)
+  const right = document.createElement('div');
+  right.className = 'pdt-item-header-actions';
+
+  const exportBtn = document.createElement('button');
+  exportBtn.type = 'button';
+  exportBtn.className = 'btn';
+  exportBtn.textContent = S.EXPORT_CSV;
+  exportBtn.addEventListener('click', () => downloadItemExport(itemId));
+  right.appendChild(exportBtn);
+
   const close = document.createElement('button');
   close.type = 'button';
   close.className = 'pdt-item-close';
   close.textContent = '×';
   close.title = S.DISMISS;
   close.addEventListener('click', () => closeItemView(true));
-  actions.appendChild(close);
+  right.appendChild(close);
 
-  header.appendChild(actions);
+  header.append(left, right);
   card.appendChild(header);
 
   // --- Metadata pane ---
