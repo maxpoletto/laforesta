@@ -400,8 +400,8 @@ refreshes happen silently in the background.
 
 ## Data entry and cache updates
 
-Data entry forms are Django-rendered HTML fetched as fragments into the shell's
-content area.
+Data entry forms are Django-rendered HTML fetched as fragments and displayed
+in overlay modals (see "Modals" below).
 
 Each form has custom HTML and validation JS as needed, but common patterns (form
 interception, error display) are extracted into shared libraries.
@@ -415,11 +415,10 @@ The process of data entry runs as follows:
 1. The user initiates a data addition or edit by clicking on a UI button (the
    visual details of this are below).
 1. JS fetches the form HTML from Django (including the CSRF token and an
-   idempotency nonce as a hidden field).
-1. The form is rendered in the current page (it replaces the current view). The
-   URL *does not change*. This is the one exception to the "canonical
-   representation of view state" rule, since we never need to share the input
-   form.
+   idempotency nonce as a hidden field) via `fetchModalForm`.
+1. The form is rendered in an overlay modal. The URL *does not change*.
+   This is the one exception to the "canonical representation of view state"
+   rule, since we never need to share the input form.
 1. Client-side JS validation provides immediate feedback: the submit button is
    inactive until JS validation passes.
 1. On submit, JS intercepts and forwards the POST request (including the CSRF
@@ -745,12 +744,36 @@ any new map whose contents are re-rendered after data writes.
 
 ## Modals
 
-Modals have a consistent style, with slightly rounded corners and thin dark
-green borders. Their background is white but they cause the rest of the page to
-darken by about 50%.
+All forms display as 640px-wide overlay modals (`#modal-container`).
+They never replace `#content` — the page shell stays intact behind
+the darkened overlay, so cancel/dismiss is instant (no rebuild).
 
-They are used to display error message (with red text) and help information
-where available (e.g., "?" links next to map navbar elements).
+Style: slightly rounded corners, thin dark green border, white
+background, page darkened ~50%.  Also used for error messages (red
+text) and help information.
+
+Infrastructure:
+
+- **`modals.js`**: `show(content)` / `dismiss()` / `showError(msg)` /
+  `onDismiss(cb)`.  `onDismiss` registers a one-shot callback that
+  fires on dismiss (by Escape or by `dismiss()`); use it to reset
+  page state like `inForm = false`.
+- **`forms.js`**: `fetchModalForm(url)` fetches a server-rendered
+  form fragment and shows it in the overlay modal.
+  `renderModalForm(html)` re-renders inside the open modal (for
+  validation errors / conflicts).
+- **`form-widgets.js`**: shared DOM builders for form elements.
+  `mkRow`, `mkInput`, `mkTextarea`, `mkFileInput`, `mkFormActions`,
+  `mkStatusBox`, `mkErrorsBox`, `renderCsvErrors`, `mkCollapsible`,
+  `mkEditDeleteIcons`, `mkTabbedModal`.  All pages import from here;
+  never duplicate these locally.
+
+Tabbed modals (e.g., pencil-edit modals with Dettagli + Import tabs)
+use `.modal-tabs` / `.modal-tab` / `.modal-tab-body` /
+`.modal-tab-bodies` CSS classes (defined in `common.css`).  The
+`mkTabbedModal` helper or inline JS measures all tab bodies after
+`showModal()` and sets `min-height` on the container to the tallest
+tab, so switching tabs never reflows the modal.
 
 ## Form card
 
@@ -758,10 +781,7 @@ Every input/edit form renders inside a `<div class="form-card">`
 wrapper.  The shared rule in `apps/base/static/base/css/common.css`
 sets `max-width: 720px; margin: 0 auto;`, giving the form a centred
 column with ample side margins on wide screens.  Use this wrapper
-for any new form template — both overlay modals (grid, survey,
-injected into `#modal-container`) and inline page forms (area, tree,
-prelievi, rendered into `#content` via `renderFormHTML`) share the
-same treatment.  Do not introduce alternative widths.
+for any new form template.  Do not introduce alternative widths.
 
 The wrapper's `h2` title gets a `12px` bottom margin via
 `.form-card h2` so the first row doesn't collapse against the

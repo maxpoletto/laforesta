@@ -112,7 +112,7 @@ The "Esporta CSV" button at the top right exports the active grid's sample areas
 in the same column shape as the import flow (see "Grid CSV import" below) —
 useful for programming GPS devices for the field crew.
 
-The "Nuova griglia" button opens a full-page modal with two creation
+The "Nuova griglia" button opens an overlay modal with two creation
 paths:
 
 - *Crea vuota* — creates an empty grid with a name and optional
@@ -297,8 +297,8 @@ samples to areas outside the grid.
 
 ### Manual tree + sample entry
 
-Clicking on "+ Aggiungi" at the bottom of the sampled trees table  triggers a
-full-page modal with the tree input form.
+Clicking on "+ Aggiungi" at the bottom of the sampled trees table opens an
+overlay modal with the tree input form.
 
 Top of form shows the following data (displayed, not editable):
 data, compresa, particella, area di saggio
