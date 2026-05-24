@@ -114,6 +114,17 @@ export function wireCancelButtons(container, callback) {
     .forEach(b => b.addEventListener('click', callback));
 }
 
+/** Show an inline error message inside a form (above .form-actions). */
+export function showFormError(form, message) {
+  let el = form.querySelector('.form-error');
+  if (!el) {
+    el = document.createElement('p');
+    el.className = 'form-error';
+    form.querySelector('.form-actions')?.before(el) || form.appendChild(el);
+  }
+  el.textContent = message;
+}
+
 // ---------------------------------------------------------------------------
 // Internal
 // ---------------------------------------------------------------------------

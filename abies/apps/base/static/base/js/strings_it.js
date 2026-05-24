@@ -176,6 +176,8 @@ export const CASCADE_EXPORT_REQUIRED =
   'Per sicurezza, esporta i dati prima di procedere all\'eliminazione.';
 export const RENAME_TITLE_GRID = 'Modifica griglia';
 export const RENAME_TITLE_SURVEY = 'Modifica rilevamento';
+export const EDIT_GRID_TAB_IMPORT  = 'Importa aree da CSV';
+export const EDIT_SURVEY_TAB_IMPORT = 'Importa alberi da CSV';
 
 // CSV import status (large files can take many seconds)
 export const CSV_IMPORT_IN_PROGRESS =
@@ -313,7 +315,7 @@ export const ERR_PLAN_YEAR_RANGE      =
   'Anno fine deve essere maggiore o uguale ad anno inizio.';
 export const ERR_CSV_FILE_REQUIRED    = 'File CSV obbligatorio.';
 export const EDIT_PLAN_TITLE          = 'Modifica piano';
-export const EDIT_PLAN_TAB_DETAILS    = 'Dettagli';
+export const TAB_DETAILS    = 'Dettagli';
 export const EDIT_PLAN_TAB_CALENDAR   = 'Importa calendario da CSV';
 export const EDIT_PLAN_TAB_REGRESSION = 'Importa equazioni da CSV';
 export const EDIT_PLAN_CHECKBOX_CEDUO = 'File contiene il calendario ceduo';

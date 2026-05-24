@@ -1,25 +1,12 @@
 {% comment %}
-"Nuovo rilevamento" modal — two creation paths per
-`docs/pages/campionamenti.md` §Section 2:
-  - empty: create an empty survey on a chosen grid.
-  - csv:   upload a CSV (placeholder until Bucket 3).
+"Nuovo rilevamento" modal — single creation path per
+`docs/pages/campionamenti.md` §Section 2: create an empty survey on
+a chosen grid.  CSV import lives in the pencil (edit) modal.
 {% endcomment %}
 <div id="campionamenti-survey-modal" class="form-card">
   <h2>Nuovo rilevamento</h2>
 
-  <div class="modal-path-chooser">
-    <button type="button" class="path-btn active" data-path="empty">
-      Crea vuoto
-    </button>
-    <button type="button" class="path-btn" data-path="csv">
-      Importa da CSV
-    </button>
-  </div>
-
-  {# --- Crea vuoto ----------------------------------------------------- #}
-  <form class="modal-path-body survey-path-empty active"
-        id="campionamenti-survey-form-empty">
-    <input type="hidden" name="path" value="empty">
+  <form id="campionamenti-survey-form-empty">
 
     <div class="form-group">
       <label for="id_survey_name">Nome</label>
@@ -50,53 +37,6 @@
     <div class="form-actions">
       <button type="button" class="btn" data-action="cancel">Annulla</button>
       <button type="submit" class="btn btn-primary" data-action="save">Salva</button>
-    </div>
-  </form>
-
-  {# --- Importa da CSV ------------------------------------------------- #}
-  {% comment %}
-    `novalidate`: see _grid_modal.html for rationale.  Without it, an
-    unset required pulldown silently swallows the submit click.
-  {% endcomment %}
-  <form class="modal-path-body survey-path-csv"
-        id="campionamenti-survey-form-csv"
-        enctype="multipart/form-data" novalidate>
-
-    <div class="form-group">
-      <label for="id_survey_csv_target">Rilevamento di destinazione</label>
-      <select id="id_survey_csv_target" name="survey_id">
-        <option value="">— Seleziona —</option>
-        {% for sv in surveys %}
-          <option value="{{ sv.id }}">{{ sv.name }}</option>
-        {% endfor %}
-      </select>
-    </div>
-
-    <div class="form-group">
-      <label for="id_survey_csv_file">File CSV</label>
-      <input type="file" id="id_survey_csv_file" name="file"
-             accept=".csv,text/csv">
-    </div>
-
-    <div class="form-group">
-      <label for="id_survey_csv_default_date">
-        Data predefinita (se il file non ha colonna "Data")
-      </label>
-      <input type="date" id="id_survey_csv_default_date" name="default_date">
-    </div>
-
-    <p class="form-help">
-      Colonne necessarie: <em>Compresa, Particella, Area saggio, Albero,
-      Pollone, Matricina, D_cm, H_m, L10_mm, Genere, Fustaia</em>. Colonne
-      opzionali: <em>Data, PAI</em>.
-    </p>
-
-    <div class="csv-import-status" hidden></div>
-    <div class="csv-import-errors" hidden></div>
-
-    <div class="form-actions">
-      <button type="button" class="btn" data-action="cancel">Annulla</button>
-      <button type="submit" class="btn btn-primary">Importa</button>
     </div>
   </form>
 </div>

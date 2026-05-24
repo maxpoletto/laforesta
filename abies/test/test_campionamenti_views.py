@@ -826,10 +826,9 @@ class TestGridSave:
         resp = writer_client.get('/api/campionamenti/grid/form/')
         assert resp.status_code == 200
         html = resp.json()[HTML]
-        # Modal carries all three creation paths per campionamenti.md §1.
+        # Modal carries two creation paths (CSV import moved to pencil modal).
         assert 'data-path="empty"' in html
         assert 'data-path="auto"' in html
-        assert 'data-path="csv"' in html
         # Default-active body is the empty-grid create form.
         assert 'campionamenti-grid-form-empty' in html
 
@@ -1828,9 +1827,7 @@ class TestSurveySave:
         resp = writer_client.get('/api/campionamenti/survey/form/')
         assert resp.status_code == 200
         html = resp.json()[HTML]
-        # Modal carries both creation paths per campionamenti.md §2.
-        assert 'data-path="empty"' in html
-        assert 'data-path="csv"' in html
+        # Single creation path (CSV import moved to pencil modal).
         assert 'campionamenti-survey-form-empty' in html
         # Grid pulldown contains the fixture's grid.
         assert sample_setup['grid'].name in html

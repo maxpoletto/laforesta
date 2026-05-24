@@ -1,11 +1,11 @@
 {% comment %}
-"Nuova griglia" modal — three creation paths per
+"Nuova griglia" modal — two creation paths per
 `docs/pages/campionamenti.md` §Section 1:
   - empty: create an empty grid for manual area entry.
   - auto:  generate a regular grid across selected comprese.
-  - csv:   upload a CSV (placeholder until Bucket 3).
 
-All three bodies render at once; client toggles via .modal-path-body.active.
+CSV import lives in the pencil (edit) modal, not at creation time.
+All bodies render at once; client toggles via .modal-path-body.active.
 {% endcomment %}
 <div id="campionamenti-grid-modal" class="form-card">
   <h2>Nuova griglia di campionamento</h2>
@@ -16,9 +16,6 @@ All three bodies render at once; client toggles via .modal-path-body.active.
     </button>
     <button type="button" class="path-btn" data-path="auto">
       Genera automaticamente
-    </button>
-    <button type="button" class="path-btn" data-path="csv">
-      Importa da CSV
     </button>
   </div>
 
@@ -62,46 +59,4 @@ All three bodies render at once; client toggles via .modal-path-body.active.
     </p>
     <div id="campionamenti-grid-planner-host"></div>
   </div>
-
-  {# --- Importa da CSV ------------------------------------------------- #}
-  {% comment %}
-    `novalidate` because HTML5 validation silently blocks the submit event
-    when a required field is empty, leading to a no-op from the user's
-    perspective.  We validate in JS (wireCsvUploadForm) and surface any
-    missing-field message via the standard error modal.
-  {% endcomment %}
-  <form class="modal-path-body grid-path-csv"
-        id="campionamenti-grid-form-csv"
-        enctype="multipart/form-data" novalidate>
-
-    <div class="form-group">
-      <label for="id_grid_csv_target">Griglia di destinazione</label>
-      <select id="id_grid_csv_target" name="sample_grid_id">
-        <option value="">— Seleziona —</option>
-        {% for g in grids %}
-          <option value="{{ g.id }}">{{ g.name }}</option>
-        {% endfor %}
-      </select>
-    </div>
-
-    <div class="form-group">
-      <label for="id_grid_csv_file">File CSV</label>
-      <input type="file" id="id_grid_csv_file" name="file"
-             accept=".csv,text/csv">
-    </div>
-
-    <p class="form-help">
-      Colonne necessarie: <em>Compresa, Particella, Area saggio, Lon, Lat,
-      Quota, Raggio</em>. L'import aggiunge le aree alla griglia selezionata; le
-      righe duplicate (stessa particella e numero di area) vengono rifiutate.
-    </p>
-
-    <div class="csv-import-status" hidden></div>
-    <div class="csv-import-errors" hidden></div>
-
-    <div class="form-actions">
-      <button type="button" class="btn" data-action="cancel">Annulla</button>
-      <button type="submit" class="btn btn-primary">Importa</button>
-    </div>
-  </form>
 </div>

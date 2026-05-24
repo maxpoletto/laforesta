@@ -66,8 +66,9 @@ not a useful primary view. Instead the section is map-centered.
 **Top row** — a "Griglia" pulldown that selects the active grid by name (e.g.,
 `Aree di saggio PDG 2026`). To the right of the pulldown sit "Nuova griglia" and
 "Esporta CSV" buttons. Writers also see pencil and garbage icons next to the
-pulldown for editing the active grid's `name` / `description` and for deletion
-(the garbage icon is disabled when any survey references the grid).
+pulldown for editing the active grid (details + CSV import; see "Modifica griglia
+modal" below) and for deletion (the garbage icon is disabled when any survey
+references the grid).
 
 Below the top row, a short summary of the active grid: n. aree, comprese
 coperte, n. rilevamenti che la usano, data ultimo aggiornamento, descrizione.
@@ -111,19 +112,32 @@ The "Esporta CSV" button at the top right exports the active grid's sample areas
 in the same column shape as the import flow (see "Grid CSV import" below) —
 useful for programming GPS devices for the field crew.
 
-The "Nuova griglia" button opens a full-page modal with three
-creation paths:
+The "Nuova griglia" button opens a full-page modal with two creation
+paths:
 
+- *Crea vuota* — creates an empty grid with a name and optional
+  description, ready for manual area additions via the map or CSV import
+  (via the pencil modal).
 - *Genera automaticamente* — runs the grid generator (similar to `bosco/pac`)
   across user-selected regions, writes `sample_grid` plus `sample_area` rows in
   one transaction.
-- *Importa da CSV* — see "Grid CSV import" below.
-- *Crea vuota* — creates an empty grid, ready for manual area
-  additions via the map.
+
+This deliberately does *not* offer CSV import at creation time: identity
+(the grid exists with a name) is decoupled from content (sample areas).
+Imports happen later via the pencil modal.
 
 Note that a grid can be edited (a sample area added, or an unused sample area
 deleted) after a survey has started. A sample area cannot be deleted once it is
 used in any sample.
+
+#### Modifica griglia modal (pencil)
+
+A two-tab modal acting on the currently-selected grid:
+
+- **Dettagli** — name and description, both editable.
+- **Importa aree da CSV** — upload a CSV of sample areas. Rows are
+  added to the active grid; duplicates (same parcel + area number)
+  are rejected. See "Grid CSV import" below.
 
 #### Empty state
 
@@ -138,9 +152,9 @@ Layout is identical to the Griglie section above.
 **Top row** — a "Rilevamenti" pulldown that selects the active survey by name
 (e.g., `Bosco completo 2026`). To the right of the pulldown sit "Nuovo
 rilevamento" and "Esporta CSV" buttons. Writers also see pencil and garbage
-icons next to the pulldown for editing the active survey's `name` /
-`description` and for deletion (the garbage icon is disabled when any samples
-reference the survey).
+icons next to the pulldown for editing the active survey (details + CSV import;
+see "Modifica rilevamento modal" below) and for deletion (the garbage icon is
+disabled when any samples reference the survey).
 
 Below the top row, a short summary of the active survey: Descrizione, griglia
 (name), piano di taglio (nullable), n. aree visitate / n. aree totali, data
@@ -155,12 +169,24 @@ import" below) — useful for round-tripping the whole survey. Section 3 has its
 own separate "Esporta CSV" that exports only the currently displayed subset
 (after the section's search filter and any area-click narrowing).
 
-The "Nuovo rilevamento" button opens a full-page modal with two creation paths:
+The "Nuovo rilevamento" button opens a modal with three inputs: `Nome`
+(required), `Griglia` (required pulldown of available grids), and
+`Descrizione` (optional). On submit it creates an empty survey on the
+chosen grid, ready for manual data addition (in section 3) or CSV import
+(via the pencil modal).
 
-- *Importa da CSV* — see "Tree-and-sample CSV import" below.
-- *Crea vuoto* — prompts user to choose a grid (via a pulldown of all available
-  grids), then creates an empty survey based on that grid ready for manual data
-  addition (in section 3).
+This deliberately does *not* import any CSVs: identity (the survey exists
+with a name on a grid) is decoupled from content (sampled trees). Imports
+happen later via the pencil modal.
+
+#### Modifica rilevamento modal (pencil)
+
+A two-tab modal acting on the currently-selected survey:
+
+- **Dettagli** — name and description, both editable.
+- **Importa alberi da CSV** — upload a CSV of sampled trees. An optional
+  "Data predefinita" date input provides a fallback date when the file
+  lacks a `Data` column. See "Tree-and-sample CSV import" below.
 
 **Map** — Leaflet map of the active survey's sample areas, drawn at their `r_m`
 radius. Visited sample areas are in one color (abies palette dark green),
@@ -221,17 +247,15 @@ Required columns: `Compresa`, `Particella`, `Area saggio` (→
 a helpful message if any of these fields are missing.
 
 Flow:
-1. Writer picks "Nuova griglia" → "Importa da CSV", uploads file,
-   provides a name and description for the new grid.
+1. Writer opens the pencil modal on the target grid → "Importa aree da
+   CSV" tab, uploads file.
 2. Importer resolves `Compresa` → region, `(region, Particella)` →
    parcel. Failure on either lookup aborts the entire import (no
    partial state).
-3. Creates one `sample_grid` row.
-4. For each row, creates a `sample_area` row with
-   `sample_grid_id` pointing at the new grid. Each grid owns its
-   own areas — there is no sharing of `sample_area` rows across
-   grids.
-5. Transactional. Reports counts and a per-row error list at the
+3. For each row, creates a `sample_area` row with
+   `sample_grid_id` pointing at the target grid. Duplicates (same
+   parcel + area number) are rejected.
+4. Transactional. Reports counts and a per-row error list at the
    end.
 
 ### Tree-and-sample CSV import
@@ -253,8 +277,9 @@ Tabacchi parameters (can reuse Python logic in `pdg-2026`).
 NULL for coppice rows.
 
 Flow:
-1. Writer selects the target survey.
-2. Uploads CSV. If the file lacks a `Data` column, the form asks for  a default
+1. Writer opens the pencil modal on the target survey → "Importa alberi
+   da CSV" tab.
+2. Uploads CSV. If the file lacks a `Data` column, the form asks for a default
    sample date applied to all rows.
 3. Importer groups rows by (Compresa, Particella, Area saggio, Data). Each group
    becomes one `sample` row in the target survey (skipped if a sample already

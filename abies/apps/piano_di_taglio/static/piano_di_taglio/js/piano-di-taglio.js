@@ -15,7 +15,7 @@ import {
   show as showModal, showError, dismiss as dismissModal,
 } from '../../base/js/modals.js';
 import { fetchJSON, postJSON, postFormData } from '../../base/js/api.js';
-import { interceptSubmit, wireCancelButtons } from '../../base/js/forms.js';
+import { interceptSubmit, wireCancelButtons, showFormError } from '../../base/js/forms.js';
 import * as S from '../../base/js/strings.js';
 import { ROW_ID, VERSION } from '../../base/js/constants.js';
 
@@ -736,15 +736,6 @@ function attachItemSubmit(form, kind) {
   });
 }
 
-function showFormError(form, message) {
-  let el = form.querySelector('.form-error');
-  if (!el) {
-    el = document.createElement('p');
-    el.className = 'form-error';
-    form.querySelector('.form-actions')?.before(el) || form.appendChild(el);
-  }
-  el.textContent = message;
-}
 
 function injectNonce(form) {
   let inp = form.querySelector('input[name="nonce"]');
@@ -992,7 +983,7 @@ export function openEditPlanModal(initialTab, { ceduo = false } = {}) {
 
   const tabDefs = [
     {
-      id: EDIT_PLAN_TAB_DETAILS, label: S.EDIT_PLAN_TAB_DETAILS,
+      id: EDIT_PLAN_TAB_DETAILS, label: S.TAB_DETAILS,
       build: (host) => buildEditDetailsForm(host, current),
     },
     {
