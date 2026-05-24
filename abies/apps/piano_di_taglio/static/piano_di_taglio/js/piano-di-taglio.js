@@ -1523,12 +1523,10 @@ function showItemMetadata(el, itemId, record, transitions) {
   addMetaRow(meta, S.COL_VOLUME_ACTUAL, fmtVolume(volActual));
   if (note) addMetaRow(meta, S.COL_NOTE, note);
 
-  // Transition history
-  if (transitions.length) {
-    const historyLabel = transitions
-      .map(t => `${t[2] ? S.LABEL_OPEN_CANTIERE : S.LABEL_CLOSE_CANTIERE}: ${formatDate(t[3])}${t[4] ? ' — ' + t[4] : ''}`)
-      .join('; ');
-    addMetaRow(meta, S.COL_CANTIERE, historyLabel);
+  for (const t of transitions) {
+    const label = t[2] ? S.LABEL_CANTIERE_OPENED : S.LABEL_CANTIERE_CLOSED;
+    const value = t[4] ? `${formatDate(t[3])} — ${t[4]}` : formatDate(t[3]);
+    addMetaRow(meta, label, value);
   }
 
   card.appendChild(meta);
@@ -1644,7 +1642,7 @@ function showTransitionForm(itemId, openFlag) {
 
   const noteRow = mkRow(form);
   mkInput(noteRow, {
-    id: 'pdt-transition-note', name: 'note', label: S.LABEL_PROTOCOL_NUMBER,
+    id: 'pdt-transition-note', name: 'note', label: S.LABEL_NOTE,
     type: 'text',
   });
 

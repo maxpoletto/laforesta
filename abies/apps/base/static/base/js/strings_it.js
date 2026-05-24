@@ -355,9 +355,10 @@ export const COL_H_MEASURED           = 'h misurata';
 
 // View/edit-item page.
 export const VIEW_ITEM_TITLE     = 'Intervento';
-export const LABEL_OPEN_CANTIERE  = 'Apri cantiere';
-export const LABEL_CLOSE_CANTIERE = 'Chiudi cantiere';
-export const LABEL_PROTOCOL_NUMBER = 'Numero di protocollo';
+export const LABEL_OPEN_CANTIERE    = 'Apri cantiere';
+export const LABEL_CLOSE_CANTIERE   = 'Chiudi cantiere';
+export const LABEL_CANTIERE_OPENED   = 'Apertura cantiere';
+export const LABEL_CANTIERE_CLOSED   = 'Chiusura cantiere';
 export const ERR_DATE_REQUIRED    = 'Data obbligatoria.';
 export const SECTION_PRELIEVI     = 'Prelievi';
 export const LABEL_VOLUME_TOTAL   = 'Volume totale';
