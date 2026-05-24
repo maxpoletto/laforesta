@@ -53,10 +53,10 @@ GENERE_MAP = {
     'Douglas': 'Douglas',
     'Faggio': 'Faggio',
     'Ontano': 'Ontano',
-    'Pino': 'Pino',
-    'Pino Laricio': 'Pino',     # treated as the generic Pino species
-    'Pino Marittimo': 'Pino',
-    'Pino Nero': 'Pino',
+    'Pino': 'Pino Laricio',
+    'Pino Laricio': 'Pino Laricio',
+    'Pino Marittimo': 'Pino Marittimo',
+    'Pino Nero': 'Pino Nero',
 }
 
 

@@ -47,7 +47,7 @@ def _parse_js_table() -> dict[str, tuple[float, ...]]:
 
 
 def test_js_table_parses():
-    """Sanity check: the regex extraction finds all 14 species."""
+    """Sanity check: the regex extraction finds all 13 species."""
     js = _parse_js_table()
     assert len(js) == len(tabacchi.TABACCHI_B), \
         f'JS: {len(js)} species, Python: {len(tabacchi.TABACCHI_B)}'

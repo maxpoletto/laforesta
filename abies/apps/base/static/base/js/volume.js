@@ -21,7 +21,6 @@ export const SP_DOUGLAS = 'Douglas';
 export const SP_FAGGIO = 'Faggio';
 export const SP_LECCIO = 'Leccio';
 export const SP_ONTANO = 'Ontano';
-export const SP_PINO = 'Pino';
 export const SP_PINO_LARICIO = 'Pino Laricio';
 export const SP_PINO_MARITTIMO = 'Pino Marittimo';
 export const SP_PINO_NERO = 'Pino Nero';
@@ -38,7 +37,6 @@ export const TABACCHI_B = {
   [SP_FAGGIO]:         [ 8.1151e-1,  3.8965e-2],
   [SP_LECCIO]:         [-2.2219,     3.9685e-2, 6.2762e-1],
   [SP_ONTANO]:         [-2.2932e1,   3.2641e-2, 2.991],
-  [SP_PINO]:           [ 6.4383,     3.8594e-2],
   [SP_PINO_LARICIO]:   [ 6.4383,     3.8594e-2],
   [SP_PINO_MARITTIMO]: [ 2.9963,     3.8302e-2],
   [SP_PINO_NERO]:      [-2.1480e1,   3.3448e-2, 2.9088],

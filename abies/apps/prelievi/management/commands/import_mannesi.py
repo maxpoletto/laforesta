@@ -23,7 +23,7 @@ from config import strings as S
 # CSV column prefix -> Species.common_name
 SPECIES_COL_MAP = {
     'abete': 'Abete',
-    'pino': 'Pino',
+    'pino': 'Pino Laricio',
     'douglas': 'Douglas',
     'faggio': 'Faggio',
     'castagno': 'Castagno',
