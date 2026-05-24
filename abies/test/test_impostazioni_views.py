@@ -202,7 +202,7 @@ class TestSpecies:
     def test_data(self, writer_client, species):
         resp = writer_client.get('/api/impostazioni/species/data/')
         data = resp.json()
-        assert len(data[ROWS]) == 3
+        assert len(data[ROWS]) == 4
 
     def test_form_add(self, writer_client, db):
         resp = writer_client.get('/api/impostazioni/species/form/')

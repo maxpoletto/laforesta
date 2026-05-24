@@ -119,8 +119,8 @@ class TestGeneratePrelievi:
         castagno_idx = cols.index('Castagno')
         assert row[castagno_idx] == 80.0
         # Altro at 0%
-        altro_idx = cols.index('Altro')
-        assert row[altro_idx] == 0.0
+        other_idx = cols.index('Altro')
+        assert row[other_idx] == 0.0
 
     def test_percentage_columns_present(self, harvest_data):
         generate_prelievi()

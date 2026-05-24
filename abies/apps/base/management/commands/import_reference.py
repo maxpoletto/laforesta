@@ -42,7 +42,7 @@ def load_species():
     with SPECIES_CSV.open(encoding='utf-8') as f:
         return [
             (row['common'], row['latin'], int(row['sort_order']),
-             float(row['density_q_m3']))
+             float(row['density_q_m3']), row['minor'] == 'true')
             for row in csv.DictReader(f)
         ]
 
@@ -116,12 +116,12 @@ class Command(BaseCommand):
         self.stdout.write(f'Eclasses: {Eclass.objects.count()}')
 
     def _import_species(self):
-        for common, latin, order, density in SPECIES:
+        for common, latin, order, density, minor in SPECIES:
             obj, created = Species.objects.get_or_create(
                 common_name=common,
                 defaults={
                     'latin_name': latin, 'sort_order': order,
-                    'density': density,
+                    'density': density, 'minor': minor,
                 },
             )
             if not created:
@@ -132,6 +132,9 @@ class Command(BaseCommand):
                 if obj.density != density:
                     obj.density = density
                     update_fields.append('density')
+                if obj.minor != minor:
+                    obj.minor = minor
+                    update_fields.append('minor')
                 if update_fields:
                     obj.save(update_fields=update_fields)
         self.stdout.write(f'Species: {Species.objects.count()}')

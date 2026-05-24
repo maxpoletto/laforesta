@@ -95,6 +95,34 @@ class TestDataView:
         assert COLUMNS in data
         assert len(data[ROWS]) >= 1
 
+    def test_digest_aggregates_minor_species(self, writer_client, harvest_fixtures, tmp_path, settings):
+        """Minor species quintals and percentages fold into Altro."""
+        settings.DIGEST_DIR = tmp_path
+        f = harvest_fixtures
+        minor_sp = next(s for s in f['species'] if s.minor)
+        other_sp = next(s for s in f['species'] if s.common_name == S.SPECIES_OTHER)
+        op = Harvest.objects.create(
+            date='2024-08-01', parcel=f['parcels'][0], crew=f['crews'][0],
+            product=f['products'][0], mass_q=100, record1=600,
+            harvest_plan_item=f['open_item'],
+        )
+        HarvestSpecies.objects.create(harvest=op, species=minor_sp, percent=100)
+        HarvestTractor.objects.create(harvest=op, tractor=f['tractors'][0], percent=100)
+        generate_prelievi()
+
+        resp = writer_client.get('/api/prelievi/data/')
+        data = json.loads(gzip.decompress(resp.getvalue()))
+        cols = data[COLUMNS]
+        # Minor species must NOT appear as a column.
+        assert minor_sp.common_name not in cols
+        # Altro must appear and carry the full 100 quintals.
+        other_idx = cols.index(other_sp.common_name)
+        row = next(r for r in data[ROWS] if r[0] == op.id)
+        assert row[other_idx] == 100.0
+        # Percentage column for Altro must be 100.
+        pct_idx = cols.index(f'{other_sp.common_name} %')
+        assert row[pct_idx] == 100
+
     def test_304_on_not_modified(self, writer_client, harvest_fixtures, sample_op, tmp_path, settings):
         settings.DIGEST_DIR = tmp_path
         generate_prelievi()
@@ -135,6 +163,37 @@ class TestFormView:
         assert 'sp_' in html
         assert 'tr_' in html
         assert '100%' in html
+
+    def test_form_excludes_minor_species(self, writer_client, harvest_fixtures):
+        f = harvest_fixtures
+        minor = [s for s in f['species'] if s.minor]
+        major = [s for s in f['species'] if not s.minor]
+        assert minor, 'fixture must include at least one minor species'
+        resp = writer_client.get('/api/prelievi/form/')
+        html = resp.json()[HTML]
+        for s in minor:
+            assert f'sp_{s.id}' not in html
+        for s in major:
+            assert f'sp_{s.id}' in html
+
+    def test_edit_form_aggregates_minor_pcts(self, writer_client, harvest_fixtures):
+        """Editing a harvest with a minor species shows its % under Altro."""
+        f = harvest_fixtures
+        minor_sp = next(s for s in f['species'] if s.minor)
+        other_sp = next(s for s in f['species'] if s.common_name == S.SPECIES_OTHER)
+        op = Harvest.objects.create(
+            date='2024-08-01', parcel=f['parcels'][0], crew=f['crews'][0],
+            product=f['products'][0], mass_q=20, record1=500,
+            harvest_plan_item=f['open_item'],
+        )
+        HarvestSpecies.objects.create(harvest=op, species=f['species'][0], percent=60)
+        HarvestSpecies.objects.create(harvest=op, species=minor_sp, percent=40)
+        HarvestTractor.objects.create(harvest=op, tractor=f['tractors'][0], percent=100)
+        resp = writer_client.get(f'/api/prelievi/form/{op.id}/')
+        html = resp.json()[HTML]
+        # Altro input should carry the aggregated 40%.
+        assert f'name="sp_{other_sp.id}"' in html
+        assert f'value="40"' in html
 
     def test_edit_form_shows_percentages(self, writer_client, harvest_fixtures, sample_op):
         resp = writer_client.get(f'/api/prelievi/form/{sample_op.id}/')

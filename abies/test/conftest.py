@@ -24,13 +24,14 @@ def eclasses(db):
 @pytest.fixture
 def species(db):
     data = [
-        ('Abete', 'Abies alba', 10, Decimal('9.00')),
-        ('Castagno', 'Castanea sativa', 20, Decimal('9.20')),
-        ('Altro', '', 999, Decimal('9.00')),
+        ('Abete', 'Abies alba', 10, Decimal('9.00'), False),
+        ('Castagno', 'Castanea sativa', 20, Decimal('9.20'), False),
+        ('Acero', 'Acer pseudoplatanus', 60, Decimal('9.50'), True),
+        ('Altro', '', 999, Decimal('9.00'), False),
     ]
     return [Species.objects.create(common_name=c, latin_name=l, sort_order=o,
-                                   density=d)
-            for c, l, o, d in data]
+                                   density=d, minor=m)
+            for c, l, o, d, m in data]
 
 
 @pytest.fixture

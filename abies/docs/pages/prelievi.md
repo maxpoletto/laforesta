@@ -64,8 +64,8 @@ table react to the same filter set.  No server round-trips for filtering.
 
 Table columns are:
 Data, Compresa, Particella, Squadra, VDP, Tipo, Q.li, Note, Altre note,
-(quintal columns by species in sort_order), (quintal columns by tractor
-in alphabetical order).
+(quintal columns by **major** species in sort_order), (quintal columns by
+tractor in alphabetical order).  See "Minor species and Altro" below.
 
 All quintal values display with one decimal and comma separator (Italian locale,
 e.g., "164,0"). Per-species and per-tractor quintal columns show blank for zero.
@@ -123,10 +123,12 @@ Existing Prot values are preserved on edit; new records never have a Prot value.
 VDP must be unique (checked server-side against all records).
 
 Species and tractor percentage sections appear side-by-side below the main
-fields. For each, all active choices are listed with a numeric input and a
-"100%" quick-set button. Species and tractor percentages must each sum to 100
-(validated both client-side and server-side). Pressing a "100%" button sets
-that input to 100 and the others in the same group to 0.
+fields. For species, only major (non-minor) species are listed; minor species
+are represented by the single "Altro" entry (see "Minor species and Altro"
+below). Each row has a numeric input and a "100%" quick-set button. Species
+and tractor percentages must each sum to 100 (validated both client-side and
+server-side). Pressing a "100%" button sets that input to 100 and the others
+in the same group to 0.
 
 Additional validation (client-side and server-side):
 - Date cannot be in the future.
@@ -162,3 +164,38 @@ species densities current at that moment.  Editing a species' density
 later does *not* retroactively recompute existing harvests — same
 capture-at-write-time pattern used elsewhere — so the digests remain
 valid.  Only newly written harvests pick up the new density value.
+
+## Minor species and Altro
+
+Species with `Species.minor = True` are uncommon in harvest operations
+and are grouped under a single "Altro" entry in the prelievi UI to keep
+the input form compact and the table narrow.  The minor flag is
+prelievi-specific: minor species remain fully available as individual
+entries in Campionamenti (sampled trees), Piano di taglio (tree marks),
+and Settings.
+
+Current minor species: Acero, Carpino, Cerro, Ciliegio, Larice, Leccio,
+Pino Marittimo, Pino Nero, Pino Strobo, Quercia Roverella, Robinia,
+Sorbo, Tasso, Tiglio.  The set is controlled by the `minor` field on
+each `Species` record (seeded from `apps/base/data/species.csv`,
+editable via Settings → Trees if needed in the future).
+
+**Input form:** only major (non-minor, active) species appear.  When
+editing a legacy harvest that used a minor species directly, its
+percentage is folded into the Altro row so the form percentages still
+sum to 100.
+
+**Digest / table / charts:** the prelievi digest emits one column per
+major species only.  Quintals and percentages for minor species are
+aggregated into the Altro column.  This is handled by
+`prelievi_species_cols()` and `aggregate_sp_pcts()` in
+`apps/base/digests.py`, shared by `generate_prelievi()`,
+`build_harvest_record()`, and the form context builder.
+
+**Volume calculation:** new harvests entered with Altro use the Altro
+species density (9.00 q/m³, a rough average of the minor species
+densities which range from 7.50 to 11.50).  This is acceptable because
+minor species account for a tiny fraction of total harvest volume.
+Legacy harvests that were recorded with individual minor species retain
+their original volume; re-saving them through the form rewrites the
+junction rows as Altro, recomputing volume with the Altro density.

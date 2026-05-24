@@ -485,6 +485,8 @@ DIGEST_STATUSES = 'stati digest'
 USED_NONCE = 'nonce utilizzato'
 USED_NONCES = 'nonce utilizzati'
 
+SPECIES_OTHER = 'Altro'
+
 HARVEST = 'operazione di prelievo'
 HARVESTS = 'operazioni di prelievo'
 

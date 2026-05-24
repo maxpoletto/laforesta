@@ -125,24 +125,54 @@ def serve_digest(request, name: str):
 # Prelievi digest
 # ---------------------------------------------------------------------------
 
+def prelievi_species_cols():
+    """Return (major_ids, major_names, minor_ids, other_id) for prelievi.
+
+    Major species get their own columns; minor species are aggregated
+    into an "Other" column in both the table and the input form.
+    """
+    from apps.base.models import Species
+
+    all_sp = list(
+        Species.objects.order_by(FIELD_SORT_ORDER)
+        .values_list('id', 'common_name', 'minor')
+    )
+    major = [(sid, name) for sid, name, minor in all_sp if not minor]
+    minor_ids = frozenset(sid for sid, _, minor in all_sp if minor)
+    other_id = next(sid for sid, name in major if name == S.SPECIES_OTHER)
+    return (
+        [sid for sid, _ in major],
+        [name for _, name in major],
+        minor_ids,
+        other_id,
+    )
+
+
+def aggregate_sp_pcts(sp_pcts, minor_ids, other_id):
+    """Fold minor-species percentages into the Other bucket."""
+    agg = {}
+    for sid, pct in sp_pcts.items():
+        target = other_id if sid in minor_ids else sid
+        agg[target] = agg.get(target, 0) + pct
+    return agg
+
+
 def generate_prelievi() -> None:
     """De-normalized harvest table for the Prelievi sortable-table.
 
     Columns: row_id, version, Data, Compresa, Particella, Squadra, VDP, Tipo,
-    Q.li, Volume (m³), Note, Altre note, then one quintal column per species
-    (sort_order), then one quintal column per tractor (alphabetical).  Also
-    carries percentage values for form pre-population (suffixed with " %").
+    Q.li, Volume (m³), Note, Altre note, then one quintal column per major
+    species (sort_order), then one quintal column per tractor (alphabetical).
+    Minor species are aggregated into the Other (Altro) column.  Also carries
+    percentage values for form pre-population (suffixed with " %").
     """
-    from apps.base.models import Species, Tractor
+    from apps.base.models import Tractor
     from apps.prelievi.models import Harvest, HarvestSpecies, HarvestTractor
 
-    # Stable sort orders for dynamic columns.
-    all_species = list(Species.objects.order_by(FIELD_SORT_ORDER).values_list('id', 'common_name'))
+    species_ids, species_names, minor_ids, other_id = prelievi_species_cols()
+
     all_tractors = list(Tractor.objects.order_by('manufacturer', 'model')
                         .values_list('id', 'pk', 'manufacturer', 'model'))
-
-    species_ids = [sid for sid, _ in all_species]
-    species_names = [name for _, name in all_species]
 
     tractor_ids = [tid for tid, _, _, _ in all_tractors]
     tractor_labels = [
@@ -174,7 +204,7 @@ def generate_prelievi() -> None:
            .order_by('-date', 'id'))
     for op in ops.iterator():
         mass_q = float(op.mass_q)
-        sp_pcts = sp_map.get(op.id, {})
+        sp_pcts = aggregate_sp_pcts(sp_map.get(op.id, {}), minor_ids, other_id)
         tr_pcts = tr_map.get(op.id, {})
 
         # Quintal columns = total * percent / 100, rounded to 2 decimals.
@@ -206,13 +236,14 @@ def build_harvest_record(op) -> list:
     The caller must ensure *op* has ``parcel.region``, ``crew``, and
     ``product`` loaded (via ``select_related``).
     """
-    from apps.base.models import Species, Tractor
+    from apps.base.models import Tractor
     from apps.prelievi.models import HarvestSpecies, HarvestTractor
 
-    species_ids = list(Species.objects.order_by(FIELD_SORT_ORDER).values_list('id', flat=True))
+    species_ids, _, minor_ids, other_id = prelievi_species_cols()
     tractor_ids = list(Tractor.objects.order_by('manufacturer', 'model').values_list('id', flat=True))
 
-    sp_pcts = dict(HarvestSpecies.objects.filter(harvest=op).values_list(FIELD_SPECIES_ID, 'percent'))
+    raw_sp = dict(HarvestSpecies.objects.filter(harvest=op).values_list(FIELD_SPECIES_ID, 'percent'))
+    sp_pcts = aggregate_sp_pcts(raw_sp, minor_ids, other_id)
     tr_pcts = dict(HarvestTractor.objects.filter(harvest=op).values_list('tractor_id', 'percent'))
 
     mass_q = float(op.mass_q)
@@ -228,7 +259,7 @@ def build_harvest_record(op) -> list:
          render_flag_note(op.damaged, op.unhealthy, op.psr), op.note]
         + sp_quintals + tr_quintals
         + [sp_pcts.get(sid, 0) for sid in species_ids]
-        + [tr_pcts.get(tid, 0) for tid in tractor_ids]
+        + [tr_pcts.get(sid, 0) for sid in tractor_ids]
     )
 
 

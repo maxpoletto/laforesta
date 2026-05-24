@@ -151,6 +151,7 @@ class Species(TimestampedModel):
         max_digits=5, decimal_places=2, default=Decimal('5.00'),
         help_text='Wood density in q/m³ (typical range 4–8).',
     )
+    minor = models.BooleanField(default=False)
     active = models.BooleanField(default=True)
     history = HistoricalRecords()
 

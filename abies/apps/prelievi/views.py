@@ -20,6 +20,8 @@ from django.views.decorators.http import require_POST
 
 from apps.base.auth import require_writer
 from apps.base.digests import (
+    aggregate_sp_pcts,
+    prelievi_species_cols,
     build_harvest_plan_item_record,
     build_harvest_record,
     mark_stale,
@@ -248,6 +250,10 @@ def _form_context(op_id=None, vals=None):
             elif key.startswith('tr_') and val:
                 tr_pcts[int(key[3:])] = int(val)
 
+    # Aggregate minor-species percentages into Altro for display.
+    _, _, minor_ids, other_id = prelievi_species_cols()
+    sp_pcts = aggregate_sp_pcts(sp_pcts, minor_ids, other_id)
+
     v = vals or {}
     cantieri = [
         {
@@ -272,7 +278,8 @@ def _form_context(op_id=None, vals=None):
         'products': Product.objects.order_by('name'),
         'species_data': [
             (sp.id, sp.common_name, sp_pcts.get(sp.id, 0))
-            for sp in Species.objects.filter(active=True).order_by(FIELD_SORT_ORDER)
+            for sp in Species.objects.filter(active=True, minor=False)
+                                     .order_by(FIELD_SORT_ORDER)
         ],
         'tractor_data': [
             (tr.id, f'{tr.manufacturer} {tr.model}'.strip(), tr_pcts.get(tr.id, 0))
