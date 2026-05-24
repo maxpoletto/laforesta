@@ -44,7 +44,7 @@ All three bodies render at once; client toggles via .modal-path-body.active.
     </p>
 
     <div class="form-actions">
-      <button type="button" class="btn" id="grid-form-cancel">Annulla</button>
+      <button type="button" class="btn" data-action="cancel">Annulla</button>
       <button type="submit" class="btn btn-primary" data-action="save">Crea</button>
     </div>
   </form>
@@ -53,8 +53,7 @@ All three bodies render at once; client toggles via .modal-path-body.active.
     --- Genera automaticamente ---
     The Annulla / Crea button row is built inside GridPlanner._buildUI
     so they sit together at the bottom of the planner.  The cancel
-    button keeps id `grid-auto-cancel` so the dispatcher's listener
-    (see wireGridModal in campionamenti.js) still binds.
+    button uses data-action="cancel" so wireCancelButtons() binds it.
   {% endcomment %}
   <div class="modal-path-body grid-path-auto">
     <p class="form-help">
@@ -101,7 +100,7 @@ All three bodies render at once; client toggles via .modal-path-body.active.
     <div class="csv-import-errors" hidden></div>
 
     <div class="form-actions">
-      <button type="button" class="btn" id="grid-csv-cancel">Annulla</button>
+      <button type="button" class="btn" data-action="cancel">Annulla</button>
       <button type="submit" class="btn btn-primary">Importa</button>
     </div>
   </form>

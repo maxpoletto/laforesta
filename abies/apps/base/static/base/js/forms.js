@@ -103,6 +103,17 @@ export function interceptSubmit(form, postUrl, callbacks) {
   });
 }
 
+/**
+ * Wire all [data-action="cancel"] buttons inside `container` to call `callback`.
+ *
+ * @param {HTMLElement} container
+ * @param {function(): void} callback
+ */
+export function wireCancelButtons(container, callback) {
+  container.querySelectorAll('[data-action="cancel"]')
+    .forEach(b => b.addEventListener('click', callback));
+}
+
 // ---------------------------------------------------------------------------
 // Internal
 // ---------------------------------------------------------------------------

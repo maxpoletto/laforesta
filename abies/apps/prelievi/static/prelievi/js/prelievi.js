@@ -5,7 +5,9 @@
 import * as cache from '../../base/js/cache.js';
 import * as router from '../../base/js/router.js';
 import { TableWrapper } from '../../base/js/table.js';
-import { fetchForm, renderFormHTML, interceptSubmit } from '../../base/js/forms.js';
+import {
+  fetchForm, renderFormHTML, interceptSubmit, wireCancelButtons,
+} from '../../base/js/forms.js';
 import { postJSON } from '../../base/js/api.js';
 import { showError } from '../../base/js/modals.js';
 import { createRangeSlider } from '../../base/js/range-slider.js';
@@ -646,6 +648,7 @@ function validateForm(body) {
 function wireForm(form) {
   wireRegionCascade(form);
   wire100Buttons(form);
+  wireCancelButtons(form, returnToTable);
 
   interceptSubmit(form, SAVE_URL, {
     validate: validateForm,
