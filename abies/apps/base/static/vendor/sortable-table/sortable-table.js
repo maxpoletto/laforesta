@@ -45,11 +45,7 @@ class SortableTable {
 
         // Filter state
         this.currentFilter = null;
-        if (this.currentSort.column) {
-            this._sortData(this.columns.findIndex(col => col.key === this.currentSort.column),
-                this.columns.find(col => col.key === this.currentSort.column).type,
-                this.currentSort.ascending);
-        }
+        this._rebuildData();
 
         // Pagination state
         this.currentPage = 1;
@@ -99,6 +95,7 @@ class SortableTable {
     }
 
     generatePaginationHTML() {
+        const displayTotal = Math.max(1, this.totalPages);
         return `
             <div class="${this.cssPrefix}-controls">
                 <div class="${this.cssPrefix}-pagination">
@@ -106,7 +103,7 @@ class SortableTable {
                     <button class="prev-page" data-action="prev">&lt;</button>
                     <span class="page-info">
                         Page <span class="current-page-number">${this.currentPage}</span>
-                        of <span class="total-pages">${this.totalPages}</span>
+                        of <span class="total-pages">${displayTotal}</span>
                     </span>
                     <button class="next-page" data-action="next">&gt;</button>
                     <button class="last-page" data-action="last">&gt;&gt;</button>
@@ -329,7 +326,6 @@ class SortableTable {
     }
 
     _sortData(columnIndex, columnType, ascending) {
-        // Sort both originalData and data to maintain consistency
         const sortFn = (a, b) => {
             const aVal = a[columnIndex] ?? '';
             const bVal = b[columnIndex] ?? '';
@@ -354,10 +350,16 @@ class SortableTable {
             return ascending ? comparison : -comparison;
         };
 
-        // Sort the source data
         this.originalData.sort(sortFn);
+    }
 
-        // Re-apply current filter to get sorted, filtered data
+    /** Re-derive this.data from originalData, respecting current sort + filter. */
+    _rebuildData() {
+        if (this.currentSort.column) {
+            const col = this.columns.find(c => c.key === this.currentSort.column);
+            this._sortData(this.columns.indexOf(col), col.type || 'string',
+                this.currentSort.ascending);
+        }
         if (this.currentFilter) {
             this.data = this.originalData.filter(this.currentFilter);
         } else {
@@ -374,8 +376,7 @@ class SortableTable {
 
     sort(columnKey, columnType, ascending = true) {
         this.currentSort = { column: columnKey, ascending: ascending };
-        const columnIndex = this.columns.findIndex(col => col.key === columnKey);
-        this._sortData(columnIndex, columnType, ascending);
+        this._rebuildData();
         this.currentPage = 1;
         this.updateTable();
 
@@ -406,7 +407,7 @@ class SortableTable {
         const totalPagesSpan = pagination.querySelector('.total-pages');
 
         if (currentPageSpan) currentPageSpan.textContent = this.currentPage;
-        if (totalPagesSpan) totalPagesSpan.textContent = this.totalPages;
+        if (totalPagesSpan) totalPagesSpan.textContent = Math.max(1, this.totalPages);
 
         // Update button states
         const firstBtn = pagination.querySelector('.first-page');
@@ -440,10 +441,13 @@ class SortableTable {
         }
     }
 
+    //
     // Public API methods
+    //
+
     setData(newData) {
-        this.data = [...newData];
         this.originalData = [...newData];
+        this._rebuildData();
         this.totalPages = Math.ceil(this.data.length / this.rowsPerPage);
         this.currentPage = 1;
         this.updateTable();
@@ -451,12 +455,7 @@ class SortableTable {
 
     addRow(rowData) {
         this.originalData.push(rowData);
-
-        // Only add to filtered data if it passes the current filter (or no filter is active)
-        if (!this.currentFilter || this.currentFilter(rowData)) {
-            this.data.push(rowData);
-        }
-
+        this._rebuildData();
         this.totalPages = Math.ceil(this.data.length / this.rowsPerPage);
         this.updateTable();
     }
