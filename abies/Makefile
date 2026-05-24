@@ -1,6 +1,7 @@
 PYTHON = python3
 MANAGE = $(PYTHON) manage.py
 BOSCO_DATA = ../bosco/data
+PDG_CSV = ../pdg-2026/csv
 
 # Active language.  Parallel to `from config.strings_it import *` in
 # config/strings.py and `export * from './strings_it.js'` in strings.js:
@@ -8,8 +9,9 @@ BOSCO_DATA = ../bosco/data
 # unsuffixed <name>.html symlinks are materialized at install time.
 LANGUAGE_SUFFIX = _it
 
-.PHONY: check migrate import geo digest admin dev clean reset-schema \
-        update-vendor minify test test-js collectstatic link-templates
+.PHONY: check migrate import import-base import-data geo digest admin dev \
+        clean reset-schema update-vendor minify test test-js collectstatic \
+        link-templates
 
 check:
 	$(MANAGE) check
@@ -19,13 +21,18 @@ migrate:
 	$(MANAGE) makemigrations
 	$(MANAGE) migrate
 
-import:
+import: import-base import-data
+
+import-base:
 	$(MANAGE) import_reference $(BOSCO_DATA)
 	$(MANAGE) import_parcels $(BOSCO_DATA)
+
+import-data:
 	$(MANAGE) import_mannesi $(BOSCO_DATA)
 	$(MANAGE) import_sample_grid $(BOSCO_DATA)
 	$(MANAGE) import_sampled_trees $(BOSCO_DATA)
 	$(MANAGE) import_pai $(BOSCO_DATA)
+	$(MANAGE) import_calendar $(PDG_CSV)
 
 geo:
 	mkdir -p data/geo
@@ -45,6 +52,8 @@ link-templates:
 	$(PYTHON) bin/link-templates.py $(LANGUAGE_SUFFIX)
 
 dev: migrate import geo digest admin link-templates
+
+dev-nodata: migrate import-base geo digest admin link-templates
 
 serve:
 	$(PYTHON) manage.py runserver > /dev/null 2>&1 &
