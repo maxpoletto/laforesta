@@ -121,7 +121,7 @@ export function renderCsvErrors(box, errors) {
   }
   if (errors.length > 50) {
     const more = document.createElement('li');
-    more.textContent = `… +${errors.length - 50}`;
+    more.textContent = `… +${errors.length - 50} altri errori`;
     ul.appendChild(more);
   }
   box.appendChild(ul);

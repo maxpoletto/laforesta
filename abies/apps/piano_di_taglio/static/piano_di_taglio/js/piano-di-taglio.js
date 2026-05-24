@@ -16,6 +16,11 @@ import {
 } from '../../base/js/modals.js';
 import { fetchJSON, postJSON, postFormData } from '../../base/js/api.js';
 import { interceptSubmit, wireCancelButtons, showFormError } from '../../base/js/forms.js';
+import {
+  mkRow, mkInput, mkTextarea, mkFileInput, mkFormActions,
+  mkStatusBox, mkErrorsBox, renderCsvErrors,
+  mkCollapsible, mkEditDeleteIcons,
+} from '../../base/js/form-widgets.js';
 import * as S from '../../base/js/strings.js';
 import { ROW_ID, VERSION } from '../../base/js/constants.js';
 
@@ -285,9 +290,10 @@ function buildPageShell(el) {
   planSelectEl = sel;
 
   if (canModify()) {
-    appendEditDeleteIcons(left, {
+    mkEditDeleteIcons(left, {
       onEdit: () => onEditPlan(),
       onDelete: () => onDeletePlan(),
+      iconClass: 'pdt-pulldown-icon',
     });
   }
 
@@ -314,7 +320,7 @@ function buildPageShell(el) {
 
 /** Build a collapsible calendar section (fustaia or ceduo). */
 function buildSection(el, s) {
-  const [header, body] = collapsible(s.title, s.open);
+  const [header, body] = mkCollapsible(s.title, s.open);
   s.header = header;
   s.body = body;
 
@@ -374,20 +380,6 @@ function buildSection(el, s) {
 
   // Build the underlying table once the section's DOM is in place.
   buildTable(s, searchInput);
-}
-
-function collapsible(title, open) {
-  const header = document.createElement('div');
-  header.className = 'collapsible-header' + (open ? ' open' : '');
-  const span = document.createElement('span');
-  span.textContent = title;
-  const arrow = document.createElement('span');
-  arrow.className = 'arrow';
-  header.append(span, arrow);
-
-  const body = document.createElement('div');
-  body.className = 'collapsible-body' + (open ? ' open' : '');
-  return [header, body];
 }
 
 function toggleSection(s, open) {
@@ -535,24 +527,6 @@ function buildNewPlanButton() {
   addBtn.textContent = S.NEW_PLAN_LABEL;
   addBtn.addEventListener('click', () => onNewPlan());
   return addBtn;
-}
-
-function appendEditDeleteIcons(host, { onEdit, onDelete }) {
-  const edit = document.createElement('span');
-  edit.className = 'action-icon action-edit pdt-pulldown-icon';
-  edit.title = S.ACTION_EDIT;
-  edit.textContent = '✎';
-  edit.setAttribute('role', 'button');
-  edit.addEventListener('click', onEdit);
-  host.appendChild(edit);
-
-  const del = document.createElement('span');
-  del.className = 'action-icon action-delete pdt-pulldown-icon';
-  del.title = S.ACTION_DELETE;
-  del.textContent = '\u{1F5D1}\u{FE0E}';
-  del.setAttribute('role', 'button');
-  del.addEventListener('click', onDelete);
-  host.appendChild(del);
 }
 
 // ---------------------------------------------------------------------------
@@ -1292,23 +1266,6 @@ async function submitCsvImport(form, fd, statusBox, errorsBox) {
   }
 }
 
-function renderCsvErrors(box, errors) {
-  box.replaceChildren();
-  const ul = document.createElement('ul');
-  for (const e of errors.slice(0, 50)) {
-    const li = document.createElement('li');
-    li.textContent = e;
-    ul.appendChild(li);
-  }
-  if (errors.length > 50) {
-    const more = document.createElement('li');
-    more.textContent = `… +${errors.length - 50}`;
-    ul.appendChild(more);
-  }
-  box.appendChild(ul);
-  box.hidden = false;
-}
-
 async function refreshPlans() {
   try { await cache.load(PLANS_ID); plansData = cache.get(PLANS_ID); } catch {}
 }
@@ -1319,105 +1276,6 @@ async function refreshRegressions() {
   try { await cache.load(REGRESSIONS_ID); regressionsData = cache.get(REGRESSIONS_ID); } catch {}
 }
 
-// ---------------------------------------------------------------------------
-// Small DOM helpers (form scaffolding)
-// ---------------------------------------------------------------------------
-
-function mkRow(host, modifier) {
-  const row = document.createElement('div');
-  row.className = 'form-row' + (modifier ? ' ' + modifier : '');
-  host.appendChild(row);
-  return row;
-}
-
-function mkInput(host, opts) {
-  const group = document.createElement('div');
-  group.className = 'form-group';
-  host.appendChild(group);
-  const lbl = document.createElement('label');
-  lbl.textContent = opts.label;
-  lbl.htmlFor = opts.id;
-  group.appendChild(lbl);
-  const inp = document.createElement('input');
-  inp.type = opts.type || 'text';
-  inp.name = opts.name;
-  inp.id = opts.id;
-  if (opts.required) inp.required = true;
-  if (opts.maxLength != null) inp.maxLength = opts.maxLength;
-  if (opts.min != null) inp.min = opts.min;
-  if (opts.max != null) inp.max = opts.max;
-  if (opts.value != null) inp.value = opts.value;
-  group.appendChild(inp);
-  return inp;
-}
-
-function mkTextarea(host, opts) {
-  const group = document.createElement('div');
-  group.className = 'form-group';
-  host.appendChild(group);
-  const lbl = document.createElement('label');
-  lbl.textContent = opts.label;
-  lbl.htmlFor = opts.id;
-  group.appendChild(lbl);
-  const ta = document.createElement('textarea');
-  ta.name = opts.name;
-  ta.id = opts.id;
-  ta.rows = opts.rows || 3;
-  if (opts.value != null) ta.value = opts.value;
-  group.appendChild(ta);
-  return ta;
-}
-
-function mkFileInput(form, opts) {
-  const row = mkRow(form);
-  const group = document.createElement('div');
-  group.className = 'form-group';
-  row.appendChild(group);
-  const lbl = document.createElement('label');
-  lbl.textContent = opts.label;
-  group.appendChild(lbl);
-  const inp = document.createElement('input');
-  inp.type = 'file';
-  inp.accept = '.csv,text/csv';
-  inp.required = true;
-  lbl.htmlFor = inp.id = opts.id;
-  group.appendChild(inp);
-  return inp;
-}
-
-function mkStatusBox(form) {
-  const box = document.createElement('div');
-  box.className = 'csv-import-status';
-  box.hidden = true;
-  form.appendChild(box);
-  return box;
-}
-
-function mkErrorsBox(form) {
-  const box = document.createElement('div');
-  box.className = 'csv-import-errors';
-  box.hidden = true;
-  form.appendChild(box);
-  return box;
-}
-
-function mkFormActions(form, { onCancel, submitLabel }) {
-  const actions = document.createElement('div');
-  actions.className = 'form-actions';
-  const cancel = document.createElement('button');
-  cancel.type = 'button';
-  cancel.className = 'btn';
-  cancel.dataset.action = 'cancel';
-  cancel.textContent = S.CANCEL;
-  cancel.addEventListener('click', onCancel);
-  const submit = document.createElement('button');
-  submit.type = 'submit';
-  submit.className = 'btn btn-primary';
-  submit.textContent = submitLabel;
-  actions.append(cancel, submit);
-  form.appendChild(actions);
-  return actions;
-}
 
 // ---------------------------------------------------------------------------
 // Plan selection

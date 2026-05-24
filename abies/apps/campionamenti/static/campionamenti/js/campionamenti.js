@@ -25,6 +25,9 @@ import {
   fetchForm, fetchModalForm, renderFormHTML, renderModalForm,
   interceptSubmit, wireCancelButtons, showFormError,
 } from '../../base/js/forms.js';
+import {
+  mkCollapsible, mkEditDeleteIcons, renderCsvErrors,
+} from '../../base/js/form-widgets.js';
 import { RilevamentiMap } from './rilevamenti-map.js';
 import { GriglieMap } from './griglie-map.js';
 import { GridPlanner } from './grid-planner.js';
@@ -263,7 +266,7 @@ function buildPageShell(el, params) {
 }
 
 function buildSection(el, s, populate) {
-  const [header, body] = collapsible(s.title, s.open);
+  const [header, body] = mkCollapsible(s.title, s.open);
   s.header = header;
   s.body = body;
   populate(body);
@@ -277,19 +280,6 @@ function buildSection(el, s, populate) {
   el.append(header, body);
 }
 
-function collapsible(title, open) {
-  const header = document.createElement('div');
-  header.className = 'collapsible-header' + (open ? ' open' : '');
-  const span = document.createElement('span');
-  span.textContent = title;
-  const arrow = document.createElement('span');
-  arrow.className = 'arrow';
-  header.append(span, arrow);
-
-  const body = document.createElement('div');
-  body.className = 'collapsible-body' + (open ? ' open' : '');
-  return [header, body];
-}
 
 function onSectionOpen(s) {
   // Leaflet needs invalidateSize() when a hidden container becomes visible.
@@ -355,9 +345,10 @@ function buildGriglieBody(body) {
 
   left.append(label, sel);
   if (canModify()) {
-    appendEditDeleteIcons(left, {
+    mkEditDeleteIcons(left, {
       onEdit: () => showEditGridModal(),
       onDelete: () => confirmDeleteGrid(),
+      iconClass: 'campionamenti-pulldown-icon',
     });
   }
 
@@ -404,30 +395,6 @@ function buildGriglieBody(body) {
   }
 
   s.pulldown = sel;
-}
-
-/**
- * Append pencil + garbage icons (writers-only affordances on the
- * Griglie / Rilevamenti pulldowns).  Same SortableTable icon glyphs.
- */
-function appendEditDeleteIcons(host, { onEdit, onDelete }) {
-  const edit = document.createElement('span');
-  edit.className = 'action-icon action-edit campionamenti-pulldown-icon';
-  edit.title = S.ACTION_EDIT;
-  edit.textContent = '✎';
-  edit.setAttribute('role', 'button');
-  edit.addEventListener('click', onEdit);
-  host.appendChild(edit);
-
-  const del = document.createElement('span');
-  del.className = 'action-icon action-delete campionamenti-pulldown-icon';
-  del.title = S.ACTION_DELETE;
-  // U+1F5D1 + U+FE0E — wastebasket, monochrome.  Matches the row
-  // delete glyph in `apps/base/static/base/js/table.js`.
-  del.textContent = '\u{1F5D1}\u{FE0E}';
-  del.setAttribute('role', 'button');
-  del.addEventListener('click', onDelete);
-  host.appendChild(del);
 }
 
 function activateGrid(gridId) {
@@ -567,9 +534,10 @@ function buildRilevamentiBody(body) {
 
   left.append(label, sel);
   if (canModify()) {
-    appendEditDeleteIcons(left, {
+    mkEditDeleteIcons(left, {
       onEdit: () => showEditSurveyModal(),
       onDelete: () => confirmDeleteSurvey(),
+      iconClass: 'campionamenti-pulldown-icon',
     });
   }
 
@@ -1035,23 +1003,6 @@ function wireSurveyEmptyForm(modal) {
     },
     onValidationError(_data) {},
   });
-}
-
-function renderCsvErrors(box, errors) {
-  box.replaceChildren();
-  const ul = document.createElement('ul');
-  for (const e of errors.slice(0, 50)) {
-    const li = document.createElement('li');
-    li.textContent = e;
-    ul.appendChild(li);
-  }
-  if (errors.length > 50) {
-    const more = document.createElement('li');
-    more.textContent = `… +${errors.length - 50} altri errori`;
-    ul.appendChild(more);
-  }
-  box.appendChild(ul);
-  box.hidden = false;
 }
 
 /**
