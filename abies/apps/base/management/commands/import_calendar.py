@@ -35,7 +35,7 @@ class Command(BaseCommand):
         if not data_dir.is_dir():
             raise CommandError(f'{data_dir} is not a directory')
         piano_csv = data_dir / 'piano_fustaia.csv'
-        ceduo_csv = data_dir / 'ceduo_ceduo.csv'
+        ceduo_csv = data_dir / 'piano_ceduo.csv'
         if not piano_csv.is_file():
             raise CommandError(f'{piano_csv} not found')
         if not ceduo_csv.is_file():
