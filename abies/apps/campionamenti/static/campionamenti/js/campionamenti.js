@@ -34,6 +34,9 @@ import { GridPlanner } from './grid-planner.js';
 import MapCommon from '../../base/js/map-common.js';
 import { mountUseLocationButton } from '../../base/js/latlng-input.js';
 import { tabacchiVolumeM3, massQ } from '../../base/js/volume.js';
+import {
+  fmtDecimal1, fmtDecimal2, fmtDecimal5, fmtInt, fmtBool,
+} from '../../base/js/format.js';
 
 const CSS_URL = '/static/campionamenti/css/campionamenti.css';
 // Cache keys MUST match the server's `data_id` strings so that
@@ -85,12 +88,10 @@ const DEFAULT_OPEN = 'r';
 const MAP_TYPE_TOKENS = { o: 'osm', t: 'topo', s: 'satellite' };
 const DEFAULT_MAP_TYPE = 's';
 
-// --- Formatters -------------------------------------------------------------
-function f2(v) { return typeof v === 'number' ? v.toFixed(2).replace('.', ',') : (v == null ? '' : v); }
-function f1(v) { return typeof v === 'number' ? v.toFixed(1).replace('.', ',') : (v == null ? '' : v); }
-function fInt(v) { return v == null || v === '' ? '' : String(v); }
-function fBool(v) { return v ? '✓' : ''; }
-function fLat(v) { return typeof v === 'number' ? v.toFixed(5) : (v == null ? '' : v); }
+// --- Formatters (local aliases for short references in column defs) ---------
+const f2 = fmtDecimal2;
+const f1 = fmtDecimal1;
+const fLat = fmtDecimal5;
 
 /** True if any cached Sample references `areaId`.  Used to disable
  *  the Section 1 "Elimina" button at popover-build time. */

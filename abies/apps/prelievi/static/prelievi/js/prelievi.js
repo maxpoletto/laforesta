@@ -13,6 +13,9 @@ import { showError, dismiss as dismissModal, onDismiss } from '../../base/js/mod
 import { createRangeSlider } from '../../base/js/range-slider.js';
 import * as S from '../../base/js/strings.js';
 import { STATUS_CONFLICT, VERSION } from '../../base/js/constants.js';
+import {
+  fmtDecimal1, fmtDecimal1BlankZero, fmtDecimal2, fmtInt,
+} from '../../base/js/format.js';
 import { matchesSearch } from '../../base/js/table.js';
 import {
   aggregateTimeSeries, aggregateSpeciesByParcel, renderStackedBar,
@@ -32,34 +35,6 @@ const PAGE_PATH = '/prelievi';
 const SECTION_KEYS = ['a', 'b', 'i'];
 const DEFAULT_OPEN = 'i';                 // default when `o` param is absent
 
-// ---------------------------------------------------------------------------
-// Number formatters
-// ---------------------------------------------------------------------------
-
-/** Format quintals: one decimal, comma separator. */
-function formatQuintals(value) {
-  if (value == null || value === '') return '';
-  return typeof value === 'number' ? value.toFixed(1).replace('.', ',') : value;
-}
-
-/** Format quintals: one decimal, comma separator. Blank for zero. */
-function formatQuintalsBlankZero(value) {
-  if (!value) return '';
-  return typeof value === 'number' ? value.toFixed(1).replace('.', ',') : value;
-}
-
-/** Format volume m³: two decimals, comma separator. */
-function formatVolume(value) {
-  if (value == null || value === '') return '';
-  return typeof value === 'number' ? value.toFixed(2).replace('.', ',') : value;
-}
-
-/** Format plain integer — no thousands separator. Blank for null. */
-function formatInteger(value) {
-  if (value == null || value === '') return '';
-  return String(value);
-}
-
 /** Column definitions for the fixed digest columns. */
 const STATIC_COLS = {
   [S.COL_DATE]:        { label: S.COL_DATE, type: 'date', width: '90px' },
@@ -67,9 +42,9 @@ const STATIC_COLS = {
   [S.COL_PARCEL]:      { label: S.COL_PARCEL, width: '70px' },
   [S.COL_CREW]:        { label: S.COL_CREW, width: '108px' },
   [S.COL_PRODUCT]:     { label: S.COL_PRODUCT, width: '120px' },
-  [S.COL_VDP]:         { label: S.COL_VDP, type: 'number', width: '55px', formatter: formatInteger },
-  [S.COL_QUINTALS]:    { label: S.COL_QUINTALS, type: 'number', width: '55px', formatter: formatQuintals },
-  [S.COL_VOLUME_M3]:   { label: S.COL_VOLUME_M3, type: 'number', width: '70px', formatter: formatVolume },
+  [S.COL_VDP]:         { label: S.COL_VDP, type: 'number', width: '55px', formatter: fmtInt },
+  [S.COL_QUINTALS]:    { label: S.COL_QUINTALS, type: 'number', width: '55px', formatter: fmtDecimal1 },
+  [S.COL_VOLUME_M3]:   { label: S.COL_VOLUME_M3, type: 'number', width: '70px', formatter: fmtDecimal2 },
   [S.COL_NOTE]:        { label: S.COL_NOTE, width: '110px' },
   [S.COL_EXTRA_NOTE]:  { label: S.COL_EXTRA_NOTE, width: '90px' },
   [S.COL_CANTIERE]:    { label: S.COL_CANTIERE, hidden: true },
@@ -866,7 +841,7 @@ function buildColumnDefs(columns) {
       label: name, type: 'number',
       width: isTractor ? '100px' : '90px',
       className: 'col-wrap-header',
-      formatter: formatQuintalsBlankZero,
+      formatter: fmtDecimal1BlankZero,
     };
   }
   return defs;

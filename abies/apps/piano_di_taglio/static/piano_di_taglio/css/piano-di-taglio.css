@@ -202,11 +202,13 @@
   margin: 0;
 }
 
-.pdt-item-prelievi-total {
-  font-weight: 500;
-  margin: 8px 0;
+/* Allow sub-section table headers to wrap (same as the calendar tables). */
+.pdt-item-card .subsection-host .sortable-table-header {
+  white-space: normal;
+  text-align: center;
+  vertical-align: middle;
+  line-height: 1.2;
 }
-
-.pdt-item-prelievi-host {
-  margin-top: 8px;
+.pdt-item-card .subsection-host .sortable-table-header.numeric {
+  text-align: center;
 }

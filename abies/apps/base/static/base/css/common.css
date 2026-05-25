@@ -419,6 +419,33 @@ input:focus, select:focus, textarea:focus {
 
 .collapsible-body.open { display: block; }
 
+/* Sub-section building blocks — used inside collapsible bodies for
+   totals lines, table hosts, action button rows, and info banners. */
+
+.subsection-totals {
+  font-weight: 500;
+  margin: 8px 0;
+}
+
+.subsection-host {
+  margin-top: 8px;
+}
+
+.subsection-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.subsection-banner {
+  padding: 8px 12px;
+  background: #f0f0f0;
+  color: #888;
+  font-style: italic;
+  border-left: 3px solid #ccc;
+  margin-bottom: 8px;
+}
+
 /* --- Utility -------------------------------------------------------------- */
 
 .text-muted { color: #888; }

@@ -21,8 +21,13 @@ import {
   mkStatusBox, mkErrorsBox, renderCsvErrors,
   mkCollapsible, mkEditDeleteIcons,
 } from '../../base/js/form-widgets.js';
+import { tabacchiVolumeM3, massQ } from '../../base/js/volume.js';
 import * as S from '../../base/js/strings.js';
 import { ROW_ID, VERSION } from '../../base/js/constants.js';
+import {
+  fmtDecimal1, fmtDecimal2, fmtDecimal3, fmtInt,
+  fmtVolume, fmtArea, fmtMass,
+} from '../../base/js/format.js';
 
 const CSS_URL = '/static/piano_di_taglio/css/piano-di-taglio.css';
 
@@ -44,6 +49,10 @@ const ITEM_SAVE_URL = '/api/piano-di-taglio/item/save/';
 const ITEM_DELETE_URL = '/api/piano-di-taglio/item/delete/';
 const ITEM_EXPORT_URL = '/api/piano-di-taglio/item/export/';
 const TRANSITION_SAVE_URL = '/api/piano-di-taglio/transition/save/';
+const MARK_TREES_URL = '/api/piano-di-taglio/mark-trees/';
+const MARK_SAVE_URL = '/api/piano-di-taglio/mark/save/';
+const MARK_DELETE_URL = '/api/piano-di-taglio/mark/delete/';
+const MARK_CSV_IMPORT_URL = '/api/piano-di-taglio/mark/import-csv/';
 
 const PRELIEVI_ID = 'prelievi';
 const PRELIEVI_URL = '/api/prelievi/data/';
@@ -69,6 +78,7 @@ let planSelectEl = null;
 let activeItemId = null;
 let prelieviData = null;
 let itemPrelieviTable = null;
+let itemMarkTreesTable = null;
 
 // Calendar sections — keyed by the single-char URL `o=` token.  `f`
 // fills in here; `c` (Calendario ceduo) lands in a later increment.
@@ -528,14 +538,6 @@ function buildItemColumnDefs(columns, hiddenCols) {
     defs[name] = ITEM_COL_DEFS[name] || { label: name };
   }
   return defs;
-}
-
-function fmtDecimal2(v) {
-  return typeof v === 'number' ? v.toFixed(2).replace('.', ',') : (v == null || v === '' ? '' : v);
-}
-
-function fmtInt(v) {
-  return v == null || v === '' ? '' : String(v);
 }
 
 const ITEM_COL_DEFS = (() => {
@@ -1409,6 +1411,13 @@ function destroyItemPrelieviTable() {
   }
 }
 
+function destroyItemMarkTreesTable() {
+  if (itemMarkTreesTable) {
+    itemMarkTreesTable.destroy();
+    itemMarkTreesTable = null;
+  }
+}
+
 async function renderItemView(itemId) {
   const el = document.getElementById('content');
   if (!el) return;
@@ -1559,6 +1568,11 @@ function showItemMetadata(el, itemId, record, transitions) {
     if (hasTransition) card.appendChild(btnRow);
   }
 
+  // Martellata sub-section (fustaia items only — coppice skips marking).
+  if (!isCoppice) {
+    appendItemMarkTreesSection(card, itemId, state);
+  }
+
   // Prelievi sub-section (visible once cantiere is open or later).
   const stateIdx = [S.STATE_OPEN, S.STATE_HARVESTING, S.STATE_CLOSED];
   if (stateIdx.includes(state)) {
@@ -1588,16 +1602,6 @@ function formatItemTitle(record, columns) {
 function lookupPlanName(planId) {
   const row = planRow(planId);
   return row ? row[plansData.columns.indexOf(S.COL_NAME)] : '';
-}
-
-function fmtVolume(v) {
-  const s = fmtDecimal2(v);
-  return s ? s + ' m³' : '';
-}
-
-function fmtArea(v) {
-  const s = fmtDecimal2(v);
-  return s ? s + ' ha' : '';
 }
 
 function formatDate(iso) {
@@ -1686,6 +1690,124 @@ function showTransitionForm(itemId, openFlag) {
   showModal(frag);
 }
 
+// --- Martellata sub-section (PT-80+) ---
+
+function markTreesDataId(itemId) {
+  return `mark_trees_${itemId}`;
+}
+
+async function appendItemMarkTreesSection(card, itemId, state) {
+  const [header, body] = mkCollapsible(S.SECTION_MARTELLATA, true);
+  card.append(header, body);
+
+  const isClosed = state === S.STATE_CLOSED;
+
+  // Closed-cantiere banner.
+  if (isClosed) {
+    const banner = document.createElement('div');
+    banner.className = 'subsection-banner';
+    banner.textContent = S.MARK_CLOSED_BANNER;
+    body.appendChild(banner);
+  }
+
+  // Action buttons (writers only, not closed).
+  if (canModify() && !isClosed) {
+    const actions = document.createElement('div');
+    actions.className = 'subsection-actions';
+
+    const addBtn = document.createElement('button');
+    addBtn.type = 'button';
+    addBtn.className = 'btn';
+    addBtn.textContent = S.NEW_MARK_LABEL;
+    addBtn.addEventListener('click', () => showNewMarkForm(itemId));
+    actions.appendChild(addBtn);
+
+    const importBtn = document.createElement('button');
+    importBtn.type = 'button';
+    importBtn.className = 'btn';
+    importBtn.textContent = S.IMPORT_MARKS_LABEL;
+    importBtn.addEventListener('click', () => showImportMarksForm(itemId));
+    actions.appendChild(importBtn);
+
+    body.appendChild(actions);
+  }
+
+  // Lazy-fetch per-item mark trees.
+  const dataId = markTreesDataId(itemId);
+  cache.register(dataId, `${MARK_TREES_URL}${itemId}/`);
+
+  let data;
+  try { data = await cache.load(dataId); }
+  catch {
+    const err = document.createElement('div');
+    err.textContent = S.ERROR_NETWORK;
+    err.style.color = '#c00';
+    body.appendChild(err);
+    return;
+  }
+  if (!data?.rows) return;
+
+  // Volume + mass totals.
+  const c = data.columns;
+  const volCol = c.indexOf(S.COL_V_M3);
+  const massCol = c.indexOf(S.COL_MASS_Q);
+  const volTotal = data.rows.reduce((s, r) => s + (typeof r[volCol] === 'number' ? r[volCol] : 0), 0);
+  const massTotal = data.rows.reduce((s, r) => s + (typeof r[massCol] === 'number' ? r[massCol] : 0), 0);
+  const totals = document.createElement('div');
+  totals.className = 'subsection-totals';
+  totals.textContent =
+    `${S.LABEL_VOLUME_TOTAL}: ${fmtVolume(volTotal)}  ·  ${S.LABEL_MASS_TOTAL}: ${fmtMass(massTotal)}`;
+  body.appendChild(totals);
+
+  if (!data.rows.length) return;
+
+  const host = document.createElement('div');
+  host.className = 'subsection-host';
+  body.appendChild(host);
+
+  destroyItemMarkTreesTable();
+  const showActions = canModify() && !isClosed;
+  itemMarkTreesTable = new TableWrapper({
+    container: host,
+    digest: data,
+    columnDefs: buildMarkTreeColumnDefs(c),
+    inlineToolbar: false,
+    canModify: showActions,
+    actions: showActions ? {
+      onEdit: (rowId) => showEditMarkForm(itemId, rowId),
+      onDelete: (rowId, version) => deleteMarkRow(itemId, rowId, version),
+    } : {},
+    sort: { column: S.COL_DATE, ascending: false },
+    csvFilename: `${S.CSV_MARTELLATE_PREFIX}${itemId}.csv`,
+    labels: S.TABLE_LABELS,
+    csvFormat: S.TABLE_CSV_FORMAT,
+  });
+}
+
+function buildMarkTreeColumnDefs(columns) {
+  const hidden = new Set([VERSION, S.COL_LAT, S.COL_LON]);
+  const defs = {};
+  for (const name of columns) {
+    if (name === ROW_ID) continue;
+    if (hidden.has(name)) { defs[name] = { label: name, hidden: true }; continue; }
+    if (name === S.COL_DATE) { defs[name] = { label: name, type: 'date', width: '100px' }; continue; }
+    if (name === S.COL_NUMERO) { defs[name] = { label: name, type: 'number', width: '60px' }; continue; }
+    if (name === S.COL_D_CM) { defs[name] = { label: name, type: 'number', width: '70px' }; continue; }
+    if (name === S.COL_H_M) { defs[name] = { label: name, type: 'number', width: '70px', formatter: fmtDecimal2 }; continue; }
+    if (name === S.COL_H_MEASURED) { defs[name] = { label: name, type: 'boolean', width: '85px' }; continue; }
+    if (name === S.COL_V_M3) { defs[name] = { label: name, type: 'number', width: '85px', formatter: fmtDecimal3 }; continue; }
+    if (name === S.COL_MASS_Q) { defs[name] = { label: name, type: 'number', width: '70px', formatter: fmtDecimal2 }; continue; }
+    defs[name] = { label: name };
+  }
+  return defs;
+}
+
+// Stubs for mark form actions — implemented in PT-81/82/84.
+function showNewMarkForm(itemId) { /* PT-81 */ }
+function showImportMarksForm(itemId) { /* PT-82 */ }
+function showEditMarkForm(itemId, rowId) { /* PT-84 */ }
+function deleteMarkRow(itemId, rowId, version) { /* PT-84 */ }
+
 // --- Prelievi sub-section ---
 
 async function appendItemPrelieviSection(card, itemId) {
@@ -1715,7 +1837,7 @@ async function appendItemPrelieviSection(card, itemId) {
   const volCol = c.indexOf(S.COL_VOLUME_M3);
   const total = filtered.reduce((sum, r) => sum + (typeof r[volCol] === 'number' ? r[volCol] : 0), 0);
   const totalEl = document.createElement('div');
-  totalEl.className = 'pdt-item-prelievi-total';
+  totalEl.className = 'subsection-totals';
   totalEl.textContent = `${S.LABEL_VOLUME_TOTAL}: ${fmtVolume(total)}`;
   body.appendChild(totalEl);
 
@@ -1725,7 +1847,7 @@ async function appendItemPrelieviSection(card, itemId) {
   const filteredDigest = { columns: c, rows: filtered };
 
   const host = document.createElement('div');
-  host.className = 'pdt-item-prelievi-host';
+  host.className = 'subsection-host';
   body.appendChild(host);
 
   destroyItemPrelieviTable();
@@ -1744,7 +1866,6 @@ async function appendItemPrelieviSection(card, itemId) {
 }
 
 function buildPrelieviColumnDefs(columns) {
-  const fDec1 = (v) => (typeof v === 'number' ? v.toFixed(1).replace('.', ',') : (v == null || v === '' ? '' : v));
   const hidden = new Set([VERSION, S.COL_CANTIERE]);
   for (const name of columns) {
     if (name.endsWith(' %')) hidden.add(name);
@@ -1754,7 +1875,7 @@ function buildPrelieviColumnDefs(columns) {
     if (name === ROW_ID) continue;
     if (hidden.has(name)) { defs[name] = { label: name, hidden: true }; continue; }
     if (name === S.COL_DATE) { defs[name] = { label: name, type: 'date', width: '100px' }; continue; }
-    if (name === S.COL_QUINTALS) { defs[name] = { label: name, type: 'number', width: '70px', formatter: fDec1 }; continue; }
+    if (name === S.COL_QUINTALS) { defs[name] = { label: name, type: 'number', width: '70px', formatter: fmtDecimal1 }; continue; }
     if (name === S.COL_VOLUME_M3) { defs[name] = { label: name, type: 'number', width: '95px', formatter: fmtDecimal2 }; continue; }
     defs[name] = { label: name };
   }

@@ -361,8 +361,27 @@ export const LABEL_CANTIERE_OPENED   = 'Apertura cantiere';
 export const LABEL_CANTIERE_CLOSED   = 'Chiusura cantiere';
 export const ERR_DATE_REQUIRED    = 'Data obbligatoria.';
 export const SECTION_PRELIEVI     = 'Prelievi';
+export const SECTION_MARTELLATA   = 'Martellata';
 export const LABEL_VOLUME_TOTAL   = 'Volume totale';
+export const LABEL_MASS_TOTAL     = 'Massa totale';
 export const COL_CANTIERE         = 'Cantiere';
+
+// Marks (tree-mark CRUD + CSV import in the per-item modal).
+export const NEW_MARK_LABEL       = '+ Nuovo albero';
+export const IMPORT_MARKS_LABEL   = '+ Importa martellata';
+export const MARK_CLOSED_BANNER   =
+  'Il cantiere è chiuso, non si possono aggiungere martellate.';
+export const NEW_MARK_TITLE       = 'Nuovo albero martellato';
+export const EDIT_MARK_TITLE      = 'Modifica albero martellato';
+export const IMPORT_MARKS_TITLE   = 'Importa martellata da CSV';
+export const LABEL_D_CM           = 'D (cm)';
+export const LABEL_H_M            = 'h (m)';
+export const LABEL_OPERATOR       = 'Operatore';
+export const LABEL_H_MEASURED     = 'h misurata';
+export const ERR_D_CM_REQUIRED    = 'D obbligatorio.';
+export const ERR_H_M_REQUIRED     = 'h obbligatoria.';
+export const ERR_SPECIES_REQUIRED = 'Specie obbligatoria.';
+export const ERR_OPERATOR_REQUIRED = 'Operatore obbligatorio.';
 
 // CSV export filenames (per-plan zip + per-item zip; see piano-di-taglio.md).
 export const CSV_PIANO       = 'piano.csv';
