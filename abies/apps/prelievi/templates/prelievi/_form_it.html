@@ -14,7 +14,7 @@
     </div>
 
     <div class="form-row">
-      <div class="form-group">
+      <div class="form-group wide">
         <label for="id_cantiere">Cantiere</label>
         <select id="id_cantiere" name="harvest_plan_item_id"
                 {% if not op %}required{% endif %}>
@@ -62,9 +62,9 @@
         {% endcomment %}
         <label for="id_parcel">Particella</label>
         <select id="id_parcel" name="parcel_id">
-          <option value="">---</option>
           {% for p in parcels %}
           <option value="{{ p.id }}" data-region="{{ p.region_id }}"
+                  data-name="{{ p.name }}"
             {% if op and op.parcel_id == p.id %}selected
             {% elif vals.parcel_id == p.id|stringformat:"d" %}selected{% endif %}>
             {{ p.region.name }} {{ p.name }}
@@ -112,7 +112,7 @@
         <input type="number" id="id_record1" name="record1"
                value="{% if op.record1 %}{{ op.record1 }}{% elif vals.record1 %}{{ vals.record1 }}{% endif %}">
       </div>
-      <div class="form-group">
+      <div class="form-group wide">
         <label for="id_note">Altre note</label>
         <input type="text" id="id_note" name="note"
                value="{% if op %}{{ op.note|default:'' }}{% else %}{{ vals.note|default:'' }}{% endif %}">

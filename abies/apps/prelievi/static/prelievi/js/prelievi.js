@@ -6,8 +6,7 @@ import * as cache from '../../base/js/cache.js';
 import * as router from '../../base/js/router.js';
 import { TableWrapper } from '../../base/js/table.js';
 import {
-  fetchForm, fetchModalForm, renderFormHTML, renderModalForm,
-  interceptSubmit, wireCancelButtons,
+  fetchModalForm, renderModalForm, showFormError, wireCancelButtons,
 } from '../../base/js/forms.js';
 import { postJSON } from '../../base/js/api.js';
 import { showError, dismiss as dismissModal, onDismiss } from '../../base/js/modals.js';
@@ -73,6 +72,7 @@ const STATIC_COLS = {
   [S.COL_VOLUME_M3]:   { label: S.COL_VOLUME_M3, type: 'number', width: '70px', formatter: formatVolume },
   [S.COL_NOTE]:        { label: S.COL_NOTE, width: '110px' },
   [S.COL_EXTRA_NOTE]:  { label: S.COL_EXTRA_NOTE, width: '90px' },
+  [S.COL_CANTIERE]:    { label: S.COL_CANTIERE, hidden: true },
   [VERSION]:     { label: VERSION, hidden: true },
 };
 
@@ -651,33 +651,45 @@ function wireForm(form) {
   wire100Buttons(form);
   wireCancelButtons(form, dismissModal);
 
-  interceptSubmit(form, SAVE_URL, {
-    validate: validateForm,
-    onSuccess(data, isSaveAndAdd) {
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const isSaveAndAdd = e.submitter?.dataset.action === 'save-and-add';
+    const body = Object.fromEntries(new FormData(form));
+
+    const err = validateForm(body);
+    if (err) { showFormError(form, err); return; }
+
+    let data, status;
+    try {
+      ({ data, status } = await postJSON(SAVE_URL, body));
+    } catch {
+      showFormError(form, S.ERROR_NETWORK);
+      return;
+    }
+
+    if (status === 200) {
       cache.updateRow(DATA_ID, data.row_id, data.record);
       if (data.item_record) {
         cache.updateRow('harvest_plan_items', data.item_record[0], data.item_record);
       }
       dismissModal();
-      if (isSaveAndAdd) {
-        showAddForm();
-      } else {
-        refreshTable();
+      if (isSaveAndAdd) showAddForm();
+      else refreshTable();
+      return;
+    }
+
+    if (data.status === STATUS_CONFLICT && data.record) {
+      cache.updateRow(DATA_ID, data.row_id, data.record);
+    }
+    if (data.html) {
+      const newForm = renderModalForm(data.html);
+      if (newForm) {
+        wireForm(newForm);
+        showFormError(newForm, data.message || S.ERROR_GENERIC);
       }
-    },
-    onConflict(data) {
-      if (data.record) cache.updateRow(DATA_ID, data.row_id, data.record);
-      if (data.html) {
-        const newForm = renderModalForm(data.html);
-        if (newForm) wireForm(newForm);
-      }
-    },
-    onValidationError(data) {
-      if (data.html) {
-        const newForm = renderModalForm(data.html);
-        if (newForm) wireForm(newForm);
-      }
-    },
+    } else {
+      showFormError(form, data.message || S.ERROR_GENERIC);
+    }
   });
 }
 
@@ -721,12 +733,11 @@ function wireCantiereSelect(form) {
         const current = parcelSel.value;
         for (const o of allParcelOpts) o.remove();
         for (const o of allParcelOpts) {
-          if (!o.value || o.dataset.region === regionId) {
-            parcelSel.appendChild(o);
-          }
+          if (o.dataset.region === regionId) parcelSel.appendChild(o);
         }
         if (![...parcelSel.options].some(o => o.value === current)) {
-          parcelSel.value = '';
+          const xOpt = [...parcelSel.options].find(o => o.dataset.name === 'X');
+          parcelSel.value = xOpt ? xOpt.value : '';
         }
       }
     }

@@ -290,8 +290,7 @@ def _form_context(op_id=None, vals=None):
         'op': op,
         'vals': v,
         'cantieri': cantieri,
-        'parcels': sorted(Parcel.objects.exclude(name='X')
-                              .select_related('region'),
+        'parcels': sorted(Parcel.objects.select_related('region'),
                          key=parcel_sort_key),
         'crews': Crew.objects.filter(active=True).order_by('name'),
         'products': Product.objects.order_by('name'),

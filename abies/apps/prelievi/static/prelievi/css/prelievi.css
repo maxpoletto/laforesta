@@ -37,17 +37,18 @@
 
 /* --- Form layout --------------------------------------------------------- */
 
-#prelievi-form .form-row {
+#prelievi-form .form-row:not(.narrow) {
   display: grid;
-  grid-template-columns: 150px 160px 200px;
-  gap: 0 1rem;
+  grid-template-columns: 1fr 1fr 150px;
+  column-gap: 1rem;
+}
+
+#prelievi-form .form-group.wide {
+  grid-column: span 2;
 }
 
 #prelievi-form input,
 #prelievi-form select { width: 100%; }
-
-#id_parcel { width: 80px; }
-#id_quintals { width: 80px; }
 
 .form-pct-sections {
   display: flex;
