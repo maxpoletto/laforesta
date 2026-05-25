@@ -1834,6 +1834,7 @@ function wireRegressionAutoH(form, regressions) {
 
   const rc = regressionsData.columns;
   let userEditedH = hMeasHidden?.value === '1';
+  let programmaticH = false;
 
   function autoFillH() {
     if (userEditedH) return;
@@ -1851,13 +1852,16 @@ function wireRegressionAutoH(form, regressions) {
     let hVal = null;
     if (fn === 'ln' && dCm > 0) hVal = a * Math.log(dCm) + b;
     if (hVal != null && hVal > 0) {
+      programmaticH = true;
       h.value = hVal.toFixed(2);
       h.dispatchEvent(new Event('input'));
+      programmaticH = false;
       if (hMeasHidden) hMeasHidden.value = '0';
     }
   }
 
   h.addEventListener('input', () => {
+    if (programmaticH) return;
     userEditedH = true;
     if (hMeasHidden) hMeasHidden.value = '1';
   });
@@ -1869,7 +1873,7 @@ function wireRegressionAutoH(form, regressions) {
 async function wireMarkForm(form, itemId) {
   if (!regressionsData) {
     try { regressionsData = await cache.load(REGRESSIONS_ID); }
-    catch { /* regressions unavailable — auto-h won't work */ }
+    catch { /* regressions unavailable */ }
   }
   const regressions = findRegressions(itemId);
   wireVMPreview(form);

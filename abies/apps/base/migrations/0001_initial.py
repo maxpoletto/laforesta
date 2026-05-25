@@ -1549,8 +1549,8 @@ class Migration(migrations.Migration):
                 ("h_measured", models.BooleanField(default=False)),
                 ("volume_m3", models.DecimalField(decimal_places=4, max_digits=8)),
                 ("mass_q", models.DecimalField(decimal_places=3, max_digits=8)),
-                ("lat", models.FloatField()),
-                ("lon", models.FloatField()),
+                ("lat", models.FloatField(blank=True, null=True)),
+                ("lon", models.FloatField(blank=True, null=True)),
                 ("acc_m", models.IntegerField(blank=True, null=True)),
                 ("operator", models.CharField(max_length=100)),
                 (
@@ -1780,8 +1780,8 @@ class Migration(migrations.Migration):
                 ("h_measured", models.BooleanField(default=False)),
                 ("volume_m3", models.DecimalField(decimal_places=4, max_digits=8)),
                 ("mass_q", models.DecimalField(decimal_places=3, max_digits=8)),
-                ("lat", models.FloatField()),
-                ("lon", models.FloatField()),
+                ("lat", models.FloatField(blank=True, null=True)),
+                ("lon", models.FloatField(blank=True, null=True)),
                 ("acc_m", models.IntegerField(blank=True, null=True)),
                 ("operator", models.CharField(max_length=100)),
                 (

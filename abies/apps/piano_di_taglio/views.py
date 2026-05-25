@@ -1040,7 +1040,7 @@ def mark_save_view(request):
     species_id = _int_or_none(body.get(FIELD_SPECIES_ID))
     d_cm = _int_or_none(body.get(FIELD_D_CM))
     h_m = _decimal_or_none(body.get(FIELD_H_M))
-    h_measured = bool(body.get(FIELD_H_MEASURED))
+    h_measured = body.get(FIELD_H_MEASURED) in (True, 1, '1', 'true')
     volume_m3 = _decimal_or_none(body.get(FIELD_VOLUME_M3))
     mass_q = _decimal_or_none(body.get(FIELD_MASS_Q))
     lat = _float_or_none(body.get(FIELD_LAT))

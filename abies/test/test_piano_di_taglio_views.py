@@ -805,6 +805,36 @@ class TestMarkSave:
         assert tm.d_cm == 30
         assert tm.operator == 'Mario'
 
+    def test_h_measured_string_zero_is_false(
+        self, writer_client, planned_item, species,
+    ):
+        resp = writer_client.post(
+            self.SAVE_URL,
+            data=json.dumps(self._mark_body(
+                planned_item, species[0],
+                **{FIELD_H_MEASURED: '0', FIELD_NONCE: 'hmeas-0'},
+            )),
+            content_type='application/json',
+        )
+        assert resp.status_code == 200
+        tm = TreeMark.objects.first()
+        assert tm.h_measured is False
+
+    def test_h_measured_string_one_is_true(
+        self, writer_client, planned_item, species,
+    ):
+        resp = writer_client.post(
+            self.SAVE_URL,
+            data=json.dumps(self._mark_body(
+                planned_item, species[0],
+                **{FIELD_H_MEASURED: '1', FIELD_NONCE: 'hmeas-1'},
+            )),
+            content_type='application/json',
+        )
+        assert resp.status_code == 200
+        tm = TreeMark.objects.first()
+        assert tm.h_measured is True
+
     def test_create_auto_advances_to_marked(
         self, writer_client, planned_item, species,
     ):
