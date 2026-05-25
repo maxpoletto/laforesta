@@ -491,3 +491,84 @@ from config.constants import (
     HTML, MESSAGE, RECORD, ROWS, ROW_ID,
     STATUS, STATUS_CONFLICT, STATUS_VALIDATION_ERROR, VERSION,
 )
+
+
+def _read_gzip_json(resp):
+    return json.loads(gzip.decompress(resp.getvalue()))
+
+
+class TestDigestInvalidation:
+    """Regression tests: harvest writes must update the materialized
+    volume_actual_m3 on the linked HarvestPlanItem and mark the
+    harvest_plan_items digest stale so it regenerates correctly."""
+
+    @staticmethod
+    def _items_volume_actual(client, item_id, tmp_path, settings):
+        settings.DIGEST_DIR = tmp_path
+        resp = client.get('/api/piano-di-taglio/items/data/')
+        d = _read_gzip_json(resp)
+        row = next(r for r in d[ROWS]
+                   if r[d[COLUMNS].index(ROW_ID)] == item_id)
+        return row[d[COLUMNS].index(S.COL_VOLUME_ACTUAL)]
+
+    def _post_harvest(self, client, f, **overrides):
+        payload = {
+            FIELD_DATE: '2024-07-01',
+            FIELD_HARVEST_PLAN_ITEM_ID: str(f['open_item'].id),
+            FIELD_CREW_ID: str(f['crews'][0].id),
+            FIELD_PRODUCT_ID: str(f['products'][0].id),
+            FIELD_MASS_Q: '10',
+            FIELD_NOTE: '',
+            'record1': '', 'record2': '',
+            f'sp_{f["species"][0].id}': '100',
+            f'tr_{f["tractors"][0].id}': '100',
+        }
+        payload.update(overrides)
+        return client.post(
+            '/api/prelievi/save/',
+            data=json.dumps(payload),
+            content_type='application/json',
+        )
+
+    def test_harvest_save_updates_volume_actual(
+        self, writer_client, harvest_fixtures, tmp_path, settings,
+    ):
+        f = harvest_fixtures
+        vol_before = self._items_volume_actual(
+            writer_client, f['open_item'].id, tmp_path, settings,
+        )
+        self._post_harvest(writer_client, f, **{FIELD_MASS_Q: '20'})
+        vol_after = self._items_volume_actual(
+            writer_client, f['open_item'].id, tmp_path, settings,
+        )
+        assert vol_after > vol_before, (
+            f'harvest_plan_items.volume_actual_m3 should increase after '
+            f'harvest save (was {vol_before}, now {vol_after})'
+        )
+
+    def test_harvest_delete_updates_volume_actual(
+        self, writer_client, harvest_fixtures, tmp_path, settings,
+    ):
+        f = harvest_fixtures
+        resp = self._post_harvest(writer_client, f, **{FIELD_MASS_Q: '20'})
+        assert resp.status_code == 200
+        row_id = resp.json()[ROW_ID]
+        version = Harvest.objects.get(id=row_id).version
+
+        vol_before = self._items_volume_actual(
+            writer_client, f['open_item'].id, tmp_path, settings,
+        )
+        assert vol_before > 0
+
+        writer_client.post(
+            '/api/prelievi/delete/',
+            data=json.dumps({ROW_ID: str(row_id), VERSION: str(version)}),
+            content_type='application/json',
+        )
+        vol_after = self._items_volume_actual(
+            writer_client, f['open_item'].id, tmp_path, settings,
+        )
+        assert vol_after < vol_before, (
+            f'harvest_plan_items.volume_actual_m3 should decrease after '
+            f'harvest delete (was {vol_before}, now {vol_after})'
+        )

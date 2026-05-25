@@ -449,6 +449,23 @@ navigation (small, drive the always-visible Section 2 map and the
 pulldowns); one is lazily loaded per active survey when Section 3
 expands; one is shared with Piano di taglio.
 
+### Cache invalidation
+
+| Write | Digests marked stale | Optimistic client patch |
+|---|---|---|
+| Grid save (create) | `grids`, `audit` | `grids` via `record` |
+| Grid edit (rename) | `grids`, `audit` | `grids` via `record`; pulldown option text updated |
+| Grid delete | `grids`, `audit` | `grids` (row removed) |
+| Grid CSV import (areas) | `grids`, `sample_areas`, `surveys`, `audit` | All three via `applySideEffects` (record + area\_records + survey\_records) |
+| Survey save (create) | `surveys`, `grids`, `audit` | `surveys` + `grids` via `applySideEffects` |
+| Survey edit (rename) | `surveys`, `audit` | `surveys` via `record`; pulldown option text updated |
+| Survey delete | `surveys`, `grids`, `audit` | Force-refresh via `cache.load` (cascade) |
+| Survey CSV import (trees) | `sampled_trees_<id>`, `samples`, `surveys`, `audit` | Force-refresh (bulk path) |
+| Area save (create/update) | `sample_areas`, `grids`, `surveys`, `audit` | All three via `applySideEffects`; survey pulldown rebuilt; both maps re-rendered if affected |
+| Area delete | `sample_areas`, `grids`, `surveys`, `audit` | Same as area save |
+| Tree save (create/update) | `sampled_trees_<id>`, `samples`, `surveys`, `audit` | All three via `applySideEffects`; Section 2 map re-rendered |
+| Tree delete | `sampled_trees_<id>`, `samples`, `surveys`, `audit` | Same as tree save |
+
 ### `grids.json`
 
 Drives the Section 1 pulldown and active-grid summary line.

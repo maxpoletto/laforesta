@@ -156,8 +156,20 @@ enter a stack of paper slips in sequence.
   are materialized so the Piano di taglio calendar can compute its
   status chip in m³ without touching prelievi.json.
 
-Successful writes on the backend mark the prelievi.json and
-parcel_year_production.json digests as stale.
+### Cache invalidation
+
+| Write | Digests marked stale | Optimistic client patch |
+|---|---|---|
+| Harvest save (create or update) | `prelievi`, `parcel_year_production`, `audit`; + `harvest_plan_items` if linked to a plan item | `prelievi` (primary); `harvest_plan_items` via `item_record` in response |
+| Harvest delete | same as save | `prelievi` (row removed); `harvest_plan_items` via `item_record` |
+
+`parcel_year_production` is not patched optimistically — it is consumed
+by the Bosco page and picked up via the stale flag on next visit.
+
+When a harvest is linked to a `harvest_plan_item`, the save view also
+re-materializes `volume_actual_m3` on the item (aggregate sum of all
+linked harvests).  The first linked harvest insert auto-advances the
+item state from `open` to `harvesting`.
 
 `harvest.volume_m3` is itself materialized at write time using the
 species densities current at that moment.  Editing a species' density

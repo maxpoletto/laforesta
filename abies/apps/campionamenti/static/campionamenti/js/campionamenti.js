@@ -1939,6 +1939,7 @@ function applySideEffects(data) {
   if (touchedSurveys) {
     surveysData = cache.get(SURVEYS_ID);
     if (activeSurveyId != null) renderRilevamentiSummary(activeSurveyId);
+    rebuildSurveyPulldown();
   }
   if (touchedGrids) {
     gridsData = cache.get(GRIDS_ID);
@@ -1947,12 +1948,20 @@ function applySideEffects(data) {
   if (touchedAreas) {
     sampleAreasData = cache.get(SAMPLE_AREAS_ID);
     if (activeGridId != null) renderGriglieMap(activeGridId);
+    if (activeSurveyId != null && surveyGridId(activeSurveyId) === activeGridId) {
+      renderRilevamentiMap(activeSurveyId);
+    }
   }
 }
 
 function gridRow(id) {
   const c = gridsData.columns;
   return gridsData.rows.find(r => r[c.indexOf(ROW_ID)] === id);
+}
+
+function surveyGridId(surveyId) {
+  const row = surveyRow(surveyId);
+  return row ? row[surveysData.columns.indexOf(S.COL_GRID)] : null;
 }
 
 function surveyRow(id) {

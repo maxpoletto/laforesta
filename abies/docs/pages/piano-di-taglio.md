@@ -543,6 +543,23 @@ given `harvest_plan_item_id`):
 
 - `mark_trees_<harvest_plan_item_id>.json`
 
+### Cache invalidation
+
+| Write | Digests marked stale | Optimistic client patch |
+|---|---|---|
+| Plan save (create/update) | `harvest_plans`, `audit` | `harvest_plans` via `record` |
+| Plan delete | `harvest_plans`, `harvest_plan_items`, `tree_height_regressions`, `audit` | `harvest_plans` (row removed); items + regressions force-refreshed via `cache.load` |
+| Plan CSV import | `harvest_plans`, `harvest_plan_items`, `tree_height_regressions`, `audit` | All three force-refreshed via `cache.load` (bulk path) |
+| Item save (create/update) | `harvest_plan_items`, `audit` | `harvest_plan_items` via `record` |
+| Item delete | `harvest_plan_items`, `audit` | `harvest_plan_items` (row removed) |
+| Transition save (Apri/Chiudi) | `harvest_plan_items`, `audit` | `harvest_plan_items` via `item_record` |
+| Harvest save (from Prelievi page) | `prelievi`, `parcel_year_production`, `harvest_plan_items`, `audit` | `harvest_plan_items` via `item_record` (cross-domain) |
+
+`harvest_plan_item.volume_actual_m3` and `volume_marked_m3` are
+materialized aggregates updated in the write path (not computed at
+digest-generation time).  See `database.md` "Harvest plan item
+materialization" for the full chain.
+
 ### `harvest_plans.json`
 
 Populates the Piano pulldown. Invalidated on `harvest_plan` writes.

@@ -715,3 +715,46 @@ class TestAuth:
         generate_harvest_plans()
         resp = reader_client.get('/api/piano-di-taglio/plans/data/')
         assert resp.status_code == 200
+
+
+def _read_gzip_json(resp):
+    return json.loads(gzip.decompress(resp.getvalue()))
+
+
+class TestDigestInvalidation:
+    """Regression tests: transition saves must update the state in the
+    harvest_plan_items digest."""
+
+    @staticmethod
+    def _items_state(client, item_id, tmp_path, settings):
+        settings.DIGEST_DIR = tmp_path
+        resp = client.get('/api/piano-di-taglio/items/data/')
+        d = _read_gzip_json(resp)
+        row = next(r for r in d[ROWS]
+                   if r[d[COLUMNS].index(ROW_ID)] == item_id)
+        return row[d[COLUMNS].index(S.COL_STATE)]
+
+    def test_transition_invalidates_items_digest(
+        self, writer_client, planned_item, tmp_path, settings,
+    ):
+        state_before = self._items_state(
+            writer_client, planned_item.id, tmp_path, settings,
+        )
+        assert state_before == S.STATE_PLANNED
+        writer_client.post(
+            '/api/piano-di-taglio/transition/save/',
+            data=json.dumps({
+                FIELD_HARVEST_PLAN_ITEM_ID: planned_item.id,
+                FIELD_OPEN: True,
+                FIELD_DATE: '2024-09-01',
+                FIELD_NOTE: '',
+            }),
+            content_type='application/json',
+        )
+        state_after = self._items_state(
+            writer_client, planned_item.id, tmp_path, settings,
+        )
+        assert state_after == S.STATE_OPEN, (
+            f'harvest_plan_items digest should reflect state change '
+            f'(was {state_before}, now {state_after})'
+        )

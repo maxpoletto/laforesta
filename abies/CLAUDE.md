@@ -333,15 +333,21 @@ Concrete examples from `apps/campionamenti`:
 | `SampleGrid` rename                    | `grids`                                       |
 | `Survey` rename                        | `surveys`                                     |
 
+**Cross-domain invalidation** also occurs: a prelievi harvest write
+linked to a `harvest_plan_item` marks `harvest_plan_items` stale (piano
+di taglio calendar) and re-materializes `volume_actual_m3` on the item.
+Each page's doc under `docs/pages/` carries the authoritative
+write→digest invalidation table for its domain.
+
 When you add a new write endpoint, audit every `generate_*()` in
 `apps/base/digests.py` and add `mark_stale()` for each digest that touches
 the written table.  When you change a `generate_*()` to read a new table,
 audit every write endpoint that touches that table.  Tests under
-`TestDigestInvalidation` (`test/test_campionamenti_views.py`) lock the
-contract for the campionamenti surface: each test performs a write and
-re-reads the affected digest via the public endpoint, asserting that the
-materialized columns reflect the change.  Add equivalent tests for any new
-write/digest pair.
+`TestDigestInvalidation` (`test/test_campionamenti_views.py`,
+`test/test_prelievi_views.py`, `test/test_piano_di_taglio_views.py`)
+lock the contract: each test performs a write and re-reads the affected
+digest via the public endpoint, asserting that materialized columns
+reflect the change.  Add equivalent tests for any new write/digest pair.
 
 Read path (conditional GET for a digest):
 1. Check stale flag for the requested digest (one PK lookup).
