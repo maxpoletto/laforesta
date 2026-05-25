@@ -647,7 +647,7 @@ function validateForm(body) {
 }
 
 function wireForm(form) {
-  wireRegionCascade(form);
+  wireCantiereSelect(form);
   wire100Buttons(form);
   wireCancelButtons(form, dismissModal);
 
@@ -681,28 +681,59 @@ function wireForm(form) {
   });
 }
 
-/** Filter parcel options when region changes. */
-function wireRegionCascade(form) {
-  const regionSel = form.querySelector('#id_region');
+function renderFlagNote(opt) {
+  const parts = [];
+  if (opt.dataset.damaged === '1') parts.push(S.FLAG_DAMAGED);
+  if (opt.dataset.unhealthy === '1') parts.push(S.FLAG_UNHEALTHY);
+  if (opt.dataset.psr === '1') parts.push(S.FLAG_PSR);
+  return parts.join(', ');
+}
+
+/** Wire Cantiere pulldown: toggle parcel group, filter parcels, show flags. */
+function wireCantiereSelect(form) {
+  const cantiereSel = form.querySelector('#id_cantiere');
+  const parcelGroup = form.querySelector('#parcel-group');
   const parcelSel = form.querySelector('#id_parcel');
-  if (!regionSel || !parcelSel) return;
+  const flagsDisplay = form.querySelector('#cantiere-flags-display');
+  const flagsSpan = form.querySelector('#cantiere-flags');
+  if (!cantiereSel) return;
 
-  const allOptions = [...parcelSel.querySelectorAll('option')];
+  const allParcelOpts = parcelSel
+    ? [...parcelSel.querySelectorAll('option')]
+    : [];
 
-  function filterParcels() {
-    const rid = regionSel.value;
-    const current = parcelSel.value;
-    for (const opt of allOptions) opt.remove();
-    for (const opt of allOptions) {
-      if (opt.dataset.region === rid) parcelSel.appendChild(opt);
+  function update() {
+    const opt = cantiereSel.selectedOptions[0];
+    const hasValue = opt && opt.value;
+
+    if (flagsDisplay && flagsSpan) {
+      const note = hasValue ? renderFlagNote(opt) : '';
+      flagsSpan.textContent = note || '—';
+      flagsDisplay.hidden = !note;
     }
-    if ([...parcelSel.options].some(o => o.value === current)) {
-      parcelSel.value = current;
+
+    if (parcelGroup && parcelSel) {
+      if (!hasValue || opt.dataset.parcelId) {
+        parcelGroup.hidden = true;
+      } else {
+        parcelGroup.hidden = false;
+        const regionId = opt.dataset.regionId;
+        const current = parcelSel.value;
+        for (const o of allParcelOpts) o.remove();
+        for (const o of allParcelOpts) {
+          if (!o.value || o.dataset.region === regionId) {
+            parcelSel.appendChild(o);
+          }
+        }
+        if (![...parcelSel.options].some(o => o.value === current)) {
+          parcelSel.value = '';
+        }
+      }
     }
   }
 
-  regionSel.addEventListener('change', filterParcels);
-  filterParcels();
+  cantiereSel.addEventListener('change', update);
+  update();
 }
 
 /** Wire the "100%" quick-set buttons for species/tractor percentages. */
