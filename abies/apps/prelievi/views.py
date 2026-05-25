@@ -14,6 +14,7 @@ from decimal import Decimal, InvalidOperation
 
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
+from django.db.models import Sum
 from django.http import JsonResponse
 from django.template.loader import render_to_string
 from django.views.decorators.http import require_POST
@@ -109,7 +110,6 @@ def save_view(request):
 
     parsed[FIELD_VOLUME_M3] = _compute_volume_m3(parsed[FIELD_MASS_Q], sp_pcts)
 
-    item_updated = None  # set when state auto-advances open -> harvesting
     with transaction.atomic():
         if row_id:
             op = _update_op(row_id, parsed, body, request)
@@ -123,9 +123,10 @@ def save_view(request):
                 item.state = HarvestPlanItemState.HARVESTING
                 item.version += 1
                 item.save()
-                item_updated = item
 
         _write_junctions(op, sp_pcts, tr_pcts)
+        if op.harvest_plan_item_id is not None:
+            _rematerialize_volume_actual(op.harvest_plan_item_id)
         stale = ['prelievi', 'parcel_year_production', 'audit']
         if op.harvest_plan_item_id is not None:
             stale.append('harvest_plan_items')
@@ -136,11 +137,11 @@ def save_view(request):
     ).get(id=op.id)
     record = build_harvest_record(op)
     response_data = {DATA_ID: 'prelievi', ROW_ID: op.id, RECORD: record}
-    if item_updated is not None:
+    if op.harvest_plan_item_id is not None:
         item_fresh = (HarvestPlanItem.objects
                       .select_related('parcel__region', 'parcel__eclass',
                                       'region', 'harvest_plan')
-                      .get(id=item_updated.id))
+                      .get(id=op.harvest_plan_item_id))
         response_data[ITEM_RECORD] = build_harvest_plan_item_record(item_fresh)
 
     nonce = body.get(FIELD_NONCE)
@@ -177,15 +178,23 @@ def delete_view(request):
             DATA_ID: 'prelievi', ROW_ID: row_id, RECORD: record,
         }, status=400)
 
-    had_item = op.harvest_plan_item_id is not None
+    had_item_id = op.harvest_plan_item_id
     with transaction.atomic():
         op.delete()
+        if had_item_id is not None:
+            _rematerialize_volume_actual(had_item_id)
         stale = ['prelievi', 'parcel_year_production', 'audit']
-        if had_item:
+        if had_item_id is not None:
             stale.append('harvest_plan_items')
         mark_stale(*stale)
 
     response_data = {DATA_ID: 'prelievi', ROW_ID: row_id}
+    if had_item_id is not None:
+        item_fresh = (HarvestPlanItem.objects
+                      .select_related('parcel__region', 'parcel__eclass',
+                                      'region', 'harvest_plan')
+                      .get(id=had_item_id))
+        response_data[ITEM_RECORD] = build_harvest_plan_item_record(item_fresh)
     nonce = body.get(FIELD_NONCE)
     if nonce:
         save_nonce(nonce, request.user, response_data)
@@ -195,6 +204,16 @@ def delete_view(request):
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
+def _rematerialize_volume_actual(item_id: int) -> None:
+    """Recompute volume_actual_m3 on the linked HarvestPlanItem."""
+    total = (Harvest.objects
+             .filter(harvest_plan_item_id=item_id)
+             .aggregate(s=Sum('volume_m3'))['s']) or 0
+    HarvestPlanItem.objects.filter(id=item_id).update(
+        volume_actual_m3=total,
+    )
+
 
 def _open_cantieri():
     """Items currently in state ``open`` or ``harvesting``.

@@ -655,6 +655,9 @@ function wireForm(form) {
     validate: validateForm,
     onSuccess(data, isSaveAndAdd) {
       cache.updateRow(DATA_ID, data.row_id, data.record);
+      if (data.item_record) {
+        cache.updateRow('harvest_plan_items', data.item_record[0], data.item_record);
+      }
       dismissModal();
       if (isSaveAndAdd) {
         showAddForm();
@@ -745,6 +748,9 @@ async function confirmDelete(rowId) {
 
   if (resp.status === 200) {
     cache.removeRow(DATA_ID, rowId);
+    if (resp.data.item_record) {
+      cache.updateRow('harvest_plan_items', resp.data.item_record[0], resp.data.item_record);
+    }
     if (table) table.setData(cache.get(DATA_ID));
     return;
   }
