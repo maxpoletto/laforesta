@@ -8,6 +8,7 @@
 export const LOADING = 'Caricamento...';
 export const DISMISS = 'Chiudi';
 export const SAVE = 'Salva';
+export const SAVE_AND_CONTINUE = 'Salva e continua';
 export const DELETE_CONFIRM = 'I dati cancellati non potranno essere recuperati. Confermi?';
 export const CANCEL = 'Annulla';
 export const CONFIRM = 'Conferma';
@@ -352,6 +353,9 @@ export const COL_TURNO_A              = 'Turno (a)';
 export const COL_OPERATOR             = 'Operatore';
 export const COL_NUMERO               = 'Numero';
 export const COL_H_MEASURED           = 'h misurata';
+export const COL_FUNCTION             = 'funzione';
+export const COL_A                    = 'a';
+export const COL_B                    = 'b';
 
 // View/edit-item page.
 export const VIEW_ITEM_TITLE     = 'Intervento';

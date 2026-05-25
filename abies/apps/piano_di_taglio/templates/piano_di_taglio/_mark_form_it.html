@@ -1,0 +1,76 @@
+{% comment %}
+Manual tree-mark entry form.
+
+Two modes:
+  - New (no tm): "Nuovo albero martellato" — all fields editable.
+  - Edit (tm): "Modifica albero martellato" — all fields editable,
+    pre-populated from the existing mark.
+
+The shared measurement fields (species, D/h, V/m preview, lat/lon) are
+in base/_tree_fields.html.  This template adds the mark-specific header
+(Compresa/Particella), Date/Operator row, and h_measured hidden field.
+
+h(m) is auto-computed from the ipsometric regression when available;
+the h_measured flag is set implicitly if the user edits h manually
+(handled in JS, not a visible checkbox).
+{% endcomment %}
+<div class="form-card">
+  <form id="pdt-mark-form">
+    <h2>
+      {% if tm %}Modifica albero martellato{% else %}Nuovo albero martellato{% endif %}
+    </h2>
+
+    <input type="hidden" name="row_id" value="{{ tm.id|default_if_none:'' }}">
+    <input type="hidden" name="version" value="{{ tm.version|default:0 }}">
+    <input type="hidden" name="harvest_plan_item_id" value="{{ item.id }}">
+    <input type="hidden" name="h_measured" id="tf-h-measured" value="{% if tm.h_measured %}1{% else %}0{% endif %}">
+
+    <div class="form-readonly-flat">
+      <div>
+        <span class="label">Compresa:</span> {{ compresa }}
+      </div>
+      {% if parcel_choices %}
+        <div class="form-group narrow">
+          <label for="tf-parcel">Particella</label>
+          <select id="tf-parcel" name="parcel_id" required>
+            {% for p in parcel_choices %}
+              <option value="{{ p.id }}"
+                      {% if p.id == selected_parcel_id %}selected{% endif %}>
+                {{ p.name }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+      {% else %}
+        <div>
+          <span class="label">Particella:</span> {{ particella }}
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="form-row narrow">
+      <div class="form-group">
+        <label for="tf-date">Data</label>
+        <input type="date" id="tf-date" name="date" required
+               value="{{ date }}">
+      </div>
+      <div class="form-group">
+        <label for="tf-operator">Operatore</label>
+        <input type="text" id="tf-operator" name="operator" required
+               value="{{ operator }}">
+      </div>
+    </div>
+
+    {% include "base/_tree_fields.html" %}
+
+    <div class="form-actions">
+      <button type="button" class="btn" data-action="cancel">Annulla</button>
+      <button type="submit" class="btn btn-primary" data-action="save">Salva</button>
+      {% if not tm %}
+        <button type="submit" class="btn btn-primary" data-action="save-and-add">
+          Salva e continua
+        </button>
+      {% endif %}
+    </div>
+  </form>
+</div>

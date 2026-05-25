@@ -6,29 +6,13 @@ Two top-level branches:
     species defaults to S.SPECIES_DEFAULT_FUSTAIA / _CEDUO by parcel
     eclass.coppice, ceduo checkbox follows fustaia_default.
   - Edit tree (ts): "Modifica albero campione" — N. albero, Specie,
-    Ceduo are read-only (rendered as static text + hidden inputs to
-    preserve the wire format); Data, D/h/L10, lat/lon, PAI remain
-    editable.  "Salva e continua" is suppressed (batch-entry only).
+    Ceduo are read-only; Data, D/h/L10, lat/lon, PAI remain editable.
+    "Salva e continua" is suppressed (batch-entry only).
 
-Sample date lives on the parent Sample row, one per (survey, area).
-The Data input here mirrors that value and lets the user change it;
-on save, tree_save_view bumps Sample.date if it differs.  This
-replaces the legacy inline date selector above the alberi table.
-
-Fustaia / ceduo gating: the "Ceduo" checkbox toggles which subblock
-(.tree-fustaia-fields vs .tree-coppice-block) is visible and which
-inputs submit.  Disabled inputs aren't submitted, so the toggle
-disables the inactive side rather than removing it.  On edit, the
-checkbox is rendered as a hidden mirror so wireCeduoToggle still
-applies the right visibility — see {% if ts %} branch below.
-
-The `fustaia` POST field uses the hidden+checkbox idiom: a hidden
-"true" carries the default; a checked checkbox overrides to "false".
-Server-side parsing is unchanged.
-
-"Numero albero" pulldown drives cross-sample tree identity on the
-New path (picking a prior tree reuses its id and locks lat/lon to
-that tree's values).  See docs/pages/campionamenti.md.
+The shared measurement fields (species, D/h/L10, V/m preview, lat/lon)
+are in base/_tree_fields.html.  This template adds the campionamenti-
+specific header (Compresa/Particella/AdS), N. albero pulldown, and
+coppice block.
 {% endcomment %}
 <div class="form-card">
   <form id="campionamenti-tree-form">
@@ -80,84 +64,13 @@ that tree's values).  See docs/pages/campionamenti.md.
         {% endif %}
       </div>
       <div class="form-group narrow">
-        <label for="id_date">Data</label>
-        <input type="date" id="id_date" name="date" required
+        <label for="tf-date">Data</label>
+        <input type="date" id="tf-date" name="date" required
                value="{{ sample_date|date:'Y-m-d' }}">
       </div>
     </div>
 
-    <div class="form-row narrow">
-      <div class="form-group">
-        <label for="id_species">Specie</label>
-        {% if ts %}
-          <span class="readonly-field">{{ tree.species.common_name }}</span>
-          <input type="hidden" name="species_id" id="id_species"
-                 value="{{ tree.species_id }}"
-                 data-density="{{ tree.species.density }}"
-                 data-name="{{ tree.species.common_name }}">
-        {% else %}
-          <select id="id_species" name="species_id" required>
-            {% for sp in species %}
-              <option value="{{ sp.id }}"
-                      data-density="{{ sp.density }}"
-                      data-name="{{ sp.common_name }}"
-                      {% if sp.id == default_species_id %}selected{% endif %}>
-                {{ sp.common_name }}
-              </option>
-            {% endfor %}
-          </select>
-        {% endif %}
-      </div>
-      <div class="form-group">
-        {% if ts %}
-          <label>Ceduo</label>
-          <span class="readonly-field">{% if tree.coppice %}Sì{% else %}No{% endif %}</span>
-          <input type="hidden" name="fustaia"
-                 value="{% if tree.coppice %}false{% else %}true{% endif %}">
-          <input type="checkbox" id="id_ceduo"
-                 {% if tree.coppice %}checked{% endif %} hidden>
-        {% else %}
-          <label>
-            <input type="hidden" name="fustaia" value="true">
-            <input type="checkbox" name="fustaia" value="false" id="id_ceduo"
-                   {% if not fustaia_default %}checked{% endif %}>
-            Ceduo
-          </label>
-        {% endif %}
-      </div>
-      <div class="form-group">
-        <label>
-          <input type="hidden" name="preserved" value="">
-          <input type="checkbox" name="preserved" value="true"
-                 {% if tree and tree.preserved %}checked{% endif %}>
-          PAI
-        </label>
-      </div>
-    </div>
-
-    <div class="tree-fustaia-fields">
-      <div class="form-row narrow">
-        <div class="form-group">
-          <label for="id_d_cm">D (cm)</label>
-          <input type="number" id="id_d_cm" name="d_cm" min="1" step="1"
-                 value="{{ ts.d_cm|default_if_none:'' }}">
-        </div>
-        <div class="form-group">
-          <label for="id_h_m">h (m)</label>
-          <input type="number" id="id_h_m" name="h_m" min="0.1" step="0.01"
-                 value="{{ ts.h_m|default_if_none:'' }}">
-        </div>
-        <div class="form-group">
-          <label for="id_l10_mm">L10 (mm)</label>
-          <input type="number" id="id_l10_mm" name="l10_mm" min="0" step="1"
-                 value="{{ ts.l10_mm|default:0 }}">
-        </div>
-      </div>
-
-      <div class="tree-form-preview-row">
-        <span class="tree-form-preview" id="tree-form-vm-preview" hidden></span>
-      </div>
-    </div>
+    {% include "base/_tree_fields.html" %}
 
     <div class="tree-coppice-block" hidden>
       <p class="form-help">
@@ -191,22 +104,6 @@ that tree's values).  See docs/pages/campionamenti.md.
         </button>
       {% endif %}
     </div>
-
-    <div class="form-row narrow">
-      <div class="form-group">
-        <label for="id_lat">Lat</label>
-        <input type="number" id="id_lat" name="lat" step="any"
-               value="{% if tree %}{{ tree.lat|default_if_none:area.lat }}{% else %}{{ area.lat }}{% endif %}">
-      </div>
-      <div class="form-group">
-        <label for="id_lon">Lon</label>
-        <input type="number" id="id_lon" name="lon" step="any"
-               value="{% if tree %}{{ tree.lon|default_if_none:area.lon }}{% else %}{{ area.lon }}{% endif %}">
-      </div>
-    </div>
-
-    <input type="hidden" name="volume_m3" id="tree-form-volume-m3" value="">
-    <input type="hidden" name="mass_q" id="tree-form-mass-q" value="">
 
     <div class="form-actions">
       <button type="button" class="btn" data-action="cancel">Annulla</button>

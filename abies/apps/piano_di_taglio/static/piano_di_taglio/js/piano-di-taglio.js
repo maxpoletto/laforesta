@@ -15,13 +15,18 @@ import {
   show as showModal, showError, dismiss as dismissModal,
 } from '../../base/js/modals.js';
 import { fetchJSON, postJSON, postFormData } from '../../base/js/api.js';
-import { interceptSubmit, wireCancelButtons, showFormError } from '../../base/js/forms.js';
+import {
+  fetchModalForm, interceptSubmit, wireCancelButtons, showFormError,
+} from '../../base/js/forms.js';
 import {
   mkRow, mkInput, mkTextarea, mkFileInput, mkFormActions,
   mkStatusBox, mkErrorsBox, renderCsvErrors,
   mkCollapsible, mkEditDeleteIcons,
 } from '../../base/js/form-widgets.js';
-import { tabacchiVolumeM3, massQ } from '../../base/js/volume.js';
+import {
+  wireVMPreview, ID_D_CM, ID_H_M, ID_SPECIES, ID_LAT, ID_LON,
+} from '../../base/js/tree-form.js';
+import { mountUseLocationButton } from '../../base/js/latlng-input.js';
 import * as S from '../../base/js/strings.js';
 import { ROW_ID, VERSION } from '../../base/js/constants.js';
 import {
@@ -50,6 +55,7 @@ const ITEM_DELETE_URL = '/api/piano-di-taglio/item/delete/';
 const ITEM_EXPORT_URL = '/api/piano-di-taglio/item/export/';
 const TRANSITION_SAVE_URL = '/api/piano-di-taglio/transition/save/';
 const MARK_TREES_URL = '/api/piano-di-taglio/mark-trees/';
+const MARK_FORM_URL = '/api/piano-di-taglio/mark/form/';
 const MARK_SAVE_URL = '/api/piano-di-taglio/mark/save/';
 const MARK_DELETE_URL = '/api/piano-di-taglio/mark/delete/';
 const MARK_CSV_IMPORT_URL = '/api/piano-di-taglio/mark/import-csv/';
@@ -1690,7 +1696,7 @@ function showTransitionForm(itemId, openFlag) {
   showModal(frag);
 }
 
-// --- Martellata sub-section (PT-80+) ---
+// --- Martellata sub-section ---
 
 function markTreesDataId(itemId) {
   return `mark_trees_${itemId}`;
@@ -1802,11 +1808,211 @@ function buildMarkTreeColumnDefs(columns) {
   return defs;
 }
 
-// Stubs for mark form actions — implemented in PT-81/82/84.
-function showNewMarkForm(itemId) { /* PT-81 */ }
-function showImportMarksForm(itemId) { /* PT-82 */ }
-function showEditMarkForm(itemId, rowId) { /* PT-84 */ }
-function deleteMarkRow(itemId, rowId, version) { /* PT-84 */ }
+// --- Mark form (template-based, shared wireVMPreview) ---
+
+function findRegressions(itemId) {
+  if (!regressionsData?.rows || !itemsData?.columns) return null;
+  const c = itemsData.columns;
+  const row = itemsData.rows.find(r => r[c.indexOf(ROW_ID)] === itemId);
+  if (!row) return null;
+  const planId = row[c.indexOf(S.COL_HARVEST_PLAN)];
+  const compresa = row[c.indexOf(S.COL_COMPRESA)];
+  const rc = regressionsData.columns;
+  return regressionsData.rows.filter(
+    r => r[rc.indexOf(S.COL_HARVEST_PLAN)] === planId
+      && r[rc.indexOf(S.COL_COMPRESA)] === compresa,
+  );
+}
+
+function wireRegressionAutoH(form, regressions) {
+  if (!regressions?.length) return;
+  const d = form.querySelector(`#${ID_D_CM}`);
+  const h = form.querySelector(`#${ID_H_M}`);
+  const sp = form.querySelector(`#${ID_SPECIES}`);
+  const hMeasHidden = form.querySelector('#tf-h-measured');
+  if (!d || !h || !sp) return;
+
+  const rc = regressionsData.columns;
+  let userEditedH = hMeasHidden?.value === '1';
+
+  function autoFillH() {
+    if (userEditedH) return;
+    const dCm = parseFloat(d.value);
+    const opt = sp.options[sp.selectedIndex];
+    const speciesName = opt?.dataset.name;
+    if (!speciesName || !(dCm > 0)) return;
+    const reg = regressions.find(
+      r => r[rc.indexOf(S.COL_SPECIES)] === speciesName,
+    );
+    if (!reg) return;
+    const fn = reg[rc.indexOf(S.COL_FUNCTION)];
+    const a = reg[rc.indexOf(S.COL_A)];
+    const b = reg[rc.indexOf(S.COL_B)];
+    let hVal = null;
+    if (fn === 'ln' && dCm > 0) hVal = a * Math.log(dCm) + b;
+    if (hVal != null && hVal > 0) {
+      h.value = hVal.toFixed(2);
+      h.dispatchEvent(new Event('input'));
+      if (hMeasHidden) hMeasHidden.value = '0';
+    }
+  }
+
+  h.addEventListener('input', () => {
+    userEditedH = true;
+    if (hMeasHidden) hMeasHidden.value = '1';
+  });
+  d.addEventListener('input', autoFillH);
+  sp.addEventListener('change', () => { userEditedH = false; autoFillH(); });
+  autoFillH();
+}
+
+async function wireMarkForm(form, itemId) {
+  if (!regressionsData) {
+    try { regressionsData = await cache.load(REGRESSIONS_ID); }
+    catch { /* regressions unavailable — auto-h won't work */ }
+  }
+  const regressions = findRegressions(itemId);
+  wireVMPreview(form);
+  wireRegressionAutoH(form, regressions);
+  mountUseLocationButton(
+    form.querySelector(`#${ID_LAT}`),
+    form.querySelector(`#${ID_LON}`),
+    { appendTo: form.querySelector(`#${ID_LON}`)?.closest('.form-row') },
+  );
+  wireCancelButtons(form, dismissModal);
+  interceptSubmit(form, MARK_SAVE_URL, {
+    onSuccess(data, isSaveAndAdd) {
+      _applyMarkSaveResponse(data, itemId);
+      dismissModal();
+      if (isSaveAndAdd) {
+        showNewMarkForm(itemId);
+      } else {
+        renderItemView(itemId);
+      }
+    },
+    onConflict(data) {
+      if (data.message) showFormError(form, data.message);
+    },
+    onValidationError(data) {
+      if (data.message) showFormError(form, data.message);
+    },
+  });
+}
+
+async function showNewMarkForm(itemId) {
+  const url = `${MARK_FORM_URL}?item=${itemId}`;
+  const form = await fetchModalForm(url);
+  if (!form) return;
+  wireMarkForm(form, itemId);
+}
+
+async function showEditMarkForm(itemId, rowId) {
+  const url = `${MARK_FORM_URL}${rowId}/`;
+  const form = await fetchModalForm(url);
+  if (!form) return;
+  wireMarkForm(form, itemId);
+}
+
+async function showImportMarksForm(itemId) {
+  const frag = document.createDocumentFragment();
+  const card = document.createElement('div');
+  card.className = 'form-card';
+  frag.appendChild(card);
+
+  const h2 = document.createElement('h2');
+  h2.textContent = S.IMPORT_MARKS_TITLE;
+  card.appendChild(h2);
+
+  const form = document.createElement('form');
+  card.appendChild(form);
+
+  const row1 = mkRow(form);
+  mkFileInput(row1, {
+    id: 'mark-csv-file', name: 'file', label: S.LABEL_CSV_FILE,
+    accept: '.csv',
+  });
+
+  const statusBox = mkStatusBox(form);
+  const errorsBox = mkErrorsBox(form);
+
+  mkFormActions(form, {
+    onCancel: dismissModal,
+    submitLabel: S.IMPORT_LABEL,
+  });
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fileInput = form.querySelector('#mark-csv-file');
+    if (!fileInput?.files?.length) {
+      showFormError(form, S.ERR_CSV_FILE_REQUIRED);
+      return;
+    }
+    statusBox.textContent = S.CSV_IMPORT_IN_PROGRESS;
+    statusBox.hidden = false;
+    errorsBox.hidden = true;
+
+    const fd = new FormData();
+    fd.append('harvest_plan_item_id', String(itemId));
+    fd.append('file', fileInput.files[0]);
+
+    try {
+      const { data, status } = await postFormData(MARK_CSV_IMPORT_URL, fd);
+      if (status !== 200) {
+        statusBox.hidden = true;
+        if (data?.errors) {
+          renderCsvErrors(errorsBox, data.errors);
+        } else {
+          showFormError(form, data?.message || S.ERROR_GENERIC);
+        }
+        return;
+      }
+      if (data.item_record) {
+        cache.updateRow(ITEMS_ID, data.item_record[0], data.item_record);
+        itemsData = cache.get(ITEMS_ID);
+      }
+      dismissModal();
+      renderItemView(itemId);
+    } catch {
+      statusBox.hidden = true;
+      showFormError(form, S.ERROR_NETWORK);
+    }
+  });
+
+  showModal(frag);
+}
+
+async function deleteMarkRow(itemId, rowId, version) {
+  if (!confirm(S.DELETE_CONFIRM)) return;
+  try {
+    const { data, status } = await postJSON(MARK_DELETE_URL, {
+      row_id: rowId, version, nonce: crypto.randomUUID(),
+    });
+    if (status !== 200) {
+      showError(data?.message || S.ERROR_GENERIC);
+      return;
+    }
+    const dataId = markTreesDataId(itemId);
+    cache.removeRow(dataId, rowId);
+    if (data.item_record) {
+      cache.updateRow(ITEMS_ID, data.item_record[0], data.item_record);
+      itemsData = cache.get(ITEMS_ID);
+    }
+    renderItemView(itemId);
+  } catch {
+    showError(S.ERROR_NETWORK);
+  }
+}
+
+function _applyMarkSaveResponse(data, itemId) {
+  const dataId = markTreesDataId(itemId);
+  if (data.record) {
+    cache.updateRow(dataId, data.row_id, data.record);
+  }
+  if (data.item_record) {
+    cache.updateRow(ITEMS_ID, data.item_record[0], data.item_record);
+    itemsData = cache.get(ITEMS_ID);
+  }
+}
 
 // --- Prelievi sub-section ---
 

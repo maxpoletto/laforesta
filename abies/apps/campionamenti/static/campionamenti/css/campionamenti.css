@@ -64,15 +64,6 @@
   gap: 4px 16px;
 }
 
-.tree-form-preview-row {
-  margin: 4px 0 12px;
-}
-
-.tree-form-preview {
-  font-style: italic;
-  color: #555;
-}
-
 /* Indented per-shoot block shown when "Fustaia" is unchecked.
  * Each .coppice-shoot-row stacks horizontally on desktop; on narrow
  * screens it wraps via the inputs' own min-widths. */

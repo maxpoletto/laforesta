@@ -50,4 +50,16 @@ urlpatterns = [
     # Apri / Chiudi cantiere.
     path('transition/save/', views.transition_save_view,
          name='piano-di-taglio-transition-save'),
+
+    # Tree-mark form + CRUD + CSV import.
+    path('mark/form/', views.mark_form_view,
+         name='piano-di-taglio-mark-form-add'),
+    path('mark/form/<int:mark_id>/', views.mark_form_view,
+         name='piano-di-taglio-mark-form-edit'),
+    path('mark/save/', views.mark_save_view,
+         name='piano-di-taglio-mark-save'),
+    path('mark/delete/', views.mark_delete_view,
+         name='piano-di-taglio-mark-delete'),
+    path('mark/import-csv/', views.mark_csv_import_view,
+         name='piano-di-taglio-mark-import-csv'),
 ]

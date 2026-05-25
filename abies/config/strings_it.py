@@ -190,6 +190,18 @@ ERR_CSV_ROW_AREA_DUPLICATE = (
 ERR_CSV_DATE_REQUIRED = (
     'Il file CSV non ha una colonna "Data": indicare una data predefinita.'
 )
+ERR_MARK_SPECIES_REQUIRED = 'Specie obbligatoria.'
+ERR_MARK_D_REQUIRED = 'D obbligatorio (intero > 0).'
+ERR_MARK_H_REQUIRED = 'h obbligatoria (> 0).'
+ERR_MARK_OPERATOR_REQUIRED = 'Operatore obbligatorio.'
+ERR_MARK_DATE_REQUIRED = 'Data obbligatoria.'
+ERR_MARK_VOLUME_REQUIRED = 'Volume obbligatorio (> 0).'
+ERR_MARK_MASS_REQUIRED = 'Massa obbligatoria (> 0).'
+ERR_MARK_ITEM_CLOSED = 'Il cantiere è chiuso: aggiunta non consentita.'
+ERR_MARK_PARCEL_REQUIRED = 'Particella obbligatoria per interventi a livello di compresa.'
+ERR_MARK_PARCEL_NOT_IN_REGION = (
+    'La particella non appartiene alla compresa dell\'intervento.'
+)
 
 # ---------------------------------------------------------------------------
 # CSV column headers.  These are simultaneously the wire-format identifiers

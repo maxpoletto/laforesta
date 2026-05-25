@@ -240,7 +240,7 @@ class TestTreeForm:
         html = resp.json()[HTML]
         import re
         match = re.search(
-            r'<input[^>]*id="id_species"[^>]*>', html,
+            r'<input[^>]*id="tf-species"[^>]*>', html,
         )
         assert match is not None
         tag = match.group(0)
@@ -545,7 +545,7 @@ class TestTreeFormPriorTrees:
             f'&area={coppice_area.id}'
         )
         html = resp.json()[HTML]
-        idx = html.find('id="id_ceduo"')
+        idx = html.find('id="tf-ceduo"')
         assert idx >= 0
         tag = html[max(0, idx - 200):idx + 200]
         assert 'checked' in tag
@@ -561,7 +561,7 @@ class TestTreeFormPriorTrees:
             f'&area={sample_setup["area"].id}'
         )
         html = resp.json()[HTML]
-        idx = html.find('id="id_ceduo"')
+        idx = html.find('id="tf-ceduo"')
         assert idx >= 0
         tag = html[max(0, idx - 200):idx + 200]
         assert 'checked' not in tag

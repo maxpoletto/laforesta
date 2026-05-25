@@ -17,20 +17,23 @@ from django.test import Client
 
 from apps.base.models import (
     DigestStatus, HarvestPlan, HarvestPlanItem, HarvestPlanItemState,
-    HarvestTransition, ParcelPlanDetail, TreeHeightRegression,
+    HarvestTransition, ParcelPlanDetail, Tree, TreeHeightRegression,
+    TreeMark,
 )
 from config import strings as S
 from config.constants import (
-    COLUMNS, DATA_ID, FIELD_CEDUO_FILE, FIELD_CREW_ID, FIELD_DAMAGED,
-    FIELD_DATE, FIELD_DESCRIPTION, FIELD_FUSTAIA_FILE,
+    COLUMNS, DATA_ID, FIELD_ACC_M, FIELD_CEDUO_FILE, FIELD_CREW_ID,
+    FIELD_D_CM, FIELD_DAMAGED, FIELD_DATE, FIELD_DESCRIPTION,
+    FIELD_FILE, FIELD_FUSTAIA_FILE, FIELD_H_M, FIELD_H_MEASURED,
     FIELD_HARVEST_PLAN_ID, FIELD_HARVEST_PLAN_ITEM_ID,
-    FIELD_INTERVENTION_AREA_HA, FIELD_MASS_Q, FIELD_NAME, FIELD_NONCE,
-    FIELD_NOTE, FIELD_OPEN, FIELD_PARCEL_ID, FIELD_PRODUCT_ID,
-    FIELD_PSR, FIELD_REGION_ID, FIELD_REGRESSION_FILE, FIELD_UNHEALTHY,
-    FIELD_VOLUME_PLANNED_M3, FIELD_YEAR_END, FIELD_YEAR_PLANNED,
-    FIELD_YEAR_START, HTML, MESSAGE, RECORD, ROW_ID, ROWS,
-    STATUS, STATUS_CONFLICT, STATUS_VALIDATION_ERROR,
-    TRANSITION_RECORDS, VERSION,
+    FIELD_INTERVENTION_AREA_HA, FIELD_LAT, FIELD_LON, FIELD_MASS_Q,
+    FIELD_NAME, FIELD_NONCE, FIELD_NOTE, FIELD_OPEN, FIELD_OPERATOR,
+    FIELD_PARCEL_ID, FIELD_PRODUCT_ID, FIELD_PSR, FIELD_REGION_ID,
+    FIELD_REGRESSION_FILE, FIELD_SPECIES_ID, FIELD_UNHEALTHY,
+    FIELD_VOLUME_M3, FIELD_VOLUME_PLANNED_M3, FIELD_YEAR_END,
+    FIELD_YEAR_PLANNED, FIELD_YEAR_START, HTML, ITEM_RECORD, MESSAGE,
+    RECORD, ROW_ID, ROWS, STATUS, STATUS_CONFLICT,
+    STATUS_VALIDATION_ERROR, TRANSITION_RECORDS, VERSION,
 )
 
 
@@ -758,3 +761,278 @@ class TestDigestInvalidation:
             f'harvest_plan_items digest should reflect state change '
             f'(was {state_before}, now {state_after})'
         )
+
+
+# ---------------------------------------------------------------------------
+# Tree-mark CRUD (PT-81 / PT-84)
+# ---------------------------------------------------------------------------
+
+class TestMarkSave:
+    SAVE_URL = '/api/piano-di-taglio/mark/save/'
+    DELETE_URL = '/api/piano-di-taglio/mark/delete/'
+
+    def _mark_body(self, item, species, **overrides):
+        body = {
+            FIELD_HARVEST_PLAN_ITEM_ID: item.id,
+            FIELD_SPECIES_ID: species.id,
+            FIELD_D_CM: 30,
+            FIELD_H_M: '20.0',
+            FIELD_H_MEASURED: False,
+            FIELD_VOLUME_M3: '0.7022',
+            FIELD_MASS_Q: '0.56',
+            FIELD_LAT: 38.5,
+            FIELD_LON: 16.3,
+            FIELD_OPERATOR: 'Mario',
+            FIELD_DATE: '2025-06-01',
+            FIELD_NONCE: 'test-nonce-1',
+        }
+        body.update(overrides)
+        return body
+
+    def test_create_mark(self, writer_client, planned_item, species):
+        sp = species[0]
+        resp = writer_client.post(
+            self.SAVE_URL,
+            data=json.dumps(self._mark_body(planned_item, sp)),
+            content_type='application/json',
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert RECORD in data
+        assert ITEM_RECORD in data
+        assert TreeMark.objects.count() == 1
+        tm = TreeMark.objects.first()
+        assert tm.d_cm == 30
+        assert tm.operator == 'Mario'
+
+    def test_create_auto_advances_to_marked(
+        self, writer_client, planned_item, species,
+    ):
+        assert planned_item.state == HarvestPlanItemState.PLANNED
+        writer_client.post(
+            self.SAVE_URL,
+            data=json.dumps(self._mark_body(planned_item, species[0])),
+            content_type='application/json',
+        )
+        planned_item.refresh_from_db()
+        assert planned_item.state == HarvestPlanItemState.MARKED
+
+    def test_create_materializes_volume(
+        self, writer_client, planned_item, species,
+    ):
+        writer_client.post(
+            self.SAVE_URL,
+            data=json.dumps(self._mark_body(
+                planned_item, species[0],
+                **{FIELD_VOLUME_M3: '1.500'},
+            )),
+            content_type='application/json',
+        )
+        planned_item.refresh_from_db()
+        assert planned_item.volume_marked_m3 == Decimal('1.500')
+
+    def test_update_mark(self, writer_client, planned_item, species):
+        sp = species[0]
+        resp = writer_client.post(
+            self.SAVE_URL,
+            data=json.dumps(self._mark_body(planned_item, sp)),
+            content_type='application/json',
+        )
+        tm_id = resp.json()[ROW_ID]
+        version = resp.json()[RECORD][1]
+        resp2 = writer_client.post(
+            self.SAVE_URL,
+            data=json.dumps(self._mark_body(
+                planned_item, sp,
+                **{ROW_ID: tm_id, VERSION: version, FIELD_D_CM: 40,
+                   FIELD_NONCE: 'test-nonce-2'},
+            )),
+            content_type='application/json',
+        )
+        assert resp2.status_code == 200
+        tm = TreeMark.objects.get(id=tm_id)
+        assert tm.d_cm == 40
+
+    def test_delete_mark(self, writer_client, planned_item, species):
+        resp = writer_client.post(
+            self.SAVE_URL,
+            data=json.dumps(self._mark_body(planned_item, species[0])),
+            content_type='application/json',
+        )
+        tm_id = resp.json()[ROW_ID]
+        version = resp.json()[RECORD][1]
+        resp2 = writer_client.post(
+            self.DELETE_URL,
+            data=json.dumps({ROW_ID: tm_id, VERSION: version}),
+            content_type='application/json',
+        )
+        assert resp2.status_code == 200
+        assert TreeMark.objects.count() == 0
+        assert Tree.objects.count() == 0
+
+    def test_delete_closed_rejected(self, writer_client, planned_item, species):
+        resp = writer_client.post(
+            self.SAVE_URL,
+            data=json.dumps(self._mark_body(planned_item, species[0])),
+            content_type='application/json',
+        )
+        tm_id = resp.json()[ROW_ID]
+        version = resp.json()[RECORD][1]
+        planned_item.state = HarvestPlanItemState.CLOSED
+        planned_item.version += 1
+        planned_item.save()
+        resp2 = writer_client.post(
+            self.DELETE_URL,
+            data=json.dumps({ROW_ID: tm_id, VERSION: version}),
+            content_type='application/json',
+        )
+        assert resp2.status_code == 400
+
+    def test_create_closed_rejected(
+        self, writer_client, planned_item, species,
+    ):
+        planned_item.state = HarvestPlanItemState.CLOSED
+        planned_item.version += 1
+        planned_item.save()
+        resp = writer_client.post(
+            self.SAVE_URL,
+            data=json.dumps(self._mark_body(planned_item, species[0])),
+            content_type='application/json',
+        )
+        assert resp.status_code == 400
+
+    def test_validation_errors(self, writer_client, planned_item, species):
+        resp = writer_client.post(
+            self.SAVE_URL,
+            data=json.dumps({
+                FIELD_HARVEST_PLAN_ITEM_ID: planned_item.id,
+                FIELD_NONCE: 'x',
+            }),
+            content_type='application/json',
+        )
+        assert resp.status_code == 400
+        data = resp.json()
+        assert data[STATUS] == STATUS_VALIDATION_ERROR
+
+
+# ---------------------------------------------------------------------------
+# Tree-mark CSV import (PT-82)
+# ---------------------------------------------------------------------------
+
+class TestMarkCSVImport:
+    IMPORT_URL = '/api/piano-di-taglio/mark/import-csv/'
+
+    @staticmethod
+    def _csv_content(rows):
+        """Build an ipso-format CSV (semicolon-separated, UTF-8 BOM)."""
+        header = 'Data;Compresa;Particella;Catastrofata;Numero;Genere;D_cm;H_m;H_measured;Lat;Lon;Acc_m;Operatore'
+        lines = [header]
+        for r in rows:
+            lines.append(';'.join(str(x) for x in r))
+        return ('﻿' + '\r\n'.join(lines) + '\r\n').encode('utf-8')
+
+    def test_import_basic(self, writer_client, planned_item, species, parcels):
+        sp = species[0]
+        parcel = parcels[0]
+        csv_bytes = self._csv_content([
+            ['01/06/2025', parcel.region.name, parcel.name, '0', '1',
+             sp.common_name, '30', '20,0', '0', '38.5', '16.3', '5', 'Mario'],
+        ])
+        csv_file = io.BytesIO(csv_bytes)
+        csv_file.name = 'test.csv'
+        resp = writer_client.post(
+            self.IMPORT_URL,
+            data={
+                FIELD_HARVEST_PLAN_ITEM_ID: planned_item.id,
+                FIELD_FILE: csv_file,
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data['imported'] == 1
+        assert TreeMark.objects.count() == 1
+        tm = TreeMark.objects.first()
+        assert tm.import_fingerprint is not None
+        assert tm.d_cm == 30
+
+    def test_import_dedup(self, writer_client, planned_item, species, parcels):
+        sp = species[0]
+        parcel = parcels[0]
+        row = ['01/06/2025', parcel.region.name, parcel.name, '0', '1',
+               sp.common_name, '30', '20,0', '0', '38.5', '16.3', '5', 'Mario']
+        csv_bytes = self._csv_content([row])
+        for _ in range(2):
+            csv_file = io.BytesIO(csv_bytes)
+            csv_file.name = 'test.csv'
+            writer_client.post(
+                self.IMPORT_URL,
+                data={
+                    FIELD_HARVEST_PLAN_ITEM_ID: planned_item.id,
+                    FIELD_FILE: csv_file,
+                },
+            )
+        assert TreeMark.objects.count() == 1
+
+    def test_import_auto_advances_state(
+        self, writer_client, planned_item, species, parcels,
+    ):
+        sp = species[0]
+        parcel = parcels[0]
+        csv_bytes = self._csv_content([
+            ['01/06/2025', parcel.region.name, parcel.name, '0', '1',
+             sp.common_name, '30', '20,0', '0', '38.5', '16.3', '5', 'Mario'],
+        ])
+        csv_file = io.BytesIO(csv_bytes)
+        csv_file.name = 'test.csv'
+        writer_client.post(
+            self.IMPORT_URL,
+            data={
+                FIELD_HARVEST_PLAN_ITEM_ID: planned_item.id,
+                FIELD_FILE: csv_file,
+            },
+        )
+        planned_item.refresh_from_db()
+        assert planned_item.state == HarvestPlanItemState.MARKED
+
+    def test_import_materializes_volume(
+        self, writer_client, planned_item, species, parcels,
+    ):
+        sp = species[0]
+        parcel = parcels[0]
+        csv_bytes = self._csv_content([
+            ['01/06/2025', parcel.region.name, parcel.name, '0', '1',
+             sp.common_name, '30', '20,0', '0', '38.5', '16.3', '5', 'Mario'],
+        ])
+        csv_file = io.BytesIO(csv_bytes)
+        csv_file.name = 'test.csv'
+        writer_client.post(
+            self.IMPORT_URL,
+            data={
+                FIELD_HARVEST_PLAN_ITEM_ID: planned_item.id,
+                FIELD_FILE: csv_file,
+            },
+        )
+        planned_item.refresh_from_db()
+        assert planned_item.volume_marked_m3 is not None
+        assert planned_item.volume_marked_m3 > 0
+
+    def test_import_closed_rejected(
+        self, writer_client, planned_item, species, parcels,
+    ):
+        planned_item.state = HarvestPlanItemState.CLOSED
+        planned_item.version += 1
+        planned_item.save()
+        csv_bytes = self._csv_content([
+            ['01/06/2025', parcels[0].region.name, parcels[0].name, '0', '1',
+             species[0].common_name, '30', '20,0', '0', '', '', '', 'Mario'],
+        ])
+        csv_file = io.BytesIO(csv_bytes)
+        csv_file.name = 'test.csv'
+        resp = writer_client.post(
+            self.IMPORT_URL,
+            data={
+                FIELD_HARVEST_PLAN_ITEM_ID: planned_item.id,
+                FIELD_FILE: csv_file,
+            },
+        )
+        assert resp.status_code == 400

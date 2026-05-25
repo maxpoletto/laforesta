@@ -33,7 +33,7 @@ import { GriglieMap } from './griglie-map.js';
 import { GridPlanner } from './grid-planner.js';
 import MapCommon from '../../base/js/map-common.js';
 import { mountUseLocationButton } from '../../base/js/latlng-input.js';
-import { tabacchiVolumeM3, massQ } from '../../base/js/volume.js';
+import { wireVMPreview as wireVMPreviewShared } from '../../base/js/tree-form.js';
 import {
   fmtDecimal1, fmtDecimal2, fmtDecimal5, fmtInt, fmtBool,
 } from '../../base/js/format.js';
@@ -88,10 +88,6 @@ const DEFAULT_OPEN = 'r';
 const MAP_TYPE_TOKENS = { o: 'osm', t: 'topo', s: 'satellite' };
 const DEFAULT_MAP_TYPE = 's';
 
-// --- Formatters (local aliases for short references in column defs) ---------
-const f2 = fmtDecimal2;
-const f1 = fmtDecimal1;
-const fLat = fmtDecimal5;
 
 /** True if any cached Sample references `areaId`.  Used to disable
  *  the Section 1 "Elimina" button at popover-build time. */
@@ -108,19 +104,19 @@ const TREES_COLS = {
   [S.COL_COMPRESA]:    { label: S.COL_COMPRESA, width: '90px' },
   [S.COL_PARCEL]:      { label: S.COL_PARCEL, width: '85px' },
   [S.COL_AREA_NUM]:    { label: S.COL_AREA_NUM, width: '70px' },
-  [S.COL_TREE_NUM]:    { label: S.COL_TREE_NUM_SHORT, type: 'number', width: '70px', formatter: fInt },
+  [S.COL_TREE_NUM]:    { label: S.COL_TREE_NUM_SHORT, type: 'number', width: '70px', formatter: fmtInt },
   [S.COL_SPECIES]:     { label: S.COL_SPECIES, width: '120px' },
   [S.COL_PRODUCT]:     { label: S.COL_PRODUCT, width: '70px' },
-  [S.COL_POLLONE]:     { label: S.COL_POLLONE_SHORT, type: 'number', width: '55px', formatter: fInt },
-  [S.COL_MATRICINA]:   { label: S.COL_MATRICINA_SHORT, type: 'boolean', width: '55px', formatter: fBool },
-  [S.COL_D_CM]:        { label: S.COL_D_CM, type: 'number', width: '65px', formatter: fInt },
-  [S.COL_H_M]:         { label: S.COL_H_M, type: 'number', width: '60px', formatter: f2 },
-  [S.COL_L10_MM]:      { label: S.COL_L10_MM, type: 'number', width: '85px', formatter: fInt },
-  [S.COL_V_M3]:        { label: S.COL_V_M3, type: 'number', width: '65px', formatter: f2 },
-  [S.COL_MASS_Q]:      { label: S.COL_MASS_Q, type: 'number', width: '70px', formatter: f1 },
-  [S.COL_PAI]:         { label: S.COL_PAI, type: 'boolean', width: '50px', formatter: fBool },
-  [S.COL_LAT]:         { label: S.COL_LAT, type: 'number', width: '85px', formatter: fLat },
-  [S.COL_LON]:         { label: S.COL_LON, type: 'number', width: '85px', formatter: fLat },
+  [S.COL_POLLONE]:     { label: S.COL_POLLONE_SHORT, type: 'number', width: '55px', formatter: fmtInt },
+  [S.COL_MATRICINA]:   { label: S.COL_MATRICINA_SHORT, type: 'boolean', width: '55px', formatter: fmtBool },
+  [S.COL_D_CM]:        { label: S.COL_D_CM, type: 'number', width: '65px', formatter: fmtInt },
+  [S.COL_H_M]:         { label: S.COL_H_M, type: 'number', width: '60px', formatter: fmtDecimal2 },
+  [S.COL_L10_MM]:      { label: S.COL_L10_MM, type: 'number', width: '85px', formatter: fmtInt },
+  [S.COL_V_M3]:        { label: S.COL_V_M3, type: 'number', width: '65px', formatter: fmtDecimal2 },
+  [S.COL_MASS_Q]:      { label: S.COL_MASS_Q, type: 'number', width: '70px', formatter: fmtDecimal1 },
+  [S.COL_PAI]:         { label: S.COL_PAI, type: 'boolean', width: '50px', formatter: fmtBool },
+  [S.COL_LAT]:         { label: S.COL_LAT, type: 'number', width: '85px', formatter: fmtDecimal5 },
+  [S.COL_LON]:         { label: S.COL_LON, type: 'number', width: '85px', formatter: fmtDecimal5 },
   [VERSION]: { label: VERSION, hidden: true },
 };
 
@@ -2056,11 +2052,11 @@ function wireTreeForm(form) {
   wireTreePick(form);
   wireCeduoToggle(form);
   wireCoppiceBlock(form);
-  wireVMPreview(form);
+  wireVMPreviewShared(form, { ceduoEl: form.querySelector('#tf-ceduo') });
   mountUseLocationButton(
-    form.querySelector('#id_lat'),
-    form.querySelector('#id_lon'),
-    { appendTo: form.querySelector('#id_lon')?.closest('.form-row') },
+    form.querySelector('#tf-lat'),
+    form.querySelector('#tf-lon'),
+    { appendTo: form.querySelector('#tf-lon')?.closest('.form-row') },
   );
   wireCancelButtons(form, dismissModal);
   interceptSubmit(form, TREE_SAVE_URL, {
@@ -2100,10 +2096,10 @@ function wireTreePick(form) {
   const num = form.querySelector('#id_number');
   if (!pick || !num) return;
 
-  const species = form.querySelector('#id_species');
-  const ceduo = form.querySelector('#id_ceduo');
-  const lat = form.querySelector('#id_lat');
-  const lon = form.querySelector('#id_lon');
+  const species = form.querySelector('#tf-species');
+  const ceduo = form.querySelector('#tf-ceduo');
+  const lat = form.querySelector('#tf-lat');
+  const lon = form.querySelector('#tf-lon');
   // row_id is non-empty in edit mode.  The edit path lets the user
   // adjust the underlying Tree's species / lat / lon (see
   // views._update_tree_sample), so we must NOT lock those inputs
@@ -2164,7 +2160,7 @@ function wireTreePick(form) {
  * preserves any in-progress entry on the inactive side.
  */
 function wireCeduoToggle(form) {
-  const ceduo = form.querySelector('#id_ceduo');
+  const ceduo = form.querySelector('#tf-ceduo');
   const fustaiaBlock = form.querySelector('.tree-fustaia-fields');
   const coppiceBlock = form.querySelector('.tree-coppice-block');
   if (!ceduo || !fustaiaBlock || !coppiceBlock) return;
@@ -2199,7 +2195,7 @@ function wireCoppiceBlock(form) {
   if (!block) return;
   const shootsHost = block.querySelector('.coppice-shoots');
   const addBtn = block.querySelector('#coppice-add-btn');
-  const ceduo = form.querySelector('#id_ceduo');
+  const ceduo = form.querySelector('#tf-ceduo');
   const pick = form.querySelector('#id_tree_pick');
   const shootsHidden = form.querySelector('#id_shoots');
 
@@ -2280,69 +2276,6 @@ function wireCoppiceBlock(form) {
   });
 }
 
-/** Wire the live V/m preview line under the D/h/L10 fields. */
-function wireVMPreview(form) {
-  const d = form.querySelector('#id_d_cm');
-  const h = form.querySelector('#id_h_m');
-  const sp = form.querySelector('#id_species');
-  const ceduo = form.querySelector('#id_ceduo');
-  const preview = form.querySelector('#tree-form-vm-preview');
-  const vHidden = form.querySelector('#tree-form-volume-m3');
-  const mHidden = form.querySelector('#tree-form-mass-q');
-  if (!d || !h || !sp || !preview || !vHidden || !mHidden) return;
-
-  function update() {
-    if (ceduo?.checked) {
-      // Ceduo path uses the .tree-coppice-block; its parent is hidden,
-      // so the preview line is off-screen.  Still clear the hidden
-      // values so a stale fustaia computation doesn't slip into the
-      // submit payload.
-      preview.hidden = true;
-      preview.textContent = '';
-      vHidden.value = '';
-      mHidden.value = '';
-      return;
-    }
-    const dCm = parseFloat(d.value);
-    const hM = parseFloat(h.value);
-    // Hide the preview line entirely until BOTH D and h are nonzero —
-    // the row reserves vertical space (the wrapping .tree-form-preview-row
-    // stays in flow) so the form doesn't jump when the line appears.
-    if (!(dCm > 0 && hM > 0)) {
-      preview.hidden = true;
-      preview.textContent = '';
-      vHidden.value = '';
-      mHidden.value = '';
-      return;
-    }
-    const opt = sp.tagName === 'SELECT' ? sp.options[sp.selectedIndex] : sp;
-    const speciesName = opt?.dataset.name;
-    const density = parseFloat(opt?.dataset.density);
-    const v = tabacchiVolumeM3(dCm, hM, speciesName);
-    if (v == null) {
-      // D + h are filled but the species lookup failed (no Tabacchi
-      // table for it).  Keep the line empty rather than showing a
-      // confusing dash equation.
-      preview.hidden = true;
-      preview.textContent = '';
-      vHidden.value = '';
-      mHidden.value = '';
-      return;
-    }
-    const m = massQ(v, density);
-    preview.hidden = false;
-    preview.textContent =
-      `V = ${v.toFixed(3).replace('.', ',')} m³  ·  m = ${m.toFixed(2).replace('.', ',')} q`;
-    vHidden.value = v.toFixed(4);
-    mHidden.value = m.toFixed(3);
-  }
-
-  d.addEventListener('input', update);
-  h.addEventListener('input', update);
-  sp.addEventListener('change', update);
-  ceduo?.addEventListener('change', update);
-  update();
-}
 
 /**
  * Tear down the form-modal and re-render the main page shell.

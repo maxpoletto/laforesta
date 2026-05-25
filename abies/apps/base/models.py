@@ -517,8 +517,8 @@ class TreeMark(TimestampedModel):
     h_measured = models.BooleanField(default=False)
     volume_m3 = models.DecimalField(max_digits=8, decimal_places=4)
     mass_q = models.DecimalField(max_digits=8, decimal_places=3)
-    lat = models.FloatField()
-    lon = models.FloatField()
+    lat = models.FloatField(null=True, blank=True)
+    lon = models.FloatField(null=True, blank=True)
     acc_m = models.IntegerField(null=True, blank=True)
     operator = models.CharField(max_length=100)
     # Row-content fingerprint used for idempotent CSV re-imports (see

@@ -465,9 +465,11 @@ def _render_tree_form(request, ts_id, survey_id, area_id):
     species = list(Species.objects.filter(active=True).order_by(FIELD_SORT_ORDER))
     prior_trees, next_number = _prior_trees_for_area(area, exclude_ts_id=ts_id)
 
+    tree = ts.tree if ts else None
+    is_coppice = area.parcel.eclass.coppice
     return render_to_string('campionamenti/_tree_form.html', {
         'ts': ts,
-        'tree': ts.tree if ts else None,
+        'tree': tree,
         'sample': sample,
         FIELD_AREA: area,
         'survey': survey,
@@ -475,14 +477,29 @@ def _render_tree_form(request, ts_id, survey_id, area_id):
         'sample_date': sample.date if sample else date_type.today(),
         'prior_trees': prior_trees,
         'next_number': next_number,
-        # Fustaia default: ceduo when the parcel's eclass is a coppice class.
-        'fustaia_default': not area.parcel.eclass.coppice,
-        # Default species pick for the New-tree path: Abete on fustaia,
-        # Castagno on ceduo.  Tolerate missing species (e.g., in tests
-        # with a minimal fixture): falls back to the first species.
+        'fustaia_default': not is_coppice,
         'default_species_id': (
-            None if ts else _default_species_id(species, area.parcel.eclass.coppice)
+            None if ts else _default_species_id(species, is_coppice)
         ),
+        # Shared _tree_fields.html context.
+        'selected_species_id': (
+            None if ts else _default_species_id(species, is_coppice)
+        ),
+        'is_edit': bool(ts),
+        'show_ceduo': True,
+        'show_l10': True,
+        'ceduo_checked': tree.coppice if tree else False,
+        'pai_checked': tree.preserved if tree else False,
+        'edit_species_name': tree.species.common_name if tree else '',
+        'edit_species_id': tree.species_id if tree else '',
+        'edit_species_density': tree.species.density if tree else '',
+        'd_cm': ts.d_cm if ts else '',
+        'h_m': ts.h_m if ts else '',
+        'l10_mm': ts.l10_mm if ts else 0,
+        'lat': (tree.lat if tree and tree.lat is not None
+                else area.lat) if ts else area.lat,
+        'lon': (tree.lon if tree and tree.lon is not None
+                else area.lon) if ts else area.lon,
     }, request=request)
 
 

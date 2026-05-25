@@ -19,7 +19,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Iterable
 
 from django.contrib.auth.decorators import login_required
-from django.db import transaction
+from django.db import models, transaction
 from django.db.models import Q
 from django.http import Http404, HttpResponse, JsonResponse
 from django.template.loader import render_to_string
@@ -30,6 +30,7 @@ from apps.base.digests import (
     build_harvest_plan_item_record,
     build_harvest_plan_record,
     build_harvest_record,
+    build_tree_mark_record,
     mark_stale,
     serve_digest,
 )
@@ -44,6 +45,8 @@ from apps.base.models import (
     Parcel,
     Region,
     Species,
+    Tree,
+    TreeMark,
     parcel_sort_key,
     TreeHeightRegression,
     render_flag_note,
@@ -53,25 +56,36 @@ from config import strings as S
 from config.constants import (
     COLUMNS,
     DATA_ID,
+    FIELD_ACC_M,
     FIELD_CEDUO_FILE,
+    FIELD_D_CM,
     FIELD_DAMAGED,
     FIELD_DATE,
     FIELD_DESCRIPTION,
     FIELD_ERRORS,
+    FIELD_FILE,
     FIELD_FUSTAIA_FILE,
+    FIELD_H_M,
+    FIELD_H_MEASURED,
     FIELD_HARVEST_PLAN_ID,
     FIELD_HARVEST_PLAN_ITEM_ID,
     FIELD_INTERVENTION_AREA_HA,
+    FIELD_LAT,
+    FIELD_LON,
+    FIELD_MASS_Q,
     FIELD_NAME,
     FIELD_NONCE,
     FIELD_NOTE,
     FIELD_OPEN,
+    FIELD_OPERATOR,
     FIELD_PARCEL_ID,
     FIELD_PSR,
     FIELD_REGION_ID,
     FIELD_REGRESSION_FILE,
+    FIELD_SPECIES_ID,
     FIELD_TURNO_A,
     FIELD_UNHEALTHY,
+    FIELD_VOLUME_M3,
     FIELD_VOLUME_PLANNED_M3,
     FIELD_YEAR_END,
     FIELD_YEAR_PLANNED,
@@ -82,6 +96,7 @@ from config.constants import (
     MESSAGE,
     PLAN_RECORD,
     RECORD,
+    RECORDS,
     ROW_ID,
     ROWS,
     STATUS,
@@ -938,6 +953,504 @@ def transition_save_view(request):
 
 
 # ---------------------------------------------------------------------------
+# Tree-mark form + CRUD
+# ---------------------------------------------------------------------------
+
+@login_required
+def mark_form_view(request, mark_id: int | None = None):
+    """Return the HTML fragment for adding or editing a TreeMark.
+
+    Query params (add path only):
+      ?item=<id>  — required: the HarvestPlanItem under which the mark lives.
+    """
+    from config.constants import FIELD_SORT_ORDER
+    tm = tree = None
+    if mark_id:
+        tm = (TreeMark.objects
+              .select_related('tree__species', 'harvest_plan_item__parcel__region',
+                              'harvest_plan_item__region')
+              .get(id=mark_id))
+        item = tm.harvest_plan_item
+        tree = tm.tree
+    else:
+        item_id = _int_or_none(request.GET.get('item'))
+        if item_id is None:
+            raise Http404
+        item = (HarvestPlanItem.objects
+                .select_related('parcel__region', 'region')
+                .filter(id=item_id).first())
+        if item is None:
+            raise Http404
+
+    species = list(Species.objects.filter(active=True).order_by(FIELD_SORT_ORDER))
+    compresa = (item.region or item.parcel.region).name if (item.region or item.parcel) else ''
+    particella = item.parcel.name if item.parcel else ''
+
+    # Region-wide items: offer a parcel pulldown.
+    parcel_choices = None
+    selected_parcel_id = None
+    if item.region_id and not item.parcel_id:
+        parcel_choices = list(
+            Parcel.objects.filter(region=item.region)
+            .order_by('name')
+        )
+        if tm and tree:
+            selected_parcel_id = tree.parcel_id
+
+    ctx = {
+        'tm': tm,
+        'tree': tree,
+        'item': item,
+        'species': species,
+        'compresa': compresa,
+        'particella': particella,
+        'parcel_choices': parcel_choices,
+        'selected_parcel_id': selected_parcel_id,
+        'date': tm.date.isoformat() if tm else date_type.today().isoformat(),
+        'operator': tm.operator if tm else '',
+        'selected_species_id': tree.species_id if tree else (
+            species[0].id if species else None
+        ),
+        'd_cm': tm.d_cm if tm else '',
+        'h_m': tm.h_m if tm else '',
+        'lat': tm.lat if tm else '',
+        'lon': tm.lon if tm else '',
+        # Shared _tree_fields.html context.
+        'show_ceduo': False,
+        'show_l10': False,
+        'is_edit': False,
+    }
+    return JsonResponse({HTML: render_to_string(
+        'piano_di_taglio/_mark_form.html', ctx, request=request,
+    )})
+
+
+@login_required
+@require_writer
+@require_POST
+def mark_save_view(request):
+    """Create or update a single TreeMark (manual entry or pencil-edit).
+
+    The client computes volume_m3 and mass_q via volume.js and sends
+    them as-is; no server-side recompute on this path.
+    """
+    body = json.loads(request.body)
+    row_id = _int_or_none(body.get(ROW_ID))
+    item_id = _int_or_none(body.get(FIELD_HARVEST_PLAN_ITEM_ID))
+    species_id = _int_or_none(body.get(FIELD_SPECIES_ID))
+    d_cm = _int_or_none(body.get(FIELD_D_CM))
+    h_m = _decimal_or_none(body.get(FIELD_H_M))
+    h_measured = bool(body.get(FIELD_H_MEASURED))
+    volume_m3 = _decimal_or_none(body.get(FIELD_VOLUME_M3))
+    mass_q = _decimal_or_none(body.get(FIELD_MASS_Q))
+    lat = _float_or_none(body.get(FIELD_LAT))
+    lon = _float_or_none(body.get(FIELD_LON))
+    acc_m = _int_or_none(body.get(FIELD_ACC_M))
+    operator = (body.get(FIELD_OPERATOR) or '').strip()
+    date_raw = (body.get(FIELD_DATE) or '').strip()
+    parcel_id = _int_or_none(body.get(FIELD_PARCEL_ID))
+
+    errors = []
+    if item_id is None:
+        errors.append(S.ERR_PLAN_ITEM_NOT_FOUND)
+    if species_id is None:
+        errors.append(S.ERR_MARK_SPECIES_REQUIRED)
+    if d_cm is None or d_cm <= 0:
+        errors.append(S.ERR_MARK_D_REQUIRED)
+    if h_m is None or h_m <= 0:
+        errors.append(S.ERR_MARK_H_REQUIRED)
+    if volume_m3 is None or volume_m3 <= 0:
+        errors.append(S.ERR_MARK_VOLUME_REQUIRED)
+    if mass_q is None or mass_q <= 0:
+        errors.append(S.ERR_MARK_MASS_REQUIRED)
+    if not operator:
+        errors.append(S.ERR_MARK_OPERATOR_REQUIRED)
+    if not date_raw:
+        errors.append(S.ERR_MARK_DATE_REQUIRED)
+    else:
+        try:
+            date = date_type.fromisoformat(date_raw)
+        except ValueError:
+            errors.append(S.ERR_DATE_INVALID)
+            date = None
+    if errors:
+        return _validation_error(errors)
+
+    item = (HarvestPlanItem.objects
+            .select_related('parcel__region', 'region')
+            .filter(id=item_id).first())
+    if item is None:
+        return _validation_error([S.ERR_PLAN_ITEM_NOT_FOUND])
+    if item.state == HarvestPlanItemState.CLOSED:
+        return _validation_error([S.ERR_MARK_ITEM_CLOSED])
+
+    species = Species.objects.filter(id=species_id).first()
+    if species is None:
+        return _validation_error([S.ERR_MARK_SPECIES_REQUIRED])
+
+    parcel = _resolve_mark_parcel(item, parcel_id)
+    if isinstance(parcel, JsonResponse):
+        return parcel
+
+    with transaction.atomic():
+        if row_id:
+            # Update existing mark.
+            tm = (TreeMark.objects
+                  .select_related('tree')
+                  .filter(id=row_id).first())
+            if tm is None:
+                return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
+            version = int(body.get(VERSION, 0))
+            if tm.version != version:
+                return JsonResponse({
+                    STATUS: STATUS_CONFLICT, MESSAGE: S.ERROR_CONFLICT,
+                }, status=400)
+            tm.date = date
+            tm.d_cm = d_cm
+            tm.h_m = h_m
+            tm.h_measured = h_measured
+            tm.volume_m3 = volume_m3
+            tm.mass_q = mass_q
+            tm.lat = lat
+            tm.lon = lon
+            tm.acc_m = acc_m
+            tm.operator = operator
+            tm.version += 1
+            tm.save()
+            tree = tm.tree
+            tree.species = species
+            tree.lat = lat
+            tree.lon = lon
+            tree.acc_m = acc_m
+            tree.save()
+        else:
+            # Create new mark + tree.
+            tree = Tree.objects.create(
+                species=species, parcel=parcel,
+                lat=lat, lon=lon, acc_m=acc_m,
+            )
+            tm = TreeMark.objects.create(
+                harvest_plan_item=item, tree=tree,
+                date=date, d_cm=d_cm, h_m=h_m,
+                h_measured=h_measured,
+                volume_m3=volume_m3, mass_q=mass_q,
+                lat=lat, lon=lon, acc_m=acc_m,
+                operator=operator,
+            )
+            _auto_advance_to_marked(item, date)
+
+        _rematerialize_volume_marked(item.id)
+        mark_stale(f'mark_trees_{item.id}', 'harvest_plan_items', 'audit')
+
+    tm = (TreeMark.objects
+          .select_related('tree__species')
+          .get(id=tm.id))
+    numero = _mark_numero(tm)
+    item_fresh = (HarvestPlanItem.objects
+                  .select_related('parcel__region', 'parcel__eclass',
+                                  'region', 'harvest_plan')
+                  .get(id=item.id))
+    response_data = {
+        DATA_ID: f'mark_trees_{item.id}',
+        ROW_ID: tm.id,
+        RECORD: build_tree_mark_record(tm, numero),
+        ITEM_RECORD: build_harvest_plan_item_record(item_fresh),
+    }
+    nonce = body.get(FIELD_NONCE)
+    if nonce:
+        save_nonce(nonce, request.user, response_data)
+    return JsonResponse(response_data)
+
+
+@login_required
+@require_writer
+@require_POST
+def mark_delete_view(request):
+    """Delete a single TreeMark (and its orphaned Tree).
+
+    State stays monotonic per B3: count can return to zero but state
+    does not revert to ``planned``.
+    """
+    body = json.loads(request.body)
+    row_id = int(body[ROW_ID])
+    version = int(body.get(VERSION, 0))
+
+    tm = (TreeMark.objects
+          .select_related('tree', 'harvest_plan_item')
+          .filter(id=row_id).first())
+    if tm is None:
+        return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
+    if tm.version != version:
+        return JsonResponse({
+            STATUS: STATUS_CONFLICT, MESSAGE: S.ERROR_CONFLICT,
+        }, status=400)
+
+    item = tm.harvest_plan_item
+    if item.state == HarvestPlanItemState.CLOSED:
+        return _validation_error([S.ERR_MARK_ITEM_CLOSED])
+
+    tree = tm.tree
+    item_id = item.id
+    with transaction.atomic():
+        tm.delete()
+        if not TreeMark.objects.filter(tree=tree).exists():
+            tree.delete()
+        _rematerialize_volume_marked(item_id)
+        mark_stale(f'mark_trees_{item_id}', 'harvest_plan_items', 'audit')
+
+    item_fresh = (HarvestPlanItem.objects
+                  .select_related('parcel__region', 'parcel__eclass',
+                                  'region', 'harvest_plan')
+                  .get(id=item_id))
+    response_data = {
+        DATA_ID: f'mark_trees_{item_id}',
+        ROW_ID: row_id,
+        ITEM_RECORD: build_harvest_plan_item_record(item_fresh),
+    }
+    nonce = body.get(FIELD_NONCE)
+    if nonce:
+        save_nonce(nonce, request.user, response_data)
+    return JsonResponse(response_data)
+
+
+# ---------------------------------------------------------------------------
+# Tree-mark CSV import
+# ---------------------------------------------------------------------------
+
+@login_required
+@require_writer
+@require_POST
+def mark_csv_import_view(request):
+    """Import tree marks from an ipso CSV file.
+
+    Server-side ``tabacchi_volume_m3`` fills volume and mass for each
+    row.  The ``import_fingerprint`` (SHA-256 of the row content) deduplicates
+    re-imports: existing fingerprints are silently skipped.
+    """
+    import hashlib
+    from django.db.models import Sum
+    from apps.base.tabacchi import tabacchi_volume_m3
+
+    item_id = _int_or_none(request.POST.get(FIELD_HARVEST_PLAN_ITEM_ID))
+    upload = request.FILES.get(FIELD_FILE)
+
+    if item_id is None:
+        return _validation_error([S.ERR_PLAN_ITEM_NOT_FOUND])
+    if upload is None:
+        return _validation_error([S.ERR_CSV_FILE_REQUIRED])
+
+    item = (HarvestPlanItem.objects
+            .select_related('parcel__region', 'region')
+            .filter(id=item_id).first())
+    if item is None:
+        return _validation_error([S.ERR_PLAN_ITEM_NOT_FOUND])
+    if item.state == HarvestPlanItemState.CLOSED:
+        return _validation_error([S.ERR_MARK_ITEM_CLOSED])
+
+    rows = _read_optional(upload, required={
+        'date':      [S.CSV_COL_DATA],
+        'compresa':  [S.CSV_COL_COMPRESA],
+        'particella': [S.CSV_COL_PARTICELLA],
+        'species':   [S.CSV_COL_GENERE],
+        'd_cm':      [S.CSV_COL_D_CM],
+        'h_m':       [S.CSV_COL_H_M],
+    }, optional={
+        'catastrofata': [S.CSV_COL_CATASTROFATA],
+        'numero':    [S.CSV_COL_NUMERO],
+        'h_measured': [S.CSV_COL_H_MEASURED],
+        'lat':       [S.CSV_COL_LAT],
+        'lon':       [S.CSV_COL_LON],
+        'acc_m':     [S.CSV_COL_ACC_M],
+        'operator':  [S.CSV_COL_OPERATORE],
+    })
+    if isinstance(rows, _CsvError):
+        return _validation_error([rows.message])
+
+    # Resolve lookups.
+    parcel_map = {}
+    for p in Parcel.objects.select_related('region').all():
+        parcel_map[(p.region.name.lower(), p.name.lower())] = p
+    species_map = {sp.common_name.lower(): sp
+                   for sp in Species.objects.all()}
+
+    # Existing fingerprints for dedup.
+    existing_fps = set(
+        TreeMark.objects
+        .filter(harvest_plan_item_id=item_id,
+                import_fingerprint__isnull=False)
+        .values_list('import_fingerprint', flat=True)
+    )
+
+    item_region = item.region or (item.parcel.region if item.parcel else None)
+    errors = []
+    parsed = []
+    for i, row in enumerate(rows, start=1):
+        date_str = row['date'].strip()
+        compresa = row['compresa'].strip()
+        particella = row['particella'].strip()
+        species_name = row['species'].strip()
+        d_str = row['d_cm'].strip()
+        h_str = row['h_m'].strip().replace(',', '.')
+        lat_str = row.get('lat', '').strip()
+        lon_str = row.get('lon', '').strip()
+        acc_str = row.get('acc_m', '').strip()
+        h_meas_str = row.get('h_measured', '').strip()
+        operator = row.get('operator', '').strip()
+
+        try:
+            date = _parse_date_flex(date_str)
+        except ValueError:
+            errors.append(S.ERR_CSV_ROW_PARSE.format(i, date_str))
+            continue
+
+        parcel = parcel_map.get((compresa.lower(), particella.lower()))
+        if parcel is None:
+            errors.append(S.ERR_CSV_PARCEL_NOT_FOUND.format(
+                i, compresa, particella))
+            continue
+        if item_region and parcel.region_id != item_region.id:
+            errors.append(S.ERR_MARK_PARCEL_NOT_IN_REGION)
+            continue
+
+        species = species_map.get(species_name.lower())
+        if species is None:
+            errors.append(S.ERR_CSV_SPECIES_NOT_FOUND.format(i, species_name))
+            continue
+
+        try:
+            d_cm = int(d_str.replace(',', '.').split('.')[0])
+            h_m = Decimal(h_str)
+        except (ValueError, InvalidOperation):
+            errors.append(S.ERR_CSV_ROW_PARSE.format(i, f'{d_str}/{h_str}'))
+            continue
+
+        lat = _float_or_none(lat_str) if lat_str else None
+        lon = _float_or_none(lon_str) if lon_str else None
+        acc_m = _int_or_none(acc_str) if acc_str else None
+        h_measured = h_meas_str == '1'
+
+        fp_src = f'{date}|{species_name}|{d_cm}|{h_m}|{lat}|{lon}|{operator}'
+        fingerprint = hashlib.sha256(fp_src.encode()).hexdigest()
+        if fingerprint in existing_fps:
+            continue
+
+        try:
+            volume_m3 = tabacchi_volume_m3(d_cm, h_m, species.common_name)
+            mass_q = volume_m3 * species.density
+        except (ValueError, KeyError):
+            volume_m3 = Decimal(0)
+            mass_q = Decimal(0)
+
+        parsed.append({
+            'date': date, 'parcel': parcel, 'species': species,
+            'd_cm': d_cm, 'h_m': h_m, 'h_measured': h_measured,
+            'volume_m3': volume_m3, 'mass_q': mass_q,
+            'lat': lat, 'lon': lon, 'acc_m': acc_m,
+            'operator': operator, 'fingerprint': fingerprint,
+        })
+        existing_fps.add(fingerprint)
+
+    if errors:
+        return _validation_error(errors)
+
+    with transaction.atomic():
+        for p in parsed:
+            tree = Tree.objects.create(
+                species=p['species'], parcel=p['parcel'],
+                lat=p['lat'], lon=p['lon'], acc_m=p['acc_m'],
+            )
+            TreeMark.objects.create(
+                harvest_plan_item=item, tree=tree,
+                date=p['date'], d_cm=p['d_cm'], h_m=p['h_m'],
+                h_measured=p['h_measured'],
+                volume_m3=p['volume_m3'], mass_q=p['mass_q'],
+                lat=p['lat'], lon=p['lon'], acc_m=p['acc_m'],
+                operator=p['operator'],
+                import_fingerprint=p['fingerprint'],
+            )
+
+        if parsed:
+            earliest_date = min(p['date'] for p in parsed)
+            _auto_advance_to_marked(item, earliest_date)
+            _rematerialize_volume_marked(item.id)
+
+        mark_stale(f'mark_trees_{item.id}', 'harvest_plan_items', 'audit')
+
+    item_fresh = (HarvestPlanItem.objects
+                  .select_related('parcel__region', 'parcel__eclass',
+                                  'region', 'harvest_plan')
+                  .get(id=item.id))
+    return JsonResponse({
+        ITEM_RECORD: build_harvest_plan_item_record(item_fresh),
+        'imported': len(parsed),
+        'skipped_duplicates': len(rows) - len(parsed) - len(errors),
+    })
+
+
+# ---------------------------------------------------------------------------
+# Mark helpers
+# ---------------------------------------------------------------------------
+
+def _resolve_mark_parcel(item, parcel_id):
+    """Determine the parcel for a new tree mark.
+
+    Parcel-scoped items: use the item's parcel.
+    Region-wide items: require an explicit parcel_id in the request.
+    """
+    if item.parcel_id:
+        return item.parcel
+    if parcel_id is None:
+        return _validation_error([S.ERR_MARK_PARCEL_REQUIRED])
+    parcel = Parcel.objects.filter(id=parcel_id).first()
+    if parcel is None:
+        return _validation_error([S.ERR_MARK_PARCEL_REQUIRED])
+    if item.region_id and parcel.region_id != item.region_id:
+        return _validation_error([S.ERR_MARK_PARCEL_NOT_IN_REGION])
+    return parcel
+
+
+def _auto_advance_to_marked(item, mark_date):
+    """Auto-advance state from planned → marked on first TreeMark."""
+    if item.state == HarvestPlanItemState.PLANNED:
+        item.state = HarvestPlanItemState.MARKED
+        item.date_actual = mark_date
+        item.version += 1
+        item.save()
+
+
+def _rematerialize_volume_marked(item_id: int) -> None:
+    """Recompute volume_marked_m3 on the linked HarvestPlanItem."""
+    from django.db.models import Sum
+    total = (TreeMark.objects
+             .filter(harvest_plan_item_id=item_id)
+             .aggregate(s=Sum('volume_m3'))['s'])
+    HarvestPlanItem.objects.filter(id=item_id).update(
+        volume_marked_m3=total,
+    )
+
+
+def _mark_numero(tm) -> int:
+    """Compute the 1-based display index for a TreeMark within its item.
+
+    Matches the sort order of the mark_trees digest (date desc, id asc).
+    """
+    return (TreeMark.objects
+            .filter(harvest_plan_item_id=tm.harvest_plan_item_id)
+            .filter(
+                models.Q(date__gt=tm.date) |
+                models.Q(date=tm.date, id__lte=tm.id)
+            ).count())
+
+
+def _parse_date_flex(s: str) -> date_type:
+    """Parse ISO (YYYY-MM-DD) or Italian (DD/MM/YYYY) date."""
+    if '/' in s:
+        parts = s.split('/')
+        return date_type(int(parts[2]), int(parts[1]), int(parts[0]))
+    return date_type.fromisoformat(s)
+
+
+# ---------------------------------------------------------------------------
 # Internal helpers — parsing
 # ---------------------------------------------------------------------------
 
@@ -1301,6 +1814,15 @@ def _decimal_or_none(v):
     try:
         return Decimal(_normalise_number(v))
     except (TypeError, InvalidOperation):
+        return None
+
+
+def _float_or_none(v):
+    if v in (None, '', 'null'):
+        return None
+    try:
+        return float(v)
+    except (TypeError, ValueError):
         return None
 
 

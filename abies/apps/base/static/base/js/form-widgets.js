@@ -73,7 +73,7 @@ export function mkFileInput(host, opts) {
   return inp;
 }
 
-export function mkFormActions(host, { onCancel, submitLabel }) {
+export function mkFormActions(host, { onCancel, submitLabel, secondaryLabel }) {
   const actions = document.createElement('div');
   actions.className = 'form-actions';
   const cancel = document.createElement('button');
@@ -87,6 +87,14 @@ export function mkFormActions(host, { onCancel, submitLabel }) {
   submit.className = 'btn btn-primary';
   submit.textContent = submitLabel;
   actions.append(cancel, submit);
+  if (secondaryLabel) {
+    const secondary = document.createElement('button');
+    secondary.type = 'submit';
+    secondary.className = 'btn btn-primary';
+    secondary.dataset.action = 'save-and-add';
+    secondary.textContent = secondaryLabel;
+    actions.appendChild(secondary);
+  }
   host.appendChild(actions);
   return actions;
 }
