@@ -1759,11 +1759,18 @@ async function appendItemMarkTreesSection(card, itemId, state) {
   const massCol = c.indexOf(S.COL_MASS_Q);
   const volTotal = data.rows.reduce((s, r) => s + (typeof r[volCol] === 'number' ? r[volCol] : 0), 0);
   const massTotal = data.rows.reduce((s, r) => s + (typeof r[massCol] === 'number' ? r[massCol] : 0), 0);
+  const hasNullVolume = data.rows.some(r => r[volCol] == null);
   const totals = document.createElement('div');
   totals.className = 'subsection-totals';
   totals.textContent =
     `${S.LABEL_VOLUME_TOTAL}: ${fmtVolume(volTotal)}  ·  ${S.LABEL_MASS_TOTAL}: ${fmtMass(massTotal)}`;
   body.appendChild(totals);
+  if (hasNullVolume) {
+    const note = document.createElement('div');
+    note.className = 'subsection-note';
+    note.textContent = S.MARK_NULL_VOLUME_NOTE;
+    body.appendChild(note);
+  }
 
   if (!data.rows.length) return;
 

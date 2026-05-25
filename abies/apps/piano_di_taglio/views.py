@@ -1059,10 +1059,6 @@ def mark_save_view(request):
         errors.append(S.ERR_MARK_D_REQUIRED)
     if h_m is None or h_m <= 0:
         errors.append(S.ERR_MARK_H_REQUIRED)
-    if volume_m3 is None or volume_m3 <= 0:
-        errors.append(S.ERR_MARK_VOLUME_REQUIRED)
-    if mass_q is None or mass_q <= 0:
-        errors.append(S.ERR_MARK_MASS_REQUIRED)
     if not operator:
         errors.append(S.ERR_MARK_OPERATOR_REQUIRED)
     if not date_raw:
@@ -1338,8 +1334,8 @@ def mark_csv_import_view(request):
             volume_m3 = tabacchi_volume_m3(d_cm, h_m, species.common_name)
             mass_q = volume_m3 * species.density
         except (ValueError, KeyError):
-            volume_m3 = Decimal(0)
-            mass_q = Decimal(0)
+            volume_m3 = None
+            mass_q = None
 
         parsed.append({
             'date': date, 'parcel': parcel, 'species': species,

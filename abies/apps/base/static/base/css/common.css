@@ -437,6 +437,13 @@ input:focus, select:focus, textarea:focus {
   margin-bottom: 8px;
 }
 
+.subsection-note {
+  font-size: 0.85rem;
+  font-style: italic;
+  color: #888;
+  margin-bottom: 4px;
+}
+
 .subsection-banner {
   padding: 8px 12px;
   background: #f0f0f0;

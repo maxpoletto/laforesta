@@ -94,10 +94,10 @@ export function interceptSubmit(form, postUrl, callbacks) {
     }
 
     if (data.status === STATUS_CONFLICT) {
-      showError(data.message || S.ERROR_CONFLICT);
+      showFormError(form, data.message || S.ERROR_CONFLICT);
       callbacks.onConflict?.(data);
     } else {
-      showError(data.message || S.ERROR_GENERIC);
+      showFormError(form, data.message || S.ERROR_GENERIC);
       callbacks.onValidationError?.(data);
     }
   });

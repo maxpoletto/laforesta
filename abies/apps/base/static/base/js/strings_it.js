@@ -386,6 +386,8 @@ export const ERR_D_CM_REQUIRED    = 'D obbligatorio.';
 export const ERR_H_M_REQUIRED     = 'h obbligatoria.';
 export const ERR_SPECIES_REQUIRED = 'Specie obbligatoria.';
 export const ERR_OPERATOR_REQUIRED = 'Operatore obbligatorio.';
+export const MARK_NULL_VOLUME_NOTE =
+  'volume e massa non calcolati per alcune specie rare';
 
 // CSV export filenames (per-plan zip + per-item zip; see piano-di-taglio.md).
 export const CSV_PIANO       = 'piano.csv';

@@ -847,6 +847,23 @@ class TestMarkSave:
         planned_item.refresh_from_db()
         assert planned_item.state == HarvestPlanItemState.MARKED
 
+    def test_create_with_null_volume(
+        self, writer_client, planned_item, species,
+    ):
+        resp = writer_client.post(
+            self.SAVE_URL,
+            data=json.dumps(self._mark_body(
+                planned_item, species[0],
+                **{FIELD_VOLUME_M3: '', FIELD_MASS_Q: '',
+                   FIELD_NONCE: 'null-vol'},
+            )),
+            content_type='application/json',
+        )
+        assert resp.status_code == 200
+        tm = TreeMark.objects.first()
+        assert tm.volume_m3 is None
+        assert tm.mass_q is None
+
     def test_create_materializes_volume(
         self, writer_client, planned_item, species,
     ):
