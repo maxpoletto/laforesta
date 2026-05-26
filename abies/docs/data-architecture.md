@@ -39,22 +39,10 @@ bug: the on-disk file stays, the staleness flag stays False, and the next
 read serves a stale digest *even after a page reload* (the cache miss still
 hits the un-regenerated file).
 
-Concrete examples from `apps/campionamenti`:
-
-| Write                                  | Must invalidate                               |
-|----------------------------------------|-----------------------------------------------|
-| `Survey` create/delete                 | `surveys`, `grids` (N. rilevamenti)           |
-| `SampleArea` create/delete             | `sample_areas`, `grids`, `surveys` (N. aree totali) |
-| `Sample` create/delete + date edit     | `samples`, `surveys` (Data primo/ultimo, N. aree visitate), `sampled_trees_<survey>` |
-| `TreeSample` create/delete             | `sampled_trees_<survey>`, `samples` (N. alberi) |
-| `SampleGrid` rename                    | `grids`                                       |
-| `Survey` rename                        | `surveys`                                     |
-
-**Cross-domain invalidation** also occurs: a prelievi harvest write
-linked to a `harvest_plan_item` marks `harvest_plan_items` stale (piano
-di taglio calendar) and re-materializes `volume_actual_m3` on the item.
 Each page's doc (`docs/page-*.md`) carries the authoritative
-write→digest invalidation table for its domain.
+write→digest invalidation table for its domain, including cross-domain
+cases (e.g., a prelievi harvest write that marks `harvest_plan_items`
+stale).
 
 When you add a new write endpoint, audit every `generate_*()` in
 `apps/base/digests.py` and add `mark_stale()` for each digest that touches
@@ -90,103 +78,44 @@ Digest files are gzip-compressed (stored as `.json.gz`) and served with
 
 ## Caching
 
-Fetched data is cached client-side in memory. The cache is keyed by a "data_id"
-that identifies a particular dataset corresponding to a server-side JSON file,
-e.g., "daily harvest operations" or "monthly sawmill production", and it stores
-the last refresh time.
+Data is cached client-side in memory, keyed by `data_id` (one per
+server-side JSON file). Page reloads clear all cache state.
 
-The maximum size of the cache is the sum of all tabular and pre-processed data,
-on the order of 10-20 MB uncompressed, plus 10-100 MB of satellite imagery in
-the worst case.
-
-Page reloads clear all cache state.
-
-When changing domain pages:
-
-1. The app renders from cache immediately if data is available.
-
-1. The app also sends background conditional GETs to the server with
-   If-Modified-Since for every dataset displayed in the domain page. If the
-   server returns 304 Not Modified, no action is required. If it returns 200 OK,
-   the app updates the cache with the newly received data and re-renders. In
-   both cases it updates the dataset's last refresh time.
-
-Conditional GETs also run once every 5 minutes (on a timer) for every dataset
-visible in a particular domain page (i.e., the page will refresh even if the
-user performs no navigation).
-
-Domain switching feels instant for previously-viewed data.
-
-When a domain page is loaded for the first time (empty cache), a modal displays
-"Caricamento..." until the initial data fetch completes. Subsequent cache
-refreshes happen silently in the background.
+On every domain switch the app renders from cache immediately, then
+fires background conditional GETs (If-Modified-Since) for every visible
+dataset, re-rendering on 200. A 5-minute timer repeats this even
+without navigation. First load (empty cache) shows a "Caricamento..."
+modal until data arrives.
 
 ## Data entry and cache updates
 
-Data entry forms are Django-rendered HTML fetched as fragments and displayed
-in overlay modals (see "Modals" in `docs/ui-design-patterns.md`).
+Forms are Django-rendered HTML fragments displayed in overlay modals
+(see `docs/ui-design-patterns.md` §Modals). The data entry flow:
 
-Each form has custom HTML and validation JS as needed, but common patterns (form
-interception, error display) are extracted into shared libraries.
+1. JS fetches form HTML (including CSRF token + idempotency nonce) via
+   `fetchModalForm` and renders it in a modal. URL does not change.
+1. Client-side JS validation gates the submit button.
+1. On submit, JS intercepts the POST (with CSRF token + nonce).
+1. Server checks nonce for dedup (prevents double-writes on network
+   retry). Used nonces are pruned after 24 hours.
+1. Server validates and responds.
 
-Fields that are enum-like (correspond to finite sets of values defined within
-the app itself) are implemented as pull-downs. These include worker names, crew
-names, tractor names, and tree species names (see below for details).
+### Response contract
 
-The process of data entry runs as follows:
+Payload is always JSON.
 
-1. The user initiates a data addition or edit by clicking on a UI button (the
-   visual details of this are below).
-1. JS fetches the form HTML from Django (including the CSRF token and an
-   idempotency nonce as a hidden field) via `fetchModalForm`.
-1. The form is rendered in an overlay modal. The URL *does not change*.
-   This is the one exception to the "canonical representation of view state"
-   rule, since we never need to share the input form.
-1. Client-side JS validation provides immediate feedback: the submit button is
-   inactive until JS validation passes.
-1. On submit, JS intercepts and forwards the POST request (including the CSRF
-   token and idempotency nonce), and waits for a response.
-1. The server checks the nonce: if it has already been used (i.e., a previous
-   request with the same nonce succeeded), it returns the original success
-   response without writing again. This prevents duplicate records when the
-   network drops between server-commit and client-receive and the client retries.
-   Used nonces are stored in the database with a timestamp. The nightly backup
-   cron job also prunes nonces older than 24 hours.
-1. The server provides authoritative validation.
+**Success** (200): `{ data_id, row_id, record: [row_id, ...] }`.
+Client patches the cache row and re-renders. Other digests (charts,
+etc.) update on the next background conditional GET.
 
-The server response has one of three values. The payload is always JSON.
+**Validation error** (400): `{ status: "validation_error", message, html }`.
+Modal re-displays the form with the error. Rare — client-side
+validation catches most problems first.
 
-1. Success: Code = 200 OK, payload = { data_id: X, row_id: Y, "record": [
-   Y, ... ] }
-
-   The client updates row Y of entry X in the case with the new record and
-   refreshes the tabular display.
-
-   Note that a future background conditional GET might refresh other cache
-   entries, such as those corresponding to digested data for graphs. Concrete
-   example: user enters data corresponding to a new harvest operation. The
-   tabular display of harvest operations updates immediately. Digested data for bar chart of
-   monthly harvests might be loaded after the next conditional GET.
-
-1. Validation error: Code = 400 Bad request, payload = { status:
-   "validation_error", message: "...", html: "..." }
-
-   The page displays the error message in a modal and again displays the blank
-   HTML form given by the "html" field.
-
-   This rarely happens, since most server-side validation is consistent with
-   client-side validation.
-
-1. Conflict: Code = 400 Bad request, payload = { status: "conflict", message:
-   "...", data_id: X, row_id: Y, "record": [ Y, ... ], html: "..."}
-
-   This error happens on attempted edit or delete. Another user edited or
-   deleted the entry between the time when the current page's last cache refresh
-   and the time of submit. The HTML contains the form populated with the current
-   server state. If the record has been deleted on the server, the message
-   provides this information and the user can click "submit" to re-add the
-   record. If the user escapes out of the edit form, the cached data is updated
-   with the returned record, as for a successful update.
+**Conflict** (400): `{ status: "conflict", message, data_id, row_id, record, html }`.
+Another user modified the row between cache refresh and submit. Modal
+shows the server's current state; user can re-submit or dismiss (which
+updates the cache with the returned record).
 
 ## Data deletion and cache updates
 
@@ -220,28 +149,17 @@ server-side `mark_stale()` flag still runs so the next cold reader (or
 the next background refresh) regenerates the on-disk digest.
 
 When a write also bumps a *materialised* value in another digest
-(e.g., a tree-save changes `samples.N_alberi` and
-`surveys.N_aree_visitate`), the response carries those rows too:
-`sample_record`, `survey_record` (or `_records`), `grid_record`,
-`area_records`.  The Campionamenti client funnels these through a
-single `applySideEffects(data)` helper in
-`apps/campionamenti/static/campionamenti/js/campionamenti.js` that
-patches every affected cache and re-renders the touched view (map,
-summary, table).
+(e.g., a tree-save changes `samples.N_alberi`), the response carries
+those side-effect rows too. The client patches every affected cache
+and re-renders the touched views.
 
 **The contract that prevents drift.**  Extract a `build_<digest>_record`
 helper in `apps/base/digests.py` and call it from BOTH the digest
 generator and every write view.  Lock the column-shape contract with
 a test that builds a fresh row through the digest generator and a
 record through the write view, then asserts they are equal.  See
-`build_harvest_record` (`apps/base/digests.py:184`) for the original
-pattern and `build_tree_sample_record` etc. for the Campionamenti
-versions.
+`build_harvest_record` for the original pattern.
 
-**Why this matters.**  Tree-save on Campionamenti was a 5+ second
-round trip during M3d before this pattern landed — the digest
-generator scanned thousands of TreeSample rows on every save.
-Returning the freshly-built row inline cuts that to a single INSERT +
-one helper call, well under 200 ms.  Bulk paths (CSV imports) that
-would carry megabytes of records may stay on the slow path —
-`tree_csv_import_view` is the documented exception.
+Bulk paths (CSV imports) that would return megabytes of records may
+skip the optimistic path — `tree_csv_import_view` is the documented
+exception.

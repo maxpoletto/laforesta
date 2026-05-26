@@ -97,24 +97,15 @@ of either dataset should treat them as independent observations.
   - We specify both `region_id` and `parcel_id` because some operations (e.g.,
     collecting storm-damaged plants) are approved region-wide. A trigger
     enforces (`region_id` is null XOR `parcel_id` is null).
-  - `state` is an enum with values
-    `planned=0, marked=1, open=2, harvesting=3, closed=4`.
-    - `planned`: start state, no action yet.
-    - `marked`: at least one `tree_mark` has been recorded.
-      Coppice items skip this state — they have no marks and go straight
-      from `planned` to `open`.
-    - `open`: cantiere is open, cutting can start (harvests may be entered).
-    - `harvesting`: at least one harvest has been recorded.
-    - `closed`: no more harvests allowed.
+  - `state` is an enum: `planned=0, marked=1, open=2, harvesting=3, closed=4`.
+    Transitions are **monotonic** (never revert). Coppice items skip `marked`.
 
-    Transitions are **monotonic** — state only advances. Deleting the last
-    `tree_mark` does NOT revert state from `marked` to `planned`; deleting
-    the last `harvest` does NOT revert state from `harvesting` to `open`.
-    Two transitions are automatic (server-side, on first child insert):
-    `planned → marked` on the first `tree_mark` insert under this item,
-    and `open/marked → harvesting` on the first linked `harvest` insert.
-    The other two transitions (`planned/marked → open` and
-    `harvesting → closed`) are manual via `harvest_transition` rows.
+    | Transition | Trigger |
+    |---|---|
+    | `planned → marked` | automatic: first `tree_mark` insert |
+    | `planned/marked → open` | manual: `harvest_transition` (open=true) |
+    | `open/marked → harvesting` | automatic: first linked `harvest` insert |
+    | `harvesting → closed` | manual: `harvest_transition` (open=false) |
   - `year_planned` is the planned year.
   - `date_actual` is the date of the earliest `tree_mark` (and so the date
     of the implicit `planned → marked` transition). NULL while state is
@@ -215,31 +206,19 @@ of either dataset should treat them as independent observations.
 - tree_sample: (id:int, sample_id:int, tree_id:int, shoot:int, standard:bool,
   number:int, d_cm:int, h_m:int, l10_mm:int, volume_m3:real nullable,
   mass_q:real nullable)
-  - Denotes the findings about a particular tree during a particular sample.
-    PK is the synthetic `id`; `UNIQUE(sample_id, tree_id, shoot)` enforces
-    the natural key.
-  - Two of the fields relate to coppices:
-    - `shoot` is a sequential 1-based counter identifying shoots from a single
-      coppice stump (identified by tree_id). 0 for non-coppice.
-    - `standard` ("matricina" in Italian) denotes a shoot that is allowed to
-      grow rather than being harvested during the coppicing phase (see
-      https://en.wikipedia.org/wiki/Coppicing). False for non-coppice. (This
-      flag is necessary to measure the number of standards per hectare, a key
-      parameter in coppice forest management.)
-  - number is a 1-based externally assigned counter of trees within a sample.
-  - l10_mm denotes the width, in mm, of the outer ten rings of the sampled tree.
-    Not all trees are cored, so this may be 0 -> no measurement.
-  - `volume_m3` is computed from (d_cm, h_m, species) via Tabacchi equations
-    (see `pdg-2026/pdg/computation.py`).  For manual form entry the
-    computation runs in the JS form (live preview) and the server stores the
-    submitted value as-is; for CSV imports — where source files do not always
-    carry pre-computed volumes — the server runs the same Tabacchi formulas
-    in Python at import time.  `mass_q` is `volume_m3 × species.density`.
-    Both are NULL for coppice rows (`tree.coppice = true`): coppice harvests
-    are mass-based at the parcel level, not per-tree, so per-shoot volume
-    estimates are not meaningful.
-  - Decoupling trees from tree samples allows us to monitor tree growth over
-    time.
+  - Measurement of a tree during a sample visit. PK is synthetic `id`;
+    `UNIQUE(sample_id, tree_id, shoot)` enforces the natural key.
+  - `shoot`: 1-based counter for coppice shoots from one stump; 0 for
+    non-coppice.
+  - `standard` ("matricina"): coppice shoot kept for growth, not harvested.
+    False for non-coppice.
+  - `number`: 1-based counter of trees within a sample.
+  - `l10_mm`: width (mm) of outer ten rings. 0 if tree was not cored.
+  - `volume_m3`: computed from (d_cm, h_m, species) via Tabacchi equations.
+    JS form computes a live preview; CSV imports compute server-side.
+    `mass_q` = `volume_m3 × species.density`. Both NULL for coppice rows
+    (coppice harvests are mass-based at parcel level, not per-tree).
+  - Trees are decoupled from tree_samples to track growth over time.
 
 #### Deletion semantics
 
@@ -294,21 +273,11 @@ display totals.
   - `import_fingerprint` is the content hash of the source CSV row, used
     for idempotent re-uploads (see `piano-di-taglio.md` "Importa CSV
     martellate"). Null for manually entered tree marks.
-  - Recording a marked tree always creates a new `tree` row; deleting
-    a tree_mark cascades to its `tree` row. This means that the
-    `tree_id` FK is, in practice, not a cross-link to any other
-    observation of the same physical tree.
-
-    Future extension: when sampled trees are physically tagged (numbered
-    tags, e.g., aluminum plates affixed to the trunk), an agronomist
-    marking a tagged tree could look up its existing `tree` row via
-    (region, parcel, sample area number, `tree_sample.number`) and reuse
-    that `tree_id` instead of creating a new row. This would let us
-    automatically deduct marked-and-tagged trees from sample-based biomass
-    extrapolations. The schema already supports this — no change required
-    — but the UI lookup affordance and the deduction-on-extrapolation
-    logic do not yet exist. Until they do, sample areas cover only 1–3%
-    of forest surface so the over-count error is small.
+  - Recording a marked tree always creates a new `tree` row; deleting a
+    tree_mark cascades to its `tree` row. The `tree_id` FK is, in practice, not
+    a cross-link to any other observation of the same physical tree. (Use
+    (region, parcel, sample area number, `tree_sample.number`) to identify the
+    same physical tree.)
 
 ## Harvest plan item materialization
 
@@ -339,50 +308,23 @@ for coppice parcels there is no per-tree harvest record at all.
   nullable, record2:int nullable, mass_q:float, volume_m3:real, damaged:bool,
   unhealthy:bool, psr:bool, note:text)
   - Denotes a cutting/harvesting operation by one crew on a given day.
-  - `harvest_plan_item_id` ties the harvest back to a harvest plan item
-    (intervento), and therefore, for high-forest parcels, indirectly to
-    the tree_marks previously recorded against that item.
-
-    Historical imported data lacks the `harvest_plan_item_id` (it is
-    NULL). For new harvests inserted during day-to-day Abies operation,
-    `harvest_plan_item_id` is mandatory and the selected item must be in
-    state `open` or `harvesting` (see `piano-di-taglio.md` "Cantiere
-    pulldown" and `prelievi.md`). Inserting the first harvest under a
-    given item auto-advances its state to `harvesting`.
-
-    On delete of the referenced `harvest_plan_item`, deletion is blocked
-    (ON DELETE PROTECT). The user must delete the linked harvests first
-    if they really want to drop the plan item. See the plan-item
-    deletion note above.
-
-  - product_id denotes the type of produced material (logs, wood chips, etc.).
-  - `volume_m3` is the harvest's estimated total volume in cubic meters,
-    materialized at write time from the species breakdown:
-    `volume_m3 = SUM_over_species(mass_q × percent/100 / species.density)`.
-    Used by the Piano di taglio calendar to compare actual cut volume against
-    the plan/mark target without runtime conversion.  Recomputed on every
-    write that changes `mass_q` or any `harvest_species` row.
-  - `record1` and `record2` are optional and indicate the id on a paper
-    bill-of-goods form provided by the crew. They correspond to "vdp" and "prot"
-    in the mannesi.csv file, respectively. record2 is legacy and not displayed
-    to the user.
-  - The boolean flags `damaged`, `unhealthy`, and `PSR` used to be stored in a
-    separate `note` table and correspond to user-visible strings "Catastrofato",
-    "Fitosanitario", and "PSR". (They are displayed in a "Note" column in the
-    harvests table.)
-
-    IMPORTANT: The harvest CSV importer must translate the strings in the CSV to
-    boolean values for this table.
-
-    If harvest_plan_item_id is not null, it is always true that for each of
-    these flags F, harvest_plan_item.F == harvest.F. (Enforced by trigger.)
-  - `note` (previously `extra_note`) is an arbitrary text field for short user
-    annotations. (It is displayed in an "Altre note" column.)
-  - If harvest_plan_item_id is not null, then either
-    (harvest_plan_item.parcel_id is not null AND harvest_plan_item.parcel_id =
-    harvest.parcel_id) OR (harvest_plan_item.region_id is not null AND
-    harvest_plan_item.region_id = harvest.parcel.region_id). (Enforced by
-    trigger.)
+  - `harvest_plan_item_id` links to a plan item (intervento). NULL for
+    historical imports; mandatory for new harvests (item must be in state
+    `open` or `harvesting`). First harvest auto-advances item state to
+    `harvesting`. ON DELETE PROTECT — delete linked harvests first.
+  - `product_id`: type of produced material (logs, chips, etc.).
+  - `volume_m3`: materialized at write time from the species breakdown:
+    `SUM(mass_q × percent/100 / species.density)`. Recomputed on any
+    change to `mass_q` or `harvest_species` rows.
+  - `record1`, `record2`: optional paper bill-of-goods IDs ("vdp"/"prot").
+    `record2` is legacy, not displayed.
+  - `damaged`, `unhealthy`, `psr`: boolean flags displayed as "Catastrofato",
+    "Fitosanitario", "PSR" in a "Note" column. If `harvest_plan_item_id`
+    is set, these must match the item's flags (enforced by trigger).
+    The CSV importer translates the Italian strings to booleans.
+  - `note`: free-text annotation ("Altre note" column).
+  - Parcel consistency: if linked to a plan item, `harvest.parcel_id` must
+    match the item's parcel (or region). Enforced by trigger.
 
 - harvest_species: (harvest_id:int, species_id:int, percent:int) — PK is
   (harvest_id, species_id)
