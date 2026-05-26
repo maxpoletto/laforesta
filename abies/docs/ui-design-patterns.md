@@ -2,13 +2,8 @@
 
 ## Objectives
 
-The objectives of the visual design are:
-
-- Readability: data is presented simply and clearly, with good use of screen
-  real estate on both desktop and mobile.
-- Predictability: consistent visual guidelines, no unexpected behavior.
-- Discoverability: navigation is easy and fast.
-- Restfulness: cognitive and visual load are low.
+Readable, predictable, discoverable, restful. Low cognitive load,
+good use of screen real estate on both desktop and mobile.
 
 ## Fonts and colors
 
@@ -17,48 +12,27 @@ Roboto is used throughout.
 The UI is strictly two-dimensional: there are no drop-shadows, text inputs are
 flat, scroll bars are flat.
 
-Page margins are moderate (15 px) on desktop and almost disappear (2 px) on mobile.
+Page margins are moderate (40 px) on desktop and small on mobile.
 
 Text inputs have very slightly rounded corners (2-4 px radius).
 
 Buttons have rounded corners (4-8px radius). They are dark green and turn
 lighter when hovered over.
 
-Horizontal rules outline the page header as well as collapsible elements
-(each page's collapsibles are documented in its `docs/page-*.md`). They are thin
+Horizontal rules outline the page header as well as collapsible elements (each
+page's collapsibles are documented in its `docs/page-*.md`). They are thin
 (4px), dark green, and rectangular.
-
-## Data display overview
-
-Within each domain page, information is displayed consistently in one of three
-ways:
-- Tabular data is consistently displayed in sortable-table (more on this below).
-- Graphical data is displayed using Chart.js.
-- Geographic data is displayed using Leaflet.
-
-Some visual elements may be hidden within collapsible sections.
 
 ## Tabular data
 
-All tabular data appears in sortable-tables.
+All tabular data uses sortable-table. All fields are sortable.
 
-- All fields are sortable.
-- All tables are searchable via a text input immediately above the table, on the
-  left. Search is immediate (no search button) after a 1/2-second sleep to
-  debounce rapid keyboard input.
-  - Conceptually (not necessarily in actual implementation), the search operates
-    as follows:
-    1. Split the search text on whitespace.
-    1. For every row, join all fields into a single string.
-    1. Return all rows that contain all elements of the search text in the given
-        order.
-  - The search acts purely as a filter. The table does not move, but displays only
-    matching rows. Any pre-existing sort order is preserved.
-- A table displays rows as far down as the bottom of the viewport. If there are
-  more rows, the table has a scrollbar that is separate from the page scrollbar.
-  (On mobile, there is enough lateral space to allow the user to also scroll the
-  page, not just the table).
-- Tables have 1px medium-grey borders and column headers have light grey background.
+Search input sits above the table (left). Debounced (500ms), filters
+rows by matching all whitespace-separated terms against the
+concatenation of all fields. Sort order is preserved.
+
+Tables fill the viewport height with their own scrollbar. 1px
+medium-grey borders; light grey column headers.
 
 Additionally, for users with role "writer" or "admin", tables may (depending on their semantics — see the relevant page doc (`docs/page-*.md`)) allow modification:
 
@@ -82,47 +56,21 @@ desktop and mobile).
 
 Maps have the following visual structure:
 
-- A navigation bar on the right (sidebar-bearing pages only; Campionamenti
-  has no sidebar).
-- The following Leaflet tools appear in the upper left corner, top to bottom:
-  - A hamburger button to hide/display the navigation bar (sidebar pages only).
-  - A location pin.
-  - Zoom +/- buttons
-  - A ruler
-- A basemap selector in the upper right (see below).
+- Optional sidebar on the right (Bosco has one; Campionamenti does not).
+  Top of sidebar: status panel + region ("compresa") pulldown (selects and
+  zooms to fit). Below: app-specific controls in collapsible sections.
+- Upper left (top to bottom): hamburger (sidebar pages only, to show/hide
+  sidebar), location pin, zoom +/−, ruler.
+- Upper right: basemap selector.
 
-The top of the navigation bar (sidebar pages) always contains, top to bottom:
-- A status panel
-- A pull-down region ("compresa") selector. Choosing a region centers it on the
-  map and sets the zoom level to the most detailed level that still includes the
-  full region in the viewport.
-
-Below these elements are application-specific controls, organized in collapsible
-sections.
-
-This structure derives from the Boscoscopio app (laforesta/bosco/b), with the
-basemap selector moved onto the map itself so the pattern works for
-sidebar-less maps too (Campionamenti).
-
-**Basemap selector.**  A Leaflet control in the top-right corner of every
-map shows the currently active basemap (OSM / Topo / Satellite) as a
-64×64 thumbnail.  Hovering it (or tapping the thumbnail on touch
-devices) expands the control horizontally to show all three choices;
-clicking one selects it and collapses the control back to the active
-thumbnail.  Satellite is the default.  The control is added by
-`MapCommon.create()` automatically (opt out via
-`enableBasemapControl: false`) and works identically on sidebar-bearing
-and sidebar-less maps.  The `mt=` URL parameter (`o` / `t` / `s`)
-round-trips the choice so basemap selection is bookmarkable; on
-Campionamenti, both visible maps share the same setting and update
-together via the `basemapchange` Leaflet event that the control fires
-on selection.  Use `wrapper.syncBasemap(name)` (returned from
-`MapCommon.create`) to mirror a basemap change onto a sibling map
-without re-firing the event.  Implementation: `BasemapControl` inside
-`apps/base/static/base/js/map-common.js`; CSS rules `.mc-basemap-*` in
-`apps/base/static/base/css/common.css`; thumbnail PNGs under
-`apps/base/static/base/img/basemap-{osm,topo,sat}.png` (one tile per
-provider centred on Capistrano, resized to 128×128).
+**Basemap selector.**  `BasemapControl` (in `map-common.js`) shows a
+64×64 thumbnail of the active basemap (OSM / Topo / Satellite, default
+Satellite). Hover/tap expands to show all three; click selects. Added
+automatically by `MapCommon.create()` (opt out via
+`enableBasemapControl: false`). The `mt=` URL param (`o`/`t`/`s`)
+round-trips the choice. On pages with multiple maps, use
+`wrapper.syncBasemap(name)` to mirror selection via the
+`basemapchange` event without re-firing it.
 
 **Geojson source for parcel polygons.** Parcels are rendered from
 `data/geo/terreni.geojson`.  Each polygon feature carries
@@ -137,29 +85,20 @@ call `MapCommon.sortFeaturesByArea(geojson)`
 and tooltip on top of the larger ones containing them; otherwise the
 big "Capistrano" outline can swallow hover events on a nested parcel.
 
-**Parcel hover tooltip.** Every polygon layer binds a sticky tooltip
-rendered by the shared helper `parcelLabel(feature)`
-(`apps/base/static/base/js/geo.js`), which returns
-`"<Compresa> <particella>"`.  Mount with
-`bindTooltip(parcelLabel(f), { sticky: true, direction: 'top' })` so
-the tooltip follows the cursor inside irregular shapes.  Reuse this
-helper in any new map.
+**Parcel hover tooltip.** Use shared helper `parcelLabel(feature)`
+(`geo.js`) → `"<Compresa> <particella>"`. Mount with
+`bindTooltip(parcelLabel(f), { sticky: true, direction: 'top' })`.
 
 **Parcel style.** Both campionamenti maps share `MapCommon.PARCEL_STYLE`
 (warm yellow border, low fill opacity).  Don't inline a style block in
 new map renderers — extend or compose the constant so the look stays
 consistent across maps and basemaps.
 
-**View persistence across re-renders.** Section state objects carry a
-`savedView: { gridId | surveyId, center: [lat, lng], zoom } | null`
-that the map updates on every Leaflet `moveend` / `zoomend` and
-consumes via an `initialView` constructor option.  The stash is
-**identity-keyed**: the renderer accepts a `savedView` only when its
-id matches the current selection — so `returnToPage`-driven full
-re-renders (which transiently clear `activeGridId`) keep the view,
-while switching grid/survey resets to `fitBounds`.  This is what
-makes "save edit → map stays put" feel right.  Mirror the pattern in
-any new map whose contents are re-rendered after data writes.
+**View persistence across re-renders.** Each section stashes
+`savedView: { id, center, zoom }` on every `moveend`/`zoomend`.
+On re-render the map restores the view only if the id matches the
+current selection (so data writes keep the view, but switching
+grid/survey resets to `fitBounds`). Mirror this in any new map.
 
 ## Modals
 
@@ -194,7 +133,7 @@ use `.modal-tabs` / `.modal-tab` / `.modal-tab-body` /
 `showModal()` and sets `min-height` on the container to the tallest
 tab, so switching tabs never reflows the modal.
 
-## Form card
+### Form card
 
 Every input/edit form renders inside a `<div class="form-card">`
 wrapper.  The shared rule in `apps/base/static/base/css/common.css`
@@ -206,7 +145,7 @@ The wrapper's `h2` title gets a `12px` bottom margin via
 `.form-card h2` so the first row doesn't collapse against the
 heading.
 
-## Bottom-of-form button layout
+### Bottom-of-form button layout
 
 Every form (modal or in-page) ends with a single `.form-actions` flex
 row containing the action buttons.  Convention, applied without
@@ -214,10 +153,10 @@ exception:
 
 1. **Cancel first (left).** `<button class="btn">{{ S.CANCEL }}</button>`
    — always the leftmost child, label "Annulla".
-2. **Primary action last (right).** `class="btn btn-primary"`; label
+2. **Primary action (right).** `class="btn btn-primary"`; label
    is the verb that commits state ("Salva", "Crea", "Conferma",
    "Importa"; "Elimina" for destructive flows).
-3. **Optional secondary primary in between.** The typical pair is
+3. **Optional secondary primary (further right).** The typical set is
    `[Annulla] [Salva] [Salva e continua]` (tree / harvest forms).
 
 Auxiliary buttons that are *not* commits — e.g. the grid planner's
@@ -236,11 +175,7 @@ explains why — never gate the action via a follow-up confirm modal
 that simply refuses.  `.btn:disabled` in common.css greys the button
 and disables hover-darkening.
 
-The secondary "and continue" action is `S.SAVE_AND_CONTINUE`
-(`'Salva e continua'`); the legacy `SAVE_AND_ADD` constant has been
-removed.
-
-## Short-entry field width
+### Short-entry field width
 
 Short-entry fields — numeric inputs (D, h, L10, quota), lat/lng,
 small pull-downs (species, area number), `<input type="date">`,
@@ -261,7 +196,7 @@ pulldown) live in plain `.form-row` cells without the `narrow`
 modifier — they flex to fill.  Mixing a wide cell and a narrow
 cell in the same row is fine; use the per-cell flavour above.
 
-## Read-only fields in edit forms
+### Read-only fields in edit forms
 
 When a form has fields the user cannot change in the current mode
 (e.g. N. albero / Specie / Ceduo on the Edit-tree form), render them
@@ -279,8 +214,12 @@ legacy `.form-readonly-block` (grey card) for spots where the
 read-only context wants to call attention to itself; the flat
 variant is the default.
 
-## Accessibility considerations
+### Error reportin
 
-In its initial version, given the target staff, Abies has no special
-accessibility features (high contrast, etc.), though of course enlarging fonts
-in the browser is always an option for users.
+Input-related errors are reported directly in the input modals, not in a
+separate modal. Errors include validation errors, conflicts, and other
+conditions such as network errors.
+
+## Accessibility
+
+No special accessibility features in v1 (high contrast, etc.).

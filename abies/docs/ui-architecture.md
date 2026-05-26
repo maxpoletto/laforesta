@@ -21,13 +21,9 @@ On wider displays it contains:
 - The logo and name of the company.
 - The names of the domains as tabs, with the currently active domain highlighted.
 
-The full v1 tab order, left to right, is:
+Tab order, left to right:
 
   Bosco · Piano di taglio · Campionamenti · Prelievi · Controllo · Impostazioni
-
-Future domains (Segheria, Biomassa, Fotovoltaico, Rifornimenti) will slot in
-between Prelievi and Controllo when they ship.
-- No hamburger icon.
 
 The header is fixed in the viewport. Content scrolls beneath it.
 
@@ -41,11 +37,7 @@ Changing domain or page-specific parameters changes the URL via
 `history.pushState()` and renders the appropriate content. The back button works
 via `popstate`.
 
-All URLs are bookmarkable. A user can send a URL to a colleague and it
-reproduces what they were looking at.
-
-Because of this design choice and the relatively flat tabbed navigation
-structure, we omit any explicit "breadcrumb" navigation component.
+All URLs are bookmarkable and shareable.
 
 The router also remembers the last-visited URL for each domain within the
 session.  Clicking a *different* tab restores that tab's last URL (preserving
@@ -57,11 +49,3 @@ a full page reload clears it.
 
 The paths and query parameters for each domain are documented in the
 per-page specs (`docs/page-*.md`).
-
-## Error reporting
-
-Errors are reported in modals. Errors include validation errors, conflicts, and
-other conditions such as network errors.
-
-An error modal contains the error message and a dismiss button. It can also be
-dismissed with the "escape" key.
