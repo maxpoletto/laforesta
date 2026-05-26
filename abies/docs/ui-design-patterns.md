@@ -175,26 +175,27 @@ explains why — never gate the action via a follow-up confirm modal
 that simply refuses.  `.btn:disabled` in common.css greys the button
 and disables hover-darkening.
 
+### Form row layout
+
+Forms use `.form-row` containing `.form-group` children.
+`common.css` currently defines `.form-row` as flex; some pages
+(prelievi) override to CSS grid. The system is migrating to grid
+(see `docs/superpowers/plans/2026-05-25-js-to-templates.md`).
+
 ### Short-entry field width
 
 Short-entry fields — numeric inputs (D, h, L10, quota), lat/lng,
 small pull-downs (species, area number), `<input type="date">`,
-the "Usa GPS" button — are 120px wide.  Two flavours in
-`common.css`:
+the "Usa GPS" button — are 120px wide.  Two flavours:
 
-- **Row-level shorthand:** `<div class="form-row narrow">` constrains
-  every child cell.  Use when ALL cells in the row are short.
+- **Row-level:** `<div class="form-row narrow">` constrains every
+  child cell.  Use when ALL cells in the row are short.
 - **Per-cell:** `<div class="form-group narrow">` inside a plain
   `<div class="form-row">` constrains just that one cell; siblings
-  keep `flex: 1`.  Use when the row mixes a wide cell (e.g. the
-  N. albero pulldown that carries cross-sample-identity options)
-  with a short one (Data).  This is what the Edit-vs-New variants
-  of the tree form rely on.
+  fill the remaining space.
 
-Wide fields (full-name inputs, description textareas, the N. albero
-pulldown) live in plain `.form-row` cells without the `narrow`
-modifier — they flex to fill.  Mixing a wide cell and a narrow
-cell in the same row is fine; use the per-cell flavour above.
+Wide fields (full-name inputs, description textareas) live in plain
+`.form-row` cells without the `narrow` modifier.
 
 ### Read-only fields in edit forms
 
@@ -207,14 +208,13 @@ the wire format and look interactive-but-broken.  Pair the visible
 `<input type="hidden" name="…" value="…">` so the form still
 carries the field on submit.
 
-For the Compresa / Particella / Area di saggio header strip at the
-top of the Tree form, use `.form-readonly-flat` — a horizontal row
-of `<label>: value` pairs without a card background.  Reserve the
-legacy `.form-readonly-block` (grey card) for spots where the
-read-only context wants to call attention to itself; the flat
-variant is the default.
+For read-only header strips (Compresa / Particella / Area di saggio
+at the top of tree and mark forms), use `.form-readonly-flat` — an
+inline row of `<label>: value` pairs without a card background.
+`.form-readonly-block` (grid layout, grey card) is used only by the
+area popover on the campionamenti map.
 
-### Error reportin
+### Error reporting
 
 Input-related errors are reported directly in the input modals, not in a
 separate modal. Errors include validation errors, conflicts, and other
