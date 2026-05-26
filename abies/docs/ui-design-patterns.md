@@ -23,6 +23,13 @@ Horizontal rules outline the page header as well as collapsible elements (each
 page's collapsibles are documented in its `docs/page-*.md`). They are thin
 (4px), dark green, and rectangular.
 
+## Export and creation
+
+Many types of objects (survey grids, surveys, harvest plans) can be created and
+also exported to CSV. The standard pattern is two side-by-side buttons on the
+far right of the work space, [Export CSV] and [+New X] (where X is the type of
+object).
+
 ## Tabular data
 
 All tabular data uses sortable-table. All fields are sortable.
@@ -156,8 +163,8 @@ exception:
 2. **Primary action (right).** `class="btn btn-primary"`; label
    is the verb that commits state ("Salva", "Crea", "Conferma",
    "Importa"; "Elimina" for destructive flows).
-3. **Optional secondary primary (further right).** The typical set is
-   `[Annulla] [Salva] [Salva e continua]` (tree / harvest forms).
+3. **Optional secondary primary (further right).** Typical sets are `[Annulla]
+   [Conferma]` and `[Annulla] [Salva] [Salva e continua]`.
 
 Auxiliary buttons that are *not* commits — e.g. the grid planner's
 "Pianifica" (recompute the preview lattice) — live separately, near
@@ -213,6 +220,14 @@ at the top of tree and mark forms), use `.form-readonly-flat` — an
 inline row of `<label>: value` pairs without a card background.
 `.form-readonly-block` (grid layout, grey card) is used only by the
 area popover on the campionamenti map.
+
+### Deletion-after-export
+
+When attempting to delete certain objects (e.g., a survey), UI presents a user
+with a modal warning about the danger of the operation and forces the user to
+export data as CSV first. At bottom are three buttons:
+[Annulla] [Esporta CSV] [Elimina]
+Elimina is disabled until after CSV export.
 
 ### Error reporting
 
