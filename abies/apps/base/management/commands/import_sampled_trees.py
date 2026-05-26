@@ -14,7 +14,7 @@ Behavior:
   "Aree di saggio PDG 2026" grid (run import_sample_grid first).
 - Default sample date is 2024-09-15 (placeholder; admins edit later
   via the campionamenti Section 3 inline date — see
-  docs/pages/campionamenti.md).
+  docs/page-campionamenti.md).
 - Groups rows by (Compresa, Particella, Area saggio) → one Sample.
 - Each row creates one Tree (preserved=False, coppice=False) and one
   TreeSample.  V via Tabacchi, m = V × species.density.

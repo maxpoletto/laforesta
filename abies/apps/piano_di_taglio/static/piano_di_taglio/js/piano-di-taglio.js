@@ -5,7 +5,7 @@
  * "+ Nuovo piano") and, below it, the fustaia and ceduo calendar
  * sections + the bookmarkable view/edit-item modal.
  *
- * URL params: see docs/pages/piano-di-taglio.md.
+ * URL params: see docs/page-piano-di-taglio.md.
  */
 
 import * as cache from '../../base/js/cache.js';

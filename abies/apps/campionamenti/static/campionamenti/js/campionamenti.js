@@ -6,7 +6,7 @@
  *                    coloring + click-to-narrow-Section-3.
  *   Section 3 (t) — Alberi campionati: sortable table of sampled trees.
  *
- * URL params: see docs/pages/campionamenti.md (o, g, s, a, tf, tsc, tso).
+ * URL params: see docs/page-campionamenti.md (o, g, s, a, tf, tsc, tso).
  *
  * M3d-read: read-only view; writer affordances (pencil/garbage/+),
  * manual entry forms, and CSV imports ship in M3d-write.

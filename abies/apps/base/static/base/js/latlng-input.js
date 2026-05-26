@@ -3,7 +3,7 @@
  *
  * Used by Campionamenti (manual tree entry, new sample-area form),
  * and (planned) Bosco PAI add + Piano di taglio mark-tree add — see
- * `docs/pages/campionamenti.md` §"Lat/lng entry component".
+ * `docs/page-campionamenti.md` §"Lat/lng entry component".
  *
  * Server-rendered form supplies two number inputs.  The client calls
  * `mountUseLocationButton(latEl, lngEl)` to append a "Usa posizione

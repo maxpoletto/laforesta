@@ -3,7 +3,7 @@
 State for the build sequence that takes Abies from Stage 1 (Prelievi MVP,
 already shipped) through to a full version-1 of the app.  Page-level UX,
 schema, URL parameters, and digest formats are settled in the per-page docs
-under `docs/pages/` and in `docs/database.md`; this file is just the
+in `docs/page-*.md` and in `docs/database.md`; this file is just the
 *ordering* of the work.
 
 ## Principles

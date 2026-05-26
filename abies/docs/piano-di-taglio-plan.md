@@ -235,7 +235,7 @@ opens up the per-item modal:
   with a "Compresa obbligatoria" message (new
   `ERR_PLAN_ITEM_COMPRESA_REQUIRED`). Drop the old XOR error string
   from server use; tests adjust accordingly. Update
-  `docs/pages/piano-di-taglio.md` validator wording.
+  `docs/page-piano-di-taglio.md` validator wording.
 - **PT-5R-2** Strip `+Nuovo piano` modal to a single panel (no tabs):
   name + description. Year range is no longer asked at create time —
   the empty plan defaults to `year_start = year_end = current civil

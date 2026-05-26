@@ -1,7 +1,7 @@
 # Database model
 
 Core relational tables that underpin Abies.  Per-domain JSON digests appear
-in the individual page docs under `docs/pages/`.  All tables have implicit
+in the individual page docs (`docs/page-*.md`).  All tables have implicit
 `version` (int), `created_at`, and `modified_at` columns that we omit below
 for clarity.
 

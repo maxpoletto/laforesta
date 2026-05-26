@@ -1,38 +1,5 @@
 # Abies: integrated management of forestry company operations
 
-<!-- TOC (line numbers are approximate — re-run grep '^#{1,2} ' to refresh)
-  User base ...................   40
-  Priorities ..................   49
-  Functional overview .........   56
-  Glossary ....................   97
-  Architecture overview .......  113
-  Security ....................  130
-  UI architecture .............  223
-  UI design patterns ..........  580
-  Storage .....................  812
-  Internationalization ........  888
-  Mobile ......................  920
-  Project structure ...........  926
-  Code location / deployment . 1008
-  Testing .................... 1067
-  Development environment .... 1081
-  Relationship to bosco apps . 1102
-  Build order ................ 1108
-  Detailed description ....... 1169
-  See also:
-    docs/database.md                  — full DB schema
-    docs/pages/login.md               — login page
-    docs/pages/bosco.md               — Bosco (map) page
-    docs/pages/campionamenti.md       — Campionamenti (sampling) page
-    docs/pages/piano-di-taglio.md     — Piano di taglio (harvest plan) page
-    docs/pages/prelievi.md            — Prelievi (harvests) page
-    docs/pages/controllo.md           — Controllo (audit) page
-    docs/pages/impostazioni.md        — Impostazioni (settings) page
-    docs/implementation-plan.md       — original M0..M4 milestone plan
-    docs/piano-di-taglio-plan.md      — fine-grained Piano-di-taglio plan
-                                        (supersedes M1/M2 in implementation-plan.md)
--->
-
 Abies is a full-stack web app used to manage production operations of a forestry
 company, including forest harvests, sawmill production, biomass energy
 generation.
@@ -97,22 +64,6 @@ example, wood from the forest flows into the sawmill and biomass plant).
 Historical data can be displayed in searchable tables and in graphical charts,
 as well as in the forest maps.
 
-# Glossary
-
-- Particella: a parcel of forest land. Usually but not always contiguous. Atomic
-  unit for harvest planning.
-- Compresa: a forest region comprising multiple particelle.
-- Mannesi: a lumberjack. Existing / legacy harvest table is 'mannesi.{xlsx,csv}'.
-- VDP and Prot: "verbale di pesata" and "protocollo", id numbers of lumberjack
-  harvest operations in mannesi file.
-- Bosco apps: Current web-apps in laforesta/bosco. Includes bosco/ads (aree di
-  saggio, sample areas), bosco/pai (piante ad accrescimento indefinito, trees to
-  be preserved), boscoscopio (geo-based stats).
-- PSR: Programma di Sviluppo Rurale. Funding plan for some harvest operations.
-- Fitosanitario: a harvest operation performed for forest disease containment.
-- Catastrofate: a harvest operation performed to remove trees damaged by
-  weather events.
-
 # Architecture overview
 
 The app is a SPA-lite: Django serves a single shell page after authentication,
@@ -130,713 +81,73 @@ There is no JS framework.
   - django-simple-history for audits
 - SQLite for storage.
 
-# Security
-
-Data security (both privacy and integrity) is important because the app stores
-the core of the company's operations.
-
-## Permission model
-
-We have a three-role permission model, "admin", "writer", and "reader". Readers
-have read-only access. Writers can modify any data not related to access
-control, performing insertions/edits/deletes on any tables that allow it (see
-details below). "admins" can also create and edit users.
-
-If using username/password pairs, users can change their own password.
-
-## Authorization
-
-The app is access-controlled on the server side.
-
-Authorization supports MS 365 credentials and user/password pairs via
-django-allauth,
-[integrated](https://django-axes.readthedocs.io/en/latest/6_integration.html#integration-with-django-allauth)
-with django-axes for basic brute-force protection.
-
-OAuth users are pre-provisioned by an admin via the Settings page.  Each
-user record carries their email; a matching verified
-`allauth.EmailAddress` row is created on save.
-
-### MS 365 OAuth configuration
-
-The app pins OAuth to a single Entra tenant to minimise the attack
-surface — only accounts within that tenant can authenticate at all.
-Configuration lives in three env vars read at startup by
-`config/settings.py`:
-
-- `MS_OAUTH_CLIENT_ID` — Entra application (client) ID
-- `MS_OAUTH_SECRET` — Entra application client secret
-- `MS_OAUTH_TENANT` — Entra tenant ID (GUID or
-  `<name>.onmicrosoft.com`).  Defaults to `common` if unset, which only
-  works for multi-tenant apps.
-
-Redirect URIs registered on the Entra app (one per deployment):
-- `http://localhost:8000/accounts/microsoft/login/callback/` (local dev via `manage.py runserver`)
-- `https://abies-dev.laforesta.it/accounts/microsoft/login/callback/` (shared dev VM)
-- `https://abies.laforesta.it/accounts/microsoft/login/callback/` (prod)
-
-The same Entra app handles all three; secrets can be shared (different Django
-SECRET_KEYs per instance, but the OAuth client_id/secret can be reused).
-
-In dev, export the env vars in your shell (or source a gitignored
-file).  In production, supply them via a root-owned, `0600`-permission
-env file read by systemd (`EnvironmentFile=`) or by Docker
-(`env_file:`).
-
-### Whitelist social adapter
-
-`apps.base.auth.WhitelistSocialAdapter` overrides allauth's
-`pre_social_login` to match incoming logins by email against the
-admin-provisioned user (case-insensitive, active, login_method=oauth).
-This bypasses allauth's default requirement that the incoming email be
-flagged verified — Microsoft's Graph API does not assert verification,
-even though email ownership is verified at account creation.  Trust is
-rooted in the pinned Entra tenant.  If a new OAuth provider is added
-that does not itself verify email ownership at account creation, the
-adapter must be revisited.
-
-Session expiration is server-configurable and defaults to 12 hours.
-
-In the future we may need to support other OAuth identity providers.
-
-## Password policy
-
-Django's default `AUTH_PASSWORD_VALIDATORS` are enabled: minimum length (8
-characters), common password check, numeric-only check, similarity to username.
-
-## Rate limiting
-
-django-axes handles login brute-force protection. Data entry endpoints are
-rate-limited per user (e.g., 60 requests/minute) to guard against runaway
-scripts or bugs.
-
-## Content security
-
-The shell page sets a Content-Security-Policy header that blocks inline scripts.
-All user-provided content (notes, descriptions, etc.) rendered into the DOM must
-use `textContent`, never `innerHTML`, to prevent XSS.
-
-## Auditing
-
-The app records all writes using django-simple-history.
-
-The audit log is readable and searchable by all users. (More on this below in
-the UI section.)
- 
-# UI architecture
-
-The app is structured as a SPA-lite. After authentication, Django renders a
-single shell page that persists for the duration of the session. All subsequent
-navigation happens client-side without full page reloads.
-
-## Shell and header
-
-The shell is a single Django template containing just:
-- The header, shared by all domain pages.
-- A content area where the domain-specific page content is rendered.
-
-The shell is rendered once and never reloads during normal use.
-
-The header is adaptive for desktop and mobile. On narrow displays it contains only:
-- The logo of the company.
-- The name of the currently active domain.
-- A hamburger icon for a menu that allows switching to other domains.
-
-On wider displays it contains:
-- The logo and name of the company.
-- The names of the domains as tabs, with the currently active domain highlighted.
-
-The full v1 tab order, left to right, is:
-
-  Bosco · Piano di taglio · Campionamenti · Prelievi · Controllo · Impostazioni
-
-Future domains (Segheria, Biomassa, Fotovoltaico, Rifornimenti) will slot in
-between Prelievi and Controllo when they ship.
-- No hamburger icon.
-
-The header is fixed in the viewport. Content scrolls beneath it.
-
-## Routing and URLs
-
-URLs are human readable and are the canonical representation of the view state.
-They encode the domain (in the path), and any data filters, chart selection,
-etc. as query parameters.
-
-Changing domain or page-specific parameters changes the URL via
-`history.pushState()` and renders the appropriate content. The back button works
-via `popstate`.
-
-All URLs are bookmarkable. A user can send a URL to a colleague and it
-reproduces what they were looking at.
-
-Because of this design choice and the relatively flat tabbed navigation
-structure, we omit any explicit "breadcrumb" navigation component.
-
-The router also remembers the last-visited URL for each domain within the
-session.  Clicking a *different* tab restores that tab's last URL (preserving
-its filters / sort / chart state), so jumping Prelievi → Controllo → Prelievi
-returns you to where you were.  Clicking the tab you are already on goes to
-its bare URL — a deliberate "reset" affordance.  Browser back / forward use
-the real history stack and are unaffected.  The stash is in-memory only;
-a full page reload clears it.
-
-The paths and query parameters for each domain are documented in the
-per-page specs under `docs/pages/`.
-
-## Data storage and serving
-
-All data except some geographic data (e.g., satellite images) lives in
-relational form in SQLite on the server.
-
-However, to reduce latency, it is always served as compressed pre-computed JSON.
-The mapping of relational tables to JSON files is specified in the detailed
-domain descriptions.
-
-For tabular data, the format is a JSON object with two fields:
-
-    { "columns": ["row_id", "Data", "Compresa", ...],
-      "rows": [[1, "2024-03-15", "Alpe", ...], ...] }
-
-`columns` lists column names once; `rows` is an array of arrays containing pure
-data. Every row's first element is `row_id`, used for updates (see below). The
-client maps columns by name, so adding a column does not break cached data.
-
-### JSON digest regeneration
-
-Digests are regenerated lazily on read, not on write. This avoids wasted work
-during batch data entry (where the inserting user's view is already kept current
-via cache sync from the POST response).
-
-A small table tracks staleness:
-
-    digest_status(name TEXT PRIMARY KEY, stale BOOLEAN DEFAULT FALSE)
-
-Write path: after a successful save, the view marks affected digests as stale:
-`UPDATE digest_status SET stale = TRUE WHERE name IN (...)`. This is the only
-write-path cost.
-
-**The "affected digests" set is whatever the digest's generator reads,
-transitively.** A write to table T must invalidate every digest D whose
-`generate_D()` reads T — directly or via a join.  Forgetting one is a silent
-bug: the on-disk file stays, the staleness flag stays False, and the next
-read serves a stale digest *even after a page reload* (the cache miss still
-hits the un-regenerated file).
-
-Concrete examples from `apps/campionamenti`:
-
-| Write                                  | Must invalidate                               |
-|----------------------------------------|-----------------------------------------------|
-| `Survey` create/delete                 | `surveys`, `grids` (N. rilevamenti)           |
-| `SampleArea` create/delete             | `sample_areas`, `grids`, `surveys` (N. aree totali) |
-| `Sample` create/delete + date edit     | `samples`, `surveys` (Data primo/ultimo, N. aree visitate), `sampled_trees_<survey>` |
-| `TreeSample` create/delete             | `sampled_trees_<survey>`, `samples` (N. alberi) |
-| `SampleGrid` rename                    | `grids`                                       |
-| `Survey` rename                        | `surveys`                                     |
-
-**Cross-domain invalidation** also occurs: a prelievi harvest write
-linked to a `harvest_plan_item` marks `harvest_plan_items` stale (piano
-di taglio calendar) and re-materializes `volume_actual_m3` on the item.
-Each page's doc under `docs/pages/` carries the authoritative
-write→digest invalidation table for its domain.
-
-When you add a new write endpoint, audit every `generate_*()` in
-`apps/base/digests.py` and add `mark_stale()` for each digest that touches
-the written table.  When you change a `generate_*()` to read a new table,
-audit every write endpoint that touches that table.  Tests under
-`TestDigestInvalidation` (`test/test_campionamenti_views.py`,
-`test/test_prelievi_views.py`, `test/test_piano_di_taglio_views.py`)
-lock the contract: each test performs a write and re-reads the affected
-digest via the public endpoint, asserting that materialized columns
-reflect the change.  Add equivalent tests for any new write/digest pair.
-
-Read path (conditional GET for a digest):
-1. Check stale flag for the requested digest (one PK lookup).
-2. If not stale: normal If-Modified-Since check against file mtime, return 304
-   or 200.
-3. If stale: regenerate the digest, then serve the new file. Regeneration
-   proceeds as follows:
-   a. Generate the digest and write it to a temp file (gzip-compressed).
-   b. `os.rename()` the temp file to the digest path (POSIX-atomic).
-   c. Clear the stale flag: `UPDATE digest_status SET stale = FALSE WHERE
-      name = ? AND stale = TRUE`. The `AND stale = TRUE` acts as a
-      compare-and-swap so that concurrent readers don't regenerate twice.
-
-   This ordering ensures that on any crash, the stale flag may over-report but
-   never under-report: a digest file on disk is always complete and valid.
-
-All digest generation logic lives in `apps/base/digests.py`, since digests
-often span multiple domain tables (e.g., a prelievi write also updates
-`parcel_year_production.json` used by bosco).
-
-Digest files are gzip-compressed (stored as `.json.gz`) and served with
-`Content-Encoding: gzip`.
-
-## Caching
-
-Fetched data is cached client-side in memory. The cache is keyed by a "data_id"
-that identifies a particular dataset corresponding to a server-side JSON file,
-e.g., "daily harvest operations" or "monthly sawmill production", and it stores
-the last refresh time.
-
-The maximum size of the cache is the sum of all tabular and pre-processed data,
-on the order of 10-20 MB uncompressed, plus 10-100 MB of satellite imagery in
-the worst case.
-
-Page reloads clear all cache state.
-
-When changing domain pages:
-
-1. The app renders from cache immediately if data is available.
-
-1. The app also sends background conditional GETs to the server with
-   If-Modified-Since for every dataset displayed in the domain page. If the
-   server returns 304 Not Modified, no action is required. If it returns 200 OK,
-   the app updates the cache with the newly received data and re-renders. In
-   both cases it updates the dataset's last refresh time.
-
-Conditional GETs also run once every 5 minutes (on a timer) for every dataset
-visible in a particular domain page (i.e., the page will refresh even if the
-user performs no navigation).
-
-Domain switching feels instant for previously-viewed data.
-
-When a domain page is loaded for the first time (empty cache), a modal displays
-"Caricamento..." until the initial data fetch completes. Subsequent cache
-refreshes happen silently in the background.
-
-## Data entry and cache updates
-
-Data entry forms are Django-rendered HTML fetched as fragments and displayed
-in overlay modals (see "Modals" below).
-
-Each form has custom HTML and validation JS as needed, but common patterns (form
-interception, error display) are extracted into shared libraries.
-
-Fields that are enum-like (correspond to finite sets of values defined within
-the app itself) are implemented as pull-downs. These include worker names, crew
-names, tractor names, and tree species names (see below for details).
-
-The process of data entry runs as follows:
-
-1. The user initiates a data addition or edit by clicking on a UI button (the
-   visual details of this are below).
-1. JS fetches the form HTML from Django (including the CSRF token and an
-   idempotency nonce as a hidden field) via `fetchModalForm`.
-1. The form is rendered in an overlay modal. The URL *does not change*.
-   This is the one exception to the "canonical representation of view state"
-   rule, since we never need to share the input form.
-1. Client-side JS validation provides immediate feedback: the submit button is
-   inactive until JS validation passes.
-1. On submit, JS intercepts and forwards the POST request (including the CSRF
-   token and idempotency nonce), and waits for a response.
-1. The server checks the nonce: if it has already been used (i.e., a previous
-   request with the same nonce succeeded), it returns the original success
-   response without writing again. This prevents duplicate records when the
-   network drops between server-commit and client-receive and the client retries.
-   Used nonces are stored in the database with a timestamp. The nightly backup
-   cron job also prunes nonces older than 24 hours.
-1. The server provides authoritative validation.
-
-The server response has one of three values. The payload is always JSON.
-
-1. Success: Code = 200 OK, payload = { data_id: X, row_id: Y, "record": [
-   Y, ... ] }
-
-   The client updates row Y of entry X in the case with the new record and
-   refreshes the tabular display.
-
-   Note that a future background conditional GET might refresh other cache
-   entries, such as those corresponding to digested data for graphs. Concrete
-   example: user enters data corresponding to a new harvest operation. The
-   tabular display of harvest operations updates immediately. Digested data for bar chart of
-   monthly harvests might be loaded after the next conditional GET.
-
-1. Validation error: Code = 400 Bad request, payload = { status:
-   "validation_error", message: "...", html: "..." }
-
-   The page displays the error message in a modal and again displays the blank
-   HTML form given by the "html" field.
-
-   This rarely happens, since most server-side validation is consistent with
-   client-side validation.
-
-1. Conflict: Code = 400 Bad request, payload = { status: "conflict", message:
-   "...", data_id: X, row_id: Y, "record": [ Y, ... ], html: "..."}
-
-   This error happens on attempted edit or delete. Another user edited or
-   deleted the entry between the time when the current page's last cache refresh
-   and the time of submit. The HTML contains the form populated with the current
-   server state. If the record has been deleted on the server, the message
-   provides this information and the user can click "submit" to re-add the
-   record. If the user escapes out of the edit form, the cached data is updated
-   with the returned record, as for a successful update.
-
-## Data deletion and cache updates
-
-If the user deletes a record (more on the UI details of this below), the UI
-displays an alert warning that the action cannot be undone. 
-
-If the user confirms, a POST is sent to the server as for data insertion / edit
-above.
-
-1. Successful responses contain a row_id but no record field. The client removes
-   the given id from the cache.
-
-1. No validation errors are possible.
-
-1. Conflict means that a row was edited since last cache refresh. The response
-   contains no HTML but a valid record. The cache is updated as for a successful
-   update. The error message is displayed in a modal and the user has the chance
-   to try deletion again.
-
-### Bottom-of-form button layout
-
-Every form (modal or in-page) ends with a single `.form-actions` flex
-row containing the action buttons.  Convention, applied without
-exception:
-
-1. **Cancel first (left).** `<button class="btn">{{ S.CANCEL }}</button>`
-   — always the leftmost child, label "Annulla".
-2. **Primary action last (right).** `class="btn btn-primary"`; label
-   is the verb that commits state ("Salva", "Crea", "Conferma",
-   "Importa"; "Elimina" for destructive flows).
-3. **Optional secondary primary in between.** The typical pair is
-   `[Annulla] [Salva] [Salva e continua]` (tree / harvest forms).
-
-Auxiliary buttons that are *not* commits — e.g. the grid planner's
-"Pianifica" (recompute the preview lattice) — live separately, near
-the controls they relate to, never in the `.form-actions` row.  The
-row is reserved for commit / cancel only.
-
-The shared CSS rule is `.form-actions` in
-`apps/base/static/base/css/common.css`; nothing else should style the
-buttons or their layout.
-
-**Disabled-action affordance.** When an action is impossible in the
-current state (e.g., "Elimina" on an area that already has Samples),
-disable the button with `[disabled]` and set a `title` attribute that
-explains why — never gate the action via a follow-up confirm modal
-that simply refuses.  `.btn:disabled` in common.css greys the button
-and disables hover-darkening.
-
-The secondary "and continue" action is `S.SAVE_AND_CONTINUE`
-(`'Salva e continua'`); the legacy `SAVE_AND_ADD` constant has been
-removed.
-
-### Optimistic table updates — the contract that keeps writes snappy
-
-Every write that mutates a row in a user-visible table MUST return the
-full row in the success response — `record` for single-row writes,
-`records` for bulk writes — shaped identically to the corresponding
-JSON digest.  The client patches the cache via `cache.updateRow`
-(`apps/base/static/base/js/cache.js:66`) or `cache.updateRows`, then
-re-renders the table from the cached data via
-`table.setData(cache.get(dataId))`.  No network round trip on the hot
-path, no server-side digest regeneration on the hot path.  The
-server-side `mark_stale()` flag still runs so the next cold reader (or
-the next background refresh) regenerates the on-disk digest.
-
-When a write also bumps a *materialised* value in another digest
-(e.g., a tree-save changes `samples.N_alberi` and
-`surveys.N_aree_visitate`), the response carries those rows too:
-`sample_record`, `survey_record` (or `_records`), `grid_record`,
-`area_records`.  The Campionamenti client funnels these through a
-single `applySideEffects(data)` helper in
-`apps/campionamenti/static/campionamenti/js/campionamenti.js` that
-patches every affected cache and re-renders the touched view (map,
-summary, table).
-
-**The contract that prevents drift.**  Extract a `build_<digest>_record`
-helper in `apps/base/digests.py` and call it from BOTH the digest
-generator and every write view.  Lock the column-shape contract with
-a test that builds a fresh row through the digest generator and a
-record through the write view, then asserts they are equal.  See
-`build_harvest_record` (`apps/base/digests.py:184`) for the original
-pattern and `build_tree_sample_record` etc. for the Campionamenti
-versions.
-
-**Why this matters.**  Tree-save on Campionamenti was a 5+ second
-round trip during M3d before this pattern landed — the digest
-generator scanned thousands of TreeSample rows on every save.
-Returning the freshly-built row inline cuts that to a single INSERT +
-one helper call, well under 200 ms.  Bulk paths (CSV imports) that
-would carry megabytes of records may stay on the slow path —
-`tree_csv_import_view` is the documented exception.
-
-## Error reporting
-
-Errors are reported in modals. Errors include validation errors, conflicts, and
-other conditions such as network errors.
-
-An error modal contains the error message and a dismiss button. It can also be
-dismissed with the "escape" key.
-
-## CSS
+# Docs index
+
+Read the doc for the topic you are working on.  Cross-cutting concerns
+(project structure, string constants, storage, deployment, testing) stay in
+this file.
+
+## Architecture and design
+
+Read **before touching** the relevant area — these are prescriptive, not
+just reference.
+
+- [`docs/data-architecture.md`](docs/data-architecture.md) — JSON digest
+  serving, staleness/regeneration, client-side caching, data entry
+  POST/response protocol, optimistic table updates.  **Read before writing
+  or modifying any view that reads or writes data.**
+- [`docs/ui-architecture.md`](docs/ui-architecture.md) — SPA shell, header,
+  client-side routing, error reporting.  **Read before changing navigation,
+  the shell template, or URL handling.**
+- [`docs/ui-design-patterns.md`](docs/ui-design-patterns.md) — visual rules
+  (fonts, colors, tables, charts, maps, modals, form card, button layout,
+  field widths, read-only fields).  **Read before building or modifying any
+  UI component.**
+- [`docs/security.md`](docs/security.md) — permission model, auth flow,
+  OAuth configuration, rate limiting, CSP, auditing.  **Read before touching
+  auth, user management, or any endpoint that handles credentials.**
+
+## Reference
+
+- [`docs/glossary.md`](docs/glossary.md) — Italian forestry terms used in
+  column names, UI labels, and variable names.
+- [`docs/database.md`](docs/database.md) — full DB schema (every table with
+  fields, types, and invariants).
+
+## Per-page specs
+
+Each page doc covers its URL, query parameters, visual layout, and JSON
+digests.  **Read the page doc for the domain you are working on.**
+
+- [`docs/page-login.md`](docs/page-login.md) — Login page
+- [`docs/page-bosco.md`](docs/page-bosco.md) — Bosco (map) page
+- [`docs/page-campionamenti.md`](docs/page-campionamenti.md) — Campionamenti (sampling) page
+- [`docs/page-piano-di-taglio.md`](docs/page-piano-di-taglio.md) — Piano di taglio (harvest plan) page
+- [`docs/page-prelievi.md`](docs/page-prelievi.md) — Prelievi (harvests) page
+- [`docs/page-controllo.md`](docs/page-controllo.md) — Controllo (audit) page
+- [`docs/page-impostazioni.md`](docs/page-impostazioni.md) — Impostazioni (settings) page
+
+## Plans
+
+- [`docs/implementation-plan.md`](docs/implementation-plan.md) — original
+  M0..M4 milestone plan
+- [`docs/piano-di-taglio-plan.md`](docs/piano-di-taglio-plan.md) —
+  fine-grained Piano-di-taglio plan (supersedes M1/M2 in
+  implementation-plan.md)
+
+# CSS
 
 No style is defined in-line in HTML. All style is defined in CSS files. 
 
 Most styles are maintained in a single common.css style file. Styles that are
 only required on one page appear in a page-specific style file.
 
-## Javascript dependencies
+# Javascript dependencies
 
 All JS dependencies (Leaflet, Chart.js, sortable-table, (Google) fonts, etc.)
 are minified and vendored, served from Django's static/vendor. There are no
 external dependencies at runtime. A Makefile target (`make update-vendor`)
 re-copies from source when needed.
-
-# UI design patterns
-
-## Objectives
-
-The objectives of the visual design are:
-
-- Readability: data is presented simply and clearly, with good use of screen
-  real estate on both desktop and mobile.
-- Predictability: consistent visual guidelines, no unexpected behavior.
-- Discoverability: navigation is easy and fast.
-- Restfulness: cognitive and visual load are low.
-
-## Fonts and colors
-
-Roboto is used throughout.
-
-The UI is strictly two-dimensional: there are no drop-shadows, text inputs are
-flat, scroll bars are flat.
-
-Page margins are moderate (15 px) on desktop and almost disappear (2 px) on mobile.
-
-Text inputs have very slightly rounded corners (2-4 px radius).
-
-Buttons have rounded corners (4-8px radius). They are dark green and turn
-lighter when hovered over.
-
-Horizontal rules outline the page header as well as collapsible elements
-(each page's collapsibles are documented in `docs/pages/`). They are thin
-(4px), dark green, and rectangular.
-
-## Data display overview
-
-Within each domain page, information is displayed consistently in one of three
-ways:
-- Tabular data is consistently displayed in sortable-table (more on this below).
-- Graphical data is displayed using Chart.js.
-- Geographic data is displayed using Leaflet.
-
-Some visual elements may be hidden within collapsible sections.
-
-## Tabular data
-
-All tabular data appears in sortable-tables.
-
-- All fields are sortable.
-- All tables are searchable via a text input immediately above the table, on the
-  left. Search is immediate (no search button) after a 1/2-second sleep to
-  debounce rapid keyboard input.
-  - Conceptually (not necessarily in actual implementation), the search operates
-    as follows:
-    1. Split the search text on whitespace.
-    1. For every row, join all fields into a single string.
-    1. Return all rows that contain all elements of the search text in the given
-        order.
-  - The search acts purely as a filter. The table does not move, but displays only
-    matching rows. Any pre-existing sort order is preserved.
-- A table displays rows as far down as the bottom of the viewport. If there are
-  more rows, the table has a scrollbar that is separate from the page scrollbar.
-  (On mobile, there is enough lateral space to allow the user to also scroll the
-  page, not just the table).
-- Tables have 1px medium-grey borders and column headers have light grey background.
-
-Additionally, for users with role "writer" or "admin", tables may (depending on their semantics — see the relevant page doc under `docs/pages/`) allow modification:
-
-- Tables that allow row addition have a "+" button below the bottom row, on the
-  right.
-- Tables that allow row editing have a "pencil" icon on the right of each row.
-- Tables that allow row deletion also have a "garbage can" icon on the right.
-
-## Graphs and charts
-
-All graphs and charts are implemented in Chart.js.
-
-All charts have y-axes that begin at 0.
-
-All color maps range from yellow-green (for low values) to dark green (for high values).
-
-Graphs occupy the full screen width and legends appear below the graph (on both
-desktop and mobile).
-
-## Maps
-
-Maps have the following visual structure:
-
-- A navigation bar on the right (sidebar-bearing pages only; Campionamenti
-  has no sidebar).
-- The following Leaflet tools appear in the upper left corner, top to bottom:
-  - A hamburger button to hide/display the navigation bar (sidebar pages only).
-  - A location pin.
-  - Zoom +/- buttons
-  - A ruler
-- A basemap selector in the upper right (see below).
-
-The top of the navigation bar (sidebar pages) always contains, top to bottom:
-- A status panel
-- A pull-down region ("compresa") selector. Choosing a region centers it on the
-  map and sets the zoom level to the most detailed level that still includes the
-  full region in the viewport.
-
-Below these elements are application-specific controls, organized in collapsible
-sections.
-
-This structure derives from the Boscoscopio app (laforesta/bosco/b), with the
-basemap selector moved onto the map itself so the pattern works for
-sidebar-less maps too (Campionamenti).
-
-**Basemap selector.**  A Leaflet control in the top-right corner of every
-map shows the currently active basemap (OSM / Topo / Satellite) as a
-64×64 thumbnail.  Hovering it (or tapping the thumbnail on touch
-devices) expands the control horizontally to show all three choices;
-clicking one selects it and collapses the control back to the active
-thumbnail.  Satellite is the default.  The control is added by
-`MapCommon.create()` automatically (opt out via
-`enableBasemapControl: false`) and works identically on sidebar-bearing
-and sidebar-less maps.  The `mt=` URL parameter (`o` / `t` / `s`)
-round-trips the choice so basemap selection is bookmarkable; on
-Campionamenti, both visible maps share the same setting and update
-together via the `basemapchange` Leaflet event that the control fires
-on selection.  Use `wrapper.syncBasemap(name)` (returned from
-`MapCommon.create`) to mirror a basemap change onto a sibling map
-without re-firing the event.  Implementation: `BasemapControl` inside
-`apps/base/static/base/js/map-common.js`; CSS rules `.mc-basemap-*` in
-`apps/base/static/base/css/common.css`; thumbnail PNGs under
-`apps/base/static/base/img/basemap-{osm,topo,sat}.png` (one tile per
-provider centred on Capistrano, resized to 128×128).
-
-**Geojson source for parcel polygons.** Parcels are rendered from
-`data/geo/terreni.geojson`.  Each polygon feature carries
-`properties.layer = "<Compresa>"` (e.g., `"Capistrano"`) and
-`properties.name = "<Compresa>-<particella>"` (e.g.,
-`"Capistrano-10a"`).  `particelle.geojson` is the QGIS export
-companion (outer boundary + viabilità lines) and **must not** be
-used as a map source — binding tooltips against it surfaces raw
-strings like `"03_FABRIZIA"` from the layer prefix.  After fetching,
-call `MapCommon.sortFeaturesByArea(geojson)`
-(`apps/base/static/base/js/map-common.js`) so smaller polygons render
-and tooltip on top of the larger ones containing them; otherwise the
-big "Capistrano" outline can swallow hover events on a nested parcel.
-
-**Parcel hover tooltip.** Every polygon layer binds a sticky tooltip
-rendered by the shared helper `parcelLabel(feature)`
-(`apps/base/static/base/js/geo.js`), which returns
-`"<Compresa> <particella>"`.  Mount with
-`bindTooltip(parcelLabel(f), { sticky: true, direction: 'top' })` so
-the tooltip follows the cursor inside irregular shapes.  Reuse this
-helper in any new map.
-
-**Parcel style.** Both campionamenti maps share `MapCommon.PARCEL_STYLE`
-(warm yellow border, low fill opacity).  Don't inline a style block in
-new map renderers — extend or compose the constant so the look stays
-consistent across maps and basemaps.
-
-**View persistence across re-renders.** Section state objects carry a
-`savedView: { gridId | surveyId, center: [lat, lng], zoom } | null`
-that the map updates on every Leaflet `moveend` / `zoomend` and
-consumes via an `initialView` constructor option.  The stash is
-**identity-keyed**: the renderer accepts a `savedView` only when its
-id matches the current selection — so `returnToPage`-driven full
-re-renders (which transiently clear `activeGridId`) keep the view,
-while switching grid/survey resets to `fitBounds`.  This is what
-makes "save edit → map stays put" feel right.  Mirror the pattern in
-any new map whose contents are re-rendered after data writes.
-
-## Modals
-
-All forms display as 640px-wide overlay modals (`#modal-container`).
-They never replace `#content` — the page shell stays intact behind
-the darkened overlay, so cancel/dismiss is instant (no rebuild).
-
-Style: slightly rounded corners, thin dark green border, white
-background, page darkened ~50%.  Also used for error messages (red
-text) and help information.
-
-Infrastructure:
-
-- **`modals.js`**: `show(content)` / `dismiss()` / `showError(msg)` /
-  `onDismiss(cb)`.  `onDismiss` registers a one-shot callback that
-  fires on dismiss (by Escape or by `dismiss()`); use it to reset
-  page state like `inForm = false`.
-- **`forms.js`**: `fetchModalForm(url)` fetches a server-rendered
-  form fragment and shows it in the overlay modal.
-  `renderModalForm(html)` re-renders inside the open modal (for
-  validation errors / conflicts).
-- **`form-widgets.js`**: shared DOM builders for form elements.
-  `mkRow`, `mkInput`, `mkTextarea`, `mkFileInput`, `mkFormActions`,
-  `mkStatusBox`, `mkErrorsBox`, `renderCsvErrors`, `mkCollapsible`,
-  `mkEditDeleteIcons`, `mkTabbedModal`.  All pages import from here;
-  never duplicate these locally.
-
-Tabbed modals (e.g., pencil-edit modals with Dettagli + Import tabs)
-use `.modal-tabs` / `.modal-tab` / `.modal-tab-body` /
-`.modal-tab-bodies` CSS classes (defined in `common.css`).  The
-`mkTabbedModal` helper or inline JS measures all tab bodies after
-`showModal()` and sets `min-height` on the container to the tallest
-tab, so switching tabs never reflows the modal.
-
-## Form card
-
-Every input/edit form renders inside a `<div class="form-card">`
-wrapper.  The shared rule in `apps/base/static/base/css/common.css`
-sets `max-width: 720px; margin: 0 auto;`, giving the form a centred
-column with ample side margins on wide screens.  Use this wrapper
-for any new form template.  Do not introduce alternative widths.
-
-The wrapper's `h2` title gets a `12px` bottom margin via
-`.form-card h2` so the first row doesn't collapse against the
-heading.
-
-## Short-entry field width
-
-Short-entry fields — numeric inputs (D, h, L10, quota), lat/lng,
-small pull-downs (species, area number), `<input type="date">`,
-the "Usa GPS" button — are 120px wide.  Two flavours in
-`common.css`:
-
-- **Row-level shorthand:** `<div class="form-row narrow">` constrains
-  every child cell.  Use when ALL cells in the row are short.
-- **Per-cell:** `<div class="form-group narrow">` inside a plain
-  `<div class="form-row">` constrains just that one cell; siblings
-  keep `flex: 1`.  Use when the row mixes a wide cell (e.g. the
-  N. albero pulldown that carries cross-sample-identity options)
-  with a short one (Data).  This is what the Edit-vs-New variants
-  of the tree form rely on.
-
-Wide fields (full-name inputs, description textareas, the N. albero
-pulldown) live in plain `.form-row` cells without the `narrow`
-modifier — they flex to fill.  Mixing a wide cell and a narrow
-cell in the same row is fine; use the per-cell flavour above.
-
-## Read-only fields in edit forms
-
-When a form has fields the user cannot change in the current mode
-(e.g. N. albero / Specie / Ceduo on the Edit-tree form), render them
-as static text using `.readonly-field` (`common.css`) — never as
-`disabled` inputs.  Disabled inputs aren't submitted, so they break
-the wire format and look interactive-but-broken.  Pair the visible
-`<span class="readonly-field">…</span>` with a sibling
-`<input type="hidden" name="…" value="…">` so the form still
-carries the field on submit.
-
-For the Compresa / Particella / Area di saggio header strip at the
-top of the Tree form, use `.form-readonly-flat` — a horizontal row
-of `<label>: value` pairs without a card background.  Reserve the
-legacy `.form-readonly-block` (grey card) for spots where the
-read-only context wants to call attention to itself; the flat
-variant is the default.
-
-## Accessibility considerations
-
-In its initial version, given the target staff, Abies has no special
-accessibility features (high contrast, etc.), though of course enlarging fonts
-in the browser is always an option for users.
 
 # Storage
 
@@ -852,8 +163,7 @@ SQLite is appropriate because:
 
 In addition, summary statistics are stored as compressed JSON digest files on
 the server filesystem for consumption by visualization tools (charts and maps).
-These digests are regenerated lazily on read (see "JSON digest regeneration"
-above).
+These digests are regenerated lazily on read (see `docs/data-architecture.md`).
 
 Satellite imagery (GeoTIFF) and GeoJSON geometries (for geo data) are also
 stored as files on disk.
@@ -912,7 +222,7 @@ Conventions that apply across the board:
 - Species and tractor percentage sums (100 per harvest_op) are enforced by
   client-side JS and server-side Django validation, not by SQL constraints.
 - Per-domain JSON digests (prelievi.json, parcels.json, etc.) are documented
-  in each page's own doc under `docs/pages/`.
+  in each page's own doc (`docs/page-*.md`).
 
 # Internationalization
 
@@ -950,7 +260,7 @@ use terms like 'coppice' in the code instead of 'ceduo', and so on.
 
 The app is usable on mobile in portrait mode (without needing to switch to
 landscape).  Page-specific mobile adaptations are covered in each page's doc
-under `docs/pages/`.
+(`docs/page-*.md`).
 
 # Project structure
 
@@ -995,7 +305,7 @@ under `docs/pages/`.
     │   │   └── static/prelievi/
     │   │       ├── css/prelievi.css
     │   │       └── js/prelievi.js      # PrelieviPage class
-    │   ├── bosco/                      # Bosco domain (Stage 2)
+    │   ├── bosco/                      # Bosco domain
     │   ├── controllo/                  # Audit domain
     │   └── impostazioni/               # Settings domain
     ├── ingest/                         # one-time ETL / data import scripts
@@ -1127,99 +437,3 @@ Makefile targets for dev setup:
 - `make admin`: create the initial admin user (prompts for username/password).
 - `make dev`: runs `migrate`, `import`, `geo`, `digest`, and `admin` in
   sequence — one command to go from zero to a working dev instance.
-
-# Relationship to existing "bosco" apps
-
-The Forest Visualization domain of Abies subsumes "boscoscopio" and certain
-other "bosco" apps. The "bosco" apps remain unchanged for now but will
-eventually be taken offline and replaced entirely by Abies.
-
-# Build order
-
-v1 ships in two stages. Stage 1 is the production MVP; Stage 2 follows on a
-separate track.
-
-## Stage 1: Prelievi MVP
-
-This is the first production release. It exercises every major subsystem of the
-architecture (auth, shell, router, cache, conditional GETs, form injection,
-optimistic locking, audit, CSV export, ETL) against the simplest UI, and it is
-the domain where real users can begin entering data earliest.
-
-Stage 1 includes:
-
-- Shell page, header, client-side router, client cache, error modal, CSV export
-  button.
-- Authentication (both password and MS 365 OAuth) via django-allauth +
-  django-axes.
-- `base` app: common models (region, eclass, parcel, crew, tractor, species,
-  optype, note, harvest_op, harvest_species, harvest_tractor), ETL scripts for
-  initial data import, JSON digest generation, and shared templates/static/CSS.
-- `prelievi` app: the Prelievi page (sortable-table + date range slider),
-  add/edit/delete form, and the prelievi.json digest.
-- `controllo` app: the audit page. Nearly free once django-simple-history is
-  wired up, so include it in Stage 1 so staff can see their own activity as
-  they start using the app.
-- `impostazioni` app: all Settings sections (Personal settings,
-  Crews/Tractors/Trees, App Users). App Users is required in Stage 1 so that
-  early beta users can be onboarded.
-- Bosco tab: placeholder content (e.g., a link to the existing Boscoscopio app)
-  so the tab is not broken.
-
-Until Stage 2 ships, the landing page after login is Prelievi, not Bosco.
-
-## Stage 2: Campionamenti, Bosco, Piano di taglio
-
-The remaining v1 surface ships across five milestones documented in detail
-in [`docs/implementation-plan.md`](docs/implementation-plan.md):
-
-```
-M0  Foundation               (no new tab visible)
-M3  Campionamenti            ← first new-feature demo
-M4  Bosco (six sub-phases)   ← progressive, biggest UX impact
-M1  Piano di taglio: Calendario
-M2  Piano di taglio: Marks
-```
-
-Numbering is topological (M0 < M1 < M2 etc.); execution order is
-M0 → M3 → M4 → M1 → M2 because there is no schema-level dependency from
-Bosco / Campionamenti on Piano di taglio (`survey.harvest_plan_id` is
-nullable; `tree` is added in M3 and reused by M2's `tree_mark`).  The
-landing page becomes Bosco at the start of M4.
-
-See `implementation-plan.md` for per-milestone scope, schema deltas,
-digests, exit criteria, and risk callouts.
-
-**Note on Piano di taglio:** the M1 / M2 split in
-`implementation-plan.md` is superseded by the redesigned, fine-grained
-plan in [`docs/piano-di-taglio-plan.md`](docs/piano-di-taglio-plan.md)
-(PT-NN commit-sized increments). Refer to that file for the current
-Piano-di-taglio implementation order; the rest of
-`implementation-plan.md` (M0 / M3 / M4) is still authoritative.
-
-## Future stages
-
-The remaining domains (Segheria, Biomassa, Fotovoltaico, Rifornimenti) are
-separate post-v1 stages and are not scoped here.
-
-# Detailed description
-
-The v1 domain pages are documented per-page under `docs/pages/`.  Each doc
-covers that page's URL, query parameters, visual layout, and JSON digests.
-Read the page doc for the domain you are working on; cross-cutting concerns
-(shell, routing, caching, forms, error handling, etc.) stay in this file.
-
-- [Login](docs/pages/login.md) — centred card with username/password and
-  an "Log in with Microsoft" button.  On success, lands on the default
-  domain (Prelievi in Stage 1, Bosco from Stage 2).
-- [Bosco](docs/pages/bosco.md) — map-centric view ported from Boscoscopio,
-  with added overlays for aree di saggio and piante ad accrescimento
-  indefinito, and bookmarkable URLs.  Stage 2.
-- [Prelievi](docs/pages/prelievi.md) — harvest operations: filter bar,
-  three collapsible sections (Produzione chart, Specie-per-particella
-  chart, Interventi table), CRUD forms with optimistic locking.  Stage 1.
-- [Controllo](docs/pages/controllo.md) — read-only audit trail from
-  django-simple-history.  Stage 1.
-- [Impostazioni](docs/pages/impostazioni.md) — password change, crew/
-  tractor/species tables (writers+), and app-users management (admins
-  only).  Stage 1.

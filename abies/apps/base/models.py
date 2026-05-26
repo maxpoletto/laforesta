@@ -522,7 +522,7 @@ class TreeMark(TimestampedModel):
     acc_m = models.IntegerField(null=True, blank=True)
     operator = models.CharField(max_length=100)
     # Row-content fingerprint used for idempotent CSV re-imports (see
-    # `docs/pages/piano-di-taglio.md` "Importa CSV martellate").  Null
+    # `docs/page-piano-di-taglio.md` "Importa CSV martellate").  Null
     # for manually entered rows.
     import_fingerprint = models.CharField(max_length=64, null=True, blank=True)
     history = HistoricalRecords()
