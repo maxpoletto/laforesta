@@ -441,9 +441,6 @@ class Survey(TimestampedModel):
     every area in its grid has at least one Sample.
     """
     name = models.CharField(max_length=100, unique=True)
-    harvest_plan = models.ForeignKey(
-        HarvestPlan, on_delete=models.SET_NULL, null=True, blank=True,
-    )
     sample_grid = models.ForeignKey(SampleGrid, on_delete=models.PROTECT)
     description = models.TextField(blank=True)
     history = HistoricalRecords()

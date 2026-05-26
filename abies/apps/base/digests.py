@@ -509,9 +509,9 @@ def generate_grids() -> None:
 
 
 SURVEY_COLUMNS = [ROW_ID, VERSION, S.COL_NAME, S.COL_DESCRIPTION,
-                  S.COL_GRID, S.COL_HARVEST_PLAN,
-                  S.COL_N_AREAS_VISITED, S.COL_N_AREAS_TOTAL,
-                  S.COL_DATE_FIRST, S.COL_DATE_LAST]
+                  S.COL_GRID, S.COL_N_AREAS_VISITED,
+                  S.COL_N_AREAS_TOTAL, S.COL_DATE_FIRST,
+                  S.COL_DATE_LAST]
 
 
 def build_survey_record(s) -> list:
@@ -534,7 +534,6 @@ def build_survey_record(s) -> list:
     return [
         s.id, s.version, s.name, s.description,
         s.sample_grid_id,
-        s.harvest_plan_id if s.harvest_plan_id else '',
         agg['n_visited'] or 0,
         n_total,
         agg[FIELD_FIRST_DATE].isoformat() if agg[FIELD_FIRST_DATE] else '',
@@ -560,7 +559,7 @@ def generate_surveys() -> None:
             .values_list('sample_grid_id', 'n'),
     )
     rows = []
-    qs = Survey.objects.select_related('sample_grid', 'harvest_plan') \
+    qs = Survey.objects.select_related('sample_grid') \
                        .annotate(
                            n_visited=Count('sample__sample_area', distinct=True),
                            first_date=Min('sample__date'),
@@ -571,7 +570,6 @@ def generate_surveys() -> None:
         rows.append([
             s.id, s.version, s.name, s.description,
             s.sample_grid_id,
-            s.harvest_plan_id if s.harvest_plan_id else '',
             s.n_visited or 0,
             totals_by_grid.get(s.sample_grid_id, 0),
             s.first_date.isoformat() if s.first_date else '',

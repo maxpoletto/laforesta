@@ -180,15 +180,12 @@ of either dataset should treat them as independent observations.
 
 ### Surveys and samples
 
-- survey: (id:int, name:string, harvest_plan_id:int nullable, sample_grid_id:int,
-  description:string)
+- survey: (id:int, name:string, sample_grid_id:int, description:string)
   - Represents a high-level survey operation, typically consisting of one or
     more samples.
   - `name` is a short human-readable label used in pulldowns and cross-page
     references (e.g., `Bosco completo 2026`); unique within the app.
   - It is always associated with a `sample_grid` of physical sample areas.
-  - It may be associated with a `harvest_plan` (e.g., during the creation of a
-    plan), or it might not (e.g., for ad-hoc research purposes).
   - During a survey, each sample area is visited at most once. A survey is
     "complete" when every sample area in the survey's sample grid has been
     visited, i.e., when there is a sample (below) for every sample area in the
