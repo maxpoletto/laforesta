@@ -24,7 +24,8 @@ Each of these entities is configured in its own collapsible section.
 Each section contains a corresponding sortable table.
 
 Each of these sortable tables supports adding and editing entities, but not
-removing them.
+removing them. Crews, tractors, and species are soft-deleted: they are never
+destroyed, only deactivated via the `active` flag.
 
 In each table the rightmost column is titled "active" and denotes whether the
 entity (crew, tractor, etc.) should appear as an option in new input forms.

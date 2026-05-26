@@ -163,6 +163,9 @@ enter a stack of paper slips in sequence.
 | Harvest save (create or update) | `prelievi`, `parcel_year_production`, `audit`; + `harvest_plan_items` if linked to a plan item | `prelievi` (primary); `harvest_plan_items` via `item_record` in response |
 | Harvest delete | same as save | `prelievi` (row removed); `harvest_plan_items` via `item_record` |
 
+Harvest-op deletion cascades to its `harvest_species` and `harvest_tractor`
+junction rows.
+
 `parcel_year_production` is not patched optimistically — it is consumed
 by the Bosco page and picked up via the stale flag on next visit.
 

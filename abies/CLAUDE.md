@@ -1,68 +1,39 @@
-# Abies: integrated management of forestry company operations
+# Abies: integrated management of forestry operations
 
-Abies is a full-stack web app used to manage production operations of a forestry
-company, including forest harvests, sawmill production, biomass energy
-generation.
+Abies is a full-stack web app to manage forestry operations end-to-end, focused
+for now on the Italian forestry industry.
 
-It is intended to help with day to day operations, track production, and monitor
-forest health and productivity.
+Goals: monitor forest health; plan and assess harvests over multi-year periods;
+enable timber traceability; support day-to-day forestry operations such as
+timber cruising and harvest recording.
 
-# User base
-
-The target audience is office workers and field staff at a small (40-employee)
-lumber company in Italy that also produces electricity from biomass and solar.
-They currently use Microsoft 365 Business and complain about its slowness. They
-are unsophisticated computer users. They employ Word and Excel daily but only
-use basic features (e.g., they do not know how to set up Excel pivot tables).
+The initial customers are staff at a 40-person lumber company in Calabria.
 Simplicity and speed are key requirements.
 
 # Priorities
 
 1. Correctness
 2. Security
-3. Speed (the UI is snappy and works well over 3G)
+3. Speed (the UI works well over 3G)
 4. Low maintenance over time
 
 # Functional overview
 
-Version 1 of the app covers the following functional areas, which we call _domains_:
+The app features the following main functional areas ("domains"):
 
-- "Bosco": forest visualization and planning. Geospatial tool that displays
-  historical harvest data, supports planning and execution of forest surveys
-  (setting up sampling locations; recording geo-referenced annotations; etc.),
-  and displays other geo-located information about the forest, including
-  satellite imagery and health metrics.
+- "Forestscope" ("Boscoscopio"): geospatial tool to visualize forest
+  characteristics (age, type, productivity, etc), including satellite imagery
+  and related health metrics.
 
-- "Prelievi": forest harvesting. A log of the daily activities of crews of
-  lumberjacks, including how much wood of different species was harvested where
-  and with what tractors. The tool also supports day-to-day operations by
-  generating PDF record slips that the crews fill out and provide to the office
-  staff for data entry.
+- Harvest plans ("Piani di taglio"): scheduling of harvests over multi-year
+  timeframes, in compliance with regional forest agency guidelines.
 
-Future versions may also cover the following domains.
+- Samples ("Campionamenti"): tools for systematic assessments of forest
+  productivity (generation of sampling grids, recording of data from timber
+  cruising).
 
-- "Segheria": sawmill. A log of daily sawmill operations, including volume and
-  type of wood products, maintenance activities, failures or other incidents,
-  etc., as well as monthly rollups of income and other parameters.
-
-- "Biomassa": biomass plant. A log of daily biomass operations (amount of
-  biomass consumed, energy produced, various operational parameters), as well as
-  monthly rollups of energy produced, energy consumed, income broken down by
-  various parameters, etc.
-
-- "Fotovoltaico": photovoltaic plant. Daily log of production, monthly log of
-  verified production and revenue.
-
-- "Rifornimenti": fuel facility. Log of operations on the company's diesel fuel
-  tank: who refueled what vehicle, how much fuel they used, refueling of the
-  fuel tank itself, etc.
-
-Each of these domains is handled in a distinct page of the app and is separate
-from the others. However, the outputs of some areas are inputs to others (for
-example, wood from the forest flows into the sawmill and biomass plant).
-
-Historical data can be displayed in searchable tables and in graphical charts,
-as well as in the forest maps.
+- Harvests ("Prelievi"): support for daily felling operations, including
+  detailed activity logs and receipts for lumber crews.
 
 # Architecture overview
 
@@ -151,110 +122,43 @@ re-copies from source when needed.
 
 # Storage
 
-As mentioned previously, core relational data is stored in SQLite on the server.
+SQLite (WAL mode). Digests are compressed JSON on the filesystem
+(see `docs/data-architecture.md`). GeoTIFF and GeoJSON on disk.
 
-SQLite is appropriate because:
-  - The app has a small user base, and is read-mostly.
-  - WAL mode handles concurrent reads and writes fine at this scale.
-  - No moving parts: no database server process to maintain.
-  - Simple backups (copy one file).
-  - Django's ORM abstracts the DB, so migrating to Postgres later is
-    straightforward.
-
-In addition, summary statistics are stored as compressed JSON digest files on
-the server filesystem for consumption by visualization tools (charts and maps).
-These digests are regenerated lazily on read (see `docs/data-architecture.md`).
-
-Satellite imagery (GeoTIFF) and GeoJSON geometries (for geo data) are also
-stored as files on disk.
-
-## Concurrency
-
-We handle concurrent modification of database data with row-level optimistic
-locking. Every table has an implicit version column (not listed in the schemas
-below) that increments on every save. The edit includes the version as a hidden
-field; the server checks the version on POST, and if the version has changed
-that indicates a write conflict.
-
-## Disconnected operation
-
-The app does not support disconnected operation but works well on relatively
-low-bandwidth (e.g., 3G) connections thanks to pervasive caching, compressed
-pre-processed data files, and client-side filtering.
-
-## Backups
-
-A cron job on the server runs a nightly backup of the database.
-
-Compressed nightly backups are retained for a month, and one copy a month
-(arbitrarily on the first day of the month) is uploaded to OneDrive using the
-Microsoft Graph API.
-
-Setting up Microsoft Graph OAuth credentials is part of the initial
-configuration flow of the server app (in the shell, not via a web UI).
-
-## Data import
-
-Importing data is done through single-use ETL scripts that parse existing CSV
-files and normalize them.
-
-## Data export
-
-Every domain page includes a button (upper right) that allows its data to be
-exported as a CSV file.
+Row-level optimistic locking via a `version` column that increments on
+every save. Edit forms include `version` as a hidden field; the server
+rejects stale submissions.
 
 ## Database model
 
-Full schema — every table with fields, types, and notes on invariants — is
-in [`docs/database.md`](docs/database.md).
+Full schema in [`docs/database.md`](docs/database.md). Cross-cutting conventions:
 
-Conventions that apply across the board:
-
-- All tables carry implicit `version` (int), `created_at`, and `modified_at`
-  columns.  Concurrent edits are handled via row-level optimistic locking on
-  `version`; the edit request includes the version as a hidden field and the
-  server rejects stale submissions.
-- Mutable domain tables (harvest_op, user, crew, tractor, species) are tracked
-  by django-simple-history for audit.
-- Crews, tractors, and species are never deleted — they are deactivated via
-  an `active` flag.  Harvest-op deletion cascades to its harvest_species and
-  harvest_tractor junction rows.
-- Species and tractor percentage sums (100 per harvest_op) are enforced by
-  client-side JS and server-side Django validation, not by SQL constraints.
-- Per-domain JSON digests (prelievi.json, parcels.json, etc.) are documented
-  in each page's own doc (`docs/page-*.md`).
+- Implicit `version`, `created_at`, `modified_at` on all tables.
+- Mutable domain tables tracked by django-simple-history.
+- Validation is done client-side (quick feedback) and in Django (authoritative);
+  only a small subset of constraints are enforced in the schema (see `docs/database.md`).
+- Per-domain JSON digests documented in each `docs/page-*.md`.
 
 # Internationalization
 
-The app initially only supports Italian. The URL paths are in Italian also.
+Currently Italian (UI, URL paths, locale for numbers/dates, CSV `;` separator),
+but the architecture supports switching to other languages.
 
-But there are no inline strings in the code. All are named constants (in both
-Python on the backend and JS on the front-end) to make a future
-internationalization easier. Path names are also named constants. The
-assumption is that any future language choice will be at the level of the entire
-app, not individual users.
+No inline strings. All user-facing text is a named constant. The pattern
+applies at three levels:
 
-## String constant scheme
+- **Python**: `config/strings_it.py` defines constants; `config/strings.py`
+  re-exports via `from config.strings_it import *`. Import as
+  `from config import strings as S` (e.g., `S.PARCEL`).
+- **JS**: `strings_it.js` defines constants; `strings.js` re-exports via
+  `export * from './strings_it.js'`.
+- **Templates**: `foo_it.html` is the real file; `foo.html` is a symlink
+  to `foo_it.html`.
 
-On the backend, `config/strings_it.py` defines all user-facing string constants
-(model verbose names, form labels, error messages, etc.) as module-level
-variables. `config/strings.py` re-exports the active language module:
+To add a language: create parallel `*_en.*` files and retarget the
+re-exports / symlinks.
 
-    from config.strings_it import *
-
-To switch language, change this single import to point at a different language
-file (e.g., `config/strings_en`). All code imports strings via
-`from config import strings as S` and references constants like `S.PARCEL`.
-
-On the frontend, the same pattern applies: `strings_it.js` defines all
-constants, `strings.js` re-exports the active language.
-
-Numbers and dates are represented using Italian locale.
-
-Exported CSV uses semi-colons as separators.
-
-The code itself (variable names, function names, etc.) is all in English. We
-use terms like 'coppice' in the code instead of 'ceduo', and so on.
+Code itself (variables, functions) is in English: 'coppice' not 'ceduo'.
 
 # Mobile
 
@@ -324,19 +228,10 @@ Apps are organized under `apps/` with dotted paths in `INSTALLED_APPS` (e.g.,
 
 ## JS module conventions
 
-Client-side code uses ES modules (`<script type="module">`). The shell page
-loads `base/js/app.js` as its sole entry point. `app.js` imports shared modules
-(router, cache, api, forms, etc.) and each domain's page module.
-
-All domain modules are loaded at boot, not lazy-loaded per tab click. Total JS
-is small (order of tens of KB), and paying the load cost once per session keeps
-tab switching instant.
-
-Each domain module exports a page class with a known interface: `mount(params)`,
-`unmount()`, `onQueryChange(params)`. `app.js` registers these in a static route
-table keyed by URL path.
-
-Release builds use minified JS, produced by a `make minify` Makefile target.
+ES modules (`<script type="module">`). `base/js/app.js` is the sole entry
+point; it imports shared modules and each domain's page module (all loaded
+at boot, not lazy). Each domain exports a page class: `mount(params)`,
+`unmount()`, `onQueryChange(params)`. `make minify` for release builds.
 
 ## Static file conventions
 
@@ -344,96 +239,39 @@ Each Django app owns its static files under `static/<app_name>/`, following
 Django's default namespacing convention. Templates follow the same pattern
 (`templates/<app_name>/`). Common CSS and JS live in `base`.
 
-# Code location, deployment, and releases
+# Deployment
 
-The Django project is rooted at `laforesta/abies` in the code repository.
+Prod: `https://abies.laforesta.it/`; dev: `https://abies-dev.laforesta.it/`
+(same VM, separate data, basic-auth gate). Apache reverse-proxies to
+gunicorn. Host provisioning via `../../system/ansible/foresta.yml`.
 
-Production deployment lives at the root of its own subdomain
-(`https://abies.laforesta.it/`); a parallel dev instance at
-`https://abies-dev.laforesta.it/` shares the same VM but with separate data,
-env file, and a basic-auth gate. Apache fronts both, reverse-proxying to the
-container's gunicorn on 127.0.0.1.
-
-Host-side state on the VM (Apache vhosts, Docker engine, certbot/Let's
-Encrypt via DNS-01, the bind-mount data/static/backup directories) is
-provisioned by `../../system/ansible/foresta.yml`. Ansible knows nothing
-about abies images, builds, env files, or the container lifecycle; its job
-ends at "make the VM capable of *hosting* an abies container."
-
-Releases are deployed from the laptop via `bin/deploy <dev|prod> [git-ref]`,
-which drives the VM's Docker daemon over a docker context. The script does
-backup → build → stop → migrate → collectstatic → up; no source tree, no
-git, no env file ever lands on the VM. Container env vars come from
-`compose/.env.{prod,dev}` on the laptop (gitignored; copy from the
-`.example` templates). One-time setup:
+Deploy from laptop via `bin/deploy <dev|prod> [git-ref]` over a docker
+context. Sequence: backup → build → stop → migrate → collectstatic → up.
+Container env vars from `compose/.env.{prod,dev}` (gitignored).
 
 ```sh
-REMOTE_HOST=<hostname>
-cd ~/src/laforesta/abies
-docker context create vm-abies --docker host=ssh://${USER}@${REMOTE_HOST}
-cp compose/.env.dev.example  compose/.env.dev   # then fill in values
-cp compose/.env.prod.example compose/.env.prod  # then fill in values
-```
-
-Subsequent deployments:
-```sh
-cd ~/src/laforesta/abies
 bin/deploy dev          # deploy current working tree to abies-dev
 bin/deploy prod v0.1.0  # deploy a tagged release to abies-prod
 ```
 
-Official prod releases are numbered with git tags; `bin/deploy prod <tag>`
-refuses to run with a dirty working tree.
-
-Local dev instance runs without containers (`make dev` + `python manage.py
-runserver`).
-
-The VM dev instance (`bin/deploy dev`) deploys the current local working tree --
-uncommitted changes go into the container, which is the point.
-
-`bin/deploy` runs the full sequence (backup → build → stop → migrate →
-collectstatic → up) against the VM via docker context. The compose files, env
-files, and source tree all live locally; the VM holds only the running
-container, the data volumes, and the apache vhosts in front.
-
-The container bind-mounts host paths for:
-
-- SQLite database file (`/var/lib/abies-{prod,dev}/data`);
-- Pre-processed JSON digests (subdir of data);
-- Static files (`/var/lib/abies-{prod,dev}/staticfiles`);
-- DB backups written by `bin/deploy` (`/var/backups/abies-{prod,dev}`).
+Prod releases use git tags; `bin/deploy prod <tag>` requires clean tree.
+Dev deploys the working tree (uncommitted changes included).
+Local dev uses `manage.py runserver` directly (no Docker).
 
 # Testing
 
-Python tests use pytest-django with pytest-cov for coverage reporting
-(--cov-report=term-missing), matching the existing pdg-2026 test setup. Tests
-cover models, views, form validation, and ETL scripts.
-
-Client-side JS tests use the existing `node tests.js` pattern (see bosco/b/).
-
-No browser-based E2E testing framework in v1. UI is verified by manual smoke
-testing.
-
-The test instance of Abies is deployed locally and does not use Docker, to speed
-up testing and debugging.
+Python: `make test` runs pytest-django with coverage (`--cov-report=term-missing`).
+JS: `node tests.js` in individual app directories.
+No browser-based E2E; UI verified by manual smoke testing.
 
 # Development environment
 
-The dev instance runs directly on the host (no Docker) using `manage.py
-runserver` and a Python virtualenv (latest Python, currently 3.14).
+Runs directly on the host (no Docker): `manage.py runserver` + Python 3.14
+virtualenv. `data/` holds `db.sqlite3`, `digests/`, `geo/`.
 
-The `data/` directory at the project root holds `db.sqlite3`, `digests/`, and
-`geo/`, identically to production but without Docker mounts.
-
-Makefile targets for dev setup:
-
-- `make migrate`: run Django migrations to create/update tables.
-- `make import`: run ETL scripts (`ingest/`) to populate `db.sqlite3` from
-  existing CSVs in `bosco/data/`.
-- `make geo`: import geo data into `data/geo/` using existing bosco scripts.
-- `make digest`: precompute all JSON digests. Calls `apps/base/digests.py`
-  to avoid divergence with the lazy-on-read production path. Also useful for
-  debugging digest generation outside of the request cycle.
-- `make admin`: create the initial admin user (prompts for username/password).
-- `make dev`: runs `migrate`, `import`, `geo`, `digest`, and `admin` in
-  sequence — one command to go from zero to a working dev instance.
+- `make dev`: zero-to-working in one command (migrate + import + geo + digest + admin).
+- `make migrate`: run Django migrations.
+- `make import`: ETL from CSVs in `bosco/data/`.
+- `make geo`: import geo data into `data/geo/`.
+- `make digest`: precompute all JSON digests via `apps/base/digests.py`.
+- `make admin`: create initial admin user.
