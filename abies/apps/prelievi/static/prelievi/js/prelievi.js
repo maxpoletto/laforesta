@@ -12,7 +12,9 @@ import { postJSON } from '../../base/js/api.js';
 import { showError, dismiss as dismissModal, onDismiss } from '../../base/js/modals.js';
 import { createRangeSlider } from '../../base/js/range-slider.js';
 import * as S from '../../base/js/strings.js';
-import { ROW_ID, STATUS_CONFLICT, VERSION } from '../../base/js/constants.js';
+import {
+  FIELD_NONCE, ROW_ID, STATUS_CONFLICT, VERSION,
+} from '../../base/js/constants.js';
 import {
   fmtDecimal1, fmtDecimal1BlankZero, fmtDecimal2, fmtInt,
 } from '../../base/js/format.js';
@@ -648,9 +650,9 @@ async function confirmDelete(rowId) {
   let resp;
   try {
     resp = await postJSON(DELETE_URL, {
-      row_id: String(rowId),
-      version: String(version),
-      nonce: crypto.randomUUID(),
+      [ROW_ID]: String(rowId),
+      [VERSION]: String(version),
+      [FIELD_NONCE]: crypto.randomUUID(),
     });
   } catch {
     showError(S.ERROR_NETWORK);
