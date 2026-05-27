@@ -188,9 +188,9 @@ and disables hover-darkening.
 ### Form row layout
 
 Forms use `.form-row` containing `.form-group` children.
-`common.css` currently defines `.form-row` as flex; some pages
-(prelievi) override to CSS grid. The system is migrating to grid
-(see `docs/superpowers/plans/2026-05-25-js-to-templates.md`).
+`.form-row` currently uses `display: flex` with `gap: 1rem`; children
+get `flex: 1`.  The `narrow` modifier constrains children to `120px`
+(`flex: 0 0 120px`).  A future migration to CSS grid is planned.
 
 ### Short-entry field width
 
