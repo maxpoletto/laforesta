@@ -1,146 +1,105 @@
 # Prelievi page
 
-The prelievi page supports recording and display of harvesting operations.
-
-- Path: /prelievi
-- Query parameters:
-  - Year range: `y1=YYYY`, `y2=YYYY` (date slider bounds)
-  - Region: `c=N` — id of the region (compresa).  Restricts the
-    displayed set to that region.  Stale / unknown id falls back to
-    the unscoped view.
-  - Particella: `pa=N` — id of the parcel.  Restricts further to one
-    parcel.  `parcel.id` already disambiguates region (parcel names
-    are only unique within a region; the id is globally unique), so
-    `pa=` does not strictly need `c=`.  However, the standard
-    cross-page link pattern emits both for symmetry and to keep the
-    region pulldown in the resulting view set correctly.
-  - Sort column: `sc=N`
-  - Sort order: `so=0/1` (ascending/descending)
-  - Filter: `f=...` (URL-encoded sortable-table search string,
-    applied on top of the `c=` / `pa=` scope).
-  - Open collapsible sections: `o=...`, a concatenation of single-char
-    tokens identifying which sections are expanded.  Tokens: `a` =
-    Produzione chart, `b` = Specie-per-particella chart, `i` = Interventi
-    (the table itself).  Absent means the default (`i` only).  An explicit
-    empty value (`?o=`) means all sections collapsed.
-  - Production chart breakdown: `b=total|compresa|particella|squadra|specie|trattore|tipo`
-    (absent = `total`).
-  - Production chart monthly granularity: `m=1` (absent = year granularity).
-
-`c=` and `pa=` exist primarily to support unambiguous cross-page
-links from Piano di taglio (status-chip click) and Bosco (per-parcel
-"Produzione storica" → Prelievi).  They behave as a hard scope: rows
-outside the (region, particella) are excluded from both the table
-and the chart sections, just as if the user had typed an exact
-match into the search box, but without the false-positive risk of
-substring matches on a homonymous particella in another region.
+This page supports recording and display of harvesting operations.
 
 ## Visual appearance
 
-A top filter bar hosts the year slider (`Anni`), search box (`Filtra`),
-"Azzera filtri" reset, and "Esporta CSV" export.  Below it sit three
-collapsible sections, separated by the standard dark-green 4px rule:
+A top filter bar hosts a double-ended year slider (`Anni`, see
+`base/.../range-slider.js`), search box (`Filtra`), "Azzera filtri" reset, and
+"Esporta CSV" export. Below it sit three collapsible sections, separated by the
+standard dark-green 4px rule:
 
 1. **Produzione** — stacked bar chart of total quintals over time, with a
    per-chart pull-down selector for the breakdown dimension (Totale /
    Compresa / Particella / Squadra / Specie / Trattore / Tipo) and a
    "mesi" checkbox that toggles between year-granularity and
-   month-granularity buckets.  When the category count exceeds 12, the
+   month-granularity buckets. When the category count exceeds 12, the
    tail is collapsed into an "Altro" series.
 2. **Specie per particella** — stacked bar chart with `<compresa>/<particella>`
    on the x-axis and one species stack per bar, sorted by total.
-3. **Interventi** — the full harvest-operations sortable-table described
-   in "Tabular data" in CLAUDE.md.
+3. **Interventi** — harvest-operations in a sortable-table, as in UI Design
+   Patterns > Tabular Data.
 
-Sections 1 and 2 are collapsed by default; section 3 is open.  Chart
+Sections 1 and 2 are collapsed by default; section 3 is open. Chart
 sections render lazily (only when first opened) and re-render whenever
-the active filter set changes.
+active filter set changes.
 
-The full dataset is served as a single compressed JSON digest.  All
-filtering is client-side: a double-ended date slider (see
-`bosco/a/range-slider.*`) with year granularity restricts the displayed
-range, and the search box filters within that range.  Both charts and the
-table react to the same filter set.  No server round-trips for filtering.
+The full dataset is served as a single compressed JSON digest. All filtering (by
+year and search box) is client-side and affects both charts and table.
 
 Table columns are:
-Data, Compresa, Particella, Squadra, VDP, Tipo, Q.li, Note, Altre note,
-(quintal columns by **major** species in sort_order), (quintal columns by
-tractor in alphabetical order).  See "Minor species and Altro" below.
+Data, Compresa, Particella, Squadra, VDP, Tipo, Q.li, Volume (m³), Note,
+Altre note, (quintal columns by **major** species in sort_order), (quintal
+columns by tractor in alphabetical order). See "Minor species and Altro" below.
 
 All quintal values display with one decimal and comma separator (Italian locale,
 e.g., "164,0"). Per-species and per-tractor quintal columns show blank for zero.
-VDP displays as a plain integer (no thousands separator). Columns have fixed
-widths; the table scrolls horizontally when the viewport is too narrow.
+VDP displays as an integer. Columns have fixed widths; the table scrolls
+horizontally when the viewport is too narrow.
+
+### Add/edit form
 
 The add/edit form is laid out as a compact grid (three fields per row):
 
-- Row 1: date picker, "Cantiere" pull-down, "Particella" pull-down.
-  The Cantiere options are the `harvest_plan_item` rows whose `state ∈
-  {open, harvesting}`, rendered as `<Compresa>/<Particella>` (or
-  `<Compresa>/(tutti)` for region-wide items). Selection is
-  **required** for new harvests; this is the only path to creating a
-  harvest in v1 (every harvest must tie back to an approved intervento
-  — there is no escape hatch).
+- Row 1: date
+- Row 2: "Cantiere" pulldown, "Particella" pulldown.
+- Row 3: "Squadra" pulldown, "Tipo" (product) pulldown, "Q.li" (step 0.1).
+- Row 4: "VDP" numeric, "Altre note" text.
 
-  - **Parcel-scoped Cantiere** (`harvest_plan_item.parcel` set): the
-    parcel is implicit. The Particella pull-down is hidden; the
-    server derives `harvest.parcel_id` from the linked item and
-    ignores any value submitted in the body.
-  - **Region-wide Cantiere** (`harvest_plan_item.region` set,
-    `parcel IS NULL`): the Particella pull-down becomes visible and
-    required. Options are filtered to parcels in the Cantiere's
-    region. This is the normal flow for damaged- or unhealthy-
-    operation interventi that span a whole region — each harvest day
-    still records the specific parcel where work was done. The
-    server validates `parcel.region_id == harvest_plan_item.region_id`
-    and rejects mismatches.
+**Cantiere pulldown.** Options are `harvest_plan_item` rows with `state ∈ {open,
+harvesting}`, rendered as `<Plan> · <Year> · <Region> <Parcel>` (or
+`<Region> (tutti)` for region-wide items). Required for new harvests.
 
-- Row 2: "Squadra" pull-down, "Tipo" (product) pull-down, "Q.li"
-  numeric input (step 0.1).
-- Row 3: "VDP" numeric input, "Altre note" text input.
+- Parcel-scoped items: Particella pulldown hidden; parcel derived
+  from the item.
+- Region-wide items (`parcel IS NULL`): Particella pulldown visible
+  and required (filtered to the item's region). Server validates the
+  match.
 
-Below Row 3, a read-only summary line displays the `damaged`,
-`unhealthy`, and `psr` flags of the selected Cantiere — rendered as a
-comma-joined string from `"Catastrofato"`, `"Fitosanitario"`, `"PSR"`
-— and they are auto-applied to the new harvest on save. This matches
-the schema trigger
-`harvest.{damaged,unhealthy,psr} == harvest_plan_item.{...}` so the
-user never sets them directly on the harvest form.
+Below row 2 (Cantiere pulldown), a read-only line shows the selected
+Cantiere's `damaged`/`unhealthy`/`psr` flags (auto-applied to the harvest
+on save; the schema trigger enforces consistency).
 
-Legacy CSV-imported rows (from `mannesi.csv`) have
-`harvest_plan_item_id IS NULL` and often carry the placeholder
-particella `"X"` because the source data did not record one. These
-rows remain editable: on the edit path, the server only overwrites
-the Cantiere link and parcel when the submission carries new values
-for them. A user editing a legacy row without touching the Cantiere
-dropdown leaves both the `NULL` link and the `"X"` parcel in place.
-Going forward, every harvest entered through the v1 UI carries a
-real Cantiere and a real parcel.
+Legacy imports (`harvest_plan_item_id IS NULL`) remain editable;
+editing without touching Cantiere preserves the NULL link.
 
-Prot (record2) is not shown in the form — it is display-only for legacy data.
-Existing Prot values are preserved on edit; new records never have a Prot value.
+Prot (record2) is not shown in the form; it is backend-only for legacy data.
 
-VDP must be unique (checked server-side against all records).
+VDP must be unique (checked server-side against all records) and defaults to
+max(existing VDP)+1.
 
 Species and tractor percentage sections appear side-by-side below the main
-fields. For species, only major (non-minor) species are listed; minor species
-are represented by the single "Altro" entry (see "Minor species and Altro"
-below). Each row has a numeric input and a "100%" quick-set button. Species
-and tractor percentages must each sum to 100 (validated both client-side and
-server-side). Pressing a "100%" button sets that input to 100 and the others
-in the same group to 0.
+fields. Only non-minor (see below) species are listed; minor species are
+represented by the  "Altro" entry. Each row has a numeric input and a "100%"
+quick-set button that also zeros other rows. Species and tractor percentages
+must each sum to 100 (validated on client and server).
 
-Additional validation (client-side and server-side):
+Additional validation (client and server):
 - Date cannot be in the future.
 - Q.li must be positive.
 
-On validation error for a new entry, the form re-populates with the submitted
-values so the user does not lose their input.
+Validation errors appear directly in the form (UI Design Patterns > Error
+reporting).
 
-The form has two submit buttons: "Salva" (save and return to the table view)
-and "Salva e aggiungi" (save and present a blank form for the next entry).
-"Salva e aggiungi" supports the common batch-entry workflow where office staff
-enter a stack of paper slips in sequence.
+The form has [Annulla/Salva/Salva e continua] buttons. See UI Design Patterns >
+Bottom-of-form button layout.
+
+## URL parameters
+
+- Path: /prelievi
+- Query parameters:
+  - Year range: `y1=YYYY`, `y2=YYYY` (date slider bounds)
+  - Sort column: `sc=N`
+  - Sort order: `so=0/1` (ascending/descending)
+  - Filter: `f=...` (URL-encoded sortable-table search string).
+  - Open collapsible sections: `o=...`, a concatenation of single-char
+    tokens identifying which sections are expanded. Tokens: `a` =
+    Produzione chart, `b` = Specie-per-particella chart, `i` = Interventi
+    (the table itself). Absent means the default (`i` only). An explicit
+    empty value (`?o=`) means all sections collapsed.
+  - Production chart breakdown: `b=total|compresa|particella|squadra|specie|trattore|tipo`
+    (absent = `total`).
+  - Production chart monthly granularity: `m=1` (absent = year granularity).
 
 ## Data tables
 
@@ -148,10 +107,10 @@ enter a stack of paper slips in sequence.
 - crews.json: JSON version of the crew
 - prelievi.json: a de-normalized version of the harvest table, containing
   everything in the sortable-table as well as percentage values (to support
-  prepopulating the edit form).  Includes a materialized `Volume (m³)`
+  prepopulating the edit form). Includes a materialized `Volume (m³)`
   column from `harvest.volume_m3` (see `database.md`); displayed in the
   table as a small companion to `Q.li`.
-- parcel_year_production.json: per-(region, parcel, year) totals.  Columns:
+- parcel_year_production.json: per-(region, parcel, year) totals. Columns:
   `Compresa`, `Particella`, `Anno`, `Q.li`, `Volume (m³)` — both unit sums
   are materialized so the Piano di taglio calendar can compute its
   status chip in m³ without touching prelievi.json.
@@ -171,46 +130,39 @@ by the Bosco page and picked up via the stale flag on next visit.
 
 When a harvest is linked to a `harvest_plan_item`, the save view also
 re-materializes `volume_actual_m3` on the item (aggregate sum of all
-linked harvests).  The first linked harvest insert auto-advances the
+linked harvests). The first linked harvest insert auto-advances the
 item state from `open` to `harvesting`.
 
 `harvest.volume_m3` is itself materialized at write time using the
-species densities current at that moment.  Editing a species' density
+species densities current at that moment. Editing a species' density
 later does *not* retroactively recompute existing harvests — same
 capture-at-write-time pattern used elsewhere — so the digests remain
-valid.  Only newly written harvests pick up the new density value.
+valid. Only newly written harvests pick up the new density value.
 
 ## Minor species and Altro
 
-Species with `Species.minor = True` are uncommon in harvest operations
-and are grouped under a single "Altro" entry in the prelievi UI to keep
-the input form compact and the table narrow.  The minor flag is
-prelievi-specific: minor species remain fully available as individual
-entries in Campionamenti (sampled trees), Piano di taglio (tree marks),
-and Settings.
+Species with `Species.minor = True` are uncommon and are grouped under a single
+"Altro" entry to keep the input form compact and the table narrow. The minor
+flag is prelievi-specific: minor species remain fully available as individual
+entries in Campionamenti (sampled trees), Piani di taglio (tree marks), and
+Settings.
 
-Current minor species: Acero, Carpino, Cerro, Ciliegio, Larice, Leccio,
-Pino Marittimo, Pino Nero, Pino Strobo, Quercia Roverella, Robinia,
-Sorbo, Tasso, Tiglio.  The set is controlled by the `minor` field on
-each `Species` record (seeded from `apps/base/data/species.csv`,
-editable via Settings → Trees if needed in the future).
+The set is controlled by the `minor` field on each `Species` record (seeded from
+`apps/base/data/species.csv`, editable via Settings → Trees).
 
-**Input form:** only major (non-minor, active) species appear.  When
-editing a legacy harvest that used a minor species directly, its
-percentage is folded into the Altro row so the form percentages still
-sum to 100.
+**Input form:** only (non-minor, active) species appear. When editing a legacy
+harvest that used a minor species directly, its percentage is folded into the
+Altro row so the form percentages still sum to 100.
 
 **Digest / table / charts:** the prelievi digest emits one column per
-major species only.  Quintals and percentages for minor species are
-aggregated into the Altro column.  This is handled by
+major species only. Quintals and percentages for minor species are
+aggregated into the Altro column. This is handled by
 `prelievi_species_cols()` and `aggregate_sp_pcts()` in
 `apps/base/digests.py`, shared by `generate_prelievi()`,
 `build_harvest_record()`, and the form context builder.
 
-**Volume calculation:** new harvests entered with Altro use the Altro
-species density (9.00 q/m³, a rough average of the minor species
-densities which range from 7.50 to 11.50).  This is acceptable because
-minor species account for a tiny fraction of total harvest volume.
-Legacy harvests that were recorded with individual minor species retain
-their original volume; re-saving them through the form rewrites the
-junction rows as Altro, recomputing volume with the Altro density.
+**Volume calculation:** new harvests entered with Altro use the Altro species
+density (9.00 q/m³, a rough average). (OK because minor species are a tiny
+fraction of total volume.) Legacy harvests recorded with individual minor
+species retain their original volume; re-saving them through the form rewrites
+the junction rows as Altro, recomputing volume with the Altro density.
