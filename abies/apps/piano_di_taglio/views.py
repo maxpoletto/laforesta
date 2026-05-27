@@ -76,6 +76,7 @@ from config.constants import (
     FIELD_NAME,
     FIELD_NONCE,
     FIELD_NOTE,
+    FIELD_NUMBER,
     FIELD_OPEN,
     FIELD_OPERATOR,
     FIELD_PARCEL_ID,
@@ -997,6 +998,8 @@ def mark_form_view(request, mark_id: int | None = None):
         if tm and tree:
             selected_parcel_id = tree.parcel_id
 
+    next_number = tm.number if tm else _next_mark_number(item.id)
+
     ctx = {
         'tm': tm,
         'tree': tree,
@@ -1006,6 +1009,7 @@ def mark_form_view(request, mark_id: int | None = None):
         'particella': particella,
         'parcel_choices': parcel_choices,
         'selected_parcel_id': selected_parcel_id,
+        'next_number': next_number,
         'date': tm.date.isoformat() if tm else date_type.today().isoformat(),
         'operator': tm.operator if tm else '',
         'selected_species_id': tree.species_id if tree else (
@@ -1048,6 +1052,7 @@ def mark_save_view(request):
     acc_m = _int_or_none(body.get(FIELD_ACC_M))
     operator = (body.get(FIELD_OPERATOR) or '').strip()
     date_raw = (body.get(FIELD_DATE) or '').strip()
+    number = _int_or_none(body.get(FIELD_NUMBER))
     parcel_id = _int_or_none(body.get(FIELD_PARCEL_ID))
 
     errors = []
@@ -1101,6 +1106,8 @@ def mark_save_view(request):
                 return JsonResponse({
                     STATUS: STATUS_CONFLICT, MESSAGE: S.ERROR_CONFLICT,
                 }, status=400)
+            if number is not None:
+                tm.number = number
             tm.date = date
             tm.d_cm = d_cm
             tm.h_m = h_m
@@ -1125,8 +1132,11 @@ def mark_save_view(request):
                 species=species, parcel=parcel,
                 lat=lat, lon=lon, acc_m=acc_m,
             )
+            if number is None:
+                number = _next_mark_number(item_id)
             tm = TreeMark.objects.create(
                 harvest_plan_item=item, tree=tree,
+                number=number,
                 date=date, d_cm=d_cm, h_m=h_m,
                 h_measured=h_measured,
                 volume_m3=volume_m3, mass_q=mass_q,
@@ -1141,7 +1151,6 @@ def mark_save_view(request):
     tm = (TreeMark.objects
           .select_related('tree__species')
           .get(id=tm.id))
-    numero = _mark_numero(tm)
     item_fresh = (HarvestPlanItem.objects
                   .select_related('parcel__region', 'parcel__eclass',
                                   'region', 'harvest_plan')
@@ -1149,7 +1158,7 @@ def mark_save_view(request):
     response_data = {
         DATA_ID: f'mark_trees_{item.id}',
         ROW_ID: tm.id,
-        RECORD: build_tree_mark_record(tm, numero),
+        RECORD: build_tree_mark_record(tm),
         ITEM_RECORD: build_harvest_plan_item_record(item_fresh),
     }
     nonce = body.get(FIELD_NONCE)
@@ -1291,6 +1300,7 @@ def mark_csv_import_view(request):
         lon_str = row.get('lon', '').strip().replace(',', '.')
         acc_str = row.get('acc_m', '').strip()
         h_meas_str = row.get('h_measured', '').strip()
+        numero_str = row.get('numero', '').strip()
         operator = row.get('operator', '').strip()
 
         try:
@@ -1337,8 +1347,11 @@ def mark_csv_import_view(request):
             volume_m3 = None
             mass_q = None
 
+        numero = _int_or_none(numero_str) if numero_str else None
+
         parsed.append({
             'date': date, 'parcel': parcel, 'species': species,
+            'number': numero,
             'd_cm': d_cm, 'h_m': h_m, 'h_measured': h_measured,
             'volume_m3': volume_m3, 'mass_q': mass_q,
             'lat': lat, 'lon': lon, 'acc_m': acc_m,
@@ -1350,13 +1363,19 @@ def mark_csv_import_view(request):
         return _validation_error(errors)
 
     with transaction.atomic():
+        next_number = _next_mark_number(item_id)
         for p in parsed:
+            number = p['number']
+            if number is None:
+                number = next_number
+                next_number += 1
             tree = Tree.objects.create(
                 species=p['species'], parcel=p['parcel'],
                 lat=p['lat'], lon=p['lon'], acc_m=p['acc_m'],
             )
             TreeMark.objects.create(
                 harvest_plan_item=item, tree=tree,
+                number=number,
                 date=p['date'], d_cm=p['d_cm'], h_m=p['h_m'],
                 h_measured=p['h_measured'],
                 volume_m3=p['volume_m3'], mass_q=p['mass_q'],
@@ -1425,17 +1444,12 @@ def _rematerialize_volume_marked(item_id: int) -> None:
     )
 
 
-def _mark_numero(tm) -> int:
-    """Compute the 1-based display index for a TreeMark within its item.
-
-    Matches the sort order of the mark_trees digest (date desc, id asc).
-    """
-    return (TreeMark.objects
-            .filter(harvest_plan_item_id=tm.harvest_plan_item_id)
-            .filter(
-                models.Q(date__gt=tm.date) |
-                models.Q(date=tm.date, id__lte=tm.id)
-            ).count())
+def _next_mark_number(item_id: int) -> int:
+    """Return max(tree_mark.number)+1 for the item, or 1 if no marks exist."""
+    agg = (TreeMark.objects
+           .filter(harvest_plan_item_id=item_id)
+           .aggregate(m=models.Max(FIELD_NUMBER)))
+    return (agg['m'] or 0) + 1
 
 
 def _parse_date_flex(s: str) -> date_type:

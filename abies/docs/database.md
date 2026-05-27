@@ -243,9 +243,9 @@ aggregate volume is materialized on `harvest_plan_item.volume_marked_m3`
 display totals.
 
 - tree_mark: (id:int, harvest_plan_item_id:int, tree_id:int,
-  date:string /* ISO 8601 */, d_cm:int, h_m:int, h_measured:bool,
-  volume_m3:real, mass_q:real, lat:real, lon:real, acc_m:int nullable,
-  operator:string, import_fingerprint:string nullable)
+  number:int, date:string /* ISO 8601 */, d_cm:int, h_m:int,
+  h_measured:bool, volume_m3:real, mass_q:real, lat:real, lon:real,
+  acc_m:int nullable, operator:string, import_fingerprint:string nullable)
   - A (high-forest) tree being marked for felling. PK is the synthetic
     `id`; `UNIQUE(harvest_plan_item_id, tree_id)` enforces the natural
     key.
@@ -254,6 +254,9 @@ display totals.
     the tree was marked in. ON DELETE PROTECT — deleting a plan item
     with tree_marks is blocked at the DB level (see harvest_plan_item
     deletion note above).
+  - `number` is the operator-assigned tree sequence number within the
+    item. CSV import preserves the value from the file; manual entry
+    defaults to `max(number)+1`.
   - `date` is the day the mark was recorded.
   - `d_cm` and `h_m` indicate size at time of marking.
   - `h_measured` records whether `h_m` came from a hypsometer measurement

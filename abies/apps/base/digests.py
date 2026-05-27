@@ -882,15 +882,13 @@ MARK_TREE_COLUMNS = [ROW_ID, VERSION, S.COL_DATE, S.COL_NUMERO,
                      S.COL_LAT, S.COL_LON, S.COL_OPERATOR]
 
 
-def build_tree_mark_record(tm, numero: int) -> list:
+def build_tree_mark_record(tm) -> list:
     """Build one row of a `mark_trees_<item_id>` digest.
 
-    `numero` is the 1-based display index within the item, computed by
-    the caller (not stored on tree_mark).  Caller must pre-load
-    `tree.species`.
+    Caller must pre-load `tree.species`.
     """
     return [
-        tm.id, tm.version, tm.date.isoformat(), numero,
+        tm.id, tm.version, tm.date.isoformat(), tm.number,
         tm.tree.species.common_name,
         tm.d_cm, float(tm.h_m), tm.h_measured,
         float(tm.volume_m3) if tm.volume_m3 is not None else None,
@@ -906,18 +904,15 @@ def generate_mark_trees_for_item(item_id: int) -> None:
     View/Edit-item modal's Martellate section.  Pattern mirrors
     `sampled_trees_<survey_id>` in campionamenti.
 
-    Sort: Data desc, then id (tie-break).  `Numero` is a 1-based
-    sequence computed at generation time.
+    Sort: Numero ascending.
     """
     from apps.base.models import TreeMark
 
     qs = (TreeMark.objects
           .filter(harvest_plan_item_id=item_id)
           .select_related('tree__species')
-          .order_by('-date', 'id'))
-    rows = []
-    for i, tm in enumerate(qs, start=1):
-        rows.append(build_tree_mark_record(tm, numero=i))
+          .order_by(FIELD_NUMBER))
+    rows = [build_tree_mark_record(tm) for tm in qs]
     _write_gzip_json(
         {'columns': MARK_TREE_COLUMNS, 'rows': rows},
         _dest(f'mark_trees_{item_id}'),

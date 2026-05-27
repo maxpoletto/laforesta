@@ -236,8 +236,7 @@ The modal displays:
 
        Data; Numero; Specie; D (cm); h (m); h misurata; V (m³); m (q); Lat; Lon; Operatore
 
-   `Numero` is a per-item sequence number derived at render time
-   (no `tree_mark.numero` column — it is purely a display index).
+   `Numero` is stored on `tree_mark.number`.
 
    Each row has pencil / trash icons. Editing or deleting an individual
    row obeys state monotonicity (per `database.md`): deleting the last
@@ -304,7 +303,8 @@ Title: Nuovo albero martellato. Similar to "nuovo albero campione"
 (see `page-campionamenti.md`) but without L10, ceduo, or PAI fields.
 
 Compresa / Particella prepopulated from the plan item. Fields:
-date, operator, specie (pulldown), D (cm), h (m), lat/lng.
+date, numero (defaults to max+1), operator, specie (pulldown),
+D (cm), h (m), lat/lng.
 
 **h auto-population:** `h = a × ln(D) + b` from the per-(plan, region,
 species) ipsometric regression (`tree_height_regression`). Field stays
@@ -493,10 +493,9 @@ that touch this item.
 
 Columns: `row_id`, `version`, `Data`, `Numero`, `Specie`, `D (cm)`,
 `h (m)`, `h misurata`, `V (m³)`, `m (q)`, `Lat`, `Lon`, `Operatore`.
-Sorted by `Data` descending, then by `id` ascending.
+Sorted by `Numero` ascending.
 
-`Numero` is the 1-based row index within the item (computed at
-digest-generation time; not stored on `tree_mark`). `h misurata`
+`Numero` is stored on `tree_mark.number`. `h misurata`
 carries the boolean `h_measured`, rendered in the table as a small
 filled / outlined dot.
 

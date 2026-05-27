@@ -1000,6 +1000,7 @@ class TestMarkCSVImport:
         assert TreeMark.objects.count() == 1
         tm = TreeMark.objects.first()
         assert tm.import_fingerprint is not None
+        assert tm.number == 1
         assert tm.d_cm == 30
 
     def test_import_dedup(self, writer_client, planned_item, species, parcels):

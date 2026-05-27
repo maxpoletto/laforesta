@@ -1829,7 +1829,7 @@ function buildMarkTreeColumnDefs(columns) {
     if (name === ROW_ID) continue;
     if (hidden.has(name)) { defs[name] = { label: name, hidden: true }; continue; }
     if (name === S.COL_DATE) { defs[name] = { label: name, type: 'date', width: '100px' }; continue; }
-    if (name === S.COL_NUMERO) { defs[name] = { label: name, type: 'number', width: '60px' }; continue; }
+    if (name === S.COL_NUMERO) { defs[name] = { label: name, type: 'number', width: '60px', formatter: fmtInt }; continue; }
     if (name === S.COL_D_CM) { defs[name] = { label: name, type: 'number', width: '70px' }; continue; }
     if (name === S.COL_H_M) { defs[name] = { label: name, type: 'number', width: '70px', formatter: fmtDecimal2 }; continue; }
     if (name === S.COL_H_MEASURED) { defs[name] = { label: name, type: 'boolean', width: '85px' }; continue; }
