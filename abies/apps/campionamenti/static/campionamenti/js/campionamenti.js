@@ -18,7 +18,8 @@ import { TableWrapper } from '../../base/js/table.js';
 import { show as showModal, showError, dismiss as dismissModal, onDismiss } from '../../base/js/modals.js';
 import * as S from '../../base/js/strings.js';
 import {
-  FIELD_LAT, FIELD_LON, ROW_ID, VERSION,
+  FIELD_LAT, FIELD_LON, FIELD_NONCE, FIELD_SAMPLE_GRID_ID,
+  FIELD_SURVEY_ID, ROW_ID, VERSION,
 } from '../../base/js/constants.js';
 import { fetchJSON, postJSON, postFormData } from '../../base/js/api.js';
 import {
@@ -1045,8 +1046,8 @@ function showEditGridModal() {
     },
     onImportSubmit: async (form) => {
       const fd = new FormData(form);
-      fd.append('sample_grid_id', String(activeGridId));
-      fd.append('nonce', crypto.randomUUID());
+      fd.append(FIELD_SAMPLE_GRID_ID, String(activeGridId));
+      fd.append(FIELD_NONCE, crypto.randomUUID());
       const { data, status } = await postFormData(GRID_CSV_IMPORT_URL, fd);
       if (status === 200) {
         applySideEffects(data);
@@ -1080,8 +1081,8 @@ function showEditSurveyModal() {
     },
     onImportSubmit: async (form) => {
       const fd = new FormData(form);
-      fd.append('survey_id', String(activeSurveyId));
-      fd.append('nonce', crypto.randomUUID());
+      fd.append(FIELD_SURVEY_ID, String(activeSurveyId));
+      fd.append(FIELD_NONCE, crypto.randomUUID());
       const { data, status } = await postFormData(TREE_CSV_IMPORT_URL, fd);
       if (status === 200) {
         await refreshSurveys();
@@ -1592,7 +1593,7 @@ function wireTreePick(form) {
   // an edit operates on one specific TreeSample, not a pivot to
   // another tree.  Lock the pulldown and hide "Salva e continua"
   // (which is a batch-entry affordance, meaningless for edits).
-  const isEditMode = !!form.querySelector('input[name="row_id"]')?.value;
+  const isEditMode = !!form.querySelector(`input[name="${ROW_ID}"]`)?.value;
   if (isEditMode) {
     pick.disabled = true;
     const saveAndAdd = form.querySelector('button[data-action="save-and-add"]');
