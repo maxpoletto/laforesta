@@ -188,6 +188,25 @@ export const CSV_IMPORT_IN_PROGRESS =
 // Coppice (per-shoot) entry
 export const REMOVE_POLLONE = 'Rimuovi';
 
+// CSV column headers for round-trip import/export (mirror config/strings_it.py).
+export const CSV_COL_COMPRESA    = 'Compresa';
+export const CSV_COL_PARTICELLA  = 'Particella';
+export const CSV_COL_AREA_SAGGIO = 'Area saggio';
+export const CSV_COL_LON         = 'Lon';
+export const CSV_COL_LAT         = 'Lat';
+export const CSV_COL_QUOTA       = 'Quota';
+export const CSV_COL_RAGGIO      = 'Raggio';
+export const CSV_COL_ALBERO      = 'Albero';
+export const CSV_COL_POLLONE     = 'Pollone';
+export const CSV_COL_MATRICINA   = 'Matricina';
+export const CSV_COL_D_CM        = 'D_cm';
+export const CSV_COL_H_M         = 'H_m';
+export const CSV_COL_L10_MM      = 'L10_mm';
+export const CSV_COL_GENERE      = 'Genere';
+export const CSV_COL_FUSTAIA     = 'Fustaia';
+export const CSV_COL_DATA        = 'Data';
+export const CSV_COL_PAI         = 'PAI';
+
 // CSV export filenames for the symmetric "Esporta CSV" buttons on
 // the Griglie + Rilevamenti pulldown rows (mirror the import column shape).
 export const CSV_GRID_AREAS = 'aree-saggio.csv';

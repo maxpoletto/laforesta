@@ -29,6 +29,7 @@ import {
   mkCollapsible, mkEditDeleteIcons, renderCsvErrors,
   confirmModal, cascadeDeleteModal,
 } from '../../base/js/form-widgets.js';
+import { exportDigest } from '../../base/js/csv-export.js';
 import { RilevamentiMap } from './rilevamenti-map.js';
 import { GriglieMap } from './griglie-map.js';
 import { GridPlanner } from './grid-planner.js';
@@ -1619,70 +1620,26 @@ function exportSurveyCSV(surveyId) {
   if (!currentTreesId) return;
   const d = cache.get(currentTreesId);
   if (!d) return;
-  const fmt = S.TABLE_CSV_FORMAT;
-  const lines = [];
-  // Columns to include in the export — skip hidden synthetic ones.
   const visibleCols = d.columns.filter(
     c => c !== VERSION && c !== S.COL_SAMPLE_AREA,
   );
-  const idx = visibleCols.map(c => d.columns.indexOf(c));
-  lines.push(visibleCols.join(fmt.separator));
-  for (const row of d.rows) {
-    const parts = idx.map(i => {
-      const v = row[i];
-      if (v == null) return '';
-      if (typeof v === 'number') return String(v).replace('.', fmt.decimal);
-      return String(v).replace(new RegExp(fmt.separator, 'g'), ' ');
-    });
-    lines.push(parts.join(fmt.separator));
-  }
-  const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = S.CSV_SAMPLED_TREES;
-  a.click();
-  URL.revokeObjectURL(a.href);
+  exportDigest(d, visibleCols, visibleCols, S.CSV_SAMPLED_TREES);
 }
 
-/**
- * Section 1 "Esporta CSV": dump the active grid's sample areas in the
- * same column shape as `_grid_modal.html`'s "Importa da CSV" expects
- * (Compresa, Particella, Area saggio, Lon, Lat, Quota, Raggio).  This
- * is a round-trip with the import path — programming GPS devices is
- * the primary use case per the spec.
- */
 function exportGridAreasCSV(gridId) {
   if (!sampleAreasData) return;
-  const c = sampleAreasData.columns;
-  const gridCol = c.indexOf(S.COL_GRID);
-  // CSV output columns mirror the import format (CSV_COL_*).
-  const cols = [S.CSV_COL_COMPRESA, S.CSV_COL_PARTICELLA, S.CSV_COL_AREA_SAGGIO,
-                S.CSV_COL_LON, S.CSV_COL_LAT,
-                S.CSV_COL_QUOTA, S.CSV_COL_RAGGIO];
-  // Source columns are the digest header names (COL_*).
-  const srcCols = [S.COL_COMPRESA, S.COL_PARCEL, S.COL_NUMBER, S.COL_LON, S.COL_LAT,
-                   S.COL_QUOTA, S.COL_RAGGIO];
-  const idx = srcCols.map(s => c.indexOf(s));
-  const fmt = S.TABLE_CSV_FORMAT;
-  const lines = [cols.join(fmt.separator)];
-  for (const row of sampleAreasData.rows) {
-    if (row[gridCol] !== gridId) continue;
-    const parts = idx.map(i => csvField(row[i], fmt));
-    lines.push(parts.join(fmt.separator));
-  }
-  downloadCSV(lines, S.CSV_GRID_AREAS);
+  const gridCol = sampleAreasData.columns.indexOf(S.COL_GRID);
+  exportDigest(
+    sampleAreasData,
+    [S.CSV_COL_COMPRESA, S.CSV_COL_PARTICELLA, S.CSV_COL_AREA_SAGGIO,
+     S.CSV_COL_LON, S.CSV_COL_LAT, S.CSV_COL_QUOTA, S.CSV_COL_RAGGIO],
+    [S.COL_COMPRESA, S.COL_PARCEL, S.COL_NUMBER, S.COL_LON, S.COL_LAT,
+     S.COL_QUOTA, S.COL_RAGGIO],
+    S.CSV_GRID_AREAS,
+    { filter: row => row[gridCol] === gridId },
+  );
 }
 
-/**
- * Section 2 "Esporta CSV": dump every TreeSample on the active survey
- * in the same column shape as `_survey_modal.html`'s "Importa da CSV"
- * expects (Compresa, Particella, Area saggio, Albero, Pollone,
- * Matricina, D_cm, H_m, L10_mm, Genere, Fustaia, Data, PAI).  Distinct
- * from the Section 3 toolbar's CSV which respects the area / search
- * filter; this one is the whole survey.
- *
- * Lazy-fetches the per-survey digest if not already cached.
- */
 async function exportFullSurveyCSV(surveyId) {
   const dataId = `${TREES_ID_PREFIX}${surveyId}`;
   cache.register(dataId, `${TREES_URL_PREFIX}${surveyId}/`);
@@ -1693,51 +1650,28 @@ async function exportFullSurveyCSV(surveyId) {
     showError(S.NO_RESULTS);
     return;
   }
-  const c = d.columns;
-  // CSV output columns mirror the import format (CSV_COL_*).
-  const cols = [S.CSV_COL_COMPRESA, S.CSV_COL_PARTICELLA, S.CSV_COL_AREA_SAGGIO,
-                S.CSV_COL_ALBERO, S.CSV_COL_POLLONE, S.CSV_COL_MATRICINA,
-                S.CSV_COL_D_CM, S.CSV_COL_H_M, S.CSV_COL_L10_MM,
-                S.CSV_COL_GENERE, S.CSV_COL_FUSTAIA, S.CSV_COL_DATA,
-                S.CSV_COL_PAI];
-  // Source columns are the digest header names (COL_*).
-  const srcCols = [S.COL_COMPRESA, S.COL_PARCEL, S.COL_AREA_NUM, S.COL_TREE_NUM,
-                   S.COL_POLLONE, S.COL_MATRICINA,
-                   S.COL_D_CM, S.COL_H_M, S.COL_L10_MM,
-                   S.COL_SPECIES, S.COL_PRODUCT, S.COL_SAMPLE_DATE, S.COL_PAI];
-  const idx = srcCols.map(s => c.indexOf(s));
-  const tipoCol = c.indexOf(S.COL_PRODUCT);
-  const fmt = S.TABLE_CSV_FORMAT;
-  const lines = [cols.join(fmt.separator)];
-  for (const row of d.rows) {
-    const parts = idx.map((i, k) => {
-      if (cols[k] === S.CSV_COL_FUSTAIA) {
-        // Round-trip with import: `Fustaia` = true|false, derived from
-        // the digest's `Tipo` = 'fustaia' | 'ceduo'.
-        return row[tipoCol] === 'fustaia' ? 'true' : 'false';
-      }
-      return csvField(row[i], fmt);
-    });
-    lines.push(parts.join(fmt.separator));
-  }
-  downloadCSV(lines, S.CSV_SURVEY_TREES);
+  const tipoCol = d.columns.indexOf(S.COL_PRODUCT);
+  exportDigest(
+    d,
+    [S.CSV_COL_COMPRESA, S.CSV_COL_PARTICELLA, S.CSV_COL_AREA_SAGGIO,
+     S.CSV_COL_ALBERO, S.CSV_COL_POLLONE, S.CSV_COL_MATRICINA,
+     S.CSV_COL_D_CM, S.CSV_COL_H_M, S.CSV_COL_L10_MM,
+     S.CSV_COL_GENERE, S.CSV_COL_FUSTAIA, S.CSV_COL_DATA,
+     S.CSV_COL_PAI],
+    [S.COL_COMPRESA, S.COL_PARCEL, S.COL_AREA_NUM, S.COL_TREE_NUM,
+     S.COL_POLLONE, S.COL_MATRICINA,
+     S.COL_D_CM, S.COL_H_M, S.COL_L10_MM,
+     S.COL_SPECIES, S.COL_PRODUCT, S.COL_SAMPLE_DATE, S.COL_PAI],
+    S.CSV_SURVEY_TREES,
+    {
+      transform: (row, _i, col) =>
+        col === S.CSV_COL_FUSTAIA
+          ? row[tipoCol] === S.TYPE_FUSTAIA
+          : undefined,
+    },
+  );
 }
 
-function csvField(v, fmt) {
-  if (v == null) return '';
-  if (typeof v === 'boolean') return v ? 'true' : 'false';
-  if (typeof v === 'number') return String(v).replace('.', fmt.decimal);
-  return String(v).replace(new RegExp(fmt.separator, 'g'), ' ');
-}
-
-function downloadCSV(lines, filename) {
-  const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(a.href);
-}
 
 
 /**
