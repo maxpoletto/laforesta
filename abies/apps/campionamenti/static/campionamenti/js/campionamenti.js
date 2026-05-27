@@ -431,18 +431,27 @@ function destroyGriglieMap() {
   if (sections.g.map) { sections.g.map.destroy(); sections.g.map = null; }
 }
 
-function rebuildGridSection(activeId) {
-  destroyGriglieMap();
-  populatePulldown(sections.g.pulldown, gridsData);
-  updateGridEmptyState();
-  if (activeId != null) activateGrid(activeId);
-  syncURL();
-}
-
-function rebuildSurveySection(activeId) {
-  destroyRilevamentiMap();
-  populatePulldown(sections.r.pulldown, surveysData, surveyPulldownLabel);
-  if (activeId != null) activateSurvey(activeId);
+function rebuildSection(key, activeId) {
+  const cfg = {
+    g: {
+      destroy: destroyGriglieMap,
+      digest: gridsData,
+      labelFn: null,
+      postRebuild: updateGridEmptyState,
+      activate: activateGrid,
+    },
+    r: {
+      destroy: destroyRilevamentiMap,
+      digest: surveysData,
+      labelFn: surveyPulldownLabel,
+      postRebuild: null,
+      activate: activateSurvey,
+    },
+  }[key];
+  cfg.destroy();
+  populatePulldown(sections[key].pulldown, cfg.digest, cfg.labelFn);
+  cfg.postRebuild?.();
+  if (activeId != null) cfg.activate(activeId);
   syncURL();
 }
 
@@ -813,7 +822,7 @@ async function showNewGridForm() {
           onCreated: (rowId, response) => {
             if (response) applySideEffects(response);
             dismissModal();
-            rebuildGridSection(rowId);
+            rebuildSection('g',rowId);
           },
         });
         planner.init();
@@ -833,7 +842,7 @@ function wireGridEmptyForm(modal) {
     onSuccess: (data) => {
       applySideEffects(data);
       dismissModal();
-      rebuildGridSection(data.row_id);
+      rebuildSection('g',data.row_id);
     },
     onValidationError(_data) {},
   });
@@ -857,7 +866,7 @@ function wireSurveyEmptyForm(modal) {
     onSuccess: (data) => {
       applySideEffects(data);
       dismissModal();
-      rebuildSurveySection(data.row_id);
+      rebuildSection('r',data.row_id);
     },
     onValidationError(_data) {},
   });
