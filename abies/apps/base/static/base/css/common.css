@@ -445,11 +445,10 @@ input:focus, select:focus, textarea:focus {
 }
 
 .subsection-banner {
-  padding: 8px 12px;
+  padding: 8px;
   background: #f0f0f0;
-  color: #888;
+  color: #555;
   font-style: italic;
-  border-left: 3px solid #ccc;
   margin-bottom: 8px;
 }
 
