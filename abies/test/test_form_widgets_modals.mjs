@@ -198,6 +198,16 @@ function resetModal() {
   modalDismissed = false;
 }
 
+function findByDataset(el, key, value) {
+  if (!el || !(el instanceof MockElement)) return null;
+  if (el.dataset[key] === value) return el;
+  for (const ch of el.children) {
+    const found = findByDataset(ch, key, value);
+    if (found) return found;
+  }
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // confirmModal
 // ---------------------------------------------------------------------------
@@ -234,6 +244,20 @@ confirmModal('test', () => { confirmCalled2 = true; });
 const cancelBtn = findByDataset(modalShown, 'action', 'cancel');
 cancelBtn.click();
 assertEqual(confirmCalled2, false, 'cancel does not call onConfirm');
+
+// Async onConfirm: dismiss happens before await.
+resetModal();
+let asyncOrder = [];
+confirmModal('async test', async () => {
+  asyncOrder.push('callback');
+  await Promise.resolve();
+  asyncOrder.push('after-await');
+});
+const okBtn3 = findByDataset(modalShown, 'action', 'confirm');
+okBtn3.click();
+assertEqual(asyncOrder[0], 'callback', 'async callback starts synchronously');
+await Promise.resolve();
+assertEqual(asyncOrder.length, 2, 'async callback completes');
 
 // ---------------------------------------------------------------------------
 // cascadeDeleteModal — with export
@@ -296,20 +320,6 @@ const delBtn2 = findByDataset(modalShown, 'action', 'delete');
 assertEqual(delBtn2?.disabled, false, 'delete starts enabled (no export)');
 delBtn2.click();
 assertEqual(deleteCalled2, true, 'onDelete called without export');
-
-// ---------------------------------------------------------------------------
-// Helper: find MockElement by dataset key/value (DFS)
-// ---------------------------------------------------------------------------
-
-function findByDataset(el, key, value) {
-  if (!el || !(el instanceof MockElement)) return null;
-  if (el.dataset[key] === value) return el;
-  for (const ch of el.children) {
-    const found = findByDataset(ch, key, value);
-    if (found) return found;
-  }
-  return null;
-}
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed > 0 ? 1 : 0);

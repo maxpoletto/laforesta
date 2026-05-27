@@ -998,27 +998,7 @@ function wireParcelByRegion(form) {
 }
 
 function confirmDeleteArea(areaId) {
-  const frag = document.createDocumentFragment();
-  const p = document.createElement('p');
-  p.textContent = S.DELETE_CONFIRM;
-  frag.appendChild(p);
-  const actions = document.createElement('div');
-  actions.className = 'form-actions';
-  const cancel = document.createElement('button');
-  cancel.className = 'btn';
-  cancel.dataset.action = 'cancel';
-  cancel.textContent = S.CANCEL;
-  cancel.addEventListener('click', dismissModal);
-  const ok = document.createElement('button');
-  ok.className = 'btn btn-primary';
-  ok.textContent = S.ACTION_DELETE;
-  ok.addEventListener('click', async () => {
-    dismissModal();
-    await deleteArea(areaId);
-  });
-  actions.append(cancel, ok);
-  frag.appendChild(actions);
-  showModal(frag);
+  confirmModal(S.DELETE_CONFIRM, () => deleteArea(areaId));
 }
 
 async function deleteArea(areaId) {
@@ -1041,11 +1021,6 @@ async function deleteArea(areaId) {
 // Edit (details + CSV import) and cascade-delete for grids and surveys
 // ---------------------------------------------------------------------------
 
-const GRID_IMPORT_HELP = 'Colonne necessarie: Compresa, Particella, '
-  + 'Area saggio, Lon, Lat, Quota, Raggio.';
-const SURVEY_IMPORT_HELP = 'Colonne necessarie: Compresa, Particella, '
-  + 'Area saggio, Albero, Pollone, Matricina, D_cm, H_m, L10_mm, '
-  + 'Genere, Fustaia. Opzionali: Data, PAI.';
 
 function showEditGridModal() {
   if (activeGridId == null) return;
@@ -1057,7 +1032,7 @@ function showEditGridModal() {
     description: row[c.indexOf(S.COL_DESCRIPTION)] || '',
     title: S.RENAME_TITLE_GRID,
     importTabLabel: S.EDIT_GRID_TAB_IMPORT,
-    importHelp: GRID_IMPORT_HELP,
+    importHelp: S.GRID_IMPORT_HELP,
     showDate: false,
     onDetailsSave: async ({ name, description }) => {
       const { data, status } = await postJSON(
@@ -1092,7 +1067,7 @@ function showEditSurveyModal() {
     description: row[c.indexOf(S.COL_DESCRIPTION)] || '',
     title: S.RENAME_TITLE_SURVEY,
     importTabLabel: S.EDIT_SURVEY_TAB_IMPORT,
-    importHelp: SURVEY_IMPORT_HELP,
+    importHelp: S.SURVEY_IMPORT_HELP,
     showDate: true,
     onDetailsSave: async ({ name, description }) => {
       const { data, status } = await postJSON(
@@ -1535,30 +1510,7 @@ async function showEditTreeForm(tsId) {
  * just a standard confirm modal.
  */
 function confirmDeleteTreeSample(tsId) {
-  const frag = document.createDocumentFragment();
-  const p = document.createElement('p');
-  p.textContent = S.DELETE_CONFIRM;
-  frag.appendChild(p);
-
-  const actions = document.createElement('div');
-  actions.className = 'form-actions';
-
-  const cancel = document.createElement('button');
-  cancel.className = 'btn';
-  cancel.textContent = S.CANCEL;
-  cancel.addEventListener('click', dismissModal);
-
-  const ok = document.createElement('button');
-  ok.className = 'btn btn-primary';
-  ok.textContent = S.ACTION_DELETE;
-  ok.addEventListener('click', async () => {
-    dismissModal();
-    await deleteTreeSample(tsId);
-  });
-
-  actions.append(cancel, ok);
-  frag.appendChild(actions);
-  showModal(frag);
+  confirmModal(S.DELETE_CONFIRM, () => deleteTreeSample(tsId));
 }
 
 async function deleteTreeSample(tsId) {

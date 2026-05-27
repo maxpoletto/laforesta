@@ -12,7 +12,7 @@ import { postJSON } from '../../base/js/api.js';
 import { showError, dismiss as dismissModal, onDismiss } from '../../base/js/modals.js';
 import { createRangeSlider } from '../../base/js/range-slider.js';
 import * as S from '../../base/js/strings.js';
-import { STATUS_CONFLICT, VERSION } from '../../base/js/constants.js';
+import { ROW_ID, STATUS_CONFLICT, VERSION } from '../../base/js/constants.js';
 import {
   fmtDecimal1, fmtDecimal1BlankZero, fmtDecimal2, fmtInt,
 } from '../../base/js/format.js';
@@ -29,6 +29,7 @@ const FORM_URL = '/api/prelievi/form/';
 const SAVE_URL = '/api/prelievi/save/';
 const DELETE_URL = '/api/prelievi/delete/';
 const PAGE_PATH = '/prelievi';
+const HARVEST_PLAN_ITEMS_ID = 'harvest_plan_items';
 
 // Collapsible sections, keyed by the single-char token used in the URL `o`
 // parameter ('a' = Produzione chart, 'b' = Specie-per-particella chart,
@@ -344,7 +345,7 @@ function _classifyColumns(columns) {
   speciesCols = [];
   tractorCols = [];
   for (const name of columns) {
-    if (name === 'row_id' || STATIC_COLS[name] || name.endsWith(' %')) continue;
+    if (name === ROW_ID || STATIC_COLS[name] || name.endsWith(' %')) continue;
     // Species are single words; tractor labels contain a space.
     if (name.includes(' ')) tractorCols.push(name);
     else speciesCols.push(name);
@@ -538,7 +539,7 @@ function wireForm(form) {
     if (status === 200) {
       cache.updateRow(DATA_ID, data.row_id, data.record);
       if (data.item_record) {
-        cache.updateRow('harvest_plan_items', data.item_record[0], data.item_record);
+        cache.updateRow(HARVEST_PLAN_ITEMS_ID, data.item_record[0], data.item_record);
       }
       dismissModal();
       if (isSaveAndAdd) showAddForm();
@@ -659,7 +660,7 @@ async function confirmDelete(rowId) {
   if (resp.status === 200) {
     cache.removeRow(DATA_ID, rowId);
     if (resp.data.item_record) {
-      cache.updateRow('harvest_plan_items', resp.data.item_record[0], resp.data.item_record);
+      cache.updateRow(HARVEST_PLAN_ITEMS_ID, resp.data.item_record[0], resp.data.item_record);
     }
     if (table) table.setData(cache.get(DATA_ID));
     return;
@@ -718,7 +719,7 @@ function refreshTable() {
 function buildColumnDefs(columns) {
   const defs = {};
   for (const name of columns) {
-    if (name === 'row_id') continue;
+    if (name === ROW_ID) continue;
     if (name.endsWith(' %')) {
       defs[name] = { label: name, hidden: true };
       continue;

@@ -179,6 +179,11 @@ export const RENAME_TITLE_GRID = 'Modifica griglia';
 export const RENAME_TITLE_SURVEY = 'Modifica rilevamento';
 export const EDIT_GRID_TAB_IMPORT  = 'Importa aree da CSV';
 export const EDIT_SURVEY_TAB_IMPORT = 'Importa alberi da CSV';
+export const GRID_IMPORT_HELP =
+  'Colonne necessarie: Compresa, Particella, Area saggio, Lon, Lat, Quota, Raggio.';
+export const SURVEY_IMPORT_HELP =
+  'Colonne necessarie: Compresa, Particella, Area saggio, Albero, Pollone, ' +
+  'Matricina, D_cm, H_m, L10_mm, Genere, Fustaia. Opzionali: Data, PAI.';
 
 // CSV import status (large files can take many seconds)
 export const CSV_IMPORT_IN_PROGRESS =

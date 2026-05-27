@@ -56,28 +56,6 @@ const originalURL = globalThis.URL;
 const originalBlob = globalThis.Blob;
 const originalDoc = globalThis.document;
 
-globalThis.URL = { createObjectURL: () => 'blob:mock', revokeObjectURL: () => {} };
-globalThis.Blob = class { constructor(parts) { this.data = parts[0]; } };
-globalThis.document = {
-  createElement: () => {
-    const el = {};
-    el.click = () => {
-      capturedLines = el._lines;
-      capturedFilename = el.download;
-    };
-    return new Proxy(el, {
-      set(obj, prop, val) {
-        if (prop === 'href') {
-          // Parse the blob data (Blob constructor receives [lines.join('\n')])
-        }
-        obj[prop] = val;
-        return true;
-      },
-    });
-  },
-};
-
-// Override Blob to capture data.
 globalThis.Blob = class {
   constructor(parts) { this.text = parts[0]; }
 };

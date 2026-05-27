@@ -4,7 +4,7 @@ export function csvField(v, fmt) {
   if (v == null) return '';
   if (typeof v === 'boolean') return v ? 'true' : 'false';
   if (typeof v === 'number') return String(v).replace('.', fmt.decimal);
-  return String(v).replace(new RegExp(fmt.separator, 'g'), ' ');
+  return String(v).replaceAll(fmt.separator, ' ');
 }
 
 export function downloadCSV(lines, filename) {
