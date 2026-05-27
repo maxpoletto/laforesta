@@ -902,63 +902,35 @@ function wirePathChooser(modal, onSwitch) {
  * the area is referenced by any Sample.
  */
 function showAreaPopover(area) {
-  const frag = document.createDocumentFragment();
-  const list = document.createElement('div');
-  list.className = 'form-readonly-block';
+  const frag = cloneTemplate('tmpl-campionamenti-area-popover');
+  const fields = frag.querySelector('[data-target="fields"]');
   for (const [label, val] of [
-    [S.COL_COMPRESA, area.compresa],
-    [S.COL_PARCEL, area.particella],
+    [S.COL_COMPRESA, area.compresa], [S.COL_PARCEL, area.particella],
     [S.COL_NUMBER, area.numero],
     [S.COL_LAT, fmtCoord(area.lat)],
     [S.COL_LON, fmtCoord(area.lon)],
     [S.COL_QUOTA, area.altitude ?? '—'],
-    [S.COL_RAGGIO, area.r_m],
-    [S.COL_NOTE, area.note || ''],
+    [S.COL_RAGGIO, area.r_m], [S.COL_NOTE, area.note || ''],
   ]) {
     const row = document.createElement('div');
     const b = document.createElement('strong');
     b.textContent = `${label}: `;
     row.append(b, document.createTextNode(String(val ?? '—')));
-    list.appendChild(row);
+    fields.appendChild(row);
   }
-  frag.appendChild(list);
-
-  const actions = document.createElement('div');
-  actions.className = 'form-actions';
-  const close = document.createElement('button');
-  close.className = 'btn';
-  close.textContent = S.DISMISS;
-  close.addEventListener('click', dismissModal);
-  actions.appendChild(close);
-
-  if (canModify()) {
-    const edit = document.createElement('button');
-    edit.className = 'btn btn-primary';
-    edit.textContent = S.ACTION_EDIT;
-    edit.addEventListener('click', () => {
-      dismissModal();
-      showEditAreaForm(area.id);
-    });
-    const del = document.createElement('button');
-    del.className = 'btn btn-primary';
-    del.textContent = S.ACTION_DELETE;
-    // Server refuses deletion of an in-use area with ERR_AREA_IN_USE;
-    // surface that at button-build time so the user doesn't go through
-    // a confirm modal that's about to fail.  The server check stays
-    // for the race-condition case (another writer inserts a sample
-    // between this client's last digest fetch and our POST).
+  frag.querySelector('[data-action="cancel"]')
+    ?.addEventListener('click', dismissModal);
+  const editBtn = frag.querySelector('[data-action="edit-area"]');
+  editBtn?.addEventListener('click', () => { dismissModal(); showEditAreaForm(area.id); });
+  const delBtn = frag.querySelector('[data-action="delete-area"]');
+  if (delBtn) {
     if (areaInUse(area.id)) {
-      del.disabled = true;
-      del.title = S.AREA_IN_USE_TOOLTIP;
+      delBtn.disabled = true;
+      delBtn.title = S.AREA_IN_USE_TOOLTIP;
     } else {
-      del.addEventListener('click', () => {
-        dismissModal();
-        confirmDeleteArea(area.id);
-      });
+      delBtn.addEventListener('click', () => { dismissModal(); confirmDeleteArea(area.id); });
     }
-    actions.append(edit, del);
   }
-  frag.appendChild(actions);
   showModal(frag);
 }
 
@@ -1068,42 +1040,32 @@ async function deleteArea(areaId) {
 // Edit (details + CSV import) and cascade-delete for grids and surveys
 // ---------------------------------------------------------------------------
 
+const GRID_IMPORT_HELP = 'Colonne necessarie: Compresa, Particella, '
+  + 'Area saggio, Lon, Lat, Quota, Raggio.';
+const SURVEY_IMPORT_HELP = 'Colonne necessarie: Compresa, Particella, '
+  + 'Area saggio, Albero, Pollone, Matricina, D_cm, H_m, L10_mm, '
+  + 'Genere, Fustaia. Opzionali: Data, PAI.';
+
 function showEditGridModal() {
   if (activeGridId == null) return;
   const row = gridRow(activeGridId);
   if (!row) return;
   const c = gridsData.columns;
-  showEditModal({
-    title: S.RENAME_TITLE_GRID,
+  wireEditModal({
     name: row[c.indexOf(S.COL_NAME)] || '',
     description: row[c.indexOf(S.COL_DESCRIPTION)] || '',
+    title: S.RENAME_TITLE_GRID,
     importTabLabel: S.EDIT_GRID_TAB_IMPORT,
+    importHelp: GRID_IMPORT_HELP,
+    showDate: false,
     onDetailsSave: async ({ name, description }) => {
       const { data, status } = await postJSON(
         `${GRID_EDIT_URL_PREFIX}${activeGridId}/`, { name, description },
       );
       if (status !== 200) return data?.message || S.ERROR_GENERIC;
       applySideEffects(data);
-      updatePulldownOption(sections.g, activeGridId, gridsData, 'Nome');
+      updatePulldownOption(sections.g, activeGridId, gridsData, S.COL_NAME);
       return null;
-    },
-    buildImportForm: (form) => {
-      const fileGroup = document.createElement('div');
-      fileGroup.className = 'form-group';
-      const fileLabel = document.createElement('label');
-      fileLabel.textContent = S.LABEL_CSV_FILE;
-      const fileInput = document.createElement('input');
-      fileInput.type = 'file';
-      fileInput.name = 'file';
-      fileInput.accept = '.csv,text/csv';
-      fileGroup.append(fileLabel, fileInput);
-      form.appendChild(fileGroup);
-
-      const help = document.createElement('p');
-      help.className = 'form-help';
-      help.textContent = 'Colonne necessarie: Compresa, Particella, '
-        + 'Area saggio, Lon, Lat, Quota, Raggio.';
-      form.appendChild(help);
     },
     onImportSubmit: async (form) => {
       const fd = new FormData(form);
@@ -1124,11 +1086,13 @@ function showEditSurveyModal() {
   const row = surveyRow(activeSurveyId);
   if (!row) return;
   const c = surveysData.columns;
-  showEditModal({
-    title: S.RENAME_TITLE_SURVEY,
+  wireEditModal({
     name: row[c.indexOf(S.COL_NAME)] || '',
     description: row[c.indexOf(S.COL_DESCRIPTION)] || '',
+    title: S.RENAME_TITLE_SURVEY,
     importTabLabel: S.EDIT_SURVEY_TAB_IMPORT,
+    importHelp: SURVEY_IMPORT_HELP,
+    showDate: true,
     onDetailsSave: async ({ name, description }) => {
       const { data, status } = await postJSON(
         `${SURVEY_EDIT_URL_PREFIX}${activeSurveyId}/`, { name, description },
@@ -1137,35 +1101,6 @@ function showEditSurveyModal() {
       applySideEffects(data);
       rebuildSurveyPulldown();
       return null;
-    },
-    buildImportForm: (form) => {
-      const fileGroup = document.createElement('div');
-      fileGroup.className = 'form-group';
-      const fileLabel = document.createElement('label');
-      fileLabel.textContent = S.LABEL_CSV_FILE;
-      const fileInput = document.createElement('input');
-      fileInput.type = 'file';
-      fileInput.name = 'file';
-      fileInput.accept = '.csv,text/csv';
-      fileGroup.append(fileLabel, fileInput);
-      form.appendChild(fileGroup);
-
-      const dateGroup = document.createElement('div');
-      dateGroup.className = 'form-group';
-      const dateLabel = document.createElement('label');
-      dateLabel.textContent = 'Data predefinita (se il file non ha colonna "Data")';
-      const dateInput = document.createElement('input');
-      dateInput.type = 'date';
-      dateInput.name = 'default_date';
-      dateGroup.append(dateLabel, dateInput);
-      form.appendChild(dateGroup);
-
-      const help = document.createElement('p');
-      help.className = 'form-help';
-      help.textContent = 'Colonne necessarie: Compresa, Particella, '
-        + 'Area saggio, Albero, Pollone, Matricina, D_cm, H_m, L10_mm, '
-        + 'Genere, Fustaia. Opzionali: Data, PAI.';
-      form.appendChild(help);
     },
     onImportSubmit: async (form) => {
       const fd = new FormData(form);
@@ -1185,184 +1120,73 @@ function showEditSurveyModal() {
   });
 }
 
-/**
- * Shared tabbed edit modal — Dettagli (name + description) and
- * Importa da CSV.  Mirrors the PDT pencil modal pattern.
- */
-function showEditModal({
-  title, name, description, importTabLabel,
-  onDetailsSave, buildImportForm, onImportSubmit,
-}) {
-  const TAB_DETAILS = 'details';
-  const TAB_IMPORT = 'import';
+function wireEditModal(opts) {
+  const frag = cloneTemplate('tmpl-campionamenti-edit-modal');
+  frag.querySelector('[data-field="title"]').textContent = opts.title;
+  frag.querySelector('[data-field="import-tab-label"]').textContent = opts.importTabLabel;
+  frag.querySelector('[name="name"]').value = opts.name;
+  frag.querySelector('[name="description"]').value = opts.description;
+  frag.querySelector('[data-field="import-help"]').textContent = opts.importHelp;
+  if (opts.showDate) frag.querySelector('[data-field="date-row"]').hidden = false;
 
-  const frag = document.createDocumentFragment();
-  const card = document.createElement('div');
-  card.className = 'form-card';
-  frag.appendChild(card);
-
-  const h = document.createElement('h2');
-  h.textContent = title;
-  card.appendChild(h);
-
-  const tabs = document.createElement('div');
-  tabs.className = 'modal-tabs';
-  card.appendChild(tabs);
-
-  const bodies = document.createElement('div');
-  bodies.className = 'modal-tab-bodies';
-  card.appendChild(bodies);
-
-  const tabDefs = [
-    { id: TAB_DETAILS, label: S.TAB_DETAILS },
-    { id: TAB_IMPORT, label: importTabLabel },
-  ];
-
-  const bodyEls = {};
-  for (const t of tabDefs) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'modal-tab';
-    btn.dataset.path = t.id;
-    btn.textContent = t.label;
-    btn.addEventListener('click', () => switchTab(t.id));
-    tabs.appendChild(btn);
-
-    const body = document.createElement('div');
-    body.className = 'modal-tab-body';
-    body.dataset.path = t.id;
-    bodies.appendChild(body);
-    bodyEls[t.id] = body;
+  const tabs = frag.querySelectorAll('.modal-tab');
+  const bodies = frag.querySelectorAll('.modal-tab-body');
+  for (const tab of tabs) {
+    tab.addEventListener('click', () => {
+      const path = tab.dataset.path;
+      tabs.forEach(t => t.classList.toggle('active', t.dataset.path === path));
+      bodies.forEach(b => b.classList.toggle('active', b.dataset.path === path));
+    });
   }
 
-  // --- Dettagli tab ---
-  const detailsForm = document.createElement('form');
-  detailsForm.className = 'campionamenti-edit-form';
-  bodyEls[TAB_DETAILS].appendChild(detailsForm);
+  wireCancelButtons(frag, dismissModal);
 
-  const nameGroup = document.createElement('div');
-  nameGroup.className = 'form-group';
-  const nameLabel = document.createElement('label');
-  nameLabel.textContent = S.LABEL_NAME;
-  const nameInput = document.createElement('input');
-  nameInput.type = 'text';
-  nameInput.maxLength = 100;
-  nameInput.required = true;
-  nameInput.value = name;
-  nameGroup.append(nameLabel, nameInput);
-  detailsForm.appendChild(nameGroup);
-
-  const descGroup = document.createElement('div');
-  descGroup.className = 'form-group';
-  const descLabel = document.createElement('label');
-  descLabel.textContent = S.LABEL_DESCRIPTION;
-  const descInput = document.createElement('textarea');
-  descInput.rows = 3;
-  descInput.value = description || '';
-  descGroup.append(descLabel, descInput);
-  detailsForm.appendChild(descGroup);
-
-  const detailsActions = document.createElement('div');
-  detailsActions.className = 'form-actions';
-  const detailsCancel = document.createElement('button');
-  detailsCancel.type = 'button';
-  detailsCancel.className = 'btn';
-  detailsCancel.textContent = S.CANCEL;
-  detailsCancel.addEventListener('click', dismissModal);
-  const detailsOk = document.createElement('button');
-  detailsOk.type = 'submit';
-  detailsOk.className = 'btn btn-primary';
-  detailsOk.textContent = S.SAVE;
-  detailsActions.append(detailsCancel, detailsOk);
-  detailsForm.appendChild(detailsActions);
-
+  const detailsForm = frag.querySelector('[data-role="details-form"]');
   detailsForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    detailsOk.disabled = true;
+    const btn = detailsForm.querySelector('[type="submit"]');
+    btn.disabled = true;
     try {
-      const err = await onDetailsSave({
-        name: nameInput.value.trim(),
-        description: descInput.value.trim(),
+      const err = await opts.onDetailsSave({
+        name: detailsForm.querySelector('[name="name"]').value.trim(),
+        description: detailsForm.querySelector('[name="description"]').value.trim(),
       });
-      if (err) { showFormError(detailsForm, err); detailsOk.disabled = false; }
+      if (err) { showFormError(detailsForm, err); btn.disabled = false; }
       else dismissModal();
-    } catch {
-      showFormError(detailsForm, S.ERROR_NETWORK);
-      detailsOk.disabled = false;
-    }
+    } catch { showFormError(detailsForm, S.ERROR_NETWORK); btn.disabled = false; }
   });
 
-  // --- Import tab ---
-  const importForm = document.createElement('form');
-  importForm.className = 'campionamenti-edit-form';
-  bodyEls[TAB_IMPORT].appendChild(importForm);
-  buildImportForm(importForm);
-
-  const statusBox = document.createElement('div');
-  statusBox.className = 'csv-import-status';
-  statusBox.hidden = true;
-  importForm.appendChild(statusBox);
-
-  const errorsBox = document.createElement('div');
-  errorsBox.className = 'csv-import-errors';
-  errorsBox.hidden = true;
-  importForm.appendChild(errorsBox);
-
-  const importActions = document.createElement('div');
-  importActions.className = 'form-actions';
-  const importCancel = document.createElement('button');
-  importCancel.type = 'button';
-  importCancel.className = 'btn';
-  importCancel.textContent = S.CANCEL;
-  importCancel.addEventListener('click', dismissModal);
-  const importOk = document.createElement('button');
-  importOk.type = 'submit';
-  importOk.className = 'btn btn-primary';
-  importOk.textContent = S.IMPORT_LABEL;
-  importActions.append(importCancel, importOk);
-  importForm.appendChild(importActions);
-
+  const importForm = frag.querySelector('[data-role="import-form"]');
+  const statusBox = frag.querySelector('.csv-import-status');
+  const errorsBox = frag.querySelector('.csv-import-errors');
   importForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    importOk.disabled = true;
+    const btn = importForm.querySelector('[type="submit"]');
+    btn.disabled = true;
     errorsBox.hidden = true;
     errorsBox.replaceChildren();
     statusBox.textContent = S.CSV_IMPORT_IN_PROGRESS;
     statusBox.hidden = false;
     try {
-      const result = await onImportSubmit(importForm);
+      const result = await opts.onImportSubmit(importForm);
       if (!result.errors) { dismissModal(); return; }
       if (result.errors.length) renderCsvErrors(errorsBox, result.errors);
       else showFormError(importForm, result.message || S.ERROR_GENERIC);
-    } catch {
-      showFormError(importForm, S.ERROR_NETWORK);
-    } finally {
-      importOk.disabled = false;
-      statusBox.hidden = true;
-    }
+    } catch { showFormError(importForm, S.ERROR_NETWORK); }
+    finally { btn.disabled = false; statusBox.hidden = true; }
   });
-
-  function switchTab(id) {
-    for (const btn of tabs.querySelectorAll('.modal-tab')) {
-      btn.classList.toggle('active', btn.dataset.path === id);
-    }
-    for (const [k, b] of Object.entries(bodyEls)) {
-      b.classList.toggle('active', k === id);
-    }
-  }
 
   showModal(frag);
 
-  // Lock min-height to the tallest tab so switching doesn't reflow.
-  const allBodies = Object.values(bodyEls);
+  const allBodies = [...document.querySelectorAll('#modal-container .modal-tab-body')];
   for (const b of allBodies) b.style.display = 'block';
   let maxH = 0;
   for (const b of allBodies) maxH = Math.max(maxH, b.offsetHeight);
   for (const b of allBodies) b.style.display = '';
-  if (maxH > 0) bodies.style.minHeight = `${maxH}px`;
+  const container = document.querySelector('#modal-container .modal-tab-bodies');
+  if (container && maxH > 0) container.style.minHeight = `${maxH}px`;
 
-  switchTab(TAB_DETAILS);
-  setTimeout(() => nameInput.focus(), 0);
+  document.querySelector('#modal-container [name="name"]')?.focus();
 }
 
 function confirmDeleteGrid() {

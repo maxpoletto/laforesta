@@ -94,3 +94,68 @@ user.role is available from the shell's render context.
     <div data-target="trees-table-host"></div>
   </div>
 </template>
+
+<template id="tmpl-campionamenti-area-popover">
+  <div class="form-readonly-block" data-target="fields"></div>
+  <div class="form-actions">
+    <button type="button" class="btn" data-action="cancel">Chiudi</button>
+    {% if user.role != 'reader' %}
+    <button type="button" class="btn btn-primary"
+            data-action="edit-area">Modifica</button>
+    <button type="button" class="btn btn-primary"
+            data-action="delete-area">Elimina</button>
+    {% endif %}
+  </div>
+</template>
+
+<template id="tmpl-campionamenti-edit-modal">
+  <div class="form-card">
+    <h2 data-field="title"></h2>
+    <div class="modal-tabs">
+      <button type="button" class="modal-tab active"
+              data-path="details">Dettagli</button>
+      <button type="button" class="modal-tab"
+              data-path="import" data-field="import-tab-label"></button>
+    </div>
+    <div class="modal-tab-bodies">
+      <div class="modal-tab-body active" data-path="details">
+        <form class="campionamenti-edit-form" data-role="details-form">
+          <div class="form-group">
+            <label for="edit-modal-name">Nome</label>
+            <input type="text" id="edit-modal-name" name="name"
+                   maxlength="100" required>
+          </div>
+          <div class="form-group">
+            <label for="edit-modal-desc">Descrizione</label>
+            <textarea id="edit-modal-desc" name="description" rows="3"></textarea>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn" data-action="cancel">Annulla</button>
+            <button type="submit" class="btn btn-primary">Salva</button>
+          </div>
+        </form>
+      </div>
+      <div class="modal-tab-body" data-path="import">
+        <form class="campionamenti-edit-form" data-role="import-form">
+          <div class="form-group">
+            <label for="edit-modal-file">File CSV</label>
+            <input type="file" id="edit-modal-file" name="file"
+                   accept=".csv,text/csv" required>
+          </div>
+          <div class="form-group" data-field="date-row" hidden>
+            <label for="edit-modal-date">
+              Data predefinita (se il file non ha colonna "Data")</label>
+            <input type="date" id="edit-modal-date" name="default_date">
+          </div>
+          <p class="form-help" data-field="import-help"></p>
+          <div class="csv-import-status" hidden></div>
+          <div class="csv-import-errors" hidden></div>
+          <div class="form-actions">
+            <button type="button" class="btn" data-action="cancel">Annulla</button>
+            <button type="submit" class="btn btn-primary">Importa</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</template>
