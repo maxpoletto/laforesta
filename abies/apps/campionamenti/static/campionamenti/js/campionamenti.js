@@ -26,10 +26,10 @@ import {
   interceptSubmit, wireCancelButtons, showFormError,
 } from '../../base/js/forms.js';
 import {
-  mkCollapsible, mkEditDeleteIcons, renderCsvErrors,
-  confirmModal, cascadeDeleteModal,
+  renderCsvErrors, confirmModal, cascadeDeleteModal,
 } from '../../base/js/form-widgets.js';
 import { exportDigest } from '../../base/js/csv-export.js';
+import { cloneTemplate } from '../../base/js/templates.js';
 import { RilevamentiMap } from './rilevamenti-map.js';
 import { GriglieMap } from './griglie-map.js';
 import { GridPlanner } from './grid-planner.js';
@@ -211,7 +211,7 @@ export async function mount(params) {
   const p0 = readParams(params);
   currentMapType = MAP_TYPE_TOKENS[p0.mt];
 
-  buildPageShell(el, params);
+  buildPage(el, params);
   cache.setVisible([SURVEYS_ID, GRIDS_ID, SAMPLE_AREAS_ID, SAMPLES_ID]);
 
   applyParams(params);
@@ -246,154 +246,118 @@ function resetSectionRefs() {
 }
 
 // ---------------------------------------------------------------------------
-// Page shell — three collapsible sections
+// Page shell — cloned from <template> in shell_it.html
 // ---------------------------------------------------------------------------
 
-function buildPageShell(el, params) {
+function buildPage(el, params) {
   el.replaceChildren();
   const p = readParams(params);
+  const frag = cloneTemplate('tmpl-campionamenti-page');
+  el.appendChild(frag);
 
-  // Section initial open state from URL `o=`.
-  for (const k of SECTION_KEYS) sections[k].open = p.o.includes(k);
-
-  // Section 1: Griglie
-  buildSection(el, sections.g, body => buildGriglieBody(body));
-  // Section 2: Rilevamenti
-  buildSection(el, sections.r, body => buildRilevamentiBody(body));
-  // Section 3: Alberi campionati
-  buildSection(el, sections.t, body => buildAlberiBody(body));
-}
-
-function buildSection(el, s, populate) {
-  const [header, body] = mkCollapsible(s.title, s.open);
-  s.header = header;
-  s.body = body;
-  populate(body);
-  header.addEventListener('click', () => {
-    s.open = !s.open;
-    header.classList.toggle('open', s.open);
-    body.classList.toggle('open', s.open);
-    if (s.open) onSectionOpen(s);
-    syncURL();
-  });
-  el.append(header, body);
-}
-
-
-function onSectionOpen(s) {
-  // Leaflet needs invalidateSize() when a hidden container becomes visible.
-  if (s === sections.g && s.map) s.map.invalidateSize();
-  if (s === sections.r && s.map) s.map.invalidateSize();
-}
-
-// ---------------------------------------------------------------------------
-// Section 1 — Griglie body
-// ---------------------------------------------------------------------------
-
-function buildGriglieBody(body) {
-  const s = sections.g;
-
-  // Empty state — no grids exist yet.  Show a centered prompt + the
-  // "Nuova griglia" button (writers only).
-  if (!gridsData?.rows.length) {
-    const empty = document.createElement('div');
-    empty.className = 'campionamenti-empty';
-    empty.textContent = S.CAMPIONAMENTI_NO_GRIDS;
-    body.appendChild(empty);
-    if (canModify()) {
-      const addBtn = document.createElement('button');
-      addBtn.type = 'button';
-      addBtn.className = 'btn btn-primary';
-      addBtn.textContent = S.NEW_GRID_LABEL;
-      addBtn.addEventListener('click', () => showNewGridForm());
-      const wrap = document.createElement('div');
-      wrap.style.textAlign = 'center';
-      wrap.appendChild(addBtn);
-      body.appendChild(wrap);
-    }
-    return;
-  }
-
-  const topRow = document.createElement('div');
-  topRow.className = 'campionamenti-section-top';
-  const left = document.createElement('div');
-  left.className = 'campionamenti-section-left';
-  const right = document.createElement('div');
-  right.className = 'campionamenti-section-right';
-  topRow.append(left, right);
-
-  const label = document.createElement('label');
-  label.className = 'campionamenti-pulldown-label';
-  label.textContent = S.GRID_LABEL;
-
-  const sel = document.createElement('select');
-  sel.className = 'campionamenti-pulldown page-pulldown';
-  const idCol = gridsData.columns.indexOf(ROW_ID);
-  const nameCol = gridsData.columns.indexOf(S.COL_NAME);
-  for (const row of gridsData.rows) {
-    const opt = document.createElement('option');
-    opt.value = String(row[idCol]);
-    opt.textContent = row[nameCol];
-    sel.appendChild(opt);
-  }
-  sel.addEventListener('change', () => {
-    activateGrid(parseInt(sel.value, 10));
-    syncURL();
-  });
-  label.htmlFor = sel.id = 'campionamenti-grid-select';
-
-  left.append(label, sel);
-  if (canModify()) {
-    mkEditDeleteIcons(left, {
-      onEdit: () => showEditGridModal(),
-      onDelete: () => confirmDeleteGrid(),
-      iconClass: 'campionamenti-pulldown-icon',
+  for (const key of SECTION_KEYS) {
+    const s = sections[key];
+    s.open = p.o.includes(key);
+    s.header = el.querySelector(`[data-section="${key}"].collapsible-header`);
+    s.body = el.querySelector(`[data-section="${key}"].collapsible-body`);
+    s.header?.classList.toggle('open', s.open);
+    s.body?.classList.toggle('open', s.open);
+    s.header?.addEventListener('click', () => {
+      s.open = !s.open;
+      s.header.classList.toggle('open', s.open);
+      s.body.classList.toggle('open', s.open);
+      if (s.open) onSectionOpen(s);
+      syncURL();
     });
   }
 
-  const exportGridBtn = document.createElement('button');
-  exportGridBtn.type = 'button';
-  exportGridBtn.className = 'btn';
-  exportGridBtn.textContent = S.EXPORT_CSV;
-  exportGridBtn.addEventListener('click', () => {
-    if (activeGridId != null) exportGridAreasCSV(activeGridId);
+  // Grid section refs.
+  const g = sections.g;
+  g.pulldown = el.querySelector('#campionamenti-grid-select');
+  g.summary = el.querySelector('[data-target="grid-summary"]');
+  g.mapEl = el.querySelector('[data-target="grid-map"]');
+  g.emptyEl = el.querySelector('[data-target="grid-empty"]');
+  g.pulldown?.addEventListener('change', () => {
+    activateGrid(parseInt(g.pulldown.value, 10));
+    syncURL();
   });
-  right.appendChild(exportGridBtn);
+  populatePulldown(g.pulldown, gridsData);
 
-  if (canModify()) {
-    const addBtn = document.createElement('button');
-    addBtn.type = 'button';
-    addBtn.className = 'btn btn-primary';
-    addBtn.textContent = S.NEW_GRID_LABEL;
-    addBtn.addEventListener('click', () => showNewGridForm());
-    right.appendChild(addBtn);
+  // Survey section refs.
+  const r = sections.r;
+  r.pulldown = el.querySelector('#campionamenti-survey-select');
+  r.summary = el.querySelector('[data-target="survey-summary"]');
+  r.mapEl = el.querySelector('[data-target="survey-map"]');
+  r.pulldown?.addEventListener('change', () => {
+    activateSurvey(parseInt(r.pulldown.value, 10));
+    syncURL();
+  });
+  populatePulldown(r.pulldown, surveysData, surveyPulldownLabel);
+
+  // Trees section refs.
+  sections.t.emptyEl = el.querySelector('[data-target="trees-empty"]');
+  sections.t.host = el.querySelector('[data-target="trees-table-host"]');
+
+  // Wire action buttons via data-action delegation.
+  el.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const handlers = {
+      'new-grid': () => showNewGridForm(),
+      'edit-grid': () => showEditGridModal(),
+      'delete-grid': () => confirmDeleteGrid(),
+      'export-grid-csv': () => activeGridId != null && exportGridAreasCSV(activeGridId),
+      'new-survey': () => showNewSurveyForm(),
+      'edit-survey': () => showEditSurveyModal(),
+      'delete-survey': () => confirmDeleteSurvey(),
+      'export-survey-csv': () => activeSurveyId != null && exportFullSurveyCSV(activeSurveyId),
+      'add-area': () => showAddAreaForm(),
+    };
+    handlers[btn.dataset.action]?.();
+  });
+
+  updateGridEmptyState();
+}
+
+function populatePulldown(sel, digest, labelFn) {
+  if (!sel || !digest) return;
+  sel.replaceChildren();
+  const idCol = digest.columns.indexOf(ROW_ID);
+  const nameCol = digest.columns.indexOf(S.COL_NAME);
+  for (const row of digest.rows) {
+    const opt = document.createElement('option');
+    opt.value = String(row[idCol]);
+    opt.textContent = labelFn ? labelFn(row) : row[nameCol];
+    sel.appendChild(opt);
   }
+}
 
-  body.appendChild(topRow);
+function surveyPulldownLabel(row) {
+  const c = surveysData.columns;
+  const name = row[c.indexOf(S.COL_NAME)];
+  const vis = row[c.indexOf(S.COL_N_AREAS_VISITED)];
+  const tot = row[c.indexOf(S.COL_N_AREAS_TOTAL)];
+  return `${name} (${vis}/${tot} aree)`;
+}
 
-  s.summary = document.createElement('div');
-  s.summary.className = 'campionamenti-summary';
-  body.appendChild(s.summary);
+function updateGridEmptyState() {
+  const hasGrids = gridsData?.rows?.length > 0;
+  const g = sections.g;
+  const topRow = g.body?.querySelector('.campionamenti-section-top');
+  if (topRow) topRow.hidden = !hasGrids;
+  if (g.emptyEl) g.emptyEl.hidden = hasGrids;
+  if (g.summary) g.summary.hidden = !hasGrids;
+  if (g.mapEl) g.mapEl.hidden = !hasGrids;
+  // Also hide the add-area hint and button below the map.
+  const hint = g.body?.querySelector('.form-help');
+  if (hint) hint.hidden = !hasGrids;
+  const addBtn = g.body?.querySelector('[data-action="add-area"]');
+  if (addBtn) addBtn.hidden = !hasGrids;
+}
 
-  s.mapEl = document.createElement('div');
-  s.mapEl.className = 'campionamenti-map-host';
-  body.appendChild(s.mapEl);
-
-  if (canModify()) {
-    const hint = document.createElement('div');
-    hint.className = 'form-help';
-    hint.textContent = S.CAMPIONAMENTI_NO_AREAS_HINT;
-    body.appendChild(hint);
-
-    const addAreaBtn = document.createElement('button');
-    addAreaBtn.type = 'button';
-    addAreaBtn.className = 'btn btn-primary';
-    addAreaBtn.textContent = S.ADD_AREA_LABEL;
-    addAreaBtn.addEventListener('click', () => showAddAreaForm());
-    body.appendChild(addAreaBtn);
-  }
-
-  s.pulldown = sel;
+function onSectionOpen(s) {
+  if (s === sections.g && s.map) s.map.invalidateSize();
+  if (s === sections.r && s.map) s.map.invalidateSize();
 }
 
 function activateGrid(gridId) {
@@ -476,99 +440,18 @@ function destroyGriglieMap() {
 }
 
 function rebuildGridSection(activeId) {
-  const s = sections.g;
   destroyGriglieMap();
-  s.pulldown = s.summary = s.mapEl = null;
-  if (s.body) { s.body.replaceChildren(); buildGriglieBody(s.body); }
+  populatePulldown(sections.g.pulldown, gridsData);
+  updateGridEmptyState();
   if (activeId != null) activateGrid(activeId);
   syncURL();
 }
 
 function rebuildSurveySection(activeId) {
-  const s = sections.r;
   destroyRilevamentiMap();
-  s.pulldown = s.summary = s.mapEl = null;
-  if (s.body) { s.body.replaceChildren(); buildRilevamentiBody(s.body); }
+  populatePulldown(sections.r.pulldown, surveysData, surveyPulldownLabel);
   if (activeId != null) activateSurvey(activeId);
   syncURL();
-}
-
-// ---------------------------------------------------------------------------
-// Section 2 — Rilevamenti body
-// ---------------------------------------------------------------------------
-
-function buildRilevamentiBody(body) {
-  const s = sections.r;
-
-  const topRow = document.createElement('div');
-  topRow.className = 'campionamenti-section-top';
-  const left = document.createElement('div');
-  left.className = 'campionamenti-section-left';
-  const right = document.createElement('div');
-  right.className = 'campionamenti-section-right';
-  topRow.append(left, right);
-
-  const label = document.createElement('label');
-  label.className = 'campionamenti-pulldown-label';
-  label.textContent = S.SURVEY_LABEL;
-
-  const sel = document.createElement('select');
-  sel.className = 'campionamenti-pulldown page-pulldown';
-  const idCol = surveysData.columns.indexOf(ROW_ID);
-  const nameCol = surveysData.columns.indexOf(S.COL_NAME);
-  const visCol = surveysData.columns.indexOf(S.COL_N_AREAS_VISITED);
-  const totCol = surveysData.columns.indexOf(S.COL_N_AREAS_TOTAL);
-  for (const row of surveysData.rows) {
-    const opt = document.createElement('option');
-    opt.value = String(row[idCol]);
-    opt.textContent =
-      `${row[nameCol]} (${row[visCol]}/${row[totCol]} aree)`;
-    sel.appendChild(opt);
-  }
-  sel.addEventListener('change', () => {
-    activateSurvey(parseInt(sel.value, 10));
-    syncURL();
-  });
-  label.htmlFor = sel.id = 'campionamenti-survey-select';
-
-  left.append(label, sel);
-  if (canModify()) {
-    mkEditDeleteIcons(left, {
-      onEdit: () => showEditSurveyModal(),
-      onDelete: () => confirmDeleteSurvey(),
-      iconClass: 'campionamenti-pulldown-icon',
-    });
-  }
-
-  const exportSurveyBtn = document.createElement('button');
-  exportSurveyBtn.type = 'button';
-  exportSurveyBtn.className = 'btn';
-  exportSurveyBtn.textContent = S.EXPORT_CSV;
-  exportSurveyBtn.addEventListener('click', () => {
-    if (activeSurveyId != null) exportFullSurveyCSV(activeSurveyId);
-  });
-  right.appendChild(exportSurveyBtn);
-
-  if (canModify()) {
-    const addBtn = document.createElement('button');
-    addBtn.type = 'button';
-    addBtn.className = 'btn btn-primary';
-    addBtn.textContent = S.NEW_SURVEY_LABEL;
-    addBtn.addEventListener('click', () => showNewSurveyForm());
-    right.appendChild(addBtn);
-  }
-
-  body.appendChild(topRow);
-
-  s.summary = document.createElement('div');
-  s.summary.className = 'campionamenti-summary';
-  body.appendChild(s.summary);
-
-  s.mapEl = document.createElement('div');
-  s.mapEl.className = 'campionamenti-map-host';
-  body.appendChild(s.mapEl);
-
-  s.pulldown = sel;
 }
 
 async function activateSurvey(surveyId) {
@@ -693,22 +576,6 @@ function renderRilevamentiMap(surveyId) {
 
 function destroyRilevamentiMap() {
   if (sections.r.map) { sections.r.map.destroy(); sections.r.map = null; }
-}
-
-// ---------------------------------------------------------------------------
-// Section 3 — Alberi campionati body
-// ---------------------------------------------------------------------------
-
-function buildAlberiBody(body) {
-  const s = sections.t;
-  s.emptyEl = document.createElement('div');
-  s.emptyEl.className = 'campionamenti-empty';
-  s.emptyEl.textContent = S.CAMPIONAMENTI_EMPTY;
-  body.appendChild(s.emptyEl);
-
-  s.host = document.createElement('div');
-  s.host.className = 'campionamenti-table-host';
-  body.appendChild(s.host);
 }
 
 function showAlberiEmpty() {
@@ -1097,27 +964,11 @@ function showAreaPopover(area) {
 
 function promptNewAreaAt(lat, lon) {
   if (activeGridId == null) return;
-  const frag = document.createDocumentFragment();
-  const p = document.createElement('p');
-  p.textContent = S.CAMPIONAMENTI_INSERT_AREA_HERE;
-  frag.appendChild(p);
-  const actions = document.createElement('div');
-  actions.className = 'form-actions';
-  const cancel = document.createElement('button');
-  cancel.className = 'btn';
-  cancel.dataset.action = 'cancel';
-  cancel.textContent = S.CANCEL;
-  cancel.addEventListener('click', dismissModal);
-  const ok = document.createElement('button');
-  ok.className = 'btn btn-primary';
-  ok.textContent = S.CONFIRM;
-  ok.addEventListener('click', () => {
-    dismissModal();
-    showAddAreaForm({ lat, lon });
-  });
-  actions.append(cancel, ok);
-  frag.appendChild(actions);
-  showModal(frag);
+  confirmModal(
+    S.CAMPIONAMENTI_INSERT_AREA_HERE,
+    () => showAddAreaForm({ lat, lon }),
+    { confirmLabel: S.CONFIRM },
+  );
 }
 
 async function showAddAreaForm({ lat, lon } = {}) {
@@ -1690,18 +1541,10 @@ function updatePulldownOption(section, id, digest, column) {
 /** Survey pulldown label is "<name> (<n>/<m> aree)" — rebuild from cache. */
 function rebuildSurveyPulldown() {
   const sel = sections.r.pulldown;
-  if (!sel || !surveysData) return;
-  const c = surveysData.columns;
-  const idCol = c.indexOf(ROW_ID);
-  const nameCol = c.indexOf(S.COL_NAME);
-  const visCol = c.indexOf(S.COL_N_AREAS_VISITED);
-  const totCol = c.indexOf(S.COL_N_AREAS_TOTAL);
-  for (const opt of sel.options) {
-    const row = surveysData.rows.find(r => r[idCol] === parseInt(opt.value, 10));
-    if (row) {
-      opt.textContent = `${row[nameCol]} (${row[visCol]}/${row[totCol]} aree)`;
-    }
-  }
+  if (!sel) return;
+  const prev = sel.value;
+  populatePulldown(sel, surveysData, surveyPulldownLabel);
+  if (prev) sel.value = prev;
 }
 
 async function refreshGrids() {
@@ -2165,11 +2008,6 @@ function returnToPage(overrides = {}) {
   activeGridId = activeSurveyId = activeAreaId = null;
   if (unsubCache) { unsubCache(); unsubCache = null; }
 
-  // Explicit clear before rebuild.  buildPageShell would also do this,
-  // but doing it here as well guarantees the form-card is GONE as soon
-  // as we return — even if any of the section-build steps below throws,
-  // the user is no longer staring at the now-stale upload form.  This
-  // closes a class of "modal won't close after import" bugs.
   const el = document.getElementById('content');
   if (el) el.replaceChildren();
 
@@ -2177,7 +2015,7 @@ function returnToPage(overrides = {}) {
     ...Object.fromEntries(new URLSearchParams(location.search)),
     ...overrides,
   };
-  if (el) buildPageShell(el, params);
+  if (el) buildPage(el, params);
   applyParams(params);
   // After a successful save/delete the URL may carry an id that no
   // longer exists (e.g., `s=<deleted_id>`).  applyParams falls back to

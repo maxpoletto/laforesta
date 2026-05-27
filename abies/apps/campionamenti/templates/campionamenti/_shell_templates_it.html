@@ -1,0 +1,96 @@
+{% comment %}
+Campionamenti <template> elements — cloned by JS on mount().
+user.role is available from the shell's render context.
+{% endcomment %}
+
+<template id="tmpl-campionamenti-page">
+  {# --- Section 1: Griglie --- #}
+  <div class="collapsible-header" data-section="g">
+    <span>Griglie di campionamento</span>
+    <span class="arrow"></span>
+  </div>
+  <div class="collapsible-body" data-section="g">
+    <div class="campionamenti-section-top">
+      <div class="campionamenti-section-left">
+        <label class="campionamenti-pulldown-label"
+               for="campionamenti-grid-select">Griglia</label>
+        <select class="campionamenti-pulldown page-pulldown"
+                id="campionamenti-grid-select"></select>
+        {% if user.role != 'reader' %}
+        <span class="action-icon action-edit campionamenti-pulldown-icon"
+              role="button" title="Modifica" data-action="edit-grid">✎</span>
+        <span class="action-icon action-delete campionamenti-pulldown-icon"
+              role="button" title="Elimina" data-action="delete-grid">🗑︎</span>
+        {% endif %}
+      </div>
+      <div class="campionamenti-section-right">
+        <button type="button" class="btn"
+                data-action="export-grid-csv">Esporta CSV</button>
+        {% if user.role != 'reader' %}
+        <button type="button" class="btn btn-primary"
+                data-action="new-grid">Nuova griglia</button>
+        {% endif %}
+      </div>
+    </div>
+    <div class="campionamenti-summary" data-target="grid-summary"></div>
+    <div class="campionamenti-map-host" data-target="grid-map"></div>
+    {% if user.role != 'reader' %}
+    <div class="form-help">
+      Clicca sulla mappa per aggiungere un'area, o su un'area per modificarla.</div>
+    <button type="button" class="btn btn-primary"
+            data-action="add-area">+ Aggiungi area</button>
+    {% endif %}
+    <div class="campionamenti-empty" data-target="grid-empty" hidden>
+      Nessuna griglia.  Premi "Nuova griglia" per crearne una.
+      {% if user.role != 'reader' %}
+      <div style="text-align:center;margin-top:1rem">
+        <button type="button" class="btn btn-primary"
+                data-action="new-grid">Nuova griglia</button>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# --- Section 2: Rilevamenti --- #}
+  <div class="collapsible-header" data-section="r">
+    <span>Rilevamenti</span>
+    <span class="arrow"></span>
+  </div>
+  <div class="collapsible-body" data-section="r">
+    <div class="campionamenti-section-top">
+      <div class="campionamenti-section-left">
+        <label class="campionamenti-pulldown-label"
+               for="campionamenti-survey-select">Rilevamento</label>
+        <select class="campionamenti-pulldown page-pulldown"
+                id="campionamenti-survey-select"></select>
+        {% if user.role != 'reader' %}
+        <span class="action-icon action-edit campionamenti-pulldown-icon"
+              role="button" title="Modifica" data-action="edit-survey">✎</span>
+        <span class="action-icon action-delete campionamenti-pulldown-icon"
+              role="button" title="Elimina" data-action="delete-survey">🗑︎</span>
+        {% endif %}
+      </div>
+      <div class="campionamenti-section-right">
+        <button type="button" class="btn"
+                data-action="export-survey-csv">Esporta CSV</button>
+        {% if user.role != 'reader' %}
+        <button type="button" class="btn btn-primary"
+                data-action="new-survey">Nuovo rilevamento</button>
+        {% endif %}
+      </div>
+    </div>
+    <div class="campionamenti-summary" data-target="survey-summary"></div>
+    <div class="campionamenti-map-host" data-target="survey-map"></div>
+  </div>
+
+  {# --- Section 3: Alberi campionati --- #}
+  <div class="collapsible-header" data-section="t">
+    <span>Alberi campionati</span>
+    <span class="arrow"></span>
+  </div>
+  <div class="collapsible-body" data-section="t">
+    <div class="campionamenti-empty" data-target="trees-empty">
+      Seleziona un rilevamento per visualizzare gli alberi campionati.</div>
+    <div data-target="trees-table-host"></div>
+  </div>
+</template>
