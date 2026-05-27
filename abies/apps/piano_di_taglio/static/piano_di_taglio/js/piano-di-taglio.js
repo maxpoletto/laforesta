@@ -85,6 +85,7 @@ let activeItemId = null;
 let prelieviData = null;
 let itemPrelieviTable = null;
 let itemMarkTreesTable = null;
+let escapeHandler = null;
 
 // Calendar sections — keyed by the single-char URL `o=` token.  `f`
 // fills in here; `c` (Calendario ceduo) lands in a later increment.
@@ -164,6 +165,7 @@ export async function mount(params) {
 
 export function unmount() {
   unloadCSS(CSS_URL);
+  removeEscapeHandler();
   if (unsubPlans) { unsubPlans(); unsubPlans = null; }
   if (unsubItems) { unsubItems(); unsubItems = null; }
   cache.setVisible([]);
@@ -1396,10 +1398,12 @@ function navigateToItem(itemId) {
 function openItemView(itemId, push = false) {
   activeItemId = itemId;
   if (push) syncURL(true);
+  addEscapeHandler();
   renderItemView(itemId);
 }
 
 function closeItemView(push = false) {
+  removeEscapeHandler();
   destroyItemPrelieviTable();
   activeItemId = null;
   if (push) syncURL(true);
@@ -1407,6 +1411,23 @@ function closeItemView(push = false) {
   if (el) {
     buildPageShell(el);
     setActivePlan(activePlanId);
+  }
+}
+
+function addEscapeHandler() {
+  removeEscapeHandler();
+  escapeHandler = (e) => {
+    if (e.key !== 'Escape') return;
+    if (document.getElementById('modal-container').classList.contains('open')) return;
+    closeItemView(true);
+  };
+  document.addEventListener('keydown', escapeHandler);
+}
+
+function removeEscapeHandler() {
+  if (escapeHandler) {
+    document.removeEventListener('keydown', escapeHandler);
+    escapeHandler = null;
   }
 }
 
@@ -1601,8 +1622,8 @@ function formatItemTitle(record, columns) {
   const parcel = record[columns.indexOf(S.COL_PARCEL)];
   const year = record[columns.indexOf(S.COL_YEAR_PLANNED)];
   const planName = lookupPlanName(record[columns.indexOf(S.COL_HARVEST_PLAN)]);
-  const location = parcel ? `${compresa} ${parcel}` : compresa;
-  return `${S.VIEW_ITEM_TITLE} — ${planName}, ${year}, ${location}`;
+  const location = parcel ? `${compresa}/${parcel}` : compresa;
+  return `${S.VIEW_ITEM_TITLE} del ${planName}, anno ${year}, ${location}`;
 }
 
 function lookupPlanName(planId) {
@@ -1704,6 +1725,10 @@ function markTreesDataId(itemId) {
 
 async function appendItemMarkTreesSection(card, itemId, state) {
   const [header, body] = mkCollapsible(S.SECTION_MARTELLATA, true);
+  header.addEventListener('click', () => {
+    const open = body.classList.toggle('open');
+    header.classList.toggle('open', open);
+  });
   card.append(header, body);
 
   const isClosed = state === S.STATE_CLOSED;
@@ -2030,6 +2055,10 @@ function _applyMarkSaveResponse(data, itemId) {
 
 async function appendItemPrelieviSection(card, itemId) {
   const [header, body] = mkCollapsible(S.SECTION_PRELIEVI, true);
+  header.addEventListener('click', () => {
+    const open = body.classList.toggle('open');
+    header.classList.toggle('open', open);
+  });
   card.append(header, body);
 
   // Load prelievi data (lazy, from cache or network).
