@@ -19,10 +19,9 @@ import {
   fetchModalForm, interceptSubmit, wireCancelButtons, showFormError,
 } from '../../base/js/forms.js';
 import {
-  mkRow, mkInput, mkTextarea, mkFileInput, mkFormActions,
-  mkStatusBox, mkErrorsBox, renderCsvErrors,
-  mkCollapsible, mkEditDeleteIcons, cascadeDeleteModal,
+  renderCsvErrors, mkCollapsible, cascadeDeleteModal,
 } from '../../base/js/form-widgets.js';
+import { cloneTemplate } from '../../base/js/templates.js';
 import {
   wireVMPreview, ID_D_CM, ID_H_M, ID_SPECIES, ID_LAT, ID_LON,
 } from '../../base/js/tree-form.js';
@@ -158,7 +157,7 @@ export async function mount(params) {
     return;
   }
 
-  buildPageShell(el);
+  buildPage(el);
   cache.setVisible([PLANS_ID, ITEMS_ID, REGRESSIONS_ID]);
   if (unsubPlans) unsubPlans();
   if (unsubItems) unsubItems();
@@ -289,140 +288,98 @@ function syncURL(push = false) {
 // Page shell
 // ---------------------------------------------------------------------------
 
-function buildPageShell(el) {
+function buildPage(el) {
   el.replaceChildren();
+  const frag = cloneTemplate('tmpl-pdt-page');
+  el.appendChild(frag);
 
-  const header = document.createElement('div');
-  header.className = 'pdt-header';
-  const left = document.createElement('div');
-  left.className = 'pdt-header-left';
-  const right = document.createElement('div');
-  right.className = 'pdt-header-right';
-  header.append(left, right);
+  const noPlansEl = el.querySelector('[data-target="no-plans"]');
+  const hasPlans = plansData?.rows.length > 0;
+  noPlansEl.hidden = hasPlans;
 
-  if (!plansData?.rows.length) {
-    const empty = document.createElement('div');
-    empty.className = 'pdt-empty';
-    empty.textContent = S.PDT_NO_PLANS;
-    left.appendChild(empty);
-    if (canModify()) right.appendChild(buildNewPlanButton());
-    el.appendChild(header);
-    return;
+  // Header elements.
+  const headerLeft = el.querySelector('.pdt-header-left');
+  const label = headerLeft.querySelector('.pdt-pulldown-label');
+  const sel = el.querySelector('#pdt-plan-select');
+  if (label) label.hidden = !hasPlans;
+  sel.hidden = !hasPlans;
+  planSelectEl = sel;
+  populatePulldown(sel, plansData);
+  sel.addEventListener('change', () => {
+    setActivePlan(parseInt(sel.value, 10));
+    syncURL();
+  });
+
+  // Edit/delete icons (present only for writers via Django template guard).
+  const editIcon = el.querySelector('[data-action="edit-plan"]');
+  const deleteIcon = el.querySelector('[data-action="delete-plan"]');
+  if (editIcon) editIcon.hidden = !hasPlans;
+  if (deleteIcon) deleteIcon.hidden = !hasPlans;
+
+  descriptionEl = el.querySelector('[data-target="description"]');
+
+  // Wire sections.
+  for (const k of SECTION_KEYS) {
+    const s = sections[k];
+    s.header = el.querySelector(`[data-section="${k}"].collapsible-header`);
+    s.body = el.querySelector(`[data-section="${k}"].collapsible-body`);
+    s.header?.classList.toggle('open', s.open);
+    s.body?.classList.toggle('open', s.open);
+    s.toolbar = el.querySelector(`[data-target="toolbar-${k}"]`);
+    s.host = el.querySelector(`[data-target="table-${k}"]`);
+    s.actionAdd = el.querySelector(`[data-target="add-${k}"]`) || null;
+    s.emptyState = el.querySelector(`[data-target="empty-${k}"]`) || null;
+
+    s.header?.addEventListener('click', () => {
+      s.open = !s.open;
+      s.header.classList.toggle('open', s.open);
+      s.body.classList.toggle('open', s.open);
+      syncURL();
+    });
+
+    // Hide sections when there are no plans.
+    if (s.header) s.header.hidden = !hasPlans;
+    if (s.body) s.body.hidden = !hasPlans;
+
+    const searchInput = el.querySelector(`#pdt-search-${k}`);
+    buildTable(s, searchInput);
   }
 
-  const label = document.createElement('label');
-  label.className = 'pdt-pulldown-label';
-  label.textContent = S.LABEL_HARVEST_PLAN;
+  // Wire action buttons via data-action delegation.
+  el.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const handlers = {
+      'edit-plan': () => onEditPlan(),
+      'delete-plan': () => onDeletePlan(),
+      'export-plan': () => { if (activePlanId != null) downloadPlanExport(activePlanId); },
+      'new-plan': () => onNewPlan(),
+      'export-section-csv': () => {
+        const sec = btn.closest('[data-section]');
+        if (sec) sections[sec.dataset.section]?.table?.exportCSV();
+      },
+      'add-item-f': () => showAddItemModal(sections.f),
+      'add-item-c': () => showAddItemModal(sections.c),
+      'import-calendar-f': () => openEditPlanModal(EDIT_PLAN_TAB_CALENDAR, { ceduo: false }),
+      'import-calendar-c': () => openEditPlanModal(EDIT_PLAN_TAB_CALENDAR, { ceduo: true }),
+      'add-manual-f': () => showAddItemModal(sections.f),
+      'add-manual-c': () => showAddItemModal(sections.c),
+    };
+    handlers[btn.dataset.action]?.();
+  });
+}
 
-  const sel = document.createElement('select');
-  sel.className = 'pdt-pulldown page-pulldown';
-  const idCol = plansData.columns.indexOf(ROW_ID);
-  const nameCol = plansData.columns.indexOf(S.COL_NAME);
-  for (const row of plansData.rows) {
+function populatePulldown(sel, digest) {
+  if (!sel || !digest) return;
+  sel.replaceChildren();
+  const idCol = digest.columns.indexOf(ROW_ID);
+  const nameCol = digest.columns.indexOf(S.COL_NAME);
+  for (const row of digest.rows) {
     const opt = document.createElement('option');
     opt.value = String(row[idCol]);
     opt.textContent = row[nameCol];
     sel.appendChild(opt);
   }
-  sel.addEventListener('change', () => {
-    setActivePlan(parseInt(sel.value, 10));
-    syncURL();
-  });
-  label.htmlFor = sel.id = 'pdt-plan-select';
-  left.append(label, sel);
-  planSelectEl = sel;
-
-  if (canModify()) {
-    mkEditDeleteIcons(left, {
-      onEdit: () => onEditPlan(),
-      onDelete: () => onDeletePlan(),
-      iconClass: 'pdt-pulldown-icon',
-    });
-  }
-
-  const exportBtn = document.createElement('button');
-  exportBtn.type = 'button';
-  exportBtn.className = 'btn';
-  exportBtn.textContent = S.EXPORT_CSV;
-  exportBtn.addEventListener('click', () => {
-    if (activePlanId != null) downloadPlanExport(activePlanId);
-  });
-  right.appendChild(exportBtn);
-
-  if (canModify()) right.appendChild(buildNewPlanButton());
-
-  el.appendChild(header);
-
-  descriptionEl = document.createElement('div');
-  descriptionEl.className = 'pdt-description';
-  el.appendChild(descriptionEl);
-
-  buildSection(el, sections.f);
-  buildSection(el, sections.c);
-}
-
-/** Build a collapsible calendar section (fustaia or ceduo). */
-function buildSection(el, s) {
-  const [header, body] = mkCollapsible(s.title, s.open);
-  s.header = header;
-  s.body = body;
-
-  // Per-section search box (above table; the toolbar lives inside the
-  // collapsible body so it disappears when the section is collapsed).
-  const toolbar = document.createElement('div');
-  toolbar.className = 'pdt-section-toolbar';
-  const searchLabel = document.createElement('label');
-  searchLabel.className = 'pdt-search-label';
-  searchLabel.textContent = S.FILTER_LABEL;
-  const searchInput = document.createElement('input');
-  searchInput.type = 'text';
-  searchInput.className = 'table-search';
-  searchInput.placeholder = S.SEARCH_PLACEHOLDER;
-  searchLabel.htmlFor = searchInput.id = `pdt-search-${s === sections.f ? 'f' : 'c'}`;
-  toolbar.append(searchLabel, searchInput);
-
-  const csvBtn = document.createElement('button');
-  csvBtn.type = 'button';
-  csvBtn.className = 'btn btn-primary pdt-csv-btn';
-  csvBtn.textContent = S.EXPORT_CSV;
-  csvBtn.addEventListener('click', () => s.table?.exportCSV());
-  toolbar.appendChild(csvBtn);
-
-  body.appendChild(toolbar);
-  s.toolbar = toolbar;
-
-  s.host = document.createElement('div');
-  s.host.className = 'pdt-table-host';
-  body.appendChild(s.host);
-
-  if (canModify()) {
-    const addRow = document.createElement('div');
-    addRow.className = 'action-add';
-    const addBtn = document.createElement('button');
-    addBtn.type = 'button';
-    addBtn.className = 'btn btn-primary btn-add';
-    addBtn.textContent = S.ADD_ITEM_LABEL;
-    addBtn.addEventListener('click', () => showAddItemModal(s));
-    addRow.appendChild(addBtn);
-    body.appendChild(addRow);
-    s.actionAdd = addRow;
-
-    s.emptyState = buildEmptyStateCta(s);
-    s.emptyState.hidden = true;
-    body.appendChild(s.emptyState);
-  }
-
-  header.addEventListener('click', () => {
-    s.open = !s.open;
-    header.classList.toggle('open', s.open);
-    body.classList.toggle('open', s.open);
-    syncURL();
-  });
-
-  el.append(header, body);
-
-  // Build the underlying table once the section's DOM is in place.
-  buildTable(s, searchInput);
 }
 
 function toggleSection(s, open) {
@@ -510,38 +467,6 @@ function updateEmptyState(s) {
   if (s.actionAdd) s.actionAdd.hidden = !hasItems;
 }
 
-function buildEmptyStateCta(s) {
-  const wrap = document.createElement('div');
-  wrap.className = 'pdt-empty-state';
-
-  const msg = document.createElement('div');
-  msg.className = 'pdt-empty-state-message';
-  msg.textContent = S.PDT_SECTION_EMPTY;
-  wrap.appendChild(msg);
-
-  const actions = document.createElement('div');
-  actions.className = 'pdt-empty-state-actions';
-
-  const importCal = document.createElement('button');
-  importCal.type = 'button';
-  importCal.className = 'btn btn-primary';
-  importCal.textContent = S.EDIT_PLAN_TAB_CALENDAR;
-  importCal.addEventListener('click',
-    () => openEditPlanModal(EDIT_PLAN_TAB_CALENDAR,
-      { ceduo: s.kind === 'ceduo' }));
-  actions.appendChild(importCal);
-
-  const addManual = document.createElement('button');
-  addManual.type = 'button';
-  addManual.className = 'btn';
-  addManual.textContent = S.PDT_EMPTY_STATE_ADD_MANUAL;
-  addManual.addEventListener('click', () => showAddItemModal(s));
-  actions.appendChild(addManual);
-
-  wrap.appendChild(actions);
-  return wrap;
-}
-
 function buildItemColumnDefs(columns, hiddenCols) {
   const hidden = new Set([VERSION, ...hiddenCols]);
   const defs = {};
@@ -569,15 +494,6 @@ const ITEM_COL_DEFS = (() => {
     [S.COL_TURNO_A]:              { label: S.COL_TURNO_A,             type: 'number', width: '75px',  formatter: fmtInt },
   };
 })();
-
-function buildNewPlanButton() {
-  const addBtn = document.createElement('button');
-  addBtn.type = 'button';
-  addBtn.className = 'btn btn-primary';
-  addBtn.textContent = S.NEW_PLAN_LABEL;
-  addBtn.addEventListener('click', () => onNewPlan());
-  return addBtn;
-}
 
 // ---------------------------------------------------------------------------
 // Dangerous-delete flow.
@@ -912,114 +828,32 @@ export function openEditPlanModal(initialTab, { ceduo = false } = {}) {
     version: row[c.indexOf(VERSION)] ?? 1,
   };
 
-  const frag = document.createDocumentFragment();
-  const card = document.createElement('div');
-  card.className = 'form-card';
-  frag.appendChild(card);
+  const frag = cloneTemplate('tmpl-pdt-edit-plan');
 
-  const h = document.createElement('h2');
-  h.textContent = S.EDIT_PLAN_TITLE;
-  card.appendChild(h);
+  // Fill Dettagli form values.
+  const detailsForm = frag.querySelector('[data-role="details-form"]');
+  detailsForm.querySelector('#pdt-edit-name').value = current.name;
+  detailsForm.querySelector('#pdt-edit-y1').value = current.year_start;
+  detailsForm.querySelector('#pdt-edit-y2').value = current.year_end;
+  detailsForm.querySelector('#pdt-edit-desc').value = current.description;
 
-  const tabs = document.createElement('div');
-  tabs.className = 'modal-tabs';
-  card.appendChild(tabs);
+  // Pre-check ceduo checkbox on calendar tab.
+  const calendarForm = frag.querySelector('[data-role="calendar-form"]');
+  const ceduoCb = calendarForm.querySelector('input[name="is_ceduo"]');
+  ceduoCb.checked = ceduo;
 
-  const bodies = document.createElement('div');
-  bodies.className = 'modal-tab-bodies';
-  card.appendChild(bodies);
+  const regressionForm = frag.querySelector('[data-role="regression-form"]');
 
-  const tabDefs = [
-    {
-      id: EDIT_PLAN_TAB_DETAILS, label: S.TAB_DETAILS,
-      build: (host) => buildEditDetailsForm(host, current),
-    },
-    {
-      id: EDIT_PLAN_TAB_CALENDAR, label: S.EDIT_PLAN_TAB_CALENDAR,
-      build: (host) => buildExistingPlanCalendarImport(host, { ceduo }),
-    },
-    {
-      id: EDIT_PLAN_TAB_REGRESSION, label: S.EDIT_PLAN_TAB_REGRESSION,
-      build: (host) => buildExistingPlanRegressionImport(host),
-    },
-  ];
-
-  const bodyEls = {};
-  for (const t of tabDefs) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'modal-tab';
-    btn.dataset.path = t.id;
-    btn.textContent = t.label;
-    btn.addEventListener('click', () => switchTab(t.id));
-    tabs.appendChild(btn);
-
-    const body = document.createElement('div');
-    body.className = 'modal-tab-body';
-    body.dataset.path = t.id;
-    t.build(body);
-    bodies.appendChild(body);
-    bodyEls[t.id] = body;
+  // Wire cancel buttons on all three forms.
+  for (const f of [detailsForm, calendarForm, regressionForm]) {
+    f.querySelector('[data-action="cancel"]')
+      .addEventListener('click', dismissModal);
   }
 
-  function switchTab(id) {
-    for (const t of tabs.querySelectorAll('.modal-tab')) {
-      t.classList.toggle('active', t.dataset.path === id);
-    }
-    for (const [k, b] of Object.entries(bodyEls)) {
-      b.classList.toggle('active', k === id);
-    }
-  }
-
-  showModal(frag);
-
-  // Lock min-height to the tallest tab so switching doesn't reflow.
-  const allBodies = Object.values(bodyEls);
-  for (const b of allBodies) b.style.display = 'block';
-  let maxH = 0;
-  for (const b of allBodies) maxH = Math.max(maxH, b.offsetHeight);
-  for (const b of allBodies) b.style.display = '';
-  if (maxH > 0) bodies.style.minHeight = `${maxH}px`;
-
-  switchTab(initialTab || EDIT_PLAN_TAB_DETAILS);
-}
-
-/** Dettagli tab — name, year range, description.  JSON POST to /plan/save/. */
-function buildEditDetailsForm(host, current) {
-  const form = document.createElement('form');
-  form.className = 'pdt-plan-form';
-  host.appendChild(form);
-
-  const nameRow = mkRow(form);
-  mkInput(nameRow, {
-    id: 'pdt-edit-name', name: FIELD_NAME, label: S.LABEL_PLAN_NAME,
-    type: 'text', required: true, maxLength: 100,
-    value: current.name,
-  });
-
-  const yearRow = mkRow(form, 'narrow');
-  mkInput(yearRow, {
-    id: 'pdt-edit-y1', name: FIELD_YEAR_START, label: S.COL_YEAR_START,
-    type: 'number', required: true, min: 1900, max: 2200,
-    value: current.year_start,
-  });
-  mkInput(yearRow, {
-    id: 'pdt-edit-y2', name: FIELD_YEAR_END, label: S.COL_YEAR_END,
-    type: 'number', required: true, min: 1900, max: 2200,
-    value: current.year_end,
-  });
-
-  const descRow = mkRow(form);
-  mkTextarea(descRow, {
-    id: 'pdt-edit-desc', name: FIELD_DESCRIPTION,
-    label: S.LABEL_PLAN_DESCRIPTION, rows: 3, value: current.description,
-  });
-
-  mkFormActions(form, { onCancel: dismissModal, submitLabel: S.SAVE });
-
-  form.addEventListener('submit', async (e) => {
+  // Wire Dettagli submit.
+  detailsForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const fd = new FormData(form);
+    const fd = new FormData(detailsForm);
     const body = {
       [ROW_ID]: String(activePlanId),
       [VERSION]: String(current.version),
@@ -1029,14 +863,14 @@ function buildEditDetailsForm(host, current) {
       [FIELD_YEAR_END]: parseInt(fd.get(FIELD_YEAR_END), 10),
       [FIELD_NONCE]: crypto.randomUUID(),
     };
-    if (!body[FIELD_NAME]) { showFormError(form, S.ERR_PLAN_NAME_REQUIRED); return; }
+    if (!body[FIELD_NAME]) { showFormError(detailsForm, S.ERR_PLAN_NAME_REQUIRED); return; }
     if (body[FIELD_YEAR_END] < body[FIELD_YEAR_START]) {
-      showFormError(form, S.ERR_PLAN_YEAR_RANGE); return;
+      showFormError(detailsForm, S.ERR_PLAN_YEAR_RANGE); return;
     }
     try {
       const { data, status } = await postJSON(PLAN_SAVE_URL, body);
       if (status !== 200) {
-        showFormError(form, data?.message || S.ERROR_GENERIC);
+        showFormError(detailsForm, data?.message || S.ERROR_GENERIC);
         return;
       }
       if (data.record) cache.updateRow(PLANS_ID, data.row_id, data.record);
@@ -1044,9 +878,76 @@ function buildEditDetailsForm(host, current) {
       onPlansUpdate();
       dismissModal();
     } catch {
-      showFormError(form, S.ERROR_NETWORK);
+      showFormError(detailsForm, S.ERROR_NETWORK);
     }
   });
+
+  // Wire Calendar submit.
+  const calFileInput = calendarForm.querySelector('#pdt-edit-cal-file');
+  const calStatusBox = calendarForm.querySelector('.csv-import-status');
+  const calErrorsBox = calendarForm.querySelector('.csv-import-errors');
+
+  calendarForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (activePlanId == null) return;
+    const file = calFileInput.files[0];
+    if (!file) { showFormError(calendarForm, S.ERR_CSV_FILE_REQUIRED); return; }
+
+    const fd = new FormData();
+    fd.append(FIELD_HARVEST_PLAN_ID, String(activePlanId));
+    fd.append(ceduoCb.checked ? 'ceduo_file' : 'fustaia_file', file);
+    fd.append(FIELD_NONCE, crypto.randomUUID());
+
+    await submitCsvImport(calendarForm, fd, calStatusBox, calErrorsBox);
+  });
+
+  // Wire Regression submit.
+  const regFileInput = regressionForm.querySelector('#pdt-edit-reg-file');
+  const regStatusBox = regressionForm.querySelector('.csv-import-status');
+  const regErrorsBox = regressionForm.querySelector('.csv-import-errors');
+
+  regressionForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (activePlanId == null) return;
+    const file = regFileInput.files[0];
+    if (!file) { showFormError(regressionForm, S.ERR_CSV_FILE_REQUIRED); return; }
+
+    const fd = new FormData();
+    fd.append(FIELD_HARVEST_PLAN_ID, String(activePlanId));
+    fd.append(FIELD_REGRESSION_FILE, file);
+    fd.append(FIELD_NONCE, crypto.randomUUID());
+
+    await submitCsvImport(regressionForm, fd, regStatusBox, regErrorsBox);
+  });
+
+  // Tab switching.
+  const tabs = frag.querySelector('.modal-tabs');
+  const bodies = frag.querySelector('.modal-tab-bodies');
+
+  function switchTab(id) {
+    for (const t of tabs.querySelectorAll('.modal-tab')) {
+      t.classList.toggle('active', t.dataset.path === id);
+    }
+    for (const b of bodies.querySelectorAll('.modal-tab-body')) {
+      b.classList.toggle('active', b.dataset.path === id);
+    }
+  }
+
+  for (const btn of tabs.querySelectorAll('.modal-tab')) {
+    btn.addEventListener('click', () => switchTab(btn.dataset.path));
+  }
+
+  showModal(frag);
+
+  // Lock min-height to the tallest tab so switching doesn't reflow.
+  const allBodies = [...bodies.querySelectorAll('.modal-tab-body')];
+  for (const b of allBodies) b.style.display = 'block';
+  let maxH = 0;
+  for (const b of allBodies) maxH = Math.max(maxH, b.offsetHeight);
+  for (const b of allBodies) b.style.display = '';
+  if (maxH > 0) bodies.style.minHeight = `${maxH}px`;
+
+  switchTab(initialTab || EDIT_PLAN_TAB_DETAILS);
 }
 
 // ---------------------------------------------------------------------------
@@ -1058,32 +959,11 @@ function buildEditDetailsForm(host, current) {
 // ---------------------------------------------------------------------------
 
 function onNewPlan() {
-  const frag = document.createDocumentFragment();
-  const card = document.createElement('div');
-  card.className = 'form-card';
-  frag.appendChild(card);
+  const frag = cloneTemplate('tmpl-pdt-new-plan');
+  const form = frag.querySelector('form');
 
-  const h = document.createElement('h2');
-  h.textContent = S.NEW_PLAN_TITLE;
-  card.appendChild(h);
-
-  const form = document.createElement('form');
-  form.className = 'pdt-plan-form';
-  card.appendChild(form);
-
-  const nameRow = mkRow(form);
-  mkInput(nameRow, {
-    id: 'pdt-new-plan-name', name: 'name', label: S.LABEL_PLAN_NAME,
-    type: 'text', required: true, maxLength: 100,
-  });
-
-  const descRow = mkRow(form);
-  mkTextarea(descRow, {
-    id: 'pdt-new-plan-desc', name: 'description',
-    label: S.LABEL_PLAN_DESCRIPTION, rows: 3,
-  });
-
-  mkFormActions(form, { onCancel: dismissModal, submitLabel: S.SAVE });
+  form.querySelector('[data-action="cancel"]')
+    .addEventListener('click', dismissModal);
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -1115,95 +995,6 @@ function onNewPlan() {
   });
 
   showModal(frag);
-}
-
-/**
- * Importa calendario da CSV — tab body in the pencil modal.  Single
- * file input + a "Ceduo" checkbox: unchecked sends as `fustaia_file`,
- * checked as `ceduo_file`.  POSTs to /plan/import-csv/ with
- * `harvest_plan_id` set so the server upserts rows into the active
- * plan (dedup key: parcel + year_planned).
- */
-function buildExistingPlanCalendarImport(host, { ceduo = false } = {}) {
-  const form = document.createElement('form');
-  form.className = 'pdt-plan-form';
-  host.appendChild(form);
-
-  const kindRow = document.createElement('div');
-  kindRow.className = 'form-row';
-  form.appendChild(kindRow);
-  const kindLabel = document.createElement('label');
-  kindLabel.className = 'pdt-checkbox-label';
-  const ceduoCb = document.createElement('input');
-  ceduoCb.type = 'checkbox';
-  ceduoCb.name = 'is_ceduo';
-  ceduoCb.checked = ceduo;
-  kindLabel.append(ceduoCb, ' ' + S.EDIT_PLAN_CHECKBOX_CEDUO);
-  kindRow.appendChild(kindLabel);
-
-  const fileInput = mkFileInput(form, {
-    id: 'pdt-edit-cal-file', label: S.LABEL_CSV_FILE,
-  });
-
-  const statusBox = mkStatusBox(form);
-  const errorsBox = mkErrorsBox(form);
-
-  mkFormActions(form, {
-    onCancel: dismissModal,
-    submitLabel: S.IMPORT_LABEL,
-  });
-
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    if (activePlanId == null) return;
-    const file = fileInput.files[0];
-    if (!file) { showFormError(form, S.ERR_CSV_FILE_REQUIRED); return; }
-
-    const fd = new FormData();
-    fd.append(FIELD_HARVEST_PLAN_ID, String(activePlanId));
-    fd.append(ceduoCb.checked ? 'ceduo_file' : 'fustaia_file', file);
-    fd.append(FIELD_NONCE, crypto.randomUUID());
-
-    await submitCsvImport(form, fd, statusBox, errorsBox);
-  });
-}
-
-/**
- * Importa equazioni da CSV — tab body in the pencil modal.  Same
- * /plan/import-csv/ endpoint; the regression file lands under
- * `regression_file` and rows are upserted on (region, species) under
- * the active plan.
- */
-function buildExistingPlanRegressionImport(host) {
-  const form = document.createElement('form');
-  form.className = 'pdt-plan-form';
-  host.appendChild(form);
-
-  const fileInput = mkFileInput(form, {
-    id: 'pdt-edit-reg-file', label: S.LABEL_CSV_FILE,
-  });
-
-  const statusBox = mkStatusBox(form);
-  const errorsBox = mkErrorsBox(form);
-
-  mkFormActions(form, {
-    onCancel: dismissModal,
-    submitLabel: S.IMPORT_LABEL,
-  });
-
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    if (activePlanId == null) return;
-    const file = fileInput.files[0];
-    if (!file) { showFormError(form, S.ERR_CSV_FILE_REQUIRED); return; }
-
-    const fd = new FormData();
-    fd.append(FIELD_HARVEST_PLAN_ID, String(activePlanId));
-    fd.append(FIELD_REGRESSION_FILE, file);
-    fd.append(FIELD_NONCE, crypto.randomUUID());
-
-    await submitCsvImport(form, fd, statusBox, errorsBox);
-  });
 }
 
 /**
@@ -1300,7 +1091,7 @@ function onPlansUpdate() {
   plansData = cache.get(PLANS_ID);
   const el = document.getElementById('content');
   if (!el) return;
-  buildPageShell(el);
+  buildPage(el);
   if (activePlanId != null && !planRow(activePlanId)) activePlanId = null;
   if (activePlanId == null && plansData?.rows.length) {
     activePlanId = plansData.rows[0][plansData.columns.indexOf(ROW_ID)];
@@ -1355,7 +1146,7 @@ function closeItemView(push = false) {
   if (push) syncURL(true);
   const el = document.getElementById('content');
   if (el) {
-    buildPageShell(el);
+    buildPage(el);
     setActivePlan(activePlanId);
   }
 }
@@ -1416,62 +1207,31 @@ async function renderItemView(itemId) {
   if (!record) { showError(S.ERROR_GENERIC); return; }
 
   el.replaceChildren();
-  showItemMetadata(el, itemId, record, transitions);
-}
 
-function showItemMetadata(el, itemId, record, transitions) {
   const c = itemsData?.columns;
   if (!c) return;
 
-  const card = document.createElement('div');
-  card.className = 'pdt-item-card';
+  const frag = cloneTemplate('tmpl-pdt-item-view');
 
-  // --- Header: title + actions + close ---
-  const header = document.createElement('div');
-  header.className = 'pdt-item-header';
+  // Title.
+  frag.querySelector('[data-field="title"]').textContent =
+    formatItemTitle(record, c);
 
-  const left = document.createElement('div');
-  left.className = 'pdt-item-header-left';
+  // Wire action buttons via delegation.
+  const card = frag.querySelector('.pdt-item-card');
+  card.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const handlers = {
+      'edit-item': () => showItemEditForm(itemId),
+      'export-item': () => downloadItemExport(itemId),
+      'close-item': () => closeItemView(true),
+    };
+    handlers[btn.dataset.action]?.();
+  });
 
-  const title = document.createElement('h2');
-  title.className = 'pdt-item-title';
-  title.textContent = formatItemTitle(record, c);
-  left.appendChild(title);
-
-  if (canModify()) {
-    const pencil = document.createElement('span');
-    pencil.className = 'pdt-pulldown-icon';
-    pencil.textContent = '✎';
-    pencil.title = S.ACTION_EDIT;
-    pencil.addEventListener('click', () => showItemEditForm(itemId));
-    left.appendChild(pencil);
-  }
-
-  const right = document.createElement('div');
-  right.className = 'pdt-item-header-actions';
-
-  const exportBtn = document.createElement('button');
-  exportBtn.type = 'button';
-  exportBtn.className = 'btn';
-  exportBtn.textContent = S.EXPORT_CSV;
-  exportBtn.addEventListener('click', () => downloadItemExport(itemId));
-  right.appendChild(exportBtn);
-
-  const close = document.createElement('button');
-  close.type = 'button';
-  close.className = 'pdt-item-close';
-  close.textContent = '×';
-  close.title = S.DISMISS;
-  close.addEventListener('click', () => closeItemView(true));
-  right.appendChild(close);
-
-  header.append(left, right);
-  card.appendChild(header);
-
-  // --- Metadata pane ---
-  const meta = document.createElement('dl');
-  meta.className = 'pdt-item-meta';
-
+  // Metadata pane.
+  const meta = frag.querySelector('[data-target="metadata"]');
   const planName = lookupPlanName(record[c.indexOf(S.COL_HARVEST_PLAN)]);
   const compresa = record[c.indexOf(S.COL_COMPRESA)];
   const parcel = record[c.indexOf(S.COL_PARCEL)];
@@ -1511,14 +1271,10 @@ function showItemMetadata(el, itemId, record, transitions) {
     addMetaRow(meta, label, value);
   }
 
-  card.appendChild(meta);
-
-  // Apri / Chiudi cantiere buttons (writers only).
-  if (canModify()) {
-    const btnRow = document.createElement('div');
-    btnRow.className = 'form-actions';
+  // Apri / Chiudi cantiere buttons (writers only — host is in template).
+  const btnRow = frag.querySelector('[data-target="transitions"]');
+  if (btnRow) {
     let hasTransition = false;
-
     if (state === S.STATE_PLANNED || state === S.STATE_MARKED) {
       const btn = document.createElement('button');
       btn.type = 'button';
@@ -1537,22 +1293,23 @@ function showItemMetadata(el, itemId, record, transitions) {
       btnRow.appendChild(btn);
       hasTransition = true;
     }
-
-    if (hasTransition) card.appendChild(btnRow);
+    btnRow.hidden = !hasTransition;
   }
+
+  // Append the card to the DOM first so subsection appends land in the doc.
+  el.appendChild(frag);
+  const subsections = el.querySelector('[data-target="subsections"]');
 
   // Martellata sub-section (fustaia items only — coppice skips marking).
   if (!isCoppice) {
-    appendItemMarkTreesSection(card, itemId, state);
+    appendItemMarkTreesSection(subsections, itemId, state);
   }
 
   // Prelievi sub-section (visible once cantiere is open or later).
   const stateIdx = [S.STATE_OPEN, S.STATE_HARVESTING, S.STATE_CLOSED];
   if (stateIdx.includes(state)) {
-    appendItemPrelieviSection(card, itemId);
+    appendItemPrelieviSection(subsections, itemId);
   }
-
-  el.appendChild(card);
 }
 
 function addMetaRow(dl, label, value) {
@@ -1598,35 +1355,16 @@ function showItemEditForm(itemId) {
 // --- Transition form (Apri / Chiudi cantiere) ---
 
 function showTransitionForm(itemId, openFlag) {
-  const frag = document.createDocumentFragment();
-  const card = document.createElement('div');
-  card.className = 'form-card';
-  frag.appendChild(card);
+  const frag = cloneTemplate('tmpl-pdt-transition');
+  const title = frag.querySelector('[data-field="title"]');
+  title.textContent = openFlag ? S.LABEL_OPEN_CANTIERE : S.LABEL_CLOSE_CANTIERE;
 
-  const h = document.createElement('h2');
-  h.textContent = openFlag ? S.LABEL_OPEN_CANTIERE : S.LABEL_CLOSE_CANTIERE;
-  card.appendChild(h);
+  const form = frag.querySelector('form');
+  form.querySelector('#pdt-transition-date').value =
+    new Date().toISOString().slice(0, 10);
 
-  const form = document.createElement('form');
-  card.appendChild(form);
-
-  const dateRow = mkRow(form, 'narrow');
-  mkInput(dateRow, {
-    id: 'pdt-transition-date', name: 'date', label: S.LABEL_DATE,
-    type: 'date', required: true,
-    value: new Date().toISOString().slice(0, 10),
-  });
-
-  const noteRow = mkRow(form);
-  mkInput(noteRow, {
-    id: 'pdt-transition-note', name: 'note', label: S.LABEL_NOTE,
-    type: 'text',
-  });
-
-  mkFormActions(form, {
-    onCancel: dismissModal,
-    submitLabel: S.CONFIRM,
-  });
+  form.querySelector('[data-action="cancel"]')
+    .addEventListener('click', dismissModal);
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -1648,7 +1386,6 @@ function showTransitionForm(itemId, openFlag) {
         showFormError(form, data?.message || S.ERROR_GENERIC);
         return;
       }
-      // Patch the items cache with the updated record.
       if (data.item_record) {
         cache.updateRow(ITEMS_ID, data.row_id, data.item_record);
         itemsData = cache.get(ITEMS_ID);
@@ -1897,31 +1634,13 @@ async function showEditMarkForm(itemId, rowId) {
 }
 
 async function showImportMarksForm(itemId) {
-  const frag = document.createDocumentFragment();
-  const card = document.createElement('div');
-  card.className = 'form-card';
-  frag.appendChild(card);
+  const frag = cloneTemplate('tmpl-pdt-import-marks');
+  const form = frag.querySelector('form');
+  const statusBox = form.querySelector('.csv-import-status');
+  const errorsBox = form.querySelector('.csv-import-errors');
 
-  const h2 = document.createElement('h2');
-  h2.textContent = S.IMPORT_MARKS_TITLE;
-  card.appendChild(h2);
-
-  const form = document.createElement('form');
-  card.appendChild(form);
-
-  const row1 = mkRow(form);
-  mkFileInput(row1, {
-    id: 'mark-csv-file', name: 'file', label: S.LABEL_CSV_FILE,
-    accept: '.csv',
-  });
-
-  const statusBox = mkStatusBox(form);
-  const errorsBox = mkErrorsBox(form);
-
-  mkFormActions(form, {
-    onCancel: dismissModal,
-    submitLabel: S.IMPORT_LABEL,
-  });
+  form.querySelector('[data-action="cancel"]')
+    .addEventListener('click', dismissModal);
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();

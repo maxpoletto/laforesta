@@ -1,0 +1,282 @@
+{% comment %}
+Piano di taglio <template> elements — cloned by JS on mount().
+user.role is available from the shell's render context.
+{% endcomment %}
+
+<template id="tmpl-pdt-page">
+  {# Plan selector header #}
+  <div class="pdt-header">
+    <div class="pdt-header-left">
+      <label class="pdt-pulldown-label"
+             for="pdt-plan-select">Piano di taglio</label>
+      <select class="pdt-pulldown page-pulldown"
+              id="pdt-plan-select"></select>
+      {% if user.role != 'reader' %}
+      <span class="action-icon action-edit pdt-pulldown-icon"
+            role="button" title="Modifica" data-action="edit-plan">✎</span>
+      <span class="action-icon action-delete pdt-pulldown-icon"
+            role="button" title="Elimina" data-action="delete-plan">🗑︎</span>
+      {% endif %}
+    </div>
+    <div class="pdt-header-right">
+      <button type="button" class="btn"
+              data-action="export-plan">Esporta CSV</button>
+      {% if user.role != 'reader' %}
+      <button type="button" class="btn btn-primary"
+              data-action="new-plan">+ Nuovo piano</button>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="pdt-description" data-target="description"></div>
+
+  <div class="pdt-empty" data-target="no-plans" hidden>
+    Nessun piano. Premi "+ Nuovo piano" per crearne uno.
+  </div>
+
+  {# Fustaia section #}
+  <div class="collapsible-header" data-section="f">
+    <span>Interventi fustaia</span>
+    <span class="arrow"></span>
+  </div>
+  <div class="collapsible-body" data-section="f">
+    <div class="pdt-section-toolbar" data-target="toolbar-f">
+      <label class="pdt-search-label" for="pdt-search-f">Filtra</label>
+      <input type="text" class="table-search" id="pdt-search-f"
+             placeholder="Cerca...">
+      <button type="button" class="btn btn-primary pdt-csv-btn"
+              data-action="export-section-csv">Esporta CSV</button>
+    </div>
+    <div class="pdt-table-host" data-target="table-f"></div>
+    {% if user.role != 'reader' %}
+    <div class="action-add" data-target="add-f">
+      <button type="button" class="btn btn-primary btn-add"
+              data-action="add-item-f">+ Aggiungi</button>
+    </div>
+    <div class="pdt-empty-state" data-target="empty-f" hidden>
+      <div class="pdt-empty-state-message">Nessun intervento.</div>
+      <div class="pdt-empty-state-actions">
+        <button type="button" class="btn btn-primary"
+                data-action="import-calendar-f">Importa calendario da CSV</button>
+        <button type="button" class="btn"
+                data-action="add-manual-f">+ Aggiungi manualmente</button>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  {# Ceduo section #}
+  <div class="collapsible-header" data-section="c">
+    <span>Interventi ceduo</span>
+    <span class="arrow"></span>
+  </div>
+  <div class="collapsible-body" data-section="c">
+    <div class="pdt-section-toolbar" data-target="toolbar-c">
+      <label class="pdt-search-label" for="pdt-search-c">Filtra</label>
+      <input type="text" class="table-search" id="pdt-search-c"
+             placeholder="Cerca...">
+      <button type="button" class="btn btn-primary pdt-csv-btn"
+              data-action="export-section-csv">Esporta CSV</button>
+    </div>
+    <div class="pdt-table-host" data-target="table-c"></div>
+    {% if user.role != 'reader' %}
+    <div class="action-add" data-target="add-c">
+      <button type="button" class="btn btn-primary btn-add"
+              data-action="add-item-c">+ Aggiungi</button>
+    </div>
+    <div class="pdt-empty-state" data-target="empty-c" hidden>
+      <div class="pdt-empty-state-message">Nessun intervento.</div>
+      <div class="pdt-empty-state-actions">
+        <button type="button" class="btn btn-primary"
+                data-action="import-calendar-c">Importa calendario da CSV</button>
+        <button type="button" class="btn"
+                data-action="add-manual-c">+ Aggiungi manualmente</button>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</template>
+
+<template id="tmpl-pdt-new-plan">
+  <div class="form-card">
+    <h2>Nuovo piano</h2>
+    <form class="pdt-plan-form">
+      <div class="form-row">
+        <div class="form-group">
+          <label for="pdt-new-plan-name">Nome piano</label>
+          <input type="text" id="pdt-new-plan-name" name="name"
+                 maxlength="100" required>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="pdt-new-plan-desc">Descrizione</label>
+          <textarea id="pdt-new-plan-desc" name="description" rows="3"></textarea>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn" data-action="cancel">Annulla</button>
+        <button type="submit" class="btn btn-primary">Salva</button>
+      </div>
+    </form>
+  </div>
+</template>
+
+<template id="tmpl-pdt-edit-plan">
+  <div class="form-card">
+    <h2>Modifica piano</h2>
+    <div class="modal-tabs">
+      <button type="button" class="modal-tab" data-path="details">Dettagli</button>
+      <button type="button" class="modal-tab" data-path="calendar">Importa calendario da CSV</button>
+      <button type="button" class="modal-tab" data-path="regression">Importa equazioni da CSV</button>
+    </div>
+    <div class="modal-tab-bodies">
+      {# Dettagli tab #}
+      <div class="modal-tab-body" data-path="details">
+        <form class="pdt-plan-form" data-role="details-form">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="pdt-edit-name">Nome piano</label>
+              <input type="text" id="pdt-edit-name" name="name"
+                     maxlength="100" required>
+            </div>
+          </div>
+          <div class="form-row narrow">
+            <div class="form-group">
+              <label for="pdt-edit-y1">Anno inizio</label>
+              <input type="number" id="pdt-edit-y1" name="year_start"
+                     min="1900" max="2200" required>
+            </div>
+            <div class="form-group">
+              <label for="pdt-edit-y2">Anno fine</label>
+              <input type="number" id="pdt-edit-y2" name="year_end"
+                     min="1900" max="2200" required>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="pdt-edit-desc">Descrizione</label>
+              <textarea id="pdt-edit-desc" name="description" rows="3"></textarea>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn" data-action="cancel">Annulla</button>
+            <button type="submit" class="btn btn-primary">Salva</button>
+          </div>
+        </form>
+      </div>
+      {# Importa calendario tab #}
+      <div class="modal-tab-body" data-path="calendar">
+        <form class="pdt-plan-form" data-role="calendar-form">
+          <div class="form-row">
+            <label class="pdt-checkbox-label">
+              <input type="checkbox" name="is_ceduo">
+              File contiene il calendario ceduo
+            </label>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="pdt-edit-cal-file">File CSV</label>
+              <input type="file" id="pdt-edit-cal-file"
+                     accept=".csv,text/csv" required>
+            </div>
+          </div>
+          <div class="csv-import-status" hidden></div>
+          <div class="csv-import-errors" hidden></div>
+          <div class="form-actions">
+            <button type="button" class="btn" data-action="cancel">Annulla</button>
+            <button type="submit" class="btn btn-primary">Importa</button>
+          </div>
+        </form>
+      </div>
+      {# Importa equazioni tab #}
+      <div class="modal-tab-body" data-path="regression">
+        <form class="pdt-plan-form" data-role="regression-form">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="pdt-edit-reg-file">File CSV</label>
+              <input type="file" id="pdt-edit-reg-file"
+                     accept=".csv,text/csv" required>
+            </div>
+          </div>
+          <div class="csv-import-status" hidden></div>
+          <div class="csv-import-errors" hidden></div>
+          <div class="form-actions">
+            <button type="button" class="btn" data-action="cancel">Annulla</button>
+            <button type="submit" class="btn btn-primary">Importa</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</template>
+
+<template id="tmpl-pdt-transition">
+  <div class="form-card">
+    <h2 data-field="title"></h2>
+    <form>
+      <div class="form-row narrow">
+        <div class="form-group">
+          <label for="pdt-transition-date">Data</label>
+          <input type="date" id="pdt-transition-date" name="date" required>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="pdt-transition-note">Note</label>
+          <input type="text" id="pdt-transition-note" name="note">
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn" data-action="cancel">Annulla</button>
+        <button type="submit" class="btn btn-primary">Conferma</button>
+      </div>
+    </form>
+  </div>
+</template>
+
+<template id="tmpl-pdt-import-marks">
+  <div class="form-card">
+    <h2>Importa martellata da CSV</h2>
+    <form>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="mark-csv-file">File CSV</label>
+          <input type="file" id="mark-csv-file" name="file"
+                 accept=".csv,text/csv" required>
+        </div>
+      </div>
+      <div class="csv-import-status" hidden></div>
+      <div class="csv-import-errors" hidden></div>
+      <div class="form-actions">
+        <button type="button" class="btn" data-action="cancel">Annulla</button>
+        <button type="submit" class="btn btn-primary">Importa</button>
+      </div>
+    </form>
+  </div>
+</template>
+
+<template id="tmpl-pdt-item-view">
+  <div class="pdt-item-card">
+    <div class="pdt-item-header">
+      <div class="pdt-item-header-left">
+        <h2 class="pdt-item-title" data-field="title"></h2>
+        {% if user.role != 'reader' %}
+        <span class="pdt-pulldown-icon" role="button" title="Modifica"
+              data-action="edit-item">✎</span>
+        {% endif %}
+      </div>
+      <div class="pdt-item-header-actions">
+        <button type="button" class="btn"
+                data-action="export-item">Esporta CSV</button>
+        <button type="button" class="pdt-item-close"
+                title="Chiudi" data-action="close-item">×</button>
+      </div>
+    </div>
+    <dl class="pdt-item-meta" data-target="metadata"></dl>
+    {% if user.role != 'reader' %}
+    <div class="form-actions" data-target="transitions" hidden></div>
+    {% endif %}
+    <div data-target="subsections"></div>
+  </div>
+</template>
