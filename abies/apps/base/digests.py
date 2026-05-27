@@ -751,9 +751,9 @@ HARVEST_PLAN_ITEM_COLUMNS = [
     ROW_ID, VERSION, S.COL_HARVEST_PLAN,
     S.COL_YEAR_PLANNED, S.COL_YEAR_ACTUAL,
     S.COL_COMPRESA, S.COL_PARCEL, S.COL_TYPE, S.COL_STATE, S.COL_NOTE,
-    S.COL_VOLUME_PLANNED, S.COL_VOLUME_MARKED,
+    S.COL_VOLUME_PLANNED, S.COL_VOLUME_MARKED, S.COL_VOLUME_ACTUAL,
     S.COL_INTERVENTION_AREA_HA, S.COL_PARCEL_AREA_HA, S.COL_TURNO_A,
-    S.COL_VOLUME_ACTUAL, S.COL_EXTRA_NOTE,
+    S.COL_EXTRA_NOTE,
 ]
 
 
@@ -812,10 +812,10 @@ def build_harvest_plan_item_record(item) -> list:
         render_flag_note(item.damaged, item.unhealthy, item.psr),
         float(item.volume_planned_m3) if item.volume_planned_m3 is not None else '',
         float(item.volume_marked_m3) if item.volume_marked_m3 is not None else '',
+        float(item.volume_actual_m3),
         float(item.intervention_area_ha) if item.intervention_area_ha is not None else '',
         parcel_area,
         _hpi_turno(item),
-        float(item.volume_actual_m3),
         item.note,
     ]
 
