@@ -9,7 +9,7 @@ from django.http import JsonResponse
 from apps.base.models import UsedNonce
 from config import strings as S
 from config.constants import (
-    MESSAGE, STATUS, STATUS_RATE_LIMITED,
+    FIELD_NONCE, MESSAGE, STATUS, STATUS_RATE_LIMITED,
 )
 
 
@@ -78,7 +78,7 @@ class NonceMiddleware:
         except (json.JSONDecodeError, UnicodeDecodeError):
             return self.get_response(request)
 
-        nonce = body.get('nonce') if isinstance(body, dict) else None
+        nonce = body.get(FIELD_NONCE) if isinstance(body, dict) else None
         if not nonce:
             return self.get_response(request)
 

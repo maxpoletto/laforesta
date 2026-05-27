@@ -682,7 +682,7 @@ def build_tree_sample_record(ts) -> list:
         ts.id, ts.version, sa.id, ts.sample.date.isoformat(),
         sa.parcel.region.name, sa.parcel.name, sa.number,
         ts.number, tree.species.common_name,
-        'ceduo' if tree.coppice else 'fustaia',
+        S.TYPE_CEDUO if tree.coppice else S.TYPE_FUSTAIA,
         ts.shoot, ts.standard,
         ts.d_cm, float(ts.h_m), ts.l10_mm,
         float(ts.volume_m3) if ts.volume_m3 is not None else None,

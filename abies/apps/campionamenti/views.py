@@ -34,16 +34,17 @@ from apps.base.models import (
 )
 from config import strings as S
 from config.constants import (
-    AREA_RECORDS, DATA_ID, FIELD_ALTITUDE, FIELD_AREA, FIELD_COPPICE,
-    FIELD_DATE, FIELD_D_CM, FIELD_ERRORS, FIELD_H_M, FIELD_L10_MM, FIELD_LAT,
-    FIELD_LON, FIELD_MASS_Q, FIELD_NEXT_SHOOT, FIELD_NOTE, FIELD_NUMBER,
-    FIELD_PARCEL, FIELD_PARCEL_ID, FIELD_PRESERVED, FIELD_R_M,
+    AREA_RECORDS, DATA_ID, FIELD_ALTITUDE, FIELD_ALTITUDE_M, FIELD_AREA,
+    FIELD_COPPICE, FIELD_DATE, FIELD_DESCRIPTION, FIELD_D_CM, FIELD_ERRORS,
+    FIELD_FUSTAIA, FIELD_H_M, FIELD_L10_MM, FIELD_LAT, FIELD_LON, FIELD_MASS_Q,
+    FIELD_NAME, FIELD_NEXT_SHOOT, FIELD_NONCE, FIELD_NOTE, FIELD_NUMBER,
+    FIELD_PARCEL, FIELD_PARCEL_ID, FIELD_POINTS, FIELD_PRESERVED, FIELD_R_M,
     FIELD_SAMPLE_AREA_ID, FIELD_SAMPLE_GRID_ID, FIELD_SHOOT, FIELD_SHOOTS,
     FIELD_SORT_ORDER, FIELD_SPECIES, FIELD_SPECIES_ID, FIELD_STANDARD,
-    FIELD_SURVEY_ID, FIELD_TREE_PICK_EXISTING_ID, FIELD_VOLUME_M3,
-    GRID_RECORD, HTML, MESSAGE, RECORD, RECORDS, ROW_ID, SAMPLE_RECORD,
-    STATUS, STATUS_NOT_FOUND, STATUS_VALIDATION_ERROR, SURVEY_RECORD,
-    SURVEY_RECORDS,
+    FIELD_SURVEY_ID, FIELD_TREE_PICK, FIELD_TREE_PICK_EXISTING_ID,
+    FIELD_VOLUME_M3, GRID_RECORD, HTML, MESSAGE, RECORD, RECORDS, ROW_ID,
+    SAMPLE_RECORD, STATUS, STATUS_NOT_FOUND, STATUS_VALIDATION_ERROR,
+    SURVEY_RECORD, SURVEY_RECORDS,
     is_truthy,
 )
 
@@ -254,7 +255,7 @@ def tree_save_view(request):
         SAMPLE_RECORD: build_sample_record(sample),
         SURVEY_RECORD: build_survey_record(sample.survey),
     }
-    nonce = body.get('nonce')
+    nonce = body.get(FIELD_NONCE)
     if nonce:
         save_nonce(nonce, request.user, response_data)
     return JsonResponse(response_data)
@@ -349,7 +350,7 @@ def area_save_view(request):
     if not number:
         return _simple_validation_error(S.ERR_AREA_NUMBER_REQUIRED)
 
-    altitude_raw = body.get('altitude_m')
+    altitude_raw = body.get(FIELD_ALTITUDE_M)
     altitude = None
     if altitude_raw not in (None, '', 'null'):
         try:
@@ -403,7 +404,7 @@ def area_save_view(request):
             for sv in Survey.objects.filter(sample_grid=grid)
         ],
     }
-    nonce = body.get('nonce')
+    nonce = body.get(FIELD_NONCE)
     if nonce:
         save_nonce(nonce, request.user, response_data)
     return JsonResponse(response_data)
@@ -620,11 +621,11 @@ def _parse_tree_body(body):
         except (ValueError, TypeError):
             errors.append(S.ERR_DATE_INVALID)
 
-    coppice = str(body.get('fustaia', 'true')).lower() in ('false', '0', 'no')
+    coppice = str(body.get(FIELD_FUSTAIA, 'true')).lower() in ('false', '0', 'no')
 
     # tree_pick: 'new' or an integer Tree id.  Older payloads without
     # tree_pick default to 'new' so the existing call sites keep working.
-    tree_pick_raw = body.get('tree_pick', 'new')
+    tree_pick_raw = body.get(FIELD_TREE_PICK, 'new')
     tree_pick_existing_id = None
     if tree_pick_raw not in (None, '', 'new'):
         try:
@@ -846,8 +847,8 @@ def grid_form_view(request):
 @require_POST
 def grid_save_view(request):
     body = json.loads(request.body)
-    name = (body.get('name') or '').strip()
-    description = (body.get('description') or '').strip()
+    name = (body.get(FIELD_NAME) or '').strip()
+    description = (body.get(FIELD_DESCRIPTION) or '').strip()
     if not name:
         return _simple_validation_error(S.ERR_GRID_NAME_REQUIRED)
     if SampleGrid.objects.filter(name=name).exists():
@@ -862,7 +863,7 @@ def grid_save_view(request):
         ROW_ID: grid.id,
         RECORD: build_grid_record(grid),
     }
-    nonce = body.get('nonce')
+    nonce = body.get(FIELD_NONCE)
     if nonce:
         save_nonce(nonce, request.user, response_data)
     return JsonResponse(response_data)
@@ -891,8 +892,8 @@ def grid_edit_view(request, grid_id: int):
     if grid is None:
         return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
     body = json.loads(request.body)
-    name = (body.get('name') or '').strip()
-    description = (body.get('description') or '').strip()
+    name = (body.get(FIELD_NAME) or '').strip()
+    description = (body.get(FIELD_DESCRIPTION) or '').strip()
     if not name:
         return _simple_validation_error(S.ERR_GRID_NAME_REQUIRED)
     if SampleGrid.objects.filter(name=name).exclude(id=grid.id).exists():
@@ -937,8 +938,8 @@ def survey_edit_view(request, survey_id: int):
     if survey is None:
         return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
     body = json.loads(request.body)
-    name = (body.get('name') or '').strip()
-    description = (body.get('description') or '').strip()
+    name = (body.get(FIELD_NAME) or '').strip()
+    description = (body.get(FIELD_DESCRIPTION) or '').strip()
     if not name:
         return _simple_validation_error(S.ERR_SURVEY_NAME_REQUIRED)
     if Survey.objects.filter(name=name).exclude(id=survey.id).exists():
@@ -1077,7 +1078,7 @@ def grid_csv_import_view(request):
             for sv in Survey.objects.filter(sample_grid=grid)
         ],
     }
-    nonce = request.POST.get('nonce')
+    nonce = request.POST.get(FIELD_NONCE)
     if nonce:
         save_nonce(nonce, request.user, response_data)
     return JsonResponse(response_data)
@@ -1318,8 +1319,8 @@ def survey_delete_view(request, survey_id: int):
 @require_POST
 def survey_save_view(request):
     body = json.loads(request.body)
-    name = (body.get('name') or '').strip()
-    description = (body.get('description') or '').strip()
+    name = (body.get(FIELD_NAME) or '').strip()
+    description = (body.get(FIELD_DESCRIPTION) or '').strip()
     grid_id = body.get(FIELD_SAMPLE_GRID_ID)
 
     if not name:
@@ -1346,7 +1347,7 @@ def survey_save_view(request):
         RECORD: build_survey_record(survey),
         GRID_RECORD: build_grid_record(grid),
     }
-    nonce = body.get('nonce')
+    nonce = body.get(FIELD_NONCE)
     if nonce:
         save_nonce(nonce, request.user, response_data)
     return JsonResponse(response_data)
@@ -1375,9 +1376,9 @@ def grid_save_auto_view(request):
     failure aborts the entire commit (no partial state).
     """
     body = json.loads(request.body)
-    name = (body.get('name') or '').strip()
-    description = (body.get('description') or '').strip()
-    points = body.get('points') or []
+    name = (body.get(FIELD_NAME) or '').strip()
+    description = (body.get(FIELD_DESCRIPTION) or '').strip()
+    points = body.get(FIELD_POINTS) or []
     try:
         r_m = int(body.get(FIELD_R_M) or 12)
     except (ValueError, TypeError):
@@ -1416,7 +1417,7 @@ def grid_save_auto_view(request):
         RECORD: build_grid_record(grid),
         AREA_RECORDS: [build_sample_area_record(sa) for sa in area_qs],
     }
-    nonce = body.get('nonce')
+    nonce = body.get(FIELD_NONCE)
     if nonce:
         save_nonce(nonce, request.user, response_data)
     return JsonResponse(response_data)

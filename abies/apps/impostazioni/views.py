@@ -22,9 +22,9 @@ from config.constants import (
     COLUMNS, FIELD_ACTIVE, FIELD_COMMON_NAME, FIELD_DENSITY, FIELD_EMAIL,
     FIELD_FIRST_NAME, FIELD_IS_ACTIVE, FIELD_LAST_NAME, FIELD_LATIN_NAME,
     FIELD_LOGIN_METHOD, FIELD_MANUFACTURER, FIELD_MODEL, FIELD_NAME,
-    FIELD_NONCE, FIELD_NOTES, FIELD_ROLE, FIELD_SPECIES, FIELD_USERNAME,
-    FIELD_YEAR, HTML, MESSAGE, RECORD, ROWS, ROW_ID, STATUS, STATUS_CONFLICT,
-    STATUS_VALIDATION_ERROR, VERSION,
+    FIELD_NONCE, FIELD_NOTES, FIELD_PASSWORD1, FIELD_PASSWORD2, FIELD_ROLE,
+    FIELD_SPECIES, FIELD_USERNAME, FIELD_YEAR, HTML, MESSAGE, RECORD, ROWS,
+    ROW_ID, STATUS, STATUS_CONFLICT, STATUS_VALIDATION_ERROR, VERSION,
 )
 
 
@@ -36,8 +36,8 @@ from config.constants import (
 @require_POST
 def password_view(request):
     body = json.loads(request.body)
-    pw1 = body.get('password1', '')
-    pw2 = body.get('password2', '')
+    pw1 = body.get(FIELD_PASSWORD1, '')
+    pw2 = body.get(FIELD_PASSWORD2, '')
     if not pw1:
         return _error(S.ERR_PASSWORD_REQUIRED)
     if pw1 != pw2:
@@ -254,8 +254,8 @@ def users_save(request):
     first_name = body.get(FIELD_FIRST_NAME, '').strip()
     last_name = body.get(FIELD_LAST_NAME, '').strip()
 
-    pw1 = body.get('password1', '')
-    pw2 = body.get('password2', '')
+    pw1 = body.get(FIELD_PASSWORD1, '')
+    pw2 = body.get(FIELD_PASSWORD2, '')
 
     if row_id:
         user = User.objects.get(id=row_id)

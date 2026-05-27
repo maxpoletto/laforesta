@@ -350,7 +350,7 @@ COL_NUMERO               = 'Numero'                      # paired with CSV_COL_N
 COL_H_MEASURED           = 'h misurata'                  # display label; bool rendered yes/no
 
 # Type-of-intervention display labels for COL_TYPE values
-TYPE_FUSTAIA = 'alto fusto'
+TYPE_FUSTAIA = 'fustaia'
 TYPE_CEDUO   = 'ceduo'
 
 # Stand-in displayed in the Particella column for region-wide

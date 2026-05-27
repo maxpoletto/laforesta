@@ -11,9 +11,9 @@ from config.constants import (
     COLUMNS, FIELD_ACTIVE, FIELD_COMMON_NAME, FIELD_DENSITY, FIELD_EMAIL,
     FIELD_FIRST_NAME, FIELD_IS_ACTIVE, FIELD_LAST_NAME, FIELD_LATIN_NAME,
     FIELD_LOGIN_METHOD, FIELD_MANUFACTURER, FIELD_MODEL, FIELD_NAME,
-    FIELD_NOTES, FIELD_ROLE, FIELD_USERNAME, FIELD_YEAR, HTML, MESSAGE,
-    RECORD, ROWS, ROW_ID, STATUS, STATUS_CONFLICT, STATUS_VALIDATION_ERROR,
-    VERSION,
+    FIELD_NOTES, FIELD_PASSWORD1, FIELD_PASSWORD2, FIELD_ROLE, FIELD_USERNAME,
+    FIELD_YEAR, HTML, MESSAGE, RECORD, ROWS, ROW_ID, STATUS, STATUS_CONFLICT,
+    STATUS_VALIDATION_ERROR, VERSION,
 )
 
 
@@ -55,7 +55,7 @@ class TestPasswordView:
 
     def test_change_password(self, writer_client, writer_user):
         resp = _post(writer_client, self.URL, {
-            'password1': 'newsecure99!', 'password2': 'newsecure99!',
+            FIELD_PASSWORD1: 'newsecure99!', FIELD_PASSWORD2: 'newsecure99!',
         })
         assert resp.status_code == 200
         assert resp.json()[MESSAGE] == S.PASSWORD_CHANGED
@@ -64,19 +64,19 @@ class TestPasswordView:
 
     def test_mismatch(self, writer_client):
         resp = _post(writer_client, self.URL, {
-            'password1': 'newsecure99!', 'password2': 'different!',
+            FIELD_PASSWORD1: 'newsecure99!', FIELD_PASSWORD2: 'different!',
         })
         assert resp.status_code == 400
 
     def test_too_short(self, writer_client):
         resp = _post(writer_client, self.URL, {
-            'password1': '123', 'password2': '123',
+            FIELD_PASSWORD1: '123', FIELD_PASSWORD2: '123',
         })
         assert resp.status_code == 400
 
     def test_requires_auth(self, db):
         resp = _post(Client(), self.URL, {
-            'password1': 'newsecure99!', 'password2': 'newsecure99!',
+            FIELD_PASSWORD1: 'newsecure99!', FIELD_PASSWORD2: 'newsecure99!',
         })
         assert resp.status_code == 302
 
@@ -268,7 +268,7 @@ class TestUsers:
             FIELD_USERNAME: 'newuser', FIELD_FIRST_NAME: 'New', FIELD_LAST_NAME: 'User',
             FIELD_EMAIL: 'newuser@example.com',
             FIELD_LOGIN_METHOD: LoginMethod.PASSWORD,
-            'password1': 'testpass123!', 'password2': 'testpass123!',
+            FIELD_PASSWORD1: 'testpass123!', FIELD_PASSWORD2: 'testpass123!',
             FIELD_ROLE: Role.READER, FIELD_IS_ACTIVE: 'true',
         })
         assert resp.status_code == 200
@@ -281,7 +281,7 @@ class TestUsers:
             FIELD_USERNAME: 'oauthuser@example.com', FIELD_FIRST_NAME: '', FIELD_LAST_NAME: '',
             FIELD_EMAIL: 'oauthuser@example.com',
             FIELD_LOGIN_METHOD: LoginMethod.OAUTH,
-            'password1': '', 'password2': '',
+            FIELD_PASSWORD1: '', FIELD_PASSWORD2: '',
             FIELD_ROLE: Role.WRITER, FIELD_IS_ACTIVE: 'true',
         })
         assert resp.status_code == 200
@@ -293,7 +293,7 @@ class TestUsers:
             FIELD_USERNAME: 'nopass', FIELD_FIRST_NAME: '', FIELD_LAST_NAME: '',
             FIELD_EMAIL: 'nopass@example.com',
             FIELD_LOGIN_METHOD: LoginMethod.PASSWORD,
-            'password1': '', 'password2': '',
+            FIELD_PASSWORD1: '', FIELD_PASSWORD2: '',
             FIELD_ROLE: Role.READER, FIELD_IS_ACTIVE: 'true',
         })
         assert resp.status_code == 400
@@ -304,7 +304,7 @@ class TestUsers:
             FIELD_USERNAME: 'renamed', FIELD_FIRST_NAME: 'A', FIELD_LAST_NAME: 'B',
             FIELD_EMAIL: 'renamed@example.com',
             FIELD_LOGIN_METHOD: LoginMethod.PASSWORD,
-            'password1': '', 'password2': '',
+            FIELD_PASSWORD1: '', FIELD_PASSWORD2: '',
             FIELD_ROLE: Role.ADMIN, FIELD_IS_ACTIVE: 'true',
         })
         assert resp.status_code == 200
@@ -318,7 +318,7 @@ class TestUsers:
             FIELD_USERNAME: writer_user.username, FIELD_FIRST_NAME: '', FIELD_LAST_NAME: '',
             FIELD_EMAIL: 'writer@example.com',
             FIELD_LOGIN_METHOD: LoginMethod.PASSWORD,
-            'password1': 'brandnew99!', 'password2': 'brandnew99!',
+            FIELD_PASSWORD1: 'brandnew99!', FIELD_PASSWORD2: 'brandnew99!',
             FIELD_ROLE: Role.WRITER, FIELD_IS_ACTIVE: 'true',
         })
         assert resp.status_code == 200
@@ -330,7 +330,7 @@ class TestUsers:
             FIELD_USERNAME: '', FIELD_FIRST_NAME: '', FIELD_LAST_NAME: '',
             FIELD_EMAIL: 'nouser@example.com',
             FIELD_LOGIN_METHOD: LoginMethod.PASSWORD,
-            'password1': 'testpass123!', 'password2': 'testpass123!',
+            FIELD_PASSWORD1: 'testpass123!', FIELD_PASSWORD2: 'testpass123!',
             FIELD_ROLE: Role.READER, FIELD_IS_ACTIVE: 'true',
         })
         assert resp.status_code == 400
@@ -340,7 +340,7 @@ class TestUsers:
             FIELD_USERNAME: 'mismatch', FIELD_FIRST_NAME: '', FIELD_LAST_NAME: '',
             FIELD_EMAIL: 'mismatch@example.com',
             FIELD_LOGIN_METHOD: LoginMethod.PASSWORD,
-            'password1': 'testpass123!', 'password2': 'different123!',
+            FIELD_PASSWORD1: 'testpass123!', FIELD_PASSWORD2: 'different123!',
             FIELD_ROLE: Role.READER, FIELD_IS_ACTIVE: 'true',
         })
         assert resp.status_code == 400
@@ -352,7 +352,7 @@ class TestUsers:
             FIELD_USERNAME: writer_user.username, FIELD_FIRST_NAME: '', FIELD_LAST_NAME: '',
             FIELD_EMAIL: 'writer@example.com',
             FIELD_LOGIN_METHOD: LoginMethod.PASSWORD,
-            'password1': 'newpass123!', 'password2': 'other123!',
+            FIELD_PASSWORD1: 'newpass123!', FIELD_PASSWORD2: 'other123!',
             FIELD_ROLE: Role.WRITER, FIELD_IS_ACTIVE: 'true',
         })
         assert resp.status_code == 400

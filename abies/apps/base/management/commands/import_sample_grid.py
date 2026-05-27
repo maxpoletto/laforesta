@@ -17,6 +17,7 @@ from django.db import transaction
 
 from apps.base.models import Parcel, Region, SampleArea, SampleGrid
 from config import strings as S
+from config.constants import FIELD_ALTITUDE_M, FIELD_LAT, FIELD_LON, FIELD_NOTE, FIELD_R_M
 
 
 GRID_NAME = 'Aree di saggio PDG 2026'
@@ -91,11 +92,11 @@ class Command(BaseCommand):
                 obj, was_created = SampleArea.objects.get_or_create(
                     sample_grid=grid, parcel=parcel, number=number,
                     defaults={
-                        'lat': float(row[S.CSV_COL_LAT]),
-                        'lon': float(row[S.CSV_COL_LON]),
-                        'altitude_m': _int_or_none(row[S.CSV_COL_QUOTA]),
-                        'r_m': DEFAULT_RADIUS_M,
-                        'note': '',
+                        FIELD_LAT: float(row[S.CSV_COL_LAT]),
+                        FIELD_LON: float(row[S.CSV_COL_LON]),
+                        FIELD_ALTITUDE_M: _int_or_none(row[S.CSV_COL_QUOTA]),
+                        FIELD_R_M: DEFAULT_RADIUS_M,
+                        FIELD_NOTE: '',
                     },
                 )
                 if was_created:

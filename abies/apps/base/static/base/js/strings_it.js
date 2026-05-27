@@ -292,7 +292,7 @@ export const FLAG_UNHEALTHY   = 'Fitosanitario';
 export const FLAG_PSR         = 'PSR';
 
 // Type-of-intervention labels for the COL_TYPE column.
-export const TYPE_FUSTAIA = 'alto fusto';
+export const TYPE_FUSTAIA = 'fustaia';
 export const TYPE_CEDUO   = 'ceduo';
 
 // Plan-selector header (top of the Piano di taglio page).

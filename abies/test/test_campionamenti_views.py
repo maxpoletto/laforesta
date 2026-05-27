@@ -13,13 +13,14 @@ from apps.base.models import (
 )
 from config import strings as S
 from config.constants import (
-    AREA_RECORDS, COLUMNS, FIELD_DATE, FIELD_DEFAULT_DATE, FIELD_DESCRIPTION,
-    FIELD_D_CM, FIELD_ERRORS, FIELD_FUSTAIA, FIELD_H_M, FIELD_LAT, FIELD_LON,
-    FIELD_MASS_Q, FIELD_NAME, FIELD_NOTE, FIELD_NUMBER, FIELD_PARCEL_ID,
-    FIELD_PRESERVED, FIELD_R_M, FIELD_SAMPLE_AREA_ID, FIELD_SAMPLE_GRID_ID,
-    FIELD_SHOOT, FIELD_SPECIES_ID, FIELD_STANDARD, FIELD_SURVEY_ID,
-    GRID_RECORD, HTML, MESSAGE, RECORD, RECORDS, ROWS, ROW_ID, SAMPLE_RECORD,
-    SURVEY_RECORD, SURVEY_RECORDS,
+    AREA_RECORDS, COLUMNS, FIELD_ALTITUDE_M, FIELD_DATE, FIELD_DEFAULT_DATE,
+    FIELD_DESCRIPTION, FIELD_D_CM, FIELD_ERRORS, FIELD_FUSTAIA, FIELD_H_M,
+    FIELD_LAT, FIELD_LON, FIELD_MASS_Q, FIELD_NAME, FIELD_NONCE, FIELD_NOTE,
+    FIELD_NUMBER, FIELD_PARCEL_ID, FIELD_POINTS, FIELD_PRESERVED, FIELD_R_M,
+    FIELD_SAMPLE_AREA_ID, FIELD_SAMPLE_GRID_ID, FIELD_SHOOT, FIELD_SPECIES_ID,
+    FIELD_STANDARD, FIELD_SURVEY_ID, FIELD_TREE_PICK, GRID_RECORD, HTML,
+    MESSAGE, RECORD, RECORDS, ROWS, ROW_ID, SAMPLE_RECORD, SURVEY_RECORD,
+    SURVEY_RECORDS,
 )
 
 
@@ -112,7 +113,7 @@ class TestDataEndpoints:
         assert len(d[ROWS]) == 1
         row = d[ROWS][0]
         assert row[d[COLUMNS].index(S.COL_SPECIES)] == 'Abete'
-        assert row[d[COLUMNS].index(S.COL_PRODUCT)] == 'fustaia'
+        assert row[d[COLUMNS].index(S.COL_PRODUCT)] == S.TYPE_FUSTAIA
         assert row[d[COLUMNS].index(S.COL_D_CM)] == 30
 
     def test_trees_data_unknown_survey(self, writer_client, sample_setup,
@@ -360,7 +361,7 @@ class TestTreeSave:
         resp = self._post(writer_client, {
             FIELD_SURVEY_ID: str(second_survey.id),
             FIELD_SAMPLE_AREA_ID: str(s['area'].id),
-            'tree_pick': str(s['tree'].id),
+            FIELD_TREE_PICK: str(s['tree'].id),
             FIELD_SPECIES_ID: str(s['tree'].species_id),
             FIELD_NUMBER: '1',         # propagated from the existing tree
             FIELD_D_CM: '35', FIELD_H_M: '21', 'l10_mm': '0',
@@ -413,7 +414,7 @@ class TestTreeSave:
         resp = self._post(writer_client, {
             FIELD_SURVEY_ID: str(s['survey'].id),
             FIELD_SAMPLE_AREA_ID: str(s['area'].id),    # ours, not other_area
-            'tree_pick': str(other_tree.id),
+            FIELD_TREE_PICK: str(other_tree.id),
             FIELD_SPECIES_ID: str(s['tree'].species_id),
             FIELD_NUMBER: '7', FIELD_D_CM: '40', FIELD_H_M: '20', 'l10_mm': '0',
             'volume_m3': '0.5', FIELD_MASS_Q: '4.0',
@@ -722,7 +723,7 @@ class TestTreeSaveCoppice:
         resp = self._post(writer_client, {
             FIELD_SURVEY_ID: str(second_survey.id),
             FIELD_SAMPLE_AREA_ID: str(s['area'].id),
-            'tree_pick': str(existing.id),
+            FIELD_TREE_PICK: str(existing.id),
             FIELD_SPECIES_ID: str(existing.species_id),
             FIELD_NUMBER: '42', FIELD_FUSTAIA: 'false',
             'shoots': json.dumps([
@@ -757,7 +758,7 @@ class TestTreeSaveCoppice:
         resp = self._post(writer_client, {
             FIELD_SURVEY_ID: str(s['survey'].id),
             FIELD_SAMPLE_AREA_ID: str(s['area'].id),
-            'tree_pick': str(existing.id),
+            FIELD_TREE_PICK: str(existing.id),
             FIELD_SPECIES_ID: str(existing.species_id),
             FIELD_NUMBER: '99', FIELD_FUSTAIA: 'false',
             'shoots': json.dumps([
@@ -790,7 +791,7 @@ class TestTreeSaveCoppice:
             ROW_ID: str(ts1.id),
             FIELD_SURVEY_ID: str(s['survey'].id),
             FIELD_SAMPLE_AREA_ID: str(s['area'].id),
-            'tree_pick': str(tree.id),
+            FIELD_TREE_PICK: str(tree.id),
             FIELD_SPECIES_ID: str(species[0].id),         # changed
             FIELD_NUMBER: '15', FIELD_FUSTAIA: 'false',
             'shoots': json.dumps([
@@ -897,7 +898,7 @@ class TestAreaCRUD:
             FIELD_PARCEL_ID: s['area'].parcel_id,
             FIELD_NUMBER: '42',
             FIELD_LAT: '38.6', FIELD_LON: '16.2',
-            'altitude_m': '500',
+            FIELD_ALTITUDE_M: '500',
             FIELD_R_M: '15', FIELD_NOTE: 'test',
         })
         assert resp.status_code == 200, resp.content
@@ -1219,7 +1220,7 @@ class TestGridSaveAuto:
             FIELD_NAME: 'Auto grid',
             FIELD_DESCRIPTION: '',
             FIELD_R_M: 12,
-            'points': [
+            FIELD_POINTS: [
                 {'compresa': s['area'].parcel.region.name,
                  'particella': s['area'].parcel.name,
                  FIELD_LAT: 38.5, FIELD_LON: 16.1},
@@ -1242,7 +1243,7 @@ class TestGridSaveAuto:
         n_before = SampleGrid.objects.count()
         resp = self._post(writer_client, {
             FIELD_NAME: 'Bad grid', FIELD_R_M: 12,
-            'points': [
+            FIELD_POINTS: [
                 {'compresa': 'Nessuna', 'particella': '1',
                  FIELD_LAT: 38.5, FIELD_LON: 16.1},
             ],
@@ -1255,7 +1256,7 @@ class TestGridSaveAuto:
         n_before = SampleGrid.objects.count()
         resp = self._post(writer_client, {
             FIELD_NAME: 'Bad grid 2', FIELD_R_M: 12,
-            'points': [
+            FIELD_POINTS: [
                 {'compresa': s['area'].parcel.region.name,
                  'particella': 'ZZZ',
                  FIELD_LAT: 38.5, FIELD_LON: 16.1},
@@ -1268,7 +1269,7 @@ class TestGridSaveAuto:
         SampleGrid.objects.create(name='Dup auto')
         resp = self._post(writer_client, {
             FIELD_NAME: 'Dup auto', FIELD_R_M: 12,
-            'points': [
+            FIELD_POINTS: [
                 {'compresa': sample_setup['area'].parcel.region.name,
                  'particella': sample_setup['area'].parcel.name,
                  FIELD_LAT: 38.5, FIELD_LON: 16.1},
@@ -1278,14 +1279,14 @@ class TestGridSaveAuto:
 
     def test_empty_points_rejected(self, writer_client, db):
         resp = self._post(writer_client, {
-            FIELD_NAME: 'Empty', FIELD_R_M: 12, 'points': [],
+            FIELD_NAME: 'Empty', FIELD_R_M: 12, FIELD_POINTS: [],
         })
         assert resp.status_code == 400
 
     def test_reader_forbidden(self, reader_client, sample_setup):
         resp = self._post(reader_client, {
             FIELD_NAME: 'X', FIELD_R_M: 12,
-            'points': [
+            FIELD_POINTS: [
                 {'compresa': sample_setup['area'].parcel.region.name,
                  'particella': sample_setup['area'].parcel.name,
                  FIELD_LAT: 0.0, FIELD_LON: 0.0},

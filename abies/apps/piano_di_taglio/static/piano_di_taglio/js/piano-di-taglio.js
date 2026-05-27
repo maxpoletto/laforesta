@@ -28,7 +28,12 @@ import {
 } from '../../base/js/tree-form.js';
 import { mountUseLocationButton } from '../../base/js/latlng-input.js';
 import * as S from '../../base/js/strings.js';
-import { ROW_ID, VERSION } from '../../base/js/constants.js';
+import {
+  FIELD_DATE, FIELD_DESCRIPTION, FIELD_FILE, FIELD_HARVEST_PLAN_ID,
+  FIELD_HARVEST_PLAN_ITEM_ID, FIELD_NAME, FIELD_NONCE, FIELD_NOTE,
+  FIELD_OPEN, FIELD_REGRESSION_FILE, FIELD_YEAR_END, FIELD_YEAR_START,
+  ROW_ID, VERSION,
+} from '../../base/js/constants.js';
 import {
   fmtDecimal1, fmtDecimal2, fmtDecimal3, fmtInt, fmtCoord,
   fmtVolume, fmtArea, fmtMass,
@@ -1046,26 +1051,26 @@ function buildEditDetailsForm(host, current) {
 
   const nameRow = mkRow(form);
   mkInput(nameRow, {
-    id: 'pdt-edit-name', name: 'name', label: S.LABEL_PLAN_NAME,
+    id: 'pdt-edit-name', name: FIELD_NAME, label: S.LABEL_PLAN_NAME,
     type: 'text', required: true, maxLength: 100,
     value: current.name,
   });
 
   const yearRow = mkRow(form, 'narrow');
   mkInput(yearRow, {
-    id: 'pdt-edit-y1', name: 'year_start', label: S.COL_YEAR_START,
+    id: 'pdt-edit-y1', name: FIELD_YEAR_START, label: S.COL_YEAR_START,
     type: 'number', required: true, min: 1900, max: 2200,
     value: current.year_start,
   });
   mkInput(yearRow, {
-    id: 'pdt-edit-y2', name: 'year_end', label: S.COL_YEAR_END,
+    id: 'pdt-edit-y2', name: FIELD_YEAR_END, label: S.COL_YEAR_END,
     type: 'number', required: true, min: 1900, max: 2200,
     value: current.year_end,
   });
 
   const descRow = mkRow(form);
   mkTextarea(descRow, {
-    id: 'pdt-edit-desc', name: 'description',
+    id: 'pdt-edit-desc', name: FIELD_DESCRIPTION,
     label: S.LABEL_PLAN_DESCRIPTION, rows: 3, value: current.description,
   });
 
@@ -1075,16 +1080,16 @@ function buildEditDetailsForm(host, current) {
     e.preventDefault();
     const fd = new FormData(form);
     const body = {
-      row_id: String(activePlanId),
-      version: String(current.version),
-      name: (fd.get('name') || '').toString().trim(),
-      description: (fd.get('description') || '').toString().trim(),
-      year_start: parseInt(fd.get('year_start'), 10),
-      year_end: parseInt(fd.get('year_end'), 10),
-      nonce: crypto.randomUUID(),
+      [ROW_ID]: String(activePlanId),
+      [VERSION]: String(current.version),
+      [FIELD_NAME]: (fd.get(FIELD_NAME) || '').toString().trim(),
+      [FIELD_DESCRIPTION]: (fd.get(FIELD_DESCRIPTION) || '').toString().trim(),
+      [FIELD_YEAR_START]: parseInt(fd.get(FIELD_YEAR_START), 10),
+      [FIELD_YEAR_END]: parseInt(fd.get(FIELD_YEAR_END), 10),
+      [FIELD_NONCE]: crypto.randomUUID(),
     };
-    if (!body.name) { showFormError(form, S.ERR_PLAN_NAME_REQUIRED); return; }
-    if (body.year_end < body.year_start) {
+    if (!body[FIELD_NAME]) { showFormError(form, S.ERR_PLAN_NAME_REQUIRED); return; }
+    if (body[FIELD_YEAR_END] < body[FIELD_YEAR_START]) {
       showFormError(form, S.ERR_PLAN_YEAR_RANGE); return;
     }
     try {
@@ -1144,13 +1149,13 @@ function onNewPlan() {
     const fd = new FormData(form);
     const today = new Date().getFullYear();
     const body = {
-      name: (fd.get('name') || '').toString().trim(),
-      description: (fd.get('description') || '').toString().trim(),
-      year_start: today,
-      year_end: today,
-      nonce: crypto.randomUUID(),
+      [FIELD_NAME]: (fd.get(FIELD_NAME) || '').toString().trim(),
+      [FIELD_DESCRIPTION]: (fd.get(FIELD_DESCRIPTION) || '').toString().trim(),
+      [FIELD_YEAR_START]: today,
+      [FIELD_YEAR_END]: today,
+      [FIELD_NONCE]: crypto.randomUUID(),
     };
-    if (!body.name) { showFormError(form, S.ERR_PLAN_NAME_REQUIRED); return; }
+    if (!body[FIELD_NAME]) { showFormError(form, S.ERR_PLAN_NAME_REQUIRED); return; }
     try {
       const { data, status } = await postJSON(PLAN_SAVE_URL, body);
       if (status !== 200) {
@@ -1214,9 +1219,9 @@ function buildExistingPlanCalendarImport(host, { ceduo = false } = {}) {
     if (!file) { showFormError(form, S.ERR_CSV_FILE_REQUIRED); return; }
 
     const fd = new FormData();
-    fd.append('harvest_plan_id', String(activePlanId));
+    fd.append(FIELD_HARVEST_PLAN_ID, String(activePlanId));
     fd.append(ceduoCb.checked ? 'ceduo_file' : 'fustaia_file', file);
-    fd.append('nonce', crypto.randomUUID());
+    fd.append(FIELD_NONCE, crypto.randomUUID());
 
     await submitCsvImport(form, fd, statusBox, errorsBox);
   });
@@ -1252,9 +1257,9 @@ function buildExistingPlanRegressionImport(host) {
     if (!file) { showFormError(form, S.ERR_CSV_FILE_REQUIRED); return; }
 
     const fd = new FormData();
-    fd.append('harvest_plan_id', String(activePlanId));
-    fd.append('regression_file', file);
-    fd.append('nonce', crypto.randomUUID());
+    fd.append(FIELD_HARVEST_PLAN_ID, String(activePlanId));
+    fd.append(FIELD_REGRESSION_FILE, file);
+    fd.append(FIELD_NONCE, crypto.randomUUID());
 
     await submitCsvImport(form, fd, statusBox, errorsBox);
   });
@@ -1685,15 +1690,15 @@ function showTransitionForm(itemId, openFlag) {
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(form);
-    const dateVal = (fd.get('date') || '').toString().trim();
+    const dateVal = (fd.get(FIELD_DATE) || '').toString().trim();
     if (!dateVal) { showFormError(form, S.ERR_DATE_REQUIRED); return; }
 
     const body = {
-      harvest_plan_item_id: itemId,
-      open: openFlag,
-      date: dateVal,
-      note: (fd.get('note') || '').toString().trim(),
-      nonce: crypto.randomUUID(),
+      [FIELD_HARVEST_PLAN_ITEM_ID]: itemId,
+      [FIELD_OPEN]: openFlag,
+      [FIELD_DATE]: dateVal,
+      [FIELD_NOTE]: (fd.get(FIELD_NOTE) || '').toString().trim(),
+      [FIELD_NONCE]: crypto.randomUUID(),
     };
 
     try {
@@ -1989,8 +1994,8 @@ async function showImportMarksForm(itemId) {
     errorsBox.hidden = true;
 
     const fd = new FormData();
-    fd.append('harvest_plan_item_id', String(itemId));
-    fd.append('file', fileInput.files[0]);
+    fd.append(FIELD_HARVEST_PLAN_ITEM_ID, String(itemId));
+    fd.append(FIELD_FILE, fileInput.files[0]);
 
     try {
       const { data, status } = await postFormData(MARK_CSV_IMPORT_URL, fd);
@@ -2022,7 +2027,7 @@ async function deleteMarkRow(itemId, rowId, version) {
   if (!confirm(S.DELETE_CONFIRM)) return;
   try {
     const { data, status } = await postJSON(MARK_DELETE_URL, {
-      row_id: rowId, version, nonce: crypto.randomUUID(),
+      [ROW_ID]: rowId, [VERSION]: version, [FIELD_NONCE]: crypto.randomUUID(),
     });
     if (status !== 200) {
       showError(data?.message || S.ERROR_GENERIC);
