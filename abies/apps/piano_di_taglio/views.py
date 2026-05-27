@@ -106,6 +106,7 @@ from config.constants import (
     STATUS_VALIDATION_ERROR,
     TRANSITION_RECORDS,
     VERSION,
+    is_truthy,
 )
 
 
@@ -901,7 +902,7 @@ def transition_save_view(request):
     """
     body = json.loads(request.body)
     item_id = _int_or_none(body.get(FIELD_HARVEST_PLAN_ITEM_ID))
-    open_flag = bool(body.get(FIELD_OPEN))
+    open_flag = is_truthy(body.get(FIELD_OPEN))
     date_raw = (body.get(FIELD_DATE) or '').strip()
     note = (body.get(FIELD_NOTE) or '').strip()
 
@@ -1044,7 +1045,7 @@ def mark_save_view(request):
     species_id = _int_or_none(body.get(FIELD_SPECIES_ID))
     d_cm = _int_or_none(body.get(FIELD_D_CM))
     h_m = _decimal_or_none(body.get(FIELD_H_M))
-    h_measured = body.get(FIELD_H_MEASURED) in (True, 1, '1', 'true')
+    h_measured = is_truthy(body.get(FIELD_H_MEASURED))
     volume_m3 = _decimal_or_none(body.get(FIELD_VOLUME_M3))
     mass_q = _decimal_or_none(body.get(FIELD_MASS_Q))
     lat = _float_or_none(body.get(FIELD_LAT))
@@ -1723,9 +1724,9 @@ def _parse_item_body(body):
     errors: list[str] = []
     region_id = _int_or_none(body.get(FIELD_REGION_ID))
     parcel_id = _int_or_none(body.get(FIELD_PARCEL_ID))
-    damaged = bool(body.get(FIELD_DAMAGED))
-    unhealthy = bool(body.get(FIELD_UNHEALTHY))
-    psr = bool(body.get(FIELD_PSR))
+    damaged = is_truthy(body.get(FIELD_DAMAGED))
+    unhealthy = is_truthy(body.get(FIELD_UNHEALTHY))
+    psr = is_truthy(body.get(FIELD_PSR))
     if parcel_id is not None:
         # Parcel-scoped item: region is implicit through parcel.
         region_id = None

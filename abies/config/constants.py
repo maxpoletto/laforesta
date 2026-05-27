@@ -131,3 +131,10 @@ FIELD_ACC_M                 = 'acc_m'
 FIELD_FUSTAIA_FILE          = 'fustaia_file'
 FIELD_CEDUO_FILE            = 'ceduo_file'
 FIELD_REGRESSION_FILE       = 'regression_file'
+
+
+_TRUTHY = (True, 1, '1', 'true', 'on')
+
+def is_truthy(value) -> bool:
+    """Safe boolean parse for form data that may arrive as string, int, or bool."""
+    return value in _TRUTHY

@@ -44,6 +44,7 @@ from config.constants import (
     GRID_RECORD, HTML, MESSAGE, RECORD, RECORDS, ROW_ID, SAMPLE_RECORD,
     STATUS, STATUS_NOT_FOUND, STATUS_VALIDATION_ERROR, SURVEY_RECORD,
     SURVEY_RECORDS,
+    is_truthy,
 )
 
 # Quantization for tree-height measurements (centimetre precision).
@@ -674,7 +675,7 @@ def _parse_tree_body(body):
         FIELD_MASS_Q: _decimal_or_none(body.get(FIELD_MASS_Q)) if not coppice else None,
         FIELD_LAT: _float_or_none(body.get(FIELD_LAT)),
         FIELD_LON: _float_or_none(body.get(FIELD_LON)),
-        FIELD_PRESERVED: bool(body.get(FIELD_PRESERVED)),
+        FIELD_PRESERVED: is_truthy(body.get(FIELD_PRESERVED)),
         FIELD_COPPICE: coppice,
         FIELD_SHOOTS: shoots,
         FIELD_TREE_PICK_EXISTING_ID: tree_pick_existing_id,
