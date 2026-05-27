@@ -98,8 +98,7 @@ const DEFAULT_OPEN = 'f';
 
 const sections = {
   f: {
-    title: S.SECTION_INTERVENTI_FUSTAIA, open: true,
-    kind: 'fustaia',
+    open: true, kind: 'fustaia',
     header: null, body: null, host: null, table: null,
     toolbar: null, actionAdd: null, emptyState: null,
     typeMatcher: (tipo) => tipo !== S.TYPE_CEDUO,
@@ -110,8 +109,7 @@ const sections = {
     csvFilename: 'interventi-fustaia.csv',
   },
   c: {
-    title: S.SECTION_INTERVENTI_CEDUO, open: false,
-    kind: 'ceduo',
+    open: false, kind: 'ceduo',
     header: null, body: null, host: null, table: null,
     toolbar: null, actionAdd: null, emptyState: null,
     typeMatcher: (tipo) => tipo === S.TYPE_CEDUO,

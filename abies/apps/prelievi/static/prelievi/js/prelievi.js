@@ -73,7 +73,6 @@ let colMap = {};
 // just hosts the TableWrapper's container.
 const sections = {
   a: {
-    title: S.CHART_PRODUCTION,
     open: false, dirty: true,
     canvas: null, instance: null, header: null, body: null,
     breakdown: 'total', byMonth: false,
@@ -85,7 +84,6 @@ const sections = {
     ),
   },
   b: {
-    title: S.CHART_SPECIES_BY_PARCEL,
     open: false, dirty: true,
     canvas: null, instance: null, header: null, body: null,
     render: () => _renderChart(sections.b),
@@ -94,7 +92,6 @@ const sections = {
     ),
   },
   i: {
-    title: S.SECTION_INTERVENTI,
     open: true,
     header: null, body: null,
   },

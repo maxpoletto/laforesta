@@ -124,21 +124,13 @@ const TREES_COLS = {
 
 // --- Page state -------------------------------------------------------------
 const sections = {
-  g: { title: S.SECTION_GRIGLIE,   open: false, header: null, body: null,
+  g: { open: false, header: null, body: null,
        pulldown: null, summary: null, mapEl: null, map: null,
-       // {gridId, center: [lat,lng], zoom} — stashed across
-       // re-renders so a grid save / area edit doesn't reset the
-       // user's pan/zoom.  Keyed by gridId because `returnToPage`
-       // zeroes the global `activeGridId` before re-running
-       // applyParams; matching by id (not by global flag) lets the
-       // re-render pick up the same view.  Discarded by the renderer
-       // when the gridId changes.
        savedView: null },
-  r: { title: S.SECTION_RILEVAMENTI, open: true, header: null, body: null,
+  r: { open: true, header: null, body: null,
        pulldown: null, summary: null, mapEl: null, map: null,
-       // {surveyId, center, zoom} — same logic, keyed by surveyId.
        savedView: null },
-  t: { title: S.SECTION_ALBERI_CAMPIONATI, open: false, header: null, body: null,
+  t: { open: false, header: null, body: null,
        host: null, emptyEl: null },
 };
 
