@@ -1013,8 +1013,8 @@ def mark_form_view(request, mark_id: int | None = None):
         ),
         'd_cm': tm.d_cm if tm else '',
         'h_m': tm.h_m if tm else '',
-        'lat': tm.lat if tm else '',
-        'lon': tm.lon if tm else '',
+        'lat': round(tm.lat, 5) if tm and tm.lat is not None else '',
+        'lon': round(tm.lon, 5) if tm and tm.lon is not None else '',
         # Shared _tree_fields.html context.
         'show_ceduo': False,
         'show_l10': False,
@@ -1287,8 +1287,8 @@ def mark_csv_import_view(request):
         species_name = row['species'].strip()
         d_str = row['d_cm'].strip()
         h_str = row['h_m'].strip().replace(',', '.')
-        lat_str = row.get('lat', '').strip()
-        lon_str = row.get('lon', '').strip()
+        lat_str = row.get('lat', '').strip().replace(',', '.')
+        lon_str = row.get('lon', '').strip().replace(',', '.')
         acc_str = row.get('acc_m', '').strip()
         h_meas_str = row.get('h_measured', '').strip()
         operator = row.get('operator', '').strip()

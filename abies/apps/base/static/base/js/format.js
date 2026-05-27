@@ -13,7 +13,6 @@ export function fmtDecimal(v, n) {
 export const fmtDecimal1 = v => fmtDecimal(v, 1);
 export const fmtDecimal2 = v => fmtDecimal(v, 2);
 export const fmtDecimal3 = v => fmtDecimal(v, 3);
-export const fmtDecimal5 = v => fmtDecimal(v, 5);
 
 export function fmtDecimalBlankZero(v, n) {
   if (!v) return '';
@@ -21,6 +20,11 @@ export function fmtDecimalBlankZero(v, n) {
 }
 
 export const fmtDecimal1BlankZero = v => fmtDecimalBlankZero(v, 1);
+
+export function fmtCoord(v) {
+  if (v == null || v === '') return '';
+  return typeof v === 'number' ? v.toFixed(5) : v;
+}
 
 export function fmtInt(v) {
   return v == null || v === '' ? '' : String(v);

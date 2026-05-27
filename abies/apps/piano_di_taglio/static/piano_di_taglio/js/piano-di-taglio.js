@@ -30,7 +30,7 @@ import { mountUseLocationButton } from '../../base/js/latlng-input.js';
 import * as S from '../../base/js/strings.js';
 import { ROW_ID, VERSION } from '../../base/js/constants.js';
 import {
-  fmtDecimal1, fmtDecimal2, fmtDecimal3, fmtInt,
+  fmtDecimal1, fmtDecimal2, fmtDecimal3, fmtInt, fmtCoord,
   fmtVolume, fmtArea, fmtMass,
 } from '../../base/js/format.js';
 
@@ -1798,7 +1798,7 @@ async function appendItemMarkTreesSection(card, itemId, state) {
 }
 
 function buildMarkTreeColumnDefs(columns) {
-  const hidden = new Set([VERSION, S.COL_LAT, S.COL_LON]);
+  const hidden = new Set([VERSION]);
   const defs = {};
   for (const name of columns) {
     if (name === ROW_ID) continue;
@@ -1810,6 +1810,7 @@ function buildMarkTreeColumnDefs(columns) {
     if (name === S.COL_H_MEASURED) { defs[name] = { label: name, type: 'boolean', width: '85px' }; continue; }
     if (name === S.COL_V_M3) { defs[name] = { label: name, type: 'number', width: '85px', formatter: fmtDecimal3 }; continue; }
     if (name === S.COL_MASS_Q) { defs[name] = { label: name, type: 'number', width: '70px', formatter: fmtDecimal2 }; continue; }
+    if (name === S.COL_LAT || name === S.COL_LON) { defs[name] = { label: name, type: 'number', width: '90px', formatter: fmtCoord }; continue; }
     defs[name] = { label: name };
   }
   return defs;

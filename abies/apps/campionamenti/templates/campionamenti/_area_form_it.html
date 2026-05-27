@@ -59,12 +59,12 @@ on the Griglie map).  Per `docs/page-campionamenti.md` §Section 1.
       <div class="form-group">
         <label for="id_area_lat">Lat</label>
         <input type="number" id="id_area_lat" name="lat" step="any" required
-               value="{% if area %}{{ area.lat }}{% else %}{{ initial_lat }}{% endif %}">
+               value="{{ lat }}">
       </div>
       <div class="form-group">
         <label for="id_area_lon">Lon</label>
         <input type="number" id="id_area_lon" name="lon" step="any" required
-               value="{% if area %}{{ area.lon }}{% else %}{{ initial_lon }}{% endif %}">
+               value="{{ lon }}">
       </div>
     </div>
 

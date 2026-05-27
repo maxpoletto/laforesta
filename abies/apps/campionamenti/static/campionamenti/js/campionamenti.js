@@ -35,7 +35,7 @@ import MapCommon from '../../base/js/map-common.js';
 import { mountUseLocationButton } from '../../base/js/latlng-input.js';
 import { wireVMPreview as wireVMPreviewShared } from '../../base/js/tree-form.js';
 import {
-  fmtDecimal1, fmtDecimal2, fmtDecimal5, fmtInt, fmtBool,
+  fmtDecimal1, fmtDecimal2, fmtCoord, fmtInt, fmtBool,
 } from '../../base/js/format.js';
 
 const CSS_URL = '/static/campionamenti/css/campionamenti.css';
@@ -115,8 +115,8 @@ const TREES_COLS = {
   [S.COL_V_M3]:        { label: S.COL_V_M3, type: 'number', width: '65px', formatter: fmtDecimal2 },
   [S.COL_MASS_Q]:      { label: S.COL_MASS_Q, type: 'number', width: '70px', formatter: fmtDecimal1 },
   [S.COL_PAI]:         { label: S.COL_PAI, type: 'boolean', width: '50px', formatter: fmtBool },
-  [S.COL_LAT]:         { label: S.COL_LAT, type: 'number', width: '85px', formatter: fmtDecimal5 },
-  [S.COL_LON]:         { label: S.COL_LON, type: 'number', width: '85px', formatter: fmtDecimal5 },
+  [S.COL_LAT]:         { label: S.COL_LAT, type: 'number', width: '85px', formatter: fmtCoord },
+  [S.COL_LON]:         { label: S.COL_LON, type: 'number', width: '85px', formatter: fmtCoord },
   [VERSION]: { label: VERSION, hidden: true },
 };
 
@@ -1040,8 +1040,8 @@ function showAreaPopover(area) {
     [S.COL_COMPRESA, area.compresa],
     [S.COL_PARCEL, area.particella],
     [S.COL_NUMBER, area.numero],
-    [S.COL_LAT, area.lat?.toFixed?.(5) ?? area.lat],
-    [S.COL_LON, area.lon?.toFixed?.(5) ?? area.lon],
+    [S.COL_LAT, fmtCoord(area.lat)],
+    [S.COL_LON, fmtCoord(area.lon)],
     [S.COL_QUOTA, area.altitude ?? '—'],
     [S.COL_RAGGIO, area.r_m],
     [S.COL_NOTE, area.note || ''],

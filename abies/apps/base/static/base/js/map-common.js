@@ -2,6 +2,7 @@
 // Provides: map creation, basemaps, coordinate display, measurement, location tracking
 
 import * as S from './strings.js';
+import { fmtCoord } from './format.js';
 
 const $ = id => document.getElementById(id);
 
@@ -92,7 +93,7 @@ const MapCommon = (function() {
             if (!coordsEl) return;
 
             leafletMap.on('mousemove', e => {
-                coordsEl.textContent = `(${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)})`;
+                coordsEl.textContent = `(${fmtCoord(e.latlng.lat)}, ${fmtCoord(e.latlng.lng)})`;
             });
         }
 

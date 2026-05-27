@@ -323,6 +323,8 @@ def area_form_view(request, area_id: int | None = None):
             FIELD_AREA: area, 'grid': grid,
             'regions': regions, 'parcels': parcels,
             'initial_lat': initial_lat, 'initial_lon': initial_lon,
+            'lat': round(area.lat, 5) if area else initial_lat,
+            'lon': round(area.lon, 5) if area else initial_lon,
         }, request=request,
     )})
 
@@ -496,10 +498,10 @@ def _render_tree_form(request, ts_id, survey_id, area_id):
         'd_cm': ts.d_cm if ts else '',
         'h_m': ts.h_m if ts else '',
         'l10_mm': ts.l10_mm if ts else 0,
-        'lat': (tree.lat if tree and tree.lat is not None
-                else area.lat) if ts else area.lat,
-        'lon': (tree.lon if tree and tree.lon is not None
-                else area.lon) if ts else area.lon,
+        'lat': round((tree.lat if tree and tree.lat is not None
+                      else area.lat) if ts else area.lat, 5),
+        'lon': round((tree.lon if tree and tree.lon is not None
+                      else area.lon) if ts else area.lon, 5),
     }, request=request)
 
 
