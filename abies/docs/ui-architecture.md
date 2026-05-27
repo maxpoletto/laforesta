@@ -6,11 +6,16 @@ navigation happens client-side without full page reloads.
 
 ## Shell and header
 
-The shell is a single Django template containing just:
+The shell (`apps/base/templates/base/shell_it.html`) contains:
 - The header, shared by all domain pages.
-- A content area where the domain-specific page content is rendered.
+- A content area (`<main id="content">`) where domain-specific content is rendered.
+- A modal container (`<div id="modal-container">`).
+- HTML `<template>` elements for each domain page's scaffold and modals
+  (via `{% include %}` of per-app `_shell_templates_it.html` files).
 
 The shell is rendered once and never reloads during normal use.
+`<template>` content is inert (not rendered, no CSS, no scripts) until
+JS clones it via `cloneTemplate(id)` (`base/js/templates.js`).
 
 The header is adaptive for desktop and mobile. On narrow displays it contains only:
 - The logo of the company.

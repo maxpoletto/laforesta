@@ -129,11 +129,20 @@ Infrastructure:
   form fragment and shows it in the overlay modal.
   `renderModalForm(html)` re-renders inside the open modal (for
   validation errors / conflicts).
-- **`form-widgets.js`**: shared DOM builders for form elements.
-  `mkRow`, `mkInput`, `mkTextarea`, `mkFileInput`, `mkFormActions`,
-  `mkStatusBox`, `mkErrorsBox`, `renderCsvErrors`, `mkCollapsible`,
-  `mkEditDeleteIcons`, `mkTabbedModal`.  All pages import from here;
-  never duplicate these locally.
+- **`form-widgets.js`**: shared DOM builders and template-backed
+  helpers.  DOM builders: `mkRow`, `mkInput`, `mkTextarea`,
+  `mkFileInput`, `mkFormActions`, `mkStatusBox`, `mkErrorsBox`,
+  `renderCsvErrors`, `mkCollapsible`, `mkEditDeleteIcons`,
+  `mkTabbedModal`.  Template-backed helpers (clone from
+  `<template>` elements in `_shell_templates_it.html`):
+  `confirmModal(message, onConfirm, { confirmLabel })`,
+  `cascadeDeleteModal({ title, warning, exportRequired, onExportCSV,
+  onDelete })`.  All pages import from here; never duplicate
+  these locally.
+- **`csv-export.js`**: `csvField(v, fmt)`, `downloadCSV(lines,
+  filename)`, `exportDigest(digest, exportCols, srcCols, filename,
+  opts)`.  Shared CSV export primitives; `TableWrapper.exportCSV()`
+  is a separate mechanism.
 
 Tabbed modals (e.g., pencil-edit modals with Dettagli + Import tabs)
 use `.modal-tabs` / `.modal-tab` / `.modal-tab-body` /
@@ -237,6 +246,48 @@ Elimina is disabled until after CSV export.
 Input-related errors are reported directly in the input modals, not in a
 separate modal. Errors include validation errors, conflicts, and other
 conditions such as network errors.
+
+## `<template>` components
+
+Page scaffolds and client-built modals use HTML `<template>` elements
+rendered by Django inside the shell page.  JS clones them via
+`cloneTemplate(id)` (`base/js/templates.js`), fills dynamic content,
+and wires event handlers.  `<template>` content is inert until cloned.
+
+### File layout
+
+Each app has a `_shell_templates_it.html` included by the shell:
+
+    base/templates/base/_shell_templates_it.html       — shared (confirm, cascade-delete)
+    campionamenti/templates/campionamenti/_shell_templates_it.html
+    piano_di_taglio/templates/piano_di_taglio/_shell_templates_it.html
+    prelievi/templates/prelievi/_shell_templates_it.html
+
+### Conventions
+
+- **`data-section="x"`** on collapsible header/body pairs — JS queries
+  by section key to wire toggles and stash refs.
+- **`data-action="name"`** on buttons — JS delegates clicks via a
+  single `el.addEventListener('click', ...)` handler that dispatches
+  by `btn.dataset.action`.
+- **`data-field="name"`** on elements whose text is set dynamically
+  by JS after cloning (titles, labels, help text).
+- **`data-target="name"`** on container elements that JS populates
+  with dynamic content (summaries, map hosts, table hosts).
+- **`data-role="name"`** on functional elements (forms, sliders)
+  that JS needs to query for wiring.
+- **`{% if user.role != 'reader' %}`** gates writer-only elements
+  (edit/delete icons, add buttons) server-side.  JS `canModify()`
+  is no longer needed for elements in templates.
+- Static Italian text lives directly in the `_it.html` template
+  (the locale is indexed by filename, per the `_it.html` / symlink
+  convention).  Dynamic text is set by JS from `S.*` constants.
+
+### What stays in JS
+
+Data-driven content (table rows, chart datasets, map markers),
+slider logic, and any structure that depends on runtime state.
+Only static scaffolding moves to templates.
 
 ## Accessibility
 
