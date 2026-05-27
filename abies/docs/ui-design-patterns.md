@@ -27,8 +27,8 @@ page's collapsibles are documented in its `docs/page-*.md`). They are thin
 
 Many types of objects (survey grids, surveys, harvest plans) can be created and
 also exported to CSV. The standard pattern is two side-by-side buttons on the
-far right of the work space, [Export CSV] and [+New X] (where X is the type of
-object).
+far right of the work space, [Esporta CSV] (grey) and [+Nuovo X] (green) (where
+X is the type of object).
 
 ## Tabular data
 
@@ -41,10 +41,12 @@ concatenation of all fields. Sort order is preserved.
 Tables fill the viewport height with their own scrollbar. 1px
 medium-grey borders; light grey column headers.
 
-Additionally, for users with role "writer" or "admin", tables may (depending on their semantics — see the relevant page doc (`docs/page-*.md`)) allow modification:
+Additionally, for users with role "writer" or "admin", tables may (depending on
+their semantics — see the relevant page doc (`docs/page-*.md`)) allow
+modification:
 
-- Tables that allow row addition have a "+" button below the bottom row, on the
-  right.
+- Tables that allow row addition have a "+ Aggiungi" button below the bottom
+  row, on the right.
 - Tables that allow row editing have a "pencil" icon on the right of each row.
 - Tables that allow row deletion also have a "garbage can" icon on the right.
 
@@ -164,7 +166,8 @@ exception:
    is the verb that commits state ("Salva", "Crea", "Conferma",
    "Importa"; "Elimina" for destructive flows).
 3. **Optional secondary primary (further right).** Typical sets are `[Annulla]
-   [Conferma]` and `[Annulla] [Salva] [Salva e continua]`.
+   [Conferma]` and `[Annulla] [Salva] [Salva e continua]`. (Salva e continua
+   opens the same modal again after save, for faster batch input.)
 
 Auxiliary buttons that are *not* commits — e.g. the grid planner's
 "Pianifica" (recompute the preview lattice) — live separately, near
