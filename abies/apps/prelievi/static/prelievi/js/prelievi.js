@@ -20,6 +20,7 @@ import { matchesSearch } from '../../base/js/table.js';
 import {
   aggregateTimeSeries, aggregateSpeciesByParcel, renderStackedBar,
 } from './charts.js';
+import { cloneTemplate } from '../../base/js/templates.js';
 
 const CSS_URL = '/static/prelievi/css/prelievi.css';
 const DATA_ID = 'prelievi';
@@ -160,20 +161,13 @@ export function onQueryChange(params) {
 function showTableView(data, params) {
   inForm = false;
   removeEscapeHandler();
-  _destroyCharts();                       // clean up any previous chart instances
+  _destroyCharts();
   const el = document.getElementById('content');
   el.replaceChildren();
 
   const p = readParams(params);
+  buildPage(el, data, p);
 
-  // Top filter bar: year slider + search + reset + CSV export.
-  const fb = _buildFilterBar(el, data, p);
-
-  // Three collapsible sections (chart A, chart B, interventi/table).
-  // Section 'i'.body becomes the TableWrapper's container.
-  _buildSections(el, p);
-
-  // Table itself.
   const sort = p.sc
     ? { column: p.sc, ascending: p.so }
     : { column: S.COL_DATE, ascending: false };
@@ -183,7 +177,7 @@ function showTableView(data, params) {
     container: sections.i.body,
     digest: data,
     columnDefs: buildColumnDefs(data.columns),
-    inlineToolbar: false,                 // we provide search + CSV in the filter bar
+    inlineToolbar: false,
     canModify: modify,
     actions: modify ? {
       onAdd: () => showAddForm(),
@@ -199,9 +193,8 @@ function showTableView(data, params) {
     onSearch: () => { syncURL(); _updateCharts(); },
   });
 
-  // Wire the external search input and CSV button to the table.
-  table.wireSearchInput(fb.searchInput);
-  fb.csvBtn.addEventListener('click', () => table.exportCSV());
+  const searchInput = el.querySelector('#prelievi-search');
+  if (searchInput) table.wireSearchInput(searchInput);
 
   table.setExternalFilter(yearFilter());
   _updateCharts();
@@ -221,44 +214,6 @@ function onCacheUpdate() {
 // Year slider
 // ---------------------------------------------------------------------------
 
-function buildSlider(container, years, initY1, initY2) {
-  if (years.length < 2) return null;
-
-  const title = document.createElement('span');
-  title.className = 'prelievi-filter-label';
-  title.textContent = S.LABEL_YEARS;
-
-  const label = document.createElement('span');
-  label.className = 'prelievi-slider-label';
-
-  // Group label + slider in a box the same width as the search input below,
-  // so their right edges align.
-  const controls = document.createElement('div');
-  controls.className = 'prelievi-slider-controls';
-
-  const wrapper = document.createElement('div');
-  wrapper.className = 'range-slider';
-  const minInput = document.createElement('input');
-  minInput.type = 'range';
-  const maxInput = document.createElement('input');
-  maxInput.type = 'range';
-  wrapper.append(minInput, maxInput);
-
-  controls.append(label, wrapper);
-  container.append(title, controls);
-
-  const rs = createRangeSlider(minInput, maxInput, label, () => {
-    if (table) table.setExternalFilter(yearFilter());
-    syncURL();
-    _updateCharts();
-  });
-
-  rs.setRange(years);
-  if (initY1 != null || initY2 != null) {
-    rs.setValues(initY1 ?? years[0], initY2 ?? years[years.length - 1]);
-  }
-  return rs;
-}
 
 function extractYears(rows) {
   const s = new Set();
@@ -438,148 +393,89 @@ function _destroyCharts() {
   }
 }
 
-function _buildFilterBar(el, data, p) {
-  const bar = document.createElement('div');
-  bar.className = 'prelievi-filter-bar';
+function buildPage(el, data, p) {
+  const frag = cloneTemplate('tmpl-prelievi-page');
+  el.appendChild(frag);
 
-  // Year slider (appends "Anni" label + controls to bar, returns slider).
+  // Year slider — uses the template's range inputs.
   const years = extractYears(data.rows);
-  slider = buildSlider(bar, years, p.y1, p.y2);
-
-  // "Filtra" label
-  const filterLabel = document.createElement('label');
-  filterLabel.className = 'prelievi-filter-label';
-  filterLabel.textContent = S.FILTER_LABEL;
-
-  // Search input
-  const searchInput = document.createElement('input');
-  searchInput.type = 'text';
-  searchInput.className = 'table-search';
-  searchInput.placeholder = S.SEARCH_PLACEHOLDER;
-  filterLabel.htmlFor = searchInput.id = 'prelievi-search';
-
-  // Reset button: clears both year range and search filter.
-  const resetBtn = document.createElement('button');
-  resetBtn.className = 'btn btn-primary';
-  resetBtn.textContent = S.RESET_FILTERS;
-  resetBtn.addEventListener('click', () => {
-    if (slider) {
-      slider.setValues(years[0], years[years.length - 1]);
+  const sliderLabel = el.querySelector('.prelievi-slider-label');
+  const minInput = el.querySelector('[data-role="slider-min"]');
+  const maxInput = el.querySelector('[data-role="slider-max"]');
+  if (minInput && maxInput && years.length >= 2) {
+    slider = createRangeSlider(minInput, maxInput, sliderLabel, () => {
       if (table) table.setExternalFilter(yearFilter());
+      syncURL();
+      _updateCharts();
+    });
+    slider.setRange(years);
+    if (p.y1 != null || p.y2 != null) {
+      slider.setValues(p.y1 ?? years[0], p.y2 ?? years[years.length - 1]);
     }
-    if (table) table.setSearchText('');
-    syncURL();
-    _updateCharts();
+  }
+
+  // Action delegation on the filter bar.
+  el.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const handlers = {
+      'reset-filters': () => {
+        if (slider) {
+          slider.setValues(years[0], years[years.length - 1]);
+          if (table) table.setExternalFilter(yearFilter());
+        }
+        if (table) table.setSearchText('');
+        syncURL();
+        _updateCharts();
+      },
+      'export-csv': () => table?.exportCSV(),
+    };
+    handlers[btn.dataset.action]?.();
   });
 
-  // CSV export button — wired to table.exportCSV() by caller.
-  const csvBtn = document.createElement('button');
-  csvBtn.className = 'btn btn-primary prelievi-csv-btn';
-  csvBtn.textContent = S.EXPORT_CSV;
-
-  bar.append(filterLabel, searchInput, resetBtn, csvBtn);
-  el.appendChild(bar);
-
-  return { searchInput, csvBtn };
-}
-
-/** Build all three collapsible sections (a, b, i) and wire toggle + URL sync. */
-function _buildSections(el, p) {
-  // Initialize open state + chart A config from URL params before building.
+  // Wire collapsible sections.
   sections.a.breakdown = p.b;
   sections.a.byMonth = p.m;
-  for (const k of SECTION_KEYS) {
-    sections[k].open = p.o.includes(k);
+  for (const key of SECTION_KEYS) {
+    const s = sections[key];
+    s.open = p.o.includes(key);
+    s.header = el.querySelector(`[data-section="${key}"].collapsible-header`);
+    s.body = el.querySelector(`[data-section="${key}"].collapsible-body`);
+    s.header?.classList.toggle('open', s.open);
+    s.body?.classList.toggle('open', s.open);
+    s.header?.addEventListener('click', () => {
+      s.open = !s.open;
+      s.header.classList.toggle('open', s.open);
+      s.body.classList.toggle('open', s.open);
+      if (s.open && s.render && s.dirty) s.render();
+      syncURL();
+    });
   }
 
-  _buildSection(el, sections.a, _buildChartABody);
-  _buildSection(el, sections.b, _buildChartBBody);
-  _buildSection(el, sections.i, null);     // table; body is populated by caller
-}
-
-function _buildSection(el, s, buildBody) {
-  const [header, body] = _collapsible(s.title, s.open);
-  s.header = header;
-  s.body = body;
-  if (buildBody) buildBody(body, s);
-
-  header.addEventListener('click', () => {
-    s.open = !s.open;
-    header.classList.toggle('open', s.open);
-    body.classList.toggle('open', s.open);
-    if (s.open && s.render && s.dirty) s.render();
-    syncURL();
-  });
-
-  el.append(header, body);
-}
-
-function _buildChartABody(body, s) {
-  const controls = document.createElement('div');
-  controls.className = 'chart-controls';
-
-  const sel = document.createElement('select');
-  for (const [value, label] of [
-    ['total', S.CHART_TOTAL], ['compresa', S.COL_REGION],
-    ['particella', S.COL_PARCEL], ['squadra', S.COL_CREW],
-    ['specie', S.LABEL_SPECIES], ['trattore', S.COL_TRACTOR],
-    ['tipo', S.COL_PRODUCT],
-  ]) {
-    const opt = document.createElement('option');
-    opt.value = value;
-    opt.textContent = label;
-    if (value === s.breakdown) opt.selected = true;
-    sel.appendChild(opt);
+  // Chart A: wire breakdown select and month toggle.
+  const a = sections.a;
+  a.canvas = el.querySelector('[data-target="chart-a"]');
+  const breakdownSel = el.querySelector('[data-role="breakdown-select"]');
+  if (breakdownSel) {
+    breakdownSel.value = a.breakdown;
+    breakdownSel.addEventListener('change', () => {
+      a.breakdown = breakdownSel.value;
+      a.render();
+      syncURL();
+    });
   }
-  sel.addEventListener('change', () => {
-    s.breakdown = sel.value;
-    s.render();
-    syncURL();
-  });
-  controls.appendChild(sel);
+  const monthCb = el.querySelector('[data-role="month-toggle"]');
+  if (monthCb) {
+    monthCb.checked = a.byMonth;
+    monthCb.addEventListener('change', () => {
+      a.byMonth = monthCb.checked;
+      a.render();
+      syncURL();
+    });
+  }
 
-  const monthLabel = document.createElement('label');
-  monthLabel.className = 'chart-month-toggle';
-  const monthCb = document.createElement('input');
-  monthCb.type = 'checkbox';
-  monthCb.checked = s.byMonth;
-  monthCb.addEventListener('change', () => {
-    s.byMonth = monthCb.checked;
-    s.render();
-    syncURL();
-  });
-  monthLabel.append(monthCb, ' ' + S.CHART_BY_MONTHS);
-  controls.appendChild(monthLabel);
-
-  body.appendChild(controls);
-
-  s.canvas = document.createElement('canvas');
-  const box = document.createElement('div');
-  box.className = 'chart-container';
-  box.appendChild(s.canvas);
-  body.appendChild(box);
-}
-
-function _buildChartBBody(body, s) {
-  s.canvas = document.createElement('canvas');
-  const box = document.createElement('div');
-  box.className = 'chart-container';
-  box.appendChild(s.canvas);
-  body.appendChild(box);
-}
-
-function _collapsible(title, open = false) {
-  const header = document.createElement('div');
-  header.className = 'collapsible-header' + (open ? ' open' : '');
-  const span = document.createElement('span');
-  span.textContent = title;
-  const arrow = document.createElement('span');
-  arrow.className = 'arrow';
-  header.append(span, arrow);
-
-  const body = document.createElement('div');
-  body.className = 'collapsible-body' + (open ? ' open' : '');
-  return [header, body];
+  // Chart B.
+  sections.b.canvas = el.querySelector('[data-target="chart-b"]');
 }
 
 // ---------------------------------------------------------------------------
