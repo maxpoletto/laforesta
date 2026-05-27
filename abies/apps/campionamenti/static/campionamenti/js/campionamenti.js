@@ -8,8 +8,8 @@
  *
  * URL params: see docs/page-campionamenti.md (o, g, s, a, tf, tsc, tso).
  *
- * M3d-read: read-only view; writer affordances (pencil/garbage/+),
- * manual entry forms, and CSV imports ship in M3d-write.
+ * Readers see a read-only view; writers get edit/delete/add affordances,
+ * manual entry forms, and CSV imports.
  */
 
 import * as cache from '../../base/js/cache.js';
@@ -930,7 +930,7 @@ function syncURL() {
 }
 
 // ---------------------------------------------------------------------------
-// New grid / survey forms (M3d-write — "Crea vuota/o" path)
+// New grid / survey forms
 // ---------------------------------------------------------------------------
 
 async function showNewGridForm() {
@@ -1024,7 +1024,7 @@ function wirePathChooser(modal, onSwitch) {
 }
 
 // ---------------------------------------------------------------------------
-// Section 1 — area popover + new-area form (M3d-write)
+// Section 1 — area popover + new-area form
 // ---------------------------------------------------------------------------
 
 /**
@@ -1967,7 +1967,7 @@ function surveyRow(id) {
 }
 
 // ---------------------------------------------------------------------------
-// Manual tree+sample entry form (M3d-write)
+// Manual tree+sample entry form
 // ---------------------------------------------------------------------------
 
 async function showAddTreeForm() {

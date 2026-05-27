@@ -5,8 +5,8 @@
  * No visited / unvisited coloring (that lives on Rilevamenti); the
  * Griglie map is purely a grid-management surface.
  *
- * M3d-read: hover tooltips + popovers on click.  Writer affordances
- * (new-area click, edit/delete on popover) ship in M3d-write.
+ * Hover tooltips + popovers on click.  Writer affordances include
+ * new-area click and edit/delete on popover.
  */
 
 import MapCommon from '../../base/js/map-common.js';

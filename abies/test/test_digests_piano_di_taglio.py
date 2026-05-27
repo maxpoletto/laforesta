@@ -1,12 +1,12 @@
-"""Tests for the Piano di taglio digests (PT-30..35).
+"""Tests for the Piano di taglio digests.
 
 Covers:
-- generate_harvest_plans / build_harvest_plan_record (PT-30)
-- generate_harvest_plan_items / build_harvest_plan_item_record (PT-31)
-- generate_tree_height_regressions / build_tree_height_regression_record (PT-32)
-- generate_mark_trees_for_item / build_tree_mark_record (PT-33)
-- generate_prelievi Cantiere column (PT-34)
-- build_<digest>_record == generator row shape contract (PT-35)
+- generate_harvest_plans / build_harvest_plan_record
+- generate_harvest_plan_items / build_harvest_plan_item_record
+- generate_tree_height_regressions / build_tree_height_regression_record
+- generate_mark_trees_for_item / build_tree_mark_record
+- generate_prelievi Cantiere column
+- build_<digest>_record == generator row shape contract
 
 Tests that depend on a write view marking digests stale (the full
 write→stale→regenerate path in B5) land in Phase 4 alongside the views.
@@ -105,7 +105,7 @@ def _load(path):
 
 
 # ---------------------------------------------------------------------------
-# PT-30: harvest_plans
+# harvest_plans digest
 # ---------------------------------------------------------------------------
 
 class TestGenerateHarvestPlans:
@@ -158,7 +158,7 @@ class TestGenerateHarvestPlans:
 
 
 # ---------------------------------------------------------------------------
-# PT-31: harvest_plan_items
+# harvest_plan_items digest
 # ---------------------------------------------------------------------------
 
 class TestGenerateHarvestPlanItems:
@@ -258,7 +258,7 @@ class TestGenerateHarvestPlanItems:
 
 
 # ---------------------------------------------------------------------------
-# PT-32: tree_height_regressions
+# tree_height_regressions digest
 # ---------------------------------------------------------------------------
 
 class TestGenerateTreeHeightRegressions:
@@ -302,7 +302,7 @@ class TestGenerateTreeHeightRegressions:
 
 
 # ---------------------------------------------------------------------------
-# PT-33: mark_trees_<id>
+# mark_trees_<id> digest
 # ---------------------------------------------------------------------------
 
 class TestGenerateMarkTreesForItem:
@@ -423,7 +423,7 @@ class TestDynamicResolver:
 
 
 # ---------------------------------------------------------------------------
-# PT-34: prelievi Cantiere column
+# prelievi Cantiere column
 # ---------------------------------------------------------------------------
 
 class TestPrelieviCantiere:

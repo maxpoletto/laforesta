@@ -1,4 +1,4 @@
-"""Tests for Campionamenti API views (data endpoints, M3b)."""
+"""Tests for Campionamenti API views."""
 
 import gzip
 import json

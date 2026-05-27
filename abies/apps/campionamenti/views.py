@@ -1,7 +1,7 @@
 """Campionamenti API views.
 
-M3a: read endpoints (4 eager digests + per-survey lazy digest).
-M3d-write: manual tree+sample entry form + save endpoint.
+Read endpoints (4 eager digests + per-survey lazy digest).
+Manual tree+sample entry form + save endpoint.
 
 Form endpoints follow the standard Abies idiom (see
 `apps.prelievi.views`): a GET returns an HTML fragment, a POST
@@ -53,7 +53,7 @@ TREE_H_QUANTUM = Decimal('0.01')
 
 
 # ---------------------------------------------------------------------------
-# Data endpoints (M3a)
+# Data endpoints
 # ---------------------------------------------------------------------------
 
 @login_required
@@ -85,7 +85,7 @@ def sampled_trees_data(request, survey_id: int):
 
 
 # ---------------------------------------------------------------------------
-# Manual tree + sample entry form (M3d-write)
+# Manual tree + sample entry form
 # ---------------------------------------------------------------------------
 
 @login_required
@@ -825,7 +825,7 @@ def _validation_error(errors, ts_id, request, body):
 
 
 # ---------------------------------------------------------------------------
-# Grid + Survey CRUD (M3d-write; "Crea vuota/o" path)
+# Grid + Survey CRUD
 # ---------------------------------------------------------------------------
 
 @login_required
