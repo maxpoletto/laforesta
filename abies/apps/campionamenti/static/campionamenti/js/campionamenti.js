@@ -27,6 +27,7 @@ import {
 } from '../../base/js/forms.js';
 import {
   mkCollapsible, mkEditDeleteIcons, renderCsvErrors,
+  confirmModal, cascadeDeleteModal,
 } from '../../base/js/form-widgets.js';
 import { RilevamentiMap } from './rilevamenti-map.js';
 import { GriglieMap } from './griglie-map.js';
@@ -1529,7 +1530,7 @@ function confirmDeleteGrid() {
   const msg = nAreas > 0
     ? `${nAreas} aree saranno eliminate. ${S.DELETE_CONFIRM}`
     : S.DELETE_CONFIRM;
-  simpleConfirmModal(msg, async () => {
+  confirmModal(msg, async () => {
     try {
       const { data, status } = await postJSON(
         `${GRID_DELETE_URL_PREFIX}${activeGridId}/`, {},
@@ -1540,7 +1541,6 @@ function confirmDeleteGrid() {
       }
       activeGridId = null;
       await refreshGrids();
-      // Refresh sample_areas too (cascaded).
       try {
         await cache.load(SAMPLE_AREAS_ID);
         sampleAreasData = cache.get(SAMPLE_AREAS_ID);
@@ -1560,12 +1560,12 @@ function confirmDeleteSurvey() {
   const nVisited = row[c.indexOf(S.COL_N_AREAS_VISITED)] || 0;
 
   if (nVisited === 0) {
-    simpleConfirmModal(S.DELETE_CONFIRM, () => doDeleteSurvey());
+    confirmModal(S.DELETE_CONFIRM, () => doDeleteSurvey());
     return;
   }
-  // Survey has samples → cascade flow with forced CSV export.
   const nTrees = countTreesInActiveSurvey();
-  showCascadeDeleteModal({
+  cascadeDeleteModal({
+    title: S.CASCADE_CONFIRM_TITLE,
     warning: S.CASCADE_WARN_SURVEY
       .replace('{n_samples}', nVisited)
       .replace('{n_trees}', nTrees),
@@ -1614,53 +1614,6 @@ function countTreesInActiveSurvey() {
  * until the user clicks "Esporta CSV" (forces the operator to keep a
  * backup of the to-be-deleted rows).
  */
-function showCascadeDeleteModal({ warning, onExportCSV, onDelete }) {
-  const frag = document.createDocumentFragment();
-  const h = document.createElement('h2');
-  h.textContent = S.CASCADE_CONFIRM_TITLE;
-  h.className = 'cascade-confirm-title';
-  frag.appendChild(h);
-
-  const warn = document.createElement('p');
-  warn.className = 'cascade-confirm-warning';
-  warn.textContent = warning;
-  frag.appendChild(warn);
-
-  const need = document.createElement('p');
-  need.textContent = S.CASCADE_EXPORT_REQUIRED;
-  frag.appendChild(need);
-
-  const actions = document.createElement('div');
-  actions.className = 'form-actions';
-
-  const cancel = document.createElement('button');
-  cancel.className = 'btn';
-  cancel.dataset.action = 'cancel';
-  cancel.textContent = S.CANCEL;
-  cancel.addEventListener('click', dismissModal);
-
-  const exportBtn = document.createElement('button');
-  exportBtn.className = 'btn btn-primary';
-  exportBtn.textContent = S.EXPORT_CSV;
-
-  const delBtn = document.createElement('button');
-  delBtn.className = 'btn btn-primary cascade-delete-btn';
-  delBtn.textContent = S.ACTION_DELETE;
-  delBtn.disabled = true;
-
-  exportBtn.addEventListener('click', () => {
-    onExportCSV();
-    delBtn.disabled = false;
-  });
-  delBtn.addEventListener('click', () => {
-    dismissModal();
-    onDelete();
-  });
-
-  actions.append(cancel, exportBtn, delBtn);
-  frag.appendChild(actions);
-  showModal(frag);
-}
 
 function exportSurveyCSV(surveyId) {
   if (!currentTreesId) return;
@@ -1786,28 +1739,6 @@ function downloadCSV(lines, filename) {
   URL.revokeObjectURL(a.href);
 }
 
-function simpleConfirmModal(message, onConfirm) {
-  const frag = document.createDocumentFragment();
-  const p = document.createElement('p');
-  p.textContent = message;
-  frag.appendChild(p);
-  const actions = document.createElement('div');
-  actions.className = 'form-actions';
-  const cancel = document.createElement('button');
-  cancel.className = 'btn';
-  cancel.textContent = S.CANCEL;
-  cancel.addEventListener('click', dismissModal);
-  const ok = document.createElement('button');
-  ok.className = 'btn btn-primary';
-  ok.textContent = S.ACTION_DELETE;
-  ok.addEventListener('click', async () => {
-    dismissModal();
-    await onConfirm();
-  });
-  actions.append(cancel, ok);
-  frag.appendChild(actions);
-  showModal(frag);
-}
 
 /**
  * Update one option's text in a section's pulldown after a rename.

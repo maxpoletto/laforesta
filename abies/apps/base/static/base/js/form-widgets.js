@@ -5,7 +5,8 @@
  */
 
 import * as S from './strings.js';
-import { show as showModal } from './modals.js';
+import { show as showModal, dismiss as dismissModal } from './modals.js';
+import { cloneTemplate } from './templates.js';
 
 // ---------------------------------------------------------------------------
 // Form structure
@@ -250,4 +251,52 @@ export function mkTabbedModal({ title, tabs, initialTab, onSwitch }) {
 
   switchTab(initialTab || tabs[0]?.id);
   return { fragment: frag, switchTab, lockHeight };
+}
+
+// ---------------------------------------------------------------------------
+// Confirm / cascade-delete modals (backed by <template> in shell)
+// ---------------------------------------------------------------------------
+
+export function confirmModal(message, onConfirm, { confirmLabel } = {}) {
+  const frag = cloneTemplate('tmpl-confirm-modal');
+  frag.querySelector('[data-field="message"]').textContent = message;
+  const okBtn = frag.querySelector('[data-action="confirm"]');
+  okBtn.textContent = confirmLabel || S.ACTION_DELETE;
+  frag.querySelector('[data-action="cancel"]')
+    .addEventListener('click', () => dismissModal());
+  okBtn.addEventListener('click', async () => {
+    dismissModal();
+    await onConfirm();
+  });
+  showModal(frag);
+}
+
+export function cascadeDeleteModal({ title, warning, exportRequired, onExportCSV, onDelete }) {
+  const frag = cloneTemplate('tmpl-cascade-delete-modal');
+  frag.querySelector('[data-field="title"]').textContent = title;
+  frag.querySelector('[data-field="warning"]').textContent = warning;
+
+  const exportReqEl = frag.querySelector('[data-field="export-required"]');
+  const exportBtn = frag.querySelector('[data-action="export"]');
+  const delBtn = frag.querySelector('[data-action="delete"]');
+
+  if (onExportCSV) {
+    exportReqEl.textContent = exportRequired || S.CASCADE_EXPORT_REQUIRED;
+    exportBtn.addEventListener('click', () => {
+      onExportCSV();
+      delBtn.disabled = false;
+    });
+  } else {
+    exportReqEl.remove();
+    exportBtn.remove();
+    delBtn.disabled = false;
+  }
+
+  frag.querySelector('[data-action="cancel"]')
+    .addEventListener('click', () => dismissModal());
+  delBtn.addEventListener('click', () => {
+    dismissModal();
+    onDelete();
+  });
+  showModal(frag);
 }

@@ -21,7 +21,7 @@ import {
 import {
   mkRow, mkInput, mkTextarea, mkFileInput, mkFormActions,
   mkStatusBox, mkErrorsBox, renderCsvErrors,
-  mkCollapsible, mkEditDeleteIcons,
+  mkCollapsible, mkEditDeleteIcons, cascadeDeleteModal,
 } from '../../base/js/form-widgets.js';
 import {
   wireVMPreview, ID_D_CM, ID_H_M, ID_SPECIES, ID_LAT, ID_LON,
@@ -581,12 +581,6 @@ function buildNewPlanButton() {
 
 // ---------------------------------------------------------------------------
 // Dangerous-delete flow.
-//
-// `showDangerousDeleteModal` is the shared confirmation-modal template
-// parameterised by object type — exported so per-item deletion can
-// reuse it.  The "Elimina" button stays disabled until the user clicks
-// "Esporta CSV"; that forced-download step makes sure the operator has
-// a local backup before destruction.
 // ---------------------------------------------------------------------------
 
 function onDeletePlan() {
@@ -602,7 +596,7 @@ function onDeletePlan() {
   }
 
   const planName = row[plansData.columns.indexOf(S.COL_NAME)];
-  showDangerousDeleteModal({
+  cascadeDeleteModal({
     title: S.DELETE_PLAN_TITLE,
     warning: S.DELETE_PLAN_WARNING.replace('{name}', planName),
     onExportCSV: () => downloadPlanExport(activePlanId),
@@ -839,7 +833,7 @@ function confirmDeleteItem(itemId) {
   // case the item has no marks / harvests / transitions (DB-level
   // PROTECT blocks otherwise).  Nothing to back up → skip the
   // forced-download step.
-  showDangerousDeleteModal({
+  cascadeDeleteModal({
     title: S.DELETE_ITEM_TITLE,
     warning: S.DELETE_ITEM_WARNING
       .replace('{year}', year)
@@ -884,59 +878,6 @@ function downloadItemExport(itemId) {
  * omitted (per-item delete in PLANNED state with no deps), the
  * export step is skipped: Elimina is enabled immediately.
  */
-export function showDangerousDeleteModal({ title, warning, onExportCSV, onDelete }) {
-  const frag = document.createDocumentFragment();
-
-  const h = document.createElement('h2');
-  h.textContent = title;
-  h.className = 'cascade-confirm-title';
-  frag.appendChild(h);
-
-  const warn = document.createElement('p');
-  warn.className = 'cascade-confirm-warning';
-  warn.textContent = warning;
-  frag.appendChild(warn);
-
-  if (onExportCSV) {
-    const need = document.createElement('p');
-    need.textContent = S.CASCADE_EXPORT_REQUIRED;
-    frag.appendChild(need);
-  }
-
-  const actions = document.createElement('div');
-  actions.className = 'form-actions';
-
-  const cancel = document.createElement('button');
-  cancel.className = 'btn';
-  cancel.dataset.action = 'cancel';
-  cancel.textContent = S.CANCEL;
-  cancel.addEventListener('click', dismissModal);
-
-  const delBtn = document.createElement('button');
-  delBtn.className = 'btn btn-primary cascade-delete-btn';
-  delBtn.textContent = S.ACTION_DELETE;
-  delBtn.disabled = !!onExportCSV;
-
-  delBtn.addEventListener('click', () => {
-    dismissModal();
-    onDelete();
-  });
-
-  if (onExportCSV) {
-    const exportBtn = document.createElement('button');
-    exportBtn.className = 'btn btn-primary';
-    exportBtn.textContent = S.EXPORT_CSV;
-    exportBtn.addEventListener('click', () => {
-      onExportCSV();
-      delBtn.disabled = false;
-    });
-    actions.append(cancel, exportBtn, delBtn);
-  } else {
-    actions.append(cancel, delBtn);
-  }
-  frag.appendChild(actions);
-  showModal(frag);
-}
 
 // ---------------------------------------------------------------------------
 // Modifica piano modal (pencil) — three tabs.  Identity (name +

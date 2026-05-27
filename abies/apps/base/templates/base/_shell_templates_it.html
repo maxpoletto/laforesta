@@ -1,0 +1,24 @@
+{% comment %}
+Shared <template> elements cloned by JS — confirm dialog, cascade-delete.
+Rendered once inside the shell; never displayed directly.
+{% endcomment %}
+
+<template id="tmpl-confirm-modal">
+  <p data-field="message"></p>
+  <div class="form-actions">
+    <button type="button" class="btn" data-action="cancel">Annulla</button>
+    <button type="button" class="btn btn-primary" data-action="confirm"></button>
+  </div>
+</template>
+
+<template id="tmpl-cascade-delete-modal">
+  <h2 class="cascade-confirm-title" data-field="title"></h2>
+  <p class="cascade-confirm-warning" data-field="warning"></p>
+  <p data-field="export-required"></p>
+  <div class="form-actions">
+    <button type="button" class="btn" data-action="cancel">Annulla</button>
+    <button type="button" class="btn btn-primary" data-action="export">Esporta CSV</button>
+    <button type="button" class="btn btn-primary cascade-delete-btn"
+            data-action="delete" disabled>Elimina</button>
+  </div>
+</template>
