@@ -135,8 +135,8 @@ Infrastructure:
   `renderCsvErrors`, `mkCollapsible`, `mkEditDeleteIcons`,
   `mkTabbedModal`.  Template-backed helpers (clone from
   `<template>` elements in `_shell_templates_it.html`):
-  `confirmModal(message, onConfirm, { confirmLabel })`,
-  `cascadeDeleteModal({ title, warning, exportRequired, onExportCSV,
+  `showConfirmModal(message, onConfirm, { confirmLabel })`,
+  `showCascadeDeleteModal({ title, warning, exportRequired, onExportCSV,
   onDelete })`.  All pages import from here; never duplicate
   these locally.
 - **`csv-export.js`**: `csvField(v, fmt)`, `downloadCSV(lines,

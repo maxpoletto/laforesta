@@ -27,7 +27,7 @@ import {
   interceptSubmit, wireCancelButtons, showFormError,
 } from '../../base/js/forms.js';
 import {
-  renderCsvErrors, confirmModal, cascadeDeleteModal,
+  renderCsvErrors, showConfirmModal, showCascadeDeleteModal,
 } from '../../base/js/form-widgets.js';
 import { exportDigest } from '../../base/js/csv-export.js';
 import { cloneTemplate } from '../../base/js/templates.js';
@@ -938,7 +938,7 @@ function showAreaPopover(area) {
 
 function promptNewAreaAt(lat, lon) {
   if (activeGridId == null) return;
-  confirmModal(
+  showConfirmModal(
     S.CAMPIONAMENTI_INSERT_AREA_HERE,
     () => showAddAreaForm({ lat, lon }),
     { confirmLabel: S.CONFIRM },
@@ -999,7 +999,7 @@ function wireParcelByRegion(form) {
 }
 
 function confirmDeleteArea(areaId) {
-  confirmModal(S.DELETE_CONFIRM, () => deleteArea(areaId));
+  showConfirmModal(S.DELETE_CONFIRM, () => deleteArea(areaId));
 }
 
 async function deleteArea(areaId) {
@@ -1028,7 +1028,7 @@ function showEditGridModal() {
   const row = gridRow(activeGridId);
   if (!row) return;
   const c = gridsData.columns;
-  wireEditModal({
+  showEditModal({
     name: row[c.indexOf(S.COL_NAME)] || '',
     description: row[c.indexOf(S.COL_DESCRIPTION)] || '',
     title: S.RENAME_TITLE_GRID,
@@ -1063,7 +1063,7 @@ function showEditSurveyModal() {
   const row = surveyRow(activeSurveyId);
   if (!row) return;
   const c = surveysData.columns;
-  wireEditModal({
+  showEditModal({
     name: row[c.indexOf(S.COL_NAME)] || '',
     description: row[c.indexOf(S.COL_DESCRIPTION)] || '',
     title: S.RENAME_TITLE_SURVEY,
@@ -1097,7 +1097,7 @@ function showEditSurveyModal() {
   });
 }
 
-function wireEditModal(opts) {
+function showEditModal(opts) {
   const frag = cloneTemplate('tmpl-campionamenti-edit-modal');
   frag.querySelector('[data-field="title"]').textContent = opts.title;
   frag.querySelector('[data-field="import-tab-label"]').textContent = opts.importTabLabel;
@@ -1183,7 +1183,7 @@ function confirmDeleteGrid() {
   const msg = nAreas > 0
     ? `${nAreas} aree saranno eliminate. ${S.DELETE_CONFIRM}`
     : S.DELETE_CONFIRM;
-  confirmModal(msg, async () => {
+  showConfirmModal(msg, async () => {
     try {
       const { data, status } = await postJSON(
         `${GRID_DELETE_URL_PREFIX}${activeGridId}/`, {},
@@ -1213,11 +1213,11 @@ function confirmDeleteSurvey() {
   const nVisited = row[c.indexOf(S.COL_N_AREAS_VISITED)] || 0;
 
   if (nVisited === 0) {
-    confirmModal(S.DELETE_CONFIRM, () => doDeleteSurvey());
+    showConfirmModal(S.DELETE_CONFIRM, () => doDeleteSurvey());
     return;
   }
   const nTrees = countTreesInActiveSurvey();
-  cascadeDeleteModal({
+  showCascadeDeleteModal({
     title: S.CASCADE_CONFIRM_TITLE,
     warning: S.CASCADE_WARN_SURVEY
       .replace('{n_samples}', nVisited)
@@ -1511,7 +1511,7 @@ async function showEditTreeForm(tsId) {
  * just a standard confirm modal.
  */
 function confirmDeleteTreeSample(tsId) {
-  confirmModal(S.DELETE_CONFIRM, () => deleteTreeSample(tsId));
+  showConfirmModal(S.DELETE_CONFIRM, () => deleteTreeSample(tsId));
 }
 
 async function deleteTreeSample(tsId) {

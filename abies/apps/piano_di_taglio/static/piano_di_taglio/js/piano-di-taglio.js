@@ -19,7 +19,7 @@ import {
   fetchModalForm, interceptSubmit, wireCancelButtons, showFormError,
 } from '../../base/js/forms.js';
 import {
-  renderCsvErrors, mkCollapsible, cascadeDeleteModal,
+  renderCsvErrors, mkCollapsible, showCascadeDeleteModal,
 } from '../../base/js/form-widgets.js';
 import { cloneTemplate } from '../../base/js/templates.js';
 import {
@@ -510,7 +510,7 @@ function onDeletePlan() {
   }
 
   const planName = row[plansData.columns.indexOf(S.COL_NAME)];
-  cascadeDeleteModal({
+  showCascadeDeleteModal({
     title: S.DELETE_PLAN_TITLE,
     warning: S.DELETE_PLAN_WARNING.replace('{name}', planName),
     onExportCSV: () => downloadPlanExport(activePlanId),
@@ -747,7 +747,7 @@ function confirmDeleteItem(itemId) {
   // case the item has no marks / harvests / transitions (DB-level
   // PROTECT blocks otherwise).  Nothing to back up → skip the
   // forced-download step.
-  cascadeDeleteModal({
+  showCascadeDeleteModal({
     title: S.DELETE_ITEM_TITLE,
     warning: S.DELETE_ITEM_WARNING
       .replace('{year}', year)

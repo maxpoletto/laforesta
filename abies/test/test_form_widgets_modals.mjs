@@ -1,4 +1,4 @@
-// Tests for confirmModal / cascadeDeleteModal in form-widgets.js.
+// Tests for showConfirmModal / showCascadeDeleteModal in form-widgets.js.
 // Run with: node test/test_form_widgets_modals.mjs (also part of `make test-js`).
 //
 // These functions depend on the DOM (cloneTemplate, showModal, dismissModal),
@@ -189,7 +189,7 @@ globalThis.document = {
 
 // Import after mocking document — ES module evaluation happens at import time
 // for modals.js which caches document.getElementById('modal-container').
-import { confirmModal, cascadeDeleteModal } from '../apps/base/static/base/js/form-widgets.js';
+import { showConfirmModal, showCascadeDeleteModal } from '../apps/base/static/base/js/form-widgets.js';
 // Access dismiss directly to reset state between tests.
 import { dismiss as dismissModal } from '../apps/base/static/base/js/modals.js';
 
@@ -209,14 +209,14 @@ function findByDataset(el, key, value) {
 }
 
 // ---------------------------------------------------------------------------
-// confirmModal
+// showConfirmModal
 // ---------------------------------------------------------------------------
 
-console.log('confirmModal');
+console.log('showConfirmModal');
 
 resetModal();
 let confirmCalled = false;
-confirmModal('Are you sure?', () => { confirmCalled = true; });
+showConfirmModal('Are you sure?', () => { confirmCalled = true; });
 
 assertEqual(modalShown !== null, true, 'modal was shown');
 // Find the message element in the shown content.
@@ -233,14 +233,14 @@ assertEqual(confirmCalled, true, 'onConfirm called on click');
 
 // Custom confirm label.
 resetModal();
-confirmModal('Delete?', () => {}, { confirmLabel: 'Rimuovi' });
+showConfirmModal('Delete?', () => {}, { confirmLabel: 'Rimuovi' });
 const okBtn2 = findByDataset(modalShown, 'action', 'confirm');
 assertEqual(okBtn2?.textContent, 'Rimuovi', 'custom confirm label');
 
 // Cancel dismisses without calling onConfirm.
 resetModal();
 let confirmCalled2 = false;
-confirmModal('test', () => { confirmCalled2 = true; });
+showConfirmModal('test', () => { confirmCalled2 = true; });
 const cancelBtn = findByDataset(modalShown, 'action', 'cancel');
 cancelBtn.click();
 assertEqual(confirmCalled2, false, 'cancel does not call onConfirm');
@@ -248,7 +248,7 @@ assertEqual(confirmCalled2, false, 'cancel does not call onConfirm');
 // Async onConfirm: dismiss happens before await.
 resetModal();
 let asyncOrder = [];
-confirmModal('async test', async () => {
+showConfirmModal('async test', async () => {
   asyncOrder.push('callback');
   await Promise.resolve();
   asyncOrder.push('after-await');
@@ -260,15 +260,15 @@ await Promise.resolve();
 assertEqual(asyncOrder.length, 2, 'async callback completes');
 
 // ---------------------------------------------------------------------------
-// cascadeDeleteModal — with export
+// showCascadeDeleteModal — with export
 // ---------------------------------------------------------------------------
 
-console.log('cascadeDeleteModal — with export');
+console.log('showCascadeDeleteModal — with export');
 
 resetModal();
 let exportCalled = false;
 let deleteCalled = false;
-cascadeDeleteModal({
+showCascadeDeleteModal({
   title: 'Confirm delete',
   warning: 'This is dangerous',
   exportRequired: 'Export first!',
@@ -298,14 +298,14 @@ delBtn.click();
 assertEqual(deleteCalled, true, 'onDelete called');
 
 // ---------------------------------------------------------------------------
-// cascadeDeleteModal — without export (simple warning)
+// showCascadeDeleteModal — without export (simple warning)
 // ---------------------------------------------------------------------------
 
-console.log('cascadeDeleteModal — without export');
+console.log('showCascadeDeleteModal — without export');
 
 resetModal();
 let deleteCalled2 = false;
-cascadeDeleteModal({
+showCascadeDeleteModal({
   title: 'Delete item',
   warning: 'Gone forever',
   onDelete: () => { deleteCalled2 = true; },

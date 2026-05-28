@@ -257,7 +257,7 @@ export function mkTabbedModal({ title, tabs, initialTab, onSwitch }) {
 // Confirm / cascade-delete modals (backed by <template> in shell)
 // ---------------------------------------------------------------------------
 
-export function confirmModal(message, onConfirm, { confirmLabel } = {}) {
+export function showConfirmModal(message, onConfirm, { confirmLabel } = {}) {
   const frag = cloneTemplate('tmpl-confirm-modal');
   frag.querySelector('[data-field="message"]').textContent = message;
   const okBtn = frag.querySelector('[data-action="confirm"]');
@@ -271,7 +271,7 @@ export function confirmModal(message, onConfirm, { confirmLabel } = {}) {
   showModal(frag);
 }
 
-export function cascadeDeleteModal({ title, warning, exportRequired, onExportCSV, onDelete }) {
+export function showCascadeDeleteModal({ title, warning, exportRequired, onExportCSV, onDelete }) {
   const frag = cloneTemplate('tmpl-cascade-delete-modal');
   frag.querySelector('[data-field="title"]').textContent = title;
   frag.querySelector('[data-field="warning"]').textContent = warning;
