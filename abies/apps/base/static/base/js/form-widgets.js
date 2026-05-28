@@ -7,6 +7,7 @@
 import * as S from './strings.js';
 import { show as showModal, dismiss as dismissModal } from './modals.js';
 import { cloneTemplate } from './templates.js';
+import { showFormError } from './forms.js';
 
 // ---------------------------------------------------------------------------
 // Form structure
@@ -211,14 +212,12 @@ export function mkTabbedModal({ title, tabs, initialTab, onSwitch }) {
   bodies.className = 'modal-tab-bodies';
   card.appendChild(bodies);
 
-  const bodyEls = {};
   for (const t of tabs) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'modal-tab';
     btn.dataset.path = t.id;
     btn.textContent = t.label;
-    btn.addEventListener('click', () => switchTab(t.id));
     tabBar.appendChild(btn);
 
     const body = document.createElement('div');
@@ -226,31 +225,111 @@ export function mkTabbedModal({ title, tabs, initialTab, onSwitch }) {
     body.dataset.path = t.id;
     t.build(body);
     bodies.appendChild(body);
-    bodyEls[t.id] = body;
   }
 
+  const { switchTab, lockHeight } = wireTabbedModal(card, { initialTab, onSwitch });
+  return { fragment: frag, switchTab, lockHeight };
+}
+
+/**
+ * Wire tab-switching + height-locking on an existing tabbed-modal DOM
+ * structure (cloned from a server-rendered `<template>` or built by
+ * `mkTabbedModal`).  Expects `root` to contain `.modal-tab-bodies`,
+ * which in turn contains one `.modal-tab-body[data-path="X"]` per tab,
+ * and `.modal-tabs` containing matching `.modal-tab[data-path="X"]`.
+ *
+ * Returns `{ switchTab, lockHeight }`.  Call `lockHeight()` AFTER the
+ * fragment is in the DOM — `offsetHeight` is 0 on a detached node.
+ */
+export function wireTabbedModal(root, { initialTab, onSwitch } = {}) {
+  const bodies = root.querySelector('.modal-tab-bodies');
+  const tabBtns = [...root.querySelectorAll('.modal-tabs .modal-tab')];
+  const bodyEls = [...bodies.querySelectorAll('.modal-tab-body')];
+
   function switchTab(id) {
-    for (const btn of tabBar.querySelectorAll('.modal-tab')) {
-      btn.classList.toggle('active', btn.dataset.path === id);
-    }
-    for (const [k, b] of Object.entries(bodyEls)) {
-      b.classList.toggle('active', k === id);
-    }
+    for (const btn of tabBtns) btn.classList.toggle('active', btn.dataset.path === id);
+    for (const b of bodyEls) b.classList.toggle('active', b.dataset.path === id);
     onSwitch?.(id);
   }
 
-  /** Call after the fragment is in the DOM to lock min-height to the tallest tab. */
+  for (const btn of tabBtns) {
+    btn.addEventListener('click', () => switchTab(btn.dataset.path));
+  }
+
   function lockHeight() {
-    const allBodies = Object.values(bodyEls);
-    for (const b of allBodies) b.style.display = 'block';
+    for (const b of bodyEls) b.style.display = 'block';
     let max = 0;
-    for (const b of allBodies) max = Math.max(max, b.offsetHeight);
-    for (const b of allBodies) b.style.display = '';
+    for (const b of bodyEls) max = Math.max(max, b.offsetHeight);
+    for (const b of bodyEls) b.style.display = '';
     if (max > 0) bodies.style.minHeight = `${max}px`;
   }
 
-  switchTab(initialTab || tabs[0]?.id);
-  return { fragment: frag, switchTab, lockHeight };
+  switchTab(initialTab || tabBtns[0]?.dataset.path);
+  return { switchTab, lockHeight };
+}
+
+// ---------------------------------------------------------------------------
+// Loading overlay
+// ---------------------------------------------------------------------------
+
+/**
+ * Clear `el` and show a single full-width loading overlay with the
+ * standard "caricamento..." message.  Used while a page mount is
+ * awaiting its initial data.
+ */
+export function showLoadingIn(el) {
+  el.replaceChildren();
+  const loading = document.createElement('div');
+  loading.className = 'loading-overlay';
+  loading.textContent = S.LOADING;
+  el.appendChild(loading);
+}
+
+// ---------------------------------------------------------------------------
+// CSV import submission lifecycle
+// ---------------------------------------------------------------------------
+
+/**
+ * Wrap an async CSV import submit with the standard form lifecycle:
+ * disable submit button, show "in progress" status, dispatch the
+ * caller's network call, render server-reported per-row errors or a
+ * form-level error message, re-enable the submit and clear the status
+ * in `finally`.
+ *
+ * `attempt(form)` must return one of:
+ *   - `{ ok: true }`       → modal is dismissed
+ *   - `{ errors: [...] }`  → error list rendered into `errorsBox`,
+ *                            modal stays open
+ *   - `{ error: 'msg' }`   → form-level error shown, modal stays open
+ *   - anything else        → generic error shown, modal stays open
+ *
+ * Exceptions from `attempt` are caught and surfaced as a network error.
+ *
+ * Returns the resolved attempt result (or `{ error: 'network' }` on
+ * exception) so the caller can chain follow-up work conditional on
+ * success.
+ */
+export async function submitCsvImport({ form, statusBox, errorsBox, attempt }) {
+  const btn = form.querySelector('button[type="submit"]');
+  if (btn) btn.disabled = true;
+  errorsBox.hidden = true;
+  errorsBox.replaceChildren();
+  statusBox.textContent = S.CSV_IMPORT_IN_PROGRESS;
+  statusBox.hidden = false;
+  let result;
+  try {
+    result = await attempt(form);
+    if (result?.ok) dismissModal();
+    else if (result?.errors?.length) renderCsvErrors(errorsBox, result.errors);
+    else showFormError(form, result?.error || S.ERROR_GENERIC);
+  } catch {
+    showFormError(form, S.ERROR_NETWORK);
+    result = { error: 'network' };
+  } finally {
+    if (btn) btn.disabled = false;
+    statusBox.hidden = true;
+  }
+  return result;
 }
 
 // ---------------------------------------------------------------------------

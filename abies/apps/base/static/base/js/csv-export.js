@@ -16,6 +16,20 @@ export function downloadCSV(lines, filename) {
   URL.revokeObjectURL(a.href);
 }
 
+/**
+ * Trigger a download from a URL whose response sets Content-Disposition.
+ * The browser handles the download without leaving the SPA.  `filename`
+ * defaults to empty, deferring to the server's Content-Disposition.
+ */
+export function downloadFromURL(url, filename = '') {
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
 export function exportDigest(digest, exportCols, srcCols, filename, opts = {}) {
   const c = digest.columns;
   const idx = srcCols.map(s => c.indexOf(s));

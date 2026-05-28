@@ -8,7 +8,9 @@ import { TableWrapper } from '../../base/js/table.js';
 import {
   fetchModalForm, renderModalForm, showFormError, wireCancelButtons,
 } from '../../base/js/forms.js';
-import { wireActions } from '../../base/js/form-widgets.js';
+import { wireActions, showLoadingIn } from '../../base/js/form-widgets.js';
+import { canModify } from '../../base/js/roles.js';
+import { loadCSS, unloadCSS } from '../../base/js/page-css.js';
 import { postJSON } from '../../base/js/api.js';
 import { showError, dismiss as dismissModal, onDismiss } from '../../base/js/modals.js';
 import { createRangeSlider } from '../../base/js/range-slider.js';
@@ -65,7 +67,6 @@ let table = null;
 let slider = null;
 let unsubCache = null;
 let inForm = false;
-let escapeHandler = null;
 let disposePageActions = null;
 
 // Column classification and index map — resolved on first data load.
@@ -104,9 +105,6 @@ const sections = {
 
 cache.register(DATA_ID, DATA_URL);
 
-function canModify() {
-  return ['admin', 'writer'].includes(document.body.dataset.role);
-}
 
 // ---------------------------------------------------------------------------
 // Page lifecycle (exported for router)
@@ -116,12 +114,7 @@ export async function mount(params) {
   inForm = false;
   loadCSS(CSS_URL);
   const el = document.getElementById('content');
-  el.replaceChildren();
-
-  const loading = document.createElement('div');
-  loading.className = 'loading-overlay';
-  loading.textContent = S.LOADING;
-  el.appendChild(loading);
+  showLoadingIn(el);
 
   let data;
   try {
@@ -146,7 +139,6 @@ export function unmount() {
   unloadCSS(CSS_URL);
   if (unsubCache) { unsubCache(); unsubCache = null; }
   if (disposePageActions) { disposePageActions(); disposePageActions = null; }
-  removeEscapeHandler();
   _destroyCharts();
   destroyTable();
   cache.setVisible([]);
@@ -163,7 +155,6 @@ export function onQueryChange(params) {
 
 function showTableView(data, params) {
   inForm = false;
-  removeEscapeHandler();
   _destroyCharts();
   const el = document.getElementById('content');
   el.replaceChildren();
@@ -674,28 +665,6 @@ async function confirmDelete(rowId) {
 }
 
 // ---------------------------------------------------------------------------
-// Escape key — cancel form, return to table
-// ---------------------------------------------------------------------------
-
-function addEscapeHandler() {
-  removeEscapeHandler();
-  escapeHandler = (e) => {
-    if (e.key !== 'Escape') return;
-    // Let modal handle its own Escape dismissal.
-    if (document.getElementById('modal-container').classList.contains('open')) return;
-    returnToTable();
-  };
-  document.addEventListener('keydown', escapeHandler);
-}
-
-function removeEscapeHandler() {
-  if (escapeHandler) {
-    document.removeEventListener('keydown', escapeHandler);
-    escapeHandler = null;
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -741,14 +710,3 @@ function buildColumnDefs(columns) {
   return defs;
 }
 
-function loadCSS(url) {
-  if (document.querySelector(`link[href="${url}"]`)) return;
-  const link = document.createElement('link');
-  link.rel = 'stylesheet';
-  link.href = url;
-  document.head.appendChild(link);
-}
-
-function unloadCSS(url) {
-  document.querySelector(`link[href="${url}"]`)?.remove();
-}

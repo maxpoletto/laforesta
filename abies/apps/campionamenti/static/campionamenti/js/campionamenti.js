@@ -27,8 +27,11 @@ import {
   interceptSubmit, wireCancelButtons, showFormError,
 } from '../../base/js/forms.js';
 import {
-  renderCsvErrors, showConfirmModal, showCascadeDeleteModal, wireActions,
+  showConfirmModal, showCascadeDeleteModal, wireActions,
+  showLoadingIn, wireTabbedModal, submitCsvImport,
 } from '../../base/js/form-widgets.js';
+import { canModify } from '../../base/js/roles.js';
+import { loadCSS, unloadCSS } from '../../base/js/page-css.js';
 import { exportDigest } from '../../base/js/csv-export.js';
 import { cloneTemplate } from '../../base/js/templates.js';
 import { RilevamentiMap } from './rilevamenti-map.js';
@@ -148,16 +151,11 @@ let unsubCache = null;
 let currentTreesId = null;
 let _areaColIdx = -1;
 let inForm = false;
-let escapeHandler = null;
 let disposePageActions = null;
 // MapCommon basemap key in effect across all maps on this page.
 // Initialised in mount() from the URL; updated by `basemapchange` events
 // fired from any BasemapControl and by `applyParams` on back/forward.
 let currentMapType = MAP_TYPE_TOKENS[DEFAULT_MAP_TYPE];
-
-function canModify() {
-  return ['admin', 'writer'].includes(document.body.dataset.role);
-}
 
 cache.register(SURVEYS_ID, SURVEYS_URL);
 cache.register(GRIDS_ID, GRIDS_URL);
@@ -171,12 +169,7 @@ cache.register(SAMPLES_ID, SAMPLES_URL);
 export async function mount(params) {
   loadCSS(CSS_URL);
   const el = document.getElementById('content');
-  el.replaceChildren();
-
-  const loading = document.createElement('div');
-  loading.className = 'loading-overlay';
-  loading.textContent = S.LOADING;
-  el.appendChild(loading);
+  showLoadingIn(el);
 
   try {
     const [s, g, sa, sm, geo] = await Promise.all([
@@ -1048,9 +1041,11 @@ function showEditGridModal() {
       const { data, status } = await postFormData(GRID_CSV_IMPORT_URL, fd);
       if (status === 200) {
         applySideEffects(data);
-        return { errors: null };
+        return { ok: true };
       }
-      return { errors: data?.errors, message: data?.message };
+      return data?.errors?.length
+        ? { errors: data.errors }
+        : { error: data?.message };
     },
   });
 }
@@ -1087,9 +1082,11 @@ function showEditSurveyModal() {
           await cache.load(SAMPLES_ID);
           samplesData = cache.get(SAMPLES_ID);
         } catch {}
-        return { errors: null };
+        return { ok: true };
       }
-      return { errors: data?.errors, message: data?.message };
+      return data?.errors?.length
+        ? { errors: data.errors }
+        : { error: data?.message };
     },
   });
 }
@@ -1103,15 +1100,7 @@ function showEditModal(opts) {
   frag.querySelector('[data-field="import-help"]').textContent = opts.importHelp;
   if (opts.showDate) frag.querySelector('[data-field="date-row"]').hidden = false;
 
-  const tabs = frag.querySelectorAll('.modal-tab');
-  const bodies = frag.querySelectorAll('.modal-tab-body');
-  for (const tab of tabs) {
-    tab.addEventListener('click', () => {
-      const path = tab.dataset.path;
-      tabs.forEach(t => t.classList.toggle('active', t.dataset.path === path));
-      bodies.forEach(b => b.classList.toggle('active', b.dataset.path === path));
-    });
-  }
+  const { lockHeight } = wireTabbedModal(frag);
 
   wireCancelButtons(frag, dismissModal);
 
@@ -1135,30 +1124,14 @@ function showEditModal(opts) {
   const errorsBox = frag.querySelector('.csv-import-errors');
   importForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const btn = importForm.querySelector('[type="submit"]');
-    btn.disabled = true;
-    errorsBox.hidden = true;
-    errorsBox.replaceChildren();
-    statusBox.textContent = S.CSV_IMPORT_IN_PROGRESS;
-    statusBox.hidden = false;
-    try {
-      const result = await opts.onImportSubmit(importForm);
-      if (!result.errors) { dismissModal(); return; }
-      if (result.errors.length) renderCsvErrors(errorsBox, result.errors);
-      else showFormError(importForm, result.message || S.ERROR_GENERIC);
-    } catch { showFormError(importForm, S.ERROR_NETWORK); }
-    finally { btn.disabled = false; statusBox.hidden = true; }
+    await submitCsvImport({
+      form: importForm, statusBox, errorsBox,
+      attempt: () => opts.onImportSubmit(importForm),
+    });
   });
 
   showModal(frag);
-
-  const allBodies = [...document.querySelectorAll('#modal-container .modal-tab-body')];
-  for (const b of allBodies) b.style.display = 'block';
-  let maxH = 0;
-  for (const b of allBodies) maxH = Math.max(maxH, b.offsetHeight);
-  for (const b of allBodies) b.style.display = '';
-  const container = document.querySelector('#modal-container .modal-tab-bodies');
-  if (container && maxH > 0) container.style.minHeight = `${maxH}px`;
+  lockHeight();
 
   document.querySelector('#modal-container [name="name"]')?.focus();
 }
@@ -1772,7 +1745,6 @@ function wireCoppiceBlock(form) {
  */
 function returnToPage(overrides = {}) {
   inForm = false;
-  removeEscapeHandler();
   // Re-render the whole page shell from scratch.  Drop in-memory
   // selection state so applyParams triggers a full re-render of map
   // + table; otherwise the early-out in applyParams keeps the page
@@ -1799,21 +1771,6 @@ function returnToPage(overrides = {}) {
   syncURL();
 }
 
-function addEscapeHandler() {
-  removeEscapeHandler();
-  escapeHandler = (e) => {
-    if (e.key === 'Escape') returnToPage();
-  };
-  document.addEventListener('keydown', escapeHandler);
-}
-
-function removeEscapeHandler() {
-  if (escapeHandler) {
-    document.removeEventListener('keydown', escapeHandler);
-    escapeHandler = null;
-  }
-}
-
 // --- Misc -------------------------------------------------------------------
 
 function formatTimestamp(iso) {
@@ -1821,14 +1778,3 @@ function formatTimestamp(iso) {
   return iso.length >= 10 ? iso.slice(0, 10) : iso;
 }
 
-function loadCSS(url) {
-  if (document.querySelector(`link[href="${url}"]`)) return;
-  const link = document.createElement('link');
-  link.rel = 'stylesheet';
-  link.href = url;
-  document.head.appendChild(link);
-}
-
-function unloadCSS(url) {
-  document.querySelector(`link[href="${url}"]`)?.remove();
-}

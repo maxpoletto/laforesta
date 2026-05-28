@@ -19,9 +19,14 @@ import {
   fetchModalForm, interceptSubmit, wireCancelButtons, showFormError,
 } from '../../base/js/forms.js';
 import {
-  renderCsvErrors, mkCollapsible, showCascadeDeleteModal, wireActions,
+  mkCollapsible, showCascadeDeleteModal, wireActions,
+  showLoadingIn, wireTabbedModal, submitCsvImport,
 } from '../../base/js/form-widgets.js';
+import { canModify } from '../../base/js/roles.js';
+import { loadCSS, unloadCSS } from '../../base/js/page-css.js';
+import { installEscapeHandler } from '../../base/js/escape.js';
 import { cloneTemplate } from '../../base/js/templates.js';
+import { downloadFromURL } from '../../base/js/csv-export.js';
 import {
   wireVMPreview, ID_D_CM, ID_H_M, ID_SPECIES, ID_LAT, ID_LON,
 } from '../../base/js/tree-form.js';
@@ -89,7 +94,7 @@ let activeItemId = null;
 let prelieviData = null;
 let itemPrelieviTable = null;
 let itemMarkTreesTable = null;
-let escapeHandler = null;
+let disposeEscape = null;
 let disposePageActions = null;
 
 // Calendar sections — keyed by the single-char URL `o=` token.  `f`
@@ -124,10 +129,6 @@ const sections = {
   },
 };
 
-function canModify() {
-  return ['admin', 'writer'].includes(document.body.dataset.role);
-}
-
 // ---------------------------------------------------------------------------
 // Lifecycle
 // ---------------------------------------------------------------------------
@@ -135,12 +136,7 @@ function canModify() {
 export async function mount(params) {
   loadCSS(CSS_URL);
   const el = document.getElementById('content');
-  el.replaceChildren();
-
-  const loading = document.createElement('div');
-  loading.className = 'loading-overlay';
-  loading.textContent = S.LOADING;
-  el.appendChild(loading);
+  showLoadingIn(el);
 
   try {
     const [p, i, r] = await Promise.all([
@@ -168,7 +164,7 @@ export async function mount(params) {
 
 export function unmount() {
   unloadCSS(CSS_URL);
-  removeEscapeHandler();
+  if (disposeEscape) { disposeEscape(); disposeEscape = null; }
   if (unsubPlans) { unsubPlans(); unsubPlans = null; }
   if (unsubItems) { unsubItems(); unsubItems = null; }
   if (disposePageActions) { disposePageActions(); disposePageActions = null; }
@@ -773,12 +769,7 @@ async function doDeleteItem(itemId) {
 }
 
 function downloadItemExport(itemId) {
-  const a = document.createElement('a');
-  a.href = `${ITEM_EXPORT_URL}${itemId}/`;
-  a.download = '';
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
+  downloadFromURL(`${ITEM_EXPORT_URL}${itemId}/`);
 }
 
 /**
@@ -893,7 +884,7 @@ export function openEditPlanModal(initialTab, { ceduo = false } = {}) {
     fd.append(ceduoCb.checked ? 'ceduo_file' : 'fustaia_file', file);
     fd.append(FIELD_NONCE, crypto.randomUUID());
 
-    await submitCsvImport(calendarForm, fd, calStatusBox, calErrorsBox);
+    await submitPlanCsvImport(calendarForm, fd, calStatusBox, calErrorsBox);
   });
 
   // Wire Regression submit.
@@ -912,37 +903,14 @@ export function openEditPlanModal(initialTab, { ceduo = false } = {}) {
     fd.append(FIELD_REGRESSION_FILE, file);
     fd.append(FIELD_NONCE, crypto.randomUUID());
 
-    await submitCsvImport(regressionForm, fd, regStatusBox, regErrorsBox);
+    await submitPlanCsvImport(regressionForm, fd, regStatusBox, regErrorsBox);
   });
 
-  // Tab switching.
-  const tabs = frag.querySelector('.modal-tabs');
-  const bodies = frag.querySelector('.modal-tab-bodies');
-
-  function switchTab(id) {
-    for (const t of tabs.querySelectorAll('.modal-tab')) {
-      t.classList.toggle('active', t.dataset.path === id);
-    }
-    for (const b of bodies.querySelectorAll('.modal-tab-body')) {
-      b.classList.toggle('active', b.dataset.path === id);
-    }
-  }
-
-  for (const btn of tabs.querySelectorAll('.modal-tab')) {
-    btn.addEventListener('click', () => switchTab(btn.dataset.path));
-  }
-
+  const { lockHeight } = wireTabbedModal(frag, {
+    initialTab: initialTab || EDIT_PLAN_TAB_DETAILS,
+  });
   showModal(frag);
-
-  // Lock min-height to the tallest tab so switching doesn't reflow.
-  const allBodies = [...bodies.querySelectorAll('.modal-tab-body')];
-  for (const b of allBodies) b.style.display = 'block';
-  let maxH = 0;
-  for (const b of allBodies) maxH = Math.max(maxH, b.offsetHeight);
-  for (const b of allBodies) b.style.display = '';
-  if (maxH > 0) bodies.style.minHeight = `${maxH}px`;
-
-  switchTab(initialTab || EDIT_PLAN_TAB_DETAILS);
+  lockHeight();
 }
 
 // ---------------------------------------------------------------------------
@@ -994,36 +962,27 @@ function onNewPlan() {
 
 /**
  * Submit a multipart POST to /plan/import-csv/ and, on success, refresh
- * the affected digests + land on the newly-imported plan.
+ * the affected digests + land on the newly-imported plan.  Thin wrapper
+ * around `submitCsvImport` that knows the plan-specific URL + side
+ * effects.
  */
-async function submitCsvImport(form, fd, statusBox, errorsBox) {
-  const btn = form.querySelector('button[type="submit"]');
-  if (btn) btn.disabled = true;
-  errorsBox.hidden = true;
-  errorsBox.replaceChildren();
-  statusBox.textContent = S.CSV_IMPORT_IN_PROGRESS;
-  statusBox.hidden = false;
-  try {
-    const { data, status } = await postFormData(PLAN_IMPORT_CSV_URL, fd);
-    if (status === 200) {
-      await Promise.all([refreshPlans(), refreshItems(), refreshRegressions()]);
-      activePlanId = data.row_id;
-      onPlansUpdate();
-      syncURL();
-      dismissModal();
-      return;
-    }
-    if (data?.errors?.length) {
-      renderCsvErrors(errorsBox, data.errors);
-    } else {
-      showFormError(form, data?.message || S.ERROR_GENERIC);
-    }
-  } catch {
-    showFormError(form, S.ERROR_NETWORK);
-  } finally {
-    if (btn) btn.disabled = false;
-    statusBox.hidden = true;
-  }
+async function submitPlanCsvImport(form, fd, statusBox, errorsBox) {
+  return submitCsvImport({
+    form, statusBox, errorsBox,
+    attempt: async () => {
+      const { data, status } = await postFormData(PLAN_IMPORT_CSV_URL, fd);
+      if (status === 200) {
+        await Promise.all([refreshPlans(), refreshItems(), refreshRegressions()]);
+        activePlanId = data.row_id;
+        onPlansUpdate();
+        syncURL();
+        return { ok: true };
+      }
+      return data?.errors?.length
+        ? { errors: data.errors }
+        : { error: data?.message };
+    },
+  });
 }
 
 async function refreshPlans() {
@@ -1105,14 +1064,7 @@ function planRow(planId) {
 // ---------------------------------------------------------------------------
 
 function downloadPlanExport(planId) {
-  // Plain anchor click: the export endpoint sets Content-Disposition
-  // so the browser downloads the zip without leaving the SPA.
-  const a = document.createElement('a');
-  a.href = `${PLAN_EXPORT_URL}${planId}/`;
-  a.download = '';
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
+  downloadFromURL(`${PLAN_EXPORT_URL}${planId}/`);
 }
 
 // ---------------------------------------------------------------------------
@@ -1130,12 +1082,13 @@ function navigateToItem(itemId) {
 function openItemView(itemId, push = false) {
   activeItemId = itemId;
   if (push) syncURL(true);
-  addEscapeHandler();
+  disposeEscape?.();
+  disposeEscape = installEscapeHandler(() => closeItemView(true));
   renderItemView(itemId);
 }
 
 function closeItemView(push = false) {
-  removeEscapeHandler();
+  if (disposeEscape) { disposeEscape(); disposeEscape = null; }
   destroyItemPrelieviTable();
   activeItemId = null;
   if (push) syncURL(true);
@@ -1143,23 +1096,6 @@ function closeItemView(push = false) {
   if (el) {
     buildPage(el);
     setActivePlan(activePlanId);
-  }
-}
-
-function addEscapeHandler() {
-  removeEscapeHandler();
-  escapeHandler = (e) => {
-    if (e.key !== 'Escape') return;
-    if (document.getElementById('modal-container').classList.contains('open')) return;
-    closeItemView(true);
-  };
-  document.addEventListener('keydown', escapeHandler);
-}
-
-function removeEscapeHandler() {
-  if (escapeHandler) {
-    document.removeEventListener('keydown', escapeHandler);
-    escapeHandler = null;
   }
 }
 
@@ -1181,11 +1117,7 @@ async function renderItemView(itemId) {
   const el = document.getElementById('content');
   if (!el) return;
 
-  el.replaceChildren();
-  const loading = document.createElement('div');
-  loading.className = 'loading-overlay';
-  loading.textContent = S.LOADING;
-  el.appendChild(loading);
+  showLoadingIn(el);
 
   let payload;
   try {
@@ -1638,35 +1570,27 @@ async function showImportMarksForm(itemId) {
       showFormError(form, S.ERR_CSV_FILE_REQUIRED);
       return;
     }
-    statusBox.textContent = S.CSV_IMPORT_IN_PROGRESS;
-    statusBox.hidden = false;
-    errorsBox.hidden = true;
-
     const fd = new FormData();
     fd.append(FIELD_HARVEST_PLAN_ITEM_ID, String(itemId));
     fd.append(FIELD_FILE, fileInput.files[0]);
 
-    try {
-      const { data, status } = await postFormData(MARK_CSV_IMPORT_URL, fd);
-      if (status !== 200) {
-        statusBox.hidden = true;
-        if (data?.errors) {
-          renderCsvErrors(errorsBox, data.errors);
-        } else {
-          showFormError(form, data?.message || S.ERROR_GENERIC);
+    const result = await submitCsvImport({
+      form, statusBox, errorsBox,
+      attempt: async () => {
+        const { data, status } = await postFormData(MARK_CSV_IMPORT_URL, fd);
+        if (status === 200) {
+          if (data.item_record) {
+            cache.updateRow(ITEMS_ID, data.item_record[0], data.item_record);
+            itemsData = cache.get(ITEMS_ID);
+          }
+          return { ok: true };
         }
-        return;
-      }
-      if (data.item_record) {
-        cache.updateRow(ITEMS_ID, data.item_record[0], data.item_record);
-        itemsData = cache.get(ITEMS_ID);
-      }
-      dismissModal();
-      renderItemView(itemId);
-    } catch {
-      statusBox.hidden = true;
-      showFormError(form, S.ERROR_NETWORK);
-    }
+        return data?.errors?.length
+          ? { errors: data.errors }
+          : { error: data?.message };
+      },
+    });
+    if (result?.ok) renderItemView(itemId);
   });
 
   showModal(frag);
@@ -1787,14 +1711,3 @@ function buildPrelieviColumnDefs(columns) {
 // CSS lifecycle
 // ---------------------------------------------------------------------------
 
-function loadCSS(url) {
-  if (document.querySelector(`link[href="${url}"]`)) return;
-  const link = document.createElement('link');
-  link.rel = 'stylesheet';
-  link.href = url;
-  document.head.appendChild(link);
-}
-
-function unloadCSS(url) {
-  document.querySelector(`link[href="${url}"]`)?.remove();
-}
