@@ -129,16 +129,17 @@ Infrastructure:
   form fragment and shows it in the overlay modal.
   `renderModalForm(html)` re-renders inside the open modal (for
   validation errors / conflicts).
-- **`form-widgets.js`**: shared DOM builders and template-backed
-  helpers.  DOM builders: `mkRow`, `mkInput`, `mkTextarea`,
-  `mkFileInput`, `mkFormActions`, `mkStatusBox`, `mkErrorsBox`,
-  `renderCsvErrors`, `mkCollapsible`, `mkEditDeleteIcons`,
-  `mkTabbedModal`.  Template-backed helpers (clone from
-  `<template>` elements in `_shell_templates_it.html`):
-  `showConfirmModal(message, onConfirm, { confirmLabel })`,
-  `showCascadeDeleteModal({ title, warning, exportRequired, onExportCSV,
-  onDelete })`.  All pages import from here; never duplicate
-  these locally.
+- **`form-widgets.js`**: shared UI widgets and wiring helpers.
+  Collapsibles: `wireCollapsibleToggle(header, body, onToggle?)`.
+  Tabbed modals: `wireTabbedModal(root, { initialTab, onSwitch })`.
+  Page loading: `showLoadingIn(el)`.  CSV import lifecycle:
+  `submitCsvImport({ form, statusBox, errorsBox, attempt })`.
+  Delegated click dispatch: `wireActions(root, handlers)`.
+  Template-backed modals (clone from `<template>` elements in
+  `_shell_templates_it.html`): `showConfirmModal(message, onConfirm,
+  { confirmLabel })`, `showCascadeDeleteModal({ title, warning,
+  exportRequired, onExportCSV, onDelete })`.  All pages import from
+  here; never duplicate these locally.
 - **`csv-export.js`**: `csvField(v, fmt)`, `downloadCSV(lines,
   filename)`, `exportDigest(digest, exportCols, srcCols, filename,
   opts)`.  Shared CSV export primitives; `TableWrapper.exportCSV()`
@@ -146,10 +147,10 @@ Infrastructure:
 
 Tabbed modals (e.g., pencil-edit modals with Dettagli + Import tabs)
 use `.modal-tabs` / `.modal-tab` / `.modal-tab-body` /
-`.modal-tab-bodies` CSS classes (defined in `common.css`).  The
-`mkTabbedModal` helper or inline JS measures all tab bodies after
-`showModal()` and sets `min-height` on the container to the tallest
-tab, so switching tabs never reflows the modal.
+`.modal-tab-bodies` CSS classes (defined in `common.css`).
+`wireTabbedModal` measures all tab bodies after `showModal()` and
+sets `min-height` on the container to the tallest tab, so switching
+tabs never reflows the modal.
 
 ### Form card
 
@@ -336,8 +337,6 @@ behavior, or opens a modal:
   `wireCancelButtons`, `wireForm`.
 - **`build*`** — constructs DOM but does not show it (e.g.,
   `buildPage` clones a page template into `#content`).
-- **`mk*`** — small element factories in `form-widgets.js` that
-  return individual DOM nodes (`mkRow`, `mkInput`, `mkFormActions`).
 
 ## Accessibility
 

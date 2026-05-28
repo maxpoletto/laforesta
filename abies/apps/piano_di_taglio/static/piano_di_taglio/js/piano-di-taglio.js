@@ -19,7 +19,7 @@ import {
   fetchModalForm, interceptSubmit, wireCancelButtons, showFormError,
 } from '../../base/js/forms.js';
 import {
-  mkCollapsible, showCascadeDeleteModal, wireActions,
+  showCascadeDeleteModal, wireActions,
   showLoadingIn, wireCollapsibleToggle, wireTabbedModal, submitCsvImport,
 } from '../../base/js/form-widgets.js';
 import { canModify } from '../../base/js/roles.js';
@@ -1328,9 +1328,12 @@ function markTreesDataId(itemId) {
 }
 
 async function appendItemMarkTreesSection(card, itemId, state) {
-  const [header, body] = mkCollapsible(S.SECTION_MARTELLATA, true);
+  const frag = cloneTemplate('tmpl-pdt-item-subsection');
+  frag.querySelector('[data-field="title"]').textContent = S.SECTION_MARTELLATA;
+  const header = frag.querySelector('.collapsible-header');
+  const body = frag.querySelector('.collapsible-body');
   wireCollapsibleToggle(header, body);
-  card.append(header, body);
+  card.appendChild(frag);
 
   const isClosed = state === S.STATE_CLOSED;
 
@@ -1629,9 +1632,12 @@ function _applyMarkSaveResponse(data, itemId) {
 // --- Prelievi sub-section ---
 
 async function appendItemPrelieviSection(card, itemId) {
-  const [header, body] = mkCollapsible(S.SECTION_PRELIEVI, true);
+  const frag = cloneTemplate('tmpl-pdt-item-subsection');
+  frag.querySelector('[data-field="title"]').textContent = S.SECTION_PRELIEVI;
+  const header = frag.querySelector('.collapsible-header');
+  const body = frag.querySelector('.collapsible-body');
   wireCollapsibleToggle(header, body);
-  card.append(header, body);
+  card.appendChild(frag);
 
   // Load prelievi data (lazy, from cache or network).
   try {
