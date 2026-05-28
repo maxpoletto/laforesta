@@ -1,14 +1,12 @@
 {% comment %}
 Campionamenti <template> elements — cloned by JS on mount().
-user.can_modify is available from the shell's render context.
+user.can_modify and S (string constants) are provided by the shell's
+render context.
 {% endcomment %}
 
 <template id="tmpl-campionamenti-page">
   {# --- Section 1: Griglie --- #}
-  <div class="collapsible-header" data-section="g">
-    <span>Griglie di campionamento</span>
-    <span class="arrow"></span>
-  </div>
+  {% include "base/_partials/_collapsible_header.html" with section="g" title="Griglie di campionamento" %}
   <div class="collapsible-body" data-section="g">
     <div class="campionamenti-section-top">
       <div class="campionamenti-section-left">
@@ -16,16 +14,11 @@ user.can_modify is available from the shell's render context.
                for="campionamenti-grid-select">Griglia</label>
         <select class="campionamenti-pulldown page-pulldown"
                 id="campionamenti-grid-select"></select>
-        {% if user.can_modify %}
-        <span class="action-icon action-edit campionamenti-pulldown-icon"
-              role="button" title="Modifica" data-action="edit-grid">✎</span>
-        <span class="action-icon action-delete campionamenti-pulldown-icon"
-              role="button" title="Elimina" data-action="delete-grid">🗑︎</span>
-        {% endif %}
+        {% include "base/_partials/_edit_delete_icons.html" with edit_action="edit-grid" delete_action="delete-grid" %}
       </div>
       <div class="campionamenti-section-right">
         <button type="button" class="btn"
-                data-action="export-grid-csv">Esporta CSV</button>
+                data-action="export-grid-csv">{{ S.EXPORT_CSV }}</button>
         {% if user.can_modify %}
         <button type="button" class="btn btn-primary"
                 data-action="new-grid">Nuova griglia</button>
@@ -52,10 +45,7 @@ user.can_modify is available from the shell's render context.
   </div>
 
   {# --- Section 2: Rilevamenti --- #}
-  <div class="collapsible-header" data-section="r">
-    <span>Rilevamenti</span>
-    <span class="arrow"></span>
-  </div>
+  {% include "base/_partials/_collapsible_header.html" with section="r" title="Rilevamenti" %}
   <div class="collapsible-body" data-section="r">
     <div class="campionamenti-section-top">
       <div class="campionamenti-section-left">
@@ -63,16 +53,11 @@ user.can_modify is available from the shell's render context.
                for="campionamenti-survey-select">Rilevamento</label>
         <select class="campionamenti-pulldown page-pulldown"
                 id="campionamenti-survey-select"></select>
-        {% if user.can_modify %}
-        <span class="action-icon action-edit campionamenti-pulldown-icon"
-              role="button" title="Modifica" data-action="edit-survey">✎</span>
-        <span class="action-icon action-delete campionamenti-pulldown-icon"
-              role="button" title="Elimina" data-action="delete-survey">🗑︎</span>
-        {% endif %}
+        {% include "base/_partials/_edit_delete_icons.html" with edit_action="edit-survey" delete_action="delete-survey" %}
       </div>
       <div class="campionamenti-section-right">
         <button type="button" class="btn"
-                data-action="export-survey-csv">Esporta CSV</button>
+                data-action="export-survey-csv">{{ S.EXPORT_CSV }}</button>
         {% if user.can_modify %}
         <button type="button" class="btn btn-primary"
                 data-action="new-survey">Nuovo rilevamento</button>
@@ -84,10 +69,7 @@ user.can_modify is available from the shell's render context.
   </div>
 
   {# --- Section 3: Alberi campionati --- #}
-  <div class="collapsible-header" data-section="t">
-    <span>Alberi campionati</span>
-    <span class="arrow"></span>
-  </div>
+  {% include "base/_partials/_collapsible_header.html" with section="t" title="Alberi campionati" %}
   <div class="collapsible-body" data-section="t">
     <div class="campionamenti-empty" data-target="trees-empty">
       Seleziona un rilevamento per visualizzare gli alberi campionati.</div>
@@ -98,12 +80,12 @@ user.can_modify is available from the shell's render context.
 <template id="tmpl-campionamenti-area-popover">
   <div class="form-readonly-block" data-target="fields"></div>
   <div class="form-actions">
-    <button type="button" class="btn" data-action="cancel">Chiudi</button>
+    <button type="button" class="btn" data-action="cancel">{{ S.DISMISS }}</button>
     {% if user.can_modify %}
     <button type="button" class="btn btn-primary"
-            data-action="edit-area">Modifica</button>
+            data-action="edit-area">{{ S.ACTION_EDIT }}</button>
     <button type="button" class="btn btn-primary"
-            data-action="delete-area">Elimina</button>
+            data-action="delete-area">{{ S.ACTION_DELETE }}</button>
     {% endif %}
   </div>
 </template>
@@ -113,7 +95,7 @@ user.can_modify is available from the shell's render context.
     <h2 data-field="title"></h2>
     <div class="modal-tabs">
       <button type="button" class="modal-tab active"
-              data-path="details">Dettagli</button>
+              data-path="details">{{ S.TAB_DETAILS }}</button>
       <button type="button" class="modal-tab"
               data-path="import" data-field="import-tab-label"></button>
     </div>
@@ -129,16 +111,13 @@ user.can_modify is available from the shell's render context.
             <label for="edit-modal-desc">Descrizione</label>
             <textarea id="edit-modal-desc" name="description" rows="3"></textarea>
           </div>
-          <div class="form-actions">
-            <button type="button" class="btn" data-action="cancel">Annulla</button>
-            <button type="submit" class="btn btn-primary">Salva</button>
-          </div>
+          {% include "base/_partials/_form_actions.html" with submit_label=S.SAVE %}
         </form>
       </div>
       <div class="modal-tab-body" data-path="import">
         <form class="campionamenti-edit-form" data-role="import-form">
           <div class="form-group">
-            <label for="edit-modal-file">File CSV</label>
+            <label for="edit-modal-file">{{ S.LABEL_CSV_FILE }}</label>
             <input type="file" id="edit-modal-file" name="file"
                    accept=".csv,text/csv" required>
           </div>
@@ -148,12 +127,7 @@ user.can_modify is available from the shell's render context.
             <input type="date" id="edit-modal-date" name="default_date">
           </div>
           <p class="form-help" data-field="import-help"></p>
-          <div class="csv-import-status" hidden></div>
-          <div class="csv-import-errors" hidden></div>
-          <div class="form-actions">
-            <button type="button" class="btn" data-action="cancel">Annulla</button>
-            <button type="submit" class="btn btn-primary">Importa</button>
-          </div>
+          {% include "base/_partials/_csv_import_tail.html" %}
         </form>
       </div>
     </div>

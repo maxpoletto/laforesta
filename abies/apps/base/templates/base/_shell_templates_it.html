@@ -6,7 +6,7 @@ Rendered once inside the shell; never displayed directly.
 <template id="tmpl-confirm-modal">
   <p data-field="message"></p>
   <div class="form-actions">
-    <button type="button" class="btn" data-action="cancel">Annulla</button>
+    <button type="button" class="btn" data-action="cancel">{{ S.CANCEL }}</button>
     <button type="button" class="btn btn-primary" data-action="confirm"></button>
   </div>
 </template>
@@ -16,9 +16,9 @@ Rendered once inside the shell; never displayed directly.
   <p class="cascade-confirm-warning" data-field="warning"></p>
   <p data-field="export-required"></p>
   <div class="form-actions">
-    <button type="button" class="btn" data-action="cancel">Annulla</button>
-    <button type="button" class="btn btn-primary" data-action="export">Esporta CSV</button>
+    <button type="button" class="btn" data-action="cancel">{{ S.CANCEL }}</button>
+    <button type="button" class="btn btn-primary" data-action="export">{{ S.EXPORT_CSV }}</button>
     <button type="button" class="btn btn-primary cascade-delete-btn"
-            data-action="delete" disabled>Elimina</button>
+            data-action="delete" disabled>{{ S.ACTION_DELETE }}</button>
   </div>
 </template>

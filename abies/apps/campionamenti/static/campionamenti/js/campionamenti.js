@@ -112,7 +112,7 @@ const TREES_COLS = {
   [S.COL_AREA_NUM]:    { label: S.COL_AREA_NUM, width: '70px' },
   [S.COL_TREE_NUM]:    { label: S.COL_TREE_NUM_SHORT, type: 'number', width: '70px', formatter: fmtInt },
   [S.COL_SPECIES]:     { label: S.COL_SPECIES, width: '120px' },
-  [S.COL_PRODUCT]:     { label: S.COL_PRODUCT, width: '70px' },
+  [S.COL_TYPE]:        { label: S.COL_TYPE, width: '70px' },
   [S.COL_POLLONE]:     { label: S.COL_POLLONE_SHORT, type: 'number', width: '55px', formatter: fmtInt },
   [S.COL_MATRICINA]:   { label: S.COL_MATRICINA_SHORT, type: 'boolean', width: '55px', formatter: fmtBool },
   [S.COL_D_CM]:        { label: S.COL_D_CM, type: 'number', width: '65px', formatter: fmtInt },
@@ -392,7 +392,7 @@ function renderGriglieMap(gridId) {
       lon: r[c.indexOf(S.COL_LON)],
       compresa: r[c.indexOf(S.COL_COMPRESA)],
       particella: r[c.indexOf(S.COL_PARCEL)],
-      numero: r[c.indexOf(S.COL_NUMBER)],
+      numero: r[c.indexOf(S.COL_NUMERO)],
       altitude: r[c.indexOf(S.COL_QUOTA)],
       r_m: r[c.indexOf(S.COL_RAGGIO)],
       note: r[c.indexOf(S.COL_NOTE)],
@@ -530,7 +530,7 @@ function renderRilevamentiMap(surveyId) {
       lon: r[c.indexOf(S.COL_LON)],
       compresa: r[c.indexOf(S.COL_COMPRESA)],
       particella: r[c.indexOf(S.COL_PARCEL)],
-      numero: r[c.indexOf(S.COL_NUMBER)],
+      numero: r[c.indexOf(S.COL_NUMERO)],
     }));
 
   const sc = samplesData.columns;
@@ -898,7 +898,7 @@ function showAreaPopover(area) {
   const fields = frag.querySelector('[data-target="fields"]');
   for (const [label, val] of [
     [S.COL_COMPRESA, area.compresa], [S.COL_PARCEL, area.particella],
-    [S.COL_NUMBER, area.numero],
+    [S.COL_NUMERO, area.numero],
     [S.COL_LAT, fmtCoord(area.lat)],
     [S.COL_LON, fmtCoord(area.lon)],
     [S.COL_QUOTA, area.altitude ?? '—'],
@@ -1255,7 +1255,7 @@ function exportGridAreasCSV(gridId) {
     sampleAreasData,
     [S.CSV_COL_COMPRESA, S.CSV_COL_PARTICELLA, S.CSV_COL_AREA_SAGGIO,
      S.CSV_COL_LON, S.CSV_COL_LAT, S.CSV_COL_QUOTA, S.CSV_COL_RAGGIO],
-    [S.COL_COMPRESA, S.COL_PARCEL, S.COL_NUMBER, S.COL_LON, S.COL_LAT,
+    [S.COL_COMPRESA, S.COL_PARCEL, S.COL_NUMERO, S.COL_LON, S.COL_LAT,
      S.COL_QUOTA, S.COL_RAGGIO],
     S.CSV_GRID_AREAS,
     { filter: row => row[gridCol] === gridId },
@@ -1272,7 +1272,7 @@ async function exportFullSurveyCSV(surveyId) {
     showError(S.NO_RESULTS);
     return;
   }
-  const tipoCol = d.columns.indexOf(S.COL_PRODUCT);
+  const tipoCol = d.columns.indexOf(S.COL_TYPE);
   exportDigest(
     d,
     [S.CSV_COL_COMPRESA, S.CSV_COL_PARTICELLA, S.CSV_COL_AREA_SAGGIO,
@@ -1283,7 +1283,7 @@ async function exportFullSurveyCSV(surveyId) {
     [S.COL_COMPRESA, S.COL_PARCEL, S.COL_AREA_NUM, S.COL_TREE_NUM,
      S.COL_POLLONE, S.COL_MATRICINA,
      S.COL_D_CM, S.COL_H_M, S.COL_L10_MM,
-     S.COL_SPECIES, S.COL_PRODUCT, S.COL_SAMPLE_DATE, S.COL_PAI],
+     S.COL_SPECIES, S.COL_TYPE, S.COL_SAMPLE_DATE, S.COL_PAI],
     S.CSV_SURVEY_TREES,
     {
       transform: (row, _i, col) =>

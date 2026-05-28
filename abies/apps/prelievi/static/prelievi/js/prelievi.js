@@ -48,7 +48,7 @@ const STATIC_COLS = {
   [S.COL_COMPRESA]:    { label: S.COL_COMPRESA, width: '80px' },
   [S.COL_PARCEL]:      { label: S.COL_PARCEL, width: '70px' },
   [S.COL_CREW]:        { label: S.COL_CREW, width: '108px' },
-  [S.COL_PRODUCT]:     { label: S.COL_PRODUCT, width: '120px' },
+  [S.COL_TYPE]:        { label: S.COL_TYPE, width: '120px' },
   [S.COL_VDP]:         { label: S.COL_VDP, type: 'number', width: '55px', formatter: fmtInt },
   [S.COL_QUINTALS]:    { label: S.COL_QUINTALS, type: 'number', width: '55px', formatter: fmtDecimal1 },
   [S.COL_VOLUME_M3]:   { label: S.COL_VOLUME_M3, type: 'number', width: '70px', formatter: fmtDecimal2 },

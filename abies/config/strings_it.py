@@ -1,10 +1,29 @@
 """Italian UI strings for Abies."""
 
 # ---------------------------------------------------------------------------
-# Shell / chrome
+# Button / control labels (used by templates via the `S` context processor
+# and by Python views).  Names mirror the JS-side constants in
+# apps/base/static/base/js/strings_it.js so the same logical label has the
+# same name on both sides of the membrane.
 # ---------------------------------------------------------------------------
 
 SAVE = 'Salva'
+CANCEL = 'Annulla'
+CONFIRM = 'Conferma'
+DISMISS = 'Chiudi'
+ACTION_EDIT = 'Modifica'
+ACTION_DELETE = 'Elimina'
+EXPORT_CSV = 'Esporta CSV'
+IMPORT_LABEL = 'Importa'
+FILTER_LABEL = 'Filtra'
+SEARCH_PLACEHOLDER = 'Cerca…'
+TAB_DETAILS = 'Dettagli'
+LABEL_CSV_FILE = 'File CSV'
+
+# ---------------------------------------------------------------------------
+# Shell / chrome
+# ---------------------------------------------------------------------------
+
 DELETE_CONFIRM = 'I dati cancellati non potranno essere recuperati. Confermi?'
 ERROR_CONFLICT = 'Il record è stato modificato da un altro utente.'
 ERROR_GENERIC = 'Errore imprevisto.'
@@ -47,8 +66,6 @@ LABEL_NAME = 'Nome'
 LABEL_NOTES = 'Note'
 LABEL_MANUFACTURER = 'Marca'
 LABEL_MODEL = 'Modello'
-LABEL_YEAR = 'Anno'
-LABEL_LATIN_NAME = 'Nome latino'
 LABEL_DENSITY = 'Densità (q/m³)'
 LABEL_FIRST_NAME = 'Nome'
 LABEL_LAST_NAME = 'Cognome'
@@ -69,9 +86,9 @@ TABLE_CREW = 'Squadra'
 TABLE_TRACTOR = 'Trattore'
 TABLE_SPECIES = 'Specie'
 
-ACTION_INSERT = 'Inserimento'
-ACTION_UPDATE = 'Modifica'
-ACTION_DELETE = 'Eliminazione'
+AUDIT_INSERT = 'Inserimento'
+AUDIT_UPDATE = 'Modifica'
+AUDIT_DELETE = 'Eliminazione'
 
 # Settings
 PASSWORD_MISMATCH = 'Le password non coincidono.'
@@ -135,9 +152,6 @@ ERR_PLAN_ITEM_HAS_DEPS = (
 )
 ERR_PLAN_ITEM_VOLUME_NEGATIVE = 'Il volume previsto deve essere positivo.'
 ERR_PLAN_ITEM_AREA_NEGATIVE = 'La superficie deve essere positiva.'
-ERR_PLAN_ITEM_YEAR_RANGE = (
-    'L\'anno previsto deve cadere nell\'intervallo del piano.'
-)
 ERR_TRANSITION_INVALID_STATE = (
     'Transizione non consentita dallo stato attuale.'
 )
@@ -153,9 +167,6 @@ ERR_CSV_FUNCTION_INVALID = (
     'Riga {}: funzione di regressione non supportata ({}).'
 )
 ERR_CSV_VALUE_PARSE = 'Riga {}: valore non valido nella colonna {} ({}).'
-ERR_CSV_PLAN_REQUIRED = (
-    'Seleziona un piano di destinazione o specifica un nome per crearne uno.'
-)
 ERR_CANTIERE_REQUIRED = (
     'Selezionare un cantiere aperto.'
 )
@@ -178,7 +189,6 @@ ERR_CSV_FILE_REQUIRED = 'File CSV obbligatorio.'
 ERR_CSV_NOT_UTF8 = 'Il file deve essere codificato in UTF-8.'
 ERR_CSV_EMPTY = 'Il file CSV è vuoto.'
 ERR_CSV_MISSING_COLS = 'Colonne CSV mancanti: {}.'
-ERR_CSV_ROW_PARCEL = 'Riga {}: particella non trovata ({} / {}).'
 ERR_CSV_ROW_AREA = 'Riga {}: area di saggio non trovata ({} / {} / {}).'
 ERR_CSV_ROW_SPECIES = 'Riga {}: specie sconosciuta: {}.'
 ERR_CSV_ROW_PARSE = 'Riga {}: errore di parsing ({}).'
@@ -194,9 +204,6 @@ ERR_MARK_SPECIES_REQUIRED = 'Specie obbligatoria.'
 ERR_MARK_D_REQUIRED = 'D obbligatorio (intero > 0).'
 ERR_MARK_H_REQUIRED = 'h obbligatoria (> 0).'
 ERR_MARK_OPERATOR_REQUIRED = 'Operatore obbligatorio.'
-ERR_MARK_DATE_REQUIRED = 'Data obbligatoria.'
-ERR_MARK_VOLUME_REQUIRED = 'Volume obbligatorio (> 0).'
-ERR_MARK_MASS_REQUIRED = 'Massa obbligatoria (> 0).'
 ERR_MARK_ITEM_CLOSED = 'Il cantiere è chiuso: aggiunta non consentita.'
 ERR_MARK_PARCEL_REQUIRED = 'Particella obbligatoria per interventi a livello di compresa.'
 ERR_MARK_PARCEL_NOT_IN_REGION = (
@@ -263,7 +270,6 @@ CSV_COL_N_LEGACY       = 'n'
 CSV_COL_ANNO              = 'Anno'                        # scheduled-cut year
 CSV_COL_PRELIEVO_M3       = 'Prelievo (m³)'               # fustaia volume_planned_m3
 CSV_COL_SUPERFICIE_HA     = 'Superficie intervento (ha)'  # ceduo intervention_area_ha
-CSV_COL_SUPERFICIE_TOT_HA = 'Superficie totale (ha)'      # parcel cross-check only
 CSV_COL_TURNO_A           = 'Turno (a)'                   # coppice rotation, years
 CSV_COL_FUNZIONE          = 'funzione'                    # regression function (`ln`)
 CSV_COL_A                 = 'a'                           # regression coefficient
@@ -382,12 +388,6 @@ COL_N_REGRESSION = 'n'
 # Prelievi: link to the HarvestPlanItem this harvest is part of.
 COL_CANTIERE = 'Cantiere'
 
-LABEL_OPEN_CANTIERE = 'Apri cantiere'
-LABEL_CLOSE_CANTIERE = 'Chiudi cantiere'
-LABEL_PLAN_NAME = 'Nome piano'
-LABEL_PLAN_DESCRIPTION = 'Descrizione'
-LABEL_PROTOCOL_NUMBER = 'Numero di protocollo'
-
 # ---------------------------------------------------------------------------
 # App verbose names
 # ---------------------------------------------------------------------------
@@ -430,9 +430,6 @@ SPECIES_DEFAULT_CEDUO = 'castagno'
 
 PRODUCT = 'tipo di prodotto'
 PRODUCTS = 'tipi di prodotto'
-
-NOTE = 'nota'
-NOTES = 'note'
 
 HARVEST_PLAN = 'piano di gestione'
 HARVEST_PLANS = 'piani di gestione'

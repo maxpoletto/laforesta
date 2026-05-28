@@ -283,12 +283,36 @@ Each app has a `_shell_templates_it.html` included by the shell:
   with dynamic content (summaries, map hosts, table hosts).
 - **`data-role="name"`** on functional elements (forms, sliders)
   that JS needs to query for wiring.
-- **`{% if user.role != 'reader' %}`** gates writer-only elements
-  (edit/delete icons, add buttons) server-side.  JS `canModify()`
-  is no longer needed for elements in templates.
-- Static Italian text lives directly in the `_it.html` template
-  (the locale is indexed by filename, per the `_it.html` / symlink
-  convention).  Dynamic text is set by JS from `S.*` constants.
+- **`{% if user.can_modify %}`** gates writer-only elements
+  (edit/delete icons, add buttons) server-side.  Property on `User`,
+  parallel to the JS `canModify()` helper in `apps/base/static/base/js/roles.js`.
+  JS-side gating is no longer needed for elements in templates.
+
+### Where localized (Italian) text lives
+
+The locale is indexed by filename (`*_it.html`), so per-page templates *should*
+contain literal Italian text — that filename IS the locale boundary, exactly
+like `config/strings_it.py` literally contains the strings.  Wrapping a one-off
+label in `{{ S.X }}` adds ceremony with no consistency benefit.
+
+Use `{{ S.X }}` (via the `apps.base.context_processors.strings` context
+processor) **only when the same logical label appears in multiple
+places**, so that a single edit propagates:
+
+- **Inside shared `_partials/`** (cancel/submit pair, CSV-import tail,
+  collapsible header, edit/delete icons) — these are rendered into many call
+  sites and any literal would have to be edited in each one if the wording
+  changes.  Use `{{ S.X }}` here.
+- **Cross-page recurring strings** — that occur in 3+ sites, e.g. `Cerca…`,
+  `Esporta CSV`, `Filtra`, `Modifica`, `Elimina`, `File CSV`, `Importa`,
+  `Dettagli`, `Annulla`, `Salva`, `Conferma`, `Chiudi`.  Use `{{ S.X }}`.
+- **One-off page titles / labels / help text / empty-state messages**
+  — section headings like *Griglie di campionamento*, modal titles
+  like *Nuovo piano*, button labels like *+ Aggiungi area*, help
+  blurbs.  Leave as literal Italian text in the `_it.html` template.
+
+Dynamic text set by JS (modal headings filled in `wireEditModal`, etc.)
+continues to use the JS-side `S.*` from `apps/base/static/base/js/strings.js`.
 
 ### What stays in JS
 

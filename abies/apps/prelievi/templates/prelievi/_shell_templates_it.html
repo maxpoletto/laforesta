@@ -1,6 +1,7 @@
 {% comment %}
 Prelievi <template> elements — cloned by JS on mount().
-user.can_modify is available from the shell's render context.
+user.can_modify and S (string constants) are provided by the shell's
+render context.
 {% endcomment %}
 
 <template id="tmpl-prelievi-page">
@@ -13,18 +14,16 @@ user.can_modify is available from the shell's render context.
         <input type="range" data-role="slider-max">
       </div>
     </div>
-    <label class="prelievi-filter-label" for="prelievi-search">Filtra</label>
+    <label class="prelievi-filter-label" for="prelievi-search">{{ S.FILTER_LABEL }}</label>
     <input type="text" class="table-search" id="prelievi-search"
-           placeholder="Cerca…">
+           placeholder="{{ S.SEARCH_PLACEHOLDER }}">
     <button type="button" class="btn btn-primary"
             data-action="reset-filters">Azzera filtri</button>
     <button type="button" class="btn btn-primary prelievi-csv-btn"
-            data-action="export-csv">Esporta CSV</button>
+            data-action="export-csv">{{ S.EXPORT_CSV }}</button>
   </div>
 
-  <div class="collapsible-header" data-section="a">
-    <span>Produzione</span><span class="arrow"></span>
-  </div>
+  {% include "base/_partials/_collapsible_header.html" with section="a" title="Produzione" %}
   <div class="collapsible-body" data-section="a">
     <div class="chart-controls">
       <select data-role="breakdown-select">
@@ -43,16 +42,12 @@ user.can_modify is available from the shell's render context.
     <div class="chart-container"><canvas data-target="chart-a"></canvas></div>
   </div>
 
-  <div class="collapsible-header" data-section="b">
-    <span>Specie per particella</span><span class="arrow"></span>
-  </div>
+  {% include "base/_partials/_collapsible_header.html" with section="b" title="Specie per particella" %}
   <div class="collapsible-body" data-section="b">
     <div class="chart-container"><canvas data-target="chart-b"></canvas></div>
   </div>
 
-  <div class="collapsible-header" data-section="i">
-    <span>Interventi</span><span class="arrow"></span>
-  </div>
+  {% include "base/_partials/_collapsible_header.html" with section="i" title="Interventi" %}
   <div class="collapsible-body" data-section="i" data-target="table-host">
   </div>
 </template>

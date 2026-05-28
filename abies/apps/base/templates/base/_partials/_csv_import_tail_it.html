@@ -1,0 +1,6 @@
+{% comment %}
+Status + errors panels + Cancel + Importa buttons.  Place after the
+file input (and any preceding form rows) inside a CSV import form.
+{% endcomment %}<div class="csv-import-status" hidden></div>
+<div class="csv-import-errors" hidden></div>
+{% include "base/_partials/_form_actions.html" with submit_label=S.IMPORT_LABEL %}

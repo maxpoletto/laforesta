@@ -99,7 +99,7 @@ def crews_save(request):
 # ---------------------------------------------------------------------------
 
 TRACTOR_COLS = [ROW_ID, S.LABEL_MANUFACTURER, S.LABEL_MODEL,
-                S.LABEL_YEAR, S.COL_ACTIVE]
+                S.COL_YEAR, S.COL_ACTIVE]
 
 
 def _tractor_row(t):
@@ -143,7 +143,7 @@ def tractors_save(request):
 # Species
 # ---------------------------------------------------------------------------
 
-SPECIES_COLS = [ROW_ID, S.LABEL_NAME, S.LABEL_LATIN_NAME,
+SPECIES_COLS = [ROW_ID, S.LABEL_NAME, S.COL_LATIN_NAME,
                 S.LABEL_DENSITY, S.COL_ACTIVE]
 
 

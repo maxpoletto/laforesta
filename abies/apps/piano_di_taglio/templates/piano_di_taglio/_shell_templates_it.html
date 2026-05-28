@@ -1,6 +1,7 @@
 {% comment %}
 Piano di taglio <template> elements — cloned by JS on mount().
-user.can_modify is available from the shell's render context.
+user.can_modify and S (string constants) are provided by the shell's
+render context.
 {% endcomment %}
 
 <template id="tmpl-pdt-page">
@@ -11,16 +12,11 @@ user.can_modify is available from the shell's render context.
              for="pdt-plan-select">Piano di taglio</label>
       <select class="pdt-pulldown page-pulldown"
               id="pdt-plan-select"></select>
-      {% if user.can_modify %}
-      <span class="action-icon action-edit pdt-pulldown-icon"
-            role="button" title="Modifica" data-action="edit-plan">✎</span>
-      <span class="action-icon action-delete pdt-pulldown-icon"
-            role="button" title="Elimina" data-action="delete-plan">🗑︎</span>
-      {% endif %}
+      {% include "base/_partials/_edit_delete_icons.html" with edit_action="edit-plan" delete_action="delete-plan" %}
     </div>
     <div class="pdt-header-right">
       <button type="button" class="btn"
-              data-action="export-plan">Esporta CSV</button>
+              data-action="export-plan">{{ S.EXPORT_CSV }}</button>
       {% if user.can_modify %}
       <button type="button" class="btn btn-primary"
               data-action="new-plan">+ Nuovo piano</button>
@@ -35,17 +31,14 @@ user.can_modify is available from the shell's render context.
   </div>
 
   {# Fustaia section #}
-  <div class="collapsible-header" data-section="f">
-    <span>Interventi fustaia</span>
-    <span class="arrow"></span>
-  </div>
+  {% include "base/_partials/_collapsible_header.html" with section="f" title="Interventi fustaia" %}
   <div class="collapsible-body" data-section="f">
     <div class="pdt-section-toolbar" data-target="toolbar-f">
-      <label class="pdt-search-label" for="pdt-search-f">Filtra</label>
+      <label class="pdt-search-label" for="pdt-search-f">{{ S.FILTER_LABEL }}</label>
       <input type="text" class="table-search" id="pdt-search-f"
-             placeholder="Cerca...">
+             placeholder="{{ S.SEARCH_PLACEHOLDER }}">
       <button type="button" class="btn btn-primary pdt-csv-btn"
-              data-action="export-section-csv">Esporta CSV</button>
+              data-action="export-section-csv">{{ S.EXPORT_CSV }}</button>
     </div>
     <div class="pdt-table-host" data-target="table-f"></div>
     {% if user.can_modify %}
@@ -66,17 +59,14 @@ user.can_modify is available from the shell's render context.
   </div>
 
   {# Ceduo section #}
-  <div class="collapsible-header" data-section="c">
-    <span>Interventi ceduo</span>
-    <span class="arrow"></span>
-  </div>
+  {% include "base/_partials/_collapsible_header.html" with section="c" title="Interventi ceduo" %}
   <div class="collapsible-body" data-section="c">
     <div class="pdt-section-toolbar" data-target="toolbar-c">
-      <label class="pdt-search-label" for="pdt-search-c">Filtra</label>
+      <label class="pdt-search-label" for="pdt-search-c">{{ S.FILTER_LABEL }}</label>
       <input type="text" class="table-search" id="pdt-search-c"
-             placeholder="Cerca...">
+             placeholder="{{ S.SEARCH_PLACEHOLDER }}">
       <button type="button" class="btn btn-primary pdt-csv-btn"
-              data-action="export-section-csv">Esporta CSV</button>
+              data-action="export-section-csv">{{ S.EXPORT_CSV }}</button>
     </div>
     <div class="pdt-table-host" data-target="table-c"></div>
     {% if user.can_modify %}
@@ -114,10 +104,7 @@ user.can_modify is available from the shell's render context.
           <textarea id="pdt-new-plan-desc" name="description" rows="3"></textarea>
         </div>
       </div>
-      <div class="form-actions">
-        <button type="button" class="btn" data-action="cancel">Annulla</button>
-        <button type="submit" class="btn btn-primary">Salva</button>
-      </div>
+      {% include "base/_partials/_form_actions.html" with submit_label=S.SAVE %}
     </form>
   </div>
 </template>
@@ -126,7 +113,7 @@ user.can_modify is available from the shell's render context.
   <div class="form-card">
     <h2>Modifica piano</h2>
     <div class="modal-tabs">
-      <button type="button" class="modal-tab" data-path="details">Dettagli</button>
+      <button type="button" class="modal-tab" data-path="details">{{ S.TAB_DETAILS }}</button>
       <button type="button" class="modal-tab" data-path="calendar">Importa calendario da CSV</button>
       <button type="button" class="modal-tab" data-path="regression">Importa equazioni da CSV</button>
     </div>
@@ -159,10 +146,7 @@ user.can_modify is available from the shell's render context.
               <textarea id="pdt-edit-desc" name="description" rows="3"></textarea>
             </div>
           </div>
-          <div class="form-actions">
-            <button type="button" class="btn" data-action="cancel">Annulla</button>
-            <button type="submit" class="btn btn-primary">Salva</button>
-          </div>
+          {% include "base/_partials/_form_actions.html" with submit_label=S.SAVE %}
         </form>
       </div>
       {# Importa calendario tab #}
@@ -176,17 +160,12 @@ user.can_modify is available from the shell's render context.
           </div>
           <div class="form-row">
             <div class="form-group">
-              <label for="pdt-edit-cal-file">File CSV</label>
+              <label for="pdt-edit-cal-file">{{ S.LABEL_CSV_FILE }}</label>
               <input type="file" id="pdt-edit-cal-file"
                      accept=".csv,text/csv" required>
             </div>
           </div>
-          <div class="csv-import-status" hidden></div>
-          <div class="csv-import-errors" hidden></div>
-          <div class="form-actions">
-            <button type="button" class="btn" data-action="cancel">Annulla</button>
-            <button type="submit" class="btn btn-primary">Importa</button>
-          </div>
+          {% include "base/_partials/_csv_import_tail.html" %}
         </form>
       </div>
       {# Importa equazioni tab #}
@@ -194,17 +173,12 @@ user.can_modify is available from the shell's render context.
         <form class="pdt-plan-form" data-role="regression-form">
           <div class="form-row">
             <div class="form-group">
-              <label for="pdt-edit-reg-file">File CSV</label>
+              <label for="pdt-edit-reg-file">{{ S.LABEL_CSV_FILE }}</label>
               <input type="file" id="pdt-edit-reg-file"
                      accept=".csv,text/csv" required>
             </div>
           </div>
-          <div class="csv-import-status" hidden></div>
-          <div class="csv-import-errors" hidden></div>
-          <div class="form-actions">
-            <button type="button" class="btn" data-action="cancel">Annulla</button>
-            <button type="submit" class="btn btn-primary">Importa</button>
-          </div>
+          {% include "base/_partials/_csv_import_tail.html" %}
         </form>
       </div>
     </div>
@@ -227,10 +201,7 @@ user.can_modify is available from the shell's render context.
           <input type="text" id="pdt-transition-note" name="note">
         </div>
       </div>
-      <div class="form-actions">
-        <button type="button" class="btn" data-action="cancel">Annulla</button>
-        <button type="submit" class="btn btn-primary">Conferma</button>
-      </div>
+      {% include "base/_partials/_form_actions.html" with submit_label=S.CONFIRM %}
     </form>
   </div>
 </template>
@@ -241,17 +212,12 @@ user.can_modify is available from the shell's render context.
     <form>
       <div class="form-row">
         <div class="form-group">
-          <label for="mark-csv-file">File CSV</label>
+          <label for="mark-csv-file">{{ S.LABEL_CSV_FILE }}</label>
           <input type="file" id="mark-csv-file" name="file"
                  accept=".csv,text/csv" required>
         </div>
       </div>
-      <div class="csv-import-status" hidden></div>
-      <div class="csv-import-errors" hidden></div>
-      <div class="form-actions">
-        <button type="button" class="btn" data-action="cancel">Annulla</button>
-        <button type="submit" class="btn btn-primary">Importa</button>
-      </div>
+      {% include "base/_partials/_csv_import_tail.html" %}
     </form>
   </div>
 </template>
@@ -262,15 +228,15 @@ user.can_modify is available from the shell's render context.
       <div class="pdt-item-header-left">
         <h2 class="pdt-item-title" data-field="title"></h2>
         {% if user.can_modify %}
-        <span class="pdt-pulldown-icon" role="button" title="Modifica"
+        <span class="page-pulldown-icon" role="button" title="{{ S.ACTION_EDIT }}"
               data-action="edit-item">✎</span>
         {% endif %}
       </div>
       <div class="pdt-item-header-actions">
         <button type="button" class="btn"
-                data-action="export-item">Esporta CSV</button>
+                data-action="export-item">{{ S.EXPORT_CSV }}</button>
         <button type="button" class="pdt-item-close"
-                title="Chiudi" data-action="close-item">×</button>
+                title="{{ S.DISMISS }}" data-action="close-item">×</button>
       </div>
     </div>
     <dl class="pdt-item-meta" data-target="metadata"></dl>

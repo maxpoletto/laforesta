@@ -1068,7 +1068,7 @@ def mark_save_view(request):
     if not operator:
         errors.append(S.ERR_MARK_OPERATOR_REQUIRED)
     if not date_raw:
-        errors.append(S.ERR_MARK_DATE_REQUIRED)
+        errors.append(S.ERR_DATE_REQUIRED)
     else:
         try:
             date = date_type.fromisoformat(date_raw)
