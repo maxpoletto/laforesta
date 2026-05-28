@@ -289,6 +289,25 @@ Data-driven content (table rows, chart datasets, map markers),
 slider logic, and any structure that depends on runtime state.
 Only static scaffolding moves to templates.
 
+### Function naming
+
+UI helpers use a prefix that signals what the function does, so a
+reader can tell from the name whether it builds DOM, attaches
+behavior, or opens a modal:
+
+- **`show*`** — opens a modal (typically: clone a `<template>`, fill
+  fields, wire handlers, call `showModal`).  Examples:
+  `showConfirmModal`, `showCascadeDeleteModal`, `showEditModal`,
+  `showAreaPopover`, `showTransitionForm`, `showImportMarksForm`,
+  `showNewSurveyForm`, `showError`.
+- **`wire*`** — takes an already-rendered DOM and only attaches
+  event handlers.  Examples: `wireGridEmptyForm`,
+  `wireCancelButtons`, `wireForm`.
+- **`build*`** — constructs DOM but does not show it (e.g.,
+  `buildPage` clones a page template into `#content`).
+- **`mk*`** — small element factories in `form-widgets.js` that
+  return individual DOM nodes (`mkRow`, `mkInput`, `mkFormActions`).
+
 ## Accessibility
 
 No special accessibility features in v1 (high contrast, etc.).
