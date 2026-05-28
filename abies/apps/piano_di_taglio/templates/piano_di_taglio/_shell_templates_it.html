@@ -1,6 +1,6 @@
 {% comment %}
 Piano di taglio <template> elements — cloned by JS on mount().
-user.role is available from the shell's render context.
+user.can_modify is available from the shell's render context.
 {% endcomment %}
 
 <template id="tmpl-pdt-page">
@@ -11,7 +11,7 @@ user.role is available from the shell's render context.
              for="pdt-plan-select">Piano di taglio</label>
       <select class="pdt-pulldown page-pulldown"
               id="pdt-plan-select"></select>
-      {% if user.role != 'reader' %}
+      {% if user.can_modify %}
       <span class="action-icon action-edit pdt-pulldown-icon"
             role="button" title="Modifica" data-action="edit-plan">✎</span>
       <span class="action-icon action-delete pdt-pulldown-icon"
@@ -21,7 +21,7 @@ user.role is available from the shell's render context.
     <div class="pdt-header-right">
       <button type="button" class="btn"
               data-action="export-plan">Esporta CSV</button>
-      {% if user.role != 'reader' %}
+      {% if user.can_modify %}
       <button type="button" class="btn btn-primary"
               data-action="new-plan">+ Nuovo piano</button>
       {% endif %}
@@ -48,7 +48,7 @@ user.role is available from the shell's render context.
               data-action="export-section-csv">Esporta CSV</button>
     </div>
     <div class="pdt-table-host" data-target="table-f"></div>
-    {% if user.role != 'reader' %}
+    {% if user.can_modify %}
     <div class="action-add" data-target="add-f">
       <button type="button" class="btn btn-primary btn-add"
               data-action="add-item-f">+ Aggiungi</button>
@@ -79,7 +79,7 @@ user.role is available from the shell's render context.
               data-action="export-section-csv">Esporta CSV</button>
     </div>
     <div class="pdt-table-host" data-target="table-c"></div>
-    {% if user.role != 'reader' %}
+    {% if user.can_modify %}
     <div class="action-add" data-target="add-c">
       <button type="button" class="btn btn-primary btn-add"
               data-action="add-item-c">+ Aggiungi</button>
@@ -261,7 +261,7 @@ user.role is available from the shell's render context.
     <div class="pdt-item-header">
       <div class="pdt-item-header-left">
         <h2 class="pdt-item-title" data-field="title"></h2>
-        {% if user.role != 'reader' %}
+        {% if user.can_modify %}
         <span class="pdt-pulldown-icon" role="button" title="Modifica"
               data-action="edit-item">✎</span>
         {% endif %}
@@ -274,7 +274,7 @@ user.role is available from the shell's render context.
       </div>
     </div>
     <dl class="pdt-item-meta" data-target="metadata"></dl>
-    {% if user.role != 'reader' %}
+    {% if user.can_modify %}
     <div class="form-actions" data-target="transitions" hidden></div>
     {% endif %}
     <div data-target="subsections"></div>

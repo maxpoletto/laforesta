@@ -1,6 +1,6 @@
 {% comment %}
 Campionamenti <template> elements — cloned by JS on mount().
-user.role is available from the shell's render context.
+user.can_modify is available from the shell's render context.
 {% endcomment %}
 
 <template id="tmpl-campionamenti-page">
@@ -16,7 +16,7 @@ user.role is available from the shell's render context.
                for="campionamenti-grid-select">Griglia</label>
         <select class="campionamenti-pulldown page-pulldown"
                 id="campionamenti-grid-select"></select>
-        {% if user.role != 'reader' %}
+        {% if user.can_modify %}
         <span class="action-icon action-edit campionamenti-pulldown-icon"
               role="button" title="Modifica" data-action="edit-grid">✎</span>
         <span class="action-icon action-delete campionamenti-pulldown-icon"
@@ -26,7 +26,7 @@ user.role is available from the shell's render context.
       <div class="campionamenti-section-right">
         <button type="button" class="btn"
                 data-action="export-grid-csv">Esporta CSV</button>
-        {% if user.role != 'reader' %}
+        {% if user.can_modify %}
         <button type="button" class="btn btn-primary"
                 data-action="new-grid">Nuova griglia</button>
         {% endif %}
@@ -34,7 +34,7 @@ user.role is available from the shell's render context.
     </div>
     <div class="campionamenti-summary" data-target="grid-summary"></div>
     <div class="campionamenti-map-host" data-target="grid-map"></div>
-    {% if user.role != 'reader' %}
+    {% if user.can_modify %}
     <div class="form-help">
       Clicca sulla mappa per aggiungere un'area, o su un'area per modificarla.</div>
     <button type="button" class="btn btn-primary"
@@ -42,7 +42,7 @@ user.role is available from the shell's render context.
     {% endif %}
     <div class="campionamenti-empty" data-target="grid-empty" hidden>
       Nessuna griglia.  Premi "Nuova griglia" per crearne una.
-      {% if user.role != 'reader' %}
+      {% if user.can_modify %}
       <div style="text-align:center;margin-top:1rem">
         <button type="button" class="btn btn-primary"
                 data-action="new-grid">Nuova griglia</button>
@@ -63,7 +63,7 @@ user.role is available from the shell's render context.
                for="campionamenti-survey-select">Rilevamento</label>
         <select class="campionamenti-pulldown page-pulldown"
                 id="campionamenti-survey-select"></select>
-        {% if user.role != 'reader' %}
+        {% if user.can_modify %}
         <span class="action-icon action-edit campionamenti-pulldown-icon"
               role="button" title="Modifica" data-action="edit-survey">✎</span>
         <span class="action-icon action-delete campionamenti-pulldown-icon"
@@ -73,7 +73,7 @@ user.role is available from the shell's render context.
       <div class="campionamenti-section-right">
         <button type="button" class="btn"
                 data-action="export-survey-csv">Esporta CSV</button>
-        {% if user.role != 'reader' %}
+        {% if user.can_modify %}
         <button type="button" class="btn btn-primary"
                 data-action="new-survey">Nuovo rilevamento</button>
         {% endif %}
@@ -99,7 +99,7 @@ user.role is available from the shell's render context.
   <div class="form-readonly-block" data-target="fields"></div>
   <div class="form-actions">
     <button type="button" class="btn" data-action="cancel">Chiudi</button>
-    {% if user.role != 'reader' %}
+    {% if user.can_modify %}
     <button type="button" class="btn btn-primary"
             data-action="edit-area">Modifica</button>
     <button type="button" class="btn btn-primary"
