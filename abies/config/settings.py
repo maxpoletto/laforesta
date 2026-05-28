@@ -127,6 +127,7 @@ SOCIALACCOUNT_PROVIDERS = {
 
 # --- django-axes -------------------------------------------------------------
 
+AXES_ENABLED = not DEBUG
 AXES_FAILURE_LIMIT = 5
 AXES_COOLOFF_TIME = timedelta(minutes=30)
 AXES_LOCKOUT_PARAMETERS = ['username', 'ip_address']
@@ -168,6 +169,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'apps.base.context_processors.strings',
             ],
         },
     },

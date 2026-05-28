@@ -7,7 +7,7 @@
  */
 
 import { postJSON } from './api.js';
-import { show as showModal, showError } from './modals.js';
+import { show as showModal, dismiss as dismissModal, showError } from './modals.js';
 import * as S from './strings.js';
 import { HTML, STATUS_CONFLICT } from './constants.js';
 
@@ -104,17 +104,6 @@ export function interceptSubmit(form, postUrl, callbacks) {
 }
 
 /**
- * Wire all [data-action="cancel"] buttons inside `container` to call `callback`.
- *
- * @param {HTMLElement} container
- * @param {function(): void} callback
- */
-export function wireCancelButtons(container, callback) {
-  container.querySelectorAll('[data-action="cancel"]')
-    .forEach(b => b.addEventListener('click', callback));
-}
-
-/**
  * Fetch a form fragment from the server and display it in the overlay modal.
  * Returns the form element inside #modal-container, or null on error.
  */
@@ -158,8 +147,76 @@ export function showFormError(form, message) {
 }
 
 // ---------------------------------------------------------------------------
+// CSV import submission lifecycle
+// ---------------------------------------------------------------------------
+
+/**
+ * CSV-import-specific form submit lifecycle.  For non-CSV submits use
+ * `interceptSubmit` instead — this helper expects a per-row errors list
+ * (truncated at 50 via `S.CSV_EXTRA_ERRORS`) and a caller-supplied
+ * status/errors element pair, both shaped like a CSV import modal.
+ *
+ * Wraps an async submit: disable submit button, show "in progress"
+ * status, dispatch the caller's network call, render server-reported
+ * per-row errors or a form-level error message, re-enable the submit
+ * and clear the status in `finally`.
+ *
+ * `attempt(form)` must return one of:
+ *   - `{ ok: true }`       → modal is dismissed
+ *   - `{ errors: [...] }`  → error list rendered into `errorsBox`,
+ *                            modal stays open
+ *   - `{ error: 'msg' }`   → form-level error shown, modal stays open
+ *   - anything else        → generic error shown, modal stays open
+ *
+ * Exceptions from `attempt` are caught and surfaced as a network error.
+ *
+ * Returns the resolved attempt result (or `{ error: 'network' }` on
+ * exception) so the caller can chain follow-up work conditional on
+ * success.
+ */
+export async function submitCsvImport({ form, statusBox, errorsBox, attempt }) {
+  const btn = form.querySelector('button[type="submit"]');
+  if (btn) btn.disabled = true;
+  errorsBox.hidden = true;
+  errorsBox.replaceChildren();
+  statusBox.textContent = S.CSV_IMPORT_IN_PROGRESS;
+  statusBox.hidden = false;
+  let result;
+  try {
+    result = await attempt(form);
+    if (result?.ok) dismissModal();
+    else if (result?.errors?.length) renderCsvErrors(errorsBox, result.errors);
+    else showFormError(form, result?.error || S.ERROR_GENERIC);
+  } catch {
+    showFormError(form, S.ERROR_NETWORK);
+    result = { error: 'network' };
+  } finally {
+    if (btn) btn.disabled = false;
+    statusBox.hidden = true;
+  }
+  return result;
+}
+
+// ---------------------------------------------------------------------------
 // Internal
 // ---------------------------------------------------------------------------
+
+function renderCsvErrors(box, errors) {
+  box.replaceChildren();
+  const ul = document.createElement('ul');
+  for (const e of errors.slice(0, 50)) {
+    const li = document.createElement('li');
+    li.textContent = e;
+    ul.appendChild(li);
+  }
+  if (errors.length > 50) {
+    const more = document.createElement('li');
+    more.textContent = S.CSV_EXTRA_ERRORS(errors.length - 50);
+    ul.appendChild(more);
+  }
+  box.appendChild(ul);
+  box.hidden = false;
+}
 
 function injectNonce(form) {
   let input = form.querySelector('input[name="nonce"]');

@@ -53,7 +53,7 @@ function _dimFn(breakdown, colMap) {
     return row => `${row[ri]}/${row[pi]}`;  // disambiguate parcels across regions
   }
   const idx = colMap[{
-    compresa: S.COL_COMPRESA, squadra: S.COL_CREW, tipo: S.COL_PRODUCT,
+    compresa: S.COL_COMPRESA, squadra: S.COL_CREW, tipo: S.COL_TYPE,
   }[breakdown]];
   return row => row[idx] || '?';
 }

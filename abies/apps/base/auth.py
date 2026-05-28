@@ -49,7 +49,7 @@ def require_writer(view):
     """Decorator: 403 for users below writer role."""
     @wraps(view)
     def wrapper(request, *args, **kwargs):
-        if request.user.role not in (Role.ADMIN, Role.WRITER):
+        if not request.user.can_modify:
             return JsonResponse({'message': S.ERR_FORBIDDEN}, status=403)
         return view(request, *args, **kwargs)
     return wrapper

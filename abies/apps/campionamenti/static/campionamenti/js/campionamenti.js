@@ -18,16 +18,22 @@ import { TableWrapper } from '../../base/js/table.js';
 import { show as showModal, showError, dismiss as dismissModal, onDismiss } from '../../base/js/modals.js';
 import * as S from '../../base/js/strings.js';
 import {
-  FIELD_LAT, FIELD_LON, ROW_ID, VERSION,
+  FIELD_LAT, FIELD_LON, FIELD_NONCE, FIELD_SAMPLE_GRID_ID,
+  FIELD_SURVEY_ID, ROW_ID, VERSION,
 } from '../../base/js/constants.js';
 import { fetchJSON, postJSON, postFormData } from '../../base/js/api.js';
 import {
   fetchForm, fetchModalForm, renderFormHTML, renderModalForm,
-  interceptSubmit, wireCancelButtons, showFormError,
+  interceptSubmit, submitCsvImport, showFormError,
 } from '../../base/js/forms.js';
 import {
-  mkCollapsible, mkEditDeleteIcons, renderCsvErrors,
-} from '../../base/js/form-widgets.js';
+  showConfirmModal, showCascadeDeleteModal, wireActions, wireCancelButtons,
+  showLoadingIn, wireCollapsibleToggle, wireTabbedModal,
+} from '../../base/js/ui-widgets.js';
+import { canModify } from '../../base/js/roles.js';
+import { loadCSS, unloadCSS } from '../../base/js/page-css.js';
+import { exportDigest } from '../../base/js/csv-export.js';
+import { cloneTemplate } from '../../base/js/templates.js';
 import { RilevamentiMap } from './rilevamenti-map.js';
 import { GriglieMap } from './griglie-map.js';
 import { GridPlanner } from './grid-planner.js';
@@ -106,7 +112,7 @@ const TREES_COLS = {
   [S.COL_AREA_NUM]:    { label: S.COL_AREA_NUM, width: '70px' },
   [S.COL_TREE_NUM]:    { label: S.COL_TREE_NUM_SHORT, type: 'number', width: '70px', formatter: fmtInt },
   [S.COL_SPECIES]:     { label: S.COL_SPECIES, width: '120px' },
-  [S.COL_PRODUCT]:     { label: S.COL_PRODUCT, width: '70px' },
+  [S.COL_TYPE]:        { label: S.COL_TYPE, width: '70px' },
   [S.COL_POLLONE]:     { label: S.COL_POLLONE_SHORT, type: 'number', width: '55px', formatter: fmtInt },
   [S.COL_MATRICINA]:   { label: S.COL_MATRICINA_SHORT, type: 'boolean', width: '55px', formatter: fmtBool },
   [S.COL_D_CM]:        { label: S.COL_D_CM, type: 'number', width: '65px', formatter: fmtInt },
@@ -122,21 +128,13 @@ const TREES_COLS = {
 
 // --- Page state -------------------------------------------------------------
 const sections = {
-  g: { title: S.SECTION_GRIGLIE,   open: false, header: null, body: null,
+  g: { open: false, header: null, body: null,
        pulldown: null, summary: null, mapEl: null, map: null,
-       // {gridId, center: [lat,lng], zoom} — stashed across
-       // re-renders so a grid save / area edit doesn't reset the
-       // user's pan/zoom.  Keyed by gridId because `returnToPage`
-       // zeroes the global `activeGridId` before re-running
-       // applyParams; matching by id (not by global flag) lets the
-       // re-render pick up the same view.  Discarded by the renderer
-       // when the gridId changes.
        savedView: null },
-  r: { title: S.SECTION_RILEVAMENTI, open: true, header: null, body: null,
+  r: { open: true, header: null, body: null,
        pulldown: null, summary: null, mapEl: null, map: null,
-       // {surveyId, center, zoom} — same logic, keyed by surveyId.
        savedView: null },
-  t: { title: S.SECTION_ALBERI_CAMPIONATI, open: false, header: null, body: null,
+  t: { open: false, header: null, body: null,
        host: null, emptyEl: null },
 };
 
@@ -153,15 +151,11 @@ let unsubCache = null;
 let currentTreesId = null;
 let _areaColIdx = -1;
 let inForm = false;
-let escapeHandler = null;
+let disposePageActions = null;
 // MapCommon basemap key in effect across all maps on this page.
 // Initialised in mount() from the URL; updated by `basemapchange` events
 // fired from any BasemapControl and by `applyParams` on back/forward.
 let currentMapType = MAP_TYPE_TOKENS[DEFAULT_MAP_TYPE];
-
-function canModify() {
-  return ['admin', 'writer'].includes(document.body.dataset.role);
-}
 
 cache.register(SURVEYS_ID, SURVEYS_URL);
 cache.register(GRIDS_ID, GRIDS_URL);
@@ -175,12 +169,7 @@ cache.register(SAMPLES_ID, SAMPLES_URL);
 export async function mount(params) {
   loadCSS(CSS_URL);
   const el = document.getElementById('content');
-  el.replaceChildren();
-
-  const loading = document.createElement('div');
-  loading.className = 'loading-overlay';
-  loading.textContent = S.LOADING;
-  el.appendChild(loading);
+  showLoadingIn(el);
 
   try {
     const [s, g, sa, sm, geo] = await Promise.all([
@@ -209,7 +198,7 @@ export async function mount(params) {
   const p0 = readParams(params);
   currentMapType = MAP_TYPE_TOKENS[p0.mt];
 
-  buildPageShell(el, params);
+  buildPage(el, params);
   cache.setVisible([SURVEYS_ID, GRIDS_ID, SAMPLE_AREAS_ID, SAMPLES_ID]);
 
   applyParams(params);
@@ -218,6 +207,7 @@ export async function mount(params) {
 export function unmount() {
   unloadCSS(CSS_URL);
   if (unsubCache) { unsubCache(); unsubCache = null; }
+  if (disposePageActions) { disposePageActions(); disposePageActions = null; }
   destroyTable();
   destroyRilevamentiMap();
   destroyGriglieMap();
@@ -244,154 +234,113 @@ function resetSectionRefs() {
 }
 
 // ---------------------------------------------------------------------------
-// Page shell — three collapsible sections
+// Page shell — cloned from <template> in shell_it.html
 // ---------------------------------------------------------------------------
 
-function buildPageShell(el, params) {
+function buildPage(el, params) {
+  disposePageActions?.();
   el.replaceChildren();
   const p = readParams(params);
+  const frag = cloneTemplate('tmpl-campionamenti-page');
+  el.appendChild(frag);
 
-  // Section initial open state from URL `o=`.
-  for (const k of SECTION_KEYS) sections[k].open = p.o.includes(k);
-
-  // Section 1: Griglie
-  buildSection(el, sections.g, body => buildGriglieBody(body));
-  // Section 2: Rilevamenti
-  buildSection(el, sections.r, body => buildRilevamentiBody(body));
-  // Section 3: Alberi campionati
-  buildSection(el, sections.t, body => buildAlberiBody(body));
-}
-
-function buildSection(el, s, populate) {
-  const [header, body] = mkCollapsible(s.title, s.open);
-  s.header = header;
-  s.body = body;
-  populate(body);
-  header.addEventListener('click', () => {
-    s.open = !s.open;
-    header.classList.toggle('open', s.open);
-    body.classList.toggle('open', s.open);
-    if (s.open) onSectionOpen(s);
-    syncURL();
-  });
-  el.append(header, body);
-}
-
-
-function onSectionOpen(s) {
-  // Leaflet needs invalidateSize() when a hidden container becomes visible.
-  if (s === sections.g && s.map) s.map.invalidateSize();
-  if (s === sections.r && s.map) s.map.invalidateSize();
-}
-
-// ---------------------------------------------------------------------------
-// Section 1 — Griglie body
-// ---------------------------------------------------------------------------
-
-function buildGriglieBody(body) {
-  const s = sections.g;
-
-  // Empty state — no grids exist yet.  Show a centered prompt + the
-  // "Nuova griglia" button (writers only).
-  if (!gridsData?.rows.length) {
-    const empty = document.createElement('div');
-    empty.className = 'campionamenti-empty';
-    empty.textContent = S.CAMPIONAMENTI_NO_GRIDS;
-    body.appendChild(empty);
-    if (canModify()) {
-      const addBtn = document.createElement('button');
-      addBtn.type = 'button';
-      addBtn.className = 'btn btn-primary';
-      addBtn.textContent = S.NEW_GRID_LABEL;
-      addBtn.addEventListener('click', () => showNewGridForm());
-      const wrap = document.createElement('div');
-      wrap.style.textAlign = 'center';
-      wrap.appendChild(addBtn);
-      body.appendChild(wrap);
+  for (const key of SECTION_KEYS) {
+    const s = sections[key];
+    s.open = p.o.includes(key);
+    s.header = el.querySelector(`[data-section="${key}"].collapsible-header`);
+    s.body = el.querySelector(`[data-section="${key}"].collapsible-body`);
+    s.header?.classList.toggle('open', s.open);
+    s.body?.classList.toggle('open', s.open);
+    if (s.header && s.body) {
+      wireCollapsibleToggle(s.header, s.body, (open) => {
+        s.open = open;
+        if (open) onSectionOpen(s);
+        syncURL();
+      });
     }
-    return;
   }
 
-  const topRow = document.createElement('div');
-  topRow.className = 'campionamenti-section-top';
-  const left = document.createElement('div');
-  left.className = 'campionamenti-section-left';
-  const right = document.createElement('div');
-  right.className = 'campionamenti-section-right';
-  topRow.append(left, right);
+  // Grid section refs.
+  const g = sections.g;
+  g.pulldown = el.querySelector('#campionamenti-grid-select');
+  g.summary = el.querySelector('[data-target="grid-summary"]');
+  g.mapEl = el.querySelector('[data-target="grid-map"]');
+  g.emptyEl = el.querySelector('[data-target="grid-empty"]');
+  g.pulldown?.addEventListener('change', () => {
+    activateGrid(parseInt(g.pulldown.value, 10));
+    syncURL();
+  });
+  populatePulldown(g.pulldown, gridsData);
 
-  const label = document.createElement('label');
-  label.className = 'campionamenti-pulldown-label';
-  label.textContent = S.GRID_LABEL;
+  // Survey section refs.
+  const r = sections.r;
+  r.pulldown = el.querySelector('#campionamenti-survey-select');
+  r.summary = el.querySelector('[data-target="survey-summary"]');
+  r.mapEl = el.querySelector('[data-target="survey-map"]');
+  r.pulldown?.addEventListener('change', () => {
+    activateSurvey(parseInt(r.pulldown.value, 10));
+    syncURL();
+  });
+  populatePulldown(r.pulldown, surveysData, surveyPulldownLabel);
 
-  const sel = document.createElement('select');
-  sel.className = 'campionamenti-pulldown page-pulldown';
-  const idCol = gridsData.columns.indexOf(ROW_ID);
-  const nameCol = gridsData.columns.indexOf(S.COL_NAME);
-  for (const row of gridsData.rows) {
+  // Trees section refs.
+  sections.t.emptyEl = el.querySelector('[data-target="trees-empty"]');
+  sections.t.host = el.querySelector('[data-target="trees-table-host"]');
+
+  disposePageActions = wireActions(el, {
+    'new-grid': () => showNewGridForm(),
+    'edit-grid': () => showEditGridModal(),
+    'delete-grid': () => confirmDeleteGrid(),
+    'export-grid-csv': () => activeGridId != null && exportGridAreasCSV(activeGridId),
+    'new-survey': () => showNewSurveyForm(),
+    'edit-survey': () => showEditSurveyModal(),
+    'delete-survey': () => confirmDeleteSurvey(),
+    'export-survey-csv': () => activeSurveyId != null && exportFullSurveyCSV(activeSurveyId),
+    'add-area': () => showAddAreaForm(),
+  });
+
+  updateGridEmptyState();
+}
+
+function populatePulldown(sel, digest, labelFn) {
+  if (!sel || !digest) return;
+  sel.replaceChildren();
+  const idCol = digest.columns.indexOf(ROW_ID);
+  const nameCol = digest.columns.indexOf(S.COL_NAME);
+  for (const row of digest.rows) {
     const opt = document.createElement('option');
     opt.value = String(row[idCol]);
-    opt.textContent = row[nameCol];
+    opt.textContent = labelFn ? labelFn(row) : row[nameCol];
     sel.appendChild(opt);
   }
-  sel.addEventListener('change', () => {
-    activateGrid(parseInt(sel.value, 10));
-    syncURL();
-  });
-  label.htmlFor = sel.id = 'campionamenti-grid-select';
+}
 
-  left.append(label, sel);
-  if (canModify()) {
-    mkEditDeleteIcons(left, {
-      onEdit: () => showEditGridModal(),
-      onDelete: () => confirmDeleteGrid(),
-      iconClass: 'campionamenti-pulldown-icon',
-    });
-  }
+function surveyPulldownLabel(row) {
+  const c = surveysData.columns;
+  const name = row[c.indexOf(S.COL_NAME)];
+  const vis = row[c.indexOf(S.COL_N_AREAS_VISITED)];
+  const tot = row[c.indexOf(S.COL_N_AREAS_TOTAL)];
+  return `${name} (${vis}/${tot} aree)`;
+}
 
-  const exportGridBtn = document.createElement('button');
-  exportGridBtn.type = 'button';
-  exportGridBtn.className = 'btn';
-  exportGridBtn.textContent = S.EXPORT_CSV;
-  exportGridBtn.addEventListener('click', () => {
-    if (activeGridId != null) exportGridAreasCSV(activeGridId);
-  });
-  right.appendChild(exportGridBtn);
+function updateGridEmptyState() {
+  const hasGrids = gridsData?.rows?.length > 0;
+  const g = sections.g;
+  const topRow = g.body?.querySelector('.campionamenti-section-top');
+  if (topRow) topRow.hidden = !hasGrids;
+  if (g.emptyEl) g.emptyEl.hidden = hasGrids;
+  if (g.summary) g.summary.hidden = !hasGrids;
+  if (g.mapEl) g.mapEl.hidden = !hasGrids;
+  // Also hide the add-area hint and button below the map.
+  const hint = g.body?.querySelector('.form-help');
+  if (hint) hint.hidden = !hasGrids;
+  const addBtn = g.body?.querySelector('[data-action="add-area"]');
+  if (addBtn) addBtn.hidden = !hasGrids;
+}
 
-  if (canModify()) {
-    const addBtn = document.createElement('button');
-    addBtn.type = 'button';
-    addBtn.className = 'btn btn-primary';
-    addBtn.textContent = S.NEW_GRID_LABEL;
-    addBtn.addEventListener('click', () => showNewGridForm());
-    right.appendChild(addBtn);
-  }
-
-  body.appendChild(topRow);
-
-  s.summary = document.createElement('div');
-  s.summary.className = 'campionamenti-summary';
-  body.appendChild(s.summary);
-
-  s.mapEl = document.createElement('div');
-  s.mapEl.className = 'campionamenti-map-host';
-  body.appendChild(s.mapEl);
-
-  if (canModify()) {
-    const hint = document.createElement('div');
-    hint.className = 'form-help';
-    hint.textContent = S.CAMPIONAMENTI_NO_AREAS_HINT;
-    body.appendChild(hint);
-
-    const addAreaBtn = document.createElement('button');
-    addAreaBtn.type = 'button';
-    addAreaBtn.className = 'btn btn-primary';
-    addAreaBtn.textContent = S.ADD_AREA_LABEL;
-    addAreaBtn.addEventListener('click', () => showAddAreaForm());
-    body.appendChild(addAreaBtn);
-  }
-
-  s.pulldown = sel;
+function onSectionOpen(s) {
+  if (s === sections.g && s.map) s.map.invalidateSize();
+  if (s === sections.r && s.map) s.map.invalidateSize();
 }
 
 function activateGrid(gridId) {
@@ -443,7 +392,7 @@ function renderGriglieMap(gridId) {
       lon: r[c.indexOf(S.COL_LON)],
       compresa: r[c.indexOf(S.COL_COMPRESA)],
       particella: r[c.indexOf(S.COL_PARCEL)],
-      numero: r[c.indexOf(S.COL_NUMBER)],
+      numero: r[c.indexOf(S.COL_NUMERO)],
       altitude: r[c.indexOf(S.COL_QUOTA)],
       r_m: r[c.indexOf(S.COL_RAGGIO)],
       note: r[c.indexOf(S.COL_NOTE)],
@@ -473,100 +422,28 @@ function destroyGriglieMap() {
   if (sections.g.map) { sections.g.map.destroy(); sections.g.map = null; }
 }
 
-function rebuildGridSection(activeId) {
-  const s = sections.g;
-  destroyGriglieMap();
-  s.pulldown = s.summary = s.mapEl = null;
-  if (s.body) { s.body.replaceChildren(); buildGriglieBody(s.body); }
-  if (activeId != null) activateGrid(activeId);
+function rebuildSection(key, activeId) {
+  const cfg = {
+    g: {
+      destroy: destroyGriglieMap,
+      digest: gridsData,
+      labelFn: null,
+      postRebuild: updateGridEmptyState,
+      activate: activateGrid,
+    },
+    r: {
+      destroy: destroyRilevamentiMap,
+      digest: surveysData,
+      labelFn: surveyPulldownLabel,
+      postRebuild: null,
+      activate: activateSurvey,
+    },
+  }[key];
+  cfg.destroy();
+  populatePulldown(sections[key].pulldown, cfg.digest, cfg.labelFn);
+  cfg.postRebuild?.();
+  if (activeId != null) cfg.activate(activeId);
   syncURL();
-}
-
-function rebuildSurveySection(activeId) {
-  const s = sections.r;
-  destroyRilevamentiMap();
-  s.pulldown = s.summary = s.mapEl = null;
-  if (s.body) { s.body.replaceChildren(); buildRilevamentiBody(s.body); }
-  if (activeId != null) activateSurvey(activeId);
-  syncURL();
-}
-
-// ---------------------------------------------------------------------------
-// Section 2 — Rilevamenti body
-// ---------------------------------------------------------------------------
-
-function buildRilevamentiBody(body) {
-  const s = sections.r;
-
-  const topRow = document.createElement('div');
-  topRow.className = 'campionamenti-section-top';
-  const left = document.createElement('div');
-  left.className = 'campionamenti-section-left';
-  const right = document.createElement('div');
-  right.className = 'campionamenti-section-right';
-  topRow.append(left, right);
-
-  const label = document.createElement('label');
-  label.className = 'campionamenti-pulldown-label';
-  label.textContent = S.SURVEY_LABEL;
-
-  const sel = document.createElement('select');
-  sel.className = 'campionamenti-pulldown page-pulldown';
-  const idCol = surveysData.columns.indexOf(ROW_ID);
-  const nameCol = surveysData.columns.indexOf(S.COL_NAME);
-  const visCol = surveysData.columns.indexOf(S.COL_N_AREAS_VISITED);
-  const totCol = surveysData.columns.indexOf(S.COL_N_AREAS_TOTAL);
-  for (const row of surveysData.rows) {
-    const opt = document.createElement('option');
-    opt.value = String(row[idCol]);
-    opt.textContent =
-      `${row[nameCol]} (${row[visCol]}/${row[totCol]} aree)`;
-    sel.appendChild(opt);
-  }
-  sel.addEventListener('change', () => {
-    activateSurvey(parseInt(sel.value, 10));
-    syncURL();
-  });
-  label.htmlFor = sel.id = 'campionamenti-survey-select';
-
-  left.append(label, sel);
-  if (canModify()) {
-    mkEditDeleteIcons(left, {
-      onEdit: () => showEditSurveyModal(),
-      onDelete: () => confirmDeleteSurvey(),
-      iconClass: 'campionamenti-pulldown-icon',
-    });
-  }
-
-  const exportSurveyBtn = document.createElement('button');
-  exportSurveyBtn.type = 'button';
-  exportSurveyBtn.className = 'btn';
-  exportSurveyBtn.textContent = S.EXPORT_CSV;
-  exportSurveyBtn.addEventListener('click', () => {
-    if (activeSurveyId != null) exportFullSurveyCSV(activeSurveyId);
-  });
-  right.appendChild(exportSurveyBtn);
-
-  if (canModify()) {
-    const addBtn = document.createElement('button');
-    addBtn.type = 'button';
-    addBtn.className = 'btn btn-primary';
-    addBtn.textContent = S.NEW_SURVEY_LABEL;
-    addBtn.addEventListener('click', () => showNewSurveyForm());
-    right.appendChild(addBtn);
-  }
-
-  body.appendChild(topRow);
-
-  s.summary = document.createElement('div');
-  s.summary.className = 'campionamenti-summary';
-  body.appendChild(s.summary);
-
-  s.mapEl = document.createElement('div');
-  s.mapEl.className = 'campionamenti-map-host';
-  body.appendChild(s.mapEl);
-
-  s.pulldown = sel;
 }
 
 async function activateSurvey(surveyId) {
@@ -653,7 +530,7 @@ function renderRilevamentiMap(surveyId) {
       lon: r[c.indexOf(S.COL_LON)],
       compresa: r[c.indexOf(S.COL_COMPRESA)],
       particella: r[c.indexOf(S.COL_PARCEL)],
-      numero: r[c.indexOf(S.COL_NUMBER)],
+      numero: r[c.indexOf(S.COL_NUMERO)],
     }));
 
   const sc = samplesData.columns;
@@ -691,22 +568,6 @@ function renderRilevamentiMap(surveyId) {
 
 function destroyRilevamentiMap() {
   if (sections.r.map) { sections.r.map.destroy(); sections.r.map = null; }
-}
-
-// ---------------------------------------------------------------------------
-// Section 3 — Alberi campionati body
-// ---------------------------------------------------------------------------
-
-function buildAlberiBody(body) {
-  const s = sections.t;
-  s.emptyEl = document.createElement('div');
-  s.emptyEl.className = 'campionamenti-empty';
-  s.emptyEl.textContent = S.CAMPIONAMENTI_EMPTY;
-  body.appendChild(s.emptyEl);
-
-  s.host = document.createElement('div');
-  s.host.className = 'campionamenti-table-host';
-  body.appendChild(s.host);
 }
 
 function showAlberiEmpty() {
@@ -952,7 +813,7 @@ async function showNewGridForm() {
           onCreated: (rowId, response) => {
             if (response) applySideEffects(response);
             dismissModal();
-            rebuildGridSection(rowId);
+            rebuildSection('g',rowId);
           },
         });
         planner.init();
@@ -972,7 +833,7 @@ function wireGridEmptyForm(modal) {
     onSuccess: (data) => {
       applySideEffects(data);
       dismissModal();
-      rebuildGridSection(data.row_id);
+      rebuildSection('g',data.row_id);
     },
     onValidationError(_data) {},
   });
@@ -996,7 +857,7 @@ function wireSurveyEmptyForm(modal) {
     onSuccess: (data) => {
       applySideEffects(data);
       dismissModal();
-      rebuildSurveySection(data.row_id);
+      rebuildSection('r',data.row_id);
     },
     onValidationError(_data) {},
   });
@@ -1033,89 +894,45 @@ function wirePathChooser(modal, onSwitch) {
  * the area is referenced by any Sample.
  */
 function showAreaPopover(area) {
-  const frag = document.createDocumentFragment();
-  const list = document.createElement('div');
-  list.className = 'form-readonly-block';
+  const frag = cloneTemplate('tmpl-campionamenti-area-popover');
+  const fields = frag.querySelector('[data-target="fields"]');
   for (const [label, val] of [
-    [S.COL_COMPRESA, area.compresa],
-    [S.COL_PARCEL, area.particella],
-    [S.COL_NUMBER, area.numero],
+    [S.COL_COMPRESA, area.compresa], [S.COL_PARCEL, area.particella],
+    [S.COL_NUMERO, area.numero],
     [S.COL_LAT, fmtCoord(area.lat)],
     [S.COL_LON, fmtCoord(area.lon)],
     [S.COL_QUOTA, area.altitude ?? '—'],
-    [S.COL_RAGGIO, area.r_m],
-    [S.COL_NOTE, area.note || ''],
+    [S.COL_RAGGIO, area.r_m], [S.COL_NOTE, area.note || ''],
   ]) {
     const row = document.createElement('div');
     const b = document.createElement('strong');
     b.textContent = `${label}: `;
     row.append(b, document.createTextNode(String(val ?? '—')));
-    list.appendChild(row);
+    fields.appendChild(row);
   }
-  frag.appendChild(list);
-
-  const actions = document.createElement('div');
-  actions.className = 'form-actions';
-  const close = document.createElement('button');
-  close.className = 'btn';
-  close.textContent = S.DISMISS;
-  close.addEventListener('click', dismissModal);
-  actions.appendChild(close);
-
-  if (canModify()) {
-    const edit = document.createElement('button');
-    edit.className = 'btn btn-primary';
-    edit.textContent = S.ACTION_EDIT;
-    edit.addEventListener('click', () => {
-      dismissModal();
-      showEditAreaForm(area.id);
-    });
-    const del = document.createElement('button');
-    del.className = 'btn btn-primary';
-    del.textContent = S.ACTION_DELETE;
-    // Server refuses deletion of an in-use area with ERR_AREA_IN_USE;
-    // surface that at button-build time so the user doesn't go through
-    // a confirm modal that's about to fail.  The server check stays
-    // for the race-condition case (another writer inserts a sample
-    // between this client's last digest fetch and our POST).
+  frag.querySelector('[data-action="cancel"]')
+    ?.addEventListener('click', dismissModal);
+  const editBtn = frag.querySelector('[data-action="edit-area"]');
+  editBtn?.addEventListener('click', () => { dismissModal(); showEditAreaForm(area.id); });
+  const delBtn = frag.querySelector('[data-action="delete-area"]');
+  if (delBtn) {
     if (areaInUse(area.id)) {
-      del.disabled = true;
-      del.title = S.AREA_IN_USE_TOOLTIP;
+      delBtn.disabled = true;
+      delBtn.title = S.AREA_IN_USE_TOOLTIP;
     } else {
-      del.addEventListener('click', () => {
-        dismissModal();
-        confirmDeleteArea(area.id);
-      });
+      delBtn.addEventListener('click', () => { dismissModal(); confirmDeleteArea(area.id); });
     }
-    actions.append(edit, del);
   }
-  frag.appendChild(actions);
   showModal(frag);
 }
 
 function promptNewAreaAt(lat, lon) {
   if (activeGridId == null) return;
-  const frag = document.createDocumentFragment();
-  const p = document.createElement('p');
-  p.textContent = S.CAMPIONAMENTI_INSERT_AREA_HERE;
-  frag.appendChild(p);
-  const actions = document.createElement('div');
-  actions.className = 'form-actions';
-  const cancel = document.createElement('button');
-  cancel.className = 'btn';
-  cancel.dataset.action = 'cancel';
-  cancel.textContent = S.CANCEL;
-  cancel.addEventListener('click', dismissModal);
-  const ok = document.createElement('button');
-  ok.className = 'btn btn-primary';
-  ok.textContent = S.CONFIRM;
-  ok.addEventListener('click', () => {
-    dismissModal();
-    showAddAreaForm({ lat, lon });
-  });
-  actions.append(cancel, ok);
-  frag.appendChild(actions);
-  showModal(frag);
+  showConfirmModal(
+    S.CAMPIONAMENTI_INSERT_AREA_HERE,
+    () => showAddAreaForm({ lat, lon }),
+    { confirmLabel: S.CONFIRM },
+  );
 }
 
 async function showAddAreaForm({ lat, lon } = {}) {
@@ -1172,27 +989,7 @@ function wireParcelByRegion(form) {
 }
 
 function confirmDeleteArea(areaId) {
-  const frag = document.createDocumentFragment();
-  const p = document.createElement('p');
-  p.textContent = S.DELETE_CONFIRM;
-  frag.appendChild(p);
-  const actions = document.createElement('div');
-  actions.className = 'form-actions';
-  const cancel = document.createElement('button');
-  cancel.className = 'btn';
-  cancel.dataset.action = 'cancel';
-  cancel.textContent = S.CANCEL;
-  cancel.addEventListener('click', dismissModal);
-  const ok = document.createElement('button');
-  ok.className = 'btn btn-primary';
-  ok.textContent = S.ACTION_DELETE;
-  ok.addEventListener('click', async () => {
-    dismissModal();
-    await deleteArea(areaId);
-  });
-  actions.append(cancel, ok);
-  frag.appendChild(actions);
-  showModal(frag);
+  showConfirmModal(S.DELETE_CONFIRM, () => deleteArea(areaId));
 }
 
 async function deleteArea(areaId) {
@@ -1215,53 +1012,40 @@ async function deleteArea(areaId) {
 // Edit (details + CSV import) and cascade-delete for grids and surveys
 // ---------------------------------------------------------------------------
 
+
 function showEditGridModal() {
   if (activeGridId == null) return;
   const row = gridRow(activeGridId);
   if (!row) return;
   const c = gridsData.columns;
   showEditModal({
-    title: S.RENAME_TITLE_GRID,
     name: row[c.indexOf(S.COL_NAME)] || '',
     description: row[c.indexOf(S.COL_DESCRIPTION)] || '',
+    title: S.RENAME_TITLE_GRID,
     importTabLabel: S.EDIT_GRID_TAB_IMPORT,
+    importHelp: S.GRID_IMPORT_HELP,
+    showDate: false,
     onDetailsSave: async ({ name, description }) => {
       const { data, status } = await postJSON(
         `${GRID_EDIT_URL_PREFIX}${activeGridId}/`, { name, description },
       );
       if (status !== 200) return data?.message || S.ERROR_GENERIC;
       applySideEffects(data);
-      updatePulldownOption(sections.g, activeGridId, gridsData, 'Nome');
+      updatePulldownOption(sections.g, activeGridId, gridsData, S.COL_NAME);
       return null;
-    },
-    buildImportForm: (form) => {
-      const fileGroup = document.createElement('div');
-      fileGroup.className = 'form-group';
-      const fileLabel = document.createElement('label');
-      fileLabel.textContent = S.LABEL_CSV_FILE;
-      const fileInput = document.createElement('input');
-      fileInput.type = 'file';
-      fileInput.name = 'file';
-      fileInput.accept = '.csv,text/csv';
-      fileGroup.append(fileLabel, fileInput);
-      form.appendChild(fileGroup);
-
-      const help = document.createElement('p');
-      help.className = 'form-help';
-      help.textContent = 'Colonne necessarie: Compresa, Particella, '
-        + 'Area saggio, Lon, Lat, Quota, Raggio.';
-      form.appendChild(help);
     },
     onImportSubmit: async (form) => {
       const fd = new FormData(form);
-      fd.append('sample_grid_id', String(activeGridId));
-      fd.append('nonce', crypto.randomUUID());
+      fd.append(FIELD_SAMPLE_GRID_ID, String(activeGridId));
+      fd.append(FIELD_NONCE, crypto.randomUUID());
       const { data, status } = await postFormData(GRID_CSV_IMPORT_URL, fd);
       if (status === 200) {
         applySideEffects(data);
-        return { errors: null };
+        return { ok: true };
       }
-      return { errors: data?.errors, message: data?.message };
+      return data?.errors?.length
+        ? { errors: data.errors }
+        : { error: data?.message };
     },
   });
 }
@@ -1272,10 +1056,12 @@ function showEditSurveyModal() {
   if (!row) return;
   const c = surveysData.columns;
   showEditModal({
-    title: S.RENAME_TITLE_SURVEY,
     name: row[c.indexOf(S.COL_NAME)] || '',
     description: row[c.indexOf(S.COL_DESCRIPTION)] || '',
+    title: S.RENAME_TITLE_SURVEY,
     importTabLabel: S.EDIT_SURVEY_TAB_IMPORT,
+    importHelp: S.SURVEY_IMPORT_HELP,
+    showDate: true,
     onDetailsSave: async ({ name, description }) => {
       const { data, status } = await postJSON(
         `${SURVEY_EDIT_URL_PREFIX}${activeSurveyId}/`, { name, description },
@@ -1285,39 +1071,10 @@ function showEditSurveyModal() {
       rebuildSurveyPulldown();
       return null;
     },
-    buildImportForm: (form) => {
-      const fileGroup = document.createElement('div');
-      fileGroup.className = 'form-group';
-      const fileLabel = document.createElement('label');
-      fileLabel.textContent = S.LABEL_CSV_FILE;
-      const fileInput = document.createElement('input');
-      fileInput.type = 'file';
-      fileInput.name = 'file';
-      fileInput.accept = '.csv,text/csv';
-      fileGroup.append(fileLabel, fileInput);
-      form.appendChild(fileGroup);
-
-      const dateGroup = document.createElement('div');
-      dateGroup.className = 'form-group';
-      const dateLabel = document.createElement('label');
-      dateLabel.textContent = 'Data predefinita (se il file non ha colonna "Data")';
-      const dateInput = document.createElement('input');
-      dateInput.type = 'date';
-      dateInput.name = 'default_date';
-      dateGroup.append(dateLabel, dateInput);
-      form.appendChild(dateGroup);
-
-      const help = document.createElement('p');
-      help.className = 'form-help';
-      help.textContent = 'Colonne necessarie: Compresa, Particella, '
-        + 'Area saggio, Albero, Pollone, Matricina, D_cm, H_m, L10_mm, '
-        + 'Genere, Fustaia. Opzionali: Data, PAI.';
-      form.appendChild(help);
-    },
     onImportSubmit: async (form) => {
       const fd = new FormData(form);
-      fd.append('survey_id', String(activeSurveyId));
-      fd.append('nonce', crypto.randomUUID());
+      fd.append(FIELD_SURVEY_ID, String(activeSurveyId));
+      fd.append(FIELD_NONCE, crypto.randomUUID());
       const { data, status } = await postFormData(TREE_CSV_IMPORT_URL, fd);
       if (status === 200) {
         await refreshSurveys();
@@ -1325,191 +1082,58 @@ function showEditSurveyModal() {
           await cache.load(SAMPLES_ID);
           samplesData = cache.get(SAMPLES_ID);
         } catch {}
-        return { errors: null };
+        return { ok: true };
       }
-      return { errors: data?.errors, message: data?.message };
+      return data?.errors?.length
+        ? { errors: data.errors }
+        : { error: data?.message };
     },
   });
 }
 
-/**
- * Shared tabbed edit modal — Dettagli (name + description) and
- * Importa da CSV.  Mirrors the PDT pencil modal pattern.
- */
-function showEditModal({
-  title, name, description, importTabLabel,
-  onDetailsSave, buildImportForm, onImportSubmit,
-}) {
-  const TAB_DETAILS = 'details';
-  const TAB_IMPORT = 'import';
+function showEditModal(opts) {
+  const frag = cloneTemplate('tmpl-campionamenti-edit-modal');
+  frag.querySelector('[data-field="title"]').textContent = opts.title;
+  frag.querySelector('[data-field="import-tab-label"]').textContent = opts.importTabLabel;
+  frag.querySelector('[name="name"]').value = opts.name;
+  frag.querySelector('[name="description"]').value = opts.description;
+  frag.querySelector('[data-field="import-help"]').textContent = opts.importHelp;
+  if (opts.showDate) frag.querySelector('[data-field="date-row"]').hidden = false;
 
-  const frag = document.createDocumentFragment();
-  const card = document.createElement('div');
-  card.className = 'form-card';
-  frag.appendChild(card);
+  const { lockHeight } = wireTabbedModal(frag);
 
-  const h = document.createElement('h2');
-  h.textContent = title;
-  card.appendChild(h);
+  wireCancelButtons(frag, dismissModal);
 
-  const tabs = document.createElement('div');
-  tabs.className = 'modal-tabs';
-  card.appendChild(tabs);
-
-  const bodies = document.createElement('div');
-  bodies.className = 'modal-tab-bodies';
-  card.appendChild(bodies);
-
-  const tabDefs = [
-    { id: TAB_DETAILS, label: S.TAB_DETAILS },
-    { id: TAB_IMPORT, label: importTabLabel },
-  ];
-
-  const bodyEls = {};
-  for (const t of tabDefs) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'modal-tab';
-    btn.dataset.path = t.id;
-    btn.textContent = t.label;
-    btn.addEventListener('click', () => switchTab(t.id));
-    tabs.appendChild(btn);
-
-    const body = document.createElement('div');
-    body.className = 'modal-tab-body';
-    body.dataset.path = t.id;
-    bodies.appendChild(body);
-    bodyEls[t.id] = body;
-  }
-
-  // --- Dettagli tab ---
-  const detailsForm = document.createElement('form');
-  detailsForm.className = 'campionamenti-edit-form';
-  bodyEls[TAB_DETAILS].appendChild(detailsForm);
-
-  const nameGroup = document.createElement('div');
-  nameGroup.className = 'form-group';
-  const nameLabel = document.createElement('label');
-  nameLabel.textContent = S.LABEL_NAME;
-  const nameInput = document.createElement('input');
-  nameInput.type = 'text';
-  nameInput.maxLength = 100;
-  nameInput.required = true;
-  nameInput.value = name;
-  nameGroup.append(nameLabel, nameInput);
-  detailsForm.appendChild(nameGroup);
-
-  const descGroup = document.createElement('div');
-  descGroup.className = 'form-group';
-  const descLabel = document.createElement('label');
-  descLabel.textContent = S.LABEL_DESCRIPTION;
-  const descInput = document.createElement('textarea');
-  descInput.rows = 3;
-  descInput.value = description || '';
-  descGroup.append(descLabel, descInput);
-  detailsForm.appendChild(descGroup);
-
-  const detailsActions = document.createElement('div');
-  detailsActions.className = 'form-actions';
-  const detailsCancel = document.createElement('button');
-  detailsCancel.type = 'button';
-  detailsCancel.className = 'btn';
-  detailsCancel.textContent = S.CANCEL;
-  detailsCancel.addEventListener('click', dismissModal);
-  const detailsOk = document.createElement('button');
-  detailsOk.type = 'submit';
-  detailsOk.className = 'btn btn-primary';
-  detailsOk.textContent = S.SAVE;
-  detailsActions.append(detailsCancel, detailsOk);
-  detailsForm.appendChild(detailsActions);
-
+  const detailsForm = frag.querySelector('[data-role="details-form"]');
   detailsForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    detailsOk.disabled = true;
+    const btn = detailsForm.querySelector('[type="submit"]');
+    btn.disabled = true;
     try {
-      const err = await onDetailsSave({
-        name: nameInput.value.trim(),
-        description: descInput.value.trim(),
+      const err = await opts.onDetailsSave({
+        name: detailsForm.querySelector('[name="name"]').value.trim(),
+        description: detailsForm.querySelector('[name="description"]').value.trim(),
       });
-      if (err) { showFormError(detailsForm, err); detailsOk.disabled = false; }
+      if (err) { showFormError(detailsForm, err); btn.disabled = false; }
       else dismissModal();
-    } catch {
-      showFormError(detailsForm, S.ERROR_NETWORK);
-      detailsOk.disabled = false;
-    }
+    } catch { showFormError(detailsForm, S.ERROR_NETWORK); btn.disabled = false; }
   });
 
-  // --- Import tab ---
-  const importForm = document.createElement('form');
-  importForm.className = 'campionamenti-edit-form';
-  bodyEls[TAB_IMPORT].appendChild(importForm);
-  buildImportForm(importForm);
-
-  const statusBox = document.createElement('div');
-  statusBox.className = 'csv-import-status';
-  statusBox.hidden = true;
-  importForm.appendChild(statusBox);
-
-  const errorsBox = document.createElement('div');
-  errorsBox.className = 'csv-import-errors';
-  errorsBox.hidden = true;
-  importForm.appendChild(errorsBox);
-
-  const importActions = document.createElement('div');
-  importActions.className = 'form-actions';
-  const importCancel = document.createElement('button');
-  importCancel.type = 'button';
-  importCancel.className = 'btn';
-  importCancel.textContent = S.CANCEL;
-  importCancel.addEventListener('click', dismissModal);
-  const importOk = document.createElement('button');
-  importOk.type = 'submit';
-  importOk.className = 'btn btn-primary';
-  importOk.textContent = S.IMPORT_LABEL;
-  importActions.append(importCancel, importOk);
-  importForm.appendChild(importActions);
-
+  const importForm = frag.querySelector('[data-role="import-form"]');
+  const statusBox = frag.querySelector('.csv-import-status');
+  const errorsBox = frag.querySelector('.csv-import-errors');
   importForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    importOk.disabled = true;
-    errorsBox.hidden = true;
-    errorsBox.replaceChildren();
-    statusBox.textContent = S.CSV_IMPORT_IN_PROGRESS;
-    statusBox.hidden = false;
-    try {
-      const result = await onImportSubmit(importForm);
-      if (!result.errors) { dismissModal(); return; }
-      if (result.errors.length) renderCsvErrors(errorsBox, result.errors);
-      else showFormError(importForm, result.message || S.ERROR_GENERIC);
-    } catch {
-      showFormError(importForm, S.ERROR_NETWORK);
-    } finally {
-      importOk.disabled = false;
-      statusBox.hidden = true;
-    }
+    await submitCsvImport({
+      form: importForm, statusBox, errorsBox,
+      attempt: () => opts.onImportSubmit(importForm),
+    });
   });
 
-  function switchTab(id) {
-    for (const btn of tabs.querySelectorAll('.modal-tab')) {
-      btn.classList.toggle('active', btn.dataset.path === id);
-    }
-    for (const [k, b] of Object.entries(bodyEls)) {
-      b.classList.toggle('active', k === id);
-    }
-  }
-
   showModal(frag);
+  lockHeight();
 
-  // Lock min-height to the tallest tab so switching doesn't reflow.
-  const allBodies = Object.values(bodyEls);
-  for (const b of allBodies) b.style.display = 'block';
-  let maxH = 0;
-  for (const b of allBodies) maxH = Math.max(maxH, b.offsetHeight);
-  for (const b of allBodies) b.style.display = '';
-  if (maxH > 0) bodies.style.minHeight = `${maxH}px`;
-
-  switchTab(TAB_DETAILS);
-  setTimeout(() => nameInput.focus(), 0);
+  document.querySelector('#modal-container [name="name"]')?.focus();
 }
 
 function confirmDeleteGrid() {
@@ -1529,7 +1153,7 @@ function confirmDeleteGrid() {
   const msg = nAreas > 0
     ? `${nAreas} aree saranno eliminate. ${S.DELETE_CONFIRM}`
     : S.DELETE_CONFIRM;
-  simpleConfirmModal(msg, async () => {
+  showConfirmModal(msg, async () => {
     try {
       const { data, status } = await postJSON(
         `${GRID_DELETE_URL_PREFIX}${activeGridId}/`, {},
@@ -1540,7 +1164,6 @@ function confirmDeleteGrid() {
       }
       activeGridId = null;
       await refreshGrids();
-      // Refresh sample_areas too (cascaded).
       try {
         await cache.load(SAMPLE_AREAS_ID);
         sampleAreasData = cache.get(SAMPLE_AREAS_ID);
@@ -1560,12 +1183,12 @@ function confirmDeleteSurvey() {
   const nVisited = row[c.indexOf(S.COL_N_AREAS_VISITED)] || 0;
 
   if (nVisited === 0) {
-    simpleConfirmModal(S.DELETE_CONFIRM, () => doDeleteSurvey());
+    showConfirmModal(S.DELETE_CONFIRM, () => doDeleteSurvey());
     return;
   }
-  // Survey has samples → cascade flow with forced CSV export.
   const nTrees = countTreesInActiveSurvey();
   showCascadeDeleteModal({
+    title: S.CASCADE_CONFIRM_TITLE,
     warning: S.CASCADE_WARN_SURVEY
       .replace('{n_samples}', nVisited)
       .replace('{n_trees}', nTrees),
@@ -1614,122 +1237,36 @@ function countTreesInActiveSurvey() {
  * until the user clicks "Esporta CSV" (forces the operator to keep a
  * backup of the to-be-deleted rows).
  */
-function showCascadeDeleteModal({ warning, onExportCSV, onDelete }) {
-  const frag = document.createDocumentFragment();
-  const h = document.createElement('h2');
-  h.textContent = S.CASCADE_CONFIRM_TITLE;
-  h.className = 'cascade-confirm-title';
-  frag.appendChild(h);
-
-  const warn = document.createElement('p');
-  warn.className = 'cascade-confirm-warning';
-  warn.textContent = warning;
-  frag.appendChild(warn);
-
-  const need = document.createElement('p');
-  need.textContent = S.CASCADE_EXPORT_REQUIRED;
-  frag.appendChild(need);
-
-  const actions = document.createElement('div');
-  actions.className = 'form-actions';
-
-  const cancel = document.createElement('button');
-  cancel.className = 'btn';
-  cancel.dataset.action = 'cancel';
-  cancel.textContent = S.CANCEL;
-  cancel.addEventListener('click', dismissModal);
-
-  const exportBtn = document.createElement('button');
-  exportBtn.className = 'btn btn-primary';
-  exportBtn.textContent = S.EXPORT_CSV;
-
-  const delBtn = document.createElement('button');
-  delBtn.className = 'btn btn-primary cascade-delete-btn';
-  delBtn.textContent = S.ACTION_DELETE;
-  delBtn.disabled = true;
-
-  exportBtn.addEventListener('click', () => {
-    onExportCSV();
-    delBtn.disabled = false;
-  });
-  delBtn.addEventListener('click', () => {
-    dismissModal();
-    onDelete();
-  });
-
-  actions.append(cancel, exportBtn, delBtn);
-  frag.appendChild(actions);
-  showModal(frag);
-}
 
 function exportSurveyCSV(surveyId) {
   if (!currentTreesId) return;
   const d = cache.get(currentTreesId);
   if (!d) return;
-  const fmt = S.TABLE_CSV_FORMAT;
-  const lines = [];
-  // Columns to include in the export — skip hidden synthetic ones.
   const visibleCols = d.columns.filter(
     c => c !== VERSION && c !== S.COL_SAMPLE_AREA,
   );
-  const idx = visibleCols.map(c => d.columns.indexOf(c));
-  lines.push(visibleCols.join(fmt.separator));
-  for (const row of d.rows) {
-    const parts = idx.map(i => {
-      const v = row[i];
-      if (v == null) return '';
-      if (typeof v === 'number') return String(v).replace('.', fmt.decimal);
-      return String(v).replace(new RegExp(fmt.separator, 'g'), ' ');
-    });
-    lines.push(parts.join(fmt.separator));
-  }
-  const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = S.CSV_SAMPLED_TREES;
-  a.click();
-  URL.revokeObjectURL(a.href);
+  exportDigest(d, visibleCols, S.CSV_SAMPLED_TREES);
 }
 
-/**
- * Section 1 "Esporta CSV": dump the active grid's sample areas in the
- * same column shape as `_grid_modal.html`'s "Importa da CSV" expects
- * (Compresa, Particella, Area saggio, Lon, Lat, Quota, Raggio).  This
- * is a round-trip with the import path — programming GPS devices is
- * the primary use case per the spec.
- */
 function exportGridAreasCSV(gridId) {
   if (!sampleAreasData) return;
-  const c = sampleAreasData.columns;
-  const gridCol = c.indexOf(S.COL_GRID);
-  // CSV output columns mirror the import format (CSV_COL_*).
-  const cols = [S.CSV_COL_COMPRESA, S.CSV_COL_PARTICELLA, S.CSV_COL_AREA_SAGGIO,
-                S.CSV_COL_LON, S.CSV_COL_LAT,
-                S.CSV_COL_QUOTA, S.CSV_COL_RAGGIO];
-  // Source columns are the digest header names (COL_*).
-  const srcCols = [S.COL_COMPRESA, S.COL_PARCEL, S.COL_NUMBER, S.COL_LON, S.COL_LAT,
-                   S.COL_QUOTA, S.COL_RAGGIO];
-  const idx = srcCols.map(s => c.indexOf(s));
-  const fmt = S.TABLE_CSV_FORMAT;
-  const lines = [cols.join(fmt.separator)];
-  for (const row of sampleAreasData.rows) {
-    if (row[gridCol] !== gridId) continue;
-    const parts = idx.map(i => csvField(row[i], fmt));
-    lines.push(parts.join(fmt.separator));
-  }
-  downloadCSV(lines, S.CSV_GRID_AREAS);
+  const gridCol = sampleAreasData.columns.indexOf(S.COL_GRID);
+  exportDigest(
+    sampleAreasData,
+    [
+      { src: S.COL_COMPRESA, dst: S.CSV_COL_COMPRESA },
+      { src: S.COL_PARCEL,   dst: S.CSV_COL_PARTICELLA },
+      { src: S.COL_NUMERO,   dst: S.CSV_COL_AREA_SAGGIO },
+      { src: S.COL_LON,      dst: S.CSV_COL_LON },
+      { src: S.COL_LAT,      dst: S.CSV_COL_LAT },
+      { src: S.COL_QUOTA,    dst: S.CSV_COL_QUOTA },
+      { src: S.COL_RAGGIO,   dst: S.CSV_COL_RAGGIO },
+    ],
+    S.CSV_GRID_AREAS,
+    { filter: row => row[gridCol] === gridId },
+  );
 }
 
-/**
- * Section 2 "Esporta CSV": dump every TreeSample on the active survey
- * in the same column shape as `_survey_modal.html`'s "Importa da CSV"
- * expects (Compresa, Particella, Area saggio, Albero, Pollone,
- * Matricina, D_cm, H_m, L10_mm, Genere, Fustaia, Data, PAI).  Distinct
- * from the Section 3 toolbar's CSV which respects the area / search
- * filter; this one is the whole survey.
- *
- * Lazy-fetches the per-survey digest if not already cached.
- */
 async function exportFullSurveyCSV(surveyId) {
   const dataId = `${TREES_ID_PREFIX}${surveyId}`;
   cache.register(dataId, `${TREES_URL_PREFIX}${surveyId}/`);
@@ -1740,74 +1277,29 @@ async function exportFullSurveyCSV(surveyId) {
     showError(S.NO_RESULTS);
     return;
   }
-  const c = d.columns;
-  // CSV output columns mirror the import format (CSV_COL_*).
-  const cols = [S.CSV_COL_COMPRESA, S.CSV_COL_PARTICELLA, S.CSV_COL_AREA_SAGGIO,
-                S.CSV_COL_ALBERO, S.CSV_COL_POLLONE, S.CSV_COL_MATRICINA,
-                S.CSV_COL_D_CM, S.CSV_COL_H_M, S.CSV_COL_L10_MM,
-                S.CSV_COL_GENERE, S.CSV_COL_FUSTAIA, S.CSV_COL_DATA,
-                S.CSV_COL_PAI];
-  // Source columns are the digest header names (COL_*).
-  const srcCols = [S.COL_COMPRESA, S.COL_PARCEL, S.COL_AREA_NUM, S.COL_TREE_NUM,
-                   S.COL_POLLONE, S.COL_MATRICINA,
-                   S.COL_D_CM, S.COL_H_M, S.COL_L10_MM,
-                   S.COL_SPECIES, S.COL_PRODUCT, S.COL_SAMPLE_DATE, S.COL_PAI];
-  const idx = srcCols.map(s => c.indexOf(s));
-  const tipoCol = c.indexOf(S.COL_PRODUCT);
-  const fmt = S.TABLE_CSV_FORMAT;
-  const lines = [cols.join(fmt.separator)];
-  for (const row of d.rows) {
-    const parts = idx.map((i, k) => {
-      if (cols[k] === S.CSV_COL_FUSTAIA) {
-        // Round-trip with import: `Fustaia` = true|false, derived from
-        // the digest's `Tipo` = 'fustaia' | 'ceduo'.
-        return row[tipoCol] === 'fustaia' ? 'true' : 'false';
-      }
-      return csvField(row[i], fmt);
-    });
-    lines.push(parts.join(fmt.separator));
-  }
-  downloadCSV(lines, S.CSV_SURVEY_TREES);
+  const tipoCol = d.columns.indexOf(S.COL_TYPE);
+  exportDigest(
+    d,
+    [
+      { src: S.COL_COMPRESA,    dst: S.CSV_COL_COMPRESA },
+      { src: S.COL_PARCEL,      dst: S.CSV_COL_PARTICELLA },
+      { src: S.COL_AREA_NUM,    dst: S.CSV_COL_AREA_SAGGIO },
+      { src: S.COL_TREE_NUM,    dst: S.CSV_COL_ALBERO },
+      { src: S.COL_POLLONE,     dst: S.CSV_COL_POLLONE },
+      { src: S.COL_MATRICINA,   dst: S.CSV_COL_MATRICINA },
+      { src: S.COL_D_CM,        dst: S.CSV_COL_D_CM },
+      { src: S.COL_H_M,         dst: S.CSV_COL_H_M },
+      { src: S.COL_L10_MM,      dst: S.CSV_COL_L10_MM },
+      { src: S.COL_SPECIES,     dst: S.CSV_COL_GENERE },
+      { dst: S.CSV_COL_FUSTAIA, transform: row => row[tipoCol] === S.TYPE_FUSTAIA },
+      { src: S.COL_SAMPLE_DATE, dst: S.CSV_COL_DATA },
+      { src: S.COL_PAI,         dst: S.CSV_COL_PAI },
+    ],
+    S.CSV_SURVEY_TREES,
+  );
 }
 
-function csvField(v, fmt) {
-  if (v == null) return '';
-  if (typeof v === 'boolean') return v ? 'true' : 'false';
-  if (typeof v === 'number') return String(v).replace('.', fmt.decimal);
-  return String(v).replace(new RegExp(fmt.separator, 'g'), ' ');
-}
 
-function downloadCSV(lines, filename) {
-  const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(a.href);
-}
-
-function simpleConfirmModal(message, onConfirm) {
-  const frag = document.createDocumentFragment();
-  const p = document.createElement('p');
-  p.textContent = message;
-  frag.appendChild(p);
-  const actions = document.createElement('div');
-  actions.className = 'form-actions';
-  const cancel = document.createElement('button');
-  cancel.className = 'btn';
-  cancel.textContent = S.CANCEL;
-  cancel.addEventListener('click', dismissModal);
-  const ok = document.createElement('button');
-  ok.className = 'btn btn-primary';
-  ok.textContent = S.ACTION_DELETE;
-  ok.addEventListener('click', async () => {
-    dismissModal();
-    await onConfirm();
-  });
-  actions.append(cancel, ok);
-  frag.appendChild(actions);
-  showModal(frag);
-}
 
 /**
  * Update one option's text in a section's pulldown after a rename.
@@ -1825,18 +1317,10 @@ function updatePulldownOption(section, id, digest, column) {
 /** Survey pulldown label is "<name> (<n>/<m> aree)" — rebuild from cache. */
 function rebuildSurveyPulldown() {
   const sel = sections.r.pulldown;
-  if (!sel || !surveysData) return;
-  const c = surveysData.columns;
-  const idCol = c.indexOf(ROW_ID);
-  const nameCol = c.indexOf(S.COL_NAME);
-  const visCol = c.indexOf(S.COL_N_AREAS_VISITED);
-  const totCol = c.indexOf(S.COL_N_AREAS_TOTAL);
-  for (const opt of sel.options) {
-    const row = surveysData.rows.find(r => r[idCol] === parseInt(opt.value, 10));
-    if (row) {
-      opt.textContent = `${row[nameCol]} (${row[visCol]}/${row[totCol]} aree)`;
-    }
-  }
+  if (!sel) return;
+  const prev = sel.value;
+  populatePulldown(sel, surveysData, surveyPulldownLabel);
+  if (prev) sel.value = prev;
 }
 
 async function refreshGrids() {
@@ -2002,30 +1486,7 @@ async function showEditTreeForm(tsId) {
  * just a standard confirm modal.
  */
 function confirmDeleteTreeSample(tsId) {
-  const frag = document.createDocumentFragment();
-  const p = document.createElement('p');
-  p.textContent = S.DELETE_CONFIRM;
-  frag.appendChild(p);
-
-  const actions = document.createElement('div');
-  actions.className = 'form-actions';
-
-  const cancel = document.createElement('button');
-  cancel.className = 'btn';
-  cancel.textContent = S.CANCEL;
-  cancel.addEventListener('click', dismissModal);
-
-  const ok = document.createElement('button');
-  ok.className = 'btn btn-primary';
-  ok.textContent = S.ACTION_DELETE;
-  ok.addEventListener('click', async () => {
-    dismissModal();
-    await deleteTreeSample(tsId);
-  });
-
-  actions.append(cancel, ok);
-  frag.appendChild(actions);
-  showModal(frag);
+  showConfirmModal(S.DELETE_CONFIRM, () => deleteTreeSample(tsId));
 }
 
 async function deleteTreeSample(tsId) {
@@ -2107,7 +1568,7 @@ function wireTreePick(form) {
   // an edit operates on one specific TreeSample, not a pivot to
   // another tree.  Lock the pulldown and hide "Salva e continua"
   // (which is a batch-entry affordance, meaningless for edits).
-  const isEditMode = !!form.querySelector('input[name="row_id"]')?.value;
+  const isEditMode = !!form.querySelector(`input[name="${ROW_ID}"]`)?.value;
   if (isEditMode) {
     pick.disabled = true;
     const saveAndAdd = form.querySelector('button[data-action="save-and-add"]');
@@ -2289,7 +1750,6 @@ function wireCoppiceBlock(form) {
  */
 function returnToPage(overrides = {}) {
   inForm = false;
-  removeEscapeHandler();
   // Re-render the whole page shell from scratch.  Drop in-memory
   // selection state so applyParams triggers a full re-render of map
   // + table; otherwise the early-out in applyParams keeps the page
@@ -2300,11 +1760,6 @@ function returnToPage(overrides = {}) {
   activeGridId = activeSurveyId = activeAreaId = null;
   if (unsubCache) { unsubCache(); unsubCache = null; }
 
-  // Explicit clear before rebuild.  buildPageShell would also do this,
-  // but doing it here as well guarantees the form-card is GONE as soon
-  // as we return — even if any of the section-build steps below throws,
-  // the user is no longer staring at the now-stale upload form.  This
-  // closes a class of "modal won't close after import" bugs.
   const el = document.getElementById('content');
   if (el) el.replaceChildren();
 
@@ -2312,28 +1767,13 @@ function returnToPage(overrides = {}) {
     ...Object.fromEntries(new URLSearchParams(location.search)),
     ...overrides,
   };
-  if (el) buildPageShell(el, params);
+  if (el) buildPage(el, params);
   applyParams(params);
   // After a successful save/delete the URL may carry an id that no
   // longer exists (e.g., `s=<deleted_id>`).  applyParams falls back to
   // the first row of the digest; syncURL drops the stale param so the
   // URL stays meaningful and the next reload picks the same default.
   syncURL();
-}
-
-function addEscapeHandler() {
-  removeEscapeHandler();
-  escapeHandler = (e) => {
-    if (e.key === 'Escape') returnToPage();
-  };
-  document.addEventListener('keydown', escapeHandler);
-}
-
-function removeEscapeHandler() {
-  if (escapeHandler) {
-    document.removeEventListener('keydown', escapeHandler);
-    escapeHandler = null;
-  }
 }
 
 // --- Misc -------------------------------------------------------------------
@@ -2343,14 +1783,3 @@ function formatTimestamp(iso) {
   return iso.length >= 10 ? iso.slice(0, 10) : iso;
 }
 
-function loadCSS(url) {
-  if (document.querySelector(`link[href="${url}"]`)) return;
-  const link = document.createElement('link');
-  link.rel = 'stylesheet';
-  link.href = url;
-  document.head.appendChild(link);
-}
-
-function unloadCSS(url) {
-  document.querySelector(`link[href="${url}"]`)?.remove();
-}

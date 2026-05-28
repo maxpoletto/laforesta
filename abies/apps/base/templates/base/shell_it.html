@@ -22,7 +22,7 @@
       <a class="tab" href="/campionamenti" data-tab="campionamenti">Campionamenti</a>
       <a class="tab" href="/prelievi" data-tab="prelievi">Prelievi</a>
       <a class="tab" href="/controllo" data-tab="controllo">Controllo</a>
-      {% if user.role != 'reader' or user.login_method == 'password' %}
+      {% if user.can_modify or user.login_method == 'password' %}
       <a class="tab" href="/impostazioni" data-tab="impostazioni">Impostazioni</a>
       {% endif %}
     </nav>
@@ -39,7 +39,7 @@
     <a class="mobile-tab" href="/campionamenti" data-tab="campionamenti">Campionamenti</a>
     <a class="mobile-tab" href="/prelievi" data-tab="prelievi">Prelievi</a>
     <a class="mobile-tab" href="/controllo" data-tab="controllo">Controllo</a>
-    {% if user.role != 'reader' or user.login_method == 'password' %}
+    {% if user.can_modify or user.login_method == 'password' %}
     <a class="mobile-tab" href="/impostazioni" data-tab="impostazioni">Impostazioni</a>
     {% endif %}
     <a class="mobile-tab mobile-logout" href="{% url 'logout' %}">Esci</a>
@@ -53,5 +53,10 @@
   <script src="{% static 'vendor/leaflet/leaflet.js' %}"></script>
   <script src="{% static 'vendor/sortable-table/sortable-table.js' %}"></script>
   <script type="module" src="{% static 'base/js/app.js' %}"></script>
+  {% include "base/_shell_templates_it.html" %}
+  {% include "campionamenti/_shell_templates_it.html" %}
+  {% include "piano_di_taglio/_shell_templates_it.html" %}
+  {% include "prelievi/_shell_templates_it.html" %}
+  {% include "impostazioni/_shell_templates_it.html" %}
 </body>
 </html>

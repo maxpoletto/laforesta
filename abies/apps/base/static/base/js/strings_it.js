@@ -8,7 +8,6 @@
 export const LOADING = 'Caricamento...';
 export const DISMISS = 'Chiudi';
 export const SAVE = 'Salva';
-export const SAVE_AND_CONTINUE = 'Salva e continua';
 export const DELETE_CONFIRM = 'I dati cancellati non potranno essere recuperati. Confermi?';
 export const CANCEL = 'Annulla';
 export const CONFIRM = 'Conferma';
@@ -17,25 +16,25 @@ export const CONFIRM = 'Conferma';
 export const FILTER_LABEL = 'Filtra';
 export const SEARCH_PLACEHOLDER = 'Cerca...';
 export const EXPORT_CSV = 'Esporta CSV';
-export const ADD_LABEL = 'Aggiungi';
 export const NO_RESULTS = 'Nessun risultato.';
-export const BOOL_YES = 'Sì';
-export const BOOL_NO = 'No';
 export const ACTION_EDIT = 'Modifica';
 export const ACTION_DELETE = 'Elimina';
 
 // TableWrapper localization: labels bundle and CSV format for Italian.
 // Passed as `labels` / `csvFormat` options when constructing a TableWrapper.
+// `add` / `boolYes` / `boolNo` are inlined here because they have no
+// other callers; if a caller appears elsewhere, lift them back out as
+// named exports.
 export const TABLE_LABELS = {
   search: FILTER_LABEL,
   searchPlaceholder: SEARCH_PLACEHOLDER,
   exportCSV: EXPORT_CSV,
-  add: ADD_LABEL,
+  add: 'Aggiungi',
   empty: NO_RESULTS,
   actionEdit: ACTION_EDIT,
   actionDelete: ACTION_DELETE,
-  boolYes: BOOL_YES,
-  boolNo: BOOL_NO,
+  boolYes: 'Sì',
+  boolNo: 'No',
 };
 
 export const TABLE_CSV_FORMAT = {
@@ -48,42 +47,26 @@ export const TABLE_CSV_FORMAT = {
 export const ERROR_NETWORK = 'Errore di rete. Riprovare.';
 export const ERROR_CONFLICT = 'Il record è stato modificato da un altro utente.';
 export const ERROR_GENERIC = 'Errore imprevisto.';
-export const ERROR_DELETED = 'Il record è stato eliminato da un altro utente.';
-export const ERROR_RATE_LIMIT = 'Troppe richieste. Riprovare tra un minuto.';
 
 // Validation (client-side)
 export const ERR_DATE_FUTURE = 'La data non può essere nel futuro.';
 export const ERR_SPECIES_PCT_SUM = 'Le percentuali delle specie devono sommare a 100.';
 export const ERR_TRACTOR_PCT_SUM = 'Le percentuali dei trattori devono sommare a 100.';
 
-// Prelievi
-export const LABEL_YEARS = 'Anni';
-export const RESET_FILTERS = 'Azzera filtri';
-
 // Charts
-export const CHART_PRODUCTION = 'Produzione';
-export const CHART_SPECIES_BY_PARCEL = 'Specie per particella';
 export const CHART_TOTAL = 'Totale';
-export const CHART_BY_MONTHS = 'Mesi';
 export const CHART_OTHER = 'Altro';
-
-// Page sections
-export const SECTION_INTERVENTI = 'Interventi';
 
 // Prelievi columns
 export const COL_DATE = 'Data';
-export const COL_REGION = 'Compresa';
 export const COL_PARCEL = 'Particella';
 export const COL_CREW = 'Squadra';
 export const COL_VDP = 'VDP';
 export const COL_QUINTALS = 'Q.li';
 export const COL_NOTE = 'Note';
 export const COL_EXTRA_NOTE = 'Altre note';
-export const COL_PRODUCT = 'Tipo';
 export const COL_VOLUME_M3 = 'Volume (m³)';
-export const COL_PROT = 'Prot';
 export const COL_ACTIVE = 'Attivo';
-export const COL_TRACTOR = 'Trattore';
 
 // Settings
 export const SETTINGS_PASSWORD = 'Cambio password';
@@ -95,7 +78,6 @@ export const ONLY_ACTIVE = 'Solo attivi';
 export const PASSWORD_NEW = 'Nuova password';
 export const PASSWORD_REPEAT = 'Ripeti password';
 export const PASSWORD_MISMATCH = 'Le password non coincidono.';
-export const PASSWORD_CHANGED = 'Password modificata.';
 
 // Audit
 export const COL_TIMESTAMP = 'Data/Ora';
@@ -107,30 +89,10 @@ export const COL_NEW_VALUE = 'Valore successivo';
 
 // Form labels
 export const LABEL_DATE = 'Data';
-export const LABEL_REGION = 'Compresa';
-export const LABEL_PARCEL = 'Particella';
-export const LABEL_CREW = 'Squadra';
-export const LABEL_PRODUCT = 'Tipo';
-export const LABEL_DENSITY = 'Densità (q/m³)';
-export const LABEL_NOTE = 'Note';
-export const LABEL_VDP = 'VDP';
-export const LABEL_EXTRA_NOTE = 'Altre note';
-export const LABEL_QUINTALS = 'Q.li';
-export const LABEL_SPECIES = 'Specie';
-export const LABEL_TRACTORS = 'Trattori';
-export const LABEL_MANUFACTURER = 'Marca';
-export const LABEL_MODEL = 'Modello';
-export const LABEL_YEAR = 'Anno';
 export const LABEL_NAME = 'Nome';
-export const LABEL_LATIN_NAME = 'Nome latino';
-export const LABEL_NOTES = 'Note';
-export const LABEL_USERNAME = 'Nome utente';
 export const LABEL_EMAIL = 'Email';
-export const LABEL_FIRST_NAME = 'Nome';
 export const LABEL_LAST_NAME = 'Cognome';
-export const LABEL_ROLE = 'Ruolo';
 export const LABEL_LOGIN_METHOD = 'Metodo di accesso';
-export const LABEL_CREATED_AT = 'Creato il';
 
 // CSV export filenames
 export const CSV_PRELIEVI = 'prelievi.csv';
@@ -142,26 +104,12 @@ export const CSV_AUDIT = 'controllo.csv';
 export const CSV_SAMPLED_TREES = 'alberi-campionati.csv';
 
 // Campionamenti
-export const SURVEY_LABEL = 'Rilevamento';
-export const GRID_LABEL = 'Griglia';
-export const NEW_GRID_LABEL = '+ Nuova griglia';
-export const NEW_SURVEY_LABEL = '+ Nuovo rilevamento';
-export const SECTION_GRIGLIE = 'Griglie di campionamento';
-export const SECTION_RILEVAMENTI = 'Rilevamenti';
-export const SECTION_ALBERI_CAMPIONATI = 'Alberi campionati';
-export const CAMPIONAMENTI_EMPTY =
-  'Seleziona un rilevamento per visualizzare gli alberi campionati.';
 export const CAMPIONAMENTI_PICK_SURVEY_FIRST =
   'Seleziona prima un rilevamento.';
 export const CAMPIONAMENTI_PICK_AREA_FIRST =
   'Seleziona prima un\'area di saggio sulla mappa.';
 export const CAMPIONAMENTI_INSERT_AREA_HERE =
   'Inserire una nuova area qui?';
-export const CAMPIONAMENTI_NO_AREAS_HINT =
-  'Clicca sulla mappa per aggiungere un\'area, o su un\'area per modificarla.';
-export const CAMPIONAMENTI_NO_GRIDS =
-  'Nessuna griglia.  Premi "Nuova griglia" per crearne una.';
-export const ADD_AREA_LABEL = '+ Aggiungi area';
 export const AREA_IN_USE_TOOLTIP =
   'Area di saggio con campioni: non può essere eliminata.';
 
@@ -179,14 +127,39 @@ export const RENAME_TITLE_GRID = 'Modifica griglia';
 export const RENAME_TITLE_SURVEY = 'Modifica rilevamento';
 export const EDIT_GRID_TAB_IMPORT  = 'Importa aree da CSV';
 export const EDIT_SURVEY_TAB_IMPORT = 'Importa alberi da CSV';
+export const GRID_IMPORT_HELP =
+  'Colonne necessarie: Compresa, Particella, Area saggio, Lon, Lat, Quota, Raggio.';
+export const SURVEY_IMPORT_HELP =
+  'Colonne necessarie: Compresa, Particella, Area saggio, Albero, Pollone, ' +
+  'Matricina, D_cm, H_m, L10_mm, Genere, Fustaia. Opzionali: Data, PAI.';
 
 // CSV import status (large files can take many seconds)
 export const CSV_IMPORT_IN_PROGRESS =
   'Importazione in corso, attendere…  ' +
   'Non chiudere la finestra né cliccare di nuovo "Importa".';
+export const CSV_EXTRA_ERRORS = (n) => `… +${n} altri errori`;
 
 // Coppice (per-shoot) entry
 export const REMOVE_POLLONE = 'Rimuovi';
+
+// CSV column headers for round-trip import/export (mirror config/strings_it.py).
+export const CSV_COL_COMPRESA    = 'Compresa';
+export const CSV_COL_PARTICELLA  = 'Particella';
+export const CSV_COL_AREA_SAGGIO = 'Area saggio';
+export const CSV_COL_LON         = 'Lon';
+export const CSV_COL_LAT         = 'Lat';
+export const CSV_COL_QUOTA       = 'Quota';
+export const CSV_COL_RAGGIO      = 'Raggio';
+export const CSV_COL_ALBERO      = 'Albero';
+export const CSV_COL_POLLONE     = 'Pollone';
+export const CSV_COL_MATRICINA   = 'Matricina';
+export const CSV_COL_D_CM        = 'D_cm';
+export const CSV_COL_H_M         = 'H_m';
+export const CSV_COL_L10_MM      = 'L10_mm';
+export const CSV_COL_GENERE      = 'Genere';
+export const CSV_COL_FUSTAIA     = 'Fustaia';
+export const CSV_COL_DATA        = 'Data';
+export const CSV_COL_PAI         = 'PAI';
 
 // CSV export filenames for the symmetric "Esporta CSV" buttons on
 // the Griglie + Rilevamenti pulldown rows (mirror the import column shape).
@@ -194,7 +167,6 @@ export const CSV_GRID_AREAS = 'aree-saggio.csv';
 export const CSV_SURVEY_TREES = 'alberi-rilevamento.csv';
 
 // Grid-planner / delete-grid (campionamenti.js, grid-planner.js)
-export const LABEL_DESCRIPTION = 'Descrizione';
 export const LABEL_DESCRIPTION_OPTIONAL = 'Descrizione (opzionale)';
 export const LABEL_REGIONS = 'Comprese';
 export const LABEL_RADIUS_M = 'Raggio (m)';
@@ -237,7 +209,6 @@ export const COL_N_AREAS_VISITED = 'N. aree visitate';
 export const COL_N_AREAS_TOTAL   = 'N. aree totali';
 export const COL_DATE_FIRST      = 'Data primo';
 export const COL_DATE_LAST       = 'Data ultimo';
-export const COL_NUMBER          = 'Numero';
 export const COL_LAT             = 'Lat';
 export const COL_LON             = 'Lon';
 export const COL_QUOTA           = 'Quota';
@@ -297,15 +268,6 @@ export const TYPE_CEDUO   = 'ceduo';
 
 // Plan-selector header (top of the Piano di taglio page).
 export const LABEL_HARVEST_PLAN = 'Piano di taglio';
-export const NEW_PLAN_LABEL     = '+ Nuovo piano';
-export const PDT_NO_PLANS       = 'Nessun piano. Premi "+ Nuovo piano" per crearne uno.';
-export const PDT_SECTION_EMPTY              = 'Nessun intervento.';
-export const PDT_EMPTY_STATE_ADD_MANUAL     = '+ Aggiungi manualmente';
-
-// Calendar section titles.
-export const SECTION_INTERVENTI_FUSTAIA = 'Interventi fustaia';
-export const SECTION_INTERVENTI_CEDUO   = 'Interventi ceduo';
-export const ADD_ITEM_LABEL             = '+ Aggiungi';
 
 // Nuovo piano modal (creation) + Modifica piano modal (pencil, tabbed).
 export const NEW_PLAN_TITLE           = 'Nuovo piano';

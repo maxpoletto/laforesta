@@ -498,6 +498,18 @@ input:focus, select:focus, textarea:focus {
   min-width: 35px;
 }
 .page-pulldown { width: 300px; }
+
+.page-pulldown-icon {
+  cursor: pointer;
+  font-size: 1.1rem;
+  padding: 2px 6px;
+  user-select: none;
+  flex-shrink: 0;
+}
+.page-pulldown-icon:hover {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 3px;
+}
 .table-search { width: 300px; max-width: 300px; }
 .table-csv-btn { margin-left: auto; }
 
@@ -617,11 +629,6 @@ input:focus, select:focus, textarea:focus {
   cursor: pointer;
   pointer-events: auto;
 }
-
-/* --- Settings page ------------------------------------------------------- */
-
-.page-settings { max-width: 950px; }
-.page-settings input[type="password"] { width: 300px; }
 
 /* --- Map basemap switcher (Leaflet control) ----------------------------- */
 

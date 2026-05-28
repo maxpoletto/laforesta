@@ -355,7 +355,7 @@ def generate_parcel_year_production() -> None:
 # Audit digest
 # ---------------------------------------------------------------------------
 
-_ACTION_MAP = {'+': S.ACTION_INSERT, '~': S.ACTION_UPDATE, '-': S.ACTION_DELETE}
+_ACTION_MAP = {'+': S.AUDIT_INSERT, '~': S.AUDIT_UPDATE, '-': S.AUDIT_DELETE}
 
 
 def generate_audit() -> None:
@@ -384,12 +384,12 @@ def generate_audit() -> None:
         }),
         (Tractor.history, S.TABLE_TRACTOR, {
             'manufacturer': S.LABEL_MANUFACTURER,
-            'model': S.LABEL_MODEL, 'year': S.LABEL_YEAR,
+            'model': S.LABEL_MODEL, 'year': S.COL_YEAR,
             'active': S.COL_ACTIVE,
         }),
         (Species.history, S.TABLE_SPECIES, {
             'common_name': S.LABEL_NAME,
-            'latin_name': S.LABEL_LATIN_NAME,
+            'latin_name': S.COL_LATIN_NAME,
             'density': S.LABEL_DENSITY,
             'active': S.COL_ACTIVE,
         }),

@@ -129,18 +129,31 @@ Infrastructure:
   form fragment and shows it in the overlay modal.
   `renderModalForm(html)` re-renders inside the open modal (for
   validation errors / conflicts).
-- **`form-widgets.js`**: shared DOM builders for form elements.
-  `mkRow`, `mkInput`, `mkTextarea`, `mkFileInput`, `mkFormActions`,
-  `mkStatusBox`, `mkErrorsBox`, `renderCsvErrors`, `mkCollapsible`,
-  `mkEditDeleteIcons`, `mkTabbedModal`.  All pages import from here;
-  never duplicate these locally.
+- **`ui-widgets.js`**: shared UI widgets and wiring helpers, none of
+  them form-specific.  Collapsibles:
+  `wireCollapsibleToggle(header, body, onToggle?)`.  Tabbed modals:
+  `wireTabbedModal(root, { initialTab, onSwitch })`.  Page loading:
+  `showLoadingIn(el)`.  Delegated click dispatch: `wireActions(root,
+  handlers)`.  Per-button cancel wiring:
+  `wireCancelButtons(container, callback)` (per-button rather than
+  delegated, so it survives a fragment being moved into the modal
+  container).  Template-backed modals (clone from `<template>` elements
+  in `_shell_templates_it.html`): `showConfirmModal(message, onConfirm,
+  { confirmLabel })`, `showCascadeDeleteModal({ title, warning,
+  exportRequired, onExportCSV, onDelete })`.  Form-submit lifecycle
+  including CSV import (`submitCsvImport`) lives in `forms.js`.  All
+  pages import from here; never duplicate these locally.
+- **`csv-export.js`**: `csvField(v, fmt)`, `downloadCSV(lines,
+  filename)`, `exportDigest(digest, exportCols, srcCols, filename,
+  opts)`.  Shared CSV export primitives; `TableWrapper.exportCSV()`
+  is a separate mechanism.
 
 Tabbed modals (e.g., pencil-edit modals with Dettagli + Import tabs)
 use `.modal-tabs` / `.modal-tab` / `.modal-tab-body` /
-`.modal-tab-bodies` CSS classes (defined in `common.css`).  The
-`mkTabbedModal` helper or inline JS measures all tab bodies after
-`showModal()` and sets `min-height` on the container to the tallest
-tab, so switching tabs never reflows the modal.
+`.modal-tab-bodies` CSS classes (defined in `common.css`).
+`wireTabbedModal` measures all tab bodies after `showModal()` and
+sets `min-height` on the container to the tallest tab, so switching
+tabs never reflows the modal.
 
 ### Form card
 
@@ -188,9 +201,9 @@ and disables hover-darkening.
 ### Form row layout
 
 Forms use `.form-row` containing `.form-group` children.
-`common.css` currently defines `.form-row` as flex; some pages
-(prelievi) override to CSS grid. The system is migrating to grid
-(see `docs/superpowers/plans/2026-05-25-js-to-templates.md`).
+`.form-row` currently uses `display: flex` with `gap: 1rem`; children
+get `flex: 1`.  The `narrow` modifier constrains children to `120px`
+(`flex: 0 0 120px`).  A future migration to CSS grid is planned.
 
 ### Short-entry field width
 
@@ -237,6 +250,96 @@ Elimina is disabled until after CSV export.
 Input-related errors are reported directly in the input modals, not in a
 separate modal. Errors include validation errors, conflicts, and other
 conditions such as network errors.
+
+## `<template>` components
+
+Page scaffolds and client-built modals use HTML `<template>` elements
+rendered by Django inside the shell page.  JS clones them via
+`cloneTemplate(id)` (`base/js/templates.js`), fills dynamic content,
+and wires event handlers.  `<template>` content is inert until cloned.
+
+### File layout
+
+Each app has a `_shell_templates_it.html` included by the shell:
+
+    base/templates/base/_shell_templates_it.html       — shared (confirm, cascade-delete)
+    campionamenti/templates/campionamenti/_shell_templates_it.html
+    piano_di_taglio/templates/piano_di_taglio/_shell_templates_it.html
+    prelievi/templates/prelievi/_shell_templates_it.html
+
+### Conventions
+
+- **`data-section="x"`** on collapsible header/body pairs — JS queries
+  by section key to wire toggles and stash refs.
+- **`data-action="name"`** on buttons — JS wires a single delegated
+  click handler with `wireActions(root, handlers)` (from
+  `ui-widgets.js`) that dispatches by `btn.dataset.action`.  The
+  handler receives the clicked element as its first argument (useful
+  for `closest('[data-section]')` lookups).  `wireActions` returns a
+  disposer; callers attaching to a long-lived element (e.g. `#content`,
+  the persistent SPA shell) MUST hold the disposer and call it before
+  re-wiring on every rebuild, otherwise listeners accumulate.  For
+  ephemeral elements that get removed by `replaceChildren()` the
+  disposer can be ignored.
+- **`data-field="name"`** on elements whose text is set dynamically
+  by JS after cloning (titles, labels, help text).
+- **`data-target="name"`** on container elements that JS populates
+  with dynamic content (summaries, map hosts, table hosts).
+- **`data-role="name"`** on functional elements (forms, sliders)
+  that JS needs to query for wiring.
+- **`{% if user.can_modify %}`** gates writer-only elements
+  (edit/delete icons, add buttons) server-side.  Property on `User`,
+  parallel to the JS `canModify()` helper in `apps/base/static/base/js/roles.js`.
+  JS-side gating is no longer needed for elements in templates.
+
+### Where localized (Italian) text lives
+
+The locale is indexed by filename (`*_it.html`), so per-page templates *should*
+contain literal Italian text — that filename IS the locale boundary, exactly
+like `config/strings_it.py` literally contains the strings.  Wrapping a one-off
+label in `{{ S.X }}` adds ceremony with no consistency benefit.
+
+Use `{{ S.X }}` (via the `apps.base.context_processors.strings` context
+processor) **only when the same logical label appears in multiple
+places**, so that a single edit propagates:
+
+- **Inside shared `_partials/`** (cancel/submit pair, CSV-import tail,
+  collapsible header, edit/delete icons) — these are rendered into many call
+  sites and any literal would have to be edited in each one if the wording
+  changes.  Use `{{ S.X }}` here.
+- **Cross-page recurring strings** — that occur in 3+ sites, e.g. `Cerca…`,
+  `Esporta CSV`, `Filtra`, `Modifica`, `Elimina`, `File CSV`, `Importa`,
+  `Dettagli`, `Annulla`, `Salva`, `Conferma`, `Chiudi`.  Use `{{ S.X }}`.
+- **One-off page titles / labels / help text / empty-state messages**
+  — section headings like *Griglie di campionamento*, modal titles
+  like *Nuovo piano*, button labels like *+ Aggiungi area*, help
+  blurbs.  Leave as literal Italian text in the `_it.html` template.
+
+Dynamic text set by JS (modal headings filled in `wireEditModal`, etc.)
+continues to use the JS-side `S.*` from `apps/base/static/base/js/strings.js`.
+
+### What stays in JS
+
+Data-driven content (table rows, chart datasets, map markers),
+slider logic, and any structure that depends on runtime state.
+Only static scaffolding moves to templates.
+
+### Function naming
+
+UI helpers use a prefix that signals what the function does, so a
+reader can tell from the name whether it builds DOM, attaches
+behavior, or opens a modal:
+
+- **`show*`** — opens a modal (typically: clone a `<template>`, fill
+  fields, wire handlers, call `showModal`).  Examples:
+  `showConfirmModal`, `showCascadeDeleteModal`, `showEditModal`,
+  `showAreaPopover`, `showTransitionForm`, `showImportMarksForm`,
+  `showNewSurveyForm`, `showError`.
+- **`wire*`** — takes an already-rendered DOM and only attaches
+  event handlers.  Examples: `wireGridEmptyForm`,
+  `wireCancelButtons`, `wireForm`.
+- **`build*`** — constructs DOM but does not show it (e.g.,
+  `buildPage` clones a page template into `#content`).
 
 ## Accessibility
 

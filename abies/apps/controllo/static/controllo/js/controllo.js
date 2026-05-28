@@ -6,6 +6,7 @@ import * as cache from '../../base/js/cache.js';
 import { TableWrapper } from '../../base/js/table.js';
 import { showError } from '../../base/js/modals.js';
 import * as router from '../../base/js/router.js';
+import { showLoadingIn } from '../../base/js/ui-widgets.js';
 import * as S from '../../base/js/strings.js';
 
 const DATA_ID = 'audit';
@@ -32,12 +33,7 @@ cache.register(DATA_ID, DATA_URL);
 
 export async function mount(params) {
   const el = document.getElementById('content');
-  el.replaceChildren();
-
-  const loading = document.createElement('div');
-  loading.className = 'loading-overlay';
-  loading.textContent = S.LOADING;
-  el.appendChild(loading);
+  showLoadingIn(el);
 
   let data;
   try {

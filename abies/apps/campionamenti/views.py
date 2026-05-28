@@ -1022,7 +1022,7 @@ def grid_csv_import_view(request):
         parcel = parcel_cache.get((compresa.lower(), particella))
         if parcel is None:
             errors.append(
-                S.ERR_CSV_ROW_PARCEL.format(i, compresa, particella),
+                S.ERR_CSV_PARCEL_NOT_FOUND.format(i, compresa, particella),
             )
             continue
         number = row[S.CSV_COL_AREA_SAGGIO].strip()

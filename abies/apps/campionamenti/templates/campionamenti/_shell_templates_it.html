@@ -1,0 +1,135 @@
+{% comment %}
+Campionamenti <template> elements — cloned by JS on mount().
+user.can_modify and S (string constants) are provided by the shell's
+render context.
+{% endcomment %}
+
+<template id="tmpl-campionamenti-page">
+  {# --- Section 1: Griglie --- #}
+  {% include "base/_partials/_collapsible_header.html" with section="g" title="Griglie di campionamento" %}
+  <div class="collapsible-body" data-section="g">
+    <div class="campionamenti-section-top">
+      <div class="campionamenti-section-left">
+        <label class="campionamenti-pulldown-label"
+               for="campionamenti-grid-select">Griglia</label>
+        <select class="campionamenti-pulldown page-pulldown"
+                id="campionamenti-grid-select"></select>
+        {% include "base/_partials/_edit_delete_icons.html" with edit_action="edit-grid" delete_action="delete-grid" %}
+      </div>
+      <div class="campionamenti-section-right">
+        <button type="button" class="btn"
+                data-action="export-grid-csv">{{ S.EXPORT_CSV }}</button>
+        {% if user.can_modify %}
+        <button type="button" class="btn btn-primary"
+                data-action="new-grid">Nuova griglia</button>
+        {% endif %}
+      </div>
+    </div>
+    <div class="campionamenti-summary" data-target="grid-summary"></div>
+    <div class="campionamenti-map-host" data-target="grid-map"></div>
+    {% if user.can_modify %}
+    <div class="form-help">
+      Clicca sulla mappa per aggiungere un'area, o su un'area per modificarla.</div>
+    <button type="button" class="btn btn-primary"
+            data-action="add-area">+ Aggiungi area</button>
+    {% endif %}
+    <div class="campionamenti-empty" data-target="grid-empty" hidden>
+      Nessuna griglia.  Premi "Nuova griglia" per crearne una.
+      {% if user.can_modify %}
+      <div style="text-align:center;margin-top:1rem">
+        <button type="button" class="btn btn-primary"
+                data-action="new-grid">Nuova griglia</button>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# --- Section 2: Rilevamenti --- #}
+  {% include "base/_partials/_collapsible_header.html" with section="r" title="Rilevamenti" %}
+  <div class="collapsible-body" data-section="r">
+    <div class="campionamenti-section-top">
+      <div class="campionamenti-section-left">
+        <label class="campionamenti-pulldown-label"
+               for="campionamenti-survey-select">Rilevamento</label>
+        <select class="campionamenti-pulldown page-pulldown"
+                id="campionamenti-survey-select"></select>
+        {% include "base/_partials/_edit_delete_icons.html" with edit_action="edit-survey" delete_action="delete-survey" %}
+      </div>
+      <div class="campionamenti-section-right">
+        <button type="button" class="btn"
+                data-action="export-survey-csv">{{ S.EXPORT_CSV }}</button>
+        {% if user.can_modify %}
+        <button type="button" class="btn btn-primary"
+                data-action="new-survey">Nuovo rilevamento</button>
+        {% endif %}
+      </div>
+    </div>
+    <div class="campionamenti-summary" data-target="survey-summary"></div>
+    <div class="campionamenti-map-host" data-target="survey-map"></div>
+  </div>
+
+  {# --- Section 3: Alberi campionati --- #}
+  {% include "base/_partials/_collapsible_header.html" with section="t" title="Alberi campionati" %}
+  <div class="collapsible-body" data-section="t">
+    <div class="campionamenti-empty" data-target="trees-empty">
+      Seleziona un rilevamento per visualizzare gli alberi campionati.</div>
+    <div data-target="trees-table-host"></div>
+  </div>
+</template>
+
+<template id="tmpl-campionamenti-area-popover">
+  <div class="form-readonly-block" data-target="fields"></div>
+  <div class="form-actions">
+    <button type="button" class="btn" data-action="cancel">{{ S.DISMISS }}</button>
+    {% if user.can_modify %}
+    <button type="button" class="btn btn-primary"
+            data-action="edit-area">{{ S.ACTION_EDIT }}</button>
+    <button type="button" class="btn btn-primary"
+            data-action="delete-area">{{ S.ACTION_DELETE }}</button>
+    {% endif %}
+  </div>
+</template>
+
+<template id="tmpl-campionamenti-edit-modal">
+  <div class="form-card">
+    <h2 data-field="title"></h2>
+    <div class="modal-tabs">
+      <button type="button" class="modal-tab active"
+              data-path="details">{{ S.TAB_DETAILS }}</button>
+      <button type="button" class="modal-tab"
+              data-path="import" data-field="import-tab-label"></button>
+    </div>
+    <div class="modal-tab-bodies">
+      <div class="modal-tab-body active" data-path="details">
+        <form class="campionamenti-edit-form" data-role="details-form">
+          <div class="form-group">
+            <label for="edit-modal-name">Nome</label>
+            <input type="text" id="edit-modal-name" name="name"
+                   maxlength="100" required>
+          </div>
+          <div class="form-group">
+            <label for="edit-modal-desc">Descrizione</label>
+            <textarea id="edit-modal-desc" name="description" rows="3"></textarea>
+          </div>
+          {% include "base/_partials/_form_actions.html" with submit_label=S.SAVE %}
+        </form>
+      </div>
+      <div class="modal-tab-body" data-path="import">
+        <form class="campionamenti-edit-form" data-role="import-form">
+          <div class="form-group">
+            <label for="edit-modal-file">{{ S.LABEL_CSV_FILE }}</label>
+            <input type="file" id="edit-modal-file" name="file"
+                   accept=".csv,text/csv" required>
+          </div>
+          <div class="form-group" data-field="date-row" hidden>
+            <label for="edit-modal-date">
+              Data predefinita (se il file non ha colonna "Data")</label>
+            <input type="date" id="edit-modal-date" name="default_date">
+          </div>
+          <p class="form-help" data-field="import-help"></p>
+          {% include "base/_partials/_csv_import_tail.html" %}
+        </form>
+      </div>
+    </div>
+  </div>
+</template>

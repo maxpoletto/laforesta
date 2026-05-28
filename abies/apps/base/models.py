@@ -62,6 +62,9 @@ class Role(models.TextChoices):
     READER = 'reader', 'Reader'
 
 
+WRITER_ROLES = frozenset({Role.ADMIN, Role.WRITER})
+
+
 class LoginMethod(models.TextChoices):
     PASSWORD = 'password', 'Password'
     OAUTH = 'oauth', 'OAuth'
@@ -77,6 +80,10 @@ class User(AbstractUser):
     class Meta(AbstractUser.Meta):
         verbose_name = S.USER
         verbose_name_plural = S.USERS
+
+    @property
+    def can_modify(self) -> bool:
+        return self.role in WRITER_ROLES
 
 
 # ---------------------------------------------------------------------------

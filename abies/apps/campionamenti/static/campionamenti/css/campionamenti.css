@@ -137,17 +137,6 @@
   /* Inherits sortable-table sizing from common.css. */
 }
 
-.campionamenti-pulldown-icon {
-  cursor: pointer;
-  font-size: 16px;
-  padding: 2px 6px;
-  user-select: none;
-}
-
-.campionamenti-pulldown-icon:hover {
-  background: #e8f0e8;
-  border-radius: 3px;
-}
 
 .cascade-confirm-title {
   color: #a00;

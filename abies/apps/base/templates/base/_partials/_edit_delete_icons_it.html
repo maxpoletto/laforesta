@@ -1,0 +1,13 @@
+{% comment %}
+Writer-only pencil + trash icon pair, typically placed next to a
+pulldown selector.  Caller supplies the data-action values.
+Usage: {% include "base/_partials/_edit_delete_icons.html"
+                  with edit_action="edit-grid" delete_action="delete-grid" %}
+{% endcomment %}{% if user.can_modify %}
+<span class="action-icon action-edit page-pulldown-icon"
+      role="button" title="{{ S.ACTION_EDIT }}"
+      data-action="{{ edit_action }}">✎</span>
+<span class="action-icon action-delete page-pulldown-icon"
+      role="button" title="{{ S.ACTION_DELETE }}"
+      data-action="{{ delete_action }}">🗑︎</span>
+{% endif %}

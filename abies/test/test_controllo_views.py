@@ -69,7 +69,7 @@ class TestAuditDigest:
         # audit_fixtures created crews, species, tractors — each should have
         # at least one 'Inserimento' row.
         actions = {row[4] for row in data[ROWS]}
-        assert S.ACTION_INSERT in actions
+        assert S.AUDIT_INSERT in actions
 
     def test_update_shows_diff(self, audit_fixtures, tmp_path, settings):
         """Editing an object produces a row with before/after values."""
@@ -82,7 +82,7 @@ class TestAuditDigest:
         data = _load_digest(tmp_path / 'audit.json.gz')
 
         update_rows = [r for r in data[ROWS]
-                       if r[3] == S.TABLE_CREW and r[4] == S.ACTION_UPDATE]
+                       if r[3] == S.TABLE_CREW and r[4] == S.AUDIT_UPDATE]
         assert len(update_rows) >= 1
         row = update_rows[0]
         assert 'Alfa' in row[5]   # old value
@@ -102,7 +102,7 @@ class TestAuditDigest:
         data = _load_digest(tmp_path / 'audit.json.gz')
 
         delete_rows = [r for r in data[ROWS]
-                       if r[3] == S.TABLE_HARVEST and r[4] == S.ACTION_DELETE]
+                       if r[3] == S.TABLE_HARVEST and r[4] == S.AUDIT_DELETE]
         assert len(delete_rows) >= 1
         assert 'Q.li: 50' in delete_rows[0][5]  # old value contains quintals
 
