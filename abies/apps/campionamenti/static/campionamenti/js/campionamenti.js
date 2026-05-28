@@ -1245,7 +1245,7 @@ function exportSurveyCSV(surveyId) {
   const visibleCols = d.columns.filter(
     c => c !== VERSION && c !== S.COL_SAMPLE_AREA,
   );
-  exportDigest(d, visibleCols, visibleCols, S.CSV_SAMPLED_TREES);
+  exportDigest(d, visibleCols, S.CSV_SAMPLED_TREES);
 }
 
 function exportGridAreasCSV(gridId) {
@@ -1253,10 +1253,15 @@ function exportGridAreasCSV(gridId) {
   const gridCol = sampleAreasData.columns.indexOf(S.COL_GRID);
   exportDigest(
     sampleAreasData,
-    [S.CSV_COL_COMPRESA, S.CSV_COL_PARTICELLA, S.CSV_COL_AREA_SAGGIO,
-     S.CSV_COL_LON, S.CSV_COL_LAT, S.CSV_COL_QUOTA, S.CSV_COL_RAGGIO],
-    [S.COL_COMPRESA, S.COL_PARCEL, S.COL_NUMERO, S.COL_LON, S.COL_LAT,
-     S.COL_QUOTA, S.COL_RAGGIO],
+    [
+      { src: S.COL_COMPRESA, dst: S.CSV_COL_COMPRESA },
+      { src: S.COL_PARCEL,   dst: S.CSV_COL_PARTICELLA },
+      { src: S.COL_NUMERO,   dst: S.CSV_COL_AREA_SAGGIO },
+      { src: S.COL_LON,      dst: S.CSV_COL_LON },
+      { src: S.COL_LAT,      dst: S.CSV_COL_LAT },
+      { src: S.COL_QUOTA,    dst: S.CSV_COL_QUOTA },
+      { src: S.COL_RAGGIO,   dst: S.CSV_COL_RAGGIO },
+    ],
     S.CSV_GRID_AREAS,
     { filter: row => row[gridCol] === gridId },
   );
@@ -1275,22 +1280,22 @@ async function exportFullSurveyCSV(surveyId) {
   const tipoCol = d.columns.indexOf(S.COL_TYPE);
   exportDigest(
     d,
-    [S.CSV_COL_COMPRESA, S.CSV_COL_PARTICELLA, S.CSV_COL_AREA_SAGGIO,
-     S.CSV_COL_ALBERO, S.CSV_COL_POLLONE, S.CSV_COL_MATRICINA,
-     S.CSV_COL_D_CM, S.CSV_COL_H_M, S.CSV_COL_L10_MM,
-     S.CSV_COL_GENERE, S.CSV_COL_FUSTAIA, S.CSV_COL_DATA,
-     S.CSV_COL_PAI],
-    [S.COL_COMPRESA, S.COL_PARCEL, S.COL_AREA_NUM, S.COL_TREE_NUM,
-     S.COL_POLLONE, S.COL_MATRICINA,
-     S.COL_D_CM, S.COL_H_M, S.COL_L10_MM,
-     S.COL_SPECIES, S.COL_TYPE, S.COL_SAMPLE_DATE, S.COL_PAI],
+    [
+      { src: S.COL_COMPRESA,    dst: S.CSV_COL_COMPRESA },
+      { src: S.COL_PARCEL,      dst: S.CSV_COL_PARTICELLA },
+      { src: S.COL_AREA_NUM,    dst: S.CSV_COL_AREA_SAGGIO },
+      { src: S.COL_TREE_NUM,    dst: S.CSV_COL_ALBERO },
+      { src: S.COL_POLLONE,     dst: S.CSV_COL_POLLONE },
+      { src: S.COL_MATRICINA,   dst: S.CSV_COL_MATRICINA },
+      { src: S.COL_D_CM,        dst: S.CSV_COL_D_CM },
+      { src: S.COL_H_M,         dst: S.CSV_COL_H_M },
+      { src: S.COL_L10_MM,      dst: S.CSV_COL_L10_MM },
+      { src: S.COL_SPECIES,     dst: S.CSV_COL_GENERE },
+      { dst: S.CSV_COL_FUSTAIA, transform: row => row[tipoCol] === S.TYPE_FUSTAIA },
+      { src: S.COL_SAMPLE_DATE, dst: S.CSV_COL_DATA },
+      { src: S.COL_PAI,         dst: S.CSV_COL_PAI },
+    ],
     S.CSV_SURVEY_TREES,
-    {
-      transform: (row, _i, col) =>
-        col === S.CSV_COL_FUSTAIA
-          ? row[tipoCol] === S.TYPE_FUSTAIA
-          : undefined,
-    },
   );
 }
 

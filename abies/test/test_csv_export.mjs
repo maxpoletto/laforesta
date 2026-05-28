@@ -80,8 +80,8 @@ const digest = {
   ],
 };
 
-// Basic export — all columns mapped 1:1.
-exportDigest(digest, ['Nome', 'Valore'], ['Nome', 'Valore'], 'test.csv');
+// Basic export — string descriptors (src == dst).
+exportDigest(digest, ['Nome', 'Valore'], 'test.csv');
 assertEqual(capturedFilename, 'test.csv', 'filename');
 assertEqual(capturedLines[0], 'Nome;Valore', 'header row');
 assertEqual(capturedLines[1], 'Alfa;10,5', 'row 1');
@@ -89,39 +89,50 @@ assertEqual(capturedLines[2], 'Beta;20', 'row 2');
 assertEqual(capturedLines[3], 'Gamma;30,3', 'row 3');
 assertEqual(capturedLines.length, 4, '3 data rows + header');
 
-// Export with renamed columns.
-exportDigest(digest, ['Name', 'Val'], ['Nome', 'Valore'], 'renamed.csv');
+// Export with renamed columns via {src, dst}.
+exportDigest(digest, [
+  { src: 'Nome', dst: 'Name' },
+  { src: 'Valore', dst: 'Val' },
+], 'renamed.csv');
 assertEqual(capturedLines[0], 'Name;Val', 'renamed header');
 assertEqual(capturedLines[1], 'Alfa;10,5', 'renamed data unchanged');
 
+// Mixed: string + {src, dst}.
+exportDigest(digest, ['Nome', { src: 'Valore', dst: 'Val' }], 'mixed.csv');
+assertEqual(capturedLines[0], 'Nome;Val', 'mixed header');
+assertEqual(capturedLines[1], 'Alfa;10,5', 'mixed data');
+
 // Export with filter.
-exportDigest(digest, ['Nome', 'Valore'], ['Nome', 'Valore'], 'filtered.csv', {
+exportDigest(digest, ['Nome', 'Valore'], 'filtered.csv', {
   filter: row => row[digest.columns.indexOf('Tipo')] === 'A',
 });
 assertEqual(capturedLines.length, 3, 'filter: 2 rows + header');
 assertEqual(capturedLines[1], 'Alfa;10,5', 'filter: first match');
 assertEqual(capturedLines[2], 'Gamma;30,3', 'filter: second match');
 
-// Export with transform.
-exportDigest(digest, ['Nome', 'Derived'], ['Nome', 'Valore'], 'transform.csv', {
-  transform: (row, _i, colName) =>
-    colName === 'Derived' ? row[digest.columns.indexOf('Tipo')] === 'A' : undefined,
-});
+// Transform-only column (no src) via {dst, transform}.
+exportDigest(digest, [
+  'Nome',
+  { dst: 'IsA', transform: row => row[digest.columns.indexOf('Tipo')] === 'A' },
+], 'transform.csv');
+assertEqual(capturedLines[0], 'Nome;IsA', 'transform header');
 assertEqual(capturedLines[1], 'Alfa;true', 'transform: boolean derived');
 assertEqual(capturedLines[2], 'Beta;false', 'transform: boolean derived false');
+assertEqual(capturedLines[3], 'Gamma;true', 'transform: third row');
 
-// Export with filter + transform combined.
-exportDigest(digest, ['Nome', 'Derived'], ['Nome', 'Valore'], 'both.csv', {
+// Filter + transform combined.
+exportDigest(digest, [
+  'Nome',
+  { dst: 'Tipo', transform: row => row[digest.columns.indexOf('Tipo')] },
+], 'both.csv', {
   filter: row => row[digest.columns.indexOf('Valore')] > 15,
-  transform: (row, _i, colName) =>
-    colName === 'Derived' ? row[digest.columns.indexOf('Tipo')] : undefined,
 });
 assertEqual(capturedLines.length, 3, 'filter+transform: 2 rows + header');
 assertEqual(capturedLines[1], 'Beta;B', 'filter+transform: row 1');
 assertEqual(capturedLines[2], 'Gamma;A', 'filter+transform: row 2');
 
 // Empty digest.
-exportDigest({ columns: ['X'], rows: [] }, ['X'], ['X'], 'empty.csv');
+exportDigest({ columns: ['X'], rows: [] }, ['X'], 'empty.csv');
 assertEqual(capturedLines.length, 1, 'empty: header only');
 
 // Null values in data.
@@ -129,7 +140,7 @@ const nullDigest = {
   columns: ['A', 'B'],
   rows: [[null, 'ok'], ['val', null]],
 };
-exportDigest(nullDigest, ['A', 'B'], ['A', 'B'], 'nulls.csv');
+exportDigest(nullDigest, ['A', 'B'], 'nulls.csv');
 assertEqual(capturedLines[1], ';ok', 'null in first column');
 assertEqual(capturedLines[2], 'val;', 'null in second column');
 
