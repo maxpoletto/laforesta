@@ -147,7 +147,7 @@ function buildPasswordSection() {
 
     if (pw1.value !== pw2.value) {
       msg.textContent = S.PASSWORD_MISMATCH;
-      msg.classList.add('text-error');
+      msg.className = 'mt-1 text-error';
       return;
     }
 
@@ -159,12 +159,11 @@ function buildPasswordSection() {
       return;
     }
 
+    msg.textContent = data.message;
     if (status === 200) {
-      msg.textContent = data.message;
       form.reset();
     } else {
-      msg.textContent = data.message;
-      msg.classList.add('text-error');
+      msg.className = 'mt-1 text-error';
     }
   });
 
