@@ -27,7 +27,7 @@ import {
   interceptSubmit, wireCancelButtons, showFormError,
 } from '../../base/js/forms.js';
 import {
-  renderCsvErrors, showConfirmModal, showCascadeDeleteModal,
+  renderCsvErrors, showConfirmModal, showCascadeDeleteModal, wireActions,
 } from '../../base/js/form-widgets.js';
 import { exportDigest } from '../../base/js/csv-export.js';
 import { cloneTemplate } from '../../base/js/templates.js';
@@ -149,6 +149,7 @@ let currentTreesId = null;
 let _areaColIdx = -1;
 let inForm = false;
 let escapeHandler = null;
+let disposePageActions = null;
 // MapCommon basemap key in effect across all maps on this page.
 // Initialised in mount() from the URL; updated by `basemapchange` events
 // fired from any BasemapControl and by `applyParams` on back/forward.
@@ -213,6 +214,7 @@ export async function mount(params) {
 export function unmount() {
   unloadCSS(CSS_URL);
   if (unsubCache) { unsubCache(); unsubCache = null; }
+  if (disposePageActions) { disposePageActions(); disposePageActions = null; }
   destroyTable();
   destroyRilevamentiMap();
   destroyGriglieMap();
@@ -243,6 +245,7 @@ function resetSectionRefs() {
 // ---------------------------------------------------------------------------
 
 function buildPage(el, params) {
+  disposePageActions?.();
   el.replaceChildren();
   const p = readParams(params);
   const frag = cloneTemplate('tmpl-campionamenti-page');
@@ -291,22 +294,16 @@ function buildPage(el, params) {
   sections.t.emptyEl = el.querySelector('[data-target="trees-empty"]');
   sections.t.host = el.querySelector('[data-target="trees-table-host"]');
 
-  // Wire action buttons via data-action delegation.
-  el.addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-action]');
-    if (!btn) return;
-    const handlers = {
-      'new-grid': () => showNewGridForm(),
-      'edit-grid': () => showEditGridModal(),
-      'delete-grid': () => confirmDeleteGrid(),
-      'export-grid-csv': () => activeGridId != null && exportGridAreasCSV(activeGridId),
-      'new-survey': () => showNewSurveyForm(),
-      'edit-survey': () => showEditSurveyModal(),
-      'delete-survey': () => confirmDeleteSurvey(),
-      'export-survey-csv': () => activeSurveyId != null && exportFullSurveyCSV(activeSurveyId),
-      'add-area': () => showAddAreaForm(),
-    };
-    handlers[btn.dataset.action]?.();
+  disposePageActions = wireActions(el, {
+    'new-grid': () => showNewGridForm(),
+    'edit-grid': () => showEditGridModal(),
+    'delete-grid': () => confirmDeleteGrid(),
+    'export-grid-csv': () => activeGridId != null && exportGridAreasCSV(activeGridId),
+    'new-survey': () => showNewSurveyForm(),
+    'edit-survey': () => showEditSurveyModal(),
+    'delete-survey': () => confirmDeleteSurvey(),
+    'export-survey-csv': () => activeSurveyId != null && exportFullSurveyCSV(activeSurveyId),
+    'add-area': () => showAddAreaForm(),
   });
 
   updateGridEmptyState();

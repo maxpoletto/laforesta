@@ -19,7 +19,7 @@ import {
   fetchModalForm, interceptSubmit, wireCancelButtons, showFormError,
 } from '../../base/js/forms.js';
 import {
-  renderCsvErrors, mkCollapsible, showCascadeDeleteModal,
+  renderCsvErrors, mkCollapsible, showCascadeDeleteModal, wireActions,
 } from '../../base/js/form-widgets.js';
 import { cloneTemplate } from '../../base/js/templates.js';
 import {
@@ -90,6 +90,7 @@ let prelieviData = null;
 let itemPrelieviTable = null;
 let itemMarkTreesTable = null;
 let escapeHandler = null;
+let disposePageActions = null;
 
 // Calendar sections — keyed by the single-char URL `o=` token.  `f`
 // fills in here; `c` (Calendario ceduo) lands in a later increment.
@@ -170,6 +171,7 @@ export function unmount() {
   removeEscapeHandler();
   if (unsubPlans) { unsubPlans(); unsubPlans = null; }
   if (unsubItems) { unsubItems(); unsubItems = null; }
+  if (disposePageActions) { disposePageActions(); disposePageActions = null; }
   cache.setVisible([]);
   destroyTables();
   destroyItemPrelieviTable();
@@ -287,6 +289,7 @@ function syncURL(push = false) {
 // ---------------------------------------------------------------------------
 
 function buildPage(el) {
+  disposePageActions?.();
   el.replaceChildren();
   const frag = cloneTemplate('tmpl-pdt-page');
   el.appendChild(frag);
@@ -343,27 +346,21 @@ function buildPage(el) {
     buildTable(s, searchInput);
   }
 
-  // Wire action buttons via data-action delegation.
-  el.addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-action]');
-    if (!btn) return;
-    const handlers = {
-      'edit-plan': () => onEditPlan(),
-      'delete-plan': () => onDeletePlan(),
-      'export-plan': () => { if (activePlanId != null) downloadPlanExport(activePlanId); },
-      'new-plan': () => onNewPlan(),
-      'export-section-csv': () => {
-        const sec = btn.closest('[data-section]');
-        if (sec) sections[sec.dataset.section]?.table?.exportCSV();
-      },
-      'add-item-f': () => showAddItemModal(sections.f),
-      'add-item-c': () => showAddItemModal(sections.c),
-      'import-calendar-f': () => openEditPlanModal(EDIT_PLAN_TAB_CALENDAR, { ceduo: false }),
-      'import-calendar-c': () => openEditPlanModal(EDIT_PLAN_TAB_CALENDAR, { ceduo: true }),
-      'add-manual-f': () => showAddItemModal(sections.f),
-      'add-manual-c': () => showAddItemModal(sections.c),
-    };
-    handlers[btn.dataset.action]?.();
+  disposePageActions = wireActions(el, {
+    'edit-plan': () => onEditPlan(),
+    'delete-plan': () => onDeletePlan(),
+    'export-plan': () => { if (activePlanId != null) downloadPlanExport(activePlanId); },
+    'new-plan': () => onNewPlan(),
+    'export-section-csv': (btn) => {
+      const sec = btn.closest('[data-section]');
+      if (sec) sections[sec.dataset.section]?.table?.exportCSV();
+    },
+    'add-item-f': () => showAddItemModal(sections.f),
+    'add-item-c': () => showAddItemModal(sections.c),
+    'import-calendar-f': () => openEditPlanModal(EDIT_PLAN_TAB_CALENDAR, { ceduo: false }),
+    'import-calendar-c': () => openEditPlanModal(EDIT_PLAN_TAB_CALENDAR, { ceduo: true }),
+    'add-manual-f': () => showAddItemModal(sections.f),
+    'add-manual-c': () => showAddItemModal(sections.c),
   });
 }
 
@@ -1215,17 +1212,11 @@ async function renderItemView(itemId) {
   frag.querySelector('[data-field="title"]').textContent =
     formatItemTitle(record, c);
 
-  // Wire action buttons via delegation.
   const card = frag.querySelector('.pdt-item-card');
-  card.addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-action]');
-    if (!btn) return;
-    const handlers = {
-      'edit-item': () => showItemEditForm(itemId),
-      'export-item': () => downloadItemExport(itemId),
-      'close-item': () => closeItemView(true),
-    };
-    handlers[btn.dataset.action]?.();
+  wireActions(card, {
+    'edit-item': () => showItemEditForm(itemId),
+    'export-item': () => downloadItemExport(itemId),
+    'close-item': () => closeItemView(true),
   });
 
   // Metadata pane.

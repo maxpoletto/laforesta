@@ -8,6 +8,7 @@ import { TableWrapper } from '../../base/js/table.js';
 import {
   fetchModalForm, renderModalForm, showFormError, wireCancelButtons,
 } from '../../base/js/forms.js';
+import { wireActions } from '../../base/js/form-widgets.js';
 import { postJSON } from '../../base/js/api.js';
 import { showError, dismiss as dismissModal, onDismiss } from '../../base/js/modals.js';
 import { createRangeSlider } from '../../base/js/range-slider.js';
@@ -65,6 +66,7 @@ let slider = null;
 let unsubCache = null;
 let inForm = false;
 let escapeHandler = null;
+let disposePageActions = null;
 
 // Column classification and index map — resolved on first data load.
 let speciesCols = [];
@@ -143,6 +145,7 @@ export async function mount(params) {
 export function unmount() {
   unloadCSS(CSS_URL);
   if (unsubCache) { unsubCache(); unsubCache = null; }
+  if (disposePageActions) { disposePageActions(); disposePageActions = null; }
   removeEscapeHandler();
   _destroyCharts();
   destroyTable();
@@ -394,6 +397,7 @@ function _destroyCharts() {
 }
 
 function buildPage(el, data, p) {
+  disposePageActions?.();
   const frag = cloneTemplate('tmpl-prelievi-page');
   el.appendChild(frag);
 
@@ -414,23 +418,17 @@ function buildPage(el, data, p) {
     }
   }
 
-  // Action delegation on the filter bar.
-  el.addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-action]');
-    if (!btn) return;
-    const handlers = {
-      'reset-filters': () => {
-        if (slider) {
-          slider.setValues(years[0], years[years.length - 1]);
-          if (table) table.setExternalFilter(yearFilter());
-        }
-        if (table) table.setSearchText('');
-        syncURL();
-        _updateCharts();
-      },
-      'export-csv': () => table?.exportCSV(),
-    };
-    handlers[btn.dataset.action]?.();
+  disposePageActions = wireActions(el, {
+    'reset-filters': () => {
+      if (slider) {
+        slider.setValues(years[0], years[years.length - 1]);
+        if (table) table.setExternalFilter(yearFilter());
+      }
+      if (table) table.setSearchText('');
+      syncURL();
+      _updateCharts();
+    },
+    'export-csv': () => table?.exportCSV(),
   });
 
   // Wire collapsible sections.

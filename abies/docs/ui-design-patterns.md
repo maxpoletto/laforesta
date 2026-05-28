@@ -267,9 +267,16 @@ Each app has a `_shell_templates_it.html` included by the shell:
 
 - **`data-section="x"`** on collapsible header/body pairs — JS queries
   by section key to wire toggles and stash refs.
-- **`data-action="name"`** on buttons — JS delegates clicks via a
-  single `el.addEventListener('click', ...)` handler that dispatches
-  by `btn.dataset.action`.
+- **`data-action="name"`** on buttons — JS wires a single delegated
+  click handler with `wireActions(root, handlers)` (from
+  `form-widgets.js`) that dispatches by `btn.dataset.action`.  The
+  handler receives the clicked element as its first argument (useful
+  for `closest('[data-section]')` lookups).  `wireActions` returns a
+  disposer; callers attaching to a long-lived element (e.g. `#content`,
+  the persistent SPA shell) MUST hold the disposer and call it before
+  re-wiring on every rebuild, otherwise listeners accumulate.  For
+  ephemeral elements that get removed by `replaceChildren()` the
+  disposer can be ignored.
 - **`data-field="name"`** on elements whose text is set dynamically
   by JS after cloning (titles, labels, help text).
 - **`data-target="name"`** on container elements that JS populates

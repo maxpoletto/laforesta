@@ -43,6 +43,12 @@ class MockElement {
     if (!this._listeners[type]) this._listeners[type] = [];
     this._listeners[type].push(fn);
   }
+  removeEventListener(type, fn) {
+    const arr = this._listeners[type];
+    if (!arr) return;
+    const i = arr.indexOf(fn);
+    if (i !== -1) arr.splice(i, 1);
+  }
   click() { (this._listeners.click || []).forEach(fn => fn()); }
   appendChild(child) { this.children.push(child); return child; }
   append(...args) { this.children.push(...args); }
@@ -189,7 +195,7 @@ globalThis.document = {
 
 // Import after mocking document — ES module evaluation happens at import time
 // for modals.js which caches document.getElementById('modal-container').
-import { showConfirmModal, showCascadeDeleteModal } from '../apps/base/static/base/js/form-widgets.js';
+import { showConfirmModal, showCascadeDeleteModal, wireActions } from '../apps/base/static/base/js/form-widgets.js';
 // Access dismiss directly to reset state between tests.
 import { dismiss as dismissModal } from '../apps/base/static/base/js/modals.js';
 
@@ -320,6 +326,79 @@ const delBtn2 = findByDataset(modalShown, 'action', 'delete');
 assertEqual(delBtn2?.disabled, false, 'delete starts enabled (no export)');
 delBtn2.click();
 assertEqual(deleteCalled2, true, 'onDelete called without export');
+
+// ---------------------------------------------------------------------------
+// wireActions — click delegation by data-action
+// ---------------------------------------------------------------------------
+//
+// Simulates a delegated click by invoking the registered handler with a
+// synthetic event whose target.closest('[data-action]') returns the
+// clicked button (or null if the click missed any data-action element).
+
+function dispatchActionClick(root, target) {
+  const handlers = root._listeners.click || [];
+  const event = {
+    target: {
+      closest: (sel) => {
+        if (sel !== '[data-action]') return null;
+        return target && target.dataset && target.dataset.action ? target : null;
+      },
+    },
+  };
+  for (const fn of handlers) fn(event);
+}
+
+console.log('wireActions');
+
+{
+  const root = new MockElement('div');
+  const btn = new MockElement('button');
+  btn.dataset.action = 'do-thing';
+
+  let receivedBtn = null;
+  let calls = 0;
+  const dispose = wireActions(root, {
+    'do-thing': (b) => { receivedBtn = b; calls++; },
+  });
+
+  dispatchActionClick(root, btn);
+  assertEqual(receivedBtn === btn, true, 'handler receives clicked button');
+  assertEqual(calls, 1, 'handler called exactly once');
+
+  // Click on something with no data-action: no-op.
+  const plain = new MockElement('div');
+  dispatchActionClick(root, plain);
+  assertEqual(calls, 1, 'click outside data-action is a no-op');
+
+  // Unknown action: no throw, no call.
+  const unknown = new MockElement('button');
+  unknown.dataset.action = 'never-registered';
+  dispatchActionClick(root, unknown);
+  assertEqual(calls, 1, 'unknown action key is a no-op');
+
+  // Disposer removes the listener.
+  dispose();
+  dispatchActionClick(root, btn);
+  assertEqual(calls, 1, 'disposer removes the listener');
+}
+
+// Re-wiring after dispose should not accumulate listeners — proves the bug
+// the disposer is meant to fix (one logical handler per buildPage call,
+// even when buildPage runs many times on the same persistent element).
+{
+  const root = new MockElement('div');
+  const btn = new MockElement('button');
+  btn.dataset.action = 'go';
+  let calls = 0;
+
+  let dispose = wireActions(root, { 'go': () => { calls++; } });
+  for (let i = 0; i < 5; i++) {
+    dispose();
+    dispose = wireActions(root, { 'go': () => { calls++; } });
+  }
+  dispatchActionClick(root, btn);
+  assertEqual(calls, 1, 'one click → one call after repeated dispose+wire');
+}
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed > 0 ? 1 : 0);

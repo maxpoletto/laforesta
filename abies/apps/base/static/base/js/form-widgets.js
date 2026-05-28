@@ -254,6 +254,28 @@ export function mkTabbedModal({ title, tabs, initialTab, onSwitch }) {
 }
 
 // ---------------------------------------------------------------------------
+// data-action click delegation
+// ---------------------------------------------------------------------------
+
+/**
+ * Wire a single delegated click handler that dispatches by `data-action`.
+ *
+ * Returns a disposer.  Callers attaching to a long-lived element (e.g.
+ * `#content`, the persistent SPA shell container) MUST call the disposer
+ * before rebuilding, otherwise listeners accumulate on every rebuild.
+ * For ephemeral elements that get removed by `replaceChildren()` the
+ * disposer can be ignored — the listener dies with the node.
+ */
+export function wireActions(root, handlers) {
+  const handler = (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (btn) handlers[btn.dataset.action]?.(btn, e);
+  };
+  root.addEventListener('click', handler);
+  return () => root.removeEventListener('click', handler);
+}
+
+// ---------------------------------------------------------------------------
 // Confirm / cascade-delete modals (backed by <template> in shell)
 // ---------------------------------------------------------------------------
 
