@@ -6,7 +6,7 @@ import * as cache from '../../base/js/cache.js';
 import { TableWrapper } from '../../base/js/table.js';
 import { showError } from '../../base/js/modals.js';
 import * as router from '../../base/js/router.js';
-import { showLoadingIn } from '../../base/js/form-widgets.js';
+import { showLoadingIn } from '../../base/js/ui-widgets.js';
 import * as S from '../../base/js/strings.js';
 
 const DATA_ID = 'audit';

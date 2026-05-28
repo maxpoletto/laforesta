@@ -129,17 +129,17 @@ Infrastructure:
   form fragment and shows it in the overlay modal.
   `renderModalForm(html)` re-renders inside the open modal (for
   validation errors / conflicts).
-- **`form-widgets.js`**: shared UI widgets and wiring helpers.
-  Collapsibles: `wireCollapsibleToggle(header, body, onToggle?)`.
-  Tabbed modals: `wireTabbedModal(root, { initialTab, onSwitch })`.
-  Page loading: `showLoadingIn(el)`.  CSV import lifecycle:
-  `submitCsvImport({ form, statusBox, errorsBox, attempt })`.
-  Delegated click dispatch: `wireActions(root, handlers)`.
-  Template-backed modals (clone from `<template>` elements in
-  `_shell_templates_it.html`): `showConfirmModal(message, onConfirm,
+- **`ui-widgets.js`**: shared UI widgets and wiring helpers, none of
+  them form-specific.  Collapsibles:
+  `wireCollapsibleToggle(header, body, onToggle?)`.  Tabbed modals:
+  `wireTabbedModal(root, { initialTab, onSwitch })`.  Page loading:
+  `showLoadingIn(el)`.  Delegated click dispatch: `wireActions(root,
+  handlers)`.  Template-backed modals (clone from `<template>` elements
+  in `_shell_templates_it.html`): `showConfirmModal(message, onConfirm,
   { confirmLabel })`, `showCascadeDeleteModal({ title, warning,
-  exportRequired, onExportCSV, onDelete })`.  All pages import from
-  here; never duplicate these locally.
+  exportRequired, onExportCSV, onDelete })`.  Form-submit lifecycle
+  including CSV import (`submitCsvImport`) lives in `forms.js`.  All
+  pages import from here; never duplicate these locally.
 - **`csv-export.js`**: `csvField(v, fmt)`, `downloadCSV(lines,
   filename)`, `exportDigest(digest, exportCols, srcCols, filename,
   opts)`.  Shared CSV export primitives; `TableWrapper.exportCSV()`
@@ -270,7 +270,7 @@ Each app has a `_shell_templates_it.html` included by the shell:
   by section key to wire toggles and stash refs.
 - **`data-action="name"`** on buttons — JS wires a single delegated
   click handler with `wireActions(root, handlers)` (from
-  `form-widgets.js`) that dispatches by `btn.dataset.action`.  The
+  `ui-widgets.js`) that dispatches by `btn.dataset.action`.  The
   handler receives the clicked element as its first argument (useful
   for `closest('[data-section]')` lookups).  `wireActions` returns a
   disposer; callers attaching to a long-lived element (e.g. `#content`,

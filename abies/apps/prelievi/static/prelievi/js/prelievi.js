@@ -10,7 +10,7 @@ import {
 } from '../../base/js/forms.js';
 import {
   wireActions, wireCollapsibleToggle, showLoadingIn,
-} from '../../base/js/form-widgets.js';
+} from '../../base/js/ui-widgets.js';
 import { canModify } from '../../base/js/roles.js';
 import { loadCSS, unloadCSS } from '../../base/js/page-css.js';
 import { postJSON } from '../../base/js/api.js';

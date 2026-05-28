@@ -16,12 +16,13 @@ import {
 } from '../../base/js/modals.js';
 import { fetchJSON, postJSON, postFormData } from '../../base/js/api.js';
 import {
-  fetchModalForm, interceptSubmit, wireCancelButtons, showFormError,
+  fetchModalForm, interceptSubmit, submitCsvImport, wireCancelButtons,
+  showFormError,
 } from '../../base/js/forms.js';
 import {
-  showCascadeDeleteModal, wireActions,
-  showLoadingIn, wireCollapsibleToggle, wireTabbedModal, submitCsvImport,
-} from '../../base/js/form-widgets.js';
+  showCascadeDeleteModal, wireActions, showLoadingIn,
+  wireCollapsibleToggle, wireTabbedModal,
+} from '../../base/js/ui-widgets.js';
 import { canModify } from '../../base/js/roles.js';
 import { loadCSS, unloadCSS } from '../../base/js/page-css.js';
 import { installEscapeHandler } from '../../base/js/escape.js';

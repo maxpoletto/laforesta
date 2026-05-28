@@ -15,7 +15,7 @@ import { TableWrapper } from '../../base/js/table.js';
 import * as modals from '../../base/js/modals.js';
 import { showError } from '../../base/js/modals.js';
 import { wireCancelButtons } from '../../base/js/forms.js';
-import { showLoadingIn, wireCollapsibleToggle } from '../../base/js/form-widgets.js';
+import { showLoadingIn, wireCollapsibleToggle } from '../../base/js/ui-widgets.js';
 import { loadCSS, unloadCSS } from '../../base/js/page-css.js';
 import { cloneTemplate } from '../../base/js/templates.js';
 import * as S from '../../base/js/strings.js';

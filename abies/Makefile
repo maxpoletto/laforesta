@@ -80,7 +80,7 @@ test-js:
 	node test/test_geo.mjs
 	node test/test_csv_export.mjs
 	node test/test_templates.mjs
-	node test/test_form_widgets_modals.mjs
+	node test/test_ui_widgets_modals.mjs
 
 collectstatic:
 	$(MANAGE) collectstatic --noinput

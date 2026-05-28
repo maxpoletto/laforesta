@@ -7,7 +7,6 @@
 import * as S from './strings.js';
 import { show as showModal, dismiss as dismissModal } from './modals.js';
 import { cloneTemplate } from './templates.js';
-import { showFormError } from './forms.js';
 
 // ---------------------------------------------------------------------------
 // Collapsible sections
@@ -84,70 +83,6 @@ export function showLoadingIn(el) {
   loading.className = 'loading-overlay';
   loading.textContent = S.LOADING;
   el.appendChild(loading);
-}
-
-// ---------------------------------------------------------------------------
-// CSV import submission lifecycle
-// ---------------------------------------------------------------------------
-
-/**
- * Wrap an async CSV import submit with the standard form lifecycle:
- * disable submit button, show "in progress" status, dispatch the
- * caller's network call, render server-reported per-row errors or a
- * form-level error message, re-enable the submit and clear the status
- * in `finally`.
- *
- * `attempt(form)` must return one of:
- *   - `{ ok: true }`       → modal is dismissed
- *   - `{ errors: [...] }`  → error list rendered into `errorsBox`,
- *                            modal stays open
- *   - `{ error: 'msg' }`   → form-level error shown, modal stays open
- *   - anything else        → generic error shown, modal stays open
- *
- * Exceptions from `attempt` are caught and surfaced as a network error.
- *
- * Returns the resolved attempt result (or `{ error: 'network' }` on
- * exception) so the caller can chain follow-up work conditional on
- * success.
- */
-export async function submitCsvImport({ form, statusBox, errorsBox, attempt }) {
-  const btn = form.querySelector('button[type="submit"]');
-  if (btn) btn.disabled = true;
-  errorsBox.hidden = true;
-  errorsBox.replaceChildren();
-  statusBox.textContent = S.CSV_IMPORT_IN_PROGRESS;
-  statusBox.hidden = false;
-  let result;
-  try {
-    result = await attempt(form);
-    if (result?.ok) dismissModal();
-    else if (result?.errors?.length) renderCsvErrors(errorsBox, result.errors);
-    else showFormError(form, result?.error || S.ERROR_GENERIC);
-  } catch {
-    showFormError(form, S.ERROR_NETWORK);
-    result = { error: 'network' };
-  } finally {
-    if (btn) btn.disabled = false;
-    statusBox.hidden = true;
-  }
-  return result;
-}
-
-function renderCsvErrors(box, errors) {
-  box.replaceChildren();
-  const ul = document.createElement('ul');
-  for (const e of errors.slice(0, 50)) {
-    const li = document.createElement('li');
-    li.textContent = e;
-    ul.appendChild(li);
-  }
-  if (errors.length > 50) {
-    const more = document.createElement('li');
-    more.textContent = S.CSV_EXTRA_ERRORS(errors.length - 50);
-    ul.appendChild(more);
-  }
-  box.appendChild(ul);
-  box.hidden = false;
 }
 
 // ---------------------------------------------------------------------------
