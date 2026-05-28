@@ -1,0 +1,40 @@
+{% comment %}
+Impostazioni <template> elements — cloned by JS on mount().
+S (string constants) provided by the shell's render context.
+{% endcomment %}
+
+<template id="tmpl-password-section">
+  {% include "base/_partials/_collapsible_header.html" with section="password" title="Cambio password" %}
+  <div class="collapsible-body" data-section="password">
+    <form data-role="password-form">
+      <div class="form-group">
+        <label for="id_pw1">Nuova password</label>
+        <input type="password" id="id_pw1" name="password1" required>
+      </div>
+      <div class="form-group">
+        <label for="id_pw2">Ripeti password</label>
+        <input type="password" id="id_pw2" name="password2" required>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">{{ S.SAVE }}</button>
+      </div>
+    </form>
+    <p class="mt-1" data-role="password-msg"></p>
+  </div>
+</template>
+
+<template id="tmpl-entity-section">
+  <div class="collapsible-header">
+    <span data-field="title"></span>
+    <span class="arrow"></span>
+  </div>
+  <div class="collapsible-body">
+    <div class="table-toolbar">
+      <label class="impostazioni-active-toggle">
+        <input type="checkbox" data-role="active-toggle" checked>
+        Solo attivi
+      </label>
+    </div>
+    <div data-target="table-host"></div>
+  </div>
+</template>

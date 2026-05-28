@@ -20,7 +20,7 @@ import {
 } from '../../base/js/forms.js';
 import {
   mkCollapsible, showCascadeDeleteModal, wireActions,
-  showLoadingIn, wireTabbedModal, submitCsvImport,
+  showLoadingIn, wireCollapsibleToggle, wireTabbedModal, submitCsvImport,
 } from '../../base/js/form-widgets.js';
 import { canModify } from '../../base/js/roles.js';
 import { loadCSS, unloadCSS } from '../../base/js/page-css.js';
@@ -327,12 +327,12 @@ function buildPage(el) {
     s.actionAdd = el.querySelector(`[data-target="add-${k}"]`) || null;
     s.emptyState = el.querySelector(`[data-target="empty-${k}"]`) || null;
 
-    s.header?.addEventListener('click', () => {
-      s.open = !s.open;
-      s.header.classList.toggle('open', s.open);
-      s.body.classList.toggle('open', s.open);
-      syncURL();
-    });
+    if (s.header && s.body) {
+      wireCollapsibleToggle(s.header, s.body, (open) => {
+        s.open = open;
+        syncURL();
+      });
+    }
 
     // Hide sections when there are no plans.
     if (s.header) s.header.hidden = !hasPlans;
@@ -1329,10 +1329,7 @@ function markTreesDataId(itemId) {
 
 async function appendItemMarkTreesSection(card, itemId, state) {
   const [header, body] = mkCollapsible(S.SECTION_MARTELLATA, true);
-  header.addEventListener('click', () => {
-    const open = body.classList.toggle('open');
-    header.classList.toggle('open', open);
-  });
+  wireCollapsibleToggle(header, body);
   card.append(header, body);
 
   const isClosed = state === S.STATE_CLOSED;
@@ -1633,10 +1630,7 @@ function _applyMarkSaveResponse(data, itemId) {
 
 async function appendItemPrelieviSection(card, itemId) {
   const [header, body] = mkCollapsible(S.SECTION_PRELIEVI, true);
-  header.addEventListener('click', () => {
-    const open = body.classList.toggle('open');
-    header.classList.toggle('open', open);
-  });
+  wireCollapsibleToggle(header, body);
   card.append(header, body);
 
   // Load prelievi data (lazy, from cache or network).

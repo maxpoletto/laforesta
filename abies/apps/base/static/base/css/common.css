@@ -630,11 +630,6 @@ input:focus, select:focus, textarea:focus {
   pointer-events: auto;
 }
 
-/* --- Settings page ------------------------------------------------------- */
-
-.page-settings { max-width: 950px; }
-.page-settings input[type="password"] { width: 300px; }
-
 /* --- Map basemap switcher (Leaflet control) ----------------------------- */
 
 /* Horizontal row of thumbnail buttons; collapses to just the active one. */

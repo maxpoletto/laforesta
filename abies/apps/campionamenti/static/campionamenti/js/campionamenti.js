@@ -28,7 +28,7 @@ import {
 } from '../../base/js/forms.js';
 import {
   showConfirmModal, showCascadeDeleteModal, wireActions,
-  showLoadingIn, wireTabbedModal, submitCsvImport,
+  showLoadingIn, wireCollapsibleToggle, wireTabbedModal, submitCsvImport,
 } from '../../base/js/form-widgets.js';
 import { canModify } from '../../base/js/roles.js';
 import { loadCSS, unloadCSS } from '../../base/js/page-css.js';
@@ -251,13 +251,13 @@ function buildPage(el, params) {
     s.body = el.querySelector(`[data-section="${key}"].collapsible-body`);
     s.header?.classList.toggle('open', s.open);
     s.body?.classList.toggle('open', s.open);
-    s.header?.addEventListener('click', () => {
-      s.open = !s.open;
-      s.header.classList.toggle('open', s.open);
-      s.body.classList.toggle('open', s.open);
-      if (s.open) onSectionOpen(s);
-      syncURL();
-    });
+    if (s.header && s.body) {
+      wireCollapsibleToggle(s.header, s.body, (open) => {
+        s.open = open;
+        if (open) onSectionOpen(s);
+        syncURL();
+      });
+    }
   }
 
   // Grid section refs.

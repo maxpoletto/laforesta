@@ -156,6 +156,21 @@ export function mkCollapsible(title, open) {
   return [header, body];
 }
 
+/**
+ * Wire click-to-toggle on a collapsible header/body pair: clicks on the
+ * header toggle the `.open` class on both elements.  Optional `onToggle`
+ * runs after each click with the new open state, so callers can add side
+ * effects (URL sync, lazy-render, etc.) without re-implementing the
+ * toggle itself.
+ */
+export function wireCollapsibleToggle(header, body, onToggle) {
+  header.addEventListener('click', () => {
+    const open = header.classList.toggle('open');
+    body.classList.toggle('open', open);
+    onToggle?.(open);
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Edit/delete icon pair (pencil + garbage)
 // ---------------------------------------------------------------------------

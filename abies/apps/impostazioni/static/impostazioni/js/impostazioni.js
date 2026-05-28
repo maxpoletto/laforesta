@@ -15,12 +15,16 @@ import { TableWrapper } from '../../base/js/table.js';
 import * as modals from '../../base/js/modals.js';
 import { showError } from '../../base/js/modals.js';
 import { wireCancelButtons } from '../../base/js/forms.js';
+import { showLoadingIn, wireCollapsibleToggle } from '../../base/js/form-widgets.js';
+import { loadCSS, unloadCSS } from '../../base/js/page-css.js';
+import { cloneTemplate } from '../../base/js/templates.js';
 import * as S from '../../base/js/strings.js';
 import {
   LOGIN_METHOD_PASSWORD, ROLE_ADMIN, ROLE_WRITER, STATUS_CONFLICT,
 } from '../../base/js/constants.js';
 
 const API = '/api/impostazioni/';
+const CSS_URL = '/static/impostazioni/css/impostazioni.css';
 
 // ---------------------------------------------------------------------------
 // Section configuration
@@ -88,9 +92,9 @@ const sections = {};
 // ---------------------------------------------------------------------------
 
 export function mount() {
+  loadCSS(CSS_URL);
   const el = document.getElementById('content');
   el.replaceChildren();
-  el.classList.add('page-settings');
 
   const role = document.body.dataset.role;
   const loginMethod = document.body.dataset.loginMethod;
@@ -110,7 +114,7 @@ export function mount() {
 }
 
 export function unmount() {
-  document.getElementById('content').classList.remove('page-settings');
+  unloadCSS(CSS_URL);
   for (const state of Object.values(sections)) {
     if (state.table) { state.table.destroy(); state.table = null; }
   }
@@ -125,45 +129,16 @@ export function onQueryChange() {}
 // ---------------------------------------------------------------------------
 
 function buildPasswordSection() {
-  const frag = document.createDocumentFragment();
-  const { header, body } = buildCollapsible(S.SETTINGS_PASSWORD);
-  frag.appendChild(header);
+  const frag = cloneTemplate('tmpl-password-section');
+  wireCollapsibleToggle(
+    frag.querySelector('.collapsible-header'),
+    frag.querySelector('.collapsible-body'),
+  );
 
-  const form = document.createElement('form');
-
-  // Password1
-  const g1 = formGroup(S.PASSWORD_NEW);
-  const pw1 = document.createElement('input');
-  pw1.type = 'password';
-  pw1.id = 'id_pw1';
-  pw1.name = 'password1';
-  pw1.required = true;
-  g1.appendChild(pw1);
-  form.appendChild(g1);
-
-  // Password2
-  const g2 = formGroup(S.PASSWORD_REPEAT);
-  const pw2 = document.createElement('input');
-  pw2.type = 'password';
-  pw2.id = 'id_pw2';
-  pw2.name = 'password2';
-  pw2.required = true;
-  g2.appendChild(pw2);
-  form.appendChild(g2);
-
-  // Submit
-  const actions = document.createElement('div');
-  actions.className = 'form-actions';
-  const btn = document.createElement('button');
-  btn.type = 'submit';
-  btn.className = 'btn btn-primary';
-  btn.textContent = S.SAVE;
-  actions.appendChild(btn);
-  form.appendChild(actions);
-
-  // Feedback message
-  const msg = document.createElement('p');
-  msg.className = 'mt-1';
+  const form = frag.querySelector('[data-role="password-form"]');
+  const pw1 = form.querySelector('input[name="password1"]');
+  const pw2 = form.querySelector('input[name="password2"]');
+  const msg = frag.querySelector('[data-role="password-msg"]');
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -193,9 +168,6 @@ function buildPasswordSection() {
     }
   });
 
-  body.appendChild(form);
-  body.appendChild(msg);
-  frag.appendChild(body);
   return frag;
 }
 
@@ -204,45 +176,31 @@ function buildPasswordSection() {
 // ---------------------------------------------------------------------------
 
 function buildEntitySection(cfg, state) {
-  const frag = document.createDocumentFragment();
-  const { header, body } = buildCollapsible(cfg.title);
-  frag.appendChild(header);
+  const frag = cloneTemplate('tmpl-entity-section');
+  frag.querySelector('[data-field="title"]').textContent = cfg.title;
+  const tableContainer = frag.querySelector('[data-target="table-host"]');
+  const activeCheck = frag.querySelector('[data-role="active-toggle"]');
 
-  // "Only active" checkbox.
-  const activeRow = document.createElement('div');
-  activeRow.className = 'table-toolbar';
-  const activeLabel = document.createElement('label');
-  activeLabel.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:0.85rem;margin-left:auto';
-  const activeCheck = document.createElement('input');
-  activeCheck.type = 'checkbox';
-  activeCheck.checked = true;
   activeCheck.addEventListener('change', () => {
     state.activeOnly = activeCheck.checked;
     applyActiveFilter(state);
   });
-  activeLabel.appendChild(activeCheck);
-  activeLabel.append(S.ONLY_ACTIVE);
-  activeRow.appendChild(activeLabel);
 
-  const tableContainer = document.createElement('div');
-
-  body.appendChild(activeRow);
-  body.appendChild(tableContainer);
-  frag.appendChild(body);
-
-  // Lazy load: fetch data on first open.
-  header.addEventListener('click', () => {
-    if (!state.loaded) {
+  wireCollapsibleToggle(
+    frag.querySelector('.collapsible-header'),
+    frag.querySelector('.collapsible-body'),
+    () => {
+      if (state.loaded) return;
       state.loaded = true;
       loadEntityData(cfg, state, tableContainer);
-    }
-  });
+    },
+  );
 
   return frag;
 }
 
 async function loadEntityData(cfg, state, container) {
-  container.textContent = S.LOADING;
+  showLoadingIn(container);
 
   let data;
   try {
@@ -250,12 +208,12 @@ async function loadEntityData(cfg, state, container) {
     if (!resp.ok) throw new Error(`${resp.status}`);
     data = await resp.json();
   } catch {
-    container.textContent = '';
+    container.replaceChildren();
     showError(S.ERROR_NETWORK);
     return;
   }
 
-  container.textContent = '';
+  container.replaceChildren();
   state.digest = data;
 
   state.table = new TableWrapper({
@@ -395,39 +353,8 @@ function wirePasswordToggle(form) {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function buildCollapsible(title) {
-  const header = document.createElement('div');
-  header.className = 'collapsible-header';
-  const titleSpan = document.createElement('span');
-  titleSpan.textContent = title;
-  const arrow = document.createElement('span');
-  arrow.className = 'arrow';
-  header.appendChild(titleSpan);
-  header.appendChild(arrow);
-
-  const body = document.createElement('div');
-  body.className = 'collapsible-body';
-
-  header.addEventListener('click', () => {
-    header.classList.toggle('open');
-    body.classList.toggle('open');
-  });
-
-  return { header, body };
-}
-
 function hasMinRole(role, minRole) {
   if (minRole === ROLE_ADMIN) return role === ROLE_ADMIN;
   if (minRole === ROLE_WRITER) return role === ROLE_ADMIN || role === ROLE_WRITER;
   return true;
-}
-
-/** Create a form-group div with a label. */
-function formGroup(labelText) {
-  const g = document.createElement('div');
-  g.className = 'form-group';
-  const lbl = document.createElement('label');
-  lbl.textContent = labelText;
-  g.appendChild(lbl);
-  return g;
 }

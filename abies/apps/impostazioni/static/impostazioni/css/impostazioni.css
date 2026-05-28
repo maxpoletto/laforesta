@@ -1,0 +1,13 @@
+/* Impostazioni page — collapsible sections for password, crews, tractors,
+   species, users. */
+
+#content { max-width: 950px; }
+#content input[type="password"] { width: 300px; }
+
+.impostazioni-active-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.85rem;
+  margin-left: auto;
+}

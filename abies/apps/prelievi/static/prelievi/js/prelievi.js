@@ -8,7 +8,9 @@ import { TableWrapper } from '../../base/js/table.js';
 import {
   fetchModalForm, renderModalForm, showFormError, wireCancelButtons,
 } from '../../base/js/forms.js';
-import { wireActions, showLoadingIn } from '../../base/js/form-widgets.js';
+import {
+  wireActions, wireCollapsibleToggle, showLoadingIn,
+} from '../../base/js/form-widgets.js';
 import { canModify } from '../../base/js/roles.js';
 import { loadCSS, unloadCSS } from '../../base/js/page-css.js';
 import { postJSON } from '../../base/js/api.js';
@@ -432,13 +434,13 @@ function buildPage(el, data, p) {
     s.body = el.querySelector(`[data-section="${key}"].collapsible-body`);
     s.header?.classList.toggle('open', s.open);
     s.body?.classList.toggle('open', s.open);
-    s.header?.addEventListener('click', () => {
-      s.open = !s.open;
-      s.header.classList.toggle('open', s.open);
-      s.body.classList.toggle('open', s.open);
-      if (s.open && s.render && s.dirty) s.render();
-      syncURL();
-    });
+    if (s.header && s.body) {
+      wireCollapsibleToggle(s.header, s.body, (open) => {
+        s.open = open;
+        if (open && s.render && s.dirty) s.render();
+        syncURL();
+      });
+    }
   }
 
   // Chart A: wire breakdown select and month toggle.
