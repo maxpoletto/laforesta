@@ -223,11 +223,8 @@ render context.
 </template>
 
 <template id="tmpl-pdt-item-subsection">
-  <div class="collapsible-header open">
-    <span data-field="title"></span>
-    <span class="arrow"></span>
-  </div>
-  <div class="collapsible-body open"></div>
+  {% include "base/_partials/_collapsible_header.html" with section="" title="" %}
+  <div class="collapsible-body"></div>
 </template>
 
 <template id="tmpl-pdt-item-view">

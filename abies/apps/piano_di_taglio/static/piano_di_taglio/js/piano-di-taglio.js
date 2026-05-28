@@ -16,12 +16,11 @@ import {
 } from '../../base/js/modals.js';
 import { fetchJSON, postJSON, postFormData } from '../../base/js/api.js';
 import {
-  fetchModalForm, interceptSubmit, submitCsvImport, wireCancelButtons,
-  showFormError,
+  fetchModalForm, interceptSubmit, submitCsvImport, showFormError,
 } from '../../base/js/forms.js';
 import {
-  showCascadeDeleteModal, wireActions, showLoadingIn,
-  wireCollapsibleToggle, wireTabbedModal,
+  showCascadeDeleteModal, wireActions, wireCancelButtons,
+  wireCollapsibleToggle, wireTabbedModal, showLoadingIn,
 } from '../../base/js/ui-widgets.js';
 import { canModify } from '../../base/js/roles.js';
 import { loadCSS, unloadCSS } from '../../base/js/page-css.js';
@@ -1322,6 +1321,23 @@ function showTransitionForm(itemId, openFlag) {
   showModal(frag);
 }
 
+/**
+ * Append a collapsible sub-section (header + open body) to `card` and
+ * return the body element so the caller can populate it.  Starts open
+ * because PDT item views always expand their sub-sections by default.
+ */
+function appendSubsection(card, title) {
+  const frag = cloneTemplate('tmpl-pdt-item-subsection');
+  frag.querySelector('[data-field="title"]').textContent = title;
+  const header = frag.querySelector('.collapsible-header');
+  const body = frag.querySelector('.collapsible-body');
+  header.classList.add('open');
+  body.classList.add('open');
+  wireCollapsibleToggle(header, body);
+  card.appendChild(frag);
+  return body;
+}
+
 // --- Martellata sub-section ---
 
 function markTreesDataId(itemId) {
@@ -1329,12 +1345,7 @@ function markTreesDataId(itemId) {
 }
 
 async function appendItemMarkTreesSection(card, itemId, state) {
-  const frag = cloneTemplate('tmpl-pdt-item-subsection');
-  frag.querySelector('[data-field="title"]').textContent = S.SECTION_MARTELLATA;
-  const header = frag.querySelector('.collapsible-header');
-  const body = frag.querySelector('.collapsible-body');
-  wireCollapsibleToggle(header, body);
-  card.appendChild(frag);
+  const body = appendSubsection(card, S.SECTION_MARTELLATA);
 
   const isClosed = state === S.STATE_CLOSED;
 
@@ -1633,12 +1644,7 @@ function _applyMarkSaveResponse(data, itemId) {
 // --- Prelievi sub-section ---
 
 async function appendItemPrelieviSection(card, itemId) {
-  const frag = cloneTemplate('tmpl-pdt-item-subsection');
-  frag.querySelector('[data-field="title"]').textContent = S.SECTION_PRELIEVI;
-  const header = frag.querySelector('.collapsible-header');
-  const body = frag.querySelector('.collapsible-body');
-  wireCollapsibleToggle(header, body);
-  card.appendChild(frag);
+  const body = appendSubsection(card, S.SECTION_PRELIEVI);
 
   // Load prelievi data (lazy, from cache or network).
   try {

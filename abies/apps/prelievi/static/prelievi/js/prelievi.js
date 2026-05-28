@@ -6,10 +6,10 @@ import * as cache from '../../base/js/cache.js';
 import * as router from '../../base/js/router.js';
 import { TableWrapper } from '../../base/js/table.js';
 import {
-  fetchModalForm, renderModalForm, showFormError, wireCancelButtons,
+  fetchModalForm, renderModalForm, showFormError,
 } from '../../base/js/forms.js';
 import {
-  wireActions, wireCollapsibleToggle, showLoadingIn,
+  wireActions, wireCancelButtons, wireCollapsibleToggle, showLoadingIn,
 } from '../../base/js/ui-widgets.js';
 import { canModify } from '../../base/js/roles.js';
 import { loadCSS, unloadCSS } from '../../base/js/page-css.js';

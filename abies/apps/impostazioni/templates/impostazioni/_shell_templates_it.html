@@ -4,10 +4,7 @@ S (string constants) provided by the shell's render context.
 {% endcomment %}
 
 <template id="tmpl-password-section">
-  <div class="collapsible-header">
-    <span>Cambio password</span>
-    <span class="arrow"></span>
-  </div>
+  {% include "base/_partials/_collapsible_header.html" with section="" title="Cambio password" %}
   <div class="collapsible-body">
     <form data-role="password-form">
       <div class="form-group">
@@ -27,10 +24,7 @@ S (string constants) provided by the shell's render context.
 </template>
 
 <template id="tmpl-entity-section">
-  <div class="collapsible-header">
-    <span data-field="title"></span>
-    <span class="arrow"></span>
-  </div>
+  {% include "base/_partials/_collapsible_header.html" with section="" title="" %}
   <div class="collapsible-body">
     <div class="table-toolbar">
       <label class="impostazioni-active-toggle">

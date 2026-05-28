@@ -1,8 +1,10 @@
 {% comment %}
 Collapsible section header with title + chevron.  JS toggles the
 `.open` class on both the header and the matching `.collapsible-body`.
+Server-rendered callers pass `title=...`; JS-cloned callers may leave
+it empty and fill `[data-field="title"]` at clone time.
 Usage: {% include "base/_partials/_collapsible_header.html" with section="g" title="Griglie" %}
 {% endcomment %}<div class="collapsible-header" data-section="{{ section }}">
-  <span>{{ title }}</span>
+  <span data-field="title">{{ title }}</span>
   <span class="arrow"></span>
 </div>

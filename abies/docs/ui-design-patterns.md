@@ -134,7 +134,10 @@ Infrastructure:
   `wireCollapsibleToggle(header, body, onToggle?)`.  Tabbed modals:
   `wireTabbedModal(root, { initialTab, onSwitch })`.  Page loading:
   `showLoadingIn(el)`.  Delegated click dispatch: `wireActions(root,
-  handlers)`.  Template-backed modals (clone from `<template>` elements
+  handlers)`.  Per-button cancel wiring:
+  `wireCancelButtons(container, callback)` (per-button rather than
+  delegated, so it survives a fragment being moved into the modal
+  container).  Template-backed modals (clone from `<template>` elements
   in `_shell_templates_it.html`): `showConfirmModal(message, onConfirm,
   { confirmLabel })`, `showCascadeDeleteModal({ title, warning,
   exportRequired, onExportCSV, onDelete })`.  Form-submit lifecycle

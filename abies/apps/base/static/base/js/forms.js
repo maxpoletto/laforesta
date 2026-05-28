@@ -104,17 +104,6 @@ export function interceptSubmit(form, postUrl, callbacks) {
 }
 
 /**
- * Wire all [data-action="cancel"] buttons inside `container` to call `callback`.
- *
- * @param {HTMLElement} container
- * @param {function(): void} callback
- */
-export function wireCancelButtons(container, callback) {
-  container.querySelectorAll('[data-action="cancel"]')
-    .forEach(b => b.addEventListener('click', callback));
-}
-
-/**
  * Fetch a form fragment from the server and display it in the overlay modal.
  * Returns the form element inside #modal-container, or null on error.
  */
@@ -162,11 +151,15 @@ export function showFormError(form, message) {
 // ---------------------------------------------------------------------------
 
 /**
- * Wrap an async CSV import submit with the standard form lifecycle:
- * disable submit button, show "in progress" status, dispatch the
- * caller's network call, render server-reported per-row errors or a
- * form-level error message, re-enable the submit and clear the status
- * in `finally`.
+ * CSV-import-specific form submit lifecycle.  For non-CSV submits use
+ * `interceptSubmit` instead — this helper expects a per-row errors list
+ * (truncated at 50 via `S.CSV_EXTRA_ERRORS`) and a caller-supplied
+ * status/errors element pair, both shaped like a CSV import modal.
+ *
+ * Wraps an async submit: disable submit button, show "in progress"
+ * status, dispatch the caller's network call, render server-reported
+ * per-row errors or a form-level error message, re-enable the submit
+ * and clear the status in `finally`.
  *
  * `attempt(form)` must return one of:
  *   - `{ ok: true }`       → modal is dismissed

@@ -24,11 +24,11 @@ import {
 import { fetchJSON, postJSON, postFormData } from '../../base/js/api.js';
 import {
   fetchForm, fetchModalForm, renderFormHTML, renderModalForm,
-  interceptSubmit, submitCsvImport, wireCancelButtons, showFormError,
+  interceptSubmit, submitCsvImport, showFormError,
 } from '../../base/js/forms.js';
 import {
-  showConfirmModal, showCascadeDeleteModal, wireActions, showLoadingIn,
-  wireCollapsibleToggle, wireTabbedModal,
+  showConfirmModal, showCascadeDeleteModal, wireActions, wireCancelButtons,
+  showLoadingIn, wireCollapsibleToggle, wireTabbedModal,
 } from '../../base/js/ui-widgets.js';
 import { canModify } from '../../base/js/roles.js';
 import { loadCSS, unloadCSS } from '../../base/js/page-css.js';

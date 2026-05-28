@@ -28,6 +28,21 @@ export function wireCollapsibleToggle(header, body, onToggle) {
 }
 
 // ---------------------------------------------------------------------------
+// Cancel buttons
+// ---------------------------------------------------------------------------
+
+/**
+ * Wire every `[data-action="cancel"]` button inside `container` to call
+ * `callback`.  Attaches one listener per button (not delegated), so it
+ * works even when `container` is a DocumentFragment whose children get
+ * moved out by `appendChild` before any click happens.
+ */
+export function wireCancelButtons(container, callback) {
+  container.querySelectorAll('[data-action="cancel"]')
+    .forEach(b => b.addEventListener('click', callback));
+}
+
+// ---------------------------------------------------------------------------
 // Tabbed modal
 // ---------------------------------------------------------------------------
 
