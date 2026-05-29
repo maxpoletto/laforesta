@@ -35,8 +35,8 @@ import * as S from '../../base/js/strings.js';
 import {
   FIELD_DATE, FIELD_DESCRIPTION, FIELD_FILE, FIELD_HARVEST_PLAN_ID,
   FIELD_HARVEST_PLAN_ITEM_ID, FIELD_NAME, FIELD_NONCE, FIELD_NOTE,
-  FIELD_OPEN, FIELD_REGRESSION_FILE, FIELD_YEAR_END, FIELD_YEAR_START,
-  ROW_ID, VERSION,
+  FIELD_OPEN, FIELD_YEAR_END, FIELD_YEAR_START,
+  HYPSO_FUNC_LN, ROW_ID, VERSION,
 } from '../../base/js/constants.js';
 import {
   fmtDecimal1, fmtDecimal2, fmtDecimal3, fmtInt, fmtCoord,
@@ -48,11 +48,13 @@ const CSS_URL = '/static/piano_di_taglio/css/piano-di-taglio.css';
 // Cache keys MUST match server `data_id` strings (apps/base/digests.py).
 const PLANS_ID = 'harvest_plans';
 const ITEMS_ID = 'harvest_plan_items';
-const REGRESSIONS_ID = 'tree_height_regressions';
+// Ipsometric params now live in a single global set, served by Impostazioni
+// and consumed here only to auto-fill h in the mark form.
+const HYPSO_PARAMS_ID = 'hypso_params';
 
 const PLANS_URL = '/api/piano-di-taglio/plans/data/';
 const ITEMS_URL = '/api/piano-di-taglio/items/data/';
-const REGRESSIONS_URL = '/api/piano-di-taglio/regressions/data/';
+const HYPSO_PARAMS_URL = '/api/impostazioni/hypso-params/data/';
 const PLAN_SAVE_URL = '/api/piano-di-taglio/plan/save/';
 const PLAN_IMPORT_CSV_URL = '/api/piano-di-taglio/plan/import-csv/';
 const PLAN_DELETE_URL = '/api/piano-di-taglio/plan/delete/';
@@ -76,7 +78,7 @@ const PAGE_PATH = '/piano-di-taglio';
 
 cache.register(PLANS_ID, PLANS_URL);
 cache.register(ITEMS_ID, ITEMS_URL);
-cache.register(REGRESSIONS_ID, REGRESSIONS_URL);
+cache.register(HYPSO_PARAMS_ID, HYPSO_PARAMS_URL);
 cache.register(PRELIEVI_ID, PRELIEVI_URL);
 
 // --- Page state -------------------------------------------------------------
@@ -84,7 +86,7 @@ cache.register(PRELIEVI_ID, PRELIEVI_URL);
 let activePlanId = null;
 let plansData = null;
 let itemsData = null;
-let regressionsData = null;
+let hypsoParamsData = null;
 let unsubPlans = null;
 let unsubItems = null;
 
@@ -142,18 +144,18 @@ export async function mount(params) {
     const [p, i, r] = await Promise.all([
       cache.load(PLANS_ID),
       cache.load(ITEMS_ID),
-      cache.load(REGRESSIONS_ID),
+      cache.load(HYPSO_PARAMS_ID),
     ]);
     plansData = p;
     itemsData = i;
-    regressionsData = r;
+    hypsoParamsData = r;
   } catch {
     showError(S.ERROR_NETWORK);
     return;
   }
 
   buildPage(el);
-  cache.setVisible([PLANS_ID, ITEMS_ID, REGRESSIONS_ID]);
+  cache.setVisible([PLANS_ID, ITEMS_ID, HYPSO_PARAMS_ID]);
   if (unsubPlans) unsubPlans();
   if (unsubItems) unsubItems();
   unsubPlans = cache.onUpdate(PLANS_ID, onPlansUpdate);
@@ -173,7 +175,7 @@ export function unmount() {
   destroyItemPrelieviTable();
   activePlanId = null;
   activeItemId = null;
-  plansData = itemsData = regressionsData = prelieviData = null;
+  plansData = itemsData = hypsoParamsData = prelieviData = null;
   descriptionEl = null;
   planSelectEl = null;
 }
@@ -534,10 +536,9 @@ async function doDeletePlan() {
     cache.removeRow(PLANS_ID, id);
     activePlanId = null;
     plansData = cache.get(PLANS_ID);
-    // Server also marks the items + regressions digests stale because
-    // the plan cascade-deletes them.  Refresh those caches so the page
+    // The plan cascade-deletes its items; refresh that cache so the page
     // doesn't keep rendering rows for a plan that no longer exists.
-    await Promise.all([refreshItems(), refreshRegressions()]);
+    await refreshItems();
     onPlansUpdate();
     syncURL();
   } catch {
@@ -790,7 +791,6 @@ function downloadItemExport(itemId) {
 
 const EDIT_PLAN_TAB_DETAILS    = 'details';
 const EDIT_PLAN_TAB_CALENDAR   = 'calendar';
-const EDIT_PLAN_TAB_REGRESSION = 'regression';
 
 function onEditPlan() {
   openEditPlanModal(EDIT_PLAN_TAB_DETAILS);
@@ -828,10 +828,8 @@ export function openEditPlanModal(initialTab, { ceduo = false } = {}) {
   const ceduoCb = calendarForm.querySelector('input[name="is_ceduo"]');
   ceduoCb.checked = ceduo;
 
-  const regressionForm = frag.querySelector('[data-role="regression-form"]');
-
-  // Wire cancel buttons on all three forms.
-  for (const f of [detailsForm, calendarForm, regressionForm]) {
+  // Wire cancel buttons on both forms.
+  for (const f of [detailsForm, calendarForm]) {
     f.querySelector('[data-action="cancel"]')
       .addEventListener('click', dismissModal);
   }
@@ -885,25 +883,6 @@ export function openEditPlanModal(initialTab, { ceduo = false } = {}) {
     fd.append(FIELD_NONCE, crypto.randomUUID());
 
     await submitPlanCsvImport(calendarForm, fd, calStatusBox, calErrorsBox);
-  });
-
-  // Wire Regression submit.
-  const regFileInput = regressionForm.querySelector('#pdt-edit-reg-file');
-  const regStatusBox = regressionForm.querySelector('.csv-import-status');
-  const regErrorsBox = regressionForm.querySelector('.csv-import-errors');
-
-  regressionForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    if (activePlanId == null) return;
-    const file = regFileInput.files[0];
-    if (!file) { showFormError(regressionForm, S.ERR_CSV_FILE_REQUIRED); return; }
-
-    const fd = new FormData();
-    fd.append(FIELD_HARVEST_PLAN_ID, String(activePlanId));
-    fd.append(FIELD_REGRESSION_FILE, file);
-    fd.append(FIELD_NONCE, crypto.randomUUID());
-
-    await submitPlanCsvImport(regressionForm, fd, regStatusBox, regErrorsBox);
   });
 
   const { lockHeight } = wireTabbedModal(frag, {
@@ -972,7 +951,7 @@ async function submitPlanCsvImport(form, fd, statusBox, errorsBox) {
     attempt: async () => {
       const { data, status } = await postFormData(PLAN_IMPORT_CSV_URL, fd);
       if (status === 200) {
-        await Promise.all([refreshPlans(), refreshItems(), refreshRegressions()]);
+        await Promise.all([refreshPlans(), refreshItems()]);
         activePlanId = data.row_id;
         onPlansUpdate();
         syncURL();
@@ -990,9 +969,6 @@ async function refreshPlans() {
 }
 async function refreshItems() {
   try { await cache.load(ITEMS_ID); itemsData = cache.get(ITEMS_ID); } catch {}
-}
-async function refreshRegressions() {
-  try { await cache.load(REGRESSIONS_ID); regressionsData = cache.get(REGRESSIONS_ID); } catch {}
 }
 
 
@@ -1459,29 +1435,27 @@ function buildMarkTreeColumnDefs(columns) {
 
 // --- Mark form (template-based, shared wireVMPreview) ---
 
-function findRegressions(itemId) {
-  if (!regressionsData?.rows || !itemsData?.columns) return null;
+function findHypsoParams(itemId) {
+  if (!hypsoParamsData?.rows || !itemsData?.columns) return null;
   const c = itemsData.columns;
   const row = itemsData.rows.find(r => r[c.indexOf(ROW_ID)] === itemId);
   if (!row) return null;
-  const planId = row[c.indexOf(S.COL_HARVEST_PLAN)];
   const compresa = row[c.indexOf(S.COL_COMPRESA)];
-  const rc = regressionsData.columns;
-  return regressionsData.rows.filter(
-    r => r[rc.indexOf(S.COL_HARVEST_PLAN)] === planId
-      && r[rc.indexOf(S.COL_COMPRESA)] === compresa,
+  const rc = hypsoParamsData.columns;
+  return hypsoParamsData.rows.filter(
+    r => r[rc.indexOf(S.COL_COMPRESA)] === compresa,
   );
 }
 
-function wireRegressionAutoH(form, regressions) {
-  if (!regressions?.length) return;
+function wireHypsoAutoH(form, hypsoParams) {
+  if (!hypsoParams?.length) return;
   const d = form.querySelector(`#${ID_D_CM}`);
   const h = form.querySelector(`#${ID_H_M}`);
   const sp = form.querySelector(`#${ID_SPECIES}`);
   const hMeasHidden = form.querySelector('#tf-h-measured');
   if (!d || !h || !sp) return;
 
-  const rc = regressionsData.columns;
+  const rc = hypsoParamsData.columns;
   let userEditedH = hMeasHidden?.value === '1';
   let programmaticH = false;
 
@@ -1491,7 +1465,7 @@ function wireRegressionAutoH(form, regressions) {
     const opt = sp.options[sp.selectedIndex];
     const speciesName = opt?.dataset.name;
     if (!speciesName || !(dCm > 0)) return;
-    const reg = regressions.find(
+    const reg = hypsoParams.find(
       r => r[rc.indexOf(S.COL_SPECIES)] === speciesName,
     );
     if (!reg) return;
@@ -1499,7 +1473,7 @@ function wireRegressionAutoH(form, regressions) {
     const a = reg[rc.indexOf(S.COL_A)];
     const b = reg[rc.indexOf(S.COL_B)];
     let hVal = null;
-    if (fn === 'ln' && dCm > 0) hVal = a * Math.log(dCm) + b;
+    if (fn === HYPSO_FUNC_LN) hVal = a * Math.log(dCm) + b;
     if (hVal != null && hVal > 0) {
       programmaticH = true;
       h.value = hVal.toFixed(2);
@@ -1520,13 +1494,13 @@ function wireRegressionAutoH(form, regressions) {
 }
 
 async function wireMarkForm(form, itemId) {
-  if (!regressionsData) {
-    try { regressionsData = await cache.load(REGRESSIONS_ID); }
-    catch { /* regressions unavailable */ }
+  if (!hypsoParamsData) {
+    try { hypsoParamsData = await cache.load(HYPSO_PARAMS_ID); }
+    catch { /* params unavailable */ }
   }
-  const regressions = findRegressions(itemId);
+  const hypsoParams = findHypsoParams(itemId);
   wireVMPreview(form);
-  wireRegressionAutoH(form, regressions);
+  wireHypsoAutoH(form, hypsoParams);
   mountUseLocationButton(
     form.querySelector(`#${ID_LAT}`),
     form.querySelector(`#${ID_LON}`),

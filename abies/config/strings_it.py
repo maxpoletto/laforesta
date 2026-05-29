@@ -93,6 +93,9 @@ AUDIT_DELETE = 'Eliminazione'
 # Settings
 PASSWORD_MISMATCH = 'Le password non coincidono.'
 PASSWORD_CHANGED = 'Password modificata.'
+
+HYPSO_SAVED = 'Parametri ipsometrici aggiornati.'
+HYPSO_CLEARED = 'Parametri ipsometrici eliminati.'
 ERR_PASSWORD_REQUIRED = 'Password obbligatoria.'
 ERR_NAME_REQUIRED = 'Nome obbligatorio.'
 ERR_USERNAME_REQUIRED = 'Nome utente obbligatorio.'
@@ -157,8 +160,7 @@ ERR_TRANSITION_INVALID_STATE = (
 )
 ERR_TRANSITION_DATE_REQUIRED = 'Data della transizione obbligatoria.'
 ERR_CSV_NO_FILES = (
-    'Nessun file CSV caricato. Allega almeno un file '
-    '(fustaia, ceduo o equazioni).'
+    'Nessun file CSV caricato. Allega almeno un file (fustaia o ceduo).'
 )
 ERR_CSV_PARCEL_NOT_FOUND = 'Riga {}: particella non trovata ({} / {}).'
 ERR_CSV_REGION_NOT_FOUND = 'Riga {}: compresa non trovata ({}).'
@@ -167,6 +169,8 @@ ERR_CSV_FUNCTION_INVALID = (
     'Riga {}: funzione di regressione non supportata ({}).'
 )
 ERR_CSV_VALUE_PARSE = 'Riga {}: valore non valido nella colonna {} ({}).'
+ERR_CSV_VALUE_RANGE = 'Riga {}: valore fuori intervallo nella colonna {} ({}).'
+ERR_CSV_DUPLICATE_PARAM = 'Riga {}: coppia compresa/genere duplicata ({} / {}).'
 ERR_CANTIERE_REQUIRED = (
     'Selezionare un cantiere aperto.'
 )
@@ -194,6 +198,8 @@ ERR_CSV_ROW_SPECIES = 'Riga {}: specie sconosciuta: {}.'
 ERR_CSV_ROW_PARSE = 'Riga {}: errore di parsing ({}).'
 ERR_CSV_SURVEY_REQUIRED = 'Seleziona prima un rilevamento.'
 ERR_CSV_GRID_REQUIRED = 'Seleziona prima una griglia di destinazione.'
+ERR_MIN_N_INVALID = 'N minimo deve essere un intero positivo.'
+ERR_HYPSO_SURVEYS_REQUIRED = 'Seleziona almeno un rilevamento.'
 ERR_CSV_ROW_AREA_DUPLICATE = (
     'Riga {}: area ({} / {} / {}) già presente nella griglia.'
 )
@@ -470,8 +476,12 @@ TREE_MARKS = 'alberi martellati'
 HARVEST_TRANSITION = 'transizione cantiere'
 HARVEST_TRANSITIONS = 'transizioni cantiere'
 
-TREE_HEIGHT_REGRESSION = 'regressione altezza albero'
-TREE_HEIGHT_REGRESSIONS = 'regressioni altezza albero'
+HYPSO_PARAM_SET = 'set di parametri ipsometrici'
+HYPSO_PARAM_SETS = 'set di parametri ipsometrici'
+HYPSO_PARAM = 'parametro ipsometrico'
+HYPSO_PARAMS = 'parametri ipsometrici'
+HYPSO_SOURCE_COMPUTED = 'calcolato'
+HYPSO_SOURCE_IMPORTED = 'importato'
 
 # Harvest-plan-item state machine display labels.  Integer values are
 # encoded as HarvestPlanItemState in apps/base/models.py.

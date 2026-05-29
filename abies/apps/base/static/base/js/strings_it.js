@@ -74,7 +74,20 @@ export const SETTINGS_CREWS = 'Squadre';
 export const SETTINGS_TRACTORS = 'Trattori';
 export const SETTINGS_SPECIES = 'Specie';
 export const SETTINGS_USERS = 'Utenti';
+export const SETTINGS_HYPSO = 'Parametri ipsometrici';
 export const ONLY_ACTIVE = 'Solo attivi';
+
+// Hypsometric-parameters section.  (Accept/Reject/title are literal in the
+// candidate <template>, per docs/ui-design-patterns.md.)
+export const HYPSO_DESC_NONE = 'Nessun parametro ipsometrico attivo.';
+export const HYPSO_SOURCE_COMPUTED_LABEL = 'Calcolato';
+export const HYPSO_SOURCE_IMPORTED_LABEL = 'Importato da CSV';
+export const HYPSO_DESC_MIN_N = 'N minimo';
+export const HYPSO_DESC_SURVEYS = 'Rilevamenti';
+export const HYPSO_IMPORT_CONFIRM =
+  "L'importazione sostituisce i parametri attivi. Continuare?";
+export const HYPSO_CLEAR_CONFIRM =
+  'I parametri attivi verranno eliminati. Continuare?';
 export const PASSWORD_NEW = 'Nuova password';
 export const PASSWORD_REPEAT = 'Ripeti password';
 export const PASSWORD_MISMATCH = 'Le password non coincidono.';
@@ -280,7 +293,6 @@ export const ERR_CSV_FILE_REQUIRED    = 'File CSV obbligatorio.';
 export const EDIT_PLAN_TITLE          = 'Modifica piano';
 export const TAB_DETAILS    = 'Dettagli';
 export const EDIT_PLAN_TAB_CALENDAR   = 'Importa calendario da CSV';
-export const EDIT_PLAN_TAB_REGRESSION = 'Importa equazioni da CSV';
 export const EDIT_PLAN_CHECKBOX_CEDUO = 'File contiene il calendario ceduo';
 export const LABEL_CSV_FILE           = 'File CSV';
 export const IMPORT_LABEL             = 'Importa';
@@ -288,7 +300,7 @@ export const IMPORT_LABEL             = 'Importa';
 // Dangerous-delete (plan + per-item).
 export const DELETE_PLAN_TITLE   = 'Elimina piano';
 export const DELETE_PLAN_WARNING =
-  'Il piano "{name}" e tutte le sue voci e regressioni saranno ' +
+  'Il piano "{name}" e tutte le sue voci saranno ' +
   'eliminati definitivamente.';
 export const ERR_PLAN_HAS_ACTIVE_ITEMS =
   'Il piano contiene voci non in stato "pianificato". ' +

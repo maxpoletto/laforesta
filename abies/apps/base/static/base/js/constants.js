@@ -48,6 +48,13 @@ export const ROLE_READER = 'reader';
 export const LOGIN_METHOD_PASSWORD = 'password';
 export const LOGIN_METHOD_OAUTH    = 'oauth';
 
+// Hypsometric-parameter set source — mirror apps/base/models.py HypsoParamSource.
+export const HYPSO_SOURCE_COMPUTED = 'computed';
+export const HYPSO_SOURCE_IMPORTED = 'imported';
+
+// Regression family — mirror apps/base/models.py HYPSO_FUNC_LN.
+export const HYPSO_FUNC_LN = 'ln';
+
 // Form / JSON-body field names.  Match HTML form `name=` attributes and
 // JSON request-body keys; client and server must agree on every name.
 export const FIELD_NAME                  = 'name';
@@ -120,6 +127,10 @@ export const FIELD_HARVEST_PLAN_ITEM_ID  = 'harvest_plan_item_id';
 export const FIELD_YEAR_START            = 'year_start';
 export const FIELD_YEAR_END              = 'year_end';
 export const FIELD_OPEN                  = 'open';
-export const FIELD_REGRESSION_FILE       = 'regression_file';
 export const FIELD_PASSWORD1             = 'password1';
 export const FIELD_PASSWORD2             = 'password2';
+export const FIELD_MIN_N                 = 'min_n';
+export const FIELD_SURVEY_IDS            = 'survey_ids';
+export const FIELD_SOURCE                = 'source';
+export const FIELD_SURVEYS               = 'surveys';
+export const FIELD_CREATED_AT            = 'created_at';

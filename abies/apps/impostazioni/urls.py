@@ -31,4 +31,20 @@ urlpatterns = [
     path('users/form/', views.users_form, name='impostazioni-users-form-add'),
     path('users/form/<int:obj_id>/', views.users_form, name='impostazioni-users-form-edit'),
     path('users/save/', views.users_save, name='impostazioni-users-save'),
+
+    # Hypsometric parameters (writer+)
+    path('hypso-params/data/', views.hypso_params_data,
+         name='impostazioni-hypso-data'),
+    path('hypso-params/active-set/', views.hypso_params_active_set,
+         name='impostazioni-hypso-active-set'),
+    path('hypso-params/compute/', views.hypso_params_compute,
+         name='impostazioni-hypso-compute'),
+    path('hypso-params/accept/', views.hypso_params_accept,
+         name='impostazioni-hypso-accept'),
+    path('hypso-params/import/', views.hypso_params_import,
+         name='impostazioni-hypso-import'),
+    path('hypso-params/export/', views.hypso_params_export,
+         name='impostazioni-hypso-export'),
+    path('hypso-params/clear/', views.hypso_params_clear,
+         name='impostazioni-hypso-clear'),
 ]

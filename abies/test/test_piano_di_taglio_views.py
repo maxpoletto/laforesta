@@ -17,8 +17,7 @@ from django.test import Client
 
 from apps.base.models import (
     DigestStatus, HarvestPlan, HarvestPlanItem, HarvestPlanItemState,
-    HarvestTransition, ParcelPlanDetail, Tree, TreeHeightRegression,
-    TreeMark,
+    HarvestTransition, ParcelPlanDetail, Tree, TreeMark,
 )
 from config import strings as S
 from config.constants import (
@@ -29,7 +28,7 @@ from config.constants import (
     FIELD_INTERVENTION_AREA_HA, FIELD_LAT, FIELD_LON, FIELD_MASS_Q,
     FIELD_NAME, FIELD_NONCE, FIELD_NOTE, FIELD_OPEN, FIELD_OPERATOR,
     FIELD_PARCEL_ID, FIELD_PRODUCT_ID, FIELD_PSR, FIELD_REGION_ID,
-    FIELD_REGRESSION_FILE, FIELD_SPECIES_ID, FIELD_UNHEALTHY,
+    FIELD_SPECIES_ID, FIELD_UNHEALTHY,
     FIELD_VOLUME_M3, FIELD_VOLUME_PLANNED_M3, FIELD_YEAR_END,
     FIELD_YEAR_PLANNED, FIELD_YEAR_START, HTML, ITEM_RECORD, MESSAGE,
     RECORD, ROW_ID, ROWS, STATUS, STATUS_CONFLICT,
@@ -163,12 +162,6 @@ CEDUO_CSV = (
     'Anno,Compresa,Particella,Superficie intervento (ha),Turno (a),Note\r\n'
     '2028,Capistrano,1,2.5,18,Cont.\r\n'
 )
-REGRESSION_CSV = (
-    'Compresa,Genere,funzione,a,b,r2,n\r\n'
-    'Capistrano,Abete,ln,12.0,3.5,0.85,42\r\n'
-)
-
-
 class TestPlanCSVImport:
     def _upload(self, client, **kwargs):
         return client.post(
@@ -176,19 +169,17 @@ class TestPlanCSVImport:
             data=kwargs,
         )
 
-    def test_import_three_files(self, writer_client, parcels, species):
+    def test_import_calendar_files(self, writer_client, parcels, species):
         f = self._upload(
             writer_client,
             name='CSV plan',
             description='From CSV.',
             fustaia_file=io.BytesIO(FUSTAIA_CSV.encode('utf-8')),
             ceduo_file=io.BytesIO(CEDUO_CSV.encode('utf-8')),
-            regression_file=io.BytesIO(REGRESSION_CSV.encode('utf-8')),
         )
         assert f.status_code == 200, f.json()
         data = f.json()
         assert data['n_items'] == 2
-        assert data['n_regressions'] == 1
         plan = HarvestPlan.objects.get(id=data[ROW_ID])
         assert plan.year_start == 2027
         assert plan.year_end == 2028
@@ -395,29 +386,6 @@ class TestPlanCSVImport:
         plan.refresh_from_db()
         assert plan.year_end == 2040
 
-    def test_import_into_existing_upserts_regression(
-        self, writer_client, plan, parcels, species,
-    ):
-        self._upload(
-            writer_client, harvest_plan_id=plan.id,
-            regression_file=io.BytesIO(REGRESSION_CSV.encode('utf-8')),
-        )
-        regs = TreeHeightRegression.objects.filter(harvest_plan=plan)
-        assert regs.count() == 1
-        assert float(regs[0].a) == 12.0
-
-        revised = (
-            'Compresa,Genere,funzione,a,b,r2,n\r\n'
-            'Capistrano,Abete,ln,15.0,4.0,0.90,55\r\n'
-        )
-        self._upload(
-            writer_client, harvest_plan_id=plan.id,
-            regression_file=io.BytesIO(revised.encode('utf-8')),
-        )
-        regs = TreeHeightRegression.objects.filter(harvest_plan=plan)
-        assert regs.count() == 1
-        assert float(regs[0].a) == 15.0
-
     def test_import_into_unknown_plan(self, writer_client, db):
         resp = self._upload(
             writer_client, harvest_plan_id=9999,
@@ -433,9 +401,7 @@ class TestPlanExport:
         assert resp.status_code == 200
         assert resp['Content-Type'] == 'application/zip'
         zf = zipfile.ZipFile(io.BytesIO(resp.content))
-        assert set(zf.namelist()) == {
-            'fustaia.csv', 'ceduo.csv', 'equazioni_ipsometro.csv',
-        }
+        assert set(zf.namelist()) == {'fustaia.csv', 'ceduo.csv'}
         # planned_item is fustaia → lands in piano.csv.
         piano = zf.read('fustaia.csv').decode('utf-8').splitlines()
         assert any(planned_item.parcel.region.name in line for line in piano)

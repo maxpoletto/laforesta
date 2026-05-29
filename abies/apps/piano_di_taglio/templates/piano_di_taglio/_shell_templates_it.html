@@ -115,7 +115,6 @@ render context.
     <div class="modal-tabs">
       <button type="button" class="modal-tab" data-path="details">{{ S.TAB_DETAILS }}</button>
       <button type="button" class="modal-tab" data-path="calendar">Importa calendario da CSV</button>
-      <button type="button" class="modal-tab" data-path="regression">Importa equazioni da CSV</button>
     </div>
     <div class="modal-tab-bodies">
       {# Dettagli tab #}
@@ -162,19 +161,6 @@ render context.
             <div class="form-group">
               <label for="pdt-edit-cal-file">{{ S.LABEL_CSV_FILE }}</label>
               <input type="file" id="pdt-edit-cal-file"
-                     accept=".csv,text/csv" required>
-            </div>
-          </div>
-          {% include "base/_partials/_csv_import_tail.html" %}
-        </form>
-      </div>
-      {# Importa equazioni tab #}
-      <div class="modal-tab-body" data-path="regression">
-        <form class="pdt-plan-form" data-role="regression-form">
-          <div class="form-row">
-            <div class="form-group">
-              <label for="pdt-edit-reg-file">{{ S.LABEL_CSV_FILE }}</label>
-              <input type="file" id="pdt-edit-reg-file"
                      accept=".csv,text/csv" required>
             </div>
           </div>

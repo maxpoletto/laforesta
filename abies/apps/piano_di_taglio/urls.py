@@ -10,8 +10,6 @@ urlpatterns = [
          name='piano-di-taglio-plans-data'),
     path('items/data/', views.items_data_view,
          name='piano-di-taglio-items-data'),
-    path('regressions/data/', views.regressions_data_view,
-         name='piano-di-taglio-regressions-data'),
     path('mark-trees/<int:item_id>/', views.mark_trees_data_view,
          name='piano-di-taglio-mark-trees-data'),
 

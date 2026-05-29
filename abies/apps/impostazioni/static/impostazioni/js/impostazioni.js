@@ -10,18 +10,22 @@
  * Forms open in modals.
  */
 
-import { postJSON } from '../../base/js/api.js';
+import { postFormData, postJSON } from '../../base/js/api.js';
+import { downloadFromURL } from '../../base/js/csv-export.js';
 import { TableWrapper } from '../../base/js/table.js';
 import * as modals from '../../base/js/modals.js';
 import { showError } from '../../base/js/modals.js';
 import {
-  showLoadingIn, wireCancelButtons, wireCollapsibleToggle,
+  showConfirmModal, showLoadingIn, wireActions, wireCancelButtons,
+  wireCollapsibleToggle,
 } from '../../base/js/ui-widgets.js';
 import { loadCSS, unloadCSS } from '../../base/js/page-css.js';
 import { cloneTemplate } from '../../base/js/templates.js';
 import * as S from '../../base/js/strings.js';
 import {
-  LOGIN_METHOD_PASSWORD, ROLE_ADMIN, ROLE_WRITER, STATUS_CONFLICT,
+  FIELD_CREATED_AT, FIELD_FILE, FIELD_MIN_N, FIELD_SOURCE,
+  FIELD_SURVEY_IDS, FIELD_SURVEYS, HYPSO_SOURCE_COMPUTED, LOGIN_METHOD_PASSWORD,
+  MESSAGE, ROLE_ADMIN, ROLE_WRITER, STATUS_CONFLICT,
 } from '../../base/js/constants.js';
 
 const API = '/api/impostazioni/';
@@ -112,6 +116,11 @@ export function mount() {
     sections[cfg.key] = state;
     el.appendChild(buildEntitySection(cfg, state));
   }
+
+  // Hypsometric parameters — writers and admins, below Specie.
+  if (hasMinRole(role, ROLE_WRITER)) {
+    el.appendChild(buildHypsoSection());
+  }
 }
 
 export function unmount() {
@@ -121,6 +130,10 @@ export function unmount() {
   }
   // Clear state for next mount.
   for (const key of Object.keys(sections)) delete sections[key];
+
+  if (hypsoState.table) { hypsoState.table.destroy(); hypsoState.table = null; }
+  hypsoState.digest = null;
+  hypsoState.loaded = false;
 }
 
 export function onQueryChange() {}
@@ -347,6 +360,194 @@ function wirePasswordToggle(form) {
   }
   for (const r of radios) r.addEventListener('change', toggle);
   toggle();
+}
+
+// ---------------------------------------------------------------------------
+// Hypsometric parameters (writer+).  Whole-set management: a read-only table
+// of the active set plus compute / import / export / clear.  See
+// docs/hypsometry.md.
+// ---------------------------------------------------------------------------
+
+const HYPSO = {
+  data:    `${API}hypso-params/data/`,
+  active:  `${API}hypso-params/active-set/`,
+  compute: `${API}hypso-params/compute/`,
+  accept:  `${API}hypso-params/accept/`,
+  upload:  `${API}hypso-params/import/`,
+  export:  `${API}hypso-params/export/`,
+  clear:   `${API}hypso-params/clear/`,
+  surveys: '/api/campionamenti/surveys/data/',
+};
+
+const hypsoState = { table: null, digest: null, loaded: false };
+
+function buildHypsoSection() {
+  const frag = cloneTemplate('tmpl-hypso-section');
+  const body = frag.querySelector('.collapsible-body');
+  const tableHost = body.querySelector('[data-target="table-host"]');
+  const descEl = body.querySelector('[data-target="description"]');
+  const fileInput = body.querySelector('[data-role="import-file"]');
+
+  wireCollapsibleToggle(
+    frag.querySelector('.collapsible-header'), body,
+    () => {
+      if (hypsoState.loaded) return;
+      hypsoState.loaded = true;
+      loadHypso(tableHost, descEl);
+      loadSurveys(body);
+    },
+  );
+
+  wireActions(body, {
+    export: () => downloadFromURL(HYPSO.export),
+    import: () => fileInput.click(),
+    clear: () => confirmClear(tableHost, descEl),
+    compute: () => runCompute(body, tableHost, descEl),
+  });
+
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files[0];
+    fileInput.value = '';
+    if (file) confirmImport(file, tableHost, descEl);
+  });
+
+  return frag;
+}
+
+async function loadHypso(tableHost, descEl) {
+  showLoadingIn(tableHost);
+  let digest, meta;
+  try {
+    const [d, m] = await Promise.all([fetch(HYPSO.data), fetch(HYPSO.active)]);
+    if (!d.ok || !m.ok) throw new Error();
+    digest = await d.json();
+    meta = await m.json();
+  } catch {
+    tableHost.replaceChildren();
+    showError(S.ERROR_NETWORK);
+    return;
+  }
+  tableHost.replaceChildren();
+  hypsoState.digest = digest;
+  if (hypsoState.table) hypsoState.table.destroy();
+  hypsoState.table = new TableWrapper({
+    container: tableHost, digest, canModify: false, inlineToolbar: false,
+    labels: S.TABLE_LABELS, csvFormat: S.TABLE_CSV_FORMAT,
+  });
+  renderDescription(descEl, meta);
+}
+
+function renderDescription(el, meta) {
+  if (!meta || !meta[FIELD_SOURCE]) {
+    el.textContent = S.HYPSO_DESC_NONE;
+    return;
+  }
+  const label = meta[FIELD_SOURCE] === HYPSO_SOURCE_COMPUTED
+    ? S.HYPSO_SOURCE_COMPUTED_LABEL : S.HYPSO_SOURCE_IMPORTED_LABEL;
+  const parts = [`${label} (${meta[FIELD_CREATED_AT]})`];
+  if (meta[FIELD_MIN_N] != null) {
+    parts.push(`${S.HYPSO_DESC_MIN_N}: ${meta[FIELD_MIN_N]}`);
+  }
+  const surveys = meta[FIELD_SURVEYS] || [];
+  if (surveys.length) {
+    parts.push(`${S.HYPSO_DESC_SURVEYS}: ${surveys.join(', ')}`);
+  }
+  el.textContent = parts.join(' · ');
+}
+
+async function loadSurveys(body) {
+  const select = body.querySelector('[data-role="surveys"]');
+  let digest;
+  try {
+    const resp = await fetch(HYPSO.surveys);
+    if (!resp.ok) throw new Error();
+    digest = await resp.json();
+  } catch {
+    return;
+  }
+  const nameIdx = digest.columns.indexOf(S.COL_NAME);
+  select.replaceChildren();
+  for (const row of digest.rows) {
+    const opt = document.createElement('option');
+    opt.value = row[0];
+    opt.textContent = row[nameIdx];
+    select.appendChild(opt);
+  }
+}
+
+function selectedSurveyIds(body) {
+  return [...body.querySelectorAll('[data-role="surveys"] option:checked')]
+    .map(o => parseInt(o.value, 10));
+}
+
+async function runCompute(body, tableHost, descEl) {
+  const minN = parseInt(body.querySelector('[data-role="min-n"]').value, 10);
+  const surveyIds = selectedSurveyIds(body);
+  const data = await postOrError(postJSON(HYPSO.compute,
+    { [FIELD_MIN_N]: minN, [FIELD_SURVEY_IDS]: surveyIds }));
+  if (data) showCandidate(data, minN, surveyIds, tableHost, descEl);
+}
+
+function showCandidate(payload, minN, surveyIds, tableHost, descEl) {
+  const frag = cloneTemplate('tmpl-hypso-candidate');
+  const root = frag.querySelector('.hypso-candidate');
+  const host = root.querySelector('[data-target="candidate-table"]');
+
+  wireActions(root, {
+    reject: () => modals.dismiss(),
+    accept: async () => {
+      const data = await postOrError(postJSON(HYPSO.accept,
+        { [FIELD_MIN_N]: minN, [FIELD_SURVEY_IDS]: surveyIds }));
+      if (!data) return;
+      modals.dismiss();
+      loadHypso(tableHost, descEl);
+    },
+  });
+  modals.show(root);
+
+  // Same read-only digest table as the active set, in the modal.
+  const table = new TableWrapper({
+    container: host, digest: payload, canModify: false, inlineToolbar: false,
+    labels: S.TABLE_LABELS, csvFormat: S.TABLE_CSV_FORMAT,
+  });
+  modals.onDismiss(() => table.destroy());
+}
+
+function confirmImport(file, tableHost, descEl) {
+  showConfirmModal(S.HYPSO_IMPORT_CONFIRM, async () => {
+    const fd = new FormData();
+    fd.append(FIELD_FILE, file);
+    if (await postOrError(postFormData(HYPSO.upload, fd))) {
+      loadHypso(tableHost, descEl);
+    }
+  }, { confirmLabel: S.IMPORT_LABEL });
+}
+
+function confirmClear(tableHost, descEl) {
+  showConfirmModal(S.HYPSO_CLEAR_CONFIRM, async () => {
+    if (await postOrError(postJSON(HYPSO.clear, {}))) {
+      loadHypso(tableHost, descEl);
+    }
+  }, { confirmLabel: S.ACTION_DELETE });
+}
+
+/**
+ * Await a postJSON/postFormData promise, surfacing network and non-200
+ * errors in a modal.  Returns the response data, or null on error.
+ */
+async function postOrError(promise) {
+  let result;
+  try {
+    result = await promise;
+  } catch {
+    showError(S.ERROR_NETWORK);
+    return null;
+  }
+  if (result.status !== 200) {
+    showError(result.data[MESSAGE] || S.ERROR_GENERIC);
+    return null;
+  }
+  return result.data;
 }
 
 // ---------------------------------------------------------------------------

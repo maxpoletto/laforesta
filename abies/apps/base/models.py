@@ -368,27 +368,6 @@ class HarvestTransition(models.Model):
         unique_together = [('harvest_plan_item', 'open')]
 
 
-class TreeHeightRegression(models.Model):
-    """Per-(plan, region, species) ipsometric regression coefficients.
-
-    Used by the Nuovo albero martellato form to auto-populate `h_m`
-    from `d_cm` via `h = a × ln(D) + b` (when function='ln').
-    """
-    harvest_plan = models.ForeignKey(HarvestPlan, on_delete=models.CASCADE)
-    region = models.ForeignKey(Region, on_delete=models.PROTECT)
-    species = models.ForeignKey(Species, on_delete=models.PROTECT)
-    function = models.CharField(max_length=10, default='ln')
-    a = models.DecimalField(max_digits=10, decimal_places=4)
-    b = models.DecimalField(max_digits=10, decimal_places=4)
-    r2 = models.DecimalField(max_digits=6, decimal_places=4)
-    n = models.IntegerField()
-
-    class Meta:
-        verbose_name = S.TREE_HEIGHT_REGRESSION
-        verbose_name_plural = S.TREE_HEIGHT_REGRESSIONS
-        unique_together = [('harvest_plan', 'region', 'species')]
-
-
 class ParcelPlanDetail(models.Model):
     """Maps a harvest detail to a parcel within a plan."""
     harvest_plan = models.ForeignKey(HarvestPlan, on_delete=models.CASCADE)
@@ -567,6 +546,67 @@ class TreeSample(TimestampedModel):
         verbose_name = S.TREE_SAMPLE
         verbose_name_plural = S.TREE_SAMPLES
         unique_together = [('sample', 'tree', 'shoot')]
+
+
+# ---------------------------------------------------------------------------
+# Hypsometry (height-from-diameter regression parameters)
+# ---------------------------------------------------------------------------
+
+HYPSO_FUNC_LN = 'ln'
+
+
+class HypsoParamSource(models.TextChoices):
+    COMPUTED = 'computed', S.HYPSO_SOURCE_COMPUTED
+    IMPORTED = 'imported', S.HYPSO_SOURCE_IMPORTED
+
+
+class HypsoParamSetManager(models.Manager):
+    def active(self):
+        """The set(s) currently in effect — at most one (see invariant)."""
+        return self.filter(superseded_at__isnull=True)
+
+
+class HypsoParamSet(TimestampedModel):
+    """One set of ipsometric regression parameters and its live interval.
+
+    At most one row has `superseded_at` NULL — the currently-active set.
+    Replacing the parameters archives the prior set (stamps `superseded_at`)
+    instead of deleting it, so (`created_at`, `superseded_at`) records which
+    parameters were live when.  See `docs/hypsometry.md`.
+    """
+    source = models.CharField(max_length=10, choices=HypsoParamSource.choices)
+    min_n = models.IntegerField(null=True, blank=True)
+    superseded_at = models.DateTimeField(null=True, blank=True)
+    surveys = models.ManyToManyField(Survey, blank=True)
+    history = HistoricalRecords()
+
+    objects = HypsoParamSetManager()
+
+    class Meta:
+        verbose_name = S.HYPSO_PARAM_SET
+        verbose_name_plural = S.HYPSO_PARAM_SETS
+
+
+class HypsoParam(TimestampedModel):
+    """One (region, species) regression within a HypsoParamSet.
+
+    Immutable once written: a set is created whole and never edited row by
+    row, so it keeps no per-row history — the archived set is the record.
+    """
+    param_set = models.ForeignKey(
+        HypsoParamSet, on_delete=models.CASCADE, related_name='params')
+    region = models.ForeignKey(Region, on_delete=models.PROTECT)
+    species = models.ForeignKey(Species, on_delete=models.PROTECT)
+    func = models.CharField(max_length=10, default=HYPSO_FUNC_LN)
+    a = models.DecimalField(max_digits=10, decimal_places=4)
+    b = models.DecimalField(max_digits=10, decimal_places=4)
+    r2 = models.DecimalField(max_digits=6, decimal_places=4)
+    n = models.IntegerField()
+
+    class Meta:
+        verbose_name = S.HYPSO_PARAM
+        verbose_name_plural = S.HYPSO_PARAMS
+        unique_together = [('param_set', 'region', 'species')]
 
 
 # ---------------------------------------------------------------------------

@@ -35,3 +35,43 @@ S (string constants) provided by the shell's render context.
     <div data-target="table-host"></div>
   </div>
 </template>
+
+<template id="tmpl-hypso-section">
+  {% include "base/_partials/_collapsible_header.html" with section="" title="Parametri ipsometrici" %}
+  <div class="collapsible-body">
+    <p class="hypso-description" data-target="description"></p>
+    <div class="table-toolbar hypso-toolbar">
+      <button type="button" class="btn" data-action="export">{{ S.EXPORT_CSV }}</button>
+      <button type="button" class="btn" data-action="import">{{ S.IMPORT_LABEL }}</button>
+      <button type="button" class="btn" data-action="clear">{{ S.ACTION_DELETE }}</button>
+      <input type="file" accept=".csv" data-role="import-file" hidden>
+    </div>
+    <div data-target="table-host"></div>
+
+    <div class="hypso-compute">
+      <h3>Calcola nuovi parametri</h3>
+      <div class="form-row narrow">
+        <div class="form-group narrow">
+          <label for="hypso-min-n">N minimo</label>
+          <input type="number" id="hypso-min-n" min="1" value="10" data-role="min-n">
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="hypso-surveys">Rilevamenti</label>
+        <select id="hypso-surveys" multiple size="6" data-role="surveys"></select>
+      </div>
+      <button type="button" class="btn btn-primary" data-action="compute">Calcola</button>
+    </div>
+  </div>
+</template>
+
+<template id="tmpl-hypso-candidate">
+  <div class="form-card hypso-candidate">
+    <h2>Nuovi parametri ipsometrici</h2>
+    <div data-target="candidate-table"></div>
+    <div class="form-actions">
+      <button type="button" class="btn" data-action="reject">Rifiuta</button>
+      <button type="button" class="btn btn-primary" data-action="accept">Accetta</button>
+    </div>
+  </div>
+</template>

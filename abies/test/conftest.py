@@ -1,10 +1,15 @@
 """Shared test fixtures."""
 
-import pytest
+import math
+from datetime import date
 from decimal import Decimal
+from itertools import count
+
+import pytest
 
 from apps.base.models import (
-    Crew, Eclass, Parcel, Product, Region, Role, Species, Tractor, User,
+    Crew, Eclass, Parcel, Product, Region, Role, Sample, SampleArea,
+    SampleGrid, Species, Survey, Tractor, Tree, TreeSample, User,
 )
 
 
@@ -92,3 +97,46 @@ def reader_user(db):
         username='testreader', password='testpass123!',
         role=Role.READER,
     )
+
+
+@pytest.fixture
+def hypso_samples(db, regions, eclasses, species):
+    """A survey supporting a clean Abete fit in region 0.
+
+    - region0 / Abete: 12 non-coppice samples on h = a·ln(D) + b.
+    - region0 / Castagno: 3 samples (below a typical min_n).
+    - one coppice Abete sample that compute_params must exclude.
+    """
+    a_true, b_true = 7.0, -4.0
+    parcel = Parcel.objects.create(
+        name='H1', region=regions[0], eclass=eclasses[0],
+        area_ha=Decimal('5.0'),
+    )
+    grid = SampleGrid.objects.create(name='Hypso grid')
+    area = SampleArea.objects.create(
+        sample_grid=grid, parcel=parcel, number='1', lat=0.0, lon=0.0,
+    )
+    survey = Survey.objects.create(name='Hypso survey', sample_grid=grid)
+    sample = Sample.objects.create(
+        sample_area=area, survey=survey, date=date(2024, 9, 15),
+    )
+    counter = count(1)
+
+    def add(sp, d_cm, coppice=False):
+        tree = Tree.objects.create(species=sp, parcel=parcel, coppice=coppice)
+        h = a_true * math.log(d_cm) + b_true
+        TreeSample.objects.create(
+            sample=sample, tree=tree, shoot=0, standard=False,
+            number=next(counter), d_cm=d_cm, h_m=Decimal(str(round(h, 2))),
+        )
+
+    abete_diam = [8, 10, 12, 15, 18, 20, 24, 28, 32, 36, 40, 45]
+    for d in abete_diam:
+        add(species[0], d)
+    for d in (10, 20, 30):
+        add(species[1], d)
+    add(species[0], 50, coppice=True)
+    return {
+        'survey': survey, 'region': regions[0], 'species': species[0],
+        'a': a_true, 'b': b_true, 'n_abete': len(abete_diam),
+    }

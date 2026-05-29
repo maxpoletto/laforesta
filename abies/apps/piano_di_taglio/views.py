@@ -48,7 +48,6 @@ from apps.base.models import (
     Tree,
     TreeMark,
     parcel_sort_key,
-    TreeHeightRegression,
     render_flag_note,
 )
 from apps.prelievi.models import Harvest, HarvestSpecies, HarvestTractor
@@ -82,7 +81,6 @@ from config.constants import (
     FIELD_PARCEL_ID,
     FIELD_PSR,
     FIELD_REGION_ID,
-    FIELD_REGRESSION_FILE,
     FIELD_SPECIES_ID,
     FIELD_TURNO_A,
     FIELD_UNHEALTHY,
@@ -122,11 +120,6 @@ def plans_data_view(request):
 @login_required
 def items_data_view(request):
     return serve_digest(request, 'harvest_plan_items')
-
-
-@login_required
-def regressions_data_view(request):
-    return serve_digest(request, 'tree_height_regressions')
 
 
 @login_required
@@ -230,13 +223,9 @@ def plan_delete_view(request, plan_id: int):
         return _validation_error([S.ERR_PLAN_HAS_ACTIVE_ITEMS])
 
     with transaction.atomic():
-        # HarvestPlanItem and TreeHeightRegression both cascade to HarvestPlan
-        # in the schema.  ParcelPlanDetail also cascades on plan delete.
+        # HarvestPlanItem and ParcelPlanDetail both cascade to HarvestPlan.
         plan.delete()
-        mark_stale(
-            'harvest_plans', 'harvest_plan_items',
-            'tree_height_regressions', 'audit',
-        )
+        mark_stale('harvest_plans', 'harvest_plan_items', 'audit')
     return JsonResponse({DATA_ID: 'harvest_plans', ROW_ID: plan_id})
 
 
@@ -276,17 +265,6 @@ _CEDUO_OPTIONAL = {
     'free_note':  [S.CSV_COL_EXTRA_NOTE],                        # 'Altre note'
     'flag_note':  [S.COL_NOTE],                                  # 'Note' (flag string)
 }
-_REGRESSION_REQUIRED = {
-    'compresa': [S.CSV_COL_COMPRESA],
-    'genere':   [S.CSV_COL_GENERE],
-    'funzione': [S.CSV_COL_FUNZIONE],
-    'a':        [S.CSV_COL_A],
-    'b':        [S.CSV_COL_B],
-    'r2':       [S.CSV_COL_R2],
-    'n':        [S.CSV_COL_N_REGRESSION],
-}
-
-_DEFAULT_REGRESSION_FN = 'ln'
 
 
 @login_required
@@ -303,13 +281,11 @@ def plan_csv_import_view(request):
       - ``description``     — optional plan description (create path only).
       - ``fustaia_file``    — optional: piano.csv (high-forest schedule).
       - ``ceduo_file``      — optional: ceduo.csv (coppice schedule).
-      - ``regression_file`` — optional: equazioni_ipsometro.csv.
 
-    At least one CSV must be attached.  Upsert keys: calendar items dedup
-    on ``(harvest_plan, parcel, year_planned)``; regressions dedup on
-    ``(harvest_plan, region, species)``.  Re-importing the same file is
-    a no-op; re-importing a revised file overwrites the matching rows
-    in place.
+    At least one CSV must be attached.  Upsert key: calendar items dedup
+    on ``(harvest_plan, parcel, year_planned)``.  Re-importing the same
+    file is a no-op; re-importing a revised file overwrites the matching
+    rows in place.
     """
     plan_id = _int_or_none(request.POST.get(FIELD_HARVEST_PLAN_ID))
     if plan_id is not None:
@@ -335,14 +311,9 @@ def plan_csv_import_view(request):
         request.FILES.get(FIELD_CEDUO_FILE),
         _CEDUO_REQUIRED, _CEDUO_OPTIONAL,
     )
-    regression_rows = _read_optional(
-        request.FILES.get(FIELD_REGRESSION_FILE),
-        _REGRESSION_REQUIRED,
-    )
-    if (fustaia_rows is None and ceduo_rows is None
-            and regression_rows is None):
+    if fustaia_rows is None and ceduo_rows is None:
         return _validation_error([S.ERR_CSV_NO_FILES])
-    for rows in (fustaia_rows, ceduo_rows, regression_rows):
+    for rows in (fustaia_rows, ceduo_rows):
         if isinstance(rows, _CsvError):
             return _validation_error([rows.message])
 
@@ -351,8 +322,6 @@ def plan_csv_import_view(request):
         (p.region.name.lower(), p.name): p
         for p in Parcel.objects.select_related('region')
     }
-    species_cache = {sp.common_name.lower(): sp
-                     for sp in Species.objects.all()}
 
     errors: list[str] = []
     fustaia_parsed = _parse_fustaia_rows(
@@ -360,9 +329,6 @@ def plan_csv_import_view(request):
     )
     ceduo_parsed = _parse_ceduo_rows(
         ceduo_rows or [], parcel_cache, errors,
-    )
-    regression_parsed = _parse_regression_rows(
-        regression_rows or [], region_cache, species_cache, errors,
     )
     if errors:
         return _csv_error_list(errors)
@@ -458,28 +424,13 @@ def plan_csv_import_view(request):
             )
             n_items += 1
 
-        for r in regression_parsed:
-            TreeHeightRegression.objects.update_or_create(
-                harvest_plan=plan,
-                region=r[FIELD_REGION_ID],
-                species=r['species'],
-                defaults={
-                    'function': r['function'],
-                    'a': r['a'], 'b': r['b'], 'r2': r['r2'], 'n': r['n'],
-                },
-            )
-
-        mark_stale(
-            'harvest_plans', 'harvest_plan_items',
-            'tree_height_regressions', 'audit',
-        )
+        mark_stale('harvest_plans', 'harvest_plan_items', 'audit')
 
     response_data = {
         DATA_ID: 'harvest_plans',
         ROW_ID: plan.id,
         RECORD: build_harvest_plan_record(plan),
         'n_items': n_items,
-        'n_regressions': len(regression_parsed),
     }
     nonce = request.POST.get(FIELD_NONCE)
     if nonce:
@@ -488,12 +439,12 @@ def plan_csv_import_view(request):
 
 
 # ---------------------------------------------------------------------------
-# Plan-level Esporta CSV — zip of piano.csv + ceduo.csv + equazioni.csv
+# Plan-level Esporta CSV — zip of fustaia.csv + ceduo.csv
 # ---------------------------------------------------------------------------
 
 @login_required
 def plan_export_view(request, plan_id: int):
-    """Return a zip of the three plan CSVs (Italian locale: ``;`` field
+    """Return a zip of the fustaia + ceduo CSVs (Italian locale: ``;`` field
     separator, ``,`` decimal — matches the per-table CSV export and
     CLAUDE.md's CSV convention).
 
@@ -510,10 +461,6 @@ def plan_export_view(request, plan_id: int):
              .filter(harvest_plan=plan)
              .select_related('parcel__region', 'parcel__eclass', 'region')
              .order_by('year_planned', 'id'))
-    regressions = (TreeHeightRegression.objects
-                   .filter(harvest_plan=plan)
-                   .select_related('region', 'species')
-                   .order_by('region__name', 'species__common_name'))
     parcel_intervals = {
         ppd.parcel_id: ppd.harvest_detail.interval
         for ppd in ParcelPlanDetail.objects
@@ -575,28 +522,10 @@ def plan_export_view(request, plan_id: int):
                 _fmt_decimal(it.volume_actual_m3),
             ])
 
-    regression_buf = io.StringIO()
-    regression_w = csv.writer(regression_buf, delimiter=';')
-    regression_w.writerow([
-        S.CSV_COL_COMPRESA, S.CSV_COL_GENERE, S.CSV_COL_FUNZIONE,
-        S.CSV_COL_A, S.CSV_COL_B, S.CSV_COL_R2, S.CSV_COL_N_REGRESSION,
-    ])
-    for r in regressions:
-        regression_w.writerow([
-            r.region.name,
-            r.species.common_name,
-            r.function,
-            _fmt_decimal(r.a),
-            _fmt_decimal(r.b),
-            _fmt_decimal(r.r2),
-            r.n,
-        ])
-
     zip_buf = io.BytesIO()
     with zipfile.ZipFile(zip_buf, 'w', zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr(S.CSV_FILE_FUSTAIA,    fustaia_buf.getvalue())
-        zf.writestr(S.CSV_FILE_CEDUO,      ceduo_buf.getvalue())
-        zf.writestr(S.CSV_FILE_REGRESSION, regression_buf.getvalue())
+        zf.writestr(S.CSV_FILE_FUSTAIA, fustaia_buf.getvalue())
+        zf.writestr(S.CSV_FILE_CEDUO,   ceduo_buf.getvalue())
 
     response = HttpResponse(zip_buf.getvalue(), content_type='application/zip')
     safe_name = _safe_filename(plan.name)
@@ -1649,40 +1578,6 @@ def _parse_ceduo_rows(rows, parcel_cache, errors):
             FIELD_DAMAGED:   damaged,
             FIELD_UNHEALTHY: unhealthy,
             FIELD_PSR:       psr,
-        })
-    return out
-
-
-def _parse_regression_rows(rows, region_cache, species_cache, errors):
-    out = []
-    for i, row in enumerate(rows, 2):
-        compresa = (row.get('compresa') or '').strip()
-        genere = (row.get('genere') or '').strip()
-        function = (row.get('funzione') or '').strip().lower()
-        region = region_cache.get(compresa.lower())
-        if region is None:
-            errors.append(S.ERR_CSV_REGION_NOT_FOUND.format(i, compresa))
-            continue
-        species = species_cache.get(genere.lower())
-        if species is None:
-            errors.append(S.ERR_CSV_SPECIES_NOT_FOUND.format(i, genere))
-            continue
-        if function != _DEFAULT_REGRESSION_FN:
-            errors.append(S.ERR_CSV_FUNCTION_INVALID.format(i, function))
-            continue
-        try:
-            a = Decimal(_normalise_number(row['a']))
-            b = Decimal(_normalise_number(row['b']))
-            r2 = Decimal(_normalise_number(row['r2']))
-            n = int(_normalise_number(row['n']))
-        except (InvalidOperation, ValueError, KeyError) as exc:
-            errors.append(S.ERR_CSV_VALUE_PARSE.format(
-                i, S.CSV_COL_A, str(exc),
-            ))
-            continue
-        out.append({
-            FIELD_REGION_ID: region, 'species': species,
-            'function': function, 'a': a, 'b': b, 'r2': r2, 'n': n,
         })
     return out
 

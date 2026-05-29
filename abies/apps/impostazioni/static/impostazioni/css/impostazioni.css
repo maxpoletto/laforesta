@@ -11,3 +11,22 @@
   font-size: 0.85rem;
   margin-left: auto;
 }
+
+.hypso-description {
+  font-size: 0.9rem;
+  margin: 0 0 8px;
+}
+
+.hypso-toolbar {
+  display: flex;
+  gap: 8px;
+}
+
+.hypso-compute {
+  margin-top: 16px;
+}
+
+.hypso-compute select {
+  width: 100%;
+  max-width: 400px;
+}

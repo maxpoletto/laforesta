@@ -132,7 +132,14 @@ FIELD_H_MEASURED            = 'h_measured'
 FIELD_ACC_M                 = 'acc_m'
 FIELD_FUSTAIA_FILE          = 'fustaia_file'
 FIELD_CEDUO_FILE            = 'ceduo_file'
-FIELD_REGRESSION_FILE       = 'regression_file'
+FIELD_MIN_N                 = 'min_n'
+FIELD_SURVEY_IDS            = 'survey_ids'
+FIELD_SOURCE                = 'source'
+FIELD_CREATED_AT            = 'created_at'
+FIELD_SURVEYS               = 'surveys'
+
+# Digest filesystem identifiers (the digest file is `<name>.json.gz`).
+DIGEST_HYPSO_PARAMS = 'hypso_params'
 
 
 _TRUTHY = (True, 1, '1', 'true', 'on')

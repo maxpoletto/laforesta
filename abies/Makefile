@@ -32,6 +32,7 @@ import-data:
 	$(MANAGE) import_sampled_trees $(DATA_DIR)
 	$(MANAGE) import_pai $(DATA_DIR)
 	$(MANAGE) import_calendar $(DATA_DIR)
+	$(MANAGE) import_hypso_params $(DATA_DIR)
 
 geo:
 	mkdir -p data/geo

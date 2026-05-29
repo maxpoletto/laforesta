@@ -3,7 +3,6 @@
 Covers:
 - generate_harvest_plans / build_harvest_plan_record
 - generate_harvest_plan_items / build_harvest_plan_item_record
-- generate_tree_height_regressions / build_tree_height_regression_record
 - generate_mark_trees_for_item / build_tree_mark_record
 - generate_prelievi Cantiere column
 - build_<digest>_record == generator row shape contract
@@ -23,17 +22,15 @@ from apps.base.digests import (
     build_harvest_plan_item_record,
     build_harvest_plan_record,
     build_harvest_record,
-    build_tree_height_regression_record,
     build_tree_mark_record,
     generate_harvest_plan_items,
     generate_harvest_plans,
     generate_mark_trees_for_item,
     generate_prelievi,
-    generate_tree_height_regressions,
 )
 from apps.base.models import (
     Eclass, HarvestPlan, HarvestPlanItem, HarvestPlanItemState,
-    Parcel, Tree, TreeHeightRegression, TreeMark,
+    Parcel, Tree, TreeMark,
 )
 from apps.prelievi.models import Harvest
 from config import strings as S
@@ -255,50 +252,6 @@ class TestGenerateHarvestPlanItems:
                 if r[data[COLUMNS].index(ROW_ID)] == item.id
             )
             assert built == gen_row
-
-
-# ---------------------------------------------------------------------------
-# tree_height_regressions digest
-# ---------------------------------------------------------------------------
-
-class TestGenerateTreeHeightRegressions:
-    def test_output(self, plan, regions, species, tmp_path, settings):
-        settings.DIGEST_DIR = tmp_path
-        thr = TreeHeightRegression.objects.create(
-            harvest_plan=plan, region=regions[0], species=species[0],
-            function='ln', a=Decimal('5.1234'), b=Decimal('-3.4500'),
-            r2=Decimal('0.8500'), n=42,
-        )
-        generate_tree_height_regressions()
-        data = _load(tmp_path / 'tree_height_regressions.json.gz')
-
-        cols = data[COLUMNS]
-        assert S.COL_FUNCTION in cols
-        assert S.COL_A in cols
-        assert S.COL_N_REGRESSION in cols
-        row = data[ROWS][0]
-        assert row[cols.index(ROW_ID)] == thr.id
-        assert row[cols.index(S.COL_HARVEST_PLAN)] == plan.id
-        assert row[cols.index(S.COL_COMPRESA)] == 'Capistrano'
-        assert row[cols.index(S.COL_SPECIES)] == 'Abete'
-        assert row[cols.index(S.COL_FUNCTION)] == 'ln'
-        assert row[cols.index(S.COL_A)] == 5.1234
-        assert row[cols.index(S.COL_B)] == -3.45
-        assert row[cols.index(S.COL_N_REGRESSION)] == 42
-
-    def test_build_record_matches_generator(self, plan, regions, species,
-                                            tmp_path, settings):
-        settings.DIGEST_DIR = tmp_path
-        thr = TreeHeightRegression.objects.create(
-            harvest_plan=plan, region=regions[1], species=species[1],
-            function='ln', a=Decimal('4.0'), b=Decimal('-2.0'),
-            r2=Decimal('0.9'), n=20,
-        )
-        generate_tree_height_regressions()
-        data = _load(tmp_path / 'tree_height_regressions.json.gz')
-        full = (TreeHeightRegression.objects
-                .select_related('region', 'species').get(pk=thr.pk))
-        assert build_tree_height_regression_record(full) == data[ROWS][0]
 
 
 # ---------------------------------------------------------------------------

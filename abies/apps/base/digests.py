@@ -24,9 +24,9 @@ from django.utils.http import http_date, parse_http_date_safe
 from apps.base.models import DigestStatus, render_flag_note
 from config import strings as S
 from config.constants import (
-    FIELD_FIRST_DATE, FIELD_LAST_DATE, FIELD_NUMBER, FIELD_SAMPLE_AREA_ID,
-    FIELD_SHOOT, FIELD_SORT_ORDER, FIELD_SPECIES, FIELD_SPECIES_ID,
-    FIELD_SURVEY_ID, FIELD_VOLUME_M3, ROW_ID, VERSION,
+    DIGEST_HYPSO_PARAMS, FIELD_FIRST_DATE, FIELD_LAST_DATE, FIELD_NUMBER,
+    FIELD_SAMPLE_AREA_ID, FIELD_SHOOT, FIELD_SORT_ORDER, FIELD_SPECIES,
+    FIELD_SPECIES_ID, FIELD_SURVEY_ID, FIELD_VOLUME_M3, ROW_ID, VERSION,
 )
 
 
@@ -841,39 +841,53 @@ def generate_harvest_plan_items() -> None:
     print(f'harvest_plan_items.json.gz: {len(rows)} rows')
 
 
-TREE_HEIGHT_REGRESSION_COLUMNS = [
-    ROW_ID, S.COL_HARVEST_PLAN, S.COL_COMPRESA, S.COL_SPECIES,
-    S.COL_FUNCTION, S.COL_A, S.COL_B, S.COL_R2, S.COL_N_REGRESSION,
+HYPSO_PARAM_COLUMNS = [
+    ROW_ID, S.COL_COMPRESA, S.COL_SPECIES, S.COL_FUNCTION,
+    S.COL_A, S.COL_B, S.COL_N_REGRESSION, S.COL_R2,
 ]
 
 
-def build_tree_height_regression_record(thr) -> list:
-    """Build one row of the `tree_height_regressions` digest."""
-    return [
-        thr.id, thr.harvest_plan_id,
-        thr.region.name, thr.species.common_name,
-        thr.function, float(thr.a), float(thr.b),
-        float(thr.r2), thr.n,
-    ]
+def hypso_param_row(row_id, region_name, species_name, func, a, b, n, r2) -> list:
+    """The `hypso_params` row shape (note: n before r2).
 
-
-def generate_tree_height_regressions() -> None:
-    """Per-(plan, region, species) ipsometric regression coefficients.
-
-    Consumed JS-side by the Nuovo albero martellato modal to auto-fill
-    `h_m` from `d_cm`.  Filtered client-side by active plan.
+    Shared by the digest generator and the compute-candidate preview so the
+    two never drift; `id` is None for an unsaved candidate row.
     """
-    from apps.base.models import TreeHeightRegression
+    return [row_id, region_name, species_name, func,
+            float(a), float(b), n, float(r2)]
 
-    qs = (TreeHeightRegression.objects
-          .select_related('region', 'species')
-          .order_by('harvest_plan_id', 'region__name', 'species__common_name'))
-    rows = [build_tree_height_regression_record(thr) for thr in qs]
-    _write_gzip_json(
-        {'columns': TREE_HEIGHT_REGRESSION_COLUMNS, 'rows': rows},
-        _dest('tree_height_regressions'),
+
+def build_hypso_param_record(p) -> list:
+    """Build one row of the `hypso_params` digest from a HypsoParam."""
+    return hypso_param_row(
+        p.id, p.region.name, p.species.common_name, p.func,
+        p.a, p.b, p.n, p.r2,
     )
-    print(f'tree_height_regressions.json.gz: {len(rows)} rows')
+
+
+def generate_hypso_params() -> None:
+    """The active ipsometric parameter set's (region, species) coefficients.
+
+    Consumed by the Impostazioni settings table and, JS-side, by the Nuovo
+    albero martellato modal to auto-fill `h_m` from `d_cm`.  Only the active
+    set (superseded_at IS NULL) is served; empty if there is none.
+    """
+    from apps.base.models import HypsoParam, HypsoParamSet
+
+    active = HypsoParamSet.objects.active().first()
+    if active is None:
+        rows = []
+    else:
+        qs = (HypsoParam.objects
+              .filter(param_set=active)
+              .select_related('region', 'species')
+              .order_by('region__name', 'species__common_name'))
+        rows = [build_hypso_param_record(p) for p in qs]
+    _write_gzip_json(
+        {'columns': HYPSO_PARAM_COLUMNS, 'rows': rows},
+        _dest(DIGEST_HYPSO_PARAMS),
+    )
+    print(f'{DIGEST_HYPSO_PARAMS}.json.gz: {len(rows)} rows')
 
 
 MARK_TREE_COLUMNS = [ROW_ID, VERSION, S.COL_DATE, S.COL_NUMERO,
@@ -937,7 +951,7 @@ _GENERATORS: dict[str, callable] = {
     'samples': generate_samples,
     'harvest_plans': generate_harvest_plans,
     'harvest_plan_items': generate_harvest_plan_items,
-    'tree_height_regressions': generate_tree_height_regressions,
+    DIGEST_HYPSO_PARAMS: generate_hypso_params,
 }
 
 

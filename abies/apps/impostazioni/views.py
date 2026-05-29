@@ -9,22 +9,30 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.template.loader import render_to_string
 from django.views.decorators.http import require_POST
 
+from apps.base import hypsometry
 from apps.base.auth import require_admin, require_writer
-from apps.base.digests import mark_stale
+from apps.base.digests import (
+    HYPSO_PARAM_COLUMNS, hypso_param_row, mark_stale, serve_digest,
+)
 from apps.base.middleware import save_nonce
-from apps.base.models import Crew, LoginMethod, Role, Species, Tractor, User
+from apps.base.models import (
+    Crew, HYPSO_FUNC_LN, HypsoParam, HypsoParamSource, LoginMethod, Role,
+    Species, Tractor, User,
+)
 from config import strings as S
 from config.constants import (
-    COLUMNS, FIELD_ACTIVE, FIELD_COMMON_NAME, FIELD_DENSITY, FIELD_EMAIL,
-    FIELD_FIRST_NAME, FIELD_IS_ACTIVE, FIELD_LAST_NAME, FIELD_LATIN_NAME,
-    FIELD_LOGIN_METHOD, FIELD_MANUFACTURER, FIELD_MODEL, FIELD_NAME,
-    FIELD_NONCE, FIELD_NOTES, FIELD_PASSWORD1, FIELD_PASSWORD2, FIELD_ROLE,
-    FIELD_SPECIES, FIELD_USERNAME, FIELD_YEAR, HTML, MESSAGE, RECORD, ROWS,
-    ROW_ID, STATUS, STATUS_CONFLICT, STATUS_VALIDATION_ERROR, VERSION,
+    COLUMNS, DIGEST_HYPSO_PARAMS, FIELD_ACTIVE, FIELD_COMMON_NAME,
+    FIELD_CREATED_AT, FIELD_DENSITY, FIELD_EMAIL, FIELD_FILE, FIELD_FIRST_NAME,
+    FIELD_IS_ACTIVE, FIELD_LAST_NAME, FIELD_LATIN_NAME, FIELD_LOGIN_METHOD,
+    FIELD_MANUFACTURER, FIELD_MIN_N, FIELD_MODEL, FIELD_NAME, FIELD_NONCE,
+    FIELD_NOTES, FIELD_PASSWORD1, FIELD_PASSWORD2, FIELD_ROLE, FIELD_SOURCE,
+    FIELD_SPECIES, FIELD_SURVEY_IDS, FIELD_SURVEYS, FIELD_USERNAME, FIELD_YEAR,
+    HTML, MESSAGE, RECORD, ROWS, ROW_ID, STATUS, STATUS_CONFLICT,
+    STATUS_VALIDATION_ERROR, VERSION,
 )
 
 
@@ -299,6 +307,159 @@ def users_save(request):
     if nonce:
         save_nonce(nonce, request.user, response_data)
     return JsonResponse(response_data)
+
+
+# ---------------------------------------------------------------------------
+# Hypsometric parameters (writer+).  Managed as a whole set, not row-by-row:
+# the table is read-only; compute / import / clear replace the active set,
+# archiving the prior one (see docs/hypsometry.md).
+# ---------------------------------------------------------------------------
+
+@login_required
+def hypso_params_data(request):
+    # Any authenticated role: the Piano di taglio mark form also reads this
+    # digest to auto-fill h.  Mutating endpoints below stay writer-only.
+    return serve_digest(request, DIGEST_HYPSO_PARAMS)
+
+
+@login_required
+@require_writer
+def hypso_params_active_set(request):
+    """Active-set metadata for the description panel (source=None if none)."""
+    s = hypsometry.active_set()
+    if s is None:
+        return JsonResponse({FIELD_SOURCE: None})
+    return JsonResponse({
+        FIELD_SOURCE: s.source,
+        FIELD_CREATED_AT: s.created_at.date().isoformat(),
+        FIELD_MIN_N: s.min_n,
+        FIELD_SURVEYS: list(
+            s.surveys.order_by(FIELD_NAME).values_list(FIELD_NAME, flat=True)
+        ),
+    })
+
+
+def _candidate_payload(rows):
+    return {COLUMNS: HYPSO_PARAM_COLUMNS, ROWS: [
+        hypso_param_row(None, r.region.name, r.species.common_name,
+                        HYPSO_FUNC_LN, r.a, r.b, r.n, r.r2)
+        for r in rows
+    ]}
+
+
+def _parse_compute_body(body):
+    """Validate {min_n, survey_ids}; returns (survey_ids, min_n, error)."""
+    raw_ids = body.get(FIELD_SURVEY_IDS)
+    if not isinstance(raw_ids, list) or not raw_ids:
+        return None, None, _error(S.ERR_HYPSO_SURVEYS_REQUIRED)
+    try:
+        survey_ids = [int(s) for s in raw_ids]
+        min_n = int(body.get(FIELD_MIN_N))
+    except (TypeError, ValueError):
+        return None, None, _error(S.ERR_MIN_N_INVALID)
+    if min_n < 1:
+        return None, None, _error(S.ERR_MIN_N_INVALID)
+    return survey_ids, min_n, None
+
+
+@login_required
+@require_writer
+@require_POST
+def hypso_params_compute(request):
+    survey_ids, min_n, err = _parse_compute_body(json.loads(request.body))
+    if err:
+        return err
+    rows = hypsometry.compute_params(survey_ids, min_n)
+    return JsonResponse(_candidate_payload(rows))
+
+
+@login_required
+@require_writer
+@require_POST
+def hypso_params_accept(request):
+    survey_ids, min_n, err = _parse_compute_body(json.loads(request.body))
+    if err:
+        return err
+    rows = hypsometry.compute_params(survey_ids, min_n)
+    hypsometry.replace_active_set(
+        rows, source=HypsoParamSource.COMPUTED, min_n=min_n,
+        survey_ids=survey_ids,
+    )
+    mark_stale(DIGEST_HYPSO_PARAMS, 'audit')
+    return JsonResponse({MESSAGE: S.HYPSO_SAVED})
+
+
+@login_required
+@require_writer
+@require_POST
+def hypso_params_import(request):
+    file = request.FILES.get(FIELD_FILE)
+    if file is None:
+        return _error(S.ERR_CSV_FILE_REQUIRED)
+    try:
+        text = file.read().decode('utf-8-sig')
+    except UnicodeDecodeError:
+        return _error(S.ERR_CSV_NOT_UTF8)
+    rows, errors = hypsometry.parse_param_csv(text)
+    if errors:
+        return _error('\n'.join(errors))
+    if not rows:
+        return _error(S.ERR_CSV_EMPTY)
+    hypsometry.replace_active_set(
+        rows, source=HypsoParamSource.IMPORTED, min_n=None, survey_ids=[],
+    )
+    mark_stale(DIGEST_HYPSO_PARAMS, 'audit')
+    return JsonResponse({MESSAGE: S.HYPSO_SAVED})
+
+
+@login_required
+@require_writer
+def hypso_params_export(request):
+    s = hypsometry.active_set()
+    params = []
+    if s is not None:
+        params = (HypsoParam.objects
+                  .filter(param_set=s)
+                  .select_related('region', 'species')
+                  .order_by('region__name', 'species__common_name'))
+    return _hypso_export_response(params)
+
+
+@login_required
+@require_writer
+@require_POST
+def hypso_params_clear(request):
+    hypsometry.clear_active_set()
+    mark_stale(DIGEST_HYPSO_PARAMS, 'audit')
+    return JsonResponse({MESSAGE: S.HYPSO_CLEARED})
+
+
+def _hypso_export_response(params):
+    """Stream the active set as CSV (lowercase header, '.'-decimal).
+
+    Column order matches the settings table (..., a, b, n, r2); consumers
+    read by header name, so the order is for human readability only.
+    """
+    import csv as csv_mod
+    import io
+
+    buf = io.StringIO()
+    writer = csv_mod.writer(buf)
+    writer.writerow([
+        S.CSV_COL_COMPRESA.lower(), S.CSV_COL_GENERE.lower(),
+        S.CSV_COL_FUNZIONE, S.CSV_COL_A, S.CSV_COL_B,
+        S.CSV_COL_N_REGRESSION, S.CSV_COL_R2,
+    ])
+    for p in params:
+        writer.writerow([
+            p.region.name, p.species.common_name, p.func,
+            float(p.a), float(p.b), p.n, float(p.r2),
+        ])
+    resp = HttpResponse(buf.getvalue(), content_type='text/csv; charset=utf-8')
+    resp['Content-Disposition'] = (
+        f'attachment; filename="{S.CSV_FILE_REGRESSION}"'
+    )
+    return resp
 
 
 # ---------------------------------------------------------------------------
