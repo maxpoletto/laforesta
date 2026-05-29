@@ -1175,7 +1175,7 @@ async function renderItemView(itemId) {
     if (state === S.STATE_PLANNED || state === S.STATE_MARKED) {
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.className = 'btn btn-primary';
+      btn.className = 'btn btn-save';
       btn.textContent = S.LABEL_OPEN_CANTIERE;
       btn.addEventListener('click', () => showTransitionForm(itemId, true));
       btnRow.appendChild(btn);
@@ -1184,7 +1184,7 @@ async function renderItemView(itemId) {
     if (state === S.STATE_OPEN || state === S.STATE_HARVESTING) {
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.className = 'btn btn-primary';
+      btn.className = 'btn btn-save';
       btn.textContent = S.LABEL_CLOSE_CANTIERE;
       btn.addEventListener('click', () => showTransitionForm(itemId, false));
       btnRow.appendChild(btn);
@@ -1340,14 +1340,14 @@ async function appendItemMarkTreesSection(card, itemId, state) {
 
     const addBtn = document.createElement('button');
     addBtn.type = 'button';
-    addBtn.className = 'btn';
+    addBtn.className = 'btn btn-create';
     addBtn.textContent = S.NEW_MARK_LABEL;
     addBtn.addEventListener('click', () => showNewMarkForm(itemId));
     actions.appendChild(addBtn);
 
     const importBtn = document.createElement('button');
     importBtn.type = 'button';
-    importBtn.className = 'btn';
+    importBtn.className = 'btn btn-import';
     importBtn.textContent = S.IMPORT_MARKS_LABEL;
     importBtn.addEventListener('click', () => showImportMarksForm(itemId));
     actions.appendChild(importBtn);

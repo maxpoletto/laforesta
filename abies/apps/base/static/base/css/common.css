@@ -193,6 +193,10 @@ body {
 
 /* --- Buttons -------------------------------------------------------------- */
 
+/* The base button IS the neutral grey: cancel, dismiss, and auxiliary
+ * actions (Usa GPS, recompute, clear) use a bare `.btn`.  Affirmative and
+ * destructive actions add an intent modifier below — the colour is decided
+ * here, once, by what the button DOES; never pick a colour by hand. */
 .btn {
   display: inline-block;
   padding: 0.5rem 1.2rem;
@@ -203,43 +207,42 @@ body {
   font-weight: 500;
   cursor: pointer;
   text-decoration: none;
-}
-
-.btn-primary {
-  background: #006400;
-  color: #fff;
-}
-
-.btn-primary:hover { background: #228B22; }
-
-.btn-secondary {
   background: #e8e8e8;
   color: #333;
 }
+.btn:not(:disabled):hover { background: #d0d0d0; }
 
-.btn-secondary:hover { background: #d0d0d0; }
+/* Affirmative — green (create a new thing / commit a form / import data). */
+.btn-create,
+.btn-save,
+.btn-import {
+  background: #006400;
+  color: #fff;
+}
+.btn-create:not(:disabled):hover,
+.btn-save:not(:disabled):hover,
+.btn-import:not(:disabled):hover { background: #228B22; }
 
-.btn-danger {
+/* Export — neutral grey like the base, but named so it can never drift
+ * back to an affirmative colour. */
+.btn-export { background: #e8e8e8; color: #333; }
+.btn-export:not(:disabled):hover { background: #d0d0d0; }
+
+/* Destructive — red (delete a record). */
+.btn-delete {
   background: #c00;
   color: #fff;
 }
+.btn-delete:not(:disabled):hover { background: #a00; }
 
-.btn-danger:hover { background: #a00; }
-
-/* Disabled buttons (e.g., "Elimina" on an area that has Samples).
- * Greyed + not-allowed cursor; suppress hover-darkening on the
- * primary/secondary/danger variants below. */
+/* Disabled (e.g., "Elimina" on an area that has Samples): greyed +
+ * not-allowed; the :not(:disabled):hover rules above leave the colour
+ * unchanged on hover. */
 .btn:disabled,
 .btn[disabled] {
   opacity: 0.4;
   cursor: not-allowed;
 }
-.btn-primary:disabled:hover,
-.btn-primary[disabled]:hover { background: #006400; }
-.btn-secondary:disabled:hover,
-.btn-secondary[disabled]:hover { background: #e8e8e8; }
-.btn-danger:disabled:hover,
-.btn-danger[disabled]:hover { background: #c00; }
 
 /* --- Form elements -------------------------------------------------------- */
 
@@ -470,10 +473,11 @@ input:focus, select:focus, textarea:focus {
 .mt-2 { margin-top: 1rem; }
 .mb-1 { margin-bottom: 0.5rem; }
 .mb-2 { margin-bottom: 1rem; }
+.ms-auto { margin-left: auto; }  /* push a flex item (and those after it) right */
 
 /* ========================================================================== */
 /* TableWrapper — portable section; pairs with base/js/table.js.              */
-/* Depends on SortableTable (vendor) and host-provided .btn / .btn-primary.   */
+/* Depends on SortableTable (vendor) and host-provided .btn / .btn-create.    */
 /* Theming is driven by --st-primary-color; action-icon hover color is        */
 /* currently hard-coded but should move to a custom CSS property eventually.  */
 /* ========================================================================== */

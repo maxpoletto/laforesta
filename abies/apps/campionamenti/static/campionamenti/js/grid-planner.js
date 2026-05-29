@@ -107,7 +107,7 @@ export class GridPlanner {
 
     const planBtn = document.createElement('button');
     planBtn.type = 'button';
-    planBtn.className = 'btn btn-secondary';
+    planBtn.className = 'btn';
     planBtn.textContent = S.ACTION_PLAN;
     planBtn.addEventListener('click', () => this._plan());
     h.appendChild(planBtn);
@@ -144,7 +144,7 @@ export class GridPlanner {
 
     this.submitBtn = document.createElement('button');
     this.submitBtn.type = 'button';
-    this.submitBtn.className = 'btn btn-primary';
+    this.submitBtn.className = 'btn btn-save';
     this.submitBtn.textContent = S.ACTION_CREATE;
     this.submitBtn.disabled = true;
     this.submitBtn.addEventListener('click', () => this._save());

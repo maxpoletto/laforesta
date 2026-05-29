@@ -71,12 +71,12 @@ body {
   margin-top: 0.5rem;
 }
 
-.btn-primary {
+.btn-save {
   background: #006400;
   color: #fff;
 }
 
-.btn-primary:hover { background: #228B22; }
+.btn-save:hover { background: #228B22; }
 
 .btn-ms {
   background: #fff;

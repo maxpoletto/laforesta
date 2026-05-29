@@ -126,7 +126,7 @@
         <div class="pct-row">
           <label>{{ name }}</label>
           <input type="number" name="sp_{{ id }}" min="0" max="100" value="{{ pct }}">
-          <button type="button" class="btn btn-secondary btn-100"
+          <button type="button" class="btn btn-100"
                   data-group="sp" data-target="sp_{{ id }}">100%</button>
         </div>
         {% endfor %}
@@ -137,7 +137,7 @@
         <div class="pct-row">
           <label>{{ name }}</label>
           <input type="number" name="tr_{{ id }}" min="0" max="100" value="{{ pct }}">
-          <button type="button" class="btn btn-secondary btn-100"
+          <button type="button" class="btn btn-100"
                   data-group="tr" data-target="tr_{{ id }}">100%</button>
         </div>
         {% endfor %}
@@ -146,8 +146,8 @@
 
     <div class="form-actions">
       <button type="button" class="btn" data-action="cancel">Annulla</button>
-      <button type="submit" class="btn btn-primary">Salva</button>
-      <button type="submit" class="btn btn-primary" data-action="save-and-add">Salva e continua</button>
+      <button type="submit" class="btn btn-save">Salva</button>
+      <button type="submit" class="btn btn-save" data-action="save-and-add">Salva e continua</button>
     </div>
   </form>
 </div>

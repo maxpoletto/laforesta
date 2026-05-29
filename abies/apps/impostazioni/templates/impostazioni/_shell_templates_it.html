@@ -16,7 +16,7 @@ S (string constants) provided by the shell's render context.
         <input type="password" id="id_pw2" name="password2" required>
       </div>
       <div class="form-actions">
-        <button type="submit" class="btn btn-primary">{{ S.SAVE }}</button>
+        <button type="submit" class="btn btn-save">{{ S.SAVE }}</button>
       </div>
     </form>
     <p class="mt-1" data-role="password-msg"></p>
@@ -39,13 +39,13 @@ S (string constants) provided by the shell's render context.
 <template id="tmpl-hypso-section">
   {% include "base/_partials/_collapsible_header.html" with section="" title="Parametri ipsometrici" %}
   <div class="collapsible-body">
-    <p class="hypso-description" data-target="description"></p>
-    <div class="table-toolbar hypso-toolbar">
-      <button type="button" class="btn" data-action="export">{{ S.EXPORT_CSV }}</button>
-      <button type="button" class="btn" data-action="import">{{ S.IMPORT_LABEL }}</button>
+    <div class="table-toolbar">
+      <button type="button" class="btn btn-import ms-auto" data-action="import">{{ S.IMPORT_LABEL }}</button>
+      <button type="button" class="btn btn-export" data-action="export">{{ S.EXPORT_CSV }}</button>
       <button type="button" class="btn" data-action="clear">{{ S.ACTION_DELETE }}</button>
       <input type="file" accept=".csv" data-role="import-file" hidden>
     </div>
+    <p class="hypso-description" data-target="description"></p>
     <div data-target="table-host"></div>
 
     <div class="hypso-compute">
@@ -60,7 +60,7 @@ S (string constants) provided by the shell's render context.
         <label for="hypso-surveys">Rilevamenti</label>
         <select id="hypso-surveys" multiple size="6" data-role="surveys"></select>
       </div>
-      <button type="button" class="btn btn-primary" data-action="compute">Calcola</button>
+      <button type="button" class="btn btn-save" data-action="compute">Calcola</button>
     </div>
   </div>
 </template>
@@ -71,7 +71,7 @@ S (string constants) provided by the shell's render context.
     <div data-target="candidate-table"></div>
     <div class="form-actions">
       <button type="button" class="btn" data-action="reject">Rifiuta</button>
-      <button type="button" class="btn btn-primary" data-action="accept">Accetta</button>
+      <button type="button" class="btn btn-save" data-action="accept">Accetta</button>
     </div>
   </div>
 </template>

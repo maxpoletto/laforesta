@@ -15,10 +15,10 @@ render context.
       {% include "base/_partials/_edit_delete_icons.html" with edit_action="edit-plan" delete_action="delete-plan" %}
     </div>
     <div class="pdt-header-right">
-      <button type="button" class="btn"
+      <button type="button" class="btn btn-export"
               data-action="export-plan">{{ S.EXPORT_CSV }}</button>
       {% if user.can_modify %}
-      <button type="button" class="btn btn-primary"
+      <button type="button" class="btn btn-create"
               data-action="new-plan">+ Nuovo piano</button>
       {% endif %}
     </div>
@@ -37,21 +37,21 @@ render context.
       <label class="pdt-search-label" for="pdt-search-f">{{ S.FILTER_LABEL }}</label>
       <input type="text" class="table-search" id="pdt-search-f"
              placeholder="{{ S.SEARCH_PLACEHOLDER }}">
-      <button type="button" class="btn btn-primary pdt-csv-btn"
+      <button type="button" class="btn btn-export pdt-csv-btn"
               data-action="export-section-csv">{{ S.EXPORT_CSV }}</button>
     </div>
     <div class="pdt-table-host" data-target="table-f"></div>
     {% if user.can_modify %}
     <div class="action-add" data-target="add-f">
-      <button type="button" class="btn btn-primary btn-add"
+      <button type="button" class="btn btn-create btn-add"
               data-action="add-item-f">+ Aggiungi</button>
     </div>
     <div class="pdt-empty-state" data-target="empty-f" hidden>
       <div class="pdt-empty-state-message">Nessun intervento.</div>
       <div class="pdt-empty-state-actions">
-        <button type="button" class="btn btn-primary"
+        <button type="button" class="btn btn-import"
                 data-action="import-calendar-f">Importa calendario da CSV</button>
-        <button type="button" class="btn"
+        <button type="button" class="btn btn-create"
                 data-action="add-manual-f">+ Aggiungi manualmente</button>
       </div>
     </div>
@@ -65,21 +65,21 @@ render context.
       <label class="pdt-search-label" for="pdt-search-c">{{ S.FILTER_LABEL }}</label>
       <input type="text" class="table-search" id="pdt-search-c"
              placeholder="{{ S.SEARCH_PLACEHOLDER }}">
-      <button type="button" class="btn btn-primary pdt-csv-btn"
+      <button type="button" class="btn btn-export pdt-csv-btn"
               data-action="export-section-csv">{{ S.EXPORT_CSV }}</button>
     </div>
     <div class="pdt-table-host" data-target="table-c"></div>
     {% if user.can_modify %}
     <div class="action-add" data-target="add-c">
-      <button type="button" class="btn btn-primary btn-add"
+      <button type="button" class="btn btn-create btn-add"
               data-action="add-item-c">+ Aggiungi</button>
     </div>
     <div class="pdt-empty-state" data-target="empty-c" hidden>
       <div class="pdt-empty-state-message">Nessun intervento.</div>
       <div class="pdt-empty-state-actions">
-        <button type="button" class="btn btn-primary"
+        <button type="button" class="btn btn-import"
                 data-action="import-calendar-c">Importa calendario da CSV</button>
-        <button type="button" class="btn"
+        <button type="button" class="btn btn-create"
                 data-action="add-manual-c">+ Aggiungi manualmente</button>
       </div>
     </div>
@@ -224,7 +224,7 @@ render context.
         {% endif %}
       </div>
       <div class="pdt-item-header-actions">
-        <button type="button" class="btn"
+        <button type="button" class="btn btn-export"
                 data-action="export-item">{{ S.EXPORT_CSV }}</button>
         <button type="button" class="pdt-item-close"
                 title="{{ S.DISMISS }}" data-action="close-item">×</button>

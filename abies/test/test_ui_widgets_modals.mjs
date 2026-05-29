@@ -132,7 +132,7 @@ function buildConfirmTemplate() {
   cancel.dataset.action = 'cancel';
   cancel.textContent = 'Annulla';
   const confirm = new MockElement('button');
-  confirm.className = 'btn btn-primary';
+  confirm.className = 'btn btn-save';
   confirm.dataset.action = 'confirm';
   actions.append(cancel, confirm);
   frag.append(p, actions);
@@ -155,11 +155,11 @@ function buildCascadeTemplate() {
   cancel.className = 'btn';
   cancel.dataset.action = 'cancel';
   const exportBtn = new MockElement('button');
-  exportBtn.className = 'btn btn-primary';
+  exportBtn.className = 'btn btn-export';
   exportBtn.dataset.action = 'export';
   exportBtn.textContent = 'Esporta CSV';
   const delBtn = new MockElement('button');
-  delBtn.className = 'btn btn-primary cascade-delete-btn';
+  delBtn.className = 'btn btn-delete cascade-delete-btn';
   delBtn.dataset.action = 'delete';
   delBtn.disabled = true;
   actions.append(cancel, exportBtn, delBtn);

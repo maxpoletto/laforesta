@@ -46,7 +46,7 @@ export function showError(message) {
   frag.appendChild(p);
 
   const btn = document.createElement('button');
-  btn.className = 'btn btn-primary';
+  btn.className = 'btn';
   btn.textContent = S.DISMISS;
   btn.addEventListener('click', dismiss);
   frag.appendChild(btn);

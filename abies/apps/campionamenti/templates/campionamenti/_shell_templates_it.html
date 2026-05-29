@@ -17,10 +17,10 @@ render context.
         {% include "base/_partials/_edit_delete_icons.html" with edit_action="edit-grid" delete_action="delete-grid" %}
       </div>
       <div class="campionamenti-section-right">
-        <button type="button" class="btn"
+        <button type="button" class="btn btn-export"
                 data-action="export-grid-csv">{{ S.EXPORT_CSV }}</button>
         {% if user.can_modify %}
-        <button type="button" class="btn btn-primary"
+        <button type="button" class="btn btn-create"
                 data-action="new-grid">Nuova griglia</button>
         {% endif %}
       </div>
@@ -30,14 +30,14 @@ render context.
     {% if user.can_modify %}
     <div class="form-help">
       Clicca sulla mappa per aggiungere un'area, o su un'area per modificarla.</div>
-    <button type="button" class="btn btn-primary"
+    <button type="button" class="btn btn-create"
             data-action="add-area">+ Aggiungi area</button>
     {% endif %}
     <div class="campionamenti-empty" data-target="grid-empty" hidden>
       Nessuna griglia.  Premi "Nuova griglia" per crearne una.
       {% if user.can_modify %}
       <div style="text-align:center;margin-top:1rem">
-        <button type="button" class="btn btn-primary"
+        <button type="button" class="btn btn-create"
                 data-action="new-grid">Nuova griglia</button>
       </div>
       {% endif %}
@@ -56,10 +56,10 @@ render context.
         {% include "base/_partials/_edit_delete_icons.html" with edit_action="edit-survey" delete_action="delete-survey" %}
       </div>
       <div class="campionamenti-section-right">
-        <button type="button" class="btn"
+        <button type="button" class="btn btn-export"
                 data-action="export-survey-csv">{{ S.EXPORT_CSV }}</button>
         {% if user.can_modify %}
-        <button type="button" class="btn btn-primary"
+        <button type="button" class="btn btn-create"
                 data-action="new-survey">Nuovo rilevamento</button>
         {% endif %}
       </div>
@@ -82,9 +82,9 @@ render context.
   <div class="form-actions">
     <button type="button" class="btn" data-action="cancel">{{ S.DISMISS }}</button>
     {% if user.can_modify %}
-    <button type="button" class="btn btn-primary"
+    <button type="button" class="btn btn-save"
             data-action="edit-area">{{ S.ACTION_EDIT }}</button>
-    <button type="button" class="btn btn-primary"
+    <button type="button" class="btn btn-delete"
             data-action="delete-area">{{ S.ACTION_DELETE }}</button>
     {% endif %}
   </div>

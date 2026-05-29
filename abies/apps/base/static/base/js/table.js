@@ -152,7 +152,7 @@ export class TableWrapper {
       const row = document.createElement('div');
       row.className = 'action-add';
       const btn = document.createElement('button');
-      btn.className = 'btn btn-primary btn-add';
+      btn.className = 'btn btn-create btn-add';
       btn.textContent = '+ ' + this.labels.add;
       btn.addEventListener('click', () => this.actions.onAdd());
       row.appendChild(btn);
@@ -181,7 +181,7 @@ export class TableWrapper {
     bar.appendChild(search);
 
     const csvBtn = document.createElement('button');
-    csvBtn.className = 'btn btn-primary table-csv-btn';
+    csvBtn.className = 'btn btn-export table-csv-btn';
     csvBtn.textContent = this.labels.exportCSV;
     csvBtn.addEventListener('click', () => this.exportCSV());
     bar.appendChild(csvBtn);

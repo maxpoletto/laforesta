@@ -32,7 +32,7 @@ export function mountUseLocationButton(latEl, lngEl, opts = {}) {
 
   const btn = document.createElement('button');
   btn.type = 'button';
-  btn.className = 'btn btn-secondary latlng-use-location';
+  btn.className = 'btn latlng-use-location';
   btn.textContent = S.USE_CURRENT_LOCATION;
   btn.addEventListener('click', () => {
     btn.disabled = true;

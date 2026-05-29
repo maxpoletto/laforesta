@@ -7,7 +7,7 @@ Rendered once inside the shell; never displayed directly.
   <p data-field="message"></p>
   <div class="form-actions">
     <button type="button" class="btn" data-action="cancel">{{ S.CANCEL }}</button>
-    <button type="button" class="btn btn-primary" data-action="confirm"></button>
+    <button type="button" class="btn btn-save" data-action="confirm"></button>
   </div>
 </template>
 
@@ -17,8 +17,8 @@ Rendered once inside the shell; never displayed directly.
   <p data-field="export-required"></p>
   <div class="form-actions">
     <button type="button" class="btn" data-action="cancel">{{ S.CANCEL }}</button>
-    <button type="button" class="btn btn-primary" data-action="export">{{ S.EXPORT_CSV }}</button>
-    <button type="button" class="btn btn-primary cascade-delete-btn"
+    <button type="button" class="btn btn-export" data-action="export">{{ S.EXPORT_CSV }}</button>
+    <button type="button" class="btn btn-delete cascade-delete-btn"
             data-action="delete" disabled>{{ S.ACTION_DELETE }}</button>
   </div>
 </template>
