@@ -866,7 +866,7 @@ def build_hypso_param_record(p) -> list:
 
 
 def generate_hypso_params() -> None:
-    """The active ipsometric parameter set's (region, species) coefficients.
+    """The active hypsometric parameter set's (region, species) coefficients.
 
     Consumed by the Impostazioni settings table and, JS-side, by the Nuovo
     albero martellato modal to auto-fill `h_m` from `d_cm`.  Only the active

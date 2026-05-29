@@ -49,10 +49,11 @@ When you add a new write endpoint, audit every `generate_*()` in
 the written table.  When you change a `generate_*()` to read a new table,
 audit every write endpoint that touches that table.  Tests under
 `TestDigestInvalidation` (`test/test_campionamenti_views.py`,
-`test/test_prelievi_views.py`, `test/test_piano_di_taglio_views.py`)
-lock the contract: each test performs a write and re-reads the affected
-digest via the public endpoint, asserting that materialized columns
-reflect the change.  Add equivalent tests for any new write/digest pair.
+`test/test_prelievi_views.py`, `test/test_piano_di_taglio_views.py`,
+`test/test_hypso_views.py`) lock the contract: each test performs a write and
+re-reads the affected digest via the public endpoint, asserting that
+materialized columns reflect the change.  Add equivalent tests for any new
+write/digest pair.
 
 Read path (conditional GET for a digest):
 1. Check stale flag for the requested digest (one PK lookup).

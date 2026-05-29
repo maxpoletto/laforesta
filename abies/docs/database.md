@@ -159,23 +159,6 @@ of either dataset should treat them as independent observations.
   harvest_detail_id:int) — PK is (harvest_plan_id, parcel_id)
   - Maps a harvest detail to a parcel within a plan.
 
-- tree_height_regression: (harvest_plan_id:int, region_id:int, species_id:int,
-  function:string, a:real, b:real, r2:real, n:int) — PK is (harvest_plan_id,
-  region_id, species_id)
-  - Per-(plan, region, species) ipsometric regression coefficients used to
-    auto-populate `h_m` in the mark entry form (see `piano-di-taglio.md`).
-    Each plan cycle re-fits these from fresh sample data, so they are scoped
-    to a plan rather than shared across plans.
-  - `function` is the regression family (currently always `"ln"` — i.e.,
-    `h = a × ln(D) + b`; see `LogarithmicRegression` in
-    `pdg-2026/pdg/computation.py`).
-  - `r2` and `n` (sample count) are stored for diagnostic display, not used
-    in computation.
-  - Imported alongside the harvest plan CSV under Impostazioni →
-    "Importa piano di taglio". A missing (region, species) entry is not an
-    error: the mark form simply leaves `h_m` blank for the operator to
-    enter manually (see `piano-di-taglio.md`).
-
 ## Operations on specific trees
 
 ### Surveys and samples
@@ -259,10 +242,10 @@ display totals.
     defaults to `max(number)+1`.
   - `date` is the day the mark was recorded.
   - `d_cm` and `h_m` indicate size at time of marking.
-  - `h_measured` records whether `h_m` came from a hypsometer measurement
-    in the field (true) or from the per-(plan, region, species) ipsometric
-    regression (false). During mark entry, `h_m` is auto-populated from the
-    regression (see `tree_height_regression` below) and the operator may
+  - `h_measured` records whether `h_m` came from a hypsometer measurement in
+    the field (true) or from the active hypsometric parameter set (false).
+    During mark entry, `h_m` is auto-populated from that set, keyed by (region,
+    species) (see "Hypsometric parameters" below), and the operator may
     override; saving an override sets `h_measured = true`.
   - `volume_m3` is computed from (d_cm, h_m, species) via Tabacchi equations
     at write time. `mass_q` is `volume_m3 × species.density`. Both are
@@ -364,3 +347,42 @@ Most of these are configurable in the Settings section.
 - product: (id:int, name:string)
   - Implements an extensible enum of harvested product types: (1: "Tronchi", 2:
     "Cippato", 3: "Ramaglia", 4: "Pertiche-Puntelli", 5: "Pertiche-Tronchi")
+
+## Hypsometric parameters
+
+Per-(region, species) hypsometric regression coefficients (`h = a·ln(D) + b`),
+used to auto-populate `h_m` in the mark-entry form and exported to Ipso. Global
+(not plan-scoped). The settings UI, compute/import flow, and behavior are
+documented in [`hypsometry.md`](hypsometry.md).
+
+- hypso_param_set: (id:int, source:string, min_n:int nullable,
+  superseded_at:datetime nullable)
+  - One set of parameters and the interval during which it was live.
+  - `source` is `computed` (fitted from surveys) or `imported` (from CSV).
+  - `min_n` is the minimum per-(region, species) sample count used when
+    computing (NULL for imported sets).
+  - The implicit `created_at` is when the set became active; `superseded_at`
+    is when it stopped. A NULL `superseded_at` marks the single currently
+    active set — at most one row has it NULL, upheld by the single write path
+    (compute / import / clear each close the current set before opening the
+    next, in one transaction). Superseded sets are retained, forming a
+    "which parameters were live when" log.
+  - Tracked by django-simple-history.
+
+- hypso_param: (id:int, param_set_id:int, region_id:int, species_id:int,
+  func:string, a:real, b:real, r2:real, n:int) — UNIQUE(param_set_id,
+  region_id, species_id)
+  - One (region, species) regression within a set. `param_set_id` →
+    hypso_param_set (ON DELETE CASCADE); `region_id` / `species_id` are
+    PROTECT.
+  - `func` is the regression family (currently always `"ln"`).
+  - `n` is the sample count for this fit; `r2` the coefficient of
+    determination (diagnostic display, not used in the D→h mapping).
+  - Immutable once written: a set is created whole and never edited row by
+    row, so these rows carry no per-row history — the retained set is the
+    record.
+
+- params_surveys: many-to-many (`hypso_param_set` ↔ `survey`)
+  - Provenance: the surveys whose samples fed a computed set (empty for
+    imported sets). Records "this set is based on this data"; it is not the
+    historical log.

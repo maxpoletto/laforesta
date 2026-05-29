@@ -567,7 +567,7 @@ class HypsoParamSetManager(models.Manager):
 
 
 class HypsoParamSet(TimestampedModel):
-    """One set of ipsometric regression parameters and its live interval.
+    """One set of hypsometric regression parameters and its live interval.
 
     At most one row has `superseded_at` NULL — the currently-active set.
     Replacing the parameters archives the prior set (stamps `superseded_at`)

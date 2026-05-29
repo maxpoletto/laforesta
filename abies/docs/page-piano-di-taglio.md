@@ -22,8 +22,8 @@ pulldown:
 
   On the far right: "Esporta CSV" and "+ Nuovo piano".
 
-  "Esporta CSV" produces a zip of three CSVs (`fustaia.csv`,
-  `ceduo.csv`, `equazioni_ipsometro.csv`). Column sets match the
+  "Esporta CSV" produces a zip of two CSVs (`fustaia.csv`,
+  `ceduo.csv`). Column sets match the
   per-section exports so rows paste cleanly between them. Italian
   locale (`;` separator, `,` decimal). Round-trip-compatible: the
   importer accepts both display names and legacy pdg-2026 names, and
@@ -65,13 +65,12 @@ with `year_start = year_end = current civil year`; the year range expands
 implicitly as CSV imports land or can be edited via the pencil modal.
 
 This deliberately does *not* import any CSVs: identity (the plan exists with
-a name) is decoupled from content (calendar entries, equations). Imports
-happen later via the pencil modal or the empty-state CTA in the calendar
-sections.
+a name) is decoupled from content (calendar entries). Imports happen later via
+the pencil modal or the empty-state CTA in the calendar sections.
 
 #### Modifica piano modal (pencil)
 
-A three-tab modal acting on the currently-selected plan:
+A two-tab modal acting on the currently-selected plan:
 
 - **Dettagli** — name, description, and year range, all editable.
 - **Importa calendario da CSV** — upload `piano.csv` or `ceduo.csv`
@@ -82,10 +81,6 @@ A three-tab modal acting on the currently-selected plan:
   the same file is therefore idempotent, and importing a revised CSV
   replaces the affected rows in place. See "Fustaia plan CSV" and
   "Ceduo plan CSV" below.
-- **Importa equazioni da CSV** — upload `equazioni_ipsometro.csv`.
-  Rows are upserted on `(region, species)` so re-importing an updated
-  regression file overwrites the prior coefficients without
-  duplication. See "Ipsometric regression CSV" below.
 
 ### High forest calendar section
 
@@ -128,9 +123,7 @@ panel:
 `Importa calendario CSV` opens the Modifica piano modal pre-focused on
 the matching import tab; `+ Aggiungi manualmente` opens the
 Add-harvest-plan-item modal. The panel disappears as soon as the first
-item lands, and the table + toolbar + `+ Aggiungi` come back. (Equation
-import is intentionally not surfaced here — equations are reached only
-via the pencil modal.)
+item lands, and the table + toolbar + `+ Aggiungi` come back.
 
 Clicking on a row (or its pencil icon) navigates to the full-page
 "view/edit harvest plan item" view (which surfaces marks/prelievi
@@ -306,10 +299,12 @@ Compresa / Particella prepopulated from the plan item. Fields:
 date, numero (defaults to max+1), operator, specie (pulldown),
 D (cm), h (m), lat/lng.
 
-**h auto-population:** `h = a × ln(D) + b` from the per-(plan, region,
-species) ipsometric regression (`tree_height_regression`). Field stays
-editable; operator overrides set `h_measured = true`. If no regression
-exists for the triple, h is blank (required manual entry).
+**h auto-population:** `h = a × ln(D) + b` from the single active hypsometric
+parameter set, keyed by (region, species) — served by the `hypso_params`
+digest, not a per-plan table (see [`hypsometry.md`](hypsometry.md)). Field
+stays editable; operator overrides set `h_measured = true`. If the active set
+has no entry for the (region, species) pair — or no set is active — h is blank
+(required manual entry).
 
 Live V/m preview, same pattern as campionamenti (Tabacchi in JS,
 server stores client-provided values without recomputing).
@@ -353,19 +348,6 @@ Accepts both pdg-2026 output and Abies export format. Stored columns:
 
 Same delimiter / decimal / encoding rules as fustaia.
 
-### Ipsometric regression CSV (`equazioni_ipsometro.csv`)
-
-Matches the shape of `pdg-2026/csv/equazioni_ipsometro.csv`:
-
-`compresa, genere, funzione, a, b, r2, n`
-
-`compresa` resolves against `region.name`; `genere` against
-`species.common_name`. `funzione` is currently always `"ln"`. Each row
-produces one `tree_height_regression` entry scoped to the plan being imported.
-Missing (region, species) entries are not an error — the gap surfaces only at
-mark-entry time (the form forces manual h entry). Only fustaia marks consult
-this table.
-
 ### Import flow
 
 1. Resolve every (Compresa, Particella) and (compresa, genere)
@@ -382,7 +364,6 @@ this table.
 4. For each row in either schedule, create a `harvest_plan_item`.
    Fustaia rows set `volume_planned_m3`; coppice rows set
    `intervention_area_ha` and `note` and leave `volume_*` NULL.
-5. For each regression-CSV row, create a `tree_height_regression`.
 
 ## URL parameters
 
@@ -412,7 +393,8 @@ filtering after that):
 
 - `harvest_plans.json`
 - `harvest_plan_items.json`
-- `tree_height_regressions.json`
+- `hypso_params.json` (reused from `page-impostazioni.md`; the "Nuovo albero
+  martellato" form auto-populates h from it — see `hypsometry.md`)
 - `species.json` (reused from `campionamenti.md`)
 - `prelievi.json` (reused from `prelievi.md`; the View/Edit modal's
   Prelievi sub-section filters it client-side by
@@ -428,8 +410,8 @@ given `harvest_plan_item_id`):
 | Write | Digests marked stale | Optimistic client patch |
 |---|---|---|
 | Plan save (create/update) | `harvest_plans`, `audit` | `harvest_plans` via `record` |
-| Plan delete | `harvest_plans`, `harvest_plan_items`, `tree_height_regressions`, `audit` | `harvest_plans` (row removed); items + regressions force-refreshed via `cache.load` |
-| Plan CSV import | `harvest_plans`, `harvest_plan_items`, `tree_height_regressions`, `audit` | All three force-refreshed via `cache.load` (bulk path) |
+| Plan delete | `harvest_plans`, `harvest_plan_items`, `audit` | `harvest_plans` (row removed); items force-refreshed via `cache.load` |
+| Plan CSV import | `harvest_plans`, `harvest_plan_items`, `audit` | Both force-refreshed via `cache.load` (bulk path) |
 | Item save (create/update) | `harvest_plan_items`, `audit` | `harvest_plan_items` via `record` |
 | Item delete | `harvest_plan_items`, `audit` | `harvest_plan_items` (row removed) |
 | Transition save (Apri/Chiudi) | `harvest_plan_items`, `audit` | `harvest_plan_items` via `item_record` |
@@ -471,19 +453,13 @@ remove the need to compute the calendar's totals client-side from
 `tree_mark` or `harvest`. `Note` is the comma-joined boolean-flag
 string described in the calendar table above.
 
-### `tree_height_regressions.json`
+### `hypso_params.json` (reused)
 
-Per-(plan, region, species) ipsometric regression coefficients,
-consumed by the "Nuovo albero martellato" form to auto-populate `h_m`
-from `D`. Invalidated on `tree_height_regression` writes (essentially:
-on plan import).
-
-Columns: `row_id`, `version`, `Piano`, `Compresa`, `Genere`,
-`Funzione`, `a`, `b`, `r2`, `n`. No natural sort order; the client
-builds a lookup keyed by `(Piano, Compresa, Genere)`.
-
-Tiny by construction (~ regions × species × plans = a few hundred rows
-at most), so eager loading is cheap.
+The single active hypsometric parameter set, served by Impostazioni and
+documented in [`hypsometry.md`](hypsometry.md). The "Nuovo albero martellato"
+form builds a lookup keyed by `(Compresa, Specie)` to auto-populate `h_m` from
+`D`. Tiny by construction (≤ regions × species rows), so eager loading is
+cheap.
 
 ### `mark_trees_<harvest_plan_item_id>.json` (per-item, lazy)
 

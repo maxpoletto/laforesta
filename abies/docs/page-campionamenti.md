@@ -41,7 +41,7 @@ the active grid (if any surveys reference it, clicking "garbage" generates an
 error modal telling the user to first delete them).
 
 On the far right of the top row, the CSV export and "Nuova Griglia" buttons (see
-UI Design Patterns > Export and Creation).
+UI Design Patterns > Buttons).
 
 Below the top row, a short summary of the active grid: n. aree, comprese
 coperte, n. rilevamenti che la usano, data ultimo aggiornamento, descrizione.

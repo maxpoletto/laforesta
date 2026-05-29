@@ -1,4 +1,4 @@
-"""Install an ipsometric regression CSV as the active parameter set.
+"""Install a hypsometric regression CSV as the active parameter set.
 
 Reads `equazioni_ipsometro.csv` from <data_dir> and makes it the active
 HypsoParamSet.  A missing file is a warning, not an error: a fresh install

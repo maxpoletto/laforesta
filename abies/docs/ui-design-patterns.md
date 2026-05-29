@@ -16,19 +16,31 @@ Page margins are moderate (40 px) on desktop and small on mobile.
 
 Text inputs have very slightly rounded corners (2-4 px radius).
 
-Buttons have rounded corners (4-8px radius). They are dark green and turn
-lighter when hovered over.
+Buttons have rounded corners (4-8px radius) and lighten on hover. Colour
+encodes intent, not decoration — see "Buttons" below.
 
 Horizontal rules outline the page header as well as collapsible elements (each
 page's collapsibles are documented in its `docs/page-*.md`). They are thin
 (4px), dark green, and rectangular.
 
-## Export and creation
+## Buttons
 
-Many types of objects (survey grids, surveys, harvest plans) can be created and
-also exported to CSV. The standard pattern is two side-by-side buttons on the
-far right of the work space, [Esporta CSV] (grey) and [+Nuovo X] (green) (where
-X is the type of object).
+A button's colour is set by what it does, via an intent class on the base
+`.btn`. All colours live in `common.css`; never choose one at the call site.
+
+- **Green — affirmative:** `.btn-create` (`+ Nuovo X`, `+ Aggiungi`),
+  `.btn-save` (Salva / Crea / Conferma — any form commit), `.btn-import`
+  (Importa CSV).
+- **Grey — neutral:** the bare `.btn` (Annulla, dismiss, and auxiliary actions
+  such as "Usa GPS" or "Pianifica") and the named `.btn-export` (Esporta CSV) —
+  same grey, but named so it can never drift to a commit colour.
+- **Red — destructive:** `.btn-delete` (deletes a record or cascades).
+
+Many objects (survey grids, surveys, harvest plans, the hypsometric parameter
+set) can be both created and exported. The standard pairing is two side-by-side
+buttons on the far right of the work space — `[Esporta CSV]` (`.btn-export`,
+grey) then `[+ Nuovo X]` (`.btn-create`, green); right-align a toolbar's buttons
+with the `.ms-auto` utility.
 
 ## Tabular data
 
@@ -175,9 +187,10 @@ exception:
 
 1. **Cancel first (left).** `<button class="btn">{{ S.CANCEL }}</button>`
    — always the leftmost child, label "Annulla".
-2. **Primary action (right).** `class="btn btn-primary"`; label
-   is the verb that commits state ("Salva", "Crea", "Conferma",
-   "Importa"; "Elimina" for destructive flows).
+2. **Primary action (right).** An intent class on `.btn` — `.btn-save` for a
+   state-committing verb ("Salva", "Crea", "Conferma"), `.btn-import` for
+   "Importa", `.btn-delete` for destructive flows ("Elimina"). See "Buttons"
+   for the full taxonomy.
 3. **Optional secondary primary (further right).** Typical sets are `[Annulla]
    [Conferma]` and `[Annulla] [Salva] [Salva e continua]`. (Salva e continua
    opens the same modal again after save, for faster batch input.)

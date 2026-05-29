@@ -48,8 +48,8 @@ const CSS_URL = '/static/piano_di_taglio/css/piano-di-taglio.css';
 // Cache keys MUST match server `data_id` strings (apps/base/digests.py).
 const PLANS_ID = 'harvest_plans';
 const ITEMS_ID = 'harvest_plan_items';
-// Ipsometric params now live in a single global set, served by Impostazioni
-// and consumed here only to auto-fill h in the mark form.
+// Hypsometric params live in a single global set, served by Impostazioni and
+// consumed here only to auto-fill h in the mark form.
 const HYPSO_PARAMS_ID = 'hypso_params';
 
 const PLANS_URL = '/api/piano-di-taglio/plans/data/';

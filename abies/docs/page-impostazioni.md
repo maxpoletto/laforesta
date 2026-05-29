@@ -23,6 +23,14 @@ are soft-deleted via the `active` flag. "Only active" checkbox
 - Trees: common name, Latin name, density (q/m³ — see `database.md`;
   used to derive per-tree mass for samples and marks).
 
+## Hypsometric parameters (Parametri ipsometrici)
+
+Visible to writers and admins, below the trees section. A read-only table of
+the active hypsometric parameter set, with Importa / Esporta / Elimina controls
+and a "Calcola nuovi parametri" panel that fits new coefficients from selected
+surveys. Fully documented — behavior, the compute→accept flow, the CSV format,
+and the served digest — in [`hypsometry.md`](hypsometry.md).
+
 ## App users
 
 This section is visible only to admins.

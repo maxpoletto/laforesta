@@ -87,7 +87,7 @@ class TestCompute:
 
 
 class TestAccept:
-    def test_persists_active_set_and_refreshes_digest(
+    def test_persists_active_set(
         self, writer_client, hypso_samples, tmp_path, settings,
     ):
         settings.DIGEST_DIR = tmp_path
@@ -97,7 +97,6 @@ class TestAccept:
         assert active is not None
         assert active.source == HypsoParamSource.COMPUTED
         assert HypsoParam.objects.filter(param_set=active).count() == 1
-        assert len(_read_gzip_json(writer_client.get(URL_DATA))[ROWS]) == 1
 
     def test_archives_prior_set(self, writer_client, hypso_samples, tmp_path, settings):
         settings.DIGEST_DIR = tmp_path
@@ -206,28 +205,6 @@ class TestImportExportClear:
         lines = resp.content.decode('utf-8').strip().splitlines()
         assert len(lines) == 1
 
-    def test_imported_values_reach_the_served_digest(
-        self, writer_client, regions, species, tmp_path, settings,
-    ):
-        # The mark form reads a/b from this digest; lock that an imported
-        # coefficient lands intact (the auto-fill h = a*ln(D)+b is JS-side).
-        settings.DIGEST_DIR = tmp_path
-        resp = self._upload_csv(
-            writer_client,
-            f'{regions[0].name},{species[0].common_name},{HYPSO_FUNC_LN},10,-10,0.6,20',
-        )
-        assert resp.status_code == 200
-        digest = _read_gzip_json(writer_client.get(URL_DATA))
-        cols = digest[COLUMNS]
-        row = next(
-            r for r in digest[ROWS]
-            if r[cols.index(S.COL_COMPRESA)] == regions[0].name
-            and r[cols.index(S.COL_SPECIES)] == species[0].common_name
-        )
-        assert row[cols.index(S.COL_FUNCTION)] == HYPSO_FUNC_LN
-        assert row[cols.index(S.COL_A)] == 10.0
-        assert row[cols.index(S.COL_B)] == -10.0
-
     def test_export_streams_active_params(self, writer_client, hypso_samples):
         _persist(hypso_samples)
         resp = writer_client.get(URL_EXPORT)
@@ -272,7 +249,56 @@ class TestPermissions:
         assert client.get(URL_DATA).status_code in (302, 403)
 
 
-class TestDigestContract:
+class TestDigestInvalidation:
+    """Each write to the active parameter set must refresh the served
+    `hypso_params` digest — the mark form reads a/b from it. Every test
+    performs a write via the public endpoint, re-reads the digest endpoint,
+    and asserts the change is reflected."""
+
+    def test_accept_refreshes_digest(
+        self, writer_client, hypso_samples, tmp_path, settings,
+    ):
+        settings.DIGEST_DIR = tmp_path
+        assert _read_gzip_json(writer_client.get(URL_DATA))[ROWS] == []
+        _post_json(writer_client, URL_ACCEPT, _compute_body(hypso_samples))
+        assert len(_read_gzip_json(writer_client.get(URL_DATA))[ROWS]) == 1
+
+    def test_imported_values_reach_the_served_digest(
+        self, writer_client, regions, species, tmp_path, settings,
+    ):
+        # The mark form reads a/b from this digest; lock that an imported
+        # coefficient lands intact (the auto-fill h = a*ln(D)+b is JS-side).
+        settings.DIGEST_DIR = tmp_path
+        content = (
+            CSV_HEADER + '\n'
+            + f'{regions[0].name},{species[0].common_name},'
+              f'{HYPSO_FUNC_LN},10,-10,0.6,20\n'
+        )
+        resp = writer_client.post(
+            URL_IMPORT,
+            {FIELD_FILE: SimpleUploadedFile('e.csv', content.encode('utf-8'))},
+        )
+        assert resp.status_code == 200
+        digest = _read_gzip_json(writer_client.get(URL_DATA))
+        cols = digest[COLUMNS]
+        row = next(
+            r for r in digest[ROWS]
+            if r[cols.index(S.COL_COMPRESA)] == regions[0].name
+            and r[cols.index(S.COL_SPECIES)] == species[0].common_name
+        )
+        assert row[cols.index(S.COL_FUNCTION)] == HYPSO_FUNC_LN
+        assert row[cols.index(S.COL_A)] == 10.0
+        assert row[cols.index(S.COL_B)] == -10.0
+
+    def test_clear_empties_the_served_digest(
+        self, writer_client, hypso_samples, tmp_path, settings,
+    ):
+        settings.DIGEST_DIR = tmp_path
+        _post_json(writer_client, URL_ACCEPT, _compute_body(hypso_samples))
+        assert len(_read_gzip_json(writer_client.get(URL_DATA))[ROWS]) == 1
+        assert writer_client.post(URL_CLEAR).status_code == 200
+        assert _read_gzip_json(writer_client.get(URL_DATA))[ROWS] == []
+
     def test_build_record_matches_generator(self, hypso_samples, tmp_path, settings):
         settings.DIGEST_DIR = tmp_path
         s = _persist(hypso_samples)

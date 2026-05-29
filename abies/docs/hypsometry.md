@@ -64,39 +64,10 @@ better parameters from more data, independently of any plan.
 
 ## Data model
 
-Three tables replace `tree_height_regression`, which is removed. Since there is
-no production data, the change is folded into migration `0001_initial` rather
-than added as a later migration.
-
-- **hypso_param_set** — one row per parameter set.
-  - `id`.
-  - `source`: how the set was produced — `computed` (fitted from surveys) or
-    `imported` (loaded from CSV).
-  - `min_n`: the minimum per-group sample count used when computing (NULL for
-    imported sets).
-  - `created_at`: when the set became active — the start of its live interval.
-  - `superseded_at` (nullable): when the set stopped being active. NULL marks
-    the single currently-active set. The pair (`created_at`, `superseded_at`)
-    is the historical "live from–to" interval.
-  - Invariant: at most one row has `superseded_at IS NULL`. Enforced in the
-    single write path (compute/import/clear all run in one transaction that
-    closes out the current set before opening a new one).
-  - Carries `version` and is tracked by django-simple-history.
-
-- **hypso_param** — one row per (set, region, species).
-  - `id`, `set_id` (FK → hypso_param_set, CASCADE), `region_id` (FK → region,
-    PROTECT), `species_id` (FK → species, PROTECT).
-  - `func`: regression family; currently always `ln` (`h = a·ln(D) + b`).
-  - `a`, `b`: regression coefficients. `r2`: coefficient of determination.
-  - `n`: number of samples used for this (region, species) fit.
-  - `UNIQUE(set_id, region_id, species_id)`.
-  - Immutable once written: a set is created whole and never edited row by row.
-    Its audit trail is the retained set, not a per-row history.
-
-- **hypso_param_set ↔ survey** — provenance, modeled as a many-to-many from
-  `hypso_param_set` to `survey`: the surveys whose samples fed a computed set.
-  Empty for imported sets. This records "this set is based on this data"; it is
-  not the historical log.
+Schema lives in [`database.md`](database.md) → "Hypsometric parameters":
+`hypso_param_set` (one set + its `created_at`/`superseded_at` live interval and
+the at-most-one-active invariant), `hypso_param` (one immutable row per
+region+species), and the `params_surveys` provenance M2M.
 
 A missing (region, species) entry is never an error: the mark-entry form simply
 leaves h blank for manual entry.
@@ -158,6 +129,22 @@ Visible to writers and admins, below "Specie".
 Because superseded sets are archived rather than deleted, replacing parameters
 (by compute, import, or clear) is non-destructive. None of these actions force a
 CSV backup first; "Esporta CSV" remains available for an explicit export.
+
+## Data serving
+
+The active set is served as the `hypso_params` JSON digest
+(`/api/impostazioni/hypso-params/data/`, readable by any authenticated role):
+one row per active `hypso_param`, columns `row_id, Compresa, Specie, funzione,
+a, b, n, r²`. It is consumed by the settings table and by the Piano-di-taglio
+mark form's h auto-fill (keyed on region + species). The description panel's
+active-set metadata (source, date, min_n, source surveys) is a small separate
+JSON response, not a cached digest.
+
+Write → invalidation: compute-accept, import, and clear each
+`mark_stale('hypso_params', 'audit')`. `TestDigestInvalidation` in
+`test/test_hypso_views.py` locks the contract: each write path re-reads the
+served digest and asserts the change (import, for instance, asserts the
+coefficients flowed through).
 
 ## Effect on Piano di taglio
 
