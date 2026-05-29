@@ -16,7 +16,7 @@ Reads:
 Writes:
     <output-path>                       (the synthesized test reference)
 
-Species and ipsometric regressions are preserved verbatim from the
+Species and hypsometric regressions are preserved verbatim from the
 real reference.json — the test compresa is unlikely to have its own
 regression, so `recomputeAutoH` will show the "missing regression"
 hint and the operator types h manually. That's fine for GPS testing.

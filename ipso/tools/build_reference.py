@@ -7,7 +7,7 @@ Usage:
 
 Sources (relative to data-dir, default ../abies-data):
 - particelle.csv         parcels (filtered: high-forest only)
-- equazioni_ipsometro.csv ipsometric regression coefficients
+- equazioni_ipsometro.csv hypsometric regression coefficients
 - (species from abies/apps/base/data/species.csv, always resolved
    relative to this script)
 

@@ -105,7 +105,7 @@ picked here — the app reads it from GPS during recording (see below).
   session (e.g. a cluster of trees marked for the same buyer).
   Sticky across saves; not exported to the CSV.
 - Enter D (diameter in cm) using the on-screen number pad. h (height
-  in m) auto-fills from the ipsometric regression for the current
+  in m) auto-fills from the hypsometric regression for the current
   compresa and species. If a regression is missing for this combination
   (e.g. Capistrano + Faggio, or any region + Ontano) a hint appears
   and you must enter h manually.
@@ -177,7 +177,7 @@ Data;Compresa;Particella;Catastrofata;Numero;Specie;D_cm;H_m;H_measured;Lat;Lon;
   decimal). Empty if there was no GPS fix at save time.
 - `Specie` is the verbatim Italian common name from the species
   pulldown, including `Pino Nero` and `Pino Marittimo` (kept distinct
-  because their ipsometric regressions diverge significantly).
+  because their hypsometric regressions diverge significantly).
 - The in-app **Gruppo** tag is NOT exported. It is a working aid
   for the operator only.
 
@@ -214,7 +214,7 @@ src/                  handwritten browser source (all committed)
   store.js            IndexedDB wrapper
   session.js          session-level pure helpers
   csv.js              CSV serialisation
-  ipso.js             ipsometric regression lookup
+  ipso.js             hypsometric regression lookup
   gps.js              geolocation manager
   numpad.js           custom on-screen numeric keypad
   download.js         browser-download helper

@@ -48,7 +48,7 @@ src/                # handwritten browser source, all committed
   store.js          # IndexedDB wrapper (SCHEMA_VERSION = 5)
   session.js        # pure session-level helpers (resumability, etc.)
   csv.js            # CSV serialisation (UTF-8 BOM, ; sep, comma dec)
-  ipso.js           # ipsometric regression lookup (h = a·ln(D) + b)
+  ipso.js           # hypsometric regression lookup (h = a·ln(D) + b)
   gps.js            # self-healing watchPosition with heartbeat
   numpad.js         # on-screen numeric keypad (generic over field set)
   download.js       # browser-download helper
@@ -160,7 +160,7 @@ tree number (4-digit max); blank for trees with
 in-app working aid and is intentionally NOT exported.  `Lat`/`Lon`
 are 6-fractional comma decimal; empty if no fix at save time.
 `Pino` is split into `Pino Nero` and `Pino Marittimo` because their
-ipsometric regressions diverge.
+hypsometric regressions diverge.
 
 `Particella` is per-tree, written from `rec.particella` (GPS-detected
 or manually overridden — see below).  It can be blank when the GPS is
@@ -244,7 +244,7 @@ point at the new abies/data location.
 `tools/build_test_reference.py build/reference.json` substitutes a
 test-flavoured reference.json whose `parcels` list is derived from
 `test/test.geojson` (so the synthetic test compresa appears in the
-pre-session pulldown). Species and ipsometric regressions are
+pre-session pulldown). Species and hypsometric regressions are
 preserved from the real reference.json — there is unlikely to be a
 regression for the test compresa, so auto-h shows the "missing
 regression" hint and the operator types h manually.
