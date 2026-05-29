@@ -1238,6 +1238,12 @@ class TestGridSaveAuto:
         assert len(areas) == 2
         assert {a.number for a in areas} == {'1', '2'}
         assert all(a.r_m == 12 for a in areas)
+        # Coordinates round-trip into the lat/lon schema columns.  Regression
+        # guard for the client contract: the planner maps geo.js's `lng` to
+        # `lon` before posting, and the server reads `lon` (FIELD_LON).
+        by_number = {a.number: a for a in areas}
+        assert (by_number['1'].lat, by_number['1'].lon) == pytest.approx((38.5, 16.1))
+        assert (by_number['2'].lat, by_number['2'].lon) == pytest.approx((38.51, 16.11))
 
     def test_unknown_compresa_aborts(self, writer_client, sample_setup):
         n_before = SampleGrid.objects.count()

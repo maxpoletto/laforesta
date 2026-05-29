@@ -87,5 +87,19 @@ assertEqual(geo.parcelLabel({ properties: { layer: '', name: '' } }), '',
             'parcelLabel: empty properties');
 assertEqual(geo.parcelLabel({}), '', 'parcelLabel: no properties');
 
+// generateGrid emits Leaflet-convention points {lat, lng, compresa,
+// particella} — NOT `lon`.  Consumers that persist to the `lon` schema
+// (the campionamenti grid-planner) must translate lng→lon at the boundary.
+const gridPts = geo.generateGrid([unitSquare], 0.5, 0.5);
+assertEqual(gridPts.length > 0, true,
+            'generateGrid: yields at least one interior point');
+const gp = gridPts[0];
+assertEqual([typeof gp.lat, typeof gp.lng], ['number', 'number'],
+            'generateGrid: point carries numeric lat + lng (Leaflet convention)');
+assertEqual(gp.lon, undefined,
+            'generateGrid: point has no `lon` key (consumers map lng→lon)');
+assertEqual([gp.compresa, gp.particella], ['X', '1'],
+            'generateGrid: compresa=layer, particella=name after the dash');
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed > 0 ? 1 : 0);

@@ -33,6 +33,10 @@ export class GridPlanner {
    * @param {HTMLElement} opts.host — element to render the planner UI into.
    * @param {function(number): void} opts.onCreated — called after a
    *   successful save with the new SampleGrid.id.
+   * @param {function(): void} [opts.onCancel] — called when the user clicks
+   *   the planner's [Annulla] button.  The planner builds that button lazily
+   *   (on the auto-path switch), after the modal-level wireCancelButtons()
+   *   has run, so it wires the button itself rather than relying on it.
    * @param {string} [opts.basemap] — MapCommon basemap key for the modal
    *   map's initial layer.  Defaults to 'satellite' to preserve previous
    *   behaviour when the caller doesn't pass one.
@@ -40,6 +44,7 @@ export class GridPlanner {
   constructor(opts) {
     this.host = opts.host;
     this.onCreated = opts.onCreated;
+    this.onCancel = opts.onCancel;
     this.basemap = opts.basemap || 'satellite';
     this.featuresByCompresa = {};   // compresa → [GeoJSON features]
     this.points = [];                // {lat, lon, compresa, particella}
@@ -130,16 +135,18 @@ export class GridPlanner {
     this.leaflet = this.wrapper.getLeafletMap();
     this.pointLayer = L.layerGroup().addTo(this.leaflet);
 
-    // Bottom button row: [Annulla] [Crea].
-    // Cancel uses data-action="cancel" so wireCancelButtons() binds it.
+    // Bottom button row: [Annulla] [Crea].  Both are wired here: the planner
+    // is built lazily on the auto-path switch, after the modal-level
+    // wireCancelButtons() has already run, so the cancel button calls back
+    // through onCancel (mirroring onCreated for [Crea]).
     const actions = document.createElement('div');
     actions.className = 'form-actions';
 
     const cancelBtn = document.createElement('button');
     cancelBtn.type = 'button';
     cancelBtn.className = 'btn';
-    cancelBtn.dataset.action = 'cancel';
     cancelBtn.textContent = S.CANCEL;
+    cancelBtn.addEventListener('click', () => this.onCancel?.());
     actions.appendChild(cancelBtn);
 
     this.submitBtn = document.createElement('button');
@@ -234,7 +241,13 @@ export class GridPlanner {
     const targetN = Math.round((totalAreaM2 * pct / 100) / perPointAreaM2);
     if (targetN < 1) { this._setStatus(S.ERR_PARAMS_ZERO_POINTS); return; }
 
-    this.points = planGridForTarget(features, targetN);
+    // geo.js emits Leaflet-convention {lat, lng, …}; the rest of this grid
+    // pipeline (render, _save payload, server, DB) speaks `lon`.  Normalize at
+    // this single boundary so the points carry `lon` everywhere downstream.
+    this.points = planGridForTarget(features, targetN).map(
+      ({ lat, lng, compresa, particella }) =>
+        ({ lat, lon: lng, compresa, particella }),
+    );
     this._renderPoints();
     this._renderStats(totalAreaM2, perPointAreaM2, targetN);
     this.submitBtn.disabled = this.points.length === 0;

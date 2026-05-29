@@ -810,6 +810,7 @@ async function showNewGridForm() {
         planner = new GridPlanner({
           host,
           basemap: activeBasemap(),
+          onCancel: dismissModal,
           onCreated: (rowId, response) => {
             if (response) applySideEffects(response);
             dismissModal();
