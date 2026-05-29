@@ -515,7 +515,6 @@ input:focus, select:focus, textarea:focus {
   border-radius: 3px;
 }
 .table-search { width: 300px; max-width: 300px; }
-.table-csv-btn { margin-left: auto; }
 
 .table-scroll {
   flex: 1;

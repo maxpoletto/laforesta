@@ -1706,7 +1706,7 @@ function wireCoppiceBlock(form) {
     if (staleRemove) staleRemove.remove();
     const removeBtn = document.createElement('button');
     removeBtn.type = 'button';
-    removeBtn.className = 'btn coppice-remove-btn';
+    removeBtn.className = 'btn btn-delete coppice-remove-btn';
     removeBtn.textContent = S.REMOVE_POLLONE;
     removeBtn.addEventListener('click', () => {
       clone.remove();

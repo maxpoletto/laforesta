@@ -181,7 +181,7 @@ export class TableWrapper {
     bar.appendChild(search);
 
     const csvBtn = document.createElement('button');
-    csvBtn.className = 'btn btn-export table-csv-btn';
+    csvBtn.className = 'btn btn-export ms-auto';
     csvBtn.textContent = this.labels.exportCSV;
     csvBtn.addEventListener('click', () => this.exportCSV());
     bar.appendChild(csvBtn);
