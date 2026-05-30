@@ -59,13 +59,13 @@ on the Griglie map).  Per `docs/page-campionamenti.md` §Section 1.
       </div>
       <div class="form-group">
         <label for="id_area_lat">Lat</label>
-        <input type="number" id="id_area_lat" name="lat" step="any" required
-               value="{{ lat }}">
+        <input type="text" inputmode="decimal" id="id_area_lat" name="lat" required
+               value="{{ lat|floatformat:5 }}">
       </div>
       <div class="form-group">
         <label for="id_area_lon">Lon</label>
-        <input type="number" id="id_area_lon" name="lon" step="any" required
-               value="{{ lon }}">
+        <input type="text" inputmode="decimal" id="id_area_lon" name="lon" required
+               value="{{ lon|floatformat:5 }}">
       </div>
     </div>
 

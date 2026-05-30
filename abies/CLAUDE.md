@@ -155,8 +155,31 @@ applies at three levels:
 - **Templates**: `foo_it.html` is the real file; `foo.html` is a symlink
   to `foo_it.html`.
 
-To add a language: create parallel `*_en.*` files and retarget the
-re-exports / symlinks.
+## Number formatting
+
+Numbers are stored and transmitted **canonical** (dot decimal, no digit
+grouping): DB columns, JSON digests, CSV files, and `grid/save-auto` payloads.
+Localization happens **only at the edges**, driven by the active locale
+(`settings.LANGUAGE_CODE` → `<html lang>` → JS reads
+`document.documentElement.lang`):
+
+- **Display is centralized.** JS goes through `format.js`
+  (`fmtDecimal`/`fmtCoord`/…, built on `Intl.NumberFormat`); server-rendered
+  numbers use Django's locale-aware `{{ value|floatformat:N }}`. The decimal
+  *count* is per quantity (coords 5, mass 1, …) and locale-independent — only
+  the separator is localized.
+- **Form inputs** can't be `type="number"` (that is dot-only and follows the
+  OS locale, not the app's), so decimal inputs are
+  `type="text" inputmode="decimal"`, rendered with `floatformat:N` and parsed
+  back with `apps.base.formats.normalize_decimal()` (wraps Django
+  `sanitize_separators`) before `float()`/`Decimal()`. This applies to **form
+  strings only** — never to CSV rows or JSON payloads, which are already
+  canonical (in the it locale `sanitize_separators("38.6")` reads `.` as a
+  thousands separator → `"386"`). Integer inputs stay `type="number"`.
+
+To add a language: create parallel `*_en.*` files, retarget the re-exports /
+symlinks, and set `LANGUAGE_CODE`. Numbers localize automatically via
+`Intl`/Django — no per-field or per-call-site changes.
 
 Code itself (variables, functions) is in English: 'coppice' not 'ceduo'.
 

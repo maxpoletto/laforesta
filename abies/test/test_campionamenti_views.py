@@ -881,7 +881,21 @@ class TestAreaCRUD:
         assert resp.status_code == 200
         html = resp.json()[HTML]
         assert '<form' in html
-        assert 'value="38.5"' in html or 'value="38.50' in html
+        assert 'value="38,50000"' in html          # it-locale: comma decimal
+
+    def test_add_form_rounds_click_coords_to_5dp(self, writer_client, sample_setup):
+        """Map-click passes full-precision lat/lon; the form must display them
+        at 5 dp (coordinates are 5 dp everywhere — spec)."""
+        s = sample_setup
+        resp = writer_client.get(
+            f'/api/campionamenti/area/form/?grid={s["grid"].id}'
+            f'&lat=38.123456789&lon=16.987654321'
+        )
+        assert resp.status_code == 200
+        html = resp.json()[HTML]
+        assert 'value="38,12346"' in html          # it-locale: comma, 5 dp
+        assert 'value="16,98765"' in html
+        assert '38.123456789' not in html        # full precision must not leak
 
     def test_form_edit_renders(self, writer_client, sample_setup):
         s = sample_setup
@@ -897,12 +911,15 @@ class TestAreaCRUD:
             FIELD_SAMPLE_GRID_ID: s['grid'].id,
             FIELD_PARCEL_ID: s['area'].parcel_id,
             FIELD_NUMBER: '42',
-            FIELD_LAT: '38.6', FIELD_LON: '16.2',
+            FIELD_LAT: '38,6', FIELD_LON: '16,2',       # Italian comma input
             FIELD_ALTITUDE_M: '500',
             FIELD_R_M: '15', FIELD_NOTE: 'test',
         })
         assert resp.status_code == 200, resp.content
         assert SampleArea.objects.filter(sample_grid=s['grid']).count() == n_before + 1
+        # The comma input is parsed back to a canonical float (not 386).
+        area = SampleArea.objects.filter(sample_grid=s['grid']).latest('id')
+        assert (area.lat, area.lon) == (38.6, 16.2)
 
     def test_update_area(self, writer_client, sample_setup):
         s = sample_setup

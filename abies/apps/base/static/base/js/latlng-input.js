@@ -12,6 +12,7 @@
  */
 
 import * as S from './strings.js';
+import { fmtCoord } from './format.js';
 
 /**
  * Append a geolocation-button to the row that contains `latEl` and
@@ -38,8 +39,8 @@ export function mountUseLocationButton(latEl, lngEl, opts = {}) {
     btn.disabled = true;
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        latEl.value = pos.coords.latitude.toFixed(5);
-        lngEl.value = pos.coords.longitude.toFixed(5);
+        latEl.value = fmtCoord(pos.coords.latitude);
+        lngEl.value = fmtCoord(pos.coords.longitude);
         latEl.dispatchEvent(new Event('change'));
         lngEl.dispatchEvent(new Event('change'));
         btn.disabled = false;

@@ -27,6 +27,7 @@ from apps.base.digests import (
     build_survey_record, build_tree_sample_record,
     mark_stale, serve_digest,
 )
+from apps.base.formats import normalize_decimal
 from apps.base.middleware import save_nonce
 from apps.base.models import (
     Parcel, Region, Sample, SampleArea, SampleGrid, Species, Survey, Tree,
@@ -344,6 +345,17 @@ def _parcel_from_names(parcels, compresa, particella):
     )
 
 
+def _coord_or_blank(value):
+    """Parse a lat/lon (float on the edit path, or a query string from a
+    map-click) to a float for the form's `stringformat:'.5f'` — 5 dp
+    everywhere, dot-decimal (the Italian locale would otherwise render a bare
+    float with a comma).  Returns '' when absent or unparseable."""
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return ''
+
+
 @login_required
 def area_form_view(request, area_id: int | None = None):
     """Form fragment for adding or editing a SampleArea.
@@ -389,9 +401,8 @@ def area_form_view(request, area_id: int | None = None):
             'regions': regions, 'parcels': parcels,
             'selected_region_id': sel_parcel.region_id if sel_parcel else None,
             'selected_parcel_id': sel_parcel.id if sel_parcel else None,
-            'initial_lat': initial_lat, 'initial_lon': initial_lon,
-            'lat': round(area.lat, 5) if area else initial_lat,
-            'lon': round(area.lon, 5) if area else initial_lon,
+            'lat': _coord_or_blank(area.lat if area else initial_lat),
+            'lon': _coord_or_blank(area.lon if area else initial_lon),
         }, request=request,
     )})
 
@@ -406,8 +417,8 @@ def area_save_view(request):
         grid_id = int(body[FIELD_SAMPLE_GRID_ID])
         parcel_id = int(body[FIELD_PARCEL_ID])
         number = (body.get(FIELD_NUMBER) or '').strip()
-        lat = float(body[FIELD_LAT])
-        lon = float(body[FIELD_LON])
+        lat = float(normalize_decimal(body[FIELD_LAT]))
+        lon = float(normalize_decimal(body[FIELD_LON]))
         r_m = int(body.get(FIELD_R_M) or 12)
     except (KeyError, ValueError, TypeError):
         return _simple_validation_error(S.ERROR_GENERIC)
