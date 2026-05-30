@@ -124,17 +124,26 @@ export function distanceToBoundaryMeters(lng, lat, feature) {
 }
 
 /**
- * Format a parcel feature as "<compresa> <particella>" for tooltips.
- * Follows the `bosco/data/terreni.geojson` convention: compresa lives
- * in `properties.layer`; particella is the slice after the first `-`
- * of `properties.name`.  Returns '' for non-parcel features.
+ * Split a parcel feature into its `{ compresa, particella }` names, following
+ * the `bosco/data/terreni.geojson` convention: compresa lives in
+ * `properties.layer`; particella is the slice after the first `-` of
+ * `properties.name`.
  */
-export function parcelLabel(feature) {
+export function parcelNames(feature) {
   const p = (feature && feature.properties) || {};
   const compresa = p.layer || '';
   const fullName = p.name || '';
   const dash = fullName.indexOf('-');
   const particella = dash >= 0 ? fullName.slice(dash + 1) : fullName;
+  return { compresa, particella };
+}
+
+/**
+ * Format a parcel feature as "<compresa> <particella>" for tooltips.
+ * Returns '' for non-parcel features.
+ */
+export function parcelLabel(feature) {
+  const { compresa, particella } = parcelNames(feature);
   if (!compresa && !particella) return '';
   return `${compresa} ${particella}`.trim();
 }
@@ -168,14 +177,8 @@ export function generateGrid(features, spacingLng, spacingLat) {
     for (let lng = bb.minLng; lng <= bb.maxLng; lng += spacingLng) {
       const f = findContainingParcel(lng, lat, features);
       if (f) {
-        const name = f.properties.name || '';
-        const dash = name.indexOf('-');
-        const particella = dash >= 0 ? name.slice(dash + 1) : name;
-        points.push({
-          lat, lng,
-          compresa: f.properties.layer,
-          particella,
-        });
+        const { compresa, particella } = parcelNames(f);
+        points.push({ lat, lng, compresa, particella });
       }
     }
   }

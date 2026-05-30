@@ -7,6 +7,10 @@ Idempotent: re-running produces no duplicates.  Creates one
 SampleGrid named "Aree di saggio PDG 2026" with one SampleArea row
 per CSV row.  The CSV lacks `Raggio`, so `r_m` defaults to 12 (per
 spec).
+
+Area numbers must be unique per (grid, compresa); the loader aborts
+(rolling back) if the CSV assigns one number to two particelle of the
+same compresa.
 """
 
 import csv
@@ -75,8 +79,22 @@ class Command(BaseCommand):
             if created:
                 self.stdout.write(f'Created grid: {GRID_NAME}')
 
+            # Area numbers must be unique per (grid, region) — see SampleArea.
+            # `owner` maps (region_id, number) → the parcel that first claimed
+            # it, so we can detect a CSV that hands one number to two parcels of
+            # the same compresa.  Pre-loaded from the grid for idempotent
+            # re-runs.
+            owner: dict[tuple[int, str], int] = {
+                (region_id, num): pid
+                for pid, region_id, num in (
+                    SampleArea.objects.filter(sample_grid=grid)
+                    .values_list('parcel_id', 'parcel__region_id', 'number')
+                )
+            }
+
             n_created = 0
             n_skipped = 0
+            collisions = []
             for i, row in enumerate(rows, 1):
                 region_name = row[S.CSV_COL_COMPRESA]
                 parcel_name = row[S.CSV_COL_PARTICELLA]
@@ -89,6 +107,13 @@ class Command(BaseCommand):
                     n_skipped += 1
                     continue
                 number = row[S.CSV_COL_AREA_SAGGIO].strip()
+                key = (parcel.region_id, number)
+                if owner.setdefault(key, parcel.id) != parcel.id:
+                    collisions.append(
+                        f'Row {i}: area number {number} in compresa '
+                        f'{region_name} is already used by another particella'
+                    )
+                    continue
                 obj, was_created = SampleArea.objects.get_or_create(
                     sample_grid=grid, parcel=parcel, number=number,
                     defaults={
@@ -101,6 +126,13 @@ class Command(BaseCommand):
                 )
                 if was_created:
                     n_created += 1
+
+            if collisions:
+                raise CommandError(
+                    'Area numbers must be unique per compresa; '
+                    f'found {len(collisions)} collision(s):\n  '
+                    + '\n  '.join(collisions)
+                )
 
         self.stdout.write(
             f'SampleAreas: {n_created} created, {n_skipped} skipped'

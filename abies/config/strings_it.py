@@ -126,6 +126,7 @@ ERR_GRID_AUTO_PARCEL_UNRESOLVED = (
     'Particella non trovata: {} / {}.'
 )
 ERR_AREA_NUMBER_REQUIRED = 'Numero area obbligatorio.'
+ERR_AREA_NUMBER_DUPLICATE = 'Numero area già presente in questa compresa.'
 ERR_PLAN_NAME_REQUIRED = 'Nome piano obbligatorio.'
 ERR_PLAN_NAME_DUPLICATE = 'Esiste già un piano con questo nome.'
 ERR_PLAN_YEAR_RANGE = 'Anno fine deve essere maggiore o uguale ad anno inizio.'

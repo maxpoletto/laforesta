@@ -24,8 +24,10 @@ export class GriglieMap {
    *   Called with the area row ({id, lat, lon, compresa, particella, numero,
    *   altitude, r_m, note}) when an area marker is clicked.  The handler
    *   typically opens a popover.
-   * @param {function(number, number): void} [opts.onEmptyClick]
-   *   Called with (lat, lon) when the user clicks empty map space.
+   * @param {function(number, number, object=): void} [opts.onEmptyClick]
+   *   Called with (lat, lon, feature) when the user clicks the map.  `feature`
+   *   is the parcel polygon under the click (so the new-area form can pre-fill
+   *   its region+parcel), or null when the click lands outside every parcel.
    *   Used by writers to open the "Inserire una nuova area qui?" prompt.
    * @param {{center: [number,number], zoom: number}} [opts.initialView]
    *   If given, the map opens at this view instead of fit-to-parcels.
@@ -56,7 +58,7 @@ export class GriglieMap {
     // only fires for clicks on the basemap / parcel polygons.
     this.leaflet.on('click', (e) => {
       if (this.onEmptyClick) {
-        this.onEmptyClick(e.latlng.lat, e.latlng.lng);
+        this.onEmptyClick(e.latlng.lat, e.latlng.lng, null);
       }
     });
 
@@ -85,6 +87,14 @@ export class GriglieMap {
       onEachFeature: (feature, lyr) => {
         const label = parcelLabel(feature);
         if (label) lyr.bindTooltip(label, { sticky: true, direction: 'top' });
+        // Click on a parcel → identify it via Leaflet's own hit-testing (the
+        // same layer that drives the tooltip) and hand the feature to the
+        // new-area prompt.  stopPropagation keeps the basemap handler quiet.
+        lyr.on('click', (e) => {
+          if (!this.onEmptyClick) return;
+          L.DomEvent.stopPropagation(e);
+          this.onEmptyClick(e.latlng.lat, e.latlng.lng, feature);
+        });
       },
     }).addTo(this.leaflet);
   }

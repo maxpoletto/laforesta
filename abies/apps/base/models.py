@@ -403,7 +403,10 @@ class SampleArea(TimestampedModel):
     sample_grid = models.ForeignKey(SampleGrid, on_delete=models.CASCADE)
     # `number` is a manually assigned identifier, usually a numeric string
     # like "27", occasionally with a suffix like "27 bis" for late
-    # additions.  Unique within a parcel; need not be unique across.
+    # additions.  Unique per (grid, region) — enforced in the app layer
+    # (campionamenti views), since Django can't express uniqueness across the
+    # parcel→region relation; the unique_together below is a weaker
+    # (grid, parcel) DB backstop.
     number = models.CharField(max_length=20)
     parcel = models.ForeignKey(Parcel, on_delete=models.CASCADE)
     lat = models.FloatField()

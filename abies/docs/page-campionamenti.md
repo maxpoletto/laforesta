@@ -62,7 +62,10 @@ Map interactions:
   samples).
 - **Click** on empty map space (writers only): prompts "Inserire una
   nuova area qui?". On confirm, opens the new-area form (below) with
-  lat/lng pre-filled to the clicked coordinates.
+  lat/lng pre-filled to the clicked coordinates. When the click falls inside a
+  parcel polygon, the form also pre-selects that Compresa and Particella
+  (resolved from the map geometry); a click outside every parcel leaves them
+  for the writer to pick.
 
 Below the map sit (writers only):
 
@@ -75,7 +78,9 @@ The new-area form:
 
 - Compresa (pulldown).
 - Particella (pulldown, scoped to Compresa).
-- Numero (auto-suggested as the next free integer for the parcel).
+- Numero (auto-suggested as the next free integer for the compresa — area
+  numbers are unique per compresa, not per particella). The suggestion tracks
+  the selected Compresa and may be overridden.
 - Lat/lng (shared lat-lng component — see below). Pre-filled from the click
   location when entered via map-click.
 - Quota (m).
@@ -110,7 +115,7 @@ A two-tab modal acting on the currently-selected grid:
 
 - **Dettagli** — name and description, both editable.
 - **Importa aree da CSV** — upload a CSV of sample areas. Rows are
-  added to the active grid; duplicates (same parcel + area number)
+  added to the active grid; duplicates (same compresa + area number)
   are rejected. See "Grid CSV import" below.
 
 #### Empty state
@@ -193,7 +198,7 @@ Flow:
    partial state).
 3. For each row, creates a `sample_area` row with
    `sample_grid_id` pointing at the target grid. Duplicates (same
-   parcel + area number) are rejected.
+   compresa + area number) are rejected.
 4. Transactional. Reports counts and a per-row error list at the
    end.
 

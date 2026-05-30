@@ -1,12 +1,14 @@
 """ETL tests for the new Campionamenti import commands."""
 
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
 from django.core.management import call_command
+from django.core.management.base import CommandError
 
 from apps.base.models import (
-    Sample, SampleArea, SampleGrid, Survey, Tree, TreeSample,
+    Parcel, Sample, SampleArea, SampleGrid, Survey, Tree, TreeSample,
 )
 
 BOSCO_DATA = Path(__file__).resolve().parent.parent.parent / 'bosco' / 'data'
@@ -43,6 +45,50 @@ class TestImportSampleGrid:
     def test_bis_numbers_preserved(self):
         """Alphanumeric area numbers like '27 bis' should round-trip."""
         assert SampleArea.objects.filter(number__contains='bis').exists()
+
+
+class TestImportSampleGridPerRegion:
+    """The loader enforces per-(grid, compresa) area-number uniqueness,
+    aborting if the source CSV gives one number to two particelle of the
+    same compresa.  Builds its own CSV, so it runs without bosco/data."""
+
+    HEADER = 'Compresa,Particella,Area saggio,Lon,Lat,Quota\n'
+
+    def _write_csv(self, data_dir, rows):
+        (data_dir / 'aree-di-saggio.csv').write_text(
+            self.HEADER + ''.join(rows), encoding='utf-8-sig',
+        )
+
+    def test_same_number_two_parcels_one_region_aborts(
+        self, db, tmp_path, regions, eclasses,
+    ):
+        region = regions[0]
+        for name in ('P1', 'P2'):
+            Parcel.objects.create(
+                name=name, region=region, eclass=eclasses[0],
+                area_ha=Decimal('1.0'),
+            )
+        self._write_csv(tmp_path, [
+            f'{region.name},P1,5,16.1,38.5,500\n',
+            f'{region.name},P2,5,16.2,38.6,520\n',
+        ])
+        with pytest.raises(CommandError, match='unique per compresa'):
+            call_command('import_sample_grid', str(tmp_path))
+        assert SampleArea.objects.count() == 0          # rolled back
+
+    def test_same_number_different_regions_ok(
+        self, db, tmp_path, regions, eclasses,
+    ):
+        Parcel.objects.create(name='P1', region=regions[0],
+                              eclass=eclasses[0], area_ha=Decimal('1.0'))
+        Parcel.objects.create(name='P2', region=regions[1],
+                              eclass=eclasses[0], area_ha=Decimal('1.0'))
+        self._write_csv(tmp_path, [
+            f'{regions[0].name},P1,5,16.1,38.5,500\n',
+            f'{regions[1].name},P2,5,16.2,38.6,520\n',
+        ])
+        call_command('import_sample_grid', str(tmp_path))
+        assert SampleArea.objects.count() == 2
 
 
 @skip_no_csv

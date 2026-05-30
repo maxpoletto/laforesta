@@ -21,7 +21,7 @@ on the Griglie map).  Per `docs/page-campionamenti.md` §Section 1.
         <select id="id_area_region" name="region_id" required>
           {% for r in regions %}
             <option value="{{ r.id }}"
-                    {% if area and area.parcel.region_id == r.id %}selected{% endif %}>
+                    {% if r.id == selected_region_id %}selected{% endif %}>
               {{ r.name }}
             </option>
           {% endfor %}
@@ -32,7 +32,8 @@ on the Griglie map).  Per `docs/page-campionamenti.md` §Section 1.
         <select id="id_area_parcel" name="parcel_id" required>
           {% for p in parcels %}
             <option value="{{ p.id }}" data-region-id="{{ p.region_id }}"
-                    {% if area and area.parcel_id == p.id %}selected{% endif %}>
+                    data-next-number="{{ p.next_number }}"
+                    {% if p.id == selected_parcel_id %}selected{% endif %}>
               {{ p.name }}
             </option>
           {% endfor %}

@@ -35,10 +35,12 @@ from apps.base.models import (
 from config import strings as S
 from config.constants import (
     AREA_RECORDS, DATA_ID, FIELD_ALTITUDE, FIELD_ALTITUDE_M, FIELD_AREA,
-    FIELD_COPPICE, FIELD_DATE, FIELD_DESCRIPTION, FIELD_D_CM, FIELD_ERRORS,
+    FIELD_COMPRESA, FIELD_COPPICE, FIELD_DATE, FIELD_DESCRIPTION, FIELD_D_CM,
+    FIELD_ERRORS,
     FIELD_FUSTAIA, FIELD_H_M, FIELD_L10_MM, FIELD_LAT, FIELD_LON, FIELD_MASS_Q,
     FIELD_NAME, FIELD_NEXT_SHOOT, FIELD_NONCE, FIELD_NOTE, FIELD_NUMBER,
-    FIELD_PARCEL, FIELD_PARCEL_ID, FIELD_POINTS, FIELD_PRESERVED, FIELD_R_M,
+    FIELD_PARCEL, FIELD_PARCEL_ID, FIELD_PARTICELLA, FIELD_POINTS,
+    FIELD_PRESERVED, FIELD_R_M,
     FIELD_SAMPLE_AREA_ID, FIELD_SAMPLE_GRID_ID, FIELD_SHOOT, FIELD_SHOOTS,
     FIELD_SORT_ORDER, FIELD_SPECIES, FIELD_SPECIES_ID, FIELD_STANDARD,
     FIELD_SURVEY_ID, FIELD_TREE_PICK, FIELD_TREE_PICK_EXISTING_ID,
@@ -291,6 +293,57 @@ def tree_delete_view(request, ts_id: int):
     })
 
 
+def _next_area_numbers(grid) -> dict[int, int]:
+    """Map region_id → suggested next area number within `grid`.
+
+    Area numbers are unique per (grid, region).  `SampleArea.number` is free
+    text (usually numeric like '1', but may be prefixed, e.g. 'C1'): the
+    suggestion is max(integer-valued numbers in this grid+region) + 1, ignoring
+    non-integer labels; a region with no integer-valued areas starts at 1.
+    Suggestion only — the field stays free text and the writer may override it.
+    """
+    max_by_region: dict[int, int] = {}
+    for region_id, number in (SampleArea.objects
+                              .filter(sample_grid=grid)
+                              .values_list('parcel__region_id', 'number')):
+        n = _int_or_none_str(number)
+        if n is not None:
+            max_by_region[region_id] = max(max_by_region.get(region_id, 0), n)
+    return {rid: mx + 1 for rid, mx in max_by_region.items()}
+
+
+def _area_number_taken(grid, region_id, number, exclude_id=None) -> bool:
+    """True if another area in this grid+region already uses `number`.
+
+    Area numbers are unique per (grid, region) — see SampleArea.  Pass the
+    edited area's id as `exclude_id` so an unchanged save doesn't collide with
+    itself.
+    """
+    qs = SampleArea.objects.filter(
+        sample_grid=grid, parcel__region_id=region_id, number=number,
+    )
+    if exclude_id is not None:
+        qs = qs.exclude(id=exclude_id)
+    return qs.exists()
+
+
+def _parcel_from_names(parcels, compresa, particella):
+    """Resolve (compresa, particella) names to a Parcel from `parcels`, or None.
+
+    Matches the CSV import's key: case-insensitive region name + exact parcel
+    name.  `parcels` must have `region` pre-loaded.
+    """
+    compresa = (compresa or '').strip().lower()
+    particella = (particella or '').strip()
+    if not compresa or not particella:
+        return None
+    return next(
+        (p for p in parcels
+         if p.region.name.lower() == compresa and p.name == particella),
+        None,
+    )
+
+
 @login_required
 def area_form_view(request, area_id: int | None = None):
     """Form fragment for adding or editing a SampleArea.
@@ -320,10 +373,22 @@ def area_form_view(request, area_id: int | None = None):
     regions = list(Region.objects.order_by('name'))
     parcels = sorted(Parcel.objects.select_related('region'),
                      key=parcel_sort_key)
+    next_by_region = _next_area_numbers(grid)
+    for p in parcels:
+        p.next_number = next_by_region.get(p.region_id, 1)
+
+    # Pre-select region+parcel.  Editing: the area's own parcel.  Adding via
+    # map-click: the parcel under the click, passed as compresa+particella
+    # names.  Adding via the button: nothing pre-selected.
+    sel_parcel = area.parcel if area else _parcel_from_names(
+        parcels, request.GET.get(FIELD_COMPRESA), request.GET.get(FIELD_PARTICELLA),
+    )
     return JsonResponse({HTML: render_to_string(
         'campionamenti/_area_form.html', {
             FIELD_AREA: area, 'grid': grid,
             'regions': regions, 'parcels': parcels,
+            'selected_region_id': sel_parcel.region_id if sel_parcel else None,
+            'selected_parcel_id': sel_parcel.id if sel_parcel else None,
             'initial_lat': initial_lat, 'initial_lon': initial_lon,
             'lat': round(area.lat, 5) if area else initial_lat,
             'lon': round(area.lon, 5) if area else initial_lon,
@@ -366,6 +431,9 @@ def area_save_view(request):
 
     area_id = body.get(ROW_ID)
     area_id = int(area_id) if area_id else None
+
+    if _area_number_taken(grid, parcel.region_id, number, exclude_id=area_id):
+        return _simple_validation_error(S.ERR_AREA_NUMBER_DUPLICATE)
 
     with transaction.atomic():
         if area_id:
@@ -1008,10 +1076,11 @@ def grid_csv_import_view(request):
         (p.region.name.lower(), p.name): p
         for p in Parcel.objects.select_related('region')
     }
-    # Natural key per grid: (parcel_id, number).  Pre-load the existing
-    # areas so we can reject collisions without round-tripping.
+    # Natural key per grid: (region_id, number) — area numbers are unique per
+    # region.  Pre-load existing areas so we can reject collisions without
+    # round-tripping.
     existing_keys = set(SampleArea.objects.filter(sample_grid=grid)
-                                          .values_list(FIELD_PARCEL_ID, FIELD_NUMBER))
+                                          .values_list('parcel__region_id', FIELD_NUMBER))
 
     errors = []
     parsed_rows = []
@@ -1026,7 +1095,7 @@ def grid_csv_import_view(request):
             )
             continue
         number = row[S.CSV_COL_AREA_SAGGIO].strip()
-        key = (parcel.id, number)
+        key = (parcel.region_id, number)
         if key in existing_keys or key in seen_in_csv:
             errors.append(S.ERR_CSV_ROW_AREA_DUPLICATE.format(
                 i, compresa, particella, number,

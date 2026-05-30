@@ -18,9 +18,10 @@ import { TableWrapper } from '../../base/js/table.js';
 import { show as showModal, showError, dismiss as dismissModal, onDismiss } from '../../base/js/modals.js';
 import * as S from '../../base/js/strings.js';
 import {
-  FIELD_LAT, FIELD_LON, FIELD_NONCE, FIELD_SAMPLE_GRID_ID,
-  FIELD_SURVEY_ID, ROW_ID, VERSION,
+  FIELD_COMPRESA, FIELD_LAT, FIELD_LON, FIELD_NONCE, FIELD_PARTICELLA,
+  FIELD_SAMPLE_GRID_ID, FIELD_SURVEY_ID, ROW_ID, VERSION,
 } from '../../base/js/constants.js';
+import { parcelNames } from '../../base/js/geo.js';
 import { fetchJSON, postJSON, postFormData } from '../../base/js/api.js';
 import {
   fetchForm, fetchModalForm, renderFormHTML, renderModalForm,
@@ -407,7 +408,7 @@ function renderGriglieMap(gridId) {
     basemap: activeBasemap(),
     onAreaClick: (area) => showAreaPopover(area),
     onEmptyClick: modify
-      ? (lat, lon) => promptNewAreaAt(lat, lon)
+      ? (lat, lon, feature) => promptNewAreaAt(lat, lon, feature)
       : null,
     initialView,
     onViewChange: (center, zoom) => {
@@ -927,21 +928,26 @@ function showAreaPopover(area) {
   showModal(frag);
 }
 
-function promptNewAreaAt(lat, lon) {
+function promptNewAreaAt(lat, lon, feature) {
   if (activeGridId == null) return;
+  // A click inside a parcel pre-fills its region+parcel; an empty-space click
+  // (feature null) leaves them for the writer to pick.
+  const { compresa, particella } = feature ? parcelNames(feature) : {};
   showConfirmModal(
     S.CAMPIONAMENTI_INSERT_AREA_HERE,
-    () => showAddAreaForm({ lat, lon }),
+    () => showAddAreaForm({ lat, lon, compresa, particella }),
     { confirmLabel: S.CONFIRM },
   );
 }
 
-async function showAddAreaForm({ lat, lon } = {}) {
+async function showAddAreaForm({ lat, lon, compresa, particella } = {}) {
   if (activeGridId == null) return;
   inForm = true;
   const qs = new URLSearchParams({ grid: String(activeGridId) });
   if (lat != null) qs.set(FIELD_LAT, String(lat));
   if (lon != null) qs.set(FIELD_LON, String(lon));
+  if (compresa) qs.set(FIELD_COMPRESA, compresa);
+  if (particella) qs.set(FIELD_PARTICELLA, particella);
   const form = await fetchModalForm(`${AREA_FORM_URL}?${qs}`);
   if (!form) { inForm = false; return; }
   onDismiss(() => { inForm = false; });
@@ -977,15 +983,27 @@ function wireParcelByRegion(form) {
   const region = form.querySelector('#id_area_region');
   const parcel = form.querySelector('#id_area_parcel');
   if (!region || !parcel) return;
+  const number = form.querySelector('#id_area_number');
   const allOpts = [...parcel.options];
+  // Auto-suggest the next free number for the selected parcel (per
+  // docs/page-campionamenti.md §Section 1).  Add path only, and never over a
+  // value the writer typed — mirrors autoFillH in piano-di-taglio.js.
+  let userEdited = !!form.querySelector(`input[name="${ROW_ID}"]`)?.value;
+  number?.addEventListener('input', () => { userEdited = true; });
+  function suggestNumber() {
+    if (userEdited || !number) return;
+    number.value = parcel.selectedOptions[0]?.dataset.nextNumber || '1';
+  }
   function refresh() {
     const rid = region.value;
     parcel.replaceChildren();
     for (const opt of allOpts) {
       if (opt.dataset.regionId === rid) parcel.appendChild(opt.cloneNode(true));
     }
+    suggestNumber();
   }
   region.addEventListener('change', refresh);
+  parcel.addEventListener('change', suggestNumber);
   refresh();
 }
 

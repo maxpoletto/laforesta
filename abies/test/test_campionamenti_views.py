@@ -930,6 +930,56 @@ class TestAreaCRUD:
         })
         assert resp.status_code == 400
 
+    def test_duplicate_number_same_region_other_parcel_rejected(
+        self, writer_client, sample_setup, eclasses,
+    ):
+        """Area numbers are unique per region: '1' (used by the fixture parcel)
+        can't be reused by another parcel in the same region."""
+        s = sample_setup
+        region = s['area'].parcel.region
+        other = Parcel.objects.create(
+            name='1bis', region=region, eclass=eclasses[0],
+            area_ha=Decimal('1.0'),
+        )
+        resp = self._post(writer_client, '/api/campionamenti/area/save/', {
+            FIELD_SAMPLE_GRID_ID: s['grid'].id,
+            FIELD_PARCEL_ID: other.id,
+            FIELD_NUMBER: '1',
+            FIELD_LAT: '38.6', FIELD_LON: '16.2', FIELD_R_M: '12',
+        })
+        assert resp.status_code == 400
+        assert SampleArea.objects.filter(parcel=other).count() == 0
+
+    def test_same_number_different_region_ok(
+        self, writer_client, sample_setup, regions, eclasses,
+    ):
+        s = sample_setup
+        other = Parcel.objects.create(
+            name='1', region=regions[1], eclass=eclasses[0],
+            area_ha=Decimal('1.0'),
+        )
+        resp = self._post(writer_client, '/api/campionamenti/area/save/', {
+            FIELD_SAMPLE_GRID_ID: s['grid'].id,
+            FIELD_PARCEL_ID: other.id,
+            FIELD_NUMBER: '1',
+            FIELD_LAT: '38.6', FIELD_LON: '16.2', FIELD_R_M: '12',
+        })
+        assert resp.status_code == 200, resp.content
+        assert SampleArea.objects.filter(parcel=other, number='1').count() == 1
+
+    def test_edit_area_keeps_own_number(self, writer_client, sample_setup):
+        """Editing an area without changing its number must not trip the
+        per-region duplicate check against itself."""
+        s = sample_setup
+        resp = self._post(writer_client, '/api/campionamenti/area/save/', {
+            ROW_ID: s['area'].id,
+            FIELD_SAMPLE_GRID_ID: s['grid'].id,
+            FIELD_PARCEL_ID: s['area'].parcel_id,
+            FIELD_NUMBER: s['area'].number,          # unchanged
+            FIELD_LAT: '38.7', FIELD_LON: '16.3', FIELD_R_M: '13',
+        })
+        assert resp.status_code == 200, resp.content
+
     def test_delete_unused_area(self, writer_client, sample_setup,
                                 regions, eclasses):
         """An area with no samples can be deleted."""
@@ -968,6 +1018,151 @@ class TestAreaCRUD:
             FIELD_LAT: '38.5', FIELD_LON: '16.1', FIELD_R_M: '12',
         })
         assert resp.status_code == 403
+
+
+class TestAreaFormNextNumber:
+    """Add-area form auto-suggests the next free integer area number,
+    scoped to (grid, REGION) — area numbers are unique per region, not per
+    parcel.  Per docs/page-campionamenti.md §Section 1."""
+
+    @staticmethod
+    def _parcel_option(html, parcel_id):
+        """The <option> open tag for a given parcel id.  Parcel options carry
+        data-region-id, which disambiguates them from region options that may
+        share the same numeric id."""
+        anchor = html.find(f'value="{parcel_id}" data-region-id')
+        assert anchor >= 0, html
+        return html[anchor:html.find('>', anchor) + 1]
+
+    def test_suggests_max_integer_plus_one(self, writer_client, sample_setup):
+        s = sample_setup
+        parcel = s['area'].parcel          # fixture already has area number '1'
+        SampleArea.objects.create(
+            sample_grid=s['grid'], parcel=parcel, number='2',
+            lat=0.0, lon=0.0, r_m=12,
+        )
+        resp = writer_client.get(
+            f'/api/campionamenti/area/form/?grid={s["grid"].id}'
+        )
+        assert resp.status_code == 200
+        assert 'data-next-number="3"' in self._parcel_option(
+            resp.json()[HTML], parcel.id,
+        )
+
+    def test_region_scoped_across_parcels(self, writer_client, sample_setup,
+                                          eclasses):
+        """Numbers are unique per region: an area in ANOTHER parcel of the same
+        region bumps the suggestion for every parcel in that region."""
+        s = sample_setup
+        region = s['area'].parcel.region          # already holds area '1'
+        other_parcel = Parcel.objects.create(
+            name='1bis', region=region, eclass=eclasses[0],
+            area_ha=Decimal('1.0'),
+        )
+        SampleArea.objects.create(
+            sample_grid=s['grid'], parcel=other_parcel, number='5',
+            lat=0.0, lon=0.0, r_m=12,
+        )
+        html = writer_client.get(
+            f'/api/campionamenti/area/form/?grid={s["grid"].id}'
+        ).json()[HTML]
+        # Region max is 5 → every parcel in the region suggests 6.
+        assert 'data-next-number="6"' in self._parcel_option(
+            html, s['area'].parcel_id,
+        )
+        assert 'data-next-number="6"' in self._parcel_option(html, other_parcel.id)
+
+    def test_unused_region_starts_at_one(self, writer_client, sample_setup,
+                                         regions, eclasses):
+        s = sample_setup
+        fresh = Parcel.objects.create(          # regions[1] holds no areas
+            name='77', region=regions[1], eclass=eclasses[0],
+            area_ha=Decimal('1.0'),
+        )
+        resp = writer_client.get(
+            f'/api/campionamenti/area/form/?grid={s["grid"].id}'
+        )
+        assert 'data-next-number="1"' in self._parcel_option(
+            resp.json()[HTML], fresh.id,
+        )
+
+    def test_non_integer_numbers_ignored(self, writer_client, sample_setup,
+                                         regions, eclasses):
+        """Non-integer labels like 'C1' don't count, so a region holding only
+        'C1' still starts at 1."""
+        s = sample_setup
+        coppice = next(e for e in eclasses if e.coppice)
+        parcel = Parcel.objects.create(          # regions[2], isolated
+            name='88', region=regions[2], eclass=coppice,
+            area_ha=Decimal('1.0'),
+        )
+        SampleArea.objects.create(
+            sample_grid=s['grid'], parcel=parcel, number='C1',
+            lat=0.0, lon=0.0, r_m=12,
+        )
+        resp = writer_client.get(
+            f'/api/campionamenti/area/form/?grid={s["grid"].id}'
+        )
+        assert 'data-next-number="1"' in self._parcel_option(
+            resp.json()[HTML], parcel.id,
+        )
+
+    def test_scoped_to_grid(self, writer_client, sample_setup):
+        """Areas in other grids don't affect this grid's suggestion."""
+        s = sample_setup
+        parcel = s['area'].parcel          # number '1' in this grid
+        other_grid = SampleGrid.objects.create(name='Other grid')
+        SampleArea.objects.create(
+            sample_grid=other_grid, parcel=parcel, number='9',
+            lat=0.0, lon=0.0, r_m=12,
+        )
+        resp = writer_client.get(
+            f'/api/campionamenti/area/form/?grid={s["grid"].id}'
+        )
+        # Max integer in THIS grid for the region is 1 → suggest 2, not 10.
+        assert 'data-next-number="2"' in self._parcel_option(
+            resp.json()[HTML], parcel.id,
+        )
+
+
+class TestAreaFormPreselect:
+    """Click-to-create passes the clicked parcel's compresa+particella; the
+    form pre-selects that region+parcel (docs/page-campionamenti.md
+    §Section 1)."""
+
+    @staticmethod
+    def _is_selected(html, select_id, value):
+        """True if the <option value=`value`> inside <select id=`select_id`>
+        carries the `selected` attribute."""
+        sidx = html.find(f'id="{select_id}"')
+        assert sidx >= 0, html
+        block = html[sidx:html.find('</select>', sidx)]
+        vidx = block.find(f'value="{value}"')
+        if vidx < 0:
+            return False
+        tag = block[block.rfind('<option', 0, vidx):block.find('>', vidx)]
+        return 'selected' in tag
+
+    def test_preselects_parcel_from_names(self, writer_client, sample_setup):
+        s = sample_setup
+        parcel = s['area'].parcel
+        resp = writer_client.get(
+            f'/api/campionamenti/area/form/?grid={s["grid"].id}'
+            f'&compresa={parcel.region.name}&particella={parcel.name}'
+        )
+        html = resp.json()[HTML]
+        assert self._is_selected(html, 'id_area_parcel', parcel.id)
+        assert self._is_selected(html, 'id_area_region', parcel.region_id)
+
+    def test_unknown_names_no_preselect(self, writer_client, sample_setup):
+        resp = writer_client.get(
+            f'/api/campionamenti/area/form/?grid={sample_setup["grid"].id}'
+            f'&compresa=Nowhere&particella=999'
+        )
+        assert resp.status_code == 200          # graceful: just no pre-selection
+        assert not self._is_selected(
+            resp.json()[HTML], 'id_area_parcel', sample_setup['area'].parcel_id,
+        )
 
 
 class TestRecordShape:
@@ -1511,6 +1706,30 @@ class TestGridCsvImport:
         resp = self._post(writer_client, grid.id, csv_text)
         assert resp.status_code == 400
         assert SampleArea.objects.filter(sample_grid=grid).count() == 0
+
+    def test_duplicate_number_other_parcel_same_region_rejected(
+        self, writer_client, sample_setup, eclasses,
+    ):
+        """Per-region uniqueness: two parcels of the same region can't share a
+        number, even though they're different parcels."""
+        s = sample_setup
+        region = s['area'].parcel.region
+        other = Parcel.objects.create(
+            name='1bis', region=region, eclass=eclasses[0],
+            area_ha=Decimal('1.0'),
+        )
+        grid = SampleGrid.objects.create(name='Region dup')
+        SampleArea.objects.create(
+            sample_grid=grid, parcel=s['area'].parcel, number='10',
+            lat=16.1, lon=38.5, r_m=12,
+        )
+        csv_text = (
+            'Compresa,Particella,Area saggio,Lon,Lat,Quota,Raggio\n'
+            f'{region.name},{other.name},10,16.2,38.6,500,12\n'
+        )
+        resp = self._post(writer_client, grid.id, csv_text)
+        assert resp.status_code == 400
+        assert SampleArea.objects.filter(sample_grid=grid, parcel=other).count() == 0
 
     def test_missing_grid_id(self, writer_client, db):
         from django.core.files.uploadedfile import SimpleUploadedFile
