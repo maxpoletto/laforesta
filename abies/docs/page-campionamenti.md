@@ -99,7 +99,8 @@ paths:
   (via the pencil modal).
 - *Genera automaticamente* — runs the grid generator (similar to `bosco/pac`)
   across user-selected regions, writes `sample_grid` plus `sample_area` rows in
-  one transaction.
+  one transaction. Generated areas are numbered per compresa, restarting at 1
+  in each (matching manually-added areas — see §"The new-area form").
 
 This deliberately does *not* offer CSV import at creation time: identity
 (the grid exists with a name) is decoupled from content (sample areas).

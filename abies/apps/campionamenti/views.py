@@ -1466,17 +1466,22 @@ def grid_save_auto_view(request):
 
     with transaction.atomic():
         grid = SampleGrid.objects.create(name=name, description=description)
-        SampleArea.objects.bulk_create([
-            SampleArea(
+        # Number areas per compresa (region), restarting at 1 in each, so
+        # auto-generated numbers are unique per compresa like manual ones.
+        per_region_count: dict[int, int] = {}
+        areas = []
+        for pt, parcel in resolved:
+            n = per_region_count.get(parcel.region_id, 0) + 1
+            per_region_count[parcel.region_id] = n
+            areas.append(SampleArea(
                 sample_grid=grid,
                 parcel=parcel,
-                number=str(i + 1),
+                number=str(n),
                 lat=pt[FIELD_LAT], lon=pt[FIELD_LON],
                 r_m=r_m,
                 note='',
-            )
-            for i, (pt, parcel) in enumerate(resolved)
-        ])
+            ))
+        SampleArea.objects.bulk_create(areas)
         mark_stale('grids', 'sample_areas', 'audit')
 
     area_qs = SampleArea.objects.filter(sample_grid=grid) \

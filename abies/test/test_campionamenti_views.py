@@ -1440,6 +1440,40 @@ class TestGridSaveAuto:
         assert (by_number['1'].lat, by_number['1'].lon) == pytest.approx((38.5, 16.1))
         assert (by_number['2'].lat, by_number['2'].lon) == pytest.approx((38.51, 16.11))
 
+    def test_numbers_restart_per_compresa(
+        self, writer_client, sample_setup, regions, eclasses,
+    ):
+        """Auto-grid area numbers restart within each compresa (per-compresa
+        uniqueness, matching manual numbering) — not 1..N overall.  Points are
+        interleaved across comprese to prove the per-compresa counter holds."""
+        s = sample_setup
+        p_a = s['area'].parcel                       # regions[0]
+        p_b = Parcel.objects.create(                 # regions[1]
+            name='9', region=regions[1], eclass=eclasses[0],
+            area_ha=Decimal('1.0'),
+        )
+        resp = self._post(writer_client, {
+            FIELD_NAME: 'Multi-compresa grid', FIELD_R_M: 12,
+            FIELD_POINTS: [
+                {'compresa': p_a.region.name, 'particella': p_a.name,
+                 FIELD_LAT: 38.5, FIELD_LON: 16.1},
+                {'compresa': p_b.region.name, 'particella': p_b.name,
+                 FIELD_LAT: 38.6, FIELD_LON: 16.2},
+                {'compresa': p_a.region.name, 'particella': p_a.name,
+                 FIELD_LAT: 38.7, FIELD_LON: 16.3},
+            ],
+        })
+        assert resp.status_code == 200, resp.content
+        grid = SampleGrid.objects.get(id=resp.json()[ROW_ID])
+        nums_a = sorted(SampleArea.objects.filter(
+            sample_grid=grid, parcel__region=regions[0],
+        ).values_list('number', flat=True))
+        nums_b = sorted(SampleArea.objects.filter(
+            sample_grid=grid, parcel__region=regions[1],
+        ).values_list('number', flat=True))
+        assert nums_a == ['1', '2']      # two points in compresa A
+        assert nums_b == ['1']           # restarts at 1 in compresa B
+
     def test_unknown_compresa_aborts(self, writer_client, sample_setup):
         n_before = SampleGrid.objects.count()
         resp = self._post(writer_client, {
