@@ -2,6 +2,7 @@
 
 import gzip
 import json
+import re
 
 import pytest
 from django.test import Client
@@ -200,6 +201,44 @@ class TestFormView:
         html = resp.json()[HTML]
         # The first species has 100% on sample_op
         assert 'value="100"' in html
+
+    def _vdp_value(self, html):
+        """Extract the value rendered into the VDP (record1) input."""
+        m = re.search(rf'name="{FIELD_RECORD1}"\s+value="([^"]*)"', html)
+        assert m, 'VDP input not found in form HTML'
+        return m.group(1)
+
+    def test_add_form_defaults_vdp_to_max_plus_one(
+            self, writer_client, harvest_fixtures, sample_op):
+        """A fresh add form pre-fills VDP with max(existing VDP) + 1."""
+        # sample_op carries record1=999, so the next VDP defaults to 1000.
+        html = writer_client.get('/api/prelievi/form/').json()[HTML]
+        assert self._vdp_value(html) == '1000'
+
+    def test_add_form_defaults_vdp_to_one_when_no_records(
+            self, writer_client, harvest_fixtures):
+        """With no existing VDP values, the add form defaults VDP to 1."""
+        html = writer_client.get('/api/prelievi/form/').json()[HTML]
+        assert self._vdp_value(html) == '1'
+
+    def test_edit_form_does_not_inject_vdp_default(
+            self, writer_client, harvest_fixtures):
+        """Editing a legacy harvest with NULL VDP keeps the field blank,
+        rather than injecting the add-form max+1 default."""
+        f = harvest_fixtures
+        # A separate harvest sets a non-zero max VDP (the edit form would show
+        # '778' here if the default were wrongly applied to edits).
+        Harvest.objects.create(
+            date='2024-05-01', parcel=f['parcels'][0], crew=f['crews'][0],
+            product=f['products'][0], mass_q=10, record1=777,
+            harvest_plan_item=f['open_item'],
+        )
+        legacy = Harvest.objects.create(
+            date='2024-05-02', parcel=f['parcels'][0], crew=f['crews'][0],
+            product=f['products'][0], mass_q=10, record1=None,
+        )
+        html = writer_client.get(f'/api/prelievi/form/{legacy.id}/').json()[HTML]
+        assert self._vdp_value(html) == ''
 
 
 # ---------------------------------------------------------------------------
@@ -487,7 +526,7 @@ class TestDeleteView:
 from config import strings as S  # noqa: E402
 from config.constants import (
     COLUMNS, DATA_ID, FIELD_CREW_ID, FIELD_DATE, FIELD_HARVEST_PLAN_ITEM_ID,
-    FIELD_MASS_Q, FIELD_NONCE, FIELD_NOTE, FIELD_PRODUCT_ID,
+    FIELD_MASS_Q, FIELD_NONCE, FIELD_NOTE, FIELD_PRODUCT_ID, FIELD_RECORD1,
     HTML, MESSAGE, RECORD, ROWS, ROW_ID,
     STATUS, STATUS_CONFLICT, STATUS_VALIDATION_ERROR, VERSION,
 )

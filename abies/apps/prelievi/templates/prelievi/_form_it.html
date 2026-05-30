@@ -110,7 +110,7 @@
       <div class="form-group narrow">
         <label for="id_record1">VDP</label>
         <input type="number" id="id_record1" name="record1"
-               value="{% if op.record1 %}{{ op.record1 }}{% elif vals.record1 %}{{ vals.record1 }}{% endif %}">
+               value="{% if op.record1 %}{{ op.record1 }}{% elif vals.record1 %}{{ vals.record1 }}{% else %}{{ default_record1 }}{% endif %}">
       </div>
       <div class="form-group wide">
         <label for="id_note">Altre note</label>
