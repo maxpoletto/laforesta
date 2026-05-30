@@ -31,7 +31,7 @@ from apps.base.digests import (
 from apps.base.middleware import save_nonce
 from apps.base.models import (
     Crew, HarvestPlanItem, HarvestPlanItemState, Parcel, Product, Species,
-    Tractor, parcel_sort_key,
+    Tractor, next_sequence_number, parcel_sort_key,
 )
 from apps.prelievi.models import Harvest, HarvestSpecies, HarvestTractor
 from config import strings as S
@@ -274,6 +274,14 @@ def _form_context(op_id=None, vals=None):
     sp_pcts = aggregate_sp_pcts(sp_pcts, minor_ids, other_id)
 
     v = vals or {}
+
+    # Fresh add form: pre-fill VDP with the next free value, max(VDP)+1.  On
+    # edits and on re-render after a validation error the stored/submitted
+    # value governs (via the template), so no default is injected.
+    default_record1 = ''
+    if op_id is None and not vals:
+        default_record1 = next_sequence_number(Harvest.objects, FIELD_RECORD1)
+
     cantieri = [
         {
             'id': it.id,
@@ -289,6 +297,7 @@ def _form_context(op_id=None, vals=None):
     return {
         'op': op,
         'vals': v,
+        'default_record1': default_record1,
         'cantieri': cantieri,
         'parcels': sorted(Parcel.objects.select_related('region'),
                          key=parcel_sort_key),

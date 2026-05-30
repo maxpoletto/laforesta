@@ -38,6 +38,16 @@ def render_flag_note(damaged: bool, unhealthy: bool, psr: bool) -> str:
     return ', '.join(parts)
 
 
+def next_sequence_number(queryset, field: str) -> int:
+    """Return ``max(field) + 1`` over `queryset`, or 1 if it is empty or every
+    row is NULL.  For defaulting sequential integer columns such as a
+    tree-mark number or a harvest VDP.  Free-text or per-group sequences
+    (e.g. SampleArea.number) are parsed and grouped differently and do not use
+    this helper.
+    """
+    return (queryset.aggregate(_max=models.Max(field))['_max'] or 0) + 1
+
+
 # ---------------------------------------------------------------------------
 # Abstract base
 # ---------------------------------------------------------------------------

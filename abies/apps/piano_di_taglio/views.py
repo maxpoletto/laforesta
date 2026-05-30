@@ -19,7 +19,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Iterable
 
 from django.contrib.auth.decorators import login_required
-from django.db import models, transaction
+from django.db import transaction
 from django.db.models import Q
 from django.http import Http404, HttpResponse, JsonResponse
 from django.template.loader import render_to_string
@@ -47,6 +47,7 @@ from apps.base.models import (
     Species,
     Tree,
     TreeMark,
+    next_sequence_number,
     parcel_sort_key,
     render_flag_note,
 )
@@ -1376,10 +1377,9 @@ def _rematerialize_volume_marked(item_id: int) -> None:
 
 def _next_mark_number(item_id: int) -> int:
     """Return max(tree_mark.number)+1 for the item, or 1 if no marks exist."""
-    agg = (TreeMark.objects
-           .filter(harvest_plan_item_id=item_id)
-           .aggregate(m=models.Max(FIELD_NUMBER)))
-    return (agg['m'] or 0) + 1
+    return next_sequence_number(
+        TreeMark.objects.filter(harvest_plan_item_id=item_id), FIELD_NUMBER,
+    )
 
 
 def _parse_date_flex(s: str) -> date_type:
