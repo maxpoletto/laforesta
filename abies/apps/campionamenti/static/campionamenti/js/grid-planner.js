@@ -258,11 +258,17 @@ export class GridPlanner {
 
   _renderPoints() {
     this.pointLayer.clearLayers();
-    this.points.forEach((pt, i) => {
+    // Number each point per compresa, restarting at 1, to mirror
+    // grid_save_auto_view's server-side numbering — otherwise the preview
+    // adc numbers wouldn't match the saved grid.
+    const countByCompresa = {};
+    this.points.forEach((pt) => {
+      const n = (countByCompresa[pt.compresa] || 0) + 1;
+      countByCompresa[pt.compresa] = n;
       const m = L.circleMarker([pt.lat, pt.lon], POINT_STYLE);
       m.bindTooltip(
         S.TOOLTIP_ADC
-          .replace('{n}', i + 1)
+          .replace('{n}', n)
           .replace('{compresa}', pt.compresa)
           .replace('{particella}', pt.particella),
       );
