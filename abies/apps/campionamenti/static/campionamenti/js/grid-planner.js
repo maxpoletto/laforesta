@@ -14,7 +14,7 @@ import {
 } from '../../base/js/geo.js';
 import { fetchJSON, postJSON } from '../../base/js/api.js';
 import { showError } from '../../base/js/modals.js';
-import { parseDecimal } from '../../base/js/format.js';
+import { fmtDecimal1, fmtDecimal2, parseDecimal } from '../../base/js/format.js';
 import * as S from '../../base/js/strings.js';
 
 const TERRENI_URL = '/api/geo/terreni.geojson';
@@ -106,8 +106,7 @@ export class GridPlanner {
       id: 'grid-auto-radius', type: 'number', min: 1, step: 1, value: 12,
     }));
     params.appendChild(this._labelInput(S.LABEL_COVERAGE_PCT, 'input', {
-      id: 'grid-auto-coverage', type: 'number',
-      min: 0.01, max: 100, step: 0.1, value: 1,
+      id: 'grid-auto-coverage', type: 'text', inputmode: 'decimal', value: 1,
     }));
     h.appendChild(params);
 
@@ -283,8 +282,8 @@ export class GridPlanner {
       S.STATS_POINTS
         .replace('{n}', this.points.length)
         .replace('{target}', targetN),
-      S.STATS_TOTAL_AREA_HA.replace('{ha}', (totalAreaM2 / 10000).toFixed(2)),
-      S.STATS_AREA_PER_POINT_M2.replace('{area}', perPointAreaM2.toFixed(1)),
+      S.STATS_TOTAL_AREA_HA.replace('{ha}', fmtDecimal2(totalAreaM2 / 10000)),
+      S.STATS_AREA_PER_POINT_M2.replace('{area}', fmtDecimal1(perPointAreaM2)),
     ];
     for (const t of lines) {
       const div = document.createElement('div');

@@ -233,7 +233,7 @@ class TestSpecies:
         assert float(Species.objects.get(common_name='Cerro').density) == 8.25
 
     def test_save_rejects_zero_density(self, writer_client, db):
-        """§7: density must be > 0."""
+        """Density must be > 0."""
         resp = _post(writer_client, '/api/impostazioni/species/save/', {
             FIELD_COMMON_NAME: 'Zzz', FIELD_LATIN_NAME: '',
             FIELD_DENSITY: '0', FIELD_ACTIVE: 'true',

@@ -121,7 +121,7 @@ export class TableWrapper {
   /** Current search text. */
   getSearchText() { return this._searchText; }
 
-  /** Column defs (with formatters) for building the search haystack (§6). */
+  /** Column defs (with formatters) for building the search haystack. */
   get searchColumns() { return this._stColumns; }
 
   /** Programmatically set search text (e.g., for reset). */
@@ -353,7 +353,7 @@ function escAttr(s) {
  * Ordered-term search over a row's *displayed* text: every term must appear,
  * in the given order.  With `columns` (the column defs), each cell is rendered
  * through its formatter so the haystack matches what the user sees — the
- * it-locale "3,14", not the raw "3.14" (decimals.md §6) — and hidden columns
+ * it-locale "3,14", not the raw "3.14" — and hidden columns
  * are excluded.  Without `columns`, falls back to the raw stringified values.
  */
 export function matchesSearch(row, terms, columns = null) {

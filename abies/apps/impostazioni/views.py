@@ -429,7 +429,7 @@ def hypso_params_clear(request):
 
 def _hypso_export_response(params):
     """Stream the active set as CSV in the active locale's format (lowercase
-    header; ``;``+``,`` for Italian, ``,``+``.`` otherwise — decimals.md §8).
+    header; ``;``+``,`` for Italian, ``,``+``.`` otherwise).
 
     Column order matches the settings table (..., a, b, n, r2); consumers
     read by header name, so the order is for human readability only.

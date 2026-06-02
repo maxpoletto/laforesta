@@ -445,8 +445,8 @@ def plan_csv_import_view(request):
 @login_required
 def plan_export_view(request, plan_id: int):
     """Return a zip of the fustaia + ceduo CSVs in the active install locale's
-    CSV format (``;``+``,`` for Italian, ``,``+``.`` for a dot-decimal locale;
-    see decimals.md §8), matching the per-table CSV export.
+    CSV format (``;``+``,`` for Italian, ``,``+``.`` for a dot-decimal locale),
+    matching the per-table CSV export.
 
     Each CSV carries the full column set of the corresponding calendar
     table (display column names, not only the round-trip-required
@@ -1562,7 +1562,7 @@ def _parse_ceduo_rows(rows, parcel_cache, errors):
 
 def _csv_decimal(row, key):
     """Decimal from a CSV alias-row, parsed with that file's detected decimal
-    separator (decimals.md §9); None if blank/invalid."""
+    separator; None if blank/invalid."""
     return to_decimal(row.get(key), row['_decimal_sep'])
 
 
@@ -1702,8 +1702,8 @@ def _int_or_none(v):
 
 
 def _fmt_decimal(v) -> str:
-    """Render a number for a CSV cell in the active locale's decimal mark
-    (decimals.md §8); delegates to the shared `csv_io.format_decimal`."""
+    """Render a number for a CSV cell in the active locale's decimal mark;
+    delegates to the shared `csv_io.format_decimal`."""
     _, decimal_sep = csv_io.export_format()
     return csv_io.format_decimal(v, decimal_sep)
 

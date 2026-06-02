@@ -28,7 +28,7 @@ import {
   MESSAGE, ROLE_ADMIN, ROLE_WRITER, STATUS_CONFLICT,
 } from '../../base/js/constants.js';
 import {
-  fmtDecimal2, parseDecimal,
+  fmtDecimal2, fmtDecimal4, fmtInt, parseDecimal,
 } from '../../base/js/format.js';
 
 const API = '/api/impostazioni/';
@@ -312,7 +312,7 @@ function showFormModal(html, cfg, state) {
       const prev = form.querySelector('.form-inline-error');
       if (prev) prev.remove();
 
-      // §7: species density must be > 0 (only the species form has it).
+      // Species density must be > 0 (only the species form has it).
       if (body.density !== undefined && !(parseDecimal(body.density) > 0)) {
         showError(S.ERR_DENSITY_POSITIVE);
         return;
@@ -392,6 +392,14 @@ const HYPSO = {
 
 const hypsoState = { table: null, digest: null, loaded: false };
 
+// Hypso table numeric columns: a/b/r² are 4-dp decimals, n a count.
+const HYPSO_COL_DEFS = {
+  [S.COL_A]: { type: 'number', formatter: fmtDecimal4 },
+  [S.COL_B]: { type: 'number', formatter: fmtDecimal4 },
+  [S.COL_R2]: { type: 'number', formatter: fmtDecimal4 },
+  [S.COL_N_REGRESSION]: { type: 'number', formatter: fmtInt },
+};
+
 function buildHypsoSection() {
   const frag = cloneTemplate('tmpl-hypso-section');
   const body = frag.querySelector('.collapsible-body');
@@ -444,6 +452,7 @@ async function loadHypso(tableHost, descEl) {
   hypsoState.table = new TableWrapper({
     container: tableHost, digest, canModify: false, inlineToolbar: false,
     labels: S.TABLE_LABELS, csvFormat: S.TABLE_CSV_FORMAT,
+    columnDefs: HYPSO_COL_DEFS,
   });
   renderDescription(descEl, meta);
 }
@@ -520,6 +529,7 @@ function showCandidate(payload, minN, surveyIds, tableHost, descEl) {
   const table = new TableWrapper({
     container: host, digest: payload, canModify: false, inlineToolbar: false,
     labels: S.TABLE_LABELS, csvFormat: S.TABLE_CSV_FORMAT,
+    columnDefs: HYPSO_COL_DEFS,
   });
   modals.onDismiss(() => table.destroy());
 }

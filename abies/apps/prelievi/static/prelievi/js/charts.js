@@ -6,6 +6,7 @@
  */
 
 import * as S from '../../base/js/strings.js';
+import { fmtDecimal1 } from '../../base/js/format.js';
 
 const MAX_SERIES = 12;
 
@@ -134,7 +135,7 @@ export function renderStackedBar(canvas, chartData, existing) {
           animation: false,
           callbacks: {
             label: ctx =>
-              `${ctx.dataset.label}: ${ctx.raw.toFixed(1).replace('.', ',')}`,
+              `${ctx.dataset.label}: ${fmtDecimal1(ctx.raw)}`,
           },
         },
       },

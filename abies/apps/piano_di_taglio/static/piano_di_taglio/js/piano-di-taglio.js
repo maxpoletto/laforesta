@@ -1422,7 +1422,7 @@ function buildMarkTreeColumnDefs(columns) {
     if (hidden.has(name)) { defs[name] = { label: name, hidden: true }; continue; }
     if (name === S.COL_DATE) { defs[name] = { label: name, type: 'date', width: '100px' }; continue; }
     if (name === S.COL_NUMERO) { defs[name] = { label: name, type: 'number', width: '60px', formatter: fmtInt }; continue; }
-    if (name === S.COL_D_CM) { defs[name] = { label: name, type: 'number', width: '70px' }; continue; }
+    if (name === S.COL_D_CM) { defs[name] = { label: name, type: 'number', width: '70px', formatter: fmtInt }; continue; }
     if (name === S.COL_H_M) { defs[name] = { label: name, type: 'number', width: '70px', formatter: fmtDecimal2 }; continue; }
     if (name === S.COL_H_MEASURED) { defs[name] = { label: name, type: 'boolean', width: '85px' }; continue; }
     if (name === S.COL_V_M3) { defs[name] = { label: name, type: 'number', width: '85px', formatter: fmtDecimal3 }; continue; }
@@ -1476,7 +1476,7 @@ function wireHypsoAutoH(form, hypsoParams) {
     if (fn === HYPSO_FUNC_LN) hVal = a * Math.log(dCm) + b;
     if (hVal != null && hVal > 0) {
       programmaticH = true;
-      h.value = hVal.toFixed(2);
+      h.value = fmtDecimal2(hVal);
       h.dispatchEvent(new Event('input'));
       programmaticH = false;
       if (hMeasHidden) hMeasHidden.value = '0';
@@ -1509,7 +1509,7 @@ async function wireMarkForm(form, itemId) {
   wireCancelButtons(form, dismissModal);
   interceptSubmit(form, MARK_SAVE_URL, {
     validate: (body) => {
-      // §7: a mark needs D and h > 0.
+      // A mark needs D and h > 0.
       if (!(parseInt(body.d_cm, 10) > 0)) return S.ERR_D_POSITIVE;
       if (!(parseDecimal(body.h_m) > 0)) return S.ERR_H_POSITIVE;
       return null;

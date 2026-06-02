@@ -222,7 +222,7 @@ class TestImportExportClear:
         body = resp.content.decode('utf-8')
         assert hypso_samples['species'].common_name in body
         # Column order matches the settings table: ..., a, b, n, r2.  Field
-        # separator follows the install locale (decimals.md §8).
+        # separator follows the install locale.
         delimiter, _ = csv_io.export_format()
         assert body.splitlines()[0].split(delimiter) == [
             S.CSV_COL_COMPRESA.lower(), S.CSV_COL_GENERE.lower(),

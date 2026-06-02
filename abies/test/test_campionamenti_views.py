@@ -494,7 +494,7 @@ class TestTreeSave:
         assert 'Data' in resp.json()[MESSAGE]
 
     def test_rejects_zero_diameter_or_height(self, writer_client, sample_setup):
-        """§7: a measured (fustaia) tree needs D and h > 0."""
+        """A measured (fustaia) tree needs D and h > 0."""
         for field in (FIELD_D_CM, FIELD_H_M):
             payload = self._save_payload(sample_setup, 1, '2025-03-10')
             payload[field] = '0'
@@ -725,7 +725,7 @@ class TestTreeSaveCoppice:
             {FIELD_SHOOT: 1, FIELD_STANDARD: False, FIELD_D_CM: 0,
              FIELD_H_M: '8,0', 'l10_mm': 0},
         ])})
-        assert bad_d.status_code == 400  # §7: shoot diameter must be > 0
+        assert bad_d.status_code == 400  # a coppice shoot's diameter must be > 0
 
     def test_coppice_requires_at_least_one_shoot(
         self, writer_client, sample_setup, regions, eclasses,
@@ -1749,7 +1749,7 @@ class TestGridCsvImport:
         assert len(data[AREA_RECORDS]) == 2
 
     def test_semicolon_comma_decimal_import(self, writer_client, sample_setup):
-        """§9: a ';'-delimited, comma-decimal file imports; lat/lon parsed."""
+        """A ';'-delimited, comma-decimal file imports; lat/lon parsed."""
         s = sample_setup
         grid = SampleGrid.objects.create(name='IT-format target')
         compresa = s['area'].parcel.region.name

@@ -40,7 +40,7 @@ export const TABLE_LABELS = {
 export const TABLE_CSV_FORMAT = {
   separator: ';',
   decimal: ',',
-  dateFormat: 'YYYY-MM-DD',  // CSV dates are ISO8601 regardless of locale (decimals.md §8)
+  dateFormat: 'YYYY-MM-DD',  // CSV dates are ISO8601 regardless of locale
 };
 
 // Errors
@@ -333,6 +333,8 @@ export const COL_H_MEASURED           = 'h misurata';
 export const COL_FUNCTION             = 'funzione';
 export const COL_A                    = 'a';
 export const COL_B                    = 'b';
+export const COL_R2                   = 'r²';
+export const COL_N_REGRESSION         = 'n';
 
 // View/edit-item page.
 export const VIEW_ITEM_TITLE     = 'Intervento';

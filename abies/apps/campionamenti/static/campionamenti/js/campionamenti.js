@@ -1541,7 +1541,7 @@ function wireTreeForm(form) {
   wireCancelButtons(form, dismissModal);
   interceptSubmit(form, TREE_SAVE_URL, {
     validate: (body) => {
-      // §7: a measured (fustaia) tree needs D and h > 0.  Coppice carries
+      // A measured (fustaia) tree needs D and h > 0.  Coppice carries
       // per-shoot values, validated server-side.
       if (body.fustaia === 'true') {
         if (!(parseInt(body.d_cm, 10) > 0)) return S.ERR_D_POSITIVE;

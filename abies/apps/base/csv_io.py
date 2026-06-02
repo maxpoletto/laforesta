@@ -1,8 +1,8 @@
 """Locale-tolerant CSV reading, shared by every importer.
 
 CSV is I/O, not canonical transmission (see CLAUDE.md §"Number formatting").
-Input is lenient per ``docs/decimals.md`` §9: the field delimiter is
-auto-detected and fixes the decimal separator as a *pair* — ``;`` ⇒ ``,``
+Input is lenient: the field delimiter is auto-detected and fixes the decimal
+separator as a *pair* — ``;`` ⇒ ``,``
 decimal, ``,`` ⇒ ``.`` decimal.  Numbers are parsed against the *detected*
 separator, independent of the install locale, so a dot-decimal file imports on
 an Italian install and a comma-decimal file imports on a US install.
@@ -22,7 +22,7 @@ from django.utils.formats import get_format
 from apps.base.formats import to_decimal
 from config import strings as S
 
-# Field delimiter ⇒ decimal separator (decimals.md §8-9).  ';' is the Italian /
+# Field delimiter ⇒ decimal separator.  ';' is the Italian /
 # Excel pairing (comma decimal); ',' is the canonical / US pairing (dot decimal).
 _DECIMAL_FOR_DELIMITER = {';': ',', ',': '.'}
 
@@ -95,7 +95,7 @@ def _decode(source) -> str:
 
 def export_format() -> tuple[str, str]:
     """(field delimiter, decimal separator) for CSV *output* in the active
-    locale — the inverse of `read`'s detection (decimals.md §8).  A comma
+    locale — the inverse of `read`'s detection.  A comma
     decimal pairs with a ';' delimiter; a dot decimal with ','.
     """
     decimal_sep = str(get_format('DECIMAL_SEPARATOR'))

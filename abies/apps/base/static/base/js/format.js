@@ -29,6 +29,7 @@ export function fmtDecimal(v, n) {
 export const fmtDecimal1 = v => fmtDecimal(v, 1);
 export const fmtDecimal2 = v => fmtDecimal(v, 2);
 export const fmtDecimal3 = v => fmtDecimal(v, 3);
+export const fmtDecimal4 = v => fmtDecimal(v, 4);
 
 export function fmtDecimalBlankZero(v, n) {
   if (!v) return '';
