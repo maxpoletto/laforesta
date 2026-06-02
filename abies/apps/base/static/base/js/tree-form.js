@@ -10,6 +10,7 @@
  */
 
 import { tabacchiVolumeM3, massQ } from './volume.js';
+import { parseDecimal, fmtDecimal } from './format.js';
 
 // Canonical element IDs — templates and JS both reference these.
 export const ID_D_CM      = 'tf-d-cm';
@@ -53,18 +54,18 @@ export function wireVMPreview(form, opts = {}) {
 
   function update() {
     if (ceduoEl?.checked) { clearPreview(); return; }
-    const dCm = parseFloat(d.value);
-    const hM = parseFloat(h.value);
+    const dCm = parseInt(d.value, 10);
+    const hM = parseDecimal(h.value);
     if (!(dCm > 0 && hM > 0)) { clearPreview(); return; }
     const opt = sp.tagName === 'SELECT' ? sp.options[sp.selectedIndex] : sp;
     const speciesName = opt?.dataset.name;
-    const density = parseFloat(opt?.dataset.density);
+    const density = parseDecimal(opt?.dataset.density);
     const v = tabacchiVolumeM3(dCm, hM, speciesName);
     if (v == null) { clearPreview(); return; }
     const m = massQ(v, density);
     preview.hidden = false;
     preview.textContent =
-      `V = ${v.toFixed(3).replace('.', ',')} m³  ·  m = ${m.toFixed(2).replace('.', ',')} q`;
+      `V = ${fmtDecimal(v, 3)} m³  ·  m = ${fmtDecimal(m, 2)} q`;
     vHidden.value = v.toFixed(4);
     mHidden.value = m.toFixed(3);
   }

@@ -393,11 +393,7 @@ def hypso_params_import(request):
     file = request.FILES.get(FIELD_FILE)
     if file is None:
         return _error(S.ERR_CSV_FILE_REQUIRED)
-    try:
-        text = file.read().decode('utf-8-sig')
-    except UnicodeDecodeError:
-        return _error(S.ERR_CSV_NOT_UTF8)
-    rows, errors = hypsometry.parse_param_csv(text)
+    rows, errors = hypsometry.parse_param_csv(file)
     if errors:
         return _error('\n'.join(errors))
     if not rows:

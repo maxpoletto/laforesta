@@ -969,6 +969,25 @@ class TestMarkCSVImport:
         assert tm.number == 1
         assert tm.d_cm == 30
 
+    def test_import_rejects_fractional_diameter(
+        self, writer_client, planned_item, species, parcels,
+    ):
+        """A fractional D_cm is flagged, not silently truncated to int."""
+        sp = species[0]
+        parcel = parcels[0]
+        csv_bytes = self._csv_content([
+            ['01/06/2025', parcel.region.name, parcel.name, '0', '1',
+             sp.common_name, '30,5', '20,0', '0', '38.5', '16.3', '5', 'Mario'],
+        ])
+        csv_file = io.BytesIO(csv_bytes)
+        csv_file.name = 'test.csv'
+        resp = writer_client.post(self.IMPORT_URL, data={
+            FIELD_HARVEST_PLAN_ITEM_ID: planned_item.id,
+            FIELD_FILE: csv_file,
+        })
+        assert resp.status_code == 400
+        assert TreeMark.objects.count() == 0
+
     def test_import_dedup(self, writer_client, planned_item, species, parcels):
         sp = species[0]
         parcel = parcels[0]

@@ -1461,7 +1461,7 @@ function wireHypsoAutoH(form, hypsoParams) {
 
   function autoFillH() {
     if (userEditedH) return;
-    const dCm = parseFloat(d.value);
+    const dCm = parseInt(d.value, 10);
     const opt = sp.options[sp.selectedIndex];
     const speciesName = opt?.dataset.name;
     if (!speciesName || !(dCm > 0)) return;

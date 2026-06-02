@@ -139,6 +139,15 @@ class TestImportExportClear:
         assert resp.status_code == 400
         assert HypsoParamSet.objects.count() == 0
 
+    def test_import_rejects_non_utf8(self, writer_client, db, tmp_path, settings):
+        """A non-UTF-8 upload is reported cleanly (not a 500) — it flows
+        through parse_param_csv → csv_io decode."""
+        settings.DIGEST_DIR = tmp_path
+        f = SimpleUploadedFile('e.csv', b'\xff\xfe not utf-8 bytes')
+        resp = writer_client.post(URL_IMPORT, {FIELD_FILE: f})
+        assert resp.status_code == 400
+        assert HypsoParamSet.objects.count() == 0
+
     def test_import_requires_file(self, writer_client, db):
         assert writer_client.post(URL_IMPORT).status_code == 400
 

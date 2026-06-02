@@ -12,8 +12,7 @@ stored and transmitted canonical (dot decimal); see CLAUDE.md §"Number
 formatting".
 """
 
-import math
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 from django.utils.formats import get_format
 
@@ -66,17 +65,15 @@ def parse_decimal(value) -> Decimal | None:
     return to_decimal(value, _locale_separator())
 
 
-def parse_float(value) -> float | None:
-    """Parse a locale-formatted number to a float, or None if blank/invalid.
+_COORD_QUANTUM = Decimal('0.00001')  # 5 dp ≈ 1 m; coordinates persist to float
 
-    Rejects non-finite values (NaN/inf) for the same reason as
-    `parse_decimal`.
+
+def coord_float(value: Decimal | None) -> float | None:
+    """Quantize a parsed coordinate Decimal to 5 dp and convert to `float` for
+    the model's FloatField boundary (see CLAUDE.md §"Number formatting").
+    `None` passes through.  Coordinates are the one quantity stored as float;
+    everything else stays Decimal.
     """
-    s = _canonical(value, _locale_separator())
-    if s is None:
+    if value is None:
         return None
-    try:
-        f = float(s)
-    except ValueError:
-        return None
-    return f if math.isfinite(f) else None
+    return float(value.quantize(_COORD_QUANTUM, rounding=ROUND_HALF_UP))

@@ -26,7 +26,7 @@ from django.views.decorators.http import require_POST
 
 from apps.base.auth import require_writer
 from apps.base import csv_io
-from apps.base.formats import parse_decimal, parse_float, to_decimal
+from apps.base.formats import coord_float, parse_decimal, to_decimal
 from apps.base.digests import (
     build_harvest_plan_item_record,
     build_harvest_plan_record,
@@ -979,8 +979,8 @@ def mark_save_view(request):
     h_measured = is_truthy(body.get(FIELD_H_MEASURED))
     volume_m3 = parse_decimal(body.get(FIELD_VOLUME_M3))
     mass_q = parse_decimal(body.get(FIELD_MASS_Q))
-    lat = parse_float(body.get(FIELD_LAT))
-    lon = parse_float(body.get(FIELD_LON))
+    lat = coord_float(parse_decimal(body.get(FIELD_LAT)))
+    lon = coord_float(parse_decimal(body.get(FIELD_LON)))
     acc_m = _int_or_none(body.get(FIELD_ACC_M))
     operator = (body.get(FIELD_OPERATOR) or '').strip()
     date_raw = (body.get(FIELD_DATE) or '').strip()
@@ -1251,18 +1251,15 @@ def mark_csv_import_view(request):
             errors.append(S.ERR_CSV_SPECIES_NOT_FOUND.format(i, species_name))
             continue
 
-        d_dec = _csv_decimal(row, 'd_cm')
+        d_cm = _csv_int(row, 'd_cm')
         h_m = _csv_decimal(row, 'h_m')
-        if d_dec is None or h_m is None:
+        if d_cm is None or h_m is None:
             errors.append(S.ERR_CSV_ROW_PARSE.format(
                 i, f"{row.get('d_cm', '')}/{row.get('h_m', '')}"))
             continue
-        d_cm = int(d_dec)
 
-        lat_dec = _csv_decimal(row, 'lat')
-        lon_dec = _csv_decimal(row, 'lon')
-        lat = float(lat_dec) if lat_dec is not None else None
-        lon = float(lon_dec) if lon_dec is not None else None
+        lat = coord_float(_csv_decimal(row, 'lat'))
+        lon = coord_float(_csv_decimal(row, 'lon'))
         acc_m = _int_or_none(acc_str) if acc_str else None
         h_measured = h_meas_str == '1'
 

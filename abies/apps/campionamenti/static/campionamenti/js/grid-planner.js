@@ -14,6 +14,7 @@ import {
 } from '../../base/js/geo.js';
 import { fetchJSON, postJSON } from '../../base/js/api.js';
 import { showError } from '../../base/js/modals.js';
+import { parseDecimal } from '../../base/js/format.js';
 import * as S from '../../base/js/strings.js';
 
 const TERRENI_URL = '/api/geo/terreni.geojson';
@@ -230,8 +231,8 @@ export class GridPlanner {
       this._setStatus(S.ERR_SELECT_REGION);
       return;
     }
-    const radius = parseFloat(this.host.querySelector('#grid-auto-radius').value);
-    const pct = parseFloat(this.host.querySelector('#grid-auto-coverage').value);
+    const radius = parseInt(this.host.querySelector('#grid-auto-radius').value, 10);
+    const pct = parseDecimal(this.host.querySelector('#grid-auto-coverage').value);
     if (!(radius > 0)) { this._setStatus(S.ERR_RADIUS_POSITIVE); return; }
     if (!(pct > 0 && pct <= 100)) {
       this._setStatus(S.ERR_COVERAGE_RANGE); return;
@@ -299,7 +300,7 @@ export class GridPlanner {
   async _save() {
     const name = this.host.querySelector('#grid-auto-name').value.trim();
     const description = this.host.querySelector('#grid-auto-description').value.trim();
-    const radius = parseFloat(this.host.querySelector('#grid-auto-radius').value);
+    const radius = parseInt(this.host.querySelector('#grid-auto-radius').value, 10);
     if (!name) { this._setStatus(S.ERR_GRID_NAME_REQUIRED); return; }
     if (!this.points.length) {
       this._setStatus(S.ERR_PLAN_FIRST); return;

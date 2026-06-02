@@ -678,6 +678,40 @@ class TestTreeSaveCoppice:
             tree=new_tree,
         ).values_list('number', flat=True).distinct().count() == 1
 
+    def test_coppice_shoot_height_locale_and_garbage(
+        self, writer_client, sample_setup, species, regions, eclasses,
+    ):
+        """Per-shoot height: a locale-comma value parses; garbage is a clean
+        400 — regression for the unimported InvalidOperation that 500'd both."""
+        coppice_eclass = next(e for e in eclasses if e.coppice)
+        parcel = Parcel.objects.create(
+            name='cc', region=regions[0], eclass=coppice_eclass,
+            area_ha=Decimal('1.0'),
+        )
+        area = SampleArea.objects.create(
+            sample_grid=sample_setup['grid'], parcel=parcel,
+            number='1', lat=0.0, lon=0.0, r_m=12,
+        )
+        base = {
+            FIELD_SURVEY_ID: str(sample_setup['survey'].id),
+            FIELD_SAMPLE_AREA_ID: str(area.id),
+            FIELD_SPECIES_ID: str(species[1].id),
+            FIELD_NUMBER: '1', FIELD_FUSTAIA: 'false',
+            FIELD_LAT: '0', FIELD_LON: '0', FIELD_PRESERVED: '',
+        }
+        ok = self._post(writer_client, {**base, 'shoots': json.dumps([
+            {FIELD_SHOOT: 1, FIELD_STANDARD: False, FIELD_D_CM: 5,
+             FIELD_H_M: '8,5', 'l10_mm': 0},
+        ])})
+        assert ok.status_code == 200, ok.content
+        assert TreeSample.objects.order_by('-id').first().h_m == Decimal('8.50')
+
+        bad = self._post(writer_client, {**base, 'shoots': json.dumps([
+            {FIELD_SHOOT: 1, FIELD_STANDARD: False, FIELD_D_CM: 5,
+             FIELD_H_M: 'abc', 'l10_mm': 0},
+        ])})
+        assert bad.status_code == 400  # clean validation error, never a 500
+
     def test_coppice_requires_at_least_one_shoot(
         self, writer_client, sample_setup, regions, eclasses,
     ):

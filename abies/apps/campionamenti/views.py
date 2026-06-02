@@ -26,7 +26,7 @@ from apps.base.digests import (
     build_survey_record, build_tree_sample_record,
     mark_stale, serve_digest,
 )
-from apps.base.formats import parse_decimal, parse_float
+from apps.base.formats import coord_float, parse_decimal
 from apps.base.middleware import save_nonce
 from apps.base.models import (
     Parcel, Region, Sample, SampleArea, SampleGrid, Species, Survey, Tree,
@@ -389,8 +389,8 @@ def area_form_view(request, area_id: int | None = None):
             'regions': regions, 'parcels': parcels,
             'selected_region_id': sel_parcel.region_id if sel_parcel else None,
             'selected_parcel_id': sel_parcel.id if sel_parcel else None,
-            'lat': parse_float(area.lat if area else initial_lat),
-            'lon': parse_float(area.lon if area else initial_lon),
+            'lat': coord_float(parse_decimal(area.lat if area else initial_lat)),
+            'lon': coord_float(parse_decimal(area.lon if area else initial_lon)),
         }, request=request,
     )})
 
@@ -405,8 +405,8 @@ def area_save_view(request):
         grid_id = int(body[FIELD_SAMPLE_GRID_ID])
         parcel_id = int(body[FIELD_PARCEL_ID])
         number = (body.get(FIELD_NUMBER) or '').strip()
-        lat = parse_float(body[FIELD_LAT])
-        lon = parse_float(body[FIELD_LON])
+        lat = coord_float(parse_decimal(body[FIELD_LAT]))
+        lon = coord_float(parse_decimal(body[FIELD_LON]))
         r_m = int(body.get(FIELD_R_M) or 12)
         if lat is None or lon is None:
             raise ValueError
@@ -739,8 +739,8 @@ def _parse_tree_body(body):
         FIELD_L10_MM: l10_mm,
         FIELD_VOLUME_M3: parse_decimal(body.get(FIELD_VOLUME_M3)) if not coppice else None,
         FIELD_MASS_Q: parse_decimal(body.get(FIELD_MASS_Q)) if not coppice else None,
-        FIELD_LAT: parse_float(body.get(FIELD_LAT)),
-        FIELD_LON: parse_float(body.get(FIELD_LON)),
+        FIELD_LAT: coord_float(parse_decimal(body.get(FIELD_LAT))),
+        FIELD_LON: coord_float(parse_decimal(body.get(FIELD_LON))),
         FIELD_PRESERVED: is_truthy(body.get(FIELD_PRESERVED)),
         FIELD_COPPICE: coppice,
         FIELD_SHOOTS: shoots,
@@ -773,12 +773,12 @@ def _parse_shoots(raw):
         try:
             shoot_num = int(item.get(FIELD_SHOOT, 0))
             d_cm = int(item.get(FIELD_D_CM, 0))
-            h_m = Decimal(str(item.get(FIELD_H_M, '0') or '0'))
             l10_mm = int(item.get(FIELD_L10_MM, 0) or 0)
             standard = bool(item.get(FIELD_STANDARD))
-        except (ValueError, TypeError, InvalidOperation):
+        except (ValueError, TypeError):
             errors.append(S.ERR_D_POSITIVE)
             continue
+        h_m = parse_decimal(item.get(FIELD_H_M)) or Decimal('0')
         if d_cm <= 0:
             errors.append(S.ERR_D_POSITIVE)
         if h_m <= 0:
@@ -789,22 +789,6 @@ def _parse_shoots(raw):
             FIELD_L10_MM: l10_mm,
         })
     return shoots, errors
-
-
-def _decimal_or_none(v):
-    if v in (None, '', 'null'): return None
-    try:
-        return Decimal(str(v))
-    except InvalidOperation:
-        return None
-
-
-def _float_or_none(v):
-    if v in (None, '', 'null'): return None
-    try:
-        return float(v)
-    except (ValueError, TypeError):
-        return None
 
 
 def _resolve_existing_tree(tree_id, sample_area_id):
@@ -1113,8 +1097,8 @@ def grid_csv_import_view(request):
         parsed_rows.append({
             FIELD_PARCEL: parcel,
             FIELD_NUMBER: number,
-            FIELD_LAT: float(lat),
-            FIELD_LON: float(lon),
+            FIELD_LAT: coord_float(lat),
+            FIELD_LON: coord_float(lon),
             FIELD_ALTITUDE: reader.integer(row.get(S.CSV_COL_QUOTA)),
             FIELD_R_M: r_m,
             FIELD_NOTE: '',
