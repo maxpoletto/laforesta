@@ -15,7 +15,6 @@ import json
 import re
 import zipfile
 from datetime import date as date_type
-from decimal import Decimal, InvalidOperation
 from typing import Iterable
 
 from django.contrib.auth.decorators import login_required
@@ -26,6 +25,8 @@ from django.template.loader import render_to_string
 from django.views.decorators.http import require_POST
 
 from apps.base.auth import require_writer
+from apps.base import csv_io
+from apps.base.formats import parse_decimal, parse_float, to_decimal
 from apps.base.digests import (
     build_harvest_plan_item_record,
     build_harvest_plan_record,
@@ -233,8 +234,6 @@ def plan_delete_view(request, plan_id: int):
 # ---------------------------------------------------------------------------
 # Plan CSV import — single endpoint dispatching on which file(s) attached
 # ---------------------------------------------------------------------------
-
-_DELIM_AUTODETECT = ',;'
 
 # Column aliases — each logical field accepts the legacy pdg-2026 name
 # AND the display-name used by the per-table CSV export, so a freshly
@@ -445,9 +444,9 @@ def plan_csv_import_view(request):
 
 @login_required
 def plan_export_view(request, plan_id: int):
-    """Return a zip of the fustaia + ceduo CSVs (Italian locale: ``;`` field
-    separator, ``,`` decimal — matches the per-table CSV export and
-    CLAUDE.md's CSV convention).
+    """Return a zip of the fustaia + ceduo CSVs in the active install locale's
+    CSV format (``;``+``,`` for Italian, ``,``+``.`` for a dot-decimal locale;
+    see decimals.md §8), matching the per-table CSV export.
 
     Each CSV carries the full column set of the corresponding calendar
     table (display column names, not only the round-trip-required
@@ -470,8 +469,9 @@ def plan_export_view(request, plan_id: int):
         if ppd.harvest_detail.interval is not None
     }
 
+    delimiter, _ = csv_io.export_format()
     fustaia_buf = io.StringIO()
-    fustaia_w = csv.writer(fustaia_buf, delimiter=';')
+    fustaia_w = csv.writer(fustaia_buf, delimiter=delimiter)
     fustaia_w.writerow([
         S.COL_YEAR_PLANNED, S.COL_YEAR_ACTUAL,
         S.COL_COMPRESA, S.COL_PARCEL, S.COL_STATE, S.COL_NOTE,
@@ -479,7 +479,7 @@ def plan_export_view(request, plan_id: int):
     ])
 
     ceduo_buf = io.StringIO()
-    ceduo_w = csv.writer(ceduo_buf, delimiter=';')
+    ceduo_w = csv.writer(ceduo_buf, delimiter=delimiter)
     ceduo_w.writerow([
         S.COL_YEAR_PLANNED, S.COL_YEAR_ACTUAL,
         S.COL_COMPRESA, S.COL_PARCEL, S.COL_STATE, S.COL_NOTE,
@@ -719,8 +719,9 @@ def item_export_view(request, item_id: int):
         return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
 
     # martellate_<id>.csv
+    delimiter, _ = csv_io.export_format()
     marks_buf = io.StringIO()
-    marks_w = csv.writer(marks_buf)
+    marks_w = csv.writer(marks_buf, delimiter=delimiter)
     marks_w.writerow([
         S.CSV_COL_DATA, S.CSV_COL_COMPRESA, S.CSV_COL_PARTICELLA,
         S.CSV_COL_CATASTROFATA, S.CSV_COL_NUMERO, S.CSV_COL_GENERE,
@@ -746,8 +747,8 @@ def item_export_view(request, item_id: int):
             tm.d_cm,
             _fmt_decimal(tm.h_m),
             '1' if tm.h_measured else '0',
-            tm.lat,
-            tm.lon,
+            _fmt_decimal(tm.lat),
+            _fmt_decimal(tm.lon),
             tm.acc_m if tm.acc_m is not None else '',
             tm.operator,
         ])
@@ -764,7 +765,7 @@ def item_export_view(request, item_id: int):
                       for t in tractor_list]
 
     prelievi_buf = io.StringIO()
-    prelievi_w = csv.writer(prelievi_buf)
+    prelievi_w = csv.writer(prelievi_buf, delimiter=delimiter)
     prelievi_w.writerow(
         [S.CSV_COL_DATA, S.CSV_COL_COMPRESA, S.CSV_COL_PARTICELLA,
          S.CSV_COL_CREW, S.CSV_COL_VDP, S.CSV_COL_PRODUCT,
@@ -974,12 +975,12 @@ def mark_save_view(request):
     item_id = _int_or_none(body.get(FIELD_HARVEST_PLAN_ITEM_ID))
     species_id = _int_or_none(body.get(FIELD_SPECIES_ID))
     d_cm = _int_or_none(body.get(FIELD_D_CM))
-    h_m = _decimal_or_none(body.get(FIELD_H_M))
+    h_m = parse_decimal(body.get(FIELD_H_M))
     h_measured = is_truthy(body.get(FIELD_H_MEASURED))
-    volume_m3 = _decimal_or_none(body.get(FIELD_VOLUME_M3))
-    mass_q = _decimal_or_none(body.get(FIELD_MASS_Q))
-    lat = _float_or_none(body.get(FIELD_LAT))
-    lon = _float_or_none(body.get(FIELD_LON))
+    volume_m3 = parse_decimal(body.get(FIELD_VOLUME_M3))
+    mass_q = parse_decimal(body.get(FIELD_MASS_Q))
+    lat = parse_float(body.get(FIELD_LAT))
+    lon = parse_float(body.get(FIELD_LON))
     acc_m = _int_or_none(body.get(FIELD_ACC_M))
     operator = (body.get(FIELD_OPERATOR) or '').strip()
     date_raw = (body.get(FIELD_DATE) or '').strip()
@@ -1225,10 +1226,6 @@ def mark_csv_import_view(request):
         compresa = row['compresa'].strip()
         particella = row['particella'].strip()
         species_name = row['species'].strip()
-        d_str = row['d_cm'].strip()
-        h_str = row['h_m'].strip().replace(',', '.')
-        lat_str = row.get('lat', '').strip().replace(',', '.')
-        lon_str = row.get('lon', '').strip().replace(',', '.')
         acc_str = row.get('acc_m', '').strip()
         h_meas_str = row.get('h_measured', '').strip()
         numero_str = row.get('numero', '').strip()
@@ -1254,15 +1251,18 @@ def mark_csv_import_view(request):
             errors.append(S.ERR_CSV_SPECIES_NOT_FOUND.format(i, species_name))
             continue
 
-        try:
-            d_cm = int(d_str.replace(',', '.').split('.')[0])
-            h_m = Decimal(h_str)
-        except (ValueError, InvalidOperation):
-            errors.append(S.ERR_CSV_ROW_PARSE.format(i, f'{d_str}/{h_str}'))
+        d_dec = _csv_decimal(row, 'd_cm')
+        h_m = _csv_decimal(row, 'h_m')
+        if d_dec is None or h_m is None:
+            errors.append(S.ERR_CSV_ROW_PARSE.format(
+                i, f"{row.get('d_cm', '')}/{row.get('h_m', '')}"))
             continue
+        d_cm = int(d_dec)
 
-        lat = _float_or_none(lat_str) if lat_str else None
-        lon = _float_or_none(lon_str) if lon_str else None
+        lat_dec = _csv_decimal(row, 'lat')
+        lon_dec = _csv_decimal(row, 'lon')
+        lat = float(lat_dec) if lat_dec is not None else None
+        lon = float(lon_dec) if lon_dec is not None else None
         acc_m = _int_or_none(acc_str) if acc_str else None
         h_measured = h_meas_str == '1'
 
@@ -1414,15 +1414,10 @@ def _read_optional(upload, required, optional=None):
     if upload is None:
         return None
     try:
-        text = upload.read().decode('utf-8-sig')
-    except UnicodeDecodeError:
-        return _CsvError(S.ERR_CSV_NOT_UTF8)
-    delimiter = _sniff_delimiter(text)
-    reader = csv.DictReader(io.StringIO(text), delimiter=delimiter)
-    fieldnames = reader.fieldnames
-    if fieldnames is None:
-        return _CsvError(S.ERR_CSV_EMPTY)
-    fieldset = set(fieldnames)
+        reader = csv_io.read(upload)
+    except csv_io.CsvError as exc:
+        return _CsvError(str(exc))
+    fieldset = set(reader.fieldnames)
     resolved: dict[str, str] = {}
     missing: list[str] = []
     for alias, candidates in required.items():
@@ -1439,7 +1434,7 @@ def _read_optional(upload, required, optional=None):
             resolved[alias] = hit
     return [
         {**{alias: r.get(col, '') for alias, col in resolved.items()},
-         '_fieldset': fieldset}
+         '_fieldset': fieldset, '_decimal_sep': reader.decimal_separator}
         for r in reader
     ]
 
@@ -1462,18 +1457,6 @@ def _parse_flag_keywords(note: str) -> tuple[bool, bool, bool]:
         _FLAG_KEYWORDS['unhealthy'] in s,
         _FLAG_KEYWORDS['psr']       in s,
     )
-
-
-def _sniff_delimiter(text: str) -> str:
-    """Pick ',' or ';' for csv.DictReader; default ',' if neither wins."""
-    sample = text[:1024]
-    try:
-        return csv.Sniffer().sniff(sample, delimiters=_DELIM_AUTODETECT).delimiter
-    except csv.Error:
-        # Sniffer can't decide — fall back to whichever appears first in
-        # the header line.
-        head = sample.splitlines()[0] if sample else ''
-        return ';' if (';' in head and ',' not in head) else ','
 
 
 def _parse_fustaia_rows(rows, parcel_cache, region_cache, errors):
@@ -1513,14 +1496,13 @@ def _parse_fustaia_rows(rows, parcel_cache, region_cache, errors):
                     i, compresa, particella,
                 ))
                 continue
-        try:
-            year = int(_normalise_number(row['anno']))
-            volume = _decimal_or_none(row['volume'])
-        except (ValueError, KeyError) as exc:
+        year = _csv_int(row, 'anno')
+        if year is None:
             errors.append(S.ERR_CSV_VALUE_PARSE.format(
-                i, S.CSV_COL_ANNO, str(exc),
+                i, S.CSV_COL_ANNO, row.get('anno', ''),
             ))
             continue
+        volume = _csv_decimal(row, 'volume')
         out.append({
             FIELD_REGION_ID: region,
             FIELD_PARCEL_ID: parcel,
@@ -1551,13 +1533,12 @@ def _parse_ceduo_rows(rows, parcel_cache, errors):
                 i, compresa, particella,
             ))
             continue
-        try:
-            year = int(_normalise_number(row['anno']))
-            area = _decimal_or_none(row['superficie'])
-            interval = int(_normalise_number(row['turno']))
-        except (ValueError, KeyError) as exc:
+        year = _csv_int(row, 'anno')
+        interval = _csv_int(row, 'turno')
+        area = _csv_decimal(row, 'superficie')
+        if year is None or interval is None:
             errors.append(S.ERR_CSV_VALUE_PARSE.format(
-                i, S.CSV_COL_TURNO_A, str(exc),
+                i, S.CSV_COL_TURNO_A, row.get('turno', ''),
             ))
             continue
         if has_altre_note:
@@ -1582,9 +1563,18 @@ def _parse_ceduo_rows(rows, parcel_cache, errors):
     return out
 
 
-def _normalise_number(s) -> str:
-    """Accept Italian (',' decimal) and English ('.' decimal) input."""
-    return str(s).strip().replace(',', '.')
+def _csv_decimal(row, key):
+    """Decimal from a CSV alias-row, parsed with that file's detected decimal
+    separator (decimals.md §9); None if blank/invalid."""
+    return to_decimal(row.get(key), row['_decimal_sep'])
+
+
+def _csv_int(row, key):
+    """int from a CSV alias-row (integral value), or None if blank/invalid."""
+    d = _csv_decimal(row, key)
+    if d is None or d != d.to_integral_value():
+        return None
+    return int(d)
 
 
 def _parse_plan_body(body):
@@ -1636,11 +1626,11 @@ def _parse_item_body(body):
     except (TypeError, ValueError):
         errors.append(S.ERR_DATE_REQUIRED)
         year_planned = 0
-    volume = _decimal_or_none(body.get(FIELD_VOLUME_PLANNED_M3))
+    volume = parse_decimal(body.get(FIELD_VOLUME_PLANNED_M3))
     if volume is not None and volume <= 0:
         errors.append(S.ERR_PLAN_ITEM_VOLUME_NEGATIVE)
         volume = None
-    area = _decimal_or_none(body.get(FIELD_INTERVENTION_AREA_HA))
+    area = parse_decimal(body.get(FIELD_INTERVENTION_AREA_HA))
     if area is not None and area <= 0:
         errors.append(S.ERR_PLAN_ITEM_AREA_NEGATIVE)
         area = None
@@ -1714,44 +1704,11 @@ def _int_or_none(v):
         return None
 
 
-def _decimal_or_none(v):
-    if v in (None, '', 'null'):
-        return None
-    try:
-        return Decimal(_normalise_number(v))
-    except (TypeError, InvalidOperation):
-        return None
-
-
-def _float_or_none(v):
-    if v in (None, '', 'null'):
-        return None
-    try:
-        return float(v)
-    except (TypeError, ValueError):
-        return None
-
-
-def _fmt_decimal(v, decimal_sep: str = ',') -> str:
-    """Render a Decimal/number as a CSV cell value.
-
-    `decimal_sep` defaults to ',' (Italian locale, matching the per-table
-    CSV export's TABLE_CSV_FORMAT).  Pass '.' for the legacy
-    pdg-2026-compatible format.
-    """
-    if v is None:
-        return ''
-    if isinstance(v, Decimal):
-        # Strip trailing zeros for compact output.
-        s = format(v, 'f')
-        if '.' in s:
-            s = s.rstrip('0').rstrip('.')
-        s = s or '0'
-    else:
-        s = str(v)
-    if decimal_sep != '.' and '.' in s:
-        s = s.replace('.', decimal_sep)
-    return s
+def _fmt_decimal(v) -> str:
+    """Render a number for a CSV cell in the active locale's decimal mark
+    (decimals.md §8); delegates to the shared `csv_io.format_decimal`."""
+    _, decimal_sep = csv_io.export_format()
+    return csv_io.format_decimal(v, decimal_sep)
 
 
 _SAFE_RE = re.compile(r'[^A-Za-z0-9._-]+')

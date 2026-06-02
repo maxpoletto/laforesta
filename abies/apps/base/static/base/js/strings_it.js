@@ -40,7 +40,7 @@ export const TABLE_LABELS = {
 export const TABLE_CSV_FORMAT = {
   separator: ';',
   decimal: ',',
-  dateFormat: 'DD/MM/YYYY',
+  dateFormat: 'YYYY-MM-DD',  // CSV dates are ISO8601 regardless of locale (decimals.md §8)
 };
 
 // Errors

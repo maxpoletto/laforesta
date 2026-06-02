@@ -24,7 +24,6 @@ Behavior:
   via FK) for this Survey before reimporting.
 """
 
-import csv
 from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
@@ -32,6 +31,7 @@ from pathlib import Path
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
+from apps.base import csv_io
 from apps.base.models import (
     Parcel, SampleArea, Sample, SampleGrid, Species, Survey, Tree, TreeSample,
 )
@@ -115,7 +115,7 @@ class Command(BaseCommand):
         }
 
         with open(csv_path, encoding='utf-8-sig') as f:
-            rows = list(csv.DictReader(f))
+            rows = csv_io.read(f.read()).rows
 
         n_skipped_parcel = 0
         n_skipped_area = 0

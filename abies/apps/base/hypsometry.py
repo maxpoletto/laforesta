@@ -103,30 +103,25 @@ def compute_params(survey_ids: Sequence[int], min_n: int) -> list[ParamRow]:
     return out
 
 
-def _norm_num(s: str) -> str:
-    """Accept Italian (',' decimal) and English ('.' decimal) input."""
-    return str(s).strip().replace(',', '.')
+def parse_param_csv(source) -> tuple[list[ParamRow], list[str]]:
+    """Parse an `equazioni_ipsometro.csv` (decoded text or upload) into
+    ParamRows + error list.
 
-
-def parse_param_csv(text: str) -> tuple[list[ParamRow], list[str]]:
-    """Parse an `equazioni_ipsometro.csv` body into ParamRows + error list.
-
-    Headers are matched case-insensitively; the delimiter is auto-detected
-    (`;` or `,`).  Any unresolved region/species, wrong function, or
-    unparseable number is reported as an error (the caller aborts on a
-    non-empty error list).
+    Reading (decode, delimiter/decimal detection) is delegated to
+    `apps.base.csv_io`; headers are matched case-insensitively.  A malformed
+    file, or any unresolved region/species, wrong function, or unparseable
+    number, is reported as an error (the caller aborts on a non-empty list).
     """
-    import csv
-    import io
-
+    from apps.base import csv_io
     from apps.base.models import HYPSO_FUNC_LN, Region, Species
 
     region_cache = {r.name.lower(): r for r in Region.objects.all()}
     species_cache = {sp.common_name.lower(): sp for sp in Species.objects.all()}
 
-    header = text.split('\n', 1)[0]
-    delimiter = ';' if ';' in header else ','
-    reader = csv.DictReader(io.StringIO(text), delimiter=delimiter)
+    try:
+        reader = csv_io.read(source)
+    except csv_io.CsvError as exc:
+        return [], [str(exc)]
 
     rows: list[ParamRow] = []
     errors: list[str] = []
@@ -147,14 +142,18 @@ def parse_param_csv(text: str) -> tuple[list[ParamRow], list[str]]:
         if function != HYPSO_FUNC_LN:
             errors.append(S.ERR_CSV_FUNCTION_INVALID.format(i, function))
             continue
-        try:
-            a = float(_norm_num(row[S.CSV_COL_A]))
-            b = float(_norm_num(row[S.CSV_COL_B]))
-            r2 = float(_norm_num(row[S.CSV_COL_R2]))
-            n = int(_norm_num(row[S.CSV_COL_N_REGRESSION]))
-        except (ValueError, TypeError, KeyError) as exc:
-            errors.append(S.ERR_CSV_VALUE_PARSE.format(i, S.CSV_COL_A, str(exc)))
+        a = reader.decimal(row.get(S.CSV_COL_A))
+        b = reader.decimal(row.get(S.CSV_COL_B))
+        r2 = reader.decimal(row.get(S.CSV_COL_R2))
+        n = reader.integer(row.get(S.CSV_COL_N_REGRESSION))
+        bad = next((col for col, v in (
+            (S.CSV_COL_A, a), (S.CSV_COL_B, b),
+            (S.CSV_COL_R2, r2), (S.CSV_COL_N_REGRESSION, n),
+        ) if v is None), None)
+        if bad is not None:
+            errors.append(S.ERR_CSV_VALUE_PARSE.format(i, bad, row.get(bad, '')))
             continue
+        a, b, r2 = float(a), float(b), float(r2)
         range_error = _range_error(i, a, b, r2, n)
         if range_error:
             errors.append(range_error)

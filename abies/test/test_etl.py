@@ -11,9 +11,14 @@ from apps.base.models import (
 from apps.prelievi.models import Harvest, HarvestSpecies, HarvestTractor
 
 BOSCO_DATA = Path(__file__).resolve().parent.parent.parent / 'bosco' / 'data'
+ABIES_DATA = Path(__file__).resolve().parent.parent.parent / 'abies-data'
 HAS_CSV = (BOSCO_DATA / 'mannesi.csv').exists()
 
 skip_no_csv = pytest.mark.skipif(not HAS_CSV, reason='bosco/data CSVs not available')
+skip_no_calendar = pytest.mark.skipif(
+    not (ABIES_DATA / 'piano_fustaia.csv').exists(),
+    reason='abies-data calendar CSVs not available',
+)
 
 
 # ---------------------------------------------------------------------------
@@ -123,3 +128,34 @@ class TestImportMannesi:
         h = Harvest.objects.exclude(volume_m3=0).first()
         assert h is not None
         assert h.volume_m3 > 0
+
+
+# ---------------------------------------------------------------------------
+# import_calendar (real piano CSVs live in abies-data/, not bosco/data)
+# ---------------------------------------------------------------------------
+
+@skip_no_csv
+@skip_no_calendar
+class TestImportCalendar:
+    @pytest.fixture(autouse=True)
+    def run_import(self, db):
+        call_command('import_reference', str(BOSCO_DATA))
+        call_command('import_parcels', str(BOSCO_DATA))
+        call_command('import_calendar', str(ABIES_DATA))
+
+    def test_creates_plan_with_items(self):
+        from apps.base.management.commands.import_calendar import PLAN_NAME
+        from apps.base.models import HarvestPlan, HarvestPlanItem
+        assert HarvestPlan.objects.filter(name=PLAN_NAME).exists()
+        assert HarvestPlanItem.objects.count() > 0
+
+    def test_parses_fustaia_volume(self):
+        from decimal import Decimal
+
+        from apps.base.models import HarvestPlanItem
+        # piano_fustaia.csv row 1: Serra / 26 / 2027 / Prelievo (m³) = 3842.4
+        parcel = Parcel.objects.filter(region__name='Serra', name='26').first()
+        if parcel is None:
+            pytest.skip('parcel Serra/26 not in dataset')
+        item = HarvestPlanItem.objects.get(parcel=parcel, year_planned=2027)
+        assert item.volume_planned_m3 == Decimal('3842.4')

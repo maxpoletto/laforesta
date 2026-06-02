@@ -13,12 +13,12 @@ M0 seed Species set; species that don't have a direct match fall
 back to the catch-all 'Altro'.
 """
 
-import csv
 from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
+from apps.base import csv_io
 from apps.base.models import Parcel, Species, Tree
 from config import strings as S
 
@@ -95,7 +95,7 @@ class Command(BaseCommand):
             )
 
         with open(csv_path, encoding='utf-8-sig') as f:
-            rows = list(csv.DictReader(f))
+            rows = csv_io.read(f.read()).rows
 
         with transaction.atomic():
             # Idempotent: clear existing PAI rows before reimporting.

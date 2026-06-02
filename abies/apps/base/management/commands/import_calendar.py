@@ -7,13 +7,13 @@ HarvestPlanItems.
 Idempotent: deletes and recreates the plan on each run.
 """
 
-import csv
 from decimal import Decimal
 from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
+from apps.base import csv_io
 from apps.base.models import HarvestPlan, HarvestPlanItem, Parcel
 from config import strings as S
 
@@ -72,7 +72,7 @@ class Command(BaseCommand):
     def _import_fustaia(self, csv_path, plan, parcel_cache):
         n = 0
         with open(csv_path, encoding='utf-8-sig') as f:
-            for row in csv.DictReader(f):
+            for row in csv_io.read(f.read()):
                 parcel = parcel_cache.get(
                     (row[S.CSV_COL_COMPRESA], row[S.CSV_COL_PARTICELLA])
                 )
@@ -90,7 +90,7 @@ class Command(BaseCommand):
     def _import_ceduo(self, csv_path, plan, parcel_cache):
         n = 0
         with open(csv_path, encoding='utf-8-sig') as f:
-            for row in csv.DictReader(f):
+            for row in csv_io.read(f.read()):
                 parcel = parcel_cache.get(
                     (row[S.CSV_COL_COMPRESA], row[S.CSV_COL_PARTICELLA])
                 )

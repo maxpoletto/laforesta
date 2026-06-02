@@ -4,12 +4,12 @@ catastrophe harvests.
 Idempotent: safe to re-run. Uses get_or_create throughout.
 """
 
-import csv
 from decimal import Decimal
 from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
 
+from apps.base import csv_io
 from apps.base.models import Eclass, Parcel, Region
 from config import strings as S
 
@@ -50,7 +50,7 @@ class Command(BaseCommand):
 
         created = 0
         with open(particelle_csv, encoding='utf-8-sig') as f:
-            for row in csv.DictReader(f):
+            for row in csv_io.read(f.read()):
                 region = region_cache[row[S.CSV_COL_COMPRESA]]
                 eclass = eclass_cache[row[S.CSV_COL_COMPARTO]]
                 _, was_created = Parcel.objects.get_or_create(

@@ -9,11 +9,9 @@ processes the submission and returns either {row_id, record} or a
 validation_error / conflict payload.
 """
 
-import csv
-import io
 import json
 from datetime import date as date_type
-from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from decimal import Decimal, ROUND_HALF_UP
 
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
@@ -21,13 +19,14 @@ from django.http import Http404, JsonResponse
 from django.template.loader import render_to_string
 from django.views.decorators.http import require_POST
 
+from apps.base import csv_io
 from apps.base.auth import require_writer
 from apps.base.digests import (
     build_grid_record, build_sample_area_record, build_sample_record,
     build_survey_record, build_tree_sample_record,
     mark_stale, serve_digest,
 )
-from apps.base.formats import normalize_decimal
+from apps.base.formats import parse_decimal, parse_float
 from apps.base.middleware import save_nonce
 from apps.base.models import (
     Parcel, Region, Sample, SampleArea, SampleGrid, Species, Survey, Tree,
@@ -345,17 +344,6 @@ def _parcel_from_names(parcels, compresa, particella):
     )
 
 
-def _coord_or_blank(value):
-    """Parse a lat/lon (float on the edit path, or a query string from a
-    map-click) to a float for the form's `stringformat:'.5f'` — 5 dp
-    everywhere, dot-decimal (the Italian locale would otherwise render a bare
-    float with a comma).  Returns '' when absent or unparseable."""
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return ''
-
-
 @login_required
 def area_form_view(request, area_id: int | None = None):
     """Form fragment for adding or editing a SampleArea.
@@ -401,8 +389,8 @@ def area_form_view(request, area_id: int | None = None):
             'regions': regions, 'parcels': parcels,
             'selected_region_id': sel_parcel.region_id if sel_parcel else None,
             'selected_parcel_id': sel_parcel.id if sel_parcel else None,
-            'lat': _coord_or_blank(area.lat if area else initial_lat),
-            'lon': _coord_or_blank(area.lon if area else initial_lon),
+            'lat': parse_float(area.lat if area else initial_lat),
+            'lon': parse_float(area.lon if area else initial_lon),
         }, request=request,
     )})
 
@@ -417,9 +405,11 @@ def area_save_view(request):
         grid_id = int(body[FIELD_SAMPLE_GRID_ID])
         parcel_id = int(body[FIELD_PARCEL_ID])
         number = (body.get(FIELD_NUMBER) or '').strip()
-        lat = float(normalize_decimal(body[FIELD_LAT]))
-        lon = float(normalize_decimal(body[FIELD_LON]))
+        lat = parse_float(body[FIELD_LAT])
+        lon = parse_float(body[FIELD_LON])
         r_m = int(body.get(FIELD_R_M) or 12)
+        if lat is None or lon is None:
+            raise ValueError
     except (KeyError, ValueError, TypeError):
         return _simple_validation_error(S.ERROR_GENERIC)
 
@@ -730,12 +720,8 @@ def _parse_tree_body(body):
             d_cm = 0
             errors.append(S.ERR_D_POSITIVE)
 
-        try:
-            h_m = Decimal(str(body.get(FIELD_H_M, '0') or '0'))
-            if h_m <= 0:
-                errors.append(S.ERR_H_POSITIVE)
-        except InvalidOperation:
-            h_m = Decimal('0')
+        h_m = parse_decimal(body.get(FIELD_H_M)) or Decimal('0')
+        if h_m <= 0:
             errors.append(S.ERR_H_POSITIVE)
 
         try:
@@ -751,10 +737,10 @@ def _parse_tree_body(body):
         FIELD_D_CM: d_cm,
         FIELD_H_M: h_m.quantize(TREE_H_QUANTUM) if not coppice else h_m,
         FIELD_L10_MM: l10_mm,
-        FIELD_VOLUME_M3: _decimal_or_none(body.get(FIELD_VOLUME_M3)) if not coppice else None,
-        FIELD_MASS_Q: _decimal_or_none(body.get(FIELD_MASS_Q)) if not coppice else None,
-        FIELD_LAT: _float_or_none(body.get(FIELD_LAT)),
-        FIELD_LON: _float_or_none(body.get(FIELD_LON)),
+        FIELD_VOLUME_M3: parse_decimal(body.get(FIELD_VOLUME_M3)) if not coppice else None,
+        FIELD_MASS_Q: parse_decimal(body.get(FIELD_MASS_Q)) if not coppice else None,
+        FIELD_LAT: parse_float(body.get(FIELD_LAT)),
+        FIELD_LON: parse_float(body.get(FIELD_LON)),
         FIELD_PRESERVED: is_truthy(body.get(FIELD_PRESERVED)),
         FIELD_COPPICE: coppice,
         FIELD_SHOOTS: shoots,
@@ -1079,8 +1065,8 @@ def grid_csv_import_view(request):
         return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
 
     try:
-        rows = _parse_csv(upload, GRID_CSV_REQUIRED)
-    except _CsvError as e:
+        reader = csv_io.read(upload, GRID_CSV_REQUIRED)
+    except csv_io.CsvError as e:
         return _simple_validation_error(str(e))
 
     parcel_cache = {
@@ -1096,7 +1082,7 @@ def grid_csv_import_view(request):
     errors = []
     parsed_rows = []
     seen_in_csv = set()
-    for i, row in enumerate(rows, 2):  # row 2 = first data row (after header)
+    for i, row in enumerate(reader, 2):  # row 2 = first data row (after header)
         compresa = row[S.CSV_COL_COMPRESA].strip()
         particella = row[S.CSV_COL_PARTICELLA].strip()
         parcel = parcel_cache.get((compresa.lower(), particella))
@@ -1113,19 +1099,26 @@ def grid_csv_import_view(request):
             ))
             continue
         seen_in_csv.add(key)
-        try:
-            parsed_rows.append({
-                FIELD_PARCEL: parcel,
-                FIELD_NUMBER: number,
-                FIELD_LAT: float(row[S.CSV_COL_LAT]),
-                FIELD_LON: float(row[S.CSV_COL_LON]),
-                FIELD_ALTITUDE: _int_or_none_str(row[S.CSV_COL_QUOTA]),
-                FIELD_R_M: int(float(row[S.CSV_COL_RAGGIO]))
-                       if row[S.CSV_COL_RAGGIO].strip() else 12,
-                FIELD_NOTE: '',
-            })
-        except (ValueError, KeyError) as exc:
-            errors.append(S.ERR_CSV_ROW_PARSE.format(i, str(exc)))
+        lat = reader.decimal(row.get(S.CSV_COL_LAT))
+        lon = reader.decimal(row.get(S.CSV_COL_LON))
+        if lat is None or lon is None:
+            errors.append(S.ERR_CSV_ROW_PARSE.format(
+                i, f'{S.CSV_COL_LAT}/{S.CSV_COL_LON}'))
+            continue
+        raggio = (row.get(S.CSV_COL_RAGGIO) or '').strip()
+        r_m = reader.integer(raggio) if raggio else 12
+        if r_m is None:  # present but unparseable → flag, don't silently default
+            errors.append(S.ERR_CSV_ROW_PARSE.format(i, S.CSV_COL_RAGGIO))
+            continue
+        parsed_rows.append({
+            FIELD_PARCEL: parcel,
+            FIELD_NUMBER: number,
+            FIELD_LAT: float(lat),
+            FIELD_LON: float(lon),
+            FIELD_ALTITUDE: reader.integer(row.get(S.CSV_COL_QUOTA)),
+            FIELD_R_M: r_m,
+            FIELD_NOTE: '',
+        })
     if errors:
         return _csv_error_list(errors)
     if not parsed_rows:
@@ -1191,11 +1184,11 @@ def tree_csv_import_view(request):
         return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
 
     try:
-        rows = _parse_csv(upload, TREE_CSV_REQUIRED)
-    except _CsvError as e:
+        reader = csv_io.read(upload, TREE_CSV_REQUIRED)
+    except csv_io.CsvError as e:
         return _simple_validation_error(str(e))
 
-    has_date_column = bool(rows) and S.CSV_COL_DATA in rows[0]
+    has_date_column = bool(reader) and S.CSV_COL_DATA in reader[0]
     if not has_date_column and not default_date_str:
         return _simple_validation_error(S.ERR_CSV_DATE_REQUIRED)
     default_date = None
@@ -1223,7 +1216,7 @@ def tree_csv_import_view(request):
 
     errors = []
     parsed = []
-    for i, row in enumerate(rows, 2):
+    for i, row in enumerate(reader, 2):
         compresa = row[S.CSV_COL_COMPRESA].strip()
         particella = row[S.CSV_COL_PARTICELLA].strip()
         adc = row[S.CSV_COL_AREA_SAGGIO].strip()
@@ -1231,22 +1224,21 @@ def tree_csv_import_view(request):
         if area is None:
             errors.append(S.ERR_CSV_ROW_AREA.format(i, compresa, particella, adc))
             continue
-        try:
-            number = int(row[S.CSV_COL_ALBERO])
-            shoot = int(row[S.CSV_COL_POLLONE] or 0)
-            standard = _bool_str(row[S.CSV_COL_MATRICINA])
-            d_cm = int(float(row[S.CSV_COL_D_CM]))
-            h_m = Decimal(row[S.CSV_COL_H_M]).quantize(TREE_H_QUANTUM,
-                                                       rounding=ROUND_HALF_UP)
-            l10_mm = (int(float(row[S.CSV_COL_L10_MM]))
-                      if row[S.CSV_COL_L10_MM].strip() else 0)
-            fustaia = _bool_str(row[S.CSV_COL_FUSTAIA])
-            coppice = not fustaia
-            preserved = (_bool_str(row.get(S.CSV_COL_PAI, ''))
-                         if S.CSV_COL_PAI in row else False)
-        except (ValueError, InvalidOperation) as exc:
-            errors.append(S.ERR_CSV_ROW_PARSE.format(i, str(exc)))
+        number = reader.integer(row.get(S.CSV_COL_ALBERO))
+        d_cm = reader.integer(row.get(S.CSV_COL_D_CM))
+        h_dec = reader.decimal(row.get(S.CSV_COL_H_M))
+        if number is None or d_cm is None or h_dec is None:
+            errors.append(S.ERR_CSV_ROW_PARSE.format(
+                i, f'{S.CSV_COL_ALBERO}/{S.CSV_COL_D_CM}/{S.CSV_COL_H_M}'))
             continue
+        shoot = reader.integer(row.get(S.CSV_COL_POLLONE)) or 0
+        standard = _bool_str(row[S.CSV_COL_MATRICINA])
+        h_m = h_dec.quantize(TREE_H_QUANTUM, rounding=ROUND_HALF_UP)
+        l10_mm = reader.integer(row.get(S.CSV_COL_L10_MM)) or 0
+        fustaia = _bool_str(row[S.CSV_COL_FUSTAIA])
+        coppice = not fustaia
+        preserved = (_bool_str(row.get(S.CSV_COL_PAI, ''))
+                     if S.CSV_COL_PAI in row else False)
 
         genere = row[S.CSV_COL_GENERE].strip()
         mapped = GENERE_MAP.get(genere, genere)
@@ -1326,28 +1318,6 @@ def tree_csv_import_view(request):
         'n_samples': len(sample_by_key),
         'n_trees': n_trees,
     })
-
-
-class _CsvError(Exception):
-    pass
-
-
-def _parse_csv(upload, required_cols):
-    """Decode + parse a Django uploaded CSV file.  Raises _CsvError on
-    malformed file or missing required columns."""
-    try:
-        text = upload.read().decode('utf-8-sig')
-    except UnicodeDecodeError:
-        raise _CsvError(S.ERR_CSV_NOT_UTF8)
-    reader = csv.DictReader(io.StringIO(text))
-    if reader.fieldnames is None:
-        raise _CsvError(S.ERR_CSV_EMPTY)
-    missing = [c for c in required_cols if c not in reader.fieldnames]
-    if missing:
-        raise _CsvError(
-            S.ERR_CSV_MISSING_COLS.format(', '.join(missing)),
-        )
-    return list(reader)
 
 
 def _csv_error_list(errors):

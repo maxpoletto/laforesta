@@ -206,13 +206,16 @@ class TestImportExportClear:
         assert len(lines) == 1
 
     def test_export_streams_active_params(self, writer_client, hypso_samples):
+        from apps.base import csv_io
         _persist(hypso_samples)
         resp = writer_client.get(URL_EXPORT)
         assert resp.status_code == 200
         body = resp.content.decode('utf-8')
         assert hypso_samples['species'].common_name in body
-        # Column order matches the settings table: ..., a, b, n, r2.
-        assert body.splitlines()[0].split(',') == [
+        # Column order matches the settings table: ..., a, b, n, r2.  Field
+        # separator follows the install locale (decimals.md §8).
+        delimiter, _ = csv_io.export_format()
+        assert body.splitlines()[0].split(delimiter) == [
             S.CSV_COL_COMPRESA.lower(), S.CSV_COL_GENERE.lower(),
             S.CSV_COL_FUNZIONE, S.CSV_COL_A, S.CSV_COL_B,
             S.CSV_COL_N_REGRESSION, S.CSV_COL_R2,

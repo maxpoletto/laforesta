@@ -6,13 +6,13 @@ extracted from mannesi.csv (the only CSV that lists them), so this command
 expects mannesi.csv to live in <data_dir>.
 """
 
-import csv
 from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
 
 from config import strings as S
 
+from apps.base import csv_io
 from apps.base.models import (
     Crew, Eclass, Product, Region, Species, Tractor,
 )
@@ -43,7 +43,7 @@ def load_species():
         return [
             (row['common'], row['latin'], int(row['sort_order']),
              float(row['density_q_m3']), row['minor'] == 'true')
-            for row in csv.DictReader(f)
+            for row in csv_io.read(f.read())
         ]
 
 
@@ -148,7 +148,7 @@ class Command(BaseCommand):
 
     def _import_crews(self, mannesi_csv: Path):
         with open(mannesi_csv, encoding='utf-8-sig') as f:
-            reader = csv.DictReader(f)
+            reader = csv_io.read(f.read())
             names = sorted({row[S.CSV_COL_CREW] for row in reader
                             if row[S.CSV_COL_CREW]})
         for name in names:

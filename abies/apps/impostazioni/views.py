@@ -1,7 +1,6 @@
 """Impostazioni (settings) views: password, crews, tractors, species, users."""
 
 import json
-from decimal import Decimal, InvalidOperation
 
 from allauth.account.models import EmailAddress
 from django.contrib.auth import update_session_auth_hash
@@ -15,6 +14,7 @@ from django.views.decorators.http import require_POST
 
 from apps.base import hypsometry
 from apps.base.auth import require_admin, require_writer
+from apps.base.formats import parse_decimal
 from apps.base.digests import (
     HYPSO_PARAM_COLUMNS, hypso_param_row, mark_stale, serve_digest,
 )
@@ -176,11 +176,8 @@ def species_form(request, obj_id=None):
 @require_POST
 def species_save(request):
     body = json.loads(request.body)
-    try:
-        density = Decimal(str(body.get(FIELD_DENSITY, '0') or '0'))
-    except InvalidOperation:
-        return _error(S.ERR_DENSITY_INVALID)
-    if density <= 0:
+    density = parse_decimal(body.get(FIELD_DENSITY))
+    if density is None or density <= 0:
         return _error(S.ERR_DENSITY_INVALID)
     parsed = {
         FIELD_COMMON_NAME: body.get(FIELD_COMMON_NAME, '').strip(),
@@ -435,16 +432,20 @@ def hypso_params_clear(request):
 
 
 def _hypso_export_response(params):
-    """Stream the active set as CSV (lowercase header, '.'-decimal).
+    """Stream the active set as CSV in the active locale's format (lowercase
+    header; ``;``+``,`` for Italian, ``,``+``.`` otherwise — decimals.md §8).
 
     Column order matches the settings table (..., a, b, n, r2); consumers
     read by header name, so the order is for human readability only.
     """
-    import csv as csv_mod
+    import csv
     import io
 
+    from apps.base import csv_io
+
+    delimiter, decimal = csv_io.export_format()
     buf = io.StringIO()
-    writer = csv_mod.writer(buf)
+    writer = csv.writer(buf, delimiter=delimiter)
     writer.writerow([
         S.CSV_COL_COMPRESA.lower(), S.CSV_COL_GENERE.lower(),
         S.CSV_COL_FUNZIONE, S.CSV_COL_A, S.CSV_COL_B,
@@ -453,7 +454,10 @@ def _hypso_export_response(params):
     for p in params:
         writer.writerow([
             p.region.name, p.species.common_name, p.func,
-            float(p.a), float(p.b), p.n, float(p.r2),
+            csv_io.format_decimal(p.a, decimal),
+            csv_io.format_decimal(p.b, decimal),
+            p.n,
+            csv_io.format_decimal(p.r2, decimal),
         ])
     resp = HttpResponse(buf.getvalue(), content_type='text/csv; charset=utf-8')
     resp['Content-Disposition'] = (

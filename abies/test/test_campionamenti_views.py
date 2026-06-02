@@ -1699,6 +1699,50 @@ class TestGridCsvImport:
         assert RECORD in data and AREA_RECORDS in data
         assert len(data[AREA_RECORDS]) == 2
 
+    def test_semicolon_comma_decimal_import(self, writer_client, sample_setup):
+        """§9: a ';'-delimited, comma-decimal file imports; lat/lon parsed."""
+        s = sample_setup
+        grid = SampleGrid.objects.create(name='IT-format target')
+        compresa = s['area'].parcel.region.name
+        particella = s['area'].parcel.name
+        csv_text = (
+            'Compresa;Particella;Area saggio;Lon;Lat;Quota;Raggio\n'
+            f'{compresa};{particella};10;16,1;38,5;500;12\n'
+        )
+        resp = self._post(writer_client, grid.id, csv_text)
+        assert resp.status_code == 200, resp.content
+        area = SampleArea.objects.get(sample_grid=grid, number='10')
+        assert area.lat == 38.5 and area.lon == 16.1
+        assert area.altitude_m == 500 and area.r_m == 12
+
+    def test_unparseable_radius_flagged(self, writer_client, sample_setup):
+        """A present-but-garbage Raggio is flagged, not silently defaulted."""
+        s = sample_setup
+        grid = SampleGrid.objects.create(name='Bad radius')
+        compresa = s['area'].parcel.region.name
+        particella = s['area'].parcel.name
+        csv_text = (
+            'Compresa,Particella,Area saggio,Lon,Lat,Quota,Raggio\n'
+            f'{compresa},{particella},10,16.1,38.5,500,abc\n'
+        )
+        resp = self._post(writer_client, grid.id, csv_text)
+        assert resp.status_code == 400
+        assert SampleArea.objects.filter(sample_grid=grid).count() == 0
+
+    def test_blank_radius_defaults(self, writer_client, sample_setup):
+        """A blank Raggio cell falls back to the default radius (not an error)."""
+        s = sample_setup
+        grid = SampleGrid.objects.create(name='Blank radius')
+        compresa = s['area'].parcel.region.name
+        particella = s['area'].parcel.name
+        csv_text = (
+            'Compresa,Particella,Area saggio,Lon,Lat,Quota,Raggio\n'
+            f'{compresa},{particella},10,16.1,38.5,500,\n'
+        )
+        resp = self._post(writer_client, grid.id, csv_text)
+        assert resp.status_code == 200, resp.content
+        assert SampleArea.objects.get(sample_grid=grid, number='10').r_m == 12
+
     def test_second_import_appends_more(self, writer_client, sample_setup):
         """Two successive imports on the same grid should accumulate."""
         s = sample_setup

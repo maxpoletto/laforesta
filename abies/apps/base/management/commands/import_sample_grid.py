@@ -13,12 +13,12 @@ Area numbers must be unique per (grid, compresa); the loader aborts
 same compresa.
 """
 
-import csv
 from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
+from apps.base import csv_io
 from apps.base.models import Parcel, Region, SampleArea, SampleGrid
 from config import strings as S
 from config.constants import FIELD_ALTITUDE_M, FIELD_LAT, FIELD_LON, FIELD_NOTE, FIELD_R_M
@@ -69,7 +69,7 @@ class Command(BaseCommand):
             )
 
         with open(csv_path, encoding='utf-8-sig') as f:
-            rows = list(csv.DictReader(f))
+            rows = csv_io.read(f.read()).rows
 
         with transaction.atomic():
             grid, created = SampleGrid.objects.get_or_create(
