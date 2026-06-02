@@ -5,12 +5,12 @@ re-importing, so a re-run produces a deterministic result rather than
 appending duplicates. Reference data must already be loaded.
 """
 
-import csv
 from decimal import Decimal
 from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
 
+from apps.base import csv_io
 from apps.base.management.commands.import_reference import (
     NOTE_FLAG_MAP, PRODUCT_MAP,
 )
@@ -109,7 +109,7 @@ class Command(BaseCommand):
             )
 
         with open(mannesi_csv, encoding='utf-8-sig') as f:
-            rows = list(csv.DictReader(f))
+            rows = csv_io.read(f.read()).rows
 
         ops_batch: list[Harvest] = []
         species_deferred: list[tuple[int, Species, int]] = []
