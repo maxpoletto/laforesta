@@ -27,6 +27,9 @@ import {
   FIELD_SURVEY_IDS, FIELD_SURVEYS, HYPSO_SOURCE_COMPUTED, LOGIN_METHOD_PASSWORD,
   MESSAGE, ROLE_ADMIN, ROLE_WRITER, STATUS_CONFLICT,
 } from '../../base/js/constants.js';
+import {
+  fmtDecimal2
+} from '../../base/js/format.js';
 
 const API = '/api/impostazioni/';
 const CSS_URL = '/static/impostazioni/css/impostazioni.css';
@@ -69,7 +72,9 @@ const ENTITY_SECTIONS = [
     formUrl: `${API}species/form/`,
     saveUrl: `${API}species/save/`,
     csvFilename: S.CSV_SPECIES,
-    columnDefs: { [S.COL_ACTIVE]: ACTIVE_COL_DEF },
+    columnDefs: { [S.COL_ACTIVE]: ACTIVE_COL_DEF,
+                  [S.COL_DENSITY]: { label: S.COL_DENSITY, type: 'number', width: '100px', formatter: fmtDecimal2 }
+                }
   },
   {
     key: 'users',

@@ -39,6 +39,31 @@ export const fmtDecimal1BlankZero = v => fmtDecimalBlankZero(v, 1);
 
 export const fmtCoord = v => fmtDecimal(v, 5);
 
+/**
+ * Build a locale-aware number parser — the inverse of `fmtDecimal`.  Maps the
+ * locale's decimal separator to '.', so a literal '.' is always accepted (an
+ * Italian user may type "3,14" or "3.14"); in a dot-decimal locale a comma is
+ * not a decimal separator and yields NaN.  Thousands separators are out of
+ * scope, so a value containing one is rejected (NaN) rather than regrouped.
+ *
+ * Returns `(value) => number`, yielding NaN for blank/garbage input.
+ */
+export function makeNumberParser(locale) {
+  const sep = new Intl.NumberFormat(locale).formatToParts(1.1)
+    .find(d => d.type === 'decimal').value;
+  return (value) => {
+    if (value == null || value === '') return NaN;
+    let s = String(value).trim();
+    if (sep !== '.') s = s.split(sep).join('.');
+    return s === '' ? NaN : Number(s);
+  };
+}
+
+const _parse = makeNumberParser(LOCALE);
+
+/** Parse a locale-formatted number string to a Number (NaN if blank/invalid). */
+export const parseDecimal = v => _parse(v);
+
 export function fmtInt(v) {
   return v == null || v === '' ? '' : String(v);
 }

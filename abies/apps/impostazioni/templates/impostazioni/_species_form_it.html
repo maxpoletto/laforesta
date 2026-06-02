@@ -16,8 +16,8 @@
 
   <div class="form-group">
     <label for="id_density">Densità (q/m³)</label>
-    <input type="number" id="id_density" name="density" step="0.01" min="0.01" required
-           value="{% if obj %}{{ obj.density|stringformat:'.2f' }}{% else %}5.00{% endif %}">
+    <input type="text" inputmode="decimal" id="id_density" name="density" required
+           value="{% if obj %}{{ obj.density|floatformat:2 }}{% else %}5,00{% endif %}">
   </div>
 
   <div class="form-group">

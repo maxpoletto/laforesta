@@ -101,8 +101,8 @@
       </div>
       <div class="form-group narrow">
         <label for="id_mass_q">Q.li</label>
-        <input type="number" id="id_mass_q" name="mass_q" step="0.1" min="0.1" required
-               value="{% if op %}{{ op.mass_q|stringformat:'.1f' }}{% else %}{{ vals.mass_q }}{% endif %}">
+        <input type="text" inputmode="decimal" id="id_mass_q" name="mass_q" required
+               value="{% if op %}{{ op.mass_q|floatformat:1 }}{% else %}{{ vals.mass_q }}{% endif %}">
       </div>
     </div>
 

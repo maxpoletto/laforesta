@@ -10,7 +10,7 @@ remain editable but their parcel is treated as authoritative.
 
 import json
 from datetime import date as date_type
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
@@ -28,6 +28,7 @@ from apps.base.digests import (
     mark_stale,
     serve_digest,
 )
+from apps.base.formats import parse_decimal
 from apps.base.middleware import save_nonce
 from apps.base.models import (
     Crew, HarvestPlanItem, HarvestPlanItemState, Parcel, Product, Species,
@@ -342,13 +343,9 @@ def _parse_body(body):
         except ValueError:
             errors.append(S.ERR_DATE_REQUIRED)
 
-    try:
-        mass_q = Decimal(body.get(FIELD_MASS_Q, '0'))
-        if mass_q <= 0:
-            errors.append(S.ERR_QUINTALS_POSITIVE)
-    except InvalidOperation:
+    mass_q = parse_decimal(body.get(FIELD_MASS_Q)) or Decimal(0)
+    if mass_q <= 0:
         errors.append(S.ERR_QUINTALS_POSITIVE)
-        mass_q = Decimal(0)
 
     record1 = body.get(FIELD_RECORD1)
 

@@ -222,6 +222,16 @@ class TestSpecies:
         assert resp.status_code == 200
         assert Species.objects.filter(common_name='Faggio').exists()
 
+    def test_save_accepts_locale_comma(self, writer_client, db):
+        """The it-locale form submits a comma density; stored canonically
+        (density routes through the locale-aware parser)."""
+        resp = _post(writer_client, '/api/impostazioni/species/save/', {
+            FIELD_COMMON_NAME: 'Cerro', FIELD_LATIN_NAME: '',
+            FIELD_DENSITY: '8,25', FIELD_ACTIVE: 'true',
+        })
+        assert resp.status_code == 200, resp.content
+        assert float(Species.objects.get(common_name='Cerro').density) == 8.25
+
     def test_save_conflict(self, writer_client, species):
         resp = _post(writer_client, '/api/impostazioni/species/save/', {
             ROW_ID: str(species[0].id), VERSION: '999',

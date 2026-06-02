@@ -93,8 +93,8 @@ coppice block.
           </label>
           <label>
             h (m)
-            <input type="number" class="coppice-h-m" min="0.1" step="0.01"
-                   value="{{ ts.h_m|default_if_none:'' }}">
+            <input type="text" inputmode="decimal" class="coppice-h-m"
+                   value="{{ ts.h_m|default_if_none:''|floatformat:2 }}">
           </label>
         </div>
       </div>
