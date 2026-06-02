@@ -158,8 +158,11 @@ applies at three levels:
 ## Number formatting
 
 Numbers are stored and transmitted **canonical** (dot decimal, no digit
-grouping): DB columns, JSON digests, CSV files, and `grid/save-auto` payloads.
-Localization happens **only at the edges**, driven by the active locale
+grouping): DB columns, JSON digests, and `grid/save-auto` payloads.  Digests
+serialize decimals as JSON **numbers** (cast `Decimal`→`float`), so client
+formatters always receive a number, never a dotted string.  **CSV is not
+transmission — it is localized I/O** (see the CSV bullet below).  Localization
+happens **only at the edges**, driven by the active locale
 (`settings.LANGUAGE_CODE` → `<html lang>` → JS reads
 `document.documentElement.lang`):
 
@@ -170,12 +173,23 @@ Localization happens **only at the edges**, driven by the active locale
   the separator is localized.
 - **Form inputs** can't be `type="number"` (that is dot-only and follows the
   OS locale, not the app's), so decimal inputs are
-  `type="text" inputmode="decimal"`, rendered with `floatformat:N` and parsed
-  back with `apps.base.formats.normalize_decimal()` (wraps Django
-  `sanitize_separators`) before `float()`/`Decimal()`. This applies to **form
-  strings only** — never to CSV rows or JSON payloads, which are already
-  canonical (in the it locale `sanitize_separators("38.6")` reads `.` as a
-  thousands separator → `"386"`). Integer inputs stay `type="number"`.
+  `type="text" inputmode="decimal"`, rendered with `floatformat:N`.  They are
+  parsed back with `apps.base.formats.parse_decimal()`, which maps the active
+  locale's decimal separator to `.` before `Decimal()`, returns `None` for
+  blank/invalid, and rejects non-finite input (NaN/∞).  (Float columns such as
+  coordinates take that parsed `Decimal` and convert at the model boundary —
+  there is no separate `parse_float`.)  Parsing is **lenient**: a literal `.`
+  is always accepted, so an Italian user may type `3,14` or `3.14`; in a
+  dot-decimal locale a comma is not a decimal separator and is rejected.
+  Thousands separators are out of scope.  Integer inputs stay `type="number"`,
+  parsed with `int()` / `parseInt`.
+  Machine-read attributes (e.g. `data-density`) must render canonical
+  (dot) via `{{ value|unlocalize }}`, not `floatformat`.
+- **CSV** is locale-driven I/O, not canonical transmission.  Output follows the
+  install locale as a *pair* — `,`-field/`.`-decimal **or** `;`-field/`,`-decimal
+  — with ISO `YYYY-MM-DD` dates.  Import is lenient and accepts either pairing
+  (one shared helper in `apps.base.csv_io` does delimiter + decimal detection).
+  See `docs/decimals.md` §8–9.
 
 To add a language: create parallel `*_en.*` files, retarget the re-exports /
 symlinks, and set `LANGUAGE_CODE`. Numbers localize automatically via
