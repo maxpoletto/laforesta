@@ -28,7 +28,7 @@ import {
   MESSAGE, ROLE_ADMIN, ROLE_WRITER, STATUS_CONFLICT,
 } from '../../base/js/constants.js';
 import {
-  fmtDecimal2
+  fmtDecimal2, parseDecimal,
 } from '../../base/js/format.js';
 
 const API = '/api/impostazioni/';
@@ -311,6 +311,12 @@ function showFormModal(html, cfg, state) {
       // Clear any previous inline error.
       const prev = form.querySelector('.form-inline-error');
       if (prev) prev.remove();
+
+      // §7: species density must be > 0 (only the species form has it).
+      if (body.density !== undefined && !(parseDecimal(body.density) > 0)) {
+        showError(S.ERR_DENSITY_POSITIVE);
+        return;
+      }
 
       let data, status;
       try {

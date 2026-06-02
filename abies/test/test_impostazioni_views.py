@@ -232,6 +232,15 @@ class TestSpecies:
         assert resp.status_code == 200, resp.content
         assert float(Species.objects.get(common_name='Cerro').density) == 8.25
 
+    def test_save_rejects_zero_density(self, writer_client, db):
+        """§7: density must be > 0."""
+        resp = _post(writer_client, '/api/impostazioni/species/save/', {
+            FIELD_COMMON_NAME: 'Zzz', FIELD_LATIN_NAME: '',
+            FIELD_DENSITY: '0', FIELD_ACTIVE: 'true',
+        })
+        assert resp.status_code == 400, resp.content
+        assert not Species.objects.filter(common_name='Zzz').exists()
+
     def test_save_conflict(self, writer_client, species):
         resp = _post(writer_client, '/api/impostazioni/species/save/', {
             ROW_ID: str(species[0].id), VERSION: '999',

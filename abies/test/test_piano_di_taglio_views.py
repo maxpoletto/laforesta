@@ -771,6 +771,21 @@ class TestMarkSave:
         assert tm.d_cm == 30
         assert tm.operator == 'Mario'
 
+    def test_rejects_zero_diameter_or_height(
+        self, writer_client, planned_item, species,
+    ):
+        """§7: a mark needs D and h > 0."""
+        for i, override in enumerate(({FIELD_D_CM: 0}, {FIELD_H_M: '0'})):
+            resp = writer_client.post(
+                self.SAVE_URL,
+                data=json.dumps(self._mark_body(
+                    planned_item, species[0],
+                    **{**override, FIELD_NONCE: f'zero-{i}'})),
+                content_type='application/json',
+            )
+            assert resp.status_code == 400, (override, resp.content)
+        assert TreeMark.objects.count() == 0
+
     def test_h_measured_string_zero_is_false(
         self, writer_client, planned_item, species,
     ):

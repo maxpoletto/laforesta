@@ -493,6 +493,14 @@ class TestTreeSave:
         assert resp.status_code == 400
         assert 'Data' in resp.json()[MESSAGE]
 
+    def test_rejects_zero_diameter_or_height(self, writer_client, sample_setup):
+        """§7: a measured (fustaia) tree needs D and h > 0."""
+        for field in (FIELD_D_CM, FIELD_H_M):
+            payload = self._save_payload(sample_setup, 1, '2025-03-10')
+            payload[field] = '0'
+            resp = self._post(writer_client, payload)
+            assert resp.status_code == 400, (field, resp.content)
+
     def test_response_sample_record_reflects_new_date(
         self, writer_client, sample_setup,
     ):
@@ -681,8 +689,9 @@ class TestTreeSaveCoppice:
     def test_coppice_shoot_height_locale_and_garbage(
         self, writer_client, sample_setup, species, regions, eclasses,
     ):
-        """Per-shoot height: a locale-comma value parses; garbage is a clean
-        400 — regression for the unimported InvalidOperation that 500'd both."""
+        """Per-shoot validation: a locale-comma height parses; garbage height
+        and zero diameter are clean 400s (regression for the unimported
+        InvalidOperation that 500'd the height path)."""
         coppice_eclass = next(e for e in eclasses if e.coppice)
         parcel = Parcel.objects.create(
             name='cc', region=regions[0], eclass=coppice_eclass,
@@ -711,6 +720,12 @@ class TestTreeSaveCoppice:
              FIELD_H_M: 'abc', 'l10_mm': 0},
         ])})
         assert bad.status_code == 400  # clean validation error, never a 500
+
+        bad_d = self._post(writer_client, {**base, 'shoots': json.dumps([
+            {FIELD_SHOOT: 1, FIELD_STANDARD: False, FIELD_D_CM: 0,
+             FIELD_H_M: '8,0', 'l10_mm': 0},
+        ])})
+        assert bad_d.status_code == 400  # §7: shoot diameter must be > 0
 
     def test_coppice_requires_at_least_one_shoot(
         self, writer_client, sample_setup, regions, eclasses,

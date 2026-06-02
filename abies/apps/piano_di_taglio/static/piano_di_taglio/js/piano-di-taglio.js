@@ -40,7 +40,7 @@ import {
 } from '../../base/js/constants.js';
 import {
   fmtDecimal1, fmtDecimal2, fmtDecimal3, fmtInt, fmtCoord,
-  fmtVolume, fmtArea, fmtMass,
+  fmtVolume, fmtArea, fmtMass, parseDecimal,
 } from '../../base/js/format.js';
 
 const CSS_URL = '/static/piano_di_taglio/css/piano-di-taglio.css';
@@ -1508,6 +1508,12 @@ async function wireMarkForm(form, itemId) {
   );
   wireCancelButtons(form, dismissModal);
   interceptSubmit(form, MARK_SAVE_URL, {
+    validate: (body) => {
+      // §7: a mark needs D and h > 0.
+      if (!(parseInt(body.d_cm, 10) > 0)) return S.ERR_D_POSITIVE;
+      if (!(parseDecimal(body.h_m) > 0)) return S.ERR_H_POSITIVE;
+      return null;
+    },
     onSuccess(data, isSaveAndAdd) {
       _applyMarkSaveResponse(data, itemId);
       dismissModal();

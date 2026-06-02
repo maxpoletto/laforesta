@@ -42,7 +42,7 @@ import MapCommon from '../../base/js/map-common.js';
 import { mountUseLocationButton } from '../../base/js/latlng-input.js';
 import { wireVMPreview as wireVMPreviewShared } from '../../base/js/tree-form.js';
 import {
-  fmtDecimal1, fmtDecimal2, fmtCoord, fmtInt, fmtBool,
+  fmtDecimal1, fmtDecimal2, fmtCoord, fmtInt, fmtBool, parseDecimal,
 } from '../../base/js/format.js';
 
 const CSS_URL = '/static/campionamenti/css/campionamenti.css';
@@ -1540,6 +1540,15 @@ function wireTreeForm(form) {
   );
   wireCancelButtons(form, dismissModal);
   interceptSubmit(form, TREE_SAVE_URL, {
+    validate: (body) => {
+      // §7: a measured (fustaia) tree needs D and h > 0.  Coppice carries
+      // per-shoot values, validated server-side.
+      if (body.fustaia === 'true') {
+        if (!(parseInt(body.d_cm, 10) > 0)) return S.ERR_D_POSITIVE;
+        if (!(parseDecimal(body.h_m) > 0)) return S.ERR_H_POSITIVE;
+      }
+      return null;
+    },
     onSuccess: (data, isSaveAndAdd) => {
       applySideEffects(data);
       dismissModal();
