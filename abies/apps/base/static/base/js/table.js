@@ -121,6 +121,9 @@ export class TableWrapper {
   /** Current search text. */
   getSearchText() { return this._searchText; }
 
+  /** Column defs (with formatters) for building the search haystack (§6). */
+  get searchColumns() { return this._stColumns; }
+
   /** Programmatically set search text (e.g., for reset). */
   setSearchText(text) {
     this._searchText = text;
@@ -261,7 +264,7 @@ export class TableWrapper {
 
     this._table.filter(row => {
       if (this._externalFilter && !this._externalFilter(row)) return false;
-      return terms.length === 0 || matchesSearch(row, terms);
+      return terms.length === 0 || matchesSearch(row, terms, this._stColumns);
     });
   }
 
@@ -346,9 +349,19 @@ function escAttr(s) {
 // Search
 // ---------------------------------------------------------------------------
 
-/** Ordered-term search: every term must appear in row text, in given order. */
-export function matchesSearch(row, terms) {
-  const text = row.map(v => String(v ?? '')).join(' ').toLowerCase();
+/**
+ * Ordered-term search over a row's *displayed* text: every term must appear,
+ * in the given order.  With `columns` (the column defs), each cell is rendered
+ * through its formatter so the haystack matches what the user sees — the
+ * it-locale "3,14", not the raw "3.14" (decimals.md §6) — and hidden columns
+ * are excluded.  Without `columns`, falls back to the raw stringified values.
+ */
+export function matchesSearch(row, terms, columns = null) {
+  const text = row.map((v, i) => {
+    const col = columns?.[i];
+    if (col?.hidden) return '';
+    return col?.formatter ? String(col.formatter(v) ?? '') : String(v ?? '');
+  }).join(' ').toLowerCase();
   let pos = 0;
   for (const t of terms) {
     const idx = text.indexOf(t, pos);

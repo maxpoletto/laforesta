@@ -358,7 +358,7 @@ function _getFilteredRows() {
   const terms = text.trim().toLowerCase().split(/\s+/).filter(Boolean);
   return data.rows.filter(row => {
     if (yf && !yf(row)) return false;
-    if (terms.length && !matchesSearch(row, terms)) return false;
+    if (terms.length && !matchesSearch(row, terms, table?.searchColumns)) return false;
     return true;
   });
 }

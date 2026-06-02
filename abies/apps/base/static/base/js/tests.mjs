@@ -15,6 +15,7 @@
 import {
   makeNumberParser, parseDecimal, fmtDecimal, fmtCoord,
 } from './format.js';
+import { matchesSearch } from './table.js';
 
 let pass = 0;
 const failures = [];
@@ -71,6 +72,22 @@ for (const [x, n] of [[38.12346, 5], [9.5, 2], [-16.987, 3], [0.1, 1], [0, 5]]) 
 eqStr(fmtCoord(1234.5), '1234,50000', 'fmtCoord no grouping');
 eqStr(fmtDecimal(1234.5, 2), '1234,50', 'fmtDecimal no grouping');
 eqStr(fmtDecimal(3.14, 2), '3,14', 'fmtDecimal it comma');
+
+// --- matchesSearch: haystack is the FORMATTED (displayed) text (§6) ----------
+// Columns carry the same formatters the table renders with; in node format.js
+// defaults to the it locale, so the number column displays "3,14".
+const searchCols = [
+  { formatter: v => fmtDecimal(v, 2) },  // 3.14 → "3,14"
+  {},                                     // text column, no formatter
+  { hidden: true },                       // hidden → excluded from the haystack
+];
+const searchRow = [3.14, 'Abete', 999];
+check(matchesSearch(searchRow, ['3,14'], searchCols), 'search matches formatted comma decimal');
+check(!matchesSearch(searchRow, ['3.14'], searchCols), 'raw dot does not match formatted cell');
+check(matchesSearch(searchRow, ['abete'], searchCols), 'search matches a text term');
+check(!matchesSearch(searchRow, ['999'], searchCols), 'hidden column excluded from search');
+check(matchesSearch(searchRow, ['3,14', 'abete'], searchCols), 'ordered multi-term match');
+check(matchesSearch(searchRow, ['3.14'], null), 'no columns → raw fallback match');
 
 // --- Report -----------------------------------------------------------------
 console.log(`${pass} passed, ${failures.length} failed`);
