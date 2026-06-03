@@ -30,7 +30,6 @@ from apps.base.formats import coord_float, parse_decimal, to_decimal
 from apps.base.digests import (
     build_harvest_plan_item_record,
     build_harvest_plan_record,
-    build_harvest_record,
     build_tree_mark_record,
     mark_stale,
     serve_digest,
@@ -710,7 +709,6 @@ def item_export_view(request, item_id: int):
 
     Reused as the forced-download step before per-item deletion.
     """
-    from apps.base.models import TreeMark
     item = (HarvestPlanItem.objects
             .select_related('parcel__region', 'region', 'harvest_plan')
             .filter(id=item_id)
@@ -1165,7 +1163,6 @@ def mark_csv_import_view(request):
     re-imports: existing fingerprints are silently skipped.
     """
     import hashlib
-    from django.db.models import Sum
     from apps.base.tabacchi import tabacchi_volume_m3
 
     item_id = _int_or_none(request.POST.get(FIELD_HARVEST_PLAN_ITEM_ID))
