@@ -728,6 +728,60 @@ class TestDigestInvalidation:
             f'(was {state_before}, now {state_after})'
         )
 
+    def test_digest_is_not_browser_cacheable(
+        self, writer_client, planned_item, tmp_path, settings,
+    ):
+        """Digests carry `no-store`.  The app caches them in-memory and
+        revalidates itself; a heuristically-cached browser copy would serve
+        a stale table after a write (the `Last-Modified`-without-
+        `Cache-Control` trap)."""
+        settings.DIGEST_DIR = tmp_path
+        resp = writer_client.get('/api/piano-di-taglio/items/data/')
+        assert 'no-store' in resp['Cache-Control']
+
+    def test_unchanged_digest_still_304s(
+        self, writer_client, planned_item, tmp_path, settings,
+    ):
+        """`no-store` must not cost bandwidth: an unchanged digest still
+        answers 304 to a conditional GET (cache.js sends If-Modified-Since)."""
+        settings.DIGEST_DIR = tmp_path
+        url = '/api/piano-di-taglio/items/data/'
+        r1 = writer_client.get(url)
+        r2 = writer_client.get(url, HTTP_IF_MODIFIED_SINCE=r1['Last-Modified'])
+        assert r2.status_code == 304
+
+    def test_mark_edit_and_delete_reach_the_digest(
+        self, writer_client, planned_item, species, tmp_path, settings,
+    ):
+        """Edits and deletes must be reflected by the per-item mark digest
+        once it is re-served (lazy regeneration on read)."""
+        settings.DIGEST_DIR = tmp_path
+        sp = species[0]
+        url = f'/api/piano-di-taglio/mark-trees/{planned_item.id}/'
+        save, delete = '/api/piano-di-taglio/mark/save/', '/api/piano-di-taglio/mark/delete/'
+        body = {
+            FIELD_HARVEST_PLAN_ITEM_ID: planned_item.id, FIELD_SPECIES_ID: sp.id,
+            FIELD_D_CM: 30, FIELD_H_M: '20.0', FIELD_H_MEASURED: False,
+            FIELD_VOLUME_M3: '0.7022', FIELD_MASS_Q: '0.56',
+            FIELD_LAT: 38.5, FIELD_LON: 16.3, FIELD_OPERATOR: 'Mario',
+            FIELD_DATE: '2025-06-01', FIELD_NONCE: 'c1',
+        }
+        post = lambda u, b: writer_client.post(
+            u, data=json.dumps(b), content_type='application/json')
+
+        tm_id = post(save, body).json()[ROW_ID]
+        d = _read_gzip_json(writer_client.get(url))
+        dcol = d[COLUMNS].index(S.COL_D_CM)
+        assert d[ROWS][0][dcol] == 30
+
+        post(save, {**body, ROW_ID: tm_id, FIELD_D_CM: 40, VERSION: 1, FIELD_NONCE: 'e1'})
+        d = _read_gzip_json(writer_client.get(url))
+        assert d[ROWS][0][dcol] == 40, 'digest did not reflect the edit'
+
+        post(delete, {ROW_ID: tm_id, VERSION: 2, FIELD_NONCE: 'd1'})
+        d = _read_gzip_json(writer_client.get(url))
+        assert len(d[ROWS]) == 0, 'digest did not reflect the delete'
+
 
 # ---------------------------------------------------------------------------
 # Tree-mark CRUD

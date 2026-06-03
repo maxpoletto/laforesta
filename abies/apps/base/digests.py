@@ -19,6 +19,7 @@ from pathlib import Path
 from django.conf import settings
 from django.db.models import Sum
 from django.http import FileResponse, HttpResponse
+from django.utils.cache import patch_cache_control
 from django.utils.http import http_date, parse_http_date_safe
 
 from apps.base.models import DigestStatus, render_flag_note
@@ -107,17 +108,30 @@ def regenerate_if_stale(name: str) -> Path:
 
 
 def serve_digest(request, name: str):
-    """Serve a named digest with conditional GET and lazy regeneration."""
+    """Serve a named digest with conditional GET and lazy regeneration.
+
+    ``no_store`` keeps the browser's HTTP cache out of the loop.  The app
+    caches digests itself (in-memory, see ``cache.js``) and revalidates
+    with an explicit ``If-Modified-Since``.  Without it, a ``Last-Modified``
+    response with no ``Cache-Control`` is eligible for the browser's
+    *heuristic* cache: after a write the in-memory cache is patched but a
+    reload would serve the browser's stale copy without ever revalidating.
+    The conditional GET below still answers 304 for unchanged digests, so
+    suppressing the browser cache costs no bandwidth.
+    """
     path = regenerate_if_stale(name)
     mtime = os.path.getmtime(path)
     ims = request.META.get('HTTP_IF_MODIFIED_SINCE')
     if ims:
         ims_ts = parse_http_date_safe(ims)
         if ims_ts is not None and ims_ts >= int(mtime):
-            return HttpResponse(status=304)
+            response = HttpResponse(status=304)
+            patch_cache_control(response, no_store=True)
+            return response
     response = FileResponse(open(path, 'rb'), content_type='application/json')
     response['Content-Encoding'] = 'gzip'
     response['Last-Modified'] = http_date(mtime)
+    patch_cache_control(response, no_store=True)
     return response
 
 

@@ -77,6 +77,16 @@ often span multiple domain tables (e.g., a prelievi write also updates
 Digest files are gzip-compressed (stored as `.json.gz`) and served with
 `Content-Encoding: gzip`.
 
+Digest responses are served `Cache-Control: no-store`.  The app is its own
+cache — the in-memory client store (below) plus the conditional GET above —
+so the browser's HTTP cache must stay out of the loop.  Without `no-store` a
+`Last-Modified` response with no `Cache-Control` is eligible for the
+browser's *heuristic* cache: after a write the in-memory store is patched,
+but a reload would serve the browser's stale copy without ever revalidating
+(a stale table even though the server and DB are correct).  `no-store` still
+lets the conditional GET answer 304 for unchanged digests, so it costs no
+bandwidth.
+
 ## Caching
 
 Data is cached client-side in memory, keyed by `data_id` (one per

@@ -6,7 +6,7 @@ import * as cache from '../../base/js/cache.js';
 import * as router from '../../base/js/router.js';
 import { TableWrapper } from '../../base/js/table.js';
 import {
-  fetchModalForm, renderModalForm, showFormError,
+  deleteRowWithVersion, fetchModalForm, renderModalForm, showFormError,
 } from '../../base/js/forms.js';
 import {
   wireActions, wireCancelButtons, wireCollapsibleToggle, showLoadingIn,
@@ -18,7 +18,7 @@ import { showError, dismiss as dismissModal, onDismiss } from '../../base/js/mod
 import { createRangeSlider } from '../../base/js/range-slider.js';
 import * as S from '../../base/js/strings.js';
 import {
-  FIELD_NONCE, ROW_ID, STATUS_CONFLICT, VERSION,
+  ROW_ID, STATUS_CONFLICT, VERSION,
 } from '../../base/js/constants.js';
 import {
   fmtDecimal1, fmtDecimal1BlankZero, fmtDecimal2, fmtInt,
@@ -62,7 +62,6 @@ const STATIC_COLS = {
 
 // Column indices — resolved on first data load.
 let colDate = -1;
-let colVersion = -1;
 
 // Page state.
 let table = null;
@@ -127,7 +126,6 @@ export async function mount(params) {
   }
 
   colDate = data.columns.indexOf(S.COL_DATE);
-  colVersion = data.columns.indexOf(VERSION);
   _buildColMap(data.columns);
   _classifyColumns(data.columns);
 
@@ -627,43 +625,16 @@ function wire100Buttons(form) {
 // Delete
 // ---------------------------------------------------------------------------
 
-async function confirmDelete(rowId) {
-  if (!confirm(S.DELETE_CONFIRM)) return;
-
-  const data = cache.get(DATA_ID);
-  if (!data) return;
-
-  const row = data.rows.find(r => r[0] === rowId);
-  if (!row) return;
-
-  const version = colVersion >= 0 ? row[colVersion] : 0;
-
-  let resp;
-  try {
-    resp = await postJSON(DELETE_URL, {
-      [ROW_ID]: String(rowId),
-      [VERSION]: String(version),
-      [FIELD_NONCE]: crypto.randomUUID(),
-    });
-  } catch {
-    showError(S.ERROR_NETWORK);
-    return;
-  }
-
-  if (resp.status === 200) {
-    cache.removeRow(DATA_ID, rowId);
-    if (resp.data.item_record) {
-      cache.updateRow(HARVEST_PLAN_ITEMS_ID, resp.data.item_record[0], resp.data.item_record);
-    }
-    if (table) table.setData(cache.get(DATA_ID));
-    return;
-  }
-
-  if (resp.data.status === STATUS_CONFLICT && resp.data.record) {
-    cache.updateRow(DATA_ID, resp.data.row_id, resp.data.record);
-    if (table) table.setData(cache.get(DATA_ID));
-  }
-  showError(resp.data.message || S.ERROR_GENERIC);
+function confirmDelete(rowId) {
+  return deleteRowWithVersion(DATA_ID, rowId, DELETE_URL, {
+    onSuccess: (data) => {
+      if (data.item_record) {
+        cache.updateRow(HARVEST_PLAN_ITEMS_ID, data.item_record[0], data.item_record);
+      }
+      if (table) table.setData(cache.get(DATA_ID));
+    },
+    onConflict: () => { if (table) table.setData(cache.get(DATA_ID)); },
+  });
 }
 
 // ---------------------------------------------------------------------------

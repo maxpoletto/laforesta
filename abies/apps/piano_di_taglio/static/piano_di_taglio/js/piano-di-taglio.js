@@ -16,7 +16,8 @@ import {
 } from '../../base/js/modals.js';
 import { fetchJSON, postJSON, postFormData } from '../../base/js/api.js';
 import {
-  fetchModalForm, interceptSubmit, submitCsvImport, showFormError,
+  deleteRowWithVersion, fetchModalForm, interceptSubmit, submitCsvImport,
+  showFormError,
 } from '../../base/js/forms.js';
 import {
   showCascadeDeleteModal, wireActions, wireCancelButtons,
@@ -1405,7 +1406,7 @@ async function appendItemMarkTreesSection(card, itemId, state) {
     canModify: showActions,
     actions: showActions ? {
       onEdit: (rowId) => showEditMarkForm(itemId, rowId),
-      onDelete: (rowId, version) => deleteMarkRow(itemId, rowId, version),
+      onDelete: (rowId) => deleteMarkRow(itemId, rowId),
     } : {},
     sort: { column: S.COL_DATE, ascending: false },
     csvFilename: `${S.CSV_MARTELLATE_PREFIX}${itemId}.csv`,
@@ -1588,26 +1589,16 @@ async function showImportMarksForm(itemId) {
   showModal(frag);
 }
 
-async function deleteMarkRow(itemId, rowId, version) {
-  if (!confirm(S.DELETE_CONFIRM)) return;
-  try {
-    const { data, status } = await postJSON(MARK_DELETE_URL, {
-      [ROW_ID]: rowId, [VERSION]: version, [FIELD_NONCE]: crypto.randomUUID(),
-    });
-    if (status !== 200) {
-      showError(data?.message || S.ERROR_GENERIC);
-      return;
-    }
-    const dataId = markTreesDataId(itemId);
-    cache.removeRow(dataId, rowId);
-    if (data.item_record) {
-      cache.updateRow(ITEMS_ID, data.item_record[0], data.item_record);
-      itemsData = cache.get(ITEMS_ID);
-    }
-    renderItemView(itemId);
-  } catch {
-    showError(S.ERROR_NETWORK);
-  }
+function deleteMarkRow(itemId, rowId) {
+  return deleteRowWithVersion(markTreesDataId(itemId), rowId, MARK_DELETE_URL, {
+    onSuccess: (data) => {
+      if (data.item_record) {
+        cache.updateRow(ITEMS_ID, data.item_record[0], data.item_record);
+        itemsData = cache.get(ITEMS_ID);
+      }
+      renderItemView(itemId);
+    },
+  });
 }
 
 function _applyMarkSaveResponse(data, itemId) {

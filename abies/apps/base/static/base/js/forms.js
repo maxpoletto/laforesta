@@ -7,9 +7,10 @@
  */
 
 import { postJSON } from './api.js';
+import * as cache from './cache.js';
 import { show as showModal, dismiss as dismissModal, showError } from './modals.js';
 import * as S from './strings.js';
-import { HTML, STATUS_CONFLICT } from './constants.js';
+import { FIELD_NONCE, HTML, ROW_ID, STATUS_CONFLICT, VERSION } from './constants.js';
 
 /**
  * Fetch a form fragment from the server and display it in #content.
@@ -101,6 +102,59 @@ export function interceptSubmit(form, postUrl, callbacks) {
       callbacks.onValidationError?.(data);
     }
   });
+}
+
+/**
+ * Delete a row guarded by optimistic-lock version.
+ *
+ * Reads the row's current `version` from the cached `dataId` digest — the
+ * single source of truth, never a value passed in by the caller — POSTs
+ * `{row_id, version, nonce}` to `url`, and reconciles the cache: on
+ * success removes the row; on a version conflict refreshes the row from
+ * the server's returned record so a retry carries the current version.
+ * View re-rendering and any cross-digest updates are left to the
+ * `onSuccess` / `onConflict` callbacks (cf. `interceptSubmit`).
+ *
+ * @param {string} dataId — cache id of the digest holding the row
+ * @param {number} rowId
+ * @param {string} url — delete endpoint
+ * @param {object} [callbacks]
+ * @param {function(data: object): void} [callbacks.onSuccess]
+ * @param {function(data: object): void} [callbacks.onConflict]
+ * @returns {Promise<boolean>} true iff the row was deleted
+ */
+export async function deleteRowWithVersion(dataId, rowId, url, { onSuccess, onConflict } = {}) {
+  if (!confirm(S.DELETE_CONFIRM)) return false;
+  const digest = cache.get(dataId);
+  const row = digest?.rows.find(r => r[0] === rowId);
+  if (!row) return false;
+  const vcol = digest.columns.indexOf(VERSION);
+  const version = vcol >= 0 ? row[vcol] : 0;
+
+  let data, status;
+  try {
+    ({ data, status } = await postJSON(url, {
+      [ROW_ID]: String(rowId),
+      [VERSION]: String(version),
+      [FIELD_NONCE]: crypto.randomUUID(),
+    }));
+  } catch {
+    showError(S.ERROR_NETWORK);
+    return false;
+  }
+
+  if (status === 200) {
+    cache.removeRow(dataId, rowId);
+    onSuccess?.(data);
+    return true;
+  }
+
+  if (data?.status === STATUS_CONFLICT && data.record) {
+    cache.updateRow(dataId, data.row_id, data.record);
+    onConflict?.(data);
+  }
+  showError(data?.message || S.ERROR_GENERIC);
+  return false;
 }
 
 /**
