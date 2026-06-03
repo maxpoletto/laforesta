@@ -745,7 +745,7 @@ def item_export_view(request, item_id: int):
             parcel.region.name,
             parcel.name,
             '1' if item.damaged else '0',
-            tm.id,
+            tm.number,
             tm.tree.species.common_name,
             tm.d_cm,
             csv_io.format_decimal(tm.h_m, decimal_sep),

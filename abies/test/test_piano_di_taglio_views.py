@@ -6,15 +6,18 @@ cantiere transition save view.  All write paths share the digest-stale
 contract and the nonce-idempotency contract.
 """
 
+import csv
 import gzip
 import io
 import json
 import zipfile
+from datetime import date as date_type
 from decimal import Decimal
 
 import pytest
 from django.test import Client
 
+from apps.base import csv_io
 from apps.base.models import (
     DigestStatus, HarvestPlan, HarvestPlanItem, HarvestPlanItemState,
     HarvestTransition, ParcelPlanDetail, Tree, TreeMark,
@@ -660,6 +663,30 @@ class TestItemExport:
         names = set(zf.namelist())
         assert f'martellate_{planned_item.id}.csv' in names
         assert f'prelievi_{planned_item.id}.csv' in names
+
+    def test_export_numero_is_mark_number_not_id(
+        self, writer_client, planned_item, species,
+    ):
+        """The martellate CSV 'Numero' column must carry TreeMark.number,
+        not the DB id (which just starts at 1)."""
+        tree = Tree.objects.create(
+            species=species[0], parcel=planned_item.parcel,
+            lat=38.5, lon=16.3, acc_m=5)
+        tm = TreeMark.objects.create(
+            harvest_plan_item=planned_item, tree=tree, number=1440,
+            date=date_type(2025, 6, 1), d_cm=30, h_m=Decimal('20.0'),
+            h_measured=False, volume_m3=Decimal('0.7'), mass_q=Decimal('0.5'),
+            lat=38.5, lon=16.3, acc_m=5, operator='Mario')
+        assert tm.number != tm.id  # the bug only manifests when they differ
+
+        resp = writer_client.get(
+            f'/api/piano-di-taglio/item/export/{planned_item.id}/')
+        zf = zipfile.ZipFile(io.BytesIO(resp.content))
+        text = zf.read(f'martellate_{planned_item.id}.csv').decode('utf-8-sig')
+        delimiter, _ = csv_io.export_format()
+        rows = list(csv.reader(io.StringIO(text), delimiter=delimiter))
+        numero = rows[1][rows[0].index(S.CSV_COL_NUMERO)]
+        assert numero == '1440', f'expected mark number 1440, got {numero!r}'
 
 
 # ---------------------------------------------------------------------------
