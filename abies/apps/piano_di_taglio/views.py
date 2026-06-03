@@ -14,6 +14,7 @@ import io
 import json
 import re
 import zipfile
+from dataclasses import dataclass
 from datetime import date as date_type
 from typing import Iterable
 
@@ -26,7 +27,8 @@ from django.views.decorators.http import require_POST
 
 from apps.base.auth import require_writer
 from apps.base import csv_io
-from apps.base.formats import coord_float, parse_decimal, to_decimal
+from apps.base.numparse import coord_float, int_or_none, parse_decimal
+from apps.base.responses import csv_error_list, validation_error
 from apps.base.digests import (
     build_harvest_plan_item_record,
     build_harvest_plan_record,
@@ -155,11 +157,11 @@ def plan_form_view(request, plan_id: int | None = None):
 def plan_save_view(request):
     """Create or update a HarvestPlan (name + description + year range)."""
     body = json.loads(request.body)
-    plan_id = _int_or_none(body.get(ROW_ID))
+    plan_id = int_or_none(body.get(ROW_ID))
 
     name, description, year_start, year_end, errors = _parse_plan_body(body)
     if errors:
-        return _validation_error(errors)
+        return validation_error(errors)
 
     # Uniqueness check (case-insensitive — `HarvestPlan.name` has a
     # plain unique constraint, but we surface a friendly message early).
@@ -167,7 +169,7 @@ def plan_save_view(request):
     if plan_id:
         dup = dup.exclude(id=plan_id)
     if dup.exists():
-        return _validation_error([S.ERR_PLAN_NAME_DUPLICATE])
+        return validation_error([S.ERR_PLAN_NAME_DUPLICATE])
 
     with transaction.atomic():
         if plan_id is not None:
@@ -176,7 +178,7 @@ def plan_save_view(request):
             ).first()
             if plan is None:
                 return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
-            submitted_version = _int_or_none(body.get(VERSION))
+            submitted_version = int_or_none(body.get(VERSION))
             if (submitted_version is not None
                     and plan.version != submitted_version):
                 return _conflict_response_plan(plan)
@@ -222,7 +224,7 @@ def plan_delete_view(request, plan_id: int):
         state=HarvestPlanItemState.PLANNED,
     ).exists()
     if bad:
-        return _validation_error([S.ERR_PLAN_HAS_ACTIVE_ITEMS])
+        return validation_error([S.ERR_PLAN_HAS_ACTIVE_ITEMS])
 
     with transaction.atomic():
         # HarvestPlanItem and ParcelPlanDetail both cascade to HarvestPlan.
@@ -287,11 +289,11 @@ def plan_csv_import_view(request):
     file is a no-op; re-importing a revised file overwrites the matching
     rows in place.
     """
-    plan_id = _int_or_none(request.POST.get(FIELD_HARVEST_PLAN_ID))
+    plan_id = int_or_none(request.POST.get(FIELD_HARVEST_PLAN_ID))
     if plan_id is not None:
         target_plan = HarvestPlan.objects.filter(id=plan_id).first()
         if target_plan is None:
-            return _validation_error([S.ERR_PLAN_NOT_FOUND])
+            return validation_error([S.ERR_PLAN_NOT_FOUND])
         name = target_plan.name
         description = target_plan.description
     else:
@@ -299,9 +301,9 @@ def plan_csv_import_view(request):
         name = (request.POST.get(FIELD_NAME) or '').strip()
         description = (request.POST.get(FIELD_DESCRIPTION) or '').strip()
         if not name:
-            return _validation_error([S.ERR_PLAN_NAME_REQUIRED])
+            return validation_error([S.ERR_PLAN_NAME_REQUIRED])
         if HarvestPlan.objects.filter(name__iexact=name).exists():
-            return _validation_error([S.ERR_PLAN_NAME_DUPLICATE])
+            return validation_error([S.ERR_PLAN_NAME_DUPLICATE])
 
     fustaia_rows = _read_optional(
         request.FILES.get(FIELD_FUSTAIA_FILE),
@@ -312,10 +314,10 @@ def plan_csv_import_view(request):
         _CEDUO_REQUIRED, _CEDUO_OPTIONAL,
     )
     if fustaia_rows is None and ceduo_rows is None:
-        return _validation_error([S.ERR_CSV_NO_FILES])
-    for rows in (fustaia_rows, ceduo_rows):
-        if isinstance(rows, _CsvError):
-            return _validation_error([rows.message])
+        return validation_error([S.ERR_CSV_NO_FILES])
+    for result in (fustaia_rows, ceduo_rows):
+        if isinstance(result, _CsvError):
+            return validation_error([result.message])
 
     region_cache = {r.name.lower(): r for r in Region.objects.all()}
     parcel_cache = {
@@ -324,14 +326,16 @@ def plan_csv_import_view(request):
     }
 
     errors: list[str] = []
-    fustaia_parsed = _parse_fustaia_rows(
-        fustaia_rows or [], parcel_cache, region_cache, errors,
+    fustaia_parsed = (
+        _parse_fustaia_rows(fustaia_rows, parcel_cache, region_cache, errors)
+        if fustaia_rows else []
     )
-    ceduo_parsed = _parse_ceduo_rows(
-        ceduo_rows or [], parcel_cache, errors,
+    ceduo_parsed = (
+        _parse_ceduo_rows(ceduo_rows, parcel_cache, errors)
+        if ceduo_rows else []
     )
     if errors:
-        return _csv_error_list(errors)
+        return csv_error_list(errors)
 
     all_years = (
         [r[FIELD_YEAR_PLANNED] for r in fustaia_parsed]
@@ -469,7 +473,7 @@ def plan_export_view(request, plan_id: int):
         if ppd.harvest_detail.interval is not None
     }
 
-    delimiter, _ = csv_io.export_format()
+    delimiter, decimal_sep = csv_io.export_format()
     fustaia_buf = io.StringIO()
     fustaia_w = csv.writer(fustaia_buf, delimiter=delimiter)
     fustaia_w.writerow([
@@ -497,7 +501,7 @@ def plan_export_view(request, plan_id: int):
         else:
             compresa = it.parcel.region.name
             particella = it.parcel.name
-            parcel_area = _fmt_decimal(it.parcel.area_ha)
+            parcel_area = csv_io.format_decimal(it.parcel.area_ha, decimal_sep)
             is_coppice = it.parcel.eclass.coppice
         anno_eff = it.date_actual.year if it.date_actual else ''
         flag_note = render_flag_note(it.damaged, it.unhealthy, it.psr)
@@ -507,10 +511,10 @@ def plan_export_view(request, plan_id: int):
                 it.year_planned, anno_eff,
                 compresa, particella,
                 state_label, flag_note,
-                _fmt_decimal(it.intervention_area_ha),
+                csv_io.format_decimal(it.intervention_area_ha, decimal_sep),
                 parcel_area,
                 parcel_intervals.get(it.parcel_id, ''),
-                _fmt_decimal(it.volume_actual_m3),
+                csv_io.format_decimal(it.volume_actual_m3, decimal_sep),
                 it.note or '',
             ])
         else:
@@ -518,9 +522,9 @@ def plan_export_view(request, plan_id: int):
                 it.year_planned, anno_eff,
                 compresa, particella,
                 state_label, flag_note,
-                _fmt_decimal(it.volume_planned_m3),
-                _fmt_decimal(it.volume_marked_m3),
-                _fmt_decimal(it.volume_actual_m3),
+                csv_io.format_decimal(it.volume_planned_m3, decimal_sep),
+                csv_io.format_decimal(it.volume_marked_m3, decimal_sep),
+                csv_io.format_decimal(it.volume_actual_m3, decimal_sep),
             ])
 
     zip_buf = io.BytesIO()
@@ -589,7 +593,7 @@ def item_form_view(request, item_id: int | None = None):
             raise Http404
         plan = item.harvest_plan
     else:
-        plan_id = _int_or_none(request.GET.get('plan'))
+        plan_id = int_or_none(request.GET.get('plan'))
         if plan_id is None:
             raise Http404('plan required')
         plan = HarvestPlan.objects.filter(id=plan_id).first()
@@ -613,11 +617,11 @@ def item_form_view(request, item_id: int | None = None):
 def item_save_view(request):
     """Create or update a HarvestPlanItem."""
     body = json.loads(request.body)
-    item_id = _int_or_none(body.get(ROW_ID))
+    item_id = int_or_none(body.get(ROW_ID))
 
     parsed, errors = _parse_item_body(body)
     if errors:
-        return _validation_error(errors)
+        return validation_error(errors)
 
     with transaction.atomic():
         if item_id is not None:
@@ -626,7 +630,7 @@ def item_save_view(request):
             ).first()
             if item is None:
                 return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
-            submitted_version = _int_or_none(body.get(VERSION))
+            submitted_version = int_or_none(body.get(VERSION))
             if (submitted_version is not None
                     and item.version != submitted_version):
                 return _conflict_response_item(item)
@@ -637,14 +641,14 @@ def item_save_view(request):
                 item.clean()
                 item.save()
             except Exception as exc:
-                return _validation_error([str(exc)])
+                return validation_error([str(exc)])
         else:
-            plan_id = _int_or_none(body.get(FIELD_HARVEST_PLAN_ID))
+            plan_id = int_or_none(body.get(FIELD_HARVEST_PLAN_ID))
             if plan_id is None:
-                return _validation_error([S.ERR_PLAN_ITEM_NOT_FOUND])
+                return validation_error([S.ERR_PLAN_ITEM_NOT_FOUND])
             plan = HarvestPlan.objects.filter(id=plan_id).first()
             if plan is None:
-                return _validation_error([S.ERR_PLAN_ITEM_NOT_FOUND])
+                return validation_error([S.ERR_PLAN_ITEM_NOT_FOUND])
             item = HarvestPlanItem(
                 harvest_plan=plan,
                 state=HarvestPlanItemState.PLANNED,
@@ -654,7 +658,7 @@ def item_save_view(request):
                 item.clean()
                 item.save()
             except Exception as exc:
-                return _validation_error([str(exc)])
+                return validation_error([str(exc)])
         mark_stale('harvest_plan_items', 'audit')
 
     item = (HarvestPlanItem.objects
@@ -688,13 +692,13 @@ def item_delete_view(request, item_id: int):
     if item is None:
         return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
     if item.state != HarvestPlanItemState.PLANNED:
-        return _validation_error([S.ERR_PLAN_ITEM_STATE_NOT_PLANNED])
+        return validation_error([S.ERR_PLAN_ITEM_STATE_NOT_PLANNED])
 
     with transaction.atomic():
         try:
             item.delete()
         except Exception:
-            return _validation_error([S.ERR_PLAN_ITEM_HAS_DEPS])
+            return validation_error([S.ERR_PLAN_ITEM_HAS_DEPS])
         mark_stale('harvest_plan_items', 'audit')
 
     return JsonResponse({DATA_ID: 'harvest_plan_items', ROW_ID: item_id})
@@ -718,7 +722,7 @@ def item_export_view(request, item_id: int):
         return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
 
     # martellate_<id>.csv
-    delimiter, _ = csv_io.export_format()
+    delimiter, decimal_sep = csv_io.export_format()
     marks_buf = io.StringIO()
     marks_w = csv.writer(marks_buf, delimiter=delimiter)
     marks_w.writerow([
@@ -744,10 +748,10 @@ def item_export_view(request, item_id: int):
             tm.id,
             tm.tree.species.common_name,
             tm.d_cm,
-            _fmt_decimal(tm.h_m),
+            csv_io.format_decimal(tm.h_m, decimal_sep),
             '1' if tm.h_measured else '0',
-            _fmt_decimal(tm.lat),
-            _fmt_decimal(tm.lon),
+            csv_io.format_decimal(tm.lat, decimal_sep),
+            csv_io.format_decimal(tm.lon, decimal_sep),
             tm.acc_m if tm.acc_m is not None else '',
             tm.operator,
         ])
@@ -786,7 +790,7 @@ def item_export_view(request, item_id: int):
         prelievi_w.writerow(
             [h.date.isoformat(), h.parcel.region.name, h.parcel.name,
              h.crew.name, h.record1 or '', h.product.name,
-             _fmt_decimal(h.mass_q),
+             csv_io.format_decimal(h.mass_q, decimal_sep),
              render_flag_note(h.damaged, h.unhealthy, h.psr),
              h.note or '']
             + [sp_map.get(h.id, {}).get(sid, 0) for sid in species_ids]
@@ -831,19 +835,19 @@ def transition_save_view(request):
     advances ``HarvestPlanItem.state`` server-side.
     """
     body = json.loads(request.body)
-    item_id = _int_or_none(body.get(FIELD_HARVEST_PLAN_ITEM_ID))
+    item_id = int_or_none(body.get(FIELD_HARVEST_PLAN_ITEM_ID))
     open_flag = is_truthy(body.get(FIELD_OPEN))
     date_raw = (body.get(FIELD_DATE) or '').strip()
     note = (body.get(FIELD_NOTE) or '').strip()
 
     if item_id is None:
-        return _validation_error([S.ERR_PLAN_ITEM_NOT_FOUND])
+        return validation_error([S.ERR_PLAN_ITEM_NOT_FOUND])
     if not date_raw:
-        return _validation_error([S.ERR_TRANSITION_DATE_REQUIRED])
+        return validation_error([S.ERR_TRANSITION_DATE_REQUIRED])
     try:
         date = date_type.fromisoformat(date_raw)
     except ValueError:
-        return _validation_error([S.ERR_DATE_INVALID])
+        return validation_error([S.ERR_DATE_INVALID])
 
     with transaction.atomic():
         item = HarvestPlanItem.objects.select_for_update().filter(
@@ -854,7 +858,7 @@ def transition_save_view(request):
         cur = HarvestPlanItemState(item.state)
         new_state = _ALLOWED_TRANSITIONS.get((cur, open_flag))
         if new_state is None:
-            return _validation_error([S.ERR_TRANSITION_INVALID_STATE])
+            return validation_error([S.ERR_TRANSITION_INVALID_STATE])
 
         transition = HarvestTransition.objects.create(
             harvest_plan_item=item, open=open_flag, date=date, note=note,
@@ -905,7 +909,7 @@ def mark_form_view(request, mark_id: int | None = None):
         item = tm.harvest_plan_item
         tree = tm.tree
     else:
-        item_id = _int_or_none(request.GET.get('item'))
+        item_id = int_or_none(request.GET.get('item'))
         if item_id is None:
             raise Http404
         item = (HarvestPlanItem.objects
@@ -970,21 +974,21 @@ def mark_save_view(request):
     them as-is; no server-side recompute on this path.
     """
     body = json.loads(request.body)
-    row_id = _int_or_none(body.get(ROW_ID))
-    item_id = _int_or_none(body.get(FIELD_HARVEST_PLAN_ITEM_ID))
-    species_id = _int_or_none(body.get(FIELD_SPECIES_ID))
-    d_cm = _int_or_none(body.get(FIELD_D_CM))
+    row_id = int_or_none(body.get(ROW_ID))
+    item_id = int_or_none(body.get(FIELD_HARVEST_PLAN_ITEM_ID))
+    species_id = int_or_none(body.get(FIELD_SPECIES_ID))
+    d_cm = int_or_none(body.get(FIELD_D_CM))
     h_m = parse_decimal(body.get(FIELD_H_M))
     h_measured = is_truthy(body.get(FIELD_H_MEASURED))
     volume_m3 = parse_decimal(body.get(FIELD_VOLUME_M3))
     mass_q = parse_decimal(body.get(FIELD_MASS_Q))
     lat = coord_float(parse_decimal(body.get(FIELD_LAT)))
     lon = coord_float(parse_decimal(body.get(FIELD_LON)))
-    acc_m = _int_or_none(body.get(FIELD_ACC_M))
+    acc_m = int_or_none(body.get(FIELD_ACC_M))
     operator = (body.get(FIELD_OPERATOR) or '').strip()
     date_raw = (body.get(FIELD_DATE) or '').strip()
-    number = _int_or_none(body.get(FIELD_NUMBER))
-    parcel_id = _int_or_none(body.get(FIELD_PARCEL_ID))
+    number = int_or_none(body.get(FIELD_NUMBER))
+    parcel_id = int_or_none(body.get(FIELD_PARCEL_ID))
 
     errors = []
     if item_id is None:
@@ -1006,19 +1010,19 @@ def mark_save_view(request):
             errors.append(S.ERR_DATE_INVALID)
             date = None
     if errors:
-        return _validation_error(errors)
+        return validation_error(errors)
 
     item = (HarvestPlanItem.objects
             .select_related('parcel__region', 'region')
             .filter(id=item_id).first())
     if item is None:
-        return _validation_error([S.ERR_PLAN_ITEM_NOT_FOUND])
+        return validation_error([S.ERR_PLAN_ITEM_NOT_FOUND])
     if item.state == HarvestPlanItemState.CLOSED:
-        return _validation_error([S.ERR_MARK_ITEM_CLOSED])
+        return validation_error([S.ERR_MARK_ITEM_CLOSED])
 
     species = Species.objects.filter(id=species_id).first()
     if species is None:
-        return _validation_error([S.ERR_MARK_SPECIES_REQUIRED])
+        return validation_error([S.ERR_MARK_SPECIES_REQUIRED])
 
     parcel = _resolve_mark_parcel(item, parcel_id)
     if isinstance(parcel, JsonResponse):
@@ -1123,7 +1127,7 @@ def mark_delete_view(request):
 
     item = tm.harvest_plan_item
     if item.state == HarvestPlanItemState.CLOSED:
-        return _validation_error([S.ERR_MARK_ITEM_CLOSED])
+        return validation_error([S.ERR_MARK_ITEM_CLOSED])
 
     tree = tm.tree
     item_id = item.id
@@ -1166,23 +1170,23 @@ def mark_csv_import_view(request):
     import hashlib
     from apps.base.tabacchi import tabacchi_volume_m3
 
-    item_id = _int_or_none(request.POST.get(FIELD_HARVEST_PLAN_ITEM_ID))
+    item_id = int_or_none(request.POST.get(FIELD_HARVEST_PLAN_ITEM_ID))
     upload = request.FILES.get(FIELD_FILE)
 
     if item_id is None:
-        return _validation_error([S.ERR_PLAN_ITEM_NOT_FOUND])
+        return validation_error([S.ERR_PLAN_ITEM_NOT_FOUND])
     if upload is None:
-        return _validation_error([S.ERR_CSV_FILE_REQUIRED])
+        return validation_error([S.ERR_CSV_FILE_REQUIRED])
 
     item = (HarvestPlanItem.objects
             .select_related('parcel__region', 'region')
             .filter(id=item_id).first())
     if item is None:
-        return _validation_error([S.ERR_PLAN_ITEM_NOT_FOUND])
+        return validation_error([S.ERR_PLAN_ITEM_NOT_FOUND])
     if item.state == HarvestPlanItemState.CLOSED:
-        return _validation_error([S.ERR_MARK_ITEM_CLOSED])
+        return validation_error([S.ERR_MARK_ITEM_CLOSED])
 
-    rows = _read_optional(upload, required={
+    result = _read_optional(upload, required={
         'date':      [S.CSV_COL_DATA],
         'compresa':  [S.CSV_COL_COMPRESA],
         'particella': [S.CSV_COL_PARTICELLA],
@@ -1198,8 +1202,9 @@ def mark_csv_import_view(request):
         'acc_m':     [S.CSV_COL_ACC_M],
         'operator':  [S.CSV_COL_OPERATORE],
     })
-    if isinstance(rows, _CsvError):
-        return _validation_error([rows.message])
+    if isinstance(result, _CsvError):
+        return validation_error([result.message])
+    reader, rows = result.reader, result.rows
 
     # Resolve lookups.
     parcel_map = {}
@@ -1224,9 +1229,6 @@ def mark_csv_import_view(request):
         compresa = row['compresa'].strip()
         particella = row['particella'].strip()
         species_name = row['species'].strip()
-        acc_str = row.get('acc_m', '').strip()
-        h_meas_str = row.get('h_measured', '').strip()
-        numero_str = row.get('numero', '').strip()
         operator = row.get('operator', '').strip()
 
         try:
@@ -1249,17 +1251,17 @@ def mark_csv_import_view(request):
             errors.append(S.ERR_CSV_SPECIES_NOT_FOUND.format(i, species_name))
             continue
 
-        d_cm = _csv_int(row, 'd_cm')
-        h_m = _csv_decimal(row, 'h_m')
+        d_cm = reader.integer(row.get('d_cm'))
+        h_m = reader.decimal(row.get('h_m'))
         if d_cm is None or h_m is None:
             errors.append(S.ERR_CSV_ROW_PARSE.format(
                 i, f"{row.get('d_cm', '')}/{row.get('h_m', '')}"))
             continue
 
-        lat = coord_float(_csv_decimal(row, 'lat'))
-        lon = coord_float(_csv_decimal(row, 'lon'))
-        acc_m = _int_or_none(acc_str) if acc_str else None
-        h_measured = h_meas_str == '1'
+        lat = coord_float(reader.decimal(row.get('lat')))
+        lon = coord_float(reader.decimal(row.get('lon')))
+        acc_m = reader.integer(row.get('acc_m'))
+        h_measured = is_truthy(row.get('h_measured'))
 
         fp_src = f'{date}|{species_name}|{d_cm}|{h_m}|{lat}|{lon}|{operator}'
         fingerprint = hashlib.sha256(fp_src.encode()).hexdigest()
@@ -1273,7 +1275,7 @@ def mark_csv_import_view(request):
             volume_m3 = None
             mass_q = None
 
-        numero = _int_or_none(numero_str) if numero_str else None
+        numero = reader.integer(row.get('numero'))
 
         parsed.append({
             'date': date, 'parcel': parcel, 'species': species,
@@ -1286,7 +1288,7 @@ def mark_csv_import_view(request):
         existing_fps.add(fingerprint)
 
     if errors:
-        return _validation_error(errors)
+        return validation_error(errors)
 
     with transaction.atomic():
         next_number = _next_mark_number(item_id)
@@ -1341,12 +1343,12 @@ def _resolve_mark_parcel(item, parcel_id):
     if item.parcel_id:
         return item.parcel
     if parcel_id is None:
-        return _validation_error([S.ERR_MARK_PARCEL_REQUIRED])
+        return validation_error([S.ERR_MARK_PARCEL_REQUIRED])
     parcel = Parcel.objects.filter(id=parcel_id).first()
     if parcel is None:
-        return _validation_error([S.ERR_MARK_PARCEL_REQUIRED])
+        return validation_error([S.ERR_MARK_PARCEL_REQUIRED])
     if item.region_id and parcel.region_id != item.region_id:
-        return _validation_error([S.ERR_MARK_PARCEL_NOT_IN_REGION])
+        return validation_error([S.ERR_MARK_PARCEL_NOT_IN_REGION])
     return parcel
 
 
@@ -1394,17 +1396,25 @@ class _CsvError:
         self.message = message
 
 
-def _read_optional(upload, required, optional=None):
+@dataclass
+class _AliasedCsv:
+    """A parsed CSV paired with its rows remapped to logical alias names, so
+    cell parsing goes through ``reader`` (which carries the detected decimal
+    separator) and header presence through ``reader.fieldnames``."""
+    reader: csv_io.CsvReader
+    rows: list[dict]
+
+
+def _read_optional(upload, required, optional=None) -> _AliasedCsv | _CsvError | None:
     """Parse an uploaded CSV if present.
 
     Delimiter is auto-detected (``,`` or ``;``) so files exported in
     either Italian (``;``) or pdg-2026's English (``,``) style both
     round-trip.  ``required`` and ``optional`` map logical alias names
     to candidate column-name lists; the first candidate that appears in
-    the header wins.  Returns a list of alias-keyed dicts; optional
-    aliases that did not resolve are simply absent from each row dict.
-    Each row also carries ``'_fieldset'`` so parsers can branch on
-    header presence (e.g., legacy vs Abies-exported ceduo).
+    the header wins.  Returns an `_AliasedCsv` whose rows are alias-keyed
+    dicts (optional aliases that did not resolve are absent from each row),
+    `None` if no file was uploaded, or `_CsvError` on a malformed file.
     """
     if upload is None:
         return None
@@ -1427,11 +1437,9 @@ def _read_optional(upload, required, optional=None):
         hit = next((c for c in candidates if c in fieldset), None)
         if hit is not None:
             resolved[alias] = hit
-    return [
-        {**{alias: r.get(col, '') for alias, col in resolved.items()},
-         '_fieldset': fieldset, '_decimal_sep': reader.decimal_separator}
-        for r in reader
-    ]
+    rows = [{alias: r.get(col, '') for alias, col in resolved.items()}
+            for r in reader]
+    return _AliasedCsv(reader, rows)
 
 
 # Substrings (case-insensitive) recognised in the Note column for
@@ -1454,7 +1462,7 @@ def _parse_flag_keywords(note: str) -> tuple[bool, bool, bool]:
     )
 
 
-def _parse_fustaia_rows(rows, parcel_cache, region_cache, errors):
+def _parse_fustaia_rows(data, parcel_cache, region_cache, errors):
     """Parse fustaia.csv rows.  A row is either parcel-scoped (the
     common case) or whole-region (Particella = ``X`` — see
     ``S.PARCEL_WHOLE_REGION_MARK``).  The Note column, when present,
@@ -1464,7 +1472,7 @@ def _parse_fustaia_rows(rows, parcel_cache, region_cache, errors):
     flags on round-trip).
     """
     out = []
-    for i, row in enumerate(rows, 2):
+    for i, row in enumerate(data.rows, 2):
         compresa = (row.get('compresa') or '').strip()
         particella = (row.get('particella') or '').strip()
         note_raw = (row.get('note') or '').strip()
@@ -1491,13 +1499,13 @@ def _parse_fustaia_rows(rows, parcel_cache, region_cache, errors):
                     i, compresa, particella,
                 ))
                 continue
-        year = _csv_int(row, 'anno')
+        year = data.reader.integer(row.get('anno'))
         if year is None:
             errors.append(S.ERR_CSV_VALUE_PARSE.format(
                 i, S.CSV_COL_ANNO, row.get('anno', ''),
             ))
             continue
-        volume = _csv_decimal(row, 'volume')
+        volume = data.reader.decimal(row.get('volume'))
         out.append({
             FIELD_REGION_ID: region,
             FIELD_PARCEL_ID: parcel,
@@ -1510,7 +1518,7 @@ def _parse_fustaia_rows(rows, parcel_cache, region_cache, errors):
     return out
 
 
-def _parse_ceduo_rows(rows, parcel_cache, errors):
+def _parse_ceduo_rows(data, parcel_cache, errors):
     """Parse ceduo.csv rows.  Disambiguates Abies-exported (`Altre note`
     = free-text + `Note` = flag string) from legacy pdg-2026 (`Note` =
     free-text, no flag column) via header presence: if `Altre note` is
@@ -1518,8 +1526,8 @@ def _parse_ceduo_rows(rows, parcel_cache, errors):
     `Note` as free-text and skip flag parsing.
     """
     out = []
-    has_altre_note = bool(rows) and S.CSV_COL_EXTRA_NOTE in rows[0]['_fieldset']
-    for i, row in enumerate(rows, 2):
+    has_altre_note = S.CSV_COL_EXTRA_NOTE in data.reader.fieldnames
+    for i, row in enumerate(data.rows, 2):
         compresa = (row.get('compresa') or '').strip()
         particella = (row.get('particella') or '').strip()
         parcel = parcel_cache.get((compresa.lower(), particella))
@@ -1528,9 +1536,9 @@ def _parse_ceduo_rows(rows, parcel_cache, errors):
                 i, compresa, particella,
             ))
             continue
-        year = _csv_int(row, 'anno')
-        interval = _csv_int(row, 'turno')
-        area = _csv_decimal(row, 'superficie')
+        year = data.reader.integer(row.get('anno'))
+        interval = data.reader.integer(row.get('turno'))
+        area = data.reader.decimal(row.get('superficie'))
         if year is None or interval is None:
             errors.append(S.ERR_CSV_VALUE_PARSE.format(
                 i, S.CSV_COL_TURNO_A, row.get('turno', ''),
@@ -1556,20 +1564,6 @@ def _parse_ceduo_rows(rows, parcel_cache, errors):
             FIELD_PSR:       psr,
         })
     return out
-
-
-def _csv_decimal(row, key):
-    """Decimal from a CSV alias-row, parsed with that file's detected decimal
-    separator; None if blank/invalid."""
-    return to_decimal(row.get(key), row['_decimal_sep'])
-
-
-def _csv_int(row, key):
-    """int from a CSV alias-row (integral value), or None if blank/invalid."""
-    d = _csv_decimal(row, key)
-    if d is None or d != d.to_integral_value():
-        return None
-    return int(d)
 
 
 def _parse_plan_body(body):
@@ -1602,8 +1596,8 @@ def _parse_item_body(body):
     which is only valid when one of `damaged`/`unhealthy` is checked.
     """
     errors: list[str] = []
-    region_id = _int_or_none(body.get(FIELD_REGION_ID))
-    parcel_id = _int_or_none(body.get(FIELD_PARCEL_ID))
+    region_id = int_or_none(body.get(FIELD_REGION_ID))
+    parcel_id = int_or_none(body.get(FIELD_PARCEL_ID))
     damaged = is_truthy(body.get(FIELD_DAMAGED))
     unhealthy = is_truthy(body.get(FIELD_UNHEALTHY))
     psr = is_truthy(body.get(FIELD_PSR))
@@ -1670,40 +1664,6 @@ def _conflict_response_item(item):
         DATA_ID: 'harvest_plan_items', ROW_ID: item.id,
         RECORD: build_harvest_plan_item_record(item),
     }, status=400)
-
-
-def _validation_error(errors):
-    return JsonResponse({
-        STATUS: STATUS_VALIDATION_ERROR,
-        MESSAGE: ' '.join(errors),
-        FIELD_ERRORS: errors,
-        HTML: '',
-    }, status=400)
-
-
-def _csv_error_list(errors):
-    return JsonResponse({
-        STATUS: STATUS_VALIDATION_ERROR,
-        MESSAGE: errors[0] if errors else '',
-        FIELD_ERRORS: errors,
-        HTML: '',
-    }, status=400)
-
-
-def _int_or_none(v):
-    if v in (None, '', 'null'):
-        return None
-    try:
-        return int(v)
-    except (TypeError, ValueError):
-        return None
-
-
-def _fmt_decimal(v) -> str:
-    """Render a number for a CSV cell in the active locale's decimal mark;
-    delegates to the shared `csv_io.format_decimal`."""
-    _, decimal_sep = csv_io.export_format()
-    return csv_io.format_decimal(v, decimal_sep)
 
 
 _SAFE_RE = re.compile(r'[^A-Za-z0-9._-]+')

@@ -14,7 +14,7 @@ from django.views.decorators.http import require_POST
 
 from apps.base import hypsometry
 from apps.base.auth import require_admin, require_writer
-from apps.base.formats import parse_decimal
+from apps.base.numparse import parse_decimal
 from apps.base.digests import (
     HYPSO_PARAM_COLUMNS, hypso_param_row, mark_stale, serve_digest,
 )
@@ -32,7 +32,7 @@ from config.constants import (
     FIELD_NOTES, FIELD_PASSWORD1, FIELD_PASSWORD2, FIELD_ROLE, FIELD_SOURCE,
     FIELD_SPECIES, FIELD_SURVEY_IDS, FIELD_SURVEYS, FIELD_USERNAME, FIELD_YEAR,
     HTML, MESSAGE, RECORD, ROWS, ROW_ID, STATUS, STATUS_CONFLICT,
-    STATUS_VALIDATION_ERROR, VERSION,
+    STATUS_VALIDATION_ERROR, VERSION, is_truthy,
 )
 
 
@@ -91,7 +91,7 @@ def crews_save(request):
     parsed = {
         FIELD_NAME: body.get(FIELD_NAME, '').strip(),
         FIELD_NOTES: body.get(FIELD_NOTES, ''),
-        FIELD_ACTIVE: body.get(FIELD_ACTIVE) == 'true',
+        FIELD_ACTIVE: is_truthy(body.get(FIELD_ACTIVE)),
     }
     if not parsed[FIELD_NAME]:
         return _error(S.ERR_NAME_REQUIRED)
@@ -136,7 +136,7 @@ def tractors_save(request):
         FIELD_MANUFACTURER: body.get(FIELD_MANUFACTURER, '').strip(),
         FIELD_MODEL: body.get(FIELD_MODEL, '').strip(),
         FIELD_YEAR: int(year) if year else None,
-        FIELD_ACTIVE: body.get(FIELD_ACTIVE) == 'true',
+        FIELD_ACTIVE: is_truthy(body.get(FIELD_ACTIVE)),
     }
     if not parsed[FIELD_MANUFACTURER]:
         return _error(S.ERR_NAME_REQUIRED)
@@ -183,7 +183,7 @@ def species_save(request):
         FIELD_COMMON_NAME: body.get(FIELD_COMMON_NAME, '').strip(),
         FIELD_LATIN_NAME: body.get(FIELD_LATIN_NAME, '').strip(),
         FIELD_DENSITY: density,
-        FIELD_ACTIVE: body.get(FIELD_ACTIVE) == 'true',
+        FIELD_ACTIVE: is_truthy(body.get(FIELD_ACTIVE)),
     }
     if not parsed[FIELD_COMMON_NAME]:
         return _error(S.ERR_NAME_REQUIRED)
@@ -255,7 +255,7 @@ def users_save(request):
         if not username:
             return _error(S.ERR_USERNAME_REQUIRED)
     role = body.get(FIELD_ROLE, Role.READER)
-    active = body.get(FIELD_IS_ACTIVE) == 'true'
+    active = is_truthy(body.get(FIELD_IS_ACTIVE))
     first_name = body.get(FIELD_FIRST_NAME, '').strip()
     last_name = body.get(FIELD_LAST_NAME, '').strip()
 

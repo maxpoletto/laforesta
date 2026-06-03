@@ -1,4 +1,12 @@
-"""Locale-tolerant CSV reading, shared by every importer.
+"""The CSV edge: locale-tolerant CSV reading and writing, shared by every
+importer and exporter.
+
+This is the **only** CSV codec.  It is the CSV-side counterpart to
+`apps.base.numparse` (the parsing core + the form/JSON edge): cell parsing reuses
+that core's `to_decimal` / `to_int`, driven by the delimiter-detected separator
+rather than the active locale.  All CSV cell parsing goes through a `CsvReader`;
+all CSV cell formatting goes through `format_decimal` here — nothing reimplements
+delimiter or decimal handling.
 
 CSV is I/O, not canonical transmission (see CLAUDE.md §"Number formatting").
 Input is lenient: the field delimiter is auto-detected and fixes the decimal
@@ -19,7 +27,7 @@ from decimal import Decimal
 
 from django.utils.formats import get_format
 
-from apps.base.formats import to_decimal
+from apps.base.numparse import to_decimal, to_int
 from config import strings as S
 
 # Field delimiter ⇒ decimal separator.  ';' is the Italian /
@@ -54,15 +62,11 @@ class CsvReader:
         return to_decimal(value, self.decimal_separator)
 
     def integer(self, value):
-        """Cell value → int, or None if blank/invalid or not integral.
-
-        Accepts a float-formatted integer ("12" or "12,0"); a genuinely
-        fractional value ("12,5") is not an integer and yields None.
+        """Cell value → int (via the detected separator), or None if blank,
+        invalid, or not integral.  Tolerates a float-formatted integer ("12" or
+        "12,0"); a fractional value ("12,5") yields None.  See `numparse.to_int`.
         """
-        d = self.decimal(value)
-        if d is None or d != d.to_integral_value():
-            return None
-        return int(d)
+        return to_int(value, self.decimal_separator)
 
 
 def read(source, required_cols=None) -> CsvReader:

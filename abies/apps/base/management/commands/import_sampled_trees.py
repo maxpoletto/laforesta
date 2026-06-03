@@ -38,6 +38,7 @@ from apps.base.models import (
 )
 from apps.base.tabacchi import has_species, tabacchi_volume_m3
 from config import strings as S
+from config.constants import is_truthy
 
 SURVEY_NAME = 'Campagna 2024-2025'
 SURVEY_DESC = ('Misure di alberi nelle aree di saggio PDG 2026, '
@@ -59,20 +60,6 @@ GENERE_MAP = {
     'Pino Marittimo': 'Pino Marittimo',
     'Pino Nero': 'Pino Nero',
 }
-
-
-def _int_or_none(s: str) -> int | None:
-    s = s.strip()
-    if not s:
-        return None
-    try:
-        return int(float(s))
-    except ValueError:
-        return None
-
-
-def _bool(s: str) -> bool:
-    return s.strip().lower() in ('true', '1', 'yes', 'si', 'sì')
 
 
 class Command(BaseCommand):
@@ -116,7 +103,7 @@ class Command(BaseCommand):
         }
 
         with open(csv_path, encoding='utf-8-sig') as f:
-            rows = csv_io.read(f.read()).rows
+            reader = csv_io.read(f.read())
 
         n_skipped_parcel = 0
         n_skipped_area = 0
@@ -145,7 +132,7 @@ class Command(BaseCommand):
 
             # First pass: group rows by (region, parcel, area) → Sample.
             samples_by_key: dict[tuple, Sample] = {}
-            for row in rows:
+            for row in reader:
                 key = (row[S.CSV_COL_COMPRESA], row[S.CSV_COL_PARTICELLA],
                        row[S.CSV_COL_AREA_SAGGIO].strip())
                 if key in samples_by_key:
@@ -159,7 +146,7 @@ class Command(BaseCommand):
                 n_samples += 1
 
             # Second pass: create Tree + TreeSample rows.
-            for i, row in enumerate(rows, 1):
+            for i, row in enumerate(reader, 1):
                 key = (row[S.CSV_COL_COMPRESA], row[S.CSV_COL_PARTICELLA],
                        row[S.CSV_COL_AREA_SAGGIO].strip())
                 parcel = parcel_cache.get(
@@ -179,11 +166,11 @@ class Command(BaseCommand):
                     n_skipped_species += 1
                     continue
 
-                d_cm = int(float(row[S.CSV_COL_D_CM_LEGACY]))
-                h_m = Decimal(row[S.CSV_COL_H_M_LEGACY]).quantize(
+                d_cm = reader.integer(row[S.CSV_COL_D_CM_LEGACY])
+                h_m = reader.decimal(row[S.CSV_COL_H_M_LEGACY]).quantize(
                     Decimal('0.01'), rounding=ROUND_HALF_UP)
-                l10_mm = _int_or_none(row[S.CSV_COL_L10_MM_LEGACY]) or 0
-                fustaia = _bool(row[S.CSV_COL_FUSTAIA])
+                l10_mm = reader.integer(row[S.CSV_COL_L10_MM_LEGACY]) or 0
+                fustaia = is_truthy(row[S.CSV_COL_FUSTAIA])
                 coppice = not fustaia
 
                 # Compute V via Tabacchi when species is known to Tabacchi;
@@ -201,7 +188,7 @@ class Command(BaseCommand):
                 )
                 TreeSample.objects.create(
                     sample=sample, tree=tree, shoot=0, standard=False,
-                    number=int(row[S.CSV_COL_N_LEGACY]), d_cm=d_cm, h_m=h_m,
+                    number=reader.integer(row[S.CSV_COL_N_LEGACY]), d_cm=d_cm, h_m=h_m,
                     l10_mm=l10_mm, volume_m3=volume_m3, mass_q=mass_q,
                 )
                 n_trees += 1

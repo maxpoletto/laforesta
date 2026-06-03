@@ -26,7 +26,8 @@ from apps.base.digests import (
     build_survey_record, build_tree_sample_record,
     mark_stale, serve_digest,
 )
-from apps.base.formats import coord_float, parse_decimal
+from apps.base.numparse import coord_float, int_or_none, parse_decimal
+from apps.base.responses import csv_error_list, validation_error
 from apps.base.middleware import save_nonce
 from apps.base.models import (
     Parcel, Region, Sample, SampleArea, SampleGrid, Species, Survey, Tree,
@@ -307,7 +308,7 @@ def _next_area_numbers(grid) -> dict[int, int]:
     for region_id, number in (SampleArea.objects
                               .filter(sample_grid=grid)
                               .values_list('parcel__region_id', 'number')):
-        n = _int_or_none_str(number)
+        n = int_or_none(number)
         if n is not None:
             max_by_region[region_id] = max(max_by_region.get(region_id, 0), n)
     return {rid: mx + 1 for rid, mx in max_by_region.items()}
@@ -412,10 +413,10 @@ def area_save_view(request):
         if lat is None or lon is None:
             raise ValueError
     except (KeyError, ValueError, TypeError):
-        return _simple_validation_error(S.ERROR_GENERIC)
+        return validation_error([S.ERROR_GENERIC])
 
     if not number:
-        return _simple_validation_error(S.ERR_AREA_NUMBER_REQUIRED)
+        return validation_error([S.ERR_AREA_NUMBER_REQUIRED])
 
     altitude_raw = body.get(FIELD_ALTITUDE_M)
     altitude = None
@@ -435,7 +436,7 @@ def area_save_view(request):
     area_id = int(area_id) if area_id else None
 
     if _area_number_taken(grid, parcel.region_id, number, exclude_id=area_id):
-        return _simple_validation_error(S.ERR_AREA_NUMBER_DUPLICATE)
+        return validation_error([S.ERR_AREA_NUMBER_DUPLICATE])
 
     with transaction.atomic():
         if area_id:
@@ -491,7 +492,7 @@ def area_delete_view(request, area_id: int):
     if area is None:
         return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
     if Sample.objects.filter(sample_area=area).exists():
-        return _simple_validation_error(S.ERR_AREA_IN_USE)
+        return validation_error([S.ERR_AREA_IN_USE])
     grid = area.sample_grid
     area.delete()
     # See area_save_view: surveys digest depends on the per-grid area count.
@@ -900,9 +901,9 @@ def grid_save_view(request):
     name = (body.get(FIELD_NAME) or '').strip()
     description = (body.get(FIELD_DESCRIPTION) or '').strip()
     if not name:
-        return _simple_validation_error(S.ERR_GRID_NAME_REQUIRED)
+        return validation_error([S.ERR_GRID_NAME_REQUIRED])
     if SampleGrid.objects.filter(name=name).exists():
-        return _simple_validation_error(S.ERR_GRID_NAME_DUPLICATE)
+        return validation_error([S.ERR_GRID_NAME_DUPLICATE])
 
     with transaction.atomic():
         grid = SampleGrid.objects.create(name=name, description=description)
@@ -945,9 +946,9 @@ def grid_edit_view(request, grid_id: int):
     name = (body.get(FIELD_NAME) or '').strip()
     description = (body.get(FIELD_DESCRIPTION) or '').strip()
     if not name:
-        return _simple_validation_error(S.ERR_GRID_NAME_REQUIRED)
+        return validation_error([S.ERR_GRID_NAME_REQUIRED])
     if SampleGrid.objects.filter(name=name).exclude(id=grid.id).exists():
-        return _simple_validation_error(S.ERR_GRID_NAME_DUPLICATE)
+        return validation_error([S.ERR_GRID_NAME_DUPLICATE])
     grid.name = name
     grid.description = description
     grid.version += 1
@@ -971,7 +972,7 @@ def grid_delete_view(request, grid_id: int):
     if grid is None:
         return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
     if Survey.objects.filter(sample_grid=grid).exists():
-        return _simple_validation_error(S.ERR_GRID_IN_USE)
+        return validation_error([S.ERR_GRID_IN_USE])
     with transaction.atomic():
         # SampleArea cascades.
         grid.delete()
@@ -991,9 +992,9 @@ def survey_edit_view(request, survey_id: int):
     name = (body.get(FIELD_NAME) or '').strip()
     description = (body.get(FIELD_DESCRIPTION) or '').strip()
     if not name:
-        return _simple_validation_error(S.ERR_SURVEY_NAME_REQUIRED)
+        return validation_error([S.ERR_SURVEY_NAME_REQUIRED])
     if Survey.objects.filter(name=name).exclude(id=survey.id).exists():
-        return _simple_validation_error(S.ERR_SURVEY_NAME_DUPLICATE)
+        return validation_error([S.ERR_SURVEY_NAME_DUPLICATE])
     survey.name = name
     survey.description = description
     survey.version += 1
@@ -1041,9 +1042,9 @@ def grid_csv_import_view(request):
     upload = request.FILES.get('file')
 
     if not grid_id:
-        return _simple_validation_error(S.ERR_CSV_GRID_REQUIRED)
+        return validation_error([S.ERR_CSV_GRID_REQUIRED])
     if upload is None:
-        return _simple_validation_error(S.ERR_CSV_FILE_REQUIRED)
+        return validation_error([S.ERR_CSV_FILE_REQUIRED])
 
     grid = SampleGrid.objects.filter(id=int(grid_id)).first()
     if grid is None:
@@ -1052,7 +1053,7 @@ def grid_csv_import_view(request):
     try:
         reader = csv_io.read(upload, GRID_CSV_REQUIRED)
     except csv_io.CsvError as e:
-        return _simple_validation_error(str(e))
+        return validation_error([str(e)])
 
     parcel_cache = {
         (p.region.name.lower(), p.name): p
@@ -1105,9 +1106,9 @@ def grid_csv_import_view(request):
             FIELD_NOTE: '',
         })
     if errors:
-        return _csv_error_list(errors)
+        return csv_error_list(errors)
     if not parsed_rows:
-        return _simple_validation_error(S.ERR_CSV_EMPTY)
+        return validation_error([S.ERR_CSV_EMPTY])
 
     with transaction.atomic():
         SampleArea.objects.bulk_create([
@@ -1158,9 +1159,9 @@ def tree_csv_import_view(request):
     default_date_str = (request.POST.get('default_date') or '').strip()
 
     if not survey_id:
-        return _simple_validation_error(S.ERR_CSV_SURVEY_REQUIRED)
+        return validation_error([S.ERR_CSV_SURVEY_REQUIRED])
     if upload is None:
-        return _simple_validation_error(S.ERR_CSV_FILE_REQUIRED)
+        return validation_error([S.ERR_CSV_FILE_REQUIRED])
 
     survey = Survey.objects.filter(id=int(survey_id)).select_related(
         'sample_grid',
@@ -1171,17 +1172,17 @@ def tree_csv_import_view(request):
     try:
         reader = csv_io.read(upload, TREE_CSV_REQUIRED)
     except csv_io.CsvError as e:
-        return _simple_validation_error(str(e))
+        return validation_error([str(e)])
 
     has_date_column = bool(reader) and S.CSV_COL_DATA in reader[0]
     if not has_date_column and not default_date_str:
-        return _simple_validation_error(S.ERR_CSV_DATE_REQUIRED)
+        return validation_error([S.ERR_CSV_DATE_REQUIRED])
     default_date = None
     if default_date_str:
         try:
             default_date = date_type.fromisoformat(default_date_str)
         except ValueError:
-            return _simple_validation_error(S.ERR_CSV_DATE_REQUIRED)
+            return validation_error([S.ERR_CSV_DATE_REQUIRED])
 
     parcel_cache = {
         (p.region.name.lower(), p.name): p
@@ -1217,12 +1218,12 @@ def tree_csv_import_view(request):
                 i, f'{S.CSV_COL_ALBERO}/{S.CSV_COL_D_CM}/{S.CSV_COL_H_M}'))
             continue
         shoot = reader.integer(row.get(S.CSV_COL_POLLONE)) or 0
-        standard = _bool_str(row[S.CSV_COL_MATRICINA])
+        standard = is_truthy(row[S.CSV_COL_MATRICINA])
         h_m = h_dec.quantize(TREE_H_QUANTUM, rounding=ROUND_HALF_UP)
         l10_mm = reader.integer(row.get(S.CSV_COL_L10_MM)) or 0
-        fustaia = _bool_str(row[S.CSV_COL_FUSTAIA])
+        fustaia = is_truthy(row[S.CSV_COL_FUSTAIA])
         coppice = not fustaia
-        preserved = (_bool_str(row.get(S.CSV_COL_PAI, ''))
+        preserved = (is_truthy(row.get(S.CSV_COL_PAI, ''))
                      if S.CSV_COL_PAI in row else False)
 
         genere = row[S.CSV_COL_GENERE].strip()
@@ -1259,9 +1260,9 @@ def tree_csv_import_view(request):
             FIELD_VOLUME_M3: volume_m3, FIELD_MASS_Q: mass_q,
         })
     if errors:
-        return _csv_error_list(errors)
+        return csv_error_list(errors)
     if not parsed:
-        return _simple_validation_error(S.ERR_CSV_EMPTY)
+        return validation_error([S.ERR_CSV_EMPTY])
 
     with transaction.atomic():
         # Group rows by (area, date) into Samples (one sample per area+date).
@@ -1303,30 +1304,6 @@ def tree_csv_import_view(request):
     })
 
 
-def _csv_error_list(errors):
-    """Validation-error response carrying a per-row error list."""
-    return JsonResponse({
-        STATUS: STATUS_VALIDATION_ERROR,
-        MESSAGE: errors[0] if errors else '',
-        FIELD_ERRORS: errors,
-        HTML: '',
-    }, status=400)
-
-
-def _int_or_none_str(s):
-    s = (s or '').strip()
-    if not s:
-        return None
-    try:
-        return int(float(s))
-    except ValueError:
-        return None
-
-
-def _bool_str(s):
-    return str(s).strip().lower() in ('true', '1', 'yes', 'si', 'sì')
-
-
 @login_required
 @require_writer
 @require_POST
@@ -1357,15 +1334,15 @@ def survey_save_view(request):
     grid_id = body.get(FIELD_SAMPLE_GRID_ID)
 
     if not name:
-        return _simple_validation_error(S.ERR_SURVEY_NAME_REQUIRED)
+        return validation_error([S.ERR_SURVEY_NAME_REQUIRED])
     if not grid_id:
-        return _simple_validation_error(S.ERR_SURVEY_GRID_REQUIRED)
+        return validation_error([S.ERR_SURVEY_GRID_REQUIRED])
     if Survey.objects.filter(name=name).exists():
-        return _simple_validation_error(S.ERR_SURVEY_NAME_DUPLICATE)
+        return validation_error([S.ERR_SURVEY_NAME_DUPLICATE])
     try:
         grid = SampleGrid.objects.get(id=int(grid_id))
     except (SampleGrid.DoesNotExist, ValueError):
-        return _simple_validation_error(S.ERR_SURVEY_GRID_REQUIRED)
+        return validation_error([S.ERR_SURVEY_GRID_REQUIRED])
 
     with transaction.atomic():
         survey = Survey.objects.create(
@@ -1418,15 +1395,15 @@ def grid_save_auto_view(request):
         r_m = DEFAULT_RADIUS_M
 
     if not name:
-        return _simple_validation_error(S.ERR_GRID_NAME_REQUIRED)
+        return validation_error([S.ERR_GRID_NAME_REQUIRED])
     if SampleGrid.objects.filter(name=name).exists():
-        return _simple_validation_error(S.ERR_GRID_NAME_DUPLICATE)
+        return validation_error([S.ERR_GRID_NAME_DUPLICATE])
     if not points:
-        return _simple_validation_error(S.ERR_GRID_AUTO_NO_POINTS)
+        return validation_error([S.ERR_GRID_AUTO_NO_POINTS])
 
     resolved, err = _resolve_grid_points(points)
     if err:
-        return _simple_validation_error(err)
+        return validation_error([err])
 
     with transaction.atomic():
         grid = SampleGrid.objects.create(name=name, description=description)
@@ -1498,11 +1475,3 @@ def _resolve_grid_points(points):
     return resolved, None
 
 
-def _simple_validation_error(message):
-    """Shorter validation-error helper for grid/survey saves (no form
-    re-render — the client just shows the message)."""
-    return JsonResponse({
-        STATUS: STATUS_VALIDATION_ERROR,
-        MESSAGE: message,
-        HTML: '',
-    }, status=400)

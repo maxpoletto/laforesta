@@ -19,6 +19,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from apps.base import csv_io
+from apps.base.numparse import coord_float
 from apps.base.models import Parcel, Region, SampleArea, SampleGrid
 from config import strings as S
 from config.constants import (
@@ -29,16 +30,6 @@ from config.constants import (
 GRID_NAME = 'Aree di saggio PDG 2026'
 GRID_DESC = ('Griglia di aree di saggio generata per il PDG 2026, '
              'caricata dal file aree-di-saggio.csv.')
-
-
-def _int_or_none(s: str) -> int | None:
-    s = s.strip()
-    if not s:
-        return None
-    try:
-        return int(float(s))
-    except ValueError:
-        return None
 
 
 class Command(BaseCommand):
@@ -70,7 +61,7 @@ class Command(BaseCommand):
             )
 
         with open(csv_path, encoding='utf-8-sig') as f:
-            rows = csv_io.read(f.read()).rows
+            reader = csv_io.read(f.read())
 
         with transaction.atomic():
             grid, created = SampleGrid.objects.get_or_create(
@@ -96,7 +87,7 @@ class Command(BaseCommand):
             n_created = 0
             n_skipped = 0
             collisions = []
-            for i, row in enumerate(rows, 1):
+            for i, row in enumerate(reader, 1):
                 region_name = row[S.CSV_COL_COMPRESA]
                 parcel_name = row[S.CSV_COL_PARTICELLA]
                 parcel = parcel_cache.get((region_name, parcel_name))
@@ -118,9 +109,9 @@ class Command(BaseCommand):
                 obj, was_created = SampleArea.objects.get_or_create(
                     sample_grid=grid, parcel=parcel, number=number,
                     defaults={
-                        FIELD_LAT: float(row[S.CSV_COL_LAT]),
-                        FIELD_LON: float(row[S.CSV_COL_LON]),
-                        FIELD_ALTITUDE_M: _int_or_none(row[S.CSV_COL_QUOTA]),
+                        FIELD_LAT: coord_float(reader.decimal(row[S.CSV_COL_LAT])),
+                        FIELD_LON: coord_float(reader.decimal(row[S.CSV_COL_LON])),
+                        FIELD_ALTITUDE_M: reader.integer(row[S.CSV_COL_QUOTA]),
                         FIELD_R_M: DEFAULT_RADIUS_M,
                         FIELD_NOTE: '',
                     },

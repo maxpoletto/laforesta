@@ -19,6 +19,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from apps.base import csv_io
+from apps.base.numparse import coord_float
 from apps.base.models import Parcel, Species, Tree
 from config import strings as S
 
@@ -45,26 +46,6 @@ GENERE_MAP = {
     'Tasso': 'Altro',
     'Tiglio': 'Altro',
 }
-
-
-def _int_or_none(s: str) -> int | None:
-    s = s.strip()
-    if not s:
-        return None
-    try:
-        return int(float(s))
-    except ValueError:
-        return None
-
-
-def _float_or_none(s: str) -> float | None:
-    s = s.strip()
-    if not s:
-        return None
-    try:
-        return float(s)
-    except ValueError:
-        return None
 
 
 class Command(BaseCommand):
@@ -95,7 +76,7 @@ class Command(BaseCommand):
             )
 
         with open(csv_path, encoding='utf-8-sig') as f:
-            rows = csv_io.read(f.read()).rows
+            reader = csv_io.read(f.read())
 
         with transaction.atomic():
             # Idempotent: clear existing PAI rows before reimporting.
@@ -105,7 +86,7 @@ class Command(BaseCommand):
 
             n_created = 0
             n_skipped = 0
-            for i, row in enumerate(rows, 1):
+            for i, row in enumerate(reader, 1):
                 parcel = parcel_cache.get(
                     (row[S.CSV_COL_COMPRESA], row[S.CSV_COL_PARTICELLA])
                 )
@@ -122,8 +103,8 @@ class Command(BaseCommand):
                 Tree.objects.create(
                     species=species,
                     parcel=parcel,
-                    lat=_float_or_none(row[S.CSV_COL_LAT]),
-                    lon=_float_or_none(row[S.CSV_COL_LON]),
+                    lat=coord_float(reader.decimal(row[S.CSV_COL_LAT])),
+                    lon=coord_float(reader.decimal(row[S.CSV_COL_LON])),
                     preserved=True,
                     coppice=False,
                 )

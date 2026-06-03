@@ -148,8 +148,13 @@ DIGEST_HYPSO_PARAMS = 'hypso_params'
 DEFAULT_RADIUS_M = 12  # sample-area radius (m) when none is supplied
 
 
-_TRUTHY = (True, 1, '1', 'true', 'on')
+# Truthy tokens for both edges: form/JSON values (the HTML checkbox 'on', real
+# booleans) and CSV cells (Italian sì).  The union is unambiguous — no edge
+# emits a token meaningful to the other.
+_TRUTHY = ('true', '1', 'yes', 'si', 'sì', 'on')
 
 def is_truthy(value) -> bool:
-    """Safe boolean parse for form data that may arrive as string, int, or bool."""
-    return value in _TRUTHY
+    """True iff `value` is a recognised truthy token, case-insensitive and
+    whitespace-trimmed: true/1/yes/si/sì/on (the bool ``True`` and int ``1``
+    stringify into this set).  Safe for form/JSON values and CSV cells alike."""
+    return str(value).strip().lower() in _TRUTHY

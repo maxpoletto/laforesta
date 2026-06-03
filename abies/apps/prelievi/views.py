@@ -28,7 +28,7 @@ from apps.base.digests import (
     mark_stale,
     serve_digest,
 )
-from apps.base.formats import parse_decimal
+from apps.base.numparse import int_or_none, parse_decimal
 from apps.base.middleware import save_nonce
 from apps.base.models import (
     Crew, HarvestPlanItem, HarvestPlanItemState, Parcel, Product, Species,
@@ -388,7 +388,7 @@ def _parse_body(body):
             # spanning a whole region): the operator must still
             # point the harvest at a specific parcel inside that
             # region.
-            submitted_parcel_id = _int_or_none(body.get(FIELD_PARCEL_ID))
+            submitted_parcel_id = int_or_none(body.get(FIELD_PARCEL_ID))
             if submitted_parcel_id is None:
                 errors.append(S.ERR_PARCEL_REQUIRED_FOR_REGION_WIDE)
             else:
@@ -505,12 +505,3 @@ def _validation_error(errors, row_id, request, vals=None):
         MESSAGE: ' '.join(errors),
         HTML: _render_form(row_id, request, vals),
     }, status=400)
-
-
-def _int_or_none(v):
-    if v in (None, '', 'null'):
-        return None
-    try:
-        return int(v)
-    except (TypeError, ValueError):
-        return None

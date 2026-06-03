@@ -174,7 +174,7 @@ happens **only at the edges**, driven by the active locale
 - **Form inputs** can't be `type="number"` (that is dot-only and follows the
   OS locale, not the app's), so decimal inputs are
   `type="text" inputmode="decimal"`, rendered with `floatformat:N`.  They are
-  parsed back with `apps.base.formats.parse_decimal()`, which maps the active
+  parsed back with `apps.base.numparse.parse_decimal()`, which maps the active
   locale's decimal separator to `.` before `Decimal()`, returns `None` for
   blank/invalid, and rejects non-finite input (NaN/∞).  (Float columns such as
   coordinates take that parsed `Decimal` and convert at the model boundary —
