@@ -23,7 +23,7 @@
               Edit path: ensure the linked item shows up even if its
               state is no longer open (state machine is monotonic).
               `data-parcel-id` is empty for region-wide cantieri — the
-              Phase-7 JS reveals the Particella pulldown in that case.
+              JS reveals the Particella pulldown in that case.
             {% endcomment %}
             <option value="{{ op.harvest_plan_item_id }}" selected
                     data-damaged="{{ op.harvest_plan_item.damaged|yesno:'1,0' }}"
@@ -56,7 +56,7 @@
       <div class="form-group" id="parcel-group">
         {% comment %}
           Visible only when the selected cantiere is region-wide; the
-          Phase-7 JS toggles `[hidden]` on this wrapper based on the
+          JS toggles `[hidden]` on this wrapper based on the
           `data-parcel-id` attribute of the chosen Cantiere option, and
           filters the visible parcels by `data-region`.
         {% endcomment %}

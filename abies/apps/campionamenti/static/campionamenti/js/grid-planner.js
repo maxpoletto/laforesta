@@ -2,7 +2,7 @@
  * "Genera automaticamente" grid planner — Campionamenti modal.
  *
  * Logic vendored from `bosco/pac/app.js`, generalized to:
- *   - support multiple comprese in one run (spec §1, lines 21–22);
+ *   - support multiple comprese in one run;
  *   - take a radius (matching schema r_m) instead of pac's diameter;
  *   - persist the result via /api/campionamenti/grid/save-auto/
  *     instead of exporting a CSV.
