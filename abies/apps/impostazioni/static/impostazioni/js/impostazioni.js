@@ -15,6 +15,7 @@ import { downloadFromURL } from '../../base/js/csv-export.js';
 import { TableWrapper } from '../../base/js/table.js';
 import * as modals from '../../base/js/modals.js';
 import { showError } from '../../base/js/modals.js';
+import { showFormError } from '../../base/js/forms.js';
 import {
   showConfirmModal, showLoadingIn, wireActions, wireCancelButtons,
   wireCollapsibleToggle,
@@ -308,13 +309,9 @@ function showFormModal(html, cfg, state) {
       e.preventDefault();
       const body = Object.fromEntries(new FormData(form));
 
-      // Clear any previous inline error.
-      const prev = form.querySelector('.form-inline-error');
-      if (prev) prev.remove();
-
       // Species density must be > 0 (only the species form has it).
       if (body.density !== undefined && !(parseDecimal(body.density) > 0)) {
-        showError(S.ERR_DENSITY_POSITIVE);
+        showFormError(form, S.ERR_DENSITY_POSITIVE);
         return;
       }
 
@@ -322,7 +319,7 @@ function showFormModal(html, cfg, state) {
       try {
         ({ data, status } = await postJSON(cfg.saveUrl, body));
       } catch {
-        showError(S.ERROR_NETWORK);
+        showFormError(form, S.ERROR_NETWORK);
         return;
       }
 
@@ -340,13 +337,9 @@ function showFormModal(html, cfg, state) {
           state.table?.setData(state.digest);
         }
       } else if (data.status === STATUS_CONFLICT) {
-        showError(data.message || S.ERROR_CONFLICT);
+        showFormError(form, data.message || S.ERROR_CONFLICT);
       } else {
-        // Inline validation error — stays inside the modal form.
-        const err = document.createElement('p');
-        err.className = 'form-inline-error text-error mt-1';
-        err.textContent = data.message || S.ERROR_GENERIC;
-        form.querySelector('.form-actions').before(err);
+        showFormError(form, data.message || S.ERROR_GENERIC);
       }
     });
   }

@@ -188,13 +188,13 @@ export const ACTION_PLAN = 'Pianifica';
 export const ACTION_CREATE = 'Crea';
 export const ERR_GRID_HAS_SURVEYS =
   'La griglia è usata da uno o più rilevamenti: eliminarli prima.';
-export const ERR_GRID_NAME_REQUIRED = 'Nome richiesto.';
+export const ERR_GRID_NAME_REQUIRED = 'Occorre specificare un nome.';
 export const ERR_SELECT_REGION = 'Seleziona almeno una compresa.';
 export const ERR_RADIUS_POSITIVE = 'Raggio deve essere > 0.';
 export const ERR_D_POSITIVE = 'Il diametro deve essere positivo.';
 export const ERR_H_POSITIVE = 'L\'altezza deve essere positiva.';
 export const ERR_DENSITY_POSITIVE = 'La densità deve essere un numero positivo.';
-export const ERR_COVERAGE_RANGE = 'Copertura deve essere tra 0 e 100%.';
+export const ERR_COVERAGE_RANGE = 'Copertura deve essere > 0% e ≤ 100%.';
 export const ERR_PARAMS_ZERO_POINTS = 'Parametri danno 0 punti.';
 export const ERR_PLAN_FIRST = 'Esegui prima "Pianifica".';
 export const STATUS_SAVING = 'Salvataggio in corso...';

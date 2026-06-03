@@ -14,6 +14,7 @@ import {
 } from '../../base/js/geo.js';
 import { fetchJSON, postJSON } from '../../base/js/api.js';
 import { showError } from '../../base/js/modals.js';
+import { showFormError } from '../../base/js/forms.js';
 import { fmtDecimal1, fmtDecimal2, parseDecimal } from '../../base/js/format.js';
 import * as S from '../../base/js/strings.js';
 import { DEFAULT_RADIUS_M } from '../../base/js/constants.js';
@@ -228,19 +229,19 @@ export class GridPlanner {
   _plan() {
     const features = this._selectedFeatures();
     if (!features.length) {
-      this._setStatus(S.ERR_SELECT_REGION);
+      this._setStatus(S.ERR_SELECT_REGION, true);
       return;
     }
     const radius = parseInt(this.host.querySelector('#grid-auto-radius').value, 10);
     const pct = parseDecimal(this.host.querySelector('#grid-auto-coverage').value);
-    if (!(radius > 0)) { this._setStatus(S.ERR_RADIUS_POSITIVE); return; }
+    if (!(radius > 0)) { this._setStatus(S.ERR_RADIUS_POSITIVE, true); return; }
     if (!(pct > 0 && pct <= 100)) {
-      this._setStatus(S.ERR_COVERAGE_RANGE); return;
+      this._setStatus(S.ERR_COVERAGE_RANGE, true); return;
     }
     const totalAreaM2 = features.reduce((s, f) => s + featureArea(f), 0);
     const perPointAreaM2 = Math.PI * radius * radius;
     const targetN = Math.round((totalAreaM2 * pct / 100) / perPointAreaM2);
-    if (targetN < 1) { this._setStatus(S.ERR_PARAMS_ZERO_POINTS); return; }
+    if (targetN < 1) { this._setStatus(S.ERR_PARAMS_ZERO_POINTS, true); return; }
 
     // geo.js emits Leaflet-convention {lat, lng, …}; the rest of this grid
     // pipeline (render, _save payload, server, DB) speaks `lon`.  Normalize at
@@ -293,17 +294,19 @@ export class GridPlanner {
     }
   }
 
-  _setStatus(msg) {
-    if (this.statusEl) this.statusEl.textContent = msg;
+  _setStatus(msg, isError = false) {
+    if (!this.statusEl) return;
+    this.statusEl.textContent = msg;
+    this.statusEl.classList.toggle('text-error', isError && !!msg);
   }
 
   async _save() {
     const name = this.host.querySelector('#grid-auto-name').value.trim();
     const description = this.host.querySelector('#grid-auto-description').value.trim();
     const radius = parseInt(this.host.querySelector('#grid-auto-radius').value, 10);
-    if (!name) { this._setStatus(S.ERR_GRID_NAME_REQUIRED); return; }
+    if (!name) { showFormError(this.host, S.ERR_GRID_NAME_REQUIRED); return; }
     if (!this.points.length) {
-      this._setStatus(S.ERR_PLAN_FIRST); return;
+      showFormError(this.host, S.ERR_PLAN_FIRST); return;
     }
     this.submitBtn.disabled = true;
     this._setStatus(S.STATUS_SAVING);
@@ -314,13 +317,15 @@ export class GridPlanner {
       });
       if (status !== 200) {
         this.submitBtn.disabled = false;
-        this._setStatus(data?.message || S.ERROR_GENERIC);
+        this._setStatus('');
+        showFormError(this.host, data?.message || S.ERROR_GENERIC);
         return;
       }
       this.onCreated?.(data.row_id, data);
     } catch (err) {
       this.submitBtn.disabled = false;
-      this._setStatus(err?.message || S.ERROR_GENERIC);
+      this._setStatus('');
+      showFormError(this.host, err?.message || S.ERROR_GENERIC);
     }
   }
 
