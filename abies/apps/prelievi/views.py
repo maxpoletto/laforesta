@@ -443,11 +443,10 @@ def _compute_volume_m3(mass_q: Decimal, sp_pcts: dict[int, int]) -> Decimal:
     change stored volumes)."""
     if not sp_pcts:
         return Decimal('0')
-    densities = dict(
-        Species.objects.filter(id__in=sp_pcts.keys()).values_list('id', 'density'),
-    )
+    id_density = Species.objects.filter(id__in=sp_pcts.keys()).values_list('id', 'density')
+    density_by_id = {sid: density for sid, density in id_density}
     return harvest_volume_m3(
-        mass_q, ((densities.get(sid), pct) for sid, pct in sp_pcts.items()),
+        mass_q, ((density_by_id.get(sid), pct) for sid, pct in sp_pcts.items()),
     )
 
 
