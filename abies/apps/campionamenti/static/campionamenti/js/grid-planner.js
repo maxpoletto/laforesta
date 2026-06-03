@@ -16,6 +16,7 @@ import { fetchJSON, postJSON } from '../../base/js/api.js';
 import { showError } from '../../base/js/modals.js';
 import { fmtDecimal1, fmtDecimal2, parseDecimal } from '../../base/js/format.js';
 import * as S from '../../base/js/strings.js';
+import { DEFAULT_RADIUS_M } from '../../base/js/constants.js';
 
 const TERRENI_URL = '/api/geo/terreni.geojson';
 const SAVE_URL = '/api/campionamenti/grid/save-auto/';
@@ -103,7 +104,7 @@ export class GridPlanner {
     const params = document.createElement('div');
     params.className = 'form-row grid-planner-params';
     params.appendChild(this._labelInput(S.LABEL_RADIUS_M, 'input', {
-      id: 'grid-auto-radius', type: 'number', min: 1, step: 1, value: 12,
+      id: 'grid-auto-radius', type: 'number', min: 1, step: 1, value: DEFAULT_RADIUS_M,
     }));
     params.appendChild(this._labelInput(S.LABEL_COVERAGE_PCT, 'input', {
       id: 'grid-auto-coverage', type: 'text', inputmode: 'decimal', value: 1,

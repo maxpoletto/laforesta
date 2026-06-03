@@ -47,7 +47,7 @@ on the Griglie map).  Per `docs/page-campionamenti.md` §Section 1.
       <div class="form-group">
         <label for="id_area_radius">Raggio (m)</label>
         <input type="number" id="id_area_radius" name="r_m" step="1" min="1" required
-               value="{{ area.r_m|default:12 }}">
+               value="{{ area.r_m|default:default_radius_m }}">
       </div>
     </div>
 

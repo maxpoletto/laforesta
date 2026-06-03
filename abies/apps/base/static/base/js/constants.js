@@ -136,3 +136,7 @@ export const FIELD_SURVEY_IDS            = 'survey_ids';
 export const FIELD_SOURCE                = 'source';
 export const FIELD_SURVEYS               = 'surveys';
 export const FIELD_CREATED_AT            = 'created_at';
+
+// Domain defaults — locale-independent values the client and server must agree
+// on exactly (mirror of constants.py).
+export const DEFAULT_RADIUS_M = 12;  // sample-area radius (m) when none is supplied

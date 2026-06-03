@@ -5,8 +5,8 @@ Compresa,Particella,CP,Area saggio,UTMLon,UTMLat,GaussLon,GaussLat,Lon,Lat,Quota
 
 Idempotent: re-running produces no duplicates.  Creates one
 SampleGrid named "Aree di saggio PDG 2026" with one SampleArea row
-per CSV row.  The CSV lacks `Raggio`, so `r_m` defaults to 12 (per
-spec).
+per CSV row.  The CSV lacks `Raggio`, so `r_m` defaults to
+`DEFAULT_RADIUS_M` (per spec).
 
 Area numbers must be unique per (grid, compresa); the loader aborts
 (rolling back) if the CSV assigns one number to two particelle of the
@@ -21,13 +21,14 @@ from django.db import transaction
 from apps.base import csv_io
 from apps.base.models import Parcel, Region, SampleArea, SampleGrid
 from config import strings as S
-from config.constants import FIELD_ALTITUDE_M, FIELD_LAT, FIELD_LON, FIELD_NOTE, FIELD_R_M
+from config.constants import (
+    DEFAULT_RADIUS_M, FIELD_ALTITUDE_M, FIELD_LAT, FIELD_LON, FIELD_NOTE, FIELD_R_M,
+)
 
 
 GRID_NAME = 'Aree di saggio PDG 2026'
 GRID_DESC = ('Griglia di aree di saggio generata per il PDG 2026, '
              'caricata dal file aree-di-saggio.csv.')
-DEFAULT_RADIUS_M = 12
 
 
 def _int_or_none(s: str) -> int | None:

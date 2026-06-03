@@ -143,6 +143,10 @@ FIELD_SURVEYS               = 'surveys'
 # Digest filesystem identifiers (the digest file is `<name>.json.gz`).
 DIGEST_HYPSO_PARAMS = 'hypso_params'
 
+# Domain defaults — locale-independent values the client and server must agree
+# on exactly (mirrored in constants.js).
+DEFAULT_RADIUS_M = 12  # sample-area radius (m) when none is supplied
+
 
 _TRUTHY = (True, 1, '1', 'true', 'on')
 

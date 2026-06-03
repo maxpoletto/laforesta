@@ -8,6 +8,7 @@ from django.db import models
 from simple_history.models import HistoricalRecords
 
 from config import strings as S
+from config.constants import DEFAULT_RADIUS_M
 
 _NATSORT_RE = re.compile(r'(\d+)')
 
@@ -422,7 +423,7 @@ class SampleArea(TimestampedModel):
     lat = models.FloatField()
     lon = models.FloatField()
     altitude_m = models.IntegerField(null=True, blank=True)
-    r_m = models.IntegerField(default=12)
+    r_m = models.IntegerField(default=DEFAULT_RADIUS_M)
     note = models.CharField(max_length=255, blank=True)
     history = HistoricalRecords()
 

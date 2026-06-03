@@ -34,7 +34,8 @@ from apps.base.models import (
 )
 from config import strings as S
 from config.constants import (
-    AREA_RECORDS, DATA_ID, FIELD_ALTITUDE, FIELD_ALTITUDE_M, FIELD_AREA,
+    AREA_RECORDS, DATA_ID, DEFAULT_RADIUS_M, FIELD_ALTITUDE, FIELD_ALTITUDE_M,
+    FIELD_AREA,
     FIELD_COMPRESA, FIELD_COPPICE, FIELD_DATE, FIELD_DESCRIPTION, FIELD_D_CM,
     FIELD_ERRORS,
     FIELD_FUSTAIA, FIELD_H_M, FIELD_L10_MM, FIELD_LAT, FIELD_LON, FIELD_MASS_Q,
@@ -385,7 +386,7 @@ def area_form_view(request, area_id: int | None = None):
     )
     return JsonResponse({HTML: render_to_string(
         'campionamenti/_area_form.html', {
-            FIELD_AREA: area, 'grid': grid,
+            FIELD_AREA: area, 'grid': grid, 'default_radius_m': DEFAULT_RADIUS_M,
             'regions': regions, 'parcels': parcels,
             'selected_region_id': sel_parcel.region_id if sel_parcel else None,
             'selected_parcel_id': sel_parcel.id if sel_parcel else None,
@@ -407,7 +408,7 @@ def area_save_view(request):
         number = (body.get(FIELD_NUMBER) or '').strip()
         lat = coord_float(parse_decimal(body[FIELD_LAT]))
         lon = coord_float(parse_decimal(body[FIELD_LON]))
-        r_m = int(body.get(FIELD_R_M) or 12)
+        r_m = int(body.get(FIELD_R_M) or DEFAULT_RADIUS_M)
         if lat is None or lon is None:
             raise ValueError
     except (KeyError, ValueError, TypeError):
@@ -1090,7 +1091,7 @@ def grid_csv_import_view(request):
                 i, f'{S.CSV_COL_LAT}/{S.CSV_COL_LON}'))
             continue
         raggio = (row.get(S.CSV_COL_RAGGIO) or '').strip()
-        r_m = reader.integer(raggio) if raggio else 12
+        r_m = reader.integer(raggio) if raggio else DEFAULT_RADIUS_M
         if r_m is None:  # present but unparseable → flag, don't silently default
             errors.append(S.ERR_CSV_ROW_PARSE.format(i, S.CSV_COL_RAGGIO))
             continue
@@ -1414,9 +1415,9 @@ def grid_save_auto_view(request):
     description = (body.get(FIELD_DESCRIPTION) or '').strip()
     points = body.get(FIELD_POINTS) or []
     try:
-        r_m = int(body.get(FIELD_R_M) or 12)
+        r_m = int(body.get(FIELD_R_M) or DEFAULT_RADIUS_M)
     except (ValueError, TypeError):
-        r_m = 12
+        r_m = DEFAULT_RADIUS_M
 
     if not name:
         return _simple_validation_error(S.ERR_GRID_NAME_REQUIRED)
