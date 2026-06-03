@@ -30,7 +30,7 @@ from apps.base.formats import coord_float, parse_decimal
 from apps.base.middleware import save_nonce
 from apps.base.models import (
     Parcel, Region, Sample, SampleArea, SampleGrid, Species, Survey, Tree,
-    TreeSample, parcel_sort_key,
+    TreeSample, parcel_sort_key, tree_mass_q,
 )
 from config import strings as S
 from config.constants import (
@@ -1249,9 +1249,7 @@ def tree_csv_import_view(request):
             mass_q = None
         else:
             volume_m3 = tabacchi_volume_m3(d_cm, h_m, mapped)
-            mass_q = (volume_m3 * species.density).quantize(
-                Decimal('0.001'), rounding=ROUND_HALF_UP,
-            )
+            mass_q = tree_mass_q(volume_m3, species.density)
 
         parsed.append({
             FIELD_AREA: area, FIELD_DATE: row_date, FIELD_PARCEL: area.parcel,

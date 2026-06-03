@@ -50,6 +50,7 @@ from apps.base.models import (
     next_sequence_number,
     parcel_sort_key,
     render_flag_note,
+    tree_mass_q,
 )
 from apps.prelievi.models import Harvest, HarvestSpecies, HarvestTractor
 from config import strings as S
@@ -1267,7 +1268,7 @@ def mark_csv_import_view(request):
 
         try:
             volume_m3 = tabacchi_volume_m3(d_cm, h_m, species.common_name)
-            mass_q = volume_m3 * species.density
+            mass_q = tree_mass_q(volume_m3, species.density)
         except (ValueError, KeyError):
             volume_m3 = None
             mass_q = None

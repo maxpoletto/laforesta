@@ -1,7 +1,7 @@
 """Base models — shared across all domains."""
 
 import re
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 
 from django.contrib.auth.models import AbstractUser
 from django.db import models
@@ -47,6 +47,17 @@ def next_sequence_number(queryset, field: str) -> int:
     this helper.
     """
     return (queryset.aggregate(_max=models.Max(field))['_max'] or 0) + 1
+
+
+# Tree mass (quintals) is materialised from Tabacchi volume × species density,
+# stored quantized to 0.001 q.
+MASS_QUANTUM_Q = Decimal('0.001')
+
+
+def tree_mass_q(volume_m3: Decimal, density: Decimal) -> Decimal:
+    """Materialised tree mass in quintals: ``volume_m3 × density``, quantized to
+    0.001 q (half-up)."""
+    return (volume_m3 * density).quantize(MASS_QUANTUM_Q, rounding=ROUND_HALF_UP)
 
 
 # ---------------------------------------------------------------------------

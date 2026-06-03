@@ -34,6 +34,7 @@ from django.db import transaction
 from apps.base import csv_io
 from apps.base.models import (
     Parcel, SampleArea, Sample, SampleGrid, Species, Survey, Tree, TreeSample,
+    tree_mass_q,
 )
 from apps.base.tabacchi import has_species, tabacchi_volume_m3
 from config import strings as S
@@ -192,9 +193,7 @@ class Command(BaseCommand):
                     mass_q = None
                 else:
                     volume_m3 = tabacchi_volume_m3(d_cm, h_m, mapped)
-                    mass_q = (volume_m3 * species.density).quantize(
-                        Decimal('0.001'), rounding=ROUND_HALF_UP,
-                    )
+                    mass_q = tree_mass_q(volume_m3, species.density)
 
                 tree = Tree.objects.create(
                     species=species, parcel=parcel,
