@@ -56,9 +56,9 @@ export function renderFormHTML(html) {
  *
  * Response dispatch:
  *   200          → onSuccess(data, isSaveAndAdd)
- *   400 conflict → error modal + onConflict(data)
- *   400 other    → error modal + onValidationError(data)
- *   network err  → error modal
+ *   400 conflict → inline form error + onConflict(data)
+ *   400 other    → inline form error + onValidationError(data)
+ *   network err  → inline form error
  *
  * @param {HTMLFormElement} form
  * @param {string} postUrl
@@ -77,14 +77,14 @@ export function interceptSubmit(form, postUrl, callbacks) {
 
     if (callbacks.validate) {
       const err = callbacks.validate(body);
-      if (err) { showError(err); return; }
+      if (err) { showFormError(form, err); return; }
     }
 
     let data, status;
     try {
       ({ data, status } = await postJSON(postUrl, body));
     } catch {
-      showError(S.ERROR_NETWORK);
+      showFormError(form, S.ERROR_NETWORK);
       return;
     }
 

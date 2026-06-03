@@ -239,6 +239,13 @@
   margin-top: 4px;
 }
 
+/* Error variant — outranks the base `color: #555` above, which would otherwise
+   win over the .text-error utility by source order (campionamenti.css loads
+   after common.css). */
+.grid-planner-status.text-error {
+  color: #c00;
+}
+
 .grid-planner-stats {
   font-size: 0.9em;
   color: #333;
