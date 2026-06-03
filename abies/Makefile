@@ -84,6 +84,7 @@ test-js:
 	node test/test_ui_widgets_modals.mjs
 	node apps/base/static/base/js/tests.mjs
 	node apps/base/static/base/js/cache.test.mjs
+	node apps/base/static/base/js/prelievi-columns.test.mjs
 
 collectstatic:
 	$(MANAGE) collectstatic --noinput

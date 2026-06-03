@@ -20,9 +20,8 @@ import * as S from '../../base/js/strings.js';
 import {
   ROW_ID, STATUS_CONFLICT, VERSION,
 } from '../../base/js/constants.js';
-import {
-  fmtDecimal1, fmtDecimal1BlankZero, fmtDecimal2, fmtInt,
-} from '../../base/js/format.js';
+import { STATIC_COLS, buildPrelieviColumnDefs }
+  from '../../base/js/prelievi-columns.js';
 import { matchesSearch } from '../../base/js/table.js';
 import {
   aggregateTimeSeries, aggregateSpeciesByParcel, renderStackedBar,
@@ -43,22 +42,6 @@ const HARVEST_PLAN_ITEMS_ID = 'harvest_plan_items';
 // 'i' = Interventi table).
 const SECTION_KEYS = ['a', 'b', 'i'];
 const DEFAULT_OPEN = 'i';                 // default when `o` param is absent
-
-/** Column definitions for the fixed digest columns. */
-const STATIC_COLS = {
-  [S.COL_DATE]:        { label: S.COL_DATE, type: 'date', width: '90px' },
-  [S.COL_COMPRESA]:    { label: S.COL_COMPRESA, width: '80px' },
-  [S.COL_PARCEL]:      { label: S.COL_PARCEL, width: '70px' },
-  [S.COL_CREW]:        { label: S.COL_CREW, width: '108px' },
-  [S.COL_TYPE]:        { label: S.COL_TYPE, width: '120px' },
-  [S.COL_VDP]:         { label: S.COL_VDP, type: 'number', width: '55px', formatter: fmtInt },
-  [S.COL_QUINTALS]:    { label: S.COL_QUINTALS, type: 'number', width: '55px', formatter: fmtDecimal1 },
-  [S.COL_VOLUME_M3]:   { label: S.COL_VOLUME_M3, type: 'number', width: '70px', formatter: fmtDecimal2 },
-  [S.COL_NOTE]:        { label: S.COL_NOTE, width: '110px' },
-  [S.COL_EXTRA_NOTE]:  { label: S.COL_EXTRA_NOTE, width: '90px' },
-  [S.COL_CANTIERE]:    { label: S.COL_CANTIERE, hidden: true },
-  [VERSION]:     { label: VERSION, hidden: true },
-};
 
 // Column indices — resolved on first data load.
 let colDate = -1;
@@ -170,7 +153,7 @@ function showTableView(data, params) {
   table = new TableWrapper({
     container: sections.i.body,
     digest: data,
-    columnDefs: buildColumnDefs(data.columns),
+    columnDefs: buildPrelieviColumnDefs(data.columns),
     inlineToolbar: false,
     canModify: modify,
     actions: modify ? {
@@ -652,34 +635,6 @@ function refreshTable() {
   if (table) table.setData(cache.get(DATA_ID));
 }
 
-/**
- * Build columnDefs from digest columns.
- * Known columns get labels from STATIC_COLS.
- * Columns ending in " %" are hidden (used for form pre-population only).
- * Dynamic species/tractor quintal columns default to type 'number'.
- */
-function buildColumnDefs(columns) {
-  const defs = {};
-  for (const name of columns) {
-    if (name === ROW_ID) continue;
-    if (name.endsWith(' %')) {
-      defs[name] = { label: name, hidden: true };
-      continue;
-    }
-    if (STATIC_COLS[name]) {
-      defs[name] = STATIC_COLS[name];
-      continue;
-    }
-    // Dynamic quintal column: species names are single words, tractor labels
-    // contain a space (manufacturer + model).
-    const isTractor = name.includes(' ');
-    defs[name] = {
-      label: name, type: 'number',
-      width: isTractor ? '100px' : '90px',
-      className: 'col-wrap-header',
-      formatter: fmtDecimal1BlankZero,
-    };
-  }
-  return defs;
-}
+// Prelievi column definitions live in base/js/prelievi-columns.js, shared
+// with the Piano-di-taglio item view's sub-table so both format identically.
 

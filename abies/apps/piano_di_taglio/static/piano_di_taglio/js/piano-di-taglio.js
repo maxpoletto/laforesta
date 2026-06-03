@@ -40,9 +40,10 @@ import {
   HYPSO_FUNC_LN, ROW_ID, VERSION,
 } from '../../base/js/constants.js';
 import {
-  fmtDecimal1, fmtDecimal2, fmtDecimal3, fmtInt, fmtCoord,
+  fmtDecimal2, fmtDecimal3, fmtInt, fmtCoord,
   fmtVolume, fmtArea, fmtMass, parseDecimal,
 } from '../../base/js/format.js';
+import { buildPrelieviColumnDefs } from '../../base/js/prelievi-columns.js';
 
 const CSS_URL = '/static/piano_di_taglio/css/piano-di-taglio.css';
 
@@ -1666,23 +1667,6 @@ async function appendItemPrelieviSection(card, itemId) {
     labels: S.TABLE_LABELS,
     csvFormat: S.TABLE_CSV_FORMAT,
   });
-}
-
-function buildPrelieviColumnDefs(columns) {
-  const hidden = new Set([VERSION, S.COL_CANTIERE]);
-  for (const name of columns) {
-    if (name.endsWith(' %')) hidden.add(name);
-  }
-  const defs = {};
-  for (const name of columns) {
-    if (name === ROW_ID) continue;
-    if (hidden.has(name)) { defs[name] = { label: name, hidden: true }; continue; }
-    if (name === S.COL_DATE) { defs[name] = { label: name, type: 'date', width: '100px' }; continue; }
-    if (name === S.COL_QUINTALS) { defs[name] = { label: name, type: 'number', width: '70px', formatter: fmtDecimal1 }; continue; }
-    if (name === S.COL_VOLUME_M3) { defs[name] = { label: name, type: 'number', width: '95px', formatter: fmtDecimal2 }; continue; }
-    defs[name] = { label: name };
-  }
-  return defs;
 }
 
 // ---------------------------------------------------------------------------
