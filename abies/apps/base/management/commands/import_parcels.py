@@ -14,16 +14,6 @@ from apps.base.models import Eclass, Parcel, Region
 from config import strings as S
 
 
-def _int_or_none(s: str) -> int | None:
-    s = s.strip()
-    if not s:
-        return None
-    try:
-        return int(float(s))
-    except ValueError:
-        return None
-
-
 class Command(BaseCommand):
     help = "Import parcels from particelle.csv in <data_dir>."
 
@@ -50,7 +40,8 @@ class Command(BaseCommand):
 
         created = 0
         with open(particelle_csv, encoding='utf-8-sig') as f:
-            for row in csv_io.read(f.read()):
+            reader = csv_io.read(f.read())
+            for row in reader:
                 region = region_cache[row[S.CSV_COL_COMPRESA]]
                 eclass = eclass_cache[row[S.CSV_COL_COMPARTO]]
                 _, was_created = Parcel.objects.get_or_create(
@@ -58,13 +49,13 @@ class Command(BaseCommand):
                     region=region,
                     defaults={
                         'eclass': eclass,
-                        'area_ha': Decimal(row[S.CSV_COL_AREA_HA].strip()),
-                        'ave_age': _int_or_none(row[S.CSV_COL_AVE_AGE]),
+                        'area_ha': reader.decimal(row[S.CSV_COL_AREA_HA]),
+                        'ave_age': reader.integer(row[S.CSV_COL_AVE_AGE]),
                         'location_name': row.get(S.CSV_COL_LOCATION, '').strip(),
-                        'altitude_min_m': _int_or_none(row[S.CSV_COL_ALT_MIN]),
-                        'altitude_max_m': _int_or_none(row[S.CSV_COL_ALT_MAX]),
+                        'altitude_min_m': reader.integer(row[S.CSV_COL_ALT_MIN]),
+                        'altitude_max_m': reader.integer(row[S.CSV_COL_ALT_MAX]),
                         'aspect': row.get(S.CSV_COL_ASPECT, '').strip(),
-                        'grade_pct': _int_or_none(row[S.CSV_COL_GRADE_PCT]),
+                        'grade_pct': reader.integer(row[S.CSV_COL_GRADE_PCT]),
                         'desc_veg': row.get(S.CSV_COL_VEG_DESC, '').strip(),
                         'desc_geo': row.get(S.CSV_COL_GEO_DESC, '').strip(),
                     },

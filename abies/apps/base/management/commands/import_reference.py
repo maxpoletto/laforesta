@@ -11,6 +11,7 @@ from pathlib import Path
 from django.core.management.base import BaseCommand, CommandError
 
 from config import strings as S
+from config.constants import is_truthy
 
 from apps.base import csv_io
 from apps.base.models import (
@@ -40,11 +41,12 @@ SPECIES_CSV = Path(__file__).resolve().parent.parent.parent / 'data' / 'species.
 
 def load_species():
     with SPECIES_CSV.open(encoding='utf-8') as f:
-        return [
-            (row['common'], row['latin'], int(row['sort_order']),
-             float(row['density_q_m3']), row['minor'] == 'true')
-            for row in csv_io.read(f.read())
-        ]
+        reader = csv_io.read(f.read())
+    return [
+        (row['common'], row['latin'], reader.integer(row['sort_order']),
+         reader.decimal(row['density_q_m3']), is_truthy(row['minor']))
+        for row in reader
+    ]
 
 
 SPECIES = load_species()

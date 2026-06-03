@@ -7,7 +7,6 @@ HarvestPlanItems.
 Idempotent: deletes and recreates the plan on each run.
 """
 
-from decimal import Decimal
 from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
@@ -72,7 +71,8 @@ class Command(BaseCommand):
     def _import_fustaia(self, csv_path, plan, parcel_cache):
         n = 0
         with open(csv_path, encoding='utf-8-sig') as f:
-            for row in csv_io.read(f.read()):
+            reader = csv_io.read(f.read())
+            for row in reader:
                 parcel = parcel_cache.get(
                     (row[S.CSV_COL_COMPRESA], row[S.CSV_COL_PARTICELLA])
                 )
@@ -81,8 +81,8 @@ class Command(BaseCommand):
                 HarvestPlanItem.objects.create(
                     harvest_plan=plan,
                     parcel=parcel,
-                    year_planned=int(row[S.CSV_COL_ANNO]),
-                    volume_planned_m3=Decimal(row[S.CSV_COL_PRELIEVO_M3]),
+                    year_planned=reader.integer(row[S.CSV_COL_ANNO]),
+                    volume_planned_m3=reader.decimal(row[S.CSV_COL_PRELIEVO_M3]),
                 )
                 n += 1
         return n
@@ -90,7 +90,8 @@ class Command(BaseCommand):
     def _import_ceduo(self, csv_path, plan, parcel_cache):
         n = 0
         with open(csv_path, encoding='utf-8-sig') as f:
-            for row in csv_io.read(f.read()):
+            reader = csv_io.read(f.read())
+            for row in reader:
                 parcel = parcel_cache.get(
                     (row[S.CSV_COL_COMPRESA], row[S.CSV_COL_PARTICELLA])
                 )
@@ -99,8 +100,8 @@ class Command(BaseCommand):
                 HarvestPlanItem.objects.create(
                     harvest_plan=plan,
                     parcel=parcel,
-                    year_planned=int(row[S.CSV_COL_ANNO]),
-                    intervention_area_ha=Decimal(
+                    year_planned=reader.integer(row[S.CSV_COL_ANNO]),
+                    intervention_area_ha=reader.decimal(
                         row[S.CSV_COL_SUPERFICIE_HA]
                     ),
                     note=row.get(S.CSV_COL_NOTE, '').strip(),

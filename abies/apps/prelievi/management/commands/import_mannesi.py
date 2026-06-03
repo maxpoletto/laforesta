@@ -5,7 +5,6 @@ re-importing, so a re-run produces a deterministic result rather than
 appending duplicates. Reference data must already be loaded.
 """
 
-from decimal import Decimal
 from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
@@ -45,25 +44,10 @@ TRACTOR_COL_MAP = {
 BATCH_SIZE = 500
 
 
-def _int_or_none(s: str) -> int | None:
-    s = s.strip()
-    if not s or s == 'nd':
-        return None
-    try:
-        return int(float(s))
-    except ValueError:
-        return None
-
-
-def _pct(s: str) -> int:
-    """Parse a percentage field; treat blank/non-numeric as 0."""
-    s = s.strip()
-    if not s:
-        return 0
-    try:
-        return int(float(s))
-    except ValueError:
-        return 0
+def _pct(reader: csv_io.CsvReader, s: str) -> int:
+    """Percentage cell → int; 0 for a blank/invalid column (i.e. 0%).  `percent`
+    is an integer field, so a fractional value is rejected (→0), not truncated."""
+    return reader.integer(s) or 0
 
 
 class Command(BaseCommand):
@@ -101,13 +85,13 @@ class Command(BaseCommand):
             )
 
         with open(mannesi_csv, encoding='utf-8-sig') as f:
-            rows = csv_io.read(f.read()).rows
+            reader = csv_io.read(f.read())
 
         ops_batch: list[Harvest] = []
         species_deferred: list[tuple[int, Species, int]] = []
         tractor_deferred: list[tuple[int, Tractor, int]] = []
 
-        for i, row in enumerate(rows):
+        for i, row in enumerate(reader):
             region_name = row[S.CSV_COL_COMPRESA]
             parcel_name = row[S.CSV_COL_PARTICELLA]
             parcel = parcel_cache.get((region_name, parcel_name))
@@ -139,11 +123,11 @@ class Command(BaseCommand):
                 (False, False, False),
             )
 
-            mass_q = Decimal(row[S.CSV_COL_QUINTALS].strip())
+            mass_q = reader.decimal(row[S.CSV_COL_QUINTALS])
 
             row_species_pcts: list[tuple[Species, int]] = []
             for col_prefix, common_name in SPECIES_COL_MAP.items():
-                pct = _pct(row.get(f'{col_prefix} %', ''))
+                pct = _pct(reader, row.get(f'{col_prefix} %', ''))
                 if pct > 0:
                     row_species_pcts.append((species_cache[common_name], pct))
 
@@ -156,8 +140,8 @@ class Command(BaseCommand):
                 product=product,
                 parcel=parcel,
                 crew=crew,
-                record1=_int_or_none(row[S.CSV_COL_VDP]),
-                record2=_int_or_none(row.get(S.CSV_COL_PROT, '')),
+                record1=reader.integer(row[S.CSV_COL_VDP]),
+                record2=reader.integer(row.get(S.CSV_COL_PROT, '')),
                 mass_q=mass_q,
                 volume_m3=volume_m3,
                 damaged=damaged,
@@ -172,7 +156,7 @@ class Command(BaseCommand):
                 species_deferred.append((op_idx, sp, pct))
 
             for col_prefix, (mfr, model) in TRACTOR_COL_MAP.items():
-                pct = _pct(row.get(f'{col_prefix} %', ''))
+                pct = _pct(reader, row.get(f'{col_prefix} %', ''))
                 if pct > 0:
                     tractor_deferred.append(
                         (op_idx, tractor_cache[(mfr, model)], pct),
