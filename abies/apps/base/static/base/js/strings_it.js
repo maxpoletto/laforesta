@@ -335,6 +335,7 @@ export const COL_A                    = 'a';
 export const COL_B                    = 'b';
 export const COL_R2                   = 'r²';
 export const COL_N_REGRESSION         = 'n';
+export const COL_DENSITY              = 'Densità (q/m³)';
 
 // View/edit-item page.
 export const VIEW_ITEM_TITLE     = 'Intervento';
