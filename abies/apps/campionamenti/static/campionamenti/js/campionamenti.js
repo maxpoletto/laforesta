@@ -22,7 +22,7 @@ import {
   FIELD_SAMPLE_GRID_ID, FIELD_SURVEY_ID, ROW_ID, VERSION,
 } from '../../base/js/constants.js';
 import { parcelNames } from '../../base/js/geo.js';
-import { fetchJSON, postJSON, postFormData } from '../../base/js/api.js';
+import { postJSON, postFormData } from '../../base/js/api.js';
 import {
   fetchForm, fetchModalForm, renderFormHTML, renderModalForm,
   interceptSubmit, submitCsvImport, showFormError,
@@ -85,6 +85,7 @@ const SURVEY_SAVE_URL = '/api/campionamenti/survey/save/';
 // polygons nor parsable names, so tooltips on it read like
 // "03_FABRIZIA".
 const TERRENI_GEOJSON_URL = '/api/geo/terreni.geojson';
+const TERRENI_ID = 'terreni';
 const PAGE_PATH = '/campionamenti';
 
 const SECTION_KEYS = ['g', 'r', 't'];
@@ -147,7 +148,7 @@ let surveysData = null;
 let gridsData = null;
 let sampleAreasData = null;
 let samplesData = null;
-let parcelleGeo = null;
+let parcelsGeo = null;
 let unsubCache = null;
 let currentTreesId = null;
 let _areaColIdx = -1;
@@ -162,6 +163,7 @@ cache.register(SURVEYS_ID, SURVEYS_URL);
 cache.register(GRIDS_ID, GRIDS_URL);
 cache.register(SAMPLE_AREAS_ID, SAMPLE_AREAS_URL);
 cache.register(SAMPLES_ID, SAMPLES_URL);
+cache.register(TERRENI_ID, TERRENI_GEOJSON_URL);
 
 // ---------------------------------------------------------------------------
 // Lifecycle
@@ -173,12 +175,14 @@ export async function mount(params) {
   showLoadingIn(el);
 
   try {
-    const [s, g, sa, sm, geo] = await Promise.all([
+    const [s, g, sa, sm] = await Promise.all([
       cache.load(SURVEYS_ID),
       cache.load(GRIDS_ID),
       cache.load(SAMPLE_AREAS_ID),
       cache.load(SAMPLES_ID),
-      fetchJSON(TERRENI_GEOJSON_URL),
+      // terreni.geojson is effectively immutable: load it once per session,
+      // then reuse the cached, area-sorted copy (no request on re-navigation).
+      cache.get(TERRENI_ID) ? Promise.resolve() : cache.load(TERRENI_ID),
     ]);
     surveysData = s;
     gridsData = g;
@@ -187,7 +191,7 @@ export async function mount(params) {
     // Sort largest-first so small polygons render — and bind tooltip —
     // on top of their containing larger neighbours.  Mirrors
     // `bosco/b/app.js`'s use of the same helper.
-    parcelleGeo = MapCommon.sortFeaturesByArea(geo.data);
+    parcelsGeo = MapCommon.sortFeaturesByArea(cache.get(TERRENI_ID));
   } catch {
     showError(S.ERROR_NETWORK);
     return;
@@ -215,7 +219,7 @@ export function unmount() {
   cache.setVisible([]);
   resetSectionRefs();
   activeGridId = activeSurveyId = activeAreaId = null;
-  surveysData = gridsData = sampleAreasData = samplesData = parcelleGeo = null;
+  surveysData = gridsData = sampleAreasData = samplesData = parcelsGeo = null;
   currentTreesId = null;
   _areaColIdx = -1;
 }
@@ -404,7 +408,7 @@ function renderGriglieMap(gridId) {
   const initialView = (sv && sv.gridId === gridId) ? sv : null;
   s.map = new GriglieMap({
     container: s.mapEl,
-    geojson: parcelleGeo,
+    geojson: parcelsGeo,
     basemap: activeBasemap(),
     onAreaClick: (area) => showAreaPopover(area),
     onEmptyClick: modify
@@ -547,7 +551,7 @@ function renderRilevamentiMap(surveyId) {
   const initialView = (sv && sv.surveyId === surveyId) ? sv : null;
   s.map = new RilevamentiMap({
     container: s.mapEl,
-    geojson: parcelleGeo,
+    geojson: parcelsGeo,
     basemap: activeBasemap(),
     onAreaSelect: (areaId) => {
       activeAreaId = areaId;
@@ -810,6 +814,7 @@ async function showNewGridForm() {
       if (host) {
         planner = new GridPlanner({
           host,
+          geojson: parcelsGeo,
           basemap: activeBasemap(),
           onCancel: dismissModal,
           onCreated: (rowId, response) => {

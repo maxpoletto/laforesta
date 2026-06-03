@@ -49,6 +49,9 @@ export class GridPlanner {
     this.onCreated = opts.onCreated;
     this.onCancel = opts.onCancel;
     this.basemap = opts.basemap || 'satellite';
+    // Caller may hand us the already-loaded terreni.geojson (the
+    // campionamenti page keeps it cached); fall back to fetching otherwise.
+    this.geojson = opts.geojson || null;
     this.featuresByCompresa = {};   // compresa → [GeoJSON features]
     this.points = [];                // {lat, lon, compresa, particella}
     this.leaflet = null;
@@ -64,6 +67,10 @@ export class GridPlanner {
     if (this._built) return;
     this._built = true;
     this._buildUI();
+    if (this.geojson) {
+      this._loadFeatures(this.geojson);
+      return;
+    }
     try {
       const { data } = await fetchJSON(TERRENI_URL);
       this._loadFeatures(data);

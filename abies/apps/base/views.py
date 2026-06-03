@@ -9,6 +9,7 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.http import FileResponse, Http404, HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
+from django.utils.cache import patch_cache_control
 from django.utils.decorators import method_decorator
 from django.utils.http import http_date, parse_http_date_safe
 from django.views import View
@@ -75,8 +76,14 @@ def geo_view(request: HttpRequest, filename: str) -> HttpResponse:
     if ims:
         ims_ts = parse_http_date_safe(ims)
         if ims_ts is not None and ims_ts >= int(mtime):
-            return HttpResponse(status=304)
+            response = HttpResponse(status=304)
+            patch_cache_control(response, no_cache=True)
+            return response
     response = FileResponse(open(path, 'rb'),
                             content_type='application/geo+json')
     response['Last-Modified'] = http_date(mtime)
+    # Geo data is large and effectively immutable, but can change on deploy:
+    # `no-cache` lets the browser keep a copy yet revalidate via
+    # If-Modified-Since (304, no re-transfer), so it never serves stale data.
+    patch_cache_control(response, no_cache=True)
     return response
