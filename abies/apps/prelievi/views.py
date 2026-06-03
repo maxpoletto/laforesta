@@ -34,7 +34,9 @@ from apps.base.models import (
     Crew, HarvestPlanItem, HarvestPlanItemState, Parcel, Product, Species,
     Tractor, next_sequence_number, parcel_sort_key,
 )
-from apps.prelievi.models import Harvest, HarvestSpecies, HarvestTractor
+from apps.prelievi.models import (
+    Harvest, HarvestSpecies, HarvestTractor, harvest_volume_m3,
+)
 from config import strings as S
 from config.constants import (
     DATA_ID, FIELD_CREW_ID, FIELD_DATE, FIELD_HARVEST_PLAN_ITEM_ID,
@@ -436,24 +438,17 @@ def _parse_percentages(body):
 
 
 def _compute_volume_m3(mass_q: Decimal, sp_pcts: dict[int, int]) -> Decimal:
-    """Compute the materialised harvest volume in m³.
-
-    ``volume_m3 = SUM(mass_q * pct/100 / species.density)`` using
-    current Species.density values; later density edits don't
-    retroactively change stored volumes.
-    """
+    """Materialised harvest volume from mass + per-species percentages, using
+    current Species.density values (later density edits don't retroactively
+    change stored volumes)."""
     if not sp_pcts:
         return Decimal('0')
     densities = dict(
         Species.objects.filter(id__in=sp_pcts.keys()).values_list('id', 'density'),
     )
-    total = Decimal('0')
-    hundred = Decimal(100)
-    for sid, pct in sp_pcts.items():
-        density = densities.get(sid)
-        if density and density > 0:
-            total += mass_q * Decimal(pct) / hundred / density
-    return total.quantize(Decimal('0.001'))
+    return harvest_volume_m3(
+        mass_q, ((densities.get(sid), pct) for sid, pct in sp_pcts.items()),
+    )
 
 
 def _conflict_response(row_id, request):

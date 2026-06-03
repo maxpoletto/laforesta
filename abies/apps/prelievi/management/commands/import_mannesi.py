@@ -17,7 +17,9 @@ from apps.base.management.commands.import_reference import (
 from apps.base.models import (
     Crew, Parcel, Product, Species, Tractor,
 )
-from apps.prelievi.models import Harvest, HarvestSpecies, HarvestTractor
+from apps.prelievi.models import (
+    Harvest, HarvestSpecies, HarvestTractor, harvest_volume_m3,
+)
 from config import strings as S
 
 # CSV column prefix -> Species.common_name
@@ -62,16 +64,6 @@ def _pct(s: str) -> int:
         return int(float(s))
     except ValueError:
         return 0
-
-
-def _harvest_volume_m3(mass_q: Decimal,
-                       species_pcts: list[tuple[Species, int]]) -> Decimal:
-    """Compute SUM_over_species(mass_q × pct/100 / species.density)."""
-    total = Decimal('0')
-    for species, pct in species_pcts:
-        if species.density and species.density > 0:
-            total += mass_q * Decimal(pct) / Decimal(100) / species.density
-    return total.quantize(Decimal('0.001'))
 
 
 class Command(BaseCommand):
@@ -155,7 +147,9 @@ class Command(BaseCommand):
                 if pct > 0:
                     row_species_pcts.append((species_cache[common_name], pct))
 
-            volume_m3 = _harvest_volume_m3(mass_q, row_species_pcts)
+            volume_m3 = harvest_volume_m3(
+                mass_q, ((sp.density, pct) for sp, pct in row_species_pcts),
+            )
 
             op = Harvest(
                 date=row[S.CSV_COL_DATA],

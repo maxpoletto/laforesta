@@ -1,5 +1,8 @@
 """Prelievi domain models — harvest operations."""
 
+from collections.abc import Iterable
+from decimal import Decimal
+
 from django.db import models
 from simple_history.models import HistoricalRecords
 
@@ -7,6 +10,24 @@ from apps.base.models import (
     Crew, HarvestPlanItem, Parcel, Product, Species, TimestampedModel, Tractor,
 )
 from config import strings as S
+
+# Harvest volume is materialised from mass and per-species percentages, then
+# stored quantized to 0.001 m³ (one litre).
+VOLUME_QUANTUM_M3 = Decimal('0.001')
+
+
+def harvest_volume_m3(mass_q: Decimal,
+                      density_pcts: Iterable[tuple[Decimal | None, int]]) -> Decimal:
+    """Materialised harvest volume: ``SUM(mass_q × pct/100 / density)`` over
+    (density, pct) pairs, quantized to 0.001 m³.  A pair whose density is
+    missing or non-positive contributes nothing (no finite volume without a
+    positive density)."""
+    total = Decimal('0')
+    hundred = Decimal(100)
+    for density, pct in density_pcts:
+        if density and density > 0:
+            total += mass_q * Decimal(pct) / hundred / density
+    return total.quantize(VOLUME_QUANTUM_M3)
 
 
 class Harvest(TimestampedModel):
