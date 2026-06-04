@@ -107,7 +107,7 @@ NPM_TMP = /tmp/abies-vendor
 
 update-vendor:
 	mkdir -p $(NPM_TMP) && cd $(NPM_TMP) && npm init -y --silent && \
-	npm install leaflet@1.9.4 chart.js@4.5.1 @maxpoletto/sortable-table@1.0.4
+	npm install leaflet@1.9.4 chart.js@4.5.1 @maxpoletto/sortable-table@1.2.0
 	/bin/cp $(NPM_TMP)/node_modules/leaflet/dist/leaflet.js $(VENDOR)/leaflet/
 	/bin/cp $(NPM_TMP)/node_modules/leaflet/dist/leaflet.css $(VENDOR)/leaflet/
 	/bin/cp -r $(NPM_TMP)/node_modules/leaflet/dist/images $(VENDOR)/leaflet/

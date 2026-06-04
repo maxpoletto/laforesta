@@ -22,8 +22,8 @@ export const ACTION_DELETE = 'Elimina';
 
 // TableWrapper localization: labels bundle and CSV format for Italian.
 // Passed as `labels` / `csvFormat` options when constructing a TableWrapper.
-// `add` / `boolYes` / `boolNo` are inlined here because they have no
-// other callers; if a caller appears elsewhere, lift them back out as
+// `add` / `boolYes` / `boolNo` / `pageInfo` are inlined here because they have
+// no other callers; if a caller appears elsewhere, lift them back out as
 // named exports.
 export const TABLE_LABELS = {
   search: FILTER_LABEL,
@@ -35,6 +35,7 @@ export const TABLE_LABELS = {
   actionDelete: ACTION_DELETE,
   boolYes: 'Sì',
   boolNo: 'No',
+  pageInfo: 'Pagina {current} di {total}',
 };
 
 export const TABLE_CSV_FORMAT = {

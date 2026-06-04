@@ -4,6 +4,12 @@
 (function() {
     'use strict';
 
+// Pagination text. The placeholders are substituted with the page-number
+// elements, so a translation may reorder them (e.g. total before current).
+const PAGE_INFO_CURRENT = '{current}';
+const PAGE_INFO_TOTAL = '{total}';
+const DEFAULT_PAGE_INFO = `Page ${PAGE_INFO_CURRENT} of ${PAGE_INFO_TOTAL}`;
+
 class SortableTable {
     constructor(options = {}) {
         // Validate required options
@@ -34,6 +40,7 @@ class SortableTable {
         this.allowSorting = options.allowSorting !== false;
         this.cssPrefix = options.cssPrefix || 'sortable-table';
         this.emptyMessage = options.emptyMessage || 'No data available';
+        this.pageInfo = options.pageInfo || DEFAULT_PAGE_INFO;
 
         // Sorting state
 
@@ -96,15 +103,15 @@ class SortableTable {
 
     generatePaginationHTML() {
         const displayTotal = Math.max(1, this.totalPages);
+        const pageInfo = this.pageInfo
+            .replace(PAGE_INFO_CURRENT, `<span class="current-page-number">${this.currentPage}</span>`)
+            .replace(PAGE_INFO_TOTAL, `<span class="total-pages">${displayTotal}</span>`);
         return `
             <div class="${this.cssPrefix}-controls">
                 <div class="${this.cssPrefix}-pagination">
                     <button class="first-page" data-action="first">&lt;&lt;</button>
                     <button class="prev-page" data-action="prev">&lt;</button>
-                    <span class="page-info">
-                        Page <span class="current-page-number">${this.currentPage}</span>
-                        of <span class="total-pages">${displayTotal}</span>
-                    </span>
+                    <span class="page-info">${pageInfo}</span>
                     <button class="next-page" data-action="next">&gt;</button>
                     <button class="last-page" data-action="last">&gt;&gt;</button>
                 </div>

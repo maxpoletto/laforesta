@@ -24,6 +24,9 @@ const DEFAULT_LABELS = {
   actionDelete: 'Delete',
   boolYes: 'Yes',
   boolNo: 'No',
+  // Pagination template forwarded to SortableTable, which fills the
+  // {current}/{total} placeholders with the page-number controls.
+  pageInfo: 'Page {current} of {total}',
 };
 
 /**
@@ -221,6 +224,7 @@ export class TableWrapper {
       rowsPerPage: ROWS_PER_PAGE,
       sort: sort || undefined,
       emptyMessage: this.labels.empty,
+      pageInfo: this.labels.pageInfo,
       onSort: (col, asc) => this.onSort?.(col, asc),
     });
 

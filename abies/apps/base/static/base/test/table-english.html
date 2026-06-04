@@ -28,6 +28,8 @@
     <p>Constructs a <code>TableWrapper</code> with no <code>labels</code>
        or <code>csvFormat</code> option and asserts the English defaults
        propagate through both UI and CSV output.</p>
+    <p>A second table built with the Italian <code>TABLE_LABELS</code> bundle
+       confirms localized pagination text propagates through to SortableTable.</p>
     <p>Access this file via Django's dev static server:<br>
        <code>http://localhost:8000/static/base/test/table-english.html</code>
     </p>
@@ -44,6 +46,7 @@
   <script src="../../vendor/sortable-table/sortable-table.js"></script>
   <script type="module">
     import { TableWrapper } from '../js/table.js';
+    import { TABLE_LABELS } from '../js/strings.js';
 
     // --- Fixture ----------------------------------------------------------
     // Includes a separator character (",") in a Name value to exercise
@@ -115,6 +118,27 @@
     check('delete icon tooltip is "Delete"',
           deleteIcon?.getAttribute('title') === 'Delete',
           `got: ${JSON.stringify(deleteIcon?.getAttribute('title'))}`);
+
+    // Pagination indicator: English default through the wrapper.
+    const pageInfoEl = document.querySelector('#t .page-info');
+    check('pagination indicator is "Page 1 of 1"',
+          pageInfoEl?.textContent.replace(/\s+/g, ' ').trim() === 'Page 1 of 1',
+          `got: ${JSON.stringify(pageInfoEl?.textContent)}`);
+
+    // Localization passthrough: the real Italian TABLE_LABELS bundle must
+    // render "Pagina 1 di 1" through the wrapper.
+    const itContainer = document.createElement('div');
+    const itTable = new TableWrapper({
+      container: itContainer,
+      digest,
+      columnDefs: { Name: { label: 'Name' } },
+      labels: TABLE_LABELS,
+    });
+    const itPageInfoEl = itContainer.querySelector('.page-info');
+    check('Italian TABLE_LABELS render pagination as "Pagina 1 di 1"',
+          itPageInfoEl?.textContent.replace(/\s+/g, ' ').trim() === 'Pagina 1 di 1',
+          `got: ${JSON.stringify(itPageInfoEl?.textContent)}`);
+    itTable.destroy();
 
     // CSV output (BOM is invisible in the <pre>; it's covered by an assertion below).
     const csv = table.getCSV();
