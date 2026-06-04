@@ -78,6 +78,40 @@ class TestStaleness:
         assert path.exists()
         assert path.suffix == '.gz'
 
+    def test_concurrent_mark_during_regeneration_survives(
+        self, db, settings, tmp_path, monkeypatch,
+    ):
+        """A staleness mark that lands *while* a digest is generating must
+        not be cleared by that regeneration.
+
+        Otherwise the on-disk digest reflects the pre-write data yet reads
+        as fresh forever, and the only recovery is deleting the file by
+        hand.  This is the intermittent empty/stale prelievi digest: a
+        regeneration whose data snapshot fell inside a destructive
+        re-import window wrote an empty file, then swallowed the import's
+        own staleness mark.
+        """
+        from apps.base import digests
+
+        settings.DIGEST_DIR = tmp_path
+        name = 'prelievi'
+        mark_stale(name)
+
+        def gen_with_concurrent_write():
+            # The generator reads its snapshot and writes the file; a
+            # concurrent writer then commits and re-marks the digest
+            # stale, between this write and the post-generation clear.
+            digests._write_gzip_json(
+                {COLUMNS: [ROW_ID], ROWS: []}, digests._dest(name))
+            mark_stale(name)
+
+        monkeypatch.setitem(digests._GENERATORS, name, gen_with_concurrent_write)
+        regenerate_if_stale(name)
+
+        assert DigestStatus.objects.get(name=name).stale is True, (
+            'regeneration cleared a staleness mark raised during generation'
+        )
+
 
 # ---------------------------------------------------------------------------
 # generate_prelievi

@@ -642,6 +642,11 @@ class DigestStatus(models.Model):
     """Tracks whether a pre-computed JSON digest needs regeneration."""
     name = models.CharField(max_length=100, primary_key=True)
     stale = models.BooleanField(default=False)
+    # Monotonic token bumped on every staleness mark.  regenerate_if_stale()
+    # snapshots it before generating and clears `stale` only if it is
+    # unchanged afterwards, so a write that lands mid-generation is never
+    # lost to the clear (which would leave a stale digest served as fresh).
+    dirty_seq = models.PositiveBigIntegerField(default=0)
 
     class Meta:
         verbose_name = S.DIGEST_STATUS

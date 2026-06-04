@@ -8,6 +8,7 @@ appending duplicates. Reference data must already be loaded.
 from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
+from django.db import transaction
 
 from apps.base import csv_io
 from apps.base.management.commands.import_reference import (
@@ -162,26 +163,28 @@ class Command(BaseCommand):
                         (op_idx, tractor_cache[(mfr, model)], pct),
                     )
 
-        # Cascade-deletes the junction rows.
-        deleted, _ = Harvest.objects.all().delete()
-        if deleted:
-            self.stdout.write(f'Cleared {deleted} existing records')
-
-        Harvest.objects.bulk_create(ops_batch, batch_size=BATCH_SIZE)
-        self.stdout.write(f'Harvests: {len(ops_batch)} created')
-
         species_records = [
             HarvestSpecies(harvest=ops_batch[idx], species=sp, percent=pct)
             for idx, sp, pct in species_deferred
         ]
-        HarvestSpecies.objects.bulk_create(species_records, batch_size=BATCH_SIZE)
-        self.stdout.write(f'HarvestSpecies: {len(species_records)} created')
-
         tractor_records = [
             HarvestTractor(harvest=ops_batch[idx], tractor=tr, percent=pct)
             for idx, tr, pct in tractor_deferred
         ]
-        HarvestTractor.objects.bulk_create(tractor_records, batch_size=BATCH_SIZE)
+
+        # Replace the harvest set atomically: readers must never observe the
+        # committed gap between the delete and the re-create, or a concurrent
+        # digest regeneration would persist an empty table.
+        with transaction.atomic():
+            # Cascade-deletes the junction rows.
+            deleted, _ = Harvest.objects.all().delete()
+            Harvest.objects.bulk_create(ops_batch, batch_size=BATCH_SIZE)
+            HarvestSpecies.objects.bulk_create(species_records, batch_size=BATCH_SIZE)
+            HarvestTractor.objects.bulk_create(tractor_records, batch_size=BATCH_SIZE)
+        if deleted:
+            self.stdout.write(f'Cleared {deleted} existing records')
+        self.stdout.write(f'Harvests: {len(ops_batch)} created')
+        self.stdout.write(f'HarvestSpecies: {len(species_records)} created')
         self.stdout.write(f'HarvestTractors: {len(tractor_records)} created')
 
         from apps.base.digests import mark_all_stale

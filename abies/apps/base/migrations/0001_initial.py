@@ -51,6 +51,7 @@ class Migration(migrations.Migration):
                     models.CharField(max_length=100, primary_key=True, serialize=False),
                 ),
                 ("stale", models.BooleanField(default=False)),
+                ("dirty_seq", models.PositiveBigIntegerField(default=0)),
             ],
             options={
                 "verbose_name": "stato digest",

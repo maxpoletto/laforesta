@@ -26,11 +26,14 @@ via cache sync from the POST response).
 
 A small table tracks staleness:
 
-    digest_status(name TEXT PRIMARY KEY, stale BOOLEAN DEFAULT FALSE)
+    digest_status(name TEXT PRIMARY KEY, stale BOOLEAN DEFAULT FALSE,
+                  dirty_seq INTEGER DEFAULT 0)
 
 Write path: after a successful save, the view marks affected digests as stale:
-`UPDATE digest_status SET stale = TRUE WHERE name IN (...)`. This is the only
-write-path cost.
+`UPDATE digest_status SET stale = TRUE, dirty_seq = dirty_seq + 1 WHERE
+name IN (...)`. This is the only write-path cost.  `dirty_seq` is a
+monotonic token; the read path uses it to detect a write that landed mid
+regeneration (see below).
 
 **The "affected digests" set is whatever the digest's generator reads,
 transitively.** A write to table T must invalidate every digest D whose
@@ -61,14 +64,28 @@ Read path (conditional GET for a digest):
    or 200.
 3. If stale: regenerate the digest, then serve the new file. Regeneration
    proceeds as follows:
-   a. Generate the digest and write it to a temp file (gzip-compressed).
-   b. `os.rename()` the temp file to the digest path (POSIX-atomic).
-   c. Clear the stale flag: `UPDATE digest_status SET stale = FALSE WHERE
-      name = ? AND stale = TRUE`. The `AND stale = TRUE` acts as a
-      compare-and-swap so that concurrent readers don't regenerate twice.
+   a. Snapshot `dirty_seq` for the digest.
+   b. Generate the digest and write it to a temp file (gzip-compressed).
+   c. `os.rename()` the temp file to the digest path (POSIX-atomic).
+   d. Clear the stale flag *only if no write intervened*: `UPDATE
+      digest_status SET stale = FALSE WHERE name = ? AND dirty_seq = ?`,
+      passing the value snapshotted in (a).
 
-   This ordering ensures that on any crash, the stale flag may over-report but
-   never under-report: a digest file on disk is always complete and valid.
+   The `dirty_seq` compare-and-swap closes a lost-update race.  A boolean
+   `stale` flag cannot tell "the TRUE I observed before generating" from "a
+   TRUE a concurrent writer set while I was generating": clearing on
+   `stale = TRUE` would erase that newer write's mark, leaving an on-disk
+   digest that predates the write yet reads as fresh forever — only a manual
+   file delete recovers it (the extreme case is an empty digest produced when
+   the generator's snapshot fell inside a destructive re-import window).
+   Because every mark bumps `dirty_seq`, an intervening write makes the
+   snapshotted value stale, the `UPDATE` matches no row, and the digest
+   stays flagged so the next read regenerates against the newer data.
+
+   The file is renamed into place (c) *before* the flag is cleared (d), so on
+   any crash the stale flag may over-report but never under-report: a digest
+   file on disk is always complete and valid, and a digest reading as fresh
+   always reflects the latest committed write.
 
 All digest generation logic lives in `apps/base/digests.py`, since digests
 often span multiple domain tables (e.g., a prelievi write also updates

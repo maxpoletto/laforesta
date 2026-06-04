@@ -347,6 +347,21 @@ class TestSpecies:
         assert abete.minor is True
         assert abete.version == 3
 
+    def test_other_species_cannot_be_minor(self, writer_client, species):
+        """The 'Altro' bucket species backs the minor-aggregation column;
+        flagging it minor would break prelievi generation, so the save is
+        rejected and the flag stays False."""
+        altro = next(s for s in species if s.common_name == S.SPECIES_OTHER)
+        resp = _post(writer_client, '/api/impostazioni/species/save/', {
+            ROW_ID: str(altro.id), VERSION: str(altro.version),
+            FIELD_COMMON_NAME: altro.common_name, FIELD_LATIN_NAME: '',
+            FIELD_DENSITY: '9.0', FIELD_ACTIVE: 'true', FIELD_MINOR: 'true',
+        })
+        assert resp.status_code == 400, resp.content
+        assert resp.json()[STATUS] == STATUS_VALIDATION_ERROR
+        altro.refresh_from_db()
+        assert altro.minor is False
+
 
 # ---------------------------------------------------------------------------
 # Users (admin only)

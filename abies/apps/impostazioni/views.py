@@ -99,7 +99,8 @@ def crews_save(request):
     obj, err = _save(Crew, body, parsed)
     if err:
         return err
-    mark_stale('audit')
+    # crew.name is a value column in the prelievi digest.
+    mark_stale('prelievi', 'audit')
     return _saved(obj, _crew_row, body, request)
 
 
@@ -144,7 +145,8 @@ def tractors_save(request):
     obj, err = _save(Tractor, body, parsed)
     if err:
         return err
-    mark_stale('audit')
+    # Tractor labels are columns in the prelievi digest.
+    mark_stale('prelievi', 'audit')
     return _saved(obj, _tractor_row, body, request)
 
 
@@ -190,11 +192,17 @@ def species_save(request):
     }
     if not parsed[FIELD_COMMON_NAME]:
         return _error(S.ERR_NAME_REQUIRED)
+    # The "Altro" species backs the minor-aggregation column, so it must
+    # itself stay major; otherwise prelievi generation has no bucket to fold
+    # minor species into.
+    if parsed[FIELD_MINOR] and parsed[FIELD_COMMON_NAME] == S.SPECIES_OTHER:
+        return _error(S.ERR_OTHER_NOT_MINOR.format(S.SPECIES_OTHER))
     obj, err = _save(Species, body, parsed)
     if err:
         return err
-    # species.json is consumed by V/m preview forms; bust on edits.
-    mark_stale('audit', FIELD_SPECIES)
+    # species.minor / common_name / sort_order define the prelievi column
+    # set; species.json is also consumed by V/m preview forms.
+    mark_stale('prelievi', 'audit', FIELD_SPECIES)
     return _saved(obj, _species_row, body, request)
 
 

@@ -17,7 +17,7 @@ import tempfile
 from pathlib import Path
 
 from django.conf import settings
-from django.db.models import Sum
+from django.db.models import F, Sum
 from django.http import FileResponse, HttpResponse
 from django.utils.cache import patch_cache_control
 from django.utils.http import http_date, parse_http_date_safe
@@ -56,11 +56,20 @@ def _dest(name: str) -> Path:
 
 
 def mark_stale(*names: str) -> None:
-    """Mark one or more digests as needing regeneration."""
+    """Mark one or more digests as needing regeneration.
+
+    Bumps `dirty_seq` as well as setting `stale`, so a regeneration already
+    in flight cannot clear the flag this mark sets: its compare-and-swap is
+    keyed on the `dirty_seq` it snapshotted before generating (see
+    `regenerate_if_stale`)."""
     for name in names:
-        DigestStatus.objects.update_or_create(
-            name=name, defaults={'stale': True},
+        updated = DigestStatus.objects.filter(name=name).update(
+            stale=True, dirty_seq=F('dirty_seq') + 1,
         )
+        if not updated:
+            DigestStatus.objects.get_or_create(
+                name=name, defaults={'stale': True, 'dirty_seq': 1},
+            )
 
 
 _DYNAMIC_PREFIX_SAMPLED_TREES = 'sampled_trees_'
@@ -101,9 +110,15 @@ def regenerate_if_stale(name: str) -> Path:
         gen = _resolve_generator(name)
         if gen is None:
             raise ValueError(f'unknown digest: {name!r}')
+        seq = status.dirty_seq
         gen()
-        # Compare-and-swap: only clear if still stale (avoids race).
-        DigestStatus.objects.filter(name=name, stale=True).update(stale=False)
+        # Compare-and-swap on the token snapshotted *before* generating: a
+        # write that marked the digest stale while we were generating bumped
+        # dirty_seq, so this filter misses and the digest stays stale,
+        # forcing the next read to regenerate against the newer data.  The
+        # file was renamed into place atomically before this clear, so a
+        # crash here over-reports staleness but never serves a stale digest.
+        DigestStatus.objects.filter(name=name, dirty_seq=seq).update(stale=False)
     return dest
 
 
@@ -978,10 +993,10 @@ def mark_all_stale() -> None:
     `sampled_trees_<survey_id>` rows in DigestStatus so per-survey
     digests get refreshed on next read.
     """
-    DigestStatus.objects.update(stale=True)
+    DigestStatus.objects.update(stale=True, dirty_seq=F('dirty_seq') + 1)
     for name in _GENERATORS:
-        DigestStatus.objects.update_or_create(
-            name=name, defaults={'stale': True},
+        DigestStatus.objects.get_or_create(
+            name=name, defaults={'stale': True, 'dirty_seq': 1},
         )
 
 

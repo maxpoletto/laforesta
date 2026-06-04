@@ -24,7 +24,8 @@
     <label>
       <input type="hidden" name="minor" value="false">
       <input type="checkbox" name="minor" value="true"
-             {% if obj.minor %}checked{% endif %}>
+             {% if obj.minor %}checked{% endif %}
+             {% if obj.common_name == S.SPECIES_OTHER %}disabled{% endif %}>
       Minore
     </label>
   </div>

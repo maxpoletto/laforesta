@@ -525,8 +525,10 @@ class TestDeleteView:
 # Import S for assertion comparisons
 from config import strings as S  # noqa: E402
 from config.constants import (
-    COLUMNS, DATA_ID, FIELD_CREW_ID, FIELD_DATE, FIELD_HARVEST_PLAN_ITEM_ID,
-    FIELD_MASS_Q, FIELD_NONCE, FIELD_NOTE, FIELD_PRODUCT_ID, FIELD_RECORD1,
+    COLUMNS, DATA_ID, FIELD_ACTIVE, FIELD_COMMON_NAME, FIELD_CREW_ID,
+    FIELD_DATE, FIELD_DENSITY, FIELD_HARVEST_PLAN_ITEM_ID, FIELD_MANUFACTURER,
+    FIELD_MASS_Q, FIELD_MINOR, FIELD_MODEL, FIELD_NONCE, FIELD_NOTE,
+    FIELD_PRODUCT_ID, FIELD_RECORD1,
     HTML, MESSAGE, RECORD, ROWS, ROW_ID,
     STATUS, STATUS_CONFLICT, STATUS_VALIDATION_ERROR, VERSION,
 )
@@ -610,4 +612,64 @@ class TestDigestInvalidation:
         assert vol_after < vol_before, (
             f'harvest_plan_items.volume_actual_m3 should decrease after '
             f'harvest delete (was {vol_before}, now {vol_after})'
+        )
+
+    @staticmethod
+    def _prelievi_columns(client, tmp_path, settings):
+        settings.DIGEST_DIR = tmp_path
+        return _read_gzip_json(client.get('/api/prelievi/data/'))[COLUMNS]
+
+    def test_species_minor_toggle_invalidates_prelievi(
+        self, writer_client, harvest_fixtures, tmp_path, settings,
+    ):
+        """Flagging a species minor changes the prelievi column set, so the
+        species write must mark the prelievi digest stale — without needing
+        a subsequent harvest write to do it."""
+        f = harvest_fixtures
+        castagno = next(s for s in f['species'] if s.common_name == 'Castagno')
+
+        cols = self._prelievi_columns(writer_client, tmp_path, settings)
+        assert 'Castagno' in cols, 'major species should have its own column'
+
+        resp = writer_client.post(
+            '/api/impostazioni/species/save/',
+            data=json.dumps({
+                ROW_ID: str(castagno.id), VERSION: str(castagno.version),
+                FIELD_COMMON_NAME: castagno.common_name, FIELD_DENSITY: '9.0',
+                FIELD_ACTIVE: 'true', FIELD_MINOR: 'true',
+            }),
+            content_type='application/json',
+        )
+        assert resp.status_code == 200, resp.content
+
+        cols = self._prelievi_columns(writer_client, tmp_path, settings)
+        assert 'Castagno' not in cols, (
+            'species minor toggle did not invalidate the prelievi digest'
+        )
+
+    def test_tractor_rename_invalidates_prelievi(
+        self, writer_client, harvest_fixtures, tmp_path, settings,
+    ):
+        """Tractor labels are prelievi columns, so a tractor rename must
+        mark the prelievi digest stale."""
+        f = harvest_fixtures
+        fiat = next(t for t in f['tractors'] if t.manufacturer == 'Fiat')
+
+        cols = self._prelievi_columns(writer_client, tmp_path, settings)
+        assert 'Fiat 110-90' in cols
+
+        resp = writer_client.post(
+            '/api/impostazioni/tractors/save/',
+            data=json.dumps({
+                ROW_ID: str(fiat.id), VERSION: str(fiat.version),
+                FIELD_MANUFACTURER: 'Fiat', FIELD_MODEL: '110-90X',
+                FIELD_ACTIVE: 'true',
+            }),
+            content_type='application/json',
+        )
+        assert resp.status_code == 200, resp.content
+
+        cols = self._prelievi_columns(writer_client, tmp_path, settings)
+        assert 'Fiat 110-90X' in cols and 'Fiat 110-90' not in cols, (
+            'tractor rename did not invalidate the prelievi digest'
         )
