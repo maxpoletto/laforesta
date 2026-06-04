@@ -4,6 +4,7 @@
  * Collapsible sections based on user role:
  *   - Password change (all password-login users)
  *   - Crews, Tractors, Species (writers and admins)
+ *   - Hypsometric parameters (writers and admins)
  *   - App Users (admins only)
  *
  * Entity tables lazy-load data when the section is first opened.
@@ -39,13 +40,33 @@ const CSS_URL = '/static/impostazioni/css/impostazioni.css';
 // Section configuration
 // ---------------------------------------------------------------------------
 
-const ACTIVE_COL_DEF = { label: S.COL_ACTIVE, type: 'boolean', width: '50px' };
+const booleanCol = (label) => ({ label, type: 'boolean', width: '50px' });
+const ACTIVE_COL_DEF = booleanCol(S.COL_ACTIVE);
+const MINOR_COL_DEF = booleanCol(S.COL_MINOR);
 
-const ENTITY_SECTIONS = [
-  {
+// State per entity section: { table, digest, loaded, activeOnly }.
+const sections = {};
+
+// Wrap an entity-table config as an ordered-section descriptor.  build()
+// registers fresh state under cfg.key (cleared on unmount) before rendering.
+function entitySection(cfg) {
+  return {
+    minRole: cfg.minRole,
+    build: () => {
+      const state = { table: null, digest: null, loaded: false, activeOnly: true };
+      sections[cfg.key] = state;
+      return buildEntitySection(cfg, state);
+    },
+  };
+}
+
+// Role-gated sections in display order.  Each: { minRole, build() → Node }.
+// Hypsometric parameters sit between Specie and Utenti, so Utenti is last.
+const SECTIONS = [
+  entitySection({
     key: 'crews',
-    title: S.SETTINGS_CREWS,
     minRole: ROLE_WRITER,
+    title: S.SETTINGS_CREWS,
     dataUrl: `${API}crews/data/`,
     formUrl: `${API}crews/form/`,
     saveUrl: `${API}crews/save/`,
@@ -54,33 +75,36 @@ const ENTITY_SECTIONS = [
       [S.LABEL_NAME]: { label: S.LABEL_NAME, width: '180px' },
       [S.COL_ACTIVE]: ACTIVE_COL_DEF,
     },
-  },
-  {
+  }),
+  entitySection({
     key: 'tractors',
-    title: S.SETTINGS_TRACTORS,
     minRole: ROLE_WRITER,
+    title: S.SETTINGS_TRACTORS,
     dataUrl: `${API}tractors/data/`,
     formUrl: `${API}tractors/form/`,
     saveUrl: `${API}tractors/save/`,
     csvFilename: S.CSV_TRACTORS,
     columnDefs: { [S.COL_ACTIVE]: ACTIVE_COL_DEF },
-  },
-  {
+  }),
+  entitySection({
     key: 'species',
-    title: S.SETTINGS_SPECIES,
     minRole: ROLE_WRITER,
+    title: S.SETTINGS_SPECIES,
     dataUrl: `${API}species/data/`,
     formUrl: `${API}species/form/`,
     saveUrl: `${API}species/save/`,
     csvFilename: S.CSV_SPECIES,
-    columnDefs: { [S.COL_ACTIVE]: ACTIVE_COL_DEF,
-                  [S.COL_DENSITY]: { label: S.COL_DENSITY, type: 'number', width: '100px', formatter: fmtDecimal2 }
-                }
-  },
-  {
+    columnDefs: {
+      [S.COL_DENSITY]: { label: S.COL_DENSITY, type: 'number', width: '100px', formatter: fmtDecimal2 },
+      [S.COL_MINOR]: MINOR_COL_DEF,
+      [S.COL_ACTIVE]: ACTIVE_COL_DEF,
+    },
+  }),
+  { minRole: ROLE_WRITER, build: buildHypsoSection },
+  entitySection({
     key: 'users',
-    title: S.SETTINGS_USERS,
     minRole: ROLE_ADMIN,
+    title: S.SETTINGS_USERS,
     dataUrl: `${API}users/data/`,
     formUrl: `${API}users/form/`,
     saveUrl: `${API}users/save/`,
@@ -91,12 +115,8 @@ const ENTITY_SECTIONS = [
       [S.LABEL_LOGIN_METHOD]: { label: S.LABEL_LOGIN_METHOD, width: '140px' },
       [S.COL_ACTIVE]: ACTIVE_COL_DEF,
     },
-  },
+  }),
 ];
-
-
-// State per entity section: { table, digest, loaded }
-const sections = {};
 
 // ---------------------------------------------------------------------------
 // Page lifecycle
@@ -110,22 +130,15 @@ export function mount() {
   const role = document.body.dataset.role;
   const loginMethod = document.body.dataset.loginMethod;
 
-  // Password section — visible to all password-login users.
+  // Password change is gated on login method, not role; it leads the page.
   if (loginMethod === LOGIN_METHOD_PASSWORD) {
     el.appendChild(buildPasswordSection());
   }
 
-  // Entity sections — visible based on role.
-  for (const cfg of ENTITY_SECTIONS) {
-    if (!hasMinRole(role, cfg.minRole)) continue;
-    const state = { table: null, digest: null, loaded: false, activeOnly: true };
-    sections[cfg.key] = state;
-    el.appendChild(buildEntitySection(cfg, state));
-  }
-
-  // Hypsometric parameters — writers and admins, below Specie.
-  if (hasMinRole(role, ROLE_WRITER)) {
-    el.appendChild(buildHypsoSection());
+  for (const section of SECTIONS) {
+    if (hasMinRole(role, section.minRole)) {
+      el.appendChild(section.build());
+    }
   }
 }
 
@@ -137,6 +150,8 @@ export function unmount() {
   // Clear state for next mount.
   for (const key of Object.keys(sections)) delete sections[key];
 
+  // Hypso isn't an entity section: it manages a whole parameter set via a
+  // module-level singleton, so it's reset directly rather than via `sections`.
   if (hypsoState.table) { hypsoState.table.destroy(); hypsoState.table = null; }
   hypsoState.digest = null;
   hypsoState.loaded = false;

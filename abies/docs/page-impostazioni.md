@@ -21,7 +21,9 @@ are soft-deleted via the `active` flag. "Only active" checkbox
 - Crews: name, notes (optional).
 - Tractors: manufacturer, model, year.
 - Trees: common name, Latin name, density (q/m³ — see `database.md`;
-  used to derive per-tree mass for samples and marks).
+  used to derive per-tree mass for samples and marks), and a "Minore"
+  (minor) flag. Minor species are grouped under a single "Altro" entry in
+  Prelievi (see `page-prelievi.md`); the flag is editable here.
 
 ## Hypsometric parameters (Parametri ipsometrici)
 

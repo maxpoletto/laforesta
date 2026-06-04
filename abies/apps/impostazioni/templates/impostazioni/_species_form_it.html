@@ -22,6 +22,15 @@
 
   <div class="form-group">
     <label>
+      <input type="hidden" name="minor" value="false">
+      <input type="checkbox" name="minor" value="true"
+             {% if obj.minor %}checked{% endif %}>
+      Minore
+    </label>
+  </div>
+
+  <div class="form-group">
+    <label>
       <input type="hidden" name="active" value="false">
       <input type="checkbox" name="active" value="true"
              {% if obj.active or not obj %}checked{% endif %}>

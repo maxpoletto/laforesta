@@ -28,9 +28,10 @@ from config.constants import (
     COLUMNS, DIGEST_HYPSO_PARAMS, FIELD_ACTIVE, FIELD_COMMON_NAME,
     FIELD_CREATED_AT, FIELD_DENSITY, FIELD_EMAIL, FIELD_FILE, FIELD_FIRST_NAME,
     FIELD_IS_ACTIVE, FIELD_LAST_NAME, FIELD_LATIN_NAME, FIELD_LOGIN_METHOD,
-    FIELD_MANUFACTURER, FIELD_MIN_N, FIELD_MODEL, FIELD_NAME, FIELD_NONCE,
-    FIELD_NOTES, FIELD_PASSWORD1, FIELD_PASSWORD2, FIELD_ROLE, FIELD_SOURCE,
-    FIELD_SPECIES, FIELD_SURVEY_IDS, FIELD_SURVEYS, FIELD_USERNAME, FIELD_YEAR,
+    FIELD_MANUFACTURER, FIELD_MIN_N, FIELD_MINOR, FIELD_MODEL, FIELD_NAME,
+    FIELD_NONCE, FIELD_NOTES, FIELD_PASSWORD1, FIELD_PASSWORD2, FIELD_ROLE,
+    FIELD_SOURCE, FIELD_SPECIES, FIELD_SURVEY_IDS, FIELD_SURVEYS,
+    FIELD_USERNAME, FIELD_YEAR,
     HTML, MESSAGE, RECORD, ROWS, ROW_ID, STATUS, STATUS_CONFLICT,
     STATUS_VALIDATION_ERROR, VERSION, is_truthy,
 )
@@ -152,11 +153,12 @@ def tractors_save(request):
 # ---------------------------------------------------------------------------
 
 SPECIES_COLS = [ROW_ID, S.LABEL_NAME, S.COL_LATIN_NAME,
-                S.LABEL_DENSITY, S.COL_ACTIVE]
+                S.LABEL_DENSITY, S.COL_MINOR, S.COL_ACTIVE]
 
 
 def _species_row(s):
-    return [s.id, s.common_name, s.latin_name, float(s.density), s.active]
+    return [s.id, s.common_name, s.latin_name, float(s.density),
+            s.minor, s.active]
 
 
 @login_required
@@ -183,6 +185,7 @@ def species_save(request):
         FIELD_COMMON_NAME: body.get(FIELD_COMMON_NAME, '').strip(),
         FIELD_LATIN_NAME: body.get(FIELD_LATIN_NAME, '').strip(),
         FIELD_DENSITY: density,
+        FIELD_MINOR: is_truthy(body.get(FIELD_MINOR)),
         FIELD_ACTIVE: is_truthy(body.get(FIELD_ACTIVE)),
     }
     if not parsed[FIELD_COMMON_NAME]:

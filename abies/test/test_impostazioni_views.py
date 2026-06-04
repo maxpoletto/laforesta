@@ -1,16 +1,18 @@
 """Tests for Impostazioni (settings) views."""
 
 import json
+import re
 
 import pytest
 from django.test import Client
 
 from apps.base.models import Crew, LoginMethod, Role, Species, Tractor, User
+from apps.impostazioni.views import SPECIES_COLS
 from config import strings as S
 from config.constants import (
     COLUMNS, FIELD_ACTIVE, FIELD_COMMON_NAME, FIELD_DENSITY, FIELD_EMAIL,
     FIELD_FIRST_NAME, FIELD_IS_ACTIVE, FIELD_LAST_NAME, FIELD_LATIN_NAME,
-    FIELD_LOGIN_METHOD, FIELD_MANUFACTURER, FIELD_MODEL, FIELD_NAME,
+    FIELD_LOGIN_METHOD, FIELD_MANUFACTURER, FIELD_MINOR, FIELD_MODEL, FIELD_NAME,
     FIELD_NOTES, FIELD_PASSWORD1, FIELD_PASSWORD2, FIELD_ROLE, FIELD_USERNAME,
     FIELD_YEAR, HTML, MESSAGE, RECORD, ROWS, ROW_ID, STATUS, STATUS_CONFLICT,
     STATUS_VALIDATION_ERROR, VERSION,
@@ -256,6 +258,94 @@ class TestSpecies:
         })
         assert resp.status_code == 400
         assert resp.json()[STATUS] == STATUS_VALIDATION_ERROR
+
+    def test_data_exposes_minor(self, writer_client, species):
+        """Each row carries its minor flag under the COL_MINOR column."""
+        resp = writer_client.get('/api/impostazioni/species/data/')
+        data = resp.json()
+        assert S.COL_MINOR in data[COLUMNS]
+        minor_idx = data[COLUMNS].index(S.COL_MINOR)
+        minor_by_id = {row[0]: row[minor_idx] for row in data[ROWS]}
+        for sp in species:
+            assert minor_by_id[sp.id] is sp.minor
+
+    def test_form_includes_minor(self, writer_client, db):
+        resp = writer_client.get('/api/impostazioni/species/form/')
+        assert f'name="{FIELD_MINOR}"' in resp.json()[HTML]
+
+    def test_edit_form_checks_minor(self, writer_client, species):
+        """The edit form reflects the stored flag: the minor checkbox is
+        rendered checked for a minor species, unchecked otherwise."""
+        def minor_checkbox(obj):
+            html = writer_client.get(
+                f'/api/impostazioni/species/form/{obj.id}/').json()[HTML]
+            tag = re.search(
+                rf'<input[^>]*name="{FIELD_MINOR}"[^>]*value="true"[^>]*>', html)
+            assert tag, html
+            return tag.group(0)
+
+        assert 'checked' in minor_checkbox(species[2])      # Acero, minor=True
+        assert 'checked' not in minor_checkbox(species[0])  # Abete, minor=False
+
+    def test_save_persists_minor(self, writer_client, db):
+        resp = _post(writer_client, '/api/impostazioni/species/save/', {
+            FIELD_COMMON_NAME: 'Pioppo', FIELD_LATIN_NAME: '',
+            FIELD_DENSITY: '7.0', FIELD_ACTIVE: 'true', FIELD_MINOR: 'true',
+        })
+        assert resp.status_code == 200, resp.content
+        assert Species.objects.get(common_name='Pioppo').minor is True
+
+    def test_save_create_minor_false(self, writer_client, db):
+        """Unchecked minor stores False — both when the form omits the key
+        and when it sends the hidden field's 'false' (the real submission)."""
+        for name, extra in [('Ontano', {}), ('Frassino', {FIELD_MINOR: 'false'})]:
+            resp = _post(writer_client, '/api/impostazioni/species/save/', {
+                FIELD_COMMON_NAME: name, FIELD_LATIN_NAME: '',
+                FIELD_DENSITY: '7.0', FIELD_ACTIVE: 'true', **extra,
+            })
+            assert resp.status_code == 200, resp.content
+            assert Species.objects.get(common_name=name).minor is False
+
+    def test_save_update_toggles_minor(self, writer_client, species):
+        """Editing a species flips minor both ways through the optimistic
+        save, and the returned record carries minor at the SPECIES_COLS
+        index the in-place table update reads."""
+        minor_idx = SPECIES_COLS.index(S.COL_MINOR)
+
+        acero = species[2]   # starts minor=True
+        resp = _post(writer_client, '/api/impostazioni/species/save/', {
+            ROW_ID: str(acero.id), VERSION: str(acero.version),
+            FIELD_COMMON_NAME: acero.common_name, FIELD_LATIN_NAME: '',
+            FIELD_DENSITY: '9.0', FIELD_ACTIVE: 'true', FIELD_MINOR: 'false',
+        })
+        assert resp.status_code == 200, resp.content
+        acero.refresh_from_db()
+        assert acero.minor is False
+        assert acero.version == 2
+        assert resp.json()[RECORD][minor_idx] is False
+
+        abete = species[0]   # starts minor=False
+        resp = _post(writer_client, '/api/impostazioni/species/save/', {
+            ROW_ID: str(abete.id), VERSION: str(abete.version),
+            FIELD_COMMON_NAME: abete.common_name, FIELD_LATIN_NAME: '',
+            FIELD_DENSITY: '9.0', FIELD_ACTIVE: 'true', FIELD_MINOR: 'true',
+        })
+        assert resp.status_code == 200, resp.content
+        abete.refresh_from_db()
+        assert abete.minor is True
+        assert resp.json()[RECORD][minor_idx] is True
+
+        # A later edit that leaves minor checked preserves it (the form always
+        # resubmits the flag's current state), bumping the version again.
+        resp = _post(writer_client, '/api/impostazioni/species/save/', {
+            ROW_ID: str(abete.id), VERSION: str(abete.version),
+            FIELD_COMMON_NAME: abete.common_name, FIELD_LATIN_NAME: '',
+            FIELD_DENSITY: '8.0', FIELD_ACTIVE: 'true', FIELD_MINOR: 'true',
+        })
+        assert resp.status_code == 200, resp.content
+        abete.refresh_from_db()
+        assert abete.minor is True
+        assert abete.version == 3
 
 
 # ---------------------------------------------------------------------------
