@@ -21,7 +21,7 @@ import {
   FIELD_COMPRESA, FIELD_LAT, FIELD_LON, FIELD_NONCE, FIELD_PARTICELLA,
   FIELD_SAMPLE_GRID_ID, FIELD_SURVEY_ID, ROW_ID, VERSION,
 } from '../../base/js/constants.js';
-import { parcelNames } from '../../base/js/geo.js';
+import { parcelNames, sortFeaturesByArea } from '../../base/js/geo.js';
 import { postJSON, postFormData } from '../../base/js/api.js';
 import {
   fetchForm, fetchModalForm, renderFormHTML, renderModalForm,
@@ -38,7 +38,6 @@ import { cloneTemplate } from '../../base/js/templates.js';
 import { RilevamentiMap } from './rilevamenti-map.js';
 import { GriglieMap } from './griglie-map.js';
 import { GridPlanner } from './grid-planner.js';
-import MapCommon from '../../base/js/map-common.js';
 import { mountUseLocationButton } from '../../base/js/latlng-input.js';
 import { wireVMPreview as wireVMPreviewShared } from '../../base/js/tree-form.js';
 import {
@@ -191,7 +190,7 @@ export async function mount(params) {
     // Sort largest-first so small polygons render — and bind tooltip —
     // on top of their containing larger neighbours.  Mirrors
     // `bosco/b/app.js`'s use of the same helper.
-    parcelsGeo = MapCommon.sortFeaturesByArea(cache.get(TERRENI_ID));
+    parcelsGeo = sortFeaturesByArea(cache.get(TERRENI_ID));
   } catch {
     showError(S.ERROR_NETWORK);
     return;
@@ -344,8 +343,13 @@ function updateGridEmptyState() {
 }
 
 function onSectionOpen(s) {
-  if (s === sections.g && s.map) s.map.invalidateSize();
-  if (s === sections.r && s.map) s.map.invalidateSize();
+  // A map first fitted while its section was collapsed (zero-height host)
+  // clamps to max zoom; re-fit now that the host has a real size.  Skip the
+  // re-fit when the user already has a saved pan/zoom, so we don't clobber it.
+  if (!s.map) return;
+  const hadSavedView = !!s.savedView;
+  s.map.invalidateSize();
+  if (!hadSavedView) s.map.fitParcels();
 }
 
 function activateGrid(gridId) {
@@ -906,10 +910,11 @@ function showAreaPopover(area) {
   for (const [label, val] of [
     [S.COL_COMPRESA, area.compresa], [S.COL_PARCEL, area.particella],
     [S.COL_NUMERO, area.numero],
+    [S.COL_RAGGIO, area.r_m],
     [S.COL_LAT, fmtCoord(area.lat)],
     [S.COL_LON, fmtCoord(area.lon)],
     [S.COL_QUOTA, area.altitude ?? '—'],
-    [S.COL_RAGGIO, area.r_m], [S.COL_NOTE, area.note || ''],
+    [S.COL_NOTE, area.note || ''],
   ]) {
     const row = document.createElement('div');
     const b = document.createElement('strong');

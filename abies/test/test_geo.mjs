@@ -101,5 +101,48 @@ assertEqual(gp.lon, undefined,
 assertEqual([gp.compresa, gp.particella], ['X', '1'],
             'generateGrid: compresa=layer, particella=name after the dash');
 
+// --- geodesicArea / geoJSONFeatureArea / sortFeaturesByArea -----------------
+// Moved here from map-common.js so the geometry layer is self-contained.
+
+// ringToLatLngs: GeoJSON [lng,lat] → Leaflet {lat,lng}.
+assertEqual(geo.ringToLatLngs([[0, 1], [2, 3]]),
+            [{ lat: 1, lng: 0 }, { lat: 3, lng: 2 }],
+            'ringToLatLngs: [lng,lat] → {lat,lng}');
+
+// 1° × 1° square centred on the equator. A degree of latitude is ~111 km, so
+// the area is ~111 km × 111 km ≈ 1.23e10 m². The loose tolerance is deliberate:
+// it still catches a degrees-vs-radians (~3283×) or wrong-radius bug, while the
+// hole/sort tests below pin down the compositional logic exactly.
+const eqSquare = [
+  { lat: -0.5, lng: 0 }, { lat: -0.5, lng: 1 },
+  { lat:  0.5, lng: 1 }, { lat:  0.5, lng: 0 },
+];
+assertClose(geo.geodesicArea(eqSquare), 1.23e10, 2e8,
+            'geodesicArea: 1° square on the equator ≈ 1.23e10 m²');
+
+// geoJSONFeatureArea subtracts holes (relative check — exact by construction).
+const outerRing = [[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]];
+const holeRing  = [[0.25, 0.25], [0.75, 0.25], [0.75, 0.75], [0.25, 0.75], [0.25, 0.25]];
+const outerA = geo.geodesicArea(geo.ringToLatLngs(outerRing));
+const holeA  = geo.geodesicArea(geo.ringToLatLngs(holeRing));
+assertClose(geo.geoJSONFeatureArea({ geometry: { type: 'Polygon',
+              coordinates: [outerRing, holeRing] } }),
+            outerA - holeA, 1, 'geoJSONFeatureArea: exterior minus hole');
+assertClose(geo.geoJSONFeatureArea({ geometry: { type: 'MultiPolygon',
+              coordinates: [[outerRing], [holeRing]] } }),
+            outerA + holeA, 1, 'geoJSONFeatureArea: MultiPolygon sums polygons');
+assertEqual(geo.geoJSONFeatureArea({ geometry: null }), 0,
+            'geoJSONFeatureArea: no geometry → 0');
+
+// sortFeaturesByArea: largest-first, annotating each feature with _areaM2.
+const big   = { properties: {}, geometry: { type: 'Polygon', coordinates: [outerRing] } };
+const small = { properties: {}, geometry: { type: 'Polygon', coordinates: [holeRing] } };
+const sorted = geo.sortFeaturesByArea({ type: 'FeatureCollection', features: [small, big] });
+assertEqual(sorted.features[0] === big, true,
+            'sortFeaturesByArea: largest feature first');
+assertEqual(typeof big.properties._areaM2 === 'number'
+            && big.properties._areaM2 > small.properties._areaM2, true,
+            'sortFeaturesByArea: annotates _areaM2 (descending)');
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed > 0 ? 1 : 0);

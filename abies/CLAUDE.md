@@ -74,6 +74,10 @@ just reference.
   (fonts, colors, tables, charts, maps, modals, form card, button layout,
   field widths, read-only fields).  **Read before building or modifying any
   UI component.**
+- [`docs/ui-maps.md`](docs/ui-maps.md) — map code architecture: the
+  `map-common.js` Leaflet shim, the `ParcelMap` abstraction, opt-in
+  `map-tools.js`, and the subclass-vs-compose patterns.  **Read before
+  building or modifying any map.**
 - [`docs/security.md`](docs/security.md) — permission model, auth flow,
   OAuth configuration, rate limiting, CSP, auditing.  **Read before touching
   auth, user management, or any endpoint that handles credentials.**

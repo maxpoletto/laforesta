@@ -203,6 +203,11 @@ export const STATS_POINTS = 'Punti: {n} (obiettivo: {target})';
 export const STATS_TOTAL_AREA_HA = 'Superficie totale: {ha} ha';
 export const STATS_AREA_PER_POINT_M2 = 'Area singola adc: {area} m²';
 export const TOOLTIP_ADC = 'adc {n} · {compresa} {particella}';
+// Sample-area marker tooltips on the Griglie / Rilevamenti maps.  Flat
+// templates (not concatenated fragments) so word order stays translatable.
+export const TOOLTIP_SAMPLE_AREA = '{compresa} {particella} / adc {numero}';
+export const TOOLTIP_SAMPLE_AREA_VISITED =
+  '{compresa} {particella} / adc {numero} / {alberi} alberi';
 
 // Bosco placeholder page
 export const BOSCO_PLACEHOLDER_MESSAGE =
@@ -258,6 +263,20 @@ export const STATUS_NO_SAMPLES = 'nessun campione';
 export const BASEMAP_OSM  = 'OSM';
 export const BASEMAP_TOPO = 'Topo';
 export const BASEMAP_SAT  = 'Satellite';
+
+// Map control + tool labels (zoom in the MapCommon shim; measure/location/
+// sidebar in map-tools).  Distances localize via format.js — {d} is already a
+// locale-formatted number, so these stay separator-agnostic.
+export const MAP_ZOOM_IN = 'Ingrandisci';
+export const MAP_ZOOM_OUT = 'Rimpicciolisci';
+export const MAP_MEASURE_TITLE = 'Misura distanza';
+export const MAP_LOCATION_TITLE = 'Mostra posizione';
+export const MAP_SIDEBAR_TITLE = 'Mostra/nascondi pannello';
+export const MAP_LOCATION_CURRENT = 'Posizione attuale';
+export const MAP_LOCATION_ACCURACY = 'Precisione: ±{m} m';
+export const MAP_LOCATION_ERROR = 'Impossibile determinare la posizione: {msg}';
+export const MAP_DISTANCE_M = '{d} m';
+export const MAP_DISTANCE_KM = '{d} km';
 
 // ---------------------------------------------------------------------------
 // Piano di taglio (mirrors of config/strings_it.py additions).

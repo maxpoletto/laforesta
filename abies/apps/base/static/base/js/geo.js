@@ -7,9 +7,8 @@
  * point-in-polygon and area math.
  */
 
-import MapCommon from './map-common.js';
-
 const DEG_TO_RAD = Math.PI / 180;
+const EARTH_RADIUS = 6378137.0; // WGS84 semi-major axis in metres
 
 export function metersToDegLat(m) { return m / 111132.92; }
 
@@ -47,13 +46,61 @@ export function pointInPolygon(lng, lat, geometry) {
 }
 
 /**
- * Geodesic area of a GeoJSON Polygon feature, in m².
- * Uses MapCommon.geodesicArea (Leaflet.draw's algorithm).
+ * Geodesic area of a polygon ring expressed as [{lat, lng}, …], in m².
+ * Same algorithm as Leaflet.draw's L.GeometryUtil.geodesicArea.
+ */
+export function geodesicArea(latlngs) {
+  const n = latlngs.length;
+  let area = 0;
+  for (let i = 0; i < n; i++) {
+    const p1 = latlngs[i];
+    const p2 = latlngs[(i + 1) % n];
+    area += (p2.lng - p1.lng) * DEG_TO_RAD *
+            (2 + Math.sin(p1.lat * DEG_TO_RAD) + Math.sin(p2.lat * DEG_TO_RAD));
+  }
+  return Math.abs(area * EARTH_RADIUS * EARTH_RADIUS / 2);
+}
+
+/** Convert a GeoJSON coordinate ring [[lng, lat], …] to [{lat, lng}, …]. */
+export function ringToLatLngs(ring) {
+  return ring.map(c => ({ lat: c[1], lng: c[0] }));
+}
+
+/**
+ * Geodesic area of a GeoJSON Polygon feature's exterior ring, in m².
+ * (Exterior only — for hole-aware area use geoJSONFeatureArea.)
  */
 export function featureArea(feature) {
-  const ring = feature.geometry.coordinates[0];
-  const latlngs = ring.map(c => ({ lat: c[1], lng: c[0] }));
-  return MapCommon.geodesicArea(latlngs);
+  return geodesicArea(ringToLatLngs(feature.geometry.coordinates[0]));
+}
+
+/** Geodesic area of a GeoJSON feature in m² (exterior minus holes). */
+export function geoJSONFeatureArea(feature) {
+  const geom = feature.geometry;
+  if (!geom) return 0;
+  const polygons = geom.type === 'Polygon' ? [geom.coordinates]
+    : geom.type === 'MultiPolygon' ? geom.coordinates : [];
+  let total = 0;
+  for (const rings of polygons) {
+    total += geodesicArea(ringToLatLngs(rings[0]));
+    for (let i = 1; i < rings.length; i++) {
+      total -= geodesicArea(ringToLatLngs(rings[i]));
+    }
+  }
+  return total;
+}
+
+/**
+ * Precompute geodesic area (m²) on each feature and sort largest-first, so
+ * smaller polygons render — and tooltip — on top of the larger ones that
+ * contain them.  Mutates and returns `geojson`.
+ */
+export function sortFeaturesByArea(geojson) {
+  geojson.features.forEach(f => {
+    f.properties._areaM2 = geoJSONFeatureArea(f);
+  });
+  geojson.features.sort((a, b) => b.properties._areaM2 - a.properties._areaM2);
+  return geojson;
 }
 
 /** Bounding box of an array of GeoJSON Polygon features. */

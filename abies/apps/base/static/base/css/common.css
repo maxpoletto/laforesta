@@ -676,6 +676,39 @@ input:focus, select:focus, textarea:focus {
   color: #222;
 }
 
+/* --- Map tool buttons: active (toggled-on) state ------------------------ */
+
+/* The measure (ruler) and location (pin) controls flag themselves with
+   .mc-active; a pastel-yellow fill makes "tool is on" obvious against the white
+   resting button.  Scoped to .mc-control-button so it never touches the basemap
+   switcher's own .mc-active.  The :hover/:focus variants are required: Leaflet
+   greys both states (`.leaflet-bar a:hover,:focus`) at a higher specificity, and
+   a just-clicked button keeps :focus until the next click elsewhere — without
+   the :focus override the fill wouldn't show until you clicked off the button. */
+.mc-control-button.mc-active,
+.mc-control-button.mc-active:hover,
+.mc-control-button.mc-active:focus { background-color: #ffe082; }
+
+/* --- Map measurement distance label (Leaflet divIcon) ------------------- */
+
+/* The measure tool drops this label at the latest clicked point.  A custom
+   divIcon className replaces Leaflet's default box, so the label is styled
+   here; pointer-events:none keeps it from swallowing the next measure click. */
+.mc-measure-label { pointer-events: none; }
+
+.mc-measure-label-content {
+  display: inline-block;
+  white-space: nowrap;
+  transform: translate(8px, -50%);
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid #888;
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #222;
+}
+
 /* --- Responsive ----------------------------------------------------------- */
 
 @media (max-width: 700px) {

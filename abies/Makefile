@@ -85,6 +85,8 @@ test-js:
 	node apps/base/static/base/js/tests.mjs
 	node apps/base/static/base/js/cache.test.mjs
 	node apps/base/static/base/js/prelievi-columns.test.mjs
+	node apps/base/static/base/js/parcel-map.test.mjs
+	node apps/base/static/base/js/map-tools.test.mjs
 
 collectstatic:
 	$(MANAGE) collectstatic --noinput

@@ -8,9 +8,9 @@
  *     instead of exporting a CSV.
  */
 
-import MapCommon from '../../base/js/map-common.js';
+import { ParcelMap } from '../../base/js/parcel-map.js';
 import {
-  featureArea, planGridForTarget,
+  featureArea, planGridForTarget, sortFeaturesByArea,
 } from '../../base/js/geo.js';
 import { fetchJSON, postJSON } from '../../base/js/api.js';
 import { showError } from '../../base/js/modals.js';
@@ -25,9 +25,6 @@ const SAVE_URL = '/api/campionamenti/grid/save-auto/';
 const POINT_STYLE = {
   radius: 5, fillColor: '#ff4444', color: '#000', weight: 1, opacity: 1,
   fillOpacity: 0.8,
-};
-const PARCEL_STYLE = {
-  color: '#3388ff', weight: 1.5, opacity: 0.8, fillOpacity: 0.08,
 };
 
 export class GridPlanner {
@@ -54,8 +51,9 @@ export class GridPlanner {
     this.geojson = opts.geojson || null;
     this.featuresByCompresa = {};   // compresa → [GeoJSON features]
     this.points = [];                // {lat, lon, compresa, particella}
+    this.parcelMap = null;
+    this.mapHost = null;
     this.leaflet = null;
-    this.parcelLayer = null;
     this.pointLayer = null;
     this.statusEl = null;
     this.statsEl = null;
@@ -73,7 +71,9 @@ export class GridPlanner {
     }
     try {
       const { data } = await fetchJSON(TERRENI_URL);
-      this._loadFeatures(data);
+      // The cached page copy is pre-sorted; a fresh fetch is not — sort so the
+      // ParcelMap renders/tooltips smaller parcels on top of larger ones.
+      this._loadFeatures(sortFeaturesByArea(data));
     } catch {
       showError(S.ERROR_NETWORK);
     }
@@ -135,14 +135,11 @@ export class GridPlanner {
     this.statsEl.className = 'grid-planner-stats';
     h.appendChild(this.statsEl);
 
-    // Leaflet map.
-    const mapEl = document.createElement('div');
-    mapEl.id = 'grid-planner-map';
-    mapEl.className = 'grid-planner-map';
-    h.appendChild(mapEl);
-    this.wrapper = MapCommon.create(mapEl, { basemap: this.basemap });
-    this.leaflet = this.wrapper.getLeafletMap();
-    this.pointLayer = L.layerGroup().addTo(this.leaflet);
+    // Map host — the ParcelMap is created in _loadFeatures, once the parcel
+    // geojson is available (ParcelMap renders the parcels and frames the map at
+    // construction time).
+    this.mapHost = document.createElement('div');
+    h.appendChild(this.mapHost);
 
     // Bottom button row: [Annulla] [Crea].  Both are wired here: the planner
     // is built lazily on the auto-path switch, after the modal-level
@@ -212,14 +209,19 @@ export class GridPlanner {
       ));
       this.compreseListEl.appendChild(lab);
     }
-    // Draw parcel polygons (all comprese) for visual context.
-    this.parcelLayer = L.geoJSON(
-      { type: 'FeatureCollection', features: polys },
-      { style: PARCEL_STYLE },
-    ).addTo(this.leaflet);
-    if (this.parcelLayer.getBounds().isValid()) {
-      this.leaflet.fitBounds(this.parcelLayer.getBounds());
-    }
+    // Render parcels + frame the map via the shared ParcelMap abstraction
+    // (shared yellow style, hover labels, fit-to-parcels).  The planner needs
+    // neither the measure nor the location tool, so both stay off.  Points are
+    // drawn on our own layer above ParcelMap's leaflet map.
+    this.parcelMap = new ParcelMap({
+      container: this.mapHost,
+      className: 'grid-planner-map',
+      geojson: { type: 'FeatureCollection', features: polys },
+      basemap: this.basemap,
+      tools: {},
+    });
+    this.leaflet = this.parcelMap.leaflet;
+    this.pointLayer = L.layerGroup().addTo(this.leaflet);
   }
 
   _selectedComprese() {
@@ -337,10 +339,12 @@ export class GridPlanner {
   }
 
   destroy() {
-    if (this.leaflet) {
-      this.leaflet.remove();
-      this.leaflet = null;
+    if (this.parcelMap) {
+      this.parcelMap.destroy();
+      this.parcelMap = null;
     }
+    this.leaflet = null;
+    this.pointLayer = null;
     this.host?.replaceChildren();
     this._built = false;
   }
