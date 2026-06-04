@@ -503,6 +503,20 @@ class TestDeleteView:
         })
         assert HarvestSpecies.objects.count() < sp_count_before
 
+    def test_delete_marks_digest_stale(self, writer_client, harvest_fixtures, sample_op):
+        # parcel_year_production has no live consumer at write time: a harvest
+        # delete only flips its stale flag, so Bosco regenerates it on next
+        # visit. Pre-seed the flags fresh so the assertion proves the delete
+        # set them (sample_op already exists, unlike the create-path test).
+        for name in ('prelievi', 'parcel_year_production', 'harvest_plan_items'):
+            DigestStatus.objects.update_or_create(name=name, defaults={'stale': False})
+        self._post(writer_client, {
+            ROW_ID: str(sample_op.id), VERSION: str(sample_op.version),
+        })
+        assert DigestStatus.objects.get(name='prelievi').stale is True
+        assert DigestStatus.objects.get(name='parcel_year_production').stale is True
+        assert DigestStatus.objects.get(name='harvest_plan_items').stale is True
+
     def test_delete_conflict(self, writer_client, harvest_fixtures, sample_op):
         resp = self._post(writer_client, {
             ROW_ID: str(sample_op.id), VERSION: '999',
