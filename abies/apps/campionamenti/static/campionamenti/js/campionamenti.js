@@ -1106,11 +1106,7 @@ function showEditSurveyModal() {
       fd.append(FIELD_NONCE, crypto.randomUUID());
       const { data, status } = await postFormData(TREE_CSV_IMPORT_URL, fd);
       if (status === 200) {
-        await refreshSurveys();
-        try {
-          await cache.load(SAMPLES_ID);
-          samplesData = cache.get(SAMPLES_ID);
-        } catch {}
+        await refreshAfterTreeImport();
         return { ok: true };
       }
       return data?.errors?.length
@@ -1364,6 +1360,38 @@ async function refreshSurveys() {
     await cache.load(SURVEYS_ID);
     surveysData = cache.get(SURVEYS_ID);
   } catch {}
+}
+
+async function refreshSamples() {
+  try {
+    await cache.load(SAMPLES_ID);
+    samplesData = cache.get(SAMPLES_ID);
+  } catch {}
+}
+
+/**
+ * Re-sync every view affected by a survey CSV import.  The server
+ * (tree_csv_import_view) marks the per-survey trees digest, `samples`,
+ * and `surveys` stale, so reload all three and re-render their views.
+ *
+ * Reloading the trees digest is what refreshes the Section 3 table: the
+ * `cache.onUpdate(currentTreesId)` listener wired in activateSurvey fires
+ * on `cache.load`'s 200 and calls table.setData.  Without this reload the
+ * table keeps its pre-import rows until a full page reload.  Samples and
+ * surveys reloads then feed the Section 2 map's visited-area tooltips and
+ * the survey summary + pulldown counts.
+ */
+async function refreshAfterTreeImport() {
+  const reloads = [refreshSurveys(), refreshSamples()];
+  // A refresh failure must not turn a succeeded import into an error
+  // toast (submitCsvImport treats a throw as failure), so swallow it;
+  // the table keeps its last-known rows until the next refresh.
+  if (currentTreesId) reloads.push(cache.load(currentTreesId).catch(() => {}));
+  await Promise.all(reloads);
+  if (activeSurveyId == null) return;
+  renderRilevamentiSummary(activeSurveyId);
+  renderRilevamentiMap(activeSurveyId);
+  rebuildSurveyPulldown();
 }
 
 /**

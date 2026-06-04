@@ -375,7 +375,7 @@ expands; one is shared with Piano di taglio.
 | Survey save (create) | `surveys`, `grids`, `audit` | `surveys` + `grids` via `applySideEffects` |
 | Survey edit (rename) | `surveys`, `audit` | `surveys` via `record`; pulldown option text updated |
 | Survey delete | `surveys`, `grids`, `audit` | Force-refresh via `cache.load` (cascade) |
-| Survey CSV import (trees) | `sampled_trees_<id>`, `samples`, `surveys`, `audit` | Force-refresh (bulk path) |
+| Survey CSV import (trees) | `sampled_trees_<id>`, `samples`, `surveys`, `audit` | Force-refresh all three via `cache.load` (no records returned); the `sampled_trees_<id>` reload fires the Section 3 table's `onUpdate`; Section 2 summary + map re-rendered; survey pulldown rebuilt |
 | Area save (create/update) | `sample_areas`, `grids`, `surveys`, `audit` | All three via `applySideEffects`; survey pulldown rebuilt; both maps re-rendered if affected |
 | Area delete | `sample_areas`, `grids`, `surveys`, `audit` | Same as area save |
 | Tree save (create/update) | `sampled_trees_<id>`, `samples`, `surveys`, `audit` | All three via `applySideEffects`; Section 2 map re-rendered |
