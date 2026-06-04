@@ -215,11 +215,13 @@ it is ok for `L10_mm` to be 0 (not all trees are cored).
 Optional columns: `Data` (→ `sample.date`), `PAI` (bool, →
 `tree.preserved`).
 
-`V_m3` is computed at import time based on `D_cm`, `H_m`, and species-specific
-Tabacchi parameters (can reuse Python logic in `pdg-2026`).
+`V_m3` is computed at import time from `D_cm`, `H_m`, and the species-specific
+Tabacchi parameters in `apps/base/tabacchi.py` (vendored from `pdg-2026`).
 
-`mass_q` is then computed as `V_m3 × species.density` for fustaia rows; left
-NULL for coppice rows.
+`mass_q` is then `tree_mass_q(V_m3, species.density)` (= `V_m3 × density`, from
+the stored 4-dp `V_m3`) for fustaia rows; left NULL for coppice rows and for
+species outside the Tabacchi table. The interactive form mirrors this in JS
+(`volume.js`) — see the V/m preview note below for the ≤1-ULP caveat.
 
 Flow:
 1. Writer opens the pencil modal on the target survey → "Importa alberi
@@ -251,8 +253,12 @@ h (m), L10 (mm, optional), lat/lng (shared component), PAI checkbox.
 
 For fustaia trees whose species has Tabacchi hypsometric params, a live V/m
 preview (`V = X.XX m³ · m = X.X q`) recomputes as D/h/specie change. V via
-Tabacchi formula in JS; m = V × density from `species.json`. Server stores
-client-provided V/m without recomputing.
+the Tabacchi formula in JS (`volume.js`); m = V × density from `species.json`,
+derived from the **stored** 4-dp V so it equals `round(V × density)`, matching
+the import path. The server stores the client-provided V/m without recomputing,
+so the same tree entered here vs imported from CSV (Python `tabacchi.py`) may
+differ by ≤1 ULP (≤0.0001 m³ / ≤0.001 q): JS rounds in float, Python in Decimal.
+The two are held in parity by `test/test_tabacchi.py`.
 
 The **numero albero pulldown** lists "nuovo albero" (auto-numbered) then
 all previously recorded trees in this area with species and last

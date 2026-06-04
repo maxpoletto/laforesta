@@ -306,8 +306,11 @@ stays editable; operator overrides set `h_measured = true`. If the active set
 has no entry for the (region, species) pair — or no set is active — h is blank
 (required manual entry).
 
-Live V/m preview, same pattern as campionamenti (Tabacchi in JS,
-server stores client-provided values without recomputing).
+Live V/m preview, same pattern as campionamenti: Tabacchi in JS (`volume.js`),
+mass derived from the stored 4-dp volume, server stores the client-provided
+values without recomputing. The same tree entered here vs imported from CSV
+(Python `tabacchi.py`) may differ by ≤1 ULP (≤0.0001 m³ / ≤0.001 q) — JS float
+vs Python Decimal — held in parity by `test/test_tabacchi.py`.
 
 Recording a mark always creates a new `tree` row alongside `tree_mark`.
 

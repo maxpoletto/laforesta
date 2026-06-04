@@ -13,6 +13,13 @@ This function estimates the height of marked trees (in the Abies marked-tree
 data-entry form, or via the Ipso mobile app during timber cruising), which in
 turn feeds the Tabacchi equations to estimate harvest volume and mass.
 
+The estimated `h` is captured at write time: later parameter changes never
+recompute existing rows. The downstream Tabacchi volume/mass has two
+implementations — JS (`volume.js`, the interactive forms) and Python
+(`tabacchi.py`, CSV import) — which agree within 1 ULP (≤0.0001 m³ / ≤0.001 q)
+but cannot match exactly (JS float vs Python Decimal); the bound is locked by
+`test/test_tabacchi.py`.
+
 The parameters a and b are obtained by regression over a set of sampled trees,
 per (region, species) pair. If a (region, species) pair lacks parameters, that
 is fine: heights are then measured or estimated manually.

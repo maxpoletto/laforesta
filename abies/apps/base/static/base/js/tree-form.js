@@ -62,7 +62,11 @@ export function wireVMPreview(form, opts = {}) {
     const density = parseDecimal(opt?.dataset.density);
     const v = tabacchiVolumeM3(dCm, hM, speciesName);
     if (v == null) { clearPreview(); return; }
-    const m = massQ(v, density);
+    // Derive mass from the rounded volume actually stored (4 dp), so a tree
+    // entered here matches the CSV-import path (tabacchi.py + tree_mass_q),
+    // which computes mass from the stored volume. A ≤1-ULP residual remains
+    // (JS float vs Python Decimal); test/test_tabacchi.py locks the bound.
+    const m = massQ(Number(v.toFixed(4)), density);
     preview.hidden = false;
     preview.textContent =
       `V = ${fmtDecimal(v, 3)} m³  ·  m = ${fmtDecimal(m, 2)} q`;
