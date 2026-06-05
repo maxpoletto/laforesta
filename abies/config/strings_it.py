@@ -86,6 +86,13 @@ TABLE_USER = 'Utente'
 TABLE_CREW = 'Squadra'
 TABLE_TRACTOR = 'Trattore'
 TABLE_SPECIES = 'Specie'
+TABLE_HARVEST_PLAN = 'Piano di gestione'
+TABLE_HARVEST_PLAN_ITEM = 'Voce di piano'
+TABLE_SAMPLE_GRID = 'Griglia di campionamento'
+TABLE_SAMPLE_AREA = 'Area di saggio'
+TABLE_SURVEY = 'Rilevamento'
+TABLE_SAMPLE = 'Campione'
+TABLE_HYPSO_PARAM_SET = 'Parametri ipsometrici'
 
 AUDIT_INSERT = 'Inserimento'
 AUDIT_UPDATE = 'Modifica'
@@ -333,6 +340,8 @@ COL_DATE_LAST          = 'Data ultimo'
 COL_NUMBER             = 'Numero'
 COL_LAT                = 'Lat'              # paired with CSV_COL_LAT
 COL_LON                = 'Lon'              # paired with CSV_COL_LON
+COL_ALTITUDE_M         = 'Altitudine (m)'
+COL_RADIUS_M           = 'Raggio (m)'
 COL_SURVEY             = 'Rilevamento'
 COL_SAMPLE_AREA        = 'Area di saggio'
 COL_N_TREES            = 'N. alberi'
@@ -485,6 +494,11 @@ HYPSO_PARAM = 'parametro ipsometrico'
 HYPSO_PARAMS = 'parametri ipsometrici'
 HYPSO_SOURCE_COMPUTED = 'calcolato'
 HYPSO_SOURCE_IMPORTED = 'importato'
+
+# Hypsometric-parameter-set audit field labels.
+COL_HYPSO_SOURCE   = 'Origine'
+COL_MIN_N          = 'N minimo'
+COL_SUPERSEDED_AT  = 'Sostituito il'
 
 # Harvest-plan-item state machine display labels.  Integer values are
 # encoded as HarvestPlanItemState in apps/base/models.py.

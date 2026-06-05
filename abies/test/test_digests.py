@@ -12,8 +12,12 @@ from apps.base.digests import (
     generate_prelievi, generate_parcels, generate_crews,
     generate_parcel_year_production, generate_audit, generate_all,
     mark_stale, regenerate_if_stale, _write_gzip_json,
+    _audit_configs, _tracked_models,
 )
-from apps.base.models import Crew, DigestStatus, Role, User
+from apps.base.models import (
+    Crew, DigestStatus, HarvestPlan, HypsoParamSet, HypsoParamSource, Role,
+    SampleGrid, Survey, Tree, TreeMark, TreeSample, User,
+)
 from apps.prelievi.models import Harvest, HarvestSpecies, HarvestTractor
 from config import strings as S
 from config.constants import (
@@ -248,6 +252,47 @@ class TestGenerateAudit:
         crew_rows = [r for r in data[ROWS] if 'TestCrew' in (r[6] or '')]
         assert len(crew_rows) >= 1
         assert crew_rows[0][2] == 'John Doe'
+
+    def test_covers_all_tracked_models(self, db):
+        """Every history-tracked model is wired into the audit config.
+
+        Locks the contract that broke the Controllo log: a model gains
+        HistoricalRecords() but is never added to _audit_configs(), so its
+        writes are silently absent from the audit.  To stop auditing a
+        model, remove its HistoricalRecords() — don't drop it from here.
+        """
+        configured = {model for model, _, _ in _audit_configs()}
+        assert _tracked_models() == configured
+
+    def test_bulk_tree_models_not_tracked(self, db):
+        """Tree / TreeSample / TreeMark are excluded from history (and thus
+        the audit) so bulk CSV imports don't swamp the log."""
+        tracked = _tracked_models()
+        assert Tree not in tracked
+        assert TreeSample not in tracked
+        assert TreeMark not in tracked
+
+    def test_domain_model_inserts_appear(self, db, settings, tmp_path):
+        """Inserts into formerly-missing domain models surface in the audit."""
+        settings.DIGEST_DIR = tmp_path
+        plan = HarvestPlan.objects.create(
+            name='Piano 2026', year_start=2026, year_end=2030,
+        )
+        grid = SampleGrid.objects.create(name='Griglia A')
+        Survey.objects.create(name='Rilievo 1', sample_grid=grid)
+        HypsoParamSet.objects.create(source=HypsoParamSource.COMPUTED, min_n=5)
+
+        generate_audit()
+        with gzip.open(tmp_path / 'audit.json.gz', 'rt') as f:
+            data = json.load(f)
+
+        tables = {row[3] for row in data[ROWS] if row[4] == S.AUDIT_INSERT}
+        for table in (S.TABLE_HARVEST_PLAN, S.TABLE_SAMPLE_GRID,
+                      S.TABLE_SURVEY, S.TABLE_HYPSO_PARAM_SET):
+            assert table in tables, f'{table} insert missing from audit'
+
+        plan_rows = [r for r in data[ROWS] if r[3] == S.TABLE_HARVEST_PLAN]
+        assert any('Piano 2026' in (r[6] or '') for r in plan_rows)
 
 
 # ---------------------------------------------------------------------------

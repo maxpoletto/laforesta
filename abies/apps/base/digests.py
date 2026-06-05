@@ -387,13 +387,41 @@ def generate_parcel_year_production() -> None:
 _ACTION_MAP = {'+': S.AUDIT_INSERT, '~': S.AUDIT_UPDATE, '-': S.AUDIT_DELETE}
 
 
-def generate_audit() -> None:
-    """Audit log from django-simple-history across all tracked models."""
-    from apps.base.models import Crew, Species, Tractor, User
+def _tracked_models() -> set:
+    """Every model registered with django-simple-history (i.e. auditable).
+
+    Detected structurally — a tracked model exposes a `HistoryManager` on
+    its `history` attribute — so the audit can never silently drift from the
+    set of `HistoricalRecords()` declarations.
+    """
+    from django.apps import apps
+    from simple_history.manager import HistoryManager
+    return {m for m in apps.get_models()
+            if isinstance(getattr(m, 'history', None), HistoryManager)}
+
+
+def _audit_configs() -> list:
+    """`(model, table_label, {field: label})` for every audited model.
+
+    Every model carrying `HistoricalRecords()` MUST appear here so its
+    writes surface in the Controllo log; `generate_audit()` asserts this
+    against `_tracked_models()`, and the contract is locked by
+    `test_audit_covers_all_tracked_models`.  To stop auditing a model,
+    remove its `HistoricalRecords()` (as done for Tree/TreeSample/TreeMark,
+    whose bulk CSV imports would swamp the log) — do not just drop it here.
+
+    Field maps are selective: only domain-meaningful fields are shown.  FK
+    and choice fields render as raw ids/codes, consistent with the original
+    design.
+    """
+    from apps.base.models import (
+        Crew, HarvestPlan, HarvestPlanItem, HypsoParamSet, Sample,
+        SampleArea, SampleGrid, Species, Survey, Tractor, User,
+    )
     from apps.prelievi.models import Harvest
 
-    configs = [
-        (Harvest.history, S.TABLE_HARVEST, {
+    return [
+        (Harvest, S.TABLE_HARVEST, {
             'date': S.COL_DATE, 'parcel_id': S.COL_PARCEL,
             'crew_id': S.COL_CREW, 'product_id': S.COL_PRODUCT,
             'mass_q': S.COL_QUINTALS, FIELD_VOLUME_M3: S.COL_VOLUME_M3,
@@ -403,31 +431,82 @@ def generate_audit() -> None:
             'psr': S.FLAG_PSR, 'note': S.COL_EXTRA_NOTE,
             'harvest_plan_item_id': S.COL_HARVEST_PLAN,
         }),
-        (User.history, S.TABLE_USER, {
+        (User, S.TABLE_USER, {
             'username': S.LABEL_USERNAME, 'role': S.LABEL_ROLE,
             'is_active': S.COL_ACTIVE,
         }),
-        (Crew.history, S.TABLE_CREW, {
+        (Crew, S.TABLE_CREW, {
             'name': S.LABEL_NAME, 'notes': S.LABEL_NOTES,
             'active': S.COL_ACTIVE,
         }),
-        (Tractor.history, S.TABLE_TRACTOR, {
+        (Tractor, S.TABLE_TRACTOR, {
             'manufacturer': S.LABEL_MANUFACTURER,
             'model': S.LABEL_MODEL, 'year': S.COL_YEAR,
             'active': S.COL_ACTIVE,
         }),
-        (Species.history, S.TABLE_SPECIES, {
+        (Species, S.TABLE_SPECIES, {
             'common_name': S.LABEL_NAME,
             'latin_name': S.COL_LATIN_NAME,
             'density': S.LABEL_DENSITY,
             'active': S.COL_ACTIVE,
         }),
+        (HarvestPlan, S.TABLE_HARVEST_PLAN, {
+            'name': S.LABEL_NAME, 'year_start': S.COL_YEAR_START,
+            'year_end': S.COL_YEAR_END, 'description': S.COL_DESCRIPTION,
+        }),
+        (HarvestPlanItem, S.TABLE_HARVEST_PLAN_ITEM, {
+            'harvest_plan_id': S.COL_HARVEST_PLAN,
+            'region_id': S.COL_COMPRESA, 'parcel_id': S.COL_PARCEL,
+            'state': S.COL_STATE, 'year_planned': S.COL_YEAR_PLANNED,
+            'volume_planned_m3': S.COL_VOLUME_PLANNED,
+            'volume_marked_m3': S.COL_VOLUME_MARKED,
+            'volume_actual_m3': S.COL_VOLUME_ACTUAL,
+            'intervention_area_ha': S.COL_INTERVENTION_AREA_HA,
+            'damaged': S.FLAG_DAMAGED, 'unhealthy': S.FLAG_UNHEALTHY,
+            'psr': S.FLAG_PSR, 'note': S.COL_NOTE,
+        }),
+        (SampleGrid, S.TABLE_SAMPLE_GRID, {
+            'name': S.LABEL_NAME, 'description': S.COL_DESCRIPTION,
+        }),
+        (SampleArea, S.TABLE_SAMPLE_AREA, {
+            'sample_grid_id': S.COL_GRID, 'number': S.COL_NUMBER,
+            'parcel_id': S.COL_PARCEL, 'lat': S.COL_LAT, 'lon': S.COL_LON,
+            'altitude_m': S.COL_ALTITUDE_M, 'r_m': S.COL_RADIUS_M,
+            'note': S.COL_NOTE,
+        }),
+        (Survey, S.TABLE_SURVEY, {
+            'name': S.LABEL_NAME, 'sample_grid_id': S.COL_GRID,
+            'description': S.COL_DESCRIPTION,
+        }),
+        (Sample, S.TABLE_SAMPLE, {
+            'sample_area_id': S.COL_SAMPLE_AREA, 'survey_id': S.COL_SURVEY,
+            'date': S.COL_DATE,
+        }),
+        (HypsoParamSet, S.TABLE_HYPSO_PARAM_SET, {
+            'source': S.COL_HYPSO_SOURCE, 'min_n': S.COL_MIN_N,
+            'superseded_at': S.COL_SUPERSEDED_AT,
+        }),
     ]
+
+
+def generate_audit() -> None:
+    """Audit log from django-simple-history across all tracked models."""
+    configs = _audit_configs()
+
+    missing = _tracked_models() - {model for model, _, _ in configs}
+    if missing:
+        names = ', '.join(sorted(m.__name__ for m in missing))
+        raise RuntimeError(
+            f'History-tracked models absent from the audit config: {names}. '
+            f'Add them to _audit_configs(), or remove their '
+            f'HistoricalRecords() if they should not be audited.'
+        )
 
     rows = []
     row_id = 0
-    for manager, table_label, field_labels in configs:
-        row_id = _audit_rows(manager, table_label, field_labels, rows, row_id)
+    for model, table_label, field_labels in configs:
+        row_id = _audit_rows(model.history, table_label, field_labels,
+                             rows, row_id)
 
     rows.sort(key=lambda r: r[1], reverse=True)
 

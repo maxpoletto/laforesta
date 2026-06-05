@@ -5,6 +5,10 @@ in the individual page docs (`docs/page-*.md`).  All tables have implicit
 `version` (int), `created_at`, and `modified_at` columns that we omit below
 for clarity.
 
+Mutable domain tables are tracked by django-simple-history and surface in
+the Controllo audit log; `docs/page-controllo.md` lists which tables are
+audited and the contract that keeps that coverage complete.
+
 ## App metadata
 
 - user: extends AbstractUser with (role:string, login_method:string)
@@ -369,7 +373,6 @@ documented in [`hypsometry.md`](hypsometry.md).
     (compute / import / clear each close the current set before opening the
     next, in one transaction). Superseded sets are retained, forming a
     "which parameters were live when" log.
-  - Tracked by django-simple-history.
 
 - hypso_param: (id:int, param_set_id:int, region_id:int, species_id:int,
   func:string, a:real, b:real, r2:real, n:int) — UNIQUE(param_set_id,

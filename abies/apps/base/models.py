@@ -499,7 +499,9 @@ class Tree(TimestampedModel):
     parcel = models.ForeignKey(Parcel, on_delete=models.PROTECT)
     preserved = models.BooleanField(default=False)
     coppice = models.BooleanField(default=False)
-    history = HistoricalRecords()
+    # Deliberately NOT history-tracked: tree rows are written in bulk by CSV
+    # imports (sampled trees, PAI) and would swamp the Controllo audit log
+    # with tens of thousands of entries.  Excluded from the audit by design.
 
     class Meta:
         verbose_name = S.TREE
@@ -534,7 +536,9 @@ class TreeMark(TimestampedModel):
     # `docs/page-piano-di-taglio.md` "Importa CSV martellate").  Null
     # for manually entered rows.
     import_fingerprint = models.CharField(max_length=64, null=True, blank=True)
-    history = HistoricalRecords()
+    # Deliberately NOT history-tracked: marks are written in bulk by CSV
+    # import and would swamp the Controllo audit log.  The parent
+    # HarvestPlanItem (state/volume changes) is audited instead.
 
     class Meta:
         verbose_name = S.TREE_MARK
@@ -565,7 +569,9 @@ class TreeSample(TimestampedModel):
         max_digits=8, decimal_places=3, null=True, blank=True,
         help_text='volume_m3 × species.density; NULL for coppice rows.',
     )
-    history = HistoricalRecords()
+    # Deliberately NOT history-tracked: measurements are written in bulk by
+    # CSV import (one per sampled tree) and would swamp the Controllo audit
+    # log.  Excluded from the audit by design.
 
     class Meta:
         verbose_name = S.TREE_SAMPLE
