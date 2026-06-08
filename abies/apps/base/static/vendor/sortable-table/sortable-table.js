@@ -136,7 +136,7 @@ class SortableTable {
                     data-index="${index}"
                     data-type="${col.type || 'string'}"
                     ${col.width ? `style="width: ${col.width}"` : ''}>
-                    ${col.label}
+                    ${escapeHTML(col.label)}
                     ${sortable ? `<span class="sort-indicator">↕</span>` : ''}
                 </th>
             `;
@@ -148,7 +148,7 @@ class SortableTable {
             return `
                 <tr>
                     <td colspan="${this.columns.filter(col => !col.hidden).length}" class="${this.cssPrefix}-empty">
-                        ${this.emptyMessage}
+                        ${escapeHTML(this.emptyMessage)}
                     </td>
                 </tr>
             `;
@@ -166,13 +166,16 @@ class SortableTable {
                         if (col.hidden) return '';
                         const value = row[colIndex] ?? '';
                         const formatted = this.formatCellValue(value, col);
+                        const cellValue = col.trustedHTML === true
+                            ? String(formatted ?? '')
+                            : escapeHTML(formatted);
                         const classes = [
                             `${this.cssPrefix}-cell`,
                             (col.type === 'number' || col.type === 'date') ? 'numeric' : '',
                             col.cellClassName || ''
                         ].filter(Boolean).join(' ');
 
-                        return `<td class="${classes}" data-column="${col.key}">${formatted}</td>`;
+                        return `<td class="${escapeAttribute(classes)}" data-column="${escapeAttribute(col.key)}">${cellValue}</td>`;
                     }).join('')}
                 </tr>
             `;
@@ -513,6 +516,20 @@ class SortableTable {
         this.container.classList.remove(this.cssPrefix + '-container');
         this.data = this.originalData = this.columns = this.currentFilter = null;
     }
+}
+
+function escapeHTML(value) {
+    return String(value ?? '').replace(/[&<>"']/g, (ch) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+    })[ch]);
+}
+
+function escapeAttribute(value) {
+    return escapeHTML(value);
 }
 
 // Export for use in other files

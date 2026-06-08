@@ -338,6 +338,7 @@ function buildSTColumns(digestColumns, columnDefs, actions, labels) {
       key: '_actions', label: '', sortable: false,
       width: '65px', className: 'col-actions',
       formatter: () => html,
+      trustedHTML: true,
     });
   }
 

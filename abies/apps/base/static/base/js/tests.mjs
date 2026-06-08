@@ -12,6 +12,7 @@
  * makeNumberParser(locale).
  */
 
+import { createRequire } from 'module';
 import {
   makeNumberParser, parseDecimal, fmtDecimal, fmtCoord,
 } from './format.js';
@@ -19,6 +20,8 @@ import { matchesSearch } from './table.js';
 
 let pass = 0;
 const failures = [];
+const require = createRequire(import.meta.url);
+const SortableTable = require('../../vendor/sortable-table/sortable-table.js');
 
 function check(ok, msg) {
   if (ok) pass++; else failures.push(msg);
@@ -88,6 +91,32 @@ check(matchesSearch(searchRow, ['abete'], searchCols), 'search matches a text te
 check(!matchesSearch(searchRow, ['999'], searchCols), 'hidden column excluded from search');
 check(matchesSearch(searchRow, ['3,14', 'abete'], searchCols), 'ordered multi-term match');
 check(matchesSearch(searchRow, ['3.14'], null), 'no columns → raw fallback match');
+
+// --- SortableTable: HTML escaping is default, trustedHTML is opt-in ---------
+const fakeContainer = {
+  innerHTML: '',
+  classList: { contains: () => false, add() {}, remove() {} },
+  querySelectorAll: () => [],
+  querySelector: () => null,
+};
+new SortableTable({
+  container: fakeContainer,
+  data: [['<img src=x onerror=alert(1)>', '<strong>ok</strong>']],
+  columns: [
+    { key: 'unsafe', label: 'Unsafe <em>label</em>' },
+    { key: 'trusted', label: 'Trusted', formatter: v => v, trustedHTML: true },
+  ],
+  showPagination: false,
+  allowSorting: false,
+});
+check(fakeContainer.innerHTML.includes('&lt;img src=x onerror=alert(1)&gt;'),
+      'sortable-table escapes untrusted cell HTML');
+check(!fakeContainer.innerHTML.includes('<img'),
+      'sortable-table does not emit untrusted HTML elements');
+check(fakeContainer.innerHTML.includes('Unsafe &lt;em&gt;label&lt;/em&gt;'),
+      'sortable-table escapes header labels');
+check(fakeContainer.innerHTML.includes('<strong>ok</strong>'),
+      'sortable-table trustedHTML column renders markup');
 
 // --- Report -----------------------------------------------------------------
 console.log(`${pass} passed, ${failures.length} failed`);
