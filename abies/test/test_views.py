@@ -54,6 +54,18 @@ class TestLoginPage:
         assert resp.status_code == 302
         assert resp.url == '/impostazioni'
 
+    @pytest.mark.parametrize('next_url', [
+        'https://evil.example/phish',
+        '//evil.example/phish',
+    ])
+    def test_post_rejects_external_next(self, client, admin_user, next_url):
+        resp = client.post('/login/', {
+            FIELD_USERNAME: 'testadmin', FIELD_PASSWORD: 'testpass123!',
+            'next': next_url,
+        })
+        assert resp.status_code == 302
+        assert resp.url == '/prelievi'
+
     def test_authenticated_user_redirected_to_shell(self, logged_in_client):
         resp = logged_in_client.get('/login/')
         assert resp.status_code == 302

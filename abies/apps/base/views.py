@@ -11,7 +11,9 @@ from django.http import FileResponse, Http404, HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 from django.utils.cache import patch_cache_control
 from django.utils.decorators import method_decorator
-from django.utils.http import http_date, parse_http_date_safe
+from django.utils.http import (
+    http_date, parse_http_date_safe, url_has_allowed_host_and_scheme,
+)
 from django.views import View
 
 from config import strings as S
@@ -46,6 +48,10 @@ class LoginView(View):
         if user is not None:
             login(request, user)
             next_url = request.POST.get('next') or settings.LOGIN_REDIRECT_URL
+            if not url_has_allowed_host_and_scheme(
+                    next_url, allowed_hosts={request.get_host()},
+                    require_https=request.is_secure()):
+                next_url = settings.LOGIN_REDIRECT_URL
             return redirect(next_url)
         return render(request, 'base/login.html', {
             'error_message': S.ERR_LOGIN_INVALID,
