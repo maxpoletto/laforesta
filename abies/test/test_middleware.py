@@ -1,10 +1,12 @@
 """Tests for middleware: CSP, nonce dedup, rate limiting."""
 
 import json
+from datetime import timedelta
 
 import pytest
 from django.contrib.auth.models import AnonymousUser
 from django.http import HttpResponse, JsonResponse
+from django.utils import timezone
 from django.test import Client, RequestFactory
 
 from apps.base.middleware import (
@@ -59,6 +61,7 @@ class TestNonceMiddleware:
             data=json.dumps({FIELD_NONCE: 'nonce-aaa', FIELD_DATE: '2024-01-01'}),
             content_type='application/json',
         )
+        request.user = admin_user
         resp = NonceMiddleware(json_ok_response)(request)
         assert json.loads(resp.content) == cached
 
@@ -68,6 +71,19 @@ class TestNonceMiddleware:
             data=json.dumps({FIELD_NONCE: 'nonce-bbb'}),
             content_type='application/json',
         )
+        resp = NonceMiddleware(json_ok_response)(request)
+        assert json.loads(resp.content) == {'result': 'ok'}
+
+    def test_replay_is_scoped_to_user(self, admin_user, writer_user):
+        cached = {DATA_ID: 'prelievi', ROW_ID: 42, RECORD: [42, '2024-01-01']}
+        save_nonce('nonce-scoped', admin_user, cached)
+
+        request = RequestFactory().post(
+            '/api/prelievi/save/',
+            data=json.dumps({FIELD_NONCE: 'nonce-scoped'}),
+            content_type='application/json',
+        )
+        request.user = writer_user
         resp = NonceMiddleware(json_ok_response)(request)
         assert json.loads(resp.content) == {'result': 'ok'}
 
@@ -107,6 +123,23 @@ class TestNonceMiddleware:
         used = UsedNonce.objects.get(nonce='nonce-ddd')
         assert json.loads(used.response_json) == {ROW_ID: 1}
         assert used.user == admin_user
+
+    def test_save_nonce_prunes_old_records(self, admin_user):
+        old = UsedNonce.objects.create(
+            nonce='nonce-old', user=admin_user, response_json='{}',
+        )
+        UsedNonce.objects.filter(pk=old.pk).update(
+            created_at=timezone.now() - timedelta(hours=25),
+        )
+        recent = UsedNonce.objects.create(
+            nonce='nonce-recent', user=admin_user, response_json='{}',
+        )
+
+        save_nonce('nonce-new', admin_user, {ROW_ID: 1})
+
+        assert not UsedNonce.objects.filter(pk=old.pk).exists()
+        assert UsedNonce.objects.filter(pk=recent.pk).exists()
+        assert UsedNonce.objects.filter(nonce='nonce-new').exists()
 
 
 # -- Rate limiting ---------------------------------------------------------

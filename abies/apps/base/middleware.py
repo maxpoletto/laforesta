@@ -2,9 +2,11 @@
 
 import json
 import time
+from datetime import timedelta
 from collections import defaultdict
 
 from django.http import JsonResponse
+from django.utils import timezone
 
 from apps.base.models import UsedNonce
 from config import strings as S
@@ -58,6 +60,9 @@ class CSPMiddleware:
 # Idempotency nonce
 # ---------------------------------------------------------------------------
 
+NONCE_TTL = timedelta(hours=24)
+
+
 class NonceMiddleware:
     """Return cached response for replayed idempotency nonces.
 
@@ -82,8 +87,12 @@ class NonceMiddleware:
         if not nonce:
             return self.get_response(request)
 
+        user = getattr(request, 'user', None)
+        if user is None or not user.is_authenticated:
+            return self.get_response(request)
+
         try:
-            used = UsedNonce.objects.get(nonce=nonce)
+            used = UsedNonce.objects.get(nonce=nonce, user=user)
             return JsonResponse(json.loads(used.response_json))
         except UsedNonce.DoesNotExist:
             return self.get_response(request)
@@ -91,6 +100,7 @@ class NonceMiddleware:
 
 def save_nonce(nonce, user, response_data):
     """Record a used nonce with its success response for idempotency replay."""
+    UsedNonce.objects.filter(created_at__lt=timezone.now() - NONCE_TTL).delete()
     UsedNonce.objects.create(
         nonce=nonce,
         user=user,

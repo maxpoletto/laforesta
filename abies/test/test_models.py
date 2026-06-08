@@ -3,7 +3,7 @@
 import pytest
 from decimal import Decimal
 
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 
 from apps.base.models import (
     Crew, Eclass, HarvestDetail, HarvestPlan, Product, Parcel,
@@ -202,10 +202,14 @@ class TestDigestStatus:
 # ---------------------------------------------------------------------------
 
 class TestUsedNonce:
-    def test_nonce_unique(self, admin_user):
+    def test_nonce_unique_per_user(self, admin_user, writer_user):
         UsedNonce.objects.create(nonce='abc', user=admin_user, response_json='{}')
+        UsedNonce.objects.create(nonce='abc', user=writer_user, response_json='{}')
         with pytest.raises(IntegrityError):
-            UsedNonce.objects.create(nonce='abc', user=admin_user, response_json='{}')
+            with transaction.atomic():
+                UsedNonce.objects.create(
+                    nonce='abc', user=admin_user, response_json='{}',
+                )
 
 
 # ---------------------------------------------------------------------------

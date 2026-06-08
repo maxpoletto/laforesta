@@ -665,11 +665,16 @@ class DigestStatus(models.Model):
 
 class UsedNonce(models.Model):
     """Prevents duplicate form submissions."""
-    nonce = models.CharField(max_length=64, unique=True)
+    nonce = models.CharField(max_length=64)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     response_json = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['nonce', 'user'], name='uniq_used_nonce_user',
+            ),
+        ]
         verbose_name = S.USED_NONCE
         verbose_name_plural = S.USED_NONCES

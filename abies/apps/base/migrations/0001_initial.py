@@ -1361,7 +1361,7 @@ class Migration(migrations.Migration):
                         verbose_name="ID",
                     ),
                 ),
-                ("nonce", models.CharField(max_length=64, unique=True)),
+                ("nonce", models.CharField(max_length=64)),
                 ("response_json", models.TextField()),
                 ("created_at", models.DateTimeField(auto_now_add=True)),
                 (
@@ -1376,6 +1376,12 @@ class Migration(migrations.Migration):
                 "verbose_name": "nonce utilizzato",
                 "verbose_name_plural": "nonce utilizzati",
             },
+        ),
+        migrations.AddConstraint(
+            model_name="usednonce",
+            constraint=models.UniqueConstraint(
+                fields=("nonce", "user"), name="uniq_used_nonce_user",
+            ),
         ),
         migrations.CreateModel(
             name="HarvestTransition",
