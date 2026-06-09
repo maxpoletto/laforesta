@@ -8,6 +8,7 @@ from django.http import JsonResponse
 
 from apps.base.models import Role
 from config import strings as S
+from config.constants import MESSAGE
 
 
 class NoSignupAdapter(DefaultAccountAdapter):
@@ -50,7 +51,7 @@ def require_writer(view):
     @wraps(view)
     def wrapper(request, *args, **kwargs):
         if not request.user.can_modify:
-            return JsonResponse({'message': S.ERR_FORBIDDEN}, status=403)
+            return JsonResponse({MESSAGE: S.ERR_FORBIDDEN}, status=403)
         return view(request, *args, **kwargs)
     return wrapper
 
@@ -60,6 +61,6 @@ def require_admin(view):
     @wraps(view)
     def wrapper(request, *args, **kwargs):
         if request.user.role != Role.ADMIN:
-            return JsonResponse({'message': S.ERR_FORBIDDEN}, status=403)
+            return JsonResponse({MESSAGE: S.ERR_FORBIDDEN}, status=403)
         return view(request, *args, **kwargs)
     return wrapper

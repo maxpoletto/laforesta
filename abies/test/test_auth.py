@@ -1,18 +1,63 @@
 """Tests for auth adapter."""
 
+import json
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 
-from apps.base.auth import NoSignupAdapter, WhitelistSocialAdapter
-from apps.base.models import LoginMethod, User
+from apps.base.auth import (
+    NoSignupAdapter, WhitelistSocialAdapter, require_admin, require_writer,
+)
+from apps.base.models import LoginMethod, Role, User
+from config import strings as S
+from config.constants import MESSAGE
 
 
 class TestNoSignupAdapter:
     def test_signup_disabled(self, db):
         adapter = NoSignupAdapter()
         assert adapter.is_open_for_signup(request=None) is False
+
+
+def _ok_view(_request):
+    return SimpleNamespace(status_code=200)
+
+
+def _json_body(response):
+    return json.loads(response.content.decode())
+
+
+class TestRoleDecorators:
+    def test_require_writer_rejects_reader(self):
+        request = SimpleNamespace(user=SimpleNamespace(can_modify=False))
+
+        response = require_writer(_ok_view)(request)
+
+        assert response.status_code == 403
+        assert _json_body(response) == {MESSAGE: S.ERR_FORBIDDEN}
+
+    def test_require_writer_allows_writer(self):
+        request = SimpleNamespace(user=SimpleNamespace(can_modify=True))
+
+        response = require_writer(_ok_view)(request)
+
+        assert response.status_code == 200
+
+    def test_require_admin_rejects_non_admin(self):
+        request = SimpleNamespace(user=SimpleNamespace(role=Role.WRITER))
+
+        response = require_admin(_ok_view)(request)
+
+        assert response.status_code == 403
+        assert _json_body(response) == {MESSAGE: S.ERR_FORBIDDEN}
+
+    def test_require_admin_allows_admin(self):
+        request = SimpleNamespace(user=SimpleNamespace(role=Role.ADMIN))
+
+        response = require_admin(_ok_view)(request)
+
+        assert response.status_code == 200
 
 
 def _sociallogin(email, *, is_existing=False):
