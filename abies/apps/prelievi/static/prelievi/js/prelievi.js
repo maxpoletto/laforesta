@@ -222,13 +222,19 @@ function applyParams(params) {
 
   if (applyTableState(table, p.table, DEFAULT_TABLE_SORT)) _updateCharts();
 
-  // Year slider.
-  if (slider && (p.y1 != null || p.y2 != null)) {
+  // Year slider: bare URL means the full available range, not "keep the
+  // previous in-memory range" when navigating back/forward.
+  if (slider) {
     const data = cache.get(DATA_ID);
     if (data) {
       const years = extractYears(data.rows);
-      slider.setValues(p.y1 ?? years[0], p.y2 ?? years[years.length - 1]);
-      if (table) table.setExternalFilter(yearFilter());
+      const target = [p.y1 ?? years[0], p.y2 ?? years[years.length - 1]];
+      const current = slider.getRange();
+      if (current[0] !== target[0] || current[1] !== target[1]) {
+        slider.setValues(target[0], target[1]);
+        if (table) table.setExternalFilter(yearFilter());
+        _updateCharts();
+      }
     }
   }
 

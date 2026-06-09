@@ -85,6 +85,8 @@ test-js:
 	node test/test_ui_widgets_modals.mjs
 	node apps/base/static/base/js/tests.mjs
 	node apps/base/static/base/js/cache.test.mjs
+	node apps/base/static/base/js/page-sync.test.mjs
+	node apps/prelievi/static/prelievi/js/prelievi.test.mjs
 	node apps/base/static/base/js/prelievi-columns.test.mjs
 	node apps/base/static/base/js/parcel-map.test.mjs
 	node apps/base/static/base/js/map-tools.test.mjs
