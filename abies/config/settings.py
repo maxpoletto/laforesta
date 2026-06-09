@@ -12,11 +12,27 @@ DATA_DIR = BASE_DIR / 'data'
 DIGEST_DIR = DATA_DIR / 'digests'
 GEO_DIR = DATA_DIR / 'geo'
 
-SECRET_KEY = os.environ.get(
-    'DJANGO_SECRET_KEY', 'django-insecure-change-me-before-deployment',
-)
+_DEFAULT_SECRET_KEY = 'django-insecure-change-me-before-deployment'
 
-DEBUG = os.environ.get('DJANGO_DEBUG', '1') == '1'
+
+def _env_bool(name, *, default=False):
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {'1', 'true', 'yes', 'on'}
+
+
+DEBUG = _env_bool('DJANGO_DEBUG', default=False)
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', '').strip()
+
+if DEBUG and not SECRET_KEY:
+    SECRET_KEY = _DEFAULT_SECRET_KEY
+elif not SECRET_KEY:
+    raise RuntimeError('DJANGO_SECRET_KEY must be set when DEBUG=0')
+elif SECRET_KEY == _DEFAULT_SECRET_KEY:
+    raise RuntimeError(
+        'DJANGO_SECRET_KEY must not use the development default when DEBUG=0',
+    )
 
 # Comma-separated host list via env; '*' is only acceptable in dev.
 _hosts = os.environ.get('DJANGO_ALLOWED_HOSTS', '').strip()

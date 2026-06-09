@@ -1,6 +1,8 @@
 PYTHON = python3
-MANAGE = $(PYTHON) manage.py
 DATA_DIR ?= ../abies-data
+DJANGO_DEBUG ?= 1
+DJANGO_SECRET_KEY ?= django-insecure-local-dev
+MANAGE = env DJANGO_DEBUG="$(DJANGO_DEBUG)" DJANGO_SECRET_KEY="$(DJANGO_SECRET_KEY)" $(PYTHON) manage.py
 
 # Active language.  Parallel to `from config.strings_it import *` in
 # config/strings.py and `export * from './strings_it.js'` in strings.js:
@@ -56,7 +58,7 @@ dev: migrate import geo digest admin link-templates
 dev-nodata: migrate import-base geo digest admin link-templates
 
 serve:
-	$(PYTHON) manage.py runserver > /dev/null 2>&1 &
+	$(MANAGE) runserver > /dev/null 2>&1 &
 
 clean:
 	rm -rf data/
@@ -74,7 +76,7 @@ reset-schema: clean
 	find apps/*/migrations -name '0001_initial.py' -delete
 
 test: test-js
-	$(PYTHON) -m pytest --cov --cov-report=term-missing -q
+	env DJANGO_DEBUG="$(DJANGO_DEBUG)" DJANGO_SECRET_KEY="$(DJANGO_SECRET_KEY)" $(PYTHON) -m pytest --cov --cov-report=term-missing -q
 
 # Pure-JS tests for shared client-side modules (e.g. geo.js).
 test-js:
