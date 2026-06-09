@@ -3,6 +3,7 @@
 import pytest
 from django.test import Client
 
+from apps.base.models import LoginMethod, User
 from config import strings as S
 from config.constants import (
     FIELD_PASSWORD, FIELD_USERNAME,
@@ -43,6 +44,22 @@ class TestLoginPage:
         resp = client.post('/login/', {
             FIELD_USERNAME: 'testadmin', FIELD_PASSWORD: 'wrong',
         })
+        assert resp.status_code == 400
+        assert 'non validi' in resp.content.decode()
+
+    def test_oauth_method_user_cannot_use_password_login(self, client):
+        User.objects.create_user(
+            username='oauthuser@example.com',
+            email='oauthuser@example.com',
+            password='oauthpass123!',
+            login_method=LoginMethod.OAUTH,
+        )
+
+        resp = client.post('/login/', {
+            FIELD_USERNAME: 'oauthuser@example.com',
+            FIELD_PASSWORD: 'oauthpass123!',
+        })
+
         assert resp.status_code == 400
         assert 'non validi' in resp.content.decode()
 

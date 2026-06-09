@@ -82,6 +82,27 @@ class TestPasswordView:
         })
         assert resp.status_code == 302
 
+    def test_oauth_user_cannot_change_local_password(self, db):
+        user = User.objects.create_user(
+            username='oauthuser@example.com',
+            email='oauthuser@example.com',
+            password='oldpass123!',
+            login_method=LoginMethod.OAUTH,
+            role=Role.WRITER,
+        )
+        client = Client()
+        client.force_login(user)
+
+        resp = _post(client, self.URL, {
+            FIELD_PASSWORD1: 'newsecure99!', FIELD_PASSWORD2: 'newsecure99!',
+        })
+
+        assert resp.status_code == 400
+        assert resp.json()[MESSAGE] == S.ERR_FORBIDDEN
+        user.refresh_from_db()
+        assert user.check_password('oldpass123!')
+        assert not user.check_password('newsecure99!')
+
 
 # ---------------------------------------------------------------------------
 # Crews
@@ -448,6 +469,26 @@ class TestUsers:
         assert resp.status_code == 200
         writer_user.refresh_from_db()
         assert writer_user.check_password('brandnew99!')
+
+    def test_update_to_oauth_clears_usable_password(
+        self, admin_client, writer_user,
+    ):
+        assert writer_user.has_usable_password()
+
+        resp = _post(admin_client, '/api/impostazioni/users/save/', {
+            ROW_ID: str(writer_user.id),
+            FIELD_USERNAME: writer_user.username, FIELD_FIRST_NAME: '', FIELD_LAST_NAME: '',
+            FIELD_EMAIL: 'writer-oauth@example.com',
+            FIELD_LOGIN_METHOD: LoginMethod.OAUTH,
+            FIELD_PASSWORD1: 'brandnew99!', FIELD_PASSWORD2: 'brandnew99!',
+            FIELD_ROLE: Role.WRITER, FIELD_IS_ACTIVE: 'true',
+        })
+
+        assert resp.status_code == 200
+        writer_user.refresh_from_db()
+        assert writer_user.login_method == LoginMethod.OAUTH
+        assert writer_user.username == 'writer-oauth@example.com'
+        assert not writer_user.has_usable_password()
 
     def test_username_required(self, admin_client):
         resp = _post(admin_client, '/api/impostazioni/users/save/', {

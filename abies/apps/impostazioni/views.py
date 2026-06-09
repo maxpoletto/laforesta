@@ -46,6 +46,8 @@ from config.constants import (
 @require_POST
 def password_view(request):
     body = json.loads(request.body)
+    if request.user.login_method != LoginMethod.PASSWORD:
+        return _error(S.ERR_FORBIDDEN)
     pw1 = body.get(FIELD_PASSWORD1, '')
     pw2 = body.get(FIELD_PASSWORD2, '')
     if not pw1:
@@ -280,7 +282,9 @@ def users_save(request):
         user.role = role
         user.login_method = login_method
         user.is_active = active
-        if pw1:
+        if login_method == LoginMethod.OAUTH:
+            user.set_unusable_password()
+        elif pw1:
             err = _validate_password(pw1, pw2, user)
             if err:
                 return err

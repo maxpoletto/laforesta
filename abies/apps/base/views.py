@@ -16,6 +16,7 @@ from django.utils.http import (
 )
 from django.views import View
 
+from apps.base.models import LoginMethod
 from config import strings as S
 
 # Whitelist of geo files we serve via `geo_view`.  Anything else 404s,
@@ -45,7 +46,7 @@ class LoginView(View):
         username = request.POST.get('username', '')
         password = request.POST.get('password', '')
         user = authenticate(request, username=username, password=password)
-        if user is not None:
+        if user is not None and user.login_method == LoginMethod.PASSWORD:
             login(request, user)
             next_url = request.POST.get('next') or settings.LOGIN_REDIRECT_URL
             if not url_has_allowed_host_and_scheme(
