@@ -130,6 +130,24 @@ eq(await editThenReload(0), 40, 'edit + reload (same second) shows new value');
 eq(await deleteThenReload(5), [2], 'delete + reload (elapsed): row stays gone');
 eq(await deleteThenReload(0), [2], 'delete + reload (same second): row stays gone');
 
+// Generic write-response envelope: patches + deletes.
+{
+  const id = freshDataId();
+  const url = `/api/${id}/`;
+  const server = new DigestServer(digest([[1, 1, 30], [2, 1, 50]]));
+  servers.set(url, server);
+  cache.register(id, url);
+  await cache.load(id);
+
+  const touched = cache.applyResponseChanges({
+    patches: [{ data_id: id, row_id: 2, record: [2, 2, 55] }],
+    deletes: [{ data_id: id, row_id: 1 }],
+  });
+
+  eq([...touched], [id], 'generic envelope reports touched data id');
+  eq(cache.get(id).rows, [[2, 2, 55]], 'generic envelope patches and deletes rows');
+}
+
 console.log(`${pass} passed, ${failures.length} failed`);
 for (const f of failures) console.error('  FAIL ' + f);
 process.exit(failures.length ? 1 : 0);

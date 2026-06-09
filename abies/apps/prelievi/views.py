@@ -29,7 +29,10 @@ from apps.base.digests import (
     serve_digest,
 )
 from apps.base.numparse import int_or_none, parse_decimal
-from apps.base.middleware import save_nonce
+from apps.base.responses import (
+    conflict_response, row_delete, row_patch, success_response,
+    validation_error,
+)
 from apps.base.models import (
     Crew, HarvestPlanItem, HarvestPlanItemState, Parcel, Product, Species,
     Tractor, next_sequence_number, parcel_sort_key,
@@ -40,10 +43,10 @@ from apps.prelievi.models import (
 from config import strings as S
 from config.constants import (
     DATA_ID, FIELD_CREW_ID, FIELD_DATE, FIELD_HARVEST_PLAN_ITEM_ID,
-    FIELD_MASS_Q, FIELD_NONCE, FIELD_NOTE, FIELD_PARCEL_ID, FIELD_PRODUCT_ID,
+    FIELD_MASS_Q, FIELD_NOTE, FIELD_PARCEL_ID, FIELD_PRODUCT_ID,
     FIELD_RECORD1, FIELD_RECORD2, FIELD_SORT_ORDER, FIELD_SPECIES_ID,
     FIELD_VOLUME_M3, HTML, ITEM_RECORD, MESSAGE, RECORD, ROW_ID, STATUS,
-    STATUS_CONFLICT, STATUS_VALIDATION_ERROR, VERSION,
+    VERSION,
 )
 
 
@@ -139,19 +142,23 @@ def save_view(request):
         'parcel__region', 'crew', 'product', 'harvest_plan_item',
     ).get(id=op.id)
     record = build_harvest_record(op)
-    response_data = {DATA_ID: 'prelievi', ROW_ID: op.id, RECORD: record}
+    extra = {}
+    patches = []
     if op.harvest_plan_item_id is not None:
         item_fresh = (HarvestPlanItem.objects
                       .select_related('parcel__region', 'parcel__eclass',
                                       'region', 'harvest_plan')
                       .get(id=op.harvest_plan_item_id))
-        response_data[ITEM_RECORD] = build_harvest_plan_item_record(item_fresh)
+        item_record = build_harvest_plan_item_record(item_fresh)
+        extra[ITEM_RECORD] = item_record
+        patches.append(row_patch(
+            'harvest_plan_items', item_fresh.id, item_record,
+        ))
 
-    nonce = body.get(FIELD_NONCE)
-    if nonce:
-        save_nonce(nonce, request.user, response_data)
-
-    return JsonResponse(response_data)
+    return success_response(
+        request, body, data_id='prelievi', row_id=op.id, record=record,
+        patches=patches, extra=extra,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -175,11 +182,9 @@ def delete_view(request):
         return JsonResponse({MESSAGE: S.ERR_NOT_FOUND}, status=404)
 
     if op.version != version:
-        record = build_harvest_record(op)
-        return JsonResponse({
-            STATUS: STATUS_CONFLICT, MESSAGE: S.ERROR_CONFLICT,
-            DATA_ID: 'prelievi', ROW_ID: row_id, RECORD: record,
-        }, status=400)
+        return conflict_response(
+            data_id='prelievi', row_id=row_id, record=build_harvest_record(op),
+        )
 
     had_item_id = op.harvest_plan_item_id
     with transaction.atomic():
@@ -191,17 +196,23 @@ def delete_view(request):
             stale.append('harvest_plan_items')
         mark_stale(*stale)
 
-    response_data = {DATA_ID: 'prelievi', ROW_ID: row_id}
+    extra = {}
+    patches = []
     if had_item_id is not None:
         item_fresh = (HarvestPlanItem.objects
                       .select_related('parcel__region', 'parcel__eclass',
                                       'region', 'harvest_plan')
                       .get(id=had_item_id))
-        response_data[ITEM_RECORD] = build_harvest_plan_item_record(item_fresh)
-    nonce = body.get(FIELD_NONCE)
-    if nonce:
-        save_nonce(nonce, request.user, response_data)
-    return JsonResponse(response_data)
+        item_record = build_harvest_plan_item_record(item_fresh)
+        extra[ITEM_RECORD] = item_record
+        patches.append(row_patch(
+            'harvest_plan_items', item_fresh.id, item_record,
+        ))
+    return success_response(
+        request, body, data_id='prelievi', row_id=row_id,
+        patches=patches, deletes=[row_delete('prelievi', row_id)],
+        extra=extra,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -454,12 +465,10 @@ def _conflict_response(row_id, request):
     op = Harvest.objects.select_related(
         'parcel__region', 'crew', 'product', 'harvest_plan_item',
     ).get(id=row_id)
-    return JsonResponse({
-        STATUS: STATUS_CONFLICT, MESSAGE: S.ERROR_CONFLICT,
-        DATA_ID: 'prelievi', ROW_ID: row_id,
-        RECORD: build_harvest_record(op),
-        HTML: _render_form(row_id, request),
-    }, status=400)
+    return conflict_response(
+        data_id='prelievi', row_id=row_id, record=build_harvest_record(op),
+        html=_render_form(row_id, request),
+    )
 
 
 def _check_update_conflict(row_id, body, request):
@@ -500,8 +509,4 @@ def _write_junctions(op, sp_pcts, tr_pcts):
 
 
 def _validation_error(errors, row_id, request, vals=None):
-    return JsonResponse({
-        STATUS: STATUS_VALIDATION_ERROR,
-        MESSAGE: ' '.join(errors),
-        HTML: _render_form(row_id, request, vals),
-    }, status=400)
+    return validation_error(errors, html=_render_form(row_id, request, vals))

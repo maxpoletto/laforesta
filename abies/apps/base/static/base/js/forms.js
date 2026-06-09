@@ -149,8 +149,11 @@ export async function deleteRowWithVersion(dataId, rowId, url, { onSuccess, onCo
     return true;
   }
 
-  if (data?.status === STATUS_CONFLICT && data.record) {
-    cache.updateRow(dataId, data.row_id, data.record);
+  if (data?.status === STATUS_CONFLICT) {
+    const touched = cache.applyResponseChanges(data);
+    if (!touched.size && data.record) {
+      cache.updateRow(dataId, data.row_id, data.record);
+    }
     onConflict?.(data);
   }
   showError(data?.message || S.ERROR_GENERIC);

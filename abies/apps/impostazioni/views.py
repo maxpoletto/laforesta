@@ -18,7 +18,9 @@ from apps.base.numparse import parse_decimal
 from apps.base.digests import (
     HYPSO_PARAM_COLUMNS, hypso_param_row, mark_stale, serve_digest,
 )
-from apps.base.middleware import save_nonce
+from apps.base.responses import (
+    conflict_response, success_response, validation_error,
+)
 from apps.base.models import (
     Crew, HYPSO_FUNC_LN, HypsoParam, HypsoParamSource, LoginMethod, Role,
     Species, Tractor, User,
@@ -29,11 +31,10 @@ from config.constants import (
     FIELD_CREATED_AT, FIELD_DENSITY, FIELD_EMAIL, FIELD_FILE, FIELD_FIRST_NAME,
     FIELD_IS_ACTIVE, FIELD_LAST_NAME, FIELD_LATIN_NAME, FIELD_LOGIN_METHOD,
     FIELD_MANUFACTURER, FIELD_MIN_N, FIELD_MINOR, FIELD_MODEL, FIELD_NAME,
-    FIELD_NONCE, FIELD_NOTES, FIELD_PASSWORD1, FIELD_PASSWORD2, FIELD_ROLE,
+    FIELD_NOTES, FIELD_PASSWORD1, FIELD_PASSWORD2, FIELD_ROLE,
     FIELD_SOURCE, FIELD_SPECIES, FIELD_SURVEY_IDS, FIELD_SURVEYS,
     FIELD_USERNAME, FIELD_YEAR,
-    HTML, MESSAGE, RECORD, ROWS, ROW_ID, STATUS, STATUS_CONFLICT,
-    STATUS_VALIDATION_ERROR, VERSION, is_truthy,
+    HTML, MESSAGE, ROWS, ROW_ID, VERSION, is_truthy,
 )
 
 
@@ -96,12 +97,12 @@ def crews_save(request):
     }
     if not parsed[FIELD_NAME]:
         return _error(S.ERR_NAME_REQUIRED)
-    obj, err = _save(Crew, body, parsed)
+    obj, err = _save(Crew, body, parsed, 'crews', _crew_row)
     if err:
         return err
     # crew.name is a value column in the prelievi digest.
     mark_stale('prelievi', 'audit')
-    return _saved(obj, _crew_row, body, request)
+    return _saved('crews', obj, _crew_row, body, request)
 
 
 # ---------------------------------------------------------------------------
@@ -142,12 +143,12 @@ def tractors_save(request):
     }
     if not parsed[FIELD_MANUFACTURER]:
         return _error(S.ERR_NAME_REQUIRED)
-    obj, err = _save(Tractor, body, parsed)
+    obj, err = _save(Tractor, body, parsed, 'tractors', _tractor_row)
     if err:
         return err
     # Tractor labels are columns in the prelievi digest.
     mark_stale('prelievi', 'audit')
-    return _saved(obj, _tractor_row, body, request)
+    return _saved('tractors', obj, _tractor_row, body, request)
 
 
 # ---------------------------------------------------------------------------
@@ -197,13 +198,13 @@ def species_save(request):
     # minor species into.
     if parsed[FIELD_MINOR] and parsed[FIELD_COMMON_NAME] == S.SPECIES_OTHER:
         return _error(S.ERR_OTHER_NOT_MINOR.format(S.SPECIES_OTHER))
-    obj, err = _save(Species, body, parsed)
+    obj, err = _save(Species, body, parsed, FIELD_SPECIES, _species_row)
     if err:
         return err
     # species.minor / common_name / sort_order define the prelievi column
     # set; species.json is also consumed by V/m preview forms.
     mark_stale('prelievi', 'audit', FIELD_SPECIES)
-    return _saved(obj, _species_row, body, request)
+    return _saved(FIELD_SPECIES, obj, _species_row, body, request)
 
 
 # ---------------------------------------------------------------------------
@@ -310,11 +311,9 @@ def users_save(request):
 
     mark_stale('audit')
 
-    nonce = body.get(FIELD_NONCE)
-    response_data = {ROW_ID: user.id, RECORD: _user_row(user)}
-    if nonce:
-        save_nonce(nonce, request.user, response_data)
-    return JsonResponse(response_data)
+    return success_response(
+        request, body, data_id='users', row_id=user.id, record=_user_row(user),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -501,7 +500,7 @@ def _form(template, model, obj_id, request):
     return JsonResponse({HTML: html})
 
 
-def _save(model, body, parsed):
+def _save(model, body, parsed, data_id, row_fn):
     """Create or update a TimestampedModel with optimistic locking."""
     row_id = body.get(ROW_ID)
     row_id = int(row_id) if row_id else None
@@ -511,9 +510,9 @@ def _save(model, body, parsed):
             version = int(body.get(VERSION, 0))
             obj = model.objects.select_for_update().get(id=row_id)
             if obj.version != version:
-                return None, JsonResponse({
-                    STATUS: STATUS_CONFLICT, MESSAGE: S.ERROR_CONFLICT,
-                }, status=400)
+                return None, conflict_response(
+                    data_id=data_id, row_id=obj.id, record=row_fn(obj),
+                )
             for field, value in parsed.items():
                 setattr(obj, field, value)
             obj.version += 1
@@ -524,16 +523,14 @@ def _save(model, body, parsed):
     return obj, None
 
 
-def _saved(obj, row_fn, body, request):
-    nonce = body.get(FIELD_NONCE)
-    response_data = {ROW_ID: obj.id, RECORD: row_fn(obj)}
-    if nonce:
-        save_nonce(nonce, request.user, response_data)
-    return JsonResponse(response_data)
+def _saved(data_id, obj, row_fn, body, request):
+    return success_response(
+        request, body, data_id=data_id, row_id=obj.id, record=row_fn(obj),
+    )
 
 
 def _error(message):
-    return JsonResponse({STATUS: STATUS_VALIDATION_ERROR, MESSAGE: message}, status=400)
+    return validation_error([message])
 
 
 def _validate_password(pw1, pw2, user=None):

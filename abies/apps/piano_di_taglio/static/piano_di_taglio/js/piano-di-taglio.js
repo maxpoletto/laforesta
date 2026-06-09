@@ -535,7 +535,8 @@ async function doDeletePlan() {
       showError(data?.message || S.ERROR_GENERIC);
       return;
     }
-    cache.removeRow(PLANS_ID, id);
+    const touched = applyWriteResponse(data);
+    if (!touched.has(PLANS_ID)) cache.removeRow(PLANS_ID, id);
     activePlanId = null;
     plansData = cache.get(PLANS_ID);
     // The plan cascade-deletes its items; refresh that cache so the page
@@ -629,8 +630,7 @@ function attachItemSubmit(form, kind, onSuccess) {
       return;
     }
     if (status === 200) {
-      if (data.record) cache.updateRow(ITEMS_ID, data.row_id, data.record);
-      itemsData = cache.get(ITEMS_ID);
+      applyWriteResponse(data);
       for (const k of SECTION_KEYS) {
         sections[k].table?.setData(itemsData);
         updateEmptyState(sections[k]);
@@ -760,7 +760,8 @@ async function doDeleteItem(itemId) {
       showError(data?.message || S.ERROR_GENERIC);
       return;
     }
-    cache.removeRow(ITEMS_ID, itemId);
+    const touched = applyWriteResponse(data);
+    if (!touched.has(ITEMS_ID)) cache.removeRow(ITEMS_ID, itemId);
     itemsData = cache.get(ITEMS_ID);
     for (const k of SECTION_KEYS) {
       sections[k].table?.setData(itemsData);
@@ -859,8 +860,7 @@ export function openEditPlanModal(initialTab, { ceduo = false } = {}) {
         showFormError(detailsForm, data?.message || S.ERROR_GENERIC);
         return;
       }
-      if (data.record) cache.updateRow(PLANS_ID, data.row_id, data.record);
-      plansData = cache.get(PLANS_ID);
+      applyWriteResponse(data);
       onPlansUpdate();
       dismissModal();
     } catch {
@@ -927,8 +927,7 @@ function onNewPlan() {
         showFormError(form, data?.message || S.ERROR_GENERIC);
         return;
       }
-      if (data.record) cache.updateRow(PLANS_ID, data.row_id, data.record);
-      plansData = cache.get(PLANS_ID);
+      applyWriteResponse(data);
       activePlanId = data.row_id;
       onPlansUpdate();
       syncURL();
@@ -971,6 +970,13 @@ async function refreshPlans() {
 }
 async function refreshItems() {
   try { await cache.load(ITEMS_ID); itemsData = cache.get(ITEMS_ID); } catch {}
+}
+
+function applyWriteResponse(data) {
+  const touched = cache.applyResponseChanges(data);
+  if (touched.has(PLANS_ID)) plansData = cache.get(PLANS_ID);
+  if (touched.has(ITEMS_ID)) itemsData = cache.get(ITEMS_ID);
+  return touched;
 }
 
 
@@ -1285,10 +1291,7 @@ function showTransitionForm(itemId, openFlag) {
         showFormError(form, data?.message || S.ERROR_GENERIC);
         return;
       }
-      if (data.item_record) {
-        cache.updateRow(ITEMS_ID, data.row_id, data.item_record);
-        itemsData = cache.get(ITEMS_ID);
-      }
+      applyWriteResponse(data);
       dismissModal();
       renderItemView(itemId);
     } catch {
@@ -1573,10 +1576,7 @@ async function showImportMarksForm(itemId) {
       attempt: async () => {
         const { data, status } = await postFormData(MARK_CSV_IMPORT_URL, fd);
         if (status === 200) {
-          if (data.item_record) {
-            cache.updateRow(ITEMS_ID, data.item_record[0], data.item_record);
-            itemsData = cache.get(ITEMS_ID);
-          }
+          applyWriteResponse(data);
           return { ok: true };
         }
         return data?.errors?.length
@@ -1593,24 +1593,14 @@ async function showImportMarksForm(itemId) {
 function deleteMarkRow(itemId, rowId) {
   return deleteRowWithVersion(markTreesDataId(itemId), rowId, MARK_DELETE_URL, {
     onSuccess: (data) => {
-      if (data.item_record) {
-        cache.updateRow(ITEMS_ID, data.item_record[0], data.item_record);
-        itemsData = cache.get(ITEMS_ID);
-      }
+      applyWriteResponse(data);
       renderItemView(itemId);
     },
   });
 }
 
-function _applyMarkSaveResponse(data, itemId) {
-  const dataId = markTreesDataId(itemId);
-  if (data.record) {
-    cache.updateRow(dataId, data.row_id, data.record);
-  }
-  if (data.item_record) {
-    cache.updateRow(ITEMS_ID, data.item_record[0], data.item_record);
-    itemsData = cache.get(ITEMS_ID);
-  }
+function _applyMarkSaveResponse(data, _itemId) {
+  applyWriteResponse(data);
 }
 
 // --- Prelievi sub-section ---

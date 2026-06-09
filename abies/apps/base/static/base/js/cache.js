@@ -7,6 +7,7 @@
  */
 
 import { fetchJSON } from './api.js';
+import { DATA_ID, DELETES, PATCHES, RECORD, RECORDS, ROW_ID } from './constants.js';
 
 const REFRESH_INTERVAL_MS = 5 * 60 * 1000;  // 5 minutes
 
@@ -98,6 +99,46 @@ export function removeRow(dataId, rowId) {
   const entry = store.get(dataId);
   if (!entry?.data?.rows) return;
   entry.data.rows = entry.data.rows.filter(r => r[0] !== rowId);
+}
+
+/**
+ * Apply the generic write-response cache envelope.
+ *
+ * Supported keys:
+ *   patches: [{data_id, row_id, record}]
+ *   patches: [{data_id, records: [[row_id, ...], ...]}]
+ *   deletes: [{data_id, row_id}]
+ *
+ * Returns a Set of touched data IDs so page modules can update local mirrors
+ * and re-render affected views.
+ *
+ * @param {object} data
+ * @returns {Set<string>}
+ */
+export function applyResponseChanges(data) {
+  const touched = new Set();
+  if (!data) return touched;
+
+  for (const patch of data[PATCHES] || []) {
+    const dataId = patch[DATA_ID];
+    if (!dataId) continue;
+    if (Array.isArray(patch[RECORDS])) {
+      updateRows(dataId, patch[RECORDS]);
+      touched.add(dataId);
+    } else if (patch[RECORD] && patch[ROW_ID] != null) {
+      updateRow(dataId, patch[ROW_ID], patch[RECORD]);
+      touched.add(dataId);
+    }
+  }
+
+  for (const del of data[DELETES] || []) {
+    const dataId = del[DATA_ID];
+    if (!dataId || del[ROW_ID] == null) continue;
+    removeRow(dataId, del[ROW_ID]);
+    touched.add(dataId);
+  }
+
+  return touched;
 }
 
 /**

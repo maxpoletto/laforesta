@@ -284,6 +284,14 @@ class TestSaveView:
         assert data[DATA_ID] == 'prelievi'
         assert data[ROW_ID] > 0
         assert data[RECORD][2] == '2024-07-01'  # date is third column (after row_id, version)
+        assert data[PATCHES][0] == {
+            DATA_ID: 'prelievi', ROW_ID: data[ROW_ID], RECORD: data[RECORD],
+        }
+        assert {
+            DATA_ID: 'harvest_plan_items',
+            ROW_ID: f['open_item'].id,
+            RECORD: data[ITEM_RECORD],
+        } in data[PATCHES]
 
         op = Harvest.objects.get(id=data[ROW_ID])
         assert float(op.mass_q) == 30.0
@@ -331,8 +339,12 @@ class TestSaveView:
             },
         ))
         assert resp.status_code == 400
-        assert resp.json()[STATUS] == STATUS_CONFLICT
-        assert RECORD in resp.json()
+        data = resp.json()
+        assert data[STATUS] == STATUS_CONFLICT
+        assert RECORD in data
+        assert data[PATCHES] == [{
+            DATA_ID: 'prelievi', ROW_ID: sample_op.id, RECORD: data[RECORD],
+        }]
 
     def test_validation_error_missing_date(self, writer_client, harvest_fixtures):
         f = harvest_fixtures
@@ -493,7 +505,14 @@ class TestDeleteView:
             FIELD_NONCE: 'del-1',
         })
         assert resp.status_code == 200
-        assert resp.json()[ROW_ID] == sample_op.id
+        data = resp.json()
+        assert data[ROW_ID] == sample_op.id
+        assert data[DELETES] == [{DATA_ID: 'prelievi', ROW_ID: sample_op.id}]
+        assert data[PATCHES] == [{
+            DATA_ID: 'harvest_plan_items',
+            ROW_ID: harvest_fixtures['open_item'].id,
+            RECORD: data[ITEM_RECORD],
+        }]
         assert not Harvest.objects.filter(id=sample_op.id).exists()
 
     def test_delete_cascades_junctions(self, writer_client, harvest_fixtures, sample_op):
@@ -522,7 +541,11 @@ class TestDeleteView:
             ROW_ID: str(sample_op.id), VERSION: '999',
         })
         assert resp.status_code == 400
-        assert resp.json()[STATUS] == STATUS_CONFLICT
+        data = resp.json()
+        assert data[STATUS] == STATUS_CONFLICT
+        assert data[PATCHES] == [{
+            DATA_ID: 'prelievi', ROW_ID: sample_op.id, RECORD: data[RECORD],
+        }]
         assert Harvest.objects.filter(id=sample_op.id).exists()
 
     def test_delete_not_found(self, writer_client, harvest_fixtures):
@@ -543,7 +566,7 @@ from config.constants import (
     FIELD_DATE, FIELD_DENSITY, FIELD_HARVEST_PLAN_ITEM_ID, FIELD_MANUFACTURER,
     FIELD_MASS_Q, FIELD_MINOR, FIELD_MODEL, FIELD_NONCE, FIELD_NOTE,
     FIELD_PRODUCT_ID, FIELD_RECORD1,
-    HTML, MESSAGE, RECORD, ROWS, ROW_ID,
+    DELETES, HTML, ITEM_RECORD, MESSAGE, PATCHES, RECORD, ROWS, ROW_ID,
     STATUS, STATUS_CONFLICT, STATUS_VALIDATION_ERROR, VERSION,
 )
 

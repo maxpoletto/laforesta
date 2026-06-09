@@ -28,7 +28,10 @@ from django.views.decorators.http import require_POST
 from apps.base.auth import require_writer
 from apps.base import csv_io
 from apps.base.numparse import coord_float, int_or_none, parse_decimal
-from apps.base.responses import csv_error_list, validation_error
+from apps.base.responses import (
+    conflict_response, csv_error_list, row_delete, row_patch,
+    success_response, validation_error,
+)
 from apps.base.digests import (
     build_harvest_plan_item_record,
     build_harvest_plan_record,
@@ -36,7 +39,6 @@ from apps.base.digests import (
     mark_stale,
     serve_digest,
 )
-from apps.base.middleware import save_nonce
 from apps.base.models import (
     HarvestDetail,
     HarvestPlan,
@@ -57,7 +59,6 @@ from apps.base.models import (
 from apps.prelievi.models import Harvest, HarvestSpecies, HarvestTractor
 from config import strings as S
 from config.constants import (
-    COLUMNS,
     DATA_ID,
     FIELD_ACC_M,
     FIELD_CEDUO_FILE,
@@ -65,7 +66,6 @@ from config.constants import (
     FIELD_DAMAGED,
     FIELD_DATE,
     FIELD_DESCRIPTION,
-    FIELD_ERRORS,
     FIELD_FILE,
     FIELD_FUSTAIA_FILE,
     FIELD_H_M,
@@ -77,7 +77,6 @@ from config.constants import (
     FIELD_LON,
     FIELD_MASS_Q,
     FIELD_NAME,
-    FIELD_NONCE,
     FIELD_NOTE,
     FIELD_NUMBER,
     FIELD_OPEN,
@@ -95,17 +94,10 @@ from config.constants import (
     FIELD_YEAR_START,
     HTML,
     ITEM_RECORD,
-    ITEM_RECORDS,
-    MESSAGE,
-    PLAN_RECORD,
     RECORD,
-    RECORDS,
     ROW_ID,
-    ROWS,
     STATUS,
-    STATUS_CONFLICT,
     STATUS_NOT_FOUND,
-    STATUS_VALIDATION_ERROR,
     TRANSITION_RECORDS,
     VERSION,
     is_truthy,
@@ -195,15 +187,11 @@ def plan_save_view(request):
             )
         mark_stale('harvest_plans', 'audit')
 
-    response_data = {
-        DATA_ID: 'harvest_plans',
-        ROW_ID: plan.id,
-        RECORD: build_harvest_plan_record(plan),
-    }
-    nonce = body.get(FIELD_NONCE)
-    if nonce:
-        save_nonce(nonce, request.user, response_data)
-    return JsonResponse(response_data)
+    return success_response(
+        request, body,
+        data_id='harvest_plans', row_id=plan.id,
+        record=build_harvest_plan_record(plan),
+    )
 
 
 @login_required
@@ -230,7 +218,11 @@ def plan_delete_view(request, plan_id: int):
         # HarvestPlanItem and ParcelPlanDetail both cascade to HarvestPlan.
         plan.delete()
         mark_stale('harvest_plans', 'harvest_plan_items', 'audit')
-    return JsonResponse({DATA_ID: 'harvest_plans', ROW_ID: plan_id})
+    return success_response(
+        request, {},
+        data_id='harvest_plans', row_id=plan_id,
+        deletes=[row_delete('harvest_plans', plan_id)],
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -430,16 +422,12 @@ def plan_csv_import_view(request):
 
         mark_stale('harvest_plans', 'harvest_plan_items', 'audit')
 
-    response_data = {
-        DATA_ID: 'harvest_plans',
-        ROW_ID: plan.id,
-        RECORD: build_harvest_plan_record(plan),
-        'n_items': n_items,
-    }
-    nonce = request.POST.get(FIELD_NONCE)
-    if nonce:
-        save_nonce(nonce, request.user, response_data)
-    return JsonResponse(response_data)
+    return success_response(
+        request, request.POST,
+        data_id='harvest_plans', row_id=plan.id,
+        record=build_harvest_plan_record(plan),
+        extra={'n_items': n_items},
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -665,15 +653,11 @@ def item_save_view(request):
             .select_related('parcel__region', 'parcel__eclass',
                             'region', 'harvest_plan')
             .get(id=item.id))
-    response_data = {
-        DATA_ID: 'harvest_plan_items',
-        ROW_ID: item.id,
-        RECORD: build_harvest_plan_item_record(item),
-    }
-    nonce = body.get(FIELD_NONCE)
-    if nonce:
-        save_nonce(nonce, request.user, response_data)
-    return JsonResponse(response_data)
+    return success_response(
+        request, body,
+        data_id='harvest_plan_items', row_id=item.id,
+        record=build_harvest_plan_item_record(item),
+    )
 
 
 @login_required
@@ -701,7 +685,11 @@ def item_delete_view(request, item_id: int):
             return validation_error([S.ERR_PLAN_ITEM_HAS_DEPS])
         mark_stale('harvest_plan_items', 'audit')
 
-    return JsonResponse({DATA_ID: 'harvest_plan_items', ROW_ID: item_id})
+    return success_response(
+        request, {},
+        data_id='harvest_plan_items', row_id=item_id,
+        deletes=[row_delete('harvest_plan_items', item_id)],
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -876,16 +864,13 @@ def transition_save_view(request):
             .select_related('parcel__region', 'parcel__eclass',
                             'region', 'harvest_plan')
             .get(id=item.id))
-    response_data = {
-        DATA_ID: 'harvest_plan_items',
-        ROW_ID: item.id,
-        ITEM_RECORD: build_harvest_plan_item_record(item),
-        RECORD: _transition_record(transition),
-    }
-    nonce = body.get(FIELD_NONCE)
-    if nonce:
-        save_nonce(nonce, request.user, response_data)
-    return JsonResponse(response_data)
+    item_record = build_harvest_plan_item_record(item)
+    return success_response(
+        request, body,
+        data_id='harvest_plan_items', row_id=item.id,
+        patches=[row_patch('harvest_plan_items', item_record[0], item_record)],
+        extra={ITEM_RECORD: item_record, RECORD: _transition_record(transition)},
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1038,9 +1023,13 @@ def mark_save_view(request):
                 return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
             version = int(body.get(VERSION, 0))
             if tm.version != version:
-                return JsonResponse({
-                    STATUS: STATUS_CONFLICT, MESSAGE: S.ERROR_CONFLICT,
-                }, status=400)
+                fresh_tm = (TreeMark.objects
+                            .select_related('tree__species')
+                            .get(id=tm.id))
+                return conflict_response(
+                    data_id=f'mark_trees_{item.id}', row_id=fresh_tm.id,
+                    record=build_tree_mark_record(fresh_tm),
+                )
             if number is not None:
                 tm.number = number
             tm.date = date
@@ -1090,16 +1079,14 @@ def mark_save_view(request):
                   .select_related('parcel__region', 'parcel__eclass',
                                   'region', 'harvest_plan')
                   .get(id=item.id))
-    response_data = {
-        DATA_ID: f'mark_trees_{item.id}',
-        ROW_ID: tm.id,
-        RECORD: build_tree_mark_record(tm),
-        ITEM_RECORD: build_harvest_plan_item_record(item_fresh),
-    }
-    nonce = body.get(FIELD_NONCE)
-    if nonce:
-        save_nonce(nonce, request.user, response_data)
-    return JsonResponse(response_data)
+    mark_record = build_tree_mark_record(tm)
+    item_record = build_harvest_plan_item_record(item_fresh)
+    return success_response(
+        request, body,
+        data_id=f'mark_trees_{item.id}', row_id=tm.id, record=mark_record,
+        patches=[row_patch('harvest_plan_items', item_record[0], item_record)],
+        extra={ITEM_RECORD: item_record},
+    )
 
 
 @login_required
@@ -1121,9 +1108,14 @@ def mark_delete_view(request):
     if tm is None:
         return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
     if tm.version != version:
-        return JsonResponse({
-            STATUS: STATUS_CONFLICT, MESSAGE: S.ERROR_CONFLICT,
-        }, status=400)
+        fresh_tm = (TreeMark.objects
+                    .select_related('tree__species')
+                    .get(id=tm.id))
+        return conflict_response(
+            data_id=f'mark_trees_{tm.harvest_plan_item_id}',
+            row_id=fresh_tm.id,
+            record=build_tree_mark_record(fresh_tm),
+        )
 
     item = tm.harvest_plan_item
     if item.state == HarvestPlanItemState.CLOSED:
@@ -1142,15 +1134,14 @@ def mark_delete_view(request):
                   .select_related('parcel__region', 'parcel__eclass',
                                   'region', 'harvest_plan')
                   .get(id=item_id))
-    response_data = {
-        DATA_ID: f'mark_trees_{item_id}',
-        ROW_ID: row_id,
-        ITEM_RECORD: build_harvest_plan_item_record(item_fresh),
-    }
-    nonce = body.get(FIELD_NONCE)
-    if nonce:
-        save_nonce(nonce, request.user, response_data)
-    return JsonResponse(response_data)
+    item_record = build_harvest_plan_item_record(item_fresh)
+    return success_response(
+        request, body,
+        data_id=f'mark_trees_{item_id}', row_id=row_id,
+        patches=[row_patch('harvest_plan_items', item_record[0], item_record)],
+        deletes=[row_delete(f'mark_trees_{item_id}', row_id)],
+        extra={ITEM_RECORD: item_record},
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1323,11 +1314,16 @@ def mark_csv_import_view(request):
                   .select_related('parcel__region', 'parcel__eclass',
                                   'region', 'harvest_plan')
                   .get(id=item.id))
-    return JsonResponse({
-        ITEM_RECORD: build_harvest_plan_item_record(item_fresh),
-        'imported': len(parsed),
-        'skipped_duplicates': len(rows) - len(parsed) - len(errors),
-    })
+    item_record = build_harvest_plan_item_record(item_fresh)
+    return success_response(
+        request, request.POST,
+        patches=[row_patch('harvest_plan_items', item_record[0], item_record)],
+        extra={
+            ITEM_RECORD: item_record,
+            'imported': len(parsed),
+            'skipped_duplicates': len(rows) - len(parsed) - len(errors),
+        },
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1647,11 +1643,10 @@ def _transition_record(t) -> list:
 
 
 def _conflict_response_plan(plan):
-    return JsonResponse({
-        STATUS: STATUS_CONFLICT, MESSAGE: S.ERROR_CONFLICT,
-        DATA_ID: 'harvest_plans', ROW_ID: plan.id,
-        RECORD: build_harvest_plan_record(plan),
-    }, status=400)
+    return conflict_response(
+        data_id='harvest_plans', row_id=plan.id,
+        record=build_harvest_plan_record(plan),
+    )
 
 
 def _conflict_response_item(item):
@@ -1659,11 +1654,10 @@ def _conflict_response_item(item):
             .select_related('parcel__region', 'parcel__eclass',
                             'region', 'harvest_plan')
             .get(id=item.id))
-    return JsonResponse({
-        STATUS: STATUS_CONFLICT, MESSAGE: S.ERROR_CONFLICT,
-        DATA_ID: 'harvest_plan_items', ROW_ID: item.id,
-        RECORD: build_harvest_plan_item_record(item),
-    }, status=400)
+    return conflict_response(
+        data_id='harvest_plan_items', row_id=item.id,
+        record=build_harvest_plan_item_record(item),
+    )
 
 
 _SAFE_RE = re.compile(r'[^A-Za-z0-9._-]+')

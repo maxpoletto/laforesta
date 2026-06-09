@@ -35,7 +35,6 @@ const FORM_URL = '/api/prelievi/form/';
 const SAVE_URL = '/api/prelievi/save/';
 const DELETE_URL = '/api/prelievi/delete/';
 const PAGE_PATH = '/prelievi';
-const HARVEST_PLAN_ITEMS_ID = 'harvest_plan_items';
 
 // Collapsible sections, keyed by the single-char token used in the URL `o`
 // parameter ('a' = Produzione chart, 'b' = Specie-per-particella chart,
@@ -511,18 +510,15 @@ function wireForm(form) {
     }
 
     if (status === 200) {
-      cache.updateRow(DATA_ID, data.row_id, data.record);
-      if (data.item_record) {
-        cache.updateRow(HARVEST_PLAN_ITEMS_ID, data.item_record[0], data.item_record);
-      }
+      cache.applyResponseChanges(data);
       dismissModal();
       if (isSaveAndAdd) showAddForm();
       else refreshTable();
       return;
     }
 
-    if (data.status === STATUS_CONFLICT && data.record) {
-      cache.updateRow(DATA_ID, data.row_id, data.record);
+    if (data.status === STATUS_CONFLICT) {
+      cache.applyResponseChanges(data);
     }
     if (data.html) {
       const newForm = renderModalForm(data.html);
@@ -611,9 +607,7 @@ function wire100Buttons(form) {
 function confirmDelete(rowId) {
   return deleteRowWithVersion(DATA_ID, rowId, DELETE_URL, {
     onSuccess: (data) => {
-      if (data.item_record) {
-        cache.updateRow(HARVEST_PLAN_ITEMS_ID, data.item_record[0], data.item_record);
-      }
+      cache.applyResponseChanges(data);
       if (table) table.setData(cache.get(DATA_ID));
     },
     onConflict: () => { if (table) table.setData(cache.get(DATA_ID)); },
