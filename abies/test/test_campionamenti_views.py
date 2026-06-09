@@ -9,7 +9,7 @@ import pytest
 from django.test import Client
 
 from apps.base.models import (
-    Parcel, Sample, SampleArea, SampleGrid, Survey, Tree, TreeSample,
+    Parcel, Sample, SampleArea, SampleGrid, Survey, Tree, TreeSample, UsedNonce,
 )
 from config import strings as S
 from config.constants import (
@@ -1106,6 +1106,24 @@ class TestAreaCRUD:
         assert resp.status_code == 200
         assert not SampleArea.objects.filter(id=unused.id).exists()
 
+    def test_delete_saves_nonce(self, writer_client, sample_setup, regions, eclasses):
+        s = sample_setup
+        new_parcel = Parcel.objects.create(
+            name='2', region=regions[0], eclass=eclasses[0],
+            area_ha=Decimal('1.0'),
+        )
+        unused = SampleArea.objects.create(
+            sample_grid=s['grid'], parcel=new_parcel, number='3',
+            lat=0.0, lon=0.0, r_m=12,
+        )
+        resp = writer_client.post(
+            f'/api/campionamenti/area/delete/{unused.id}/',
+            data=json.dumps({FIELD_NONCE: 'area-delete-nonce'}),
+            content_type='application/json',
+        )
+        assert resp.status_code == 200
+        assert UsedNonce.objects.filter(nonce='area-delete-nonce').exists()
+
     def test_delete_in_use_refused(self, writer_client, sample_setup):
         """An area referenced by any Sample is protected from delete."""
         s = sample_setup
@@ -1528,6 +1546,17 @@ class TestTreeDelete:
         # TreeSample gone, but the parent Tree row survives.
         assert not TreeSample.objects.filter(id=ts_id).exists()
         assert Tree.objects.count() == tree_count_before
+
+    def test_delete_saves_nonce(self, writer_client, sample_setup):
+        from apps.base.models import TreeSample
+        ts_id = TreeSample.objects.first().id
+        resp = writer_client.post(
+            f'/api/campionamenti/tree/delete/{ts_id}/',
+            data=json.dumps({FIELD_NONCE: 'tree-delete-nonce'}),
+            content_type='application/json',
+        )
+        assert resp.status_code == 200
+        assert UsedNonce.objects.filter(nonce='tree-delete-nonce').exists()
 
     def test_delete_nonexistent(self, writer_client, db):
         resp = self._post(writer_client, 99999)
@@ -2172,6 +2201,15 @@ class TestGridEditDelete:
         assert resp.status_code == 200
         assert not SampleGrid.objects.filter(id=g.id).exists()
 
+    def test_delete_saves_nonce(self, writer_client, db):
+        g = SampleGrid.objects.create(name='Empty grid')
+        resp = self._post(
+            writer_client, f'/api/campionamenti/grid/delete/{g.id}/',
+            {FIELD_NONCE: 'grid-delete-nonce'},
+        )
+        assert resp.status_code == 200
+        assert UsedNonce.objects.filter(nonce='grid-delete-nonce').exists()
+
     def test_delete_grid_cascades_to_areas(self, writer_client, db,
                                            regions, eclasses):
         """A grid with areas but NO surveys cascades to its areas."""
@@ -2263,6 +2301,17 @@ class TestSurveyEditDelete:
                           f'/api/campionamenti/survey/delete/{empty.id}/')
         assert resp.status_code == 200
         assert not Survey.objects.filter(id=empty.id).exists()
+
+    def test_delete_saves_nonce(self, writer_client, sample_setup):
+        empty = Survey.objects.create(
+            name='Empty survey 1', sample_grid=sample_setup['grid'],
+        )
+        resp = self._post(
+            writer_client, f'/api/campionamenti/survey/delete/{empty.id}/',
+            {FIELD_NONCE: 'survey-delete-nonce'},
+        )
+        assert resp.status_code == 200
+        assert UsedNonce.objects.filter(nonce='survey-delete-nonce').exists()
 
     def test_reader_forbidden(self, reader_client, sample_setup):
         s = sample_setup

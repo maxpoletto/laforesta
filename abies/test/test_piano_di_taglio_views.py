@@ -20,7 +20,7 @@ from django.test import Client
 from apps.base import csv_io
 from apps.base.models import (
     DigestStatus, HarvestPlan, HarvestPlanItem, HarvestPlanItemState,
-    HarvestTransition, ParcelPlanDetail, Tree, TreeMark,
+    HarvestTransition, ParcelPlanDetail, Tree, TreeMark, UsedNonce,
 )
 from config import strings as S
 from config.constants import (
@@ -140,6 +140,15 @@ class TestPlanCRUD:
         )
         assert resp.status_code == 200
         assert not HarvestPlan.objects.filter(id=plan.id).exists()
+
+    def test_delete_saves_nonce(self, writer_client, plan, planned_item):
+        resp = writer_client.post(
+            f'/api/piano-di-taglio/plan/delete/{plan.id}/',
+            data=json.dumps({FIELD_NONCE: 'plan-delete-nonce'}),
+            content_type='application/json',
+        )
+        assert resp.status_code == 200
+        assert UsedNonce.objects.filter(nonce='plan-delete-nonce').exists()
 
     def test_delete_blocked_when_active_item(self, writer_client, plan, planned_item):
         planned_item.state = HarvestPlanItemState.OPEN
@@ -569,6 +578,20 @@ class TestItemCRUD:
         })
         assert resp.status_code == 200
 
+    def test_update_missing_version_conflicts(self, writer_client, planned_item):
+        resp = self._save(writer_client, {
+            ROW_ID: planned_item.id,
+            FIELD_PARCEL_ID: planned_item.parcel_id,
+            FIELD_YEAR_PLANNED: planned_item.year_planned + 1,
+            FIELD_VOLUME_PLANNED_M3: str(planned_item.volume_planned_m3),
+            FIELD_NOTE: 'missing version update',
+        })
+
+        assert resp.status_code == 400
+        assert resp.json()[STATUS] == STATUS_CONFLICT
+        planned_item.refresh_from_db()
+        assert planned_item.note != 'missing version update'
+
     def test_delete_planned(self, writer_client, planned_item):
         resp = writer_client.post(
             f'/api/piano-di-taglio/item/delete/{planned_item.id}/',
@@ -576,6 +599,15 @@ class TestItemCRUD:
         )
         assert resp.status_code == 200
         assert not HarvestPlanItem.objects.filter(id=planned_item.id).exists()
+
+    def test_delete_saves_nonce(self, writer_client, planned_item):
+        resp = writer_client.post(
+            f'/api/piano-di-taglio/item/delete/{planned_item.id}/',
+            data=json.dumps({FIELD_NONCE: 'item-delete-nonce'}),
+            content_type='application/json',
+        )
+        assert resp.status_code == 200
+        assert UsedNonce.objects.filter(nonce='item-delete-nonce').exists()
 
     def test_delete_blocked_when_not_planned(self, writer_client, planned_item):
         planned_item.state = HarvestPlanItemState.OPEN

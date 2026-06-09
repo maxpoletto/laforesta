@@ -176,6 +176,7 @@ def plan_delete_view(request, plan_id: int):
     of `plan_export_view` precedes this call.  We still verify the gate
     server-side so a hand-crafted POST cannot bypass it.
     """
+    body = json.loads(request.body or '{}')
     plan = HarvestPlan.objects.filter(id=plan_id).first()
     if plan is None:
         return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
@@ -191,7 +192,7 @@ def plan_delete_view(request, plan_id: int):
         plan.delete()
         mark_stale('harvest_plans', 'harvest_plan_items', 'audit')
     return success_response(
-        request, {},
+        request, body,
         data_id='harvest_plans', row_id=plan_id,
         deletes=[row_delete('harvest_plans', plan_id)],
     )
@@ -580,9 +581,8 @@ def item_save_view(request):
             ).first()
             if item is None:
                 return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
-            submitted_version = int_or_none(body.get(VERSION))
-            if (submitted_version is not None
-                    and item.version != submitted_version):
+            submitted_version = int(body.get(VERSION, 0))
+            if item.version != submitted_version:
                 return _conflict_response_item(item)
             for field, value in parsed.items():
                 setattr(item, field, value)
@@ -636,6 +636,7 @@ def item_delete_view(request, item_id: int):
     client-side (precedes this call); the server only enforces the
     state gate.
     """
+    body = json.loads(request.body or '{}')
     item = HarvestPlanItem.objects.filter(id=item_id).first()
     if item is None:
         return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
@@ -650,7 +651,7 @@ def item_delete_view(request, item_id: int):
         mark_stale('harvest_plan_items', 'audit')
 
     return success_response(
-        request, {},
+        request, body,
         data_id='harvest_plan_items', row_id=item_id,
         deletes=[row_delete('harvest_plan_items', item_id)],
     )

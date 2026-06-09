@@ -272,6 +272,7 @@ def tree_delete_view(request, ts_id: int):
     deletion" ("Deleting a single tree_sample row leaves both the
     sample and the underlying tree row intact").
     """
+    body = json.loads(request.body or '{}')
     ts = TreeSample.objects.select_related(
         'sample__survey',
     ).filter(id=ts_id).first()
@@ -288,7 +289,7 @@ def tree_delete_view(request, ts_id: int):
     sample_record = build_sample_record(sample)
     survey_record = build_survey_record(survey)
     return success_response(
-        request, {},
+        request, body,
         data_id=f'sampled_trees_{survey_id}',
         row_id=ts_id,
         patches=[
@@ -491,6 +492,7 @@ def area_save_view(request):
 @require_POST
 def area_delete_view(request, area_id: int):
     """Delete a SampleArea.  Refused if any Sample references it."""
+    body = json.loads(request.body or '{}')
     area = SampleArea.objects.select_related('sample_grid').filter(
         id=area_id,
     ).first()
@@ -508,7 +510,7 @@ def area_delete_view(request, area_id: int):
         for sv in Survey.objects.filter(sample_grid=grid)
     ]
     return success_response(
-        request, {},
+        request, body,
         data_id='sample_areas', row_id=area_id,
         patches=[
             row_patch('grids', grid_record[0], grid_record),
@@ -960,6 +962,7 @@ def grid_delete_view(request, grid_id: int):
     """Delete a grid.  Refused if any Survey references it (Survey.sample_grid
     is PROTECT — the only way to "force" delete a populated grid is to delete
     its surveys first)."""
+    body = json.loads(request.body or '{}')
     grid = SampleGrid.objects.filter(id=grid_id).first()
     if grid is None:
         return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
@@ -970,7 +973,7 @@ def grid_delete_view(request, grid_id: int):
         grid.delete()
         mark_stale('grids', 'sample_areas', 'audit')
     return success_response(
-        request, {},
+        request, body,
         data_id='grids', row_id=grid_id,
         deletes=[row_delete('grids', grid_id)],
     )
@@ -1305,6 +1308,7 @@ def survey_delete_view(request, survey_id: int):
     (per the FK on_delete=CASCADE chain in models.py).  Tree rows
     remain (TreeSample.tree is PROTECT).
     """
+    body = json.loads(request.body or '{}')
     survey = Survey.objects.filter(id=survey_id).first()
     if survey is None:
         return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
@@ -1315,7 +1319,7 @@ def survey_delete_view(request, survey_id: int):
             'audit',
         )
     return success_response(
-        request, {},
+        request, body,
         data_id='surveys', row_id=survey_id,
         deletes=[row_delete('surveys', survey_id)],
     )
