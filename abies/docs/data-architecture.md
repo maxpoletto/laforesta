@@ -88,8 +88,7 @@ Read path (conditional GET for a digest):
    always reflects the latest committed write.
 
 All digest generation logic lives in `apps/base/digests.py`, since digests
-often span multiple domain tables (e.g., a prelievi write also updates
-`parcel_year_production.json` used by bosco).
+often span multiple domain tables.
 
 Digest files are gzip-compressed (stored as `.json.gz`) and served with
 `Content-Encoding: gzip`.

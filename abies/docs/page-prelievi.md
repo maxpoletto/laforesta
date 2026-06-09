@@ -110,16 +110,12 @@ Bottom-of-form button layout.
   prepopulating the edit form). Includes a materialized `Volume (m³)`
   column from `harvest.volume_m3` (see `database.md`); displayed in the
   table as a small companion to `Q.li`.
-- parcel_year_production.json: per-(region, parcel, year) totals. Columns:
-  `Compresa`, `Particella`, `Anno`, `Q.li`, `Volume (m³)` — both unit sums
-  are materialized so the Piano di taglio calendar can compute its
-  status chip in m³ without touching prelievi.json.
 
 ### Cache invalidation
 
 | Write | Digests marked stale | Optimistic client patch |
 |---|---|---|
-| Harvest save (create or update) | `prelievi`, `parcel_year_production`, `audit`; + `harvest_plan_items` if linked to a plan item | `prelievi` and linked `harvest_plan_items` via `patches` |
+| Harvest save (create or update) | `prelievi`, `audit`; + `harvest_plan_items` if linked to a plan item | `prelievi` and linked `harvest_plan_items` via `patches` |
 | Harvest delete | same as save | `prelievi` via `deletes`; `harvest_plan_items` via `patches` |
 | Species save (Settings → Trees) | `prelievi`, `species`, `audit` | — |
 | Tractor save (Settings) | `prelievi`, `audit` | — |
@@ -136,9 +132,6 @@ regeneration"). Products are not editable in Settings, so they need no mark.
 
 Harvest-op deletion cascades to its `harvest_species` and `harvest_tractor`
 junction rows.
-
-`parcel_year_production` is not patched optimistically — it is consumed
-by the Bosco page and picked up via the stale flag on next visit.
 
 When a harvest is linked to a `harvest_plan_item`, the save view also
 re-materializes `volume_actual_m3` on the item (aggregate sum of all

@@ -412,13 +412,13 @@ given `harvest_plan_item_id`):
 
 | Write | Digests marked stale | Optimistic client patch |
 |---|---|---|
-| Plan save (create/update) | `harvest_plans`, `audit` | `harvest_plans` via `patches` |
-| Plan delete | `harvest_plans`, `harvest_plan_items`, `audit` | `harvest_plans` (row removed); items force-refreshed via `cache.load` |
+| Plan save (create/update) | `harvest_plans`, `audit`, `future_production` | `harvest_plans` via `patches` |
+| Plan delete | `harvest_plans`, `harvest_plan_items`, `audit`, `future_production` | `harvest_plans` (row removed); items force-refreshed via `cache.load` |
 | Plan CSV import | `harvest_plans`, `harvest_plan_items`, `audit` | Both force-refreshed via `cache.load` (bulk path) |
-| Item save (create/update) | `harvest_plan_items`, `audit` | `harvest_plan_items` via `patches` |
+| Item save (create/update) | `harvest_plan_items`, `audit`, `future_production` | `harvest_plan_items` via `patches` |
 | Item delete | `harvest_plan_items`, `audit` | `harvest_plan_items` (row removed) |
 | Transition save (Apri/Chiudi) | `harvest_plan_items`, `audit` | `harvest_plan_items` via `patches` |
-| Harvest save (from Prelievi page) | `prelievi`, `parcel_year_production`, `harvest_plan_items`, `audit` | `harvest_plan_items` via `patches` (cross-domain) |
+| Harvest save (from Prelievi page) | `prelievi`, `harvest_plan_items`, `audit` | `harvest_plan_items` via `patches` (cross-domain) |
 
 `harvest_plan_item.volume_actual_m3` and `volume_marked_m3` are
 materialized aggregates updated in the write path (not computed at
