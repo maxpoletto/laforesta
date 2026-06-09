@@ -15,6 +15,7 @@ ENV_KEYS = (
     'MS_OAUTH_CLIENT_ID',
     'MS_OAUTH_SECRET',
     'MS_OAUTH_TENANT',
+    'DJANGO_DATA_UPLOAD_MAX_MEMORY_SIZE',
 )
 
 
@@ -45,6 +46,18 @@ def test_debug_true_allows_local_defaults(monkeypatch, debug_value):
 def test_debug_defaults_false(monkeypatch):
     with pytest.raises(RuntimeError, match='DJANGO_ALLOWED_HOSTS'):
         load_settings(monkeypatch, DJANGO_SECRET_KEY='prod-secret')
+
+
+def test_data_upload_memory_size_default_and_override(monkeypatch):
+    settings = load_settings(monkeypatch, DJANGO_DEBUG='1')
+    assert settings.DATA_UPLOAD_MAX_MEMORY_SIZE == 16 * 1024 * 1024
+
+    settings = load_settings(
+        monkeypatch,
+        DJANGO_DEBUG='1',
+        DJANGO_DATA_UPLOAD_MAX_MEMORY_SIZE='33554432',
+    )
+    assert settings.DATA_UPLOAD_MAX_MEMORY_SIZE == 32 * 1024 * 1024
 
 
 @pytest.mark.parametrize('env', [{}, {'DJANGO_DEBUG': '0'}, {'DJANGO_DEBUG': 'False'}])
