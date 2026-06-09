@@ -28,8 +28,8 @@ from apps.base.digests import (
 )
 from apps.base.numparse import coord_float, int_or_none, parse_decimal
 from apps.base.responses import (
-    csv_error_list, row_delete, row_patch, row_patches, save_model_response,
-    success_response, validation_error,
+    conflict_response, csv_error_list, row_delete, row_patch, row_patches,
+    save_model_response, success_response, validation_error,
 )
 from apps.base.models import (
     Parcel, Region, Sample, SampleArea, SampleGrid, Species, Survey, Tree,
@@ -38,15 +38,17 @@ from apps.base.models import (
 from config import strings as S
 from config.constants import (
     DEFAULT_RADIUS_M, FIELD_ALTITUDE, FIELD_ALTITUDE_M, FIELD_AREA,
-    FIELD_COMPRESA, FIELD_COPPICE, FIELD_DATE, FIELD_DESCRIPTION, FIELD_D_CM,
-    FIELD_FUSTAIA, FIELD_H_M, FIELD_L10_MM, FIELD_LAT, FIELD_LON, FIELD_MASS_Q,
+    FIELD_COMPRESA, FIELD_COPPICE, FIELD_DATE, FIELD_DEFAULT_DATE,
+    FIELD_DESCRIPTION, FIELD_D_CM,
+    FIELD_FILE, FIELD_FUSTAIA, FIELD_H_M, FIELD_L10_MM, FIELD_LAT, FIELD_LON,
+    FIELD_MASS_Q,
     FIELD_NAME, FIELD_NEXT_SHOOT, FIELD_NOTE, FIELD_NUMBER,
     FIELD_PARCEL, FIELD_PARCEL_ID, FIELD_PARTICELLA, FIELD_POINTS,
     FIELD_PRESERVED, FIELD_R_M,
     FIELD_SAMPLE_AREA_ID, FIELD_SAMPLE_GRID_ID, FIELD_SHOOT, FIELD_SHOOTS,
     FIELD_SORT_ORDER, FIELD_SPECIES, FIELD_SPECIES_ID, FIELD_STANDARD,
     FIELD_SURVEY_ID, FIELD_TREE_PICK, FIELD_TREE_PICK_EXISTING_ID,
-    FIELD_VOLUME_M3, HTML, ROW_ID, STATUS, STATUS_NOT_FOUND, is_truthy,
+    FIELD_VOLUME_M3, HTML, ROW_ID, STATUS, STATUS_NOT_FOUND, VERSION, is_truthy,
 )
 
 # Quantization for tree-height measurements (centimetre precision).
@@ -279,6 +281,12 @@ def tree_delete_view(request, ts_id: int):
     ).filter(id=ts_id).first()
     if ts is None:
         return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
+    if ts.version != int(body.get(VERSION, 0)):
+        return conflict_response(
+            data_id=f'sampled_trees_{ts.sample.survey_id}',
+            row_id=ts.id,
+            record=build_tree_sample_record(ts),
+        )
     sample = ts.sample
     survey = sample.survey
     survey_id = survey.id
@@ -500,6 +508,11 @@ def area_delete_view(request, area_id: int):
     ).first()
     if area is None:
         return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
+    if area.version != int(body.get(VERSION, 0)):
+        return conflict_response(
+            data_id='sample_areas', row_id=area.id,
+            record=build_sample_area_record(area),
+        )
     if Sample.objects.filter(sample_area=area).exists():
         return validation_error([S.ERR_AREA_IN_USE])
     grid = area.sample_grid
@@ -970,6 +983,10 @@ def grid_delete_view(request, grid_id: int):
     grid = SampleGrid.objects.filter(id=grid_id).first()
     if grid is None:
         return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
+    if grid.version != int(body.get(VERSION, 0)):
+        return conflict_response(
+            data_id='grids', row_id=grid.id, record=build_grid_record(grid),
+        )
     if Survey.objects.filter(sample_grid=grid).exists():
         return validation_error([S.ERR_GRID_IN_USE])
     with transaction.atomic():
@@ -1026,9 +1043,9 @@ TREE_CSV_OPTIONAL = [S.CSV_COL_DATA, S.CSV_COL_PAI]
 def grid_csv_import_view(request):
     """Upload a CSV → append N SampleAreas to an existing SampleGrid.
 
-    Multipart form fields:
+    JSON fields:
       - sample_grid_id (required)
-      - file           (required, .csv)
+      - file           (required, base64 CSV bytes)
 
     Mirrors tree_csv_import_view's "import INTO existing parent" shape
     so a single grid can be populated incrementally from multiple
@@ -1036,8 +1053,12 @@ def grid_csv_import_view(request):
     (parcel, number) within the target grid; rejects rows that
     duplicate each other within the same upload.
     """
-    grid_id = request.POST.get(FIELD_SAMPLE_GRID_ID)
-    upload = request.FILES.get('file')
+    body = json.loads(request.body)
+    grid_id = body.get(FIELD_SAMPLE_GRID_ID)
+    try:
+        upload = csv_io.json_file_bytes(body, FIELD_FILE)
+    except csv_io.CsvError as e:
+        return validation_error([str(e)])
 
     if not grid_id:
         return validation_error([S.ERR_CSV_GRID_REQUIRED])
@@ -1132,7 +1153,7 @@ def grid_csv_import_view(request):
         for sv in Survey.objects.filter(sample_grid=grid)
     ]
     return success_response(
-        request, request.POST,
+        request, body,
         data_id='grids', row_id=grid.id,
         patches=[
             row_patch('grids', grid_record[0], grid_record),
@@ -1149,14 +1170,18 @@ def grid_csv_import_view(request):
 def tree_csv_import_view(request):
     """Upload a CSV → create Samples + Trees + TreeSamples on a survey.
 
-    Multipart form fields:
+    JSON fields:
       - survey_id (required)
       - default_date (required if CSV lacks a Data column)
-      - file (required, .csv)
+      - file (required, base64 CSV bytes)
     """
-    survey_id = request.POST.get(FIELD_SURVEY_ID)
-    upload = request.FILES.get('file')
-    default_date_str = (request.POST.get('default_date') or '').strip()
+    body = json.loads(request.body)
+    survey_id = body.get(FIELD_SURVEY_ID)
+    try:
+        upload = csv_io.json_file_bytes(body, FIELD_FILE)
+    except csv_io.CsvError as e:
+        return validation_error([str(e)])
+    default_date_str = (body.get(FIELD_DEFAULT_DATE) or '').strip()
 
     if not survey_id:
         return validation_error([S.ERR_CSV_SURVEY_REQUIRED])
@@ -1298,7 +1323,7 @@ def tree_csv_import_view(request):
         )
 
     return success_response(
-        request, request.POST,
+        request, body,
         data_id='surveys', row_id=survey.id,
         extra={'n_samples': len(sample_by_key), 'n_trees': n_trees},
     )
@@ -1316,6 +1341,11 @@ def survey_delete_view(request, survey_id: int):
     survey = Survey.objects.filter(id=survey_id).first()
     if survey is None:
         return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
+    if survey.version != int(body.get(VERSION, 0)):
+        return conflict_response(
+            data_id='surveys', row_id=survey.id,
+            record=build_survey_record(survey),
+        )
     with transaction.atomic():
         survey.delete()
         mark_stale(

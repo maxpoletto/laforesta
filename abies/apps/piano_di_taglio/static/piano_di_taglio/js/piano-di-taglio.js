@@ -13,7 +13,7 @@ import { TableWrapper } from '../../base/js/table.js';
 import {
   show as showModal, showError, dismiss as dismissModal,
 } from '../../base/js/modals.js';
-import { fetchJSON, postJSON, postFormData } from '../../base/js/api.js';
+import { fetchJSON, fileToBase64, postJSON } from '../../base/js/api.js';
 import {
   deleteRowWithVersion, fetchModalForm, injectNonce, interceptSubmit,
   parseHTMLFragment, submitCsvImport, showFormError,
@@ -32,8 +32,9 @@ import {
 import { mountUseLocationButton } from '../../base/js/latlng-input.js';
 import * as S from '../../base/js/strings.js';
 import {
-  FIELD_DATE, FIELD_DESCRIPTION, FIELD_FILE, FIELD_HARVEST_PLAN_ID,
-  FIELD_HARVEST_PLAN_ITEM_ID, FIELD_NAME, FIELD_NONCE, FIELD_NOTE,
+  FIELD_CEDUO_FILE, FIELD_DATE, FIELD_DESCRIPTION, FIELD_FILE,
+  FIELD_FUSTAIA_FILE, FIELD_HARVEST_PLAN_ID, FIELD_HARVEST_PLAN_ITEM_ID,
+  FIELD_NAME, FIELD_NONCE, FIELD_NOTE,
   FIELD_OPEN, FIELD_YEAR_END, FIELD_YEAR_START,
   HYPSO_FUNC_LN, ROW_ID, VERSION,
 } from '../../base/js/constants.js';
@@ -499,24 +500,27 @@ function planHasActiveItems(planId) {
 
 async function doDeletePlan() {
   const id = activePlanId;
-  try {
-    const { data, status } = await postJSON(`${PLAN_DELETE_URL}${id}/`, {});
-    if (status !== 200) {
-      showError(data?.message || S.ERROR_GENERIC);
-      return;
-    }
-    const touched = applyWriteResponse(data);
-    if (!touched.has(PLANS_ID)) cache.removeRow(PLANS_ID, id);
-    activePlanId = null;
-    plansData = cache.get(PLANS_ID);
-    // The plan cascade-deletes its items; refresh that cache so the page
-    // doesn't keep rendering rows for a plan that no longer exists.
-    await refreshItems();
-    onPlansUpdate();
-    syncURL();
-  } catch {
-    showError(S.ERROR_NETWORK);
-  }
+  await deleteRowWithVersion(
+    PLANS_ID, id, `${PLAN_DELETE_URL}${id}/`,
+    {
+      confirmMessage: null,
+      onSuccess: async (data) => {
+        const touched = applyWriteResponse(data);
+        if (!touched.has(PLANS_ID)) cache.removeRow(PLANS_ID, id);
+        activePlanId = null;
+        plansData = cache.get(PLANS_ID);
+        // The plan cascade-deletes its items; refresh that cache so the page
+        // doesn't keep rendering rows for a plan that no longer exists.
+        await refreshItems();
+        onPlansUpdate();
+        syncURL();
+      },
+      onConflict: (data) => {
+        applyWriteResponse(data);
+        onPlansUpdate();
+      },
+    },
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -668,22 +672,25 @@ function confirmDeleteItem(itemId) {
 }
 
 async function doDeleteItem(itemId) {
-  try {
-    const { data, status } = await postJSON(`${ITEM_DELETE_URL}${itemId}/`, {});
-    if (status !== 200) {
-      showError(data?.message || S.ERROR_GENERIC);
-      return;
-    }
-    const touched = applyWriteResponse(data);
-    if (!touched.has(ITEMS_ID)) cache.removeRow(ITEMS_ID, itemId);
-    itemsData = cache.get(ITEMS_ID);
-    for (const k of SECTION_KEYS) {
-      sections[k].table?.setData(itemsData);
-      updateEmptyState(sections[k]);
-    }
-  } catch {
-    showError(S.ERROR_NETWORK);
-  }
+  await deleteRowWithVersion(
+    ITEMS_ID, itemId, `${ITEM_DELETE_URL}${itemId}/`,
+    {
+      confirmMessage: null,
+      onSuccess: (data) => {
+        const touched = applyWriteResponse(data);
+        if (!touched.has(ITEMS_ID)) cache.removeRow(ITEMS_ID, itemId);
+        itemsData = cache.get(ITEMS_ID);
+        for (const k of SECTION_KEYS) {
+          sections[k].table?.setData(itemsData);
+          updateEmptyState(sections[k]);
+        }
+      },
+      onConflict: (data) => {
+        applyWriteResponse(data);
+        renderItemView(itemId);
+      },
+    },
+  );
 }
 
 function downloadItemExport(itemId) {
@@ -793,12 +800,13 @@ export function openEditPlanModal(initialTab, { ceduo = false } = {}) {
     const file = calFileInput.files[0];
     if (!file) { showFormError(calendarForm, S.ERR_CSV_FILE_REQUIRED); return; }
 
-    const fd = new FormData();
-    fd.append(FIELD_HARVEST_PLAN_ID, String(activePlanId));
-    fd.append(ceduoCb.checked ? 'ceduo_file' : 'fustaia_file', file);
-    fd.append(FIELD_NONCE, crypto.randomUUID());
+    const body = {
+      [FIELD_HARVEST_PLAN_ID]: String(activePlanId),
+      [ceduoCb.checked ? FIELD_CEDUO_FILE : FIELD_FUSTAIA_FILE]: await fileToBase64(file),
+      [FIELD_NONCE]: crypto.randomUUID(),
+    };
 
-    await submitPlanCsvImport(calendarForm, fd, calStatusBox, calErrorsBox);
+    await submitPlanCsvImport(calendarForm, body, calStatusBox, calErrorsBox);
   });
 
   const { lockHeight } = wireTabbedModal(frag, {
@@ -855,16 +863,16 @@ function onNewPlan() {
 }
 
 /**
- * Submit a multipart POST to /plan/import-csv/ and, on success, refresh
- * the affected digests + land on the newly-imported plan.  Thin wrapper
- * around `submitCsvImport` that knows the plan-specific URL + side
+ * Submit the JSON CSV-import write to /plan/import-csv/ and, on success,
+ * refresh the affected digests + land on the newly-imported plan.  Thin
+ * wrapper around `submitCsvImport` that knows the plan-specific URL + side
  * effects.
  */
-async function submitPlanCsvImport(form, fd, statusBox, errorsBox) {
+async function submitPlanCsvImport(form, body, statusBox, errorsBox) {
   return submitCsvImport({
     form, statusBox, errorsBox,
     attempt: async () => {
-      const { data, status } = await postFormData(PLAN_IMPORT_CSV_URL, fd);
+      const { data, status } = await postJSON(PLAN_IMPORT_CSV_URL, body);
       if (status === 200) {
         await Promise.all([refreshPlans(), refreshItems()]);
         activePlanId = data.row_id;
@@ -1481,14 +1489,16 @@ async function showImportMarksForm(itemId) {
       showFormError(form, S.ERR_CSV_FILE_REQUIRED);
       return;
     }
-    const fd = new FormData();
-    fd.append(FIELD_HARVEST_PLAN_ITEM_ID, String(itemId));
-    fd.append(FIELD_FILE, fileInput.files[0]);
+    const body = {
+      [FIELD_HARVEST_PLAN_ITEM_ID]: String(itemId),
+      [FIELD_FILE]: await fileToBase64(fileInput.files[0]),
+      [FIELD_NONCE]: crypto.randomUUID(),
+    };
 
     const result = await submitCsvImport({
       form, statusBox, errorsBox,
       attempt: async () => {
-        const { data, status } = await postFormData(MARK_CSV_IMPORT_URL, fd);
+        const { data, status } = await postJSON(MARK_CSV_IMPORT_URL, body);
         if (status === 200) {
           applyWriteResponse(data);
           return { ok: true };

@@ -181,6 +181,8 @@ def plan_delete_view(request, plan_id: int):
     plan = HarvestPlan.objects.filter(id=plan_id).first()
     if plan is None:
         return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
+    if plan.version != int(body.get(VERSION, 0)):
+        return _conflict_response_plan(plan)
 
     bad = HarvestPlanItem.objects.filter(harvest_plan=plan).exclude(
         state=HarvestPlanItemState.PLANNED,
@@ -200,7 +202,7 @@ def plan_delete_view(request, plan_id: int):
 
 
 # ---------------------------------------------------------------------------
-# Plan CSV import — single endpoint dispatching on which file(s) attached
+# Plan CSV import — single endpoint dispatching on which base64 CSV field(s) are present
 # ---------------------------------------------------------------------------
 
 # Column aliases — each logical field accepts the legacy pdg-2026 name
@@ -241,21 +243,22 @@ _CEDUO_OPTIONAL = {
 def plan_csv_import_view(request):
     """Create a HarvestPlan from CSVs, or upsert CSV rows into an existing one.
 
-    Multipart form fields:
+    JSON fields:
       - ``harvest_plan_id`` — optional: target an existing plan for upsert.
         When set, ``name``/``description`` are ignored and the existing
         plan's are kept; rows from the CSVs are upserted (see below).
       - ``name``            — required when ``harvest_plan_id`` is absent.
       - ``description``     — optional plan description (create path only).
-      - ``fustaia_file``    — optional: piano.csv (high-forest schedule).
-      - ``ceduo_file``      — optional: ceduo.csv (coppice schedule).
+      - ``fustaia_file``    — optional base64 CSV bytes for piano.csv.
+      - ``ceduo_file``      — optional base64 CSV bytes for ceduo.csv.
 
     At least one CSV must be attached.  Upsert key: calendar items dedup
     on ``(harvest_plan, parcel, year_planned)``.  Re-importing the same
     file is a no-op; re-importing a revised file overwrites the matching
     rows in place.
     """
-    plan_id = int_or_none(request.POST.get(FIELD_HARVEST_PLAN_ID))
+    body = json.loads(request.body)
+    plan_id = int_or_none(body.get(FIELD_HARVEST_PLAN_ID))
     if plan_id is not None:
         target_plan = HarvestPlan.objects.filter(id=plan_id).first()
         if target_plan is None:
@@ -264,20 +267,24 @@ def plan_csv_import_view(request):
         description = target_plan.description
     else:
         target_plan = None
-        name = (request.POST.get(FIELD_NAME) or '').strip()
-        description = (request.POST.get(FIELD_DESCRIPTION) or '').strip()
+        name = (body.get(FIELD_NAME) or '').strip()
+        description = (body.get(FIELD_DESCRIPTION) or '').strip()
         if not name:
             return validation_error([S.ERR_PLAN_NAME_REQUIRED])
         if HarvestPlan.objects.filter(name__iexact=name).exists():
             return validation_error([S.ERR_PLAN_NAME_DUPLICATE])
 
+    try:
+        fustaia_upload = csv_io.json_file_bytes(body, FIELD_FUSTAIA_FILE)
+        ceduo_upload = csv_io.json_file_bytes(body, FIELD_CEDUO_FILE)
+    except csv_io.CsvError as e:
+        return validation_error([str(e)])
+
     fustaia_rows = _read_optional(
-        request.FILES.get(FIELD_FUSTAIA_FILE),
-        _FUSTAIA_REQUIRED, _FUSTAIA_OPTIONAL,
+        fustaia_upload, _FUSTAIA_REQUIRED, _FUSTAIA_OPTIONAL,
     )
     ceduo_rows = _read_optional(
-        request.FILES.get(FIELD_CEDUO_FILE),
-        _CEDUO_REQUIRED, _CEDUO_OPTIONAL,
+        ceduo_upload, _CEDUO_REQUIRED, _CEDUO_OPTIONAL,
     )
     if fustaia_rows is None and ceduo_rows is None:
         return validation_error([S.ERR_CSV_NO_FILES])
@@ -397,7 +404,7 @@ def plan_csv_import_view(request):
         mark_stale('harvest_plans', 'harvest_plan_items', 'audit')
 
     return success_response(
-        request, request.POST,
+        request, body,
         data_id='harvest_plans', row_id=plan.id,
         patches=[row_patch('harvest_plans', plan.id, build_harvest_plan_record(plan))],
         extra={'n_items': n_items},
@@ -642,6 +649,8 @@ def item_delete_view(request, item_id: int):
     item = HarvestPlanItem.objects.filter(id=item_id).first()
     if item is None:
         return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
+    if item.version != int(body.get(VERSION, 0)):
+        return _conflict_response_item(item)
     if item.state != HarvestPlanItemState.PLANNED:
         return validation_error([S.ERR_PLAN_ITEM_STATE_NOT_PLANNED])
 
@@ -1122,8 +1131,12 @@ def mark_csv_import_view(request):
     import hashlib
     from apps.base.tabacchi import tabacchi_volume_m3
 
-    item_id = int_or_none(request.POST.get(FIELD_HARVEST_PLAN_ITEM_ID))
-    upload = request.FILES.get(FIELD_FILE)
+    body = json.loads(request.body)
+    item_id = int_or_none(body.get(FIELD_HARVEST_PLAN_ITEM_ID))
+    try:
+        upload = csv_io.json_file_bytes(body, FIELD_FILE)
+    except csv_io.CsvError as e:
+        return validation_error([str(e)])
 
     if item_id is None:
         return validation_error([S.ERR_PLAN_ITEM_NOT_FOUND])
@@ -1277,7 +1290,7 @@ def mark_csv_import_view(request):
                   .get(id=item.id))
     item_record = build_harvest_plan_item_record(item_fresh)
     return success_response(
-        request, request.POST,
+        request, body,
         patches=[row_patch('harvest_plan_items', item_record[0], item_record)],
         extra={
             'imported': len(parsed),

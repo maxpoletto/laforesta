@@ -6,6 +6,7 @@ cantiere transition save view.  All write paths share the digest-stale
 contract and the nonce-idempotency contract.
 """
 
+import base64
 import csv
 import gzip
 import io
@@ -37,6 +38,30 @@ from config.constants import (
     RECORD, ROW_ID, ROWS, STATUS, STATUS_CONFLICT,
     STATUS_VALIDATION_ERROR, TRANSITION_RECORDS, VERSION,
 )
+
+
+def _csv_b64(value):
+    if hasattr(value, 'getvalue'):
+        raw = value.getvalue()
+    elif isinstance(value, bytes):
+        raw = value
+    else:
+        raw = str(value).encode('utf-8')
+    return base64.b64encode(raw).decode('ascii')
+
+
+def _post_plan_csv_import(client, **kwargs):
+    body = {}
+    for key, value in kwargs.items():
+        if key in (FIELD_FUSTAIA_FILE, FIELD_CEDUO_FILE):
+            body[key] = _csv_b64(value)
+        else:
+            body[key] = value
+    return client.post(
+        '/api/piano-di-taglio/plan/import-csv/',
+        data=json.dumps(body),
+        content_type='application/json',
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -140,6 +165,7 @@ class TestPlanCRUD:
     def test_delete_allowed_when_all_planned(self, writer_client, plan, planned_item):
         resp = writer_client.post(
             f'/api/piano-di-taglio/plan/delete/{plan.id}/',
+            data=json.dumps({VERSION: plan.version}),
             content_type='application/json',
         )
         assert resp.status_code == 200
@@ -148,17 +174,31 @@ class TestPlanCRUD:
     def test_delete_saves_nonce(self, writer_client, plan, planned_item):
         resp = writer_client.post(
             f'/api/piano-di-taglio/plan/delete/{plan.id}/',
-            data=json.dumps({FIELD_NONCE: 'plan-delete-nonce'}),
+            data=json.dumps({
+                VERSION: plan.version,
+                FIELD_NONCE: 'plan-delete-nonce',
+            }),
             content_type='application/json',
         )
         assert resp.status_code == 200
         assert UsedNonce.objects.filter(nonce='plan-delete-nonce').exists()
+
+    def test_delete_stale_version_conflicts(self, writer_client, plan, planned_item):
+        resp = writer_client.post(
+            f'/api/piano-di-taglio/plan/delete/{plan.id}/',
+            data=json.dumps({VERSION: plan.version + 1}),
+            content_type='application/json',
+        )
+        assert resp.status_code == 400
+        assert resp.json()[STATUS] == STATUS_CONFLICT
+        assert HarvestPlan.objects.filter(id=plan.id).exists()
 
     def test_delete_blocked_when_active_item(self, writer_client, plan, planned_item):
         planned_item.state = HarvestPlanItemState.OPEN
         planned_item.save()
         resp = writer_client.post(
             f'/api/piano-di-taglio/plan/delete/{plan.id}/',
+            data=json.dumps({VERSION: plan.version}),
             content_type='application/json',
         )
         assert resp.status_code == 400
@@ -180,10 +220,7 @@ CEDUO_CSV = (
 )
 class TestPlanCSVImport:
     def _upload(self, client, **kwargs):
-        return client.post(
-            '/api/piano-di-taglio/plan/import-csv/',
-            data=kwargs,
-        )
+        return _post_plan_csv_import(client, **kwargs)
 
     def test_import_calendar_files(self, writer_client, parcels, species):
         f = self._upload(
@@ -474,12 +511,10 @@ class TestPlanExport:
         before = HarvestPlanItem.objects.filter(
             harvest_plan=plan, parcel__isnull=True,
         ).count()
-        reup = writer_client.post(
-            '/api/piano-di-taglio/plan/import-csv/',
-            data={
-                'harvest_plan_id': plan.id,
-                'fustaia_file': io.BytesIO(fustaia_bytes),
-            },
+        reup = _post_plan_csv_import(
+            writer_client,
+            harvest_plan_id=plan.id,
+            fustaia_file=io.BytesIO(fustaia_bytes),
         )
         assert reup.status_code == 200, reup.json()
         after = HarvestPlanItem.objects.filter(
@@ -497,12 +532,10 @@ class TestPlanExport:
         zf = zipfile.ZipFile(io.BytesIO(resp.content))
         fustaia_bytes = zf.read('fustaia.csv')
 
-        reup = writer_client.post(
-            '/api/piano-di-taglio/plan/import-csv/',
-            data={
-                'harvest_plan_id': plan.id,
-                'fustaia_file': io.BytesIO(fustaia_bytes),
-            },
+        reup = _post_plan_csv_import(
+            writer_client,
+            harvest_plan_id=plan.id,
+            fustaia_file=io.BytesIO(fustaia_bytes),
         )
         assert reup.status_code == 200, reup.json()
         items = HarvestPlanItem.objects.filter(harvest_plan=plan)
@@ -603,6 +636,7 @@ class TestItemCRUD:
     def test_delete_planned(self, writer_client, planned_item):
         resp = writer_client.post(
             f'/api/piano-di-taglio/item/delete/{planned_item.id}/',
+            data=json.dumps({VERSION: planned_item.version}),
             content_type='application/json',
         )
         assert resp.status_code == 200
@@ -611,17 +645,32 @@ class TestItemCRUD:
     def test_delete_saves_nonce(self, writer_client, planned_item):
         resp = writer_client.post(
             f'/api/piano-di-taglio/item/delete/{planned_item.id}/',
-            data=json.dumps({FIELD_NONCE: 'item-delete-nonce'}),
+            data=json.dumps({
+                VERSION: planned_item.version,
+                FIELD_NONCE: 'item-delete-nonce',
+            }),
             content_type='application/json',
         )
         assert resp.status_code == 200
         assert UsedNonce.objects.filter(nonce='item-delete-nonce').exists()
 
+    def test_delete_stale_version_conflicts(self, writer_client, planned_item):
+        resp = writer_client.post(
+            f'/api/piano-di-taglio/item/delete/{planned_item.id}/',
+            data=json.dumps({VERSION: planned_item.version + 1}),
+            content_type='application/json',
+        )
+        assert resp.status_code == 400
+        assert resp.json()[STATUS] == STATUS_CONFLICT
+        assert HarvestPlanItem.objects.filter(id=planned_item.id).exists()
+
     def test_delete_blocked_when_not_planned(self, writer_client, planned_item):
         planned_item.state = HarvestPlanItemState.OPEN
+        planned_item.version += 1
         planned_item.save()
         resp = writer_client.post(
             f'/api/piano-di-taglio/item/delete/{planned_item.id}/',
+            data=json.dumps({VERSION: planned_item.version}),
             content_type='application/json',
         )
         assert resp.status_code == 400
@@ -1090,6 +1139,20 @@ class TestMarkCSVImport:
             lines.append(';'.join(str(x) for x in r))
         return ('﻿' + '\r\n'.join(lines) + '\r\n').encode('utf-8')
 
+    @staticmethod
+    def _post(client, item, csv_bytes, nonce=None):
+        body = {
+            FIELD_HARVEST_PLAN_ITEM_ID: item.id,
+            FIELD_FILE: _csv_b64(csv_bytes),
+        }
+        if nonce:
+            body[FIELD_NONCE] = nonce
+        return client.post(
+            TestMarkCSVImport.IMPORT_URL,
+            data=json.dumps(body),
+            content_type='application/json',
+        )
+
     def test_import_basic(self, writer_client, planned_item, species, parcels):
         sp = species[0]
         parcel = parcels[0]
@@ -1097,15 +1160,7 @@ class TestMarkCSVImport:
             ['01/06/2025', parcel.region.name, parcel.name, '0', '1',
              sp.common_name, '30', '20,0', '0', '38.5', '16.3', '5', 'Mario'],
         ])
-        csv_file = io.BytesIO(csv_bytes)
-        csv_file.name = 'test.csv'
-        resp = writer_client.post(
-            self.IMPORT_URL,
-            data={
-                FIELD_HARVEST_PLAN_ITEM_ID: planned_item.id,
-                FIELD_FILE: csv_file,
-            },
-        )
+        resp = self._post(writer_client, planned_item, csv_bytes)
         assert resp.status_code == 200
         data = resp.json()
         assert data['imported'] == 1
@@ -1114,6 +1169,17 @@ class TestMarkCSVImport:
         assert tm.import_fingerprint is not None
         assert tm.number == 1
         assert tm.d_cm == 30
+
+    def test_import_saves_nonce(self, writer_client, planned_item, species, parcels):
+        csv_bytes = self._csv_content([
+            ['01/06/2025', parcels[0].region.name, parcels[0].name, '0', '1',
+             species[0].common_name, '30', '20,0', '0', '38.5', '16.3', '5', 'Mario'],
+        ])
+        resp = self._post(
+            writer_client, planned_item, csv_bytes, nonce='mark-import-nonce',
+        )
+        assert resp.status_code == 200
+        assert UsedNonce.objects.filter(nonce='mark-import-nonce').exists()
 
     def test_import_rejects_fractional_diameter(
         self, writer_client, planned_item, species, parcels,
@@ -1125,12 +1191,7 @@ class TestMarkCSVImport:
             ['01/06/2025', parcel.region.name, parcel.name, '0', '1',
              sp.common_name, '30,5', '20,0', '0', '38.5', '16.3', '5', 'Mario'],
         ])
-        csv_file = io.BytesIO(csv_bytes)
-        csv_file.name = 'test.csv'
-        resp = writer_client.post(self.IMPORT_URL, data={
-            FIELD_HARVEST_PLAN_ITEM_ID: planned_item.id,
-            FIELD_FILE: csv_file,
-        })
+        resp = self._post(writer_client, planned_item, csv_bytes)
         assert resp.status_code == 400
         assert TreeMark.objects.count() == 0
 
@@ -1141,15 +1202,7 @@ class TestMarkCSVImport:
                sp.common_name, '30', '20,0', '0', '38.5', '16.3', '5', 'Mario']
         csv_bytes = self._csv_content([row])
         for _ in range(2):
-            csv_file = io.BytesIO(csv_bytes)
-            csv_file.name = 'test.csv'
-            writer_client.post(
-                self.IMPORT_URL,
-                data={
-                    FIELD_HARVEST_PLAN_ITEM_ID: planned_item.id,
-                    FIELD_FILE: csv_file,
-                },
-            )
+            self._post(writer_client, planned_item, csv_bytes)
         assert TreeMark.objects.count() == 1
 
     def test_import_auto_advances_state(
@@ -1161,15 +1214,7 @@ class TestMarkCSVImport:
             ['01/06/2025', parcel.region.name, parcel.name, '0', '1',
              sp.common_name, '30', '20,0', '0', '38.5', '16.3', '5', 'Mario'],
         ])
-        csv_file = io.BytesIO(csv_bytes)
-        csv_file.name = 'test.csv'
-        writer_client.post(
-            self.IMPORT_URL,
-            data={
-                FIELD_HARVEST_PLAN_ITEM_ID: planned_item.id,
-                FIELD_FILE: csv_file,
-            },
-        )
+        self._post(writer_client, planned_item, csv_bytes)
         planned_item.refresh_from_db()
         assert planned_item.state == HarvestPlanItemState.MARKED
 
@@ -1182,15 +1227,7 @@ class TestMarkCSVImport:
             ['01/06/2025', parcel.region.name, parcel.name, '0', '1',
              sp.common_name, '30', '20,0', '0', '38.5', '16.3', '5', 'Mario'],
         ])
-        csv_file = io.BytesIO(csv_bytes)
-        csv_file.name = 'test.csv'
-        writer_client.post(
-            self.IMPORT_URL,
-            data={
-                FIELD_HARVEST_PLAN_ITEM_ID: planned_item.id,
-                FIELD_FILE: csv_file,
-            },
-        )
+        self._post(writer_client, planned_item, csv_bytes)
         planned_item.refresh_from_db()
         assert planned_item.volume_marked_m3 is not None
         assert planned_item.volume_marked_m3 > 0
@@ -1205,13 +1242,5 @@ class TestMarkCSVImport:
             ['01/06/2025', parcels[0].region.name, parcels[0].name, '0', '1',
              species[0].common_name, '30', '20,0', '0', '', '', '', 'Mario'],
         ])
-        csv_file = io.BytesIO(csv_bytes)
-        csv_file.name = 'test.csv'
-        resp = writer_client.post(
-            self.IMPORT_URL,
-            data={
-                FIELD_HARVEST_PLAN_ITEM_ID: planned_item.id,
-                FIELD_FILE: csv_file,
-            },
-        )
+        resp = self._post(writer_client, planned_item, csv_bytes)
         assert resp.status_code == 400

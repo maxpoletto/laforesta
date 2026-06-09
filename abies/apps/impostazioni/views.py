@@ -12,7 +12,7 @@ from django.http import HttpResponse, JsonResponse
 from django.template.loader import render_to_string
 from django.views.decorators.http import require_POST
 
-from apps.base import hypsometry
+from apps.base import csv_io, hypsometry
 from apps.base.auth import require_admin, require_writer
 from apps.base.numparse import parse_decimal
 from apps.base.digests import (
@@ -386,7 +386,8 @@ def hypso_params_compute(request):
 @require_writer
 @require_POST
 def hypso_params_accept(request):
-    survey_ids, min_n, err = _parse_compute_body(json.loads(request.body))
+    body = json.loads(request.body)
+    survey_ids, min_n, err = _parse_compute_body(body)
     if err:
         return err
     rows = hypsometry.compute_params(survey_ids, min_n)
@@ -395,14 +396,18 @@ def hypso_params_accept(request):
         survey_ids=survey_ids,
     )
     mark_stale(DIGEST_HYPSO_PARAMS, 'audit')
-    return JsonResponse({MESSAGE: S.HYPSO_SAVED})
+    return success_response(request, body, extra={MESSAGE: S.HYPSO_SAVED})
 
 
 @login_required
 @require_writer
 @require_POST
 def hypso_params_import(request):
-    file = request.FILES.get(FIELD_FILE)
+    body = json.loads(request.body)
+    try:
+        file = csv_io.json_file_bytes(body, FIELD_FILE)
+    except csv_io.CsvError as e:
+        return _error(str(e))
     if file is None:
         return _error(S.ERR_CSV_FILE_REQUIRED)
     rows, errors = hypsometry.parse_param_csv(file)
@@ -414,7 +419,7 @@ def hypso_params_import(request):
         rows, source=HypsoParamSource.IMPORTED, min_n=None, survey_ids=[],
     )
     mark_stale(DIGEST_HYPSO_PARAMS, 'audit')
-    return JsonResponse({MESSAGE: S.HYPSO_SAVED})
+    return success_response(request, body, extra={MESSAGE: S.HYPSO_SAVED})
 
 
 @login_required
@@ -434,9 +439,10 @@ def hypso_params_export(request):
 @require_writer
 @require_POST
 def hypso_params_clear(request):
+    body = json.loads(request.body or '{}')
     hypsometry.clear_active_set()
     mark_stale(DIGEST_HYPSO_PARAMS, 'audit')
-    return JsonResponse({MESSAGE: S.HYPSO_CLEARED})
+    return success_response(request, body, extra={MESSAGE: S.HYPSO_CLEARED})
 
 
 def _hypso_export_response(params):

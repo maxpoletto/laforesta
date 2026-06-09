@@ -21,6 +21,8 @@ string) for an undecodable, empty, or column-incomplete file.  Per-cell parsing
 caller can report a per-row error.
 """
 
+import base64
+import binascii
 import csv
 import io
 import zipfile
@@ -70,6 +72,24 @@ class CsvReader:
         "12,0"); a fractional value ("12,5") yields None.  See `numparse.to_int`.
         """
         return to_int(value, self.decimal_separator)
+
+
+def json_file_bytes(body: dict, field: str) -> bytes | None:
+    """Decode a base64 CSV field from a JSON write payload.
+
+    Returns ``None`` when the field is absent/blank so callers can use their
+    existing "file required" validation. Raises ``CsvError`` for malformed
+    base64; ``read()`` still owns UTF-8 validation after bytes are decoded.
+    """
+    encoded = body.get(field)
+    if encoded in (None, ''):
+        return None
+    if not isinstance(encoded, str):
+        raise CsvError(S.ERR_CSV_NOT_UTF8)
+    try:
+        return base64.b64decode(encoded, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise CsvError(S.ERR_CSV_NOT_UTF8) from exc
 
 
 def read(source, required_cols=None) -> CsvReader:

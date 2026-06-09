@@ -5,6 +5,7 @@ The delimiter is auto-detected and fixes the decimal separator as a pair:
 parse against the *detected* separator, independent of the install locale.
 """
 
+import base64
 import io
 import zipfile
 
@@ -86,6 +87,22 @@ def test_empty_raises():
 def test_non_utf8_raises():
     with pytest.raises(CsvError):
         csv_io.read(b'\xff\xfe bad bytes')
+
+
+def test_json_file_bytes_decodes_base64_payload():
+    raw = b'a,b\n1,2\n'
+    body = {'file': base64.b64encode(raw).decode('ascii')}
+    assert csv_io.json_file_bytes(body, 'file') == raw
+
+
+def test_json_file_bytes_allows_missing_or_blank_file():
+    assert csv_io.json_file_bytes({}, 'file') is None
+    assert csv_io.json_file_bytes({'file': ''}, 'file') is None
+
+
+def test_json_file_bytes_rejects_malformed_base64():
+    with pytest.raises(CsvError):
+        csv_io.json_file_bytes({'file': 'not valid base64'}, 'file')
 
 
 def test_format_decimal_strips_zeros_and_localizes():

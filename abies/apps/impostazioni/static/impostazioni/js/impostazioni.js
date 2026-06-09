@@ -11,7 +11,7 @@
  * Forms open in modals.
  */
 
-import { postFormData, postJSON } from '../../base/js/api.js';
+import { fileToBase64, postJSON } from '../../base/js/api.js';
 import { downloadFromURL } from '../../base/js/csv-export.js';
 import { TableWrapper } from '../../base/js/table.js';
 import * as modals from '../../base/js/modals.js';
@@ -25,7 +25,7 @@ import { loadCSS, unloadCSS } from '../../base/js/page-css.js';
 import { cloneTemplate } from '../../base/js/templates.js';
 import * as S from '../../base/js/strings.js';
 import {
-  FIELD_CREATED_AT, FIELD_FILE, FIELD_MIN_N, FIELD_SOURCE,
+  FIELD_CREATED_AT, FIELD_FILE, FIELD_MIN_N, FIELD_NONCE, FIELD_SOURCE,
   FIELD_SURVEY_IDS, FIELD_SURVEYS, HYPSO_SOURCE_COMPUTED, LOGIN_METHOD_PASSWORD,
   DATA_ID, MESSAGE, PATCHES, RECORD, ROLE_ADMIN, ROLE_WRITER,
 } from '../../base/js/constants.js';
@@ -481,8 +481,11 @@ function showCandidate(payload, minN, surveyIds, tableHost, descEl) {
   wireActions(root, {
     reject: () => modals.dismiss(),
     accept: async () => {
-      const data = await postOrError(postJSON(HYPSO.accept,
-        { [FIELD_MIN_N]: minN, [FIELD_SURVEY_IDS]: surveyIds }));
+      const data = await postOrError(postJSON(HYPSO.accept, {
+        [FIELD_MIN_N]: minN,
+        [FIELD_SURVEY_IDS]: surveyIds,
+        [FIELD_NONCE]: crypto.randomUUID(),
+      }));
       if (!data) return;
       modals.dismiss();
       loadHypso(tableHost, descEl);
@@ -501,9 +504,11 @@ function showCandidate(payload, minN, surveyIds, tableHost, descEl) {
 
 function confirmImport(file, tableHost, descEl) {
   showConfirmModal(S.HYPSO_IMPORT_CONFIRM, async () => {
-    const fd = new FormData();
-    fd.append(FIELD_FILE, file);
-    if (await postOrError(postFormData(HYPSO.upload, fd))) {
+    const body = {
+      [FIELD_FILE]: await fileToBase64(file),
+      [FIELD_NONCE]: crypto.randomUUID(),
+    };
+    if (await postOrError(postJSON(HYPSO.upload, body))) {
       loadHypso(tableHost, descEl);
     }
   }, { confirmLabel: S.IMPORT_LABEL });
@@ -511,14 +516,16 @@ function confirmImport(file, tableHost, descEl) {
 
 function confirmClear(tableHost, descEl) {
   showConfirmModal(S.HYPSO_CLEAR_CONFIRM, async () => {
-    if (await postOrError(postJSON(HYPSO.clear, {}))) {
+    if (await postOrError(postJSON(HYPSO.clear, {
+      [FIELD_NONCE]: crypto.randomUUID(),
+    }))) {
       loadHypso(tableHost, descEl);
     }
   }, { confirmLabel: S.ACTION_DELETE });
 }
 
 /**
- * Await a postJSON/postFormData promise, surfacing network and non-200
+ * Await a postJSON promise, surfacing network and non-200
  * errors in a modal.  Returns the response data, or null on error.
  */
 async function postOrError(promise) {

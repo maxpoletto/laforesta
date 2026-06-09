@@ -1,5 +1,6 @@
 """Tests for Campionamenti API views."""
 
+import base64
 import gzip
 import json
 from datetime import date
@@ -14,7 +15,7 @@ from apps.base.models import (
 from config import strings as S
 from config.constants import (
     COLUMNS, DATA_ID, DELETES, FIELD_ALTITUDE_M, FIELD_DATE, FIELD_DEFAULT_DATE,
-    FIELD_DESCRIPTION, FIELD_D_CM, FIELD_ERRORS, FIELD_FUSTAIA, FIELD_H_M,
+    FIELD_DESCRIPTION, FIELD_D_CM, FIELD_ERRORS, FIELD_FILE, FIELD_FUSTAIA, FIELD_H_M,
     FIELD_LAT, FIELD_LON, FIELD_MASS_Q, FIELD_NAME, FIELD_NONCE, FIELD_NOTE,
     FIELD_NUMBER, FIELD_PARCEL_ID, FIELD_POINTS, FIELD_PRESERVED, FIELD_R_M,
     FIELD_SAMPLE_AREA_ID, FIELD_SAMPLE_GRID_ID, FIELD_SHOOT, FIELD_SPECIES_ID,
@@ -76,6 +77,11 @@ def _patch(payload, data_id, row_id=None):
         if patch[DATA_ID] == data_id and (row_id is None or patch[ROW_ID] == row_id):
             return patch
     raise AssertionError(f'missing patch for {data_id}:{row_id}')
+
+
+def _csv_b64(csv_text):
+    raw = csv_text if isinstance(csv_text, bytes) else csv_text.encode('utf-8-sig')
+    return base64.b64encode(raw).decode('ascii')
 
 
 class TestDataEndpoints:
@@ -1113,6 +1119,7 @@ class TestAreaCRUD:
         )
         resp = writer_client.post(
             f'/api/campionamenti/area/delete/{unused.id}/',
+            data=json.dumps({VERSION: unused.version}),
             content_type='application/json',
         )
         assert resp.status_code == 200
@@ -1130,17 +1137,41 @@ class TestAreaCRUD:
         )
         resp = writer_client.post(
             f'/api/campionamenti/area/delete/{unused.id}/',
-            data=json.dumps({FIELD_NONCE: 'area-delete-nonce'}),
+            data=json.dumps({
+                VERSION: unused.version,
+                FIELD_NONCE: 'area-delete-nonce',
+            }),
             content_type='application/json',
         )
         assert resp.status_code == 200
         assert UsedNonce.objects.filter(nonce='area-delete-nonce').exists()
+
+    def test_delete_stale_version_conflicts(self, writer_client, sample_setup,
+                                            regions, eclasses):
+        s = sample_setup
+        new_parcel = Parcel.objects.create(
+            name='2', region=regions[0], eclass=eclasses[0],
+            area_ha=Decimal('1.0'),
+        )
+        unused = SampleArea.objects.create(
+            sample_grid=s['grid'], parcel=new_parcel, number='3',
+            lat=0.0, lon=0.0, r_m=12,
+        )
+        resp = writer_client.post(
+            f'/api/campionamenti/area/delete/{unused.id}/',
+            data=json.dumps({VERSION: unused.version + 1}),
+            content_type='application/json',
+        )
+        assert resp.status_code == 400
+        assert resp.json()[STATUS] == STATUS_CONFLICT
+        assert SampleArea.objects.filter(id=unused.id).exists()
 
     def test_delete_in_use_refused(self, writer_client, sample_setup):
         """An area referenced by any Sample is protected from delete."""
         s = sample_setup
         resp = writer_client.post(
             f'/api/campionamenti/area/delete/{s["area"].id}/',
+            data=json.dumps({VERSION: s['area'].version}),
             content_type='application/json',
         )
         assert resp.status_code == 400
@@ -1528,8 +1559,10 @@ class TestRecordShape:
         from apps.base.models import TreeSample
         s = sample_setup
         ts_id = TreeSample.objects.first().id
+        ts = TreeSample.objects.get(id=ts_id)
         resp = writer_client.post(
             f'/api/campionamenti/tree/delete/{ts_id}/',
+            data=json.dumps({VERSION: ts.version}),
             content_type='application/json',
         )
         payload = resp.json()
@@ -1542,9 +1575,13 @@ class TestRecordShape:
 
 class TestTreeDelete:
     @staticmethod
-    def _post(client, ts_id):
+    def _post(client, ts_id, body=None):
+        ts = TreeSample.objects.filter(id=ts_id).first()
+        if body is None:
+            body = {VERSION: ts.version if ts else 0}
         return client.post(
             f'/api/campionamenti/tree/delete/{ts_id}/',
+            data=json.dumps(body),
             content_type='application/json',
         )
 
@@ -1562,13 +1599,24 @@ class TestTreeDelete:
     def test_delete_saves_nonce(self, writer_client, sample_setup):
         from apps.base.models import TreeSample
         ts_id = TreeSample.objects.first().id
+        ts = TreeSample.objects.get(id=ts_id)
         resp = writer_client.post(
             f'/api/campionamenti/tree/delete/{ts_id}/',
-            data=json.dumps({FIELD_NONCE: 'tree-delete-nonce'}),
+            data=json.dumps({
+                VERSION: ts.version,
+                FIELD_NONCE: 'tree-delete-nonce',
+            }),
             content_type='application/json',
         )
         assert resp.status_code == 200
         assert UsedNonce.objects.filter(nonce='tree-delete-nonce').exists()
+
+    def test_delete_stale_version_conflicts(self, writer_client, sample_setup):
+        ts = TreeSample.objects.first()
+        resp = self._post(writer_client, ts.id, {VERSION: ts.version + 1})
+        assert resp.status_code == 400
+        assert resp.json()[STATUS] == STATUS_CONFLICT
+        assert TreeSample.objects.filter(id=ts.id).exists()
 
     def test_delete_nonexistent(self, writer_client, db):
         resp = self._post(writer_client, 99999)
@@ -1775,6 +1823,7 @@ class TestDigestInvalidation:
                                            tmp_path, settings)
         writer_client.post(
             f'/api/campionamenti/survey/delete/{extra.id}/',
+            data=json.dumps({VERSION: extra.version}),
             content_type='application/json',
         )
         n_after = self._grids_n_rilev(writer_client, s['grid'].id,
@@ -1821,6 +1870,7 @@ class TestDigestInvalidation:
                                           tmp_path, settings)
         writer_client.post(
             f'/api/campionamenti/area/delete/{unused.id}/',
+            data=json.dumps({VERSION: unused.version}),
             content_type='application/json',
         )
         n_after = self._surveys_n_totali(writer_client, s['survey'].id,
@@ -1833,14 +1883,14 @@ class TestGridCsvImport:
 
     @staticmethod
     def _post(client, grid_id, csv_text):
-        from django.core.files.uploadedfile import SimpleUploadedFile
-        return client.post(TestGridCsvImport.URL, {
-            FIELD_SAMPLE_GRID_ID: str(grid_id),
-            'file': SimpleUploadedFile(
-                'grid.csv', csv_text.encode('utf-8-sig'),
-                content_type='text/csv',
-            ),
-        })
+        return client.post(
+            TestGridCsvImport.URL,
+            data=json.dumps({
+                FIELD_SAMPLE_GRID_ID: str(grid_id),
+                FIELD_FILE: _csv_b64(csv_text),
+            }),
+            content_type='application/json',
+        )
 
     def test_happy_path_appends_to_existing(self, writer_client, sample_setup):
         """CSV import adds new areas to the chosen grid; no new grid created."""
@@ -1992,18 +2042,22 @@ class TestGridCsvImport:
         assert SampleArea.objects.filter(sample_grid=grid, parcel=other).count() == 0
 
     def test_missing_grid_id(self, writer_client, db):
-        from django.core.files.uploadedfile import SimpleUploadedFile
-        resp = writer_client.post(self.URL, {
-            'file': SimpleUploadedFile('x.csv', b'Compresa\n'),
-        })
+        resp = writer_client.post(
+            self.URL,
+            data=json.dumps({FIELD_FILE: _csv_b64(b'Compresa\n')}),
+            content_type='application/json',
+        )
         assert resp.status_code == 400
 
     def test_grid_not_found(self, writer_client, db):
-        from django.core.files.uploadedfile import SimpleUploadedFile
-        resp = writer_client.post(self.URL, {
-            FIELD_SAMPLE_GRID_ID: '999999',
-            'file': SimpleUploadedFile('x.csv', b'Compresa\n'),
-        })
+        resp = writer_client.post(
+            self.URL,
+            data=json.dumps({
+                FIELD_SAMPLE_GRID_ID: '999999',
+                FIELD_FILE: _csv_b64(b'Compresa\n'),
+            }),
+            content_type='application/json',
+        )
         assert resp.status_code == 404
 
     def test_missing_required_column(self, writer_client, sample_setup):
@@ -2029,12 +2083,15 @@ class TestGridCsvImport:
         assert any('Nessuna' in e for e in body[FIELD_ERRORS])
 
     def test_reader_forbidden(self, reader_client, sample_setup):
-        from django.core.files.uploadedfile import SimpleUploadedFile
         grid = sample_setup['grid']
-        resp = reader_client.post(self.URL, {
-            FIELD_SAMPLE_GRID_ID: str(grid.id),
-            'file': SimpleUploadedFile('x.csv', b'a,b\n1,2'),
-        })
+        resp = reader_client.post(
+            self.URL,
+            data=json.dumps({
+                FIELD_SAMPLE_GRID_ID: str(grid.id),
+                FIELD_FILE: _csv_b64(b'a,b\n1,2'),
+            }),
+            content_type='application/json',
+        )
         assert resp.status_code == 403
 
 
@@ -2043,15 +2100,15 @@ class TestTreeCsvImport:
 
     @staticmethod
     def _post(client, survey_id, csv_text, default_date=''):
-        from django.core.files.uploadedfile import SimpleUploadedFile
-        return client.post(TestTreeCsvImport.URL, {
-            FIELD_SURVEY_ID: str(survey_id),
-            FIELD_DEFAULT_DATE: default_date,
-            'file': SimpleUploadedFile(
-                'trees.csv', csv_text.encode('utf-8-sig'),
-                content_type='text/csv',
-            ),
-        })
+        return client.post(
+            TestTreeCsvImport.URL,
+            data=json.dumps({
+                FIELD_SURVEY_ID: str(survey_id),
+                FIELD_DEFAULT_DATE: default_date,
+                FIELD_FILE: _csv_b64(csv_text),
+            }),
+            content_type='application/json',
+        )
 
     def test_happy_path(self, writer_client, sample_setup):
         """Importing rows into an empty survey creates samples + trees +
@@ -2082,6 +2139,35 @@ class TestTreeCsvImport:
         assert data['n_trees'] == 2
         assert Tree.objects.count() == n_trees_before + 2
         assert TreeSample.objects.count() == n_ts_before + 2
+
+    def test_nonce_replay_does_not_duplicate_rows(self, writer_client, sample_setup):
+        from apps.base.models import Survey, TreeSample
+        s = sample_setup
+        empty_survey = Survey.objects.create(
+            name='CSV nonce target', sample_grid=s['grid'],
+        )
+        csv_text = (
+            'Compresa,Particella,Area saggio,Albero,Pollone,Matricina,'
+            'D_cm,H_m,L10_mm,Genere,Fustaia,Data\n'
+            f'{s["area"].parcel.region.name},{s["area"].parcel.name},'
+            f'{s["area"].number},10,0,false,30,20.5,10,Abete,true,'
+            '2024-09-15\n'
+        )
+        body = {
+            FIELD_SURVEY_ID: str(empty_survey.id),
+            FIELD_DEFAULT_DATE: '',
+            FIELD_FILE: _csv_b64(csv_text),
+            FIELD_NONCE: 'tree-import-nonce',
+        }
+        resp1 = writer_client.post(
+            self.URL, data=json.dumps(body), content_type='application/json',
+        )
+        resp2 = writer_client.post(
+            self.URL, data=json.dumps(body), content_type='application/json',
+        )
+        assert resp1.status_code == 200
+        assert resp2.status_code == 200
+        assert TreeSample.objects.filter(sample__survey=empty_survey).count() == 1
 
     def test_missing_required_column(self, writer_client, sample_setup):
         csv_text = (
@@ -2123,12 +2209,15 @@ class TestTreeCsvImport:
         submit and our JS handler never ran).  The form is now `novalidate`
         and we rely on the server to return a friendly 400 — make sure
         that path renders the error message clients can show."""
-        from django.core.files.uploadedfile import SimpleUploadedFile
-        resp = writer_client.post(self.URL, {
-            FIELD_SURVEY_ID: '',      # empty: user didn't pick a survey
-            FIELD_DEFAULT_DATE: '',
-            'file': SimpleUploadedFile('x.csv', b'a,b\n1,2'),
-        })
+        resp = writer_client.post(
+            self.URL,
+            data=json.dumps({
+                FIELD_SURVEY_ID: '',      # empty: user didn't pick a survey
+                FIELD_DEFAULT_DATE: '',
+                FIELD_FILE: _csv_b64(b'a,b\n1,2'),
+            }),
+            content_type='application/json',
+        )
         assert resp.status_code == 400
         body = resp.json()
         assert body[MESSAGE]    # non-empty user-facing message
@@ -2147,11 +2236,14 @@ class TestTreeCsvImport:
         assert any('ZZZ' in e for e in body[FIELD_ERRORS])
 
     def test_reader_forbidden(self, reader_client, sample_setup):
-        from django.core.files.uploadedfile import SimpleUploadedFile
-        resp = reader_client.post(self.URL, {
-            FIELD_SURVEY_ID: str(sample_setup['survey'].id),
-            'file': SimpleUploadedFile('x.csv', b'a,b\n1,2'),
-        })
+        resp = reader_client.post(
+            self.URL,
+            data=json.dumps({
+                FIELD_SURVEY_ID: str(sample_setup['survey'].id),
+                FIELD_FILE: _csv_b64(b'a,b\n1,2'),
+            }),
+            content_type='application/json',
+        )
         assert resp.status_code == 403
 
 
@@ -2201,7 +2293,8 @@ class TestGridEditDelete:
         plus the explicit pre-check)."""
         s = sample_setup
         resp = self._post(writer_client,
-                          f'/api/campionamenti/grid/delete/{s["grid"].id}/')
+                          f'/api/campionamenti/grid/delete/{s["grid"].id}/',
+                          {VERSION: s['grid'].version})
         assert resp.status_code == 400
         assert SampleGrid.objects.filter(id=s['grid'].id).exists()
 
@@ -2209,7 +2302,8 @@ class TestGridEditDelete:
         """An empty grid (no surveys, no areas) deletes cleanly."""
         g = SampleGrid.objects.create(name='Empty grid')
         resp = self._post(writer_client,
-                          f'/api/campionamenti/grid/delete/{g.id}/')
+                          f'/api/campionamenti/grid/delete/{g.id}/',
+                          {VERSION: g.version})
         assert resp.status_code == 200
         assert not SampleGrid.objects.filter(id=g.id).exists()
 
@@ -2217,7 +2311,7 @@ class TestGridEditDelete:
         g = SampleGrid.objects.create(name='Empty grid')
         resp = self._post(
             writer_client, f'/api/campionamenti/grid/delete/{g.id}/',
-            {FIELD_NONCE: 'grid-delete-nonce'},
+            {VERSION: g.version, FIELD_NONCE: 'grid-delete-nonce'},
         )
         assert resp.status_code == 200
         assert UsedNonce.objects.filter(nonce='grid-delete-nonce').exists()
@@ -2234,9 +2328,20 @@ class TestGridEditDelete:
         SampleArea.objects.create(sample_grid=g, parcel=p, number='2',
                                   lat=0, lon=0, r_m=12)
         resp = self._post(writer_client,
-                          f'/api/campionamenti/grid/delete/{g.id}/')
+                          f'/api/campionamenti/grid/delete/{g.id}/',
+                          {VERSION: g.version})
         assert resp.status_code == 200
         assert not SampleArea.objects.filter(sample_grid=g).exists()
+
+    def test_delete_stale_version_conflicts(self, writer_client, db):
+        g = SampleGrid.objects.create(name='Empty grid')
+        resp = self._post(
+            writer_client, f'/api/campionamenti/grid/delete/{g.id}/',
+            {VERSION: g.version + 1},
+        )
+        assert resp.status_code == 400
+        assert resp.json()[STATUS] == STATUS_CONFLICT
+        assert SampleGrid.objects.filter(id=g.id).exists()
 
     def test_reader_forbidden(self, reader_client, sample_setup):
         s = sample_setup
@@ -2294,7 +2399,8 @@ class TestSurveyEditDelete:
         n_trees_before = Tree.objects.count()
 
         resp = self._post(writer_client,
-                          f'/api/campionamenti/survey/delete/{survey_id}/')
+                          f'/api/campionamenti/survey/delete/{survey_id}/',
+                          {VERSION: s['survey'].version})
         assert resp.status_code == 200
         assert not Survey.objects.filter(id=survey_id).exists()
         assert not Sample.objects.filter(survey_id=survey_id).exists()
@@ -2310,7 +2416,8 @@ class TestSurveyEditDelete:
             name='Empty survey 1', sample_grid=sample_setup['grid'],
         )
         resp = self._post(writer_client,
-                          f'/api/campionamenti/survey/delete/{empty.id}/')
+                          f'/api/campionamenti/survey/delete/{empty.id}/',
+                          {VERSION: empty.version})
         assert resp.status_code == 200
         assert not Survey.objects.filter(id=empty.id).exists()
 
@@ -2320,10 +2427,22 @@ class TestSurveyEditDelete:
         )
         resp = self._post(
             writer_client, f'/api/campionamenti/survey/delete/{empty.id}/',
-            {FIELD_NONCE: 'survey-delete-nonce'},
+            {VERSION: empty.version, FIELD_NONCE: 'survey-delete-nonce'},
         )
         assert resp.status_code == 200
         assert UsedNonce.objects.filter(nonce='survey-delete-nonce').exists()
+
+    def test_delete_stale_version_conflicts(self, writer_client, sample_setup):
+        empty = Survey.objects.create(
+            name='Empty survey 1', sample_grid=sample_setup['grid'],
+        )
+        resp = self._post(
+            writer_client, f'/api/campionamenti/survey/delete/{empty.id}/',
+            {VERSION: empty.version + 1},
+        )
+        assert resp.status_code == 400
+        assert resp.json()[STATUS] == STATUS_CONFLICT
+        assert Survey.objects.filter(id=empty.id).exists()
 
     def test_reader_forbidden(self, reader_client, sample_setup):
         s = sample_setup

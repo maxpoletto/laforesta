@@ -1,21 +1,21 @@
 """Tests for the hypsometric-parameters settings endpoints."""
 
+import base64
 import gzip
 import json
 
 import pytest
-from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client
 from django.urls import reverse
 
 from apps.base import hypsometry
 from apps.base.digests import build_hypso_param_record, generate_hypso_params
 from apps.base.models import (
-    HYPSO_FUNC_LN, HypsoParam, HypsoParamSet, HypsoParamSource,
+    HYPSO_FUNC_LN, HypsoParam, HypsoParamSet, HypsoParamSource, UsedNonce,
 )
 from config import strings as S
 from config.constants import (
-    COLUMNS, DIGEST_HYPSO_PARAMS, FIELD_FILE, FIELD_MIN_N, FIELD_SOURCE,
+    COLUMNS, DIGEST_HYPSO_PARAMS, FIELD_FILE, FIELD_MIN_N, FIELD_NONCE, FIELD_SOURCE,
     FIELD_SURVEY_IDS, FIELD_SURVEYS, ROWS,
 )
 
@@ -68,6 +68,11 @@ def _read_gzip_json(resp):
     return json.loads(gzip.decompress(resp.getvalue()))
 
 
+def _csv_b64(content):
+    raw = content if isinstance(content, bytes) else content.encode('utf-8')
+    return base64.b64encode(raw).decode('ascii')
+
+
 class TestCompute:
     def test_returns_candidate_without_persisting(self, writer_client, hypso_samples):
         resp = _post_json(writer_client, URL_COMPUTE, _compute_body(hypso_samples))
@@ -113,15 +118,16 @@ class TestImportExportClear:
             + f'{regions[0].name},{species[0].common_name},'
               f'{HYPSO_FUNC_LN},7.0,-4.0,0.6,30\n'
         )
-        return SimpleUploadedFile('e.csv', content.encode('utf-8'),
-                                  content_type='text/csv')
+        return _csv_b64(content)
 
     def test_import_replaces_active_set(
         self, writer_client, regions, species, tmp_path, settings,
     ):
         settings.DIGEST_DIR = tmp_path
-        resp = writer_client.post(
-            URL_IMPORT, {FIELD_FILE: self._csv_upload(regions, species)})
+        resp = _post_json(
+            writer_client, URL_IMPORT,
+            {FIELD_FILE: self._csv_upload(regions, species)},
+        )
         assert resp.status_code == 200
         active = hypsometry.active_set()
         assert active is not None
@@ -134,8 +140,7 @@ class TestImportExportClear:
         settings.DIGEST_DIR = tmp_path
         content = (CSV_HEADER + '\n'
                    + f'Nessuna,{species[0].common_name},{HYPSO_FUNC_LN},7,-4,0.5,20\n')
-        f = SimpleUploadedFile('e.csv', content.encode('utf-8'))
-        resp = writer_client.post(URL_IMPORT, {FIELD_FILE: f})
+        resp = _post_json(writer_client, URL_IMPORT, {FIELD_FILE: _csv_b64(content)})
         assert resp.status_code == 400
         assert HypsoParamSet.objects.count() == 0
 
@@ -143,19 +148,29 @@ class TestImportExportClear:
         """A non-UTF-8 upload is reported cleanly (not a 500) — it flows
         through parse_param_csv → csv_io decode."""
         settings.DIGEST_DIR = tmp_path
-        f = SimpleUploadedFile('e.csv', b'\xff\xfe not utf-8 bytes')
-        resp = writer_client.post(URL_IMPORT, {FIELD_FILE: f})
+        resp = _post_json(
+            writer_client, URL_IMPORT,
+            {FIELD_FILE: _csv_b64(b'\xff\xfe not utf-8 bytes')},
+        )
         assert resp.status_code == 400
         assert HypsoParamSet.objects.count() == 0
 
     def test_import_requires_file(self, writer_client, db):
-        assert writer_client.post(URL_IMPORT).status_code == 400
+        assert _post_json(writer_client, URL_IMPORT, {}).status_code == 400
+
+    def test_import_saves_nonce(self, writer_client, regions, species, tmp_path, settings):
+        settings.DIGEST_DIR = tmp_path
+        resp = _post_json(writer_client, URL_IMPORT, {
+            FIELD_FILE: self._csv_upload(regions, species),
+            FIELD_NONCE: 'hypso-import-nonce',
+        })
+        assert resp.status_code == 200
+        assert UsedNonce.objects.filter(nonce='hypso-import-nonce').exists()
 
     def _upload_csv(self, writer_client, *data_rows):
         content = CSV_HEADER + '\n' + ''.join(r + '\n' for r in data_rows)
-        return writer_client.post(
-            URL_IMPORT,
-            {FIELD_FILE: SimpleUploadedFile('e.csv', content.encode('utf-8'))},
+        return _post_json(
+            writer_client, URL_IMPORT, {FIELD_FILE: _csv_b64(content)},
         )
 
     def test_import_rejects_out_of_range_r2(
@@ -192,8 +207,9 @@ class TestImportExportClear:
 
     def test_import_rejects_header_only(self, writer_client, db, tmp_path, settings):
         settings.DIGEST_DIR = tmp_path
-        f = SimpleUploadedFile('e.csv', (CSV_HEADER + '\n').encode('utf-8'))
-        assert writer_client.post(URL_IMPORT, {FIELD_FILE: f}).status_code == 400
+        assert _post_json(
+            writer_client, URL_IMPORT, {FIELD_FILE: _csv_b64(CSV_HEADER + '\n')},
+        ).status_code == 400
 
     def test_import_accepts_bom_encoded_file(
         self, writer_client, regions, species, tmp_path, settings,
@@ -203,8 +219,10 @@ class TestImportExportClear:
             CSV_HEADER + '\n'
             + f'{regions[0].name},{species[0].common_name},{HYPSO_FUNC_LN},7,-4,0.6,20\n'
         )
-        f = SimpleUploadedFile('e.csv', content.encode('utf-8-sig'))
-        resp = writer_client.post(URL_IMPORT, {FIELD_FILE: f})
+        resp = _post_json(
+            writer_client, URL_IMPORT,
+            {FIELD_FILE: _csv_b64(content.encode('utf-8-sig'))},
+        )
         assert resp.status_code == 200
         assert hypsometry.active_set() is not None
 
@@ -233,7 +251,7 @@ class TestImportExportClear:
     def test_clear_archives_active(self, writer_client, hypso_samples, tmp_path, settings):
         settings.DIGEST_DIR = tmp_path
         _persist(hypso_samples)
-        assert writer_client.post(URL_CLEAR).status_code == 200
+        assert _post_json(writer_client, URL_CLEAR, {}).status_code == 200
         assert hypsometry.active_set() is None
 
 
@@ -255,7 +273,7 @@ class TestPermissions:
         assert resp.status_code == 403
 
     def test_reader_cannot_clear(self, reader_client, db):
-        assert reader_client.post(URL_CLEAR).status_code == 403
+        assert _post_json(reader_client, URL_CLEAR, {}).status_code == 403
 
     def test_anonymous_blocked(self, client, db):
         assert client.get(URL_DATA).status_code in (302, 403)
@@ -286,9 +304,8 @@ class TestDigestInvalidation:
             + f'{regions[0].name},{species[0].common_name},'
               f'{HYPSO_FUNC_LN},10,-10,0.6,20\n'
         )
-        resp = writer_client.post(
-            URL_IMPORT,
-            {FIELD_FILE: SimpleUploadedFile('e.csv', content.encode('utf-8'))},
+        resp = _post_json(
+            writer_client, URL_IMPORT, {FIELD_FILE: _csv_b64(content)},
         )
         assert resp.status_code == 200
         digest = _read_gzip_json(writer_client.get(URL_DATA))
@@ -308,7 +325,7 @@ class TestDigestInvalidation:
         settings.DIGEST_DIR = tmp_path
         _post_json(writer_client, URL_ACCEPT, _compute_body(hypso_samples))
         assert len(_read_gzip_json(writer_client.get(URL_DATA))[ROWS]) == 1
-        assert writer_client.post(URL_CLEAR).status_code == 200
+        assert _post_json(writer_client, URL_CLEAR, {}).status_code == 200
         assert _read_gzip_json(writer_client.get(URL_DATA))[ROWS] == []
 
     def test_build_record_matches_generator(self, hypso_samples, tmp_path, settings):

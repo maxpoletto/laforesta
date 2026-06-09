@@ -136,12 +136,16 @@ export function interceptSubmit(form, postUrl, callbacks) {
  * @param {number} rowId
  * @param {string} url — delete endpoint
  * @param {object} [callbacks]
- * @param {function(data: object): void} [callbacks.onSuccess]
- * @param {function(data: object): void} [callbacks.onConflict]
+ * @param {function(data: object): void|Promise<void>} [callbacks.onSuccess]
+ * @param {function(data: object): void|Promise<void>} [callbacks.onConflict]
+ * @param {string|null} [callbacks.confirmMessage] — null when the caller already confirmed
  * @returns {Promise<boolean>} true iff the row was deleted
  */
-export async function deleteRowWithVersion(dataId, rowId, url, { onSuccess, onConflict } = {}) {
-  if (!confirm(S.DELETE_CONFIRM)) return false;
+export async function deleteRowWithVersion(
+  dataId, rowId, url,
+  { onSuccess, onConflict, confirmMessage = S.DELETE_CONFIRM } = {},
+) {
+  if (confirmMessage != null && !confirm(confirmMessage)) return false;
   const digest = cache.get(dataId);
   const row = digest?.rows.find(r => r[0] === rowId);
   if (!row) return false;
@@ -162,7 +166,7 @@ export async function deleteRowWithVersion(dataId, rowId, url, { onSuccess, onCo
 
   if (status === 200) {
     cache.removeRow(dataId, rowId);
-    onSuccess?.(data);
+    await onSuccess?.(data);
     return true;
   }
 
@@ -171,7 +175,7 @@ export async function deleteRowWithVersion(dataId, rowId, url, { onSuccess, onCo
     if (!touched.size && data.record) {
       cache.updateRow(dataId, data.row_id, data.record);
     }
-    onConflict?.(data);
+    await onConflict?.(data);
   }
   showError(data?.message || S.ERROR_GENERIC);
   return false;

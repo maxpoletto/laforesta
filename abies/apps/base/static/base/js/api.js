@@ -55,20 +55,19 @@ export async function postJSON(url, body) {
 }
 
 /**
- * POST multipart/form-data (file uploads).  CSRF token is added via
- * header (the FormData body itself has no token).
+ * Read a browser File/Blob as base64 so upload writes can stay on the
+ * same JSON+nonce protocol as every other mutating endpoint.
  *
- * @param {string} url
- * @param {FormData} formData
- * @returns {Promise<{data: any, status: number}>}
+ * @param {Blob} file
+ * @returns {Promise<string>}
  */
-export async function postFormData(url, formData) {
-  const resp = await fetch(url, {
-    method: 'POST',
-    headers: { 'X-CSRFToken': csrfToken() },
-    body: formData,
-  });
-  const data = await resp.json();
-  return { data, status: resp.status };
+export async function fileToBase64(file) {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
 }
 

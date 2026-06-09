@@ -127,6 +127,18 @@ Forms are Django-rendered HTML fragments displayed in overlay modals
    retry). Used nonces are pruned after 24 hours.
 1. Server validates and responds.
 
+### Request contract
+
+Every mutating endpoint receives a JSON POST. Form controls are serialized into
+a JSON object; CSV import file inputs are read as bytes in the browser and sent
+as base64 strings in their normal file field (`file`, `fustaia_file`, or
+`ceduo_file`). The server decodes that field back to bytes before running the
+shared CSV reader, so UTF-8 and CSV validation remain server-owned.
+
+Every retryable write carries a client-generated `nonce`. Versioned row edits
+and deletes also carry the cached `version`; a missing version is treated as
+stale (`0`) and returns a conflict instead of weakening optimistic locking.
+
 ### Response contract
 
 Payload is always JSON.
@@ -157,7 +169,8 @@ above.
 1. Successful responses contain the deleted row in `deletes`. The client removes
    the given id from the cache.
 
-1. No validation errors are possible.
+1. Domain validation can still refuse protected deletes, such as an area
+   referenced by samples or a harvest plan with active items.
 
 1. Conflict means that a row was edited since last cache refresh. The response
    contains no HTML but a valid record. The cache is updated as for a successful

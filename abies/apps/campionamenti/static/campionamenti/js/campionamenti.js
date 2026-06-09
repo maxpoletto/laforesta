@@ -17,13 +17,14 @@ import { TableWrapper } from '../../base/js/table.js';
 import { show as showModal, showError, dismiss as dismissModal, onDismiss } from '../../base/js/modals.js';
 import * as S from '../../base/js/strings.js';
 import {
-  FIELD_COMPRESA, FIELD_LAT, FIELD_LON, FIELD_NONCE, FIELD_PARTICELLA,
-  FIELD_SAMPLE_GRID_ID, FIELD_SURVEY_ID, ROW_ID, VERSION,
+  FIELD_COMPRESA, FIELD_DEFAULT_DATE, FIELD_FILE, FIELD_LAT, FIELD_LON,
+  FIELD_NONCE, FIELD_PARTICELLA, FIELD_SAMPLE_GRID_ID, FIELD_SURVEY_ID,
+  ROW_ID, VERSION,
 } from '../../base/js/constants.js';
 import { parcelNames, sortFeaturesByArea } from '../../base/js/geo.js';
-import { postJSON, postFormData } from '../../base/js/api.js';
+import { fileToBase64, postJSON } from '../../base/js/api.js';
 import {
-  fetchForm, fetchModalForm, renderFormHTML, renderModalForm,
+  deleteRowWithVersion, fetchForm, fetchModalForm, renderFormHTML, renderModalForm,
   interceptSubmit, submitCsvImport, showFormError,
 } from '../../base/js/forms.js';
 import {
@@ -999,19 +1000,14 @@ function confirmDeleteArea(areaId) {
 }
 
 async function deleteArea(areaId) {
-  try {
-    const { data, status } = await postJSON(
-      `${AREA_DELETE_URL_PREFIX}${areaId}/`, {},
-    );
-    if (status !== 200) {
-      showError(data?.message || S.ERROR_GENERIC);
-      return;
-    }
-    cache.removeRow(SAMPLE_AREAS_ID, areaId);
-    applySideEffects(data);
-  } catch {
-    showError(S.ERROR_NETWORK);
-  }
+  await deleteRowWithVersion(
+    SAMPLE_AREAS_ID, areaId, `${AREA_DELETE_URL_PREFIX}${areaId}/`,
+    {
+      confirmMessage: null,
+      onSuccess: data => applySideEffects(data),
+      onConflict: data => applySideEffects(data),
+    },
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -1044,10 +1040,13 @@ function showEditGridModal() {
       return null;
     },
     onImportSubmit: async (form) => {
-      const fd = new FormData(form);
-      fd.append(FIELD_SAMPLE_GRID_ID, String(activeGridId));
-      fd.append(FIELD_NONCE, crypto.randomUUID());
-      const { data, status } = await postFormData(GRID_CSV_IMPORT_URL, fd);
+      const file = form.querySelector(`[name="${FIELD_FILE}"]`)?.files?.[0];
+      if (!file) return { error: S.ERR_CSV_FILE_REQUIRED };
+      const { data, status } = await postJSON(GRID_CSV_IMPORT_URL, {
+        [FIELD_SAMPLE_GRID_ID]: String(activeGridId),
+        [FIELD_FILE]: await fileToBase64(file),
+        [FIELD_NONCE]: crypto.randomUUID(),
+      });
       if (status === 200) {
         applySideEffects(data);
         return { ok: true };
@@ -1084,10 +1083,15 @@ function showEditSurveyModal() {
       return null;
     },
     onImportSubmit: async (form) => {
-      const fd = new FormData(form);
-      fd.append(FIELD_SURVEY_ID, String(activeSurveyId));
-      fd.append(FIELD_NONCE, crypto.randomUUID());
-      const { data, status } = await postFormData(TREE_CSV_IMPORT_URL, fd);
+      const file = form.querySelector(`[name="${FIELD_FILE}"]`)?.files?.[0];
+      if (!file) return { error: S.ERR_CSV_FILE_REQUIRED };
+      const defaultDate = form.querySelector(`[name="${FIELD_DEFAULT_DATE}"]`)?.value || '';
+      const { data, status } = await postJSON(TREE_CSV_IMPORT_URL, {
+        [FIELD_SURVEY_ID]: String(activeSurveyId),
+        [FIELD_DEFAULT_DATE]: defaultDate,
+        [FIELD_FILE]: await fileToBase64(file),
+        [FIELD_NONCE]: crypto.randomUUID(),
+      });
       if (status === 200) {
         await refreshAfterTreeImport();
         return { ok: true };
@@ -1161,26 +1165,22 @@ function confirmDeleteGrid() {
   const msg = nAreas > 0
     ? `${nAreas} aree saranno eliminate. ${S.DELETE_CONFIRM}`
     : S.DELETE_CONFIRM;
-  showConfirmModal(msg, async () => {
-    try {
-      const { data, status } = await postJSON(
-        `${GRID_DELETE_URL_PREFIX}${activeGridId}/`, {},
-      );
-      if (status !== 200) {
-        showError(data?.message || S.ERROR_GENERIC);
-        return;
-      }
-      activeGridId = null;
-      await refreshGrids();
-      try {
-        await cache.load(SAMPLE_AREAS_ID);
-        sampleAreasData = cache.get(SAMPLE_AREAS_ID);
-      } catch {}
-      returnToPage();
-    } catch {
-      showError(S.ERROR_NETWORK);
-    }
-  });
+  showConfirmModal(msg, () => deleteRowWithVersion(
+    GRIDS_ID, activeGridId, `${GRID_DELETE_URL_PREFIX}${activeGridId}/`,
+    {
+      confirmMessage: null,
+      onSuccess: async () => {
+        activeGridId = null;
+        await refreshGrids();
+        try {
+          await cache.load(SAMPLE_AREAS_ID);
+          sampleAreasData = cache.get(SAMPLE_AREAS_ID);
+        } catch {}
+        returnToPage();
+      },
+      onConflict: data => applySideEffects(data),
+    },
+  ));
 }
 
 function confirmDeleteSurvey() {
@@ -1207,31 +1207,29 @@ function confirmDeleteSurvey() {
 
 async function doDeleteSurvey() {
   const id = activeSurveyId;
-  try {
-    const { data, status } = await postJSON(
-      `${SURVEY_DELETE_URL_PREFIX}${id}/`, {},
-    );
-    if (status !== 200) {
-      showError(data?.message || S.ERROR_GENERIC);
-      return;
-    }
-    activeSurveyId = null;
-    activeAreaId = null;
-    // Drop the per-survey trees from the cache.
-    if (currentTreesId === `${TREES_ID_PREFIX}${id}`) {
-      currentTreesId = null;
-    }
-    // Survey delete cascades to samples + tree_samples and decrements
-    // grids.N_rilevamenti.  Refresh all four affected caches.
-    await Promise.all([refreshSurveys(), refreshGrids()]);
-    try {
-      await cache.load(SAMPLES_ID);
-      samplesData = cache.get(SAMPLES_ID);
-    } catch {}
-    returnToPage();
-  } catch {
-    showError(S.ERROR_NETWORK);
-  }
+  await deleteRowWithVersion(
+    SURVEYS_ID, id, `${SURVEY_DELETE_URL_PREFIX}${id}/`,
+    {
+      confirmMessage: null,
+      onSuccess: async () => {
+        activeSurveyId = null;
+        activeAreaId = null;
+        // Drop the per-survey trees from the cache.
+        if (currentTreesId === `${TREES_ID_PREFIX}${id}`) {
+          currentTreesId = null;
+        }
+        // Survey delete cascades to samples + tree_samples and decrements
+        // grids.N_rilevamenti.  Refresh all four affected caches.
+        await Promise.all([refreshSurveys(), refreshGrids()]);
+        try {
+          await cache.load(SAMPLES_ID);
+          samplesData = cache.get(SAMPLES_ID);
+        } catch {}
+        returnToPage();
+      },
+      onConflict: data => applySideEffects(data),
+    },
+  );
 }
 
 function countTreesInActiveSurvey() {
@@ -1488,23 +1486,15 @@ function confirmDeleteTreeSample(tsId) {
 }
 
 async function deleteTreeSample(tsId) {
-  try {
-    const { data, status } = await postJSON(
-      `${TREE_DELETE_URL_PREFIX}${tsId}/`, {},
-    );
-    if (status !== 200) {
-      showError(data?.message || S.ERROR_GENERIC);
-      return;
-    }
-    // Optimistic remove + side-effect patches (samples, surveys).
-    if (currentTreesId) {
-      cache.removeRow(currentTreesId, tsId);
-      if (table) table.setData(cache.get(currentTreesId));
-    }
-    applySideEffects(data);
-  } catch {
-    showError(S.ERROR_NETWORK);
-  }
+  if (!currentTreesId) return;
+  await deleteRowWithVersion(
+    currentTreesId, tsId, `${TREE_DELETE_URL_PREFIX}${tsId}/`,
+    {
+      confirmMessage: null,
+      onSuccess: data => applySideEffects(data),
+      onConflict: data => applySideEffects(data),
+    },
+  );
 }
 
 function wireTreeForm(form) {
