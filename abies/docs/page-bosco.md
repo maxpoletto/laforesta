@@ -7,8 +7,8 @@ health and productivity.
 
 The main view is map-based. Some data (e.g., harvest amount by region) is
 displayed on the map directly. For other data, the map serves as a parcel- or
-region-selection region and the app then displays a modal with information about
-that area.
+region-selection surface and the app then displays a full-page modal with
+information about that area.
 
 Information provided:
 
@@ -24,77 +24,103 @@ The page layout is a map with sidebar, as described under `Maps` in
 `ui-design-patterns.md`. The map fills the viewport; the navbar on the right
 hosts (top to bottom):
 
-1. Standard map nav header (status panel,region pulldown).
+1. Standard map nav header (status panel, region pulldown).
 2. **Mode** radio group (the page's primary control):
    - Caratteristiche (default)
    - Evoluzione
    - Piante ad accrescimento indefinito
 3. Per-mode controls (see below).
 
-Sample-area visualization (list of parcels with sample-area counts,
-visited-vs-unvisited coloring, click-to-drill-in) lives on the Campionamenti
-page, not here.
-
 ### Hover and click on the map
 
 - **Hover** on a parcel: a small unobtrusive label shows the region and parcel
-  name (e.g., `Capistrano 11`, `Serra 2a`).  No additional stats are shown; the
-  goal is fast orientation while sweeping.
-- **Click** on a parcel: opens the **per-parcel page** as a
-  full-screen overlay above the map (see "Per-parcel page" below).
-  Closing the overlay restores the map exactly as it was.
-- **Click** on empty map space (no parcel underneath): opens the
-  **per-region page** for the currently selected region (the same
-  layout as the per-parcel page, scoped one level up — see below).
-  This is the only entry point to the per-region view, so the gesture
-  is documented unobtrusively in the sidebar (small-print hint under
-  the region pulldown: "Clicca su una particella per vederne i dettagli, o
-  fuori dalle particelle per il riepilogo della compresa").
+  name (e.g., `Capistrano 11`, `Serra 2a`) and below it, the parcel type
+  (coppice or high forest) and area (e.g., "fustaia 24,3 ha", "ceduo 7,9 ha").
+  Uses same mechanism as Campionamenti maps. No additional details are shown;
+  the goal is fast orientation while sweeping.
+- **Click** on a parcel: opens the **per-parcel page** as a full-screen overlay
+  above the map (see "Per-parcel page" below). Closing the overlay restores the
+  map exactly as it was.
+- **Click** on empty map space (no parcel underneath): opens the **per-region
+  page** for the currently selected region (the same layout as the per-parcel
+  page, scoped one level up — see below). This is the only entry point to the
+  per-region view, so the gesture is documented unobtrusively in the sidebar
+  (small-print hint under the region pulldown: "Clicca su una particella per
+  vederne i dettagli, o fuori dalle particelle per il riepilogo della
+  compresa").
 
 ### Mode panels
 
 - **Caratteristiche**
 
-  Pull-down with the list of features from the "Visualizza
-  caratteristiche" part of Boscoscopio (parcel-level metadata and
-  satellite-derived metrics).  Below it, a checkbox for "Aree
-  catastali".
+  Pull-down with a subset of the  features from the "Visualizza caratteristiche"
+  part of Boscoscopio:
+  - Caratteristiche
+    - Età media
+    - Governo
+    - Altitudine media
+  - Produzione
+    - Prelievo storico (formerly "Produzione storica")
+    - Prelievo previsto
+  - Dati satellitari
+    - NDVI
+    - NDMI
+    - EVI
 
-  Map paints a heatmap per pixel or per parcel depending on the
-  feature and the "media per particella" toggle (when applicable),
-  identically to Boscoscopio.  Color range is yellow-green (low) to
-  dark-green (high), except for raw normalized satellite data
-  (0 = black → 1 = white).
+  Below the pullodown, a checkbox for "Aree catastali" (default unchecked, uses
+  computed surface area from parcel geometries).
+
+  If harvest volume ("prelievo) is shown, then we also display another checkbox,
+  "Valori per ettaro" (default unchecked) to display normalized per-hectare
+  productivity.
+
+  The choice of harvest plan used in the "prelievo previsto" is configured on
+  the settings page, see page-impostazioni.md.
 
 - **Evoluzione**
 
-  Pull-down for the metric and two date pickers (years or
-  year-months) to compare.  Behavior identical to Boscoscopio's
-  "Visualizza differenze" with "limita al bosco" always true.
+  Pull-down for the metric and two date pickers (years or year-months) to
+  compare.  Behavior identical to Boscoscopio's "Visualizza differenze" with
+  "limita al bosco" always true.
 
-  Below the pickers, checkboxes for "media per particella" and "aree
-  catastali".
+  Below the pickers, checkboxes for "media per particella" and "aree catastali".
 
-  Map shows red-to-green diff heatmap (new − old): high → dark
-  green, low → dark red, white at zero.
+  Map shows red-to-green diff heatmap (new − old).
 
 - **Piante ad accrescimento indefinito**
 
-  Two scrollable lists (like in `bosco/pai`).  Top: parcels of the current
-  region (with PAI count in parens).  Bottom: species (color-coded dot, name,
-  count).  "mostra tutte" / "nascondi tutte" buttons under each list.
+  Two scrollable lists (like in `bosco/pai`):
+  - Top: parcels of the current region (with PAI count in parens).
+  - Bottom: species (color-coded dot, name, count).
+
+  Under each list are "mostra tutte" / "nascondi tutte" buttons.
 
   Map shows parcel borders and per-tree dots colored by species.
 
-  Writers see a "+ Aggiungi PAI" button below the species list. Clicking it
-  opens a modal form: specie, lat/lon (shared lat-lon component — manual entry
-  plus "Usa GPS" button when device geolocation is available), anno (defaults to
-  current year).  The parcel is auto-derived from the geometry on save; if the
-  lat/lon falls outside any parcel, the form prompts the user to pick one
-  explicitly.
+  Writers see a "+ Aggiungi" button below the species list. Clicking it opens a
+  modal form: species, parcel, lat/lon (shared lat-lon component — manual entry
+  plus "Usa GPS" button when device geolocation is available), year (defaults to
+  current year). Lat/lon cannot be empty: showFormError on submit if it is.
+  Parcel is auto-derived (via parcel geometries) from lat/lon when user sets
+  lat/lon, but user can edit it explicitly also.
 
-  Click on an existing PAI dot opens a popover with species, year,
-  parcel, lat/lng; writers see a pencil and garbage icon.
+  Click on an existing tree dot opens a popover with species, year, parcel,
+  lat/lng; writers see a pencil and garbage icon.
+
+### Map conventions
+
+When mapping parcel types, coppices are yellow, high forest green.
+
+When mapping values in a positive range ([0, 1], > 0, etc.), color range is
+yellow-green (low) to dark-green (high).
+
+When mapping values in a range around 0 (e.g., differences in NDVI values, [-1,
+1]), range is red (min) to white (0) to green (max). Ranges are normalized to be
+symmetric around 0 ([a,b] --> [-max(abs(a),abs(b)), max(abs(a),abs(b))]).
+
+Heatmaps are rendered per pixel, unless "media per particella" is selected, in
+which case the average pixel value per parcel is computed, and that value is
+applied to every pixel in the parcel (behavior identical to "Boscoscopio").
 
 ## Per-parcel and per-region page
 
@@ -146,6 +172,9 @@ following the standard Abies idiom:
    - Percentage growth: line graph, one line per species, x-axis = diameter class, y-axis =
      percentage growth for diameter class.
 
+   The choice of surveys used for this data is made in the settings page, see
+   page-impostazioni.md.
+
 3. **Produzione storica** (closed by default)
    - Units checkbox as above: if checked, production is per hectare, otherwise
      per parcel/region.
@@ -153,13 +182,13 @@ following the standard Abies idiom:
 
 Sections render lazily on first expand.
 
-## URL structure
+## URL structure [to be checked/updated]
 
 - Path: `/bosco`
 - Query parameters are grouped below by purpose.  See "Query parameter
   details" further down for per-mode specifics.
 
-### Map and page-level controls [to be checked/updated]
+### Map and page-level controls
 
 - `mt=o|t|s` — map type (OSM, Topo, Satellite).  Default: `s`.
 - `mc=NN.NNNNNN,NN.NNNNNN` — map center (lat,lng).  Absent → fits the
@@ -185,16 +214,13 @@ Sections render lazily on first expand.
   `v=1`.  Same convention as Prelievi (see `prelievi.md`).
 - `vo=<tokens>` — open sections within the overlay.  Single-char
   tokens, order irrelevant.  Tokens: `m` = Metadati, `d` =
-  Dendrometria, `p` = Produzione storica, `o` = Operazioni recenti.
+  Dendrometria, `p` = Produzione storica,
   Absent → default (`m`).  Explicit empty (`?vo=`) → all closed.
-- `dm=N` — Dendrometria metric: 1 = numero alberi, 2 = volume,
-  3 = area basimetrica, 4 = altezza media, 5 = incremento.
-  Default: 1.
 - `ds=<id list>` — Dendrometria visible-species filter:
   comma-separated `species.id` values (e.g., `3,5,11`).  Absent →
   all species visible.
 
-When the overlay is closed, all `v=`/`pa=`/`vo=`/`dm=`/`ds=`
+When the overlay is closed, all `v=`/`pa=`/`vo=`/`ds=`
 params are stripped from the URL — closing returns the user to a
 clean map state.  Reopening uses the documented defaults.
 
@@ -216,24 +242,19 @@ Cross-mode summary:
 
 ### Cross-page links out of Bosco (per-parcel overlay)
 
-These are the links from the per-parcel/per-region page sections:
-
 - *Produzione storica* row → `/prelievi?c=<region_id>&pa=<parcel_id>`
   pre-filtered to the harvest operation.
-- *Operazioni recenti* → respective page (`/campionamenti?s=…`,
-  `/piano-di-taglio?p=…&mk=…`, `/prelievi?c=…&pa=…`) pre-filtered
-  to the relevant entity.
 
-## Query parameter details
+### Query parameter details
 
-### Caratteristiche (`m=1`)
+#### Caratteristiche (`m=1`)
 
 - `q=1`–`14` — metric id, matching the entries in the
   "caratteristica" pulldown (parcel-level metadata + satellite-derived
   metrics; same set as Boscoscopio).
 - `fc=1` — "aree catastali" checked.
 
-### Evoluzione (`m=2`)
+#### Evoluzione (`m=2`)
 
 - `q=1`–`4` — metric id, matching the entries in the
   "metrica" pulldown.
@@ -243,7 +264,7 @@ These are the links from the per-parcel/per-region page sections:
 - `fa=1` — "media per particella" checked.
 - `fc=1` — "aree catastali" checked.
 
-### Piante ad accrescimento indefinito (`m=3`)
+#### Piante ad accrescimento indefinito (`m=3`)
 
 - `pp=<id list>` — comma-separated `parcel.id` values within the
   active region (e.g., `12,13,17,42`).  Absent → all parcels in the
@@ -251,13 +272,7 @@ These are the links from the per-parcel/per-region page sections:
 - `ps=<id list>` — comma-separated `species.id` values (e.g.,
   `3,5,11`).  Absent → all species visible.
 
-### Renamed parameters
-
-`pp=` and `ps=` replace the earlier `p=` and `s=` from the
-Boscoscopio-era spec.  `s=` is now the page-level survey selector
-(matching Campionamenti's convention), and `p=` is reserved (it has
-plan-id semantics on Piano di taglio; here it's free but kept
-unused to avoid cross-page confusion).
+#### Entity references
 
 All entity references in URLs use integer ids (`c=`, `pa=`, `pp=`,
 `ps=`, `ds=`), not names.  Names are unstable under rename; ids
@@ -265,10 +280,10 @@ keep shared/bookmarked URLs working.  The lookups are cheap because
 the relevant digests (`parcels.json`, `species.json`, etc.) are
 already loaded by the time the URL is parsed.
 
-## Data tables
+## Data tables [to be checked/updated]
 
-Bosco mixes Bosco-specific digests with several it shares with other
-pages.  Loading is staged: a small set is eager on page entry to
+Bosco mixes page-specific digests with several it shares with other
+pages. Loading is staged: a small set is eager on page entry to
 render the map immediately; the rest is lazy on overlay-open or
 mode-switch.
 
@@ -313,9 +328,10 @@ mode-switch.
 
 ### Lazy on per-parcel/per-region overlay open
 
-- **`parcel_dendrometry.json`** — per-(parcel, survey, species,
-  classe diametrica) aggregated stats.  Invalidated on `tree_sample`
-  writes within any of the involved surveys.
+- **`parcel_dendrometry.json`** — per-(parcel, survey, species, classe
+  diametrica) aggregated stats.  Invalidated on `tree_sample` writes within any
+  of the involved surveys, and on change of dendtrometry surveys in the settings
+  page.
 
   Columns: `row_id`, `version`, `Parcel`, `Survey`, `Specie`,
   `Classe (cm)`, `N. alberi/ha`, `Volume (m³/ha)`, `Area bas. (m²/ha)`,
@@ -326,8 +342,7 @@ mode-switch.
   scaling sample-area observations by the surveyed area's coverage
   of the parcel.  Region-scope aggregation is done client-side by
   summing across the region's parcels (with appropriate per-ha
-  arithmetic).  Diameter-class binning: 5 cm bins starting at 5 cm
-  (TBD if pdg-2026 settles on different bins).
+  arithmetic).
 
   `row_id` is a sequential synthetic index; this digest is read-only
   and does not participate in the standard edit/cache-update flow.
