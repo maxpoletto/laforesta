@@ -228,9 +228,10 @@ Flow:
    da CSV" tab.
 2. Uploads CSV. If the file lacks a `Data` column, the form asks for a default
    sample date applied to all rows.
-3. Importer groups rows by (Compresa, Particella, Area saggio, Data). Each group
-   becomes one `sample` row in the target survey (skipped if a sample already
-   exists for that area+date in the survey, with a conflict prompt).
+3. Importer maps each `(Compresa, Particella, Area saggio)` to the one
+   `sample` row for that area in the target survey. All rows for the same area
+   must carry the same sample date; if a sample already exists for that area in
+   the survey, the CSV date must match it. Conflicting dates abort the import.
 4. For each row, resolves `tree_id` via the cross-sample identity convention
    (see below): same `(sample_area, Albero)` → reuse existing `tree.id`;
    otherwise create a new `tree` row.

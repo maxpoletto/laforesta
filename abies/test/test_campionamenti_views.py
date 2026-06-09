@@ -2140,6 +2140,56 @@ class TestTreeCsvImport:
         assert Tree.objects.count() == n_trees_before + 2
         assert TreeSample.objects.count() == n_ts_before + 2
 
+    def test_conflicting_dates_for_same_area_rejected(
+        self, writer_client, sample_setup,
+    ):
+        from apps.base.models import Survey, TreeSample
+        s = sample_setup
+        empty_survey = Survey.objects.create(
+            name='CSV date conflict target', sample_grid=s['grid'],
+        )
+        compresa = s['area'].parcel.region.name
+        particella = s['area'].parcel.name
+        adc = s['area'].number
+        csv_text = (
+            'Compresa,Particella,Area saggio,Albero,Pollone,Matricina,'
+            'D_cm,H_m,L10_mm,Genere,Fustaia,Data\n'
+            f'{compresa},{particella},{adc},10,0,false,30,20.5,10,Abete,true,'
+            '2024-09-15\n'
+            f'{compresa},{particella},{adc},11,0,false,32,22.5,11,Abete,true,'
+            '2024-09-16\n'
+        )
+        resp = self._post(writer_client, empty_survey.id, csv_text)
+        assert resp.status_code == 400
+        body = resp.json()
+        assert S.ERR_CSV_ROW_SAMPLE_DATE_CONFLICT.format(
+            3, compresa, particella, adc, '2024-09-15',
+        ) in body[FIELD_ERRORS]
+        assert Sample.objects.filter(survey=empty_survey).count() == 0
+        assert TreeSample.objects.filter(sample__survey=empty_survey).count() == 0
+
+    def test_existing_sample_date_conflict_rejected(
+        self, writer_client, sample_setup,
+    ):
+        s = sample_setup
+        compresa = s['area'].parcel.region.name
+        particella = s['area'].parcel.name
+        adc = s['area'].number
+        n_trees_before = TreeSample.objects.filter(sample=s['sample']).count()
+        csv_text = (
+            'Compresa,Particella,Area saggio,Albero,Pollone,Matricina,'
+            'D_cm,H_m,L10_mm,Genere,Fustaia,Data\n'
+            f'{compresa},{particella},{adc},99,0,false,30,20.5,10,Abete,true,'
+            '2025-01-01\n'
+        )
+        resp = self._post(writer_client, s['survey'].id, csv_text)
+        assert resp.status_code == 400
+        body = resp.json()
+        assert S.ERR_CSV_ROW_SAMPLE_DATE_CONFLICT.format(
+            2, compresa, particella, adc, '2024-09-15',
+        ) in body[FIELD_ERRORS]
+        assert TreeSample.objects.filter(sample=s['sample']).count() == n_trees_before
+
     def test_nonce_replay_does_not_duplicate_rows(self, writer_client, sample_setup):
         from apps.base.models import Survey, TreeSample
         s = sample_setup
@@ -2191,17 +2241,22 @@ class TestTreeCsvImport:
 
     def test_default_date_used_when_no_data_column(self, writer_client,
                                                   sample_setup):
-        from apps.base.models import Sample
+        from apps.base.models import Sample, Survey
         s = sample_setup
+        empty_survey = Survey.objects.create(
+            name='CSV default date target', sample_grid=s['grid'],
+        )
         csv_text = (
             'Compresa,Particella,Area saggio,Albero,Pollone,Matricina,'
             'D_cm,H_m,L10_mm,Genere,Fustaia\n'
             f'{s["area"].parcel.region.name},{s["area"].parcel.name},'
             f'{s["area"].number},99,0,false,30,20.5,10,Abete,true\n'
         )
-        resp = self._post(writer_client, s['survey'].id, csv_text,
+        resp = self._post(writer_client, empty_survey.id, csv_text,
                           default_date='2025-06-01')
         assert resp.status_code == 200, resp.content
+        sample = Sample.objects.get(survey=empty_survey, sample_area=s['area'])
+        assert sample.date.isoformat() == '2025-06-01'
 
     def test_empty_survey_id_returns_clean_400(self, writer_client, sample_setup):
         """User-reported bug: leaving the target-survey pulldown on

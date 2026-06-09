@@ -1219,6 +1219,11 @@ def tree_csv_import_view(request):
                        .select_related('parcel__region')
     }
     species_cache = {s.common_name.lower(): s for s in Species.objects.all()}
+    existing_sample_by_area = {
+        s.sample_area_id: s
+        for s in Sample.objects.filter(survey=survey)
+    }
+    csv_date_by_area = {}
 
     # Tabacchi inputs use English-side species names; reuse the GENERE_MAP
     # from the management command to handle minor naming drift.
@@ -1269,6 +1274,23 @@ def tree_csv_import_view(request):
                 continue
         else:
             row_date = default_date
+        if row_date is None:
+            errors.append(S.ERR_CSV_ROW_PARSE.format(i, S.CSV_COL_DATA))
+            continue
+
+        existing_sample = existing_sample_by_area.get(area.id)
+        if existing_sample and existing_sample.date != row_date:
+            errors.append(S.ERR_CSV_ROW_SAMPLE_DATE_CONFLICT.format(
+                i, compresa, particella, adc, existing_sample.date.isoformat(),
+            ))
+            continue
+        previous_date = csv_date_by_area.get(area.id)
+        if previous_date is not None and previous_date != row_date:
+            errors.append(S.ERR_CSV_ROW_SAMPLE_DATE_CONFLICT.format(
+                i, compresa, particella, adc, previous_date.isoformat(),
+            ))
+            continue
+        csv_date_by_area.setdefault(area.id, row_date)
 
         if coppice or not has_species(mapped):
             volume_m3 = None
@@ -1290,22 +1312,22 @@ def tree_csv_import_view(request):
         return validation_error([S.ERR_CSV_EMPTY])
 
     with transaction.atomic():
-        # Group rows by (area, date) into Samples (one sample per area+date).
-        sample_by_key = {}
+        # One Sample per (survey, area); all rows for that area share its date.
+        sample_by_area = {}
         for r in parsed:
-            key = (r[FIELD_AREA].id, r[FIELD_DATE])
-            if key in sample_by_key:
+            area_id = r[FIELD_AREA].id
+            if area_id in sample_by_area:
                 continue
             sample, _ = Sample.objects.get_or_create(
                 sample_area=r[FIELD_AREA], survey=survey,
                 defaults={FIELD_DATE: r[FIELD_DATE]},
             )
-            sample_by_key[key] = sample
+            sample_by_area[area_id] = sample
 
         # Walk parsed rows: create one Tree + one TreeSample per row.
         n_trees = 0
         for r in parsed:
-            sample = sample_by_key[(r[FIELD_AREA].id, r[FIELD_DATE])]
+            sample = sample_by_area[r[FIELD_AREA].id]
             tree = Tree.objects.create(
                 species=r[FIELD_SPECIES], parcel=r[FIELD_PARCEL],
                 preserved=r[FIELD_PRESERVED], coppice=r[FIELD_COPPICE],
@@ -1325,7 +1347,7 @@ def tree_csv_import_view(request):
     return success_response(
         request, body,
         data_id='surveys', row_id=survey.id,
-        extra={'n_samples': len(sample_by_key), 'n_trees': n_trees},
+        extra={'n_samples': len(sample_by_area), 'n_trees': n_trees},
     )
 
 
