@@ -25,6 +25,37 @@ are soft-deleted via the `active` flag. "Only active" checkbox
   (minor) flag. Minor species are grouped under a single "Altro" entry in
   Prelievi (see `page-prelievi.md`); the flag is editable here.
 
+## Future production (Produzione futura)
+
+Visible to writers. Determines the data set used to compute per-parcel forecast
+production ("prelievo previsto") in the Bosco page (see page-bosco.md).
+
+It consists of a pulldown of available harvest plans. Exactly one can be
+selected at a time. It defaults to the plan whose (start year, end year) overlap
+the current year and whose end year is greatest. Robust in the event that no
+harvest plan exists.
+
+Changing this setting invalidates the future_production.json digest
+
+## Dendrometric data (Parametri dendrometrici)
+
+Visible to writers. Determines the data set used to compute dendrometric
+parameters in the Bosco page (see page-bosco.md > Dendrometria).
+
+The top of the section is a line listing the current total number of trees,
+regions, and parcels used for the dendrometric parameters.
+
+Below is a multiselect of available surveys (Rilevamenti), identical to the
+multiselect in the hypsometry section (see hypsometry.md). The currently
+selected surveys are highlighted. Defaults to the first survey by name alpha
+order, and is robust to there being no surveys.
+
+Below the multiselect is an "Aggiorna" submit button that causes the user's
+selection to go into effect.
+
+Updating this setting invalidates the parcel_dendrometry.json digest used by
+Bosco.
+
 ## Hypsometric parameters (Parametri ipsometrici)
 
 Visible to writers and admins, below the trees section. A read-only table of
