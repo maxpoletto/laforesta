@@ -37,6 +37,8 @@ class TestCSPMiddleware:
         csp = resp['Content-Security-Policy']
         assert "script-src 'self'" in csp
         assert "default-src 'self'" in csp
+        assert "base-uri 'self'" in csp
+        assert "object-src 'none'" in csp
 
     def test_blocks_inline_scripts(self, db):
         resp = Client().get('/login/')
@@ -140,6 +142,13 @@ class TestNonceMiddleware:
         assert not UsedNonce.objects.filter(pk=old.pk).exists()
         assert UsedNonce.objects.filter(pk=recent.pk).exists()
         assert UsedNonce.objects.filter(nonce='nonce-new').exists()
+
+    def test_save_nonce_ignores_duplicate_nonce(self, admin_user):
+        save_nonce('nonce-dupe', admin_user, {ROW_ID: 1})
+        save_nonce('nonce-dupe', admin_user, {ROW_ID: 2})
+
+        used = UsedNonce.objects.get(nonce='nonce-dupe', user=admin_user)
+        assert json.loads(used.response_json) == {ROW_ID: 1}
 
 
 # -- Rate limiting ---------------------------------------------------------

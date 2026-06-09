@@ -151,6 +151,10 @@ class TestFormView:
         assert '<form' in data[HTML]
         assert 'id_date' in data[HTML]
 
+    def test_reader_forbidden(self, reader_client, db):
+        resp = reader_client.get('/api/prelievi/form/')
+        assert resp.status_code == 403
+
     def test_edit_form_prepopulated(self, writer_client, harvest_fixtures, sample_op):
         resp = writer_client.get(f'/api/prelievi/form/{sample_op.id}/')
         assert resp.status_code == 200

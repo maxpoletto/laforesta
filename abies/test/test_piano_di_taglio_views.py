@@ -85,6 +85,10 @@ class TestPlanCRUD:
             data=json.dumps(payload), content_type='application/json',
         )
 
+    def test_reader_form_forbidden(self, reader_client, db):
+        resp = reader_client.get('/api/piano-di-taglio/plan/form/')
+        assert resp.status_code == 403
+
     def test_create(self, writer_client, db):
         resp = self._post(writer_client, {
             FIELD_NAME: 'New plan',
@@ -518,6 +522,10 @@ class TestItemCRUD:
             data=json.dumps(payload), content_type='application/json',
         )
 
+    def test_reader_form_forbidden(self, reader_client, db):
+        resp = reader_client.get('/api/piano-di-taglio/item/form/')
+        assert resp.status_code == 403
+
     def test_create_fustaia_item(self, writer_client, plan, parcels):
         resp = self._save(writer_client, {
             FIELD_HARVEST_PLAN_ID: plan.id,
@@ -849,6 +857,10 @@ class TestDigestInvalidation:
 class TestMarkSave:
     SAVE_URL = '/api/piano-di-taglio/mark/save/'
     DELETE_URL = '/api/piano-di-taglio/mark/delete/'
+
+    def test_reader_form_forbidden(self, reader_client, db):
+        resp = reader_client.get('/api/piano-di-taglio/mark/form/')
+        assert resp.status_code == 403
 
     def _mark_body(self, item, species, **overrides):
         body = {

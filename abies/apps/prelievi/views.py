@@ -65,6 +65,7 @@ def data_view(request):
 # ---------------------------------------------------------------------------
 
 @login_required
+@require_writer
 def form_view(request, op_id=None):
     """Return add/edit form HTML fragment."""
     return JsonResponse({HTML: _render_form(op_id, request)})

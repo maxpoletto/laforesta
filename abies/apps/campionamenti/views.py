@@ -90,6 +90,7 @@ def sampled_trees_data(request, survey_id: int):
 # ---------------------------------------------------------------------------
 
 @login_required
+@require_writer
 def tree_form_view(request, ts_id: int | None = None):
     """Return the HTML fragment for adding or editing a TreeSample.
 
@@ -352,6 +353,7 @@ def _parcel_from_names(parcels, compresa, particella):
 
 
 @login_required
+@require_writer
 def area_form_view(request, area_id: int | None = None):
     """Form fragment for adding or editing a SampleArea.
 
@@ -888,6 +890,7 @@ def _validation_error(errors, ts_id, request, body):
 # ---------------------------------------------------------------------------
 
 @login_required
+@require_writer
 def grid_form_view(request):
     """Return the HTML fragment for the "Nuova griglia" modal — three
     creation paths (empty / auto / csv) per `campionamenti.md` §1.
@@ -920,6 +923,7 @@ def grid_save_view(request):
 
 
 @login_required
+@require_writer
 def survey_form_view(request):
     """Return the HTML fragment for the "Nuovo rilevamento" modal — two
     creation paths (empty / csv) per `campionamenti.md` §2.

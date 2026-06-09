@@ -5,6 +5,7 @@ import time
 from datetime import timedelta
 from collections import defaultdict
 
+from django.db import IntegrityError, transaction
 from django.http import JsonResponse
 from django.utils import timezone
 
@@ -41,6 +42,8 @@ CSP_POLICY = "; ".join([
     f"img-src 'self' data: {' '.join(TILE_SOURCES)}",
     "font-src 'self'",
     "connect-src 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
 ])
 
 
@@ -101,11 +104,15 @@ class NonceMiddleware:
 def save_nonce(nonce, user, response_data):
     """Record a used nonce with its success response for idempotency replay."""
     UsedNonce.objects.filter(created_at__lt=timezone.now() - NONCE_TTL).delete()
-    UsedNonce.objects.create(
-        nonce=nonce,
-        user=user,
-        response_json=json.dumps(response_data),
-    )
+    try:
+        with transaction.atomic():
+            UsedNonce.objects.create(
+                nonce=nonce,
+                user=user,
+                response_json=json.dumps(response_data),
+            )
+    except IntegrityError:
+        pass
 
 
 # ---------------------------------------------------------------------------

@@ -16,7 +16,7 @@ import { dismiss as dismissModal, onDismiss } from '../../base/js/modals.js';
 import { createRangeSlider } from '../../base/js/range-slider.js';
 import * as S from '../../base/js/strings.js';
 import {
-  ROW_ID, STATUS_CONFLICT, VERSION,
+  ROW_ID, STATUS_CONFLICT,
 } from '../../base/js/constants.js';
 import { STATIC_COLS, buildPrelieviColumnDefs }
   from '../../base/js/prelievi-columns.js';

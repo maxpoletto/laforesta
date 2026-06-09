@@ -178,9 +178,13 @@ class TestDataEndpoints:
 
 class TestTreeForm:
     def test_form_add_requires_survey_and_area(self, writer_client, sample_setup):
-        # Missing survey / area → 404
+        # Missing survey / area -> 404
         resp = writer_client.get('/api/campionamenti/tree/form/')
         assert resp.status_code == 404
+
+    def test_reader_forbidden(self, reader_client, db):
+        resp = reader_client.get('/api/campionamenti/tree/form/')
+        assert resp.status_code == 403
 
     def test_form_add_returns_html(self, writer_client, sample_setup):
         s = sample_setup
@@ -923,6 +927,10 @@ class TestGridSave:
         # Default-active body is the empty-grid create form.
         assert 'campionamenti-grid-form-empty' in html
 
+    def test_reader_form_forbidden(self, reader_client, db):
+        resp = reader_client.get('/api/campionamenti/grid/form/')
+        assert resp.status_code == 403
+
     def test_create_empty_grid(self, writer_client, db):
         from apps.base.models import SampleGrid
         resp = self._post(writer_client, {
@@ -961,6 +969,10 @@ class TestAreaCRUD:
     def test_form_add_requires_grid(self, writer_client, db):
         resp = writer_client.get('/api/campionamenti/area/form/')
         assert resp.status_code == 404
+
+    def test_reader_form_forbidden(self, reader_client, db):
+        resp = reader_client.get('/api/campionamenti/area/form/')
+        assert resp.status_code == 403
 
     def test_form_add_renders(self, writer_client, sample_setup):
         s = sample_setup
@@ -2338,6 +2350,10 @@ class TestSurveySave:
         assert 'campionamenti-survey-form-empty' in html
         # Grid pulldown contains the fixture's grid.
         assert sample_setup['grid'].name in html
+
+    def test_reader_form_forbidden(self, reader_client, db):
+        resp = reader_client.get('/api/campionamenti/survey/form/')
+        assert resp.status_code == 403
 
     def test_create_empty_survey(self, writer_client, sample_setup):
         from apps.base.models import Survey

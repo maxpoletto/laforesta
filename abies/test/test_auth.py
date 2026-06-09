@@ -79,6 +79,13 @@ def _oauth_user(email, **kwargs):
 
 @pytest.mark.django_db
 class TestWhitelistSocialAdapter:
+    def test_existing_social_login_is_left_alone(self):
+        sociallogin = _sociallogin('person@example.com', is_existing=True)
+
+        WhitelistSocialAdapter().pre_social_login(request=None, sociallogin=sociallogin)
+
+        sociallogin.connect.assert_not_called()
+
     def test_connects_matching_active_oauth_user(self):
         user = _oauth_user('person@example.com')
         sociallogin = _sociallogin('person@example.com')

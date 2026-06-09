@@ -127,6 +127,7 @@ def mark_trees_data_view(request, item_id: int):
 # ---------------------------------------------------------------------------
 
 @login_required
+@require_writer
 def plan_form_view(request, plan_id: int | None = None):
     """Form fragment for the "Crea vuoto" / edit-plan modal."""
     plan = None
@@ -527,6 +528,7 @@ def item_data_view(request, item_id: int):
 
 
 @login_required
+@require_writer
 def item_form_view(request, item_id: int | None = None):
     """Form fragment for the Nuovo intervento / edit-item modal.
 
@@ -835,6 +837,7 @@ def transition_save_view(request):
 # ---------------------------------------------------------------------------
 
 @login_required
+@require_writer
 def mark_form_view(request, mark_id: int | None = None):
     """Return the HTML fragment for adding or editing a TreeMark.
 
