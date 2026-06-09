@@ -9,10 +9,10 @@ from pathlib import Path
 from django.conf import settings
 
 from apps.base.digests import (
-    generate_prelievi, generate_parcels, generate_crews,
-    generate_parcel_year_production, generate_audit, generate_all,
-    mark_stale, regenerate_if_stale, _write_gzip_json,
-    _audit_configs, _tracked_models,
+    aggregate_sp_pcts, build_harvest_record, generate_prelievi,
+    generate_parcels, generate_crews, generate_parcel_year_production,
+    generate_audit, generate_all, mark_stale, regenerate_if_stale,
+    prelievi_species_cols, _write_gzip_json, _audit_configs, _tracked_models,
 )
 from apps.base.models import (
     Crew, DigestStatus, HarvestPlan, HypsoParamSet, HypsoParamSource, Role,
@@ -177,6 +177,40 @@ class TestGeneratePrelievi:
             data = json.load(f)
         assert data[ROWS] == []
         assert len(data[COLUMNS]) > 0
+
+    def test_build_record_with_precomputed_maps_matches_generator(
+            self, harvest_data, species, tractors, tmp_path, settings,
+            django_assert_num_queries,
+    ):
+        settings.DIGEST_DIR = tmp_path
+        generate_prelievi()
+        with gzip.open(tmp_path / 'prelievi.json.gz', 'rt') as f:
+            data = json.load(f)
+
+        full = Harvest.objects.select_related(
+            'parcel__region', 'crew', 'product',
+        ).get(pk=harvest_data.pk)
+        species_ids, _, minor_ids, other_id = prelievi_species_cols()
+        tractor_ids = [t.id for t in tractors]
+        sp_pcts = aggregate_sp_pcts(
+            {species[0].id: 60, species[1].id: 40}, minor_ids, other_id,
+        )
+        tr_pcts = {tractors[0].id: 100}
+
+        with django_assert_num_queries(0):
+            built = build_harvest_record(
+                full, species_ids=species_ids, tractor_ids=tractor_ids,
+                sp_pcts=sp_pcts, tr_pcts=tr_pcts,
+            )
+        assert built == data[ROWS][0]
+
+    def test_generator_uses_bulk_harvest_percentage_maps(
+            self, harvest_data, tmp_path, settings, django_assert_num_queries,
+    ):
+        settings.DIGEST_DIR = tmp_path
+
+        with django_assert_num_queries(5):
+            generate_prelievi()
 
 
 # ---------------------------------------------------------------------------

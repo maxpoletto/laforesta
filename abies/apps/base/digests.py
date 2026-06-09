@@ -30,6 +30,8 @@ from config.constants import (
     FIELD_SPECIES_ID, FIELD_SURVEY_ID, FIELD_VOLUME_M3, ROW_ID, VERSION,
 )
 
+_UNSET = object()
+
 
 # ---------------------------------------------------------------------------
 # Low-level helpers
@@ -232,48 +234,53 @@ def generate_prelievi() -> None:
            .select_related('parcel__region', 'crew', 'product')
            .order_by('-date', 'id'))
     for op in ops.iterator():
-        mass_q = float(op.mass_q)
-        sp_pcts = aggregate_sp_pcts(sp_map.get(op.id, {}), minor_ids, other_id)
-        tr_pcts = tr_map.get(op.id, {})
-
-        # Quintal columns = total * percent / 100, rounded to 2 decimals.
-        sp_quintals = [round(mass_q * sp_pcts.get(sid, 0) / 100, 2) for sid in species_ids]
-        tr_quintals = [round(mass_q * tr_pcts.get(tid, 0) / 100, 2) for tid in tractor_ids]
-
-        sp_pct_vals = [sp_pcts.get(sid, 0) for sid in species_ids]
-        tr_pct_vals = [tr_pcts.get(tid, 0) for tid in tractor_ids]
-
-        row = (
-            [op.id, op.version, op.date.isoformat(),
-             op.parcel.region.name, op.parcel.name,
-             op.harvest_plan_item_id if op.harvest_plan_item_id else '',
-             op.crew.name, op.record1, op.product.name, mass_q,
-             float(op.volume_m3),
-             render_flag_note(op.damaged, op.unhealthy, op.psr), op.note]
-            + sp_quintals + tr_quintals
-            + sp_pct_vals + tr_pct_vals
-        )
-        rows.append(row)
+        rows.append(build_harvest_record(
+            op,
+            species_ids=species_ids,
+            tractor_ids=tractor_ids,
+            sp_pcts=aggregate_sp_pcts(sp_map.get(op.id, {}), minor_ids, other_id),
+            tr_pcts=tr_map.get(op.id, {}),
+        ))
 
     _write_gzip_json({'columns': columns, 'rows': rows}, _dest('prelievi'))
     print(f'prelievi.json.gz: {len(rows)} rows, {len(columns)} columns')
 
 
-def build_harvest_record(op) -> list:
+def build_harvest_record(
+        op, *, species_ids=None, tractor_ids=None, sp_pcts=None, tr_pcts=None,
+) -> list:
     """Build a single prelievi digest row.  Used by save views for cache sync.
 
     The caller must ensure *op* has ``parcel.region``, ``crew``, and
-    ``product`` loaded (via ``select_related``).
+    ``product`` loaded (via ``select_related``).  Full-digest generation can
+    pass precomputed column IDs and percentage maps to avoid per-row queries;
+    write views can omit them and let this helper fetch just the one row's
+    related percentages.
     """
     from apps.base.models import Tractor
     from apps.prelievi.models import HarvestSpecies, HarvestTractor
 
-    species_ids, _, minor_ids, other_id = prelievi_species_cols()
-    tractor_ids = list(Tractor.objects.order_by('manufacturer', 'model').values_list('id', flat=True))
+    if species_ids is None or sp_pcts is None:
+        default_species_ids, _, minor_ids, other_id = prelievi_species_cols()
+        if species_ids is None:
+            species_ids = default_species_ids
+    if tractor_ids is None:
+        tractor_ids = list(
+            Tractor.objects.order_by('manufacturer', 'model')
+            .values_list('id', flat=True)
+        )
 
-    raw_sp = dict(HarvestSpecies.objects.filter(harvest=op).values_list(FIELD_SPECIES_ID, 'percent'))
-    sp_pcts = aggregate_sp_pcts(raw_sp, minor_ids, other_id)
-    tr_pcts = dict(HarvestTractor.objects.filter(harvest=op).values_list('tractor_id', 'percent'))
+    if sp_pcts is None:
+        raw_sp = dict(
+            HarvestSpecies.objects.filter(harvest=op)
+            .values_list(FIELD_SPECIES_ID, 'percent')
+        )
+        sp_pcts = aggregate_sp_pcts(raw_sp, minor_ids, other_id)
+    if tr_pcts is None:
+        tr_pcts = dict(
+            HarvestTractor.objects.filter(harvest=op)
+            .values_list('tractor_id', 'percent')
+        )
 
     mass_q = float(op.mass_q)
     sp_quintals = [round(mass_q * sp_pcts.get(sid, 0) / 100, 2) for sid in species_ids]
@@ -288,7 +295,7 @@ def build_harvest_record(op) -> list:
          render_flag_note(op.damaged, op.unhealthy, op.psr), op.note]
         + sp_quintals + tr_quintals
         + [sp_pcts.get(sid, 0) for sid in species_ids]
-        + [tr_pcts.get(sid, 0) for sid in tractor_ids]
+        + [tr_pcts.get(tid, 0) for tid in tractor_ids]
     )
 
 
@@ -622,30 +629,41 @@ SURVEY_COLUMNS = [ROW_ID, VERSION, S.COL_NAME, S.COL_DESCRIPTION,
                   S.COL_DATE_LAST]
 
 
-def build_survey_record(s) -> list:
+def build_survey_record(
+        s, *, n_visited=_UNSET, n_total=_UNSET,
+        first_date=_UNSET, last_date=_UNSET,
+) -> list:
     """Build one row of the `surveys` digest.
 
-    Re-computes the per-survey aggregates (n_visited, first/last date,
-    n_total).  Cheap (one Sample query + one SampleArea count) compared
-    to a full digest regen.  Used by save views after a tree or sample
-    write changes any of those values.
+    Write paths omit aggregate arguments and recompute values for one survey.
+    Full-digest generation passes precomputed annotations/counts so the row
+    shape stays centralized without reintroducing N+1 aggregate queries.
     """
     from django.db.models import Count, Max, Min
     from apps.base.models import Sample, SampleArea
 
-    agg = Sample.objects.filter(survey=s).aggregate(
-        n_visited=Count('sample_area', distinct=True),
-        first_date=Min('date'),
-        last_date=Max('date'),
-    )
-    n_total = SampleArea.objects.filter(sample_grid_id=s.sample_grid_id).count()
+    if n_visited is _UNSET or first_date is _UNSET or last_date is _UNSET:
+        agg = Sample.objects.filter(survey=s).aggregate(
+            n_visited=Count('sample_area', distinct=True),
+            first_date=Min('date'),
+            last_date=Max('date'),
+        )
+        if n_visited is _UNSET:
+            n_visited = agg['n_visited'] or 0
+        if first_date is _UNSET:
+            first_date = agg[FIELD_FIRST_DATE]
+        if last_date is _UNSET:
+            last_date = agg[FIELD_LAST_DATE]
+    if n_total is _UNSET:
+        n_total = SampleArea.objects.filter(sample_grid_id=s.sample_grid_id).count()
+
     return [
         s.id, s.version, s.name, s.description,
         s.sample_grid_id,
-        agg['n_visited'] or 0,
+        n_visited or 0,
         n_total,
-        agg[FIELD_FIRST_DATE].isoformat() if agg[FIELD_FIRST_DATE] else '',
-        agg[FIELD_LAST_DATE].isoformat() if agg[FIELD_LAST_DATE] else '',
+        first_date.isoformat() if first_date else '',
+        last_date.isoformat() if last_date else '',
     ]
 
 
@@ -657,9 +675,6 @@ def generate_surveys() -> None:
     from django.db.models import Count, Max, Min
     from apps.base.models import SampleArea, Survey
 
-    # Same shape as build_survey_record but in one query for the
-    # whole-table generator path (build_survey_record's per-row
-    # aggregates would N+1).
     totals_by_grid = dict(
         SampleArea.objects
             .values('sample_grid_id')
@@ -675,14 +690,13 @@ def generate_surveys() -> None:
                        ) \
                        .order_by('-last_date', '-created_at')
     for s in qs:
-        rows.append([
-            s.id, s.version, s.name, s.description,
-            s.sample_grid_id,
-            s.n_visited or 0,
-            totals_by_grid.get(s.sample_grid_id, 0),
-            s.first_date.isoformat() if s.first_date else '',
-            s.last_date.isoformat() if s.last_date else '',
-        ])
+        rows.append(build_survey_record(
+            s,
+            n_visited=s.n_visited or 0,
+            n_total=totals_by_grid.get(s.sample_grid_id, 0),
+            first_date=s.first_date,
+            last_date=s.last_date,
+        ))
 
     _write_gzip_json(
         {'columns': SURVEY_COLUMNS, 'rows': rows}, _dest('surveys'),

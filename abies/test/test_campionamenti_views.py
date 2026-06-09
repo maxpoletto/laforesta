@@ -95,6 +95,41 @@ class TestDataEndpoints:
         assert d[ROWS][0][d[COLUMNS].index(S.COL_N_AREAS_VISITED)] == 1
         assert d[ROWS][0][d[COLUMNS].index(S.COL_N_AREAS_TOTAL)] == 1
 
+    def test_survey_build_record_matches_generator(
+            self, sample_setup, tmp_path, settings, django_assert_num_queries,
+    ):
+        from apps.base.digests import build_survey_record, generate_surveys
+
+        settings.DIGEST_DIR = tmp_path
+        with django_assert_num_queries(2):
+            generate_surveys()
+        with gzip.open(tmp_path / 'surveys.json.gz', 'rt') as f:
+            data = json.load(f)
+
+        survey = Survey.objects.get(pk=sample_setup['survey'].pk)
+        gen_row = next(
+            row for row in data[ROWS]
+            if row[data[COLUMNS].index(ROW_ID)] == survey.id
+        )
+        assert build_survey_record(survey) == gen_row
+
+    def test_survey_build_record_with_precomputed_aggregates_avoids_queries(
+            self, sample_setup, django_assert_num_queries,
+    ):
+        from apps.base.digests import build_survey_record
+
+        survey = Survey.objects.get(pk=sample_setup['survey'].pk)
+        sample_date = sample_setup['sample'].date
+
+        with django_assert_num_queries(0):
+            row = build_survey_record(
+                survey, n_visited=1, n_total=1,
+                first_date=sample_date, last_date=sample_date,
+            )
+
+        assert row[0] == survey.id
+        assert row[5:] == [1, 1, sample_date.isoformat(), sample_date.isoformat()]
+
     def test_sample_areas_data(self, writer_client, sample_setup, tmp_path, settings):
         settings.DIGEST_DIR = tmp_path
         resp = writer_client.get('/api/campionamenti/sample-areas/data/')
