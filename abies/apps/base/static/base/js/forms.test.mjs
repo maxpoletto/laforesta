@@ -1,5 +1,5 @@
 // Tests for shared form helpers in forms.js.
-// Run with: node test/test_forms.mjs (also part of `make test-js`).
+// Run with: node apps/base/static/base/js/forms.test.mjs (also part of `make test-js`).
 
 let passed = 0;
 let failed = 0;
@@ -90,7 +90,7 @@ globalThis.DOMParser = class {
 globalThis.FormData = MockFormData;
 
 const { injectNonce, interceptSubmit, parseHTMLFragment } = await import(
-  '../apps/base/static/base/js/forms.js'
+  './forms.js'
 );
 
 // parseHTMLFragment: server HTML becomes a fragment with queryable children.

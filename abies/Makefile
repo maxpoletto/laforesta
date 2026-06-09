@@ -80,11 +80,11 @@ test: test-js
 
 # Pure-JS tests for shared client-side modules (e.g. geo.js).
 test-js:
-	node test/test_geo.mjs
-	node test/test_csv_export.mjs
-	node test/test_templates.mjs
-	node test/test_forms.mjs
-	node test/test_ui_widgets_modals.mjs
+	node apps/base/static/base/js/geo.test.mjs
+	node apps/base/static/base/js/csv-export.test.mjs
+	node apps/base/static/base/js/templates.test.mjs
+	node apps/base/static/base/js/forms.test.mjs
+	node apps/base/static/base/js/ui-widgets-modals.test.mjs
 	node apps/base/static/base/js/tests.mjs
 	node apps/base/static/base/js/cache.test.mjs
 	node apps/base/static/base/js/page-sync.test.mjs

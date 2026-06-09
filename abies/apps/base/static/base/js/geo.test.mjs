@@ -1,10 +1,10 @@
 // Tests for apps/base/static/base/js/geo.js — pure geometry helpers.
-// Run with: node test/test_geo.mjs (also part of `make test-js`).
+// Run with: node apps/base/static/base/js/geo.test.mjs (also part of `make test-js`).
 //
 // Hand-rolled assertions in the same style as ipso/tests.js so this
 // pure-JS suite stays free of npm test-framework dependencies.
 
-import * as geo from '../apps/base/static/base/js/geo.js';
+import * as geo from './geo.js';
 
 let failed = 0;
 let passed = 0;

@@ -1,5 +1,5 @@
 // Tests for showConfirmModal / showCascadeDeleteModal in ui-widgets.js.
-// Run with: node test/test_ui_widgets_modals.mjs (also part of `make test-js`).
+// Run with: node apps/base/static/base/js/ui-widgets-modals.test.mjs (also part of `make test-js`).
 //
 // These functions depend on the DOM (cloneTemplate, showModal, dismissModal),
 // so we provide a minimal mock that tracks calls and state.
@@ -195,9 +195,9 @@ globalThis.document = {
 
 // Import after mocking document — ES module evaluation happens at import time
 // for modals.js which caches document.getElementById('modal-container').
-import { showConfirmModal, showCascadeDeleteModal, wireActions } from '../apps/base/static/base/js/ui-widgets.js';
+import { showConfirmModal, showCascadeDeleteModal, wireActions } from './ui-widgets.js';
 // Access dismiss directly to reset state between tests.
-import { dismiss as dismissModal } from '../apps/base/static/base/js/modals.js';
+import { dismiss as dismissModal } from './modals.js';
 
 function resetModal() {
   modalShown = null;

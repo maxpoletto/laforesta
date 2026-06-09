@@ -1,5 +1,5 @@
 // Tests for apps/base/static/base/js/templates.js — cloneTemplate utility.
-// Run with: node test/test_templates.mjs (also part of `make test-js`).
+// Run with: node apps/base/static/base/js/templates.test.mjs (also part of `make test-js`).
 //
 // Uses a minimal DOM mock — no jsdom dependency.
 
@@ -81,7 +81,7 @@ globalThis.document = {
 // cloneTemplate
 // ---------------------------------------------------------------------------
 
-import { cloneTemplate } from '../apps/base/static/base/js/templates.js';
+import { cloneTemplate } from './templates.js';
 
 console.log('cloneTemplate');
 

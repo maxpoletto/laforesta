@@ -1,7 +1,7 @@
 // Tests for apps/base/static/base/js/csv-export.js — CSV export utilities.
-// Run with: node test/test_csv_export.mjs (also part of `make test-js`).
+// Run with: node apps/base/static/base/js/csv-export.test.mjs (also part of `make test-js`).
 
-import { csvField, downloadCSV, exportDigest } from '../apps/base/static/base/js/csv-export.js';
+import { csvField, downloadCSV, exportDigest } from './csv-export.js';
 
 let failed = 0;
 let passed = 0;
