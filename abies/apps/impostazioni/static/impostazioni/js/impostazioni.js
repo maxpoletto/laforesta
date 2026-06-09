@@ -27,7 +27,7 @@ import * as S from '../../base/js/strings.js';
 import {
   FIELD_CREATED_AT, FIELD_FILE, FIELD_MIN_N, FIELD_SOURCE,
   FIELD_SURVEY_IDS, FIELD_SURVEYS, HYPSO_SOURCE_COMPUTED, LOGIN_METHOD_PASSWORD,
-  MESSAGE, ROLE_ADMIN, ROLE_WRITER, STATUS_CONFLICT,
+  DATA_ID, MESSAGE, PATCHES, RECORD, ROLE_ADMIN, ROLE_WRITER, STATUS_CONFLICT,
 } from '../../base/js/constants.js';
 import {
   fmtDecimal2, fmtDecimal4, fmtInt, parseDecimal,
@@ -340,14 +340,15 @@ function showFormModal(html, cfg, state) {
 
       if (status === 200) {
         modals.dismiss();
-        // Update table in place.
-        if (state.digest && data.record) {
+        // Settings tables are local state, not registered in cache.js.
+        const patch = data[PATCHES]?.find(p => p[DATA_ID] === cfg.key);
+        if (state.digest && patch?.[RECORD]) {
           const rows = state.digest.rows;
-          const idx = rows.findIndex(r => r[0] === data.row_id);
+          const idx = rows.findIndex(r => r[0] === patch[RECORD][0]);
           if (idx >= 0) {
-            rows[idx] = data.record;
+            rows[idx] = patch[RECORD];
           } else {
-            rows.push(data.record);
+            rows.push(patch[RECORD]);
           }
           state.table?.setData(state.digest);
         }

@@ -15,7 +15,6 @@ ROW_ID  = 'row_id'
 VERSION = 'version'
 
 RECORD   = 'record'
-RECORDS  = 'records'
 DATA_ID  = 'data_id'
 PATCHES  = 'patches'
 DELETES  = 'deletes'
@@ -25,18 +24,7 @@ STATUS   = 'status'
 MESSAGE  = 'message'
 HTML     = 'html'
 
-# Side-effect record keys returned alongside the primary RECORD so the
-# client can update related digests (e.g. a tree-save also updates the
-# parent Sample's row in `samples`).  See CLAUDE.md §"Optimistic table
-# updates" for the contract.
-SAMPLE_RECORD   = 'sample_record'
-SURVEY_RECORD   = 'survey_record'
-SURVEY_RECORDS  = 'survey_records'
-GRID_RECORD     = 'grid_record'
-AREA_RECORDS    = 'area_records'
-PLAN_RECORD          = 'plan_record'
-ITEM_RECORD          = 'item_record'
-ITEM_RECORDS         = 'item_records'
+# Additional response keys for read-only metadata endpoints.
 TRANSITION_RECORDS   = 'transition_records'
 
 # JSON API `status` field values.

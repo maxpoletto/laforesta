@@ -33,7 +33,7 @@ from config.constants import (
     FIELD_PARCEL_ID, FIELD_PRODUCT_ID, FIELD_PSR, FIELD_REGION_ID,
     FIELD_SPECIES_ID, FIELD_UNHEALTHY,
     FIELD_VOLUME_M3, FIELD_VOLUME_PLANNED_M3, FIELD_YEAR_END,
-    FIELD_YEAR_PLANNED, FIELD_YEAR_START, HTML, ITEM_RECORD, MESSAGE,
+    FIELD_YEAR_PLANNED, FIELD_YEAR_START, HTML, MESSAGE, PATCHES,
     RECORD, ROW_ID, ROWS, STATUS, STATUS_CONFLICT,
     STATUS_VALIDATION_ERROR, TRANSITION_RECORDS, VERSION,
 )
@@ -845,8 +845,8 @@ class TestMarkSave:
         )
         assert resp.status_code == 200
         data = resp.json()
-        assert RECORD in data
-        assert ITEM_RECORD in data
+        assert any(p[DATA_ID].startswith('mark_trees_') for p in data[PATCHES])
+        assert any(p[DATA_ID] == 'harvest_plan_items' for p in data[PATCHES])
         assert TreeMark.objects.count() == 1
         tm = TreeMark.objects.first()
         assert tm.d_cm == 30
@@ -947,8 +947,10 @@ class TestMarkSave:
             data=json.dumps(self._mark_body(planned_item, sp)),
             content_type='application/json',
         )
-        tm_id = resp.json()[ROW_ID]
-        version = resp.json()[RECORD][1]
+        data = resp.json()
+        tm_id = data[ROW_ID]
+        version = next(p for p in data[PATCHES]
+                       if p[DATA_ID].startswith('mark_trees_'))[RECORD][1]
         resp2 = writer_client.post(
             self.SAVE_URL,
             data=json.dumps(self._mark_body(
@@ -968,8 +970,10 @@ class TestMarkSave:
             data=json.dumps(self._mark_body(planned_item, species[0])),
             content_type='application/json',
         )
-        tm_id = resp.json()[ROW_ID]
-        version = resp.json()[RECORD][1]
+        data = resp.json()
+        tm_id = data[ROW_ID]
+        version = next(p for p in data[PATCHES]
+                       if p[DATA_ID].startswith('mark_trees_'))[RECORD][1]
         resp2 = writer_client.post(
             self.DELETE_URL,
             data=json.dumps({ROW_ID: tm_id, VERSION: version}),
@@ -985,8 +989,10 @@ class TestMarkSave:
             data=json.dumps(self._mark_body(planned_item, species[0])),
             content_type='application/json',
         )
-        tm_id = resp.json()[ROW_ID]
-        version = resp.json()[RECORD][1]
+        data = resp.json()
+        tm_id = data[ROW_ID]
+        version = next(p for p in data[PATCHES]
+                       if p[DATA_ID].startswith('mark_trees_'))[RECORD][1]
         planned_item.state = HarvestPlanItemState.CLOSED
         planned_item.version += 1
         planned_item.save()

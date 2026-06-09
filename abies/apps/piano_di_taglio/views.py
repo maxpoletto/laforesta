@@ -5,7 +5,7 @@ and per-item CSV import/export, and the cantiere transition save view.
 
 Form endpoints follow the standard Abies idiom (see
 `apps.prelievi.views`): a GET returns an HTML fragment, a POST processes
-the submission and returns either ``{row_id, record}`` or a
+the submission and returns a generic patches/deletes envelope or a
 ``validation_error`` / ``conflict`` payload.
 """
 
@@ -93,7 +93,6 @@ from config.constants import (
     FIELD_YEAR_PLANNED,
     FIELD_YEAR_START,
     HTML,
-    ITEM_RECORD,
     RECORD,
     ROW_ID,
     STATUS,
@@ -190,7 +189,7 @@ def plan_save_view(request):
     return success_response(
         request, body,
         data_id='harvest_plans', row_id=plan.id,
-        record=build_harvest_plan_record(plan),
+        patches=[row_patch('harvest_plans', plan.id, build_harvest_plan_record(plan))],
     )
 
 
@@ -425,7 +424,7 @@ def plan_csv_import_view(request):
     return success_response(
         request, request.POST,
         data_id='harvest_plans', row_id=plan.id,
-        record=build_harvest_plan_record(plan),
+        patches=[row_patch('harvest_plans', plan.id, build_harvest_plan_record(plan))],
         extra={'n_items': n_items},
     )
 
@@ -656,7 +655,9 @@ def item_save_view(request):
     return success_response(
         request, body,
         data_id='harvest_plan_items', row_id=item.id,
-        record=build_harvest_plan_item_record(item),
+        patches=[row_patch(
+            'harvest_plan_items', item.id, build_harvest_plan_item_record(item),
+        )],
     )
 
 
@@ -867,9 +868,7 @@ def transition_save_view(request):
     item_record = build_harvest_plan_item_record(item)
     return success_response(
         request, body,
-        data_id='harvest_plan_items', row_id=item.id,
         patches=[row_patch('harvest_plan_items', item_record[0], item_record)],
-        extra={ITEM_RECORD: item_record, RECORD: _transition_record(transition)},
     )
 
 
@@ -1083,9 +1082,11 @@ def mark_save_view(request):
     item_record = build_harvest_plan_item_record(item_fresh)
     return success_response(
         request, body,
-        data_id=f'mark_trees_{item.id}', row_id=tm.id, record=mark_record,
-        patches=[row_patch('harvest_plan_items', item_record[0], item_record)],
-        extra={ITEM_RECORD: item_record},
+        data_id=f'mark_trees_{item.id}', row_id=tm.id,
+        patches=[
+            row_patch(f'mark_trees_{item.id}', tm.id, mark_record),
+            row_patch('harvest_plan_items', item_record[0], item_record),
+        ],
     )
 
 
@@ -1140,7 +1141,6 @@ def mark_delete_view(request):
         data_id=f'mark_trees_{item_id}', row_id=row_id,
         patches=[row_patch('harvest_plan_items', item_record[0], item_record)],
         deletes=[row_delete(f'mark_trees_{item_id}', row_id)],
-        extra={ITEM_RECORD: item_record},
     )
 
 
@@ -1319,7 +1319,6 @@ def mark_csv_import_view(request):
         request, request.POST,
         patches=[row_patch('harvest_plan_items', item_record[0], item_record)],
         extra={
-            ITEM_RECORD: item_record,
             'imported': len(parsed),
             'skipped_duplicates': len(rows) - len(parsed) - len(errors),
         },

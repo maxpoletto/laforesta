@@ -8,7 +8,7 @@ from apps.base.middleware import save_nonce
 from config import strings as S
 from config.constants import (
     DATA_ID, DELETES, FIELD_ERRORS, FIELD_NONCE, HTML, MESSAGE, PATCHES,
-    RECORD, RECORDS, ROW_ID, STATUS, STATUS_CONFLICT,
+    RECORD, ROW_ID, STATUS, STATUS_CONFLICT,
     STATUS_VALIDATION_ERROR,
 )
 
@@ -34,37 +34,26 @@ def success_response(
         *,
         data_id: str | None = None,
         row_id: int | None = None,
-        record: list | None = None,
-        records: list[list] | None = None,
         patches: list[dict] | None = None,
         deletes: list[dict] | None = None,
         extra: dict | None = None,
 ) -> JsonResponse:
     """HTTP 200 write response with generic cache changes and nonce save.
 
-    The primary ``data_id``/``row_id``/``record``/``records`` keys are kept for
-    the existing client contract.  The same primary change is also mirrored into
-    ``patches``/``deletes`` so newer callers can apply one generic envelope.
+    Row payloads are accepted only through ``patches``/``deletes``.  The
+    top-level ``data_id``/``row_id`` keys remain as lightweight identifiers
+    for callers that need to select or navigate to the affected entity.
     """
     response_data: dict = {}
     if data_id is not None:
         response_data[DATA_ID] = data_id
     if row_id is not None:
         response_data[ROW_ID] = row_id
-    if record is not None:
-        response_data[RECORD] = record
-    if records is not None:
-        response_data[RECORDS] = records
     if extra:
         response_data.update(extra)
 
-    all_patches = list(patches or [])
-    if data_id is not None and record is not None and row_id is not None:
-        all_patches.insert(0, row_patch(data_id, row_id, record))
-    if data_id is not None and records is not None:
-        all_patches = row_patches(data_id, records) + all_patches
-    if all_patches:
-        response_data[PATCHES] = all_patches
+    if patches:
+        response_data[PATCHES] = list(patches)
     if deletes:
         response_data[DELETES] = list(deletes)
 

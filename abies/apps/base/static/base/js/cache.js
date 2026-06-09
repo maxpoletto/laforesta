@@ -7,7 +7,7 @@
  */
 
 import { fetchJSON } from './api.js';
-import { DATA_ID, DELETES, PATCHES, RECORD, RECORDS, ROW_ID } from './constants.js';
+import { DATA_ID, DELETES, PATCHES, RECORD, ROW_ID } from './constants.js';
 
 const REFRESH_INTERVAL_MS = 5 * 60 * 1000;  // 5 minutes
 
@@ -76,20 +76,6 @@ export function updateRow(dataId, rowId, record) {
 }
 
 /**
- * Update or insert N rows.  Each record's row_id is record[0]
- * (digest convention).  Used by multi-row writes (e.g. the coppice
- * tree-save path that creates one TreeSample per shoot in one POST).
- *
- * @param {string} dataId
- * @param {Array<Array>} records
- */
-export function updateRows(dataId, records) {
-  for (const r of records) {
-    if (Array.isArray(r) && r.length > 0) updateRow(dataId, r[0], r);
-  }
-}
-
-/**
  * Remove a single row from a cached digest by row_id.
  *
  * @param {string} dataId
@@ -106,7 +92,6 @@ export function removeRow(dataId, rowId) {
  *
  * Supported keys:
  *   patches: [{data_id, row_id, record}]
- *   patches: [{data_id, records: [[row_id, ...], ...]}]
  *   deletes: [{data_id, row_id}]
  *
  * Returns a Set of touched data IDs so page modules can update local mirrors
@@ -122,10 +107,7 @@ export function applyResponseChanges(data) {
   for (const patch of data[PATCHES] || []) {
     const dataId = patch[DATA_ID];
     if (!dataId) continue;
-    if (Array.isArray(patch[RECORDS])) {
-      updateRows(dataId, patch[RECORDS]);
-      touched.add(dataId);
-    } else if (patch[RECORD] && patch[ROW_ID] != null) {
+    if (patch[RECORD] && patch[ROW_ID] != null) {
       updateRow(dataId, patch[ROW_ID], patch[RECORD]);
       touched.add(dataId);
     }

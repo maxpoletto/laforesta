@@ -132,9 +132,11 @@ Forms are Django-rendered HTML fragments displayed in overlay modals
 
 Payload is always JSON.
 
-**Success** (200): `{ data_id, row_id, record: [row_id, ...] }`.
-Client patches the cache row and re-renders. Other digests (charts,
-etc.) update on the next background conditional GET.
+**Success** (200): `{ data_id, row_id, patches: [{ data_id, row_id, record }], deletes: [{ data_id, row_id }] }`.
+The top-level `data_id`/`row_id` identify the primary entity; row payloads
+travel only through `patches` and `deletes`. The client applies every patch
+and re-renders touched views. Other digests update on the next background
+conditional GET unless the response carries their rows too.
 
 **Validation error** (400): `{ status: "validation_error", message, html }`.
 Modal re-displays the form with the error. Rare — client-side
@@ -153,7 +155,7 @@ displays an alert warning that the action cannot be undone.
 If the user confirms, a POST is sent to the server as for data insertion / edit
 above.
 
-1. Successful responses contain a row_id but no record field. The client removes
+1. Successful responses contain the deleted row in `deletes`. The client removes
    the given id from the cache.
 
 1. No validation errors are possible.
@@ -166,20 +168,19 @@ above.
 ## Optimistic table updates — the contract that keeps writes snappy
 
 Every write that mutates a row in a user-visible table MUST return the
-full row in the success response — `record` for single-row writes,
-`records` for bulk writes — shaped identically to the corresponding
-JSON digest.  The client patches the cache via `cache.updateRow`
-(`apps/base/static/base/js/cache.js:66`) or `cache.updateRows`, then
-re-renders the table from the cached data via
-`table.setData(cache.get(dataId))`.  No network round trip on the hot
-path, no server-side digest regeneration on the hot path.  The
+full row as a `patches` entry shaped identically to the corresponding
+JSON digest: `{data_id, row_id, record}`. Bulk writes return one patch
+per row. The client applies the generic envelope with
+`cache.applyResponseChanges`, then re-renders touched views from cached
+data. No network round trip is needed on the hot path, and no
+server-side digest regeneration is needed on the hot path. The
 server-side `mark_stale()` flag still runs so the next cold reader (or
 the next background refresh) regenerates the on-disk digest.
 
 When a write also bumps a *materialised* value in another digest
 (e.g., a tree-save changes `samples.N_alberi`), the response carries
-those side-effect rows too. The client patches every affected cache
-and re-renders the touched views.
+those side-effect rows as additional patches. The client patches every
+affected cache and re-renders the touched views.
 
 **The contract that prevents drift.**  Extract a `build_<digest>_record`
 helper in `apps/base/digests.py` and call it from BOTH the digest

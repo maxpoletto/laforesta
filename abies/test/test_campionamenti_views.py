@@ -13,14 +13,13 @@ from apps.base.models import (
 )
 from config import strings as S
 from config.constants import (
-    AREA_RECORDS, COLUMNS, FIELD_ALTITUDE_M, FIELD_DATE, FIELD_DEFAULT_DATE,
+    COLUMNS, DATA_ID, DELETES, FIELD_ALTITUDE_M, FIELD_DATE, FIELD_DEFAULT_DATE,
     FIELD_DESCRIPTION, FIELD_D_CM, FIELD_ERRORS, FIELD_FUSTAIA, FIELD_H_M,
     FIELD_LAT, FIELD_LON, FIELD_MASS_Q, FIELD_NAME, FIELD_NONCE, FIELD_NOTE,
     FIELD_NUMBER, FIELD_PARCEL_ID, FIELD_POINTS, FIELD_PRESERVED, FIELD_R_M,
     FIELD_SAMPLE_AREA_ID, FIELD_SAMPLE_GRID_ID, FIELD_SHOOT, FIELD_SPECIES_ID,
-    FIELD_STANDARD, FIELD_SURVEY_ID, FIELD_TREE_PICK, GRID_RECORD, HTML,
-    MESSAGE, RECORD, RECORDS, ROWS, ROW_ID, SAMPLE_RECORD, SURVEY_RECORD,
-    SURVEY_RECORDS,
+    FIELD_STANDARD, FIELD_SURVEY_ID, FIELD_TREE_PICK, HTML, MESSAGE, PATCHES,
+    RECORD, ROWS, ROW_ID,
 )
 
 
@@ -70,6 +69,13 @@ def sample_setup(db, regions, eclasses, species):
 
 def _read_gzip_json(resp):
     return json.loads(gzip.decompress(resp.getvalue()))
+
+
+def _patch(payload, data_id, row_id=None):
+    for patch in payload[PATCHES]:
+        if patch[DATA_ID] == data_id and (row_id is None or patch[ROW_ID] == row_id):
+            return patch
+    raise AssertionError(f'missing patch for {data_id}:{row_id}')
 
 
 class TestDataEndpoints:
@@ -501,18 +507,18 @@ class TestTreeSave:
             resp = self._post(writer_client, payload)
             assert resp.status_code == 400, (field, resp.content)
 
-    def test_response_sample_record_reflects_new_date(
+    def test_response_sample_patch_reflects_new_date(
         self, writer_client, sample_setup,
     ):
-        """The optimistic-update contract: when the write changes
-        sample.date, the response's sample_record must carry it so the
-        client cache patches without another fetch."""
+        """When the write changes sample.date, the generic patches
+        envelope carries the current sample row for client cache updates."""
         from apps.base.digests import build_sample_record
         s = sample_setup
         resp = self._post(writer_client, self._save_payload(s, 50, '2025-06-15'))
         assert resp.status_code == 200, resp.content
         s['sample'].refresh_from_db()
-        assert resp.json()[SAMPLE_RECORD] == build_sample_record(s['sample'])
+        sample_patch = _patch(resp.json(), 'samples', s['sample'].id)
+        assert sample_patch[RECORD] == build_sample_record(s['sample'])
 
 
 class TestTreeFormPriorTrees:
@@ -1263,10 +1269,10 @@ class TestRecordShape:
         })
         assert resp.status_code == 200, resp.content
         payload = resp.json()
-        # Single-shoot fustaia create → records=[<one row>], no `record`.
-        assert payload.get(RECORDS), payload
-        assert len(payload[RECORDS]) == 1
-        record = payload[RECORDS][0]
+        tree_patches = [p for p in payload[PATCHES]
+                        if p[DATA_ID] == payload[DATA_ID]]
+        assert len(tree_patches) == 1
+        record = tree_patches[0][RECORD]
         # Match against the canonical row built from the freshly-saved ts.
         ts = TreeSample.objects.select_related(
             'sample__survey', 'sample__sample_area__parcel__region',
@@ -1303,8 +1309,10 @@ class TestRecordShape:
         })
         assert resp.status_code == 200, resp.content
         payload = resp.json()
-        assert len(payload[RECORDS]) == 2
-        ids = [r[0] for r in payload[RECORDS]]
+        tree_patches = [p for p in payload[PATCHES]
+                        if p[DATA_ID] == payload[DATA_ID]]
+        assert len(tree_patches) == 2
+        ids = [p[ROW_ID] for p in tree_patches]
         canonical = {
             ts.id: build_tree_sample_record(ts)
             for ts in TreeSample.objects.filter(id__in=ids).select_related(
@@ -1312,10 +1320,10 @@ class TestRecordShape:
                 'tree__species', 'tree__parcel',
             )
         }
-        for record in payload[RECORDS]:
-            assert record == canonical[record[0]]
+        for patch in tree_patches:
+            assert patch[RECORD] == canonical[patch[ROW_ID]]
 
-    def test_tree_save_includes_sample_and_survey_records(
+    def test_tree_save_includes_sample_and_survey_patches(
         self, writer_client, sample_setup,
     ):
         s = sample_setup
@@ -1333,13 +1341,15 @@ class TestRecordShape:
             build_survey_record,
         )
         payload = resp.json()
-        assert payload[SAMPLE_RECORD][0] == s['sample'].id
-        assert len(payload[SAMPLE_RECORD]) == len(SAMPLE_COLUMNS)
+        sample_record = _patch(payload, 'samples', s['sample'].id)[RECORD]
+        survey_record = _patch(payload, 'surveys', s['survey'].id)[RECORD]
+        assert sample_record[0] == s['sample'].id
+        assert len(sample_record) == len(SAMPLE_COLUMNS)
         s['sample'].refresh_from_db()
-        assert payload[SAMPLE_RECORD] == build_sample_record(s['sample'])
+        assert sample_record == build_sample_record(s['sample'])
         s['survey'].refresh_from_db()
-        assert payload[SURVEY_RECORD] == build_survey_record(s['survey'])
-        assert len(payload[SURVEY_RECORD]) == len(SURVEY_COLUMNS)
+        assert survey_record == build_survey_record(s['survey'])
+        assert len(survey_record) == len(SURVEY_COLUMNS)
 
     def test_area_save_returns_records(self, writer_client, sample_setup):
         from apps.base.digests import (
@@ -1358,15 +1368,11 @@ class TestRecordShape:
         area = SampleArea.objects.select_related(
             'parcel__region',
         ).get(id=payload[ROW_ID])
-        assert payload[RECORD] == build_sample_area_record(area)
+        assert _patch(payload, 'sample_areas', area.id)[RECORD] == build_sample_area_record(area)
         s['grid'].refresh_from_db()
-        assert payload[GRID_RECORD] == build_grid_record(s['grid'])
-        # One survey in the fixture; assert it's in survey_records.
+        assert _patch(payload, 'grids', s['grid'].id)[RECORD] == build_grid_record(s['grid'])
         s['survey'].refresh_from_db()
-        assert any(
-            r == build_survey_record(s['survey'])
-            for r in payload[SURVEY_RECORDS]
-        )
+        assert _patch(payload, 'surveys', s['survey'].id)[RECORD] == build_survey_record(s['survey'])
 
     def test_grid_save_returns_record(self, writer_client, db):
         from apps.base.digests import build_grid_record
@@ -1376,7 +1382,7 @@ class TestRecordShape:
         })
         payload = resp.json()
         grid = SampleGrid.objects.get(id=payload[ROW_ID])
-        assert payload[RECORD] == build_grid_record(grid)
+        assert _patch(payload, 'grids', grid.id)[RECORD] == build_grid_record(grid)
 
     def test_grid_edit_returns_record(self, writer_client, sample_setup):
         from apps.base.digests import build_grid_record
@@ -1388,7 +1394,7 @@ class TestRecordShape:
         )
         payload = resp.json()
         s['grid'].refresh_from_db()
-        assert payload[RECORD] == build_grid_record(s['grid'])
+        assert _patch(payload, 'grids', s['grid'].id)[RECORD] == build_grid_record(s['grid'])
 
     def test_survey_save_returns_record(self, writer_client, sample_setup):
         from apps.base.digests import build_grid_record, build_survey_record
@@ -1400,9 +1406,9 @@ class TestRecordShape:
         })
         payload = resp.json()
         survey = Survey.objects.get(id=payload[ROW_ID])
-        assert payload[RECORD] == build_survey_record(survey)
+        assert _patch(payload, 'surveys', survey.id)[RECORD] == build_survey_record(survey)
         s['grid'].refresh_from_db()
-        assert payload[GRID_RECORD] == build_grid_record(s['grid'])
+        assert _patch(payload, 'grids', s['grid'].id)[RECORD] == build_grid_record(s['grid'])
 
     def test_survey_edit_returns_record(self, writer_client, sample_setup):
         from apps.base.digests import build_survey_record
@@ -1414,9 +1420,9 @@ class TestRecordShape:
         )
         payload = resp.json()
         s['survey'].refresh_from_db()
-        assert payload[RECORD] == build_survey_record(s['survey'])
+        assert _patch(payload, 'surveys', s['survey'].id)[RECORD] == build_survey_record(s['survey'])
 
-    def test_tree_delete_returns_sample_and_survey(
+    def test_tree_delete_returns_sample_and_survey_patches(
         self, writer_client, sample_setup,
     ):
         from apps.base.digests import build_sample_record, build_survey_record
@@ -1428,10 +1434,11 @@ class TestRecordShape:
             content_type='application/json',
         )
         payload = resp.json()
+        assert {DATA_ID: f'sampled_trees_{s["survey"].id}', ROW_ID: ts_id} in payload[DELETES]
         s['sample'].refresh_from_db()
         s['survey'].refresh_from_db()
-        assert payload[SAMPLE_RECORD] == build_sample_record(s['sample'])
-        assert payload[SURVEY_RECORD] == build_survey_record(s['survey'])
+        assert _patch(payload, 'samples', s['sample'].id)[RECORD] == build_sample_record(s['sample'])
+        assert _patch(payload, 'surveys', s['survey'].id)[RECORD] == build_survey_record(s['survey'])
 
 
 class TestTreeDelete:
@@ -1744,9 +1751,8 @@ class TestGridCsvImport:
         assert data[ROW_ID] == grid.id
         assert SampleGrid.objects.count() == n_grids_before  # no new grid
         assert SampleArea.objects.filter(sample_grid=grid).count() == 2
-        # Response shape mirrors area_save_view: record + area_records.
-        assert RECORD in data and AREA_RECORDS in data
-        assert len(data[AREA_RECORDS]) == 2
+        area_patches = [p for p in data[PATCHES] if p[DATA_ID] == 'sample_areas']
+        assert len(area_patches) == 2
 
     def test_semicolon_comma_decimal_import(self, writer_client, sample_setup):
         """A ';'-delimited, comma-decimal file imports; lat/lon parsed."""

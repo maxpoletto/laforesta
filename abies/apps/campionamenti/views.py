@@ -5,7 +5,7 @@ Manual tree+sample entry form + save endpoint.
 
 Form endpoints follow the standard Abies idiom (see
 `apps.prelievi.views`): a GET returns an HTML fragment, a POST
-processes the submission and returns either {row_id, record} or a
+processes the submission and returns a generic patches/deletes envelope or a
 validation_error / conflict payload.
 """
 
@@ -37,8 +37,7 @@ from apps.base.models import (
 )
 from config import strings as S
 from config.constants import (
-    AREA_RECORDS, DEFAULT_RADIUS_M, FIELD_ALTITUDE, FIELD_ALTITUDE_M,
-    FIELD_AREA,
+    DEFAULT_RADIUS_M, FIELD_ALTITUDE, FIELD_ALTITUDE_M, FIELD_AREA,
     FIELD_COMPRESA, FIELD_COPPICE, FIELD_DATE, FIELD_DESCRIPTION, FIELD_D_CM,
     FIELD_FUSTAIA, FIELD_H_M, FIELD_L10_MM, FIELD_LAT, FIELD_LON, FIELD_MASS_Q,
     FIELD_NAME, FIELD_NEXT_SHOOT, FIELD_NOTE, FIELD_NUMBER,
@@ -47,9 +46,7 @@ from config.constants import (
     FIELD_SAMPLE_AREA_ID, FIELD_SAMPLE_GRID_ID, FIELD_SHOOT, FIELD_SHOOTS,
     FIELD_SORT_ORDER, FIELD_SPECIES, FIELD_SPECIES_ID, FIELD_STANDARD,
     FIELD_SURVEY_ID, FIELD_TREE_PICK, FIELD_TREE_PICK_EXISTING_ID,
-    FIELD_VOLUME_M3, GRID_RECORD, HTML, ROW_ID,
-    SAMPLE_RECORD, STATUS, STATUS_NOT_FOUND, SURVEY_RECORD, SURVEY_RECORDS,
-    is_truthy,
+    FIELD_VOLUME_M3, HTML, ROW_ID, STATUS, STATUS_NOT_FOUND, is_truthy,
 )
 
 # Quantization for tree-height measurements (centimetre precision).
@@ -258,15 +255,11 @@ def tree_save_view(request):
         request, body,
         data_id=f'sampled_trees_{sample.survey_id}',
         row_id=created_or_updated_ids[-1],
-        records=records,
         patches=[
+            *row_patches(f'sampled_trees_{sample.survey_id}', records),
             row_patch('samples', sample_record[0], sample_record),
             row_patch('surveys', survey_record[0], survey_record),
         ],
-        extra={
-            SAMPLE_RECORD: sample_record,
-            SURVEY_RECORD: survey_record,
-        },
     )
 
 
@@ -303,10 +296,6 @@ def tree_delete_view(request, ts_id: int):
             row_patch('surveys', survey_record[0], survey_record),
         ],
         deletes=[row_delete(f'sampled_trees_{survey_id}', ts_id)],
-        extra={
-            SAMPLE_RECORD: sample_record,
-            SURVEY_RECORD: survey_record,
-        },
     )
 
 
@@ -488,12 +477,12 @@ def area_save_view(request):
     ]
     return success_response(
         request, body,
-        data_id='sample_areas', row_id=area.id, record=area_record,
+        data_id='sample_areas', row_id=area.id,
         patches=[
+            row_patch('sample_areas', area.id, area_record),
             row_patch('grids', grid_record[0], grid_record),
             *row_patches('surveys', survey_records),
         ],
-        extra={GRID_RECORD: grid_record, SURVEY_RECORDS: survey_records},
     )
 
 
@@ -526,7 +515,6 @@ def area_delete_view(request, area_id: int):
             *row_patches('surveys', survey_records),
         ],
         deletes=[row_delete('sample_areas', area_id)],
-        extra={GRID_RECORD: grid_record, SURVEY_RECORDS: survey_records},
     )
 
 
@@ -929,7 +917,8 @@ def grid_save_view(request):
 
     return success_response(
         request, body,
-        data_id='grids', row_id=grid.id, record=build_grid_record(grid),
+        data_id='grids', row_id=grid.id,
+        patches=[row_patch('grids', grid.id, build_grid_record(grid))],
     )
 
 
@@ -969,7 +958,8 @@ def grid_edit_view(request, grid_id: int):
     mark_stale('grids', 'audit')
     return success_response(
         request, body,
-        data_id='grids', row_id=grid.id, record=build_grid_record(grid),
+        data_id='grids', row_id=grid.id,
+        patches=[row_patch('grids', grid.id, build_grid_record(grid))],
     )
 
 
@@ -1018,7 +1008,8 @@ def survey_edit_view(request, survey_id: int):
     mark_stale('surveys', 'audit')
     return success_response(
         request, body,
-        data_id='surveys', row_id=survey.id, record=build_survey_record(survey),
+        data_id='surveys', row_id=survey.id,
+        patches=[row_patch('surveys', survey.id, build_survey_record(survey))],
     )
 
 
@@ -1150,16 +1141,13 @@ def grid_csv_import_view(request):
     ]
     return success_response(
         request, request.POST,
-        data_id='grids', row_id=grid.id, record=grid_record,
+        data_id='grids', row_id=grid.id,
         patches=[
+            row_patch('grids', grid_record[0], grid_record),
             *row_patches('sample_areas', area_records),
             *row_patches('surveys', survey_records),
         ],
-        extra={
-            'n_areas': len(parsed_rows),
-            AREA_RECORDS: area_records,
-            SURVEY_RECORDS: survey_records,
-        },
+        extra={'n_areas': len(parsed_rows)},
     )
 
 
@@ -1380,9 +1368,11 @@ def survey_save_view(request):
     grid_record = build_grid_record(grid)
     return success_response(
         request, body,
-        data_id='surveys', row_id=survey.id, record=survey_record,
-        patches=[row_patch('grids', grid_record[0], grid_record)],
-        extra={GRID_RECORD: grid_record},
+        data_id='surveys', row_id=survey.id,
+        patches=[
+            row_patch('surveys', survey_record[0], survey_record),
+            row_patch('grids', grid_record[0], grid_record),
+        ],
     )
 
 
@@ -1454,9 +1444,11 @@ def grid_save_auto_view(request):
     area_records = [build_sample_area_record(sa) for sa in area_qs]
     return success_response(
         request, body,
-        data_id='grids', row_id=grid.id, record=grid_record,
-        patches=row_patches('sample_areas', area_records),
-        extra={AREA_RECORDS: area_records},
+        data_id='grids', row_id=grid.id,
+        patches=[
+            row_patch('grids', grid_record[0], grid_record),
+            *row_patches('sample_areas', area_records),
+        ],
     )
 
 

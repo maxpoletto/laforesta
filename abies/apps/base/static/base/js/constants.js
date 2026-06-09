@@ -16,7 +16,6 @@ export const ROW_ID  = 'row_id';
 export const VERSION = 'version';
 
 export const RECORD   = 'record';
-export const RECORDS  = 'records';
 export const DATA_ID  = 'data_id';
 export const PATCHES  = 'patches';
 export const DELETES  = 'deletes';
@@ -26,14 +25,6 @@ export const STATUS   = 'status';
 export const MESSAGE  = 'message';
 export const HTML     = 'html';
 
-// Side-effect record keys returned alongside the primary RECORD so the
-// client can update related digests.  See CLAUDE.md §"Optimistic table
-// updates".
-export const SAMPLE_RECORD   = 'sample_record';
-export const SURVEY_RECORD   = 'survey_record';
-export const SURVEY_RECORDS  = 'survey_records';
-export const GRID_RECORD     = 'grid_record';
-export const AREA_RECORDS    = 'area_records';
 
 // JSON API `status` field values.
 export const STATUS_CONFLICT         = 'conflict';

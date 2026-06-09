@@ -119,8 +119,8 @@ Bottom-of-form button layout.
 
 | Write | Digests marked stale | Optimistic client patch |
 |---|---|---|
-| Harvest save (create or update) | `prelievi`, `parcel_year_production`, `audit`; + `harvest_plan_items` if linked to a plan item | `prelievi` (primary); `harvest_plan_items` via `item_record` in response |
-| Harvest delete | same as save | `prelievi` (row removed); `harvest_plan_items` via `item_record` |
+| Harvest save (create or update) | `prelievi`, `parcel_year_production`, `audit`; + `harvest_plan_items` if linked to a plan item | `prelievi` and linked `harvest_plan_items` via `patches` |
+| Harvest delete | same as save | `prelievi` via `deletes`; `harvest_plan_items` via `patches` |
 | Species save (Settings → Trees) | `prelievi`, `species`, `audit` | — |
 | Tractor save (Settings) | `prelievi`, `audit` | — |
 | Crew save (Settings) | `prelievi`, `audit` | — |

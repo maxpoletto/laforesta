@@ -45,7 +45,7 @@ from config.constants import (
     DATA_ID, FIELD_CREW_ID, FIELD_DATE, FIELD_HARVEST_PLAN_ITEM_ID,
     FIELD_MASS_Q, FIELD_NOTE, FIELD_PARCEL_ID, FIELD_PRODUCT_ID,
     FIELD_RECORD1, FIELD_RECORD2, FIELD_SORT_ORDER, FIELD_SPECIES_ID,
-    FIELD_VOLUME_M3, HTML, ITEM_RECORD, MESSAGE, RECORD, ROW_ID, STATUS,
+    FIELD_VOLUME_M3, HTML, MESSAGE, RECORD, ROW_ID, STATUS,
     VERSION,
 )
 
@@ -142,22 +142,20 @@ def save_view(request):
         'parcel__region', 'crew', 'product', 'harvest_plan_item',
     ).get(id=op.id)
     record = build_harvest_record(op)
-    extra = {}
-    patches = []
+    patches = [row_patch('prelievi', op.id, record)]
     if op.harvest_plan_item_id is not None:
         item_fresh = (HarvestPlanItem.objects
                       .select_related('parcel__region', 'parcel__eclass',
                                       'region', 'harvest_plan')
                       .get(id=op.harvest_plan_item_id))
         item_record = build_harvest_plan_item_record(item_fresh)
-        extra[ITEM_RECORD] = item_record
         patches.append(row_patch(
             'harvest_plan_items', item_fresh.id, item_record,
         ))
 
     return success_response(
-        request, body, data_id='prelievi', row_id=op.id, record=record,
-        patches=patches, extra=extra,
+        request, body, data_id='prelievi', row_id=op.id,
+        patches=patches,
     )
 
 
@@ -196,7 +194,6 @@ def delete_view(request):
             stale.append('harvest_plan_items')
         mark_stale(*stale)
 
-    extra = {}
     patches = []
     if had_item_id is not None:
         item_fresh = (HarvestPlanItem.objects
@@ -204,14 +201,12 @@ def delete_view(request):
                                       'region', 'harvest_plan')
                       .get(id=had_item_id))
         item_record = build_harvest_plan_item_record(item_fresh)
-        extra[ITEM_RECORD] = item_record
         patches.append(row_patch(
             'harvest_plan_items', item_fresh.id, item_record,
         ))
     return success_response(
         request, body, data_id='prelievi', row_id=row_id,
         patches=patches, deletes=[row_delete('prelievi', row_id)],
-        extra=extra,
     )
 
 

@@ -1400,13 +1400,9 @@ async function refreshAfterTreeImport() {
  * optimistic-update pattern adapted for Campionamenti's multi-cache
  * surface — see CLAUDE.md §"Optimistic table updates".
  *
- * Preferred payload keys:
+ * Payload keys:
  *   patches         — [{data_id, row_id, record}] cache updates
  *   deletes         — [{data_id, row_id}] cache removals
- *
- * Legacy payload keys are still accepted as fallback while older response
- * shapes exist: record/records for `data.data_id`, plus sample_record,
- * survey_record(s), grid_record, and area_records for cross-digest updates.
  *
  * After patching the in-memory cache, mirrors the change to the
  * page-local mirrors (samplesData, surveysData, gridsData,
@@ -1421,39 +1417,6 @@ function applySideEffects(data) {
   let touchedAreas = false;
 
   const touchedDataIds = cache.applyResponseChanges(data);
-
-  // Fallback for response shapes that have not yet been converted to
-  // patches/deletes. Converted responses keep the legacy keys too, but
-  // applyResponseChanges is the source of truth once the envelope is present.
-  if (!touchedDataIds.size) {
-    if (data.records && data.data_id) {
-      cache.updateRows(data.data_id, data.records);
-      touchedDataIds.add(data.data_id);
-    } else if (data.record && data.data_id) {
-      cache.updateRow(data.data_id, data.row_id, data.record);
-      touchedDataIds.add(data.data_id);
-    }
-    if (data.sample_record) {
-      cache.updateRow(SAMPLES_ID, data.sample_record[0], data.sample_record);
-      touchedDataIds.add(SAMPLES_ID);
-    }
-    if (data.survey_record) {
-      cache.updateRow(SURVEYS_ID, data.survey_record[0], data.survey_record);
-      touchedDataIds.add(SURVEYS_ID);
-    }
-    if (data.survey_records?.length) {
-      cache.updateRows(SURVEYS_ID, data.survey_records);
-      touchedDataIds.add(SURVEYS_ID);
-    }
-    if (data.grid_record) {
-      cache.updateRow(GRIDS_ID, data.grid_record[0], data.grid_record);
-      touchedDataIds.add(GRIDS_ID);
-    }
-    if (data.area_records?.length) {
-      cache.updateRows(SAMPLE_AREAS_ID, data.area_records);
-      touchedDataIds.add(SAMPLE_AREAS_ID);
-    }
-  }
 
   touchedTreesDigest = touchedDataIds.has(currentTreesId);
   touchedAreas = touchedDataIds.has(SAMPLE_AREAS_ID);

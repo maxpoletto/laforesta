@@ -19,7 +19,7 @@ from apps.base.digests import (
     HYPSO_PARAM_COLUMNS, hypso_param_row, mark_stale, serve_digest,
 )
 from apps.base.responses import (
-    conflict_response, success_response, validation_error,
+    conflict_response, row_patch, success_response, validation_error,
 )
 from apps.base.models import (
     Crew, HYPSO_FUNC_LN, HypsoParam, HypsoParamSource, LoginMethod, Role,
@@ -312,7 +312,8 @@ def users_save(request):
     mark_stale('audit')
 
     return success_response(
-        request, body, data_id='users', row_id=user.id, record=_user_row(user),
+        request, body, data_id='users', row_id=user.id,
+        patches=[row_patch('users', user.id, _user_row(user))],
     )
 
 
@@ -525,7 +526,8 @@ def _save(model, body, parsed, data_id, row_fn):
 
 def _saved(data_id, obj, row_fn, body, request):
     return success_response(
-        request, body, data_id=data_id, row_id=obj.id, record=row_fn(obj),
+        request, body, data_id=data_id, row_id=obj.id,
+        patches=[row_patch(data_id, obj.id, row_fn(obj))],
     )
 
 

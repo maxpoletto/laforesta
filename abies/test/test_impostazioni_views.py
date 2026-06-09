@@ -14,8 +14,8 @@ from config.constants import (
     FIELD_FIRST_NAME, FIELD_IS_ACTIVE, FIELD_LAST_NAME, FIELD_LATIN_NAME,
     FIELD_LOGIN_METHOD, FIELD_MANUFACTURER, FIELD_MINOR, FIELD_MODEL, FIELD_NAME,
     FIELD_NOTES, FIELD_PASSWORD1, FIELD_PASSWORD2, FIELD_ROLE, FIELD_USERNAME,
-    FIELD_YEAR, HTML, MESSAGE, RECORD, ROWS, ROW_ID, STATUS, STATUS_CONFLICT,
-    STATUS_VALIDATION_ERROR, VERSION,
+    FIELD_YEAR, HTML, MESSAGE, PATCHES, RECORD, ROWS, ROW_ID, STATUS,
+    STATUS_CONFLICT, STATUS_VALIDATION_ERROR, VERSION,
 )
 
 
@@ -112,7 +112,7 @@ class TestCrews:
         assert resp.status_code == 200
         data = resp.json()
         # _crew_row returns [id, name, notes, active]; name is at index 1.
-        assert data[RECORD][1] == 'Gamma'
+        assert data[PATCHES][0][RECORD][1] == 'Gamma'
         assert Crew.objects.filter(name='Gamma').exists()
 
     def test_save_update(self, writer_client, crews):
@@ -322,7 +322,7 @@ class TestSpecies:
         acero.refresh_from_db()
         assert acero.minor is False
         assert acero.version == 2
-        assert resp.json()[RECORD][minor_idx] is False
+        assert resp.json()[PATCHES][0][RECORD][minor_idx] is False
 
         abete = species[0]   # starts minor=False
         resp = _post(writer_client, '/api/impostazioni/species/save/', {
@@ -333,7 +333,7 @@ class TestSpecies:
         assert resp.status_code == 200, resp.content
         abete.refresh_from_db()
         assert abete.minor is True
-        assert resp.json()[RECORD][minor_idx] is True
+        assert resp.json()[PATCHES][0][RECORD][minor_idx] is True
 
         # A later edit that leaves minor checked preserves it (the form always
         # resubmits the flag's current state), bumping the version again.
