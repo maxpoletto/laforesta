@@ -70,7 +70,7 @@ hosts (top to bottom):
   Below the pullodown, a checkbox for "Aree catastali" (default unchecked, uses
   computed surface area from parcel geometries).
 
-  If harvest volume ("prelievo) is shown, then we also display another checkbox,
+  If harvest volume ("prelievo") is shown, then we also display another checkbox,
   "Valori per ettaro" (default unchecked) to display normalized per-hectare
   productivity.
 
@@ -173,12 +173,16 @@ following the standard Abies idiom:
      percentage growth for diameter class.
 
    The choice of surveys used for this data is made in the settings page, see
-   page-impostazioni.md.
+   page-impostazioni.md. If no survey exists, displays a message to that effect.
+
+   For every graph, displays the number of trees used to compute the data.
 
 3. **Produzione storica** (closed by default)
    - Units checkbox as above: if checked, production is per hectare, otherwise
      per parcel/region.
-   - Stacked bar chart of yearly q.li harvested in this scope.
+   - Stacked bar chart of monthly/yearly q.li harvested in this scope (parcel or
+     region), otherwise identical to the chart in Prelievi (see page-prelievi.md
+     > Produzione).
 
 Sections render lazily on first expand.
 
@@ -198,11 +202,6 @@ Sections render lazily on first expand.
   (every page state is scoped to one region; see also CLAUDE.md
   "Maps").  Stale `c=N` (deleted region) falls back to the first
   region by name.
-- `s=N` — active survey id (page-level filter for sample-derived
-  views — see the *Survey* pulldown above).  Default per the rule
-  documented in "Visual appearance": most recent survey whose grid
-  touches the active region, falling through to most-recent-overall.
-  Stale `s=N` (deleted survey) re-applies the default.
 - `m=1|2|3` — mode: 1 = Caratteristiche (default), 2 = Evoluzione,
   3 = Piante ad accrescimento indefinito.
 
@@ -299,16 +298,6 @@ mode-switch.
   `Desc. veg.`, `Desc. geo`.  `row_id` = `parcel.id`; `Tipo` derived
   from `parcel.eclass.coppice`.
 
-- **`surveys.json`** — shared with Campionamenti.  Needed eagerly to
-  populate the *Survey* pulldown and to compute the default-survey
-  selection rule (most recent survey whose grid touches the active
-  region).
-
-- **`sample_areas.json`** — shared with Campionamenti.  Needed
-  eagerly to evaluate "does this survey's grid touch this region?"
-  for the default-survey rule.  Not used to draw anything on the
-  Bosco map.
-
 - **`species.json`** — shared with Campionamenti and Piano di taglio.
   Used here for color-coded species swatches in the PAI mode lists
   and per-parcel charts.
@@ -334,39 +323,26 @@ mode-switch.
   page.
 
   Columns: `row_id`, `version`, `Parcel`, `Survey`, `Specie`,
-  `Classe (cm)`, `N. alberi/ha`, `Volume (m³/ha)`, `Area bas. (m²/ha)`,
+  `N. alberi`, `Volume (m³)`, `Area bas. (m²)`,
   `Altezza media (m)`, `Incremento %`.  Sorted by `(Parcel, Survey,
   Specie, Classe)`.
 
-  Per-hectare values are computed at digest-generation time by
-  scaling sample-area observations by the surveyed area's coverage
-  of the parcel.  Region-scope aggregation is done client-side by
-  summing across the region's parcels (with appropriate per-ha
+  Per-hectare values are computed client side depending on what area measure is
+  used (cadastral or geometric). Region-scope aggregation is also done
+  client-side by summing across the region's parcels (with appropriate per-ha
   arithmetic).
 
   `row_id` is a sequential synthetic index; this digest is read-only
   and does not participate in the standard edit/cache-update flow.
-  Same convention applies to the other aggregation digests below.
 
-- **`prelievi.json`** — shared with Prelievi (already documented).
-  Drives both the per-parcel page's *Produzione storica* stacked
-  bar chart *and* the small "individual harvest operations in this
-  scope" sortable-table beneath it.  One row per harvest operation,
-  with per-species quintal columns and `Tipo` / `Squadra` group-by
-  columns already present, so the three breakdown options
-  (specie / prodotto / squadra) all derive client-side via
-  filter-by-parcel + group-by-year + sum.  No additional digest
-  needed for the chart.
+- **`future_production.json`** — per-year production for high forest (fustaia)
+  parcels based on the currently selected harvest plan. Invalidated on harvest
+  plan edits (in Piani di Taglio) or when the selected harvest plan is changed
+  in Impostazioni.
 
-- **`parcel_year_production.json`** — shared with Prelievi and
-  Piano di taglio (already documented under `prelievi.md`).  Not
-  read by the per-parcel chart (covered by `prelievi.json` above);
-  consumed elsewhere on Bosco where a single Q.li / m³ rollup
-  per (region, parcel, year) is enough.
-
-- **`marks.json`** — shared with Piano di taglio.  Drives the
-  *Operazioni recenti* "ultime martellate" sub-list, filtered to
-  marks touching this scope.
+- **`prelievi.json`** — shared with Prelievi (already documented). Drives the
+  per-parcel page's *Produzione storica* stacked bar chart, as in
+  page-prelievi.md.
 
 ### Map data
 
@@ -374,17 +350,3 @@ mode-switch.
   Eager-loaded.  Updated only on geometry-data refresh (rare).
 - **Satellite data** — preprocessed GeoTIFFs and per-pixel digests as
   in Boscoscopio.  Lazy per (metric, date) tuple.
-
-### Notes on aggregation digests
-
-Digests like `parcel_dendrometry.json`,
-`parcel_year_production.json`, and
-`parcel_year_production_breakdown.json` are read-only aggregations:
-no per-row writes, no edit forms.  They follow the standard
-`{columns, rows}` shape with a synthetic `row_id` (sequential 1, 2,
-3, …) so the cache layer treats them uniformly, but row_id has no
-semantic meaning and is not used for cache updates.
-
-A schema change that affects an aggregation's inputs marks the
-aggregation digest stale via the same staleness-flag pattern used
-for tabular digests (see CLAUDE.md "JSON digest regeneration").
