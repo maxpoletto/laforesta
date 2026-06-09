@@ -2,14 +2,16 @@
 protocol in docs/data-architecture.md).
 """
 
+from django.db import transaction
 from django.http import JsonResponse
 
+from apps.base.digests import mark_stale
 from apps.base.middleware import save_nonce
 from config import strings as S
 from config.constants import (
     DATA_ID, DELETES, FIELD_ERRORS, FIELD_NONCE, HTML, MESSAGE, PATCHES,
-    RECORD, ROW_ID, STATUS, STATUS_CONFLICT,
-    STATUS_VALIDATION_ERROR,
+    RECORD, ROW_ID, STATUS, STATUS_CONFLICT, STATUS_NOT_FOUND,
+    STATUS_VALIDATION_ERROR, VERSION,
 )
 
 
@@ -26,6 +28,76 @@ def row_patches(data_id: str, records: list[list]) -> list[dict]:
 def row_delete(data_id: str, row_id: int) -> dict:
     """One digest row removal in the generic optimistic-update envelope."""
     return {DATA_ID: data_id, ROW_ID: row_id}
+
+
+def save_model_response(
+        request,
+        body: dict,
+        *,
+        model,
+        data_id: str,
+        values: dict,
+        row_fn,
+        stale: tuple[str, ...] = (),
+        row_id: int | None = None,
+        unique_field: str | None = None,
+        unique_value=None,
+        unique_error: str | None = None,
+        unique_case_insensitive: bool = False,
+        conflict_fn=None,
+        extra_patches=None,
+        extra: dict | None = None,
+) -> JsonResponse:
+    """Create/update a small TimestampedModel and return the standard write
+    envelope.
+
+    This is intentionally narrow: callers still parse and validate their own
+    domain fields.  The helper owns only the repeated optimistic-lock, optional
+    unique-field check, stale marking, and row-patch response plumbing.
+    """
+    row_id = row_id if row_id is not None else _row_id_from_body(body)
+
+    if unique_error and unique_field and unique_value is not None:
+        lookup = f'{unique_field}__iexact' if unique_case_insensitive else unique_field
+        dup = model.objects.filter(**{lookup: unique_value})
+        if row_id is not None:
+            dup = dup.exclude(id=row_id)
+        if dup.exists():
+            return validation_error([unique_error])
+
+    with transaction.atomic():
+        if row_id is not None:
+            obj = model.objects.select_for_update().filter(id=row_id).first()
+            if obj is None:
+                return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
+            submitted_version = int(body.get(VERSION, 0))
+            if obj.version != submitted_version:
+                if conflict_fn:
+                    return conflict_fn(obj)
+                return conflict_response(
+                    data_id=data_id, row_id=obj.id, record=row_fn(obj),
+                )
+            for field, value in values.items():
+                setattr(obj, field, value)
+            obj.version += 1
+            obj.save()
+        else:
+            obj = model.objects.create(**values)
+        if stale:
+            mark_stale(*stale)
+
+    patches = [row_patch(data_id, obj.id, row_fn(obj))]
+    if extra_patches:
+        patches.extend(extra_patches(obj) if callable(extra_patches) else extra_patches)
+    return success_response(
+        request, body, data_id=data_id, row_id=obj.id, patches=patches,
+        extra=extra,
+    )
+
+
+def _row_id_from_body(body: dict) -> int | None:
+    row_id = body.get(ROW_ID)
+    return int(row_id) if row_id not in (None, '') else None
 
 
 def success_response(

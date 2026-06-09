@@ -1056,7 +1056,10 @@ function showEditGridModal() {
     showDate: false,
     onDetailsSave: async ({ name, description }) => {
       const { data, status } = await postJSON(
-        `${GRID_EDIT_URL_PREFIX}${activeGridId}/`, { name, description },
+        `${GRID_EDIT_URL_PREFIX}${activeGridId}/`, {
+          name, description,
+          [VERSION]: String(row[c.indexOf(VERSION)] ?? 0),
+        },
       );
       if (status !== 200) return data?.message || S.ERROR_GENERIC;
       applySideEffects(data);
@@ -1093,7 +1096,10 @@ function showEditSurveyModal() {
     showDate: true,
     onDetailsSave: async ({ name, description }) => {
       const { data, status } = await postJSON(
-        `${SURVEY_EDIT_URL_PREFIX}${activeSurveyId}/`, { name, description },
+        `${SURVEY_EDIT_URL_PREFIX}${activeSurveyId}/`, {
+          name, description,
+          [VERSION]: String(row[c.indexOf(VERSION)] ?? 0),
+        },
       );
       if (status !== 200) return data?.message || S.ERROR_GENERIC;
       applySideEffects(data);

@@ -19,7 +19,7 @@ from apps.base.digests import (
     HYPSO_PARAM_COLUMNS, hypso_param_row, mark_stale, serve_digest,
 )
 from apps.base.responses import (
-    conflict_response, row_patch, success_response, validation_error,
+    row_patch, save_model_response, success_response, validation_error,
 )
 from apps.base.models import (
     Crew, HYPSO_FUNC_LN, HypsoParam, HypsoParamSource, LoginMethod, Role,
@@ -97,12 +97,11 @@ def crews_save(request):
     }
     if not parsed[FIELD_NAME]:
         return _error(S.ERR_NAME_REQUIRED)
-    obj, err = _save(Crew, body, parsed, 'crews', _crew_row)
-    if err:
-        return err
     # crew.name is a value column in the prelievi digest.
-    mark_stale('prelievi', 'audit')
-    return _saved('crews', obj, _crew_row, body, request)
+    return save_model_response(
+        request, body, model=Crew, data_id='crews', values=parsed,
+        row_fn=_crew_row, stale=('prelievi', 'audit'),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -143,12 +142,11 @@ def tractors_save(request):
     }
     if not parsed[FIELD_MANUFACTURER]:
         return _error(S.ERR_NAME_REQUIRED)
-    obj, err = _save(Tractor, body, parsed, 'tractors', _tractor_row)
-    if err:
-        return err
     # Tractor labels are columns in the prelievi digest.
-    mark_stale('prelievi', 'audit')
-    return _saved('tractors', obj, _tractor_row, body, request)
+    return save_model_response(
+        request, body, model=Tractor, data_id='tractors', values=parsed,
+        row_fn=_tractor_row, stale=('prelievi', 'audit'),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -198,13 +196,12 @@ def species_save(request):
     # minor species into.
     if parsed[FIELD_MINOR] and parsed[FIELD_COMMON_NAME] == S.SPECIES_OTHER:
         return _error(S.ERR_OTHER_NOT_MINOR.format(S.SPECIES_OTHER))
-    obj, err = _save(Species, body, parsed, FIELD_SPECIES, _species_row)
-    if err:
-        return err
     # species.minor / common_name / sort_order define the prelievi column
     # set; species.json is also consumed by V/m preview forms.
-    mark_stale('prelievi', 'audit', FIELD_SPECIES)
-    return _saved(FIELD_SPECIES, obj, _species_row, body, request)
+    return save_model_response(
+        request, body, model=Species, data_id=FIELD_SPECIES, values=parsed,
+        row_fn=_species_row, stale=('prelievi', 'audit', FIELD_SPECIES),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -500,35 +497,6 @@ def _form(template, model, obj_id, request):
     html = render_to_string(template, {'obj': obj}, request=request)
     return JsonResponse({HTML: html})
 
-
-def _save(model, body, parsed, data_id, row_fn):
-    """Create or update a TimestampedModel with optimistic locking."""
-    row_id = body.get(ROW_ID)
-    row_id = int(row_id) if row_id else None
-
-    with transaction.atomic():
-        if row_id:
-            version = int(body.get(VERSION, 0))
-            obj = model.objects.select_for_update().get(id=row_id)
-            if obj.version != version:
-                return None, conflict_response(
-                    data_id=data_id, row_id=obj.id, record=row_fn(obj),
-                )
-            for field, value in parsed.items():
-                setattr(obj, field, value)
-            obj.version += 1
-            obj.save()
-        else:
-            obj = model.objects.create(**parsed)
-
-    return obj, None
-
-
-def _saved(data_id, obj, row_fn, body, request):
-    return success_response(
-        request, body, data_id=data_id, row_id=obj.id,
-        patches=[row_patch(data_id, obj.id, row_fn(obj))],
-    )
 
 
 def _error(message):

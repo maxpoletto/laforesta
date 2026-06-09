@@ -30,7 +30,7 @@ from apps.base import csv_io
 from apps.base.numparse import coord_float, int_or_none, parse_decimal
 from apps.base.responses import (
     conflict_response, csv_error_list, row_delete, row_patch,
-    success_response, validation_error,
+    save_model_response, success_response, validation_error,
 )
 from apps.base.digests import (
     build_harvest_plan_item_record,
@@ -154,42 +154,18 @@ def plan_save_view(request):
     if errors:
         return validation_error(errors)
 
-    # Uniqueness check (case-insensitive — `HarvestPlan.name` has a
-    # plain unique constraint, but we surface a friendly message early).
-    dup = HarvestPlan.objects.filter(name__iexact=name)
-    if plan_id:
-        dup = dup.exclude(id=plan_id)
-    if dup.exists():
-        return validation_error([S.ERR_PLAN_NAME_DUPLICATE])
-
-    with transaction.atomic():
-        if plan_id is not None:
-            plan = HarvestPlan.objects.select_for_update().filter(
-                id=plan_id,
-            ).first()
-            if plan is None:
-                return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
-            submitted_version = int_or_none(body.get(VERSION))
-            if (submitted_version is not None
-                    and plan.version != submitted_version):
-                return _conflict_response_plan(plan)
-            plan.name = name
-            plan.description = description
-            plan.year_start = year_start
-            plan.year_end = year_end
-            plan.version += 1
-            plan.save()
-        else:
-            plan = HarvestPlan.objects.create(
-                name=name, description=description,
-                year_start=year_start, year_end=year_end,
-            )
-        mark_stale('harvest_plans', 'audit')
-
-    return success_response(
-        request, body,
-        data_id='harvest_plans', row_id=plan.id,
-        patches=[row_patch('harvest_plans', plan.id, build_harvest_plan_record(plan))],
+    return save_model_response(
+        request, body, model=HarvestPlan, data_id='harvest_plans', row_id=plan_id,
+        values={
+            FIELD_NAME: name,
+            FIELD_DESCRIPTION: description,
+            FIELD_YEAR_START: year_start,
+            FIELD_YEAR_END: year_end,
+        },
+        row_fn=build_harvest_plan_record, stale=('harvest_plans', 'audit'),
+        unique_field=FIELD_NAME, unique_value=name,
+        unique_error=S.ERR_PLAN_NAME_DUPLICATE, unique_case_insensitive=True,
+        conflict_fn=_conflict_response_plan,
     )
 
 

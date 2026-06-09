@@ -28,8 +28,8 @@ from apps.base.digests import (
 )
 from apps.base.numparse import coord_float, int_or_none, parse_decimal
 from apps.base.responses import (
-    csv_error_list, row_delete, row_patch, row_patches, success_response,
-    validation_error,
+    csv_error_list, row_delete, row_patch, row_patches, save_model_response,
+    success_response, validation_error,
 )
 from apps.base.models import (
     Parcel, Region, Sample, SampleArea, SampleGrid, Species, Survey, Tree,
@@ -908,17 +908,12 @@ def grid_save_view(request):
     description = (body.get(FIELD_DESCRIPTION) or '').strip()
     if not name:
         return validation_error([S.ERR_GRID_NAME_REQUIRED])
-    if SampleGrid.objects.filter(name=name).exists():
-        return validation_error([S.ERR_GRID_NAME_DUPLICATE])
-
-    with transaction.atomic():
-        grid = SampleGrid.objects.create(name=name, description=description)
-        mark_stale('grids', 'audit')
-
-    return success_response(
-        request, body,
-        data_id='grids', row_id=grid.id,
-        patches=[row_patch('grids', grid.id, build_grid_record(grid))],
+    return save_model_response(
+        request, body, model=SampleGrid, data_id='grids',
+        values={FIELD_NAME: name, FIELD_DESCRIPTION: description},
+        row_fn=build_grid_record, stale=('grids', 'audit'),
+        unique_field=FIELD_NAME, unique_value=name,
+        unique_error=S.ERR_GRID_NAME_DUPLICATE,
     )
 
 
@@ -949,17 +944,12 @@ def grid_edit_view(request, grid_id: int):
     description = (body.get(FIELD_DESCRIPTION) or '').strip()
     if not name:
         return validation_error([S.ERR_GRID_NAME_REQUIRED])
-    if SampleGrid.objects.filter(name=name).exclude(id=grid.id).exists():
-        return validation_error([S.ERR_GRID_NAME_DUPLICATE])
-    grid.name = name
-    grid.description = description
-    grid.version += 1
-    grid.save()
-    mark_stale('grids', 'audit')
-    return success_response(
-        request, body,
-        data_id='grids', row_id=grid.id,
-        patches=[row_patch('grids', grid.id, build_grid_record(grid))],
+    return save_model_response(
+        request, body, model=SampleGrid, data_id='grids', row_id=grid.id,
+        values={FIELD_NAME: name, FIELD_DESCRIPTION: description},
+        row_fn=build_grid_record, stale=('grids', 'audit'),
+        unique_field=FIELD_NAME, unique_value=name,
+        unique_error=S.ERR_GRID_NAME_DUPLICATE,
     )
 
 
@@ -999,17 +989,12 @@ def survey_edit_view(request, survey_id: int):
     description = (body.get(FIELD_DESCRIPTION) or '').strip()
     if not name:
         return validation_error([S.ERR_SURVEY_NAME_REQUIRED])
-    if Survey.objects.filter(name=name).exclude(id=survey.id).exists():
-        return validation_error([S.ERR_SURVEY_NAME_DUPLICATE])
-    survey.name = name
-    survey.description = description
-    survey.version += 1
-    survey.save()
-    mark_stale('surveys', 'audit')
-    return success_response(
-        request, body,
-        data_id='surveys', row_id=survey.id,
-        patches=[row_patch('surveys', survey.id, build_survey_record(survey))],
+    return save_model_response(
+        request, body, model=Survey, data_id='surveys', row_id=survey.id,
+        values={FIELD_NAME: name, FIELD_DESCRIPTION: description},
+        row_fn=build_survey_record, stale=('surveys', 'audit'),
+        unique_field=FIELD_NAME, unique_value=name,
+        unique_error=S.ERR_SURVEY_NAME_DUPLICATE,
     )
 
 
@@ -1349,29 +1334,19 @@ def survey_save_view(request):
         return validation_error([S.ERR_SURVEY_NAME_REQUIRED])
     if not grid_id:
         return validation_error([S.ERR_SURVEY_GRID_REQUIRED])
-    if Survey.objects.filter(name=name).exists():
-        return validation_error([S.ERR_SURVEY_NAME_DUPLICATE])
     try:
         grid = SampleGrid.objects.get(id=int(grid_id))
     except (SampleGrid.DoesNotExist, ValueError):
         return validation_error([S.ERR_SURVEY_GRID_REQUIRED])
 
-    with transaction.atomic():
-        survey = Survey.objects.create(
-            name=name, sample_grid=grid, description=description,
-        )
-        # `grids` digest carries N. rilevamenti per grid, so creating a
-        # survey must invalidate grids too.
-        mark_stale('surveys', 'grids', 'audit')
-
-    survey_record = build_survey_record(survey)
-    grid_record = build_grid_record(grid)
-    return success_response(
-        request, body,
-        data_id='surveys', row_id=survey.id,
-        patches=[
-            row_patch('surveys', survey_record[0], survey_record),
-            row_patch('grids', grid_record[0], grid_record),
+    return save_model_response(
+        request, body, model=Survey, data_id='surveys',
+        values={FIELD_NAME: name, 'sample_grid': grid, FIELD_DESCRIPTION: description},
+        row_fn=build_survey_record, stale=('surveys', 'grids', 'audit'),
+        unique_field=FIELD_NAME, unique_value=name,
+        unique_error=S.ERR_SURVEY_NAME_DUPLICATE,
+        extra_patches=lambda _survey: [
+            row_patch('grids', grid.id, build_grid_record(grid)),
         ],
     )
 

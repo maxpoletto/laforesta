@@ -19,7 +19,7 @@ from config.constants import (
     FIELD_NUMBER, FIELD_PARCEL_ID, FIELD_POINTS, FIELD_PRESERVED, FIELD_R_M,
     FIELD_SAMPLE_AREA_ID, FIELD_SAMPLE_GRID_ID, FIELD_SHOOT, FIELD_SPECIES_ID,
     FIELD_STANDARD, FIELD_SURVEY_ID, FIELD_TREE_PICK, HTML, MESSAGE, PATCHES,
-    RECORD, ROWS, ROW_ID,
+    RECORD, ROWS, ROW_ID, STATUS, STATUS_CONFLICT, VERSION,
 )
 
 
@@ -1390,9 +1390,26 @@ class TestRecordShape:
         resp = self._post(
             writer_client,
             f'/api/campionamenti/grid/edit/{s["grid"].id}/',
-            {FIELD_NAME: 'Renamed', FIELD_DESCRIPTION: ''},
+            {
+                FIELD_NAME: 'Renamed', FIELD_DESCRIPTION: '',
+                VERSION: str(s['grid'].version),
+            },
         )
         payload = resp.json()
+        s['grid'].refresh_from_db()
+        assert _patch(payload, 'grids', s['grid'].id)[RECORD] == build_grid_record(s['grid'])
+
+    def test_grid_edit_conflict_returns_current_patch(self, writer_client, sample_setup):
+        from apps.base.digests import build_grid_record
+        s = sample_setup
+        resp = self._post(
+            writer_client,
+            f'/api/campionamenti/grid/edit/{s["grid"].id}/',
+            {FIELD_NAME: 'Renamed', FIELD_DESCRIPTION: '', VERSION: '999'},
+        )
+        assert resp.status_code == 400
+        payload = resp.json()
+        assert payload[STATUS] == STATUS_CONFLICT
         s['grid'].refresh_from_db()
         assert _patch(payload, 'grids', s['grid'].id)[RECORD] == build_grid_record(s['grid'])
 
@@ -1416,9 +1433,26 @@ class TestRecordShape:
         resp = self._post(
             writer_client,
             f'/api/campionamenti/survey/edit/{s["survey"].id}/',
-            {FIELD_NAME: 'Renamed', FIELD_DESCRIPTION: ''},
+            {
+                FIELD_NAME: 'Renamed', FIELD_DESCRIPTION: '',
+                VERSION: str(s['survey'].version),
+            },
         )
         payload = resp.json()
+        s['survey'].refresh_from_db()
+        assert _patch(payload, 'surveys', s['survey'].id)[RECORD] == build_survey_record(s['survey'])
+
+    def test_survey_edit_conflict_returns_current_patch(self, writer_client, sample_setup):
+        from apps.base.digests import build_survey_record
+        s = sample_setup
+        resp = self._post(
+            writer_client,
+            f'/api/campionamenti/survey/edit/{s["survey"].id}/',
+            {FIELD_NAME: 'Renamed', FIELD_DESCRIPTION: '', VERSION: '999'},
+        )
+        assert resp.status_code == 400
+        payload = resp.json()
+        assert payload[STATUS] == STATUS_CONFLICT
         s['survey'].refresh_from_db()
         assert _patch(payload, 'surveys', s['survey'].id)[RECORD] == build_survey_record(s['survey'])
 
@@ -2060,7 +2094,10 @@ class TestGridEditDelete:
         s = sample_setup
         resp = self._post(writer_client,
                           f'/api/campionamenti/grid/edit/{s["grid"].id}/',
-                          {FIELD_NAME: 'Rinominata', FIELD_DESCRIPTION: 'desc'})
+                          {
+                              FIELD_NAME: 'Rinominata', FIELD_DESCRIPTION: 'desc',
+                              VERSION: str(s['grid'].version),
+                          })
         assert resp.status_code == 200
         s['grid'].refresh_from_db()
         assert s['grid'].name == 'Rinominata'
@@ -2077,7 +2114,10 @@ class TestGridEditDelete:
         SampleGrid.objects.create(name='Other grid X')
         resp = self._post(writer_client,
                           f'/api/campionamenti/grid/edit/{s["grid"].id}/',
-                          {FIELD_NAME: 'Other grid X'})
+                          {
+                              FIELD_NAME: 'Other grid X',
+                              VERSION: str(s['grid'].version),
+                          })
         assert resp.status_code == 400
 
     def test_delete_grid_in_use_refused(self, writer_client, sample_setup):
@@ -2136,7 +2176,11 @@ class TestSurveyEditDelete:
         s = sample_setup
         resp = self._post(writer_client,
                           f'/api/campionamenti/survey/edit/{s["survey"].id}/',
-                          {FIELD_NAME: 'Sv rinominato', FIELD_DESCRIPTION: 'desc'})
+                          {
+                              FIELD_NAME: 'Sv rinominato',
+                              FIELD_DESCRIPTION: 'desc',
+                              VERSION: str(s['survey'].version),
+                          })
         assert resp.status_code == 200
         s['survey'].refresh_from_db()
         assert s['survey'].name == 'Sv rinominato'
@@ -2146,7 +2190,10 @@ class TestSurveyEditDelete:
         Survey.objects.create(name='Other survey X', sample_grid=s['grid'])
         resp = self._post(writer_client,
                           f'/api/campionamenti/survey/edit/{s["survey"].id}/',
-                          {FIELD_NAME: 'Other survey X'})
+                          {
+                              FIELD_NAME: 'Other survey X',
+                              VERSION: str(s['survey'].version),
+                          })
         assert resp.status_code == 400
 
     def test_delete_survey_cascades_to_samples_and_tree_samples(
