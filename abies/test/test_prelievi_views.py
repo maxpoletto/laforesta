@@ -564,6 +564,17 @@ class TestDeleteView:
         resp = self._post(writer_client, {ROW_ID: '99999', VERSION: '1'})
         assert resp.status_code == 404
 
+    def test_delete_non_object_json_returns_validation_error(
+            self, writer_client, harvest_fixtures):
+        resp = writer_client.post(
+            '/api/prelievi/delete/',
+            data='[]',
+            content_type='application/json',
+        )
+        assert resp.status_code == 400
+        assert resp.json()[STATUS] == STATUS_VALIDATION_ERROR
+        assert resp.json()[MESSAGE] == S.ERR_JSON_INVALID
+
     def test_reader_forbidden(self, reader_client, harvest_fixtures, sample_op):
         resp = self._post(reader_client, {
             ROW_ID: str(sample_op.id), VERSION: str(sample_op.version),

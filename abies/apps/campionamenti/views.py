@@ -28,9 +28,9 @@ from apps.base.digests import (
 )
 from apps.base.numparse import coord_float, int_or_none, parse_decimal
 from apps.base.responses import (
-    conflict_response, csv_error_list, row_delete, row_patch, row_patches,
-    save_model_response, submitted_version, success_response,
-    validation_error,
+    conflict_response, csv_error_list, parse_json_body, row_delete,
+    row_patch, row_patches, save_model_response, submitted_version,
+    success_response, validation_error,
 )
 from apps.base.models import (
     Parcel, Region, Sample, SampleArea, SampleGrid, Species, Survey, Tree,
@@ -119,7 +119,9 @@ def tree_save_view(request):
     (parsed from the `shoots` JSON field).  Edit of a coppice row
     updates a single TreeSample (no new shoots).
     """
-    body = json.loads(request.body)
+    body, error = parse_json_body(request)
+    if error:
+        return error
     ts_id, parsed, errors = _parse_tree_body(body)
     if errors:
         return _validation_error(errors, ts_id, request, body)
@@ -276,7 +278,9 @@ def tree_delete_view(request, ts_id: int):
     deletion" ("Deleting a single tree_sample row leaves both the
     sample and the underlying tree row intact").
     """
-    body = json.loads(request.body or '{}')
+    body, error = parse_json_body(request)
+    if error:
+        return error
     ts = TreeSample.objects.select_related(
         'sample__survey',
     ).filter(id=ts_id).first()
@@ -418,7 +422,9 @@ def area_form_view(request, area_id: int | None = None):
 @require_POST
 def area_save_view(request):
     """Create or update a SampleArea."""
-    body = json.loads(request.body)
+    body, error = parse_json_body(request)
+    if error:
+        return error
     try:
         grid_id = int(body[FIELD_SAMPLE_GRID_ID])
         parcel_id = int(body[FIELD_PARCEL_ID])
@@ -503,7 +509,9 @@ def area_save_view(request):
 @require_POST
 def area_delete_view(request, area_id: int):
     """Delete a SampleArea.  Refused if any Sample references it."""
-    body = json.loads(request.body or '{}')
+    body, error = parse_json_body(request)
+    if error:
+        return error
     area = SampleArea.objects.select_related('sample_grid').filter(
         id=area_id,
     ).first()
@@ -922,7 +930,9 @@ def grid_form_view(request):
 @require_writer
 @require_POST
 def grid_save_view(request):
-    body = json.loads(request.body)
+    body, error = parse_json_body(request)
+    if error:
+        return error
     name = (body.get(FIELD_NAME) or '').strip()
     description = (body.get(FIELD_DESCRIPTION) or '').strip()
     if not name:
@@ -959,7 +969,9 @@ def grid_edit_view(request, grid_id: int):
     grid = SampleGrid.objects.filter(id=grid_id).first()
     if grid is None:
         return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
-    body = json.loads(request.body)
+    body, error = parse_json_body(request)
+    if error:
+        return error
     name = (body.get(FIELD_NAME) or '').strip()
     description = (body.get(FIELD_DESCRIPTION) or '').strip()
     if not name:
@@ -980,7 +992,9 @@ def grid_delete_view(request, grid_id: int):
     """Delete a grid.  Refused if any Survey references it (Survey.sample_grid
     is PROTECT — the only way to "force" delete a populated grid is to delete
     its surveys first)."""
-    body = json.loads(request.body or '{}')
+    body, error = parse_json_body(request)
+    if error:
+        return error
     grid = SampleGrid.objects.filter(id=grid_id).first()
     if grid is None:
         return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
@@ -1009,7 +1023,9 @@ def survey_edit_view(request, survey_id: int):
     survey = Survey.objects.filter(id=survey_id).first()
     if survey is None:
         return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
-    body = json.loads(request.body)
+    body, error = parse_json_body(request)
+    if error:
+        return error
     name = (body.get(FIELD_NAME) or '').strip()
     description = (body.get(FIELD_DESCRIPTION) or '').strip()
     if not name:
@@ -1054,7 +1070,9 @@ def grid_csv_import_view(request):
     (parcel, number) within the target grid; rejects rows that
     duplicate each other within the same upload.
     """
-    body = json.loads(request.body)
+    body, error = parse_json_body(request)
+    if error:
+        return error
     grid_id = body.get(FIELD_SAMPLE_GRID_ID)
     try:
         upload = csv_io.json_file_bytes(body, FIELD_FILE)
@@ -1176,7 +1194,9 @@ def tree_csv_import_view(request):
       - default_date (required if CSV lacks a Data column)
       - file (required, base64 CSV bytes)
     """
-    body = json.loads(request.body)
+    body, error = parse_json_body(request)
+    if error:
+        return error
     survey_id = body.get(FIELD_SURVEY_ID)
     try:
         upload = csv_io.json_file_bytes(body, FIELD_FILE)
@@ -1360,7 +1380,9 @@ def survey_delete_view(request, survey_id: int):
     (per the FK on_delete=CASCADE chain in models.py).  Tree rows
     remain (TreeSample.tree is PROTECT).
     """
-    body = json.loads(request.body or '{}')
+    body, error = parse_json_body(request)
+    if error:
+        return error
     survey = Survey.objects.filter(id=survey_id).first()
     if survey is None:
         return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
@@ -1386,7 +1408,9 @@ def survey_delete_view(request, survey_id: int):
 @require_writer
 @require_POST
 def survey_save_view(request):
-    body = json.loads(request.body)
+    body, error = parse_json_body(request)
+    if error:
+        return error
     name = (body.get(FIELD_NAME) or '').strip()
     description = (body.get(FIELD_DESCRIPTION) or '').strip()
     grid_id = body.get(FIELD_SAMPLE_GRID_ID)
@@ -1434,7 +1458,9 @@ def grid_save_auto_view(request):
     Per-point compresa+particella resolves to a Parcel.  Resolution
     failure aborts the entire commit (no partial state).
     """
-    body = json.loads(request.body)
+    body, error = parse_json_body(request)
+    if error:
+        return error
     name = (body.get(FIELD_NAME) or '').strip()
     description = (body.get(FIELD_DESCRIPTION) or '').strip()
     points = body.get(FIELD_POINTS) or []

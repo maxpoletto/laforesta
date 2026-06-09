@@ -129,8 +129,10 @@ Forms are Django-rendered HTML fragments displayed in overlay modals
 
 ### Request contract
 
-Every mutating endpoint receives a JSON POST. Form controls are serialized into
-a JSON object; CSV import file inputs are read as bytes in the browser and sent
+Every mutating endpoint receives a JSON POST. Malformed JSON and non-object
+JSON bodies receive the standard validation-error response. Form controls are
+serialized into a JSON object; CSV import file inputs are read as bytes in the
+browser and sent
 as base64 strings in their normal file field (`file`, `fustaia_file`, or
 `ceduo_file`). The server decodes that field back to bytes before running the
 shared CSV reader, so UTF-8 and CSV validation remain server-owned. These

@@ -1,7 +1,5 @@
 """Impostazioni (settings) views: password, crews, tractors, species, users."""
 
-import json
-
 from allauth.account.models import EmailAddress
 from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.decorators import login_required
@@ -19,7 +17,8 @@ from apps.base.digests import (
     HYPSO_PARAM_COLUMNS, hypso_param_row, mark_stale, serve_digest,
 )
 from apps.base.responses import (
-    row_patch, save_model_response, success_response, validation_error,
+    parse_json_body, row_patch, save_model_response, success_response,
+    validation_error,
 )
 from apps.base.models import (
     Crew, HYPSO_FUNC_LN, HypsoParam, HypsoParamSource, LoginMethod, Role,
@@ -45,7 +44,9 @@ from config.constants import (
 @login_required
 @require_POST
 def password_view(request):
-    body = json.loads(request.body)
+    body, error = parse_json_body(request)
+    if error:
+        return error
     if request.user.login_method != LoginMethod.PASSWORD:
         return _error(S.ERR_FORBIDDEN)
     pw1 = body.get(FIELD_PASSWORD1, '')
@@ -91,7 +92,9 @@ def crews_form(request, obj_id=None):
 @require_writer
 @require_POST
 def crews_save(request):
-    body = json.loads(request.body)
+    body, error = parse_json_body(request)
+    if error:
+        return error
     parsed = {
         FIELD_NAME: body.get(FIELD_NAME, '').strip(),
         FIELD_NOTES: body.get(FIELD_NOTES, ''),
@@ -134,7 +137,9 @@ def tractors_form(request, obj_id=None):
 @require_writer
 @require_POST
 def tractors_save(request):
-    body = json.loads(request.body)
+    body, error = parse_json_body(request)
+    if error:
+        return error
     year = body.get(FIELD_YEAR, '')
     parsed = {
         FIELD_MANUFACTURER: body.get(FIELD_MANUFACTURER, '').strip(),
@@ -180,7 +185,9 @@ def species_form(request, obj_id=None):
 @require_writer
 @require_POST
 def species_save(request):
-    body = json.loads(request.body)
+    body, error = parse_json_body(request)
+    if error:
+        return error
     density = parse_decimal(body.get(FIELD_DENSITY))
     if density is None or density <= 0:
         return _error(S.ERR_DENSITY_INVALID)
@@ -247,7 +254,9 @@ def users_form(request, obj_id=None):
 @require_admin
 @require_POST
 def users_save(request):
-    body = json.loads(request.body)
+    body, error = parse_json_body(request)
+    if error:
+        return error
     row_id = body.get(ROW_ID)
     row_id = int(row_id) if row_id else None
 
@@ -375,7 +384,10 @@ def _parse_compute_body(body):
 @require_writer
 @require_POST
 def hypso_params_compute(request):
-    survey_ids, min_n, err = _parse_compute_body(json.loads(request.body))
+    body, error = parse_json_body(request)
+    if error:
+        return error
+    survey_ids, min_n, err = _parse_compute_body(body)
     if err:
         return err
     rows = hypsometry.compute_params(survey_ids, min_n)
@@ -386,7 +398,9 @@ def hypso_params_compute(request):
 @require_writer
 @require_POST
 def hypso_params_accept(request):
-    body = json.loads(request.body)
+    body, error = parse_json_body(request)
+    if error:
+        return error
     survey_ids, min_n, err = _parse_compute_body(body)
     if err:
         return err
@@ -403,7 +417,9 @@ def hypso_params_accept(request):
 @require_writer
 @require_POST
 def hypso_params_import(request):
-    body = json.loads(request.body)
+    body, error = parse_json_body(request)
+    if error:
+        return error
     try:
         file = csv_io.json_file_bytes(body, FIELD_FILE)
     except csv_io.CsvError as e:
@@ -439,7 +455,9 @@ def hypso_params_export(request):
 @require_writer
 @require_POST
 def hypso_params_clear(request):
-    body = json.loads(request.body or '{}')
+    body, error = parse_json_body(request)
+    if error:
+        return error
     hypsometry.clear_active_set()
     mark_stale(DIGEST_HYPSO_PARAMS, 'audit')
     return success_response(request, body, extra={MESSAGE: S.HYPSO_CLEARED})

@@ -8,7 +8,6 @@ linked harvest insert.  Legacy CSV-imported rows without a plan item
 remain editable but their parcel is treated as authoritative.
 """
 
-import json
 from datetime import date as date_type
 from decimal import Decimal
 
@@ -30,8 +29,8 @@ from apps.base.digests import (
 )
 from apps.base.numparse import int_or_none, parse_decimal
 from apps.base.responses import (
-    conflict_response, row_delete, row_patch, submitted_version,
-    success_response, validation_error,
+    conflict_response, parse_json_body, row_delete, row_patch,
+    submitted_version, success_response, validation_error,
 )
 from apps.base.models import (
     Crew, HarvestPlanItem, HarvestPlanItemState, Parcel, Product, Species,
@@ -90,7 +89,9 @@ def save_view(request):
     existing harvest preserves its current plan-item link (legacy rows
     can have NULL) and re-syncs its flags to the linked item.
     """
-    body = json.loads(request.body)
+    body, error = parse_json_body(request)
+    if error:
+        return error
 
     row_id, parsed, errors = _parse_body(body)
     if errors:
@@ -169,7 +170,9 @@ def save_view(request):
 @require_POST
 def delete_view(request):
     """Delete a harvest (with version check)."""
-    body = json.loads(request.body)
+    body, error = parse_json_body(request)
+    if error:
+        return error
     row_id = int(body[ROW_ID])
     version = submitted_version(body)
 

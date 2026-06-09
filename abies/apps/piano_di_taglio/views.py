@@ -9,7 +9,6 @@ the submission and returns a generic patches/deletes envelope or a
 ``validation_error`` / ``conflict`` payload.
 """
 
-import json
 import re
 from dataclasses import dataclass
 from datetime import date as date_type
@@ -26,8 +25,8 @@ from apps.base.auth import require_writer
 from apps.base import csv_io
 from apps.base.numparse import coord_float, int_or_none, parse_decimal
 from apps.base.responses import (
-    conflict_response, csv_error_list, row_delete, row_patch,
-    save_model_response, submitted_version, success_response,
+    conflict_response, csv_error_list, parse_json_body, row_delete,
+    row_patch, save_model_response, submitted_version, success_response,
     validation_error,
 )
 from apps.base.digests import (
@@ -146,7 +145,9 @@ def plan_form_view(request, plan_id: int | None = None):
 @require_POST
 def plan_save_view(request):
     """Create or update a HarvestPlan (name + description + year range)."""
-    body = json.loads(request.body)
+    body, error = parse_json_body(request)
+    if error:
+        return error
     plan_id = int_or_none(body.get(ROW_ID))
 
     name, description, year_start, year_end, errors = _parse_plan_body(body)
@@ -178,7 +179,9 @@ def plan_delete_view(request, plan_id: int):
     of `plan_export_view` precedes this call.  We still verify the gate
     server-side so a hand-crafted POST cannot bypass it.
     """
-    body = json.loads(request.body or '{}')
+    body, error = parse_json_body(request)
+    if error:
+        return error
     plan = HarvestPlan.objects.filter(id=plan_id).first()
     if plan is None:
         return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
@@ -258,7 +261,9 @@ def plan_csv_import_view(request):
     file is a no-op; re-importing a revised file overwrites the matching
     rows in place.
     """
-    body = json.loads(request.body)
+    body, error = parse_json_body(request)
+    if error:
+        return error
     plan_id = int_or_none(body.get(FIELD_HARVEST_PLAN_ID))
     if plan_id is not None:
         target_plan = HarvestPlan.objects.filter(id=plan_id).first()
@@ -577,7 +582,9 @@ def item_form_view(request, item_id: int | None = None):
 @require_POST
 def item_save_view(request):
     """Create or update a HarvestPlanItem."""
-    body = json.loads(request.body)
+    body, error = parse_json_body(request)
+    if error:
+        return error
     item_id = int_or_none(body.get(ROW_ID))
 
     parsed, errors = _parse_item_body(body)
@@ -646,7 +653,9 @@ def item_delete_view(request, item_id: int):
     client-side (precedes this call); the server only enforces the
     state gate.
     """
-    body = json.loads(request.body or '{}')
+    body, error = parse_json_body(request)
+    if error:
+        return error
     item = HarvestPlanItem.objects.filter(id=item_id).first()
     if item is None:
         return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
@@ -793,7 +802,9 @@ def transition_save_view(request):
     """Apri / Chiudi cantiere — creates a HarvestTransition row and
     advances ``HarvestPlanItem.state`` server-side.
     """
-    body = json.loads(request.body)
+    body, error = parse_json_body(request)
+    if error:
+        return error
     item_id = int_or_none(body.get(FIELD_HARVEST_PLAN_ITEM_ID))
     open_flag = is_truthy(body.get(FIELD_OPEN))
     date_raw = (body.get(FIELD_DATE) or '').strip()
@@ -928,7 +939,9 @@ def mark_save_view(request):
     The client computes volume_m3 and mass_q via volume.js and sends
     them as-is; no server-side recompute on this path.
     """
-    body = json.loads(request.body)
+    body, error = parse_json_body(request)
+    if error:
+        return error
     row_id = int_or_none(body.get(ROW_ID))
     item_id = int_or_none(body.get(FIELD_HARVEST_PLAN_ITEM_ID))
     species_id = int_or_none(body.get(FIELD_SPECIES_ID))
@@ -1070,7 +1083,9 @@ def mark_delete_view(request):
     State stays monotonic per B3: count can return to zero but state
     does not revert to ``planned``.
     """
-    body = json.loads(request.body)
+    body, error = parse_json_body(request)
+    if error:
+        return error
     row_id = int(body[ROW_ID])
     version = submitted_version(body)
 
@@ -1132,7 +1147,9 @@ def mark_csv_import_view(request):
     import hashlib
     from apps.base.tabacchi import tabacchi_volume_m3
 
-    body = json.loads(request.body)
+    body, error = parse_json_body(request)
+    if error:
+        return error
     item_id = int_or_none(body.get(FIELD_HARVEST_PLAN_ITEM_ID))
     try:
         upload = csv_io.json_file_bytes(body, FIELD_FILE)

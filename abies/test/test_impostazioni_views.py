@@ -171,6 +171,16 @@ class TestCrews:
         assert resp.status_code == 400
         assert resp.json()[STATUS] == STATUS_VALIDATION_ERROR
 
+    def test_save_malformed_json_returns_validation_error(self, writer_client, db):
+        resp = writer_client.post(
+            '/api/impostazioni/crews/save/',
+            data='{',
+            content_type='application/json',
+        )
+        assert resp.status_code == 400
+        assert resp.json()[STATUS] == STATUS_VALIDATION_ERROR
+        assert resp.json()[MESSAGE] == S.ERR_JSON_INVALID
+
     def test_reader_forbidden(self, reader_client, db):
         resp = reader_client.get('/api/impostazioni/crews/data/')
         assert resp.status_code == 403

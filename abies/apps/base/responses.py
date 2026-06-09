@@ -2,6 +2,8 @@
 protocol in docs/data-architecture.md).
 """
 
+import json
+
 from django.db import transaction
 from django.http import JsonResponse
 
@@ -179,6 +181,17 @@ def validation_error(errors: list, html: str = '') -> JsonResponse:
     full list in ``field_errors``, optional replacement form HTML.
     """
     return _validation_response(' '.join(errors), errors, html)
+
+
+def parse_json_body(request) -> tuple[dict | None, JsonResponse | None]:
+    """Parse a JSON object request body, or return a 400 validation response."""
+    try:
+        body = json.loads(request.body or b'{}')
+    except json.JSONDecodeError:
+        return None, validation_error([S.ERR_JSON_INVALID])
+    if not isinstance(body, dict):
+        return None, validation_error([S.ERR_JSON_INVALID])
+    return body, None
 
 
 def csv_error_list(errors: list) -> JsonResponse:
