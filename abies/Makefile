@@ -81,6 +81,7 @@ test-js:
 	node test/test_geo.mjs
 	node test/test_csv_export.mjs
 	node test/test_templates.mjs
+	node test/test_forms.mjs
 	node test/test_ui_widgets_modals.mjs
 	node apps/base/static/base/js/tests.mjs
 	node apps/base/static/base/js/cache.test.mjs

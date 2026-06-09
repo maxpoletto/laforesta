@@ -44,11 +44,19 @@ export async function fetchForm(url) {
  */
 export function renderFormHTML(html) {
   const content = document.getElementById('content');
-  const doc = new DOMParser().parseFromString(html, 'text/html');
-  content.replaceChildren(...doc.body.childNodes);
+  const frag = parseHTMLFragment(html);
+  content.replaceChildren(frag);
   const form = content.querySelector('form');
   if (form) injectNonce(form);
   return form;
+}
+
+/** DOMParser -> DocumentFragment for server-rendered HTML fragments. */
+export function parseHTMLFragment(html) {
+  const doc = new DOMParser().parseFromString(html || '', 'text/html');
+  const frag = document.createDocumentFragment();
+  for (const node of [...doc.body.childNodes]) frag.appendChild(node);
+  return frag;
 }
 
 /**
@@ -67,6 +75,8 @@ export function renderFormHTML(html) {
  * @param {function(data: object, isSaveAndAdd: boolean): void} callbacks.onSuccess
  * @param {function(data: object): void} [callbacks.onConflict]
  * @param {function(data: object): void} [callbacks.onValidationError]
+ * @param {function(html: string, data: object): void} [callbacks.onHtml]
+ *   — server returned replacement form HTML; caller re-renders and re-wires it.
  * @param {function(body: object): string|null} [callbacks.validate]
  *   — client-side pre-submit check; return error string to block, null to proceed.
  */
@@ -94,13 +104,20 @@ export function interceptSubmit(form, postUrl, callbacks) {
       return;
     }
 
-    if (data.status === STATUS_CONFLICT) {
+    if (data?.status === STATUS_CONFLICT) {
       showFormError(form, data.message || S.ERROR_CONFLICT);
       callbacks.onConflict?.(data);
-    } else {
-      showFormError(form, data.message || S.ERROR_GENERIC);
-      callbacks.onValidationError?.(data);
+      return;
     }
+
+    const html = data?.[HTML] || data?.html;
+    if (html && callbacks.onHtml) {
+      callbacks.onHtml(html, data);
+      return;
+    }
+
+    showFormError(form, data?.message || S.ERROR_GENERIC);
+    callbacks.onValidationError?.(data);
   });
 }
 
@@ -174,7 +191,9 @@ export async function fetchModalForm(url) {
     showError(S.ERROR_NETWORK);
     return null;
   }
-  return renderModalForm(data[HTML] || data.html);
+  const html = data?.[HTML] || data?.html;
+  if (!html) { showError(S.ERROR_GENERIC); return null; }
+  return renderModalForm(html);
 }
 
 /**
@@ -183,9 +202,7 @@ export async function fetchModalForm(url) {
  * Returns the form element inside the modal.
  */
 export function renderModalForm(html) {
-  const doc = new DOMParser().parseFromString(html, 'text/html');
-  const frag = document.createDocumentFragment();
-  for (const node of [...doc.body.childNodes]) frag.appendChild(node);
+  const frag = parseHTMLFragment(html);
   const form = frag.querySelector('form');
   if (form) injectNonce(form);
   showModal(frag);
@@ -275,12 +292,12 @@ function renderCsvErrors(box, errors) {
   box.hidden = false;
 }
 
-function injectNonce(form) {
-  let input = form.querySelector('input[name="nonce"]');
+export function injectNonce(form) {
+  let input = form.querySelector(`input[name="${FIELD_NONCE}"]`);
   if (!input) {
     input = document.createElement('input');
     input.type = 'hidden';
-    input.name = 'nonce';
+    input.name = FIELD_NONCE;
     form.appendChild(input);
   }
   input.value = crypto.randomUUID();

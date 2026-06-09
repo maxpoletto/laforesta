@@ -16,7 +16,7 @@ import { downloadFromURL } from '../../base/js/csv-export.js';
 import { TableWrapper } from '../../base/js/table.js';
 import * as modals from '../../base/js/modals.js';
 import { showError } from '../../base/js/modals.js';
-import { showFormError } from '../../base/js/forms.js';
+import { fetchModalForm, interceptSubmit } from '../../base/js/forms.js';
 import {
   showConfirmModal, showLoadingIn, wireActions, wireCancelButtons,
   wireCollapsibleToggle,
@@ -27,7 +27,7 @@ import * as S from '../../base/js/strings.js';
 import {
   FIELD_CREATED_AT, FIELD_FILE, FIELD_MIN_N, FIELD_SOURCE,
   FIELD_SURVEY_IDS, FIELD_SURVEYS, HYPSO_SOURCE_COMPUTED, LOGIN_METHOD_PASSWORD,
-  DATA_ID, MESSAGE, PATCHES, RECORD, ROLE_ADMIN, ROLE_WRITER, STATUS_CONFLICT,
+  DATA_ID, MESSAGE, PATCHES, RECORD, ROLE_ADMIN, ROLE_WRITER,
 } from '../../base/js/constants.js';
 import {
   fmtDecimal2, fmtDecimal4, fmtInt, parseDecimal,
@@ -284,83 +284,39 @@ function applyActiveFilter(state) {
 
 async function openForm(cfg, state, rowId) {
   const url = rowId ? `${cfg.formUrl}${rowId}/` : cfg.formUrl;
-
-  let data;
-  try {
-    const resp = await fetch(url);
-    if (!resp.ok) throw new Error(`${resp.status}`);
-    data = await resp.json();
-  } catch {
-    showError(S.ERROR_NETWORK);
-    return;
-  }
-
-  showFormModal(data.html, cfg, state);
+  const form = await fetchModalForm(url);
+  if (!form) return;
+  wireSettingsForm(form, cfg, state);
 }
 
-function showFormModal(html, cfg, state) {
-  const doc = new DOMParser().parseFromString(html, 'text/html');
-  const wrapper = document.createElement('div');
-  wrapper.append(...doc.body.childNodes);
+function wireSettingsForm(form, cfg, state) {
+  wirePasswordToggle(form);
+  wireCancelButtons(form, () => modals.dismiss());
 
-  const form = wrapper.querySelector('form');
-  if (form) {
-    // Inject nonce.
-    let nonce = form.querySelector('input[name="nonce"]');
-    if (!nonce) {
-      nonce = document.createElement('input');
-      nonce.type = 'hidden';
-      nonce.name = 'nonce';
-      form.appendChild(nonce);
-    }
-    nonce.value = crypto.randomUUID();
-
-    // Wire password field visibility for user form.
-    wirePasswordToggle(form);
-
-    wireCancelButtons(form, () => modals.dismiss());
-
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const body = Object.fromEntries(new FormData(form));
-
+  interceptSubmit(form, cfg.saveUrl, {
+    validate(body) {
       // Species density must be > 0 (only the species form has it).
       if (body.density !== undefined && !(parseDecimal(body.density) > 0)) {
-        showFormError(form, S.ERR_DENSITY_POSITIVE);
-        return;
+        return S.ERR_DENSITY_POSITIVE;
       }
-
-      let data, status;
-      try {
-        ({ data, status } = await postJSON(cfg.saveUrl, body));
-      } catch {
-        showFormError(form, S.ERROR_NETWORK);
-        return;
-      }
-
-      if (status === 200) {
-        modals.dismiss();
-        // Settings tables are local state, not registered in cache.js.
-        const patch = data[PATCHES]?.find(p => p[DATA_ID] === cfg.key);
-        if (state.digest && patch?.[RECORD]) {
-          const rows = state.digest.rows;
-          const idx = rows.findIndex(r => r[0] === patch[RECORD][0]);
-          if (idx >= 0) {
-            rows[idx] = patch[RECORD];
-          } else {
-            rows.push(patch[RECORD]);
-          }
-          state.table?.setData(state.digest);
+      return null;
+    },
+    onSuccess(data) {
+      modals.dismiss();
+      // Settings tables are local state, not registered in cache.js.
+      const patch = data[PATCHES]?.find(p => p[DATA_ID] === cfg.key);
+      if (state.digest && patch?.[RECORD]) {
+        const rows = state.digest.rows;
+        const idx = rows.findIndex(r => r[0] === patch[RECORD][0]);
+        if (idx >= 0) {
+          rows[idx] = patch[RECORD];
+        } else {
+          rows.push(patch[RECORD]);
         }
-      } else if (data.status === STATUS_CONFLICT) {
-        showFormError(form, data.message || S.ERROR_CONFLICT);
-      } else {
-        showFormError(form, data.message || S.ERROR_GENERIC);
+        state.table?.setData(state.digest);
       }
-    });
-  }
-
-  modals.show(wrapper);
+    },
+  });
 }
 
 /**

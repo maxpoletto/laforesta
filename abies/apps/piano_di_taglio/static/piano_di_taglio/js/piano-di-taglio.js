@@ -16,8 +16,8 @@ import {
 } from '../../base/js/modals.js';
 import { fetchJSON, postJSON, postFormData } from '../../base/js/api.js';
 import {
-  deleteRowWithVersion, fetchModalForm, interceptSubmit, submitCsvImport,
-  showFormError,
+  deleteRowWithVersion, fetchModalForm, injectNonce, interceptSubmit,
+  parseHTMLFragment, submitCsvImport, showFormError,
 } from '../../base/js/forms.js';
 import {
   showCascadeDeleteModal, wireActions, wireCancelButtons,
@@ -561,38 +561,16 @@ async function showAddItemModal(section) {
   await fetchAndOpenItemForm(`${ITEM_FORM_URL}?plan=${activePlanId}`, section.kind);
 }
 
-async function fetchAndOpenItemForm(url, kind, opts) {
-  let payload;
-  try {
-    const { data } = await fetchJSON(url);
-    payload = data;
-  } catch {
-    showError(S.ERROR_NETWORK);
-    return;
-  }
-  if (!payload?.html) { showError(S.ERROR_GENERIC); return; }
-  openItemFormModal(payload.html, kind, opts);
+async function fetchAndOpenItemForm(url, kind, { onDone } = {}) {
+  const form = await fetchModalForm(url);
+  if (!form) return;
+  wireItemFormModal(form, kind, onDone || (() => {}));
 }
 
-function openItemFormModal(html, kind, { onDone } = {}) {
-  const onSuccess = onDone || (() => {});
-  const onCancel = dismissModal;
-
-  function wireAndShow(frag) {
-    const form = frag.querySelector('form');
-    if (!form) { showError(S.ERROR_GENERIC); return; }
-    injectNonce(form);
-    wireItemForm(form, kind);
-    attachItemSubmit(form, kind, onSuccess);
-    wireCancelButtons(form, onCancel);
-    return form;
-  }
-
-  const frag = parseHTMLFragment(html);
-  wireAndShow(frag);
-  const outer = document.createDocumentFragment();
-  outer.appendChild(frag);
-  showModal(outer);
+function wireItemFormModal(form, kind, onSuccess) {
+  wireItemForm(form, kind);
+  attachItemSubmit(form, kind, onSuccess);
+  wireCancelButtons(form, dismissModal);
 }
 
 function replaceItemFormInModal(html, kind, onSuccess) {
@@ -600,9 +578,7 @@ function replaceItemFormInModal(html, kind, onSuccess) {
   const form = frag.querySelector('form');
   if (!form) return;
   injectNonce(form);
-  wireItemForm(form, kind);
-  attachItemSubmit(form, kind, onSuccess);
-  wireCancelButtons(form, dismissModal);
+  wireItemFormModal(form, kind, onSuccess);
   const modalEl = document.querySelector('#modal-container .modal');
   if (modalEl) {
     modalEl.replaceChildren();
@@ -610,26 +586,9 @@ function replaceItemFormInModal(html, kind, onSuccess) {
   }
 }
 
-/** DOMParser → DocumentFragment for safe HTML fragment injection. */
-function parseHTMLFragment(html) {
-  const doc = new DOMParser().parseFromString(html, 'text/html');
-  const frag = document.createDocumentFragment();
-  for (const node of [...doc.body.childNodes]) frag.appendChild(node);
-  return frag;
-}
-
 function attachItemSubmit(form, kind, onSuccess) {
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const body = Object.fromEntries(new FormData(form));
-    let data, status;
-    try {
-      ({ data, status } = await postJSON(ITEM_SAVE_URL, body));
-    } catch {
-      showFormError(form, S.ERROR_NETWORK);
-      return;
-    }
-    if (status === 200) {
+  interceptSubmit(form, ITEM_SAVE_URL, {
+    onSuccess(data) {
       applyWriteResponse(data);
       for (const k of SECTION_KEYS) {
         sections[k].table?.setData(itemsData);
@@ -637,26 +596,11 @@ function attachItemSubmit(form, kind, onSuccess) {
       }
       dismissModal();
       onSuccess();
-      return;
-    }
-    if (data.html) {
-      replaceItemFormInModal(data.html, kind, onSuccess);
-    } else {
-      showFormError(form, data.message || S.ERROR_GENERIC);
-    }
+    },
+    onHtml(html) {
+      replaceItemFormInModal(html, kind, onSuccess);
+    },
   });
-}
-
-
-function injectNonce(form) {
-  let inp = form.querySelector('input[name="nonce"]');
-  if (!inp) {
-    inp = document.createElement('input');
-    inp.type = 'hidden';
-    inp.name = 'nonce';
-    form.appendChild(inp);
-  }
-  inp.value = crypto.randomUUID();
 }
 
 /**
