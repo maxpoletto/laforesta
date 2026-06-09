@@ -9,11 +9,8 @@ the submission and returns a generic patches/deletes envelope or a
 ``validation_error`` / ``conflict`` payload.
 """
 
-import csv
-import io
 import json
 import re
-import zipfile
 from dataclasses import dataclass
 from datetime import date as date_type
 from typing import Iterable
@@ -21,7 +18,7 @@ from typing import Iterable
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.db.models import Q
-from django.http import Http404, HttpResponse, JsonResponse
+from django.http import Http404, JsonResponse
 from django.template.loader import render_to_string
 from django.views.decorators.http import require_POST
 
@@ -437,16 +434,14 @@ def plan_export_view(request, plan_id: int):
     }
 
     delimiter, decimal_sep = csv_io.export_format()
-    fustaia_buf = io.StringIO()
-    fustaia_w = csv.writer(fustaia_buf, delimiter=delimiter)
+    fustaia_buf, fustaia_w = csv_io.csv_buffer(delimiter)
     fustaia_w.writerow([
         S.COL_YEAR_PLANNED, S.COL_YEAR_ACTUAL,
         S.COL_COMPRESA, S.COL_PARCEL, S.COL_STATE, S.COL_NOTE,
         S.COL_VOLUME_PLANNED, S.COL_VOLUME_MARKED, S.COL_VOLUME_ACTUAL,
     ])
 
-    ceduo_buf = io.StringIO()
-    ceduo_w = csv.writer(ceduo_buf, delimiter=delimiter)
+    ceduo_buf, ceduo_w = csv_io.csv_buffer(delimiter)
     ceduo_w.writerow([
         S.COL_YEAR_PLANNED, S.COL_YEAR_ACTUAL,
         S.COL_COMPRESA, S.COL_PARCEL, S.COL_STATE, S.COL_NOTE,
@@ -490,22 +485,14 @@ def plan_export_view(request, plan_id: int):
                 csv_io.format_decimal(it.volume_actual_m3, decimal_sep),
             ])
 
-    zip_buf = io.BytesIO()
-    with zipfile.ZipFile(zip_buf, 'w', zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr(S.CSV_FILE_FUSTAIA, fustaia_buf.getvalue())
-        zf.writestr(S.CSV_FILE_CEDUO,   ceduo_buf.getvalue())
-
-    response = HttpResponse(zip_buf.getvalue(), content_type='application/zip')
     safe_name = _safe_filename(plan.name)
-    response['Content-Disposition'] = (
-        f'attachment; filename="piano_{safe_name}.zip"'
+    return csv_io.zip_csv_response(
+        [
+            (S.CSV_FILE_FUSTAIA, fustaia_buf.getvalue()),
+            (S.CSV_FILE_CEDUO, ceduo_buf.getvalue()),
+        ],
+        f'piano_{safe_name}.zip',
     )
-    # Browsers happily cache download URLs by default; without this the
-    # next click of "Esporta CSV" returns last time's bytes even after a
-    # plan edit.  no-store also keeps stale-after-deploy bugs from
-    # masquerading as "server isn't reloading my code".
-    response['Cache-Control'] = 'no-store'
-    return response
 
 
 # ---------------------------------------------------------------------------
@@ -688,8 +675,7 @@ def item_export_view(request, item_id: int):
 
     # martellate_<id>.csv
     delimiter, decimal_sep = csv_io.export_format()
-    marks_buf = io.StringIO()
-    marks_w = csv.writer(marks_buf, delimiter=delimiter)
+    marks_buf, marks_w = csv_io.csv_buffer(delimiter)
     marks_w.writerow([
         S.CSV_COL_DATA, S.CSV_COL_COMPRESA, S.CSV_COL_PARTICELLA,
         S.CSV_COL_CATASTROFATA, S.CSV_COL_NUMERO, S.CSV_COL_GENERE,
@@ -732,8 +718,7 @@ def item_export_view(request, item_id: int):
     tractor_labels = [f'{t.manufacturer} {t.model}'.strip()
                       for t in tractor_list]
 
-    prelievi_buf = io.StringIO()
-    prelievi_w = csv.writer(prelievi_buf, delimiter=delimiter)
+    prelievi_buf, prelievi_w = csv_io.csv_buffer(delimiter)
     prelievi_w.writerow(
         [S.CSV_COL_DATA, S.CSV_COL_COMPRESA, S.CSV_COL_PARTICELLA,
          S.CSV_COL_CREW, S.CSV_COL_VDP, S.CSV_COL_PRODUCT,
@@ -762,21 +747,17 @@ def item_export_view(request, item_id: int):
             + [tr_map.get(h.id, {}).get(tid, 0) for tid in tractor_ids]
         )
 
-    zip_buf = io.BytesIO()
-    with zipfile.ZipFile(zip_buf, 'w', zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr(f'martellate_{item.id}.csv', marks_buf.getvalue())
-        zf.writestr(f'prelievi_{item.id}.csv', prelievi_buf.getvalue())
-
-    response = HttpResponse(zip_buf.getvalue(), content_type='application/zip')
     region_name = (item.region or item.parcel.region).name
     parcel_name = item.parcel.name if item.parcel else ''
     parts = [str(item.year_planned), region_name, parcel_name]
     safe_name = _safe_filename('-'.join(p for p in parts if p))
-    response['Content-Disposition'] = (
-        f'attachment; filename="{safe_name}.zip"'
+    return csv_io.zip_csv_response(
+        [
+            (f'martellate_{item.id}.csv', marks_buf.getvalue()),
+            (f'prelievi_{item.id}.csv', prelievi_buf.getvalue()),
+        ],
+        f'{safe_name}.zip',
     )
-    response['Cache-Control'] = 'no-store'
-    return response
 
 
 # ---------------------------------------------------------------------------

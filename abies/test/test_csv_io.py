@@ -6,6 +6,7 @@ parse against the *detected* separator, independent of the install locale.
 """
 
 import io
+import zipfile
 
 from decimal import Decimal
 
@@ -100,3 +101,25 @@ def test_export_format_pairs_with_locale():
         assert csv_io.export_format() == (';', ',')
     with translation.override('en'):
         assert csv_io.export_format() == (',', '.')
+
+
+def test_csv_buffer_uses_export_delimiter():
+    buf, writer = csv_io.csv_buffer(';')
+    writer.writerow(['a', 'b'])
+    assert buf.getvalue() == 'a;b\r\n'
+
+
+def test_zip_csv_response_builds_no_store_download():
+    response = csv_io.zip_csv_response(
+        [('a.csv', 'one\n'), ('b.csv', b'two\n')],
+        'bundle.zip',
+    )
+    assert response.status_code == 200
+    assert response['Content-Type'] == 'application/zip'
+    assert response['Content-Disposition'] == 'attachment; filename="bundle.zip"'
+    assert response['Cache-Control'] == 'no-store'
+
+    zf = zipfile.ZipFile(io.BytesIO(response.content))
+    assert set(zf.namelist()) == {'a.csv', 'b.csv'}
+    assert zf.read('a.csv').decode() == 'one\n'
+    assert zf.read('b.csv') == b'two\n'

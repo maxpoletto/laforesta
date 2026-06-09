@@ -23,8 +23,11 @@ caller can report a per-row error.
 
 import csv
 import io
+import zipfile
+from collections.abc import Iterable
 from decimal import Decimal
 
+from django.http import HttpResponse
 from django.utils.formats import get_format
 
 from apps.base.numparse import to_decimal, to_int
@@ -105,6 +108,28 @@ def export_format() -> tuple[str, str]:
     decimal_sep = str(get_format('DECIMAL_SEPARATOR'))
     delimiter = ';' if decimal_sep == ',' else ','
     return delimiter, decimal_sep
+
+
+def csv_buffer(delimiter: str):
+    """Return a text buffer and CSV writer using the chosen export delimiter."""
+    buf = io.StringIO()
+    return buf, csv.writer(buf, delimiter=delimiter)
+
+
+def zip_csv_response(
+        files: Iterable[tuple[str, str | bytes]],
+        filename: str,
+) -> HttpResponse:
+    """Build a no-store ZIP download response from already-rendered CSV files."""
+    zip_buf = io.BytesIO()
+    with zipfile.ZipFile(zip_buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+        for csv_name, content in files:
+            zf.writestr(csv_name, content)
+
+    response = HttpResponse(zip_buf.getvalue(), content_type='application/zip')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    response['Cache-Control'] = 'no-store'
+    return response
 
 
 def format_decimal(value, decimal_sep: str) -> str:
