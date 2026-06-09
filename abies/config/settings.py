@@ -13,6 +13,8 @@ DIGEST_DIR = DATA_DIR / 'digests'
 GEO_DIR = DATA_DIR / 'geo'
 
 _DEFAULT_SECRET_KEY = 'django-insecure-change-me-before-deployment'
+_DEFAULT_MS_OAUTH_TENANT = 'common'
+_BROAD_MS_OAUTH_TENANTS = frozenset({'common', 'organizations', 'consumers'})
 
 
 def _env_bool(name, *, default=False):
@@ -46,6 +48,16 @@ else:
 # Comma-separated origins for CSRF (e.g. 'https://laforesta.it').
 _csrf = os.environ.get('DJANGO_CSRF_TRUSTED_ORIGINS', '').strip()
 CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf.split(',') if o.strip()]
+
+_ms_oauth_tenant = os.environ.get('MS_OAUTH_TENANT', '').strip()
+if DEBUG and not _ms_oauth_tenant:
+    _ms_oauth_tenant = _DEFAULT_MS_OAUTH_TENANT
+elif not _ms_oauth_tenant:
+    raise RuntimeError('MS_OAUTH_TENANT must be set when DEBUG=0')
+elif not DEBUG and _ms_oauth_tenant.lower() in _BROAD_MS_OAUTH_TENANTS:
+    raise RuntimeError(
+        'MS_OAUTH_TENANT must pin a single Entra tenant when DEBUG=0',
+    )
 
 # Apache terminates TLS and forwards plain HTTP; trust the X-Forwarded-Proto
 # header so Django recognises the request as secure for cookie flags, etc.
@@ -145,7 +157,7 @@ SOCIALACCOUNT_PROVIDERS = {
             'client_id': os.environ.get('MS_OAUTH_CLIENT_ID', ''),
             'secret': os.environ.get('MS_OAUTH_SECRET', ''),
         },
-        'TENANT': os.environ.get('MS_OAUTH_TENANT', 'common'),
+        'TENANT': _ms_oauth_tenant,
     },
 }
 

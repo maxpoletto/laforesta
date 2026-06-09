@@ -12,6 +12,9 @@ ENV_KEYS = (
     'DJANGO_SECRET_KEY',
     'DJANGO_ALLOWED_HOSTS',
     'DJANGO_CSRF_TRUSTED_ORIGINS',
+    'MS_OAUTH_CLIENT_ID',
+    'MS_OAUTH_SECRET',
+    'MS_OAUTH_TENANT',
 )
 
 
@@ -36,6 +39,7 @@ def test_debug_true_allows_local_defaults(monkeypatch, debug_value):
     assert settings.DEBUG is True
     assert settings.SECRET_KEY == DEFAULT_SECRET_KEY
     assert settings.ALLOWED_HOSTS == ['*']
+    assert settings.SOCIALACCOUNT_PROVIDERS['microsoft']['TENANT'] == 'common'
 
 
 def test_debug_defaults_false(monkeypatch):
@@ -69,12 +73,35 @@ def test_production_requires_allowed_hosts_after_secret_key(monkeypatch):
         )
 
 
-def test_production_loads_with_secret_key_and_allowed_hosts(monkeypatch):
+def test_production_requires_oauth_tenant_after_base_guards(monkeypatch):
+    with pytest.raises(RuntimeError, match='MS_OAUTH_TENANT must be set'):
+        load_settings(
+            monkeypatch,
+            DJANGO_DEBUG='False',
+            DJANGO_SECRET_KEY='prod-secret',
+            DJANGO_ALLOWED_HOSTS='abies.example.test',
+        )
+
+
+@pytest.mark.parametrize('tenant', ['common', ' organizations ', 'Consumers'])
+def test_production_rejects_broad_oauth_tenants(monkeypatch, tenant):
+    with pytest.raises(RuntimeError, match='single Entra tenant'):
+        load_settings(
+            monkeypatch,
+            DJANGO_DEBUG='False',
+            DJANGO_SECRET_KEY='prod-secret',
+            DJANGO_ALLOWED_HOSTS='abies.example.test',
+            MS_OAUTH_TENANT=tenant,
+        )
+
+
+def test_production_loads_with_secret_key_allowed_hosts_and_oauth_tenant(monkeypatch):
     settings = load_settings(
         monkeypatch,
         DJANGO_DEBUG='False',
         DJANGO_SECRET_KEY='prod-secret',
         DJANGO_ALLOWED_HOSTS='abies.example.test, www.example.test',
+        MS_OAUTH_TENANT=' contoso.onmicrosoft.com ',
     )
 
     assert settings.DEBUG is False
@@ -83,3 +110,7 @@ def test_production_loads_with_secret_key_and_allowed_hosts(monkeypatch):
     assert settings.SESSION_COOKIE_SECURE is True
     assert settings.CSRF_COOKIE_SECURE is True
     assert settings.AXES_ENABLED is True
+    assert (
+        settings.SOCIALACCOUNT_PROVIDERS['microsoft']['TENANT']
+        == 'contoso.onmicrosoft.com'
+    )
