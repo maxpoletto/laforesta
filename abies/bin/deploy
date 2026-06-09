@@ -93,6 +93,11 @@ fi
 echo "==> build ${image}"
 dc build
 
+if [[ "$instance" == "prod" ]]; then
+  echo "==> check --deploy"
+  dc run --rm abies python manage.py check --deploy --fail-level WARNING
+fi
+
 echo "==> stop"
 dc down --remove-orphans
 

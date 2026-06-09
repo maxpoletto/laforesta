@@ -45,9 +45,17 @@ USE_X_FORWARDED_HOST = True
 # enough to satisfy OSM without leaking the full URL or query string.
 SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
 
+# Production is HTTPS-only behind Apache. Keep these aligned with
+# `manage.py check --deploy --fail-level WARNING` in bin/deploy.
 if not DEBUG:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
+    SECURE_SSL_REDIRECT = True
+    SECURE_HSTS_SECONDS = int(os.environ.get(
+        'DJANGO_SECURE_HSTS_SECONDS', '31536000',
+    ))
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
 
 # --- Apps -------------------------------------------------------------------
 
