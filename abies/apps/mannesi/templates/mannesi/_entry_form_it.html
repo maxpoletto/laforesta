@@ -1,0 +1,45 @@
+<div class="form-card">
+  <form id="mannesi-{{ kind }}-form">
+    <input type="hidden" name="row_id" value="{{ obj.id|default_if_none:'' }}">
+    <input type="hidden" name="version" value="{{ obj.version|default:'1' }}">
+
+    <h2>{% if kind == 'hours' %}{% if obj %}Modifica ore{% else %}Nuove ore{% endif %}{% else %}{% if obj %}Modifica acconto{% else %}Nuovo acconto{% endif %}{% endif %}</h2>
+
+    <div class="form-row narrow">
+      <div class="form-group">
+        <label for="id_date">{{ S.COL_DATE }}</label>
+        <input type="date" id="id_date" name="date" lang="it" required
+               value="{% if obj %}{{ obj.date|date:'Y-m-d' }}{% endif %}">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label for="id_crew">{{ S.COL_CREW }}</label>
+        <select id="id_crew" name="crew_id" required>
+          <option value="">---</option>
+          {% for c in crews %}
+          <option value="{{ c.id }}" {% if obj and obj.crew_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group narrow">
+        <label for="id_value">{% if kind == 'hours' %}{{ S.COL_HOURS }}{% else %}{{ S.COL_CREDITS_Q }}{% endif %}</label>
+        <input type="number" id="id_value"
+               name="{% if kind == 'hours' %}hours{% else %}mass_q{% endif %}"
+               min="0" step="0.01" required
+               value="{% if obj %}{% if kind == 'hours' %}{{ obj.hours }}{% else %}{{ obj.mass_q }}{% endif %}{% endif %}">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="id_note">{{ S.COL_NOTE }}</label>
+      <input type="text" id="id_note" name="note" value="{{ obj.note|default:'' }}">
+    </div>
+
+    <div class="form-actions">
+      <button type="button" class="btn" data-action="cancel">{{ S.CANCEL }}</button>
+      <button type="submit" class="btn btn-save">{{ S.SAVE }}</button>
+    </div>
+  </form>
+</div>

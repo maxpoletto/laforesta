@@ -1,6 +1,6 @@
 # Mannesi page
 
-This page appears to the left of Prelievi. It provides features to manage
+This page appears to the right of Prelievi. It provides features to manage
 lumberjacks.
 
 Four foldable sections, described below.

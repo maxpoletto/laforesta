@@ -1,0 +1,31 @@
+/* Mannesi page - compact operational controls around standard tables. */
+
+.mannesi-controls {
+  max-width: 940px;
+}
+
+.mannesi-control-row,
+.mannesi-receipt-row {
+  align-items: end;
+}
+
+.mannesi-submit-cell {
+  flex: 0 0 auto;
+  align-self: end;
+}
+
+.mannesi-submit-cell .btn {
+  min-width: 96px;
+}
+
+@media (max-width: 700px) {
+  .mannesi-control-row,
+  .mannesi-receipt-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .mannesi-submit-cell {
+    align-self: stretch;
+  }
+}
