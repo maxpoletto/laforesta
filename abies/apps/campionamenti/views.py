@@ -29,7 +29,8 @@ from apps.base.digests import (
 from apps.base.numparse import coord_float, int_or_none, parse_decimal
 from apps.base.responses import (
     conflict_response, csv_error_list, row_delete, row_patch, row_patches,
-    save_model_response, success_response, validation_error,
+    save_model_response, submitted_version, success_response,
+    validation_error,
 )
 from apps.base.models import (
     Parcel, Region, Sample, SampleArea, SampleGrid, Species, Survey, Tree,
@@ -281,7 +282,7 @@ def tree_delete_view(request, ts_id: int):
     ).filter(id=ts_id).first()
     if ts is None:
         return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
-    if ts.version != int(body.get(VERSION, 0)):
+    if ts.version != submitted_version(body):
         return conflict_response(
             data_id=f'sampled_trees_{ts.sample.survey_id}',
             row_id=ts.id,
@@ -508,7 +509,7 @@ def area_delete_view(request, area_id: int):
     ).first()
     if area is None:
         return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
-    if area.version != int(body.get(VERSION, 0)):
+    if area.version != submitted_version(body):
         return conflict_response(
             data_id='sample_areas', row_id=area.id,
             record=build_sample_area_record(area),
@@ -983,7 +984,7 @@ def grid_delete_view(request, grid_id: int):
     grid = SampleGrid.objects.filter(id=grid_id).first()
     if grid is None:
         return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
-    if grid.version != int(body.get(VERSION, 0)):
+    if grid.version != submitted_version(body):
         return conflict_response(
             data_id='grids', row_id=grid.id, record=build_grid_record(grid),
         )
@@ -1363,7 +1364,7 @@ def survey_delete_view(request, survey_id: int):
     survey = Survey.objects.filter(id=survey_id).first()
     if survey is None:
         return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
-    if survey.version != int(body.get(VERSION, 0)):
+    if survey.version != submitted_version(body):
         return conflict_response(
             data_id='surveys', row_id=survey.id,
             record=build_survey_record(survey),

@@ -154,6 +154,16 @@ class TestCrews:
         assert resp.status_code == 400
         assert resp.json()[STATUS] == STATUS_CONFLICT
 
+    def test_save_non_numeric_version_conflicts(self, writer_client, crews):
+        resp = _post(writer_client, '/api/impostazioni/crews/save/', {
+            ROW_ID: str(crews[0].id), VERSION: 'not-a-number',
+            FIELD_NAME: 'Conflict', FIELD_NOTES: '', FIELD_ACTIVE: 'true',
+        })
+        assert resp.status_code == 400
+        assert resp.json()[STATUS] == STATUS_CONFLICT
+        crews[0].refresh_from_db()
+        assert crews[0].name != 'Conflict'
+
     def test_save_validation_error(self, writer_client, db):
         resp = _post(writer_client, '/api/impostazioni/crews/save/', {
             FIELD_NAME: '', FIELD_NOTES: '', FIELD_ACTIVE: 'true',

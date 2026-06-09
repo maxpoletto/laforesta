@@ -27,7 +27,8 @@ from apps.base import csv_io
 from apps.base.numparse import coord_float, int_or_none, parse_decimal
 from apps.base.responses import (
     conflict_response, csv_error_list, row_delete, row_patch,
-    save_model_response, success_response, validation_error,
+    save_model_response, submitted_version, success_response,
+    validation_error,
 )
 from apps.base.digests import (
     build_harvest_plan_item_record,
@@ -181,7 +182,7 @@ def plan_delete_view(request, plan_id: int):
     plan = HarvestPlan.objects.filter(id=plan_id).first()
     if plan is None:
         return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
-    if plan.version != int(body.get(VERSION, 0)):
+    if plan.version != submitted_version(body):
         return _conflict_response_plan(plan)
 
     bad = HarvestPlanItem.objects.filter(harvest_plan=plan).exclude(
@@ -590,8 +591,8 @@ def item_save_view(request):
             ).first()
             if item is None:
                 return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
-            submitted_version = int(body.get(VERSION, 0))
-            if item.version != submitted_version:
+            version = submitted_version(body)
+            if item.version != version:
                 return _conflict_response_item(item)
             for field, value in parsed.items():
                 setattr(item, field, value)
@@ -649,7 +650,7 @@ def item_delete_view(request, item_id: int):
     item = HarvestPlanItem.objects.filter(id=item_id).first()
     if item is None:
         return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
-    if item.version != int(body.get(VERSION, 0)):
+    if item.version != submitted_version(body):
         return _conflict_response_item(item)
     if item.state != HarvestPlanItemState.PLANNED:
         return validation_error([S.ERR_PLAN_ITEM_STATE_NOT_PLANNED])
@@ -990,7 +991,7 @@ def mark_save_view(request):
                   .filter(id=row_id).first())
             if tm is None:
                 return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
-            version = int(body.get(VERSION, 0))
+            version = submitted_version(body)
             if tm.version != version:
                 fresh_tm = (TreeMark.objects
                             .select_related('tree__species')
@@ -1071,7 +1072,7 @@ def mark_delete_view(request):
     """
     body = json.loads(request.body)
     row_id = int(body[ROW_ID])
-    version = int(body.get(VERSION, 0))
+    version = submitted_version(body)
 
     tm = (TreeMark.objects
           .select_related('tree', 'harvest_plan_item')

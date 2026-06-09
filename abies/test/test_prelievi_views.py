@@ -548,6 +548,18 @@ class TestDeleteView:
         }]
         assert Harvest.objects.filter(id=sample_op.id).exists()
 
+    def test_delete_non_numeric_version_conflicts(self, writer_client, harvest_fixtures, sample_op):
+        resp = self._post(writer_client, {
+            ROW_ID: str(sample_op.id), VERSION: 'not-a-number',
+        })
+        assert resp.status_code == 400
+        data = resp.json()
+        assert data[STATUS] == STATUS_CONFLICT
+        assert data[PATCHES] == [{
+            DATA_ID: 'prelievi', ROW_ID: sample_op.id, RECORD: data[RECORD],
+        }]
+        assert Harvest.objects.filter(id=sample_op.id).exists()
+
     def test_delete_not_found(self, writer_client, harvest_fixtures):
         resp = self._post(writer_client, {ROW_ID: '99999', VERSION: '1'})
         assert resp.status_code == 404

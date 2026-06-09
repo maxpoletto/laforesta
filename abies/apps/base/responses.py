@@ -7,6 +7,7 @@ from django.http import JsonResponse
 
 from apps.base.digests import mark_stale
 from apps.base.middleware import save_nonce
+from apps.base.numparse import int_or_none
 from config import strings as S
 from config.constants import (
     DATA_ID, DELETES, FIELD_ERRORS, FIELD_NONCE, HTML, MESSAGE, PATCHES,
@@ -70,8 +71,7 @@ def save_model_response(
             obj = model.objects.select_for_update().filter(id=row_id).first()
             if obj is None:
                 return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
-            submitted_version = int(body.get(VERSION, 0))
-            if obj.version != submitted_version:
+            if obj.version != submitted_version(body):
                 if conflict_fn:
                     return conflict_fn(obj)
                 return conflict_response(
@@ -93,6 +93,11 @@ def save_model_response(
         request, body, data_id=data_id, row_id=obj.id, patches=patches,
         extra=extra,
     )
+
+
+def submitted_version(body: dict) -> int:
+    """Optimistic-lock version from a JSON body; invalid/missing is stale."""
+    return int_or_none(body.get(VERSION)) or 0
 
 
 def _row_id_from_body(body: dict) -> int | None:

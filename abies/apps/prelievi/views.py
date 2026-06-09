@@ -30,8 +30,8 @@ from apps.base.digests import (
 )
 from apps.base.numparse import int_or_none, parse_decimal
 from apps.base.responses import (
-    conflict_response, row_delete, row_patch, success_response,
-    validation_error,
+    conflict_response, row_delete, row_patch, submitted_version,
+    success_response, validation_error,
 )
 from apps.base.models import (
     Crew, HarvestPlanItem, HarvestPlanItemState, Parcel, Product, Species,
@@ -171,7 +171,7 @@ def delete_view(request):
     """Delete a harvest (with version check)."""
     body = json.loads(request.body)
     row_id = int(body[ROW_ID])
-    version = int(body.get(VERSION, 0))
+    version = submitted_version(body)
 
     try:
         op = Harvest.objects.select_related(
@@ -472,14 +472,14 @@ def _check_update_conflict(row_id, body, request):
         actual_version = Harvest.objects.values_list(VERSION, flat=True).get(id=row_id)
     except Harvest.DoesNotExist:
         return JsonResponse({MESSAGE: S.ERR_NOT_FOUND}, status=404)
-    if actual_version == int(body.get(VERSION, 0)):
+    if actual_version == submitted_version(body):
         return None
     return _conflict_response(row_id, request)
 
 
 def _update_op(row_id, parsed, body, request):
     """Update an existing Harvest under row lock."""
-    version = int(body.get(VERSION, 0))
+    version = submitted_version(body)
     op = Harvest.objects.select_for_update().get(id=row_id)
     if op.version != version:
         return _conflict_response(row_id, request)
