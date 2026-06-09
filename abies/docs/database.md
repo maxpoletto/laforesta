@@ -88,10 +88,13 @@ of either dataset should treat them as independent observations.
 ## Harvest plans
 
 - harvest_plan: (id:int, year_start:int, year_end:int, name:text,
-  description:text)
+  description:text, active:bool)
   - Denotes a multi-year harvest plan, comprising all or most parcels.
   - `name` is a short name used for selector widgets (e.g., "Piano di taglio
     2026-2040"), `description` is a longer text (sentence to short paragraph).
+  - `active` is true if this harvest plan is being used to determine future
+    production values (see page-impostazioni.md > Future Production). At most
+    one harvest plan can have this flag set to true.
 
 - harvest_plan_item: (id:int, harvest_plan_id:int, region_id:int nullable,
   parcel_id:int nullable, state:int, year_planned:int, date_actual:int nullable,
@@ -169,11 +172,15 @@ of either dataset should treat them as independent observations.
 
 ### Surveys and samples
 
-- survey: (id:int, name:string, sample_grid_id:int, description:string)
+- survey: (id:int, name:string, sample_grid_id:int, description:string,
+  active:bool)
   - Represents a high-level survey operation, typically consisting of one or
     more samples.
   - `name` is a short human-readable label used in pulldowns and cross-page
     references (e.g., `Bosco completo 2026`); unique within the app.
+  - `active` is true if this survey is being used to compute dendrometric data
+    (see page-impostazioni.md > Dendrometric data). Any number of surveys (or
+    none) may have this flag set to true at the same time.
   - It is always associated with a `sample_grid` of physical sample areas.
   - During a survey, each sample area is visited at most once. A survey is
     "complete" when every sample area in the survey's sample grid has been
@@ -294,7 +301,7 @@ for coppice parcels there is no per-tree harvest record at all.
 
 - harvest: (id:int, date:string /* ISO 8601 */, parcel_id:int,
   harvest_plan_item_id:int nullable, product_id:int, crew_id:int, record1:int
-  nullable, record2:int nullable, mass_q:float, volume_m3:real, damaged:bool,
+  nullable, record2:int nullable, mass_q:real, volume_m3:real, damaged:bool,
   unhealthy:bool, psr:bool, note:text)
   - Denotes a cutting/harvesting operation by one crew on a given day.
   - `harvest_plan_item_id` links to a plan item (intervento). NULL for
@@ -330,29 +337,19 @@ for coppice parcels there is no per-tree harvest record at all.
   rows. Crews, tractors, and species are never deleted — they are deactivated
   via their `active` flag.
 
-## Other parameters
+## Mannesi data
 
-Most of these are configurable in the Settings section.
+- mannesi_license_plates: (id:int, value:string)
 
-- tractor: (id:int, manufacturer:string, model:string, year:int, active:bool)
-  - Represents a tractor. `year` denotes date of manufacture.
-  - Retired tractors have active=false.
+- mannesi_hours: (id:int, date:string /* ISO 8601 */, crew_id:int, hours:real,
+  note:string)
 
-- crew: (id:int, name:string, notes:string, active:bool)
-  - Represents a team of workers, e.g., a group of lumberjacks.
+  See page-mannesi.md > Ore
 
-- species: (id:int, common_name:string, latin_name:string, sort_order:int,
-  density:real, active:bool)
-  - Represents a tree species.
-  - sort_order controls display ordering everywhere species appear. Catch-all
-    entries like "Altro" use a high value (999) to sort last.
-  - `density` is wood density in q/m³ (quintals per cubic meter; typical range
-    5–9). Used to derive per-tree mass `m = volume_m3 × density` for both
-    samples and marks.
+- mannesi_credits: (id:int, date:string /* ISO 8601 */, crew_id:int,
+  mass_q:real, note:string)
 
-- product: (id:int, name:string)
-  - Implements an extensible enum of harvested product types: (1: "Tronchi", 2:
-    "Cippato", 3: "Ramaglia", 4: "Pertiche-Puntelli", 5: "Pertiche-Tronchi")
+  See page-mannesi.md > Acconti
 
 ## Hypsometric parameters
 
@@ -391,3 +388,27 @@ documented in [`hypsometry.md`](hypsometry.md).
   - Provenance: the surveys whose samples fed a computed set (empty for
     imported sets). Records "this set is based on this data"; it is not the
     historical log.
+
+## Other parameters
+
+Most of these are configurable in the Settings section.
+
+- tractor: (id:int, manufacturer:string, model:string, year:int, active:bool)
+  - Represents a tractor. `year` denotes date of manufacture.
+  - Retired tractors have active=false.
+
+- crew: (id:int, name:string, notes:string, active:bool)
+  - Represents a team of workers, e.g., a group of lumberjacks.
+
+- species: (id:int, common_name:string, latin_name:string, sort_order:int,
+  density:real, active:bool)
+  - Represents a tree species.
+  - sort_order controls display ordering everywhere species appear. Catch-all
+    entries like "Altro" use a high value (999) to sort last.
+  - `density` is wood density in q/m³ (quintals per cubic meter; typical range
+    5–9). Used to derive per-tree mass `m = volume_m3 × density` for both
+    samples and marks.
+
+- product: (id:int, name:string)
+  - Implements an extensible enum of harvested product types: (1: "Tronchi", 2:
+    "Cippato", 3: "Ramaglia", 4: "Pertiche-Puntelli", 5: "Pertiche-Tronchi")
