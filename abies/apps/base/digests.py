@@ -425,6 +425,7 @@ def _audit_configs() -> list:
         Crew, HarvestPlan, HarvestPlanItem, HypsoParamSet, Sample,
         SampleArea, SampleGrid, Species, Survey, Tractor, User,
     )
+    from apps.mannesi.models import LicensePlate, ProductionCredit, WorkHour
     from apps.prelievi.models import Harvest
 
     return [
@@ -492,6 +493,17 @@ def _audit_configs() -> list:
         (HypsoParamSet, S.TABLE_HYPSO_PARAM_SET, {
             'source': S.COL_HYPSO_SOURCE, 'min_n': S.COL_MIN_N,
             'superseded_at': S.COL_SUPERSEDED_AT,
+        }),
+        (LicensePlate, S.TABLE_MANNESI_LICENSE_PLATE, {
+            'value': S.LABEL_LICENSE_PLATE,
+        }),
+        (WorkHour, S.TABLE_MANNESI_HOURS, {
+            'date': S.COL_DATE, 'crew_id': S.COL_CREW,
+            'hours': S.COL_HOURS, 'note': S.COL_NOTE,
+        }),
+        (ProductionCredit, S.TABLE_MANNESI_CREDIT, {
+            'date': S.COL_DATE, 'crew_id': S.COL_CREW,
+            'mass_q': S.COL_CREDITS_Q, 'note': S.COL_NOTE,
         }),
     ]
 

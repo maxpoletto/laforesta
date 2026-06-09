@@ -251,6 +251,7 @@ input[type="number"],
 input[type="password"],
 input[type="email"],
 input[type="date"],
+input[type="month"],
 select,
 textarea {
   padding: 0.4rem 0.5rem;

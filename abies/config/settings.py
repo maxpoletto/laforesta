@@ -110,6 +110,7 @@ INSTALLED_APPS = [
     'apps.controllo',
     'apps.impostazioni',
     'apps.piano_di_taglio',
+    'apps.mannesi',
 ]
 
 SITE_ID = 1

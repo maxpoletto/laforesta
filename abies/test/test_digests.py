@@ -18,6 +18,7 @@ from apps.base.models import (
     Crew, DigestStatus, HarvestPlan, HypsoParamSet, HypsoParamSource, Role,
     SampleGrid, Survey, Tree, TreeMark, TreeSample, User,
 )
+from apps.mannesi.models import LicensePlate, ProductionCredit, WorkHour
 from apps.prelievi.models import Harvest, HarvestSpecies, HarvestTractor
 from config import strings as S
 from config.constants import (
@@ -315,6 +316,10 @@ class TestGenerateAudit:
         grid = SampleGrid.objects.create(name='Griglia A')
         Survey.objects.create(name='Rilievo 1', sample_grid=grid)
         HypsoParamSet.objects.create(source=HypsoParamSource.COMPUTED, min_n=5)
+        LicensePlate.objects.create(value='AB123CD')
+        crew = Crew.objects.create(name='Mannesi audit crew')
+        WorkHour.objects.create(date='2026-01-01', crew=crew, hours=Decimal('3'))
+        ProductionCredit.objects.create(date='2026-01-01', crew=crew, mass_q=Decimal('4'))
 
         generate_audit()
         with gzip.open(tmp_path / 'audit.json.gz', 'rt') as f:
@@ -322,7 +327,9 @@ class TestGenerateAudit:
 
         tables = {row[3] for row in data[ROWS] if row[4] == S.AUDIT_INSERT}
         for table in (S.TABLE_HARVEST_PLAN, S.TABLE_SAMPLE_GRID,
-                      S.TABLE_SURVEY, S.TABLE_HYPSO_PARAM_SET):
+                      S.TABLE_SURVEY, S.TABLE_HYPSO_PARAM_SET,
+                      S.TABLE_MANNESI_LICENSE_PLATE, S.TABLE_MANNESI_HOURS,
+                      S.TABLE_MANNESI_CREDIT):
             assert table in tables, f'{table} insert missing from audit'
 
         plan_rows = [r for r in data[ROWS] if r[3] == S.TABLE_HARVEST_PLAN]

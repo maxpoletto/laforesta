@@ -88,6 +88,7 @@ test-js:
 	node apps/base/static/base/js/tests.mjs
 	node apps/base/static/base/js/cache.test.mjs
 	node apps/base/static/base/js/page-sync.test.mjs
+	node apps/mannesi/static/mannesi/js/pdf.test.mjs
 	node apps/prelievi/static/prelievi/js/prelievi.test.mjs
 	node apps/base/static/base/js/prelievi-columns.test.mjs
 	node apps/base/static/base/js/parcel-map.test.mjs

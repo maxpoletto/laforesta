@@ -53,6 +53,13 @@ export const ERROR_GENERIC = 'Errore imprevisto.';
 export const ERR_DATE_FUTURE = 'La data non può essere nel futuro.';
 export const ERR_SPECIES_PCT_SUM = 'Le percentuali delle specie devono sommare a 100.';
 export const ERR_TRACTOR_PCT_SUM = 'Le percentuali dei trattori devono sommare a 100.';
+export const ERR_CREW_REQUIRED = 'Squadra obbligatoria.';
+export const ERR_HOURS_POSITIVE = 'Le ore devono essere maggiori di zero.';
+export const ERR_CREDITS_POSITIVE = 'I quintali devono essere maggiori di zero.';
+export const ERR_SLIP_COUNT_MULTIPLE = 'Il numero di verbali deve essere un multiplo di 4.';
+export const ERR_SLIP_COUNT_POSITIVE = 'Il numero di verbali deve essere maggiore di zero.';
+export const ERR_LICENSE_PLATE_REQUIRED = 'Targa autocarro obbligatoria.';
+export const ERR_RECEIPTS_EMPTY = 'Nessuna produzione nel mese selezionato.';
 
 // Charts
 export const CHART_TOTAL = 'Totale';
@@ -64,6 +71,8 @@ export const COL_PARCEL = 'Particella';
 export const COL_CREW = 'Squadra';
 export const COL_VDP = 'VDP';
 export const COL_QUINTALS = 'Q.li';
+export const COL_HOURS = 'Ore';
+export const COL_CREDITS_Q = 'Quintali';
 export const COL_NOTE = 'Note';
 export const COL_EXTRA_NOTE = 'Altre note';
 export const COL_VOLUME_M3 = 'Volume (m³)';
@@ -108,9 +117,15 @@ export const LABEL_NAME = 'Nome';
 export const LABEL_EMAIL = 'Email';
 export const LABEL_LAST_NAME = 'Cognome';
 export const LABEL_LOGIN_METHOD = 'Metodo di accesso';
+export const LABEL_LICENSE_PLATE = 'Targa autocarro';
+export const LABEL_START_NUMBER = 'Numero iniziale';
+export const LABEL_SLIP_COUNT = 'Numero di verbali';
+export const LABEL_MONTH = 'Mese';
 
 // CSV export filenames
 export const CSV_PRELIEVI = 'prelievi.csv';
+export const CSV_MANNESI_HOURS = 'ore-mannesi.csv';
+export const CSV_MANNESI_CREDITS = 'acconti-mannesi.csv';
 export const CSV_CREWS = 'squadre.csv';
 export const CSV_TRACTORS = 'trattori.csv';
 export const CSV_SPECIES = 'specie.csv';

@@ -15,6 +15,7 @@ urlpatterns = [
     # bounces unauthenticated users to LOGIN_URL.
     path('', RedirectView.as_view(url=settings.LOGIN_REDIRECT_URL, permanent=False)),
     path('admin/', admin.site.urls),
+    path('api/mannesi/', include('apps.mannesi.urls')),
     path('api/prelievi/', include('apps.prelievi.urls')),
     path('api/campionamenti/', include('apps.campionamenti.urls')),
     path('api/piano-di-taglio/', include('apps.piano_di_taglio.urls')),

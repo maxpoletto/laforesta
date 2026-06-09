@@ -20,6 +20,7 @@
       <a class="tab" href="/bosco" data-tab="bosco">Bosco</a>
       <a class="tab" href="/piano-di-taglio" data-tab="piano-di-taglio">Piani di taglio</a>
       <a class="tab" href="/campionamenti" data-tab="campionamenti">Campionamenti</a>
+      <a class="tab" href="/mannesi" data-tab="mannesi">Mannesi</a>
       <a class="tab" href="/prelievi" data-tab="prelievi">Prelievi</a>
       <a class="tab" href="/controllo" data-tab="controllo">Controllo</a>
       {% if user.can_modify or user.login_method == 'password' %}
@@ -37,6 +38,7 @@
     <a class="mobile-tab" href="/bosco" data-tab="bosco">Bosco</a>
     <a class="mobile-tab" href="/piano-di-taglio" data-tab="piano-di-taglio">Piani di taglio</a>
     <a class="mobile-tab" href="/campionamenti" data-tab="campionamenti">Campionamenti</a>
+    <a class="mobile-tab" href="/mannesi" data-tab="mannesi">Mannesi</a>
     <a class="mobile-tab" href="/prelievi" data-tab="prelievi">Prelievi</a>
     <a class="mobile-tab" href="/controllo" data-tab="controllo">Controllo</a>
     {% if user.can_modify or user.login_method == 'password' %}
@@ -56,6 +58,7 @@
   {% include "base/_shell_templates_it.html" %}
   {% include "campionamenti/_shell_templates_it.html" %}
   {% include "piano_di_taglio/_shell_templates_it.html" %}
+  {% include "mannesi/_shell_templates_it.html" %}
   {% include "prelievi/_shell_templates_it.html" %}
   {% include "impostazioni/_shell_templates_it.html" %}
 </body>
