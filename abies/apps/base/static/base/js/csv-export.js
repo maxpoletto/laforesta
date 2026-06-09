@@ -1,10 +1,21 @@
 import * as S from './strings.js';
 
+const FORMULA_PREFIX_RE = /^[=+\-@\t\r\n]/;
+const NUMERIC_LITERAL_RE = /^[+-]?(?:\d+|\d*[.,]\d+)(?:[eE][+-]?\d+)?$/;
+
+export function hardenCSVFormula(value) {
+  const s = String(value);
+  if (FORMULA_PREFIX_RE.test(s) && !NUMERIC_LITERAL_RE.test(s.trim())) {
+    return `'${s}`;
+  }
+  return s;
+}
+
 export function csvField(v, fmt) {
   if (v == null) return '';
   if (typeof v === 'boolean') return v ? 'true' : 'false';
   if (typeof v === 'number') return String(v).replace('.', fmt.decimal);
-  return String(v).replaceAll(fmt.separator, ' ');
+  return hardenCSVFormula(String(v).replaceAll(fmt.separator, ' '));
 }
 
 export function downloadCSV(lines, filename) {

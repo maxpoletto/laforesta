@@ -126,6 +126,18 @@ def test_csv_buffer_uses_export_delimiter():
     assert buf.getvalue() == 'a;b\r\n'
 
 
+def test_csv_buffer_hardens_formula_cells():
+    buf, writer = csv_io.csv_buffer(';')
+    writer.writerow(['=cmd', '+cmd', '-cmd', '@cmd', '\tcmd'])
+    assert buf.getvalue() == "'=cmd;'+cmd;'-cmd;'@cmd;'\tcmd\r\n"
+
+
+def test_csv_buffer_preserves_numeric_literals():
+    buf, writer = csv_io.csv_buffer(';')
+    writer.writerow(['-4', '+3,14', Decimal('-2.5')])
+    assert buf.getvalue() == '-4;+3,14;-2.5\r\n'
+
+
 def test_zip_csv_response_builds_no_store_download():
     response = csv_io.zip_csv_response(
         [('a.csv', 'one\n'), ('b.csv', b'two\n')],

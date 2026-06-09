@@ -452,14 +452,8 @@ def _hypso_export_response(params):
     Column order matches the settings table (..., a, b, n, r2); consumers
     read by header name, so the order is for human readability only.
     """
-    import csv
-    import io
-
-    from apps.base import csv_io
-
     delimiter, decimal = csv_io.export_format()
-    buf = io.StringIO()
-    writer = csv.writer(buf, delimiter=delimiter)
+    buf, writer = csv_io.csv_buffer(delimiter)
     writer.writerow([
         S.CSV_COL_COMPRESA.lower(), S.CSV_COL_GENERE.lower(),
         S.CSV_COL_FUNZIONE, S.CSV_COL_A, S.CSV_COL_B,

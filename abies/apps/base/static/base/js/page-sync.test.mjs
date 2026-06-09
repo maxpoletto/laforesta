@@ -270,6 +270,22 @@ const { TableWrapper } = await import('./table.js');
 }
 
 {
+  const wrapper = Object.create(TableWrapper.prototype);
+  wrapper.csvFormat = { separator: ';', decimal: ',', dateFormat: 'YYYY-MM-DD' };
+  wrapper.labels = { boolYes: 'si', boolNo: 'no' };
+  wrapper._stColumns = [
+    { key: 'name', label: 'Nome', type: 'string' },
+    { key: 'value', label: 'Valore', type: 'string' },
+  ];
+  wrapper._table = { data: [['=cmd', '-4'], ['safe', '@cmd']] };
+  eq(
+    wrapper.getCSV(),
+    `\ufeffNome;Valore\n'=cmd;-4\nsafe;'@cmd`,
+    'TableWrapper.getCSV hardens spreadsheet formulas',
+  );
+}
+
+{
   const a = 'page_sync_test_a';
   const b = 'page_sync_test_b';
   cache.register(a, '/api/page-sync/a/');

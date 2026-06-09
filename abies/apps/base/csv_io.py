@@ -5,8 +5,8 @@ This is the **only** CSV codec.  It is the CSV-side counterpart to
 `apps.base.numparse` (the parsing core + the form/JSON edge): cell parsing reuses
 that core's `to_decimal` / `to_int`, driven by the delimiter-detected separator
 rather than the active locale.  All CSV cell parsing goes through a `CsvReader`;
-all CSV cell formatting goes through `format_decimal` here — nothing reimplements
-delimiter or decimal handling.
+CSV export goes through `csv_buffer()` and `format_decimal` here — nothing
+reimplements delimiter, decimal handling, or spreadsheet-formula hardening.
 
 CSV is I/O, not canonical transmission (see CLAUDE.md §"Number formatting").
 Input is lenient: the field delimiter is auto-detected and fixes the decimal
@@ -25,6 +25,7 @@ import base64
 import binascii
 import csv
 import io
+import re
 import zipfile
 from collections.abc import Iterable
 from decimal import Decimal
@@ -38,6 +39,8 @@ from config import strings as S
 # Field delimiter ⇒ decimal separator.  ';' is the Italian /
 # Excel pairing (comma decimal); ',' is the canonical / US pairing (dot decimal).
 _DECIMAL_FOR_DELIMITER = {';': ',', ',': '.'}
+_FORMULA_PREFIXES = ('=', '+', '-', '@', '\t', '\r', '\n')
+_NUMERIC_LITERAL_RE = re.compile(r'^[+-]?(?:\d+|\d*[.,]\d+)(?:[eE][+-]?\d+)?$')
 
 
 class CsvError(Exception):
@@ -130,10 +133,41 @@ def export_format() -> tuple[str, str]:
     return delimiter, decimal_sep
 
 
+class SafeCSVWriter:
+    """csv.writer wrapper that neutralizes spreadsheet formulas in text cells."""
+
+    def __init__(self, writer):
+        self._writer = writer
+
+    def writerow(self, row):
+        return self._writer.writerow([harden_formula_cell(value) for value in row])
+
+    def writerows(self, rows):
+        for row in rows:
+            self.writerow(row)
+
+
+def harden_formula_cell(value):
+    """Return a CSV-safe cell value for spreadsheet applications.
+
+    Text beginning with formula sigils is prefixed with an apostrophe. Numeric
+    literals such as ``-4`` and ``+3,14`` are left unchanged so exported numeric
+    data remains round-trippable.
+    """
+    if value is None:
+        return ''
+    if isinstance(value, (int, float, Decimal)) and not isinstance(value, bool):
+        return value
+    s = str(value)
+    if s.startswith(_FORMULA_PREFIXES) and not _NUMERIC_LITERAL_RE.match(s.strip()):
+        return f"'{s}"
+    return s
+
+
 def csv_buffer(delimiter: str):
-    """Return a text buffer and CSV writer using the chosen export delimiter."""
+    """Return a text buffer and hardened CSV writer using the delimiter."""
     buf = io.StringIO()
-    return buf, csv.writer(buf, delimiter=delimiter)
+    return buf, SafeCSVWriter(csv.writer(buf, delimiter=delimiter))
 
 
 def zip_csv_response(

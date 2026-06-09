@@ -8,6 +8,8 @@
  * English.  Callers inject a `labels` and/or `csvFormat` option to localize.
  */
 
+import { hardenCSVFormula } from './csv-export.js';
+
 const DEBOUNCE_MS = 500;
 const ROW_ID_COL = 0;
 const ROWS_PER_PAGE = 25;
@@ -415,7 +417,7 @@ function formatCSV(value, type, csvFormat, labels) {
 
 /** Escape a CSV field for the given separator. */
 function csvEscape(value, separator) {
-  const s = String(value);
+  const s = hardenCSVFormula(value);
   return (s.includes(separator) || s.includes('"') || s.includes('\n'))
     ? '"' + s.replace(/"/g, '""') + '"'
     : s;

@@ -1,7 +1,7 @@
 // Tests for apps/base/static/base/js/csv-export.js — CSV export utilities.
 // Run with: node apps/base/static/base/js/csv-export.test.mjs (also part of `make test-js`).
 
-import { csvField, downloadCSV, exportDigest } from './csv-export.js';
+import { csvField, downloadCSV, exportDigest, hardenCSVFormula } from './csv-export.js';
 
 let failed = 0;
 let passed = 0;
@@ -37,6 +37,13 @@ assertEqual(csvField(0, FMT_IT), '0', 'zero');
 assertEqual(csvField('hello', FMT_IT), 'hello', 'plain string');
 assertEqual(csvField('a;b;c', FMT_IT), 'a b c', 'string: separator replaced');
 assertEqual(csvField('no-sep', FMT_IT), 'no-sep', 'string without separator');
+assertEqual(csvField('=1+1', FMT_IT), "'=1+1", 'formula string hardened');
+assertEqual(csvField('+cmd', FMT_IT), "'+cmd", 'plus formula string hardened');
+assertEqual(csvField('-cmd', FMT_IT), "'-cmd", 'minus formula string hardened');
+assertEqual(csvField('@cmd', FMT_IT), "'@cmd", 'at formula string hardened');
+assertEqual(csvField('-4', FMT_IT), '-4', 'numeric-looking negative string preserved');
+assertEqual(csvField('+3,14', FMT_IT), '+3,14', 'numeric-looking positive decimal preserved');
+assertEqual(hardenCSVFormula('\tcmd'), "'\tcmd", 'tab-prefixed formula hardened');
 
 const FMT_EN = { separator: ',', decimal: '.' };
 assertEqual(csvField(3.14, FMT_EN), '3.14', 'EN: decimal stays as-is');
@@ -143,6 +150,11 @@ const nullDigest = {
 exportDigest(nullDigest, ['A', 'B'], 'nulls.csv');
 assertEqual(capturedLines[1], ';ok', 'null in first column');
 assertEqual(capturedLines[2], 'val;', 'null in second column');
+
+const formulaDigest = { columns: ['Nome'], rows: [['=cmd'], ['-4']] };
+exportDigest(formulaDigest, ['Nome'], 'formula.csv');
+assertEqual(capturedLines[1], "'=cmd", 'exportDigest hardens formula-looking text');
+assertEqual(capturedLines[2], '-4', 'exportDigest preserves numeric-looking text');
 
 // Restore globals.
 globalThis.URL = originalURL;
