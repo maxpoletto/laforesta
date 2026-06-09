@@ -44,9 +44,11 @@ EXPOSE 8000
 # `compose up` -> gunicorn); user-supplied args (`compose run abies python
 # manage.py migrate`) override CMD and run directly. Migrations and
 # collectstatic are orchestrated by bin/deploy, not on container start.
+# Keep one worker so the in-memory RateLimitMiddleware has process-wide
+# semantics. Raising this needs shared rate-limit storage.
 CMD ["gunicorn", "config.wsgi:application", \
      "--bind", "0.0.0.0:8000", \
-     "--workers", "2", \
+     "--workers", "1", \
      "--timeout", "30", \
      "--access-logfile", "-", \
      "--error-logfile", "-"]
