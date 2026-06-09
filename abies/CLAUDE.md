@@ -45,7 +45,8 @@ There is no JS framework.
   - @maxpoletto/sortable-table for tabular data display
   - Chart.js for data visualization
   - Leaflet for mapping
-- Django on the server, served via Apache with mod_wsgi:
+- Django on the server, served via Apache reverse proxying to gunicorn running
+  in a container:
   - JSON endpoints for data (consumed by sortable-table, Chart.js, and Leaflet)
   - HTML fragment endpoints for forms (injected into the shell)
   - django-allauth for authentication
@@ -99,16 +100,9 @@ digests.  **Read the page doc for the domain you are working on.**
 - [`docs/page-campionamenti.md`](docs/page-campionamenti.md) — Campionamenti (sampling) page
 - [`docs/page-piano-di-taglio.md`](docs/page-piano-di-taglio.md) — Piano di taglio (harvest plan) page
 - [`docs/page-prelievi.md`](docs/page-prelievi.md) — Prelievi (harvests) page
+- [`docs/page-mannesi.md`](docs/page-mannesi.md) - Mannesi (lumberjacks) page
 - [`docs/page-controllo.md`](docs/page-controllo.md) — Controllo (audit) page
 - [`docs/page-impostazioni.md`](docs/page-impostazioni.md) — Impostazioni (settings) page
-
-## Plans
-
-- [`docs/implementation-plan.md`](docs/implementation-plan.md) — original
-  M0..M4 milestone plan
-- [`docs/piano-di-taglio-plan.md`](docs/piano-di-taglio-plan.md) —
-  fine-grained Piano-di-taglio plan (supersedes M1/M2 in
-  implementation-plan.md)
 
 # CSS
 
@@ -251,6 +245,7 @@ landscape).  Page-specific mobile adaptations are covered in each page's doc
     │   │       ├── css/prelievi.css
     │   │       └── js/prelievi.js      # PrelieviPage class
     │   ├── bosco/                      # Bosco domain
+    │   ├── mannesi/                    # Mannesi domain
     │   ├── controllo/                  # Audit domain
     │   └── impostazioni/               # Settings domain
     ├── ingest/                         # one-time ETL / data import scripts
