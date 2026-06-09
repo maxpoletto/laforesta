@@ -4,14 +4,16 @@
 
 import * as cache from '../../base/js/cache.js';
 import { TableWrapper } from '../../base/js/table.js';
-import { showError } from '../../base/js/modals.js';
-import * as router from '../../base/js/router.js';
-import { showLoadingIn } from '../../base/js/ui-widgets.js';
+import {
+  applyTableState, createPage, navigateWithParams, readTableState,
+  tableSort, writeTableState,
+} from '../../base/js/page-sync.js';
 import * as S from '../../base/js/strings.js';
 
 const DATA_ID = 'audit';
 const DATA_URL = '/api/controllo/data/';
 const PAGE_PATH = '/controllo';
+const DEFAULT_SORT = { column: S.COL_TIMESTAMP, ascending: false };
 
 const COLUMN_DEFS = {
   [S.COL_TIMESTAMP]: { label: S.COL_TIMESTAMP },
@@ -23,86 +25,50 @@ const COLUMN_DEFS = {
 };
 
 let table = null;
-let unsubCache = null;
 
 cache.register(DATA_ID, DATA_URL);
 
-// ---------------------------------------------------------------------------
-// Page lifecycle
-// ---------------------------------------------------------------------------
+const page = createPage({
+  dataIds: [DATA_ID],
+  mount: buildPage,
+  unmount: destroyPage,
+  onQueryChange: applyParams,
+  onUpdate: [[DATA_ID, data => table?.setData(data)]],
+});
 
-export async function mount(params) {
-  const el = document.getElementById('content');
-  showLoadingIn(el);
+export const mount = page.mount;
+export const unmount = page.unmount;
+export const onQueryChange = page.onQueryChange;
 
-  let data;
-  try {
-    data = await cache.load(DATA_ID);
-  } catch {
-    showError(S.ERROR_NETWORK);
-    return;
-  }
-
+function buildPage(el, params, data) {
   el.replaceChildren();
 
-  const p = readParams(params);
-  const sort = p.sc
-    ? { column: p.sc, ascending: p.so }
-    : { column: S.COL_TIMESTAMP, ascending: false };
-
+  const state = readTableState(params);
   table = new TableWrapper({
     container: el,
     digest: data,
     columnDefs: COLUMN_DEFS,
     canModify: false,
-    sort,
-    searchText: p.f,
+    sort: tableSort(state, DEFAULT_SORT),
+    searchText: state.searchText,
     csvFilename: S.CSV_AUDIT,
     labels: S.TABLE_LABELS,
     csvFormat: S.TABLE_CSV_FORMAT,
     onSort: () => syncURL(),
     onSearch: () => syncURL(),
   });
-
-  cache.setVisible([DATA_ID]);
-  unsubCache = cache.onUpdate(DATA_ID, () => {
-    if (table) table.setData(cache.get(DATA_ID));
-  });
 }
 
-export function unmount() {
-  if (unsubCache) { unsubCache(); unsubCache = null; }
+function destroyPage() {
   if (table) { table.destroy(); table = null; }
-  cache.setVisible([]);
 }
 
-export function onQueryChange(params) {
-  // Sort and search are applied at construction; nothing to update live.
-}
-
-// ---------------------------------------------------------------------------
-// URL sync
-// ---------------------------------------------------------------------------
-
-function readParams(params) {
-  return {
-    sc: params.sc || null,
-    so: params.so !== undefined ? params.so === '0' : true,
-    f: params.f || '',
-  };
+function applyParams(params) {
+  applyTableState(table, readTableState(params), DEFAULT_SORT);
 }
 
 function syncURL() {
   const params = new URLSearchParams();
-  if (table) {
-    const sort = table.getSort();
-    if (sort) {
-      params.set('sc', sort.column);
-      params.set('so', sort.ascending ? '0' : '1');
-    }
-    const f = table.getSearchText();
-    if (f) params.set('f', f);
-  }
-  const qs = params.toString();
-  router.navigate(PAGE_PATH + (qs ? '?' + qs : ''), true);
+  writeTableState(params, table);
+  navigateWithParams(PAGE_PATH, params);
 }

@@ -3,18 +3,16 @@
  */
 
 import * as cache from '../../base/js/cache.js';
-import * as router from '../../base/js/router.js';
 import { TableWrapper } from '../../base/js/table.js';
 import {
   deleteRowWithVersion, fetchModalForm, renderModalForm, showFormError,
 } from '../../base/js/forms.js';
 import {
-  wireActions, wireCancelButtons, wireCollapsibleToggle, showLoadingIn,
+  wireActions, wireCancelButtons, wireCollapsibleToggle,
 } from '../../base/js/ui-widgets.js';
 import { canModify } from '../../base/js/roles.js';
-import { loadCSS, unloadCSS } from '../../base/js/page-css.js';
 import { postJSON } from '../../base/js/api.js';
-import { showError, dismiss as dismissModal, onDismiss } from '../../base/js/modals.js';
+import { dismiss as dismissModal, onDismiss } from '../../base/js/modals.js';
 import { createRangeSlider } from '../../base/js/range-slider.js';
 import * as S from '../../base/js/strings.js';
 import {
@@ -27,6 +25,10 @@ import {
   aggregateTimeSeries, aggregateSpeciesByParcel, renderStackedBar,
 } from './charts.js';
 import { cloneTemplate } from '../../base/js/templates.js';
+import {
+  applyTableState, createPage, navigateWithParams, readTableState,
+  tableSort, writeTableState,
+} from '../../base/js/page-sync.js';
 
 const CSS_URL = '/static/prelievi/css/prelievi.css';
 const DATA_ID = 'prelievi';
@@ -35,6 +37,7 @@ const FORM_URL = '/api/prelievi/form/';
 const SAVE_URL = '/api/prelievi/save/';
 const DELETE_URL = '/api/prelievi/delete/';
 const PAGE_PATH = '/prelievi';
+const DEFAULT_TABLE_SORT = { column: S.COL_DATE, ascending: false };
 
 // Collapsible sections, keyed by the single-char token used in the URL `o`
 // parameter ('a' = Produzione chart, 'b' = Specie-per-particella chart,
@@ -48,7 +51,6 @@ let colDate = -1;
 // Page state.
 let table = null;
 let slider = null;
-let unsubCache = null;
 let inForm = false;
 let disposePageActions = null;
 
@@ -93,42 +95,31 @@ cache.register(DATA_ID, DATA_URL);
 // Page lifecycle (exported for router)
 // ---------------------------------------------------------------------------
 
-export async function mount(params) {
+const page = createPage({
+  cssUrl: CSS_URL,
+  dataIds: [DATA_ID],
+  mount: mountPage,
+  unmount: destroyPage,
+  onQueryChange: (params) => { if (!inForm) applyParams(params); },
+  onUpdate: [[DATA_ID, onCacheUpdate]],
+});
+
+export const mount = page.mount;
+export const unmount = page.unmount;
+export const onQueryChange = page.onQueryChange;
+
+function mountPage(el, params, data) {
   inForm = false;
-  loadCSS(CSS_URL);
-  const el = document.getElementById('content');
-  showLoadingIn(el);
-
-  let data;
-  try {
-    data = await cache.load(DATA_ID);
-  } catch {
-    showError(S.ERROR_NETWORK);
-    return;
-  }
-
   colDate = data.columns.indexOf(S.COL_DATE);
   _buildColMap(data.columns);
   _classifyColumns(data.columns);
-
   showTableView(data, params);
-
-  cache.setVisible([DATA_ID]);
-  unsubCache = cache.onUpdate(DATA_ID, onCacheUpdate);
 }
 
-export function unmount() {
-  unloadCSS(CSS_URL);
-  if (unsubCache) { unsubCache(); unsubCache = null; }
+function destroyPage() {
   if (disposePageActions) { disposePageActions(); disposePageActions = null; }
   _destroyCharts();
   destroyTable();
-  cache.setVisible([]);
-}
-
-export function onQueryChange(params) {
-  if (inForm) return;
-  applyParams(params);
 }
 
 // ---------------------------------------------------------------------------
@@ -144,10 +135,6 @@ function showTableView(data, params) {
   const p = readParams(params);
   buildPage(el, data, p);
 
-  const sort = p.sc
-    ? { column: p.sc, ascending: p.so }
-    : { column: S.COL_DATE, ascending: false };
-
   const modify = canModify();
   table = new TableWrapper({
     container: sections.i.body,
@@ -160,8 +147,8 @@ function showTableView(data, params) {
       onEdit: (rowId) => showEditForm(rowId),
       onDelete: (rowId) => confirmDelete(rowId),
     } : {},
-    sort,
-    searchText: p.f,
+    sort: tableSort(p.table, DEFAULT_TABLE_SORT),
+    searchText: p.table.searchText,
     csvFilename: S.CSV_PRELIEVI,
     labels: S.TABLE_LABELS,
     csvFormat: S.TABLE_CSV_FORMAT,
@@ -220,9 +207,7 @@ function readParams(params) {
   return {
     y1: params.y1 ? parseInt(params.y1, 10) : null,
     y2: params.y2 ? parseInt(params.y2, 10) : null,
-    sc: params.sc || null,
-    so: params.so !== undefined ? params.so === '0' : true,
-    f: params.f || '',
+    table: readTableState(params),
     // Open sections: explicit string of single-char tokens when present,
     // falling back to DEFAULT_OPEN when absent.  `?o=` (empty) is valid
     // and means "all sections closed".
@@ -234,6 +219,8 @@ function readParams(params) {
 
 function applyParams(params) {
   const p = readParams(params);
+
+  if (applyTableState(table, p.table, DEFAULT_TABLE_SORT)) _updateCharts();
 
   // Year slider.
   if (slider && (p.y1 != null || p.y2 != null)) {
@@ -288,15 +275,7 @@ function syncURL() {
     }
   }
 
-  if (table) {
-    const sort = table.getSort();
-    if (sort) {
-      params.set('sc', sort.column);
-      params.set('so', sort.ascending ? '0' : '1');
-    }
-    const f = table.getSearchText();
-    if (f) params.set('f', f);
-  }
+  writeTableState(params, table);
 
   // Open sections: only serialize if different from the default ('i').
   const openKeys = SECTION_KEYS.filter(k => sections[k].open).join('');
@@ -306,8 +285,7 @@ function syncURL() {
   if (sections.a.breakdown !== 'total') params.set('b', sections.a.breakdown);
   if (sections.a.byMonth) params.set('m', '1');
 
-  const qs = params.toString();
-  router.navigate(PAGE_PATH + (qs ? '?' + qs : ''), true);
+  navigateWithParams(PAGE_PATH, params);
 }
 
 // ---------------------------------------------------------------------------

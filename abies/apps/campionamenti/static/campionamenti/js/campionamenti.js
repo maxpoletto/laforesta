@@ -13,7 +13,6 @@
  */
 
 import * as cache from '../../base/js/cache.js';
-import * as router from '../../base/js/router.js';
 import { TableWrapper } from '../../base/js/table.js';
 import { show as showModal, showError, dismiss as dismissModal, onDismiss } from '../../base/js/modals.js';
 import * as S from '../../base/js/strings.js';
@@ -29,10 +28,9 @@ import {
 } from '../../base/js/forms.js';
 import {
   showConfirmModal, showCascadeDeleteModal, wireActions, wireCancelButtons,
-  showLoadingIn, wireCollapsibleToggle, wireTabbedModal,
+  wireCollapsibleToggle, wireTabbedModal,
 } from '../../base/js/ui-widgets.js';
 import { canModify } from '../../base/js/roles.js';
-import { loadCSS, unloadCSS } from '../../base/js/page-css.js';
 import { exportDigest } from '../../base/js/csv-export.js';
 import { cloneTemplate } from '../../base/js/templates.js';
 import { RilevamentiMap } from './rilevamenti-map.js';
@@ -43,6 +41,10 @@ import { wireVMPreview as wireVMPreviewShared } from '../../base/js/tree-form.js
 import {
   fmtDecimal1, fmtDecimal2, fmtCoord, fmtInt, fmtBool, parseDecimal,
 } from '../../base/js/format.js';
+import {
+  applyTableState, createPage, navigateWithParams, readTableState, tableParamKeys,
+  tableSort, writeTableState,
+} from '../../base/js/page-sync.js';
 
 const CSS_URL = '/static/campionamenti/css/campionamenti.css';
 // Cache keys MUST match the server's `data_id` strings so that
@@ -86,6 +88,8 @@ const SURVEY_SAVE_URL = '/api/campionamenti/survey/save/';
 const TERRENI_GEOJSON_URL = '/api/geo/terreni.geojson';
 const TERRENI_ID = 'terreni';
 const PAGE_PATH = '/campionamenti';
+const TREE_TABLE_KEYS = tableParamKeys('t');
+const DEFAULT_TREE_SORT = { column: S.COL_COMPRESA, ascending: true };
 
 const SECTION_KEYS = ['g', 'r', 't'];
 const DEFAULT_OPEN = 'r';
@@ -168,34 +172,40 @@ cache.register(TERRENI_ID, TERRENI_GEOJSON_URL);
 // Lifecycle
 // ---------------------------------------------------------------------------
 
-export async function mount(params) {
-  loadCSS(CSS_URL);
-  const el = document.getElementById('content');
-  showLoadingIn(el);
+const page = createPage({
+  cssUrl: CSS_URL,
+  load: loadPageData,
+  mount: mountPage,
+  unmount: destroyPage,
+  onQueryChange: (params) => { if (!inForm) applyParams(params); },
+  visibleIds: [SURVEYS_ID, GRIDS_ID, SAMPLE_AREAS_ID, SAMPLES_ID],
+});
 
-  try {
-    const [s, g, sa, sm] = await Promise.all([
-      cache.load(SURVEYS_ID),
-      cache.load(GRIDS_ID),
-      cache.load(SAMPLE_AREAS_ID),
-      cache.load(SAMPLES_ID),
-      // terreni.geojson is effectively immutable: load it once per session,
-      // then reuse the cached, area-sorted copy (no request on re-navigation).
-      cache.get(TERRENI_ID) ? Promise.resolve() : cache.load(TERRENI_ID),
-    ]);
-    surveysData = s;
-    gridsData = g;
-    sampleAreasData = sa;
-    samplesData = sm;
-    // Sort largest-first so small polygons render — and bind tooltip —
-    // on top of their containing larger neighbours.  Mirrors
-    // `bosco/b/app.js`'s use of the same helper.
-    parcelsGeo = sortFeaturesByArea(cache.get(TERRENI_ID));
-  } catch {
-    showError(S.ERROR_NETWORK);
-    return;
-  }
+export const mount = page.mount;
+export const unmount = page.unmount;
+export const onQueryChange = page.onQueryChange;
 
+async function loadPageData() {
+  const [s, g, sa, sm] = await Promise.all([
+    cache.load(SURVEYS_ID),
+    cache.load(GRIDS_ID),
+    cache.load(SAMPLE_AREAS_ID),
+    cache.load(SAMPLES_ID),
+    // terreni.geojson is effectively immutable: load it once per session,
+    // then reuse the cached, area-sorted copy (no request on re-navigation).
+    cache.get(TERRENI_ID) ? Promise.resolve() : cache.load(TERRENI_ID),
+  ]);
+  surveysData = s;
+  gridsData = g;
+  sampleAreasData = sa;
+  samplesData = sm;
+  // Sort largest-first so small polygons render — and bind tooltip —
+  // on top of their containing larger neighbours.  Mirrors
+  // `bosco/b/app.js`'s use of the same helper.
+  parcelsGeo = sortFeaturesByArea(cache.get(TERRENI_ID));
+}
+
+function mountPage(el, params) {
   // Initialise the per-page basemap state from the URL before any map is
   // constructed.  All subsequent maps (and the BasemapControl on each)
   // start in sync with this value.
@@ -203,29 +213,20 @@ export async function mount(params) {
   currentMapType = MAP_TYPE_TOKENS[p0.mt];
 
   buildPage(el, params);
-  cache.setVisible([SURVEYS_ID, GRIDS_ID, SAMPLE_AREAS_ID, SAMPLES_ID]);
-
   applyParams(params);
 }
 
-export function unmount() {
-  unloadCSS(CSS_URL);
+function destroyPage() {
   if (unsubCache) { unsubCache(); unsubCache = null; }
   if (disposePageActions) { disposePageActions(); disposePageActions = null; }
   destroyTable();
   destroyRilevamentiMap();
   destroyGriglieMap();
-  cache.setVisible([]);
   resetSectionRefs();
   activeGridId = activeSurveyId = activeAreaId = null;
   surveysData = gridsData = sampleAreasData = samplesData = parcelsGeo = null;
   currentTreesId = null;
   _areaColIdx = -1;
-}
-
-export function onQueryChange(params) {
-  if (inForm) return;     // suppress URL-driven rebuilds while editing
-  applyParams(params);
 }
 
 function resetSectionRefs() {
@@ -590,10 +591,10 @@ function renderTable(data) {
   if (!s.host) return;
   if (s.emptyEl) s.emptyEl.hidden = true;
 
-  const params = currentURLParams();
-  const sort = params.tsc
-    ? { column: params.tsc, ascending: params.tso }
-    : { column: S.COL_COMPRESA, ascending: true };
+  const treeState = readTableState(
+    new URLSearchParams(location.search),
+    TREE_TABLE_KEYS,
+  );
 
   const modify = canModify();
   table = new TableWrapper({
@@ -607,8 +608,8 @@ function renderTable(data) {
       onEdit: (tsId) => showEditTreeForm(tsId),
       onDelete: (tsId) => confirmDeleteTreeSample(tsId),
     } : {},
-    sort,
-    searchText: params.tf,
+    sort: tableSort(treeState, DEFAULT_TREE_SORT),
+    searchText: treeState.searchText,
     csvFilename: S.CSV_SAMPLED_TREES,
     labels: S.TABLE_LABELS,
     csvFormat: S.TABLE_CSV_FORMAT,
@@ -665,9 +666,7 @@ function readParams(params) {
     g: params.g ? parseInt(params.g, 10) : null,
     s: params.s ? parseInt(params.s, 10) : null,
     a: params.a ? parseInt(params.a, 10) : null,
-    tsc: params.tsc || null,
-    tso: params.tso !== '1',
-    tf: params.tf || '',
+    t: readTableState(params, TREE_TABLE_KEYS),
     mt: MAP_TYPE_TOKENS[params.mt] ? params.mt : DEFAULT_MAP_TYPE,
   };
 }
@@ -692,21 +691,6 @@ function onBasemapChange(name) {
 function bindBasemapEvents(map) {
   if (!map?.leaflet) return;
   map.leaflet.on('basemapchange', (e) => onBasemapChange(e.name));
-}
-
-function currentURLParams() {
-  const u = new URLSearchParams(location.search);
-  const o = {};
-  for (const k of ['o', 'g', 's', 'a', 'tsc', 'tso', 'tf']) o[k] = u.get(k);
-  return {
-    o: o.o !== null ? o.o : DEFAULT_OPEN,
-    g: o.g ? parseInt(o.g, 10) : null,
-    s: o.s ? parseInt(o.s, 10) : null,
-    a: o.a ? parseInt(o.a, 10) : null,
-    tsc: o.tsc || null,
-    tso: o.tso !== '1',
-    tf: o.tf || '',
-  };
 }
 
 function applyParams(params) {
@@ -760,6 +744,8 @@ function applyParams(params) {
     if (sections.r.map) sections.r.map.setActiveAreaId(p.a);
     applyAreaFilter();
   }
+
+  applyTableState(table, p.t, DEFAULT_TREE_SORT);
 }
 
 function syncURL() {
@@ -785,18 +771,9 @@ function syncURL() {
     k => MAP_TYPE_TOKENS[k] === currentMapType);
   if (mtToken && mtToken !== DEFAULT_MAP_TYPE) u.set('mt', mtToken);
 
-  if (table) {
-    const sort = table.getSort();
-    if (sort) {
-      u.set('tsc', sort.column);
-      u.set('tso', sort.ascending ? '0' : '1');
-    }
-    const f = table.getSearchText();
-    if (f) u.set('tf', f);
-  }
+  writeTableState(u, table, TREE_TABLE_KEYS);
 
-  const qs = u.toString();
-  router.navigate(PAGE_PATH + (qs ? '?' + qs : ''), true);
+  navigateWithParams(PAGE_PATH, u);
 }
 
 // ---------------------------------------------------------------------------

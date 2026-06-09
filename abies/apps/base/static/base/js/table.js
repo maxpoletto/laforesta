@@ -121,6 +121,19 @@ export class TableWrapper {
     };
   }
 
+  /** Programmatically set sort without firing the onSort callback. */
+  setSort(sort) {
+    if (!this._table || !sort?.column) return;
+    const current = this.getSort();
+    if (current?.column === sort.column && current.ascending === sort.ascending) return;
+    const col = this._stColumns.find(c => c.key === sort.column);
+    if (!col) return;
+    const onSort = this._table.onSort;
+    this._table.onSort = null;
+    this._table.sort(sort.column, col.type || 'string', sort.ascending);
+    this._table.onSort = onSort;
+  }
+
   /** Current search text. */
   getSearchText() { return this._searchText; }
 

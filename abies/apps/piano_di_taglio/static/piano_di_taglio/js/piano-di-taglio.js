@@ -9,7 +9,6 @@
  */
 
 import * as cache from '../../base/js/cache.js';
-import * as router from '../../base/js/router.js';
 import { TableWrapper } from '../../base/js/table.js';
 import {
   show as showModal, showError, dismiss as dismissModal,
@@ -24,7 +23,6 @@ import {
   wireCollapsibleToggle, wireTabbedModal, showLoadingIn,
 } from '../../base/js/ui-widgets.js';
 import { canModify } from '../../base/js/roles.js';
-import { loadCSS, unloadCSS } from '../../base/js/page-css.js';
 import { installEscapeHandler } from '../../base/js/escape.js';
 import { cloneTemplate } from '../../base/js/templates.js';
 import { downloadFromURL } from '../../base/js/csv-export.js';
@@ -44,6 +42,10 @@ import {
   fmtVolume, fmtArea, fmtMass, parseDecimal,
 } from '../../base/js/format.js';
 import { buildPrelieviColumnDefs } from '../../base/js/prelievi-columns.js';
+import {
+  applyTableState, createPage, navigateWithParams, readTableState, tableParamKeys,
+  tableSort, writeTableState,
+} from '../../base/js/page-sync.js';
 
 const CSS_URL = '/static/piano_di_taglio/css/piano-di-taglio.css';
 
@@ -77,6 +79,9 @@ const PRELIEVI_ID = 'prelievi';
 const PRELIEVI_URL = '/api/prelievi/data/';
 
 const PAGE_PATH = '/piano-di-taglio';
+const DEFAULT_SECTION_SORT = { column: S.COL_YEAR_PLANNED, ascending: true };
+const FUSTAIA_TABLE_KEYS = tableParamKeys('f');
+const CEDUO_TABLE_KEYS = tableParamKeys('c');
 
 cache.register(PLANS_ID, PLANS_URL);
 cache.register(ITEMS_ID, ITEMS_URL);
@@ -89,8 +94,6 @@ let activePlanId = null;
 let plansData = null;
 let itemsData = null;
 let hypsoParamsData = null;
-let unsubPlans = null;
-let unsubItems = null;
 
 let descriptionEl = null;
 let planSelectEl = null;
@@ -137,42 +140,39 @@ const sections = {
 // Lifecycle
 // ---------------------------------------------------------------------------
 
-export async function mount(params) {
-  loadCSS(CSS_URL);
-  const el = document.getElementById('content');
-  showLoadingIn(el);
+const page = createPage({
+  cssUrl: CSS_URL,
+  load: loadPageData,
+  mount: mountPage,
+  unmount: destroyPage,
+  onQueryChange: applyParams,
+  visibleIds: [PLANS_ID, ITEMS_ID, HYPSO_PARAMS_ID],
+  onUpdate: [[PLANS_ID, onPlansUpdate], [ITEMS_ID, onItemsUpdate]],
+});
 
-  try {
-    const [p, i, r] = await Promise.all([
-      cache.load(PLANS_ID),
-      cache.load(ITEMS_ID),
-      cache.load(HYPSO_PARAMS_ID),
-    ]);
-    plansData = p;
-    itemsData = i;
-    hypsoParamsData = r;
-  } catch {
-    showError(S.ERROR_NETWORK);
-    return;
-  }
+export const mount = page.mount;
+export const unmount = page.unmount;
+export const onQueryChange = page.onQueryChange;
 
+async function loadPageData() {
+  const [p, i, r] = await Promise.all([
+    cache.load(PLANS_ID),
+    cache.load(ITEMS_ID),
+    cache.load(HYPSO_PARAMS_ID),
+  ]);
+  plansData = p;
+  itemsData = i;
+  hypsoParamsData = r;
+}
+
+function mountPage(el, params) {
   buildPage(el);
-  cache.setVisible([PLANS_ID, ITEMS_ID, HYPSO_PARAMS_ID]);
-  if (unsubPlans) unsubPlans();
-  if (unsubItems) unsubItems();
-  unsubPlans = cache.onUpdate(PLANS_ID, onPlansUpdate);
-  unsubItems = cache.onUpdate(ITEMS_ID, onItemsUpdate);
-
   applyParams(params);
 }
 
-export function unmount() {
-  unloadCSS(CSS_URL);
+function destroyPage() {
   if (disposeEscape) { disposeEscape(); disposeEscape = null; }
-  if (unsubPlans) { unsubPlans(); unsubPlans = null; }
-  if (unsubItems) { unsubItems(); unsubItems = null; }
   if (disposePageActions) { disposePageActions(); disposePageActions = null; }
-  cache.setVisible([]);
   destroyTables();
   destroyItemPrelieviTable();
   activePlanId = null;
@@ -199,10 +199,6 @@ function onItemsUpdate() {
   }
 }
 
-export function onQueryChange(params) {
-  applyParams(params);
-}
-
 // ---------------------------------------------------------------------------
 // URL params
 // ---------------------------------------------------------------------------
@@ -212,12 +208,8 @@ function readParams(params) {
     p: params.p ? parseInt(params.p, 10) : null,
     i: params.i ? parseInt(params.i, 10) : null,
     o: params.o !== undefined ? params.o : DEFAULT_OPEN,
-    ff: params.ff || '',
-    fsc: params.fsc || null,
-    fso: params.fso !== '1',
-    cf: params.cf || '',
-    csc: params.csc || null,
-    cso: params.cso !== '1',
+    f: readTableState(params, FUSTAIA_TABLE_KEYS),
+    c: readTableState(params, CEDUO_TABLE_KEYS),
   };
 }
 
@@ -240,6 +232,9 @@ function applyParams(params) {
     if (s.header && s.open !== shouldBeOpen) toggleSection(s, shouldBeOpen);
   }
 
+  applyTableState(sections.f.table, p.f, DEFAULT_SECTION_SORT);
+  applyTableState(sections.c.table, p.c, DEFAULT_SECTION_SORT);
+
   // Item view page — i=N opens the view/edit item page.
   if (p.i != null && p.i !== activeItemId) {
     openItemView(p.i);
@@ -258,30 +253,10 @@ function syncURL(push = false) {
   const openKeys = SECTION_KEYS.filter(k => sections[k].open).join('');
   if (openKeys !== DEFAULT_OPEN) u.set('o', openKeys);
 
-  const f = sections.f;
-  if (f.table) {
-    const sort = f.table.getSort();
-    if (sort) {
-      u.set('fsc', sort.column);
-      u.set('fso', sort.ascending ? '0' : '1');
-    }
-    const t = f.table.getSearchText();
-    if (t) u.set('ff', t);
-  }
+  writeTableState(u, sections.f.table, FUSTAIA_TABLE_KEYS);
+  writeTableState(u, sections.c.table, CEDUO_TABLE_KEYS);
 
-  const c = sections.c;
-  if (c.table) {
-    const sort = c.table.getSort();
-    if (sort) {
-      u.set('csc', sort.column);
-      u.set('cso', sort.ascending ? '0' : '1');
-    }
-    const t = c.table.getSearchText();
-    if (t) u.set('cf', t);
-  }
-
-  const qs = u.toString();
-  router.navigate(PAGE_PATH + (qs ? '?' + qs : ''), !push);
+  navigateWithParams(PAGE_PATH, u, !push);
 }
 
 // ---------------------------------------------------------------------------
@@ -392,15 +367,10 @@ function buildTable(s, searchInput) {
   if (s.table) { s.table.destroy(); s.table = null; }
   if (!s.host || !itemsData) return;
 
-  const u = new URLSearchParams(location.search);
-  const isFustaia = (s === sections.f);
-  const sortColParam = isFustaia ? 'fsc' : 'csc';
-  const sortOrdParam = isFustaia ? 'fso' : 'cso';
-  const searchParam  = isFustaia ? 'ff'  : 'cf';
-
-  const sortCol = u.get(sortColParam) || S.COL_YEAR_PLANNED;
-  const sortAsc = u.get(sortOrdParam) !== '1';
-  const searchText = u.get(searchParam) || '';
+  const state = readTableState(
+    new URLSearchParams(location.search),
+    s === sections.f ? FUSTAIA_TABLE_KEYS : CEDUO_TABLE_KEYS,
+  );
 
   const modify = canModify();
   s.table = new TableWrapper({
@@ -413,8 +383,8 @@ function buildTable(s, searchInput) {
       onEdit: (rowId) => navigateToItem(rowId),
       onDelete: (rowId) => confirmDeleteItem(rowId),
     } : {},
-    sort: { column: sortCol, ascending: sortAsc },
-    searchText,
+    sort: tableSort(state, DEFAULT_SECTION_SORT),
+    searchText: state.searchText,
     csvFilename: s.csvFilename,
     labels: S.TABLE_LABELS,
     csvFormat: S.TABLE_CSV_FORMAT,
