@@ -45,7 +45,8 @@ import {
   satelliteDiffValue, satelliteValue,
 } from './bosco-satellite.js';
 import {
-  aggregateDendrometry, dendrometrySpecies, regionMetadata,
+  aggregateDendrometry, dendrometryBarChartData, dendrometryLineChartData,
+  dendrometrySpecies, dendrometryTreeTotal, regionMetadata,
 } from './bosco-detail.js';
 import {
   buildPreservedTrees, filterPaiTrees, paiParcelItems, paiSpeciesItems, speciesColorMap,
@@ -126,6 +127,13 @@ let metadataHost = null;
 let dendrometryHost = null;
 let dendrometrySpeciesHost = null;
 let dendrometryPerHa = null;
+let dendrometryStatus = null;
+let dendrometryChartGrid = null;
+let dendrometryTreeCanvas = null;
+let dendrometryVolumeCanvas = null;
+let dendrometryBasalAreaCanvas = null;
+let dendrometryIncrementCanvas = null;
+let dendrometryCharts = {};
 let productionHost = null;
 let productionCanvas = null;
 let productionSummary = null;
@@ -217,6 +225,12 @@ function mountPage(el, params) {
   dendrometryHost = el.querySelector('[data-target="dendrometry"]');
   dendrometrySpeciesHost = el.querySelector('[data-target="dendrometry-species"]');
   dendrometryPerHa = el.querySelector('[data-role="dendrometry-per-ha"]');
+  dendrometryStatus = el.querySelector('[data-target="dendrometry-status"]');
+  dendrometryChartGrid = el.querySelector('[data-target="dendrometry-chart-grid"]');
+  dendrometryTreeCanvas = el.querySelector('[data-target="dendrometry-tree-count-chart"]');
+  dendrometryVolumeCanvas = el.querySelector('[data-target="dendrometry-volume-chart"]');
+  dendrometryBasalAreaCanvas = el.querySelector('[data-target="dendrometry-basal-area-chart"]');
+  dendrometryIncrementCanvas = el.querySelector('[data-target="dendrometry-increment-chart"]');
   productionHost = el.querySelector('[data-target="production-chart-host"]');
   productionCanvas = el.querySelector('[data-target="production-chart"]');
   productionSummary = el.querySelector('[data-target="production-summary"]');
@@ -243,6 +257,10 @@ function destroyPage() {
   parcelAverageToggle = evolutionCadastralToggle = diffLegendEl = legendEl = null;
   detailOverlay = detailTitle = detailScopeLabel = metadataHost = null;
   dendrometryHost = dendrometrySpeciesHost = dendrometryPerHa = null;
+  dendrometryStatus = dendrometryChartGrid = null;
+  dendrometryTreeCanvas = dendrometryVolumeCanvas = null;
+  dendrometryBasalAreaCanvas = dendrometryIncrementCanvas = null;
+  destroyDendrometryCharts();
   productionHost = productionCanvas = productionSummary = null;
   productionPerHa = productionMonthly = null;
   destroyProductionChart();
@@ -412,6 +430,10 @@ function wireDetailControls() {
     ?.addEventListener('click', () => setPaiFilter('ps', null, paiSpeciesHost));
   root?.querySelector('[data-action="hide-all-species"]')
     ?.addEventListener('click', () => setPaiFilter('ps', [], paiSpeciesHost));
+  root?.querySelector('[data-action="show-all-dendrometry-species"]')
+    ?.addEventListener('click', () => setDendrometrySpeciesFilter(null));
+  root?.querySelector('[data-action="hide-all-dendrometry-species"]')
+    ?.addEventListener('click', () => setDendrometrySpeciesFilter([]));
   root?.querySelector('[data-action="add-pai"]')
     ?.addEventListener('click', () => showPaiForm());
 }
@@ -1117,23 +1139,28 @@ function renderDendrometry() {
   const scope = detailScopeForState();
   if (!scope || detailOverlay?.hidden) return;
   if (!dendrometryData) {
-    dendrometryHost.textContent = S.LOADING;
+    destroyDendrometryCharts();
+    if (dendrometryChartGrid) dendrometryChartGrid.hidden = true;
+    if (dendrometryStatus) dendrometryStatus.textContent = S.LOADING;
     loadDendrometry().then(renderDendrometry).catch(() => {
-      if (dendrometryHost) dendrometryHost.textContent = 'Dendrometria non disponibile.';
+      if (dendrometryStatus) dendrometryStatus.textContent = 'Dendrometria non disponibile.';
     });
     return;
   }
 
   renderDendrometrySpecies(scope);
-  const rows = aggregateDendrometry(dendrometryData, {
-    region: scope.region,
-    parcelId: scope.parcelId,
-  }, {
+  const baseScope = { region: scope.region, parcelId: scope.parcelId };
+  const filter = currentState?.detailSpeciesIds;
+  const rows = aggregateDendrometry(dendrometryData, baseScope, {
     areaHa: scope.areaHa,
     perHa: dendrometryPerHa?.checked !== false,
-    speciesIds: currentState?.detailSpeciesIds || [],
+    speciesIds: filter,
   });
-  renderDendrometryRows(rows);
+  const rawRows = aggregateDendrometry(dendrometryData, baseScope, {
+    perHa: false,
+    speciesIds: filter,
+  });
+  renderDendrometryCharts(rows, rawRows);
 }
 
 function loadDendrometry() {
@@ -1154,14 +1181,15 @@ function renderDendrometrySpecies(scope) {
     dendrometrySpeciesHost.textContent = 'Nessun dato dendrometrico.';
     return;
   }
-  const selected = new Set(currentState?.detailSpeciesIds || []);
+  const selectedIds = currentState?.detailSpeciesIds;
+  const selected = new Set(selectedIds || []);
   for (const item of species) {
     const label = document.createElement('label');
     label.className = 'bosco-check';
     const input = document.createElement('input');
     input.type = 'checkbox';
     input.value = String(item.id);
-    input.checked = !selected.size || selected.has(item.id);
+    input.checked = selectedIds == null || selected.has(item.id);
     input.addEventListener('change', () => updateDendrometrySpeciesFilter(species));
     const text = document.createElement('span');
     text.textContent = `${item.name} (${fmtInt(item.count)})`;
@@ -1173,46 +1201,81 @@ function renderDendrometrySpecies(scope) {
 function updateDendrometrySpeciesFilter(allSpecies) {
   const checked = [...dendrometrySpeciesHost.querySelectorAll('input:checked')]
     .map(input => Number(input.value));
+  setDendrometrySpeciesFilter(checked.length === allSpecies.length ? null : checked);
+}
+
+function setDendrometrySpeciesFilter(selected) {
   const params = new URLSearchParams(location.search);
-  if (!checked.length || checked.length === allSpecies.length) params.delete('ds');
-  else params.set('ds', checked.join(','));
+  if (selected == null) params.delete('ds');
+  else params.set('ds', selected.join(','));
   navigateWithParams(PAGE_PATH, params, true);
 }
 
-function renderDendrometryRows(rows) {
-  dendrometryHost.replaceChildren();
+function renderDendrometryCharts(rows, rawRows) {
+  if (!dendrometryStatus || !dendrometryChartGrid) return;
   if (!rows.length) {
-    dendrometryHost.textContent = 'Nessun dato dendrometrico.';
+    destroyDendrometryCharts();
+    dendrometryChartGrid.hidden = true;
+    dendrometryStatus.textContent = 'Nessun dato dendrometrico.';
     return;
   }
-  const table = document.createElement('table');
-  table.className = 'bosco-plain-table';
-  const thead = document.createElement('thead');
-  const header = document.createElement('tr');
-  for (const label of [S.COL_SPECIES, S.COL_DIAM_CLASS_CM, S.COL_N_TREES,
-    S.COL_VOLUME_M3, S.COL_BASAL_AREA_M2, S.COL_AVG_H_M, S.COL_INCREMENT_PCT]) {
-    const th = document.createElement('th');
-    th.textContent = label;
-    header.appendChild(th);
-  }
-  thead.appendChild(header);
-  table.appendChild(thead);
 
-  const tbody = document.createElement('tbody');
+  dendrometryChartGrid.hidden = false;
+  dendrometryStatus.textContent = `${fmtInt(dendrometryTreeTotal(rawRows))} alberi`;
   const perHa = dendrometryPerHa?.checked !== false;
-  for (const row of rows) {
-    const tr = document.createElement('tr');
-    appendCell(tr, row.species);
-    appendCell(tr, fmtInt(row.diameterClassCm));
-    appendCell(tr, perHa ? fmtDecimal2(row.treeCount) : fmtInt(row.treeCount));
-    appendCell(tr, perHa ? `${fmtDecimal2(row.volumeM3)} m³/ha` : fmtVolume(row.volumeM3));
-    appendCell(tr, perHa ? `${fmtDecimal2(row.basalAreaM2)} m²/ha` : `${fmtDecimal2(row.basalAreaM2)} m²`);
-    appendCell(tr, row.avgHeightM == null ? '' : `${fmtDecimal1(row.avgHeightM)} m`);
-    appendCell(tr, row.incrementPct == null ? '' : `${fmtDecimal2(row.incrementPct)} %`);
-    tbody.appendChild(tr);
+  dendrometryCharts.treeCount = renderStackedBar(
+    dendrometryTreeCanvas,
+    dendrometryBarChartData(rows, 'treeCount', perHa ? 'Numero alberi/ha' : 'Numero alberi'),
+    dendrometryCharts.treeCount,
+  );
+  dendrometryCharts.volume = renderStackedBar(
+    dendrometryVolumeCanvas,
+    dendrometryBarChartData(rows, 'volumeM3', perHa ? 'Volume (m³/ha)' : S.COL_VOLUME_M3),
+    dendrometryCharts.volume,
+  );
+  dendrometryCharts.basalArea = renderStackedBar(
+    dendrometryBasalAreaCanvas,
+    dendrometryBarChartData(rows, 'basalAreaM2', perHa ? 'Area bas. (m²/ha)' : S.COL_BASAL_AREA_M2),
+    dendrometryCharts.basalArea,
+  );
+  dendrometryCharts.increment = renderLineChart(
+    dendrometryIncrementCanvas,
+    dendrometryLineChartData(rows, 'incrementPct', S.COL_INCREMENT_PCT),
+    dendrometryCharts.increment,
+  );
+}
+
+function renderLineChart(canvas, chartData, existing) {
+  if (!canvas) return existing || null;
+  if (existing) {
+    existing.data.labels = chartData.labels;
+    existing.data.datasets = chartData.datasets;
+    if (existing.options?.scales?.y?.title) existing.options.scales.y.title.text = chartData.yTitle;
+    existing.update('none');
+    return existing;
   }
-  table.appendChild(tbody);
-  dendrometryHost.appendChild(table);
+
+  return new window.Chart(canvas, {
+    type: 'line',
+    data: { labels: chartData.labels, datasets: chartData.datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 300 },
+      scales: {
+        y: {
+          beginAtZero: true,
+          title: { display: true, text: chartData.yTitle },
+        },
+      },
+      plugins: { legend: { position: 'bottom' } },
+    },
+  });
+}
+
+function destroyDendrometryCharts() {
+  for (const chart of Object.values(dendrometryCharts)) chart?.destroy?.();
+  dendrometryCharts = {};
 }
 
 function renderProduction() {
@@ -1260,12 +1323,6 @@ function destroyProductionChart() {
     productionChart.destroy();
     productionChart = null;
   }
-}
-
-function appendCell(row, text) {
-  const td = document.createElement('td');
-  td.textContent = text == null ? '' : String(text);
-  row.appendChild(td);
 }
 
 

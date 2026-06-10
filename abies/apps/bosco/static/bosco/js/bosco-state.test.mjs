@@ -48,7 +48,7 @@ assertEqual(state.useCadastralArea, false, 'readBoscoParams: default cadastral f
 assertEqual(state.harvestPerHa, false, 'readBoscoParams: default per-ha flag');
 assertEqual(state.detailMode, null, 'readBoscoParams: no detail overlay');
 assertEqual(state.openSections, ['m'], 'readBoscoParams: default detail sections');
-assertEqual(state.detailSpeciesIds, [], 'readBoscoParams: default detail species');
+assertEqual(state.detailSpeciesIds, null, 'readBoscoParams: default detail species');
 assertEqual(state.paiParcelIds, null, 'readBoscoParams: default PAI parcels');
 assertEqual(state.paiSpeciesIds, null, 'readBoscoParams: default PAI species');
 
@@ -71,6 +71,9 @@ assertEqual(state.openSections, ['d', 'm'], 'readBoscoParams: detail sections');
 assertEqual(state.detailSpeciesIds, [3, 5], 'readBoscoParams: detail species ids');
 assertEqual(state.paiParcelIds, [7, 8], 'readBoscoParams: PAI parcel ids');
 assertEqual(state.paiSpeciesIds, [], 'readBoscoParams: explicit empty PAI species');
+
+state = readBoscoParams({ ds: '' }, [7, 8]);
+assertEqual(state.detailSpeciesIds, [], 'readBoscoParams: explicit empty detail species');
 
 state = readBoscoParams({ c: '99', m: '9', mt: 'bad', mc: '38,16', q: '99', v: '9' }, [7, 8]);
 assertEqual(state.regionId, 7, 'readBoscoParams: stale region fallback');

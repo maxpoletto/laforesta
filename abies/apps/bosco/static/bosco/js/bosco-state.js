@@ -89,7 +89,7 @@ export function readBoscoParams(params, regionIds = []) {
     detailMode,
     parcelId: intParam(params, 'pa'),
     openSections: parseSectionTokens(paramValue(params, 'vo')),
-    detailSpeciesIds: parseIdList(paramValue(params, 'ds')),
+    detailSpeciesIds: parseOptionalIdList(paramValue(params, 'ds')),
     paiParcelIds: parseOptionalIdList(paramValue(params, 'pp')),
     paiSpeciesIds: parseOptionalIdList(paramValue(params, 'ps')),
     hasRegionParam: hasParam(params, 'c'),

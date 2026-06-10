@@ -1,6 +1,11 @@
 import * as S from '../../base/js/strings.js';
 import { COLUMNS, ROWS } from '../../base/js/constants.js';
 
+const CHART_COLORS = [
+  '#2f8f58', '#1565c0', '#d7aa27', '#8d3f86', '#c94f4f',
+  '#00838f', '#6b7f2a', '#6d4c41', '#546e7a', '#ad5a7a',
+];
+
 function colMap(digest) {
   const out = {};
   digest[COLUMNS].forEach((name, idx) => { out[name] = idx; });
@@ -34,9 +39,11 @@ export function regionMetadata(entries) {
   return { count, areaHa, cadastralAreaHa, aveAge: ageWeighted, altMin, altMax, typeCounts };
 }
 
-export function aggregateDendrometry(digest, scope, { areaHa = null, perHa = true, speciesIds = [] } = {}) {
+export function aggregateDendrometry(digest, scope, { areaHa = null, perHa = true, speciesIds = null } = {}) {
   if (!digest) return [];
   const c = colMap(digest);
+  const hasSpeciesFilter = Array.isArray(speciesIds);
+  if (hasSpeciesFilter && !speciesIds.length) return [];
   const allowedSpecies = new Set(speciesIds || []);
   const groups = new Map();
 
@@ -44,7 +51,7 @@ export function aggregateDendrometry(digest, scope, { areaHa = null, perHa = tru
     if (scope.parcelId != null && row[c[S.COL_PARCEL_ID]] !== scope.parcelId) continue;
     if (scope.parcelId == null && scope.region && row[c[S.COL_REGION]] !== scope.region) continue;
     const speciesId = row[c[S.COL_SPECIES_ID]];
-    if (allowedSpecies.size && !allowedSpecies.has(speciesId)) continue;
+    if (hasSpeciesFilter && !allowedSpecies.has(speciesId)) continue;
 
     const key = `${speciesId}|${row[c[S.COL_DIAM_CLASS_CM]]}`;
     const g = groups.get(key) || {
@@ -101,6 +108,65 @@ export function dendrometrySpecies(digest, scope) {
     out.set(row.speciesId, item);
   }
   return [...out.values()].sort((a, b) => a.name.localeCompare(b.name, 'it'));
+}
+
+
+export function dendrometryBarChartData(rows, metric, yTitle) {
+  const { labels, species } = dendrometryChartAxes(rows);
+  const values = new Map(rows.map(row => [
+    dendrometryChartKey(row.speciesId, row.diameterClassCm), num(row[metric]),
+  ]));
+  return {
+    labels,
+    yTitle,
+    datasets: species.map((item, idx) => ({
+      label: item.name,
+      data: labels.map(label => round(values.get(dendrometryChartKey(item.id, Number(label))) || 0, 4)),
+      backgroundColor: CHART_COLORS[idx % CHART_COLORS.length],
+    })),
+  };
+}
+
+export function dendrometryLineChartData(rows, metric, yTitle) {
+  const { labels, species } = dendrometryChartAxes(rows);
+  const values = new Map(rows.map(row => [
+    dendrometryChartKey(row.speciesId, row.diameterClassCm),
+    maybeNum(row[metric]),
+  ]));
+  return {
+    labels,
+    yTitle,
+    datasets: species.map((item, idx) => ({
+      label: item.name,
+      data: labels.map(label => values.get(dendrometryChartKey(item.id, Number(label))) ?? null),
+      borderColor: CHART_COLORS[idx % CHART_COLORS.length],
+      backgroundColor: CHART_COLORS[idx % CHART_COLORS.length],
+      tension: 0.25,
+      spanGaps: true,
+    })),
+  };
+}
+
+export function dendrometryTreeTotal(rows) {
+  return Math.round(sum(rows.map(row => row.treeCount)));
+}
+
+function dendrometryChartAxes(rows) {
+  const labels = [...new Set(rows.map(row => row.diameterClassCm))]
+    .sort((a, b) => a - b)
+    .map(String);
+  const bySpecies = new Map();
+  for (const row of rows) {
+    if (!bySpecies.has(row.speciesId)) bySpecies.set(row.speciesId, row.species);
+  }
+  const species = [...bySpecies.entries()]
+    .map(([id, name]) => ({ id, name }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'it'));
+  return { labels, species };
+}
+
+function dendrometryChartKey(speciesId, diameterClassCm) {
+  return `${speciesId}|${diameterClassCm}`;
 }
 
 function weightedAverage(pairs) {
