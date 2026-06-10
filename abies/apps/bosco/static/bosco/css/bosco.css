@@ -160,6 +160,14 @@
   background: linear-gradient(90deg, #f5de5b, #20714b);
 }
 
+.bosco-gradient.satellite {
+  background: linear-gradient(90deg, #8b5a2b, #f5ebc8 50%, #006400);
+}
+
+.bosco-gradient.diff {
+  background: linear-gradient(90deg, #b41e1e, #fff 50%, #1e821e);
+}
+
 .bosco-legend-labels {
   display: flex;
   justify-content: space-between;

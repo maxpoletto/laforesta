@@ -40,6 +40,10 @@ assertEqual(state.mode, '1', 'readBoscoParams: default mode');
 assertEqual(state.mt, 's', 'readBoscoParams: default map token');
 assertEqual(state.center, null, 'readBoscoParams: no partial view');
 assertEqual(state.q, '1', 'readBoscoParams: default characteristic');
+assertEqual(state.evolutionMetric, '1', 'readBoscoParams: default evolution metric');
+assertEqual(state.evolutionDate1, null, 'readBoscoParams: default evolution date 1');
+assertEqual(state.evolutionDate2, null, 'readBoscoParams: default evolution date 2');
+assertEqual(state.parcelAverage, true, 'readBoscoParams: parcel means supported');
 assertEqual(state.useCadastralArea, false, 'readBoscoParams: default cadastral flag');
 assertEqual(state.harvestPerHa, false, 'readBoscoParams: default per-ha flag');
 assertEqual(state.detailMode, null, 'readBoscoParams: no detail overlay');
@@ -58,6 +62,7 @@ assertEqual(state.basemap, 'topo', 'readBoscoParams: basemap');
 assertEqual(state.center, [38, 16], 'readBoscoParams: restored center');
 assertEqual(state.zoom, 12, 'readBoscoParams: restored zoom');
 assertEqual(state.q, '5', 'readBoscoParams: characteristic');
+assertEqual(state.evolutionMetric, '1', 'readBoscoParams: invalid evolution metric fallback outside m2');
 assertEqual(state.useCadastralArea, true, 'readBoscoParams: cadastral flag');
 assertEqual(state.harvestPerHa, true, 'readBoscoParams: per-ha flag');
 assertEqual(state.detailMode, '1', 'readBoscoParams: parcel detail overlay');
@@ -74,6 +79,16 @@ assertEqual(state.mt, 's', 'readBoscoParams: invalid map fallback');
 assertEqual(state.center, null, 'readBoscoParams: center ignored without zoom');
 assertEqual(state.q, '1', 'readBoscoParams: invalid characteristic fallback');
 assertEqual(state.detailMode, null, 'readBoscoParams: invalid detail fallback');
+
+state = readBoscoParams({ c: '8', m: '2', q: '3', d1: '20240102', d2: '2024-07' }, [7, 8]);
+assertEqual(state.mode, '2', 'readBoscoParams: evolution mode');
+assertEqual(state.q, '3', 'readBoscoParams: evolution q');
+assertEqual(state.evolutionMetric, '3', 'readBoscoParams: evolution metric');
+assertEqual(state.evolutionDate1, '2024-01-02', 'readBoscoParams: compact date');
+assertEqual(state.evolutionDate2, '2024-07-01', 'readBoscoParams: month date');
+
+state = readBoscoParams({ m: '2', q: '8' }, [7, 8]);
+assertEqual(state.q, '1', 'readBoscoParams: invalid evolution q fallback');
 
 const params = new URLSearchParams();
 writeMapView(params, [38.1, 16.2], 13);

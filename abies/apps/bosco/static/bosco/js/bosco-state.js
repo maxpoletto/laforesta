@@ -1,8 +1,13 @@
+import {
+  DEFAULT_EVOLUTION_METRIC, evolutionMetricId, normalizeDateParam,
+} from './bosco-satellite.js';
+
 const DEFAULT_MODE = '1';
 const DEFAULT_MAP_TYPE_TOKEN = 's';
 const DEFAULT_CHARACTERISTIC = '1';
 const DEFAULT_DETAIL_SECTIONS = ['m'];
 const VALID_DETAIL_SECTIONS = new Set(['m', 'd', 'p']);
+const VALID_CHARACTERISTICS = new Set(['1', '2', '3', '4', '5', '6', '7', '8']);
 
 export const MAP_TYPE_TOKENS = { o: 'osm', t: 'topo', s: 'satellite' };
 export const MAP_TYPE_BY_NAME = { osm: 'o', topo: 't', satellite: 's' };
@@ -60,8 +65,9 @@ export function readBoscoParams(params, regionIds = []) {
   const center = parseCenter(paramValue(params, 'mc'));
 
   const qRaw = String(paramValue(params, 'q') || DEFAULT_CHARACTERISTIC);
-  const q = ['1', '2', '3', '4', '5', '6', '7', '8'].includes(qRaw)
-    ? qRaw : DEFAULT_CHARACTERISTIC;
+  const characteristic = VALID_CHARACTERISTICS.has(qRaw) ? qRaw : DEFAULT_CHARACTERISTIC;
+  const evolutionMetric = evolutionMetricId(qRaw || DEFAULT_EVOLUTION_METRIC);
+  const q = mode === '2' ? evolutionMetric : characteristic;
 
   const detailRaw = String(paramValue(params, 'v') || '');
   const detailMode = ['1', '2'].includes(detailRaw) ? detailRaw : null;
@@ -74,6 +80,10 @@ export function readBoscoParams(params, regionIds = []) {
     center: center && zoom !== null ? center : null,
     zoom: center && zoom !== null ? zoom : null,
     q,
+    evolutionMetric,
+    evolutionDate1: normalizeDateParam(paramValue(params, 'd1')) || null,
+    evolutionDate2: normalizeDateParam(paramValue(params, 'd2')) || null,
+    parcelAverage: true,
     useCadastralArea: paramValue(params, 'fc') === '1',
     harvestPerHa: paramValue(params, 'fh') === '1',
     detailMode,

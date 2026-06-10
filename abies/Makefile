@@ -89,6 +89,7 @@ test-js:
 	node apps/base/static/base/js/cache.test.mjs
 	node apps/base/static/base/js/page-sync.test.mjs
 	node apps/bosco/static/bosco/js/bosco-state.test.mjs
+	node apps/bosco/static/bosco/js/bosco-satellite.test.mjs
 	node apps/bosco/static/bosco/js/bosco-characteristics.test.mjs
 	node apps/bosco/static/bosco/js/bosco-detail.test.mjs
 	node apps/bosco/static/bosco/js/bosco-pai.test.mjs

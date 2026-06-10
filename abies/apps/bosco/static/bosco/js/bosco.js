@@ -32,6 +32,11 @@ import {
   parcelKey,
 } from './bosco-characteristics.js';
 import {
+  EVOLUTION_METRICS, SATELLITE_LAYERS, availableMonths, characteristicSatelliteLayer, dateFromMonthValue,
+  dateParam, diffColor, divergingDomain, monthValue, pickDate, satelliteColor,
+  satelliteDiffValue, satelliteValue,
+} from './bosco-satellite.js';
+import {
   aggregateDendrometry, dendrometrySpecies, regionMetadata,
 } from './bosco-detail.js';
 import {
@@ -57,6 +62,7 @@ const TERRENI_GEOJSON_URL = '/api/geo/terreni.geojson';
 const VALID_MODES = ['1', '2', '3'];
 const VALID_MAP_TYPES = ['o', 't', 's'];
 const VALID_CHARACTERISTICS = ['1', '2', '3', '4', '5', '6', '7', '8'];
+const VALID_EVOLUTION_METRICS = ['1', '2', '3', '4'];
 const SATELLITE_CHARACTERISTICS = new Set(['6', '7', '8']);
 const DETAIL_SECTIONS = ['m', 'd', 'p'];
 
@@ -93,6 +99,12 @@ let characteristicSelect = null;
 let cadastralToggle = null;
 let perHaToggle = null;
 let perHaRow = null;
+let evolutionSelect = null;
+let date1Input = null;
+let date2Input = null;
+let parcelAverageToggle = null;
+let evolutionCadastralToggle = null;
+let diffLegendEl = null;
 let legendEl = null;
 let statusEl = null;
 let detailOverlay = null;
@@ -113,6 +125,9 @@ let dendrometryData = null;
 let dendrometryLoad = null;
 let preservedData = null;
 let preservedLoad = null;
+let satelliteData = null;
+let satelliteRegionId = null;
+let satelliteLoad = null;
 let paiMarkerLayer = null;
 let parcelsGeo = null;
 let map = null;
@@ -121,6 +136,7 @@ let regionById = new Map();
 let currentState = null;
 let suppressViewSync = false;
 let characteristicRenderSeq = 0;
+let evolutionRenderSeq = 0;
 
 const page = createPage({
   cssUrl: CSS_URL,
@@ -168,6 +184,12 @@ function mountPage(el, params) {
   cadastralToggle = el.querySelector('[data-role="cadastral-toggle"]');
   perHaToggle = el.querySelector('[data-role="per-ha-toggle"]');
   perHaRow = el.querySelector('[data-role="per-ha-row"]');
+  evolutionSelect = el.querySelector('[data-role="evolution-select"]');
+  date1Input = el.querySelector('[data-role="date1"]');
+  date2Input = el.querySelector('[data-role="date2"]');
+  parcelAverageToggle = el.querySelector('[data-role="parcel-average-toggle"]');
+  evolutionCadastralToggle = el.querySelector('[data-role="evolution-cadastral-toggle"]');
+  diffLegendEl = el.querySelector('[data-target="diff-legend"]');
   legendEl = el.querySelector('[data-target="legend"]');
   statusEl = el.querySelector('[data-role="status"]');
   detailOverlay = el.querySelector('[data-target="detail-overlay"]');
@@ -193,18 +215,22 @@ function destroyPage() {
   el.replaceChildren();
   document.removeEventListener('keydown', onDetailKeyDown);
   root = mapHost = regionSelect = modeGroup = statusEl = null;
-  characteristicSelect = cadastralToggle = perHaToggle = perHaRow = legendEl = null;
+  characteristicSelect = cadastralToggle = perHaToggle = perHaRow = null;
+  evolutionSelect = date1Input = date2Input = null;
+  parcelAverageToggle = evolutionCadastralToggle = diffLegendEl = legendEl = null;
   detailOverlay = detailTitle = detailScopeLabel = metadataHost = null;
   dendrometryHost = dendrometrySpeciesHost = dendrometryPerHa = null;
   paiParcelsHost = paiSpeciesHost = null;
   detailSections = {};
   parcelsData = futureData = prelieviData = dendrometryData = preservedData = parcelsGeo = null;
   prelieviLoad = dendrometryLoad = preservedLoad = null;
+  satelliteData = satelliteRegionId = satelliteLoad = null;
   paiMarkerLayer = null;
   regions = [];
   regionById = new Map();
   currentState = null;
   characteristicRenderSeq++;
+  evolutionRenderSeq++;
 }
 
 function onParcelsUpdate(data) {
@@ -297,6 +323,30 @@ function wireControls() {
     setFlagParam(params, 'fh', perHaToggle.checked);
     navigateWithParams(PAGE_PATH, params, true);
   });
+
+  evolutionSelect?.addEventListener('change', () => {
+    const params = new URLSearchParams(location.search);
+    params.set('m', '2');
+    params.set('q', evolutionSelect.value);
+    navigateWithParams(PAGE_PATH, params, true);
+  });
+
+  date1Input?.addEventListener('change', () => updateEvolutionDateParam('d1', date1Input));
+  date2Input?.addEventListener('change', () => updateEvolutionDateParam('d2', date2Input));
+
+  evolutionCadastralToggle?.addEventListener('change', () => {
+    const params = new URLSearchParams(location.search);
+    setFlagParam(params, 'fc', evolutionCadastralToggle.checked);
+    navigateWithParams(PAGE_PATH, params, true);
+  });
+}
+
+function updateEvolutionDateParam(key, input) {
+  const params = new URLSearchParams(location.search);
+  const value = dateParam(dateFromMonthValue(input.value));
+  if (value) params.set(key, value);
+  else params.delete(key);
+  navigateWithParams(PAGE_PATH, params, true);
 }
 
 function wireDetailControls() {
@@ -344,6 +394,7 @@ function applyParams(params) {
   if (modeInput) modeInput.checked = true;
   updateModePanels(state.mode);
   updateCharacteristicControls(state);
+  updateEvolutionControls(state);
 
   const needsMapRebuild = !map
     || map._boscoRegionId !== state.regionId
@@ -354,6 +405,8 @@ function applyParams(params) {
     updateMapDisplayAreas(state);
     refreshCharacteristicLayer();
   }
+  if (state.mode === '2') renderEvolutionMode();
+  else clearEvolutionLegend();
   syncDetailOverlay(state);
   if (state.mode === '3') renderPaiMode();
   else clearPaiMarkers();
@@ -375,6 +428,37 @@ function updateCharacteristicControls(state) {
   if (perHaToggle) {
     perHaToggle.checked = harvest && state.harvestPerHa;
     perHaToggle.disabled = !harvest;
+  }
+}
+
+function updateEvolutionControls(state) {
+  if (evolutionSelect) evolutionSelect.value = state.evolutionMetric;
+  if (parcelAverageToggle) {
+    parcelAverageToggle.checked = true;
+    parcelAverageToggle.disabled = true;
+    parcelAverageToggle.title = 'Le medie per particella usano i dati precomputati disponibili.';
+  }
+  if (evolutionCadastralToggle) evolutionCadastralToggle.checked = state.useCadastralArea;
+
+  const dates = satelliteRegionId === state.regionId ? satelliteData?.timeseries?.dates : null;
+  const date1 = dates ? pickDate(dates, state.evolutionDate1, 'earliest') : state.evolutionDate1;
+  const date2 = dates ? pickDate(dates, state.evolutionDate2, 'latest') : state.evolutionDate2;
+  updateEvolutionDateControls(date1, date2, dates);
+}
+
+function updateEvolutionDateControls(date1, date2, dates = null) {
+  if (date1Input) date1Input.value = monthValue(date1);
+  if (date2Input) date2Input.value = monthValue(date2);
+  const months = availableMonths(dates || []);
+  for (const input of [date1Input, date2Input]) {
+    if (!input) continue;
+    if (months.length) {
+      input.min = months[0];
+      input.max = months[months.length - 1];
+    } else {
+      input.removeAttribute('min');
+      input.removeAttribute('max');
+    }
   }
 }
 
@@ -485,8 +569,7 @@ function refreshCharacteristicLayer() {
 
   updateCharacteristicControls(currentState);
   if (SATELLITE_CHARACTERISTICS.has(currentState.q)) {
-    resetParcelStyles();
-    renderMessageLegend('Dati satellitari: layer in preparazione.');
+    renderSatelliteCharacteristic(seq);
     return;
   }
 
@@ -540,6 +623,175 @@ function loadPrelievi() {
   return prelieviLoad;
 }
 
+function renderSatelliteCharacteristic(seq) {
+  const layer = characteristicSatelliteLayer(currentState?.q);
+  if (!layer || !map?._boscoEntries || !currentState) return;
+  if (!satelliteReady(currentState.regionId)) {
+    resetParcelStyles();
+    renderMessageLegend('Caricamento dati satellitari...');
+    loadSatellite(currentState.regionId).then(() => {
+      if (seq === characteristicRenderSeq) refreshCharacteristicLayer();
+    }).catch(() => {
+      if (seq === characteristicRenderSeq) renderMessageLegend('Dati satellitari non disponibili.');
+    });
+    return;
+  }
+
+  const date = pickDate(satelliteData.timeseries?.dates, null, 'latest');
+  if (!date) {
+    resetParcelStyles();
+    renderMessageLegend('Dati satellitari non disponibili.');
+    return;
+  }
+
+  const entries = map._boscoEntries;
+  const values = entries.map(entry => satelliteValue(satelliteData.timeseries, entry.key, layer, date));
+  if (!continuousDomain(values)) {
+    resetParcelStyles();
+    renderMessageLegend('Nessun dato satellitare disponibile.');
+    return;
+  }
+
+  for (const entry of entries) {
+    const value = satelliteValue(satelliteData.timeseries, entry.key, layer, date);
+    applyEntryStyle(entry, value == null ? NO_DATA_STYLE : satelliteValueStyle(value), value);
+  }
+  renderSatelliteLegend(legendEl, layer, date);
+}
+
+function renderEvolutionMode() {
+  const seq = ++evolutionRenderSeq;
+  if (!map?._boscoEntries || currentState?.mode !== '2') return;
+  updateEvolutionControls(currentState);
+
+  const metric = EVOLUTION_METRICS[currentState.evolutionMetric];
+  if (!metric?.satellite) {
+    resetParcelStyles();
+    renderLegendMessage(diffLegendEl, 'Prelievo in preparazione.');
+    return;
+  }
+
+  if (!satelliteReady(currentState.regionId)) {
+    resetParcelStyles();
+    renderLegendMessage(diffLegendEl, 'Caricamento dati satellitari...');
+    loadSatellite(currentState.regionId).then(() => {
+      if (seq === evolutionRenderSeq) renderEvolutionMode();
+    }).catch(() => {
+      if (seq === evolutionRenderSeq) renderLegendMessage(diffLegendEl, 'Dati satellitari non disponibili.');
+    });
+    return;
+  }
+
+  const dates = satelliteData.timeseries?.dates || [];
+  const date1 = pickDate(dates, currentState.evolutionDate1, 'earliest');
+  const date2 = pickDate(dates, currentState.evolutionDate2, 'latest');
+  updateEvolutionDateControls(date1, date2, dates);
+  if (!date1 || !date2) {
+    resetParcelStyles();
+    renderLegendMessage(diffLegendEl, 'Dati satellitari non disponibili.');
+    return;
+  }
+
+  const values = map._boscoEntries.map(entry => (
+    satelliteDiffValue(satelliteData.timeseries, entry.key, metric.layer, date1, date2)
+  ));
+  const domain = divergingDomain(values);
+  if (!domain) {
+    resetParcelStyles();
+    renderLegendMessage(diffLegendEl, 'Nessun dato satellitare disponibile.');
+    return;
+  }
+
+  for (const entry of map._boscoEntries) {
+    const value = satelliteDiffValue(satelliteData.timeseries, entry.key, metric.layer, date1, date2);
+    applyEntryStyle(
+      entry,
+      value == null ? NO_DATA_STYLE : satelliteDiffStyle(value, domain.maxAbs),
+      value,
+      v => evolutionMetricDisplay(metric, v),
+    );
+  }
+  renderDiffLegend(metric, date1, date2, domain);
+  canonicalizeEvolutionDates(currentState, date1, date2);
+}
+
+function clearEvolutionLegend() {
+  diffLegendEl?.replaceChildren();
+}
+
+function loadSatellite(regionId) {
+  if (satelliteReady(regionId)) return Promise.resolve(satelliteData);
+  if (!satelliteLoad || satelliteRegionId !== regionId) {
+    const requestedRegionId = regionId;
+    satelliteRegionId = regionId;
+    satelliteData = null;
+    satelliteLoad = Promise.all([
+      fetchJSON(`/api/bosco/satellite/${regionId}/manifest/`),
+      fetchJSON(`/api/bosco/satellite/${regionId}/timeseries/`),
+    ]).then(([manifest, timeseries]) => {
+      if (satelliteRegionId !== requestedRegionId) return null;
+      satelliteData = { manifest, timeseries };
+      return satelliteData;
+    }).finally(() => {
+      if (satelliteRegionId === requestedRegionId) satelliteLoad = null;
+    });
+  }
+  return satelliteLoad;
+}
+
+function satelliteReady(regionId) {
+  return satelliteData && satelliteRegionId === regionId;
+}
+
+async function fetchJSON(url) {
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`GET ${url} failed: ${resp.status}`);
+  return resp.json();
+}
+
+function satelliteValueStyle(value) {
+  return {
+    color: '#244126',
+    weight: 1.4,
+    opacity: 0.92,
+    fillColor: satelliteColor(value),
+    fillOpacity: 0.64,
+  };
+}
+
+function satelliteDiffStyle(value, maxAbs) {
+  return {
+    color: '#333',
+    weight: 1.4,
+    opacity: 0.92,
+    fillColor: diffColor(value, maxAbs),
+    fillOpacity: 0.66,
+  };
+}
+
+function evolutionMetricDisplay(metric, value) {
+  if (value == null || !Number.isFinite(value)) return 'n.d.';
+  const sign = value > 0 ? '+' : '';
+  return `${metric.label}: ${sign}${fmtDecimal2(value)}`;
+}
+
+function canonicalizeEvolutionDates(state, date1, date2) {
+  if (!state || state.mode !== '2') return;
+  const params = new URLSearchParams(location.search);
+  let changed = false;
+  const d1 = dateParam(date1);
+  const d2 = dateParam(date2);
+  if (d1 && params.get('d1') !== d1) {
+    params.set('d1', d1);
+    changed = true;
+  }
+  if (d2 && params.get('d2') !== d2) {
+    params.set('d2', d2);
+    changed = true;
+  }
+  if (changed) navigateWithParams(PAGE_PATH, params, true);
+}
+
 function resetParcelStyles() {
   if (!map?.parcelLayer) return;
   map.parcelLayer.eachLayer(layer => {
@@ -548,10 +800,10 @@ function resetParcelStyles() {
   });
 }
 
-function applyEntryStyle(entry, style, value) {
+function applyEntryStyle(entry, style, value, displayFn = null) {
   for (const layer of entry.layers) {
     layer.setStyle(style);
-    setLayerTooltip(layer, buildTooltip(entry, value));
+    setLayerTooltip(layer, buildTooltip(entry, value, displayFn));
   }
 }
 
@@ -570,7 +822,7 @@ function continuousStyle(t) {
   };
 }
 
-function buildTooltip(entry, value) {
+function buildTooltip(entry, value, displayFn = null) {
   const el = document.createElement('div');
   el.className = 'bosco-tooltip';
 
@@ -585,7 +837,7 @@ function buildTooltip(entry, value) {
   el.appendChild(meta);
 
   const metric = document.createElement('div');
-  metric.textContent = metricDisplay(currentState?.q, value);
+  metric.textContent = displayFn ? displayFn(value) : metricDisplay(currentState?.q, value);
   el.appendChild(metric);
   return el;
 }
@@ -600,6 +852,7 @@ function safeTooltip(feature) {
 function metricDisplay(metricId, value) {
   if (value == null || value === '') return 'n.d.';
   if (metricId === Q_TYPE) return value;
+  if (characteristicSatelliteLayer(metricId)) return fmtDecimal2(value);
   const perHa = currentState?.harvestPerHa && isHarvestMetric(metricId);
   if (metricId === Q_HISTORICAL_HARVEST) return perHa ? `${fmtDecimal2(value)} q/ha` : fmtMass(value);
   if (metricId === Q_FUTURE_HARVEST) return perHa ? `${fmtDecimal2(value)} m³/ha` : fmtVolume(value);
@@ -642,13 +895,67 @@ function renderContinuousLegend(domain, metricId) {
   legendEl.appendChild(labels);
 }
 
+function renderSatelliteLegend(target, layer, date) {
+  if (!target) return;
+  target.replaceChildren();
+
+  const title = document.createElement('div');
+  title.className = 'bosco-legend-title';
+  title.textContent = `${SATELLITE_LAYERS[layer]?.label || layer.toUpperCase()} - ${date}`;
+  target.appendChild(title);
+
+  const gradient = document.createElement('div');
+  gradient.className = 'bosco-gradient satellite';
+  target.appendChild(gradient);
+
+  const labels = document.createElement('div');
+  labels.className = 'bosco-legend-labels';
+  for (const text of ['-1,0', '-0,5', '0', '+0,5', '+1,0']) {
+    const span = document.createElement('span');
+    span.textContent = text;
+    labels.appendChild(span);
+  }
+  target.appendChild(labels);
+}
+
+function renderDiffLegend(metric, date1, date2, domain) {
+  if (!diffLegendEl) return;
+  diffLegendEl.replaceChildren();
+
+  const title = document.createElement('div');
+  title.className = 'bosco-legend-title';
+  title.textContent = `${metric.label} ${date2.slice(0, 7)} - ${date1.slice(0, 7)}`;
+  diffLegendEl.appendChild(title);
+
+  const gradient = document.createElement('div');
+  gradient.className = 'bosco-gradient diff';
+  diffLegendEl.appendChild(gradient);
+
+  const max = domain.maxAbs || 1;
+  const labels = document.createElement('div');
+  labels.className = 'bosco-legend-labels';
+  for (const text of [
+    `-${fmtDecimal2(max)}`, `-${fmtDecimal2(max / 2)}`, '0',
+    `+${fmtDecimal2(max / 2)}`, `+${fmtDecimal2(max)}`,
+  ]) {
+    const span = document.createElement('span');
+    span.textContent = text;
+    labels.appendChild(span);
+  }
+  diffLegendEl.appendChild(labels);
+}
+
 function renderMessageLegend(message) {
-  if (!legendEl) return;
-  legendEl.replaceChildren();
+  renderLegendMessage(legendEl, message);
+}
+
+function renderLegendMessage(target, message) {
+  if (!target) return;
+  target.replaceChildren();
   const p = document.createElement('div');
   p.className = 'bosco-legend-note';
   p.textContent = message;
-  legendEl.appendChild(p);
+  target.appendChild(p);
 }
 
 function clearLegend() {
@@ -1093,12 +1400,16 @@ function canonicalizeURL(state) {
     params.set('mt', state.mt);
     changed = true;
   }
-  if (!params.get('q') || !VALID_CHARACTERISTICS.includes(params.get('q'))) {
+  const validQ = state.mode === '2' ? VALID_EVOLUTION_METRICS : VALID_CHARACTERISTICS;
+  if (!params.get('q') || !validQ.includes(params.get('q'))) {
     params.set('q', state.q);
     changed = true;
   }
   changed = canonicalizeFlag(params, 'fc', state.useCadastralArea) || changed;
-  changed = canonicalizeFlag(params, 'fh', state.harvestPerHa && isHarvestMetric(state.q)) || changed;
+  changed = canonicalizeFlag(
+    params, 'fh', state.mode === '1' && state.harvestPerHa && isHarvestMetric(state.q),
+  ) || changed;
+  changed = canonicalizeEvolutionParams(params, state) || changed;
   changed = canonicalizeDetailParams(params, state) || changed;
   changed = canonicalizePaiParams(params, state) || changed;
   if (changed) navigateWithParams(PAGE_PATH, params, true);
@@ -1106,6 +1417,17 @@ function canonicalizeURL(state) {
 
 function setStatus(text) {
   if (statusEl) statusEl.textContent = text || '';
+}
+
+function canonicalizeEvolutionParams(params, state) {
+  if (state.mode !== '2') {
+    if (!params.has('d1') && !params.has('d2') && !params.has('fa')) return false;
+    params.delete('d1');
+    params.delete('d2');
+    params.delete('fa');
+    return true;
+  }
+  return canonicalizeFlag(params, 'fa', true);
 }
 
 function canonicalizePaiParams(params, state) {

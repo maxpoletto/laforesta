@@ -11,6 +11,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / 'data'
 DIGEST_DIR = DATA_DIR / 'digests'
 GEO_DIR = DATA_DIR / 'geo'
+_DEFAULT_SATELLITE_DIR = BASE_DIR.parent / 'bosco' / 'data' / 'satellite'
+if not _DEFAULT_SATELLITE_DIR.exists():
+    _DEFAULT_SATELLITE_DIR = DATA_DIR / 'satellite'
+SATELLITE_DIR = Path(os.environ.get(
+    'ABIES_SATELLITE_DIR', str(_DEFAULT_SATELLITE_DIR),
+))
 
 _DEFAULT_SECRET_KEY = 'django-insecure-change-me-before-deployment'
 _DEFAULT_MS_OAUTH_TENANT = 'common'

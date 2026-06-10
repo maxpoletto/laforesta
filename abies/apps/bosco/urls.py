@@ -15,4 +15,8 @@ urlpatterns = [
          name='bosco-parcel-dendrometry-data'),
     path('parcel-dendrometry-points/data/', views.parcel_dendrometry_points_data,
          name='bosco-parcel-dendrometry-points-data'),
+    path('satellite/<int:region_id>/manifest/', views.satellite_manifest,
+         name='bosco-satellite-manifest'),
+    path('satellite/<int:region_id>/timeseries/', views.satellite_timeseries,
+         name='bosco-satellite-timeseries'),
 ]

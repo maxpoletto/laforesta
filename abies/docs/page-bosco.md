@@ -359,5 +359,9 @@ mode-switch.
 
 - **`particelle.geojson`** — parcel polygons, as in Boscoscopio.
   Eager-loaded.  Updated only on geometry-data refresh (rare).
-- **Satellite data** — preprocessed GeoTIFFs and per-pixel digests as
-  in Boscoscopio.  Lazy per (metric, date) tuple.
+- **Satellite data** — per-compresa `manifest.json` and `timeseries.json`,
+  served from `SATELLITE_DIR` via `/api/bosco/satellite/<region_id>/...`.
+  The first Abies implementation uses the precomputed per-parcel means in
+  `timeseries.json` for both the Caratteristiche satellite metrics and the
+  Evoluzione diff map.  GeoTIFF raster overlays remain compatible with this
+  URL/data contract but are not required for the page's initial workflow.
