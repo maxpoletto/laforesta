@@ -5,6 +5,7 @@
  */
 
 // Shell / chrome
+export const LOCALE = 'it';
 export const LOADING = 'Caricamento...';
 export const DISMISS = 'Chiudi';
 export const SAVE = 'Salva';
@@ -122,10 +123,28 @@ export const LABEL_START_NUMBER = 'Numero iniziale';
 export const LABEL_SLIP_COUNT = 'Numero di verbali';
 export const LABEL_MONTH = 'Mese';
 
-// CSV export filenames
+// Mannesi PDFs
+export const MANNESI_VDP_NUMBER = 'N.';
+export const MANNESI_VDP_LICENSE_PLATE = 'Targa';
+export const MANNESI_VDP_SPECIES = 'Essenza';
+export const MANNESI_VDP_GROSS_WEIGHT_Q = 'Peso lordo ql';
+export const MANNESI_VDP_TARE_Q = 'Tara ql';
+export const MANNESI_VDP_NET_WEIGHT_Q = 'Peso netto ql';
+export const MANNESI_VDP_SIGNATURE = 'Firma';
+export const MANNESI_RECEIPT_HOURS = 'Ore lavorate';
+export const MANNESI_RECEIPT_PRODUCTION = 'Produzione';
+export const MANNESI_RECEIPT_TOTAL_PRODUCTION = 'Totale produzione';
+export const MANNESI_RECEIPT_CREDITS = 'Acconti';
+export const MANNESI_RECEIPT_TOTAL = 'Totale';
+export const MANNESI_RECEIPT_DETAIL = 'Dettaglio produzione';
+export const LABEL_PERCENT = '%';
+
+// Export filenames
 export const CSV_PRELIEVI = 'prelievi.csv';
 export const CSV_MANNESI_HOURS = 'ore-mannesi.csv';
 export const CSV_MANNESI_CREDITS = 'acconti-mannesi.csv';
+export const PDF_MANNESI_VDP = 'vdp.pdf';
+export const PDF_MANNESI_RECEIPTS = (month) => `ricevute-mannesi-${month}.pdf`;
 export const CSV_CREWS = 'squadre.csv';
 export const CSV_TRACTORS = 'trattori.csv';
 export const CSV_SPECIES = 'specie.csv';

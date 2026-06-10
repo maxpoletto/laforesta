@@ -435,7 +435,7 @@ function monthValue({ year, month }) {
 
 function monthName(month, style) {
   const d = new Date(Date.UTC(2020, month - 1, 1));
-  const raw = new Intl.DateTimeFormat('it', { month: style, timeZone: 'UTC' }).format(d);
+  const raw = new Intl.DateTimeFormat(S.LOCALE, { month: style, timeZone: 'UTC' }).format(d);
   return raw.replace('.', '');
 }
 
@@ -452,7 +452,7 @@ function generateVdpPDF({ startNumber, count, plate }) {
     const slot = i % 4;
     drawSlip(doc, (slot % 2) * w, Math.floor(slot / 2) * h, w, h, startNumber + i, plate);
   }
-  doc.save('vdp.pdf');
+  doc.save(S.PDF_MANNESI_VDP);
 }
 
 function drawSlip(doc, x, y, w, h, number, plate) {
@@ -463,18 +463,18 @@ function drawSlip(doc, x, y, w, h, number, plate) {
   let yy = y + 28;
   doc.rect(x + 8, y + 8, w - 16, h - 16);
 
-  drawRuleField(doc, left, left + 144, yy, 'Data', { ruleStart: ruleStart, size: 10 });
-  doc.textRight(right, yy, `N. ${number}`, { size: 11, bold: true });
+  drawRuleField(doc, left, left + 144, yy, S.LABEL_DATE, { ruleStart: ruleStart, size: 10 });
+  doc.textRight(right, yy, `${S.MANNESI_VDP_NUMBER} ${number}`, { size: 11, bold: true });
 
   yy += 22;
-  doc.text(left, yy, 'Targa', { size: 10, bold: true });
+  doc.text(left, yy, S.MANNESI_VDP_LICENSE_PLATE, { size: 10, bold: true });
   doc.text(ruleStart, yy, plate, { size: 10 });
 
   yy += 24;
   drawRegionOptions(doc, left, right, yy, meta.regions || []);
 
   yy += 24;
-  drawRuleField(doc, left, right, yy, 'Particella', { ruleStart: ruleStart, size: 9 });
+  drawRuleField(doc, left, right, yy, S.COL_PARCEL, { ruleStart: ruleStart, size: 9 });
 
   yy += 22;
   yy = drawProductOptions(doc, left, right, yy, meta.products || []);
@@ -484,19 +484,19 @@ function drawSlip(doc, x, y, w, h, number, plate) {
 
   yy = Math.max(yy + 12, y + h - 122);
   ruleStart = left + 96;
-  drawRuleField(doc, left, right, yy, 'Peso lordo ql', { ruleStart, size: 10 });
+  drawRuleField(doc, left, right, yy, S.MANNESI_VDP_GROSS_WEIGHT_Q, { ruleStart, size: 10 });
   yy += 18;
-  drawRuleField(doc, left, right, yy, 'Tara ql', { ruleStart, size: 10 });
+  drawRuleField(doc, left, right, yy, S.MANNESI_VDP_TARE_Q, { ruleStart, size: 10 });
   yy += 18;
-  drawRuleField(doc, left, right, yy, 'Peso netto ql', { ruleStart, size: 10 });
+  drawRuleField(doc, left, right, yy, S.MANNESI_VDP_NET_WEIGHT_Q, { ruleStart, size: 10 });
   yy += 25;
-  drawRuleField(doc, left, right, yy, 'Squadra', { ruleStart, size: 10 });
+  drawRuleField(doc, left, right, yy, S.COL_CREW, { ruleStart, size: 10 });
   yy += 25;
-  drawRuleField(doc, left, right, yy, 'Firma', { ruleStart, size: 10 });
+  drawRuleField(doc, left, right, yy, S.MANNESI_VDP_SIGNATURE, { ruleStart, size: 10 });
 }
 
 function drawRegionOptions(doc, left, right, y, regions) {
-  doc.text(left, y, 'Compresa', { size: 9, bold: true });
+  doc.text(left, y, S.COL_COMPRESA, { size: 9, bold: true });
   const startX = left + 55;
   const step = regions.length > 1 ? (right - startX - 52) / (regions.length - 1) : 0;
   regions.forEach((name, i) => {
@@ -507,7 +507,7 @@ function drawRegionOptions(doc, left, right, y, regions) {
 }
 
 function drawProductOptions(doc, left, right, y, products) {
-  doc.text(left, y, 'Tipo', { size: 9, bold: true });
+  doc.text(left, y, S.COL_TYPE, { size: 9, bold: true });
   const colGap = 12;
   const startX = left + 55;
   const colWidth = (right - startX - colGap) / 2;
@@ -537,8 +537,8 @@ function drawSpeciesGrid(doc, x, y, width, species) {
     doc.line(x, y + i * rowHeight, x + width, y + i * rowHeight);
   }
 
-  doc.text(x + 5, y + rowHeight - 4, 'Essenza', { size: 8, bold: true });
-  doc.textRight(x + width - 6, y + rowHeight - 4, '%', { size: 8, bold: true });
+  doc.text(x + 5, y + rowHeight - 4, S.MANNESI_VDP_SPECIES, { size: 8, bold: true });
+  doc.textRight(x + width - 6, y + rowHeight - 4, S.LABEL_PERCENT, { size: 8, bold: true });
   species.forEach((name, i) => {
     const yy = y + (i + 2) * rowHeight - 4;
     doc.text(x + 5, yy, clippedForWidth(name, nameWidth - 10, 8), { size: 8 });
@@ -574,7 +574,7 @@ function buildReceipts(month) {
   const cc = colMap(credits.columns);
   const harvests = prelievi.rows.filter(row => String(row[pc[S.COL_DATE]] || '').startsWith(month));
   const teams = [...new Set(harvests.map(row => row[pc[S.COL_CREW]]).filter(Boolean))]
-    .sort((a, b) => String(a).localeCompare(String(b), 'it'));
+    .sort((a, b) => String(a).localeCompare(String(b), S.LOCALE));
 
   return teams.map(crew => {
     const crewHarvests = harvests.filter(row => row[pc[S.COL_CREW]] === crew);
@@ -609,7 +609,7 @@ function generateReceiptsPDF(month, receipts) {
     if (index > 0) doc.addPage();
     drawReceipt(doc, month, receipt);
   });
-  doc.save(`ricevute-mannesi-${month}.pdf`);
+  doc.save(S.PDF_MANNESI_RECEIPTS(month));
 }
 
 const margin = 34;
@@ -617,15 +617,15 @@ function drawReceipt(doc, month, receipt) {
   const col1 = margin, col2 = margin + 150;
   const valueComma = col2 + 44;
   let y = 32;
-  doc.text(col1, y, `Squadra ${receipt.crew}`, { size: 14, bold: true });
+  doc.text(col1, y, `${S.COL_CREW} ${receipt.crew}`, { size: 14, bold: true });
   y += 22;
   doc.text(col1, y, monthLabel(month), { size: 11 });
   y += 34;
-  doc.text(col1, y, 'Ore lavorate', { size: 10, bold: true });
+  doc.text(col1, y, S.MANNESI_RECEIPT_HOURS, { size: 10, bold: true });
   drawDecimal(doc, valueComma, y, fmtDecimal2(receipt.hours), { size: 10 });
   y += 28;
-  doc.text(col1, y, 'Produzione', { size: 10, bold: true });
-  doc.text(col2, y, 'Quintali', { size: 10, bold: true });
+  doc.text(col1, y, S.MANNESI_RECEIPT_PRODUCTION, { size: 10, bold: true });
+  doc.text(col2, y, S.COL_CREDITS_Q, { size: 10, bold: true });
   y += 16;
   for (const item of receipt.productTotals) {
     doc.text(col1, y, item.product, { size: 10 });
@@ -633,23 +633,26 @@ function drawReceipt(doc, month, receipt) {
     y += 14;
   }
   y += 4;
-  doc.text(col1, y, 'Totale produzione', { size: 10, bold: true });
+  doc.text(col1, y, S.MANNESI_RECEIPT_TOTAL_PRODUCTION, { size: 10, bold: true });
   drawDecimal(doc, valueComma, y, fmtDecimal1(receipt.totalProduction), { size: 10, bold: true });
   y += 28;
-  doc.text(col1, y, 'Acconti', { size: 10 });
+  doc.text(col1, y, S.MANNESI_RECEIPT_CREDITS, { size: 10 });
   drawDecimal(doc, valueComma, y, fmtDecimal1(receipt.credits), { size: 10 });
   y += 18;
-  doc.text(col1, y, 'Totale', { size: 10, bold: true });
+  doc.text(col1, y, S.MANNESI_RECEIPT_TOTAL, { size: 10, bold: true });
   drawDecimal(doc, valueComma, y, fmtDecimal1(receipt.totalProduction - receipt.credits), { size: 10, bold: true });
   y += 34;
   y = drawHarvestDetail(doc, receipt, margin, y, month);
 }
 
 function drawHarvestDetail(doc, receipt, x, y, month) {
-  doc.text(x, y, 'Dettaglio produzione', { size: 10, bold: true });
+  doc.text(x, y, S.MANNESI_RECEIPT_DETAIL, { size: 10, bold: true });
   y += 18;
   const species = meta.species || [];
-  const headers = ['Data', 'Compresa', 'Particella', 'VDP', 'Tipo', 'Q.li', 'Note', ...species.map(s => `${s} %`)];
+  const headers = [
+    S.COL_DATE, S.COL_COMPRESA, S.COL_PARCEL, S.COL_VDP, S.COL_TYPE, S.COL_QUINTALS, S.COL_NOTE,
+    ...species.map(s => `${s} ${S.LABEL_PERCENT}`),
+  ];
   const widths = receiptTableWidths(doc, species.length);
   const alignments = receiptTableAlignments(species.length);
   y = drawTableRow(doc, x, y, headers, widths, true, alignments);
@@ -658,7 +661,7 @@ function drawHarvestDetail(doc, receipt, x, y, month) {
     if (y > doc.height - 32) {
       doc.addPage();
       y = 32;
-      doc.text(x, y, `Squadra ${receipt.crew} - ${monthLabel(month)}`, { size: 10, bold: true });
+      doc.text(x, y, `${S.COL_CREW} ${receipt.crew} - ${monthLabel(month)}`, { size: 10, bold: true });
       y += 18;
       y = drawTableRow(doc, x, y, headers, widths, true, alignments);
     }
@@ -749,6 +752,6 @@ function clip(value, max) {
 function monthLabel(month) {
   const [year, monthNum] = month.split('-').map(v => parseInt(v, 10));
   const d = new Date(Date.UTC(year, monthNum - 1, 1));
-  let l = new Intl.DateTimeFormat('it', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(d);
+  let l = new Intl.DateTimeFormat(S.LOCALE, { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(d);
   return l.charAt(0).toUpperCase() + l.slice(1);
 }
