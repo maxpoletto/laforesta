@@ -355,6 +355,7 @@ COL_GRADE_PCT       = 'Pendenza (%)'
 COL_DESC_VEG        = 'Desc. veg.'
 COL_DESC_GEO        = 'Desc. geo'
 COL_SORT_ORDER      = 'Sort order'       # internal English; not localized
+COL_REGION_ID       = 'Region id'        # internal digest key
 COL_PARCEL_ID       = 'Parcel id'        # internal digest key
 COL_SURVEY_ID       = 'Survey id'        # internal digest key
 COL_SPECIES_ID      = 'Species id'       # internal digest key

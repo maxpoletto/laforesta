@@ -308,7 +308,7 @@ def build_harvest_record(
 # ---------------------------------------------------------------------------
 
 PARCEL_COLUMNS = [
-    ROW_ID, VERSION, S.COL_REGION, S.COL_PARCEL, S.COL_CLASS,
+    ROW_ID, VERSION, S.COL_REGION_ID, S.COL_REGION, S.COL_PARCEL, S.COL_CLASS,
     S.COL_AREA_HA, S.COL_AREA_CAD_HA, S.COL_AVE_AGE, S.COL_LOCATION,
     S.COL_ALT_MIN, S.COL_ALT_MAX, S.COL_ASPECT, S.COL_GRADE_PCT,
     S.COL_TYPE, S.COL_DESC_VEG, S.COL_DESC_GEO,
@@ -323,7 +323,7 @@ def build_parcel_record(p) -> list:
     metadata editing is wired in.
     """
     return [
-        p.id, getattr(p, 'version', 0), p.region.name, p.name, p.eclass.name,
+        p.id, getattr(p, 'version', 0), p.region_id, p.region.name, p.name, p.eclass.name,
         float(p.area_ha), float(p.area_ha), p.ave_age, p.location_name,
         p.altitude_min_m, p.altitude_max_m, p.aspect, p.grade_pct,
         S.TYPE_COPPICE if p.eclass.coppice else S.TYPE_HIGHFOREST,

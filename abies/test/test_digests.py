@@ -261,10 +261,11 @@ class TestGenerateBoscoDigests:
         cols = data[COLUMNS]
         row = next(r for r in data[ROWS] if r[0] == p.id)
 
-        for col in (VERSION, S.COL_AREA_CAD_HA, S.COL_TYPE,
+        for col in (VERSION, S.COL_REGION_ID, S.COL_AREA_CAD_HA, S.COL_TYPE,
                     S.COL_DESC_VEG, S.COL_DESC_GEO):
             assert col in cols
         assert row[cols.index(VERSION)] == 0
+        assert row[cols.index(S.COL_REGION_ID)] == p.region_id
         assert row[cols.index(S.COL_TYPE)] == S.TYPE_HIGHFOREST
         assert row[cols.index(S.COL_DESC_VEG)] == 'Descrizione vegetazione'
         assert row[cols.index(S.COL_DESC_GEO)] == 'Descrizione geologia'

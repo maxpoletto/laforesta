@@ -292,7 +292,7 @@ mode-switch.
   Caratteristiche heatmap (parcel-level metrics) and the per-parcel
   page's *Metadati* section.  Invalidated on `parcel` writes.
 
-  Columns: `row_id`, `version`, `Compresa`, `Particella`, `Classe`,
+  Columns: `row_id`, `version`, `Region id`, `Compresa`, `Particella`, `Classe`,
   `Area (ha)`, `Area cat. (ha)`, `Età media (a)`, `Località`, `Alt. min. (m)`,
   `Alt. max. (m)`, `Esposizione`, `Pendenza (%)`, `Tipo` (alto fusto / ceduo),
   `Desc. veg.`, `Desc. geo`.  `row_id` = `parcel.id`; `Tipo` derived

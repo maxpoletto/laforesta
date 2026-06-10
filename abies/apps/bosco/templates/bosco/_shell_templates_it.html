@@ -1,0 +1,97 @@
+{% comment %}
+Bosco <template> elements — cloned by JS on mount().
+Static Italian text lives here; JS wires controls and fills dynamic data.
+{% endcomment %}
+
+<template id="tmpl-bosco-page">
+  <div class="bosco-page">
+    <div class="bosco-map-host" id="bosco-map-host" data-target="map"></div>
+
+    <aside class="bosco-sidebar" id="bosco-sidebar" aria-label="Controlli Bosco">
+      <div class="bosco-sidebar-inner">
+        <section class="bosco-sidebar-section bosco-status-section">
+          <div class="bosco-status" data-role="status">Caricamento...</div>
+          <div class="bosco-coords" id="coords"></div>
+          <label for="bosco-region-select">Compresa</label>
+          <select id="bosco-region-select" class="page-pulldown" data-role="region-select"></select>
+          <p class="bosco-hint">
+            Clicca su una particella per vederne i dettagli, o fuori dalle
+            particelle per il riepilogo della compresa.
+          </p>
+        </section>
+
+        <section class="bosco-sidebar-section">
+          <h2>Modo</h2>
+          <fieldset class="bosco-mode-group" data-role="mode-group">
+            <label><input type="radio" name="bosco-mode" value="1"> Caratteristiche</label>
+            <label><input type="radio" name="bosco-mode" value="2"> Evoluzione</label>
+            <label><input type="radio" name="bosco-mode" value="3"> Piante ad accrescimento indefinito</label>
+          </fieldset>
+        </section>
+
+        <section class="bosco-sidebar-section" data-mode-panel="1">
+          <h2>Caratteristiche</h2>
+          <label for="bosco-characteristic-select">Visualizza</label>
+          <select id="bosco-characteristic-select" class="page-pulldown" data-role="characteristic-select">
+            <optgroup label="Caratteristiche">
+              <option value="eta">Età media (a)</option>
+              <option value="governo">Governo</option>
+              <option value="altitudine">Alt. media (m)</option>
+            </optgroup>
+            <optgroup label="Produzione">
+              <option value="prelievo-storico">Prelievo storico</option>
+              <option value="prelievo-previsto">Prelievo previsto</option>
+            </optgroup>
+            <optgroup label="Dati satellitari">
+              <option value="ndvi">NDVI</option>
+              <option value="ndmi">NDMI</option>
+              <option value="evi">EVI</option>
+            </optgroup>
+          </select>
+          <label class="bosco-check"><input type="checkbox" data-role="cadastral-toggle"> Aree catastali</label>
+          <label class="bosco-check" data-role="per-ha-row" hidden>
+            <input type="checkbox" data-role="per-ha-toggle"> Valori per ettaro
+          </label>
+          <div class="bosco-legend" data-target="legend"></div>
+        </section>
+
+        <section class="bosco-sidebar-section" data-mode-panel="2" hidden>
+          <h2>Evoluzione</h2>
+          <label for="bosco-evolution-select">Metrica</label>
+          <select id="bosco-evolution-select" class="page-pulldown" data-role="evolution-select">
+            <option value="ndvi">NDVI</option>
+            <option value="ndmi">NDMI</option>
+            <option value="evi">EVI</option>
+            <option value="prelievo">Prelievo</option>
+          </select>
+          <div class="bosco-date-row">
+            <label>Da <input type="month" data-role="date1"></label>
+            <label>A <input type="month" data-role="date2"></label>
+          </div>
+          <label class="bosco-check"><input type="checkbox" data-role="parcel-average-toggle"> Media per particella</label>
+          <label class="bosco-check"><input type="checkbox" data-role="evolution-cadastral-toggle"> Aree catastali</label>
+          <div class="bosco-legend" data-target="diff-legend"></div>
+        </section>
+
+        <section class="bosco-sidebar-section" data-mode-panel="3" hidden>
+          <h2>Piante ad accrescimento indefinito</h2>
+          <div class="bosco-list-heading">Particelle</div>
+          <div class="bosco-scroll-list" data-target="pai-parcels"></div>
+          <div class="bosco-list-actions">
+            <button type="button" class="btn" data-action="show-all-parcels">Mostra tutte</button>
+            <button type="button" class="btn" data-action="hide-all-parcels">Nascondi tutte</button>
+          </div>
+          <div class="bosco-list-heading">Specie</div>
+          <div class="bosco-scroll-list" data-target="pai-species"></div>
+          <div class="bosco-list-actions">
+            <button type="button" class="btn" data-action="show-all-species">Mostra tutte</button>
+            <button type="button" class="btn" data-action="hide-all-species">Nascondi tutte</button>
+          </div>
+          {% if user.can_modify %}
+          <button type="button" class="btn btn-create bosco-add-pai" data-action="add-pai">+ Aggiungi</button>
+          {% endif %}
+        </section>
+      </div>
+    </aside>
+  </div>
+</template>
