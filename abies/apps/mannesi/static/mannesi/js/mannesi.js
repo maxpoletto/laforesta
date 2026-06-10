@@ -628,7 +628,6 @@ function receiptTableWidths(doc, speciesCount) {
   let speciesWidth = speciesCount
     ? Math.max(30, Math.min(60, Math.floor((available - baseTotal) / speciesCount)))
     : 0;
-  console.log(speciesWidth);
   return [...base, ...Array.from({ length: speciesCount }, () => speciesWidth)];
 }
 

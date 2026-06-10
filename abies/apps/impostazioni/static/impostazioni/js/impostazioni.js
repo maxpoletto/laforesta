@@ -381,7 +381,7 @@ function buildFutureProductionSection() {
       [FIELD_HARVEST_PLAN_ID]: planId,
       [FIELD_NONCE]: crypto.randomUUID(),
     }));
-    if (data) msg.textContent = data[MESSAGE] || S.SETTINGS_UPDATED;
+    if (data) msg.textContent = data[MESSAGE] || form.dataset.successLabel;
   });
 
   return frag;
@@ -389,7 +389,7 @@ function buildFutureProductionSection() {
 
 async function loadFutureProduction(select, form) {
   setFormEnabled(form, false);
-  select.replaceChildren(option('', S.LOADING));
+  setSelectPlaceholder(select, 'loadingLabel');
 
   let data;
   try {
@@ -405,11 +405,11 @@ async function loadFutureProduction(select, form) {
   const plans = data.plans || [];
   select.replaceChildren();
   if (!plans.length) {
-    select.appendChild(option('', S.SETTINGS_NO_HARVEST_PLANS));
+    setSelectPlaceholder(select, 'emptyLabel');
     return;
   }
   for (const plan of plans) {
-    const opt = option(plan.id, `${plan.name} (${plan.year_start}-${plan.year_end})`);
+    const opt = selectOption(plan.id, `${plan.name} (${plan.year_start}-${plan.year_end})`);
     opt.selected = plan.id === data.active_id || plan.active === true;
     select.appendChild(opt);
   }
@@ -441,7 +441,7 @@ function buildDendrometrySection() {
     }));
     if (!data) return;
     await loadDendrometry(body);
-    msg.textContent = data[MESSAGE] || S.SETTINGS_UPDATED;
+    msg.textContent = data[MESSAGE] || form.dataset.successLabel;
   });
 
   return frag;
@@ -453,8 +453,8 @@ async function loadDendrometry(body) {
   const summary = body.querySelector('[data-role="dendrometry-counts"]');
 
   setFormEnabled(form, false);
-  summary.textContent = '';
-  select.replaceChildren(option('', S.LOADING));
+  renderDendrometryCounts(summary, {});
+  setSelectPlaceholder(select, 'loadingLabel');
 
   let data;
   try {
@@ -469,16 +469,14 @@ async function loadDendrometry(body) {
 
   const surveys = data.surveys || [];
   const activeIds = new Set(data.active_ids || []);
-  summary.textContent = S.SETTINGS_DENDROMETRY_COUNTS(data.counts || {
-    trees: 0, regions: 0, parcels: 0,
-  });
+  renderDendrometryCounts(summary, data.counts || {});
   select.replaceChildren();
   if (!surveys.length) {
-    select.appendChild(option('', S.SETTINGS_NO_SURVEYS));
+    setSelectPlaceholder(select, 'emptyLabel');
     return;
   }
   for (const survey of surveys) {
-    const opt = option(survey.id, survey.name);
+    const opt = selectOption(survey.id, survey.name);
     opt.selected = activeIds.has(survey.id) || survey.active === true;
     select.appendChild(opt);
   }
@@ -490,8 +488,19 @@ function selectedDendrometrySurveyIds(body) {
     .map(o => parseInt(o.value, 10));
 }
 
-function option(value, text) {
-  const opt = document.createElement('option');
+function renderDendrometryCounts(root, counts) {
+  for (const field of ['trees', 'regions', 'parcels']) {
+    root.querySelector(`[data-field="${field}"]`).textContent = counts[field] || 0;
+  }
+}
+
+function setSelectPlaceholder(select, labelName) {
+  select.replaceChildren(selectOption('', select.dataset[labelName] || ''));
+}
+
+function selectOption(value, text) {
+  const frag = cloneTemplate('tmpl-settings-select-option');
+  const opt = frag.querySelector('option');
   opt.value = value;
   opt.textContent = text;
   return opt;
