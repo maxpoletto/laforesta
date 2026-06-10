@@ -561,31 +561,32 @@ function generateReceiptsPDF(month, receipts) {
 }
 
 function drawReceipt(doc, month, receipt) {
-  const margin = 34;
+  const margin = 34, col1 = margin, col2 = margin + 150;
   let y = 32;
-  doc.text(margin, y, `Squadra ${receipt.crew}`, { size: 14, bold: true });
+  doc.text(col1, y, `Squadra ${receipt.crew}`, { size: 14, bold: true });
   y += 22;
-  doc.text(margin, y, `Mese ${monthLabel(month)}`, { size: 11 });
+  doc.text(col1, y, monthLabel(month), { size: 11 });
   y += 34;
-  doc.text(margin, y, `Ore lavorate:       ${fmtDecimal2(receipt.hours)}`, { size: 10 });
+  doc.text(col1, y, `Ore lavorate`, { size: 10, bold: true})
+  doc.text(col2, y, fmtDecimal2(receipt.hours), { size: 10 });
   y += 28;
-  doc.text(margin, y, 'Riassunto', { size: 10, bold: true });
-  doc.text(margin + 210, y, 'Quintali', { size: 10, bold: true });
+  doc.text(col1, y, 'Produzione', { size: 10, bold: true });
+  doc.text(col2, y, 'Quintali', { size: 10, bold: true });
   y += 16;
   for (const item of receipt.productTotals) {
-    doc.text(margin, y, item.product, { size: 10 });
-    doc.text(margin + 210, y, fmtDecimal1(item.mass), { size: 10 });
+    doc.text(col1, y, item.product, { size: 10 });
+    doc.text(col2, y, fmtDecimal1(item.mass), { size: 10 });
     y += 14;
   }
   y += 4;
-  doc.text(margin, y, 'Totale produzione', { size: 10, bold: true });
-  doc.text(margin + 210, y, fmtDecimal1(receipt.totalProduction), { size: 10, bold: true });
+  doc.text(col1, y, 'Totale produzione', { size: 10, bold: true });
+  doc.text(col2, y, fmtDecimal1(receipt.totalProduction), { size: 10, bold: true });
+  y += 28;
+  doc.text(col1, y, 'Acconti', { size: 10 });
+  doc.text(col2, y, fmtDecimal1(receipt.credits), { size: 10 });
   y += 18;
-  doc.text(margin, y, 'Acconti', { size: 10 });
-  doc.text(margin + 210, y, fmtDecimal1(receipt.credits), { size: 10 });
-  y += 18;
-  doc.text(margin, y, 'Totale', { size: 10, bold: true });
-  doc.text(margin + 210, y, fmtDecimal1(receipt.totalProduction - receipt.credits), { size: 10, bold: true });
+  doc.text(col1, y, 'Totale', { size: 10, bold: true });
+  doc.text(col2, y, fmtDecimal1(receipt.totalProduction - receipt.credits), { size: 10, bold: true });
   y += 34;
   y = drawHarvestDetail(doc, receipt, margin, y, month);
 }
@@ -595,7 +596,7 @@ function drawHarvestDetail(doc, receipt, x, y, month) {
   y += 18;
   const species = meta.species || [];
   const headers = ['Data', 'Compresa', 'Particella', 'VDP', 'Tipo', 'Q.li', 'Note', ...species.map(s => `${s} %`)];
-  const widths = [58, 68, 62, 38, 88, 42, 130, ...species.map(() => 42)];
+  const widths = receiptTableWidths(doc, x, species.length);
   y = drawTableRow(doc, x, y, headers, widths, true);
 
   for (const row of receipt.harvests) {
@@ -619,15 +620,31 @@ function drawHarvestDetail(doc, receipt, x, y, month) {
   return y;
 }
 
+function receiptTableWidths(doc, x, speciesCount) {
+  const available = doc.width - x - 34;
+  const base = [54, 64, 56, 34, 78, 38];
+  const baseTotal = base.reduce((a, b) => a + b, 0);
+  let speciesWidth = speciesCount
+    ? Math.max(24, Math.min(40, Math.floor((available - baseTotal - 120) / speciesCount)))
+    : 0;
+  let noteWidth = available - baseTotal - speciesCount * speciesWidth;
+  if (speciesCount && noteWidth < 72) {
+    speciesWidth = Math.max(18, Math.floor((available - baseTotal - 72) / speciesCount));
+    noteWidth = available - baseTotal - speciesCount * speciesWidth;
+  }
+  return [...base, Math.max(48, noteWidth), ...Array.from({ length: speciesCount }, () => speciesWidth)];
+}
+
 function drawTableRow(doc, x, y, fields, widths, bold) {
-  const size = bold ? 7.5 : 7;
+  const size = bold ? 7 : 6.5;
+  const rowHeight = bold ? 11 : 10;
   let xx = x;
   for (let i = 0; i < fields.length; i++) {
-    doc.text(xx, y, clip(fields[i], Math.floor(widths[i] / (size * 0.5))), { size, bold });
+    doc.text(xx, y, clip(fields[i], Math.floor(widths[i] / (size * 0.52))), { size, bold });
     xx += widths[i];
   }
-  y += 12;
-  if (bold) doc.line(x, y - 5, x + widths.reduce((a, b) => a + b, 0), y - 5);
+  y += rowHeight;
+  if (bold) doc.line(x, y - 4, x + widths.reduce((a, b) => a + b, 0), y - 4);
   return y;
 }
 
@@ -654,5 +671,6 @@ function clip(value, max) {
 function monthLabel(month) {
   const [year, monthNum] = month.split('-').map(v => parseInt(v, 10));
   const d = new Date(Date.UTC(year, monthNum - 1, 1));
-  return new Intl.DateTimeFormat('it', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(d);
+  let l = new Intl.DateTimeFormat('it', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(d);
+  return l.charAt(0).toUpperCase() + l.slice(1);
 }

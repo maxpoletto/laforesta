@@ -18,7 +18,9 @@ export class PDFDocument {
 
   text(x, y, value, { size = 10, bold = false } = {}) {
     const font = bold ? 'F2' : 'F1';
-    this.current.push(`BT /${font} ${num(size)} Tf ${num(x)} ${num(this.height - y)} Td <${utf16Hex(value)}> Tj ET`);
+    this.current.push(
+      `BT /${font} ${num(size)} Tf ${num(x)} ${num(this.height - y)} Td ${pdfString(value)} Tj ET`,
+    );
   }
 
   line(x1, y1, x2, y2) {
@@ -48,8 +50,8 @@ export function buildPDF(width, height, pages) {
   objects.push('<< /Type /Catalog /Pages 2 0 R >>');
   const kids = pages.map((_, i) => `${5 + i * 2} 0 R`).join(' ');
   objects.push(`<< /Type /Pages /Kids [${kids}] /Count ${pages.length} >>`);
-  objects.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
-  objects.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>');
+  objects.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+  objects.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>');
 
   for (let i = 0; i < pages.length; i++) {
     const pageObj = 5 + i * 2;
@@ -77,14 +79,26 @@ export function buildPDF(width, height, pages) {
   return pdf;
 }
 
-function utf16Hex(value) {
-  let out = 'FEFF';
-  for (const ch of String(value ?? '')) {
-    const code = ch.codePointAt(0);
-    const safe = code <= 0xffff ? code : 0xfffd;
-    out += safe.toString(16).padStart(4, '0').toUpperCase();
+function pdfString(value) {
+  let out = '(';
+  for (const ch of safeText(value)) {
+    if (ch === '\\' || ch === '(' || ch === ')') out += `\\${ch}`;
+    else if (ch === '\n') out += '\\n';
+    else if (ch === '\r') out += '\\r';
+    else out += ch;
   }
-  return out;
+  return `${out})`;
+}
+
+function safeText(value) {
+  return String(value ?? '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[\u2013\u2014]/g, '-')
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/\u20AC/g, 'EUR')
+    .replace(/[^\x09\x0A\x0D\x20-\x7E]/g, '?');
 }
 
 function num(value) {
