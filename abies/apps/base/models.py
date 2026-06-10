@@ -220,11 +220,18 @@ class HarvestPlan(TimestampedModel):
     year_start = models.IntegerField()
     year_end = models.IntegerField()
     description = models.TextField(blank=True)
+    active = models.BooleanField(default=False)
     history = HistoricalRecords()
 
     class Meta:
         verbose_name = S.HARVEST_PLAN
         verbose_name_plural = S.HARVEST_PLANS
+        constraints = [
+            models.UniqueConstraint(
+                fields=['active'], condition=models.Q(active=True),
+                name='uniq_active_harvest_plan',
+            ),
+        ]
 
     def __str__(self):
         return self.name
@@ -454,6 +461,7 @@ class Survey(TimestampedModel):
     name = models.CharField(max_length=100, unique=True)
     sample_grid = models.ForeignKey(SampleGrid, on_delete=models.PROTECT)
     description = models.TextField(blank=True)
+    active = models.BooleanField(default=False)
     history = HistoricalRecords()
 
     class Meta:

@@ -461,6 +461,7 @@ def _audit_configs() -> list:
         (HarvestPlan, S.TABLE_HARVEST_PLAN, {
             'name': S.LABEL_NAME, 'year_start': S.COL_YEAR_START,
             'year_end': S.COL_YEAR_END, 'description': S.COL_DESCRIPTION,
+            'active': S.COL_ACTIVE,
         }),
         (HarvestPlanItem, S.TABLE_HARVEST_PLAN_ITEM, {
             'harvest_plan_id': S.COL_HARVEST_PLAN,
@@ -484,7 +485,7 @@ def _audit_configs() -> list:
         }),
         (Survey, S.TABLE_SURVEY, {
             'name': S.LABEL_NAME, 'sample_grid_id': S.COL_GRID,
-            'description': S.COL_DESCRIPTION,
+            'description': S.COL_DESCRIPTION, 'active': S.COL_ACTIVE,
         }),
         (Sample, S.TABLE_SAMPLE, {
             'sample_area_id': S.COL_SAMPLE_AREA, 'survey_id': S.COL_SURVEY,
@@ -638,7 +639,7 @@ def generate_grids() -> None:
 SURVEY_COLUMNS = [ROW_ID, VERSION, S.COL_NAME, S.COL_DESCRIPTION,
                   S.COL_GRID, S.COL_N_AREAS_VISITED,
                   S.COL_N_AREAS_TOTAL, S.COL_DATE_FIRST,
-                  S.COL_DATE_LAST]
+                  S.COL_DATE_LAST, S.COL_ACTIVE]
 
 
 def build_survey_record(
@@ -676,6 +677,7 @@ def build_survey_record(
         n_total,
         first_date.isoformat() if first_date else '',
         last_date.isoformat() if last_date else '',
+        s.active,
     ]
 
 
@@ -855,14 +857,14 @@ def generate_sampled_trees_for_survey(survey_id: int) -> None:
 # ---------------------------------------------------------------------------
 
 HARVEST_PLAN_COLUMNS = [ROW_ID, VERSION, S.COL_NAME, S.COL_DESCRIPTION,
-                       S.COL_YEAR_START, S.COL_YEAR_END]
+                       S.COL_YEAR_START, S.COL_YEAR_END, S.COL_ACTIVE]
 
 
 def build_harvest_plan_record(hp) -> list:
     """Build one row of the `harvest_plans` digest."""
     return [
         hp.id, hp.version, hp.name, hp.description,
-        hp.year_start, hp.year_end,
+        hp.year_start, hp.year_end, hp.active,
     ]
 
 

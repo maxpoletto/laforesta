@@ -2,20 +2,27 @@
 
 import json
 import re
+from datetime import date
+from decimal import Decimal
 
 import pytest
 from django.test import Client
 
-from apps.base.models import Crew, LoginMethod, Role, Species, Tractor, User
+from apps.base.models import (
+    Crew, DigestStatus, HarvestPlan, LoginMethod, Role, Sample, SampleArea,
+    SampleGrid, Species, Survey, Tractor, Tree, TreeSample, User,
+)
 from apps.impostazioni.views import SPECIES_COLS
 from config import strings as S
 from config.constants import (
-    COLUMNS, FIELD_ACTIVE, FIELD_COMMON_NAME, FIELD_DENSITY, FIELD_EMAIL,
-    FIELD_FIRST_NAME, FIELD_IS_ACTIVE, FIELD_LAST_NAME, FIELD_LATIN_NAME,
-    FIELD_LOGIN_METHOD, FIELD_MANUFACTURER, FIELD_MINOR, FIELD_MODEL, FIELD_NAME,
-    FIELD_NOTES, FIELD_PASSWORD1, FIELD_PASSWORD2, FIELD_ROLE, FIELD_USERNAME,
-    FIELD_YEAR, HTML, MESSAGE, PATCHES, RECORD, ROWS, ROW_ID, STATUS,
-    STATUS_CONFLICT, STATUS_VALIDATION_ERROR, VERSION,
+    COLUMNS, DATA_ID, DIGEST_FUTURE_PRODUCTION, DIGEST_PARCEL_DENDROMETRY,
+    FIELD_ACTIVE, FIELD_COMMON_NAME, FIELD_DENSITY, FIELD_EMAIL,
+    FIELD_FIRST_NAME, FIELD_HARVEST_PLAN_ID, FIELD_IS_ACTIVE, FIELD_LAST_NAME,
+    FIELD_LATIN_NAME, FIELD_LOGIN_METHOD, FIELD_MANUFACTURER, FIELD_MINOR,
+    FIELD_MODEL, FIELD_NAME, FIELD_NONCE, FIELD_NOTES, FIELD_PASSWORD1,
+    FIELD_PASSWORD2, FIELD_ROLE, FIELD_SURVEY_IDS, FIELD_USERNAME, FIELD_YEAR,
+    HTML, MESSAGE, PATCHES, RECORD, ROWS, ROW_ID, STATUS, STATUS_CONFLICT,
+    STATUS_VALIDATION_ERROR, VERSION,
 )
 
 
@@ -402,6 +409,205 @@ class TestSpecies:
         assert resp.json()[STATUS] == STATUS_VALIDATION_ERROR
         altro.refresh_from_db()
         assert altro.minor is False
+
+
+# ---------------------------------------------------------------------------
+# Bosco source settings
+# ---------------------------------------------------------------------------
+
+class TestFutureProductionSettings:
+    DATA_URL = '/api/impostazioni/future-production/data/'
+    SAVE_URL = '/api/impostazioni/future-production/save/'
+
+    def test_data_defaults_to_current_plan_with_greatest_end_year(
+            self, writer_client, monkeypatch,
+    ):
+        monkeypatch.setattr(
+            'apps.impostazioni.views.timezone.localdate',
+            lambda: date(2026, 6, 10),
+        )
+        HarvestPlan.objects.create(name='Old', year_start=2010, year_end=2020)
+        short = HarvestPlan.objects.create(
+            name='Current short', year_start=2020, year_end=2030,
+        )
+        long = HarvestPlan.objects.create(
+            name='Current long', year_start=2020, year_end=2035,
+        )
+
+        resp = writer_client.get(self.DATA_URL)
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data['active_id'] == long.id
+        active_by_id = {p['id']: p['active'] for p in data['plans']}
+        assert active_by_id[long.id] is True
+        assert active_by_id[short.id] is False
+
+    def test_data_prefers_runtime_active_plan(self, writer_client, monkeypatch):
+        monkeypatch.setattr(
+            'apps.impostazioni.views.timezone.localdate',
+            lambda: date(2026, 6, 10),
+        )
+        manual = HarvestPlan.objects.create(
+            name='Manual', year_start=2010, year_end=2020, active=True,
+        )
+        current = HarvestPlan.objects.create(
+            name='Current', year_start=2020, year_end=2035,
+        )
+
+        resp = writer_client.get(self.DATA_URL)
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data['active_id'] == manual.id
+        active_by_id = {p['id']: p['active'] for p in data['plans']}
+        assert active_by_id[manual.id] is True
+        assert active_by_id[current.id] is False
+
+    def test_data_empty_is_robust(self, writer_client, db):
+        resp = writer_client.get(self.DATA_URL)
+
+        assert resp.status_code == 200
+        assert resp.json() == {'active_id': None, 'plans': []}
+
+    def test_save_sets_single_active_plan_and_marks_digests(self, writer_client):
+        old = HarvestPlan.objects.create(
+            name='Old active', year_start=2010, year_end=2020, active=True,
+        )
+        new = HarvestPlan.objects.create(
+            name='New active', year_start=2021, year_end=2030,
+        )
+
+        resp = _post(writer_client, self.SAVE_URL, {
+            FIELD_HARVEST_PLAN_ID: str(new.id), FIELD_NONCE: 'future-1',
+        })
+
+        assert resp.status_code == 200, resp.content
+        assert resp.json()[MESSAGE] == S.FUTURE_PRODUCTION_SAVED
+        old.refresh_from_db()
+        new.refresh_from_db()
+        assert old.active is False
+        assert new.active is True
+        assert old.version == 2
+        assert new.version == 2
+        patches = {
+            p[ROW_ID]: p[RECORD]
+            for p in resp.json()[PATCHES]
+            if p[DATA_ID] == 'harvest_plans'
+        }
+        assert patches[old.id][-1] is False
+        assert patches[new.id][-1] is True
+        for name in (
+                DIGEST_FUTURE_PRODUCTION, DIGEST_PARCEL_DENDROMETRY,
+                'harvest_plans', 'audit',
+        ):
+            assert DigestStatus.objects.get(name=name).stale is True
+
+    def test_reader_forbidden(self, reader_client, db):
+        assert reader_client.get(self.DATA_URL).status_code == 403
+
+
+class TestDendrometrySettings:
+    DATA_URL = '/api/impostazioni/dendrometry/data/'
+    SAVE_URL = '/api/impostazioni/dendrometry/save/'
+
+    def test_data_defaults_to_first_survey_and_counts(
+            self, writer_client, parcels, species,
+    ):
+        grid = SampleGrid.objects.create(name='Grid')
+        beta = Survey.objects.create(name='Beta', sample_grid=grid)
+        alpha = Survey.objects.create(name='Alpha', sample_grid=grid)
+        area = SampleArea.objects.create(
+            sample_grid=grid, parcel=parcels[0], number='1', lat=0, lon=0,
+        )
+        sample = Sample.objects.create(
+            sample_area=area, survey=alpha, date=date(2024, 9, 1),
+        )
+        for number in (1, 2):
+            tree = Tree.objects.create(species=species[0], parcel=parcels[0])
+            TreeSample.objects.create(
+                sample=sample, tree=tree, shoot=0, standard=False,
+                number=number, d_cm=30, h_m=Decimal('20.00'), l10_mm=10,
+                volume_m3=Decimal('1.0000'), mass_q=Decimal('9.000'),
+            )
+
+        resp = writer_client.get(self.DATA_URL)
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data['active_ids'] == [alpha.id]
+        assert data['counts'] == {'trees': 2, 'regions': 1, 'parcels': 1}
+        active_by_id = {s['id']: s['active'] for s in data['surveys']}
+        assert active_by_id[alpha.id] is True
+        assert active_by_id[beta.id] is False
+
+    def test_data_empty_is_robust(self, writer_client, db):
+        resp = writer_client.get(self.DATA_URL)
+
+        assert resp.status_code == 200
+        assert resp.json() == {
+            'active_ids': [],
+            'counts': {'trees': 0, 'regions': 0, 'parcels': 0},
+            'surveys': [],
+        }
+
+    def test_save_sets_active_surveys_and_marks_digests(self, writer_client):
+        grid = SampleGrid.objects.create(name='Grid')
+        first = Survey.objects.create(name='First', sample_grid=grid)
+        second = Survey.objects.create(name='Second', sample_grid=grid)
+        old = Survey.objects.create(name='Old', sample_grid=grid, active=True)
+
+        resp = _post(writer_client, self.SAVE_URL, {
+            FIELD_SURVEY_IDS: [str(first.id), str(second.id)],
+            FIELD_NONCE: 'dendro-1',
+        })
+
+        assert resp.status_code == 200, resp.content
+        assert resp.json()[MESSAGE] == S.DENDROMETRY_SAVED
+        first.refresh_from_db()
+        second.refresh_from_db()
+        old.refresh_from_db()
+        assert first.active is True
+        assert second.active is True
+        assert old.active is False
+        assert first.version == 2
+        assert second.version == 2
+        assert old.version == 2
+        patches = {
+            p[ROW_ID]: p[RECORD]
+            for p in resp.json()[PATCHES]
+            if p[DATA_ID] == 'surveys'
+        }
+        assert patches[first.id][-1] is True
+        assert patches[second.id][-1] is True
+        assert patches[old.id][-1] is False
+        for name in (
+                DIGEST_FUTURE_PRODUCTION, DIGEST_PARCEL_DENDROMETRY,
+                'surveys', 'audit',
+        ):
+            assert DigestStatus.objects.get(name=name).stale is True
+
+    def test_save_rejects_empty_selection_when_surveys_exist(self, writer_client):
+        grid = SampleGrid.objects.create(name='Grid')
+        Survey.objects.create(name='Survey', sample_grid=grid)
+
+        resp = _post(writer_client, self.SAVE_URL, {
+            FIELD_SURVEY_IDS: [], FIELD_NONCE: 'dendro-empty',
+        })
+
+        assert resp.status_code == 400
+        assert resp.json()[MESSAGE] == S.ERR_DENDROMETRY_SURVEYS_REQUIRED
+
+    def test_save_allows_empty_selection_when_no_surveys_exist(self, writer_client, db):
+        resp = _post(writer_client, self.SAVE_URL, {
+            FIELD_SURVEY_IDS: [], FIELD_NONCE: 'dendro-no-surveys',
+        })
+
+        assert resp.status_code == 200, resp.content
+        assert resp.json()[MESSAGE] == S.DENDROMETRY_SAVED
+
+    def test_reader_forbidden(self, reader_client, db):
+        assert reader_client.get(self.DATA_URL).status_code == 403
 
 
 # ---------------------------------------------------------------------------

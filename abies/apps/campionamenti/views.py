@@ -38,7 +38,8 @@ from apps.base.models import (
 )
 from config import strings as S
 from config.constants import (
-    DEFAULT_RADIUS_M, FIELD_ALTITUDE, FIELD_ALTITUDE_M, FIELD_AREA,
+    DEFAULT_RADIUS_M, DIGEST_PARCEL_DENDROMETRY, FIELD_ALTITUDE,
+    FIELD_ALTITUDE_M, FIELD_AREA,
     FIELD_COMPRESA, FIELD_COPPICE, FIELD_DATE, FIELD_DEFAULT_DATE,
     FIELD_DESCRIPTION, FIELD_D_CM,
     FIELD_FILE, FIELD_FUSTAIA, FIELD_H_M, FIELD_L10_MM, FIELD_LAT, FIELD_LON,
@@ -240,7 +241,8 @@ def tree_save_view(request):
         # tree_save can create a new Sample (first tree in an area) which
         # affects surveys.N_aree_visitate / Data primo / Data ultimo.
         mark_stale(
-            f'sampled_trees_{sample.survey_id}', 'samples', 'surveys', 'audit',
+            f'sampled_trees_{sample.survey_id}', 'samples', 'surveys',
+            DIGEST_PARCEL_DENDROMETRY, 'audit',
         )
 
     # Build the cache-update payload — see CLAUDE.md §"Optimistic table
@@ -298,7 +300,10 @@ def tree_delete_view(request, ts_id: int):
     ts.delete()
     # N. alberi just dropped; surveys.N_aree_visitate may also change
     # if this was the last tree on its area.
-    mark_stale(f'sampled_trees_{survey_id}', 'samples', 'surveys', 'audit')
+    mark_stale(
+        f'sampled_trees_{survey_id}', 'samples', 'surveys',
+        DIGEST_PARCEL_DENDROMETRY, 'audit',
+    )
     sample.refresh_from_db()
     sample_record = build_sample_record(sample)
     survey_record = build_survey_record(survey)
@@ -1033,7 +1038,7 @@ def survey_edit_view(request, survey_id: int):
     return save_model_response(
         request, body, model=Survey, data_id='surveys', row_id=survey.id,
         values={FIELD_NAME: name, FIELD_DESCRIPTION: description},
-        row_fn=build_survey_record, stale=('surveys', 'audit'),
+        row_fn=build_survey_record, stale=('surveys', DIGEST_PARCEL_DENDROMETRY, 'audit'),
         unique_field=FIELD_NAME, unique_value=name,
         unique_error=S.ERR_SURVEY_NAME_DUPLICATE,
     )
@@ -1362,7 +1367,8 @@ def tree_csv_import_view(request):
             n_trees += 1
 
         mark_stale(
-            f'sampled_trees_{survey.id}', 'samples', 'surveys', 'audit',
+            f'sampled_trees_{survey.id}', 'samples', 'surveys',
+            DIGEST_PARCEL_DENDROMETRY, 'audit',
         )
 
     return success_response(
@@ -1395,7 +1401,7 @@ def survey_delete_view(request, survey_id: int):
         survey.delete()
         mark_stale(
             f'sampled_trees_{survey_id}', 'samples', 'surveys', 'grids',
-            'audit',
+            DIGEST_PARCEL_DENDROMETRY, 'audit',
         )
     return success_response(
         request, body,
@@ -1427,7 +1433,7 @@ def survey_save_view(request):
     return save_model_response(
         request, body, model=Survey, data_id='surveys',
         values={FIELD_NAME: name, 'sample_grid': grid, FIELD_DESCRIPTION: description},
-        row_fn=build_survey_record, stale=('surveys', 'grids', 'audit'),
+        row_fn=build_survey_record, stale=('surveys', 'grids', DIGEST_PARCEL_DENDROMETRY, 'audit'),
         unique_field=FIELD_NAME, unique_value=name,
         unique_error=S.ERR_SURVEY_NAME_DUPLICATE,
         extra_patches=lambda _survey: [

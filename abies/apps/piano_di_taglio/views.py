@@ -57,6 +57,7 @@ from apps.prelievi.models import Harvest, HarvestSpecies, HarvestTractor
 from config import strings as S
 from config.constants import (
     DATA_ID,
+    DIGEST_FUTURE_PRODUCTION,
     FIELD_ACC_M,
     FIELD_CEDUO_FILE,
     FIELD_D_CM,
@@ -162,7 +163,8 @@ def plan_save_view(request):
             FIELD_YEAR_START: year_start,
             FIELD_YEAR_END: year_end,
         },
-        row_fn=build_harvest_plan_record, stale=('harvest_plans', 'audit'),
+        row_fn=build_harvest_plan_record,
+        stale=('harvest_plans', DIGEST_FUTURE_PRODUCTION, 'audit'),
         unique_field=FIELD_NAME, unique_value=name,
         unique_error=S.ERR_PLAN_NAME_DUPLICATE, unique_case_insensitive=True,
         conflict_fn=_conflict_response_plan,
@@ -197,7 +199,7 @@ def plan_delete_view(request, plan_id: int):
     with transaction.atomic():
         # HarvestPlanItem and ParcelPlanDetail both cascade to HarvestPlan.
         plan.delete()
-        mark_stale('harvest_plans', 'harvest_plan_items', 'audit')
+        mark_stale('harvest_plans', 'harvest_plan_items', DIGEST_FUTURE_PRODUCTION, 'audit')
     return success_response(
         request, body,
         data_id='harvest_plans', row_id=plan_id,
@@ -407,7 +409,7 @@ def plan_csv_import_view(request):
             )
             n_items += 1
 
-        mark_stale('harvest_plans', 'harvest_plan_items', 'audit')
+        mark_stale('harvest_plans', 'harvest_plan_items', DIGEST_FUTURE_PRODUCTION, 'audit')
 
     return success_response(
         request, body,
@@ -626,7 +628,7 @@ def item_save_view(request):
                 item.save()
             except Exception as exc:
                 return validation_error([str(exc)])
-        mark_stale('harvest_plan_items', 'audit')
+        mark_stale('harvest_plan_items', DIGEST_FUTURE_PRODUCTION, 'audit')
 
     item = (HarvestPlanItem.objects
             .select_related('parcel__region', 'parcel__eclass',
@@ -669,7 +671,7 @@ def item_delete_view(request, item_id: int):
             item.delete()
         except Exception:
             return validation_error([S.ERR_PLAN_ITEM_HAS_DEPS])
-        mark_stale('harvest_plan_items', 'audit')
+        mark_stale('harvest_plan_items', DIGEST_FUTURE_PRODUCTION, 'audit')
 
     return success_response(
         request, body,
@@ -840,7 +842,7 @@ def transition_save_view(request):
             item.date_actual = date
         item.version += 1
         item.save()
-        mark_stale('harvest_plan_items', 'audit')
+        mark_stale('harvest_plan_items', DIGEST_FUTURE_PRODUCTION, 'audit')
 
     item = (HarvestPlanItem.objects
             .select_related('parcel__region', 'parcel__eclass',
@@ -1053,7 +1055,7 @@ def mark_save_view(request):
             _auto_advance_to_marked(item, date)
 
         _rematerialize_volume_marked(item.id)
-        mark_stale(f'mark_trees_{item.id}', 'harvest_plan_items', 'audit')
+        mark_stale(f'mark_trees_{item.id}', 'harvest_plan_items', DIGEST_FUTURE_PRODUCTION, 'audit')
 
     tm = (TreeMark.objects
           .select_related('tree__species')
@@ -1115,7 +1117,7 @@ def mark_delete_view(request):
         if not TreeMark.objects.filter(tree=tree).exists():
             tree.delete()
         _rematerialize_volume_marked(item_id)
-        mark_stale(f'mark_trees_{item_id}', 'harvest_plan_items', 'audit')
+        mark_stale(f'mark_trees_{item_id}', 'harvest_plan_items', DIGEST_FUTURE_PRODUCTION, 'audit')
 
     item_fresh = (HarvestPlanItem.objects
                   .select_related('parcel__region', 'parcel__eclass',
@@ -1300,7 +1302,7 @@ def mark_csv_import_view(request):
             _auto_advance_to_marked(item, earliest_date)
             _rematerialize_volume_marked(item.id)
 
-        mark_stale(f'mark_trees_{item.id}', 'harvest_plan_items', 'audit')
+        mark_stale(f'mark_trees_{item.id}', 'harvest_plan_items', DIGEST_FUTURE_PRODUCTION, 'audit')
 
     item_fresh = (HarvestPlanItem.objects
                   .select_related('parcel__region', 'parcel__eclass',

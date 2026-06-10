@@ -25,3 +25,13 @@
   width: 100%;
   max-width: 400px;
 }
+
+.settings-source-form select {
+  width: 100%;
+  max-width: 420px;
+}
+
+.settings-summary {
+  font-size: 0.9rem;
+  margin: 0 0 8px;
+}

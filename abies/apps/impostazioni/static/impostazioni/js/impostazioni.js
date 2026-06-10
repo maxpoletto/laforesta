@@ -12,6 +12,7 @@
  */
 
 import { fileToBase64, postJSON } from '../../base/js/api.js';
+import * as cache from '../../base/js/cache.js';
 import { downloadFromURL } from '../../base/js/csv-export.js';
 import { TableWrapper } from '../../base/js/table.js';
 import * as modals from '../../base/js/modals.js';
@@ -25,8 +26,9 @@ import { loadCSS, unloadCSS } from '../../base/js/page-css.js';
 import { cloneTemplate } from '../../base/js/templates.js';
 import * as S from '../../base/js/strings.js';
 import {
-  FIELD_CREATED_AT, FIELD_FILE, FIELD_MIN_N, FIELD_NONCE, FIELD_SOURCE,
-  FIELD_SURVEY_IDS, FIELD_SURVEYS, HYPSO_SOURCE_COMPUTED, LOGIN_METHOD_PASSWORD,
+  FIELD_CREATED_AT, FIELD_FILE, FIELD_HARVEST_PLAN_ID, FIELD_MIN_N,
+  FIELD_NONCE, FIELD_SOURCE, FIELD_SURVEY_IDS, FIELD_SURVEYS,
+  HYPSO_SOURCE_COMPUTED, LOGIN_METHOD_PASSWORD,
   DATA_ID, MESSAGE, PATCHES, RECORD, ROLE_ADMIN, ROLE_WRITER,
 } from '../../base/js/constants.js';
 import {
@@ -100,6 +102,8 @@ const SECTIONS = [
       [S.COL_ACTIVE]: ACTIVE_COL_DEF,
     },
   }),
+  { minRole: ROLE_WRITER, build: buildFutureProductionSection },
+  { minRole: ROLE_WRITER, build: buildDendrometrySection },
   { minRole: ROLE_WRITER, build: buildHypsoSection },
   entitySection({
     key: 'users',
@@ -339,6 +343,167 @@ function wirePasswordToggle(form) {
 }
 
 // ---------------------------------------------------------------------------
+// Bosco source settings (writer+)
+// ---------------------------------------------------------------------------
+
+const FUTURE_PRODUCTION = {
+  data: `${API}future-production/data/`,
+  save: `${API}future-production/save/`,
+};
+
+const DENDROMETRY = {
+  data: `${API}dendrometry/data/`,
+  save: `${API}dendrometry/save/`,
+};
+
+function buildFutureProductionSection() {
+  const frag = cloneTemplate('tmpl-future-production-section');
+  const body = frag.querySelector('.collapsible-body');
+  const form = body.querySelector('[data-role="future-production-form"]');
+  const select = body.querySelector('[data-role="future-plan"]');
+  const msg = body.querySelector('[data-role="future-production-msg"]');
+  let loaded = false;
+
+  wireCollapsibleToggle(
+    frag.querySelector('.collapsible-header'), body,
+    () => {
+      if (loaded) return;
+      loaded = true;
+      loadFutureProduction(select, form);
+    },
+  );
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    msg.textContent = '';
+    const planId = parseInt(select.value, 10);
+    const data = await postOrError(postJSON(FUTURE_PRODUCTION.save, {
+      [FIELD_HARVEST_PLAN_ID]: planId,
+      [FIELD_NONCE]: crypto.randomUUID(),
+    }));
+    if (data) msg.textContent = data[MESSAGE] || S.SETTINGS_UPDATED;
+  });
+
+  return frag;
+}
+
+async function loadFutureProduction(select, form) {
+  setFormEnabled(form, false);
+  select.replaceChildren(option('', S.LOADING));
+
+  let data;
+  try {
+    const resp = await fetch(FUTURE_PRODUCTION.data);
+    if (!resp.ok) throw new Error(`${resp.status}`);
+    data = await resp.json();
+  } catch {
+    select.replaceChildren();
+    showError(S.ERROR_NETWORK);
+    return;
+  }
+
+  const plans = data.plans || [];
+  select.replaceChildren();
+  if (!plans.length) {
+    select.appendChild(option('', S.SETTINGS_NO_HARVEST_PLANS));
+    return;
+  }
+  for (const plan of plans) {
+    const opt = option(plan.id, `${plan.name} (${plan.year_start}-${plan.year_end})`);
+    opt.selected = plan.id === data.active_id || plan.active === true;
+    select.appendChild(opt);
+  }
+  setFormEnabled(form, true);
+}
+
+function buildDendrometrySection() {
+  const frag = cloneTemplate('tmpl-dendrometry-section');
+  const body = frag.querySelector('.collapsible-body');
+  const form = body.querySelector('[data-role="dendrometry-form"]');
+  const msg = body.querySelector('[data-role="dendrometry-msg"]');
+  let loaded = false;
+
+  wireCollapsibleToggle(
+    frag.querySelector('.collapsible-header'), body,
+    () => {
+      if (loaded) return;
+      loaded = true;
+      loadDendrometry(body);
+    },
+  );
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    msg.textContent = '';
+    const data = await postOrError(postJSON(DENDROMETRY.save, {
+      [FIELD_SURVEY_IDS]: selectedDendrometrySurveyIds(body),
+      [FIELD_NONCE]: crypto.randomUUID(),
+    }));
+    if (!data) return;
+    await loadDendrometry(body);
+    msg.textContent = data[MESSAGE] || S.SETTINGS_UPDATED;
+  });
+
+  return frag;
+}
+
+async function loadDendrometry(body) {
+  const form = body.querySelector('[data-role="dendrometry-form"]');
+  const select = body.querySelector('[data-role="dendrometry-surveys"]');
+  const summary = body.querySelector('[data-role="dendrometry-counts"]');
+
+  setFormEnabled(form, false);
+  summary.textContent = '';
+  select.replaceChildren(option('', S.LOADING));
+
+  let data;
+  try {
+    const resp = await fetch(DENDROMETRY.data);
+    if (!resp.ok) throw new Error(`${resp.status}`);
+    data = await resp.json();
+  } catch {
+    select.replaceChildren();
+    showError(S.ERROR_NETWORK);
+    return;
+  }
+
+  const surveys = data.surveys || [];
+  const activeIds = new Set(data.active_ids || []);
+  summary.textContent = S.SETTINGS_DENDROMETRY_COUNTS(data.counts || {
+    trees: 0, regions: 0, parcels: 0,
+  });
+  select.replaceChildren();
+  if (!surveys.length) {
+    select.appendChild(option('', S.SETTINGS_NO_SURVEYS));
+    return;
+  }
+  for (const survey of surveys) {
+    const opt = option(survey.id, survey.name);
+    opt.selected = activeIds.has(survey.id) || survey.active === true;
+    select.appendChild(opt);
+  }
+  setFormEnabled(form, true);
+}
+
+function selectedDendrometrySurveyIds(body) {
+  return [...body.querySelectorAll('[data-role="dendrometry-surveys"] option:checked')]
+    .map(o => parseInt(o.value, 10));
+}
+
+function option(value, text) {
+  const opt = document.createElement('option');
+  opt.value = value;
+  opt.textContent = text;
+  return opt;
+}
+
+function setFormEnabled(form, enabled) {
+  for (const el of form.querySelectorAll('select, button')) {
+    el.disabled = !enabled;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Hypsometric parameters (writer+).  Whole-set management: a read-only table
 // of the active set plus compute / import / export / clear.  See
 // docs/hypsometry.md.
@@ -540,6 +705,7 @@ async function postOrError(promise) {
     showError(result.data[MESSAGE] || S.ERROR_GENERIC);
     return null;
   }
+  cache.applyResponseChanges(result.data);
   return result.data;
 }
 

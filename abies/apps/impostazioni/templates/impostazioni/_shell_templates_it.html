@@ -36,6 +36,39 @@ S (string constants) provided by the shell's render context.
   </div>
 </template>
 
+<template id="tmpl-future-production-section">
+  {% include "base/_partials/_collapsible_header.html" with section="" title="Produzione futura" %}
+  <div class="collapsible-body">
+    <form class="settings-source-form" data-role="future-production-form">
+      <div class="form-group">
+        <label for="future-production-plan">Piano</label>
+        <select id="future-production-plan" data-role="future-plan"></select>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-save">{{ S.SAVE }}</button>
+      </div>
+    </form>
+    <p class="mt-1" data-role="future-production-msg"></p>
+  </div>
+</template>
+
+<template id="tmpl-dendrometry-section">
+  {% include "base/_partials/_collapsible_header.html" with section="" title="Parametri dendrometrici" %}
+  <div class="collapsible-body">
+    <p class="settings-summary" data-role="dendrometry-counts"></p>
+    <form class="settings-source-form" data-role="dendrometry-form">
+      <div class="form-group">
+        <label for="dendrometry-surveys">Rilevamenti</label>
+        <select id="dendrometry-surveys" multiple size="6" data-role="dendrometry-surveys"></select>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-save">{{ S.SAVE }}</button>
+      </div>
+    </form>
+    <p class="mt-1" data-role="dendrometry-msg"></p>
+  </div>
+</template>
+
 <template id="tmpl-hypso-section">
   {% include "base/_partials/_collapsible_header.html" with section="" title="Parametri ipsometrici" %}
   <div class="collapsible-body">

@@ -84,8 +84,15 @@ export const SETTINGS_PASSWORD = 'Cambio password';
 export const SETTINGS_CREWS = 'Squadre';
 export const SETTINGS_TRACTORS = 'Trattori';
 export const SETTINGS_SPECIES = 'Specie';
+export const SETTINGS_FUTURE_PRODUCTION = 'Produzione futura';
+export const SETTINGS_DENDROMETRY = 'Parametri dendrometrici';
 export const SETTINGS_USERS = 'Utenti';
 export const SETTINGS_HYPSO = 'Parametri ipsometrici';
+export const SETTINGS_NO_HARVEST_PLANS = 'Nessun piano disponibile.';
+export const SETTINGS_NO_SURVEYS = 'Nessun rilevamento disponibile.';
+export const SETTINGS_UPDATED = 'Impostazioni aggiornate.';
+export const SETTINGS_DENDROMETRY_COUNTS = ({ trees, regions, parcels }) =>
+  `N. alberi: ${trees} · Comprese: ${regions} · Particelle: ${parcels}`;
 export const ONLY_ACTIVE = 'Solo attivi';
 
 // Hypsometric-parameters section.  (Accept/Reject/title are literal in the

@@ -41,6 +41,10 @@ export const ROLE_READER = 'reader';
 export const LOGIN_METHOD_PASSWORD = 'password';
 export const LOGIN_METHOD_OAUTH    = 'oauth';
 
+// Digest filesystem identifiers (the digest file is `<name>.json.gz`).
+export const DIGEST_FUTURE_PRODUCTION = 'future_production';
+export const DIGEST_PARCEL_DENDROMETRY = 'parcel_dendrometry';
+
 // Hypsometric-parameter set source — mirror apps/base/models.py HypsoParamSource.
 export const HYPSO_SOURCE_COMPUTED = 'computed';
 export const HYPSO_SOURCE_IMPORTED = 'imported';

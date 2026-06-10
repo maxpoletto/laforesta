@@ -118,10 +118,18 @@ class Migration(migrations.Migration):
                 ("year_start", models.IntegerField()),
                 ("year_end", models.IntegerField()),
                 ("description", models.TextField(blank=True)),
+                ("active", models.BooleanField(default=False)),
             ],
             options={
                 "verbose_name": "piano di gestione",
                 "verbose_name_plural": "piani di gestione",
+                "constraints": [
+                    models.UniqueConstraint(
+                        condition=models.Q(("active", True)),
+                        fields=("active",),
+                        name="uniq_active_harvest_plan",
+                    )
+                ],
             },
         ),
         migrations.CreateModel(
@@ -439,6 +447,7 @@ class Migration(migrations.Migration):
                 ("year_start", models.IntegerField()),
                 ("year_end", models.IntegerField()),
                 ("description", models.TextField(blank=True)),
+                ("active", models.BooleanField(default=False)),
                 ("history_id", models.AutoField(primary_key=True, serialize=False)),
                 ("history_date", models.DateTimeField(db_index=True)),
                 ("history_change_reason", models.CharField(max_length=100, null=True)),
@@ -1067,6 +1076,7 @@ class Migration(migrations.Migration):
                 ("modified_at", models.DateTimeField(blank=True, editable=False)),
                 ("name", models.CharField(db_index=True, max_length=100)),
                 ("description", models.TextField(blank=True)),
+                ("active", models.BooleanField(default=False)),
                 ("history_id", models.AutoField(primary_key=True, serialize=False)),
                 ("history_date", models.DateTimeField(db_index=True)),
                 ("history_change_reason", models.CharField(max_length=100, null=True)),
@@ -1191,6 +1201,7 @@ class Migration(migrations.Migration):
                 ("modified_at", models.DateTimeField(auto_now=True)),
                 ("name", models.CharField(max_length=100, unique=True)),
                 ("description", models.TextField(blank=True)),
+                ("active", models.BooleanField(default=False)),
                 (
                     "sample_grid",
                     models.ForeignKey(

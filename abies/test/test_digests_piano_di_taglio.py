@@ -116,6 +116,7 @@ class TestGenerateHarvestPlans:
         assert S.COL_NAME in data[COLUMNS]
         assert S.COL_YEAR_START in data[COLUMNS]
         assert S.COL_YEAR_END in data[COLUMNS]
+        assert S.COL_ACTIVE in data[COLUMNS]
         assert len(data[ROWS]) == 1
 
     def test_row_values(self, plan, tmp_path, settings):
@@ -131,6 +132,7 @@ class TestGenerateHarvestPlans:
         assert row[cols.index(S.COL_DESCRIPTION)] == 'Test plan.'
         assert row[cols.index(S.COL_YEAR_START)] == 2020
         assert row[cols.index(S.COL_YEAR_END)] == 2030
+        assert row[cols.index(S.COL_ACTIVE)] is False
 
     def test_build_record_matches_generator(self, plan, tmp_path, settings):
         """Shape contract: build_harvest_plan_record produces a row

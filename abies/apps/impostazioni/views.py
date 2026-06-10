@@ -6,30 +6,35 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import Q
 from django.http import HttpResponse, JsonResponse
 from django.template.loader import render_to_string
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from apps.base import csv_io, hypsometry
 from apps.base.auth import require_admin, require_writer
 from apps.base.numparse import parse_decimal
 from apps.base.digests import (
-    HYPSO_PARAM_COLUMNS, hypso_param_row, mark_stale, serve_digest,
+    HYPSO_PARAM_COLUMNS, build_harvest_plan_record, build_survey_record,
+    hypso_param_row, mark_stale, serve_digest,
 )
 from apps.base.responses import (
     parse_json_body, row_patch, save_model_response, success_response,
     validation_error,
 )
 from apps.base.models import (
-    Crew, HYPSO_FUNC_LN, HypsoParam, HypsoParamSource, LoginMethod, Role,
-    Species, Tractor, User,
+    Crew, HarvestPlan, HYPSO_FUNC_LN, HypsoParam, HypsoParamSource,
+    LoginMethod, Role, Species, Survey, Tractor, TreeSample, User,
 )
 from config import strings as S
 from config.constants import (
-    COLUMNS, DIGEST_HYPSO_PARAMS, FIELD_ACTIVE, FIELD_COMMON_NAME,
+    COLUMNS, DIGEST_FUTURE_PRODUCTION, DIGEST_HYPSO_PARAMS,
+    DIGEST_PARCEL_DENDROMETRY, FIELD_ACTIVE, FIELD_COMMON_NAME,
     FIELD_CREATED_AT, FIELD_DENSITY, FIELD_EMAIL, FIELD_FILE, FIELD_FIRST_NAME,
-    FIELD_IS_ACTIVE, FIELD_LAST_NAME, FIELD_LATIN_NAME, FIELD_LOGIN_METHOD,
-    FIELD_MANUFACTURER, FIELD_MIN_N, FIELD_MINOR, FIELD_MODEL, FIELD_NAME,
+    FIELD_HARVEST_PLAN_ID, FIELD_IS_ACTIVE, FIELD_LAST_NAME,
+    FIELD_LATIN_NAME, FIELD_LOGIN_METHOD, FIELD_MANUFACTURER, FIELD_MIN_N,
+    FIELD_MINOR, FIELD_MODEL, FIELD_NAME,
     FIELD_NOTES, FIELD_PASSWORD1, FIELD_PASSWORD2, FIELD_ROLE,
     FIELD_SOURCE, FIELD_SPECIES, FIELD_SURVEY_IDS, FIELD_SURVEYS,
     FIELD_USERNAME, FIELD_YEAR,
@@ -212,6 +217,155 @@ def species_save(request):
         row_fn=_species_row, stale=('prelievi', 'audit', FIELD_SPECIES),
     )
 
+
+
+# ---------------------------------------------------------------------------
+# Bosco source settings (writer+)
+# ---------------------------------------------------------------------------
+
+BOSCO_DIGESTS = (DIGEST_FUTURE_PRODUCTION, DIGEST_PARCEL_DENDROMETRY)
+
+
+@login_required
+@require_writer
+def future_production_data(request):
+    active = HarvestPlan.objects.filter(active=True).order_by('-year_end', 'id').first()
+    default = active or _default_future_plan()
+    return JsonResponse({
+        'active_id': default.id if default else None,
+        'plans': [
+            {
+                'id': p.id,
+                'name': p.name,
+                'year_start': p.year_start,
+                'year_end': p.year_end,
+                'active': bool(default and p.id == default.id),
+            }
+            for p in HarvestPlan.objects.order_by('-year_start', 'name')
+        ],
+    })
+
+
+@login_required
+@require_writer
+@require_POST
+def future_production_save(request):
+    body, error = parse_json_body(request)
+    if error:
+        return error
+    plan_id = body.get(FIELD_HARVEST_PLAN_ID)
+    try:
+        plan_id = int(plan_id)
+    except (TypeError, ValueError):
+        return _error(S.ERR_FUTURE_PLAN_REQUIRED)
+    if not HarvestPlan.objects.filter(id=plan_id).exists():
+        return _error(S.ERR_PLAN_NOT_FOUND)
+
+    changed = []
+    with transaction.atomic():
+        active_qs = HarvestPlan.objects.select_for_update().filter(active=True)
+        for plan in active_qs.exclude(id=plan_id):
+            plan.active = False
+            plan.version += 1
+            plan.save()
+            changed.append(plan)
+        selected = HarvestPlan.objects.select_for_update().get(id=plan_id)
+        if not selected.active:
+            selected.active = True
+            selected.version += 1
+            selected.save()
+            changed.append(selected)
+        mark_stale(*BOSCO_DIGESTS, 'harvest_plans', 'audit')
+    return success_response(
+        request, body,
+        patches=[
+            row_patch('harvest_plans', plan.id, build_harvest_plan_record(plan))
+            for plan in changed
+        ],
+        extra={MESSAGE: S.FUTURE_PRODUCTION_SAVED},
+    )
+
+
+@login_required
+@require_writer
+def dendrometry_data(request):
+    active_ids = list(
+        Survey.objects.filter(active=True).order_by('name').values_list('id', flat=True)
+    )
+    if not active_ids:
+        first = Survey.objects.order_by('name').first()
+        active_ids = [first.id] if first else []
+    counts = _dendrometry_counts(active_ids)
+    active = set(active_ids)
+    return JsonResponse({
+        'active_ids': active_ids,
+        'counts': counts,
+        'surveys': [
+            {'id': s.id, 'name': s.name, 'active': s.id in active}
+            for s in Survey.objects.order_by('name')
+        ],
+    })
+
+
+@login_required
+@require_writer
+@require_POST
+def dendrometry_save(request):
+    body, error = parse_json_body(request)
+    if error:
+        return error
+    raw_ids = body.get(FIELD_SURVEY_IDS)
+    if not isinstance(raw_ids, list):
+        return _error(S.ERR_DENDROMETRY_SURVEYS_REQUIRED)
+    try:
+        survey_ids = [int(s) for s in raw_ids]
+    except (TypeError, ValueError):
+        return _error(S.ERR_DENDROMETRY_SURVEYS_REQUIRED)
+    if Survey.objects.exists() and not survey_ids:
+        return _error(S.ERR_DENDROMETRY_SURVEYS_REQUIRED)
+    if Survey.objects.filter(id__in=survey_ids).count() != len(set(survey_ids)):
+        return _error(S.ERR_CSV_SURVEY_REQUIRED)
+
+    desired = set(survey_ids)
+    changed = []
+    with transaction.atomic():
+        qs = Survey.objects.select_for_update().filter(Q(active=True) | Q(id__in=desired))
+        for survey in qs:
+            active = survey.id in desired
+            if survey.active == active:
+                continue
+            survey.active = active
+            survey.version += 1
+            survey.save()
+            changed.append(survey)
+        mark_stale(*BOSCO_DIGESTS, 'surveys', 'audit')
+    return success_response(
+        request, body,
+        patches=[
+            row_patch('surveys', survey.id, build_survey_record(survey))
+            for survey in changed
+        ],
+        extra={MESSAGE: S.DENDROMETRY_SAVED},
+    )
+
+
+def _default_future_plan():
+    year = timezone.localdate().year
+    return (HarvestPlan.objects
+            .filter(year_start__lte=year, year_end__gte=year)
+            .order_by('-year_end', 'id')
+            .first())
+
+
+def _dendrometry_counts(survey_ids):
+    if not survey_ids:
+        return {'trees': 0, 'regions': 0, 'parcels': 0}
+    qs = TreeSample.objects.filter(sample__survey_id__in=survey_ids)
+    return {
+        'trees': qs.count(),
+        'regions': qs.values('sample__sample_area__parcel__region_id').distinct().count(),
+        'parcels': qs.values('sample__sample_area__parcel_id').distinct().count(),
+    }
 
 # ---------------------------------------------------------------------------
 # Users (admin only)

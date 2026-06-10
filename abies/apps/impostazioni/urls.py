@@ -26,6 +26,17 @@ urlpatterns = [
     path('species/form/<int:obj_id>/', views.species_form, name='impostazioni-species-form-edit'),
     path('species/save/', views.species_save, name='impostazioni-species-save'),
 
+
+    # Bosco source settings (writer+)
+    path('future-production/data/', views.future_production_data,
+         name='impostazioni-future-production-data'),
+    path('future-production/save/', views.future_production_save,
+         name='impostazioni-future-production-save'),
+    path('dendrometry/data/', views.dendrometry_data,
+         name='impostazioni-dendrometry-data'),
+    path('dendrometry/save/', views.dendrometry_save,
+         name='impostazioni-dendrometry-save'),
+
     # Users (admin only)
     path('users/data/', views.users_data, name='impostazioni-users-data'),
     path('users/form/', views.users_form, name='impostazioni-users-form-add'),

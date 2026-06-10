@@ -134,7 +134,9 @@ class TestDataEndpoints:
             )
 
         assert row[0] == survey.id
-        assert row[5:] == [1, 1, sample_date.isoformat(), sample_date.isoformat()]
+        assert row[5:] == [
+            1, 1, sample_date.isoformat(), sample_date.isoformat(), False,
+        ]
 
     def test_sample_areas_data(self, writer_client, sample_setup, tmp_path, settings):
         settings.DIGEST_DIR = tmp_path
