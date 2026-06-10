@@ -80,6 +80,8 @@ export function readBoscoParams(params, regionIds = []) {
     parcelId: intParam(params, 'pa'),
     openSections: parseSectionTokens(paramValue(params, 'vo')),
     detailSpeciesIds: parseIdList(paramValue(params, 'ds')),
+    paiParcelIds: parseOptionalIdList(paramValue(params, 'pp')),
+    paiSpeciesIds: parseOptionalIdList(paramValue(params, 'ps')),
     hasRegionParam: hasParam(params, 'c'),
   };
 }
@@ -104,6 +106,20 @@ export function parseIdList(raw) {
     out.push(n);
   }
   return out;
+}
+
+export function parseOptionalIdList(raw) {
+  if (raw == null) return null;
+  if (raw === '') return [];
+  return parseIdList(raw);
+}
+
+export function writeOptionalIdList(params, key, selected, allIds) {
+  if (selected == null || selected.length === allIds.length) {
+    params.delete(key);
+  } else {
+    params.set(key, selected.join(','));
+  }
 }
 
 export function writeSectionTokens(params, sections) {

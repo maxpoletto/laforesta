@@ -268,9 +268,9 @@ Cross-mode summary:
 
 - `pp=<id list>` — comma-separated `parcel.id` values within the
   active region (e.g., `12,13,17,42`).  Absent → all parcels in the
-  region visible.
+  region visible; explicit empty `pp=` → none visible.
 - `ps=<id list>` — comma-separated `species.id` values (e.g.,
-  `3,5,11`).  Absent → all species visible.
+  `3,5,11`).  Absent → all species visible; explicit empty `ps=` → none visible.
 
 #### Entity references
 

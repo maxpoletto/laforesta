@@ -91,6 +91,7 @@ test-js:
 	node apps/bosco/static/bosco/js/bosco-state.test.mjs
 	node apps/bosco/static/bosco/js/bosco-characteristics.test.mjs
 	node apps/bosco/static/bosco/js/bosco-detail.test.mjs
+	node apps/bosco/static/bosco/js/bosco-pai.test.mjs
 	node apps/mannesi/static/mannesi/js/pdf.test.mjs
 	node apps/prelievi/static/prelievi/js/prelievi.test.mjs
 	node apps/base/static/base/js/prelievi-columns.test.mjs

@@ -5,7 +5,8 @@
 import * as cache from '../../base/js/cache.js';
 import * as S from '../../base/js/strings.js';
 import {
-  COLUMNS, DIGEST_FUTURE_PRODUCTION, DIGEST_PARCEL_DENDROMETRY, ROWS,
+  COLUMNS, DIGEST_FUTURE_PRODUCTION, DIGEST_PARCEL_DENDROMETRY,
+  DIGEST_PRESERVED_TREES, ROWS,
 } from '../../base/js/constants.js';
 import { fmtArea, fmtDecimal1, fmtDecimal2, fmtInt, fmtMass, fmtVolume } from '../../base/js/format.js';
 import { cloneTemplate } from '../../base/js/templates.js';
@@ -15,7 +16,7 @@ import { createPage, navigateWithParams } from '../../base/js/page-sync.js';
 import { wireCollapsibleToggle } from '../../base/js/ui-widgets.js';
 import {
   clearDetailParams, clearMapView, mapTypeToken, readBoscoParams,
-  writeMapView, writeSectionTokens,
+  writeMapView, writeOptionalIdList, writeSectionTokens,
 } from './bosco-state.js';
 import {
   CHARACTERISTIC_METRICS,
@@ -33,6 +34,9 @@ import {
 import {
   aggregateDendrometry, dendrometrySpecies, regionMetadata,
 } from './bosco-detail.js';
+import {
+  buildPreservedTrees, filterPaiTrees, paiParcelItems, paiSpeciesItems, speciesColorMap,
+} from './bosco-pai.js';
 
 const CSS_URL = '/static/bosco/css/bosco.css';
 const PAGE_PATH = '/bosco';
@@ -43,6 +47,8 @@ const FUTURE_ID = DIGEST_FUTURE_PRODUCTION;
 const FUTURE_URL = '/api/bosco/future-production/data/';
 const DENDROMETRY_ID = DIGEST_PARCEL_DENDROMETRY;
 const DENDROMETRY_URL = '/api/bosco/parcel-dendrometry/data/';
+const PRESERVED_ID = DIGEST_PRESERVED_TREES;
+const PRESERVED_URL = '/api/bosco/preserved-trees/data/';
 const PRELIEVI_ID = 'prelievi';
 const PRELIEVI_URL = '/api/prelievi/data/';
 const TERRENI_ID = 'terreni';
@@ -75,6 +81,7 @@ const TYPE_STYLES = {
 cache.register(PARCELS_ID, PARCELS_URL);
 cache.register(FUTURE_ID, FUTURE_URL);
 cache.register(DENDROMETRY_ID, DENDROMETRY_URL);
+cache.register(PRESERVED_ID, PRESERVED_URL);
 cache.register(PRELIEVI_ID, PRELIEVI_URL);
 cache.register(TERRENI_ID, TERRENI_GEOJSON_URL);
 
@@ -95,6 +102,8 @@ let metadataHost = null;
 let dendrometryHost = null;
 let dendrometrySpeciesHost = null;
 let dendrometryPerHa = null;
+let paiParcelsHost = null;
+let paiSpeciesHost = null;
 let detailSections = {};
 let parcelsData = null;
 let futureData = null;
@@ -102,6 +111,9 @@ let prelieviData = null;
 let prelieviLoad = null;
 let dendrometryData = null;
 let dendrometryLoad = null;
+let preservedData = null;
+let preservedLoad = null;
+let paiMarkerLayer = null;
 let parcelsGeo = null;
 let map = null;
 let regions = [];
@@ -120,9 +132,10 @@ const page = createPage({
     [PARCELS_ID, onParcelsUpdate],
     [FUTURE_ID, onFutureUpdate],
     [DENDROMETRY_ID, onDendrometryUpdate],
+    [PRESERVED_ID, onPreservedUpdate],
     [PRELIEVI_ID, onPrelieviUpdate],
   ],
-  visibleIds: [PARCELS_ID, FUTURE_ID, DENDROMETRY_ID, PRELIEVI_ID],
+  visibleIds: [PARCELS_ID, FUTURE_ID, DENDROMETRY_ID, PRESERVED_ID, PRELIEVI_ID],
 });
 
 export const mount = page.mount;
@@ -139,6 +152,7 @@ async function loadPageData() {
   futureData = future;
   prelieviData = cache.get(PRELIEVI_ID);
   dendrometryData = cache.get(DENDROMETRY_ID);
+  preservedData = cache.get(PRESERVED_ID);
   parcelsGeo = sortFeaturesByArea(cache.get(TERRENI_ID));
   rebuildRegionIndex();
 }
@@ -163,6 +177,8 @@ function mountPage(el, params) {
   dendrometryHost = el.querySelector('[data-target="dendrometry"]');
   dendrometrySpeciesHost = el.querySelector('[data-target="dendrometry-species"]');
   dendrometryPerHa = el.querySelector('[data-role="dendrometry-per-ha"]');
+  paiParcelsHost = el.querySelector('[data-target="pai-parcels"]');
+  paiSpeciesHost = el.querySelector('[data-target="pai-species"]');
 
   buildRegionOptions();
   wireControls();
@@ -180,9 +196,11 @@ function destroyPage() {
   characteristicSelect = cadastralToggle = perHaToggle = perHaRow = legendEl = null;
   detailOverlay = detailTitle = detailScopeLabel = metadataHost = null;
   dendrometryHost = dendrometrySpeciesHost = dendrometryPerHa = null;
+  paiParcelsHost = paiSpeciesHost = null;
   detailSections = {};
-  parcelsData = futureData = prelieviData = dendrometryData = parcelsGeo = null;
-  prelieviLoad = dendrometryLoad = null;
+  parcelsData = futureData = prelieviData = dendrometryData = preservedData = parcelsGeo = null;
+  prelieviLoad = dendrometryLoad = preservedLoad = null;
+  paiMarkerLayer = null;
   regions = [];
   regionById = new Map();
   currentState = null;
@@ -209,6 +227,11 @@ function onPrelieviUpdate(data) {
 function onDendrometryUpdate(data) {
   dendrometryData = data;
   renderDendrometry();
+}
+
+function onPreservedUpdate(data) {
+  preservedData = data;
+  renderPaiMode();
 }
 
 function rebuildRegionIndex() {
@@ -301,6 +324,14 @@ function wireDetailControls() {
   }
 
   dendrometryPerHa?.addEventListener('change', renderDendrometry);
+  root?.querySelector('[data-action="show-all-parcels"]')
+    ?.addEventListener('click', () => setPaiFilter('pp', null, paiParcelsHost));
+  root?.querySelector('[data-action="hide-all-parcels"]')
+    ?.addEventListener('click', () => setPaiFilter('pp', [], paiParcelsHost));
+  root?.querySelector('[data-action="show-all-species"]')
+    ?.addEventListener('click', () => setPaiFilter('ps', null, paiSpeciesHost));
+  root?.querySelector('[data-action="hide-all-species"]')
+    ?.addEventListener('click', () => setPaiFilter('ps', [], paiSpeciesHost));
 }
 
 function applyParams(params) {
@@ -324,6 +355,8 @@ function applyParams(params) {
     refreshCharacteristicLayer();
   }
   syncDetailOverlay(state);
+  if (state.mode === '3') renderPaiMode();
+  else clearPaiMarkers();
 
   canonicalizeURL(state);
 }
@@ -422,6 +455,7 @@ function displayAreaHa(entry, state) {
 
 function destroyMap() {
   if (map) {
+    clearPaiMarkers();
     map.destroy();
     map = null;
   }
@@ -846,6 +880,146 @@ function appendCell(row, text) {
   row.appendChild(td);
 }
 
+
+function renderPaiMode() {
+  if (!map?._boscoEntries || currentState?.mode !== '3') return;
+  if (!preservedData) {
+    if (paiParcelsHost) paiParcelsHost.textContent = S.LOADING;
+    if (paiSpeciesHost) paiSpeciesHost.textContent = S.LOADING;
+    clearPaiMarkers();
+    loadPreservedTrees().then(renderPaiMode).catch(() => {
+      if (paiParcelsHost) paiParcelsHost.textContent = S.ERROR_NETWORK;
+      if (paiSpeciesHost) paiSpeciesHost.textContent = S.ERROR_NETWORK;
+    });
+    return;
+  }
+
+  const region = regionById.get(currentState.regionId)?.name;
+  const allTrees = filterPaiTrees(buildPreservedTrees(preservedData), { region });
+  const parcelItems = paiParcelItems(map._boscoEntries, allTrees);
+  const speciesItems = paiSpeciesItems(allTrees);
+  const colors = speciesColorMap(speciesItems);
+  renderPaiCheckboxes(paiParcelsHost, parcelItems, currentState.paiParcelIds, 'pp');
+  renderPaiCheckboxes(paiSpeciesHost, speciesItems, currentState.paiSpeciesIds, 'ps', colors);
+
+  const trees = filterPaiTrees(allTrees, {
+    parcelIds: currentState.paiParcelIds,
+    speciesIds: currentState.paiSpeciesIds,
+  });
+  renderPaiMarkers(trees, colors);
+}
+
+function loadPreservedTrees() {
+  if (!preservedLoad) {
+    preservedLoad = cache.load(PRESERVED_ID).then(data => {
+      preservedData = data;
+      return data;
+    }).finally(() => { preservedLoad = null; });
+  }
+  return preservedLoad;
+}
+
+function renderPaiCheckboxes(host, items, selectedIds, paramName, colors = null) {
+  if (!host) return;
+  host.replaceChildren();
+  if (!items.length) {
+    host.textContent = 'Nessuna pianta.';
+    return;
+  }
+  const selected = selectedIds == null ? null : new Set(selectedIds);
+  for (const item of items) {
+    const label = document.createElement('label');
+    label.className = 'bosco-check';
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.value = String(item.id);
+    input.checked = selected == null || selected.has(item.id);
+    input.addEventListener('change', () => updatePaiFilter(paramName, host, items));
+    label.appendChild(input);
+    if (colors) {
+      const dot = document.createElement('span');
+      dot.className = 'bosco-legend-dot';
+      dot.style.backgroundColor = colors.get(item.id) || '#777';
+      label.appendChild(dot);
+    }
+    const text = document.createElement('span');
+    text.textContent = `${item.name} (${fmtInt(item.count)})`;
+    label.appendChild(text);
+    host.appendChild(label);
+  }
+}
+
+function updatePaiFilter(paramName, host, items) {
+  const checked = [...host.querySelectorAll('input:checked')].map(input => Number(input.value));
+  setPaiFilter(paramName, checked, host, items.map(item => item.id));
+}
+
+function setPaiFilter(paramName, selected, host, allIds = null) {
+  const params = new URLSearchParams(location.search);
+  const ids = allIds || [...(host?.querySelectorAll('input') || [])].map(input => Number(input.value));
+  writeOptionalIdList(params, paramName, selected, ids);
+  navigateWithParams(PAGE_PATH, params, true);
+}
+
+function renderPaiMarkers(trees, colors) {
+  clearPaiMarkers();
+  if (!map?.leaflet) return;
+  paiMarkerLayer = L.layerGroup().addTo(map.leaflet);
+  for (const tree of trees) {
+    const marker = L.circleMarker([tree.lat, tree.lon], {
+      radius: 6,
+      color: '#222',
+      weight: 1,
+      opacity: 0.9,
+      fillColor: colors.get(tree.speciesId) || '#777',
+      fillOpacity: 0.88,
+    });
+    marker.bindTooltip(paiTooltip(tree), { direction: 'top', offset: [0, -5] });
+    marker.bindPopup(paiPopup(tree));
+    marker.addTo(paiMarkerLayer);
+  }
+}
+
+function clearPaiMarkers() {
+  if (paiMarkerLayer) {
+    paiMarkerLayer.remove();
+    paiMarkerLayer = null;
+  }
+}
+
+function paiTooltip(tree) {
+  const el = document.createElement('div');
+  const title = document.createElement('div');
+  title.className = 'bosco-tooltip-title';
+  title.textContent = tree.species;
+  const meta = document.createElement('div');
+  meta.textContent = `${tree.region} ${tree.parcel} · ${fmtInt(tree.year)}`;
+  el.append(title, meta);
+  return el;
+}
+
+function paiPopup(tree) {
+  const el = document.createElement('div');
+  el.className = 'bosco-pai-popup';
+  const rows = [
+    [S.COL_SPECIES, tree.species],
+    [S.COL_YEAR, fmtInt(tree.year)],
+    [S.COL_PARCEL, `${tree.region} ${tree.parcel}`.trim()],
+    [S.COL_LAT, fmtDecimal2(tree.lat)],
+    [S.COL_LON, fmtDecimal2(tree.lon)],
+  ];
+  for (const [label, value] of rows) {
+    const div = document.createElement('div');
+    const strong = document.createElement('strong');
+    strong.textContent = `${label}: `;
+    const span = document.createElement('span');
+    span.textContent = value || '';
+    div.append(strong, span);
+    el.appendChild(div);
+  }
+  return el;
+}
+
 function closeDetailOverlay() {
   const params = new URLSearchParams(location.search);
   clearDetailParams(params);
@@ -925,11 +1099,47 @@ function canonicalizeURL(state) {
   changed = canonicalizeFlag(params, 'fc', state.useCadastralArea) || changed;
   changed = canonicalizeFlag(params, 'fh', state.harvestPerHa && isHarvestMetric(state.q)) || changed;
   changed = canonicalizeDetailParams(params, state) || changed;
+  changed = canonicalizePaiParams(params, state) || changed;
   if (changed) navigateWithParams(PAGE_PATH, params, true);
 }
 
 function setStatus(text) {
   if (statusEl) statusEl.textContent = text || '';
+}
+
+function canonicalizePaiParams(params, state) {
+  if (state.mode !== '3') {
+    if (!params.has('pp') && !params.has('ps')) return false;
+    params.delete('pp');
+    params.delete('ps');
+    return true;
+  }
+
+  let changed = false;
+  const parcelIds = (map?._boscoEntries || []).map(e => e.id);
+  changed = canonicalizeOptionalIdParam(params, 'pp', state.paiParcelIds, parcelIds) || changed;
+
+  if (preservedData) {
+    const region = regionById.get(state.regionId)?.name;
+    const speciesIds = paiSpeciesItems(filterPaiTrees(buildPreservedTrees(preservedData), { region }))
+      .map(item => item.id);
+    changed = canonicalizeOptionalIdParam(params, 'ps', state.paiSpeciesIds, speciesIds) || changed;
+  }
+  return changed;
+}
+
+function canonicalizeOptionalIdParam(params, key, selectedIds, allIds) {
+  if (selectedIds == null) {
+    if (!params.has(key)) return false;
+    params.delete(key);
+    return true;
+  }
+  const allowed = new Set(allIds);
+  const clean = selectedIds.filter(id => allowed.has(id));
+  const before = params.get(key);
+  const had = params.has(key);
+  writeOptionalIdList(params, key, clean, allIds);
+  return params.get(key) !== before || params.has(key) !== had;
 }
 
 function canonicalizeDetailParams(params, state) {

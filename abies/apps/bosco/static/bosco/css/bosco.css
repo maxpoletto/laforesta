@@ -326,6 +326,11 @@
   color: #666;
 }
 
+.bosco-pai-popup {
+  min-width: 170px;
+  line-height: 1.35;
+}
+
 @media (max-width: 800px) {
   .bosco-sidebar {
     position: absolute;
