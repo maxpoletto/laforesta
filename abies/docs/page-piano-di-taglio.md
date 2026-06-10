@@ -90,8 +90,8 @@ This section contains a flat sortable-table of calendar entries for high forest
 parcels.
 
 The sortable table has the following columns: `Anno previsto`, `Anno effettivo`,
-  `Compresa`, `Particella`, `Stato`, `Note`, `Volume previsto`, `Volume
-  martellato`, `Volume effettivo`, `Altre note`. On the far right is an action
+  `Compresa`, `Particella`, `Stato`, `Note`, `Volume previsto (m³)`, `Volume
+  martellato (m³)`, `Volume effettivo (m³)`, `Altre note`. On the far right is an action
   column (no title) with looking-glass and garbage icons.
 - `Anno previsto` comes from the `Anno` field of the CSV (i.e.,
   `harvest_plan_item.year_planned`).
@@ -103,11 +103,10 @@ The sortable table has the following columns: `Anno previsto`, `Anno effettivo`,
   `damaged`, `unhealthy`, `psr` — rendered as `"Catastrofato"`,
   `"Fitosanitario"`, `"PSR"` respectively. At most two of the three
   co-occur in practice. Empty when no flag is set.
-- `Volume previsto` is `harvest_plan_item.volume_planned_m3`
-  (m³). Empty for coppice items.
-- `Volume martellato` is the materialized `volume_marked_m3` (m³), or
-  empty.
-- `Volume effettivo` is the materialized `volume_actual_m3` (m³), or 0.
+- `Volume previsto (m³)` is `harvest_plan_item.volume_planned_m3`. Empty for
+  coppice items.
+- `Volume martellato (m³)` is the materialized `volume_marked_m3`, or empty.
+- `Volume effettivo (m³)` is the materialized `volume_actual_m3`, or 0.
 
 Below the table, as always, is a `+ Aggiungi` button for manually creating a new
 entry (see "Add-harvest-plan-item modal"). For example, after storms the forest
@@ -325,8 +324,10 @@ and Abies export format (display column names). Stored columns:
 
 - `Compresa` → region, `Particella` → parcel (`X` = region-wide).
 - `Anno` / `Anno previsto` → `year_planned`.
-- `Prelievo (m³)` / `Volume previsto` → `volume_planned_m3` (may be empty
-  for region-wide catastrofato).
+- `Prelievo (m³)` / `Volume previsto (m³)` / legacy `Volume previsto` →
+  `volume_planned_m3` (may be empty for region-wide catastrofato). Generic
+  `Volume (m³)` is not accepted here because it denotes total stand volume,
+  not the harvestable amount.
 - `Note` → scanned for `Catastrofato`/`Fitosanitario`/`PSR` to set boolean
   flags. Required for region-wide rows.
 
@@ -439,8 +440,8 @@ Both calendar tables. Invalidated on `harvest_plan_item`, `tree_mark`,
 materialization chain in `database.md`).
 
 Columns: `row_id`, `version`, `Piano`, `Anno previsto`, `Anno effettivo`,
-`Compresa`, `Particella`, `Tipo`, `Stato`, `Note`, `Volume previsto`,
-`Volume martellato`, `Volume effettivo`, `Superficie intervento (ha)`,
+`Compresa`, `Particella`, `Tipo`, `Stato`, `Note`, `Volume previsto (m³)`,
+`Volume martellato (m³)`, `Volume effettivo (m³)`, `Superficie intervento (ha)`,
 `Superficie totale (ha)`, `Turno (a)`, `Altre note`.
 Sorted by `Anno previsto`, then natural-order on `Compresa` +
 `Particella`.
@@ -451,7 +452,7 @@ region-wide items (`parcel_id IS NULL`) get `Tipo = ""` and land in the
 fustaia section. `Stato` is the human label of `harvest_plan_item.state`
 (see "View/edit-harvest-plan-item modal" above for the values).
 
-The materialized `Volume martellato` / `Volume effettivo` columns
+The materialized `Volume martellato (m³)` / `Volume effettivo (m³)` columns
 remove the need to compute the calendar's totals client-side from
 `tree_mark` or `harvest`. `Note` is the comma-joined boolean-flag
 string described in the calendar table above.

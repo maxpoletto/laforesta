@@ -220,7 +220,8 @@ _FUSTAIA_REQUIRED = {
     'compresa':   [S.CSV_COL_COMPRESA],                          # 'Compresa'
     'particella': [S.CSV_COL_PARTICELLA],                        # 'Particella'
     'anno':       [S.COL_YEAR_PLANNED, S.CSV_COL_ANNO],          # 'Anno previsto' | 'Anno'
-    'volume':     [S.COL_VOLUME_PLANNED, S.CSV_COL_PRELIEVO_M3], # 'Volume previsto' | 'Prelievo (m³)'
+    'prelievo':   [S.CSV_COL_PRELIEVO_M3, S.COL_VOLUME_PLANNED,
+                   S.CSV_COL_VOLUME_PLANNED_LEGACY],
 }
 _FUSTAIA_OPTIONAL = {
     # Holds the flag string ("Catastrofato" / "Fitosanitario" / "PSR")
@@ -1494,12 +1495,12 @@ def _parse_fustaia_rows(data, parcel_cache, region_cache, errors):
                 i, S.CSV_COL_ANNO, row.get('anno', ''),
             ))
             continue
-        volume = data.reader.decimal(row.get('volume'))
+        prelievo = data.reader.decimal(row.get('prelievo'))
         out.append({
             FIELD_REGION_ID: region,
             FIELD_PARCEL_ID: parcel,
             FIELD_YEAR_PLANNED: year,
-            FIELD_VOLUME_PLANNED_M3: volume,
+            FIELD_VOLUME_PLANNED_M3: prelievo,
             FIELD_DAMAGED:   damaged,
             FIELD_UNHEALTHY: unhealthy,
             FIELD_PSR:       psr,

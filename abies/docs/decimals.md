@@ -61,8 +61,8 @@ import/export columns are not listed — CSV is covered wholesale by §8–9.)
   * Campionamenti
     * Grid sample area detail popover
       * Numero
-      * Raggio
-      * Quota
+      * Raggio (m)
+      * Alt. (m)
     * Sampled-trees table
       * N. albero
       * Pollone
@@ -88,11 +88,11 @@ import/export columns are not listed — CSV is covered wholesale by §8–9.)
 * Fractional (decimal) output fields
   * Piano di taglio
     * Calendar table
-      * Volume previsto
-      * Volume martellato
-      * Volume effettivo
-      * Superficie intervento
-      * Superficie totale
+      * Volume previsto (m³)
+      * Volume martellato (m³)
+      * Volume effettivo (m³)
+      * Superficie intervento (ha)
+      * Superficie totale (ha)
     * Martellata (marks) table
       * h(m)
       * V(m³)
@@ -102,7 +102,7 @@ import/export columns are not listed — CSV is covered wholesale by §8–9.)
       * Volume totale
       * Massa totale
     * Item-view metadata panel
-      * Volume previsto / martellato / effettivo, Superficie intervento / totale
+      * Volume previsto (m³) / martellato (m³) / effettivo (m³), Superficie intervento / totale (ha)
     * Tree-mark form live preview
       * V(m³), m(q)
   * Campionamenti
@@ -144,7 +144,7 @@ import/export columns are not listed — CSV is covered wholesale by §8–9.)
       * Raggio (m)
     * Nuova/modifica area
       * Raggio (m)
-      * Quota (m)
+      * Alt. (m)
     * Nuovo/modifica albero
       * D(cm)
       * L10(mm)

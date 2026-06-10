@@ -5,6 +5,7 @@ import gzip
 import json
 from datetime import date
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 from django.test import Client
@@ -14,8 +15,9 @@ from apps.base.models import (
 )
 from config import strings as S
 from config.constants import (
-    COLUMNS, DATA_ID, DELETES, FIELD_ALTITUDE_M, FIELD_DATE, FIELD_DEFAULT_DATE,
-    FIELD_DESCRIPTION, FIELD_D_CM, FIELD_ERRORS, FIELD_FILE, FIELD_FUSTAIA, FIELD_H_M,
+    COLUMNS, DATA_ID, DELETES, DEFAULT_RADIUS_M, FIELD_ALTITUDE_M, FIELD_DATE,
+    FIELD_DEFAULT_DATE, FIELD_DESCRIPTION, FIELD_D_CM, FIELD_ERRORS, FIELD_FILE,
+    FIELD_FUSTAIA, FIELD_H_M,
     FIELD_LAT, FIELD_LON, FIELD_MASS_Q, FIELD_NAME, FIELD_NONCE, FIELD_NOTE,
     FIELD_NUMBER, FIELD_PARCEL_ID, FIELD_POINTS, FIELD_PRESERVED, FIELD_R_M,
     FIELD_SAMPLE_AREA_ID, FIELD_SAMPLE_GRID_ID, FIELD_SHOOT, FIELD_SPECIES_ID,
@@ -1932,6 +1934,47 @@ class TestGridCsvImport:
         assert area.lat == 38.5 and area.lon == 16.1
         assert area.altitude_m == 500 and area.r_m == 12
 
+    def test_unit_headers_import(self, writer_client, sample_setup):
+        """Unit-bearing display headers are accepted as aliases."""
+        s = sample_setup
+        grid = SampleGrid.objects.create(name='Unit headers')
+        compresa = s['area'].parcel.region.name
+        particella = s['area'].parcel.name
+        csv_text = (
+            'Compresa,Particella,Area saggio,Lon,Lat,Alt. (m),Raggio (m)\n'
+            f'{compresa},{particella},10,16.1,38.5,500,12\n'
+        )
+        resp = self._post(writer_client, grid.id, csv_text)
+        assert resp.status_code == 200, resp.content
+        area = SampleArea.objects.get(sample_grid=grid, number='10')
+        assert area.altitude_m == 500 and area.r_m == 12
+
+    def test_abies_data_sample_grid_import(self, writer_client, sample_setup):
+        """The real setup CSV uses legacy headers and omits Raggio."""
+        s = sample_setup
+        data_path = (
+            Path(__file__).resolve().parents[2]
+            / 'abies-data' / 'aree-di-saggio.csv'
+        )
+        if not data_path.is_file():
+            pytest.skip('abies-data fixture checkout not present')
+
+        compresa = s['area'].parcel.region.name
+        particella = s['area'].parcel.name
+        lines = data_path.read_text(encoding='utf-8-sig').splitlines()
+        prefix = f'{compresa},{particella},'
+        rows = [line for line in lines[1:] if line.startswith(prefix)][:2]
+        assert rows, 'expected matching fixture rows in abies-data/aree-di-saggio.csv'
+
+        grid = SampleGrid.objects.create(name='abies-data import')
+        csv_text = '\n'.join([lines[0], *rows]) + '\n'
+        resp = self._post(writer_client, grid.id, csv_text)
+        assert resp.status_code == 200, resp.content
+        areas = list(SampleArea.objects.filter(sample_grid=grid).order_by('number'))
+        assert len(areas) == len(rows)
+        assert {a.r_m for a in areas} == {DEFAULT_RADIUS_M}
+        assert all(a.altitude_m is not None for a in areas)
+
     def test_unparseable_radius_flagged(self, writer_client, sample_setup):
         """A present-but-garbage Raggio is flagged, not silently defaulted."""
         s = sample_setup
@@ -2065,7 +2108,7 @@ class TestGridCsvImport:
     def test_missing_required_column(self, writer_client, sample_setup):
         grid = SampleGrid.objects.create(name='Bad cols')
         csv_text = (
-            'Compresa,Particella,Area saggio,Lon,Lat\n'    # missing Quota,Raggio
+            'Compresa,Particella,Area saggio,Lon,Lat\n'    # missing Quota
             'X,Y,1,16,38\n'
         )
         resp = self._post(writer_client, grid.id, csv_text)

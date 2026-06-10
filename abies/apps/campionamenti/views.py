@@ -1050,13 +1050,43 @@ def survey_edit_view(request, survey_id: int):
 
 GRID_CSV_REQUIRED = [S.CSV_COL_COMPRESA, S.CSV_COL_PARTICELLA,
                      S.CSV_COL_AREA_SAGGIO, S.CSV_COL_LON, S.CSV_COL_LAT,
-                     S.CSV_COL_QUOTA, S.CSV_COL_RAGGIO]
+                     S.CSV_COL_QUOTA]
+GRID_CSV_OPTIONAL = [S.CSV_COL_RAGGIO]
+GRID_CSV_ALIASES = {
+    # CSV exports use Quota/Raggio.  Also accept the unit-bearing display labels
+    # operators may get by exporting visible table data.
+    S.CSV_COL_QUOTA: [S.CSV_COL_QUOTA, S.COL_QUOTA, S.COL_ALTITUDE_M],
+    S.CSV_COL_RAGGIO: [S.CSV_COL_RAGGIO, S.COL_RAGGIO, S.COL_RADIUS_M],
+}
+GRID_CSV_MISSING_LABELS = {
+    S.CSV_COL_QUOTA: f'{S.COL_QUOTA} / {S.CSV_COL_QUOTA}',
+    S.CSV_COL_RAGGIO: f'{S.COL_RAGGIO} / {S.CSV_COL_RAGGIO}',
+}
 TREE_CSV_REQUIRED = [S.CSV_COL_COMPRESA, S.CSV_COL_PARTICELLA,
                      S.CSV_COL_AREA_SAGGIO, S.CSV_COL_ALBERO,
                      S.CSV_COL_POLLONE, S.CSV_COL_MATRICINA,
                      S.CSV_COL_D_CM, S.CSV_COL_H_M, S.CSV_COL_L10_MM,
                      S.CSV_COL_GENERE, S.CSV_COL_FUSTAIA]
 TREE_CSV_OPTIONAL = [S.CSV_COL_DATA, S.CSV_COL_PAI]
+
+
+def _grid_csv_columns(fieldnames):
+    found = {}
+    missing = []
+    available = set(fieldnames)
+    for canonical in GRID_CSV_REQUIRED:
+        candidates = list(dict.fromkeys(GRID_CSV_ALIASES.get(canonical, [canonical])))
+        match = next((name for name in candidates if name in available), None)
+        if match is None:
+            missing.append(GRID_CSV_MISSING_LABELS.get(canonical, canonical))
+        else:
+            found[canonical] = match
+    for canonical in GRID_CSV_OPTIONAL:
+        candidates = list(dict.fromkeys(GRID_CSV_ALIASES.get(canonical, [canonical])))
+        match = next((name for name in candidates if name in available), None)
+        if match is not None:
+            found[canonical] = match
+    return found, missing
 
 
 @login_required
@@ -1094,9 +1124,12 @@ def grid_csv_import_view(request):
         return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
 
     try:
-        reader = csv_io.read(upload, GRID_CSV_REQUIRED)
+        reader = csv_io.read(upload)
     except csv_io.CsvError as e:
         return validation_error([str(e)])
+    grid_cols, missing = _grid_csv_columns(reader.fieldnames or [])
+    if missing:
+        return validation_error([S.ERR_CSV_MISSING_COLS.format(', '.join(missing))])
 
     parcel_cache = {
         (p.region.name.lower(), p.name): p
@@ -1112,15 +1145,15 @@ def grid_csv_import_view(request):
     parsed_rows = []
     seen_in_csv = set()
     for i, row in enumerate(reader, 2):  # row 2 = first data row (after header)
-        compresa = row[S.CSV_COL_COMPRESA].strip()
-        particella = row[S.CSV_COL_PARTICELLA].strip()
+        compresa = row[grid_cols[S.CSV_COL_COMPRESA]].strip()
+        particella = row[grid_cols[S.CSV_COL_PARTICELLA]].strip()
         parcel = parcel_cache.get((compresa.lower(), particella))
         if parcel is None:
             errors.append(
                 S.ERR_CSV_PARCEL_NOT_FOUND.format(i, compresa, particella),
             )
             continue
-        number = row[S.CSV_COL_AREA_SAGGIO].strip()
+        number = row[grid_cols[S.CSV_COL_AREA_SAGGIO]].strip()
         key = (parcel.region_id, number)
         if key in existing_keys or key in seen_in_csv:
             errors.append(S.ERR_CSV_ROW_AREA_DUPLICATE.format(
@@ -1128,23 +1161,25 @@ def grid_csv_import_view(request):
             ))
             continue
         seen_in_csv.add(key)
-        lat = reader.decimal(row.get(S.CSV_COL_LAT))
-        lon = reader.decimal(row.get(S.CSV_COL_LON))
+        lat = reader.decimal(row.get(grid_cols[S.CSV_COL_LAT]))
+        lon = reader.decimal(row.get(grid_cols[S.CSV_COL_LON]))
         if lat is None or lon is None:
             errors.append(S.ERR_CSV_ROW_PARSE.format(
                 i, f'{S.CSV_COL_LAT}/{S.CSV_COL_LON}'))
             continue
-        raggio = (row.get(S.CSV_COL_RAGGIO) or '').strip()
+        radius_col = grid_cols.get(S.CSV_COL_RAGGIO)
+        altitude_col = grid_cols[S.CSV_COL_QUOTA]
+        raggio = (row.get(radius_col) or '').strip() if radius_col else ''
         r_m = reader.integer(raggio) if raggio else DEFAULT_RADIUS_M
         if r_m is None:  # present but unparseable → flag, don't silently default
-            errors.append(S.ERR_CSV_ROW_PARSE.format(i, S.CSV_COL_RAGGIO))
+            errors.append(S.ERR_CSV_ROW_PARSE.format(i, radius_col))
             continue
         parsed_rows.append({
             FIELD_PARCEL: parcel,
             FIELD_NUMBER: number,
             FIELD_LAT: coord_float(lat),
             FIELD_LON: coord_float(lon),
-            FIELD_ALTITUDE: reader.integer(row.get(S.CSV_COL_QUOTA)),
+            FIELD_ALTITUDE: reader.integer(row.get(altitude_col)),
             FIELD_R_M: r_m,
             FIELD_NOTE: '',
         })

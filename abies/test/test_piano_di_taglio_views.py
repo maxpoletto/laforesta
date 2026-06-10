@@ -322,6 +322,36 @@ class TestPlanCSVImport:
         )
         assert it.damaged is True
 
+    def test_import_current_volume_header(self, writer_client, plan, parcels):
+        csv_in = (
+            f'Compresa;Particella;Anno;{S.COL_VOLUME_PLANNED};Note\r\n'
+            f'{parcels[0].region.name};{parcels[0].name};2032;75;\r\n'
+        )
+        r = self._upload(
+            writer_client, harvest_plan_id=plan.id,
+            fustaia_file=io.BytesIO(csv_in.encode('utf-8')),
+        )
+        assert r.status_code == 200, r.json()
+        it = HarvestPlanItem.objects.get(
+            harvest_plan=plan, parcel=parcels[0], year_planned=2032,
+        )
+        assert it.volume_planned_m3 == Decimal('75')
+
+    def test_import_total_volume_header_rejected(self, writer_client, plan, parcels):
+        csv_in = (
+            'Compresa;Particella;Anno;Volume (m³);Note\r\n'
+            f'{parcels[0].region.name};{parcels[0].name};2033;900;\r\n'
+        )
+        r = self._upload(
+            writer_client, harvest_plan_id=plan.id,
+            fustaia_file=io.BytesIO(csv_in.encode('utf-8')),
+        )
+        assert r.status_code == 400
+        assert S.CSV_COL_PRELIEVO_M3 in r.json()[MESSAGE]
+        assert not HarvestPlanItem.objects.filter(
+            harvest_plan=plan, parcel=parcels[0], year_planned=2033,
+        ).exists()
+
     def test_import_ceduo_altre_note_disambiguates(
         self, writer_client, plan, parcels, eclasses, regions,
     ):

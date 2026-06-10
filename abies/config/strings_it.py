@@ -185,7 +185,7 @@ ERR_PLAN_ITEM_HAS_DEPS = (
     'La voce ha martellate, prelievi o transizioni di cantiere associati; '
     'eliminale prima.'
 )
-ERR_PLAN_ITEM_VOLUME_NEGATIVE = 'Il volume previsto deve essere positivo.'
+ERR_PLAN_ITEM_VOLUME_NEGATIVE = 'Il volume previsto (m³) deve essere positivo.'
 ERR_PLAN_ITEM_AREA_NEGATIVE = 'La superficie deve essere positiva.'
 ERR_TRANSITION_INVALID_STATE = (
     'Transizione non consentita dallo stato attuale.'
@@ -280,7 +280,7 @@ CSV_COL_PAI         = 'PAI'
 # commands.  Where a column also appears in a digest, the names are
 # paired (`CSV_COL_X` / `COL_X`); the values may match (same Italian
 # token used in both contexts) or differ (e.g. `Altitudine min` in the
-# CSV vs `Alt. min` in the digest column).
+# CSV vs `Alt. min. (m)` in the digest column).
 CSV_COL_COMPARTO       = 'Comparto'
 CSV_COL_CREW           = 'Squadra'           # paired with COL_CREW
 CSV_COL_PRODUCT        = 'Tipo'              # paired with COL_PRODUCT
@@ -311,6 +311,7 @@ CSV_COL_N_LEGACY       = 'n'
 # duplicate lowercase variants of the capitalized headers.
 CSV_COL_ANNO              = 'Anno'                        # scheduled-cut year
 CSV_COL_PRELIEVO_M3       = 'Prelievo (m³)'               # fustaia volume_planned_m3
+CSV_COL_VOLUME_PLANNED_LEGACY = 'Volume previsto'         # old Abies export header
 CSV_COL_SUPERFICIE_HA     = 'Superficie intervento (ha)'  # ceduo intervention_area_ha
 CSV_COL_TURNO_A           = 'Turno (a)'                   # coppice rotation, years
 CSV_COL_FUNZIONE          = 'funzione'                    # regression function (`ln`)
@@ -336,25 +337,25 @@ CSV_COL_OPERATORE         = 'Operatore'                   # operator name
 # value for symmetric usage at call sites.
 # ---------------------------------------------------------------------------
 
-COL_COMPRESA           = 'Compresa'         # paired with CSV_COL_COMPRESA
-COL_QUOTA              = 'Quota'            # paired with CSV_COL_QUOTA
-COL_RAGGIO             = 'Raggio'           # paired with CSV_COL_RAGGIO
+COL_COMPRESA           = 'Compresa'         # domain term for a forest region; paired with CSV_COL_COMPRESA
+COL_QUOTA              = 'Alt. (m)'         # display label; CSV accepts legacy CSV_COL_QUOTA
+COL_RAGGIO             = 'Raggio (m)'       # display label; CSV accepts legacy CSV_COL_RAGGIO
 COL_NAME               = 'Nome'             # paired with LABEL_NAME (HTML form)
 COL_LATIN_NAME         = 'Nome latino'
 COL_DENSITY            = 'Densità (q/m³)'
 COL_CLASS              = 'Classe'           # parcel eclass
 COL_AREA_HA            = 'Area (ha)'
-COL_AVE_AGE            = 'Età media'
+COL_AVE_AGE            = 'Età media (a)'
 COL_LOCATION           = 'Località'
-COL_ALT_MIN            = 'Alt. min'
-COL_ALT_MAX            = 'Alt. max'
+COL_ALT_MIN            = 'Alt. min. (m)'
+COL_ALT_MAX            = 'Alt. max. (m)'
 COL_ASPECT             = 'Esposizione'
-COL_GRADE_PCT          = 'Pendenza %'
+COL_GRADE_PCT          = 'Pendenza (%)'
 COL_SORT_ORDER         = 'Sort order'       # internal English; not localized
 COL_YEAR               = 'Anno'
 COL_DESCRIPTION        = 'Descrizione'
 COL_N_AREAS            = 'N. aree'
-COL_REGIONS            = 'Comprese'
+COL_REGIONS            = 'Comprese'         # plural/aggregate label, distinct from one row's COL_COMPRESA
 COL_N_SURVEYS          = 'N. rilevamenti'
 COL_LAST_UPDATE        = 'Ultimo aggiornamento'
 COL_GRID               = 'Griglia'
@@ -366,8 +367,8 @@ COL_DATE_LAST          = 'Data ultimo'
 COL_NUMBER             = 'Numero'
 COL_LAT                = 'Lat'              # paired with CSV_COL_LAT
 COL_LON                = 'Lon'              # paired with CSV_COL_LON
-COL_ALTITUDE_M         = 'Altitudine (m)'
-COL_RADIUS_M           = 'Raggio (m)'
+COL_ALTITUDE_M         = COL_QUOTA          # same semantic label; alias kept for model-field maps
+COL_RADIUS_M           = COL_RAGGIO         # same semantic label; alias kept for model-field maps
 COL_SURVEY             = 'Rilevamento'
 COL_SAMPLE_AREA        = 'Area di saggio'
 COL_N_TREES            = 'N. alberi'
@@ -375,8 +376,8 @@ COL_SAMPLE_DATE        = 'Data campione'
 COL_AREA_NUM           = 'N. area'
 COL_TREE_NUM           = 'N. albero'
 COL_SPECIES            = 'Specie'
-COL_POLLONE            = 'Pollone'          # paired with CSV_COL_POLLONE
-COL_MATRICINA          = 'Matricina'        # paired with CSV_COL_MATRICINA
+COL_POLLONE            = 'Pollone'          # domain/CSV term for coppice shoot number
+COL_MATRICINA          = 'Matricina'        # domain/CSV term for coppice standard flag
 COL_PAI                = 'PAI'              # paired with CSV_COL_PAI
 COL_D_CM               = 'D (cm)'           # paired with CSV_COL_D_CM
 COL_H_M                = 'h (m)'            # paired with CSV_COL_H_M
@@ -389,9 +390,9 @@ COL_YEAR_PLANNED         = 'Anno previsto'
 COL_YEAR_ACTUAL          = 'Anno effettivo'
 COL_TYPE                 = 'Tipo'                       # alto fusto / ceduo
 COL_STATE                = 'Stato'
-COL_VOLUME_PLANNED       = 'Volume previsto'
-COL_VOLUME_MARKED        = 'Volume martellato'
-COL_VOLUME_ACTUAL        = 'Volume effettivo'
+COL_VOLUME_PLANNED       = 'Volume previsto (m³)'
+COL_VOLUME_MARKED        = 'Volume martellato (m³)'
+COL_VOLUME_ACTUAL        = 'Volume effettivo (m³)'
 COL_INTERVENTION_AREA_HA = 'Superficie intervento (ha)'  # paired with CSV_COL_SUPERFICIE_HA
 COL_PARCEL_AREA_HA       = 'Superficie totale (ha)'      # paired with CSV_COL_SUPERFICIE_TOT_HA
 COL_TURNO_A              = 'Turno (a)'                   # paired with CSV_COL_TURNO_A

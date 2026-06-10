@@ -83,8 +83,8 @@ The new-area form:
   the selected Compresa and may be overridden.
 - Lat/lng (shared lat-lng component — see below). Pre-filled from the click
   location when entered via map-click.
-- Quota (m).
-- Raggio (default 10 m).
+- Alt. (m).
+- Raggio (m) (default 10 m).
 - Note (optional).
 
 The "Esporta CSV" button at the top right exports the active grid's sample areas
@@ -187,9 +187,9 @@ tree-entry flow (below).
 ### Grid CSV import
 
 Required columns: `Compresa`, `Particella`, `Area saggio` (→
-`sample_area.number`), `Lon`, `Lat`, `Quota`, `Raggio`. Reference file:
-`bosco/data/aree-di-saggio.csv` — currently lacks `Raggio`. Importer aborts with
-a helpful message if any of these fields are missing.
+`sample_area.number`), `Lon`, `Lat`, and `Quota` (or `Alt. (m)`).
+`Raggio` / `Raggio (m)` is optional; missing or blank values use the default
+sample-area radius. Reference file: `abies-data/aree-di-saggio.csv`.
 
 Flow:
 1. Writer opens the pencil modal on the target grid → "Importa aree da
@@ -423,7 +423,7 @@ filters by active grid (Section 1) or by the active survey's grid
 (Section 2).  Invalidated on `sample_area` writes.
 
 Columns: `row_id`, `version`, `Griglia` (sample_grid_id), `Compresa`,
-`Particella`, `Numero`, `Lat`, `Lon`, `Quota`, `Raggio`, `Note`.
+`Particella`, `Numero`, `Lat`, `Lon`, `Alt. (m)`, `Raggio (m)`, `Note`.
 
 ### `samples.json`
 

@@ -56,9 +56,9 @@ hosts (top to bottom):
   Pull-down with a subset of the  features from the "Visualizza caratteristiche"
   part of Boscoscopio:
   - Caratteristiche
-    - Età media
+    - Età media (a)
     - Governo
-    - Altitudine media
+    - Alt. media (m)
   - Produzione
     - Prelievo storico (formerly "Produzione storica")
     - Prelievo previsto
@@ -143,7 +143,7 @@ following the standard Abies idiom:
 1. **Metadati** (open by default)
    - Location, altitude min/max, esposizione, pendenza.
    - Surface area: cadastral and computed.
-   - Età media, classe economica, tipo (alto fusto / ceduo).
+   - Età media (a), classe economica, tipo (alto fusto / ceduo).
    - Descrizione vegetazione (free text, multi-paragraph).
    - Descrizione geologia (free text, multi-paragraph).
    
@@ -293,8 +293,8 @@ mode-switch.
   page's *Metadati* section.  Invalidated on `parcel` writes.
 
   Columns: `row_id`, `version`, `Compresa`, `Particella`, `Classe`,
-  `Area (ha)`, `Area cat. (ha)`, `Età media`, `Località`, `Alt. min`,
-  `Alt. max`, `Esposizione`, `Pendenza %`, `Tipo` (alto fusto / ceduo),
+  `Area (ha)`, `Area cat. (ha)`, `Età media (a)`, `Località`, `Alt. min. (m)`,
+  `Alt. max. (m)`, `Esposizione`, `Pendenza (%)`, `Tipo` (alto fusto / ceduo),
   `Desc. veg.`, `Desc. geo`.  `row_id` = `parcel.id`; `Tipo` derived
   from `parcel.eclass.coppice`.
 

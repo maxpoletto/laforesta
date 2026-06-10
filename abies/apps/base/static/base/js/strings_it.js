@@ -177,7 +177,9 @@ export const RENAME_TITLE_SURVEY = 'Modifica rilevamento';
 export const EDIT_GRID_TAB_IMPORT  = 'Importa aree da CSV';
 export const EDIT_SURVEY_TAB_IMPORT = 'Importa alberi da CSV';
 export const GRID_IMPORT_HELP =
-  'Colonne necessarie: Compresa, Particella, Area saggio, Lon, Lat, Quota, Raggio.';
+  'Colonne necessarie: Compresa, Particella, Area saggio, Lon, Lat, Quota. ' +
+  'Raggio è opzionale; se assente usa 12 m. Sono accettate anche le ' +
+  'intestazioni Alt. (m) e Raggio (m).';
 export const SURVEY_IMPORT_HELP =
   'Colonne necessarie: Compresa, Particella, Area saggio, Albero, Pollone, ' +
   'Matricina, D_cm, H_m, L10_mm, Genere, Fustaia. Opzionali: Data, PAI.';
@@ -226,7 +228,7 @@ export const ERR_GRID_HAS_SURVEYS =
   'La griglia è usata da uno o più rilevamenti: eliminarli prima.';
 export const ERR_GRID_NAME_REQUIRED = 'Occorre specificare un nome.';
 export const ERR_SELECT_REGION = 'Seleziona almeno una compresa.';
-export const ERR_RADIUS_POSITIVE = 'Raggio deve essere > 0.';
+export const ERR_RADIUS_POSITIVE = 'Raggio (m) deve essere > 0.';
 export const ERR_D_POSITIVE = 'Il diametro deve essere positivo.';
 export const ERR_H_POSITIVE = 'L\'altezza deve essere positiva.';
 export const ERR_DENSITY_POSITIVE = 'La densità deve essere un numero positivo.';
@@ -268,8 +270,8 @@ export const COL_DATE_FIRST      = 'Data primo';
 export const COL_DATE_LAST       = 'Data ultimo';
 export const COL_LAT             = 'Lat';
 export const COL_LON             = 'Lon';
-export const COL_QUOTA           = 'Quota';
-export const COL_RAGGIO          = 'Raggio';
+export const COL_QUOTA           = 'Alt. (m)';
+export const COL_RAGGIO          = 'Raggio (m)';
 export const COL_SURVEY          = 'Rilevamento';
 export const COL_SAMPLE_AREA     = 'Area di saggio';
 export const COL_N_TREES         = 'N. alberi';
@@ -376,9 +378,9 @@ export const COL_YEAR_PLANNED         = 'Anno previsto';
 export const COL_YEAR_ACTUAL          = 'Anno effettivo';
 export const COL_TYPE                 = 'Tipo';
 export const COL_STATE                = 'Stato';
-export const COL_VOLUME_PLANNED       = 'Volume previsto';
-export const COL_VOLUME_MARKED        = 'Volume martellato';
-export const COL_VOLUME_ACTUAL        = 'Volume effettivo';
+export const COL_VOLUME_PLANNED       = 'Volume previsto (m³)';
+export const COL_VOLUME_MARKED        = 'Volume martellato (m³)';
+export const COL_VOLUME_ACTUAL        = 'Volume effettivo (m³)';
 export const COL_INTERVENTION_AREA_HA = 'Superficie intervento (ha)';
 export const COL_PARCEL_AREA_HA       = 'Superficie totale (ha)';
 export const COL_TURNO_A              = 'Turno (a)';

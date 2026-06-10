@@ -88,7 +88,7 @@ export class GridPlanner {
     // common.css selectors are attribute-explicit (`input[type="text"]`,
     // `input[type="number"]`, …) and don't match a bare `<input>`, so
     // without it Nome falls back to user-agent default styling and
-    // visibly mismatches Raggio / Copertura below.
+    // visibly mismatches Raggio (m) / Copertura below.
     h.appendChild(this._labelInput(S.LABEL_NAME, 'input', {
       id: 'grid-auto-name', type: 'text', required: true, maxlength: 100,
     }));
