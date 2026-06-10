@@ -973,6 +973,7 @@ function renderPaiMarkers(trees, colors) {
       opacity: 0.9,
       fillColor: colors.get(tree.speciesId) || '#777',
       fillOpacity: 0.88,
+      bubblingMouseEvents: false,
     });
     marker.bindTooltip(paiTooltip(tree), { direction: 'top', offset: [0, -5] });
     marker.bindPopup(paiPopup(tree));
