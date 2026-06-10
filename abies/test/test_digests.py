@@ -10,7 +10,7 @@ from django.conf import settings
 
 from apps.base.digests import (
     aggregate_sp_pcts, build_harvest_record, generate_prelievi,
-    generate_parcels, generate_crews, generate_parcel_year_production,
+    generate_parcels, generate_crews,
     generate_audit, generate_all, mark_stale, regenerate_if_stale,
     prelievi_species_cols, _write_gzip_json, _audit_configs, _tracked_models,
 )
@@ -244,28 +244,6 @@ class TestGenerateCrews:
 
 
 # ---------------------------------------------------------------------------
-# generate_parcel_year_production
-# ---------------------------------------------------------------------------
-
-class TestGenerateParcelYearProduction:
-    def test_aggregation(self, parcels, crews, products):
-        Harvest.objects.create(
-            date='2024-01-10', product=products[0], parcel=parcels[0],
-            crew=crews[0], mass_q=Decimal('50'),
-        )
-        Harvest.objects.create(
-            date='2024-06-15', product=products[0], parcel=parcels[0],
-            crew=crews[0], mass_q=Decimal('30'),
-        )
-        generate_parcel_year_production()
-        path = settings.DIGEST_DIR / 'parcel_year_production.json.gz'
-        with gzip.open(path, 'rt') as f:
-            data = json.load(f)
-        assert len(data[ROWS]) == 1  # same parcel, same year
-        assert data[ROWS][0][3] == 80.0  # 50 + 30
-
-
-# ---------------------------------------------------------------------------
 # generate_audit — user display name
 # ---------------------------------------------------------------------------
 
@@ -346,6 +324,6 @@ class TestGenerateAll:
         # Redirect to tmp_path so the test doesn't clobber dev digests.
         settings.DIGEST_DIR = tmp_path
         generate_all()
-        for name in ('prelievi', 'parcels', 'crews', 'parcel_year_production', 'audit'):
+        for name in ('prelievi', 'parcels', 'crews', 'audit'):
             path = settings.DIGEST_DIR / f'{name}.json.gz'
             assert path.exists(), f'{name}.json.gz not generated'

@@ -135,7 +135,7 @@ def save_view(request):
         _write_junctions(op, sp_pcts, tr_pcts)
         if op.harvest_plan_item_id is not None:
             _rematerialize_volume_actual(op.harvest_plan_item_id)
-        stale = ['prelievi', 'parcel_year_production', 'audit']
+        stale = ['prelievi', 'audit']
         if op.harvest_plan_item_id is not None:
             stale.append('harvest_plan_items')
         mark_stale(*stale)
@@ -193,7 +193,7 @@ def delete_view(request):
         op.delete()
         if had_item_id is not None:
             _rematerialize_volume_actual(had_item_id)
-        stale = ['prelievi', 'parcel_year_production', 'audit']
+        stale = ['prelievi', 'audit']
         if had_item_id is not None:
             stale.append('harvest_plan_items')
         mark_stale(*stale)

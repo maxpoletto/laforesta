@@ -361,33 +361,6 @@ def generate_species() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Parcel-year production digest
-# ---------------------------------------------------------------------------
-
-def generate_parcel_year_production() -> None:
-    """SELECT region, parcel, year, SUM(mass_q), SUM(volume_m3)
-    GROUP BY region, parcel, year."""
-    from apps.prelievi.models import Harvest
-
-    columns = [S.COL_REGION, S.COL_PARCEL, S.COL_YEAR,
-               S.COL_QUINTALS, S.COL_VOLUME_M3]
-    qs = (Harvest.objects
-          .values('parcel__region__name', 'parcel__name', 'date__year')
-          .annotate(total_q=Sum('mass_q'), total_v=Sum(FIELD_VOLUME_M3))
-          .order_by('parcel__region__name', 'parcel__name', 'date__year'))
-
-    rows = []
-    for r in qs:
-        rows.append([
-            r['parcel__region__name'], r['parcel__name'],
-            r['date__year'], float(r['total_q']), float(r['total_v']),
-        ])
-
-    _write_gzip_json({'columns': columns, 'rows': rows}, _dest('parcel_year_production'))
-    print(f'parcel_year_production.json.gz: {len(rows)} rows')
-
-
-# ---------------------------------------------------------------------------
 # Audit digest
 # ---------------------------------------------------------------------------
 
@@ -1079,7 +1052,6 @@ _GENERATORS: dict[str, callable] = {
     'parcels': generate_parcels,
     'crews': generate_crews,
     FIELD_SPECIES: generate_species,
-    'parcel_year_production': generate_parcel_year_production,
     'audit': generate_audit,
     'grids': generate_grids,
     'surveys': generate_surveys,
