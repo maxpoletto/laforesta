@@ -26,5 +26,16 @@ check(!pdf.includes('FEFF'), 'no UTF-16 marker in text');
 check(pdf.includes('xref'), 'xref table present');
 check(pdf.endsWith('%%EOF\n'), 'EOF marker');
 
+const rightDoc = new PDFDocument();
+const width = rightDoc.textWidth('12,3', { size: 10 });
+check(Math.abs(width - 19.46) < 0.001, 'textWidth uses Helvetica numeric metrics');
+const regularWidth = rightDoc.textWidth('Ai', { size: 10 });
+const boldWidth = rightDoc.textWidth('Ai', { size: 10, bold: true });
+check(Math.abs(regularWidth - 8.89) < 0.001, 'textWidth uses regular Helvetica metrics');
+check(Math.abs(boldWidth - 10) < 0.001, 'textWidth uses bold Helvetica metrics');
+rightDoc.textRight(100, 30, '12,3', { size: 10 });
+const rightPdf = buildPDF(rightDoc.width, rightDoc.height, rightDoc.pages);
+check(rightPdf.includes('80.54 811.89 Td (12,3)'), 'textRight uses measured x');
+
 console.log(`${passed} passed, ${failed} failed`);
 if (failed) process.exit(1);
