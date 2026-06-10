@@ -1171,8 +1171,8 @@ DENDROMETRY_COLUMNS = [
 
 DENDROMETRY_POINT_COLUMNS = [
     ROW_ID, S.COL_PARCEL_ID, S.COL_SURVEY_ID, S.COL_TREE_ID,
-    S.COL_REGION, S.COL_PARCEL, S.COL_SURVEY, S.COL_SPECIES,
-    S.COL_D_CM, S.COL_H_M,
+    S.COL_SPECIES_ID, S.COL_REGION, S.COL_PARCEL, S.COL_SURVEY,
+    S.COL_SPECIES, S.COL_D_CM, S.COL_H_M,
 ]
 
 
@@ -1286,7 +1286,7 @@ def generate_parcel_dendrometry_points() -> None:
         survey = ts.sample.survey
         species = ts.tree.species
         rows.append([
-            ts.id, parcel.id, survey.id, ts.tree_id,
+            ts.id, parcel.id, survey.id, ts.tree_id, species.id,
             parcel.region.name, parcel.name, survey.name, species.common_name,
             ts.d_cm, float(ts.h_m),
         ])

@@ -397,9 +397,11 @@ class TestGenerateBoscoDigests:
         assert [r[0] for r in points[ROWS]] == [ts1.id, ts2.id]
         assert points[COLUMNS] == [
             ROW_ID, S.COL_PARCEL_ID, S.COL_SURVEY_ID, S.COL_TREE_ID,
-            S.COL_REGION, S.COL_PARCEL, S.COL_SURVEY, S.COL_SPECIES,
-            S.COL_D_CM, S.COL_H_M,
+            S.COL_SPECIES_ID, S.COL_REGION, S.COL_PARCEL, S.COL_SURVEY,
+            S.COL_SPECIES, S.COL_D_CM, S.COL_H_M,
         ]
+        point_cols = points[COLUMNS]
+        assert points[ROWS][0][point_cols.index(S.COL_SPECIES_ID)] == species[0].id
 
 
 # ---------------------------------------------------------------------------

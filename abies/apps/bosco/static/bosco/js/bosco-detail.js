@@ -169,6 +169,60 @@ function dendrometryChartKey(speciesId, diameterClassCm) {
   return `${speciesId}|${diameterClassCm}`;
 }
 
+
+export function dendrometryHeightPoints(digest, scope, { speciesIds = null } = {}) {
+  if (!digest) return [];
+  const c = colMap(digest);
+  const hasSpeciesFilter = Array.isArray(speciesIds);
+  if (hasSpeciesFilter && !speciesIds.length) return [];
+  const allowedSpecies = new Set(speciesIds || []);
+  const rows = [];
+
+  for (const row of digest[ROWS]) {
+    if (scope.parcelId != null && row[c[S.COL_PARCEL_ID]] !== scope.parcelId) continue;
+    if (scope.parcelId == null && scope.region && row[c[S.COL_REGION]] !== scope.region) continue;
+    const speciesId = row[c[S.COL_SPECIES_ID]];
+    if (hasSpeciesFilter && !allowedSpecies.has(speciesId)) continue;
+    const dCm = maybeNum(row[c[S.COL_D_CM]]);
+    const hM = maybeNum(row[c[S.COL_H_M]]);
+    if (dCm == null || hM == null) continue;
+    rows.push({
+      speciesId,
+      species: row[c[S.COL_SPECIES]],
+      dCm,
+      hM,
+    });
+  }
+
+  return rows.sort((a, b) => a.species.localeCompare(b.species, 'it') || a.dCm - b.dCm);
+}
+
+export function dendrometryScatterChartData(points, yTitle) {
+  const bySpecies = new Map();
+  for (const point of points) {
+    const series = bySpecies.get(point.speciesId) || {
+      id: point.speciesId,
+      name: point.species,
+      points: [],
+    };
+    series.points.push({ x: point.dCm, y: point.hM });
+    bySpecies.set(point.speciesId, series);
+  }
+  const species = [...bySpecies.values()]
+    .sort((a, b) => a.name.localeCompare(b.name, 'it'));
+  return {
+    yTitle,
+    datasets: species.map((item, idx) => ({
+      type: 'scatter',
+      label: item.name,
+      data: item.points,
+      backgroundColor: CHART_COLORS[idx % CHART_COLORS.length],
+      borderColor: CHART_COLORS[idx % CHART_COLORS.length],
+      pointRadius: 3,
+    })),
+  };
+}
+
 function weightedAverage(pairs) {
   let total = 0;
   let weight = 0;

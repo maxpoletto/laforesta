@@ -342,8 +342,8 @@ mode-switch.
   Dendrometria section's diameter/height scatter plot.  Invalidated with
   `parcel_dendrometry.json` and filtered by the same active-survey setting.
 
-  Columns: `row_id`, `Parcel id`, `Survey id`, `Tree id`, `Compresa`,
-  `Particella`, `Rilevamento`, `Specie`, `D (cm)`, `h (m)`.
+  Columns: `row_id`, `Parcel id`, `Survey id`, `Tree id`, `Species id`,
+  `Compresa`, `Particella`, `Rilevamento`, `Specie`, `D (cm)`, `h (m)`.
   `row_id` = `tree_sample.id`.  Read-only.
 
 - **`future_production.json`** — per-year production for high forest (fustaia)

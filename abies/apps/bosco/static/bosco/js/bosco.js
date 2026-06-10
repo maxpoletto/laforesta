@@ -6,7 +6,7 @@ import * as cache from '../../base/js/cache.js';
 import * as S from '../../base/js/strings.js';
 import {
   COLUMNS, DIGEST_FUTURE_PRODUCTION, DIGEST_PARCEL_DENDROMETRY,
-  DIGEST_PRESERVED_TREES, ROWS,
+  DIGEST_PARCEL_DENDROMETRY_POINTS, DIGEST_PRESERVED_TREES, ROWS,
 } from '../../base/js/constants.js';
 import { fmtArea, fmtDecimal1, fmtDecimal2, fmtInt, fmtMass, fmtVolume } from '../../base/js/format.js';
 import { cloneTemplate } from '../../base/js/templates.js';
@@ -45,8 +45,9 @@ import {
   satelliteDiffValue, satelliteValue,
 } from './bosco-satellite.js';
 import {
-  aggregateDendrometry, dendrometryBarChartData, dendrometryLineChartData,
-  dendrometrySpecies, dendrometryTreeTotal, regionMetadata,
+  aggregateDendrometry, dendrometryBarChartData, dendrometryHeightPoints,
+  dendrometryLineChartData, dendrometryScatterChartData, dendrometrySpecies,
+  dendrometryTreeTotal, regionMetadata,
 } from './bosco-detail.js';
 import {
   buildPreservedTrees, filterPaiTrees, paiParcelItems, paiSpeciesItems, speciesColorMap,
@@ -62,6 +63,8 @@ const FUTURE_ID = DIGEST_FUTURE_PRODUCTION;
 const FUTURE_URL = '/api/bosco/future-production/data/';
 const DENDROMETRY_ID = DIGEST_PARCEL_DENDROMETRY;
 const DENDROMETRY_URL = '/api/bosco/parcel-dendrometry/data/';
+const DENDROMETRY_POINTS_ID = DIGEST_PARCEL_DENDROMETRY_POINTS;
+const DENDROMETRY_POINTS_URL = '/api/bosco/parcel-dendrometry-points/data/';
 const PRESERVED_ID = DIGEST_PRESERVED_TREES;
 const PRESERVED_URL = '/api/bosco/preserved-trees/data/';
 const PAI_FORM_URL = '/api/bosco/pai/form/';
@@ -100,6 +103,7 @@ const TYPE_STYLES = {
 cache.register(PARCELS_ID, PARCELS_URL);
 cache.register(FUTURE_ID, FUTURE_URL);
 cache.register(DENDROMETRY_ID, DENDROMETRY_URL);
+cache.register(DENDROMETRY_POINTS_ID, DENDROMETRY_POINTS_URL);
 cache.register(PRESERVED_ID, PRESERVED_URL);
 cache.register(PRELIEVI_ID, PRELIEVI_URL);
 cache.register(TERRENI_ID, TERRENI_GEOJSON_URL);
@@ -132,6 +136,7 @@ let dendrometryChartGrid = null;
 let dendrometryTreeCanvas = null;
 let dendrometryVolumeCanvas = null;
 let dendrometryBasalAreaCanvas = null;
+let dendrometryHeightCanvas = null;
 let dendrometryIncrementCanvas = null;
 let dendrometryCharts = {};
 let productionHost = null;
@@ -148,7 +153,9 @@ let futureData = null;
 let prelieviData = null;
 let prelieviLoad = null;
 let dendrometryData = null;
+let dendrometryPointsData = null;
 let dendrometryLoad = null;
+let dendrometryPointsLoad = null;
 let preservedData = null;
 let preservedLoad = null;
 let satelliteData = null;
@@ -174,10 +181,14 @@ const page = createPage({
     [PARCELS_ID, onParcelsUpdate],
     [FUTURE_ID, onFutureUpdate],
     [DENDROMETRY_ID, onDendrometryUpdate],
+    [DENDROMETRY_POINTS_ID, onDendrometryPointsUpdate],
     [PRESERVED_ID, onPreservedUpdate],
     [PRELIEVI_ID, onPrelieviUpdate],
   ],
-  visibleIds: [PARCELS_ID, FUTURE_ID, DENDROMETRY_ID, PRESERVED_ID, PRELIEVI_ID],
+  visibleIds: [
+    PARCELS_ID, FUTURE_ID, DENDROMETRY_ID, DENDROMETRY_POINTS_ID,
+    PRESERVED_ID, PRELIEVI_ID,
+  ],
 });
 
 export const mount = page.mount;
@@ -194,6 +205,7 @@ async function loadPageData() {
   futureData = future;
   prelieviData = cache.get(PRELIEVI_ID);
   dendrometryData = cache.get(DENDROMETRY_ID);
+  dendrometryPointsData = cache.get(DENDROMETRY_POINTS_ID);
   preservedData = cache.get(PRESERVED_ID);
   parcelsGeo = sortFeaturesByArea(cache.get(TERRENI_ID));
   rebuildRegionIndex();
@@ -230,6 +242,7 @@ function mountPage(el, params) {
   dendrometryTreeCanvas = el.querySelector('[data-target="dendrometry-tree-count-chart"]');
   dendrometryVolumeCanvas = el.querySelector('[data-target="dendrometry-volume-chart"]');
   dendrometryBasalAreaCanvas = el.querySelector('[data-target="dendrometry-basal-area-chart"]');
+  dendrometryHeightCanvas = el.querySelector('[data-target="dendrometry-height-chart"]');
   dendrometryIncrementCanvas = el.querySelector('[data-target="dendrometry-increment-chart"]');
   productionHost = el.querySelector('[data-target="production-chart-host"]');
   productionCanvas = el.querySelector('[data-target="production-chart"]');
@@ -259,15 +272,17 @@ function destroyPage() {
   dendrometryHost = dendrometrySpeciesHost = dendrometryPerHa = null;
   dendrometryStatus = dendrometryChartGrid = null;
   dendrometryTreeCanvas = dendrometryVolumeCanvas = null;
-  dendrometryBasalAreaCanvas = dendrometryIncrementCanvas = null;
+  dendrometryBasalAreaCanvas = dendrometryHeightCanvas = null;
+  dendrometryIncrementCanvas = null;
   destroyDendrometryCharts();
   productionHost = productionCanvas = productionSummary = null;
   productionPerHa = productionMonthly = null;
   destroyProductionChart();
   paiParcelsHost = paiSpeciesHost = null;
   detailSections = {};
-  parcelsData = futureData = prelieviData = dendrometryData = preservedData = parcelsGeo = null;
-  prelieviLoad = dendrometryLoad = preservedLoad = null;
+  parcelsData = futureData = prelieviData = dendrometryData = null;
+  dendrometryPointsData = preservedData = parcelsGeo = null;
+  prelieviLoad = dendrometryLoad = dendrometryPointsLoad = preservedLoad = null;
   satelliteData = satelliteRegionId = satelliteLoad = null;
   paiMarkerLayer = null;
   regions = [];
@@ -297,6 +312,11 @@ function onPrelieviUpdate(data) {
 
 function onDendrometryUpdate(data) {
   dendrometryData = data;
+  renderDendrometry();
+}
+
+function onDendrometryPointsUpdate(data) {
+  dendrometryPointsData = data;
   renderDendrometry();
 }
 
@@ -1138,13 +1158,15 @@ function renderDendrometry() {
   if (!dendrometryHost) return;
   const scope = detailScopeForState();
   if (!scope || detailOverlay?.hidden) return;
-  if (!dendrometryData) {
+  if (!dendrometryData || !dendrometryPointsData) {
     destroyDendrometryCharts();
     if (dendrometryChartGrid) dendrometryChartGrid.hidden = true;
     if (dendrometryStatus) dendrometryStatus.textContent = S.LOADING;
-    loadDendrometry().then(renderDendrometry).catch(() => {
-      if (dendrometryStatus) dendrometryStatus.textContent = 'Dendrometria non disponibile.';
-    });
+    Promise.all([loadDendrometry(), loadDendrometryPoints()])
+      .then(renderDendrometry)
+      .catch(() => {
+        if (dendrometryStatus) dendrometryStatus.textContent = 'Dendrometria non disponibile.';
+      });
     return;
   }
 
@@ -1160,7 +1182,10 @@ function renderDendrometry() {
     perHa: false,
     speciesIds: filter,
   });
-  renderDendrometryCharts(rows, rawRows);
+  const heightPoints = dendrometryHeightPoints(dendrometryPointsData, baseScope, {
+    speciesIds: filter,
+  });
+  renderDendrometryCharts(rows, rawRows, heightPoints);
 }
 
 function loadDendrometry() {
@@ -1171,6 +1196,16 @@ function loadDendrometry() {
     }).finally(() => { dendrometryLoad = null; });
   }
   return dendrometryLoad;
+}
+
+function loadDendrometryPoints() {
+  if (!dendrometryPointsLoad) {
+    dendrometryPointsLoad = cache.load(DENDROMETRY_POINTS_ID).then(data => {
+      dendrometryPointsData = data;
+      return data;
+    }).finally(() => { dendrometryPointsLoad = null; });
+  }
+  return dendrometryPointsLoad;
 }
 
 function renderDendrometrySpecies(scope) {
@@ -1211,7 +1246,7 @@ function setDendrometrySpeciesFilter(selected) {
   navigateWithParams(PAGE_PATH, params, true);
 }
 
-function renderDendrometryCharts(rows, rawRows) {
+function renderDendrometryCharts(rows, rawRows, heightPoints) {
   if (!dendrometryStatus || !dendrometryChartGrid) return;
   if (!rows.length) {
     destroyDendrometryCharts();
@@ -1238,11 +1273,47 @@ function renderDendrometryCharts(rows, rawRows) {
     dendrometryBarChartData(rows, 'basalAreaM2', perHa ? 'Area bas. (m²/ha)' : S.COL_BASAL_AREA_M2),
     dendrometryCharts.basalArea,
   );
+  dendrometryCharts.height = renderScatterChart(
+    dendrometryHeightCanvas,
+    dendrometryScatterChartData(heightPoints, S.COL_H_M),
+    dendrometryCharts.height,
+  );
   dendrometryCharts.increment = renderLineChart(
     dendrometryIncrementCanvas,
     dendrometryLineChartData(rows, 'incrementPct', S.COL_INCREMENT_PCT),
     dendrometryCharts.increment,
   );
+}
+
+function renderScatterChart(canvas, chartData, existing) {
+  if (!canvas) return existing || null;
+  if (existing) {
+    existing.data.datasets = chartData.datasets;
+    if (existing.options?.scales?.y?.title) existing.options.scales.y.title.text = chartData.yTitle;
+    existing.update('none');
+    return existing;
+  }
+
+  return new window.Chart(canvas, {
+    type: 'scatter',
+    data: { datasets: chartData.datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 300 },
+      scales: {
+        x: {
+          beginAtZero: true,
+          title: { display: true, text: S.COL_D_CM },
+        },
+        y: {
+          beginAtZero: true,
+          title: { display: true, text: chartData.yTitle },
+        },
+      },
+      plugins: { legend: { position: 'bottom' } },
+    },
+  });
 }
 
 function renderLineChart(canvas, chartData, existing) {

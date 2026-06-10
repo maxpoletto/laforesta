@@ -56,6 +56,18 @@ const dendro = {
   ],
 };
 
+const points = {
+  [COLUMNS]: [ROW_ID, S.COL_PARCEL_ID, S.COL_SURVEY_ID, S.COL_TREE_ID,
+    S.COL_SPECIES_ID, S.COL_REGION, S.COL_PARCEL, S.COL_SURVEY,
+    S.COL_SPECIES, S.COL_D_CM, S.COL_H_M],
+  [ROWS]: [
+    [1, 10, 1, 100, 5, 'Capistrano', '1', 'R1', 'Abete', 18, 20.5],
+    [2, 10, 1, 101, 5, 'Capistrano', '1', 'R1', 'Abete', 22, 22.5],
+    [3, 11, 1, 102, 6, 'Capistrano', '2', 'R1', 'Faggio', 25, 18],
+    [4, 12, 1, 103, 5, 'Serra', '1', 'R1', 'Abete', 35, 30],
+  ],
+};
+
 let rows = D.aggregateDendrometry(dendro, { parcelId: 10 }, { perHa: false });
 assertEqual(rows.length, 1, 'aggregateDendrometry: parcel groups matching rows');
 assertEqual(rows[0].treeCount, 5, 'aggregateDendrometry: sums tree count');
@@ -93,6 +105,20 @@ chart = D.dendrometryLineChartData(rows, 'incrementPct', S.COL_INCREMENT_PCT);
 assertEqual(chart.datasets[0].data, [1.6, null], 'dendrometryLineChartData: line values with gaps');
 assertEqual(chart.datasets[0].spanGaps, true, 'dendrometryLineChartData: spans gaps');
 assertEqual(D.dendrometryTreeTotal(rows), 9, 'dendrometryTreeTotal: raw tree count');
+
+let heightPoints = D.dendrometryHeightPoints(points, { parcelId: 10 }, { speciesIds: [5] });
+assertEqual(heightPoints.map(p => [p.species, p.dCm, p.hM]),
+            [['Abete', 18, 20.5], ['Abete', 22, 22.5]],
+            'dendrometryHeightPoints: parcel and species filter');
+heightPoints = D.dendrometryHeightPoints(points, { region: 'Capistrano' }, { speciesIds: [] });
+assertEqual(heightPoints, [], 'dendrometryHeightPoints: explicit empty species filter');
+heightPoints = D.dendrometryHeightPoints(points, { region: 'Capistrano' });
+chart = D.dendrometryScatterChartData(heightPoints, S.COL_H_M);
+assertEqual(chart.datasets.map(d => d.label), ['Abete', 'Faggio'],
+            'dendrometryScatterChartData: species datasets');
+assertEqual(chart.datasets[0].data, [{ x: 18, y: 20.5 }, { x: 22, y: 22.5 }],
+            'dendrometryScatterChartData: scatter points');
+assertEqual(chart.yTitle, S.COL_H_M, 'dendrometryScatterChartData: y title');
 
 const meta = D.regionMetadata([
   { displayAreaHa: 10, cadastralAreaHa: 11, aveAge: 40, altMin: 700, altMax: 900, type: 'fustaia' },
