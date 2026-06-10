@@ -12,6 +12,7 @@ full protocol.
 
 import gzip
 import json
+import math
 import os
 import tempfile
 from pathlib import Path
@@ -19,13 +20,16 @@ from pathlib import Path
 from django.conf import settings
 from django.db.models import F, Sum
 from django.http import FileResponse, HttpResponse
+from django.utils import timezone
 from django.utils.cache import patch_cache_control
 from django.utils.http import http_date, parse_http_date_safe
 
 from apps.base.models import DigestStatus, render_flag_note
 from config import strings as S
 from config.constants import (
-    DIGEST_HYPSO_PARAMS, FIELD_FIRST_DATE, FIELD_LAST_DATE, FIELD_NUMBER,
+    DIGEST_FUTURE_PRODUCTION, DIGEST_HYPSO_PARAMS,
+    DIGEST_PARCEL_DENDROMETRY, DIGEST_PARCEL_DENDROMETRY_POINTS,
+    DIGEST_PRESERVED_TREES, FIELD_FIRST_DATE, FIELD_LAST_DATE, FIELD_NUMBER,
     FIELD_SAMPLE_AREA_ID, FIELD_SHOOT, FIELD_SORT_ORDER, FIELD_SPECIES,
     FIELD_SPECIES_ID, FIELD_SURVEY_ID, FIELD_VOLUME_M3, ROW_ID, VERSION,
 )
@@ -303,22 +307,40 @@ def build_harvest_record(
 # Parcels digest
 # ---------------------------------------------------------------------------
 
+PARCEL_COLUMNS = [
+    ROW_ID, VERSION, S.COL_REGION, S.COL_PARCEL, S.COL_CLASS,
+    S.COL_AREA_HA, S.COL_AREA_CAD_HA, S.COL_AVE_AGE, S.COL_LOCATION,
+    S.COL_ALT_MIN, S.COL_ALT_MAX, S.COL_ASPECT, S.COL_GRADE_PCT,
+    S.COL_TYPE, S.COL_DESC_VEG, S.COL_DESC_GEO,
+]
+
+
+def build_parcel_record(p) -> list:
+    """Build one row of the `parcels` digest.
+
+    `Parcel` predates the app-wide TimestampedModel convention, so the
+    version slot is currently a stable read-only placeholder until parcel
+    metadata editing is wired in.
+    """
+    return [
+        p.id, getattr(p, 'version', 0), p.region.name, p.name, p.eclass.name,
+        float(p.area_ha), float(p.area_ha), p.ave_age, p.location_name,
+        p.altitude_min_m, p.altitude_max_m, p.aspect, p.grade_pct,
+        S.TYPE_COPPICE if p.eclass.coppice else S.TYPE_HIGHFOREST,
+        p.desc_veg, p.desc_geo,
+    ]
+
+
 def generate_parcels() -> None:
     from apps.base.models import Parcel
 
-    columns = [ROW_ID, S.COL_REGION, S.COL_PARCEL, S.COL_CLASS,
-               S.COL_AREA_HA, S.COL_AVE_AGE, S.COL_LOCATION,
-               S.COL_ALT_MIN, S.COL_ALT_MAX,
-               S.COL_ASPECT, S.COL_GRADE_PCT]
-    rows = []
-    for p in Parcel.objects.select_related('region', 'eclass').order_by('region__name', 'name'):
-        rows.append([
-            p.id, p.region.name, p.name, p.eclass.name, float(p.area_ha),
-            p.ave_age, p.location_name, p.altitude_min_m, p.altitude_max_m,
-            p.aspect, p.grade_pct,
-        ])
+    rows = [
+        build_parcel_record(p)
+        for p in Parcel.objects.select_related('region', 'eclass')
+                       .order_by('region__name', 'name')
+    ]
 
-    _write_gzip_json({'columns': columns, 'rows': rows}, _dest('parcels'))
+    _write_gzip_json({'columns': PARCEL_COLUMNS, 'rows': rows}, _dest('parcels'))
     print(f'parcels.json.gz: {len(rows)} rows')
 
 
@@ -1044,6 +1066,238 @@ def generate_mark_trees_for_item(item_id: int) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Bosco digests
+# ---------------------------------------------------------------------------
+
+PRESERVED_TREE_COLUMNS = [
+    ROW_ID, VERSION, S.COL_PARCEL_ID, S.COL_SPECIES_ID,
+    S.COL_REGION, S.COL_PARCEL, S.COL_SPECIES, S.COL_YEAR,
+    S.COL_LAT, S.COL_LON, S.COL_NOTE,
+]
+
+
+def build_preserved_tree_record(tree) -> list:
+    """Build one row of the `preserved_trees` digest.
+
+    Caller must pre-load `parcel.region` and `species`.  The final Note
+    column is reserved for the documented PAI popover/table shape; the
+    current Tree model does not carry notes, so it is blank.
+    """
+    return [
+        tree.id, tree.version, tree.parcel_id, tree.species_id,
+        tree.parcel.region.name, tree.parcel.name, tree.species.common_name,
+        tree.year, tree.lat, tree.lon, '',
+    ]
+
+
+def generate_preserved_trees() -> None:
+    from apps.base.models import Tree
+
+    rows = [
+        build_preserved_tree_record(t)
+        for t in (Tree.objects
+                  .filter(preserved=True)
+                  .select_related('parcel__region', 'species')
+                  .order_by('parcel__region__name', 'parcel__name',
+                            'species__common_name', 'year', 'id'))
+    ]
+    _write_gzip_json(
+        {'columns': PRESERVED_TREE_COLUMNS, 'rows': rows},
+        _dest(DIGEST_PRESERVED_TREES),
+    )
+    print(f'{DIGEST_PRESERVED_TREES}.json.gz: {len(rows)} rows')
+
+
+FUTURE_PRODUCTION_COLUMNS = [
+    ROW_ID, VERSION, S.COL_HARVEST_PLAN, S.COL_PARCEL_ID,
+    S.COL_REGION, S.COL_PARCEL, S.COL_YEAR_PLANNED, S.COL_VOLUME_PLANNED,
+]
+
+
+def _active_or_default_harvest_plan():
+    """Harvest plan used by Bosco's future-production digest.
+
+    Mirrors the settings page's runtime default: an explicitly-active plan wins;
+    otherwise use the plan whose range includes the current year and has the
+    greatest end year.  If neither exists, Bosco shows no future production.
+    """
+    from apps.base.models import HarvestPlan
+
+    active = HarvestPlan.objects.filter(active=True).order_by('-year_end', 'id').first()
+    if active is not None:
+        return active
+    year = timezone.localdate().year
+    return (HarvestPlan.objects
+            .filter(year_start__lte=year, year_end__gte=year)
+            .order_by('-year_end', 'id')
+            .first())
+
+
+def build_future_production_record(item) -> list:
+    """Build one row of the `future_production` digest."""
+    return [
+        item.id, item.version, item.harvest_plan_id, item.parcel_id,
+        item.parcel.region.name, item.parcel.name, item.year_planned,
+        float(item.volume_planned_m3) if item.volume_planned_m3 is not None else None,
+    ]
+
+
+def generate_future_production() -> None:
+    from apps.base.models import HarvestPlanItem
+
+    plan = _active_or_default_harvest_plan()
+    qs = HarvestPlanItem.objects.none()
+    if plan is not None:
+        qs = (HarvestPlanItem.objects
+              .filter(harvest_plan=plan, parcel__isnull=False,
+                      parcel__eclass__coppice=False,
+                      volume_planned_m3__isnull=False)
+              .select_related('parcel__region', 'parcel__eclass')
+              .order_by('parcel__region__name', 'parcel__name', 'year_planned', 'id'))
+    rows = [build_future_production_record(item) for item in qs]
+    _write_gzip_json(
+        {'columns': FUTURE_PRODUCTION_COLUMNS, 'rows': rows},
+        _dest(DIGEST_FUTURE_PRODUCTION),
+    )
+    print(f'{DIGEST_FUTURE_PRODUCTION}.json.gz: {len(rows)} rows')
+
+
+DENDROMETRY_COLUMNS = [
+    ROW_ID, S.COL_PARCEL_ID, S.COL_SURVEY_ID, S.COL_SPECIES_ID,
+    S.COL_REGION, S.COL_PARCEL, S.COL_SURVEY, S.COL_SPECIES,
+    S.COL_DIAM_CLASS_CM, S.COL_N_TREES, S.COL_VOLUME_M3,
+    S.COL_BASAL_AREA_M2, S.COL_AVG_H_M, S.COL_INCREMENT_PCT,
+]
+
+DENDROMETRY_POINT_COLUMNS = [
+    ROW_ID, S.COL_PARCEL_ID, S.COL_SURVEY_ID, S.COL_TREE_ID,
+    S.COL_REGION, S.COL_PARCEL, S.COL_SURVEY, S.COL_SPECIES,
+    S.COL_D_CM, S.COL_H_M,
+]
+
+
+def _active_or_default_survey_ids() -> list[int]:
+    """Survey set used by Bosco dendrometry digests.
+
+    Mirrors the settings page's runtime default: active surveys win; otherwise
+    fall back to the first survey by name so an empty setting is still useful in
+    a freshly imported development database.
+    """
+    from apps.base.models import Survey
+
+    ids = list(Survey.objects.filter(active=True).order_by('name')
+               .values_list('id', flat=True))
+    if ids:
+        return ids
+    first = Survey.objects.order_by('name').values_list('id', flat=True).first()
+    return [first] if first else []
+
+
+def diameter_class_cm(d_cm: int) -> int:
+    """5 cm diameter class centered on multiples of 5.
+
+    Integer diameters 18..22 map to class 20; 23..27 map to class 25.
+    """
+    return int((int(d_cm) + 2) // 5 * 5)
+
+
+def basal_area_m2(d_cm: int) -> float:
+    radius_m = float(d_cm) / 200.0
+    return math.pi * radius_m * radius_m
+
+
+def annual_increment_pct(d_cm: int, l10_mm: int) -> float | None:
+    """Annual diameter-growth percentage from outer-ten-rings width.
+
+    `l10_mm = 0` means no core was measured, so it contributes no increment
+    observation rather than a zero-growth observation.
+    """
+    if not d_cm or not l10_mm:
+        return None
+    return 2.0 * float(l10_mm) / float(d_cm)
+
+
+def _dendrometry_queryset():
+    from apps.base.models import TreeSample
+
+    survey_ids = _active_or_default_survey_ids()
+    if not survey_ids:
+        return TreeSample.objects.none()
+    return (TreeSample.objects
+            .filter(sample__survey_id__in=survey_ids)
+            .select_related('sample__survey', 'sample__sample_area__parcel__region',
+                            'tree', 'tree__species')
+            .order_by('sample__sample_area__parcel__region__name',
+                      'sample__sample_area__parcel__name',
+                      'sample__survey__name', 'tree__species__common_name',
+                      'd_cm', 'id'))
+
+
+def generate_parcel_dendrometry() -> None:
+    groups = {}
+    for ts in _dendrometry_queryset():
+        parcel = ts.sample.sample_area.parcel
+        survey = ts.sample.survey
+        species = ts.tree.species
+        key = (parcel.id, survey.id, species.id, diameter_class_cm(ts.d_cm))
+        group = groups.setdefault(key, {
+            'parcel': parcel, 'survey': survey, 'species': species,
+            'class_cm': key[3], 'n': 0, 'volume': 0.0, 'basal': 0.0,
+            'height': 0.0, 'increments': [],
+        })
+        group['n'] += 1
+        if ts.volume_m3 is not None:
+            group['volume'] += float(ts.volume_m3)
+        group['basal'] += basal_area_m2(ts.d_cm)
+        group['height'] += float(ts.h_m)
+        inc = annual_increment_pct(ts.d_cm, ts.l10_mm)
+        if inc is not None:
+            group['increments'].append(inc)
+
+    rows = []
+    for row_id, group in enumerate(sorted(
+            groups.values(),
+            key=lambda g: (g['parcel'].region.name, g['parcel'].name,
+                           g['survey'].name, g['species'].common_name,
+                           g['class_cm'])), 1):
+        parcel = group['parcel']
+        survey = group['survey']
+        species = group['species']
+        increments = group['increments']
+        rows.append([
+            row_id, parcel.id, survey.id, species.id,
+            parcel.region.name, parcel.name, survey.name, species.common_name,
+            group['class_cm'], group['n'], round(group['volume'], 4),
+            round(group['basal'], 6), round(group['height'] / group['n'], 4),
+            round(sum(increments) / len(increments), 4) if increments else None,
+        ])
+
+    _write_gzip_json(
+        {'columns': DENDROMETRY_COLUMNS, 'rows': rows},
+        _dest(DIGEST_PARCEL_DENDROMETRY),
+    )
+    print(f'{DIGEST_PARCEL_DENDROMETRY}.json.gz: {len(rows)} rows')
+
+
+def generate_parcel_dendrometry_points() -> None:
+    rows = []
+    for ts in _dendrometry_queryset():
+        parcel = ts.sample.sample_area.parcel
+        survey = ts.sample.survey
+        species = ts.tree.species
+        rows.append([
+            ts.id, parcel.id, survey.id, ts.tree_id,
+            parcel.region.name, parcel.name, survey.name, species.common_name,
+            ts.d_cm, float(ts.h_m),
+        ])
+    _write_gzip_json(
+        {'columns': DENDROMETRY_POINT_COLUMNS, 'rows': rows},
+        _dest(DIGEST_PARCEL_DENDROMETRY_POINTS),
+    )
+    print(f'{DIGEST_PARCEL_DENDROMETRY_POINTS}.json.gz: {len(rows)} rows')
+
+
+# ---------------------------------------------------------------------------
 # Generator registry
 # ---------------------------------------------------------------------------
 
@@ -1059,6 +1313,10 @@ _GENERATORS: dict[str, callable] = {
     'samples': generate_samples,
     'harvest_plans': generate_harvest_plans,
     'harvest_plan_items': generate_harvest_plan_items,
+    DIGEST_FUTURE_PRODUCTION: generate_future_production,
+    DIGEST_PARCEL_DENDROMETRY: generate_parcel_dendrometry,
+    DIGEST_PARCEL_DENDROMETRY_POINTS: generate_parcel_dendrometry_points,
+    DIGEST_PRESERVED_TREES: generate_preserved_trees,
     DIGEST_HYPSO_PARAMS: generate_hypso_params,
 }
 

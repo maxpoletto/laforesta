@@ -138,6 +138,8 @@ FIELD_SURVEYS               = 'surveys'
 # Digest filesystem identifiers (the digest file is `<name>.json.gz`).
 DIGEST_FUTURE_PRODUCTION = 'future_production'
 DIGEST_PARCEL_DENDROMETRY = 'parcel_dendrometry'
+DIGEST_PARCEL_DENDROMETRY_POINTS = 'parcel_dendrometry_points'
+DIGEST_PRESERVED_TREES = 'preserved_trees'
 DIGEST_HYPSO_PARAMS = 'hypso_params'
 
 # Domain defaults — locale-independent values the client and server must agree

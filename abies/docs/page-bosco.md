@@ -296,7 +296,8 @@ mode-switch.
   `Area (ha)`, `Area cat. (ha)`, `Età media (a)`, `Località`, `Alt. min. (m)`,
   `Alt. max. (m)`, `Esposizione`, `Pendenza (%)`, `Tipo` (alto fusto / ceduo),
   `Desc. veg.`, `Desc. geo`.  `row_id` = `parcel.id`; `Tipo` derived
-  from `parcel.eclass.coppice`.
+  from `parcel.eclass.coppice`.  `version` is currently a read-only placeholder
+  until parcel metadata editing is enabled.
 
 - **`species.json`** — shared with Campionamenti and Piano di taglio.
   Used here for color-coded species swatches in the PAI mode lists
@@ -308,9 +309,9 @@ mode-switch.
   denormalized.  Invalidated on `tree` writes (specifically those
   toggling `preserved` or moving location).
 
-  Columns: `row_id`, `version`, `Compresa`, `Particella`, `Specie`,
-  `Anno`, `Lat`, `Lon`, `Note`.  `row_id` = `tree.id`.  Sorted by
-  `(Compresa, Particella, Specie, Anno)`.
+  Columns: `row_id`, `version`, `Parcel id`, `Species id`,
+  `Compresa`, `Particella`, `Specie`, `Anno`, `Lat`, `Lon`, `Note`.
+  `row_id` = `tree.id`.  Sorted by `(Compresa, Particella, Specie, Anno)`.
 
   Drives both the species/parcel scrollable lists and the per-tree
   dot map.  Filtered client-side by `pp=` / `ps=`.
@@ -322,10 +323,11 @@ mode-switch.
   of the involved surveys, and on change of dendtrometry surveys in the settings
   page.
 
-  Columns: `row_id`, `version`, `Parcel`, `Survey`, `Specie`,
-  `N. alberi`, `Volume (m³)`, `Area bas. (m²)`,
-  `Altezza media (m)`, `Incremento %`.  Sorted by `(Parcel, Survey,
-  Specie, Classe)`.
+  Columns: `row_id`, `Parcel id`, `Survey id`, `Species id`,
+  `Compresa`, `Particella`, `Rilevamento`, `Specie`, `Classe diam. (cm)`,
+  `N. alberi`, `Volume (m³)`, `Area bas. (m²)`, `Altezza media (m)`,
+  `Incremento %`.  Sorted by `(Compresa, Particella, Rilevamento, Specie,
+  Classe diam. (cm))`.
 
   Per-hectare values are computed client side depending on what area measure is
   used (cadastral or geometric). Region-scope aggregation is also done
@@ -334,6 +336,14 @@ mode-switch.
 
   `row_id` is a sequential synthetic index; this digest is read-only
   and does not participate in the standard edit/cache-update flow.
+
+- **`parcel_dendrometry_points.json`** — per-tree points for the
+  Dendrometria section's diameter/height scatter plot.  Invalidated with
+  `parcel_dendrometry.json` and filtered by the same active-survey setting.
+
+  Columns: `row_id`, `Parcel id`, `Survey id`, `Tree id`, `Compresa`,
+  `Particella`, `Rilevamento`, `Specie`, `D (cm)`, `h (m)`.
+  `row_id` = `tree_sample.id`.  Read-only.
 
 - **`future_production.json`** — per-year production for high forest (fustaia)
   parcels based on the currently selected harvest plan. Invalidated on harvest

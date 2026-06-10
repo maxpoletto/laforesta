@@ -9,20 +9,26 @@ from pathlib import Path
 from django.conf import settings
 
 from apps.base.digests import (
-    aggregate_sp_pcts, build_harvest_record, generate_prelievi,
-    generate_parcels, generate_crews,
-    generate_audit, generate_all, mark_stale, regenerate_if_stale,
-    prelievi_species_cols, _write_gzip_json, _audit_configs, _tracked_models,
+    aggregate_sp_pcts, annual_increment_pct, basal_area_m2,
+    build_harvest_record, diameter_class_cm, generate_future_production,
+    generate_parcel_dendrometry, generate_parcel_dendrometry_points,
+    generate_prelievi, generate_preserved_trees, generate_parcels,
+    generate_crews, generate_audit, generate_all, mark_stale,
+    regenerate_if_stale, prelievi_species_cols, _write_gzip_json,
+    _audit_configs, _tracked_models,
 )
 from apps.base.models import (
-    Crew, DigestStatus, HarvestPlan, HypsoParamSet, HypsoParamSource, Role,
-    SampleGrid, Survey, Tree, TreeMark, TreeSample, User,
+    Crew, DigestStatus, HarvestPlan, HarvestPlanItem, HypsoParamSet,
+    HypsoParamSource, Parcel, Role, Sample, SampleArea, SampleGrid, Survey,
+    Tree, TreeMark, TreeSample, User,
 )
 from apps.mannesi.models import LicensePlate, ProductionCredit, WorkHour
 from apps.prelievi.models import Harvest, HarvestSpecies, HarvestTractor
 from config import strings as S
 from config.constants import (
-    COLUMNS, ROWS, ROW_ID,
+    COLUMNS, DIGEST_FUTURE_PRODUCTION, DIGEST_PARCEL_DENDROMETRY,
+    DIGEST_PARCEL_DENDROMETRY_POINTS, DIGEST_PRESERVED_TREES, ROWS, ROW_ID,
+    VERSION,
 )
 
 
@@ -226,6 +232,173 @@ class TestGenerateParcels:
             data = json.load(f)
         assert len(data[ROWS]) == 3
         assert data[COLUMNS][0] == ROW_ID
+
+
+# ---------------------------------------------------------------------------
+# Bosco digests
+# ---------------------------------------------------------------------------
+
+class TestGenerateBoscoDigests:
+    def _read(self, tmp_path, name):
+        with gzip.open(tmp_path / f'{name}.json.gz', 'rt') as f:
+            return json.load(f)
+
+    def test_parcels_include_bosco_metadata(self, parcels, tmp_path, settings):
+        settings.DIGEST_DIR = tmp_path
+        p = parcels[0]
+        p.ave_age = 72
+        p.location_name = 'Mulu'
+        p.altitude_min_m = 840
+        p.altitude_max_m = 895
+        p.aspect = 'S-E'
+        p.grade_pct = 7
+        p.desc_veg = 'Descrizione vegetazione'
+        p.desc_geo = 'Descrizione geologia'
+        p.save()
+
+        generate_parcels()
+        data = self._read(tmp_path, 'parcels')
+        cols = data[COLUMNS]
+        row = next(r for r in data[ROWS] if r[0] == p.id)
+
+        for col in (VERSION, S.COL_AREA_CAD_HA, S.COL_TYPE,
+                    S.COL_DESC_VEG, S.COL_DESC_GEO):
+            assert col in cols
+        assert row[cols.index(VERSION)] == 0
+        assert row[cols.index(S.COL_TYPE)] == S.TYPE_HIGHFOREST
+        assert row[cols.index(S.COL_DESC_VEG)] == 'Descrizione vegetazione'
+        assert row[cols.index(S.COL_DESC_GEO)] == 'Descrizione geologia'
+
+    def test_preserved_trees_digest(self, parcels, species, tmp_path, settings):
+        settings.DIGEST_DIR = tmp_path
+        kept = Tree.objects.create(
+            species=species[0], parcel=parcels[0], preserved=True,
+            year=1920, lat=38.1, lon=16.2,
+        )
+        Tree.objects.create(species=species[1], parcel=parcels[0], preserved=False)
+
+        generate_preserved_trees()
+        data = self._read(tmp_path, DIGEST_PRESERVED_TREES)
+        cols = data[COLUMNS]
+        assert data[ROWS] == [[
+            kept.id, kept.version, parcels[0].id, species[0].id,
+            parcels[0].region.name, parcels[0].name, species[0].common_name,
+            1920, 38.1, 16.2, '',
+        ]]
+        assert cols == [
+            ROW_ID, VERSION, S.COL_PARCEL_ID, S.COL_SPECIES_ID,
+            S.COL_REGION, S.COL_PARCEL, S.COL_SPECIES, S.COL_YEAR,
+            S.COL_LAT, S.COL_LON, S.COL_NOTE,
+        ]
+
+    def test_future_production_active_highforest_only(
+            self, parcels, regions, eclasses, tmp_path, settings,
+    ):
+        settings.DIGEST_DIR = tmp_path
+        plan = HarvestPlan.objects.create(
+            name='Piano attivo', year_start=2026, year_end=2040, active=True,
+        )
+        highforest = HarvestPlanItem.objects.create(
+            harvest_plan=plan, parcel=parcels[0], year_planned=2028,
+            volume_planned_m3=Decimal('12.500'),
+        )
+        coppice_parcel = Parcel.objects.create(
+            name='C1', region=regions[0], eclass=eclasses[2],
+            area_ha=Decimal('3.00'),
+        )
+        HarvestPlanItem.objects.create(
+            harvest_plan=plan, parcel=coppice_parcel, year_planned=2029,
+            volume_planned_m3=Decimal('99.000'),
+        )
+        HarvestPlanItem.objects.create(
+            harvest_plan=plan, region=regions[0], year_planned=2030,
+            volume_planned_m3=Decimal('88.000'), damaged=True,
+        )
+
+        generate_future_production()
+        data = self._read(tmp_path, DIGEST_FUTURE_PRODUCTION)
+        cols = data[COLUMNS]
+        assert data[ROWS] == [[
+            highforest.id, highforest.version, plan.id, parcels[0].id,
+            parcels[0].region.name, parcels[0].name, 2028, 12.5,
+        ]]
+        assert cols == [
+            ROW_ID, VERSION, S.COL_HARVEST_PLAN, S.COL_PARCEL_ID,
+            S.COL_REGION, S.COL_PARCEL, S.COL_YEAR_PLANNED,
+            S.COL_VOLUME_PLANNED,
+        ]
+
+    def test_diameter_class_and_increment_helpers(self):
+        assert diameter_class_cm(17) == 15
+        assert diameter_class_cm(18) == 20
+        assert diameter_class_cm(22) == 20
+        assert diameter_class_cm(23) == 25
+        assert annual_increment_pct(18, 9) == 1.0
+        assert annual_increment_pct(18, 0) is None
+
+    def test_parcel_dendrometry_uses_active_surveys(
+            self, parcels, species, tmp_path, settings,
+    ):
+        settings.DIGEST_DIR = tmp_path
+        grid = SampleGrid.objects.create(name='Bosco grid')
+        area = SampleArea.objects.create(
+            sample_grid=grid, parcel=parcels[0], number='1', lat=38.0, lon=16.0,
+        )
+        active = Survey.objects.create(name='Active survey', sample_grid=grid, active=True)
+        inactive = Survey.objects.create(name='Inactive survey', sample_grid=grid)
+        sample = Sample.objects.create(sample_area=area, survey=active, date='2026-06-01')
+        inactive_sample = Sample.objects.create(
+            sample_area=area, survey=inactive, date='2026-06-02',
+        )
+        tree1 = Tree.objects.create(species=species[0], parcel=parcels[0])
+        tree2 = Tree.objects.create(species=species[0], parcel=parcels[0])
+        tree3 = Tree.objects.create(species=species[1], parcel=parcels[0])
+        ts1 = TreeSample.objects.create(
+            sample=sample, tree=tree1, number=1, d_cm=18,
+            h_m=Decimal('20.00'), l10_mm=9,
+            volume_m3=Decimal('0.1000'), mass_q=Decimal('1.000'),
+        )
+        ts2 = TreeSample.objects.create(
+            sample=sample, tree=tree2, number=2, d_cm=22,
+            h_m=Decimal('22.00'), l10_mm=0,
+            volume_m3=Decimal('0.2000'), mass_q=Decimal('2.000'),
+        )
+        TreeSample.objects.create(
+            sample=inactive_sample, tree=tree3, number=1, d_cm=40,
+            h_m=Decimal('30.00'), l10_mm=20,
+            volume_m3=Decimal('9.0000'), mass_q=Decimal('9.000'),
+        )
+
+        generate_parcel_dendrometry()
+        data = self._read(tmp_path, DIGEST_PARCEL_DENDROMETRY)
+        cols = data[COLUMNS]
+        assert cols == [
+            ROW_ID, S.COL_PARCEL_ID, S.COL_SURVEY_ID, S.COL_SPECIES_ID,
+            S.COL_REGION, S.COL_PARCEL, S.COL_SURVEY, S.COL_SPECIES,
+            S.COL_DIAM_CLASS_CM, S.COL_N_TREES, S.COL_VOLUME_M3,
+            S.COL_BASAL_AREA_M2, S.COL_AVG_H_M, S.COL_INCREMENT_PCT,
+        ]
+        assert len(data[ROWS]) == 1
+        row = data[ROWS][0]
+        assert row[cols.index(S.COL_PARCEL_ID)] == parcels[0].id
+        assert row[cols.index(S.COL_SURVEY_ID)] == active.id
+        assert row[cols.index(S.COL_SPECIES_ID)] == species[0].id
+        assert row[cols.index(S.COL_DIAM_CLASS_CM)] == 20
+        assert row[cols.index(S.COL_N_TREES)] == 2
+        assert row[cols.index(S.COL_VOLUME_M3)] == 0.3
+        expected_basal = round(basal_area_m2(18) + basal_area_m2(22), 6)
+        assert row[cols.index(S.COL_BASAL_AREA_M2)] == expected_basal
+        assert row[cols.index(S.COL_AVG_H_M)] == 21.0
+        assert row[cols.index(S.COL_INCREMENT_PCT)] == 1.0
+
+        generate_parcel_dendrometry_points()
+        points = self._read(tmp_path, DIGEST_PARCEL_DENDROMETRY_POINTS)
+        assert [r[0] for r in points[ROWS]] == [ts1.id, ts2.id]
+        assert points[COLUMNS] == [
+            ROW_ID, S.COL_PARCEL_ID, S.COL_SURVEY_ID, S.COL_TREE_ID,
+            S.COL_REGION, S.COL_PARCEL, S.COL_SURVEY, S.COL_SPECIES,
+            S.COL_D_CM, S.COL_H_M,
+        ]
 
 
 # ---------------------------------------------------------------------------
