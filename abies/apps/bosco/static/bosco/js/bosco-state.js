@@ -1,5 +1,6 @@
 const DEFAULT_MODE = '1';
 const DEFAULT_MAP_TYPE_TOKEN = 's';
+const DEFAULT_CHARACTERISTIC = '1';
 
 export const MAP_TYPE_TOKENS = { o: 'osm', t: 'topo', s: 'satellite' };
 export const MAP_TYPE_BY_NAME = { osm: 'o', topo: 't', satellite: 's' };
@@ -56,6 +57,10 @@ export function readBoscoParams(params, regionIds = []) {
   const zoom = intParam(params, 'mz');
   const center = parseCenter(paramValue(params, 'mc'));
 
+  const qRaw = String(paramValue(params, 'q') || DEFAULT_CHARACTERISTIC);
+  const q = ['1', '2', '3', '4', '5', '6', '7', '8'].includes(qRaw)
+    ? qRaw : DEFAULT_CHARACTERISTIC;
+
   return {
     regionId,
     mode,
@@ -63,6 +68,9 @@ export function readBoscoParams(params, regionIds = []) {
     basemap: mapTypeName(mt),
     center: center && zoom !== null ? center : null,
     zoom: center && zoom !== null ? zoom : null,
+    q,
+    useCadastralArea: paramValue(params, 'fc') === '1',
+    harvestPerHa: paramValue(params, 'fh') === '1',
     hasRegionParam: hasParam(params, 'c'),
   };
 }

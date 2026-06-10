@@ -38,19 +38,26 @@ assertEqual(state.regionId, 7, 'readBoscoParams: region fallback');
 assertEqual(state.mode, '1', 'readBoscoParams: default mode');
 assertEqual(state.mt, 's', 'readBoscoParams: default map token');
 assertEqual(state.center, null, 'readBoscoParams: no partial view');
+assertEqual(state.q, '1', 'readBoscoParams: default characteristic');
+assertEqual(state.useCadastralArea, false, 'readBoscoParams: default cadastral flag');
+assertEqual(state.harvestPerHa, false, 'readBoscoParams: default per-ha flag');
 
-state = readBoscoParams({ c: '8', m: '3', mt: 't', mc: '38,16', mz: '12' }, [7, 8]);
+state = readBoscoParams({ c: '8', m: '3', mt: 't', mc: '38,16', mz: '12', q: '5', fc: '1', fh: '1' }, [7, 8]);
 assertEqual(state.regionId, 8, 'readBoscoParams: valid region');
 assertEqual(state.mode, '3', 'readBoscoParams: valid mode');
 assertEqual(state.basemap, 'topo', 'readBoscoParams: basemap');
 assertEqual(state.center, [38, 16], 'readBoscoParams: restored center');
 assertEqual(state.zoom, 12, 'readBoscoParams: restored zoom');
+assertEqual(state.q, '5', 'readBoscoParams: characteristic');
+assertEqual(state.useCadastralArea, true, 'readBoscoParams: cadastral flag');
+assertEqual(state.harvestPerHa, true, 'readBoscoParams: per-ha flag');
 
-state = readBoscoParams({ c: '99', m: '9', mt: 'bad', mc: '38,16' }, [7, 8]);
+state = readBoscoParams({ c: '99', m: '9', mt: 'bad', mc: '38,16', q: '99' }, [7, 8]);
 assertEqual(state.regionId, 7, 'readBoscoParams: stale region fallback');
 assertEqual(state.mode, '1', 'readBoscoParams: invalid mode fallback');
 assertEqual(state.mt, 's', 'readBoscoParams: invalid map fallback');
 assertEqual(state.center, null, 'readBoscoParams: center ignored without zoom');
+assertEqual(state.q, '1', 'readBoscoParams: invalid characteristic fallback');
 
 const params = new URLSearchParams();
 writeMapView(params, [38.1, 16.2], 13);

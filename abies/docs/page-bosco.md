@@ -227,7 +227,7 @@ clean map state.  Reopening uses the documented defaults.
 
 See "Query parameter details" below for the full list per mode.
 Cross-mode summary:
-- Caratteristiche (`m=1`): `q=` metric id, `fc=` cadastral flag.
+- Caratteristiche (`m=1`): `q=` metric id, `fc=` cadastral flag, `fh=` per-hectare harvest flag.
 - Evoluzione (`m=2`): `q=`, `d1=`/`d2=`, `fa=`, `fc=`.
 - PAI (`m=3`): `pp=` parcels list, `ps=` species list.
 
@@ -248,10 +248,11 @@ Cross-mode summary:
 
 #### Caratteristiche (`m=1`)
 
-- `q=1`–`14` — metric id, matching the entries in the
+- `q=1`–`8` — metric id, matching the entries in the
   "caratteristica" pulldown (parcel-level metadata + satellite-derived
   metrics; same set as Boscoscopio).
 - `fc=1` — "aree catastali" checked.
+- `fh=1` — "valori per ettaro" checked for harvest metrics.
 
 #### Evoluzione (`m=2`)
 

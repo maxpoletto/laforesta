@@ -145,6 +145,54 @@
   margin-top: 10px;
 }
 
+
+.bosco-legend-title {
+  margin-bottom: 4px;
+  color: #173f19;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.bosco-gradient {
+  height: 12px;
+  border: 1px solid #87947f;
+  background: linear-gradient(90deg, #f5de5b, #20714b);
+}
+
+.bosco-legend-labels {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 3px;
+  font-size: 0.76rem;
+  color: #444;
+}
+
+.bosco-legend-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 4px 0;
+  font-size: 0.82rem;
+}
+
+.bosco-legend-dot {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 12px;
+  border: 1px solid #5f6a5d;
+}
+
+.bosco-legend-note {
+  color: #666;
+  font-size: 0.8rem;
+  line-height: 1.3;
+}
+
+.bosco-tooltip-title {
+  font-weight: 700;
+}
+
 @media (max-width: 800px) {
   .bosco-page { position: relative; }
 
