@@ -10,11 +10,18 @@ import {
 } from '../../base/js/constants.js';
 import { fmtArea, fmtDecimal1, fmtDecimal2, fmtInt, fmtMass, fmtVolume } from '../../base/js/format.js';
 import { cloneTemplate } from '../../base/js/templates.js';
-import { sortFeaturesByArea, parcelNames } from '../../base/js/geo.js';
+import { findContainingParcel, sortFeaturesByArea, parcelNames } from '../../base/js/geo.js';
 import { PARCEL_STYLE, ParcelMap } from '../../base/js/parcel-map.js';
 import { createPage, navigateWithParams } from '../../base/js/page-sync.js';
 import { renderStackedBar } from '../../prelievi/js/charts.js';
-import { wireCollapsibleToggle } from '../../base/js/ui-widgets.js';
+import {
+  deleteRowWithVersion, fetchModalForm, interceptSubmit, renderModalForm,
+  showFormError,
+} from '../../base/js/forms.js';
+import { mountUseLocationButton } from '../../base/js/latlng-input.js';
+import { dismiss as dismissModal } from '../../base/js/modals.js';
+import { canModify } from '../../base/js/roles.js';
+import { wireCancelButtons, wireCollapsibleToggle } from '../../base/js/ui-widgets.js';
 import {
   clearDetailParams, clearMapView, mapTypeToken, readBoscoParams,
   writeMapView, writeOptionalIdList, writeSectionTokens,
@@ -56,6 +63,9 @@ const DENDROMETRY_ID = DIGEST_PARCEL_DENDROMETRY;
 const DENDROMETRY_URL = '/api/bosco/parcel-dendrometry/data/';
 const PRESERVED_ID = DIGEST_PRESERVED_TREES;
 const PRESERVED_URL = '/api/bosco/preserved-trees/data/';
+const PAI_FORM_URL = '/api/bosco/pai/form/';
+const PAI_SAVE_URL = '/api/bosco/pai/save/';
+const PAI_DELETE_URL = '/api/bosco/pai/delete/';
 const PRELIEVI_ID = 'prelievi';
 const PRELIEVI_URL = '/api/prelievi/data/';
 const TERRENI_ID = 'terreni';
@@ -402,6 +412,8 @@ function wireDetailControls() {
     ?.addEventListener('click', () => setPaiFilter('ps', null, paiSpeciesHost));
   root?.querySelector('[data-action="hide-all-species"]')
     ?.addEventListener('click', () => setPaiFilter('ps', [], paiSpeciesHost));
+  root?.querySelector('[data-action="add-pai"]')
+    ?.addEventListener('click', () => showPaiForm());
 }
 
 function applyParams(params) {
@@ -1295,6 +1307,80 @@ function loadPreservedTrees() {
   return preservedLoad;
 }
 
+async function showPaiForm(rowId = null) {
+  const url = rowId ? `${PAI_FORM_URL}${rowId}/` : paiAddFormUrl();
+  const form = await fetchModalForm(url);
+  if (!form) return;
+  wirePaiForm(form);
+}
+
+function paiAddFormUrl() {
+  const params = new URLSearchParams();
+  if (currentState?.regionId) params.set('region_id', String(currentState.regionId));
+  return params.toString() ? `${PAI_FORM_URL}?${params}` : PAI_FORM_URL;
+}
+
+function wirePaiForm(form) {
+  wireCancelButtons(form, dismissModal);
+  const latEl = form.querySelector('#id_pai_lat');
+  const lonEl = form.querySelector('#id_pai_lon');
+  mountUseLocationButton(latEl, lonEl, { appendTo: form.querySelector('.bosco-pai-latlon-row') });
+  latEl?.addEventListener('change', () => selectPaiParcelFromLatLon(form));
+  lonEl?.addEventListener('change', () => selectPaiParcelFromLatLon(form));
+
+  interceptSubmit(form, PAI_SAVE_URL, {
+    validate: validatePaiForm,
+    onSuccess: (data, isSaveAndAdd) => {
+      applyPaiResponse(data);
+      dismissModal();
+      if (isSaveAndAdd) showPaiForm();
+    },
+    onConflict: applyPaiResponse,
+    onHtml: (html, data) => {
+      const newForm = renderModalForm(html);
+      if (newForm) {
+        wirePaiForm(newForm);
+        showFormError(newForm, data.message || S.ERROR_GENERIC);
+      }
+    },
+  });
+}
+
+function validatePaiForm(body) {
+  if (!body.lat || !body.lon) return 'Lat e Lon obbligatorie.';
+  return null;
+}
+
+function selectPaiParcelFromLatLon(form) {
+  const lat = parseFormFloat(form.querySelector('#id_pai_lat')?.value);
+  const lon = parseFormFloat(form.querySelector('#id_pai_lon')?.value);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon) || !parcelsGeo?.features) return;
+  const feature = findContainingParcel(lon, lat, parcelsGeo.features);
+  if (!feature) return;
+  const { compresa, particella } = parcelNames(feature);
+  const entry = map?._boscoEntriesByKey?.get(parcelKey(compresa, particella));
+  const select = form.querySelector('#id_pai_parcel');
+  if (entry && select) select.value = String(entry.id);
+}
+
+function parseFormFloat(value) {
+  if (value == null || value === '') return NaN;
+  return Number(String(value).replace(',', '.'));
+}
+
+function applyPaiResponse(data) {
+  cache.applyResponseChanges(data);
+  preservedData = cache.get(PRESERVED_ID);
+  renderPaiMode();
+}
+
+async function deletePai(rowId) {
+  await deleteRowWithVersion(PRESERVED_ID, rowId, PAI_DELETE_URL, {
+    onSuccess: applyPaiResponse,
+    onConflict: applyPaiResponse,
+  });
+}
+
 function renderPaiCheckboxes(host, items, selectedIds, paramName, colors = null) {
   if (!host) return;
   host.replaceChildren();
@@ -1393,6 +1479,22 @@ function paiPopup(tree) {
     span.textContent = value || '';
     div.append(strong, span);
     el.appendChild(div);
+  }
+  if (canModify()) {
+    const actions = document.createElement('div');
+    actions.className = 'bosco-pai-popup-actions';
+    const edit = document.createElement('button');
+    edit.type = 'button';
+    edit.className = 'btn';
+    edit.textContent = 'Modifica';
+    edit.addEventListener('click', () => showPaiForm(tree.id));
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'btn btn-delete';
+    del.textContent = 'Elimina';
+    del.addEventListener('click', () => deletePai(tree.id));
+    actions.append(edit, del);
+    el.appendChild(actions);
   }
   return el;
 }

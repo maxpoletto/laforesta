@@ -340,9 +340,25 @@
   color: #666;
 }
 
+.bosco-pai-latlon-row .latlng-use-location {
+  margin-top: 6px;
+}
+
 .bosco-pai-popup {
   min-width: 170px;
   line-height: 1.35;
+}
+
+.bosco-pai-popup-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.bosco-pai-popup-actions .btn {
+  flex: 1 1 0;
+  padding: 4px 6px;
+  font-size: 0.78rem;
 }
 
 @media (max-width: 800px) {
