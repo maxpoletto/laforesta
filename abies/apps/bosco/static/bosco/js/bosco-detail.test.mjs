@@ -120,6 +120,18 @@ assertEqual(chart.datasets[0].data, [{ x: 18, y: 20.5 }, { x: 22, y: 22.5 }],
             'dendrometryScatterChartData: scatter points');
 assertEqual(chart.yTitle, S.COL_H_M, 'dendrometryScatterChartData: y title');
 
+const fitPoints = [10, 20, 30].map(d => ({ speciesId: 7, species: 'Fit', dCm: d, hM: 2 * Math.log(d) + 1 }));
+chart = D.dendrometryScatterChartData(fitPoints, S.COL_H_M, { minFitN: 3 });
+assertEqual(chart.datasets.length, 2, 'dendrometryScatterChartData: adds fit dataset');
+const fitDataset = chart.datasets[1];
+assertEqual(fitDataset.type, 'line', 'dendrometryScatterChartData: fit is a line');
+assertClose(fitDataset.fit.a, 2, 0.000001, 'dendrometryScatterChartData: fit a');
+assertClose(fitDataset.fit.b, 1, 0.000001, 'dendrometryScatterChartData: fit b');
+assertClose(fitDataset.fit.r2, 1, 0.000001, 'dendrometryScatterChartData: fit r2');
+assertEqual(fitDataset.fit.n, 3, 'dendrometryScatterChartData: fit n');
+assertEqual(fitDataset.data[0].x, 10, 'dendrometryScatterChartData: fit starts at min d');
+assertEqual(fitDataset.data.at(-1).x, 30, 'dendrometryScatterChartData: fit ends at max d');
+
 const meta = D.regionMetadata([
   { displayAreaHa: 10, cadastralAreaHa: 11, aveAge: 40, altMin: 700, altMax: 900, type: 'fustaia' },
   { displayAreaHa: 5, cadastralAreaHa: 6, aveAge: 70, altMin: 600, altMax: 800, type: 'ceduo' },

@@ -6,6 +6,8 @@ const CHART_COLORS = [
   '#00838f', '#6b7f2a', '#6d4c41', '#546e7a', '#ad5a7a',
 ];
 
+const HEIGHT_FIT_MIN_N = 5;
+
 function colMap(digest) {
   const out = {};
   digest[COLUMNS].forEach((name, idx) => { out[name] = idx; });
@@ -197,7 +199,7 @@ export function dendrometryHeightPoints(digest, scope, { speciesIds = null } = {
   return rows.sort((a, b) => a.species.localeCompare(b.species, 'it') || a.dCm - b.dCm);
 }
 
-export function dendrometryScatterChartData(points, yTitle) {
+export function dendrometryScatterChartData(points, yTitle, { minFitN = HEIGHT_FIT_MIN_N } = {}) {
   const bySpecies = new Map();
   for (const point of points) {
     const series = bySpecies.get(point.speciesId) || {
@@ -210,17 +212,83 @@ export function dendrometryScatterChartData(points, yTitle) {
   }
   const species = [...bySpecies.values()]
     .sort((a, b) => a.name.localeCompare(b.name, 'it'));
-  return {
-    yTitle,
-    datasets: species.map((item, idx) => ({
+  const datasets = [];
+  for (const [idx, item] of species.entries()) {
+    const color = CHART_COLORS[idx % CHART_COLORS.length];
+    datasets.push({
       type: 'scatter',
       label: item.name,
       data: item.points,
-      backgroundColor: CHART_COLORS[idx % CHART_COLORS.length],
-      borderColor: CHART_COLORS[idx % CHART_COLORS.length],
+      backgroundColor: color,
+      borderColor: color,
       pointRadius: 3,
-    })),
+    });
+    const fit = fitLogHeight(item.points, minFitN);
+    if (fit) {
+      datasets.push({
+        type: 'line',
+        label: `${item.name} regressione (R² ${formatR2(fit.r2)}, n ${fit.n})`,
+        data: fitCurvePoints(fit),
+        borderColor: color,
+        backgroundColor: color,
+        borderDash: [6, 4],
+        pointRadius: 0,
+        fill: false,
+        tension: 0,
+        fit,
+      });
+    }
+  }
+  return { yTitle, datasets };
+}
+
+
+function fitLogHeight(points, minFitN) {
+  const clean = points
+    .filter(p => p.x > 0 && p.y > 0 && Number.isFinite(p.x) && Number.isFinite(p.y))
+    .map(p => ({ x: Math.log(p.x), y: p.y, d: p.x }));
+  if (clean.length < minFitN || new Set(clean.map(p => p.d)).size < 2) return null;
+
+  const xMean = average(clean.map(p => p.x));
+  const yMean = average(clean.map(p => p.y));
+  let numerator = 0;
+  let denominator = 0;
+  for (const p of clean) {
+    numerator += (p.x - xMean) * (p.y - yMean);
+    denominator += (p.x - xMean) ** 2;
+  }
+  if (!denominator) return null;
+  const a = numerator / denominator;
+  const b = yMean - a * xMean;
+  const yPred = clean.map(p => a * p.x + b);
+  const ssTot = clean.reduce((total, p) => total + (p.y - yMean) ** 2, 0);
+  const ssRes = clean.reduce((total, p, idx) => total + (p.y - yPred[idx]) ** 2, 0);
+  return {
+    a,
+    b,
+    r2: ssTot > 0 ? 1 - ssRes / ssTot : 0,
+    n: clean.length,
+    minD: Math.min(...clean.map(p => p.d)),
+    maxD: Math.max(...clean.map(p => p.d)),
   };
+}
+
+function fitCurvePoints(fit) {
+  const steps = 24;
+  const out = [];
+  for (let i = 0; i <= steps; i++) {
+    const d = fit.minD + ((fit.maxD - fit.minD) * i / steps);
+    out.push({ x: round(d, 2), y: round(fit.a * Math.log(d) + fit.b, 3) });
+  }
+  return out;
+}
+
+function formatR2(value) {
+  return round(value, 3).toFixed(3).replace('.', ',');
+}
+
+function average(values) {
+  return values.reduce((total, value) => total + value, 0) / values.length;
 }
 
 function weightedAverage(pairs) {
