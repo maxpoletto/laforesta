@@ -47,6 +47,13 @@ export function buildParcelEntries(digest) {
       areaHa: num(row[c[S.COL_AREA_HA]]),
       cadastralAreaHa: num(row[c[S.COL_AREA_CAD_HA]]),
       aveAge: num(row[c[S.COL_AVE_AGE]]),
+      location: row[c[S.COL_LOCATION]] || '',
+      altMin,
+      altMax,
+      aspect: row[c[S.COL_ASPECT]] || '',
+      gradePct: num(row[c[S.COL_GRADE_PCT]]),
+      descVeg: row[c[S.COL_DESC_VEG]] || '',
+      descGeo: row[c[S.COL_DESC_GEO]] || '',
       altitudeMean: altMin !== null && altMax !== null ? (altMin + altMax) / 2 : null,
     };
   });

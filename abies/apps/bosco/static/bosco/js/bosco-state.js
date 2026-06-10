@@ -1,6 +1,8 @@
 const DEFAULT_MODE = '1';
 const DEFAULT_MAP_TYPE_TOKEN = 's';
 const DEFAULT_CHARACTERISTIC = '1';
+const DEFAULT_DETAIL_SECTIONS = ['m'];
+const VALID_DETAIL_SECTIONS = new Set(['m', 'd', 'p']);
 
 export const MAP_TYPE_TOKENS = { o: 'osm', t: 'topo', s: 'satellite' };
 export const MAP_TYPE_BY_NAME = { osm: 'o', topo: 't', satellite: 's' };
@@ -61,6 +63,9 @@ export function readBoscoParams(params, regionIds = []) {
   const q = ['1', '2', '3', '4', '5', '6', '7', '8'].includes(qRaw)
     ? qRaw : DEFAULT_CHARACTERISTIC;
 
+  const detailRaw = String(paramValue(params, 'v') || '');
+  const detailMode = ['1', '2'].includes(detailRaw) ? detailRaw : null;
+
   return {
     regionId,
     mode,
@@ -71,8 +76,51 @@ export function readBoscoParams(params, regionIds = []) {
     q,
     useCadastralArea: paramValue(params, 'fc') === '1',
     harvestPerHa: paramValue(params, 'fh') === '1',
+    detailMode,
+    parcelId: intParam(params, 'pa'),
+    openSections: parseSectionTokens(paramValue(params, 'vo')),
+    detailSpeciesIds: parseIdList(paramValue(params, 'ds')),
     hasRegionParam: hasParam(params, 'c'),
   };
+}
+
+export function parseSectionTokens(raw) {
+  if (raw == null) return [...DEFAULT_DETAIL_SECTIONS];
+  const out = [];
+  for (const token of String(raw)) {
+    if (VALID_DETAIL_SECTIONS.has(token) && !out.includes(token)) out.push(token);
+  }
+  return out;
+}
+
+export function parseIdList(raw) {
+  if (!raw) return [];
+  const out = [];
+  const seen = new Set();
+  for (const part of String(raw).split(',')) {
+    const n = Number(part);
+    if (!Number.isInteger(n) || n <= 0 || seen.has(n)) continue;
+    seen.add(n);
+    out.push(n);
+  }
+  return out;
+}
+
+export function writeSectionTokens(params, sections) {
+  const clean = (sections || []).filter(s => VALID_DETAIL_SECTIONS.has(s));
+  if (clean.length === DEFAULT_DETAIL_SECTIONS.length
+      && clean.every((s, i) => s === DEFAULT_DETAIL_SECTIONS[i])) {
+    params.delete('vo');
+  } else {
+    params.set('vo', clean.join(''));
+  }
+}
+
+export function clearDetailParams(params) {
+  params.delete('v');
+  params.delete('pa');
+  params.delete('vo');
+  params.delete('ds');
 }
 
 export function writeMapView(params, center, zoom) {

@@ -56,6 +56,8 @@ const parcels = {
 const entries = B.buildParcelEntries(parcels);
 assertEqual(entries[0].key, 'Capistrano-1', 'buildParcelEntries: key');
 assertEqual(entries[0].altitudeMean, 850, 'buildParcelEntries: mean altitude');
+assertEqual(entries[0].altMin, 800, 'buildParcelEntries: altitude min');
+assertEqual(entries[0].altMax, 900, 'buildParcelEntries: altitude max');
 assertEqual(entries[1].altitudeMean, null, 'buildParcelEntries: missing altitude');
 
 const prelievi = {

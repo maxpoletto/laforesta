@@ -4,14 +4,18 @@
 
 import * as cache from '../../base/js/cache.js';
 import * as S from '../../base/js/strings.js';
-import { COLUMNS, DIGEST_FUTURE_PRODUCTION, ROWS } from '../../base/js/constants.js';
-import { fmtArea, fmtDecimal1, fmtDecimal2, fmtMass, fmtVolume } from '../../base/js/format.js';
+import {
+  COLUMNS, DIGEST_FUTURE_PRODUCTION, DIGEST_PARCEL_DENDROMETRY, ROWS,
+} from '../../base/js/constants.js';
+import { fmtArea, fmtDecimal1, fmtDecimal2, fmtInt, fmtMass, fmtVolume } from '../../base/js/format.js';
 import { cloneTemplate } from '../../base/js/templates.js';
 import { sortFeaturesByArea, parcelNames } from '../../base/js/geo.js';
 import { PARCEL_STYLE, ParcelMap } from '../../base/js/parcel-map.js';
 import { createPage, navigateWithParams } from '../../base/js/page-sync.js';
+import { wireCollapsibleToggle } from '../../base/js/ui-widgets.js';
 import {
-  clearMapView, mapTypeToken, readBoscoParams, writeMapView,
+  clearDetailParams, clearMapView, mapTypeToken, readBoscoParams,
+  writeMapView, writeSectionTokens,
 } from './bosco-state.js';
 import {
   CHARACTERISTIC_METRICS,
@@ -26,6 +30,9 @@ import {
   normalized,
   parcelKey,
 } from './bosco-characteristics.js';
+import {
+  aggregateDendrometry, dendrometrySpecies, regionMetadata,
+} from './bosco-detail.js';
 
 const CSS_URL = '/static/bosco/css/bosco.css';
 const PAGE_PATH = '/bosco';
@@ -34,6 +41,8 @@ const PARCELS_ID = 'parcels';
 const PARCELS_URL = '/api/bosco/parcels/data/';
 const FUTURE_ID = DIGEST_FUTURE_PRODUCTION;
 const FUTURE_URL = '/api/bosco/future-production/data/';
+const DENDROMETRY_ID = DIGEST_PARCEL_DENDROMETRY;
+const DENDROMETRY_URL = '/api/bosco/parcel-dendrometry/data/';
 const PRELIEVI_ID = 'prelievi';
 const PRELIEVI_URL = '/api/prelievi/data/';
 const TERRENI_ID = 'terreni';
@@ -43,6 +52,7 @@ const VALID_MODES = ['1', '2', '3'];
 const VALID_MAP_TYPES = ['o', 't', 's'];
 const VALID_CHARACTERISTICS = ['1', '2', '3', '4', '5', '6', '7', '8'];
 const SATELLITE_CHARACTERISTICS = new Set(['6', '7', '8']);
+const DETAIL_SECTIONS = ['m', 'd', 'p'];
 
 const NO_DATA_STYLE = {
   ...PARCEL_STYLE,
@@ -64,6 +74,7 @@ const TYPE_STYLES = {
 
 cache.register(PARCELS_ID, PARCELS_URL);
 cache.register(FUTURE_ID, FUTURE_URL);
+cache.register(DENDROMETRY_ID, DENDROMETRY_URL);
 cache.register(PRELIEVI_ID, PRELIEVI_URL);
 cache.register(TERRENI_ID, TERRENI_GEOJSON_URL);
 
@@ -77,10 +88,20 @@ let perHaToggle = null;
 let perHaRow = null;
 let legendEl = null;
 let statusEl = null;
+let detailOverlay = null;
+let detailTitle = null;
+let detailScopeLabel = null;
+let metadataHost = null;
+let dendrometryHost = null;
+let dendrometrySpeciesHost = null;
+let dendrometryPerHa = null;
+let detailSections = {};
 let parcelsData = null;
 let futureData = null;
 let prelieviData = null;
 let prelieviLoad = null;
+let dendrometryData = null;
+let dendrometryLoad = null;
 let parcelsGeo = null;
 let map = null;
 let regions = [];
@@ -98,9 +119,10 @@ const page = createPage({
   onUpdate: [
     [PARCELS_ID, onParcelsUpdate],
     [FUTURE_ID, onFutureUpdate],
+    [DENDROMETRY_ID, onDendrometryUpdate],
     [PRELIEVI_ID, onPrelieviUpdate],
   ],
-  visibleIds: [PARCELS_ID, FUTURE_ID, PRELIEVI_ID],
+  visibleIds: [PARCELS_ID, FUTURE_ID, DENDROMETRY_ID, PRELIEVI_ID],
 });
 
 export const mount = page.mount;
@@ -116,6 +138,7 @@ async function loadPageData() {
   parcelsData = parcels;
   futureData = future;
   prelieviData = cache.get(PRELIEVI_ID);
+  dendrometryData = cache.get(DENDROMETRY_ID);
   parcelsGeo = sortFeaturesByArea(cache.get(TERRENI_ID));
   rebuildRegionIndex();
 }
@@ -133,9 +156,17 @@ function mountPage(el, params) {
   perHaRow = el.querySelector('[data-role="per-ha-row"]');
   legendEl = el.querySelector('[data-target="legend"]');
   statusEl = el.querySelector('[data-role="status"]');
+  detailOverlay = el.querySelector('[data-target="detail-overlay"]');
+  detailTitle = el.querySelector('[data-target="detail-title"]');
+  detailScopeLabel = el.querySelector('[data-target="detail-scope"]');
+  metadataHost = el.querySelector('[data-target="metadata"]');
+  dendrometryHost = el.querySelector('[data-target="dendrometry"]');
+  dendrometrySpeciesHost = el.querySelector('[data-target="dendrometry-species"]');
+  dendrometryPerHa = el.querySelector('[data-role="dendrometry-per-ha"]');
 
   buildRegionOptions();
   wireControls();
+  wireDetailControls();
   applyParams(params);
 }
 
@@ -144,10 +175,14 @@ function destroyPage() {
   const el = document.getElementById('content');
   el.classList.remove('bosco-content');
   el.replaceChildren();
+  document.removeEventListener('keydown', onDetailKeyDown);
   root = mapHost = regionSelect = modeGroup = statusEl = null;
   characteristicSelect = cadastralToggle = perHaToggle = perHaRow = legendEl = null;
-  parcelsData = futureData = prelieviData = parcelsGeo = null;
-  prelieviLoad = null;
+  detailOverlay = detailTitle = detailScopeLabel = metadataHost = null;
+  dendrometryHost = dendrometrySpeciesHost = dendrometryPerHa = null;
+  detailSections = {};
+  parcelsData = futureData = prelieviData = dendrometryData = parcelsGeo = null;
+  prelieviLoad = dendrometryLoad = null;
   regions = [];
   regionById = new Map();
   currentState = null;
@@ -169,6 +204,11 @@ function onFutureUpdate(data) {
 function onPrelieviUpdate(data) {
   prelieviData = data;
   refreshCharacteristicLayer();
+}
+
+function onDendrometryUpdate(data) {
+  dendrometryData = data;
+  renderDendrometry();
 }
 
 function rebuildRegionIndex() {
@@ -236,6 +276,33 @@ function wireControls() {
   });
 }
 
+function wireDetailControls() {
+  detailOverlay?.querySelector('[data-action="close-detail"]')
+    ?.addEventListener('click', closeDetailOverlay);
+  document.addEventListener('keydown', onDetailKeyDown);
+
+  detailSections = {};
+  for (const key of DETAIL_SECTIONS) {
+    const section = detailOverlay?.querySelector(`[data-detail-section="${key}"]`);
+    const header = section?.querySelector('.collapsible-header');
+    const body = section?.querySelector('.collapsible-body');
+    detailSections[key] = { header, body };
+    if (header && body) {
+      wireCollapsibleToggle(header, body, (open) => {
+        if (!currentState?.detailMode) return;
+        const openSections = DETAIL_SECTIONS.filter(k =>
+          detailSections[k].header?.classList.contains('open'));
+        const params = new URLSearchParams(location.search);
+        writeSectionTokens(params, openSections);
+        navigateWithParams(PAGE_PATH, params, true);
+        if (open && key === 'd') renderDendrometry();
+      });
+    }
+  }
+
+  dendrometryPerHa?.addEventListener('change', renderDendrometry);
+}
+
 function applyParams(params) {
   if (!root) return;
   const state = readBoscoParams(params, regions.map(r => r.id));
@@ -256,6 +323,7 @@ function applyParams(params) {
     updateMapDisplayAreas(state);
     refreshCharacteristicLayer();
   }
+  syncDetailOverlay(state);
 
   canonicalizeURL(state);
 }
@@ -569,6 +637,243 @@ function selectedCharacteristicLabel() {
   return characteristicSelect?.selectedOptions?.[0]?.textContent || '';
 }
 
+
+function syncDetailOverlay(state) {
+  if (!detailOverlay) return;
+  const scope = detailScopeForState(state);
+  if (!scope) {
+    detailOverlay.hidden = true;
+    return;
+  }
+
+  detailOverlay.hidden = false;
+  detailTitle.textContent = scope.title;
+  detailScopeLabel.textContent = scope.type === 'parcel' ? S.COL_PARCEL : S.COL_REGION;
+  applyDetailSections(state.openSections);
+  renderMetadata(scope);
+  if (state.openSections.includes('d')) renderDendrometry();
+}
+
+function detailScopeForState(state = currentState) {
+  if (!state?.detailMode || !map?._boscoEntries) return null;
+  const region = regionById.get(state.regionId);
+  if (state.detailMode === '1') {
+    const entry = map._boscoEntries.find(e => e.id === state.parcelId);
+    if (!entry) return null;
+    return {
+      type: 'parcel',
+      title: `${entry.region} ${entry.parcel}`.trim(),
+      region: entry.region,
+      parcelId: entry.id,
+      areaHa: entry.displayAreaHa,
+      entries: [entry],
+      entry,
+    };
+  }
+  if (state.detailMode === '2' && region) {
+    const entries = map._boscoEntries;
+    return {
+      type: 'region',
+      title: region.name,
+      region: region.name,
+      parcelId: null,
+      areaHa: entries.reduce((total, e) => total + (e.displayAreaHa || 0), 0),
+      entries,
+    };
+  }
+  return null;
+}
+
+function applyDetailSections(openSections) {
+  for (const key of DETAIL_SECTIONS) {
+    const open = openSections.includes(key);
+    detailSections[key]?.header?.classList.toggle('open', open);
+    detailSections[key]?.body?.classList.toggle('open', open);
+  }
+}
+
+function renderMetadata(scope) {
+  if (!metadataHost) return;
+  metadataHost.replaceChildren();
+  if (scope.type === 'parcel') renderParcelMetadata(scope.entry);
+  else renderRegionMetadata(scope.entries);
+}
+
+function renderParcelMetadata(entry) {
+  appendMetadataField(S.COL_LOCATION, entry.location);
+  appendMetadataField(S.COL_AREA_HA, entry.displayAreaHa ? fmtArea(entry.displayAreaHa) : '');
+  appendMetadataField(S.COL_AREA_CAD_HA, entry.cadastralAreaHa ? fmtArea(entry.cadastralAreaHa) : '');
+  appendMetadataField(S.COL_AVE_AGE, fmtDecimal1(entry.aveAge));
+  appendMetadataField(S.COL_CLASS, entry.className);
+  appendMetadataField(S.COL_TYPE, entry.type);
+  appendMetadataField(S.COL_ALT_MIN, fmtDecimal1(entry.altMin));
+  appendMetadataField(S.COL_ALT_MAX, fmtDecimal1(entry.altMax));
+  appendMetadataField(S.COL_ASPECT, entry.aspect);
+  appendMetadataField(S.COL_GRADE_PCT, fmtDecimal1(entry.gradePct));
+  appendMetadataField(S.COL_DESC_VEG, entry.descVeg, true);
+  appendMetadataField(S.COL_DESC_GEO, entry.descGeo, true);
+}
+
+function renderRegionMetadata(entries) {
+  const meta = regionMetadata(entries);
+  appendMetadataField('Particelle', fmtInt(meta.count));
+  appendMetadataField(S.COL_AREA_HA, fmtArea(meta.areaHa));
+  appendMetadataField(S.COL_AREA_CAD_HA, fmtArea(meta.cadastralAreaHa));
+  appendMetadataField(S.COL_AVE_AGE, fmtDecimal1(meta.aveAge));
+  appendMetadataField(S.COL_ALT_MIN, fmtDecimal1(meta.altMin));
+  appendMetadataField(S.COL_ALT_MAX, fmtDecimal1(meta.altMax));
+  const types = [...meta.typeCounts.entries()].map(([name, count]) => `${name}: ${count}`).join(' · ');
+  appendMetadataField(S.COL_TYPE, types);
+}
+
+function appendMetadataField(label, value, wide = false) {
+  const item = document.createElement('div');
+  item.className = wide ? 'bosco-metadata-item wide' : 'bosco-metadata-item';
+  const dt = document.createElement('dt');
+  dt.textContent = label;
+  const dd = document.createElement('dd');
+  dd.textContent = value || 'n.d.';
+  item.append(dt, dd);
+  metadataHost.appendChild(item);
+}
+
+function renderDendrometry() {
+  if (!dendrometryHost) return;
+  const scope = detailScopeForState();
+  if (!scope || detailOverlay?.hidden) return;
+  if (!dendrometryData) {
+    dendrometryHost.textContent = S.LOADING;
+    loadDendrometry().then(renderDendrometry).catch(() => {
+      if (dendrometryHost) dendrometryHost.textContent = 'Dendrometria non disponibile.';
+    });
+    return;
+  }
+
+  renderDendrometrySpecies(scope);
+  const rows = aggregateDendrometry(dendrometryData, {
+    region: scope.region,
+    parcelId: scope.parcelId,
+  }, {
+    areaHa: scope.areaHa,
+    perHa: dendrometryPerHa?.checked !== false,
+    speciesIds: currentState?.detailSpeciesIds || [],
+  });
+  renderDendrometryRows(rows);
+}
+
+function loadDendrometry() {
+  if (!dendrometryLoad) {
+    dendrometryLoad = cache.load(DENDROMETRY_ID).then(data => {
+      dendrometryData = data;
+      return data;
+    }).finally(() => { dendrometryLoad = null; });
+  }
+  return dendrometryLoad;
+}
+
+function renderDendrometrySpecies(scope) {
+  if (!dendrometrySpeciesHost) return;
+  const species = dendrometrySpecies(dendrometryData, { region: scope.region, parcelId: scope.parcelId });
+  dendrometrySpeciesHost.replaceChildren();
+  if (!species.length) {
+    dendrometrySpeciesHost.textContent = 'Nessun dato dendrometrico.';
+    return;
+  }
+  const selected = new Set(currentState?.detailSpeciesIds || []);
+  for (const item of species) {
+    const label = document.createElement('label');
+    label.className = 'bosco-check';
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.value = String(item.id);
+    input.checked = !selected.size || selected.has(item.id);
+    input.addEventListener('change', () => updateDendrometrySpeciesFilter(species));
+    const text = document.createElement('span');
+    text.textContent = `${item.name} (${fmtInt(item.count)})`;
+    label.append(input, text);
+    dendrometrySpeciesHost.appendChild(label);
+  }
+}
+
+function updateDendrometrySpeciesFilter(allSpecies) {
+  const checked = [...dendrometrySpeciesHost.querySelectorAll('input:checked')]
+    .map(input => Number(input.value));
+  const params = new URLSearchParams(location.search);
+  if (!checked.length || checked.length === allSpecies.length) params.delete('ds');
+  else params.set('ds', checked.join(','));
+  navigateWithParams(PAGE_PATH, params, true);
+}
+
+function renderDendrometryRows(rows) {
+  dendrometryHost.replaceChildren();
+  if (!rows.length) {
+    dendrometryHost.textContent = 'Nessun dato dendrometrico.';
+    return;
+  }
+  const table = document.createElement('table');
+  table.className = 'bosco-plain-table';
+  const thead = document.createElement('thead');
+  const header = document.createElement('tr');
+  for (const label of [S.COL_SPECIES, S.COL_DIAM_CLASS_CM, S.COL_N_TREES,
+    S.COL_VOLUME_M3, S.COL_BASAL_AREA_M2, S.COL_AVG_H_M, S.COL_INCREMENT_PCT]) {
+    const th = document.createElement('th');
+    th.textContent = label;
+    header.appendChild(th);
+  }
+  thead.appendChild(header);
+  table.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+  const perHa = dendrometryPerHa?.checked !== false;
+  for (const row of rows) {
+    const tr = document.createElement('tr');
+    appendCell(tr, row.species);
+    appendCell(tr, fmtInt(row.diameterClassCm));
+    appendCell(tr, perHa ? fmtDecimal2(row.treeCount) : fmtInt(row.treeCount));
+    appendCell(tr, perHa ? `${fmtDecimal2(row.volumeM3)} m³/ha` : fmtVolume(row.volumeM3));
+    appendCell(tr, perHa ? `${fmtDecimal2(row.basalAreaM2)} m²/ha` : `${fmtDecimal2(row.basalAreaM2)} m²`);
+    appendCell(tr, row.avgHeightM == null ? '' : `${fmtDecimal1(row.avgHeightM)} m`);
+    appendCell(tr, row.incrementPct == null ? '' : `${fmtDecimal2(row.incrementPct)} %`);
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody);
+  dendrometryHost.appendChild(table);
+}
+
+function appendCell(row, text) {
+  const td = document.createElement('td');
+  td.textContent = text == null ? '' : String(text);
+  row.appendChild(td);
+}
+
+function closeDetailOverlay() {
+  const params = new URLSearchParams(location.search);
+  clearDetailParams(params);
+  navigateWithParams(PAGE_PATH, params, true);
+}
+
+function onDetailKeyDown(e) {
+  if (e.key === 'Escape' && detailOverlay && !detailOverlay.hidden) closeDetailOverlay();
+}
+
+function openParcelDetail(entry) {
+  const params = new URLSearchParams(location.search);
+  params.set('v', '1');
+  params.set('pa', String(entry.id));
+  params.delete('vo');
+  params.delete('ds');
+  navigateWithParams(PAGE_PATH, params, true);
+}
+
+function openRegionDetail() {
+  const params = new URLSearchParams(location.search);
+  params.set('v', '2');
+  params.delete('pa');
+  params.delete('vo');
+  params.delete('ds');
+  navigateWithParams(PAGE_PATH, params, true);
+}
+
 function onMapViewChange(center, zoom) {
   if (suppressViewSync || !currentState) return;
   const params = new URLSearchParams(location.search);
@@ -586,6 +891,7 @@ function onMapClick(_latlng, feature) {
   const region = regionById.get(currentState?.regionId);
   if (!feature) {
     if (region) setStatus(`${region.name} — riepilogo compresa`);
+    openRegionDetail();
     return;
   }
   const { compresa, particella } = parcelNames(feature);
@@ -594,6 +900,7 @@ function onMapClick(_latlng, feature) {
   const value = entry && currentState ? metricValue(entry, currentState.q, context) : null;
   const metric = currentState?.mode === '1' ? ` — ${metricDisplay(currentState.q, value)}` : '';
   setStatus(`${compresa} ${particella}${metric}`.trim());
+  if (entry) openParcelDetail(entry);
 }
 
 function canonicalizeURL(state) {
@@ -617,11 +924,52 @@ function canonicalizeURL(state) {
   }
   changed = canonicalizeFlag(params, 'fc', state.useCadastralArea) || changed;
   changed = canonicalizeFlag(params, 'fh', state.harvestPerHa && isHarvestMetric(state.q)) || changed;
+  changed = canonicalizeDetailParams(params, state) || changed;
   if (changed) navigateWithParams(PAGE_PATH, params, true);
 }
 
 function setStatus(text) {
   if (statusEl) statusEl.textContent = text || '';
+}
+
+function canonicalizeDetailParams(params, state) {
+  const scope = detailScopeForState(state);
+  if (!state.detailMode || !scope) {
+    if (!params.has('v') && !params.has('pa') && !params.has('vo') && !params.has('ds')) return false;
+    clearDetailParams(params);
+    return true;
+  }
+  let changed = false;
+  if (params.get('v') !== state.detailMode) {
+    params.set('v', state.detailMode);
+    changed = true;
+  }
+  if (state.detailMode === '1') {
+    if (params.get('pa') !== String(scope.parcelId)) {
+      params.set('pa', String(scope.parcelId));
+      changed = true;
+    }
+  } else if (params.has('pa')) {
+    params.delete('pa');
+    changed = true;
+  }
+
+  const beforeVo = params.get('vo');
+  const hadVo = params.has('vo');
+  writeSectionTokens(params, state.openSections);
+  if (params.get('vo') !== beforeVo || params.has('vo') !== hadVo) changed = true;
+
+  const species = state.detailSpeciesIds.join(',');
+  if (species) {
+    if (params.get('ds') !== species) {
+      params.set('ds', species);
+      changed = true;
+    }
+  } else if (params.has('ds')) {
+    params.delete('ds');
+    changed = true;
+  }
+  return changed;
 }
 
 function setFlagParam(params, key, enabled) {
