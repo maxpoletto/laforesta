@@ -108,9 +108,11 @@ export function aggregateSpeciesByParcel(rows, colMap, speciesCols) {
  * Returns the Chart instance.
  */
 export function renderStackedBar(canvas, chartData, existing) {
+  const yTitle = chartData.yTitle || S.COL_QUINTALS;
   if (existing) {
     existing.data.labels = chartData.labels;
     existing.data.datasets = chartData.datasets;
+    if (existing.options?.scales?.y?.title) existing.options.scales.y.title.text = yTitle;
     existing.update('none');
     return existing;
   }
@@ -126,7 +128,7 @@ export function renderStackedBar(canvas, chartData, existing) {
         x: { stacked: true },
         y: {
           stacked: true, beginAtZero: true,
-          title: { display: true, text: S.COL_QUINTALS },
+          title: { display: true, text: yTitle },
         },
       },
       plugins: {

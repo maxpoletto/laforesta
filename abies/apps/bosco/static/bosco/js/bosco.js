@@ -13,6 +13,7 @@ import { cloneTemplate } from '../../base/js/templates.js';
 import { sortFeaturesByArea, parcelNames } from '../../base/js/geo.js';
 import { PARCEL_STYLE, ParcelMap } from '../../base/js/parcel-map.js';
 import { createPage, navigateWithParams } from '../../base/js/page-sync.js';
+import { renderStackedBar } from '../../prelievi/js/charts.js';
 import { wireCollapsibleToggle } from '../../base/js/ui-widgets.js';
 import {
   clearDetailParams, clearMapView, mapTypeToken, readBoscoParams,
@@ -42,6 +43,7 @@ import {
 import {
   buildPreservedTrees, filterPaiTrees, paiParcelItems, paiSpeciesItems, speciesColorMap,
 } from './bosco-pai.js';
+import { aggregateProduction } from './bosco-production.js';
 
 const CSS_URL = '/static/bosco/css/bosco.css';
 const PAGE_PATH = '/bosco';
@@ -114,6 +116,12 @@ let metadataHost = null;
 let dendrometryHost = null;
 let dendrometrySpeciesHost = null;
 let dendrometryPerHa = null;
+let productionHost = null;
+let productionCanvas = null;
+let productionSummary = null;
+let productionPerHa = null;
+let productionMonthly = null;
+let productionChart = null;
 let paiParcelsHost = null;
 let paiSpeciesHost = null;
 let detailSections = {};
@@ -199,6 +207,11 @@ function mountPage(el, params) {
   dendrometryHost = el.querySelector('[data-target="dendrometry"]');
   dendrometrySpeciesHost = el.querySelector('[data-target="dendrometry-species"]');
   dendrometryPerHa = el.querySelector('[data-role="dendrometry-per-ha"]');
+  productionHost = el.querySelector('[data-target="production-chart-host"]');
+  productionCanvas = el.querySelector('[data-target="production-chart"]');
+  productionSummary = el.querySelector('[data-target="production-summary"]');
+  productionPerHa = el.querySelector('[data-role="production-per-ha"]');
+  productionMonthly = el.querySelector('[data-role="production-monthly"]');
   paiParcelsHost = el.querySelector('[data-target="pai-parcels"]');
   paiSpeciesHost = el.querySelector('[data-target="pai-species"]');
 
@@ -220,6 +233,9 @@ function destroyPage() {
   parcelAverageToggle = evolutionCadastralToggle = diffLegendEl = legendEl = null;
   detailOverlay = detailTitle = detailScopeLabel = metadataHost = null;
   dendrometryHost = dendrometrySpeciesHost = dendrometryPerHa = null;
+  productionHost = productionCanvas = productionSummary = null;
+  productionPerHa = productionMonthly = null;
+  destroyProductionChart();
   paiParcelsHost = paiSpeciesHost = null;
   detailSections = {};
   parcelsData = futureData = prelieviData = dendrometryData = preservedData = parcelsGeo = null;
@@ -248,6 +264,7 @@ function onFutureUpdate(data) {
 function onPrelieviUpdate(data) {
   prelieviData = data;
   refreshCharacteristicLayer();
+  renderProduction();
 }
 
 function onDendrometryUpdate(data) {
@@ -369,11 +386,14 @@ function wireDetailControls() {
         writeSectionTokens(params, openSections);
         navigateWithParams(PAGE_PATH, params, true);
         if (open && key === 'd') renderDendrometry();
+        if (open && key === 'p') renderProduction();
       });
     }
   }
 
   dendrometryPerHa?.addEventListener('change', renderDendrometry);
+  productionPerHa?.addEventListener('change', renderProduction);
+  productionMonthly?.addEventListener('change', renderProduction);
   root?.querySelector('[data-action="show-all-parcels"]')
     ?.addEventListener('click', () => setPaiFilter('pp', null, paiParcelsHost));
   root?.querySelector('[data-action="hide-all-parcels"]')
@@ -984,6 +1004,7 @@ function syncDetailOverlay(state) {
   const scope = detailScopeForState(state);
   if (!scope) {
     detailOverlay.hidden = true;
+    destroyProductionChart();
     return;
   }
 
@@ -993,6 +1014,7 @@ function syncDetailOverlay(state) {
   applyDetailSections(state.openSections);
   renderMetadata(scope);
   if (state.openSections.includes('d')) renderDendrometry();
+  if (state.openSections.includes('p')) renderProduction();
 }
 
 function detailScopeForState(state = currentState) {
@@ -1179,6 +1201,53 @@ function renderDendrometryRows(rows) {
   }
   table.appendChild(tbody);
   dendrometryHost.appendChild(table);
+}
+
+function renderProduction() {
+  if (!productionHost || !productionSummary) return;
+  const scope = detailScopeForState();
+  if (!scope || detailOverlay?.hidden) return;
+  if (!prelieviData) {
+    destroyProductionChart();
+    productionHost.hidden = true;
+    productionSummary.textContent = S.LOADING;
+    loadPrelievi().then(renderProduction).catch(() => {
+      if (productionSummary) productionSummary.textContent = 'Produzione storica non disponibile.';
+    });
+    return;
+  }
+
+  const perHa = productionPerHa?.checked !== false;
+  const result = aggregateProduction(prelieviData, {
+    region: scope.region,
+    parcel: scope.type === 'parcel' ? scope.entry.parcel : null,
+  }, {
+    areaHa: scope.areaHa,
+    perHa,
+    byMonth: productionMonthly?.checked === true,
+  });
+
+  if (!result.labels.length) {
+    destroyProductionChart();
+    productionHost.hidden = true;
+    productionSummary.textContent = 'Nessun prelievo storico.';
+    return;
+  }
+
+  productionHost.hidden = false;
+  productionChart = renderStackedBar(productionCanvas, result.chartData, productionChart);
+  const area = scope.areaHa || 0;
+  const total = perHa && area > 0
+    ? `${fmtDecimal2(result.totalQuintals / area)} q/ha`
+    : fmtMass(result.totalQuintals);
+  productionSummary.textContent = `${total} - ${fmtInt(result.rowCount)} interventi`;
+}
+
+function destroyProductionChart() {
+  if (productionChart) {
+    productionChart.destroy();
+    productionChart = null;
+  }
 }
 
 function appendCell(row, text) {

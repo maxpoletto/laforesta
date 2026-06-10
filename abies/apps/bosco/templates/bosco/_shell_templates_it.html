@@ -124,7 +124,14 @@ Static Italian text lives here; JS wires controls and fills dynamic data.
         <section class="bosco-detail-section" data-detail-section="p">
           {% include "base/_partials/_collapsible_header.html" with section="bosco-detail-p" title="Produzione storica" %}
           <div class="collapsible-body" data-section="bosco-detail-p">
-            <p class="bosco-detail-note">Produzione storica in preparazione.</p>
+            <div class="bosco-detail-toolbar">
+              <label class="bosco-check"><input type="checkbox" data-role="production-per-ha" checked> Per ettaro</label>
+              <label class="bosco-check"><input type="checkbox" data-role="production-monthly"> Mesi</label>
+            </div>
+            <div class="bosco-production-chart" data-target="production-chart-host">
+              <canvas data-target="production-chart"></canvas>
+            </div>
+            <p class="bosco-detail-note" data-target="production-summary"></p>
           </div>
         </section>
       </div>
