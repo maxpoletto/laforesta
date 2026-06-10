@@ -30,26 +30,15 @@ Slips are printed 4-to-a-page on a 2x2 grid on A4 paper, portrait mode.
 
 Each verbale contains:
 
-Data _____________   N. [VDP number]
-
-Compresa [Compresa 1] ... [Compresa N]
-Particella [ blank  ]
-
-[Product 1] [Product 2] ... [Product N]
-Targa [license plate value]
-
-Essenza             %
-[Major species 1]
-...
-[Major species N]
-
-Peso lordo ql [           ]
-Tara       ql [           ]
-Peso netto ql [           ]
-
-Squadra  [         ]
-
-Firma    ___________
+- Top row: Data with a write-in rule on the left, and N. [VDP number] on the
+  far right.
+- Second row: Targa [license plate value].
+- Compresa row: bold label, with one checkbox per compresa.
+- Particella with a write-in rule.
+- Product type checkboxes in two columns.
+- Essenza / % as a bordered two-column grid with one row per major species.
+- Peso lordo ql, Tara ql, Peso netto ql, Squadra, and Firma as bold labels with
+  vertically aligned write-in rules.
 
 
 ## 2. Ore (Work time tracker)

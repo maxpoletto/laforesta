@@ -457,54 +457,106 @@ function generateVdpPDF({ startNumber, count, plate }) {
 
 function drawSlip(doc, x, y, w, h, number, plate) {
   const left = x + 18;
+  const right = x + w - 18;
+  const innerWidth = right - left;
+  let ruleStart = left + 55;
   let yy = y + 28;
   doc.rect(x + 8, y + 8, w - 16, h - 16);
-  doc.text(left, yy, `Data _____________   N. ${number}`, { size: 11, bold: true });
-  yy += 26;
-  yy = wrapLine(doc, left, yy, `Compresa ${(meta.regions || []).join('   ')}`, w - 36, 9);
-  yy += 6;
-  doc.text(left, yy, 'Particella ______________________________', { size: 9 });
+
+  drawRuleField(doc, left, left + 144, yy, 'Data', { ruleStart: ruleStart, size: 10 });
+  doc.textRight(right, yy, `N. ${number}`, { size: 11, bold: true });
+
+  yy += 22;
+  doc.text(left, yy, 'Targa', { size: 10, bold: true });
+  doc.text(ruleStart, yy, plate, { size: 10 });
+
   yy += 24;
-  yy = wrapLine(doc, left, yy, (meta.products || []).join('   '), w - 36, 9);
-  yy += 10;
-  doc.text(left, yy, `Targa ${plate}`, { size: 10 });
-  yy += 30;
-  doc.text(left, yy, 'Essenza             %', { size: 9, bold: true });
-  yy += 16;
-  for (const species of meta.species || []) {
-    doc.text(left, yy, species, { size: 9 });
-    yy += 14;
-  }
-  yy = Math.max(yy + 10, y + h - 124);
-  doc.text(left, yy, 'Peso lordo ql  [           ]', { size: 10 });
-  yy += 19;
-  doc.text(left, yy, 'Tara       ql  [           ]', { size: 10 });
-  yy += 19;
-  doc.text(left, yy, 'Peso netto ql  [           ]', { size: 10 });
-  yy += 26;
-  doc.text(left, yy, 'Squadra  [                 ]', { size: 10 });
-  yy += 28;
-  doc.text(left, yy, 'Firma    __________________', { size: 10 });
+  drawRegionOptions(doc, left, right, yy, meta.regions || []);
+
+  yy += 24;
+  drawRuleField(doc, left, right, yy, 'Particella', { ruleStart: ruleStart, size: 9 });
+
+  yy += 22;
+  yy = drawProductOptions(doc, left, right, yy, meta.products || []);
+
+  yy += 8;
+  yy = drawSpeciesGrid(doc, left, yy, innerWidth, meta.species || []);
+
+  yy = Math.max(yy + 12, y + h - 122);
+  ruleStart = left + 96;
+  drawRuleField(doc, left, right, yy, 'Peso lordo ql', { ruleStart, size: 10 });
+  yy += 18;
+  drawRuleField(doc, left, right, yy, 'Tara ql', { ruleStart, size: 10 });
+  yy += 18;
+  drawRuleField(doc, left, right, yy, 'Peso netto ql', { ruleStart, size: 10 });
+  yy += 25;
+  drawRuleField(doc, left, right, yy, 'Squadra', { ruleStart, size: 10 });
+  yy += 25;
+  drawRuleField(doc, left, right, yy, 'Firma', { ruleStart, size: 10 });
 }
 
-function wrapLine(doc, x, y, text, width, size) {
-  const maxChars = Math.max(12, Math.floor(width / (size * 0.55)));
-  let line = '';
-  for (const word of String(text).split(/\s+/)) {
-    const next = line ? `${line} ${word}` : word;
-    if (next.length > maxChars && line) {
-      doc.text(x, y, line, { size });
-      y += size + 4;
-      line = word;
-    } else {
-      line = next;
-    }
+function drawRegionOptions(doc, left, right, y, regions) {
+  doc.text(left, y, 'Compresa', { size: 9, bold: true });
+  const startX = left + 55;
+  const step = regions.length > 1 ? (right - startX - 52) / (regions.length - 1) : 0;
+  regions.forEach((name, i) => {
+    const x = startX + i * Math.max(60, step);
+    drawCheckbox(doc, x, y - 7);
+    doc.text(x + 11, y, clippedForWidth(name, 50, 9), { size: 9 });
+  });
+}
+
+function drawProductOptions(doc, left, right, y, products) {
+  doc.text(left, y, 'Tipo', { size: 9, bold: true });
+  const colGap = 12;
+  const startX = left + 55;
+  const colWidth = (right - startX - colGap) / 2;
+  const rowHeight = 13;
+  const maxRows = Math.max(1, Math.ceil(products.length / 2));
+  products.forEach((name, i) => {
+    const col = Math.floor(i / maxRows);
+    const row = i % maxRows;
+    const x = startX + col * (colWidth + colGap);
+    const yy = y + row * rowHeight;
+    drawCheckbox(doc, x, yy - 7);
+    doc.text(x + 11, yy, clippedForWidth(name, colWidth - 13, 8.5), { size: 8.5 });
+  });
+  return y + Math.max(1, Math.ceil(products.length / 2)) * rowHeight;
+}
+
+function drawSpeciesGrid(doc, x, y, width, species) {
+  const rows = species.length + 1;
+  const rowHeight = Math.min(12, Math.max(10, 108 / Math.max(1, rows)));
+  const height = rows * rowHeight;
+  const pctWidth = 100;
+  const nameWidth = width - pctWidth;
+
+  doc.rect(x, y, width, height);
+  doc.line(x + nameWidth, y, x + nameWidth, y + height);
+  for (let i = 1; i < rows; i++) {
+    doc.line(x, y + i * rowHeight, x + width, y + i * rowHeight);
   }
-  if (line) {
-    doc.text(x, y, line, { size });
-    y += size + 4;
-  }
-  return y;
+
+  doc.text(x + 5, y + rowHeight - 4, 'Essenza', { size: 8, bold: true });
+  doc.textRight(x + width - 6, y + rowHeight - 4, '%', { size: 8, bold: true });
+  species.forEach((name, i) => {
+    const yy = y + (i + 2) * rowHeight - 4;
+    doc.text(x + 5, yy, clippedForWidth(name, nameWidth - 10, 8), { size: 8 });
+  });
+  return y + height;
+}
+
+function drawRuleField(doc, left, right, y, label, { ruleStart, size = 9 } = {}) {
+  doc.text(left, y, label, { size, bold: true });
+  doc.line(ruleStart, y + 2, right, y + 2);
+}
+
+function drawCheckbox(doc, x, y, size = 7) {
+  doc.rect(x, y, size, size);
+}
+
+function clippedForWidth(value, width, size) {
+  return clip(value, Math.floor(width / (size * 0.52)));
 }
 
 // ---------------------------------------------------------------------------
