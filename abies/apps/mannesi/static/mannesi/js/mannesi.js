@@ -19,7 +19,7 @@ import { fmtDecimal1, fmtDecimal2, parseDecimal } from '../../base/js/format.js'
 import * as S from '../../base/js/strings.js';
 import {
   FIELD_CREW_ID, FIELD_DATE, FIELD_HOURS, FIELD_LICENSE_PLATE, FIELD_MASS_Q,
-  FIELD_NONCE, FIELD_SLIP_COUNT, VERSION,
+  FIELD_MONTH, FIELD_NONCE, FIELD_SLIP_COUNT, VERSION,
 } from '../../base/js/constants.js';
 import { PDFDocument } from './pdf.js';
 
@@ -332,18 +332,111 @@ function defaultStartNumber(prelievi) {
 function wireReceiptForm(el) {
   const form = el.querySelector('[data-role="receipts-form"]');
   if (!form) return;
-  const month = form.querySelector('[name="month"]');
-  if (month && !month.value) month.value = new Date().toISOString().slice(0, 7);
+  wireMonthPicker(form);
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     const body = Object.fromEntries(new FormData(form));
-    const receipts = buildReceipts(body.month);
+    const month = body[FIELD_MONTH];
+    const receipts = buildReceipts(month);
     if (!receipts.length) {
       showError(S.ERR_RECEIPTS_EMPTY);
       return;
     }
-    generateReceiptsPDF(body.month, receipts);
+    generateReceiptsPDF(month, receipts);
   });
+}
+
+function wireMonthPicker(form) {
+  const picker = form.querySelector('[data-role="month-picker"]');
+  if (!picker) return;
+  const input = picker.querySelector(`[name="${FIELD_MONTH}"]`);
+  const trigger = picker.querySelector('.mannesi-month-trigger');
+  const popover = picker.querySelector('[data-role="month-popover"]');
+  const yearLabel = picker.querySelector('[data-role="month-year"]');
+  const grid = picker.querySelector('[data-role="month-grid"]');
+  if (!input || !trigger || !popover || !yearLabel || !grid) return;
+
+  let selected = parseMonthValue(input.value) || currentMonth();
+  let visibleYear = selected.year;
+  setMonthValue(input, trigger, selected);
+  renderMonthGrid(grid, visibleYear, selected);
+  yearLabel.textContent = String(visibleYear);
+
+  trigger.addEventListener('click', () => {
+    setMonthPopoverOpen(trigger, popover, popover.hidden);
+  });
+  picker.querySelector('[data-action="prev-year"]')?.addEventListener('click', () => {
+    visibleYear -= 1;
+    yearLabel.textContent = String(visibleYear);
+    renderMonthGrid(grid, visibleYear, selected);
+  });
+  picker.querySelector('[data-action="next-year"]')?.addEventListener('click', () => {
+    visibleYear += 1;
+    yearLabel.textContent = String(visibleYear);
+    renderMonthGrid(grid, visibleYear, selected);
+  });
+  grid.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-month]');
+    if (!btn) return;
+    selected = { year: visibleYear, month: parseInt(btn.dataset.month, 10) };
+    setMonthValue(input, trigger, selected);
+    renderMonthGrid(grid, visibleYear, selected);
+    setMonthPopoverOpen(trigger, popover, false);
+    trigger.focus();
+  });
+  picker.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') setMonthPopoverOpen(trigger, popover, false);
+  });
+  form.addEventListener('click', (e) => {
+    if (!picker.contains(e.target)) setMonthPopoverOpen(trigger, popover, false);
+  });
+}
+
+function renderMonthGrid(grid, year, selected) {
+  grid.replaceChildren(...Array.from({ length: 12 }, (_, i) => {
+    const month = i + 1;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'mannesi-month-option';
+    btn.dataset.month = String(month);
+    btn.textContent = monthName(month, 'short');
+    btn.title = monthName(month, 'long');
+    btn.classList.toggle('active', selected.year === year && selected.month === month);
+    return btn;
+  }));
+}
+
+function setMonthValue(input, trigger, value) {
+  input.value = monthValue(value);
+  trigger.textContent = monthLabel(input.value);
+}
+
+function setMonthPopoverOpen(trigger, popover, open) {
+  popover.hidden = !open;
+  trigger.setAttribute('aria-expanded', String(open));
+}
+
+function parseMonthValue(value) {
+  const match = /^(\d{4})-(\d{2})$/.exec(value || '');
+  if (!match) return null;
+  const year = parseInt(match[1], 10);
+  const month = parseInt(match[2], 10);
+  return month >= 1 && month <= 12 ? { year, month } : null;
+}
+
+function currentMonth() {
+  const now = new Date();
+  return { year: now.getFullYear(), month: now.getMonth() + 1 };
+}
+
+function monthValue({ year, month }) {
+  return `${year}-${String(month).padStart(2, '0')}`;
+}
+
+function monthName(month, style) {
+  const d = new Date(Date.UTC(2020, month - 1, 1));
+  const raw = new Intl.DateTimeFormat('it', { month: style, timeZone: 'UTC' }).format(d);
+  return raw.replace('.', '');
 }
 
 // ---------------------------------------------------------------------------

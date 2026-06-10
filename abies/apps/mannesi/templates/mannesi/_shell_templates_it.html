@@ -44,9 +44,22 @@ S (string constants) provided by the shell's render context.
   <div class="collapsible-body" data-section="r">
     <form class="mannesi-controls" data-role="receipts-form">
       <div class="form-row mannesi-receipt-row">
-        <div class="form-group narrow">
-          <label for="mannesi-receipt-month">{{ S.LABEL_MONTH }}</label>
-          <input type="month" id="mannesi-receipt-month" name="month" required>
+        <div class="form-group narrow mannesi-month-picker" data-role="month-picker">
+          <label for="mannesi-receipt-month-button">{{ S.LABEL_MONTH }}</label>
+          <input type="hidden" id="mannesi-receipt-month" name="month">
+          <button type="button" class="mannesi-month-trigger" id="mannesi-receipt-month-button"
+                  aria-haspopup="dialog" aria-expanded="false">
+          </button>
+          <div class="mannesi-month-popover" data-role="month-popover" hidden>
+            <div class="mannesi-month-nav">
+              <button type="button" class="mannesi-month-nav-btn" data-action="prev-year"
+                      aria-label="Anno precedente">&lt;</button>
+              <strong data-role="month-year"></strong>
+              <button type="button" class="mannesi-month-nav-btn" data-action="next-year"
+                      aria-label="Anno successivo">&gt;</button>
+            </div>
+            <div class="mannesi-month-grid" data-role="month-grid"></div>
+          </div>
         </div>
         <div class="form-group mannesi-submit-cell">
           <button type="submit" class="btn btn-save">Genera</button>
