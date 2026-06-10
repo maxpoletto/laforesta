@@ -128,9 +128,9 @@ def parse_param_csv(source) -> tuple[list[ParamRow], list[str]]:
     seen: set[tuple[int, int]] = set()
     for i, raw in enumerate(reader, 2):
         row = {(k or '').strip().lower(): v for k, v in raw.items()}
-        compresa = (row.get(S.CSV_COL_COMPRESA.lower()) or '').strip()
-        genere = (row.get(S.CSV_COL_GENERE.lower()) or '').strip()
-        function = (row.get(S.CSV_COL_FUNZIONE) or '').strip().lower()
+        compresa = (row.get(S.CSV_COL_REGION.lower()) or '').strip()
+        genere = (row.get(S.CSV_COL_SPECIES.lower()) or '').strip()
+        function = (row.get(S.CSV_COL_FUNCTION) or '').strip().lower()
         region = region_cache.get(compresa.lower())
         if region is None:
             errors.append(S.ERR_CSV_REGION_NOT_FOUND.format(i, compresa))

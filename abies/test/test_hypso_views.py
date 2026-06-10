@@ -28,7 +28,7 @@ URL_EXPORT = reverse('impostazioni-hypso-export')
 URL_CLEAR = reverse('impostazioni-hypso-clear')
 
 CSV_HEADER = ','.join([
-    S.CSV_COL_COMPRESA.lower(), S.CSV_COL_GENERE.lower(), S.CSV_COL_FUNZIONE,
+    S.CSV_COL_REGION.lower(), S.CSV_COL_SPECIES.lower(), S.CSV_COL_FUNCTION,
     S.CSV_COL_A, S.CSV_COL_B, S.CSV_COL_R2, S.CSV_COL_N_REGRESSION,
 ])
 
@@ -243,8 +243,8 @@ class TestImportExportClear:
         # separator follows the install locale.
         delimiter, _ = csv_io.export_format()
         assert body.splitlines()[0].split(delimiter) == [
-            S.CSV_COL_COMPRESA.lower(), S.CSV_COL_GENERE.lower(),
-            S.CSV_COL_FUNZIONE, S.CSV_COL_A, S.CSV_COL_B,
+            S.CSV_COL_REGION.lower(), S.CSV_COL_SPECIES.lower(),
+            S.CSV_COL_FUNCTION, S.CSV_COL_A, S.CSV_COL_B,
             S.CSV_COL_N_REGRESSION, S.CSV_COL_R2,
         ]
 
@@ -312,7 +312,7 @@ class TestDigestInvalidation:
         cols = digest[COLUMNS]
         row = next(
             r for r in digest[ROWS]
-            if r[cols.index(S.COL_COMPRESA)] == regions[0].name
+            if r[cols.index(S.COL_REGION)] == regions[0].name
             and r[cols.index(S.COL_SPECIES)] == species[0].common_name
         )
         assert row[cols.index(S.COL_FUNCTION)] == HYPSO_FUNC_LN

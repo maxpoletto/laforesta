@@ -42,10 +42,10 @@ class Command(BaseCommand):
         with open(particelle_csv, encoding='utf-8-sig') as f:
             reader = csv_io.read(f.read())
             for row in reader:
-                region = region_cache[row[S.CSV_COL_COMPRESA]]
-                eclass = eclass_cache[row[S.CSV_COL_COMPARTO]]
+                region = region_cache[row[S.CSV_COL_REGION]]
+                eclass = eclass_cache[row[S.CSV_COL_CLASS]]
                 _, was_created = Parcel.objects.get_or_create(
-                    name=row[S.CSV_COL_PARTICELLA],
+                    name=row[S.CSV_COL_PARCEL],
                     region=region,
                     defaults={
                         'eclass': eclass,

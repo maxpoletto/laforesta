@@ -17,7 +17,7 @@ from config import strings as S
 from config.constants import (
     COLUMNS, DATA_ID, DELETES, DEFAULT_RADIUS_M, FIELD_ALTITUDE_M, FIELD_DATE,
     FIELD_DEFAULT_DATE, FIELD_DESCRIPTION, FIELD_D_CM, FIELD_ERRORS, FIELD_FILE,
-    FIELD_FUSTAIA, FIELD_H_M,
+    FIELD_HIGHFOREST, FIELD_H_M,
     FIELD_LAT, FIELD_LON, FIELD_MASS_Q, FIELD_NAME, FIELD_NONCE, FIELD_NOTE,
     FIELD_NUMBER, FIELD_PARCEL_ID, FIELD_POINTS, FIELD_PRESERVED, FIELD_R_M,
     FIELD_SAMPLE_AREA_ID, FIELD_SAMPLE_GRID_ID, FIELD_SHOOT, FIELD_SPECIES_ID,
@@ -146,7 +146,7 @@ class TestDataEndpoints:
         assert resp.status_code == 200
         d = _read_gzip_json(resp)
         assert len(d[ROWS]) == 1
-        assert d[ROWS][0][d[COLUMNS].index(S.COL_RAGGIO)] == 12
+        assert d[ROWS][0][d[COLUMNS].index(S.COL_RADIUS)] == 12
 
     def test_samples_data(self, writer_client, sample_setup, tmp_path, settings):
         settings.DIGEST_DIR = tmp_path
@@ -164,7 +164,7 @@ class TestDataEndpoints:
         assert len(d[ROWS]) == 1
         row = d[ROWS][0]
         assert row[d[COLUMNS].index(S.COL_SPECIES)] == 'Abete'
-        assert row[d[COLUMNS].index(S.COL_PRODUCT)] == S.TYPE_FUSTAIA
+        assert row[d[COLUMNS].index(S.COL_PRODUCT)] == S.TYPE_HIGHFOREST
         assert row[d[COLUMNS].index(S.COL_D_CM)] == 30
 
     def test_trees_data_unknown_survey(self, writer_client, sample_setup,
@@ -325,7 +325,7 @@ class TestTreeSave:
             FIELD_NUMBER: '42',
             FIELD_D_CM: '30', FIELD_H_M: '20.5', 'l10_mm': '12',
             'volume_m3': '0.7022', FIELD_MASS_Q: '6.32',
-            FIELD_FUSTAIA: 'true',
+            FIELD_HIGHFOREST: 'true',
             FIELD_LAT: '0.001', FIELD_LON: '0.001',
             FIELD_PRESERVED: '',
         })
@@ -358,7 +358,7 @@ class TestTreeSave:
             FIELD_SPECIES_ID: str(s['tree'].species_id),
             FIELD_NUMBER: '1', FIELD_D_CM: '30', FIELD_H_M: '20', 'l10_mm': '0',
             'volume_m3': '0.5', FIELD_MASS_Q: '4.7',
-            FIELD_FUSTAIA: 'true',
+            FIELD_HIGHFOREST: 'true',
         })
         assert resp.status_code == 400
         assert 'griglia' in resp.json()[MESSAGE].lower()
@@ -370,7 +370,7 @@ class TestTreeSave:
             FIELD_SAMPLE_AREA_ID: str(s['area'].id),
             FIELD_SPECIES_ID: str(s['tree'].species_id),
             FIELD_NUMBER: '1', FIELD_D_CM: '0', FIELD_H_M: '20', 'l10_mm': '0',
-            'volume_m3': '0', FIELD_MASS_Q: '0', FIELD_FUSTAIA: 'true',
+            'volume_m3': '0', FIELD_MASS_Q: '0', FIELD_HIGHFOREST: 'true',
         })
         assert resp.status_code == 400
 
@@ -382,7 +382,7 @@ class TestTreeSave:
             FIELD_SPECIES_ID: str(s['tree'].species_id),
             FIELD_NUMBER: '1', FIELD_D_CM: '30', FIELD_H_M: '20',
             'l10_mm': '0', 'volume_m3': '0.5', FIELD_MASS_Q: '4.7',
-            FIELD_FUSTAIA: 'true',
+            FIELD_HIGHFOREST: 'true',
         })
         assert resp.status_code == 403
 
@@ -396,7 +396,7 @@ class TestTreeSave:
             FIELD_SPECIES_ID: str(s['tree'].species_id),
             FIELD_NUMBER: '1', FIELD_D_CM: '40', FIELD_H_M: '25',
             'l10_mm': '0', 'volume_m3': '0.8', FIELD_MASS_Q: '5.7',
-            FIELD_FUSTAIA: 'true',
+            FIELD_HIGHFOREST: 'true',
         })
         assert resp.status_code == 400
         assert 'già utilizzato' in resp.json()[MESSAGE]
@@ -421,7 +421,7 @@ class TestTreeSave:
             FIELD_NUMBER: '1',         # propagated from the existing tree
             FIELD_D_CM: '35', FIELD_H_M: '21', 'l10_mm': '0',
             'volume_m3': '0.9', FIELD_MASS_Q: '7.1',
-            FIELD_FUSTAIA: 'true',
+            FIELD_HIGHFOREST: 'true',
             FIELD_LAT: str(s['tree'].lat or 0.0),
             FIELD_LON: str(s['tree'].lon or 0.0),
         })
@@ -473,7 +473,7 @@ class TestTreeSave:
             FIELD_SPECIES_ID: str(s['tree'].species_id),
             FIELD_NUMBER: '7', FIELD_D_CM: '40', FIELD_H_M: '20', 'l10_mm': '0',
             'volume_m3': '0.5', FIELD_MASS_Q: '4.0',
-            FIELD_FUSTAIA: 'true',
+            FIELD_HIGHFOREST: 'true',
         })
         assert resp.status_code == 400
 
@@ -488,7 +488,7 @@ class TestTreeSave:
             FIELD_NUMBER: str(number),
             FIELD_D_CM: '30', FIELD_H_M: '20', 'l10_mm': '0',
             'volume_m3': '0.5', FIELD_MASS_Q: '4.7',
-            FIELD_FUSTAIA: 'true',
+            FIELD_HIGHFOREST: 'true',
             FIELD_DATE: date_str,
         }
 
@@ -710,7 +710,7 @@ class TestTreeSaveCoppice:
             FIELD_SURVEY_ID: str(sample_setup['survey'].id),
             FIELD_SAMPLE_AREA_ID: str(area.id),
             FIELD_SPECIES_ID: str(species[1].id),     # Castagno
-            FIELD_NUMBER: '1', FIELD_FUSTAIA: 'false',
+            FIELD_NUMBER: '1', FIELD_HIGHFOREST: 'false',
             'shoots': json.dumps([
                 {FIELD_SHOOT: 1, FIELD_STANDARD: False, FIELD_D_CM: 5,
                  FIELD_H_M: '8.0', 'l10_mm': 0},
@@ -760,7 +760,7 @@ class TestTreeSaveCoppice:
             FIELD_SURVEY_ID: str(sample_setup['survey'].id),
             FIELD_SAMPLE_AREA_ID: str(area.id),
             FIELD_SPECIES_ID: str(species[1].id),
-            FIELD_NUMBER: '1', FIELD_FUSTAIA: 'false',
+            FIELD_NUMBER: '1', FIELD_HIGHFOREST: 'false',
             FIELD_LAT: '0', FIELD_LON: '0', FIELD_PRESERVED: '',
         }
         ok = self._post(writer_client, {**base, 'shoots': json.dumps([
@@ -798,7 +798,7 @@ class TestTreeSaveCoppice:
             FIELD_SURVEY_ID: str(sample_setup['survey'].id),
             FIELD_SAMPLE_AREA_ID: str(area.id),
             FIELD_SPECIES_ID: str(sample_setup['tree'].species_id),
-            FIELD_NUMBER: '1', FIELD_FUSTAIA: 'false',
+            FIELD_NUMBER: '1', FIELD_HIGHFOREST: 'false',
             'shoots': json.dumps([]),
         })
         assert resp.status_code == 400
@@ -829,7 +829,7 @@ class TestTreeSaveCoppice:
             FIELD_SAMPLE_AREA_ID: str(s['area'].id),
             FIELD_TREE_PICK: str(existing.id),
             FIELD_SPECIES_ID: str(existing.species_id),
-            FIELD_NUMBER: '42', FIELD_FUSTAIA: 'false',
+            FIELD_NUMBER: '42', FIELD_HIGHFOREST: 'false',
             'shoots': json.dumps([
                 {FIELD_SHOOT: 2, FIELD_STANDARD: False, FIELD_D_CM: 6,
                  FIELD_H_M: '8.5', 'l10_mm': 0},
@@ -864,7 +864,7 @@ class TestTreeSaveCoppice:
             FIELD_SAMPLE_AREA_ID: str(s['area'].id),
             FIELD_TREE_PICK: str(existing.id),
             FIELD_SPECIES_ID: str(existing.species_id),
-            FIELD_NUMBER: '99', FIELD_FUSTAIA: 'false',
+            FIELD_NUMBER: '99', FIELD_HIGHFOREST: 'false',
             'shoots': json.dumps([
                 {FIELD_SHOOT: 1, FIELD_STANDARD: False, FIELD_D_CM: 6,
                  FIELD_H_M: '8.5', 'l10_mm': 0},     # collides
@@ -897,7 +897,7 @@ class TestTreeSaveCoppice:
             FIELD_SAMPLE_AREA_ID: str(s['area'].id),
             FIELD_TREE_PICK: str(tree.id),
             FIELD_SPECIES_ID: str(species[0].id),         # changed
-            FIELD_NUMBER: '15', FIELD_FUSTAIA: 'false',
+            FIELD_NUMBER: '15', FIELD_HIGHFOREST: 'false',
             'shoots': json.dumps([
                 {FIELD_SHOOT: 1, FIELD_STANDARD: True, FIELD_D_CM: 9,
                  FIELD_H_M: '10.0', 'l10_mm': 5},
@@ -1365,7 +1365,7 @@ class TestRecordShape:
             FIELD_NUMBER: '42',
             FIELD_D_CM: '30', FIELD_H_M: '20.5', 'l10_mm': '12',
             'volume_m3': '0.7022', FIELD_MASS_Q: '6.32',
-            FIELD_FUSTAIA: 'true',
+            FIELD_HIGHFOREST: 'true',
         })
         assert resp.status_code == 200, resp.content
         payload = resp.json()
@@ -1400,7 +1400,7 @@ class TestRecordShape:
             FIELD_SURVEY_ID: str(sample_setup['survey'].id),
             FIELD_SAMPLE_AREA_ID: str(area.id),
             FIELD_SPECIES_ID: str(species[1].id),
-            FIELD_NUMBER: '1', FIELD_FUSTAIA: 'false',
+            FIELD_NUMBER: '1', FIELD_HIGHFOREST: 'false',
             'shoots': json.dumps([
                 {FIELD_SHOOT: 1, FIELD_STANDARD: False, FIELD_D_CM: 5, FIELD_H_M: '8.0'},
                 {FIELD_SHOOT: 2, FIELD_STANDARD: True,  FIELD_D_CM: 7, FIELD_H_M: '9.0'},
@@ -1434,7 +1434,7 @@ class TestRecordShape:
             FIELD_NUMBER: '42',
             FIELD_D_CM: '30', FIELD_H_M: '20.5', 'l10_mm': '12',
             'volume_m3': '0.7022', FIELD_MASS_Q: '6.32',
-            FIELD_FUSTAIA: 'true',
+            FIELD_HIGHFOREST: 'true',
         })
         from apps.base.digests import (
             SAMPLE_COLUMNS, SURVEY_COLUMNS, build_sample_record,

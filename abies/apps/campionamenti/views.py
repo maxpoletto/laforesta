@@ -42,7 +42,7 @@ from config.constants import (
     FIELD_ALTITUDE_M, FIELD_AREA,
     FIELD_COMPRESA, FIELD_COPPICE, FIELD_DATE, FIELD_DEFAULT_DATE,
     FIELD_DESCRIPTION, FIELD_D_CM,
-    FIELD_FILE, FIELD_FUSTAIA, FIELD_H_M, FIELD_L10_MM, FIELD_LAT, FIELD_LON,
+    FIELD_FILE, FIELD_HIGHFOREST, FIELD_H_M, FIELD_L10_MM, FIELD_LAT, FIELD_LON,
     FIELD_MASS_Q,
     FIELD_NAME, FIELD_NEXT_SHOOT, FIELD_NOTE, FIELD_NUMBER,
     FIELD_PARCEL, FIELD_PARCEL_ID, FIELD_PARTICELLA, FIELD_POINTS,
@@ -622,8 +622,8 @@ def _render_tree_form(request, ts_id, survey_id, area_id):
 def _default_species_id(species, parcel_is_coppice):
     """Pick the default species for a newly added tree.
 
-    Fustaia parcel → `S.SPECIES_DEFAULT_FUSTAIA`, ceduo parcel →
-    `S.SPECIES_DEFAULT_CEDUO`.  Match on Species.common_name with
+    Fustaia parcel → `S.SPECIES_DEFAULT_HIGHFOREST`, ceduo parcel →
+    `S.SPECIES_DEFAULT_COPPICE`.  Match on Species.common_name with
     `__iexact` first, then a substring fallback for variants like
     "Abete bianco".  Returns `None` when the species list is empty;
     otherwise the first species in the list if neither match hits.
@@ -631,8 +631,8 @@ def _default_species_id(species, parcel_is_coppice):
     if not species:
         return None
     target = (
-        S.SPECIES_DEFAULT_CEDUO if parcel_is_coppice
-        else S.SPECIES_DEFAULT_FUSTAIA
+        S.SPECIES_DEFAULT_COPPICE if parcel_is_coppice
+        else S.SPECIES_DEFAULT_HIGHFOREST
     ).lower()
     exact = next(
         (sp for sp in species if (sp.common_name or '').lower() == target),
@@ -733,7 +733,7 @@ def _parse_tree_body(body):
         except (ValueError, TypeError):
             errors.append(S.ERR_DATE_INVALID)
 
-    coppice = str(body.get(FIELD_FUSTAIA, 'true')).lower() in ('false', '0', 'no')
+    coppice = str(body.get(FIELD_HIGHFOREST, 'true')).lower() in ('false', '0', 'no')
 
     # tree_pick: 'new' or an integer Tree id.  Older payloads without
     # tree_pick default to 'new' so the existing call sites keep working.
@@ -1048,26 +1048,26 @@ def survey_edit_view(request, survey_id: int):
 # CSV imports (Bucket 3) — Grid CSV + Tree-and-sample CSV
 # ---------------------------------------------------------------------------
 
-GRID_CSV_REQUIRED = [S.CSV_COL_COMPRESA, S.CSV_COL_PARTICELLA,
-                     S.CSV_COL_AREA_SAGGIO, S.CSV_COL_LON, S.CSV_COL_LAT,
-                     S.CSV_COL_QUOTA]
-GRID_CSV_OPTIONAL = [S.CSV_COL_RAGGIO]
+GRID_CSV_REQUIRED = [S.CSV_COL_REGION, S.CSV_COL_PARCEL,
+                     S.CSV_COL_SAMPLE_AREA, S.CSV_COL_LON, S.CSV_COL_LAT,
+                     S.CSV_COL_ALT]
+GRID_CSV_OPTIONAL = [S.CSV_COL_RADIUS]
 GRID_CSV_ALIASES = {
     # CSV exports use Quota/Raggio.  Also accept the unit-bearing display labels
     # operators may get by exporting visible table data.
-    S.CSV_COL_QUOTA: [S.CSV_COL_QUOTA, S.COL_QUOTA, S.COL_ALTITUDE_M],
-    S.CSV_COL_RAGGIO: [S.CSV_COL_RAGGIO, S.COL_RAGGIO, S.COL_RADIUS_M],
+    S.CSV_COL_ALT: [S.CSV_COL_ALT, S.COL_ALT, S.COL_ALT],
+    S.CSV_COL_RADIUS: [S.CSV_COL_RADIUS, S.COL_RADIUS, S.COL_RADIUS],
 }
 GRID_CSV_MISSING_LABELS = {
-    S.CSV_COL_QUOTA: f'{S.COL_QUOTA} / {S.CSV_COL_QUOTA}',
-    S.CSV_COL_RAGGIO: f'{S.COL_RAGGIO} / {S.CSV_COL_RAGGIO}',
+    S.CSV_COL_ALT: f'{S.COL_ALT} / {S.CSV_COL_ALT}',
+    S.CSV_COL_RADIUS: f'{S.COL_RADIUS} / {S.CSV_COL_RADIUS}',
 }
-TREE_CSV_REQUIRED = [S.CSV_COL_COMPRESA, S.CSV_COL_PARTICELLA,
-                     S.CSV_COL_AREA_SAGGIO, S.CSV_COL_ALBERO,
-                     S.CSV_COL_POLLONE, S.CSV_COL_MATRICINA,
+TREE_CSV_REQUIRED = [S.CSV_COL_REGION, S.CSV_COL_PARCEL,
+                     S.CSV_COL_SAMPLE_AREA, S.CSV_COL_TREE,
+                     S.CSV_COL_COPPICE_SHOOT, S.CSV_COL_COPPICE_STD,
                      S.CSV_COL_D_CM, S.CSV_COL_H_M, S.CSV_COL_L10_MM,
-                     S.CSV_COL_GENERE, S.CSV_COL_FUSTAIA]
-TREE_CSV_OPTIONAL = [S.CSV_COL_DATA, S.CSV_COL_PAI]
+                     S.CSV_COL_SPECIES, S.CSV_COL_HIGHFOREST]
+TREE_CSV_OPTIONAL = [S.CSV_COL_DATA, S.CSV_COL_PRESERVED]
 
 
 def _grid_csv_columns(fieldnames):
@@ -1145,15 +1145,15 @@ def grid_csv_import_view(request):
     parsed_rows = []
     seen_in_csv = set()
     for i, row in enumerate(reader, 2):  # row 2 = first data row (after header)
-        compresa = row[grid_cols[S.CSV_COL_COMPRESA]].strip()
-        particella = row[grid_cols[S.CSV_COL_PARTICELLA]].strip()
+        compresa = row[grid_cols[S.CSV_COL_REGION]].strip()
+        particella = row[grid_cols[S.CSV_COL_PARCEL]].strip()
         parcel = parcel_cache.get((compresa.lower(), particella))
         if parcel is None:
             errors.append(
                 S.ERR_CSV_PARCEL_NOT_FOUND.format(i, compresa, particella),
             )
             continue
-        number = row[grid_cols[S.CSV_COL_AREA_SAGGIO]].strip()
+        number = row[grid_cols[S.CSV_COL_SAMPLE_AREA]].strip()
         key = (parcel.region_id, number)
         if key in existing_keys or key in seen_in_csv:
             errors.append(S.ERR_CSV_ROW_AREA_DUPLICATE.format(
@@ -1167,8 +1167,8 @@ def grid_csv_import_view(request):
             errors.append(S.ERR_CSV_ROW_PARSE.format(
                 i, f'{S.CSV_COL_LAT}/{S.CSV_COL_LON}'))
             continue
-        radius_col = grid_cols.get(S.CSV_COL_RAGGIO)
-        altitude_col = grid_cols[S.CSV_COL_QUOTA]
+        radius_col = grid_cols.get(S.CSV_COL_RADIUS)
+        altitude_col = grid_cols[S.CSV_COL_ALT]
         raggio = (row.get(radius_col) or '').strip() if radius_col else ''
         r_m = reader.integer(raggio) if raggio else DEFAULT_RADIUS_M
         if r_m is None:  # present but unparseable → flag, don't silently default
@@ -1294,30 +1294,30 @@ def tree_csv_import_view(request):
     errors = []
     parsed = []
     for i, row in enumerate(reader, 2):
-        compresa = row[S.CSV_COL_COMPRESA].strip()
-        particella = row[S.CSV_COL_PARTICELLA].strip()
-        adc = row[S.CSV_COL_AREA_SAGGIO].strip()
+        compresa = row[S.CSV_COL_REGION].strip()
+        particella = row[S.CSV_COL_PARCEL].strip()
+        adc = row[S.CSV_COL_SAMPLE_AREA].strip()
         area = area_cache.get((compresa.lower(), particella, adc))
         if area is None:
             errors.append(S.ERR_CSV_ROW_AREA.format(i, compresa, particella, adc))
             continue
-        number = reader.integer(row.get(S.CSV_COL_ALBERO))
+        number = reader.integer(row.get(S.CSV_COL_TREE))
         d_cm = reader.integer(row.get(S.CSV_COL_D_CM))
         h_dec = reader.decimal(row.get(S.CSV_COL_H_M))
         if number is None or d_cm is None or h_dec is None:
             errors.append(S.ERR_CSV_ROW_PARSE.format(
-                i, f'{S.CSV_COL_ALBERO}/{S.CSV_COL_D_CM}/{S.CSV_COL_H_M}'))
+                i, f'{S.CSV_COL_TREE}/{S.CSV_COL_D_CM}/{S.CSV_COL_H_M}'))
             continue
-        shoot = reader.integer(row.get(S.CSV_COL_POLLONE)) or 0
-        standard = is_truthy(row[S.CSV_COL_MATRICINA])
+        shoot = reader.integer(row.get(S.CSV_COL_COPPICE_SHOOT)) or 0
+        standard = is_truthy(row[S.CSV_COL_COPPICE_STD])
         h_m = h_dec.quantize(TREE_H_QUANTUM, rounding=ROUND_HALF_UP)
         l10_mm = reader.integer(row.get(S.CSV_COL_L10_MM)) or 0
-        fustaia = is_truthy(row[S.CSV_COL_FUSTAIA])
+        fustaia = is_truthy(row[S.CSV_COL_HIGHFOREST])
         coppice = not fustaia
-        preserved = (is_truthy(row.get(S.CSV_COL_PAI, ''))
-                     if S.CSV_COL_PAI in row else False)
+        preserved = (is_truthy(row.get(S.CSV_COL_PRESERVED, ''))
+                     if S.CSV_COL_PRESERVED in row else False)
 
-        genere = row[S.CSV_COL_GENERE].strip()
+        genere = row[S.CSV_COL_SPECIES].strip()
         mapped = GENERE_MAP.get(genere, genere)
         species = species_cache.get(mapped.lower())
         if species is None:

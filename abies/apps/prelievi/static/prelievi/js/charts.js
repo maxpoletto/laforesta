@@ -49,12 +49,12 @@ export function aggregateTimeSeries(rows, colMap, breakdown, byMonth, speciesCol
 function _dimFn(breakdown, colMap) {
   if (breakdown === 'total') return () => S.CHART_TOTAL;
   if (breakdown === 'particella') {
-    const ri = colMap[S.COL_COMPRESA];
+    const ri = colMap[S.COL_REGION];
     const pi = colMap[S.COL_PARCEL];
     return row => `${row[ri]}/${row[pi]}`;  // disambiguate parcels across regions
   }
   const idx = colMap[{
-    compresa: S.COL_COMPRESA, squadra: S.COL_CREW, tipo: S.COL_TYPE,
+    compresa: S.COL_REGION, squadra: S.COL_CREW, tipo: S.COL_TYPE,
   }[breakdown]];
   return row => row[idx] || '?';
 }
@@ -69,7 +69,7 @@ function _dimFn(breakdown, colMap) {
  */
 export function aggregateSpeciesByParcel(rows, colMap, speciesCols) {
   const parcelIdx = colMap[S.COL_PARCEL];
-  const regionIdx = colMap[S.COL_COMPRESA];
+  const regionIdx = colMap[S.COL_REGION];
   const parcels = {};
 
   for (const row of rows) {

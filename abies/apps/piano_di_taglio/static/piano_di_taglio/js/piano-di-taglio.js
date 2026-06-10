@@ -32,8 +32,8 @@ import {
 import { mountUseLocationButton } from '../../base/js/latlng-input.js';
 import * as S from '../../base/js/strings.js';
 import {
-  FIELD_CEDUO_FILE, FIELD_DATE, FIELD_DESCRIPTION, FIELD_FILE,
-  FIELD_FUSTAIA_FILE, FIELD_HARVEST_PLAN_ID, FIELD_HARVEST_PLAN_ITEM_ID,
+  FIELD_COPPICE_FILE, FIELD_DATE, FIELD_DESCRIPTION, FIELD_FILE,
+  FIELD_HIGHFOREST_FILE, FIELD_HARVEST_PLAN_ID, FIELD_HARVEST_PLAN_ITEM_ID,
   FIELD_NAME, FIELD_NONCE, FIELD_NOTE,
   FIELD_OPEN, FIELD_YEAR_END, FIELD_YEAR_START,
   HYPSO_FUNC_LN, ROW_ID, VERSION,
@@ -115,10 +115,10 @@ const sections = {
     open: true, kind: 'fustaia',
     header: null, body: null, host: null, table: null,
     toolbar: null, actionAdd: null, emptyState: null,
-    typeMatcher: (tipo) => tipo !== S.TYPE_CEDUO,
+    typeMatcher: (tipo) => tipo !== S.TYPE_COPPICE,
     hiddenCols: [
       S.COL_HARVEST_PLAN, S.COL_TYPE,
-      S.COL_INTERVENTION_AREA_HA, S.COL_PARCEL_AREA_HA, S.COL_TURNO_A,
+      S.COL_INTERVENTION_AREA_HA, S.COL_PARCEL_AREA_HA, S.COL_PERIOD_Y,
     ],
     csvFilename: 'interventi-fustaia.csv',
   },
@@ -126,7 +126,7 @@ const sections = {
     open: false, kind: 'ceduo',
     header: null, body: null, host: null, table: null,
     toolbar: null, actionAdd: null, emptyState: null,
-    typeMatcher: (tipo) => tipo === S.TYPE_CEDUO,
+    typeMatcher: (tipo) => tipo === S.TYPE_COPPICE,
     hiddenCols: [
       S.COL_HARVEST_PLAN, S.COL_TYPE,
       S.COL_VOLUME_PLANNED, S.COL_VOLUME_MARKED,
@@ -448,7 +448,7 @@ const ITEM_COL_DEFS = (() => {
   return {
     [S.COL_YEAR_PLANNED]:         { label: S.COL_YEAR_PLANNED, type: 'number', width: '85px', formatter: fmtInt },
     [S.COL_YEAR_ACTUAL]:          { label: S.COL_YEAR_ACTUAL,  type: 'number', width: '85px', formatter: fmtInt },
-    [S.COL_COMPRESA]:             { label: S.COL_COMPRESA,     width: '110px' },
+    [S.COL_REGION]:             { label: S.COL_REGION,     width: '110px' },
     [S.COL_PARCEL]:               { label: S.COL_PARCEL,       width: '90px' },
     [S.COL_STATE]:                { label: S.COL_STATE,        width: '110px' },
     [S.COL_NOTE]:                 { label: S.COL_NOTE,         width: '160px' },
@@ -457,7 +457,7 @@ const ITEM_COL_DEFS = (() => {
     [S.COL_VOLUME_ACTUAL]:        { label: S.COL_VOLUME_ACTUAL,  type: 'number', width: '95px', formatter: fmtDecimal2 },
     [S.COL_INTERVENTION_AREA_HA]: { label: S.COL_INTERVENTION_AREA_HA, type: 'number', width: '110px', formatter: fmtDecimal2 },
     [S.COL_PARCEL_AREA_HA]:       { label: S.COL_PARCEL_AREA_HA,       type: 'number', width: '110px', formatter: fmtDecimal2 },
-    [S.COL_TURNO_A]:              { label: S.COL_TURNO_A,             type: 'number', width: '75px',  formatter: fmtInt },
+    [S.COL_PERIOD_Y]:              { label: S.COL_PERIOD_Y,             type: 'number', width: '75px',  formatter: fmtInt },
   };
 })();
 
@@ -653,7 +653,7 @@ function confirmDeleteItem(itemId) {
     return;
   }
 
-  const compresa = row[c.indexOf(S.COL_COMPRESA)];
+  const compresa = row[c.indexOf(S.COL_REGION)];
   const parcel = row[c.indexOf(S.COL_PARCEL)];
   const year = row[c.indexOf(S.COL_YEAR_PLANNED)];
 
@@ -802,7 +802,7 @@ export function openEditPlanModal(initialTab, { ceduo = false } = {}) {
 
     const body = {
       [FIELD_HARVEST_PLAN_ID]: String(activePlanId),
-      [ceduoCb.checked ? FIELD_CEDUO_FILE : FIELD_FUSTAIA_FILE]: await fileToBase64(file),
+      [ceduoCb.checked ? FIELD_COPPICE_FILE : FIELD_HIGHFOREST_FILE]: await fileToBase64(file),
       [FIELD_NONCE]: crypto.randomUUID(),
     };
 
@@ -1060,7 +1060,7 @@ async function renderItemView(itemId) {
   // Metadata pane.
   const meta = frag.querySelector('[data-target="metadata"]');
   const planName = lookupPlanName(record[c.indexOf(S.COL_HARVEST_PLAN)]);
-  const compresa = record[c.indexOf(S.COL_COMPRESA)];
+  const compresa = record[c.indexOf(S.COL_REGION)];
   const parcel = record[c.indexOf(S.COL_PARCEL)];
   const yearPlanned = record[c.indexOf(S.COL_YEAR_PLANNED)];
   const yearActual = record[c.indexOf(S.COL_YEAR_ACTUAL)];
@@ -1072,11 +1072,11 @@ async function renderItemView(itemId) {
   const volActual = record[c.indexOf(S.COL_VOLUME_ACTUAL)];
   const areaIntervention = record[c.indexOf(S.COL_INTERVENTION_AREA_HA)];
   const areaParcel = record[c.indexOf(S.COL_PARCEL_AREA_HA)];
-  const turno = record[c.indexOf(S.COL_TURNO_A)];
-  const isCoppice = tipo === S.TYPE_CEDUO;
+  const turno = record[c.indexOf(S.COL_PERIOD_Y)];
+  const isCoppice = tipo === S.TYPE_COPPICE;
 
   addMetaRow(meta, S.LABEL_HARVEST_PLAN, planName);
-  addMetaRow(meta, S.COL_COMPRESA, compresa);
+  addMetaRow(meta, S.COL_REGION, compresa);
   if (parcel) addMetaRow(meta, S.COL_PARCEL, parcel);
   addMetaRow(meta, S.COL_YEAR_PLANNED, yearPlanned);
   if (yearActual) addMetaRow(meta, S.COL_YEAR_ACTUAL, yearActual);
@@ -1087,13 +1087,13 @@ async function renderItemView(itemId) {
   } else {
     addMetaRow(meta, S.COL_INTERVENTION_AREA_HA, fmtArea(areaIntervention));
     addMetaRow(meta, S.COL_PARCEL_AREA_HA, fmtArea(areaParcel));
-    addMetaRow(meta, S.COL_TURNO_A, turno != null ? String(turno) : '');
+    addMetaRow(meta, S.COL_PERIOD_Y, turno != null ? String(turno) : '');
   }
   addMetaRow(meta, S.COL_VOLUME_ACTUAL, fmtVolume(volActual));
   if (note) addMetaRow(meta, S.COL_NOTE, note);
 
   for (const t of transitions) {
-    const label = t[2] ? S.LABEL_CANTIERE_OPENED : S.LABEL_CANTIERE_CLOSED;
+    const label = t[2] ? S.LABEL_WORKSITE_OPENED : S.LABEL_WORKSITE_CLOSED;
     const value = t[4] ? `${formatDate(t[3])} — ${t[4]}` : formatDate(t[3]);
     addMetaRow(meta, label, value);
   }
@@ -1106,7 +1106,7 @@ async function renderItemView(itemId) {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'btn btn-save';
-      btn.textContent = S.LABEL_OPEN_CANTIERE;
+      btn.textContent = S.LABEL_OPEN_WORKSITE;
       btn.addEventListener('click', () => showTransitionForm(itemId, true));
       btnRow.appendChild(btn);
       hasTransition = true;
@@ -1115,7 +1115,7 @@ async function renderItemView(itemId) {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'btn btn-save';
-      btn.textContent = S.LABEL_CLOSE_CANTIERE;
+      btn.textContent = S.LABEL_CLOSE_WORKSITE;
       btn.addEventListener('click', () => showTransitionForm(itemId, false));
       btnRow.appendChild(btn);
       hasTransition = true;
@@ -1148,7 +1148,7 @@ function addMetaRow(dl, label, value) {
 }
 
 function formatItemTitle(record, columns) {
-  const compresa = record[columns.indexOf(S.COL_COMPRESA)];
+  const compresa = record[columns.indexOf(S.COL_REGION)];
   const parcel = record[columns.indexOf(S.COL_PARCEL)];
   const year = record[columns.indexOf(S.COL_YEAR_PLANNED)];
   const planName = lookupPlanName(record[columns.indexOf(S.COL_HARVEST_PLAN)]);
@@ -1173,7 +1173,7 @@ function showItemEditForm(itemId) {
     r[itemsData.columns.indexOf(ROW_ID)] === itemId,
   );
   const tipo = row?.[itemsData.columns.indexOf(S.COL_TYPE)];
-  const kind = tipo === S.TYPE_CEDUO ? 'ceduo' : 'fustaia';
+  const kind = tipo === S.TYPE_COPPICE ? 'ceduo' : 'fustaia';
   fetchAndOpenItemForm(`${ITEM_FORM_URL}${itemId}/`, kind, {
     onDone: () => renderItemView(itemId),
   });
@@ -1184,7 +1184,7 @@ function showItemEditForm(itemId) {
 function showTransitionForm(itemId, openFlag) {
   const frag = cloneTemplate('tmpl-pdt-transition');
   const title = frag.querySelector('[data-field="title"]');
-  title.textContent = openFlag ? S.LABEL_OPEN_CANTIERE : S.LABEL_CLOSE_CANTIERE;
+  title.textContent = openFlag ? S.LABEL_OPEN_WORKSITE : S.LABEL_CLOSE_WORKSITE;
 
   const form = frag.querySelector('form');
   form.querySelector('#pdt-transition-date').value =
@@ -1248,7 +1248,7 @@ function markTreesDataId(itemId) {
 }
 
 async function appendItemMarkTreesSection(card, itemId, state) {
-  const body = appendSubsection(card, S.SECTION_MARTELLATA);
+  const body = appendSubsection(card, S.SECTION_MARK);
 
   const isClosed = state === S.STATE_CLOSED;
 
@@ -1335,7 +1335,7 @@ async function appendItemMarkTreesSection(card, itemId, state) {
       onDelete: (rowId) => deleteMarkRow(itemId, rowId),
     } : {},
     sort: { column: S.COL_DATE, ascending: false },
-    csvFilename: `${S.CSV_MARTELLATE_PREFIX}${itemId}.csv`,
+    csvFilename: `${S.CSV_MARKS_PREFIX}${itemId}.csv`,
     labels: S.TABLE_LABELS,
     csvFormat: S.TABLE_CSV_FORMAT,
   });
@@ -1348,7 +1348,7 @@ function buildMarkTreeColumnDefs(columns) {
     if (name === ROW_ID) continue;
     if (hidden.has(name)) { defs[name] = { label: name, hidden: true }; continue; }
     if (name === S.COL_DATE) { defs[name] = { label: name, type: 'date', width: '100px' }; continue; }
-    if (name === S.COL_NUMERO) { defs[name] = { label: name, type: 'number', width: '60px', formatter: fmtInt }; continue; }
+    if (name === S.COL_NUMBER) { defs[name] = { label: name, type: 'number', width: '60px', formatter: fmtInt }; continue; }
     if (name === S.COL_D_CM) { defs[name] = { label: name, type: 'number', width: '70px', formatter: fmtInt }; continue; }
     if (name === S.COL_H_M) { defs[name] = { label: name, type: 'number', width: '70px', formatter: fmtDecimal2 }; continue; }
     if (name === S.COL_H_MEASURED) { defs[name] = { label: name, type: 'boolean', width: '85px' }; continue; }
@@ -1367,10 +1367,10 @@ function findHypsoParams(itemId) {
   const c = itemsData.columns;
   const row = itemsData.rows.find(r => r[c.indexOf(ROW_ID)] === itemId);
   if (!row) return null;
-  const compresa = row[c.indexOf(S.COL_COMPRESA)];
+  const compresa = row[c.indexOf(S.COL_REGION)];
   const rc = hypsoParamsData.columns;
   return hypsoParamsData.rows.filter(
-    r => r[rc.indexOf(S.COL_COMPRESA)] === compresa,
+    r => r[rc.indexOf(S.COL_REGION)] === compresa,
   );
 }
 
@@ -1530,7 +1530,7 @@ function _applyMarkSaveResponse(data, _itemId) {
 // --- Prelievi sub-section ---
 
 async function appendItemPrelieviSection(card, itemId) {
-  const body = appendSubsection(card, S.SECTION_PRELIEVI);
+  const body = appendSubsection(card, S.SECTION_HARVESTS);
 
   // Load prelievi data (lazy, from cache or network).
   try {
@@ -1546,7 +1546,7 @@ async function appendItemPrelieviSection(card, itemId) {
   if (!prelieviData?.rows?.length) return;
 
   const c = prelieviData.columns;
-  const cantiereCol = c.indexOf(S.COL_CANTIERE);
+  const cantiereCol = c.indexOf(S.COL_WORKSITE);
   if (cantiereCol < 0) return;
 
   const filtered = prelieviData.rows.filter(r => r[cantiereCol] === itemId);
@@ -1577,7 +1577,7 @@ async function appendItemPrelieviSection(card, itemId) {
     canModify: false,
     actions: {},
     sort: { column: S.COL_DATE, ascending: false },
-    csvFilename: `${S.CSV_PRELIEVI_PREFIX}${itemId}.csv`,
+    csvFilename: `${S.CSV_HARVESTS_PREFIX}${itemId}.csv`,
     labels: S.TABLE_LABELS,
     csvFormat: S.TABLE_CSV_FORMAT,
   });

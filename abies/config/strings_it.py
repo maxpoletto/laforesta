@@ -258,30 +258,30 @@ ERR_MARK_PARCEL_NOT_IN_REGION = (
 # text.  Both sides reference these constants so they cannot drift.
 # ---------------------------------------------------------------------------
 
-CSV_COL_COMPRESA    = 'Compresa'
-CSV_COL_PARTICELLA  = 'Particella'
-CSV_COL_AREA_SAGGIO = 'Area saggio'
-CSV_COL_LON         = 'Lon'
-CSV_COL_LAT         = 'Lat'
-CSV_COL_QUOTA       = 'Quota'
-CSV_COL_RAGGIO      = 'Raggio'
-CSV_COL_ALBERO      = 'Albero'
-CSV_COL_POLLONE     = 'Pollone'
-CSV_COL_MATRICINA   = 'Matricina'
-CSV_COL_D_CM        = 'D_cm'
-CSV_COL_H_M         = 'H_m'
-CSV_COL_L10_MM      = 'L10_mm'
-CSV_COL_GENERE      = 'Genere'
-CSV_COL_FUSTAIA     = 'Fustaia'
-CSV_COL_DATA        = 'Data'
-CSV_COL_PAI         = 'PAI'
+CSV_COL_REGION        = 'Compresa'
+CSV_COL_PARCEL        = 'Particella'
+CSV_COL_SAMPLE_AREA   = 'Area saggio'
+CSV_COL_LON           = 'Lon'
+CSV_COL_LAT           = 'Lat'
+CSV_COL_ALT           = 'Quota'
+CSV_COL_RADIUS        = 'Raggio'
+CSV_COL_TREE          = 'Albero'
+CSV_COL_COPPICE_SHOOT = 'Pollone'
+CSV_COL_COPPICE_STD   = 'Matricina'
+CSV_COL_D_CM          = 'D_cm'
+CSV_COL_H_M           = 'H_m'
+CSV_COL_L10_MM        = 'L10_mm'
+CSV_COL_SPECIES       = 'Genere'
+CSV_COL_HIGHFOREST       = 'Fustaia'
+CSV_COL_DATA          = 'Data'
+CSV_COL_PRESERVED     = 'PAI'
 
 # CSV column headers used by the legacy bosco/data `import_*` management
 # commands.  Where a column also appears in a digest, the names are
 # paired (`CSV_COL_X` / `COL_X`); the values may match (same Italian
 # token used in both contexts) or differ (e.g. `Altitudine min` in the
 # CSV vs `Alt. min. (m)` in the digest column).
-CSV_COL_COMPARTO       = 'Comparto'
+CSV_COL_CLASS          = 'Comparto'
 CSV_COL_CREW           = 'Squadra'           # paired with COL_CREW
 CSV_COL_PRODUCT        = 'Tipo'              # paired with COL_PRODUCT
 CSV_COL_NOTE           = 'Note'              # paired with COL_NOTE
@@ -309,24 +309,23 @@ CSV_COL_N_LEGACY       = 'n'
 # The regression CSV uses lowercase `compresa` / `genere`; case
 # normalisation is the parser's responsibility, so we don't define
 # duplicate lowercase variants of the capitalized headers.
-CSV_COL_ANNO              = 'Anno'                        # scheduled-cut year
-CSV_COL_PRELIEVO_M3       = 'Prelievo (m³)'               # fustaia volume_planned_m3
-CSV_COL_VOLUME_PLANNED_LEGACY = 'Volume previsto'         # old Abies export header
-CSV_COL_SUPERFICIE_HA     = 'Superficie intervento (ha)'  # ceduo intervention_area_ha
-CSV_COL_TURNO_A           = 'Turno (a)'                   # coppice rotation, years
-CSV_COL_FUNZIONE          = 'funzione'                    # regression function (`ln`)
-CSV_COL_A                 = 'a'                           # regression coefficient
-CSV_COL_B                 = 'b'                           # regression coefficient
-CSV_COL_R2                = 'r2'                          # coefficient of determination
-CSV_COL_N_REGRESSION      = 'n'                           # sample count for regression fit
+CSV_COL_YEAR         = 'Anno'                        # scheduled-cut year
+CSV_COL_HARVEST_M3   = 'Prelievo (m³)'               # fustaia volume_planned_m3
+CSV_COL_SURFACE_HA   = 'Superficie intervento (ha)'  # ceduo intervention_area_ha
+CSV_COL_PERIOD_Y     = 'Turno (a)'                   # coppice rotation, years
+CSV_COL_FUNCTION     = 'funzione'                    # regression function (`ln`)
+CSV_COL_A            = 'a'                           # regression coefficient
+CSV_COL_B            = 'b'                           # regression coefficient
+CSV_COL_R2           = 'r2'                          # coefficient of determination
+CSV_COL_N_REGRESSION = 'n'                           # sample count for regression fit
 
 # Ipso CSV column headers (tree-mark import; format produced by
 # laforesta/ipso — see ipso/CLAUDE.md "CSV format").
-CSV_COL_CATASTROFATA      = 'Catastrofata'                # session-level flag (ignored row-wise)
-CSV_COL_NUMERO            = 'Numero'                      # operator-assigned tree number
-CSV_COL_H_MEASURED        = 'H_measured'                  # 1 if operator typed h, 0 if auto-h
-CSV_COL_ACC_M             = 'Acc_m'                       # GPS accuracy in metres
-CSV_COL_OPERATORE         = 'Operatore'                   # operator name
+CSV_COL_DAMAGED    = 'Catastrofata'     # session-level flag (ignored row-wise)
+CSV_COL_NUMBER     = 'Numero'           # operator-assigned tree number
+CSV_COL_H_MEASURED = 'H_measured'       # 1 if operator typed h, 0 if auto-h
+CSV_COL_ACC_M      = 'Acc_m'            # GPS accuracy in metres
+CSV_COL_OPERATOR   = 'Operatore'        # operator name
 
 # ---------------------------------------------------------------------------
 # Digest column headers (display labels in JSON `columns` arrays).
@@ -337,53 +336,51 @@ CSV_COL_OPERATORE         = 'Operatore'                   # operator name
 # value for symmetric usage at call sites.
 # ---------------------------------------------------------------------------
 
-COL_COMPRESA           = 'Compresa'         # domain term for a forest region; paired with CSV_COL_COMPRESA
-COL_QUOTA              = 'Alt. (m)'         # display label; CSV accepts legacy CSV_COL_QUOTA
-COL_RAGGIO             = 'Raggio (m)'       # display label; CSV accepts legacy CSV_COL_RAGGIO
-COL_NAME               = 'Nome'             # paired with LABEL_NAME (HTML form)
-COL_LATIN_NAME         = 'Nome latino'
-COL_DENSITY            = 'Densità (q/m³)'
-COL_CLASS              = 'Classe'           # parcel eclass
-COL_AREA_HA            = 'Area (ha)'
-COL_AVE_AGE            = 'Età media (a)'
-COL_LOCATION           = 'Località'
-COL_ALT_MIN            = 'Alt. min. (m)'
-COL_ALT_MAX            = 'Alt. max. (m)'
-COL_ASPECT             = 'Esposizione'
-COL_GRADE_PCT          = 'Pendenza (%)'
-COL_SORT_ORDER         = 'Sort order'       # internal English; not localized
-COL_YEAR               = 'Anno'
-COL_DESCRIPTION        = 'Descrizione'
-COL_N_AREAS            = 'N. aree'
-COL_REGIONS            = 'Comprese'         # plural/aggregate label, distinct from one row's COL_COMPRESA
-COL_N_SURVEYS          = 'N. rilevamenti'
-COL_LAST_UPDATE        = 'Ultimo aggiornamento'
-COL_GRID               = 'Griglia'
-COL_HARVEST_PLAN       = 'Piano di taglio'
-COL_N_AREAS_VISITED    = 'N. aree visitate'
-COL_N_AREAS_TOTAL      = 'N. aree totali'
-COL_DATE_FIRST         = 'Data primo'
-COL_DATE_LAST          = 'Data ultimo'
-COL_NUMBER             = 'Numero'
-COL_LAT                = 'Lat'              # paired with CSV_COL_LAT
-COL_LON                = 'Lon'              # paired with CSV_COL_LON
-COL_ALTITUDE_M         = COL_QUOTA          # same semantic label; alias kept for model-field maps
-COL_RADIUS_M           = COL_RAGGIO         # same semantic label; alias kept for model-field maps
-COL_SURVEY             = 'Rilevamento'
-COL_SAMPLE_AREA        = 'Area di saggio'
-COL_N_TREES            = 'N. alberi'
-COL_SAMPLE_DATE        = 'Data campione'
-COL_AREA_NUM           = 'N. area'
-COL_TREE_NUM           = 'N. albero'
-COL_SPECIES            = 'Specie'
-COL_POLLONE            = 'Pollone'          # domain/CSV term for coppice shoot number
-COL_MATRICINA          = 'Matricina'        # domain/CSV term for coppice standard flag
-COL_PAI                = 'PAI'              # paired with CSV_COL_PAI
-COL_D_CM               = 'D (cm)'           # paired with CSV_COL_D_CM
-COL_H_M                = 'h (m)'            # paired with CSV_COL_H_M
-COL_L10_MM             = 'L10 (mm)'         # paired with CSV_COL_L10_MM
-COL_V_M3               = 'V (m³)'           # short form (sampled-trees digest)
-COL_MASS_Q             = 'm (q)'
+COL_REGION          = 'Compresa'       # domain term for a forest region; paired with CSV_COL_REGION
+COL_REGIONS         = 'Comprese'       # plural/aggregate label, distinct from one row's COL_REGION
+COL_ALT             = 'Alt. (m)'       # display label; CSV accepts legacy CSV_COL_ALT
+COL_RADIUS          = 'Raggio (m)'     # display label; CSV accepts legacy CSV_COL_RADIUS
+COL_NAME            = 'Nome'           # paired with LABEL_NAME (HTML form)
+COL_LATIN_NAME      = 'Nome latino'
+COL_DENSITY         = 'Densità (q/m³)'
+COL_CLASS           = 'Classe'           # parcel eclass
+COL_AREA_HA         = 'Area (ha)'
+COL_AVE_AGE         = 'Età media (a)'
+COL_LOCATION        = 'Località'
+COL_ALT_MIN         = 'Alt. min. (m)'
+COL_ALT_MAX         = 'Alt. max. (m)'
+COL_ASPECT          = 'Esposizione'
+COL_GRADE_PCT       = 'Pendenza (%)'
+COL_SORT_ORDER      = 'Sort order'       # internal English; not localized
+COL_YEAR            = 'Anno'
+COL_DESCRIPTION     = 'Descrizione'
+COL_N_AREAS         = 'N. aree'
+COL_N_SURVEYS       = 'N. rilevamenti'
+COL_LAST_UPDATE     = 'Ultimo aggiornamento'
+COL_GRID            = 'Griglia'
+COL_HARVEST_PLAN    = 'Piano di taglio'
+COL_N_AREAS_VISITED = 'N. aree visitate'
+COL_N_AREAS_TOTAL   = 'N. aree totali'
+COL_DATE_FIRST      = 'Data primo'
+COL_DATE_LAST       = 'Data ultimo'
+COL_NUMBER          = 'Numero'
+COL_LAT             = 'Lat'              # paired with CSV_COL_LAT
+COL_LON             = 'Lon'              # paired with CSV_COL_LON
+COL_SURVEY          = 'Rilevamento'
+COL_SAMPLE_AREA     = 'Area di saggio'
+COL_N_TREES         = 'N. alberi'
+COL_SAMPLE_DATE     = 'Data campione'
+COL_AREA_NUM        = 'N. area'
+COL_TREE_NUM        = 'N. albero'
+COL_SPECIES         = 'Specie'
+COL_COPPICE_SHOOT   = 'Pollone'          # domain/CSV term for coppice shoot number
+COL_COPPICE_STD     = 'Matricina'        # domain/CSV term for coppice standard flag
+COL_PRESERVED       = 'PAI'              # paired with CSV_COL_PRESERVED
+COL_D_CM            = 'D (cm)'           # paired with CSV_COL_D_CM
+COL_H_M             = 'h (m)'            # paired with CSV_COL_H_M
+COL_L10_MM          = 'L10 (mm)'         # paired with CSV_COL_L10_MM
+COL_V_M3            = 'V (m³)'           # short form (sampled-trees digest)
+COL_MASS_Q          = 'm (q)'
 
 # Piano di taglio digest columns (calendar + martellate tables).
 COL_YEAR_PLANNED         = 'Anno previsto'
@@ -393,16 +390,15 @@ COL_STATE                = 'Stato'
 COL_VOLUME_PLANNED       = 'Volume previsto (m³)'
 COL_VOLUME_MARKED        = 'Volume martellato (m³)'
 COL_VOLUME_ACTUAL        = 'Volume effettivo (m³)'
-COL_INTERVENTION_AREA_HA = 'Superficie intervento (ha)'  # paired with CSV_COL_SUPERFICIE_HA
-COL_PARCEL_AREA_HA       = 'Superficie totale (ha)'      # paired with CSV_COL_SUPERFICIE_TOT_HA
-COL_TURNO_A              = 'Turno (a)'                   # paired with CSV_COL_TURNO_A
-COL_OPERATOR             = 'Operatore'                   # paired with CSV_COL_OPERATORE
-COL_NUMERO               = 'Numero'                      # paired with CSV_COL_NUMERO
+COL_INTERVENTION_AREA_HA = 'Superficie intervento (ha)'  # paired with CSV_COL_SURFACE_HA
+COL_PARCEL_AREA_HA       = 'Superficie totale (ha)'      # paired with CSV_COL_SURFACE_TOT_HA
+COL_PERIOD_Y             = 'Turno (a)'                   # paired with CSV_COL_PERIOD_Y
+COL_OPERATOR             = 'Operatore'                   # paired with CSV_COL_OPERATOR
 COL_H_MEASURED           = 'h misurata'                  # display label; bool rendered yes/no
 
 # Type-of-intervention display labels for COL_TYPE values
-TYPE_FUSTAIA = 'fustaia'
-TYPE_CEDUO   = 'ceduo'
+TYPE_HIGHFOREST = 'fustaia'
+TYPE_COPPICE   = 'ceduo'
 
 # Stand-in displayed in the Particella column for region-wide
 # HarvestPlanItem rows (region set, parcel NULL).
@@ -414,8 +410,8 @@ PARCEL_WHOLE_REGION_MARK = 'X'
 
 # Zip-archive filenames for the plan-level Esporta CSV.  Italian by
 # default; localizable so a future language gets distinct names.
-CSV_FILE_FUSTAIA    = 'fustaia.csv'
-CSV_FILE_CEDUO      = 'ceduo.csv'
+CSV_FILE_HIGHFOREST = 'fustaia.csv'
+CSV_FILE_COPPICE    = 'ceduo.csv'
 CSV_FILE_REGRESSION = 'equazioni_ipsometro.csv'
 
 # Harvest-plan digest columns.
@@ -431,7 +427,7 @@ COL_R2           = 'r²'
 COL_N_REGRESSION = 'n'
 
 # Prelievi: link to the HarvestPlanItem this harvest is part of.
-COL_CANTIERE = 'Cantiere'
+COL_WORKSITE = 'Cantiere'
 
 # ---------------------------------------------------------------------------
 # App verbose names
@@ -470,8 +466,8 @@ SPECIES_PLURAL = 'specie'
 # Default species names for new-tree entry, matched against
 # Species.common_name (case-insensitive).  Picked on the fustaia /
 # ceduo parcel type so the operator's most likely tree is preselected.
-SPECIES_DEFAULT_FUSTAIA = 'abete'
-SPECIES_DEFAULT_CEDUO = 'castagno'
+SPECIES_DEFAULT_HIGHFOREST = 'abete'
+SPECIES_DEFAULT_COPPICE = 'castagno'
 
 PRODUCT = 'tipo di prodotto'
 PRODUCTS = 'tipi di prodotto'

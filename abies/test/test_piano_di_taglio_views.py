@@ -25,9 +25,9 @@ from apps.base.models import (
 )
 from config import strings as S
 from config.constants import (
-    COLUMNS, DATA_ID, FIELD_ACC_M, FIELD_CEDUO_FILE, FIELD_CREW_ID,
+    COLUMNS, DATA_ID, FIELD_ACC_M, FIELD_COPPICE_FILE, FIELD_CREW_ID,
     FIELD_D_CM, FIELD_DAMAGED, FIELD_DATE, FIELD_DESCRIPTION,
-    FIELD_FILE, FIELD_FUSTAIA_FILE, FIELD_H_M, FIELD_H_MEASURED,
+    FIELD_FILE, FIELD_HIGHFOREST_FILE, FIELD_H_M, FIELD_H_MEASURED,
     FIELD_HARVEST_PLAN_ID, FIELD_HARVEST_PLAN_ITEM_ID,
     FIELD_INTERVENTION_AREA_HA, FIELD_LAT, FIELD_LON, FIELD_MASS_Q,
     FIELD_NAME, FIELD_NONCE, FIELD_NOTE, FIELD_OPEN, FIELD_OPERATOR,
@@ -53,7 +53,7 @@ def _csv_b64(value):
 def _post_plan_csv_import(client, **kwargs):
     body = {}
     for key, value in kwargs.items():
-        if key in (FIELD_FUSTAIA_FILE, FIELD_CEDUO_FILE):
+        if key in (FIELD_HIGHFOREST_FILE, FIELD_COPPICE_FILE):
             body[key] = _csv_b64(value)
         else:
             body[key] = value
@@ -270,7 +270,7 @@ class TestPlanCSVImport:
         # Particella = 'X' marks a whole-region item.  Note column must
         # contain "Catastrofato" or "Fitosanitario".
         csv_in = (
-            f'Compresa;Particella;Anno;Volume previsto;Note\r\n'
+            f'Compresa;Particella;Anno;{S.COL_VOLUME_PLANNED};Note\r\n'
             f'Capistrano;{S.PARCEL_WHOLE_REGION_MARK};2029;;{S.FLAG_DAMAGED}\r\n'
         )
         r = self._upload(
@@ -292,7 +292,7 @@ class TestPlanCSVImport:
         self, writer_client, plan, regions,
     ):
         csv_in = (
-            f'Compresa;Particella;Anno;Volume previsto;Note\r\n'
+            f'Compresa;Particella;Anno;{S.COL_VOLUME_PLANNED};Note\r\n'
             f'Capistrano;{S.PARCEL_WHOLE_REGION_MARK};2029;;\r\n'
         )
         r = self._upload(
@@ -309,7 +309,7 @@ class TestPlanCSVImport:
         # Round-trip: a parcel-scoped row whose Note column says
         # "Catastrofato" sets damaged=True on the resulting item.
         csv_in = (
-            f'Compresa;Particella;Anno;Volume previsto;Note\r\n'
+            f'Compresa;Particella;Anno;{S.COL_VOLUME_PLANNED};Note\r\n'
             f'{parcels[0].region.name};{parcels[0].name};2030;50;{S.FLAG_DAMAGED}\r\n'
         )
         r = self._upload(
@@ -347,7 +347,7 @@ class TestPlanCSVImport:
             fustaia_file=io.BytesIO(csv_in.encode('utf-8')),
         )
         assert r.status_code == 400
-        assert S.CSV_COL_PRELIEVO_M3 in r.json()[MESSAGE]
+        assert S.CSV_COL_HARVEST_M3 in r.json()[MESSAGE]
         assert not HarvestPlanItem.objects.filter(
             harvest_plan=plan, parcel=parcels[0], year_planned=2033,
         ).exists()
@@ -533,7 +533,7 @@ class TestPlanExport:
         )
         resp = writer_client.get(f'/api/piano-di-taglio/plan/export/{plan.id}/')
         zf = zipfile.ZipFile(io.BytesIO(resp.content))
-        fustaia_bytes = zf.read(S.CSV_FILE_FUSTAIA)
+        fustaia_bytes = zf.read(S.CSV_FILE_HIGHFOREST)
         text = fustaia_bytes.decode('utf-8')
         assert f';{S.PARCEL_WHOLE_REGION_MARK};' in text
         assert S.FLAG_DAMAGED in text
@@ -804,7 +804,7 @@ class TestItemExport:
         text = zf.read(f'martellate_{planned_item.id}.csv').decode('utf-8-sig')
         delimiter, _ = csv_io.export_format()
         rows = list(csv.reader(io.StringIO(text), delimiter=delimiter))
-        numero = rows[1][rows[0].index(S.CSV_COL_NUMERO)]
+        numero = rows[1][rows[0].index(S.CSV_COL_NUMBER)]
         assert numero == '1440', f'expected mark number 1440, got {numero!r}'
 
 

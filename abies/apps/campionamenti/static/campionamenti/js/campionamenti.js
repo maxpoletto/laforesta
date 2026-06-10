@@ -90,7 +90,7 @@ const TERRENI_GEOJSON_URL = '/api/geo/terreni.geojson';
 const TERRENI_ID = 'terreni';
 const PAGE_PATH = '/campionamenti';
 const TREE_TABLE_KEYS = tableParamKeys('t');
-const DEFAULT_TREE_SORT = { column: S.COL_COMPRESA, ascending: true };
+const DEFAULT_TREE_SORT = { column: S.COL_REGION, ascending: true };
 
 const SECTION_KEYS = ['g', 'r', 't'];
 const DEFAULT_OPEN = 'r';
@@ -113,20 +113,20 @@ function areaInUse(areaId) {
 const TREES_COLS = {
   [S.COL_SAMPLE_AREA]: { hidden: true },
   [S.COL_SAMPLE_DATE]: { label: S.LABEL_DATE, type: 'date', width: '90px' },
-  [S.COL_COMPRESA]:    { label: S.COL_COMPRESA, width: '90px' },
+  [S.COL_REGION]:    { label: S.COL_REGION, width: '90px' },
   [S.COL_PARCEL]:      { label: S.COL_PARCEL, width: '85px' },
   [S.COL_AREA_NUM]:    { label: S.COL_AREA_NUM, width: '70px' },
   [S.COL_TREE_NUM]:    { label: S.COL_TREE_NUM_SHORT, type: 'number', width: '70px', formatter: fmtInt },
   [S.COL_SPECIES]:     { label: S.COL_SPECIES, width: '120px' },
   [S.COL_TYPE]:        { label: S.COL_TYPE, width: '70px' },
-  [S.COL_POLLONE]:     { label: S.COL_POLLONE_SHORT, type: 'number', width: '55px', formatter: fmtInt },
-  [S.COL_MATRICINA]:   { label: S.COL_MATRICINA_SHORT, type: 'boolean', width: '55px', formatter: fmtBool },
+  [S.COL_COPPICE_SHOOT]:     { label: S.COL_COPPICE_SHOOT_SHORT, type: 'number', width: '55px', formatter: fmtInt },
+  [S.COL_COPPICE_STD]:   { label: S.COL_COPPICE_STD_SHORT, type: 'boolean', width: '55px', formatter: fmtBool },
   [S.COL_D_CM]:        { label: S.COL_D_CM, type: 'number', width: '65px', formatter: fmtInt },
   [S.COL_H_M]:         { label: S.COL_H_M, type: 'number', width: '60px', formatter: fmtDecimal2 },
   [S.COL_L10_MM]:      { label: S.COL_L10_MM, type: 'number', width: '85px', formatter: fmtInt },
   [S.COL_V_M3]:        { label: S.COL_V_M3, type: 'number', width: '65px', formatter: fmtDecimal2 },
   [S.COL_MASS_Q]:      { label: S.COL_MASS_Q, type: 'number', width: '70px', formatter: fmtDecimal1 },
-  [S.COL_PAI]:         { label: S.COL_PAI, type: 'boolean', width: '50px', formatter: fmtBool },
+  [S.COL_PRESERVED]:         { label: S.COL_PRESERVED, type: 'boolean', width: '50px', formatter: fmtBool },
   [S.COL_LAT]:         { label: S.COL_LAT, type: 'number', width: '85px', formatter: fmtCoord },
   [S.COL_LON]:         { label: S.COL_LON, type: 'number', width: '85px', formatter: fmtCoord },
   [VERSION]: { label: VERSION, hidden: true },
@@ -401,11 +401,11 @@ function renderGriglieMap(gridId) {
       id: r[c.indexOf(ROW_ID)],
       lat: r[c.indexOf(S.COL_LAT)],
       lon: r[c.indexOf(S.COL_LON)],
-      compresa: r[c.indexOf(S.COL_COMPRESA)],
+      compresa: r[c.indexOf(S.COL_REGION)],
       particella: r[c.indexOf(S.COL_PARCEL)],
-      numero: r[c.indexOf(S.COL_NUMERO)],
-      altitude: r[c.indexOf(S.COL_QUOTA)],
-      r_m: r[c.indexOf(S.COL_RAGGIO)],
+      numero: r[c.indexOf(S.COL_NUMBER)],
+      altitude: r[c.indexOf(S.COL_ALT)],
+      r_m: r[c.indexOf(S.COL_RADIUS)],
       note: r[c.indexOf(S.COL_NOTE)],
     }));
 
@@ -539,9 +539,9 @@ function renderRilevamentiMap(surveyId) {
       id: r[c.indexOf(ROW_ID)],
       lat: r[c.indexOf(S.COL_LAT)],
       lon: r[c.indexOf(S.COL_LON)],
-      compresa: r[c.indexOf(S.COL_COMPRESA)],
+      compresa: r[c.indexOf(S.COL_REGION)],
       particella: r[c.indexOf(S.COL_PARCEL)],
-      numero: r[c.indexOf(S.COL_NUMERO)],
+      numero: r[c.indexOf(S.COL_NUMBER)],
     }));
 
   const sc = samplesData.columns;
@@ -886,12 +886,12 @@ function showAreaPopover(area) {
   const frag = cloneTemplate('tmpl-campionamenti-area-popover');
   const fields = frag.querySelector('[data-target="fields"]');
   for (const [label, val] of [
-    [S.COL_COMPRESA, area.compresa], [S.COL_PARCEL, area.particella],
-    [S.COL_NUMERO, area.numero],
-    [S.COL_RAGGIO, area.r_m],
+    [S.COL_REGION, area.compresa], [S.COL_PARCEL, area.particella],
+    [S.COL_NUMBER, area.numero],
+    [S.COL_RADIUS, area.r_m],
     [S.COL_LAT, fmtCoord(area.lat)],
     [S.COL_LON, fmtCoord(area.lon)],
-    [S.COL_QUOTA, area.altitude ?? '—'],
+    [S.COL_ALT, area.altitude ?? '—'],
     [S.COL_NOTE, area.note || ''],
   ]) {
     const row = document.createElement('div');
@@ -1260,13 +1260,13 @@ function exportGridAreasCSV(gridId) {
   exportDigest(
     sampleAreasData,
     [
-      { src: S.COL_COMPRESA, dst: S.CSV_COL_COMPRESA },
+      { src: S.COL_REGION, dst: S.CSV_COL_REGION },
       { src: S.COL_PARCEL,   dst: S.CSV_COL_PARTICELLA },
-      { src: S.COL_NUMERO,   dst: S.CSV_COL_AREA_SAGGIO },
+      { src: S.COL_NUMBER,   dst: S.CSV_COL_AREA_SAGGIO },
       { src: S.COL_LON,      dst: S.CSV_COL_LON },
       { src: S.COL_LAT,      dst: S.CSV_COL_LAT },
-      { src: S.COL_QUOTA,    dst: S.CSV_COL_QUOTA },
-      { src: S.COL_RAGGIO,   dst: S.CSV_COL_RAGGIO },
+      { src: S.COL_ALT,    dst: S.CSV_COL_ALT },
+      { src: S.COL_RADIUS,   dst: S.CSV_COL_RADIUS },
     ],
     S.CSV_GRID_AREAS,
     { filter: row => row[gridCol] === gridId },
@@ -1287,19 +1287,19 @@ async function exportFullSurveyCSV(surveyId) {
   exportDigest(
     d,
     [
-      { src: S.COL_COMPRESA,    dst: S.CSV_COL_COMPRESA },
+      { src: S.COL_REGION,    dst: S.CSV_COL_REGION },
       { src: S.COL_PARCEL,      dst: S.CSV_COL_PARTICELLA },
       { src: S.COL_AREA_NUM,    dst: S.CSV_COL_AREA_SAGGIO },
       { src: S.COL_TREE_NUM,    dst: S.CSV_COL_ALBERO },
-      { src: S.COL_POLLONE,     dst: S.CSV_COL_POLLONE },
-      { src: S.COL_MATRICINA,   dst: S.CSV_COL_MATRICINA },
+      { src: S.COL_COPPICE_SHOOT,     dst: S.CSV_COL_COPPICE_SHOOT },
+      { src: S.COL_COPPICE_STD,   dst: S.CSV_COL_COPPICE_STD },
       { src: S.COL_D_CM,        dst: S.CSV_COL_D_CM },
       { src: S.COL_H_M,         dst: S.CSV_COL_H_M },
       { src: S.COL_L10_MM,      dst: S.CSV_COL_L10_MM },
       { src: S.COL_SPECIES,     dst: S.CSV_COL_GENERE },
-      { dst: S.CSV_COL_FUSTAIA, transform: row => row[tipoCol] === S.TYPE_FUSTAIA },
+      { dst: S.CSV_COL_HIGHFOREST, transform: row => row[tipoCol] === S.TYPE_HIGHFOREST },
       { src: S.COL_SAMPLE_DATE, dst: S.CSV_COL_DATA },
-      { src: S.COL_PAI,         dst: S.CSV_COL_PAI },
+      { src: S.COL_PRESERVED,         dst: S.CSV_COL_PRESERVED },
     ],
     S.CSV_SURVEY_TREES,
   );

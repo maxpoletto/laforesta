@@ -23,7 +23,7 @@ const SPECIES = 'Pino';
 const TRACTOR = 'John Deere';
 const defs = buildPrelieviColumnDefs([
   'row_id', VERSION, S.COL_QUINTALS, SPECIES, TRACTOR,
-  `${SPECIES} %`, S.COL_CANTIERE,
+  `${SPECIES} %`, S.COL_WORKSITE,
 ]);
 
 // row_id is the table key, never a rendered column.
@@ -31,7 +31,7 @@ eq('row_id' in defs, false, 'row_id is not a column');
 
 // Bookkeeping / pre-fill columns are hidden.
 eq(defs[VERSION]?.hidden, true, 'version hidden');
-eq(defs[S.COL_CANTIERE]?.hidden, true, 'cantiere hidden');
+eq(defs[S.COL_WORKSITE]?.hidden, true, 'cantiere hidden');
 eq(defs[`${SPECIES} %`]?.hidden, true, 'percent column hidden');
 
 // The bug this guards against: dynamic species/tractor columns must blank

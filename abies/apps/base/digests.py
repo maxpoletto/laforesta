@@ -211,8 +211,8 @@ def generate_prelievi() -> None:
     ]
 
     columns = (
-        [ROW_ID, VERSION, S.COL_DATE, S.COL_COMPRESA, S.COL_PARCEL,
-         S.COL_CANTIERE, S.COL_CREW, S.COL_VDP, S.COL_PRODUCT,
+        [ROW_ID, VERSION, S.COL_DATE, S.COL_REGION, S.COL_PARCEL,
+         S.COL_WORKSITE, S.COL_CREW, S.COL_VDP, S.COL_PRODUCT,
          S.COL_QUINTALS, S.COL_VOLUME_M3, S.COL_NOTE, S.COL_EXTRA_NOTE]
         + species_names
         + tractor_labels
@@ -306,7 +306,7 @@ def build_harvest_record(
 def generate_parcels() -> None:
     from apps.base.models import Parcel
 
-    columns = [ROW_ID, S.COL_COMPRESA, S.COL_PARCEL, S.COL_CLASS,
+    columns = [ROW_ID, S.COL_REGION, S.COL_PARCEL, S.COL_CLASS,
                S.COL_AREA_HA, S.COL_AVE_AGE, S.COL_LOCATION,
                S.COL_ALT_MIN, S.COL_ALT_MAX,
                S.COL_ASPECT, S.COL_GRADE_PCT]
@@ -369,7 +369,7 @@ def generate_parcel_year_production() -> None:
     GROUP BY region, parcel, year."""
     from apps.prelievi.models import Harvest
 
-    columns = [S.COL_COMPRESA, S.COL_PARCEL, S.COL_YEAR,
+    columns = [S.COL_REGION, S.COL_PARCEL, S.COL_YEAR,
                S.COL_QUINTALS, S.COL_VOLUME_M3]
     qs = (Harvest.objects
           .values('parcel__region__name', 'parcel__name', 'date__year')
@@ -465,7 +465,7 @@ def _audit_configs() -> list:
         }),
         (HarvestPlanItem, S.TABLE_HARVEST_PLAN_ITEM, {
             'harvest_plan_id': S.COL_HARVEST_PLAN,
-            'region_id': S.COL_COMPRESA, 'parcel_id': S.COL_PARCEL,
+            'region_id': S.COL_REGION, 'parcel_id': S.COL_PARCEL,
             'state': S.COL_STATE, 'year_planned': S.COL_YEAR_PLANNED,
             'volume_planned_m3': S.COL_VOLUME_PLANNED,
             'volume_marked_m3': S.COL_VOLUME_MARKED,
@@ -480,7 +480,7 @@ def _audit_configs() -> list:
         (SampleArea, S.TABLE_SAMPLE_AREA, {
             'sample_grid_id': S.COL_GRID, 'number': S.COL_NUMBER,
             'parcel_id': S.COL_PARCEL, 'lat': S.COL_LAT, 'lon': S.COL_LON,
-            'altitude_m': S.COL_ALTITUDE_M, 'r_m': S.COL_RADIUS_M,
+            'altitude_m': S.COL_ALT, 'r_m': S.COL_RADIUS,
             'note': S.COL_NOTE,
         }),
         (Survey, S.TABLE_SURVEY, {
@@ -718,9 +718,9 @@ def generate_surveys() -> None:
     print(f'surveys.json.gz: {len(rows)} rows')
 
 
-SAMPLE_AREA_COLUMNS = [ROW_ID, VERSION, S.COL_GRID, S.COL_COMPRESA,
+SAMPLE_AREA_COLUMNS = [ROW_ID, VERSION, S.COL_GRID, S.COL_REGION,
                        S.COL_PARCEL, S.COL_NUMBER, S.COL_LAT, S.COL_LON,
-                       S.COL_QUOTA, S.COL_RAGGIO, S.COL_NOTE]
+                       S.COL_ALT, S.COL_RADIUS, S.COL_NOTE]
 
 
 def build_sample_area_record(sa) -> list:
@@ -798,12 +798,12 @@ def generate_samples() -> None:
 
 
 SAMPLED_TREE_COLUMNS = [ROW_ID, VERSION, S.COL_SAMPLE_AREA,
-                        S.COL_SAMPLE_DATE, S.COL_COMPRESA, S.COL_PARCEL,
+                        S.COL_SAMPLE_DATE, S.COL_REGION, S.COL_PARCEL,
                         S.COL_AREA_NUM, S.COL_TREE_NUM,
-                        S.COL_SPECIES, S.COL_PRODUCT, S.COL_POLLONE,
-                        S.COL_MATRICINA, S.COL_D_CM, S.COL_H_M, S.COL_L10_MM,
+                        S.COL_SPECIES, S.COL_PRODUCT, S.COL_COPPICE_SHOOT,
+                        S.COL_COPPICE_STD, S.COL_D_CM, S.COL_H_M, S.COL_L10_MM,
                         S.COL_V_M3, S.COL_MASS_Q,
-                        S.COL_PAI, S.COL_LAT, S.COL_LON]
+                        S.COL_PRESERVED, S.COL_LAT, S.COL_LON]
 
 
 def build_tree_sample_record(ts) -> list:
@@ -818,7 +818,7 @@ def build_tree_sample_record(ts) -> list:
         ts.id, ts.version, sa.id, ts.sample.date.isoformat(),
         sa.parcel.region.name, sa.parcel.name, sa.number,
         ts.number, tree.species.common_name,
-        S.TYPE_CEDUO if tree.coppice else S.TYPE_FUSTAIA,
+        S.TYPE_COPPICE if tree.coppice else S.TYPE_HIGHFOREST,
         ts.shoot, ts.standard,
         ts.d_cm, float(ts.h_m), ts.l10_mm,
         float(ts.volume_m3) if ts.volume_m3 is not None else None,
@@ -886,9 +886,9 @@ def generate_harvest_plans() -> None:
 HARVEST_PLAN_ITEM_COLUMNS = [
     ROW_ID, VERSION, S.COL_HARVEST_PLAN,
     S.COL_YEAR_PLANNED, S.COL_YEAR_ACTUAL,
-    S.COL_COMPRESA, S.COL_PARCEL, S.COL_TYPE, S.COL_STATE, S.COL_NOTE,
+    S.COL_REGION, S.COL_PARCEL, S.COL_TYPE, S.COL_STATE, S.COL_NOTE,
     S.COL_VOLUME_PLANNED, S.COL_VOLUME_MARKED, S.COL_VOLUME_ACTUAL,
-    S.COL_INTERVENTION_AREA_HA, S.COL_PARCEL_AREA_HA, S.COL_TURNO_A,
+    S.COL_INTERVENTION_AREA_HA, S.COL_PARCEL_AREA_HA, S.COL_PERIOD_Y,
     S.COL_EXTRA_NOTE,
 ]
 
@@ -899,7 +899,7 @@ def _hpi_type(item) -> str:
     """
     if item.parcel_id is None:
         return ''
-    return S.TYPE_CEDUO if item.parcel.eclass.coppice else S.TYPE_FUSTAIA
+    return S.TYPE_COPPICE if item.parcel.eclass.coppice else S.TYPE_HIGHFOREST
 
 
 def _hpi_turno(item) -> int | str:
@@ -978,7 +978,7 @@ def generate_harvest_plan_items() -> None:
 
 
 HYPSO_PARAM_COLUMNS = [
-    ROW_ID, S.COL_COMPRESA, S.COL_SPECIES, S.COL_FUNCTION,
+    ROW_ID, S.COL_REGION, S.COL_SPECIES, S.COL_FUNCTION,
     S.COL_A, S.COL_B, S.COL_N_REGRESSION, S.COL_R2,
 ]
 
@@ -1026,7 +1026,7 @@ def generate_hypso_params() -> None:
     print(f'{DIGEST_HYPSO_PARAMS}.json.gz: {len(rows)} rows')
 
 
-MARK_TREE_COLUMNS = [ROW_ID, VERSION, S.COL_DATE, S.COL_NUMERO,
+MARK_TREE_COLUMNS = [ROW_ID, VERSION, S.COL_DATE, S.COL_NUMBER,
                      S.COL_SPECIES, S.COL_D_CM, S.COL_H_M, S.COL_H_MEASURED,
                      S.COL_V_M3, S.COL_MASS_Q,
                      S.COL_LAT, S.COL_LON, S.COL_OPERATOR]

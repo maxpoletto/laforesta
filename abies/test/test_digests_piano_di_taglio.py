@@ -170,9 +170,9 @@ class TestGenerateHarvestPlanItems:
         row = next(r for r in data[ROWS] if r[cols.index(ROW_ID)] == fustaia_item.id)
         assert row[cols.index(S.COL_HARVEST_PLAN)] == fustaia_item.harvest_plan_id
         assert row[cols.index(S.COL_YEAR_PLANNED)] == 2025
-        assert row[cols.index(S.COL_COMPRESA)] == 'Capistrano'
+        assert row[cols.index(S.COL_REGION)] == 'Capistrano'
         assert row[cols.index(S.COL_PARCEL)] == '1'
-        assert row[cols.index(S.COL_TYPE)] == S.TYPE_FUSTAIA
+        assert row[cols.index(S.COL_TYPE)] == S.TYPE_HIGHFOREST
         assert row[cols.index(S.COL_STATE)] == S.STATE_HARVESTING
         assert row[cols.index(S.COL_VOLUME_PLANNED)] == 100.0
         assert row[cols.index(S.COL_VOLUME_MARKED)] == 95.5
@@ -188,7 +188,7 @@ class TestGenerateHarvestPlanItems:
 
         cols = data[COLUMNS]
         row = next(r for r in data[ROWS] if r[cols.index(ROW_ID)] == ceduo_item.id)
-        assert row[cols.index(S.COL_TYPE)] == S.TYPE_CEDUO
+        assert row[cols.index(S.COL_TYPE)] == S.TYPE_COPPICE
         assert row[cols.index(S.COL_INTERVENTION_AREA_HA)] == 1.2
         assert row[cols.index(S.COL_STATE)] == S.STATE_PLANNED
         # Coppice: volume_planned_m3 is NULL → renders as ''.
@@ -203,7 +203,7 @@ class TestGenerateHarvestPlanItems:
 
         cols = data[COLUMNS]
         row = next(r for r in data[ROWS] if r[cols.index(ROW_ID)] == region_wide_item.id)
-        assert row[cols.index(S.COL_COMPRESA)] == 'Capistrano'
+        assert row[cols.index(S.COL_REGION)] == 'Capistrano'
         assert row[cols.index(S.COL_PARCEL)] == S.PARCEL_WHOLE_REGION_MARK
         # Region-wide items have no Eclass → Tipo is empty.
         assert row[cols.index(S.COL_TYPE)] == ''
@@ -300,7 +300,7 @@ class TestGenerateMarkTreesForItem:
         generate_mark_trees_for_item(fustaia_item.id)
         data = _load(tmp_path / f'mark_trees_{fustaia_item.id}.json.gz')
         cols = data[COLUMNS]
-        for c in (ROW_ID, 'version', S.COL_DATE, S.COL_NUMERO, S.COL_SPECIES,
+        for c in (ROW_ID, 'version', S.COL_DATE, S.COL_NUMBER, S.COL_SPECIES,
                   S.COL_D_CM, S.COL_H_M, S.COL_H_MEASURED, S.COL_V_M3,
                   S.COL_MASS_Q, S.COL_LAT, S.COL_LON, S.COL_OPERATOR):
             assert c in cols
@@ -315,14 +315,14 @@ class TestGenerateMarkTreesForItem:
         settings.DIGEST_DIR = tmp_path
         generate_mark_trees_for_item(fustaia_item.id)
         data = _load(tmp_path / f'mark_trees_{fustaia_item.id}.json.gz')
-        nums = [r[data[COLUMNS].index(S.COL_NUMERO)] for r in data[ROWS]]
+        nums = [r[data[COLUMNS].index(S.COL_NUMBER)] for r in data[ROWS]]
         assert nums == sorted(nums)
 
     def test_numero_is_1_based_sequential(self, marks, fustaia_item, tmp_path, settings):
         settings.DIGEST_DIR = tmp_path
         generate_mark_trees_for_item(fustaia_item.id)
         data = _load(tmp_path / f'mark_trees_{fustaia_item.id}.json.gz')
-        numeros = [r[data[COLUMNS].index(S.COL_NUMERO)] for r in data[ROWS]]
+        numeros = [r[data[COLUMNS].index(S.COL_NUMBER)] for r in data[ROWS]]
         assert numeros == [1, 2, 3]
 
     def test_isolated_per_item(self, marks, plan, parcels, trees, tmp_path, settings):
@@ -404,7 +404,7 @@ class TestPrelieviCantiere:
         settings.DIGEST_DIR = tmp_path
         generate_prelievi()
         data = _load(tmp_path / 'prelievi.json.gz')
-        assert S.COL_CANTIERE in data[COLUMNS]
+        assert S.COL_WORKSITE in data[COLUMNS]
 
     def test_cantiere_value_when_linked(self, linked_harvest, species,
                                         tractors, tmp_path, settings):
@@ -414,7 +414,7 @@ class TestPrelieviCantiere:
         cols = data[COLUMNS]
         row = next(r for r in data[ROWS]
                    if r[cols.index(ROW_ID)] == linked_harvest.id)
-        assert row[cols.index(S.COL_CANTIERE)] == linked_harvest.harvest_plan_item_id
+        assert row[cols.index(S.COL_WORKSITE)] == linked_harvest.harvest_plan_item_id
 
     def test_cantiere_blank_when_unlinked(self, unlinked_harvest, species,
                                           tractors, tmp_path, settings):
@@ -424,7 +424,7 @@ class TestPrelieviCantiere:
         cols = data[COLUMNS]
         row = next(r for r in data[ROWS]
                    if r[cols.index(ROW_ID)] == unlinked_harvest.id)
-        assert row[cols.index(S.COL_CANTIERE)] == ''
+        assert row[cols.index(S.COL_WORKSITE)] == ''
 
     def test_build_harvest_record_matches_generator(self, linked_harvest,
                                                     species, tractors,

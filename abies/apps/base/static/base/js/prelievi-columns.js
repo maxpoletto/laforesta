@@ -14,7 +14,7 @@ import { ROW_ID, VERSION } from './constants.js';
 /** Column definitions for the fixed digest columns. */
 export const STATIC_COLS = {
   [S.COL_DATE]:        { label: S.COL_DATE, type: 'date', width: '90px' },
-  [S.COL_COMPRESA]:    { label: S.COL_COMPRESA, width: '80px' },
+  [S.COL_REGION]:    { label: S.COL_REGION, width: '80px' },
   [S.COL_PARCEL]:      { label: S.COL_PARCEL, width: '70px' },
   [S.COL_CREW]:        { label: S.COL_CREW, width: '108px' },
   [S.COL_TYPE]:        { label: S.COL_TYPE, width: '120px' },
@@ -23,7 +23,7 @@ export const STATIC_COLS = {
   [S.COL_VOLUME_M3]:   { label: S.COL_VOLUME_M3, type: 'number', width: '70px', formatter: fmtDecimal2 },
   [S.COL_NOTE]:        { label: S.COL_NOTE, width: '110px' },
   [S.COL_EXTRA_NOTE]:  { label: S.COL_EXTRA_NOTE, width: '90px' },
-  [S.COL_CANTIERE]:    { label: S.COL_CANTIERE, hidden: true },
+  [S.COL_WORKSITE]:    { label: S.COL_WORKSITE, hidden: true },
   [VERSION]:           { label: VERSION, hidden: true },
 };
 

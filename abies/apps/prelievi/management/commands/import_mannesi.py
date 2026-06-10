@@ -93,8 +93,8 @@ class Command(BaseCommand):
         tractor_deferred: list[tuple[int, Tractor, int]] = []
 
         for i, row in enumerate(reader):
-            region_name = row[S.CSV_COL_COMPRESA]
-            parcel_name = row[S.CSV_COL_PARTICELLA]
+            region_name = row[S.CSV_COL_REGION]
+            parcel_name = row[S.CSV_COL_PARCEL]
             parcel = parcel_cache.get((region_name, parcel_name))
             if parcel is None:
                 self.stdout.write(

@@ -133,8 +133,8 @@ class Command(BaseCommand):
             # First pass: group rows by (region, parcel, area) → Sample.
             samples_by_key: dict[tuple, Sample] = {}
             for row in reader:
-                key = (row[S.CSV_COL_COMPRESA], row[S.CSV_COL_PARTICELLA],
-                       row[S.CSV_COL_AREA_SAGGIO].strip())
+                key = (row[S.CSV_COL_REGION], row[S.CSV_COL_PARCEL],
+                       row[S.CSV_COL_SAMPLE_AREA].strip())
                 if key in samples_by_key:
                     continue
                 sa = sample_area_cache.get(key)
@@ -147,10 +147,10 @@ class Command(BaseCommand):
 
             # Second pass: create Tree + TreeSample rows.
             for i, row in enumerate(reader, 1):
-                key = (row[S.CSV_COL_COMPRESA], row[S.CSV_COL_PARTICELLA],
-                       row[S.CSV_COL_AREA_SAGGIO].strip())
+                key = (row[S.CSV_COL_REGION], row[S.CSV_COL_PARCEL],
+                       row[S.CSV_COL_SAMPLE_AREA].strip())
                 parcel = parcel_cache.get(
-                    (row[S.CSV_COL_COMPRESA], row[S.CSV_COL_PARTICELLA]))
+                    (row[S.CSV_COL_REGION], row[S.CSV_COL_PARCEL]))
                 if parcel is None:
                     n_skipped_parcel += 1
                     continue
@@ -159,7 +159,7 @@ class Command(BaseCommand):
                     n_skipped_area += 1
                     continue
 
-                genere = row[S.CSV_COL_GENERE].strip()
+                genere = row[S.CSV_COL_SPECIES].strip()
                 mapped = GENERE_MAP.get(genere)
                 species = species_cache.get(mapped) if mapped else None
                 if species is None:
@@ -170,7 +170,7 @@ class Command(BaseCommand):
                 h_m = reader.decimal(row[S.CSV_COL_H_M_LEGACY]).quantize(
                     Decimal('0.01'), rounding=ROUND_HALF_UP)
                 l10_mm = reader.integer(row[S.CSV_COL_L10_MM_LEGACY]) or 0
-                fustaia = is_truthy(row[S.CSV_COL_FUSTAIA])
+                fustaia = is_truthy(row[S.CSV_COL_HIGHFOREST])
                 coppice = not fustaia
 
                 # Compute V via Tabacchi when species is known to Tabacchi;

@@ -59,13 +59,13 @@ from config.constants import (
     DATA_ID,
     DIGEST_FUTURE_PRODUCTION,
     FIELD_ACC_M,
-    FIELD_CEDUO_FILE,
+    FIELD_COPPICE_FILE,
     FIELD_D_CM,
     FIELD_DAMAGED,
     FIELD_DATE,
     FIELD_DESCRIPTION,
     FIELD_FILE,
-    FIELD_FUSTAIA_FILE,
+    FIELD_HIGHFOREST_FILE,
     FIELD_H_M,
     FIELD_H_MEASURED,
     FIELD_HARVEST_PLAN_ID,
@@ -83,7 +83,7 @@ from config.constants import (
     FIELD_PSR,
     FIELD_REGION_ID,
     FIELD_SPECIES_ID,
-    FIELD_TURNO_A,
+    FIELD_PERIOD_Y,
     FIELD_UNHEALTHY,
     FIELD_VOLUME_M3,
     FIELD_VOLUME_PLANNED_M3,
@@ -216,26 +216,25 @@ def plan_delete_view(request, plan_id: int):
 # exported plan zip round-trips through the importer.  `required` raises
 # a missing-column error pre-parse; `optional` keys are absent from row
 # dicts when the CSV doesn't carry them.
-_FUSTAIA_REQUIRED = {
-    'compresa':   [S.CSV_COL_COMPRESA],                          # 'Compresa'
-    'particella': [S.CSV_COL_PARTICELLA],                        # 'Particella'
-    'anno':       [S.COL_YEAR_PLANNED, S.CSV_COL_ANNO],          # 'Anno previsto' | 'Anno'
-    'prelievo':   [S.CSV_COL_PRELIEVO_M3, S.COL_VOLUME_PLANNED,
-                   S.CSV_COL_VOLUME_PLANNED_LEGACY],
+_HIGHFOREST_REQUIRED = {
+    'compresa':   [S.CSV_COL_REGION],
+    'particella': [S.CSV_COL_PARCEL],
+    'anno':       [S.COL_YEAR_PLANNED, S.CSV_COL_YEAR],
+    'prelievo':   [S.CSV_COL_HARVEST_M3, S.COL_VOLUME_PLANNED],
 }
-_FUSTAIA_OPTIONAL = {
+_HIGHFOREST_OPTIONAL = {
     # Holds the flag string ("Catastrofato" / "Fitosanitario" / "PSR")
     # in Abies exports; required for region-wide rows (Particella = 'X').
     'note':       [S.COL_NOTE],
 }
-_CEDUO_REQUIRED = {
-    'anno':       [S.COL_YEAR_PLANNED, S.CSV_COL_ANNO],
-    'compresa':   [S.CSV_COL_COMPRESA],
-    'particella': [S.CSV_COL_PARTICELLA],
-    'superficie': [S.CSV_COL_SUPERFICIE_HA],                     # 'Superficie intervento (ha)'
-    'turno':      [S.CSV_COL_TURNO_A],                           # 'Turno (a)'
+_COPPICE_REQUIRED = {
+    'anno':       [S.COL_YEAR_PLANNED, S.CSV_COL_YEAR],
+    'compresa':   [S.CSV_COL_REGION],
+    'particella': [S.CSV_COL_PARCEL],
+    'superficie': [S.CSV_COL_SURFACE_HA],                     # 'Superficie intervento (ha)'
+    'turno':      [S.CSV_COL_PERIOD_Y],                           # 'Turno (a)'
 }
-_CEDUO_OPTIONAL = {
+_COPPICE_OPTIONAL = {
     # In Abies exports: 'Altre note' = free-text, 'Note' = flag string.
     # In legacy pdg-2026 exports: only 'Note' is present and is itself
     # free-text — handled by checking `has_altre_note` at parse time.
@@ -284,16 +283,16 @@ def plan_csv_import_view(request):
             return validation_error([S.ERR_PLAN_NAME_DUPLICATE])
 
     try:
-        fustaia_upload = csv_io.json_file_bytes(body, FIELD_FUSTAIA_FILE)
-        ceduo_upload = csv_io.json_file_bytes(body, FIELD_CEDUO_FILE)
+        fustaia_upload = csv_io.json_file_bytes(body, FIELD_HIGHFOREST_FILE)
+        ceduo_upload = csv_io.json_file_bytes(body, FIELD_COPPICE_FILE)
     except csv_io.CsvError as e:
         return validation_error([str(e)])
 
     fustaia_rows = _read_optional(
-        fustaia_upload, _FUSTAIA_REQUIRED, _FUSTAIA_OPTIONAL,
+        fustaia_upload, _HIGHFOREST_REQUIRED, _HIGHFOREST_OPTIONAL,
     )
     ceduo_rows = _read_optional(
-        ceduo_upload, _CEDUO_REQUIRED, _CEDUO_OPTIONAL,
+        ceduo_upload, _COPPICE_REQUIRED, _COPPICE_OPTIONAL,
     )
     if fustaia_rows is None and ceduo_rows is None:
         return validation_error([S.ERR_CSV_NO_FILES])
@@ -355,7 +354,7 @@ def plan_csv_import_view(request):
             if ppd.harvest_detail.interval is not None
         }
         for r in ceduo_parsed:
-            interval = r[FIELD_TURNO_A]
+            interval = r[FIELD_PERIOD_Y]
             desc = f'{S.HARVEST_DETAIL} {interval}a'
             key = (desc, interval)
             hd = detail_cache.get(key)
@@ -455,16 +454,16 @@ def plan_export_view(request, plan_id: int):
     fustaia_buf, fustaia_w = csv_io.csv_buffer(delimiter)
     fustaia_w.writerow([
         S.COL_YEAR_PLANNED, S.COL_YEAR_ACTUAL,
-        S.COL_COMPRESA, S.COL_PARCEL, S.COL_STATE, S.COL_NOTE,
+        S.COL_REGION, S.COL_PARCEL, S.COL_STATE, S.COL_NOTE,
         S.COL_VOLUME_PLANNED, S.COL_VOLUME_MARKED, S.COL_VOLUME_ACTUAL,
     ])
 
     ceduo_buf, ceduo_w = csv_io.csv_buffer(delimiter)
     ceduo_w.writerow([
         S.COL_YEAR_PLANNED, S.COL_YEAR_ACTUAL,
-        S.COL_COMPRESA, S.COL_PARCEL, S.COL_STATE, S.COL_NOTE,
+        S.COL_REGION, S.COL_PARCEL, S.COL_STATE, S.COL_NOTE,
         S.COL_INTERVENTION_AREA_HA, S.COL_PARCEL_AREA_HA,
-        S.COL_TURNO_A, S.COL_VOLUME_ACTUAL, S.COL_EXTRA_NOTE,
+        S.COL_PERIOD_Y, S.COL_VOLUME_ACTUAL, S.COL_EXTRA_NOTE,
     ])
 
     for it in items:
@@ -506,8 +505,8 @@ def plan_export_view(request, plan_id: int):
     safe_name = _safe_filename(plan.name)
     return csv_io.zip_csv_response(
         [
-            (S.CSV_FILE_FUSTAIA, fustaia_buf.getvalue()),
-            (S.CSV_FILE_CEDUO, ceduo_buf.getvalue()),
+            (S.CSV_FILE_HIGHFOREST, fustaia_buf.getvalue()),
+            (S.CSV_FILE_COPPICE, ceduo_buf.getvalue()),
         ],
         f'piano_{safe_name}.zip',
     )
@@ -702,10 +701,10 @@ def item_export_view(request, item_id: int):
     delimiter, decimal_sep = csv_io.export_format()
     marks_buf, marks_w = csv_io.csv_buffer(delimiter)
     marks_w.writerow([
-        S.CSV_COL_DATA, S.CSV_COL_COMPRESA, S.CSV_COL_PARTICELLA,
-        S.CSV_COL_CATASTROFATA, S.CSV_COL_NUMERO, S.CSV_COL_GENERE,
+        S.CSV_COL_DATA, S.CSV_COL_REGION, S.CSV_COL_PARCEL,
+        S.CSV_COL_DAMAGED, S.CSV_COL_NUMBER, S.CSV_COL_SPECIES,
         S.CSV_COL_D_CM, S.CSV_COL_H_M, S.CSV_COL_H_MEASURED,
-        S.CSV_COL_LAT, S.CSV_COL_LON, S.CSV_COL_ACC_M, S.CSV_COL_OPERATORE,
+        S.CSV_COL_LAT, S.CSV_COL_LON, S.CSV_COL_ACC_M, S.CSV_COL_OPERATOR,
     ])
     marks_qs = (TreeMark.objects
                 .filter(harvest_plan_item=item)
@@ -745,7 +744,7 @@ def item_export_view(request, item_id: int):
 
     prelievi_buf, prelievi_w = csv_io.csv_buffer(delimiter)
     prelievi_w.writerow(
-        [S.CSV_COL_DATA, S.CSV_COL_COMPRESA, S.CSV_COL_PARTICELLA,
+        [S.CSV_COL_DATA, S.CSV_COL_REGION, S.CSV_COL_PARCEL,
          S.CSV_COL_CREW, S.CSV_COL_VDP, S.CSV_COL_PRODUCT,
          S.CSV_COL_QUINTALS, S.CSV_COL_NOTE, S.CSV_COL_EXTRA_NOTE]
         + [sn for _, sn in species_list]
@@ -1174,19 +1173,19 @@ def mark_csv_import_view(request):
 
     result = _read_optional(upload, required={
         'date':      [S.CSV_COL_DATA],
-        'compresa':  [S.CSV_COL_COMPRESA],
-        'particella': [S.CSV_COL_PARTICELLA],
-        'species':   [S.CSV_COL_GENERE],
+        'compresa':  [S.CSV_COL_REGION],
+        'particella': [S.CSV_COL_PARCEL],
+        'species':   [S.CSV_COL_SPECIES],
         'd_cm':      [S.CSV_COL_D_CM],
         'h_m':       [S.CSV_COL_H_M],
     }, optional={
-        'catastrofata': [S.CSV_COL_CATASTROFATA],
-        'numero':    [S.CSV_COL_NUMERO],
+        'catastrofata': [S.CSV_COL_DAMAGED],
+        'numero':    [S.CSV_COL_NUMBER],
         'h_measured': [S.CSV_COL_H_MEASURED],
         'lat':       [S.CSV_COL_LAT],
         'lon':       [S.CSV_COL_LON],
         'acc_m':     [S.CSV_COL_ACC_M],
-        'operator':  [S.CSV_COL_OPERATORE],
+        'operator':  [S.CSV_COL_OPERATOR],
     })
     if isinstance(result, _CsvError):
         return validation_error([result.message])
@@ -1492,7 +1491,7 @@ def _parse_fustaia_rows(data, parcel_cache, region_cache, errors):
         year = data.reader.integer(row.get('anno'))
         if year is None:
             errors.append(S.ERR_CSV_VALUE_PARSE.format(
-                i, S.CSV_COL_ANNO, row.get('anno', ''),
+                i, S.CSV_COL_YEAR, row.get('anno', ''),
             ))
             continue
         prelievo = data.reader.decimal(row.get('prelievo'))
@@ -1531,7 +1530,7 @@ def _parse_ceduo_rows(data, parcel_cache, errors):
         area = data.reader.decimal(row.get('superficie'))
         if year is None or interval is None:
             errors.append(S.ERR_CSV_VALUE_PARSE.format(
-                i, S.CSV_COL_TURNO_A, row.get('turno', ''),
+                i, S.CSV_COL_PERIOD_Y, row.get('turno', ''),
             ))
             continue
         if has_altre_note:
@@ -1547,7 +1546,7 @@ def _parse_ceduo_rows(data, parcel_cache, errors):
             FIELD_PARCEL_ID: parcel,
             FIELD_YEAR_PLANNED: year,
             FIELD_INTERVENTION_AREA_HA: area,
-            FIELD_TURNO_A: interval,
+            FIELD_PERIOD_Y: interval,
             FIELD_NOTE: free_note,
             FIELD_DAMAGED:   damaged,
             FIELD_UNHEALTHY: unhealthy,

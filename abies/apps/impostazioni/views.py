@@ -627,8 +627,8 @@ def _hypso_export_response(params):
     delimiter, decimal = csv_io.export_format()
     buf, writer = csv_io.csv_buffer(delimiter)
     writer.writerow([
-        S.CSV_COL_COMPRESA.lower(), S.CSV_COL_GENERE.lower(),
-        S.CSV_COL_FUNZIONE, S.CSV_COL_A, S.CSV_COL_B,
+        S.CSV_COL_REGION.lower(), S.CSV_COL_SPECIES.lower(),
+        S.CSV_COL_FUNCTION, S.CSV_COL_A, S.CSV_COL_B,
         S.CSV_COL_N_REGRESSION, S.CSV_COL_R2,
     ])
     for p in params:

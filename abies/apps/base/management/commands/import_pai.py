@@ -88,13 +88,13 @@ class Command(BaseCommand):
             n_skipped = 0
             for i, row in enumerate(reader, 1):
                 parcel = parcel_cache.get(
-                    (row[S.CSV_COL_COMPRESA], row[S.CSV_COL_PARTICELLA])
+                    (row[S.CSV_COL_REGION], row[S.CSV_COL_PARCEL])
                 )
                 if parcel is None:
                     n_skipped += 1
                     continue
 
-                mapped = GENERE_MAP.get(row[S.CSV_COL_GENERE].strip(), 'Altro')
+                mapped = GENERE_MAP.get(row[S.CSV_COL_SPECIES].strip(), 'Altro')
                 species = species_cache.get(mapped)
                 if species is None:
                     n_skipped += 1

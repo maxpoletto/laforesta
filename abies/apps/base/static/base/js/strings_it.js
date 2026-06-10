@@ -194,23 +194,23 @@ export const CSV_EXTRA_ERRORS = (n) => `… +${n} altri errori`;
 export const REMOVE_POLLONE = 'Rimuovi';
 
 // CSV column headers for round-trip import/export (mirror config/strings_it.py).
-export const CSV_COL_COMPRESA    = 'Compresa';
-export const CSV_COL_PARTICELLA  = 'Particella';
-export const CSV_COL_AREA_SAGGIO = 'Area saggio';
-export const CSV_COL_LON         = 'Lon';
-export const CSV_COL_LAT         = 'Lat';
-export const CSV_COL_QUOTA       = 'Quota';
-export const CSV_COL_RAGGIO      = 'Raggio';
-export const CSV_COL_ALBERO      = 'Albero';
-export const CSV_COL_POLLONE     = 'Pollone';
-export const CSV_COL_MATRICINA   = 'Matricina';
-export const CSV_COL_D_CM        = 'D_cm';
-export const CSV_COL_H_M         = 'H_m';
-export const CSV_COL_L10_MM      = 'L10_mm';
-export const CSV_COL_GENERE      = 'Genere';
-export const CSV_COL_FUSTAIA     = 'Fustaia';
-export const CSV_COL_DATA        = 'Data';
-export const CSV_COL_PAI         = 'PAI';
+export const CSV_COL_REGION        = 'Compresa';
+export const CSV_COL_PARTICELLA    = 'Particella';
+export const CSV_COL_AREA_SAGGIO   = 'Area saggio';
+export const CSV_COL_LON           = 'Lon';
+export const CSV_COL_LAT           = 'Lat';
+export const CSV_COL_ALT           = 'Quota';
+export const CSV_COL_RADIUS        = 'Raggio';
+export const CSV_COL_ALBERO        = 'Albero';
+export const CSV_COL_COPPICE_SHOOT = 'Pollone';
+export const CSV_COL_COPPICE_STD   = 'Matricina';
+export const CSV_COL_D_CM          = 'D_cm';
+export const CSV_COL_H_M           = 'H_m';
+export const CSV_COL_L10_MM        = 'L10_mm';
+export const CSV_COL_GENERE        = 'Genere';
+export const CSV_COL_HIGHFOREST    = 'Fustaia';
+export const CSV_COL_DATA          = 'Data';
+export const CSV_COL_PRESERVED     = 'PAI';
 
 // CSV export filenames for the symmetric "Esporta CSV" buttons on
 // the Griglie + Rilevamenti pulldown rows (mirror the import column shape).
@@ -256,7 +256,7 @@ export const BOSCO_OPEN_BOSCOSCOPIO = 'Apri Boscoscopio';
 // These are looked up against the JSON digest `columns` array and used
 // as keys / labels in `TREES_COLS` for the sortable-table column config.
 export const COL_NAME            = 'Nome';
-export const COL_COMPRESA        = 'Compresa';
+export const COL_REGION          = 'Compresa';
 export const COL_DESCRIPTION     = 'Descrizione';
 export const COL_N_AREAS         = 'N. aree';
 export const COL_REGIONS         = 'Comprese';
@@ -270,8 +270,8 @@ export const COL_DATE_FIRST      = 'Data primo';
 export const COL_DATE_LAST       = 'Data ultimo';
 export const COL_LAT             = 'Lat';
 export const COL_LON             = 'Lon';
-export const COL_QUOTA           = 'Alt. (m)';
-export const COL_RAGGIO          = 'Raggio (m)';
+export const COL_ALT             = 'Alt. (m)';
+export const COL_RADIUS          = 'Raggio (m)';
 export const COL_SURVEY          = 'Rilevamento';
 export const COL_SAMPLE_AREA     = 'Area di saggio';
 export const COL_N_TREES         = 'N. alberi';
@@ -279,20 +279,20 @@ export const COL_SAMPLE_DATE     = 'Data campione';
 export const COL_AREA_NUM        = 'N. area';
 export const COL_TREE_NUM        = 'N. albero';
 export const COL_SPECIES         = 'Specie';
-export const COL_POLLONE         = 'Pollone';
-export const COL_MATRICINA       = 'Matricina';
+export const COL_COPPICE_SHOOT   = 'Pollone';
+export const COL_COPPICE_STD     = 'Matricina';
 export const COL_D_CM            = 'D (cm)';
 export const COL_H_M             = 'h (m)';
 export const COL_L10_MM          = 'L10 (mm)';
 export const COL_V_M3            = 'V (m³)';
 export const COL_MASS_Q          = 'm (q)';
-export const COL_PAI             = 'PAI';
+export const COL_PRESERVED       = 'PAI';
 
 // Abbreviated column labels used only in the TREES_COLS table header to
 // save horizontal space; not in any digest.
-export const COL_TREE_NUM_SHORT  = 'N. alb.';
-export const COL_POLLONE_SHORT   = 'Poll.';
-export const COL_MATRICINA_SHORT = 'Mat.';
+export const COL_TREE_NUM_SHORT      = 'N. alb.';
+export const COL_COPPICE_SHOOT_SHORT = 'Poll.';
+export const COL_COPPICE_STD_SHORT   = 'Mat.';
 
 // Status message fragments
 export const STATUS_NO_SAMPLES = 'nessun campione';
@@ -336,8 +336,8 @@ export const FLAG_UNHEALTHY   = 'Fitosanitario';
 export const FLAG_PSR         = 'PSR';
 
 // Type-of-intervention labels for the COL_TYPE column.
-export const TYPE_FUSTAIA = 'fustaia';
-export const TYPE_CEDUO   = 'ceduo';
+export const TYPE_HIGHFOREST = 'fustaia';
+export const TYPE_COPPICE    = 'ceduo';
 
 // Plan-selector header (top of the Piano di taglio page).
 export const LABEL_HARVEST_PLAN = 'Piano di taglio';
@@ -353,7 +353,7 @@ export const ERR_CSV_FILE_REQUIRED    = 'File CSV obbligatorio.';
 export const EDIT_PLAN_TITLE          = 'Modifica piano';
 export const TAB_DETAILS    = 'Dettagli';
 export const EDIT_PLAN_TAB_CALENDAR   = 'Importa calendario da CSV';
-export const EDIT_PLAN_CHECKBOX_CEDUO = 'File contiene il calendario ceduo';
+export const EDIT_PLAN_CHECKBOX_COPPICE = 'File contiene il calendario ceduo';
 export const LABEL_CSV_FILE           = 'File CSV';
 export const IMPORT_LABEL             = 'Importa';
 
@@ -383,9 +383,9 @@ export const COL_VOLUME_MARKED        = 'Volume martellato (m³)';
 export const COL_VOLUME_ACTUAL        = 'Volume effettivo (m³)';
 export const COL_INTERVENTION_AREA_HA = 'Superficie intervento (ha)';
 export const COL_PARCEL_AREA_HA       = 'Superficie totale (ha)';
-export const COL_TURNO_A              = 'Turno (a)';
+export const COL_PERIOD_Y             = 'Turno (a)';
 export const COL_OPERATOR             = 'Operatore';
-export const COL_NUMERO               = 'Numero';
+export const COL_NUMBER               = 'Numero';
 export const COL_H_MEASURED           = 'h misurata';
 export const COL_FUNCTION             = 'funzione';
 export const COL_A                    = 'a';
@@ -395,17 +395,17 @@ export const COL_N_REGRESSION         = 'n';
 export const COL_DENSITY              = 'Densità (q/m³)';
 
 // View/edit-item page.
-export const VIEW_ITEM_TITLE     = 'Intervento';
-export const LABEL_OPEN_CANTIERE    = 'Apri cantiere';
-export const LABEL_CLOSE_CANTIERE   = 'Chiudi cantiere';
-export const LABEL_CANTIERE_OPENED   = 'Apertura cantiere';
-export const LABEL_CANTIERE_CLOSED   = 'Chiusura cantiere';
-export const ERR_DATE_REQUIRED    = 'Data obbligatoria.';
-export const SECTION_PRELIEVI     = 'Prelievi';
-export const SECTION_MARTELLATA   = 'Martellate';
-export const LABEL_VOLUME_TOTAL   = 'Volume totale';
-export const LABEL_MASS_TOTAL     = 'Massa totale';
-export const COL_CANTIERE         = 'Cantiere';
+export const VIEW_ITEM_TITLE       = 'Intervento';
+export const LABEL_OPEN_WORKSITE   = 'Apri cantiere';
+export const LABEL_CLOSE_WORKSITE  = 'Chiudi cantiere';
+export const LABEL_WORKSITE_OPENED = 'Apertura cantiere';
+export const LABEL_WORKSITE_CLOSED = 'Chiusura cantiere';
+export const ERR_DATE_REQUIRED     = 'Data obbligatoria.';
+export const SECTION_HARVESTS      = 'Prelievi';
+export const SECTION_MARK          = 'Martellate';
+export const LABEL_VOLUME_TOTAL    = 'Volume totale';
+export const LABEL_MASS_TOTAL      = 'Massa totale';
+export const COL_WORKSITE          = 'Cantiere';
 
 // Marks (tree-mark CRUD + CSV import in the per-item modal).
 export const NEW_MARK_LABEL       = '+ Nuovo albero';
@@ -426,12 +426,7 @@ export const ERR_OPERATOR_REQUIRED = 'Operatore obbligatorio.';
 export const MARK_NULL_VOLUME_NOTE =
   'volume e massa non calcolati per alcune specie rare';
 
-// CSV export filenames (per-plan zip + per-item zip; see piano-di-taglio.md).
-export const CSV_PIANO       = 'piano.csv';
-export const CSV_CEDUO       = 'ceduo.csv';
-export const CSV_EQUAZIONI   = 'equazioni_ipsometro.csv';
 // Per-item exports use the item id; constants here are filename prefixes
 // (the JS code appends `<id>.csv`).
-export const CSV_MARTELLATE_PREFIX = 'martellate_';
-export const CSV_PRELIEVI_PREFIX   = 'prelievi_';
-
+export const CSV_MARKS_PREFIX    = 'martellate_';
+export const CSV_HARVESTS_PREFIX = 'prelievi_';

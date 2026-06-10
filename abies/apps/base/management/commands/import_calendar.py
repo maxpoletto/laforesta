@@ -74,15 +74,15 @@ class Command(BaseCommand):
             reader = csv_io.read(f.read())
             for row in reader:
                 parcel = parcel_cache.get(
-                    (row[S.CSV_COL_COMPRESA], row[S.CSV_COL_PARTICELLA])
+                    (row[S.CSV_COL_REGION], row[S.CSV_COL_PARCEL])
                 )
                 if parcel is None:
                     continue
                 HarvestPlanItem.objects.create(
                     harvest_plan=plan,
                     parcel=parcel,
-                    year_planned=reader.integer(row[S.CSV_COL_ANNO]),
-                    volume_planned_m3=reader.decimal(row[S.CSV_COL_PRELIEVO_M3]),
+                    year_planned=reader.integer(row[S.CSV_COL_YEAR]),
+                    volume_planned_m3=reader.decimal(row[S.CSV_COL_HARVEST_M3]),
                 )
                 n += 1
         return n
@@ -93,16 +93,16 @@ class Command(BaseCommand):
             reader = csv_io.read(f.read())
             for row in reader:
                 parcel = parcel_cache.get(
-                    (row[S.CSV_COL_COMPRESA], row[S.CSV_COL_PARTICELLA])
+                    (row[S.CSV_COL_REGION], row[S.CSV_COL_PARCEL])
                 )
                 if parcel is None:
                     continue
                 HarvestPlanItem.objects.create(
                     harvest_plan=plan,
                     parcel=parcel,
-                    year_planned=reader.integer(row[S.CSV_COL_ANNO]),
+                    year_planned=reader.integer(row[S.CSV_COL_YEAR]),
                     intervention_area_ha=reader.decimal(
-                        row[S.CSV_COL_SUPERFICIE_HA]
+                        row[S.CSV_COL_SURFACE_HA]
                     ),
                     note=row.get(S.CSV_COL_NOTE, '').strip(),
                 )

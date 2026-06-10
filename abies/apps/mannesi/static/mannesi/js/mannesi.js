@@ -496,7 +496,7 @@ function drawSlip(doc, x, y, w, h, number, plate) {
 }
 
 function drawRegionOptions(doc, left, right, y, regions) {
-  doc.text(left, y, S.COL_COMPRESA, { size: 9, bold: true });
+  doc.text(left, y, S.COL_REGION, { size: 9, bold: true });
   const startX = left + 55;
   const step = regions.length > 1 ? (right - startX - 52) / (regions.length - 1) : 0;
   regions.forEach((name, i) => {
@@ -650,7 +650,7 @@ function drawHarvestDetail(doc, receipt, x, y, month) {
   y += 18;
   const species = meta.species || [];
   const headers = [
-    S.COL_DATE, S.COL_COMPRESA, S.COL_PARCEL, S.COL_VDP, S.COL_TYPE, S.COL_QUINTALS, S.COL_NOTE,
+    S.COL_DATE, S.COL_REGION, S.COL_PARCEL, S.COL_VDP, S.COL_TYPE, S.COL_QUINTALS, S.COL_NOTE,
     ...species.map(s => `${s} ${S.LABEL_PERCENT}`),
   ];
   const widths = receiptTableWidths(doc, species.length);
@@ -668,7 +668,7 @@ function drawHarvestDetail(doc, receipt, x, y, month) {
     const c = receipt.columns;
     const note = [row[c[S.COL_NOTE]], row[c[S.COL_EXTRA_NOTE]]].filter(Boolean).join('; ');
     const fields = [
-      row[c[S.COL_DATE]], row[c[S.COL_COMPRESA]], row[c[S.COL_PARCEL]],
+      row[c[S.COL_DATE]], row[c[S.COL_REGION]], row[c[S.COL_PARCEL]],
       row[c[S.COL_VDP]], row[c[S.COL_TYPE]], fmtDecimal1(row[c[S.COL_QUINTALS]]),
       note,
       ...species.map(s => formatMaybe(row[c[`${s} %`]])),

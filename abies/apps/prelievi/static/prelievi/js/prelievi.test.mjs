@@ -259,7 +259,7 @@ const { ROW_ID, VERSION } = await import(staticModule('base/js/constants.js'));
 
 const digest = {
   columns: [
-    ROW_ID, S.COL_DATE, S.COL_COMPRESA, S.COL_PARCEL, S.COL_CREW,
+    ROW_ID, S.COL_DATE, S.COL_REGION, S.COL_PARCEL, S.COL_CREW,
     S.COL_TYPE, S.COL_QUINTALS, S.COL_VOLUME_M3, S.COL_NOTE, VERSION,
     'Abete', 'Tractor One',
   ],

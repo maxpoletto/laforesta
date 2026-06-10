@@ -88,8 +88,8 @@ class Command(BaseCommand):
             n_skipped = 0
             collisions = []
             for i, row in enumerate(reader, 1):
-                region_name = row[S.CSV_COL_COMPRESA]
-                parcel_name = row[S.CSV_COL_PARTICELLA]
+                region_name = row[S.CSV_COL_REGION]
+                parcel_name = row[S.CSV_COL_PARCEL]
                 parcel = parcel_cache.get((region_name, parcel_name))
                 if parcel is None:
                     self.stdout.write(
@@ -98,7 +98,7 @@ class Command(BaseCommand):
                     )
                     n_skipped += 1
                     continue
-                number = row[S.CSV_COL_AREA_SAGGIO].strip()
+                number = row[S.CSV_COL_SAMPLE_AREA].strip()
                 key = (parcel.region_id, number)
                 if owner.setdefault(key, parcel.id) != parcel.id:
                     collisions.append(
@@ -111,7 +111,7 @@ class Command(BaseCommand):
                     defaults={
                         FIELD_LAT: coord_float(reader.decimal(row[S.CSV_COL_LAT])),
                         FIELD_LON: coord_float(reader.decimal(row[S.CSV_COL_LON])),
-                        FIELD_ALTITUDE_M: reader.integer(row[S.CSV_COL_QUOTA]),
+                        FIELD_ALTITUDE_M: reader.integer(row[S.CSV_COL_ALT]),
                         FIELD_R_M: DEFAULT_RADIUS_M,
                         FIELD_NOTE: '',
                     },

@@ -16,7 +16,7 @@ import { parseDecimal, fmtDecimal } from './format.js';
 export const ID_D_CM      = 'tf-d-cm';
 export const ID_H_M       = 'tf-h-m';
 export const ID_SPECIES   = 'tf-species';
-export const ID_CEDUO     = 'tf-ceduo';
+export const ID_COPPICE     = 'tf-ceduo';
 export const ID_PREVIEW   = 'tf-vm-preview';
 export const ID_VOLUME    = 'tf-volume-m3';
 export const ID_MASS      = 'tf-mass-q';
