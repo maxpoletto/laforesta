@@ -560,8 +560,9 @@ function generateReceiptsPDF(month, receipts) {
   doc.save(`ricevute-mannesi-${month}.pdf`);
 }
 
+const margin = 34;
 function drawReceipt(doc, month, receipt) {
-  const margin = 34, col1 = margin, col2 = margin + 150;
+  const col1 = margin, col2 = margin + 150;
   let y = 32;
   doc.text(col1, y, `Squadra ${receipt.crew}`, { size: 14, bold: true });
   y += 22;
@@ -596,7 +597,7 @@ function drawHarvestDetail(doc, receipt, x, y, month) {
   y += 18;
   const species = meta.species || [];
   const headers = ['Data', 'Compresa', 'Particella', 'VDP', 'Tipo', 'Q.li', 'Note', ...species.map(s => `${s} %`)];
-  const widths = receiptTableWidths(doc, x, species.length);
+  const widths = receiptTableWidths(doc, species.length);
   y = drawTableRow(doc, x, y, headers, widths, true);
 
   for (const row of receipt.harvests) {
@@ -620,19 +621,15 @@ function drawHarvestDetail(doc, receipt, x, y, month) {
   return y;
 }
 
-function receiptTableWidths(doc, x, speciesCount) {
-  const available = doc.width - x - 34;
-  const base = [54, 64, 56, 34, 78, 38];
+function receiptTableWidths(doc, speciesCount) {
+  const available = doc.width - 2 * margin;
+  const base = [50, 50, 40, 30, 60, 30, 80];
   const baseTotal = base.reduce((a, b) => a + b, 0);
   let speciesWidth = speciesCount
-    ? Math.max(24, Math.min(40, Math.floor((available - baseTotal - 120) / speciesCount)))
+    ? Math.max(30, Math.min(60, Math.floor((available - baseTotal) / speciesCount)))
     : 0;
-  let noteWidth = available - baseTotal - speciesCount * speciesWidth;
-  if (speciesCount && noteWidth < 72) {
-    speciesWidth = Math.max(18, Math.floor((available - baseTotal - 72) / speciesCount));
-    noteWidth = available - baseTotal - speciesCount * speciesWidth;
-  }
-  return [...base, Math.max(48, noteWidth), ...Array.from({ length: speciesCount }, () => speciesWidth)];
+  console.log(speciesWidth);
+  return [...base, ...Array.from({ length: speciesCount }, () => speciesWidth)];
 }
 
 function drawTableRow(doc, x, y, fields, widths, bold) {
@@ -644,7 +641,7 @@ function drawTableRow(doc, x, y, fields, widths, bold) {
     xx += widths[i];
   }
   y += rowHeight;
-  if (bold) doc.line(x, y - 4, x + widths.reduce((a, b) => a + b, 0), y - 4);
+  if (bold) doc.line(x, y-8, x + widths.reduce((a, b) => a + b, 0), y-8);
   return y;
 }
 
