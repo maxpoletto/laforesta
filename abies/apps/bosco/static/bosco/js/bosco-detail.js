@@ -2,12 +2,8 @@ import * as S from '../../base/js/strings.js';
 import {
   COL_PARCEL_ID, COL_SPECIES_ID, ROWS,
 } from '../../base/js/constants.js';
+import { CHART_COLORS } from '../../base/js/charts.js';
 import { columnMap, toNumber } from '../../base/js/digests.js';
-
-const CHART_COLORS = [
-  '#2f8f58', '#1565c0', '#d7aa27', '#8d3f86', '#c94f4f',
-  '#00838f', '#6b7f2a', '#6d4c41', '#546e7a', '#ad5a7a',
-];
 
 const HEIGHT_FIT_MIN_N = 5;
 
@@ -224,7 +220,7 @@ export function dendrometryScatterChartData(points, yTitle, { minFitN = HEIGHT_F
       });
     }
   }
-  return { yTitle, datasets };
+  return { xTitle: S.COL_D_CM, yTitle, datasets };
 }
 
 

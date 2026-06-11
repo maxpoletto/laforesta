@@ -1,20 +1,14 @@
 /**
- * Prelievi chart aggregation and rendering.
+ * Prelievi chart aggregation.
  *
  * All functions operate on digest rows filtered by the caller.
- * Charts use Chart.js stacked bar configuration.
+ * Rendering lives in base/js/charts.js.
  */
 
 import * as S from '../../base/js/strings.js';
-import { fmtDecimal1 } from '../../base/js/format.js';
+import { CHART_COLORS } from '../../base/js/charts.js';
 
 const MAX_SERIES = 12;
-
-const COLORS = [
-  '#2e7d32', '#1565c0', '#e65100', '#6a1b9a', '#c62828',
-  '#00838f', '#827717', '#4e342e', '#37474f', '#ad1457',
-  '#558b2f', '#0277bd',
-];
 
 // ---------------------------------------------------------------------------
 // Aggregation
@@ -94,55 +88,9 @@ export function aggregateSpeciesByParcel(rows, colMap, speciesCols) {
     datasets: active.map((sp, i) => ({
       label: sp,
       data: entries.map(p => _r1(p.sps[sp] || 0)),
-      backgroundColor: COLORS[i % COLORS.length],
+      backgroundColor: CHART_COLORS[i % CHART_COLORS.length],
     })),
   };
-}
-
-// ---------------------------------------------------------------------------
-// Rendering
-// ---------------------------------------------------------------------------
-
-/**
- * Create a new Chart.js stacked bar, or update an existing one in place.
- * Returns the Chart instance.
- */
-export function renderStackedBar(canvas, chartData, existing) {
-  const yTitle = chartData.yTitle || S.COL_QUINTALS;
-  if (existing) {
-    existing.data.labels = chartData.labels;
-    existing.data.datasets = chartData.datasets;
-    if (existing.options?.scales?.y?.title) existing.options.scales.y.title.text = yTitle;
-    existing.update('none');
-    return existing;
-  }
-
-  return new window.Chart(canvas, {
-    type: 'bar',
-    data: { labels: chartData.labels, datasets: chartData.datasets },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      animation: { duration: 300 },
-      scales: {
-        x: { stacked: true },
-        y: {
-          stacked: true, beginAtZero: true,
-          title: { display: true, text: yTitle },
-        },
-      },
-      plugins: {
-        legend: { position: 'bottom' },
-        tooltip: {
-          animation: false,
-          callbacks: {
-            label: ctx =>
-              `${ctx.dataset.label}: ${fmtDecimal1(ctx.raw)}`,
-          },
-        },
-      },
-    },
-  });
 }
 
 // ---------------------------------------------------------------------------
@@ -171,7 +119,7 @@ function _aggregateByBucket(rows, dateIdx, qIdx, bucket, dimFn) {
     datasets: dims.map((dim, i) => ({
       label: dim,
       data: labels.map(k => _r1(buckets[k]?.[dim] || 0)),
-      backgroundColor: COLORS[i % COLORS.length],
+      backgroundColor: CHART_COLORS[i % CHART_COLORS.length],
     })),
   };
 }
@@ -195,7 +143,7 @@ function _aggregateColumnsByBucket(rows, dateIdx, colMap, bucket, colNames) {
     datasets: active.map((name, i) => ({
       label: name,
       data: labels.map(k => _r1(buckets[k]?.[name] || 0)),
-      backgroundColor: COLORS[i % COLORS.length],
+      backgroundColor: CHART_COLORS[i % CHART_COLORS.length],
     })),
   };
 }

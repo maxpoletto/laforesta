@@ -8,12 +8,13 @@ import {
   COLUMNS, COL_REGION_ID, DIGEST_FUTURE_PRODUCTION, DIGEST_PARCEL_DENDROMETRY,
   DIGEST_PARCEL_DENDROMETRY_POINTS, DIGEST_PRESERVED_TREES, ROWS,
 } from '../../base/js/constants.js';
+import { fetchJSON } from '../../base/js/api.js';
+import { renderLineChart, renderScatterChart, renderStackedBar } from '../../base/js/charts.js';
 import { fmtArea, fmtDecimal1, fmtDecimal2, fmtInt, fmtMass, fmtVolume } from '../../base/js/format.js';
 import { cloneTemplate } from '../../base/js/templates.js';
 import { findContainingParcel, sortFeaturesByArea, parcelNames } from '../../base/js/geo.js';
 import { PARCEL_STYLE, ParcelMap } from '../../base/js/parcel-map.js';
 import { createPage, navigateWithParams } from '../../base/js/page-sync.js';
-import { renderStackedBar } from '../../prelievi/js/charts.js';
 import {
   deleteRowWithVersion, fetchModalForm, interceptSubmit, renderModalForm,
   showFormError,
@@ -898,8 +899,8 @@ function loadSatellite(regionId) {
     satelliteRegionId = regionId;
     satelliteData = null;
     satelliteLoad = Promise.all([
-      fetchJSON(`/api/bosco/satellite/${regionId}/manifest/`),
-      fetchJSON(`/api/bosco/satellite/${regionId}/timeseries/`),
+      fetchJSON(`/api/bosco/satellite/${regionId}/manifest/`).then(result => result.data),
+      fetchJSON(`/api/bosco/satellite/${regionId}/timeseries/`).then(result => result.data),
     ]).then(([manifest, timeseries]) => {
       if (satelliteRegionId !== requestedRegionId) return null;
       satelliteData = { manifest, timeseries };
@@ -913,12 +914,6 @@ function loadSatellite(regionId) {
 
 function satelliteReady(regionId) {
   return satelliteData && satelliteRegionId === regionId;
-}
-
-async function fetchJSON(url) {
-  const resp = await fetch(url);
-  if (!resp.ok) throw new Error(`GET ${url} failed: ${resp.status}`);
-  return resp.json();
 }
 
 function satelliteValueStyle(value) {
@@ -1436,65 +1431,6 @@ function renderDendrometryCharts(rows, rawRows, heightPoints) {
     dendrometryLineChartData(rows, 'incrementPct', S.COL_INCREMENT_PCT),
     dendrometryCharts.increment,
   );
-}
-
-function renderScatterChart(canvas, chartData, existing) {
-  if (!canvas) return existing || null;
-  if (existing) {
-    existing.data.datasets = chartData.datasets;
-    if (existing.options?.scales?.y?.title) existing.options.scales.y.title.text = chartData.yTitle;
-    existing.update('none');
-    return existing;
-  }
-
-  return new window.Chart(canvas, {
-    type: 'scatter',
-    data: { datasets: chartData.datasets },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      animation: { duration: 300 },
-      scales: {
-        x: {
-          beginAtZero: true,
-          title: { display: true, text: S.COL_D_CM },
-        },
-        y: {
-          beginAtZero: true,
-          title: { display: true, text: chartData.yTitle },
-        },
-      },
-      plugins: { legend: { position: 'bottom' } },
-    },
-  });
-}
-
-function renderLineChart(canvas, chartData, existing) {
-  if (!canvas) return existing || null;
-  if (existing) {
-    existing.data.labels = chartData.labels;
-    existing.data.datasets = chartData.datasets;
-    if (existing.options?.scales?.y?.title) existing.options.scales.y.title.text = chartData.yTitle;
-    existing.update('none');
-    return existing;
-  }
-
-  return new window.Chart(canvas, {
-    type: 'line',
-    data: { labels: chartData.labels, datasets: chartData.datasets },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      animation: { duration: 300 },
-      scales: {
-        y: {
-          beginAtZero: true,
-          title: { display: true, text: chartData.yTitle },
-        },
-      },
-      plugins: { legend: { position: 'bottom' } },
-    },
-  });
 }
 
 function destroyDendrometryCharts() {

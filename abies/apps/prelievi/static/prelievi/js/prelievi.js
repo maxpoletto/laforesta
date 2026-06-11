@@ -12,6 +12,7 @@ import {
 } from '../../base/js/ui-widgets.js';
 import { canModify } from '../../base/js/roles.js';
 import { postJSON } from '../../base/js/api.js';
+import { renderStackedBar } from '../../base/js/charts.js';
 import { dismiss as dismissModal, onDismiss } from '../../base/js/modals.js';
 import { columnMap } from '../../base/js/digests.js';
 import { createRangeSlider } from '../../base/js/range-slider.js';
@@ -24,7 +25,7 @@ import { STATIC_COLS, buildPrelieviColumnDefs }
   from '../../base/js/prelievi-columns.js';
 import { matchesSearch } from '../../base/js/table.js';
 import {
-  aggregateTimeSeries, aggregateSpeciesByParcel, renderStackedBar,
+  aggregateTimeSeries, aggregateSpeciesByParcel,
 } from './charts.js';
 import { cloneTemplate } from '../../base/js/templates.js';
 import {
