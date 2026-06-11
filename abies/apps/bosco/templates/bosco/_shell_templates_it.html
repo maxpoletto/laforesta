@@ -65,8 +65,10 @@ Static Italian text lives here; JS wires controls and fills dynamic data.
             <option value="4">Prelievo</option>
           </select>
           <div class="bosco-date-row">
-            <label>Da <input type="month" data-role="date1"></label>
-            <label>A <input type="month" data-role="date2"></label>
+            <label for="bosco-evolution-date1">Da</label>
+            <select id="bosco-evolution-date1" data-role="date1"></select>
+            <label for="bosco-evolution-date2">A</label>
+            <select id="bosco-evolution-date2" data-role="date2"></select>
           </div>
           <label class="bosco-check"><input type="checkbox" data-role="parcel-average-toggle"> Media per particella</label>
           <label class="bosco-check"><input type="checkbox" data-role="evolution-cadastral-toggle"> Aree catastali</label>

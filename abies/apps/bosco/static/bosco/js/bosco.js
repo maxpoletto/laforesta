@@ -530,19 +530,34 @@ function updateEvolutionControls(state) {
 }
 
 function updateEvolutionDateControls(date1, date2, dates = null) {
-  if (date1Input) date1Input.value = monthValue(date1);
-  if (date2Input) date2Input.value = monthValue(date2);
   const months = availableMonths(dates || []);
-  for (const input of [date1Input, date2Input]) {
-    if (!input) continue;
-    if (months.length) {
-      input.min = months[0];
-      input.max = months[months.length - 1];
-    } else {
-      input.removeAttribute('min');
-      input.removeAttribute('max');
-    }
+  populateEvolutionDateSelect(date1Input, months, monthValue(date1));
+  populateEvolutionDateSelect(date2Input, months, monthValue(date2));
+}
+
+function populateEvolutionDateSelect(select, months, selectedMonth) {
+  if (!select) return;
+  const previous = select.value;
+  select.replaceChildren();
+  if (!months.length) {
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = 'Nessuna data';
+    select.appendChild(opt);
+    select.disabled = true;
+    return;
   }
+
+  select.disabled = false;
+  const selected = months.includes(selectedMonth) ? selectedMonth : previous;
+  for (const month of months) {
+    const opt = document.createElement('option');
+    opt.value = month;
+    opt.textContent = month;
+    opt.selected = month === selected;
+    select.appendChild(opt);
+  }
+  if (!select.value) select.value = months[0];
 }
 
 function renderMap(state) {

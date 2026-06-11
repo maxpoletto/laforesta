@@ -60,8 +60,7 @@
   font-weight: 600;
 }
 
-.bosco-sidebar-section select,
-.bosco-sidebar-section input[type="month"] {
+.bosco-sidebar-section select {
   width: 100%;
   margin-bottom: 8px;
 }
@@ -105,8 +104,13 @@
 
 .bosco-date-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  grid-template-columns: auto 1fr;
+  gap: 5px 8px;
+  align-items: center;
+}
+
+.bosco-date-row label {
+  margin-bottom: 8px;
 }
 
 .bosco-legend {
