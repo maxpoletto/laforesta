@@ -114,6 +114,7 @@ def test_parcel_metadata_save_updates_parcel_and_returns_patch(writer_client, pa
     assert patch[ROW_ID] == parcel.id
     assert patch[RECORD] == build_parcel_record(parcel)
     assert DigestStatus.objects.get(name=DIGEST_PARCELS).stale is True
+    assert DigestStatus.objects.get(name='audit').stale is True
 
 
 def test_parcel_metadata_save_stale_conflicts(writer_client, parcels):

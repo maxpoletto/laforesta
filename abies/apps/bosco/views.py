@@ -119,7 +119,7 @@ def parcel_metadata_save_view(request):
             setattr(parcel, field, value)
         parcel.version += 1
         parcel.save(update_fields=[*values.keys(), VERSION])
-        mark_stale(DIGEST_PARCELS)
+        mark_stale(DIGEST_PARCELS, 'audit')
 
     return success_response(
         request, body, data_id=DIGEST_PARCELS, row_id=parcel.id,
