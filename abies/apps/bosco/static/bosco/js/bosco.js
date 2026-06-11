@@ -35,6 +35,7 @@ import {
   continuousDomain,
   futureHarvestByParcel,
   historicalHarvestByParcel,
+  isHarvestMetric,
   metricValue,
   normalized,
   parcelKey,
@@ -1881,9 +1882,6 @@ function canonicalizeFlag(params, key, enabled) {
   return true;
 }
 
-function isHarvestMetric(metricId) {
-  return Boolean(CHARACTERISTIC_METRICS[metricId]?.harvest);
-}
 
 function firstNumber(...values) {
   return values.find(v => v != null && Number.isFinite(v) && v > 0) ?? null;

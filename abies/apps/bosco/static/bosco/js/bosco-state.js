@@ -1,6 +1,7 @@
 import {
   DEFAULT_EVOLUTION_METRIC, evolutionMetricId, normalizeDateParam,
 } from './bosco-satellite.js';
+import { isHarvestMetric } from './bosco-metrics.js';
 
 const DEFAULT_MODE = '1';
 const DEFAULT_MAP_TYPE_TOKEN = 's';
@@ -85,7 +86,7 @@ export function readBoscoParams(params, regionIds = []) {
     evolutionDate2: normalizeDateParam(paramValue(params, 'd2')) || null,
     parcelAverage: true,
     useCadastralArea: paramValue(params, 'fc') === '1',
-    harvestPerHa: paramValue(params, 'fh') === '1',
+    harvestPerHa: mode === '1' && isHarvestMetric(characteristic) && paramValue(params, 'fh') === '1',
     detailMode,
     parcelId: intParam(params, 'pa'),
     openSections: parseSectionTokens(paramValue(params, 'vo')),

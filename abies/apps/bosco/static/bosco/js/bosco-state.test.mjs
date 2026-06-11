@@ -64,7 +64,7 @@ assertEqual(state.zoom, 12, 'readBoscoParams: restored zoom');
 assertEqual(state.q, '5', 'readBoscoParams: characteristic');
 assertEqual(state.evolutionMetric, '1', 'readBoscoParams: invalid evolution metric fallback outside m2');
 assertEqual(state.useCadastralArea, true, 'readBoscoParams: cadastral flag');
-assertEqual(state.harvestPerHa, true, 'readBoscoParams: per-ha flag');
+assertEqual(state.harvestPerHa, false, 'readBoscoParams: per-ha flag ignored outside characteristics');
 assertEqual(state.detailMode, '1', 'readBoscoParams: parcel detail overlay');
 assertEqual(state.parcelId, 42, 'readBoscoParams: detail parcel');
 assertEqual(state.openSections, ['d', 'm'], 'readBoscoParams: detail sections');
@@ -82,6 +82,15 @@ assertEqual(state.mt, 's', 'readBoscoParams: invalid map fallback');
 assertEqual(state.center, null, 'readBoscoParams: center ignored without zoom');
 assertEqual(state.q, '1', 'readBoscoParams: invalid characteristic fallback');
 assertEqual(state.detailMode, null, 'readBoscoParams: invalid detail fallback');
+
+state = readBoscoParams({ m: '1', q: '4', fh: '1' }, [7, 8]);
+assertEqual(state.harvestPerHa, true, 'readBoscoParams: per-ha allowed on historical harvest');
+
+state = readBoscoParams({ m: '1', q: '1', fh: '1' }, [7, 8]);
+assertEqual(state.harvestPerHa, false, 'readBoscoParams: per-ha ignored on non-harvest characteristic');
+
+state = readBoscoParams({ m: '2', q: '4', fh: '1' }, [7, 8]);
+assertEqual(state.harvestPerHa, false, 'readBoscoParams: per-ha ignored outside characteristics');
 
 state = readBoscoParams({ c: '8', m: '2', q: '3', d1: '20240102', d2: '2024-07' }, [7, 8]);
 assertEqual(state.mode, '2', 'readBoscoParams: evolution mode');

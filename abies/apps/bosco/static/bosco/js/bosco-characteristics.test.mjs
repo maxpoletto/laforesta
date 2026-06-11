@@ -94,6 +94,9 @@ assertEqual(B.continuousDomain([null, 1, 4, undefined]), { min: 1, max: 4 },
             'continuousDomain: clean range');
 assertEqual(B.normalized(2.5, { min: 1, max: 4 }), 0.5, 'normalized: range');
 assertEqual(B.normalized(4, { min: 4, max: 4 }), 0.5, 'normalized: flat domain');
+assertEqual(B.isHarvestMetric('4'), true, 'isHarvestMetric: historical harvest');
+assertEqual(B.isHarvestMetric(5), true, 'isHarvestMetric: numeric future harvest');
+assertEqual(B.isHarvestMetric('1'), false, 'isHarvestMetric: non-harvest');
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed > 0 ? 1 : 0);

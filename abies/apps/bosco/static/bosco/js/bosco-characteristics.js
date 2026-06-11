@@ -1,11 +1,22 @@
 import * as S from '../../base/js/strings.js';
 import { COLUMNS, ROWS, ROW_ID } from '../../base/js/constants.js';
+import {
+  Q_AGE,
+  Q_ALTITUDE,
+  Q_FUTURE_HARVEST,
+  Q_HISTORICAL_HARVEST,
+  Q_TYPE,
+  isHarvestMetric,
+} from './bosco-metrics.js';
 
-export const Q_AGE = '1';
-export const Q_TYPE = '2';
-export const Q_ALTITUDE = '3';
-export const Q_HISTORICAL_HARVEST = '4';
-export const Q_FUTURE_HARVEST = '5';
+export {
+  Q_AGE,
+  Q_ALTITUDE,
+  Q_FUTURE_HARVEST,
+  Q_HISTORICAL_HARVEST,
+  Q_TYPE,
+  isHarvestMetric,
+} from './bosco-metrics.js';
 
 export const CHARACTERISTIC_METRICS = {
   [Q_AGE]: { kind: 'continuous', unit: 'a' },
@@ -89,7 +100,7 @@ export function metricValue(entry, metricId, { historical = new Map(), future = 
   else if (metricId === Q_HISTORICAL_HARVEST) value = historical.get(entry.key) || 0;
   else if (metricId === Q_FUTURE_HARVEST) value = future.get(entry.id) || 0;
   if (value == null) return null;
-  if (perHa && CHARACTERISTIC_METRICS[metricId]?.harvest) {
+  if (perHa && isHarvestMetric(metricId)) {
     const area = entry.displayAreaHa || entry.areaHa || entry.cadastralAreaHa;
     if (!area) return null;
     return value / area;
