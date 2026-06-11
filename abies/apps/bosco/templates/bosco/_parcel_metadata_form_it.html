@@ -1,0 +1,75 @@
+<div class="form-card">
+  <form id="bosco-parcel-metadata-form">
+    <input type="hidden" name="row_id" value="{{ parcel.id }}">
+    <input type="hidden" name="version" value="{{ version }}">
+
+    <h2>Metadati particella</h2>
+
+    <div class="form-readonly-flat">
+      <span><label>Particella:</label> {{ parcel.region.name }} {{ parcel.name }}</span>
+    </div>
+
+    <div class="form-row narrow">
+      <div class="form-group">
+        <label for="id_parcel_area">Area (ha)</label>
+        <input type="text" inputmode="decimal" id="id_parcel_area"
+               name="area_ha" required value="{{ values.area_ha }}">
+      </div>
+      <div class="form-group">
+        <label for="id_parcel_ave_age">Età media (a)</label>
+        <input type="number" id="id_parcel_ave_age" name="ave_age"
+               min="0" value="{{ values.ave_age }}">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label for="id_parcel_location">Località</label>
+        <input type="text" id="id_parcel_location" name="location_name"
+               maxlength="200" value="{{ values.location_name }}">
+      </div>
+    </div>
+
+    <div class="form-row narrow">
+      <div class="form-group">
+        <label for="id_parcel_alt_min">Alt. min. (m)</label>
+        <input type="number" id="id_parcel_alt_min" name="altitude_min_m"
+               value="{{ values.altitude_min_m }}">
+      </div>
+      <div class="form-group">
+        <label for="id_parcel_alt_max">Alt. max. (m)</label>
+        <input type="number" id="id_parcel_alt_max" name="altitude_max_m"
+               value="{{ values.altitude_max_m }}">
+      </div>
+    </div>
+
+    <div class="form-row narrow">
+      <div class="form-group">
+        <label for="id_parcel_aspect">Esposizione</label>
+        <input type="text" id="id_parcel_aspect" name="aspect"
+               maxlength="20" value="{{ values.aspect }}">
+      </div>
+      <div class="form-group">
+        <label for="id_parcel_grade">Pendenza (%)</label>
+        <input type="number" id="id_parcel_grade" name="grade_pct"
+               value="{{ values.grade_pct }}">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label for="id_parcel_desc_veg">Descrizione vegetazione</label>
+        <textarea id="id_parcel_desc_veg" name="desc_veg" rows="5">{{ values.desc_veg }}</textarea>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label for="id_parcel_desc_geo">Descrizione geologia</label>
+        <textarea id="id_parcel_desc_geo" name="desc_geo" rows="5">{{ values.desc_geo }}</textarea>
+      </div>
+    </div>
+
+    {% include "base/_partials/_form_actions.html" with submit_label=S.SAVE %}
+  </form>
+</div>
