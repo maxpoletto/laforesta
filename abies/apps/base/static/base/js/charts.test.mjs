@@ -1,6 +1,6 @@
 import * as S from './strings.js';
 import {
-  CATEGORICAL_COLORS, CHART_COLORS, renderLineChart, renderScatterChart, renderStackedBar,
+  CATEGORICAL_COLORS, renderLineChart, renderScatterChart, renderStackedBar,
 } from './charts.js';
 
 let failed = 0;
@@ -38,7 +38,6 @@ function assertEqual(actual, expected, msg) {
 console.log('charts.js');
 
 assertEqual(CATEGORICAL_COLORS.slice(0, 2), ['#2e7d32', '#1565c0'], 'shared palette');
-assertEqual(CHART_COLORS, CATEGORICAL_COLORS, 'chart palette alias');
 
 const canvas = { id: 'chart' };
 let chart = renderStackedBar(canvas, {

@@ -176,14 +176,14 @@ export function colormapLookup(ramp, value) {
       const t = (val - ramp[i - 1][0]) / (ramp[i][0] - ramp[i - 1][0]);
       const low = ramp[i - 1][1];
       const high = ramp[i][1];
-      return [
-        Math.round(low[0] + t * (high[0] - low[0])),
-        Math.round(low[1] + t * (high[1] - low[1])),
-        Math.round(low[2] + t * (high[2] - low[2])),
-      ];
+      return interpolateRgb(low, high, t);
     }
   }
   return ramp[ramp.length - 1][1];
+}
+
+export function interpolateRgb(start, end, t) {
+  return start.map((v, i) => Math.round(v + (end[i] - v) * t));
 }
 
 export function rgbString(rgb) {

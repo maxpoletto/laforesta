@@ -255,6 +255,9 @@ export const BOSCO_NO_DATA = 'n.d.';
 export const BOSCO_NO_DATA_AVAILABLE = 'Nessun dato disponibile.';
 export const BOSCO_NO_DATE = 'Nessuna data';
 export const BOSCO_NO_REGION = 'Nessuna compresa';
+export const BOSCO_NO_GEOMETRY = (region) => `${region} — nessuna geometria`;
+export const BOSCO_PARCELS = (region, n) => `${region} — ${n} particelle`;
+export const BOSCO_REGION_SUMMARY = (region) => `${region} — riepilogo compresa`;
 export const BOSCO_LOADING_HARVESTS = 'Caricamento prelievi...';
 export const BOSCO_HARVESTS_UNAVAILABLE = 'Prelievi non disponibili.';
 export const BOSCO_LOADING_SATELLITE = 'Caricamento dati satellitari...';
@@ -268,6 +271,7 @@ export const BOSCO_DENDROMETRY_UNAVAILABLE = 'Dendrometria non disponibile.';
 export const BOSCO_NO_DENDROMETRY = 'Nessun dato dendrometrico.';
 export const BOSCO_TREE_COUNT = 'Numero alberi';
 export const BOSCO_TREE_COUNT_PER_HA = 'Numero alberi/ha';
+export const BOSCO_TREES = (n) => `${n} alberi`;
 export const BOSCO_VOLUME_PER_HA = 'Volume (m³/ha)';
 export const BOSCO_BASAL_AREA_PER_HA = 'Area bas. (m²/ha)';
 export const BOSCO_HISTORICAL_PRODUCTION_UNAVAILABLE =
@@ -278,6 +282,7 @@ export const BOSCO_LAT_LON_REQUIRED = 'Lat e Lon obbligatorie.';
 export const BOSCO_NO_PAI_TREES = 'Nessuna pianta.';
 export const BOSCO_HARVEST_METRIC = 'Prelievo';
 export const BOSCO_QUINTALS_PER_HA = 'Q.li/ha';
+export const BOSCO_REGRESSION = (name, r2, n) => `${name} regressione (R² ${r2}, n ${n})`;
 
 // Digest column headers (mirror config/strings_it.py COL_* additions).
 // These are looked up against the JSON digest `columns` array and used

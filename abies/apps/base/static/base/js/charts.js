@@ -7,7 +7,6 @@ export const CATEGORICAL_COLORS = [
   '#558b2f', '#0277bd',
 ];
 
-export const CHART_COLORS = CATEGORICAL_COLORS;
 
 export function renderChart(canvas, chartData, existing, config) {
   if (!canvas) return existing || null;

@@ -2,7 +2,8 @@ import * as S from '../../base/js/strings.js';
 import {
   COL_PARCEL_ID, COL_SPECIES_ID, ROWS,
 } from '../../base/js/constants.js';
-import { CHART_COLORS } from '../../base/js/charts.js';
+import { CATEGORICAL_COLORS } from '../../base/js/charts.js';
+import { fmtDecimal3 } from '../../base/js/format.js';
 import { columnMap, toNumber } from '../../base/js/digests.js';
 
 const HEIGHT_FIT_MIN_N = 5;
@@ -105,7 +106,7 @@ export function dendrometryBarChartData(rows, metric, yTitle) {
     datasets: species.map((item, idx) => ({
       label: item.name,
       data: labels.map(label => round(values.get(dendrometryChartKey(item.id, Number(label))) || 0, 4)),
-      backgroundColor: CHART_COLORS[idx % CHART_COLORS.length],
+      backgroundColor: CATEGORICAL_COLORS[idx % CATEGORICAL_COLORS.length],
     })),
   };
 }
@@ -122,8 +123,8 @@ export function dendrometryLineChartData(rows, metric, yTitle) {
     datasets: species.map((item, idx) => ({
       label: item.name,
       data: labels.map(label => values.get(dendrometryChartKey(item.id, Number(label))) ?? null),
-      borderColor: CHART_COLORS[idx % CHART_COLORS.length],
-      backgroundColor: CHART_COLORS[idx % CHART_COLORS.length],
+      borderColor: CATEGORICAL_COLORS[idx % CATEGORICAL_COLORS.length],
+      backgroundColor: CATEGORICAL_COLORS[idx % CATEGORICAL_COLORS.length],
       tension: 0.25,
       spanGaps: true,
     })),
@@ -195,7 +196,7 @@ export function dendrometryScatterChartData(points, yTitle, { minFitN = HEIGHT_F
     .sort((a, b) => a.name.localeCompare(b.name, S.LOCALE));
   const datasets = [];
   for (const [idx, item] of species.entries()) {
-    const color = CHART_COLORS[idx % CHART_COLORS.length];
+    const color = CATEGORICAL_COLORS[idx % CATEGORICAL_COLORS.length];
     datasets.push({
       type: 'scatter',
       label: item.name,
@@ -208,7 +209,7 @@ export function dendrometryScatterChartData(points, yTitle, { minFitN = HEIGHT_F
     if (fit) {
       datasets.push({
         type: 'line',
-        label: `${item.name} regressione (R² ${formatR2(fit.r2)}, n ${fit.n})`,
+        label: S.BOSCO_REGRESSION(item.name, formatR2(fit.r2), fit.n),
         data: fitCurvePoints(fit),
         borderColor: color,
         backgroundColor: color,
@@ -265,7 +266,7 @@ function fitCurvePoints(fit) {
 }
 
 function formatR2(value) {
-  return round(value, 3).toFixed(3).replace('.', ',');
+  return fmtDecimal3(round(value, 3));
 }
 
 function average(values) {

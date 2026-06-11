@@ -5,12 +5,12 @@
 import * as cache from '../../base/js/cache.js';
 import * as S from '../../base/js/strings.js';
 import {
-  COLUMNS, COL_REGION_ID, DIGEST_FUTURE_PRODUCTION, DIGEST_PARCEL_DENDROMETRY,
+  COLUMNS, COL_REGION_ID, DIGEST_FUTURE_PRODUCTION, DIGEST_PARCELS, DIGEST_PARCEL_DENDROMETRY,
   DIGEST_PARCEL_DENDROMETRY_POINTS, DIGEST_PRESERVED_TREES, ROWS,
 } from '../../base/js/constants.js';
 import { fetchJSON } from '../../base/js/api.js';
 import { renderLineChart, renderScatterChart, renderStackedBar } from '../../base/js/charts.js';
-import { fmtArea, fmtDecimal1, fmtDecimal2, fmtInt, fmtMass, fmtVolume } from '../../base/js/format.js';
+import { fmtArea, fmtDecimal1, fmtDecimal2, fmtInt, fmtMass, fmtVolume, parseDecimal } from '../../base/js/format.js';
 import { cloneTemplate } from '../../base/js/templates.js';
 import { findContainingParcel, sortFeaturesByArea, parcelNames } from '../../base/js/geo.js';
 import { PARCEL_STYLE, ParcelMap } from '../../base/js/parcel-map.js';
@@ -46,7 +46,7 @@ import {
 import {
   EVOLUTION_METRIC_IDS, EVOLUTION_METRICS, SATELLITE_DIFF_VALUE_HEADER, SATELLITE_LAYERS,
   availableMonths, characteristicSatelliteLayer, dateFromMonthValue, dateParam,
-  diffColor, divergingDomain, monthValue, pickDate, satelliteColor,
+  diffColor, divergingDomain, interpolateRgb, monthValue, pickDate, rgbString, satelliteColor,
   satelliteDiffPngUrl, satelliteDiffValue, satelliteValue,
 } from './bosco-satellite.js';
 import {
@@ -62,7 +62,7 @@ import { aggregateProduction, prelieviUrlForScope } from './bosco-production.js'
 const CSS_URL = '/static/bosco/css/bosco.css';
 const PAGE_PATH = '/bosco';
 
-const PARCELS_ID = 'parcels';
+const PARCELS_ID = DIGEST_PARCELS;
 const PARCELS_URL = '/api/bosco/parcels/data/';
 const FUTURE_ID = DIGEST_FUTURE_PRODUCTION;
 const FUTURE_URL = '/api/bosco/future-production/data/';
@@ -609,7 +609,7 @@ function renderMap(state) {
 
   const features = parcelsGeo.features.filter(f => parcelNames(f).compresa === region.name);
   if (!features.length) {
-    setStatus(`${region.name} — nessuna geometria`);
+    setStatus(S.BOSCO_NO_GEOMETRY(region.name));
     return;
   }
 
@@ -633,7 +633,7 @@ function renderMap(state) {
   setTimeout(() => { suppressViewSync = false; }, 0);
   buildMapParcelEntries(state);
   refreshCharacteristicLayer();
-  setStatus(`${region.name} — ${mapEntries.length} particelle`);
+  setStatus(S.BOSCO_PARCELS(region.name, fmtInt(mapEntries.length)));
 }
 
 function buildMapParcelEntries(state) {
@@ -1002,7 +1002,7 @@ function continuousStyle(t) {
     color: '#244126',
     weight: 1.4,
     opacity: 0.92,
-    fillColor: interpolateColor([245, 222, 91], [32, 113, 75], t),
+    fillColor: rgbString(interpolateRgb([245, 222, 91], [32, 113, 75], t)),
     fillOpacity: 0.64,
   };
 }
@@ -1101,9 +1101,9 @@ function renderSatelliteLegend(target, layer, date) {
 
   const labels = document.createElement('div');
   labels.className = 'bosco-legend-labels';
-  for (const text of ['-1,0', '-0,5', '0', '+0,5', '+1,0']) {
+  for (const value of [-1, -0.5, 0, 0.5, 1]) {
     const span = document.createElement('span');
-    span.textContent = text;
+    span.textContent = signedDecimal1(value);
     labels.appendChild(span);
   }
   target.appendChild(labels);
@@ -1396,7 +1396,7 @@ function renderDendrometryCharts(rows, rawRows, heightPoints) {
   }
 
   dendrometryChartGrid.hidden = false;
-  dendrometryStatus.textContent = `${fmtInt(dendrometryTreeTotal(rawRows))} alberi`;
+  dendrometryStatus.textContent = S.BOSCO_TREES(fmtInt(dendrometryTreeTotal(rawRows)));
   const perHa = dendrometryPerHa?.checked !== false;
   dendrometryCharts.treeCount = renderStackedBar(
     dendrometryTreeCanvas,
@@ -1552,8 +1552,8 @@ function validatePaiForm(body) {
 }
 
 function selectPaiParcelFromLatLon(form) {
-  const lat = parseFormFloat(form.querySelector('#id_pai_lat')?.value);
-  const lon = parseFormFloat(form.querySelector('#id_pai_lon')?.value);
+  const lat = parseDecimal(form.querySelector('#id_pai_lat')?.value);
+  const lon = parseDecimal(form.querySelector('#id_pai_lon')?.value);
   if (!Number.isFinite(lat) || !Number.isFinite(lon) || !parcelsGeo?.features) return;
   const feature = findContainingParcel(lon, lat, parcelsGeo.features);
   if (!feature) return;
@@ -1563,10 +1563,6 @@ function selectPaiParcelFromLatLon(form) {
   if (entry && select) select.value = String(entry.id);
 }
 
-function parseFormFloat(value) {
-  if (value == null || value === '') return NaN;
-  return Number(String(value).replace(',', '.'));
-}
 
 function applyPaiResponse(data) {
   cache.applyResponseChanges(data);
@@ -1743,7 +1739,7 @@ function onBasemapChange(name) {
 function onMapClick(_latlng, feature) {
   const region = regionById.get(currentState?.regionId);
   if (!feature) {
-    if (region) setStatus(`${region.name} — riepilogo compresa`);
+    if (region) setStatus(S.BOSCO_REGION_SUMMARY(region.name));
     openRegionDetail();
     return;
   }
@@ -1899,7 +1895,7 @@ function firstNumber(...values) {
   return values.find(v => v != null && Number.isFinite(v) && v > 0) ?? null;
 }
 
-function interpolateColor(start, end, t) {
-  const rgb = start.map((v, i) => Math.round(v + (end[i] - v) * t));
-  return `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+function signedDecimal1(value) {
+  const text = fmtDecimal1(value);
+  return value > 0 ? `+${text}` : text;
 }

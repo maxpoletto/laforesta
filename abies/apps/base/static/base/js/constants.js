@@ -51,6 +51,7 @@ export const LOGIN_METHOD_PASSWORD = 'password';
 export const LOGIN_METHOD_OAUTH    = 'oauth';
 
 // Digest filesystem identifiers (the digest file is `<name>.json.gz`).
+export const DIGEST_PARCELS = 'parcels';
 export const DIGEST_FUTURE_PRODUCTION = 'future_production';
 export const DIGEST_PARCEL_DENDROMETRY = 'parcel_dendrometry';
 export const DIGEST_PARCEL_DENDROMETRY_POINTS = 'parcel_dendrometry_points';
