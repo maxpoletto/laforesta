@@ -699,11 +699,13 @@ function refreshCharacteristicLayer() {
   const context = characteristicContext(currentState.q);
   const entries = map._boscoEntries;
   if (currentState.q === Q_TYPE) {
+    let hasNoData = false;
     for (const entry of entries) {
       const value = metricValue(entry, currentState.q, context);
+      if (!TYPE_STYLES[value]) hasNoData = true;
       applyEntryStyle(entry, TYPE_STYLES[value] || NO_DATA_STYLE, value);
     }
-    renderTypeLegend();
+    renderTypeLegend(hasNoData);
     return;
   }
 
@@ -1026,12 +1028,12 @@ function metricDisplay(metricId, value) {
   return unit ? `${fmtDecimal1(value)} ${unit}` : fmtDecimal1(value);
 }
 
-function renderTypeLegend() {
+function renderTypeLegend(showNoData = false) {
   if (!legendEl) return;
   legendEl.replaceChildren();
   legendEl.appendChild(legendRow(TYPE_STYLES[S.TYPE_HIGHFOREST].fillColor, S.TYPE_HIGHFOREST));
   legendEl.appendChild(legendRow(TYPE_STYLES[S.TYPE_COPPICE].fillColor, S.TYPE_COPPICE));
-  legendEl.appendChild(legendRow(NO_DATA_STYLE.fillColor, 'n.d.'));
+  if (showNoData) legendEl.appendChild(legendRow(NO_DATA_STYLE.fillColor, 'n.d.'));
 }
 
 function renderContinuousLegend(domain, metricId) {
