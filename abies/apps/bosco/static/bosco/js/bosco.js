@@ -24,8 +24,9 @@ import { dismiss as dismissModal } from '../../base/js/modals.js';
 import { canModify } from '../../base/js/roles.js';
 import { wireCancelButtons, wireCollapsibleToggle } from '../../base/js/ui-widgets.js';
 import {
-  clearDetailParams, clearMapView, mapTypeToken, readBoscoParams,
-  writeMapView, writeOptionalIdList, writeSectionTokens,
+  BOSCO_MODES, MODE_CHARACTERISTICS, MODE_EVOLUTION, MODE_PAI, clearDetailParams,
+  clearMapView, mapTypeToken, readBoscoParams, writeMapView, writeOptionalIdList,
+  writeSectionTokens,
 } from './bosco-state.js';
 import {
   CHARACTERISTIC_METRICS,
@@ -81,7 +82,7 @@ const PRELIEVI_URL = '/api/prelievi/data/';
 const TERRENI_ID = 'terreni';
 const TERRENI_GEOJSON_URL = '/api/geo/terreni.geojson';
 
-const VALID_MODES = ['1', '2', '3'];
+const VALID_MODES = BOSCO_MODES;
 const VALID_MAP_TYPES = ['o', 't', 's'];
 const VALID_CHARACTERISTICS = CHARACTERISTIC_METRIC_IDS;
 const VALID_EVOLUTION_METRICS = EVOLUTION_METRIC_IDS;
@@ -162,13 +163,9 @@ let detailSections = {};
 let parcelsData = null;
 let futureData = null;
 let prelieviData = null;
-let prelieviLoad = null;
 let dendrometryData = null;
 let dendrometryPointsData = null;
-let dendrometryLoad = null;
-let dendrometryPointsLoad = null;
 let preservedData = null;
-let preservedLoad = null;
 let satelliteData = null;
 let satelliteRegionId = null;
 let satelliteLoad = null;
@@ -182,6 +179,13 @@ let currentState = null;
 let suppressViewSync = false;
 let characteristicRenderSeq = 0;
 let evolutionRenderSeq = 0;
+
+const loadPrelievi = makeLoader(PRELIEVI_ID, data => { prelieviData = data; });
+const loadDendrometry = makeLoader(DENDROMETRY_ID, data => { dendrometryData = data; });
+const loadDendrometryPoints = makeLoader(
+  DENDROMETRY_POINTS_ID, data => { dendrometryPointsData = data; },
+);
+const loadPreservedTrees = makeLoader(PRESERVED_ID, data => { preservedData = data; });
 
 const page = createPage({
   cssUrl: CSS_URL,
@@ -207,7 +211,20 @@ export const mount = page.mount;
 export const unmount = page.unmount;
 export const onQueryChange = page.onQueryChange;
 
-async function loadPageData() {
+function makeLoader(dataId, assign) {
+  let pending = null;
+  return () => {
+    if (!pending) {
+      pending = cache.load(dataId).then(data => {
+        assign(data);
+        return data;
+      }).finally(() => { pending = null; });
+    }
+    return pending;
+  };
+}
+
+function loadPageData() {
   const [parcels, future] = await Promise.all([
     cache.load(PARCELS_ID),
     cache.load(FUTURE_ID),
@@ -298,7 +315,6 @@ function destroyPage() {
   detailSections = {};
   parcelsData = futureData = prelieviData = dendrometryData = null;
   dendrometryPointsData = preservedData = parcelsGeo = null;
-  prelieviLoad = dendrometryLoad = dendrometryPointsLoad = preservedLoad = null;
   satelliteData = satelliteRegionId = satelliteLoad = null;
   evolutionOverlay = paiMarkerLayer = null;
   regions = [];
@@ -407,7 +423,7 @@ function wireControls() {
 
   evolutionSelect?.addEventListener('change', () => {
     const params = new URLSearchParams(location.search);
-    params.set('m', '2');
+    params.set('m', MODE_EVOLUTION);
     params.set('q', evolutionSelect.value);
     navigateWithParams(PAGE_PATH, params, true);
   });
@@ -417,7 +433,7 @@ function wireControls() {
 
   parcelAverageToggle?.addEventListener('change', () => {
     const params = new URLSearchParams(location.search);
-    params.set('m', '2');
+    params.set('m', MODE_EVOLUTION);
     setFlagParam(params, 'fa', parcelAverageToggle.checked);
     navigateWithParams(PAGE_PATH, params, true);
   });
@@ -502,13 +518,13 @@ function applyParams(params) {
     updateMapDisplayAreas(state);
     refreshCharacteristicLayer();
   }
-  if (state.mode === '2') renderEvolutionMode();
+  if (state.mode === MODE_EVOLUTION) renderEvolutionMode();
   else {
     clearEvolutionOverlay();
     clearEvolutionLegend();
   }
   syncDetailOverlay(state);
-  if (state.mode === '3') renderPaiMode();
+  if (state.mode === MODE_PAI) renderPaiMode();
   else clearPaiMarkers();
 
   canonicalizeURL(state);
@@ -677,7 +693,7 @@ function applyMapView(state) {
 function refreshCharacteristicLayer() {
   const seq = ++characteristicRenderSeq;
   if (!map?._boscoEntries || !currentState) return;
-  if (currentState.mode !== '1') {
+  if (currentState.mode !== MODE_CHARACTERISTICS) {
     resetParcelStyles();
     clearLegend();
     return;
@@ -732,16 +748,6 @@ function characteristicContext(metricId) {
   };
 }
 
-function loadPrelievi() {
-  if (!prelieviLoad) {
-    prelieviLoad = cache.load(PRELIEVI_ID).then(data => {
-      prelieviData = data;
-      return data;
-    }).finally(() => { prelieviLoad = null; });
-  }
-  return prelieviLoad;
-}
-
 function renderSatelliteCharacteristic(seq) {
   const layer = characteristicSatelliteLayer(currentState?.q);
   if (!layer || !map?._boscoEntries || !currentState) return;
@@ -780,7 +786,7 @@ function renderSatelliteCharacteristic(seq) {
 
 function renderEvolutionMode() {
   const seq = ++evolutionRenderSeq;
-  if (!map?._boscoEntries || currentState?.mode !== '2') return;
+  if (!map?._boscoEntries || currentState?.mode !== MODE_EVOLUTION) return;
   updateEvolutionControls(currentState);
 
   const metric = EVOLUTION_METRICS[currentState.evolutionMetric];
@@ -849,7 +855,7 @@ function renderEvolutionRaster(seq, metric, date1, date2) {
   renderLegendMessage(diffLegendEl, S.BOSCO_LOADING_RASTER);
   const url = satelliteDiffPngUrl(currentState.regionId, metric.layer, date1, date2);
   fetchImageDataURL(url).then(({ dataURL, maxAbs }) => {
-    if (seq !== evolutionRenderSeq || currentState?.mode !== '2' || currentState?.parcelAverage) return;
+    if (seq !== evolutionRenderSeq || currentState?.mode !== MODE_EVOLUTION || currentState?.parcelAverage) return;
     clearEvolutionOverlay();
     evolutionOverlay = L.imageOverlay(dataURL, satelliteData.manifest.bbox, {
       opacity: EVOLUTION_OVERLAY_OPACITY,
@@ -949,7 +955,7 @@ function evolutionMetricLabel(metric) {
 }
 
 function canonicalizeEvolutionDates(state, date1, date2) {
-  if (!state || state.mode !== '2') return;
+  if (!state || state.mode !== MODE_EVOLUTION) return;
   const params = new URLSearchParams(location.search);
   let changed = false;
   const d1 = dateParam(date1);
@@ -1336,26 +1342,6 @@ function renderDendrometry() {
   renderDendrometryCharts(rows, rawRows, heightPoints);
 }
 
-function loadDendrometry() {
-  if (!dendrometryLoad) {
-    dendrometryLoad = cache.load(DENDROMETRY_ID).then(data => {
-      dendrometryData = data;
-      return data;
-    }).finally(() => { dendrometryLoad = null; });
-  }
-  return dendrometryLoad;
-}
-
-function loadDendrometryPoints() {
-  if (!dendrometryPointsLoad) {
-    dendrometryPointsLoad = cache.load(DENDROMETRY_POINTS_ID).then(data => {
-      dendrometryPointsData = data;
-      return data;
-    }).finally(() => { dendrometryPointsLoad = null; });
-  }
-  return dendrometryPointsLoad;
-}
-
 function renderDendrometrySpecies(scope) {
   if (!dendrometrySpeciesHost) return;
   const species = dendrometrySpecies(dendrometryData, { region: scope.region, parcelId: scope.parcelId });
@@ -1488,7 +1474,7 @@ function destroyProductionChart() {
 
 
 function renderPaiMode() {
-  if (!map?._boscoEntries || currentState?.mode !== '3') return;
+  if (!map?._boscoEntries || currentState?.mode !== MODE_PAI) return;
   if (!preservedData) {
     if (paiParcelsHost) paiParcelsHost.textContent = S.LOADING;
     if (paiSpeciesHost) paiSpeciesHost.textContent = S.LOADING;
@@ -1513,16 +1499,6 @@ function renderPaiMode() {
     speciesIds: currentState.paiSpeciesIds,
   });
   renderPaiMarkers(trees, colors);
-}
-
-function loadPreservedTrees() {
-  if (!preservedLoad) {
-    preservedLoad = cache.load(PRESERVED_ID).then(data => {
-      preservedData = data;
-      return data;
-    }).finally(() => { preservedLoad = null; });
-  }
-  return preservedLoad;
 }
 
 async function showPaiForm(rowId = null) {
@@ -1769,7 +1745,7 @@ function onMapClick(_latlng, feature) {
   const entry = map?._boscoEntriesByKey?.get(parcelKey(compresa, particella));
   const context = currentState ? characteristicContext(currentState.q) : {};
   const value = entry && currentState ? metricValue(entry, currentState.q, context) : null;
-  const metric = currentState?.mode === '1' ? ` — ${metricDisplay(currentState.q, value)}` : '';
+  const metric = currentState?.mode === MODE_CHARACTERISTICS ? ` — ${metricDisplay(currentState.q, value)}` : '';
   setStatus(`${compresa} ${particella}${metric}`.trim());
   if (entry) openParcelDetail(entry);
 }
@@ -1789,14 +1765,14 @@ function canonicalizeURL(state) {
     params.set('mt', state.mt);
     changed = true;
   }
-  const validQ = state.mode === '2' ? VALID_EVOLUTION_METRICS : VALID_CHARACTERISTICS;
+  const validQ = state.mode === MODE_EVOLUTION ? VALID_EVOLUTION_METRICS : VALID_CHARACTERISTICS;
   if (!params.get('q') || !validQ.includes(params.get('q'))) {
     params.set('q', state.q);
     changed = true;
   }
   changed = canonicalizeFlag(params, 'fc', state.useCadastralArea) || changed;
   changed = canonicalizeFlag(
-    params, 'fh', state.mode === '1' && state.harvestPerHa && isHarvestMetric(state.q),
+    params, 'fh', state.mode === MODE_CHARACTERISTICS && state.harvestPerHa && isHarvestMetric(state.q),
   ) || changed;
   changed = canonicalizeEvolutionParams(params, state) || changed;
   changed = canonicalizeDetailParams(params, state) || changed;
@@ -1809,7 +1785,7 @@ function setStatus(text) {
 }
 
 function canonicalizeEvolutionParams(params, state) {
-  if (state.mode !== '2') {
+  if (state.mode !== MODE_EVOLUTION) {
     if (!params.has('d1') && !params.has('d2') && !params.has('fa')) return false;
     params.delete('d1');
     params.delete('d2');
@@ -1822,7 +1798,7 @@ function canonicalizeEvolutionParams(params, state) {
 }
 
 function canonicalizePaiParams(params, state) {
-  if (state.mode !== '3') {
+  if (state.mode !== MODE_PAI) {
     if (!params.has('pp') && !params.has('ps')) return false;
     params.delete('pp');
     params.delete('ps');

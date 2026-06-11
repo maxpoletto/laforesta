@@ -188,7 +188,7 @@ following the standard Abies idiom:
 
 Sections render lazily on first expand.
 
-## URL structure [to be checked/updated]
+## URL structure
 
 - Path: `/bosco`
 - Query parameters are grouped below by purpose.  See "Query parameter
@@ -282,7 +282,7 @@ keep shared/bookmarked URLs working.  The lookups are cheap because
 the relevant digests (`parcels.json`, `species.json`, etc.) are
 already loaded by the time the URL is parsed.
 
-## Data tables [to be checked/updated]
+## Data tables
 
 Bosco mixes page-specific digests with several it shares with other
 pages. Loading is staged: a small set is eager on page entry to

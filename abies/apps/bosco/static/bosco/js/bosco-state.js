@@ -3,7 +3,12 @@ import {
 } from './bosco-satellite.js';
 import { CHARACTERISTIC_METRIC_IDS, isHarvestMetric } from './bosco-metrics.js';
 
-const DEFAULT_MODE = '1';
+export const MODE_CHARACTERISTICS = '1';
+export const MODE_EVOLUTION = '2';
+export const MODE_PAI = '3';
+export const BOSCO_MODES = [MODE_CHARACTERISTICS, MODE_EVOLUTION, MODE_PAI];
+
+const DEFAULT_MODE = MODE_CHARACTERISTICS;
 const DEFAULT_MAP_TYPE_TOKEN = 's';
 const DEFAULT_CHARACTERISTIC = '1';
 const DEFAULT_DETAIL_SECTIONS = ['m'];
@@ -57,7 +62,7 @@ export function readBoscoParams(params, regionIds = []) {
   const regionId = validRegions.has(requestedRegion) ? requestedRegion : fallbackRegion;
 
   const modeRaw = String(paramValue(params, 'm') || DEFAULT_MODE);
-  const mode = ['1', '2', '3'].includes(modeRaw) ? modeRaw : DEFAULT_MODE;
+  const mode = BOSCO_MODES.includes(modeRaw) ? modeRaw : DEFAULT_MODE;
 
   const mtRaw = String(paramValue(params, 'mt') || DEFAULT_MAP_TYPE_TOKEN);
   const mt = MAP_TYPE_TOKENS[mtRaw] ? mtRaw : DEFAULT_MAP_TYPE_TOKEN;
@@ -68,7 +73,7 @@ export function readBoscoParams(params, regionIds = []) {
   const qRaw = String(paramValue(params, 'q') || DEFAULT_CHARACTERISTIC);
   const characteristic = VALID_CHARACTERISTICS.has(qRaw) ? qRaw : DEFAULT_CHARACTERISTIC;
   const evolutionMetric = evolutionMetricId(qRaw || DEFAULT_EVOLUTION_METRIC);
-  const q = mode === '2' ? evolutionMetric : characteristic;
+  const q = mode === MODE_EVOLUTION ? evolutionMetric : characteristic;
 
   const detailRaw = String(paramValue(params, 'v') || '');
   const detailMode = ['1', '2'].includes(detailRaw) ? detailRaw : null;
@@ -84,9 +89,9 @@ export function readBoscoParams(params, regionIds = []) {
     evolutionMetric,
     evolutionDate1: normalizeDateParam(paramValue(params, 'd1')) || null,
     evolutionDate2: normalizeDateParam(paramValue(params, 'd2')) || null,
-    parcelAverage: mode === '2' && paramValue(params, 'fa') === '1',
+    parcelAverage: mode === MODE_EVOLUTION && paramValue(params, 'fa') === '1',
     useCadastralArea: paramValue(params, 'fc') === '1',
-    harvestPerHa: mode === '1' && isHarvestMetric(characteristic) && paramValue(params, 'fh') === '1',
+    harvestPerHa: mode === MODE_CHARACTERISTICS && isHarvestMetric(characteristic) && paramValue(params, 'fh') === '1',
     detailMode,
     parcelId: intParam(params, 'pa'),
     openSections: parseSectionTokens(paramValue(params, 'vo')),
