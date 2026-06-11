@@ -121,7 +121,6 @@ let perHaRow = null;
 let evolutionSelect = null;
 let date1Input = null;
 let date2Input = null;
-let parcelAverageToggle = null;
 let evolutionCadastralToggle = null;
 let diffLegendEl = null;
 let legendEl = null;
@@ -230,7 +229,6 @@ function mountPage(el, params) {
   evolutionSelect = el.querySelector('[data-role="evolution-select"]');
   date1Input = el.querySelector('[data-role="date1"]');
   date2Input = el.querySelector('[data-role="date2"]');
-  parcelAverageToggle = el.querySelector('[data-role="parcel-average-toggle"]');
   evolutionCadastralToggle = el.querySelector('[data-role="evolution-cadastral-toggle"]');
   diffLegendEl = el.querySelector('[data-target="diff-legend"]');
   legendEl = el.querySelector('[data-target="legend"]');
@@ -275,7 +273,7 @@ function destroyPage() {
   root = mapHost = regionSelect = modeGroup = statusEl = null;
   characteristicSelect = cadastralToggle = perHaToggle = perHaRow = null;
   evolutionSelect = date1Input = date2Input = null;
-  parcelAverageToggle = evolutionCadastralToggle = diffLegendEl = legendEl = null;
+  evolutionCadastralToggle = diffLegendEl = legendEl = null;
   detailOverlay = detailTitle = detailScopeLabel = metadataHost = null;
   metadataActions = metadataEditButton = null;
   dendrometryHost = dendrometrySpeciesHost = dendrometryPerHa = null;
@@ -516,11 +514,6 @@ function updateCharacteristicControls(state) {
 
 function updateEvolutionControls(state) {
   if (evolutionSelect) evolutionSelect.value = state.evolutionMetric;
-  if (parcelAverageToggle) {
-    parcelAverageToggle.checked = true;
-    parcelAverageToggle.disabled = true;
-    parcelAverageToggle.title = 'Le medie per particella usano i dati precomputati disponibili.';
-  }
   if (evolutionCadastralToggle) evolutionCadastralToggle.checked = state.useCadastralArea;
 
   const dates = satelliteRegionId === state.regionId ? satelliteData?.timeseries?.dates : null;

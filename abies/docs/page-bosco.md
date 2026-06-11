@@ -83,7 +83,9 @@ hosts (top to bottom):
   compare.  Behavior identical to Boscoscopio's "Visualizza differenze" with
   "limita al bosco" always true.
 
-  Below the pickers, checkboxes for "media per particella" and "aree catastali".
+  Below the pickers, a checkbox for "aree catastali".  The first Abies
+  implementation always uses the precomputed per-parcel means described under
+  Map data; the future raster overlay can reintroduce a pixel/parcel toggle.
 
   Map shows red-to-green diff heatmap (new − old).
 
@@ -228,7 +230,7 @@ clean map state.  Reopening uses the documented defaults.
 See "Query parameter details" below for the full list per mode.
 Cross-mode summary:
 - Caratteristiche (`m=1`): `q=` metric id, `fc=` cadastral flag, `fh=` per-hectare harvest flag.
-- Evoluzione (`m=2`): `q=`, `d1=`/`d2=`, `fa=`, `fc=`.
+- Evoluzione (`m=2`): `q=`, `d1=`/`d2=`, `fc=`.
 - PAI (`m=3`): `pp=` parcels list, `ps=` species list.
 
 ### Cross-page links into Bosco
@@ -261,7 +263,6 @@ Cross-mode summary:
 - `d1=YYYYMMDD`, `d2=YYYYMMDD` — start and end dates of the
   comparison.  Year granularity uses `YYYY0101`; month granularity
   uses `YYYYMM01`.
-- `fa=1` — "media per particella" checked.
 - `fc=1` — "aree catastali" checked.
 
 #### Piante ad accrescimento indefinito (`m=3`)
