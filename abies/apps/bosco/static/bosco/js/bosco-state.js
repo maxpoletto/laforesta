@@ -1,14 +1,14 @@
 import {
   DEFAULT_EVOLUTION_METRIC, evolutionMetricId, normalizeDateParam,
 } from './bosco-satellite.js';
-import { isHarvestMetric } from './bosco-metrics.js';
+import { CHARACTERISTIC_METRIC_IDS, isHarvestMetric } from './bosco-metrics.js';
 
 const DEFAULT_MODE = '1';
 const DEFAULT_MAP_TYPE_TOKEN = 's';
 const DEFAULT_CHARACTERISTIC = '1';
 const DEFAULT_DETAIL_SECTIONS = ['m'];
 const VALID_DETAIL_SECTIONS = new Set(['m', 'd', 'p']);
-const VALID_CHARACTERISTICS = new Set(['1', '2', '3', '4', '5', '6', '7', '8']);
+const VALID_CHARACTERISTICS = new Set(CHARACTERISTIC_METRIC_IDS);
 
 export const MAP_TYPE_TOKENS = { o: 'osm', t: 'topo', s: 'satellite' };
 export const MAP_TYPE_BY_NAME = { osm: 'o', topo: 't', satellite: 's' };

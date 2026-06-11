@@ -1,14 +1,20 @@
 // Pure helpers for Bosco satellite-timeseries UI.
 
 import { toNumber } from '../../base/js/digests.js';
+import {
+  CHARACTERISTIC_METRICS, E_EVI, E_HARVEST, E_NDMI, E_NDVI,
+} from './bosco-metrics.js';
 
-export const DEFAULT_EVOLUTION_METRIC = '1';
+export const DEFAULT_EVOLUTION_METRIC = E_NDVI;
+// Mirror apps/bosco/views.py SATELLITE_DIFF_VALUE_HEADER / SATELLITE_BYTE_MIDPOINT.
+export const SATELLITE_DIFF_VALUE_HEADER = 'X-Bosco-Max-Abs';
+export const BYTE_MIDPOINT = 127.5;
 
-export const CHARACTERISTIC_SATELLITE_LAYERS = {
-  '6': 'ndvi',
-  '7': 'ndmi',
-  '8': 'evi',
-};
+export const CHARACTERISTIC_SATELLITE_LAYERS = Object.fromEntries(
+  Object.entries(CHARACTERISTIC_METRICS)
+    .filter(([, metric]) => metric.kind === 'satellite')
+    .map(([id, metric]) => [id, metric.layer]),
+);
 
 export const SATELLITE_LAYERS = {
   ndvi: { label: 'NDVI' },
@@ -17,11 +23,13 @@ export const SATELLITE_LAYERS = {
 };
 
 export const EVOLUTION_METRICS = {
-  '1': { label: 'NDVI', layer: 'ndvi', satellite: true },
-  '2': { label: 'NDMI', layer: 'ndmi', satellite: true },
-  '3': { label: 'EVI', layer: 'evi', satellite: true },
-  '4': { layer: 'prelievo', satellite: false },
+  [E_NDVI]: { label: 'NDVI', layer: 'ndvi', satellite: true },
+  [E_NDMI]: { label: 'NDMI', layer: 'ndmi', satellite: true },
+  [E_EVI]: { label: 'EVI', layer: 'evi', satellite: true },
+  [E_HARVEST]: { layer: 'prelievo', satellite: false },
 };
+
+export const EVOLUTION_METRIC_IDS = Object.keys(EVOLUTION_METRICS);
 
 const INDEX_RAMP = [
   [0,   [139, 90, 43]],
@@ -29,6 +37,7 @@ const INDEX_RAMP = [
   [255, [0, 100, 0]],
 ];
 
+// Mirror apps/bosco/views.py SATELLITE_DIFF_RAMP.
 const DIFF_RAMP = [
   [0,   [180, 30, 30]],
   [128, [255, 255, 255]],
@@ -150,13 +159,13 @@ export function divergingDomain(values) {
 
 export function satelliteColor(value) {
   const v = Math.max(-1, Math.min(1, finite(value) ?? 0));
-  return rgbString(colormapLookup(INDEX_RAMP, Math.round((v + 1) * 127.5)));
+  return rgbString(colormapLookup(INDEX_RAMP, Math.round((v + 1) * BYTE_MIDPOINT)));
 }
 
 export function diffColor(value, maxAbs) {
   const max = Number.isFinite(maxAbs) && maxAbs > 0 ? maxAbs : 1;
   const clamped = Math.max(-max, Math.min(max, finite(value) ?? 0));
-  return rgbString(colormapLookup(DIFF_RAMP, Math.round(((clamped / max) + 1) * 127.5)));
+  return rgbString(colormapLookup(DIFF_RAMP, Math.round(((clamped / max) + 1) * BYTE_MIDPOINT)));
 }
 
 export function colormapLookup(ramp, value) {

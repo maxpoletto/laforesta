@@ -28,6 +28,7 @@ import {
 } from './bosco-state.js';
 import {
   CHARACTERISTIC_METRICS,
+  CHARACTERISTIC_METRIC_IDS,
   Q_FUTURE_HARVEST,
   Q_HISTORICAL_HARVEST,
   Q_TYPE,
@@ -41,8 +42,9 @@ import {
   parcelKey,
 } from './bosco-characteristics.js';
 import {
-  EVOLUTION_METRICS, SATELLITE_LAYERS, availableMonths, characteristicSatelliteLayer, dateFromMonthValue,
-  dateParam, diffColor, divergingDomain, monthValue, pickDate, satelliteColor,
+  EVOLUTION_METRIC_IDS, EVOLUTION_METRICS, SATELLITE_DIFF_VALUE_HEADER, SATELLITE_LAYERS,
+  availableMonths, characteristicSatelliteLayer, dateFromMonthValue, dateParam,
+  diffColor, divergingDomain, monthValue, pickDate, satelliteColor,
   satelliteDiffPngUrl, satelliteDiffValue, satelliteValue,
 } from './bosco-satellite.js';
 import {
@@ -80,9 +82,8 @@ const TERRENI_GEOJSON_URL = '/api/geo/terreni.geojson';
 
 const VALID_MODES = ['1', '2', '3'];
 const VALID_MAP_TYPES = ['o', 't', 's'];
-const VALID_CHARACTERISTICS = ['1', '2', '3', '4', '5', '6', '7', '8'];
-const VALID_EVOLUTION_METRICS = ['1', '2', '3', '4'];
-const SATELLITE_CHARACTERISTICS = new Set(['6', '7', '8']);
+const VALID_CHARACTERISTICS = CHARACTERISTIC_METRIC_IDS;
+const VALID_EVOLUTION_METRICS = EVOLUTION_METRIC_IDS;
 const DETAIL_SECTIONS = ['m', 'd', 'p'];
 const EVOLUTION_OVERLAY_OPACITY = 0.85;
 const TYPE_HIGHFOREST_KEY = 'highforest';
@@ -682,7 +683,7 @@ function refreshCharacteristicLayer() {
   }
 
   updateCharacteristicControls(currentState);
-  if (SATELLITE_CHARACTERISTICS.has(currentState.q)) {
+  if (characteristicSatelliteLayer(currentState.q)) {
     renderSatelliteCharacteristic(seq);
     return;
   }
@@ -864,7 +865,7 @@ async function fetchImageDataURL(url) {
   if (!url) throw new Error('Missing image URL');
   const resp = await fetch(url);
   if (!resp.ok) throw new Error(`GET ${url} failed: ${resp.status}`);
-  const maxAbs = Number(resp.headers.get('X-Bosco-Max-Abs')) || 1;
+  const maxAbs = Number(resp.headers.get(SATELLITE_DIFF_VALUE_HEADER)) || 1;
   return { dataURL: await blobToDataURL(await resp.blob()), maxAbs };
 }
 

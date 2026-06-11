@@ -4,6 +4,8 @@ import {
 } from '../../base/js/constants.js';
 import { columnMap, toNumber } from '../../base/js/digests.js';
 import {
+  CHARACTERISTIC_METRICS,
+  CHARACTERISTIC_METRIC_IDS,
   Q_AGE,
   Q_ALTITUDE,
   Q_FUTURE_HARVEST,
@@ -13,6 +15,8 @@ import {
 } from './bosco-metrics.js';
 
 export {
+  CHARACTERISTIC_METRICS,
+  CHARACTERISTIC_METRIC_IDS,
   Q_AGE,
   Q_ALTITUDE,
   Q_FUTURE_HARVEST,
@@ -20,14 +24,6 @@ export {
   Q_TYPE,
   isHarvestMetric,
 } from './bosco-metrics.js';
-
-export const CHARACTERISTIC_METRICS = {
-  [Q_AGE]: { kind: 'continuous', unit: 'a' },
-  [Q_TYPE]: { kind: 'type' },
-  [Q_ALTITUDE]: { kind: 'continuous', unit: 'm' },
-  [Q_HISTORICAL_HARVEST]: { kind: 'continuous', unit: 'q', harvest: true },
-  [Q_FUTURE_HARVEST]: { kind: 'continuous', unit: 'm³', harvest: true },
-};
 
 export function parcelKey(region, parcel) {
   return `${region}-${parcel}`;

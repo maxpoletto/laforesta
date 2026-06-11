@@ -40,6 +40,10 @@ from config.constants import (
 ALLOWED_SATELLITE_JSON = {'manifest.json', 'timeseries.json'}
 ALLOWED_SATELLITE_LAYERS = {'ndvi', 'ndmi', 'evi'}
 SATELLITE_DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+# Mirror apps/bosco/static/bosco/js/bosco-satellite.js SATELLITE_DIFF_VALUE_HEADER / BYTE_MIDPOINT.
+SATELLITE_DIFF_VALUE_HEADER = 'X-Bosco-Max-Abs'
+SATELLITE_BYTE_MIDPOINT = 127.5
+# Mirror apps/bosco/static/bosco/js/bosco-satellite.js DIFF_RAMP.
 SATELLITE_DIFF_RAMP = (
     (0, np.array([180, 30, 30], dtype=np.float32)),
     (128, np.array([255, 255, 255], dtype=np.float32)),
@@ -246,7 +250,7 @@ def satellite_diff_png(request, region_id, layer, date1, date2):
     png, max_abs = _render_satellite_diff_png(path1, path2, mask_path)
     response = HttpResponse(png, content_type='image/png')
     response['Last-Modified'] = http_date(mtime)
-    response['X-Bosco-Max-Abs'] = f'{max_abs / 127.5:.6g}'
+    response[SATELLITE_DIFF_VALUE_HEADER] = f'{max_abs / SATELLITE_BYTE_MIDPOINT:.6g}'
     patch_cache_control(response, no_cache=True)
     return response
 
@@ -480,7 +484,7 @@ def _render_satellite_diff_png(path1, path2, mask_path):
     else:
         max_abs = 1.0
 
-    positions = np.clip(np.rint(((np.nan_to_num(diff) / max_abs) + 1) * 127.5), 0, 255)
+    positions = np.clip(np.rint(((np.nan_to_num(diff) / max_abs) + 1) * SATELLITE_BYTE_MIDPOINT), 0, 255)
     rgb = _diff_ramp_rgb(positions)
     alpha = np.full(diff.shape, SATELLITE_INSIDE_ALPHA, dtype=np.uint8)
     if mask is not None:
