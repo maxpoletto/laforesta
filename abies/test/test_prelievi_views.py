@@ -290,7 +290,8 @@ class TestSaveView:
         primary_patch = data[PATCHES][0]
         assert primary_patch[DATA_ID] == 'prelievi'
         assert primary_patch[ROW_ID] == data[ROW_ID]
-        assert primary_patch[RECORD][2] == '2024-07-01'  # date is third column (after row_id, version)
+        # row_id, version, region_id, parcel_id, date...
+        assert primary_patch[RECORD][4] == '2024-07-01'
         item_patch = next(p for p in data[PATCHES]
                           if p[DATA_ID] == 'harvest_plan_items')
         assert item_patch[ROW_ID] == f['open_item'].id

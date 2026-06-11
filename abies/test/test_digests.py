@@ -150,6 +150,16 @@ class TestGeneratePrelievi:
         assert data[COLUMNS][0] == ROW_ID
         assert len(data[ROWS]) == 1
 
+    def test_includes_stable_region_and_parcel_ids(self, harvest_data):
+        generate_prelievi()
+        path = settings.DIGEST_DIR / 'prelievi.json.gz'
+        with gzip.open(path, 'rt') as f:
+            data = json.load(f)
+        cols = data[COLUMNS]
+        row = data[ROWS][0]
+        assert row[cols.index(S.COL_REGION_ID)] == harvest_data.parcel.region_id
+        assert row[cols.index(S.COL_PARCEL_ID)] == harvest_data.parcel_id
+
     def test_species_quintal_columns(self, harvest_data):
         generate_prelievi()
         path = settings.DIGEST_DIR / 'prelievi.json.gz'

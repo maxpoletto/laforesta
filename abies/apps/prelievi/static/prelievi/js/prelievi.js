@@ -47,6 +47,10 @@ const DEFAULT_OPEN = 'i';                 // default when `o` param is absent
 
 // Column indices — resolved on first data load.
 let colDate = -1;
+let colRegionId = -1;
+let colParcelId = -1;
+let filterRegionId = null;
+let filterParcelId = null;
 
 // Page state.
 let table = null;
@@ -111,6 +115,8 @@ export const onQueryChange = page.onQueryChange;
 function mountPage(el, params, data) {
   inForm = false;
   colDate = data.columns.indexOf(S.COL_DATE);
+  colRegionId = data.columns.indexOf(S.COL_REGION_ID);
+  colParcelId = data.columns.indexOf(S.COL_PARCEL_ID);
   _buildColMap(data.columns);
   _classifyColumns(data.columns);
   showTableView(data, params);
@@ -159,7 +165,9 @@ function showTableView(data, params) {
   const searchInput = el.querySelector('#prelievi-search');
   if (searchInput) table.wireSearchInput(searchInput);
 
-  table.setExternalFilter(yearFilter());
+  filterRegionId = p.regionId;
+  filterParcelId = p.parcelId;
+  table.setExternalFilter(pageFilter());
   _updateCharts();
 }
 
@@ -208,6 +216,8 @@ function readParams(params) {
     y1: params.y1 ? parseInt(params.y1, 10) : null,
     y2: params.y2 ? parseInt(params.y2, 10) : null,
     table: readTableState(params),
+    regionId: positiveInt(params.c),
+    parcelId: positiveInt(params.pa),
     // Open sections: explicit string of single-char tokens when present,
     // falling back to DEFAULT_OPEN when absent.  `?o=` (empty) is valid
     // and means "all sections closed".
@@ -219,6 +229,8 @@ function readParams(params) {
 
 function applyParams(params) {
   const p = readParams(params);
+  filterRegionId = p.regionId;
+  filterParcelId = p.parcelId;
 
   if (applyTableState(table, p.table, DEFAULT_TABLE_SORT)) _updateCharts();
 
@@ -232,8 +244,6 @@ function applyParams(params) {
       const current = slider.getRange();
       if (current[0] !== target[0] || current[1] !== target[1]) {
         slider.setValues(target[0], target[1]);
-        if (table) table.setExternalFilter(yearFilter());
-        _updateCharts();
       }
     }
   }
@@ -254,6 +264,9 @@ function applyParams(params) {
       a.dirty = true;
     }
   }
+
+  if (table) table.setExternalFilter(pageFilter());
+  _updateCharts();
 
   // Open sections.
   for (const k of SECTION_KEYS) {
@@ -281,6 +294,8 @@ function syncURL() {
     }
   }
 
+  if (filterRegionId != null) params.set('c', filterRegionId);
+  if (filterParcelId != null) params.set('pa', filterParcelId);
   writeTableState(params, table);
 
   // Open sections: only serialize if different from the default ('i').
@@ -317,14 +332,35 @@ function _classifyColumns(columns) {
 function _getFilteredRows() {
   const data = cache.get(DATA_ID);
   if (!data) return [];
-  const yf = yearFilter();
+  const pf = pageFilter();
   const text = table ? table.getSearchText() : '';
   const terms = text.trim().toLowerCase().split(/\s+/).filter(Boolean);
   return data.rows.filter(row => {
-    if (yf && !yf(row)) return false;
+    if (pf && !pf(row)) return false;
     if (terms.length && !matchesSearch(row, terms, table?.searchColumns)) return false;
     return true;
   });
+}
+
+function positiveInt(value) {
+  if (value == null || value === '') return null;
+  const n = parseInt(value, 10);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+function scopeFilter() {
+  const hasRegion = filterRegionId != null && colRegionId >= 0;
+  const hasParcel = filterParcelId != null && colParcelId >= 0;
+  if (!hasRegion && !hasParcel) return null;
+  return row => (!hasRegion || row[colRegionId] === filterRegionId)
+    && (!hasParcel || row[colParcelId] === filterParcelId);
+}
+
+function pageFilter() {
+  const yf = yearFilter();
+  const sf = scopeFilter();
+  if (!yf && !sf) return null;
+  return row => (!yf || yf(row)) && (!sf || sf(row));
 }
 
 function _updateCharts() {
@@ -365,7 +401,7 @@ function buildPage(el, data, p) {
   const maxInput = el.querySelector('[data-role="slider-max"]');
   if (minInput && maxInput && years.length >= 2) {
     slider = createRangeSlider(minInput, maxInput, sliderLabel, () => {
-      if (table) table.setExternalFilter(yearFilter());
+      if (table) table.setExternalFilter(pageFilter());
       syncURL();
       _updateCharts();
     });
@@ -379,7 +415,7 @@ function buildPage(el, data, p) {
     'reset-filters': () => {
       if (slider) {
         slider.setValues(years[0], years[years.length - 1]);
-        if (table) table.setExternalFilter(yearFilter());
+        if (table) table.setExternalFilter(pageFilter());
       }
       if (table) table.setSearchText('');
       syncURL();

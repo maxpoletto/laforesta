@@ -195,11 +195,12 @@ def aggregate_sp_pcts(sp_pcts, minor_ids, other_id):
 def generate_prelievi() -> None:
     """De-normalized harvest table for the Prelievi sortable-table.
 
-    Columns: row_id, version, Data, Compresa, Particella, Squadra, VDP, Tipo,
-    Q.li, Volume (m³), Note, Altre note, then one quintal column per major
-    species (sort_order), then one quintal column per tractor (alphabetical).
-    Minor species are aggregated into the Other (Altro) column.  Also carries
-    percentage values for form pre-population (suffixed with " %").
+    Columns: row_id, version, Region id, Parcel id, Data, Compresa, Particella,
+    Squadra, VDP, Tipo, Q.li, Volume (m³), Note, Altre note, then one quintal
+    column per major species (sort_order), then one quintal column per tractor
+    (alphabetical).  Minor species are aggregated into the Other (Altro)
+    column.  Also carries percentage values for form pre-population (suffixed
+    with " %").
     """
     from apps.base.models import Tractor
     from apps.prelievi.models import Harvest, HarvestSpecies, HarvestTractor
@@ -215,7 +216,8 @@ def generate_prelievi() -> None:
     ]
 
     columns = (
-        [ROW_ID, VERSION, S.COL_DATE, S.COL_REGION, S.COL_PARCEL,
+        [ROW_ID, VERSION, S.COL_REGION_ID, S.COL_PARCEL_ID,
+         S.COL_DATE, S.COL_REGION, S.COL_PARCEL,
          S.COL_WORKSITE, S.COL_CREW, S.COL_VDP, S.COL_PRODUCT,
          S.COL_QUINTALS, S.COL_VOLUME_M3, S.COL_NOTE, S.COL_EXTRA_NOTE]
         + species_names
@@ -291,8 +293,8 @@ def build_harvest_record(
     tr_quintals = [round(mass_q * tr_pcts.get(tid, 0) / 100, 2) for tid in tractor_ids]
 
     return (
-        [op.id, op.version, op.date.isoformat(),
-         op.parcel.region.name, op.parcel.name,
+        [op.id, op.version, op.parcel.region_id, op.parcel_id,
+         op.date.isoformat(), op.parcel.region.name, op.parcel.name,
          op.harvest_plan_item_id if op.harvest_plan_item_id else '',
          op.crew.name, op.record1, op.product.name, mass_q,
          float(op.volume_m3),

@@ -259,14 +259,15 @@ const { ROW_ID, VERSION } = await import(staticModule('base/js/constants.js'));
 
 const digest = {
   columns: [
-    ROW_ID, S.COL_DATE, S.COL_REGION, S.COL_PARCEL, S.COL_CREW,
-    S.COL_TYPE, S.COL_QUINTALS, S.COL_VOLUME_M3, S.COL_NOTE, VERSION,
+    ROW_ID, VERSION, S.COL_REGION_ID, S.COL_PARCEL_ID,
+    S.COL_DATE, S.COL_REGION, S.COL_PARCEL, S.COL_CREW,
+    S.COL_TYPE, S.COL_QUINTALS, S.COL_VOLUME_M3, S.COL_NOTE,
     'Abete', 'Tractor One',
   ],
   rows: [
-    [1, '2020-03-15', 'A', '1', 'Crew', 'Taglio', 10, 1, '', 1, 10, 0],
-    [2, '2021-04-20', 'A', '2', 'Crew', 'Taglio', 20, 2, '', 1, 20, 0],
-    [3, '2022-05-10', 'B', '3', 'Crew', 'Taglio', 30, 3, '', 1, 30, 0],
+    [1, 1, 10, 101, '2020-03-15', 'A', '1', 'Crew', 'Taglio', 10, 1, '', 10, 0],
+    [2, 1, 10, 102, '2021-04-20', 'A', '2', 'Crew', 'Taglio', 20, 2, '', 20, 0],
+    [3, 1, 20, 203, '2022-05-10', 'B', '3', 'Crew', 'Taglio', 30, 3, '', 30, 0],
   ],
 };
 
@@ -310,6 +311,18 @@ eq(filteredIds(), [1, 2], 'partial y2 URL filters from the default lower bound')
 prelievi.onQueryChange({});
 eq(sliderValues(), [2020, 2022], 'second bare URL reset is not ignored after partial states');
 eq(filteredIds(), [1, 2, 3], 'second bare URL reset restores all years again');
+
+prelievi.onQueryChange({ c: '10' });
+eq(filteredIds(), [1, 2], 'region URL filter keeps matching harvests');
+
+prelievi.onQueryChange({ c: '10', pa: '102' });
+eq(filteredIds(), [2], 'parcel URL filter narrows matching harvests by stable id');
+
+prelievi.onQueryChange({ c: '20', pa: '102' });
+eq(filteredIds(), [], 'region and parcel URL filters are both enforced');
+
+prelievi.onQueryChange({ c: 'bad', pa: '-1' });
+eq(filteredIds(), [1, 2, 3], 'invalid URL filter ids are ignored');
 
 prelievi.unmount();
 check(tableInstances.at(-1).destroyed, 'unmount destroys the table');

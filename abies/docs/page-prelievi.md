@@ -89,6 +89,8 @@ Bottom-of-form button layout.
 - Path: /prelievi
 - Query parameters:
   - Year range: `y1=YYYY`, `y2=YYYY` (date slider bounds)
+  - Optional forest scope: `c=<region_id>`, `pa=<parcel_id>`. Used by
+    Bosco links to show harvests for a region or one parcel.
   - Sort column: `sc=N`
   - Sort order: `so=0/1` (ascending/descending)
   - Filter: `f=...` (URL-encoded sortable-table search string).
@@ -107,7 +109,8 @@ Bottom-of-form button layout.
 - crews.json: JSON version of the crew
 - prelievi.json: a de-normalized version of the harvest table, containing
   everything in the sortable-table as well as percentage values (to support
-  prepopulating the edit form). Includes a materialized `Volume (m³)`
+  prepopulating the edit form). Hidden `Region id` and `Parcel id` columns
+  support stable cross-page filters. Includes a materialized `Volume (m³)`
   column from `harvest.volume_m3` (see `database.md`); displayed in the
   table as a small companion to `Q.li`.
 
