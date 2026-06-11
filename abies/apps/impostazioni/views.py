@@ -30,7 +30,8 @@ from apps.base.models import (
 from config import strings as S
 from config.constants import (
     COLUMNS, DIGEST_FUTURE_PRODUCTION, DIGEST_HYPSO_PARAMS,
-    DIGEST_PARCEL_DENDROMETRY, FIELD_ACTIVE, FIELD_COMMON_NAME,
+    DIGEST_PARCEL_DENDROMETRY, DIGEST_PARCEL_DENDROMETRY_POINTS,
+    DIGEST_PRESERVED_TREES, FIELD_ACTIVE, FIELD_COMMON_NAME,
     FIELD_CREATED_AT, FIELD_DENSITY, FIELD_EMAIL, FIELD_FILE, FIELD_FIRST_NAME,
     FIELD_HARVEST_PLAN_ID, FIELD_IS_ACTIVE, FIELD_LAST_NAME,
     FIELD_LATIN_NAME, FIELD_LOGIN_METHOD, FIELD_MANUFACTURER, FIELD_MIN_N,
@@ -211,10 +212,12 @@ def species_save(request):
     if parsed[FIELD_MINOR] and parsed[FIELD_COMMON_NAME] == S.SPECIES_OTHER:
         return _error(S.ERR_OTHER_NOT_MINOR.format(S.SPECIES_OTHER))
     # species.minor / common_name / sort_order define the prelievi column
-    # set; species.json is also consumed by V/m preview forms.
+    # set; species.json is also consumed by V/m preview forms.  Bosco
+    # dendrometry/PAI digests denormalize species names.
     return save_model_response(
         request, body, model=Species, data_id=FIELD_SPECIES, values=parsed,
-        row_fn=_species_row, stale=('prelievi', 'audit', FIELD_SPECIES),
+        row_fn=_species_row,
+        stale=('prelievi', FIELD_SPECIES, *BOSCO_SPECIES_DIGESTS, 'audit'),
     )
 
 
@@ -223,7 +226,11 @@ def species_save(request):
 # Bosco source settings (writer+)
 # ---------------------------------------------------------------------------
 
-BOSCO_DIGESTS = (DIGEST_FUTURE_PRODUCTION, DIGEST_PARCEL_DENDROMETRY)
+BOSCO_DENDROMETRY_DIGESTS = (
+    DIGEST_PARCEL_DENDROMETRY,
+    DIGEST_PARCEL_DENDROMETRY_POINTS,
+)
+BOSCO_SPECIES_DIGESTS = (*BOSCO_DENDROMETRY_DIGESTS, DIGEST_PRESERVED_TREES)
 
 
 @login_required
@@ -275,7 +282,7 @@ def future_production_save(request):
             selected.version += 1
             selected.save()
             changed.append(selected)
-        mark_stale(*BOSCO_DIGESTS, 'harvest_plans', 'audit')
+        mark_stale(DIGEST_FUTURE_PRODUCTION, 'harvest_plans', 'audit')
     return success_response(
         request, body,
         patches=[
@@ -338,7 +345,7 @@ def dendrometry_save(request):
             survey.version += 1
             survey.save()
             changed.append(survey)
-        mark_stale(*BOSCO_DIGESTS, 'surveys', 'audit')
+        mark_stale(*BOSCO_DENDROMETRY_DIGESTS, 'surveys', 'audit')
     return success_response(
         request, body,
         patches=[

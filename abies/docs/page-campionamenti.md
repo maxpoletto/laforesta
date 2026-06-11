@@ -373,14 +373,14 @@ expands; one is shared with Piano di taglio.
 | Grid edit (rename) | `grids`, `audit` | `grids` via `patches`; pulldown option text updated |
 | Grid delete | `grids`, `audit` | `grids` (row removed) |
 | Grid CSV import (areas) | `grids`, `sample_areas`, `surveys`, `audit` | All three via `patches` |
-| Survey save (create) | `surveys`, `grids`, `audit` | `surveys` + `grids` via `applySideEffects` |
-| Survey edit (rename) | `surveys`, `audit` | `surveys` via `patches`; pulldown option text updated |
-| Survey delete | `surveys`, `grids`, `audit` | Force-refresh via `cache.load` (cascade) |
-| Survey CSV import (trees) | `sampled_trees_<id>`, `samples`, `surveys`, `audit` | Force-refresh all three via `cache.load` (no records returned); the `sampled_trees_<id>` reload fires the Section 3 table's `onUpdate`; Section 2 summary + map re-rendered; survey pulldown rebuilt |
-| Area save (create/update) | `sample_areas`, `grids`, `surveys`, `audit` | All three via `applySideEffects`; survey pulldown rebuilt; both maps re-rendered if affected |
+| Survey save (create) | `surveys`, `grids`, `parcel_dendrometry`, `parcel_dendrometry_points`, `audit` | `surveys` + `grids` via `applySideEffects` |
+| Survey edit (rename) | `surveys`, `parcel_dendrometry`, `parcel_dendrometry_points`, `audit` | `surveys` via `patches`; pulldown option text updated |
+| Survey delete | `sampled_trees_<id>`, `samples`, `surveys`, `grids`, `parcel_dendrometry`, `parcel_dendrometry_points`, `audit` | Force-refresh via `cache.load` (cascade) |
+| Survey CSV import (trees) | `sampled_trees_<id>`, `samples`, `surveys`, `parcel_dendrometry`, `parcel_dendrometry_points`, `preserved_trees`, `audit` | Force-refresh all three via `cache.load` (no records returned); the `sampled_trees_<id>` reload fires the Section 3 table's `onUpdate`; Section 2 summary + map re-rendered; survey pulldown rebuilt |
+| Area save (create/update) | `sample_areas`, `grids`, `surveys`, `parcel_dendrometry`, `parcel_dendrometry_points`, `audit` | All three via `applySideEffects`; survey pulldown rebuilt; both maps re-rendered if affected |
 | Area delete | `sample_areas`, `grids`, `surveys`, `audit` | Same as area save |
-| Tree save (create/update) | `sampled_trees_<id>`, `samples`, `surveys`, `audit` | All three via `applySideEffects`; Section 2 map re-rendered |
-| Tree delete | `sampled_trees_<id>`, `samples`, `surveys`, `audit` | Same as tree save |
+| Tree save (create/update) | `sampled_trees_<id>`, `samples`, `surveys`, `parcel_dendrometry`, `parcel_dendrometry_points`, `preserved_trees`, `audit` | All three via `applySideEffects`; Section 2 map re-rendered |
+| Tree delete | `sampled_trees_<id>`, `samples`, `surveys`, `parcel_dendrometry`, `parcel_dendrometry_points`, `audit` | Same as tree save |
 
 ### `grids.json`
 

@@ -38,8 +38,9 @@ from apps.base.models import (
 )
 from config import strings as S
 from config.constants import (
-    DEFAULT_RADIUS_M, DIGEST_PARCEL_DENDROMETRY, FIELD_ALTITUDE,
-    FIELD_ALTITUDE_M, FIELD_AREA,
+    DEFAULT_RADIUS_M, DIGEST_PARCEL_DENDROMETRY,
+    DIGEST_PARCEL_DENDROMETRY_POINTS, DIGEST_PRESERVED_TREES,
+    FIELD_ALTITUDE, FIELD_ALTITUDE_M, FIELD_AREA,
     FIELD_COMPRESA, FIELD_COPPICE, FIELD_DATE, FIELD_DEFAULT_DATE,
     FIELD_DESCRIPTION, FIELD_D_CM,
     FIELD_FILE, FIELD_HIGHFOREST, FIELD_H_M, FIELD_L10_MM, FIELD_LAT, FIELD_LON,
@@ -55,6 +56,12 @@ from config.constants import (
 
 # Quantization for tree-height measurements (centimetre precision).
 TREE_H_QUANTUM = Decimal('0.01')
+
+BOSCO_DENDROMETRY_DIGESTS = (
+    DIGEST_PARCEL_DENDROMETRY,
+    DIGEST_PARCEL_DENDROMETRY_POINTS,
+)
+BOSCO_TREE_DIGESTS = (*BOSCO_DENDROMETRY_DIGESTS, DIGEST_PRESERVED_TREES)
 
 
 # ---------------------------------------------------------------------------
@@ -239,10 +246,11 @@ def tree_save_view(request):
             sample.save()
 
         # tree_save can create a new Sample (first tree in an area) which
-        # affects surveys.N_aree_visitate / Data primo / Data ultimo.
+        # affects surveys.N_aree_visitate / Data primo / Data ultimo.  It can
+        # also change Bosco dendrometry and PAI digests via TreeSample / Tree.
         mark_stale(
             f'sampled_trees_{sample.survey_id}', 'samples', 'surveys',
-            DIGEST_PARCEL_DENDROMETRY, 'audit',
+            *BOSCO_TREE_DIGESTS, 'audit',
         )
 
     # Build the cache-update payload — see CLAUDE.md §"Optimistic table
@@ -302,7 +310,7 @@ def tree_delete_view(request, ts_id: int):
     # if this was the last tree on its area.
     mark_stale(
         f'sampled_trees_{survey_id}', 'samples', 'surveys',
-        DIGEST_PARCEL_DENDROMETRY, 'audit',
+        *BOSCO_DENDROMETRY_DIGESTS, 'audit',
     )
     sample.refresh_from_db()
     sample_record = build_sample_record(sample)
@@ -488,7 +496,10 @@ def area_save_view(request):
             )
         # `surveys` digest's N. aree totali depends on the area count
         # per grid → must invalidate surveys on area writes too.
-        mark_stale('sample_areas', 'grids', 'surveys', 'audit')
+        mark_stale(
+            'sample_areas', 'grids', 'surveys',
+            *BOSCO_DENDROMETRY_DIGESTS, 'audit',
+        )
 
     # Reload with select_related so build_sample_area_record doesn't N+1.
     area = SampleArea.objects.select_related('parcel__region').get(id=area.id)
@@ -1038,7 +1049,8 @@ def survey_edit_view(request, survey_id: int):
     return save_model_response(
         request, body, model=Survey, data_id='surveys', row_id=survey.id,
         values={FIELD_NAME: name, FIELD_DESCRIPTION: description},
-        row_fn=build_survey_record, stale=('surveys', DIGEST_PARCEL_DENDROMETRY, 'audit'),
+        row_fn=build_survey_record,
+        stale=('surveys', *BOSCO_DENDROMETRY_DIGESTS, 'audit'),
         unique_field=FIELD_NAME, unique_value=name,
         unique_error=S.ERR_SURVEY_NAME_DUPLICATE,
     )
@@ -1403,7 +1415,7 @@ def tree_csv_import_view(request):
 
         mark_stale(
             f'sampled_trees_{survey.id}', 'samples', 'surveys',
-            DIGEST_PARCEL_DENDROMETRY, 'audit',
+            *BOSCO_TREE_DIGESTS, 'audit',
         )
 
     return success_response(
@@ -1436,7 +1448,7 @@ def survey_delete_view(request, survey_id: int):
         survey.delete()
         mark_stale(
             f'sampled_trees_{survey_id}', 'samples', 'surveys', 'grids',
-            DIGEST_PARCEL_DENDROMETRY, 'audit',
+            *BOSCO_DENDROMETRY_DIGESTS, 'audit',
         )
     return success_response(
         request, body,
@@ -1468,7 +1480,8 @@ def survey_save_view(request):
     return save_model_response(
         request, body, model=Survey, data_id='surveys',
         values={FIELD_NAME: name, 'sample_grid': grid, FIELD_DESCRIPTION: description},
-        row_fn=build_survey_record, stale=('surveys', 'grids', DIGEST_PARCEL_DENDROMETRY, 'audit'),
+        row_fn=build_survey_record,
+        stale=('surveys', 'grids', *BOSCO_DENDROMETRY_DIGESTS, 'audit'),
         unique_field=FIELD_NAME, unique_value=name,
         unique_error=S.ERR_SURVEY_NAME_DUPLICATE,
         extra_patches=lambda _survey: [

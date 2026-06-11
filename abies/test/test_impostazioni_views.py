@@ -16,9 +16,11 @@ from apps.impostazioni.views import SPECIES_COLS
 from config import strings as S
 from config.constants import (
     COLUMNS, DATA_ID, DIGEST_FUTURE_PRODUCTION, DIGEST_PARCEL_DENDROMETRY,
+    DIGEST_PARCEL_DENDROMETRY_POINTS, DIGEST_PRESERVED_TREES,
     FIELD_ACTIVE, FIELD_COMMON_NAME, FIELD_DENSITY, FIELD_EMAIL,
     FIELD_FIRST_NAME, FIELD_HARVEST_PLAN_ID, FIELD_IS_ACTIVE, FIELD_LAST_NAME,
     FIELD_LATIN_NAME, FIELD_LOGIN_METHOD, FIELD_MANUFACTURER, FIELD_MINOR,
+    FIELD_SPECIES,
     FIELD_MODEL, FIELD_NAME, FIELD_NONCE, FIELD_NOTES, FIELD_PASSWORD1,
     FIELD_PASSWORD2, FIELD_ROLE, FIELD_SURVEY_IDS, FIELD_USERNAME, FIELD_YEAR,
     HTML, MESSAGE, PATCHES, RECORD, ROWS, ROW_ID, STATUS, STATUS_CONFLICT,
@@ -271,6 +273,12 @@ class TestSpecies:
         })
         assert resp.status_code == 200
         assert Species.objects.filter(common_name='Faggio').exists()
+        for name in (
+                'prelievi', FIELD_SPECIES, DIGEST_PARCEL_DENDROMETRY,
+                DIGEST_PARCEL_DENDROMETRY_POINTS, DIGEST_PRESERVED_TREES,
+                'audit',
+        ):
+            assert DigestStatus.objects.get(name=name).stale is True
 
     def test_save_accepts_locale_comma(self, writer_client, db):
         """The it-locale form submits a comma density; stored canonically
@@ -498,8 +506,7 @@ class TestFutureProductionSettings:
         assert patches[old.id][-1] is False
         assert patches[new.id][-1] is True
         for name in (
-                DIGEST_FUTURE_PRODUCTION, DIGEST_PARCEL_DENDROMETRY,
-                'harvest_plans', 'audit',
+                DIGEST_FUTURE_PRODUCTION, 'harvest_plans', 'audit',
         ):
             assert DigestStatus.objects.get(name=name).stale is True
 
@@ -582,7 +589,7 @@ class TestDendrometrySettings:
         assert patches[second.id][-1] is True
         assert patches[old.id][-1] is False
         for name in (
-                DIGEST_FUTURE_PRODUCTION, DIGEST_PARCEL_DENDROMETRY,
+                DIGEST_PARCEL_DENDROMETRY, DIGEST_PARCEL_DENDROMETRY_POINTS,
                 'surveys', 'audit',
         ):
             assert DigestStatus.objects.get(name=name).stale is True

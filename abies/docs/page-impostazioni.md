@@ -35,7 +35,7 @@ selected at a time. It defaults to the plan whose (start year, end year) overlap
 the current year and whose end year is greatest. Robust in the event that no
 harvest plan exists.
 
-Changing this setting invalidates the future_production.json digest
+Changing this setting invalidates the future_production.json digest.
 
 ## Dendrometric data (Parametri dendrometrici)
 
@@ -53,8 +53,8 @@ order, and is robust to there being no surveys.
 Below the multiselect is an "Aggiorna" submit button that causes the user's
 selection to go into effect.
 
-Updating this setting invalidates the parcel_dendrometry.json digest used by
-Bosco.
+Updating this setting invalidates the parcel_dendrometry.json and
+parcel_dendrometry_points.json digests used by Bosco.
 
 ## Hypsometric parameters (Parametri ipsometrici)
 

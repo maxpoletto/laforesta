@@ -11,11 +11,14 @@ import pytest
 from django.test import Client
 
 from apps.base.models import (
-    Parcel, Sample, SampleArea, SampleGrid, Survey, Tree, TreeSample, UsedNonce,
+    DigestStatus, Parcel, Sample, SampleArea, SampleGrid, Survey, Tree,
+    TreeSample, UsedNonce,
 )
 from config import strings as S
 from config.constants import (
-    COLUMNS, DATA_ID, DELETES, DEFAULT_RADIUS_M, FIELD_ALTITUDE_M, FIELD_DATE,
+    COLUMNS, DATA_ID, DELETES, DEFAULT_RADIUS_M, DIGEST_PARCEL_DENDROMETRY,
+    DIGEST_PARCEL_DENDROMETRY_POINTS, DIGEST_PRESERVED_TREES,
+    FIELD_ALTITUDE_M, FIELD_DATE,
     FIELD_DEFAULT_DATE, FIELD_DESCRIPTION, FIELD_D_CM, FIELD_ERRORS, FIELD_FILE,
     FIELD_HIGHFOREST, FIELD_H_M,
     FIELD_LAT, FIELD_LON, FIELD_MASS_Q, FIELD_NAME, FIELD_NONCE, FIELD_NOTE,
@@ -79,6 +82,11 @@ def _patch(payload, data_id, row_id=None):
         if patch[DATA_ID] == data_id and (row_id is None or patch[ROW_ID] == row_id):
             return patch
     raise AssertionError(f'missing patch for {data_id}:{row_id}')
+
+
+def _assert_stale(*names):
+    for name in names:
+        assert DigestStatus.objects.get(name=name).stale is True
 
 
 def _csv_b64(csv_text):
@@ -1365,7 +1373,8 @@ class TestRecordShape:
             FIELD_NUMBER: '42',
             FIELD_D_CM: '30', FIELD_H_M: '20.5', 'l10_mm': '12',
             'volume_m3': '0.7022', FIELD_MASS_Q: '6.32',
-            FIELD_HIGHFOREST: 'true',
+            FIELD_HIGHFOREST: 'true', FIELD_PRESERVED: 'true',
+            FIELD_LAT: '38.1', FIELD_LON: '16.2',
         })
         assert resp.status_code == 200, resp.content
         payload = resp.json()
@@ -1380,6 +1389,10 @@ class TestRecordShape:
         ).get(id=payload[ROW_ID])
         assert record == build_tree_sample_record(ts)
         assert len(record) == len(SAMPLED_TREE_COLUMNS)
+        _assert_stale(
+            DIGEST_PARCEL_DENDROMETRY, DIGEST_PARCEL_DENDROMETRY_POINTS,
+            DIGEST_PRESERVED_TREES,
+        )
 
     def test_tree_save_coppice_records_match_digest(
         self, writer_client, sample_setup, species, regions, eclasses,
@@ -1473,6 +1486,7 @@ class TestRecordShape:
         assert _patch(payload, 'grids', s['grid'].id)[RECORD] == build_grid_record(s['grid'])
         s['survey'].refresh_from_db()
         assert _patch(payload, 'surveys', s['survey'].id)[RECORD] == build_survey_record(s['survey'])
+        _assert_stale(DIGEST_PARCEL_DENDROMETRY, DIGEST_PARCEL_DENDROMETRY_POINTS)
 
     def test_grid_save_returns_record(self, writer_client, db):
         from apps.base.digests import build_grid_record
@@ -1541,6 +1555,7 @@ class TestRecordShape:
         payload = resp.json()
         s['survey'].refresh_from_db()
         assert _patch(payload, 'surveys', s['survey'].id)[RECORD] == build_survey_record(s['survey'])
+        _assert_stale(DIGEST_PARCEL_DENDROMETRY, DIGEST_PARCEL_DENDROMETRY_POINTS)
 
     def test_survey_edit_conflict_returns_current_patch(self, writer_client, sample_setup):
         from apps.base.digests import build_survey_record
@@ -1575,6 +1590,7 @@ class TestRecordShape:
         s['survey'].refresh_from_db()
         assert _patch(payload, 'samples', s['sample'].id)[RECORD] == build_sample_record(s['sample'])
         assert _patch(payload, 'surveys', s['survey'].id)[RECORD] == build_survey_record(s['survey'])
+        _assert_stale(DIGEST_PARCEL_DENDROMETRY, DIGEST_PARCEL_DENDROMETRY_POINTS)
 
 
 class TestTreeDelete:
@@ -2168,14 +2184,15 @@ class TestTreeCsvImport:
         particella = s['area'].parcel.name
         adc = s['area'].number
         n_trees_before = Tree.objects.count()
+        n_preserved_before = Tree.objects.filter(preserved=True).count()
         n_ts_before = TreeSample.objects.count()
         csv_text = (
             'Compresa,Particella,Area saggio,Albero,Pollone,Matricina,'
-            'D_cm,H_m,L10_mm,Genere,Fustaia,Data\n'
+            'D_cm,H_m,L10_mm,Genere,Fustaia,Data,PAI\n'
             f'{compresa},{particella},{adc},10,0,false,30,20.5,10,Abete,true,'
-            '2024-09-15\n'
+            '2024-09-15,true\n'
             f'{compresa},{particella},{adc},11,0,false,32,22.5,11,Abete,true,'
-            '2024-09-15\n'
+            '2024-09-15,false\n'
         )
         resp = self._post(writer_client, empty_survey.id, csv_text)
         assert resp.status_code == 200, resp.content
@@ -2184,6 +2201,11 @@ class TestTreeCsvImport:
         assert data['n_trees'] == 2
         assert Tree.objects.count() == n_trees_before + 2
         assert TreeSample.objects.count() == n_ts_before + 2
+        assert Tree.objects.filter(preserved=True).count() == n_preserved_before + 1
+        _assert_stale(
+            DIGEST_PARCEL_DENDROMETRY, DIGEST_PARCEL_DENDROMETRY_POINTS,
+            DIGEST_PRESERVED_TREES,
+        )
 
     def test_conflicting_dates_for_same_area_rejected(
         self, writer_client, sample_setup,
