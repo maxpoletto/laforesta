@@ -13,15 +13,17 @@ import rasterio
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
-from django.http import FileResponse, Http404, HttpResponse, JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.template.loader import render_to_string
-from django.utils.cache import patch_cache_control
-from django.utils.http import http_date, parse_http_date_safe
+from django.utils.http import http_date
 from django.views.decorators.http import require_POST
 
 from apps.base.auth import require_writer
 from apps.base.digests import (
     build_parcel_record, build_preserved_tree_record, mark_stale, serve_digest,
+)
+from apps.base.http import (
+    CACHE_NO_CACHE, apply_cache_control, conditional_file_response, not_modified_response,
 )
 from apps.base.models import Parcel, Region, Species, Tree, parcel_sort_key
 from apps.base.numparse import coord_float, int_or_none, parse_decimal
@@ -243,7 +245,7 @@ def satellite_diff_png(request, region_id, layer, date1, date2):
     mask_path = _satellite_file_path(region_id, 'parcel-mask.tif', required=False)
     paths = [path1, path2, *([mask_path] if mask_path else [])]
     mtime = max(os.path.getmtime(path) for path in paths)
-    not_modified = _satellite_not_modified_response(request, mtime)
+    not_modified = not_modified_response(request, mtime, cache_control=CACHE_NO_CACHE)
     if not_modified is not None:
         return not_modified
 
@@ -251,7 +253,7 @@ def satellite_diff_png(request, region_id, layer, date1, date2):
     response = HttpResponse(png, content_type='image/png')
     response['Last-Modified'] = http_date(mtime)
     response[SATELLITE_DIFF_VALUE_HEADER] = f'{max_abs / SATELLITE_BYTE_MIDPOINT:.6g}'
-    patch_cache_control(response, no_cache=True)
+    apply_cache_control(response, CACHE_NO_CACHE)
     return response
 
 
@@ -268,22 +270,18 @@ def _render_parcel_metadata_form(request, parcel_id: int, values: dict | None = 
 
 
 def _parcel_metadata_form_values(parcel, values: dict | None = None):
-    def value(key, default):
-        if values and key in values:
-            return values.get(key) or ''
-        return default if default is not None else ''
-
-    return {
-        FIELD_AREA_HA: value(FIELD_AREA_HA, parcel.area_ha),
-        FIELD_AVE_AGE: value(FIELD_AVE_AGE, parcel.ave_age),
-        FIELD_LOCATION_NAME: value(FIELD_LOCATION_NAME, parcel.location_name),
-        FIELD_ALTITUDE_MIN_M: value(FIELD_ALTITUDE_MIN_M, parcel.altitude_min_m),
-        FIELD_ALTITUDE_MAX_M: value(FIELD_ALTITUDE_MAX_M, parcel.altitude_max_m),
-        FIELD_ASPECT: value(FIELD_ASPECT, parcel.aspect),
-        FIELD_GRADE_PCT: value(FIELD_GRADE_PCT, parcel.grade_pct),
-        FIELD_DESC_VEG: value(FIELD_DESC_VEG, parcel.desc_veg),
-        FIELD_DESC_GEO: value(FIELD_DESC_GEO, parcel.desc_geo),
-    }
+    fields = (
+        (FIELD_AREA_HA, parcel.area_ha),
+        (FIELD_AVE_AGE, parcel.ave_age),
+        (FIELD_LOCATION_NAME, parcel.location_name),
+        (FIELD_ALTITUDE_MIN_M, parcel.altitude_min_m),
+        (FIELD_ALTITUDE_MAX_M, parcel.altitude_max_m),
+        (FIELD_ASPECT, parcel.aspect),
+        (FIELD_GRADE_PCT, parcel.grade_pct),
+        (FIELD_DESC_VEG, parcel.desc_veg),
+        (FIELD_DESC_GEO, parcel.desc_geo),
+    )
+    return {key: _form_value(values, key, default, blank=True) for key, default in fields}
 
 
 def _parse_parcel_metadata_body(body: dict):
@@ -366,9 +364,12 @@ def _render_pai_form(request, tree_id: int | None = None, values: dict | None = 
     }, request=request)
 
 
-def _form_value(values: dict | None, key: str, default):
+def _form_value(values: dict | None, key: str, default, *, blank=False):
     if values and key in values:
-        return values.get(key)
+        value = values.get(key)
+        if blank:
+            return value or ''
+        return value
     return default if default is not None else ''
 
 
@@ -405,27 +406,12 @@ def _preserved_tree_qs(*, for_update=False):
 
 
 def _satellite_json_response(request, region_id, filename):
-    path = _satellite_json_path(region_id, filename)
-    mtime = os.path.getmtime(path)
-    not_modified = _satellite_not_modified_response(request, mtime)
-    if not_modified is not None:
-        return not_modified
-    response = FileResponse(open(path, 'rb'), content_type='application/json')
-    response['Last-Modified'] = http_date(mtime)
-    patch_cache_control(response, no_cache=True)
-    return response
-
-
-def _satellite_not_modified_response(request, mtime):
-    ims = request.META.get('HTTP_IF_MODIFIED_SINCE')
-    if not ims:
-        return None
-    ims_ts = parse_http_date_safe(ims)
-    if ims_ts is None or ims_ts < int(mtime):
-        return None
-    response = HttpResponse(status=304)
-    patch_cache_control(response, no_cache=True)
-    return response
+    return conditional_file_response(
+        request,
+        _satellite_json_path(region_id, filename),
+        content_type='application/json',
+        cache_control=CACHE_NO_CACHE,
+    )
 
 
 def _satellite_json_path(region_id, filename):

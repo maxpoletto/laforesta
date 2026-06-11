@@ -19,10 +19,8 @@ from pathlib import Path
 
 from django.conf import settings
 from django.db.models import F, Sum
-from django.http import FileResponse, HttpResponse
-from django.utils.cache import patch_cache_control
-from django.utils.http import http_date, parse_http_date_safe
 
+from apps.base.http import CACHE_NO_STORE, conditional_file_response
 from apps.base.models import DigestStatus, render_flag_note
 from apps.base.selectors import (
     active_or_default_harvest_plan, active_or_default_survey_ids,
@@ -143,20 +141,13 @@ def serve_digest(request, name: str):
     The conditional GET below still answers 304 for unchanged digests, so
     suppressing the browser cache costs no bandwidth.
     """
-    path = regenerate_if_stale(name)
-    mtime = os.path.getmtime(path)
-    ims = request.META.get('HTTP_IF_MODIFIED_SINCE')
-    if ims:
-        ims_ts = parse_http_date_safe(ims)
-        if ims_ts is not None and ims_ts >= int(mtime):
-            response = HttpResponse(status=304)
-            patch_cache_control(response, no_store=True)
-            return response
-    response = FileResponse(open(path, 'rb'), content_type='application/json')
-    response['Content-Encoding'] = 'gzip'
-    response['Last-Modified'] = http_date(mtime)
-    patch_cache_control(response, no_store=True)
-    return response
+    return conditional_file_response(
+        request,
+        regenerate_if_stale(name),
+        content_type='application/json',
+        content_encoding='gzip',
+        cache_control=CACHE_NO_STORE,
+    )
 
 
 # ---------------------------------------------------------------------------
