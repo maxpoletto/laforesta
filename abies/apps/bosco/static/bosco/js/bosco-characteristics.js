@@ -1,7 +1,8 @@
 import * as S from '../../base/js/strings.js';
 import {
-  COL_COPPICE, COL_PARCEL_ID, COL_REGION_ID, COLUMNS, ROWS, ROW_ID,
+  COL_COPPICE, COL_PARCEL_ID, COL_REGION_ID, ROWS, ROW_ID,
 } from '../../base/js/constants.js';
+import { columnMap, toNumber } from '../../base/js/digests.js';
 import {
   Q_AGE,
   Q_ALTITUDE,
@@ -28,27 +29,15 @@ export const CHARACTERISTIC_METRICS = {
   [Q_FUTURE_HARVEST]: { kind: 'continuous', unit: 'm³', harvest: true },
 };
 
-function colMap(digest) {
-  const out = {};
-  digest[COLUMNS].forEach((name, idx) => { out[name] = idx; });
-  return out;
-}
-
-function num(v) {
-  if (v == null || v === '') return null;
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
-}
-
 export function parcelKey(region, parcel) {
   return `${region}-${parcel}`;
 }
 
 export function buildParcelEntries(digest) {
-  const c = colMap(digest);
+  const c = columnMap(digest);
   return digest[ROWS].map(row => {
-    const altMin = num(row[c[S.COL_ALT_MIN]]);
-    const altMax = num(row[c[S.COL_ALT_MAX]]);
+    const altMin = toNumber(row[c[S.COL_ALT_MIN]]);
+    const altMax = toNumber(row[c[S.COL_ALT_MAX]]);
     const type = row[c[S.COL_TYPE]];
     const coppiceIdx = c[COL_COPPICE];
     const coppice = coppiceIdx == null ? null : row[coppiceIdx] === true;
@@ -61,14 +50,14 @@ export function buildParcelEntries(digest) {
       type,
       coppice,
       className: row[c[S.COL_CLASS]],
-      areaHa: num(row[c[S.COL_AREA_HA]]),
-      cadastralAreaHa: num(row[c[S.COL_AREA_CAD_HA]]),
-      aveAge: num(row[c[S.COL_AVE_AGE]]),
+      areaHa: toNumber(row[c[S.COL_AREA_HA]]),
+      cadastralAreaHa: toNumber(row[c[S.COL_AREA_CAD_HA]]),
+      aveAge: toNumber(row[c[S.COL_AVE_AGE]]),
       location: row[c[S.COL_LOCATION]] || '',
       altMin,
       altMax,
       aspect: row[c[S.COL_ASPECT]] || '',
-      gradePct: num(row[c[S.COL_GRADE_PCT]]),
+      gradePct: toNumber(row[c[S.COL_GRADE_PCT]]),
       descVeg: row[c[S.COL_DESC_VEG]] || '',
       descGeo: row[c[S.COL_DESC_GEO]] || '',
       altitudeMean: altMin !== null && altMax !== null ? (altMin + altMax) / 2 : null,
@@ -78,22 +67,22 @@ export function buildParcelEntries(digest) {
 
 export function historicalHarvestByParcel(digest) {
   if (!digest) return new Map();
-  const c = colMap(digest);
+  const c = columnMap(digest);
   const out = new Map();
   for (const row of digest[ROWS]) {
     const key = parcelKey(row[c[S.COL_REGION]], row[c[S.COL_PARCEL]]);
-    out.set(key, (out.get(key) || 0) + (num(row[c[S.COL_QUINTALS]]) || 0));
+    out.set(key, (out.get(key) || 0) + toNumber(row[c[S.COL_QUINTALS]], 0));
   }
   return out;
 }
 
 export function futureHarvestByParcel(digest) {
   if (!digest) return new Map();
-  const c = colMap(digest);
+  const c = columnMap(digest);
   const out = new Map();
   for (const row of digest[ROWS]) {
     const parcelId = row[c[COL_PARCEL_ID]];
-    out.set(parcelId, (out.get(parcelId) || 0) + (num(row[c[S.COL_VOLUME_PLANNED]]) || 0));
+    out.set(parcelId, (out.get(parcelId) || 0) + toNumber(row[c[S.COL_VOLUME_PLANNED]], 0));
   }
   return out;
 }

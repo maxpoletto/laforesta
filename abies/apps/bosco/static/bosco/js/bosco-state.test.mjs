@@ -1,10 +1,26 @@
 // Tests for Bosco URL-state helpers.
 
-import {
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'abies-bosco-state-js-'));
+const staticRoot = path.join(tmpRoot, 'static');
+fs.mkdirSync(path.join(staticRoot, 'bosco'), { recursive: true });
+fs.mkdirSync(path.join(staticRoot, 'base'), { recursive: true });
+fs.cpSync(here, path.join(staticRoot, 'bosco', 'js'), { recursive: true });
+fs.cpSync(path.resolve(here, '../../../../base/static/base/js'),
+          path.join(staticRoot, 'base', 'js'), { recursive: true });
+process.on('exit', () => fs.rmSync(tmpRoot, { recursive: true, force: true }));
+const staticModule = rel => pathToFileURL(path.join(staticRoot, rel)).href;
+
+const {
   clearDetailParams, clearMapView, formatCenter, mapTypeName, mapTypeToken,
   parseCenter, parseIdList, parseOptionalIdList, parseSectionTokens, readBoscoParams,
   writeMapView, writeOptionalIdList, writeSectionTokens,
-} from './bosco-state.js';
+} = await import(staticModule('bosco/js/bosco-state.js'));
 
 let failed = 0;
 let passed = 0;

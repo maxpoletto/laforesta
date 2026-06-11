@@ -1,7 +1,8 @@
 import * as S from '../../base/js/strings.js';
 import {
-  COL_PARCEL_ID, COL_SPECIES_ID, COLUMNS, ROWS,
+  COL_PARCEL_ID, COL_SPECIES_ID, ROWS,
 } from '../../base/js/constants.js';
+import { columnMap, toNumber } from '../../base/js/digests.js';
 
 const CHART_COLORS = [
   '#2f8f58', '#1565c0', '#d7aa27', '#8d3f86', '#c94f4f',
@@ -9,24 +10,6 @@ const CHART_COLORS = [
 ];
 
 const HEIGHT_FIT_MIN_N = 5;
-
-function colMap(digest) {
-  const out = {};
-  digest[COLUMNS].forEach((name, idx) => { out[name] = idx; });
-  return out;
-}
-
-function num(v) {
-  if (v == null || v === '') return 0;
-  const n = Number(v);
-  return Number.isFinite(n) ? n : 0;
-}
-
-function maybeNum(v) {
-  if (v == null || v === '') return null;
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
-}
 
 export function regionMetadata(entries) {
   const count = entries.length;
@@ -45,7 +28,7 @@ export function regionMetadata(entries) {
 
 export function aggregateDendrometry(digest, scope, { areaHa = null, perHa = true, speciesIds = null } = {}) {
   if (!digest) return [];
-  const c = colMap(digest);
+  const c = columnMap(digest);
   const hasSpeciesFilter = Array.isArray(speciesIds);
   if (hasSpeciesFilter && !speciesIds.length) return [];
   const allowedSpecies = new Set(speciesIds || []);
@@ -70,16 +53,16 @@ export function aggregateDendrometry(digest, scope, { areaHa = null, perHa = tru
       incrementSum: 0,
       incrementWeight: 0,
     };
-    const nTrees = num(row[c[S.COL_N_TREES]]);
+    const nTrees = toNumber(row[c[S.COL_N_TREES]], 0);
     g.treeCount += nTrees;
-    g.volumeM3 += num(row[c[S.COL_VOLUME_M3]]);
-    g.basalAreaM2 += num(row[c[S.COL_BASAL_AREA_M2]]);
-    const h = maybeNum(row[c[S.COL_AVG_H_M]]);
+    g.volumeM3 += toNumber(row[c[S.COL_VOLUME_M3]], 0);
+    g.basalAreaM2 += toNumber(row[c[S.COL_BASAL_AREA_M2]], 0);
+    const h = toNumber(row[c[S.COL_AVG_H_M]]);
     if (h !== null && nTrees > 0) {
       g.heightSum += h * nTrees;
       g.heightWeight += nTrees;
     }
-    const inc = maybeNum(row[c[S.COL_INCREMENT_PCT]]);
+    const inc = toNumber(row[c[S.COL_INCREMENT_PCT]]);
     if (inc !== null && nTrees > 0) {
       g.incrementSum += inc * nTrees;
       g.incrementWeight += nTrees;
@@ -118,7 +101,7 @@ export function dendrometrySpecies(digest, scope) {
 export function dendrometryBarChartData(rows, metric, yTitle) {
   const { labels, species } = dendrometryChartAxes(rows);
   const values = new Map(rows.map(row => [
-    dendrometryChartKey(row.speciesId, row.diameterClassCm), num(row[metric]),
+    dendrometryChartKey(row.speciesId, row.diameterClassCm), toNumber(row[metric], 0),
   ]));
   return {
     labels,
@@ -135,7 +118,7 @@ export function dendrometryLineChartData(rows, metric, yTitle) {
   const { labels, species } = dendrometryChartAxes(rows);
   const values = new Map(rows.map(row => [
     dendrometryChartKey(row.speciesId, row.diameterClassCm),
-    maybeNum(row[metric]),
+    toNumber(row[metric]),
   ]));
   return {
     labels,
@@ -176,7 +159,7 @@ function dendrometryChartKey(speciesId, diameterClassCm) {
 
 export function dendrometryHeightPoints(digest, scope, { speciesIds = null } = {}) {
   if (!digest) return [];
-  const c = colMap(digest);
+  const c = columnMap(digest);
   const hasSpeciesFilter = Array.isArray(speciesIds);
   if (hasSpeciesFilter && !speciesIds.length) return [];
   const allowedSpecies = new Set(speciesIds || []);
@@ -187,8 +170,8 @@ export function dendrometryHeightPoints(digest, scope, { speciesIds = null } = {
     if (scope.parcelId == null && scope.region && row[c[S.COL_REGION]] !== scope.region) continue;
     const speciesId = row[c[COL_SPECIES_ID]];
     if (hasSpeciesFilter && !allowedSpecies.has(speciesId)) continue;
-    const dCm = maybeNum(row[c[S.COL_D_CM]]);
-    const hM = maybeNum(row[c[S.COL_H_M]]);
+    const dCm = toNumber(row[c[S.COL_D_CM]]);
+    const hM = toNumber(row[c[S.COL_H_M]]);
     if (dCm == null || hM == null) continue;
     rows.push({
       speciesId,

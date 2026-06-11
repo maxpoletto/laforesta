@@ -1,5 +1,7 @@
 // Pure helpers for Bosco satellite-timeseries UI.
 
+import { toNumber } from '../../base/js/digests.js';
+
 export const DEFAULT_EVOLUTION_METRIC = '1';
 
 export const CHARACTERISTIC_SATELLITE_LAYERS = {
@@ -192,7 +194,5 @@ function cleanDates(dates) {
 }
 
 function finite(value) {
-  if (value == null || value === '') return null;
-  const n = Number(value);
-  return Number.isFinite(n) ? n : null;
+  return toNumber(value);
 }

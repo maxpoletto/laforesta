@@ -13,6 +13,7 @@ import {
 import { canModify } from '../../base/js/roles.js';
 import { postJSON } from '../../base/js/api.js';
 import { dismiss as dismissModal, onDismiss } from '../../base/js/modals.js';
+import { columnMap } from '../../base/js/digests.js';
 import { createRangeSlider } from '../../base/js/range-slider.js';
 import * as router from '../../base/js/router.js';
 import * as S from '../../base/js/strings.js';
@@ -345,8 +346,7 @@ function syncURL() {
 // ---------------------------------------------------------------------------
 
 function _buildColMap(columns) {
-  colMap = {};
-  for (let i = 0; i < columns.length; i++) colMap[columns[i]] = i;
+  colMap = columnMap(columns);
 }
 
 function _classifyColumns(columns) {

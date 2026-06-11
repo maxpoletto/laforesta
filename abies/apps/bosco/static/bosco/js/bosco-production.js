@@ -1,22 +1,11 @@
 // Pure helpers for Bosco historical-production summaries.
 
 import * as S from '../../base/js/strings.js';
-import { COLUMNS, ROWS } from '../../base/js/constants.js';
+import { ROWS } from '../../base/js/constants.js';
+import { columnMap, toNumber } from '../../base/js/digests.js';
 
 const TOTAL_COLOR = '#2f8f58';
 const PRELIEVI_PATH = '/prelievi';
-
-function colMap(digest) {
-  const out = {};
-  digest[COLUMNS].forEach((name, idx) => { out[name] = idx; });
-  return out;
-}
-
-function num(value) {
-  if (value == null || value === '') return 0;
-  const n = Number(value);
-  return Number.isFinite(n) ? n : 0;
-}
 
 export function prelieviUrlForScope(scope = {}) {
   const params = new URLSearchParams();
@@ -32,7 +21,7 @@ export function prelieviUrlForScope(scope = {}) {
 
 export function productionRows(digest, scope) {
   if (!digest) return [];
-  const c = colMap(digest);
+  const c = columnMap(digest);
   const regionIdx = c[S.COL_REGION];
   const parcelIdx = c[S.COL_PARCEL];
   if (regionIdx == null || parcelIdx == null) return [];
@@ -43,11 +32,11 @@ export function productionRows(digest, scope) {
 }
 
 export function aggregateProduction(digest, scope, opts = {}) {
-  const c = colMap(digest);
+  const c = columnMap(digest);
   const dateIdx = c[S.COL_DATE];
   const qIdx = c[S.COL_QUINTALS];
   const rows = productionRows(digest, scope);
-  const areaHa = num(opts.areaHa);
+  const areaHa = toNumber(opts.areaHa, 0);
   const divisor = opts.perHa && areaHa > 0 ? areaHa : 1;
   const bucket = opts.byMonth
     ? date => String(date || '').slice(0, 7)
@@ -59,7 +48,7 @@ export function aggregateProduction(digest, scope, opts = {}) {
     const date = row[dateIdx];
     const key = bucket(date);
     if (!key) continue;
-    const q = num(row[qIdx]);
+    const q = toNumber(row[qIdx], 0);
     total += q;
     byBucket.set(key, (byBucket.get(key) || 0) + q / divisor);
   }

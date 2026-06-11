@@ -15,6 +15,7 @@ import {
   applyTableState, createPage, navigateWithParams, readTableState,
   tableParamKeys, tableSort, writeTableState,
 } from '../../base/js/page-sync.js';
+import { columnMap } from '../../base/js/digests.js';
 import { fmtDecimal1, fmtDecimal2, parseDecimal } from '../../base/js/format.js';
 import * as S from '../../base/js/strings.js';
 import {
@@ -569,9 +570,9 @@ function buildReceipts(month) {
   const credits = cache.get(CREDITS.dataId);
   if (!prelievi || !hours || !credits || !month) return [];
 
-  const pc = colMap(prelievi.columns);
-  const hc = colMap(hours.columns);
-  const cc = colMap(credits.columns);
+  const pc = columnMap(prelievi.columns);
+  const hc = columnMap(hours.columns);
+  const cc = columnMap(credits.columns);
   const harvests = prelievi.rows.filter(row => String(row[pc[S.COL_DATE]] || '').startsWith(month));
   const teams = [...new Set(harvests.map(row => row[pc[S.COL_CREW]]).filter(Boolean))]
     .sort((a, b) => String(a).localeCompare(String(b), S.LOCALE));
@@ -729,11 +730,6 @@ function drawDecimal(doc, commaX, y, value, opts) {
   doc.text(commaX, y, text.slice(comma), opts);
 }
 
-function colMap(columns) {
-  const out = {};
-  columns.forEach((name, i) => { out[name] = i; });
-  return out;
-}
 
 function sum(rows, idx) {
   if (idx == null || idx < 0) return 0;
