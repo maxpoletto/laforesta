@@ -149,6 +149,13 @@ export class TableWrapper {
     this._applyFilters();
   }
 
+  /** Data row backing a rendered SortableTable row element. */
+  rowForElement(rowEl) {
+    if (!this._table || !rowEl?.dataset) return null;
+    const index = parseInt(rowEl.dataset.index, 10);
+    return Number.isInteger(index) ? this._table.data[index] || null : null;
+  }
+
   /** Tear down DOM and timers. */
   destroy() {
     if (this._debounceTimer) clearTimeout(this._debounceTimer);
@@ -259,7 +266,7 @@ export class TableWrapper {
         if (!icon) return;
         const tr = icon.closest('.sortable-table-row');
         if (!tr) return;
-        const rowData = this._table.data[parseInt(tr.dataset.index)];
+        const rowData = this.rowForElement(tr);
         if (!rowData) return;
         const rowId = rowData[ROW_ID_COL];
         if (icon.classList.contains('action-edit')) this.actions.onEdit?.(rowId);

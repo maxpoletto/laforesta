@@ -173,6 +173,9 @@ let evolutionOverlay = null;
 let paiMarkerLayer = null;
 let parcelsGeo = null;
 let map = null;
+let mapRegionId = null;
+let mapEntries = [];
+let mapEntriesByKey = new Map();
 let regions = [];
 let regionById = new Map();
 let currentState = null;
@@ -224,7 +227,7 @@ function makeLoader(dataId, assign) {
   };
 }
 
-function loadPageData() {
+async function loadPageData() {
   const [parcels, future] = await Promise.all([
     cache.load(PARCELS_ID),
     cache.load(FUTURE_ID),
@@ -510,7 +513,7 @@ function applyParams(params) {
   updateEvolutionControls(state);
 
   const needsMapRebuild = !map
-    || map._boscoRegionId !== state.regionId
+    || mapRegionId !== state.regionId
     || map.wrapper?.getBasemap() !== state.basemap;
   if (needsMapRebuild) renderMap(state);
   else {
@@ -625,12 +628,12 @@ function renderMap(state) {
     onViewChange: onMapViewChange,
     onMapClick: onMapClick,
   });
-  map._boscoRegionId = state.regionId;
+  mapRegionId = state.regionId;
   map.leaflet.on('basemapchange', (e) => onBasemapChange(e.name));
   setTimeout(() => { suppressViewSync = false; }, 0);
   buildMapParcelEntries(state);
   refreshCharacteristicLayer();
-  setStatus(`${region.name} — ${map._boscoEntries.length} particelle`);
+  setStatus(`${region.name} — ${mapEntries.length} particelle`);
 }
 
 function buildMapParcelEntries(state) {
@@ -649,14 +652,14 @@ function buildMapParcelEntries(state) {
     entry.geoAreaHa += (layer.feature?.properties?._areaM2 || 0) / 10000;
   });
 
-  map._boscoEntries = entries;
-  map._boscoEntriesByKey = byKey;
+  mapEntries = entries;
+  mapEntriesByKey = byKey;
   updateMapDisplayAreas(state);
 }
 
 function updateMapDisplayAreas(state) {
-  if (!map?._boscoEntries) return;
-  for (const entry of map._boscoEntries) {
+  if (!map) return;
+  for (const entry of mapEntries) {
     entry.displayAreaHa = displayAreaHa(entry, state);
   }
 }
@@ -675,6 +678,9 @@ function destroyMap() {
     map.destroy();
     map = null;
   }
+  mapRegionId = null;
+  mapEntries = [];
+  mapEntriesByKey = new Map();
 }
 
 function applyMapView(state) {
@@ -692,7 +698,7 @@ function applyMapView(state) {
 
 function refreshCharacteristicLayer() {
   const seq = ++characteristicRenderSeq;
-  if (!map?._boscoEntries || !currentState) return;
+  if (!map || !currentState) return;
   if (currentState.mode !== MODE_CHARACTERISTICS) {
     resetParcelStyles();
     clearLegend();
@@ -717,7 +723,7 @@ function refreshCharacteristicLayer() {
   }
 
   const context = characteristicContext(currentState.q);
-  const entries = map._boscoEntries;
+  const entries = mapEntries;
   if (currentState.q === Q_TYPE) {
     let hasNoData = false;
     for (const entry of entries) {
@@ -750,7 +756,7 @@ function characteristicContext(metricId) {
 
 function renderSatelliteCharacteristic(seq) {
   const layer = characteristicSatelliteLayer(currentState?.q);
-  if (!layer || !map?._boscoEntries || !currentState) return;
+  if (!layer || !map || !currentState) return;
   if (!satelliteReady(currentState.regionId)) {
     resetParcelStyles();
     renderMessageLegend(S.BOSCO_LOADING_SATELLITE);
@@ -769,7 +775,7 @@ function renderSatelliteCharacteristic(seq) {
     return;
   }
 
-  const entries = map._boscoEntries;
+  const entries = mapEntries;
   const values = entries.map(entry => satelliteValue(satelliteData.timeseries, entry.key, layer, date));
   if (!continuousDomain(values)) {
     resetParcelStyles();
@@ -786,7 +792,7 @@ function renderSatelliteCharacteristic(seq) {
 
 function renderEvolutionMode() {
   const seq = ++evolutionRenderSeq;
-  if (!map?._boscoEntries || currentState?.mode !== MODE_EVOLUTION) return;
+  if (!map || currentState?.mode !== MODE_EVOLUTION) return;
   updateEvolutionControls(currentState);
 
   const metric = EVOLUTION_METRICS[currentState.evolutionMetric];
@@ -827,7 +833,7 @@ function renderEvolutionMode() {
 
 function renderEvolutionParcelAverages(metric, date1, date2) {
   clearEvolutionOverlay();
-  const values = map._boscoEntries.map(entry => (
+  const values = mapEntries.map(entry => (
     satelliteDiffValue(satelliteData.timeseries, entry.key, metric.layer, date1, date2)
   ));
   const domain = divergingDomain(values);
@@ -837,7 +843,7 @@ function renderEvolutionParcelAverages(metric, date1, date2) {
     return;
   }
 
-  for (const entry of map._boscoEntries) {
+  for (const entry of mapEntries) {
     const value = satelliteDiffValue(satelliteData.timeseries, entry.key, metric.layer, date1, date2);
     applyEntryStyle(
       entry,
@@ -1183,10 +1189,10 @@ function syncDetailOverlay(state) {
 }
 
 function detailScopeForState(state = currentState) {
-  if (!state?.detailMode || !map?._boscoEntries) return null;
+  if (!state?.detailMode || !map) return null;
   const region = regionById.get(state.regionId);
   if (state.detailMode === '1') {
-    const entry = map._boscoEntries.find(e => e.id === state.parcelId);
+    const entry = mapEntries.find(e => e.id === state.parcelId);
     if (!entry) return null;
     return {
       type: 'parcel',
@@ -1200,7 +1206,7 @@ function detailScopeForState(state = currentState) {
     };
   }
   if (state.detailMode === '2' && region) {
-    const entries = map._boscoEntries;
+    const entries = mapEntries;
     return {
       type: 'region',
       title: region.name,
@@ -1474,7 +1480,7 @@ function destroyProductionChart() {
 
 
 function renderPaiMode() {
-  if (!map?._boscoEntries || currentState?.mode !== MODE_PAI) return;
+  if (!map || currentState?.mode !== MODE_PAI) return;
   if (!preservedData) {
     if (paiParcelsHost) paiParcelsHost.textContent = S.LOADING;
     if (paiSpeciesHost) paiSpeciesHost.textContent = S.LOADING;
@@ -1488,7 +1494,7 @@ function renderPaiMode() {
 
   const region = regionById.get(currentState.regionId)?.name;
   const allTrees = filterPaiTrees(buildPreservedTrees(preservedData), { region });
-  const parcelItems = paiParcelItems(map._boscoEntries, allTrees);
+  const parcelItems = paiParcelItems(mapEntries, allTrees);
   const speciesItems = paiSpeciesItems(allTrees);
   const colors = speciesColorMap(speciesItems);
   renderPaiCheckboxes(paiParcelsHost, parcelItems, currentState.paiParcelIds, 'pp');
@@ -1552,7 +1558,7 @@ function selectPaiParcelFromLatLon(form) {
   const feature = findContainingParcel(lon, lat, parcelsGeo.features);
   if (!feature) return;
   const { compresa, particella } = parcelNames(feature);
-  const entry = map?._boscoEntriesByKey?.get(parcelKey(compresa, particella));
+  const entry = mapEntriesByKey?.get(parcelKey(compresa, particella));
   const select = form.querySelector('#id_pai_parcel');
   if (entry && select) select.value = String(entry.id);
 }
@@ -1742,7 +1748,7 @@ function onMapClick(_latlng, feature) {
     return;
   }
   const { compresa, particella } = parcelNames(feature);
-  const entry = map?._boscoEntriesByKey?.get(parcelKey(compresa, particella));
+  const entry = mapEntriesByKey?.get(parcelKey(compresa, particella));
   const context = currentState ? characteristicContext(currentState.q) : {};
   const value = entry && currentState ? metricValue(entry, currentState.q, context) : null;
   const metric = currentState?.mode === MODE_CHARACTERISTICS ? ` — ${metricDisplay(currentState.q, value)}` : '';
@@ -1806,7 +1812,7 @@ function canonicalizePaiParams(params, state) {
   }
 
   let changed = false;
-  const parcelIds = (map?._boscoEntries || []).map(e => e.id);
+  const parcelIds = mapEntries.map(e => e.id);
   changed = canonicalizeOptionalIdParam(params, 'pp', state.paiParcelIds, parcelIds) || changed;
 
   if (preservedData) {

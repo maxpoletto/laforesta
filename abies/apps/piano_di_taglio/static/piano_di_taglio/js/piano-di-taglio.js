@@ -399,8 +399,8 @@ function buildTable(s, searchInput) {
   s.host.addEventListener('click', (e) => {
     if (e.target.closest('.action-icon')) return;
     const tr = e.target.closest('.sortable-table-row');
-    if (!tr || !s.table?._table) return;
-    const rowData = s.table._table.data[parseInt(tr.dataset.index, 10)];
+    if (!tr || !s.table) return;
+    const rowData = s.table.rowForElement(tr);
     if (!rowData) return;
     navigateToItem(rowData[0]);
   });

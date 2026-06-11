@@ -191,8 +191,8 @@ function onTableClick(e) {
   const cell = e.target.closest(`.sortable-table-cell.${CLASS_BOSCO_LINK}`);
   if (!cell) return;
   const tr = cell.closest('.sortable-table-row');
-  if (!tr || !table?._table) return;
-  const row = table._table.data[parseInt(tr.dataset.index, 10)];
+  if (!tr || !table) return;
+  const row = table.rowForElement(tr);
   const url = boscoUrlForHarvestRow(row, cache.get(DATA_ID)?.columns || []);
   if (!url) return;
   e.preventDefault();

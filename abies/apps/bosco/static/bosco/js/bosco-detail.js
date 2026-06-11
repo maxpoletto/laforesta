@@ -36,7 +36,7 @@ export function aggregateDendrometry(digest, scope, { areaHa = null, perHa = tru
     const speciesId = row[c[COL_SPECIES_ID]];
     if (hasSpeciesFilter && !allowedSpecies.has(speciesId)) continue;
 
-    const key = `${speciesId}|${row[c[S.COL_DIAM_CLASS_CM]]}`;
+    const key = dendrometryChartKey(speciesId, row[c[S.COL_DIAM_CLASS_CM]]);
     const g = groups.get(key) || {
       speciesId,
       species: row[c[S.COL_SPECIES]],

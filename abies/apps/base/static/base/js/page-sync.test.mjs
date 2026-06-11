@@ -208,6 +208,19 @@ const { TableWrapper } = await import('./table.js');
   eq(wrapper._table.sorted, null, 'TableWrapper.setSort ignores unknown columns');
 }
 
+// TableWrapper.rowForElement exposes rendered-row lookup without leaking SortableTable internals.
+{
+  const wrapper = Object.create(TableWrapper.prototype);
+  wrapper._table = { data: [[10, 'Abete'], [20, 'Faggio']] };
+  eq(wrapper.rowForElement({ dataset: { index: '1' } }), [20, 'Faggio'],
+     'TableWrapper.rowForElement returns row by rendered index');
+  eq(wrapper.rowForElement({ dataset: { index: 'bad' } }), null,
+     'TableWrapper.rowForElement rejects invalid indexes');
+  wrapper._table = null;
+  eq(wrapper.rowForElement({ dataset: { index: '0' } }), null,
+     'TableWrapper.rowForElement handles missing table');
+}
+
 // navigateWithParams uses replace by default and preserves empty query handling.
 {
   router.init();
