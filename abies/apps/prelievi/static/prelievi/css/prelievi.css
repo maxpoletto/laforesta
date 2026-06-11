@@ -103,6 +103,6 @@
 }
 
 .sortable-table-cell.col-link-bosco:hover {
-  color: #006400;
+  color: var(--color-bosco-green);
   text-decoration: underline;
 }

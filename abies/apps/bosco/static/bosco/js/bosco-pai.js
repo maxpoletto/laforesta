@@ -2,12 +2,8 @@ import * as S from '../../base/js/strings.js';
 import {
   COL_PARCEL_ID, COL_SPECIES_ID, ROWS, ROW_ID, VERSION,
 } from '../../base/js/constants.js';
+import { CATEGORICAL_COLORS } from '../../base/js/charts.js';
 import { columnMap, toNumber } from '../../base/js/digests.js';
-
-const COLORS = [
-  '#2e7d32', '#1565c0', '#e65100', '#6a1b9a', '#c62828',
-  '#00838f', '#827717', '#4e342e', '#37474f', '#ad1457',
-];
 
 export function buildPreservedTrees(digest) {
   if (!digest) return [];
@@ -56,7 +52,7 @@ export function paiSpeciesItems(trees) {
 
 export function speciesColorMap(speciesItems) {
   const out = new Map();
-  speciesItems.forEach((item, idx) => out.set(item.id, COLORS[idx % COLORS.length]));
+  speciesItems.forEach((item, idx) => out.set(item.id, CATEGORICAL_COLORS[idx % CATEGORICAL_COLORS.length]));
   return out;
 }
 

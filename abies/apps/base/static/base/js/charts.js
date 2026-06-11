@@ -1,11 +1,13 @@
 import * as S from './strings.js';
 import { fmtDecimal1 } from './format.js';
 
-export const CHART_COLORS = [
+export const CATEGORICAL_COLORS = [
   '#2e7d32', '#1565c0', '#e65100', '#6a1b9a', '#c62828',
   '#00838f', '#827717', '#4e342e', '#37474f', '#ad1457',
   '#558b2f', '#0277bd',
 ];
+
+export const CHART_COLORS = CATEGORICAL_COLORS;
 
 export function renderChart(canvas, chartData, existing, config) {
   if (!canvas) return existing || null;
