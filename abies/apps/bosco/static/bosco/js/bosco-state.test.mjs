@@ -43,7 +43,7 @@ assertEqual(state.q, '1', 'readBoscoParams: default characteristic');
 assertEqual(state.evolutionMetric, '1', 'readBoscoParams: default evolution metric');
 assertEqual(state.evolutionDate1, null, 'readBoscoParams: default evolution date 1');
 assertEqual(state.evolutionDate2, null, 'readBoscoParams: default evolution date 2');
-assertEqual(state.parcelAverage, true, 'readBoscoParams: parcel means supported');
+assertEqual(state.parcelAverage, false, 'readBoscoParams: default detailed raster mode');
 assertEqual(state.useCadastralArea, false, 'readBoscoParams: default cadastral flag');
 assertEqual(state.harvestPerHa, false, 'readBoscoParams: default per-ha flag');
 assertEqual(state.detailMode, null, 'readBoscoParams: no detail overlay');
@@ -92,12 +92,19 @@ assertEqual(state.harvestPerHa, false, 'readBoscoParams: per-ha ignored on non-h
 state = readBoscoParams({ m: '2', q: '4', fh: '1' }, [7, 8]);
 assertEqual(state.harvestPerHa, false, 'readBoscoParams: per-ha ignored outside characteristics');
 
+state = readBoscoParams({ m: '1', fa: '1' }, [7, 8]);
+assertEqual(state.parcelAverage, false, 'readBoscoParams: parcel-average ignored outside evolution');
+
 state = readBoscoParams({ c: '8', m: '2', q: '3', d1: '20240102', d2: '2024-07' }, [7, 8]);
 assertEqual(state.mode, '2', 'readBoscoParams: evolution mode');
 assertEqual(state.q, '3', 'readBoscoParams: evolution q');
 assertEqual(state.evolutionMetric, '3', 'readBoscoParams: evolution metric');
 assertEqual(state.evolutionDate1, '2024-01-02', 'readBoscoParams: compact date');
 assertEqual(state.evolutionDate2, '2024-07-01', 'readBoscoParams: month date');
+assertEqual(state.parcelAverage, false, 'readBoscoParams: evolution defaults to raster');
+
+state = readBoscoParams({ m: '2', q: '3', fa: '1' }, [7, 8]);
+assertEqual(state.parcelAverage, true, 'readBoscoParams: evolution parcel-average flag');
 
 state = readBoscoParams({ m: '2', q: '8' }, [7, 8]);
 assertEqual(state.q, '1', 'readBoscoParams: invalid evolution q fallback');

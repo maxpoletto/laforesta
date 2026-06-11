@@ -1,8 +1,14 @@
 """Bosco API views."""
 
+import io
 import os
+import re
 from datetime import date as date_type
 from pathlib import Path
+
+import numpy as np
+from PIL import Image
+import rasterio
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
@@ -31,6 +37,15 @@ from config.constants import (
 )
 
 ALLOWED_SATELLITE_JSON = {'manifest.json', 'timeseries.json'}
+ALLOWED_SATELLITE_LAYERS = {'ndvi', 'ndmi', 'evi'}
+SATELLITE_DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+SATELLITE_DIFF_RAMP = (
+    (0, np.array([180, 30, 30], dtype=np.float32)),
+    (128, np.array([255, 255, 255], dtype=np.float32)),
+    (255, np.array([30, 130, 30], dtype=np.float32)),
+)
+SATELLITE_INSIDE_ALPHA = 210
+SATELLITE_OUTSIDE_ALPHA = 60
 
 PARCELS_DIGEST = 'parcels'
 FIELD_AREA_HA = 'area_ha'
@@ -211,6 +226,30 @@ def satellite_timeseries(request, region_id):
     return _satellite_json_response(request, region_id, 'timeseries.json')
 
 
+@login_required
+def satellite_diff_png(request, region_id, layer, date1, date2):
+    if layer not in ALLOWED_SATELLITE_LAYERS:
+        raise Http404
+    if not SATELLITE_DATE_RE.fullmatch(date1) or not SATELLITE_DATE_RE.fullmatch(date2):
+        raise Http404
+
+    path1 = _satellite_file_path(region_id, date1, f'{layer}.tif')
+    path2 = _satellite_file_path(region_id, date2, f'{layer}.tif')
+    mask_path = _satellite_file_path(region_id, 'parcel-mask.tif', required=False)
+    paths = [path1, path2, *([mask_path] if mask_path else [])]
+    mtime = max(os.path.getmtime(path) for path in paths)
+    not_modified = _satellite_not_modified_response(request, mtime)
+    if not_modified is not None:
+        return not_modified
+
+    png, max_abs = _render_satellite_diff_png(path1, path2, mask_path)
+    response = HttpResponse(png, content_type='image/png')
+    response['Last-Modified'] = http_date(mtime)
+    response['X-Bosco-Max-Abs'] = f'{max_abs / 127.5:.6g}'
+    patch_cache_control(response, no_cache=True)
+    return response
+
+
 def _render_parcel_metadata_form(request, parcel_id: int, values: dict | None = None):
     parcel = Parcel.objects.select_related('region', 'eclass').filter(id=parcel_id).first()
     if parcel is None:
@@ -359,15 +398,23 @@ def _preserved_tree_qs(*, for_update=False):
 def _satellite_json_response(request, region_id, filename):
     path = _satellite_json_path(region_id, filename)
     mtime = os.path.getmtime(path)
-    ims = request.META.get('HTTP_IF_MODIFIED_SINCE')
-    if ims:
-        ims_ts = parse_http_date_safe(ims)
-        if ims_ts is not None and ims_ts >= int(mtime):
-            response = HttpResponse(status=304)
-            patch_cache_control(response, no_cache=True)
-            return response
+    not_modified = _satellite_not_modified_response(request, mtime)
+    if not_modified is not None:
+        return not_modified
     response = FileResponse(open(path, 'rb'), content_type='application/json')
     response['Last-Modified'] = http_date(mtime)
+    patch_cache_control(response, no_cache=True)
+    return response
+
+
+def _satellite_not_modified_response(request, mtime):
+    ims = request.META.get('HTTP_IF_MODIFIED_SINCE')
+    if not ims:
+        return None
+    ims_ts = parse_http_date_safe(ims)
+    if ims_ts is None or ims_ts < int(mtime):
+        return None
+    response = HttpResponse(status=304)
     patch_cache_control(response, no_cache=True)
     return response
 
@@ -375,17 +422,88 @@ def _satellite_json_response(request, region_id, filename):
 def _satellite_json_path(region_id, filename):
     if filename not in ALLOWED_SATELLITE_JSON:
         raise Http404
+    return _satellite_file_path(region_id, filename)
+
+
+def _satellite_file_path(region_id, *parts, required=True):
+    region_dir = _satellite_region_dir(region_id)
+    path = region_dir.joinpath(*parts).resolve()
+    try:
+        path.relative_to(region_dir)
+    except ValueError as exc:
+        raise Http404 from exc
+    if not path.is_file():
+        if required:
+            raise Http404
+        return None
+    return path
+
+
+def _satellite_region_dir(region_id):
     try:
         region = Region.objects.get(pk=region_id)
     except Region.DoesNotExist as exc:
         raise Http404 from exc
 
     base = Path(settings.SATELLITE_DIR).resolve()
-    path = (base / region.name / filename).resolve()
+    path = (base / region.name).resolve()
     try:
         path.relative_to(base)
     except ValueError as exc:
         raise Http404 from exc
-    if not path.is_file():
-        raise Http404
     return path
+
+
+def _render_satellite_diff_png(path1, path2, mask_path):
+    raster1 = _read_raster(path1).astype(np.float32)
+    raster2 = _read_raster(path2).astype(np.float32)
+    if raster1.shape != raster2.shape:
+        raise Http404
+
+    mask = None
+    if mask_path is not None:
+        mask = _read_raster(mask_path) > 0
+        if mask.shape != raster1.shape:
+            raise Http404
+
+    diff = raster2 - raster1
+    finite = np.isfinite(diff)
+    range_mask = finite & mask if mask is not None else finite
+    if np.any(range_mask):
+        selected = diff[range_mask]
+        max_abs = float(max(abs(np.min(selected)), abs(np.max(selected)))) or 1.0
+    else:
+        max_abs = 1.0
+
+    positions = np.clip(np.rint(((np.nan_to_num(diff) / max_abs) + 1) * 127.5), 0, 255)
+    rgb = _diff_ramp_rgb(positions)
+    alpha = np.full(diff.shape, SATELLITE_INSIDE_ALPHA, dtype=np.uint8)
+    if mask is not None:
+        alpha[:] = SATELLITE_OUTSIDE_ALPHA
+        alpha[mask] = SATELLITE_INSIDE_ALPHA
+    alpha[~finite] = 0
+    rgba = np.dstack([rgb, alpha]).astype(np.uint8)
+
+    out = io.BytesIO()
+    Image.fromarray(rgba).save(out, format='PNG', optimize=True)
+    return out.getvalue(), max_abs
+
+
+def _read_raster(path):
+    with rasterio.open(path) as src:
+        return src.read(1)
+
+
+def _diff_ramp_rgb(positions):
+    values = positions.astype(np.float32)
+    rgb = np.empty((*positions.shape, 3), dtype=np.float32)
+    low_pos, low_rgb = SATELLITE_DIFF_RAMP[0]
+    mid_pos, mid_rgb = SATELLITE_DIFF_RAMP[1]
+    high_pos, high_rgb = SATELLITE_DIFF_RAMP[2]
+
+    lower = values <= mid_pos
+    lower_t = ((values[lower] - low_pos) / (mid_pos - low_pos))[:, None]
+    upper_t = ((values[~lower] - mid_pos) / (high_pos - mid_pos))[:, None]
+    rgb[lower] = low_rgb + (mid_rgb - low_rgb) * lower_t
+    rgb[~lower] = mid_rgb + (high_rgb - mid_rgb) * upper_t
+    return np.rint(rgb).astype(np.uint8)

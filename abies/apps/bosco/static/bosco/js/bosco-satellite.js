@@ -128,6 +128,14 @@ export function satelliteDiffValue(timeseries, parcelKey, layer, date1, date2) {
   return v1 == null || v2 == null ? null : v2 - v1;
 }
 
+export function satelliteDiffPngUrl(regionId, layer, date1, date2) {
+  const d1 = normalizeDateParam(date1);
+  const d2 = normalizeDateParam(date2);
+  if (!regionId || !layer || !d1 || !d2) return '';
+  return `/api/bosco/satellite/${encodeURIComponent(regionId)}/diff/`
+    + `${encodeURIComponent(layer)}/${encodeURIComponent(d1)}/${encodeURIComponent(d2)}.png`;
+}
+
 export function divergingDomain(values) {
   const clean = values.filter(v => v != null && Number.isFinite(v));
   if (!clean.length) return null;

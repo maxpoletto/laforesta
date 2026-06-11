@@ -83,9 +83,9 @@ hosts (top to bottom):
   compare.  Behavior identical to Boscoscopio's "Visualizza differenze" with
   "limita al bosco" always true.
 
-  Below the pickers, a checkbox for "aree catastali".  The first Abies
-  implementation always uses the precomputed per-parcel means described under
-  Map data; the future raster overlay can reintroduce a pixel/parcel toggle.
+  Below the pickers, checkboxes for "media per particella" and "aree catastali".
+  By default the map renders the detailed pixel heatmap; "media per particella"
+  switches to the precomputed per-parcel means.
 
   Map shows red-to-green diff heatmap (new − old).
 
@@ -230,7 +230,7 @@ clean map state.  Reopening uses the documented defaults.
 See "Query parameter details" below for the full list per mode.
 Cross-mode summary:
 - Caratteristiche (`m=1`): `q=` metric id, `fc=` cadastral flag, `fh=` per-hectare harvest flag.
-- Evoluzione (`m=2`): `q=`, `d1=`/`d2=`, `fc=`.
+- Evoluzione (`m=2`): `q=`, `d1=`/`d2=`, `fa=`, `fc=`.
 - PAI (`m=3`): `pp=` parcels list, `ps=` species list.
 
 ### Cross-page links into Bosco
@@ -263,6 +263,7 @@ Cross-mode summary:
 - `d1=YYYYMMDD`, `d2=YYYYMMDD` — start and end dates of the
   comparison.  Year granularity uses `YYYY0101`; month granularity
   uses `YYYYMM01`.
+- `fa=1` — "media per particella" checked.
 - `fc=1` — "aree catastali" checked.
 
 #### Piante ad accrescimento indefinito (`m=3`)
@@ -360,9 +361,9 @@ mode-switch.
 
 - **`particelle.geojson`** — parcel polygons, as in Boscoscopio.
   Eager-loaded.  Updated only on geometry-data refresh (rare).
-- **Satellite data** — per-compresa `manifest.json` and `timeseries.json`,
-  served from `SATELLITE_DIR` via `/api/bosco/satellite/<region_id>/...`.
-  The first Abies implementation uses the precomputed per-parcel means in
-  `timeseries.json` for both the Caratteristiche satellite metrics and the
-  Evoluzione diff map.  GeoTIFF raster overlays remain compatible with this
-  URL/data contract but are not required for the page's initial workflow.
+- **Satellite data** — per-compresa `manifest.json`, `timeseries.json`, and
+  generated diff PNG overlays, served from `SATELLITE_DIR` via
+  `/api/bosco/satellite/<region_id>/...`.  Caratteristiche satellite metrics
+  use the precomputed per-parcel means in `timeseries.json`; Evoluzione uses
+  GeoTIFF raster overlays by default and the same per-parcel means when
+  `fa=1`.

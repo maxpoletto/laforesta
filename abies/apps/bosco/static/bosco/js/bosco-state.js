@@ -84,7 +84,7 @@ export function readBoscoParams(params, regionIds = []) {
     evolutionMetric,
     evolutionDate1: normalizeDateParam(paramValue(params, 'd1')) || null,
     evolutionDate2: normalizeDateParam(paramValue(params, 'd2')) || null,
-    parcelAverage: true,
+    parcelAverage: mode === '2' && paramValue(params, 'fa') === '1',
     useCadastralArea: paramValue(params, 'fc') === '1',
     harvestPerHa: mode === '1' && isHarvestMetric(characteristic) && paramValue(params, 'fh') === '1',
     detailMode,
