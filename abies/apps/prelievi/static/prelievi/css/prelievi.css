@@ -97,3 +97,12 @@
   line-height: 1.2;
   text-align: left;
 }
+
+.sortable-table-cell[data-column="Particella"] {
+  cursor: pointer;
+}
+
+.sortable-table-cell[data-column="Particella"]:hover {
+  color: #006400;
+  text-decoration: underline;
+}

@@ -14,6 +14,7 @@ import { canModify } from '../../base/js/roles.js';
 import { postJSON } from '../../base/js/api.js';
 import { dismiss as dismissModal, onDismiss } from '../../base/js/modals.js';
 import { createRangeSlider } from '../../base/js/range-slider.js';
+import * as router from '../../base/js/router.js';
 import * as S from '../../base/js/strings.js';
 import {
   ROW_ID, STATUS_CONFLICT,
@@ -37,6 +38,7 @@ const FORM_URL = '/api/prelievi/form/';
 const SAVE_URL = '/api/prelievi/save/';
 const DELETE_URL = '/api/prelievi/delete/';
 const PAGE_PATH = '/prelievi';
+const BOSCO_PATH = '/bosco';
 const DEFAULT_TABLE_SORT = { column: S.COL_DATE, ascending: false };
 
 // Collapsible sections, keyed by the single-char token used in the URL `o`
@@ -164,6 +166,7 @@ function showTableView(data, params) {
 
   const searchInput = el.querySelector('#prelievi-search');
   if (searchInput) table.wireSearchInput(searchInput);
+  sections.i.body?.addEventListener('click', onTableClick);
 
   filterRegionId = p.regionId;
   filterParcelId = p.parcelId;
@@ -172,6 +175,7 @@ function showTableView(data, params) {
 }
 
 function destroyTable() {
+  if (sections.i.body) sections.i.body.removeEventListener('click', onTableClick);
   if (table) { table.destroy(); table = null; }
   slider = null;
 }
@@ -179,6 +183,33 @@ function destroyTable() {
 function onCacheUpdate() {
   if (inForm || !table) return;
   table.setData(cache.get(DATA_ID));
+}
+
+function onTableClick(e) {
+  const cell = e.target.closest('.sortable-table-cell');
+  if (!cell || cell.dataset.column !== S.COL_PARCEL) return;
+  const tr = cell.closest('.sortable-table-row');
+  if (!tr || !table?._table) return;
+  const row = table._table.data[parseInt(tr.dataset.index, 10)];
+  const url = boscoUrlForHarvestRow(row, cache.get(DATA_ID)?.columns || []);
+  if (!url) return;
+  e.preventDefault();
+  router.navigate(url);
+}
+
+export function boscoUrlForHarvestRow(row, columns) {
+  if (!row || !columns) return null;
+  const regionIdx = columns.indexOf(S.COL_REGION_ID);
+  const parcelIdx = columns.indexOf(S.COL_PARCEL_ID);
+  if (regionIdx < 0 || parcelIdx < 0) return null;
+  const regionId = positiveInt(row[regionIdx]);
+  const parcelId = positiveInt(row[parcelIdx]);
+  if (regionId == null || parcelId == null) return null;
+  const params = new URLSearchParams();
+  params.set('c', regionId);
+  params.set('v', '1');
+  params.set('pa', parcelId);
+  return `${BOSCO_PATH}?${params.toString()}`;
 }
 
 // ---------------------------------------------------------------------------

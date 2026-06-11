@@ -292,6 +292,11 @@ function filteredIds() {
   return tableInstances.at(-1).filteredRows.map(row => row[0]);
 }
 
+eq(prelievi.boscoUrlForHarvestRow(digest.rows[1], digest.columns), '/bosco?c=10&v=1&pa=102',
+   'boscoUrlForHarvestRow builds a parcel overlay URL from stable ids');
+eq(prelievi.boscoUrlForHarvestRow(digest.rows[1], [ROW_ID, S.COL_DATE]), null,
+   'boscoUrlForHarvestRow returns null without stable ids');
+
 await prelievi.mount({ y1: '2021', y2: '2021' });
 eq(sliderValues(), [2021, 2021], 'mount applies explicit year range from URL');
 eq(filteredIds(), [2], 'mount filters table to explicit year range');
