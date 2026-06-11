@@ -253,6 +253,7 @@ class HarvestDetail(models.Model):
 class Parcel(models.Model):
     """Forest parcel (particella)."""
     name = models.CharField(max_length=20)
+    version = models.IntegerField(default=1)
     region = models.ForeignKey(Region, on_delete=models.PROTECT)
     eclass = models.ForeignKey(Eclass, on_delete=models.PROTECT)
     area_ha = models.DecimalField(max_digits=7, decimal_places=2)

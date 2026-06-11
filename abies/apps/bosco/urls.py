@@ -7,6 +7,11 @@ from apps.bosco import views
 urlpatterns = [
     path('parcels/data/', views.parcels_data, name='bosco-parcels-data'),
     path('species/data/', views.species_data, name='bosco-species-data'),
+    path('parcels/metadata/form/<int:parcel_id>/',
+         views.parcel_metadata_form_view,
+         name='bosco-parcel-metadata-form'),
+    path('parcels/metadata/save/', views.parcel_metadata_save_view,
+         name='bosco-parcel-metadata-save'),
     path('preserved-trees/data/', views.preserved_trees_data,
          name='bosco-preserved-trees-data'),
     path('pai/form/', views.pai_form_view, name='bosco-pai-form-add'),

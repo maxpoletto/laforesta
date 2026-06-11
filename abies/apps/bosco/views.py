@@ -15,7 +15,7 @@ from django.views.decorators.http import require_POST
 
 from apps.base.auth import require_writer
 from apps.base.digests import (
-    build_preserved_tree_record, mark_stale, serve_digest,
+    build_parcel_record, build_preserved_tree_record, mark_stale, serve_digest,
 )
 from apps.base.models import Parcel, Region, Species, Tree, parcel_sort_key
 from apps.base.numparse import coord_float, int_or_none, parse_decimal
@@ -32,6 +32,24 @@ from config.constants import (
 
 ALLOWED_SATELLITE_JSON = {'manifest.json', 'timeseries.json'}
 
+PARCELS_DIGEST = 'parcels'
+FIELD_AREA_HA = 'area_ha'
+FIELD_AVE_AGE = 'ave_age'
+FIELD_LOCATION_NAME = 'location_name'
+FIELD_ALTITUDE_MIN_M = 'altitude_min_m'
+FIELD_ALTITUDE_MAX_M = 'altitude_max_m'
+FIELD_ASPECT = 'aspect'
+FIELD_GRADE_PCT = 'grade_pct'
+FIELD_DESC_VEG = 'desc_veg'
+FIELD_DESC_GEO = 'desc_geo'
+
+PARCEL_METADATA_TEXT_FIELDS = {
+    FIELD_LOCATION_NAME: ('Località', 200),
+    FIELD_ASPECT: ('Esposizione', 20),
+    FIELD_DESC_VEG: ('Descrizione vegetazione', None),
+    FIELD_DESC_GEO: ('Descrizione geologia', None),
+}
+
 
 @login_required
 def parcels_data(request):
@@ -41,6 +59,50 @@ def parcels_data(request):
 @login_required
 def species_data(request):
     return serve_digest(request, FIELD_SPECIES)
+
+
+@login_required
+@require_writer
+def parcel_metadata_form_view(request, parcel_id: int):
+    return JsonResponse({HTML: _render_parcel_metadata_form(request, parcel_id)})
+
+
+@login_required
+@require_writer
+@require_POST
+def parcel_metadata_save_view(request):
+    body, error = parse_json_body(request)
+    if error:
+        return error
+    row_id = int_or_none(body.get(ROW_ID))
+    if row_id is None:
+        raise Http404
+    values, errors = _parse_parcel_metadata_body(body)
+    if errors:
+        return validation_error(errors, html=_render_parcel_metadata_form(request, row_id, body))
+
+    with transaction.atomic():
+        parcel = (Parcel.objects.select_for_update()
+                  .select_related('region', 'eclass')
+                  .filter(id=row_id).first())
+        if parcel is None:
+            raise Http404
+        if parcel.version != submitted_version(body):
+            return conflict_response(
+                data_id=PARCELS_DIGEST, row_id=parcel.id,
+                record=build_parcel_record(parcel),
+                html=_render_parcel_metadata_form(request, parcel.id),
+            )
+        for field, value in values.items():
+            setattr(parcel, field, value)
+        parcel.version += 1
+        parcel.save(update_fields=[*values.keys(), VERSION])
+        mark_stale(PARCELS_DIGEST)
+
+    return success_response(
+        request, body, data_id=PARCELS_DIGEST, row_id=parcel.id,
+        patches=[row_patch(PARCELS_DIGEST, parcel.id, build_parcel_record(parcel))],
+    )
 
 
 @login_required
@@ -147,6 +209,79 @@ def satellite_manifest(request, region_id):
 @login_required
 def satellite_timeseries(request, region_id):
     return _satellite_json_response(request, region_id, 'timeseries.json')
+
+
+def _render_parcel_metadata_form(request, parcel_id: int, values: dict | None = None):
+    parcel = Parcel.objects.select_related('region', 'eclass').filter(id=parcel_id).first()
+    if parcel is None:
+        raise Http404
+    form_values = _parcel_metadata_form_values(parcel, values)
+    return render_to_string('bosco/_parcel_metadata_form.html', {
+        'parcel': parcel,
+        'version': parcel.version,
+        'values': form_values,
+    }, request=request)
+
+
+def _parcel_metadata_form_values(parcel, values: dict | None = None):
+    def value(key, default):
+        if values and key in values:
+            return values.get(key) or ''
+        return default if default is not None else ''
+
+    return {
+        FIELD_AREA_HA: value(FIELD_AREA_HA, parcel.area_ha),
+        FIELD_AVE_AGE: value(FIELD_AVE_AGE, parcel.ave_age),
+        FIELD_LOCATION_NAME: value(FIELD_LOCATION_NAME, parcel.location_name),
+        FIELD_ALTITUDE_MIN_M: value(FIELD_ALTITUDE_MIN_M, parcel.altitude_min_m),
+        FIELD_ALTITUDE_MAX_M: value(FIELD_ALTITUDE_MAX_M, parcel.altitude_max_m),
+        FIELD_ASPECT: value(FIELD_ASPECT, parcel.aspect),
+        FIELD_GRADE_PCT: value(FIELD_GRADE_PCT, parcel.grade_pct),
+        FIELD_DESC_VEG: value(FIELD_DESC_VEG, parcel.desc_veg),
+        FIELD_DESC_GEO: value(FIELD_DESC_GEO, parcel.desc_geo),
+    }
+
+
+def _parse_parcel_metadata_body(body: dict):
+    errors = []
+    area_ha = parse_decimal(body.get(FIELD_AREA_HA))
+    if area_ha is None or area_ha <= 0:
+        errors.append('Superficie obbligatoria.')
+
+    values = {
+        FIELD_AREA_HA: area_ha,
+        FIELD_AVE_AGE: _optional_int(body, FIELD_AVE_AGE, 'Età media', errors),
+        FIELD_LOCATION_NAME: _text_value(body, FIELD_LOCATION_NAME, errors),
+        FIELD_ALTITUDE_MIN_M: _optional_int(body, FIELD_ALTITUDE_MIN_M, 'Altitudine minima', errors),
+        FIELD_ALTITUDE_MAX_M: _optional_int(body, FIELD_ALTITUDE_MAX_M, 'Altitudine massima', errors),
+        FIELD_ASPECT: _text_value(body, FIELD_ASPECT, errors),
+        FIELD_GRADE_PCT: _optional_int(body, FIELD_GRADE_PCT, 'Pendenza', errors),
+        FIELD_DESC_VEG: _text_value(body, FIELD_DESC_VEG, errors),
+        FIELD_DESC_GEO: _text_value(body, FIELD_DESC_GEO, errors),
+    }
+    alt_min = values[FIELD_ALTITUDE_MIN_M]
+    alt_max = values[FIELD_ALTITUDE_MAX_M]
+    if alt_min is not None and alt_max is not None and alt_min > alt_max:
+        errors.append('Altitudine minima maggiore della massima.')
+    return values, errors
+
+
+def _optional_int(body: dict, key: str, label: str, errors: list[str]):
+    raw = body.get(key)
+    if raw in (None, ''):
+        return None
+    value = int_or_none(raw)
+    if value is None:
+        errors.append(f'{label} deve essere un numero intero.')
+    return value
+
+
+def _text_value(body: dict, key: str, errors: list[str]):
+    label, max_len = PARCEL_METADATA_TEXT_FIELDS[key]
+    value = str(body.get(key) or '').strip()
+    if max_len is not None and len(value) > max_len:
+        errors.append(f'{label} troppo lunga.')
+    return value
 
 
 def _render_pai_form(request, tree_id: int | None = None, values: dict | None = None):

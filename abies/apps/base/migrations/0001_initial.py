@@ -756,6 +756,7 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 ("name", models.CharField(max_length=20)),
+                ("version", models.IntegerField(default=1)),
                 ("area_ha", models.DecimalField(decimal_places=2, max_digits=7)),
                 ("ave_age", models.IntegerField(blank=True, null=True)),
                 ("location_name", models.CharField(blank=True, max_length=200)),

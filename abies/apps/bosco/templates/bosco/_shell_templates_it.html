@@ -106,6 +106,9 @@ Static Italian text lives here; JS wires controls and fills dynamic data.
         <section class="bosco-detail-section" data-detail-section="m">
           {% include "base/_partials/_collapsible_header.html" with section="bosco-detail-m" title="Metadati" %}
           <div class="collapsible-body" data-section="bosco-detail-m">
+            <div class="bosco-detail-toolbar" data-target="metadata-actions" hidden>
+              <button type="button" class="btn" data-action="edit-parcel-metadata">Modifica</button>
+            </div>
             <div class="bosco-metadata-grid" data-target="metadata"></div>
           </div>
         </section>

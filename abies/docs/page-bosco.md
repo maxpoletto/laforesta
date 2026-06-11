@@ -297,8 +297,8 @@ mode-switch.
   `Area (ha)`, `Area cat. (ha)`, `Età media (a)`, `Località`, `Alt. min. (m)`,
   `Alt. max. (m)`, `Esposizione`, `Pendenza (%)`, `Tipo` (alto fusto / ceduo),
   `Desc. veg.`, `Desc. geo`.  `row_id` = `parcel.id`; `Tipo` derived
-  from `parcel.eclass.coppice`.  `version` is currently a read-only placeholder
-  until parcel metadata editing is enabled.
+  from `parcel.eclass.coppice`.  `version` participates in optimistic locking
+  for parcel metadata edits.
 
 - **`species.json`** — shared with Campionamenti and Piano di taglio.
   Used here for color-coded species swatches in the PAI mode lists

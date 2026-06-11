@@ -318,12 +318,11 @@ PARCEL_COLUMNS = [
 def build_parcel_record(p) -> list:
     """Build one row of the `parcels` digest.
 
-    `Parcel` predates the app-wide TimestampedModel convention, so the
-    version slot is currently a stable read-only placeholder until parcel
-    metadata editing is wired in.
+    `Parcel` does not use TimestampedModel/history, but it still carries
+    `version` so metadata edits can use the standard optimistic-lock contract.
     """
     return [
-        p.id, getattr(p, 'version', 0), p.region_id, p.region.name, p.name, p.eclass.name,
+        p.id, p.version, p.region_id, p.region.name, p.name, p.eclass.name,
         float(p.area_ha), float(p.area_ha), p.ave_age, p.location_name,
         p.altitude_min_m, p.altitude_max_m, p.aspect, p.grade_pct,
         S.TYPE_COPPICE if p.eclass.coppice else S.TYPE_HIGHFOREST,

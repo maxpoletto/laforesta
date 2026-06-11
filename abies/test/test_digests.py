@@ -264,7 +264,7 @@ class TestGenerateBoscoDigests:
         for col in (VERSION, S.COL_REGION_ID, S.COL_AREA_CAD_HA, S.COL_TYPE,
                     S.COL_DESC_VEG, S.COL_DESC_GEO):
             assert col in cols
-        assert row[cols.index(VERSION)] == 0
+        assert row[cols.index(VERSION)] == 1
         assert row[cols.index(S.COL_REGION_ID)] == p.region_id
         assert row[cols.index(S.COL_TYPE)] == S.TYPE_HIGHFOREST
         assert row[cols.index(S.COL_DESC_VEG)] == 'Descrizione vegetazione'

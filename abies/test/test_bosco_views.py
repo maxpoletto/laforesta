@@ -3,7 +3,7 @@
 import pytest
 from django.test import Client
 
-from apps.base.models import Region, Tree
+from apps.base.models import DigestStatus, Region, Tree
 from config.constants import (
     DELETES, DIGEST_PRESERVED_TREES, FIELD_LAT, FIELD_LON, FIELD_NONCE,
     FIELD_PARCEL_ID, FIELD_SPECIES_ID, FIELD_YEAR, PATCHES, ROW_ID, STATUS,
@@ -57,6 +57,113 @@ def test_bosco_digest_endpoints_require_login(client, path):
     resp = client.get(path)
     assert resp.status_code == 302
     assert '/login/' in resp.url
+
+
+def test_parcel_metadata_form_requires_writer(reader_client, parcels):
+    resp = reader_client.get(f'/api/bosco/parcels/metadata/form/{parcels[0].id}/')
+    assert resp.status_code == 403
+
+
+def test_parcel_metadata_form_writer_access(writer_client, parcels):
+    resp = writer_client.get(f'/api/bosco/parcels/metadata/form/{parcels[0].id}/')
+
+    assert resp.status_code == 200
+    html = resp.json()['html']
+    assert 'id="bosco-parcel-metadata-form"' in html
+    assert f'value="{parcels[0].id}"' in html
+
+
+def test_parcel_metadata_save_updates_parcel_and_returns_patch(writer_client, parcels):
+    parcel = parcels[0]
+    body = {
+        ROW_ID: str(parcel.id), VERSION: str(parcel.version),
+        'area_ha': '12,50', 'ave_age': '44', 'location_name': 'Costa alta',
+        'altitude_min_m': '700', 'altitude_max_m': '920',
+        'aspect': 'NE', 'grade_pct': '35',
+        'desc_veg': 'Abete e faggio.', 'desc_geo': 'Calcare.',
+        FIELD_NONCE: 'parcel-metadata-save',
+    }
+
+    resp = writer_client.post('/api/bosco/parcels/metadata/save/', body,
+                              content_type='application/json')
+
+    assert resp.status_code == 200
+    parcel.refresh_from_db()
+    assert str(parcel.area_ha) == '12.50'
+    assert parcel.ave_age == 44
+    assert parcel.location_name == 'Costa alta'
+    assert parcel.altitude_min_m == 700
+    assert parcel.altitude_max_m == 920
+    assert parcel.aspect == 'NE'
+    assert parcel.grade_pct == 35
+    assert parcel.desc_veg == 'Abete e faggio.'
+    assert parcel.desc_geo == 'Calcare.'
+    assert parcel.version == 2
+    data = resp.json()
+    patch = data[PATCHES][0]
+    assert patch['data_id'] == 'parcels'
+    assert patch['row_id'] == parcel.id
+    assert patch['record'][0] == parcel.id
+    assert patch['record'][1] == 2
+    assert patch['record'][6] == 12.5
+    assert patch['record'][9] == 'Costa alta'
+    assert DigestStatus.objects.get(name='parcels').stale is True
+
+
+def test_parcel_metadata_save_stale_conflicts(writer_client, parcels):
+    parcel = parcels[0]
+    parcel.version = 3
+    parcel.save(update_fields=[VERSION])
+    body = {
+        ROW_ID: str(parcel.id), VERSION: '2', 'area_ha': '12.50',
+        'ave_age': '', 'location_name': '', 'altitude_min_m': '',
+        'altitude_max_m': '', 'aspect': '', 'grade_pct': '',
+        'desc_veg': '', 'desc_geo': '', FIELD_NONCE: 'parcel-conflict',
+    }
+
+    resp = writer_client.post('/api/bosco/parcels/metadata/save/', body,
+                              content_type='application/json')
+
+    assert resp.status_code == 400
+    data = resp.json()
+    assert data[STATUS] == STATUS_CONFLICT
+    assert data[PATCHES][0]['data_id'] == 'parcels'
+    assert 'bosco-parcel-metadata-form' in data['html']
+
+
+def test_parcel_metadata_save_validation_error_rerenders(writer_client, parcels):
+    parcel = parcels[0]
+    body = {
+        ROW_ID: str(parcel.id), VERSION: str(parcel.version), 'area_ha': '',
+        'ave_age': 'abc', 'location_name': '', 'altitude_min_m': '',
+        'altitude_max_m': '', 'aspect': '', 'grade_pct': '',
+        'desc_veg': '', 'desc_geo': '', FIELD_NONCE: 'parcel-invalid',
+    }
+
+    resp = writer_client.post('/api/bosco/parcels/metadata/save/', body,
+                              content_type='application/json')
+
+    assert resp.status_code == 400
+    data = resp.json()
+    assert 'Superficie obbligatoria.' in data['message']
+    assert 'Età media deve essere un numero intero.' in data['message']
+    assert 'bosco-parcel-metadata-form' in data['html']
+
+
+def test_parcel_metadata_save_rejects_inverted_altitude(writer_client, parcels):
+    parcel = parcels[0]
+    body = {
+        ROW_ID: str(parcel.id), VERSION: str(parcel.version), 'area_ha': '12.50',
+        'ave_age': '', 'location_name': '', 'altitude_min_m': '900',
+        'altitude_max_m': '800', 'aspect': '', 'grade_pct': '',
+        'desc_veg': '', 'desc_geo': '', FIELD_NONCE: 'parcel-altitude-invalid',
+    }
+
+    resp = writer_client.post('/api/bosco/parcels/metadata/save/', body,
+                              content_type='application/json')
+
+    assert resp.status_code == 400
+    assert 'Altitudine minima maggiore della massima.' in resp.json()['message']
 
 
 def test_pai_form_requires_writer(reader_client, regions):
