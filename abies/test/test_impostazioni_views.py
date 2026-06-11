@@ -431,7 +431,7 @@ class TestFutureProductionSettings:
             self, writer_client, monkeypatch,
     ):
         monkeypatch.setattr(
-            'apps.impostazioni.views.timezone.localdate',
+            'apps.base.selectors.timezone.localdate',
             lambda: date(2026, 6, 10),
         )
         HarvestPlan.objects.create(name='Old', year_start=2010, year_end=2020)
@@ -453,7 +453,7 @@ class TestFutureProductionSettings:
 
     def test_data_prefers_runtime_active_plan(self, writer_client, monkeypatch):
         monkeypatch.setattr(
-            'apps.impostazioni.views.timezone.localdate',
+            'apps.base.selectors.timezone.localdate',
             lambda: date(2026, 6, 10),
         )
         manual = HarvestPlan.objects.create(

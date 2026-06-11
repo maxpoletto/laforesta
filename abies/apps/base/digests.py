@@ -20,11 +20,13 @@ from pathlib import Path
 from django.conf import settings
 from django.db.models import F, Sum
 from django.http import FileResponse, HttpResponse
-from django.utils import timezone
 from django.utils.cache import patch_cache_control
 from django.utils.http import http_date, parse_http_date_safe
 
 from apps.base.models import DigestStatus, render_flag_note
+from apps.base.selectors import (
+    active_or_default_harvest_plan, active_or_default_survey_ids,
+)
 from config import strings as S
 from config.constants import (
     COL_COPPICE, COL_PARCEL_ID, COL_REGION_ID, COL_SPECIES_ID,
@@ -1118,25 +1120,6 @@ FUTURE_PRODUCTION_COLUMNS = [
 ]
 
 
-def _active_or_default_harvest_plan():
-    """Harvest plan used by Bosco's future-production digest.
-
-    Mirrors the settings page's runtime default: an explicitly-active plan wins;
-    otherwise use the plan whose range includes the current year and has the
-    greatest end year.  If neither exists, Bosco shows no future production.
-    """
-    from apps.base.models import HarvestPlan
-
-    active = HarvestPlan.objects.filter(active=True).order_by('-year_end', 'id').first()
-    if active is not None:
-        return active
-    year = timezone.localdate().year
-    return (HarvestPlan.objects
-            .filter(year_start__lte=year, year_end__gte=year)
-            .order_by('-year_end', 'id')
-            .first())
-
-
 def build_future_production_record(item) -> list:
     """Build one row of the `future_production` digest."""
     return [
@@ -1149,7 +1132,7 @@ def build_future_production_record(item) -> list:
 def generate_future_production() -> None:
     from apps.base.models import HarvestPlanItem
 
-    plan = _active_or_default_harvest_plan()
+    plan = active_or_default_harvest_plan()
     qs = HarvestPlanItem.objects.none()
     if plan is not None:
         qs = (HarvestPlanItem.objects
@@ -1180,23 +1163,6 @@ DENDROMETRY_POINT_COLUMNS = [
 ]
 
 
-def _active_or_default_survey_ids() -> list[int]:
-    """Survey set used by Bosco dendrometry digests.
-
-    Mirrors the settings page's runtime default: active surveys win; otherwise
-    fall back to the first survey by name so an empty setting is still useful in
-    a freshly imported development database.
-    """
-    from apps.base.models import Survey
-
-    ids = list(Survey.objects.filter(active=True).order_by('name')
-               .values_list('id', flat=True))
-    if ids:
-        return ids
-    first = Survey.objects.order_by('name').values_list('id', flat=True).first()
-    return [first] if first else []
-
-
 def diameter_class_cm(d_cm: int) -> int:
     """5 cm diameter class centered on multiples of 5.
 
@@ -1224,7 +1190,7 @@ def annual_increment_pct(d_cm: int, l10_mm: int) -> float | None:
 def _dendrometry_queryset():
     from apps.base.models import TreeSample
 
-    survey_ids = _active_or_default_survey_ids()
+    survey_ids = active_or_default_survey_ids()
     if not survey_ids:
         return TreeSample.objects.none()
     return (TreeSample.objects

@@ -9,7 +9,6 @@ from django.db import transaction
 from django.db.models import Q
 from django.http import HttpResponse, JsonResponse
 from django.template.loader import render_to_string
-from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from apps.base import csv_io, hypsometry
@@ -23,15 +22,18 @@ from apps.base.responses import (
     parse_json_body, row_patch, save_model_response, success_response,
     validation_error,
 )
+from apps.base.selectors import (
+    active_or_default_harvest_plan, active_or_default_survey_ids,
+)
 from apps.base.models import (
     Crew, HarvestPlan, HYPSO_FUNC_LN, HypsoParam, HypsoParamSource,
     LoginMethod, Role, Species, Survey, Tractor, TreeSample, User,
 )
 from config import strings as S
 from config.constants import (
-    COLUMNS, DIGEST_FUTURE_PRODUCTION, DIGEST_HYPSO_PARAMS,
-    DIGEST_PARCEL_DENDROMETRY, DIGEST_PARCEL_DENDROMETRY_POINTS,
-    DIGEST_PRESERVED_TREES, FIELD_ACTIVE, FIELD_COMMON_NAME,
+    BOSCO_DENDROMETRY_DIGESTS, BOSCO_SPECIES_DIGESTS, COLUMNS,
+    DIGEST_FUTURE_PRODUCTION, DIGEST_HYPSO_PARAMS,
+    FIELD_ACTIVE, FIELD_COMMON_NAME,
     FIELD_CREATED_AT, FIELD_DENSITY, FIELD_EMAIL, FIELD_FILE, FIELD_FIRST_NAME,
     FIELD_HARVEST_PLAN_ID, FIELD_IS_ACTIVE, FIELD_LAST_NAME,
     FIELD_LATIN_NAME, FIELD_LOGIN_METHOD, FIELD_MANUFACTURER, FIELD_MIN_N,
@@ -226,18 +228,11 @@ def species_save(request):
 # Bosco source settings (writer+)
 # ---------------------------------------------------------------------------
 
-BOSCO_DENDROMETRY_DIGESTS = (
-    DIGEST_PARCEL_DENDROMETRY,
-    DIGEST_PARCEL_DENDROMETRY_POINTS,
-)
-BOSCO_SPECIES_DIGESTS = (*BOSCO_DENDROMETRY_DIGESTS, DIGEST_PRESERVED_TREES)
-
 
 @login_required
 @require_writer
 def future_production_data(request):
-    active = HarvestPlan.objects.filter(active=True).order_by('-year_end', 'id').first()
-    default = active or _default_future_plan()
+    default = active_or_default_harvest_plan()
     return JsonResponse({
         'active_id': default.id if default else None,
         'plans': [
@@ -296,12 +291,7 @@ def future_production_save(request):
 @login_required
 @require_writer
 def dendrometry_data(request):
-    active_ids = list(
-        Survey.objects.filter(active=True).order_by('name').values_list('id', flat=True)
-    )
-    if not active_ids:
-        first = Survey.objects.order_by('name').first()
-        active_ids = [first.id] if first else []
+    active_ids = active_or_default_survey_ids()
     counts = _dendrometry_counts(active_ids)
     active = set(active_ids)
     return JsonResponse({
@@ -354,14 +344,6 @@ def dendrometry_save(request):
         ],
         extra={MESSAGE: S.DENDROMETRY_SAVED},
     )
-
-
-def _default_future_plan():
-    year = timezone.localdate().year
-    return (HarvestPlan.objects
-            .filter(year_start__lte=year, year_end__gte=year)
-            .order_by('-year_end', 'id')
-            .first())
 
 
 def _dendrometry_counts(survey_ids):

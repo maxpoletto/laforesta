@@ -38,8 +38,7 @@ from apps.base.models import (
 )
 from config import strings as S
 from config.constants import (
-    DEFAULT_RADIUS_M, DIGEST_PARCEL_DENDROMETRY,
-    DIGEST_PARCEL_DENDROMETRY_POINTS, DIGEST_PRESERVED_TREES,
+    BOSCO_DENDROMETRY_DIGESTS, BOSCO_TREE_DIGESTS, DEFAULT_RADIUS_M,
     FIELD_ALTITUDE, FIELD_ALTITUDE_M, FIELD_AREA,
     FIELD_COMPRESA, FIELD_COPPICE, FIELD_DATE, FIELD_DEFAULT_DATE,
     FIELD_DESCRIPTION, FIELD_D_CM,
@@ -56,12 +55,6 @@ from config.constants import (
 
 # Quantization for tree-height measurements (centimetre precision).
 TREE_H_QUANTUM = Decimal('0.01')
-
-BOSCO_DENDROMETRY_DIGESTS = (
-    DIGEST_PARCEL_DENDROMETRY,
-    DIGEST_PARCEL_DENDROMETRY_POINTS,
-)
-BOSCO_TREE_DIGESTS = (*BOSCO_DENDROMETRY_DIGESTS, DIGEST_PRESERVED_TREES)
 
 
 # ---------------------------------------------------------------------------

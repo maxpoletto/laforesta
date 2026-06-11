@@ -151,6 +151,13 @@ DIGEST_PARCEL_DENDROMETRY_POINTS = 'parcel_dendrometry_points'
 DIGEST_PRESERVED_TREES = 'preserved_trees'
 DIGEST_HYPSO_PARAMS = 'hypso_params'
 
+BOSCO_DENDROMETRY_DIGESTS = (
+    DIGEST_PARCEL_DENDROMETRY,
+    DIGEST_PARCEL_DENDROMETRY_POINTS,
+)
+BOSCO_TREE_DIGESTS = (*BOSCO_DENDROMETRY_DIGESTS, DIGEST_PRESERVED_TREES)
+BOSCO_SPECIES_DIGESTS = (*BOSCO_DENDROMETRY_DIGESTS, DIGEST_PRESERVED_TREES)
+
 # Domain defaults — locale-independent values the client and server must agree
 # on exactly (mirrored in constants.js).
 DEFAULT_RADIUS_M = 12  # sample-area radius (m) when none is supplied
