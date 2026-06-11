@@ -52,7 +52,7 @@ import {
 import {
   buildPreservedTrees, filterPaiTrees, paiParcelItems, paiSpeciesItems, speciesColorMap,
 } from './bosco-pai.js';
-import { aggregateProduction } from './bosco-production.js';
+import { aggregateProduction, prelieviUrlForScope } from './bosco-production.js';
 
 const CSS_URL = '/static/bosco/css/bosco.css';
 const PAGE_PATH = '/bosco';
@@ -146,6 +146,7 @@ let dendrometryCharts = {};
 let productionHost = null;
 let productionCanvas = null;
 let productionSummary = null;
+let productionLink = null;
 let productionPerHa = null;
 let productionMonthly = null;
 let productionChart = null;
@@ -253,6 +254,7 @@ function mountPage(el, params) {
   productionHost = el.querySelector('[data-target="production-chart-host"]');
   productionCanvas = el.querySelector('[data-target="production-chart"]');
   productionSummary = el.querySelector('[data-target="production-summary"]');
+  productionLink = el.querySelector('[data-target="production-link"]');
   productionPerHa = el.querySelector('[data-role="production-per-ha"]');
   productionMonthly = el.querySelector('[data-role="production-monthly"]');
   paiParcelsHost = el.querySelector('[data-target="pai-parcels"]');
@@ -282,7 +284,7 @@ function destroyPage() {
   dendrometryBasalAreaCanvas = dendrometryHeightCanvas = null;
   dendrometryIncrementCanvas = null;
   destroyDendrometryCharts();
-  productionHost = productionCanvas = productionSummary = null;
+  productionHost = productionCanvas = productionSummary = productionLink = null;
   productionPerHa = productionMonthly = null;
   destroyProductionChart();
   paiParcelsHost = paiSpeciesHost = null;
@@ -1087,6 +1089,7 @@ function detailScopeForState(state = currentState) {
     return {
       type: 'parcel',
       title: `${entry.region} ${entry.parcel}`.trim(),
+      regionId: state.regionId,
       region: entry.region,
       parcelId: entry.id,
       areaHa: entry.displayAreaHa,
@@ -1099,6 +1102,7 @@ function detailScopeForState(state = currentState) {
     return {
       type: 'region',
       title: region.name,
+      regionId: region.id,
       region: region.name,
       parcelId: null,
       areaHa: entries.reduce((total, e) => total + (e.displayAreaHa || 0), 0),
@@ -1401,6 +1405,7 @@ function renderProduction() {
   if (!productionHost || !productionSummary) return;
   const scope = detailScopeForState();
   if (!scope || detailOverlay?.hidden) return;
+  if (productionLink) productionLink.href = prelieviUrlForScope(scope);
   if (!prelieviData) {
     destroyProductionChart();
     productionHost.hidden = true;

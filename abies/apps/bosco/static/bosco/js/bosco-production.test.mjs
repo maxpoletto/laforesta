@@ -47,6 +47,13 @@ const digest = {
   ],
 };
 
+assertEqual(B.prelieviUrlForScope({ regionId: 10, parcelId: 101 }), '/prelievi?c=10&pa=101',
+            'prelieviUrlForScope: parcel scope');
+assertEqual(B.prelieviUrlForScope({ regionId: 10 }), '/prelievi?c=10',
+            'prelieviUrlForScope: region scope');
+assertEqual(B.prelieviUrlForScope({}), '/prelievi',
+            'prelieviUrlForScope: empty scope');
+
 let rows = B.productionRows(digest, { region: 'Capistrano', parcel: '1' });
 assertEqual(rows.map(r => r[0]), [1, 2], 'productionRows: parcel scope');
 rows = B.productionRows(digest, { region: 'Capistrano' });

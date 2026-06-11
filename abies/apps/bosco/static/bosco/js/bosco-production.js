@@ -4,6 +4,7 @@ import * as S from '../../base/js/strings.js';
 import { COLUMNS, ROWS } from '../../base/js/constants.js';
 
 const TOTAL_COLOR = '#2f8f58';
+const PRELIEVI_PATH = '/prelievi';
 
 function colMap(digest) {
   const out = {};
@@ -15,6 +16,18 @@ function num(value) {
   if (value == null || value === '') return 0;
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
+}
+
+export function prelieviUrlForScope(scope = {}) {
+  const params = new URLSearchParams();
+  if (Number.isInteger(scope.regionId) && scope.regionId > 0) {
+    params.set('c', String(scope.regionId));
+  }
+  if (Number.isInteger(scope.parcelId) && scope.parcelId > 0) {
+    params.set('pa', String(scope.parcelId));
+  }
+  const query = params.toString();
+  return query ? `${PRELIEVI_PATH}?${query}` : PRELIEVI_PATH;
 }
 
 export function productionRows(digest, scope) {
