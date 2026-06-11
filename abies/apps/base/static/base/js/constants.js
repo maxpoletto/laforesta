@@ -22,12 +22,13 @@ export const DELETES  = 'deletes';
 export const COLUMNS  = 'columns';
 export const ROWS     = 'rows';
 
-// Locale-independent digest column identifiers for internal database ids.
+// Locale-independent digest column identifiers for internal fields.
 export const COL_REGION_ID  = 'Region id';
 export const COL_PARCEL_ID  = 'Parcel id';
 export const COL_SURVEY_ID  = 'Survey id';
 export const COL_SPECIES_ID = 'Species id';
 export const COL_TREE_ID    = 'Tree id';
+export const COL_COPPICE    = 'Coppice';
 
 export const STATUS   = 'status';
 export const MESSAGE  = 'message';

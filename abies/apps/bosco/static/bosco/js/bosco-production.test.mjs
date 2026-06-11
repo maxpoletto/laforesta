@@ -69,7 +69,7 @@ agg = B.aggregateProduction(digest, { region: 'Capistrano', parcel: '1' }, {
   byMonth: true, perHa: true, areaHa: 10,
 });
 assertEqual(agg.chartData.labels, ['2024-01'], 'aggregateProduction: monthly labels');
-assertEqual(agg.chartData.yTitle, 'Q.li/ha', 'aggregateProduction: per-ha y title');
+assertEqual(agg.chartData.yTitle, S.BOSCO_QUINTALS_PER_HA, 'aggregateProduction: per-ha y title');
 assertEqual(agg.chartData.datasets[0].data, [15], 'aggregateProduction: per-ha values');
 
 console.log(`

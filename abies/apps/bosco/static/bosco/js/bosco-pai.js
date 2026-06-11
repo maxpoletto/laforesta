@@ -51,7 +51,7 @@ export function paiParcelItems(entries, trees) {
     id: entry.id,
     name: entry.parcel,
     count: counts.get(entry.id) || 0,
-  })).sort((a, b) => a.name.localeCompare(b.name, 'it', { numeric: true }));
+  })).sort((a, b) => a.name.localeCompare(b.name, S.LOCALE, { numeric: true }));
 }
 
 export function paiSpeciesItems(trees) {
@@ -61,7 +61,7 @@ export function paiSpeciesItems(trees) {
     item.count += 1;
     byId.set(tree.speciesId, item);
   }
-  return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name, 'it'));
+  return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name, S.LOCALE));
 }
 
 export function speciesColorMap(speciesItems) {

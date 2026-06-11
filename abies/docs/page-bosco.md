@@ -296,10 +296,11 @@ mode-switch.
   page's *Metadati* section.  Invalidated on `parcel` writes.
 
   Columns: `row_id`, `version`, `Region id`, `Compresa`, `Particella`, `Classe`,
-  `Area (ha)`, `Area cat. (ha)`, `Età media (a)`, `Località`, `Alt. min. (m)`,
-  `Alt. max. (m)`, `Esposizione`, `Pendenza (%)`, `Tipo` (alto fusto / ceduo),
-  `Desc. veg.`, `Desc. geo`.  `row_id` = `parcel.id`; `Tipo` derived
-  from `parcel.eclass.coppice`.  `version` participates in optimistic locking
+  `Coppice`, `Area (ha)`, `Area cat. (ha)`, `Età media (a)`, `Località`,
+  `Alt. min. (m)`, `Alt. max. (m)`, `Esposizione`, `Pendenza (%)`, `Tipo`
+  (alto fusto / ceduo), `Desc. veg.`, `Desc. geo`.  `row_id` = `parcel.id`;
+  `Coppice` is the stable boolean from `parcel.eclass.coppice`; `Tipo` is
+  its localized display label.  `version` participates in optimistic locking
   for parcel metadata edits.
 
 - **`species.json`** — shared with Campionamenti and Piano di taglio.

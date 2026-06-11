@@ -89,7 +89,7 @@ export function aggregateDendrometry(digest, scope, { areaHa = null, perHa = tru
 
   const scale = perHa && areaHa ? 1 / areaHa : 1;
   return [...groups.values()]
-    .sort((a, b) => a.species.localeCompare(b.species, 'it')
+    .sort((a, b) => a.species.localeCompare(b.species, S.LOCALE)
       || a.diameterClassCm - b.diameterClassCm)
     .map(g => ({
       speciesId: g.speciesId,
@@ -111,7 +111,7 @@ export function dendrometrySpecies(digest, scope) {
     item.count += row.treeCount;
     out.set(row.speciesId, item);
   }
-  return [...out.values()].sort((a, b) => a.name.localeCompare(b.name, 'it'));
+  return [...out.values()].sort((a, b) => a.name.localeCompare(b.name, S.LOCALE));
 }
 
 
@@ -165,7 +165,7 @@ function dendrometryChartAxes(rows) {
   }
   const species = [...bySpecies.entries()]
     .map(([id, name]) => ({ id, name }))
-    .sort((a, b) => a.name.localeCompare(b.name, 'it'));
+    .sort((a, b) => a.name.localeCompare(b.name, S.LOCALE));
   return { labels, species };
 }
 
@@ -198,7 +198,7 @@ export function dendrometryHeightPoints(digest, scope, { speciesIds = null } = {
     });
   }
 
-  return rows.sort((a, b) => a.species.localeCompare(b.species, 'it') || a.dCm - b.dCm);
+  return rows.sort((a, b) => a.species.localeCompare(b.species, S.LOCALE) || a.dCm - b.dCm);
 }
 
 export function dendrometryScatterChartData(points, yTitle, { minFitN = HEIGHT_FIT_MIN_N } = {}) {
@@ -213,7 +213,7 @@ export function dendrometryScatterChartData(points, yTitle, { minFitN = HEIGHT_F
     bySpecies.set(point.speciesId, series);
   }
   const species = [...bySpecies.values()]
-    .sort((a, b) => a.name.localeCompare(b.name, 'it'));
+    .sort((a, b) => a.name.localeCompare(b.name, S.LOCALE));
   const datasets = [];
   for (const [idx, item] of species.entries()) {
     const color = CHART_COLORS[idx % CHART_COLORS.length];

@@ -18,7 +18,7 @@ export const EVOLUTION_METRICS = {
   '1': { label: 'NDVI', layer: 'ndvi', satellite: true },
   '2': { label: 'NDMI', layer: 'ndmi', satellite: true },
   '3': { label: 'EVI', layer: 'evi', satellite: true },
-  '4': { label: 'Prelievo', layer: 'prelievo', satellite: false },
+  '4': { layer: 'prelievo', satellite: false },
 };
 
 const INDEX_RAMP = [

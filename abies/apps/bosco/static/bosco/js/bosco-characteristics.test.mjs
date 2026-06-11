@@ -19,7 +19,7 @@ const staticModule = rel => pathToFileURL(path.join(staticRoot, rel)).href;
 const B = await import(staticModule('bosco/js/bosco-characteristics.js'));
 const S = await import(staticModule('base/js/strings.js'));
 const {
-  COL_PARCEL_ID, COL_REGION_ID, COLUMNS, ROWS, ROW_ID, VERSION,
+  COL_COPPICE, COL_PARCEL_ID, COL_REGION_ID, COLUMNS, ROWS, ROW_ID, VERSION,
 } = await import(staticModule('base/js/constants.js'));
 
 let failed = 0;
@@ -47,17 +47,20 @@ console.log('bosco-characteristics.js');
 
 const parcels = {
   [COLUMNS]: [ROW_ID, VERSION, COL_REGION_ID, S.COL_REGION, S.COL_PARCEL,
-    S.COL_CLASS, S.COL_AREA_HA, S.COL_AREA_CAD_HA, S.COL_AVE_AGE, S.COL_LOCATION,
-    S.COL_ALT_MIN, S.COL_ALT_MAX, S.COL_ASPECT, S.COL_GRADE_PCT, S.COL_TYPE,
+    S.COL_CLASS, COL_COPPICE, S.COL_AREA_HA, S.COL_AREA_CAD_HA,
+    S.COL_AVE_AGE, S.COL_LOCATION, S.COL_ALT_MIN, S.COL_ALT_MAX,
+    S.COL_ASPECT, S.COL_GRADE_PCT, S.COL_TYPE,
     S.COL_DESC_VEG, S.COL_DESC_GEO],
   [ROWS]: [
-    [10, 0, 1, 'Capistrano', '1', 'A', 11, 10, 70, '', 800, 900, '', 0, S.TYPE_HIGHFOREST, '', ''],
-    [11, 0, 1, 'Capistrano', '2', 'F', 6, 5, null, '', null, null, '', 0, S.TYPE_COPPICE, '', ''],
+    [10, 0, 1, 'Capistrano', '1', 'A', false, 11, 10, 70, '', 800, 900, '', 0, S.TYPE_HIGHFOREST, '', ''],
+    [11, 0, 1, 'Capistrano', '2', 'F', true, 6, 5, null, '', null, null, '', 0, S.TYPE_COPPICE, '', ''],
   ],
 };
 const entries = B.buildParcelEntries(parcels);
 assertEqual(entries[0].key, 'Capistrano-1', 'buildParcelEntries: key');
 assertEqual(entries[0].altitudeMean, 850, 'buildParcelEntries: mean altitude');
+assertEqual(entries[0].coppice, false, 'buildParcelEntries: highforest flag');
+assertEqual(entries[1].coppice, true, 'buildParcelEntries: coppice flag');
 assertEqual(entries[0].altMin, 800, 'buildParcelEntries: altitude min');
 assertEqual(entries[0].altMax, 900, 'buildParcelEntries: altitude max');
 assertEqual(entries[1].altitudeMean, null, 'buildParcelEntries: missing altitude');

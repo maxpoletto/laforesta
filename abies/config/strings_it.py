@@ -251,6 +251,20 @@ ERR_MARK_PARCEL_REQUIRED = 'Particella obbligatoria per interventi a livello di 
 ERR_MARK_PARCEL_NOT_IN_REGION = (
     'La particella non appartiene alla compresa dell\'intervento.'
 )
+ERR_BOSCO_AREA_REQUIRED = 'Superficie obbligatoria.'
+ERR_BOSCO_INTEGER_REQUIRED = '{} deve essere un numero intero.'
+ERR_BOSCO_TEXT_TOO_LONG = '{} troppo lunga.'
+ERR_BOSCO_ALTITUDE_RANGE = 'Altitudine minima maggiore della massima.'
+ERR_BOSCO_SPECIES_REQUIRED = 'Specie obbligatoria.'
+ERR_BOSCO_PARCEL_REQUIRED = 'Particella obbligatoria.'
+ERR_BOSCO_YEAR_REQUIRED = 'Anno obbligatorio.'
+ERR_BOSCO_LAT_LON_REQUIRED = 'Lat e Lon obbligatorie.'
+LABEL_BOSCO_AVE_AGE = 'Età media'
+LABEL_BOSCO_VEG_DESC = 'Descrizione vegetazione'
+LABEL_BOSCO_GEO_DESC = 'Descrizione geologia'
+LABEL_BOSCO_ALTITUDE_MIN = 'Altitudine minima'
+LABEL_BOSCO_ALTITUDE_MAX = 'Altitudine massima'
+LABEL_BOSCO_GRADE = 'Pendenza'
 
 # ---------------------------------------------------------------------------
 # CSV column headers.  These are simultaneously the wire-format identifiers

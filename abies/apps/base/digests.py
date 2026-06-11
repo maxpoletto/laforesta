@@ -27,8 +27,8 @@ from django.utils.http import http_date, parse_http_date_safe
 from apps.base.models import DigestStatus, render_flag_note
 from config import strings as S
 from config.constants import (
-    COL_PARCEL_ID, COL_REGION_ID, COL_SPECIES_ID, COL_SURVEY_ID,
-    COL_TREE_ID, DIGEST_FUTURE_PRODUCTION, DIGEST_HYPSO_PARAMS,
+    COL_COPPICE, COL_PARCEL_ID, COL_REGION_ID, COL_SPECIES_ID,
+    COL_SURVEY_ID, COL_TREE_ID, DIGEST_FUTURE_PRODUCTION, DIGEST_HYPSO_PARAMS,
     DIGEST_PARCEL_DENDROMETRY, DIGEST_PARCEL_DENDROMETRY_POINTS,
     DIGEST_PRESERVED_TREES, FIELD_FIRST_DATE, FIELD_LAST_DATE, FIELD_NUMBER,
     FIELD_SAMPLE_AREA_ID, FIELD_SHOOT, FIELD_SORT_ORDER, FIELD_SPECIES,
@@ -312,7 +312,8 @@ def build_harvest_record(
 
 PARCEL_COLUMNS = [
     ROW_ID, VERSION, COL_REGION_ID, S.COL_REGION, S.COL_PARCEL, S.COL_CLASS,
-    S.COL_AREA_HA, S.COL_AREA_CAD_HA, S.COL_AVE_AGE, S.COL_LOCATION,
+    COL_COPPICE, S.COL_AREA_HA, S.COL_AREA_CAD_HA, S.COL_AVE_AGE,
+    S.COL_LOCATION,
     S.COL_ALT_MIN, S.COL_ALT_MAX, S.COL_ASPECT, S.COL_GRADE_PCT,
     S.COL_TYPE, S.COL_DESC_VEG, S.COL_DESC_GEO,
 ]
@@ -326,7 +327,8 @@ def build_parcel_record(p) -> list:
     """
     return [
         p.id, p.version, p.region_id, p.region.name, p.name, p.eclass.name,
-        float(p.area_ha), float(p.area_ha), p.ave_age, p.location_name,
+        p.eclass.coppice, float(p.area_ha), float(p.area_ha), p.ave_age,
+        p.location_name,
         p.altitude_min_m, p.altitude_max_m, p.aspect, p.grade_pct,
         S.TYPE_COPPICE if p.eclass.coppice else S.TYPE_HIGHFOREST,
         p.desc_veg, p.desc_geo,

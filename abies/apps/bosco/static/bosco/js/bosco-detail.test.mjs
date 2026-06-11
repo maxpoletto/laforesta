@@ -95,13 +95,13 @@ assertEqual(species, [{ id: 5, name: 'Abete', count: 5 }, { id: 6, name: 'Faggio
             'dendrometrySpecies: counts by species');
 
 rows = D.aggregateDendrometry(dendro, { region: 'Capistrano' }, { perHa: false });
-let chart = D.dendrometryBarChartData(rows, 'treeCount', 'Numero alberi');
+let chart = D.dendrometryBarChartData(rows, 'treeCount', 'Tree count');
 assertEqual(chart.labels, ['20', '25'], 'dendrometryBarChartData: diameter labels');
 assertEqual(chart.datasets.map(d => d.label), ['Abete', 'Faggio'],
             'dendrometryBarChartData: species datasets');
 assertEqual(chart.datasets[0].data, [5, 0], 'dendrometryBarChartData: sparse series');
 assertEqual(chart.datasets[1].data, [0, 4], 'dendrometryBarChartData: second sparse series');
-assertEqual(chart.yTitle, 'Numero alberi', 'dendrometryBarChartData: y title');
+assertEqual(chart.yTitle, 'Tree count', 'dendrometryBarChartData: y title');
 
 chart = D.dendrometryLineChartData(rows, 'incrementPct', S.COL_INCREMENT_PCT);
 assertEqual(chart.datasets[0].data, [1.6, null], 'dendrometryLineChartData: line values with gaps');
@@ -135,8 +135,8 @@ assertEqual(fitDataset.data[0].x, 10, 'dendrometryScatterChartData: fit starts a
 assertEqual(fitDataset.data.at(-1).x, 30, 'dendrometryScatterChartData: fit ends at max d');
 
 const meta = D.regionMetadata([
-  { displayAreaHa: 10, cadastralAreaHa: 11, aveAge: 40, altMin: 700, altMax: 900, type: 'fustaia' },
-  { displayAreaHa: 5, cadastralAreaHa: 6, aveAge: 70, altMin: 600, altMax: 800, type: 'ceduo' },
+  { displayAreaHa: 10, cadastralAreaHa: 11, aveAge: 40, altMin: 700, altMax: 900, type: S.TYPE_HIGHFOREST },
+  { displayAreaHa: 5, cadastralAreaHa: 6, aveAge: 70, altMin: 600, altMax: 800, type: S.TYPE_COPPICE },
 ]);
 assertEqual(meta.count, 2, 'regionMetadata: count');
 assertEqual(meta.areaHa, 15, 'regionMetadata: area sum');
@@ -144,7 +144,7 @@ assertEqual(meta.cadastralAreaHa, 17, 'regionMetadata: cadastral area sum');
 assertClose(meta.aveAge, 50, 0.0001, 'regionMetadata: weighted age');
 assertEqual(meta.altMin, 600, 'regionMetadata: min altitude');
 assertEqual(meta.altMax, 900, 'regionMetadata: max altitude');
-assertEqual([...meta.typeCounts.entries()], [['fustaia', 1], ['ceduo', 1]], 'regionMetadata: types');
+assertEqual([...meta.typeCounts.entries()], [[S.TYPE_HIGHFOREST, 1], [S.TYPE_COPPICE, 1]], 'regionMetadata: types');
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed > 0 ? 1 : 0);

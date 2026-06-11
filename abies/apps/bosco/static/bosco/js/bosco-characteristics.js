@@ -1,6 +1,6 @@
 import * as S from '../../base/js/strings.js';
 import {
-  COL_PARCEL_ID, COL_REGION_ID, COLUMNS, ROWS, ROW_ID,
+  COL_COPPICE, COL_PARCEL_ID, COL_REGION_ID, COLUMNS, ROWS, ROW_ID,
 } from '../../base/js/constants.js';
 import {
   Q_AGE,
@@ -49,13 +49,17 @@ export function buildParcelEntries(digest) {
   return digest[ROWS].map(row => {
     const altMin = num(row[c[S.COL_ALT_MIN]]);
     const altMax = num(row[c[S.COL_ALT_MAX]]);
+    const type = row[c[S.COL_TYPE]];
+    const coppiceIdx = c[COL_COPPICE];
+    const coppice = coppiceIdx == null ? null : row[coppiceIdx] === true;
     return {
       id: row[c[ROW_ID]],
       regionId: row[c[COL_REGION_ID]],
       region: row[c[S.COL_REGION]],
       parcel: row[c[S.COL_PARCEL]],
       key: parcelKey(row[c[S.COL_REGION]], row[c[S.COL_PARCEL]]),
-      type: row[c[S.COL_TYPE]],
+      type,
+      coppice,
       className: row[c[S.COL_CLASS]],
       areaHa: num(row[c[S.COL_AREA_HA]]),
       cadastralAreaHa: num(row[c[S.COL_AREA_CAD_HA]]),

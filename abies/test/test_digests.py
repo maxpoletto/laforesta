@@ -26,8 +26,9 @@ from apps.mannesi.models import LicensePlate, ProductionCredit, WorkHour
 from apps.prelievi.models import Harvest, HarvestSpecies, HarvestTractor
 from config import strings as S
 from config.constants import (
-    COLUMNS, COL_PARCEL_ID, COL_REGION_ID, COL_SPECIES_ID, COL_SURVEY_ID,
-    COL_TREE_ID, DIGEST_FUTURE_PRODUCTION, DIGEST_PARCEL_DENDROMETRY,
+    COLUMNS, COL_COPPICE, COL_PARCEL_ID, COL_REGION_ID, COL_SPECIES_ID,
+    COL_SURVEY_ID, COL_TREE_ID, DIGEST_FUTURE_PRODUCTION,
+    DIGEST_PARCEL_DENDROMETRY,
     DIGEST_PARCEL_DENDROMETRY_POINTS, DIGEST_PRESERVED_TREES, ROWS, ROW_ID,
     VERSION,
 )
@@ -272,11 +273,12 @@ class TestGenerateBoscoDigests:
         cols = data[COLUMNS]
         row = next(r for r in data[ROWS] if r[0] == p.id)
 
-        for col in (VERSION, COL_REGION_ID, S.COL_AREA_CAD_HA, S.COL_TYPE,
-                    S.COL_DESC_VEG, S.COL_DESC_GEO):
+        for col in (VERSION, COL_REGION_ID, COL_COPPICE, S.COL_AREA_CAD_HA,
+                    S.COL_TYPE, S.COL_DESC_VEG, S.COL_DESC_GEO):
             assert col in cols
         assert row[cols.index(VERSION)] == 1
         assert row[cols.index(COL_REGION_ID)] == p.region_id
+        assert row[cols.index(COL_COPPICE)] is False
         assert row[cols.index(S.COL_TYPE)] == S.TYPE_HIGHFOREST
         assert row[cols.index(S.COL_DESC_VEG)] == 'Descrizione vegetazione'
         assert row[cols.index(S.COL_DESC_GEO)] == 'Descrizione geologia'

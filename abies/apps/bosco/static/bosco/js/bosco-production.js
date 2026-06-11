@@ -71,9 +71,9 @@ export function aggregateProduction(digest, scope, opts = {}) {
     labels,
     chartData: {
       labels,
-      yTitle: opts.perHa && areaHa > 0 ? 'Q.li/ha' : S.COL_QUINTALS,
+      yTitle: opts.perHa && areaHa > 0 ? S.BOSCO_QUINTALS_PER_HA : S.COL_QUINTALS,
       datasets: [{
-        label: opts.perHa && areaHa > 0 ? 'Q.li/ha' : S.COL_QUINTALS,
+        label: opts.perHa && areaHa > 0 ? S.BOSCO_QUINTALS_PER_HA : S.COL_QUINTALS,
         data: labels.map(label => round1(byBucket.get(label) || 0)),
         backgroundColor: TOTAL_COLOR,
       }],

@@ -85,6 +85,8 @@ const VALID_EVOLUTION_METRICS = ['1', '2', '3', '4'];
 const SATELLITE_CHARACTERISTICS = new Set(['6', '7', '8']);
 const DETAIL_SECTIONS = ['m', 'd', 'p'];
 const EVOLUTION_OVERLAY_OPACITY = 0.85;
+const TYPE_HIGHFOREST_KEY = 'highforest';
+const TYPE_COPPICE_KEY = 'coppice';
 
 const NO_DATA_STYLE = {
   ...PARCEL_STYLE,
@@ -96,10 +98,10 @@ const NO_DATA_STYLE = {
 };
 
 const TYPE_STYLES = {
-  [S.TYPE_HIGHFOREST]: {
+  [TYPE_HIGHFOREST_KEY]: {
     color: '#17613a', weight: 1.5, opacity: 0.95, fillColor: '#2f8f58', fillOpacity: 0.58,
   },
-  [S.TYPE_COPPICE]: {
+  [TYPE_COPPICE_KEY]: {
     color: '#8a6500', weight: 1.5, opacity: 0.95, fillColor: '#d7aa27', fillOpacity: 0.62,
   },
 };
@@ -352,7 +354,7 @@ function rebuildRegionIndex() {
     if (id == null || byId.has(id)) continue;
     byId.set(id, { id, name: row[idxRegion] });
   }
-  regions = [...byId.values()].sort((a, b) => a.name.localeCompare(b.name, 'it'));
+  regions = [...byId.values()].sort((a, b) => a.name.localeCompare(b.name, S.LOCALE));
   regionById = new Map(regions.map(r => [r.id, r]));
 }
 
@@ -555,7 +557,7 @@ function populateEvolutionDateSelect(select, months, selectedMonth) {
   if (!months.length) {
     const opt = document.createElement('option');
     opt.value = '';
-    opt.textContent = 'Nessuna data';
+    opt.textContent = S.BOSCO_NO_DATE;
     select.appendChild(opt);
     select.disabled = true;
     return;
@@ -580,7 +582,7 @@ function renderMap(state) {
 
   const region = regionById.get(state.regionId);
   if (!region || !parcelsGeo) {
-    setStatus('Nessuna compresa');
+    setStatus(S.BOSCO_NO_REGION);
     return;
   }
 
@@ -687,11 +689,11 @@ function refreshCharacteristicLayer() {
 
   if (currentState.q === Q_HISTORICAL_HARVEST && !prelieviData) {
     resetParcelStyles();
-    renderMessageLegend('Caricamento prelievi...');
+    renderMessageLegend(S.BOSCO_LOADING_HARVESTS);
     loadPrelievi().then(() => {
       if (seq === characteristicRenderSeq) refreshCharacteristicLayer();
     }).catch(() => {
-      if (seq === characteristicRenderSeq) renderMessageLegend('Prelievi non disponibili.');
+      if (seq === characteristicRenderSeq) renderMessageLegend(S.BOSCO_HARVESTS_UNAVAILABLE);
     });
     return;
   }
@@ -702,8 +704,9 @@ function refreshCharacteristicLayer() {
     let hasNoData = false;
     for (const entry of entries) {
       const value = metricValue(entry, currentState.q, context);
-      if (!TYPE_STYLES[value]) hasNoData = true;
-      applyEntryStyle(entry, TYPE_STYLES[value] || NO_DATA_STYLE, value);
+      const key = standTypeKey(entry);
+      if (!TYPE_STYLES[key]) hasNoData = true;
+      applyEntryStyle(entry, TYPE_STYLES[key] || NO_DATA_STYLE, value);
     }
     renderTypeLegend(hasNoData);
     return;
@@ -742,11 +745,11 @@ function renderSatelliteCharacteristic(seq) {
   if (!layer || !map?._boscoEntries || !currentState) return;
   if (!satelliteReady(currentState.regionId)) {
     resetParcelStyles();
-    renderMessageLegend('Caricamento dati satellitari...');
+    renderMessageLegend(S.BOSCO_LOADING_SATELLITE);
     loadSatellite(currentState.regionId).then(() => {
       if (seq === characteristicRenderSeq) refreshCharacteristicLayer();
     }).catch(() => {
-      if (seq === characteristicRenderSeq) renderMessageLegend('Dati satellitari non disponibili.');
+      if (seq === characteristicRenderSeq) renderMessageLegend(S.BOSCO_SATELLITE_UNAVAILABLE);
     });
     return;
   }
@@ -754,7 +757,7 @@ function renderSatelliteCharacteristic(seq) {
   const date = pickDate(satelliteData.timeseries?.dates, null, 'latest');
   if (!date) {
     resetParcelStyles();
-    renderMessageLegend('Dati satellitari non disponibili.');
+    renderMessageLegend(S.BOSCO_SATELLITE_UNAVAILABLE);
     return;
   }
 
@@ -762,7 +765,7 @@ function renderSatelliteCharacteristic(seq) {
   const values = entries.map(entry => satelliteValue(satelliteData.timeseries, entry.key, layer, date));
   if (!continuousDomain(values)) {
     resetParcelStyles();
-    renderMessageLegend('Nessun dato satellitare disponibile.');
+    renderMessageLegend(S.BOSCO_NO_SATELLITE);
     return;
   }
 
@@ -781,17 +784,17 @@ function renderEvolutionMode() {
   const metric = EVOLUTION_METRICS[currentState.evolutionMetric];
   if (!metric?.satellite) {
     resetParcelStyles();
-    renderLegendMessage(diffLegendEl, 'Prelievo in preparazione.');
+    renderLegendMessage(diffLegendEl, S.BOSCO_HARVEST_PREPARING);
     return;
   }
 
   if (!satelliteReady(currentState.regionId)) {
     resetParcelStyles();
-    renderLegendMessage(diffLegendEl, 'Caricamento dati satellitari...');
+    renderLegendMessage(diffLegendEl, S.BOSCO_LOADING_SATELLITE);
     loadSatellite(currentState.regionId).then(() => {
       if (seq === evolutionRenderSeq) renderEvolutionMode();
     }).catch(() => {
-      if (seq === evolutionRenderSeq) renderLegendMessage(diffLegendEl, 'Dati satellitari non disponibili.');
+      if (seq === evolutionRenderSeq) renderLegendMessage(diffLegendEl, S.BOSCO_SATELLITE_UNAVAILABLE);
     });
     return;
   }
@@ -802,7 +805,7 @@ function renderEvolutionMode() {
   updateEvolutionDateControls(date1, date2, dates);
   if (!date1 || !date2) {
     resetParcelStyles();
-    renderLegendMessage(diffLegendEl, 'Dati satellitari non disponibili.');
+    renderLegendMessage(diffLegendEl, S.BOSCO_SATELLITE_UNAVAILABLE);
     return;
   }
 
@@ -822,7 +825,7 @@ function renderEvolutionParcelAverages(metric, date1, date2) {
   const domain = divergingDomain(values);
   if (!domain) {
     resetParcelStyles();
-    renderLegendMessage(diffLegendEl, 'Nessun dato satellitare disponibile.');
+    renderLegendMessage(diffLegendEl, S.BOSCO_NO_SATELLITE);
     return;
   }
 
@@ -841,7 +844,7 @@ function renderEvolutionParcelAverages(metric, date1, date2) {
 function renderEvolutionRaster(seq, metric, date1, date2) {
   clearEvolutionOverlay();
   resetParcelStyles();
-  renderLegendMessage(diffLegendEl, 'Caricamento raster...');
+  renderLegendMessage(diffLegendEl, S.BOSCO_LOADING_RASTER);
   const url = satelliteDiffPngUrl(currentState.regionId, metric.layer, date1, date2);
   fetchImageDataURL(url).then(({ dataURL, maxAbs }) => {
     if (seq !== evolutionRenderSeq || currentState?.mode !== '2' || currentState?.parcelAverage) return;
@@ -851,9 +854,9 @@ function renderEvolutionRaster(seq, metric, date1, date2) {
     }).addTo(map.leaflet);
     map.parcelLayer.bringToFront();
     renderDiffLegend(metric, date1, date2, { maxAbs });
-    setStatus(`${metric.label} ${date2.slice(0, 7)} - ${date1.slice(0, 7)}`);
+    setStatus(`${evolutionMetricLabel(metric)} ${date2.slice(0, 7)} - ${date1.slice(0, 7)}`);
   }).catch(() => {
-    if (seq === evolutionRenderSeq) renderLegendMessage(diffLegendEl, 'Raster non disponibile.');
+    if (seq === evolutionRenderSeq) renderLegendMessage(diffLegendEl, S.BOSCO_RASTER_UNAVAILABLE);
   });
 }
 
@@ -938,9 +941,15 @@ function satelliteDiffStyle(value, maxAbs) {
 }
 
 function evolutionMetricDisplay(metric, value) {
-  if (value == null || !Number.isFinite(value)) return 'n.d.';
+  if (value == null || !Number.isFinite(value)) return S.BOSCO_NO_DATA;
   const sign = value > 0 ? '+' : '';
-  return `${metric.label}: ${sign}${fmtDecimal2(value)}`;
+  return `${evolutionMetricLabel(metric)}: ${sign}${fmtDecimal2(value)}`;
+}
+
+function evolutionMetricLabel(metric) {
+  if (!metric) return '';
+  if (metric.layer === 'prelievo') return S.BOSCO_HARVEST_METRIC;
+  return metric.label || SATELLITE_LAYERS[metric.layer]?.label || String(metric.layer || '').toUpperCase();
 }
 
 function canonicalizeEvolutionDates(state, date1, date2) {
@@ -1018,7 +1027,7 @@ function safeTooltip(feature) {
 }
 
 function metricDisplay(metricId, value) {
-  if (value == null || value === '') return 'n.d.';
+  if (value == null || value === '') return S.BOSCO_NO_DATA;
   if (metricId === Q_TYPE) return value;
   if (characteristicSatelliteLayer(metricId)) return fmtDecimal2(value);
   const perHa = currentState?.harvestPerHa && isHarvestMetric(metricId);
@@ -1028,19 +1037,25 @@ function metricDisplay(metricId, value) {
   return unit ? `${fmtDecimal1(value)} ${unit}` : fmtDecimal1(value);
 }
 
+function standTypeKey(entry) {
+  if (entry.coppice === true) return TYPE_COPPICE_KEY;
+  if (entry.coppice === false) return TYPE_HIGHFOREST_KEY;
+  return null;
+}
+
 function renderTypeLegend(showNoData = false) {
   if (!legendEl) return;
   legendEl.replaceChildren();
-  legendEl.appendChild(legendRow(TYPE_STYLES[S.TYPE_HIGHFOREST].fillColor, S.TYPE_HIGHFOREST));
-  legendEl.appendChild(legendRow(TYPE_STYLES[S.TYPE_COPPICE].fillColor, S.TYPE_COPPICE));
-  if (showNoData) legendEl.appendChild(legendRow(NO_DATA_STYLE.fillColor, 'n.d.'));
+  legendEl.appendChild(legendRow(TYPE_STYLES[TYPE_HIGHFOREST_KEY].fillColor, S.TYPE_HIGHFOREST));
+  legendEl.appendChild(legendRow(TYPE_STYLES[TYPE_COPPICE_KEY].fillColor, S.TYPE_COPPICE));
+  if (showNoData) legendEl.appendChild(legendRow(NO_DATA_STYLE.fillColor, S.BOSCO_NO_DATA));
 }
 
 function renderContinuousLegend(domain, metricId) {
   if (!legendEl) return;
   legendEl.replaceChildren();
   if (!domain) {
-    renderMessageLegend('Nessun dato disponibile.');
+    renderMessageLegend(S.BOSCO_NO_DATA_AVAILABLE);
     return;
   }
 
@@ -1092,7 +1107,7 @@ function renderDiffLegend(metric, date1, date2, domain) {
 
   const title = document.createElement('div');
   title.className = 'bosco-legend-title';
-  title.textContent = `${metric.label} ${date2.slice(0, 7)} - ${date1.slice(0, 7)}`;
+  title.textContent = `${evolutionMetricLabel(metric)} ${date2.slice(0, 7)} - ${date1.slice(0, 7)}`;
   diffLegendEl.appendChild(title);
 
   const gradient = document.createElement('div');
@@ -1270,7 +1285,7 @@ function applyParcelMetadataResponse(data) {
 
 function renderRegionMetadata(entries) {
   const meta = regionMetadata(entries);
-  appendMetadataField('Particelle', fmtInt(meta.count));
+  appendMetadataField(S.BOSCO_REGION_PARCELS, fmtInt(meta.count));
   appendMetadataField(S.COL_AREA_HA, fmtArea(meta.areaHa));
   appendMetadataField(S.COL_AREA_CAD_HA, fmtArea(meta.cadastralAreaHa));
   appendMetadataField(S.COL_AVE_AGE, fmtDecimal1(meta.aveAge));
@@ -1286,7 +1301,7 @@ function appendMetadataField(label, value, wide = false) {
   const dt = document.createElement('dt');
   dt.textContent = label;
   const dd = document.createElement('dd');
-  dd.textContent = value || 'n.d.';
+  dd.textContent = value || S.BOSCO_NO_DATA;
   item.append(dt, dd);
   metadataHost.appendChild(item);
 }
@@ -1302,7 +1317,7 @@ function renderDendrometry() {
     Promise.all([loadDendrometry(), loadDendrometryPoints()])
       .then(renderDendrometry)
       .catch(() => {
-        if (dendrometryStatus) dendrometryStatus.textContent = 'Dendrometria non disponibile.';
+        if (dendrometryStatus) dendrometryStatus.textContent = S.BOSCO_DENDROMETRY_UNAVAILABLE;
       });
     return;
   }
@@ -1350,7 +1365,7 @@ function renderDendrometrySpecies(scope) {
   const species = dendrometrySpecies(dendrometryData, { region: scope.region, parcelId: scope.parcelId });
   dendrometrySpeciesHost.replaceChildren();
   if (!species.length) {
-    dendrometrySpeciesHost.textContent = 'Nessun dato dendrometrico.';
+    dendrometrySpeciesHost.textContent = S.BOSCO_NO_DENDROMETRY;
     return;
   }
   const selectedIds = currentState?.detailSpeciesIds;
@@ -1388,7 +1403,7 @@ function renderDendrometryCharts(rows, rawRows, heightPoints) {
   if (!rows.length) {
     destroyDendrometryCharts();
     dendrometryChartGrid.hidden = true;
-    dendrometryStatus.textContent = 'Nessun dato dendrometrico.';
+    dendrometryStatus.textContent = S.BOSCO_NO_DENDROMETRY;
     return;
   }
 
@@ -1397,17 +1412,17 @@ function renderDendrometryCharts(rows, rawRows, heightPoints) {
   const perHa = dendrometryPerHa?.checked !== false;
   dendrometryCharts.treeCount = renderStackedBar(
     dendrometryTreeCanvas,
-    dendrometryBarChartData(rows, 'treeCount', perHa ? 'Numero alberi/ha' : 'Numero alberi'),
+    dendrometryBarChartData(rows, 'treeCount', perHa ? S.BOSCO_TREE_COUNT_PER_HA : S.BOSCO_TREE_COUNT),
     dendrometryCharts.treeCount,
   );
   dendrometryCharts.volume = renderStackedBar(
     dendrometryVolumeCanvas,
-    dendrometryBarChartData(rows, 'volumeM3', perHa ? 'Volume (m³/ha)' : S.COL_VOLUME_M3),
+    dendrometryBarChartData(rows, 'volumeM3', perHa ? S.BOSCO_VOLUME_PER_HA : S.COL_VOLUME_M3),
     dendrometryCharts.volume,
   );
   dendrometryCharts.basalArea = renderStackedBar(
     dendrometryBasalAreaCanvas,
-    dendrometryBarChartData(rows, 'basalAreaM2', perHa ? 'Area bas. (m²/ha)' : S.COL_BASAL_AREA_M2),
+    dendrometryBarChartData(rows, 'basalAreaM2', perHa ? S.BOSCO_BASAL_AREA_PER_HA : S.COL_BASAL_AREA_M2),
     dendrometryCharts.basalArea,
   );
   dendrometryCharts.height = renderScatterChart(
@@ -1496,7 +1511,7 @@ function renderProduction() {
     productionHost.hidden = true;
     productionSummary.textContent = S.LOADING;
     loadPrelievi().then(renderProduction).catch(() => {
-      if (productionSummary) productionSummary.textContent = 'Produzione storica non disponibile.';
+      if (productionSummary) productionSummary.textContent = S.BOSCO_HISTORICAL_PRODUCTION_UNAVAILABLE;
     });
     return;
   }
@@ -1514,7 +1529,7 @@ function renderProduction() {
   if (!result.labels.length) {
     destroyProductionChart();
     productionHost.hidden = true;
-    productionSummary.textContent = 'Nessun prelievo storico.';
+    productionSummary.textContent = S.BOSCO_NO_HISTORICAL_HARVEST;
     return;
   }
 
@@ -1524,7 +1539,7 @@ function renderProduction() {
   const total = perHa && area > 0
     ? `${fmtDecimal2(result.totalQuintals / area)} q/ha`
     : fmtMass(result.totalQuintals);
-  productionSummary.textContent = `${total} - ${fmtInt(result.rowCount)} interventi`;
+  productionSummary.textContent = `${total} - ${S.BOSCO_INTERVENTIONS(fmtInt(result.rowCount))}`;
 }
 
 function destroyProductionChart() {
@@ -1613,7 +1628,7 @@ function wirePaiForm(form) {
 }
 
 function validatePaiForm(body) {
-  if (!body.lat || !body.lon) return 'Lat e Lon obbligatorie.';
+  if (!body.lat || !body.lon) return S.BOSCO_LAT_LON_REQUIRED;
   return null;
 }
 
@@ -1651,7 +1666,7 @@ function renderPaiCheckboxes(host, items, selectedIds, paramName, colors = null)
   if (!host) return;
   host.replaceChildren();
   if (!items.length) {
-    host.textContent = 'Nessuna pianta.';
+    host.textContent = S.BOSCO_NO_PAI_TREES;
     return;
   }
   const selected = selectedIds == null ? null : new Set(selectedIds);
@@ -1752,12 +1767,12 @@ function paiPopup(tree) {
     const edit = document.createElement('button');
     edit.type = 'button';
     edit.className = 'btn';
-    edit.textContent = 'Modifica';
+    edit.textContent = S.ACTION_EDIT;
     edit.addEventListener('click', () => showPaiForm(tree.id));
     const del = document.createElement('button');
     del.type = 'button';
     del.className = 'btn btn-delete';
-    del.textContent = 'Elimina';
+    del.textContent = S.ACTION_DELETE;
     del.addEventListener('click', () => deletePai(tree.id));
     actions.append(edit, del);
     el.appendChild(actions);

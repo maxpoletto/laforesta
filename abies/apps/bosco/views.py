@@ -29,6 +29,7 @@ from apps.base.responses import (
     conflict_response, parse_json_body, row_delete, row_patch, submitted_version,
     success_response, validation_error,
 )
+from config import strings as S
 from config.constants import (
     DIGEST_FUTURE_PRODUCTION, DIGEST_PARCEL_DENDROMETRY,
     DIGEST_PARCEL_DENDROMETRY_POINTS, DIGEST_PRESERVED_TREES, FIELD_LAT,
@@ -59,10 +60,10 @@ FIELD_DESC_VEG = 'desc_veg'
 FIELD_DESC_GEO = 'desc_geo'
 
 PARCEL_METADATA_TEXT_FIELDS = {
-    FIELD_LOCATION_NAME: ('Località', 200),
-    FIELD_ASPECT: ('Esposizione', 20),
-    FIELD_DESC_VEG: ('Descrizione vegetazione', None),
-    FIELD_DESC_GEO: ('Descrizione geologia', None),
+    FIELD_LOCATION_NAME: (S.COL_LOCATION, 200),
+    FIELD_ASPECT: (S.COL_ASPECT, 20),
+    FIELD_DESC_VEG: (S.LABEL_BOSCO_VEG_DESC, None),
+    FIELD_DESC_GEO: (S.LABEL_BOSCO_GEO_DESC, None),
 }
 
 
@@ -285,23 +286,27 @@ def _parse_parcel_metadata_body(body: dict):
     errors = []
     area_ha = parse_decimal(body.get(FIELD_AREA_HA))
     if area_ha is None or area_ha <= 0:
-        errors.append('Superficie obbligatoria.')
+        errors.append(S.ERR_BOSCO_AREA_REQUIRED)
 
     values = {
         FIELD_AREA_HA: area_ha,
-        FIELD_AVE_AGE: _optional_int(body, FIELD_AVE_AGE, 'Età media', errors),
+        FIELD_AVE_AGE: _optional_int(body, FIELD_AVE_AGE, S.LABEL_BOSCO_AVE_AGE, errors),
         FIELD_LOCATION_NAME: _text_value(body, FIELD_LOCATION_NAME, errors),
-        FIELD_ALTITUDE_MIN_M: _optional_int(body, FIELD_ALTITUDE_MIN_M, 'Altitudine minima', errors),
-        FIELD_ALTITUDE_MAX_M: _optional_int(body, FIELD_ALTITUDE_MAX_M, 'Altitudine massima', errors),
+        FIELD_ALTITUDE_MIN_M: _optional_int(
+            body, FIELD_ALTITUDE_MIN_M, S.LABEL_BOSCO_ALTITUDE_MIN, errors,
+        ),
+        FIELD_ALTITUDE_MAX_M: _optional_int(
+            body, FIELD_ALTITUDE_MAX_M, S.LABEL_BOSCO_ALTITUDE_MAX, errors,
+        ),
         FIELD_ASPECT: _text_value(body, FIELD_ASPECT, errors),
-        FIELD_GRADE_PCT: _optional_int(body, FIELD_GRADE_PCT, 'Pendenza', errors),
+        FIELD_GRADE_PCT: _optional_int(body, FIELD_GRADE_PCT, S.LABEL_BOSCO_GRADE, errors),
         FIELD_DESC_VEG: _text_value(body, FIELD_DESC_VEG, errors),
         FIELD_DESC_GEO: _text_value(body, FIELD_DESC_GEO, errors),
     }
     alt_min = values[FIELD_ALTITUDE_MIN_M]
     alt_max = values[FIELD_ALTITUDE_MAX_M]
     if alt_min is not None and alt_max is not None and alt_min > alt_max:
-        errors.append('Altitudine minima maggiore della massima.')
+        errors.append(S.ERR_BOSCO_ALTITUDE_RANGE)
     return values, errors
 
 
@@ -311,7 +316,7 @@ def _optional_int(body: dict, key: str, label: str, errors: list[str]):
         return None
     value = int_or_none(raw)
     if value is None:
-        errors.append(f'{label} deve essere un numero intero.')
+        errors.append(S.ERR_BOSCO_INTEGER_REQUIRED.format(label))
     return value
 
 
@@ -319,7 +324,7 @@ def _text_value(body: dict, key: str, errors: list[str]):
     label, max_len = PARCEL_METADATA_TEXT_FIELDS[key]
     value = str(body.get(key) or '').strip()
     if max_len is not None and len(value) > max_len:
-        errors.append(f'{label} troppo lunga.')
+        errors.append(S.ERR_BOSCO_TEXT_TOO_LONG.format(label))
     return value
 
 
@@ -373,13 +378,13 @@ def _parse_pai_body(body: dict):
 
     errors = []
     if species_id is None or not Species.objects.filter(id=species_id).exists():
-        errors.append('Specie obbligatoria.')
+        errors.append(S.ERR_BOSCO_SPECIES_REQUIRED)
     if parcel_id is None or not Parcel.objects.filter(id=parcel_id).exists():
-        errors.append('Particella obbligatoria.')
+        errors.append(S.ERR_BOSCO_PARCEL_REQUIRED)
     if year is None:
-        errors.append('Anno obbligatorio.')
+        errors.append(S.ERR_BOSCO_YEAR_REQUIRED)
     if lat is None or lon is None:
-        errors.append('Lat e Lon obbligatorie.')
+        errors.append(S.ERR_BOSCO_LAT_LON_REQUIRED)
 
     return row_id, {
         'species_id': species_id,

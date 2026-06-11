@@ -9,6 +9,7 @@ from django.test import Client
 from PIL import Image
 from rasterio.transform import from_origin
 
+from apps.base.digests import build_parcel_record
 from apps.base.models import DigestStatus, Region, Tree
 from config.constants import (
     DELETES, DIGEST_PRESERVED_TREES, FIELD_LAT, FIELD_LON, FIELD_NONCE,
@@ -109,10 +110,7 @@ def test_parcel_metadata_save_updates_parcel_and_returns_patch(writer_client, pa
     patch = data[PATCHES][0]
     assert patch['data_id'] == 'parcels'
     assert patch['row_id'] == parcel.id
-    assert patch['record'][0] == parcel.id
-    assert patch['record'][1] == 2
-    assert patch['record'][6] == 12.5
-    assert patch['record'][9] == 'Costa alta'
+    assert patch['record'] == build_parcel_record(parcel)
     assert DigestStatus.objects.get(name='parcels').stale is True
 
 

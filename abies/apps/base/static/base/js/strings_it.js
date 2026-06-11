@@ -251,6 +251,33 @@ export const TOOLTIP_SAMPLE_AREA_VISITED =
 export const BOSCO_PLACEHOLDER_MESSAGE =
   'La visualizzazione del bosco sarà disponibile in una prossima versione.';
 export const BOSCO_OPEN_BOSCOSCOPIO = 'Apri Boscoscopio';
+export const BOSCO_NO_DATA = 'n.d.';
+export const BOSCO_NO_DATA_AVAILABLE = 'Nessun dato disponibile.';
+export const BOSCO_NO_DATE = 'Nessuna data';
+export const BOSCO_NO_REGION = 'Nessuna compresa';
+export const BOSCO_LOADING_HARVESTS = 'Caricamento prelievi...';
+export const BOSCO_HARVESTS_UNAVAILABLE = 'Prelievi non disponibili.';
+export const BOSCO_LOADING_SATELLITE = 'Caricamento dati satellitari...';
+export const BOSCO_SATELLITE_UNAVAILABLE = 'Dati satellitari non disponibili.';
+export const BOSCO_NO_SATELLITE = 'Nessun dato satellitare disponibile.';
+export const BOSCO_HARVEST_PREPARING = 'Prelievo in preparazione.';
+export const BOSCO_LOADING_RASTER = 'Caricamento raster...';
+export const BOSCO_RASTER_UNAVAILABLE = 'Raster non disponibile.';
+export const BOSCO_REGION_PARCELS = 'Particelle';
+export const BOSCO_DENDROMETRY_UNAVAILABLE = 'Dendrometria non disponibile.';
+export const BOSCO_NO_DENDROMETRY = 'Nessun dato dendrometrico.';
+export const BOSCO_TREE_COUNT = 'Numero alberi';
+export const BOSCO_TREE_COUNT_PER_HA = 'Numero alberi/ha';
+export const BOSCO_VOLUME_PER_HA = 'Volume (m³/ha)';
+export const BOSCO_BASAL_AREA_PER_HA = 'Area bas. (m²/ha)';
+export const BOSCO_HISTORICAL_PRODUCTION_UNAVAILABLE =
+  'Produzione storica non disponibile.';
+export const BOSCO_NO_HISTORICAL_HARVEST = 'Nessun prelievo storico.';
+export const BOSCO_INTERVENTIONS = (n) => `${n} interventi`;
+export const BOSCO_LAT_LON_REQUIRED = 'Lat e Lon obbligatorie.';
+export const BOSCO_NO_PAI_TREES = 'Nessuna pianta.';
+export const BOSCO_HARVEST_METRIC = 'Prelievo';
+export const BOSCO_QUINTALS_PER_HA = 'Q.li/ha';
 
 // Digest column headers (mirror config/strings_it.py COL_* additions).
 // These are looked up against the JSON digest `columns` array and used
