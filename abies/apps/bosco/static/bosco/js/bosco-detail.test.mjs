@@ -18,7 +18,9 @@ const staticModule = rel => pathToFileURL(path.join(staticRoot, rel)).href;
 
 const D = await import(staticModule('bosco/js/bosco-detail.js'));
 const S = await import(staticModule('base/js/strings.js'));
-const { COLUMNS, ROWS, ROW_ID } = await import(staticModule('base/js/constants.js'));
+const {
+  COL_PARCEL_ID, COL_SPECIES_ID, COL_SURVEY_ID, COL_TREE_ID, COLUMNS, ROWS, ROW_ID,
+} = await import(staticModule('base/js/constants.js'));
 
 let failed = 0;
 let passed = 0;
@@ -44,7 +46,7 @@ function assertClose(actual, expected, tolerance, msg) {
 console.log('bosco-detail.js');
 
 const dendro = {
-  [COLUMNS]: [ROW_ID, S.COL_PARCEL_ID, S.COL_SURVEY_ID, S.COL_SPECIES_ID,
+  [COLUMNS]: [ROW_ID, COL_PARCEL_ID, COL_SURVEY_ID, COL_SPECIES_ID,
     S.COL_REGION, S.COL_PARCEL, S.COL_SURVEY, S.COL_SPECIES,
     S.COL_DIAM_CLASS_CM, S.COL_N_TREES, S.COL_VOLUME_M3,
     S.COL_BASAL_AREA_M2, S.COL_AVG_H_M, S.COL_INCREMENT_PCT],
@@ -57,8 +59,8 @@ const dendro = {
 };
 
 const points = {
-  [COLUMNS]: [ROW_ID, S.COL_PARCEL_ID, S.COL_SURVEY_ID, S.COL_TREE_ID,
-    S.COL_SPECIES_ID, S.COL_REGION, S.COL_PARCEL, S.COL_SURVEY,
+  [COLUMNS]: [ROW_ID, COL_PARCEL_ID, COL_SURVEY_ID, COL_TREE_ID,
+    COL_SPECIES_ID, S.COL_REGION, S.COL_PARCEL, S.COL_SURVEY,
     S.COL_SPECIES, S.COL_D_CM, S.COL_H_M],
   [ROWS]: [
     [1, 10, 1, 100, 5, 'Capistrano', '1', 'R1', 'Abete', 18, 20.5],

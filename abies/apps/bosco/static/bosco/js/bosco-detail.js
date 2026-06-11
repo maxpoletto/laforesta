@@ -1,5 +1,7 @@
 import * as S from '../../base/js/strings.js';
-import { COLUMNS, ROWS } from '../../base/js/constants.js';
+import {
+  COL_PARCEL_ID, COL_SPECIES_ID, COLUMNS, ROWS,
+} from '../../base/js/constants.js';
 
 const CHART_COLORS = [
   '#2f8f58', '#1565c0', '#d7aa27', '#8d3f86', '#c94f4f',
@@ -50,9 +52,9 @@ export function aggregateDendrometry(digest, scope, { areaHa = null, perHa = tru
   const groups = new Map();
 
   for (const row of digest[ROWS]) {
-    if (scope.parcelId != null && row[c[S.COL_PARCEL_ID]] !== scope.parcelId) continue;
+    if (scope.parcelId != null && row[c[COL_PARCEL_ID]] !== scope.parcelId) continue;
     if (scope.parcelId == null && scope.region && row[c[S.COL_REGION]] !== scope.region) continue;
-    const speciesId = row[c[S.COL_SPECIES_ID]];
+    const speciesId = row[c[COL_SPECIES_ID]];
     if (hasSpeciesFilter && !allowedSpecies.has(speciesId)) continue;
 
     const key = `${speciesId}|${row[c[S.COL_DIAM_CLASS_CM]]}`;
@@ -181,9 +183,9 @@ export function dendrometryHeightPoints(digest, scope, { speciesIds = null } = {
   const rows = [];
 
   for (const row of digest[ROWS]) {
-    if (scope.parcelId != null && row[c[S.COL_PARCEL_ID]] !== scope.parcelId) continue;
+    if (scope.parcelId != null && row[c[COL_PARCEL_ID]] !== scope.parcelId) continue;
     if (scope.parcelId == null && scope.region && row[c[S.COL_REGION]] !== scope.region) continue;
-    const speciesId = row[c[S.COL_SPECIES_ID]];
+    const speciesId = row[c[COL_SPECIES_ID]];
     if (hasSpeciesFilter && !allowedSpecies.has(speciesId)) continue;
     const dCm = maybeNum(row[c[S.COL_D_CM]]);
     const hM = maybeNum(row[c[S.COL_H_M]]);

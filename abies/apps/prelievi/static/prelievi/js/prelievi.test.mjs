@@ -16,6 +16,8 @@ fs.cpSync(path.resolve(here, '../../../../base/static/base/js'),
           path.join(staticRoot, 'base', 'js'), { recursive: true });
 process.on('exit', () => fs.rmSync(tmpRoot, { recursive: true, force: true }));
 const staticModule = rel => pathToFileURL(path.join(staticRoot, rel)).href;
+const constants = await import(staticModule('base/js/constants.js'));
+const { COL_PARCEL_ID, COL_REGION_ID, ROW_ID, VERSION } = constants;
 
 let passed = 0;
 let failed = 0;
@@ -255,11 +257,9 @@ globalThis.window = {
 };
 
 const S = await import(staticModule('base/js/strings.js'));
-const { ROW_ID, VERSION } = await import(staticModule('base/js/constants.js'));
-
 const digest = {
   columns: [
-    ROW_ID, VERSION, S.COL_REGION_ID, S.COL_PARCEL_ID,
+    ROW_ID, VERSION, COL_REGION_ID, COL_PARCEL_ID,
     S.COL_DATE, S.COL_REGION, S.COL_PARCEL, S.COL_CREW,
     S.COL_TYPE, S.COL_QUINTALS, S.COL_VOLUME_M3, S.COL_NOTE,
     'Abete', 'Tractor One',

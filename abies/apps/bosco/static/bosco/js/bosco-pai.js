@@ -1,5 +1,7 @@
 import * as S from '../../base/js/strings.js';
-import { COLUMNS, ROWS, ROW_ID, VERSION } from '../../base/js/constants.js';
+import {
+  COL_PARCEL_ID, COL_SPECIES_ID, COLUMNS, ROWS, ROW_ID, VERSION,
+} from '../../base/js/constants.js';
 
 const COLORS = [
   '#2e7d32', '#1565c0', '#e65100', '#6a1b9a', '#c62828',
@@ -23,8 +25,8 @@ export function buildPreservedTrees(digest) {
   return digest[ROWS].map(row => ({
     id: row[c[ROW_ID]],
     version: row[c[VERSION]],
-    parcelId: row[c[S.COL_PARCEL_ID]],
-    speciesId: row[c[S.COL_SPECIES_ID]],
+    parcelId: row[c[COL_PARCEL_ID]],
+    speciesId: row[c[COL_SPECIES_ID]],
     region: row[c[S.COL_REGION]],
     parcel: row[c[S.COL_PARCEL]],
     species: row[c[S.COL_SPECIES]],

@@ -18,7 +18,9 @@ const staticModule = rel => pathToFileURL(path.join(staticRoot, rel)).href;
 
 const B = await import(staticModule('bosco/js/bosco-characteristics.js'));
 const S = await import(staticModule('base/js/strings.js'));
-const { COLUMNS, ROWS, ROW_ID, VERSION } = await import(staticModule('base/js/constants.js'));
+const {
+  COL_PARCEL_ID, COL_REGION_ID, COLUMNS, ROWS, ROW_ID, VERSION,
+} = await import(staticModule('base/js/constants.js'));
 
 let failed = 0;
 let passed = 0;
@@ -44,7 +46,7 @@ function assertClose(actual, expected, tolerance, msg) {
 console.log('bosco-characteristics.js');
 
 const parcels = {
-  [COLUMNS]: [ROW_ID, VERSION, S.COL_REGION_ID, S.COL_REGION, S.COL_PARCEL,
+  [COLUMNS]: [ROW_ID, VERSION, COL_REGION_ID, S.COL_REGION, S.COL_PARCEL,
     S.COL_CLASS, S.COL_AREA_HA, S.COL_AREA_CAD_HA, S.COL_AVE_AGE, S.COL_LOCATION,
     S.COL_ALT_MIN, S.COL_ALT_MAX, S.COL_ASPECT, S.COL_GRADE_PCT, S.COL_TYPE,
     S.COL_DESC_VEG, S.COL_DESC_GEO],
@@ -72,7 +74,7 @@ const historical = B.historicalHarvestByParcel(prelievi);
 assertEqual(historical.get('Capistrano-1'), 150, 'historicalHarvestByParcel: sum');
 
 const future = {
-  [COLUMNS]: [ROW_ID, VERSION, S.COL_HARVEST_PLAN, S.COL_PARCEL_ID,
+  [COLUMNS]: [ROW_ID, VERSION, S.COL_HARVEST_PLAN, COL_PARCEL_ID,
     S.COL_REGION, S.COL_PARCEL, S.COL_YEAR_PLANNED, S.COL_VOLUME_PLANNED],
   [ROWS]: [
     [1, 1, 99, 10, 'Capistrano', '1', 2026, 30],

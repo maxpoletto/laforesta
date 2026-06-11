@@ -1,5 +1,7 @@
 import * as S from '../../base/js/strings.js';
-import { COLUMNS, ROWS, ROW_ID } from '../../base/js/constants.js';
+import {
+  COL_PARCEL_ID, COL_REGION_ID, COLUMNS, ROWS, ROW_ID,
+} from '../../base/js/constants.js';
 import {
   Q_AGE,
   Q_ALTITUDE,
@@ -49,7 +51,7 @@ export function buildParcelEntries(digest) {
     const altMax = num(row[c[S.COL_ALT_MAX]]);
     return {
       id: row[c[ROW_ID]],
-      regionId: row[c[S.COL_REGION_ID]],
+      regionId: row[c[COL_REGION_ID]],
       region: row[c[S.COL_REGION]],
       parcel: row[c[S.COL_PARCEL]],
       key: parcelKey(row[c[S.COL_REGION]], row[c[S.COL_PARCEL]]),
@@ -86,7 +88,7 @@ export function futureHarvestByParcel(digest) {
   const c = colMap(digest);
   const out = new Map();
   for (const row of digest[ROWS]) {
-    const parcelId = row[c[S.COL_PARCEL_ID]];
+    const parcelId = row[c[COL_PARCEL_ID]];
     out.set(parcelId, (out.get(parcelId) || 0) + (num(row[c[S.COL_VOLUME_PLANNED]]) || 0));
   }
   return out;

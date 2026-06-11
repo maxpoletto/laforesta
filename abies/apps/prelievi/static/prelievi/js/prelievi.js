@@ -17,7 +17,7 @@ import { createRangeSlider } from '../../base/js/range-slider.js';
 import * as router from '../../base/js/router.js';
 import * as S from '../../base/js/strings.js';
 import {
-  ROW_ID, STATUS_CONFLICT,
+  COL_PARCEL_ID, COL_REGION_ID, ROW_ID, STATUS_CONFLICT,
 } from '../../base/js/constants.js';
 import { STATIC_COLS, buildPrelieviColumnDefs }
   from '../../base/js/prelievi-columns.js';
@@ -117,8 +117,8 @@ export const onQueryChange = page.onQueryChange;
 function mountPage(el, params, data) {
   inForm = false;
   colDate = data.columns.indexOf(S.COL_DATE);
-  colRegionId = data.columns.indexOf(S.COL_REGION_ID);
-  colParcelId = data.columns.indexOf(S.COL_PARCEL_ID);
+  colRegionId = data.columns.indexOf(COL_REGION_ID);
+  colParcelId = data.columns.indexOf(COL_PARCEL_ID);
   _buildColMap(data.columns);
   _classifyColumns(data.columns);
   showTableView(data, params);
@@ -199,8 +199,8 @@ function onTableClick(e) {
 
 export function boscoUrlForHarvestRow(row, columns) {
   if (!row || !columns) return null;
-  const regionIdx = columns.indexOf(S.COL_REGION_ID);
-  const parcelIdx = columns.indexOf(S.COL_PARCEL_ID);
+  const regionIdx = columns.indexOf(COL_REGION_ID);
+  const parcelIdx = columns.indexOf(COL_PARCEL_ID);
   if (regionIdx < 0 || parcelIdx < 0) return null;
   const regionId = positiveInt(row[regionIdx]);
   const parcelId = positiveInt(row[parcelIdx]);

@@ -9,12 +9,12 @@
 import { fmtInt, fmtDecimal1, fmtDecimal1BlankZero, fmtDecimal2 }
   from './format.js';
 import * as S from './strings.js';
-import { ROW_ID, VERSION } from './constants.js';
+import { COL_PARCEL_ID, COL_REGION_ID, ROW_ID, VERSION } from './constants.js';
 
 /** Column definitions for the fixed digest columns. */
 export const STATIC_COLS = {
-  [S.COL_REGION_ID]:   { label: S.COL_REGION_ID, hidden: true },
-  [S.COL_PARCEL_ID]:   { label: S.COL_PARCEL_ID, hidden: true },
+  [COL_REGION_ID]:   { label: COL_REGION_ID, hidden: true },
+  [COL_PARCEL_ID]:   { label: COL_PARCEL_ID, hidden: true },
   [S.COL_DATE]:        { label: S.COL_DATE, type: 'date', width: '90px' },
   [S.COL_REGION]:    { label: S.COL_REGION, width: '80px' },
   [S.COL_PARCEL]:      { label: S.COL_PARCEL, width: '70px' },

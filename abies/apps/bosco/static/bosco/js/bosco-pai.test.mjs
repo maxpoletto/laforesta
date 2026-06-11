@@ -18,7 +18,9 @@ const staticModule = rel => pathToFileURL(path.join(staticRoot, rel)).href;
 
 const P = await import(staticModule('bosco/js/bosco-pai.js'));
 const S = await import(staticModule('base/js/strings.js'));
-const { COLUMNS, ROWS, ROW_ID, VERSION } = await import(staticModule('base/js/constants.js'));
+const {
+  COL_PARCEL_ID, COL_SPECIES_ID, COLUMNS, ROWS, ROW_ID, VERSION,
+} = await import(staticModule('base/js/constants.js'));
 
 let failed = 0;
 let passed = 0;
@@ -38,7 +40,7 @@ function assertEqual(actual, expected, msg) {
 console.log('bosco-pai.js');
 
 const digest = {
-  [COLUMNS]: [ROW_ID, VERSION, S.COL_PARCEL_ID, S.COL_SPECIES_ID,
+  [COLUMNS]: [ROW_ID, VERSION, COL_PARCEL_ID, COL_SPECIES_ID,
     S.COL_REGION, S.COL_PARCEL, S.COL_SPECIES, S.COL_YEAR,
     S.COL_LAT, S.COL_LON, S.COL_NOTE],
   [ROWS]: [

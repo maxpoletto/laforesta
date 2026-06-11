@@ -20,6 +20,14 @@ PATCHES  = 'patches'
 DELETES  = 'deletes'
 COLUMNS  = 'columns'
 ROWS     = 'rows'
+
+# Locale-independent digest column identifiers for internal database ids.
+COL_REGION_ID  = 'Region id'
+COL_PARCEL_ID  = 'Parcel id'
+COL_SURVEY_ID  = 'Survey id'
+COL_SPECIES_ID = 'Species id'
+COL_TREE_ID    = 'Tree id'
+
 STATUS   = 'status'
 MESSAGE  = 'message'
 HTML     = 'html'

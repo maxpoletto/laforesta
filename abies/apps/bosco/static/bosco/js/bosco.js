@@ -5,7 +5,7 @@
 import * as cache from '../../base/js/cache.js';
 import * as S from '../../base/js/strings.js';
 import {
-  COLUMNS, DIGEST_FUTURE_PRODUCTION, DIGEST_PARCEL_DENDROMETRY,
+  COLUMNS, COL_REGION_ID, DIGEST_FUTURE_PRODUCTION, DIGEST_PARCEL_DENDROMETRY,
   DIGEST_PARCEL_DENDROMETRY_POINTS, DIGEST_PRESERVED_TREES, ROWS,
 } from '../../base/js/constants.js';
 import { fmtArea, fmtDecimal1, fmtDecimal2, fmtInt, fmtMass, fmtVolume } from '../../base/js/format.js';
@@ -342,7 +342,7 @@ function rebuildRegionIndex() {
   regionById = new Map();
   if (!parcelsData) return;
   const cols = parcelsData[COLUMNS];
-  const idxRegionId = cols.indexOf(S.COL_REGION_ID);
+  const idxRegionId = cols.indexOf(COL_REGION_ID);
   const idxRegion = cols.indexOf(S.COL_REGION);
   if (idxRegionId < 0 || idxRegion < 0) return;
 

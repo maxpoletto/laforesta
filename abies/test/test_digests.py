@@ -26,7 +26,8 @@ from apps.mannesi.models import LicensePlate, ProductionCredit, WorkHour
 from apps.prelievi.models import Harvest, HarvestSpecies, HarvestTractor
 from config import strings as S
 from config.constants import (
-    COLUMNS, DIGEST_FUTURE_PRODUCTION, DIGEST_PARCEL_DENDROMETRY,
+    COLUMNS, COL_PARCEL_ID, COL_REGION_ID, COL_SPECIES_ID, COL_SURVEY_ID,
+    COL_TREE_ID, DIGEST_FUTURE_PRODUCTION, DIGEST_PARCEL_DENDROMETRY,
     DIGEST_PARCEL_DENDROMETRY_POINTS, DIGEST_PRESERVED_TREES, ROWS, ROW_ID,
     VERSION,
 )
@@ -157,8 +158,8 @@ class TestGeneratePrelievi:
             data = json.load(f)
         cols = data[COLUMNS]
         row = data[ROWS][0]
-        assert row[cols.index(S.COL_REGION_ID)] == harvest_data.parcel.region_id
-        assert row[cols.index(S.COL_PARCEL_ID)] == harvest_data.parcel_id
+        assert row[cols.index(COL_REGION_ID)] == harvest_data.parcel.region_id
+        assert row[cols.index(COL_PARCEL_ID)] == harvest_data.parcel_id
 
     def test_species_quintal_columns(self, harvest_data):
         generate_prelievi()
@@ -271,11 +272,11 @@ class TestGenerateBoscoDigests:
         cols = data[COLUMNS]
         row = next(r for r in data[ROWS] if r[0] == p.id)
 
-        for col in (VERSION, S.COL_REGION_ID, S.COL_AREA_CAD_HA, S.COL_TYPE,
+        for col in (VERSION, COL_REGION_ID, S.COL_AREA_CAD_HA, S.COL_TYPE,
                     S.COL_DESC_VEG, S.COL_DESC_GEO):
             assert col in cols
         assert row[cols.index(VERSION)] == 1
-        assert row[cols.index(S.COL_REGION_ID)] == p.region_id
+        assert row[cols.index(COL_REGION_ID)] == p.region_id
         assert row[cols.index(S.COL_TYPE)] == S.TYPE_HIGHFOREST
         assert row[cols.index(S.COL_DESC_VEG)] == 'Descrizione vegetazione'
         assert row[cols.index(S.COL_DESC_GEO)] == 'Descrizione geologia'
@@ -297,7 +298,7 @@ class TestGenerateBoscoDigests:
             1920, 38.1, 16.2, '',
         ]]
         assert cols == [
-            ROW_ID, VERSION, S.COL_PARCEL_ID, S.COL_SPECIES_ID,
+            ROW_ID, VERSION, COL_PARCEL_ID, COL_SPECIES_ID,
             S.COL_REGION, S.COL_PARCEL, S.COL_SPECIES, S.COL_YEAR,
             S.COL_LAT, S.COL_LON, S.COL_NOTE,
         ]
@@ -334,7 +335,7 @@ class TestGenerateBoscoDigests:
             parcels[0].region.name, parcels[0].name, 2028, 12.5,
         ]]
         assert cols == [
-            ROW_ID, VERSION, S.COL_HARVEST_PLAN, S.COL_PARCEL_ID,
+            ROW_ID, VERSION, S.COL_HARVEST_PLAN, COL_PARCEL_ID,
             S.COL_REGION, S.COL_PARCEL, S.COL_YEAR_PLANNED,
             S.COL_VOLUME_PLANNED,
         ]
@@ -384,16 +385,16 @@ class TestGenerateBoscoDigests:
         data = self._read(tmp_path, DIGEST_PARCEL_DENDROMETRY)
         cols = data[COLUMNS]
         assert cols == [
-            ROW_ID, S.COL_PARCEL_ID, S.COL_SURVEY_ID, S.COL_SPECIES_ID,
+            ROW_ID, COL_PARCEL_ID, COL_SURVEY_ID, COL_SPECIES_ID,
             S.COL_REGION, S.COL_PARCEL, S.COL_SURVEY, S.COL_SPECIES,
             S.COL_DIAM_CLASS_CM, S.COL_N_TREES, S.COL_VOLUME_M3,
             S.COL_BASAL_AREA_M2, S.COL_AVG_H_M, S.COL_INCREMENT_PCT,
         ]
         assert len(data[ROWS]) == 1
         row = data[ROWS][0]
-        assert row[cols.index(S.COL_PARCEL_ID)] == parcels[0].id
-        assert row[cols.index(S.COL_SURVEY_ID)] == active.id
-        assert row[cols.index(S.COL_SPECIES_ID)] == species[0].id
+        assert row[cols.index(COL_PARCEL_ID)] == parcels[0].id
+        assert row[cols.index(COL_SURVEY_ID)] == active.id
+        assert row[cols.index(COL_SPECIES_ID)] == species[0].id
         assert row[cols.index(S.COL_DIAM_CLASS_CM)] == 20
         assert row[cols.index(S.COL_N_TREES)] == 2
         assert row[cols.index(S.COL_VOLUME_M3)] == 0.3
@@ -406,12 +407,12 @@ class TestGenerateBoscoDigests:
         points = self._read(tmp_path, DIGEST_PARCEL_DENDROMETRY_POINTS)
         assert [r[0] for r in points[ROWS]] == [ts1.id, ts2.id]
         assert points[COLUMNS] == [
-            ROW_ID, S.COL_PARCEL_ID, S.COL_SURVEY_ID, S.COL_TREE_ID,
-            S.COL_SPECIES_ID, S.COL_REGION, S.COL_PARCEL, S.COL_SURVEY,
+            ROW_ID, COL_PARCEL_ID, COL_SURVEY_ID, COL_TREE_ID,
+            COL_SPECIES_ID, S.COL_REGION, S.COL_PARCEL, S.COL_SURVEY,
             S.COL_SPECIES, S.COL_D_CM, S.COL_H_M,
         ]
         point_cols = points[COLUMNS]
-        assert points[ROWS][0][point_cols.index(S.COL_SPECIES_ID)] == species[0].id
+        assert points[ROWS][0][point_cols.index(COL_SPECIES_ID)] == species[0].id
 
 
 # ---------------------------------------------------------------------------
