@@ -146,8 +146,8 @@ following the standard Abies idiom:
    - Location, altitude min/max, esposizione, pendenza.
    - Surface area: cadastral and computed.
    - Età media (a), classe economica, tipo (alto fusto / ceduo).
-   - Descrizione vegetazione (free text, multi-paragraph).
-   - Descrizione geologia (free text, multi-paragraph).
+   - Descrizione vegetazione ("soprassuolo") (free text, multi-paragraph).
+   - Descrizione geologia ("stazione") (free text, multi-paragraph).
    
    Writers see a pencil icon next to each editable field that flips it into an
    inline editor with the standard annulla/salva buttons (see UI Design
@@ -298,7 +298,7 @@ mode-switch.
   Columns: `row_id`, `version`, `Region id`, `Compresa`, `Particella`, `Classe`,
   `Coppice`, `Area (ha)`, `Area cat. (ha)`, `Età media (a)`, `Località`,
   `Alt. min. (m)`, `Alt. max. (m)`, `Esposizione`, `Pendenza (%)`, `Tipo`
-  (alto fusto / ceduo), `Desc. veg.`, `Desc. geo`.  `row_id` = `parcel.id`;
+  (alto fusto / ceduo), `Soprassuolo`, `Stazione`.  `row_id` = `parcel.id`;
   `Coppice` is the stable boolean from `parcel.eclass.coppice`; `Tipo` is
   its localized display label.  `version` participates in optimistic locking
   for parcel metadata edits.
