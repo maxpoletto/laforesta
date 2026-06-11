@@ -11,13 +11,15 @@ import { fmtInt, fmtDecimal1, fmtDecimal1BlankZero, fmtDecimal2 }
 import * as S from './strings.js';
 import { COL_PARCEL_ID, COL_REGION_ID, ROW_ID, VERSION } from './constants.js';
 
+export const CLASS_BOSCO_LINK = 'col-link-bosco';
+
 /** Column definitions for the fixed digest columns. */
 export const STATIC_COLS = {
   [COL_REGION_ID]:   { label: COL_REGION_ID, hidden: true },
   [COL_PARCEL_ID]:   { label: COL_PARCEL_ID, hidden: true },
   [S.COL_DATE]:        { label: S.COL_DATE, type: 'date', width: '90px' },
   [S.COL_REGION]:    { label: S.COL_REGION, width: '80px' },
-  [S.COL_PARCEL]:      { label: S.COL_PARCEL, width: '70px' },
+  [S.COL_PARCEL]:      { label: S.COL_PARCEL, width: '70px', className: CLASS_BOSCO_LINK },
   [S.COL_CREW]:        { label: S.COL_CREW, width: '108px' },
   [S.COL_TYPE]:        { label: S.COL_TYPE, width: '120px' },
   [S.COL_VDP]:         { label: S.COL_VDP, type: 'number', width: '55px', formatter: fmtInt },

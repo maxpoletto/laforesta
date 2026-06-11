@@ -98,11 +98,11 @@
   text-align: left;
 }
 
-.sortable-table-cell[data-column="Particella"] {
+.sortable-table-cell.col-link-bosco {
   cursor: pointer;
 }
 
-.sortable-table-cell[data-column="Particella"]:hover {
+.sortable-table-cell.col-link-bosco:hover {
   color: #006400;
   text-decoration: underline;
 }

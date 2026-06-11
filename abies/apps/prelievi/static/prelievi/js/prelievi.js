@@ -21,7 +21,7 @@ import * as S from '../../base/js/strings.js';
 import {
   COL_PARCEL_ID, COL_REGION_ID, ROW_ID, STATUS_CONFLICT,
 } from '../../base/js/constants.js';
-import { STATIC_COLS, buildPrelieviColumnDefs }
+import { CLASS_BOSCO_LINK, STATIC_COLS, buildPrelieviColumnDefs }
   from '../../base/js/prelievi-columns.js';
 import { matchesSearch } from '../../base/js/table.js';
 import {
@@ -188,8 +188,8 @@ function onCacheUpdate() {
 }
 
 function onTableClick(e) {
-  const cell = e.target.closest('.sortable-table-cell');
-  if (!cell || cell.dataset.column !== S.COL_PARCEL) return;
+  const cell = e.target.closest(`.sortable-table-cell.${CLASS_BOSCO_LINK}`);
+  if (!cell) return;
   const tr = cell.closest('.sortable-table-row');
   if (!tr || !table?._table) return;
   const row = table._table.data[parseInt(tr.dataset.index, 10)];

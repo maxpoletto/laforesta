@@ -5,7 +5,7 @@
  * species/tractor quintal columns (blank zero, one decimal), which had
  * diverged.  Run: node prelievi-columns.test.mjs  (also via `make test-js`).
  */
-import { buildPrelieviColumnDefs } from './prelievi-columns.js';
+import { CLASS_BOSCO_LINK, buildPrelieviColumnDefs } from './prelievi-columns.js';
 import * as S from './strings.js';
 import { VERSION } from './constants.js';
 
@@ -22,7 +22,7 @@ function eq(actual, expected, msg) {
 const SPECIES = 'Pino';
 const TRACTOR = 'John Deere';
 const defs = buildPrelieviColumnDefs([
-  'row_id', VERSION, S.COL_QUINTALS, SPECIES, TRACTOR,
+  'row_id', VERSION, S.COL_PARCEL, S.COL_QUINTALS, SPECIES, TRACTOR,
   `${SPECIES} %`, S.COL_WORKSITE,
 ]);
 
@@ -44,6 +44,9 @@ eq(sp.width, '90px', 'species column width');
 const tr = defs[TRACTOR];
 eq(tr.formatter(0), '', 'tractor: zero is blank');
 eq(tr.width, '100px', 'tractor column width (wider for manufacturer+model)');
+
+// The Bosco link affordance is semantic, not tied to the localized label.
+eq(defs[S.COL_PARCEL].className, CLASS_BOSCO_LINK, 'parcel column has Bosco link class');
 
 // Static quantity column keeps its own one-decimal format.
 eq(defs[S.COL_QUINTALS].formatter(1234), '1234,0', 'quintals one decimal');
