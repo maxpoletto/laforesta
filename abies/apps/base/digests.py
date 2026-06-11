@@ -417,7 +417,7 @@ def _audit_configs() -> list:
     design.
     """
     from apps.base.models import (
-        Crew, HarvestPlan, HarvestPlanItem, HypsoParamSet, Sample,
+        Crew, HarvestPlan, HarvestPlanItem, HypsoParamSet, Parcel, Sample,
         SampleArea, SampleGrid, Species, Survey, Tractor, User,
     )
     from apps.mannesi.models import LicensePlate, ProductionCredit, WorkHour
@@ -468,6 +468,15 @@ def _audit_configs() -> list:
             'intervention_area_ha': S.COL_INTERVENTION_AREA_HA,
             'damaged': S.FLAG_DAMAGED, 'unhealthy': S.FLAG_UNHEALTHY,
             'psr': S.FLAG_PSR, 'note': S.COL_NOTE,
+        }),
+        (Parcel, S.TABLE_PARCEL, {
+            'name': S.COL_PARCEL, 'region_id': S.COL_REGION,
+            'eclass_id': S.COL_CLASS, 'area_ha': S.COL_AREA_HA,
+            'ave_age': S.COL_AVE_AGE, 'location_name': S.COL_LOCATION,
+            'altitude_min_m': S.COL_ALT_MIN,
+            'altitude_max_m': S.COL_ALT_MAX, 'aspect': S.COL_ASPECT,
+            'grade_pct': S.COL_GRADE_PCT, 'desc_veg': S.COL_DESC_VEG,
+            'desc_geo': S.COL_DESC_GEO,
         }),
         (SampleGrid, S.TABLE_SAMPLE_GRID, {
             'name': S.LABEL_NAME, 'description': S.COL_DESCRIPTION,

@@ -757,6 +757,8 @@ class Migration(migrations.Migration):
                 ),
                 ("name", models.CharField(max_length=20)),
                 ("version", models.IntegerField(default=1)),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("modified_at", models.DateTimeField(auto_now=True)),
                 ("area_ha", models.DecimalField(decimal_places=2, max_digits=7)),
                 ("ave_age", models.IntegerField(blank=True, null=True)),
                 ("location_name", models.CharField(blank=True, max_length=200)),
@@ -784,6 +786,78 @@ class Migration(migrations.Migration):
                 "verbose_name_plural": "particelle",
                 "unique_together": {("name", "region")},
             },
+        ),
+        migrations.CreateModel(
+            name="HistoricalParcel",
+            fields=[
+                (
+                    "id",
+                    models.BigIntegerField(
+                        auto_created=True, blank=True, db_index=True, verbose_name="ID"
+                    ),
+                ),
+                ("version", models.IntegerField(default=1)),
+                ("created_at", models.DateTimeField(blank=True, editable=False)),
+                ("modified_at", models.DateTimeField(blank=True, editable=False)),
+                ("name", models.CharField(max_length=20)),
+                ("area_ha", models.DecimalField(decimal_places=2, max_digits=7)),
+                ("ave_age", models.IntegerField(blank=True, null=True)),
+                ("location_name", models.CharField(blank=True, max_length=200)),
+                ("altitude_min_m", models.IntegerField(blank=True, null=True)),
+                ("altitude_max_m", models.IntegerField(blank=True, null=True)),
+                ("aspect", models.CharField(blank=True, max_length=20)),
+                ("grade_pct", models.IntegerField(blank=True, null=True)),
+                ("desc_veg", models.TextField(blank=True)),
+                ("desc_geo", models.TextField(blank=True)),
+                ("history_id", models.AutoField(primary_key=True, serialize=False)),
+                ("history_date", models.DateTimeField(db_index=True)),
+                ("history_change_reason", models.CharField(max_length=100, null=True)),
+                (
+                    "history_type",
+                    models.CharField(
+                        choices=[("+", "Created"), ("~", "Changed"), ("-", "Deleted")],
+                        max_length=1,
+                    ),
+                ),
+                (
+                    "eclass",
+                    models.ForeignKey(
+                        blank=True,
+                        db_constraint=False,
+                        null=True,
+                        on_delete=django.db.models.deletion.DO_NOTHING,
+                        related_name="+",
+                        to="base.eclass",
+                    ),
+                ),
+                (
+                    "history_user",
+                    models.ForeignKey(
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        related_name="+",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
+                (
+                    "region",
+                    models.ForeignKey(
+                        blank=True,
+                        db_constraint=False,
+                        null=True,
+                        on_delete=django.db.models.deletion.DO_NOTHING,
+                        related_name="+",
+                        to="base.region",
+                    ),
+                ),
+            ],
+            options={
+                "verbose_name": "historical particella",
+                "verbose_name_plural": "historical particelle",
+                "ordering": ("-history_date", "-history_id"),
+                "get_latest_by": ("history_date", "history_id"),
+            },
+            bases=(simple_history.models.HistoricalChanges, models.Model),
         ),
         migrations.CreateModel(
             name="HistoricalHarvestPlanItem",

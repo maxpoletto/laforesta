@@ -250,10 +250,9 @@ class HarvestDetail(models.Model):
         return self.description[:80]
 
 
-class Parcel(models.Model):
+class Parcel(TimestampedModel):
     """Forest parcel (particella)."""
     name = models.CharField(max_length=20)
-    version = models.IntegerField(default=1)
     region = models.ForeignKey(Region, on_delete=models.PROTECT)
     eclass = models.ForeignKey(Eclass, on_delete=models.PROTECT)
     area_ha = models.DecimalField(max_digits=7, decimal_places=2)
@@ -265,6 +264,7 @@ class Parcel(models.Model):
     grade_pct = models.IntegerField(null=True, blank=True)
     desc_veg = models.TextField(blank=True)
     desc_geo = models.TextField(blank=True)
+    history = HistoricalRecords()
 
     class Meta:
         verbose_name = S.PARCEL

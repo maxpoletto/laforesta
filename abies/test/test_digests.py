@@ -474,6 +474,22 @@ class TestGenerateAudit:
         assert TreeSample not in tracked
         assert TreeMark not in tracked
 
+    def test_parcel_metadata_update_appears(self, parcels, settings, tmp_path):
+        """Parcel metadata edits are audited for the Controllo page."""
+        settings.DIGEST_DIR = tmp_path
+        parcel = parcels[0]
+        parcel.desc_veg = 'Vegetazione audit'
+        parcel.save()
+
+        generate_audit()
+        with gzip.open(tmp_path / 'audit.json.gz', 'rt') as f:
+            data = json.load(f)
+
+        rows = [r for r in data[ROWS]
+                if r[3] == S.TABLE_PARCEL and r[4] == S.AUDIT_UPDATE]
+        assert any(f'{S.COL_DESC_VEG}: Vegetazione audit' in (r[6] or '')
+                   for r in rows)
+
     def test_domain_model_inserts_appear(self, db, settings, tmp_path):
         """Inserts into formerly-missing domain models surface in the audit."""
         settings.DIGEST_DIR = tmp_path
