@@ -34,7 +34,8 @@ from apps.base.responses import (
 from config import strings as S
 from config.constants import (
     DIGEST_FUTURE_PRODUCTION, DIGEST_PARCEL_DENDROMETRY,
-    DIGEST_PARCEL_DENDROMETRY_POINTS, DIGEST_PRESERVED_TREES, FIELD_LAT,
+    DIGEST_PARCEL_DENDROMETRY_POINTS, DIGEST_PARCELS, DIGEST_PRESERVED_TREES,
+    FIELD_LAT,
     FIELD_LON, FIELD_PARCEL_ID, FIELD_REGION_ID, FIELD_SPECIES,
     FIELD_SPECIES_ID, FIELD_YEAR, HTML, ROW_ID, VERSION,
 )
@@ -54,7 +55,6 @@ SATELLITE_DIFF_RAMP = (
 SATELLITE_INSIDE_ALPHA = 210
 SATELLITE_OUTSIDE_ALPHA = 60
 
-PARCELS_DIGEST = 'parcels'
 FIELD_AREA_HA = 'area_ha'
 FIELD_AVE_AGE = 'ave_age'
 FIELD_LOCATION_NAME = 'location_name'
@@ -75,7 +75,7 @@ PARCEL_METADATA_TEXT_FIELDS = {
 
 @login_required
 def parcels_data(request):
-    return serve_digest(request, 'parcels')
+    return serve_digest(request, DIGEST_PARCELS)
 
 
 @login_required
@@ -111,7 +111,7 @@ def parcel_metadata_save_view(request):
             raise Http404
         if parcel.version != submitted_version(body):
             return conflict_response(
-                data_id=PARCELS_DIGEST, row_id=parcel.id,
+                data_id=DIGEST_PARCELS, row_id=parcel.id,
                 record=build_parcel_record(parcel),
                 html=_render_parcel_metadata_form(request, parcel.id),
             )
@@ -119,11 +119,11 @@ def parcel_metadata_save_view(request):
             setattr(parcel, field, value)
         parcel.version += 1
         parcel.save(update_fields=[*values.keys(), VERSION])
-        mark_stale(PARCELS_DIGEST)
+        mark_stale(DIGEST_PARCELS)
 
     return success_response(
-        request, body, data_id=PARCELS_DIGEST, row_id=parcel.id,
-        patches=[row_patch(PARCELS_DIGEST, parcel.id, build_parcel_record(parcel))],
+        request, body, data_id=DIGEST_PARCELS, row_id=parcel.id,
+        patches=[row_patch(DIGEST_PARCELS, parcel.id, build_parcel_record(parcel))],
     )
 
 
@@ -392,11 +392,11 @@ def _parse_pai_body(body: dict):
         errors.append(S.ERR_BOSCO_LAT_LON_REQUIRED)
 
     return row_id, {
-        'species_id': species_id,
-        'parcel_id': parcel_id,
-        'year': year,
-        'lat': lat,
-        'lon': lon,
+        FIELD_SPECIES_ID: species_id,
+        FIELD_PARCEL_ID: parcel_id,
+        FIELD_YEAR: year,
+        FIELD_LAT: lat,
+        FIELD_LON: lon,
     }, errors
 
 

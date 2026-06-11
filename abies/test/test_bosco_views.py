@@ -9,12 +9,14 @@ from django.test import Client
 from PIL import Image
 from rasterio.transform import from_origin
 
-from apps.base.digests import build_parcel_record
+from apps.base.digests import (
+    PRESERVED_TREE_COLUMNS, build_parcel_record, build_preserved_tree_record,
+)
 from apps.base.models import DigestStatus, Region, Tree
 from config.constants import (
-    DELETES, DIGEST_PRESERVED_TREES, FIELD_LAT, FIELD_LON, FIELD_NONCE,
-    FIELD_PARCEL_ID, FIELD_SPECIES_ID, FIELD_YEAR, PATCHES, ROW_ID, STATUS,
-    STATUS_CONFLICT, VERSION,
+    DATA_ID, DELETES, DIGEST_PARCELS, DIGEST_PRESERVED_TREES, FIELD_LAT,
+    FIELD_LON, FIELD_NONCE, FIELD_PARCEL_ID, FIELD_SPECIES_ID, FIELD_YEAR,
+    HTML, PATCHES, RECORD, ROW_ID, STATUS, STATUS_CONFLICT, VERSION,
 )
 
 
@@ -75,7 +77,7 @@ def test_parcel_metadata_form_writer_access(writer_client, parcels):
     resp = writer_client.get(f'/api/bosco/parcels/metadata/form/{parcels[0].id}/')
 
     assert resp.status_code == 200
-    html = resp.json()['html']
+    html = resp.json()[HTML]
     assert 'id="bosco-parcel-metadata-form"' in html
     assert f'value="{parcels[0].id}"' in html
 
@@ -108,10 +110,10 @@ def test_parcel_metadata_save_updates_parcel_and_returns_patch(writer_client, pa
     assert parcel.version == 2
     data = resp.json()
     patch = data[PATCHES][0]
-    assert patch['data_id'] == 'parcels'
-    assert patch['row_id'] == parcel.id
-    assert patch['record'] == build_parcel_record(parcel)
-    assert DigestStatus.objects.get(name='parcels').stale is True
+    assert patch[DATA_ID] == DIGEST_PARCELS
+    assert patch[ROW_ID] == parcel.id
+    assert patch[RECORD] == build_parcel_record(parcel)
+    assert DigestStatus.objects.get(name=DIGEST_PARCELS).stale is True
 
 
 def test_parcel_metadata_save_stale_conflicts(writer_client, parcels):
@@ -131,8 +133,8 @@ def test_parcel_metadata_save_stale_conflicts(writer_client, parcels):
     assert resp.status_code == 400
     data = resp.json()
     assert data[STATUS] == STATUS_CONFLICT
-    assert data[PATCHES][0]['data_id'] == 'parcels'
-    assert 'bosco-parcel-metadata-form' in data['html']
+    assert data[PATCHES][0][DATA_ID] == DIGEST_PARCELS
+    assert 'bosco-parcel-metadata-form' in data[HTML]
 
 
 def test_parcel_metadata_save_validation_error_rerenders(writer_client, parcels):
@@ -151,7 +153,7 @@ def test_parcel_metadata_save_validation_error_rerenders(writer_client, parcels)
     data = resp.json()
     assert 'Superficie obbligatoria.' in data['message']
     assert 'Età media deve essere un numero intero.' in data['message']
-    assert 'bosco-parcel-metadata-form' in data['html']
+    assert 'bosco-parcel-metadata-form' in data[HTML]
 
 
 def test_parcel_metadata_save_rejects_inverted_altitude(writer_client, parcels):
@@ -179,7 +181,7 @@ def test_pai_form_writer_access(writer_client, regions, parcels, species):
     resp = writer_client.get(f'/api/bosco/pai/form/?region_id={regions[0].id}')
 
     assert resp.status_code == 200
-    html = resp.json()['html']
+    html = resp.json()[HTML]
     assert 'id="bosco-pai-form"' in html
     assert 'Capistrano 1' in html
 
@@ -203,9 +205,11 @@ def test_pai_save_creates_preserved_tree(writer_client, parcels, species):
     assert tree.year == 2026
     assert tree.lat == 38.12346
     data = resp.json()
-    assert data[PATCHES][0]['data_id'] == DIGEST_PRESERVED_TREES
-    assert data[PATCHES][0]['row_id'] == tree.id
-    assert data[PATCHES][0]['record'][0] == tree.id
+    patch = data[PATCHES][0]
+    assert patch[DATA_ID] == DIGEST_PRESERVED_TREES
+    assert patch[ROW_ID] == tree.id
+    assert patch[RECORD] == build_preserved_tree_record(tree)
+    assert len(patch[RECORD]) == len(PRESERVED_TREE_COLUMNS)
 
 
 def test_pai_save_stale_edit_conflicts(writer_client, parcels, species):
@@ -227,8 +231,12 @@ def test_pai_save_stale_edit_conflicts(writer_client, parcels, species):
     assert resp.status_code == 400
     data = resp.json()
     assert data[STATUS] == STATUS_CONFLICT
-    assert data[PATCHES][0]['record'][0] == tree.id
-    assert 'bosco-pai-form' in data['html']
+    patch = data[PATCHES][0]
+    assert patch[DATA_ID] == DIGEST_PRESERVED_TREES
+    assert patch[ROW_ID] == tree.id
+    assert patch[RECORD] == build_preserved_tree_record(tree)
+    assert len(patch[RECORD]) == len(PRESERVED_TREE_COLUMNS)
+    assert 'bosco-pai-form' in data[HTML]
 
 
 def test_pai_delete_clears_preserved_flag(writer_client, parcels, species):
@@ -246,8 +254,8 @@ def test_pai_delete_clears_preserved_flag(writer_client, parcels, species):
     assert tree.preserved is False
     assert tree.version == 4
     assert resp.json()[DELETES] == [{
-        'data_id': DIGEST_PRESERVED_TREES,
-        'row_id': tree.id,
+        DATA_ID: DIGEST_PRESERVED_TREES,
+        ROW_ID: tree.id,
     }]
 
 

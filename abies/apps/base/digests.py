@@ -29,6 +29,7 @@ from config import strings as S
 from config.constants import (
     COL_COPPICE, COL_PARCEL_ID, COL_REGION_ID, COL_SPECIES_ID,
     COL_SURVEY_ID, COL_TREE_ID, DIGEST_FUTURE_PRODUCTION, DIGEST_HYPSO_PARAMS,
+    DIGEST_PARCELS,
     DIGEST_PARCEL_DENDROMETRY, DIGEST_PARCEL_DENDROMETRY_POINTS,
     DIGEST_PRESERVED_TREES, FIELD_FIRST_DATE, FIELD_LAST_DATE, FIELD_NUMBER,
     FIELD_SAMPLE_AREA_ID, FIELD_SHOOT, FIELD_SORT_ORDER, FIELD_SPECIES,
@@ -318,6 +319,8 @@ def build_parcel_record(p) -> list:
     `Parcel` does not use TimestampedModel/history, but it still carries
     `version` so metadata edits can use the standard optimistic-lock contract.
     """
+    # The geometric/cadastral area columns intentionally share the model
+    # value until a separate cadastral source is available.
     return [
         p.id, p.version, p.region_id, p.region.name, p.name, p.eclass.name,
         p.eclass.coppice, float(p.area_ha), float(p.area_ha), p.ave_age,
@@ -337,8 +340,8 @@ def generate_parcels() -> None:
                        .order_by('region__name', 'name')
     ]
 
-    _write_gzip_json({'columns': PARCEL_COLUMNS, 'rows': rows}, _dest('parcels'))
-    print(f'parcels.json.gz: {len(rows)} rows')
+    _write_gzip_json({'columns': PARCEL_COLUMNS, 'rows': rows}, _dest(DIGEST_PARCELS))
+    print(f'{DIGEST_PARCELS}.json.gz: {len(rows)} rows')
 
 
 # ---------------------------------------------------------------------------
@@ -1264,7 +1267,7 @@ def generate_parcel_dendrometry_points() -> None:
 
 _GENERATORS: dict[str, callable] = {
     'prelievi': generate_prelievi,
-    'parcels': generate_parcels,
+    DIGEST_PARCELS: generate_parcels,
     'crews': generate_crews,
     FIELD_SPECIES: generate_species,
     'audit': generate_audit,

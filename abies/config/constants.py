@@ -21,6 +21,9 @@ DELETES  = 'deletes'
 COLUMNS  = 'columns'
 ROWS     = 'rows'
 
+# Digest IDs.
+DIGEST_PARCELS = 'parcels'
+
 # Locale-independent digest column identifiers for internal fields.
 COL_REGION_ID  = 'Region id'
 COL_PARCEL_ID  = 'Parcel id'
