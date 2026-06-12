@@ -12,8 +12,8 @@ import { fetchJSON } from '../../base/js/api.js';
 import { renderLineChart, renderScatterChart, renderStackedBar } from '../../base/js/charts.js';
 import { fmtArea, fmtDecimal1, fmtDecimal2, fmtInt, fmtMass, fmtVolume, parseDecimal } from '../../base/js/format.js';
 import { cloneTemplate } from '../../base/js/templates.js';
-import { findContainingParcel, sortFeaturesByArea, parcelNames, parcelLabel } from '../../base/js/geo.js';
-import { PARCEL_STYLE, ParcelMap } from '../../base/js/parcel-map.js';
+import { findContainingParcel, sortFeaturesByArea, parcelNames } from '../../base/js/geo.js';
+import { PARCEL_STYLE, ParcelMap, parcelTooltipContent } from '../../base/js/parcel-map.js';
 import { createPage, navigateWithParams } from '../../base/js/page-sync.js';
 import {
   deleteRowWithVersion, fetchModalForm, interceptSubmit, renderModalForm,
@@ -25,8 +25,8 @@ import { canModify } from '../../base/js/roles.js';
 import { wireCancelButtons, wireCollapsibleToggle } from '../../base/js/ui-widgets.js';
 import {
   BOSCO_MODES, MODE_CHARACTERISTICS, MODE_EVOLUTION, MODE_PAI, clearDetailParams,
-  clearMapView, mapTypeToken, readBoscoParams, writeMapView, writeOptionalIdList,
-  writeSectionTokens,
+  clearMapView, harvestPerHaAllowed, mapTypeToken, readBoscoParams,
+  writeMapView, writeOptionalIdList, writeSectionTokens,
 } from './bosco-state.js';
 import {
   CHARACTERISTIC_METRICS,
@@ -829,11 +829,7 @@ function renderEvolutionMode() {
 
   const metric = EVOLUTION_METRICS[currentState.evolutionMetric];
   if (!metric?.satellite) {
-    if (currentState.evolutionMetric === E_HARVEST) renderEvolutionHarvest();
-    else {
-      resetParcelStyles();
-      renderLegendMessage(diffLegendEl, S.BOSCO_HARVEST_PREPARING);
-    }
+    renderEvolutionHarvest();
     return;
   }
 
@@ -1049,7 +1045,7 @@ function resetParcelStyles() {
     layer.setStyle(PARCEL_STYLE);
     if (!layer.feature) return;
     const entry = entryForFeature(layer.feature);
-    setLayerTooltip(layer, entry ? buildTooltip(entry) : parcelLabel(layer.feature));
+    setLayerTooltip(layer, entry ? buildTooltip(entry) : parcelTooltipContent(layer.feature));
   });
 }
 
@@ -1061,6 +1057,10 @@ function applyEntryStyle(entry, style, value, displayFn = null) {
 }
 
 function setLayerTooltip(layer, content) {
+  if (!content) {
+    layer.unbindTooltip?.();
+    return;
+  }
   if (layer.getTooltip?.()) layer.setTooltipContent(content);
   else layer.bindTooltip(content, { sticky: true, direction: 'top' });
 }
@@ -1080,7 +1080,7 @@ function buildTooltip(entry, value = undefined, displayFn = null) {
   el.className = 'bosco-tooltip';
 
   const title = document.createElement('div');
-  title.className = 'bosco-tooltip-title';
+  title.className = 'parcel-tooltip-title';
   title.textContent = `${entry.region} ${entry.parcel}`.trim();
   el.appendChild(title);
 
@@ -1742,7 +1742,7 @@ function clearPaiMarkers() {
 function paiTooltip(tree) {
   const el = document.createElement('div');
   const title = document.createElement('div');
-  title.className = 'bosco-tooltip-title';
+  title.className = 'parcel-tooltip-title';
   title.textContent = tree.species;
   const meta = document.createElement('div');
   meta.textContent = `${tree.region} ${tree.parcel} · ${fmtInt(tree.year)}`;
@@ -1866,7 +1866,9 @@ function canonicalizeURL(state) {
     changed = true;
   }
   changed = canonicalizeFlag(params, 'fc', state.useCadastralArea) || changed;
-  changed = canonicalizeFlag(params, 'fh', state.harvestPerHa && stateAllowsHarvestPerHa(state)) || changed;
+  changed = canonicalizeFlag(params, 'fh', state.harvestPerHa && harvestPerHaAllowed(
+    state.mode, state.q, state.evolutionMetric,
+  )) || changed;
   changed = canonicalizeEvolutionParams(params, state) || changed;
   changed = canonicalizeDetailParams(params, state) || changed;
   changed = canonicalizePaiParams(params, state) || changed;
@@ -1875,11 +1877,6 @@ function canonicalizeURL(state) {
 
 function setStatus(text) {
   if (statusEl) statusEl.textContent = text || '';
-}
-
-function stateAllowsHarvestPerHa(state) {
-  return (state.mode === MODE_CHARACTERISTICS && isHarvestMetric(state.q))
-    || (state.mode === MODE_EVOLUTION && state.evolutionMetric === E_HARVEST);
 }
 
 function canonicalizeEvolutionParams(params, state) {

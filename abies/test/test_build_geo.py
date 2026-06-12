@@ -2,6 +2,7 @@
 
 import json
 from decimal import Decimal
+from io import StringIO
 
 from django.core.management import call_command
 
@@ -32,6 +33,9 @@ def test_build_geo_enriches_terreni_from_imported_parcels(
     Parcel.objects.create(
         name='2', region=regions[0], eclass=eclasses[2], area_ha=Decimal('1.0'),
     )
+    Parcel.objects.create(
+        name='3', region=regions[0], eclass=eclasses[0], area_ha=Decimal('1.0'),
+    )
     src = tmp_path / 'src'
     out = tmp_path / 'out'
     src.mkdir()
@@ -44,10 +48,13 @@ def test_build_geo_enriches_terreni_from_imported_parcels(
         ],
     }), encoding='utf-8')
 
-    call_command('build_geo', src, output_dir=out)
+    stdout = StringIO()
+    call_command('build_geo', src, output_dir=out, stdout=stdout)
 
     data = json.loads((out / 'terreni.geojson').read_text(encoding='utf-8'))
     assert data['features'][0]['properties']['coppice'] is False
     assert data['features'][1]['properties']['coppice'] is True
     assert 'coppice' not in data['features'][2]['properties']
+    assert not (out / '.terreni.geojson.tmp').exists()
     assert not (out / 'particelle.geojson').exists()
+    assert '2 parcels matched, 1 DB parcels without geometry' in stdout.getvalue()

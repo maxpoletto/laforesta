@@ -31,6 +31,23 @@ export const PARCEL_STYLE = {
   color: '#ffd54f', weight: 2, opacity: 0.9, fillColor: '#fff', fillOpacity: 0.04,
 };
 
+export function parcelTooltipContent(feature) {
+  const label = parcelLabel(feature);
+  if (!label) return null;
+  const el = document.createElement('div');
+  el.className = 'parcel-tooltip';
+  const title = document.createElement('strong');
+  title.className = 'parcel-tooltip-title';
+  title.textContent = label.title;
+  el.appendChild(title);
+  if (label.type) {
+    const type = document.createElement('div');
+    type.textContent = label.type;
+    el.appendChild(type);
+  }
+  return el;
+}
+
 // Padding (px) when fitting the map to the parcel layer's bounds, so the
 // parcels never sit flush against the map edge.  Shared by every map that
 // frames the parcels so they all open with the same framing.
@@ -124,7 +141,7 @@ export class ParcelMap {
     this.parcelLayer = L.geoJSON(this.geojson, {
       style: PARCEL_STYLE,
       onEachFeature: (feature, lyr) => {
-        const label = parcelLabel(feature);
+        const label = parcelTooltipContent(feature);
         if (label) lyr.bindTooltip(label, { sticky: true, direction: 'top' });
         // Click on a parcel → onMapClick(latlng, feature).  Leaflet identifies
         // the parcel via its own hit-testing (the layer that drives the

@@ -103,7 +103,7 @@ export function readBoscoParams(params, regionIds = []) {
 }
 
 
-function harvestPerHaAllowed(mode, characteristic, evolutionMetric) {
+export function harvestPerHaAllowed(mode, characteristic, evolutionMetric) {
   return (mode === MODE_CHARACTERISTICS && isHarvestMetric(characteristic))
     || (mode === MODE_EVOLUTION && evolutionMetric === E_HARVEST);
 }

@@ -25,6 +25,17 @@ body {
   line-height: 1.4;
 }
 
+/* --- Shared map tooltips -------------------------------------------------- */
+
+.parcel-tooltip {
+  line-height: 1.25;
+}
+
+.parcel-tooltip-title {
+  display: block;
+  font-weight: 700;
+}
+
 /* --- Header --------------------------------------------------------------- */
 
 #header {

@@ -202,11 +202,6 @@
   line-height: 1.3;
 }
 
-.bosco-tooltip-title {
-  font-weight: 700;
-}
-
-
 .bosco-detail-overlay {
   position: absolute;
   inset: 0;

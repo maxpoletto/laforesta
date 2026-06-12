@@ -28,8 +28,8 @@ view-persistence mechanisms, and how the layers fit together.
    take a raw Leaflet map.
 
 3. **`base/js/parcel-map.js` — `ParcelMap`, the general map abstraction.**  Built
-   on the shim. Renders parcel polygons (shared `PARCEL_STYLE` + `parcelLabel`
-   hover tooltips), frames the map (fit-to-parcels or a restored `initialView`)
+   on the shim. Renders parcel polygons (shared `PARCEL_STYLE` +
+   `parcelTooltipContent` hover tooltips), frames the map (fit-to-parcels or a restored `initialView`)
    and reports view changes, exposes the unified click callback
    `onMapClick(latlng, feature|null)`, and opts into tools via `tools: { measure,
    location, sidebar }` (all off by default). It also provides a sample-area
@@ -92,11 +92,13 @@ metadata such as `properties.coppice`. After fetching, sort with
 tooltip — on top of the larger ones that contain them.
 
 `ParcelMap` styles every polygon with the shared `PARCEL_STYLE` and binds the
-hover tooltip automatically, via `parcelLabel(feature)` (`geo.js`). Raw
-features render as `"<Compresa> <particella>"`; enriched features add a second
-line with `Fustaia`/`Ceduo`. A standalone renderer that doesn't use `ParcelMap`
-can mount the same tooltip with
-`bindTooltip(parcelLabel(f), { sticky: true, direction: 'top' })`.
+hover tooltip automatically. `parcelLabel(feature)` (`geo.js`) stays pure and
+returns `{title, type}` label data; `parcelTooltipContent(feature)`
+(`parcel-map.js`) turns that data into the shared tooltip DOM. Raw features
+render as `"<Compresa> <particella>"`; enriched features add a second line with
+`Fustaia`/`Ceduo`. A standalone renderer that doesn't use `ParcelMap` can mount
+the same tooltip with
+`bindTooltip(parcelTooltipContent(f), { sticky: true, direction: 'top' })`.
 
 ## View persistence across re-renders
 

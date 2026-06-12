@@ -82,7 +82,8 @@ assertClose(geo.distanceToBoundaryMeters(0, 45, square45), 0, 0.001,
 
 assertEqual(geo.parcelLabel({ properties: { layer: 'Capistrano',
                                             name: 'Capistrano-3a' } }),
-            'Capistrano 3a', 'parcelLabel: standard Compresa-Particella');
+            { title: 'Capistrano 3a', type: '' },
+            'parcelLabel: standard Compresa-Particella');
 assertEqual(geo.parcelTypeLabel({ properties: { coppice: false } }), 'Fustaia',
             'parcelTypeLabel: high forest');
 assertEqual(geo.parcelTypeLabel({ properties: { coppice: true } }), 'Ceduo',
@@ -90,10 +91,11 @@ assertEqual(geo.parcelTypeLabel({ properties: { coppice: true } }), 'Ceduo',
 assertEqual(geo.parcelLabel({ properties: { layer: 'Capistrano',
                                             name: 'Capistrano-3a',
                                             coppice: false } }),
-            'Capistrano 3a\nFustaia', 'parcelLabel: enriched high-forest parcel');
-assertEqual(geo.parcelLabel({ properties: { layer: '', name: '' } }), '',
+            { title: 'Capistrano 3a', type: 'Fustaia' },
+            'parcelLabel: enriched high-forest parcel');
+assertEqual(geo.parcelLabel({ properties: { layer: '', name: '' } }), null,
             'parcelLabel: empty properties');
-assertEqual(geo.parcelLabel({}), '', 'parcelLabel: no properties');
+assertEqual(geo.parcelLabel({}), null, 'parcelLabel: no properties');
 
 // generateGrid emits Leaflet-convention points {lat, lng, compresa,
 // particella} — NOT `lon`.  Consumers that persist to the `lon` schema

@@ -90,12 +90,13 @@ global.L = {
   geoJSON(data, opts) {
     const layer = {
       featureClicks: [],
+      tooltips: [],
       addTo() { return this; },
       getBounds() { return { isValid: () => true }; },
     };
     (data.features || []).forEach(f => {
       const lyr = {
-        bindTooltip() { return this; },
+        bindTooltip(t, options) { layer.tooltips.push({ f, tooltip: t, options }); return this; },
         on(ev, cb) { if (ev === 'click') layer.featureClicks.push({ f, cb }); },
       };
       opts.onEachFeature?.(f, lyr);
@@ -116,14 +117,20 @@ global.L = {
 
 // --- Minimal DOM ------------------------------------------------------------
 global.document = {
-  createElement() { return { className: '', appendChild() {}, remove() {} }; },
+  createElement(tagName) {
+    return {
+      tagName, className: '', textContent: '', children: [],
+      appendChild(child) { this.children.push(child); return child; },
+      remove() {},
+    };
+  },
 };
 const makeContainer = () => ({ appendChild() {} });
 
-function parcel(layer, name) {
+function parcel(layer, name, props = {}) {
   return {
     type: 'Feature',
-    properties: { layer, name },
+    properties: { layer, name, ...props },
     geometry: { type: 'Polygon', coordinates: [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]] },
   };
 }
@@ -156,6 +163,22 @@ newMap();
 check(!!lastMap.fitted && !lastMap.view, 'no initialView → fitBounds, not setView');
 newMap({ initialView: { center: [45, 9], zoom: 14 } });
 check(!!lastMap.view && !lastMap.fitted, 'initialView → setView, not fitBounds');
+
+// --- Parcel tooltip DOM ----------------------------------------------------
+newMap({
+  geojson: {
+    type: 'FeatureCollection',
+    features: [parcel('Capistrano', 'Capistrano-3a', { coppice: false })],
+  },
+});
+const parcelTooltip = lastParcelLayer.tooltips[0].tooltip;
+check(lastParcelLayer.tooltips[0].options.sticky === true,
+      'parcel tooltip bound with sticky option');
+check(parcelTooltip.className === 'parcel-tooltip'
+      && parcelTooltip.children[0].className === 'parcel-tooltip-title'
+      && parcelTooltip.children[0].textContent === 'Capistrano 3a'
+      && parcelTooltip.children[1].textContent === 'Fustaia',
+      'parcel tooltip DOM includes title + forest type');
 
 // --- View-change reporting --------------------------------------------------
 let reported = null;

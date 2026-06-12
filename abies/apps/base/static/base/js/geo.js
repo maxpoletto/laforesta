@@ -195,31 +195,17 @@ export function parcelTypeLabel(feature) {
 }
 
 /**
- * Format a parcel feature for tooltips. Enriched terreni.geojson features add
- * a second line with forest type; raw geometries keep the legacy one-line
- * label. Returns '' for non-parcel features.
+ * Return display data for a parcel feature. Enriched terreni.geojson features
+ * include forest type; raw geometries only carry the parcel title. Returns
+ * null for non-parcel features.
  */
 export function parcelLabel(feature) {
   const { compresa, particella } = parcelNames(feature);
-  if (!compresa && !particella) return '';
-  const title = `${compresa} ${particella}`.trim();
-  const type = parcelTypeLabel(feature);
-  if (typeof document === 'undefined') {
-    return [title, type].filter(Boolean).join('\n');
-  }
-
-  const el = document.createElement('div');
-  el.className = 'parcel-tooltip';
-  const titleEl = document.createElement('strong');
-  titleEl.className = 'parcel-tooltip-title';
-  titleEl.textContent = title;
-  el.appendChild(titleEl);
-  if (type) {
-    const typeEl = document.createElement('div');
-    typeEl.textContent = type;
-    el.appendChild(typeEl);
-  }
-  return el;
+  if (!compresa && !particella) return null;
+  return {
+    title: `${compresa} ${particella}`.trim(),
+    type: parcelTypeLabel(feature),
+  };
 }
 
 /**

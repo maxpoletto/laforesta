@@ -263,7 +263,6 @@ export const BOSCO_HARVESTS_UNAVAILABLE = 'Prelievi non disponibili.';
 export const BOSCO_LOADING_SATELLITE = 'Caricamento dati satellitari...';
 export const BOSCO_SATELLITE_UNAVAILABLE = 'Dati satellitari non disponibili.';
 export const BOSCO_NO_SATELLITE = 'Nessun dato satellitare disponibile.';
-export const BOSCO_HARVEST_PREPARING = 'Prelievo in preparazione.';
 export const BOSCO_LOADING_RASTER = 'Caricamento raster...';
 export const BOSCO_RASTER_UNAVAILABLE = 'Raster non disponibile.';
 export const BOSCO_REGION_PARCELS = 'Particelle';
