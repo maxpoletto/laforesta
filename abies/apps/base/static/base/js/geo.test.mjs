@@ -83,6 +83,14 @@ assertClose(geo.distanceToBoundaryMeters(0, 45, square45), 0, 0.001,
 assertEqual(geo.parcelLabel({ properties: { layer: 'Capistrano',
                                             name: 'Capistrano-3a' } }),
             'Capistrano 3a', 'parcelLabel: standard Compresa-Particella');
+assertEqual(geo.parcelTypeLabel({ properties: { coppice: false } }), 'Fustaia',
+            'parcelTypeLabel: high forest');
+assertEqual(geo.parcelTypeLabel({ properties: { coppice: true } }), 'Ceduo',
+            'parcelTypeLabel: coppice');
+assertEqual(geo.parcelLabel({ properties: { layer: 'Capistrano',
+                                            name: 'Capistrano-3a',
+                                            coppice: false } }),
+            'Capistrano 3a\nFustaia', 'parcelLabel: enriched high-forest parcel');
 assertEqual(geo.parcelLabel({ properties: { layer: '', name: '' } }), '',
             'parcelLabel: empty properties');
 assertEqual(geo.parcelLabel({}), '', 'parcelLabel: no properties');

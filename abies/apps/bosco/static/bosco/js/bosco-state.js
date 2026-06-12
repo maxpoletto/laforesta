@@ -1,7 +1,7 @@
 import {
   DEFAULT_EVOLUTION_METRIC, evolutionMetricId, normalizeDateParam,
 } from './bosco-satellite.js';
-import { CHARACTERISTIC_METRIC_IDS, isHarvestMetric } from './bosco-metrics.js';
+import { CHARACTERISTIC_METRIC_IDS, E_HARVEST, isHarvestMetric } from './bosco-metrics.js';
 
 export const MODE_CHARACTERISTICS = '1';
 export const MODE_EVOLUTION = '2';
@@ -91,7 +91,7 @@ export function readBoscoParams(params, regionIds = []) {
     evolutionDate2: normalizeDateParam(paramValue(params, 'd2')) || null,
     parcelAverage: mode === MODE_EVOLUTION && paramValue(params, 'fa') === '1',
     useCadastralArea: paramValue(params, 'fc') === '1',
-    harvestPerHa: mode === MODE_CHARACTERISTICS && isHarvestMetric(characteristic) && paramValue(params, 'fh') === '1',
+    harvestPerHa: harvestPerHaAllowed(mode, characteristic, evolutionMetric) && paramValue(params, 'fh') === '1',
     detailMode,
     parcelId: intParam(params, 'pa'),
     openSections: parseSectionTokens(paramValue(params, 'vo')),
@@ -100,6 +100,12 @@ export function readBoscoParams(params, regionIds = []) {
     paiSpeciesIds: parseOptionalIdList(paramValue(params, 'ps')),
     hasRegionParam: hasParam(params, 'c'),
   };
+}
+
+
+function harvestPerHaAllowed(mode, characteristic, evolutionMetric) {
+  return (mode === MODE_CHARACTERISTICS && isHarvestMetric(characteristic))
+    || (mode === MODE_EVOLUTION && evolutionMetric === E_HARVEST);
 }
 
 export function parseSectionTokens(raw) {

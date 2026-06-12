@@ -13,6 +13,14 @@ from apps.base.models import (
 )
 
 
+@pytest.fixture(autouse=True)
+def isolated_generated_data(settings, tmp_path):
+    """Keep tests from writing generated artifacts into the dev instance."""
+    settings.DIGEST_DIR = tmp_path / 'digests'
+    settings.GEO_DIR = tmp_path / 'geo'
+    settings.SATELLITE_DIR = tmp_path / 'satellite'
+
+
 @pytest.fixture
 def regions(db):
     return [Region.objects.create(name=n) for n in ('Capistrano', 'Fabrizia', 'Serra')]

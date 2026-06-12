@@ -51,8 +51,8 @@ x python manage.py import_parcels /tmp/bosco-data
 echo "==> import mannesi"
 x python manage.py import_mannesi /tmp/bosco-data
 
-echo "==> copy geojson into /app/data/geo/"
-x sh -c 'mkdir -p /app/data/geo && cp /tmp/bosco-data/particelle.geojson /tmp/bosco-data/terreni.geojson /app/data/geo/'
+echo "==> build geojson into /app/data/geo/"
+x python manage.py build_geo /tmp/bosco-data --output-dir /app/data/geo
 
 echo "==> regenerate digests"
 x python manage.py shell --no-imports -c \

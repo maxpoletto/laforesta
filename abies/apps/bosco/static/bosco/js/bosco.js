@@ -12,7 +12,7 @@ import { fetchJSON } from '../../base/js/api.js';
 import { renderLineChart, renderScatterChart, renderStackedBar } from '../../base/js/charts.js';
 import { fmtArea, fmtDecimal1, fmtDecimal2, fmtInt, fmtMass, fmtVolume, parseDecimal } from '../../base/js/format.js';
 import { cloneTemplate } from '../../base/js/templates.js';
-import { findContainingParcel, sortFeaturesByArea, parcelNames } from '../../base/js/geo.js';
+import { findContainingParcel, sortFeaturesByArea, parcelNames, parcelLabel } from '../../base/js/geo.js';
 import { PARCEL_STYLE, ParcelMap } from '../../base/js/parcel-map.js';
 import { createPage, navigateWithParams } from '../../base/js/page-sync.js';
 import {
@@ -58,6 +58,7 @@ import {
   buildPreservedTrees, filterPaiTrees, paiParcelItems, paiSpeciesItems, speciesColorMap,
 } from './bosco-pai.js';
 import { aggregateProduction, prelieviUrlForScope } from './bosco-production.js';
+import { E_HARVEST, Q_AGE, Q_ALTITUDE, Q_EVI, Q_NDMI, Q_NDVI } from './bosco-metrics.js';
 
 const CSS_URL = '/static/bosco/css/bosco.css';
 const PAGE_PATH = '/bosco';
@@ -129,6 +130,9 @@ let evolutionSelect = null;
 let date1Input = null;
 let date2Input = null;
 let parcelAverageToggle = null;
+let parcelAverageRow = null;
+let evolutionPerHaToggle = null;
+let evolutionPerHaRow = null;
 let evolutionCadastralToggle = null;
 let diffLegendEl = null;
 let legendEl = null;
@@ -258,6 +262,9 @@ function mountPage(el, params) {
   date1Input = el.querySelector('[data-role="date1"]');
   date2Input = el.querySelector('[data-role="date2"]');
   parcelAverageToggle = el.querySelector('[data-role="parcel-average-toggle"]');
+  parcelAverageRow = el.querySelector('[data-role="parcel-average-row"]');
+  evolutionPerHaToggle = el.querySelector('[data-role="evolution-per-ha-toggle"]');
+  evolutionPerHaRow = el.querySelector('[data-role="evolution-per-ha-row"]');
   evolutionCadastralToggle = el.querySelector('[data-role="evolution-cadastral-toggle"]');
   diffLegendEl = el.querySelector('[data-target="diff-legend"]');
   legendEl = el.querySelector('[data-target="legend"]');
@@ -302,6 +309,7 @@ function destroyPage() {
   root = mapHost = regionSelect = modeGroup = statusEl = null;
   characteristicSelect = cadastralToggle = perHaToggle = perHaRow = null;
   evolutionSelect = date1Input = date2Input = parcelAverageToggle = null;
+  parcelAverageRow = evolutionPerHaToggle = evolutionPerHaRow = null;
   evolutionCadastralToggle = diffLegendEl = legendEl = null;
   detailOverlay = detailTitle = detailScopeLabel = metadataHost = null;
   metadataActions = metadataEditButton = null;
@@ -337,6 +345,9 @@ function onParcelsUpdate(data) {
 function onFutureUpdate(data) {
   futureData = data;
   refreshCharacteristicLayer();
+  if (currentState?.mode === MODE_EVOLUTION && currentState.evolutionMetric === E_HARVEST) {
+    renderEvolutionMode();
+  }
 }
 
 function onPrelieviUpdate(data) {
@@ -438,6 +449,14 @@ function wireControls() {
     const params = new URLSearchParams(location.search);
     params.set('m', MODE_EVOLUTION);
     setFlagParam(params, 'fa', parcelAverageToggle.checked);
+    navigateWithParams(PAGE_PATH, params, true);
+  });
+
+  evolutionPerHaToggle?.addEventListener('change', () => {
+    const params = new URLSearchParams(location.search);
+    params.set('m', MODE_EVOLUTION);
+    params.set('q', E_HARVEST);
+    setFlagParam(params, 'fh', evolutionPerHaToggle.checked);
     navigateWithParams(PAGE_PATH, params, true);
   });
 
@@ -543,7 +562,7 @@ function updateCharacteristicControls(state) {
   if (characteristicSelect) characteristicSelect.value = state.q;
   if (cadastralToggle) cadastralToggle.checked = state.useCadastralArea;
   const harvest = isHarvestMetric(state.q);
-  if (perHaRow) perHaRow.hidden = !harvest;
+  setControlVisible(perHaRow, harvest);
   if (perHaToggle) {
     perHaToggle.checked = harvest && state.harvestPerHa;
     perHaToggle.disabled = !harvest;
@@ -552,10 +571,17 @@ function updateCharacteristicControls(state) {
 
 function updateEvolutionControls(state) {
   if (evolutionSelect) evolutionSelect.value = state.evolutionMetric;
+  const supportsRaster = Boolean(EVOLUTION_METRICS[state.evolutionMetric]?.satellite);
+  const supportsHarvestPerHa = state.evolutionMetric === E_HARVEST;
+  setControlVisible(parcelAverageRow, supportsRaster);
   if (parcelAverageToggle) {
-    const supportsRaster = Boolean(EVOLUTION_METRICS[state.evolutionMetric]?.satellite);
     parcelAverageToggle.checked = supportsRaster && state.parcelAverage;
     parcelAverageToggle.disabled = !supportsRaster;
+  }
+  setControlVisible(evolutionPerHaRow, supportsHarvestPerHa);
+  if (evolutionPerHaToggle) {
+    evolutionPerHaToggle.checked = supportsHarvestPerHa && state.harvestPerHa;
+    evolutionPerHaToggle.disabled = !supportsHarvestPerHa;
   }
   if (evolutionCadastralToggle) evolutionCadastralToggle.checked = state.useCadastralArea;
 
@@ -563,6 +589,12 @@ function updateEvolutionControls(state) {
   const date1 = dates ? pickDate(dates, state.evolutionDate1, 'earliest') : state.evolutionDate1;
   const date2 = dates ? pickDate(dates, state.evolutionDate2, 'latest') : state.evolutionDate2;
   updateEvolutionDateControls(date1, date2, dates);
+}
+
+function setControlVisible(el, visible) {
+  if (!el) return;
+  el.style.visibility = visible ? '' : 'hidden';
+  el.setAttribute('aria-hidden', visible ? 'false' : 'true');
 }
 
 function updateEvolutionDateControls(date1, date2, dates = null) {
@@ -797,8 +829,11 @@ function renderEvolutionMode() {
 
   const metric = EVOLUTION_METRICS[currentState.evolutionMetric];
   if (!metric?.satellite) {
-    resetParcelStyles();
-    renderLegendMessage(diffLegendEl, S.BOSCO_HARVEST_PREPARING);
+    if (currentState.evolutionMetric === E_HARVEST) renderEvolutionHarvest();
+    else {
+      resetParcelStyles();
+      renderLegendMessage(diffLegendEl, S.BOSCO_HARVEST_PREPARING);
+    }
     return;
   }
 
@@ -829,6 +864,36 @@ function renderEvolutionMode() {
     renderEvolutionRaster(seq, metric, date1, date2);
   }
   canonicalizeEvolutionDates(currentState, date1, date2);
+}
+
+function renderEvolutionHarvest() {
+  clearEvolutionOverlay();
+  const context = { future: futureHarvestByParcel(futureData), perHa: currentState?.harvestPerHa };
+  const values = mapEntries.map(entry => metricValue(entry, Q_FUTURE_HARVEST, context));
+  const domain = continuousDomain(values);
+  if (!domain) {
+    resetParcelStyles();
+    renderLegendMessage(diffLegendEl, S.BOSCO_NO_DATA_AVAILABLE);
+    return;
+  }
+
+  for (const entry of mapEntries) {
+    const value = metricValue(entry, Q_FUTURE_HARVEST, context);
+    const t = normalized(value, domain);
+    applyEntryStyle(
+      entry,
+      t == null ? NO_DATA_STYLE : continuousStyle(t),
+      value,
+      v => metricTooltipDisplay(Q_FUTURE_HARVEST, v),
+    );
+  }
+  renderContinuousLegendTarget(
+    diffLegendEl,
+    S.BOSCO_HARVEST_METRIC,
+    domain,
+    v => metricDisplay(Q_FUTURE_HARVEST, v),
+  );
+  setStatus(S.BOSCO_HARVEST_METRIC);
 }
 
 function renderEvolutionParcelAverages(metric, date1, date2) {
@@ -949,9 +1014,10 @@ function satelliteDiffStyle(value, maxAbs) {
 }
 
 function evolutionMetricDisplay(metric, value) {
-  if (value == null || !Number.isFinite(value)) return S.BOSCO_NO_DATA;
+  const label = evolutionMetricLabel(metric);
+  if (value == null || !Number.isFinite(value)) return `${label}: ${S.BOSCO_NO_DATA}`;
   const sign = value > 0 ? '+' : '';
-  return `${evolutionMetricLabel(metric)}: ${sign}${fmtDecimal2(value)}`;
+  return `${label}: ${sign}${fmtDecimal2(value)}`;
 }
 
 function evolutionMetricLabel(metric) {
@@ -981,7 +1047,9 @@ function resetParcelStyles() {
   if (!map?.parcelLayer) return;
   map.parcelLayer.eachLayer(layer => {
     layer.setStyle(PARCEL_STYLE);
-    if (layer.feature) setLayerTooltip(layer, safeTooltip(layer.feature));
+    if (!layer.feature) return;
+    const entry = entryForFeature(layer.feature);
+    setLayerTooltip(layer, entry ? buildTooltip(entry) : parcelLabel(layer.feature));
   });
 }
 
@@ -1007,7 +1075,7 @@ function continuousStyle(t) {
   };
 }
 
-function buildTooltip(entry, value, displayFn = null) {
+function buildTooltip(entry, value = undefined, displayFn = null) {
   const el = document.createElement('div');
   el.className = 'bosco-tooltip';
 
@@ -1021,17 +1089,17 @@ function buildTooltip(entry, value, displayFn = null) {
   meta.textContent = [entry.type, area].filter(Boolean).join(' · ');
   el.appendChild(meta);
 
-  const metric = document.createElement('div');
-  metric.textContent = displayFn ? displayFn(value) : metricDisplay(currentState?.q, value);
-  el.appendChild(metric);
+  if (value !== undefined || displayFn) {
+    const metric = document.createElement('div');
+    metric.textContent = displayFn ? displayFn(value) : metricTooltipDisplay(currentState?.q, value);
+    el.appendChild(metric);
+  }
   return el;
 }
 
-function safeTooltip(feature) {
-  const el = document.createElement('span');
+function entryForFeature(feature) {
   const { compresa, particella } = parcelNames(feature);
-  el.textContent = `${compresa} ${particella}`.trim();
-  return el;
+  return mapEntriesByKey?.get(parcelKey(compresa, particella)) || null;
 }
 
 function metricDisplay(metricId, value) {
@@ -1043,6 +1111,25 @@ function metricDisplay(metricId, value) {
   if (metricId === Q_FUTURE_HARVEST) return perHa ? `${fmtDecimal2(value)} m³/ha` : fmtVolume(value);
   const unit = CHARACTERISTIC_METRICS[metricId]?.unit;
   return unit ? `${fmtDecimal1(value)} ${unit}` : fmtDecimal1(value);
+}
+
+function metricTooltipDisplay(metricId, value) {
+  const label = characteristicTooltipLabel(metricId);
+  const text = metricDisplay(metricId, value);
+  return label ? `${label}: ${text}` : text;
+}
+
+function characteristicTooltipLabel(metricId) {
+  return {
+    [Q_TYPE]: S.BOSCO_METRIC_TYPE,
+    [Q_HISTORICAL_HARVEST]: S.BOSCO_METRIC_HISTORICAL_HARVEST,
+    [Q_FUTURE_HARVEST]: S.BOSCO_METRIC_FUTURE_HARVEST,
+    [Q_AGE]: S.BOSCO_METRIC_AGE,
+    [Q_ALTITUDE]: S.BOSCO_METRIC_ALTITUDE,
+    [Q_NDVI]: 'NDVI',
+    [Q_NDMI]: 'NDMI',
+    [Q_EVI]: 'EVI',
+  }[String(metricId)] || '';
 }
 
 function standTypeKey(entry) {
@@ -1060,30 +1147,36 @@ function renderTypeLegend(showNoData = false) {
 }
 
 function renderContinuousLegend(domain, metricId) {
-  if (!legendEl) return;
-  legendEl.replaceChildren();
+  renderContinuousLegendTarget(
+    legendEl, selectedCharacteristicLabel(), domain, v => metricDisplay(metricId, v),
+  );
+}
+
+function renderContinuousLegendTarget(target, titleText, domain, displayFn) {
+  if (!target) return;
+  target.replaceChildren();
   if (!domain) {
-    renderMessageLegend(S.BOSCO_NO_DATA_AVAILABLE);
+    renderLegendMessage(target, S.BOSCO_NO_DATA_AVAILABLE);
     return;
   }
 
   const title = document.createElement('div');
   title.className = 'bosco-legend-title';
-  title.textContent = selectedCharacteristicLabel();
-  legendEl.appendChild(title);
+  title.textContent = titleText;
+  target.appendChild(title);
 
   const gradient = document.createElement('div');
   gradient.className = 'bosco-gradient';
-  legendEl.appendChild(gradient);
+  target.appendChild(gradient);
 
   const labels = document.createElement('div');
   labels.className = 'bosco-legend-labels';
   const min = document.createElement('span');
-  min.textContent = metricDisplay(metricId, domain.min);
+  min.textContent = displayFn(domain.min);
   const max = document.createElement('span');
-  max.textContent = metricDisplay(metricId, domain.max);
+  max.textContent = displayFn(domain.max);
   labels.append(min, max);
-  legendEl.appendChild(labels);
+  target.appendChild(labels);
 }
 
 function renderSatelliteLegend(target, layer, date) {
@@ -1773,9 +1866,7 @@ function canonicalizeURL(state) {
     changed = true;
   }
   changed = canonicalizeFlag(params, 'fc', state.useCadastralArea) || changed;
-  changed = canonicalizeFlag(
-    params, 'fh', state.mode === MODE_CHARACTERISTICS && state.harvestPerHa && isHarvestMetric(state.q),
-  ) || changed;
+  changed = canonicalizeFlag(params, 'fh', state.harvestPerHa && stateAllowsHarvestPerHa(state)) || changed;
   changed = canonicalizeEvolutionParams(params, state) || changed;
   changed = canonicalizeDetailParams(params, state) || changed;
   changed = canonicalizePaiParams(params, state) || changed;
@@ -1784,6 +1875,11 @@ function canonicalizeURL(state) {
 
 function setStatus(text) {
   if (statusEl) statusEl.textContent = text || '';
+}
+
+function stateAllowsHarvestPerHa(state) {
+  return (state.mode === MODE_CHARACTERISTICS && isHarvestMetric(state.q))
+    || (state.mode === MODE_EVOLUTION && state.evolutionMetric === E_HARVEST);
 }
 
 function canonicalizeEvolutionParams(params, state) {

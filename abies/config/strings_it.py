@@ -419,8 +419,8 @@ COL_OPERATOR             = 'Operatore'                   # paired with CSV_COL_O
 COL_H_MEASURED           = 'h misurata'                  # display label; bool rendered yes/no
 
 # Type-of-intervention display labels for COL_TYPE values
-TYPE_HIGHFOREST = 'fustaia'
-TYPE_COPPICE   = 'ceduo'
+TYPE_HIGHFOREST = 'Fustaia'
+TYPE_COPPICE   = 'Ceduo'
 
 # Stand-in displayed in the Particella column for region-wide
 # HarvestPlanItem rows (region set, parcel NULL).

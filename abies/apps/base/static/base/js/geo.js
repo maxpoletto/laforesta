@@ -7,6 +7,8 @@
  * point-in-polygon and area math.
  */
 
+import * as S from './strings.js';
+
 const DEG_TO_RAD = Math.PI / 180;
 const EARTH_RADIUS = 6378137.0; // WGS84 semi-major axis in metres
 
@@ -185,14 +187,39 @@ export function parcelNames(feature) {
   return { compresa, particella };
 }
 
+export function parcelTypeLabel(feature) {
+  const p = (feature && feature.properties) || {};
+  if (p.coppice === true) return S.TYPE_COPPICE;
+  if (p.coppice === false) return S.TYPE_HIGHFOREST;
+  return '';
+}
+
 /**
- * Format a parcel feature as "<compresa> <particella>" for tooltips.
- * Returns '' for non-parcel features.
+ * Format a parcel feature for tooltips. Enriched terreni.geojson features add
+ * a second line with forest type; raw geometries keep the legacy one-line
+ * label. Returns '' for non-parcel features.
  */
 export function parcelLabel(feature) {
   const { compresa, particella } = parcelNames(feature);
   if (!compresa && !particella) return '';
-  return `${compresa} ${particella}`.trim();
+  const title = `${compresa} ${particella}`.trim();
+  const type = parcelTypeLabel(feature);
+  if (typeof document === 'undefined') {
+    return [title, type].filter(Boolean).join('\n');
+  }
+
+  const el = document.createElement('div');
+  el.className = 'parcel-tooltip';
+  const titleEl = document.createElement('strong');
+  titleEl.className = 'parcel-tooltip-title';
+  titleEl.textContent = title;
+  el.appendChild(titleEl);
+  if (type) {
+    const typeEl = document.createElement('div');
+    typeEl.textContent = type;
+    el.appendChild(typeEl);
+  }
+  return el;
 }
 
 /**

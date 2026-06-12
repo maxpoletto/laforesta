@@ -21,15 +21,15 @@ class TestGeoView:
                                            settings):
         """A whitelisted name with no file on disk still 404s."""
         settings.GEO_DIR = tmp_path
-        resp = writer_client.get('/api/geo/particelle.geojson')
+        resp = writer_client.get('/api/geo/terreni.geojson')
         assert resp.status_code == 404
 
     def test_serves_whitelisted_file(self, writer_client, tmp_path, settings):
         settings.GEO_DIR = tmp_path
-        (tmp_path / 'particelle.geojson').write_text(
+        (tmp_path / 'terreni.geojson').write_text(
             '{"type": "FeatureCollection", "features": []}'
         )
-        resp = writer_client.get('/api/geo/particelle.geojson')
+        resp = writer_client.get('/api/geo/terreni.geojson')
         assert resp.status_code == 200
         assert resp['Content-Type'] == 'application/geo+json'
 
@@ -39,16 +39,16 @@ class TestGeoView:
         assert resp.status_code == 404
 
     def test_requires_auth(self, db):
-        resp = Client().get('/api/geo/particelle.geojson')
+        resp = Client().get('/api/geo/terreni.geojson')
         assert resp.status_code == 302
 
     def test_sets_no_cache(self, writer_client, tmp_path, settings):
         """Geo files are browser-cacheable but must revalidate: a reload
         picks up a changed file, while an unchanged one 304s (below)."""
         settings.GEO_DIR = tmp_path
-        (tmp_path / 'particelle.geojson').write_text(
+        (tmp_path / 'terreni.geojson').write_text(
             '{"type": "FeatureCollection", "features": []}')
-        resp = writer_client.get('/api/geo/particelle.geojson')
+        resp = writer_client.get('/api/geo/terreni.geojson')
         assert resp.status_code == 200
         assert 'no-cache' in resp['Cache-Control']
 
@@ -56,9 +56,9 @@ class TestGeoView:
                                                settings):
         """An unchanged geo file revalidates to 304 — no re-transfer."""
         settings.GEO_DIR = tmp_path
-        (tmp_path / 'particelle.geojson').write_text(
+        (tmp_path / 'terreni.geojson').write_text(
             '{"type": "FeatureCollection", "features": []}')
-        r1 = writer_client.get('/api/geo/particelle.geojson')
-        r2 = writer_client.get('/api/geo/particelle.geojson',
+        r1 = writer_client.get('/api/geo/terreni.geojson')
+        r2 = writer_client.get('/api/geo/terreni.geojson',
                                HTTP_IF_MODIFIED_SINCE=r1['Last-Modified'])
         assert r2.status_code == 304

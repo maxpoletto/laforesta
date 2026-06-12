@@ -21,7 +21,6 @@ from config import strings as S
 # Whitelist of geo files we serve via `geo_view`.  Anything else 404s,
 # even if it exists under `settings.GEO_DIR`.
 ALLOWED_GEO_FILES = {
-    'particelle.geojson',
     'terreni.geojson',
 }
 

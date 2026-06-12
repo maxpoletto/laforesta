@@ -38,8 +38,7 @@ import-data:
 
 geo:
 	mkdir -p data/geo
-	/bin/cp $(DATA_DIR)/particelle.geojson data/geo/
-	/bin/cp $(DATA_DIR)/terreni.geojson data/geo/
+	$(MANAGE) build_geo $(DATA_DIR)
 
 digest:
 	$(MANAGE) shell --no-imports -c "from apps.base.digests import generate_all; generate_all()"

@@ -35,7 +35,7 @@ hosts (top to bottom):
 
 - **Hover** on a parcel: a small unobtrusive label shows the region and parcel
   name (e.g., `Capistrano 11`, `Serra 2a`) and below it, the parcel type
-  (coppice or high forest) and area (e.g., "fustaia 24,3 ha", "ceduo 7,9 ha").
+  (Fustaia or Ceduo) and area (e.g., "Fustaia 24,3 ha", "Ceduo 7,9 ha").
   Uses same mechanism as Campionamenti maps. No additional details are shown;
   the goal is fast orientation while sweeping.
 - **Click** on a parcel: opens the **per-parcel page** as a full-screen overlay
@@ -83,9 +83,10 @@ hosts (top to bottom):
   compare.  Behavior identical to Boscoscopio's "Visualizza differenze" with
   "limita al bosco" always true.
 
-  Below the pickers, checkboxes for "media per particella" and "aree catastali".
-  By default the map renders the detailed pixel heatmap; "media per particella"
-  switches to the precomputed per-parcel means.
+  Below the pickers, checkboxes for "media per particella" and "aree catastali";
+  Prelievo also shows "valori per ettaro". By default satellite maps render
+  the detailed pixel heatmap; "media per particella" switches to the
+  precomputed per-parcel means.
 
   Map shows red-to-green diff heatmap (new − old).
 
@@ -254,17 +255,18 @@ Cross-mode summary:
   "caratteristica" pulldown (parcel-level metadata + satellite-derived
   metrics; same set as Boscoscopio).
 - `fc=1` — "aree catastali" checked.
-- `fh=1` — "valori per ettaro" checked for harvest metrics.
+- `fh=1` — "valori per ettaro" checked for harvest metrics (Caratteristiche) or `q=4` Prelievo (Evoluzione).
 
 #### Evoluzione (`m=2`)
 
 - `q=1`–`4` — metric id, matching the entries in the
-  "metrica" pulldown.
+  "parametro" pulldown.
 - `d1=YYYYMMDD`, `d2=YYYYMMDD` — start and end dates of the
   comparison.  Year granularity uses `YYYY0101`; month granularity
   uses `YYYYMM01`.
 - `fa=1` — "media per particella" checked.
 - `fc=1` — "aree catastali" checked.
+- `fh=1` — "valori per ettaro" checked when `q=4` Prelievo.
 
 #### Piante ad accrescimento indefinito (`m=3`)
 
@@ -360,8 +362,10 @@ mode-switch.
 
 ### Map data
 
-- **`particelle.geojson`** — parcel polygons, as in Boscoscopio.
-  Eager-loaded.  Updated only on geometry-data refresh (rare).
+- **`terreni.geojson`** — parcel polygons, as in Boscoscopio, enriched
+  during `build_geo` with static parcel metadata such as
+  `properties.coppice`.  Eager-loaded.  Updated only on geometry-data refresh
+  (rare).
 - **Satellite data** — per-compresa `manifest.json`, `timeseries.json`, and
   generated diff PNG overlays, served from `SATELLITE_DIR` via
   `/api/bosco/satellite/<region_id>/...`.  Caratteristiche satellite metrics

@@ -280,6 +280,11 @@ export const BOSCO_NO_HISTORICAL_HARVEST = 'Nessun prelievo storico.';
 export const BOSCO_INTERVENTIONS = (n) => `${n} interventi`;
 export const BOSCO_LAT_LON_REQUIRED = 'Lat e Lon obbligatorie.';
 export const BOSCO_NO_PAI_TREES = 'Nessuna pianta.';
+export const BOSCO_METRIC_AGE = 'Età';
+export const BOSCO_METRIC_TYPE = 'Governo';
+export const BOSCO_METRIC_ALTITUDE = 'Altitudine';
+export const BOSCO_METRIC_HISTORICAL_HARVEST = 'Prelievo storico';
+export const BOSCO_METRIC_FUTURE_HARVEST = 'Prelievo previsto';
 export const BOSCO_HARVEST_METRIC = 'Prelievo';
 export const BOSCO_QUINTALS_PER_HA = 'Q.li/ha';
 export const BOSCO_REGRESSION = (name, r2, n) => `${name} regressione (R² ${r2}, n ${n})`;
@@ -382,8 +387,8 @@ export const FLAG_UNHEALTHY   = 'Fitosanitario';
 export const FLAG_PSR         = 'PSR';
 
 // Type-of-intervention labels for the COL_TYPE column.
-export const TYPE_HIGHFOREST = 'fustaia';
-export const TYPE_COPPICE    = 'ceduo';
+export const TYPE_HIGHFOREST = 'Fustaia';
+export const TYPE_COPPICE    = 'Ceduo';
 
 // Plan-selector header (top of the Piano di taglio page).
 export const LABEL_HARVEST_PLAN = 'Piano di taglio';

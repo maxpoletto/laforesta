@@ -85,13 +85,16 @@ the page-driven path and is idempotent. Don't route the marker click through
 
 Source: `data/geo/terreni.geojson`. Each polygon feature carries
 `properties.layer = "<Compresa>"` (e.g. `"Capistrano"`) and
-`properties.name = "<Compresa>-<particella>"` (e.g. `"Capistrano-10a"`). After
-fetching, sort with `sortFeaturesByArea(geojson)` (`geo.js`) so smaller polygons
-render — and tooltip — on top of the larger ones that contain them.
+`properties.name = "<Compresa>-<particella>"` (e.g. `"Capistrano-10a"`).
+`build_geo` enriches those features after `import_parcels` with static DB-backed
+metadata such as `properties.coppice`. After fetching, sort with
+`sortFeaturesByArea(geojson)` (`geo.js`) so smaller polygons render — and
+tooltip — on top of the larger ones that contain them.
 
 `ParcelMap` styles every polygon with the shared `PARCEL_STYLE` and binds the
-hover tooltip automatically, via `parcelLabel(feature)` (`geo.js`) →
-`"<Compresa> <particella>"`. A standalone renderer that doesn't use `ParcelMap`
+hover tooltip automatically, via `parcelLabel(feature)` (`geo.js`). Raw
+features render as `"<Compresa> <particella>"`; enriched features add a second
+line with `Fustaia`/`Ceduo`. A standalone renderer that doesn't use `ParcelMap`
 can mount the same tooltip with
 `bindTooltip(parcelLabel(f), { sticky: true, direction: 'top' })`.
 
