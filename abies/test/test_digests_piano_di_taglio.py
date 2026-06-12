@@ -34,7 +34,7 @@ from apps.base.models import (
 )
 from apps.prelievi.models import Harvest
 from config import strings as S
-from config.constants import COLUMNS, ROWS, ROW_ID, VERSION
+from config.constants import COLUMNS, COL_COPPICE, ROWS, ROW_ID, VERSION
 
 
 # ---------------------------------------------------------------------------
@@ -173,6 +173,7 @@ class TestGenerateHarvestPlanItems:
         assert row[cols.index(S.COL_REGION)] == 'Capistrano'
         assert row[cols.index(S.COL_PARCEL)] == '1'
         assert row[cols.index(S.COL_TYPE)] == S.TYPE_HIGHFOREST
+        assert row[cols.index(COL_COPPICE)] is False
         assert row[cols.index(S.COL_STATE)] == S.STATE_HARVESTING
         assert row[cols.index(S.COL_VOLUME_PLANNED)] == 100.0
         assert row[cols.index(S.COL_VOLUME_MARKED)] == 95.5
@@ -189,6 +190,7 @@ class TestGenerateHarvestPlanItems:
         cols = data[COLUMNS]
         row = next(r for r in data[ROWS] if r[cols.index(ROW_ID)] == ceduo_item.id)
         assert row[cols.index(S.COL_TYPE)] == S.TYPE_COPPICE
+        assert row[cols.index(COL_COPPICE)] is True
         assert row[cols.index(S.COL_INTERVENTION_AREA_HA)] == 1.2
         assert row[cols.index(S.COL_STATE)] == S.STATE_PLANNED
         # Coppice: volume_planned_m3 is NULL → renders as ''.
@@ -205,8 +207,9 @@ class TestGenerateHarvestPlanItems:
         row = next(r for r in data[ROWS] if r[cols.index(ROW_ID)] == region_wide_item.id)
         assert row[cols.index(S.COL_REGION)] == 'Capistrano'
         assert row[cols.index(S.COL_PARCEL)] == S.PARCEL_WHOLE_REGION_MARK
-        # Region-wide items have no Eclass → Tipo is empty.
+        # Region-wide items have no Eclass → Tipo/Coppice are empty.
         assert row[cols.index(S.COL_TYPE)] == ''
+        assert row[cols.index(COL_COPPICE)] is None
         # Parcel-area cross-check column is empty.
         assert row[cols.index(S.COL_PARCEL_AREA_HA)] == ''
         # Flag rendering: damaged=True only → S.FLAG_DAMAGED.

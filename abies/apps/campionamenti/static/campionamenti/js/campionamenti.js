@@ -17,7 +17,7 @@ import { TableWrapper } from '../../base/js/table.js';
 import { show as showModal, showError, dismiss as dismissModal, onDismiss } from '../../base/js/modals.js';
 import * as S from '../../base/js/strings.js';
 import {
-  FIELD_COMPRESA, FIELD_DEFAULT_DATE, FIELD_FILE, FIELD_LAT, FIELD_LON,
+  COL_COPPICE, FIELD_COMPRESA, FIELD_DEFAULT_DATE, FIELD_FILE, FIELD_LAT, FIELD_LON,
   FIELD_NONCE, FIELD_PARTICELLA, FIELD_SAMPLE_GRID_ID, FIELD_SURVEY_ID,
   ROW_ID, VERSION,
 } from '../../base/js/constants.js';
@@ -32,6 +32,7 @@ import {
   wireCollapsibleToggle, wireTabbedModal,
 } from '../../base/js/ui-widgets.js';
 import { canModify } from '../../base/js/roles.js';
+import { recordIsCoppice } from '../../base/js/coppice.js';
 import { exportDigest } from '../../base/js/csv-export.js';
 import { cloneTemplate } from '../../base/js/templates.js';
 import { RilevamentiMap } from './rilevamenti-map.js';
@@ -117,6 +118,7 @@ const TREES_COLS = {
   [S.COL_TREE_NUM]:    { label: S.COL_TREE_NUM_SHORT, type: 'number', width: '70px', formatter: fmtInt },
   [S.COL_SPECIES]:     { label: S.COL_SPECIES, width: '120px' },
   [S.COL_TYPE]:        { label: S.COL_TYPE, width: '70px' },
+  [COL_COPPICE]:       { hidden: true },
   [S.COL_COPPICE_SHOOT]:     { label: S.COL_COPPICE_SHOOT_SHORT, type: 'number', width: '55px', formatter: fmtInt },
   [S.COL_COPPICE_STD]:   { label: S.COL_COPPICE_STD_SHORT, type: 'boolean', width: '55px', formatter: fmtBool },
   [S.COL_D_CM]:        { label: S.COL_D_CM, type: 'number', width: '65px', formatter: fmtInt },
@@ -1281,7 +1283,6 @@ async function exportFullSurveyCSV(surveyId) {
     showError(S.NO_RESULTS);
     return;
   }
-  const tipoCol = d.columns.indexOf(S.COL_TYPE);
   exportDigest(
     d,
     [
@@ -1295,14 +1296,13 @@ async function exportFullSurveyCSV(surveyId) {
       { src: S.COL_H_M,         dst: S.CSV_COL_H_M },
       { src: S.COL_L10_MM,      dst: S.CSV_COL_L10_MM },
       { src: S.COL_SPECIES,     dst: S.CSV_COL_GENERE },
-      { dst: S.CSV_COL_HIGHFOREST, transform: row => row[tipoCol] === S.TYPE_HIGHFOREST },
+      { dst: S.CSV_COL_HIGHFOREST, transform: row => !recordIsCoppice(row, d.columns) },
       { src: S.COL_SAMPLE_DATE, dst: S.CSV_COL_DATA },
       { src: S.COL_PRESERVED,         dst: S.CSV_COL_PRESERVED },
     ],
     S.CSV_SURVEY_TREES,
   );
 }
-
 
 
 /**

@@ -804,7 +804,8 @@ def generate_samples() -> None:
 SAMPLED_TREE_COLUMNS = [ROW_ID, VERSION, S.COL_SAMPLE_AREA,
                         S.COL_SAMPLE_DATE, S.COL_REGION, S.COL_PARCEL,
                         S.COL_AREA_NUM, S.COL_TREE_NUM,
-                        S.COL_SPECIES, S.COL_PRODUCT, S.COL_COPPICE_SHOOT,
+                        S.COL_SPECIES, S.COL_PRODUCT, COL_COPPICE,
+                        S.COL_COPPICE_SHOOT,
                         S.COL_COPPICE_STD, S.COL_D_CM, S.COL_H_M, S.COL_L10_MM,
                         S.COL_V_M3, S.COL_MASS_Q,
                         S.COL_PRESERVED, S.COL_LAT, S.COL_LON]
@@ -823,6 +824,7 @@ def build_tree_sample_record(ts) -> list:
         sa.parcel.region.name, sa.parcel.name, sa.number,
         ts.number, tree.species.common_name,
         S.TYPE_COPPICE if tree.coppice else S.TYPE_HIGHFOREST,
+        tree.coppice,
         ts.shoot, ts.standard,
         ts.d_cm, float(ts.h_m), ts.l10_mm,
         float(ts.volume_m3) if ts.volume_m3 is not None else None,
@@ -890,7 +892,8 @@ def generate_harvest_plans() -> None:
 HARVEST_PLAN_ITEM_COLUMNS = [
     ROW_ID, VERSION, S.COL_HARVEST_PLAN,
     S.COL_YEAR_PLANNED, S.COL_YEAR_ACTUAL,
-    S.COL_REGION, S.COL_PARCEL, S.COL_TYPE, S.COL_STATE, S.COL_NOTE,
+    S.COL_REGION, S.COL_PARCEL, S.COL_TYPE, COL_COPPICE,
+    S.COL_STATE, S.COL_NOTE,
     S.COL_VOLUME_PLANNED, S.COL_VOLUME_MARKED, S.COL_VOLUME_ACTUAL,
     S.COL_INTERVENTION_AREA_HA, S.COL_PARCEL_AREA_HA, S.COL_PERIOD_Y,
     S.COL_EXTRA_NOTE,
@@ -901,9 +904,17 @@ def _hpi_type(item) -> str:
     """`Tipo` value for the calendar Tipo column.  Empty for region-wide
     items (no Eclass to derive from).
     """
-    if item.parcel_id is None:
+    is_coppice = _hpi_coppice(item)
+    if is_coppice is None:
         return ''
-    return S.TYPE_COPPICE if item.parcel.eclass.coppice else S.TYPE_HIGHFOREST
+    return S.TYPE_COPPICE if is_coppice else S.TYPE_HIGHFOREST
+
+
+def _hpi_coppice(item) -> bool | None:
+    """Stable item-kind flag.  None means whole-region, not parcel-backed."""
+    if item.parcel_id is None:
+        return None
+    return bool(item.parcel.eclass.coppice)
 
 
 def _hpi_turno(item) -> int | str:
@@ -947,7 +958,7 @@ def build_harvest_plan_item_record(item) -> list:
         item.id, item.version, item.harvest_plan_id,
         item.year_planned,
         item.date_actual.year if item.date_actual else '',
-        compresa, particella, _hpi_type(item),
+        compresa, particella, _hpi_type(item), _hpi_coppice(item),
         item.get_state_display(),
         render_flag_note(item.damaged, item.unhealthy, item.psr),
         float(item.volume_planned_m3) if item.volume_planned_m3 is not None else '',

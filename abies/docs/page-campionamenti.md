@@ -449,12 +449,13 @@ writes whose sample's survey matches.
 
 Columns: `row_id`, `version`, `Sample area`, `Data campione`,
 `Compresa`, `Particella`, `N. area`, `N. albero`, `Specie`, `Tipo`,
-`Pollone`, `Matricina`, `D (cm)`, `h (m)`, `L10 (mm)`, `V (m³)`,
+`Coppice`, `Pollone`, `Matricina`, `D (cm)`, `h (m)`, `L10 (mm)`, `V (m³)`,
 `m (q)`, `PAI`, `Lat`, `Lon`.  Sort: by `Compresa`, `Particella`,
 `N. area`, `N. albero`, `Pollone`.
 
 `row_id` = `tree_sample.id` (the synthetic id, see `database.md`).
-`Tipo` is `"fustaia"` or `"ceduo"`, derived from `tree.coppice`.
+`Coppice` is the stable boolean copied from `tree.coppice`; `Tipo` is the
+localized display label derived from the same value.
 `V (m³)` and `m (q)` are NULL for ceduo rows (per `database.md`
 invariant).  `Lat`, `Lon` come from `tree.lat/lon` if set, else fall
 back to the sample-area center.  `Data campione` is `sample.date`

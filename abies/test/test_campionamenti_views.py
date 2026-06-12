@@ -16,8 +16,9 @@ from apps.base.models import (
 )
 from config import strings as S
 from config.constants import (
-    COLUMNS, DATA_ID, DELETES, DEFAULT_RADIUS_M, DIGEST_PARCEL_DENDROMETRY,
-    DIGEST_PARCEL_DENDROMETRY_POINTS, DIGEST_PRESERVED_TREES,
+    COLUMNS, COL_COPPICE, DATA_ID, DELETES, DEFAULT_RADIUS_M,
+    DIGEST_PARCEL_DENDROMETRY, DIGEST_PARCEL_DENDROMETRY_POINTS,
+    DIGEST_PRESERVED_TREES,
     FIELD_ALTITUDE_M, FIELD_DATE,
     FIELD_DEFAULT_DATE, FIELD_DESCRIPTION, FIELD_D_CM, FIELD_ERRORS, FIELD_FILE,
     FIELD_HIGHFOREST, FIELD_H_M,
@@ -1389,6 +1390,7 @@ class TestRecordShape:
         ).get(id=payload[ROW_ID])
         assert record == build_tree_sample_record(ts)
         assert len(record) == len(SAMPLED_TREE_COLUMNS)
+        assert record[SAMPLED_TREE_COLUMNS.index(COL_COPPICE)] is False
         _assert_stale(
             DIGEST_PARCEL_DENDROMETRY, DIGEST_PARCEL_DENDROMETRY_POINTS,
             DIGEST_PRESERVED_TREES,
@@ -1398,7 +1400,9 @@ class TestRecordShape:
         self, writer_client, sample_setup, species, regions, eclasses,
     ):
         """Coppice multi-shoot creates return one record per shoot."""
-        from apps.base.digests import build_tree_sample_record
+        from apps.base.digests import (
+            SAMPLED_TREE_COLUMNS, build_tree_sample_record,
+        )
         from apps.base.models import Parcel, SampleArea, TreeSample
         coppice_eclass = next(e for e in eclasses if e.coppice)
         parcel = Parcel.objects.create(
@@ -1435,6 +1439,7 @@ class TestRecordShape:
         }
         for patch in tree_patches:
             assert patch[RECORD] == canonical[patch[ROW_ID]]
+            assert patch[RECORD][SAMPLED_TREE_COLUMNS.index(COL_COPPICE)] is True
 
     def test_tree_save_includes_sample_and_survey_patches(
         self, writer_client, sample_setup,

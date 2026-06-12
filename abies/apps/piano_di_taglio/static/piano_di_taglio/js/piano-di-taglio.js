@@ -25,6 +25,7 @@ import {
 import { canModify } from '../../base/js/roles.js';
 import { installEscapeHandler } from '../../base/js/escape.js';
 import { cloneTemplate } from '../../base/js/templates.js';
+import { recordIsCoppice } from '../../base/js/coppice.js';
 import { downloadFromURL } from '../../base/js/csv-export.js';
 import {
   wireVMPreview, ID_D_CM, ID_H_M, ID_SPECIES, ID_LAT, ID_LON,
@@ -34,7 +35,7 @@ import * as S from '../../base/js/strings.js';
 import {
   FIELD_COPPICE_FILE, FIELD_DATE, FIELD_DESCRIPTION, FIELD_FILE,
   FIELD_HIGHFOREST_FILE, FIELD_HARVEST_PLAN_ID, FIELD_HARVEST_PLAN_ITEM_ID,
-  FIELD_NAME, FIELD_NONCE, FIELD_NOTE,
+  COL_COPPICE, FIELD_NAME, FIELD_NONCE, FIELD_NOTE,
   FIELD_OPEN, FIELD_YEAR_END, FIELD_YEAR_START,
   HYPSO_FUNC_LN, ROW_ID, VERSION,
 } from '../../base/js/constants.js';
@@ -115,9 +116,9 @@ const sections = {
     open: true, kind: 'fustaia',
     header: null, body: null, host: null, table: null,
     toolbar: null, actionAdd: null, emptyState: null,
-    typeMatcher: (tipo) => tipo !== S.TYPE_COPPICE,
+    itemMatcher: (row) => !rowIsCoppice(row),
     hiddenCols: [
-      S.COL_HARVEST_PLAN, S.COL_TYPE,
+      S.COL_HARVEST_PLAN, S.COL_TYPE, COL_COPPICE,
       S.COL_INTERVENTION_AREA_HA, S.COL_PARCEL_AREA_HA, S.COL_PERIOD_Y,
     ],
     csvFilename: 'interventi-fustaia.csv',
@@ -126,9 +127,9 @@ const sections = {
     open: false, kind: 'ceduo',
     header: null, body: null, host: null, table: null,
     toolbar: null, actionAdd: null, emptyState: null,
-    typeMatcher: (tipo) => tipo === S.TYPE_COPPICE,
+    itemMatcher: (row) => rowIsCoppice(row),
     hiddenCols: [
-      S.COL_HARVEST_PLAN, S.COL_TYPE,
+      S.COL_HARVEST_PLAN, S.COL_TYPE, COL_COPPICE,
       S.COL_VOLUME_PLANNED, S.COL_VOLUME_MARKED,
       // Altre note (free-text) IS shown for ceduo — pdg-2026 uses it
       // for continuation markers like "Cont. intervento 2028".
@@ -409,11 +410,10 @@ function buildTable(s, searchInput) {
 function applyPlanFilter(s) {
   if (!itemsData) return;
   const planCol = itemsData.columns.indexOf(S.COL_HARVEST_PLAN);
-  const typeCol = itemsData.columns.indexOf(S.COL_TYPE);
   if (s.table) {
     s.table.setExternalFilter((row) => {
       if (activePlanId != null && row[planCol] !== activePlanId) return false;
-      return s.typeMatcher(row[typeCol]);
+      return s.itemMatcher(row);
     });
   }
   updateEmptyState(s);
@@ -423,14 +423,18 @@ function applyPlanFilter(s) {
 function updateEmptyState(s) {
   if (!s.emptyState || !itemsData) return;
   const planCol = itemsData.columns.indexOf(S.COL_HARVEST_PLAN);
-  const typeCol = itemsData.columns.indexOf(S.COL_TYPE);
   const hasItems = activePlanId != null && itemsData.rows.some(r =>
-    r[planCol] === activePlanId && s.typeMatcher(r[typeCol]),
+    r[planCol] === activePlanId && s.itemMatcher(r),
   );
   s.emptyState.hidden = hasItems;
   if (s.toolbar) s.toolbar.hidden = !hasItems;
   if (s.host) s.host.hidden = !hasItems;
   if (s.actionAdd) s.actionAdd.hidden = !hasItems;
+}
+
+function rowIsCoppice(row) {
+  if (!row || !itemsData) return false;
+  return recordIsCoppice(row, itemsData.columns);
 }
 
 function buildItemColumnDefs(columns, hiddenCols) {
@@ -1066,14 +1070,13 @@ async function renderItemView(itemId) {
   const yearActual = record[c.indexOf(S.COL_YEAR_ACTUAL)];
   const state = record[c.indexOf(S.COL_STATE)];
   const note = record[c.indexOf(S.COL_NOTE)];
-  const tipo = record[c.indexOf(S.COL_TYPE)];
   const volPlanned = record[c.indexOf(S.COL_VOLUME_PLANNED)];
   const volMarked = record[c.indexOf(S.COL_VOLUME_MARKED)];
   const volActual = record[c.indexOf(S.COL_VOLUME_ACTUAL)];
   const areaIntervention = record[c.indexOf(S.COL_INTERVENTION_AREA_HA)];
   const areaParcel = record[c.indexOf(S.COL_PARCEL_AREA_HA)];
   const turno = record[c.indexOf(S.COL_PERIOD_Y)];
-  const isCoppice = tipo === S.TYPE_COPPICE;
+  const isCoppice = recordIsCoppice(record, c);
 
   addMetaRow(meta, S.LABEL_HARVEST_PLAN, planName);
   addMetaRow(meta, S.COL_REGION, compresa);
@@ -1172,8 +1175,7 @@ function showItemEditForm(itemId) {
   const row = itemsData?.rows.find(r =>
     r[itemsData.columns.indexOf(ROW_ID)] === itemId,
   );
-  const tipo = row?.[itemsData.columns.indexOf(S.COL_TYPE)];
-  const kind = tipo === S.TYPE_COPPICE ? 'ceduo' : 'fustaia';
+  const kind = rowIsCoppice(row) ? 'ceduo' : 'fustaia';
   fetchAndOpenItemForm(`${ITEM_FORM_URL}${itemId}/`, kind, {
     onDone: () => renderItemView(itemId),
   });

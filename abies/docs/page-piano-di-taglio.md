@@ -440,15 +440,17 @@ Both calendar tables. Invalidated on `harvest_plan_item`, `tree_mark`,
 materialization chain in `database.md`).
 
 Columns: `row_id`, `version`, `Piano`, `Anno previsto`, `Anno effettivo`,
-`Compresa`, `Particella`, `Tipo`, `Stato`, `Note`, `Volume previsto (m³)`,
-`Volume martellato (m³)`, `Volume effettivo (m³)`, `Superficie intervento (ha)`,
-`Superficie totale (ha)`, `Turno (a)`, `Altre note`.
+`Compresa`, `Particella`, `Tipo`, `Coppice`, `Stato`, `Note`,
+`Volume previsto (m³)`, `Volume martellato (m³)`, `Volume effettivo (m³)`,
+`Superficie intervento (ha)`, `Superficie totale (ha)`, `Turno (a)`,
+`Altre note`.
 Sorted by `Anno previsto`, then natural-order on `Compresa` +
 `Particella`.
 
-`Piano` carries `harvest_plan.id` for client-side filtering. `Tipo` is
-`"alto fusto"` or `"ceduo"`, derived from `parcel.eclass.coppice`;
-region-wide items (`parcel_id IS NULL`) get `Tipo = ""` and land in the
+`Piano` carries `harvest_plan.id` for client-side filtering. `Coppice` is
+the stable boolean derived from `parcel.eclass.coppice`; `Tipo` is the
+localized display label derived from the same value. Region-wide items
+(`parcel_id IS NULL`) get `Tipo = ""`, `Coppice = null`, and land in the
 fustaia section. `Stato` is the human label of `harvest_plan_item.state`
 (see "View/edit-harvest-plan-item modal" above for the values).
 
