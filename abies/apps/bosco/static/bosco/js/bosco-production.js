@@ -19,19 +19,19 @@ export function prelieviUrlForScope(scope = {}) {
   return query ? `${PRELIEVI_PATH}?${query}` : PRELIEVI_PATH;
 }
 
-export function productionRows(digest, scope) {
+export function productionRows(digest, scope = {}) {
   if (!digest) return [];
   const c = columnMap(digest);
   const regionIdx = c[S.COL_REGION];
   const parcelIdx = c[S.COL_PARCEL];
   if (regionIdx == null || parcelIdx == null) return [];
   return digest[ROWS].filter(row => {
-    if (row[regionIdx] !== scope.region) return false;
+    if (scope.region && row[regionIdx] !== scope.region) return false;
     return !scope.parcel || row[parcelIdx] === scope.parcel;
   });
 }
 
-export function productionYears(digest, scope) {
+export function productionYears(digest, scope = {}) {
   const c = columnMap(digest);
   const dateIdx = c[S.COL_DATE];
   if (dateIdx == null) return [];
@@ -41,6 +41,16 @@ export function productionYears(digest, scope) {
     if (year) years.add(year);
   }
   return [...years].sort();
+}
+
+export function productionYearRange(digest) {
+  const years = productionYears(digest);
+  if (!years.length) return [];
+  const start = Number(years[0]);
+  const end = Number(years[years.length - 1]);
+  const out = [];
+  for (let year = start; year <= end; year++) out.push(String(year));
+  return out;
 }
 
 export function pickProductionYear(years, requested, fallback = 'latest') {
@@ -105,7 +115,9 @@ export function aggregateProduction(digest, scope, opts = {}) {
     byBucket.set(key, (byBucket.get(key) || 0) + q / divisor);
   }
 
-  const labels = [...byBucket.keys()].sort();
+  const labels = !opts.byMonth && rows.length
+    ? productionYearRange(digest)
+    : [...byBucket.keys()].sort();
   return {
     rowCount: rows.length,
     totalQuintals: total,

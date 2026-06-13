@@ -46,6 +46,7 @@ const digest = {
     [4, '2025-03-01', 'Capistrano', '1', 70],
     [5, '2025-04-01', 'Capistrano', '2', 40],
     [6, '2025-03-01', 'Serra', '1', 999],
+    [7, '2027-06-01', 'Serra', '1', 1],
   ],
 };
 
@@ -63,6 +64,10 @@ assertEqual(rows.map(r => r[0]), [1, 2, 3, 4, 5], 'productionRows: region scope'
 
 assertEqual(B.productionYears(digest, { region: 'Capistrano' }), ['2024', '2025'],
             'productionYears: region years');
+assertEqual(B.productionYears(digest), ['2024', '2025', '2027'],
+            'productionYears: global years');
+assertEqual(B.productionYearRange(digest), ['2024', '2025', '2026', '2027'],
+            'productionYearRange: global continuous range');
 assertEqual(B.pickProductionYear(['2024', '2025'], '20240101'), '2024',
             'pickProductionYear: compact date converted to year');
 const delta = B.productionDeltaByParcel(digest, { region: 'Capistrano' }, '2024', '2025');
@@ -72,8 +77,10 @@ assertEqual(delta.get('Capistrano-2'), 15, 'productionDeltaByParcel: parcel 2 de
 let agg = B.aggregateProduction(digest, { region: 'Capistrano' });
 assertEqual(agg.rowCount, 5, 'aggregateProduction: row count');
 assertEqual(agg.totalQuintals, 285, 'aggregateProduction: raw total');
-assertEqual(agg.chartData.labels, ['2024', '2025'], 'aggregateProduction: yearly labels');
-assertEqual(agg.chartData.datasets[0].data, [175, 110], 'aggregateProduction: yearly total');
+assertEqual(agg.chartData.labels, ['2024', '2025', '2026', '2027'],
+            'aggregateProduction: global yearly labels');
+assertEqual(agg.chartData.datasets[0].data, [175, 110, 0, 0],
+            'aggregateProduction: zero-filled yearly total');
 
 agg = B.aggregateProduction(digest, { region: 'Capistrano', parcel: '1' }, {
   byMonth: true, perHa: true, areaHa: 10,

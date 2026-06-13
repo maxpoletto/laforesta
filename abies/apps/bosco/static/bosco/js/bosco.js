@@ -591,7 +591,7 @@ function updateEvolutionControls(state) {
   if (evolutionCadastralToggle) evolutionCadastralToggle.checked = state.useCadastralArea;
 
   if (state.evolutionMetric === E_HARVEST) {
-    const years = productionYears(prelieviData, evolutionProductionScope(state));
+    const years = productionYears(prelieviData);
     const year1 = pickProductionYear(years, state.evolutionDate1, 'earliest');
     const year2 = pickProductionYear(years, state.evolutionDate2, 'latest');
     updateEvolutionYearControls(year1, year2, years);
@@ -894,7 +894,7 @@ function renderEvolutionHarvest(seq) {
   }
 
   const scope = evolutionProductionScope(currentState);
-  const years = productionYears(prelieviData, scope);
+  const years = productionYears(prelieviData);
   const fromYear = pickProductionYear(years, currentState.evolutionDate1, 'earliest');
   const toYear = pickProductionYear(years, currentState.evolutionDate2, 'latest');
   updateEvolutionYearControls(fromYear, toYear, years);
