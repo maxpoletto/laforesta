@@ -108,6 +108,10 @@ assertEqual(state.harvestPerHa, false, 'readBoscoParams: per-ha ignored on non-h
 state = readBoscoParams({ m: '2', q: '4', fh: '1' }, [7, 8]);
 assertEqual(state.harvestPerHa, true, 'readBoscoParams: per-ha allowed on evolution harvest');
 
+state = readBoscoParams({ m: '2', q: '4', d1: '2024', d2: '20250101' }, [7, 8]);
+assertEqual(state.evolutionDate1, '2024', 'readBoscoParams: harvest from year');
+assertEqual(state.evolutionDate2, '2025', 'readBoscoParams: harvest compact date converted to year');
+
 state = readBoscoParams({ m: '2', q: '1', fh: '1' }, [7, 8]);
 assertEqual(state.harvestPerHa, false, 'readBoscoParams: per-ha ignored on satellite evolution');
 

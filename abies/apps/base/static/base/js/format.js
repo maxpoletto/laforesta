@@ -80,4 +80,4 @@ export function fmtWithUnit(v, n, unit) {
 
 export const fmtVolume = v => fmtWithUnit(v, 2, 'm³');
 export const fmtArea   = v => fmtWithUnit(v, 2, 'ha');
-export const fmtMass   = v => fmtWithUnit(v, 2, 'q');
+export const fmtMass   = v => fmtWithUnit(v, 0, 'q');

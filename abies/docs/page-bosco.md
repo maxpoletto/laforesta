@@ -79,9 +79,11 @@ hosts (top to bottom):
 
 - **Evoluzione**
 
-  Pull-down for the metric and two date pickers (years or year-months) to
-  compare.  Behavior identical to Boscoscopio's "Visualizza differenze" with
-  "limita al bosco" always true.
+  Pull-down for the metric and two date pickers. Satellite metrics use
+  year-month choices and follow Boscoscopio's "Visualizza differenze" behavior
+  with "limita al bosco" always true. Prelievo uses years for which historical
+  production data exists and maps `(to-year q.li) - (from-year q.li)` per
+  parcel.
 
   Below the pickers, checkboxes for "media per particella" and "aree catastali";
   Prelievo also shows "valori per ettaro". By default satellite maps render
@@ -231,7 +233,7 @@ clean map state.  Reopening uses the documented defaults.
 See "Query parameter details" below for the full list per mode.
 Cross-mode summary:
 - Caratteristiche (`m=1`): `q=` metric id, `fc=` cadastral flag, `fh=` per-hectare harvest flag.
-- Evoluzione (`m=2`): `q=`, `d1=`/`d2=`, `fa=`, `fc=`.
+- Evoluzione (`m=2`): `q=`, `d1=`/`d2=`, `fa=`, `fc=`, `fh=`.
 - PAI (`m=3`): `pp=` parcels list, `ps=` species list.
 
 ### Cross-page links into Bosco
@@ -261,9 +263,11 @@ Cross-mode summary:
 
 - `q=1`–`4` — metric id, matching the entries in the
   "parametro" pulldown.
-- `d1=YYYYMMDD`, `d2=YYYYMMDD` — start and end dates of the
-  comparison.  Year granularity uses `YYYY0101`; month granularity
+- `d1=YYYYMMDD`, `d2=YYYYMMDD` for satellite metrics — start and end
+  dates of the comparison. Year granularity uses `YYYY0101`; month granularity
   uses `YYYYMM01`.
+- `d1=YYYY`, `d2=YYYY` for `q=4` Prelievo — historical production years.
+  The rendered value is `(d2 q.li) - (d1 q.li)` for each parcel.
 - `fa=1` — "media per particella" checked.
 - `fc=1` — "aree catastali" checked.
 - `fh=1` — "valori per ettaro" checked when `q=4` Prelievo.

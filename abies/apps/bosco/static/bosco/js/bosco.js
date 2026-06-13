@@ -57,7 +57,10 @@ import {
 import {
   buildPreservedTrees, filterPaiTrees, paiParcelItems, paiSpeciesItems, speciesColorMap,
 } from './bosco-pai.js';
-import { aggregateProduction, prelieviUrlForScope } from './bosco-production.js';
+import {
+  aggregateProduction, harvestYear, pickProductionYear, prelieviUrlForScope,
+  productionDeltaByParcel, productionYears,
+} from './bosco-production.js';
 import { E_HARVEST, Q_AGE, Q_ALTITUDE, Q_EVI, Q_NDMI, Q_NDVI } from './bosco-metrics.js';
 
 const CSS_URL = '/static/bosco/css/bosco.css';
@@ -345,14 +348,14 @@ function onParcelsUpdate(data) {
 function onFutureUpdate(data) {
   futureData = data;
   refreshCharacteristicLayer();
-  if (currentState?.mode === MODE_EVOLUTION && currentState.evolutionMetric === E_HARVEST) {
-    renderEvolutionMode();
-  }
 }
 
 function onPrelieviUpdate(data) {
   prelieviData = data;
   refreshCharacteristicLayer();
+  if (currentState?.mode === MODE_EVOLUTION && currentState.evolutionMetric === E_HARVEST) {
+    renderEvolutionMode();
+  }
   renderProduction();
 }
 
@@ -469,7 +472,9 @@ function wireControls() {
 
 function updateEvolutionDateParam(key, input) {
   const params = new URLSearchParams(location.search);
-  const value = dateParam(dateFromMonthValue(input.value));
+  const value = currentState?.mode === MODE_EVOLUTION && currentState.evolutionMetric === E_HARVEST
+    ? harvestYear(input.value)
+    : dateParam(dateFromMonthValue(input.value));
   if (value) params.set(key, value);
   else params.delete(key);
   navigateWithParams(PAGE_PATH, params, true);
@@ -585,6 +590,14 @@ function updateEvolutionControls(state) {
   }
   if (evolutionCadastralToggle) evolutionCadastralToggle.checked = state.useCadastralArea;
 
+  if (state.evolutionMetric === E_HARVEST) {
+    const years = productionYears(prelieviData, evolutionProductionScope(state));
+    const year1 = pickProductionYear(years, state.evolutionDate1, 'earliest');
+    const year2 = pickProductionYear(years, state.evolutionDate2, 'latest');
+    updateEvolutionYearControls(year1, year2, years);
+    return;
+  }
+
   const dates = satelliteRegionId === state.regionId ? satelliteData?.timeseries?.dates : null;
   const date1 = dates ? pickDate(dates, state.evolutionDate1, 'earliest') : state.evolutionDate1;
   const date2 = dates ? pickDate(dates, state.evolutionDate2, 'latest') : state.evolutionDate2;
@@ -599,15 +612,20 @@ function setControlVisible(el, visible) {
 
 function updateEvolutionDateControls(date1, date2, dates = null) {
   const months = availableMonths(dates || []);
-  populateEvolutionDateSelect(date1Input, months, monthValue(date1));
-  populateEvolutionDateSelect(date2Input, months, monthValue(date2));
+  populateEvolutionSelect(date1Input, months, monthValue(date1));
+  populateEvolutionSelect(date2Input, months, monthValue(date2));
 }
 
-function populateEvolutionDateSelect(select, months, selectedMonth) {
+function updateEvolutionYearControls(year1, year2, years = []) {
+  populateEvolutionSelect(date1Input, years, year1);
+  populateEvolutionSelect(date2Input, years, year2);
+}
+
+function populateEvolutionSelect(select, values, selectedValue) {
   if (!select) return;
   const previous = select.value;
   select.replaceChildren();
-  if (!months.length) {
+  if (!values.length) {
     const opt = document.createElement('option');
     opt.value = '';
     opt.textContent = S.BOSCO_NO_DATE;
@@ -617,15 +635,15 @@ function populateEvolutionDateSelect(select, months, selectedMonth) {
   }
 
   select.disabled = false;
-  const selected = months.includes(selectedMonth) ? selectedMonth : previous;
-  for (const month of months) {
+  const selected = values.includes(selectedValue) ? selectedValue : previous;
+  for (const value of values) {
     const opt = document.createElement('option');
-    opt.value = month;
-    opt.textContent = month;
-    opt.selected = month === selected;
+    opt.value = value;
+    opt.textContent = value;
+    opt.selected = value === selected;
     select.appendChild(opt);
   }
-  if (!select.value) select.value = months[0];
+  if (!select.value) select.value = values[0];
 }
 
 function renderMap(state) {
@@ -829,7 +847,7 @@ function renderEvolutionMode() {
 
   const metric = EVOLUTION_METRICS[currentState.evolutionMetric];
   if (!metric?.satellite) {
-    renderEvolutionHarvest();
+    renderEvolutionHarvest(seq);
     return;
   }
 
@@ -862,11 +880,33 @@ function renderEvolutionMode() {
   canonicalizeEvolutionDates(currentState, date1, date2);
 }
 
-function renderEvolutionHarvest() {
+function renderEvolutionHarvest(seq) {
   clearEvolutionOverlay();
-  const context = { future: futureHarvestByParcel(futureData), perHa: currentState?.harvestPerHa };
-  const values = mapEntries.map(entry => metricValue(entry, Q_FUTURE_HARVEST, context));
-  const domain = continuousDomain(values);
+  if (!prelieviData) {
+    resetParcelStyles();
+    renderLegendMessage(diffLegendEl, S.BOSCO_LOADING_HARVESTS);
+    loadPrelievi().then(() => {
+      if (seq === evolutionRenderSeq) renderEvolutionMode();
+    }).catch(() => {
+      if (seq === evolutionRenderSeq) renderLegendMessage(diffLegendEl, S.BOSCO_HARVESTS_UNAVAILABLE);
+    });
+    return;
+  }
+
+  const scope = evolutionProductionScope(currentState);
+  const years = productionYears(prelieviData, scope);
+  const fromYear = pickProductionYear(years, currentState.evolutionDate1, 'earliest');
+  const toYear = pickProductionYear(years, currentState.evolutionDate2, 'latest');
+  updateEvolutionYearControls(fromYear, toYear, years);
+  if (!fromYear || !toYear) {
+    resetParcelStyles();
+    renderLegendMessage(diffLegendEl, S.BOSCO_NO_DATA_AVAILABLE);
+    return;
+  }
+
+  const deltas = productionDeltaByParcel(prelieviData, scope, fromYear, toYear);
+  const values = mapEntries.map(entry => harvestDeltaValue(entry, deltas));
+  const domain = divergingDomain(values);
   if (!domain) {
     resetParcelStyles();
     renderLegendMessage(diffLegendEl, S.BOSCO_NO_DATA_AVAILABLE);
@@ -874,22 +914,35 @@ function renderEvolutionHarvest() {
   }
 
   for (const entry of mapEntries) {
-    const value = metricValue(entry, Q_FUTURE_HARVEST, context);
-    const t = normalized(value, domain);
+    const value = harvestDeltaValue(entry, deltas);
     applyEntryStyle(
       entry,
-      t == null ? NO_DATA_STYLE : continuousStyle(t),
+      value == null ? NO_DATA_STYLE : satelliteDiffStyle(value, domain.maxAbs),
       value,
-      v => metricTooltipDisplay(Q_FUTURE_HARVEST, v),
+      v => `${S.BOSCO_HARVEST_METRIC}: ${signedHarvestDeltaDisplay(v)}`,
     );
   }
-  renderContinuousLegendTarget(
-    diffLegendEl,
-    S.BOSCO_HARVEST_METRIC,
-    domain,
-    v => metricDisplay(Q_FUTURE_HARVEST, v),
-  );
-  setStatus(S.BOSCO_HARVEST_METRIC);
+  renderHarvestDeltaLegend(fromYear, toYear, domain);
+  setStatus(`${S.BOSCO_HARVEST_METRIC} ${toYear} - ${fromYear}`);
+  canonicalizeEvolutionDates(currentState, fromYear, toYear);
+}
+
+function evolutionProductionScope(state) {
+  const region = regionById.get(state?.regionId);
+  return region ? { region: region.name } : {};
+}
+
+function harvestDeltaValue(entry, deltas) {
+  const raw = deltas.get(entry.key) || 0;
+  if (!currentState?.harvestPerHa) return raw;
+  const area = entry.displayAreaHa || entry.areaHa || entry.cadastralAreaHa;
+  return area ? raw / area : null;
+}
+
+function signedHarvestDeltaDisplay(value) {
+  if (value == null || !Number.isFinite(value)) return S.BOSCO_NO_DATA;
+  const sign = value > 0 ? '+' : '';
+  return `${sign}${metricDisplay(Q_HISTORICAL_HARVEST, value)}`;
 }
 
 function renderEvolutionParcelAverages(metric, date1, date2) {
@@ -1026,8 +1079,8 @@ function canonicalizeEvolutionDates(state, date1, date2) {
   if (!state || state.mode !== MODE_EVOLUTION) return;
   const params = new URLSearchParams(location.search);
   let changed = false;
-  const d1 = dateParam(date1);
-  const d2 = dateParam(date2);
+  const d1 = state.evolutionMetric === E_HARVEST ? harvestYear(date1) : dateParam(date1);
+  const d2 = state.evolutionMetric === E_HARVEST ? harvestYear(date2) : dateParam(date2);
   if (d1 && params.get('d1') !== d1) {
     params.set('d1', d1);
     changed = true;
@@ -1200,6 +1253,30 @@ function renderSatelliteLegend(target, layer, date) {
     labels.appendChild(span);
   }
   target.appendChild(labels);
+}
+
+function renderHarvestDeltaLegend(fromYear, toYear, domain) {
+  if (!diffLegendEl) return;
+  diffLegendEl.replaceChildren();
+
+  const title = document.createElement('div');
+  title.className = 'bosco-legend-title';
+  title.textContent = `${S.BOSCO_HARVEST_METRIC} ${toYear} - ${fromYear}`;
+  diffLegendEl.appendChild(title);
+
+  const gradient = document.createElement('div');
+  gradient.className = 'bosco-gradient diff';
+  diffLegendEl.appendChild(gradient);
+
+  const max = domain.maxAbs || 1;
+  const labels = document.createElement('div');
+  labels.className = 'bosco-legend-labels';
+  for (const value of [-max, -max / 2, 0, max / 2, max]) {
+    const span = document.createElement('span');
+    span.textContent = signedHarvestDeltaDisplay(value);
+    labels.appendChild(span);
+  }
+  diffLegendEl.appendChild(labels);
 }
 
 function renderDiffLegend(metric, date1, date2, domain) {

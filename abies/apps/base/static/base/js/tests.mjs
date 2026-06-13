@@ -14,7 +14,7 @@
 
 import { createRequire } from 'module';
 import {
-  makeNumberParser, parseDecimal, fmtDecimal, fmtCoord,
+  makeNumberParser, parseDecimal, fmtDecimal, fmtCoord, fmtMass,
 } from './format.js';
 import { matchesSearch } from './table.js';
 
@@ -75,6 +75,7 @@ for (const [x, n] of [[38.12346, 5], [9.5, 2], [-16.987, 3], [0.1, 1], [0, 5]]) 
 eqStr(fmtCoord(1234.5), '1234,50000', 'fmtCoord no grouping');
 eqStr(fmtDecimal(1234.5, 2), '1234,50', 'fmtDecimal no grouping');
 eqStr(fmtDecimal(3.14, 2), '3,14', 'fmtDecimal it comma');
+eqStr(fmtMass(1234.5), '1235 q', 'fmtMass whole quintals');
 
 // --- matchesSearch: haystack is the FORMATTED (displayed) text (§6) ----------
 // Columns carry the same formatters the table renders with; in node format.js

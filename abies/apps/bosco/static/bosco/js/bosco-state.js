@@ -87,8 +87,8 @@ export function readBoscoParams(params, regionIds = []) {
     zoom: center && zoom !== null ? zoom : null,
     q,
     evolutionMetric,
-    evolutionDate1: normalizeDateParam(paramValue(params, 'd1')) || null,
-    evolutionDate2: normalizeDateParam(paramValue(params, 'd2')) || null,
+    evolutionDate1: normalizeEvolutionDateParam(paramValue(params, 'd1'), mode, evolutionMetric) || null,
+    evolutionDate2: normalizeEvolutionDateParam(paramValue(params, 'd2'), mode, evolutionMetric) || null,
     parcelAverage: mode === MODE_EVOLUTION && paramValue(params, 'fa') === '1',
     useCadastralArea: paramValue(params, 'fc') === '1',
     harvestPerHa: harvestPerHaAllowed(mode, characteristic, evolutionMetric) && paramValue(params, 'fh') === '1',
@@ -106,6 +106,19 @@ export function readBoscoParams(params, regionIds = []) {
 export function harvestPerHaAllowed(mode, characteristic, evolutionMetric) {
   return (mode === MODE_CHARACTERISTICS && isHarvestMetric(characteristic))
     || (mode === MODE_EVOLUTION && evolutionMetric === E_HARVEST);
+}
+
+function normalizeEvolutionDateParam(raw, mode, evolutionMetric) {
+  if (mode === MODE_EVOLUTION && evolutionMetric === E_HARVEST) {
+    return harvestYearParam(raw);
+  }
+  return normalizeDateParam(raw);
+}
+
+function harvestYearParam(raw) {
+  const value = String(raw || '').trim();
+  const match = value.match(/^(\d{4})/);
+  return match ? match[1] : '';
 }
 
 export function parseSectionTokens(raw) {

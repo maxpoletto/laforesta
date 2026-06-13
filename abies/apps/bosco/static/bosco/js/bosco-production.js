@@ -31,6 +31,58 @@ export function productionRows(digest, scope) {
   });
 }
 
+export function productionYears(digest, scope) {
+  const c = columnMap(digest);
+  const dateIdx = c[S.COL_DATE];
+  if (dateIdx == null) return [];
+  const years = new Set();
+  for (const row of productionRows(digest, scope)) {
+    const year = harvestYear(row[dateIdx]);
+    if (year) years.add(year);
+  }
+  return [...years].sort();
+}
+
+export function pickProductionYear(years, requested, fallback = 'latest') {
+  const clean = [...new Set((years || []).map(harvestYear).filter(Boolean))].sort();
+  if (!clean.length) return '';
+  const requestedYear = harvestYear(requested);
+  if (clean.includes(requestedYear)) return requestedYear;
+  return fallback === 'earliest' ? clean[0] : clean[clean.length - 1];
+}
+
+export function productionDeltaByParcel(digest, scope, fromYear, toYear) {
+  const from = productionByParcelYear(digest, scope, fromYear);
+  const to = productionByParcelYear(digest, scope, toYear);
+  const keys = new Set([...from.keys(), ...to.keys()]);
+  const out = new Map();
+  for (const key of keys) out.set(key, (to.get(key) || 0) - (from.get(key) || 0));
+  return out;
+}
+
+function productionByParcelYear(digest, scope, year) {
+  const c = columnMap(digest);
+  const dateIdx = c[S.COL_DATE];
+  const regionIdx = c[S.COL_REGION];
+  const parcelIdx = c[S.COL_PARCEL];
+  const qIdx = c[S.COL_QUINTALS];
+  const targetYear = harvestYear(year);
+  const out = new Map();
+  if (!targetYear || dateIdx == null || regionIdx == null
+      || parcelIdx == null || qIdx == null) return out;
+  for (const row of productionRows(digest, scope)) {
+    if (harvestYear(row[dateIdx]) !== targetYear) continue;
+    const key = `${row[regionIdx]}-${row[parcelIdx]}`;
+    out.set(key, (out.get(key) || 0) + toNumber(row[qIdx], 0));
+  }
+  return out;
+}
+
+export function harvestYear(value) {
+  const match = String(value || '').trim().match(/^(\d{4})/);
+  return match ? match[1] : '';
+}
+
 export function aggregateProduction(digest, scope, opts = {}) {
   const c = columnMap(digest);
   const dateIdx = c[S.COL_DATE];
