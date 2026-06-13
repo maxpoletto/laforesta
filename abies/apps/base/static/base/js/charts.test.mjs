@@ -48,7 +48,7 @@ assertEqual(chart.type, 'bar', 'renderStackedBar: type');
 assertEqual(chart.data.labels, ['2026'], 'renderStackedBar: labels');
 assertEqual(chart.options.responsive, true, 'renderStackedBar: responsive');
 assertEqual(chart.options.maintainAspectRatio, false, 'renderStackedBar: no aspect ratio');
-assertEqual(chart.options.animation.duration, 300, 'renderStackedBar: animation duration');
+assertEqual(chart.options.animation, false, 'renderStackedBar: no initial animation');
 assertEqual(chart.options.plugins.legend.position, 'bottom', 'renderStackedBar: legend position');
 assertEqual(chart.options.plugins.legend.display, true, 'renderStackedBar: legend visible by default');
 assertEqual(chart.options.scales.x.stacked, true, 'renderStackedBar: stacked x');

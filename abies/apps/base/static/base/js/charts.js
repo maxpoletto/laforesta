@@ -29,7 +29,7 @@ export function renderChart(canvas, chartData, existing, config) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      animation: { duration: 300 },
+      animation: false,
       scales: config.scales?.(chartData) || {},
       plugins: {
         legend: { position: 'bottom', display: chartData.legend !== false },
