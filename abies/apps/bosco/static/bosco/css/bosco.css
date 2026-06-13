@@ -307,14 +307,14 @@
 
 .bosco-chart-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
   gap: 14px;
 }
 
 .bosco-chart-panel {
   display: grid;
-  grid-template-rows: auto minmax(0, 260px);
-  height: 292px;
+  grid-template-rows: auto minmax(0, 340px);
+  height: 380px;
   min-height: 0;
 }
 
