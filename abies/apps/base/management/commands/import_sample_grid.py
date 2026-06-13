@@ -5,8 +5,7 @@ Compresa,Particella,CP,Area saggio,UTMLon,UTMLat,GaussLon,GaussLat,Lon,Lat,Quota
 
 Idempotent: re-running produces no duplicates.  Creates one
 SampleGrid named "Aree di saggio PDG 2026" with one SampleArea row
-per CSV row.  The CSV lacks `Raggio`, so `r_m` defaults to
-`DEFAULT_RADIUS_M` (per spec).
+per CSV row.  The CSV lacks `Raggio`, so `r_m` defaults to 20 m.
 
 Area numbers must be unique per (grid, compresa); the loader aborts
 (rolling back) if the CSV assigns one number to two particelle of the
@@ -112,7 +111,7 @@ class Command(BaseCommand):
                         FIELD_LAT: coord_float(reader.decimal(row[S.CSV_COL_LAT])),
                         FIELD_LON: coord_float(reader.decimal(row[S.CSV_COL_LON])),
                         FIELD_ALTITUDE_M: reader.integer(row[S.CSV_COL_ALT]),
-                        FIELD_R_M: DEFAULT_RADIUS_M,
+                        FIELD_R_M: 20,
                         FIELD_NOTE: '',
                     },
                 )
