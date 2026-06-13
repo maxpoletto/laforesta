@@ -159,6 +159,12 @@ writeOptionalIdList(detailParams, 'pp', [], [1, 2]);
 assertEqual(detailParams.toString(), 'vo=dm&pp=', 'writeOptionalIdList: explicit none');
 writeOptionalIdList(detailParams, 'pp', [2], [1, 2]);
 assertEqual(detailParams.toString(), 'vo=dm&pp=2', 'writeOptionalIdList: subset');
+writeOptionalIdList(detailParams, 'ds', null);
+assertEqual(detailParams.toString(), 'vo=dm&pp=2', 'writeOptionalIdList: absent optional list omitted');
+writeOptionalIdList(detailParams, 'ds', []);
+assertEqual(detailParams.toString(), 'vo=dm&pp=2&ds=', 'writeOptionalIdList: explicit empty optional list kept');
+writeOptionalIdList(detailParams, 'ds', [4, 5]);
+assertEqual(detailParams.toString(), 'vo=dm&pp=2&ds=4%2C5', 'writeOptionalIdList: optional list ids');
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed > 0 ? 1 : 0);

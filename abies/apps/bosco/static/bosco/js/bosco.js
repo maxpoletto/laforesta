@@ -1415,7 +1415,7 @@ function renderParcelMetadata(entry) {
   appendMetadataField(S.COL_AREA_HA, entry.displayAreaHa ? fmtArea(entry.displayAreaHa) : '');
   appendMetadataField(S.COL_AREA_CAD_HA, entry.cadastralAreaHa ? fmtArea(entry.cadastralAreaHa) : '');
   appendMetadataField(S.COL_AVE_AGE, fmtDecimal1(entry.aveAge));
-  appendMetadataField(S.COL_CLASS, entry.className);
+  if (entry.className) appendMetadataField(S.COL_CLASS, entry.className);
   appendMetadataField(S.COL_TYPE, entry.type);
   appendMetadataField(S.COL_ALT_MIN, fmtDecimal1(entry.altMin));
   appendMetadataField(S.COL_ALT_MAX, fmtDecimal1(entry.altMax));
@@ -1551,8 +1551,7 @@ function updateDendrometrySpeciesFilter(allSpecies) {
 
 function setDendrometrySpeciesFilter(selected) {
   const params = new URLSearchParams(location.search);
-  if (selected == null) params.delete('ds');
-  else params.set('ds', selected.join(','));
+  writeOptionalIdList(params, 'ds', selected);
   navigateWithParams(PAGE_PATH, params, true);
 }
 
@@ -2031,16 +2030,10 @@ function canonicalizeDetailParams(params, state) {
   writeSectionTokens(params, state.openSections);
   if (params.get('vo') !== beforeVo || params.has('vo') !== hadVo) changed = true;
 
-  const species = state.detailSpeciesIds.join(',');
-  if (species) {
-    if (params.get('ds') !== species) {
-      params.set('ds', species);
-      changed = true;
-    }
-  } else if (params.has('ds')) {
-    params.delete('ds');
-    changed = true;
-  }
+  const beforeDs = params.get('ds');
+  const hadDs = params.has('ds');
+  writeOptionalIdList(params, 'ds', state.detailSpeciesIds);
+  if (params.get('ds') !== beforeDs || params.has('ds') !== hadDs) changed = true;
   return changed;
 }
 

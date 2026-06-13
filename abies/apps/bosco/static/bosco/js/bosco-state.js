@@ -149,12 +149,16 @@ export function parseOptionalIdList(raw) {
   return parseIdList(raw);
 }
 
-export function writeOptionalIdList(params, key, selected, allIds) {
-  if (selected == null || selected.length === allIds.length) {
+export function writeOptionalIdList(params, key, selected, allIds = null) {
+  if (selected == null) {
     params.delete(key);
-  } else {
-    params.set(key, selected.join(','));
+    return;
   }
+  const allSelected = Array.isArray(allIds)
+    && selected.length === allIds.length
+    && selected.every(id => allIds.includes(id));
+  if (allSelected) params.delete(key);
+  else params.set(key, selected.join(','));
 }
 
 export function writeSectionTokens(params, sections) {
