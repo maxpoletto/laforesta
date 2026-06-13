@@ -34,8 +34,9 @@ class TestImportSampleGrid:
         assert SampleArea.objects.count() == 177
 
     def test_default_radius(self):
+        # The PDG 2026 CSV lacks Raggio; this one-off loader uses 20 m.
         sa = SampleArea.objects.first()
-        assert sa.r_m == 12
+        assert sa.r_m == 20
 
     def test_idempotent(self):
         """Re-running doesn't duplicate."""

@@ -17,7 +17,7 @@ import { showError } from '../../base/js/modals.js';
 import { showFormError } from '../../base/js/forms.js';
 import { fmtDecimal1, fmtDecimal2, parseDecimal } from '../../base/js/format.js';
 import * as S from '../../base/js/strings.js';
-import { DEFAULT_RADIUS_M } from '../../base/js/constants.js';
+import { DEFAULT_RADIUS_M, M2_PER_HA } from '../../base/js/constants.js';
 
 const TERRENI_URL = '/api/geo/terreni.geojson';
 const SAVE_URL = '/api/campionamenti/grid/save-auto/';
@@ -293,7 +293,7 @@ export class GridPlanner {
       S.STATS_POINTS
         .replace('{n}', this.points.length)
         .replace('{target}', targetN),
-      S.STATS_TOTAL_AREA_HA.replace('{ha}', fmtDecimal2(totalAreaM2 / 10000)),
+      S.STATS_TOTAL_AREA_HA.replace('{ha}', fmtDecimal2(totalAreaM2 / M2_PER_HA)),
       S.STATS_AREA_PER_POINT_M2.replace('{area}', fmtDecimal1(perPointAreaM2)),
     ];
     for (const t of lines) {

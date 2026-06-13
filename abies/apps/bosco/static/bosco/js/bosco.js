@@ -6,7 +6,7 @@ import * as cache from '../../base/js/cache.js';
 import * as S from '../../base/js/strings.js';
 import {
   COLUMNS, COL_REGION_ID, DIGEST_FUTURE_PRODUCTION, DIGEST_PARCELS, DIGEST_PARCEL_DENDROMETRY,
-  DIGEST_PARCEL_DENDROMETRY_POINTS, DIGEST_PRESERVED_TREES, ROWS,
+  DIGEST_PARCEL_DENDROMETRY_POINTS, DIGEST_PRESERVED_TREES, M2_PER_HA, ROWS,
 } from '../../base/js/constants.js';
 import { fetchJSON } from '../../base/js/api.js';
 import { renderLineChart, renderScatterChart, renderStackedBar } from '../../base/js/charts.js';
@@ -42,6 +42,7 @@ import {
   metricValue,
   normalized,
   parcelKey,
+  perHaArea,
 } from './bosco-characteristics.js';
 import {
   EVOLUTION_METRIC_IDS, EVOLUTION_METRICS, SATELLITE_DIFF_VALUE_HEADER, SATELLITE_LAYERS,
@@ -700,7 +701,7 @@ function buildMapParcelEntries(state) {
     const entry = byKey.get(parcelKey(compresa, particella));
     if (!entry) return;
     entry.layers.push(layer);
-    entry.geoAreaHa += (layer.feature?.properties?._areaM2 || 0) / 10000;
+    entry.geoAreaHa += (layer.feature?.properties?._areaM2 || 0) / M2_PER_HA;
   });
 
   mapEntries = entries;
@@ -936,14 +937,13 @@ function evolutionProductionScope(state) {
 function harvestDeltaValue(entry, deltas) {
   const raw = deltas.get(entry.key) || 0;
   if (!currentState?.harvestPerHa) return raw;
-  const area = entry.displayAreaHa || entry.areaHa || entry.cadastralAreaHa;
+  const area = perHaArea(entry);
   return area ? raw / area : null;
 }
 
 function signedHarvestDeltaDisplay(value) {
   if (value == null || !Number.isFinite(value)) return S.BOSCO_NO_DATA;
-  const sign = value > 0 ? '+' : '';
-  return `${sign}${metricDisplay(Q_HISTORICAL_HARVEST, value)}`;
+  return signedDisplay(value, v => metricDisplay(Q_HISTORICAL_HARVEST, v));
 }
 
 function renderEvolutionParcelAverages(metric, date1, date2) {
@@ -1066,8 +1066,12 @@ function satelliteDiffStyle(value, maxAbs) {
 function evolutionMetricDisplay(metric, value) {
   const label = evolutionMetricLabel(metric);
   if (value == null || !Number.isFinite(value)) return `${label}: ${S.BOSCO_NO_DATA}`;
-  const sign = value > 0 ? '+' : '';
-  return `${label}: ${sign}${fmtDecimal2(value)}`;
+  return `${label}: ${signedDisplay(value, fmtDecimal2)}`;
+}
+
+/** Prefix a positive number with '+' (negatives already carry '-'). */
+function signedDisplay(value, format) {
+  return value > 0 ? `+${format(value)}` : format(value);
 }
 
 function evolutionMetricLabel(metric) {
@@ -1250,61 +1254,54 @@ function renderSatelliteLegend(target, layer, date) {
   labels.className = 'bosco-legend-labels';
   for (const value of [-1, -0.5, 0, 0.5, 1]) {
     const span = document.createElement('span');
-    span.textContent = signedDecimal1(value);
+    span.textContent = signedDisplay(value, fmtDecimal1);
     labels.appendChild(span);
   }
   target.appendChild(labels);
 }
 
 function renderHarvestDeltaLegend(fromYear, toYear, domain) {
-  if (!diffLegendEl) return;
-  diffLegendEl.replaceChildren();
+  renderDivergingLegend(
+    diffLegendEl,
+    `${S.BOSCO_HARVEST_METRIC} ${toYear} - ${fromYear}`,
+    domain,
+    signedHarvestDeltaDisplay,
+  );
+}
+
+// Symmetric -max..0..+max legend (satellite diff, harvest delta).  `displayFn`
+// formats each of the five tick values.
+function renderDivergingLegend(target, titleText, domain, displayFn) {
+  if (!target) return;
+  target.replaceChildren();
 
   const title = document.createElement('div');
   title.className = 'bosco-legend-title';
-  title.textContent = `${S.BOSCO_HARVEST_METRIC} ${toYear} - ${fromYear}`;
-  diffLegendEl.appendChild(title);
+  title.textContent = titleText;
+  target.appendChild(title);
 
   const gradient = document.createElement('div');
   gradient.className = 'bosco-gradient diff';
-  diffLegendEl.appendChild(gradient);
+  target.appendChild(gradient);
 
   const max = domain.maxAbs || 1;
   const labels = document.createElement('div');
   labels.className = 'bosco-legend-labels';
   for (const value of [-max, -max / 2, 0, max / 2, max]) {
     const span = document.createElement('span');
-    span.textContent = signedHarvestDeltaDisplay(value);
+    span.textContent = displayFn(value);
     labels.appendChild(span);
   }
-  diffLegendEl.appendChild(labels);
+  target.appendChild(labels);
 }
 
 function renderDiffLegend(metric, date1, date2, domain) {
-  if (!diffLegendEl) return;
-  diffLegendEl.replaceChildren();
-
-  const title = document.createElement('div');
-  title.className = 'bosco-legend-title';
-  title.textContent = `${evolutionMetricLabel(metric)} ${date2.slice(0, 7)} - ${date1.slice(0, 7)}`;
-  diffLegendEl.appendChild(title);
-
-  const gradient = document.createElement('div');
-  gradient.className = 'bosco-gradient diff';
-  diffLegendEl.appendChild(gradient);
-
-  const max = domain.maxAbs || 1;
-  const labels = document.createElement('div');
-  labels.className = 'bosco-legend-labels';
-  for (const text of [
-    `-${fmtDecimal2(max)}`, `-${fmtDecimal2(max / 2)}`, '0',
-    `+${fmtDecimal2(max / 2)}`, `+${fmtDecimal2(max)}`,
-  ]) {
-    const span = document.createElement('span');
-    span.textContent = text;
-    labels.appendChild(span);
-  }
-  diffLegendEl.appendChild(labels);
+  renderDivergingLegend(
+    diffLegendEl,
+    `${evolutionMetricLabel(metric)} ${date2.slice(0, 7)} - ${date1.slice(0, 7)}`,
+    domain,
+    v => signedDisplay(v, fmtDecimal2),
+  );
 }
 
 function renderMessageLegend(message) {
@@ -2061,9 +2058,4 @@ function canonicalizeFlag(params, key, enabled) {
 
 function firstNumber(...values) {
   return values.find(v => v != null && Number.isFinite(v) && v > 0) ?? null;
-}
-
-function signedDecimal1(value) {
-  const text = fmtDecimal1(value);
-  return value > 0 ? `+${text}` : text;
 }

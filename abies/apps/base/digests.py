@@ -34,7 +34,8 @@ from config.constants import (
     DIGEST_PARCEL_DENDROMETRY, DIGEST_PARCEL_DENDROMETRY_POINTS,
     DIGEST_PRESERVED_TREES, FIELD_FIRST_DATE, FIELD_LAST_DATE, FIELD_NUMBER,
     FIELD_SAMPLE_AREA_ID, FIELD_SHOOT, FIELD_SORT_ORDER, FIELD_SPECIES,
-    FIELD_SPECIES_ID, FIELD_SURVEY_ID, FIELD_VOLUME_M3, ROW_ID, VERSION,
+    FIELD_SPECIES_ID, FIELD_SURVEY_ID, FIELD_VOLUME_M3, M2_PER_HA,
+    ROW_ID, VERSION,
 )
 
 _UNSET = object()
@@ -1220,7 +1221,7 @@ def _dendrometry_queryset(survey_ids=None):
 
 
 def sample_area_ha(sample_area) -> float:
-    return math.pi * float(sample_area.r_m) ** 2 / 10000.0
+    return math.pi * float(sample_area.r_m) ** 2 / M2_PER_HA
 
 
 def _dendrometry_sample_area_coverage() -> dict[tuple[int, int], float]:

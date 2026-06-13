@@ -92,11 +92,16 @@ export function metricValue(entry, metricId, { historical = new Map(), future = 
   else if (metricId === Q_FUTURE_HARVEST) value = future.get(entry.id) || 0;
   if (value == null) return null;
   if (perHa && isHarvestMetric(metricId)) {
-    const area = entry.displayAreaHa || entry.areaHa || entry.cadastralAreaHa;
+    const area = perHaArea(entry);
     if (!area) return null;
     return value / area;
   }
   return value;
+}
+
+/** Hectare denominator for a parcel entry's per-hectare metrics. */
+export function perHaArea(entry) {
+  return entry.displayAreaHa || entry.areaHa || entry.cadastralAreaHa;
 }
 
 export function continuousDomain(values) {

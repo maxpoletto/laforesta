@@ -156,3 +156,4 @@ export const FIELD_USE_FOR_HEIGHT_PLOTS  = 'use_for_height_plots';
 // Domain defaults — locale-independent values the client and server must agree
 // on exactly (mirror of constants.py).
 export const DEFAULT_RADIUS_M = 12;  // sample-area radius (m) when none is supplied
+export const M2_PER_HA = 10000;  // square metres per hectare

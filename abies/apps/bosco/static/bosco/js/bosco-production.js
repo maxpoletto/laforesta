@@ -138,9 +138,7 @@ export function aggregateProduction(digest, scope, opts = {}) {
   const rows = productionRows(digest, scope);
   const areaHa = toNumber(opts.areaHa, 0);
   const divisor = opts.perHa && areaHa > 0 ? areaHa : 1;
-  const bucket = opts.byMonth
-    ? date => String(date || '').slice(0, 7)
-    : date => String(date || '').slice(0, 4);
+  const bucket = opts.byMonth ? harvestMonth : harvestYear;
   const byBucket = new Map();
   let total = 0;
 

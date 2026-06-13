@@ -352,7 +352,7 @@ mode-switch.
   section's diameter/height scatter plot. If the active computed hypsometric
   parameter set has "Usa questi rilevamenti per i grafici altezza/diametro"
   enabled, it uses that set's source surveys, otherwise it uses the same
-  active-survey setting as `parcel_dendrometry.json`; . It is invalidated when
+  active-survey setting as `parcel_dendrometry.json`. It is invalidated when
   dendrometry settings or active hypsometric parameters change.
 
   Columns: `row_id`, `Parcel id`, `Survey id`, `Tree id`, `Species id`,

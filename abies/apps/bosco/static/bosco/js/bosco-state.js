@@ -2,6 +2,7 @@ import {
   DEFAULT_EVOLUTION_METRIC, evolutionMetricId, normalizeDateParam,
 } from './bosco-satellite.js';
 import { CHARACTERISTIC_METRIC_IDS, E_HARVEST, isHarvestMetric } from './bosco-metrics.js';
+import { harvestYear } from './bosco-production.js';
 
 export const MODE_CHARACTERISTICS = '1';
 export const MODE_EVOLUTION = '2';
@@ -110,15 +111,9 @@ export function harvestPerHaAllowed(mode, characteristic, evolutionMetric) {
 
 function normalizeEvolutionDateParam(raw, mode, evolutionMetric) {
   if (mode === MODE_EVOLUTION && evolutionMetric === E_HARVEST) {
-    return harvestYearParam(raw);
+    return harvestYear(raw);
   }
   return normalizeDateParam(raw);
-}
-
-function harvestYearParam(raw) {
-  const value = String(raw || '').trim();
-  const match = value.match(/^(\d{4})/);
-  return match ? match[1] : '';
 }
 
 export function parseSectionTokens(raw) {

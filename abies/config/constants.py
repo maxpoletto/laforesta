@@ -165,6 +165,7 @@ BOSCO_SPECIES_DIGESTS = BOSCO_TREE_DIGESTS
 # Domain defaults — locale-independent values the client and server must agree
 # on exactly (mirrored in constants.js).
 DEFAULT_RADIUS_M = 12  # sample-area radius (m) when none is supplied
+M2_PER_HA = 10000  # square metres per hectare
 
 
 # Truthy tokens for both edges: form/JSON values (the HTML checkbox 'on', real
