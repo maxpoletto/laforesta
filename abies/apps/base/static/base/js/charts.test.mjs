@@ -50,6 +50,7 @@ assertEqual(chart.options.responsive, true, 'renderStackedBar: responsive');
 assertEqual(chart.options.maintainAspectRatio, false, 'renderStackedBar: no aspect ratio');
 assertEqual(chart.options.animation.duration, 300, 'renderStackedBar: animation duration');
 assertEqual(chart.options.plugins.legend.position, 'bottom', 'renderStackedBar: legend position');
+assertEqual(chart.options.plugins.legend.display, true, 'renderStackedBar: legend visible by default');
 assertEqual(chart.options.scales.x.stacked, true, 'renderStackedBar: stacked x');
 assertEqual(chart.options.scales.y.title.text, S.COL_QUINTALS, 'renderStackedBar: default y title');
 assertEqual(chart.options.plugins.tooltip.callbacks.label({
@@ -65,6 +66,13 @@ assertEqual(updated === chart, true, 'renderStackedBar: updates existing instanc
 assertEqual(chart.updateMode, 'none', 'renderStackedBar: no-animation update');
 assertEqual(chart.data.labels, ['2027'], 'renderStackedBar: updated labels');
 assertEqual(chart.options.scales.y.title.text, 'Volume', 'renderStackedBar: updated y title');
+
+renderStackedBar(canvas, {
+  labels: ['2028'],
+  legend: false,
+  datasets: [{ label: 'Abete', data: [3] }],
+}, chart);
+assertEqual(chart.options.plugins.legend.display, false, 'renderStackedBar: can hide legend');
 
 chart = renderScatterChart(canvas, {
   xTitle: S.COL_D_CM,

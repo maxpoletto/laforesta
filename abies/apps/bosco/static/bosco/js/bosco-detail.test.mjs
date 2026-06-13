@@ -86,13 +86,19 @@ assertEqual(rows[1].volumeM3, 0.1, 'aggregateDendrometry: per-ha volume');
 
 rows = D.aggregateDendrometry(dendro, { region: 'Capistrano' }, { perHa: false, speciesIds: [6] });
 assertEqual(rows.map(r => r.species), ['Faggio'], 'aggregateDendrometry: species filter');
+assertEqual(rows[0].color, D.dendrometrySpeciesColor(1),
+            'aggregateDendrometry: filtered species keeps stable color');
 
 rows = D.aggregateDendrometry(dendro, { region: 'Capistrano' }, { perHa: false, speciesIds: [] });
 assertEqual(rows, [], 'aggregateDendrometry: explicit empty species filter');
 
 const species = D.dendrometrySpecies(dendro, { region: 'Capistrano' });
-assertEqual(species, [{ id: 5, name: 'Abete', count: 5 }, { id: 6, name: 'Faggio', count: 4 }],
+assertEqual(species.map(({ id, name, count }) => ({ id, name, count })),
+            [{ id: 5, name: 'Abete', count: 5 }, { id: 6, name: 'Faggio', count: 4 }],
             'dendrometrySpecies: counts by species');
+assertEqual(species.map(item => item.color),
+            [D.dendrometrySpeciesColor(0), D.dendrometrySpeciesColor(1)],
+            'dendrometrySpecies: stable colors');
 
 rows = D.aggregateDendrometry(dendro, { region: 'Capistrano' }, { perHa: false });
 let chart = D.dendrometryBarChartData(rows, 'treeCount', 'Tree count');
@@ -101,11 +107,16 @@ assertEqual(chart.datasets.map(d => d.label), ['Abete', 'Faggio'],
             'dendrometryBarChartData: species datasets');
 assertEqual(chart.datasets[0].data, [5, 0], 'dendrometryBarChartData: sparse series');
 assertEqual(chart.datasets[1].data, [0, 4], 'dendrometryBarChartData: second sparse series');
+assertEqual(chart.datasets.map(d => d.backgroundColor),
+            [D.dendrometrySpeciesColor(0), D.dendrometrySpeciesColor(1)],
+            'dendrometryBarChartData: species colors');
+assertEqual(chart.legend, false, 'dendrometryBarChartData: hides repeated legend');
 assertEqual(chart.yTitle, 'Tree count', 'dendrometryBarChartData: y title');
 
 chart = D.dendrometryLineChartData(rows, 'incrementPct', S.COL_INCREMENT_PCT);
 assertEqual(chart.datasets[0].data, [1.6, null], 'dendrometryLineChartData: line values with gaps');
 assertEqual(chart.datasets[0].spanGaps, true, 'dendrometryLineChartData: spans gaps');
+assertEqual(chart.legend, false, 'dendrometryLineChartData: hides repeated legend');
 assertEqual(D.dendrometryTreeTotal(rows), 9, 'dendrometryTreeTotal: raw tree count');
 
 let heightPoints = D.dendrometryHeightPoints(points, { parcelId: 10 }, { speciesIds: [5] });
@@ -120,6 +131,9 @@ assertEqual(chart.datasets.map(d => d.label), ['Abete', 'Faggio'],
             'dendrometryScatterChartData: species datasets');
 assertEqual(chart.datasets[0].data, [{ x: 18, y: 20.5 }, { x: 22, y: 22.5 }],
             'dendrometryScatterChartData: scatter points');
+assertEqual(chart.datasets[1].backgroundColor, D.dendrometrySpeciesColor(1),
+            'dendrometryScatterChartData: species colors');
+assertEqual(chart.legend, false, 'dendrometryScatterChartData: hides repeated legend');
 assertEqual(chart.yTitle, S.COL_H_M, 'dendrometryScatterChartData: y title');
 
 const fitPoints = [10, 20, 30].map(d => ({ speciesId: 7, species: 'Fit', dCm: d, hM: 2 * Math.log(d) + 1 }));

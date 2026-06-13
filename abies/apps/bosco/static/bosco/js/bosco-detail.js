@@ -8,6 +8,10 @@ import { columnMap, toNumber } from '../../base/js/digests.js';
 
 const HEIGHT_FIT_MIN_N = 5;
 
+export function dendrometrySpeciesColor(idx) {
+  return CATEGORICAL_COLORS[idx % CATEGORICAL_COLORS.length];
+}
+
 export function regionMetadata(entries) {
   const count = entries.length;
   const areaHa = sum(entries.map(e => e.displayAreaHa));
@@ -30,17 +34,20 @@ export function aggregateDendrometry(digest, scope, { areaHa = null, perHa = tru
   if (hasSpeciesFilter && !speciesIds.length) return [];
   const allowedSpecies = new Set(speciesIds || []);
   const groups = new Map();
+  const speciesNames = new Map();
 
   for (const row of digest[ROWS]) {
     if (scope.parcelId != null && row[c[COL_PARCEL_ID]] !== scope.parcelId) continue;
     if (scope.parcelId == null && scope.region && row[c[S.COL_REGION]] !== scope.region) continue;
     const speciesId = row[c[COL_SPECIES_ID]];
+    const speciesName = row[c[S.COL_SPECIES]];
+    if (!speciesNames.has(speciesId)) speciesNames.set(speciesId, speciesName);
     if (hasSpeciesFilter && !allowedSpecies.has(speciesId)) continue;
 
     const key = dendrometryChartKey(speciesId, row[c[S.COL_DIAM_CLASS_CM]]);
     const g = groups.get(key) || {
       speciesId,
-      species: row[c[S.COL_SPECIES]],
+      species: speciesName,
       diameterClassCm: row[c[S.COL_DIAM_CLASS_CM]],
       treeCount: 0,
       volumeM3: 0,
@@ -67,6 +74,7 @@ export function aggregateDendrometry(digest, scope, { areaHa = null, perHa = tru
     groups.set(key, g);
   }
 
+  const colors = dendrometrySpeciesColorMap(speciesNames);
   const scale = perHa && areaHa ? 1 / areaHa : 1;
   return [...groups.values()]
     .sort((a, b) => a.species.localeCompare(b.species, S.LOCALE)
@@ -74,6 +82,7 @@ export function aggregateDendrometry(digest, scope, { areaHa = null, perHa = tru
     .map(g => ({
       speciesId: g.speciesId,
       species: g.species,
+      color: colors.get(g.speciesId),
       diameterClassCm: g.diameterClassCm,
       treeCount: round(g.treeCount * scale, 4),
       volumeM3: round(g.volumeM3 * scale, 4),
@@ -87,7 +96,9 @@ export function dendrometrySpecies(digest, scope) {
   const rows = aggregateDendrometry(digest, scope, { perHa: false });
   const out = new Map();
   for (const row of rows) {
-    const item = out.get(row.speciesId) || { id: row.speciesId, name: row.species, count: 0 };
+    const item = out.get(row.speciesId) || {
+      id: row.speciesId, name: row.species, color: row.color, count: 0,
+    };
     item.count += row.treeCount;
     out.set(row.speciesId, item);
   }
@@ -103,10 +114,11 @@ export function dendrometryBarChartData(rows, metric, yTitle) {
   return {
     labels,
     yTitle,
+    legend: false,
     datasets: species.map((item, idx) => ({
       label: item.name,
       data: labels.map(label => round(values.get(dendrometryChartKey(item.id, Number(label))) || 0, 4)),
-      backgroundColor: CATEGORICAL_COLORS[idx % CATEGORICAL_COLORS.length],
+      backgroundColor: item.color || dendrometrySpeciesColor(idx),
     })),
   };
 }
@@ -120,11 +132,12 @@ export function dendrometryLineChartData(rows, metric, yTitle) {
   return {
     labels,
     yTitle,
+    legend: false,
     datasets: species.map((item, idx) => ({
       label: item.name,
       data: labels.map(label => values.get(dendrometryChartKey(item.id, Number(label))) ?? null),
-      borderColor: CATEGORICAL_COLORS[idx % CATEGORICAL_COLORS.length],
-      backgroundColor: CATEGORICAL_COLORS[idx % CATEGORICAL_COLORS.length],
+      borderColor: item.color || dendrometrySpeciesColor(idx),
+      backgroundColor: item.color || dendrometrySpeciesColor(idx),
       tension: 0.25,
       spanGaps: true,
     })),
@@ -141,12 +154,20 @@ function dendrometryChartAxes(rows) {
     .map(String);
   const bySpecies = new Map();
   for (const row of rows) {
-    if (!bySpecies.has(row.speciesId)) bySpecies.set(row.speciesId, row.species);
+    if (!bySpecies.has(row.speciesId)) {
+      bySpecies.set(row.speciesId, { id: row.speciesId, name: row.species, color: row.color });
+    }
   }
-  const species = [...bySpecies.entries()]
-    .map(([id, name]) => ({ id, name }))
+  const species = [...bySpecies.values()]
     .sort((a, b) => a.name.localeCompare(b.name, S.LOCALE));
   return { labels, species };
+}
+
+function dendrometrySpeciesColorMap(speciesNames) {
+  const species = [...speciesNames.entries()]
+    .map(([id, name]) => ({ id, name }))
+    .sort((a, b) => a.name.localeCompare(b.name, S.LOCALE));
+  return new Map(species.map((item, idx) => [item.id, dendrometrySpeciesColor(idx)]));
 }
 
 function dendrometryChartKey(speciesId, diameterClassCm) {
@@ -161,24 +182,30 @@ export function dendrometryHeightPoints(digest, scope, { speciesIds = null } = {
   if (hasSpeciesFilter && !speciesIds.length) return [];
   const allowedSpecies = new Set(speciesIds || []);
   const rows = [];
+  const speciesNames = new Map();
 
   for (const row of digest[ROWS]) {
     if (scope.parcelId != null && row[c[COL_PARCEL_ID]] !== scope.parcelId) continue;
     if (scope.parcelId == null && scope.region && row[c[S.COL_REGION]] !== scope.region) continue;
     const speciesId = row[c[COL_SPECIES_ID]];
+    const speciesName = row[c[S.COL_SPECIES]];
+    if (!speciesNames.has(speciesId)) speciesNames.set(speciesId, speciesName);
     if (hasSpeciesFilter && !allowedSpecies.has(speciesId)) continue;
     const dCm = toNumber(row[c[S.COL_D_CM]]);
     const hM = toNumber(row[c[S.COL_H_M]]);
     if (dCm == null || hM == null) continue;
     rows.push({
       speciesId,
-      species: row[c[S.COL_SPECIES]],
+      species: speciesName,
       dCm,
       hM,
     });
   }
 
-  return rows.sort((a, b) => a.species.localeCompare(b.species, S.LOCALE) || a.dCm - b.dCm);
+  const colors = dendrometrySpeciesColorMap(speciesNames);
+  return rows
+    .map(row => ({ ...row, color: colors.get(row.speciesId) }))
+    .sort((a, b) => a.species.localeCompare(b.species, S.LOCALE) || a.dCm - b.dCm);
 }
 
 export function dendrometryScatterChartData(points, yTitle, { minFitN = HEIGHT_FIT_MIN_N } = {}) {
@@ -187,6 +214,7 @@ export function dendrometryScatterChartData(points, yTitle, { minFitN = HEIGHT_F
     const series = bySpecies.get(point.speciesId) || {
       id: point.speciesId,
       name: point.species,
+      color: point.color,
       points: [],
     };
     series.points.push({ x: point.dCm, y: point.hM });
@@ -196,7 +224,7 @@ export function dendrometryScatterChartData(points, yTitle, { minFitN = HEIGHT_F
     .sort((a, b) => a.name.localeCompare(b.name, S.LOCALE));
   const datasets = [];
   for (const [idx, item] of species.entries()) {
-    const color = CATEGORICAL_COLORS[idx % CATEGORICAL_COLORS.length];
+    const color = item.color || dendrometrySpeciesColor(idx);
     datasets.push({
       type: 'scatter',
       label: item.name,
@@ -221,7 +249,7 @@ export function dendrometryScatterChartData(points, yTitle, { minFitN = HEIGHT_F
       });
     }
   }
-  return { xTitle: S.COL_D_CM, yTitle, datasets };
+  return { xTitle: S.COL_D_CM, yTitle, legend: false, datasets };
 }
 
 

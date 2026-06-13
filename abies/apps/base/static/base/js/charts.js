@@ -15,6 +15,7 @@ export function renderChart(canvas, chartData, existing, config) {
     if (includeLabels) existing.data.labels = chartData.labels;
     existing.data.datasets = chartData.datasets;
     updateScaleTitles(existing, config.scaleTitles?.(chartData) || {});
+    updateLegend(existing, chartData);
     existing.update('none');
     return existing;
   }
@@ -31,7 +32,7 @@ export function renderChart(canvas, chartData, existing, config) {
       animation: { duration: 300 },
       scales: config.scales?.(chartData) || {},
       plugins: {
-        legend: { position: 'bottom' },
+        legend: { position: 'bottom', display: chartData.legend !== false },
         ...(config.tooltipCallbacks ? { tooltip: { animation: false, callbacks: config.tooltipCallbacks } } : {}),
         ...(config.plugins || {}),
       },
@@ -91,6 +92,11 @@ export function renderLineChart(canvas, chartData, existing) {
 
 function axisTitle(text) {
   return { display: Boolean(text), text: text || '' };
+}
+
+function updateLegend(chart, chartData) {
+  const legend = chart.options?.plugins?.legend;
+  if (legend) legend.display = chartData.legend !== false;
 }
 
 function updateScaleTitles(chart, titles) {

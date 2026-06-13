@@ -52,6 +52,7 @@ import {
 import {
   aggregateDendrometry, dendrometryBarChartData, dendrometryHeightPoints,
   dendrometryLineChartData, dendrometryScatterChartData, dendrometrySpecies,
+  dendrometrySpeciesColor,
   dendrometryTreeTotal, regionMetadata,
 } from './bosco-detail.js';
 import {
@@ -1528,7 +1529,7 @@ function renderDendrometrySpecies(scope) {
   }
   const selectedIds = currentState?.detailSpeciesIds;
   const selected = new Set(selectedIds || []);
-  for (const item of species) {
+  for (const [idx, item] of species.entries()) {
     const label = document.createElement('label');
     label.className = 'bosco-check';
     const input = document.createElement('input');
@@ -1536,9 +1537,12 @@ function renderDendrometrySpecies(scope) {
     input.value = String(item.id);
     input.checked = selectedIds == null || selected.has(item.id);
     input.addEventListener('change', () => updateDendrometrySpeciesFilter(species));
+    const dot = document.createElement('span');
+    dot.className = 'bosco-legend-dot';
+    dot.style.backgroundColor = item.color || dendrometrySpeciesColor(idx);
     const text = document.createElement('span');
     text.textContent = `${item.name} (${fmtInt(item.count)})`;
-    label.append(input, text);
+    label.append(input, dot, text);
     dendrometrySpeciesHost.appendChild(label);
   }
 }
