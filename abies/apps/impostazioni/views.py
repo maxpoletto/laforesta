@@ -33,6 +33,7 @@ from config import strings as S
 from config.constants import (
     BOSCO_DENDROMETRY_DIGESTS, BOSCO_SPECIES_DIGESTS, COLUMNS,
     DIGEST_FUTURE_PRODUCTION, DIGEST_HYPSO_PARAMS,
+    DIGEST_PARCEL_DENDROMETRY_POINTS,
     FIELD_ACTIVE, FIELD_COMMON_NAME,
     FIELD_CREATED_AT, FIELD_DENSITY, FIELD_EMAIL, FIELD_FILE, FIELD_FIRST_NAME,
     FIELD_HARVEST_PLAN_ID, FIELD_IS_ACTIVE, FIELD_LAST_NAME,
@@ -40,7 +41,7 @@ from config.constants import (
     FIELD_MINOR, FIELD_MODEL, FIELD_NAME,
     FIELD_NOTES, FIELD_PASSWORD1, FIELD_PASSWORD2, FIELD_ROLE,
     FIELD_SOURCE, FIELD_SPECIES, FIELD_SURVEY_IDS, FIELD_SURVEYS,
-    FIELD_USERNAME, FIELD_YEAR,
+    FIELD_USE_FOR_HEIGHT_PLOTS, FIELD_USERNAME, FIELD_YEAR,
     HTML, MESSAGE, ROWS, ROW_ID, VERSION, is_truthy,
 )
 
@@ -497,6 +498,7 @@ def hypso_params_active_set(request):
         FIELD_SURVEYS: list(
             s.surveys.order_by(FIELD_NAME).values_list(FIELD_NAME, flat=True)
         ),
+        FIELD_USE_FOR_HEIGHT_PLOTS: bool(s.use_for_height_plots),
     })
 
 
@@ -551,8 +553,9 @@ def hypso_params_accept(request):
     hypsometry.replace_active_set(
         rows, source=HypsoParamSource.COMPUTED, min_n=min_n,
         survey_ids=survey_ids,
+        use_for_height_plots=is_truthy(body.get(FIELD_USE_FOR_HEIGHT_PLOTS)),
     )
-    mark_stale(DIGEST_HYPSO_PARAMS, 'audit')
+    mark_stale(DIGEST_HYPSO_PARAMS, DIGEST_PARCEL_DENDROMETRY_POINTS, 'audit')
     return success_response(request, body, extra={MESSAGE: S.HYPSO_SAVED})
 
 
@@ -577,7 +580,7 @@ def hypso_params_import(request):
     hypsometry.replace_active_set(
         rows, source=HypsoParamSource.IMPORTED, min_n=None, survey_ids=[],
     )
-    mark_stale(DIGEST_HYPSO_PARAMS, 'audit')
+    mark_stale(DIGEST_HYPSO_PARAMS, DIGEST_PARCEL_DENDROMETRY_POINTS, 'audit')
     return success_response(request, body, extra={MESSAGE: S.HYPSO_SAVED})
 
 
@@ -602,7 +605,7 @@ def hypso_params_clear(request):
     if error:
         return error
     hypsometry.clear_active_set()
-    mark_stale(DIGEST_HYPSO_PARAMS, 'audit')
+    mark_stale(DIGEST_HYPSO_PARAMS, DIGEST_PARCEL_DENDROMETRY_POINTS, 'audit')
     return success_response(request, body, extra={MESSAGE: S.HYPSO_CLEARED})
 
 

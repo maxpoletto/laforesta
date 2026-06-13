@@ -146,6 +146,7 @@ FIELD_SURVEY_IDS            = 'survey_ids'
 FIELD_SOURCE                = 'source'
 FIELD_CREATED_AT            = 'created_at'
 FIELD_SURVEYS               = 'surveys'
+FIELD_USE_FOR_HEIGHT_PLOTS  = 'use_for_height_plots'
 
 # Digest filesystem identifiers (the digest file is `<name>.json.gz`).
 DIGEST_FUTURE_PRODUCTION = 'future_production'

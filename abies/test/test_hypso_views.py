@@ -11,12 +11,14 @@ from django.urls import reverse
 from apps.base import hypsometry
 from apps.base.digests import build_hypso_param_record, generate_hypso_params
 from apps.base.models import (
-    HYPSO_FUNC_LN, HypsoParam, HypsoParamSet, HypsoParamSource, UsedNonce,
+    DigestStatus, HYPSO_FUNC_LN, HypsoParam, HypsoParamSet,
+    HypsoParamSource, UsedNonce,
 )
 from config import strings as S
 from config.constants import (
-    COLUMNS, DIGEST_HYPSO_PARAMS, FIELD_FILE, FIELD_MIN_N, FIELD_NONCE, FIELD_SOURCE,
-    FIELD_SURVEY_IDS, FIELD_SURVEYS, ROWS,
+    COLUMNS, DIGEST_HYPSO_PARAMS, DIGEST_PARCEL_DENDROMETRY_POINTS,
+    FIELD_FILE, FIELD_MIN_N, FIELD_NONCE, FIELD_SOURCE,
+    FIELD_SURVEY_IDS, FIELD_SURVEYS, FIELD_USE_FOR_HEIGHT_PLOTS, ROWS,
 )
 
 URL_DATA = reverse('impostazioni-hypso-data')
@@ -52,15 +54,21 @@ def _post_json(client, url, body):
                        content_type='application/json')
 
 
-def _compute_body(hypso_samples, min_n=5):
-    return {FIELD_MIN_N: min_n, FIELD_SURVEY_IDS: [hypso_samples['survey'].id]}
+def _compute_body(hypso_samples, min_n=5, use_for_height_plots=None):
+    body = {FIELD_MIN_N: min_n, FIELD_SURVEY_IDS: [hypso_samples['survey'].id]}
+    if use_for_height_plots is not None:
+        body[FIELD_USE_FOR_HEIGHT_PLOTS] = use_for_height_plots
+    return body
 
 
-def _persist(hypso_samples, min_n=5, survey_ids=None):
+def _persist(
+        hypso_samples, min_n=5, survey_ids=None, use_for_height_plots=False,
+):
     rows = hypsometry.compute_params([hypso_samples['survey'].id], min_n)
     return hypsometry.replace_active_set(
         rows, source=HypsoParamSource.COMPUTED, min_n=min_n,
         survey_ids=survey_ids or [],
+        use_for_height_plots=use_for_height_plots,
     )
 
 
@@ -101,7 +109,19 @@ class TestAccept:
         active = hypsometry.active_set()
         assert active is not None
         assert active.source == HypsoParamSource.COMPUTED
+        assert active.use_for_height_plots is False
         assert HypsoParam.objects.filter(param_set=active).count() == 1
+
+    def test_persists_height_plot_choice(
+            self, writer_client, hypso_samples, tmp_path, settings,
+    ):
+        settings.DIGEST_DIR = tmp_path
+        resp = _post_json(
+            writer_client, URL_ACCEPT,
+            _compute_body(hypso_samples, use_for_height_plots=True),
+        )
+        assert resp.status_code == 200
+        assert hypsometry.active_set().use_for_height_plots is True
 
     def test_archives_prior_set(self, writer_client, hypso_samples, tmp_path, settings):
         settings.DIGEST_DIR = tmp_path
@@ -257,11 +277,15 @@ class TestImportExportClear:
 
 class TestActiveSet:
     def test_metadata_for_computed_set(self, writer_client, hypso_samples):
-        _persist(hypso_samples, survey_ids=[hypso_samples['survey'].id])
+        _persist(
+            hypso_samples, survey_ids=[hypso_samples['survey'].id],
+            use_for_height_plots=True,
+        )
         d = writer_client.get(URL_ACTIVE).json()
         assert d[FIELD_SOURCE] == HypsoParamSource.COMPUTED
         assert d[FIELD_MIN_N] == 5
         assert d[FIELD_SURVEYS] == [hypso_samples['survey'].name]
+        assert d[FIELD_USE_FOR_HEIGHT_PLOTS] is True
 
     def test_no_active_set(self, writer_client, db):
         assert writer_client.get(URL_ACTIVE).json()[FIELD_SOURCE] is None
@@ -290,8 +314,14 @@ class TestDigestInvalidation:
     ):
         settings.DIGEST_DIR = tmp_path
         assert _read_gzip_json(writer_client.get(URL_DATA))[ROWS] == []
-        _post_json(writer_client, URL_ACCEPT, _compute_body(hypso_samples))
+        _post_json(
+            writer_client, URL_ACCEPT,
+            _compute_body(hypso_samples, use_for_height_plots=True),
+        )
         assert len(_read_gzip_json(writer_client.get(URL_DATA))[ROWS]) == 1
+        assert DigestStatus.objects.get(
+            name=DIGEST_PARCEL_DENDROMETRY_POINTS,
+        ).stale is True
 
     def test_imported_values_reach_the_served_digest(
         self, writer_client, regions, species, tmp_path, settings,
@@ -318,6 +348,9 @@ class TestDigestInvalidation:
         assert row[cols.index(S.COL_FUNCTION)] == HYPSO_FUNC_LN
         assert row[cols.index(S.COL_A)] == 10.0
         assert row[cols.index(S.COL_B)] == -10.0
+        assert DigestStatus.objects.get(
+            name=DIGEST_PARCEL_DENDROMETRY_POINTS,
+        ).stale is True
 
     def test_clear_empties_the_served_digest(
         self, writer_client, hypso_samples, tmp_path, settings,
@@ -327,6 +360,9 @@ class TestDigestInvalidation:
         assert len(_read_gzip_json(writer_client.get(URL_DATA))[ROWS]) == 1
         assert _post_json(writer_client, URL_CLEAR, {}).status_code == 200
         assert _read_gzip_json(writer_client.get(URL_DATA))[ROWS] == []
+        assert DigestStatus.objects.get(
+            name=DIGEST_PARCEL_DENDROMETRY_POINTS,
+        ).stale is True
 
     def test_build_record_matches_generator(self, hypso_samples, tmp_path, settings):
         settings.DIGEST_DIR = tmp_path

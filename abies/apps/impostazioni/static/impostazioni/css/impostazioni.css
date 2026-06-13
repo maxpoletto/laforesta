@@ -26,6 +26,17 @@
   max-width: 400px;
 }
 
+.hypso-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.hypso-check input {
+  width: auto;
+}
+
 .settings-source-form select {
   width: 100%;
   max-width: 420px;

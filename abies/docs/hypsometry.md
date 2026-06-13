@@ -99,7 +99,8 @@ Visible to writers and admins, below "Specie".
 
 - A **description** above the table summarises the active set: its source
   (computed/imported), the date it became active, the minimum-N used, and — for
-  computed sets — the list of source surveys. If no set is active, it says so.
+  computed sets — the list of source surveys. If the set also drives Bosco's
+  Altezze chart, the description says so. If no set is active, it says so.
 
 - A read-only **sortable table** of the active set's parameters. Columns:
   Region, Species, Function, a, b, n, r². Parameters are managed as a whole
@@ -118,6 +119,10 @@ Visible to writers and admins, below "Specie".
   - "N minimo" — integer input (the per-group minimum sample count).
   - "Rilevamenti" — a multiselect of all surveys (reuses the existing `surveys`
     digest).
+  - "Usa questi rilevamenti per i grafici altezza/diametro" — when checked, the
+    accepted computed set also supplies the survey list for Bosco's
+    diameter/height scatter plot. (Other Bosco dendrometry use the Parametri
+    dendrometrici survey setting.) Imported CSV sets never enable this.
   - a "Calcola" button.
 
 ### Compute → accept/reject flow
@@ -144,11 +149,15 @@ The active set is served as the `hypso_params` JSON digest
 one row per active `hypso_param`, columns `row_id, Compresa, Specie, funzione,
 a, b, n, r²`. It is consumed by the settings table and by the Piano-di-taglio
 mark form's h auto-fill (keyed on region + species). The description panel's
-active-set metadata (source, date, min_n, source surveys) is a small separate
-JSON response, not a cached digest.
+active-set metadata (source, date, min_n, source surveys, and whether those
+surveys drive Bosco height plots) is a small separate JSON response, not a
+cached digest.
 
-Write → invalidation: compute-accept, import, and clear each
-`mark_stale('hypso_params', 'audit')`. `TestDigestInvalidation` in
+Write → invalidation: compute-accept, import, and clear each mark
+`hypso_params`, `parcel_dendrometry_points`, and `audit` stale. The point
+digest is included because accepting/clearing/importing may switch Bosco's
+Altezze chart between hypsometry-source surveys and the dendrometry setting.
+`TestDigestInvalidation` in
 `test/test_hypso_views.py` locks the contract: each write path re-reads the
 served digest and asserts the change (import, for instance, asserts the
 coefficients flowed through).

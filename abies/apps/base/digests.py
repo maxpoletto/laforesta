@@ -24,6 +24,7 @@ from apps.base.http import CACHE_NO_STORE, conditional_file_response
 from apps.base.models import DigestStatus, render_flag_note
 from apps.base.selectors import (
     active_or_default_harvest_plan, active_or_default_survey_ids,
+    height_plot_survey_ids,
 )
 from config import strings as S
 from config.constants import (
@@ -1201,10 +1202,11 @@ def annual_increment_pct(d_cm: int, l10_mm: int) -> float | None:
     return 2.0 * float(l10_mm) / float(d_cm)
 
 
-def _dendrometry_queryset():
+def _dendrometry_queryset(survey_ids=None):
     from apps.base.models import TreeSample
 
-    survey_ids = active_or_default_survey_ids()
+    if survey_ids is None:
+        survey_ids = active_or_default_survey_ids()
     if not survey_ids:
         return TreeSample.objects.none()
     return (TreeSample.objects
@@ -1287,7 +1289,7 @@ def generate_parcel_dendrometry() -> None:
 
 def generate_parcel_dendrometry_points() -> None:
     rows = []
-    for ts in _dendrometry_queryset():
+    for ts in _dendrometry_queryset(height_plot_survey_ids()):
         parcel = ts.sample.sample_area.parcel
         survey = ts.sample.survey
         species = ts.tree.species

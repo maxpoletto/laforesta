@@ -348,9 +348,12 @@ mode-switch.
   `row_id` is a sequential synthetic index; this digest is read-only
   and does not participate in the standard edit/cache-update flow.
 
-- **`parcel_dendrometry_points.json`** — per-tree points for the
-  Dendrometria section's diameter/height scatter plot.  Invalidated with
-  `parcel_dendrometry.json` and filtered by the same active-survey setting.
+- **`parcel_dendrometry_points.json`** — per-tree points for the Dendrometria
+  section's diameter/height scatter plot. If the active computed hypsometric
+  parameter set has "Usa questi rilevamenti per i grafici altezza/diametro"
+  enabled, it uses that set's source surveys, otherwise it uses the same
+  active-survey setting as `parcel_dendrometry.json`; . It is invalidated when
+  dendrometry settings or active hypsometric parameters change.
 
   Columns: `row_id`, `Parcel id`, `Survey id`, `Tree id`, `Species id`,
   `Compresa`, `Particella`, `Rilevamento`, `Specie`, `D (cm)`, `h (m)`.

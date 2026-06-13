@@ -54,7 +54,9 @@ Below the multiselect is an "Aggiorna" submit button that causes the user's
 selection to go into effect.
 
 Updating this setting invalidates the parcel_dendrometry.json and
-parcel_dendrometry_points.json digests used by Bosco.
+parcel_dendrometry_points.json digests used by Bosco. The latter may also be
+driven by Parametri ipsometrici when a computed parameter set opts the Altezze
+chart into its source surveys.
 
 ## Hypsometric parameters (Parametri ipsometrici)
 

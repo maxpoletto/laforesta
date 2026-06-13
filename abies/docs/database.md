@@ -359,11 +359,14 @@ used to auto-populate `h_m` in the mark-entry form and exported to Ipso. Global
 documented in [`hypsometry.md`](hypsometry.md).
 
 - hypso_param_set: (id:int, source:string, min_n:int nullable,
-  superseded_at:datetime nullable)
+  use_for_height_plots:bool, superseded_at:datetime nullable)
   - One set of parameters and the interval during which it was live.
   - `source` is `computed` (fitted from surveys) or `imported` (from CSV).
   - `min_n` is the minimum per-(region, species) sample count used when
     computing (NULL for imported sets).
+  - `use_for_height_plots` is true only for computed sets whose source surveys
+    should also feed Bosco's diameter/height scatter plot. (Other Bosco
+    dendrometry charts use the Parametri dendrometrici surveys.)
   - The implicit `created_at` is when the set became active; `superseded_at`
     is when it stopped. A NULL `superseded_at` marks the single currently
     active set — at most one row has it NULL, upheld by the single write path

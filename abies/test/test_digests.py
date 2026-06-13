@@ -378,7 +378,7 @@ class TestGenerateBoscoDigests:
             h_m=Decimal('22.00'), l10_mm=0,
             volume_m3=Decimal('0.2000'), mass_q=Decimal('2.000'),
         )
-        TreeSample.objects.create(
+        ts3 = TreeSample.objects.create(
             sample=inactive_sample, tree=tree3, number=1, d_cm=40,
             h_m=Decimal('30.00'), l10_mm=20,
             volume_m3=Decimal('9.0000'), mass_q=Decimal('9.000'),
@@ -417,6 +417,21 @@ class TestGenerateBoscoDigests:
         ]
         point_cols = points[COLUMNS]
         assert points[ROWS][0][point_cols.index(COL_SPECIES_ID)] == species[0].id
+
+        hypso_set = HypsoParamSet.objects.create(
+            source=HypsoParamSource.COMPUTED, min_n=5,
+            use_for_height_plots=True,
+        )
+        hypso_set.surveys.set([inactive])
+
+        generate_parcel_dendrometry()
+        data = self._read(tmp_path, DIGEST_PARCEL_DENDROMETRY)
+        assert data[ROWS][0][cols.index(COL_SURVEY_ID)] == active.id
+
+        generate_parcel_dendrometry_points()
+        points = self._read(tmp_path, DIGEST_PARCEL_DENDROMETRY_POINTS)
+        assert [r[0] for r in points[ROWS]] == [ts3.id]
+        assert points[ROWS][0][point_cols.index(COL_SURVEY_ID)] == inactive.id
 
 
 # ---------------------------------------------------------------------------

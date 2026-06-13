@@ -28,7 +28,7 @@ import * as S from '../../base/js/strings.js';
 import {
   FIELD_CREATED_AT, FIELD_FILE, FIELD_HARVEST_PLAN_ID, FIELD_MIN_N,
   FIELD_NONCE, FIELD_SOURCE, FIELD_SURVEY_IDS, FIELD_SURVEYS,
-  HYPSO_SOURCE_COMPUTED, LOGIN_METHOD_PASSWORD,
+  FIELD_USE_FOR_HEIGHT_PLOTS, HYPSO_SOURCE_COMPUTED, LOGIN_METHOD_PASSWORD,
   DATA_ID, MESSAGE, PATCHES, RECORD, ROLE_ADMIN, ROLE_WRITER,
 } from '../../base/js/constants.js';
 import {
@@ -611,6 +611,9 @@ function renderDescription(el, meta) {
   if (surveys.length) {
     parts.push(`${S.HYPSO_DESC_SURVEYS}: ${surveys.join(', ')}`);
   }
+  if (meta[FIELD_USE_FOR_HEIGHT_PLOTS]) {
+    parts.push(S.HYPSO_DESC_HEIGHT_PLOTS);
+  }
   el.textContent = parts.join(' · ');
 }
 
@@ -642,12 +645,16 @@ function selectedSurveyIds(body) {
 async function runCompute(body, tableHost, descEl) {
   const minN = parseInt(body.querySelector('[data-role="min-n"]').value, 10);
   const surveyIds = selectedSurveyIds(body);
+  const useForHeightPlots = body
+    .querySelector('[data-role="use-for-height-plots"]')?.checked === true;
   const data = await postOrError(postJSON(HYPSO.compute,
     { [FIELD_MIN_N]: minN, [FIELD_SURVEY_IDS]: surveyIds }));
-  if (data) showCandidate(data, minN, surveyIds, tableHost, descEl);
+  if (data) {
+    showCandidate(data, minN, surveyIds, useForHeightPlots, tableHost, descEl);
+  }
 }
 
-function showCandidate(payload, minN, surveyIds, tableHost, descEl) {
+function showCandidate(payload, minN, surveyIds, useForHeightPlots, tableHost, descEl) {
   const frag = cloneTemplate('tmpl-hypso-candidate');
   const root = frag.querySelector('.hypso-candidate');
   const host = root.querySelector('[data-target="candidate-table"]');
@@ -658,6 +665,7 @@ function showCandidate(payload, minN, surveyIds, tableHost, descEl) {
       const data = await postOrError(postJSON(HYPSO.accept, {
         [FIELD_MIN_N]: minN,
         [FIELD_SURVEY_IDS]: surveyIds,
+        [FIELD_USE_FOR_HEIGHT_PLOTS]: useForHeightPlots,
         [FIELD_NONCE]: crypto.randomUUID(),
       }));
       if (!data) return;

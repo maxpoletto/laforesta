@@ -2,7 +2,7 @@
 
 from django.utils import timezone
 
-from apps.base.models import HarvestPlan, Survey
+from apps.base.models import HarvestPlan, HypsoParamSet, HypsoParamSource, Survey
 
 
 def active_or_default_harvest_plan():
@@ -29,3 +29,21 @@ def active_or_default_survey_ids() -> list[int]:
         return ids
     first = Survey.objects.order_by('name').values_list('id', flat=True).first()
     return [first] if first else []
+
+
+def height_plot_survey_ids() -> list[int]:
+    """Survey ids used by Bosco's height scatter plot.
+
+    A computed hypsometric parameter set can opt the height plot into the
+    surveys that produced those parameters.  Otherwise the plot follows the
+    normal dendrometry survey setting.
+    """
+    active = (HypsoParamSet.objects.active()
+              .filter(source=HypsoParamSource.COMPUTED,
+                      use_for_height_plots=True)
+              .first())
+    if active is not None:
+        ids = list(active.surveys.order_by('name').values_list('id', flat=True))
+        if ids:
+            return ids
+    return active_or_default_survey_ids()

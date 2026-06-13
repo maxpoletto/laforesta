@@ -201,6 +201,7 @@ def replace_active_set(
     source: str,
     min_n: int | None,
     survey_ids: Sequence[int],
+    use_for_height_plots: bool = False,
 ) -> HypsoParamSet:
     """Archive the current active set (if any) and persist a new active set.
 
@@ -214,7 +215,10 @@ def replace_active_set(
 
     with transaction.atomic():
         HypsoParamSet.objects.active().update(superseded_at=timezone.now())
-        new_set = HypsoParamSet.objects.create(source=source, min_n=min_n)
+        new_set = HypsoParamSet.objects.create(
+            source=source, min_n=min_n,
+            use_for_height_plots=use_for_height_plots,
+        )
         if survey_ids:
             new_set.surveys.set(list(survey_ids))
         HypsoParam.objects.bulk_create([

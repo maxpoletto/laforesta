@@ -616,6 +616,7 @@ class HypsoParamSet(TimestampedModel):
     """
     source = models.CharField(max_length=10, choices=HypsoParamSource.choices)
     min_n = models.IntegerField(null=True, blank=True)
+    use_for_height_plots = models.BooleanField(default=False)
     superseded_at = models.DateTimeField(null=True, blank=True)
     surveys = models.ManyToManyField(Survey, blank=True)
     history = HistoricalRecords()

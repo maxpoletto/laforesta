@@ -96,6 +96,7 @@ export const HYPSO_SOURCE_COMPUTED_LABEL = 'Calcolato';
 export const HYPSO_SOURCE_IMPORTED_LABEL = 'Importato da CSV';
 export const HYPSO_DESC_MIN_N = 'N minimo';
 export const HYPSO_DESC_SURVEYS = 'Rilevamenti';
+export const HYPSO_DESC_HEIGHT_PLOTS = 'Altezze: rilevamenti ipsometrici';
 export const HYPSO_IMPORT_CONFIRM =
   "L'importazione sostituisce i parametri attivi. Continuare?";
 export const HYPSO_CLEAR_CONFIRM =
