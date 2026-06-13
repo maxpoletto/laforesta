@@ -68,6 +68,13 @@ assertEqual(B.productionYears(digest), ['2024', '2025', '2027'],
             'productionYears: global years');
 assertEqual(B.productionYearRange(digest), ['2024', '2025', '2026', '2027'],
             'productionYearRange: global continuous range');
+assertEqual(B.productionMonths(digest, { region: 'Capistrano' }),
+            ['2024-01', '2024-02', '2025-03', '2025-04'],
+            'productionMonths: region months');
+const globalMonths = B.productionMonthRange(digest);
+assertEqual(globalMonths.length, 42, 'productionMonthRange: global continuous length');
+assertEqual([globalMonths[0], globalMonths.at(-1)], ['2024-01', '2027-06'],
+            'productionMonthRange: global endpoints');
 assertEqual(B.pickProductionYear(['2024', '2025'], '20240101'), '2024',
             'pickProductionYear: compact date converted to year');
 const delta = B.productionDeltaByParcel(digest, { region: 'Capistrano' }, '2024', '2025');
@@ -85,9 +92,16 @@ assertEqual(agg.chartData.datasets[0].data, [175, 110, 0, 0],
 agg = B.aggregateProduction(digest, { region: 'Capistrano', parcel: '1' }, {
   byMonth: true, perHa: true, areaHa: 10,
 });
-assertEqual(agg.chartData.labels, ['2024-01', '2025-03'], 'aggregateProduction: monthly labels');
+assertEqual(agg.chartData.labels.length, 42, 'aggregateProduction: monthly global label count');
+assertEqual([agg.chartData.labels[0], agg.chartData.labels.at(-1)], ['2024-01', '2027-06'],
+            'aggregateProduction: monthly global endpoints');
 assertEqual(agg.chartData.yTitle, S.BOSCO_QUINTALS_PER_HA, 'aggregateProduction: per-ha y title');
-assertEqual(agg.chartData.datasets[0].data, [15, 7], 'aggregateProduction: per-ha values');
+assertEqual(agg.chartData.datasets[0].data[agg.chartData.labels.indexOf('2024-01')], 15,
+            'aggregateProduction: per-ha first month value');
+assertEqual(agg.chartData.datasets[0].data[agg.chartData.labels.indexOf('2024-02')], 0,
+            'aggregateProduction: per-ha zero-filled month');
+assertEqual(agg.chartData.datasets[0].data[agg.chartData.labels.indexOf('2025-03')], 7,
+            'aggregateProduction: per-ha second month value');
 
 console.log(`
 ${passed} passed, ${failed} failed`);

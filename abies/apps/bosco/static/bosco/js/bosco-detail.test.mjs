@@ -53,7 +53,7 @@ const dendro = {
   [ROWS]: [
     [1, 10, 1, 5, 'Capistrano', '1', 'R1', 0.5, 'Abete', 20, 2, 0.3, 0.06, 21, 1.0],
     [2, 10, 1, 5, 'Capistrano', '1', 'R1', 0.5, 'Abete', 20, 3, 0.6, 0.09, 24, 2.0],
-    [3, 11, 1, 6, 'Capistrano', '2', 'R1', 0.25, 'Faggio', 25, 4, 1.0, 0.2, 18, null],
+    [3, 11, 1, 6, 'Capistrano', '2', 'R1', 0.25, 'Faggio', 30, 4, 1.0, 0.2, 18, null],
     [4, 12, 1, 5, 'Serra', '1', 'R1', 0.75, 'Abete', 20, 7, 9.0, 9.0, 30, 9.0],
   ],
 };
@@ -79,7 +79,7 @@ assertClose(rows[0].avgHeightM, 22.8, 0.0001, 'aggregateDendrometry: weighted he
 assertClose(rows[0].incrementPct, 1.6, 0.0001, 'aggregateDendrometry: weighted increment');
 
 rows = D.aggregateDendrometry(dendro, { region: 'Capistrano' }, { areaHa: 10, perHa: true });
-assertEqual(rows.map(r => `${r.species}:${r.diameterClassCm}`), ['Abete:20', 'Faggio:25'],
+assertEqual(rows.map(r => `${r.species}:${r.diameterClassCm}`), ['Abete:20', 'Faggio:30'],
             'aggregateDendrometry: region sorted species/classes');
 assertEqual(rows[0].treeCount, 6.6667, 'aggregateDendrometry: per-ha tree count');
 assertEqual(rows[1].volumeM3, 1.3333, 'aggregateDendrometry: per-ha volume');
@@ -106,11 +106,11 @@ assertEqual(species.map(item => item.color),
 
 rows = D.aggregateDendrometry(dendro, { region: 'Capistrano' }, { perHa: false });
 let chart = D.dendrometryBarChartData(rows, 'treeCount', 'Tree count');
-assertEqual(chart.labels, ['20', '25'], 'dendrometryBarChartData: diameter labels');
+assertEqual(chart.labels, ['20', '25', '30'], 'dendrometryBarChartData: zero-filled diameter labels');
 assertEqual(chart.datasets.map(d => d.label), ['Abete', 'Faggio'],
             'dendrometryBarChartData: species datasets');
-assertEqual(chart.datasets[0].data, [5, 0], 'dendrometryBarChartData: sparse series');
-assertEqual(chart.datasets[1].data, [0, 4], 'dendrometryBarChartData: second sparse series');
+assertEqual(chart.datasets[0].data, [5, 0, 0], 'dendrometryBarChartData: sparse series');
+assertEqual(chart.datasets[1].data, [0, 0, 4], 'dendrometryBarChartData: second sparse series');
 assertEqual(chart.datasets.map(d => d.backgroundColor),
             [D.dendrometrySpeciesColor(0), D.dendrometrySpeciesColor(1)],
             'dendrometryBarChartData: species colors');
@@ -118,7 +118,7 @@ assertEqual(chart.legend, false, 'dendrometryBarChartData: hides repeated legend
 assertEqual(chart.yTitle, 'Tree count', 'dendrometryBarChartData: y title');
 
 chart = D.dendrometryLineChartData(rows, 'incrementPct', S.COL_INCREMENT_PCT);
-assertEqual(chart.datasets[0].data, [1.6, null], 'dendrometryLineChartData: line values with gaps');
+assertEqual(chart.datasets[0].data, [1.6, null, null], 'dendrometryLineChartData: line values with gaps');
 assertEqual(chart.datasets[0].spanGaps, true, 'dendrometryLineChartData: spans gaps');
 assertEqual(chart.legend, false, 'dendrometryLineChartData: hides repeated legend');
 assertEqual(D.dendrometryTreeTotal(rows), 9, 'dendrometryTreeTotal: raw tree count');

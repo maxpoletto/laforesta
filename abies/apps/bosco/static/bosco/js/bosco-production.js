@@ -53,6 +53,28 @@ export function productionYearRange(digest) {
   return out;
 }
 
+export function productionMonths(digest, scope = {}) {
+  const c = columnMap(digest);
+  const dateIdx = c[S.COL_DATE];
+  if (dateIdx == null) return [];
+  const months = new Set();
+  for (const row of productionRows(digest, scope)) {
+    const month = harvestMonth(row[dateIdx]);
+    if (month) months.add(month);
+  }
+  return [...months].sort();
+}
+
+export function productionMonthRange(digest) {
+  const months = productionMonths(digest);
+  if (!months.length) return [];
+  const start = monthIndex(months[0]);
+  const end = monthIndex(months[months.length - 1]);
+  const out = [];
+  for (let idx = start; idx <= end; idx++) out.push(monthLabel(idx));
+  return out;
+}
+
 export function pickProductionYear(years, requested, fallback = 'latest') {
   const clean = [...new Set((years || []).map(harvestYear).filter(Boolean))].sort();
   if (!clean.length) return '';
@@ -93,6 +115,22 @@ export function harvestYear(value) {
   return match ? match[1] : '';
 }
 
+function harvestMonth(value) {
+  const match = String(value || '').trim().match(/^(\d{4})-(\d{2})/);
+  return match ? `${match[1]}-${match[2]}` : '';
+}
+
+function monthIndex(month) {
+  const [year, value] = month.split('-').map(Number);
+  return year * 12 + value - 1;
+}
+
+function monthLabel(idx) {
+  const year = Math.floor(idx / 12);
+  const month = String((idx % 12) + 1).padStart(2, '0');
+  return `${year}-${month}`;
+}
+
 export function aggregateProduction(digest, scope, opts = {}) {
   const c = columnMap(digest);
   const dateIdx = c[S.COL_DATE];
@@ -115,8 +153,8 @@ export function aggregateProduction(digest, scope, opts = {}) {
     byBucket.set(key, (byBucket.get(key) || 0) + q / divisor);
   }
 
-  const labels = !opts.byMonth && rows.length
-    ? productionYearRange(digest)
+  const labels = rows.length
+    ? (opts.byMonth ? productionMonthRange(digest) : productionYearRange(digest))
     : [...byBucket.keys()].sort();
   return {
     rowCount: rows.length,

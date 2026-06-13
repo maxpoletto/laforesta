@@ -156,9 +156,7 @@ export function dendrometryTreeTotal(rows) {
 }
 
 function dendrometryChartAxes(rows) {
-  const labels = [...new Set(rows.map(row => row.diameterClassCm))]
-    .sort((a, b) => a - b)
-    .map(String);
+  const labels = dendrometryClassRange(rows).map(String);
   const bySpecies = new Map();
   for (const row of rows) {
     if (!bySpecies.has(row.speciesId)) {
@@ -168,6 +166,18 @@ function dendrometryChartAxes(rows) {
   const species = [...bySpecies.values()]
     .sort((a, b) => a.name.localeCompare(b.name, S.LOCALE));
   return { labels, species };
+}
+
+function dendrometryClassRange(rows) {
+  const classes = rows
+    .map(row => toNumber(row.diameterClassCm))
+    .filter(value => value != null);
+  if (!classes.length) return [];
+  const start = Math.min(...classes);
+  const end = Math.max(...classes);
+  const out = [];
+  for (let cm = start; cm <= end; cm += 5) out.push(cm);
+  return out;
 }
 
 function dendrometryScale({ areaHa, perHa, sampledAreaHa }) {
