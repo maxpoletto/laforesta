@@ -292,17 +292,46 @@
   margin-bottom: 8px;
 }
 
-.bosco-species-filter {
+.bosco-species-row {
   display: flex;
   flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 6px 10px;
+  margin-bottom: 6px;
+}
+
+.bosco-species-label {
+  flex: 0 0 auto;
+  padding-top: 2px;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.bosco-species-filter {
+  display: flex;
+  flex: 1 1 260px;
+  flex-wrap: wrap;
   gap: 6px 14px;
-  max-height: 92px;
-  margin-bottom: 10px;
+  min-width: 0;
 }
 
 .bosco-species-filter .bosco-check {
   margin: 0;
   font-size: 0.84rem;
+}
+
+.bosco-species-actions {
+  display: flex;
+  gap: 6px;
+  margin: 2px 0 12px;
+}
+
+.bosco-species-actions .btn {
+  flex: 0 0 auto;
+  min-width: 74px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.84rem;
+  text-align: center;
 }
 
 .bosco-chart-grid {

@@ -122,10 +122,13 @@ Static Italian text lives here; JS wires controls and fills dynamic data.
             <div class="bosco-detail-toolbar">
               <label class="bosco-check"><input type="checkbox" data-role="dendrometry-per-ha" checked> Per ettaro</label>
             </div>
-            <div class="bosco-scroll-list bosco-species-filter" data-target="dendrometry-species"></div>
-            <div class="bosco-list-actions">
-              <button type="button" class="btn" data-action="show-all-dendrometry-species">Mostra tutte</button>
-              <button type="button" class="btn" data-action="hide-all-dendrometry-species">Nascondi tutte</button>
+            <div class="bosco-species-row">
+              <span class="bosco-species-label">Specie:</span>
+              <div class="bosco-species-filter" data-target="dendrometry-species"></div>
+            </div>
+            <div class="bosco-species-actions">
+              <button type="button" class="btn" data-action="show-all-dendrometry-species">Tutte</button>
+              <button type="button" class="btn" data-action="hide-all-dendrometry-species">Nessuna</button>
             </div>
             <div class="bosco-dendrometry-charts" data-target="dendrometry">
               <p class="bosco-detail-note" data-target="dendrometry-status"></p>
