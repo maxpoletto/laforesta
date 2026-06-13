@@ -1,6 +1,6 @@
 import * as S from '../../base/js/strings.js';
 import {
-  COL_PARCEL_ID, COL_SPECIES_ID, ROWS,
+  COL_PARCEL_ID, COL_SPECIES_ID, COL_SURVEY_ID, ROWS,
 } from '../../base/js/constants.js';
 import { CATEGORICAL_COLORS } from '../../base/js/charts.js';
 import { fmtDecimal3 } from '../../base/js/format.js';
@@ -35,12 +35,18 @@ export function aggregateDendrometry(digest, scope, { areaHa = null, perHa = tru
   const allowedSpecies = new Set(speciesIds || []);
   const groups = new Map();
   const speciesNames = new Map();
+  const sampledAreas = new Map();
 
   for (const row of digest[ROWS]) {
     if (scope.parcelId != null && row[c[COL_PARCEL_ID]] !== scope.parcelId) continue;
     if (scope.parcelId == null && scope.region && row[c[S.COL_REGION]] !== scope.region) continue;
     const speciesId = row[c[COL_SPECIES_ID]];
     const speciesName = row[c[S.COL_SPECIES]];
+    const sampleAreaHa = toNumber(row[c[S.COL_SAMPLE_AREA_HA]], 0);
+    const sampledAreaKey = `${row[c[COL_PARCEL_ID]]}|${row[c[COL_SURVEY_ID]]}`;
+    if (sampleAreaHa > 0 && !sampledAreas.has(sampledAreaKey)) {
+      sampledAreas.set(sampledAreaKey, sampleAreaHa);
+    }
     if (!speciesNames.has(speciesId)) speciesNames.set(speciesId, speciesName);
     if (hasSpeciesFilter && !allowedSpecies.has(speciesId)) continue;
 
@@ -75,7 +81,8 @@ export function aggregateDendrometry(digest, scope, { areaHa = null, perHa = tru
   }
 
   const colors = dendrometrySpeciesColorMap(speciesNames);
-  const scale = perHa && areaHa ? 1 / areaHa : 1;
+  const sampledAreaHa = sum([...sampledAreas.values()]);
+  const scale = dendrometryScale({ areaHa, perHa, sampledAreaHa });
   return [...groups.values()]
     .sort((a, b) => a.species.localeCompare(b.species, S.LOCALE)
       || a.diameterClassCm - b.diameterClassCm)
@@ -161,6 +168,14 @@ function dendrometryChartAxes(rows) {
   const species = [...bySpecies.values()]
     .sort((a, b) => a.name.localeCompare(b.name, S.LOCALE));
   return { labels, species };
+}
+
+function dendrometryScale({ areaHa, perHa, sampledAreaHa }) {
+  if (sampledAreaHa > 0) {
+    if (perHa) return 1 / sampledAreaHa;
+    return areaHa ? areaHa / sampledAreaHa : 1;
+  }
+  return perHa && areaHa ? 1 / areaHa : 1;
 }
 
 function dendrometrySpeciesColorMap(speciesNames) {

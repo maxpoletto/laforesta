@@ -324,6 +324,7 @@ export const COL_ALT             = 'Alt. (m)';
 export const COL_RADIUS          = 'Raggio (m)';
 export const COL_SURVEY          = 'Rilevamento';
 export const COL_SAMPLE_AREA     = 'Area di saggio';
+export const COL_SAMPLE_AREA_HA  = 'Area saggi (ha)';
 export const COL_N_TREES         = 'N. alberi';
 export const COL_SAMPLE_DATE     = 'Data campione';
 export const COL_AREA_NUM        = 'N. area';

@@ -47,14 +47,14 @@ console.log('bosco-detail.js');
 
 const dendro = {
   [COLUMNS]: [ROW_ID, COL_PARCEL_ID, COL_SURVEY_ID, COL_SPECIES_ID,
-    S.COL_REGION, S.COL_PARCEL, S.COL_SURVEY, S.COL_SPECIES,
+    S.COL_REGION, S.COL_PARCEL, S.COL_SURVEY, S.COL_SAMPLE_AREA_HA, S.COL_SPECIES,
     S.COL_DIAM_CLASS_CM, S.COL_N_TREES, S.COL_VOLUME_M3,
     S.COL_BASAL_AREA_M2, S.COL_AVG_H_M, S.COL_INCREMENT_PCT],
   [ROWS]: [
-    [1, 10, 1, 5, 'Capistrano', '1', 'R1', 'Abete', 20, 2, 0.3, 0.06, 21, 1.0],
-    [2, 10, 1, 5, 'Capistrano', '1', 'R1', 'Abete', 20, 3, 0.6, 0.09, 24, 2.0],
-    [3, 11, 1, 6, 'Capistrano', '2', 'R1', 'Faggio', 25, 4, 1.0, 0.2, 18, null],
-    [4, 12, 1, 5, 'Serra', '1', 'R1', 'Abete', 20, 7, 9.0, 9.0, 30, 9.0],
+    [1, 10, 1, 5, 'Capistrano', '1', 'R1', 0.5, 'Abete', 20, 2, 0.3, 0.06, 21, 1.0],
+    [2, 10, 1, 5, 'Capistrano', '1', 'R1', 0.5, 'Abete', 20, 3, 0.6, 0.09, 24, 2.0],
+    [3, 11, 1, 6, 'Capistrano', '2', 'R1', 0.25, 'Faggio', 25, 4, 1.0, 0.2, 18, null],
+    [4, 12, 1, 5, 'Serra', '1', 'R1', 0.75, 'Abete', 20, 7, 9.0, 9.0, 30, 9.0],
   ],
 };
 
@@ -81,8 +81,12 @@ assertClose(rows[0].incrementPct, 1.6, 0.0001, 'aggregateDendrometry: weighted i
 rows = D.aggregateDendrometry(dendro, { region: 'Capistrano' }, { areaHa: 10, perHa: true });
 assertEqual(rows.map(r => `${r.species}:${r.diameterClassCm}`), ['Abete:20', 'Faggio:25'],
             'aggregateDendrometry: region sorted species/classes');
-assertEqual(rows[0].treeCount, 0.5, 'aggregateDendrometry: per-ha tree count');
-assertEqual(rows[1].volumeM3, 0.1, 'aggregateDendrometry: per-ha volume');
+assertEqual(rows[0].treeCount, 6.6667, 'aggregateDendrometry: per-ha tree count');
+assertEqual(rows[1].volumeM3, 1.3333, 'aggregateDendrometry: per-ha volume');
+
+rows = D.aggregateDendrometry(dendro, { region: 'Capistrano' }, { areaHa: 10, perHa: false });
+assertEqual(rows[0].treeCount, 66.6667, 'aggregateDendrometry: expands tree count to scope area');
+assertEqual(rows[1].basalAreaM2, 2.666667, 'aggregateDendrometry: expands basal area to scope area');
 
 rows = D.aggregateDendrometry(dendro, { region: 'Capistrano' }, { perHa: false, speciesIds: [6] });
 assertEqual(rows.map(r => r.species), ['Faggio'], 'aggregateDendrometry: species filter');

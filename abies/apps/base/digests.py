@@ -1165,7 +1165,7 @@ def generate_future_production() -> None:
 
 DENDROMETRY_COLUMNS = [
     ROW_ID, COL_PARCEL_ID, COL_SURVEY_ID, COL_SPECIES_ID,
-    S.COL_REGION, S.COL_PARCEL, S.COL_SURVEY, S.COL_SPECIES,
+    S.COL_REGION, S.COL_PARCEL, S.COL_SURVEY, S.COL_SAMPLE_AREA_HA, S.COL_SPECIES,
     S.COL_DIAM_CLASS_CM, S.COL_N_TREES, S.COL_VOLUME_M3,
     S.COL_BASAL_AREA_M2, S.COL_AVG_H_M, S.COL_INCREMENT_PCT,
 ]
@@ -1217,7 +1217,28 @@ def _dendrometry_queryset():
                       'd_cm', 'id'))
 
 
+def sample_area_ha(sample_area) -> float:
+    return math.pi * float(sample_area.r_m) ** 2 / 10000.0
+
+
+def _dendrometry_sample_area_coverage() -> dict[tuple[int, int], float]:
+    from apps.base.models import Sample
+
+    survey_ids = active_or_default_survey_ids()
+    if not survey_ids:
+        return {}
+    coverage = {}
+    qs = (Sample.objects
+          .filter(survey_id__in=survey_ids)
+          .select_related('sample_area', 'sample_area__parcel'))
+    for sample in qs:
+        key = (sample.sample_area.parcel_id, sample.survey_id)
+        coverage[key] = coverage.get(key, 0.0) + sample_area_ha(sample.sample_area)
+    return coverage
+
+
 def generate_parcel_dendrometry() -> None:
+    coverage = _dendrometry_sample_area_coverage()
     groups = {}
     for ts in _dendrometry_queryset():
         parcel = ts.sample.sample_area.parcel
@@ -1250,8 +1271,9 @@ def generate_parcel_dendrometry() -> None:
         increments = group['increments']
         rows.append([
             row_id, parcel.id, survey.id, species.id,
-            parcel.region.name, parcel.name, survey.name, species.common_name,
-            group['class_cm'], group['n'], round(group['volume'], 4),
+            parcel.region.name, parcel.name, survey.name,
+            round(coverage.get((parcel.id, survey.id), 0.0), 6),
+            species.common_name, group['class_cm'], group['n'], round(group['volume'], 4),
             round(group['basal'], 6), round(group['height'] / group['n'], 4),
             round(sum(increments) / len(increments), 4) if increments else None,
         ])

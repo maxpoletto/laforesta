@@ -1510,6 +1510,7 @@ function renderDendrometry() {
     speciesIds: filter,
   });
   const rawRows = aggregateDendrometry(dendrometryData, baseScope, {
+    areaHa: scope.areaHa,
     perHa: false,
     speciesIds: filter,
   });

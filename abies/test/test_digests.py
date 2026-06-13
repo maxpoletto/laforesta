@@ -2,6 +2,7 @@
 
 import gzip
 import json
+import math
 import pytest
 from decimal import Decimal
 from pathlib import Path
@@ -388,7 +389,7 @@ class TestGenerateBoscoDigests:
         cols = data[COLUMNS]
         assert cols == [
             ROW_ID, COL_PARCEL_ID, COL_SURVEY_ID, COL_SPECIES_ID,
-            S.COL_REGION, S.COL_PARCEL, S.COL_SURVEY, S.COL_SPECIES,
+            S.COL_REGION, S.COL_PARCEL, S.COL_SURVEY, S.COL_SAMPLE_AREA_HA, S.COL_SPECIES,
             S.COL_DIAM_CLASS_CM, S.COL_N_TREES, S.COL_VOLUME_M3,
             S.COL_BASAL_AREA_M2, S.COL_AVG_H_M, S.COL_INCREMENT_PCT,
         ]
@@ -397,6 +398,7 @@ class TestGenerateBoscoDigests:
         assert row[cols.index(COL_PARCEL_ID)] == parcels[0].id
         assert row[cols.index(COL_SURVEY_ID)] == active.id
         assert row[cols.index(COL_SPECIES_ID)] == species[0].id
+        assert row[cols.index(S.COL_SAMPLE_AREA_HA)] == round(math.pi * area.r_m ** 2 / 10000, 6)
         assert row[cols.index(S.COL_DIAM_CLASS_CM)] == 20
         assert row[cols.index(S.COL_N_TREES)] == 2
         assert row[cols.index(S.COL_VOLUME_M3)] == 0.3

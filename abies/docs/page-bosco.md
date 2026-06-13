@@ -334,15 +334,16 @@ mode-switch.
   page.
 
   Columns: `row_id`, `Parcel id`, `Survey id`, `Species id`,
-  `Compresa`, `Particella`, `Rilevamento`, `Specie`, `Classe diam. (cm)`,
-  `N. alberi`, `Volume (m³)`, `Area bas. (m²)`, `Altezza media (m)`,
+  `Compresa`, `Particella`, `Rilevamento`, `Area saggi (ha)`, `Specie`,
+  `Classe diam. (cm)`, `N. alberi`, `Volume (m³)`, `Area bas. (m²)`, `Altezza media (m)`,
   `Incremento %`.  Sorted by `(Compresa, Particella, Rilevamento, Specie,
   Classe diam. (cm))`.
 
-  Per-hectare values are computed client side depending on what area measure is
-  used (cadastral or geometric). Region-scope aggregation is also done
-  client-side by summing across the region's parcels (with appropriate per-ha
-  arithmetic).
+  Tree count, volume, and basal area are expanded client-side by sampled-area
+  coverage: per-hectare values divide observations by `Area saggi (ha)`, and
+  whole-scope values multiply by selected parcel/region area over
+  `Area saggi (ha)`. Region-scope aggregation is also done client-side by
+  summing across the region's parcels.
 
   `row_id` is a sequential synthetic index; this digest is read-only
   and does not participate in the standard edit/cache-update flow.
