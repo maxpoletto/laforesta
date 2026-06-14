@@ -298,9 +298,12 @@ and the round-trip guarantee. Linked from `abies/CLAUDE.md` Docs index.
 - Unifying plan fustaia+ceduo into one items file changes the plan
   import/export from a two-file zip to one file; verify the page-piano-di-taglio
   flow and digests.
-- **Latent bug to fix on extraction:** the existing in-app plan importer dedups
-  on `(plan, parcel, year)`, which **collides for region-wide rows**
-  (`parcel IS NULL`). The shared core must key on `(plan, region, parcel, year)`.
+- **Region-wide dedup (already correct in code):** despite the importer's
+  docstring saying "dedup on `(plan, parcel, year)`", the implementation already
+  branches — parcel rows upsert on `(plan, parcel, year)` and region-wide rows
+  (`parcel IS NULL`) on `(plan, region, parcel, year)`. No fix needed; the
+  extraction must preserve both branches. (The earlier "latent bug" note was
+  based on the docstring, not the code.)
 
 ## 13. Implementation sequencing (informs writing-plans)
 
