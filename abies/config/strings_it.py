@@ -233,6 +233,19 @@ ERR_CSV_VALUE_REQUIRED = 'Riga {}: valore obbligatorio mancante nella colonna {}
 ERR_CSV_DUPLICATE_KEY  = 'Riga {}: chiave duplicata nella colonna {} ({}).'
 ERR_CSV_ECLASS_NOT_FOUND = 'Riga {}: comparto non trovato ({}).'
 ERR_CSV_GRID_NOT_FOUND   = 'Riga {}: griglia non trovata ({}).'
+ERR_BOOTSTRAP_REQUIRED_FILE  = 'File obbligatorio mancante: {}.'
+ERR_BOOTSTRAP_NOT_EMPTY      = ('Istanza non vuota (popolati: {}); il bootstrap '
+                               'carica solo in un’istanza vuota.')
+ERR_BOOTSTRAP_UNKNOWN_GRID   = 'File {}: griglia non trovata ({}).'
+ERR_BOOTSTRAP_UNKNOWN_SURVEY = 'File {}: rilevamento non trovato ({}).'
+ERR_BOOTSTRAP_FAILED         = '{} errore/i durante il bootstrap; nulla è stato caricato.'
+BOOTSTRAP_OPTIONAL_SKIPPED   = 'assente (opzionale, saltato)'
+BOOTSTRAP_NOT_SUPPORTED      = 'presente, non ancora supportato'
+BOOTSTRAP_CHECK_NOTICE       = '--check: nessuna modifica è stata salvata.'
+BOOTSTRAP_DONE               = 'Bootstrap completato.'
+BOOTSTRAP_LOADED             = '{} caricati'    # report line: rows loaded
+BOOTSTRAP_ABSENT             = '—'              # report line: file not present
+BOOTSTRAP_INTERNAL           = '(bootstrap)'    # synthetic report row for an unexpected error
 ERR_CSV_SURVEY_REQUIRED = 'Seleziona prima un rilevamento.'
 ERR_CSV_GRID_REQUIRED = 'Seleziona prima una griglia di destinazione.'
 ERR_MIN_N_INVALID = 'N minimo deve essere un intero positivo.'
@@ -459,6 +472,17 @@ PARCEL_WHOLE_REGION_MARK = 'X'
 CSV_FILE_HIGHFOREST = 'fustaia.csv'
 CSV_FILE_COPPICE    = 'ceduo.csv'
 CSV_FILE_REGRESSION = 'equazioni_ipsometro.csv'
+
+# Canonical bootstrap data-dir filenames (reference/container files derive their
+# name from the RefTable stem; these are the bespoke + deferred files).
+CSV_FILE_PARCELS            = 'particelle.csv'
+CSV_FILE_SURVEYS            = 'surveys.csv'
+CSV_FILE_SAMPLE_AREAS       = 'sample_areas.csv'
+CSV_FILE_SAMPLED_TREES      = 'sampled-trees.csv'
+CSV_FILE_HYPSO              = 'hypso_params.csv'
+CSV_FILE_PRESERVED_TREES    = 'preserved-trees.csv'
+CSV_FILE_HARVEST_PLAN_ITEMS = 'harvest_plan_items.csv'
+CSV_FILE_HARVESTS           = 'harvests.csv'
 
 # Harvest-plan digest columns.
 COL_YEAR_START = 'Anno inizio'
