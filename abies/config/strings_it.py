@@ -229,6 +229,8 @@ ERR_CSV_MISSING_COLS = 'Colonne CSV mancanti: {}.'
 ERR_CSV_ROW_AREA = 'Riga {}: area di saggio non trovata ({} / {} / {}).'
 ERR_CSV_ROW_SPECIES = 'Riga {}: specie sconosciuta: {}.'
 ERR_CSV_ROW_PARSE = 'Riga {}: errore di parsing ({}).'
+ERR_CSV_VALUE_REQUIRED = 'Riga {}: valore obbligatorio mancante nella colonna {}.'
+ERR_CSV_DUPLICATE_KEY  = 'Riga {}: chiave duplicata nella colonna {} ({}).'
 ERR_CSV_SURVEY_REQUIRED = 'Seleziona prima un rilevamento.'
 ERR_CSV_GRID_REQUIRED = 'Seleziona prima una griglia di destinazione.'
 ERR_MIN_N_INVALID = 'N minimo deve essere un intero positivo.'
@@ -290,6 +292,17 @@ CSV_COL_SPECIES       = 'Genere'
 CSV_COL_HIGHFOREST       = 'Fustaia'
 CSV_COL_DATA          = 'Data'
 CSV_COL_PRESERVED     = 'PAI'
+
+# --- Reference-table CSV headers (bootstrap: regions/eclasses/crews/
+# species/products).  Paired with COL_* display labels where one exists;
+# the CSV_COL_* form is the canonical import/export header.
+CSV_COL_COPPICE     = 'Ceduo'               # Eclass.coppice (bool)
+CSV_COL_MIN_VOLUME  = 'Volume minimo (m³)'  # Eclass.min_harvest_volume
+CSV_COL_ACTIVE      = 'Attivo'              # Crew/Species.active (bool); paired with COL_ACTIVE
+CSV_COL_LATIN       = 'Nome latino'         # Species.latin_name; paired with COL_LATIN_NAME
+CSV_COL_DENSITY     = 'Densità (q/m³)'      # Species.density; paired with COL_DENSITY
+CSV_COL_MINOR       = 'Minore'              # Species.minor (bool); paired with COL_MINOR
+CSV_COL_SORT_ORDER  = 'Ordine'             # Species.sort_order
 
 # CSV column headers used by the legacy bosco/data `import_*` management
 # commands.  Where a column also appears in a digest, the names are

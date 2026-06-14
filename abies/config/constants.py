@@ -104,6 +104,7 @@ FIELD_LATIN_NAME            = 'latin_name'
 FIELD_DENSITY               = 'density'
 FIELD_MINOR                 = 'minor'
 FIELD_SORT_ORDER            = 'sort_order'
+FIELD_MIN_HARVEST_VOLUME    = 'min_harvest_volume'
 FIELD_ROLE                  = 'role'
 FIELD_EMAIL                 = 'email'
 FIELD_USERNAME              = 'username'
@@ -176,9 +177,26 @@ TREE_H_QUANTUM = Decimal('0.01')
 # booleans) and CSV cells (Italian sì).  The union is unambiguous — no edge
 # emits a token meaningful to the other.
 _TRUTHY = ('true', '1', 'yes', 'si', 'sì', 'on')
+# Falsy tokens, mirroring _TRUTHY across both edges (English + Italian).
+_FALSY = ('false', 'falso', '0', 'no', 'off')
 
 def is_truthy(value) -> bool:
     """True iff `value` is a recognised truthy token, case-insensitive and
     whitespace-trimmed: true/1/yes/si/sì/on (the bool ``True`` and int ``1``
     stringify into this set).  Safe for form/JSON values and CSV cells alike."""
     return str(value).strip().lower() in _TRUTHY
+
+
+def parse_bool(value) -> bool | None:
+    """Strict boolean parse: ``True`` for a recognised truthy token, ``False``
+    for a recognised falsy token, ``None`` for anything else.  Unlike
+    ``is_truthy`` (which maps every non-truthy value to ``False``), this lets a
+    caller flag an unrecognised cell as an error instead of silently defaulting
+    it — required by strict CSV import, where a malformed boolean must not be
+    read as ``False``."""
+    token = str(value).strip().lower()
+    if token in _TRUTHY:
+        return True
+    if token in _FALSY:
+        return False
+    return None
