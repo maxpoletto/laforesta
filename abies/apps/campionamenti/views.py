@@ -11,7 +11,7 @@ validation_error / conflict payload.
 
 import json
 from datetime import date as date_type
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal
 
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
@@ -34,9 +34,9 @@ from apps.base.responses import (
 )
 from apps.base.models import (
     Parcel, Region, Sample, SampleArea, SampleGrid, Species, Survey, Tree,
-    TreeSample, parcel_sort_key, tree_mass_q,
+    TreeSample, parcel_sort_key,
 )
-from apps.campionamenti import csv_grid
+from apps.campionamenti import csv_grid, csv_trees
 from config import strings as S
 from config.constants import (
     BOSCO_DENDROMETRY_DIGESTS, BOSCO_TREE_DIGESTS, DEFAULT_RADIUS_M,
@@ -51,11 +51,9 @@ from config.constants import (
     FIELD_SAMPLE_AREA_ID, FIELD_SAMPLE_GRID_ID, FIELD_SHOOT, FIELD_SHOOTS,
     FIELD_SORT_ORDER, FIELD_SPECIES, FIELD_SPECIES_ID, FIELD_STANDARD,
     FIELD_SURVEY_ID, FIELD_TREE_PICK, FIELD_TREE_PICK_EXISTING_ID,
-    FIELD_VOLUME_M3, HTML, ROW_ID, STATUS, STATUS_NOT_FOUND, VERSION, is_truthy,
+    FIELD_VOLUME_M3, HTML, ROW_ID, STATUS, STATUS_NOT_FOUND, TREE_H_QUANTUM,
+    VERSION, is_truthy,
 )
-
-# Quantization for tree-height measurements (centimetre precision).
-TREE_H_QUANTUM = Decimal('0.01')
 
 
 # ---------------------------------------------------------------------------
@@ -1054,14 +1052,6 @@ def survey_edit_view(request, survey_id: int):
 # CSV imports (Bucket 3) — Grid CSV + Tree-and-sample CSV
 # ---------------------------------------------------------------------------
 
-TREE_CSV_REQUIRED = [S.CSV_COL_REGION, S.CSV_COL_PARCEL,
-                     S.CSV_COL_SAMPLE_AREA, S.CSV_COL_TREE,
-                     S.CSV_COL_COPPICE_SHOOT, S.CSV_COL_COPPICE_STD,
-                     S.CSV_COL_D_CM, S.CSV_COL_H_M, S.CSV_COL_L10_MM,
-                     S.CSV_COL_SPECIES, S.CSV_COL_HIGHFOREST]
-TREE_CSV_OPTIONAL = [S.CSV_COL_DATA, S.CSV_COL_PRESERVED]
-
-
 @login_required
 @require_writer
 @require_POST
@@ -1168,7 +1158,7 @@ def tree_csv_import_view(request):
         return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
 
     try:
-        reader = csv_io.read(upload, TREE_CSV_REQUIRED)
+        reader = csv_io.read(upload, csv_trees.TREE_CSV_REQUIRED)
     except csv_io.CsvError as e:
         return validation_error([str(e)])
 
@@ -1182,146 +1172,21 @@ def tree_csv_import_view(request):
         except ValueError:
             return validation_error([S.ERR_CSV_DATE_REQUIRED])
 
-    parcel_cache = {
-        (p.region.name.lower(), p.name): p
-        for p in Parcel.objects.select_related('region')
-    }
-    area_cache = {
-        (sa.parcel.region.name.lower(), sa.parcel.name, sa.number): sa
-        for sa in SampleArea.objects.filter(sample_grid=survey.sample_grid)
-                       .select_related('parcel__region')
-    }
-    species_cache = {s.common_name.lower(): s for s in Species.objects.all()}
-    existing_sample_by_area = {
-        s.sample_area_id: s
-        for s in Sample.objects.filter(survey=survey)
-    }
-    csv_date_by_area = {}
-
-    # Tabacchi inputs use English-side species names; reuse the GENERE_MAP
-    # from the management command to handle minor naming drift.
-    from apps.base.management.commands.import_sampled_trees import GENERE_MAP
-    from apps.base.tabacchi import has_species, tabacchi_volume_m3
-
-    errors = []
-    parsed = []
-    for i, row in enumerate(reader, 2):
-        compresa = row[S.CSV_COL_REGION].strip()
-        particella = row[S.CSV_COL_PARCEL].strip()
-        adc = row[S.CSV_COL_SAMPLE_AREA].strip()
-        area = area_cache.get((compresa.lower(), particella, adc))
-        if area is None:
-            errors.append(S.ERR_CSV_ROW_AREA.format(i, compresa, particella, adc))
-            continue
-        number = reader.integer(row.get(S.CSV_COL_TREE))
-        d_cm = reader.integer(row.get(S.CSV_COL_D_CM))
-        h_dec = reader.decimal(row.get(S.CSV_COL_H_M))
-        if number is None or d_cm is None or h_dec is None:
-            errors.append(S.ERR_CSV_ROW_PARSE.format(
-                i, f'{S.CSV_COL_TREE}/{S.CSV_COL_D_CM}/{S.CSV_COL_H_M}'))
-            continue
-        shoot = reader.integer(row.get(S.CSV_COL_COPPICE_SHOOT)) or 0
-        standard = is_truthy(row[S.CSV_COL_COPPICE_STD])
-        h_m = h_dec.quantize(TREE_H_QUANTUM, rounding=ROUND_HALF_UP)
-        l10_mm = reader.integer(row.get(S.CSV_COL_L10_MM)) or 0
-        fustaia = is_truthy(row[S.CSV_COL_HIGHFOREST])
-        coppice = not fustaia
-        preserved = (is_truthy(row.get(S.CSV_COL_PRESERVED, ''))
-                     if S.CSV_COL_PRESERVED in row else False)
-
-        genere = row[S.CSV_COL_SPECIES].strip()
-        mapped = GENERE_MAP.get(genere, genere)
-        species = species_cache.get(mapped.lower())
-        if species is None:
-            errors.append(S.ERR_CSV_ROW_SPECIES.format(i, genere))
-            continue
-
-        # Per-row date (if column present) else default.
-        if has_date_column and row.get(S.CSV_COL_DATA, '').strip():
-            try:
-                row_date = date_type.fromisoformat(row[S.CSV_COL_DATA].strip())
-            except ValueError:
-                errors.append(S.ERR_CSV_ROW_PARSE.format(
-                    i, f'{S.CSV_COL_DATA}: {row[S.CSV_COL_DATA]}',
-                ))
-                continue
-        else:
-            row_date = default_date
-        if row_date is None:
-            errors.append(S.ERR_CSV_ROW_PARSE.format(i, S.CSV_COL_DATA))
-            continue
-
-        existing_sample = existing_sample_by_area.get(area.id)
-        if existing_sample and existing_sample.date != row_date:
-            errors.append(S.ERR_CSV_ROW_SAMPLE_DATE_CONFLICT.format(
-                i, compresa, particella, adc, existing_sample.date.isoformat(),
-            ))
-            continue
-        previous_date = csv_date_by_area.get(area.id)
-        if previous_date is not None and previous_date != row_date:
-            errors.append(S.ERR_CSV_ROW_SAMPLE_DATE_CONFLICT.format(
-                i, compresa, particella, adc, previous_date.isoformat(),
-            ))
-            continue
-        csv_date_by_area.setdefault(area.id, row_date)
-
-        if coppice or not has_species(mapped):
-            volume_m3 = None
-            mass_q = None
-        else:
-            volume_m3 = tabacchi_volume_m3(d_cm, h_m, mapped)
-            mass_q = tree_mass_q(volume_m3, species.density)
-
-        parsed.append({
-            FIELD_AREA: area, FIELD_DATE: row_date, FIELD_PARCEL: area.parcel,
-            FIELD_SPECIES: species, FIELD_COPPICE: coppice, FIELD_PRESERVED: preserved,
-            FIELD_NUMBER: number, FIELD_SHOOT: shoot, FIELD_STANDARD: standard,
-            FIELD_D_CM: d_cm, FIELD_H_M: h_m, FIELD_L10_MM: l10_mm,
-            FIELD_VOLUME_M3: volume_m3, FIELD_MASS_Q: mass_q,
-        })
+    parsed, errors = csv_trees.validate_rows(
+        reader, csv_trees.db_indexes(survey),
+        has_date_column=has_date_column, default_date=default_date,
+    )
     if errors:
         return csv_error_list(errors)
     if not parsed:
         return validation_error([S.ERR_CSV_EMPTY])
 
-    with transaction.atomic():
-        # One Sample per (survey, area); all rows for that area share its date.
-        sample_by_area = {}
-        for r in parsed:
-            area_id = r[FIELD_AREA].id
-            if area_id in sample_by_area:
-                continue
-            sample, _ = Sample.objects.get_or_create(
-                sample_area=r[FIELD_AREA], survey=survey,
-                defaults={FIELD_DATE: r[FIELD_DATE]},
-            )
-            sample_by_area[area_id] = sample
-
-        # Walk parsed rows: create one Tree + one TreeSample per row.
-        n_trees = 0
-        for r in parsed:
-            sample = sample_by_area[r[FIELD_AREA].id]
-            tree = Tree.objects.create(
-                species=r[FIELD_SPECIES], parcel=r[FIELD_PARCEL],
-                preserved=r[FIELD_PRESERVED], coppice=r[FIELD_COPPICE],
-            )
-            TreeSample.objects.create(
-                sample=sample, tree=tree, shoot=r[FIELD_SHOOT],
-                standard=r[FIELD_STANDARD], number=r[FIELD_NUMBER],
-                d_cm=r[FIELD_D_CM], h_m=r[FIELD_H_M], l10_mm=r[FIELD_L10_MM],
-                volume_m3=r[FIELD_VOLUME_M3], mass_q=r[FIELD_MASS_Q],
-            )
-            n_trees += 1
-
-        mark_stale(
-            f'sampled_trees_{survey.id}', 'samples', 'surveys',
-            *BOSCO_TREE_DIGESTS, 'audit',
-        )
+    counts = csv_trees.apply(survey, parsed)
 
     return success_response(
         request, body,
         data_id='surveys', row_id=survey.id,
-        extra={'n_samples': len(sample_by_area), 'n_trees': n_trees},
+        extra=counts,
     )
 
 

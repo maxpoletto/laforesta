@@ -10,6 +10,8 @@ For translatable user-facing text (labels, error messages, button copy,
 column headers), see `config/strings.py` / `config/strings_it.py`.
 """
 
+from decimal import Decimal
+
 # API envelope keys.
 ROW_ID  = 'row_id'
 VERSION = 'version'
@@ -166,6 +168,8 @@ BOSCO_SPECIES_DIGESTS = BOSCO_TREE_DIGESTS
 # on exactly (mirrored in constants.js).
 DEFAULT_RADIUS_M = 12  # sample-area radius (m) when none is supplied
 M2_PER_HA = 10000  # square metres per hectare
+# Quantization for tree-height measurements (centimetre precision).
+TREE_H_QUANTUM = Decimal('0.01')
 
 
 # Truthy tokens for both edges: form/JSON values (the HTML checkbox 'on', real
