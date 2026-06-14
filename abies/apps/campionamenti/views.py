@@ -36,6 +36,7 @@ from apps.base.models import (
     Parcel, Region, Sample, SampleArea, SampleGrid, Species, Survey, Tree,
     TreeSample, parcel_sort_key, tree_mass_q,
 )
+from apps.campionamenti import csv_grid
 from config import strings as S
 from config.constants import (
     BOSCO_DENDROMETRY_DIGESTS, BOSCO_TREE_DIGESTS, DEFAULT_RADIUS_M,
@@ -1053,45 +1054,12 @@ def survey_edit_view(request, survey_id: int):
 # CSV imports (Bucket 3) — Grid CSV + Tree-and-sample CSV
 # ---------------------------------------------------------------------------
 
-GRID_CSV_REQUIRED = [S.CSV_COL_REGION, S.CSV_COL_PARCEL,
-                     S.CSV_COL_SAMPLE_AREA, S.CSV_COL_LON, S.CSV_COL_LAT,
-                     S.CSV_COL_ALT]
-GRID_CSV_OPTIONAL = [S.CSV_COL_RADIUS]
-GRID_CSV_ALIASES = {
-    # CSV exports use Quota/Raggio.  Also accept the unit-bearing display labels
-    # operators may get by exporting visible table data.
-    S.CSV_COL_ALT: [S.CSV_COL_ALT, S.COL_ALT, S.COL_ALT],
-    S.CSV_COL_RADIUS: [S.CSV_COL_RADIUS, S.COL_RADIUS, S.COL_RADIUS],
-}
-GRID_CSV_MISSING_LABELS = {
-    S.CSV_COL_ALT: f'{S.COL_ALT} / {S.CSV_COL_ALT}',
-    S.CSV_COL_RADIUS: f'{S.COL_RADIUS} / {S.CSV_COL_RADIUS}',
-}
 TREE_CSV_REQUIRED = [S.CSV_COL_REGION, S.CSV_COL_PARCEL,
                      S.CSV_COL_SAMPLE_AREA, S.CSV_COL_TREE,
                      S.CSV_COL_COPPICE_SHOOT, S.CSV_COL_COPPICE_STD,
                      S.CSV_COL_D_CM, S.CSV_COL_H_M, S.CSV_COL_L10_MM,
                      S.CSV_COL_SPECIES, S.CSV_COL_HIGHFOREST]
 TREE_CSV_OPTIONAL = [S.CSV_COL_DATA, S.CSV_COL_PRESERVED]
-
-
-def _grid_csv_columns(fieldnames):
-    found = {}
-    missing = []
-    available = set(fieldnames)
-    for canonical in GRID_CSV_REQUIRED:
-        candidates = list(dict.fromkeys(GRID_CSV_ALIASES.get(canonical, [canonical])))
-        match = next((name for name in candidates if name in available), None)
-        if match is None:
-            missing.append(GRID_CSV_MISSING_LABELS.get(canonical, canonical))
-        else:
-            found[canonical] = match
-    for canonical in GRID_CSV_OPTIONAL:
-        candidates = list(dict.fromkeys(GRID_CSV_ALIASES.get(canonical, [canonical])))
-        match = next((name for name in candidates if name in available), None)
-        if match is not None:
-            found[canonical] = match
-    return found, missing
 
 
 @login_required
@@ -1132,80 +1100,19 @@ def grid_csv_import_view(request):
         reader = csv_io.read(upload)
     except csv_io.CsvError as e:
         return validation_error([str(e)])
-    grid_cols, missing = _grid_csv_columns(reader.fieldnames or [])
+    cols, missing = csv_grid.resolve_columns(reader.fieldnames or [])
     if missing:
         return validation_error([S.ERR_CSV_MISSING_COLS.format(', '.join(missing))])
 
-    parcel_cache = {
-        (p.region.name.lower(), p.name): p
-        for p in Parcel.objects.select_related('region')
-    }
-    # Natural key per grid: (region_id, number) — area numbers are unique per
-    # region.  Pre-load existing areas so we can reject collisions without
-    # round-tripping.
-    existing_keys = set(SampleArea.objects.filter(sample_grid=grid)
-                                          .values_list('parcel__region_id', FIELD_NUMBER))
-
-    errors = []
-    parsed_rows = []
-    seen_in_csv = set()
-    for i, row in enumerate(reader, 2):  # row 2 = first data row (after header)
-        compresa = row[grid_cols[S.CSV_COL_REGION]].strip()
-        particella = row[grid_cols[S.CSV_COL_PARCEL]].strip()
-        parcel = parcel_cache.get((compresa.lower(), particella))
-        if parcel is None:
-            errors.append(
-                S.ERR_CSV_PARCEL_NOT_FOUND.format(i, compresa, particella),
-            )
-            continue
-        number = row[grid_cols[S.CSV_COL_SAMPLE_AREA]].strip()
-        key = (parcel.region_id, number)
-        if key in existing_keys or key in seen_in_csv:
-            errors.append(S.ERR_CSV_ROW_AREA_DUPLICATE.format(
-                i, compresa, particella, number,
-            ))
-            continue
-        seen_in_csv.add(key)
-        lat = reader.decimal(row.get(grid_cols[S.CSV_COL_LAT]))
-        lon = reader.decimal(row.get(grid_cols[S.CSV_COL_LON]))
-        if lat is None or lon is None:
-            errors.append(S.ERR_CSV_ROW_PARSE.format(
-                i, f'{S.CSV_COL_LAT}/{S.CSV_COL_LON}'))
-            continue
-        radius_col = grid_cols.get(S.CSV_COL_RADIUS)
-        altitude_col = grid_cols[S.CSV_COL_ALT]
-        raggio = (row.get(radius_col) or '').strip() if radius_col else ''
-        r_m = reader.integer(raggio) if raggio else DEFAULT_RADIUS_M
-        if r_m is None:  # present but unparseable → flag, don't silently default
-            errors.append(S.ERR_CSV_ROW_PARSE.format(i, radius_col))
-            continue
-        parsed_rows.append({
-            FIELD_PARCEL: parcel,
-            FIELD_NUMBER: number,
-            FIELD_LAT: coord_float(lat),
-            FIELD_LON: coord_float(lon),
-            FIELD_ALTITUDE: reader.integer(row.get(altitude_col)),
-            FIELD_R_M: r_m,
-            FIELD_NOTE: '',
-        })
+    parsed_rows, errors = csv_grid.validate_rows(
+        reader, cols, csv_grid.db_indexes(grid),
+    )
     if errors:
         return csv_error_list(errors)
     if not parsed_rows:
         return validation_error([S.ERR_CSV_EMPTY])
 
-    with transaction.atomic():
-        SampleArea.objects.bulk_create([
-            SampleArea(
-                sample_grid=grid,
-                parcel=r[FIELD_PARCEL], number=r[FIELD_NUMBER],
-                lat=r[FIELD_LAT], lon=r[FIELD_LON],
-                altitude_m=r[FIELD_ALTITUDE], r_m=r[FIELD_R_M], note=r[FIELD_NOTE],
-            )
-            for r in parsed_rows
-        ])
-        # Surveys digest carries N. aree totali per grid → stale when
-        # we add areas to a grid that has surveys.
-        mark_stale('grids', 'sample_areas', 'surveys', 'audit')
+    csv_grid.apply(grid, parsed_rows)
 
     grid.refresh_from_db()
     area_qs = SampleArea.objects.filter(sample_grid=grid) \

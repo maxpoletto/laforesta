@@ -1,0 +1,149 @@
+"""Unit tests for the sample-grid CSV import core (apps/campionamenti/csv_grid)."""
+
+import pytest
+
+from apps.base import csv_io
+from apps.base.models import SampleArea, SampleGrid
+from apps.campionamenti import csv_grid
+from config import strings as S
+
+
+def test_resolve_columns_canonical_headers():
+    fieldnames = ['Compresa', 'Particella', 'Area saggio', 'Lon', 'Lat',
+                  'Quota', 'Raggio']
+    cols, missing = csv_grid.resolve_columns(fieldnames)
+    assert missing == []
+    assert cols[S.CSV_COL_REGION] == 'Compresa'
+    assert cols[S.CSV_COL_RADIUS] == 'Raggio'
+
+
+def test_resolve_columns_missing_required_reported():
+    _, missing = csv_grid.resolve_columns(['Compresa', 'Particella'])
+    # Required columns absent from the header are reported; Raggio is optional.
+    assert S.CSV_COL_LAT in ' '.join(missing) or any('Lat' in m for m in missing)
+    assert missing  # non-empty
+
+
+def _reader(csv_text):
+    return csv_io.read(csv_text)
+
+
+@pytest.mark.django_db
+def test_validate_rows_happy_path(parcels):
+    parcel = parcels[0]
+    grid = SampleGrid.objects.create(name='vr-happy')
+    compresa = parcel.region.name
+    particella = parcel.name
+    reader = _reader(
+        'Compresa,Particella,Area saggio,Lon,Lat,Quota,Raggio\n'
+        f'{compresa},{particella},10,16.1,38.5,500,15\n'
+    )
+    cols, missing = csv_grid.resolve_columns(reader.fieldnames)
+    assert not missing
+    parsed, errors = csv_grid.validate_rows(reader, cols, csv_grid.db_indexes(grid))
+    assert errors == []
+    assert len(parsed) == 1
+    assert parsed[0][csv_grid.FIELD_NUMBER] == '10'
+    assert parsed[0][csv_grid.FIELD_R_M] == 15
+
+
+@pytest.mark.django_db
+def test_validate_rows_blank_radius_defaults(parcels):
+    parcel = parcels[0]
+    grid = SampleGrid.objects.create(name='vr-blank-radius')
+    compresa = parcel.region.name
+    particella = parcel.name
+    reader = _reader(
+        'Compresa,Particella,Area saggio,Lon,Lat,Quota,Raggio\n'
+        f'{compresa},{particella},10,16.1,38.5,500,\n'
+    )
+    cols, _ = csv_grid.resolve_columns(reader.fieldnames)
+    parsed, errors = csv_grid.validate_rows(reader, cols, csv_grid.db_indexes(grid))
+    assert errors == []
+    assert parsed[0][csv_grid.FIELD_R_M] == csv_grid.DEFAULT_RADIUS_M
+
+
+@pytest.mark.django_db
+def test_validate_rows_unparseable_radius_flagged(parcels):
+    parcel = parcels[0]
+    grid = SampleGrid.objects.create(name='vr-bad-radius')
+    compresa = parcel.region.name
+    particella = parcel.name
+    reader = _reader(
+        'Compresa,Particella,Area saggio,Lon,Lat,Quota,Raggio\n'
+        f'{compresa},{particella},10,16.1,38.5,500,abc\n'
+    )
+    cols, _ = csv_grid.resolve_columns(reader.fieldnames)
+    parsed, errors = csv_grid.validate_rows(reader, cols, csv_grid.db_indexes(grid))
+    assert parsed == []
+    assert len(errors) == 1
+
+
+@pytest.mark.django_db
+def test_validate_rows_unknown_parcel_flagged(parcels):
+    grid = SampleGrid.objects.create(name='vr-bad-parcel')
+    reader = _reader(
+        'Compresa,Particella,Area saggio,Lon,Lat,Quota,Raggio\n'
+        'Nowhere,999,10,16.1,38.5,500,15\n'
+    )
+    cols, _ = csv_grid.resolve_columns(reader.fieldnames)
+    parsed, errors = csv_grid.validate_rows(reader, cols, csv_grid.db_indexes(grid))
+    assert parsed == []
+    assert len(errors) == 1
+
+
+@pytest.mark.django_db
+def test_validate_rows_duplicate_within_upload_flagged(parcels):
+    parcel = parcels[0]
+    grid = SampleGrid.objects.create(name='vr-dup')
+    compresa = parcel.region.name
+    particella = parcel.name
+    reader = _reader(
+        'Compresa,Particella,Area saggio,Lon,Lat,Quota,Raggio\n'
+        f'{compresa},{particella},10,16.1,38.5,500,15\n'
+        f'{compresa},{particella},10,16.2,38.6,510,15\n'
+    )
+    cols, _ = csv_grid.resolve_columns(reader.fieldnames)
+    parsed, errors = csv_grid.validate_rows(reader, cols, csv_grid.db_indexes(grid))
+    assert len(parsed) == 1   # first row accepted
+    assert len(errors) == 1   # second row flagged as duplicate
+
+
+@pytest.mark.django_db
+def test_validate_rows_existing_db_key_flagged(parcels):
+    """A row matching an area already in the grid (DB) is flagged, not created."""
+    parcel = parcels[0]
+    grid = SampleGrid.objects.create(name='vr-existing-key')
+    SampleArea.objects.create(
+        sample_grid=grid, parcel=parcel, number='10',
+        lat=16.1, lon=38.5, r_m=12,
+    )
+    compresa = parcel.region.name
+    particella = parcel.name
+    reader = _reader(
+        'Compresa,Particella,Area saggio,Lon,Lat,Quota,Raggio\n'
+        f'{compresa},{particella},10,16.2,38.6,510,15\n'
+    )
+    cols, _ = csv_grid.resolve_columns(reader.fieldnames)
+    parsed, errors = csv_grid.validate_rows(reader, cols, csv_grid.db_indexes(grid))
+    assert parsed == []
+    assert len(errors) == 1
+
+
+@pytest.mark.django_db
+def test_apply_creates_sample_areas(parcels):
+    parcel = parcels[0]
+    grid = SampleGrid.objects.create(name='apply-create')
+    compresa = parcel.region.name
+    particella = parcel.name
+    reader = _reader(
+        'Compresa,Particella,Area saggio,Lon,Lat,Quota,Raggio\n'
+        f'{compresa},{particella},10,16.1,38.5,500,15\n'
+    )
+    cols, _ = csv_grid.resolve_columns(reader.fieldnames)
+    parsed, errors = csv_grid.validate_rows(reader, cols, csv_grid.db_indexes(grid))
+    assert errors == []
+    csv_grid.apply(grid, parsed)
+    area = SampleArea.objects.get(sample_grid=grid, number='10')
+    assert area.r_m == 15
+    assert area.altitude_m == 500
