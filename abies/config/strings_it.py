@@ -231,6 +231,8 @@ ERR_CSV_ROW_SPECIES = 'Riga {}: specie sconosciuta: {}.'
 ERR_CSV_ROW_PARSE = 'Riga {}: errore di parsing ({}).'
 ERR_CSV_VALUE_REQUIRED = 'Riga {}: valore obbligatorio mancante nella colonna {}.'
 ERR_CSV_DUPLICATE_KEY  = 'Riga {}: chiave duplicata nella colonna {} ({}).'
+ERR_CSV_ECLASS_NOT_FOUND = 'Riga {}: comparto non trovato ({}).'
+ERR_CSV_GRID_NOT_FOUND   = 'Riga {}: griglia non trovata ({}).'
 ERR_CSV_SURVEY_REQUIRED = 'Seleziona prima un rilevamento.'
 ERR_CSV_GRID_REQUIRED = 'Seleziona prima una griglia di destinazione.'
 ERR_MIN_N_INVALID = 'N minimo deve essere un intero positivo.'
@@ -303,6 +305,14 @@ CSV_COL_LATIN       = 'Nome latino'         # Species.latin_name; paired with CO
 CSV_COL_DENSITY     = 'Densità (q/m³)'      # Species.density; paired with COL_DENSITY
 CSV_COL_MINOR       = 'Minore'              # Species.minor (bool); paired with COL_MINOR
 CSV_COL_SORT_ORDER  = 'Ordine'             # Species.sort_order
+
+# --- Named-container CSV headers (bootstrap: sample_grids/surveys/harvest_plans).
+CSV_COL_GRID         = 'Griglia'       # SampleGrid.name / Survey grid FK; paired with COL_GRID
+CSV_COL_SURVEY       = 'Rilevamento'   # Survey.name; paired with COL_SURVEY
+CSV_COL_DESCRIPTION  = 'Descrizione'   # description; paired with COL_DESCRIPTION
+CSV_COL_PLAN         = 'Piano'         # HarvestPlan.name
+CSV_COL_YEAR_START   = 'Anno inizio'   # HarvestPlan.year_start; paired with COL_YEAR_START
+CSV_COL_YEAR_END     = 'Anno fine'     # HarvestPlan.year_end; paired with COL_YEAR_END
 
 # CSV column headers used by the legacy bosco/data `import_*` management
 # commands.  Where a column also appears in a digest, the names are
