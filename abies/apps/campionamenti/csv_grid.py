@@ -16,15 +16,15 @@ from apps.base.models import Parcel, SampleArea
 from apps.base.numparse import coord_float
 from config import strings as S
 from config.constants import (
-    DEFAULT_RADIUS_M, FIELD_ALTITUDE, FIELD_LAT, FIELD_LON, FIELD_NOTE,
+    FIELD_ALTITUDE, FIELD_LAT, FIELD_LON, FIELD_NOTE,
     FIELD_NUMBER, FIELD_PARCEL, FIELD_R_M,
 )
 
 # Column resolution (aliasing retained for now — see plan scope note).
 GRID_CSV_REQUIRED = [S.CSV_COL_REGION, S.CSV_COL_PARCEL,
                      S.CSV_COL_SAMPLE_AREA, S.CSV_COL_LON, S.CSV_COL_LAT,
-                     S.CSV_COL_ALT]
-GRID_CSV_OPTIONAL = [S.CSV_COL_RADIUS]
+                     S.CSV_COL_ALT, S.CSV_COL_RADIUS]
+GRID_CSV_OPTIONAL = []
 GRID_CSV_ALIASES = {
     # CSV exports use Quota/Raggio.  Also accept the unit-bearing display labels
     # operators may get by exporting visible table data.
@@ -113,19 +113,22 @@ def validate_rows(reader, cols, idx: GridIndexes):
             errors.append(S.ERR_CSV_ROW_PARSE.format(
                 i, f'{S.CSV_COL_LAT}/{S.CSV_COL_LON}'))
             continue
-        radius_col = cols.get(S.CSV_COL_RADIUS)
+        radius_col = cols[S.CSV_COL_RADIUS]
         altitude_col = cols[S.CSV_COL_ALT]
-        raggio = (row.get(radius_col) or '').strip() if radius_col else ''
-        r_m = reader.integer(raggio) if raggio else DEFAULT_RADIUS_M
-        if r_m is None:  # present but unparseable → flag, don't silently default
+        r_m = reader.integer((row.get(radius_col) or '').strip())
+        if r_m is None:  # blank or invalid — Raggio is required, no default
             errors.append(S.ERR_CSV_ROW_PARSE.format(i, radius_col))
+            continue
+        altitude, alt_ok = reader.opt_int(row.get(altitude_col))
+        if not alt_ok:   # present but invalid (blank → None, allowed: nullable)
+            errors.append(S.ERR_CSV_ROW_PARSE.format(i, altitude_col))
             continue
         parsed.append({
             FIELD_PARCEL: parcel,
             FIELD_NUMBER: number,
             FIELD_LAT: coord_float(lat),
             FIELD_LON: coord_float(lon),
-            FIELD_ALTITUDE: reader.integer(row.get(altitude_col)),
+            FIELD_ALTITUDE: altitude,
             FIELD_R_M: r_m,
             FIELD_NOTE: '',
         })

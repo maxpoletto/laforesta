@@ -202,3 +202,14 @@ def test_apply_idempotent_and_updates():
     assert ref.apply(ref.SPECIES, parsed2) == (0, 1)       # updated
     assert Species.objects.filter(common_name='Abete').count() == 1
     assert Species.objects.get(common_name='Abete').density == Decimal('8.00')
+
+
+@pytest.mark.django_db
+def test_apply_update_bumps_version_on_timestamped():
+    cols, _ = ref.resolve_columns(ref.SPECIES, [S.CSV_COL_SPECIES, S.CSV_COL_DENSITY])
+    r1 = _reader(f'{S.CSV_COL_SPECIES},{S.CSV_COL_DENSITY}\nAbete,9.0\n')
+    ref.apply(ref.SPECIES, ref.validate_rows(ref.SPECIES, r1, cols)[0])
+    v0 = Species.objects.get(common_name='Abete').version
+    r2 = _reader(f'{S.CSV_COL_SPECIES},{S.CSV_COL_DENSITY}\nAbete,8.0\n')
+    ref.apply(ref.SPECIES, ref.validate_rows(ref.SPECIES, r2, cols)[0])
+    assert Species.objects.get(common_name='Abete').version == v0 + 1

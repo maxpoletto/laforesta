@@ -35,6 +35,7 @@ from django.utils.formats import get_format
 
 from apps.base.numparse import to_decimal, to_int
 from config import strings as S
+from config.constants import parse_bool
 
 # Field delimiter ⇒ decimal separator.  ';' is the Italian /
 # Excel pairing (comma decimal); ',' is the canonical / US pairing (dot decimal).
@@ -75,6 +76,38 @@ class CsvReader:
         "12,0"); a fractional value ("12,5") yields None.  See `numparse.to_int`.
         """
         return to_int(value, self.decimal_separator)
+
+    def opt_int(self, value):
+        """Optional integer cell, distinguishing blank from invalid: blank →
+        ``(None, True)``; a non-blank value that is not an integer →
+        ``(None, False)``; otherwise ``(int, True)``.  Unlike ``integer`` (which
+        returns ``None`` for both), this lets a caller accept a blank optional
+        cell but flag a present-but-invalid one."""
+        raw = (value or '').strip()
+        if not raw:
+            return None, True
+        parsed = self.integer(raw)
+        return parsed, parsed is not None
+
+    def opt_decimal(self, value):
+        """Optional decimal cell; blank → ``(None, True)``, present-but-invalid →
+        ``(None, False)``, else ``(Decimal, True)``.  See ``opt_int``."""
+        raw = (value or '').strip()
+        if not raw:
+            return None, True
+        parsed = self.decimal(raw)
+        return parsed, parsed is not None
+
+    def opt_bool(self, value):
+        """Optional boolean cell; blank → ``(None, True)``, an unrecognised
+        non-blank token → ``(None, False)``, else ``(bool, True)``.  Same
+        blank-vs-invalid contract as ``opt_int``; a required boolean treats a
+        ``None`` value (blank) as an error, an optional one defaults it."""
+        raw = (value or '').strip()
+        if not raw:
+            return None, True
+        parsed = parse_bool(raw)
+        return parsed, parsed is not None
 
 
 def json_file_bytes(body: dict, field: str) -> bytes | None:

@@ -63,6 +63,39 @@ def test_integer_parsing():
     assert r.integer('') is None
 
 
+def test_opt_int_blank_ok():
+    r = csv_io.read('a\n1\n')
+    assert r.opt_int('') == (None, True)
+    assert r.opt_int(None) == (None, True)
+
+
+def test_opt_int_valid():
+    r = csv_io.read('a\n1\n')
+    assert r.opt_int('12') == (12, True)
+
+
+def test_opt_int_invalid_flagged():
+    r = csv_io.read('a\n1\n')
+    assert r.opt_int('abc') == (None, False)
+
+
+def test_opt_decimal_blank_valid_invalid():
+    r = csv_io.read('a\n1\n')
+    from decimal import Decimal
+    assert r.opt_decimal('') == (None, True)
+    assert r.opt_decimal('1.5') == (Decimal('1.5'), True)
+    assert r.opt_decimal('x') == (None, False)
+
+
+def test_opt_bool_blank_valid_invalid():
+    r = csv_io.read('a\n1\n')
+    assert r.opt_bool('') == (None, True)        # blank
+    assert r.opt_bool(None) == (None, True)
+    assert r.opt_bool('1') == (True, True)
+    assert r.opt_bool('0') == (False, True)
+    assert r.opt_bool('maybe') == (None, False)  # unrecognised → flagged
+
+
 def test_bom_stripped_from_bytes():
     r = csv_io.read('﻿a,b\n1,2\n'.encode('utf-8'))
     assert r.rows[0]['a'] == '1' and r.rows[0]['b'] == '2'

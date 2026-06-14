@@ -92,6 +92,18 @@ def test_optional_columns_absent_default_null(regions, eclasses):
 
 
 @pytest.mark.django_db
+def test_invalid_optional_numeric_flagged(regions, eclasses):
+    reader = _reader(
+        f'{S.CSV_COL_REGION},{S.CSV_COL_CLASS},{S.CSV_COL_PARCEL},'
+        f'{S.CSV_COL_AREA_HA},{S.CSV_COL_AVE_AGE}\n'
+        f'{regions[0].name},A,7,12.5,abc\n'      # ave_age non-blank, invalid
+    )
+    parsed, errors = csv_parcels.validate_rows(reader, csv_parcels.db_indexes())
+    assert parsed == []
+    assert len(errors) == 1
+
+
+@pytest.mark.django_db
 def test_no_synthetic_parcels(regions, eclasses):
     """apply creates exactly the rows given — no synthetic 'X' parcels."""
     reader = _reader(

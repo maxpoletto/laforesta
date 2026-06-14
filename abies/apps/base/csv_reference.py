@@ -21,7 +21,7 @@ from config import strings as S
 from config.constants import (
     FIELD_ACTIVE, FIELD_COMMON_NAME, FIELD_COPPICE, FIELD_DENSITY,
     FIELD_LATIN_NAME, FIELD_MINOR, FIELD_MIN_HARVEST_VOLUME, FIELD_NAME,
-    FIELD_NOTES, FIELD_SORT_ORDER, parse_bool,
+    FIELD_NOTES, FIELD_SORT_ORDER,
 )
 
 # How a raw CSV cell maps to a Python value.
@@ -115,17 +115,16 @@ def resolve_columns(table: RefTable, fieldnames):
 
 def _coerce(reader, raw, kind):
     """Coerce one raw cell.  Returns ``(value, ok)``: ``value`` is ``None`` for a
-    blank cell; ``ok`` is ``False`` only when a non-blank cell fails to parse."""
-    raw = (raw or '').strip()
-    if not raw:
-        return None, True
+    blank cell; ``ok`` is ``False`` only when a non-blank cell fails to parse.
+    Numeric/boolean handling delegates to the shared ``CsvReader`` helpers so the
+    blank-vs-invalid logic lives in exactly one place."""
     if kind == KIND_STR:
-        return raw, True
-    if kind == KIND_BOOL:
-        value = parse_bool(raw)         # None → unrecognised token → parse error
-        return value, value is not None
-    value = reader.integer(raw) if kind == KIND_INT else reader.decimal(raw)
-    return value, value is not None
+        return ((raw or '').strip() or None), True
+    if kind == KIND_INT:
+        return reader.opt_int(raw)
+    if kind == KIND_DECIMAL:
+        return reader.opt_decimal(raw)
+    return reader.opt_bool(raw)   # KIND_BOOL
 
 
 def validate_rows(table: RefTable, reader, cols):
@@ -192,7 +191,11 @@ def apply(table: RefTable, parsed):
             if changed:
                 for f in changed:
                     setattr(obj, f, defaults[f])
-                obj.save(update_fields=changed)
+                fields = list(changed)
+                if hasattr(obj, 'version'):
+                    obj.version += 1
+                    fields += ['version', 'modified_at']
+                obj.save(update_fields=fields)
                 updated += 1
         mark_all_stale()
     return created, updated

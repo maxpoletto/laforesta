@@ -18,7 +18,7 @@ from config.constants import (
     BOSCO_TREE_DIGESTS, FIELD_AREA, FIELD_COPPICE, FIELD_DATE, FIELD_D_CM,
     FIELD_H_M, FIELD_L10_MM, FIELD_MASS_Q, FIELD_NUMBER, FIELD_PARCEL,
     FIELD_PRESERVED, FIELD_SHOOT, FIELD_SPECIES, FIELD_STANDARD, FIELD_VOLUME_M3,
-    TREE_H_QUANTUM, is_truthy,
+    TREE_H_QUANTUM,
 )
 
 TREE_CSV_REQUIRED = [S.CSV_COL_REGION, S.CSV_COL_PARCEL,
@@ -82,14 +82,26 @@ def validate_rows(reader, idx: TreeIndexes, *, has_date_column, default_date):
             errors.append(S.ERR_CSV_ROW_PARSE.format(
                 i, f'{S.CSV_COL_TREE}/{S.CSV_COL_D_CM}/{S.CSV_COL_H_M}'))
             continue
-        shoot = reader.integer(row.get(S.CSV_COL_COPPICE_SHOOT)) or 0
-        standard = is_truthy(row[S.CSV_COL_COPPICE_STD])
+        shoot, shoot_ok = reader.opt_int(row.get(S.CSV_COL_COPPICE_SHOOT))
+        l10, l10_ok = reader.opt_int(row.get(S.CSV_COL_L10_MM))
+        standard, std_ok = reader.opt_bool(row.get(S.CSV_COL_COPPICE_STD))
+        preserved, pai_ok = reader.opt_bool(row.get(S.CSV_COL_PRESERVED, ''))
+        if not (shoot_ok and l10_ok and std_ok and pai_ok):
+            errors.append(S.ERR_CSV_ROW_PARSE.format(
+                i, f'{S.CSV_COL_COPPICE_SHOOT}/{S.CSV_COL_L10_MM}/'
+                   f'{S.CSV_COL_COPPICE_STD}/{S.CSV_COL_PRESERVED}'))
+            continue
+        shoot = shoot or 0
+        l10_mm = l10 or 0
+        standard = bool(standard)        # required column; blank → False
+        preserved = bool(preserved)      # optional; absent/blank → False
         h_m = h_dec.quantize(TREE_H_QUANTUM, rounding=ROUND_HALF_UP)
-        l10_mm = reader.integer(row.get(S.CSV_COL_L10_MM)) or 0
-        fustaia = is_truthy(row[S.CSV_COL_HIGHFOREST])
+        # Fustaia is required: a blank or unrecognised value is an error.
+        fustaia, fustaia_ok = reader.opt_bool(row[S.CSV_COL_HIGHFOREST])
+        if not fustaia_ok or fustaia is None:
+            errors.append(S.ERR_CSV_ROW_PARSE.format(i, S.CSV_COL_HIGHFOREST))
+            continue
         coppice = not fustaia
-        preserved = (is_truthy(row.get(S.CSV_COL_PRESERVED, ''))
-                     if S.CSV_COL_PRESERVED in row else False)
 
         genere = row[S.CSV_COL_SPECIES].strip()
         mapped = GENERE_MAP.get(genere, genere)

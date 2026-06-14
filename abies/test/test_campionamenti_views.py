@@ -16,7 +16,7 @@ from apps.base.models import (
 )
 from config import strings as S
 from config.constants import (
-    COLUMNS, COL_COPPICE, DATA_ID, DELETES, DEFAULT_RADIUS_M,
+    COLUMNS, COL_COPPICE, DATA_ID, DELETES,
     DIGEST_PARCEL_DENDROMETRY, DIGEST_PARCEL_DENDROMETRY_POINTS,
     DIGEST_PRESERVED_TREES,
     FIELD_ALTITUDE_M, FIELD_DATE,
@@ -1971,7 +1971,8 @@ class TestGridCsvImport:
         assert area.altitude_m == 500 and area.r_m == 12
 
     def test_abies_data_sample_grid_import(self, writer_client, sample_setup):
-        """The real setup CSV uses legacy headers and omits Raggio."""
+        """The real setup CSV uses legacy headers and omits Raggio, which is now
+        required, so the fixture rows are augmented with an explicit Raggio."""
         s = sample_setup
         data_path = (
             Path(__file__).resolve().parents[2]
@@ -1988,12 +1989,14 @@ class TestGridCsvImport:
         assert rows, 'expected matching fixture rows in abies-data/aree-di-saggio.csv'
 
         grid = SampleGrid.objects.create(name='abies-data import')
-        csv_text = '\n'.join([lines[0], *rows]) + '\n'
+        header = f'{lines[0]},Raggio'
+        rows = [f'{row},12' for row in rows]
+        csv_text = '\n'.join([header, *rows]) + '\n'
         resp = self._post(writer_client, grid.id, csv_text)
         assert resp.status_code == 200, resp.content
         areas = list(SampleArea.objects.filter(sample_grid=grid).order_by('number'))
         assert len(areas) == len(rows)
-        assert {a.r_m for a in areas} == {DEFAULT_RADIUS_M}
+        assert {a.r_m for a in areas} == {12}
         assert all(a.altitude_m is not None for a in areas)
 
     def test_unparseable_radius_flagged(self, writer_client, sample_setup):
@@ -2010,8 +2013,8 @@ class TestGridCsvImport:
         assert resp.status_code == 400
         assert SampleArea.objects.filter(sample_grid=grid).count() == 0
 
-    def test_blank_radius_defaults(self, writer_client, sample_setup):
-        """A blank Raggio cell falls back to the default radius (not an error)."""
+    def test_blank_radius_flagged(self, writer_client, sample_setup):
+        """A blank Raggio cell is flagged (Raggio is required, no default)."""
         s = sample_setup
         grid = SampleGrid.objects.create(name='Blank radius')
         compresa = s['area'].parcel.region.name
@@ -2021,8 +2024,8 @@ class TestGridCsvImport:
             f'{compresa},{particella},10,16.1,38.5,500,\n'
         )
         resp = self._post(writer_client, grid.id, csv_text)
-        assert resp.status_code == 200, resp.content
-        assert SampleArea.objects.get(sample_grid=grid, number='10').r_m == 12
+        assert resp.status_code == 400
+        assert SampleArea.objects.filter(sample_grid=grid).count() == 0
 
     def test_second_import_appends_more(self, writer_client, sample_setup):
         """Two successive imports on the same grid should accumulate."""

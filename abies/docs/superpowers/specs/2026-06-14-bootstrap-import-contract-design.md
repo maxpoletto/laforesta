@@ -105,24 +105,32 @@ This requirement is also the strongest correctness test we have: a
   module (`apps/<domain>/csv_import.py`), parameterized by target container +
   mode, with an explicit three-phase contract:
   - **parse** — CSV bytes → rows (dialect auto-detected).
-  - **validate** — pure, **no writes**: required cols/types, and FK resolution
-    against a *staged index* = current DB state + pending inserts from
-    already-validated files (processed in dependency order). Returns row/column
-    errors.
+  - **validate** — no DB writes of its own: checks required cols/types and
+    resolves FKs against an injected `*Indexes` (built from the live DB).
+    Returns row/column errors plus parsed rows with FK targets resolved to
+    objects, ready for `apply`.
   - **apply** — writes, assuming validated input.
 
-  This is what lets `--check` be a true no-write dry-run and lets `bootstrap`
-  accumulate every error before any write (no half-loaded instance, no
-  atomic-rollback hack). Domains: parcels, sample grid, surveys/sampled-trees,
+  **Load model (decided 2026-06-14, atomic-transaction).** Because `validate`
+  resolves FK targets to *saved* objects, the orchestrator loads files in
+  dependency order inside one `transaction.atomic()`: it validates each file and
+  applies its valid rows immediately, so a later file's `validate` resolves
+  against the rows an earlier file just wrote. Errors are accumulated across all
+  files (not fail-fast); on **any** error — or for `--check` — the whole
+  transaction rolls back, so there is never a half-loaded instance and `--check`
+  is observationally a no-write dry-run. (An earlier draft of this spec
+  specified pure staged-index validation with no rollback and called the
+  transaction approach a "hack"; the cores settled on resolving FK objects
+  during `validate`, which makes the single-transaction load the simpler,
+  equivalent choice.) Domains: parcels, sample grid, surveys/sampled-trees,
   preserved-trees (PAI), harvest plans/items, harvests (new), hypso (already
   extracted as `hypsometry.parse_param_csv` / `replace_active_set`).
-- **`manage.py bootstrap <data_dir> [--check] [--force]`.** Thin orchestrator:
-  1. **Parse + validate** every present file (no DB writes), accumulating errors
-     across all files; abort with the full report if any.
-  2. **Apply** in one transaction: seed reference (regions, eclasses, tractors,
-     crews; species/products from data dir or in-repo default), seed named
-     containers (surveys, sample grids, harvest plans), then each bulk file via
-     its domain core.
+- **`manage.py bootstrap <data_dir> [--check] [--force]`.** Thin orchestrator,
+  all inside one `transaction.atomic()` (rolled back on any error or `--check`):
+  1. Seed reference (regions, eclasses, tractors, crews; species/products from
+     data dir or in-repo default), then named containers (surveys, sample grids,
+     harvest plans), then each bulk file via its domain core — validating and
+     applying each file's valid rows in dependency order, accumulating errors.
   3. Emit a structured report (§7).
   The per-domain cores remain individually callable for targeted dev re-imports.
 - **`manage.py export <dir>`.** The dual: writes the canonical bundle (every
@@ -222,13 +230,17 @@ Convention: such rows render as `Particella = "X"` in user-visible displays
 - **Args:** `<data_dir>` (configurable; replaces the `DATA_DIR ?= ../abies-data`
   default contract). `--check` = validate + report only, no writes. `--force` =
   wipe-and-reload (required when the instance is non-empty).
-- **Validation-first:** run each domain core's **parse + validate** phase (§4)
-  for every present file before any write, accumulating errors across all files
-  (one report, not fail-fast). Required-file missing → hard error. Optional-file
-  missing → skip + note. Malformed/unresolved row → error naming file, row,
-  column, raw value (reusing `csv_io` + `ERR_CSV_*`).
-- **Transactional:** the whole load is one `transaction.atomic()`; any failure
-  rolls back — never a half-loaded instance.
+- **Atomic load with error accumulation (§4 load model):** inside one
+  `transaction.atomic()`, process every present file in dependency order —
+  validate it via its domain core, record any row/column errors, and apply its
+  valid rows so later files resolve FKs against them. Do **not** fail fast:
+  keep going so the report lists errors from every file at once. Required-file
+  missing → hard error. Optional-file missing → skip + note. Malformed/unresolved
+  row → error naming file, row, column, raw value (reusing `csv_io` + `ERR_CSV_*`).
+- **Rollback discipline:** if the run accumulated **any** error, or it is a
+  `--check` run, roll the transaction back — never a half-loaded instance, and
+  `--check` persists nothing. The transaction commits only on a clean,
+  non-`--check` run.
 - **Guard:** non-empty instance without `--force` → refuse, list populated
   domains, exit non-zero.
 - **Report (stdout):** per file → present/missing, required/optional, rows

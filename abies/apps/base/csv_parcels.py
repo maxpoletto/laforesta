@@ -80,17 +80,30 @@ def validate_rows(reader, idx: ParcelIndexes):
             errors.append(S.ERR_CSV_VALUE_PARSE.format(
                 i, S.CSV_COL_AREA_HA, (row.get(S.CSV_COL_AREA_HA) or '').strip()))
             continue
+        optional_ints, bad_col = {}, None
+        for field_name, col in (
+            ('ave_age', S.CSV_COL_AVE_AGE),
+            ('altitude_min_m', S.CSV_COL_ALT_MIN),
+            ('altitude_max_m', S.CSV_COL_ALT_MAX),
+            ('grade_pct', S.CSV_COL_GRADE_PCT),
+        ):
+            value, ok = reader.opt_int(row.get(col))
+            if not ok:
+                bad_col = col
+                break
+            optional_ints[field_name] = value
+        if bad_col is not None:
+            errors.append(S.ERR_CSV_VALUE_PARSE.format(
+                i, bad_col, (row.get(bad_col) or '').strip()))
+            continue
         seen.add(key)
         parsed.append({
             'name': name, 'region': region, 'eclass': eclass, 'area_ha': area_ha,
-            'ave_age': reader.integer(row.get(S.CSV_COL_AVE_AGE)),
             'location_name': (row.get(S.CSV_COL_LOCATION) or '').strip(),
-            'altitude_min_m': reader.integer(row.get(S.CSV_COL_ALT_MIN)),
-            'altitude_max_m': reader.integer(row.get(S.CSV_COL_ALT_MAX)),
             'aspect': (row.get(S.CSV_COL_ASPECT) or '').strip(),
-            'grade_pct': reader.integer(row.get(S.CSV_COL_GRADE_PCT)),
             'desc_veg': (row.get(S.CSV_COL_VEG_DESC) or '').strip(),
             'desc_geo': (row.get(S.CSV_COL_GEO_DESC) or '').strip(),
+            **optional_ints,
         })
     return parsed, errors
 

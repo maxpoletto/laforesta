@@ -116,6 +116,79 @@ def test_validate_rows_missing_date_flagged(survey_with_area):
 
 
 @pytest.mark.django_db
+def test_validate_rows_unrecognised_fustaia_flagged(survey_with_area):
+    """A non-blank but unrecognised Fustaia is an error, not a silent False."""
+    idx = csv_trees.db_indexes(survey_with_area['survey'])
+    parcel = survey_with_area['parcel']
+    csv_text = (
+        TREE_HEADER + '\n'
+        f'{parcel.region.name},{parcel.name},1,1,0,False,30,15.5,250,Abete,maybe\n'
+    )
+    parsed, errors = _validate(csv_text, idx)
+    assert parsed == []
+    assert len(errors) == 1
+
+
+@pytest.mark.django_db
+def test_validate_rows_invalid_l10_flagged(survey_with_area):
+    """A non-blank but invalid L10_mm is an error, not a silent 0."""
+    idx = csv_trees.db_indexes(survey_with_area['survey'])
+    parcel = survey_with_area['parcel']
+    csv_text = (
+        TREE_HEADER + '\n'
+        f'{parcel.region.name},{parcel.name},1,1,0,False,30,15.5,abc,Abete,True\n'
+    )
+    parsed, errors = _validate(csv_text, idx)
+    assert parsed == []
+    assert len(errors) == 1
+
+
+@pytest.mark.django_db
+def test_validate_rows_invalid_matricina_flagged(survey_with_area):
+    """A non-blank but unrecognised Matricina is an error, not a silent False."""
+    idx = csv_trees.db_indexes(survey_with_area['survey'])
+    parcel = survey_with_area['parcel']
+    csv_text = (
+        TREE_HEADER + '\n'
+        f'{parcel.region.name},{parcel.name},1,1,0,maybe,30,15.5,250,Abete,True\n'
+    )
+    parsed, errors = _validate(csv_text, idx)
+    assert parsed == []
+    assert len(errors) == 1
+
+
+@pytest.mark.django_db
+def test_validate_rows_invalid_pai_flagged(survey_with_area):
+    """A non-blank but unrecognised PAI value is an error, not a silent False."""
+    idx = csv_trees.db_indexes(survey_with_area['survey'])
+    parcel = survey_with_area['parcel']
+    csv_text = (
+        TREE_HEADER + f',{S.CSV_COL_PRESERVED}\n'
+        f'{parcel.region.name},{parcel.name},1,1,0,False,30,15.5,250,Abete,True,maybe\n'
+    )
+    parsed, errors = _validate(csv_text, idx)
+    assert parsed == []
+    assert len(errors) == 1
+
+
+@pytest.mark.django_db
+def test_validate_rows_blank_optionals_default(survey_with_area):
+    """Blank Pollone/L10_mm default to 0 and blank Matricina defaults to False."""
+    idx = csv_trees.db_indexes(survey_with_area['survey'])
+    parcel = survey_with_area['parcel']
+    csv_text = (
+        TREE_HEADER + '\n'
+        f'{parcel.region.name},{parcel.name},1,1,,,30,15.5,,Abete,True\n'
+    )
+    parsed, errors = _validate(csv_text, idx)
+    assert errors == []
+    assert len(parsed) == 1
+    assert parsed[0][csv_trees.FIELD_SHOOT] == 0
+    assert parsed[0][csv_trees.FIELD_L10_MM] == 0
+    assert parsed[0][csv_trees.FIELD_STANDARD] is False
+
+
+@pytest.mark.django_db
 def test_apply_creates_sample_and_treesample(survey_with_area):
     survey = survey_with_area['survey']
     idx = csv_trees.db_indexes(survey)
