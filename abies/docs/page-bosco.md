@@ -145,7 +145,7 @@ regione + particella).
 The page is a single scrollable column of collapsible sections,
 following the standard Abies idiom:
 
-1. **Metadati** (open by default)
+1. **Caratteristiche** (open by default)
    - Location, altitude min/max, esposizione, pendenza.
    - Surface area: cadastral and computed.
    - Età media (a), classe economica, tipo (alto fusto / ceduo).
@@ -217,8 +217,8 @@ Sections render lazily on first expand.
 - `pa=N` — id of the parcel for the per-parcel overlay; required if
   `v=1`.  Same convention as Prelievi (see `prelievi.md`).
 - `vo=<tokens>` — open sections within the overlay.  Single-char
-  tokens, order irrelevant.  Tokens: `m` = Metadati, `d` =
-  Dendrometria, `p` = Produzione storica,
+  tokens, order irrelevant.  Tokens: `m` = Metadati (Caratteristiche),
+  `d` = Dendrometria, `p` = Produzione storica,
   Absent → default (`m`).  Explicit empty (`?vo=`) → all closed.
 - `ds=<id list>` — Dendrometria visible-species filter:
   comma-separated `species.id` values (e.g., `3,5,11`).  Absent →
