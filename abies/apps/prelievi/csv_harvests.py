@@ -205,7 +205,7 @@ def validate_rows(reader, static_cols, dyn, idx: HarvestIndexes):
 
         # --- Quintals (required). ---
         mass_q = reader.decimal(row.get(S.CSV_COL_QUINTALS))
-        if mass_q is None:
+        if mass_q is None or mass_q < 0:
             errors.append(S.ERR_CSV_ROW_PARSE.format(i, S.CSV_COL_QUINTALS))
             continue
 
@@ -242,11 +242,16 @@ def validate_rows(reader, static_cols, dyn, idx: HarvestIndexes):
                 errors.append(S.ERR_CSV_ROW_PARSE.format(i, hdr))
                 ok = False
                 break
-            species_pcts.append((sp, pct or 0))
+            pct = pct or 0
+            if pct < 0 or pct > 100:
+                errors.append(S.ERR_CSV_ROW_PARSE.format(i, hdr))
+                ok = False
+                break
+            species_pcts.append((sp, pct))
         if not ok:
             continue
 
-        if mass_q > 0 and species_pcts:
+        if mass_q > 0:
             sp_sum = sum(pct for _, pct in species_pcts)
             if sp_sum != 100:
                 errors.append(S.ERR_CSV_SPECIES_PCT_SUM.format(i, sp_sum))
@@ -261,7 +266,12 @@ def validate_rows(reader, static_cols, dyn, idx: HarvestIndexes):
                 errors.append(S.ERR_CSV_ROW_PARSE.format(i, hdr))
                 ok = False
                 break
-            tractor_pcts.append((tr, pct or 0))
+            pct = pct or 0
+            if pct < 0 or pct > 100:
+                errors.append(S.ERR_CSV_ROW_PARSE.format(i, hdr))
+                ok = False
+                break
+            tractor_pcts.append((tr, pct))
         if not ok:
             continue
 

@@ -40,9 +40,9 @@ CANONICAL = {
         'Compresa,Particella,Genere,Lon,Lat\n'
         'Capistrano,1,Abete,16.1,38.5\n'),
     'harvests.csv': (
-        'Compresa,Particella,Data,Squadra,Tipo,Q.li\n'
-        'Capistrano,1,2027-03-01,Alfa,Tronchi,10.0\n'
-        'Capistrano,,2027-03-02,Alfa,Tronchi,5.0\n'),
+        'Compresa,Particella,Data,Squadra,Tipo,Q.li,Specie: Abete\n'
+        'Capistrano,1,2027-03-01,Alfa,Tronchi,10.0,100\n'
+        'Capistrano,,2027-03-02,Alfa,Tronchi,5.0,100\n'),
 }
 
 
@@ -186,8 +186,8 @@ def test_region_wide_harvest_persists_parcel_none(tmp_path):
 def test_harvest_bad_parcel_region_mismatch_rejected(tmp_path):
     """A harvest row with a parcel that does not exist in the given region is rejected."""
     bad_harvests = (
-        'Compresa,Particella,Data,Squadra,Tipo,Q.li\n'
-        'Capistrano,99,2027-03-01,Alfa,Tronchi,10.0\n'
+        'Compresa,Particella,Data,Squadra,Tipo,Q.li,Specie: Abete\n'
+        'Capistrano,99,2027-03-01,Alfa,Tronchi,10.0,100\n'
     )
     with pytest.raises(CommandError):
         call_command('bootstrap', _make_dir(tmp_path, **{'harvests.csv': bad_harvests}))

@@ -266,10 +266,38 @@ def test_unknown_product_error(parcels, species, base_setup):
 def test_species_pct_sum_not_100_when_mass_positive(parcels, species, base_setup):
     p = parcels[0]
     header = _make_header('Specie: Abete', 'Specie: Castagno')
-    # pcts sum to 60, mass=100 → error
+    # pcts sum to 60, mass=100 -> error
     text = header + '\n' + _row(
         region=p.region.name, parcel=p.name,
         quintals='100', extra_vals=('40', '20')
+    )
+    reader = csv_io.read(text)
+    cols, dyn, missing = csv_harvests.resolve_columns(reader.fieldnames)
+    parsed, errors = csv_harvests.validate_rows(reader, cols, dyn, csv_harvests.db_indexes())
+    assert errors and parsed == []
+
+
+@pytest.mark.django_db
+def test_species_pct_range_checked_even_when_sum_100(parcels, species, base_setup):
+    p = parcels[0]
+    header = _make_header('Specie: Abete', 'Specie: Castagno')
+    text = header + '\n' + _row(
+        region=p.region.name, parcel=p.name,
+        quintals='100', extra_vals=('150', '-50')
+    )
+    reader = csv_io.read(text)
+    cols, dyn, missing = csv_harvests.resolve_columns(reader.fieldnames)
+    parsed, errors = csv_harvests.validate_rows(reader, cols, dyn, csv_harvests.db_indexes())
+    assert errors and parsed == []
+
+
+@pytest.mark.django_db
+def test_negative_quintals_rejected(parcels, species, base_setup):
+    p = parcels[0]
+    header = _make_header('Specie: Abete')
+    text = header + '\n' + _row(
+        region=p.region.name, parcel=p.name,
+        quintals='-1', extra_vals=('100',)
     )
     reader = csv_io.read(text)
     cols, dyn, missing = csv_harvests.resolve_columns(reader.fieldnames)
@@ -471,11 +499,21 @@ def test_apply_boolean_flags(parcels, species, base_setup):
 
 
 @pytest.mark.django_db
-def test_apply_no_species_rows_no_child_species(parcels, species, base_setup):
-    """No species dynamic columns → no HarvestSpecies rows created."""
+def test_positive_mass_requires_species_breakdown(parcels, species, base_setup):
     p = parcels[0]
     header = _make_header()
     text = header + '\n' + _row(region=p.region.name, parcel=p.name, quintals='100')
+    reader = csv_io.read(text)
+    cols, dyn, missing = csv_harvests.resolve_columns(reader.fieldnames)
+    parsed, errors = csv_harvests.validate_rows(reader, cols, dyn, csv_harvests.db_indexes())
+    assert errors and parsed == []
+
+
+@pytest.mark.django_db
+def test_zero_mass_without_species_breakdown_ok(parcels, species, base_setup):
+    p = parcels[0]
+    header = _make_header()
+    text = header + '\n' + _row(region=p.region.name, parcel=p.name, quintals='0')
     reader = csv_io.read(text)
     cols, dyn, missing = csv_harvests.resolve_columns(reader.fieldnames)
     parsed, errors = csv_harvests.validate_rows(reader, cols, dyn, csv_harvests.db_indexes())
