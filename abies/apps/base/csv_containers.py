@@ -12,6 +12,8 @@ The surveys loader also parses each survey's default sample date (the ``Data``
 column) and carries it on the parsed row as ``'date'``.  That value is the
 per-survey default fed to ``csv_trees`` at bootstrap; it is NOT a ``Survey``
 column (``Survey`` has no date field), so ``apply_surveys`` does not persist it.
+The optional ``Attivo`` column is persisted and selects the survey used by Bosco
+dendrometry digests after bootstrap.
 """
 
 from dataclasses import dataclass
@@ -24,7 +26,7 @@ from apps.base.digests import mark_all_stale
 from apps.base.models import HarvestPlan, SampleGrid, Survey
 from config import strings as S
 from config.constants import (
-    FIELD_DESCRIPTION, FIELD_NAME, FIELD_YEAR_END, FIELD_YEAR_START,
+    FIELD_ACTIVE, FIELD_DESCRIPTION, FIELD_NAME, FIELD_YEAR_END, FIELD_YEAR_START,
 )
 
 # Flat, FK-free containers — declarative RefTables (loaded via the csv_reference
@@ -47,7 +49,7 @@ HARVEST_PLANS = RefTable('harvest_plans', HarvestPlan, (
 # --- surveys (bespoke; FK to grid) -----------------------------------------
 
 SURVEY_CSV_REQUIRED = [S.CSV_COL_SURVEY, S.CSV_COL_GRID]
-SURVEY_CSV_OPTIONAL = [S.CSV_COL_DESCRIPTION, S.CSV_COL_DATA]
+SURVEY_CSV_OPTIONAL = [S.CSV_COL_DESCRIPTION, S.CSV_COL_DATA, S.CSV_COL_ACTIVE]
 
 
 @dataclass
@@ -81,6 +83,10 @@ def validate_surveys(reader, idx: SurveyIndexes):
         if name in seen:
             errors.append(S.ERR_CSV_DUPLICATE_KEY.format(i, S.CSV_COL_SURVEY, name))
             continue
+        active, active_ok = reader.opt_bool(row.get(S.CSV_COL_ACTIVE, ''))
+        if not active_ok:
+            errors.append(S.ERR_CSV_ROW_PARSE.format(i, S.CSV_COL_ACTIVE))
+            continue
         default_date = None
         raw_date = (row.get(S.CSV_COL_DATA) or '').strip()
         if raw_date:
@@ -94,6 +100,7 @@ def validate_surveys(reader, idx: SurveyIndexes):
         parsed.append({
             'name': name, 'sample_grid': grid,
             'description': (row.get(S.CSV_COL_DESCRIPTION) or '').strip(),
+            FIELD_ACTIVE: bool(active),
             'date': default_date,
         })
     return parsed, errors
@@ -111,7 +118,8 @@ def apply_surveys(parsed) -> int:
             _, was_created = Survey.objects.get_or_create(
                 name=d['name'],
                 defaults={'sample_grid': d['sample_grid'],
-                          'description': d['description']},
+                          'description': d['description'],
+                          FIELD_ACTIVE: d[FIELD_ACTIVE]},
             )
             if was_created:
                 created += 1

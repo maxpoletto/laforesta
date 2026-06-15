@@ -82,6 +82,9 @@ def test_sanity_counts(converted):
     tree_rows = _rows(out_dir / OUT_SAMPLED_TREES)
     surveys_seen = {r['Rilevamento'] for r in tree_rows}
     assert surveys_seen == {'Campionamento calcolato', 'Campionamento altezze'}
+    survey_rows = _rows(out_dir / OUT_SURVEYS)
+    active_surveys = [r['Rilevamento'] for r in survey_rows if r.get('Attivo') == 'True']
+    assert active_surveys == ['Campionamento calcolato']
     # The `poll == 'mat'` sentinel must still produce Matricina=True rows
     # (guards against a regression that silently drops the special case).
     assert any(r['Matricina'] == 'True' for r in tree_rows)
@@ -118,6 +121,9 @@ def test_bootstrap_actually_persists(converted):
     call_command('bootstrap', str(out_dir))
     assert Region.objects.count() == 3
     assert Survey.objects.count() == 2
+    assert list(Survey.objects.filter(active=True).values_list('name', flat=True)) == [
+        'Campionamento calcolato',
+    ]
 
     # Tractors.
     assert Tractor.objects.count() == EXPECTED_TRACTORS

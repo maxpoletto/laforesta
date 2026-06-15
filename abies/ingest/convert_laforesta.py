@@ -125,6 +125,7 @@ COL_H_M = 'H_m'
 COL_L10_MM = 'L10_mm'
 COL_SPECIES = 'Genere'
 COL_HIGHFOREST = 'Fustaia'
+COL_ACTIVE = 'Attivo'
 
 # Species reference headers (canonical SPECIES RefTable column names).
 COL_LATIN = 'Nome latino'
@@ -349,10 +350,10 @@ def _convert_sample_areas(src_dir: Path, out_dir: Path) -> int:
 
 
 def _convert_surveys(out_dir: Path) -> int:
-    header = [COL_SURVEY, COL_GRID, COL_DATA]
+    header = [COL_SURVEY, COL_GRID, COL_DATA, COL_ACTIVE]
     rows = [
-        [SURVEY_CALCULATED, GRID_NAME, DEFAULT_SURVEY_DATE],
-        [SURVEY_HEIGHTS, GRID_NAME, DEFAULT_SURVEY_DATE],
+        [SURVEY_CALCULATED, GRID_NAME, DEFAULT_SURVEY_DATE, 'True'],
+        [SURVEY_HEIGHTS, GRID_NAME, DEFAULT_SURVEY_DATE, 'False'],
     ]
     return _write(out_dir / OUT_SURVEYS, header, rows)
 

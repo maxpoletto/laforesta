@@ -81,6 +81,32 @@ def test_surveys_create_with_grid_and_date():
     s = Survey.objects.get(name='Campagna 2024')
     assert s.sample_grid == grid
     assert s.description == 'Misure 2024'
+    assert s.active is False
+
+
+@pytest.mark.django_db
+def test_surveys_active_column_persisted():
+    grid = SampleGrid.objects.create(name='Griglia 2024')
+    reader = _reader(
+        f'{S.CSV_COL_SURVEY},{S.CSV_COL_GRID},{S.CSV_COL_ACTIVE}\n'
+        f'Campagna 2024,{grid.name},True\n'
+    )
+    parsed, errors = cc.validate_surveys(reader, cc.survey_db_indexes())
+    assert errors == []
+    assert cc.apply_surveys(parsed) == 1
+    assert Survey.objects.get(name='Campagna 2024').active is True
+
+
+@pytest.mark.django_db
+def test_surveys_invalid_active_flagged():
+    grid = SampleGrid.objects.create(name='Griglia 2024')
+    reader = _reader(
+        f'{S.CSV_COL_SURVEY},{S.CSV_COL_GRID},{S.CSV_COL_ACTIVE}\n'
+        f'Campagna 2024,{grid.name},maybe\n'
+    )
+    parsed, errors = cc.validate_surveys(reader, cc.survey_db_indexes())
+    assert parsed == []
+    assert len(errors) == 1
 
 
 @pytest.mark.django_db
