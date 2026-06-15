@@ -555,7 +555,7 @@ def _convert_harvests(src_dir: Path, out_dir: Path) -> int:
 
     n = _write(out_dir / OUT_HARVESTS, header, out)
     if vdp_blanked > 0:
-        print(f'  [warn] {vdp_blanked} VDP values blanked (non-integer)', file=sys.stderr)
+        print(f'  [warn] {vdp_blanked} VDP values blanked (non-integer; rows kept)', file=sys.stderr)
     return n
 
 
