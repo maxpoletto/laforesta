@@ -3,6 +3,12 @@
   <input type="hidden" name="version" value="{{ obj.version|default:'1' }}">
 
   <div class="form-group">
+    <label for="id_name">Trattore</label>
+    <input type="text" id="id_name" name="name"
+           value="{{ obj.name|default:'' }}">
+  </div>
+
+  <div class="form-group">
     <label for="id_manufacturer">Costruttore</label>
     <input type="text" id="id_manufacturer" name="manufacturer" required
            value="{{ obj.manufacturer|default:'' }}">

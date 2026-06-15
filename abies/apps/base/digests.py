@@ -451,6 +451,7 @@ def _audit_configs() -> list:
             'active': S.COL_ACTIVE,
         }),
         (Tractor, S.TABLE_TRACTOR, {
+            'name': S.LABEL_TRACTOR_NAME,
             'manufacturer': S.LABEL_MANUFACTURER,
             'model': S.LABEL_MODEL, 'year': S.COL_YEAR,
             'active': S.COL_ACTIVE,

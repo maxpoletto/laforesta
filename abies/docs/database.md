@@ -417,8 +417,12 @@ documented in [`hypsometry.md`](hypsometry.md).
 
 Most of these are configurable in the Settings section.
 
-- tractor: (id:int, manufacturer:string, model:string, year:int, active:bool)
-  - Represents a tractor. `year` denotes date of manufacture.
+- tractor: (id:int, name:string nullable, manufacturer:string, model:string,
+  year:int nullable, active:bool)
+  - Represents a tractor. `name` is an optional short human-readable label
+    (unique when set, e.g., "Bob Cat"); used as the display name in the
+    tractor CSV bootstrap (`tractors.csv`). `year` denotes date of manufacture
+    (nullable for tractors with unknown manufacture year).
   - Retired tractors have active=false.
 
 - crew: (id:int, name:string, notes:string, active:bool)

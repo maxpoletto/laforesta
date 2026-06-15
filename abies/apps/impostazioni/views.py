@@ -122,12 +122,12 @@ def crews_save(request):
 # Tractors
 # ---------------------------------------------------------------------------
 
-TRACTOR_COLS = [ROW_ID, S.LABEL_MANUFACTURER, S.LABEL_MODEL,
+TRACTOR_COLS = [ROW_ID, S.LABEL_TRACTOR_NAME, S.LABEL_MANUFACTURER, S.LABEL_MODEL,
                 S.COL_YEAR, S.COL_ACTIVE]
 
 
 def _tractor_row(t):
-    return [t.id, t.manufacturer, t.model, t.year or '', t.active]
+    return [t.id, t.name or '', t.manufacturer, t.model, t.year or '', t.active]
 
 
 @login_required
@@ -150,7 +150,9 @@ def tractors_save(request):
     if error:
         return error
     year = body.get(FIELD_YEAR, '')
+    name = body.get(FIELD_NAME, '').strip() or None
     parsed = {
+        FIELD_NAME: name,
         FIELD_MANUFACTURER: body.get(FIELD_MANUFACTURER, '').strip(),
         FIELD_MODEL: body.get(FIELD_MODEL, '').strip(),
         FIELD_YEAR: int(year) if year else None,
@@ -162,6 +164,8 @@ def tractors_save(request):
     return save_model_response(
         request, body, model=Tractor, data_id='tractors', values=parsed,
         row_fn=_tractor_row, stale=('prelievi', 'audit'),
+        unique_field=FIELD_NAME, unique_value=name,  # None (blank name) skips the check — NULLs aren't unique
+        unique_error=S.ERR_TRACTOR_NAME_DUPLICATE,
     )
 
 

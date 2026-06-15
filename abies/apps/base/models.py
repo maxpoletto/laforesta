@@ -156,6 +156,7 @@ class Crew(TimestampedModel):
 
 class Tractor(TimestampedModel):
     """Tractor used in harvest operations."""
+    name = models.CharField(max_length=100, unique=True, null=True, blank=True)
     manufacturer = models.CharField(max_length=100)
     model = models.CharField(max_length=100)
     year = models.IntegerField(null=True, blank=True)

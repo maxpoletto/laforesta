@@ -245,6 +245,34 @@ class TestTractors:
         assert resp.status_code == 400
         assert resp.json()[STATUS] == STATUS_VALIDATION_ERROR
 
+    def test_save_sets_name(self, writer_client, db):
+        resp = _post(writer_client, '/api/impostazioni/tractors/save/', {
+            FIELD_MANUFACTURER: 'Fiat', FIELD_MODEL: '110-90',
+            FIELD_NAME: 'Fiat 110-90',
+            FIELD_YEAR: '', FIELD_ACTIVE: 'true',
+        })
+        assert resp.status_code == 200
+        assert Tractor.objects.get(name='Fiat 110-90').manufacturer == 'Fiat'
+
+    def test_save_name_optional(self, writer_client, db):
+        resp = _post(writer_client, '/api/impostazioni/tractors/save/', {
+            FIELD_MANUFACTURER: 'Kubota', FIELD_MODEL: 'M7',
+            FIELD_YEAR: '', FIELD_ACTIVE: 'true',
+        })
+        assert resp.status_code == 200
+        assert Tractor.objects.get(manufacturer='Kubota').name is None
+
+    def test_save_duplicate_name_rejected(self, writer_client, db):
+        Tractor.objects.create(manufacturer='Fiat', model='110-90', name='Fiat 110-90')
+        resp = _post(writer_client, '/api/impostazioni/tractors/save/', {
+            FIELD_MANUFACTURER: 'Fiat', FIELD_MODEL: '90-90',
+            FIELD_NAME: 'Fiat 110-90',
+            FIELD_YEAR: '', FIELD_ACTIVE: 'true',
+        })
+        assert resp.status_code == 400
+        assert resp.json()[STATUS] == STATUS_VALIDATION_ERROR
+        assert resp.json()[MESSAGE] == S.ERR_TRACTOR_NAME_DUPLICATE
+
 
 # ---------------------------------------------------------------------------
 # Species
