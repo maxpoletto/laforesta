@@ -5,10 +5,12 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 
 from apps.base.models import (
-    Crew, Eclass, HarvestPlan, Parcel, Region, SampleArea, SampleGrid,
+    Crew, Eclass, HarvestPlan, Parcel, Product, Region, SampleArea, SampleGrid,
     Species, Survey, Tree,
 )
 from apps.base.hypsometry import active_set
+from apps.base.refdata import PRODUCT_MAP, load_species
+from config import strings as S
 
 # A small, internally consistent canonical data dir.  Each value is the file's
 # full text; tests write these to a tmp dir and may override one file (None to omit).
@@ -131,3 +133,29 @@ def test_deferred_file_noted_not_loaded(tmp_path, capsys):
     out = capsys.readouterr().out
     assert 'harvests.csv' in out
     assert Region.objects.filter(name='Capistrano').exists()   # rest loaded
+
+
+@pytest.mark.django_db
+def test_species_products_seeded_from_in_repo_default_when_absent(tmp_path, capsys):
+    """Omitting species.csv/products.csv seeds the in-repo canonical defaults
+    rather than skipping (spec §3)."""
+    call_command('bootstrap', _make_dir(
+        tmp_path, **{'species.csv': None, 'products.csv': None}))
+    assert Species.objects.count() == len(load_species())
+    assert Species.objects.filter(common_name='Abete').exists()
+    assert Product.objects.count() == len(set(PRODUCT_MAP.values()))
+    # The default species set includes 'Abete', so the sampled tree still loads.
+    assert Tree.objects.count() == 1
+    # The report flags that defaults were seeded (not silently skipped).
+    assert S.BOOTSTRAP_DEFAULT_SEEDED in capsys.readouterr().out
+
+
+@pytest.mark.django_db
+def test_present_but_empty_species_not_defaulted(tmp_path):
+    """A present-but-empty species.csv is authoritative: the in-repo default is
+    seeded only when the file is *absent*, not when it is present with no rows."""
+    only = {k: (v if k in ('regions.csv', 'eclasses.csv', 'particelle.csv')
+                else None) for k, v in CANONICAL.items()}
+    only['species.csv'] = 'Genere,Densità (q/m³)\n'   # header only, no data rows
+    call_command('bootstrap', _make_dir(tmp_path, **only))
+    assert Species.objects.count() == 0

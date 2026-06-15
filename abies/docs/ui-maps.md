@@ -86,8 +86,8 @@ the page-driven path and is idempotent. Don't route the marker click through
 Source: `data/geo/terreni.geojson`. Each polygon feature carries
 `properties.layer = "<Compresa>"` (e.g. `"Capistrano"`) and
 `properties.name = "<Compresa>-<particella>"` (e.g. `"Capistrano-10a"`).
-`build_geo` enriches those features after `import_parcels` with static DB-backed
-metadata such as `properties.coppice`. After fetching, sort with
+`build_geo` enriches those features after parcels are loaded, with static
+DB-backed metadata such as `properties.coppice`. After fetching, sort with
 `sortFeaturesByArea(geojson)` (`geo.js`) so smaller polygons render — and
 tooltip — on top of the larger ones that contain them.
 

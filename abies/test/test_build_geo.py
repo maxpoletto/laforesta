@@ -25,7 +25,7 @@ def test_build_geo_enriches_terreni_from_imported_parcels(
     """terreni.geojson is enriched from DB parcel metadata only.
 
     In particular, particelle.geojson is not needed: the coppice flag comes from
-    the imported Parcel/Eclass rows, after import_parcels has run.
+    the Parcel/Eclass rows already loaded in the DB.
     """
     Parcel.objects.create(
         name='1', region=regions[0], eclass=eclasses[0], area_ha=Decimal('1.0'),

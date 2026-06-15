@@ -27,7 +27,7 @@ dependencies — so the tool runs standalone against a legacy-data checkout.
 | `eclasses.csv` (`Comparto,Ceduo`) | `particelle.csv` | distinct `Comparto`; `Ceduo=1` iff `Comparto=='F'`, else `0` |
 | `crews.csv` (`Squadra`) | `mannesi.csv` | distinct non-blank `Squadra` |
 | `species.csv` (`Genere,Nome latino,Densità (q/m³),Minore,Ordine`) | in-repo `apps/base/data/species.csv` | reshape `common/latin/density_q_m3/minor/sort_order` to the canonical localized headers (full species set so tree `Genere` resolves) |
-| `products.csv` (`Tipo`) | constant | the distinct canonical products of `import_reference.PRODUCT_MAP.values()` |
+| `products.csv` (`Tipo`) | constant | the distinct canonical products of `apps.base.refdata.PRODUCT_MAP.values()` |
 | `particelle.csv` | `particelle.csv` | select/reorder `Compresa,Comparto,Particella,Area (ha),Età media,Località,Altitudine min,Altitudine max,Esposizione,Pendenza %,Stazione,Soprassuolo`; drop CP, Governo, Piano del taglio, Parametro, Matricine |
 | `sample_grids.csv` (`Griglia`) | constant | one row: `Aree di saggio PDG 2026` |
 | `harvest_plans.csv` (`Piano,Anno inizio,Anno fine`) | `piano_fustaia.csv` + `piano_ceduo.csv` | one row `PDG 2026`, `Anno inizio`/`Anno fine` = min/max `Anno` across both files |
@@ -87,7 +87,7 @@ the decoupling effort).  Their legacy sources, for when they land:
 | `harvests.csv` | `mannesi.csv` |
 | `harvest_plan_items.csv` | `piano_fustaia.csv` + `piano_ceduo.csv` |
 | `preserved-trees.csv` | `piante-accrescimento-indefinito.csv` |
-| `tractors.csv` | the hard-coded `import_reference.TRACTORS` list |
+| `tractors.csv` | a small hard-coded list (the five La Foresta tractors) |
 
 ## Validation
 

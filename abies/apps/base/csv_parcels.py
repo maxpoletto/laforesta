@@ -12,8 +12,7 @@ region-wide rows arrive with the harvest model change in step 3.
 The caller verifies required-column presence via
 ``csv_io.read(text, required_cols=PARCEL_CSV_REQUIRED)`` before calling
 ``validate_rows`` (same contract as the trees view).  Parsed rows are dicts of
-Parcel model kwargs keyed by model field name, mirroring the ``import_parcels``
-management command this replaces.
+Parcel model kwargs keyed by model field name.
 """
 
 from dataclasses import dataclass

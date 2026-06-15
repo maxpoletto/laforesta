@@ -13,6 +13,7 @@ from django.db import transaction
 
 from apps.base.digests import mark_stale
 from apps.base.models import Sample, SampleArea, Species, Tree, TreeSample, tree_mass_q
+from apps.base.refdata import GENERE_MAP
 from config import strings as S
 from config.constants import (
     BOSCO_TREE_DIGESTS, FIELD_AREA, FIELD_COPPICE, FIELD_DATE, FIELD_D_CM,
@@ -59,9 +60,7 @@ def validate_rows(reader, idx: TreeIndexes, *, has_date_column, default_date):
     ``apply``.  ``errors`` are user-facing strings keyed to the 1-based data
     row number (header is row 1, first data row is row 2).
     """
-    # Tabacchi inputs use English-side species names; reuse the GENERE_MAP
-    # from the management command to handle minor naming drift.
-    from apps.base.management.commands.import_sampled_trees import GENERE_MAP
+    # Tabacchi volume tables are loaded lazily (only the import path needs them).
     from apps.base.tabacchi import has_species, tabacchi_volume_m3
 
     csv_date_by_area = {}

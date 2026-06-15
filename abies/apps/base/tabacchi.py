@@ -12,8 +12,8 @@ Volume equation per species:
 
 D in cm, h in m.
 
-Used by the campionamenti import path
-(`apps/base/management/commands/import_sampled_trees.py`).  Manual
+Used by the campionamenti sampled-trees import core
+(`apps/campionamenti/csv_trees.py`).  Manual
 form entry uses the parallel JS implementation in
 `apps/base/static/base/js/volume.js`.  A parity test in
 `test/test_tabacchi.py` keeps the two in sync.

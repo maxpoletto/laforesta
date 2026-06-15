@@ -44,12 +44,11 @@ SURVEY_CALCULATED = 'Campionamento calcolato'
 SURVEY_HEIGHTS = 'Campionamento altezze'
 DEFAULT_SURVEY_DATE = '2024-09-15'
 
-# Legacy hard-coded eclass set: comparti A–E are high forest (fustaia,
-# non-coppice); comparto F is coppice (ceduo).  Matches the legacy
-# ``import_reference`` ECLASSES table.
+# Legacy hard-coded eclass rule: comparti A–E are high forest (fustaia,
+# non-coppice); comparto F is coppice (ceduo).
 COPPICE_COMPARTO = 'F'
 
-# Canonical product names (the distinct values of import_reference.PRODUCT_MAP).
+# Canonical product names (the distinct values of apps.base.refdata.PRODUCT_MAP).
 # Duplicated here as literals to keep this ETL standalone; if PRODUCT_MAP changes
 # this list should be revisited.
 CANONICAL_PRODUCTS = [

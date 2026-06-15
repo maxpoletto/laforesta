@@ -2,10 +2,8 @@
 
 import math
 from collections.abc import Sequence
-from io import StringIO
 
 import pytest
-from django.core.management import CommandError, call_command
 
 from apps.base import hypsometry
 from apps.base.models import (
@@ -211,34 +209,6 @@ def test_compute_params_groups_by_region(hypso_samples, regions, eclasses):
     regions_fitted = {r.region for r in rows}
     assert regions[0] in regions_fitted
     assert regions[1] in regions_fitted
-
-
-# --- install command (import_hypso_params) ---
-
-def test_command_missing_file_is_noop(db, tmp_path):
-    call_command('import_hypso_params', str(tmp_path), stdout=StringIO())
-    assert hypsometry.active_set() is None
-
-
-def test_command_imports_active_set(db, regions, species, tmp_path):
-    (tmp_path / S.CSV_FILE_REGRESSION).write_text(
-        _csv(f'{regions[0].name},{species[0].common_name},{HYPSO_FUNC_LN},'
-             f'7,-4,0.6,20'),
-        encoding='utf-8',
-    )
-    call_command('import_hypso_params', str(tmp_path), stdout=StringIO())
-    assert hypsometry.active_set() is not None
-
-
-def test_command_errors_on_unresolved_row(db, species, tmp_path):
-    (tmp_path / S.CSV_FILE_REGRESSION).write_text(
-        _csv(f'Nessuna,{species[0].common_name},{HYPSO_FUNC_LN},7,-4,0.6,20'),
-        encoding='utf-8',
-    )
-    with pytest.raises(CommandError):
-        call_command('import_hypso_params', str(tmp_path),
-                     stdout=StringIO(), stderr=StringIO())
-    assert hypsometry.active_set() is None
 
 
 # --- active-set write path (DB) ---

@@ -21,7 +21,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from apps.base import (
-    csv_containers as cc, csv_io, csv_parcels, csv_reference, hypsometry,
+    csv_containers as cc, csv_io, csv_parcels, csv_reference, hypsometry, refdata,
 )
 from apps.base.models import (
     Crew, Eclass, HarvestDetail, HarvestPlan, HarvestPlanItem,
@@ -31,6 +31,10 @@ from apps.base.models import (
 from apps.campionamenti import csv_grid, csv_trees
 from apps.prelievi.models import Harvest
 from config import strings as S
+from config.constants import (
+    FIELD_COMMON_NAME, FIELD_DENSITY, FIELD_LATIN_NAME, FIELD_MINOR,
+    FIELD_NAME, FIELD_SORT_ORDER,
+)
 
 # Comprehensive emptiness guard: if ANY of these holds a row, the instance is not
 # empty and bootstrap refuses (it has no wipe).  Listed verbose_names are shown.
@@ -77,9 +81,12 @@ class Command(BaseCommand):
             with transaction.atomic():
                 survey_dates: dict = {}
                 for table in csv_reference.ALL_TABLES:
-                    reports.append(self._load_reftable(
+                    report = self._load_reftable(
                         data_dir, table, required=table in (
-                            csv_reference.REGIONS, csv_reference.ECLASSES)))
+                            csv_reference.REGIONS, csv_reference.ECLASSES))
+                    if not report.present and not report.errors:
+                        self._seed_default(table, report)
+                    reports.append(report)
                 reports.append(self._load_parcels(data_dir))
                 reports.append(self._load_reftable(data_dir, cc.SAMPLE_GRIDS, required=False))
                 reports.append(self._load_reftable(data_dir, cc.HARVEST_PLANS, required=False))
@@ -140,6 +147,27 @@ class Command(BaseCommand):
             created, _ = csv_reference.apply(table, parsed)
             report.loaded = created
         return report
+
+    def _seed_default(self, table, report):
+        """Seed species/products from the in-repo canonical defaults when their
+        (optional) CSV is absent (spec §3 "optional on import → else in-repo
+        default").  The converter always emits both, so this only fires for
+        minimal or hand-built data dirs.  Other absent reference tables have no
+        default and are left empty."""
+        if table is csv_reference.SPECIES:
+            parsed = [
+                {FIELD_COMMON_NAME: common, FIELD_LATIN_NAME: latin,
+                 FIELD_SORT_ORDER: order, FIELD_DENSITY: density,
+                 FIELD_MINOR: minor}
+                for common, latin, order, density, minor in refdata.load_species()
+            ]
+        elif table is csv_reference.PRODUCTS:
+            parsed = [{FIELD_NAME: name}
+                      for name in dict.fromkeys(refdata.PRODUCT_MAP.values())]
+        else:
+            return
+        report.loaded, _ = csv_reference.apply(table, parsed)
+        report.note = S.BOOTSTRAP_DEFAULT_SEEDED
 
     # --- parcels ------------------------------------------------------------
 

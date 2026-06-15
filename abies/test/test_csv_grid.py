@@ -165,6 +165,41 @@ def test_validate_rows_existing_db_key_flagged(parcels):
 
 
 @pytest.mark.django_db
+def test_validate_rows_same_number_two_parcels_one_region_flagged(parcels):
+    """Area numbers are unique per (grid, compresa): two parcels of the same
+    region cannot share a number, even within one upload (region-keyed dedup)."""
+    p1, p2 = parcels[0], parcels[1]          # both in regions[0]
+    assert p1.region_id == p2.region_id
+    grid = SampleGrid.objects.create(name='vr-region-dup')
+    reader = _reader(
+        'Compresa,Particella,Area saggio,Lon,Lat,Quota,Raggio\n'
+        f'{p1.region.name},{p1.name},5,16.1,38.5,500,15\n'
+        f'{p2.region.name},{p2.name},5,16.2,38.6,510,15\n'
+    )
+    cols, _ = csv_grid.resolve_columns(reader.fieldnames)
+    parsed, errors = csv_grid.validate_rows(reader, cols, csv_grid.db_indexes(grid))
+    assert len(parsed) == 1   # first parcel's area accepted
+    assert len(errors) == 1   # same number under a second parcel of the region flagged
+
+
+@pytest.mark.django_db
+def test_validate_rows_same_number_different_regions_ok(parcels):
+    """The same area number under two different compresa is allowed."""
+    p1, p3 = parcels[0], parcels[2]          # regions[0] and regions[1]
+    assert p1.region_id != p3.region_id
+    grid = SampleGrid.objects.create(name='vr-region-ok')
+    reader = _reader(
+        'Compresa,Particella,Area saggio,Lon,Lat,Quota,Raggio\n'
+        f'{p1.region.name},{p1.name},5,16.1,38.5,500,15\n'
+        f'{p3.region.name},{p3.name},5,16.2,38.6,510,15\n'
+    )
+    cols, _ = csv_grid.resolve_columns(reader.fieldnames)
+    parsed, errors = csv_grid.validate_rows(reader, cols, csv_grid.db_indexes(grid))
+    assert errors == []
+    assert len(parsed) == 2
+
+
+@pytest.mark.django_db
 def test_apply_creates_sample_areas(parcels):
     parcel = parcels[0]
     grid = SampleGrid.objects.create(name='apply-create')

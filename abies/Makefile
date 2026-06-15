@@ -11,7 +11,7 @@ MANAGE = env DJANGO_DEBUG="$(DJANGO_DEBUG)" DJANGO_SECRET_KEY="$(DJANGO_SECRET_K
 # unsuffixed <name>.html symlinks are materialized at install time.
 LANGUAGE_SUFFIX = _it
 
-.PHONY: check migrate import import-base import-data geo digest admin dev \
+.PHONY: check migrate geo digest admin dev \
         clean reset-schema update-vendor minify test test-js collectstatic \
         link-templates reset-db convert bootstrap
 
@@ -23,23 +23,9 @@ migrate:
 	$(MANAGE) makemigrations
 	$(MANAGE) migrate
 
-import: import-base import-data
-
-import-base:
-	$(MANAGE) import_reference $(DATA_DIR)
-	$(MANAGE) import_parcels $(DATA_DIR)
-
-import-data:
-	$(MANAGE) import_mannesi $(DATA_DIR)
-	$(MANAGE) import_sample_grid $(DATA_DIR)
-	$(MANAGE) import_sampled_trees $(DATA_DIR)
-	$(MANAGE) import_pai $(DATA_DIR)
-	$(MANAGE) import_calendar $(DATA_DIR)
-	$(MANAGE) import_hypso_params $(DATA_DIR)
-
-# --- Canonical load path (convert legacy -> bootstrap). Additive for now; the
-# cutover of `dev` to these targets is plan 08 (pending review of the admin/reset
-# interaction). `bootstrap` loads into an EMPTY instance, so run `reset-db` first.
+# --- Canonical load path: convert the legacy data dir to canonical CSVs, then
+# bootstrap them into an EMPTY instance.  `make dev` runs `reset-db` first so
+# bootstrap always loads into a clean DB.
 reset-db:
 	rm -f data/db.sqlite3 data/db.sqlite3-wal data/db.sqlite3-shm
 
@@ -51,23 +37,28 @@ bootstrap:
 
 geo:
 	mkdir -p data/geo
-	$(MANAGE) build_geo $(DATA_DIR)
+	$(MANAGE) build_geo $(CANONICAL_DIR)
 
 digest:
 	$(MANAGE) shell --no-imports -c "from apps.base.digests import generate_all; generate_all()"
 
+# Creates the initial superuser (role='admin').  Non-interactive when
+# DJANGO_SUPERUSER_USERNAME/EMAIL/PASSWORD are all set (so a reset-based
+# `make dev` can run unattended); falls back to an interactive prompt otherwise.
 admin:
 	@$(MANAGE) shell --no-imports -c "from apps.base.models import User; exit(0 if User.objects.filter(is_superuser=True).exists() else 1)" \
 		&& echo "Admin user already exists, skipping." \
-		|| ( $(MANAGE) createsuperuser && \
+		|| ( if [ -n "$$DJANGO_SUPERUSER_USERNAME" ] && [ -n "$$DJANGO_SUPERUSER_EMAIL" ] && [ -n "$$DJANGO_SUPERUSER_PASSWORD" ]; then \
+		         $(MANAGE) createsuperuser --noinput; \
+		     else \
+		         $(MANAGE) createsuperuser; \
+		     fi && \
 		     $(MANAGE) shell --no-imports -c "from apps.base.models import User; u = User.objects.get(is_superuser=True); u.role = 'admin'; u.save(update_fields=['role'])" )
 
 link-templates:
 	$(PYTHON) bin/link-templates.py $(LANGUAGE_SUFFIX)
 
-dev: migrate import geo digest admin link-templates
-
-dev-nodata: migrate import-base geo digest admin link-templates
+dev: reset-db migrate convert bootstrap geo digest admin link-templates
 
 serve:
 	$(MANAGE) runserver > /dev/null 2>&1 &
