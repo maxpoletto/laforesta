@@ -7,7 +7,7 @@ from django.db import models
 from simple_history.models import HistoricalRecords
 
 from apps.base.models import (
-    Crew, HarvestPlanItem, Parcel, Product, Species, TimestampedModel, Tractor,
+    Crew, HarvestPlanItem, Parcel, Product, Region, Species, TimestampedModel, Tractor,
 )
 from config import strings as S
 
@@ -34,7 +34,15 @@ class Harvest(TimestampedModel):
     """A single harvest operation by one crew on a given day."""
     date = models.DateField()
     product = models.ForeignKey(Product, on_delete=models.PROTECT)
-    parcel = models.ForeignKey(Parcel, on_delete=models.PROTECT)
+    # Region XOR parcel — exactly one must be set (enforced by SQLite trigger
+    # in migration 0003; this mirrors HarvestPlanItem's region/parcel XOR).
+    region = models.ForeignKey(
+        Region, on_delete=models.PROTECT, null=True, blank=True,
+        related_name='harvests',
+    )
+    parcel = models.ForeignKey(
+        Parcel, on_delete=models.PROTECT, null=True, blank=True,
+    )
     crew = models.ForeignKey(Crew, on_delete=models.PROTECT)
     # New harvests must link to a HarvestPlanItem in state {open,
     # harvesting} — enforced at the view layer. Historical CSV-imported
@@ -65,8 +73,14 @@ class Harvest(TimestampedModel):
         verbose_name = S.HARVEST
         verbose_name_plural = S.HARVESTS
 
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if (self.region_id is None) == (self.parcel_id is None):
+            raise ValidationError(S.ERR_HARVEST_REGION_XOR_PARCEL)
+
     def __str__(self):
-        return f'{self.date} {self.parcel} {self.crew}'
+        loc = self.parcel or self.region
+        return f'{self.date} {loc} {self.crew}'
 
 
 class HarvestSpecies(models.Model):

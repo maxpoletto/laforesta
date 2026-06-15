@@ -234,7 +234,7 @@ def generate_prelievi() -> None:
 
     rows = []
     ops = (Harvest.objects
-           .select_related('parcel__region', 'crew', 'product')
+           .select_related('parcel__region', 'region', 'crew', 'product')
            .order_by('-date', 'id'))
     for op in ops.iterator():
         rows.append(build_harvest_record(
@@ -254,11 +254,12 @@ def build_harvest_record(
 ) -> list:
     """Build a single prelievi digest row.  Used by save views for cache sync.
 
-    The caller must ensure *op* has ``parcel.region``, ``crew``, and
-    ``product`` loaded (via ``select_related``).  Full-digest generation can
-    pass precomputed column IDs and percentage maps to avoid per-row queries;
-    write views can omit them and let this helper fetch just the one row's
-    related percentages.
+    The caller must ensure *op* has ``parcel__region``, ``region``, ``crew``,
+    and ``product`` loaded (via ``select_related``).  For parcel-level harvests
+    ``region`` may be None; for region-wide harvests ``parcel`` may be None.
+    Full-digest generation can pass precomputed column IDs and percentage maps
+    to avoid per-row queries; write views can omit them and let this helper
+    fetch just the one row's related percentages.
     """
     from apps.base.models import Tractor
     from apps.prelievi.models import HarvestSpecies, HarvestTractor
@@ -289,9 +290,14 @@ def build_harvest_record(
     sp_quintals = [round(mass_q * sp_pcts.get(sid, 0) / 100, 2) for sid in species_ids]
     tr_quintals = [round(mass_q * tr_pcts.get(tid, 0) / 100, 2) for tid in tractor_ids]
 
+    # For region-wide harvests parcel_id is NULL; fall back to the region FK.
+    region_id = op.parcel.region_id if op.parcel_id else op.region_id
+    region_name = op.parcel.region.name if op.parcel_id else op.region.name
+    parcel_name = op.parcel.name if op.parcel_id else S.PARCEL_WHOLE_REGION_MARK
+
     return (
-        [op.id, op.version, op.parcel.region_id, op.parcel_id,
-         op.date.isoformat(), op.parcel.region.name, op.parcel.name,
+        [op.id, op.version, region_id, op.parcel_id,
+         op.date.isoformat(), region_name, parcel_name,
          op.harvest_plan_item_id if op.harvest_plan_item_id else '',
          op.crew.name, op.record1, op.product.name, mass_q,
          float(op.volume_m3),
@@ -427,7 +433,7 @@ def _audit_configs() -> list:
 
     return [
         (Harvest, S.TABLE_HARVEST, {
-            'date': S.COL_DATE, 'parcel_id': S.COL_PARCEL,
+            'date': S.COL_DATE, 'region_id': S.COL_REGION, 'parcel_id': S.COL_PARCEL,
             'crew_id': S.COL_CREW, 'product_id': S.COL_PRODUCT,
             'mass_q': S.COL_QUINTALS, FIELD_VOLUME_M3: S.COL_VOLUME_M3,
             'record1': S.COL_VDP,

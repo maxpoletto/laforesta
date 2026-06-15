@@ -204,6 +204,9 @@ ERR_CSV_FUNCTION_INVALID = (
 ERR_CSV_VALUE_PARSE = 'Riga {}: valore non valido nella colonna {} ({}).'
 ERR_CSV_VALUE_RANGE = 'Riga {}: valore fuori intervallo nella colonna {} ({}).'
 ERR_CSV_DUPLICATE_PARAM = 'Riga {}: coppia compresa/genere duplicata ({} / {}).'
+ERR_HARVEST_REGION_XOR_PARCEL = (
+    'Indicare esattamente una particella o una compresa.'
+)
 ERR_CANTIERE_REQUIRED = (
     'Selezionare un cantiere aperto.'
 )

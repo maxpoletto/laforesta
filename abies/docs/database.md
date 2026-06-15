@@ -299,11 +299,17 @@ Although a harvest physically affects individual trees, the schema does not
 track that link. For high-forest parcels the last per-tree record is the mark;
 for coppice parcels there is no per-tree harvest record at all.
 
-- harvest: (id:int, date:string /* ISO 8601 */, parcel_id:int,
-  harvest_plan_item_id:int nullable, product_id:int, crew_id:int, record1:int
-  nullable, record2:int nullable, mass_q:real, volume_m3:real, damaged:bool,
-  unhealthy:bool, psr:bool, note:text)
+- harvest: (id:int, date:string /* ISO 8601 */, region_id:int nullable,
+  parcel_id:int nullable, harvest_plan_item_id:int nullable, product_id:int,
+  crew_id:int, record1:int nullable, record2:int nullable, mass_q:real,
+  volume_m3:real, damaged:bool, unhealthy:bool, psr:bool, note:text)
   - Denotes a cutting/harvesting operation by one crew on a given day.
+  - `region_id` and `parcel_id` are mutually exclusive FKs: exactly one must
+    be set (XOR). Parcel-level harvests set `parcel_id`; region-wide harvests
+    (e.g., catastrofato / fitosanitario events approved compresa-wide) set
+    `region_id` and leave `parcel_id` NULL. This mirrors the same XOR on
+    `harvest_plan_item`. Enforced by triggers
+    `harvest_region_xor_parcel_{insert,update}` (see trigger table below).
   - `harvest_plan_item_id` links to a plan item (intervento). NULL for
     historical imports; mandatory for new harvests (item must be in state
     `open` or `harvesting`). First harvest auto-advances item state to
@@ -316,11 +322,26 @@ for coppice parcels there is no per-tree harvest record at all.
     `record2` is legacy, not displayed.
   - `damaged`, `unhealthy`, `psr`: boolean flags displayed as "Catastrofato",
     "Fitosanitario", "PSR" in a "Note" column. If `harvest_plan_item_id`
-    is set, these must match the item's flags (enforced by trigger).
+    is set, these must match the item's flags (enforced by triggers
+    `harvest_flags_consistency_{insert,update}`).
     The CSV importer translates the Italian strings to booleans.
   - `note`: free-text annotation ("Altre note" column).
-  - Parcel consistency: if linked to a plan item, `harvest.parcel_id` must
-    match the item's parcel (or region). Enforced by trigger.
+  - Parcel/region consistency: if linked to a plan item, the harvest's
+    `parcel_id` must match the item's parcel (or the harvest's `region_id`
+    must match the item's `region_id` for region-wide harvests). Enforced by
+    triggers `harvest_parcel_consistency_{insert,update}` (see trigger table
+    below).
+
+  **Harvest triggers** (all on `prelievi_harvest`):
+
+  | Trigger | Event | Enforces |
+  |---|---|---|
+  | `harvest_region_xor_parcel_insert` | BEFORE INSERT | exactly one of `region_id` / `parcel_id` is non-NULL |
+  | `harvest_region_xor_parcel_update` | BEFORE UPDATE OF `region_id, parcel_id` | same XOR invariant on update |
+  | `harvest_parcel_consistency_insert` | BEFORE INSERT | if `harvest_plan_item_id` set: `parcel_id` matches item's parcel or item's region; or (region-wide) `region_id` matches item's `region_id` |
+  | `harvest_parcel_consistency_update` | BEFORE UPDATE OF `parcel_id, region_id, harvest_plan_item_id` | same consistency check on update |
+  | `harvest_flags_consistency_insert` | BEFORE INSERT | `damaged`, `unhealthy`, `psr` match linked item's flags |
+  | `harvest_flags_consistency_update` | BEFORE UPDATE OF `damaged, unhealthy, psr, harvest_plan_item_id` | same flag consistency on update |
 
 - harvest_species: (harvest_id:int, species_id:int, percent:int) — PK is
   (harvest_id, species_id)
