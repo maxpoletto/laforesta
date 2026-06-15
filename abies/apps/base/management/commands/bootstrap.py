@@ -9,9 +9,9 @@ instance.
 
 Load-into-empty-only: the command refuses if any forestry domain is non-empty
 (it has no wipe, so it never deletes data it cannot restore).  Loaded: reference,
-parcels, containers (sample_grids/harvest_plans/surveys), and bulk
-(sample_areas/sampled-trees/hypso).  preserved-trees / harvest_plan_items /
-harvests are reported as not yet supported (later increments).
+parcels, containers (sample_grids/harvest_plans/surveys), bulk
+(sample_areas/sampled-trees/hypso), harvest_plan_items, preserved-trees,
+and harvests.
 """
 
 from dataclasses import dataclass, field
@@ -29,6 +29,9 @@ from apps.base.models import (
     SampleArea, SampleGrid, Species, Survey, Tractor, Tree, TreeMark,
 )
 from apps.campionamenti import csv_grid, csv_trees
+from apps.campionamenti import csv_preserved
+from apps.piano_di_taglio import csv_plan
+from apps.prelievi import csv_harvests
 from apps.prelievi.models import Harvest
 from config import strings as S
 from config.constants import (
@@ -44,9 +47,7 @@ GUARD_MODELS = [
     HarvestDetail, Harvest, HypsoParamSet,
 ]
 
-DEFERRED_FILES = [
-    S.CSV_FILE_PRESERVED_TREES, S.CSV_FILE_HARVEST_PLAN_ITEMS, S.CSV_FILE_HARVESTS,
-]
+DEFERRED_FILES = []
 
 
 @dataclass
@@ -94,6 +95,9 @@ class Command(BaseCommand):
                 reports.append(self._load_sample_areas(data_dir))
                 reports.append(self._load_sampled_trees(data_dir, survey_dates))
                 reports.append(self._load_hypso(data_dir))
+                reports.append(self._load_harvest_plan_items(data_dir))
+                reports.append(self._load_preserved_trees(data_dir))
+                reports.append(self._load_harvests(data_dir))
                 reports.extend(self._note_deferred(data_dir))
                 if sum(len(r.errors) for r in reports) or check:
                     transaction.set_rollback(True)
@@ -265,6 +269,54 @@ class Command(BaseCommand):
             hypsometry.replace_active_set(
                 rows, source=HypsoParamSource.IMPORTED, min_n=None, survey_ids=[])
             report.loaded = len(rows)
+        return report
+
+    # --- harvest plan items -------------------------------------------------
+
+    def _load_harvest_plan_items(self, data_dir):
+        reader, report = self._open(
+            data_dir, S.CSV_FILE_HARVEST_PLAN_ITEMS, required=False,
+            required_cols=csv_plan.PLAN_ITEMS_CSV_REQUIRED)
+        if reader is None:
+            return report
+        plans = {p.name: p for p in HarvestPlan.objects.all()}
+        # load_canonical_items short-circuits on errors internally; apply is never called when errors is non-empty.
+        n_items, errors = csv_plan.load_canonical_items(
+            reader, csv_plan.db_indexes(), plans)
+        report.errors.extend(errors)
+        report.loaded = n_items
+        return report
+
+    # --- preserved trees ----------------------------------------------------
+
+    def _load_preserved_trees(self, data_dir):
+        reader, report = self._open(
+            data_dir, S.CSV_FILE_PRESERVED_TREES, required=False,
+            required_cols=csv_preserved.PRESERVED_CSV_REQUIRED)
+        if reader is None:
+            return report
+        parsed, errors = csv_preserved.validate_rows(
+            reader, csv_preserved.db_indexes())
+        report.errors.extend(errors)
+        report.loaded = csv_preserved.apply(parsed) if parsed and not errors else 0
+        return report
+
+    # --- harvests -----------------------------------------------------------
+
+    def _load_harvests(self, data_dir):
+        reader, report = self._open(
+            data_dir, S.CSV_FILE_HARVESTS, required=False,
+            required_cols=csv_harvests.HARVEST_CSV_REQUIRED)
+        if reader is None:
+            return report
+        cols, dyn, missing = csv_harvests.resolve_columns(reader.fieldnames)
+        if missing:
+            report.errors.append(S.ERR_CSV_MISSING_COLS.format(', '.join(missing)))
+            return report
+        parsed, errors = csv_harvests.validate_rows(
+            reader, cols, dyn, csv_harvests.db_indexes())
+        report.errors.extend(errors)
+        report.loaded = csv_harvests.apply(parsed) if parsed and not errors else 0
         return report
 
     # --- deferred -----------------------------------------------------------

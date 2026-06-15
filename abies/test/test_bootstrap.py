@@ -5,11 +5,12 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 
 from apps.base.models import (
-    Crew, Eclass, HarvestPlan, Parcel, Product, Region, SampleArea, SampleGrid,
-    Species, Survey, Tree,
+    Crew, Eclass, HarvestPlan, HarvestPlanItem, Parcel, Product, Region,
+    SampleArea, SampleGrid, Species, Survey, Tractor, Tree,
 )
 from apps.base.hypsometry import active_set
 from apps.base.refdata import PRODUCT_MAP, load_species
+from apps.prelievi.models import Harvest
 from config import strings as S
 
 # A small, internally consistent canonical data dir.  Each value is the file's
@@ -18,6 +19,7 @@ CANONICAL = {
     'regions.csv': 'Compresa\nCapistrano\n',
     'eclasses.csv': 'Comparto,Ceduo\nA,0\n',
     'crews.csv': 'Squadra\nAlfa\n',
+    'tractors.csv': 'Trattore,Produttore,Modello,Anno\nT1,Fiat,110-90,1990\n',
     'species.csv': 'Genere,Densità (q/m³)\nAbete,9.0\n',
     'products.csv': 'Tipo\nTronchi\n',
     'particelle.csv': 'Compresa,Comparto,Particella,Area (ha)\nCapistrano,A,1,10.5\n',
@@ -31,6 +33,16 @@ CANONICAL = {
         'Rilevamento,Compresa,Particella,Area saggio,Albero,Pollone,Matricina,'
         'D_cm,H_m,L10_mm,Genere,Fustaia\n'
         'Campagna 2024,Capistrano,1,10,1,0,False,30,15.0,0,Abete,True\n'),
+    'harvest_plan_items.csv': (
+        'Piano,Compresa,Particella,Anno,Prelievo (m³),Danneggiato,Fitosanitario,PSR\n'
+        'PDG 2026,Capistrano,1,2027,50.0,0,0,0\n'),
+    'preserved-trees.csv': (
+        'Compresa,Particella,Genere,Lon,Lat\n'
+        'Capistrano,1,Abete,16.1,38.5\n'),
+    'harvests.csv': (
+        'Compresa,Particella,Data,Squadra,Tipo,Q.li\n'
+        'Capistrano,1,2027-03-01,Alfa,Tronchi,10.0\n'
+        'Capistrano,,2027-03-02,Alfa,Tronchi,5.0\n'),
 }
 
 
@@ -48,13 +60,17 @@ def test_happy_path_loads_everything(tmp_path):
     assert Region.objects.count() == 1
     assert Eclass.objects.count() == 1
     assert Crew.objects.count() == 1
+    assert Tractor.objects.filter(name='T1').exists()
     assert Species.objects.filter(common_name='Abete').exists()
     assert Parcel.objects.filter(name='1', region__name='Capistrano').exists()
     assert SampleGrid.objects.filter(name='Griglia 1').exists()
     assert HarvestPlan.objects.filter(name='PDG 2026').exists()
+    assert HarvestPlanItem.objects.count() == 1
     assert Survey.objects.filter(name='Campagna 2024').exists()
     assert SampleArea.objects.count() == 1
-    assert Tree.objects.count() == 1
+    assert Tree.objects.filter(preserved=False).count() == 1   # sampled tree
+    assert Tree.objects.filter(preserved=True).count() == 1    # preserved tree
+    assert Harvest.objects.count() == 2
 
 
 @pytest.mark.django_db
@@ -128,11 +144,54 @@ def test_hypso_loaded_when_present(tmp_path):
 
 
 @pytest.mark.django_db
-def test_deferred_file_noted_not_loaded(tmp_path, capsys):
-    call_command('bootstrap', _make_dir(tmp_path, **{'harvests.csv': 'Compresa\nCapistrano\n'}))
-    out = capsys.readouterr().out
-    assert 'harvests.csv' in out
-    assert Region.objects.filter(name='Capistrano').exists()   # rest loaded
+def test_tractors_load_via_reference_loop(tmp_path):
+    """tractors.csv loads via the reference table loop (TRACTORS in ALL_TABLES)."""
+    call_command('bootstrap', _make_dir(tmp_path))
+    assert Tractor.objects.filter(name='T1').exists()
+
+
+@pytest.mark.django_db
+def test_harvest_plan_items_load(tmp_path):
+    """harvest_plan_items.csv wires in and creates HarvestPlanItem rows."""
+    call_command('bootstrap', _make_dir(tmp_path))
+    assert HarvestPlanItem.objects.count() == 1
+
+
+@pytest.mark.django_db
+def test_preserved_trees_load(tmp_path):
+    """preserved-trees.csv wires in and creates preserved Tree rows."""
+    call_command('bootstrap', _make_dir(tmp_path))
+    trees = Tree.objects.filter(preserved=True)
+    assert trees.count() == 1
+
+
+@pytest.mark.django_db
+def test_harvests_load(tmp_path):
+    """harvests.csv wires in and creates Harvest rows."""
+    call_command('bootstrap', _make_dir(tmp_path))
+    assert Harvest.objects.count() == 2
+
+
+@pytest.mark.django_db
+def test_region_wide_harvest_persists_parcel_none(tmp_path):
+    """A harvest row with blank Particella persists with parcel=None, region set."""
+    call_command('bootstrap', _make_dir(tmp_path))
+    region_wide = Harvest.objects.filter(parcel__isnull=True)
+    assert region_wide.count() == 1
+    assert region_wide.first().region is not None
+    assert region_wide.first().region.name == 'Capistrano'
+
+
+@pytest.mark.django_db
+def test_harvest_bad_parcel_region_mismatch_rejected(tmp_path):
+    """A harvest row with a parcel that does not exist in the given region is rejected."""
+    bad_harvests = (
+        'Compresa,Particella,Data,Squadra,Tipo,Q.li\n'
+        'Capistrano,99,2027-03-01,Alfa,Tronchi,10.0\n'
+    )
+    with pytest.raises(CommandError):
+        call_command('bootstrap', _make_dir(tmp_path, **{'harvests.csv': bad_harvests}))
+    assert Harvest.objects.count() == 0
 
 
 @pytest.mark.django_db
@@ -145,7 +204,7 @@ def test_species_products_seeded_from_in_repo_default_when_absent(tmp_path, caps
     assert Species.objects.filter(common_name='Abete').exists()
     assert Product.objects.count() == len(set(PRODUCT_MAP.values()))
     # The default species set includes 'Abete', so the sampled tree still loads.
-    assert Tree.objects.count() == 1
+    assert Tree.objects.filter(preserved=False).count() == 1   # sampled tree
     # The report flags that defaults were seeded (not silently skipped).
     assert S.BOOTSTRAP_DEFAULT_SEEDED in capsys.readouterr().out
 

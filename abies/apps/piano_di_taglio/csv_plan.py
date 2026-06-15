@@ -70,6 +70,11 @@ COPPICE_OPTIONAL = {
 }
 
 
+# Minimal required columns: plan, region, parcel, year — all that
+# load_canonical_items needs before it can branch on row type.
+PLAN_ITEMS_CSV_REQUIRED = [S.CSV_COL_PLAN, S.CSV_COL_REGION, S.CSV_COL_PARCEL, S.CSV_COL_YEAR]
+
+
 class CsvError:
     def __init__(self, message: str):
         self.message = message
