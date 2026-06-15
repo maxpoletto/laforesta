@@ -251,7 +251,6 @@ ERR_BOOTSTRAP_UNKNOWN_SURVEY = 'File {}: rilevamento non trovato ({}).'
 ERR_BOOTSTRAP_FAILED         = '{} errore/i durante il bootstrap; nulla è stato caricato.'
 BOOTSTRAP_OPTIONAL_SKIPPED   = 'assente (opzionale, saltato)'
 BOOTSTRAP_DEFAULT_SEEDED     = 'assente (caricati valori predefiniti)'
-BOOTSTRAP_NOT_SUPPORTED      = 'presente, non ancora supportato'
 BOOTSTRAP_CHECK_NOTICE       = '--check: nessuna modifica è stata salvata.'
 BOOTSTRAP_DONE               = 'Bootstrap completato.'
 BOOTSTRAP_LOADED             = '{} caricati'    # report line: rows loaded
@@ -338,11 +337,11 @@ CSV_COL_PLAN         = 'Piano'         # HarvestPlan.name
 CSV_COL_YEAR_START   = 'Anno inizio'   # HarvestPlan.year_start; paired with COL_YEAR_START
 CSV_COL_YEAR_END     = 'Anno fine'     # HarvestPlan.year_end; paired with COL_YEAR_END
 
-# CSV column headers used by the legacy bosco/data `import_*` management
-# commands.  Where a column also appears in a digest, the names are
-# paired (`CSV_COL_X` / `COL_X`); the values may match (same Italian
-# token used in both contexts) or differ (e.g. `Altitudine min` in the
-# CSV vs `Alt. min. (m)` in the digest column).
+# CSV column headers used by bootstrap, imports, and exports.  Where a
+# column also appears in a digest, the names are paired (`CSV_COL_X` /
+# `COL_X`); the values may match (same Italian token used in both
+# contexts) or differ (e.g. `Altitudine min` in the CSV vs
+# `Alt. min. (m)` in the digest column).
 CSV_COL_CLASS          = 'Comparto'
 CSV_COL_CREW           = 'Squadra'           # paired with COL_CREW
 CSV_COL_PRODUCT        = 'Tipo'              # paired with COL_PRODUCT

@@ -47,7 +47,6 @@ GUARD_MODELS = [
     HarvestDetail, Harvest, HypsoParamSet,
 ]
 
-DEFERRED_FILES = []
 
 
 @dataclass
@@ -98,7 +97,6 @@ class Command(BaseCommand):
                 reports.append(self._load_harvest_plan_items(data_dir))
                 reports.append(self._load_preserved_trees(data_dir))
                 reports.append(self._load_harvests(data_dir))
-                reports.extend(self._note_deferred(data_dir))
                 if sum(len(r.errors) for r in reports) or check:
                     transaction.set_rollback(True)
         except Exception as exc:
@@ -318,16 +316,6 @@ class Command(BaseCommand):
         report.errors.extend(errors)
         report.loaded = csv_harvests.apply(parsed) if parsed and not errors else 0
         return report
-
-    # --- deferred -----------------------------------------------------------
-
-    def _note_deferred(self, data_dir):
-        out = []
-        for filename in DEFERRED_FILES:
-            if (data_dir / filename).is_file():
-                out.append(FileReport(name=filename, required=False, present=True,
-                                      note=S.BOOTSTRAP_NOT_SUPPORTED))
-        return out
 
     # --- report -------------------------------------------------------------
 

@@ -1,6 +1,6 @@
 """Sample-grid CSV import core: the three-phase contract
 (``resolve_columns`` → ``validate_rows`` → ``apply``) shared by the in-app
-upload view and (later) bootstrap.
+upload view and bootstrap.
 
 ``validate_rows`` is pure — it performs no DB writes and resolves foreign keys
 against an injected ``GridIndexes`` — so the same code can back a true

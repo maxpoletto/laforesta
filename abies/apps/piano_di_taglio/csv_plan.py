@@ -1,6 +1,6 @@
 """Harvest-plan CSV import core: alias dicts, read/parse helpers, flag
 decoder, index builder, and the write transaction, shared by the in-app
-upload view and (later) bootstrap.
+upload view and bootstrap.
 
 ``parse_fustaia_rows`` and ``parse_ceduo_rows`` are pure — no DB writes,
 foreign keys resolved against an injected ``PlanIndexes`` — so the same

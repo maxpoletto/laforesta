@@ -22,9 +22,9 @@ from ingest.convert_laforesta import (
     OUT_SAMPLED_TREES, OUT_SURVEYS, OUT_TRACTORS, main,
 )
 
-# Defaults to the local checkout; override with ABIES_LEGACY_DATA elsewhere.
-LEGACY_DIR = Path(os.environ.get(
-    'ABIES_LEGACY_DATA', '/Users/maxp/src/laforesta/abies-data'))
+# Defaults to the sibling data checkout; override with ABIES_LEGACY_DATA elsewhere.
+_DEFAULT_LEGACY_DIR = Path(__file__).resolve().parents[2] / 'abies-data'
+LEGACY_DIR = Path(os.environ.get('ABIES_LEGACY_DATA', _DEFAULT_LEGACY_DIR))
 
 # Expected row counts (±10 tolerance where noted, exact otherwise).
 EXPECTED_HARVESTS = 11941

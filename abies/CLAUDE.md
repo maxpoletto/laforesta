@@ -302,12 +302,13 @@ No browser-based E2E; UI verified by manual smoke testing.
 
 # Development environment
 
-Runs directly on the host (no Docker): `manage.py runserver` + Python 3.14
-virtualenv. `data/` holds `db.sqlite3`, `digests/`, `geo/`.
+Runs directly on the host (no Docker): `manage.py runserver` + Python 3.13
+virtualenv. `data/` holds `db.sqlite3`, `canonical/`, `digests/`, and `geo/`.
 
-- `make dev`: zero-to-working in one command (migrate + import + geo + digest + admin).
+- `make dev`: zero-to-working in one command (reset DB + migrate + convert + bootstrap + geo + digest + admin + template links).
 - `make migrate`: run Django migrations.
-- `make import`: ETL from CSVs in `bosco/data/`.
-- `make geo`: import geo data into `data/geo/`.
+- `make convert`: convert `DATA_DIR` (default `../abies-data`) into canonical CSVs.
+- `make bootstrap`: load canonical CSVs from `CANONICAL_DIR` into an empty DB.
+- `make geo`: build geo data into `data/geo/`.
 - `make digest`: precompute all JSON digests via `apps/base/digests.py`.
 - `make admin`: create initial admin user.
