@@ -1,5 +1,6 @@
 PYTHON = python3
 DATA_DIR ?= ../abies-data
+CANONICAL_DIR ?= data/canonical
 DJANGO_DEBUG ?= 1
 DJANGO_SECRET_KEY ?= django-insecure-local-dev
 MANAGE = env DJANGO_DEBUG="$(DJANGO_DEBUG)" DJANGO_SECRET_KEY="$(DJANGO_SECRET_KEY)" $(PYTHON) manage.py
@@ -12,7 +13,7 @@ LANGUAGE_SUFFIX = _it
 
 .PHONY: check migrate import import-base import-data geo digest admin dev \
         clean reset-schema update-vendor minify test test-js collectstatic \
-        link-templates
+        link-templates reset-db convert bootstrap
 
 check:
 	$(MANAGE) check
@@ -35,6 +36,18 @@ import-data:
 	$(MANAGE) import_pai $(DATA_DIR)
 	$(MANAGE) import_calendar $(DATA_DIR)
 	$(MANAGE) import_hypso_params $(DATA_DIR)
+
+# --- Canonical load path (convert legacy -> bootstrap). Additive for now; the
+# cutover of `dev` to these targets is plan 08 (pending review of the admin/reset
+# interaction). `bootstrap` loads into an EMPTY instance, so run `reset-db` first.
+reset-db:
+	rm -f data/db.sqlite3 data/db.sqlite3-wal data/db.sqlite3-shm
+
+convert:
+	$(PYTHON) -m ingest.convert_laforesta $(DATA_DIR) $(CANONICAL_DIR)
+
+bootstrap:
+	$(MANAGE) bootstrap $(CANONICAL_DIR)
 
 geo:
 	mkdir -p data/geo
