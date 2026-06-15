@@ -396,15 +396,6 @@ function buildTable(s, searchInput) {
   s.table.wireSearchInput(searchInput);
   applyPlanFilter(s);
 
-  // Row-click → navigate to item view page (for all users, not just writers).
-  s.host.addEventListener('click', (e) => {
-    if (e.target.closest('.action-icon')) return;
-    const tr = e.target.closest('.sortable-table-row');
-    if (!tr || !s.table) return;
-    const rowData = s.table.rowForElement(tr);
-    if (!rowData) return;
-    navigateToItem(rowData[0]);
-  });
 }
 
 function applyPlanFilter(s) {

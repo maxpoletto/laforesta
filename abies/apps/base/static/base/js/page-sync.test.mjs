@@ -221,6 +221,39 @@ const { TableWrapper } = await import('./table.js');
      'TableWrapper.rowForElement handles missing table');
 }
 
+// TableWrapper delegates plain row clicks to edit and keeps explicit actions distinct.
+{
+  const calls = [];
+  const wrapper = Object.create(TableWrapper.prototype);
+  wrapper._table = { data: [[10, 'Abete']] };
+  wrapper.actions = {
+    onEdit: (rowId) => calls.push(['edit', rowId]),
+    onDelete: (rowId) => calls.push(['delete', rowId]),
+  };
+  const rowEl = { dataset: { index: '0' } };
+  const target = (matches = {}) => ({
+    closest: (selector) => matches[selector] || (selector === '.sortable-table-row' ? rowEl : null),
+  });
+  const editIcon = {
+    classList: { contains: (cls) => cls === 'action-edit' },
+    closest: (selector) => selector === '.sortable-table-row' ? rowEl : null,
+  };
+  const deleteIcon = {
+    classList: { contains: (cls) => cls === 'action-delete' },
+    closest: (selector) => selector === '.sortable-table-row' ? rowEl : null,
+  };
+
+  wrapper._handleTableClick({ target: target() });
+  wrapper._handleTableClick({ target: target({ '.action-icon': editIcon }) });
+  wrapper._handleTableClick({ target: target({ '.action-icon': deleteIcon }) });
+  wrapper._handleTableClick({
+    target: target({ '.action-icon,a,button,input,label,select,textarea,[contenteditable="true"],[role="button"]': {} }),
+  });
+
+  eq(JSON.stringify(calls), JSON.stringify([['edit', 10], ['edit', 10], ['delete', 10]]),
+     'TableWrapper row clicks edit, action icons dispatch explicitly, and controls are ignored');
+}
+
 // navigateWithParams uses replace by default and preserves empty query handling.
 {
   router.init();

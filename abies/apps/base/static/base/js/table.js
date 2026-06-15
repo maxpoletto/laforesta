@@ -14,6 +14,17 @@ const DEBOUNCE_MS = 500;
 const ROW_ID_COL = 0;
 const ROWS_PER_PAGE = 25;
 const DEFAULT_COL_WIDTH = '100';  // px fallback for columns without explicit width
+const ROW_CLICK_IGNORE_SELECTOR = [
+  '.action-icon',
+  'a',
+  'button',
+  'input',
+  'label',
+  'select',
+  'textarea',
+  '[contenteditable="true"]',
+  '[role="button"]',
+].join(',');
 
 /** English defaults for all user-facing strings. */
 const DEFAULT_LABELS = {
@@ -258,23 +269,33 @@ export class TableWrapper {
     }, 0);
     this._tableEl.style.setProperty('--st-table-min-width', totalWidth + 'px');
 
-    // Action-icon delegation on the stable container element, avoiding
+    // Row-action delegation on the stable container element, avoiding
     // SortableTable's onRowClick which stacks listeners on re-render.
-    if (this.canModify) {
-      this._tableEl.addEventListener('click', (e) => {
-        const icon = e.target.closest('.action-icon');
-        if (!icon) return;
-        const tr = icon.closest('.sortable-table-row');
-        if (!tr) return;
-        const rowData = this.rowForElement(tr);
-        if (!rowData) return;
-        const rowId = rowData[ROW_ID_COL];
-        if (icon.classList.contains('action-edit')) this.actions.onEdit?.(rowId);
-        else if (icon.classList.contains('action-delete')) this.actions.onDelete?.(rowId);
-      });
+    if (this.canModify && (this.actions.onEdit || this.actions.onDelete)) {
+      this._tableEl.addEventListener('click', (e) => this._handleTableClick(e));
     }
 
     if (this._searchText) this._applyFilters();
+  }
+
+  _handleTableClick(e) {
+    const icon = e.target.closest('.action-icon');
+    const rowTarget = icon || e.target;
+    const tr = rowTarget.closest('.sortable-table-row');
+    if (!tr) return;
+    const rowData = this.rowForElement(tr);
+    if (!rowData) return;
+    const rowId = rowData[ROW_ID_COL];
+
+    if (icon) {
+      if (icon.classList.contains('action-edit')) this.actions.onEdit?.(rowId);
+      else if (icon.classList.contains('action-delete')) this.actions.onDelete?.(rowId);
+      return;
+    }
+
+    if (this.actions.onEdit && !e.target.closest(ROW_CLICK_IGNORE_SELECTOR)) {
+      this.actions.onEdit(rowId);
+    }
   }
 
   // -- Filtering -----------------------------------------------------------
