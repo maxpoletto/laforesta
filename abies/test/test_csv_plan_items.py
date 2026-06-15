@@ -102,6 +102,76 @@ def test_load_items_region_wide(parcels, species):
 
 
 @pytest.mark.django_db
+def test_load_items_optional_volume_blank_ok(parcels, species):
+    plans = _make_plans(['Piano A'])
+    csv_text = '\n'.join([
+        ITEMS_HEADER,
+        'Piano A,Capistrano,1,2027,,,,0,0,0,',
+    ])
+    reader = _reader(csv_text)
+    idx = csv_plan.db_indexes()
+    n, errors = csv_plan.load_canonical_items(reader, idx, plans)
+    assert errors == [], errors
+    assert n == 1
+    item = HarvestPlanItem.objects.get(harvest_plan=plans['Piano A'])
+    assert item.volume_planned_m3 is None
+
+
+@pytest.mark.django_db
+def test_load_items_highforest_invalid_volume_rejected(parcels, species):
+    plans = _make_plans(['Piano A'])
+    csv_text = '\n'.join([
+        ITEMS_HEADER,
+        'Piano A,Capistrano,1,2027,nope,,,0,0,0,',
+    ])
+    reader = _reader(csv_text)
+    idx = csv_plan.db_indexes()
+    n, errors = csv_plan.load_canonical_items(reader, idx, plans)
+    assert n == 0
+    assert len(errors) == 1
+    assert S.CSV_COL_HARVEST_M3 in errors[0]
+    assert 'nope' in errors[0]
+    assert HarvestPlanItem.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_load_items_region_wide_invalid_volume_rejected(parcels, species):
+    plans = _make_plans(['Piano A'])
+    csv_text = '\n'.join([
+        ITEMS_HEADER,
+        'Piano A,Capistrano,,2027,nope,,,1,0,0,',
+    ])
+    reader = _reader(csv_text)
+    idx = csv_plan.db_indexes()
+    n, errors = csv_plan.load_canonical_items(reader, idx, plans)
+    assert n == 0
+    assert len(errors) == 1
+    assert S.CSV_COL_HARVEST_M3 in errors[0]
+    assert 'nope' in errors[0]
+    assert HarvestPlanItem.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_load_items_coppice_invalid_surface_rejected(regions, eclasses, species):
+    Parcel.objects.create(
+        name='9', region=regions[0], eclass=eclasses[2], area_ha=Decimal('5.0')
+    )
+    plans = _make_plans(['Piano A'])
+    csv_text = '\n'.join([
+        ITEMS_HEADER,
+        f'Piano A,{regions[0].name},9,2028,,nope,18,0,0,0,',
+    ])
+    reader = _reader(csv_text)
+    idx = csv_plan.db_indexes()
+    n, errors = csv_plan.load_canonical_items(reader, idx, plans)
+    assert n == 0
+    assert len(errors) == 1
+    assert S.CSV_COL_SURFACE_HA in errors[0]
+    assert 'nope' in errors[0]
+    assert HarvestPlanItem.objects.count() == 0
+
+
+@pytest.mark.django_db
 def test_load_items_two_plans(parcels, species):
     """Rows belonging to two different Piano values create items under each plan."""
     plans = _make_plans(['Piano A', 'Piano B'])

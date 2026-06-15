@@ -146,6 +146,15 @@ def parse_flag_keywords(note: str) -> tuple[bool, bool, bool]:
     )
 
 
+def _optional_decimal(reader, row, column, row_number, errors):
+    value, ok = reader.opt_decimal(row.get(column))
+    if not ok:
+        errors.append(S.ERR_CSV_VALUE_PARSE.format(
+            row_number, column, row.get(column, ''),
+        ))
+    return value, ok
+
+
 def parse_fustaia_rows(data, parcel_cache, region_cache, errors):
     """Parse fustaia.csv rows.  A row is either parcel-scoped (the
     common case) or whole-region (Particella = ``X`` — see
@@ -428,7 +437,11 @@ def load_canonical_items(reader, indexes: PlanIndexes, plans: dict):
             if not (damaged or unhealthy):
                 errors.append(S.ERR_CSV_PLAN_ITEM_REGION_REQUIRES_FLAG.format(i))
                 continue
-            volume = reader.decimal(row.get(S.CSV_COL_HARVEST_M3))
+            volume, ok = _optional_decimal(
+                reader, row, S.CSV_COL_HARVEST_M3, i, errors,
+            )
+            if not ok:
+                continue
             rows_by_plan[plan_name].append({
                 '_type': 'fustaia',
                 FIELD_REGION_ID: region,
@@ -446,7 +459,11 @@ def load_canonical_items(reader, indexes: PlanIndexes, plans: dict):
                     i, compresa, particella))
                 continue
             if parcel.eclass.coppice:
-                area = reader.decimal(row.get(S.CSV_COL_SURFACE_HA))
+                area, ok = _optional_decimal(
+                    reader, row, S.CSV_COL_SURFACE_HA, i, errors,
+                )
+                if not ok:
+                    continue
                 interval = reader.integer(row.get(S.CSV_COL_PERIOD_Y))
                 if interval is None:
                     errors.append(S.ERR_CSV_VALUE_PARSE.format(
@@ -464,7 +481,11 @@ def load_canonical_items(reader, indexes: PlanIndexes, plans: dict):
                     FIELD_PSR: psr,
                 })
             else:
-                volume = reader.decimal(row.get(S.CSV_COL_HARVEST_M3))
+                volume, ok = _optional_decimal(
+                    reader, row, S.CSV_COL_HARVEST_M3, i, errors,
+                )
+                if not ok:
+                    continue
                 rows_by_plan[plan_name].append({
                     '_type': 'fustaia',
                     FIELD_REGION_ID: None,
