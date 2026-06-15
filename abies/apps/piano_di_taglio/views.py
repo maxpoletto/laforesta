@@ -609,11 +609,10 @@ def item_export_view(request, item_id: int):
     species_list = list(Species.objects.order_by('sort_order')
                                        .values_list('id', 'common_name'))
     from apps.base.models import Tractor
-    tractor_list = list(Tractor.objects.order_by('manufacturer', 'model'))
+    tractor_list = list(Tractor.objects.order_by('name', 'manufacturer', 'model', 'id'))
     species_ids = [sid for sid, _ in species_list]
     tractor_ids = [t.id for t in tractor_list]
-    tractor_labels = [f'{t.manufacturer} {t.model}'.strip()
-                      for t in tractor_list]
+    tractor_labels = [t.display_name for t in tractor_list]
 
     prelievi_buf, prelievi_w = csv_io.csv_buffer(delimiter)
     prelievi_w.writerow(

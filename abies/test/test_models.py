@@ -33,6 +33,11 @@ class TestStr:
     def test_tractor(self, tractors):
         assert str(tractors[0]) == 'Fiat 110-90'
 
+    def test_tractor_name_preferred(self, tractors):
+        tractors[0].name = 'T1'
+        assert tractors[0].display_name == 'T1'
+        assert str(tractors[0]) == 'T1'
+
     def test_species(self, species):
         assert str(species[0]) == 'Abete'
 

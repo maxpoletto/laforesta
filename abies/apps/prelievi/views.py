@@ -322,8 +322,9 @@ def _form_context(op_id=None, vals=None):
                                      .order_by(FIELD_SORT_ORDER)
         ],
         'tractor_data': [
-            (tr.id, f'{tr.manufacturer} {tr.model}'.strip(), tr_pcts.get(tr.id, 0))
-            for tr in Tractor.objects.filter(active=True).order_by('manufacturer', 'model')
+            (tr.id, tr.display_name, tr_pcts.get(tr.id, 0))
+            for tr in Tractor.objects.filter(active=True)
+                                     .order_by('name', 'manufacturer', 'model', 'id')
         ],
     }
 

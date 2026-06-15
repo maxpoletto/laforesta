@@ -168,8 +168,12 @@ class Tractor(TimestampedModel):
         verbose_name = S.TRACTOR
         verbose_name_plural = S.TRACTORS
 
+    @property
+    def display_name(self):
+        return self.name or f'{self.manufacturer} {self.model}'.strip()
+
     def __str__(self):
-        return f'{self.manufacturer} {self.model}'
+        return self.display_name
 
 
 class Species(TimestampedModel):

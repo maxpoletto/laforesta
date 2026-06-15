@@ -204,13 +204,10 @@ def generate_prelievi() -> None:
 
     species_ids, species_names, minor_ids, other_id = prelievi_species_cols()
 
-    all_tractors = list(Tractor.objects.order_by('manufacturer', 'model')
-                        .values_list('id', 'pk', 'manufacturer', 'model'))
+    all_tractors = list(Tractor.objects.order_by('name', 'manufacturer', 'model', 'id'))
 
-    tractor_ids = [tid for tid, _, _, _ in all_tractors]
-    tractor_labels = [
-        f'{mfr} {mdl}'.strip() for _, _, mfr, mdl in all_tractors
-    ]
+    tractor_ids = [tr.id for tr in all_tractors]
+    tractor_labels = [tr.display_name for tr in all_tractors]
 
     columns = (
         [ROW_ID, VERSION, COL_REGION_ID, COL_PARCEL_ID,
@@ -270,7 +267,7 @@ def build_harvest_record(
             species_ids = default_species_ids
     if tractor_ids is None:
         tractor_ids = list(
-            Tractor.objects.order_by('manufacturer', 'model')
+            Tractor.objects.order_by('name', 'manufacturer', 'model', 'id')
             .values_list('id', flat=True)
         )
 

@@ -169,6 +169,15 @@ class TestFormView:
         assert 'tr_' in html
         assert '100%' in html
 
+    def test_form_uses_tractor_name(self, writer_client, harvest_fixtures):
+        tractor = harvest_fixtures['tractors'][0]
+        tractor.name = 'T1'
+        tractor.save(update_fields=['name'])
+        resp = writer_client.get('/api/prelievi/form/')
+        html = resp.json()[HTML]
+        assert 'T1' in html
+        assert 'Fiat 110-90' not in html
+
     def test_form_excludes_minor_species(self, writer_client, harvest_fixtures):
         f = harvest_fixtures
         minor = [s for s in f['species'] if s.minor]

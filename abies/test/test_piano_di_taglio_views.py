@@ -23,6 +23,7 @@ from apps.base.models import (
     DigestStatus, HarvestPlan, HarvestPlanItem, HarvestPlanItemState,
     HarvestTransition, ParcelPlanDetail, Tree, TreeMark, UsedNonce,
 )
+from apps.prelievi.models import Harvest, HarvestTractor
 from config import strings as S
 from config.constants import (
     COLUMNS, DATA_ID, FIELD_ACC_M, FIELD_COPPICE_FILE, FIELD_CREW_ID,
@@ -782,6 +783,29 @@ class TestItemExport:
         names = set(zf.namelist())
         assert f'martellate_{planned_item.id}.csv' in names
         assert f'prelievi_{planned_item.id}.csv' in names
+
+    def test_item_export_uses_tractor_name_in_prelievi_header(
+        self, writer_client, planned_item, crews, products, tractors,
+    ):
+        tractor = tractors[0]
+        tractor.name = 'T1'
+        tractor.save(update_fields=['name'])
+        harvest = Harvest.objects.create(
+            date=date_type(2025, 8, 1), product=products[0],
+            parcel=planned_item.parcel, crew=crews[0], mass_q=Decimal('10'),
+            harvest_plan_item=planned_item,
+        )
+        HarvestTractor.objects.create(harvest=harvest, tractor=tractor, percent=100)
+
+        resp = writer_client.get(
+            f'/api/piano-di-taglio/item/export/{planned_item.id}/',
+        )
+        zf = zipfile.ZipFile(io.BytesIO(resp.content))
+        text = zf.read(f'prelievi_{planned_item.id}.csv').decode('utf-8-sig')
+        delimiter, _ = csv_io.export_format()
+        rows = list(csv.reader(io.StringIO(text), delimiter=delimiter))
+        assert 'T1' in rows[0]
+        assert 'Fiat 110-90' not in rows[0]
 
     def test_export_numero_is_mark_number_not_id(
         self, writer_client, planned_item, species,

@@ -190,6 +190,21 @@ class TestGeneratePrelievi:
         row = data[ROWS][0]
         assert row[cols.index('Abete %')] == 60
 
+    def test_tractor_columns_use_canonical_name(self, harvest_data, tractors):
+        tractors[0].name = 'T1'
+        tractors[0].save(update_fields=['name'])
+        generate_prelievi()
+        path = settings.DIGEST_DIR / 'prelievi.json.gz'
+        with gzip.open(path, 'rt') as f:
+            data = json.load(f)
+        cols = data[COLUMNS]
+        row = data[ROWS][0]
+        assert 'T1' in cols
+        assert 'T1 %' in cols
+        assert 'Fiat 110-90' not in cols
+        assert row[cols.index('T1')] == 200.0
+        assert row[cols.index('T1 %')] == 100
+
     def test_empty_table(self, db, species, tractors):
         generate_prelievi()
         path = settings.DIGEST_DIR / 'prelievi.json.gz'
