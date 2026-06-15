@@ -84,6 +84,10 @@ export class PDFDocument {
   }
 }
 
+export function decimalRight(doc, commaX, { size = 10 } = {}) {
+  return commaX + doc.textWidth(',0', { size });
+}
+
 export function buildPDF(width, height, pages) {
   const objects = [];
   objects.push('<< /Type /Catalog /Pages 2 0 R >>');

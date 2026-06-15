@@ -22,7 +22,7 @@ import {
   FIELD_CREW_ID, FIELD_DATE, FIELD_HOURS, FIELD_LICENSE_PLATE, FIELD_MASS_Q,
   FIELD_MONTH, FIELD_NONCE, FIELD_SLIP_COUNT, VERSION,
 } from '../../base/js/constants.js';
-import { PDFDocument } from './pdf.js';
+import { decimalRight, PDFDocument } from './pdf.js';
 
 const CSS_URL = '/static/mannesi/css/mannesi.css';
 const PAGE_PATH = '/mannesi';
@@ -626,7 +626,7 @@ function drawReceipt(doc, month, receipt) {
   drawDecimal(doc, valueComma, y, fmtDecimal2(receipt.hours), { size: 10 });
   y += 28;
   doc.text(col1, y, S.MANNESI_RECEIPT_PRODUCTION, { size: 10, bold: true });
-  doc.text(col2, y, S.COL_CREDITS_Q, { size: 10, bold: true });
+  doc.textRight(decimalRight(doc, valueComma), y, S.COL_CREDITS_Q, { size: 10, bold: true });
   y += 16;
   for (const item of receipt.productTotals) {
     doc.text(col1, y, item.product, { size: 10 });

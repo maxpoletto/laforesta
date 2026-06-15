@@ -1,7 +1,7 @@
 // Tests for apps/mannesi/static/mannesi/js/pdf.js.
 // Run with: node apps/mannesi/static/mannesi/js/pdf.test.mjs (also part of `make test-js`).
 
-import { PDFDocument, buildPDF } from './pdf.js';
+import { PDFDocument, buildPDF, decimalRight } from './pdf.js';
 
 let failed = 0;
 let passed = 0;
@@ -36,6 +36,17 @@ check(Math.abs(boldWidth - 10) < 0.001, 'textWidth uses bold Helvetica metrics')
 rightDoc.textRight(100, 30, '12,3', { size: 10 });
 const rightPdf = buildPDF(rightDoc.width, rightDoc.height, rightDoc.pages);
 check(rightPdf.includes('80.54 811.89 Td (12,3)'), 'textRight uses measured x');
+
+const receiptDoc = new PDFDocument({ landscape: true });
+const commaX = 180;
+const numericRight = decimalRight(receiptDoc, commaX);
+const expectedRight = commaX + receiptDoc.textWidth(',0', { size: 10 });
+check(Math.abs(numericRight - expectedRight) < 0.001, 'decimalRight follows one-decimal values');
+receiptDoc.textRight(numericRight, 42, 'Quintali', { size: 10, bold: true });
+const receiptPdf = buildPDF(receiptDoc.width, receiptDoc.height, receiptDoc.pages);
+const headerX = numericRight - receiptDoc.textWidth('Quintali', { size: 10, bold: true });
+check(receiptPdf.includes(`${headerX.toFixed(2)} 553.28 Td (Quintali)`),
+      'Mannesi receipt Quintali header is right-aligned to the numeric column');
 
 console.log(`${passed} passed, ${failed} failed`);
 if (failed) process.exit(1);
