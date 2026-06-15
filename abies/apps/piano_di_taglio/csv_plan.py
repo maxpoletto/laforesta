@@ -7,6 +7,7 @@ foreign keys resolved against an injected ``PlanIndexes`` — so the same
 code can back a true ``--check`` dry-run against a staged index.
 """
 
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date as date_type
 
@@ -257,7 +258,7 @@ def db_indexes() -> PlanIndexes:
     regions = {r.name.lower(): r for r in Region.objects.all()}
     parcels = {
         (p.region.name.lower(), p.name): p
-        for p in Parcel.objects.select_related('region')
+        for p in Parcel.objects.select_related('region', 'eclass')
     }
     return PlanIndexes(parcels, regions)
 
@@ -364,3 +365,131 @@ def apply(*, target_plan, name, description, fustaia_parsed, ceduo_parsed):
         mark_stale('harvest_plans', 'harvest_plan_items', DIGEST_FUTURE_PRODUCTION, 'audit')
 
     return plan, n_items
+
+
+def load_canonical_items(reader, indexes: PlanIndexes, plans: dict):
+    """Bootstrap loader for the unified harvest_plan_items.csv.
+
+    ``plans`` maps plan name -> HarvestPlan.  Groups rows by ``Piano``, then
+    calls ``apply(target_plan=plan, ...)`` once per group.  Per row: blank
+    ``Particella`` → region-wide fustaia dict; else resolves parcel and
+    branches on ``parcel.eclass.coppice`` (coppice → ceduo dict; else fustaia
+    dict).  Boolean flag columns (Danneggiato/Fitosanitario/PSR) are read
+    explicitly via ``reader.opt_bool``.
+
+    Returns ``(n_items, errors)``.
+    """
+    errors = []
+    rows_by_plan: dict[str, list] = defaultdict(list)
+
+    # First pass: group rows by Piano, validating plan name and per-row fields.
+    for i, row in enumerate(reader, 2):
+        plan_name = (row.get(S.CSV_COL_PLAN) or '').strip()
+        if plan_name not in plans:
+            errors.append(S.ERR_CSV_PLAN_NOT_FOUND.format(i, plan_name))
+            continue
+
+        compresa = (row.get(S.CSV_COL_REGION) or '').strip()
+        particella = (row.get(S.CSV_COL_PARCEL) or '').strip()
+        is_region_wide = not particella
+
+        year = reader.integer(row.get(S.CSV_COL_YEAR))
+        if year is None:
+            errors.append(S.ERR_CSV_VALUE_PARSE.format(
+                i, S.CSV_COL_YEAR, row.get(S.CSV_COL_YEAR, '')))
+            continue
+
+        damaged_val, damaged_ok = reader.opt_bool(
+            row.get(S.CSV_COL_HARVEST_DAMAGED, ''))
+        unhealthy_val, unhealthy_ok = reader.opt_bool(
+            row.get(S.CSV_COL_HARVEST_UNHEALTHY, ''))
+        psr_val, psr_ok = reader.opt_bool(row.get(S.CSV_COL_HARVEST_PSR, ''))
+        if not (damaged_ok and unhealthy_ok and psr_ok):
+            errors.append(S.ERR_CSV_ROW_PARSE.format(
+                i, f'{S.CSV_COL_HARVEST_DAMAGED}/'
+                   f'{S.CSV_COL_HARVEST_UNHEALTHY}/{S.CSV_COL_HARVEST_PSR}'))
+            continue
+        damaged = bool(damaged_val)
+        unhealthy = bool(unhealthy_val)
+        psr = bool(psr_val)
+
+        note = (row.get(S.CSV_COL_NOTE) or '').strip()
+
+        if is_region_wide:
+            region = indexes.regions.get(compresa.lower())
+            if region is None:
+                errors.append(S.ERR_CSV_REGION_NOT_FOUND.format(i, compresa))
+                continue
+            if not (damaged or unhealthy):
+                errors.append(S.ERR_CSV_PLAN_ITEM_REGION_REQUIRES_FLAG.format(i))
+                continue
+            volume = reader.decimal(row.get(S.CSV_COL_HARVEST_M3))
+            rows_by_plan[plan_name].append({
+                '_type': 'fustaia',
+                FIELD_REGION_ID: region,
+                FIELD_PARCEL_ID: None,
+                FIELD_YEAR_PLANNED: year,
+                FIELD_VOLUME_PLANNED_M3: volume,
+                FIELD_DAMAGED: damaged,
+                FIELD_UNHEALTHY: unhealthy,
+                FIELD_PSR: psr,
+            })
+        else:
+            parcel = indexes.parcels.get((compresa.lower(), particella))
+            if parcel is None:
+                errors.append(S.ERR_CSV_PARCEL_NOT_FOUND.format(
+                    i, compresa, particella))
+                continue
+            if parcel.eclass.coppice:
+                area = reader.decimal(row.get(S.CSV_COL_SURFACE_HA))
+                interval = reader.integer(row.get(S.CSV_COL_PERIOD_Y))
+                if interval is None:
+                    errors.append(S.ERR_CSV_VALUE_PARSE.format(
+                        i, S.CSV_COL_PERIOD_Y, row.get(S.CSV_COL_PERIOD_Y, '')))
+                    continue
+                rows_by_plan[plan_name].append({
+                    '_type': 'ceduo',
+                    FIELD_PARCEL_ID: parcel,
+                    FIELD_YEAR_PLANNED: year,
+                    FIELD_INTERVENTION_AREA_HA: area,
+                    FIELD_PERIOD_Y: interval,
+                    FIELD_NOTE: note,
+                    FIELD_DAMAGED: damaged,
+                    FIELD_UNHEALTHY: unhealthy,
+                    FIELD_PSR: psr,
+                })
+            else:
+                volume = reader.decimal(row.get(S.CSV_COL_HARVEST_M3))
+                rows_by_plan[plan_name].append({
+                    '_type': 'fustaia',
+                    FIELD_REGION_ID: None,
+                    FIELD_PARCEL_ID: parcel,
+                    FIELD_YEAR_PLANNED: year,
+                    FIELD_VOLUME_PLANNED_M3: volume,
+                    FIELD_DAMAGED: damaged,
+                    FIELD_UNHEALTHY: unhealthy,
+                    FIELD_PSR: psr,
+                })
+
+    if errors:
+        return 0, errors
+
+    # Second pass: call apply once per plan group.
+    total_items = 0
+    for plan_name, rows in rows_by_plan.items():
+        plan = plans[plan_name]
+        fustaia = [r for r in rows if r['_type'] == 'fustaia']
+        ceduo   = [r for r in rows if r['_type'] == 'ceduo']
+        # Strip the internal '_type' key before passing to apply.
+        fustaia_clean = [{k: v for k, v in r.items() if k != '_type'} for r in fustaia]
+        ceduo_clean   = [{k: v for k, v in r.items() if k != '_type'} for r in ceduo]
+        _, n = apply(
+            target_plan=plan,
+            name=plan.name,
+            description=plan.description,
+            fustaia_parsed=fustaia_clean,
+            ceduo_parsed=ceduo_clean,
+        )
+        total_items += n
+
+    return total_items, errors

@@ -6,7 +6,7 @@ import pytest
 
 from apps.base import csv_io
 from apps.base import csv_reference as ref
-from apps.base.models import Crew, Eclass, Product, Region, Species
+from apps.base.models import Crew, Eclass, Product, Region, Species, Tractor
 from config import strings as S
 from config.constants import FIELD_ACTIVE, FIELD_COPPICE, FIELD_NAME, FIELD_NOTES
 
@@ -213,3 +213,80 @@ def test_apply_update_bumps_version_on_timestamped():
     r2 = _reader(f'{S.CSV_COL_SPECIES},{S.CSV_COL_DENSITY}\nAbete,8.0\n')
     ref.apply(ref.SPECIES, ref.validate_rows(ref.SPECIES, r2, cols)[0])
     assert Species.objects.get(common_name='Abete').version == v0 + 1
+
+
+# --- tractors ---------------------------------------------------------------
+
+@pytest.mark.django_db
+def test_tractors_minimal_key_only():
+    """Tractor with only the required Trattore column; optional fields use model defaults."""
+    reader = _reader(f'{S.CSV_COL_TRACTOR_NAME}\nFiat 110-90\n')
+    cols, missing = ref.resolve_columns(ref.TRACTORS, reader.fieldnames)
+    assert missing == []
+    parsed, errors = ref.validate_rows(ref.TRACTORS, reader, cols)
+    assert errors == []
+    assert ref.apply(ref.TRACTORS, parsed) == (1, 0)
+    t = Tractor.objects.get(name='Fiat 110-90')
+    assert t.manufacturer == ''
+    assert t.model == ''
+    assert t.year is None
+
+
+@pytest.mark.django_db
+def test_tractors_full_row():
+    """All four columns parsed correctly."""
+    csv_text = (
+        f'{S.CSV_COL_TRACTOR_NAME},{S.CSV_COL_MANUFACTURER},'
+        f'{S.CSV_COL_MODEL},{S.CSV_COL_YEAR}\n'
+        'Fiat 110-90,Fiat,110-90,1995\n'
+    )
+    reader = _reader(csv_text)
+    cols, missing = ref.resolve_columns(ref.TRACTORS, reader.fieldnames)
+    assert missing == []
+    parsed, errors = ref.validate_rows(ref.TRACTORS, reader, cols)
+    assert errors == []
+    ref.apply(ref.TRACTORS, parsed)
+    t = Tractor.objects.get(name='Fiat 110-90')
+    assert t.manufacturer == 'Fiat'
+    assert t.model == '110-90'
+    assert t.year == 1995
+
+
+@pytest.mark.django_db
+def test_tractors_update_idempotent():
+    """Re-importing with changed year updates the row."""
+    csv1 = (
+        f'{S.CSV_COL_TRACTOR_NAME},{S.CSV_COL_YEAR}\n'
+        'Landini 135,2000\n'
+    )
+    csv2 = (
+        f'{S.CSV_COL_TRACTOR_NAME},{S.CSV_COL_YEAR}\n'
+        'Landini 135,2001\n'
+    )
+    r1 = _reader(csv1)
+    cols, _ = ref.resolve_columns(ref.TRACTORS, r1.fieldnames)
+    assert ref.apply(ref.TRACTORS, ref.validate_rows(ref.TRACTORS, r1, cols)[0]) == (1, 0)
+    r2 = _reader(csv2)
+    cols2, _ = ref.resolve_columns(ref.TRACTORS, r2.fieldnames)
+    assert ref.apply(ref.TRACTORS, ref.validate_rows(ref.TRACTORS, r2, cols2)[0]) == (0, 1)
+    assert Tractor.objects.get(name='Landini 135').year == 2001
+
+
+@pytest.mark.django_db
+def test_tractors_blank_key_flagged():
+    """A blank Trattore name (explicit comma-padded cell) is a required-column error."""
+    reader = _reader(f'{S.CSV_COL_TRACTOR_NAME},{S.CSV_COL_MODEL}\n,110-90\n')
+    cols, _ = ref.resolve_columns(ref.TRACTORS, reader.fieldnames)
+    parsed, errors = ref.validate_rows(ref.TRACTORS, reader, cols)
+    assert parsed == []
+    assert len(errors) == 1
+
+
+@pytest.mark.django_db
+def test_tractors_in_all_tables():
+    """TRACTORS appears in ALL_TABLES after CREWS."""
+    names = [t.name for t in ref.ALL_TABLES]
+    assert 'tractors' in names
+    crews_idx = names.index('crews')
+    tractors_idx = names.index('tractors')
+    assert tractors_idx == crews_idx + 1

@@ -180,6 +180,10 @@ ERR_PLAN_ITEM_REGION_REQUIRES_FLAG = (
     'Le voci a livello di compresa (senza particella) richiedono il '
     'flag "catastrofato" o "fitosanitario".'
 )
+ERR_CSV_PLAN_ITEM_REGION_REQUIRES_FLAG = (
+    'Riga {}: una voce a livello di compresa richiede il flag '
+    'Danneggiato o Fitosanitario.'
+)
 ERR_PLAN_ITEM_NOT_FOUND = 'Voce di piano non trovata.'
 ERR_PLAN_ITEM_STATE_NOT_PLANNED = (
     'La voce non è in stato "pianificato"; eliminazione non consentita.'
@@ -198,6 +202,7 @@ ERR_CSV_NO_FILES = (
     'Nessun file CSV caricato. Allega almeno un file (fustaia o ceduo).'
 )
 ERR_CSV_PARCEL_NOT_FOUND = 'Riga {}: particella non trovata ({} / {}).'
+ERR_CSV_PLAN_NOT_FOUND   = 'Riga {}: piano non trovato ({}).'
 ERR_CSV_REGION_NOT_FOUND = 'Riga {}: compresa non trovata ({}).'
 ERR_CSV_SPECIES_NOT_FOUND = 'Riga {}: specie non trovata ({}).'
 ERR_CSV_FUNCTION_INVALID = (

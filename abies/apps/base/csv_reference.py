@@ -16,12 +16,12 @@ from dataclasses import dataclass
 from django.db import transaction
 
 from apps.base.digests import mark_all_stale
-from apps.base.models import Crew, Eclass, Product, Region, Species
+from apps.base.models import Crew, Eclass, Product, Region, Species, Tractor
 from config import strings as S
 from config.constants import (
     FIELD_ACTIVE, FIELD_COMMON_NAME, FIELD_COPPICE, FIELD_DENSITY,
-    FIELD_LATIN_NAME, FIELD_MINOR, FIELD_MIN_HARVEST_VOLUME, FIELD_NAME,
-    FIELD_NOTES, FIELD_SORT_ORDER,
+    FIELD_LATIN_NAME, FIELD_MANUFACTURER, FIELD_MINOR, FIELD_MIN_HARVEST_VOLUME,
+    FIELD_MODEL, FIELD_NAME, FIELD_NOTES, FIELD_SORT_ORDER, FIELD_YEAR,
 )
 
 # How a raw CSV cell maps to a Python value.
@@ -93,8 +93,16 @@ PRODUCTS = RefTable('products', Product, (
     RefColumn(S.CSV_COL_PRODUCT, FIELD_NAME, KIND_STR),
 ))
 
+TRACTORS = RefTable('tractors', Tractor, (
+    RefColumn(S.CSV_COL_TRACTOR_NAME, FIELD_NAME, KIND_STR),
+    RefColumn(S.CSV_COL_MANUFACTURER, FIELD_MANUFACTURER, KIND_STR,
+              required=False, default=''),
+    RefColumn(S.CSV_COL_MODEL, FIELD_MODEL, KIND_STR, required=False, default=''),
+    RefColumn(S.CSV_COL_YEAR, FIELD_YEAR, KIND_INT, required=False),
+))
+
 # Iterated by the bootstrap orchestrator (plan 06) in declaration order.
-ALL_TABLES = (REGIONS, ECLASSES, CREWS, SPECIES, PRODUCTS)
+ALL_TABLES = (REGIONS, ECLASSES, CREWS, TRACTORS, SPECIES, PRODUCTS)
 
 
 def resolve_columns(table: RefTable, fieldnames):
