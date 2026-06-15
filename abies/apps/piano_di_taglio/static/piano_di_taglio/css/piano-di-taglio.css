@@ -120,13 +120,6 @@
 
 /* --- View/edit-item page --- */
 
-/* Override looking-glass icon in the calendar table so all users (incl.
-   readers) get the affordance — the default actions column requires
-   canModify. */
-.pdt-table-host .sortable-table-row {
-  cursor: pointer;
-}
-
 /* Item-view card — full-width page content, not a 640px modal. */
 .pdt-item-card {
   max-width: 900px;

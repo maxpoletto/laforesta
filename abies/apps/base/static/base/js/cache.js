@@ -95,7 +95,8 @@ export function removeRow(dataId, rowId) {
  *   deletes: [{data_id, row_id}]
  *
  * Returns a Set of touched data IDs so page modules can update local mirrors
- * and re-render affected views.
+ * and re-render affected views.  Also fires each touched data ID's onUpdate
+ * listeners once, matching cache.load() / background refresh semantics.
  *
  * @param {object} data
  * @returns {Set<string>}
@@ -120,6 +121,7 @@ export function applyResponseChanges(data) {
     touched.add(dataId);
   }
 
+  for (const dataId of touched) notify(dataId);
   return touched;
 }
 

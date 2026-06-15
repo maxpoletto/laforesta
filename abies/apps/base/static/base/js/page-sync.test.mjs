@@ -27,11 +27,31 @@ class MockElement {
     this.rel = '';
     this.removed = false;
     this._listeners = {};
+    this._classes = new Set();
+    const syncClasses = () => {
+      this._classes = new Set(String(this.className).split(/\s+/).filter(Boolean));
+    };
+    const writeClasses = () => { this.className = [...this._classes].join(' '); };
     this.classList = {
-      add: () => {},
-      remove: () => {},
-      contains: () => false,
-      toggle: () => false,
+      add: (...names) => {
+        syncClasses();
+        for (const name of names) this._classes.add(name);
+        writeClasses();
+      },
+      remove: (...names) => {
+        syncClasses();
+        for (const name of names) this._classes.delete(name);
+        writeClasses();
+      },
+      contains: (name) => String(this.className).split(/\s+/).includes(name),
+      toggle: (name, force) => {
+        syncClasses();
+        const next = force === undefined ? !this._classes.has(name) : Boolean(force);
+        if (next) this._classes.add(name);
+        else this._classes.delete(name);
+        writeClasses();
+        return next;
+      },
     };
   }
   appendChild(child) { this.children.push(child); return child; }
@@ -219,6 +239,33 @@ const { TableWrapper } = await import('./table.js');
   wrapper._table = null;
   eq(wrapper.rowForElement({ dataset: { index: '0' } }), null,
      'TableWrapper.rowForElement handles missing table');
+}
+
+// TableWrapper marks row-click-edit tables for shared pointer styling.
+{
+  const editable = new TableWrapper({
+    container: new MockElement('div'),
+    columnDefs: {},
+    inlineToolbar: false,
+    canModify: true,
+    actions: { onEdit: () => {} },
+  });
+  check(
+    editable._tableEl.classList.contains('table-scroll-editable-rows'),
+    'TableWrapper marks editable row-click tables',
+  );
+
+  const deleteOnly = new TableWrapper({
+    container: new MockElement('div'),
+    columnDefs: {},
+    inlineToolbar: false,
+    canModify: true,
+    actions: { onDelete: () => {} },
+  });
+  check(
+    !deleteOnly._tableEl.classList.contains('table-scroll-editable-rows'),
+    'TableWrapper does not mark delete-only tables as row-click editable',
+  );
 }
 
 // TableWrapper delegates plain row clicks to edit and keeps explicit actions distinct.

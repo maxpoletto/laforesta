@@ -554,6 +554,8 @@ input:focus, select:focus, textarea:focus {
    When the total exceeds the container, the wrapper scrolls horizontally. */
 .sortable-table { min-width: var(--st-table-min-width, 0); }
 
+.table-scroll-editable-rows .sortable-table-row { cursor: pointer; }
+
 .col-actions { text-align: center; }
 
 /* Action icons (per-row pencil/X) and add-button row. */

@@ -1350,11 +1350,7 @@ async function refreshSamples() {
 
 async function refreshCurrentTrees() {
   if (!currentTreesId) return;
-  try {
-    await cache.load(currentTreesId);
-  } catch {}
-  const data = cache.get(currentTreesId);
-  if (table && data) table.setData(data);
+  try { await cache.load(currentTreesId); } catch {}
 }
 
 /**
@@ -1362,12 +1358,11 @@ async function refreshCurrentTrees() {
  * (tree_csv_import_view) marks the per-survey trees digest, `samples`,
  * and `surveys` stale, so reload all three and re-render their views.
  *
- * Reloading the trees digest is what refreshes the Section 3 table: the
- * `cache.onUpdate(currentTreesId)` listener wired in activateSurvey fires
- * on `cache.load`'s 200 and calls table.setData.  Without this reload the
- * table keeps its pre-import rows until a full page reload.  Samples and
- * surveys reloads then feed the Section 2 map's visited-area tooltips and
- * the survey summary + pulldown counts.
+ * Reloading the trees digest refreshes the Section 3 table through the
+ * same `cache.onUpdate(currentTreesId)` listener used by write-response
+ * patches.  Without this reload the table keeps its pre-import rows until a
+ * full page reload.  Samples and surveys reloads then feed the Section 2
+ * map's visited-area tooltips and the survey summary + pulldown counts.
  */
 async function refreshAfterTreeImport() {
   const reloads = [refreshSurveys(), refreshSamples(), refreshCurrentTrees()];
@@ -1393,16 +1388,11 @@ async function refreshAfterTreeImport() {
  *
  * After patching the in-memory cache, mirrors the change to the
  * page-local mirrors (samplesData, surveysData, gridsData,
- * sampleAreasData) and re-renders maps / table / summary as needed.
+ * sampleAreasData) and re-renders maps / summary as needed.  The active
+ * sampled-trees table repaints through the shared cache.onUpdate listener.
  */
-async function refreshAfterTreeWrite(data) {
-  applySideEffects(data);
-  await refreshCurrentTrees();
-}
-
 function applySideEffects(data) {
   if (!data) return;
-  let touchedTreesDigest = false;
   let touchedSamples = false;
   let touchedSurveys = false;
   let touchedGrids = false;
@@ -1410,15 +1400,11 @@ function applySideEffects(data) {
 
   const touchedDataIds = cache.applyResponseChanges(data);
 
-  touchedTreesDigest = touchedDataIds.has(currentTreesId);
   touchedAreas = touchedDataIds.has(SAMPLE_AREAS_ID);
   touchedSamples = touchedDataIds.has(SAMPLES_ID);
   touchedSurveys = touchedDataIds.has(SURVEYS_ID);
   touchedGrids = touchedDataIds.has(GRIDS_ID);
 
-  if (touchedTreesDigest && table && currentTreesId) {
-    table.setData(cache.get(currentTreesId));
-  }
   if (touchedSamples) {
     samplesData = cache.get(SAMPLES_ID);
     // Refresh Section 2 map markers (visited-count tooltip).
@@ -1529,8 +1515,8 @@ function wireTreeForm(form) {
       }
       return null;
     },
-    onSuccess: async (data, isSaveAndAdd) => {
-      await refreshAfterTreeWrite(data);
+    onSuccess(data, isSaveAndAdd) {
+      applySideEffects(data);
       dismissModal();
       if (isSaveAndAdd) showAddTreeForm();
     },

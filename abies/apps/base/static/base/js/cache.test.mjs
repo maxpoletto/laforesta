@@ -139,13 +139,17 @@ eq(await deleteThenReload(0), [2], 'delete + reload (same second): row stays gon
   cache.register(id, url);
   await cache.load(id);
 
+  const updates = [];
+  const unsubscribe = cache.onUpdate(id, () => updates.push(clone(cache.get(id).rows)));
   const touched = cache.applyResponseChanges({
     patches: [{ data_id: id, row_id: 2, record: [2, 2, 55] }],
     deletes: [{ data_id: id, row_id: 1 }],
   });
+  unsubscribe();
 
   eq([...touched], [id], 'generic envelope reports touched data id');
   eq(cache.get(id).rows, [[2, 2, 55]], 'generic envelope patches and deletes rows');
+  eq(updates, [[[2, 2, 55]]], 'generic envelope notifies subscribers after patch/delete');
 }
 
 console.log(`${pass} passed, ${failures.length} failed`);

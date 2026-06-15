@@ -185,6 +185,9 @@ export class TableWrapper {
 
     this._tableEl = document.createElement('div');
     this._tableEl.className = 'table-scroll';
+    if (this.canModify && this.actions.onEdit) {
+      this._tableEl.classList.add('table-scroll-editable-rows');
+    }
     this._el.appendChild(this._tableEl);
 
     if (this.canModify && this.actions.onAdd) {
