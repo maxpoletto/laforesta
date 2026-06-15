@@ -380,9 +380,34 @@ CSV_COL_N_REGRESSION = 'n'                           # sample count for regressi
 # laforesta/ipso — see ipso/CLAUDE.md "CSV format").
 CSV_COL_DAMAGED    = 'Catastrofata'     # session-level flag (ignored row-wise)
 CSV_COL_NUMBER     = 'Numero'           # operator-assigned tree number
+
+# --- Harvest CSV column headers (harvests.csv import / export).
+CSV_COL_HARVEST_DAMAGED   = 'Danneggiato'    # Harvest.damaged flag
+CSV_COL_HARVEST_UNHEALTHY = 'Fitosanitario'  # Harvest.unhealthy flag
+CSV_COL_HARVEST_PSR       = 'PSR'            # Harvest.psr flag
+CSV_COL_SPECIES_PREFIX    = 'Specie:'        # dynamic species-percentage column prefix
+CSV_COL_TRACTOR_PREFIX    = 'Trattore:'      # dynamic tractor-percentage column prefix
+
+# --- Tractor CSV column headers (tractors.csv bootstrap).
+CSV_COL_TRACTOR_NAME  = 'Trattore'    # Tractor.name
+CSV_COL_MANUFACTURER  = 'Produttore'  # Tractor.manufacturer
+CSV_COL_MODEL         = 'Modello'     # Tractor.model
+# CSV_COL_YEAR ('Anno') already defined above — reused for Tractor.year.
+
+# --- Ipso / tree-mark CSV column headers (tree-mark import extension).
 CSV_COL_H_MEASURED = 'H_measured'       # 1 if operator typed h, 0 if auto-h
 CSV_COL_ACC_M      = 'Acc_m'            # GPS accuracy in metres
 CSV_COL_OPERATOR   = 'Operatore'        # operator name
+
+# --- Harvest-CSV-specific error messages.
+ERR_CSV_UNKNOWN_SPECIES_COL  = 'Intestazione CSV: specie sconosciuta nella colonna dinamica ({}).'
+ERR_CSV_UNKNOWN_TRACTOR_COL  = 'Intestazione CSV: trattore sconosciuto nella colonna dinamica ({}).'
+ERR_CSV_DUPLICATE_DYN_COL    = 'Intestazione CSV: colonna dinamica duplicata ({}).'
+ERR_CSV_SPECIES_PCT_SUM      = 'Riga {}: la somma delle percentuali delle specie deve essere 100 (trovato {}).'
+ERR_CSV_TRACTOR_PCT_SUM      = 'Riga {}: la somma delle percentuali dei trattori deve essere 0 o 100 (trovato {}).'
+ERR_CSV_HARVEST_LOCATION     = 'Riga {}: compresa o particella non trovata ({}).'
+ERR_CSV_UNKNOWN_CREW         = 'Riga {}: squadra sconosciuta ({}).'
+ERR_CSV_UNKNOWN_PRODUCT      = 'Riga {}: tipo di prodotto sconosciuto ({}).'
 
 # ---------------------------------------------------------------------------
 # Digest column headers (display labels in JSON `columns` arrays).
