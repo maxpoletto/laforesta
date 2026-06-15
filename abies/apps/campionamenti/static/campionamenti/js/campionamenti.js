@@ -1348,6 +1348,15 @@ async function refreshSamples() {
   } catch {}
 }
 
+async function refreshCurrentTrees() {
+  if (!currentTreesId) return;
+  try {
+    await cache.load(currentTreesId);
+  } catch {}
+  const data = cache.get(currentTreesId);
+  if (table && data) table.setData(data);
+}
+
 /**
  * Re-sync every view affected by a survey CSV import.  The server
  * (tree_csv_import_view) marks the per-survey trees digest, `samples`,
@@ -1361,11 +1370,10 @@ async function refreshSamples() {
  * the survey summary + pulldown counts.
  */
 async function refreshAfterTreeImport() {
-  const reloads = [refreshSurveys(), refreshSamples()];
+  const reloads = [refreshSurveys(), refreshSamples(), refreshCurrentTrees()];
   // A refresh failure must not turn a succeeded import into an error
-  // toast (submitCsvImport treats a throw as failure), so swallow it;
-  // the table keeps its last-known rows until the next refresh.
-  if (currentTreesId) reloads.push(cache.load(currentTreesId).catch(() => {}));
+  // toast (submitCsvImport treats a throw as failure), so refresh helpers
+  // swallow failures; the table keeps its last-known rows until next refresh.
   await Promise.all(reloads);
   if (activeSurveyId == null) return;
   renderRilevamentiSummary(activeSurveyId);
@@ -1387,6 +1395,11 @@ async function refreshAfterTreeImport() {
  * page-local mirrors (samplesData, surveysData, gridsData,
  * sampleAreasData) and re-renders maps / table / summary as needed.
  */
+async function refreshAfterTreeWrite(data) {
+  applySideEffects(data);
+  await refreshCurrentTrees();
+}
+
 function applySideEffects(data) {
   if (!data) return;
   let touchedTreesDigest = false;
@@ -1516,8 +1529,8 @@ function wireTreeForm(form) {
       }
       return null;
     },
-    onSuccess: (data, isSaveAndAdd) => {
-      applySideEffects(data);
+    onSuccess: async (data, isSaveAndAdd) => {
+      await refreshAfterTreeWrite(data);
       dismissModal();
       if (isSaveAndAdd) showAddTreeForm();
     },

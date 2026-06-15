@@ -142,5 +142,19 @@ const { injectNonce, interceptSubmit, parseHTMLFragment } = await import(
   check(!successCalled, 'interceptSubmit does not call success on validation HTML');
 }
 
+{
+  globalThis.fetch = async () => ({ status: 200, json: async () => ({ ok: true }) });
+  const form = new MockElement('form');
+  const calls = [];
+  interceptSubmit(form, '/save/', {
+    async onSuccess() {
+      await Promise.resolve();
+      calls.push('success');
+    },
+  });
+  await form.submit();
+  eq(calls, ['success'], 'interceptSubmit awaits async success callbacks');
+}
+
 console.log(`${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

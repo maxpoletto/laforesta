@@ -100,7 +100,7 @@ export function interceptSubmit(form, postUrl, callbacks) {
     }
 
     if (status === 200) {
-      callbacks.onSuccess(data, isSaveAndAdd);
+      await callbacks.onSuccess?.(data, isSaveAndAdd);
       return;
     }
 
