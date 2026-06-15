@@ -35,6 +35,10 @@ dependencies — so the tool runs standalone against a legacy-data checkout.
 | `surveys.csv` (`Rilevamento,Griglia,Data`) | constant | two rows, both `Griglia=Aree di saggio PDG 2026`, `Data=2024-09-15`: `Campionamento calcolato`, `Campionamento altezze` |
 | `sampled-trees.csv` | `alberi-calcolati.csv` + `alberi-altezze.csv` | union of the two surveys (see below) |
 | `hypso_params.csv` | `equazioni_ipsometro.csv` | copied verbatim (lowercase headers accepted case-insensitively by `hypsometry.parse_param_csv`) |
+| `tractors.csv` (`Trattore,Produttore,Modello,Anno`) | constant | the five hard-coded La Foresta tractors |
+| `harvests.csv` | `mannesi.csv` | `Tipo` via `_PRODUCT_MAP`; `Particella='X'` → blank; species `abete %` etc. → `Specie: <canonical>` dynamic cols; `Equus %` etc. → `Trattore: <name>` dynamic cols; `Note` token → `Danneggiato/Fitosanitario/PSR` booleans; invalid VDP values (``nd``, ``bis`` variants, fractional) → blank |
+| `harvest_plan_items.csv` | `piano_fustaia.csv` + `piano_ceduo.csv` | unified rows with `Piano=PDG 2026`; `Particella='X'` → blank; highforest flags from `Note` token; coppice flags left `false` (no flag column in legacy) |
+| `preserved-trees.csv` (`Compresa,Particella,Genere,Lon,Lat`) | `piante-accrescimento-indefinito.csv` | `Genere` via `_PAI_SPECIES_MAP` to canonical common name; rows missing `Lon`/`Lat` silently skipped |
 | `terreni.geojson` | `terreni.geojson` | copied verbatim (bootstrap does not load it, but the canonical dir carries the source geometry) |
 
 ## Tree-survey assumptions (the interesting part)
@@ -77,17 +81,19 @@ resolves case-insensitively) when loading.
 The legacy eclass set is hard-coded A–E = high forest (non-coppice), F = coppice.
 The converter reproduces this purely from the data: `Ceduo=1` iff `Comparto=='F'`.
 
-## Deferred files (TODO — bootstrap loaders not implemented yet)
+## Legacy data-quality sanitization
 
-These are **not** produced; their bootstrap loaders do not exist yet (step 3 of
-the decoupling effort).  Their legacy sources, for when they land:
+The converter silently sanitizes a handful of non-conforming legacy values to
+allow a clean bootstrap load:
 
-| Canonical (future) | Legacy source |
-|---|---|
-| `harvests.csv` | `mannesi.csv` |
-| `harvest_plan_items.csv` | `piano_fustaia.csv` + `piano_ceduo.csv` |
-| `preserved-trees.csv` | `piante-accrescimento-indefinito.csv` |
-| `tractors.csv` | a small hard-coded list (the five La Foresta tractors) |
+- **VDP column** (`mannesi.csv`): 57 rows carry non-integer values (`nd`,
+  `783 bis`, `360.9`, etc.).  These are sanitized to blank (the bootstrap
+  import core treats blank as NULL, which is valid).  The full original value
+  is preserved in the legacy source file.
+- **PAI coordinates**: a handful of preserved-tree rows in
+  `piante-accrescimento-indefinito.csv` have empty `Lon` or `Lat` (noted in
+  their `Note` column).  These rows are skipped silently; they cannot be
+  loaded without coordinates.
 
 ## Validation
 
