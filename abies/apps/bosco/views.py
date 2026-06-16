@@ -36,7 +36,7 @@ from config.constants import (
     DIGEST_FUTURE_PRODUCTION, DIGEST_PARCEL_DENDROMETRY,
     DIGEST_PARCEL_DENDROMETRY_POINTS, DIGEST_PARCELS, DIGEST_PRESERVED_TREES,
     FIELD_LAT,
-    FIELD_LON, FIELD_PARCEL_ID, FIELD_REGION_ID, FIELD_SPECIES,
+    FIELD_LON, FIELD_PARCEL_ID, FIELD_REGION_ID,
     FIELD_SPECIES_ID, FIELD_YEAR, HTML, ROW_ID, VERSION,
 )
 
@@ -76,11 +76,6 @@ PARCEL_METADATA_TEXT_FIELDS = {
 @login_required
 def parcels_data(request):
     return serve_digest(request, DIGEST_PARCELS)
-
-
-@login_required
-def species_data(request):
-    return serve_digest(request, FIELD_SPECIES)
 
 
 @login_required

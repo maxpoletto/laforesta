@@ -6,7 +6,6 @@ from apps.bosco import views
 
 urlpatterns = [
     path('parcels/data/', views.parcels_data, name='bosco-parcels-data'),
-    path('species/data/', views.species_data, name='bosco-species-data'),
     path('parcels/metadata/form/<int:parcel_id>/',
          views.parcel_metadata_form_view,
          name='bosco-parcel-metadata-form'),

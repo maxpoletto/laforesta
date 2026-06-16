@@ -36,7 +36,6 @@ def writer_client(writer_user):
 
 @pytest.mark.parametrize('path', [
     '/api/bosco/parcels/data/',
-    '/api/bosco/species/data/',
     '/api/bosco/preserved-trees/data/',
     '/api/bosco/future-production/data/',
     '/api/bosco/parcel-dendrometry/data/',
@@ -56,7 +55,6 @@ def test_bosco_digest_endpoints_reader_access(
 
 @pytest.mark.parametrize('path', [
     '/api/bosco/parcels/data/',
-    '/api/bosco/species/data/',
     '/api/bosco/preserved-trees/data/',
     '/api/bosco/future-production/data/',
     '/api/bosco/parcel-dendrometry/data/',
