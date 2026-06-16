@@ -362,16 +362,14 @@ class HarvestPlanItem(TimestampedModel):
         """
         from django.core.exceptions import ValidationError
         if (self.region_id is None) == (self.parcel_id is None):
-            raise ValidationError(
-                'Exactly one of region or parcel must be set.'
-            )
+            raise ValidationError(S.ERR_REGION_XOR_PARCEL)
         if self.pk is not None:
             old_state = (
                 type(self).objects.filter(pk=self.pk).values_list('state', flat=True).first()
             )
             if old_state is not None and self.state < old_state:
                 raise ValidationError(
-                    f'State cannot regress: {old_state} → {self.state}'
+                    S.ERR_STATE_REGRESSION.format(old_state, self.state)
                 )
 
     def __str__(self):
