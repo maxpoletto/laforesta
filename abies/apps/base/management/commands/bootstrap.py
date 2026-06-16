@@ -1,6 +1,6 @@
 """manage.py bootstrap <data_dir> [--check]
 
-Load a canonical CSV data dir (see the import-contract spec) into an EMPTY
+Load a canonical CSV data dir (see docs/bootstrap.md) into an EMPTY
 instance.  Atomic-transaction load: every present file is validated and its valid
 rows applied in dependency order inside one transaction; errors are accumulated
 across all files; on any error — or with --check — the whole transaction rolls
