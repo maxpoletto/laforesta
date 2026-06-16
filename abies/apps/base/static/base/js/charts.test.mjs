@@ -75,6 +75,7 @@ assertEqual(chart.options.animation, false, 'renderStackedBar: no initial animat
 assertEqual(chart.options.plugins.legend.position, 'bottom', 'renderStackedBar: legend position');
 assertEqual(chart.options.plugins.legend.display, true, 'renderStackedBar: legend visible by default');
 assertEqual(chart.options.scales.x.stacked, true, 'renderStackedBar: stacked x');
+assertEqual(chart.options.scales.y.min, 0, 'renderStackedBar: y starts at zero');
 assertEqual(chart.options.scales.y.title.text, S.COL_QUINTALS, 'renderStackedBar: default y title');
 assertEqual(chart.options.plugins.tooltip.callbacks.label({
   dataset: { label: 'Abete' }, raw: 12.34,
@@ -105,6 +106,7 @@ chart = renderScatterChart(canvas, {
 assertEqual(chart.type, 'scatter', 'renderScatterChart: type');
 assertEqual(Object.hasOwn(chart.data, 'labels'), false, 'renderScatterChart: no labels');
 assertEqual(chart.options.scales.x.title.text, S.COL_D_CM, 'renderScatterChart: x title');
+assertEqual(chart.options.scales.y.min, 0, 'renderScatterChart: y starts at zero');
 assertEqual(chart.options.scales.y.title.text, S.COL_H_M, 'renderScatterChart: y title');
 
 chart = renderLineChart(canvas, {
@@ -113,6 +115,7 @@ chart = renderLineChart(canvas, {
   datasets: [{ label: 'Abete', data: [1.2] }],
 }, null);
 assertEqual(chart.type, 'line', 'renderLineChart: type');
+assertEqual(chart.options.scales.y.min, 0, 'renderLineChart: y starts at zero');
 assertEqual(chart.options.scales.y.title.text, S.COL_INCREMENT_PCT, 'renderLineChart: y title');
 assertEqual(renderLineChart(null, { datasets: [] }, null), null, 'renderLineChart: missing canvas');
 

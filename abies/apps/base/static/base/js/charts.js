@@ -79,6 +79,7 @@ export function renderStackedBar(canvas, chartData, existing) {
       y: {
         stacked: true,
         beginAtZero: true,
+        min: 0,
         title: axisTitle(d.yTitle),
       },
     }),
@@ -100,6 +101,7 @@ export function renderScatterChart(canvas, chartData, existing) {
       },
       y: {
         beginAtZero: true,
+        min: 0,
         title: axisTitle(d.yTitle),
       },
     }),
@@ -113,6 +115,7 @@ export function renderLineChart(canvas, chartData, existing) {
     scales: d => ({
       y: {
         beginAtZero: true,
+        min: 0,
         title: axisTitle(d.yTitle),
       },
     }),
