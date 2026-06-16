@@ -10,9 +10,8 @@ export const CHART_SERIES_COLOR_VARS = [
 ];
 
 export const CATEGORICAL_COLORS = [
-  '#2e7d32', '#1565c0', '#e65100', '#6a1b9a', '#c62828',
-  '#00838f', '#827717', '#4e342e', '#37474f', '#ad1457',
-  '#558b2f', '#0277bd',
+  '#2e7d32', '#11bb1d', '#144b99', '#f899cd', '#d55e00', '#d508f0',
+  '#6f8acf', '#e69f00', '#17becf', '#dddd1c', '#fd0303', '#7f7f7f',
 ];
 
 export function chartSeriesColor(index) {

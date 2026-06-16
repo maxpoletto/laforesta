@@ -276,13 +276,13 @@ let speciesChart = PrelieviCharts.aggregateTimeSeries(
   chartRows, chartColMap, 'specie', false, ['Abete', 'Faggio'], [], allChartSpecies,
 );
 eq(speciesChart.datasets.map(d => [d.label, d.backgroundColor]),
-   [['Abete', '#2e7d32'], ['Faggio', '#e65100']],
+   [['Abete', '#2e7d32'], ['Faggio', '#144b99']],
    'aggregateTimeSeries keeps species colors stable across omitted species');
 speciesChart = PrelieviCharts.aggregateSpeciesByParcel(
   chartRows, chartColMap, ['Abete', 'Faggio'], allChartSpecies,
 );
 eq(speciesChart.datasets.map(d => [d.label, d.backgroundColor]),
-   [['Abete', '#2e7d32'], ['Faggio', '#e65100']],
+   [['Abete', '#2e7d32'], ['Faggio', '#144b99']],
    'aggregateSpeciesByParcel keeps species colors stable across omitted species');
 
 const digest = {

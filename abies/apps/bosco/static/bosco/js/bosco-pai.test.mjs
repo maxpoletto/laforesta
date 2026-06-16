@@ -74,7 +74,7 @@ const species = P.paiSpeciesItems(P.filterPaiTrees(trees, { region: 'Capistrano'
 assertEqual(species, [{ id: 5, name: 'Abete', count: 2 }, { id: 6, name: 'Faggio', count: 1 }],
             'paiSpeciesItems: sorted counts');
 const colors = P.speciesColorMap(species, ['Abete', 'Castagno', 'Faggio']);
-assertEqual([colors.get(5), colors.get(6)], ['#2e7d32', '#e65100'],
+assertEqual([colors.get(5), colors.get(6)], ['#2e7d32', '#144b99'],
             'speciesColorMap: stable full-universe palette');
 
 console.log(`\n${passed} passed, ${failed} failed`);
