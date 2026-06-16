@@ -63,7 +63,7 @@ assertEqual(state.parcelAverage, false, 'readBoscoParams: default detailed raste
 assertEqual(state.useCadastralArea, false, 'readBoscoParams: default cadastral flag');
 assertEqual(state.harvestPerHa, false, 'readBoscoParams: default per-ha flag');
 assertEqual(state.detailMode, null, 'readBoscoParams: no detail overlay');
-assertEqual(state.openSections, ['m'], 'readBoscoParams: default detail sections');
+assertEqual(state.openSections, ['m', 'd', 'p'], 'readBoscoParams: default detail sections');
 assertEqual(state.detailSpeciesIds, null, 'readBoscoParams: default detail species');
 assertEqual(state.paiParcelIds, null, 'readBoscoParams: default PAI parcels');
 assertEqual(state.paiSpeciesIds, null, 'readBoscoParams: default PAI species');
@@ -139,7 +139,7 @@ assertEqual(params.toString(), 'mc=38.100000%2C16.200000&mz=13',
 clearMapView(params);
 assertEqual(params.toString(), '', 'clearMapView: params removed');
 
-assertEqual(parseSectionTokens(null), ['m'], 'parseSectionTokens: default');
+assertEqual(parseSectionTokens(null), ['m', 'd', 'p'], 'parseSectionTokens: default');
 assertEqual(parseSectionTokens('dpmxmd'), ['d', 'p', 'm'], 'parseSectionTokens: valid unique tokens');
 assertEqual(parseIdList('2,1,2,bad,0,-1'), [2, 1], 'parseIdList: positive unique ints');
 assertEqual(parseOptionalIdList(null), null, 'parseOptionalIdList: absent means all');
@@ -149,7 +149,7 @@ assertEqual(parseOptionalIdList('3,4'), [3, 4], 'parseOptionalIdList: ids');
 const detailParams = new URLSearchParams('v=1&pa=2&vo=dm&ds=4,5');
 clearDetailParams(detailParams);
 assertEqual(detailParams.toString(), '', 'clearDetailParams: removes overlay params');
-writeSectionTokens(detailParams, ['m']);
+writeSectionTokens(detailParams, ['m', 'd', 'p']);
 assertEqual(detailParams.toString(), '', 'writeSectionTokens: default omitted');
 writeSectionTokens(detailParams, ['d', 'm']);
 assertEqual(detailParams.toString(), 'vo=dm', 'writeSectionTokens: non-default encoded');
