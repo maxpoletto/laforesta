@@ -133,6 +133,18 @@
   background: #fafafa;
 }
 
+.bosco-scroll-list .bosco-check {
+  display: flex;
+  align-items: center;
+  font-weight: 400;
+}
+
+.bosco-scroll-list .bosco-check > span:not(.bosco-legend-dot) {
+  position: relative;
+  top: -1px;
+  font-weight: 400;
+}
+
 .bosco-list-actions {
   display: flex;
   gap: 6px;
@@ -190,7 +202,10 @@
 }
 
 .bosco-legend-dot {
+  display: inline-block;
+  box-sizing: border-box;
   width: 12px;
+  min-width: 12px;
   height: 12px;
   flex: 0 0 12px;
   border: 1px solid #5f6a5d;
