@@ -12,14 +12,14 @@ import {
 } from '../../base/js/ui-widgets.js';
 import { canModify } from '../../base/js/roles.js';
 import { postJSON } from '../../base/js/api.js';
-import { renderStackedBar } from '../../base/js/charts.js';
+import { renderStackedBar, speciesNamesFromDigest } from '../../base/js/charts.js';
 import { dismiss as dismissModal, onDismiss } from '../../base/js/modals.js';
 import { columnMap } from '../../base/js/digests.js';
 import { createRangeSlider } from '../../base/js/range-slider.js';
 import * as router from '../../base/js/router.js';
 import * as S from '../../base/js/strings.js';
 import {
-  COL_PARCEL_ID, COL_REGION_ID, ROW_ID, STATUS_CONFLICT,
+  COL_PARCEL_ID, COL_REGION_ID, FIELD_SPECIES, ROW_ID, STATUS_CONFLICT,
 } from '../../base/js/constants.js';
 import { CLASS_BOSCO_LINK, STATIC_COLS, buildPrelieviColumnDefs }
   from '../../base/js/prelievi-columns.js';
@@ -36,6 +36,8 @@ import {
 const CSS_URL = '/static/prelievi/css/prelievi.css';
 const DATA_ID = 'prelievi';
 const DATA_URL = '/api/prelievi/data/';
+const SPECIES_ID = FIELD_SPECIES;
+const SPECIES_URL = '/api/species/data/';
 const FORM_URL = '/api/prelievi/form/';
 const SAVE_URL = '/api/prelievi/save/';
 const DELETE_URL = '/api/prelievi/delete/';
@@ -64,6 +66,7 @@ let disposePageActions = null;
 
 // Column classification and index map — resolved on first data load.
 let speciesCols = [];
+let speciesNames = [];
 let tractorCols = [];
 let colMap = {};
 
@@ -79,7 +82,7 @@ const sections = {
     aggregate: () => aggregateTimeSeries(
       _getFilteredRows(), colMap,
       sections.a.breakdown, sections.a.byMonth,
-      speciesCols, tractorCols,
+      speciesCols, tractorCols, speciesNames,
     ),
   },
   b: {
@@ -87,7 +90,7 @@ const sections = {
     canvas: null, instance: null, header: null, body: null,
     render: () => _renderChart(sections.b),
     aggregate: () => aggregateSpeciesByParcel(
-      _getFilteredRows(), colMap, speciesCols,
+      _getFilteredRows(), colMap, speciesCols, speciesNames,
     ),
   },
   i: {
@@ -97,6 +100,7 @@ const sections = {
 };
 
 cache.register(DATA_ID, DATA_URL);
+cache.register(SPECIES_ID, SPECIES_URL);
 
 
 // ---------------------------------------------------------------------------
@@ -105,16 +109,26 @@ cache.register(DATA_ID, DATA_URL);
 
 const page = createPage({
   cssUrl: CSS_URL,
-  dataIds: [DATA_ID],
+  load: loadPageData,
   mount: mountPage,
   unmount: destroyPage,
   onQueryChange: (params) => { if (!inForm) applyParams(params); },
-  onUpdate: [[DATA_ID, onCacheUpdate]],
+  onUpdate: [[DATA_ID, onCacheUpdate], [SPECIES_ID, onSpeciesUpdate]],
+  visibleIds: [DATA_ID, SPECIES_ID],
 });
 
 export const mount = page.mount;
 export const unmount = page.unmount;
 export const onQueryChange = page.onQueryChange;
+
+async function loadPageData() {
+  const [data, speciesData] = await Promise.all([
+    cache.load(DATA_ID),
+    cache.load(SPECIES_ID),
+  ]);
+  speciesNames = speciesNamesFromDigest(speciesData);
+  return data;
+}
 
 function mountPage(el, params, data) {
   inForm = false;
@@ -185,6 +199,11 @@ function destroyTable() {
 function onCacheUpdate() {
   if (inForm || !table) return;
   table.setData(cache.get(DATA_ID));
+}
+
+function onSpeciesUpdate(data) {
+  speciesNames = speciesNamesFromDigest(data);
+  _updateCharts();
 }
 
 function onTableClick(e) {

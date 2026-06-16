@@ -257,6 +257,34 @@ globalThis.window = {
 };
 
 const S = await import(staticModule('base/js/strings.js'));
+const PrelieviCharts = await import(staticModule('prelievi/js/charts.js'));
+const speciesDigest = {
+  columns: [ROW_ID, S.COL_NAME],
+  rows: [[1, 'Abete'], [2, 'Castagno']],
+};
+
+const chartColMap = {
+  [S.COL_DATE]: 0, [S.COL_REGION]: 1, [S.COL_PARCEL]: 2,
+  Abete: 3, Faggio: 4,
+};
+const chartRows = [
+  ['2020-01-01', 'A', '1', 10, 0],
+  ['2020-01-02', 'A', '2', 0, 5],
+];
+const allChartSpecies = ['Abete', 'Castagno', 'Faggio'];
+let speciesChart = PrelieviCharts.aggregateTimeSeries(
+  chartRows, chartColMap, 'specie', false, ['Abete', 'Faggio'], [], allChartSpecies,
+);
+eq(speciesChart.datasets.map(d => [d.label, d.backgroundColor]),
+   [['Abete', '#2e7d32'], ['Faggio', '#e65100']],
+   'aggregateTimeSeries keeps species colors stable across omitted species');
+speciesChart = PrelieviCharts.aggregateSpeciesByParcel(
+  chartRows, chartColMap, ['Abete', 'Faggio'], allChartSpecies,
+);
+eq(speciesChart.datasets.map(d => [d.label, d.backgroundColor]),
+   [['Abete', '#2e7d32'], ['Faggio', '#e65100']],
+   'aggregateSpeciesByParcel keeps species colors stable across omitted species');
+
 const digest = {
   columns: [
     ROW_ID, VERSION, COL_REGION_ID, COL_PARCEL_ID,
@@ -272,12 +300,16 @@ const digest = {
 };
 
 globalThis.fetch = async (url) => {
-  if (url !== '/api/prelievi/data/') throw new Error(`unexpected fetch ${url}`);
+  const payloads = {
+    '/api/prelievi/data/': digest,
+    '/api/species/data/': speciesDigest,
+  };
+  if (!payloads[url]) throw new Error(`unexpected fetch ${url}`);
   return {
     status: 200,
     ok: true,
     headers: { get: h => h === 'Last-Modified' ? 'v1' : null },
-    json: async () => digest,
+    json: async () => payloads[url],
   };
 };
 

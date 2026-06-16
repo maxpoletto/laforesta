@@ -58,6 +58,8 @@ const dendro = {
   ],
 };
 
+const allSpeciesNames = ['Abete', 'Castagno', 'Faggio'];
+
 const points = {
   [COLUMNS]: [ROW_ID, COL_PARCEL_ID, COL_SURVEY_ID, COL_TREE_ID,
     COL_SPECIES_ID, S.COL_REGION, S.COL_PARCEL, S.COL_SURVEY,
@@ -88,23 +90,25 @@ rows = D.aggregateDendrometry(dendro, { region: 'Capistrano' }, { areaHa: 10, pe
 assertEqual(rows[0].treeCount, 66.6667, 'aggregateDendrometry: expands tree count to scope area');
 assertEqual(rows[1].basalAreaM2, 2.666667, 'aggregateDendrometry: expands basal area to scope area');
 
-rows = D.aggregateDendrometry(dendro, { region: 'Capistrano' }, { perHa: false, speciesIds: [6] });
+rows = D.aggregateDendrometry(
+  dendro, { region: 'Capistrano' }, { perHa: false, speciesIds: [6], allSpeciesNames },
+);
 assertEqual(rows.map(r => r.species), ['Faggio'], 'aggregateDendrometry: species filter');
-assertEqual(rows[0].color, D.dendrometrySpeciesColor(1),
-            'aggregateDendrometry: filtered species keeps stable color');
+assertEqual(rows[0].color, D.dendrometrySpeciesColor(2),
+            'aggregateDendrometry: filtered species keeps full-universe color');
 
 rows = D.aggregateDendrometry(dendro, { region: 'Capistrano' }, { perHa: false, speciesIds: [] });
 assertEqual(rows, [], 'aggregateDendrometry: explicit empty species filter');
 
-const species = D.dendrometrySpecies(dendro, { region: 'Capistrano' });
+const species = D.dendrometrySpecies(dendro, { region: 'Capistrano' }, { allSpeciesNames });
 assertEqual(species.map(({ id, name, count }) => ({ id, name, count })),
             [{ id: 5, name: 'Abete', count: 5 }, { id: 6, name: 'Faggio', count: 4 }],
             'dendrometrySpecies: counts by species');
 assertEqual(species.map(item => item.color),
-            [D.dendrometrySpeciesColor(0), D.dendrometrySpeciesColor(1)],
-            'dendrometrySpecies: stable colors');
+            [D.dendrometrySpeciesColor(0), D.dendrometrySpeciesColor(2)],
+            'dendrometrySpecies: stable full-universe colors');
 
-rows = D.aggregateDendrometry(dendro, { region: 'Capistrano' }, { perHa: false });
+rows = D.aggregateDendrometry(dendro, { region: 'Capistrano' }, { perHa: false, allSpeciesNames });
 let chart = D.dendrometryBarChartData(rows, 'treeCount', 'Tree count');
 assertEqual(chart.labels, ['20', '25', '30'], 'dendrometryBarChartData: zero-filled diameter labels');
 assertEqual(chart.datasets.map(d => d.label), ['Abete', 'Faggio'],
@@ -112,8 +116,8 @@ assertEqual(chart.datasets.map(d => d.label), ['Abete', 'Faggio'],
 assertEqual(chart.datasets[0].data, [5, 0, 0], 'dendrometryBarChartData: sparse series');
 assertEqual(chart.datasets[1].data, [0, 0, 4], 'dendrometryBarChartData: second sparse series');
 assertEqual(chart.datasets.map(d => d.backgroundColor),
-            [D.dendrometrySpeciesColor(0), D.dendrometrySpeciesColor(1)],
-            'dendrometryBarChartData: species colors');
+            [D.dendrometrySpeciesColor(0), D.dendrometrySpeciesColor(2)],
+            'dendrometryBarChartData: full-universe species colors');
 assertEqual(chart.legend, false, 'dendrometryBarChartData: hides repeated legend');
 assertEqual(chart.yTitle, 'Tree count', 'dendrometryBarChartData: y title');
 
@@ -129,14 +133,14 @@ assertEqual(heightPoints.map(p => [p.species, p.dCm, p.hM]),
             'dendrometryHeightPoints: parcel and species filter');
 heightPoints = D.dendrometryHeightPoints(points, { region: 'Capistrano' }, { speciesIds: [] });
 assertEqual(heightPoints, [], 'dendrometryHeightPoints: explicit empty species filter');
-heightPoints = D.dendrometryHeightPoints(points, { region: 'Capistrano' });
+heightPoints = D.dendrometryHeightPoints(points, { region: 'Capistrano' }, { allSpeciesNames });
 chart = D.dendrometryScatterChartData(heightPoints, S.COL_H_M);
 assertEqual(chart.datasets.map(d => d.label), ['Abete', 'Faggio'],
             'dendrometryScatterChartData: species datasets');
 assertEqual(chart.datasets[0].data, [{ x: 18, y: 20.5 }, { x: 22, y: 22.5 }],
             'dendrometryScatterChartData: scatter points');
-assertEqual(chart.datasets[1].backgroundColor, D.dendrometrySpeciesColor(1),
-            'dendrometryScatterChartData: species colors');
+assertEqual(chart.datasets[1].backgroundColor, D.dendrometrySpeciesColor(2),
+            'dendrometryScatterChartData: full-universe species colors');
 assertEqual(chart.legend, false, 'dendrometryScatterChartData: hides repeated legend');
 assertEqual(chart.yTitle, S.COL_H_M, 'dendrometryScatterChartData: y title');
 

@@ -6,7 +6,9 @@
  */
 
 import * as S from '../../base/js/strings.js';
-import { chartSeriesColor } from '../../base/js/charts.js';
+import {
+  chartSeriesColor, speciesColorMap as chartSpeciesColorMap,
+} from '../../base/js/charts.js';
 
 const MAX_SERIES = 12;
 
@@ -23,9 +25,12 @@ const MAX_SERIES = 12;
  * @param {boolean} byMonth — year or month granularity
  * @param {string[]} speciesCols — species quintal column names
  * @param {string[]} tractorCols — tractor quintal column names
+ * @param {string[]} allSpeciesNames — full species universe for stable colors
  * @returns {{ labels: string[], datasets: Array<{label, data, backgroundColor}> }}
  */
-export function aggregateTimeSeries(rows, colMap, breakdown, byMonth, speciesCols, tractorCols) {
+export function aggregateTimeSeries(
+  rows, colMap, breakdown, byMonth, speciesCols, tractorCols, allSpeciesNames = speciesCols,
+) {
   const dateIdx = colMap[S.COL_DATE];
   const qIdx = colMap[S.COL_QUINTALS];
   const bucket = byMonth ? d => d.substring(0, 7) : d => d.substring(0, 4);
@@ -33,7 +38,8 @@ export function aggregateTimeSeries(rows, colMap, breakdown, byMonth, speciesCol
   // Breakdowns that pivot on multiple numeric columns (species/tractors).
   const byColumns = { specie: speciesCols, trattore: tractorCols }[breakdown];
   if (byColumns) {
-    return _aggregateColumnsByBucket(rows, dateIdx, colMap, bucket, byColumns);
+    const speciesUniverse = breakdown === 'specie' ? allSpeciesNames : null;
+    return _aggregateColumnsByBucket(rows, dateIdx, colMap, bucket, byColumns, speciesUniverse);
   }
 
   return _aggregateByBucket(rows, dateIdx, qIdx, bucket, _dimFn(breakdown, colMap));
@@ -61,7 +67,7 @@ function _dimFn(breakdown, colMap) {
  * @param {string[]} speciesCols
  * @returns {{ labels: string[], datasets: ... }}
  */
-export function aggregateSpeciesByParcel(rows, colMap, speciesCols) {
+export function aggregateSpeciesByParcel(rows, colMap, speciesCols, allSpeciesNames = speciesCols) {
   const parcelIdx = colMap[S.COL_PARCEL];
   const regionIdx = colMap[S.COL_REGION];
   const parcels = {};
@@ -83,12 +89,13 @@ export function aggregateSpeciesByParcel(rows, colMap, speciesCols) {
     entries.some(p => (p.sps[sp] || 0) > 0),
   );
 
+  const colors = chartSpeciesColorMap(active, allSpeciesNames);
   return {
     labels: entries.map(p => p.name),
-    datasets: active.map((sp, i) => ({
+    datasets: [...colors.keys()].map((sp, i) => ({
       label: sp,
       data: entries.map(p => _r1(p.sps[sp] || 0)),
-      backgroundColor: chartSeriesColor(i),
+      backgroundColor: colors.get(sp) || chartSeriesColor(i),
     })),
   };
 }
@@ -125,7 +132,7 @@ function _aggregateByBucket(rows, dateIdx, qIdx, bucket, dimFn) {
 }
 
 /** Aggregate named numeric columns (e.g. species) by time bucket. */
-function _aggregateColumnsByBucket(rows, dateIdx, colMap, bucket, colNames) {
+function _aggregateColumnsByBucket(rows, dateIdx, colMap, bucket, colNames, speciesUniverse = null) {
   const buckets = {};
   for (const row of rows) {
     const key = bucket(row[dateIdx]);
@@ -138,12 +145,14 @@ function _aggregateColumnsByBucket(rows, dateIdx, colMap, bucket, colNames) {
   const active = colNames.filter(n =>
     labels.some(k => (buckets[k]?.[n] || 0) > 0),
   );
+  const colors = speciesUniverse ? chartSpeciesColorMap(active, speciesUniverse) : null;
+  const datasetNames = colors ? [...colors.keys()] : active;
   return {
     labels,
-    datasets: active.map((name, i) => ({
+    datasets: datasetNames.map((name, i) => ({
       label: name,
       data: labels.map(k => _r1(buckets[k]?.[name] || 0)),
-      backgroundColor: chartSeriesColor(i),
+      backgroundColor: colors?.get(name) || chartSeriesColor(i),
     })),
   };
 }

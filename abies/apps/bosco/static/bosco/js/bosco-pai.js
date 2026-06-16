@@ -2,7 +2,9 @@ import * as S from '../../base/js/strings.js';
 import {
   COL_PARCEL_ID, COL_SPECIES_ID, ROWS, ROW_ID, VERSION,
 } from '../../base/js/constants.js';
-import { chartSeriesColor } from '../../base/js/charts.js';
+import {
+  chartSeriesColor, speciesColorMap as chartSpeciesColorMap,
+} from '../../base/js/charts.js';
 import { columnMap, toNumber } from '../../base/js/digests.js';
 
 export function buildPreservedTrees(digest) {
@@ -50,9 +52,12 @@ export function paiSpeciesItems(trees) {
   return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name, S.LOCALE));
 }
 
-export function speciesColorMap(speciesItems) {
+export function speciesColorMap(speciesItems, allSpeciesNames = []) {
+  const colorByName = chartSpeciesColorMap(speciesItems.map(item => item.name), allSpeciesNames);
   const out = new Map();
-  speciesItems.forEach((item, idx) => out.set(item.id, chartSeriesColor(idx)));
+  speciesItems.forEach((item, idx) => {
+    out.set(item.id, colorByName.get(item.name) || chartSeriesColor(idx));
+  });
   return out;
 }
 

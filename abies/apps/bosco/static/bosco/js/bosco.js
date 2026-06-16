@@ -6,10 +6,12 @@ import * as cache from '../../base/js/cache.js';
 import * as S from '../../base/js/strings.js';
 import {
   COLUMNS, COL_REGION_ID, DIGEST_FUTURE_PRODUCTION, DIGEST_PARCELS, DIGEST_PARCEL_DENDROMETRY,
-  DIGEST_PARCEL_DENDROMETRY_POINTS, DIGEST_PRESERVED_TREES, M2_PER_HA, ROWS,
+  DIGEST_PARCEL_DENDROMETRY_POINTS, DIGEST_PRESERVED_TREES, FIELD_SPECIES, M2_PER_HA, ROWS,
 } from '../../base/js/constants.js';
 import { fetchJSON } from '../../base/js/api.js';
-import { renderLineChart, renderScatterChart, renderStackedBar } from '../../base/js/charts.js';
+import {
+  renderLineChart, renderScatterChart, renderStackedBar, speciesNamesFromDigest,
+} from '../../base/js/charts.js';
 import { fmtArea, fmtDecimal1, fmtDecimal2, fmtInt, fmtMass, fmtVolume, parseDecimal } from '../../base/js/format.js';
 import { cloneTemplate } from '../../base/js/templates.js';
 import { findContainingParcel, sortFeaturesByArea, parcelNames } from '../../base/js/geo.js';
@@ -72,6 +74,8 @@ const PARCELS_ID = DIGEST_PARCELS;
 const PARCELS_URL = '/api/bosco/parcels/data/';
 const FUTURE_ID = DIGEST_FUTURE_PRODUCTION;
 const FUTURE_URL = '/api/bosco/future-production/data/';
+const SPECIES_ID = FIELD_SPECIES;
+const SPECIES_URL = '/api/species/data/';
 const DENDROMETRY_ID = DIGEST_PARCEL_DENDROMETRY;
 const DENDROMETRY_URL = '/api/bosco/parcel-dendrometry/data/';
 const DENDROMETRY_POINTS_ID = DIGEST_PARCEL_DENDROMETRY_POINTS;
@@ -117,6 +121,7 @@ const TYPE_STYLES = {
 
 cache.register(PARCELS_ID, PARCELS_URL);
 cache.register(FUTURE_ID, FUTURE_URL);
+cache.register(SPECIES_ID, SPECIES_URL);
 cache.register(DENDROMETRY_ID, DENDROMETRY_URL);
 cache.register(DENDROMETRY_POINTS_ID, DENDROMETRY_POINTS_URL);
 cache.register(PRESERVED_ID, PRESERVED_URL);
@@ -171,6 +176,7 @@ let paiSpeciesHost = null;
 let detailSections = {};
 let parcelsData = null;
 let futureData = null;
+let speciesNames = [];
 let prelieviData = null;
 let dendrometryData = null;
 let dendrometryPointsData = null;
@@ -208,13 +214,14 @@ const page = createPage({
   onUpdate: [
     [PARCELS_ID, onParcelsUpdate],
     [FUTURE_ID, onFutureUpdate],
+    [SPECIES_ID, onSpeciesUpdate],
     [DENDROMETRY_ID, onDendrometryUpdate],
     [DENDROMETRY_POINTS_ID, onDendrometryPointsUpdate],
     [PRESERVED_ID, onPreservedUpdate],
     [PRELIEVI_ID, onPrelieviUpdate],
   ],
   visibleIds: [
-    PARCELS_ID, FUTURE_ID, DENDROMETRY_ID, DENDROMETRY_POINTS_ID,
+    PARCELS_ID, FUTURE_ID, SPECIES_ID, DENDROMETRY_ID, DENDROMETRY_POINTS_ID,
     PRESERVED_ID, PRELIEVI_ID,
   ],
 });
@@ -237,13 +244,15 @@ function makeLoader(dataId, assign) {
 }
 
 async function loadPageData() {
-  const [parcels, future] = await Promise.all([
+  const [parcels, future, species] = await Promise.all([
     cache.load(PARCELS_ID),
     cache.load(FUTURE_ID),
+    cache.load(SPECIES_ID),
     cache.get(TERRENI_ID) ? Promise.resolve(cache.get(TERRENI_ID)) : cache.load(TERRENI_ID),
   ]);
   parcelsData = parcels;
   futureData = future;
+  speciesNames = speciesNamesFromDigest(species);
   prelieviData = cache.get(PRELIEVI_ID);
   dendrometryData = cache.get(DENDROMETRY_ID);
   dendrometryPointsData = cache.get(DENDROMETRY_POINTS_ID);
@@ -330,6 +339,7 @@ function destroyPage() {
   paiParcelsHost = paiSpeciesHost = null;
   detailSections = {};
   parcelsData = futureData = prelieviData = dendrometryData = null;
+  speciesNames = [];
   dendrometryPointsData = preservedData = parcelsGeo = null;
   satelliteData = satelliteRegionId = satelliteLoad = null;
   evolutionOverlay = paiMarkerLayer = null;
@@ -350,6 +360,12 @@ function onParcelsUpdate(data) {
 function onFutureUpdate(data) {
   futureData = data;
   refreshCharacteristicLayer();
+}
+
+function onSpeciesUpdate(data) {
+  speciesNames = speciesNamesFromDigest(data);
+  renderDendrometry();
+  renderPaiMode();
 }
 
 function onPrelieviUpdate(data) {
@@ -1505,21 +1521,26 @@ function renderDendrometry() {
     areaHa: scope.areaHa,
     perHa: dendrometryPerHa?.checked !== false,
     speciesIds: filter,
+    allSpeciesNames: speciesNames,
   });
   const rawRows = aggregateDendrometry(dendrometryData, baseScope, {
     areaHa: scope.areaHa,
     perHa: false,
     speciesIds: filter,
+    allSpeciesNames: speciesNames,
   });
   const heightPoints = dendrometryHeightPoints(dendrometryPointsData, baseScope, {
     speciesIds: filter,
+    allSpeciesNames: speciesNames,
   });
   renderDendrometryCharts(rows, rawRows, heightPoints);
 }
 
 function renderDendrometrySpecies(scope) {
   if (!dendrometrySpeciesHost) return;
-  const species = dendrometrySpecies(dendrometryData, { region: scope.region, parcelId: scope.parcelId });
+  const species = dendrometrySpecies(
+    dendrometryData, { region: scope.region, parcelId: scope.parcelId }, { allSpeciesNames: speciesNames },
+  );
   dendrometrySpeciesHost.replaceChildren();
   if (!species.length) {
     dendrometrySpeciesHost.textContent = S.BOSCO_NO_DENDROMETRY;
@@ -1667,7 +1688,7 @@ function renderPaiMode() {
   const allTrees = filterPaiTrees(buildPreservedTrees(preservedData), { region });
   const parcelItems = paiParcelItems(mapEntries, allTrees);
   const speciesItems = paiSpeciesItems(allTrees);
-  const colors = speciesColorMap(speciesItems);
+  const colors = speciesColorMap(speciesItems, speciesNames);
   renderPaiCheckboxes(paiParcelsHost, parcelItems, currentState.paiParcelIds, 'pp');
   renderPaiCheckboxes(paiSpeciesHost, speciesItems, currentState.paiSpeciesIds, 'ps', colors);
 

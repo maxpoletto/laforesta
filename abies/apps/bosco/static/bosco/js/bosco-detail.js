@@ -2,7 +2,9 @@ import * as S from '../../base/js/strings.js';
 import {
   COL_PARCEL_ID, COL_SPECIES_ID, COL_SURVEY_ID, ROWS,
 } from '../../base/js/constants.js';
-import { chartSeriesColor } from '../../base/js/charts.js';
+import {
+  chartSeriesColor, speciesColorMap as chartSpeciesColorMap,
+} from '../../base/js/charts.js';
 import { fmtDecimal3 } from '../../base/js/format.js';
 import { columnMap, toNumber } from '../../base/js/digests.js';
 
@@ -27,7 +29,9 @@ export function regionMetadata(entries) {
   return { count, areaHa, cadastralAreaHa, aveAge: ageWeighted, altMin, altMax, typeCounts };
 }
 
-export function aggregateDendrometry(digest, scope, { areaHa = null, perHa = true, speciesIds = null } = {}) {
+export function aggregateDendrometry(
+  digest, scope, { areaHa = null, perHa = true, speciesIds = null, allSpeciesNames = [] } = {},
+) {
   if (!digest) return [];
   const c = columnMap(digest);
   const hasSpeciesFilter = Array.isArray(speciesIds);
@@ -80,7 +84,7 @@ export function aggregateDendrometry(digest, scope, { areaHa = null, perHa = tru
     groups.set(key, g);
   }
 
-  const colors = dendrometrySpeciesColorMap(speciesNames);
+  const colors = dendrometrySpeciesColorMap(speciesNames, allSpeciesNames);
   const sampledAreaHa = sum([...sampledAreas.values()]);
   const scale = dendrometryScale({ areaHa, perHa, sampledAreaHa });
   return [...groups.values()]
@@ -99,8 +103,8 @@ export function aggregateDendrometry(digest, scope, { areaHa = null, perHa = tru
     }));
 }
 
-export function dendrometrySpecies(digest, scope) {
-  const rows = aggregateDendrometry(digest, scope, { perHa: false });
+export function dendrometrySpecies(digest, scope, { allSpeciesNames = [] } = {}) {
+  const rows = aggregateDendrometry(digest, scope, { perHa: false, allSpeciesNames });
   const out = new Map();
   for (const row of rows) {
     const item = out.get(row.speciesId) || {
@@ -188,11 +192,11 @@ function dendrometryScale({ areaHa, perHa, sampledAreaHa }) {
   return perHa && areaHa ? 1 / areaHa : 1;
 }
 
-function dendrometrySpeciesColorMap(speciesNames) {
-  const species = [...speciesNames.entries()]
-    .map(([id, name]) => ({ id, name }))
-    .sort((a, b) => a.name.localeCompare(b.name, S.LOCALE));
-  return new Map(species.map((item, idx) => [item.id, dendrometrySpeciesColor(idx)]));
+function dendrometrySpeciesColorMap(speciesNames, allSpeciesNames = []) {
+  const colorByName = chartSpeciesColorMap([...speciesNames.values()], allSpeciesNames);
+  return new Map([...speciesNames.entries()].map(([id, name], idx) => [
+    id, colorByName.get(name) || dendrometrySpeciesColor(idx),
+  ]));
 }
 
 function dendrometryChartKey(speciesId, diameterClassCm) {
@@ -200,7 +204,7 @@ function dendrometryChartKey(speciesId, diameterClassCm) {
 }
 
 
-export function dendrometryHeightPoints(digest, scope, { speciesIds = null } = {}) {
+export function dendrometryHeightPoints(digest, scope, { speciesIds = null, allSpeciesNames = [] } = {}) {
   if (!digest) return [];
   const c = columnMap(digest);
   const hasSpeciesFilter = Array.isArray(speciesIds);
@@ -227,7 +231,7 @@ export function dendrometryHeightPoints(digest, scope, { speciesIds = null } = {
     });
   }
 
-  const colors = dendrometrySpeciesColorMap(speciesNames);
+  const colors = dendrometrySpeciesColorMap(speciesNames, allSpeciesNames);
   return rows
     .map(row => ({ ...row, color: colors.get(row.speciesId) }))
     .sort((a, b) => a.species.localeCompare(b.species, S.LOCALE) || a.dCm - b.dCm);

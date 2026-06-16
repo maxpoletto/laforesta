@@ -1,7 +1,8 @@
 import * as S from './strings.js';
 import {
   CATEGORICAL_COLORS, CHART_SERIES_COLOR_VARS, chartSeriesColor,
-  renderLineChart, renderScatterChart, renderStackedBar,
+  renderLineChart, renderScatterChart, renderStackedBar, speciesColorMap,
+  speciesNamesFromDigest,
 } from './charts.js';
 
 let failed = 0;
@@ -42,6 +43,18 @@ assertEqual(CATEGORICAL_COLORS.slice(0, 2), ['#2e7d32', '#1565c0'], 'shared pale
 assertEqual(CHART_SERIES_COLOR_VARS.slice(0, 2), ['--chart-series-1', '--chart-series-2'],
             'shared palette CSS vars');
 assertEqual(chartSeriesColor(0), '#2e7d32', 'chartSeriesColor: fallback color');
+const speciesDigest = {
+  columns: ['row_id', S.COL_NAME],
+  rows: [[1, 'Faggio'], [2, 'Abete'], [3, 'Castagno'], [4, 'Abete']],
+};
+assertEqual(speciesNamesFromDigest(speciesDigest), ['Abete', 'Castagno', 'Faggio'],
+            'speciesNamesFromDigest: alpha unique species names');
+const speciesColors = speciesColorMap(['Faggio', 'Abete'], ['Abete', 'Castagno', 'Faggio']);
+assertEqual([...speciesColors.entries()], [['Abete', chartSeriesColor(0)], ['Faggio', chartSeriesColor(2)]],
+            'speciesColorMap: colors from full alpha species universe');
+const unknownSpeciesColors = speciesColorMap(['Robinia'], ['Abete']);
+assertEqual(unknownSpeciesColors.get('Robinia'), chartSeriesColor(1),
+            'speciesColorMap: unknown species sort after known universe');
 global.document = { documentElement: {} };
 global.getComputedStyle = () => ({
   getPropertyValue: name => name === '--chart-series-1' ? ' #123456 ' : '',

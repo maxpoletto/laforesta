@@ -73,9 +73,9 @@ assertEqual(parcels, [{ id: 10, name: '2', count: 2 }, { id: 11, name: '10', cou
 const species = P.paiSpeciesItems(P.filterPaiTrees(trees, { region: 'Capistrano' }));
 assertEqual(species, [{ id: 5, name: 'Abete', count: 2 }, { id: 6, name: 'Faggio', count: 1 }],
             'paiSpeciesItems: sorted counts');
-const colors = P.speciesColorMap(species);
-assertEqual([colors.get(5), colors.get(6)], ['#2e7d32', '#1565c0'],
-            'speciesColorMap: stable palette');
+const colors = P.speciesColorMap(species, ['Abete', 'Castagno', 'Faggio']);
+assertEqual([colors.get(5), colors.get(6)], ['#2e7d32', '#e65100'],
+            'speciesColorMap: stable full-universe palette');
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed > 0 ? 1 : 0);

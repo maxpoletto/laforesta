@@ -120,6 +120,23 @@ class TestShellAccess:
 
 
 # ---------------------------------------------------------------------------
+# Shared digest endpoints
+# ---------------------------------------------------------------------------
+
+class TestSharedDigests:
+    def test_species_data_requires_login(self, client):
+        resp = client.get('/api/species/data/')
+        assert resp.status_code == 302
+        assert '/login/' in resp.url
+
+    def test_species_data_authenticated(self, logged_in_client, species):
+        resp = logged_in_client.get('/api/species/data/')
+        assert resp.status_code == 200
+        assert resp['Content-Encoding'] == 'gzip'
+        assert resp['Cache-Control'] == 'no-store'
+
+
+# ---------------------------------------------------------------------------
 # Logout
 # ---------------------------------------------------------------------------
 

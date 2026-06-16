@@ -14,9 +14,11 @@ from django.utils.http import (
 )
 from django.views import View
 
+from apps.base.digests import serve_digest
 from apps.base.http import CACHE_NO_CACHE, conditional_file_response
 from apps.base.models import LoginMethod
 from config import strings as S
+from config.constants import FIELD_SPECIES
 
 # Whitelist of geo files we serve via `geo_view`.  Anything else 404s,
 # even if it exists under `settings.GEO_DIR`.
@@ -61,6 +63,11 @@ class LoginView(View):
 def logout_view(request: HttpRequest) -> HttpResponse:
     logout(request)
     return redirect('login')
+
+
+@login_required
+def species_data(request: HttpRequest) -> HttpResponse:
+    return serve_digest(request, FIELD_SPECIES)
 
 
 @login_required

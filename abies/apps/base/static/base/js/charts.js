@@ -1,4 +1,5 @@
 import * as S from './strings.js';
+import { COLUMNS, ROWS } from './constants.js';
 import { fmtDecimal1 } from './format.js';
 
 export const CHART_SERIES_COLOR_VARS = [
@@ -17,6 +18,24 @@ export const CATEGORICAL_COLORS = [
 export function chartSeriesColor(index) {
   const i = mod(index, CHART_SERIES_COLOR_VARS.length);
   return cssCustomProperty(CHART_SERIES_COLOR_VARS[i]) || CATEGORICAL_COLORS[i];
+}
+
+export function speciesNamesFromDigest(digest) {
+  const columns = digest?.[COLUMNS];
+  const rows = digest?.[ROWS];
+  if (!Array.isArray(columns) || !Array.isArray(rows)) return [];
+  const nameIdx = columns.indexOf(S.COL_NAME);
+  if (nameIdx < 0) return [];
+  return alphaUnique(rows.map(row => row?.[nameIdx]));
+}
+
+export function speciesColorMap(speciesNames, allSpeciesNames = speciesNames) {
+  const requested = alphaUnique(speciesNames);
+  const universe = alphaUnique(allSpeciesNames);
+  const universeSet = new Set(universe);
+  const ordered = [...universe, ...requested.filter(name => !universeSet.has(name))];
+  const colorByName = new Map(ordered.map((name, idx) => [name, chartSeriesColor(idx)]));
+  return new Map(requested.map(name => [name, colorByName.get(name)]));
 }
 
 
@@ -104,6 +123,13 @@ export function renderLineChart(canvas, chartData, existing) {
 
 function mod(n, base) {
   return ((n % base) + base) % base;
+}
+
+function alphaUnique(names) {
+  return [...new Set((names || [])
+    .map(name => String(name || '').trim())
+    .filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, S.LOCALE));
 }
 
 function cssCustomProperty(name) {
