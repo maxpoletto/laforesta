@@ -37,11 +37,10 @@ export const STATIC_COLS = {
  * Columns ending in " %" are hidden (used for form pre-population only).
  * Dynamic species/tractor quintal columns get a blank-zero 1-decimal format.
  */
-export function buildPrelieviColumnDefs(columns) {
+export function buildPrelieviColumnDefs(columns, speciesNames = []) {
   const defs = {};
-  const speciesNames = new Set(
-    columns.filter(name => name.endsWith(' %')).map(name => name.slice(0, -2)),
-  );
+  const speciesNameSet = new Set(speciesNames);
+  const hasSpeciesNames = speciesNameSet.size > 0;
   for (const name of columns) {
     if (name === ROW_ID) continue;
     if (name.endsWith(' %')) {
@@ -52,9 +51,9 @@ export function buildPrelieviColumnDefs(columns) {
       defs[name] = STATIC_COLS[name];
       continue;
     }
-    // Dynamic quintal column: species columns have a hidden percentage
-    // companion used for form pre-population; tractor columns do not.
-    const isSpecies = speciesNames.has(name);
+    // Dynamic quintal column.  Prefer the species digest when available;
+    // callers without it keep the legacy single-word species heuristic.
+    const isSpecies = hasSpeciesNames ? speciesNameSet.has(name) : !name.includes(' ');
     const isTractor = !isSpecies;
     defs[name] = {
       label: name, type: 'number',

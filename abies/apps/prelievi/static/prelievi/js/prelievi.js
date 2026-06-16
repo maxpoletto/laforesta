@@ -163,7 +163,7 @@ function showTableView(data, params) {
   table = new TableWrapper({
     container: sections.i.body,
     digest: data,
-    columnDefs: buildPrelieviColumnDefs(data.columns),
+    columnDefs: buildPrelieviColumnDefs(data.columns, speciesNames),
     inlineToolbar: false,
     canModify: modify,
     actions: modify ? {
@@ -372,9 +372,7 @@ function _buildColMap(columns) {
 function _classifyColumns(columns) {
   speciesCols = [];
   tractorCols = [];
-  const speciesColNames = new Set(
-    columns.filter(name => name.endsWith(' %')).map(name => name.slice(0, -2)),
-  );
+  const speciesColNames = new Set(speciesNames);
   for (const name of columns) {
     if (name === ROW_ID || STATIC_COLS[name] || name.endsWith(' %')) continue;
     if (speciesColNames.has(name)) speciesCols.push(name);

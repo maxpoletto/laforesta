@@ -251,16 +251,26 @@ class MockSortableTable {
   destroy() { this.destroyed = true; }
 }
 
+const chartInstances = [];
 globalThis.window = {
   SortableTable: MockSortableTable,
-  Chart: class { destroy() {} update() {} },
+  Chart: class {
+    constructor(_canvas, opts) {
+      this.type = opts.type;
+      this.data = opts.data;
+      this.options = opts.options;
+      chartInstances.push(this);
+    }
+    destroy() { this.destroyed = true; }
+    update() {}
+  },
 };
 
 const S = await import(staticModule('base/js/strings.js'));
 const PrelieviCharts = await import(staticModule('prelievi/js/charts.js'));
 const speciesDigest = {
   columns: [ROW_ID, S.COL_NAME],
-  rows: [[1, 'Abete'], [2, 'Castagno']],
+  rows: [[1, 'Abete'], [2, 'Abete Rosso'], [3, 'Castagno']],
 };
 
 const chartColMap = {
@@ -360,6 +370,10 @@ eq(filteredIds(), [], 'region and parcel URL filters are both enforced');
 
 prelievi.onQueryChange({ c: 'bad', pa: '-1' });
 eq(filteredIds(), [1, 2, 3], 'invalid URL filter ids are ignored');
+
+prelievi.onQueryChange({ o: 'b' });
+eq(chartInstances.at(-1).data.datasets.map(d => d.label), ['Abete', 'Abete Rosso'],
+   'species-by-parcel chart excludes tractor columns');
 
 prelievi.onQueryChange({ f: 'abete:>100' });
 eq(filteredIds(), [2], 'exact species column search beats longer species substring matches');

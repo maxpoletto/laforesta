@@ -22,8 +22,8 @@ const SPECIES = 'Abete Rosso';
 const TRACTOR = 'John Deere';
 const defs = buildPrelieviColumnDefs([
   'row_id', VERSION, S.COL_PARCEL, S.COL_QUINTALS, SPECIES, TRACTOR,
-  `${SPECIES} %`, S.COL_WORKSITE,
-]);
+  `${SPECIES} %`, `${TRACTOR} %`, S.COL_WORKSITE,
+], [SPECIES]);
 
 // row_id is the table key, never a rendered column.
 eq('row_id' in defs, false, 'row_id is not a column');
