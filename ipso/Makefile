@@ -31,8 +31,8 @@ test: build
 # localhost; localhost counts as secure for SW purposes. Pure static —
 # no /upload backend. Use `make local-test` for the upload-server flow.
 serve: build
-	@echo "Serving build/ at http://localhost:8000/ — open in a browser."
-	@cd build && python3 -m http.server 8000
+	@echo "Serving build/ at http://localhost:8001/ — open in a browser."
+	@cd build && python3 -m http.server 8001
 
 # Full local stack: build, start ipso-upload on 127.0.0.1:8765, run a
 # small reverse proxy on http://127.0.0.1:8000/ that serves build/ and
