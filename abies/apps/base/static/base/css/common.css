@@ -10,6 +10,18 @@
   --color-neutral-action-hover: #d0d0d0;
   --color-danger: #c00;
   --color-danger-hover: #a00;
+  --chart-series-1: #2e7d32;
+  --chart-series-2: #1565c0;
+  --chart-series-3: #e65100;
+  --chart-series-4: #6a1b9a;
+  --chart-series-5: #c62828;
+  --chart-series-6: #00838f;
+  --chart-series-7: #827717;
+  --chart-series-8: #4e342e;
+  --chart-series-9: #37474f;
+  --chart-series-10: #ad1457;
+  --chart-series-11: #558b2f;
+  --chart-series-12: #0277bd;
 }
 
 /* --- Reset & base --------------------------------------------------------- */

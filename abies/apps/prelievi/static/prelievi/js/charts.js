@@ -6,7 +6,7 @@
  */
 
 import * as S from '../../base/js/strings.js';
-import { CATEGORICAL_COLORS } from '../../base/js/charts.js';
+import { chartSeriesColor } from '../../base/js/charts.js';
 
 const MAX_SERIES = 12;
 
@@ -88,7 +88,7 @@ export function aggregateSpeciesByParcel(rows, colMap, speciesCols) {
     datasets: active.map((sp, i) => ({
       label: sp,
       data: entries.map(p => _r1(p.sps[sp] || 0)),
-      backgroundColor: CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length],
+      backgroundColor: chartSeriesColor(i),
     })),
   };
 }
@@ -119,7 +119,7 @@ function _aggregateByBucket(rows, dateIdx, qIdx, bucket, dimFn) {
     datasets: dims.map((dim, i) => ({
       label: dim,
       data: labels.map(k => _r1(buckets[k]?.[dim] || 0)),
-      backgroundColor: CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length],
+      backgroundColor: chartSeriesColor(i),
     })),
   };
 }
@@ -143,7 +143,7 @@ function _aggregateColumnsByBucket(rows, dateIdx, colMap, bucket, colNames) {
     datasets: active.map((name, i) => ({
       label: name,
       data: labels.map(k => _r1(buckets[k]?.[name] || 0)),
-      backgroundColor: CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length],
+      backgroundColor: chartSeriesColor(i),
     })),
   };
 }

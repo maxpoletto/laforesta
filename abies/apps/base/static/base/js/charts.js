@@ -1,11 +1,23 @@
 import * as S from './strings.js';
 import { fmtDecimal1 } from './format.js';
 
+export const CHART_SERIES_COLOR_VARS = [
+  '--chart-series-1', '--chart-series-2', '--chart-series-3',
+  '--chart-series-4', '--chart-series-5', '--chart-series-6',
+  '--chart-series-7', '--chart-series-8', '--chart-series-9',
+  '--chart-series-10', '--chart-series-11', '--chart-series-12',
+];
+
 export const CATEGORICAL_COLORS = [
   '#2e7d32', '#1565c0', '#e65100', '#6a1b9a', '#c62828',
   '#00838f', '#827717', '#4e342e', '#37474f', '#ad1457',
   '#558b2f', '#0277bd',
 ];
+
+export function chartSeriesColor(index) {
+  const i = mod(index, CHART_SERIES_COLOR_VARS.length);
+  return cssCustomProperty(CHART_SERIES_COLOR_VARS[i]) || CATEGORICAL_COLORS[i];
+}
 
 
 export function renderChart(canvas, chartData, existing, config) {
@@ -88,6 +100,17 @@ export function renderLineChart(canvas, chartData, existing) {
     }),
     scaleTitles: d => ({ y: d.yTitle }),
   });
+}
+
+function mod(n, base) {
+  return ((n % base) + base) % base;
+}
+
+function cssCustomProperty(name) {
+  const root = globalThis.document?.documentElement;
+  const getter = globalThis.getComputedStyle;
+  if (!root || typeof getter !== 'function') return '';
+  return getter(root).getPropertyValue(name).trim();
 }
 
 function axisTitle(text) {

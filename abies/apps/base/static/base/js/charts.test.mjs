@@ -1,6 +1,7 @@
 import * as S from './strings.js';
 import {
-  CATEGORICAL_COLORS, renderLineChart, renderScatterChart, renderStackedBar,
+  CATEGORICAL_COLORS, CHART_SERIES_COLOR_VARS, chartSeriesColor,
+  renderLineChart, renderScatterChart, renderStackedBar,
 } from './charts.js';
 
 let failed = 0;
@@ -37,7 +38,16 @@ function assertEqual(actual, expected, msg) {
 
 console.log('charts.js');
 
-assertEqual(CATEGORICAL_COLORS.slice(0, 2), ['#2e7d32', '#1565c0'], 'shared palette');
+assertEqual(CATEGORICAL_COLORS.slice(0, 2), ['#2e7d32', '#1565c0'], 'shared palette fallback');
+assertEqual(CHART_SERIES_COLOR_VARS.slice(0, 2), ['--chart-series-1', '--chart-series-2'],
+            'shared palette CSS vars');
+assertEqual(chartSeriesColor(0), '#2e7d32', 'chartSeriesColor: fallback color');
+global.document = { documentElement: {} };
+global.getComputedStyle = () => ({
+  getPropertyValue: name => name === '--chart-series-1' ? ' #123456 ' : '',
+});
+assertEqual(chartSeriesColor(0), '#123456', 'chartSeriesColor: CSS custom property');
+assertEqual(chartSeriesColor(1), '#1565c0', 'chartSeriesColor: missing CSS var falls back');
 
 const canvas = { id: 'chart' };
 let chart = renderStackedBar(canvas, {

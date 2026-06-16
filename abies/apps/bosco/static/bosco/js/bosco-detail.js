@@ -2,14 +2,14 @@ import * as S from '../../base/js/strings.js';
 import {
   COL_PARCEL_ID, COL_SPECIES_ID, COL_SURVEY_ID, ROWS,
 } from '../../base/js/constants.js';
-import { CATEGORICAL_COLORS } from '../../base/js/charts.js';
+import { chartSeriesColor } from '../../base/js/charts.js';
 import { fmtDecimal3 } from '../../base/js/format.js';
 import { columnMap, toNumber } from '../../base/js/digests.js';
 
 const HEIGHT_FIT_MIN_N = 5;
 
 export function dendrometrySpeciesColor(idx) {
-  return CATEGORICAL_COLORS[idx % CATEGORICAL_COLORS.length];
+  return chartSeriesColor(idx);
 }
 
 export function regionMetadata(entries) {
