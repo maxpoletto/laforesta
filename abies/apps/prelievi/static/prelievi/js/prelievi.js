@@ -23,7 +23,7 @@ import {
 } from '../../base/js/constants.js';
 import { CLASS_BOSCO_LINK, STATIC_COLS, buildPrelieviColumnDefs }
   from '../../base/js/prelievi-columns.js';
-import { matchesSearch } from '../../base/js/table.js';
+import { matchesSearch, searchTerms } from '../../base/js/table.js';
 import {
   aggregateTimeSeries, aggregateSpeciesByParcel,
 } from './charts.js';
@@ -372,11 +372,13 @@ function _buildColMap(columns) {
 function _classifyColumns(columns) {
   speciesCols = [];
   tractorCols = [];
+  const speciesColNames = new Set(
+    columns.filter(name => name.endsWith(' %')).map(name => name.slice(0, -2)),
+  );
   for (const name of columns) {
     if (name === ROW_ID || STATIC_COLS[name] || name.endsWith(' %')) continue;
-    // Species are single words; tractor labels contain a space.
-    if (name.includes(' ')) tractorCols.push(name);
-    else speciesCols.push(name);
+    if (speciesColNames.has(name)) speciesCols.push(name);
+    else tractorCols.push(name);
   }
 }
 
@@ -385,7 +387,7 @@ function _getFilteredRows() {
   if (!data) return [];
   const pf = pageFilter();
   const text = table ? table.getSearchText() : '';
-  const terms = text.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const terms = searchTerms(text);
   return data.rows.filter(row => {
     if (pf && !pf(row)) return false;
     if (terms.length && !matchesSearch(row, terms, table?.searchColumns)) return false;

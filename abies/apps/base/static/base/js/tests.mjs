@@ -16,7 +16,7 @@ import { createRequire } from 'module';
 import {
   makeNumberParser, parseDecimal, fmtDecimal, fmtCoord, fmtMass,
 } from './format.js';
-import { matchesSearch } from './table.js';
+import { matchesSearch, searchTerms } from './table.js';
 
 let pass = 0;
 const failures = [];
@@ -81,17 +81,58 @@ eqStr(fmtMass(1234.5), '1235 q', 'fmtMass whole quintals');
 // Columns carry the same formatters the table renders with; in node format.js
 // defaults to the it locale, so the number column displays "3,14".
 const searchCols = [
-  { formatter: v => fmtDecimal(v, 2) },  // 3.14 → "3,14"
-  {},                                     // text column, no formatter
-  { hidden: true },                       // hidden → excluded from the haystack
+  { key: 'Massa', label: 'Massa', type: 'number', formatter: v => fmtDecimal(v, 2) },
+  { key: 'Specie', label: 'Specie' },
+  { key: 'Note', label: 'Note' },
+  { key: 'Credito', label: 'Credito', type: 'number' },
+  { key: 'Nascosto', label: 'Nascosto', hidden: true },
 ];
-const searchRow = [3.14, 'Abete', 999];
+const searchRow = [3.14, 'Abete', 'nota viva', 20, 999];
 check(matchesSearch(searchRow, ['3,14'], searchCols), 'search matches formatted comma decimal');
 check(!matchesSearch(searchRow, ['3.14'], searchCols), 'raw dot does not match formatted cell');
 check(matchesSearch(searchRow, ['abete'], searchCols), 'search matches a text term');
 check(!matchesSearch(searchRow, ['999'], searchCols), 'hidden column excluded from search');
-check(matchesSearch(searchRow, ['3,14', 'abete'], searchCols), 'ordered multi-term match');
+check(matchesSearch(searchRow, ['abete', '3,14'], searchCols), 'multi-term search is unordered');
 check(matchesSearch(searchRow, ['3.14'], null), 'no columns → raw fallback match');
+check(matchesSearch(searchRow, ['massa:>3'], searchCols), 'column search numeric greater-than matches');
+check(!matchesSearch(searchRow, ['massa:<3'], searchCols), 'column search numeric less-than rejects');
+check(matchesSearch(searchRow, ['massa:3,14'], searchCols), 'column search literal uses formatted value');
+check(matchesSearch(searchRow, ['spec:abete'], searchCols), 'column search literal matches text column');
+check(!matchesSearch(searchRow, ['spec:>0'], searchCols), 'numeric comparison against text column rejects');
+check(!matchesSearch(searchRow, ['nope:abete'], searchCols), 'missing column selector rejects');
+check(!matchesSearch(searchRow, ['e:abete'], searchCols), 'ambiguous column selector rejects');
+check(!matchesSearch(searchRow, ['nasc:999'], searchCols), 'hidden column selector rejects');
+check(!matchesSearch(searchRow, ['massa:>'], searchCols), 'malformed numeric comparison rejects');
+
+const yearCols = [{ key: 'Anno previsto', label: 'Anno previsto', type: 'number' }];
+check(JSON.stringify(searchTerms('\"Anno previsto\":2027 abete')) ===
+      JSON.stringify(['anno previsto:2027', 'abete']),
+      'searchTerms keeps quoted column selectors with spaces together');
+check(matchesSearch([2027], searchTerms('\"Anno previsto\":2027'), yearCols),
+      'quoted column selector matches column with spaces');
+
+const exactSpeciesCols = [
+  { key: 'Abete', label: 'Abete', type: 'number' },
+  { key: 'Abete Rosso', label: 'Abete Rosso', type: 'number' },
+];
+check(matchesSearch([120, 0], ['abete:>100'], exactSpeciesCols),
+      'exact column match wins over ambiguous substring matches');
+check(!matchesSearch([120, 0], ['ross:>100'], exactSpeciesCols),
+      'unique partial column selector still applies to its matched column');
+check(!matchesSearch([120, 150], ['abet:>100'], exactSpeciesCols),
+      'ambiguous partial column selector rejects');
+
+const speciesSearchCols = [
+  {
+    key: 'Abete', label: 'Abete', type: 'number',
+    formatter: v => v ? fmtDecimal(v, 1) : '',
+    searchFormatter: v => v > 0 ? 'Abete' : '',
+  },
+];
+check(matchesSearch([12], ['abete'], speciesSearchCols), 'searchFormatter adds positive species token');
+check(!matchesSearch([0], ['abete'], speciesSearchCols), 'searchFormatter omits zero species token');
+check(matchesSearch([12], ['abete:>0'], speciesSearchCols), 'column search works on positive species column');
+check(!matchesSearch([0], ['abete:>0'], speciesSearchCols), 'column search rejects zero species column');
 
 // --- SortableTable: HTML escaping is default, trustedHTML is opt-in ---------
 const fakeContainer = {

@@ -290,12 +290,12 @@ const digest = {
     ROW_ID, VERSION, COL_REGION_ID, COL_PARCEL_ID,
     S.COL_DATE, S.COL_REGION, S.COL_PARCEL, S.COL_CREW,
     S.COL_TYPE, S.COL_QUINTALS, S.COL_VOLUME_M3, S.COL_NOTE,
-    'Abete', 'Tractor One',
+    'Abete', 'Abete %', 'Abete Rosso', 'Abete Rosso %', 'Tractor One',
   ],
   rows: [
-    [1, 1, 10, 101, '2020-03-15', 'A', '1', 'Crew', 'Taglio', 10, 1, '', 10, 0],
-    [2, 1, 10, 102, '2021-04-20', 'A', '2', 'Crew', 'Taglio', 20, 2, '', 20, 0],
-    [3, 1, 20, 203, '2022-05-10', 'B', '3', 'Crew', 'Taglio', 30, 3, '', 30, 0],
+    [1, 1, 10, 101, '2020-03-15', 'A', '1', 'Crew', 'Taglio', 10, 1, '', 10, 100, 0, 0, 0],
+    [2, 1, 10, 102, '2021-04-20', 'A', '2', 'Crew', 'Taglio', 20, 2, '', 120, 100, 0, 0, 0],
+    [3, 1, 20, 203, '2022-05-10', 'B', '3', 'Crew', 'Taglio', 30, 3, '', 30, 50, 150, 50, 0],
   ],
 };
 
@@ -360,6 +360,12 @@ eq(filteredIds(), [], 'region and parcel URL filters are both enforced');
 
 prelievi.onQueryChange({ c: 'bad', pa: '-1' });
 eq(filteredIds(), [1, 2, 3], 'invalid URL filter ids are ignored');
+
+prelievi.onQueryChange({ f: 'abete:>100' });
+eq(filteredIds(), [2], 'exact species column search beats longer species substring matches');
+
+prelievi.onQueryChange({ f: 'rosso' });
+eq(filteredIds(), [3], 'plain search matches non-zero multi-word species columns');
 
 prelievi.unmount();
 check(tableInstances.at(-1).destroyed, 'unmount destroys the table');

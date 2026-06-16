@@ -16,10 +16,9 @@ function eq(actual, expected, msg) {
   if (a === e) pass++; else failures.push(`${msg}: expected ${e}, got ${a}`);
 }
 
-// row_id, version, a static quantity col, the two dynamic kinds (species =
-// one word, tractor = has a space), a hidden "%" pre-fill col, the hidden
-// cantiere link.
-const SPECIES = 'Pino';
+// row_id, version, a static quantity col, the two dynamic kinds, a hidden
+// "%" pre-fill col identifying the species, and the hidden cantiere link.
+const SPECIES = 'Abete Rosso';
 const TRACTOR = 'John Deere';
 const defs = buildPrelieviColumnDefs([
   'row_id', VERSION, S.COL_PARCEL, S.COL_QUINTALS, SPECIES, TRACTOR,
@@ -40,10 +39,13 @@ const sp = defs[SPECIES];
 eq(sp.formatter(0), '', 'species: zero is blank, not "0"');
 eq(sp.formatter(1234), '1234,0', 'species: 1234 -> "1234,0", not "1234"');
 eq(sp.width, '90px', 'species column width');
+eq(sp.searchFormatter(25), SPECIES, 'species: positive value adds species search token');
+eq(sp.searchFormatter(0), '', 'species: zero omits species search token');
 
 const tr = defs[TRACTOR];
 eq(tr.formatter(0), '', 'tractor: zero is blank');
 eq(tr.width, '100px', 'tractor column width (wider for manufacturer+model)');
+eq(tr.searchFormatter, undefined, 'tractor: no extra search token');
 
 // The Bosco link affordance is semantic, not tied to the localized label.
 eq(defs[S.COL_PARCEL].className, CLASS_BOSCO_LINK, 'parcel column has Bosco link class');

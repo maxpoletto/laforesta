@@ -305,7 +305,7 @@ export class TableWrapper {
 
   _applyFilters() {
     if (!this._table) return;
-    const terms = this._searchText.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const terms = searchTerms(this._searchText);
 
     if (!terms.length && !this._externalFilter) {
       this._table.clearFilter();
@@ -368,6 +368,7 @@ function buildSTColumns(digestColumns, columnDefs, actions, labels) {
       type: def.type ?? 'string',
       hidden: def.hidden || false,
       formatter: def.formatter || (def.type === 'boolean' ? (v) => formatBool(v, labels) : undefined),
+      searchFormatter: def.searchFormatter,
       width: def.width,
       className: def.className,
     };
@@ -401,25 +402,129 @@ function escAttr(s) {
 // ---------------------------------------------------------------------------
 
 /**
- * Ordered-term search over a row's *displayed* text: every term must appear,
- * in the given order.  With `columns` (the column defs), each cell is rendered
- * through its formatter so the haystack matches what the user sees — the
- * it-locale "3,14", not the raw "3.14" — and hidden columns
- * are excluded.  Without `columns`, falls back to the raw stringified values.
+ * Search over a row's *displayed* text: every plain term must appear
+ * somewhere, independent of order.  With `columns` (the column defs), each
+ * cell is rendered through its formatter so the haystack matches what the user
+ * sees — the it-locale "3,14", not the raw "3.14" — and hidden columns
+ * are excluded.  Columns may add row-specific search text via
+ * `searchFormatter(value, row, col, index)`.
+ *
+ * Terms of the form `column:criterion` search a single visible column.
+ * An exact key/label match wins; otherwise `column` must be a unique
+ * case-insensitive key/label substring.  Quote selectors that contain spaces,
+ * e.g. `"Anno previsto":2027`.  Literal criteria search that column's
+ * displayed/search text.
+ * Numeric columns also support `>N` and `<N`.  Ambiguous/missing columns,
+ * malformed comparisons, and comparisons against non-numeric columns do not
+ * match.
+ *
+ * Without `columns`, plain terms fall back to raw stringified row values, and
+ * column terms cannot match.
  */
+export function searchTerms(text) {
+  const terms = [];
+  let current = '';
+  let inQuote = false;
+  for (const char of String(text ?? '')) {
+    if (char === '"') {
+      inQuote = !inQuote;
+    } else if (/\s/.test(char) && !inQuote) {
+      if (current) {
+        terms.push(current.toLowerCase());
+        current = '';
+      }
+    } else {
+      current += char;
+    }
+  }
+  if (current) terms.push(current.toLowerCase());
+  return terms;
+}
+
 export function matchesSearch(row, terms, columns = null) {
-  const text = row.map((v, i) => {
-    const col = columns?.[i];
-    if (col?.hidden) return '';
-    return col?.formatter ? String(col.formatter(v) ?? '') : String(v ?? '');
-  }).join(' ').toLowerCase();
-  let pos = 0;
-  for (const t of terms) {
-    const idx = text.indexOf(t, pos);
-    if (idx < 0) return false;
-    pos = idx + t.length;
+  const parsed = parseSearchTerms(Array.isArray(terms) ? terms : searchTerms(terms));
+
+  if (parsed.plain.length) {
+    const text = rowSearchText(row, columns);
+    if (!parsed.plain.every(t => text.includes(t))) return false;
+  }
+  for (const term of parsed.column) {
+    if (!matchesColumnSearch(row, columns, term)) return false;
   }
   return true;
+}
+
+function parseSearchTerms(terms) {
+  const parsed = { plain: [], column: [] };
+  for (const raw of terms) {
+    const term = String(raw ?? '').trim().toLowerCase();
+    if (!term) continue;
+    const i = term.indexOf(':');
+    if (i > 0 && i < term.length - 1) {
+      parsed.column.push({ selector: term.slice(0, i), criterion: term.slice(i + 1) });
+    } else {
+      parsed.plain.push(term);
+    }
+  }
+  return parsed;
+}
+
+function rowSearchText(row, columns) {
+  return row.map((v, i) => cellSearchText(v, row, columns?.[i], i)).join(' ').toLowerCase();
+}
+
+function cellSearchText(value, row, col, index) {
+  if (col?.hidden || col?.key === '_actions') return '';
+  const display = col?.formatter ? String(col.formatter(value) ?? '') : String(value ?? '');
+  const extra = col?.searchFormatter ? String(col.searchFormatter(value, row, col, index) ?? '') : '';
+  return extra ? `${display} ${extra}` : display;
+}
+
+function matchesColumnSearch(row, columns, term) {
+  if (!columns) return false;
+  const match = findColumnMatch(columns, term.selector);
+  if (!match) return false;
+  const { col, index } = match;
+  const criterion = term.criterion;
+  const comparison = criterion.match(/^([<>])(.+)$/);
+  if (comparison) {
+    if (col.type !== 'number') return false;
+    const value = parseSearchNumber(row[index]);
+    const threshold = parseSearchNumber(comparison[2]);
+    if (!Number.isFinite(value) || !Number.isFinite(threshold)) return false;
+    return comparison[1] === '>' ? value > threshold : value < threshold;
+  }
+  if (criterion.includes('>') || criterion.includes('<')) return false;
+  return cellSearchText(row[index], row, col, index).toLowerCase().includes(criterion);
+}
+
+function findColumnMatch(columns, selector) {
+  const exact = [];
+  const partial = [];
+  for (const [index, col] of columns.entries()) {
+    if (!col || col.hidden || col.key === '_actions') continue;
+    const key = String(col.key ?? '').toLowerCase();
+    const label = String(col.label ?? '').toLowerCase();
+    const match = { col, index };
+    if (key === selector || label === selector) {
+      exact.push(match);
+    } else if (key.includes(selector) || label.includes(selector)) {
+      partial.push(match);
+    }
+  }
+  if (exact.length === 1) return exact[0];
+  if (exact.length > 1) return null;
+  return partial.length === 1 ? partial[0] : null;
+}
+
+function parseSearchNumber(value) {
+  if (typeof value === 'number') return value;
+  const text = String(value ?? '').trim();
+  if (!text) return NaN;
+  const normalized = text.includes(',') && !text.includes('.')
+    ? text.replace(',', '.')
+    : text;
+  return Number(normalized);
 }
 
 // ---------------------------------------------------------------------------

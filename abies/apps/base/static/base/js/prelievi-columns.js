@@ -39,6 +39,9 @@ export const STATIC_COLS = {
  */
 export function buildPrelieviColumnDefs(columns) {
   const defs = {};
+  const speciesNames = new Set(
+    columns.filter(name => name.endsWith(' %')).map(name => name.slice(0, -2)),
+  );
   for (const name of columns) {
     if (name === ROW_ID) continue;
     if (name.endsWith(' %')) {
@@ -49,14 +52,18 @@ export function buildPrelieviColumnDefs(columns) {
       defs[name] = STATIC_COLS[name];
       continue;
     }
-    // Dynamic quintal column: species names are single words, tractor labels
-    // contain a space (manufacturer + model).
-    const isTractor = name.includes(' ');
+    // Dynamic quintal column: species columns have a hidden percentage
+    // companion used for form pre-population; tractor columns do not.
+    const isSpecies = speciesNames.has(name);
+    const isTractor = !isSpecies;
     defs[name] = {
       label: name, type: 'number',
       width: isTractor ? '100px' : '90px',
       className: 'col-wrap-header',
       formatter: fmtDecimal1BlankZero,
+      searchFormatter: isTractor
+        ? undefined
+        : (value) => Number(value) > 0 ? name : '',
     };
   }
   return defs;
