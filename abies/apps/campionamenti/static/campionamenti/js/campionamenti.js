@@ -141,7 +141,7 @@ const sections = {
        pulldown: null, summary: null, mapEl: null, map: null,
        savedView: null },
   t: { open: false, header: null, body: null,
-       host: null, emptyEl: null },
+       host: null, emptyEl: null, headerSummary: null },
 };
 
 let table = null;
@@ -235,7 +235,7 @@ function resetSectionRefs() {
     const s = sections[k];
     s.header = s.body = null;
     s.pulldown = s.summary = s.mapEl = s.map = null;
-    s.host = s.emptyEl = null;
+    s.host = s.emptyEl = s.headerSummary = null;
   }
 }
 
@@ -292,6 +292,7 @@ function buildPage(el, params) {
   // Trees section refs.
   sections.t.emptyEl = el.querySelector('[data-target="trees-empty"]');
   sections.t.host = el.querySelector('[data-target="trees-table-host"]');
+  mountTreesHeaderSummary();
 
   disposePageActions = wireActions(el, {
     'new-grid': () => showNewGridForm(),
@@ -306,6 +307,20 @@ function buildPage(el, params) {
   });
 
   updateGridEmptyState();
+}
+
+function mountTreesHeaderSummary() {
+  const title = sections.t.header?.querySelector('[data-field="title"]');
+  if (!title) return;
+  let summary = title.querySelector('[data-target="trees-header-summary"]');
+  if (!summary) {
+    summary = document.createElement('span');
+    summary.className = 'campionamenti-header-summary';
+    summary.dataset.target = 'trees-header-summary';
+    title.appendChild(summary);
+  }
+  sections.t.headerSummary = summary;
+  updateTreesHeaderSummary();
 }
 
 function populatePulldown(sel, digest, labelFn) {
@@ -465,6 +480,7 @@ async function activateSurvey(surveyId) {
   }
   activeSurveyId = surveyId;
   activeAreaId = null;
+  setTreesHeaderSummary('');
 
   renderRilevamentiSummary(surveyId);
   renderRilevamentiMap(surveyId);
@@ -485,6 +501,7 @@ async function activateSurvey(surveyId) {
   if (unsubCache) unsubCache();
   unsubCache = cache.onUpdate(dataId, () => {
     if (table) table.setData(cache.get(dataId));
+    updateTreesHeaderSummary();
   });
 }
 
@@ -583,6 +600,7 @@ function destroyRilevamentiMap() {
 
 function showAlberiEmpty() {
   destroyTable();
+  setTreesHeaderSummary('');
   if (sections.t.emptyEl) sections.t.emptyEl.hidden = false;
 }
 
@@ -625,12 +643,17 @@ function destroyTable() {
 }
 
 function applyAreaFilter() {
-  if (!table) return;
+  if (!table) {
+    updateTreesHeaderSummary();
+    return;
+  }
   if (activeAreaId == null) {
     table.setExternalFilter(null);
+    updateTreesHeaderSummary();
     return;
   }
   table.setExternalFilter((row) => row[areaCol()] === activeAreaId);
+  updateTreesHeaderSummary();
 }
 
 function areaCol() {
@@ -639,6 +662,52 @@ function areaCol() {
   if (!data) return -1;
   _areaColIdx = data.columns.indexOf(S.COL_SAMPLE_AREA);
   return _areaColIdx;
+}
+
+function setTreesHeaderSummary(text) {
+  if (sections.t.headerSummary) sections.t.headerSummary.textContent = text;
+}
+
+function updateTreesHeaderSummary() {
+  if (!sections.t.headerSummary) return;
+  const data = currentTreesId ? cache.get(currentTreesId) : null;
+  if (!data) {
+    setTreesHeaderSummary('');
+    return;
+  }
+
+  const count = countTreesInActiveArea(data);
+  if (activeAreaId == null) {
+    setTreesHeaderSummary(S.SAMPLES_TREES_HEADER_ALL(count));
+    return;
+  }
+
+  const area = sampleAreaSummary(activeAreaId);
+  if (!area) {
+    setTreesHeaderSummary(S.SAMPLES_TREES_HEADER_COUNT(count));
+    return;
+  }
+  setTreesHeaderSummary(S.SAMPLES_TREES_HEADER_AREA(area, count));
+}
+
+function countTreesInActiveArea(data) {
+  if (activeAreaId == null) return data.rows.length;
+  const c = data.columns.indexOf(S.COL_SAMPLE_AREA);
+  if (c < 0) return 0;
+  return data.rows.filter(row => row[c] === activeAreaId).length;
+}
+
+function sampleAreaSummary(areaId) {
+  if (!sampleAreasData) return null;
+  const c = sampleAreasData.columns;
+  const idCol = c.indexOf(ROW_ID);
+  const row = sampleAreasData.rows.find(r => r[idCol] === areaId);
+  if (!row) return null;
+  return {
+    compresa: row[c.indexOf(S.COL_REGION)] ?? '',
+    particella: row[c.indexOf(S.COL_PARCEL)] ?? '',
+    numero: row[c.indexOf(S.COL_NUMBER)] ?? '',
+  };
 }
 
 function buildColumnDefs(columns) {
@@ -922,7 +991,7 @@ function promptNewAreaAt(lat, lon, feature) {
   // (feature null) leaves them for the writer to pick.
   const { compresa, particella } = feature ? parcelNames(feature) : {};
   showConfirmModal(
-    S.CAMPIONAMENTI_INSERT_AREA_HERE,
+    S.SAMPLES_INSERT_AREA_HERE,
     () => showAddAreaForm({ lat, lon, compresa, particella }),
     { confirmLabel: S.CONFIRM },
   );
@@ -1449,11 +1518,11 @@ function surveyRow(id) {
 
 async function showAddTreeForm() {
   if (activeSurveyId == null) {
-    showError(S.CAMPIONAMENTI_PICK_SURVEY_FIRST);
+    showError(S.SAMPLES_PICK_SURVEY_FIRST);
     return;
   }
   if (activeAreaId == null) {
-    showError(S.CAMPIONAMENTI_PICK_AREA_FIRST);
+    showError(S.SAMPLES_PICK_AREA_FIRST);
     return;
   }
   inForm = true;

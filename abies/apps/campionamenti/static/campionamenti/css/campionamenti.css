@@ -39,6 +39,13 @@
   font-style: italic;
 }
 
+.campionamenti-header-summary {
+  margin-left: 0.35rem;
+  color: #555;
+  font-size: 0.9em;
+  font-weight: 400;
+}
+
 .campionamenti-map-host {
   height: 480px;
   border: 1px solid #888;

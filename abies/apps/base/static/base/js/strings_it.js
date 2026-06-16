@@ -153,15 +153,24 @@ export const CSV_USERS = 'utenti.csv';
 export const CSV_AUDIT = 'controllo.csv';
 export const CSV_SAMPLED_TREES = 'alberi-campionati.csv';
 
-// Campionamenti
-export const CAMPIONAMENTI_PICK_SURVEY_FIRST =
+// Samples
+export const SAMPLES_PICK_SURVEY_FIRST =
   'Seleziona prima un rilevamento.';
-export const CAMPIONAMENTI_PICK_AREA_FIRST =
+export const SAMPLES_PICK_AREA_FIRST =
   'Seleziona prima un\'area di saggio sulla mappa.';
-export const CAMPIONAMENTI_INSERT_AREA_HERE =
+export const SAMPLES_INSERT_AREA_HERE =
   'Inserire una nuova area qui?';
 export const AREA_IN_USE_TOOLTIP =
   'Area di saggio con campioni: non può essere eliminata.';
+export const SAMPLES_TREE_COUNT = (n) =>
+  `${n} ${n === 1 ? 'albero' : 'alberi'}`;
+export const SAMPLES_TREES_HEADER_ALL = (n) =>
+  `(Tutte le aree di campionamento / ${SAMPLES_TREE_COUNT(n)})`;
+export const SAMPLES_TREES_HEADER_AREA = (area, n) =>
+  `(${area.compresa} ${area.particella} / ` +
+  `area di campionamento ${area.numero} / ${SAMPLES_TREE_COUNT(n)})`;
+export const SAMPLES_TREES_HEADER_COUNT = (n) =>
+  `(${SAMPLES_TREE_COUNT(n)})`;
 
 // Shared lat/lng input
 export const USE_CURRENT_LOCATION = 'Usa GPS';
@@ -246,7 +255,7 @@ export const TOOLTIP_ADC = 'adc {n} · {compresa} {particella}';
 // templates (not concatenated fragments) so word order stays translatable.
 export const TOOLTIP_SAMPLE_AREA = '{compresa} {particella} / adc {numero}';
 export const TOOLTIP_SAMPLE_AREA_VISITED =
-  '{compresa} {particella} / adc {numero} / {alberi} alberi';
+  '{compresa} {particella} / adc {numero} / {alberi}';
 
 // Bosco placeholder page
 export const BOSCO_PLACEHOLDER_MESSAGE =
