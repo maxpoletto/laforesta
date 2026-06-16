@@ -6,6 +6,7 @@ import {
   chartSeriesColor, speciesColorMap as chartSpeciesColorMap,
 } from '../../base/js/charts.js';
 import { columnMap, toNumber } from '../../base/js/digests.js';
+import { compareParcelNames } from './bosco-characteristics.js';
 
 export function buildPreservedTrees(digest) {
   if (!digest) return [];
@@ -39,7 +40,7 @@ export function paiParcelItems(entries, trees) {
     id: entry.id,
     name: entry.parcel,
     count: counts.get(entry.id) || 0,
-  })).sort((a, b) => a.name.localeCompare(b.name, S.LOCALE, { numeric: true }));
+  })).sort((a, b) => compareParcelNames(a.name, b.name));
 }
 
 export function paiSpeciesItems(trees) {

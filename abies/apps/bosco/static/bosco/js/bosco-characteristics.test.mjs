@@ -65,6 +65,19 @@ assertEqual(entries[0].altMin, 800, 'buildParcelEntries: altitude min');
 assertEqual(entries[0].altMax, 900, 'buildParcelEntries: altitude max');
 assertEqual(entries[1].altitudeMean, null, 'buildParcelEntries: missing altitude');
 
+const unorderedParcels = {
+  [COLUMNS]: [ROW_ID, VERSION, COL_REGION_ID, S.COL_REGION, S.COL_PARCEL],
+  [ROWS]: [
+    [12, 0, 1, 'Capistrano', '10'],
+    [10, 0, 1, 'Capistrano', '1'],
+    [13, 0, 1, 'Capistrano', '10a'],
+    [11, 0, 1, 'Capistrano', '2'],
+  ],
+};
+assertEqual(B.buildParcelEntries(unorderedParcels).map(e => e.parcel), ['1', '2', '10', '10a'],
+            'buildParcelEntries: natural parcel sort');
+assertEqual(B.compareParcelNames('10', '2') > 0, true, 'compareParcelNames: numeric chunks');
+
 const prelievi = {
   [COLUMNS]: [ROW_ID, S.COL_DATE, S.COL_REGION, S.COL_PARCEL, S.COL_QUINTALS],
   [ROWS]: [

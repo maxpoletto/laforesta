@@ -1191,7 +1191,18 @@ function metricDisplay(metricId, value) {
   if (metricId === Q_HISTORICAL_HARVEST) return perHa ? `${fmtDecimal2(value)} q/ha` : fmtMass(value);
   if (metricId === Q_FUTURE_HARVEST) return perHa ? `${fmtDecimal2(value)} m³/ha` : fmtVolume(value);
   const unit = CHARACTERISTIC_METRICS[metricId]?.unit;
-  return unit ? `${fmtDecimal1(value)} ${unit}` : fmtDecimal1(value);
+  const display = wholeNumberMetric(metricId) ? fmtRoundedInt(value) : fmtDecimal1(value);
+  return unit ? `${display} ${unit}` : display;
+}
+
+function wholeNumberMetric(metricId) {
+  return [Q_AGE, Q_ALTITUDE].includes(String(metricId));
+}
+
+function fmtRoundedInt(value) {
+  if (value == null || value === '') return '';
+  const n = Number(value);
+  return Number.isFinite(n) ? fmtInt(Math.round(n)) : fmtInt(value);
 }
 
 function metricTooltipDisplay(metricId, value) {
@@ -1450,13 +1461,13 @@ function renderParcelMetadata(entry) {
   appendMetadataField(S.COL_LOCATION, entry.location);
   appendMetadataField(S.COL_AREA_HA, entry.displayAreaHa ? fmtArea(entry.displayAreaHa) : '');
   appendMetadataField(S.COL_AREA_CAD_HA, entry.cadastralAreaHa ? fmtArea(entry.cadastralAreaHa) : '');
-  appendMetadataField(S.COL_AVE_AGE, fmtDecimal1(entry.aveAge));
+  appendMetadataField(S.COL_AVE_AGE, fmtRoundedInt(entry.aveAge));
   if (entry.className) appendMetadataField(S.COL_CLASS, entry.className);
   appendMetadataField(S.COL_TYPE, entry.type);
-  appendMetadataField(S.COL_ALT_MIN, fmtDecimal1(entry.altMin));
-  appendMetadataField(S.COL_ALT_MAX, fmtDecimal1(entry.altMax));
+  appendMetadataField(S.COL_ALT_MIN, fmtRoundedInt(entry.altMin));
+  appendMetadataField(S.COL_ALT_MAX, fmtRoundedInt(entry.altMax));
   appendMetadataField(S.COL_ASPECT, entry.aspect);
-  appendMetadataField(S.COL_GRADE_PCT, fmtDecimal1(entry.gradePct));
+  appendMetadataField(S.COL_GRADE_PCT, fmtRoundedInt(entry.gradePct));
   appendMetadataField(S.COL_DESC_VEG, entry.descVeg, true);
   appendMetadataField(S.COL_DESC_GEO, entry.descGeo, true);
 }
@@ -1502,9 +1513,9 @@ function renderRegionMetadata(entries) {
   appendMetadataField(S.BOSCO_REGION_PARCELS, fmtInt(meta.count));
   appendMetadataField(S.COL_AREA_HA, fmtArea(meta.areaHa));
   appendMetadataField(S.COL_AREA_CAD_HA, fmtArea(meta.cadastralAreaHa));
-  appendMetadataField(S.COL_AVE_AGE, fmtDecimal1(meta.aveAge));
-  appendMetadataField(S.COL_ALT_MIN, fmtDecimal1(meta.altMin));
-  appendMetadataField(S.COL_ALT_MAX, fmtDecimal1(meta.altMax));
+  appendMetadataField(S.COL_AVE_AGE, fmtRoundedInt(meta.aveAge));
+  appendMetadataField(S.COL_ALT_MIN, fmtRoundedInt(meta.altMin));
+  appendMetadataField(S.COL_ALT_MAX, fmtRoundedInt(meta.altMax));
   const types = [...meta.typeCounts.entries()].map(([name, count]) => `${name}: ${count}`).join(' · ');
   appendMetadataField(S.COL_TYPE, types);
 }

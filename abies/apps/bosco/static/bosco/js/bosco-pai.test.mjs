@@ -66,9 +66,18 @@ assertEqual(P.filterPaiTrees(trees, { region: 'Capistrano', parcelIds: [10], spe
 assertEqual(P.filterPaiTrees(trees, { region: 'Capistrano', parcelIds: [] }), [],
             'filterPaiTrees: explicit empty parcel list means none');
 
-const parcels = P.paiParcelItems([{ id: 11, parcel: '10' }, { id: 10, parcel: '2' }], trees);
-assertEqual(parcels, [{ id: 10, name: '2', count: 2 }, { id: 11, name: '10', count: 1 }],
-            'paiParcelItems: numeric sort and counts');
+const parcels = P.paiParcelItems([
+  { id: 11, parcel: '10' },
+  { id: 13, parcel: '10a' },
+  { id: 9, parcel: '1' },
+  { id: 10, parcel: '2' },
+], trees);
+assertEqual(parcels, [
+  { id: 9, name: '1', count: 0 },
+  { id: 10, name: '2', count: 2 },
+  { id: 11, name: '10', count: 1 },
+  { id: 13, name: '10a', count: 0 },
+], 'paiParcelItems: natural sort and counts');
 
 const species = P.paiSpeciesItems(P.filterPaiTrees(trees, { region: 'Capistrano' }));
 assertEqual(species, [{ id: 5, name: 'Abete', count: 2 }, { id: 6, name: 'Faggio', count: 1 }],
