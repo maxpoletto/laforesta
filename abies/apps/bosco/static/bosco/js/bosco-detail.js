@@ -14,6 +14,14 @@ export function dendrometrySpeciesColor(idx) {
   return chartSeriesColor(idx);
 }
 
+export function parcelNavigation(entries, parcelId) {
+  const index = (entries || []).findIndex(entry => entry.id === parcelId);
+  return {
+    previous: index > 0 ? entries[index - 1] : null,
+    next: index >= 0 && index < entries.length - 1 ? entries[index + 1] : null,
+  };
+}
+
 export function regionMetadata(entries) {
   const count = entries.length;
   const areaHa = sum(entries.map(e => e.displayAreaHa));

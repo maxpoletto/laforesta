@@ -251,12 +251,25 @@
   color: #173f19;
 }
 
+.bosco-detail-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+}
+
+.bosco-detail-nav,
 .bosco-detail-close {
   min-width: 36px;
   height: 36px;
   padding: 0;
   font-size: 1.35rem;
   line-height: 1;
+}
+
+.bosco-detail-nav:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 .bosco-detail-body {

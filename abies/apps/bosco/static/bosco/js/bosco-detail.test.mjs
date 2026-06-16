@@ -60,6 +60,20 @@ const dendro = {
 
 const allSpeciesNames = ['Abete', 'Castagno', 'Faggio'];
 
+const navEntries = [{ id: 1 }, { id: 2 }, { id: 3 }];
+let nav = D.parcelNavigation(navEntries, 1);
+assertEqual([nav.previous?.id || null, nav.next?.id || null], [null, 2],
+            'parcelNavigation: first parcel');
+nav = D.parcelNavigation(navEntries, 2);
+assertEqual([nav.previous?.id || null, nav.next?.id || null], [1, 3],
+            'parcelNavigation: middle parcel');
+nav = D.parcelNavigation(navEntries, 3);
+assertEqual([nav.previous?.id || null, nav.next?.id || null], [2, null],
+            'parcelNavigation: last parcel');
+nav = D.parcelNavigation(navEntries, 99);
+assertEqual([nav.previous?.id || null, nav.next?.id || null], [null, null],
+            'parcelNavigation: missing parcel');
+
 const points = {
   [COLUMNS]: [ROW_ID, COL_PARCEL_ID, COL_SURVEY_ID, COL_TREE_ID,
     COL_SPECIES_ID, S.COL_REGION, S.COL_PARCEL, S.COL_SURVEY,

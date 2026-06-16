@@ -56,7 +56,7 @@ import {
   aggregateDendrometry, dendrometryBarChartData, dendrometryHeightPoints,
   dendrometryLineChartData, dendrometryScatterChartData, dendrometrySpecies,
   dendrometrySpeciesColor,
-  dendrometryTreeTotal, regionMetadata,
+  dendrometryTreeTotal, parcelNavigation, regionMetadata,
 } from './bosco-detail.js';
 import {
   buildPreservedTrees, filterPaiTrees, paiParcelItems, paiSpeciesItems, speciesColorMap,
@@ -150,6 +150,8 @@ let statusEl = null;
 let detailOverlay = null;
 let detailTitle = null;
 let detailScopeLabel = null;
+let detailPrevButton = null;
+let detailNextButton = null;
 let metadataHost = null;
 let metadataActions = null;
 let metadataEditButton = null;
@@ -286,6 +288,8 @@ function mountPage(el, params) {
   detailOverlay = el.querySelector('[data-target="detail-overlay"]');
   detailTitle = el.querySelector('[data-target="detail-title"]');
   detailScopeLabel = el.querySelector('[data-target="detail-scope"]');
+  detailPrevButton = el.querySelector('[data-action="detail-prev-parcel"]');
+  detailNextButton = el.querySelector('[data-action="detail-next-parcel"]');
   metadataHost = el.querySelector('[data-target="metadata"]');
   metadataActions = el.querySelector('[data-target="metadata-actions"]');
   metadataEditButton = el.querySelector('[data-action="edit-parcel-metadata"]');
@@ -326,6 +330,7 @@ function destroyPage() {
   parcelAverageRow = evolutionPerHaToggle = evolutionPerHaRow = null;
   evolutionCadastralToggle = diffLegendEl = legendEl = null;
   detailOverlay = detailTitle = detailScopeLabel = metadataHost = null;
+  detailPrevButton = detailNextButton = null;
   metadataActions = metadataEditButton = null;
   dendrometryHost = dendrometrySpeciesHost = dendrometryPerHa = null;
   dendrometryStatus = dendrometryChartGrid = null;
@@ -501,6 +506,8 @@ function updateEvolutionDateParam(key, input) {
 function wireDetailControls() {
   detailOverlay?.querySelector('[data-action="close-detail"]')
     ?.addEventListener('click', closeDetailOverlay);
+  detailPrevButton?.addEventListener('click', () => openAdjacentParcel(-1));
+  detailNextButton?.addEventListener('click', () => openAdjacentParcel(1));
   document.addEventListener('keydown', onDetailKeyDown);
 
   detailSections = {};
@@ -1359,6 +1366,7 @@ function syncDetailOverlay(state) {
   const scope = detailScopeForState(state);
   if (!scope) {
     detailOverlay.hidden = true;
+    updateDetailNavigation(null);
     destroyProductionChart();
     return;
   }
@@ -1366,6 +1374,7 @@ function syncDetailOverlay(state) {
   detailOverlay.hidden = false;
   detailTitle.textContent = scope.title;
   detailScopeLabel.textContent = scope.type === 'parcel' ? S.COL_PARCEL : S.COL_REGION;
+  updateDetailNavigation(scope);
   applyDetailSections(state.openSections);
   renderMetadata(scope);
   if (state.openSections.includes('d')) renderDendrometry();
@@ -1402,6 +1411,19 @@ function detailScopeForState(state = currentState) {
     };
   }
   return null;
+}
+
+function updateDetailNavigation(scope) {
+  const nav = scope?.type === 'parcel'
+    ? parcelNavigation(mapEntries, scope.parcelId)
+    : { previous: null, next: null };
+  updateDetailNavigationButton(detailPrevButton, nav.previous);
+  updateDetailNavigationButton(detailNextButton, nav.next);
+}
+
+function updateDetailNavigationButton(button, entry) {
+  if (!button) return;
+  button.disabled = !entry;
 }
 
 function applyDetailSections(openSections) {
@@ -1897,12 +1919,20 @@ function onDetailKeyDown(e) {
   if (e.key === 'Escape' && detailOverlay && !detailOverlay.hidden) closeDetailOverlay();
 }
 
-function openParcelDetail(entry) {
+function openAdjacentParcel(direction) {
+  const scope = detailScopeForState();
+  if (!scope || scope.type !== 'parcel') return;
+  const nav = parcelNavigation(mapEntries, scope.parcelId);
+  const entry = direction < 0 ? nav.previous : nav.next;
+  if (entry) openParcelDetail(entry, { resetSections: false });
+}
+
+function openParcelDetail(entry, { resetSections = true, resetSpecies = true } = {}) {
   const params = new URLSearchParams(location.search);
   params.set('v', '1');
   params.set('pa', String(entry.id));
-  params.delete('vo');
-  params.delete('ds');
+  if (resetSections) params.delete('vo');
+  if (resetSpecies) params.delete('ds');
   navigateWithParams(PAGE_PATH, params, true);
 }
 
