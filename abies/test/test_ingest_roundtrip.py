@@ -18,23 +18,28 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 
 from ingest.convert_laforesta import (
-    OUT_HARVESTS, OUT_HARVEST_PLAN_ITEMS, OUT_PRESERVED, OUT_REGIONS,
-    OUT_SAMPLED_TREES, OUT_SURVEYS, OUT_TRACTORS, main,
+    COL_PARCEL, OUT_HARVESTS, OUT_HARVEST_PLAN_ITEMS, OUT_PRESERVED,
+    OUT_REGIONS, OUT_SAMPLED_TREES, OUT_SURVEYS, OUT_TRACTORS,
+    SRC_HARVESTS, main,
 )
 
 # Defaults to the sibling data checkout; override with ABIES_LEGACY_DATA elsewhere.
 _DEFAULT_LEGACY_DIR = Path(__file__).resolve().parents[2] / 'abies-data'
 LEGACY_DIR = Path(os.environ.get('ABIES_LEGACY_DATA', _DEFAULT_LEGACY_DIR))
 
-# Expected row counts (±10 tolerance where noted, exact otherwise).
-EXPECTED_HARVESTS = 11941
-EXPECTED_REGION_WIDE = 1468
 EXPECTED_TRACTORS = 5
 
 pytestmark = pytest.mark.skipif(
     not LEGACY_DIR.is_dir(),
     reason=f'legacy data dir {LEGACY_DIR} not present',
 )
+
+
+def _legacy_region_wide_harvests() -> int:
+    return sum(
+        1 for row in _rows(LEGACY_DIR / SRC_HARVESTS)
+        if (row.get(COL_PARCEL) or '').strip() in ('', 'X')
+    )
 
 
 def _rows(path: Path) -> list[dict]:
@@ -93,12 +98,12 @@ def test_sanity_counts(converted):
     tractor_rows = _rows(out_dir / OUT_TRACTORS)
     assert len(tractor_rows) == EXPECTED_TRACTORS
 
-    # Harvests: all ≈11941 mannesi.csv rows, ≈1468 with blank Particella (region-wide).
+    # Harvests: one canonical row for each current legacy mannesi.csv row.
     harvest_rows = _rows(out_dir / OUT_HARVESTS)
     assert len(harvest_rows) == counts[OUT_HARVESTS]
-    assert len(harvest_rows) == pytest.approx(EXPECTED_HARVESTS, abs=10)
-    region_wide = [r for r in harvest_rows if not r['Particella']]
-    assert len(region_wide) == pytest.approx(EXPECTED_REGION_WIDE, abs=10)
+    assert len(harvest_rows) == len(_rows(LEGACY_DIR / SRC_HARVESTS))
+    region_wide = [r for r in harvest_rows if not r[COL_PARCEL]]
+    assert len(region_wide) == _legacy_region_wide_harvests()
 
     # Harvest plan items: fustaia + ceduo combined, all non-zero.
     plan_rows = _rows(out_dir / OUT_HARVEST_PLAN_ITEMS)
@@ -128,10 +133,13 @@ def test_bootstrap_actually_persists(converted):
     # Tractors.
     assert Tractor.objects.count() == EXPECTED_TRACTORS
 
-    # Harvests: ≈11941 total, ≈1468 region-wide (parcel IS NULL).
+    # Harvests: persisted rows match the converted canonical harvests.
+    harvest_rows = _rows(out_dir / OUT_HARVESTS)
     assert Harvest.objects.count() == counts[OUT_HARVESTS]
-    assert Harvest.objects.count() == pytest.approx(EXPECTED_HARVESTS, abs=10)
-    assert Harvest.objects.filter(parcel__isnull=True).count() == pytest.approx(EXPECTED_REGION_WIDE, abs=10)
+    assert Harvest.objects.count() == len(harvest_rows)
+    assert Harvest.objects.filter(parcel__isnull=True).count() == sum(
+        1 for row in harvest_rows if not row[COL_PARCEL]
+    )
 
     # Harvest plan items.
     assert HarvestPlanItem.objects.count() > 0

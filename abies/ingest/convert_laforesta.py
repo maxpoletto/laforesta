@@ -59,6 +59,7 @@ CANONICAL_PRODUCTS = [
 
 SRC_PARCELS = 'particelle.csv'
 SRC_CREWS = 'mannesi.csv'
+SRC_HARVESTS = SRC_CREWS
 SRC_SAMPLE_AREAS = 'aree-di-saggio.csv'
 SRC_TREES_CALCULATED = 'alberi-calcolati.csv'
 SRC_TREES_HEIGHTS = 'alberi-altezze.csv'
@@ -496,7 +497,7 @@ def _convert_harvests(src_dir: Path, out_dir: Path) -> int:
     ``Particella == 'X'`` → blank (region-wide row).
     ``Note`` token → three explicit boolean flag columns.
     """
-    rows = _read(src_dir / SRC_CREWS)
+    rows = _read(src_dir / SRC_HARVESTS)
 
     # Build the canonical dynamic column headers in a fixed order so the
     # bootstrap column-resolution and species-sum check see a consistent layout.
