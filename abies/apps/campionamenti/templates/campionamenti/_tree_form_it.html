@@ -56,7 +56,7 @@ coppice block.
                       data-next-shoot="{{ t.next_shoot }}"
                       data-lat="{{ t.lat|default_if_none:'' }}"
                       data-lon="{{ t.lon|default_if_none:'' }}">
-                n.{{ t.number }} ({{ t.species_common_name }}{% if t.coppice %}, ceduo{% else %}, d={{ t.last_d_cm }}cm, h={{ t.last_h_m }}m{% endif %})
+                n.{{ t.number }} ({{ t.species_common_name }}, {{ t.last_survey_name }}, {{ t.last_sample_date|date:'Y-m-d' }}{% if t.coppice %}, ceduo{% else %}, d={{ t.last_d_cm }}cm, h={{ t.last_h_m }}m{% endif %})
               </option>
             {% endfor %}
           </select>

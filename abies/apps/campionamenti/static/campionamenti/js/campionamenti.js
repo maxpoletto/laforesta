@@ -1523,13 +1523,19 @@ function wireTreeForm(form) {
     onConflict(data) {
       if (data.html) {
         const f = renderModalForm(data.html);
-        if (f) wireTreeForm(f);
+        if (f) {
+          wireTreeForm(f);
+          showFormError(f, data.message || S.ERROR_CONFLICT);
+        }
       }
     },
     onValidationError(data) {
       if (data.html) {
         const f = renderModalForm(data.html);
-        if (f) wireTreeForm(f);
+        if (f) {
+          wireTreeForm(f);
+          showFormError(f, data.message || S.ERROR_GENERIC);
+        }
       }
     },
   });
@@ -1553,6 +1559,7 @@ function wireTreePick(form) {
 
   const species = form.querySelector('#tf-species');
   const ceduo = form.querySelector('#tf-ceduo');
+  const highForestHidden = form.querySelector('input[type="hidden"][name="fustaia"]');
   const lat = form.querySelector('#tf-lat');
   const lon = form.querySelector('#tf-lon');
   // row_id is non-empty in edit mode.  The edit path lets the user
@@ -1568,6 +1575,12 @@ function wireTreePick(form) {
     const saveAndAdd = form.querySelector('button[data-action="save-and-add"]');
     if (saveAndAdd) saveAndAdd.style.display = 'none';
   }
+
+  function syncHighForestHidden() {
+    if (highForestHidden && ceduo) highForestHidden.value = ceduo.checked ? 'false' : 'true';
+  }
+
+  ceduo?.addEventListener('change', syncHighForestHidden);
 
   function setLocked(locked) {
     for (const el of [species, ceduo, lat, lon]) {
@@ -1585,6 +1598,7 @@ function wireTreePick(form) {
     if (!opt) return;
     if (opt.value === 'new') {
       num.value = opt.dataset.next || '';
+      syncHighForestHidden();
       setLocked(false);
       return;
     }
@@ -1596,6 +1610,7 @@ function wireTreePick(form) {
     num.value = opt.dataset.number || '';
     if (species && opt.dataset.speciesId) species.value = opt.dataset.speciesId;
     if (ceduo) ceduo.checked = opt.dataset.coppice === '1';
+    syncHighForestHidden();
     if (lat && opt.dataset.lat) lat.value = opt.dataset.lat;
     if (lon && opt.dataset.lon) lon.value = opt.dataset.lon;
     setLocked(!isEditMode);

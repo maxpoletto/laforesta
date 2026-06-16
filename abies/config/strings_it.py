@@ -138,6 +138,9 @@ ERR_D_POSITIVE = 'Il diametro deve essere positivo.'
 ERR_H_POSITIVE = 'L\'altezza deve essere positiva.'
 ERR_TREE_NUMBER_REQUIRED = 'Numero albero obbligatorio.'
 ERR_TREE_NUMBER_DUPLICATE = 'Numero albero {} già utilizzato in questo campione.'
+ERR_TREE_ALREADY_IN_SAMPLE = (
+    'Albero n.{} già presente in questo campione. Modifica la riga esistente.'
+)
 ERR_TRACTOR_NAME_DUPLICATE = 'Esiste già un trattore con questo nome.'
 ERR_GRID_NAME_REQUIRED = 'Nome griglia obbligatorio.'
 ERR_GRID_NAME_DUPLICATE = 'Esiste già una griglia con questo nome.'

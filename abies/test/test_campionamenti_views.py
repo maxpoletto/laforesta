@@ -426,13 +426,9 @@ class TestTreeSave:
             FIELD_SURVEY_ID: str(second_survey.id),
             FIELD_SAMPLE_AREA_ID: str(s['area'].id),
             FIELD_TREE_PICK: str(s['tree'].id),
-            FIELD_SPECIES_ID: str(s['tree'].species_id),
             FIELD_NUMBER: '1',         # propagated from the existing tree
             FIELD_D_CM: '35', FIELD_H_M: '21', 'l10_mm': '0',
             'volume_m3': '0.9', FIELD_MASS_Q: '7.1',
-            FIELD_HIGHFOREST: 'true',
-            FIELD_LAT: str(s['tree'].lat or 0.0),
-            FIELD_LON: str(s['tree'].lon or 0.0),
         })
         assert resp.status_code == 200, resp.content
 
@@ -444,6 +440,21 @@ class TestTreeSave:
         assert ts.number == 1                         # propagated
         assert ts.sample.survey_id == second_survey.id
         assert ts.d_cm == 35                          # new measurement
+
+    def test_existing_fustaia_tree_already_in_sample_has_clear_error(
+        self, writer_client, sample_setup,
+    ):
+        s = sample_setup
+        resp = self._post(writer_client, {
+            FIELD_SURVEY_ID: str(s['survey'].id),
+            FIELD_SAMPLE_AREA_ID: str(s['area'].id),
+            FIELD_TREE_PICK: str(s['tree'].id),
+            FIELD_NUMBER: '1',
+            FIELD_D_CM: '35', FIELD_H_M: '21', 'l10_mm': '0',
+            'volume_m3': '0.9', FIELD_MASS_Q: '7.1',
+        })
+        assert resp.status_code == 400
+        assert S.ERR_TREE_ALREADY_IN_SAMPLE.format(1) in resp.json()[MESSAGE]
 
     def test_existing_tree_not_in_area_rejected(self, writer_client, sample_setup,
                                                 regions, eclasses, species):
@@ -582,19 +593,56 @@ class TestTreeSave:
 class TestTreeFormPriorTrees:
     """Form GET reflects the prior-trees pulldown contents."""
 
-    def test_lists_prior_trees(self, writer_client, sample_setup):
+    def test_lists_eligible_prior_trees_with_survey_and_date(
+        self, writer_client, sample_setup,
+    ):
         s = sample_setup
+        second_survey = Survey.objects.create(
+            name='Second campaign', sample_grid=s['grid'],
+        )
+        resp = writer_client.get(
+            f'/api/campionamenti/tree/form/?survey={second_survey.id}'
+            f'&area={s["area"].id}'
+        )
+        assert resp.status_code == 200
+        html = resp.json()[HTML]
+        assert 'id="id_tree_pick"' in html
+        assert '+ nuovo albero' in html
+        assert 'n.1' in html
+        assert s['survey'].name in html
+        assert s['sample'].date.isoformat() in html
+        # next_number = max(existing)+1 = 2
+        assert 'data-next="2"' in html
+
+    def test_omits_tree_numbers_already_in_active_sample(
+        self, writer_client, sample_setup, species,
+    ):
+        s = sample_setup
+        other_survey = Survey.objects.create(
+            name='Other historical survey', sample_grid=s['grid'],
+        )
+        other_sample = Sample.objects.create(
+            sample_area=s['area'], survey=other_survey, date=date(2025, 1, 10),
+        )
+        other_tree = Tree.objects.create(
+            species=species[0], parcel=s['area'].parcel, preserved=False,
+            coppice=False,
+        )
+        TreeSample.objects.create(
+            sample=other_sample, tree=other_tree, shoot=0, standard=False,
+            number=1, d_cm=36, h_m=Decimal('22.00'), l10_mm=0,
+        )
+
         resp = writer_client.get(
             f'/api/campionamenti/tree/form/?survey={s["survey"].id}'
             f'&area={s["area"].id}'
         )
         assert resp.status_code == 200
         html = resp.json()[HTML]
-        # The existing fixture has tree number=1 in this area.
-        assert 'id="id_tree_pick"' in html
         assert '+ nuovo albero' in html
-        assert 'n.1' in html
-        # next_number = max(existing)+1 = 2
+        assert 'data-number="1"' not in html
+        assert 'Other historical survey' not in html
+        # The next new-tree number still considers trees already in the sample.
         assert 'data-next="2"' in html
 
     def test_ceduo_default_on_for_coppice_parcel(
@@ -677,14 +725,19 @@ class TestTreeFormPriorTrees:
                 standard=(sh == 2), number=7,
                 d_cm=5 + sh, h_m=Decimal('8.00'), l10_mm=0,
             )
+        second_survey = Survey.objects.create(
+            name='Second campaign for coppice', sample_grid=s['grid'],
+        )
         resp = writer_client.get(
-            f'/api/campionamenti/tree/form/?survey={s["survey"].id}'
+            f'/api/campionamenti/tree/form/?survey={second_survey.id}'
             f'&area={s["area"].id}'
         )
         html = resp.json()[HTML]
         assert 'data-next-shoot="3"' in html
         assert 'ceduo' in html
         assert 'n.7' in html
+        assert s['survey'].name in html
+        assert s['sample'].date.isoformat() in html
 
 
 class TestTreeSaveCoppice:
@@ -880,8 +933,7 @@ class TestTreeSaveCoppice:
             ]),
         })
         assert resp.status_code == 400
-        msg = resp.json()[MESSAGE].lower()
-        assert 'pollone' in msg
+        assert S.ERR_TREE_ALREADY_IN_SAMPLE.format(99) in resp.json()[MESSAGE]
 
     def test_edit_coppice_single_shoot(self, writer_client, sample_setup,
                                        species):

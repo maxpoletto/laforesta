@@ -146,16 +146,20 @@ def tree_save_view(request):
                 [S.ERR_TREE_NUMBER_REQUIRED], ts_id, request, body,
             )
 
-    # Reject (sample, number) referring to a different tree — within a
-    # sample area, a `number` identifies one physical tree across all
-    # samples in which it appears.  Excluding our target tree (when
-    # known) lets coppice multi-shoot creates and same-tree edits pass.
+    # A tree number can appear at most once in the active sample.  This
+    # also catches stale/direct posts for existing trees hidden from the
+    # pulldown because the active sample already has that number.
     dup = TreeSample.objects.filter(sample=sample, number=parsed[FIELD_NUMBER])
     if ts_id:
         dup = dup.exclude(id=ts_id)
-    if existing_tree is not None:
-        dup = dup.exclude(tree_id=existing_tree.id)
+        if existing_tree is not None and parsed[FIELD_COPPICE]:
+            dup = dup.exclude(tree=existing_tree)
     if dup.exists():
+        if existing_tree is not None and dup.filter(tree=existing_tree).exists():
+            return _validation_error(
+                [S.ERR_TREE_ALREADY_IN_SAMPLE.format(parsed[FIELD_NUMBER])],
+                ts_id, request, body,
+            )
         return _validation_error(
             [S.ERR_TREE_NUMBER_DUPLICATE.format(parsed[FIELD_NUMBER])],
             ts_id, request, body,
@@ -582,7 +586,9 @@ def _render_tree_form(request, ts_id, survey_id, area_id):
         ).first()
 
     species = list(Species.objects.filter(active=True).order_by(FIELD_SORT_ORDER))
-    prior_trees, next_number = _prior_trees_for_area(area, exclude_ts_id=ts_id)
+    prior_trees, next_number = _prior_trees_for_area(
+        area, exclude_ts_id=ts_id, current_sample=sample,
+    )
 
     tree = ts.tree if ts else None
     is_coppice = area.parcel.eclass.coppice
@@ -652,7 +658,7 @@ def _default_species_id(species, parcel_is_coppice):
     return species[0].id
 
 
-def _prior_trees_for_area(area, exclude_ts_id=None):
+def _prior_trees_for_area(area, exclude_ts_id=None, current_sample=None):
     """Build the list backing the "Numero albero" pulldown.
 
     Returns (prior_trees, next_number) where:
@@ -660,6 +666,11 @@ def _prior_trees_for_area(area, exclude_ts_id=None):
         most-recent measurement first within each tree) sorted by tree number;
       - next_number is `max(tree_sample.number)+1` across all samples in this
         area, or 1 if empty.
+
+    Tree numbers already present in `current_sample` are omitted from
+    prior_trees because the active sample cannot contain the same number
+    twice, even when historical data has separate Tree rows for that
+    number.
 
     Same `number` is reused across surveys for the same physical tree
     (cross-sample identity, per campionamenti.md §"Cross-sample tree
@@ -670,7 +681,7 @@ def _prior_trees_for_area(area, exclude_ts_id=None):
     """
     qs = (TreeSample.objects
             .filter(sample__sample_area_id=area.id)
-            .select_related('tree__species', 'sample')
+            .select_related('tree__species', 'sample__survey')
             .order_by('tree_id', '-sample__date', '-shoot'))
     if exclude_ts_id:
         qs = qs.exclude(id=exclude_ts_id)
@@ -678,11 +689,15 @@ def _prior_trees_for_area(area, exclude_ts_id=None):
     by_tree = {}
     max_number = 0
     max_shoot_by_tree = {}
+    unavailable_numbers = set()
+    current_sample_id = current_sample.id if current_sample else None
     for ts in qs:
         max_number = max(max_number, ts.number or 0)
         max_shoot_by_tree[ts.tree_id] = max(
             max_shoot_by_tree.get(ts.tree_id, 0), ts.shoot or 0,
         )
+        if current_sample_id is not None and ts.sample_id == current_sample_id:
+            unavailable_numbers.add(ts.number)
         if ts.tree_id in by_tree:
             continue       # already have the most-recent measurement for this tree
         by_tree[ts.tree_id] = {
@@ -695,7 +710,13 @@ def _prior_trees_for_area(area, exclude_ts_id=None):
             FIELD_LON: ts.tree.lon,
             'last_d_cm': ts.d_cm,
             'last_h_m': ts.h_m,
+            'last_survey_name': ts.sample.survey.name,
+            'last_sample_date': ts.sample.date,
         }
+    by_tree = {
+        tid: row for tid, row in by_tree.items()
+        if row[FIELD_NUMBER] not in unavailable_numbers
+    }
     for tid, row in by_tree.items():
         row[FIELD_NEXT_SHOOT] = max_shoot_by_tree.get(tid, 0) + 1
     prior = sorted(by_tree.values(), key=lambda r: r[FIELD_NUMBER])
