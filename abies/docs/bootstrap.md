@@ -34,8 +34,9 @@ Bootstrap has a deliberately narrow contract.
   needed.
 - There is no `--force` mode.
 - The whole load runs inside one database transaction.
-- Validation errors are accumulated and reported by file; any error prevents
-  writes from being committed.
+- Validation errors are accumulated and reported by file. A file is applied
+  only if that file has no validation errors; any error anywhere rolls back the
+  full transaction.
 - The input format is canonical. The legacy converter is responsible for fixing
   La Foresta source quirks before bootstrap sees the data.
 - Species and product files are optional. If they are missing, built-in defaults

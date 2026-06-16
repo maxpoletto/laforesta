@@ -1,9 +1,10 @@
 """manage.py bootstrap <data_dir> [--check]
 
 Load a canonical CSV data dir (see docs/bootstrap.md) into an EMPTY
-instance.  Atomic-transaction load: every present file is validated and its valid
-rows applied in dependency order inside one transaction; errors are accumulated
-across all files; on any error — or with --check — the whole transaction rolls
+instance.  Atomic-transaction load: every present file is validated; clean
+files are applied in dependency order inside one transaction; errors are
+accumulated across all files; on any error — or with --check — the whole
+transaction rolls
 back, so --check never persists and a failed load never leaves a half-loaded
 instance.
 
@@ -46,7 +47,6 @@ GUARD_MODELS = [
     SampleArea, Survey, Sample, Tree, TreeMark, HarvestPlan, HarvestPlanItem,
     HarvestDetail, Harvest, HypsoParamSet,
 ]
-
 
 
 @dataclass
@@ -133,6 +133,40 @@ class Command(BaseCommand):
             return None, report
         return reader, report
 
+    def _missing_columns(self, report, missing):
+        if not missing:
+            return False
+        report.errors.append(S.ERR_CSV_MISSING_COLS.format(', '.join(missing)))
+        return True
+
+    def _apply_validated(self, report, parsed, errors, apply_fn):
+        """Attach validation errors and apply only if this file is clean."""
+        report.errors.extend(errors)
+        if report.errors or not parsed:
+            return False
+        report.loaded = apply_fn(parsed)
+        return True
+
+    def _load_grouped(self, reader, report, *, group_col, targets, unknown_error,
+                      validate_group, apply_group):
+        """Validate grouped child rows, then apply all groups only if clean."""
+        groups = []
+        for group_name, rows in _group(reader, group_col).items():
+            target = targets.get(group_name)
+            if target is None:
+                report.errors.append(unknown_error(group_name))
+                continue
+            sub = csv_io.CsvReader(rows, reader.delimiter, reader.fieldnames)
+            parsed, errors = validate_group(target, sub, group_name)
+            report.errors.extend(errors)
+            if parsed:
+                groups.append((target, parsed))
+        if report.errors:
+            return report
+        for target, parsed in groups:
+            report.loaded += apply_group(target, parsed)
+        return report
+
     # --- reference / container RefTables ------------------------------------
 
     def _load_reftable(self, data_dir, table, required):
@@ -140,22 +174,20 @@ class Command(BaseCommand):
         if reader is None:
             return report
         cols, missing = csv_reference.resolve_columns(table, reader.fieldnames)
-        if missing:
-            report.errors.append(S.ERR_CSV_MISSING_COLS.format(', '.join(missing)))
+        if self._missing_columns(report, missing):
             return report
         parsed, errors = csv_reference.validate_rows(table, reader, cols)
-        report.errors.extend(errors)
-        if parsed:
-            created, _ = csv_reference.apply(table, parsed)
-            report.loaded = created
+        self._apply_validated(
+            report, parsed, errors,
+            lambda rows: csv_reference.apply(table, rows)[0],
+        )
         return report
 
     def _seed_default(self, table, report):
         """Seed species/products from the in-repo canonical defaults when their
-        (optional) CSV is absent (spec §3 "optional on import → else in-repo
-        default").  The converter always emits both, so this only fires for
-        minimal or hand-built data dirs.  Other absent reference tables have no
-        default and are left empty."""
+        optional CSV is absent.  The converter always emits both, so this only
+        fires for minimal or hand-built data dirs.  Other absent reference tables
+        have no default and are left empty."""
         if table is csv_reference.SPECIES:
             parsed = [
                 {FIELD_COMMON_NAME: common, FIELD_LATIN_NAME: latin,
@@ -180,8 +212,7 @@ class Command(BaseCommand):
         if reader is None:
             return report
         parsed, errors = csv_parcels.validate_rows(reader, csv_parcels.db_indexes())
-        report.errors.extend(errors)
-        report.loaded = csv_parcels.apply(parsed)
+        self._apply_validated(report, parsed, errors, csv_parcels.apply)
         return report
 
     # --- surveys ------------------------------------------------------------
@@ -193,64 +224,62 @@ class Command(BaseCommand):
         if reader is None:
             return report
         parsed, errors = cc.validate_surveys(reader, cc.survey_db_indexes())
-        report.errors.extend(errors)
-        report.loaded = cc.apply_surveys(parsed)
-        for d in parsed:
-            survey_dates[d['name']] = d['date']
+        if self._apply_validated(report, parsed, errors, cc.apply_surveys):
+            for d in parsed:
+                survey_dates[d['name']] = d['date']
         return report
 
     # --- bulk: sample areas (grouped by grid) -------------------------------
 
     def _load_sample_areas(self, data_dir):
+        filename = S.CSV_FILE_SAMPLE_AREAS
         reader, report = self._open(
-            data_dir, S.CSV_FILE_SAMPLE_AREAS, required=False,
+            data_dir, filename, required=False,
             required_cols=[S.CSV_COL_GRID] + csv_grid.GRID_CSV_REQUIRED)
         if reader is None:
             return report
         cols, missing = csv_grid.resolve_columns(reader.fieldnames)
-        if missing:  # same columns for every group → resolve once
-            report.errors.append(S.ERR_CSV_MISSING_COLS.format(', '.join(missing)))
+        if self._missing_columns(report, missing):
             return report
         grids = {g.name: g for g in SampleGrid.objects.all()}
-        for grid_name, rows in _group(reader, S.CSV_COL_GRID).items():
-            grid = grids.get(grid_name)
-            if grid is None:
-                report.errors.append(S.ERR_BOOTSTRAP_UNKNOWN_GRID.format(
-                    S.CSV_FILE_SAMPLE_AREAS, grid_name))
-                continue
-            sub = csv_io.CsvReader(rows, reader.delimiter, reader.fieldnames)
-            parsed, errors = csv_grid.validate_rows(sub, cols, csv_grid.db_indexes(grid))
-            report.errors.extend(errors)
-            if parsed:
-                csv_grid.apply(grid, parsed)
-                report.loaded += len(parsed)
-        return report
+        return self._load_grouped(
+            reader, report,
+            group_col=S.CSV_COL_GRID,
+            targets=grids,
+            unknown_error=lambda name: S.ERR_BOOTSTRAP_UNKNOWN_GRID.format(
+                filename, name),
+            validate_group=lambda grid, sub, _name: csv_grid.validate_rows(
+                sub, cols, csv_grid.db_indexes(grid)),
+            apply_group=lambda grid, parsed: (
+                csv_grid.apply(grid, parsed) or len(parsed)
+            ),
+        )
 
     # --- bulk: sampled trees (grouped by survey) ----------------------------
 
     def _load_sampled_trees(self, data_dir, survey_dates):
+        filename = S.CSV_FILE_SAMPLED_TREES
         reader, report = self._open(
-            data_dir, S.CSV_FILE_SAMPLED_TREES, required=False,
+            data_dir, filename, required=False,
             required_cols=[S.CSV_COL_SURVEY] + csv_trees.TREE_CSV_REQUIRED)
         if reader is None:
             return report
         surveys = {s.name: s for s in Survey.objects.all()}
         has_date = S.CSV_COL_DATA in (reader.fieldnames or [])
-        for survey_name, rows in _group(reader, S.CSV_COL_SURVEY).items():
-            survey = surveys.get(survey_name)
-            if survey is None:
-                report.errors.append(S.ERR_BOOTSTRAP_UNKNOWN_SURVEY.format(
-                    S.CSV_FILE_SAMPLED_TREES, survey_name))
-                continue
-            sub = csv_io.CsvReader(rows, reader.delimiter, reader.fieldnames)
-            parsed, errors = csv_trees.validate_rows(
+        return self._load_grouped(
+            reader, report,
+            group_col=S.CSV_COL_SURVEY,
+            targets=surveys,
+            unknown_error=lambda name: S.ERR_BOOTSTRAP_UNKNOWN_SURVEY.format(
+                filename, name),
+            validate_group=lambda survey, sub, name: csv_trees.validate_rows(
                 sub, csv_trees.db_indexes(survey),
                 has_date_column=has_date,
-                default_date=survey_dates.get(survey_name))
-            report.errors.extend(errors)
-            if parsed:
-                report.loaded += csv_trees.apply(survey, parsed)['n_trees']
-        return report
+                default_date=survey_dates.get(name)),
+            apply_group=lambda survey, parsed: (
+                csv_trees.apply(survey, parsed)['n_trees']
+            ),
+        )
 
     # --- bulk: hypso --------------------------------------------------------
 
@@ -262,11 +291,7 @@ class Command(BaseCommand):
             return report
         report.present = True
         rows, errors = hypsometry.parse_param_csv(path.read_text(encoding='utf-8-sig'))
-        report.errors.extend(errors)
-        if rows and not errors:
-            hypsometry.replace_active_set(
-                rows, source=HypsoParamSource.IMPORTED, min_n=None, survey_ids=[])
-            report.loaded = len(rows)
+        self._apply_validated(report, rows, errors, _replace_hypso)
         return report
 
     # --- harvest plan items -------------------------------------------------
@@ -277,12 +302,13 @@ class Command(BaseCommand):
             required_cols=csv_plan.PLAN_ITEMS_CSV_REQUIRED)
         if reader is None:
             return report
-        plans = {p.name: p for p in HarvestPlan.objects.all()}
-        # load_canonical_items short-circuits on errors internally; apply is never called when errors is non-empty.
-        n_items, errors = csv_plan.load_canonical_items(
-            reader, csv_plan.db_indexes(), plans)
-        report.errors.extend(errors)
-        report.loaded = n_items
+        parsed, errors = csv_plan.validate_canonical_items(
+            reader, csv_plan.db_indexes(),
+            {p.name: p for p in HarvestPlan.objects.all()},
+        )
+        self._apply_validated(
+            report, parsed, errors, csv_plan.apply_canonical_items,
+        )
         return report
 
     # --- preserved trees ----------------------------------------------------
@@ -295,8 +321,7 @@ class Command(BaseCommand):
             return report
         parsed, errors = csv_preserved.validate_rows(
             reader, csv_preserved.db_indexes())
-        report.errors.extend(errors)
-        report.loaded = csv_preserved.apply(parsed) if parsed and not errors else 0
+        self._apply_validated(report, parsed, errors, csv_preserved.apply)
         return report
 
     # --- harvests -----------------------------------------------------------
@@ -308,13 +333,11 @@ class Command(BaseCommand):
         if reader is None:
             return report
         cols, dyn, missing = csv_harvests.resolve_columns(reader.fieldnames)
-        if missing:
-            report.errors.append(S.ERR_CSV_MISSING_COLS.format(', '.join(missing)))
+        if self._missing_columns(report, missing):
             return report
         parsed, errors = csv_harvests.validate_rows(
             reader, cols, dyn, csv_harvests.db_indexes())
-        report.errors.extend(errors)
-        report.loaded = csv_harvests.apply(parsed) if parsed and not errors else 0
+        self._apply_validated(report, parsed, errors, csv_harvests.apply)
         return report
 
     # --- report -------------------------------------------------------------
@@ -330,6 +353,13 @@ class Command(BaseCommand):
             self.stdout.write(S.BOOTSTRAP_CHECK_NOTICE)
         elif not total_errors:
             self.stdout.write(S.BOOTSTRAP_DONE)
+
+
+def _replace_hypso(rows):
+    hypsometry.replace_active_set(
+        rows, source=HypsoParamSource.IMPORTED, min_n=None, survey_ids=[],
+    )
+    return len(rows)
 
 
 def _group(reader, col):

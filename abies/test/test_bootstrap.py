@@ -46,6 +46,10 @@ CANONICAL = {
 }
 
 
+def _report_line(output, filename):
+    return next(line for line in output.splitlines() if filename in line)
+
+
 def _make_dir(tmp_path, **overrides):
     files = dict(CANONICAL, **overrides)
     for name, text in files.items():
@@ -112,6 +116,43 @@ def test_error_in_one_file_rolls_back_all(tmp_path):
         call_command('bootstrap', _make_dir(tmp_path, **{'particelle.csv': bad_parcels}))
     assert Region.objects.count() == 0          # nothing persisted
     assert Parcel.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_file_with_row_errors_reports_zero_loaded(tmp_path, capsys):
+    optional_absent = {
+        k: None for k in CANONICAL
+        if k not in ('regions.csv', 'eclasses.csv', 'particelle.csv')
+    }
+    bad_parcels = (
+        'Compresa,Comparto,Particella,Area (ha)\n'
+        'Capistrano,A,1,10.5\n'
+        'Capistrano,Z,2,11.5\n'
+    )
+    with pytest.raises(CommandError):
+        call_command('bootstrap', _make_dir(
+            tmp_path, **optional_absent, **{'particelle.csv': bad_parcels},
+        ))
+    line = _report_line(capsys.readouterr().out, 'particelle.csv')
+    assert S.BOOTSTRAP_LOADED.format(0) in line
+
+
+@pytest.mark.django_db
+def test_grouped_file_with_row_errors_reports_zero_loaded(tmp_path, capsys):
+    keep = ('regions.csv', 'eclasses.csv', 'particelle.csv',
+            'sample_grids.csv', 'sample_areas.csv')
+    optional_absent = {k: None for k in CANONICAL if k not in keep}
+    bad_areas = (
+        'Griglia,Compresa,Particella,Area saggio,Lon,Lat,Quota,Raggio\n'
+        'Griglia 1,Capistrano,1,10,16.1,38.5,500,15\n'
+        'Nessuna griglia,Capistrano,1,11,16.2,38.6,510,15\n'
+    )
+    with pytest.raises(CommandError):
+        call_command('bootstrap', _make_dir(
+            tmp_path, **optional_absent, **{'sample_areas.csv': bad_areas},
+        ))
+    line = _report_line(capsys.readouterr().out, 'sample_areas.csv')
+    assert S.BOOTSTRAP_LOADED.format(0) in line
 
 
 @pytest.mark.django_db

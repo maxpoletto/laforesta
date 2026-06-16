@@ -7,7 +7,6 @@ foreign keys resolved against an injected ``PlanIndexes`` — so the same
 code can back a true ``--check`` dry-run against a staged index.
 """
 
-from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date as date_type
 
@@ -381,22 +380,30 @@ def apply(*, target_plan, name, description, fustaia_parsed, ceduo_parsed):
     return plan, n_items
 
 
-def load_canonical_items(reader, indexes: PlanIndexes, plans: dict):
-    """Bootstrap loader for the unified harvest_plan_items.csv.
+@dataclass
+class CanonicalItemsForPlan:
+    plan: HarvestPlan
+    fustaia: list
+    ceduo: list
 
-    ``plans`` maps plan name -> HarvestPlan.  Groups rows by ``Piano``, then
-    calls ``apply(target_plan=plan, ...)`` once per group.  Per row: blank
-    ``Particella`` → region-wide fustaia dict; else resolves parcel and
-    branches on ``parcel.eclass.coppice`` (coppice → ceduo dict; else fustaia
-    dict).  Boolean flag columns (Danneggiato/Fitosanitario/PSR) are read
-    explicitly via ``reader.opt_bool``.
 
-    Returns ``(n_items, errors)``.
+def validate_canonical_items(reader, indexes: PlanIndexes, plans: dict):
+    """Validate the unified bootstrap ``harvest_plan_items.csv``.
+
+    Returns ``(rows_by_plan, errors)`` without writing to the database.  The
+    caller decides whether validated rows are safe to apply.
     """
     errors = []
-    rows_by_plan: dict[str, list] = defaultdict(list)
+    rows_by_plan: dict[str, CanonicalItemsForPlan] = {}
 
-    # First pass: group rows by Piano, validating plan name and per-row fields.
+    def group_for(plan_name: str) -> CanonicalItemsForPlan:
+        plan = plans[plan_name]
+        group = rows_by_plan.get(plan_name)
+        if group is None:
+            group = CanonicalItemsForPlan(plan=plan, fustaia=[], ceduo=[])
+            rows_by_plan[plan_name] = group
+        return group
+
     for i, row in enumerate(reader, 2):
         plan_name = (row.get(S.CSV_COL_PLAN) or '').strip()
         if plan_name not in plans:
@@ -428,6 +435,7 @@ def load_canonical_items(reader, indexes: PlanIndexes, plans: dict):
         psr = bool(psr_val)
 
         note = (row.get(S.CSV_COL_NOTE) or '').strip()
+        group = group_for(plan_name)
 
         if is_region_wide:
             region = indexes.regions.get(compresa.lower())
@@ -442,8 +450,7 @@ def load_canonical_items(reader, indexes: PlanIndexes, plans: dict):
             )
             if not ok:
                 continue
-            rows_by_plan[plan_name].append({
-                '_type': 'fustaia',
+            group.fustaia.append({
                 FIELD_REGION_ID: region,
                 FIELD_PARCEL_ID: None,
                 FIELD_YEAR_PLANNED: year,
@@ -469,8 +476,7 @@ def load_canonical_items(reader, indexes: PlanIndexes, plans: dict):
                     errors.append(S.ERR_CSV_VALUE_PARSE.format(
                         i, S.CSV_COL_PERIOD_Y, row.get(S.CSV_COL_PERIOD_Y, '')))
                     continue
-                rows_by_plan[plan_name].append({
-                    '_type': 'ceduo',
+                group.ceduo.append({
                     FIELD_PARCEL_ID: parcel,
                     FIELD_YEAR_PLANNED: year,
                     FIELD_INTERVENTION_AREA_HA: area,
@@ -486,8 +492,7 @@ def load_canonical_items(reader, indexes: PlanIndexes, plans: dict):
                 )
                 if not ok:
                     continue
-                rows_by_plan[plan_name].append({
-                    '_type': 'fustaia',
+                group.fustaia.append({
                     FIELD_REGION_ID: None,
                     FIELD_PARCEL_ID: parcel,
                     FIELD_YEAR_PLANNED: year,
@@ -497,25 +502,34 @@ def load_canonical_items(reader, indexes: PlanIndexes, plans: dict):
                     FIELD_PSR: psr,
                 })
 
-    if errors:
-        return 0, errors
+    return rows_by_plan, errors
 
-    # Second pass: call apply once per plan group.
+
+def apply_canonical_items(rows_by_plan: dict[str, CanonicalItemsForPlan]) -> int:
+    """Apply validated canonical plan items.  Returns rows applied."""
     total_items = 0
-    for plan_name, rows in rows_by_plan.items():
-        plan = plans[plan_name]
-        fustaia = [r for r in rows if r['_type'] == 'fustaia']
-        ceduo   = [r for r in rows if r['_type'] == 'ceduo']
-        # Strip the internal '_type' key before passing to apply.
-        fustaia_clean = [{k: v for k, v in r.items() if k != '_type'} for r in fustaia]
-        ceduo_clean   = [{k: v for k, v in r.items() if k != '_type'} for r in ceduo]
+    for group in rows_by_plan.values():
+        plan = group.plan
         _, n = apply(
             target_plan=plan,
             name=plan.name,
             description=plan.description,
-            fustaia_parsed=fustaia_clean,
-            ceduo_parsed=ceduo_clean,
+            fustaia_parsed=group.fustaia,
+            ceduo_parsed=group.ceduo,
         )
         total_items += n
+    return total_items
 
-    return total_items, errors
+
+def load_canonical_items(reader, indexes: PlanIndexes, plans: dict):
+    """Validate and apply the unified bootstrap ``harvest_plan_items.csv``.
+
+    Kept as the older convenience API for tests and callers that want the legacy
+    combined behavior.  New bootstrap orchestration calls validate/apply
+    separately so it can uniformly skip applying a file when validation reports
+    any error.
+    """
+    rows_by_plan, errors = validate_canonical_items(reader, indexes, plans)
+    if errors:
+        return 0, errors
+    return apply_canonical_items(rows_by_plan), errors
