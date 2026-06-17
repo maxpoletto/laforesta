@@ -17,6 +17,7 @@ from django.views import View
 from apps.base.digests import serve_digest
 from apps.base.http import CACHE_NO_CACHE, conditional_file_response
 from apps.base.models import LoginMethod
+from apps.ipso.models import IpsoUpload, IpsoUploadState
 from config import strings as S
 from config.constants import FIELD_SPECIES
 
@@ -30,7 +31,11 @@ ALLOWED_GEO_FILES = {
 @login_required
 def shell_view(request: HttpRequest) -> HttpResponse:
     """The long-lived SPA shell.  All post-login navigation happens here."""
-    return render(request, 'base/shell.html')
+    return render(request, 'base/shell.html', {
+        'ipso_upload_pending_count': IpsoUpload.objects.filter(
+            state=IpsoUploadState.RECEIVED,
+        ).count(),
+    })
 
 
 @method_decorator(axes_dispatch, name='dispatch')

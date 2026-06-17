@@ -4,6 +4,7 @@ import json
 from decimal import Decimal
 from pathlib import Path
 
+import pytest
 from django.test import Client, override_settings
 from django.urls import reverse
 
@@ -15,6 +16,20 @@ from apps.ipso.models import IpsoUpload, IpsoUploadState
 
 def _body(resp) -> bytes:
     return b''.join(resp.streaming_content)
+
+
+@pytest.fixture
+def writer_client(writer_user):
+    client = Client()
+    client.force_login(writer_user)
+    return client
+
+
+@pytest.fixture
+def reader_client(reader_user):
+    client = Client()
+    client.force_login(reader_user)
+    return client
 
 
 def test_index_is_public_and_uses_relative_assets(db):
@@ -195,3 +210,90 @@ def test_upload_config_serves_configured_token(db):
 
     assert resp.status_code == 200
     assert b'visible-token' in resp.content
+
+
+@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+def test_shell_shows_importazione_dot_for_received_upload(
+        writer_client, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    assert _post_upload(Client(), _upload_payload(parcels, species)).status_code == 200
+
+    resp = writer_client.get('/importazione')
+
+    assert resp.status_code == 200
+    body = resp.content.decode()
+    assert 'data-tab="importazione"' in body
+    assert 'data-ipso-pending-dot hidden' not in body
+
+
+@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+def test_inbox_data_lists_received_upload(writer_client, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    payload = _upload_payload(parcels, species)
+    assert _post_upload(Client(), payload).status_code == 200
+
+    resp = writer_client.get(reverse('ipso-inbox-data'))
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data['pending_count'] == 1
+    assert data['columns'][0] == 'row_id'
+    assert data['rows'][0][2] == 'martellate'
+    assert data['rows'][0][3] == 'Mario Rossi'
+    assert data['rows'][0][5] == 'Da importare'
+
+
+@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+def test_upload_detail_previews_staged_records(writer_client, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    payload = _upload_payload(parcels, species)
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
+
+    resp = writer_client.get(reverse('ipso-upload-detail', args=[upload.id]))
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data['upload']['state'] == IpsoUploadState.RECEIVED
+    assert data['record_count'] == 1
+    assert data['records'][0]['parcel'] == 'Capistrano 1'
+    assert data['records'][0]['species'] == 'Abete'
+    assert data['records'][0]['lon'] == 16.12345
+
+
+@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+def test_writer_can_reject_upload(writer_client, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    payload = _upload_payload(parcels, species)
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
+
+    resp = writer_client.post(
+        reverse('ipso-upload-reject', args=[upload.id]),
+        data=json.dumps({'reason': 'Duplicato'}),
+        content_type='application/json',
+    )
+
+    assert resp.status_code == 200
+    upload.refresh_from_db()
+    assert upload.state == IpsoUploadState.REJECTED
+    assert upload.error_summary == 'Duplicato'
+    assert writer_client.get(reverse('ipso-inbox-data')).json()['pending_count'] == 0
+
+
+@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+def test_reader_cannot_reject_upload(reader_client, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    payload = _upload_payload(parcels, species)
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
+
+    resp = reader_client.post(
+        reverse('ipso-upload-reject', args=[upload.id]),
+        data=json.dumps({}),
+        content_type='application/json',
+    )
+
+    assert resp.status_code == 403
+    upload.refresh_from_db()
+    assert upload.state == IpsoUploadState.RECEIVED

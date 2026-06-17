@@ -10,6 +10,6 @@ urlpatterns = [
     path('api/species/data/', views.species_data, name='species-data'),
     path('api/geo/<str:filename>', views.geo_view, name='geo'),
     # The shell catches all domain paths for client-side routing.
-    re_path(r'^(?:bosco|piano-di-taglio|campionamenti|mannesi|prelievi|controllo|impostazioni)(?:/.*)?$',
+    re_path(r'^(?:bosco|piano-di-taglio|campionamenti|mannesi|prelievi|importazione|controllo|impostazioni)(?:/.*)?$',
             views.shell_view, name='shell'),
 ]

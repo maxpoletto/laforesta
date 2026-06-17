@@ -14,6 +14,7 @@ import * as campionamenti from '../../campionamenti/js/campionamenti.js';
 import * as pianoDiTaglio from '../../piano_di_taglio/js/piano-di-taglio.js';
 import * as controllo from '../../controllo/js/controllo.js';
 import * as impostazioni from '../../impostazioni/js/impostazioni.js';
+import * as importazione from '../../ipso/js/importazione.js';
 
 // Domain page modules — all loaded eagerly at boot.
 // Each exports { mount(params), unmount(), onQueryChange(params) }.
@@ -25,6 +26,7 @@ router.addRoute('prelievi', prelievi);
 router.addRoute('campionamenti', campionamenti);
 router.addRoute('piano-di-taglio', pianoDiTaglio);
 router.addRoute('controllo', controllo);
+router.addRoute('importazione', importazione);
 router.addRoute('impostazioni', impostazioni);
 
 // Boot.

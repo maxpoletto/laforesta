@@ -22,6 +22,10 @@
       <a class="tab" href="/campionamenti" data-tab="campionamenti">Campionamenti</a>
       <a class="tab" href="/prelievi" data-tab="prelievi">Prelievi</a>
       <a class="tab" href="/mannesi" data-tab="mannesi">Mannesi</a>
+      <a class="tab tab-with-alert" href="/importazione" data-tab="importazione">
+        Importazione
+        <span class="nav-alert-dot" data-ipso-pending-dot{% if not ipso_upload_pending_count %} hidden{% endif %}></span>
+      </a>
       <a class="tab" href="/controllo" data-tab="controllo">Controllo</a>
       {% if user.can_modify or user.login_method == 'password' %}
       <a class="tab" href="/impostazioni" data-tab="impostazioni">Impostazioni</a>
@@ -40,6 +44,10 @@
     <a class="mobile-tab" href="/campionamenti" data-tab="campionamenti">Campionamenti</a>
     <a class="mobile-tab" href="/mannesi" data-tab="mannesi">Mannesi</a>
     <a class="mobile-tab" href="/prelievi" data-tab="prelievi">Prelievi</a>
+    <a class="mobile-tab tab-with-alert" href="/importazione" data-tab="importazione">
+      Importazione
+      <span class="nav-alert-dot" data-ipso-pending-dot{% if not ipso_upload_pending_count %} hidden{% endif %}></span>
+    </a>
     <a class="mobile-tab" href="/controllo" data-tab="controllo">Controllo</a>
     {% if user.can_modify or user.login_method == 'password' %}
     <a class="mobile-tab" href="/impostazioni" data-tab="impostazioni">Impostazioni</a>

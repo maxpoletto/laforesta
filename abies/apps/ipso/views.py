@@ -12,6 +12,7 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from django.conf import settings
+from django.contrib.auth.decorators import login_required
 from django.contrib.staticfiles import finders
 from django.db import IntegrityError
 from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
@@ -19,6 +20,7 @@ from django.utils import timezone as django_timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
+from apps.base.auth import require_writer
 from apps.base.http import (
     CACHE_NO_CACHE, CACHE_NO_STORE, apply_cache_control,
     conditional_file_response,
@@ -204,6 +206,62 @@ def terreni_geojson(request: HttpRequest) -> HttpResponse:
     )
 
 
+INBOX_COLUMNS = [
+    'row_id', 'Ricevuto', 'Modalita', 'Operatore', 'Record', 'Stato',
+    'Pacchetto', 'Destinazione', 'Errore',
+]
+STATE_LABELS = {
+    IpsoUploadState.RECEIVED: 'Da importare',
+    IpsoUploadState.IMPORTED: 'Importato',
+    IpsoUploadState.REJECTED: 'Rifiutato',
+    IpsoUploadState.CONFLICT: 'Conflitto',
+}
+
+
+@login_required
+@require_GET
+def inbox_data(request: HttpRequest) -> JsonResponse:
+    uploads = IpsoUpload.objects.order_by('-received_at')
+    payload = {
+        'columns': INBOX_COLUMNS,
+        'rows': [_inbox_row(u) for u in uploads],
+        'pending_count': uploads.filter(state=IpsoUploadState.RECEIVED).count(),
+    }
+    return _api_json(payload)
+
+
+@login_required
+@require_GET
+def upload_detail(request: HttpRequest, upload_id: int) -> JsonResponse:
+    upload = _get_upload(upload_id)
+    payload, file_error = _read_staged_payload(upload)
+    session = payload.get('session', {}) if payload else {}
+    records = payload.get('records', []) if payload else []
+    return _api_json({
+        'upload': _upload_metadata(upload),
+        'session': session,
+        'records': _preview_records(records),
+        'record_count': len(records),
+        'file_error': file_error,
+    })
+
+
+@login_required
+@require_writer
+@require_POST
+def reject_upload(request: HttpRequest, upload_id: int) -> JsonResponse:
+    upload = _get_upload(upload_id)
+    if upload.state == IpsoUploadState.IMPORTED:
+        return _api_json({
+            'ok': False,
+            'message': 'Un caricamento importato non puo essere rifiutato.',
+        }, status=400)
+    upload.state = IpsoUploadState.REJECTED
+    upload.error_summary = _reject_reason(request)
+    upload.save(update_fields=['state', 'error_summary'])
+    return _api_json({'ok': True, 'upload': _upload_metadata(upload)})
+
+
 @csrf_exempt
 @require_POST
 def upload_session(request: HttpRequest) -> JsonResponse:
@@ -258,6 +316,120 @@ def upload_session(request: HttpRequest) -> JsonResponse:
         'stored_as': upload.inbox_path,
         'duplicate': False,
     })
+
+
+
+def _get_upload(upload_id: int) -> IpsoUpload:
+    try:
+        return IpsoUpload.objects.get(id=upload_id)
+    except IpsoUpload.DoesNotExist as e:
+        raise Http404 from e
+
+
+def _inbox_row(upload: IpsoUpload) -> list:
+    return [
+        upload.id,
+        _format_dt(upload.received_at),
+        upload.mode,
+        upload.operator,
+        upload.record_count,
+        STATE_LABELS.get(upload.state, upload.state),
+        upload.work_package_id,
+        _target_label(upload),
+        upload.error_summary,
+    ]
+
+
+def _upload_metadata(upload: IpsoUpload) -> dict:
+    return {
+        'id': upload.id,
+        'session_id': upload.session_id,
+        'mode': upload.mode,
+        'schema_version': upload.schema_version,
+        'reference_version': upload.reference_version,
+        'work_package_id': upload.work_package_id,
+        'operator': upload.operator,
+        'record_count': upload.record_count,
+        'checksum': upload.checksum,
+        'state': upload.state,
+        'state_label': STATE_LABELS.get(upload.state, upload.state),
+        'received_at': _format_dt(upload.received_at),
+        'imported_at': _format_dt(upload.imported_at),
+        'target_type': upload.target_type,
+        'target_id': upload.target_id,
+        'target_label': _target_label(upload),
+        'error_summary': upload.error_summary,
+    }
+
+
+def _target_label(upload: IpsoUpload) -> str:
+    if upload.target_type and upload.target_id:
+        return f'{upload.target_type}:{upload.target_id}'
+    return ''
+
+
+def _format_dt(value) -> str:
+    if not value:
+        return ''
+    return value.astimezone(timezone.utc).strftime('%Y-%m-%d %H:%M')
+
+
+def _read_staged_payload(upload: IpsoUpload) -> tuple[dict, str]:
+    path = Path(upload.inbox_path) / 'upload.json'
+    try:
+        return json.loads(path.read_text(encoding='utf-8')), ''
+    except FileNotFoundError:
+        return {}, 'File upload.json non trovato.'
+    except json.JSONDecodeError:
+        return {}, 'File upload.json non valido.'
+
+
+def _preview_records(records: list) -> list[dict]:
+    if not isinstance(records, list):
+        return []
+    species_ids = {
+        r.get('species_id') for r in records
+        if isinstance(r, dict) and type(r.get('species_id')) is int
+    }
+    parcel_ids = {
+        r.get('parcel_id') for r in records
+        if isinstance(r, dict) and type(r.get('parcel_id')) is int
+    }
+    species = {
+        sp.id: sp.common_name
+        for sp in Species.objects.filter(id__in=species_ids)
+    }
+    parcels = {
+        p.id: f'{p.region.name} {p.name}'
+        for p in Parcel.objects.filter(id__in=parcel_ids).select_related('region')
+    }
+    out = []
+    for i, row in enumerate(records[:500], start=1):
+        if not isinstance(row, dict):
+            continue
+        out.append({
+            'seq': row.get('client_record_id') or str(i),
+            'date': row.get('date', ''),
+            'parcel': parcels.get(row.get('parcel_id'), str(row.get('parcel_id', ''))),
+            'species': species.get(row.get('species_id'), str(row.get('species_id', ''))),
+            'number': row.get('number'),
+            'd_cm': row.get('d_cm'),
+            'h_m': row.get('h_m'),
+            'h_measured': bool(row.get('h_measured')),
+            'lat': row.get('lat'),
+            'lon': row.get('lon'),
+            'acc_m': row.get('acc_m'),
+        })
+    return out
+
+
+def _reject_reason(request: HttpRequest) -> str:
+    try:
+        body = json.loads(request.body.decode('utf-8') or '{}')
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        body = {}
+    reason = body.get('reason', '') if isinstance(body, dict) else ''
+    return reason.strip() or 'Rifiutato in revisione Abies.'
 
 
 def _upload_authorized(request: HttpRequest) -> bool:

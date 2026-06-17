@@ -96,6 +96,19 @@ body {
 .tab:hover { background: var(--color-bosco-green-muted); }
 .tab.active { background: var(--color-bosco-green); color: #fff; }
 
+.tab-with-alert { position: relative; }
+.nav-alert-dot {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #c62828;
+  box-shadow: 0 0 0 2px #fff;
+}
+.mobile-tab .nav-alert-dot { top: 12px; right: 12px; }
+
 .header-right {
   margin-left: auto;
   display: flex;

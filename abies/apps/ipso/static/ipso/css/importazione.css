@@ -1,0 +1,105 @@
+.ipso-inbox-page {
+  width: 100%;
+}
+
+.ipso-inbox-header {
+  align-items: baseline;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  margin: 0 0 12px;
+}
+
+.ipso-inbox-header h1 {
+  font-size: 24px;
+  line-height: 1.2;
+  margin: 0;
+}
+
+.ipso-inbox-summary {
+  color: #666;
+  font-size: 14px;
+}
+
+.ipso-upload-detail {
+  border-top: 1px solid #ddd;
+  margin-top: 18px;
+  padding-top: 16px;
+}
+
+.ipso-detail-header {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.ipso-detail-header h2 {
+  font-size: 20px;
+  margin: 0;
+}
+
+.ipso-detail-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.ipso-meta-grid {
+  display: grid;
+  gap: 6px 18px;
+  grid-template-columns: max-content minmax(0, 1fr);
+  margin: 0 0 16px;
+}
+
+.ipso-meta-grid dt {
+  color: #666;
+  font-weight: 700;
+}
+
+.ipso-meta-grid dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.ipso-upload-detail h3 {
+  font-size: 16px;
+  margin: 16px 0 8px;
+}
+
+.ipso-record-preview {
+  max-height: 420px;
+  overflow: auto;
+}
+
+.ipso-preview-table {
+  border-collapse: collapse;
+  min-width: 900px;
+  width: 100%;
+}
+
+.ipso-preview-table th,
+.ipso-preview-table td {
+  border-bottom: 1px solid #ddd;
+  padding: 6px 8px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.ipso-preview-table th {
+  background: var(--color-neutral-action);
+  font-weight: 700;
+}
+
+.ipso-loading,
+.ipso-preview-table .empty {
+  color: #666;
+}
+
+@media (max-width: 700px) {
+  .ipso-inbox-header,
+  .ipso-detail-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
