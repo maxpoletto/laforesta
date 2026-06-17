@@ -1228,9 +1228,10 @@ def _rematerialize_volume_marked(item_id: int) -> None:
     total = (TreeMark.objects
              .filter(harvest_plan_item_id=item_id)
              .aggregate(s=Sum('volume_m3'))['s'])
-    HarvestPlanItem.objects.filter(id=item_id).update(
-        volume_marked_m3=total,
-    )
+    item = HarvestPlanItem.objects.select_for_update().filter(id=item_id).first()
+    if item is not None and item.volume_marked_m3 != total:
+        item.volume_marked_m3 = total
+        item.save(update_fields=['volume_marked_m3'])
 
 
 def _next_mark_number(item_id: int) -> int:

@@ -426,8 +426,8 @@ documented in [`hypsometry.md`](hypsometry.md).
   - `n` is the sample count for this fit; `r2` the coefficient of
     determination (diagnostic display, not used in the D→h mapping).
   - Immutable once written: a set is created whole and never edited row by
-    row, so these rows carry no per-row history — the retained set is the
-    record.
+    row.  Rows carry django-simple-history entries so Controllo records the
+    actual coefficients created by compute/import.
 
 - params_surveys: many-to-many (`hypso_param_set` ↔ `survey`)
   - Provenance: the surveys whose samples fed a computed set (empty for

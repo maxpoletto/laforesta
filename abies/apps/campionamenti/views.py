@@ -1345,19 +1345,17 @@ def grid_save_auto_view(request):
         # Number areas per compresa (region), restarting at 1 in each, so
         # auto-generated numbers are unique per compresa like manual ones.
         per_region_count: dict[int, int] = {}
-        areas = []
         for pt, parcel in resolved:
             n = per_region_count.get(parcel.region_id, 0) + 1
             per_region_count[parcel.region_id] = n
-            areas.append(SampleArea(
+            SampleArea.objects.create(
                 sample_grid=grid,
                 parcel=parcel,
                 number=str(n),
                 lat=pt[FIELD_LAT], lon=pt[FIELD_LON],
                 r_m=r_m,
                 note='',
-            ))
-        SampleArea.objects.bulk_create(areas)
+            )
         mark_stale('grids', 'sample_areas', 'audit')
 
     area_qs = SampleArea.objects.filter(sample_grid=grid) \

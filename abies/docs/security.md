@@ -58,6 +58,9 @@ use `textContent`, never `innerHTML`, to prevent XSS.
 
 ## Auditing
 
-The app records all writes using django-simple-history.
+The app records audited domain writes using django-simple-history.
+High-volume tree observation rows and selected child/junction tables are
+excluded from history by design; see `docs/page-controllo.md` for the
+coverage contract.
 
 The audit log is readable and searchable by all users.

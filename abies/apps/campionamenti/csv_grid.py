@@ -141,15 +141,13 @@ def apply(grid, parsed) -> None:
     Wrapped in a transaction so a mid-batch failure leaves no partial rows.
     """
     with transaction.atomic():
-        SampleArea.objects.bulk_create([
-            SampleArea(
+        for r in parsed:
+            SampleArea.objects.create(
                 sample_grid=grid,
                 parcel=r[FIELD_PARCEL], number=r[FIELD_NUMBER],
                 lat=r[FIELD_LAT], lon=r[FIELD_LON],
                 altitude_m=r[FIELD_ALTITUDE], r_m=r[FIELD_R_M], note=r[FIELD_NOTE],
             )
-            for r in parsed
-        ])
         # Surveys digest carries N. aree totali per grid → stale when we add
         # areas to a grid that has surveys.
         mark_stale('grids', 'sample_areas', 'surveys', 'audit')

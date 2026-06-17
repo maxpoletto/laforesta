@@ -313,8 +313,8 @@ def apply(parsed: list) -> int:
     HarvestTractor children.  Returns the number of Harvests created.
     """
     with transaction.atomic():
-        harvests = Harvest.objects.bulk_create([
-            Harvest(
+        harvests = [
+            Harvest.objects.create(
                 date=r['date'],
                 product=r['product'],
                 parcel=r['parcel'],
@@ -330,7 +330,7 @@ def apply(parsed: list) -> int:
                 note=r['note'],
             )
             for r in parsed
-        ])
+        ]
 
         species_rows = []
         tractor_rows = []

@@ -670,7 +670,8 @@ class HypsoParam(TimestampedModel):
     """One (region, species) regression within a HypsoParamSet.
 
     Immutable once written: a set is created whole and never edited row by
-    row, so it keeps no per-row history — the archived set is the record.
+    row.  Rows are still history-tracked so Controllo shows the actual
+    coefficients created by each set replacement.
     """
     param_set = models.ForeignKey(
         HypsoParamSet, on_delete=models.CASCADE, related_name='params')
@@ -681,6 +682,7 @@ class HypsoParam(TimestampedModel):
     b = models.DecimalField(max_digits=10, decimal_places=4)
     r2 = models.DecimalField(max_digits=6, decimal_places=4)
     n = models.IntegerField()
+    history = HistoricalRecords()
 
     class Meta:
         verbose_name = S.HYPSO_PARAM

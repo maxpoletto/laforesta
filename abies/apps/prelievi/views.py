@@ -223,9 +223,10 @@ def _rematerialize_volume_actual(item_id: int) -> None:
     total = (Harvest.objects
              .filter(harvest_plan_item_id=item_id)
              .aggregate(s=Sum('volume_m3'))['s']) or 0
-    HarvestPlanItem.objects.filter(id=item_id).update(
-        volume_actual_m3=total,
-    )
+    item = HarvestPlanItem.objects.select_for_update().filter(id=item_id).first()
+    if item is not None and item.volume_actual_m3 != total:
+        item.volume_actual_m3 = total
+        item.save(update_fields=['volume_actual_m3'])
 
 
 def _open_cantieri():

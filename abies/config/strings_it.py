@@ -109,6 +109,7 @@ TABLE_SAMPLE_AREA = 'Area di saggio'
 TABLE_SURVEY = 'Rilevamento'
 TABLE_SAMPLE = 'Campione'
 TABLE_HYPSO_PARAM_SET = 'Parametri ipsometrici'
+TABLE_HYPSO_PARAM = 'Parametro ipsometrico'
 TABLE_MANNESI_LICENSE_PLATE = 'Targa autocarro'
 TABLE_MANNESI_LICENSE_PLATES = 'Targhe autocarri'
 TABLE_MANNESI_HOURS = 'Ore mannesi'
@@ -638,9 +639,10 @@ HYPSO_SOURCE_COMPUTED = 'calcolato'
 HYPSO_SOURCE_IMPORTED = 'importato'
 
 # Hypsometric-parameter-set audit field labels.
-COL_HYPSO_SOURCE   = 'Origine'
-COL_MIN_N          = 'N minimo'
-COL_SUPERSEDED_AT  = 'Sostituito il'
+COL_HYPSO_SOURCE          = 'Origine'
+COL_MIN_N                 = 'N minimo'
+COL_USE_FOR_HEIGHT_PLOTS  = 'Usa per grafici altezza/diametro'
+COL_SUPERSEDED_AT         = 'Sostituito il'
 
 # Harvest-plan-item state machine display labels.  Integer values are
 # encoded as HarvestPlanItemState in apps/base/models.py.

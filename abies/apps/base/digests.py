@@ -423,8 +423,8 @@ def _audit_configs() -> list:
     design.
     """
     from apps.base.models import (
-        Crew, HarvestPlan, HarvestPlanItem, HypsoParamSet, Parcel, Sample,
-        SampleArea, SampleGrid, Species, Survey, Tractor, User,
+        Crew, HarvestPlan, HarvestPlanItem, HypsoParam, HypsoParamSet, Parcel,
+        Sample, SampleArea, SampleGrid, Species, Survey, Tractor, User,
     )
     from apps.mannesi.models import LicensePlate, ProductionCredit, WorkHour
     from apps.prelievi.models import Harvest
@@ -504,7 +504,14 @@ def _audit_configs() -> list:
         }),
         (HypsoParamSet, S.TABLE_HYPSO_PARAM_SET, {
             'source': S.COL_HYPSO_SOURCE, 'min_n': S.COL_MIN_N,
+            'use_for_height_plots': S.COL_USE_FOR_HEIGHT_PLOTS,
             'superseded_at': S.COL_SUPERSEDED_AT,
+        }),
+        (HypsoParam, S.TABLE_HYPSO_PARAM, {
+            'param_set_id': S.TABLE_HYPSO_PARAM_SET,
+            'region_id': S.COL_REGION, 'species_id': S.COL_SPECIES,
+            'func': S.COL_FUNCTION, 'a': S.COL_A, 'b': S.COL_B,
+            'n': S.COL_N_REGRESSION, 'r2': S.COL_R2,
         }),
         (LicensePlate, S.TABLE_MANNESI_LICENSE_PLATE, {
             'value': S.LABEL_LICENSE_PLATE,

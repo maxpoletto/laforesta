@@ -214,20 +214,18 @@ def replace_active_set(
     from apps.base.models import HypsoParam, HypsoParamSet
 
     with transaction.atomic():
-        HypsoParamSet.objects.active().update(superseded_at=timezone.now())
+        _archive_active_sets(HypsoParamSet, timezone.now())
         new_set = HypsoParamSet.objects.create(
             source=source, min_n=min_n,
             use_for_height_plots=use_for_height_plots,
         )
         if survey_ids:
             new_set.surveys.set(list(survey_ids))
-        HypsoParam.objects.bulk_create([
-            HypsoParam(
+        for r in rows:
+            HypsoParam.objects.create(
                 param_set=new_set, region=r.region, species=r.species,
                 a=_dec(r.a), b=_dec(r.b), r2=_dec(r.r2), n=r.n,
             )
-            for r in rows
-        ])
     return new_set
 
 
@@ -236,9 +234,21 @@ def clear_active_set() -> bool:
 
     Returns True if a set was archived, False if there was none.
     """
+    from django.db import transaction
     from django.utils import timezone
 
     from apps.base.models import HypsoParamSet
 
-    archived = HypsoParamSet.objects.active().update(superseded_at=timezone.now())
+    with transaction.atomic():
+        archived = _archive_active_sets(HypsoParamSet, timezone.now())
     return archived > 0
+
+
+def _archive_active_sets(model, superseded_at) -> int:
+    archived = 0
+    for param_set in model.objects.active().select_for_update():
+        param_set.superseded_at = superseded_at
+        param_set.version += 1
+        param_set.save(update_fields=['superseded_at', 'version'])
+        archived += 1
+    return archived

@@ -3,12 +3,14 @@
 import gzip
 import json
 import math
-import pytest
 from decimal import Decimal
 from pathlib import Path
 
+import pytest
 from django.conf import settings
+from django.db import transaction
 
+from apps.base import hypsometry
 from apps.base.digests import (
     aggregate_sp_pcts, annual_increment_pct, basal_area_m2,
     build_harvest_record, diameter_class_cm, generate_future_production,
@@ -23,8 +25,11 @@ from apps.base.models import (
     HypsoParamSource, Parcel, Role, Sample, SampleArea, SampleGrid, Survey,
     Tree, TreeMark, TreePreserved, TreeSample, User,
 )
+from apps.campionamenti import csv_grid
 from apps.mannesi.models import LicensePlate, ProductionCredit, WorkHour
+from apps.prelievi import csv_harvests
 from apps.prelievi.models import Harvest, HarvestSpecies, HarvestTractor
+from apps.prelievi.views import _rematerialize_volume_actual
 from config import strings as S
 from config.constants import (
     COLUMNS, COL_COPPICE, COL_PARCEL_ID, COL_REGION_ID, COL_SPECIES_ID,
@@ -556,6 +561,119 @@ class TestGenerateAudit:
 
         plan_rows = [r for r in data[ROWS] if r[3] == S.TABLE_HARVEST_PLAN]
         assert any('Piano 2026' in (r[6] or '') for r in plan_rows)
+
+    def test_hypso_params_and_archive_updates_appear(
+        self, hypso_samples, settings, tmp_path,
+    ):
+        settings.DIGEST_DIR = tmp_path
+        rows = hypsometry.compute_params([hypso_samples['survey'].id], min_n=5)
+        hypsometry.replace_active_set(
+            rows, source=HypsoParamSource.COMPUTED, min_n=5,
+            survey_ids=[hypso_samples['survey'].id],
+            use_for_height_plots=True,
+        )
+        hypsometry.replace_active_set(
+            rows, source=HypsoParamSource.IMPORTED, min_n=None, survey_ids=[],
+        )
+
+        generate_audit()
+        with gzip.open(tmp_path / 'audit.json.gz', 'rt') as f:
+            data = json.load(f)
+
+        param_rows = [r for r in data[ROWS]
+                      if r[3] == S.TABLE_HYPSO_PARAM
+                      and r[4] == S.AUDIT_INSERT]
+        assert any(f'{S.COL_A}:' in (r[6] or '') and f'{S.COL_B}:' in (r[6] or '')
+                   for r in param_rows)
+
+        set_rows = [r for r in data[ROWS] if r[3] == S.TABLE_HYPSO_PARAM_SET]
+        assert any(S.COL_USE_FOR_HEIGHT_PLOTS in (r[6] or '') for r in set_rows)
+        assert any(r[4] == S.AUDIT_UPDATE
+                   and S.COL_SUPERSEDED_AT in (r[6] or '')
+                   for r in set_rows)
+
+    def test_prelievi_csv_import_harvests_appear_in_audit(
+        self, products, parcels, crews, species, settings, tmp_path,
+    ):
+        settings.DIGEST_DIR = tmp_path
+        csv_harvests.apply([{
+            'date': '2026-01-02',
+            'product': products[0],
+            'parcel': parcels[0],
+            'region': None,
+            'crew': crews[0],
+            'record1': 77,
+            'record2': None,
+            'mass_q': Decimal('12.50'),
+            'volume_m3': Decimal('2.500'),
+            'damaged': False,
+            'unhealthy': False,
+            'psr': False,
+            'note': 'import audit',
+            'species_pcts': [(species[0], 100)],
+            'tractor_pcts': [],
+        }])
+
+        generate_audit()
+        with gzip.open(tmp_path / 'audit.json.gz', 'rt') as f:
+            data = json.load(f)
+
+        harvest_rows = [r for r in data[ROWS]
+                        if r[3] == S.TABLE_HARVEST
+                        and r[4] == S.AUDIT_INSERT]
+        assert any('import audit' in (r[6] or '') for r in harvest_rows)
+
+    def test_grid_csv_import_sample_areas_appear_in_audit(
+        self, parcels, settings, tmp_path,
+    ):
+        settings.DIGEST_DIR = tmp_path
+        grid = SampleGrid.objects.create(name='Grid audit')
+        csv_grid.apply(grid, [{
+            'parcel': parcels[0],
+            'number': '42',
+            'lat': 38.12345,
+            'lon': 16.12345,
+            'altitude': 850,
+            'r_m': 12,
+            'note': '',
+        }])
+
+        generate_audit()
+        with gzip.open(tmp_path / 'audit.json.gz', 'rt') as f:
+            data = json.load(f)
+
+        area_rows = [r for r in data[ROWS]
+                     if r[3] == S.TABLE_SAMPLE_AREA
+                     and r[4] == S.AUDIT_INSERT]
+        assert any(f'{S.COL_NUMBER}: 42' in (r[6] or '') for r in area_rows)
+
+    def test_materialized_plan_item_volume_updates_appear_in_audit(
+        self, products, parcels, crews, settings, tmp_path,
+    ):
+        settings.DIGEST_DIR = tmp_path
+        plan = HarvestPlan.objects.create(
+            name='Piano volumi audit', year_start=2026, year_end=2026,
+        )
+        item = HarvestPlanItem.objects.create(
+            harvest_plan=plan, parcel=parcels[0], year_planned=2026,
+        )
+        Harvest.objects.create(
+            date='2026-01-03', product=products[0], parcel=parcels[0],
+            crew=crews[0], harvest_plan_item=item, mass_q=Decimal('10.00'),
+            volume_m3=Decimal('1.250'),
+        )
+
+        with transaction.atomic():
+            _rematerialize_volume_actual(item.id)
+
+        generate_audit()
+        with gzip.open(tmp_path / 'audit.json.gz', 'rt') as f:
+            data = json.load(f)
+
+        item_rows = [r for r in data[ROWS]
+                     if r[3] == S.TABLE_HARVEST_PLAN_ITEM
+                     and r[4] == S.AUDIT_UPDATE]
+        assert any(S.COL_VOLUME_ACTUAL in (r[6] or '') for r in item_rows)
 
 
 # ---------------------------------------------------------------------------
