@@ -234,13 +234,8 @@ _NOTE_FLAG_MAP = {
 
 # Map piante-accrescimento-indefinito.csv ``Genere`` → canonical Species.common_name.
 # Only entries that do NOT already match canonical common_name case-insensitively.
-# Unmappable species (Betulla, Farnia, Noce, Pioppo) collapse to 'Altro'.
 _PAI_SPECIES_MAP = {
     'Abete Bianco':   'Abete',     # Abies alba = canonical 'Abete'
-    'Betulla Bianca': 'Altro',
-    'Farnia':         'Altro',     # Quercus robur — not in canonical set
-    'Noce':           'Altro',
-    'Pioppo Tremulo': 'Altro',
 }
 
 

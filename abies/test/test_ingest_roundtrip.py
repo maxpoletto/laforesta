@@ -19,7 +19,7 @@ from django.core.management.base import CommandError
 
 from ingest.convert_laforesta import (
     COL_PARCEL, OUT_HARVESTS, OUT_HARVEST_PLAN_ITEMS, OUT_PRESERVED,
-    OUT_REGIONS, OUT_SAMPLED_TREES, OUT_SURVEYS, OUT_TRACTORS,
+    OUT_REGIONS, OUT_SAMPLED_TREES, OUT_SPECIES, OUT_SURVEYS, OUT_TRACTORS,
     SRC_HARVESTS, main,
 )
 
@@ -28,6 +28,12 @@ _DEFAULT_LEGACY_DIR = Path(__file__).resolve().parents[2] / 'abies-data'
 LEGACY_DIR = Path(os.environ.get('ABIES_LEGACY_DATA', _DEFAULT_LEGACY_DIR))
 
 EXPECTED_TRACTORS = 5
+EXPECTED_PAI_MINOR_SPECIES = {
+    'Betulla Bianca',
+    'Farnia',
+    'Noce',
+    'Pioppo Tremulo',
+}
 
 pytestmark = pytest.mark.skipif(
     not LEGACY_DIR.is_dir(),
@@ -99,6 +105,12 @@ def test_sanity_counts(converted):
     tractor_rows = _rows(out_dir / OUT_TRACTORS)
     assert len(tractor_rows) == EXPECTED_TRACTORS
 
+    # PAI-only species are canonical minor species, not squashed into Altro.
+    species_rows = _rows(out_dir / OUT_SPECIES)
+    species_by_name = {r['Genere']: r for r in species_rows}
+    for name in EXPECTED_PAI_MINOR_SPECIES:
+        assert species_by_name[name]['Minore'] == 'true'
+
     # Harvests: one canonical row for each current legacy mannesi.csv row.
     harvest_rows = _rows(out_dir / OUT_HARVESTS)
     assert len(harvest_rows) == counts[OUT_HARVESTS]
@@ -115,6 +127,9 @@ def test_sanity_counts(converted):
     preserved_rows = _rows(out_dir / OUT_PRESERVED)
     assert len(preserved_rows) > 0
     assert len(preserved_rows) == counts[OUT_PRESERVED]
+    preserved_species = {r['Genere'] for r in preserved_rows}
+    assert 'Altro' not in preserved_species
+    assert EXPECTED_PAI_MINOR_SPECIES <= preserved_species
 
 
 @pytest.mark.django_db

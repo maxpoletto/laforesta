@@ -5,16 +5,20 @@ Castagno,Castanea sativa,30,9.20,false,2.00
 Douglas,Pseudotsuga menziesii,40,8.50,false,2.00
 Faggio,Fagus sylvatica,50,10.50,false,2.00
 Acero,Acer pseudoplatanus,60,9.50,true,2.00
+Betulla Bianca,Betula pendula,65,9.00,true,2.00
 Carpino,Carpinus betulus,70,10.50,true,2.00
 Cerro,Quercus cerris,80,11.00,true,2.00
+Farnia,Quercus robur,85,10.50,true,2.00
 Ciliegio,Prunus avium,90,9.50,true,2.00
 Larice,Larix decidua,100,8.50,true,2.00
 Leccio,Quercus ilex,110,11.50,true,2.00
 Ontano,Alnus cordata,120,8.50,false,2.00
+Noce,Juglans regia,125,9.00,true,2.00
 Pino Laricio,Pinus nigra laricio,130,9.20,false,2.00
 Pino Marittimo,Pinus pinaster,140,9.50,true,2.00
 Pino Nero,Pinus nigra,150,9.20,true,2.00
 Pino Strobo,Pinus strobus,155,7.50,true,2.00
+Pioppo Tremulo,Populus tremula,158,7.50,true,2.00
 Quercia Roverella,Quercus pubescens,160,10.50,true,2.00
 Robinia,Robinia pseudoacacia,165,10.50,true,2.00
 Sorbo,Sorbus domestica,170,10.50,true,2.00

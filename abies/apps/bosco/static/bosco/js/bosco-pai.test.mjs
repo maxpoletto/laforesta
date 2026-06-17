@@ -82,6 +82,16 @@ assertEqual(parcels, [
 const species = P.paiSpeciesItems(P.filterPaiTrees(trees, { region: 'Capistrano' }));
 assertEqual(species, [{ id: 5, name: 'Abete', count: 2 }, { id: 6, name: 'Faggio', count: 1 }],
             'paiSpeciesItems: sorted counts');
+const speciesWithOther = P.paiSpeciesItems([
+  { speciesId: 999, species: S.CHART_OTHER },
+  { speciesId: 8, species: 'Acero' },
+  { speciesId: 5, species: 'Abete' },
+]);
+assertEqual(speciesWithOther, [
+  { id: 5, name: 'Abete', count: 1 },
+  { id: 8, name: 'Acero', count: 1 },
+  { id: 999, name: S.CHART_OTHER, count: 1 },
+], 'paiSpeciesItems: literal Altro sorted last');
 const colors = P.speciesColorMap(species, ['Abete', 'Castagno', 'Faggio']);
 assertEqual([colors.get(5), colors.get(6)], ['#2e7d32', '#144b99'],
             'speciesColorMap: stable full-universe palette');

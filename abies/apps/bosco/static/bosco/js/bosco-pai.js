@@ -50,7 +50,7 @@ export function paiSpeciesItems(trees) {
     item.count += 1;
     byId.set(tree.speciesId, item);
   }
-  return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name, S.LOCALE));
+  return [...byId.values()].sort(compareSpeciesNames);
 }
 
 export function speciesColorMap(speciesItems, allSpeciesNames = []) {
@@ -69,4 +69,11 @@ function countBy(items, keyFn) {
     out.set(key, (out.get(key) || 0) + 1);
   }
   return out;
+}
+
+function compareSpeciesNames(a, b) {
+  const aOther = a.name === S.CHART_OTHER;
+  const bOther = b.name === S.CHART_OTHER;
+  if (aOther !== bOther) return aOther ? 1 : -1;
+  return a.name.localeCompare(b.name, S.LOCALE);
 }
