@@ -11,7 +11,8 @@ from django.urls import reverse
 
 from apps.base.models import (
     HYPSO_FUNC_LN, HarvestPlan, HarvestPlanItem, HarvestPlanItemState,
-    HypsoParam, HypsoParamSet, HypsoParamSource, TreeMark,
+    HypsoParam, HypsoParamSet, HypsoParamSource, SampleArea, SampleGrid,
+    Survey, TreeMark,
 )
 from apps.ipso.models import IpsoUpload, IpsoUploadState
 
@@ -78,6 +79,14 @@ def test_manifest_is_served(db):
 
 
 def test_reference_json_comes_from_abies_data(db, regions, parcels, species):
+    grid = SampleGrid.objects.create(name='Ipso grid')
+    area = SampleArea.objects.create(
+        sample_grid=grid, parcel=parcels[0], number='3',
+        lat=38.51234, lon=16.12345, r_m=15,
+    )
+    survey = Survey.objects.create(
+        name='Ipso survey', sample_grid=grid, active=True,
+    )
     active = HypsoParamSet.objects.create(source=HypsoParamSource.IMPORTED)
     HypsoParam.objects.create(
         param_set=active, region=regions[0], species=species[0],
@@ -99,6 +108,31 @@ def test_reference_json_comes_from_abies_data(db, regions, parcels, species):
     assert data['ipsometrica']['Capistrano']['Abete'] == {
         'a': 7.0, 'b': -4.0, 'hypso_param_set_id': active.id,
     }
+    assert data['work_packages'] == [{
+        'id': f'sampling_survey:{survey.id}',
+        'kind': 'sampling_survey',
+        'label': 'Ipso survey',
+        'survey_id': survey.id,
+        'sample_grid_id': grid.id,
+    }]
+    assert data['sampling']['surveys'] == [{
+        'survey_id': survey.id,
+        'name': 'Ipso survey',
+        'sample_grid_id': grid.id,
+        'sample_grid_name': 'Ipso grid',
+    }]
+    assert data['sampling']['sample_areas'] == [{
+        'sample_area_id': area.id,
+        'sample_grid_id': grid.id,
+        'region_id': parcels[0].region_id,
+        'parcel_id': parcels[0].id,
+        'compresa': 'Capistrano',
+        'particella': '1',
+        'number': '3',
+        'lat': 38.51234,
+        'lon': 16.12345,
+        'r_m': 15,
+    }]
 
 
 def test_terreni_geojson_has_empty_fallback(db):

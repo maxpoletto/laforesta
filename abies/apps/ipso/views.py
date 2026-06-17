@@ -27,7 +27,7 @@ from apps.base.http import (
 )
 from apps.base.models import (
     HYPSO_FUNC_LN, HarvestPlanItem, HarvestPlanItemState, HypsoParam,
-    HypsoParamSet, Parcel, Species,
+    HypsoParamSet, Parcel, SampleArea, Species, Survey,
 )
 from apps.ipso.models import IpsoUpload, IpsoUploadState
 from apps.piano_di_taglio.mark_import import (
@@ -144,6 +144,7 @@ def reference_json(request: HttpRequest) -> HttpResponse:
     (`common`, `compresa`, `particella`) while the integrated upload path uses
     the added canonical Abies IDs (`id`, `region_id`, `parcel_id`).
     """
+    sampling = _sampling_context()
     payload = {
         'schema_version': SCHEMA_VERSION,
         'generated_at': django_timezone.now().astimezone(timezone.utc)
@@ -151,6 +152,8 @@ def reference_json(request: HttpRequest) -> HttpResponse:
         'species': _species_rows(),
         'parcels': _parcel_rows(),
         'ipsometrica': _ipsometrica(),
+        'sampling': sampling,
+        'work_packages': _work_packages(sampling),
     }
     payload['reference_version'] = _reference_version(payload)
     return _json_response(payload, content_type='application/json')
@@ -186,6 +189,66 @@ def _parcel_rows() -> list[dict]:
     return rows
 
 
+def _sampling_context() -> dict:
+    surveys = list(
+        Survey.objects
+        .filter(active=True)
+        .select_related('sample_grid')
+        .order_by('name', 'id')
+    )
+    grid_ids = {s.sample_grid_id for s in surveys}
+    areas = []
+    if grid_ids:
+        areas = list(
+            SampleArea.objects
+            .filter(sample_grid_id__in=grid_ids)
+            .select_related('sample_grid', 'parcel__region')
+        )
+        areas.sort(key=lambda a: (
+            a.sample_grid.name, a.parcel.region.name,
+            _natural_key(a.parcel.name), _natural_key(a.number), a.id,
+        ))
+    return {
+        'surveys': [
+            {
+                'survey_id': s.id,
+                'name': s.name,
+                'sample_grid_id': s.sample_grid_id,
+                'sample_grid_name': s.sample_grid.name,
+            }
+            for s in surveys
+        ],
+        'sample_areas': [
+            {
+                'sample_area_id': a.id,
+                'sample_grid_id': a.sample_grid_id,
+                'region_id': a.parcel.region_id,
+                'parcel_id': a.parcel_id,
+                'compresa': a.parcel.region.name,
+                'particella': a.parcel.name,
+                'number': a.number,
+                'lat': a.lat,
+                'lon': a.lon,
+                'r_m': a.r_m,
+            }
+            for a in areas
+        ],
+    }
+
+
+def _work_packages(sampling: dict) -> list[dict]:
+    return [
+        {
+            'id': f"sampling_survey:{s['survey_id']}",
+            'kind': 'sampling_survey',
+            'label': s['name'],
+            'survey_id': s['survey_id'],
+            'sample_grid_id': s['sample_grid_id'],
+        }
+        for s in sampling['surveys']
+    ]
+
+
 def _ipsometrica() -> dict:
     active = HypsoParamSet.objects.active().first()
     if active is None:
@@ -209,6 +272,8 @@ def _reference_version(payload: dict) -> str:
         'species': payload['species'],
         'parcels': payload['parcels'],
         'ipsometrica': payload['ipsometrica'],
+        'sampling': payload['sampling'],
+        'work_packages': payload['work_packages'],
     }, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
     return hashlib.sha256(raw.encode('utf-8')).hexdigest()[:20]
 
