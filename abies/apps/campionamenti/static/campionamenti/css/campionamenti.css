@@ -14,6 +14,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
 }
 
 .campionamenti-pulldown-label {
@@ -21,6 +22,7 @@
 }
 
 .campionamenti-pulldown {
+  min-width: 0;
   font-size: 14px;
   padding: 4px 8px;
   border: 1px solid #888;
@@ -44,6 +46,7 @@
   color: #555;
   font-size: 0.9em;
   font-weight: 400;
+  overflow-wrap: anywhere;
 }
 
 .campionamenti-map-host {
@@ -257,4 +260,45 @@
   font-size: 0.9em;
   color: #333;
   margin: 4px 0;
+}
+
+@media (max-width: 700px) {
+  .collapsible-header [data-field="title"] {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .campionamenti-section-top {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .campionamenti-section-left,
+  .campionamenti-section-right {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .campionamenti-section-right { justify-content: flex-start; }
+
+  .campionamenti-section-left .campionamenti-pulldown {
+    flex: 1 1 180px;
+    width: auto;
+    max-width: 100%;
+  }
+
+  .campionamenti-header-summary {
+    display: block;
+    margin-left: 0;
+    margin-top: 2px;
+    line-height: 1.25;
+  }
+
+  .table-toolbar { flex-wrap: wrap; }
+
+  .table-search {
+    flex: 1 1 180px;
+    width: auto;
+    max-width: 100%;
+  }
 }
