@@ -179,12 +179,19 @@ def test_pai_form_requires_writer(reader_client, regions):
 
 
 def test_pai_form_writer_access(writer_client, regions, parcels, species):
-    resp = writer_client.get(f'/api/bosco/pai/form/?region_id={regions[0].id}')
+    resp = writer_client.get(
+        f'/api/bosco/pai/form/?region_id={regions[0].id}'
+        f'&{FIELD_PARCEL_ID}={parcels[0].id}'
+        f'&{FIELD_LAT}=38.12345&{FIELD_LON}=16.12345',
+    )
 
     assert resp.status_code == 200
     html = resp.json()[HTML]
     assert 'id="bosco-pai-form"' in html
     assert 'Capistrano 1' in html
+    assert f'value="{parcels[0].id}" data-region="{regions[0].id}"\n            selected' in html
+    assert 'id="id_pai_lat" name="lat"\n               required value="38.12345"' in html
+    assert 'id="id_pai_lon" name="lon"\n               required value="16.12345"' in html
 
 
 def test_pai_save_creates_preserved_tree(writer_client, parcels, species):
@@ -222,6 +229,33 @@ def test_pai_save_creates_preserved_tree(writer_client, parcels, species):
     assert patch[ROW_ID] == pai.id
     assert patch[RECORD] == build_preserved_tree_record(pai)
     assert len(patch[RECORD]) == len(PRESERVED_TREE_COLUMNS)
+
+
+def test_pai_save_defaults_blank_number_to_next_in_parcel(writer_client, parcels, species):
+    tree = Tree.objects.create(
+        species=species[0], parcel=parcels[0], preserved=True,
+        lat=38.1, lon=16.1,
+    )
+    TreePreserved.objects.create(
+        tree=tree, parcel=parcels[0], number=7, lat=38.1, lon=16.1,
+    )
+    body = {
+        FIELD_SPECIES_ID: str(species[1].id),
+        FIELD_PARCEL_ID: str(parcels[0].id),
+        FIELD_NUMBER: '',
+        FIELD_LAT: '38.2',
+        FIELD_LON: '16.2',
+        FIELD_NONCE: 'pai-default-number',
+    }
+
+    resp = writer_client.post('/api/bosco/pai/save/', body,
+                              content_type='application/json')
+
+    assert resp.status_code == 200
+    pai = TreePreserved.objects.get(number=8)
+    assert pai.parcel == parcels[0]
+    data = resp.json()
+    assert data[PATCHES][0][RECORD] == build_preserved_tree_record(pai)
 
 
 def test_pai_save_rejects_duplicate_number_in_parcel(writer_client, parcels, species):

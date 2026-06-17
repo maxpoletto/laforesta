@@ -87,6 +87,7 @@ export const FIELD_R_M                   = 'r_m';
 export const FIELD_AREA                  = 'area';
 export const FIELD_PARCEL                = 'parcel';
 export const FIELD_PARCEL_ID             = 'parcel_id';
+export const FIELD_REGION_ID             = 'region_id';
 export const FIELD_COMPRESA              = 'compresa';
 export const FIELD_PARTICELLA            = 'particella';
 export const FIELD_SPECIES               = 'species';

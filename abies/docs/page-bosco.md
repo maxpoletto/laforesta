@@ -38,16 +38,19 @@ hosts (top to bottom):
   (Fustaia or Ceduo) and area (e.g., "Fustaia 24,3 ha", "Ceduo 7,9 ha").
   Uses same mechanism as Campionamenti maps. No additional details are shown;
   the goal is fast orientation while sweeping.
-- **Click** on a parcel: opens the **per-parcel page** as a full-screen overlay
-  above the map (see "Per-parcel page" below). Closing the overlay restores the
-  map exactly as it was.
-- **Click** on empty map space (no parcel underneath): opens the **per-region
-  page** for the currently selected region (the same layout as the per-parcel
-  page, scoped one level up — see below). This is the only entry point to the
-  per-region view, so the gesture is documented unobtrusively in the sidebar
-  (small-print hint under the region pulldown: "Clicca su una particella per
-  vederne i dettagli, o fuori dalle particelle per il riepilogo della
-  compresa").
+- In Caratteristiche and Evoluzione, **click** on a parcel opens the
+  **per-parcel page** as a full-screen overlay above the map (see "Per-parcel
+  page" below). Closing the overlay restores the map exactly as it was.
+- In Caratteristiche and Evoluzione, **click** on empty map space (no parcel
+  underneath) opens the **per-region page** for the currently selected region
+  (the same layout as the per-parcel page, scoped one level up — see below).
+  This is the only entry point to the per-region view, so the gesture is
+  documented unobtrusively in the sidebar (small-print hint under the region
+  pulldown: "Clicca su una particella per vederne i dettagli, o fuori dalle
+  particelle per il riepilogo della compresa").
+- In PAI mode, **click** on the map prompts writers to insert a new preserved
+  tree at that coordinate; confirming opens the PAI add form with lat/lon
+  prefilled, and with the parcel preselected when the click was inside one.
 
 ### Mode panels
 

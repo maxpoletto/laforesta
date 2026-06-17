@@ -6,7 +6,8 @@ import * as cache from '../../base/js/cache.js';
 import * as S from '../../base/js/strings.js';
 import {
   COLUMNS, COL_REGION_ID, DIGEST_FUTURE_PRODUCTION, DIGEST_PARCELS, DIGEST_PARCEL_DENDROMETRY,
-  DIGEST_PARCEL_DENDROMETRY_POINTS, DIGEST_PRESERVED_TREES, FIELD_SPECIES, M2_PER_HA, ROWS,
+  DIGEST_PARCEL_DENDROMETRY_POINTS, DIGEST_PRESERVED_TREES, FIELD_LAT, FIELD_LON,
+  FIELD_PARCEL_ID, FIELD_REGION_ID, FIELD_SPECIES, M2_PER_HA, ROWS,
 } from '../../base/js/constants.js';
 import { fetchJSON } from '../../base/js/api.js';
 import {
@@ -26,7 +27,9 @@ import {
 import { mountUseLocationButton } from '../../base/js/latlng-input.js';
 import { dismiss as dismissModal } from '../../base/js/modals.js';
 import { canModify } from '../../base/js/roles.js';
-import { wireCancelButtons, wireCollapsibleToggle } from '../../base/js/ui-widgets.js';
+import {
+  showConfirmModal, wireCancelButtons, wireCollapsibleToggle,
+} from '../../base/js/ui-widgets.js';
 import {
   BOSCO_MODES, MODE_CHARACTERISTICS, MODE_EVOLUTION, MODE_PAI, clearDetailParams,
   clearMapView, harvestPerHaAllowed, mapTypeToken, readBoscoParams,
@@ -1734,16 +1737,19 @@ function renderPaiMode() {
   renderPaiMarkers(trees, colors);
 }
 
-async function showPaiForm(rowId = null) {
-  const url = rowId ? `${PAI_FORM_URL}${rowId}/` : paiAddFormUrl();
+async function showPaiForm(rowId = null, defaults = {}) {
+  const url = rowId ? `${PAI_FORM_URL}${rowId}/` : paiAddFormUrl(defaults);
   const form = await fetchModalForm(url);
   if (!form) return;
   wirePaiForm(form);
 }
 
-function paiAddFormUrl() {
+function paiAddFormUrl(defaults = {}) {
   const params = new URLSearchParams();
-  if (currentState?.regionId) params.set('region_id', String(currentState.regionId));
+  if (currentState?.regionId) params.set(FIELD_REGION_ID, String(currentState.regionId));
+  if (defaults.parcelId != null) params.set(FIELD_PARCEL_ID, String(defaults.parcelId));
+  if (defaults.lat != null) params.set(FIELD_LAT, fmtCoord(defaults.lat));
+  if (defaults.lon != null) params.set(FIELD_LON, fmtCoord(defaults.lon));
   return params.toString() ? `${PAI_FORM_URL}?${params}` : PAI_FORM_URL;
 }
 
@@ -1774,7 +1780,6 @@ function wirePaiForm(form) {
 }
 
 function validatePaiForm(body) {
-  if (!body.number) return S.BOSCO_NUMBER_REQUIRED;
   if (!body.lat || !body.lon) return S.BOSCO_LAT_LON_REQUIRED;
   return null;
 }
@@ -1985,7 +1990,26 @@ function onBasemapChange(name) {
   navigateWithParams(PAGE_PATH, params, true);
 }
 
-function onMapClick(_latlng, feature) {
+function promptNewPaiTreeAt(latlng, feature) {
+  if (!canModify()) return;
+  const defaults = { lat: latlng.lat, lon: latlng.lng };
+  if (feature) {
+    const { compresa, particella } = parcelNames(feature);
+    const entry = mapEntriesByKey?.get(parcelKey(compresa, particella));
+    if (entry) defaults.parcelId = entry.id;
+  }
+  showConfirmModal(
+    S.BOSCO_INSERT_PAI_TREE_HERE,
+    () => showPaiForm(null, defaults),
+    { confirmLabel: S.CONFIRM },
+  );
+}
+
+function onMapClick(latlng, feature) {
+  if (currentState?.mode === MODE_PAI) {
+    promptNewPaiTreeAt(latlng, feature);
+    return;
+  }
   const region = regionById.get(currentState?.regionId);
   if (!feature) {
     if (region) setStatus(S.BOSCO_REGION_SUMMARY(region.name));

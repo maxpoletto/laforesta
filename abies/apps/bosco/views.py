@@ -13,6 +13,7 @@ import rasterio
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
+from django.db.models import Max
 from django.http import Http404, HttpResponse, JsonResponse
 from django.template.loader import render_to_string
 from django.utils.http import http_date
@@ -411,10 +412,17 @@ def _render_pai_form(request, pai_id: int | None = None, values: dict | None = N
         ),
         'd_cm': _form_value(values, FIELD_D_CM, pai.d_cm if pai else '', blank=True),
         'h_m': _form_value(values, FIELD_H_M, pai.h_m if pai else '', blank=True),
-        'lat': _form_value(values, FIELD_LAT, pai.lat if pai else ''),
-        'lon': _form_value(values, FIELD_LON, pai.lon if pai else ''),
+        'lat': _form_value(values, FIELD_LAT, pai.lat if pai else request.GET.get(FIELD_LAT, '')),
+        'lon': _form_value(values, FIELD_LON, pai.lon if pai else request.GET.get(FIELD_LON, '')),
         'note': _form_value(values, FIELD_NOTE, pai.note if pai else '', blank=True),
     }, request=request)
+
+
+def _next_pai_number(parcel_id: int, row_id: int | None = None):
+    qs = TreePreserved.objects.filter(parcel_id=parcel_id)
+    if row_id is not None:
+        qs = qs.exclude(id=row_id)
+    return (qs.aggregate(max_number=Max(FIELD_NUMBER))['max_number'] or 0) + 1
 
 
 def _form_value(values: dict | None, key: str, default, *, blank=False):
@@ -430,7 +438,9 @@ def _parse_pai_body(body: dict):
     row_id = int_or_none(body.get(ROW_ID))
     species_id = int_or_none(body.get(FIELD_SPECIES_ID))
     parcel_id = int_or_none(body.get(FIELD_PARCEL_ID))
-    number = int_or_none(body.get(FIELD_NUMBER))
+    raw_number = body.get(FIELD_NUMBER)
+    auto_number = raw_number in (None, '')
+    number = None if auto_number else int_or_none(raw_number)
     estimated_birth_year, birth_year_ok = _optional_form_int(
         body, FIELD_ESTIMATED_BIRTH_YEAR,
     )
@@ -446,11 +456,14 @@ def _parse_pai_body(body: dict):
     errors = []
     if species_id is None or not Species.objects.filter(id=species_id).exists():
         errors.append(S.ERR_BOSCO_SPECIES_REQUIRED)
-    if parcel_id is None or not Parcel.objects.filter(id=parcel_id).exists():
+    parcel_exists = parcel_id is not None and Parcel.objects.filter(id=parcel_id).exists()
+    if not parcel_exists:
         errors.append(S.ERR_BOSCO_PARCEL_REQUIRED)
-    if number is None or number <= 0:
-        errors.append(S.ERR_BOSCO_NUMBER_REQUIRED)
-    elif parcel_id is not None:
+    if auto_number and parcel_exists:
+        number = _next_pai_number(parcel_id, row_id)
+    elif number is None or number <= 0:
+        errors.append(S.ERR_BOSCO_POSITIVE_INTEGER_REQUIRED.format(S.COL_NUMBER))
+    if number is not None and parcel_exists:
         duplicates = TreePreserved.objects.filter(parcel_id=parcel_id, number=number)
         if row_id is not None:
             duplicates = duplicates.exclude(id=row_id)
