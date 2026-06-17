@@ -6,7 +6,7 @@ from django.core.management.base import CommandError
 
 from apps.base.models import (
     Crew, Eclass, HarvestPlan, HarvestPlanItem, Parcel, Product, Region,
-    SampleArea, SampleGrid, Species, Survey, Tractor, Tree,
+    SampleArea, SampleGrid, Species, Survey, Tractor, Tree, TreePreserved,
 )
 from apps.base.hypsometry import active_set
 from apps.base.refdata import PRODUCT_MAP, load_species
@@ -37,8 +37,9 @@ CANONICAL = {
         'Piano,Compresa,Particella,Anno,Prelievo (m³),Danneggiato,Fitosanitario,PSR\n'
         'PDG 2026,Capistrano,1,2027,50.0,0,0,0\n'),
     'preserved-trees.csv': (
-        'Compresa,Particella,Genere,Lon,Lat\n'
-        'Capistrano,1,Abete,16.1,38.5\n'),
+        'Compresa,Particella,Numero,Genere,Data,Anno di nascita stimato,'
+        'D_cm,H_m,H_measured,Lon,Lat,Acc_m,Operatore,Note\n'
+        'Capistrano,1,1,Abete,2024-09-15,1920,40,18.5,1,16.1,38.5,,Rossi,nota\n'),
     'harvests.csv': (
         'Compresa,Particella,Data,Squadra,Tipo,Q.li,Specie: Abete\n'
         'Capistrano,1,2027-03-01,Alfa,Tronchi,10.0,100\n'
@@ -74,6 +75,7 @@ def test_happy_path_loads_everything(tmp_path):
     assert SampleArea.objects.count() == 1
     assert Tree.objects.filter(preserved=False).count() == 1   # sampled tree
     assert Tree.objects.filter(preserved=True).count() == 1    # preserved tree
+    assert TreePreserved.objects.count() == 1
     assert Harvest.objects.count() == 2
 
 
@@ -204,6 +206,10 @@ def test_preserved_trees_load(tmp_path):
     call_command('bootstrap', _make_dir(tmp_path))
     trees = Tree.objects.filter(preserved=True)
     assert trees.count() == 1
+    pai = TreePreserved.objects.get()
+    assert pai.tree == trees.get()
+    assert pai.number == 1
+    assert pai.note == 'nota'
 
 
 @pytest.mark.django_db

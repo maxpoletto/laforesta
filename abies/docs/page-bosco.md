@@ -103,14 +103,17 @@ hosts (top to bottom):
   Map shows parcel borders and per-tree dots colored by species.
 
   Writers see a "+ Aggiungi" button below the species list. Clicking it opens a
-  modal form: species, parcel, lat/lon (shared lat-lon component — manual entry
-  plus "Usa GPS" button when device geolocation is available), year (defaults to
-  current year). Lat/lon cannot be empty: showFormError on submit if it is.
-  Parcel is auto-derived (via parcel geometries) from lat/lon when user sets
-  lat/lon, but user can edit it explicitly also.
+  modal form: species, tree number, optional survey date, optional estimated
+  birth year, parcel, optional diameter/height, lat/lon (shared lat-lon
+  component — manual entry plus "Usa GPS" button when device geolocation is
+  available), and free-text note. Species, number and lat/lon cannot be empty:
+  showFormError on submit if they are. Parcel is auto-derived (via parcel
+  geometries) from lat/lon when user sets lat/lon, but user can edit it
+  explicitly also.
 
-  Click on an existing tree dot opens a popover with species, year, parcel,
-  lat/lng; writers see a pencil and garbage icon.
+  Click on an existing tree dot opens a popover with species, tree number,
+  parcel, survey date, estimated birth year, diameter/height, coordinates, and
+  note; writers see a pencil and garbage icon.
 
 ### Map conventions
 
@@ -315,13 +318,14 @@ mode-switch.
 
 ### Lazy on PAI mode (m=3)
 
-- **`preserved_trees.json`** — `tree` rows with `preserved=true`,
-  denormalized.  Invalidated on `tree` writes (specifically those
-  toggling `preserved` or moving location).
+- **`preserved_trees.json`** — `tree_preserved` rows whose backing tree has
+  `preserved=true`, denormalized. Invalidated on PAI writes.
 
-  Columns: `row_id`, `version`, `Parcel id`, `Species id`,
-  `Compresa`, `Particella`, `Specie`, `Anno`, `Lat`, `Lon`, `Note`.
-  `row_id` = `tree.id`.  Sorted by `(Compresa, Particella, Specie, Anno)`.
+  Columns: `row_id`, `version`, `Tree id`, `Parcel id`, `Species id`,
+  `Compresa`, `Particella`, `Specie`, `Numero`, `Data`,
+  `Anno di nascita stimato`, `D (cm)`, `h (m)`, `h misurata`, `Lat`, `Lon`,
+  `Note`. `row_id` = `tree_preserved.id`. Sorted by
+  `(Compresa, Particella, Numero)`.
 
   Drives both the species/parcel scrollable lists and the per-tree
   dot map.  Filtered client-side by `pp=` / `ps=`.

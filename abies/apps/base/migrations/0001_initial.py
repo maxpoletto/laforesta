@@ -1493,7 +1493,7 @@ class Migration(migrations.Migration):
                 ("version", models.IntegerField(default=1)),
                 ("created_at", models.DateTimeField(auto_now_add=True)),
                 ("modified_at", models.DateTimeField(auto_now=True)),
-                ("year", models.IntegerField(blank=True, null=True)),
+                ("estimated_birth_year", models.IntegerField(blank=True, null=True)),
                 ("lat", models.FloatField(blank=True, null=True)),
                 ("lon", models.FloatField(blank=True, null=True)),
                 (
@@ -1637,6 +1637,69 @@ class Migration(migrations.Migration):
                 "verbose_name": "prescrizione particella",
                 "verbose_name_plural": "prescrizioni particelle",
                 "unique_together": {("harvest_plan", "parcel")},
+            },
+        ),
+        migrations.CreateModel(
+            name="TreePreserved",
+            fields=[
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("version", models.IntegerField(default=1)),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("modified_at", models.DateTimeField(auto_now=True)),
+                ("number", models.IntegerField()),
+                ("date", models.DateField(blank=True, null=True)),
+                ("d_cm", models.IntegerField(blank=True, null=True)),
+                (
+                    "h_m",
+                    models.DecimalField(
+                        blank=True, decimal_places=2, max_digits=5, null=True
+                    ),
+                ),
+                ("h_measured", models.BooleanField(default=False)),
+                (
+                    "volume_m3",
+                    models.DecimalField(
+                        blank=True, decimal_places=4, max_digits=8, null=True
+                    ),
+                ),
+                (
+                    "mass_q",
+                    models.DecimalField(
+                        blank=True, decimal_places=3, max_digits=8, null=True
+                    ),
+                ),
+                ("lat", models.FloatField()),
+                ("lon", models.FloatField()),
+                ("acc_m", models.IntegerField(blank=True, null=True)),
+                ("operator", models.CharField(blank=True, max_length=100)),
+                ("note", models.TextField(blank=True)),
+                (
+                    "parcel",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.PROTECT, to="base.parcel"
+                    ),
+                ),
+                (
+                    "tree",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="preserved_records",
+                        to="base.tree",
+                    ),
+                ),
+            ],
+            options={
+                "verbose_name": "pianta ad accrescimento indefinito",
+                "verbose_name_plural": "piante ad accrescimento indefinito",
+                "unique_together": {("parcel", "number")},
             },
         ),
         migrations.CreateModel(

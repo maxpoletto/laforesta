@@ -1,6 +1,6 @@
 import * as S from '../../base/js/strings.js';
 import {
-  COL_PARCEL_ID, COL_SPECIES_ID, ROWS, ROW_ID, VERSION,
+  COL_PARCEL_ID, COL_SPECIES_ID, COL_TREE_ID, ROWS, ROW_ID, VERSION,
 } from '../../base/js/constants.js';
 import {
   chartSeriesColor, speciesColorMap as chartSpeciesColorMap,
@@ -14,12 +14,18 @@ export function buildPreservedTrees(digest) {
   return digest[ROWS].map(row => ({
     id: row[c[ROW_ID]],
     version: row[c[VERSION]],
+    treeId: row[c[COL_TREE_ID]],
     parcelId: row[c[COL_PARCEL_ID]],
     speciesId: row[c[COL_SPECIES_ID]],
     region: row[c[S.COL_REGION]],
     parcel: row[c[S.COL_PARCEL]],
     species: row[c[S.COL_SPECIES]],
-    year: row[c[S.COL_YEAR]],
+    number: row[c[S.COL_NUMBER]],
+    date: row[c[S.COL_DATE]] || '',
+    estimatedBirthYear: row[c[S.COL_ESTIMATED_BIRTH_YEAR]],
+    dCm: row[c[S.COL_D_CM]],
+    hM: row[c[S.COL_H_M]],
+    hMeasured: Boolean(row[c[S.COL_H_MEASURED]]),
     lat: toNumber(row[c[S.COL_LAT]], NaN),
     lon: toNumber(row[c[S.COL_LON]], NaN),
     note: row[c[S.COL_NOTE]] || '',

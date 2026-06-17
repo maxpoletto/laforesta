@@ -68,6 +68,7 @@ export const CHART_OTHER = 'Altro';
 
 // Prelievi columns
 export const COL_DATE = 'Data';
+export const COL_SURVEY_DATE = 'Data di rilevamento';
 export const COL_PARCEL = 'Particella';
 export const COL_CREW = 'Squadra';
 export const COL_VDP = 'VDP';
@@ -290,6 +291,8 @@ export const BOSCO_HISTORICAL_PRODUCTION_UNAVAILABLE =
 export const BOSCO_NO_HISTORICAL_HARVEST = 'Nessun prelievo storico.';
 export const BOSCO_INTERVENTIONS = (n) => `${n} interventi`;
 export const BOSCO_LAT_LON_REQUIRED = 'Lat e Lon obbligatorie.';
+export const BOSCO_NUMBER_REQUIRED = 'Numero obbligatorio.';
+export const BOSCO_PAI_TREE_META = (parcel, number) => `${parcel} · n. ${number}`;
 export const BOSCO_NO_PAI_TREES = 'Nessuna pianta.';
 export const BOSCO_METRIC_AGE = 'Età';
 export const BOSCO_METRIC_TYPE = 'Governo';
@@ -440,6 +443,7 @@ export const COL_YEAR_START           = 'Anno inizio';
 export const COL_YEAR_END             = 'Anno fine';
 export const COL_YEAR_PLANNED         = 'Anno previsto';
 export const COL_YEAR_ACTUAL          = 'Anno effettivo';
+export const COL_ESTIMATED_BIRTH_YEAR = 'Anno di nascita stimato';
 export const COL_TYPE                 = 'Tipo';
 export const COL_STATE                = 'Stato';
 export const COL_VOLUME_PLANNED       = 'Volume previsto (m³)';

@@ -28,6 +28,7 @@ from apps.base.models import (
     Crew, Eclass, HarvestDetail, HarvestPlan, HarvestPlanItem,
     HypsoParamSet, HypsoParamSource, Parcel, Product, Region, Sample,
     SampleArea, SampleGrid, Species, Survey, Tractor, Tree, TreeMark,
+    TreePreserved,
 )
 from apps.campionamenti import csv_grid, csv_trees
 from apps.campionamenti import csv_preserved
@@ -44,8 +45,8 @@ from config.constants import (
 # empty and bootstrap refuses (it has no wipe).  Listed verbose_names are shown.
 GUARD_MODELS = [
     Region, Eclass, Crew, Tractor, Species, Product, Parcel, SampleGrid,
-    SampleArea, Survey, Sample, Tree, TreeMark, HarvestPlan, HarvestPlanItem,
-    HarvestDetail, Harvest, HypsoParamSet,
+    SampleArea, Survey, Sample, Tree, TreeMark, TreePreserved, HarvestPlan,
+    HarvestPlanItem, HarvestDetail, Harvest, HypsoParamSet,
 ]
 
 

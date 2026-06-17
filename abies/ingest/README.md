@@ -38,7 +38,7 @@ dependencies — so the tool runs standalone against a legacy-data checkout.
 | `tractors.csv` (`Trattore,Produttore,Modello,Anno`) | constant | the five hard-coded La Foresta tractors |
 | `harvests.csv` | `mannesi.csv` | `Tipo` via `_PRODUCT_MAP`; `Particella='X'` → blank; species `abete %` etc. → `Specie: <canonical>` dynamic cols; `Equus %` etc. → `Trattore: <name>` dynamic cols; `Note` token → `Danneggiato/Fitosanitario/PSR` booleans; invalid VDP values (``nd``, ``bis`` variants, fractional) → blank |
 | `harvest_plan_items.csv` | `piano_fustaia.csv` + `piano_ceduo.csv` | unified rows with `Piano=PDG 2026`; `Particella='X'` → blank; highforest flags from `Note` token; coppice flags left `false` (no flag column in legacy) |
-| `preserved-trees.csv` (`Compresa,Particella,Genere,Lon,Lat`) | `piante-accrescimento-indefinito.csv` | `Genere` preserved when it already names a canonical species; legacy `Abete Bianco` aliases to `Abete`; rows missing `Lon`/`Lat` silently skipped |
+| `preserved-trees.csv` (`Compresa,Particella,Numero,Genere,Data,Anno di nascita stimato,D_cm,H_m,H_measured,Lon,Lat,Acc_m,Operatore,Note`) | `piante-accrescimento-indefinito.csv` | `Genere` preserved when it already names a canonical species; legacy `Abete Bianco` aliases to `Abete`; `Numero` regenerated from 1 within each parcel because the source column is unreliable; date/birth year/accuracy/operator left blank; rows missing `Lon`/`Lat` silently skipped |
 | `terreni.geojson` | `terreni.geojson` | copied verbatim (bootstrap does not load it, but the canonical dir carries the source geometry) |
 
 ## Tree-survey assumptions (the interesting part)

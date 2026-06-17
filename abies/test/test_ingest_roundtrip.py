@@ -130,12 +130,20 @@ def test_sanity_counts(converted):
     preserved_species = {r['Genere'] for r in preserved_rows}
     assert 'Altro' not in preserved_species
     assert EXPECTED_PAI_MINOR_SPECIES <= preserved_species
+    numbers_by_parcel = {}
+    for row in preserved_rows:
+        key = (row['Compresa'], row['Particella'])
+        numbers_by_parcel.setdefault(key, []).append(int(row['Numero']))
+    for numbers in numbers_by_parcel.values():
+        assert numbers == list(range(1, len(numbers) + 1))
 
 
 @pytest.mark.django_db
 def test_bootstrap_actually_persists(converted):
     """A real (non --check) load persists the expected reference rows."""
-    from apps.base.models import HarvestPlanItem, Region, Survey, Tractor, Tree
+    from apps.base.models import (
+        HarvestPlanItem, Region, Survey, Tractor, Tree, TreePreserved,
+    )
     from apps.prelievi.models import Harvest
 
     out_dir, counts = converted
@@ -164,3 +172,4 @@ def test_bootstrap_actually_persists(converted):
     # Preserved trees (PAI).
     assert Tree.objects.filter(preserved=True).count() > 0
     assert Tree.objects.filter(preserved=True).count() == counts[OUT_PRESERVED]
+    assert TreePreserved.objects.count() == counts[OUT_PRESERVED]

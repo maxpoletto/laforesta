@@ -120,6 +120,7 @@ COL_RADIUS = 'Raggio'
 COL_SURVEY = 'Rilevamento'
 COL_DATA = 'Data'
 COL_TREE = 'Albero'
+COL_NUMBER = 'Numero'
 COL_SHOOT = 'Pollone'
 COL_STANDARD = 'Matricina'
 COL_D_CM = 'D_cm'
@@ -145,6 +146,8 @@ LEGACY_TREE_POLL = 'poll'
 LEGACY_TREE_D = 'D(cm)'
 LEGACY_TREE_H = 'h(m)'
 LEGACY_TREE_L10 = 'L10(mm)'
+LEGACY_PAI_D = 'Diametro'
+LEGACY_PAI_H = 'Altezza'
 
 # In alberi-calcolati the ``poll`` column is normally a shoot number, but the
 # sentinel ``mat`` marks the tree as a coppice standard (matricina) rather than a
@@ -159,6 +162,7 @@ COL_TRACTOR_NAME = 'Trattore'
 COL_MANUFACTURER = 'Produttore'
 COL_MODEL        = 'Modello'
 COL_YEAR         = 'Anno'
+COL_ESTIMATED_BIRTH_YEAR = 'Anno di nascita stimato'
 
 # Canonical harvest column headers (static portion).
 COL_QUINTALS        = 'Q.li'
@@ -174,6 +178,9 @@ COL_HARVEST_M3    = 'Prelievo (m³)'
 COL_SURFACE_HA    = 'Superficie intervento (ha)'
 COL_PERIOD_Y      = 'Turno (a)'
 COL_NOTE          = 'Note'
+COL_H_MEASURED    = 'H_measured'
+COL_ACC_M         = 'Acc_m'
+COL_OPERATOR      = 'Operatore'
 
 # Dynamic-column prefix literals (must match S.CSV_COL_SPECIES_PREFIX / _TRACTOR_PREFIX).
 SPECIES_PREFIX = 'Specie:'
@@ -623,28 +630,48 @@ def _convert_harvest_plan_items(src_dir: Path, out_dir: Path) -> int:
 def _convert_preserved(src_dir: Path, out_dir: Path) -> int:
     """Convert piante-accrescimento-indefinito.csv → preserved-trees.csv.
 
-    Maps legacy Genere via _PAI_SPECIES_MAP to canonical common_name.  Passes
-    Lon/Lat verbatim.  Rows with missing/blank Lon or Lat are silently skipped
-    (a handful of PAI entries have coordinate data quality issues in the legacy
-    source, flagged in their Note column).
+    Maps legacy Genere via _PAI_SPECIES_MAP to canonical common_name.  The
+    legacy Numero column is not reliable, so converted PAI rows are renumbered
+    from 1 independently within each (Compresa, Particella).  Rows with
+    missing/blank Lon or Lat are silently skipped.
     """
-    header = [COL_REGION, COL_PARCEL, COL_SPECIES, COL_LON, COL_LAT]
+    header = [
+        COL_REGION, COL_PARCEL, COL_NUMBER, COL_SPECIES,
+        COL_DATA, COL_ESTIMATED_BIRTH_YEAR, COL_D_CM, COL_H_M, COL_H_MEASURED,
+        COL_LON, COL_LAT, COL_ACC_M, COL_OPERATOR, COL_NOTE,
+    ]
     pai_rows = _read(src_dir / SRC_PAI)
     out = []
+    next_number_by_parcel = {}
     for r in pai_rows:
         lon = (r.get(COL_LON) or '').strip()
         lat = (r.get(COL_LAT) or '').strip()
         if not lon or not lat:
             continue
+        region = (r.get(COL_REGION) or '').strip()
+        parcel = (r.get(COL_PARCEL) or '').strip()
+        key = (region, parcel)
+        number = next_number_by_parcel.get(key, 1)
+        next_number_by_parcel[key] = number + 1
         genere_raw = (r.get('Genere') or '').strip()
         # Use the explicit map first; fall back to identity (canonical names match verbatim).
         genere = _PAI_SPECIES_MAP.get(genere_raw, genere_raw)
+        h_m = (r.get(LEGACY_PAI_H) or '').strip()
         out.append([
-            (r.get(COL_REGION) or '').strip(),
-            (r.get(COL_PARCEL) or '').strip(),
+            region,
+            parcel,
+            number,
             genere,
+            '',
+            '',
+            (r.get(LEGACY_PAI_D) or '').strip(),
+            h_m,
+            'true' if h_m else 'false',
             lon,
             lat,
+            '',
+            '',
+            (r.get(COL_NOTE) or '').strip(),
         ])
     skipped = len(pai_rows) - len(out)
     n = _write(out_dir / OUT_PRESERVED, header, out)

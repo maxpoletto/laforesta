@@ -414,8 +414,9 @@ def _audit_configs() -> list:
     writes surface in the Controllo log; `generate_audit()` asserts this
     against `_tracked_models()`, and the contract is locked by
     `test_audit_covers_all_tracked_models`.  To stop auditing a model,
-    remove its `HistoricalRecords()` (as done for Tree/TreeSample/TreeMark,
-    whose bulk CSV imports would swamp the log) — do not just drop it here.
+    remove its `HistoricalRecords()` (as done for Tree/TreeSample/TreeMark/
+    TreePreserved, whose bulk CSV imports would swamp the log) — do not just
+    drop it here.
 
     Field maps are selective: only domain-meaningful fields are shown.  FK
     and choice fields render as raw ids/codes, consistent with the original
@@ -1096,36 +1097,40 @@ def generate_mark_trees_for_item(item_id: int) -> None:
 # ---------------------------------------------------------------------------
 
 PRESERVED_TREE_COLUMNS = [
-    ROW_ID, VERSION, COL_PARCEL_ID, COL_SPECIES_ID,
-    S.COL_REGION, S.COL_PARCEL, S.COL_SPECIES, S.COL_YEAR,
+    ROW_ID, VERSION, COL_TREE_ID, COL_PARCEL_ID, COL_SPECIES_ID,
+    S.COL_REGION, S.COL_PARCEL, S.COL_SPECIES, S.COL_NUMBER, S.COL_DATE,
+    S.COL_ESTIMATED_BIRTH_YEAR, S.COL_D_CM, S.COL_H_M, S.COL_H_MEASURED,
     S.COL_LAT, S.COL_LON, S.COL_NOTE,
 ]
 
 
-def build_preserved_tree_record(tree) -> list:
+def build_preserved_tree_record(pai) -> list:
     """Build one row of the `preserved_trees` digest.
 
-    Caller must pre-load `parcel.region` and `species`.  The final Note
-    column is reserved for the documented PAI popover/table shape; the
-    current Tree model does not carry notes, so it is blank.
+    Caller must pre-load `parcel.region` and `tree.species`.
     """
+    tree = pai.tree
     return [
-        tree.id, tree.version, tree.parcel_id, tree.species_id,
-        tree.parcel.region.name, tree.parcel.name, tree.species.common_name,
-        tree.year, tree.lat, tree.lon, '',
+        pai.id, pai.version, tree.id, pai.parcel_id, tree.species_id,
+        pai.parcel.region.name, pai.parcel.name, tree.species.common_name,
+        pai.number, pai.date.isoformat() if pai.date else '',
+        tree.estimated_birth_year if tree.estimated_birth_year is not None else '',
+        pai.d_cm if pai.d_cm is not None else '',
+        float(pai.h_m) if pai.h_m is not None else '',
+        pai.h_measured, pai.lat, pai.lon, pai.note,
     ]
 
 
 def generate_preserved_trees() -> None:
-    from apps.base.models import Tree
+    from apps.base.models import TreePreserved
 
     rows = [
-        build_preserved_tree_record(t)
-        for t in (Tree.objects
-                  .filter(preserved=True)
-                  .select_related('parcel__region', 'species')
-                  .order_by('parcel__region__name', 'parcel__name',
-                            'species__common_name', 'year', 'id'))
+        build_preserved_tree_record(pai)
+        for pai in (TreePreserved.objects
+                    .filter(tree__preserved=True)
+                    .select_related('parcel__region', 'tree__species')
+                    .order_by('parcel__region__name', 'parcel__name',
+                              'number', 'id'))
     ]
     _write_gzip_json(
         {'columns': PRESERVED_TREE_COLUMNS, 'rows': rows},

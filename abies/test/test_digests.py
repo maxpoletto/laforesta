@@ -21,7 +21,7 @@ from apps.base.digests import (
 from apps.base.models import (
     Crew, DigestStatus, HarvestPlan, HarvestPlanItem, HypsoParamSet,
     HypsoParamSource, Parcel, Role, Sample, SampleArea, SampleGrid, Survey,
-    Tree, TreeMark, TreeSample, User,
+    Tree, TreeMark, TreePreserved, TreeSample, User,
 )
 from apps.mannesi.models import LicensePlate, ProductionCredit, WorkHour
 from apps.prelievi.models import Harvest, HarvestSpecies, HarvestTractor
@@ -303,7 +303,12 @@ class TestGenerateBoscoDigests:
         settings.DIGEST_DIR = tmp_path
         kept = Tree.objects.create(
             species=species[0], parcel=parcels[0], preserved=True,
-            year=1920, lat=38.1, lon=16.2,
+            estimated_birth_year=1920, lat=38.1, lon=16.2,
+        )
+        pai = TreePreserved.objects.create(
+            tree=kept, parcel=parcels[0], number=7, date='2024-09-15',
+            d_cm=42, h_m=Decimal('18.50'), h_measured=True,
+            lat=38.1, lon=16.2, note='nota',
         )
         Tree.objects.create(species=species[1], parcel=parcels[0], preserved=False)
 
@@ -311,14 +316,15 @@ class TestGenerateBoscoDigests:
         data = self._read(tmp_path, DIGEST_PRESERVED_TREES)
         cols = data[COLUMNS]
         assert data[ROWS] == [[
-            kept.id, kept.version, parcels[0].id, species[0].id,
+            pai.id, pai.version, kept.id, parcels[0].id, species[0].id,
             parcels[0].region.name, parcels[0].name, species[0].common_name,
-            1920, 38.1, 16.2, '',
+            7, '2024-09-15', 1920, 42, 18.5, True, 38.1, 16.2, 'nota',
         ]]
         assert cols == [
-            ROW_ID, VERSION, COL_PARCEL_ID, COL_SPECIES_ID,
-            S.COL_REGION, S.COL_PARCEL, S.COL_SPECIES, S.COL_YEAR,
-            S.COL_LAT, S.COL_LON, S.COL_NOTE,
+            ROW_ID, VERSION, COL_TREE_ID, COL_PARCEL_ID, COL_SPECIES_ID,
+            S.COL_REGION, S.COL_PARCEL, S.COL_SPECIES, S.COL_NUMBER,
+            S.COL_DATE, S.COL_ESTIMATED_BIRTH_YEAR, S.COL_D_CM, S.COL_H_M,
+            S.COL_H_MEASURED, S.COL_LAT, S.COL_LON, S.COL_NOTE,
         ]
 
     def test_future_production_active_highforest_only(

@@ -432,7 +432,7 @@
     top: 0;
     right: 0;
     bottom: 0;
-    z-index: 800;
+    z-index: 1050;
     width: min(330px, 92vw);
     flex-basis: auto;
   }

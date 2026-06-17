@@ -25,7 +25,7 @@ from apps.base.digests import (
 from apps.base.http import (
     CACHE_NO_CACHE, apply_cache_control, conditional_file_response, not_modified_response,
 )
-from apps.base.models import Parcel, Region, Species, Tree, parcel_sort_key
+from apps.base.models import Parcel, Region, Species, Tree, TreePreserved, parcel_sort_key
 from apps.base.numparse import coord_float, int_or_none, parse_decimal
 from apps.base.responses import (
     conflict_response, parse_json_body, row_delete, row_patch, submitted_version,
@@ -35,9 +35,10 @@ from config import strings as S
 from config.constants import (
     DIGEST_FUTURE_PRODUCTION, DIGEST_PARCEL_DENDROMETRY,
     DIGEST_PARCEL_DENDROMETRY_POINTS, DIGEST_PARCELS, DIGEST_PRESERVED_TREES,
-    FIELD_LAT,
-    FIELD_LON, FIELD_PARCEL_ID, FIELD_REGION_ID,
-    FIELD_SPECIES_ID, FIELD_YEAR, HTML, ROW_ID, VERSION,
+    FIELD_ACC_M, FIELD_DATE, FIELD_D_CM, FIELD_ESTIMATED_BIRTH_YEAR, FIELD_H_M,
+    FIELD_H_MEASURED, FIELD_LAT, FIELD_LON, FIELD_NOTE, FIELD_NUMBER,
+    FIELD_OPERATOR, FIELD_PARCEL_ID, FIELD_REGION_ID, FIELD_SPECIES_ID, HTML,
+    ROW_ID, VERSION,
 )
 
 ALLOWED_SATELLITE_JSON = {'manifest.json', 'timeseries.json'}
@@ -146,28 +147,72 @@ def pai_save_view(request):
 
     with transaction.atomic():
         if row_id is None:
-            tree = Tree.objects.create(preserved=True, coppice=False, **values)
+            tree = Tree.objects.create(
+                species_id=values[FIELD_SPECIES_ID],
+                parcel_id=values[FIELD_PARCEL_ID],
+                estimated_birth_year=values[FIELD_ESTIMATED_BIRTH_YEAR],
+                lat=values[FIELD_LAT],
+                lon=values[FIELD_LON],
+                acc_m=values[FIELD_ACC_M],
+                preserved=True,
+                coppice=False,
+            )
+            pai = TreePreserved.objects.create(
+                tree=tree,
+                parcel_id=values[FIELD_PARCEL_ID],
+                number=values[FIELD_NUMBER],
+                date=values[FIELD_DATE],
+                d_cm=values[FIELD_D_CM],
+                h_m=values[FIELD_H_M],
+                h_measured=values[FIELD_H_MEASURED],
+                lat=values[FIELD_LAT],
+                lon=values[FIELD_LON],
+                acc_m=values[FIELD_ACC_M],
+                operator=values[FIELD_OPERATOR],
+                note=values[FIELD_NOTE],
+            )
         else:
-            tree = _preserved_tree_qs(for_update=True).filter(id=row_id).first()
-            if tree is None:
+            pai = _preserved_tree_qs(for_update=True).filter(id=row_id).first()
+            if pai is None:
                 raise Http404
-            if tree.version != submitted_version(body):
+            if pai.version != submitted_version(body):
+                fresh_pai = _preserved_tree_qs().get(id=pai.id)
                 return conflict_response(
-                    data_id=DIGEST_PRESERVED_TREES, row_id=tree.id,
-                    record=build_preserved_tree_record(tree),
-                    html=_render_pai_form(request, tree.id),
+                    data_id=DIGEST_PRESERVED_TREES, row_id=fresh_pai.id,
+                    record=build_preserved_tree_record(fresh_pai),
+                    html=_render_pai_form(request, fresh_pai.id),
                 )
-            for field, value in values.items():
-                setattr(tree, field, value)
+            tree = pai.tree
+            tree.species_id = values[FIELD_SPECIES_ID]
+            tree.parcel_id = values[FIELD_PARCEL_ID]
+            tree.estimated_birth_year = values[FIELD_ESTIMATED_BIRTH_YEAR]
+            tree.lat = values[FIELD_LAT]
+            tree.lon = values[FIELD_LON]
+            tree.acc_m = values[FIELD_ACC_M]
+            tree.preserved = True
+            tree.coppice = False
             tree.version += 1
             tree.save()
+            pai.parcel_id = values[FIELD_PARCEL_ID]
+            pai.number = values[FIELD_NUMBER]
+            pai.date = values[FIELD_DATE]
+            pai.d_cm = values[FIELD_D_CM]
+            pai.h_m = values[FIELD_H_M]
+            pai.h_measured = values[FIELD_H_MEASURED]
+            pai.lat = values[FIELD_LAT]
+            pai.lon = values[FIELD_LON]
+            pai.acc_m = values[FIELD_ACC_M]
+            pai.operator = values[FIELD_OPERATOR]
+            pai.note = values[FIELD_NOTE]
+            pai.version += 1
+            pai.save()
         mark_stale(DIGEST_PRESERVED_TREES)
 
-    tree = _preserved_tree_qs().get(id=tree.id)
+    pai = _preserved_tree_qs().get(id=pai.id)
     return success_response(
-        request, body, data_id=DIGEST_PRESERVED_TREES, row_id=tree.id,
+        request, body, data_id=DIGEST_PRESERVED_TREES, row_id=pai.id,
         patches=[row_patch(
-            DIGEST_PRESERVED_TREES, tree.id, build_preserved_tree_record(tree),
+            DIGEST_PRESERVED_TREES, pai.id, build_preserved_tree_record(pai),
         )],
     )
 
@@ -184,14 +229,17 @@ def pai_delete_view(request):
         raise Http404
 
     with transaction.atomic():
-        tree = _preserved_tree_qs(for_update=True).filter(id=row_id).first()
-        if tree is None:
+        pai = _preserved_tree_qs(for_update=True).filter(id=row_id).first()
+        if pai is None:
             raise Http404
-        if tree.version != submitted_version(body):
+        if pai.version != submitted_version(body):
+            fresh_pai = _preserved_tree_qs().get(id=pai.id)
             return conflict_response(
-                data_id=DIGEST_PRESERVED_TREES, row_id=tree.id,
-                record=build_preserved_tree_record(tree),
+                data_id=DIGEST_PRESERVED_TREES, row_id=fresh_pai.id,
+                record=build_preserved_tree_record(fresh_pai),
             )
+        tree = pai.tree
+        pai.delete()
         tree.preserved = False
         tree.version += 1
         tree.save(update_fields=['preserved', VERSION])
@@ -325,17 +373,18 @@ def _text_value(body: dict, key: str, errors: list[str]):
     return value
 
 
-def _render_pai_form(request, tree_id: int | None = None, values: dict | None = None):
-    tree = None
-    if tree_id is not None:
-        tree = _preserved_tree_qs().filter(id=tree_id).first()
-        if tree is None:
+def _render_pai_form(request, pai_id: int | None = None, values: dict | None = None):
+    pai = None
+    if pai_id is not None:
+        pai = _preserved_tree_qs().filter(id=pai_id).first()
+        if pai is None:
             raise Http404
+    tree = pai.tree if pai else None
 
     region_id = int_or_none(request.GET.get(FIELD_REGION_ID))
     selected_parcel_id = int_or_none(values.get(FIELD_PARCEL_ID)) if values else None
     if selected_parcel_id is None:
-        selected_parcel_id = tree.parcel_id if tree else int_or_none(request.GET.get(FIELD_PARCEL_ID))
+        selected_parcel_id = pai.parcel_id if pai else int_or_none(request.GET.get(FIELD_PARCEL_ID))
     selected_species_id = int_or_none(values.get(FIELD_SPECIES_ID)) if values else None
     if selected_species_id is None:
         selected_species_id = tree.species_id if tree else None
@@ -347,15 +396,24 @@ def _render_pai_form(request, tree_id: int | None = None, values: dict | None = 
         parcels.sort(key=parcel_sort_key)
 
     return render_to_string('bosco/_pai_form.html', {
+        'pai': pai,
         'tree': tree,
-        'version': tree.version if tree else 0,
+        'version': pai.version if pai else 0,
         'species': Species.objects.order_by('sort_order', 'common_name'),
         'parcels': parcels,
         'selected_species_id': selected_species_id,
         'selected_parcel_id': selected_parcel_id,
-        'year': _form_value(values, FIELD_YEAR, tree.year if tree else date_type.today().year),
-        'lat': _form_value(values, FIELD_LAT, tree.lat if tree else ''),
-        'lon': _form_value(values, FIELD_LON, tree.lon if tree else ''),
+        'number': _form_value(values, FIELD_NUMBER, pai.number if pai else ''),
+        'date': _form_value(values, FIELD_DATE, pai.date.isoformat() if pai and pai.date else ''),
+        'estimated_birth_year': _form_value(
+            values, FIELD_ESTIMATED_BIRTH_YEAR,
+            tree.estimated_birth_year if tree else '',
+        ),
+        'd_cm': _form_value(values, FIELD_D_CM, pai.d_cm if pai else '', blank=True),
+        'h_m': _form_value(values, FIELD_H_M, pai.h_m if pai else '', blank=True),
+        'lat': _form_value(values, FIELD_LAT, pai.lat if pai else ''),
+        'lon': _form_value(values, FIELD_LON, pai.lon if pai else ''),
+        'note': _form_value(values, FIELD_NOTE, pai.note if pai else '', blank=True),
     }, request=request)
 
 
@@ -372,31 +430,84 @@ def _parse_pai_body(body: dict):
     row_id = int_or_none(body.get(ROW_ID))
     species_id = int_or_none(body.get(FIELD_SPECIES_ID))
     parcel_id = int_or_none(body.get(FIELD_PARCEL_ID))
-    year = int_or_none(body.get(FIELD_YEAR))
+    number = int_or_none(body.get(FIELD_NUMBER))
+    estimated_birth_year, birth_year_ok = _optional_form_int(
+        body, FIELD_ESTIMATED_BIRTH_YEAR,
+    )
+    d_cm, d_ok = _optional_form_int(body, FIELD_D_CM)
+    h_m = parse_decimal(body.get(FIELD_H_M))
     lat = coord_float(parse_decimal(body.get(FIELD_LAT)))
     lon = coord_float(parse_decimal(body.get(FIELD_LON)))
+    acc_m, acc_ok = _optional_form_int(body, FIELD_ACC_M)
+    date, date_ok = _optional_form_date(body.get(FIELD_DATE))
+    note = (body.get(FIELD_NOTE) or '').strip()
+    operator = (body.get(FIELD_OPERATOR) or '').strip()
 
     errors = []
     if species_id is None or not Species.objects.filter(id=species_id).exists():
         errors.append(S.ERR_BOSCO_SPECIES_REQUIRED)
     if parcel_id is None or not Parcel.objects.filter(id=parcel_id).exists():
         errors.append(S.ERR_BOSCO_PARCEL_REQUIRED)
-    if year is None:
-        errors.append(S.ERR_BOSCO_YEAR_REQUIRED)
+    if number is None or number <= 0:
+        errors.append(S.ERR_BOSCO_NUMBER_REQUIRED)
+    elif parcel_id is not None:
+        duplicates = TreePreserved.objects.filter(parcel_id=parcel_id, number=number)
+        if row_id is not None:
+            duplicates = duplicates.exclude(id=row_id)
+        if duplicates.exists():
+            errors.append(S.ERR_BOSCO_PAI_NUMBER_DUPLICATE)
+    if not birth_year_ok:
+        errors.append(S.ERR_BOSCO_INTEGER_REQUIRED.format(S.COL_ESTIMATED_BIRTH_YEAR))
+    if not d_ok or (d_cm is not None and d_cm <= 0):
+        errors.append(S.ERR_BOSCO_POSITIVE_INTEGER_REQUIRED.format(S.COL_D_CM))
+    if body.get(FIELD_H_M) not in (None, '') and (h_m is None or h_m <= 0):
+        errors.append(S.ERR_MARK_H_REQUIRED)
+    if not acc_ok:
+        errors.append(S.ERR_BOSCO_INTEGER_REQUIRED.format(S.CSV_COL_ACC_M))
+    if not date_ok:
+        errors.append(S.ERR_DATE_INVALID)
     if lat is None or lon is None:
         errors.append(S.ERR_BOSCO_LAT_LON_REQUIRED)
 
     return row_id, {
         FIELD_SPECIES_ID: species_id,
         FIELD_PARCEL_ID: parcel_id,
-        FIELD_YEAR: year,
+        FIELD_NUMBER: number,
+        FIELD_DATE: date,
+        FIELD_ESTIMATED_BIRTH_YEAR: estimated_birth_year,
+        FIELD_D_CM: d_cm,
+        FIELD_H_M: h_m,
+        FIELD_H_MEASURED: h_m is not None,
         FIELD_LAT: lat,
         FIELD_LON: lon,
+        FIELD_ACC_M: acc_m,
+        FIELD_OPERATOR: operator,
+        FIELD_NOTE: note,
     }, errors
 
 
+def _optional_form_int(body: dict, key: str):
+    raw = body.get(key)
+    if raw is None or str(raw).strip() == '':
+        return None, True
+    value = int_or_none(str(raw).strip())
+    return value, value is not None
+
+
+def _optional_form_date(raw):
+    raw = (raw or '').strip()
+    if not raw:
+        return None, True
+    try:
+        return date_type.fromisoformat(raw), True
+    except ValueError:
+        return None, False
+
+
 def _preserved_tree_qs(*, for_update=False):
-    qs = Tree.objects.filter(preserved=True).select_related('parcel__region', 'species')
+    qs = (TreePreserved.objects
+          .filter(tree__preserved=True)
+          .select_related('parcel__region', 'tree__species'))
     return qs.select_for_update() if for_update else qs
 
 

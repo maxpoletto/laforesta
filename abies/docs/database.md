@@ -62,19 +62,18 @@ audited and the contract that keeps that coverage complete.
 
 ## Trees
 
-- tree: (id:int, species_id:int, year:int, lat:real nullable, lon:real nullable,
-  acc_m:int nullable, parcel_id:int, preserved:bool, coppice:bool)
+- tree: (id:int, species_id:int, estimated_birth_year:int nullable,
+  lat:real nullable, lon:real nullable, acc_m:int nullable, parcel_id:int,
+  preserved:bool, coppice:bool)
   - Denotes a tree over time. Lat/lon may be null, or may not fall within the
     bounds of the given parcel due to measurement error (e.g., near a parcel
     border). acc_m denotes the reported GPS error in meters, if available (e.g.,
     during automated mark recording via foresta/ipso).
-  - Year is (estimated) birth year.
   - If a tree is denoted as preserved, it cannot be marked for felling.
   - Coppice is true if this tree has coppice morphology. There may be coppice
     trees in a non-coppice parcel and vice-versa.
 
-This table may be initialized in bulk via import of existing CSV files (e.g.,
-alberi-calcolati.csv).
+This table may be initialized in bulk via import of existing CSV files.
 
 Due to error in GPS measurements and transience of tree markings (spray paint,
 etc.), it is possible for the same physical tree to appear more than once, e.g.
@@ -225,6 +224,26 @@ These cascades can destroy person-weeks of field-survey work.  The UI
 raises strong warnings before any survey or sample delete and forces an
 export of the affected rows (equivalent to "Esporta CSV") before the
 operation can proceed.  See `campionamenti.md` for the flow.
+
+### Preserved trees
+
+Some trees need to be identified as "to not be harvested". They are stored in
+the tree_preserved table.
+
+- tree_preserved: (id:int, tree_id:int, parcel_id:int, number:int,
+  date:string nullable /* ISO 8601 */, d_cm:int nullable, h_m:real nullable,
+  h_measured:bool, volume_m3:real nullable, mass_q:real nullable, lat:real,
+  lon:real, acc_m:int nullable, operator:string, note:string)
+  - assert(tree_preserved.tree.preserved == true)
+  - (parcel_id, number) must be unique. number is required and identifies the
+    preserved tree within the parcel in user-facing labels. The current La
+    Foresta source numbers are not trusted; the custom converter regenerates
+    numbers from 1 within each parcel.
+  - date is the PAI survey date, nullable for legacy rows where no survey date
+    is available. It is distinct from tree.estimated_birth_year, which is also
+    nullable.
+  - note carries arbitrary free-text observations, e.g. health or environmental
+    conditions.
 
 ### Marks
 

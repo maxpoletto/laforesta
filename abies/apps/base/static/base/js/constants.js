@@ -119,6 +119,7 @@ export const FIELD_STANDARD              = 'standard';
 export const FIELD_MANUFACTURER          = 'manufacturer';
 export const FIELD_MODEL                 = 'model';
 export const FIELD_YEAR                  = 'year';
+export const FIELD_ESTIMATED_BIRTH_YEAR  = 'estimated_birth_year';
 export const FIELD_COMMON_NAME           = 'common_name';
 export const FIELD_LATIN_NAME            = 'latin_name';
 export const FIELD_DENSITY               = 'density';

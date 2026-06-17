@@ -12,7 +12,9 @@ import { fetchJSON } from '../../base/js/api.js';
 import {
   renderLineChart, renderScatterChart, renderStackedBar, speciesNamesFromDigest,
 } from '../../base/js/charts.js';
-import { fmtArea, fmtDecimal1, fmtDecimal2, fmtInt, fmtMass, fmtVolume, parseDecimal } from '../../base/js/format.js';
+import {
+  fmtArea, fmtCoord, fmtDecimal1, fmtDecimal2, fmtInt, fmtMass, fmtVolume, parseDecimal,
+} from '../../base/js/format.js';
 import { cloneTemplate } from '../../base/js/templates.js';
 import { findContainingParcel, sortFeaturesByArea, parcelNames } from '../../base/js/geo.js';
 import { PARCEL_STYLE, ParcelMap, parcelTooltipContent } from '../../base/js/parcel-map.js';
@@ -1772,6 +1774,7 @@ function wirePaiForm(form) {
 }
 
 function validatePaiForm(body) {
+  if (!body.number) return S.BOSCO_NUMBER_REQUIRED;
   if (!body.lat || !body.lon) return S.BOSCO_LAT_LON_REQUIRED;
   return null;
 }
@@ -1871,13 +1874,21 @@ function clearPaiMarkers() {
   }
 }
 
+function paiParcelLabel(tree) {
+  return [tree.region, tree.parcel].filter(v => v != null && String(v).trim() !== '')
+    .map(v => String(v).trim()).join(' ');
+}
+
 function paiTooltip(tree) {
   const el = document.createElement('div');
   const title = document.createElement('div');
   title.className = 'parcel-tooltip-title';
   title.textContent = tree.species;
   const meta = document.createElement('div');
-  meta.textContent = `${tree.region} ${tree.parcel} · ${fmtInt(tree.year)}`;
+  const parcel = paiParcelLabel(tree);
+  meta.textContent = tree.number
+    ? S.BOSCO_PAI_TREE_META(parcel, fmtInt(tree.number))
+    : parcel;
   el.append(title, meta);
   return el;
 }
@@ -1887,10 +1898,15 @@ function paiPopup(tree) {
   el.className = 'bosco-pai-popup';
   const rows = [
     [S.COL_SPECIES, tree.species],
-    [S.COL_YEAR, fmtInt(tree.year)],
-    [S.COL_PARCEL, `${tree.region} ${tree.parcel}`.trim()],
-    [S.COL_LAT, fmtDecimal2(tree.lat)],
-    [S.COL_LON, fmtDecimal2(tree.lon)],
+    [S.COL_NUMBER, fmtInt(tree.number)],
+    [S.COL_PARCEL, paiParcelLabel(tree)],
+    [S.COL_SURVEY_DATE, tree.date],
+    [S.COL_ESTIMATED_BIRTH_YEAR, fmtInt(tree.estimatedBirthYear)],
+    [S.COL_D_CM, fmtInt(tree.dCm)],
+    [S.COL_H_M, tree.hM === '' || tree.hM == null ? '' : fmtDecimal2(tree.hM)],
+    [S.COL_LAT, fmtCoord(tree.lat)],
+    [S.COL_LON, fmtCoord(tree.lon)],
+    [S.COL_NOTE, tree.note],
   ];
   for (const [label, value] of rows) {
     const div = document.createElement('div');

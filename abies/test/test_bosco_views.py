@@ -12,11 +12,13 @@ from rasterio.transform import from_origin
 from apps.base.digests import (
     PRESERVED_TREE_COLUMNS, build_parcel_record, build_preserved_tree_record,
 )
-from apps.base.models import DigestStatus, Region, Tree
+from apps.base.models import DigestStatus, Region, Tree, TreePreserved
+from config import strings as S
 from config.constants import (
-    DATA_ID, DELETES, DIGEST_PARCELS, DIGEST_PRESERVED_TREES, FIELD_LAT,
-    FIELD_LON, FIELD_NONCE, FIELD_PARCEL_ID, FIELD_SPECIES_ID, FIELD_YEAR,
-    HTML, PATCHES, RECORD, ROW_ID, STATUS, STATUS_CONFLICT, VERSION,
+    DATA_ID, DELETES, DIGEST_PARCELS, DIGEST_PRESERVED_TREES, FIELD_DATE,
+    FIELD_D_CM, FIELD_ESTIMATED_BIRTH_YEAR, FIELD_H_M, FIELD_LAT, FIELD_LON,
+    FIELD_NONCE, FIELD_NOTE, FIELD_NUMBER, FIELD_PARCEL_ID, FIELD_SPECIES_ID,
+    HTML, MESSAGE, PATCHES, RECORD, ROW_ID, STATUS, STATUS_CONFLICT, VERSION,
 )
 
 
@@ -189,9 +191,14 @@ def test_pai_save_creates_preserved_tree(writer_client, parcels, species):
     body = {
         FIELD_SPECIES_ID: str(species[0].id),
         FIELD_PARCEL_ID: str(parcels[0].id),
-        FIELD_YEAR: '2026',
+        FIELD_NUMBER: '7',
+        FIELD_DATE: '2024-09-15',
+        FIELD_ESTIMATED_BIRTH_YEAR: '1920',
+        FIELD_D_CM: '42',
+        FIELD_H_M: '18,5',
         FIELD_LAT: '38,123456',
         FIELD_LON: '16.123456',
+        FIELD_NOTE: 'chioma secca',
         FIELD_NONCE: 'pai-create',
     }
 
@@ -201,26 +208,60 @@ def test_pai_save_creates_preserved_tree(writer_client, parcels, species):
     assert resp.status_code == 200
     tree = Tree.objects.get(species=species[0], parcel=parcels[0])
     assert tree.preserved is True
-    assert tree.year == 2026
+    assert tree.estimated_birth_year == 1920
     assert tree.lat == 38.12346
+    pai = TreePreserved.objects.get(tree=tree)
+    assert pai.number == 7
+    assert pai.date.isoformat() == '2024-09-15'
+    assert pai.d_cm == 42
+    assert str(pai.h_m) == '18.50'
+    assert pai.note == 'chioma secca'
     data = resp.json()
     patch = data[PATCHES][0]
     assert patch[DATA_ID] == DIGEST_PRESERVED_TREES
-    assert patch[ROW_ID] == tree.id
-    assert patch[RECORD] == build_preserved_tree_record(tree)
+    assert patch[ROW_ID] == pai.id
+    assert patch[RECORD] == build_preserved_tree_record(pai)
     assert len(patch[RECORD]) == len(PRESERVED_TREE_COLUMNS)
+
+
+def test_pai_save_rejects_duplicate_number_in_parcel(writer_client, parcels, species):
+    tree = Tree.objects.create(
+        species=species[0], parcel=parcels[0], preserved=True,
+        lat=38.1, lon=16.1,
+    )
+    TreePreserved.objects.create(
+        tree=tree, parcel=parcels[0], number=7, lat=38.1, lon=16.1,
+    )
+    body = {
+        FIELD_SPECIES_ID: str(species[1].id),
+        FIELD_PARCEL_ID: str(parcels[0].id),
+        FIELD_NUMBER: '7',
+        FIELD_LAT: '38.2',
+        FIELD_LON: '16.2',
+        FIELD_NONCE: 'pai-duplicate-number',
+    }
+
+    resp = writer_client.post('/api/bosco/pai/save/', body,
+                              content_type='application/json')
+
+    assert resp.status_code == 400
+    assert S.ERR_BOSCO_PAI_NUMBER_DUPLICATE in resp.json()[MESSAGE]
+    assert TreePreserved.objects.count() == 1
 
 
 def test_pai_save_stale_edit_conflicts(writer_client, parcels, species):
     tree = Tree.objects.create(
         species=species[0], parcel=parcels[0], preserved=True,
-        year=2025, lat=38.1, lon=16.1, version=2,
+        estimated_birth_year=1920, lat=38.1, lon=16.1, version=2,
+    )
+    pai = TreePreserved.objects.create(
+        tree=tree, parcel=parcels[0], number=3, lat=38.1, lon=16.1, version=2,
     )
     body = {
-        ROW_ID: str(tree.id), VERSION: '1',
+        ROW_ID: str(pai.id), VERSION: '1',
         FIELD_SPECIES_ID: str(species[1].id),
         FIELD_PARCEL_ID: str(parcels[1].id),
-        FIELD_YEAR: '2026', FIELD_LAT: '38.2', FIELD_LON: '16.2',
+        FIELD_NUMBER: '4', FIELD_LAT: '38.2', FIELD_LON: '16.2',
         FIELD_NONCE: 'pai-conflict',
     }
 
@@ -232,8 +273,8 @@ def test_pai_save_stale_edit_conflicts(writer_client, parcels, species):
     assert data[STATUS] == STATUS_CONFLICT
     patch = data[PATCHES][0]
     assert patch[DATA_ID] == DIGEST_PRESERVED_TREES
-    assert patch[ROW_ID] == tree.id
-    assert patch[RECORD] == build_preserved_tree_record(tree)
+    assert patch[ROW_ID] == pai.id
+    assert patch[RECORD] == build_preserved_tree_record(pai)
     assert len(patch[RECORD]) == len(PRESERVED_TREE_COLUMNS)
     assert 'bosco-pai-form' in data[HTML]
 
@@ -241,9 +282,12 @@ def test_pai_save_stale_edit_conflicts(writer_client, parcels, species):
 def test_pai_delete_clears_preserved_flag(writer_client, parcels, species):
     tree = Tree.objects.create(
         species=species[0], parcel=parcels[0], preserved=True,
-        year=2025, lat=38.1, lon=16.1, version=3,
+        estimated_birth_year=1925, lat=38.1, lon=16.1, version=3,
     )
-    body = {ROW_ID: str(tree.id), VERSION: '3', FIELD_NONCE: 'pai-delete'}
+    pai = TreePreserved.objects.create(
+        tree=tree, parcel=parcels[0], number=3, lat=38.1, lon=16.1, version=3,
+    )
+    body = {ROW_ID: str(pai.id), VERSION: '3', FIELD_NONCE: 'pai-delete'}
 
     resp = writer_client.post('/api/bosco/pai/delete/', body,
                               content_type='application/json')
@@ -252,9 +296,10 @@ def test_pai_delete_clears_preserved_flag(writer_client, parcels, species):
     tree.refresh_from_db()
     assert tree.preserved is False
     assert tree.version == 4
+    assert TreePreserved.objects.count() == 0
     assert resp.json()[DELETES] == [{
         DATA_ID: DIGEST_PRESERVED_TREES,
-        ROW_ID: tree.id,
+        ROW_ID: pai.id,
     }]
 
 

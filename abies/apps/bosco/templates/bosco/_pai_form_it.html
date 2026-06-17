@@ -1,9 +1,9 @@
 <div class="form-card">
   <form id="bosco-pai-form">
-    <input type="hidden" name="row_id" value="{{ tree.id|default_if_none:'' }}">
+    <input type="hidden" name="row_id" value="{{ pai.id|default_if_none:'' }}">
     <input type="hidden" name="version" value="{{ version }}">
 
-    <h2>{% if tree %}Modifica PAI{% else %}Nuovo PAI{% endif %}</h2>
+    <h2>{% if pai %}Modifica PAI{% else %}Nuovo PAI{% endif %}</h2>
 
     <div class="form-row">
       <div class="form-group">
@@ -17,9 +17,21 @@
         </select>
       </div>
       <div class="form-group">
-        <label for="id_pai_year">Anno</label>
-        <input type="number" id="id_pai_year" name="year" required
-               min="1900" max="2200" value="{{ year }}">
+        <label for="id_pai_number">Numero</label>
+        <input type="number" id="id_pai_number" name="number" required
+               min="1" step="1" value="{{ number }}">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label for="id_pai_date">Data di rilevamento</label>
+        <input type="date" id="id_pai_date" name="date" value="{{ date }}">
+      </div>
+      <div class="form-group">
+        <label for="id_pai_birth_year">Anno di nascita stimato</label>
+        <input type="number" id="id_pai_birth_year" name="estimated_birth_year"
+               min="1000" max="2200" step="1" value="{{ estimated_birth_year }}">
       </div>
     </div>
 
@@ -38,6 +50,19 @@
       </div>
     </div>
 
+    <div class="form-row">
+      <div class="form-group">
+        <label for="id_pai_d_cm">D (cm)</label>
+        <input type="number" id="id_pai_d_cm" name="d_cm" min="1" step="1"
+               value="{{ d_cm }}">
+      </div>
+      <div class="form-group">
+        <label for="id_pai_h_m">h (m)</label>
+        <input type="text" inputmode="decimal" id="id_pai_h_m" name="h_m"
+               value="{{ h_m }}">
+      </div>
+    </div>
+
     <div class="form-row bosco-pai-latlon-row">
       <div class="form-group">
         <label for="id_pai_lat">Lat</label>
@@ -51,10 +76,17 @@
       </div>
     </div>
 
+    <div class="form-row">
+      <div class="form-group form-group-wide">
+        <label for="id_pai_note">Note</label>
+        <textarea id="id_pai_note" name="note" rows="3">{{ note }}</textarea>
+      </div>
+    </div>
+
     <div class="form-actions">
       <button type="button" class="btn" data-action="cancel">Annulla</button>
       <button type="submit" class="btn btn-save">Salva</button>
-      {% if not tree %}
+      {% if not pai %}
       <button type="submit" class="btn btn-save" data-action="save-and-add">Salva e continua</button>
       {% endif %}
     </div>

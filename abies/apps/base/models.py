@@ -505,7 +505,7 @@ class Tree(TimestampedModel):
     `database.md` for the cross-sample-identity convention.
     """
     species = models.ForeignKey(Species, on_delete=models.PROTECT)
-    year = models.IntegerField(null=True, blank=True)
+    estimated_birth_year = models.IntegerField(null=True, blank=True)
     lat = models.FloatField(null=True, blank=True)
     lon = models.FloatField(null=True, blank=True)
     acc_m = models.IntegerField(
@@ -522,6 +522,33 @@ class Tree(TimestampedModel):
     class Meta:
         verbose_name = S.TREE
         verbose_name_plural = S.TREES
+
+
+class TreePreserved(TimestampedModel):
+    """Observation row for a preserved / PAI tree."""
+    tree = models.ForeignKey(
+        Tree, on_delete=models.CASCADE, related_name='preserved_records',
+    )
+    parcel = models.ForeignKey(Parcel, on_delete=models.PROTECT)
+    number = models.IntegerField()
+    date = models.DateField(null=True, blank=True)
+    d_cm = models.IntegerField(null=True, blank=True)
+    h_m = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    h_measured = models.BooleanField(default=False)
+    volume_m3 = models.DecimalField(max_digits=8, decimal_places=4, null=True, blank=True)
+    mass_q = models.DecimalField(max_digits=8, decimal_places=3, null=True, blank=True)
+    lat = models.FloatField()
+    lon = models.FloatField()
+    acc_m = models.IntegerField(null=True, blank=True)
+    operator = models.CharField(max_length=100, blank=True)
+    note = models.TextField(blank=True)
+    # Deliberately NOT history-tracked: PAI rows may be loaded in bulk by CSV
+    # import and would swamp the Controllo audit log.
+
+    class Meta:
+        verbose_name = S.TREE_PRESERVED
+        verbose_name_plural = S.TREE_PRESERVEDS
+        unique_together = [('parcel', 'number')]
 
 
 class TreeMark(TimestampedModel):
