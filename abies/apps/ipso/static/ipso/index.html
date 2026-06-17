@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="theme-color" content="#1f5b1a">
+  <title>Ipso — martellata</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="img/f.gif">
+  <link rel="apple-touch-icon" href="img/icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header class="app-bar">
+    <span class="app-title">Ipso</span>
+    <span class="app-sub" id="sub-status"></span>
+    <img class="app-logo" src="img/l.gif" alt="La Foresta">
+  </header>
+
+  <main id="main">
+
+    <div id="banner-storage" class="banner hidden"></div>
+
+    <!-- ============= PRE-SESSION ============= -->
+    <section id="screen-pre" class="screen" hidden>
+      <h1 id="pre-title"></h1>
+      <form id="pre-form">
+        <label class="field">
+          <span class="lbl" id="lbl-operatore"></span>
+          <input id="in-operatore" type="text" autocomplete="off" required>
+        </label>
+        <label class="field">
+          <span class="lbl" id="lbl-data"></span>
+          <input id="in-data" type="date" required>
+        </label>
+        <label class="field">
+          <span class="lbl" id="lbl-compresa"></span>
+          <select id="in-compresa" required></select>
+        </label>
+        <label class="check" for="in-catastrofata">
+          <input type="checkbox" id="in-catastrofata">
+          <span class="check-lbl" id="lbl-catastrofata"></span>
+        </label>
+        <button id="btn-start" class="btn-primary btn-big" type="submit"></button>
+      </form>
+    </section>
+
+    <!-- ============= RECORDING ============= -->
+    <section id="screen-rec" class="screen" hidden>
+      <div class="rec-header">
+        <div class="rec-where" id="rec-where"></div>
+        <div class="gps" id="gps">
+          <span class="gps-dot" id="gps-dot"></span>
+          <span class="gps-text" id="gps-text"></span>
+        </div>
+      </div>
+
+      <div class="pill" id="pill">
+        <span class="pill-text" id="pill-text"></span>
+        <button id="pill-action" class="pill-btn" type="button" hidden></button>
+      </div>
+
+      <div class="dh-row">
+        <label class="field dh">
+          <span class="lbl" id="lbl-specie"></span>
+          <select id="in-specie" class="dh-select specie-select"></select>
+        </label>
+        <label class="field dh">
+          <span class="lbl" id="lbl-numero"></span>
+          <input id="in-numero" type="text" inputmode="none" readonly autocomplete="off">
+        </label>
+      </div>
+
+      <div class="dh-row">
+        <label class="field dh">
+          <span class="lbl" id="lbl-particella-rec"></span>
+          <select id="in-particella-rec" class="dh-select"></select>
+        </label>
+        <label class="field dh">
+          <span class="lbl" id="lbl-gruppo"></span>
+          <select id="in-gruppo" class="dh-select"></select>
+        </label>
+      </div>
+
+      <div class="dh-row">
+        <label class="field dh">
+          <span class="lbl" id="lbl-d"></span>
+          <input id="in-d" type="text" inputmode="none" readonly autocomplete="off">
+        </label>
+        <label class="field dh">
+          <span class="lbl" id="lbl-h"></span>
+          <input id="in-h" type="text" inputmode="none" readonly autocomplete="off">
+        </label>
+      </div>
+      <div class="hint" id="hint-autoh" hidden></div>
+
+      <div id="numpad" class="numpad"></div>
+
+      <button id="btn-save" class="btn-primary btn-big" type="button" disabled></button>
+      <button id="btn-view-data" class="btn-secondary btn-big" type="button"></button>
+      <button id="btn-end" class="btn-secondary" type="button"></button>
+    </section>
+
+    <!-- ============= VISUALIZZA DATI RACCOLTI ============= -->
+    <section id="screen-data" class="screen" hidden>
+      <h1 id="data-title"></h1>
+
+      <div class="data-section">
+        <h2 class="data-section-h" id="data-groups-h"></h2>
+        <div id="data-groups-wrap" class="data-table-wrap">
+          <table class="data-table" id="data-groups-table"></table>
+        </div>
+      </div>
+
+      <div class="data-section data-section-trees">
+        <h2 class="data-section-h" id="data-trees-h"></h2>
+        <div id="data-trees-wrap" class="data-table-wrap data-table-scroll">
+          <table class="data-table" id="data-trees-table"></table>
+        </div>
+      </div>
+
+      <button id="btn-data-close" class="btn-secondary btn-big" type="button"></button>
+    </section>
+
+    <!-- ============= UPLOAD ============= -->
+    <section id="screen-upload" class="screen" hidden>
+      <h1 id="upload-title"></h1>
+      <div class="upload-status">
+        <div class="upload-spinner" id="upload-spinner" aria-hidden="true"></div>
+        <p class="upload-attempt" id="upload-attempt"></p>
+        <p class="upload-detail" id="upload-detail"></p>
+      </div>
+      <button id="btn-upload-bail" class="btn-secondary btn-big" type="button"></button>
+    </section>
+
+    <!-- ============= DONE ============= -->
+    <section id="screen-done" class="screen" hidden>
+      <h1 id="done-title"></h1>
+      <p id="done-body"></p>
+      <button id="btn-new-session" class="btn-primary btn-big" type="button"></button>
+    </section>
+
+    <!-- ============= MODALS ============= -->
+
+    <div id="modal-resume" class="modal hidden" role="dialog" aria-modal="true">
+      <div class="modal-card">
+        <h2 id="resume-title"></h2>
+        <p id="resume-body"></p>
+        <ul id="resume-list"></ul>
+      </div>
+    </div>
+
+    <div id="modal-confirm-end" class="modal hidden" role="dialog" aria-modal="true">
+      <div class="modal-card">
+        <h2 id="end-title"></h2>
+        <p id="end-body"></p>
+        <div class="modal-actions">
+          <button id="end-cancel" class="btn-secondary" type="button"></button>
+          <button id="end-confirm" class="btn-primary" type="button"></button>
+        </div>
+      </div>
+    </div>
+
+    <div id="modal-edit-last" class="modal hidden" role="dialog" aria-modal="true">
+      <div class="modal-card">
+        <h2 id="edit-title"></h2>
+        <p id="edit-body"></p>
+        <div class="modal-actions">
+          <button id="edit-cancel" class="btn-secondary" type="button"></button>
+          <button id="edit-delete" class="btn-danger" type="button"></button>
+        </div>
+      </div>
+    </div>
+
+    <div id="toast" class="toast hidden"></div>
+
+  </main>
+
+  <footer class="footer">
+    <span id="footer-version"></span>
+  </footer>
+
+  <script src="version.js"></script>
+  <script src="strings.js"></script>
+  <script src="csv.js"></script>
+  <script src="ipso.js"></script>
+  <script src="session.js"></script>
+  <script src="download.js"></script>
+  <script src="gps.js"></script>
+  <script src="numpad.js"></script>
+  <script src="store.js"></script>
+  <script src="geo.js"></script>
+  <script src="parcel-locator.js"></script>
+  <script src="upload-config.js"></script>
+  <script src="upload.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

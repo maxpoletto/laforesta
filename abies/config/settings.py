@@ -110,6 +110,7 @@ INSTALLED_APPS = [
     'simple_history',
     # Project
     'apps.base',
+    'apps.ipso',
     'apps.prelievi',
     'apps.bosco',
     'apps.campionamenti',

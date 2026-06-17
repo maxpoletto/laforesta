@@ -15,6 +15,7 @@ urlpatterns = [
     # bounces unauthenticated users to LOGIN_URL.
     path('', RedirectView.as_view(url=settings.LOGIN_REDIRECT_URL, permanent=False)),
     path('admin/', admin.site.urls),
+    path('ipso/', include('apps.ipso.urls')),
     path('api/bosco/', include('apps.bosco.urls')),
     path('api/mannesi/', include('apps.mannesi.urls')),
     path('api/prelievi/', include('apps.prelievi.urls')),
