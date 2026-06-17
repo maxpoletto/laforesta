@@ -37,7 +37,7 @@ from apps.prelievi.models import Harvest
 from config import strings as S
 from config.constants import (
     FIELD_COMMON_NAME, FIELD_DENSITY, FIELD_LATIN_NAME, FIELD_MINOR,
-    FIELD_NAME, FIELD_SORT_ORDER,
+    FIELD_NAME, FIELD_PRESSLER_DEFAULT, FIELD_SORT_ORDER,
 )
 
 # Comprehensive emptiness guard: if ANY of these holds a row, the instance is not
@@ -192,8 +192,9 @@ class Command(BaseCommand):
             parsed = [
                 {FIELD_COMMON_NAME: common, FIELD_LATIN_NAME: latin,
                  FIELD_SORT_ORDER: order, FIELD_DENSITY: density,
-                 FIELD_MINOR: minor}
-                for common, latin, order, density, minor in refdata.load_species()
+                 FIELD_PRESSLER_DEFAULT: pressler_default, FIELD_MINOR: minor}
+                for common, latin, order, density, pressler_default, minor
+                in refdata.load_species()
             ]
         elif table is csv_reference.PRODUCTS:
             parsed = [{FIELD_NAME: name}

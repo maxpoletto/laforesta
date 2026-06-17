@@ -38,7 +38,8 @@ from config.constants import (
     FIELD_CREATED_AT, FIELD_DENSITY, FIELD_EMAIL, FIELD_FILE, FIELD_FIRST_NAME,
     FIELD_HARVEST_PLAN_ID, FIELD_IS_ACTIVE, FIELD_LAST_NAME,
     FIELD_LATIN_NAME, FIELD_LOGIN_METHOD, FIELD_MANUFACTURER, FIELD_MIN_N,
-    FIELD_MINOR, FIELD_MODEL, FIELD_NAME,
+    FIELD_MINOR, FIELD_MODEL, FIELD_NAME, FIELD_PRESSLER_DEFAULT,
+    PRESSLER_DEFAULT,
     FIELD_NOTES, FIELD_PASSWORD1, FIELD_PASSWORD2, FIELD_ROLE,
     FIELD_SOURCE, FIELD_SPECIES, FIELD_SURVEY_IDS, FIELD_SURVEYS,
     FIELD_USE_FOR_HEIGHT_PLOTS, FIELD_USERNAME, FIELD_YEAR,
@@ -174,12 +175,12 @@ def tractors_save(request):
 # ---------------------------------------------------------------------------
 
 SPECIES_COLS = [ROW_ID, S.LABEL_NAME, S.COL_LATIN_NAME,
-                S.LABEL_DENSITY, S.COL_MINOR, S.COL_ACTIVE]
+                S.LABEL_DENSITY, S.COL_PRESSLER, S.COL_MINOR, S.COL_ACTIVE]
 
 
 def _species_row(s):
     return [s.id, s.common_name, s.latin_name, float(s.density),
-            s.minor, s.active]
+            float(s.pressler_default), s.minor, s.active]
 
 
 @login_required
@@ -191,7 +192,10 @@ def species_data(request):
 @login_required
 @require_writer
 def species_form(request, obj_id=None):
-    return _form('impostazioni/_species_form.html', Species, obj_id, request)
+    return _form(
+        'impostazioni/_species_form.html', Species, obj_id, request,
+        extra={'pressler_default': PRESSLER_DEFAULT},
+    )
 
 
 @login_required
@@ -204,10 +208,16 @@ def species_save(request):
     density = parse_decimal(body.get(FIELD_DENSITY))
     if density is None or density <= 0:
         return _error(S.ERR_DENSITY_INVALID)
+    pressler_default = parse_decimal(body.get(FIELD_PRESSLER_DEFAULT))
+    if pressler_default is None:
+        pressler_default = PRESSLER_DEFAULT
+    if pressler_default <= 0:
+        return _error(S.ERR_PRESSLER_POSITIVE)
     parsed = {
         FIELD_COMMON_NAME: body.get(FIELD_COMMON_NAME, '').strip(),
         FIELD_LATIN_NAME: body.get(FIELD_LATIN_NAME, '').strip(),
         FIELD_DENSITY: density,
+        FIELD_PRESSLER_DEFAULT: pressler_default,
         FIELD_MINOR: is_truthy(body.get(FIELD_MINOR)),
         FIELD_ACTIVE: is_truthy(body.get(FIELD_ACTIVE)),
     }
@@ -664,9 +674,12 @@ def _list(model, columns, row_fn):
     return JsonResponse({COLUMNS: columns, ROWS: rows})
 
 
-def _form(template, model, obj_id, request):
+def _form(template, model, obj_id, request, extra=None):
     obj = model.objects.get(id=obj_id) if obj_id else None
-    html = render_to_string(template, {'obj': obj}, request=request)
+    context = {'obj': obj}
+    if extra:
+        context.update(extra)
+    html = render_to_string(template, context, request=request)
     return JsonResponse({HTML: html})
 
 

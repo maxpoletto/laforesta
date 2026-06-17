@@ -12,7 +12,7 @@ from config import strings as S
 
 # Header with all TREE_CSV_REQUIRED columns; no Data column (use default_date).
 TREE_HEADER = ('Compresa,Particella,Area saggio,Albero,Pollone,Matricina,'
-               'D_cm,H_m,L10_mm,Genere,Fustaia')
+               'D_cm,H_m,L10_mm,Pressler,Genere,Fustaia')
 
 
 @pytest.fixture
@@ -53,13 +53,14 @@ def test_validate_rows_happy_path(survey_with_area):
     parcel = survey_with_area['parcel']
     csv_text = (
         TREE_HEADER + '\n'
-        f'{parcel.region.name},{parcel.name},1,1,0,False,30,15.5,250,Abete,True\n'
+        f'{parcel.region.name},{parcel.name},1,1,0,False,30,15.5,250,2,Abete,True\n'
     )
     parsed, errors = _validate(csv_text, idx)
     assert errors == []
     assert len(parsed) == 1
     assert parsed[0][csv_trees.FIELD_NUMBER] == 1
     assert parsed[0][csv_trees.FIELD_D_CM] == 30
+    assert parsed[0][csv_trees.FIELD_PRESSLER_COEFF] == 2
 
 
 @pytest.mark.django_db
@@ -68,7 +69,7 @@ def test_validate_rows_unknown_area_flagged(survey_with_area):
     parcel = survey_with_area['parcel']
     csv_text = (
         TREE_HEADER + '\n'
-        f'{parcel.region.name},{parcel.name},999,1,0,False,30,15.5,250,Abete,True\n'
+        f'{parcel.region.name},{parcel.name},999,1,0,False,30,15.5,250,2,Abete,True\n'
     )
     parsed, errors = _validate(csv_text, idx)
     assert parsed == []
@@ -81,7 +82,7 @@ def test_validate_rows_unknown_species_flagged(survey_with_area):
     parcel = survey_with_area['parcel']
     csv_text = (
         TREE_HEADER + '\n'
-        f'{parcel.region.name},{parcel.name},1,1,0,False,30,15.5,250,Zzz,True\n'
+        f'{parcel.region.name},{parcel.name},1,1,0,False,30,15.5,250,2,Zzz,True\n'
     )
     parsed, errors = _validate(csv_text, idx)
     assert parsed == []
@@ -94,7 +95,7 @@ def test_validate_rows_parse_error_flagged(survey_with_area):
     parcel = survey_with_area['parcel']
     csv_text = (
         TREE_HEADER + '\n'
-        f'{parcel.region.name},{parcel.name},1,,0,False,,15.5,250,Abete,True\n'
+        f'{parcel.region.name},{parcel.name},1,,0,False,,15.5,250,2,Abete,True\n'
     )
     parsed, errors = _validate(csv_text, idx)
     assert parsed == []
@@ -108,7 +109,7 @@ def test_validate_rows_missing_date_flagged(survey_with_area):
     parcel = survey_with_area['parcel']
     csv_text = (
         TREE_HEADER + '\n'
-        f'{parcel.region.name},{parcel.name},1,1,0,False,30,15.5,250,Abete,True\n'
+        f'{parcel.region.name},{parcel.name},1,1,0,False,30,15.5,250,2,Abete,True\n'
     )
     parsed, errors = _validate(csv_text, idx, default_date=None)
     assert parsed == []
@@ -122,7 +123,7 @@ def test_validate_rows_unrecognised_fustaia_flagged(survey_with_area):
     parcel = survey_with_area['parcel']
     csv_text = (
         TREE_HEADER + '\n'
-        f'{parcel.region.name},{parcel.name},1,1,0,False,30,15.5,250,Abete,maybe\n'
+        f'{parcel.region.name},{parcel.name},1,1,0,False,30,15.5,250,2,Abete,maybe\n'
     )
     parsed, errors = _validate(csv_text, idx)
     assert parsed == []
@@ -136,7 +137,21 @@ def test_validate_rows_invalid_l10_flagged(survey_with_area):
     parcel = survey_with_area['parcel']
     csv_text = (
         TREE_HEADER + '\n'
-        f'{parcel.region.name},{parcel.name},1,1,0,False,30,15.5,abc,Abete,True\n'
+        f'{parcel.region.name},{parcel.name},1,1,0,False,30,15.5,abc,2,Abete,True\n'
+    )
+    parsed, errors = _validate(csv_text, idx)
+    assert parsed == []
+    assert len(errors) == 1
+
+
+@pytest.mark.django_db
+def test_validate_rows_invalid_pressler_flagged(survey_with_area):
+    """Pressler must parse and be positive."""
+    idx = csv_trees.db_indexes(survey_with_area['survey'])
+    parcel = survey_with_area['parcel']
+    csv_text = (
+        TREE_HEADER + '\n'
+        f'{parcel.region.name},{parcel.name},1,1,0,False,30,15.5,250,0,Abete,True\n'
     )
     parsed, errors = _validate(csv_text, idx)
     assert parsed == []
@@ -150,7 +165,7 @@ def test_validate_rows_invalid_matricina_flagged(survey_with_area):
     parcel = survey_with_area['parcel']
     csv_text = (
         TREE_HEADER + '\n'
-        f'{parcel.region.name},{parcel.name},1,1,0,maybe,30,15.5,250,Abete,True\n'
+        f'{parcel.region.name},{parcel.name},1,1,0,maybe,30,15.5,250,2,Abete,True\n'
     )
     parsed, errors = _validate(csv_text, idx)
     assert parsed == []
@@ -164,7 +179,7 @@ def test_validate_rows_invalid_pai_flagged(survey_with_area):
     parcel = survey_with_area['parcel']
     csv_text = (
         TREE_HEADER + f',{S.CSV_COL_PRESERVED}\n'
-        f'{parcel.region.name},{parcel.name},1,1,0,False,30,15.5,250,Abete,True,maybe\n'
+        f'{parcel.region.name},{parcel.name},1,1,0,False,30,15.5,250,2,Abete,True,maybe\n'
     )
     parsed, errors = _validate(csv_text, idx)
     assert parsed == []
@@ -178,7 +193,7 @@ def test_validate_rows_blank_optionals_default(survey_with_area):
     parcel = survey_with_area['parcel']
     csv_text = (
         TREE_HEADER + '\n'
-        f'{parcel.region.name},{parcel.name},1,1,,,30,15.5,,Abete,True\n'
+        f'{parcel.region.name},{parcel.name},1,1,,,30,15.5,,2,Abete,True\n'
     )
     parsed, errors = _validate(csv_text, idx)
     assert errors == []
@@ -195,7 +210,7 @@ def test_apply_creates_sample_and_treesample(survey_with_area):
     parcel = survey_with_area['parcel']
     csv_text = (
         TREE_HEADER + '\n'
-        f'{parcel.region.name},{parcel.name},1,1,0,False,30,15.5,250,Abete,True\n'
+        f'{parcel.region.name},{parcel.name},1,1,0,False,30,15.5,250,2,Abete,True\n'
     )
     parsed, errors = _validate(csv_text, idx)
     assert errors == []
@@ -205,3 +220,4 @@ def test_apply_creates_sample_and_treesample(survey_with_area):
     ts = TreeSample.objects.get(sample=sample)
     assert ts.number == 1
     assert ts.d_cm == 30
+    assert ts.pressler_coeff == 2

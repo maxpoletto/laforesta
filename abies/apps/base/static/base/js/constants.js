@@ -50,6 +50,9 @@ export const ROLE_READER = 'reader';
 export const LOGIN_METHOD_PASSWORD = 'password';
 export const LOGIN_METHOD_OAUTH    = 'oauth';
 
+// Dendrometry defaults.
+export const PRESSLER_DEFAULT = '2.00';
+
 // Digest filesystem identifiers (the digest file is `<name>.json.gz`).
 export const DIGEST_PARCELS = 'parcels';
 export const DIGEST_FUTURE_PRODUCTION = 'future_production';
@@ -98,6 +101,7 @@ export const FIELD_TREE_PICK_EXISTING_ID = 'tree_pick_existing_id';
 export const FIELD_D_CM                  = 'd_cm';
 export const FIELD_H_M                   = 'h_m';
 export const FIELD_L10_MM                = 'l10_mm';
+export const FIELD_PRESSLER_COEFF         = 'pressler_coeff';
 export const FIELD_QUINTALS              = 'quintals';
 export const FIELD_HOURS                 = 'hours';
 export const FIELD_LICENSE_PLATE         = 'license_plate';
@@ -118,6 +122,8 @@ export const FIELD_YEAR                  = 'year';
 export const FIELD_COMMON_NAME           = 'common_name';
 export const FIELD_LATIN_NAME            = 'latin_name';
 export const FIELD_DENSITY               = 'density';
+export const FIELD_PRESSLER_DEFAULT       = 'pressler_default';
+export const FIELD_MINOR                 = 'minor';
 export const FIELD_SORT_ORDER            = 'sort_order';
 export const FIELD_ROLE                  = 'role';
 export const FIELD_EMAIL                 = 'email';

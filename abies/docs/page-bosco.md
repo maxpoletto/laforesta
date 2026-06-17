@@ -175,7 +175,7 @@ following the standard Abies idiom:
      with more than N data points.
 
    - Percentage growth: line graph, one line per species, x-axis = diameter class, y-axis =
-     percentage growth for diameter class.
+     Pressler percentage volume growth for diameter class.
 
    The choice of surveys used for this data is made in the settings page, see
    page-impostazioni.md. If no survey exists, displays a message to that effect.

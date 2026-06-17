@@ -173,10 +173,15 @@ survey.
 
 Columns: compresa, particella, area di campionamento, n. albero
 (`tree_sample.number`), specie, tipo (fustaia / ceduo), pollone, matricina, D
-(cm), h (m), L10 (mm), V (m³), m (q), PAI.
+(cm), h (m), L10 (mm), V (m³), m (q), PAI, Lat/Lon. Pressler coefficient is not
+displayed.
 
-V (m³) and m (q) are blank for ceduo rows (no per-shoot volume estimates —
-see `database.md`).
+Pollone value is blank (not 0) for high forest (fustaia) rows.
+
+V (m³) and m (q) are blank for coppice (ceduo) rows (no per-shoot volume
+estimates — see `database.md`).
+
+L10 column is blank if value is 0.
 
 Writers see "+ Aggiungi", pencil, garbage. The "+" pops up an error unless both
 a survey and a sample area are selected in section 2. It opens the manual
@@ -208,9 +213,10 @@ Flow:
 Required columns: `Compresa`, `Particella`, `Area saggio`, `Albero` (→
 `tree_sample.number`), `Pollone` (→ `tree_sample.shoot`), `Matricina` (bool, →
 `tree_sample.standard`), `D_cm`, `H_m`, `L10_mm`, `Genere` (→ species),
-`Fustaia` (bool; `Fustaia=false` → `tree.coppice=true`). Importer aborts with a
-helpful message if any of these fields is missing. However, on a per-row level,
-it is ok for `L10_mm` to be 0 (not all trees are cored).
+`Fustaia` (bool; `Fustaia=false` → `tree.coppice=true`), Pressler (→
+`tree_sample.pressler_coeff`). Importer aborts with a helpful message if any of
+these fields is missing. However, on a per-row level, it is ok for `L10_mm` to
+be 0 (not all trees are cored).
 
 Optional columns: `Data` (→ `sample.date`), `PAI` (bool, →
 `tree.preserved`).
@@ -248,9 +254,10 @@ samples to areas outside the grid.
 "+ Aggiungi" opens an overlay modal. Read-only header: compresa,
 particella, area di saggio.
 
-Fields: numero albero (pulldown — see "Cross-sample tree identity"
-below), specie, ceduo checkbox (toggles coppice shoot block), D (cm),
-h (m), L10 (mm, optional), lat/lng (shared component), PAI checkbox.
+Fields: numero albero (pulldown — see "Cross-sample tree identity" below),
+specie, ceduo checkbox (toggles coppice shoot block), D (cm), h (m), L10 (mm,
+optional), Pressler coeff (defaults to per-species default), lat/lon (shared
+component), PAI checkbox.
 
 For fustaia trees whose species has Tabacchi hypsometric params, a live V/m
 preview (`V = X.XX m³ · m = X.X q`) recomputes as D/h/specie change. V via
@@ -301,7 +308,7 @@ before the delete button is enabled.
 Deleting a single `tree_sample` row leaves both the `sample` and the underlying
 `tree` row intact.
 
-## Lat/lng entry component (shared)
+## Lat/lon entry component (shared)
 
 Used here and on Piano di taglio (mark-tree add). Two coupled inputs
 (latitudine, longitudine) plus a "Usa posizione attuale" button. The button is

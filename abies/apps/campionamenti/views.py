@@ -40,10 +40,12 @@ from apps.campionamenti import csv_grid, csv_trees
 from config import strings as S
 from config.constants import (
     BOSCO_DENDROMETRY_DIGESTS, BOSCO_TREE_DIGESTS, DEFAULT_RADIUS_M,
+    PRESSLER_DEFAULT,
     FIELD_ALTITUDE, FIELD_ALTITUDE_M, FIELD_AREA,
     FIELD_COMPRESA, FIELD_COPPICE, FIELD_DATE, FIELD_DEFAULT_DATE,
     FIELD_DESCRIPTION, FIELD_D_CM,
     FIELD_FILE, FIELD_HIGHFOREST, FIELD_H_M, FIELD_L10_MM, FIELD_LAT, FIELD_LON,
+    FIELD_PRESSLER_COEFF,
     FIELD_MASS_Q,
     FIELD_NAME, FIELD_NEXT_SHOOT, FIELD_NOTE, FIELD_NUMBER,
     FIELD_PARCEL, FIELD_PARCEL_ID, FIELD_PARTICELLA, FIELD_POINTS,
@@ -199,6 +201,7 @@ def tree_save_view(request):
                     standard=sh[FIELD_STANDARD],
                     number=parsed[FIELD_NUMBER],
                     d_cm=sh[FIELD_D_CM], h_m=sh[FIELD_H_M], l10_mm=sh[FIELD_L10_MM],
+                    pressler_coeff=parsed[FIELD_PRESSLER_COEFF],
                     volume_m3=None, mass_q=None,
                 )
                 created_or_updated_ids.append(ts.id)
@@ -209,6 +212,7 @@ def tree_save_view(request):
                 number=parsed[FIELD_NUMBER],
                 d_cm=parsed[FIELD_D_CM], h_m=parsed[FIELD_H_M],
                 l10_mm=parsed[FIELD_L10_MM],
+                pressler_coeff=parsed[FIELD_PRESSLER_COEFF],
                 volume_m3=parsed[FIELD_VOLUME_M3],
                 mass_q=parsed[FIELD_MASS_Q],
             )
@@ -226,6 +230,7 @@ def tree_save_view(request):
                 number=parsed[FIELD_NUMBER],
                 d_cm=parsed[FIELD_D_CM], h_m=parsed[FIELD_H_M],
                 l10_mm=parsed[FIELD_L10_MM],
+                pressler_coeff=parsed[FIELD_PRESSLER_COEFF],
                 volume_m3=parsed[FIELD_VOLUME_M3],
                 mass_q=parsed[FIELD_MASS_Q],
             )
@@ -586,12 +591,14 @@ def _render_tree_form(request, ts_id, survey_id, area_id):
         ).first()
 
     species = list(Species.objects.filter(active=True).order_by(FIELD_SORT_ORDER))
+    tree = ts.tree if ts else None
+    is_coppice = area.parcel.eclass.coppice
+    default_species_id = None if ts else _default_species_id(species, is_coppice)
+    default_species = next((sp for sp in species if sp.id == default_species_id), None)
     prior_trees, next_number = _prior_trees_for_area(
         area, exclude_ts_id=ts_id, current_sample=sample,
     )
 
-    tree = ts.tree if ts else None
-    is_coppice = area.parcel.eclass.coppice
     return render_to_string('campionamenti/_tree_form.html', {
         'ts': ts,
         'tree': tree,
@@ -603,13 +610,9 @@ def _render_tree_form(request, ts_id, survey_id, area_id):
         'prior_trees': prior_trees,
         'next_number': next_number,
         'fustaia_default': not is_coppice,
-        'default_species_id': (
-            None if ts else _default_species_id(species, is_coppice)
-        ),
+        'default_species_id': default_species_id,
         # Shared _tree_fields.html context.
-        'selected_species_id': (
-            None if ts else _default_species_id(species, is_coppice)
-        ),
+        'selected_species_id': default_species_id,
         'is_edit': bool(ts),
         'show_ceduo': True,
         'show_l10': True,
@@ -618,6 +621,14 @@ def _render_tree_form(request, ts_id, survey_id, area_id):
         'edit_species_name': tree.species.common_name if tree else '',
         'edit_species_id': tree.species_id if tree else '',
         'edit_species_density': tree.species.density if tree else '',
+        'edit_species_pressler_default': tree.species.pressler_default if tree else '',
+        'show_pressler': True,
+        'pressler_coeff': (
+            ts.pressler_coeff if ts else (
+                default_species.pressler_default if default_species
+                else PRESSLER_DEFAULT
+            )
+        ),
         'd_cm': ts.d_cm if ts else '',
         'h_m': ts.h_m if ts else '',
         'l10_mm': ts.l10_mm if ts else 0,
@@ -757,6 +768,12 @@ def _parse_tree_body(body):
         except (ValueError, TypeError):
             errors.append(S.ERR_DATE_INVALID)
 
+    pressler_coeff = parse_decimal(body.get(FIELD_PRESSLER_COEFF))
+    if pressler_coeff is None:
+        pressler_coeff = PRESSLER_DEFAULT
+    if pressler_coeff <= 0:
+        errors.append(S.ERR_PRESSLER_POSITIVE)
+
     coppice = str(body.get(FIELD_HIGHFOREST, 'true')).lower() in ('false', '0', 'no')
 
     # tree_pick: 'new' or an integer Tree id.  Older payloads without
@@ -804,6 +821,7 @@ def _parse_tree_body(body):
         FIELD_D_CM: d_cm,
         FIELD_H_M: h_m.quantize(TREE_H_QUANTUM) if not coppice else h_m,
         FIELD_L10_MM: l10_mm,
+        FIELD_PRESSLER_COEFF: pressler_coeff.quantize(TREE_H_QUANTUM),
         FIELD_VOLUME_M3: parse_decimal(body.get(FIELD_VOLUME_M3)) if not coppice else None,
         FIELD_MASS_Q: parse_decimal(body.get(FIELD_MASS_Q)) if not coppice else None,
         FIELD_LAT: coord_float(parse_decimal(body.get(FIELD_LAT))),
@@ -902,12 +920,14 @@ def _update_tree_sample(ts_id, sample, parsed):
         ts.d_cm = sh[FIELD_D_CM]
         ts.h_m = sh[FIELD_H_M]
         ts.l10_mm = sh[FIELD_L10_MM]
+        ts.pressler_coeff = parsed[FIELD_PRESSLER_COEFF]
         ts.volume_m3 = None
         ts.mass_q = None
     else:
         ts.d_cm = parsed[FIELD_D_CM]
         ts.h_m = parsed[FIELD_H_M]
         ts.l10_mm = parsed[FIELD_L10_MM]
+        ts.pressler_coeff = parsed[FIELD_PRESSLER_COEFF]
         ts.volume_m3 = parsed[FIELD_VOLUME_M3]
         ts.mass_q = parsed[FIELD_MASS_Q]
     ts.version += 1

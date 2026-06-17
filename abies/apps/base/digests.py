@@ -375,12 +375,12 @@ def generate_species() -> None:
     from apps.base.models import Species
 
     columns = [ROW_ID, VERSION, S.COL_NAME, S.COL_LATIN_NAME,
-               S.COL_DENSITY, S.COL_SORT_ORDER, S.COL_ACTIVE]
+               S.COL_DENSITY, S.COL_PRESSLER, S.COL_SORT_ORDER, S.COL_ACTIVE]
     rows = []
     for sp in Species.objects.order_by(FIELD_SORT_ORDER):
         rows.append([
             sp.id, sp.version, sp.common_name, sp.latin_name,
-            float(sp.density), sp.sort_order, sp.active,
+            float(sp.density), float(sp.pressler_default), sp.sort_order, sp.active,
         ])
 
     _write_gzip_json({'columns': columns, 'rows': rows}, _dest(FIELD_SPECIES))
@@ -813,7 +813,7 @@ SAMPLED_TREE_COLUMNS = [ROW_ID, VERSION, S.COL_SAMPLE_AREA,
                         S.COL_SPECIES, S.COL_PRODUCT, COL_COPPICE,
                         S.COL_COPPICE_SHOOT,
                         S.COL_COPPICE_STD, S.COL_D_CM, S.COL_H_M, S.COL_L10_MM,
-                        S.COL_V_M3, S.COL_MASS_Q,
+                        S.COL_PRESSLER, S.COL_V_M3, S.COL_MASS_Q,
                         S.COL_PRESERVED, S.COL_LAT, S.COL_LON]
 
 
@@ -832,7 +832,7 @@ def build_tree_sample_record(ts) -> list:
         S.TYPE_COPPICE if tree.coppice else S.TYPE_HIGHFOREST,
         tree.coppice,
         ts.shoot, ts.standard,
-        ts.d_cm, float(ts.h_m), ts.l10_mm,
+        ts.d_cm, float(ts.h_m), ts.l10_mm, float(ts.pressler_coeff),
         float(ts.volume_m3) if ts.volume_m3 is not None else None,
         float(ts.mass_q) if ts.mass_q is not None else None,
         tree.preserved,
@@ -1196,15 +1196,19 @@ def basal_area_m2(d_cm: int) -> float:
     return math.pi * radius_m * radius_m
 
 
-def annual_increment_pct(d_cm: int, l10_mm: int) -> float | None:
-    """Annual diameter-growth percentage from outer-ten-rings width.
+def annual_increment_pct(d_cm: int, l10_mm: int, pressler_coeff) -> float | None:
+    """Annual Pressler volume-growth percentage from outer-ten-rings width.
+
+    L10 is a radial ten-year measurement in mm. Annual diameter growth as a
+    percentage of current diameter is ``2 * L10_mm / D_cm``; the Pressler
+    coefficient converts that to estimated volume increment.
 
     `l10_mm = 0` means no core was measured, so it contributes no increment
     observation rather than a zero-growth observation.
     """
     if not d_cm or not l10_mm:
         return None
-    return 2.0 * float(l10_mm) / float(d_cm)
+    return float(pressler_coeff) * 2.0 * float(l10_mm) / float(d_cm)
 
 
 def _dendrometry_queryset(survey_ids=None):
@@ -1262,7 +1266,7 @@ def generate_parcel_dendrometry() -> None:
             group['volume'] += float(ts.volume_m3)
         group['basal'] += basal_area_m2(ts.d_cm)
         group['height'] += float(ts.h_m)
-        inc = annual_increment_pct(ts.d_cm, ts.l10_mm)
+        inc = annual_increment_pct(ts.d_cm, ts.l10_mm, ts.pressler_coeff)
         if inc is not None:
             group['increments'].append(inc)
 

@@ -21,7 +21,8 @@ from config import strings as S
 from config.constants import (
     FIELD_ACTIVE, FIELD_COMMON_NAME, FIELD_COPPICE, FIELD_DENSITY,
     FIELD_LATIN_NAME, FIELD_MANUFACTURER, FIELD_MINOR, FIELD_MIN_HARVEST_VOLUME,
-    FIELD_MODEL, FIELD_NAME, FIELD_NOTES, FIELD_SORT_ORDER, FIELD_YEAR,
+    FIELD_MODEL, FIELD_NAME, FIELD_NOTES, FIELD_PRESSLER_DEFAULT, FIELD_SORT_ORDER,
+    FIELD_YEAR,
 )
 
 # How a raw CSV cell maps to a Python value.
@@ -81,6 +82,7 @@ SPECIES = RefTable('species', Species, (
     RefColumn(S.CSV_COL_LATIN, FIELD_LATIN_NAME, KIND_STR, required=False,
               default=''),
     RefColumn(S.CSV_COL_DENSITY, FIELD_DENSITY, KIND_DECIMAL, required=False),
+    RefColumn(S.CSV_COL_PRESSLER, FIELD_PRESSLER_DEFAULT, KIND_DECIMAL, required=False),
     RefColumn(S.CSV_COL_MINOR, FIELD_MINOR, KIND_BOOL, required=False,
               default=False),
     RefColumn(S.CSV_COL_ACTIVE, FIELD_ACTIVE, KIND_BOOL, required=False,

@@ -35,7 +35,8 @@ class Harvest(TimestampedModel):
     date = models.DateField()
     product = models.ForeignKey(Product, on_delete=models.PROTECT)
     # Region XOR parcel — exactly one must be set (enforced by SQLite trigger
-    # in migration 0003; this mirrors HarvestPlanItem's region/parcel XOR).
+    # in migration 0001_initial.py; this mirrors HarvestPlanItem's
+    # region/parcel XOR).
     region = models.ForeignKey(
         Region, on_delete=models.PROTECT, null=True, blank=True,
         related_name='harvests',

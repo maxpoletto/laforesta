@@ -2248,10 +2248,10 @@ class TestTreeCsvImport:
         n_ts_before = TreeSample.objects.count()
         csv_text = (
             'Compresa,Particella,Area saggio,Albero,Pollone,Matricina,'
-            'D_cm,H_m,L10_mm,Genere,Fustaia,Data,PAI\n'
-            f'{compresa},{particella},{adc},10,0,false,30,20.5,10,Abete,true,'
+            'D_cm,H_m,L10_mm,Pressler,Genere,Fustaia,Data,PAI\n'
+            f'{compresa},{particella},{adc},10,0,false,30,20.5,10,2,Abete,true,'
             '2024-09-15,true\n'
-            f'{compresa},{particella},{adc},11,0,false,32,22.5,11,Abete,true,'
+            f'{compresa},{particella},{adc},11,0,false,32,22.5,11,2,Abete,true,'
             '2024-09-15,false\n'
         )
         resp = self._post(writer_client, empty_survey.id, csv_text)
@@ -2280,10 +2280,10 @@ class TestTreeCsvImport:
         adc = s['area'].number
         csv_text = (
             'Compresa,Particella,Area saggio,Albero,Pollone,Matricina,'
-            'D_cm,H_m,L10_mm,Genere,Fustaia,Data\n'
-            f'{compresa},{particella},{adc},10,0,false,30,20.5,10,Abete,true,'
+            'D_cm,H_m,L10_mm,Pressler,Genere,Fustaia,Data\n'
+            f'{compresa},{particella},{adc},10,0,false,30,20.5,10,2,Abete,true,'
             '2024-09-15\n'
-            f'{compresa},{particella},{adc},11,0,false,32,22.5,11,Abete,true,'
+            f'{compresa},{particella},{adc},11,0,false,32,22.5,11,2,Abete,true,'
             '2024-09-16\n'
         )
         resp = self._post(writer_client, empty_survey.id, csv_text)
@@ -2305,8 +2305,8 @@ class TestTreeCsvImport:
         n_trees_before = TreeSample.objects.filter(sample=s['sample']).count()
         csv_text = (
             'Compresa,Particella,Area saggio,Albero,Pollone,Matricina,'
-            'D_cm,H_m,L10_mm,Genere,Fustaia,Data\n'
-            f'{compresa},{particella},{adc},99,0,false,30,20.5,10,Abete,true,'
+            'D_cm,H_m,L10_mm,Pressler,Genere,Fustaia,Data\n'
+            f'{compresa},{particella},{adc},99,0,false,30,20.5,10,2,Abete,true,'
             '2025-01-01\n'
         )
         resp = self._post(writer_client, s['survey'].id, csv_text)
@@ -2325,9 +2325,9 @@ class TestTreeCsvImport:
         )
         csv_text = (
             'Compresa,Particella,Area saggio,Albero,Pollone,Matricina,'
-            'D_cm,H_m,L10_mm,Genere,Fustaia,Data\n'
+            'D_cm,H_m,L10_mm,Pressler,Genere,Fustaia,Data\n'
             f'{s["area"].parcel.region.name},{s["area"].parcel.name},'
-            f'{s["area"].number},10,0,false,30,20.5,10,Abete,true,'
+            f'{s["area"].number},10,0,false,30,20.5,10,2,Abete,true,'
             '2024-09-15\n'
         )
         body = {
@@ -2359,9 +2359,9 @@ class TestTreeCsvImport:
         s = sample_setup
         csv_text = (
             'Compresa,Particella,Area saggio,Albero,Pollone,Matricina,'
-            'D_cm,H_m,L10_mm,Genere,Fustaia\n'
+            'D_cm,H_m,L10_mm,Pressler,Genere,Fustaia\n'
             f'{s["area"].parcel.region.name},{s["area"].parcel.name},'
-            f'{s["area"].number},10,0,false,30,20.5,10,Abete,true\n'
+            f'{s["area"].number},10,0,false,30,20.5,10,2,Abete,true\n'
         )
         resp = self._post(writer_client, s['survey'].id, csv_text)
         assert resp.status_code == 400
@@ -2375,9 +2375,9 @@ class TestTreeCsvImport:
         )
         csv_text = (
             'Compresa,Particella,Area saggio,Albero,Pollone,Matricina,'
-            'D_cm,H_m,L10_mm,Genere,Fustaia\n'
+            'D_cm,H_m,L10_mm,Pressler,Genere,Fustaia\n'
             f'{s["area"].parcel.region.name},{s["area"].parcel.name},'
-            f'{s["area"].number},99,0,false,30,20.5,10,Abete,true\n'
+            f'{s["area"].number},99,0,false,30,20.5,10,2,Abete,true\n'
         )
         resp = self._post(writer_client, empty_survey.id, csv_text,
                           default_date='2025-06-01')
@@ -2408,9 +2408,9 @@ class TestTreeCsvImport:
         s = sample_setup
         csv_text = (
             'Compresa,Particella,Area saggio,Albero,Pollone,Matricina,'
-            'D_cm,H_m,L10_mm,Genere,Fustaia,Data\n'
+            'D_cm,H_m,L10_mm,Pressler,Genere,Fustaia,Data\n'
             f'{s["area"].parcel.region.name},{s["area"].parcel.name},'
-            'ZZZ,1,0,false,30,20,0,Abete,true,2024-09-15\n'
+            'ZZZ,1,0,false,30,20,0,2,Abete,true,2024-09-15\n'
         )
         resp = self._post(writer_client, s['survey'].id, csv_text)
         assert resp.status_code == 400

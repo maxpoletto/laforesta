@@ -18,7 +18,8 @@ from config import strings as S
 from config.constants import (
     BOSCO_TREE_DIGESTS, FIELD_AREA, FIELD_COPPICE, FIELD_DATE, FIELD_D_CM,
     FIELD_H_M, FIELD_L10_MM, FIELD_MASS_Q, FIELD_NUMBER, FIELD_PARCEL,
-    FIELD_PRESERVED, FIELD_SHOOT, FIELD_SPECIES, FIELD_STANDARD, FIELD_VOLUME_M3,
+    FIELD_PRESERVED, FIELD_PRESSLER_COEFF, FIELD_SHOOT, FIELD_SPECIES,
+    FIELD_STANDARD, FIELD_VOLUME_M3,
     TREE_H_QUANTUM,
 )
 
@@ -26,7 +27,8 @@ TREE_CSV_REQUIRED = [S.CSV_COL_REGION, S.CSV_COL_PARCEL,
                      S.CSV_COL_SAMPLE_AREA, S.CSV_COL_TREE,
                      S.CSV_COL_COPPICE_SHOOT, S.CSV_COL_COPPICE_STD,
                      S.CSV_COL_D_CM, S.CSV_COL_H_M, S.CSV_COL_L10_MM,
-                     S.CSV_COL_SPECIES, S.CSV_COL_HIGHFOREST]
+                     S.CSV_COL_PRESSLER, S.CSV_COL_SPECIES,
+                     S.CSV_COL_HIGHFOREST]
 TREE_CSV_OPTIONAL = [S.CSV_COL_DATA, S.CSV_COL_PRESERVED]
 
 
@@ -83,12 +85,14 @@ def validate_rows(reader, idx: TreeIndexes, *, has_date_column, default_date):
             continue
         shoot, shoot_ok = reader.opt_int(row.get(S.CSV_COL_COPPICE_SHOOT))
         l10, l10_ok = reader.opt_int(row.get(S.CSV_COL_L10_MM))
+        pressler = reader.decimal(row.get(S.CSV_COL_PRESSLER))
         standard, std_ok = reader.opt_bool(row.get(S.CSV_COL_COPPICE_STD))
         preserved, pai_ok = reader.opt_bool(row.get(S.CSV_COL_PRESERVED, ''))
-        if not (shoot_ok and l10_ok and std_ok and pai_ok):
+        if not (shoot_ok and l10_ok and std_ok and pai_ok) or pressler is None or pressler <= 0:
             errors.append(S.ERR_CSV_ROW_PARSE.format(
                 i, f'{S.CSV_COL_COPPICE_SHOOT}/{S.CSV_COL_L10_MM}/'
-                   f'{S.CSV_COL_COPPICE_STD}/{S.CSV_COL_PRESERVED}'))
+                   f'{S.CSV_COL_PRESSLER}/{S.CSV_COL_COPPICE_STD}/'
+                   f'{S.CSV_COL_PRESERVED}'))
             continue
         shoot = shoot or 0
         l10_mm = l10 or 0
@@ -150,6 +154,7 @@ def validate_rows(reader, idx: TreeIndexes, *, has_date_column, default_date):
             FIELD_SPECIES: species, FIELD_COPPICE: coppice, FIELD_PRESERVED: preserved,
             FIELD_NUMBER: number, FIELD_SHOOT: shoot, FIELD_STANDARD: standard,
             FIELD_D_CM: d_cm, FIELD_H_M: h_m, FIELD_L10_MM: l10_mm,
+            FIELD_PRESSLER_COEFF: pressler,
             FIELD_VOLUME_M3: volume_m3, FIELD_MASS_Q: mass_q,
         })
     return parsed, errors
@@ -183,6 +188,7 @@ def apply(survey, parsed) -> dict:
                 sample=sample, tree=tree, shoot=r[FIELD_SHOOT],
                 standard=r[FIELD_STANDARD], number=r[FIELD_NUMBER],
                 d_cm=r[FIELD_D_CM], h_m=r[FIELD_H_M], l10_mm=r[FIELD_L10_MM],
+                pressler_coeff=r[FIELD_PRESSLER_COEFF],
                 volume_m3=r[FIELD_VOLUME_M3], mass_q=r[FIELD_MASS_Q],
             )
             n_trees += 1

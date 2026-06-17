@@ -8,7 +8,7 @@ from django.db import models
 from simple_history.models import HistoricalRecords
 
 from config import strings as S
-from config.constants import DEFAULT_RADIUS_M
+from config.constants import DEFAULT_RADIUS_M, PRESSLER_DEFAULT
 
 _NATSORT_RE = re.compile(r'(\d+)')
 
@@ -185,6 +185,10 @@ class Species(TimestampedModel):
         max_digits=5, decimal_places=2, default=Decimal('5.00'),
         help_text='Wood density in q/m³ (typical range 4–8).',
     )
+    pressler_default = models.DecimalField(
+        max_digits=4, decimal_places=2, default=PRESSLER_DEFAULT,
+        help_text='Default Pressler coefficient for volume increment.',
+    )
     minor = models.BooleanField(default=False)
     active = models.BooleanField(default=True)
     history = HistoricalRecords()
@@ -301,7 +305,7 @@ class HarvestPlanItem(TimestampedModel):
     plan.
 
     Either `region` or `parcel` is set, never both (enforced by SQLite
-    trigger; see migration 0002_triggers.py). Volumes are materialized
+    trigger; see migration 0001_initial.py). Volumes are materialized
     aggregates over the linked tree_marks and harvests; see
     `docs/database.md` for the invalidation chain.
     """
@@ -573,6 +577,10 @@ class TreeSample(TimestampedModel):
     d_cm = models.IntegerField()
     h_m = models.DecimalField(max_digits=5, decimal_places=2)
     l10_mm = models.IntegerField(default=0)
+    pressler_coeff = models.DecimalField(
+        max_digits=4, decimal_places=2, default=PRESSLER_DEFAULT,
+        help_text='Pressler coefficient for volume increment.',
+    )
     volume_m3 = models.DecimalField(
         max_digits=8, decimal_places=4, null=True, blank=True,
         help_text='Tabacchi-derived volume; NULL for coppice rows.',

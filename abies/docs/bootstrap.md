@@ -40,7 +40,8 @@ Bootstrap has a deliberately narrow contract.
 - The input format is canonical. The legacy converter is responsible for fixing
   La Foresta source quirks before bootstrap sees the data.
 - Species and product files are optional. If they are missing, built-in defaults
-  are seeded.
+  are seeded. Species rows may include `Pressler`; blank/missing values use the
+  model default of 2.0.
 - `terreni.geojson` is part of the full data bundle, but it is not loaded by
   `bootstrap`. Geodata is built afterward by the geodata step.
 
@@ -102,7 +103,10 @@ containers. Their child files refer to them by name.
 sample grid and parcel.
 
 `sampled-trees.csv` is grouped by `Rilevamento`. Tree numbers are unique inside
-a survey. Species names must match the canonical species table.
+a survey. Required measurement columns include `D_cm`, `H_m`, `L10_mm`, and
+`Pressler`; `Pressler` is stored on `tree_sample.pressler_coeff` and used for
+Bosco's percentage volume-increment chart. Species names must match the canonical
+species table.
 
 `harvest_plan_items.csv` is grouped by `Piano`. A blank parcel means the row is
 region-wide. Region-wide rows use `X` as their display parcel in the UI.

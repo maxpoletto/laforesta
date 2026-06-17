@@ -6,6 +6,91 @@ from django.conf import settings
 from django.db import migrations, models
 
 
+# ---------------------------------------------------------------------------
+# Harvest triggers
+# ---------------------------------------------------------------------------
+
+HARVEST_XOR_INSERT = """
+CREATE TRIGGER IF NOT EXISTS harvest_region_xor_parcel_insert
+BEFORE INSERT ON prelievi_harvest
+FOR EACH ROW
+WHEN (NEW.region_id IS NULL) = (NEW.parcel_id IS NULL)
+BEGIN
+    SELECT RAISE(ABORT, 'harvest: exactly one of region or parcel must be set');
+END;
+"""
+HARVEST_XOR_UPDATE = HARVEST_XOR_INSERT.replace(
+    'harvest_region_xor_parcel_insert', 'harvest_region_xor_parcel_update'
+).replace('BEFORE INSERT ON prelievi_harvest',
+          'BEFORE UPDATE OF region_id, parcel_id ON prelievi_harvest')
+HARVEST_XOR_DROP = """
+DROP TRIGGER IF EXISTS harvest_region_xor_parcel_insert;
+DROP TRIGGER IF EXISTS harvest_region_xor_parcel_update;
+"""
+
+CONSISTENCY_INSERT = """
+CREATE TRIGGER IF NOT EXISTS harvest_parcel_consistency_insert
+BEFORE INSERT ON prelievi_harvest
+FOR EACH ROW
+WHEN NEW.harvest_plan_item_id IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM base_harvestplanitem AS hpi
+    WHERE hpi.id = NEW.harvest_plan_item_id
+      AND (
+        (NEW.parcel_id IS NOT NULL AND (
+            hpi.parcel_id = NEW.parcel_id
+            OR hpi.region_id = (SELECT region_id FROM base_parcel WHERE id = NEW.parcel_id)))
+        OR (NEW.parcel_id IS NULL AND hpi.region_id = NEW.region_id)
+      )
+)
+BEGIN
+    SELECT RAISE(ABORT, 'harvest.parcel/region does not match linked harvest_plan_item');
+END;
+"""
+CONSISTENCY_UPDATE = CONSISTENCY_INSERT.replace(
+    'harvest_parcel_consistency_insert', 'harvest_parcel_consistency_update'
+).replace('BEFORE INSERT ON prelievi_harvest',
+          'BEFORE UPDATE OF parcel_id, region_id, harvest_plan_item_id ON prelievi_harvest')
+CONSISTENCY_DROP = """
+DROP TRIGGER IF EXISTS harvest_parcel_consistency_insert;
+DROP TRIGGER IF EXISTS harvest_parcel_consistency_update;
+"""
+
+HARVEST_FLAGS_INSERT = """
+CREATE TRIGGER IF NOT EXISTS harvest_flags_consistency_insert
+BEFORE INSERT ON prelievi_harvest
+FOR EACH ROW
+WHEN NEW.harvest_plan_item_id IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM base_harvestplanitem AS hpi
+    WHERE hpi.id = NEW.harvest_plan_item_id
+      AND hpi.damaged   = NEW.damaged
+      AND hpi.unhealthy = NEW.unhealthy
+      AND hpi.psr       = NEW.psr
+)
+BEGIN
+    SELECT RAISE(ABORT, 'harvest flags must match linked harvest_plan_item flags');
+END;
+"""
+HARVEST_FLAGS_UPDATE = """
+CREATE TRIGGER IF NOT EXISTS harvest_flags_consistency_update
+BEFORE UPDATE OF damaged, unhealthy, psr, harvest_plan_item_id ON prelievi_harvest
+FOR EACH ROW
+WHEN NEW.harvest_plan_item_id IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM base_harvestplanitem AS hpi
+    WHERE hpi.id = NEW.harvest_plan_item_id
+      AND hpi.damaged   = NEW.damaged
+      AND hpi.unhealthy = NEW.unhealthy
+      AND hpi.psr       = NEW.psr
+)
+BEGIN
+    SELECT RAISE(ABORT, 'harvest flags must match linked harvest_plan_item flags');
+END;
+"""
+HARVEST_FLAGS_DROP = """
+DROP TRIGGER IF EXISTS harvest_flags_consistency_insert;
+DROP TRIGGER IF EXISTS harvest_flags_consistency_update;
+"""
+
+
 class Migration(migrations.Migration):
 
     initial = True
@@ -65,9 +150,22 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 (
+                    "region",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.PROTECT,
+                        related_name="harvests",
+                        to="base.region",
+                    ),
+                ),
+                (
                     "parcel",
                     models.ForeignKey(
-                        on_delete=django.db.models.deletion.PROTECT, to="base.parcel"
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.PROTECT,
+                        to="base.parcel",
                     ),
                 ),
                 (
@@ -150,6 +248,17 @@ class Migration(migrations.Migration):
                         on_delete=django.db.models.deletion.SET_NULL,
                         related_name="+",
                         to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
+                (
+                    "region",
+                    models.ForeignKey(
+                        blank=True,
+                        db_constraint=False,
+                        null=True,
+                        on_delete=django.db.models.deletion.DO_NOTHING,
+                        related_name="+",
+                        to="base.region",
                     ),
                 ),
                 (
@@ -249,4 +358,11 @@ class Migration(migrations.Migration):
                 "unique_together": {("harvest", "tractor")},
             },
         ),
+
+        migrations.RunSQL(HARVEST_XOR_INSERT, reverse_sql=HARVEST_XOR_DROP),
+        migrations.RunSQL(HARVEST_XOR_UPDATE, reverse_sql=migrations.RunSQL.noop),
+        migrations.RunSQL(CONSISTENCY_INSERT, reverse_sql=CONSISTENCY_DROP),
+        migrations.RunSQL(CONSISTENCY_UPDATE, reverse_sql=migrations.RunSQL.noop),
+        migrations.RunSQL(HARVEST_FLAGS_INSERT, reverse_sql=HARVEST_FLAGS_DROP),
+        migrations.RunSQL(HARVEST_FLAGS_UPDATE, reverse_sql=migrations.RunSQL.noop),
     ]

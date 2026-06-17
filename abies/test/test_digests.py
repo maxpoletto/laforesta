@@ -363,8 +363,9 @@ class TestGenerateBoscoDigests:
         assert diameter_class_cm(18) == 20
         assert diameter_class_cm(22) == 20
         assert diameter_class_cm(23) == 25
-        assert annual_increment_pct(18, 9) == 1.0
-        assert annual_increment_pct(18, 0) is None
+        assert annual_increment_pct(18, 9, 2) == 2.0
+        assert annual_increment_pct(30, 15, 2) == 2.0
+        assert annual_increment_pct(18, 0, 2) is None
 
     def test_parcel_dendrometry_uses_active_surveys(
             self, parcels, species, tmp_path, settings,
@@ -420,7 +421,7 @@ class TestGenerateBoscoDigests:
         expected_basal = round(basal_area_m2(18) + basal_area_m2(22), 6)
         assert row[cols.index(S.COL_BASAL_AREA_M2)] == expected_basal
         assert row[cols.index(S.COL_AVG_H_M)] == 21.0
-        assert row[cols.index(S.COL_INCREMENT_PCT)] == 1.0
+        assert row[cols.index(S.COL_INCREMENT_PCT)] == 2.0
 
         generate_parcel_dendrometry_points()
         points = self._read(tmp_path, DIGEST_PARCEL_DENDROMETRY_POINTS)

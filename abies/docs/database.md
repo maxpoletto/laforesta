@@ -197,8 +197,8 @@ of either dataset should treat them as independent observations.
     (SQLite triggers on INSERT and UPDATE of `sample`).
 
 - tree_sample: (id:int, sample_id:int, tree_id:int, shoot:int, standard:bool,
-  number:int, d_cm:int, h_m:int, l10_mm:int, volume_m3:real nullable,
-  mass_q:real nullable)
+  number:int, d_cm:int, h_m:int, l10_mm:int, pressler_coeff:real, volume_m3:real
+  nullable, mass_q:real nullable)
   - Measurement of a tree during a sample visit. PK is synthetic `id`;
     `UNIQUE(sample_id, tree_id, shoot)` enforces the natural key.
   - `shoot`: 1-based counter for coppice shoots from one stump; 0 for
@@ -429,13 +429,15 @@ Most of these are configurable in the Settings section.
   - Represents a team of workers, e.g., a group of lumberjacks.
 
 - species: (id:int, common_name:string, latin_name:string, sort_order:int,
-  density:real, active:bool)
+  density:real, pressler_default:real, active:bool)
   - Represents a tree species.
   - sort_order controls display ordering everywhere species appear. Catch-all
     entries like "Altro" use a high value (999) to sort last.
   - `density` is wood density in q/m³ (quintals per cubic meter; typical range
     5–9). Used to derive per-tree mass `m = volume_m3 × density` for both
     samples and marks.
+  - pressler_default is the default value of the Pressler dendrometric
+    coefficient for this species. By default, 2.0 for all species.
 
 - product: (id:int, name:string)
   - Implements an extensible enum of harvested product types: (1: "Tronchi", 2:

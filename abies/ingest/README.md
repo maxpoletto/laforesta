@@ -26,7 +26,7 @@ dependencies — so the tool runs standalone against a legacy-data checkout.
 | `regions.csv` (`Compresa`) | `particelle.csv` | distinct `Compresa` |
 | `eclasses.csv` (`Comparto,Ceduo`) | `particelle.csv` | distinct `Comparto`; `Ceduo=1` iff `Comparto=='F'`, else `0` |
 | `crews.csv` (`Squadra`) | `mannesi.csv` | distinct non-blank `Squadra` |
-| `species.csv` (`Genere,Nome latino,Densità (q/m³),Minore,Ordine`) | in-repo `apps/base/data/species.csv` | reshape `common/latin/density_q_m3/minor/sort_order` to the canonical localized headers (full species set so tree `Genere` resolves) |
+| `species.csv` (`Genere,Nome latino,Densità (q/m³),Pressler,Minore,Ordine`) | in-repo `apps/base/data/species.csv` | reshape `common/latin/density_q_m3/pressler_default/minor/sort_order` to the canonical localized headers (full species set so tree `Genere` resolves) |
 | `products.csv` (`Tipo`) | constant | the distinct canonical products of `apps.base.refdata.PRODUCT_MAP.values()` |
 | `particelle.csv` | `particelle.csv` | select/reorder `Compresa,Comparto,Particella,Area (ha),Età media,Località,Altitudine min,Altitudine max,Esposizione,Pendenza %,Stazione,Soprassuolo`; drop CP, Governo, Piano del taglio, Parametro, Matricine |
 | `sample_grids.csv` (`Griglia`) | constant | one row: `Aree di saggio PDG 2026` |
@@ -44,11 +44,11 @@ dependencies — so the tool runs standalone against a legacy-data checkout.
 ## Tree-survey assumptions (the interesting part)
 
 `sampled-trees.csv` is the **union** of two surveys, mapped to the canonical
-`Rilevamento,Compresa,Particella,Area saggio,Albero,Pollone,Matricina,D_cm,H_m,L10_mm,Genere,Fustaia`:
+`Rilevamento,Compresa,Particella,Area saggio,Albero,Pollone,Matricina,D_cm,H_m,L10_mm,Pressler,Genere,Fustaia`:
 
 1. **`Campionamento calcolato`** (from `alberi-calcolati.csv`): `n`→`Albero`,
    `poll`→`Pollone`, `D(cm)`→`D_cm`, `h(m)`→`H_m`, `L10(mm)`→`L10_mm`,
-   `Genere`, `Fustaia`.
+   `Pressler` is set to `2`, plus `Genere`, `Fustaia`.
    - **`poll == 'mat'` sentinel:** in the legacy file the `poll` column is
      normally a shoot number, but the literal `mat` marks the tree as a coppice
      **standard** (matricina), not a numbered shoot.  Canonically that is the
@@ -63,7 +63,8 @@ dependencies — so the tool runs standalone against a legacy-data checkout.
    - `Albero` is **synthesized** as a 1-based sequence per
      `(Compresa, Particella, Area saggio)`.
    - `Pollone`, `Matricina`, `L10_mm` are left **blank** (strict core defaults
-     blank Pollone/L10 → 0, blank Matricina → False).
+     blank Pollone/L10 → 0, blank Matricina → False), and `Pressler` is set to
+     `2`.
 
 3. **`alberi-columns.csv` tension (left for review):** `alberi-columns.csv` has
    the useful `Albero/Pollone/Matricina` shape, but the legacy `README` states

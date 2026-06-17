@@ -20,7 +20,7 @@ from config.constants import (
     FIELD_ACTIVE, FIELD_COMMON_NAME, FIELD_DENSITY, FIELD_EMAIL,
     FIELD_FIRST_NAME, FIELD_HARVEST_PLAN_ID, FIELD_IS_ACTIVE, FIELD_LAST_NAME,
     FIELD_LATIN_NAME, FIELD_LOGIN_METHOD, FIELD_MANUFACTURER, FIELD_MINOR,
-    FIELD_SPECIES,
+    FIELD_PRESSLER_DEFAULT, FIELD_SPECIES,
     FIELD_MODEL, FIELD_NAME, FIELD_NONCE, FIELD_NOTES, FIELD_PASSWORD1,
     FIELD_PASSWORD2, FIELD_ROLE, FIELD_SURVEY_IDS, FIELD_USERNAME, FIELD_YEAR,
     HTML, MESSAGE, PATCHES, RECORD, ROWS, ROW_ID, STATUS, STATUS_CONFLICT,
@@ -325,6 +325,17 @@ class TestSpecies:
             FIELD_DENSITY: '0', FIELD_ACTIVE: 'true',
         })
         assert resp.status_code == 400, resp.content
+        assert not Species.objects.filter(common_name='Zzz').exists()
+
+    def test_save_rejects_zero_pressler(self, writer_client, db):
+        """Default Pressler coefficient must be > 0."""
+        resp = _post(writer_client, '/api/impostazioni/species/save/', {
+            FIELD_COMMON_NAME: 'Zzz', FIELD_LATIN_NAME: '',
+            FIELD_DENSITY: '7.0', FIELD_PRESSLER_DEFAULT: '0',
+            FIELD_ACTIVE: 'true',
+        })
+        assert resp.status_code == 400, resp.content
+        assert resp.json()[MESSAGE] == S.ERR_PRESSLER_POSITIVE
         assert not Species.objects.filter(common_name='Zzz').exists()
 
     def test_save_conflict(self, writer_client, species):

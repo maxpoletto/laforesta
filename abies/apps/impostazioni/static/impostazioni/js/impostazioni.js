@@ -27,7 +27,7 @@ import { cloneTemplate } from '../../base/js/templates.js';
 import * as S from '../../base/js/strings.js';
 import {
   FIELD_CREATED_AT, FIELD_FILE, FIELD_HARVEST_PLAN_ID, FIELD_MIN_N,
-  FIELD_NONCE, FIELD_SOURCE, FIELD_SURVEY_IDS, FIELD_SURVEYS,
+  FIELD_NONCE, FIELD_PRESSLER_DEFAULT, FIELD_SOURCE, FIELD_SURVEY_IDS, FIELD_SURVEYS,
   FIELD_USE_FOR_HEIGHT_PLOTS, HYPSO_SOURCE_COMPUTED, LOGIN_METHOD_PASSWORD,
   DATA_ID, MESSAGE, PATCHES, RECORD, ROLE_ADMIN, ROLE_WRITER,
 } from '../../base/js/constants.js';
@@ -98,6 +98,7 @@ const SECTIONS = [
     csvFilename: S.CSV_SPECIES,
     columnDefs: {
       [S.COL_DENSITY]: { label: S.COL_DENSITY, type: 'number', width: '100px', formatter: fmtDecimal2 },
+      [S.COL_PRESSLER]: { label: S.COL_PRESSLER, type: 'number', width: '85px', formatter: fmtDecimal2 },
       [S.COL_MINOR]: MINOR_COL_DEF,
       [S.COL_ACTIVE]: ACTIVE_COL_DEF,
     },
@@ -302,6 +303,9 @@ function wireSettingsForm(form, cfg, state) {
       // Species density must be > 0 (only the species form has it).
       if (body.density !== undefined && !(parseDecimal(body.density) > 0)) {
         return S.ERR_DENSITY_POSITIVE;
+      }
+      if (body[FIELD_PRESSLER_DEFAULT] !== undefined && !(parseDecimal(body[FIELD_PRESSLER_DEFAULT]) > 0)) {
+        return S.ERR_PRESSLER_POSITIVE;
       }
       return null;
     },

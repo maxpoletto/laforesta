@@ -93,6 +93,7 @@ def test_sanity_counts(converted):
     # The `poll == 'mat'` sentinel must still produce Matricina=True rows
     # (guards against a regression that silently drops the special case).
     assert any(r['Matricina'] == 'True' for r in tree_rows)
+    assert {r['Pressler'] for r in tree_rows} == {'2'}
 
     # Tractors: exactly 5 hard-coded La Foresta tractors.
     tractor_rows = _rows(out_dir / OUT_TRACTORS)

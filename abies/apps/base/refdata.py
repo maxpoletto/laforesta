@@ -18,7 +18,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from apps.base import csv_io
-from config.constants import is_truthy
+from config.constants import PRESSLER_DEFAULT, is_truthy
 
 # --- species ----------------------------------------------------------------
 
@@ -29,14 +29,18 @@ from config.constants import is_truthy
 SPECIES_CSV = Path(__file__).resolve().parent / 'data' / 'species.csv'
 
 
-def load_species() -> list[tuple[str, str, int | None, Decimal | None, bool]]:
+def load_species() -> list[
+    tuple[str, str, int | None, Decimal | None, Decimal | None, bool]
+]:
     """Return the in-repo species list as ``(common, latin, sort_order,
-    density, minor)`` tuples."""
+    density, pressler_default, minor)`` tuples."""
     with SPECIES_CSV.open(encoding='utf-8') as f:
         reader = csv_io.read(f.read())
     return [
         (row['common'], row['latin'], reader.integer(row['sort_order']),
-         reader.decimal(row['density_q_m3']), is_truthy(row['minor']))
+         reader.decimal(row['density_q_m3']),
+         reader.decimal(row.get('pressler_default')) or PRESSLER_DEFAULT,
+         is_truthy(row['minor']))
         for row in reader
     ]
 

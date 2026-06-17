@@ -8,6 +8,75 @@ import simple_history.models
 from decimal import Decimal
 from django.conf import settings
 from django.db import migrations, models
+from config.constants import PRESSLER_DEFAULT
+
+
+# ---------------------------------------------------------------------------
+# (1) sample.sample_grid == sample_area.sample_grid
+# ---------------------------------------------------------------------------
+
+SAMPLE_GRID_MATCH_INSERT = """
+CREATE TRIGGER IF NOT EXISTS sample_grid_match_insert
+BEFORE INSERT ON base_sample
+FOR EACH ROW
+WHEN (
+    SELECT survey.sample_grid_id != sample_area.sample_grid_id
+    FROM base_survey AS survey, base_samplearea AS sample_area
+    WHERE survey.id = NEW.survey_id AND sample_area.id = NEW.sample_area_id
+)
+BEGIN
+    SELECT RAISE(ABORT, 'sample_grid mismatch: survey.sample_grid != sample_area.sample_grid');
+END;
+"""
+
+SAMPLE_GRID_MATCH_UPDATE = """
+CREATE TRIGGER IF NOT EXISTS sample_grid_match_update
+BEFORE UPDATE OF survey_id, sample_area_id ON base_sample
+FOR EACH ROW
+WHEN (
+    SELECT survey.sample_grid_id != sample_area.sample_grid_id
+    FROM base_survey AS survey, base_samplearea AS sample_area
+    WHERE survey.id = NEW.survey_id AND sample_area.id = NEW.sample_area_id
+)
+BEGIN
+    SELECT RAISE(ABORT, 'sample_grid mismatch: survey.sample_grid != sample_area.sample_grid');
+END;
+"""
+
+SAMPLE_GRID_MATCH_DROP = """
+DROP TRIGGER IF EXISTS sample_grid_match_insert;
+DROP TRIGGER IF EXISTS sample_grid_match_update;
+"""
+
+
+# ---------------------------------------------------------------------------
+# (2) harvest_plan_item: region XOR parcel (exactly one set)
+# ---------------------------------------------------------------------------
+
+HPI_REGION_XOR_PARCEL_INSERT = """
+CREATE TRIGGER IF NOT EXISTS hpi_region_xor_parcel_insert
+BEFORE INSERT ON base_harvestplanitem
+FOR EACH ROW
+WHEN (NEW.region_id IS NULL) = (NEW.parcel_id IS NULL)
+BEGIN
+    SELECT RAISE(ABORT, 'harvest_plan_item: exactly one of region or parcel must be set');
+END;
+"""
+
+HPI_REGION_XOR_PARCEL_UPDATE = """
+CREATE TRIGGER IF NOT EXISTS hpi_region_xor_parcel_update
+BEFORE UPDATE OF region_id, parcel_id ON base_harvestplanitem
+FOR EACH ROW
+WHEN (NEW.region_id IS NULL) = (NEW.parcel_id IS NULL)
+BEGIN
+    SELECT RAISE(ABORT, 'harvest_plan_item: exactly one of region or parcel must be set');
+END;
+"""
+
+HPI_REGION_XOR_PARCEL_DROP = """
+DROP TRIGGER IF EXISTS hpi_region_xor_parcel_insert;
+DROP TRIGGER IF EXISTS hpi_region_xor_parcel_update;
+"""
 
 
 class Migration(migrations.Migration):
@@ -220,6 +289,15 @@ class Migration(migrations.Migration):
                         max_digits=5,
                     ),
                 ),
+                (
+                    "pressler_default",
+                    models.DecimalField(
+                        decimal_places=2,
+                        default=PRESSLER_DEFAULT,
+                        help_text="Default Pressler coefficient for volume increment.",
+                        max_digits=4,
+                    ),
+                ),
                 ("minor", models.BooleanField(default=False)),
                 ("active", models.BooleanField(default=True)),
             ],
@@ -244,6 +322,7 @@ class Migration(migrations.Migration):
                 ("version", models.IntegerField(default=1)),
                 ("created_at", models.DateTimeField(auto_now_add=True)),
                 ("modified_at", models.DateTimeField(auto_now=True)),
+                ("name", models.CharField(blank=True, max_length=100, null=True, unique=True)),
                 ("manufacturer", models.CharField(max_length=100)),
                 ("model", models.CharField(max_length=100)),
                 ("year", models.IntegerField(blank=True, null=True)),
@@ -542,6 +621,15 @@ class Migration(migrations.Migration):
                         max_digits=5,
                     ),
                 ),
+                (
+                    "pressler_default",
+                    models.DecimalField(
+                        decimal_places=2,
+                        default=PRESSLER_DEFAULT,
+                        help_text="Default Pressler coefficient for volume increment.",
+                        max_digits=4,
+                    ),
+                ),
                 ("minor", models.BooleanField(default=False)),
                 ("active", models.BooleanField(default=True)),
                 ("history_id", models.AutoField(primary_key=True, serialize=False)),
@@ -584,6 +672,7 @@ class Migration(migrations.Migration):
                 ("version", models.IntegerField(default=1)),
                 ("created_at", models.DateTimeField(blank=True, editable=False)),
                 ("modified_at", models.DateTimeField(blank=True, editable=False)),
+                ("name", models.CharField(blank=True, db_index=True, max_length=100, null=True)),
                 ("manufacturer", models.CharField(max_length=100)),
                 ("model", models.CharField(max_length=100)),
                 ("year", models.IntegerField(blank=True, null=True)),
@@ -1633,6 +1722,15 @@ class Migration(migrations.Migration):
                 ("h_m", models.DecimalField(decimal_places=2, max_digits=5)),
                 ("l10_mm", models.IntegerField(default=0)),
                 (
+                    "pressler_coeff",
+                    models.DecimalField(
+                        decimal_places=2,
+                        default=PRESSLER_DEFAULT,
+                        help_text="Pressler coefficient for volume increment.",
+                        max_digits=4,
+                    ),
+                ),
+                (
                     "volume_m3",
                     models.DecimalField(
                         blank=True,
@@ -1800,4 +1898,9 @@ class Migration(migrations.Migration):
                 "unique_together": {("param_set", "region", "species")},
             },
         ),
+
+        migrations.RunSQL(SAMPLE_GRID_MATCH_INSERT, reverse_sql=SAMPLE_GRID_MATCH_DROP),
+        migrations.RunSQL(SAMPLE_GRID_MATCH_UPDATE, reverse_sql=migrations.RunSQL.noop),
+        migrations.RunSQL(HPI_REGION_XOR_PARCEL_INSERT, reverse_sql=HPI_REGION_XOR_PARCEL_DROP),
+        migrations.RunSQL(HPI_REGION_XOR_PARCEL_UPDATE, reverse_sql=migrations.RunSQL.noop),
     ]

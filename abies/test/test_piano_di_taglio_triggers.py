@@ -1,6 +1,6 @@
 """Schema-level invariants for Piano di taglio tables.
 
-Covers the four SQLite triggers landed in 0002_triggers.py:
+Covers the SQLite trigger families landed in the initial migrations:
 - harvest_plan_item: region XOR parcel
 - harvest: parcel must match linked plan item's parcel or region
 - harvest: damaged/unhealthy/psr flags must match linked plan item's flags

@@ -18,7 +18,7 @@ import { show as showModal, showError, dismiss as dismissModal, onDismiss } from
 import * as S from '../../base/js/strings.js';
 import {
   COL_COPPICE, FIELD_COMPRESA, FIELD_DEFAULT_DATE, FIELD_FILE, FIELD_LAT, FIELD_LON,
-  FIELD_NONCE, FIELD_PARTICELLA, FIELD_SAMPLE_GRID_ID, FIELD_SURVEY_ID,
+  FIELD_NONCE, FIELD_PARTICELLA, FIELD_PRESSLER_COEFF, FIELD_SAMPLE_GRID_ID, FIELD_SURVEY_ID,
   ROW_ID, VERSION,
 } from '../../base/js/constants.js';
 import { parcelNames, sortFeaturesByArea } from '../../base/js/geo.js';
@@ -124,6 +124,7 @@ const TREES_COLS = {
   [S.COL_D_CM]:        { label: S.COL_D_CM, type: 'number', width: '65px', formatter: fmtInt },
   [S.COL_H_M]:         { label: S.COL_H_M, type: 'number', width: '60px', formatter: fmtDecimal2 },
   [S.COL_L10_MM]:      { label: S.COL_L10_MM, type: 'number', width: '85px', formatter: fmtInt },
+  [S.COL_PRESSLER]:    { hidden: true },
   [S.COL_V_M3]:        { label: S.COL_V_M3, type: 'number', width: '65px', formatter: fmtDecimal2 },
   [S.COL_MASS_Q]:      { label: S.COL_MASS_Q, type: 'number', width: '70px', formatter: fmtDecimal1 },
   [S.COL_PRESERVED]:         { label: S.COL_PRESERVED, type: 'boolean', width: '50px', formatter: fmtBool },
@@ -1364,6 +1365,7 @@ async function exportFullSurveyCSV(surveyId) {
       { src: S.COL_D_CM,        dst: S.CSV_COL_D_CM },
       { src: S.COL_H_M,         dst: S.CSV_COL_H_M },
       { src: S.COL_L10_MM,      dst: S.CSV_COL_L10_MM },
+      { src: S.COL_PRESSLER,    dst: S.CSV_COL_PRESSLER },
       { src: S.COL_SPECIES,     dst: S.CSV_COL_GENERE },
       { dst: S.CSV_COL_HIGHFOREST, transform: row => !recordIsCoppice(row, d.columns) },
       { src: S.COL_SAMPLE_DATE, dst: S.CSV_COL_DATA },
@@ -1582,6 +1584,7 @@ function wireTreeForm(form) {
         if (!(parseInt(body.d_cm, 10) > 0)) return S.ERR_D_POSITIVE;
         if (!(parseDecimal(body.h_m) > 0)) return S.ERR_H_POSITIVE;
       }
+      if (!(parseDecimal(body[FIELD_PRESSLER_COEFF]) > 0)) return S.ERR_PRESSLER_POSITIVE;
       return null;
     },
     onSuccess(data, isSaveAndAdd) {

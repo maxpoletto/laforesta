@@ -43,6 +43,7 @@ PLAN_NAME = 'PDG 2026'
 SURVEY_CALCULATED = 'Campionamento calcolato'
 SURVEY_HEIGHTS = 'Campionamento altezze'
 DEFAULT_SURVEY_DATE = '2024-09-15'
+PRESSLER_DEFAULT = '2'
 
 # Legacy hard-coded eclass rule: comparti A–E are high forest (fustaia,
 # non-coppice); comparto F is coppice (ceduo).
@@ -124,6 +125,7 @@ COL_STANDARD = 'Matricina'
 COL_D_CM = 'D_cm'
 COL_H_M = 'H_m'
 COL_L10_MM = 'L10_mm'
+COL_PRESSLER = 'Pressler'
 COL_SPECIES = 'Genere'
 COL_HIGHFOREST = 'Fustaia'
 COL_ACTIVE = 'Attivo'
@@ -286,11 +288,14 @@ def _convert_crews(src_dir: Path, out_dir: Path) -> int:
 
 def _convert_species(repo_root: Path, out_dir: Path) -> int:
     """Reshape the in-repo canonical species list into the localized SPECIES
-    RefTable headers (Genere, Nome latino, Densità (q/m³), Minore, Ordine)."""
+    RefTable headers (Genere, Nome latino, Densità (q/m³), Pressler, Minore, Ordine)."""
     species = _read(repo_root / SRC_SPECIES)
-    header = [COL_SPECIES, COL_LATIN, COL_DENSITY, COL_MINOR, COL_SORT_ORDER]
+    header = [COL_SPECIES, COL_LATIN, COL_DENSITY, COL_PRESSLER, COL_MINOR, COL_SORT_ORDER]
     rows = [
-        [s['common'], s['latin'], s['density_q_m3'], s['minor'], s['sort_order']]
+        [
+            s['common'], s['latin'], s['density_q_m3'],
+            s.get('pressler_default') or PRESSLER_DEFAULT, s['minor'], s['sort_order'],
+        ]
         for s in species
     ]
     return _write(out_dir / OUT_SPECIES, header, rows)
@@ -377,7 +382,8 @@ def _convert_sampled_trees(src_dir: Path, out_dir: Path) -> int:
     """
     header = [
         COL_SURVEY, COL_REGION, COL_PARCEL, COL_SAMPLE_AREA, COL_TREE, COL_SHOOT,
-        COL_STANDARD, COL_D_CM, COL_H_M, COL_L10_MM, COL_SPECIES, COL_HIGHFOREST,
+        COL_STANDARD, COL_D_CM, COL_H_M, COL_L10_MM, COL_PRESSLER,
+        COL_SPECIES, COL_HIGHFOREST,
     ]
     rows: list[list] = []
     rows += _calculated_tree_rows(_read(src_dir / SRC_TREES_CALCULATED))
@@ -404,6 +410,7 @@ def _calculated_tree_rows(trees: list[dict]) -> list[list]:
             (r.get(LEGACY_TREE_D) or '').strip(),       # D_cm
             (r.get(LEGACY_TREE_H) or '').strip(),       # H_m
             (r.get(LEGACY_TREE_L10) or '').strip(),     # L10_mm
+            PRESSLER_DEFAULT,                           # Pressler
             (r.get(COL_SPECIES) or '').strip(),
             (r.get(COL_HIGHFOREST) or '').strip(),
         ])
@@ -428,6 +435,7 @@ def _heights_tree_rows(trees: list[dict]) -> list[list]:
             (r.get(LEGACY_TREE_D) or '').strip(),   # D_cm
             (r.get(LEGACY_TREE_H) or '').strip(),   # H_m
             '',         # L10_mm (blank → 0)
+            PRESSLER_DEFAULT,  # Pressler
             (r.get(COL_SPECIES) or '').strip(),
             (r.get(COL_HIGHFOREST) or '').strip(),
         ])

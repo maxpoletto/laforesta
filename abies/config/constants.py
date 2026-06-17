@@ -26,6 +26,9 @@ ROWS     = 'rows'
 # Digest IDs.
 DIGEST_PARCELS = 'parcels'
 
+# Dendrometry defaults.
+PRESSLER_DEFAULT = Decimal('2.00')
+
 # Locale-independent digest column identifiers for internal fields.
 COL_REGION_ID  = 'Region id'
 COL_PARCEL_ID  = 'Parcel id'
@@ -82,6 +85,7 @@ FIELD_TREE_PICK_EXISTING_ID = 'tree_pick_existing_id'
 FIELD_D_CM                  = 'd_cm'
 FIELD_H_M                   = 'h_m'
 FIELD_L10_MM                = 'l10_mm'
+FIELD_PRESSLER_COEFF         = 'pressler_coeff'
 FIELD_QUINTALS              = 'quintals'
 FIELD_HOURS                 = 'hours'
 FIELD_LICENSE_PLATE         = 'license_plate'
@@ -102,6 +106,7 @@ FIELD_YEAR                  = 'year'
 FIELD_COMMON_NAME           = 'common_name'
 FIELD_LATIN_NAME            = 'latin_name'
 FIELD_DENSITY               = 'density'
+FIELD_PRESSLER_DEFAULT       = 'pressler_default'
 FIELD_MINOR                 = 'minor'
 FIELD_SORT_ORDER            = 'sort_order'
 FIELD_MIN_HARVEST_VOLUME    = 'min_harvest_volume'

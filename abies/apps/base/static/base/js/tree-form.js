@@ -11,6 +11,7 @@
 
 import { tabacchiVolumeM3, massQ } from './volume.js';
 import { parseDecimal, fmtDecimal } from './format.js';
+import { PRESSLER_DEFAULT } from './constants.js';
 
 // Canonical element IDs — templates and JS both reference these.
 export const ID_D_CM      = 'tf-d-cm';
@@ -18,6 +19,7 @@ export const ID_H_M       = 'tf-h-m';
 export const ID_SPECIES   = 'tf-species';
 export const ID_COPPICE     = 'tf-ceduo';
 export const ID_PREVIEW   = 'tf-vm-preview';
+export const ID_PRESSLER  = 'tf-pressler-coeff';
 export const ID_VOLUME    = 'tf-volume-m3';
 export const ID_MASS      = 'tf-mass-q';
 export const ID_LAT       = 'tf-lat';
@@ -39,11 +41,24 @@ export function wireVMPreview(form, opts = {}) {
   const h = form.querySelector(`#${ID_H_M}`);
   const sp = form.querySelector(`#${ID_SPECIES}`);
   const preview = form.querySelector(`#${ID_PREVIEW}`);
+  const pressler = form.querySelector(`#${ID_PRESSLER}`);
   const vHidden = form.querySelector(`#${ID_VOLUME}`);
   const mHidden = form.querySelector(`#${ID_MASS}`);
   if (!d || !h || !sp || !preview || !vHidden || !mHidden) return;
 
   const ceduoEl = opts.ceduoEl || null;
+  let lastPresslerDefault = null;
+
+  function syncPresslerDefault() {
+    if (!pressler) return;
+    const opt = sp.tagName === 'SELECT' ? sp.options[sp.selectedIndex] : sp;
+    const nextDefault = opt?.dataset.presslerDefault || PRESSLER_DEFAULT;
+    const current = String(pressler.value || '').replace(',', '.');
+    if (!pressler.value || current === lastPresslerDefault) {
+      pressler.value = nextDefault;
+    }
+    lastPresslerDefault = nextDefault;
+  }
 
   function clearPreview() {
     preview.hidden = true;
@@ -53,6 +68,7 @@ export function wireVMPreview(form, opts = {}) {
   }
 
   function update() {
+    syncPresslerDefault();
     if (ceduoEl?.checked) { clearPreview(); return; }
     const dCm = parseInt(d.value, 10);
     const hM = parseDecimal(h.value);

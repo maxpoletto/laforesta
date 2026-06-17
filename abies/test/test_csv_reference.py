@@ -8,6 +8,7 @@ from apps.base import csv_io
 from apps.base import csv_reference as ref
 from apps.base.models import Crew, Eclass, Product, Region, Species, Tractor
 from config import strings as S
+from config.constants import PRESSLER_DEFAULT
 from config.constants import FIELD_ACTIVE, FIELD_COPPICE, FIELD_NAME, FIELD_NOTES
 
 
@@ -127,17 +128,23 @@ def test_species_blank_density_uses_model_default():
     ref.apply(ref.SPECIES, parsed)
     sp = Species.objects.get(common_name='Abete')
     assert sp.density == Decimal('5.00')   # model default (column blank)
+    assert sp.pressler_default == PRESSLER_DEFAULT
     assert sp.minor is True
 
 
 @pytest.mark.django_db
-def test_species_density_parsed():
-    reader = _reader(f'{S.CSV_COL_SPECIES},{S.CSV_COL_DENSITY}\nCastagno,9.2\n')
+def test_species_density_and_pressler_parsed():
+    reader = _reader(
+        f'{S.CSV_COL_SPECIES},{S.CSV_COL_DENSITY},{S.CSV_COL_PRESSLER}\n'
+        'Castagno,9.2,1.5\n'
+    )
     cols, _ = ref.resolve_columns(ref.SPECIES, reader.fieldnames)
     parsed, errors = ref.validate_rows(ref.SPECIES, reader, cols)
     assert errors == []
     ref.apply(ref.SPECIES, parsed)
-    assert Species.objects.get(common_name='Castagno').density == Decimal('9.20')
+    sp = Species.objects.get(common_name='Castagno')
+    assert sp.density == Decimal('9.20')
+    assert sp.pressler_default == Decimal('1.50')
 
 
 @pytest.mark.django_db

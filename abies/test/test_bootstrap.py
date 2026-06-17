@@ -31,8 +31,8 @@ CANONICAL = {
         'Griglia 1,Capistrano,1,10,16.1,38.5,500,15\n'),
     'sampled-trees.csv': (
         'Rilevamento,Compresa,Particella,Area saggio,Albero,Pollone,Matricina,'
-        'D_cm,H_m,L10_mm,Genere,Fustaia\n'
-        'Campagna 2024,Capistrano,1,10,1,0,False,30,15.0,0,Abete,True\n'),
+        'D_cm,H_m,L10_mm,Pressler,Genere,Fustaia\n'
+        'Campagna 2024,Capistrano,1,10,1,0,False,30,15.0,0,2,Abete,True\n'),
     'harvest_plan_items.csv': (
         'Piano,Compresa,Particella,Anno,Prelievo (m³),Danneggiato,Fitosanitario,PSR\n'
         'PDG 2026,Capistrano,1,2027,50.0,0,0,0\n'),
