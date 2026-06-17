@@ -73,12 +73,15 @@ def test_reference_json_comes_from_abies_data(db, regions, parcels, species):
     assert resp.status_code == 200
     data = resp.json()
     assert data['schema_version'] == 1
+    assert data['reference_version']
     assert data['species'][0]['common'] == 'Abete'
     parcel = next(p for p in data['parcels']
                   if p['compresa'] == 'Capistrano' and p['particella'] == '1')
     assert parcel['region_id'] == regions[0].id
     assert parcel['parcel_id'] == parcels[0].id
-    assert data['ipsometrica']['Capistrano']['Abete'] == {'a': 7.0, 'b': -4.0}
+    assert data['ipsometrica']['Capistrano']['Abete'] == {
+        'a': 7.0, 'b': -4.0, 'hypso_param_set_id': active.id,
+    }
 
 
 def test_terreni_geojson_has_empty_fallback(db):
@@ -115,6 +118,7 @@ def _upload_payload(parcels, species, *, session_id='11111111-1111-4111-8111-111
             'd_cm': 42,
             'h_m': '22',
             'h_measured': False,
+            'hypso_param_set_id': None,
             'lat': 38.51234,
             'lon': 16.12345,
             'acc_m': 5,
@@ -172,6 +176,7 @@ def test_upload_stages_json_and_metadata(db, parcels, species, settings, tmp_pat
     assert upload.record_count == 1
     assert Path(upload.inbox_path).is_dir()
     staged = json.loads((Path(upload.inbox_path) / 'upload.json').read_text())
+    assert staged['records'][0]['hypso_param_set_id'] is None
     assert staged['records'][0]['lon'] == 16.12345
     assert (Path(upload.inbox_path) / 'upload.sha256').is_file()
     assert (Path(upload.inbox_path) / 'export.csv').read_text() == 'csv backup'

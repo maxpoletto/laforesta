@@ -595,10 +595,20 @@ function currentRecord() {
     d_cm: Number.isFinite(d) ? d : null,
     h_m: Number.isFinite(h) ? h : null,
     h_measured: State.hMeasured ? 1 : 0,
+    hypso_param_set_id: State.hMeasured ? null : currentHypsoParamSetId(),
     numero: Number.isInteger(n) ? n : null,
     gruppo,
     particella,
   };
+}
+
+
+function currentHypsoParamSetId() {
+  if (!State.session || !State.reference) return null;
+  const eq = ipso.lookup(State.reference.ipsometrica, State.session.compresa, State.specie);
+  return eq && Number.isInteger(eq.hypso_param_set_id)
+    ? eq.hypso_param_set_id
+    : null;
 }
 
 function updateSaveEnabled() {

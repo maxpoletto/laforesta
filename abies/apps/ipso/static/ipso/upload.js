@@ -79,6 +79,9 @@ function canonicalRecord(sess, t, reference) {
     d_cm: t.d_cm,
     h_m: String(t.h_m),
     h_measured: !!t.h_measured,
+    hypso_param_set_id: Number.isInteger(t.hypso_param_set_id)
+      ? t.hypso_param_set_id
+      : null,
     lat: t.lat == null ? null : t.lat,
     lon: t.lon == null ? null : t.lon,
     acc_m: t.acc_m == null ? null : t.acc_m,

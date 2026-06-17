@@ -150,6 +150,7 @@ def reference_json(request: HttpRequest) -> HttpResponse:
         'parcels': _parcel_rows(),
         'ipsometrica': _ipsometrica(),
     }
+    payload['reference_version'] = _reference_version(payload)
     return _json_response(payload, content_type='application/json')
 
 
@@ -196,8 +197,18 @@ def _ipsometrica() -> dict:
         out.setdefault(p.region.name, {})[p.species.common_name] = {
             'a': float(p.a),
             'b': float(p.b),
+            'hypso_param_set_id': active.id,
         }
     return out
+
+
+def _reference_version(payload: dict) -> str:
+    raw = json.dumps({
+        'species': payload['species'],
+        'parcels': payload['parcels'],
+        'ipsometrica': payload['ipsometrica'],
+    }, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
+    return hashlib.sha256(raw.encode('utf-8')).hexdigest()[:20]
 
 
 @require_GET
@@ -703,6 +714,7 @@ def _normalize_record(index: int, row: object) -> dict:
         'd_cm': d_cm,
         'h_m': h_m,
         'h_measured': _bool(row, 'h_measured'),
+        'hypso_param_set_id': _opt_int(row, 'hypso_param_set_id'),
         'lat': _opt_float(row, 'lat'),
         'lon': _opt_float(row, 'lon'),
         'acc_m': _opt_int(row, 'acc_m'),
@@ -712,6 +724,7 @@ def _normalize_record(index: int, row: object) -> dict:
 def _validate_record_ids(records: list[dict]) -> None:
     species_ids = {r['species_id'] for r in records}
     parcel_ids = {r['parcel_id'] for r in records}
+    hypso_ids = {r['hypso_param_set_id'] for r in records if r['hypso_param_set_id'] is not None}
     valid_species = set(Species.objects.filter(id__in=species_ids).values_list('id', flat=True))
     parcels = {
         p.id: p.region_id
@@ -723,6 +736,10 @@ def _validate_record_ids(records: list[dict]) -> None:
     missing_parcels = parcel_ids - set(parcels)
     if missing_parcels:
         raise UploadValidationError(f'Unknown parcel_id: {min(missing_parcels)}.')
+    valid_hypso = set(HypsoParamSet.objects.filter(id__in=hypso_ids).values_list('id', flat=True))
+    missing_hypso = hypso_ids - valid_hypso
+    if missing_hypso:
+        raise UploadValidationError(f'Unknown hypso_param_set_id: {min(missing_hypso)}.')
     for i, row in enumerate(records, start=1):
         if parcels[row['parcel_id']] != row['region_id']:
             raise UploadValidationError(f'Record {i}: parcel_id not in region_id.')

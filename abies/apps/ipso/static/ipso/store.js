@@ -218,8 +218,8 @@ async function setSessionUploadStatus(db, id, uploadStatus) {
 
 // Add a tree to a session. Allocates `seq` inside the same transaction so a
 // retry after partial failure cannot duplicate (plan R8).
-// rec fields (caller supplies): specie, d_cm, h_m, h_measured, lat, lon,
-// acc_m, numero, gruppo, particella.
+// rec fields (caller supplies): specie, d_cm, h_m, h_measured,
+// hypso_param_set_id, lat, lon, acc_m, numero, gruppo, particella.
 async function addTree(db, sessionId, rec) {
   return tx(db, [STORE_SESSIONS, STORE_TREES, STORE_META], 'readwrite', async (t) => {
     const sessStore = t.objectStore(STORE_SESSIONS);
@@ -235,6 +235,7 @@ async function addTree(db, sessionId, rec) {
       d_cm: rec.d_cm,
       h_m: rec.h_m,
       h_measured: rec.h_measured ? 1 : 0,
+      hypso_param_set_id: rec.hypso_param_set_id == null ? null : rec.hypso_param_set_id,
       lat: rec.lat == null ? null : rec.lat,
       lon: rec.lon == null ? null : rec.lon,
       acc_m: rec.acc_m == null ? null : rec.acc_m,
