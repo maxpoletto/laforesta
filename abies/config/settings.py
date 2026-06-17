@@ -17,6 +17,10 @@ if not _DEFAULT_SATELLITE_DIR.exists():
 SATELLITE_DIR = Path(os.environ.get(
     'ABIES_SATELLITE_DIR', str(_DEFAULT_SATELLITE_DIR),
 ))
+IPSO_INBOX_DIR = Path(os.environ.get(
+    'ABIES_IPSO_INBOX_DIR', str(DATA_DIR / 'ipso-inbox'),
+))
+IPSO_UPLOAD_TOKEN = os.environ.get('ABIES_IPSO_UPLOAD_TOKEN', '').strip()
 
 _DEFAULT_SECRET_KEY = 'django-insecure-change-me-before-deployment'
 _DEFAULT_MS_OAUTH_TENANT = 'common'
@@ -64,6 +68,9 @@ elif not DEBUG and _ms_oauth_tenant.lower() in _BROAD_MS_OAUTH_TENANTS:
     raise RuntimeError(
         'MS_OAUTH_TENANT must pin a single Entra tenant when DEBUG=0',
     )
+
+if not DEBUG and not IPSO_UPLOAD_TOKEN:
+    raise RuntimeError('ABIES_IPSO_UPLOAD_TOKEN must be set when DEBUG=0')
 
 # Apache terminates TLS and forwards plain HTTP; trust the X-Forwarded-Proto
 # header so Django recognises the request as secure for cookie flags, etc.

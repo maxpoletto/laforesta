@@ -23,6 +23,7 @@ urlpatterns = [
     path('api/piano-di-taglio/', include('apps.piano_di_taglio.urls')),
     path('api/controllo/', include('apps.controllo.urls')),
     path('api/impostazioni/', include('apps.impostazioni.urls')),
+    path('api/ipso/', include('apps.ipso.api_urls')),
     path('accounts/', include('allauth.urls')),
     path('', include('apps.base.urls')),
 ]

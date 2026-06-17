@@ -501,7 +501,7 @@ function startGps() {
       // narrow screens. The dot already encodes accuracy tier; the
       // GPS-stale fallback below kicks in when age > 10 s.
       text.textContent =
-        st.fix.lat.toFixed(5) + ' ' + st.fix.lng.toFixed(5) +
+        st.fix.lat.toFixed(5) + ' ' + st.fix.lon.toFixed(5) +
         ' ±' + Math.round(st.fix.acc) + ' m';
       if (State.locator) State.locator.onFix(st.fix);
     } else if (st.error === 'denied') {
@@ -624,7 +624,7 @@ async function onSave() {
   const gps = State.gps ? State.gps.snapshot() : null;
   const full = Object.assign({}, rec, {
     lat: gps ? gps.lat : null,
-    lng: gps ? gps.lng : null,
+    lon: gps ? gps.lon : null,
     acc_m: gps ? gps.acc_m : null,
   });
 
@@ -677,19 +677,22 @@ async function onEnd() {
   try {
     const trees = await Store.listTrees(State.db, State.session.id);
     trees.sort((a, b) => a.seq - b.seq);
+    const csvText = csv.formatFile(State.session, trees);
+    const uploadPayload = upload.buildUploadPayload(
+      State.session, trees, State.reference, csvText
+    );
     await Store.setSessionStatus(State.db, State.session.id, Store.STATUS_PENDING_UPLOAD);
     State.session.status = Store.STATUS_PENDING_UPLOAD;
-    const csvText = csv.formatFile(State.session, trees);
     // Always download the local CSV first — it is the trust anchor and
     // the operator must not lose data if the upload never succeeds.
     downloadFinal(State.session, trees);
-    enterUploadScreen(State.session.id, csvText, trees.length);
+    enterUploadScreen(State.session.id, uploadPayload, trees.length);
   } catch (e) {
     showToast('Errore esportazione: ' + e.message);
   }
 }
 
-function enterUploadScreen(sessionId, csvText, treeCount) {
+function enterUploadScreen(sessionId, uploadPayload, treeCount) {
   // Reset any prior state.
   if (State.upload && State.upload.retryTimer) {
     clearTimeout(State.upload.retryTimer);
@@ -702,7 +705,7 @@ function enterUploadScreen(sessionId, csvText, treeCount) {
   if (State.gps) { State.gps.stop(); State.gps = null; }
   State.upload = {
     sessionId,
-    csvText,
+    payload: uploadPayload,
     treeCount,
     attempt: 0,
     abortController: null,
@@ -739,9 +742,8 @@ async function runUploadAttempt() {
   try {
     await upload.uploadSession({
       token: UPLOAD_TOKEN,
-      schemaVersion: Store.SCHEMA_VERSION,
       sessionId: State.upload.sessionId,
-      csvText: State.upload.csvText,
+      payload: State.upload.payload,
       signal: ac.signal,
     });
     await onUploadSuccess();
@@ -1046,12 +1048,15 @@ function showResumeModal(sessions) {
         const trees = await Store.listTrees(State.db, s.id);
         trees.sort((a, b) => a.seq - b.seq);
         const csvText = csv.formatFile(s, trees);
+        const uploadPayload = upload.buildUploadPayload(
+          s, trees, State.reference, csvText
+        );
         // Re-download the local CSV on every entry to screen-upload —
         // the browser auto-renames duplicates so this can never lose
         // the original copy. See spec.
         downloadFinal(s, trees);
         State.session = s;
-        enterUploadScreen(s.id, csvText, trees.length);
+        enterUploadScreen(s.id, uploadPayload, trees.length);
       });
       const local = mkBtn(S.UPLOAD_RESUME_KEEP_LOCAL, 'btn-secondary', async () => {
         await Store.setSessionUploadStatus(State.db, s.id, Store.UPLOAD_STATUS_LOCAL_ONLY);

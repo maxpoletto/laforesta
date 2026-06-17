@@ -5,7 +5,7 @@
 //   createLocator(features) — point-in-polygon with hysteresis. The
 //     caller passes a compresa-scoped feature subset whose elements
 //     have already been bbox-indexed (via geo.buildBboxIndex). Each
-//     GPS fix is fed via onFix({lat, lng, acc}); subscribers receive
+//     GPS fix is fed via onFix({lat, lon, acc}); subscribers receive
 //     the new feature (or null) whenever the committed parcel changes.
 //     Commits require CONSECUTIVE_FIXES same-candidate fixes AND a fix
 //     accuracy smaller than the point's distance to the relevant
@@ -37,7 +37,8 @@ function createLocator(features) {
   const subscribers = [];
 
   function onFix(fix) {
-    const cand = findContainingParcel(fix.lng, fix.lat, features);
+    const lng = fix.lon;
+    const cand = findContainingParcel(lng, fix.lat, features);
     if (cand === committed) {
       candidate = null;
       candidateCount = 0;
@@ -58,9 +59,9 @@ function createLocator(features) {
     // parcel's (i.e. confirming we have left it).
     let boundaryDist;
     if (candidate) {
-      boundaryDist = distanceToBoundaryMeters(fix.lng, fix.lat, candidate);
+      boundaryDist = distanceToBoundaryMeters(lng, fix.lat, candidate);
     } else if (committed) {
-      boundaryDist = distanceToBoundaryMeters(fix.lng, fix.lat, committed);
+      boundaryDist = distanceToBoundaryMeters(lng, fix.lat, committed);
     } else {
       boundaryDist = Infinity;
     }

@@ -27,6 +27,13 @@ One Entra app registration covers all deployments (localhost, dev VM,
 prod) via separate redirect URIs. The OAuth client_id/secret can be
 shared; Django SECRET_KEYs differ per instance.
 
+### Ipso upload configuration
+
+The Abies-served Ipso PWA posts staged field uploads to the same origin.
+Production deployments must set `ABIES_IPSO_UPLOAD_TOKEN`; the generated
+`/ipso/upload-config.js` serves that bearer token to the installed PWA,
+and `/api/ipso/uploads/` rejects requests without it.
+
 ### Whitelist social adapter
 
 `apps.base.auth.WhitelistSocialAdapter` overrides allauth's

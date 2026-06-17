@@ -16,6 +16,7 @@ ENV_KEYS = (
     'MS_OAUTH_SECRET',
     'MS_OAUTH_TENANT',
     'DJANGO_DATA_UPLOAD_MAX_MEMORY_SIZE',
+    'ABIES_IPSO_UPLOAD_TOKEN',
 )
 
 
@@ -108,6 +109,17 @@ def test_production_rejects_broad_oauth_tenants(monkeypatch, tenant):
         )
 
 
+def test_production_requires_ipso_upload_token_after_base_guards(monkeypatch):
+    with pytest.raises(RuntimeError, match='ABIES_IPSO_UPLOAD_TOKEN'):
+        load_settings(
+            monkeypatch,
+            DJANGO_DEBUG='False',
+            DJANGO_SECRET_KEY='prod-secret',
+            DJANGO_ALLOWED_HOSTS='abies.example.test',
+            MS_OAUTH_TENANT='contoso.onmicrosoft.com',
+        )
+
+
 def test_production_loads_with_secret_key_allowed_hosts_and_oauth_tenant(monkeypatch):
     settings = load_settings(
         monkeypatch,
@@ -115,10 +127,12 @@ def test_production_loads_with_secret_key_allowed_hosts_and_oauth_tenant(monkeyp
         DJANGO_SECRET_KEY='prod-secret',
         DJANGO_ALLOWED_HOSTS='abies.example.test, www.example.test',
         MS_OAUTH_TENANT=' contoso.onmicrosoft.com ',
+        ABIES_IPSO_UPLOAD_TOKEN='prod-token',
     )
 
     assert settings.DEBUG is False
     assert settings.SECRET_KEY == 'prod-secret'
+    assert settings.IPSO_UPLOAD_TOKEN == 'prod-token'
     assert settings.ALLOWED_HOSTS == ['abies.example.test', 'www.example.test']
     assert settings.SESSION_COOKIE_SECURE is True
     assert settings.CSRF_COOKIE_SECURE is True

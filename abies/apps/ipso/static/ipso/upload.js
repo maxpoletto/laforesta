@@ -1,18 +1,16 @@
-// Upload an ipso session CSV to the ipso-upload endpoint.
+// Upload an ipso session to the Abies staged-upload endpoint.
 //
-// Pure-logic helpers (backoff, classify) are testable in node; the
-// network-touching uploadSession() is exercised in browser via the
-// screen-upload state machine, and in node tests via a mocked
-// globalThis.fetch.
-//
-// See docs/superpowers/specs/2026-05-17-ipso-upload-design.md for the
-// wire format and retry contract.
+// Pure-logic helpers (backoff, classify, payload construction) are testable in
+// node; the network-touching uploadSession() is exercised in browser via the
+// screen-upload state machine.
 'use strict';
 
+const UPLOAD_SCHEMA_VERSION = 1;
+const UPLOAD_MODE_MARTELLATE = 'martellate';
 const BACKOFF_SCHEDULE_MS = [2000, 4000, 8000, 16000];
 const BACKOFF_CAP_MS = 30000;
 
-// 1-based attempt number → wait BEFORE that attempt. Attempt 0 is "no
+// 1-based attempt number -> wait BEFORE that attempt. Attempt 0 is "no
 // wait yet", attempt N>0 picks index N-1 from the schedule (or the cap).
 function backoffMs(attempt) {
   if (!Number.isFinite(attempt) || attempt <= 0) return 0;
@@ -21,7 +19,7 @@ function backoffMs(attempt) {
   return BACKOFF_CAP_MS;
 }
 
-// HTTP status → outcome class. The state machine drives bail/retry off the
+// HTTP status -> outcome class. The state machine drives bail/retry off the
 // "hard:" / "soft:" prefix; the suffix lets the UI pick an error string.
 function classifyHttp(status) {
   if (status === 200) return 'ok';
@@ -46,25 +44,89 @@ class UploadError extends Error {
   }
 }
 
-// Posts the CSV. Resolves with { duplicate: bool } on 200, throws
-// UploadError otherwise. Caller passes signal for cancellation.
-//
-// base + token + schemaVersion come from upload-config.js (browser
-// globals); the function accepts them as args so tests can inject a
-// fake config without mucking with globals.
+function buildUploadPayload(sess, trees, reference, csvText) {
+  if (!sess || !reference) throw new Error('missing upload context');
+  const regionId = regionIdForCompresa(reference, sess.compresa);
+  const records = trees.map((t) => canonicalRecord(sess, t, reference));
+  return {
+    session: {
+      session_id: sess.id,
+      mode: UPLOAD_MODE_MARTELLATE,
+      schema_version: UPLOAD_SCHEMA_VERSION,
+      reference_version: reference.reference_version || '',
+      work_package_id: sess.work_package_id || '',
+      operator: sess.operatore || '',
+      created_at: sess.started_at || '',
+      completed_at: sess.completed_at || sess.exported_at || '',
+      catastrofata: !!sess.catastrofata,
+      region_id: regionId,
+    },
+    records,
+    csv_text: csvText || '',
+  };
+}
+
+function canonicalRecord(sess, t, reference) {
+  const speciesId = speciesIdForName(reference, t.specie);
+  const parcel = parcelForName(reference, sess.compresa, t.particella);
+  return {
+    client_record_id: String(t.seq || t.id),
+    date: sess.data,
+    region_id: parcel.region_id,
+    parcel_id: parcel.parcel_id,
+    species_id: speciesId,
+    number: Number.isInteger(t.numero) ? t.numero : null,
+    d_cm: t.d_cm,
+    h_m: String(t.h_m),
+    h_measured: !!t.h_measured,
+    lat: t.lat == null ? null : t.lat,
+    lon: t.lon == null ? null : t.lon,
+    acc_m: t.acc_m == null ? null : t.acc_m,
+  };
+}
+
+function speciesIdForName(reference, name) {
+  const row = (reference.species || []).find((s) => s.common === name);
+  if (!row || !Number.isInteger(row.id)) {
+    throw new Error('specie senza ID Abies: ' + (name || ''));
+  }
+  return row.id;
+}
+
+function regionIdForCompresa(reference, compresa) {
+  const row = (reference.parcels || []).find((p) => p.compresa === compresa);
+  if (!row || !Number.isInteger(row.region_id)) {
+    throw new Error('compresa senza ID Abies: ' + (compresa || ''));
+  }
+  return row.region_id;
+}
+
+function parcelForName(reference, compresa, particella) {
+  const row = (reference.parcels || []).find(
+    (p) => p.compresa === compresa && p.particella === particella
+  );
+  if (!row || !Number.isInteger(row.parcel_id) || !Number.isInteger(row.region_id)) {
+    throw new Error('particella senza ID Abies: ' + (compresa || '') + '/' + (particella || ''));
+  }
+  return row;
+}
+
+// Posts the canonical staged JSON payload. Resolves with { duplicate: bool } on
+// 200, throws UploadError otherwise. Caller passes signal for cancellation.
 async function uploadSession(args) {
-  const { token, schemaVersion, sessionId, csvText, signal } = args;
+  const { token, sessionId, payload, signal } = args;
+  const headers = {
+    'Content-Type': 'application/json',
+    'X-Ipso-Session-Id': sessionId,
+  };
+  if (token) headers.Authorization = 'Bearer ' + token;
+
   let resp;
   try {
-    resp = await fetch('/upload', {
+    resp = await fetch('/api/ipso/uploads/', {
       method: 'POST',
-      headers: {
-        'Authorization': 'Bearer ' + token,
-        'Content-Type': 'text/csv; charset=utf-8',
-        'X-Ipso-Session-Id': sessionId,
-        'X-Ipso-Schema-Version': '' + schemaVersion,
-      },
-      body: csvText,
+      headers,
+      body: JSON.stringify(payload),
       signal,
     });
   } catch (e) {
@@ -73,22 +135,26 @@ async function uploadSession(args) {
   }
   const klass = classifyHttp(resp.status);
   if (klass === 'ok') {
-    let payload = {};
-    try { payload = await resp.json(); } catch (_) {}
-    return { duplicate: !!payload.duplicate, storedAs: payload.stored_as };
+    let responsePayload = {};
+    try { responsePayload = await resp.json(); } catch (_) {}
+    return {
+      duplicate: !!responsePayload.duplicate,
+      storedAs: responsePayload.stored_as,
+    };
   }
   let detail = '';
   try {
-    const payload = await resp.json();
-    detail = payload && payload.error ? payload.error : '';
+    const responsePayload = await resp.json();
+    detail = responsePayload && responsePayload.error ? responsePayload.error : '';
   } catch (_) {}
   throw new UploadError(klass, detail);
 }
 
 const upload = {
+  UPLOAD_SCHEMA_VERSION, UPLOAD_MODE_MARTELLATE,
   BACKOFF_SCHEDULE_MS, BACKOFF_CAP_MS,
   backoffMs, classifyHttp, classifyNetwork,
-  UploadError, uploadSession,
+  UploadError, buildUploadPayload, uploadSession,
 };
 
 if (typeof module !== 'undefined') module.exports = upload;

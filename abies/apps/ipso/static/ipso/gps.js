@@ -31,7 +31,7 @@ const GPS_ERROR_BACKOFF_MS = 1000;
 
 function createGps(onChange) {
   let watchId = null;
-  let lastFix = null;       // { lat, lng, acc, t }
+  let lastFix = null;       // { lat, lon, acc, t }
   let lastError = null;
   let restartCount = 0;
   let restartingAt = 0;     // ms timestamp; suppress duplicate restarts
@@ -58,12 +58,12 @@ function createGps(onChange) {
   }
 
   function snapshot() {
-    // Returns {lat, lng, acc_m} or null. Doesn't update internal state.
+    // Returns {lat, lon, acc_m} or null. Doesn't update internal state.
     if (!lastFix) return null;
     if (Date.now() - lastFix.t > GPS_STALE_MS) return null;
     return {
       lat: lastFix.lat,
-      lng: lastFix.lng,
+      lon: lastFix.lon,
       acc_m: Math.round(lastFix.acc),
     };
   }
@@ -78,7 +78,7 @@ function createGps(onChange) {
       (pos) => {
         lastFix = {
           lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
+          lon: pos.coords.longitude,
           acc: pos.coords.accuracy,
           t: Date.now(),
         };

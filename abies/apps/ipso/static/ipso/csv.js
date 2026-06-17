@@ -71,7 +71,7 @@ function formatRow(rec, session) {
     fmtInt(rec.h_m),
     rec.h_measured ? '1' : '0',
     fmtFloat(rec.lat, 6),
-    fmtFloat(rec.lng, 6),
+    fmtFloat(rec.lon, 6),
     fmtInt(rec.acc_m),
     session.operatore || '',
   ];
