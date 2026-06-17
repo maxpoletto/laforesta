@@ -62,6 +62,32 @@
   overflow-wrap: anywhere;
 }
 
+.ipso-import-target {
+  align-items: end;
+  border-bottom: 1px solid #ddd;
+  border-top: 1px solid #ddd;
+  display: flex;
+  gap: 10px;
+  margin: 0 0 16px;
+  padding: 12px 0;
+}
+
+.ipso-import-target label {
+  color: #666;
+  display: grid;
+  flex: 1;
+  font-weight: 700;
+  gap: 4px;
+}
+
+.ipso-import-target select {
+  font: inherit;
+  font-weight: 400;
+  max-width: 720px;
+  min-height: 36px;
+  padding: 5px 8px;
+}
+
 .ipso-upload-detail h3 {
   font-size: 16px;
   margin: 16px 0 8px;
@@ -98,8 +124,9 @@
 
 @media (max-width: 700px) {
   .ipso-inbox-header,
-  .ipso-detail-header {
-    align-items: flex-start;
+  .ipso-detail-header,
+  .ipso-import-target {
+    align-items: stretch;
     flex-direction: column;
   }
 }

@@ -9,4 +9,6 @@ urlpatterns = [
     path('uploads/', views.upload_session, name='ipso-upload-session'),
     path('uploads/<int:upload_id>/', views.upload_detail, name='ipso-upload-detail'),
     path('uploads/<int:upload_id>/reject/', views.reject_upload, name='ipso-upload-reject'),
+    path('uploads/<int:upload_id>/import-martellate/',
+         views.import_martellate_upload, name='ipso-upload-import-martellate'),
 ]

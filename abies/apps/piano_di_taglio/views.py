@@ -47,12 +47,16 @@ from apps.base.models import (
     Species,
     Tree,
     TreeMark,
-    next_sequence_number,
     parcel_sort_key,
     render_flag_note,
-    tree_mass_q,
 )
 from apps.piano_di_taglio import csv_plan
+from apps.piano_di_taglio.mark_import import (
+    MarkImportRow, auto_advance_to_marked as _auto_advance_to_marked,
+    csv_mark_fingerprint, import_mark_rows,
+    next_mark_number as _next_mark_number,
+    rematerialize_volume_marked as _rematerialize_volume_marked,
+)
 from apps.prelievi.models import Harvest, HarvestSpecies, HarvestTractor
 from config import strings as S
 from config.constants import (
@@ -1018,9 +1022,6 @@ def mark_csv_import_view(request):
     row.  The ``import_fingerprint`` (SHA-256 of the row content) deduplicates
     re-imports: existing fingerprints are silently skipped.
     """
-    import hashlib
-    from apps.base.tabacchi import tabacchi_volume_m3
-
     body, error = parse_json_body(request)
     if error:
         return error
@@ -1070,14 +1071,6 @@ def mark_csv_import_view(request):
     species_map = {sp.common_name.lower(): sp
                    for sp in Species.objects.all()}
 
-    # Existing fingerprints for dedup.
-    existing_fps = set(
-        TreeMark.objects
-        .filter(harvest_plan_item_id=item_id,
-                import_fingerprint__isnull=False)
-        .values_list('import_fingerprint', flat=True)
-    )
-
     item_region = item.region or (item.parcel.region if item.parcel else None)
     errors = []
     parsed = []
@@ -1120,61 +1113,21 @@ def mark_csv_import_view(request):
         acc_m = reader.integer(row.get('acc_m'))
         h_measured = is_truthy(row.get('h_measured'))
 
-        fp_src = f'{date}|{species_name}|{d_cm}|{h_m}|{lat}|{lon}|{operator}'
-        fingerprint = hashlib.sha256(fp_src.encode()).hexdigest()
-        if fingerprint in existing_fps:
-            continue
-
-        try:
-            volume_m3 = tabacchi_volume_m3(d_cm, h_m, species.common_name)
-            mass_q = tree_mass_q(volume_m3, species.density)
-        except (ValueError, KeyError):
-            volume_m3 = None
-            mass_q = None
-
         numero = reader.integer(row.get('numero'))
-
-        parsed.append({
-            'date': date, 'parcel': parcel, 'species': species,
-            'number': numero,
-            'd_cm': d_cm, 'h_m': h_m, 'h_measured': h_measured,
-            'volume_m3': volume_m3, 'mass_q': mass_q,
-            'lat': lat, 'lon': lon, 'acc_m': acc_m,
-            'operator': operator, 'fingerprint': fingerprint,
-        })
-        existing_fps.add(fingerprint)
+        parsed.append(MarkImportRow(
+            date=date, parcel=parcel, species=species,
+            number=numero, d_cm=d_cm, h_m=h_m, h_measured=h_measured,
+            lat=lat, lon=lon, acc_m=acc_m, operator=operator,
+            fingerprint=csv_mark_fingerprint(
+                date=date, species_name=species_name, d_cm=d_cm, h_m=h_m,
+                lat=lat, lon=lon, operator=operator,
+            ),
+        ))
 
     if errors:
         return validation_error(errors)
 
-    with transaction.atomic():
-        next_number = _next_mark_number(item_id)
-        for p in parsed:
-            number = p['number']
-            if number is None:
-                number = next_number
-                next_number += 1
-            tree = Tree.objects.create(
-                species=p['species'], parcel=p['parcel'],
-                lat=p['lat'], lon=p['lon'], acc_m=p['acc_m'],
-            )
-            TreeMark.objects.create(
-                harvest_plan_item=item, tree=tree,
-                number=number,
-                date=p['date'], d_cm=p['d_cm'], h_m=p['h_m'],
-                h_measured=p['h_measured'],
-                volume_m3=p['volume_m3'], mass_q=p['mass_q'],
-                lat=p['lat'], lon=p['lon'], acc_m=p['acc_m'],
-                operator=p['operator'],
-                import_fingerprint=p['fingerprint'],
-            )
-
-        if parsed:
-            earliest_date = min(p['date'] for p in parsed)
-            _auto_advance_to_marked(item, earliest_date)
-            _rematerialize_volume_marked(item.id)
-
-        mark_stale(f'mark_trees_{item.id}', 'harvest_plan_items', DIGEST_FUTURE_PRODUCTION, 'audit')
+    import_result = import_mark_rows(item, parsed)
 
     item_fresh = (HarvestPlanItem.objects
                   .select_related('parcel__region', 'parcel__eclass',
@@ -1185,8 +1138,8 @@ def mark_csv_import_view(request):
         request, body,
         patches=[row_patch('harvest_plan_items', item_record[0], item_record)],
         extra={
-            'imported': len(parsed),
-            'skipped_duplicates': len(rows) - len(parsed) - len(errors),
+            'imported': import_result.imported,
+            'skipped_duplicates': import_result.skipped_duplicates,
         },
     )
 
@@ -1211,34 +1164,6 @@ def _resolve_mark_parcel(item, parcel_id):
     if item.region_id and parcel.region_id != item.region_id:
         return validation_error([S.ERR_MARK_PARCEL_NOT_IN_REGION])
     return parcel
-
-
-def _auto_advance_to_marked(item, mark_date):
-    """Auto-advance state from planned → marked on first TreeMark."""
-    if item.state == HarvestPlanItemState.PLANNED:
-        item.state = HarvestPlanItemState.MARKED
-        item.date_actual = mark_date
-        item.version += 1
-        item.save()
-
-
-def _rematerialize_volume_marked(item_id: int) -> None:
-    """Recompute volume_marked_m3 on the linked HarvestPlanItem."""
-    from django.db.models import Sum
-    total = (TreeMark.objects
-             .filter(harvest_plan_item_id=item_id)
-             .aggregate(s=Sum('volume_m3'))['s'])
-    item = HarvestPlanItem.objects.select_for_update().filter(id=item_id).first()
-    if item is not None and item.volume_marked_m3 != total:
-        item.volume_marked_m3 = total
-        item.save(update_fields=['volume_marked_m3'])
-
-
-def _next_mark_number(item_id: int) -> int:
-    """Return max(tree_mark.number)+1 for the item, or 1 if no marks exist."""
-    return next_sequence_number(
-        TreeMark.objects.filter(harvest_plan_item_id=item_id), FIELD_NUMBER,
-    )
 
 
 def _parse_date_flex(s: str) -> date_type:

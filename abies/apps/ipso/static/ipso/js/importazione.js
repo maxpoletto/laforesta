@@ -20,6 +20,7 @@ const CSS_URL = '/static/ipso/css/importazione.css';
 const DEFAULT_SORT = { column: 'Ricevuto', ascending: false };
 const DETAIL_URL = (id) => `/api/ipso/uploads/${id}/`;
 const REJECT_URL = (id) => `/api/ipso/uploads/${id}/reject/`;
+const IMPORT_URL = (id) => `/api/ipso/uploads/${id}/import-martellate/`;
 
 const COLUMN_DEFS = {
   Ricevuto: { label: 'Ricevuto', width: '145px' },
@@ -183,12 +184,6 @@ function renderDetail(data) {
     rejectBtn.addEventListener('click', () => confirmReject(upload.id));
     actions.appendChild(rejectBtn);
   }
-  const importBtn = document.createElement('button');
-  importBtn.className = 'btn btn-import';
-  importBtn.textContent = 'Importa';
-  importBtn.disabled = true;
-  importBtn.title = 'Importazione nel prossimo step';
-  actions.appendChild(importBtn);
   header.appendChild(actions);
   detailEl.appendChild(header);
 
@@ -211,10 +206,73 @@ function renderDetail(data) {
     ['Errore', upload.error_summary],
   ]));
 
+  const importEl = importTargetPanel(data);
+  if (importEl) detailEl.appendChild(importEl);
+
   const recordsTitle = document.createElement('h3');
   recordsTitle.textContent = `Anteprima record (${data.record_count || 0})`;
   detailEl.appendChild(recordsTitle);
   detailEl.appendChild(recordsTable(data.records || []));
+}
+
+function canImportUpload(upload) {
+  return document.body.dataset.role !== 'reader' &&
+    upload.mode === 'martellate' && upload.state === 'received';
+}
+
+function importTargetPanel(data) {
+  const upload = data.upload || {};
+  if (!canImportUpload(upload)) return null;
+
+  const panel = document.createElement('div');
+  panel.className = 'ipso-import-target';
+
+  const label = document.createElement('label');
+  label.textContent = 'Piano di taglio';
+  const select = document.createElement('select');
+  const empty = document.createElement('option');
+  empty.value = '';
+  empty.textContent = 'Seleziona destinazione';
+  select.appendChild(empty);
+  for (const target of data.targets || []) {
+    const opt = document.createElement('option');
+    opt.value = String(target.id);
+    opt.textContent = target.label;
+    if (target.id === data.suggested_target_id) opt.selected = true;
+    select.appendChild(opt);
+  }
+  label.appendChild(select);
+  panel.appendChild(label);
+
+  const btn = document.createElement('button');
+  btn.className = 'btn btn-import';
+  btn.textContent = 'Importa';
+  const updateEnabled = () => { btn.disabled = !select.value; };
+  select.addEventListener('change', updateEnabled);
+  btn.addEventListener('click', () => confirmImport(upload.id, select.value));
+  panel.appendChild(btn);
+  updateEnabled();
+  return panel;
+}
+
+function confirmImport(uploadId, targetId) {
+  showConfirmModal(
+    'Importare questo caricamento nel piano selezionato?',
+    async () => importUpload(uploadId, targetId),
+    { confirmLabel: 'Importa' },
+  );
+}
+
+async function importUpload(uploadId, targetId) {
+  const { data, status } = await api.postJSON(IMPORT_URL(uploadId), {
+    harvest_plan_item_id: Number(targetId),
+  });
+  if (status >= 400) {
+    showError(data?.message || S.ERROR_GENERIC);
+    return;
+  }
+  await cache.load(DATA_ID);
+  await openUpload(uploadId);
 }
 
 function canRejectUpload(upload) {

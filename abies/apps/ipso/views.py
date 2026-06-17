@@ -7,7 +7,7 @@ import hmac
 import json
 import math
 import re
-from datetime import timezone
+from datetime import date as date_type, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
@@ -25,12 +25,20 @@ from apps.base.http import (
     CACHE_NO_CACHE, CACHE_NO_STORE, apply_cache_control,
     conditional_file_response,
 )
-from apps.base.models import HYPSO_FUNC_LN, HypsoParam, HypsoParamSet, Parcel, Species
+from apps.base.models import (
+    HYPSO_FUNC_LN, HarvestPlanItem, HarvestPlanItemState, HypsoParam,
+    HypsoParamSet, Parcel, Species,
+)
 from apps.ipso.models import IpsoUpload, IpsoUploadState
+from apps.piano_di_taglio.mark_import import (
+    MarkImportRow, import_mark_rows, ipso_mark_fingerprint,
+)
+from config import strings as S
 
 SCHEMA_VERSION = 1
 UPLOAD_SCHEMA_VERSION = 1
 UPLOAD_MODE_MARTELLATE = 'martellate'
+TARGET_TYPE_HARVEST_PLAN_ITEM = 'harvest_plan_item'
 
 ASSET_CONTENT_TYPES = {
     '.css': 'text/css; charset=utf-8',
@@ -243,6 +251,8 @@ def upload_detail(request: HttpRequest, upload_id: int) -> JsonResponse:
         'records': _preview_records(records),
         'record_count': len(records),
         'file_error': file_error,
+        'targets': _martellate_targets(),
+        'suggested_target_id': _suggested_harvest_item_id(upload.work_package_id),
     })
 
 
@@ -260,6 +270,62 @@ def reject_upload(request: HttpRequest, upload_id: int) -> JsonResponse:
     upload.error_summary = _reject_reason(request)
     upload.save(update_fields=['state', 'error_summary'])
     return _api_json({'ok': True, 'upload': _upload_metadata(upload)})
+
+
+@login_required
+@require_writer
+@require_POST
+def import_martellate_upload(request: HttpRequest, upload_id: int) -> JsonResponse:
+    upload = _get_upload(upload_id)
+    if upload.mode != UPLOAD_MODE_MARTELLATE:
+        return _api_json({'ok': False, 'message': 'Modalita non supportata.'}, status=400)
+    if upload.state != IpsoUploadState.RECEIVED:
+        return _api_json({
+            'ok': False,
+            'message': 'Solo i caricamenti da importare possono essere importati.',
+        }, status=400)
+    try:
+        body = _request_json(request)
+        item_id = _int(body, 'harvest_plan_item_id')
+    except UploadValidationError as e:
+        return _api_json({'ok': False, 'message': str(e)}, status=400)
+    item = (HarvestPlanItem.objects
+            .select_related('parcel__region', 'parcel__eclass', 'region', 'harvest_plan')
+            .filter(id=item_id).first())
+    if item is None:
+        return _api_json({'ok': False, 'message': S.ERR_PLAN_ITEM_NOT_FOUND}, status=400)
+    if item.state == HarvestPlanItemState.CLOSED:
+        return _api_json({'ok': False, 'message': S.ERR_MARK_ITEM_CLOSED}, status=400)
+    if not _is_valid_martellate_target(item):
+        return _api_json({
+            'ok': False,
+            'message': 'Destinazione non valida per Martellate.',
+        }, status=400)
+
+    payload, file_error = _read_staged_payload(upload)
+    if file_error:
+        return _api_json({'ok': False, 'message': file_error}, status=400)
+    rows, errors = _martellate_import_rows(upload, payload, item)
+    if errors:
+        return _api_json({'ok': False, 'message': '\n'.join(errors), 'errors': errors}, status=400)
+
+    result = import_mark_rows(item, rows)
+    upload.state = IpsoUploadState.IMPORTED
+    upload.imported_at = django_timezone.now()
+    upload.imported_by = request.user
+    upload.target_type = TARGET_TYPE_HARVEST_PLAN_ITEM
+    upload.target_id = item.id
+    upload.error_summary = ''
+    upload.save(update_fields=[
+        'state', 'imported_at', 'imported_by', 'target_type', 'target_id',
+        'error_summary',
+    ])
+    return _api_json({
+        'ok': True,
+        'imported': result.imported,
+        'skipped_duplicates': result.skipped_duplicates,
+        'upload': _upload_metadata(upload),
+    })
 
 
 @csrf_exempt
@@ -363,6 +429,12 @@ def _upload_metadata(upload: IpsoUpload) -> dict:
 
 
 def _target_label(upload: IpsoUpload) -> str:
+    if upload.target_type == TARGET_TYPE_HARVEST_PLAN_ITEM and upload.target_id:
+        item = (HarvestPlanItem.objects
+                .select_related('harvest_plan', 'parcel__region', 'parcel__eclass', 'region')
+                .filter(id=upload.target_id).first())
+        if item is not None:
+            return _harvest_item_label(item)
     if upload.target_type and upload.target_id:
         return f'{upload.target_type}:{upload.target_id}'
     return ''
@@ -430,6 +502,118 @@ def _reject_reason(request: HttpRequest) -> str:
         body = {}
     reason = body.get('reason', '') if isinstance(body, dict) else ''
     return reason.strip() or 'Rifiutato in revisione Abies.'
+
+
+def _martellate_targets() -> list[dict]:
+    items = (HarvestPlanItem.objects
+             .select_related('harvest_plan', 'parcel__region', 'parcel__eclass', 'region')
+             .exclude(state=HarvestPlanItemState.CLOSED)
+             .order_by('harvest_plan__name', 'year_planned', 'id'))
+    out = []
+    for item in items:
+        if _is_valid_martellate_target(item):
+            out.append({'id': item.id, 'label': _harvest_item_label(item)})
+    return out
+
+
+def _is_valid_martellate_target(item: HarvestPlanItem) -> bool:
+    if item.state == HarvestPlanItemState.CLOSED:
+        return False
+    return not (item.parcel_id and item.parcel.eclass.coppice)
+
+
+def _harvest_item_label(item: HarvestPlanItem) -> str:
+    if item.parcel_id:
+        area = f'{item.parcel.region.name} {item.parcel.name}'
+    elif item.region_id:
+        area = item.region.name
+    else:
+        area = '-'
+    state = HarvestPlanItemState(item.state).label
+    return f'{item.harvest_plan.name} - {area} - {item.year_planned} ({state})'
+
+
+def _suggested_harvest_item_id(work_package_id: str) -> int | None:
+    raw = (work_package_id or '').strip()
+    if raw.startswith('harvest:'):
+        raw = raw.split(':', 1)[1]
+    if not raw.isdigit():
+        return None
+    item_id = int(raw)
+    item = (HarvestPlanItem.objects
+            .select_related('parcel__eclass')
+            .filter(id=item_id).first())
+    if item is not None and _is_valid_martellate_target(item):
+        return item_id
+    return None
+
+
+def _martellate_import_rows(
+        upload: IpsoUpload, payload: dict, item: HarvestPlanItem,
+) -> tuple[list[MarkImportRow], list[str]]:
+    session = payload.get('session', {}) if isinstance(payload, dict) else {}
+    records = payload.get('records', []) if isinstance(payload, dict) else []
+    if not isinstance(records, list):
+        return [], ['records deve essere un array.']
+
+    species_ids = {
+        r.get('species_id') for r in records
+        if isinstance(r, dict) and type(r.get('species_id')) is int
+    }
+    parcel_ids = {
+        r.get('parcel_id') for r in records
+        if isinstance(r, dict) and type(r.get('parcel_id')) is int
+    }
+    species = {
+        sp.id: sp
+        for sp in Species.objects.filter(id__in=species_ids)
+    }
+    parcels = {
+        p.id: p
+        for p in Parcel.objects.filter(id__in=parcel_ids).select_related('region', 'eclass')
+    }
+    item_region = item.region or (item.parcel.region if item.parcel else None)
+    operator = (session.get('operator') or '').strip() if isinstance(session, dict) else ''
+
+    rows = []
+    errors = []
+    for i, record in enumerate(records, start=1):
+        if not isinstance(record, dict):
+            errors.append(f'Record {i}: formato non valido.')
+            continue
+        parcel = parcels.get(record.get('parcel_id'))
+        if parcel is None:
+            errors.append(f'Record {i}: particella non trovata.')
+            continue
+        if item_region and parcel.region_id != item_region.id:
+            errors.append(S.ERR_MARK_PARCEL_NOT_IN_REGION)
+            continue
+        sp = species.get(record.get('species_id'))
+        if sp is None:
+            errors.append(f'Record {i}: specie non trovata.')
+            continue
+        try:
+            date = date_type.fromisoformat(str(record.get('date')))
+            d_cm = int(record.get('d_cm'))
+            h_m = Decimal(str(record.get('h_m')))
+        except (TypeError, ValueError, InvalidOperation):
+            errors.append(f'Record {i}: D/H/data non validi.')
+            continue
+        rows.append(MarkImportRow(
+            date=date,
+            parcel=parcel,
+            species=sp,
+            number=record.get('number'),
+            d_cm=d_cm,
+            h_m=h_m,
+            h_measured=bool(record.get('h_measured')),
+            lat=record.get('lat'),
+            lon=record.get('lon'),
+            acc_m=record.get('acc_m'),
+            operator=operator,
+            fingerprint=ipso_mark_fingerprint(upload.session_id, record),
+        ))
+    return rows, errors
 
 
 def _upload_authorized(request: HttpRequest) -> bool:

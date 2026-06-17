@@ -1,6 +1,7 @@
 """Tests for the Abies-served Ipso PWA."""
 
 import json
+from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
@@ -9,7 +10,8 @@ from django.test import Client, override_settings
 from django.urls import reverse
 
 from apps.base.models import (
-    HYPSO_FUNC_LN, HypsoParam, HypsoParamSet, HypsoParamSource,
+    HYPSO_FUNC_LN, HarvestPlan, HarvestPlanItem, HarvestPlanItemState,
+    HypsoParam, HypsoParamSet, HypsoParamSource, TreeMark,
 )
 from apps.ipso.models import IpsoUpload, IpsoUploadState
 
@@ -119,6 +121,19 @@ def _upload_payload(parcels, species, *, session_id='11111111-1111-4111-8111-111
         }],
         'csv_text': 'csv backup',
     }
+
+
+
+def _harvest_item(parcels):
+    plan = HarvestPlan.objects.create(
+        name='Piano Ipso', year_start=2026, year_end=2026,
+    )
+    return HarvestPlanItem.objects.create(
+        harvest_plan=plan,
+        parcel=parcels[0],
+        year_planned=2026,
+        state=HarvestPlanItemState.PLANNED,
+    )
 
 
 def _post_upload(client, payload, token='test-token'):
@@ -295,5 +310,82 @@ def test_reader_cannot_reject_upload(reader_client, parcels, species, settings, 
     )
 
     assert resp.status_code == 403
+    upload.refresh_from_db()
+    assert upload.state == IpsoUploadState.RECEIVED
+
+
+@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+def test_upload_detail_lists_martellate_targets(writer_client, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    item = _harvest_item(parcels)
+    payload = _upload_payload(parcels, species)
+    payload['session']['work_package_id'] = f'harvest:{item.id}'
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
+
+    resp = writer_client.get(reverse('ipso-upload-detail', args=[upload.id]))
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data['suggested_target_id'] == item.id
+    assert data['targets'][0]['id'] == item.id
+    assert 'Piano Ipso' in data['targets'][0]['label']
+    assert 'Capistrano 1' in data['targets'][0]['label']
+
+
+@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+def test_writer_imports_upload_into_harvest_plan_item(
+        writer_client, writer_user, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    item = _harvest_item(parcels)
+    payload = _upload_payload(parcels, species)
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
+
+    resp = writer_client.post(
+        reverse('ipso-upload-import-martellate', args=[upload.id]),
+        data=json.dumps({'harvest_plan_item_id': item.id}),
+        content_type='application/json',
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()['imported'] == 1
+    upload.refresh_from_db()
+    assert upload.state == IpsoUploadState.IMPORTED
+    assert upload.imported_by == writer_user
+    assert upload.target_type == 'harvest_plan_item'
+    assert upload.target_id == item.id
+    tm = TreeMark.objects.select_related('tree', 'tree__species').get()
+    assert tm.harvest_plan_item == item
+    assert tm.tree.parcel == parcels[0]
+    assert tm.tree.species == species[0]
+    assert tm.number == 1
+    assert tm.date == date(2026, 6, 17)
+    assert tm.d_cm == 42
+    assert tm.h_m == Decimal('22.00')
+    assert tm.lat == 38.51234
+    assert tm.lon == 16.12345
+    assert tm.operator == 'Mario Rossi'
+    item.refresh_from_db()
+    assert item.state == HarvestPlanItemState.MARKED
+    assert item.date_actual == date(2026, 6, 17)
+
+
+@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+def test_import_rejects_reader(reader_client, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    item = _harvest_item(parcels)
+    payload = _upload_payload(parcels, species)
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
+
+    resp = reader_client.post(
+        reverse('ipso-upload-import-martellate', args=[upload.id]),
+        data=json.dumps({'harvest_plan_item_id': item.id}),
+        content_type='application/json',
+    )
+
+    assert resp.status_code == 403
+    assert TreeMark.objects.count() == 0
     upload.refresh_from_db()
     assert upload.state == IpsoUploadState.RECEIVED
