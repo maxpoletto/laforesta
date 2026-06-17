@@ -23,6 +23,7 @@ const SHELL = [
   './ipso.js',
   './session.js',
   './strings.js',
+  './modes.js',
   './download.js',
   './gps.js',
   './numpad.js',

@@ -8,6 +8,7 @@
 // APP_VERSION is defined in version.js (loaded before this script).
 
 const State = {
+  mode: null,         // current IpsoModes entry
   reference: null,    // parsed reference.json
   terreni: null,      // parsed terreni.geojson features array (compresa-wide)
   db: null,           // open IDBDatabase
@@ -33,9 +34,9 @@ const State = {
 // ---------------------------------------------------------------------------
 
 async function boot() {
+  setMode(IpsoModes.MARTELLATE);
   document.getElementById('footer-version').textContent =
     'v' + APP_VERSION;
-  document.getElementById('pre-title').textContent = S.PRE_NEW_SESSION;
   document.getElementById('lbl-operatore').textContent = S.PRE_OPERATOR;
   document.getElementById('lbl-data').textContent = S.PRE_DATA;
   document.getElementById('lbl-compresa').textContent = S.PRE_COMPRESA;
@@ -216,6 +217,22 @@ function appendOption(sel, value, label, selected) {
   sel.appendChild(o);
 }
 
+function currentMode() {
+  return State.mode || IpsoModes.defaultMode();
+}
+
+function setMode(modeId) {
+  State.mode = IpsoModes.get(modeId);
+  const title = document.getElementById('pre-title');
+  if (title) title.textContent = modeString('preTitleKey', S.PRE_NEW_SESSION);
+}
+
+function modeString(field, fallback) {
+  const key = currentMode()[field];
+  if (!key || !Object.prototype.hasOwnProperty.call(S, key)) return fallback;
+  return S[key];
+}
+
 function wirePreSession() {
   document.getElementById('pre-form').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -234,6 +251,9 @@ function wirePreSession() {
 
     try {
       const sess = await Store.startSession(State.db, {
+        mode: currentMode().id,
+        reference_version: State.reference.reference_version || '',
+        work_package_id: '',
         data, compresa, operatore: operator, catastrofata,
       });
       State.session = sess;
@@ -1146,6 +1166,7 @@ function wireUpload() {
 function wireDone() {
   document.getElementById('btn-new-session').addEventListener('click', () => {
     State.session = null;
+    setMode(IpsoModes.MARTELLATE);
     State.lastTreeRow = null;
     State.locator = null;
     State.override = null;
@@ -1204,6 +1225,7 @@ function showResumeModal(sessions) {
         // the original copy. See spec.
         downloadFinal(s, trees);
         State.session = s;
+        setMode(s.mode);
         enterUploadScreen(s.id, uploadPayload, trees.length);
       });
       const local = mkBtn(S.UPLOAD_RESUME_KEEP_LOCAL, 'btn-secondary', async () => {
@@ -1220,6 +1242,7 @@ function showResumeModal(sessions) {
     } else {
       const resume = mkBtn(S.RESUME_RESUME, 'btn-primary', async () => {
         State.session = s;
+        setMode(s.mode);
         State.lastTreeRow = await Store.lastTree(State.db, s.id);
         hideModal('modal-resume');
         enterRecording();

@@ -43,6 +43,7 @@ def test_index_is_public_and_uses_relative_assets(db):
     assert 'href="style.css"' in body
     assert 'href="/static/vendor/leaflet/leaflet.css"' in body
     assert 'id="screen-map"' in body
+    assert 'src="modes.js"' in body
     assert 'src="/static/vendor/leaflet/leaflet.js"' in body
     assert 'src="map.js"' in body
     assert 'src="app.js"' in body
@@ -56,12 +57,16 @@ def test_service_worker_served_from_ipso_scope(db):
     assert b'ipso service worker' in _body(resp)
 
 
-def test_referenced_static_helpers_are_served(db):
-    resp = Client().get('/ipso/map.js')
+@pytest.mark.parametrize(('path', 'needle'), [
+    ('/ipso/map.js', b'createOrientationMap'),
+    ('/ipso/modes.js', b'IpsoModes'),
+])
+def test_referenced_static_helpers_are_served(db, path, needle):
+    resp = Client().get(path)
 
     assert resp.status_code == 200
     assert resp['Content-Type'].startswith('text/javascript')
-    assert b'createOrientationMap' in _body(resp)
+    assert needle in _body(resp)
 
 
 def test_manifest_is_served(db):

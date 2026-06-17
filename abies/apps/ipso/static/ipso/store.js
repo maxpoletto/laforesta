@@ -147,12 +147,14 @@ function req(r) {
 // ---------------------------------------------------------------------------
 
 async function startSession(db, fields) {
-  // fields: {data, compresa, operatore, catastrofata}
+  // fields: {mode, reference_version, work_package_id, data, compresa,
+  //          operatore, catastrofata}
   const id = uuid();
   const catastrofata = !!fields.catastrofata;
   const row = {
     id,
     schema_version: SCHEMA_VERSION,
+    mode: fields.mode || 'martellate',
     status: STATUS_OPEN,
     started_at: new Date().toISOString(),
     exported_at: null,
@@ -160,6 +162,8 @@ async function startSession(db, fields) {
     compresa: fields.compresa,
     catastrofata,
     operatore: fields.operatore || '',
+    reference_version: fields.reference_version || '',
+    work_package_id: fields.work_package_id || '',
     tree_count: 0,
     upload_status: null,
     uploaded_at: null,

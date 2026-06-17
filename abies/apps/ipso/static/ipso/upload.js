@@ -6,7 +6,9 @@
 'use strict';
 
 const UPLOAD_SCHEMA_VERSION = 1;
-const UPLOAD_MODE_MARTELLATE = 'martellate';
+const UPLOAD_MODE_MARTELLATE = typeof IPSO_MODE_MARTELLATE !== 'undefined'
+  ? IPSO_MODE_MARTELLATE
+  : 'martellate';
 const BACKOFF_SCHEDULE_MS = [2000, 4000, 8000, 16000];
 const BACKOFF_CAP_MS = 30000;
 
@@ -51,9 +53,10 @@ function buildUploadPayload(sess, trees, reference, csvText) {
   return {
     session: {
       session_id: sess.id,
-      mode: UPLOAD_MODE_MARTELLATE,
+      mode: sess.mode || UPLOAD_MODE_MARTELLATE,
       schema_version: UPLOAD_SCHEMA_VERSION,
-      reference_version: reference.reference_version || '',
+      reference_version:
+        sess.reference_version || reference.reference_version || '',
       work_package_id: sess.work_package_id || '',
       operator: sess.operatore || '',
       created_at: sess.started_at || '',
