@@ -1803,8 +1803,13 @@ function applyPaiResponse(data) {
   renderPaiMode();
 }
 
+function confirmDeletePai(rowId) {
+  showConfirmModal(S.DELETE_CONFIRM, () => deletePai(rowId));
+}
+
 async function deletePai(rowId) {
   await deleteRowWithVersion(PRESERVED_ID, rowId, PAI_DELETE_URL, {
+    confirmMessage: null,
     onSuccess: applyPaiResponse,
     onConflict: applyPaiResponse,
   });
@@ -1934,7 +1939,7 @@ function paiPopup(tree) {
     del.type = 'button';
     del.className = 'btn btn-delete';
     del.textContent = S.ACTION_DELETE;
-    del.addEventListener('click', () => deletePai(tree.id));
+    del.addEventListener('click', () => confirmDeletePai(tree.id));
     actions.append(edit, del);
     el.appendChild(actions);
   }
