@@ -41,6 +41,10 @@ def test_index_is_public_and_uses_relative_assets(db):
     body = _body(resp).decode()
     assert '<title>Ipso' in body
     assert 'href="style.css"' in body
+    assert 'href="/static/vendor/leaflet/leaflet.css"' in body
+    assert 'id="screen-map"' in body
+    assert 'src="/static/vendor/leaflet/leaflet.js"' in body
+    assert 'src="map.js"' in body
     assert 'src="app.js"' in body
 
 

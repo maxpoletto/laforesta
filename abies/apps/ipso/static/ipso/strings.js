@@ -15,6 +15,8 @@ const S = {
   PRE_PICK_COMPRESA: '— scegli una compresa —',
   PRE_START: 'Inizia',
   CATASTROFATE: 'catastrofate',
+  TYPE_HIGHFOREST: 'Fustaia',
+  TYPE_COPPICE: 'Ceduo',
 
   // Recording screen
   REC_GPS_WAITING: 'GPS in attesa…',
@@ -30,8 +32,9 @@ const S = {
   REC_AUTO_H_MISSING:
     'Nessuna regressione per questa compresa e specie: inserisci h manualmente.',
   REC_SAVE: 'Salva e prossimo',
-  REC_VIEW_DATA: 'Visualizza dati raccolti',
-  REC_END: 'Termina e esporta CSV',
+  REC_MAP: 'Mappa',
+  REC_VIEW_DATA: 'Dati',
+  REC_END: 'Fine',
   REC_LAST_PREFIX: 'ultimo:',
   REC_NO_LAST: 'nessun albero registrato',
   REC_EDIT_LAST: 'Modifica',
@@ -52,6 +55,12 @@ const S = {
   DATA_COL_H: 'h',
   DATA_CLOSE: 'Chiudi',
   DATA_EMPTY: 'Nessun albero registrato.',
+  MAP_TITLE: 'Mappa',
+  MAP_BACK: 'Indietro',
+  MAP_CENTER: 'Centra',
+  MAP_WAITING: 'GPS in attesa...',
+  MAP_UNAVAILABLE: 'Mappa non disponibile',
+  MAP_NO_PARCELS: 'Nessuna particella disponibile.',
   DATA_NO_GROUPS: 'Nessun gruppo assegnato.',
 
   // Resume modal

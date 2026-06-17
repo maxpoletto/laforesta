@@ -217,6 +217,28 @@ button {
   width: 100%;
 }
 
+
+/* ----------------------------------------------------------------------- */
+/* Mode actions                                                            */
+/* ----------------------------------------------------------------------- */
+
+.rec-actions,
+.data-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.rec-actions button {
+  flex: 1;
+  min-width: 0;
+  height: 54px;
+  padding: 10px 8px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.data-actions button { flex: 1; }
+
 /* ----------------------------------------------------------------------- */
 /* Recording — header (GPS + parcel)                                       */
 /* ----------------------------------------------------------------------- */
@@ -308,6 +330,68 @@ button {
 .np-key:active { background: var(--grey-5); }
 .np-key.np-back  { background: var(--grey-5); }
 .np-key.np-clear { background: var(--grey-5); color: var(--grey-2); font-size: 22px; }
+
+
+/* ----------------------------------------------------------------------- */
+/* Map screen                                                              */
+/* ----------------------------------------------------------------------- */
+
+#screen-map {
+  gap: 8px;
+  min-height: 0;
+}
+
+.map-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.map-status {
+  flex: 1;
+  min-width: 0;
+}
+
+.map-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--green-dark);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.map-sub {
+  font-size: 12px;
+  color: var(--grey-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.map-back,
+.map-center {
+  height: 48px;
+  padding: 0 12px;
+  font-size: 16px;
+  flex: 0 0 auto;
+}
+
+.map-canvas {
+  flex: 1;
+  min-height: 320px;
+  border: 1px solid var(--grey-4);
+  border-radius: 4px;
+  background: #eef1ea;
+}
+
+.map-canvas.leaflet-container {
+  font-family: inherit;
+}
+
+.map-canvas .leaflet-control-scale-line {
+  font-size: 11px;
+}
 
 /* ----------------------------------------------------------------------- */
 /* Banners and toasts                                                      */

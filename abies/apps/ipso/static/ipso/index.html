@@ -8,6 +8,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="img/f.gif">
   <link rel="apple-touch-icon" href="img/icon-192.png">
+  <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -98,8 +99,11 @@
       <div id="numpad" class="numpad"></div>
 
       <button id="btn-save" class="btn-primary btn-big" type="button" disabled></button>
-      <button id="btn-view-data" class="btn-secondary btn-big" type="button"></button>
-      <button id="btn-end" class="btn-secondary" type="button"></button>
+      <div class="rec-actions">
+        <button id="btn-rec-map" class="btn-secondary" type="button"></button>
+        <button id="btn-view-data" class="btn-secondary" type="button"></button>
+        <button id="btn-end" class="btn-secondary" type="button"></button>
+      </div>
     </section>
 
     <!-- ============= VISUALIZZA DATI RACCOLTI ============= -->
@@ -120,7 +124,23 @@
         </div>
       </div>
 
-      <button id="btn-data-close" class="btn-secondary btn-big" type="button"></button>
+      <div class="data-actions">
+        <button id="btn-data-map" class="btn-secondary btn-big" type="button"></button>
+        <button id="btn-data-close" class="btn-secondary btn-big" type="button"></button>
+      </div>
+    </section>
+
+    <!-- ============= MAP ============= -->
+    <section id="screen-map" class="screen" hidden>
+      <div class="map-header">
+        <button id="btn-map-back" class="btn-secondary map-back" type="button"></button>
+        <div class="map-status">
+          <div class="map-title" id="map-title"></div>
+          <div class="map-sub" id="map-sub"></div>
+        </div>
+        <button id="btn-map-center" class="btn-secondary map-center" type="button"></button>
+      </div>
+      <div id="map" class="map-canvas" role="application"></div>
     </section>
 
     <!-- ============= UPLOAD ============= -->
@@ -194,6 +214,8 @@
   <script src="parcel-locator.js"></script>
   <script src="upload-config.js"></script>
   <script src="upload.js"></script>
+  <script src="/static/vendor/leaflet/leaflet.js"></script>
+  <script src="map.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

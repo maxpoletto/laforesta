@@ -22,6 +22,10 @@ const State = {
   lastTreeRow: null,  // most-recent tree in the current session
   wakeLock: null,     // active WakeLockSentinel during recording (or null)
   upload: null,       // { sessionId, attempt, abortController, retryTimer, ... } | null
+  currentScreen: null, // id of the visible screen
+  lastFix: null,       // most recent fresh GPS fix, { lat, lon, acc, t }
+  map: null,           // lazy orientation map controller
+  mapReturnScreen: 'screen-rec',
 };
 
 // ---------------------------------------------------------------------------
@@ -44,12 +48,18 @@ async function boot() {
   document.getElementById('lbl-d').textContent = S.REC_D;
   document.getElementById('lbl-h').textContent = S.REC_H;
   document.getElementById('btn-save').textContent = S.REC_SAVE;
+  document.getElementById('btn-rec-map').textContent = S.REC_MAP;
   document.getElementById('btn-view-data').textContent = S.REC_VIEW_DATA;
   document.getElementById('btn-end').textContent = S.REC_END;
   document.getElementById('data-title').textContent = S.DATA_TITLE;
   document.getElementById('data-groups-h').textContent = S.DATA_GROUPS;
   document.getElementById('data-trees-h').textContent = S.DATA_TREES;
+  document.getElementById('btn-data-map').textContent = S.REC_MAP;
   document.getElementById('btn-data-close').textContent = S.DATA_CLOSE;
+  document.getElementById('map-title').textContent = S.MAP_TITLE;
+  document.getElementById('btn-map-back').textContent = S.MAP_BACK;
+  document.getElementById('btn-map-center').textContent = S.MAP_CENTER;
+  document.getElementById('map').setAttribute('aria-label', S.MAP_TITLE);
   document.getElementById('resume-title').textContent = S.RESUME_TITLE;
   document.getElementById('resume-body').textContent = S.RESUME_BODY;
   document.getElementById('end-title').textContent = S.END_TITLE;
@@ -96,6 +106,7 @@ async function boot() {
   populateComprese();
   wirePreSession();
   wireRecording();
+  wireMap();
   wireUpload();
   wireDone();
 
@@ -303,6 +314,17 @@ function wireRecording() {
   });
 }
 
+function wireMap() {
+  document.getElementById('btn-rec-map').addEventListener('click', () => {
+    enterMapScreen('screen-rec');
+  });
+  document.getElementById('btn-data-map').addEventListener('click', () => {
+    enterMapScreen('screen-data');
+  });
+  document.getElementById('btn-map-back').addEventListener('click', exitMapScreen);
+  document.getElementById('btn-map-center').addEventListener('click', centerMapOnContext);
+}
+
 function enterRecording() {
   populateSpecie();
   populateGruppo();
@@ -312,6 +334,7 @@ function enterRecording() {
   const lastGruppo = (State.lastTreeRow && State.lastTreeRow.gruppo) || '';
   document.getElementById('in-gruppo').value = lastGruppo;
   const where = S.where(State.session);
+  State.lastFix = null;
   document.getElementById('rec-where').textContent = where;
   document.getElementById('sub-status').textContent = where;
   setupLocator();
@@ -357,11 +380,19 @@ function setupLocator() {
 function onLocatorCommit(feature) {
   updateRecWhere(feature);
   refreshParticellaSelect();
+  refreshMapParcels();
+  updateMapHeader();
 }
 
 function updateRecWhere(feature) {
-  const txt = feature ? parcelLabel(feature) : S.REC_OUT_OF_BOUNDS;
-  document.getElementById('rec-where').textContent = txt;
+  document.getElementById('rec-where').textContent =
+    feature ? formatParcelText(feature) : S.REC_OUT_OF_BOUNDS;
+}
+
+function formatParcelText(feature) {
+  const label = parcelLabel(feature);
+  if (!label) return '';
+  return [label.title, label.type].filter((v) => v).join(' · ');
 }
 
 // Extract the bare particella portion of `feature.properties.name`
@@ -503,11 +534,21 @@ function startGps() {
       text.textContent =
         st.fix.lat.toFixed(5) + ' ' + st.fix.lon.toFixed(5) +
         ' ±' + Math.round(st.fix.acc) + ' m';
+      State.lastFix = {
+        lat: st.fix.lat,
+        lon: st.fix.lon,
+        acc: st.fix.acc,
+        t: st.fix.t,
+      };
       if (State.locator) State.locator.onFix(st.fix);
+      updateMapPosition();
+      updateMapHeader();
     } else if (st.error === 'denied') {
       text.textContent = S.GPS_DENIED;
+      updateMapHeader();
     } else {
       text.textContent = S.REC_GPS_WAITING;
+      updateMapHeader();
     }
   });
   State.gps.start();
@@ -859,6 +900,103 @@ function downloadFinal(sess, trees) {
 }
 
 // ---------------------------------------------------------------------------
+// Map screen
+// ---------------------------------------------------------------------------
+
+function enterMapScreen(returnScreen) {
+  if (!State.session) return;
+  if (typeof L === 'undefined' || typeof createOrientationMap === 'undefined') {
+    showToast(S.MAP_UNAVAILABLE);
+    return;
+  }
+  State.mapReturnScreen = returnScreen || 'screen-rec';
+  showScreen('screen-map');
+  ensureMap();
+  renderMapParcels();
+  updateMapPosition();
+  updateMapHeader();
+  setTimeout(() => {
+    if (!State.map) return;
+    State.map.invalidate();
+    centerMapOnContext();
+  }, 0);
+}
+
+function exitMapScreen() {
+  showScreen(State.mapReturnScreen || 'screen-rec');
+}
+
+function ensureMap() {
+  if (State.map) {
+    State.map.ensure();
+    return;
+  }
+  State.map = createOrientationMap({
+    elementId: 'map',
+    formatFeatureLabel: formatParcelText,
+    featureName: particellaName,
+    getActiveName: currentAutoName,
+    getManualName() {
+      return State.override && State.override.getMode() === 'manual'
+        ? State.override.getManual()
+        : '';
+    },
+    onFeatureClick(label) {
+      document.getElementById('map-sub').textContent = label;
+    },
+  });
+  State.map.ensure();
+}
+
+function currentMapFeatures() {
+  if (!State.terreni || !State.session) return [];
+  const compresa = State.session.compresa;
+  return State.terreni.filter(
+    (f) => f.properties && f.properties.layer === compresa
+  );
+}
+
+function renderMapParcels() {
+  if (!State.map) return;
+  State.map.renderParcels(currentMapFeatures());
+}
+
+function refreshMapParcels() {
+  if (State.currentScreen !== 'screen-map') return;
+  renderMapParcels();
+}
+
+function updateMapPosition() {
+  if (State.map) State.map.updatePosition(State.lastFix);
+}
+
+function centerMapOnContext() {
+  if (!State.map) return;
+  const ok = State.map.center({
+    fix: State.lastFix,
+    committedFeature: State.locator ? State.locator.getCommitted() : null,
+  });
+  if (!ok) showToast(S.MAP_NO_PARCELS);
+}
+
+function updateMapHeader() {
+  const title = document.getElementById('map-title');
+  const sub = document.getElementById('map-sub');
+  if (!title || !sub) return;
+  title.textContent = State.session ? S.where(State.session) : S.MAP_TITLE;
+  const committed = State.locator ? State.locator.getCommitted() : null;
+  if (committed) {
+    sub.textContent = formatParcelText(committed);
+  } else if (State.lastFix) {
+    sub.textContent =
+      State.lastFix.lat.toFixed(5) + ' ' + State.lastFix.lon.toFixed(5) +
+      ' ±' + Math.round(State.lastFix.acc) + ' m';
+  } else {
+    sub.textContent = S.MAP_WAITING;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Visualizza dati raccolti screen
 // ---------------------------------------------------------------------------
 
@@ -1133,6 +1271,7 @@ function formatItalianDate(ymd) {
 // ---------------------------------------------------------------------------
 
 function showScreen(id) {
+  State.currentScreen = id;
   for (const el of document.querySelectorAll('main > section.screen')) {
     el.hidden = el.id !== id;
   }
