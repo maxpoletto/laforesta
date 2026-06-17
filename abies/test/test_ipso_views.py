@@ -56,6 +56,14 @@ def test_service_worker_served_from_ipso_scope(db):
     assert b'ipso service worker' in _body(resp)
 
 
+def test_referenced_static_helpers_are_served(db):
+    resp = Client().get('/ipso/map.js')
+
+    assert resp.status_code == 200
+    assert resp['Content-Type'].startswith('text/javascript')
+    assert b'createOrientationMap' in _body(resp)
+
+
 def test_manifest_is_served(db):
     resp = Client().get('/ipso/manifest.webmanifest')
 

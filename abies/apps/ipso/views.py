@@ -58,6 +58,7 @@ ASSET_FILES = {
     'index.html',
     'ipso.js',
     'manifest.webmanifest',
+    'map.js',
     'numpad.js',
     'parcel-locator.js',
     'session.js',
