@@ -12,7 +12,7 @@ from django.urls import reverse
 from apps.base.models import (
     HYPSO_FUNC_LN, HarvestPlan, HarvestPlanItem, HarvestPlanItemState,
     HypsoParam, HypsoParamSet, HypsoParamSource, SampleArea, SampleGrid,
-    Survey, TreeMark,
+    Survey, Tree, TreeMark, TreePreserved,
 )
 from apps.ipso.models import IpsoUpload, IpsoUploadState
 
@@ -87,6 +87,16 @@ def test_reference_json_comes_from_abies_data(db, regions, parcels, species):
     survey = Survey.objects.create(
         name='Ipso survey', sample_grid=grid, active=True,
     )
+    preserved_tree = Tree.objects.create(
+        species=species[0], parcel=parcels[0], preserved=True,
+        coppice=False, estimated_birth_year=1920, lat=38.45678, lon=16.12345,
+    )
+    preserved = TreePreserved.objects.create(
+        tree=preserved_tree, parcel=parcels[0], number=7,
+        date=date(2024, 9, 15), d_cm=42, h_m=Decimal('18.50'),
+        h_measured=True, lat=38.45678, lon=16.12345, acc_m=6,
+        operator='Mario', note='nota',
+    )
     active = HypsoParamSet.objects.create(source=HypsoParamSource.IMPORTED)
     HypsoParam.objects.create(
         param_set=active, region=regions[0], species=species[0],
@@ -132,6 +142,26 @@ def test_reference_json_comes_from_abies_data(db, regions, parcels, species):
         'lat': 38.51234,
         'lon': 16.12345,
         'r_m': 15,
+    }]
+    assert data['pai']['preserved_trees'] == [{
+        'tree_preserved_id': preserved.id,
+        'tree_id': preserved_tree.id,
+        'region_id': parcels[0].region_id,
+        'parcel_id': parcels[0].id,
+        'compresa': 'Capistrano',
+        'particella': '1',
+        'species_id': species[0].id,
+        'number': 7,
+        'estimated_birth_year': 1920,
+        'date': '2024-09-15',
+        'd_cm': 42,
+        'h_m': '18.50',
+        'h_measured': True,
+        'lat': 38.45678,
+        'lon': 16.12345,
+        'acc_m': 6,
+        'operator': 'Mario',
+        'note': 'nota',
     }]
 
 

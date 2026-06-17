@@ -27,7 +27,7 @@ from apps.base.http import (
 )
 from apps.base.models import (
     HYPSO_FUNC_LN, HarvestPlanItem, HarvestPlanItemState, HypsoParam,
-    HypsoParamSet, Parcel, SampleArea, Species, Survey,
+    HypsoParamSet, Parcel, SampleArea, Species, Survey, TreePreserved,
 )
 from apps.ipso.models import IpsoUpload, IpsoUploadState
 from apps.piano_di_taglio.mark_import import (
@@ -145,6 +145,7 @@ def reference_json(request: HttpRequest) -> HttpResponse:
     the added canonical Abies IDs (`id`, `region_id`, `parcel_id`).
     """
     sampling = _sampling_context()
+    pai = _pai_context()
     payload = {
         'schema_version': SCHEMA_VERSION,
         'generated_at': django_timezone.now().astimezone(timezone.utc)
@@ -153,6 +154,7 @@ def reference_json(request: HttpRequest) -> HttpResponse:
         'parcels': _parcel_rows(),
         'ipsometrica': _ipsometrica(),
         'sampling': sampling,
+        'pai': pai,
         'work_packages': _work_packages(sampling),
     }
     payload['reference_version'] = _reference_version(payload)
@@ -236,6 +238,39 @@ def _sampling_context() -> dict:
     }
 
 
+def _pai_context() -> dict:
+    rows = (
+        TreePreserved.objects
+        .select_related('tree__species', 'parcel__region')
+        .order_by('parcel__region__name', 'parcel__name', 'number', 'id')
+    )
+    return {
+        'preserved_trees': [
+            {
+                'tree_preserved_id': p.id,
+                'tree_id': p.tree_id,
+                'region_id': p.parcel.region_id,
+                'parcel_id': p.parcel_id,
+                'compresa': p.parcel.region.name,
+                'particella': p.parcel.name,
+                'species_id': p.tree.species_id,
+                'number': p.number,
+                'estimated_birth_year': p.tree.estimated_birth_year,
+                'date': p.date.isoformat() if p.date else '',
+                'd_cm': p.d_cm,
+                'h_m': str(p.h_m) if p.h_m is not None else None,
+                'h_measured': p.h_measured,
+                'lat': p.lat,
+                'lon': p.lon,
+                'acc_m': p.acc_m,
+                'operator': p.operator,
+                'note': p.note,
+            }
+            for p in rows
+        ],
+    }
+
+
 def _work_packages(sampling: dict) -> list[dict]:
     return [
         {
@@ -273,6 +308,7 @@ def _reference_version(payload: dict) -> str:
         'parcels': payload['parcels'],
         'ipsometrica': payload['ipsometrica'],
         'sampling': payload['sampling'],
+        'pai': payload['pai'],
         'work_packages': payload['work_packages'],
     }, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
     return hashlib.sha256(raw.encode('utf-8')).hexdigest()[:20]
