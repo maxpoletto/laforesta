@@ -711,6 +711,7 @@ async function onSave() {
     localStorage.setItem('ipso.specie', State.specie);
     refreshPill();
     resetEntryFields();
+    refreshMapRecords();
 
     if (session.shouldBackup(row.seq)) {
       await downloadBackup(row.seq);
@@ -738,6 +739,7 @@ async function onDeleteLast() {
     const next = await computeNextNumberDefault(trees);
     State.numpad.setValue('numero', next == null ? '' : '' + next);
     updateSaveEnabled();
+    refreshMapRecords();
   } catch (e) {
     showToast('Errore eliminazione: ' + e.message);
   }
@@ -933,6 +935,7 @@ function enterMapScreen(returnScreen) {
   showScreen('screen-map');
   ensureMap();
   renderMapParcels();
+  renderMapRecords();
   updateMapPosition();
   updateMapHeader();
   setTimeout(() => {
@@ -955,6 +958,7 @@ function ensureMap() {
     elementId: 'map',
     formatFeatureLabel: formatParcelText,
     featureName: particellaName,
+    formatRecordLabel: formatMapRecordText,
     getActiveName: currentAutoName,
     getManualName() {
       return State.override && State.override.getMode() === 'manual'
@@ -984,6 +988,32 @@ function renderMapParcels() {
 function refreshMapParcels() {
   if (State.currentScreen !== 'screen-map') return;
   renderMapParcels();
+}
+
+async function renderMapRecords() {
+  if (!State.map || !State.session) return;
+  try {
+    const trees = await Store.listTrees(State.db, State.session.id);
+    trees.sort((a, b) => a.seq - b.seq);
+    State.map.renderRecords(trees);
+  } catch (e) {
+    showToast('Errore caricamento punti mappa: ' + e.message);
+  }
+}
+
+function refreshMapRecords() {
+  if (State.currentScreen !== 'screen-map') return;
+  renderMapRecords();
+}
+
+function formatMapRecordText(rec) {
+  if (!rec) return '';
+  const bits = [];
+  if (Number.isInteger(rec.numero)) bits.push('n. ' + rec.numero);
+  if (rec.specie) bits.push(rec.specie);
+  if (rec.d_cm != null) bits.push('D=' + rec.d_cm);
+  if (rec.h_m != null) bits.push('h=' + rec.h_m);
+  return bits.join(' · ');
 }
 
 function updateMapPosition() {

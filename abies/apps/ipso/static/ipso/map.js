@@ -10,10 +10,12 @@ function createOrientationMap(opts) {
   const featureName = opts.featureName;
   const getActiveName = opts.getActiveName;
   const getManualName = opts.getManualName;
+  const formatRecordLabel = opts.formatRecordLabel;
   const onFeatureClick = opts.onFeatureClick;
 
   let leaflet = null;
   let parcelsLayer = null;
+  let recordsLayer = null;
   let positionLayer = null;
 
   function ensure() {
@@ -30,6 +32,7 @@ function createOrientationMap(opts) {
       style: featureStyle,
       onEachFeature: bindFeature,
     }).addTo(leaflet);
+    recordsLayer = L.layerGroup().addTo(leaflet);
     positionLayer = L.layerGroup().addTo(leaflet);
   }
 
@@ -61,6 +64,26 @@ function createOrientationMap(opts) {
     layer.on('click', () => {
       if (label && onFeatureClick) onFeatureClick(label, feature);
     });
+  }
+
+  function renderRecords(records) {
+    ensure();
+    recordsLayer.clearLayers();
+    if (!records || !records.length) return;
+    for (const rec of records) {
+      const lat = Number(rec && rec.lat);
+      const lon = Number(rec && rec.lon);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+      const marker = L.circleMarker([lat, lon], {
+        radius: 5,
+        color: '#1f5b1a',
+        weight: 2,
+        fillColor: '#d6a02a',
+        fillOpacity: 0.9,
+      }).addTo(recordsLayer);
+      const label = formatRecordLabel ? formatRecordLabel(rec) : '';
+      if (label) marker.bindTooltip(label, { sticky: true });
+    }
   }
 
   function updatePosition(fix) {
@@ -116,7 +139,9 @@ function createOrientationMap(opts) {
     if (leaflet) leaflet.invalidateSize({ pan: false });
   }
 
-  return { ensure, renderParcels, updatePosition, center, invalidate };
+  return {
+    ensure, renderParcels, renderRecords, updatePosition, center, invalidate,
+  };
 }
 
 if (typeof module !== 'undefined') module.exports = { createOrientationMap };
