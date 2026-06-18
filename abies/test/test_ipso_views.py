@@ -94,22 +94,36 @@ def test_manifest_is_served(db):
     assert json.loads(_body(resp))['short_name'] == 'Ipso'
 
 
-@override_settings(IPSO_UPLOAD_TOKEN='test-token')
-def test_bootstrap_requires_authenticated_writer(db, reader_client, writer_client):
-    anon = Client().get(reverse('ipso-bootstrap'))
-    reader = reader_client.get(reverse('ipso-bootstrap'))
-    writer = writer_client.get(reverse('ipso-bootstrap'))
+@override_settings(IPSO_UPLOAD_TOKEN='test-token', IPSO_BOOTSTRAP_TOKEN='bootstrap-token')
+def test_bootstrap_exchanges_bootstrap_bearer_without_login(db):
+    wrong = Client().post(
+        reverse('ipso-bootstrap'), HTTP_AUTHORIZATION='Bearer wrong',
+    )
+    ok = Client().post(
+        reverse('ipso-bootstrap'), HTTP_AUTHORIZATION='Bearer bootstrap-token',
+    )
 
-    assert anon.status_code == 401
-    assert reader.status_code == 403
-    assert writer.status_code == 200
-    assert writer.json() == {'ok': True, 'bearer_token': 'test-token'}
-    assert 'no-store' in writer['Cache-Control']
+    assert wrong.status_code == 401
+    assert ok.status_code == 200
+    assert ok.json() == {'ok': True, 'bearer_token': 'test-token'}
+    assert 'no-store' in ok['Cache-Control']
 
 
-@override_settings(IPSO_UPLOAD_TOKEN='')
-def test_bootstrap_fails_closed_without_config(db, writer_client):
-    resp = writer_client.get(reverse('ipso-bootstrap'))
+@override_settings(IPSO_UPLOAD_TOKEN='test-token', IPSO_BOOTSTRAP_TOKEN='')
+def test_bootstrap_fails_closed_without_bootstrap_token(db):
+    resp = Client().post(
+        reverse('ipso-bootstrap'), HTTP_AUTHORIZATION='Bearer bootstrap-token',
+    )
+
+    assert resp.status_code == 401
+    assert resp.json()['error'] == 'auth'
+
+
+@override_settings(IPSO_UPLOAD_TOKEN='', IPSO_BOOTSTRAP_TOKEN='bootstrap-token')
+def test_bootstrap_fails_closed_without_upload_token(db):
+    resp = Client().post(
+        reverse('ipso-bootstrap'), HTTP_AUTHORIZATION='Bearer bootstrap-token',
+    )
 
     assert resp.status_code == 503
     assert resp.json()['error'] == 'auth'

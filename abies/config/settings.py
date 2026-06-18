@@ -21,6 +21,7 @@ IPSO_INBOX_DIR = Path(os.environ.get(
     'ABIES_IPSO_INBOX_DIR', str(DATA_DIR / 'ipso-inbox'),
 ))
 IPSO_UPLOAD_TOKEN = os.environ.get('ABIES_IPSO_UPLOAD_TOKEN', '').strip()
+IPSO_BOOTSTRAP_TOKEN = os.environ.get('ABIES_IPSO_BOOTSTRAP_TOKEN', '').strip()
 IPSO_UPLOAD_MAX_BYTES = int(os.environ.get(
     'ABIES_IPSO_UPLOAD_MAX_BYTES', str(2 * 1024 * 1024),
 ))
@@ -83,6 +84,8 @@ elif not DEBUG and _ms_oauth_tenant.lower() in _BROAD_MS_OAUTH_TENANTS:
 
 if not DEBUG and not IPSO_UPLOAD_TOKEN:
     raise RuntimeError('ABIES_IPSO_UPLOAD_TOKEN must be set when DEBUG=0')
+if not DEBUG and not IPSO_BOOTSTRAP_TOKEN:
+    raise RuntimeError('ABIES_IPSO_BOOTSTRAP_TOKEN must be set when DEBUG=0')
 
 # Apache terminates TLS and forwards plain HTTP; trust the X-Forwarded-Proto
 # header so Django recognises the request as secure for cookie flags, etc.

@@ -149,16 +149,51 @@ async function boot() {
 }
 
 async function fetchBootstrap() {
+  const stored = storedBearerToken();
+  if (stored) return stored;
+  const bootstrapToken = bootstrapTokenFromHash();
+  if (!bootstrapToken) throw new Error(S.ERROR_TOKEN_MISSING);
   const r = await fetch('/api/ipso/bootstrap/', {
+    method: 'POST',
     cache: 'no-store',
     credentials: 'same-origin',
-    headers: { Accept: 'application/json' },
+    headers: {
+      Accept: 'application/json',
+      Authorization: 'Bearer ' + bootstrapToken,
+    },
   });
   if (!r.ok) throw new Error(S.ERROR_HTTP_STATUS(r.status));
   const payload = await r.json();
   const token = payload && payload[IPSO_BOOTSTRAP_BEARER_TOKEN];
   if (!payload || payload.ok !== true || !token) throw new Error(S.ERROR_BOOTSTRAP_INVALID);
+  storeBearerToken(token);
+  clearBootstrapHash();
   return token;
+}
+
+function storedBearerToken() {
+  try { return localStorage.getItem(IPSO_BEARER_STORAGE_KEY) || ''; }
+  catch (_) { return ''; }
+}
+
+function storeBearerToken(token) {
+  try { localStorage.setItem(IPSO_BEARER_STORAGE_KEY, token); } catch (_) {}
+}
+
+function bootstrapTokenFromHash() {
+  const params = new URLSearchParams((window.location.hash || '').replace(/^#/, ''));
+  return params.get(IPSO_BOOTSTRAP_HASH_PARAM) || '';
+}
+
+function clearBootstrapHash() {
+  if (!window.location.hash) return;
+  const params = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+  if (!params.has(IPSO_BOOTSTRAP_HASH_PARAM)) return;
+  params.delete(IPSO_BOOTSTRAP_HASH_PARAM);
+  const nextHash = params.toString();
+  const nextUrl = window.location.pathname + window.location.search +
+    (nextHash ? '#' + nextHash : '');
+  window.history.replaceState(null, '', nextUrl);
 }
 
 function bearerHeaders() {

@@ -137,12 +137,13 @@ def index(request: HttpRequest) -> HttpResponse:
     return _asset_response(request, 'index.html')
 
 
-@require_GET
+@csrf_exempt
+@require_POST
 def bootstrap(request: HttpRequest) -> JsonResponse:
-    if not request.user.is_authenticated:
+    if _upload_rate_limited(request):
+        return _api_json({OK: False, ERROR: IPSO_ERROR_RATE_LIMITED}, status=429)
+    if not _bootstrap_authorized(request):
         return _auth_error()
-    if not request.user.can_modify:
-        return _api_json({OK: False, ERROR: IPSO_ERROR_AUTH}, status=403)
     token = _configured_upload_token()
     if not token:
         return _api_json({
@@ -924,6 +925,20 @@ def _martellate_import_rows(
 
 def _configured_upload_token() -> str:
     return str(getattr(settings, 'IPSO_UPLOAD_TOKEN', '') or '').strip()
+
+
+def _configured_bootstrap_token() -> str:
+    return str(getattr(settings, 'IPSO_BOOTSTRAP_TOKEN', '') or '').strip()
+
+
+def _bootstrap_authorized(request: HttpRequest) -> bool:
+    expected = _configured_bootstrap_token()
+    if not expected:
+        return False
+    header = request.headers.get('Authorization', '')
+    if not header.startswith(_BEARER_PREFIX):
+        return False
+    return hmac.compare_digest(header[len(_BEARER_PREFIX):], expected)
 
 
 def _upload_authorized(request: HttpRequest) -> bool:
