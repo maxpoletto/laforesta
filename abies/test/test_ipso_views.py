@@ -652,6 +652,96 @@ def test_samples_import_supports_coppice_parcels(
 
 
 @override_settings(IPSO_UPLOAD_TOKEN='test-token')
+def test_samples_import_rejects_duplicate_tree_numbers_in_sample(
+        writer_client, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    survey, area = _sample_survey(parcels[0])
+    payload = _upload_payload(
+        parcels, species, mode='samples',
+        session_id='22222222-2222-4222-8222-222222222225',
+        record_overrides={'sample_area_id': area.id},
+    )
+    second = dict(payload['records'][0])
+    second['client_record_id'] = '2'
+    payload['records'].append(second)
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
+
+    resp = writer_client.post(
+        reverse('ipso-upload-import-samples', args=[upload.id]),
+        data=json.dumps({'survey_id': survey.id}),
+        content_type='application/json',
+    )
+
+    assert resp.status_code == 400
+    assert 'numero 1 già presente nel campione' in resp.json()['message']
+    assert TreeSample.objects.count() == 0
+    upload.refresh_from_db()
+    assert upload.state == IpsoUploadState.RECEIVED
+
+
+@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+def test_samples_import_rejects_existing_tree_number_in_sample(
+        writer_client, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    survey, area = _sample_survey(parcels[0])
+    sample = Sample.objects.create(survey=survey, sample_area=area, date=date(2026, 6, 17))
+    tree = Tree.objects.create(species=species[0], parcel=parcels[0])
+    TreeSample.objects.create(
+        sample=sample, tree=tree, number=1, d_cm=30, h_m=Decimal('18.00'),
+    )
+    payload = _upload_payload(
+        parcels, species, mode='samples',
+        session_id='22222222-2222-4222-8222-222222222226',
+        record_overrides={'sample_area_id': area.id},
+    )
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
+
+    resp = writer_client.post(
+        reverse('ipso-upload-import-samples', args=[upload.id]),
+        data=json.dumps({'survey_id': survey.id}),
+        content_type='application/json',
+    )
+
+    assert resp.status_code == 400
+    assert 'numero 1 già presente nel campione' in resp.json()['message']
+    assert TreeSample.objects.count() == 1
+    upload.refresh_from_db()
+    assert upload.state == IpsoUploadState.RECEIVED
+
+
+@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+def test_pai_import_rejects_duplicate_tree_number_in_parcel(
+        writer_client, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    tree = Tree.objects.create(species=species[0], parcel=parcels[0], preserved=True)
+    TreePreserved.objects.create(
+        tree=tree, parcel=parcels[0], number=1, date=date(2026, 6, 17),
+        d_cm=30, h_m=Decimal('18.00'), lat=38.51234, lon=16.12345,
+    )
+    payload = _upload_payload(
+        parcels, species, mode='pai',
+        session_id='33333333-3333-4333-8333-333333333335',
+        record_overrides={'number': 1},
+    )
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
+
+    resp = writer_client.post(
+        reverse('ipso-upload-import-pai', args=[upload.id]),
+        data=json.dumps({}),
+        content_type='application/json',
+    )
+
+    assert resp.status_code == 400
+    assert 'numero PAI già presente' in resp.json()['message']
+    assert TreePreserved.objects.count() == 1
+    upload.refresh_from_db()
+    assert upload.state == IpsoUploadState.RECEIVED
+
+
+@override_settings(IPSO_UPLOAD_TOKEN='test-token')
 def test_writer_imports_pai_upload(writer_client, writer_user, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     payload = _upload_payload(

@@ -10,7 +10,7 @@ from django.db import transaction
 from apps.base.digests import mark_stale
 from apps.base.models import (
     Parcel, Sample, SampleArea, Species, Survey, Tree, TreePreserved,
-    next_sequence_number, tree_mass_q,
+    TreeSample, next_sequence_number, tree_mass_q,
 )
 from apps.base.numparse import to_decimal
 from apps.base.tabacchi import has_species, tabacchi_volume_m3
@@ -53,6 +53,11 @@ def sample_import_rows(payload: dict, survey: Survey) -> tuple[list[dict], list[
         sample.sample_area_id: sample
         for sample in Sample.objects.filter(survey=survey, sample_area_id__in=area_ids)
     }
+    seen_numbers = set(
+        TreeSample.objects
+        .filter(sample__survey=survey, sample__sample_area_id__in=area_ids)
+        .values_list('sample__sample_area_id', FIELD_NUMBER)
+    )
 
     rows = []
     errors = []
@@ -95,6 +100,13 @@ def sample_import_rows(payload: dict, survey: Survey) -> tuple[list[dict], list[
                 previous_date.isoformat(),
             ))
             continue
+        number_key = (area.id, parsed[FIELD_NUMBER])
+        if number_key in seen_numbers:
+            errors.append(S.IPSO_ERR_IMPORT_RECORD_SAMPLE_NUMBER_DUPLICATE.format(
+                i, parsed[FIELD_NUMBER],
+            ))
+            continue
+        seen_numbers.add(number_key)
         csv_date_by_area.setdefault(area.id, row_date)
         rows.append(parsed)
     return rows, errors
