@@ -105,7 +105,6 @@ function buildPage(el, params, data) {
     labels: {
       ...S.TABLE_LABELS,
       actionEdit: S.IPSO_ACTION_OPEN,
-      actionDelete: S.IPSO_ACTION_REJECT,
     },
     csvFormat: S.TABLE_CSV_FORMAT,
     onSort: () => syncURL(),
@@ -115,10 +114,8 @@ function buildPage(el, params, data) {
 }
 
 function inboxActions() {
-  const canReject = document.body.dataset.role !== ROLE_READER;
   return {
     onEdit: id => openUpload(id),
-    ...(canReject ? { onDelete: id => confirmReject(id) } : {}),
   };
 }
 
