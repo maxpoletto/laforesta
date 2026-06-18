@@ -34,6 +34,9 @@ const State = {
 // ---------------------------------------------------------------------------
 
 async function boot() {
+  if (!window.AbiesGeoReady) throw new Error('geo.js non disponibile');
+  await window.AbiesGeoReady;
+
   setMode(IpsoModes.MARTELLATE);
   document.getElementById('footer-version').textContent =
     'v' + APP_VERSION;
