@@ -10,4 +10,5 @@ urlpatterns = [
     path('form/<int:op_id>/', views.form_view, name='prelievi-form-edit'),
     path('save/', views.save_view, name='prelievi-save'),
     path('delete/', views.delete_view, name='prelievi-delete'),
+    path('import-csv/', views.csv_import_view, name='prelievi-import-csv'),
 ]

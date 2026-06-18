@@ -34,6 +34,7 @@ const DEFAULT_LABELS = {
   add: 'Add',
   empty: 'No results.',
   actionEdit: 'Edit',
+  actionEditIcon: '\u270E',
   actionDelete: 'Delete',
   boolYes: 'Yes',
   boolNo: 'No',
@@ -377,7 +378,7 @@ function buildSTColumns(digestColumns, columnDefs, actions, labels) {
   if (actions.onEdit || actions.onDelete) {
     const parts = [];
     if (actions.onEdit)
-      parts.push(`<span class="action-icon action-edit" title="${escAttr(labels.actionEdit)}">\u270E</span>`);
+      parts.push(`<span class="action-icon action-edit" title="${escAttr(labels.actionEdit)}">${escHTML(labels.actionEditIcon)}</span>`);
     if (actions.onDelete)
       parts.push(`<span class="action-icon action-delete" title="${escAttr(labels.actionDelete)}">\u{1F5D1}\u{FE0E}</span>`);
     const html = parts.join(' ');
@@ -395,6 +396,11 @@ function buildSTColumns(digestColumns, columnDefs, actions, labels) {
 /** Minimal HTML attribute-value escape (we build title="..." by concatenation). */
 function escAttr(s) {
   return String(s).replace(/[&"]/g, c => (c === '&' ? '&amp;' : '&quot;'));
+}
+
+/** Minimal text-node escape for icon labels rendered through trustedHTML. */
+function escHTML(s) {
+  return String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 }
 
 // ---------------------------------------------------------------------------

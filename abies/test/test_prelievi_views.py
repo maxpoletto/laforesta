@@ -1,5 +1,6 @@
-"""Tests for Prelievi API views: data, form, save, delete."""
+"""Tests for Prelievi API views: data, form, save, delete, CSV import."""
 
+import base64
 import gzip
 import json
 import re
@@ -586,13 +587,79 @@ class TestDeleteView:
         assert resp.status_code == 403
 
 
+# ---------------------------------------------------------------------------
+# CSV import endpoint
+# ---------------------------------------------------------------------------
+
+class TestCsvImportView:
+    def _post(self, client, data):
+        return client.post(
+            '/api/prelievi/import-csv/',
+            data=json.dumps(data),
+            content_type='application/json',
+        )
+
+    def _csv_b64(self, text):
+        raw = text.encode('utf-8-sig')
+        return base64.b64encode(raw).decode('ascii')
+
+    def _csv_text(self, f):
+        tractor = f['tractors'][0]
+        tractor.name = 'Fiat 110-90'
+        tractor.save(update_fields=['name'])
+        species_name = f['species'][0].common_name
+        header = (
+            f'{S.CSV_COL_REGION},{S.CSV_COL_PARCEL},{S.CSV_COL_DATA},'
+            f'{S.CSV_COL_CREW},{S.CSV_COL_PRODUCT},{S.CSV_COL_QUINTALS},'
+            f'{S.CSV_COL_VDP},{S.CSV_COL_PROT},'
+            f'{S.CSV_COL_HARVEST_DAMAGED},{S.CSV_COL_HARVEST_UNHEALTHY},'
+            f'{S.CSV_COL_HARVEST_PSR},{S.CSV_COL_EXTRA_NOTE},'
+            f'{S.CSV_COL_SPECIES_PREFIX}{species_name},'
+            f'{S.CSV_COL_TRACTOR_PREFIX}{tractor.name}'
+        )
+        row = (
+            f'{f["parcels"][0].region.name},{f["parcels"][0].name},2024-08-20,'
+            f'{f["crews"][0].name},{f["products"][0].name},25,123,,'
+            f'false,false,false,,100,100'
+        )
+        return f'{header}\n{row}\n'
+
+    def test_import_success(self, writer_client, harvest_fixtures):
+        resp = self._post(writer_client, {
+            FIELD_FILE: self._csv_b64(self._csv_text(harvest_fixtures)),
+            FIELD_NONCE: 'prelievi-csv-1',
+        })
+        assert resp.status_code == 200
+        op = Harvest.objects.get(record1=123)
+        assert op.harvest_plan_item_id is None
+        assert op.parcel == harvest_fixtures['parcels'][0]
+        assert float(op.mass_q) == 25.0
+        assert HarvestSpecies.objects.filter(harvest=op, percent=100).exists()
+        assert HarvestTractor.objects.filter(harvest=op, percent=100).exists()
+        assert DigestStatus.objects.get(name='prelievi').stale is True
+
+    def test_missing_file_validation_error(self, writer_client, harvest_fixtures):
+        resp = self._post(writer_client, {})
+        assert resp.status_code == 400
+        data = resp.json()
+        assert data[STATUS] == STATUS_VALIDATION_ERROR
+        assert S.ERR_CSV_FILE_REQUIRED in data[FIELD_ERRORS]
+
+    def test_reader_forbidden(self, reader_client, harvest_fixtures):
+        resp = self._post(reader_client, {
+            FIELD_FILE: self._csv_b64(self._csv_text(harvest_fixtures)),
+        })
+        assert resp.status_code == 403
+
+
 # Import S for assertion comparisons
 from config import strings as S  # noqa: E402
 from config.constants import (
     COLUMNS, DATA_ID, FIELD_ACTIVE, FIELD_COMMON_NAME, FIELD_CREW_ID,
-    FIELD_DATE, FIELD_DENSITY, FIELD_HARVEST_PLAN_ITEM_ID, FIELD_MANUFACTURER,
-    FIELD_MASS_Q, FIELD_MINOR, FIELD_MODEL, FIELD_NONCE, FIELD_NOTE,
-    FIELD_PRODUCT_ID, FIELD_RECORD1,
+    FIELD_DATE, FIELD_DENSITY, FIELD_ERRORS, FIELD_FILE,
+    FIELD_HARVEST_PLAN_ITEM_ID, FIELD_MANUFACTURER, FIELD_MASS_Q,
+    FIELD_MINOR, FIELD_MODEL, FIELD_NONCE, FIELD_NOTE, FIELD_PRODUCT_ID,
+    FIELD_RECORD1,
     DELETES, HTML, MESSAGE, PATCHES, RECORD, ROWS, ROW_ID,
     STATUS, STATUS_CONFLICT, STATUS_VALIDATION_ERROR, VERSION,
 )

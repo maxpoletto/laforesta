@@ -45,6 +45,14 @@
   gap: 8px;
 }
 
+.ipso-detail-close {
+  font-size: 1.25rem;
+  height: 34px;
+  line-height: 1;
+  min-width: 34px;
+  padding: 0;
+}
+
 .ipso-meta-grid {
   display: grid;
   gap: 6px 18px;

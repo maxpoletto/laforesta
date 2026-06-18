@@ -6,20 +6,22 @@ import * as cache from '../../base/js/cache.js';
 import { TableWrapper } from '../../base/js/table.js';
 import {
   deleteRowWithVersion, fetchModalForm, renderModalForm, showFormError,
+  submitCsvImport,
 } from '../../base/js/forms.js';
 import {
   wireActions, wireCancelButtons, wireCollapsibleToggle,
 } from '../../base/js/ui-widgets.js';
 import { canModify } from '../../base/js/roles.js';
-import { postJSON } from '../../base/js/api.js';
+import { fileToBase64, postJSON } from '../../base/js/api.js';
 import { renderStackedBar, speciesNamesFromDigest } from '../../base/js/charts.js';
-import { dismiss as dismissModal, onDismiss } from '../../base/js/modals.js';
+import { dismiss as dismissModal, onDismiss, show as showModal } from '../../base/js/modals.js';
 import { columnMap } from '../../base/js/digests.js';
 import { createRangeSlider } from '../../base/js/range-slider.js';
 import * as router from '../../base/js/router.js';
 import * as S from '../../base/js/strings.js';
 import {
-  COL_PARCEL_ID, COL_REGION_ID, FIELD_SPECIES, ROW_ID, STATUS_CONFLICT,
+  COL_PARCEL_ID, COL_REGION_ID, FIELD_ERRORS, FIELD_FILE, FIELD_NONCE,
+  FIELD_SPECIES, ROW_ID, STATUS_CONFLICT,
 } from '../../base/js/constants.js';
 import { CLASS_BOSCO_LINK, STATIC_COLS, buildPrelieviColumnDefs }
   from '../../base/js/prelievi-columns.js';
@@ -41,6 +43,7 @@ const SPECIES_URL = '/api/species/data/';
 const FORM_URL = '/api/prelievi/form/';
 const SAVE_URL = '/api/prelievi/save/';
 const DELETE_URL = '/api/prelievi/delete/';
+const CSV_IMPORT_URL = '/api/prelievi/import-csv/';
 const PAGE_PATH = '/prelievi';
 const BOSCO_PATH = '/bosco';
 const DEFAULT_TABLE_SORT = { column: S.COL_DATE, ascending: false };
@@ -473,6 +476,7 @@ function buildPage(el, data, p) {
       _updateCharts();
     },
     'export-csv': () => table?.exportCSV(),
+    'import-csv': () => showCsvImportModal(),
   });
 
   // Wire collapsible sections.
@@ -518,6 +522,49 @@ function buildPage(el, data, p) {
 
   // Chart B.
   sections.b.canvas = el.querySelector('[data-target="chart-b"]');
+}
+
+// ---------------------------------------------------------------------------
+// CSV import
+// ---------------------------------------------------------------------------
+
+function showCsvImportModal() {
+  const frag = cloneTemplate('tmpl-prelievi-import-csv-modal');
+  wireCancelButtons(frag, dismissModal);
+
+  const form = frag.querySelector('[data-role="import-form"]');
+  const statusBox = frag.querySelector('.csv-import-status');
+  const errorsBox = frag.querySelector('.csv-import-errors');
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const result = await submitCsvImport({
+      form,
+      statusBox,
+      errorsBox,
+      attempt: () => importCsv(form),
+    });
+    if (result?.ok) {
+      await cache.load(DATA_ID);
+      refreshTable();
+      _updateCharts();
+    }
+  });
+
+  showModal(frag);
+  document.querySelector('#modal-container [name="file"]')?.focus();
+}
+
+async function importCsv(form) {
+  const file = form.querySelector(`[name="${FIELD_FILE}"]`)?.files?.[0];
+  if (!file) return { error: S.ERR_CSV_FILE_REQUIRED };
+  const { data, status } = await postJSON(CSV_IMPORT_URL, {
+    [FIELD_FILE]: await fileToBase64(file),
+    [FIELD_NONCE]: crypto.randomUUID(),
+  });
+  if (status === 200) return { ok: true };
+  return data?.[FIELD_ERRORS]?.length
+    ? { errors: data[FIELD_ERRORS] }
+    : { error: data?.message };
 }
 
 // ---------------------------------------------------------------------------

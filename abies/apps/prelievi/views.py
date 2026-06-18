@@ -1,4 +1,4 @@
-"""Prelievi API views: data, form, save, delete.
+"""Prelievi API views: data, form, save, delete, CSV import.
 
 New harvests carry a ``harvest_plan_item_id`` chosen from a Cantiere
 pulldown (items in state ``open`` or ``harvesting``); the parcel and the
@@ -18,6 +18,7 @@ from django.http import JsonResponse
 from django.template.loader import render_to_string
 from django.views.decorators.http import require_POST
 
+from apps.base import csv_io
 from apps.base.auth import require_writer
 from apps.base.digests import (
     aggregate_sp_pcts,
@@ -29,19 +30,20 @@ from apps.base.digests import (
 )
 from apps.base.numparse import int_or_none, parse_decimal
 from apps.base.responses import (
-    conflict_response, parse_json_body, row_delete, row_patch,
+    conflict_response, csv_error_list, parse_json_body, row_delete, row_patch,
     submitted_version, success_response, validation_error,
 )
 from apps.base.models import (
     Crew, HarvestPlanItem, HarvestPlanItemState, Parcel, Product, Species,
     Tractor, next_sequence_number, parcel_sort_key,
 )
+from apps.prelievi import csv_harvests
 from apps.prelievi.models import (
     Harvest, HarvestSpecies, HarvestTractor, harvest_volume_m3,
 )
 from config import strings as S
 from config.constants import (
-    DATA_ID, FIELD_CREW_ID, FIELD_DATE, FIELD_HARVEST_PLAN_ITEM_ID,
+    DATA_ID, FIELD_CREW_ID, FIELD_DATE, FIELD_FILE, FIELD_HARVEST_PLAN_ITEM_ID,
     FIELD_MASS_Q, FIELD_NOTE, FIELD_PARCEL_ID, FIELD_PRODUCT_ID,
     FIELD_RECORD1, FIELD_RECORD2, FIELD_SORT_ORDER, FIELD_SPECIES_ID,
     FIELD_VOLUME_M3, HTML, MESSAGE, RECORD, ROW_ID, STATUS,
@@ -212,6 +214,45 @@ def delete_view(request):
         request, body, data_id='prelievi', row_id=row_id,
         patches=patches, deletes=[row_delete('prelievi', row_id)],
     )
+
+
+# ---------------------------------------------------------------------------
+# CSV import endpoint
+# ---------------------------------------------------------------------------
+
+@login_required
+@require_writer
+@require_POST
+def csv_import_view(request):
+    """Import legacy Prelievi rows from a CSV file."""
+    body, error = parse_json_body(request)
+    if error:
+        return error
+    try:
+        upload = csv_io.json_file_bytes(body, FIELD_FILE)
+    except csv_io.CsvError as e:
+        return validation_error([str(e)])
+    if upload is None:
+        return validation_error([S.ERR_CSV_FILE_REQUIRED])
+
+    try:
+        reader = csv_io.read(upload)
+    except csv_io.CsvError as e:
+        return validation_error([str(e)])
+    static_cols, dyn, missing = csv_harvests.resolve_columns(reader.fieldnames or [])
+    if missing:
+        return validation_error([S.ERR_CSV_MISSING_COLS.format(', '.join(missing))])
+
+    parsed, errors = csv_harvests.validate_rows(
+        reader, static_cols, dyn, csv_harvests.db_indexes(),
+    )
+    if errors:
+        return csv_error_list(errors)
+    if not parsed:
+        return validation_error([S.ERR_CSV_EMPTY])
+
+    csv_harvests.apply(parsed)
+    return success_response(request, body)
 
 
 # ---------------------------------------------------------------------------

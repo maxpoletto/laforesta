@@ -13,6 +13,7 @@ import { showError } from '../../base/js/modals.js';
 import { showConfirmModal } from '../../base/js/ui-widgets.js';
 import { cloneTemplate } from '../../base/js/templates.js';
 import { fmtCoord } from '../../base/js/format.js';
+import { installEscapeHandler } from '../../base/js/escape.js';
 import * as S from '../../base/js/strings.js';
 import {
   DATA_ID_IPSO_UPLOADS, FIELD_HARVEST_PLAN_ITEM_ID, FIELD_SURVEY_ID, FILE_ERROR,
@@ -66,6 +67,7 @@ let table = null;
 let detailEl = null;
 let summaryEl = null;
 let selectedId = null;
+let disposeEscape = null;
 
 cache.register(DATA_ID, DATA_URL);
 
@@ -90,6 +92,7 @@ function buildPage(el, params, data) {
   const tableHost = root.querySelector('[data-role="table"]');
   summaryEl = root.querySelector('[data-role="summary"]');
   detailEl = root.querySelector('[data-role="detail"]');
+  disposeEscape = installEscapeHandler(closeDetail);
   summaryEl.textContent = summaryText(data);
 
   const state = readTableState(params);
@@ -105,6 +108,7 @@ function buildPage(el, params, data) {
     labels: {
       ...S.TABLE_LABELS,
       actionEdit: S.IPSO_ACTION_OPEN,
+      actionEditIcon: S.IPSO_ACTION_OPEN_ICON,
     },
     csvFormat: S.TABLE_CSV_FORMAT,
     onSort: () => syncURL(),
@@ -120,6 +124,7 @@ function inboxActions() {
 }
 
 function destroyPage() {
+  if (disposeEscape) { disposeEscape(); disposeEscape = null; }
   if (table) { table.destroy(); table = null; }
   detailEl = null;
   summaryEl = null;
@@ -155,6 +160,13 @@ async function openUpload(id) {
   }
 }
 
+function closeDetail() {
+  if (!detailEl || detailEl.hidden) return;
+  detailEl.hidden = true;
+  detailEl.replaceChildren();
+  selectedId = null;
+}
+
 function confirmReject(id) {
   showConfirmModal(
     S.IPSO_REJECT_CONFIRM,
@@ -169,9 +181,7 @@ async function rejectUpload(id) {
     showError(data?.[MESSAGE] || S.ERROR_GENERIC);
     return;
   }
-  detailEl.hidden = true;
-  detailEl.replaceChildren();
-  selectedId = null;
+  closeDetail();
   await cache.load(DATA_ID);
 }
 
@@ -193,6 +203,14 @@ function renderDetail(data) {
     rejectBtn.addEventListener('click', () => confirmReject(upload.id));
     actions.appendChild(rejectBtn);
   }
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'btn ipso-detail-close';
+  closeBtn.type = 'button';
+  closeBtn.textContent = '\u00D7';
+  closeBtn.title = S.DISMISS;
+  closeBtn.setAttribute('aria-label', S.DISMISS);
+  closeBtn.addEventListener('click', closeDetail);
+  actions.appendChild(closeBtn);
   header.appendChild(actions);
   detailEl.appendChild(header);
 
