@@ -28,14 +28,19 @@ function nextSeq(existingSeqs) {
 
 // Returns [] when the record is valid, otherwise an array of error keys.
 // Error keys are stable strings the UI can map to user-facing messages.
-function validateTree(rec) {
+function validateTree(rec, options) {
+  const opts = options || {};
   const errors = [];
   if (!rec || typeof rec !== 'object') return ['empty'];
   if (!rec.specie || typeof rec.specie !== 'string') errors.push('specie');
-  if (!Number.isInteger(rec.d_cm) || rec.d_cm < D_MIN || rec.d_cm > D_MAX) {
+  const dOptional = rec.d_cm == null && opts.dRequired === false;
+  if (!dOptional &&
+      (!Number.isInteger(rec.d_cm) || rec.d_cm < D_MIN || rec.d_cm > D_MAX)) {
     errors.push('d_cm');
   }
-  if (!Number.isInteger(rec.h_m) || rec.h_m < H_MIN || rec.h_m > H_MAX) {
+  const hOptional = rec.h_m == null && opts.hRequired === false;
+  if (!hOptional &&
+      (!Number.isInteger(rec.h_m) || rec.h_m < H_MIN || rec.h_m > H_MAX)) {
     errors.push('h_m');
   }
   return errors;

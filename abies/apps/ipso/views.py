@@ -38,6 +38,11 @@ from config import strings as S
 SCHEMA_VERSION = 1
 UPLOAD_SCHEMA_VERSION = 1
 UPLOAD_MODE_MARTELLATE = 'martellate'
+UPLOAD_MODE_SAMPLES = 'samples'
+UPLOAD_MODE_PAI = 'pai'
+ALLOWED_UPLOAD_MODES = {
+    UPLOAD_MODE_MARTELLATE, UPLOAD_MODE_SAMPLES, UPLOAD_MODE_PAI,
+}
 TARGET_TYPE_HARVEST_PLAN_ITEM = 'harvest_plan_item'
 
 ASSET_CONTENT_TYPES = {
@@ -763,7 +768,10 @@ def _validate_upload_payload(payload: dict, request: HttpRequest) -> tuple[dict,
     if header_id and header_id != normalized_session['session_id']:
         raise UploadValidationError('X-Ipso-Session-Id does not match session.session_id.')
 
-    normalized_records = [_normalize_record(i, row) for i, row in enumerate(records, start=1)]
+    normalized_records = [
+        _normalize_record(normalized_session['mode'], i, row)
+        for i, row in enumerate(records, start=1)
+    ]
     _validate_record_ids(normalized_records)
     return {'session': normalized_session, 'records': normalized_records}, csv_text
 
@@ -773,7 +781,7 @@ def _normalize_session(session: dict) -> dict:
     if not _SESSION_ID_RE.match(session_id):
         raise UploadValidationError('session_id must be a UUID.')
     mode = _str(session, 'mode')
-    if mode != UPLOAD_MODE_MARTELLATE:
+    if mode not in ALLOWED_UPLOAD_MODES:
         raise UploadValidationError('Unsupported mode.')
     schema_version = _int(session, 'schema_version')
     if schema_version != UPLOAD_SCHEMA_VERSION:
@@ -795,18 +803,33 @@ def _normalize_session(session: dict) -> dict:
     return normalized
 
 
-def _normalize_record(index: int, row: object) -> dict:
+def _normalize_record(mode: str, index: int, row: object) -> dict:
     if not isinstance(row, dict):
         raise UploadValidationError(f'Record {index}: must be an object.')
     date = _str(row, 'date')
     if not _DATE_RE.match(date):
         raise UploadValidationError(f'Record {index}: date must be YYYY-MM-DD.')
-    d_cm = _int(row, 'd_cm')
-    if d_cm <= 0:
+
+    d_cm = (
+        _opt_int(row, 'd_cm') if mode == UPLOAD_MODE_PAI
+        else _int(row, 'd_cm')
+    )
+    if d_cm is not None and d_cm <= 0:
         raise UploadValidationError(f'Record {index}: d_cm must be positive.')
-    h_m = _decimal_str(row, 'h_m')
-    if Decimal(h_m) <= 0:
+
+    h_m = (
+        _opt_decimal_str(row, 'h_m') if mode == UPLOAD_MODE_PAI
+        else _decimal_str(row, 'h_m')
+    )
+    if h_m is not None and Decimal(h_m) <= 0:
         raise UploadValidationError(f'Record {index}: h_m must be positive.')
+
+    hypso_param_set_id = _opt_int(row, 'hypso_param_set_id')
+    if mode != UPLOAD_MODE_MARTELLATE and hypso_param_set_id is not None:
+        raise UploadValidationError(
+            f'Record {index}: hypso_param_set_id is only valid for martellate.'
+        )
+
     return {
         'client_record_id': _str(row, 'client_record_id'),
         'date': date,
@@ -817,7 +840,7 @@ def _normalize_record(index: int, row: object) -> dict:
         'd_cm': d_cm,
         'h_m': h_m,
         'h_measured': _bool(row, 'h_measured'),
-        'hypso_param_set_id': _opt_int(row, 'hypso_param_set_id'),
+        'hypso_param_set_id': hypso_param_set_id,
         'lat': _opt_float(row, 'lat'),
         'lon': _opt_float(row, 'lon'),
         'acc_m': _opt_int(row, 'acc_m'),
@@ -938,6 +961,13 @@ def _opt_float(payload: dict, key: str) -> float | None:
     if not math.isfinite(out):
         raise UploadValidationError(f'{key} must be finite.')
     return out
+
+
+def _opt_decimal_str(payload: dict, key: str) -> str | None:
+    value = payload.get(key)
+    if value is None:
+        return None
+    return _decimal_str(payload, key)
 
 
 def _decimal_str(payload: dict, key: str) -> str:

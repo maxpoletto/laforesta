@@ -231,6 +231,15 @@ function setMode(modeId) {
   State.mode = IpsoModes.get(modeId);
   const title = document.getElementById('pre-title');
   if (title) title.textContent = modeString('preTitleKey', S.PRE_NEW_SESSION);
+  applyModeUi();
+}
+
+function applyModeUi() {
+  const catastrofata = document.getElementById('in-catastrofata');
+  const catastrofataField = catastrofata ? catastrofata.closest('label') : null;
+  const martellate = currentMode().id === IpsoModes.MARTELLATE;
+  if (catastrofataField) catastrofataField.hidden = !martellate;
+  if (catastrofata && !martellate) catastrofata.checked = false;
 }
 
 function modeString(field, fallback) {
@@ -257,9 +266,13 @@ function enterPreSession(modeId) {
 }
 
 function wireModeSelection() {
-  document.getElementById('btn-mode-martellate').addEventListener('click', () => {
-    enterPreSession(IpsoModes.MARTELLATE);
-  });
+  for (const mode of IpsoModes.all()) {
+    const button = document.getElementById(mode.buttonId);
+    if (!button) continue;
+    button.textContent = modeString('labelKey', mode.id);
+    button.disabled = !mode.enabled;
+    button.addEventListener('click', () => enterPreSession(mode.id));
+  }
 }
 
 function wirePreSession() {
@@ -309,7 +322,7 @@ function wireRecording() {
     maxLen: { d: 3, h: 2, numero: 4 },
     onChange: (field) => {
       if (field === 'h' && !State.inAutoFill) State.hMeasured = true;
-      if (field === 'd' && !State.hMeasured) recomputeAutoH();
+      if (field === 'd' && shouldAutoHeight() && !State.hMeasured) recomputeAutoH();
       updateSaveEnabled();
     },
   });
@@ -317,7 +330,7 @@ function wireRecording() {
 
   document.getElementById('in-specie').addEventListener('change', (e) => {
     State.specie = e.target.value;
-    if (!State.hMeasured) recomputeAutoH();
+    if (shouldAutoHeight() && !State.hMeasured) recomputeAutoH();
     updateSaveEnabled();
   });
 
@@ -640,7 +653,23 @@ function setupWakeLockVisibility() {
   });
 }
 
+function shouldAutoHeight() {
+  return !!currentMode().autoHeight;
+}
+
+function treeValidationOptions() {
+  return {
+    dRequired: currentMode().dRequired !== false,
+    hRequired: currentMode().hRequired !== false,
+  };
+}
+
 function recomputeAutoH() {
+  if (!shouldAutoHeight()) {
+    const hint = document.getElementById('hint-autoh');
+    if (hint) hint.hidden = true;
+    return;
+  }
   const compresa = State.session ? State.session.compresa : '';
   const ipsTable = State.reference.ipsometrica;
   const eq = ipso.lookup(ipsTable, compresa, State.specie);
@@ -681,12 +710,14 @@ function currentRecord() {
   const particella = State.override
     ? State.override.resolve(currentAutoName())
     : '';
+  const autoHeight = shouldAutoHeight();
+  const hMeasured = autoHeight ? State.hMeasured : Number.isFinite(h);
   return {
     specie: State.specie || '',
     d_cm: Number.isFinite(d) ? d : null,
     h_m: Number.isFinite(h) ? h : null,
-    h_measured: State.hMeasured ? 1 : 0,
-    hypso_param_set_id: State.hMeasured ? null : currentHypsoParamSetId(),
+    h_measured: hMeasured ? 1 : 0,
+    hypso_param_set_id: autoHeight && !hMeasured ? currentHypsoParamSetId() : null,
     numero: Number.isInteger(n) ? n : null,
     gruppo,
     particella,
@@ -704,20 +735,21 @@ function currentHypsoParamSetId() {
 
 function updateSaveEnabled() {
   const rec = currentRecord();
-  const errs = session.validateTree(rec);
+  const errs = session.validateTree(rec, treeValidationOptions());
   const btn = document.getElementById('btn-save');
   btn.disabled = errs.length > 0 || Date.now() < State.saveLockUntil;
 }
 
 async function onSave() {
   const rec = currentRecord();
-  if (session.validateTree(rec).length > 0) return;
+  if (session.validateTree(rec, treeValidationOptions()).length > 0) return;
 
   // Small trees are not physically numbered in the field, so we force the
   // stored number blank regardless of what the operator typed. The counter
   // ignores blank-number trees, so the next visible tree continues the
   // sequence.
-  if (rec.d_cm != null && rec.d_cm <= session.NUMBER_BLANK_D_THRESHOLD) {
+  if (currentMode().blankSmallNumber &&
+      rec.d_cm != null && rec.d_cm <= session.NUMBER_BLANK_D_THRESHOLD) {
     rec.numero = null;
   }
 

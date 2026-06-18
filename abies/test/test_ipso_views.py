@@ -45,6 +45,8 @@ def test_index_is_public_and_uses_relative_assets(db):
     assert 'href="/static/vendor/leaflet/leaflet.css"' in body
     assert 'href="/static/base/css/map-basemaps.css"' in body
     assert 'id="screen-mode"' in body
+    assert 'id="btn-mode-samples" class="btn-secondary btn-big" type="button"' in body
+    assert 'id="btn-mode-pai" class="btn-secondary btn-big" type="button"' in body
     assert 'id="screen-map"' in body
     assert 'src="modes.js"' in body
     assert 'src="/static/vendor/leaflet/leaflet.js"' in body
@@ -178,13 +180,15 @@ def test_terreni_geojson_has_empty_fallback(db):
     assert resp.json() == {'type': 'FeatureCollection', 'features': []}
 
 
-def _upload_payload(parcels, species, *, session_id='11111111-1111-4111-8111-111111111111'):
+def _upload_payload(
+        parcels, species, *, mode='martellate',
+        session_id='11111111-1111-4111-8111-111111111111'):
     parcel = parcels[0]
     sp = species[0]
     return {
         'session': {
             'session_id': session_id,
-            'mode': 'martellate',
+            'mode': mode,
             'schema_version': 1,
             'reference_version': '',
             'work_package_id': '',
@@ -266,6 +270,42 @@ def test_upload_stages_json_and_metadata(db, parcels, species, settings, tmp_pat
     assert staged['records'][0]['lon'] == 16.12345
     assert (Path(upload.inbox_path) / 'upload.sha256').is_file()
     assert (Path(upload.inbox_path) / 'export.csv').read_text() == 'csv backup'
+
+
+@pytest.mark.parametrize(('mode', 'session_id'), [
+    ('samples', '22222222-2222-4222-8222-222222222222'),
+    ('pai', '33333333-3333-4333-8333-333333333333'),
+])
+@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+def test_upload_stages_non_martellate_modes(
+        db, parcels, species, settings, tmp_path, mode, session_id):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    payload = _upload_payload(parcels, species, mode=mode, session_id=session_id)
+    if mode == 'pai':
+        payload['records'][0]['d_cm'] = None
+        payload['records'][0]['h_m'] = None
+
+    resp = _post_upload(Client(), payload)
+
+    assert resp.status_code == 200
+    upload = IpsoUpload.objects.get(session_id=session_id)
+    assert upload.mode == mode
+    assert upload.state == IpsoUploadState.RECEIVED
+    staged = json.loads((Path(upload.inbox_path) / 'upload.json').read_text())
+    assert staged['session']['mode'] == mode
+    assert staged['records'][0]['hypso_param_set_id'] is None
+
+
+@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+def test_upload_rejects_unknown_mode(db, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    payload = _upload_payload(parcels, species, mode='invalid')
+
+    resp = _post_upload(Client(), payload)
+
+    assert resp.status_code == 422
+    assert resp.json()['error'] == 'invalid_payload'
+    assert IpsoUpload.objects.count() == 0
 
 
 @override_settings(IPSO_UPLOAD_TOKEN='test-token')

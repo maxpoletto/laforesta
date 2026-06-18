@@ -9,6 +9,12 @@ const UPLOAD_SCHEMA_VERSION = 1;
 const UPLOAD_MODE_MARTELLATE = typeof IPSO_MODE_MARTELLATE !== 'undefined'
   ? IPSO_MODE_MARTELLATE
   : 'martellate';
+const UPLOAD_MODE_SAMPLES = typeof IPSO_MODE_SAMPLES !== 'undefined'
+  ? IPSO_MODE_SAMPLES
+  : 'samples';
+const UPLOAD_MODE_PAI = typeof IPSO_MODE_PAI !== 'undefined'
+  ? IPSO_MODE_PAI
+  : 'pai';
 const BACKOFF_SCHEDULE_MS = [2000, 4000, 8000, 16000];
 const BACKOFF_CAP_MS = 30000;
 
@@ -79,8 +85,8 @@ function canonicalRecord(sess, t, reference) {
     parcel_id: parcel.parcel_id,
     species_id: speciesId,
     number: Number.isInteger(t.numero) ? t.numero : null,
-    d_cm: t.d_cm,
-    h_m: String(t.h_m),
+    d_cm: t.d_cm == null ? null : t.d_cm,
+    h_m: t.h_m == null ? null : String(t.h_m),
     h_measured: !!t.h_measured,
     hypso_param_set_id: Number.isInteger(t.hypso_param_set_id)
       ? t.hypso_param_set_id
@@ -157,7 +163,8 @@ async function uploadSession(args) {
 }
 
 const upload = {
-  UPLOAD_SCHEMA_VERSION, UPLOAD_MODE_MARTELLATE,
+  UPLOAD_SCHEMA_VERSION, UPLOAD_MODE_MARTELLATE, UPLOAD_MODE_SAMPLES,
+  UPLOAD_MODE_PAI,
   BACKOFF_SCHEDULE_MS, BACKOFF_CAP_MS,
   backoffMs, classifyHttp, classifyNetwork,
   UploadError, buildUploadPayload, uploadSession,

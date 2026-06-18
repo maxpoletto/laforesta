@@ -1,7 +1,7 @@
 // ipso mode registry.
 //
-// Only martellate is implemented today. Keeping mode identity in one place
-// makes the shared shell explicit before Campionamenti and PAI are added.
+// Mode behavior lives here so the shell can share session, GPS, map, local
+// storage, and upload flow while individual modes keep their recording rules.
 'use strict';
 
 const IPSO_MODE_MARTELLATE = 'martellate';
@@ -14,19 +14,34 @@ const IpsoModes = (function() {
       id: IPSO_MODE_MARTELLATE,
       labelKey: 'MODE_MARTELLATE',
       preTitleKey: 'PRE_NEW_SESSION',
+      buttonId: 'btn-mode-martellate',
+      autoHeight: true,
+      blankSmallNumber: true,
+      dRequired: true,
+      hRequired: true,
       enabled: true,
     },
     [IPSO_MODE_SAMPLES]: {
       id: IPSO_MODE_SAMPLES,
       labelKey: 'MODE_SAMPLES',
-      preTitleKey: 'MODE_SAMPLES',
-      enabled: false,
+      preTitleKey: 'PRE_NEW_SAMPLES',
+      buttonId: 'btn-mode-samples',
+      autoHeight: false,
+      blankSmallNumber: false,
+      dRequired: true,
+      hRequired: true,
+      enabled: true,
     },
     [IPSO_MODE_PAI]: {
       id: IPSO_MODE_PAI,
       labelKey: 'MODE_PAI',
-      preTitleKey: 'MODE_PAI',
-      enabled: false,
+      preTitleKey: 'PRE_NEW_PAI',
+      buttonId: 'btn-mode-pai',
+      autoHeight: false,
+      blankSmallNumber: false,
+      dRequired: false,
+      hRequired: false,
+      enabled: true,
     },
   };
 

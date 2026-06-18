@@ -14,6 +14,8 @@ const S = {
 
   // Pre-session screen
   PRE_NEW_SESSION: 'Nuova martellata',
+  PRE_NEW_SAMPLES: 'Nuovo campionamento',
+  PRE_NEW_PAI: 'Nuovo PAI',
   PRE_OPERATOR: 'Operatore',
   PRE_DATA: 'Data',
   PRE_COMPRESA: 'Compresa',
