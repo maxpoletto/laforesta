@@ -41,6 +41,7 @@ const SHELL = [
   './parcel-locator.js',
   './map.js',
   './upload.js',
+  './upload-flow.js',
   './upload-config.js',
   './reference.json',
   './terreni.geojson',

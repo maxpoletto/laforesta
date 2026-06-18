@@ -100,6 +100,7 @@ ASSET_FILES = {
     'strings.js',
     'style.css',
     'sw.js',
+    'upload-flow.js',
     'upload.js',
     'version.js',
     'img/f.gif',

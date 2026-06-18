@@ -23,7 +23,6 @@ const State = {
   numpad: null,       // numpad controller
   lastTreeRow: null,  // most-recent tree in the current session
   wakeLock: null,     // active WakeLockSentinel during recording (or null)
-  upload: null,       // { sessionId, attempt, abortController, retryTimer, ... } | null
   currentScreen: null, // id of the visible screen
   lastFix: null,       // most recent fresh GPS fix, { lat, lon, acc, t }
   sampleAreaId: null,  // selected/inferred sample-area id in sample mode
@@ -1039,160 +1038,10 @@ async function onEnd() {
     // Always download the local CSV first — it is the trust anchor and
     // the operator must not lose data if the upload never succeeds.
     downloadFinal(State.session, trees);
-    enterUploadScreen(State.session.id, uploadPayload, trees.length);
+    uploadFlow().enter(State.session.id, uploadPayload, trees.length);
   } catch (e) {
     showToast(S.TOAST_EXPORT_ERROR(e.message));
   }
-}
-
-function enterUploadScreen(sessionId, uploadPayload, treeCount) {
-  // Reset any prior state.
-  if (State.upload && State.upload.retryTimer) {
-    clearTimeout(State.upload.retryTimer);
-  }
-  if (State.upload && State.upload.abortController) {
-    try { State.upload.abortController.abort(); } catch (_) {}
-  }
-  // Recording is over — release the GPS watcher so it doesn't drain the
-  // battery while the operator waits for the upload to settle.
-  if (State.gps) { State.gps.stop(); State.gps = null; }
-  State.upload = {
-    sessionId,
-    payload: uploadPayload,
-    treeCount,
-    attempt: 0,
-    abortController: null,
-    retryTimer: null,
-  };
-  document.getElementById('upload-detail').textContent = '';
-  document.getElementById('upload-detail').classList.remove('error');
-  showScreen('screen-upload');
-  acquireWakeLock();
-  scheduleUploadAttempt(0);
-}
-
-function scheduleUploadAttempt(waitMs) {
-  if (!State.upload) return;
-  if (waitMs > 0) {
-    const secs = Math.ceil(waitMs / 1000);
-    document.getElementById('upload-detail').textContent =
-      S.UPLOAD_NEXT_RETRY_IN(secs);
-    State.upload.retryTimer = setTimeout(runUploadAttempt, waitMs);
-  } else {
-    runUploadAttempt();
-  }
-}
-
-async function runUploadAttempt() {
-  if (!State.upload) return;
-  State.upload.retryTimer = null;
-  State.upload.attempt += 1;
-  document.getElementById('upload-attempt').textContent =
-    S.UPLOAD_ATTEMPT(State.upload.attempt);
-
-  const ac = new AbortController();
-  State.upload.abortController = ac;
-  try {
-    await upload.uploadSession({
-      token: UPLOAD_TOKEN,
-      sessionId: State.upload.sessionId,
-      payload: State.upload.payload,
-      signal: ac.signal,
-    });
-    await onUploadSuccess();
-  } catch (err) {
-    if (err && err.klass === 'aborted') return;  // bail handled elsewhere
-    onUploadAttemptFailed(err);
-  } finally {
-    if (State.upload) State.upload.abortController = null;
-  }
-}
-
-function onUploadAttemptFailed(err) {
-  if (!State.upload) return;
-  const klass = (err && err.klass) || 'soft:network';
-  const isHard = klass.startsWith('hard:');
-  const detailEl = document.getElementById('upload-detail');
-  detailEl.classList.toggle('error', isHard);
-  detailEl.textContent = uploadErrorMessage(klass);
-  if (isHard) {
-    // Stop retrying; operator must bail.
-    document.getElementById('upload-attempt').textContent = '';
-    return;
-  }
-  scheduleUploadAttempt(upload.backoffMs(State.upload.attempt));
-}
-
-function uploadErrorMessage(klass) {
-  switch (klass) {
-    case 'hard:auth':         return S.UPLOAD_ERROR_AUTH;
-    case 'hard:conflict':     return S.UPLOAD_ERROR_CONFLICT;
-    case 'hard:invalid_csv':  return S.UPLOAD_ERROR_INVALID;
-    case 'hard:too_large':    return S.UPLOAD_ERROR_TOO_LARGE;
-    case 'soft:rate_limited': return S.UPLOAD_ERROR_RATE_LIMITED;
-    case 'soft:server':       return S.UPLOAD_ERROR_SERVER;
-    case 'soft:network':      return S.UPLOAD_ERROR_NETWORK;
-    default:                  return klass;
-  }
-}
-
-async function onUploadSuccess() {
-  if (!State.upload) return;
-  // Capture + clear State.upload synchronously so a late bail-tap during the
-  // following awaits can't reach the bail branch and clobber upload_status.
-  const sessionId = State.upload.sessionId;
-  const treeCount = State.upload.treeCount;
-  State.upload = null;
-  try {
-    await Store.setSessionUploadStatus(
-      State.db, sessionId, Store.UPLOAD_STATUS_UPLOADED
-    );
-    await Store.setSessionStatus(
-      State.db, sessionId, Store.STATUS_EXPORTED
-    );
-  } catch (e) {
-    showToast(S.TOAST_UPLOAD_STATE_ERROR(e.message));
-  }
-  showToast(S.UPLOAD_SUCCESS_TOAST);
-  endUploadScreen(treeCount, true);
-}
-
-async function onUploadBail() {
-  if (!State.upload) return;
-  if (State.upload.retryTimer) {
-    clearTimeout(State.upload.retryTimer);
-    State.upload.retryTimer = null;
-  }
-  if (State.upload.abortController) {
-    try { State.upload.abortController.abort(); } catch (_) {}
-  }
-  // Same race-prevention move as onUploadSuccess.
-  const sessionId = State.upload.sessionId;
-  const treeCount = State.upload.treeCount;
-  State.upload = null;
-  try {
-    await Store.setSessionUploadStatus(
-      State.db, sessionId, Store.UPLOAD_STATUS_LOCAL_ONLY
-    );
-    await Store.setSessionStatus(
-      State.db, sessionId, Store.STATUS_EXPORTED
-    );
-  } catch (e) {
-    showToast(S.TOAST_STATE_SAVE_ERROR(e.message));
-  }
-  showToast(S.UPLOAD_LOCAL_ONLY_TOAST);
-  endUploadScreen(treeCount, false);
-}
-
-function endUploadScreen(treeCount, uploaded) {
-  State.upload = null;
-  // Repurpose the existing done screen, but tailor the body text.
-  document.getElementById('done-title').textContent = S.DONE_TITLE;
-  document.getElementById('done-body').textContent = uploaded
-    ? S.UPLOAD_DONE_BODY(treeCount)
-    : S.DONE_BODY(treeCount);
-  releaseWakeLock();
-  showScreen('screen-done');
 }
 
 function downloadFinal(sess, trees) {
@@ -1527,9 +1376,39 @@ async function downloadBackup(seq) {
 // ---------------------------------------------------------------------------
 
 function wireUpload() {
-  document.getElementById('upload-title').textContent = S.UPLOAD_TITLE;
-  document.getElementById('btn-upload-bail').textContent = S.UPLOAD_BAIL;
-  document.getElementById('btn-upload-bail').addEventListener('click', onUploadBail);
+  uploadFlow().wire();
+}
+
+let uploadFlowInstance = null;
+function uploadFlow() {
+  if (!uploadFlowInstance) {
+    uploadFlowInstance = createUploadFlow({
+      db: () => State.db,
+      uploadToken: () => UPLOAD_TOKEN,
+      stopRecording: stopRecordingForUpload,
+      acquireWakeLock,
+      releaseWakeLock,
+      showScreen,
+      showToast,
+      showDone: showUploadDone,
+    });
+  }
+  return uploadFlowInstance;
+}
+
+function stopRecordingForUpload() {
+  if (State.gps) {
+    State.gps.stop();
+    State.gps = null;
+  }
+}
+
+function showUploadDone(treeCount, uploaded) {
+  document.getElementById('done-title').textContent = S.DONE_TITLE;
+  document.getElementById('done-body').textContent = uploaded
+    ? S.UPLOAD_DONE_BODY(treeCount)
+    : S.DONE_BODY(treeCount);
+  showScreen('screen-done');
 }
 
 // ---------------------------------------------------------------------------
@@ -1594,7 +1473,7 @@ function showResumeModal(sessions) {
         downloadFinal(s, trees);
         State.session = s;
         setMode(s.mode);
-        enterUploadScreen(s.id, uploadPayload, trees.length);
+        uploadFlow().enter(s.id, uploadPayload, trees.length);
       });
       const local = mkBtn(S.UPLOAD_RESUME_KEEP_LOCAL, 'btn-secondary', async () => {
         await Store.setSessionUploadStatus(State.db, s.id, Store.UPLOAD_STATUS_LOCAL_ONLY);
