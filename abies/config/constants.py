@@ -224,6 +224,17 @@ IPSO_UPLOAD_STATE_IMPORTED = 'imported'
 IPSO_UPLOAD_STATE_REJECTED = 'rejected'
 IPSO_UPLOAD_STATE_CONFLICT = 'conflict'
 IPSO_TARGET_HARVEST_PLAN_ITEM = 'harvest_plan_item'
+IPSO_REF_GENERATED_AT = 'generated_at'
+IPSO_REF_SPECIES = 'species'
+IPSO_REF_PARCELS = 'parcels'
+IPSO_REF_HYPSOMETRY = 'ipsometrica'
+IPSO_REF_SAMPLING = 'sampling'
+IPSO_REF_PAI = 'pai'
+IPSO_REF_WORK_PACKAGES = 'work_packages'
+IPSO_REFERENCE_VERSION_KEYS = (
+    IPSO_REF_SPECIES, IPSO_REF_PARCELS, IPSO_REF_HYPSOMETRY,
+    IPSO_REF_SAMPLING, IPSO_REF_PAI, IPSO_REF_WORK_PACKAGES,
+)
 
 
 # Truthy tokens for both edges: form/JSON values (the HTML checkbox 'on', real

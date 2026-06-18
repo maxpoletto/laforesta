@@ -46,9 +46,13 @@ from config.constants import (
     FIELD_REGION_ID, FIELD_SCHEMA_VERSION, FIELD_SESSION_ID, FIELD_SPECIES_ID,
     FIELD_STATE, FIELD_WORK_PACKAGE_ID, FILE_ERROR, IMPORTED, IPSO_ERROR_AUTH,
     IPSO_ERROR_CONFLICT, IPSO_ERROR_INVALID_PAYLOAD, IPSO_MODE_MARTELLATE,
-    IPSO_MODE_PAI, IPSO_MODE_SAMPLES, IPSO_REFERENCE_JSON, IPSO_TARGET_HARVEST_PLAN_ITEM,
-    IPSO_TERRENI_GEOJSON, IPSO_UPLOAD_CONFIG_JS, IPSO_UPLOAD_FILE_CSV,
-    IPSO_UPLOAD_FILE_JSON, IPSO_UPLOAD_FILE_SHA256, IPSO_UPLOAD_MODES, MESSAGE, OK,
+    IPSO_MODE_PAI, IPSO_MODE_SAMPLES, IPSO_REF_GENERATED_AT,
+    IPSO_REF_HYPSOMETRY, IPSO_REF_PAI, IPSO_REF_PARCELS,
+    IPSO_REF_SAMPLING, IPSO_REF_SPECIES, IPSO_REF_WORK_PACKAGES,
+    IPSO_REFERENCE_JSON, IPSO_REFERENCE_VERSION_KEYS,
+    IPSO_TARGET_HARVEST_PLAN_ITEM, IPSO_TERRENI_GEOJSON,
+    IPSO_UPLOAD_CONFIG_JS, IPSO_UPLOAD_FILE_CSV, IPSO_UPLOAD_FILE_JSON,
+    IPSO_UPLOAD_FILE_SHA256, IPSO_UPLOAD_MODES, MESSAGE, OK,
     PENDING_COUNT, RECORD_COUNT, RECORDS, ROW_ID, ROWS, SESSION, SKIPPED_DUPLICATES, STORED_AS,
     SUGGESTED_TARGET_ID, TARGETS, UPLOAD,
 )
@@ -160,14 +164,14 @@ def reference_json(request: HttpRequest) -> HttpResponse:
     pai = _pai_context()
     payload = {
         FIELD_SCHEMA_VERSION: SCHEMA_VERSION,
-        'generated_at': django_timezone.now().astimezone(timezone.utc)
+        IPSO_REF_GENERATED_AT: django_timezone.now().astimezone(timezone.utc)
                        .isoformat(timespec='seconds').replace('+00:00', 'Z'),
-        'species': _species_rows(),
-        'parcels': _parcel_rows(),
-        'ipsometrica': _ipsometrica(),
-        'sampling': sampling,
-        'pai': pai,
-        'work_packages': _work_packages(sampling),
+        IPSO_REF_SPECIES: _species_rows(),
+        IPSO_REF_PARCELS: _parcel_rows(),
+        IPSO_REF_HYPSOMETRY: _ipsometrica(),
+        IPSO_REF_SAMPLING: sampling,
+        IPSO_REF_PAI: pai,
+        IPSO_REF_WORK_PACKAGES: _work_packages(sampling),
     }
     payload[FIELD_REFERENCE_VERSION] = _reference_version(payload)
     return _json_response(payload, content_type='application/json')
@@ -316,12 +320,8 @@ def _ipsometrica() -> dict:
 
 def _reference_version(payload: dict) -> str:
     raw = json.dumps({
-        'species': payload['species'],
-        'parcels': payload['parcels'],
-        'ipsometrica': payload['ipsometrica'],
-        'sampling': payload['sampling'],
-        'pai': payload['pai'],
-        'work_packages': payload['work_packages'],
+        key: payload[key]
+        for key in IPSO_REFERENCE_VERSION_KEYS
     }, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
     return hashlib.sha256(raw.encode('utf-8')).hexdigest()[:20]
 
@@ -691,7 +691,7 @@ def _martellate_import_rows(
     session = payload.get(SESSION, {}) if isinstance(payload, dict) else {}
     records = payload.get(RECORDS, []) if isinstance(payload, dict) else []
     if not isinstance(records, list):
-        return [], ['records deve essere un array.']
+        return [], [S.IPSO_ERR_IMPORT_RECORDS_ARRAY]
 
     species_ids = {
         r.get(FIELD_SPECIES_ID) for r in records
@@ -716,18 +716,18 @@ def _martellate_import_rows(
     errors = []
     for i, record in enumerate(records, start=1):
         if not isinstance(record, dict):
-            errors.append(f'Record {i}: formato non valido.')
+            errors.append(S.IPSO_ERR_IMPORT_RECORD_INVALID.format(i))
             continue
         parcel = parcels.get(record.get(FIELD_PARCEL_ID))
         if parcel is None:
-            errors.append(f'Record {i}: particella non trovata.')
+            errors.append(S.IPSO_ERR_IMPORT_RECORD_PARCEL_NOT_FOUND.format(i))
             continue
         if item_region and parcel.region_id != item_region.id:
             errors.append(S.ERR_MARK_PARCEL_NOT_IN_REGION)
             continue
         sp = species.get(record.get(FIELD_SPECIES_ID))
         if sp is None:
-            errors.append(f'Record {i}: specie non trovata.')
+            errors.append(S.IPSO_ERR_IMPORT_RECORD_SPECIES_NOT_FOUND.format(i))
             continue
         try:
             date = date_type.fromisoformat(str(record.get(FIELD_DATE)))
@@ -736,7 +736,7 @@ def _martellate_import_rows(
             if h_m is None:
                 raise ValueError
         except (TypeError, ValueError):
-            errors.append(f'Record {i}: D/H/data non validi.')
+            errors.append(S.IPSO_ERR_IMPORT_RECORD_DH_DATE_INVALID.format(i))
             continue
         rows.append(MarkImportRow(
             date=date,
@@ -770,9 +770,9 @@ def _request_json(request: HttpRequest) -> dict:
     try:
         payload = json.loads(request.body.decode('utf-8'))
     except (UnicodeDecodeError, json.JSONDecodeError) as e:
-        raise UploadValidationError('Malformed JSON.') from e
+        raise UploadValidationError(S.IPSO_ERR_JSON_MALFORMED) from e
     if not isinstance(payload, dict):
-        raise UploadValidationError('Payload must be an object.')
+        raise UploadValidationError(S.IPSO_ERR_PAYLOAD_OBJECT)
     return payload
 
 
@@ -781,12 +781,12 @@ def _validate_upload_payload(payload: dict, request: HttpRequest) -> tuple[dict,
     records = _list(payload, RECORDS)
     csv_text = payload.get(FIELD_CSV_TEXT)
     if csv_text is not None and not isinstance(csv_text, str):
-        raise UploadValidationError('csv_text must be a string when present.')
+        raise UploadValidationError(S.IPSO_ERR_CSV_TEXT_STRING)
 
     normalized_session = _normalize_session(session)
     header_id = request.headers.get('X-Ipso-Session-Id', '')
     if header_id and header_id != normalized_session[FIELD_SESSION_ID]:
-        raise UploadValidationError('X-Ipso-Session-Id does not match session.session_id.')
+        raise UploadValidationError(S.IPSO_ERR_HEADER_SESSION_MISMATCH)
 
     normalized_records = [
         _normalize_record(normalized_session[FIELD_MODE], i, row)
@@ -799,13 +799,13 @@ def _validate_upload_payload(payload: dict, request: HttpRequest) -> tuple[dict,
 def _normalize_session(session: dict) -> dict:
     session_id = _str(session, FIELD_SESSION_ID)
     if not _SESSION_ID_RE.match(session_id):
-        raise UploadValidationError('session_id must be a UUID.')
+        raise UploadValidationError(S.IPSO_ERR_SESSION_ID_UUID)
     mode = _str(session, FIELD_MODE)
     if mode not in ALLOWED_UPLOAD_MODES:
-        raise UploadValidationError('Unsupported mode.')
+        raise UploadValidationError(S.IPSO_ERR_MODE_UNSUPPORTED)
     schema_version = _int(session, FIELD_SCHEMA_VERSION)
     if schema_version != UPLOAD_SCHEMA_VERSION:
-        raise UploadValidationError('Unsupported schema_version.')
+        raise UploadValidationError(S.IPSO_ERR_SCHEMA_VERSION_UNSUPPORTED)
     normalized = {
         FIELD_SESSION_ID: session_id,
         FIELD_MODE: mode,
@@ -825,29 +825,29 @@ def _normalize_session(session: dict) -> dict:
 
 def _normalize_record(mode: str, index: int, row: object) -> dict:
     if not isinstance(row, dict):
-        raise UploadValidationError(f'Record {index}: must be an object.')
+        raise UploadValidationError(S.IPSO_ERR_RECORD_OBJECT.format(index))
     date = _str(row, FIELD_DATE)
     if not _DATE_RE.match(date):
-        raise UploadValidationError(f'Record {index}: date must be YYYY-MM-DD.')
+        raise UploadValidationError(S.IPSO_ERR_RECORD_DATE_INVALID.format(index))
 
     d_cm = (
         _opt_int(row, FIELD_D_CM) if mode == IPSO_MODE_PAI
         else _int(row, FIELD_D_CM)
     )
     if d_cm is not None and d_cm <= 0:
-        raise UploadValidationError(f'Record {index}: d_cm must be positive.')
+        raise UploadValidationError(S.IPSO_ERR_RECORD_D_CM_POSITIVE.format(index))
 
     h_m = (
         _opt_decimal(row, FIELD_H_M) if mode == IPSO_MODE_PAI
         else _decimal(row, FIELD_H_M)
     )
     if h_m is not None and h_m <= 0:
-        raise UploadValidationError(f'Record {index}: h_m must be positive.')
+        raise UploadValidationError(S.IPSO_ERR_RECORD_H_M_POSITIVE.format(index))
 
     hypso_param_set_id = _opt_int(row, FIELD_HYPSO_PARAM_SET_ID)
     if mode != IPSO_MODE_MARTELLATE and hypso_param_set_id is not None:
         raise UploadValidationError(
-            f'Record {index}: hypso_param_set_id is only valid for martellate.'
+            S.IPSO_ERR_RECORD_HYPSO_ONLY_MARTELLATE.format(index)
         )
 
     return {
@@ -878,17 +878,17 @@ def _validate_record_ids(records: list[dict]) -> None:
     }
     missing_species = species_ids - valid_species
     if missing_species:
-        raise UploadValidationError(f'Unknown species_id: {min(missing_species)}.')
+        raise UploadValidationError(S.IPSO_ERR_UNKNOWN_SPECIES_ID.format(min(missing_species)))
     missing_parcels = parcel_ids - set(parcels)
     if missing_parcels:
-        raise UploadValidationError(f'Unknown parcel_id: {min(missing_parcels)}.')
+        raise UploadValidationError(S.IPSO_ERR_UNKNOWN_PARCEL_ID.format(min(missing_parcels)))
     valid_hypso = set(HypsoParamSet.objects.filter(id__in=hypso_ids).values_list('id', flat=True))
     missing_hypso = hypso_ids - valid_hypso
     if missing_hypso:
-        raise UploadValidationError(f'Unknown hypso_param_set_id: {min(missing_hypso)}.')
+        raise UploadValidationError(S.IPSO_ERR_UNKNOWN_HYPSO_PARAM_SET_ID.format(min(missing_hypso)))
     for i, row in enumerate(records, start=1):
         if parcels[row[FIELD_PARCEL_ID]] != row[FIELD_REGION_ID]:
-            raise UploadValidationError(f'Record {i}: parcel_id not in region_id.')
+            raise UploadValidationError(S.IPSO_ERR_RECORD_PARCEL_REGION.format(i))
 
 
 def _payload_checksum(payload: dict) -> str:
@@ -924,21 +924,21 @@ def _atomic_write_text(path: Path, text: str) -> None:
 def _dict(payload: dict, key: str) -> dict:
     value = payload.get(key)
     if not isinstance(value, dict):
-        raise UploadValidationError(f'{key} must be an object.')
+        raise UploadValidationError(S.IPSO_ERR_FIELD_OBJECT.format(key))
     return value
 
 
 def _list(payload: dict, key: str) -> list:
     value = payload.get(key)
     if not isinstance(value, list):
-        raise UploadValidationError(f'{key} must be an array.')
+        raise UploadValidationError(S.IPSO_ERR_FIELD_ARRAY.format(key))
     return value
 
 
 def _str(payload: dict, key: str) -> str:
     value = payload.get(key)
     if not isinstance(value, str) or not value.strip():
-        raise UploadValidationError(f'{key} is required.')
+        raise UploadValidationError(S.IPSO_ERR_FIELD_REQUIRED.format(key))
     return value.strip()
 
 
@@ -947,14 +947,14 @@ def _opt_str(payload: dict, key: str) -> str:
     if value is None:
         return ''
     if not isinstance(value, str):
-        raise UploadValidationError(f'{key} must be a string.')
+        raise UploadValidationError(S.IPSO_ERR_FIELD_STRING.format(key))
     return value.strip()
 
 
 def _int(payload: dict, key: str) -> int:
     value = payload.get(key)
     if type(value) is not int:
-        raise UploadValidationError(f'{key} must be an integer.')
+        raise UploadValidationError(S.IPSO_ERR_FIELD_INTEGER.format(key))
     return value
 
 
@@ -963,14 +963,14 @@ def _opt_int(payload: dict, key: str) -> int | None:
     if value is None:
         return None
     if type(value) is not int:
-        raise UploadValidationError(f'{key} must be an integer or null.')
+        raise UploadValidationError(S.IPSO_ERR_FIELD_INTEGER_NULL.format(key))
     return value
 
 
 def _bool(payload: dict, key: str) -> bool:
     value = payload.get(key)
     if type(value) is not bool:
-        raise UploadValidationError(f'{key} must be a boolean.')
+        raise UploadValidationError(S.IPSO_ERR_FIELD_BOOLEAN.format(key))
     return value
 
 
@@ -979,10 +979,10 @@ def _opt_coord_float(payload: dict, key: str) -> float | None:
     if value is None:
         return None
     if type(value) not in {int, float}:
-        raise UploadValidationError(f'{key} must be a number or null.')
+        raise UploadValidationError(S.IPSO_ERR_FIELD_NUMBER_NULL.format(key))
     out = coord_float(to_decimal(value, '.'))
     if out is None:
-        raise UploadValidationError(f'{key} must be finite.')
+        raise UploadValidationError(S.IPSO_ERR_FIELD_FINITE.format(key))
     return out
 
 
@@ -996,10 +996,10 @@ def _opt_decimal(payload: dict, key: str) -> Decimal | None:
 def _decimal(payload: dict, key: str) -> Decimal:
     value = payload.get(key)
     if type(value) not in {int, float, str}:
-        raise UploadValidationError(f'{key} must be a decimal value.')
+        raise UploadValidationError(S.IPSO_ERR_FIELD_DECIMAL.format(key))
     dec = to_decimal(value, '.')
     if dec is None:
-        raise UploadValidationError(f'{key} must be a finite decimal value.')
+        raise UploadValidationError(S.IPSO_ERR_FIELD_DECIMAL_FINITE.format(key))
     return dec
 
 

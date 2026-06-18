@@ -58,6 +58,13 @@ export const IPSO_MODE_PAI = 'pai';
 export const IPSO_UPLOAD_STATE_RECEIVED = 'received';
 export const IPSO_UPLOAD_STATE_IMPORTED = 'imported';
 export const IPSO_UPLOAD_STATE_REJECTED = 'rejected';
+export const IPSO_REF_GENERATED_AT = 'generated_at';
+export const IPSO_REF_SPECIES = 'species';
+export const IPSO_REF_PARCELS = 'parcels';
+export const IPSO_REF_HYPSOMETRY = 'ipsometrica';
+export const IPSO_REF_SAMPLING = 'sampling';
+export const IPSO_REF_PAI = 'pai';
+export const IPSO_REF_WORK_PACKAGES = 'work_packages';
 
 // Role identifiers — mirror apps/base/models.py Role.TextChoices values.
 export const ROLE_ADMIN  = 'admin';
