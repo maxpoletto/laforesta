@@ -8,14 +8,6 @@
 // APP_VERSION is defined in version.js (loaded before this script).
 
 
-const IPSO_REF_SAMPLING = 'sampling';
-const IPSO_REF_SURVEYS = 'surveys';
-const IPSO_REF_SAMPLE_AREAS = 'sample_areas';
-const IPSO_FIELD_SURVEY_ID = 'survey_id';
-const IPSO_FIELD_SAMPLE_GRID_ID = 'sample_grid_id';
-const IPSO_FIELD_SAMPLE_AREA_ID = 'sample_area_id';
-const IPSO_FIELD_RADIUS_M = 'r_m';
-
 const State = {
   mode: null,         // current IpsoModes entry
   reference: null,    // parsed reference.json
@@ -221,7 +213,7 @@ function formatYMD(d) {
 function populateComprese() {
   const sel = document.getElementById('in-compresa');
   sel.replaceChildren();
-  const comprese = [...new Set(State.reference.parcels.map((p) => p.compresa))].sort();
+  const comprese = [...new Set(State.reference[IPSO_REF_PARCELS].map((p) => p.compresa))].sort();
   appendOption(sel, '', S.PRE_PICK_COMPRESA, true);
   for (const c of comprese) appendOption(sel, c, c);
 }
@@ -266,11 +258,11 @@ function samplingRows(kind) {
 
 function sampleAreasForSurvey(surveyId, compresa) {
   const survey = samplingRows(IPSO_REF_SURVEYS).find((s) =>
-    s && s[IPSO_FIELD_SURVEY_ID] === surveyId
+    s && s[FIELD_SURVEY_ID] === surveyId
   );
   if (!survey) return [];
   return samplingRows(IPSO_REF_SAMPLE_AREAS).filter((area) =>
-    area && area[IPSO_FIELD_SAMPLE_GRID_ID] === survey[IPSO_FIELD_SAMPLE_GRID_ID] &&
+    area && area[FIELD_SAMPLE_GRID_ID] === survey[FIELD_SAMPLE_GRID_ID] &&
     (!compresa || area.compresa === compresa)
   );
 }
@@ -279,10 +271,10 @@ function sampleSurveysForCompresa(compresa) {
   const seenGridIds = new Set(
     samplingRows(IPSO_REF_SAMPLE_AREAS)
       .filter((area) => area && area.compresa === compresa)
-      .map((area) => area[IPSO_FIELD_SAMPLE_GRID_ID])
+      .map((area) => area[FIELD_SAMPLE_GRID_ID])
   );
   return samplingRows(IPSO_REF_SURVEYS).filter((survey) =>
-    survey && seenGridIds.has(survey[IPSO_FIELD_SAMPLE_GRID_ID])
+    survey && seenGridIds.has(survey[FIELD_SAMPLE_GRID_ID])
   );
 }
 
@@ -294,7 +286,7 @@ function populateSampleSurveyOptions() {
   appendOption(sel, '', S.PRE_PICK_SURVEY, true);
   const compresa = document.getElementById('in-compresa').value;
   for (const survey of sampleSurveysForCompresa(compresa)) {
-    appendOption(sel, '' + survey[IPSO_FIELD_SURVEY_ID], sampleSurveyLabel(survey));
+    appendOption(sel, '' + survey[FIELD_SURVEY_ID], sampleSurveyLabel(survey));
   }
   if (keep && Array.from(sel.options).some((opt) => opt.value === keep)) {
     sel.value = keep;
@@ -312,7 +304,7 @@ function sampleAreasForCurrentSurvey() {
 
 function sampleAreaById(id) {
   return sampleAreasForCurrentSurvey().find((area) =>
-    area && area[IPSO_FIELD_SAMPLE_AREA_ID] === id
+    area && area[FIELD_SAMPLE_AREA_ID] === id
   ) || null;
 }
 
@@ -333,7 +325,7 @@ function currentAutoSampleArea() {
     const distance = upload.distanceMeters(
       State.lastFix.lat, State.lastFix.lon, area.lat, area.lon
     );
-    const radius = Number.isFinite(area[IPSO_FIELD_RADIUS_M]) ? area[IPSO_FIELD_RADIUS_M] : upload.DEFAULT_SAMPLE_RADIUS_M;
+    const radius = Number.isFinite(area[FIELD_R_M]) ? area[FIELD_R_M] : upload.DEFAULT_SAMPLE_RADIUS_M;
     if (distance <= radius && distance < bestDistance) {
       best = area;
       bestDistance = distance;
@@ -650,7 +642,7 @@ function populateParticellaOptions(features) {
   sel.appendChild(sentinel);
   if (isSamplesMode()) {
     for (const area of sampleAreasForCurrentSurvey()) {
-      appendOption(sel, '' + area[IPSO_FIELD_SAMPLE_AREA_ID], sampleAreaLabel(area));
+      appendOption(sel, '' + area[FIELD_SAMPLE_AREA_ID], sampleAreaLabel(area));
     }
     return;
   }
@@ -660,7 +652,7 @@ function populateParticellaOptions(features) {
   // exist as polygons (so manual picks can be cross-checked against
   // GPS).
   const known = new Set(features.map(particellaName).filter((n) => n));
-  for (const p of State.reference.parcels) {
+  for (const p of State.reference[IPSO_REF_PARCELS]) {
     if (p.compresa !== State.session.compresa) continue;
     if (!known.has(p.particella)) continue;
     appendOption(sel, p.particella, p.particella);
@@ -707,7 +699,7 @@ function refreshSampleAreaSelect() {
         : S.REC_SAMPLE_AREA_PLACEHOLDER;
     }
   }
-  const nextId = selectedArea ? selectedArea[IPSO_FIELD_SAMPLE_AREA_ID] : null;
+  const nextId = selectedArea ? selectedArea[FIELD_SAMPLE_AREA_ID] : null;
   const changed = State.sampleAreaId !== nextId;
   State.sampleAreaId = nextId;
   sel.classList.toggle('error', !selectedArea);
@@ -736,7 +728,7 @@ function populateSpecie() {
   const sel = document.getElementById('in-specie');
   sel.replaceChildren();
   appendOption(sel, '', S.REC_PICK_SPECIE, true);
-  const ordered = State.reference.species.slice().sort(
+  const ordered = State.reference[IPSO_REF_SPECIES].slice().sort(
     (a, b) => a.sort_order - b.sort_order
   );
   for (const sp of ordered) appendOption(sel, sp.common, sp.common);
@@ -779,7 +771,7 @@ async function prefillNumber() {
 async function computeNextNumberDefault(trees) {
   let rows = trees;
   if (isSamplesMode()) {
-    rows = trees.filter((t) => t && t[IPSO_FIELD_SAMPLE_AREA_ID] === State.sampleAreaId);
+    rows = trees.filter((t) => t && t[FIELD_SAMPLE_AREA_ID] === State.sampleAreaId);
   }
   const inSession = session.nextNumberDefault(rows);
   if (inSession != null) return inSession;
@@ -893,7 +885,7 @@ function recomputeAutoH() {
     return;
   }
   const compresa = State.session ? State.session.compresa : '';
-  const ipsTable = State.reference.ipsometrica;
+  const ipsTable = State.reference[IPSO_REF_HYPSOMETRY];
   const eq = ipso.lookup(ipsTable, compresa, State.specie);
   const d = parseInt(State.numpad.value('d'), 10);
   const hint = document.getElementById('hint-autoh');
@@ -946,14 +938,14 @@ function currentRecord() {
     numero: Number.isInteger(n) ? n : null,
     gruppo,
     particella,
-    [IPSO_FIELD_SAMPLE_AREA_ID]: sampleArea ? sampleArea[IPSO_FIELD_SAMPLE_AREA_ID] : null,
+    [FIELD_SAMPLE_AREA_ID]: sampleArea ? sampleArea[FIELD_SAMPLE_AREA_ID] : null,
   };
 }
 
 
 function currentHypsoParamSetId() {
   if (!State.session || !State.reference) return null;
-  const eq = ipso.lookup(State.reference.ipsometrica, State.session.compresa, State.specie);
+  const eq = ipso.lookup(State.reference[IPSO_REF_HYPSOMETRY], State.session.compresa, State.specie);
   return eq && Number.isInteger(eq.hypso_param_set_id)
     ? eq.hypso_param_set_id
     : null;
@@ -1324,8 +1316,8 @@ function renderMapPai() {
 }
 
 function currentMapPaiRecords() {
-  if (!State.reference || !State.reference.pai || !State.session) return [];
-  const rows = State.reference.pai.preserved_trees || [];
+  if (!State.reference || !State.reference[IPSO_REF_PAI] || !State.session) return [];
+  const rows = State.reference[IPSO_REF_PAI][IPSO_REF_PRESERVED_TREES] || [];
   return rows.filter((r) => r && r.compresa === State.session.compresa);
 }
 
@@ -1352,7 +1344,7 @@ function formatMapPaiText(rec) {
 }
 
 function speciesNameById(id) {
-  const rows = State.reference && State.reference.species || [];
+  const rows = State.reference && State.reference[IPSO_REF_SPECIES] || [];
   const found = rows.find((sp) => sp && sp.id === id);
   return found ? found.common : '';
 }
@@ -1463,8 +1455,8 @@ function renderGroupsTable(trees) {
 }
 
 function sampleAreaTextForTree(tree) {
-  if (!tree || !Number.isInteger(tree[IPSO_FIELD_SAMPLE_AREA_ID])) return tree && tree.particella || '';
-  const area = sampleAreaById(tree[IPSO_FIELD_SAMPLE_AREA_ID]);
+  if (!tree || !Number.isInteger(tree[FIELD_SAMPLE_AREA_ID])) return tree && tree.particella || '';
+  const area = sampleAreaById(tree[FIELD_SAMPLE_AREA_ID]);
   return area ? sampleAreaLabel(area) : (tree.particella || '');
 }
 

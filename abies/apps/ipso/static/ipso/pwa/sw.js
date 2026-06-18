@@ -26,6 +26,7 @@ const SHELL = [
   '/static/base/img/basemap-topo.png',
   '/static/base/img/basemap-sat.png',
   './version.js',
+  './constants.js',
   './app.js',
   './csv.js',
   './ipso.js',

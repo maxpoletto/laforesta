@@ -5,6 +5,11 @@
 // the side-effect-free helpers so they can be unit-tested in node.
 'use strict';
 
+if (typeof module !== 'undefined' && typeof require !== 'undefined' &&
+    typeof UPLOAD_SCHEMA_VERSION === 'undefined') {
+  Object.assign(globalThis, require('./constants.js'));
+}
+
 // Constraints: D in [1, 999] cm, h in [1, 99] m. The numpad enforces digit
 // count; this is the final gate before write.
 const D_MIN = 1, D_MAX = 999;
@@ -46,8 +51,8 @@ function validateTree(rec, options) {
   if (opts.numberRequired && !Number.isInteger(rec.numero)) {
     errors.push('numero');
   }
-  if (opts.sampleAreaRequired && !Number.isInteger(rec.sample_area_id)) {
-    errors.push('sample_area_id');
+  if (opts.sampleAreaRequired && !Number.isInteger(rec[FIELD_SAMPLE_AREA_ID])) {
+    errors.push(FIELD_SAMPLE_AREA_ID);
   }
   return errors;
 }

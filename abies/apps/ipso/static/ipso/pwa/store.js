@@ -11,6 +11,11 @@
 // only returns once the data is durable.
 'use strict';
 
+if (typeof module !== 'undefined' && typeof require !== 'undefined' &&
+    typeof UPLOAD_SCHEMA_VERSION === 'undefined') {
+  Object.assign(globalThis, require('./constants.js'));
+}
+
 const DB_NAME = 'ipso';
 // Bumped each time the on-disk row shape changes. IndexedDB tolerates
 // missing/extra fields without a structural change, so the bump is the
@@ -28,9 +33,7 @@ const STORE_META = 'meta';
 // to the new in-session max+1 on delete-last so it tracks the same value
 // prefillNumber would compute (see addTree / deleteTree for details).
 const META_KEY_NEXT_NUMBER_PREFIX = 'next_number:';
-const DEFAULT_NUMBER_MODE = typeof IPSO_MODE_MARTELLATE !== 'undefined'
-  ? IPSO_MODE_MARTELLATE
-  : 'martellate';
+const DEFAULT_NUMBER_MODE = IPSO_MODE_MARTELLATE;
 
 const STATUS_OPEN = 'open';
 const STATUS_PENDING_UPLOAD = 'pending_upload';
@@ -171,7 +174,7 @@ async function startSession(db, fields) {
   const row = {
     id,
     schema_version: SCHEMA_VERSION,
-    mode: fields.mode || 'martellate',
+    mode: fields.mode || IPSO_MODE_MARTELLATE,
     status: STATUS_OPEN,
     started_at: new Date().toISOString(),
     exported_at: null,
@@ -263,7 +266,7 @@ async function addTree(db, sessionId, rec) {
       numero: Number.isInteger(rec.numero) ? rec.numero : null,
       gruppo: rec.gruppo || '',
       particella: rec.particella || '',
-      sample_area_id: Number.isInteger(rec.sample_area_id) ? rec.sample_area_id : null,
+      [FIELD_SAMPLE_AREA_ID]: Number.isInteger(rec[FIELD_SAMPLE_AREA_ID]) ? rec[FIELD_SAMPLE_AREA_ID] : null,
     };
     const treesStore = t.objectStore(STORE_TREES);
     const id = await req(treesStore.add(row));

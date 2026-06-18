@@ -5,30 +5,13 @@
 // screen-upload state machine.
 'use strict';
 
-const UPLOAD_SCHEMA_VERSION = 1;
-const UPLOAD_MODE_MARTELLATE = typeof IPSO_MODE_MARTELLATE !== 'undefined'
-  ? IPSO_MODE_MARTELLATE
-  : 'martellate';
-const UPLOAD_MODE_SAMPLES = typeof IPSO_MODE_SAMPLES !== 'undefined'
-  ? IPSO_MODE_SAMPLES
-  : 'samples';
-const UPLOAD_MODE_PAI = typeof IPSO_MODE_PAI !== 'undefined'
-  ? IPSO_MODE_PAI
-  : 'pai';
+if (typeof module !== 'undefined' && typeof require !== 'undefined' &&
+    typeof UPLOAD_SCHEMA_VERSION === 'undefined') {
+  Object.assign(globalThis, require('./constants.js'));
+}
+
 const BACKOFF_SCHEDULE_MS = [2000, 4000, 8000, 16000];
 const BACKOFF_CAP_MS = 30000;
-const DEFAULT_SAMPLE_RADIUS_M = 12;
-const DEFAULT_PRESSLER_COEFF = '2.00';
-const UPLOAD_FIELD_SAMPLE_AREA_ID = 'sample_area_id';
-const UPLOAD_FIELD_COPPICE = 'coppice';
-const UPLOAD_FIELD_SHOOT = 'shoot';
-const UPLOAD_FIELD_STANDARD = 'standard';
-const UPLOAD_FIELD_L10_MM = 'l10_mm';
-const UPLOAD_FIELD_PRESSLER_COEFF = 'pressler_coeff';
-const UPLOAD_FIELD_PRESERVED = 'preserved';
-const UPLOAD_FIELD_ESTIMATED_BIRTH_YEAR = 'estimated_birth_year';
-const UPLOAD_FIELD_OPERATOR = 'operator';
-const UPLOAD_FIELD_NOTE = 'note';
 
 // 1-based attempt number -> wait BEFORE that attempt. Attempt 0 is "no
 // wait yet", attempt N>0 picks index N-1 from the schedule (or the cap).
@@ -69,21 +52,21 @@ function buildUploadPayload(sess, trees, reference, csvText) {
   const regionId = regionIdForCompresa(reference, sess.compresa);
   const records = trees.map((t) => canonicalRecord(sess, t, reference));
   return {
-    session: {
-      session_id: sess.id,
-      mode: sess.mode || UPLOAD_MODE_MARTELLATE,
-      schema_version: UPLOAD_SCHEMA_VERSION,
-      reference_version:
+    [SESSION]: {
+      [FIELD_SESSION_ID]: sess.id,
+      [FIELD_MODE]: sess.mode || IPSO_MODE_MARTELLATE,
+      [FIELD_SCHEMA_VERSION]: UPLOAD_SCHEMA_VERSION,
+      [FIELD_REFERENCE_VERSION]:
         sess.reference_version || reference.reference_version || '',
-      work_package_id: sess.work_package_id || '',
-      operator: sess.operatore || '',
-      created_at: sess.started_at || '',
-      completed_at: sess.completed_at || sess.exported_at || '',
-      damaged: !!sess.catastrofata,
-      region_id: regionId,
+      [FIELD_WORK_PACKAGE_ID]: sess.work_package_id || '',
+      [FIELD_OPERATOR]: sess.operatore || '',
+      [FIELD_CREATED_AT]: sess.started_at || '',
+      [FIELD_COMPLETED_AT]: sess.completed_at || sess.exported_at || '',
+      [FIELD_DAMAGED]: !!sess.catastrofata,
+      [FIELD_REGION_ID]: regionId,
     },
-    records,
-    csv_text: csvText || '',
+    [RECORDS]: records,
+    [FIELD_CSV_TEXT]: csvText || '',
   };
 }
 
@@ -91,25 +74,25 @@ function canonicalRecord(sess, t, reference) {
   const speciesId = speciesIdForName(reference, t.specie);
   const parcel = parcelForName(reference, sess.compresa, t.particella);
   const record = {
-    client_record_id: String(t.seq || t.id),
-    date: sess.data,
-    region_id: parcel.region_id,
-    parcel_id: parcel.parcel_id,
-    species_id: speciesId,
-    number: Number.isInteger(t.numero) ? t.numero : null,
-    d_cm: t.d_cm == null ? null : t.d_cm,
-    h_m: t.h_m == null ? null : String(t.h_m),
-    h_measured: !!t.h_measured,
-    hypso_param_set_id: Number.isInteger(t.hypso_param_set_id)
+    [FIELD_CLIENT_RECORD_ID]: String(t.seq || t.id),
+    [FIELD_DATE]: sess.data,
+    [FIELD_REGION_ID]: parcel[FIELD_REGION_ID],
+    [FIELD_PARCEL_ID]: parcel[FIELD_PARCEL_ID],
+    [FIELD_SPECIES_ID]: speciesId,
+    [FIELD_NUMBER]: Number.isInteger(t.numero) ? t.numero : null,
+    [FIELD_D_CM]: t.d_cm == null ? null : t.d_cm,
+    [FIELD_H_M]: t.h_m == null ? null : String(t.h_m),
+    [FIELD_H_MEASURED]: !!t.h_measured,
+    [FIELD_HYPSO_PARAM_SET_ID]: Number.isInteger(t.hypso_param_set_id)
       ? t.hypso_param_set_id
       : null,
-    lat: t.lat == null ? null : t.lat,
-    lon: t.lon == null ? null : t.lon,
-    acc_m: t.acc_m == null ? null : t.acc_m,
+    [FIELD_LAT]: t.lat == null ? null : t.lat,
+    [FIELD_LON]: t.lon == null ? null : t.lon,
+    [FIELD_ACC_M]: t.acc_m == null ? null : t.acc_m,
   };
-  if ((sess.mode || UPLOAD_MODE_MARTELLATE) === UPLOAD_MODE_SAMPLES) {
+  if ((sess.mode || IPSO_MODE_MARTELLATE) === IPSO_MODE_SAMPLES) {
     Object.assign(record, sampleRecordContext(reference, sess, t, parcel));
-  } else if ((sess.mode || UPLOAD_MODE_MARTELLATE) === UPLOAD_MODE_PAI) {
+  } else if ((sess.mode || IPSO_MODE_MARTELLATE) === IPSO_MODE_PAI) {
     Object.assign(record, paiRecordContext(sess, t));
   }
   return record;
@@ -119,47 +102,49 @@ function canonicalRecord(sess, t, reference) {
 function sampleRecordContext(reference, sess, tree, parcel) {
   const area = sampleAreaForTree(reference, sess, tree, parcel);
   return {
-    [UPLOAD_FIELD_SAMPLE_AREA_ID]: area ? area.sample_area_id : null,
-    [UPLOAD_FIELD_COPPICE]: area && typeof area.coppice === 'boolean'
-      ? area.coppice
+    [FIELD_SAMPLE_AREA_ID]: area ? area[FIELD_SAMPLE_AREA_ID] : null,
+    [FIELD_COPPICE]: area && typeof area[FIELD_COPPICE] === 'boolean'
+      ? area[FIELD_COPPICE]
       : null,
-    [UPLOAD_FIELD_SHOOT]: Number.isInteger(tree.shoot) ? tree.shoot : 0,
-    [UPLOAD_FIELD_STANDARD]: !!tree.standard,
-    [UPLOAD_FIELD_L10_MM]: Number.isInteger(tree.l10_mm) ? tree.l10_mm : 0,
-    [UPLOAD_FIELD_PRESSLER_COEFF]: tree.pressler_coeff || DEFAULT_PRESSLER_COEFF,
-    [UPLOAD_FIELD_PRESERVED]: !!tree.preserved,
+    [FIELD_SHOOT]: Number.isInteger(tree[FIELD_SHOOT]) ? tree[FIELD_SHOOT] : 0,
+    [FIELD_STANDARD]: !!tree[FIELD_STANDARD],
+    [FIELD_L10_MM]: Number.isInteger(tree[FIELD_L10_MM]) ? tree[FIELD_L10_MM] : 0,
+    [FIELD_PRESSLER_COEFF]: tree[FIELD_PRESSLER_COEFF] || PRESSLER_DEFAULT,
+    [FIELD_PRESERVED]: !!tree[FIELD_PRESERVED],
   };
 }
 
 function paiRecordContext(sess, tree) {
   return {
-    [UPLOAD_FIELD_ESTIMATED_BIRTH_YEAR]: Number.isInteger(tree.estimated_birth_year)
-      ? tree.estimated_birth_year
+    [FIELD_ESTIMATED_BIRTH_YEAR]: Number.isInteger(tree[FIELD_ESTIMATED_BIRTH_YEAR])
+      ? tree[FIELD_ESTIMATED_BIRTH_YEAR]
       : null,
-    [UPLOAD_FIELD_OPERATOR]: tree.operator || sess.operatore || '',
-    [UPLOAD_FIELD_NOTE]: tree.note || '',
+    [FIELD_OPERATOR]: tree[FIELD_OPERATOR] || sess.operatore || '',
+    [FIELD_NOTE]: tree[FIELD_NOTE] || '',
   };
 }
 
 function sampleAreaForTree(reference, sess, tree, parcel) {
-  if (!reference || !reference.sampling) return null;
-  const areas = reference.sampling.sample_areas || [];
-  if (Number.isInteger(tree.sample_area_id)) {
+  if (!reference || !reference[IPSO_REF_SAMPLING]) return null;
+  const areas = reference[IPSO_REF_SAMPLING][IPSO_REF_SAMPLE_AREAS] || [];
+  if (Number.isInteger(tree[FIELD_SAMPLE_AREA_ID])) {
     const stored = areas.find((area) =>
-      area && area.sample_area_id === tree.sample_area_id
+      area && area[FIELD_SAMPLE_AREA_ID] === tree[FIELD_SAMPLE_AREA_ID]
     );
     if (stored) return stored;
   }
-  if (tree.lat == null || tree.lon == null) return null;
+  if (tree[FIELD_LAT] == null || tree[FIELD_LON] == null) return null;
   let best = null;
   let bestDistance = Infinity;
   for (const area of areas) {
-    if (!area || area.compresa !== sess.compresa || area.parcel_id !== parcel.parcel_id) {
+    if (!area || area.compresa !== sess.compresa || area[FIELD_PARCEL_ID] !== parcel[FIELD_PARCEL_ID]) {
       continue;
     }
-    if (area.lat == null || area.lon == null) continue;
-    const distance = distanceMeters(tree.lat, tree.lon, area.lat, area.lon);
-    const radius = Number.isFinite(area.r_m) ? area.r_m : DEFAULT_SAMPLE_RADIUS_M;
+    if (area[FIELD_LAT] == null || area[FIELD_LON] == null) continue;
+    const distance = distanceMeters(
+      tree[FIELD_LAT], tree[FIELD_LON], area[FIELD_LAT], area[FIELD_LON]
+    );
+    const radius = Number.isFinite(area[FIELD_R_M]) ? area[FIELD_R_M] : DEFAULT_SAMPLE_RADIUS_M;
     if (distance <= radius && distance < bestDistance) {
       best = area;
       bestDistance = distance;
@@ -180,7 +165,7 @@ function distanceMeters(lat1, lon1, lat2, lon2) {
 }
 
 function speciesIdForName(reference, name) {
-  const row = (reference.species || []).find((s) => s.common === name);
+  const row = (reference[IPSO_REF_SPECIES] || []).find((s) => s.common === name);
   if (!row || !Number.isInteger(row.id)) {
     throw new Error('specie senza ID Abies: ' + (name || ''));
   }
@@ -188,18 +173,18 @@ function speciesIdForName(reference, name) {
 }
 
 function regionIdForCompresa(reference, compresa) {
-  const row = (reference.parcels || []).find((p) => p.compresa === compresa);
-  if (!row || !Number.isInteger(row.region_id)) {
+  const row = (reference[IPSO_REF_PARCELS] || []).find((p) => p.compresa === compresa);
+  if (!row || !Number.isInteger(row[FIELD_REGION_ID])) {
     throw new Error('compresa senza ID Abies: ' + (compresa || ''));
   }
-  return row.region_id;
+  return row[FIELD_REGION_ID];
 }
 
 function parcelForName(reference, compresa, particella) {
-  const row = (reference.parcels || []).find(
+  const row = (reference[IPSO_REF_PARCELS] || []).find(
     (p) => p.compresa === compresa && p.particella === particella
   );
-  if (!row || !Number.isInteger(row.parcel_id) || !Number.isInteger(row.region_id)) {
+  if (!row || !Number.isInteger(row[FIELD_PARCEL_ID]) || !Number.isInteger(row[FIELD_REGION_ID])) {
     throw new Error('particella senza ID Abies: ' + (compresa || '') + '/' + (particella || ''));
   }
   return row;
@@ -245,8 +230,11 @@ async function uploadSession(args) {
 }
 
 const upload = {
-  UPLOAD_SCHEMA_VERSION, UPLOAD_MODE_MARTELLATE, UPLOAD_MODE_SAMPLES,
-  UPLOAD_MODE_PAI, DEFAULT_SAMPLE_RADIUS_M,
+  UPLOAD_SCHEMA_VERSION,
+  UPLOAD_MODE_MARTELLATE: IPSO_MODE_MARTELLATE,
+  UPLOAD_MODE_SAMPLES: IPSO_MODE_SAMPLES,
+  UPLOAD_MODE_PAI: IPSO_MODE_PAI,
+  DEFAULT_SAMPLE_RADIUS_M,
   BACKOFF_SCHEDULE_MS, BACKOFF_CAP_MS,
   backoffMs, classifyHttp, classifyNetwork, distanceMeters,
   UploadError, buildUploadPayload, uploadSession,

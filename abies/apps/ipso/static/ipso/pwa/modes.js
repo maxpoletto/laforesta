@@ -4,10 +4,10 @@
 // storage, and upload flow while individual modes keep their recording rules.
 'use strict';
 
-const IPSO_MODE_MARTELLATE = 'martellate';
-const IPSO_MODE_SAMPLES = 'samples';
-const IPSO_MODE_PAI = 'pai';
-const IPSO_WORK_PACKAGE_SAMPLING_SURVEY_PREFIX = 'sampling_survey:';
+if (typeof module !== 'undefined' && typeof require !== 'undefined' &&
+    typeof UPLOAD_SCHEMA_VERSION === 'undefined') {
+  Object.assign(globalThis, require('./constants.js'));
+}
 
 const IpsoModes = (function() {
   const defs = {

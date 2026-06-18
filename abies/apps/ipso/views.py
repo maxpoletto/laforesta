@@ -83,6 +83,7 @@ ASSET_CONTENT_TYPES = {
 
 ASSET_FILES = {
     'app.js',
+    'constants.js',
     'csv.js',
     'download.js',
     'geo.js',
