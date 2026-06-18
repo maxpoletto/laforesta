@@ -37,11 +37,16 @@ async function boot() {
   setMode(IpsoModes.MARTELLATE);
   document.getElementById('footer-version').textContent =
     'v' + APP_VERSION;
+  document.getElementById('mode-title').textContent = S.MODE_TITLE;
+  document.getElementById('btn-mode-martellate').textContent = S.MODE_MARTELLATE;
+  document.getElementById('btn-mode-samples').textContent = S.MODE_SAMPLES;
+  document.getElementById('btn-mode-pai').textContent = S.MODE_PAI;
   document.getElementById('lbl-operatore').textContent = S.PRE_OPERATOR;
   document.getElementById('lbl-data').textContent = S.PRE_DATA;
   document.getElementById('lbl-compresa').textContent = S.PRE_COMPRESA;
   document.getElementById('lbl-catastrofata').textContent = S.PRE_CATASTROFATA;
   document.getElementById('btn-start').textContent = S.PRE_START;
+  document.getElementById('btn-pre-mode').textContent = S.MODE_BACK;
   document.getElementById('lbl-specie').textContent = S.REC_SPECIE;
   document.getElementById('lbl-numero').textContent = S.REC_NUMBER;
   document.getElementById('lbl-particella-rec').textContent = S.PRE_PARTICELLA;
@@ -105,6 +110,7 @@ async function boot() {
 
   populateOperator();
   populateComprese();
+  wireModeSelection();
   wirePreSession();
   wireRecording();
   wireMap();
@@ -121,7 +127,7 @@ async function boot() {
   if (resumable && resumable.length > 0) {
     showResumeModal(resumable);
   } else {
-    showScreen('screen-pre');
+    showModeScreen();
   }
 
   // Request persistent storage (R2). Doesn't require a user gesture.
@@ -233,7 +239,31 @@ function modeString(field, fallback) {
   return S[key];
 }
 
+function showModeScreen() {
+  State.session = null;
+  State.lastTreeRow = null;
+  State.locator = null;
+  State.override = null;
+  setMode(IpsoModes.MARTELLATE);
+  document.getElementById('sub-status').textContent = '';
+  showScreen('screen-mode');
+}
+
+function enterPreSession(modeId) {
+  const mode = IpsoModes.get(modeId);
+  if (!mode.enabled) return;
+  setMode(mode.id);
+  showScreen('screen-pre');
+}
+
+function wireModeSelection() {
+  document.getElementById('btn-mode-martellate').addEventListener('click', () => {
+    enterPreSession(IpsoModes.MARTELLATE);
+  });
+}
+
 function wirePreSession() {
+  document.getElementById('btn-pre-mode').addEventListener('click', showModeScreen);
   document.getElementById('pre-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const operator = document.getElementById('in-operatore').value.trim();
@@ -925,21 +955,27 @@ function downloadFinal(sess, trees) {
 // Map screen
 // ---------------------------------------------------------------------------
 
-function enterMapScreen(returnScreen) {
+async function enterMapScreen(returnScreen) {
   if (!State.session) return;
-  if (typeof L === 'undefined' || typeof createOrientationMap === 'undefined') {
+  if (typeof createOrientationMap === 'undefined') {
     showToast(S.MAP_UNAVAILABLE);
     return;
   }
   State.mapReturnScreen = returnScreen || 'screen-rec';
   showScreen('screen-map');
   ensureMap();
+  try {
+    await State.map.ensure();
+  } catch (_) {
+    showToast(S.MAP_UNAVAILABLE);
+    return;
+  }
   renderMapParcels();
-  renderMapRecords();
+  await renderMapRecords();
   updateMapPosition();
   updateMapHeader();
   setTimeout(() => {
-    if (!State.map) return;
+    if (!State.map || !State.map.ready()) return;
     State.map.invalidate();
     centerMapOnContext();
   }, 0);
@@ -950,10 +986,7 @@ function exitMapScreen() {
 }
 
 function ensureMap() {
-  if (State.map) {
-    State.map.ensure();
-    return;
-  }
+  if (State.map) return;
   State.map = createOrientationMap({
     elementId: 'map',
     formatFeatureLabel: formatParcelText,
@@ -969,7 +1002,6 @@ function ensureMap() {
       document.getElementById('map-sub').textContent = label;
     },
   });
-  State.map.ensure();
 }
 
 function currentMapFeatures() {
@@ -981,7 +1013,7 @@ function currentMapFeatures() {
 }
 
 function renderMapParcels() {
-  if (!State.map) return;
+  if (!State.map || !State.map.ready()) return;
   State.map.renderParcels(currentMapFeatures());
 }
 
@@ -991,7 +1023,7 @@ function refreshMapParcels() {
 }
 
 async function renderMapRecords() {
-  if (!State.map || !State.session) return;
+  if (!State.map || !State.map.ready() || !State.session) return;
   try {
     const trees = await Store.listTrees(State.db, State.session.id);
     trees.sort((a, b) => a.seq - b.seq);
@@ -1017,11 +1049,11 @@ function formatMapRecordText(rec) {
 }
 
 function updateMapPosition() {
-  if (State.map) State.map.updatePosition(State.lastFix);
+  if (State.map && State.map.ready()) State.map.updatePosition(State.lastFix);
 }
 
 function centerMapOnContext() {
-  if (!State.map) return;
+  if (!State.map || !State.map.ready()) return;
   const ok = State.map.center({
     fix: State.lastFix,
     committedFeature: State.locator ? State.locator.getCommitted() : null,
@@ -1195,17 +1227,11 @@ function wireUpload() {
 
 function wireDone() {
   document.getElementById('btn-new-session').addEventListener('click', () => {
-    State.session = null;
-    setMode(IpsoModes.MARTELLATE);
-    State.lastTreeRow = null;
-    State.locator = null;
-    State.override = null;
     if (State.gps) { State.gps.stop(); State.gps = null; }
-    document.getElementById('sub-status').textContent = '';
     document.getElementById('pre-form').reset();
     populateOperator();
     populateComprese();
-    showScreen('screen-pre');
+    showModeScreen();
   });
 }
 
@@ -1264,7 +1290,7 @@ function showResumeModal(sessions) {
         li.remove();
         if (!list.children.length) {
           hideModal('modal-resume');
-          showScreen('screen-pre');
+          showModeScreen();
         }
       });
       actions.appendChild(carica);
@@ -1285,7 +1311,7 @@ function showResumeModal(sessions) {
         li.remove();
         if (!list.children.length) {
           hideModal('modal-resume');
-          showScreen('screen-pre');
+          showModeScreen();
         }
       });
       const discard = mkBtn(S.RESUME_DISCARD, 'btn-danger', async () => {
@@ -1293,7 +1319,7 @@ function showResumeModal(sessions) {
         li.remove();
         if (!list.children.length) {
           hideModal('modal-resume');
-          showScreen('screen-pre');
+          showModeScreen();
         }
       });
       actions.appendChild(resume);

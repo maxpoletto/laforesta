@@ -684,49 +684,6 @@ input:focus, select:focus, textarea:focus {
   pointer-events: auto;
 }
 
-/* --- Map basemap switcher (Leaflet control) ----------------------------- */
-
-/* Horizontal row of thumbnail buttons; collapses to just the active one. */
-.mc-basemap-switcher {
-  display: flex;
-  flex-direction: row;
-  gap: 4px;
-  background: transparent;
-  border: none;
-  box-shadow: none;
-  margin: 10px;
-}
-
-.mc-basemap-item {
-  width: 64px;
-  height: 64px;
-  padding: 0;
-  border: 1px solid #888;
-  border-radius: 4px;
-  background-color: #fff;
-  background-size: cover;
-  background-position: center;
-  cursor: pointer;
-  position: relative;
-  overflow: hidden;
-  font-family: inherit;
-}
-
-.mc-basemap-item.mc-collapsed { display: none; }
-.mc-basemap-item.mc-active    { border: 2px solid var(--color-bosco-green); }
-
-.mc-basemap-label {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: rgba(255, 255, 255, 0.75);
-  font-size: 11px;
-  text-align: center;
-  padding: 1px 0;
-  color: #222;
-}
-
 /* --- Map tool buttons: active (toggled-on) state ------------------------ */
 
 /* The measure (ruler) and location (pin) controls flag themselves with

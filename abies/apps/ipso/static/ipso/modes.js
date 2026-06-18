@@ -5,12 +5,28 @@
 'use strict';
 
 const IPSO_MODE_MARTELLATE = 'martellate';
+const IPSO_MODE_SAMPLES = 'samples';
+const IPSO_MODE_PAI = 'pai';
 
 const IpsoModes = (function() {
   const defs = {
     [IPSO_MODE_MARTELLATE]: {
       id: IPSO_MODE_MARTELLATE,
+      labelKey: 'MODE_MARTELLATE',
       preTitleKey: 'PRE_NEW_SESSION',
+      enabled: true,
+    },
+    [IPSO_MODE_SAMPLES]: {
+      id: IPSO_MODE_SAMPLES,
+      labelKey: 'MODE_SAMPLES',
+      preTitleKey: 'MODE_SAMPLES',
+      enabled: false,
+    },
+    [IPSO_MODE_PAI]: {
+      id: IPSO_MODE_PAI,
+      labelKey: 'MODE_PAI',
+      preTitleKey: 'MODE_PAI',
+      enabled: false,
     },
   };
 
@@ -22,9 +38,20 @@ const IpsoModes = (function() {
     return defs[IPSO_MODE_MARTELLATE];
   }
 
-  return { MARTELLATE: IPSO_MODE_MARTELLATE, get, defaultMode };
+  function all() {
+    return [defs[IPSO_MODE_MARTELLATE], defs[IPSO_MODE_SAMPLES], defs[IPSO_MODE_PAI]];
+  }
+
+  return {
+    MARTELLATE: IPSO_MODE_MARTELLATE,
+    SAMPLES: IPSO_MODE_SAMPLES,
+    PAI: IPSO_MODE_PAI,
+    get, defaultMode, all,
+  };
 })();
 
 if (typeof module !== 'undefined') {
-  module.exports = { IPSO_MODE_MARTELLATE, IpsoModes };
+  module.exports = {
+    IPSO_MODE_MARTELLATE, IPSO_MODE_SAMPLES, IPSO_MODE_PAI, IpsoModes,
+  };
 }

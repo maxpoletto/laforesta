@@ -1,7 +1,7 @@
-// ipso orientation map - Leaflet wrapper for the shared mode map.
+// ipso orientation map - shared Abies map wrapper plus Ipso layers.
 //
-// Keeps the Leaflet-specific rendering out of app.js so martellate, samples,
-// and PAI can all share the same map screen/navigation state.
+// Basemap creation and the chooser control come from base/js/map-common.js.
+// This file only owns Ipso-specific parcel, GPS, and local-record overlays.
 'use strict';
 
 function createOrientationMap(opts) {
@@ -13,31 +13,57 @@ function createOrientationMap(opts) {
   const formatRecordLabel = opts.formatRecordLabel;
   const onFeatureClick = opts.onFeatureClick;
 
+  let initPromise = null;
+  let wrapper = null;
   let leaflet = null;
   let parcelsLayer = null;
   let recordsLayer = null;
   let positionLayer = null;
 
-  function ensure() {
+  async function ensure() {
     if (leaflet) return;
-    if (typeof L === 'undefined') throw new Error('Leaflet not loaded');
-    leaflet = L.map(elementId, {
-      preferCanvas: true,
-      zoomControl: true,
-      attributionControl: false,
-    });
-    leaflet.setView([38.6, 16.3], 10);
-    L.control.scale({ metric: true, imperial: false }).addTo(leaflet);
-    parcelsLayer = L.geoJSON(null, {
-      style: featureStyle,
-      onEachFeature: bindFeature,
-    }).addTo(leaflet);
-    recordsLayer = L.layerGroup().addTo(leaflet);
-    positionLayer = L.layerGroup().addTo(leaflet);
+    if (!initPromise) initPromise = init();
+    await initPromise;
   }
 
+  async function init() {
+    if (typeof L === 'undefined') throw new Error('Leaflet not loaded');
+    try {
+      const mod = await import('/static/base/js/map-common.js');
+      const MapCommon = mod.default || mod.MapCommon || mod;
+      wrapper = MapCommon.create(elementId, {
+        basemap: readBasemap(),
+        leafletOptions: { preferCanvas: true, zoomControl: false },
+      });
+      leaflet = wrapper.getLeafletMap();
+      leaflet.setView([38.6, 16.3], 10);
+      leaflet.on('basemapchange', (e) => writeBasemap(e.name));
+      L.control.scale({ metric: true, imperial: false }).addTo(leaflet);
+      parcelsLayer = L.geoJSON(null, {
+        style: featureStyle,
+        onEachFeature: bindFeature,
+      }).addTo(leaflet);
+      recordsLayer = L.layerGroup().addTo(leaflet);
+      positionLayer = L.layerGroup().addTo(leaflet);
+    } catch (e) {
+      initPromise = null;
+      throw e;
+    }
+  }
+
+  function readBasemap() {
+    try { return localStorage.getItem('ipso.basemap') || 'satellite'; }
+    catch (_) { return 'satellite'; }
+  }
+
+  function writeBasemap(name) {
+    try { localStorage.setItem('ipso.basemap', name); } catch (_) {}
+  }
+
+  function ready() { return !!leaflet; }
+
   function renderParcels(features) {
-    ensure();
+    if (!parcelsLayer) return;
     parcelsLayer.clearLayers();
     if (!features || !features.length) return;
     parcelsLayer.addData({ type: 'FeatureCollection', features });
@@ -67,7 +93,7 @@ function createOrientationMap(opts) {
   }
 
   function renderRecords(records) {
-    ensure();
+    if (!recordsLayer) return;
     recordsLayer.clearLayers();
     if (!records || !records.length) return;
     for (const rec of records) {
@@ -109,7 +135,7 @@ function createOrientationMap(opts) {
   }
 
   function center(context) {
-    ensure();
+    if (!leaflet) return false;
     const fix = context && context.fix;
     if (fix) {
       leaflet.setView([fix.lat, fix.lon], Math.max(leaflet.getZoom(), 17));
@@ -128,7 +154,7 @@ function createOrientationMap(opts) {
   }
 
   function fitFeature(feature) {
-    if (!feature) return false;
+    if (!leaflet || !feature) return false;
     const bounds = L.geoJSON(feature).getBounds();
     if (!bounds.isValid()) return false;
     leaflet.fitBounds(bounds, { padding: [20, 20], maxZoom: 18 });
@@ -140,7 +166,8 @@ function createOrientationMap(opts) {
   }
 
   return {
-    ensure, renderParcels, renderRecords, updatePosition, center, invalidate,
+    ensure, ready, renderParcels, renderRecords, updatePosition, center,
+    invalidate,
   };
 }
 

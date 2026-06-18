@@ -3,7 +3,14 @@
 'use strict';
 
 const S = {
-  APP_TITLE: 'Ipso — martellata',
+  APP_TITLE: 'Ipso',
+
+  // Mode select screen
+  MODE_TITLE: 'Ipso',
+  MODE_MARTELLATE: 'Martellate',
+  MODE_SAMPLES: 'Campionamenti',
+  MODE_PAI: 'PAI',
+  MODE_BACK: 'Modalita',
 
   // Pre-session screen
   PRE_NEW_SESSION: 'Nuova martellata',

@@ -43,6 +43,8 @@ def test_index_is_public_and_uses_relative_assets(db):
     assert '<title>Ipso' in body
     assert 'href="style.css"' in body
     assert 'href="/static/vendor/leaflet/leaflet.css"' in body
+    assert 'href="/static/base/css/map-basemaps.css"' in body
+    assert 'id="screen-mode"' in body
     assert 'id="screen-map"' in body
     assert 'src="modes.js"' in body
     assert 'src="/static/vendor/leaflet/leaflet.js"' in body
@@ -55,7 +57,10 @@ def test_service_worker_served_from_ipso_scope(db):
 
     assert resp.status_code == 200
     assert resp['Content-Type'].startswith('text/javascript')
-    assert b'ipso service worker' in _body(resp)
+    body = _body(resp)
+    assert b'ipso service worker' in body
+    assert b'/static/base/js/map-common.js' in body
+    assert b'/static/base/css/map-basemaps.css' in body
 
 
 @pytest.mark.parametrize(('path', 'needle'), [
