@@ -43,6 +43,12 @@ function validateTree(rec, options) {
       (!Number.isInteger(rec.h_m) || rec.h_m < H_MIN || rec.h_m > H_MAX)) {
     errors.push('h_m');
   }
+  if (opts.numberRequired && !Number.isInteger(rec.numero)) {
+    errors.push('numero');
+  }
+  if (opts.sampleAreaRequired && !Number.isInteger(rec.sample_area_id)) {
+    errors.push('sample_area_id');
+  }
   return errors;
 }
 

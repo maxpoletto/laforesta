@@ -16,18 +16,21 @@ const DB_NAME = 'ipso';
 // missing/extra fields without a structural change, so the bump is the
 // contract for "this code wrote/read vN-shaped rows" — not a migration
 // trigger at the moment.
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 
 const STORE_SESSIONS = 'sessions';
 const STORE_TREES = 'trees';
 const STORE_META = 'meta';
 
-// Meta-store key namespace for per-operator "next tree number" persistence.
-// Full key is `${META_KEY_NEXT_NUMBER_PREFIX}${normalizeOperator(name)}` and
-// the value row is `{key, value: <int>}`.  Max-bumped on save; rewritten to
-// the new in-session max+1 on delete-last so it tracks the same value
-// prefillNumber would compute (see addTree / deleteTree for the gory bits).
+// Meta-store key namespace for per-operator, per-mode "next tree number"
+// persistence. Full key is `${META_KEY_NEXT_NUMBER_PREFIX}${mode}:${operator}`
+// and the value row is `{key, value: <int>}`. Max-bumped on save; rewritten
+// to the new in-session max+1 on delete-last so it tracks the same value
+// prefillNumber would compute (see addTree / deleteTree for details).
 const META_KEY_NEXT_NUMBER_PREFIX = 'next_number:';
+const DEFAULT_NUMBER_MODE = typeof IPSO_MODE_MARTELLATE !== 'undefined'
+  ? IPSO_MODE_MARTELLATE
+  : 'martellate';
 
 const STATUS_OPEN = 'open';
 const STATUS_PENDING_UPLOAD = 'pending_upload';
@@ -48,6 +51,16 @@ function isResumableStatus(s) {
 // "mario rossi" share a counter.
 function normalizeOperator(s) {
   return typeof s === 'string' ? s.trim().toLowerCase() : '';
+}
+
+function numberMetaKey(operator, mode) {
+  const opKey = normalizeOperator(operator);
+  if (!opKey) return null;
+  return META_KEY_NEXT_NUMBER_PREFIX + (mode || DEFAULT_NUMBER_MODE) + ':' + opKey;
+}
+
+function shouldPersistNumber(sess) {
+  return !!sess && (sess.mode || DEFAULT_NUMBER_MODE) === DEFAULT_NUMBER_MODE;
 }
 
 // Pure rules for evolving the per-operator next-number counter. Extracted
@@ -97,16 +110,20 @@ function openDb() {
     const req = indexedDB.open(DB_NAME, SCHEMA_VERSION);
     req.onupgradeneeded = () => {
       const db = req.result;
-      const sessions = db.createObjectStore(STORE_SESSIONS, { keyPath: 'id' });
-      sessions.createIndex('by_status', 'status');
-
-      const trees = db.createObjectStore(STORE_TREES, {
-        keyPath: 'id', autoIncrement: true,
-      });
-      trees.createIndex('by_session', 'session_id');
-      trees.createIndex('by_session_seq', ['session_id', 'seq']);
-
-      db.createObjectStore(STORE_META, { keyPath: 'key' });
+      if (!db.objectStoreNames.contains(STORE_SESSIONS)) {
+        const sessions = db.createObjectStore(STORE_SESSIONS, { keyPath: 'id' });
+        sessions.createIndex('by_status', 'status');
+      }
+      if (!db.objectStoreNames.contains(STORE_TREES)) {
+        const trees = db.createObjectStore(STORE_TREES, {
+          keyPath: 'id', autoIncrement: true,
+        });
+        trees.createIndex('by_session', 'session_id');
+        trees.createIndex('by_session_seq', ['session_id', 'seq']);
+      }
+      if (!db.objectStoreNames.contains(STORE_META)) {
+        db.createObjectStore(STORE_META, { keyPath: 'key' });
+      }
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
@@ -246,6 +263,7 @@ async function addTree(db, sessionId, rec) {
       numero: Number.isInteger(rec.numero) ? rec.numero : null,
       gruppo: rec.gruppo || '',
       particella: rec.particella || '',
+      sample_area_id: Number.isInteger(rec.sample_area_id) ? rec.sample_area_id : null,
     };
     const treesStore = t.objectStore(STORE_TREES);
     const id = await req(treesStore.add(row));
@@ -259,10 +277,11 @@ async function addTree(db, sessionId, rec) {
     // backwards mid-session; delete-last is handled in deleteTree and
     // intentionally rolls back to the new in-session max. This is what a
     // fresh session for the same operator reads back from prefillNumber().
-    const opKey = normalizeOperator(sess.operatore);
-    if (opKey) {
+    const metaKey = shouldPersistNumber(sess)
+      ? numberMetaKey(sess.operatore, sess.mode)
+      : null;
+    if (metaKey) {
       const metaStore = t.objectStore(STORE_META);
-      const metaKey = META_KEY_NEXT_NUMBER_PREFIX + opKey;
       const existing = await req(metaStore.get(metaKey));
       const prior = existing && Number.isInteger(existing.value)
         ? existing.value : null;
@@ -276,13 +295,11 @@ async function addTree(db, sessionId, rec) {
 
 // Returns the persisted "next tree number" for `operator`, or null if
 // nothing was ever recorded for that (normalized) name.
-async function getNextNumberForOperator(db, operator) {
-  const opKey = normalizeOperator(operator);
-  if (!opKey) return null;
+async function getNextNumberForOperator(db, operator, mode) {
+  const metaKey = numberMetaKey(operator, mode);
+  if (!metaKey) return null;
   return tx(db, [STORE_META], 'readonly', async (t) => {
-    const row = await req(
-      t.objectStore(STORE_META).get(META_KEY_NEXT_NUMBER_PREFIX + opKey)
-    );
+    const row = await req(t.objectStore(STORE_META).get(metaKey));
     return row && Number.isInteger(row.value) ? row.value : null;
   });
 }
@@ -335,21 +352,20 @@ async function deleteTree(db, sessionId, treeId) {
     // mirroring the in-session nextNumberDefault. The pure rule
     // (`nextNumberAfterDelete`) leaves `prior` untouched when no numbered
     // trees remain so cross-session counter state isn't erased.
-    if (sess) {
-      const opKey = normalizeOperator(sess.operatore);
-      if (opKey) {
-        const metaStore = t.objectStore(STORE_META);
-        const metaKey = META_KEY_NEXT_NUMBER_PREFIX + opKey;
-        const remaining = await req(
-          treesStore.index('by_session').getAll(sessionId)
-        );
-        const existing = await req(metaStore.get(metaKey));
-        const prior = existing && Number.isInteger(existing.value)
-          ? existing.value : null;
-        const next = nextNumberAfterDelete(prior, remaining);
-        if (next !== prior) {
-          metaStore.put({ key: metaKey, value: next });
-        }
+    const metaKey = shouldPersistNumber(sess)
+      ? numberMetaKey(sess.operatore, sess.mode)
+      : null;
+    if (metaKey) {
+      const metaStore = t.objectStore(STORE_META);
+      const remaining = await req(
+        treesStore.index('by_session').getAll(sessionId)
+      );
+      const existing = await req(metaStore.get(metaKey));
+      const prior = existing && Number.isInteger(existing.value)
+        ? existing.value : null;
+      const next = nextNumberAfterDelete(prior, remaining);
+      if (next !== prior) {
+        metaStore.put({ key: metaKey, value: next });
       }
     }
   });
@@ -376,7 +392,7 @@ const Store = {
   DB_NAME, SCHEMA_VERSION,
   STATUS_OPEN, STATUS_PENDING_UPLOAD, STATUS_EXPORTED, STATUS_ABANDONED,
   UPLOAD_STATUS_UPLOADED, UPLOAD_STATUS_LOCAL_ONLY,
-  isResumableStatus, normalizeOperator,
+  isResumableStatus, normalizeOperator, numberMetaKey,
   nextNumberAfterSave, nextNumberAfterDelete,
   openDb,
   startSession, getSession, listResumableSessions, setSessionStatus,

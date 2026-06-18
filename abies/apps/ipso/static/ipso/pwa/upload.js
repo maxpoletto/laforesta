@@ -17,6 +17,18 @@ const UPLOAD_MODE_PAI = typeof IPSO_MODE_PAI !== 'undefined'
   : 'pai';
 const BACKOFF_SCHEDULE_MS = [2000, 4000, 8000, 16000];
 const BACKOFF_CAP_MS = 30000;
+const DEFAULT_SAMPLE_RADIUS_M = 12;
+const DEFAULT_PRESSLER_COEFF = '2.00';
+const UPLOAD_FIELD_SAMPLE_AREA_ID = 'sample_area_id';
+const UPLOAD_FIELD_COPPICE = 'coppice';
+const UPLOAD_FIELD_SHOOT = 'shoot';
+const UPLOAD_FIELD_STANDARD = 'standard';
+const UPLOAD_FIELD_L10_MM = 'l10_mm';
+const UPLOAD_FIELD_PRESSLER_COEFF = 'pressler_coeff';
+const UPLOAD_FIELD_PRESERVED = 'preserved';
+const UPLOAD_FIELD_ESTIMATED_BIRTH_YEAR = 'estimated_birth_year';
+const UPLOAD_FIELD_OPERATOR = 'operator';
+const UPLOAD_FIELD_NOTE = 'note';
 
 // 1-based attempt number -> wait BEFORE that attempt. Attempt 0 is "no
 // wait yet", attempt N>0 picks index N-1 from the schedule (or the cap).
@@ -78,7 +90,7 @@ function buildUploadPayload(sess, trees, reference, csvText) {
 function canonicalRecord(sess, t, reference) {
   const speciesId = speciesIdForName(reference, t.specie);
   const parcel = parcelForName(reference, sess.compresa, t.particella);
-  return {
+  const record = {
     client_record_id: String(t.seq || t.id),
     date: sess.data,
     region_id: parcel.region_id,
@@ -95,6 +107,76 @@ function canonicalRecord(sess, t, reference) {
     lon: t.lon == null ? null : t.lon,
     acc_m: t.acc_m == null ? null : t.acc_m,
   };
+  if ((sess.mode || UPLOAD_MODE_MARTELLATE) === UPLOAD_MODE_SAMPLES) {
+    Object.assign(record, sampleRecordContext(reference, sess, t, parcel));
+  } else if ((sess.mode || UPLOAD_MODE_MARTELLATE) === UPLOAD_MODE_PAI) {
+    Object.assign(record, paiRecordContext(sess, t));
+  }
+  return record;
+}
+
+
+function sampleRecordContext(reference, sess, tree, parcel) {
+  const area = sampleAreaForTree(reference, sess, tree, parcel);
+  return {
+    [UPLOAD_FIELD_SAMPLE_AREA_ID]: area ? area.sample_area_id : null,
+    [UPLOAD_FIELD_COPPICE]: area && typeof area.coppice === 'boolean'
+      ? area.coppice
+      : null,
+    [UPLOAD_FIELD_SHOOT]: Number.isInteger(tree.shoot) ? tree.shoot : 0,
+    [UPLOAD_FIELD_STANDARD]: !!tree.standard,
+    [UPLOAD_FIELD_L10_MM]: Number.isInteger(tree.l10_mm) ? tree.l10_mm : 0,
+    [UPLOAD_FIELD_PRESSLER_COEFF]: tree.pressler_coeff || DEFAULT_PRESSLER_COEFF,
+    [UPLOAD_FIELD_PRESERVED]: !!tree.preserved,
+  };
+}
+
+function paiRecordContext(sess, tree) {
+  return {
+    [UPLOAD_FIELD_ESTIMATED_BIRTH_YEAR]: Number.isInteger(tree.estimated_birth_year)
+      ? tree.estimated_birth_year
+      : null,
+    [UPLOAD_FIELD_OPERATOR]: tree.operator || sess.operatore || '',
+    [UPLOAD_FIELD_NOTE]: tree.note || '',
+  };
+}
+
+function sampleAreaForTree(reference, sess, tree, parcel) {
+  if (!reference || !reference.sampling) return null;
+  const areas = reference.sampling.sample_areas || [];
+  if (Number.isInteger(tree.sample_area_id)) {
+    const stored = areas.find((area) =>
+      area && area.sample_area_id === tree.sample_area_id
+    );
+    if (stored) return stored;
+  }
+  if (tree.lat == null || tree.lon == null) return null;
+  let best = null;
+  let bestDistance = Infinity;
+  for (const area of areas) {
+    if (!area || area.compresa !== sess.compresa || area.parcel_id !== parcel.parcel_id) {
+      continue;
+    }
+    if (area.lat == null || area.lon == null) continue;
+    const distance = distanceMeters(tree.lat, tree.lon, area.lat, area.lon);
+    const radius = Number.isFinite(area.r_m) ? area.r_m : DEFAULT_SAMPLE_RADIUS_M;
+    if (distance <= radius && distance < bestDistance) {
+      best = area;
+      bestDistance = distance;
+    }
+  }
+  return best;
+}
+
+function distanceMeters(lat1, lon1, lat2, lon2) {
+  const toRad = (deg) => deg * Math.PI / 180;
+  const phi1 = toRad(lat1);
+  const phi2 = toRad(lat2);
+  const dPhi = toRad(lat2 - lat1);
+  const dLambda = toRad(lon2 - lon1);
+  const a = Math.sin(dPhi / 2) ** 2 +
+    Math.cos(phi1) * Math.cos(phi2) * Math.sin(dLambda / 2) ** 2;
+  return 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 function speciesIdForName(reference, name) {
@@ -164,9 +246,9 @@ async function uploadSession(args) {
 
 const upload = {
   UPLOAD_SCHEMA_VERSION, UPLOAD_MODE_MARTELLATE, UPLOAD_MODE_SAMPLES,
-  UPLOAD_MODE_PAI,
+  UPLOAD_MODE_PAI, DEFAULT_SAMPLE_RADIUS_M,
   BACKOFF_SCHEDULE_MS, BACKOFF_CAP_MS,
-  backoffMs, classifyHttp, classifyNetwork,
+  backoffMs, classifyHttp, classifyNetwork, distanceMeters,
   UploadError, buildUploadPayload, uploadSession,
 };
 

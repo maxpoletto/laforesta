@@ -7,6 +7,15 @@
 
 // APP_VERSION is defined in version.js (loaded before this script).
 
+
+const IPSO_REF_SAMPLING = 'sampling';
+const IPSO_REF_SURVEYS = 'surveys';
+const IPSO_REF_SAMPLE_AREAS = 'sample_areas';
+const IPSO_FIELD_SURVEY_ID = 'survey_id';
+const IPSO_FIELD_SAMPLE_GRID_ID = 'sample_grid_id';
+const IPSO_FIELD_SAMPLE_AREA_ID = 'sample_area_id';
+const IPSO_FIELD_RADIUS_M = 'r_m';
+
 const State = {
   mode: null,         // current IpsoModes entry
   reference: null,    // parsed reference.json
@@ -25,6 +34,7 @@ const State = {
   upload: null,       // { sessionId, attempt, abortController, retryTimer, ... } | null
   currentScreen: null, // id of the visible screen
   lastFix: null,       // most recent fresh GPS fix, { lat, lon, acc, t }
+  sampleAreaId: null,  // selected/inferred sample-area id in sample mode
   map: null,           // lazy orientation map controller
   mapReturnScreen: 'screen-rec',
 };
@@ -44,6 +54,7 @@ async function boot() {
   document.getElementById('lbl-operatore').textContent = S.PRE_OPERATOR;
   document.getElementById('lbl-data').textContent = S.PRE_DATA;
   document.getElementById('lbl-compresa').textContent = S.PRE_COMPRESA;
+  document.getElementById('lbl-sample-survey').textContent = S.PRE_SURVEY;
   document.getElementById('lbl-catastrofata').textContent = S.PRE_CATASTROFATA;
   document.getElementById('btn-start').textContent = S.PRE_START;
   document.getElementById('btn-pre-mode').textContent = S.MODE_BACK;
@@ -223,6 +234,123 @@ function appendOption(sel, value, label, selected) {
   sel.appendChild(o);
 }
 
+function isSamplesMode() {
+  const mode = State.session ? State.session.mode : currentMode().id;
+  return mode === IpsoModes.SAMPLES;
+}
+
+function selectedSampleSurveyId() {
+  const raw = document.getElementById('in-sample-survey').value;
+  const id = parseInt(raw, 10);
+  return Number.isInteger(id) ? id : null;
+}
+
+function sampleSurveyIdFromWorkPackage(workPackageId) {
+  const raw = String(workPackageId || '');
+  if (!raw.startsWith(IPSO_WORK_PACKAGE_SAMPLING_SURVEY_PREFIX)) return null;
+  const id = parseInt(raw.slice(IPSO_WORK_PACKAGE_SAMPLING_SURVEY_PREFIX.length), 10);
+  return Number.isInteger(id) ? id : null;
+}
+
+function currentSampleSurveyId() {
+  if (State.session) return sampleSurveyIdFromWorkPackage(State.session.work_package_id);
+  return selectedSampleSurveyId();
+}
+
+function samplingRows(kind) {
+  return State.reference && State.reference[IPSO_REF_SAMPLING] &&
+    Array.isArray(State.reference[IPSO_REF_SAMPLING][kind])
+    ? State.reference[IPSO_REF_SAMPLING][kind]
+    : [];
+}
+
+function sampleAreasForSurvey(surveyId, compresa) {
+  const survey = samplingRows(IPSO_REF_SURVEYS).find((s) =>
+    s && s[IPSO_FIELD_SURVEY_ID] === surveyId
+  );
+  if (!survey) return [];
+  return samplingRows(IPSO_REF_SAMPLE_AREAS).filter((area) =>
+    area && area[IPSO_FIELD_SAMPLE_GRID_ID] === survey[IPSO_FIELD_SAMPLE_GRID_ID] &&
+    (!compresa || area.compresa === compresa)
+  );
+}
+
+function sampleSurveysForCompresa(compresa) {
+  const seenGridIds = new Set(
+    samplingRows(IPSO_REF_SAMPLE_AREAS)
+      .filter((area) => area && area.compresa === compresa)
+      .map((area) => area[IPSO_FIELD_SAMPLE_GRID_ID])
+  );
+  return samplingRows(IPSO_REF_SURVEYS).filter((survey) =>
+    survey && seenGridIds.has(survey[IPSO_FIELD_SAMPLE_GRID_ID])
+  );
+}
+
+function populateSampleSurveyOptions() {
+  const sel = document.getElementById('in-sample-survey');
+  if (!sel) return;
+  const keep = sel.value;
+  sel.replaceChildren();
+  appendOption(sel, '', S.PRE_PICK_SURVEY, true);
+  const compresa = document.getElementById('in-compresa').value;
+  for (const survey of sampleSurveysForCompresa(compresa)) {
+    appendOption(sel, '' + survey[IPSO_FIELD_SURVEY_ID], sampleSurveyLabel(survey));
+  }
+  if (keep && Array.from(sel.options).some((opt) => opt.value === keep)) {
+    sel.value = keep;
+  }
+}
+
+function sampleSurveyLabel(survey) {
+  return [survey.name, survey.sample_grid_name].filter((v) => v).join(' - ');
+}
+
+function sampleAreasForCurrentSurvey() {
+  if (!State.session) return [];
+  return sampleAreasForSurvey(currentSampleSurveyId(), State.session.compresa);
+}
+
+function sampleAreaById(id) {
+  return sampleAreasForCurrentSurvey().find((area) =>
+    area && area[IPSO_FIELD_SAMPLE_AREA_ID] === id
+  ) || null;
+}
+
+function sampleAreaLabel(area) {
+  if (!area) return '';
+  return [
+    area.particella || '',
+    S.REC_SAMPLE_AREA_NUMBER + ' ' + area.number,
+  ].filter((v) => v).join(' · ');
+}
+
+function currentAutoSampleArea() {
+  if (!State.lastFix) return null;
+  let best = null;
+  let bestDistance = Infinity;
+  for (const area of sampleAreasForCurrentSurvey()) {
+    if (!area || area.lat == null || area.lon == null) continue;
+    const distance = upload.distanceMeters(
+      State.lastFix.lat, State.lastFix.lon, area.lat, area.lon
+    );
+    const radius = Number.isFinite(area[IPSO_FIELD_RADIUS_M]) ? area[IPSO_FIELD_RADIUS_M] : upload.DEFAULT_SAMPLE_RADIUS_M;
+    if (distance <= radius && distance < bestDistance) {
+      best = area;
+      bestDistance = distance;
+    }
+  }
+  return best;
+}
+
+function currentSampleArea() {
+  if (!isSamplesMode() || !State.override) return null;
+  if (State.override.getMode() === 'manual') {
+    const id = parseInt(State.override.getManual(), 10);
+    return Number.isInteger(id) ? sampleAreaById(id) : null;
+  }
+  return currentAutoSampleArea();
+}
+
 function currentMode() {
   return State.mode || IpsoModes.defaultMode();
 }
@@ -237,9 +365,15 @@ function setMode(modeId) {
 function applyModeUi() {
   const catastrofata = document.getElementById('in-catastrofata');
   const catastrofataField = catastrofata ? catastrofata.closest('label') : null;
+  const surveyField = document.getElementById('field-sample-survey');
+  const surveySelect = document.getElementById('in-sample-survey');
   const martellate = currentMode().id === IpsoModes.MARTELLATE;
+  const samples = currentMode().id === IpsoModes.SAMPLES;
   if (catastrofataField) catastrofataField.hidden = !martellate;
   if (catastrofata && !martellate) catastrofata.checked = false;
+  if (surveyField) surveyField.hidden = !samples;
+  if (surveySelect && !samples) surveySelect.value = '';
+  if (samples) populateSampleSurveyOptions();
 }
 
 function modeString(field, fallback) {
@@ -257,6 +391,7 @@ function showModeScreen() {
   State.lastTreeRow = null;
   State.locator = null;
   State.override = null;
+  State.sampleAreaId = null;
   setMode(IpsoModes.MARTELLATE);
   document.getElementById('sub-status').textContent = '';
   showScreen('screen-mode');
@@ -266,6 +401,7 @@ function enterPreSession(modeId) {
   const mode = IpsoModes.get(modeId);
   if (!mode.enabled) return;
   setMode(mode.id);
+  populateSampleSurveyOptions();
   showScreen('screen-pre');
 }
 
@@ -281,13 +417,17 @@ function wireModeSelection() {
 
 function wirePreSession() {
   document.getElementById('btn-pre-mode').addEventListener('click', showModeScreen);
+  document.getElementById('in-compresa').addEventListener('change', populateSampleSurveyOptions);
   document.getElementById('pre-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const operator = document.getElementById('in-operatore').value.trim();
     const data = document.getElementById('in-data').value;
     const compresa = document.getElementById('in-compresa').value;
     const catastrofata = document.getElementById('in-catastrofata').checked;
+    const modeId = currentMode().id;
+    const sampleSurveyId = selectedSampleSurveyId();
     if (!operator || !data || !compresa) return;
+    if (modeId === IpsoModes.SAMPLES && sampleSurveyId == null) return;
 
     // Fire the GPS permission prompt now (during setup, not mid-mark).
     // Runs in parallel with the rest of submit — we don't await it
@@ -298,13 +438,16 @@ function wirePreSession() {
 
     try {
       const sess = await Store.startSession(State.db, {
-        mode: currentMode().id,
+        mode: modeId,
         reference_version: State.reference.reference_version || '',
-        work_package_id: '',
+        work_package_id: modeId === IpsoModes.SAMPLES
+          ? IPSO_WORK_PACKAGE_SAMPLING_SURVEY_PREFIX + sampleSurveyId
+          : '',
         data, compresa, operatore: operator, catastrofata,
       });
       State.session = sess;
       State.lastTreeRow = null;
+      State.sampleAreaId = null;
       enterRecording();
     } catch (err) {
       showToast('Errore avvio sessione: ' + err.message);
@@ -345,14 +488,21 @@ function wireRecording() {
   const partSel = document.getElementById('in-particella-rec');
   partSel.addEventListener('focus', () => {
     const sentinel = partSel.querySelector('option[value="' + AUTO_SENTINEL + '"]');
-    if (sentinel) sentinel.textContent = S.REC_PARTICELLA_AUTO;
+    if (sentinel) {
+      sentinel.textContent = isSamplesMode()
+        ? S.REC_SAMPLE_AREA_AUTO
+        : S.REC_PARTICELLA_AUTO;
+    }
   });
   partSel.addEventListener('blur', refreshParticellaSelect);
   partSel.addEventListener('change', () => {
     if (!State.override) return;
     if (partSel.value === AUTO_SENTINEL) State.override.setAuto();
     else State.override.setManual(partSel.value);
+    if (isSamplesMode()) State.numpad.setValue('numero', '');
     refreshParticellaSelect();
+    if (isSamplesMode()) prefillNumber();
+    updateSaveEnabled();
   });
 
   document.getElementById('btn-save').addEventListener('click', onSave);
@@ -404,6 +554,10 @@ function enterRecording() {
   State.lastFix = null;
   document.getElementById('rec-where').textContent = where;
   document.getElementById('sub-status').textContent = where;
+  document.getElementById('lbl-particella-rec').textContent = isSamplesMode()
+    ? S.REC_SAMPLE_AREA
+    : S.PRE_PARTICELLA;
+  State.sampleAreaId = null;
   setupLocator();
   resetEntryFields();
   refreshPill();
@@ -424,6 +578,11 @@ const AUTO_SENTINEL = '__auto__';
 function setupLocator() {
   State.locator = null;
   State.override = createOverride();
+  if (isSamplesMode()) {
+    populateParticellaOptions(null);
+    refreshParticellaSelect();
+    return;
+  }
   if (!State.terreni || !State.session) {
     populateParticellaOptions(null);
     refreshParticellaSelect();
@@ -472,6 +631,10 @@ function particellaName(feature) {
 }
 
 function currentAutoName() {
+  if (isSamplesMode()) {
+    const area = currentAutoSampleArea();
+    return area ? area.particella : '';
+  }
   if (!State.locator) return '';
   return particellaName(State.locator.getCommitted());
 }
@@ -481,8 +644,16 @@ function populateParticellaOptions(features) {
   sel.replaceChildren();
   const sentinel = document.createElement('option');
   sentinel.value = AUTO_SENTINEL;
-  sentinel.textContent = S.REC_PARTICELLA_AUTO;
+  sentinel.textContent = isSamplesMode()
+    ? S.REC_SAMPLE_AREA_AUTO
+    : S.REC_PARTICELLA_AUTO;
   sel.appendChild(sentinel);
+  if (isSamplesMode()) {
+    for (const area of sampleAreasForCurrentSurvey()) {
+      appendOption(sel, '' + area[IPSO_FIELD_SAMPLE_AREA_ID], sampleAreaLabel(area));
+    }
+    return;
+  }
   if (!features) return;
   // Use reference.json order for the option list — it's the curated
   // ordering the rest of the UI also uses. Only include parcels that
@@ -497,6 +668,10 @@ function populateParticellaOptions(features) {
 }
 
 function refreshParticellaSelect() {
+  if (isSamplesMode()) {
+    refreshSampleAreaSelect();
+    return;
+  }
   const sel = document.getElementById('in-particella-rec');
   const ov = State.override;
   if (!ov) return;
@@ -512,6 +687,39 @@ function refreshParticellaSelect() {
     }
   }
   sel.classList.toggle('error', ov.isMismatch(autoName));
+}
+
+function refreshSampleAreaSelect() {
+  const sel = document.getElementById('in-particella-rec');
+  const ov = State.override;
+  if (!sel || !ov) return;
+  const autoArea = currentAutoSampleArea();
+  const selectedArea = currentSampleArea();
+  const sentinel = sel.querySelector('option[value="' + AUTO_SENTINEL + '"]');
+  if (ov.getMode() === 'manual') {
+    sel.value = ov.getManual();
+    if (sentinel) sentinel.textContent = S.REC_SAMPLE_AREA_AUTO;
+  } else {
+    sel.value = AUTO_SENTINEL;
+    if (sentinel) {
+      sentinel.textContent = autoArea
+        ? sampleAreaLabel(autoArea)
+        : S.REC_SAMPLE_AREA_PLACEHOLDER;
+    }
+  }
+  const nextId = selectedArea ? selectedArea[IPSO_FIELD_SAMPLE_AREA_ID] : null;
+  const changed = State.sampleAreaId !== nextId;
+  State.sampleAreaId = nextId;
+  sel.classList.toggle('error', !selectedArea);
+  document.getElementById('rec-where').textContent = selectedArea
+    ? sampleAreaLabel(selectedArea)
+    : S.REC_SAMPLE_AREA_OUT_OF_BOUNDS;
+  if (changed && State.numpad && State.numpad.value('numero') === '') {
+    prefillNumber();
+  }
+  refreshMapParcels();
+  refreshMapSampleAreas();
+  updateMapHeader();
 }
 
 function populateGruppo() {
@@ -569,10 +777,17 @@ async function prefillNumber() {
 // In-session max+1 takes precedence; on a fresh session (no numbered trees
 // yet) we fall back to the per-operator counter persisted across sessions.
 async function computeNextNumberDefault(trees) {
-  const inSession = session.nextNumberDefault(trees);
+  let rows = trees;
+  if (isSamplesMode()) {
+    rows = trees.filter((t) => t && t[IPSO_FIELD_SAMPLE_AREA_ID] === State.sampleAreaId);
+  }
+  const inSession = session.nextNumberDefault(rows);
   if (inSession != null) return inSession;
-  if (!State.session) return null;
-  return Store.getNextNumberForOperator(State.db, State.session.operatore);
+  if (Number.isInteger(currentMode().firstNumber)) return currentMode().firstNumber;
+  if (!State.session || !currentMode().persistNumber) return null;
+  return Store.getNextNumberForOperator(
+    State.db, State.session.operatore, State.session.mode
+  );
 }
 
 function refreshPill() {
@@ -608,6 +823,7 @@ function startGps() {
         t: st.fix.t,
       };
       if (State.locator) State.locator.onFix(st.fix);
+      if (isSamplesMode()) refreshSampleAreaSelect();
       updateMapPosition();
       updateMapHeader();
     } else if (st.error === 'denied') {
@@ -665,6 +881,8 @@ function treeValidationOptions() {
   return {
     dRequired: currentMode().dRequired !== false,
     hRequired: currentMode().hRequired !== false,
+    numberRequired: !!currentMode().numberRequired,
+    sampleAreaRequired: !!currentMode().sampleAreaRequired,
   };
 }
 
@@ -711,9 +929,12 @@ function currentRecord() {
   const nStr = State.numpad.value('numero');
   const n = nStr === '' ? null : parseInt(nStr, 10);
   const gruppo = document.getElementById('in-gruppo').value || '';
-  const particella = State.override
-    ? State.override.resolve(currentAutoName())
-    : '';
+  const sampleArea = currentSampleArea();
+  const particella = sampleArea
+    ? sampleArea.particella
+    : State.override
+      ? State.override.resolve(currentAutoName())
+      : '';
   const autoHeight = shouldAutoHeight();
   const hMeasured = autoHeight ? State.hMeasured : Number.isFinite(h);
   return {
@@ -725,6 +946,7 @@ function currentRecord() {
     numero: Number.isInteger(n) ? n : null,
     gruppo,
     particella,
+    [IPSO_FIELD_SAMPLE_AREA_ID]: sampleArea ? sampleArea[IPSO_FIELD_SAMPLE_AREA_ID] : null,
   };
 }
 
@@ -1007,6 +1229,7 @@ async function enterMapScreen(returnScreen) {
     return;
   }
   renderMapParcels();
+  renderMapSampleAreas();
   await renderMapRecords();
   renderMapPai();
   updateMapPosition();
@@ -1030,9 +1253,15 @@ function ensureMap() {
     featureName: particellaName,
     formatRecordLabel: formatMapRecordText,
     formatPaiLabel: formatMapPaiText,
+    formatSampleAreaLabel: sampleAreaLabel,
+    sampleAreaDefaultRadius: upload.DEFAULT_SAMPLE_RADIUS_M,
     paiControlTitle: S.MAP_PAI_TOGGLE,
     getActiveName: currentAutoName,
     getManualName() {
+      if (isSamplesMode() && State.override && State.override.getMode() === 'manual') {
+        const area = currentSampleArea();
+        return area ? area.particella : '';
+      }
       return State.override && State.override.getMode() === 'manual'
         ? State.override.getManual()
         : '';
@@ -1059,6 +1288,17 @@ function renderMapParcels() {
 function refreshMapParcels() {
   if (State.currentScreen !== 'screen-map') return;
   renderMapParcels();
+}
+
+function renderMapSampleAreas() {
+  if (!State.map || !State.map.ready()) return;
+  const enabled = State.session && State.session.mode === IpsoModes.SAMPLES;
+  State.map.renderSampleAreas(enabled ? sampleAreasForCurrentSurvey() : [], enabled);
+}
+
+function refreshMapSampleAreas() {
+  if (State.currentScreen !== 'screen-map') return;
+  renderMapSampleAreas();
 }
 
 async function renderMapRecords() {
@@ -1125,6 +1365,7 @@ function centerMapOnContext() {
   if (!State.map || !State.map.ready()) return;
   const ok = State.map.center({
     fix: State.lastFix,
+    sampleArea: currentSampleArea(),
     committedFeature: State.locator ? State.locator.getCommitted() : null,
   });
   if (!ok) showToast(S.MAP_NO_PARCELS);
@@ -1136,7 +1377,10 @@ function updateMapHeader() {
   if (!title || !sub) return;
   title.textContent = State.session ? S.where(State.session) : S.MAP_TITLE;
   const committed = State.locator ? State.locator.getCommitted() : null;
-  if (committed) {
+  const sampleArea = currentSampleArea();
+  if (sampleArea) {
+    sub.textContent = sampleAreaLabel(sampleArea);
+  } else if (committed) {
     sub.textContent = formatParcelText(committed);
   } else if (State.lastFix) {
     sub.textContent =
@@ -1218,6 +1462,12 @@ function renderGroupsTable(trees) {
   tbl.appendChild(tbody);
 }
 
+function sampleAreaTextForTree(tree) {
+  if (!tree || !Number.isInteger(tree[IPSO_FIELD_SAMPLE_AREA_ID])) return tree && tree.particella || '';
+  const area = sampleAreaById(tree[IPSO_FIELD_SAMPLE_AREA_ID]);
+  return area ? sampleAreaLabel(area) : (tree.particella || '');
+}
+
 function renderTreesTable(trees) {
   const tbl = document.getElementById('data-trees-table');
   tbl.replaceChildren();
@@ -1255,7 +1505,7 @@ function renderTreesTable(trees) {
     const cells = [
       { v: t.numero == null ? '' : '' + t.numero, num: true },
       { v: t.specie || '', num: false },
-      { v: t.particella || '', num: false },
+      { v: isSamplesMode() ? sampleAreaTextForTree(t) : (t.particella || ''), num: false },
       { v: t.gruppo || '', num: false },
       { v: t.d_cm == null ? '' : '' + t.d_cm, num: true },
       { v: t.h_m == null ? '' : '' + t.h_m, num: true },
@@ -1300,6 +1550,7 @@ function wireDone() {
     document.getElementById('pre-form').reset();
     populateOperator();
     populateComprese();
+    populateSampleSurveyOptions();
     showModeScreen();
   });
 }

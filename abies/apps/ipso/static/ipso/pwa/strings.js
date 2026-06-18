@@ -20,6 +20,8 @@ const S = {
   PRE_DATA: 'Data',
   PRE_COMPRESA: 'Compresa',
   PRE_PARTICELLA: 'Particella',
+  PRE_SURVEY: 'Rilevamento',
+  PRE_PICK_SURVEY: '— scegli un rilevamento —',
   PRE_CATASTROFATA: 'Piante catastrofate',
   PRE_PICK_COMPRESA: '— scegli una compresa —',
   PRE_START: 'Inizia',
@@ -32,6 +34,10 @@ const S = {
   REC_OUT_OF_BOUNDS: 'Fuori dai confini',
   REC_PARTICELLA_AUTO: '(automatica)',
   REC_PARTICELLA_PLACEHOLDER: '—',
+  REC_SAMPLE_AREA: 'Area',
+  REC_SAMPLE_AREA_AUTO: '(automatica)',
+  REC_SAMPLE_AREA_PLACEHOLDER: '—',
+  REC_SAMPLE_AREA_OUT_OF_BOUNDS: 'Fuori dalle aree di saggio',
   REC_SPECIE: 'Specie',
   REC_PICK_SPECIE: '— scegli —',
   REC_NUMBER: 'Numero',
@@ -50,6 +56,7 @@ const S = {
   REC_DELETE_LAST: 'Elimina',
   REC_CANCEL: 'Annulla',
   REC_TREE_NUMBER: 'albero n.',
+  REC_SAMPLE_AREA_NUMBER: 'Area',
 
   // Visualizza dati raccolti screen
   DATA_TITLE: 'Dati raccolti',

@@ -12,6 +12,8 @@ function createOrientationMap(opts) {
   const getManualName = opts.getManualName;
   const formatRecordLabel = opts.formatRecordLabel;
   const formatPaiLabel = opts.formatPaiLabel;
+  const formatSampleAreaLabel = opts.formatSampleAreaLabel;
+  const sampleAreaDefaultRadius = opts.sampleAreaDefaultRadius;
   const paiControlTitle = opts.paiControlTitle || 'PAI';
   const onFeatureClick = opts.onFeatureClick;
 
@@ -20,6 +22,7 @@ function createOrientationMap(opts) {
   let leaflet = null;
   let parcelsLayer = null;
   let recordsLayer = null;
+  let sampleAreasLayer = null;
   let paiLayer = null;
   let positionLayer = null;
   let paiControlEl = null;
@@ -50,6 +53,7 @@ function createOrientationMap(opts) {
         onEachFeature: bindFeature,
       }).addTo(leaflet);
       recordsLayer = L.layerGroup().addTo(leaflet);
+      sampleAreasLayer = L.layerGroup().addTo(leaflet);
       paiLayer = L.layerGroup().addTo(leaflet);
       positionLayer = L.layerGroup().addTo(leaflet);
       setupPaiControl();
@@ -118,6 +122,39 @@ function createOrientationMap(opts) {
       }).addTo(recordsLayer);
       const label = formatRecordLabel ? formatRecordLabel(rec) : '';
       if (label) marker.bindTooltip(label, { sticky: true });
+    }
+  }
+
+  function renderSampleAreas(areas, enabled) {
+    if (!sampleAreasLayer) return;
+    sampleAreasLayer.clearLayers();
+    if (!enabled || !areas || !areas.length) return;
+    for (const area of areas) addSampleArea(area);
+  }
+
+  function addSampleArea(area) {
+    const lat = Number(area && area.lat);
+    const lon = Number(area && area.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+    const radius = Number.isFinite(area.r_m) ? area.r_m : sampleAreaDefaultRadius;
+    const circle = L.circle([lat, lon], {
+      radius,
+      color: '#215f9a',
+      weight: 2,
+      fillColor: '#d7e8f7',
+      fillOpacity: 0.28,
+    }).addTo(sampleAreasLayer);
+    const marker = L.circleMarker([lat, lon], {
+      radius: 4,
+      color: '#215f9a',
+      weight: 2,
+      fillColor: '#ffffff',
+      fillOpacity: 1,
+    }).addTo(sampleAreasLayer);
+    const label = formatSampleAreaLabel ? formatSampleAreaLabel(area) : '';
+    if (label) {
+      circle.bindTooltip(label, { sticky: true });
+      marker.bindTooltip(label, { sticky: true });
     }
   }
 
@@ -212,6 +249,11 @@ function createOrientationMap(opts) {
       leaflet.setView([fix.lat, fix.lon], Math.max(leaflet.getZoom(), 17));
       return true;
     }
+    const sampleArea = context && context.sampleArea;
+    if (sampleArea && Number.isFinite(sampleArea.lat) && Number.isFinite(sampleArea.lon)) {
+      leaflet.setView([sampleArea.lat, sampleArea.lon], Math.max(leaflet.getZoom(), 17));
+      return true;
+    }
     const committedFeature = context && context.committedFeature;
     if (committedFeature) return fitFeature(committedFeature);
     if (parcelsLayer && parcelsLayer.getLayers().length > 0) {
@@ -237,8 +279,8 @@ function createOrientationMap(opts) {
   }
 
   return {
-    ensure, ready, renderParcels, renderRecords, renderPai, updatePosition,
-    center, invalidate,
+    ensure, ready, renderParcels, renderRecords, renderSampleAreas, renderPai,
+    updatePosition, center, invalidate,
   };
 }
 
