@@ -44,6 +44,7 @@ export const STATUS_NOT_FOUND        = 'not_found';
 // Device / integration API envelope keys.
 export const PENDING_COUNT = 'pending_count';
 export const UPLOAD = 'upload';
+export const RECORDS = 'records';
 export const FILE_ERROR = 'file_error';
 export const RECORD_COUNT = 'record_count';
 export const TARGETS = 'targets';
