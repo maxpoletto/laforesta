@@ -11,6 +11,7 @@ import {
 } from '../../base/js/page-sync.js';
 import { showError } from '../../base/js/modals.js';
 import { showConfirmModal } from '../../base/js/ui-widgets.js';
+import { cloneTemplate } from '../../base/js/templates.js';
 import { fmtCoord } from '../../base/js/format.js';
 import * as S from '../../base/js/strings.js';
 import {
@@ -42,6 +43,7 @@ const COLUMN_DEFS = {
 
 let table = null;
 let detailEl = null;
+let summaryEl = null;
 let selectedId = null;
 
 cache.register(DATA_ID, DATA_URL);
@@ -60,32 +62,14 @@ export const unmount = page.unmount;
 export const onQueryChange = page.onQueryChange;
 
 function buildPage(el, params, data) {
-  el.replaceChildren();
+  el.replaceChildren(cloneTemplate('tmpl-ipso-inbox-page'));
   selectedId = null;
 
-  const root = document.createElement('div');
-  root.className = 'ipso-inbox-page';
-
-  const header = document.createElement('div');
-  header.className = 'ipso-inbox-header';
-  const title = document.createElement('h1');
-  title.textContent = S.IPSO_INBOX_TITLE;
-  header.appendChild(title);
-  const summary = document.createElement('div');
-  summary.className = 'ipso-inbox-summary';
-  summary.textContent = summaryText(data);
-  header.appendChild(summary);
-  root.appendChild(header);
-
-  const tableHost = document.createElement('div');
-  root.appendChild(tableHost);
-
-  detailEl = document.createElement('section');
-  detailEl.className = 'ipso-upload-detail';
-  detailEl.hidden = true;
-  root.appendChild(detailEl);
-
-  el.appendChild(root);
+  const root = el.querySelector('.ipso-inbox-page');
+  const tableHost = root.querySelector('[data-role="table"]');
+  summaryEl = root.querySelector('[data-role="summary"]');
+  detailEl = root.querySelector('[data-role="detail"]');
+  summaryEl.textContent = summaryText(data);
 
   const state = readTableState(params);
   table = new TableWrapper({
@@ -120,6 +104,7 @@ function inboxActions() {
 function destroyPage() {
   if (table) { table.destroy(); table = null; }
   detailEl = null;
+  summaryEl = null;
   selectedId = null;
 }
 
@@ -130,8 +115,7 @@ function applyParams(params) {
 function refreshTable(data) {
   table?.setData(data);
   updateNavDot(data);
-  const summary = document.querySelector('.ipso-inbox-summary');
-  if (summary) summary.textContent = summaryText(data);
+  if (summaryEl) summaryEl.textContent = summaryText(data);
 }
 
 function syncURL() {

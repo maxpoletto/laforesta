@@ -1,0 +1,16 @@
+{% comment %}
+Ipso <template> elements - cloned by JS on mount().
+Static Italian text lives here; JS wires controls and fills dynamic data.
+{% endcomment %}
+
+<template id="tmpl-ipso-inbox-page">
+  <div class="ipso-inbox-page">
+    <div class="ipso-inbox-header">
+      <h1>Importazione</h1>
+      <div class="ipso-inbox-summary" data-role="summary"></div>
+    </div>
+
+    <div data-role="table"></div>
+    <section class="ipso-upload-detail" data-role="detail" hidden></section>
+  </div>
+</template>
