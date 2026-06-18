@@ -63,12 +63,15 @@ SESSION             = 'session'
 RECORDS             = 'records'
 RECORD_COUNT        = 'record_count'
 FILE_ERROR          = 'file_error'
-TARGETS             = 'targets'
-SUGGESTED_TARGET_ID = 'suggested_target_id'
-PENDING_COUNT       = 'pending_count'
+TARGETS                    = 'targets'
+SUGGESTED_TARGET_ID        = 'suggested_target_id'
+PENDING_COUNT              = 'pending_count'
+IPSO_BOOTSTRAP_BEARER_TOKEN = 'bearer_token'
 IPSO_ERROR_AUTH            = 'auth'
 IPSO_ERROR_INVALID_PAYLOAD = 'invalid_payload'
 IPSO_ERROR_CONFLICT        = 'conflict'
+IPSO_ERROR_RATE_LIMITED    = 'rate_limited'
+IPSO_ERROR_TOO_LARGE       = 'too_large'
 
 # Form / JSON-body field names.  Match HTML form `name=` attributes and
 # JSON request-body keys; client and server must agree on every name.

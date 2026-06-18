@@ -60,6 +60,7 @@ const FIELD_CSV_TEXT = 'csv_text';
 
 const SESSION = 'session';
 const RECORDS = 'records';
+const IPSO_BOOTSTRAP_BEARER_TOKEN = 'bearer_token';
 
 const PRESSLER_DEFAULT = '2.00';
 
@@ -116,6 +117,7 @@ if (typeof module !== 'undefined') {
     FIELD_CSV_TEXT,
     SESSION,
     RECORDS,
+    IPSO_BOOTSTRAP_BEARER_TOKEN,
     PRESSLER_DEFAULT,
   };
   Object.assign(globalThis, module.exports);

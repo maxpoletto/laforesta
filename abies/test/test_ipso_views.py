@@ -55,6 +55,7 @@ def test_index_is_public_and_uses_relative_assets(db):
     assert 'src="/static/vendor/leaflet/leaflet.js"' in body
     assert 'src="map.js"' in body
     assert 'src="app.js"' in body
+    assert 'upload-config.js' not in body
 
 
 def test_service_worker_served_from_ipso_scope(db):
@@ -66,6 +67,11 @@ def test_service_worker_served_from_ipso_scope(db):
     assert b'ipso service worker' in body
     assert b'/static/base/js/map-common.js' in body
     assert b'/static/base/css/map-basemaps.css' in body
+    assert b'upload-config.js' not in body
+    assert b'./reference.json' not in body
+    assert b'./terreni.geojson' not in body
+    assert b"req.cache === 'no-store'" in body
+    assert b"cacheControl.includes('no-store')" in body
 
 
 @pytest.mark.parametrize(('path', 'needle'), [
@@ -88,6 +94,42 @@ def test_manifest_is_served(db):
     assert json.loads(_body(resp))['short_name'] == 'Ipso'
 
 
+@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+def test_bootstrap_requires_authenticated_writer(db, reader_client, writer_client):
+    anon = Client().get(reverse('ipso-bootstrap'))
+    reader = reader_client.get(reverse('ipso-bootstrap'))
+    writer = writer_client.get(reverse('ipso-bootstrap'))
+
+    assert anon.status_code == 401
+    assert reader.status_code == 403
+    assert writer.status_code == 200
+    assert writer.json() == {'ok': True, 'bearer_token': 'test-token'}
+    assert 'no-store' in writer['Cache-Control']
+
+
+@override_settings(IPSO_UPLOAD_TOKEN='')
+def test_bootstrap_fails_closed_without_config(db, writer_client):
+    resp = writer_client.get(reverse('ipso-bootstrap'))
+
+    assert resp.status_code == 503
+    assert resp.json()['error'] == 'auth'
+
+
+@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+def test_ipso_data_downloads_require_bearer(db):
+    client = Client()
+
+    assert client.get('/ipso/reference.json').status_code == 401
+    assert client.get('/ipso/terreni.geojson').status_code == 401
+    assert client.get(
+        '/ipso/reference.json', HTTP_AUTHORIZATION='Bearer wrong',
+    ).status_code == 401
+    assert client.get(
+        '/ipso/terreni.geojson', HTTP_AUTHORIZATION='Bearer wrong',
+    ).status_code == 401
+
+
+@override_settings(IPSO_UPLOAD_TOKEN='test-token')
 def test_reference_json_comes_from_abies_data(db, regions, parcels, species):
     grid = SampleGrid.objects.create(name='Ipso grid')
     area = SampleArea.objects.create(
@@ -114,9 +156,12 @@ def test_reference_json_comes_from_abies_data(db, regions, parcels, species):
         r2=Decimal('0.5000'), n=12,
     )
 
-    resp = Client().get('/ipso/reference.json')
+    resp = Client().get(
+        '/ipso/reference.json', HTTP_AUTHORIZATION='Bearer test-token',
+    )
 
     assert resp.status_code == 200
+    assert resp['Vary'] == 'Authorization'
     data = resp.json()
     assert data['schema_version'] == 1
     assert data['reference_version']
@@ -177,10 +222,14 @@ def test_reference_json_comes_from_abies_data(db, regions, parcels, species):
     }]
 
 
+@override_settings(IPSO_UPLOAD_TOKEN='test-token')
 def test_terreni_geojson_has_empty_fallback(db):
-    resp = Client().get('/ipso/terreni.geojson')
+    resp = Client().get(
+        '/ipso/terreni.geojson', HTTP_AUTHORIZATION='Bearer test-token',
+    )
 
     assert resp.status_code == 200
+    assert resp['Vary'] == 'Authorization'
     assert resp['Content-Type'] == 'application/geo+json'
     assert resp.json() == {'type': 'FeatureCollection', 'features': []}
 
@@ -267,6 +316,16 @@ def test_upload_rejects_bad_token(db, parcels, species, settings, tmp_path):
     assert IpsoUpload.objects.count() == 0
 
 
+@override_settings(IPSO_UPLOAD_TOKEN='')
+def test_upload_rejects_when_token_unconfigured(db, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+
+    resp = _post_upload(Client(), _upload_payload(parcels, species))
+
+    assert resp.status_code == 401
+    assert IpsoUpload.objects.count() == 0
+
+
 @override_settings(IPSO_UPLOAD_TOKEN='test-token')
 def test_upload_stages_json_and_metadata(db, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
@@ -328,6 +387,57 @@ def test_upload_rejects_empty_records(db, parcels, species, settings, tmp_path):
     assert resp.json()['error'] == 'invalid_payload'
     assert 'records' in resp.json()['detail']
     assert IpsoUpload.objects.count() == 0
+
+
+@override_settings(IPSO_UPLOAD_TOKEN='test-token', IPSO_UPLOAD_MAX_BYTES=10)
+def test_upload_rejects_body_over_cap(db, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+
+    resp = _post_upload(Client(), _upload_payload(parcels, species))
+
+    assert resp.status_code == 413
+    assert resp.json()['error'] == 'too_large'
+    assert IpsoUpload.objects.count() == 0
+
+
+@override_settings(IPSO_UPLOAD_TOKEN='test-token', IPSO_UPLOAD_MAX_RECORDS=1)
+def test_upload_rejects_record_count_over_cap(db, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    payload = _upload_payload(parcels, species)
+    second = dict(payload['records'][0])
+    second['client_record_id'] = '2'
+    second['number'] = 2
+    payload['records'].append(second)
+
+    resp = _post_upload(Client(), payload)
+
+    assert resp.status_code == 422
+    assert resp.json()['error'] == 'invalid_payload'
+    assert 'records' in resp.json()['detail']
+    assert IpsoUpload.objects.count() == 0
+
+
+@override_settings(
+    IPSO_UPLOAD_TOKEN='test-token',
+    IPSO_UPLOAD_RATE_LIMIT=1,
+    IPSO_UPLOAD_RATE_WINDOW_S=60,
+)
+def test_upload_endpoint_is_rate_limited(db, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    ipso_views._UPLOAD_ATTEMPTS.clear()
+    try:
+        first = _post_upload(Client(), _upload_payload(parcels, species))
+        payload = _upload_payload(
+            parcels, species,
+            session_id='22222222-2222-4222-8222-222222222222',
+        )
+        second = _post_upload(Client(), payload)
+    finally:
+        ipso_views._UPLOAD_ATTEMPTS.clear()
+
+    assert first.status_code == 200
+    assert second.status_code == 429
+    assert second.json()['error'] == 'rate_limited'
 
 
 @override_settings(IPSO_UPLOAD_TOKEN='test-token')
@@ -423,11 +533,11 @@ def test_upload_rejects_unknown_species(db, parcels, species, settings, tmp_path
 
 
 @override_settings(IPSO_UPLOAD_TOKEN='visible-token')
-def test_upload_config_serves_configured_token(db):
+def test_upload_config_does_not_serve_configured_token(db):
     resp = Client().get('/ipso/upload-config.js')
 
-    assert resp.status_code == 200
-    assert b'visible-token' in resp.content
+    assert resp.status_code == 404
+    assert b'visible-token' not in resp.content
 
 
 @override_settings(IPSO_UPLOAD_TOKEN='test-token')

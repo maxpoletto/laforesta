@@ -12,6 +12,7 @@ const State = {
   mode: null,         // current IpsoModes entry
   reference: null,    // parsed reference.json
   terreni: null,      // parsed terreni.geojson features array (compresa-wide)
+  bearerToken: '',    // non-public bearer from authenticated Abies bootstrap
   db: null,           // open IDBDatabase
   session: null,      // current session row (null until pre_session submits)
   specie: '',
@@ -87,6 +88,13 @@ async function boot() {
   }
 
   try {
+    State.bearerToken = await fetchBootstrap();
+  } catch (e) {
+    showToast(S.TOAST_REFERENCE_LOAD_ERROR(e.message));
+    return;
+  }
+
+  try {
     State.reference = await fetchReference();
   } catch (e) {
     showToast(S.TOAST_REFERENCE_LOAD_ERROR(e.message));
@@ -140,14 +148,38 @@ async function boot() {
   checkGpsPermission();
 }
 
+async function fetchBootstrap() {
+  const r = await fetch('/api/ipso/bootstrap/', {
+    cache: 'no-store',
+    credentials: 'same-origin',
+    headers: { Accept: 'application/json' },
+  });
+  if (!r.ok) throw new Error(S.ERROR_HTTP_STATUS(r.status));
+  const payload = await r.json();
+  const token = payload && payload[IPSO_BOOTSTRAP_BEARER_TOKEN];
+  if (!payload || payload.ok !== true || !token) throw new Error(S.ERROR_BOOTSTRAP_INVALID);
+  return token;
+}
+
+function bearerHeaders() {
+  if (!State.bearerToken) throw new Error(S.ERROR_TOKEN_MISSING);
+  return { Authorization: 'Bearer ' + State.bearerToken };
+}
+
 async function fetchReference() {
-  const r = await fetch('reference.json', { cache: 'reload' });
+  const r = await fetch('reference.json', {
+    cache: 'reload',
+    headers: bearerHeaders(),
+  });
   if (!r.ok) throw new Error(S.ERROR_HTTP_STATUS(r.status));
   return await r.json();
 }
 
 async function fetchTerreni() {
-  const r = await fetch('terreni.geojson', { cache: 'reload' });
+  const r = await fetch('terreni.geojson', {
+    cache: 'reload',
+    headers: bearerHeaders(),
+  });
   if (!r.ok) throw new Error(S.ERROR_HTTP_STATUS(r.status));
   const gj = await r.json();
   if (!gj || !Array.isArray(gj.features)) throw new Error(S.ERROR_GEOJSON_INVALID);
@@ -1397,7 +1429,7 @@ function uploadFlow() {
   if (!uploadFlowInstance) {
     uploadFlowInstance = createUploadFlow({
       db: () => State.db,
-      uploadToken: () => UPLOAD_TOKEN,
+      uploadToken: () => State.bearerToken,
       stopRecording: stopRecordingSensors,
       acquireWakeLock,
       releaseWakeLock,

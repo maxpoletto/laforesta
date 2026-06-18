@@ -44,9 +44,6 @@ const SHELL = [
   './map.js',
   './upload.js',
   './upload-flow.js',
-  './upload-config.js',
-  './reference.json',
-  './terreni.geojson',
   './img/f.gif',
   './img/l.gif',
   './img/icon-192.png',
@@ -73,6 +70,7 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET') return;
+  if (req.cache === 'no-store') return;
   e.respondWith((async () => {
     // IMPORTANT: scope the lookup to THIS SW's cache. The global
     // `caches.match(req)` searches every cache name in the origin, which
@@ -85,8 +83,10 @@ self.addEventListener('fetch', (e) => {
     if (cached) return cached;
     try {
       const res = await fetch(req);
-      // Don't cache opaque or error responses.
-      if (res && res.ok && (res.type === 'basic' || res.type === 'default')) {
+      // Don't cache opaque, error, or explicitly non-storeable responses.
+      const cacheControl = (res && res.headers.get('Cache-Control') || '').toLowerCase();
+      if (res && res.ok && !cacheControl.includes('no-store') &&
+          (res.type === 'basic' || res.type === 'default')) {
         cache.put(req, res.clone());
       }
       return res;

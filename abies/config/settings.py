@@ -21,6 +21,18 @@ IPSO_INBOX_DIR = Path(os.environ.get(
     'ABIES_IPSO_INBOX_DIR', str(DATA_DIR / 'ipso-inbox'),
 ))
 IPSO_UPLOAD_TOKEN = os.environ.get('ABIES_IPSO_UPLOAD_TOKEN', '').strip()
+IPSO_UPLOAD_MAX_BYTES = int(os.environ.get(
+    'ABIES_IPSO_UPLOAD_MAX_BYTES', str(2 * 1024 * 1024),
+))
+IPSO_UPLOAD_MAX_RECORDS = int(os.environ.get(
+    'ABIES_IPSO_UPLOAD_MAX_RECORDS', '500',
+))
+IPSO_UPLOAD_RATE_LIMIT = int(os.environ.get(
+    'ABIES_IPSO_UPLOAD_RATE_LIMIT', '60',
+))
+IPSO_UPLOAD_RATE_WINDOW_S = int(os.environ.get(
+    'ABIES_IPSO_UPLOAD_RATE_WINDOW_S', '60',
+))
 
 _DEFAULT_SECRET_KEY = 'django-insecure-change-me-before-deployment'
 _DEFAULT_MS_OAUTH_TENANT = 'common'
