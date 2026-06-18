@@ -16,6 +16,11 @@ if (typeof module !== 'undefined' && typeof require !== 'undefined' &&
   Object.assign(globalThis, require('./constants.js'));
 }
 
+if (typeof module !== 'undefined' && typeof require !== 'undefined' &&
+    typeof S === 'undefined') {
+  Object.assign(globalThis, require('./strings.js'));
+}
+
 const DB_NAME = 'ipso';
 // Bumped each time the on-disk row shape changes. IndexedDB tolerates
 // missing/extra fields without a structural change, so the bump is the
@@ -130,7 +135,7 @@ function openDb() {
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
-    req.onblocked = () => reject(new Error('ipso: another tab holds an older DB version open'));
+    req.onblocked = () => reject(new Error(S.STORE_ERROR_DB_BLOCKED));
   });
 }
 
@@ -149,7 +154,7 @@ function tx(db, stores, mode, body) {
     }
     t.oncomplete = () => resolve(result);
     t.onerror = () => reject(t.error);
-    t.onabort = () => reject(t.error || new Error('ipso: transaction aborted'));
+    t.onabort = () => reject(t.error || new Error(S.STORE_ERROR_TX_ABORTED));
   });
 }
 
@@ -214,7 +219,7 @@ async function setSessionStatus(db, id, status) {
   await tx(db, [STORE_SESSIONS], 'readwrite', async (t) => {
     const store = t.objectStore(STORE_SESSIONS);
     const row = await req(store.get(id));
-    if (!row) throw new Error('ipso: session not found: ' + id);
+    if (!row) throw new Error(S.STORE_ERROR_SESSION_NOT_FOUND(id));
     row.status = status;
     if (status === STATUS_EXPORTED) {
       row.exported_at = new Date().toISOString();
@@ -227,7 +232,7 @@ async function setSessionUploadStatus(db, id, uploadStatus) {
   await tx(db, [STORE_SESSIONS], 'readwrite', async (t) => {
     const store = t.objectStore(STORE_SESSIONS);
     const row = await req(store.get(id));
-    if (!row) throw new Error('ipso: session not found: ' + id);
+    if (!row) throw new Error(S.STORE_ERROR_SESSION_NOT_FOUND(id));
     row.upload_status = uploadStatus;
     if (uploadStatus === UPLOAD_STATUS_UPLOADED) {
       row.uploaded_at = new Date().toISOString();
@@ -248,7 +253,7 @@ async function addTree(db, sessionId, rec) {
   return tx(db, [STORE_SESSIONS, STORE_TREES, STORE_META], 'readwrite', async (t) => {
     const sessStore = t.objectStore(STORE_SESSIONS);
     const sess = await req(sessStore.get(sessionId));
-    if (!sess) throw new Error('ipso: session not found: ' + sessionId);
+    if (!sess) throw new Error(S.STORE_ERROR_SESSION_NOT_FOUND(sessionId));
 
     const seq = (sess.tree_count || 0) + 1;
     const row = {
@@ -317,9 +322,9 @@ async function updateTree(db, sessionId, treeId, patch) {
   return tx(db, [STORE_TREES], 'readwrite', async (t) => {
     const store = t.objectStore(STORE_TREES);
     const row = await req(store.get(treeId));
-    if (!row) throw new Error('ipso: tree not found: ' + treeId);
+    if (!row) throw new Error(S.STORE_ERROR_TREE_NOT_FOUND(treeId));
     if (row.session_id !== sessionId) {
-      throw new Error('ipso: tree does not belong to session');
+      throw new Error(S.STORE_ERROR_TREE_SESSION_MISMATCH);
     }
     // Whitelist fields callers may patch.
     for (const k of ['specie', 'd_cm', 'h_m', 'h_measured', 'numero', 'gruppo']) {
@@ -337,7 +342,7 @@ async function deleteTree(db, sessionId, treeId) {
     const row = await req(treesStore.get(treeId));
     if (!row) return;
     if (row.session_id !== sessionId) {
-      throw new Error('ipso: tree does not belong to session');
+      throw new Error(S.STORE_ERROR_TREE_SESSION_MISMATCH);
     }
     treesStore.delete(treeId);
     // Decrement session.tree_count so the next addTree allocates the same

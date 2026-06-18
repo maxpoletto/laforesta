@@ -4,6 +4,11 @@
 // This file only owns Ipso-specific parcel, GPS, and local-record overlays.
 'use strict';
 
+if (typeof module !== 'undefined' && typeof require !== 'undefined' &&
+    typeof S === 'undefined') {
+  Object.assign(globalThis, require('./strings.js'));
+}
+
 function createOrientationMap(opts) {
   const elementId = opts.elementId;
   const formatFeatureLabel = opts.formatFeatureLabel;
@@ -14,7 +19,7 @@ function createOrientationMap(opts) {
   const formatPaiLabel = opts.formatPaiLabel;
   const formatSampleAreaLabel = opts.formatSampleAreaLabel;
   const sampleAreaDefaultRadius = opts.sampleAreaDefaultRadius;
-  const paiControlTitle = opts.paiControlTitle || 'PAI';
+  const paiControlTitle = opts.paiControlTitle || S.MODE_PAI;
   const onFeatureClick = opts.onFeatureClick;
 
   let initPromise = null;
@@ -36,7 +41,7 @@ function createOrientationMap(opts) {
   }
 
   async function init() {
-    if (typeof L === 'undefined') throw new Error('Leaflet not loaded');
+    if (typeof L === 'undefined') throw new Error(S.MAP_ERROR_LEAFLET_MISSING);
     try {
       const mod = await import('/static/base/js/map-common.js');
       const MapCommon = mod.default || mod.MapCommon || mod;

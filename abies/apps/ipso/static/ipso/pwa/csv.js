@@ -6,26 +6,25 @@
 // (caller provides a Date for filename and a YYYY-MM-DD string for the row).
 'use strict';
 
+if (typeof module !== 'undefined' && typeof require !== 'undefined' &&
+    typeof S === 'undefined') {
+  Object.assign(globalThis, require('./strings.js'));
+}
+
 const CSV_BOM = '﻿';
 const CSV_SEP = ';';
 const CSV_NL = '\r\n';
-const HEADER = [
-  'Data', 'Compresa', 'Particella', 'Catastrofata',
-  'Numero', 'Specie',
-  'D_cm', 'H_m', 'H_measured',
-  'Lat', 'Lon', 'Acc_m',
-  'Operatore',
-];
+const HEADER = S.CSV_HEADER;
 
 // Sentinel used in the filename's particella slot for catastrofate sessions.
-const FILENAME_CATASTROFATE = 'catastrofate';
+const FILENAME_CATASTROFATE = S.CSV_FILENAME_CATASTROFATE;
 
 function pad2(n) { return n < 10 ? '0' + n : '' + n; }
 
 // Convert YYYY-MM-DD (the form session.data holds) to DD/MM/YYYY.
 function formatDate(iso) {
   const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!m) throw new Error('formatDate: expected YYYY-MM-DD, got ' + iso);
+  if (!m) throw new Error(S.CSV_ERROR_DATE_FORMAT(iso));
   return m[3] + '/' + m[2] + '/' + m[1];
 }
 

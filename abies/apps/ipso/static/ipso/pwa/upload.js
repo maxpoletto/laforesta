@@ -10,6 +10,11 @@ if (typeof module !== 'undefined' && typeof require !== 'undefined' &&
   Object.assign(globalThis, require('./constants.js'));
 }
 
+if (typeof module !== 'undefined' && typeof require !== 'undefined' &&
+    typeof S === 'undefined') {
+  Object.assign(globalThis, require('./strings.js'));
+}
+
 const BACKOFF_SCHEDULE_MS = [2000, 4000, 8000, 16000];
 const BACKOFF_CAP_MS = 30000;
 
@@ -48,7 +53,7 @@ class UploadError extends Error {
 }
 
 function buildUploadPayload(sess, trees, reference, csvText) {
-  if (!sess || !reference) throw new Error('missing upload context');
+  if (!sess || !reference) throw new Error(S.UPLOAD_ERROR_CONTEXT_MISSING);
   const regionId = regionIdForCompresa(reference, sess.compresa);
   const records = trees.map((t) => canonicalRecord(sess, t, reference));
   return {
@@ -167,7 +172,7 @@ function distanceMeters(lat1, lon1, lat2, lon2) {
 function speciesIdForName(reference, name) {
   const row = (reference[IPSO_REF_SPECIES] || []).find((s) => s.common === name);
   if (!row || !Number.isInteger(row.id)) {
-    throw new Error('specie senza ID Abies: ' + (name || ''));
+    throw new Error(S.UPLOAD_ERROR_SPECIES_ID_MISSING(name));
   }
   return row.id;
 }
@@ -175,7 +180,7 @@ function speciesIdForName(reference, name) {
 function regionIdForCompresa(reference, compresa) {
   const row = (reference[IPSO_REF_PARCELS] || []).find((p) => p.compresa === compresa);
   if (!row || !Number.isInteger(row[FIELD_REGION_ID])) {
-    throw new Error('compresa senza ID Abies: ' + (compresa || ''));
+    throw new Error(S.UPLOAD_ERROR_REGION_ID_MISSING(compresa));
   }
   return row[FIELD_REGION_ID];
 }
@@ -185,7 +190,7 @@ function parcelForName(reference, compresa, particella) {
     (p) => p.compresa === compresa && p.particella === particella
   );
   if (!row || !Number.isInteger(row[FIELD_PARCEL_ID]) || !Number.isInteger(row[FIELD_REGION_ID])) {
-    throw new Error('particella senza ID Abies: ' + (compresa || '') + '/' + (particella || ''));
+    throw new Error(S.UPLOAD_ERROR_PARCEL_ID_MISSING(compresa, particella));
   }
   return row;
 }

@@ -36,7 +36,7 @@ const State = {
 // ---------------------------------------------------------------------------
 
 async function boot() {
-  if (!window.AbiesGeoReady) throw new Error('geo.js non disponibile');
+  if (!window.AbiesGeoReady) throw new Error(S.ERROR_GEO_UNAVAILABLE);
   await window.AbiesGeoReady;
 
   setMode(IpsoModes.MARTELLATE);
@@ -90,7 +90,7 @@ async function boot() {
   try {
     State.reference = await fetchReference();
   } catch (e) {
-    showToast('Errore caricamento reference.json: ' + e.message);
+    showToast(S.TOAST_REFERENCE_LOAD_ERROR(e.message));
     return;
   }
 
@@ -101,13 +101,13 @@ async function boot() {
     State.terreni = await fetchTerreni();
   } catch (e) {
     State.terreni = null;
-    showToast('Errore caricamento terreni.geojson: ' + e.message);
+    showToast(S.TOAST_TERRENI_LOAD_ERROR(e.message));
   }
 
   try {
     State.db = await Store.openDb();
   } catch (e) {
-    showToast('Errore apertura database: ' + e.message);
+    showToast(S.TOAST_DB_OPEN_ERROR(e.message));
     return;
   }
 
@@ -143,15 +143,15 @@ async function boot() {
 
 async function fetchReference() {
   const r = await fetch('reference.json', { cache: 'reload' });
-  if (!r.ok) throw new Error('HTTP ' + r.status);
+  if (!r.ok) throw new Error(S.ERROR_HTTP_STATUS(r.status));
   return await r.json();
 }
 
 async function fetchTerreni() {
   const r = await fetch('terreni.geojson', { cache: 'reload' });
-  if (!r.ok) throw new Error('HTTP ' + r.status);
+  if (!r.ok) throw new Error(S.ERROR_HTTP_STATUS(r.status));
   const gj = await r.json();
-  if (!gj || !Array.isArray(gj.features)) throw new Error('not a FeatureCollection');
+  if (!gj || !Array.isArray(gj.features)) throw new Error(S.ERROR_GEOJSON_INVALID);
   return gj.features;
 }
 
@@ -442,7 +442,7 @@ function wirePreSession() {
       State.sampleAreaId = null;
       enterRecording();
     } catch (err) {
-      showToast('Errore avvio sessione: ' + err.message);
+      showToast(S.TOAST_SESSION_START_ERROR(err.message));
     }
   });
 }
@@ -997,7 +997,7 @@ async function onSave() {
       await downloadBackup(row.seq);
     }
   } catch (e) {
-    showToast('Errore salvataggio: ' + e.message);
+    showToast(S.TOAST_SAVE_ERROR(e.message));
   } finally {
     setTimeout(updateSaveEnabled, 320);
   }
@@ -1021,7 +1021,7 @@ async function onDeleteLast() {
     updateSaveEnabled();
     refreshMapRecords();
   } catch (e) {
-    showToast('Errore eliminazione: ' + e.message);
+    showToast(S.TOAST_DELETE_ERROR(e.message));
   }
 }
 
@@ -1041,7 +1041,7 @@ async function onEnd() {
     downloadFinal(State.session, trees);
     enterUploadScreen(State.session.id, uploadPayload, trees.length);
   } catch (e) {
-    showToast('Errore esportazione: ' + e.message);
+    showToast(S.TOAST_EXPORT_ERROR(e.message));
   }
 }
 
@@ -1151,7 +1151,7 @@ async function onUploadSuccess() {
       State.db, sessionId, Store.STATUS_EXPORTED
     );
   } catch (e) {
-    showToast('Errore salvataggio stato upload: ' + e.message);
+    showToast(S.TOAST_UPLOAD_STATE_ERROR(e.message));
   }
   showToast(S.UPLOAD_SUCCESS_TOAST);
   endUploadScreen(treeCount, true);
@@ -1178,7 +1178,7 @@ async function onUploadBail() {
       State.db, sessionId, Store.STATUS_EXPORTED
     );
   } catch (e) {
-    showToast('Errore salvataggio stato: ' + e.message);
+    showToast(S.TOAST_STATE_SAVE_ERROR(e.message));
   }
   showToast(S.UPLOAD_LOCAL_ONLY_TOAST);
   endUploadScreen(treeCount, false);
@@ -1300,7 +1300,7 @@ async function renderMapRecords() {
     trees.sort((a, b) => a.seq - b.seq);
     State.map.renderRecords(trees);
   } catch (e) {
-    showToast('Errore caricamento punti mappa: ' + e.message);
+    showToast(S.TOAST_MAP_POINTS_LOAD_ERROR(e.message));
   }
 }
 
@@ -1333,7 +1333,7 @@ function formatMapRecordText(rec) {
 
 function formatMapPaiText(rec) {
   if (!rec) return '';
-  const bits = ['PAI'];
+  const bits = [S.MODE_PAI];
   if (Number.isInteger(rec.number)) bits.push('n. ' + rec.number);
   const species = speciesNameById(rec.species_id);
   if (species) bits.push(species);
@@ -1393,7 +1393,7 @@ async function enterDataScreen() {
   try {
     trees = await Store.listTrees(State.db, State.session.id);
   } catch (e) {
-    showToast('Errore caricamento dati: ' + e.message);
+    showToast(S.TOAST_DATA_LOAD_ERROR(e.message));
     return;
   }
   trees.sort((a, b) => a.seq - b.seq);
@@ -1695,5 +1695,5 @@ function showBanner(msg) {
 // ---------------------------------------------------------------------------
 
 window.addEventListener('DOMContentLoaded', () => {
-  boot().catch((e) => showToast('Errore avvio: ' + e.message));
+  boot().catch((e) => showToast(S.TOAST_BOOT_ERROR(e.message)));
 });

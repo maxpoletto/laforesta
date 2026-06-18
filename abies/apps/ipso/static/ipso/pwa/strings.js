@@ -78,6 +78,7 @@ const S = {
   MAP_UNAVAILABLE: 'Mappa non disponibile',
   MAP_NO_PARCELS: 'Nessuna particella disponibile.',
   MAP_PAI_TOGGLE: 'Mostra/nascondi PAI esistenti',
+  MAP_ERROR_LEAFLET_MISSING: 'Leaflet non disponibile',
   DATA_NO_GROUPS: 'Nessun gruppo assegnato.',
 
   // Resume modal
@@ -113,6 +114,40 @@ const S = {
     'Permesso GPS non concesso. Per registrare le coordinate, abilita la ' +
     'posizione per ipso.laforesta.it nelle impostazioni del browser.',
   BACKUP_SAVED: (n) => `Backup CSV salvato (${n} alberi).`,
+  CSV_HEADER: [
+    'Data', 'Compresa', 'Particella', 'Catastrofata',
+    'Numero', 'Specie', 'D_cm', 'H_m', 'H_measured',
+    'Lat', 'Lon', 'Acc_m', 'Operatore',
+  ],
+  CSV_FILENAME_CATASTROFATE: 'catastrofate',
+  CSV_ERROR_DATE_FORMAT: (value) => `Data CSV non valida: ${value}`,
+  STORE_ERROR_DB_BLOCKED:
+    'Database Ipso bloccato da una scheda precedente.',
+  STORE_ERROR_TX_ABORTED: 'Transazione Ipso annullata.',
+  STORE_ERROR_SESSION_NOT_FOUND: (id) => `Sessione Ipso non trovata: ${id}`,
+  STORE_ERROR_TREE_NOT_FOUND: (id) => `Albero Ipso non trovato: ${id}`,
+  STORE_ERROR_TREE_SESSION_MISMATCH:
+    'Albero Ipso non appartenente alla sessione.',
+  ERROR_GEO_UNAVAILABLE: 'geo.js non disponibile',
+  ERROR_HTTP_STATUS: (status) => `HTTP ${status}`,
+  ERROR_GEOJSON_INVALID: 'GeoJSON non valido',
+  TOAST_REFERENCE_LOAD_ERROR: (detail) =>
+    `Errore caricamento reference.json: ${detail}`,
+  TOAST_TERRENI_LOAD_ERROR: (detail) =>
+    `Errore caricamento terreni.geojson: ${detail}`,
+  TOAST_DB_OPEN_ERROR: (detail) => `Errore apertura database: ${detail}`,
+  TOAST_SESSION_START_ERROR: (detail) =>
+    `Errore avvio sessione: ${detail}`,
+  TOAST_SAVE_ERROR: (detail) => `Errore salvataggio: ${detail}`,
+  TOAST_DELETE_ERROR: (detail) => `Errore eliminazione: ${detail}`,
+  TOAST_EXPORT_ERROR: (detail) => `Errore esportazione: ${detail}`,
+  TOAST_UPLOAD_STATE_ERROR: (detail) =>
+    `Errore salvataggio stato upload: ${detail}`,
+  TOAST_STATE_SAVE_ERROR: (detail) => `Errore salvataggio stato: ${detail}`,
+  TOAST_MAP_POINTS_LOAD_ERROR: (detail) =>
+    `Errore caricamento punti mappa: ${detail}`,
+  TOAST_DATA_LOAD_ERROR: (detail) => `Errore caricamento dati: ${detail}`,
+  TOAST_BOOT_ERROR: (detail) => `Errore avvio: ${detail}`,
 
   // Upload screen
   UPLOAD_TITLE: 'Caricamento in corso',
@@ -133,6 +168,13 @@ const S = {
   UPLOAD_ERROR_SERVER: 'Errore del server. Riprovo…',
   UPLOAD_ERROR_RATE_LIMITED: 'Server occupato. Riprovo…',
   UPLOAD_NEXT_RETRY_IN: (s) => `Prossimo tentativo fra ${s} s`,
+  UPLOAD_ERROR_CONTEXT_MISSING: 'Contesto caricamento mancante.',
+  UPLOAD_ERROR_SPECIES_ID_MISSING: (name) =>
+    `Specie senza ID Abies: ${name || ''}`,
+  UPLOAD_ERROR_REGION_ID_MISSING: (compresa) =>
+    `Compresa senza ID Abies: ${compresa || ''}`,
+  UPLOAD_ERROR_PARCEL_ID_MISSING: (compresa, particella) =>
+    `Particella senza ID Abies: ${compresa || ''}/${particella || ''}`,
 
   // Resume modal — upload variant
   UPLOAD_RESUME_TITLE: 'Sessioni in attesa di caricamento',
