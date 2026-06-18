@@ -30,6 +30,7 @@ from apps.base.models import (
     natural_sort_key, parcel_sort_key,
 )
 from apps.base.numparse import coord_float, to_decimal
+from apps.base.responses import success_response, validation_error
 from apps.ipso.models import IpsoUpload, IpsoUploadState
 from apps.piano_di_taglio.mark_import import (
     MarkImportRow, import_mark_rows, ipso_mark_fingerprint,
@@ -389,24 +390,18 @@ def reject_upload(request: HttpRequest, upload_id: int) -> JsonResponse:
     with transaction.atomic():
         upload = _get_upload(upload_id, for_update=True)
         if upload.state == IpsoUploadState.IMPORTED:
-            return _api_json({
-                OK: False,
-                MESSAGE: S.IPSO_ERR_IMPORTED_CANNOT_REJECT,
-            }, status=400)
+            return validation_error([S.IPSO_ERR_IMPORTED_CANNOT_REJECT])
         reason = _reject_reason(request)
         updated = (IpsoUpload.objects
                    .filter(id=upload.id)
                    .exclude(state=IpsoUploadState.IMPORTED)
                    .update(state=IpsoUploadState.REJECTED, error_summary=reason))
         if not updated:
-            return _api_json({
-                OK: False,
-                MESSAGE: S.IPSO_ERR_IMPORTED_CANNOT_REJECT,
-            }, status=400)
+            return validation_error([S.IPSO_ERR_IMPORTED_CANNOT_REJECT])
         upload.state = IpsoUploadState.REJECTED
         upload.error_summary = reason
         data = _upload_metadata(upload)
-    return _api_json({OK: True, UPLOAD: data})
+    return success_response(request, None, extra={UPLOAD: data})
 
 
 @login_required
@@ -417,36 +412,30 @@ def import_martellate_upload(request: HttpRequest, upload_id: int) -> JsonRespon
         body = _request_json(request)
         item_id = _int(body, FIELD_HARVEST_PLAN_ITEM_ID)
     except UploadValidationError as e:
-        return _api_json({OK: False, MESSAGE: str(e)}, status=400)
+        return validation_error([str(e)])
 
     with transaction.atomic():
         upload = _get_upload(upload_id, for_update=True)
         if upload.mode != IPSO_MODE_MARTELLATE:
-            return _api_json({OK: False, MESSAGE: S.IPSO_ERR_MODE_UNSUPPORTED}, status=400)
+            return validation_error([S.IPSO_ERR_MODE_UNSUPPORTED])
         if upload.state != IpsoUploadState.RECEIVED:
-            return _api_json({
-                OK: False,
-                MESSAGE: S.IPSO_ERR_UPLOAD_NOT_RECEIVED,
-            }, status=400)
+            return validation_error([S.IPSO_ERR_UPLOAD_NOT_RECEIVED])
         item = (HarvestPlanItem.objects
                 .select_for_update()
                 .filter(id=item_id).first())
         if item is None:
-            return _api_json({OK: False, MESSAGE: S.ERR_PLAN_ITEM_NOT_FOUND}, status=400)
+            return validation_error([S.ERR_PLAN_ITEM_NOT_FOUND])
         if item.state == HarvestPlanItemState.CLOSED:
-            return _api_json({OK: False, MESSAGE: S.ERR_MARK_ITEM_CLOSED}, status=400)
+            return validation_error([S.ERR_MARK_ITEM_CLOSED])
         if not _is_valid_martellate_target(item):
-            return _api_json({
-                OK: False,
-                MESSAGE: S.IPSO_ERR_INVALID_MARTELLATE_TARGET,
-            }, status=400)
+            return validation_error([S.IPSO_ERR_INVALID_MARTELLATE_TARGET])
 
         payload, file_error = _read_staged_payload(upload)
         if file_error:
-            return _api_json({OK: False, MESSAGE: file_error}, status=400)
+            return validation_error([file_error])
         rows, errors = _martellate_import_rows(upload, payload, item)
         if errors:
-            return _api_json({OK: False, MESSAGE: '\n'.join(errors), 'errors': errors}, status=400)
+            return validation_error(errors)
 
         imported_at = django_timezone.now()
         claimed = (IpsoUpload.objects
@@ -460,10 +449,7 @@ def import_martellate_upload(request: HttpRequest, upload_id: int) -> JsonRespon
                        error_summary='',
                    ))
         if not claimed:
-            return _api_json({
-                OK: False,
-                MESSAGE: S.IPSO_ERR_UPLOAD_NOT_RECEIVED,
-            }, status=400)
+            return validation_error([S.IPSO_ERR_UPLOAD_NOT_RECEIVED])
         upload.state = IpsoUploadState.IMPORTED
         upload.imported_at = imported_at
         upload.imported_by = request.user
@@ -472,8 +458,7 @@ def import_martellate_upload(request: HttpRequest, upload_id: int) -> JsonRespon
         upload.error_summary = ''
         result = import_mark_rows(item, rows)
         data = _upload_metadata(upload)
-    return _api_json({
-        OK: True,
+    return success_response(request, body, extra={
         IMPORTED: result.imported,
         SKIPPED_DUPLICATES: result.skipped_duplicates,
         UPLOAD: data,
