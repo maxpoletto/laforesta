@@ -10,7 +10,7 @@ const S = {
   MODE_MARTELLATE: 'Martellate',
   MODE_SAMPLES: 'Campionamenti',
   MODE_PAI: 'PAI',
-  MODE_BACK: 'Modalita',
+  MODE_BACK: 'Indietro',
 
   // Pre-session screen
   PRE_NEW_SESSION: 'Nuova martellata',
@@ -70,6 +70,7 @@ const S = {
   MAP_WAITING: 'GPS in attesa...',
   MAP_UNAVAILABLE: 'Mappa non disponibile',
   MAP_NO_PARCELS: 'Nessuna particella disponibile.',
+  MAP_PAI_TOGGLE: 'Mostra/nascondi PAI esistenti',
   DATA_NO_GROUPS: 'Nessun gruppo assegnato.',
 
   // Resume modal

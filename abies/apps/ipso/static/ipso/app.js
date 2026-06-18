@@ -38,9 +38,6 @@ async function boot() {
   document.getElementById('footer-version').textContent =
     'v' + APP_VERSION;
   document.getElementById('mode-title').textContent = S.MODE_TITLE;
-  document.getElementById('btn-mode-martellate').textContent = S.MODE_MARTELLATE;
-  document.getElementById('btn-mode-samples').textContent = S.MODE_SAMPLES;
-  document.getElementById('btn-mode-pai').textContent = S.MODE_PAI;
   document.getElementById('lbl-operatore').textContent = S.PRE_OPERATOR;
   document.getElementById('lbl-data').textContent = S.PRE_DATA;
   document.getElementById('lbl-compresa').textContent = S.PRE_COMPRESA;
@@ -243,7 +240,11 @@ function applyModeUi() {
 }
 
 function modeString(field, fallback) {
-  const key = currentMode()[field];
+  return modeStringFor(currentMode(), field, fallback);
+}
+
+function modeStringFor(mode, field, fallback) {
+  const key = mode && mode[field];
   if (!key || !Object.prototype.hasOwnProperty.call(S, key)) return fallback;
   return S[key];
 }
@@ -269,7 +270,7 @@ function wireModeSelection() {
   for (const mode of IpsoModes.all()) {
     const button = document.getElementById(mode.buttonId);
     if (!button) continue;
-    button.textContent = modeString('labelKey', mode.id);
+    button.textContent = modeStringFor(mode, 'labelKey', mode.id);
     button.disabled = !mode.enabled;
     button.addEventListener('click', () => enterPreSession(mode.id));
   }
@@ -1004,6 +1005,7 @@ async function enterMapScreen(returnScreen) {
   }
   renderMapParcels();
   await renderMapRecords();
+  renderMapPai();
   updateMapPosition();
   updateMapHeader();
   setTimeout(() => {
@@ -1024,6 +1026,8 @@ function ensureMap() {
     formatFeatureLabel: formatParcelText,
     featureName: particellaName,
     formatRecordLabel: formatMapRecordText,
+    formatPaiLabel: formatMapPaiText,
+    paiControlTitle: S.MAP_PAI_TOGGLE,
     getActiveName: currentAutoName,
     getManualName() {
       return State.override && State.override.getMode() === 'manual'
@@ -1070,6 +1074,18 @@ function refreshMapRecords() {
   renderMapRecords();
 }
 
+function renderMapPai() {
+  if (!State.map || !State.map.ready()) return;
+  const enabled = State.session && State.session.mode === IpsoModes.PAI;
+  State.map.renderPai(enabled ? currentMapPaiRecords() : [], enabled);
+}
+
+function currentMapPaiRecords() {
+  if (!State.reference || !State.reference.pai || !State.session) return [];
+  const rows = State.reference.pai.preserved_trees || [];
+  return rows.filter((r) => r && r.compresa === State.session.compresa);
+}
+
 function formatMapRecordText(rec) {
   if (!rec) return '';
   const bits = [];
@@ -1078,6 +1094,24 @@ function formatMapRecordText(rec) {
   if (rec.d_cm != null) bits.push('D=' + rec.d_cm);
   if (rec.h_m != null) bits.push('h=' + rec.h_m);
   return bits.join(' · ');
+}
+
+function formatMapPaiText(rec) {
+  if (!rec) return '';
+  const bits = ['PAI'];
+  if (Number.isInteger(rec.number)) bits.push('n. ' + rec.number);
+  const species = speciesNameById(rec.species_id);
+  if (species) bits.push(species);
+  if (rec.particella) bits.push(rec.particella);
+  if (rec.d_cm != null) bits.push('D=' + rec.d_cm);
+  if (rec.h_m != null) bits.push('h=' + rec.h_m);
+  return bits.join(' · ');
+}
+
+function speciesNameById(id) {
+  const rows = State.reference && State.reference.species || [];
+  const found = rows.find((sp) => sp && sp.id === id);
+  return found ? found.common : '';
 }
 
 function updateMapPosition() {

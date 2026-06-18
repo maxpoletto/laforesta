@@ -11,6 +11,8 @@ function createOrientationMap(opts) {
   const getActiveName = opts.getActiveName;
   const getManualName = opts.getManualName;
   const formatRecordLabel = opts.formatRecordLabel;
+  const formatPaiLabel = opts.formatPaiLabel;
+  const paiControlTitle = opts.paiControlTitle || 'PAI';
   const onFeatureClick = opts.onFeatureClick;
 
   let initPromise = null;
@@ -18,7 +20,11 @@ function createOrientationMap(opts) {
   let leaflet = null;
   let parcelsLayer = null;
   let recordsLayer = null;
+  let paiLayer = null;
   let positionLayer = null;
+  let paiControlEl = null;
+  let paiEnabled = false;
+  let paiVisible = true;
 
   async function ensure() {
     if (leaflet) return;
@@ -44,7 +50,10 @@ function createOrientationMap(opts) {
         onEachFeature: bindFeature,
       }).addTo(leaflet);
       recordsLayer = L.layerGroup().addTo(leaflet);
+      paiLayer = L.layerGroup().addTo(leaflet);
       positionLayer = L.layerGroup().addTo(leaflet);
+      setupPaiControl();
+      updatePaiLayerVisibility();
     } catch (e) {
       initPromise = null;
       throw e;
@@ -112,6 +121,68 @@ function createOrientationMap(opts) {
     }
   }
 
+  function renderPai(records, enabled) {
+    paiEnabled = !!enabled;
+    if (!paiLayer) return;
+    paiLayer.clearLayers();
+    if (paiEnabled && records && records.length) {
+      for (const rec of records) addPaiMarker(rec);
+    }
+    updatePaiLayerVisibility();
+  }
+
+  function addPaiMarker(rec) {
+    const lat = Number(rec && rec.lat);
+    const lon = Number(rec && rec.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+    const marker = L.circleMarker([lat, lon], {
+      radius: 6,
+      color: '#4d2f8f',
+      weight: 2,
+      fillColor: '#ffffff',
+      fillOpacity: 0.95,
+    }).addTo(paiLayer);
+    const label = formatPaiLabel ? formatPaiLabel(rec) : '';
+    if (label) marker.bindTooltip(label, { sticky: true });
+  }
+
+  function setupPaiControl() {
+    const Control = L.Control.extend({
+      options: { position: 'topleft' },
+      onAdd: function() {
+        const c = L.DomUtil.create('div', 'leaflet-bar ipso-pai-control');
+        const btn = L.DomUtil.create('button', 'ipso-pai-toggle', c);
+        btn.type = 'button';
+        btn.title = paiControlTitle;
+        btn.setAttribute('aria-label', paiControlTitle);
+        btn.innerHTML = '&#128065;';
+        L.DomEvent.disableClickPropagation(c);
+        L.DomEvent.on(btn, 'click', (e) => {
+          L.DomEvent.stop(e);
+          paiVisible = !paiVisible;
+          updatePaiLayerVisibility();
+        });
+        paiControlEl = c;
+        return c;
+      },
+    });
+    leaflet.addControl(new Control());
+  }
+
+  function updatePaiLayerVisibility() {
+    if (!leaflet || !paiLayer) return;
+    const showControl = !!paiEnabled;
+    if (paiControlEl) paiControlEl.style.display = showControl ? '' : 'none';
+    if (showControl && paiVisible) {
+      if (!leaflet.hasLayer(paiLayer)) paiLayer.addTo(leaflet);
+    } else if (leaflet.hasLayer(paiLayer)) {
+      leaflet.removeLayer(paiLayer);
+    }
+    if (paiControlEl) {
+      paiControlEl.classList.toggle('off', !paiVisible || !showControl);
+    }
+  }
+
   function updatePosition(fix) {
     if (!positionLayer) return;
     positionLayer.clearLayers();
@@ -166,8 +237,8 @@ function createOrientationMap(opts) {
   }
 
   return {
-    ensure, ready, renderParcels, renderRecords, updatePosition, center,
-    invalidate,
+    ensure, ready, renderParcels, renderRecords, renderPai, updatePosition,
+    center, invalidate,
   };
 }
 
