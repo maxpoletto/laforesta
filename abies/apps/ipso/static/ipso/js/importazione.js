@@ -11,6 +11,7 @@ import {
 } from '../../base/js/page-sync.js';
 import { showError } from '../../base/js/modals.js';
 import { showConfirmModal } from '../../base/js/ui-widgets.js';
+import { fmtCoord } from '../../base/js/format.js';
 import * as S from '../../base/js/strings.js';
 import {
   DATA_ID_IPSO_UPLOADS, FIELD_HARVEST_PLAN_ITEM_ID, FILE_ERROR, IPSO_MODE_MARTELLATE,
@@ -351,9 +352,6 @@ function loadingBlock(text) {
   return p;
 }
 
-function fmtCoord(value) {
-  return Number.isFinite(value) ? value.toFixed(6) : value;
-}
 
 function summaryText(data) {
   const rows = data?.[ROWS] || [];
