@@ -100,6 +100,8 @@ const S = {
   DONE_TITLE: 'Sessione esportata',
   DONE_BODY: (n) =>
     `${n} alber${n === 1 ? 'o' : 'i'} salvat${n === 1 ? 'o' : 'i'} su CSV.`,
+  DONE_EMPTY_TITLE: 'Sessione chiusa',
+  DONE_EMPTY_BODY: 'Nessun albero registrato.',
   DONE_NEW: 'Nuova sessione',
 
   // Persistent-storage banner

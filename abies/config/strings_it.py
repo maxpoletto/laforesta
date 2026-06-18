@@ -56,6 +56,7 @@ IPSO_ERR_DUPLICATE_SESSION_CONTENT = 'ID sessione duplicato con contenuto divers
 IPSO_ERR_UPLOAD_JSON_MISSING = 'File upload.json non trovato.'
 IPSO_ERR_UPLOAD_JSON_INVALID = 'File upload.json non valido.'
 IPSO_ERR_IMPORT_RECORDS_ARRAY = 'Il campo records deve essere un array.'
+IPSO_ERR_RECORDS_EMPTY = 'Il campo records deve contenere almeno una riga.'
 IPSO_ERR_IMPORT_RECORD_INVALID = 'Riga {}: formato non valido.'
 IPSO_ERR_IMPORT_RECORD_PARCEL_NOT_FOUND = 'Riga {}: particella non trovata.'
 IPSO_ERR_IMPORT_RECORD_SPECIES_NOT_FOUND = 'Riga {}: specie non trovata.'

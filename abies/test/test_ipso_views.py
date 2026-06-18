@@ -317,6 +317,20 @@ def test_upload_stages_non_martellate_modes(
 
 
 @override_settings(IPSO_UPLOAD_TOKEN='test-token')
+def test_upload_rejects_empty_records(db, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    payload = _upload_payload(parcels, species)
+    payload['records'] = []
+
+    resp = _post_upload(Client(), payload)
+
+    assert resp.status_code == 422
+    assert resp.json()['error'] == 'invalid_payload'
+    assert 'records' in resp.json()['detail']
+    assert IpsoUpload.objects.count() == 0
+
+
+@override_settings(IPSO_UPLOAD_TOKEN='test-token')
 def test_upload_rejects_pai_without_height(db, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     payload = _upload_payload(

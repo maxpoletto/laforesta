@@ -918,6 +918,8 @@ def _request_json(request: HttpRequest) -> dict:
 def _validate_upload_payload(payload: dict, request: HttpRequest) -> tuple[dict, str | None]:
     session = _dict(payload, SESSION)
     records = _list(payload, RECORDS)
+    if not records:
+        raise UploadValidationError(S.IPSO_ERR_RECORDS_EMPTY)
     csv_text = payload.get(FIELD_CSV_TEXT)
     if csv_text is not None and not isinstance(csv_text, str):
         raise UploadValidationError(S.IPSO_ERR_CSV_TEXT_STRING)

@@ -1031,6 +1031,10 @@ async function onEnd() {
   try {
     const trees = await Store.listTrees(State.db, State.session.id);
     trees.sort((a, b) => a.seq - b.seq);
+    if (trees.length === 0) {
+      await closeEmptySession(State.session);
+      return;
+    }
     const csvText = csv.formatFile(State.session, trees);
     const uploadPayload = upload.buildUploadPayload(
       State.session, trees, State.reference, csvText
@@ -1388,7 +1392,7 @@ function uploadFlow() {
     uploadFlowInstance = createUploadFlow({
       db: () => State.db,
       uploadToken: () => UPLOAD_TOKEN,
-      stopRecording: stopRecordingForUpload,
+      stopRecording: stopRecordingSensors,
       acquireWakeLock,
       releaseWakeLock,
       showScreen,
@@ -1399,11 +1403,24 @@ function uploadFlow() {
   return uploadFlowInstance;
 }
 
-function stopRecordingForUpload() {
+function stopRecordingSensors() {
   if (State.gps) {
     State.gps.stop();
     State.gps = null;
   }
+}
+
+
+async function closeEmptySession(sess) {
+  await Store.setSessionStatus(State.db, sess.id, Store.STATUS_ABANDONED);
+  if (State.session && State.session.id === sess.id) {
+    State.session.status = Store.STATUS_ABANDONED;
+  }
+  stopRecordingSensors();
+  releaseWakeLock();
+  document.getElementById('done-title').textContent = S.DONE_EMPTY_TITLE;
+  document.getElementById('done-body').textContent = S.DONE_EMPTY_BODY;
+  showScreen('screen-done');
 }
 
 function showUploadDone(treeCount, uploaded) {
@@ -1466,6 +1483,12 @@ function showResumeModal(sessions) {
         hideModal('modal-resume');
         const trees = await Store.listTrees(State.db, s.id);
         trees.sort((a, b) => a.seq - b.seq);
+        if (trees.length === 0) {
+          State.session = s;
+          setMode(s.mode);
+          await closeEmptySession(s);
+          return;
+        }
         const csvText = csv.formatFile(s, trees);
         const uploadPayload = upload.buildUploadPayload(
           s, trees, State.reference, csvText
