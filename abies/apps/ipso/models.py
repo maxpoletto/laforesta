@@ -3,12 +3,17 @@
 from django.conf import settings
 from django.db import models
 
+from config.constants import (
+    IPSO_UPLOAD_STATE_CONFLICT, IPSO_UPLOAD_STATE_IMPORTED,
+    IPSO_UPLOAD_STATE_RECEIVED, IPSO_UPLOAD_STATE_REJECTED,
+)
+
 
 class IpsoUploadState(models.TextChoices):
-    RECEIVED = 'received', 'received'
-    IMPORTED = 'imported', 'imported'
-    REJECTED = 'rejected', 'rejected'
-    CONFLICT = 'conflict', 'conflict'
+    RECEIVED = IPSO_UPLOAD_STATE_RECEIVED, IPSO_UPLOAD_STATE_RECEIVED
+    IMPORTED = IPSO_UPLOAD_STATE_IMPORTED, IPSO_UPLOAD_STATE_IMPORTED
+    REJECTED = IPSO_UPLOAD_STATE_REJECTED, IPSO_UPLOAD_STATE_REJECTED
+    CONFLICT = IPSO_UPLOAD_STATE_CONFLICT, IPSO_UPLOAD_STATE_CONFLICT
 
 
 class IpsoUpload(models.Model):

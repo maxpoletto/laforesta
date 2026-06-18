@@ -197,7 +197,7 @@ def _upload_payload(
             'operator': 'Mario Rossi',
             'created_at': '2026-06-17T08:00:00Z',
             'completed_at': '2026-06-17T09:00:00Z',
-            'catastrofata': False,
+            'damaged': False,
             'region_id': parcel.region_id,
         },
         'records': [{

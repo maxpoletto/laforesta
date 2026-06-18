@@ -41,6 +41,23 @@ export const STATUS_VALIDATION_ERROR = 'validation_error';
 export const STATUS_RATE_LIMITED     = 'rate_limited';
 export const STATUS_NOT_FOUND        = 'not_found';
 
+// Device / integration API envelope keys.
+export const PENDING_COUNT = 'pending_count';
+export const UPLOAD = 'upload';
+export const FILE_ERROR = 'file_error';
+export const RECORD_COUNT = 'record_count';
+export const TARGETS = 'targets';
+export const SUGGESTED_TARGET_ID = 'suggested_target_id';
+
+// Ipso integration identifiers.
+export const DATA_ID_IPSO_UPLOADS = 'ipso_uploads';
+export const IPSO_MODE_MARTELLATE = 'martellate';
+export const IPSO_MODE_SAMPLES = 'samples';
+export const IPSO_MODE_PAI = 'pai';
+export const IPSO_UPLOAD_STATE_RECEIVED = 'received';
+export const IPSO_UPLOAD_STATE_IMPORTED = 'imported';
+export const IPSO_UPLOAD_STATE_REJECTED = 'rejected';
+
 // Role identifiers — mirror apps/base/models.py Role.TextChoices values.
 export const ROLE_ADMIN  = 'admin';
 export const ROLE_WRITER = 'writer';

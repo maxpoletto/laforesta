@@ -34,16 +34,26 @@ from apps.piano_di_taglio.mark_import import (
     MarkImportRow, import_mark_rows, ipso_mark_fingerprint,
 )
 from config import strings as S
+from config.constants import (
+    COLUMNS, DETAIL, DUPLICATE, ERROR, FIELD_ACC_M, FIELD_DAMAGED,
+    FIELD_CLIENT_RECORD_ID, FIELD_COMPLETED_AT, FIELD_CREATED_AT,
+    FIELD_CSV_TEXT, FIELD_DATE,
+    FIELD_D_CM, FIELD_HARVEST_PLAN_ITEM_ID, FIELD_H_M, FIELD_H_MEASURED,
+    FIELD_HYPSO_PARAM_SET_ID, FIELD_LAT, FIELD_LON, FIELD_MODE, FIELD_NUMBER,
+    FIELD_OPERATOR, FIELD_PARCEL_ID, FIELD_REFERENCE_VERSION,
+    FIELD_REGION_ID, FIELD_SCHEMA_VERSION, FIELD_SESSION_ID, FIELD_SPECIES_ID,
+    FIELD_STATE, FIELD_WORK_PACKAGE_ID, FILE_ERROR, IMPORTED, IPSO_ERROR_AUTH,
+    IPSO_ERROR_CONFLICT, IPSO_ERROR_INVALID_PAYLOAD, IPSO_MODE_MARTELLATE,
+    IPSO_MODE_PAI, IPSO_MODE_SAMPLES, IPSO_REFERENCE_JSON, IPSO_TARGET_HARVEST_PLAN_ITEM,
+    IPSO_TERRENI_GEOJSON, IPSO_UPLOAD_CONFIG_JS, IPSO_UPLOAD_FILE_CSV,
+    IPSO_UPLOAD_FILE_JSON, IPSO_UPLOAD_FILE_SHA256, IPSO_UPLOAD_MODES, MESSAGE, OK,
+    PENDING_COUNT, RECORD_COUNT, RECORDS, ROW_ID, ROWS, SESSION, SKIPPED_DUPLICATES, STORED_AS,
+    SUGGESTED_TARGET_ID, TARGETS, UPLOAD,
+)
 
 SCHEMA_VERSION = 1
 UPLOAD_SCHEMA_VERSION = 1
-UPLOAD_MODE_MARTELLATE = 'martellate'
-UPLOAD_MODE_SAMPLES = 'samples'
-UPLOAD_MODE_PAI = 'pai'
-ALLOWED_UPLOAD_MODES = {
-    UPLOAD_MODE_MARTELLATE, UPLOAD_MODE_SAMPLES, UPLOAD_MODE_PAI,
-}
-TARGET_TYPE_HARVEST_PLAN_ITEM = 'harvest_plan_item'
+ALLOWED_UPLOAD_MODES = set(IPSO_UPLOAD_MODES)
 
 ASSET_CONTENT_TYPES = {
     '.css': 'text/css; charset=utf-8',
@@ -117,7 +127,7 @@ def upload_config_js(request: HttpRequest) -> HttpResponse:
 
 @require_GET
 def asset(request: HttpRequest, asset_path: str) -> HttpResponse:
-    if asset_path in {'reference.json', 'terreni.geojson', 'upload-config.js'}:
+    if asset_path in {IPSO_REFERENCE_JSON, IPSO_TERRENI_GEOJSON, IPSO_UPLOAD_CONFIG_JS}:
         raise Http404
     return _asset_response(request, asset_path)
 
@@ -152,7 +162,7 @@ def reference_json(request: HttpRequest) -> HttpResponse:
     sampling = _sampling_context()
     pai = _pai_context()
     payload = {
-        'schema_version': SCHEMA_VERSION,
+        FIELD_SCHEMA_VERSION: SCHEMA_VERSION,
         'generated_at': django_timezone.now().astimezone(timezone.utc)
                        .isoformat(timespec='seconds').replace('+00:00', 'Z'),
         'species': _species_rows(),
@@ -162,7 +172,7 @@ def reference_json(request: HttpRequest) -> HttpResponse:
         'pai': pai,
         'work_packages': _work_packages(sampling),
     }
-    payload['reference_version'] = _reference_version(payload)
+    payload[FIELD_REFERENCE_VERSION] = _reference_version(payload)
     return _json_response(payload, content_type='application/json')
 
 
@@ -182,9 +192,9 @@ def _species_rows() -> list[dict]:
 def _parcel_rows() -> list[dict]:
     rows = [
         {
-            'region_id': p.region_id,
+            FIELD_REGION_ID: p.region_id,
             'region_name': p.region.name,
-            'parcel_id': p.id,
+            FIELD_PARCEL_ID: p.id,
             'compresa': p.region.name,
             'particella': p.name,
         }
@@ -229,13 +239,13 @@ def _sampling_context() -> dict:
             {
                 'sample_area_id': a.id,
                 'sample_grid_id': a.sample_grid_id,
-                'region_id': a.parcel.region_id,
-                'parcel_id': a.parcel_id,
+                FIELD_REGION_ID: a.parcel.region_id,
+                FIELD_PARCEL_ID: a.parcel_id,
                 'compresa': a.parcel.region.name,
                 'particella': a.parcel.name,
-                'number': a.number,
-                'lat': a.lat,
-                'lon': a.lon,
+                FIELD_NUMBER: a.number,
+                FIELD_LAT: a.lat,
+                FIELD_LON: a.lon,
                 'r_m': a.r_m,
             }
             for a in areas
@@ -247,28 +257,28 @@ def _pai_context() -> dict:
     rows = (
         TreePreserved.objects
         .select_related('tree__species', 'parcel__region')
-        .order_by('parcel__region__name', 'parcel__name', 'number', 'id')
+        .order_by('parcel__region__name', 'parcel__name', FIELD_NUMBER, 'id')
     )
     return {
         'preserved_trees': [
             {
                 'tree_preserved_id': p.id,
                 'tree_id': p.tree_id,
-                'region_id': p.parcel.region_id,
-                'parcel_id': p.parcel_id,
+                FIELD_REGION_ID: p.parcel.region_id,
+                FIELD_PARCEL_ID: p.parcel_id,
                 'compresa': p.parcel.region.name,
                 'particella': p.parcel.name,
-                'species_id': p.tree.species_id,
-                'number': p.number,
+                FIELD_SPECIES_ID: p.tree.species_id,
+                FIELD_NUMBER: p.number,
                 'estimated_birth_year': p.tree.estimated_birth_year,
-                'date': p.date.isoformat() if p.date else '',
-                'd_cm': p.d_cm,
-                'h_m': str(p.h_m) if p.h_m is not None else None,
-                'h_measured': p.h_measured,
-                'lat': p.lat,
-                'lon': p.lon,
-                'acc_m': p.acc_m,
-                'operator': p.operator,
+                FIELD_DATE: p.date.isoformat() if p.date else '',
+                FIELD_D_CM: p.d_cm,
+                FIELD_H_M: str(p.h_m) if p.h_m is not None else None,
+                FIELD_H_MEASURED: p.h_measured,
+                FIELD_LAT: p.lat,
+                FIELD_LON: p.lon,
+                FIELD_ACC_M: p.acc_m,
+                FIELD_OPERATOR: p.operator,
                 'note': p.note,
             }
             for p in rows
@@ -302,7 +312,7 @@ def _ipsometrica() -> dict:
         out.setdefault(p.region.name, {})[p.species.common_name] = {
             'a': float(p.a),
             'b': float(p.b),
-            'hypso_param_set_id': active.id,
+            FIELD_HYPSO_PARAM_SET_ID: active.id,
         }
     return out
 
@@ -321,7 +331,7 @@ def _reference_version(payload: dict) -> str:
 
 @require_GET
 def terreni_geojson(request: HttpRequest) -> HttpResponse:
-    path = Path(settings.GEO_DIR) / 'terreni.geojson'
+    path = Path(settings.GEO_DIR) / IPSO_TERRENI_GEOJSON
     if path.is_file():
         return conditional_file_response(
             request, path, content_type='application/geo+json',
@@ -334,14 +344,15 @@ def terreni_geojson(request: HttpRequest) -> HttpResponse:
 
 
 INBOX_COLUMNS = [
-    'row_id', 'Ricevuto', 'Modalita', 'Operatore', 'Record', 'Stato',
-    'Pacchetto', 'Destinazione', 'Errore',
+    ROW_ID, S.IPSO_COL_RECEIVED, S.IPSO_COL_MODE, S.IPSO_COL_OPERATOR,
+    S.IPSO_COL_RECORDS, S.IPSO_COL_STATE, S.IPSO_COL_WORK_PACKAGE,
+    S.IPSO_COL_TARGET, S.IPSO_COL_ERROR,
 ]
 STATE_LABELS = {
-    IpsoUploadState.RECEIVED: 'Da importare',
-    IpsoUploadState.IMPORTED: 'Importato',
-    IpsoUploadState.REJECTED: 'Rifiutato',
-    IpsoUploadState.CONFLICT: 'Conflitto',
+    IpsoUploadState.RECEIVED: S.IPSO_STATE_RECEIVED,
+    IpsoUploadState.IMPORTED: S.IPSO_STATE_IMPORTED,
+    IpsoUploadState.REJECTED: S.IPSO_STATE_REJECTED,
+    IpsoUploadState.CONFLICT: S.IPSO_STATE_CONFLICT,
 }
 
 
@@ -350,9 +361,9 @@ STATE_LABELS = {
 def inbox_data(request: HttpRequest) -> JsonResponse:
     uploads = IpsoUpload.objects.order_by('-received_at')
     payload = {
-        'columns': INBOX_COLUMNS,
-        'rows': [_inbox_row(u) for u in uploads],
-        'pending_count': uploads.filter(state=IpsoUploadState.RECEIVED).count(),
+        COLUMNS: INBOX_COLUMNS,
+        ROWS: [_inbox_row(u) for u in uploads],
+        PENDING_COUNT: uploads.filter(state=IpsoUploadState.RECEIVED).count(),
     }
     return _api_json(payload)
 
@@ -362,16 +373,16 @@ def inbox_data(request: HttpRequest) -> JsonResponse:
 def upload_detail(request: HttpRequest, upload_id: int) -> JsonResponse:
     upload = _get_upload(upload_id)
     payload, file_error = _read_staged_payload(upload)
-    session = payload.get('session', {}) if payload else {}
-    records = payload.get('records', []) if payload else []
+    session = payload.get(SESSION, {}) if payload else {}
+    records = payload.get(RECORDS, []) if payload else []
     return _api_json({
-        'upload': _upload_metadata(upload),
-        'session': session,
-        'records': _preview_records(records),
-        'record_count': len(records),
-        'file_error': file_error,
-        'targets': _martellate_targets(),
-        'suggested_target_id': _suggested_harvest_item_id(upload.work_package_id),
+        UPLOAD: _upload_metadata(upload),
+        SESSION: session,
+        RECORDS: _preview_records(records),
+        RECORD_COUNT: len(records),
+        FILE_ERROR: file_error,
+        TARGETS: _martellate_targets(),
+        SUGGESTED_TARGET_ID: _suggested_harvest_item_id(upload.work_package_id),
     })
 
 
@@ -383,8 +394,8 @@ def reject_upload(request: HttpRequest, upload_id: int) -> JsonResponse:
         upload = _get_upload(upload_id, for_update=True)
         if upload.state == IpsoUploadState.IMPORTED:
             return _api_json({
-                'ok': False,
-                'message': 'Un caricamento importato non puo essere rifiutato.',
+                OK: False,
+                MESSAGE: S.IPSO_ERR_IMPORTED_CANNOT_REJECT,
             }, status=400)
         reason = _reject_reason(request)
         updated = (IpsoUpload.objects
@@ -393,13 +404,13 @@ def reject_upload(request: HttpRequest, upload_id: int) -> JsonResponse:
                    .update(state=IpsoUploadState.REJECTED, error_summary=reason))
         if not updated:
             return _api_json({
-                'ok': False,
-                'message': 'Un caricamento importato non puo essere rifiutato.',
+                OK: False,
+                MESSAGE: S.IPSO_ERR_IMPORTED_CANNOT_REJECT,
             }, status=400)
         upload.state = IpsoUploadState.REJECTED
         upload.error_summary = reason
         data = _upload_metadata(upload)
-    return _api_json({'ok': True, 'upload': data})
+    return _api_json({OK: True, UPLOAD: data})
 
 
 @login_required
@@ -408,38 +419,38 @@ def reject_upload(request: HttpRequest, upload_id: int) -> JsonResponse:
 def import_martellate_upload(request: HttpRequest, upload_id: int) -> JsonResponse:
     try:
         body = _request_json(request)
-        item_id = _int(body, 'harvest_plan_item_id')
+        item_id = _int(body, FIELD_HARVEST_PLAN_ITEM_ID)
     except UploadValidationError as e:
-        return _api_json({'ok': False, 'message': str(e)}, status=400)
+        return _api_json({OK: False, MESSAGE: str(e)}, status=400)
 
     with transaction.atomic():
         upload = _get_upload(upload_id, for_update=True)
-        if upload.mode != UPLOAD_MODE_MARTELLATE:
-            return _api_json({'ok': False, 'message': 'Modalita non supportata.'}, status=400)
+        if upload.mode != IPSO_MODE_MARTELLATE:
+            return _api_json({OK: False, MESSAGE: S.IPSO_ERR_MODE_UNSUPPORTED}, status=400)
         if upload.state != IpsoUploadState.RECEIVED:
             return _api_json({
-                'ok': False,
-                'message': 'Solo i caricamenti da importare possono essere importati.',
+                OK: False,
+                MESSAGE: S.IPSO_ERR_UPLOAD_NOT_RECEIVED,
             }, status=400)
         item = (HarvestPlanItem.objects
                 .select_for_update()
                 .filter(id=item_id).first())
         if item is None:
-            return _api_json({'ok': False, 'message': S.ERR_PLAN_ITEM_NOT_FOUND}, status=400)
+            return _api_json({OK: False, MESSAGE: S.ERR_PLAN_ITEM_NOT_FOUND}, status=400)
         if item.state == HarvestPlanItemState.CLOSED:
-            return _api_json({'ok': False, 'message': S.ERR_MARK_ITEM_CLOSED}, status=400)
+            return _api_json({OK: False, MESSAGE: S.ERR_MARK_ITEM_CLOSED}, status=400)
         if not _is_valid_martellate_target(item):
             return _api_json({
-                'ok': False,
-                'message': 'Destinazione non valida per Martellate.',
+                OK: False,
+                MESSAGE: S.IPSO_ERR_INVALID_MARTELLATE_TARGET,
             }, status=400)
 
         payload, file_error = _read_staged_payload(upload)
         if file_error:
-            return _api_json({'ok': False, 'message': file_error}, status=400)
+            return _api_json({OK: False, MESSAGE: file_error}, status=400)
         rows, errors = _martellate_import_rows(upload, payload, item)
         if errors:
-            return _api_json({'ok': False, 'message': '\n'.join(errors), 'errors': errors}, status=400)
+            return _api_json({OK: False, MESSAGE: '\n'.join(errors), 'errors': errors}, status=400)
 
         imported_at = django_timezone.now()
         claimed = (IpsoUpload.objects
@@ -448,28 +459,28 @@ def import_martellate_upload(request: HttpRequest, upload_id: int) -> JsonRespon
                        state=IpsoUploadState.IMPORTED,
                        imported_at=imported_at,
                        imported_by_id=request.user.id,
-                       target_type=TARGET_TYPE_HARVEST_PLAN_ITEM,
+                       target_type=IPSO_TARGET_HARVEST_PLAN_ITEM,
                        target_id=item.id,
                        error_summary='',
                    ))
         if not claimed:
             return _api_json({
-                'ok': False,
-                'message': 'Solo i caricamenti da importare possono essere importati.',
+                OK: False,
+                MESSAGE: S.IPSO_ERR_UPLOAD_NOT_RECEIVED,
             }, status=400)
         upload.state = IpsoUploadState.IMPORTED
         upload.imported_at = imported_at
         upload.imported_by = request.user
-        upload.target_type = TARGET_TYPE_HARVEST_PLAN_ITEM
+        upload.target_type = IPSO_TARGET_HARVEST_PLAN_ITEM
         upload.target_id = item.id
         upload.error_summary = ''
         result = import_mark_rows(item, rows)
         data = _upload_metadata(upload)
     return _api_json({
-        'ok': True,
-        'imported': result.imported,
-        'skipped_duplicates': result.skipped_duplicates,
-        'upload': data,
+        OK: True,
+        IMPORTED: result.imported,
+        SKIPPED_DUPLICATES: result.skipped_duplicates,
+        UPLOAD: data,
     })
 
 
@@ -477,26 +488,26 @@ def import_martellate_upload(request: HttpRequest, upload_id: int) -> JsonRespon
 @require_POST
 def upload_session(request: HttpRequest) -> JsonResponse:
     if not _upload_authorized(request):
-        return _api_json({'ok': False, 'error': 'auth'}, status=401)
+        return _api_json({OK: False, ERROR: IPSO_ERROR_AUTH}, status=401)
     try:
         payload = _request_json(request)
         normalized, csv_text = _validate_upload_payload(payload, request)
     except UploadValidationError as e:
-        return _api_json({'ok': False, 'error': 'invalid_payload', 'detail': str(e)}, status=422)
+        return _api_json({OK: False, ERROR: IPSO_ERROR_INVALID_PAYLOAD, DETAIL: str(e)}, status=422)
 
     checksum = _payload_checksum(normalized)
-    session_id = normalized['session']['session_id']
+    session_id = normalized[SESSION][FIELD_SESSION_ID]
     try:
         with transaction.atomic():
             inbox_path = _upload_inbox_path(session_id)
             upload = IpsoUpload.objects.create(
                 session_id=session_id,
-                mode=normalized['session']['mode'],
-                schema_version=normalized['session']['schema_version'],
-                reference_version=normalized['session'].get('reference_version', ''),
-                work_package_id=normalized['session'].get('work_package_id', ''),
-                operator=normalized['session'].get('operator', ''),
-                record_count=len(normalized['records']),
+                mode=normalized[SESSION][FIELD_MODE],
+                schema_version=normalized[SESSION][FIELD_SCHEMA_VERSION],
+                reference_version=normalized[SESSION].get(FIELD_REFERENCE_VERSION, ''),
+                work_package_id=normalized[SESSION].get(FIELD_WORK_PACKAGE_ID, ''),
+                operator=normalized[SESSION].get(FIELD_OPERATOR, ''),
+                record_count=len(normalized[RECORDS]),
                 checksum=checksum,
                 inbox_path=str(inbox_path),
             )
@@ -505,26 +516,26 @@ def upload_session(request: HttpRequest) -> JsonResponse:
         return _duplicate_upload_response(session_id, checksum)
 
     return _api_json({
-        'ok': True,
-        'stored_as': upload.inbox_path,
-        'duplicate': False,
+        OK: True,
+        STORED_AS: upload.inbox_path,
+        DUPLICATE: False,
     })
 
 
 def _duplicate_upload_response(session_id: str, checksum: str) -> JsonResponse:
     existing = IpsoUpload.objects.filter(session_id=session_id).first()
     if existing is None:
-        return _api_json({'ok': False, 'error': 'conflict'}, status=409)
+        return _api_json({OK: False, ERROR: IPSO_ERROR_CONFLICT}, status=409)
     if hmac.compare_digest(existing.checksum, checksum):
         return _api_json({
-            'ok': True,
-            'stored_as': existing.inbox_path,
-            'duplicate': True,
+            OK: True,
+            STORED_AS: existing.inbox_path,
+            DUPLICATE: True,
         })
     existing.state = IpsoUploadState.CONFLICT
-    existing.error_summary = 'Duplicate session_id with different content.'
+    existing.error_summary = S.IPSO_ERR_DUPLICATE_SESSION_CONTENT
     existing.save(update_fields=['state', 'error_summary'])
-    return _api_json({'ok': False, 'error': 'conflict'}, status=409)
+    return _api_json({OK: False, ERROR: IPSO_ERROR_CONFLICT}, status=409)
 
 
 def _get_upload(upload_id: int, *, for_update: bool = False) -> IpsoUpload:
@@ -554,15 +565,15 @@ def _inbox_row(upload: IpsoUpload) -> list:
 def _upload_metadata(upload: IpsoUpload) -> dict:
     return {
         'id': upload.id,
-        'session_id': upload.session_id,
-        'mode': upload.mode,
-        'schema_version': upload.schema_version,
-        'reference_version': upload.reference_version,
-        'work_package_id': upload.work_package_id,
-        'operator': upload.operator,
-        'record_count': upload.record_count,
+        FIELD_SESSION_ID: upload.session_id,
+        FIELD_MODE: upload.mode,
+        FIELD_SCHEMA_VERSION: upload.schema_version,
+        FIELD_REFERENCE_VERSION: upload.reference_version,
+        FIELD_WORK_PACKAGE_ID: upload.work_package_id,
+        FIELD_OPERATOR: upload.operator,
+        RECORD_COUNT: upload.record_count,
         'checksum': upload.checksum,
-        'state': upload.state,
+        FIELD_STATE: upload.state,
         'state_label': STATE_LABELS.get(upload.state, upload.state),
         'received_at': _format_dt(upload.received_at),
         'imported_at': _format_dt(upload.imported_at),
@@ -574,7 +585,7 @@ def _upload_metadata(upload: IpsoUpload) -> dict:
 
 
 def _target_label(upload: IpsoUpload) -> str:
-    if upload.target_type == TARGET_TYPE_HARVEST_PLAN_ITEM and upload.target_id:
+    if upload.target_type == IPSO_TARGET_HARVEST_PLAN_ITEM and upload.target_id:
         item = (HarvestPlanItem.objects
                 .select_related('harvest_plan', 'parcel__region', 'parcel__eclass', 'region')
                 .filter(id=upload.target_id).first())
@@ -592,25 +603,25 @@ def _format_dt(value) -> str:
 
 
 def _read_staged_payload(upload: IpsoUpload) -> tuple[dict, str]:
-    path = Path(upload.inbox_path) / 'upload.json'
+    path = Path(upload.inbox_path) / IPSO_UPLOAD_FILE_JSON
     try:
         return json.loads(path.read_text(encoding='utf-8')), ''
     except FileNotFoundError:
-        return {}, 'File upload.json non trovato.'
+        return {}, S.IPSO_ERR_UPLOAD_JSON_MISSING
     except json.JSONDecodeError:
-        return {}, 'File upload.json non valido.'
+        return {}, S.IPSO_ERR_UPLOAD_JSON_INVALID
 
 
 def _preview_records(records: list) -> list[dict]:
     if not isinstance(records, list):
         return []
     species_ids = {
-        r.get('species_id') for r in records
-        if isinstance(r, dict) and type(r.get('species_id')) is int
+        r.get(FIELD_SPECIES_ID) for r in records
+        if isinstance(r, dict) and type(r.get(FIELD_SPECIES_ID)) is int
     }
     parcel_ids = {
-        r.get('parcel_id') for r in records
-        if isinstance(r, dict) and type(r.get('parcel_id')) is int
+        r.get(FIELD_PARCEL_ID) for r in records
+        if isinstance(r, dict) and type(r.get(FIELD_PARCEL_ID)) is int
     }
     species = {
         sp.id: sp.common_name
@@ -625,17 +636,17 @@ def _preview_records(records: list) -> list[dict]:
         if not isinstance(row, dict):
             continue
         out.append({
-            'seq': row.get('client_record_id') or str(i),
-            'date': row.get('date', ''),
-            'parcel': parcels.get(row.get('parcel_id'), str(row.get('parcel_id', ''))),
-            'species': species.get(row.get('species_id'), str(row.get('species_id', ''))),
-            'number': row.get('number'),
-            'd_cm': row.get('d_cm'),
-            'h_m': row.get('h_m'),
-            'h_measured': bool(row.get('h_measured')),
-            'lat': row.get('lat'),
-            'lon': row.get('lon'),
-            'acc_m': row.get('acc_m'),
+            'seq': row.get(FIELD_CLIENT_RECORD_ID) or str(i),
+            FIELD_DATE: row.get(FIELD_DATE, ''),
+            'parcel': parcels.get(row.get(FIELD_PARCEL_ID), str(row.get(FIELD_PARCEL_ID, ''))),
+            'species': species.get(row.get(FIELD_SPECIES_ID), str(row.get(FIELD_SPECIES_ID, ''))),
+            FIELD_NUMBER: row.get(FIELD_NUMBER),
+            FIELD_D_CM: row.get(FIELD_D_CM),
+            FIELD_H_M: row.get(FIELD_H_M),
+            FIELD_H_MEASURED: bool(row.get(FIELD_H_MEASURED)),
+            FIELD_LAT: row.get(FIELD_LAT),
+            FIELD_LON: row.get(FIELD_LON),
+            FIELD_ACC_M: row.get(FIELD_ACC_M),
         })
     return out
 
@@ -646,7 +657,7 @@ def _reject_reason(request: HttpRequest) -> str:
     except (UnicodeDecodeError, json.JSONDecodeError):
         body = {}
     reason = body.get('reason', '') if isinstance(body, dict) else ''
-    return reason.strip() or 'Rifiutato in revisione Abies.'
+    return reason.strip() or S.IPSO_REJECT_DEFAULT_REASON
 
 
 def _martellate_targets() -> list[dict]:
@@ -696,18 +707,18 @@ def _suggested_harvest_item_id(work_package_id: str) -> int | None:
 def _martellate_import_rows(
         upload: IpsoUpload, payload: dict, item: HarvestPlanItem,
 ) -> tuple[list[MarkImportRow], list[str]]:
-    session = payload.get('session', {}) if isinstance(payload, dict) else {}
-    records = payload.get('records', []) if isinstance(payload, dict) else []
+    session = payload.get(SESSION, {}) if isinstance(payload, dict) else {}
+    records = payload.get(RECORDS, []) if isinstance(payload, dict) else []
     if not isinstance(records, list):
         return [], ['records deve essere un array.']
 
     species_ids = {
-        r.get('species_id') for r in records
-        if isinstance(r, dict) and type(r.get('species_id')) is int
+        r.get(FIELD_SPECIES_ID) for r in records
+        if isinstance(r, dict) and type(r.get(FIELD_SPECIES_ID)) is int
     }
     parcel_ids = {
-        r.get('parcel_id') for r in records
-        if isinstance(r, dict) and type(r.get('parcel_id')) is int
+        r.get(FIELD_PARCEL_ID) for r in records
+        if isinstance(r, dict) and type(r.get(FIELD_PARCEL_ID)) is int
     }
     species = {
         sp.id: sp
@@ -718,7 +729,7 @@ def _martellate_import_rows(
         for p in Parcel.objects.filter(id__in=parcel_ids).select_related('region', 'eclass')
     }
     item_region = item.region or (item.parcel.region if item.parcel else None)
-    operator = (session.get('operator') or '').strip() if isinstance(session, dict) else ''
+    operator = (session.get(FIELD_OPERATOR) or '').strip() if isinstance(session, dict) else ''
 
     rows = []
     errors = []
@@ -726,21 +737,21 @@ def _martellate_import_rows(
         if not isinstance(record, dict):
             errors.append(f'Record {i}: formato non valido.')
             continue
-        parcel = parcels.get(record.get('parcel_id'))
+        parcel = parcels.get(record.get(FIELD_PARCEL_ID))
         if parcel is None:
             errors.append(f'Record {i}: particella non trovata.')
             continue
         if item_region and parcel.region_id != item_region.id:
             errors.append(S.ERR_MARK_PARCEL_NOT_IN_REGION)
             continue
-        sp = species.get(record.get('species_id'))
+        sp = species.get(record.get(FIELD_SPECIES_ID))
         if sp is None:
             errors.append(f'Record {i}: specie non trovata.')
             continue
         try:
-            date = date_type.fromisoformat(str(record.get('date')))
-            d_cm = int(record.get('d_cm'))
-            h_m = Decimal(str(record.get('h_m')))
+            date = date_type.fromisoformat(str(record.get(FIELD_DATE)))
+            d_cm = int(record.get(FIELD_D_CM))
+            h_m = Decimal(str(record.get(FIELD_H_M)))
         except (TypeError, ValueError, InvalidOperation):
             errors.append(f'Record {i}: D/H/data non validi.')
             continue
@@ -748,13 +759,13 @@ def _martellate_import_rows(
             date=date,
             parcel=parcel,
             species=sp,
-            number=record.get('number'),
+            number=record.get(FIELD_NUMBER),
             d_cm=d_cm,
             h_m=h_m,
-            h_measured=bool(record.get('h_measured')),
-            lat=record.get('lat'),
-            lon=record.get('lon'),
-            acc_m=record.get('acc_m'),
+            h_measured=bool(record.get(FIELD_H_MEASURED)),
+            lat=record.get(FIELD_LAT),
+            lon=record.get(FIELD_LON),
+            acc_m=record.get(FIELD_ACC_M),
             operator=operator,
             fingerprint=ipso_mark_fingerprint(upload.session_id, record),
         ))
@@ -783,100 +794,100 @@ def _request_json(request: HttpRequest) -> dict:
 
 
 def _validate_upload_payload(payload: dict, request: HttpRequest) -> tuple[dict, str | None]:
-    session = _dict(payload, 'session')
-    records = _list(payload, 'records')
-    csv_text = payload.get('csv_text')
+    session = _dict(payload, SESSION)
+    records = _list(payload, RECORDS)
+    csv_text = payload.get(FIELD_CSV_TEXT)
     if csv_text is not None and not isinstance(csv_text, str):
         raise UploadValidationError('csv_text must be a string when present.')
 
     normalized_session = _normalize_session(session)
     header_id = request.headers.get('X-Ipso-Session-Id', '')
-    if header_id and header_id != normalized_session['session_id']:
+    if header_id and header_id != normalized_session[FIELD_SESSION_ID]:
         raise UploadValidationError('X-Ipso-Session-Id does not match session.session_id.')
 
     normalized_records = [
-        _normalize_record(normalized_session['mode'], i, row)
+        _normalize_record(normalized_session[FIELD_MODE], i, row)
         for i, row in enumerate(records, start=1)
     ]
     _validate_record_ids(normalized_records)
-    return {'session': normalized_session, 'records': normalized_records}, csv_text
+    return {SESSION: normalized_session, RECORDS: normalized_records}, csv_text
 
 
 def _normalize_session(session: dict) -> dict:
-    session_id = _str(session, 'session_id')
+    session_id = _str(session, FIELD_SESSION_ID)
     if not _SESSION_ID_RE.match(session_id):
         raise UploadValidationError('session_id must be a UUID.')
-    mode = _str(session, 'mode')
+    mode = _str(session, FIELD_MODE)
     if mode not in ALLOWED_UPLOAD_MODES:
         raise UploadValidationError('Unsupported mode.')
-    schema_version = _int(session, 'schema_version')
+    schema_version = _int(session, FIELD_SCHEMA_VERSION)
     if schema_version != UPLOAD_SCHEMA_VERSION:
         raise UploadValidationError('Unsupported schema_version.')
     normalized = {
-        'session_id': session_id,
-        'mode': mode,
-        'schema_version': schema_version,
-        'reference_version': _opt_str(session, 'reference_version'),
-        'work_package_id': _opt_str(session, 'work_package_id'),
-        'operator': _opt_str(session, 'operator'),
-        'created_at': _opt_str(session, 'created_at'),
-        'completed_at': _opt_str(session, 'completed_at'),
-        'catastrofata': _bool(session, 'catastrofata'),
+        FIELD_SESSION_ID: session_id,
+        FIELD_MODE: mode,
+        FIELD_SCHEMA_VERSION: schema_version,
+        FIELD_REFERENCE_VERSION: _opt_str(session, FIELD_REFERENCE_VERSION),
+        FIELD_WORK_PACKAGE_ID: _opt_str(session, FIELD_WORK_PACKAGE_ID),
+        FIELD_OPERATOR: _opt_str(session, FIELD_OPERATOR),
+        FIELD_CREATED_AT: _opt_str(session, FIELD_CREATED_AT),
+        FIELD_COMPLETED_AT: _opt_str(session, FIELD_COMPLETED_AT),
+        FIELD_DAMAGED: _bool(session, FIELD_DAMAGED),
     }
-    region_id = session.get('region_id')
+    region_id = session.get(FIELD_REGION_ID)
     if region_id is not None:
-        normalized['region_id'] = _int(session, 'region_id')
+        normalized[FIELD_REGION_ID] = _int(session, FIELD_REGION_ID)
     return normalized
 
 
 def _normalize_record(mode: str, index: int, row: object) -> dict:
     if not isinstance(row, dict):
         raise UploadValidationError(f'Record {index}: must be an object.')
-    date = _str(row, 'date')
+    date = _str(row, FIELD_DATE)
     if not _DATE_RE.match(date):
         raise UploadValidationError(f'Record {index}: date must be YYYY-MM-DD.')
 
     d_cm = (
-        _opt_int(row, 'd_cm') if mode == UPLOAD_MODE_PAI
-        else _int(row, 'd_cm')
+        _opt_int(row, FIELD_D_CM) if mode == IPSO_MODE_PAI
+        else _int(row, FIELD_D_CM)
     )
     if d_cm is not None and d_cm <= 0:
         raise UploadValidationError(f'Record {index}: d_cm must be positive.')
 
     h_m = (
-        _opt_decimal_str(row, 'h_m') if mode == UPLOAD_MODE_PAI
-        else _decimal_str(row, 'h_m')
+        _opt_decimal_str(row, FIELD_H_M) if mode == IPSO_MODE_PAI
+        else _decimal_str(row, FIELD_H_M)
     )
     if h_m is not None and Decimal(h_m) <= 0:
         raise UploadValidationError(f'Record {index}: h_m must be positive.')
 
-    hypso_param_set_id = _opt_int(row, 'hypso_param_set_id')
-    if mode != UPLOAD_MODE_MARTELLATE and hypso_param_set_id is not None:
+    hypso_param_set_id = _opt_int(row, FIELD_HYPSO_PARAM_SET_ID)
+    if mode != IPSO_MODE_MARTELLATE and hypso_param_set_id is not None:
         raise UploadValidationError(
             f'Record {index}: hypso_param_set_id is only valid for martellate.'
         )
 
     return {
-        'client_record_id': _str(row, 'client_record_id'),
-        'date': date,
-        'region_id': _int(row, 'region_id'),
-        'parcel_id': _int(row, 'parcel_id'),
-        'species_id': _int(row, 'species_id'),
-        'number': _opt_int(row, 'number'),
-        'd_cm': d_cm,
-        'h_m': h_m,
-        'h_measured': _bool(row, 'h_measured'),
-        'hypso_param_set_id': hypso_param_set_id,
-        'lat': _opt_float(row, 'lat'),
-        'lon': _opt_float(row, 'lon'),
-        'acc_m': _opt_int(row, 'acc_m'),
+        FIELD_CLIENT_RECORD_ID: _str(row, FIELD_CLIENT_RECORD_ID),
+        FIELD_DATE: date,
+        FIELD_REGION_ID: _int(row, FIELD_REGION_ID),
+        FIELD_PARCEL_ID: _int(row, FIELD_PARCEL_ID),
+        FIELD_SPECIES_ID: _int(row, FIELD_SPECIES_ID),
+        FIELD_NUMBER: _opt_int(row, FIELD_NUMBER),
+        FIELD_D_CM: d_cm,
+        FIELD_H_M: h_m,
+        FIELD_H_MEASURED: _bool(row, FIELD_H_MEASURED),
+        FIELD_HYPSO_PARAM_SET_ID: hypso_param_set_id,
+        FIELD_LAT: _opt_float(row, FIELD_LAT),
+        FIELD_LON: _opt_float(row, FIELD_LON),
+        FIELD_ACC_M: _opt_int(row, FIELD_ACC_M),
     }
 
 
 def _validate_record_ids(records: list[dict]) -> None:
-    species_ids = {r['species_id'] for r in records}
-    parcel_ids = {r['parcel_id'] for r in records}
-    hypso_ids = {r['hypso_param_set_id'] for r in records if r['hypso_param_set_id'] is not None}
+    species_ids = {r[FIELD_SPECIES_ID] for r in records}
+    parcel_ids = {r[FIELD_PARCEL_ID] for r in records}
+    hypso_ids = {r[FIELD_HYPSO_PARAM_SET_ID] for r in records if r[FIELD_HYPSO_PARAM_SET_ID] is not None}
     valid_species = set(Species.objects.filter(id__in=species_ids).values_list('id', flat=True))
     parcels = {
         p.id: p.region_id
@@ -893,7 +904,7 @@ def _validate_record_ids(records: list[dict]) -> None:
     if missing_hypso:
         raise UploadValidationError(f'Unknown hypso_param_set_id: {min(missing_hypso)}.')
     for i, row in enumerate(records, start=1):
-        if parcels[row['parcel_id']] != row['region_id']:
+        if parcels[row[FIELD_PARCEL_ID]] != row[FIELD_REGION_ID]:
             raise UploadValidationError(f'Record {i}: parcel_id not in region_id.')
 
 
@@ -912,12 +923,12 @@ def _write_upload_files(
 ) -> Path:
     session_dir.mkdir(parents=True, exist_ok=True)
     _atomic_write_text(
-        session_dir / 'upload.json',
+        session_dir / IPSO_UPLOAD_FILE_JSON,
         json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + '\n',
     )
-    _atomic_write_text(session_dir / 'upload.sha256', checksum + '\n')
+    _atomic_write_text(session_dir / IPSO_UPLOAD_FILE_SHA256, checksum + '\n')
     if csv_text:
-        _atomic_write_text(session_dir / 'export.csv', csv_text)
+        _atomic_write_text(session_dir / IPSO_UPLOAD_FILE_CSV, csv_text)
     return session_dir
 
 

@@ -67,7 +67,7 @@ function buildUploadPayload(sess, trees, reference, csvText) {
       operator: sess.operatore || '',
       created_at: sess.started_at || '',
       completed_at: sess.completed_at || sess.exported_at || '',
-      catastrofata: !!sess.catastrofata,
+      damaged: !!sess.catastrofata,
       region_id: regionId,
     },
     records,

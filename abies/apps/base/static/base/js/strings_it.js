@@ -50,6 +50,34 @@ export const ERROR_NETWORK = 'Errore di rete. Riprovare.';
 export const ERROR_CONFLICT = 'Il record è stato modificato da un altro utente.';
 export const ERROR_GENERIC = 'Errore imprevisto.';
 
+// Ipso import inbox.
+export const IPSO_INBOX_TITLE = 'Importazione';
+export const IPSO_INBOX_CSV = 'ipso-importazione.csv';
+export const IPSO_COL_RECEIVED = 'Ricevuto';
+export const IPSO_COL_MODE = 'Modalità';
+export const IPSO_COL_OPERATOR = 'Operatore';
+export const IPSO_COL_RECORDS = 'Righe';
+export const IPSO_COL_STATE = 'Stato';
+export const IPSO_COL_WORK_PACKAGE = 'Pacchetto';
+export const IPSO_COL_REFERENCE = 'Riferimento';
+export const IPSO_COL_TARGET = 'Destinazione';
+export const IPSO_COL_ERROR = 'Errore';
+export const IPSO_ACTION_OPEN = 'Apri';
+export const IPSO_ACTION_REJECT = 'Rifiuta';
+export const IPSO_LOADING_DETAIL = 'Caricamento dettaglio...';
+export const IPSO_REJECT_CONFIRM = 'Rifiutare questo caricamento Ipso?';
+export const IPSO_SESSION_TITLE = (id) => `Sessione ${id}`;
+export const IPSO_PREVIEW_TITLE = (n) => `Anteprima record (${n})`;
+export const IPSO_EMPTY_RECORDS = 'Nessun record.';
+export const IPSO_SUMMARY_EMPTY = 'Nessun caricamento Ipso.';
+export const IPSO_SUMMARY = (n, pending) => `${n} caricamenti, ${pending} da importare.`;
+export const IPSO_TARGET_PLAN_LABEL = 'Piano di taglio';
+export const IPSO_TARGET_SELECT = 'Seleziona destinazione';
+export const IPSO_IMPORT_CONFIRM = 'Importare questo caricamento nel piano selezionato?';
+export const IPSO_COL_SEQ = '#';
+export const IPSO_COL_ACCURACY = 'Acc.';
+export const IPSO_EMPTY_VALUE = '-';
+
 // Validation (client-side)
 export const ERR_DATE_FUTURE = 'La data non può essere nel futuro.';
 export const ERR_SPECIES_PCT_SUM = 'Le percentuali delle specie devono sommare a 100.';

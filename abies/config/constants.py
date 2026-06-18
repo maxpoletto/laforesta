@@ -50,6 +50,26 @@ STATUS_VALIDATION_ERROR = 'validation_error'
 STATUS_RATE_LIMITED     = 'rate_limited'
 STATUS_NOT_FOUND        = 'not_found'
 
+# Device / integration API envelope keys.
+OK                  = 'ok'
+ERROR               = 'error'
+DETAIL              = 'detail'
+DUPLICATE           = 'duplicate'
+STORED_AS           = 'stored_as'
+IMPORTED            = 'imported'
+SKIPPED_DUPLICATES  = 'skipped_duplicates'
+UPLOAD              = 'upload'
+SESSION             = 'session'
+RECORDS             = 'records'
+RECORD_COUNT        = 'record_count'
+FILE_ERROR          = 'file_error'
+TARGETS             = 'targets'
+SUGGESTED_TARGET_ID = 'suggested_target_id'
+PENDING_COUNT       = 'pending_count'
+IPSO_ERROR_AUTH            = 'auth'
+IPSO_ERROR_INVALID_PAYLOAD = 'invalid_payload'
+IPSO_ERROR_CONFLICT        = 'conflict'
+
 # Form / JSON-body field names.  Match HTML form `name=` attributes and
 # JSON request-body keys; client and server must agree on every name.
 # Lowercase to match the wire format.
@@ -156,6 +176,15 @@ FIELD_SOURCE                = 'source'
 FIELD_CREATED_AT            = 'created_at'
 FIELD_SURVEYS               = 'surveys'
 FIELD_USE_FOR_HEIGHT_PLOTS  = 'use_for_height_plots'
+FIELD_SESSION_ID            = 'session_id'
+FIELD_MODE                  = 'mode'
+FIELD_SCHEMA_VERSION        = 'schema_version'
+FIELD_REFERENCE_VERSION     = 'reference_version'
+FIELD_WORK_PACKAGE_ID       = 'work_package_id'
+FIELD_COMPLETED_AT          = 'completed_at'
+FIELD_CLIENT_RECORD_ID      = 'client_record_id'
+FIELD_HYPSO_PARAM_SET_ID    = 'hypso_param_set_id'
+FIELD_CSV_TEXT              = 'csv_text'
 
 # Digest filesystem identifiers (the digest file is `<name>.json.gz`).
 DIGEST_FUTURE_PRODUCTION = 'future_production'
@@ -177,6 +206,24 @@ DEFAULT_RADIUS_M = 12  # sample-area radius (m) when none is supplied
 M2_PER_HA = 10000  # square metres per hectare
 # Quantization for tree-height measurements (centimetre precision).
 TREE_H_QUANTUM = Decimal('0.01')
+
+# Ipso integration identifiers.
+DATA_ID_IPSO_UPLOADS = 'ipso_uploads'
+IPSO_REFERENCE_JSON = 'reference.json'
+IPSO_TERRENI_GEOJSON = 'terreni.geojson'
+IPSO_UPLOAD_CONFIG_JS = 'upload-config.js'
+IPSO_UPLOAD_FILE_JSON = 'upload.json'
+IPSO_UPLOAD_FILE_SHA256 = 'upload.sha256'
+IPSO_UPLOAD_FILE_CSV = 'export.csv'
+IPSO_MODE_MARTELLATE = 'martellate'
+IPSO_MODE_SAMPLES = 'samples'
+IPSO_MODE_PAI = 'pai'
+IPSO_UPLOAD_MODES = (IPSO_MODE_MARTELLATE, IPSO_MODE_SAMPLES, IPSO_MODE_PAI)
+IPSO_UPLOAD_STATE_RECEIVED = 'received'
+IPSO_UPLOAD_STATE_IMPORTED = 'imported'
+IPSO_UPLOAD_STATE_REJECTED = 'rejected'
+IPSO_UPLOAD_STATE_CONFLICT = 'conflict'
+IPSO_TARGET_HARVEST_PLAN_ITEM = 'harvest_plan_item'
 
 
 # Truthy tokens for both edges: form/JSON values (the HTML checkbox 'on', real
