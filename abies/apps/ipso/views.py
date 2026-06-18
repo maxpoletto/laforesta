@@ -88,6 +88,7 @@ ASSET_FILES = {
     'constants.js',
     'csv.js',
     'download.js',
+    'format.js',
     'geo.js',
     'gps.js',
     'index.html',

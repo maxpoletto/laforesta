@@ -33,6 +33,7 @@ const SHELL = [
   './session.js',
   './strings.js',
   './modes.js',
+  './format.js',
   './download.js',
   './gps.js',
   './numpad.js',

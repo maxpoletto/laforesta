@@ -805,7 +805,7 @@ function startGps() {
       // narrow screens. The dot already encodes accuracy tier; the
       // GPS-stale fallback below kicks in when age > 10 s.
       text.textContent =
-        st.fix.lat.toFixed(5) + ' ' + st.fix.lon.toFixed(5) +
+        IpsoFormat.fmtCoord(st.fix.lat) + ' ' + IpsoFormat.fmtCoord(st.fix.lon) +
         ' ±' + Math.round(st.fix.acc) + ' m';
       State.lastFix = {
         lat: st.fix.lat,
@@ -1225,7 +1225,8 @@ function updateMapHeader() {
     sub.textContent = formatParcelText(committed);
   } else if (State.lastFix) {
     sub.textContent =
-      State.lastFix.lat.toFixed(5) + ' ' + State.lastFix.lon.toFixed(5) +
+      IpsoFormat.fmtCoord(State.lastFix.lat) + ' ' +
+      IpsoFormat.fmtCoord(State.lastFix.lon) +
       ' ±' + Math.round(State.lastFix.acc) + ' m';
   } else {
     sub.textContent = S.MAP_WAITING;
