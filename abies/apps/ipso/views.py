@@ -146,7 +146,7 @@ def _asset_response(request: HttpRequest, asset_path: str) -> HttpResponse:
 
 
 def _static_path(asset_path: str) -> Path:
-    found = finders.find(f'ipso/{asset_path}')
+    found = finders.find(f'ipso/pwa/{asset_path}')
     if not found:
         raise Http404
     return Path(found)
