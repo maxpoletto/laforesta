@@ -5,10 +5,9 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
-import math
 import re
 from datetime import date as date_type, timezone
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from pathlib import Path
 
 from django.conf import settings
@@ -30,6 +29,7 @@ from apps.base.models import (
     HypsoParamSet, Parcel, SampleArea, Species, Survey, TreePreserved,
     natural_sort_key, parcel_sort_key,
 )
+from apps.base.numparse import coord_float, to_decimal
 from apps.ipso.models import IpsoUpload, IpsoUploadState
 from apps.piano_di_taglio.mark_import import (
     MarkImportRow, import_mark_rows, ipso_mark_fingerprint,
@@ -747,8 +747,10 @@ def _martellate_import_rows(
         try:
             date = date_type.fromisoformat(str(record.get(FIELD_DATE)))
             d_cm = int(record.get(FIELD_D_CM))
-            h_m = Decimal(str(record.get(FIELD_H_M)))
-        except (TypeError, ValueError, InvalidOperation):
+            h_m = to_decimal(record.get(FIELD_H_M), '.')
+            if h_m is None:
+                raise ValueError
+        except (TypeError, ValueError):
             errors.append(f'Record {i}: D/H/data non validi.')
             continue
         rows.append(MarkImportRow(
@@ -851,10 +853,10 @@ def _normalize_record(mode: str, index: int, row: object) -> dict:
         raise UploadValidationError(f'Record {index}: d_cm must be positive.')
 
     h_m = (
-        _opt_decimal_str(row, FIELD_H_M) if mode == IPSO_MODE_PAI
-        else _decimal_str(row, FIELD_H_M)
+        _opt_decimal(row, FIELD_H_M) if mode == IPSO_MODE_PAI
+        else _decimal(row, FIELD_H_M)
     )
-    if h_m is not None and Decimal(h_m) <= 0:
+    if h_m is not None and h_m <= 0:
         raise UploadValidationError(f'Record {index}: h_m must be positive.')
 
     hypso_param_set_id = _opt_int(row, FIELD_HYPSO_PARAM_SET_ID)
@@ -871,11 +873,11 @@ def _normalize_record(mode: str, index: int, row: object) -> dict:
         FIELD_SPECIES_ID: _int(row, FIELD_SPECIES_ID),
         FIELD_NUMBER: _opt_int(row, FIELD_NUMBER),
         FIELD_D_CM: d_cm,
-        FIELD_H_M: h_m,
+        FIELD_H_M: format(h_m, 'f') if h_m is not None else None,
         FIELD_H_MEASURED: _bool(row, FIELD_H_MEASURED),
         FIELD_HYPSO_PARAM_SET_ID: hypso_param_set_id,
-        FIELD_LAT: _opt_float(row, FIELD_LAT),
-        FIELD_LON: _opt_float(row, FIELD_LON),
+        FIELD_LAT: _opt_coord_float(row, FIELD_LAT),
+        FIELD_LON: _opt_coord_float(row, FIELD_LON),
         FIELD_ACC_M: _opt_int(row, FIELD_ACC_M),
     }
 
@@ -987,36 +989,33 @@ def _bool(payload: dict, key: str) -> bool:
     return value
 
 
-def _opt_float(payload: dict, key: str) -> float | None:
+def _opt_coord_float(payload: dict, key: str) -> float | None:
     value = payload.get(key)
     if value is None:
         return None
     if type(value) not in {int, float}:
         raise UploadValidationError(f'{key} must be a number or null.')
-    out = float(value)
-    if not math.isfinite(out):
+    out = coord_float(to_decimal(value, '.'))
+    if out is None:
         raise UploadValidationError(f'{key} must be finite.')
     return out
 
 
-def _opt_decimal_str(payload: dict, key: str) -> str | None:
+def _opt_decimal(payload: dict, key: str) -> Decimal | None:
     value = payload.get(key)
     if value is None:
         return None
-    return _decimal_str(payload, key)
+    return _decimal(payload, key)
 
 
-def _decimal_str(payload: dict, key: str) -> str:
+def _decimal(payload: dict, key: str) -> Decimal:
     value = payload.get(key)
     if type(value) not in {int, float, str}:
         raise UploadValidationError(f'{key} must be a decimal value.')
-    try:
-        dec = Decimal(str(value))
-    except InvalidOperation as e:
-        raise UploadValidationError(f'{key} must be a decimal value.') from e
-    if not dec.is_finite():
-        raise UploadValidationError(f'{key} must be finite.')
-    return format(dec, 'f')
+    dec = to_decimal(value, '.')
+    if dec is None:
+        raise UploadValidationError(f'{key} must be a finite decimal value.')
+    return dec
 
 
 def _json_response(
