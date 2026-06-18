@@ -28,6 +28,7 @@ from apps.base.http import (
 from apps.base.models import (
     HYPSO_FUNC_LN, HarvestPlanItem, HarvestPlanItemState, HypsoParam,
     HypsoParamSet, Parcel, SampleArea, Species, Survey, TreePreserved,
+    natural_sort_key, parcel_sort_key,
 )
 from apps.ipso.models import IpsoUpload, IpsoUploadState
 from apps.piano_di_taglio.mark_import import (
@@ -91,7 +92,6 @@ ASSET_FILES = {
     'img/icon-512-maskable.png',
 }
 
-_NATKEY_RE = re.compile(r'(\d+)')
 _DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
 _SESSION_ID_RE = re.compile(
     r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-'
@@ -101,10 +101,6 @@ _SESSION_ID_RE = re.compile(
 
 class UploadValidationError(ValueError):
     pass
-
-
-def _natural_key(value: str) -> list:
-    return [int(p) if p.isdigit() else p.lower() for p in _NATKEY_RE.split(value)]
 
 
 @require_GET
@@ -190,7 +186,11 @@ def _species_rows() -> list[dict]:
 
 
 def _parcel_rows() -> list[dict]:
-    rows = [
+    parcels = sorted(
+        Parcel.objects.select_related('region', 'eclass').filter(eclass__coppice=False),
+        key=parcel_sort_key,
+    )
+    return [
         {
             FIELD_REGION_ID: p.region_id,
             'region_name': p.region.name,
@@ -198,12 +198,8 @@ def _parcel_rows() -> list[dict]:
             'compresa': p.region.name,
             'particella': p.name,
         }
-        for p in (Parcel.objects
-                  .select_related('region', 'eclass')
-                  .filter(eclass__coppice=False))
+        for p in parcels
     ]
-    rows.sort(key=lambda p: (p['compresa'], _natural_key(p['particella'])))
-    return rows
 
 
 def _sampling_context() -> dict:
@@ -222,8 +218,8 @@ def _sampling_context() -> dict:
             .select_related('sample_grid', 'parcel__region')
         )
         areas.sort(key=lambda a: (
-            a.sample_grid.name, a.parcel.region.name,
-            _natural_key(a.parcel.name), _natural_key(a.number), a.id,
+            a.sample_grid.name, parcel_sort_key(a.parcel),
+            natural_sort_key(a.number), a.id,
         ))
     return {
         'surveys': [

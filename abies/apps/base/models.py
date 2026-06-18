@@ -13,13 +13,13 @@ from config.constants import DEFAULT_RADIUS_M, PRESSLER_DEFAULT
 _NATSORT_RE = re.compile(r'(\d+)')
 
 
-def _natsort_key(s: str) -> list:
+def natural_sort_key(s: str) -> list:
     return [int(c) if c.isdigit() else c.lower() for c in _NATSORT_RE.split(s)]
 
 
 def parcel_sort_key(p) -> tuple:
     """Sort key for natural ordering: region name, then parcel name."""
-    return (p.region.name, _natsort_key(p.name))
+    return (p.region.name, natural_sort_key(p.name))
 
 
 def render_flag_note(damaged: bool, unhealthy: bool, psr: bool) -> str:
