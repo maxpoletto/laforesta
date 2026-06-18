@@ -31,30 +31,41 @@ from apps.base.models import (
 )
 from apps.base.numparse import coord_float, to_decimal
 from apps.base.responses import success_response, validation_error
+from apps.campionamenti import csv_trees
+from apps.ipso.importers import apply_pai_rows, pai_import_rows, sample_import_rows
 from apps.ipso.models import IpsoUpload, IpsoUploadState
 from apps.piano_di_taglio.mark_import import (
     MarkImportRow, import_mark_rows, ipso_mark_fingerprint,
 )
 from config import strings as S
 from config.constants import (
-    COLUMNS, DETAIL, DUPLICATE, ERROR, FIELD_ACC_M, FIELD_DAMAGED,
-    FIELD_CLIENT_RECORD_ID, FIELD_COMPLETED_AT, FIELD_CREATED_AT,
-    FIELD_CSV_TEXT, FIELD_DATE,
-    FIELD_D_CM, FIELD_HARVEST_PLAN_ITEM_ID, FIELD_H_M, FIELD_H_MEASURED,
-    FIELD_HYPSO_PARAM_SET_ID, FIELD_LAT, FIELD_LON, FIELD_MODE, FIELD_NUMBER,
-    FIELD_OPERATOR, FIELD_PARCEL_ID, FIELD_REFERENCE_VERSION,
-    FIELD_REGION_ID, FIELD_SCHEMA_VERSION, FIELD_SESSION_ID, FIELD_SPECIES_ID,
-    FIELD_STATE, FIELD_WORK_PACKAGE_ID, FILE_ERROR, IMPORTED, IPSO_ERROR_AUTH,
+    COLUMNS, DETAIL, DUPLICATE, ERROR, FIELD_ACC_M, FIELD_COPPICE,
+    FIELD_DAMAGED, FIELD_CLIENT_RECORD_ID,
+    FIELD_COMPLETED_AT, FIELD_CREATED_AT, FIELD_CSV_TEXT, FIELD_DATE,
+    FIELD_D_CM, FIELD_ESTIMATED_BIRTH_YEAR, FIELD_HARVEST_PLAN_ITEM_ID,
+    FIELD_H_M, FIELD_H_MEASURED, FIELD_HYPSO_PARAM_SET_ID, FIELD_LAT,
+    FIELD_LON, FIELD_L10_MM, FIELD_MODE, FIELD_NOTE, FIELD_NUMBER,
+    FIELD_OPERATOR, FIELD_PARCEL_ID,
+    FIELD_PRESERVED, FIELD_PRESSLER_COEFF, FIELD_REFERENCE_VERSION,
+    FIELD_REGION_ID, FIELD_SAMPLE_AREA_ID, FIELD_SCHEMA_VERSION,
+    FIELD_SESSION_ID, FIELD_SHOOT, FIELD_SPECIES_ID, FIELD_STANDARD,
+    FIELD_TREE_ID, FIELD_TREE_PRESERVED_ID,
+    FIELD_STATE, FIELD_SURVEY_ID,
+    FIELD_WORK_PACKAGE_ID, FILE_ERROR, IMPORTED, IPSO_ERROR_AUTH,
     IPSO_ERROR_CONFLICT, IPSO_ERROR_INVALID_PAYLOAD, IPSO_MODE_MARTELLATE,
     IPSO_MODE_PAI, IPSO_MODE_SAMPLES, IPSO_REF_GENERATED_AT,
     IPSO_REF_HYPSOMETRY, IPSO_REF_PAI, IPSO_REF_PARCELS,
-    IPSO_REF_SAMPLING, IPSO_REF_SPECIES, IPSO_REF_WORK_PACKAGES,
+    IPSO_REF_PRESERVED_TREES, IPSO_REF_SAMPLE_AREAS, IPSO_REF_SAMPLING,
+    IPSO_REF_SPECIES, IPSO_REF_SURVEYS, IPSO_REF_WORK_PACKAGES,
     IPSO_REFERENCE_JSON, IPSO_REFERENCE_VERSION_KEYS,
-    IPSO_TARGET_HARVEST_PLAN_ITEM, IPSO_TERRENI_GEOJSON,
+    IPSO_TARGET_HARVEST_PLAN_ITEM, IPSO_TARGET_PAI, IPSO_TARGET_SURVEY,
+    IPSO_TERRENI_GEOJSON, IPSO_WORK_PACKAGE_HARVEST_PREFIX,
+    IPSO_WORK_PACKAGE_SAMPLING_SURVEY, IPSO_WORK_PACKAGE_SAMPLING_SURVEY_PREFIX,
     IPSO_UPLOAD_CONFIG_JS, IPSO_UPLOAD_FILE_CSV, IPSO_UPLOAD_FILE_JSON,
     IPSO_UPLOAD_FILE_SHA256, IPSO_UPLOAD_MODES, MESSAGE, OK,
-    PENDING_COUNT, RECORD_COUNT, RECORDS, ROW_ID, ROWS, SESSION, SKIPPED_DUPLICATES, STORED_AS,
-    SUGGESTED_TARGET_ID, TARGETS, UPLOAD,
+    PENDING_COUNT, PRESSLER_DEFAULT, RECORD_COUNT, RECORDS, ROW_ID, ROWS,
+    SESSION, SKIPPED_DUPLICATES, STORED_AS, SUGGESTED_TARGET_ID, TARGETS,
+    TREE_H_QUANTUM, UPLOAD,
 )
 
 SCHEMA_VERSION = 1
@@ -192,7 +203,7 @@ def _species_rows() -> list[dict]:
 
 def _parcel_rows() -> list[dict]:
     parcels = sorted(
-        Parcel.objects.select_related('region', 'eclass').filter(eclass__coppice=False),
+        Parcel.objects.select_related('region', 'eclass'),
         key=parcel_sort_key,
     )
     return [
@@ -202,6 +213,7 @@ def _parcel_rows() -> list[dict]:
             FIELD_PARCEL_ID: p.id,
             'compresa': p.region.name,
             'particella': p.name,
+            FIELD_COPPICE: p.eclass.coppice,
         }
         for p in parcels
     ]
@@ -220,14 +232,14 @@ def _sampling_context() -> dict:
         areas = list(
             SampleArea.objects
             .filter(sample_grid_id__in=grid_ids)
-            .select_related('sample_grid', 'parcel__region')
+            .select_related('sample_grid', 'parcel__region', 'parcel__eclass')
         )
         areas.sort(key=lambda a: (
             a.sample_grid.name, parcel_sort_key(a.parcel),
             natural_sort_key(a.number), a.id,
         ))
     return {
-        'surveys': [
+        IPSO_REF_SURVEYS: [
             {
                 'survey_id': s.id,
                 'name': s.name,
@@ -236,7 +248,7 @@ def _sampling_context() -> dict:
             }
             for s in surveys
         ],
-        'sample_areas': [
+        IPSO_REF_SAMPLE_AREAS: [
             {
                 'sample_area_id': a.id,
                 'sample_grid_id': a.sample_grid_id,
@@ -248,6 +260,7 @@ def _sampling_context() -> dict:
                 FIELD_LAT: a.lat,
                 FIELD_LON: a.lon,
                 'r_m': a.r_m,
+                FIELD_COPPICE: a.parcel.eclass.coppice,
             }
             for a in areas
         ],
@@ -261,17 +274,17 @@ def _pai_context() -> dict:
         .order_by('parcel__region__name', 'parcel__name', FIELD_NUMBER, 'id')
     )
     return {
-        'preserved_trees': [
+        IPSO_REF_PRESERVED_TREES: [
             {
-                'tree_preserved_id': p.id,
-                'tree_id': p.tree_id,
+                FIELD_TREE_PRESERVED_ID: p.id,
+                FIELD_TREE_ID: p.tree_id,
                 FIELD_REGION_ID: p.parcel.region_id,
                 FIELD_PARCEL_ID: p.parcel_id,
                 'compresa': p.parcel.region.name,
                 'particella': p.parcel.name,
                 FIELD_SPECIES_ID: p.tree.species_id,
                 FIELD_NUMBER: p.number,
-                'estimated_birth_year': p.tree.estimated_birth_year,
+                FIELD_ESTIMATED_BIRTH_YEAR: p.tree.estimated_birth_year,
                 FIELD_DATE: p.date.isoformat() if p.date else '',
                 FIELD_D_CM: p.d_cm,
                 FIELD_H_M: str(p.h_m) if p.h_m is not None else None,
@@ -280,7 +293,8 @@ def _pai_context() -> dict:
                 FIELD_LON: p.lon,
                 FIELD_ACC_M: p.acc_m,
                 FIELD_OPERATOR: p.operator,
-                'note': p.note,
+                FIELD_NOTE: p.note,
+                FIELD_COPPICE: p.tree.coppice,
             }
             for p in rows
         ],
@@ -290,13 +304,13 @@ def _pai_context() -> dict:
 def _work_packages(sampling: dict) -> list[dict]:
     return [
         {
-            'id': f"sampling_survey:{s['survey_id']}",
-            'kind': 'sampling_survey',
+            'id': f"{IPSO_WORK_PACKAGE_SAMPLING_SURVEY_PREFIX}{s[FIELD_SURVEY_ID]}",
+            'kind': IPSO_WORK_PACKAGE_SAMPLING_SURVEY,
             'label': s['name'],
-            'survey_id': s['survey_id'],
+            FIELD_SURVEY_ID: s[FIELD_SURVEY_ID],
             'sample_grid_id': s['sample_grid_id'],
         }
-        for s in sampling['surveys']
+        for s in sampling[IPSO_REF_SURVEYS]
     ]
 
 
@@ -372,14 +386,15 @@ def upload_detail(request: HttpRequest, upload_id: int) -> JsonResponse:
     payload, file_error = _read_staged_payload(upload)
     session = payload.get(SESSION, {}) if payload else {}
     records = payload.get(RECORDS, []) if payload else []
+    targets, suggested_target_id = _upload_targets(upload)
     return _api_json({
         UPLOAD: _upload_metadata(upload),
         SESSION: session,
         RECORDS: _preview_records(records),
         RECORD_COUNT: len(records),
         FILE_ERROR: file_error,
-        TARGETS: _martellate_targets(),
-        SUGGESTED_TARGET_ID: _suggested_harvest_item_id(upload.work_package_id),
+        TARGETS: targets,
+        SUGGESTED_TARGET_ID: suggested_target_id,
     })
 
 
@@ -437,30 +452,86 @@ def import_martellate_upload(request: HttpRequest, upload_id: int) -> JsonRespon
         if errors:
             return validation_error(errors)
 
-        imported_at = django_timezone.now()
-        claimed = (IpsoUpload.objects
-                   .filter(id=upload.id, state=IpsoUploadState.RECEIVED)
-                   .update(
-                       state=IpsoUploadState.IMPORTED,
-                       imported_at=imported_at,
-                       imported_by_id=request.user.id,
-                       target_type=IPSO_TARGET_HARVEST_PLAN_ITEM,
-                       target_id=item.id,
-                       error_summary='',
-                   ))
-        if not claimed:
+        if not _claim_upload_import(
+                upload, request.user, IPSO_TARGET_HARVEST_PLAN_ITEM, item.id):
             return validation_error([S.IPSO_ERR_UPLOAD_NOT_RECEIVED])
-        upload.state = IpsoUploadState.IMPORTED
-        upload.imported_at = imported_at
-        upload.imported_by = request.user
-        upload.target_type = IPSO_TARGET_HARVEST_PLAN_ITEM
-        upload.target_id = item.id
-        upload.error_summary = ''
         result = import_mark_rows(item, rows)
         data = _upload_metadata(upload)
     return success_response(request, body, extra={
         IMPORTED: result.imported,
         SKIPPED_DUPLICATES: result.skipped_duplicates,
+        UPLOAD: data,
+    })
+
+
+@login_required
+@require_writer
+@require_POST
+def import_samples_upload(request: HttpRequest, upload_id: int) -> JsonResponse:
+    try:
+        body = _request_json(request)
+        survey_id = _int(body, FIELD_SURVEY_ID)
+    except UploadValidationError as e:
+        return validation_error([str(e)])
+
+    with transaction.atomic():
+        upload = _get_upload(upload_id, for_update=True)
+        if upload.mode != IPSO_MODE_SAMPLES:
+            return validation_error([S.IPSO_ERR_MODE_UNSUPPORTED])
+        if upload.state != IpsoUploadState.RECEIVED:
+            return validation_error([S.IPSO_ERR_UPLOAD_NOT_RECEIVED])
+        survey = (Survey.objects
+                  .select_for_update()
+                  .filter(id=survey_id, active=True).first())
+        if survey is None:
+            return validation_error([S.IPSO_ERR_INVALID_SAMPLES_TARGET])
+
+        payload, file_error = _read_staged_payload(upload)
+        if file_error:
+            return validation_error([file_error])
+        rows, errors = sample_import_rows(payload, survey)
+        if errors:
+            return validation_error(errors)
+
+        if not _claim_upload_import(upload, request.user, IPSO_TARGET_SURVEY, survey.id):
+            return validation_error([S.IPSO_ERR_UPLOAD_NOT_RECEIVED])
+        result = csv_trees.apply(survey, rows)
+        data = _upload_metadata(upload)
+    return success_response(request, body, extra={
+        IMPORTED: result['n_trees'],
+        UPLOAD: data,
+    })
+
+
+@login_required
+@require_writer
+@require_POST
+def import_pai_upload(request: HttpRequest, upload_id: int) -> JsonResponse:
+    try:
+        body = _request_json(request)
+    except UploadValidationError as e:
+        return validation_error([str(e)])
+
+    with transaction.atomic():
+        upload = _get_upload(upload_id, for_update=True)
+        if upload.mode != IPSO_MODE_PAI:
+            return validation_error([S.IPSO_ERR_MODE_UNSUPPORTED])
+        if upload.state != IpsoUploadState.RECEIVED:
+            return validation_error([S.IPSO_ERR_UPLOAD_NOT_RECEIVED])
+
+        payload, file_error = _read_staged_payload(upload)
+        if file_error:
+            return validation_error([file_error])
+        rows, errors = pai_import_rows(payload)
+        if errors:
+            return validation_error(errors)
+
+        if not _claim_upload_import(upload, request.user, IPSO_TARGET_PAI, None):
+            return validation_error([S.IPSO_ERR_UPLOAD_NOT_RECEIVED])
+        imported = apply_pai_rows(rows)
+        data = _upload_metadata(upload)
+    return success_response(request, body, extra={
+        IMPORTED: imported,
         UPLOAD: data,
     })
 
@@ -572,6 +643,12 @@ def _target_label(upload: IpsoUpload) -> str:
                 .filter(id=upload.target_id).first())
         if item is not None:
             return _harvest_item_label(item)
+    if upload.target_type == IPSO_TARGET_SURVEY and upload.target_id:
+        survey = Survey.objects.filter(id=upload.target_id).first()
+        if survey is not None:
+            return _survey_label(survey)
+    if upload.target_type == IPSO_TARGET_PAI:
+        return S.IPSO_TARGET_PAI_LABEL
     if upload.target_type and upload.target_id:
         return f'{upload.target_type}:{upload.target_id}'
     return ''
@@ -641,6 +718,14 @@ def _reject_reason(request: HttpRequest) -> str:
     return reason.strip() or S.IPSO_REJECT_DEFAULT_REASON
 
 
+def _upload_targets(upload: IpsoUpload) -> tuple[list[dict], int | None]:
+    if upload.mode == IPSO_MODE_MARTELLATE:
+        return _martellate_targets(), _suggested_harvest_item_id(upload.work_package_id)
+    if upload.mode == IPSO_MODE_SAMPLES:
+        return _survey_targets(), _suggested_survey_id(upload.work_package_id)
+    return [], None
+
+
 def _martellate_targets() -> list[dict]:
     items = (HarvestPlanItem.objects
              .select_related('harvest_plan', 'parcel__region', 'parcel__eclass', 'region')
@@ -672,7 +757,7 @@ def _harvest_item_label(item: HarvestPlanItem) -> str:
 
 def _suggested_harvest_item_id(work_package_id: str) -> int | None:
     raw = (work_package_id or '').strip()
-    if raw.startswith('harvest:'):
+    if raw.startswith(IPSO_WORK_PACKAGE_HARVEST_PREFIX):
         raw = raw.split(':', 1)[1]
     if not raw.isdigit():
         return None
@@ -683,6 +768,56 @@ def _suggested_harvest_item_id(work_package_id: str) -> int | None:
     if item is not None and _is_valid_martellate_target(item):
         return item_id
     return None
+
+
+
+def _survey_targets() -> list[dict]:
+    surveys = (Survey.objects
+               .filter(active=True)
+               .select_related('sample_grid')
+               .order_by('name', 'id'))
+    return [{'id': survey.id, 'label': _survey_label(survey)} for survey in surveys]
+
+
+def _survey_label(survey: Survey) -> str:
+    return f'{survey.name} - {survey.sample_grid.name}'
+
+
+def _suggested_survey_id(work_package_id: str) -> int | None:
+    raw = (work_package_id or '').strip()
+    if raw.startswith(IPSO_WORK_PACKAGE_SAMPLING_SURVEY_PREFIX):
+        raw = raw.split(':', 1)[1]
+    if not raw.isdigit():
+        return None
+    survey_id = int(raw)
+    if Survey.objects.filter(id=survey_id, active=True).exists():
+        return survey_id
+    return None
+
+
+def _claim_upload_import(
+        upload: IpsoUpload, user, target_type: str, target_id: int | None,
+) -> bool:
+    imported_at = django_timezone.now()
+    claimed = (IpsoUpload.objects
+               .filter(id=upload.id, state=IpsoUploadState.RECEIVED)
+               .update(
+                   state=IpsoUploadState.IMPORTED,
+                   imported_at=imported_at,
+                   imported_by_id=user.id,
+                   target_type=target_type,
+                   target_id=target_id,
+                   error_summary='',
+               ))
+    if not claimed:
+        return False
+    upload.state = IpsoUploadState.IMPORTED
+    upload.imported_at = imported_at
+    upload.imported_by = user
+    upload.target_type = target_type
+    upload.target_id = target_id
+    upload.error_summary = ''
+    return True
 
 
 def _martellate_import_rows(
@@ -722,6 +857,9 @@ def _martellate_import_rows(
         if parcel is None:
             errors.append(S.IPSO_ERR_IMPORT_RECORD_PARCEL_NOT_FOUND.format(i))
             continue
+        if parcel.eclass.coppice:
+            errors.append(S.IPSO_ERR_IMPORT_RECORD_COPPICE_MARTELLATE.format(i))
+            continue
         if item_region and parcel.region_id != item_region.id:
             errors.append(S.ERR_MARK_PARCEL_NOT_IN_REGION)
             continue
@@ -753,6 +891,7 @@ def _martellate_import_rows(
             fingerprint=ipso_mark_fingerprint(upload.session_id, record),
         ))
     return rows, errors
+
 
 
 def _upload_authorized(request: HttpRequest) -> bool:
@@ -792,7 +931,7 @@ def _validate_upload_payload(payload: dict, request: HttpRequest) -> tuple[dict,
         _normalize_record(normalized_session[FIELD_MODE], i, row)
         for i, row in enumerate(records, start=1)
     ]
-    _validate_record_ids(normalized_records)
+    _validate_record_ids(normalized_session[FIELD_MODE], normalized_records)
     return {SESSION: normalized_session, RECORDS: normalized_records}, csv_text
 
 
@@ -830,19 +969,23 @@ def _normalize_record(mode: str, index: int, row: object) -> dict:
     if not _DATE_RE.match(date):
         raise UploadValidationError(S.IPSO_ERR_RECORD_DATE_INVALID.format(index))
 
-    d_cm = (
-        _opt_int(row, FIELD_D_CM) if mode == IPSO_MODE_PAI
-        else _int(row, FIELD_D_CM)
-    )
+    d_cm = _int(row, FIELD_D_CM)
     if d_cm is not None and d_cm <= 0:
         raise UploadValidationError(S.IPSO_ERR_RECORD_D_CM_POSITIVE.format(index))
 
-    h_m = (
-        _opt_decimal(row, FIELD_H_M) if mode == IPSO_MODE_PAI
-        else _decimal(row, FIELD_H_M)
-    )
+    h_m = _decimal(row, FIELD_H_M)
     if h_m is not None and h_m <= 0:
         raise UploadValidationError(S.IPSO_ERR_RECORD_H_M_POSITIVE.format(index))
+
+    number = _opt_int(row, FIELD_NUMBER)
+    if number is not None and number <= 0:
+        raise UploadValidationError(S.IPSO_ERR_RECORD_NUMBER_POSITIVE.format(index))
+    if mode == IPSO_MODE_SAMPLES and number is None:
+        raise UploadValidationError(S.IPSO_ERR_RECORD_NUMBER_REQUIRED.format(index))
+
+    sample_area_id = _opt_int(row, FIELD_SAMPLE_AREA_ID)
+    if mode == IPSO_MODE_SAMPLES and sample_area_id is None:
+        raise UploadValidationError(S.IPSO_ERR_RECORD_SAMPLE_AREA_REQUIRED.format(index))
 
     hypso_param_set_id = _opt_int(row, FIELD_HYPSO_PARAM_SET_ID)
     if mode != IPSO_MODE_MARTELLATE and hypso_param_set_id is not None:
@@ -850,13 +993,13 @@ def _normalize_record(mode: str, index: int, row: object) -> dict:
             S.IPSO_ERR_RECORD_HYPSO_ONLY_MARTELLATE.format(index)
         )
 
-    return {
+    normalized = {
         FIELD_CLIENT_RECORD_ID: _str(row, FIELD_CLIENT_RECORD_ID),
         FIELD_DATE: date,
         FIELD_REGION_ID: _int(row, FIELD_REGION_ID),
         FIELD_PARCEL_ID: _int(row, FIELD_PARCEL_ID),
         FIELD_SPECIES_ID: _int(row, FIELD_SPECIES_ID),
-        FIELD_NUMBER: _opt_int(row, FIELD_NUMBER),
+        FIELD_NUMBER: number,
         FIELD_D_CM: d_cm,
         FIELD_H_M: format(h_m, 'f') if h_m is not None else None,
         FIELD_H_MEASURED: _bool(row, FIELD_H_MEASURED),
@@ -865,16 +1008,49 @@ def _normalize_record(mode: str, index: int, row: object) -> dict:
         FIELD_LON: _opt_coord_float(row, FIELD_LON),
         FIELD_ACC_M: _opt_int(row, FIELD_ACC_M),
     }
+    if mode == IPSO_MODE_SAMPLES:
+        pressler_coeff = _opt_decimal(row, FIELD_PRESSLER_COEFF) or PRESSLER_DEFAULT
+        shoot = _opt_int(row, FIELD_SHOOT) or 0
+        l10_mm = _opt_int(row, FIELD_L10_MM) or 0
+        if pressler_coeff <= 0 or shoot < 0 or l10_mm < 0:
+            raise UploadValidationError(S.IPSO_ERR_RECORD_SAMPLE_FIELDS_INVALID.format(index))
+        normalized.update({
+            FIELD_SAMPLE_AREA_ID: sample_area_id,
+            FIELD_COPPICE: _opt_bool(row, FIELD_COPPICE),
+            FIELD_SHOOT: shoot,
+            FIELD_STANDARD: _opt_bool(row, FIELD_STANDARD) or False,
+            FIELD_L10_MM: l10_mm,
+            FIELD_PRESSLER_COEFF: format(pressler_coeff, 'f'),
+            FIELD_PRESERVED: _opt_bool(row, FIELD_PRESERVED) or False,
+        })
+    elif mode == IPSO_MODE_PAI:
+        normalized.update({
+            FIELD_ESTIMATED_BIRTH_YEAR: _opt_int(row, FIELD_ESTIMATED_BIRTH_YEAR),
+            FIELD_OPERATOR: _opt_str(row, FIELD_OPERATOR),
+            FIELD_NOTE: _opt_str(row, FIELD_NOTE),
+        })
+    return normalized
 
 
-def _validate_record_ids(records: list[dict]) -> None:
+def _validate_record_ids(mode: str, records: list[dict]) -> None:
     species_ids = {r[FIELD_SPECIES_ID] for r in records}
     parcel_ids = {r[FIELD_PARCEL_ID] for r in records}
-    hypso_ids = {r[FIELD_HYPSO_PARAM_SET_ID] for r in records if r[FIELD_HYPSO_PARAM_SET_ID] is not None}
+    sample_area_ids = {
+        r[FIELD_SAMPLE_AREA_ID] for r in records
+        if mode == IPSO_MODE_SAMPLES and r.get(FIELD_SAMPLE_AREA_ID) is not None
+    }
+    hypso_ids = {
+        r[FIELD_HYPSO_PARAM_SET_ID] for r in records
+        if r[FIELD_HYPSO_PARAM_SET_ID] is not None
+    }
     valid_species = set(Species.objects.filter(id__in=species_ids).values_list('id', flat=True))
     parcels = {
         p.id: p.region_id
         for p in Parcel.objects.filter(id__in=parcel_ids).select_related('region')
+    }
+    sample_areas = {
+        area.id: area.parcel_id
+        for area in SampleArea.objects.filter(id__in=sample_area_ids)
     }
     missing_species = species_ids - valid_species
     if missing_species:
@@ -882,6 +1058,9 @@ def _validate_record_ids(records: list[dict]) -> None:
     missing_parcels = parcel_ids - set(parcels)
     if missing_parcels:
         raise UploadValidationError(S.IPSO_ERR_UNKNOWN_PARCEL_ID.format(min(missing_parcels)))
+    missing_sample_areas = sample_area_ids - set(sample_areas)
+    if missing_sample_areas:
+        raise UploadValidationError(S.IPSO_ERR_UNKNOWN_SAMPLE_AREA_ID.format(min(missing_sample_areas)))
     valid_hypso = set(HypsoParamSet.objects.filter(id__in=hypso_ids).values_list('id', flat=True))
     missing_hypso = hypso_ids - valid_hypso
     if missing_hypso:
@@ -889,6 +1068,9 @@ def _validate_record_ids(records: list[dict]) -> None:
     for i, row in enumerate(records, start=1):
         if parcels[row[FIELD_PARCEL_ID]] != row[FIELD_REGION_ID]:
             raise UploadValidationError(S.IPSO_ERR_RECORD_PARCEL_REGION.format(i))
+        if mode == IPSO_MODE_SAMPLES:
+            if sample_areas[row[FIELD_SAMPLE_AREA_ID]] != row[FIELD_PARCEL_ID]:
+                raise UploadValidationError(S.IPSO_ERR_RECORD_SAMPLE_AREA_PARCEL.format(i))
 
 
 def _payload_checksum(payload: dict) -> str:
@@ -969,6 +1151,15 @@ def _opt_int(payload: dict, key: str) -> int | None:
 
 def _bool(payload: dict, key: str) -> bool:
     value = payload.get(key)
+    if type(value) is not bool:
+        raise UploadValidationError(S.IPSO_ERR_FIELD_BOOLEAN.format(key))
+    return value
+
+
+def _opt_bool(payload: dict, key: str) -> bool | None:
+    value = payload.get(key)
+    if value is None:
+        return None
     if type(value) is not bool:
         raise UploadValidationError(S.IPSO_ERR_FIELD_BOOLEAN.format(key))
     return value

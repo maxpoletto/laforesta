@@ -11,4 +11,8 @@ urlpatterns = [
     path('uploads/<int:upload_id>/reject/', views.reject_upload, name='ipso-upload-reject'),
     path('uploads/<int:upload_id>/import-martellate/',
          views.import_martellate_upload, name='ipso-upload-import-martellate'),
+    path('uploads/<int:upload_id>/import-samples/',
+         views.import_samples_upload, name='ipso-upload-import-samples'),
+    path('uploads/<int:upload_id>/import-pai/',
+         views.import_pai_upload, name='ipso-upload-import-pai'),
 ]

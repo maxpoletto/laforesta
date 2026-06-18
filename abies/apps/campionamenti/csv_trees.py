@@ -16,8 +16,9 @@ from apps.base.models import Sample, SampleArea, Species, Tree, TreeSample, tree
 from apps.base.refdata import GENERE_MAP
 from config import strings as S
 from config.constants import (
-    BOSCO_TREE_DIGESTS, FIELD_AREA, FIELD_COPPICE, FIELD_DATE, FIELD_D_CM,
-    FIELD_H_M, FIELD_L10_MM, FIELD_MASS_Q, FIELD_NUMBER, FIELD_PARCEL,
+    BOSCO_TREE_DIGESTS, FIELD_ACC_M, FIELD_AREA, FIELD_COPPICE, FIELD_DATE,
+    FIELD_D_CM, FIELD_H_M, FIELD_L10_MM, FIELD_LAT, FIELD_LON, FIELD_MASS_Q,
+    FIELD_NUMBER, FIELD_PARCEL,
     FIELD_PRESERVED, FIELD_PRESSLER_COEFF, FIELD_SHOOT, FIELD_SPECIES,
     FIELD_STANDARD, FIELD_VOLUME_M3,
     TREE_H_QUANTUM,
@@ -182,6 +183,7 @@ def apply(survey, parsed) -> dict:
             sample = sample_by_area[r[FIELD_AREA].id]
             tree = Tree.objects.create(
                 species=r[FIELD_SPECIES], parcel=r[FIELD_PARCEL],
+                lat=r.get(FIELD_LAT), lon=r.get(FIELD_LON), acc_m=r.get(FIELD_ACC_M),
                 preserved=r[FIELD_PRESERVED], coppice=r[FIELD_COPPICE],
             )
             TreeSample.objects.create(

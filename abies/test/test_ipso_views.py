@@ -12,8 +12,9 @@ from django.urls import reverse
 
 from apps.base.models import (
     HYPSO_FUNC_LN, HarvestPlan, HarvestPlanItem, HarvestPlanItemState,
-    HypsoParam, HypsoParamSet, HypsoParamSource, SampleArea, SampleGrid,
-    Survey, Tree, TreeMark, TreePreserved,
+    HypsoParam, HypsoParamSet, HypsoParamSource, Parcel, Sample,
+    SampleArea, SampleGrid, Survey, Tree, TreeMark, TreePreserved,
+    TreeSample,
 )
 from apps.ipso import views as ipso_views
 from apps.ipso.models import IpsoUpload, IpsoUploadState
@@ -151,6 +152,7 @@ def test_reference_json_comes_from_abies_data(db, regions, parcels, species):
         'lat': 38.51234,
         'lon': 16.12345,
         'r_m': 15,
+        'coppice': False,
     }]
     assert data['pai']['preserved_trees'] == [{
         'tree_preserved_id': preserved.id,
@@ -171,6 +173,7 @@ def test_reference_json_comes_from_abies_data(db, regions, parcels, species):
         'acc_m': 6,
         'operator': 'Mario',
         'note': 'nota',
+        'coppice': False,
     }]
 
 
@@ -184,39 +187,52 @@ def test_terreni_geojson_has_empty_fallback(db):
 
 def _upload_payload(
         parcels, species, *, mode='martellate',
-        session_id='11111111-1111-4111-8111-111111111111'):
+        session_id='11111111-1111-4111-8111-111111111111',
+        session_overrides=None, record_overrides=None):
     parcel = parcels[0]
     sp = species[0]
-    return {
-        'session': {
-            'session_id': session_id,
-            'mode': mode,
-            'schema_version': 1,
-            'reference_version': '',
-            'work_package_id': '',
-            'operator': 'Mario Rossi',
-            'created_at': '2026-06-17T08:00:00Z',
-            'completed_at': '2026-06-17T09:00:00Z',
-            'damaged': False,
-            'region_id': parcel.region_id,
-        },
-        'records': [{
-            'client_record_id': '1',
-            'date': '2026-06-17',
-            'region_id': parcel.region_id,
-            'parcel_id': parcel.id,
-            'species_id': sp.id,
-            'number': 1,
-            'd_cm': 42,
-            'h_m': '22',
-            'h_measured': False,
-            'hypso_param_set_id': None,
-            'lat': 38.51234,
-            'lon': 16.12345,
-            'acc_m': 5,
-        }],
-        'csv_text': 'csv backup',
+    session = {
+        'session_id': session_id,
+        'mode': mode,
+        'schema_version': 1,
+        'reference_version': '',
+        'work_package_id': '',
+        'operator': 'Mario Rossi',
+        'created_at': '2026-06-17T08:00:00Z',
+        'completed_at': '2026-06-17T09:00:00Z',
+        'damaged': False,
+        'region_id': parcel.region_id,
     }
+    record = {
+        'client_record_id': '1',
+        'date': '2026-06-17',
+        'region_id': parcel.region_id,
+        'parcel_id': parcel.id,
+        'species_id': sp.id,
+        'number': 1,
+        'd_cm': 42,
+        'h_m': '22',
+        'h_measured': False,
+        'hypso_param_set_id': None,
+        'lat': 38.51234,
+        'lon': 16.12345,
+        'acc_m': 5,
+    }
+    if session_overrides:
+        session.update(session_overrides)
+    if record_overrides:
+        record.update(record_overrides)
+    return {'session': session, 'records': [record], 'csv_text': 'csv backup'}
+
+
+def _sample_survey(parcel, *, name='Ipso survey'):
+    grid = SampleGrid.objects.create(name=f'{name} grid')
+    area = SampleArea.objects.create(
+        sample_grid=grid, parcel=parcel, number='3',
+        lat=38.51234, lon=16.12345, r_m=15,
+    )
+    survey = Survey.objects.create(name=name, sample_grid=grid, active=True)
+    return survey, area
 
 
 
@@ -283,10 +299,10 @@ def test_upload_stages_non_martellate_modes(
         db, parcels, species, settings, tmp_path, mode, session_id):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     payload = _upload_payload(parcels, species, mode=mode, session_id=session_id)
-    if mode == 'pai':
-        payload['records'][0]['d_cm'] = None
-        payload['records'][0]['h_m'] = None
-
+    if mode == 'samples':
+        survey, area = _sample_survey(parcels[0])
+        payload['session']['work_package_id'] = f'sampling_survey:{survey.id}'
+        payload['records'][0]['sample_area_id'] = area.id
     resp = _post_upload(Client(), payload)
 
     assert resp.status_code == 200
@@ -296,6 +312,24 @@ def test_upload_stages_non_martellate_modes(
     staged = json.loads((Path(upload.inbox_path) / 'upload.json').read_text())
     assert staged['session']['mode'] == mode
     assert staged['records'][0]['hypso_param_set_id'] is None
+    if mode == 'samples':
+        assert staged['records'][0]['sample_area_id'] == area.id
+
+
+@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+def test_upload_rejects_pai_without_height(db, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    payload = _upload_payload(
+        parcels, species, mode='pai',
+        session_id='33333333-3333-4333-8333-333333333333',
+    )
+    payload['records'][0]['h_m'] = None
+
+    resp = _post_upload(Client(), payload)
+
+    assert resp.status_code == 422
+    assert resp.json()['error'] == 'invalid_payload'
+    assert IpsoUpload.objects.count() == 0
 
 
 @override_settings(IPSO_UPLOAD_TOKEN='test-token')
@@ -489,6 +523,28 @@ def test_upload_detail_lists_martellate_targets(writer_client, parcels, species,
 
 
 @override_settings(IPSO_UPLOAD_TOKEN='test-token')
+def test_upload_detail_lists_sample_targets(writer_client, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    survey, area = _sample_survey(parcels[0])
+    payload = _upload_payload(
+        parcels, species, mode='samples',
+        session_id='22222222-2222-4222-8222-222222222222',
+        session_overrides={'work_package_id': f'sampling_survey:{survey.id}'},
+        record_overrides={'sample_area_id': area.id},
+    )
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
+
+    resp = writer_client.get(reverse('ipso-upload-detail', args=[upload.id]))
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data['suggested_target_id'] == survey.id
+    assert data['targets'][0]['id'] == survey.id
+    assert 'Ipso survey' in data['targets'][0]['label']
+
+
+@override_settings(IPSO_UPLOAD_TOKEN='test-token')
 def test_writer_imports_upload_into_harvest_plan_item(
         writer_client, writer_user, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
@@ -527,6 +583,141 @@ def test_writer_imports_upload_into_harvest_plan_item(
 
 
 @override_settings(IPSO_UPLOAD_TOKEN='test-token')
+def test_writer_imports_samples_upload_into_survey(
+        writer_client, writer_user, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    survey, area = _sample_survey(parcels[0])
+    payload = _upload_payload(
+        parcels, species, mode='samples',
+        session_id='22222222-2222-4222-8222-222222222222',
+        record_overrides={'sample_area_id': area.id},
+    )
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
+
+    resp = writer_client.post(
+        reverse('ipso-upload-import-samples', args=[upload.id]),
+        data=json.dumps({'survey_id': survey.id}),
+        content_type='application/json',
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()['imported'] == 1
+    upload.refresh_from_db()
+    assert upload.state == IpsoUploadState.IMPORTED
+    assert upload.imported_by == writer_user
+    assert upload.target_type == 'survey'
+    assert upload.target_id == survey.id
+    sample = Sample.objects.get(survey=survey, sample_area=area)
+    assert sample.date == date(2026, 6, 17)
+    ts = TreeSample.objects.select_related('tree', 'tree__species').get(sample=sample)
+    assert ts.tree.parcel == parcels[0]
+    assert ts.tree.species == species[0]
+    assert ts.tree.lat == 38.51234
+    assert ts.tree.lon == 16.12345
+    assert ts.number == 1
+    assert ts.d_cm == 42
+    assert ts.h_m == Decimal('22.00')
+    assert ts.volume_m3 is not None
+
+
+@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+def test_samples_import_supports_coppice_parcels(
+        writer_client, regions, eclasses, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    coppice_parcel = Parcel.objects.create(
+        name='C1', region=regions[0], eclass=next(e for e in eclasses if e.coppice),
+        area_ha=Decimal('1.0'),
+    )
+    survey, area = _sample_survey(coppice_parcel, name='Ceduo survey')
+    payload = _upload_payload(
+        [coppice_parcel], species, mode='samples',
+        session_id='22222222-2222-4222-8222-222222222223',
+        record_overrides={'sample_area_id': area.id, 'species_id': species[1].id},
+    )
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
+
+    resp = writer_client.post(
+        reverse('ipso-upload-import-samples', args=[upload.id]),
+        data=json.dumps({'survey_id': survey.id}),
+        content_type='application/json',
+    )
+
+    assert resp.status_code == 200
+    ts = TreeSample.objects.select_related('tree').get()
+    assert ts.tree.coppice is True
+    assert ts.volume_m3 is None
+    assert ts.mass_q is None
+
+
+@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+def test_writer_imports_pai_upload(writer_client, writer_user, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    payload = _upload_payload(
+        parcels, species, mode='pai',
+        session_id='33333333-3333-4333-8333-333333333333',
+        record_overrides={
+            'number': None,
+            'estimated_birth_year': 1920,
+            'note': 'nota PAI',
+        },
+    )
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
+
+    resp = writer_client.post(
+        reverse('ipso-upload-import-pai', args=[upload.id]),
+        data=json.dumps({}),
+        content_type='application/json',
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()['imported'] == 1
+    upload.refresh_from_db()
+    assert upload.state == IpsoUploadState.IMPORTED
+    assert upload.imported_by == writer_user
+    assert upload.target_type == 'pai'
+    pai = TreePreserved.objects.select_related('tree', 'tree__species').get()
+    assert pai.tree.parcel == parcels[0]
+    assert pai.tree.species == species[0]
+    assert pai.number == 1
+    assert pai.date == date(2026, 6, 17)
+    assert pai.d_cm == 42
+    assert pai.h_m == Decimal('22.00')
+    assert pai.h_measured is True
+    assert pai.operator == 'Mario Rossi'
+    assert pai.note == 'nota PAI'
+    assert pai.volume_m3 is not None
+
+
+@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+def test_pai_import_supports_coppice_parcels(
+        writer_client, regions, eclasses, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    coppice_parcel = Parcel.objects.create(
+        name='P1', region=regions[0], eclass=next(e for e in eclasses if e.coppice),
+        area_ha=Decimal('1.0'),
+    )
+    payload = _upload_payload(
+        [coppice_parcel], species, mode='pai',
+        session_id='33333333-3333-4333-8333-333333333334',
+    )
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
+
+    resp = writer_client.post(
+        reverse('ipso-upload-import-pai', args=[upload.id]),
+        data=json.dumps({}),
+        content_type='application/json',
+    )
+
+    assert resp.status_code == 200
+    pai = TreePreserved.objects.select_related('tree').get()
+    assert pai.tree.coppice is True
+
+
+@override_settings(IPSO_UPLOAD_TOKEN='test-token')
 def test_import_rejects_second_submit_without_duplicate_marks(
         writer_client, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
@@ -547,6 +738,29 @@ def test_import_rejects_second_submit_without_duplicate_marks(
     assert TreeMark.objects.count() == 1
     upload.refresh_from_db()
     assert upload.state == IpsoUploadState.IMPORTED
+
+
+@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+def test_samples_import_rejects_second_submit_without_duplicate_samples(
+        writer_client, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    survey, area = _sample_survey(parcels[0])
+    payload = _upload_payload(
+        parcels, species, mode='samples',
+        session_id='22222222-2222-4222-8222-222222222224',
+        record_overrides={'sample_area_id': area.id},
+    )
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
+    body = json.dumps({'survey_id': survey.id})
+    url = reverse('ipso-upload-import-samples', args=[upload.id])
+
+    first = writer_client.post(url, data=body, content_type='application/json')
+    second = writer_client.post(url, data=body, content_type='application/json')
+
+    assert first.status_code == 200
+    assert second.status_code == 400
+    assert TreeSample.objects.count() == 1
 
 
 @override_settings(IPSO_UPLOAD_TOKEN='test-token')

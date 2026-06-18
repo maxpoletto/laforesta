@@ -15,7 +15,8 @@ import { cloneTemplate } from '../../base/js/templates.js';
 import { fmtCoord } from '../../base/js/format.js';
 import * as S from '../../base/js/strings.js';
 import {
-  DATA_ID_IPSO_UPLOADS, FIELD_HARVEST_PLAN_ITEM_ID, FILE_ERROR, IPSO_MODE_MARTELLATE,
+  DATA_ID_IPSO_UPLOADS, FIELD_HARVEST_PLAN_ITEM_ID, FIELD_SURVEY_ID, FILE_ERROR,
+  IPSO_MODE_MARTELLATE, IPSO_MODE_PAI, IPSO_MODE_SAMPLES,
   IPSO_UPLOAD_STATE_IMPORTED, IPSO_UPLOAD_STATE_RECEIVED, IPSO_UPLOAD_STATE_REJECTED,
   MESSAGE, PENDING_COUNT, RECORD_COUNT, RECORDS, ROLE_READER, ROWS,
   SUGGESTED_TARGET_ID, TARGETS, UPLOAD,
@@ -28,7 +29,27 @@ const CSS_URL = '/static/ipso/css/importazione.css';
 const DEFAULT_SORT = { column: S.IPSO_COL_RECEIVED, ascending: false };
 const DETAIL_URL = (id) => `/api/ipso/uploads/${id}/`;
 const REJECT_URL = (id) => `/api/ipso/uploads/${id}/reject/`;
-const IMPORT_URL = (id) => `/api/ipso/uploads/${id}/import-martellate/`;
+const IMPORT_CONFIG = {
+  [IPSO_MODE_MARTELLATE]: {
+    url: id => `/api/ipso/uploads/${id}/import-martellate/`,
+    targetField: FIELD_HARVEST_PLAN_ITEM_ID,
+    targetLabel: S.IPSO_TARGET_PLAN_LABEL,
+    confirm: S.IPSO_IMPORT_CONFIRM,
+    requiresTarget: true,
+  },
+  [IPSO_MODE_SAMPLES]: {
+    url: id => `/api/ipso/uploads/${id}/import-samples/`,
+    targetField: FIELD_SURVEY_ID,
+    targetLabel: S.IPSO_TARGET_SURVEY_LABEL,
+    confirm: S.IPSO_IMPORT_SAMPLES_CONFIRM,
+    requiresTarget: true,
+  },
+  [IPSO_MODE_PAI]: {
+    url: id => `/api/ipso/uploads/${id}/import-pai/`,
+    confirm: S.IPSO_IMPORT_PAI_CONFIRM,
+    requiresTarget: false,
+  },
+};
 
 const COLUMN_DEFS = {
   [S.IPSO_COL_RECEIVED]: { label: S.IPSO_COL_RECEIVED, width: '145px' },
@@ -208,56 +229,65 @@ function renderDetail(data) {
 
 function canImportUpload(upload) {
   return document.body.dataset.role !== ROLE_READER &&
-    upload.mode === IPSO_MODE_MARTELLATE && upload.state === IPSO_UPLOAD_STATE_RECEIVED;
+    upload.state === IPSO_UPLOAD_STATE_RECEIVED && !!IMPORT_CONFIG[upload.mode];
 }
 
 function importTargetPanel(data) {
   const upload = data[UPLOAD] || {};
-  if (!canImportUpload(upload)) return null;
+  const config = IMPORT_CONFIG[upload.mode];
+  if (!config || !canImportUpload(upload)) return null;
 
   const panel = document.createElement('div');
   panel.className = 'ipso-import-target';
 
-  const label = document.createElement('label');
-  label.textContent = S.IPSO_TARGET_PLAN_LABEL;
-  const select = document.createElement('select');
-  const empty = document.createElement('option');
-  empty.value = '';
-  empty.textContent = S.IPSO_TARGET_SELECT;
-  select.appendChild(empty);
-  for (const target of data[TARGETS] || []) {
-    const opt = document.createElement('option');
-    opt.value = String(target.id);
-    opt.textContent = target.label;
-    if (target.id === data[SUGGESTED_TARGET_ID]) opt.selected = true;
-    select.appendChild(opt);
+  let select = null;
+  if (config.requiresTarget) {
+    const label = document.createElement('label');
+    label.textContent = config.targetLabel;
+    select = document.createElement('select');
+    const empty = document.createElement('option');
+    empty.value = '';
+    empty.textContent = S.IPSO_TARGET_SELECT;
+    select.appendChild(empty);
+    for (const target of data[TARGETS] || []) {
+      const opt = document.createElement('option');
+      opt.value = String(target.id);
+      opt.textContent = target.label;
+      if (target.id === data[SUGGESTED_TARGET_ID]) opt.selected = true;
+      select.appendChild(opt);
+    }
+    label.appendChild(select);
+    panel.appendChild(label);
   }
-  label.appendChild(select);
-  panel.appendChild(label);
 
   const btn = document.createElement('button');
   btn.className = 'btn btn-import';
   btn.textContent = S.IMPORT_LABEL;
-  const updateEnabled = () => { btn.disabled = !select.value; };
-  select.addEventListener('change', updateEnabled);
-  btn.addEventListener('click', () => confirmImport(upload.id, select.value));
+  const updateEnabled = () => {
+    btn.disabled = config.requiresTarget && !select.value;
+  };
+  if (select) select.addEventListener('change', updateEnabled);
+  btn.addEventListener('click', () => {
+    confirmImport(upload.id, config, select ? select.value : null);
+  });
   panel.appendChild(btn);
   updateEnabled();
   return panel;
 }
 
-function confirmImport(uploadId, targetId) {
+function confirmImport(uploadId, config, targetId) {
   showConfirmModal(
-    S.IPSO_IMPORT_CONFIRM,
-    async () => importUpload(uploadId, targetId),
+    config.confirm,
+    async () => importUpload(uploadId, config, targetId),
     { confirmLabel: S.IMPORT_LABEL },
   );
 }
 
-async function importUpload(uploadId, targetId) {
-  const { data, status } = await api.postJSON(IMPORT_URL(uploadId), {
-    [FIELD_HARVEST_PLAN_ITEM_ID]: Number(targetId),
-  });
+async function importUpload(uploadId, config, targetId) {
+  const body = config.requiresTarget ? {
+    [config.targetField]: Number(targetId),
+  } : {};
+  const { data, status } = await api.postJSON(config.url(uploadId), body);
   if (status >= 400) {
     showError(data?.[MESSAGE] || S.ERROR_GENERIC);
     return;
