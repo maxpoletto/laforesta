@@ -6,6 +6,7 @@ from decimal import Decimal
 from pathlib import Path
 
 import pytest
+from django.db import IntegrityError
 from django.test import Client, override_settings
 from django.urls import reverse
 
@@ -14,6 +15,7 @@ from apps.base.models import (
     HypsoParam, HypsoParamSet, HypsoParamSource, SampleArea, SampleGrid,
     Survey, Tree, TreeMark, TreePreserved,
 )
+from apps.ipso import views as ipso_views
 from apps.ipso.models import IpsoUpload, IpsoUploadState
 
 
@@ -338,6 +340,28 @@ def test_upload_conflicts_on_same_session_different_payload(db, parcels, species
 
 
 @override_settings(IPSO_UPLOAD_TOKEN='test-token')
+def test_upload_integrity_error_does_not_write_files(
+        db, parcels, species, settings, tmp_path, monkeypatch):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    payload = _upload_payload(parcels, species)
+
+    def raise_integrity_error(**kwargs):
+        raise IntegrityError
+
+    def fail_write(*args, **kwargs):
+        pytest.fail('upload files were written before the session row was claimed')
+
+    monkeypatch.setattr(ipso_views.IpsoUpload.objects, 'create', raise_integrity_error)
+    monkeypatch.setattr(ipso_views, '_write_upload_files', fail_write)
+
+    resp = _post_upload(Client(), payload)
+
+    assert resp.status_code == 409
+    assert resp.json()['error'] == 'conflict'
+    assert not settings.IPSO_INBOX_DIR.exists()
+
+
+@override_settings(IPSO_UPLOAD_TOKEN='test-token')
 def test_upload_rejects_unknown_species(db, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     payload = _upload_payload(parcels, species)
@@ -500,6 +524,29 @@ def test_writer_imports_upload_into_harvest_plan_item(
     item.refresh_from_db()
     assert item.state == HarvestPlanItemState.MARKED
     assert item.date_actual == date(2026, 6, 17)
+
+
+@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+def test_import_rejects_second_submit_without_duplicate_marks(
+        writer_client, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    item = _harvest_item(parcels)
+    payload = _upload_payload(parcels, species)
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
+    body = json.dumps({'harvest_plan_item_id': item.id})
+    url = reverse('ipso-upload-import-martellate', args=[upload.id])
+
+    first = writer_client.post(url, data=body, content_type='application/json')
+    second = writer_client.post(url, data=body, content_type='application/json')
+
+    assert first.status_code == 200
+    assert first.json()['imported'] == 1
+    assert second.status_code == 400
+    assert second.json()['message'] == 'Solo i caricamenti da importare possono essere importati.'
+    assert TreeMark.objects.count() == 1
+    upload.refresh_from_db()
+    assert upload.state == IpsoUploadState.IMPORTED
 
 
 @override_settings(IPSO_UPLOAD_TOKEN='test-token')

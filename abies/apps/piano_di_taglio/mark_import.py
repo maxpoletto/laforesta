@@ -68,21 +68,22 @@ def ipso_mark_fingerprint(session_id: str, record: dict) -> str:
 
 
 def import_mark_rows(item: HarvestPlanItem, rows: list[MarkImportRow]) -> MarkImportResult:
-    existing_fps = set(
-        TreeMark.objects
-        .filter(harvest_plan_item_id=item.id, import_fingerprint__isnull=False)
-        .values_list('import_fingerprint', flat=True)
-    )
-    parsed: list[MarkImportRow] = []
-    skipped = 0
-    for row in rows:
-        if row.fingerprint in existing_fps:
-            skipped += 1
-            continue
-        parsed.append(row)
-        existing_fps.add(row.fingerprint)
-
     with transaction.atomic():
+        item = HarvestPlanItem.objects.select_for_update().get(id=item.id)
+        existing_fps = set(
+            TreeMark.objects
+            .filter(harvest_plan_item_id=item.id, import_fingerprint__isnull=False)
+            .values_list('import_fingerprint', flat=True)
+        )
+        parsed: list[MarkImportRow] = []
+        skipped = 0
+        for row in rows:
+            if row.fingerprint in existing_fps:
+                skipped += 1
+                continue
+            parsed.append(row)
+            existing_fps.add(row.fingerprint)
+
         next_number = next_mark_number(item.id)
         for row in parsed:
             number = row.number

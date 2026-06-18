@@ -14,7 +14,7 @@ from pathlib import Path
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.contrib.staticfiles import finders
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.utils import timezone as django_timezone
 from django.views.decorators.csrf import csrf_exempt
@@ -379,71 +379,97 @@ def upload_detail(request: HttpRequest, upload_id: int) -> JsonResponse:
 @require_writer
 @require_POST
 def reject_upload(request: HttpRequest, upload_id: int) -> JsonResponse:
-    upload = _get_upload(upload_id)
-    if upload.state == IpsoUploadState.IMPORTED:
-        return _api_json({
-            'ok': False,
-            'message': 'Un caricamento importato non puo essere rifiutato.',
-        }, status=400)
-    upload.state = IpsoUploadState.REJECTED
-    upload.error_summary = _reject_reason(request)
-    upload.save(update_fields=['state', 'error_summary'])
-    return _api_json({'ok': True, 'upload': _upload_metadata(upload)})
+    with transaction.atomic():
+        upload = _get_upload(upload_id, for_update=True)
+        if upload.state == IpsoUploadState.IMPORTED:
+            return _api_json({
+                'ok': False,
+                'message': 'Un caricamento importato non puo essere rifiutato.',
+            }, status=400)
+        reason = _reject_reason(request)
+        updated = (IpsoUpload.objects
+                   .filter(id=upload.id)
+                   .exclude(state=IpsoUploadState.IMPORTED)
+                   .update(state=IpsoUploadState.REJECTED, error_summary=reason))
+        if not updated:
+            return _api_json({
+                'ok': False,
+                'message': 'Un caricamento importato non puo essere rifiutato.',
+            }, status=400)
+        upload.state = IpsoUploadState.REJECTED
+        upload.error_summary = reason
+        data = _upload_metadata(upload)
+    return _api_json({'ok': True, 'upload': data})
 
 
 @login_required
 @require_writer
 @require_POST
 def import_martellate_upload(request: HttpRequest, upload_id: int) -> JsonResponse:
-    upload = _get_upload(upload_id)
-    if upload.mode != UPLOAD_MODE_MARTELLATE:
-        return _api_json({'ok': False, 'message': 'Modalita non supportata.'}, status=400)
-    if upload.state != IpsoUploadState.RECEIVED:
-        return _api_json({
-            'ok': False,
-            'message': 'Solo i caricamenti da importare possono essere importati.',
-        }, status=400)
     try:
         body = _request_json(request)
         item_id = _int(body, 'harvest_plan_item_id')
     except UploadValidationError as e:
         return _api_json({'ok': False, 'message': str(e)}, status=400)
-    item = (HarvestPlanItem.objects
-            .select_related('parcel__region', 'parcel__eclass', 'region', 'harvest_plan')
-            .filter(id=item_id).first())
-    if item is None:
-        return _api_json({'ok': False, 'message': S.ERR_PLAN_ITEM_NOT_FOUND}, status=400)
-    if item.state == HarvestPlanItemState.CLOSED:
-        return _api_json({'ok': False, 'message': S.ERR_MARK_ITEM_CLOSED}, status=400)
-    if not _is_valid_martellate_target(item):
-        return _api_json({
-            'ok': False,
-            'message': 'Destinazione non valida per Martellate.',
-        }, status=400)
 
-    payload, file_error = _read_staged_payload(upload)
-    if file_error:
-        return _api_json({'ok': False, 'message': file_error}, status=400)
-    rows, errors = _martellate_import_rows(upload, payload, item)
-    if errors:
-        return _api_json({'ok': False, 'message': '\n'.join(errors), 'errors': errors}, status=400)
+    with transaction.atomic():
+        upload = _get_upload(upload_id, for_update=True)
+        if upload.mode != UPLOAD_MODE_MARTELLATE:
+            return _api_json({'ok': False, 'message': 'Modalita non supportata.'}, status=400)
+        if upload.state != IpsoUploadState.RECEIVED:
+            return _api_json({
+                'ok': False,
+                'message': 'Solo i caricamenti da importare possono essere importati.',
+            }, status=400)
+        item = (HarvestPlanItem.objects
+                .select_for_update()
+                .filter(id=item_id).first())
+        if item is None:
+            return _api_json({'ok': False, 'message': S.ERR_PLAN_ITEM_NOT_FOUND}, status=400)
+        if item.state == HarvestPlanItemState.CLOSED:
+            return _api_json({'ok': False, 'message': S.ERR_MARK_ITEM_CLOSED}, status=400)
+        if not _is_valid_martellate_target(item):
+            return _api_json({
+                'ok': False,
+                'message': 'Destinazione non valida per Martellate.',
+            }, status=400)
 
-    result = import_mark_rows(item, rows)
-    upload.state = IpsoUploadState.IMPORTED
-    upload.imported_at = django_timezone.now()
-    upload.imported_by = request.user
-    upload.target_type = TARGET_TYPE_HARVEST_PLAN_ITEM
-    upload.target_id = item.id
-    upload.error_summary = ''
-    upload.save(update_fields=[
-        'state', 'imported_at', 'imported_by', 'target_type', 'target_id',
-        'error_summary',
-    ])
+        payload, file_error = _read_staged_payload(upload)
+        if file_error:
+            return _api_json({'ok': False, 'message': file_error}, status=400)
+        rows, errors = _martellate_import_rows(upload, payload, item)
+        if errors:
+            return _api_json({'ok': False, 'message': '\n'.join(errors), 'errors': errors}, status=400)
+
+        imported_at = django_timezone.now()
+        claimed = (IpsoUpload.objects
+                   .filter(id=upload.id, state=IpsoUploadState.RECEIVED)
+                   .update(
+                       state=IpsoUploadState.IMPORTED,
+                       imported_at=imported_at,
+                       imported_by_id=request.user.id,
+                       target_type=TARGET_TYPE_HARVEST_PLAN_ITEM,
+                       target_id=item.id,
+                       error_summary='',
+                   ))
+        if not claimed:
+            return _api_json({
+                'ok': False,
+                'message': 'Solo i caricamenti da importare possono essere importati.',
+            }, status=400)
+        upload.state = IpsoUploadState.IMPORTED
+        upload.imported_at = imported_at
+        upload.imported_by = request.user
+        upload.target_type = TARGET_TYPE_HARVEST_PLAN_ITEM
+        upload.target_id = item.id
+        upload.error_summary = ''
+        result = import_mark_rows(item, rows)
+        data = _upload_metadata(upload)
     return _api_json({
         'ok': True,
         'imported': result.imported,
         'skipped_duplicates': result.skipped_duplicates,
-        'upload': _upload_metadata(upload),
+        'upload': data,
     })
 
 
@@ -460,41 +486,23 @@ def upload_session(request: HttpRequest) -> JsonResponse:
 
     checksum = _payload_checksum(normalized)
     session_id = normalized['session']['session_id']
-    existing = IpsoUpload.objects.filter(session_id=session_id).first()
-    if existing is not None:
-        if hmac.compare_digest(existing.checksum, checksum):
-            return _api_json({
-                'ok': True,
-                'stored_as': existing.inbox_path,
-                'duplicate': True,
-            })
-        existing.state = IpsoUploadState.CONFLICT
-        existing.error_summary = 'Duplicate session_id with different content.'
-        existing.save(update_fields=['state', 'error_summary'])
-        return _api_json({'ok': False, 'error': 'conflict'}, status=409)
-
-    inbox_path = _write_upload_files(session_id, normalized, checksum, csv_text)
     try:
-        upload = IpsoUpload.objects.create(
-            session_id=session_id,
-            mode=normalized['session']['mode'],
-            schema_version=normalized['session']['schema_version'],
-            reference_version=normalized['session'].get('reference_version', ''),
-            work_package_id=normalized['session'].get('work_package_id', ''),
-            operator=normalized['session'].get('operator', ''),
-            record_count=len(normalized['records']),
-            checksum=checksum,
-            inbox_path=str(inbox_path),
-        )
+        with transaction.atomic():
+            inbox_path = _upload_inbox_path(session_id)
+            upload = IpsoUpload.objects.create(
+                session_id=session_id,
+                mode=normalized['session']['mode'],
+                schema_version=normalized['session']['schema_version'],
+                reference_version=normalized['session'].get('reference_version', ''),
+                work_package_id=normalized['session'].get('work_package_id', ''),
+                operator=normalized['session'].get('operator', ''),
+                record_count=len(normalized['records']),
+                checksum=checksum,
+                inbox_path=str(inbox_path),
+            )
+            _write_upload_files(inbox_path, normalized, checksum, csv_text)
     except IntegrityError:
-        existing = IpsoUpload.objects.get(session_id=session_id)
-        if hmac.compare_digest(existing.checksum, checksum):
-            return _api_json({
-                'ok': True,
-                'stored_as': existing.inbox_path,
-                'duplicate': True,
-            })
-        return _api_json({'ok': False, 'error': 'conflict'}, status=409)
+        return _duplicate_upload_response(session_id, checksum)
 
     return _api_json({
         'ok': True,
@@ -503,10 +511,28 @@ def upload_session(request: HttpRequest) -> JsonResponse:
     })
 
 
+def _duplicate_upload_response(session_id: str, checksum: str) -> JsonResponse:
+    existing = IpsoUpload.objects.filter(session_id=session_id).first()
+    if existing is None:
+        return _api_json({'ok': False, 'error': 'conflict'}, status=409)
+    if hmac.compare_digest(existing.checksum, checksum):
+        return _api_json({
+            'ok': True,
+            'stored_as': existing.inbox_path,
+            'duplicate': True,
+        })
+    existing.state = IpsoUploadState.CONFLICT
+    existing.error_summary = 'Duplicate session_id with different content.'
+    existing.save(update_fields=['state', 'error_summary'])
+    return _api_json({'ok': False, 'error': 'conflict'}, status=409)
 
-def _get_upload(upload_id: int) -> IpsoUpload:
+
+def _get_upload(upload_id: int, *, for_update: bool = False) -> IpsoUpload:
+    qs = IpsoUpload.objects
+    if for_update:
+        qs = qs.select_for_update()
     try:
-        return IpsoUpload.objects.get(id=upload_id)
+        return qs.get(id=upload_id)
     except IpsoUpload.DoesNotExist as e:
         raise Http404 from e
 
@@ -876,11 +902,14 @@ def _payload_checksum(payload: dict) -> str:
     return hashlib.sha256(raw.encode('utf-8')).hexdigest()
 
 
-def _write_upload_files(
-        session_id: str, payload: dict, checksum: str, csv_text: str | None,
-) -> Path:
+def _upload_inbox_path(session_id: str) -> Path:
     now = django_timezone.now().astimezone(timezone.utc)
-    session_dir = Path(settings.IPSO_INBOX_DIR) / f'{now.year:04d}' / f'{now.month:02d}' / session_id
+    return Path(settings.IPSO_INBOX_DIR) / f'{now.year:04d}' / f'{now.month:02d}' / session_id
+
+
+def _write_upload_files(
+        session_dir: Path, payload: dict, checksum: str, csv_text: str | None,
+) -> Path:
     session_dir.mkdir(parents=True, exist_ok=True)
     _atomic_write_text(
         session_dir / 'upload.json',
