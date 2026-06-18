@@ -699,9 +699,11 @@ function refreshSampleAreaSelect() {
     }
   }
   const nextId = selectedArea ? selectedArea[FIELD_SAMPLE_AREA_ID] : null;
+  const autoId = autoArea ? autoArea[FIELD_SAMPLE_AREA_ID] : null;
+  const manualMismatch = ov.getMode() === 'manual' && nextId !== autoId;
   const changed = State.sampleAreaId !== nextId;
   State.sampleAreaId = nextId;
-  sel.classList.toggle('error', !selectedArea);
+  sel.classList.toggle('error', !selectedArea || manualMismatch);
   document.getElementById('rec-where').textContent = selectedArea
     ? sampleAreaLabel(selectedArea)
     : S.REC_SAMPLE_AREA_OUT_OF_BOUNDS;
