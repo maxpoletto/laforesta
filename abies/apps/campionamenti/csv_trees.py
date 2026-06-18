@@ -63,9 +63,6 @@ def validate_rows(reader, idx: TreeIndexes, *, has_date_column, default_date):
     ``apply``.  ``errors`` are user-facing strings keyed to the 1-based data
     row number (header is row 1, first data row is row 2).
     """
-    # Tabacchi volume tables are loaded lazily (only the import path needs them).
-    from apps.base.tabacchi import has_species, tabacchi_volume_m3
-
     csv_date_by_area = {}
     errors = []
     parsed = []
@@ -99,7 +96,6 @@ def validate_rows(reader, idx: TreeIndexes, *, has_date_column, default_date):
         l10_mm = l10 or 0
         standard = bool(standard)        # required column; blank → False
         preserved = bool(preserved)      # optional; absent/blank → False
-        h_m = h_dec.quantize(TREE_H_QUANTUM, rounding=ROUND_HALF_UP)
         # Fustaia is required: a blank or unrecognised value is an error.
         fustaia, fustaia_ok = reader.opt_bool(row[S.CSV_COL_HIGHFOREST])
         if not fustaia_ok or fustaia is None:
@@ -143,22 +139,55 @@ def validate_rows(reader, idx: TreeIndexes, *, has_date_column, default_date):
             continue
         csv_date_by_area.setdefault(area.id, row_date)
 
-        if coppice or not has_species(mapped):
-            volume_m3 = None
-            mass_q = None
-        else:
-            volume_m3 = tabacchi_volume_m3(d_cm, h_m, mapped)
-            mass_q = tree_mass_q(volume_m3, species.density)
-
-        parsed.append({
-            FIELD_AREA: area, FIELD_DATE: row_date, FIELD_PARCEL: area.parcel,
-            FIELD_SPECIES: species, FIELD_COPPICE: coppice, FIELD_PRESERVED: preserved,
-            FIELD_NUMBER: number, FIELD_SHOOT: shoot, FIELD_STANDARD: standard,
-            FIELD_D_CM: d_cm, FIELD_H_M: h_m, FIELD_L10_MM: l10_mm,
-            FIELD_PRESSLER_COEFF: pressler,
-            FIELD_VOLUME_M3: volume_m3, FIELD_MASS_Q: mass_q,
-        })
+        parsed.append(parsed_tree_row(
+            area=area, row_date=row_date, species=species, coppice=coppice,
+            preserved=preserved, number=number, shoot=shoot, standard=standard,
+            d_cm=d_cm, h_m=h_dec, l10_mm=l10_mm, pressler_coeff=pressler,
+            volume_species_name=mapped,
+        ))
     return parsed, errors
+
+
+def tree_volume_and_mass(coppice, d_cm, h_m, species, species_name=None):
+    if coppice or d_cm is None or h_m is None:
+        return None, None
+    from apps.base.tabacchi import has_species, tabacchi_volume_m3
+    name = species_name or species.common_name
+    if not has_species(name):
+        return None, None
+    volume_m3 = tabacchi_volume_m3(d_cm, h_m, name)
+    return volume_m3, tree_mass_q(volume_m3, species.density)
+
+
+def parsed_tree_row(
+        *, area, row_date, species, coppice, preserved, number, shoot, standard,
+        d_cm, h_m, l10_mm, pressler_coeff, lat=None, lon=None, acc_m=None,
+        volume_species_name=None,
+):
+    h_m = h_m.quantize(TREE_H_QUANTUM, rounding=ROUND_HALF_UP)
+    volume_m3, mass_q = tree_volume_and_mass(
+        coppice, d_cm, h_m, species, species_name=volume_species_name,
+    )
+    return {
+        FIELD_AREA: area,
+        FIELD_DATE: row_date,
+        FIELD_PARCEL: area.parcel,
+        FIELD_SPECIES: species,
+        FIELD_COPPICE: coppice,
+        FIELD_PRESERVED: preserved,
+        FIELD_NUMBER: number,
+        FIELD_SHOOT: shoot,
+        FIELD_STANDARD: standard,
+        FIELD_D_CM: d_cm,
+        FIELD_H_M: h_m,
+        FIELD_L10_MM: l10_mm,
+        FIELD_PRESSLER_COEFF: pressler_coeff,
+        FIELD_VOLUME_M3: volume_m3,
+        FIELD_MASS_Q: mass_q,
+        FIELD_LAT: lat,
+        FIELD_LON: lon,
+        FIELD_ACC_M: acc_m,
+    }
 
 
 def apply(survey, parsed) -> dict:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import date as date_type
 from decimal import Decimal, ROUND_HALF_UP
 
@@ -10,10 +11,10 @@ from django.db import transaction
 from apps.base.digests import mark_stale
 from apps.base.models import (
     Parcel, Sample, SampleArea, Species, Survey, Tree, TreePreserved,
-    TreeSample, next_sequence_number, tree_mass_q,
+    TreeSample, next_sequence_number,
 )
 from apps.base.numparse import to_decimal
-from apps.base.tabacchi import has_species, tabacchi_volume_m3
+from apps.campionamenti.csv_trees import parsed_tree_row, tree_volume_and_mass
 from config import strings as S
 from config.constants import (
     BOSCO_TREE_DIGESTS, FIELD_ACC_M, FIELD_AREA, FIELD_COPPICE, FIELD_DATE,
@@ -24,6 +25,14 @@ from config.constants import (
     FIELD_SPECIES, FIELD_SPECIES_ID, FIELD_STANDARD, FIELD_VOLUME_M3,
     PRESSLER_DEFAULT, RECORDS, SESSION, TREE_H_QUANTUM,
 )
+
+
+@dataclass(frozen=True)
+class TreeMeasurements:
+    date: date_type
+    d_cm: int
+    h_m: Decimal
+
 
 _PAI_PARSE_COORDS = 'coords'
 _PAI_PARSE_DUPLICATE = 'duplicate'
@@ -212,12 +221,24 @@ def _payload_records(payload: dict) -> list | None:
     return records if isinstance(records, list) else None
 
 
-def _sample_record_values(record: dict, area: SampleArea, sp: Species) -> dict | None:
+def record_measurements(record: dict) -> TreeMeasurements | None:
     try:
         row_date = date_type.fromisoformat(str(record.get(FIELD_DATE)))
-        number = int(record.get(FIELD_NUMBER))
         d_cm = int(record.get(FIELD_D_CM))
         h_m = to_decimal(record.get(FIELD_H_M), '.')
+    except (TypeError, ValueError):
+        return None
+    if h_m is None or d_cm <= 0 or h_m <= 0:
+        return None
+    return TreeMeasurements(date=row_date, d_cm=d_cm, h_m=h_m)
+
+
+def _sample_record_values(record: dict, area: SampleArea, sp: Species) -> dict | None:
+    measurements = record_measurements(record)
+    if measurements is None:
+        return None
+    try:
+        number = int(record.get(FIELD_NUMBER))
         shoot = int(record.get(FIELD_SHOOT, 0) or 0)
         l10_mm = int(record.get(FIELD_L10_MM, 0) or 0)
     except (TypeError, ValueError):
@@ -225,51 +246,28 @@ def _sample_record_values(record: dict, area: SampleArea, sp: Species) -> dict |
     pressler_coeff = to_decimal(record.get(FIELD_PRESSLER_COEFF), '.')
     if pressler_coeff is None:
         pressler_coeff = PRESSLER_DEFAULT
-    if h_m is None or number <= 0 or d_cm <= 0 or h_m <= 0 or pressler_coeff <= 0:
+    if number <= 0 or pressler_coeff <= 0:
         return None
     coppice_value = record.get(FIELD_COPPICE)
     coppice = area.parcel.eclass.coppice if coppice_value is None else bool(coppice_value)
-    volume_m3, mass_q = _tree_volume_and_mass(coppice, d_cm, h_m, sp)
-    return {
-        FIELD_AREA: area,
-        FIELD_DATE: row_date,
-        FIELD_PARCEL: area.parcel,
-        FIELD_SPECIES: sp,
-        FIELD_COPPICE: coppice,
-        FIELD_PRESERVED: bool(record.get(FIELD_PRESERVED)),
-        FIELD_NUMBER: number,
-        FIELD_SHOOT: shoot,
-        FIELD_STANDARD: bool(record.get(FIELD_STANDARD)),
-        FIELD_D_CM: d_cm,
-        FIELD_H_M: h_m.quantize(TREE_H_QUANTUM, rounding=ROUND_HALF_UP),
-        FIELD_L10_MM: l10_mm,
-        FIELD_PRESSLER_COEFF: pressler_coeff,
-        FIELD_VOLUME_M3: volume_m3,
-        FIELD_MASS_Q: mass_q,
-        FIELD_LAT: record.get(FIELD_LAT),
-        FIELD_LON: record.get(FIELD_LON),
-        FIELD_ACC_M: record.get(FIELD_ACC_M),
-    }
+    return parsed_tree_row(
+        area=area, row_date=measurements.date, species=sp, coppice=coppice,
+        preserved=bool(record.get(FIELD_PRESERVED)), number=number,
+        shoot=shoot, standard=bool(record.get(FIELD_STANDARD)),
+        d_cm=measurements.d_cm, h_m=measurements.h_m, l10_mm=l10_mm,
+        pressler_coeff=pressler_coeff, lat=record.get(FIELD_LAT),
+        lon=record.get(FIELD_LON), acc_m=record.get(FIELD_ACC_M),
+    )
 
 
 def _pai_record_values(
         record: dict, parcel: Parcel, sp: Species, session_operator: str,
         seen_numbers: set[tuple[int, int]], next_numbers: dict[int, int],
 ):
-    try:
-        row_date = date_type.fromisoformat(str(record.get(FIELD_DATE)))
-    except (TypeError, ValueError):
+    measurements = record_measurements(record)
+    if measurements is None:
         return None
-    try:
-        d_cm = int(record.get(FIELD_D_CM))
-    except (TypeError, ValueError):
-        return None
-    h_m = to_decimal(record.get(FIELD_H_M), '.')
-    if h_m is None:
-        return None
-    h_m = h_m.quantize(TREE_H_QUANTUM, rounding=ROUND_HALF_UP)
-    if d_cm <= 0 or h_m <= 0:
-        return None
+    h_m = measurements.h_m.quantize(TREE_H_QUANTUM, rounding=ROUND_HALF_UP)
     lat = record.get(FIELD_LAT)
     lon = record.get(FIELD_LON)
     if lat is None or lon is None:
@@ -287,16 +285,16 @@ def _pai_record_values(
         if (parcel.id, number) in seen_numbers:
             return _PAI_PARSE_DUPLICATE
     seen_numbers.add((parcel.id, number))
-    volume_m3, mass_q = _tree_volume_and_mass(
-        parcel.eclass.coppice, d_cm, h_m, sp,
+    volume_m3, mass_q = tree_volume_and_mass(
+        parcel.eclass.coppice, measurements.d_cm, h_m, sp,
     )
     return {
         FIELD_PARCEL: parcel,
         FIELD_SPECIES: sp,
         FIELD_NUMBER: number,
-        FIELD_DATE: row_date,
+        FIELD_DATE: measurements.date,
         FIELD_ESTIMATED_BIRTH_YEAR: record.get(FIELD_ESTIMATED_BIRTH_YEAR),
-        FIELD_D_CM: d_cm,
+        FIELD_D_CM: measurements.d_cm,
         FIELD_H_M: h_m,
         FIELD_H_MEASURED: True,
         FIELD_LAT: lat,
@@ -321,10 +319,3 @@ def _next_pai_number(
         number += 1
     next_numbers[parcel_id] = number + 1
     return number
-
-
-def _tree_volume_and_mass(coppice: bool, d_cm: int | None, h_m: Decimal | None, sp: Species):
-    if coppice or d_cm is None or h_m is None or not has_species(sp.common_name):
-        return None, None
-    volume_m3 = tabacchi_volume_m3(d_cm, h_m, sp.common_name)
-    return volume_m3, tree_mass_q(volume_m3, sp.density)

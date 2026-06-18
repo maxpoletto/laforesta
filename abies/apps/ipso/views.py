@@ -6,7 +6,7 @@ import hashlib
 import hmac
 import json
 import re
-from datetime import date as date_type, timezone
+from datetime import timezone
 from decimal import Decimal
 from pathlib import Path
 
@@ -32,7 +32,9 @@ from apps.base.models import (
 from apps.base.numparse import coord_float, to_decimal
 from apps.base.responses import success_response, validation_error
 from apps.campionamenti import csv_trees
-from apps.ipso.importers import apply_pai_rows, pai_import_rows, sample_import_rows
+from apps.ipso.importers import (
+    apply_pai_rows, pai_import_rows, record_measurements, sample_import_rows,
+)
 from apps.ipso.models import IpsoUpload, IpsoUploadState
 from apps.piano_di_taglio.mark_import import (
     MarkImportRow, import_mark_rows, ipso_mark_fingerprint,
@@ -869,22 +871,17 @@ def _martellate_import_rows(
         if sp is None:
             errors.append(S.IPSO_ERR_IMPORT_RECORD_SPECIES_NOT_FOUND.format(i))
             continue
-        try:
-            date = date_type.fromisoformat(str(record.get(FIELD_DATE)))
-            d_cm = int(record.get(FIELD_D_CM))
-            h_m = to_decimal(record.get(FIELD_H_M), '.')
-            if h_m is None:
-                raise ValueError
-        except (TypeError, ValueError):
+        measurements = record_measurements(record)
+        if measurements is None:
             errors.append(S.IPSO_ERR_IMPORT_RECORD_DH_DATE_INVALID.format(i))
             continue
         rows.append(MarkImportRow(
-            date=date,
+            date=measurements.date,
             parcel=parcel,
             species=sp,
             number=record.get(FIELD_NUMBER),
-            d_cm=d_cm,
-            h_m=h_m,
+            d_cm=measurements.d_cm,
+            h_m=measurements.h_m,
             h_measured=bool(record.get(FIELD_H_MEASURED)),
             lat=record.get(FIELD_LAT),
             lon=record.get(FIELD_LON),
