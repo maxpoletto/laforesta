@@ -9,6 +9,9 @@ if (typeof module !== 'undefined' && typeof require !== 'undefined' &&
   Object.assign(globalThis, require('./strings.js'));
 }
 
+const PAI_PANE = 'ipsoPaiPane';
+const PAI_PANE_Z_INDEX = 625;
+
 function createOrientationMap(opts) {
   const elementId = opts.elementId;
   const formatFeatureLabel = opts.formatFeatureLabel;
@@ -53,6 +56,7 @@ function createOrientationMap(opts) {
       leaflet.setView([38.6, 16.3], 10);
       leaflet.on('basemapchange', (e) => writeBasemap(e.name));
       L.control.scale({ metric: true, imperial: false }).addTo(leaflet);
+      setupPaiPane();
       parcelsLayer = L.geoJSON(null, {
         style: featureStyle,
         onEachFeature: bindFeature,
@@ -79,6 +83,11 @@ function createOrientationMap(opts) {
   }
 
   function ready() { return !!leaflet; }
+
+  function setupPaiPane() {
+    const pane = leaflet.getPane(PAI_PANE) || leaflet.createPane(PAI_PANE);
+    pane.style.zIndex = String(PAI_PANE_Z_INDEX);
+  }
 
   function renderParcels(features) {
     if (!parcelsLayer) return;
@@ -179,6 +188,7 @@ function createOrientationMap(opts) {
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
     const marker = L.circleMarker([lat, lon], {
       ...IpsoPalette.paiMarkerStyle(rec && rec[FIELD_SPECIES_ID], speciesColors),
+      pane: PAI_PANE,
     }).addTo(paiLayer);
     const label = formatPaiLabel ? formatPaiLabel(rec) : '';
     if (label) marker.bindTooltip(label, { sticky: true });
