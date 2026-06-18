@@ -1167,13 +1167,19 @@ function refreshMapRecords() {
 function renderMapPai() {
   if (!State.map || !State.map.ready()) return;
   const enabled = State.session && State.session.mode === IpsoModes.PAI;
-  State.map.renderPai(enabled ? currentMapPaiRecords() : [], enabled);
+  const records = enabled ? currentMapPaiRecords() : [];
+  State.map.renderPai(records, enabled, currentPaiSpeciesColors());
 }
 
 function currentMapPaiRecords() {
   if (!State.reference || !State.reference[IPSO_REF_PAI] || !State.session) return [];
   const rows = State.reference[IPSO_REF_PAI][IPSO_REF_PRESERVED_TREES] || [];
   return rows.filter((r) => r && r.compresa === State.session.compresa);
+}
+
+function currentPaiSpeciesColors() {
+  const rows = State.reference && State.reference[IPSO_REF_SPECIES] || [];
+  return IpsoPalette.speciesColorById(rows);
 }
 
 function formatMapRecordText(rec) {

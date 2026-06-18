@@ -34,6 +34,7 @@ const SHELL = [
   './strings.js',
   './modes.js',
   './format.js',
+  './palette.js',
   './download.js',
   './gps.js',
   './numpad.js',

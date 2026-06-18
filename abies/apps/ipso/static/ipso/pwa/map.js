@@ -163,26 +163,22 @@ function createOrientationMap(opts) {
     }
   }
 
-  function renderPai(records, enabled) {
+  function renderPai(records, enabled, speciesColors) {
     paiEnabled = !!enabled;
     if (!paiLayer) return;
     paiLayer.clearLayers();
     if (paiEnabled && records && records.length) {
-      for (const rec of records) addPaiMarker(rec);
+      for (const rec of records) addPaiMarker(rec, speciesColors);
     }
     updatePaiLayerVisibility();
   }
 
-  function addPaiMarker(rec) {
+  function addPaiMarker(rec, speciesColors) {
     const lat = Number(rec && rec.lat);
     const lon = Number(rec && rec.lon);
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
     const marker = L.circleMarker([lat, lon], {
-      radius: 6,
-      color: '#4d2f8f',
-      weight: 2,
-      fillColor: '#ffffff',
-      fillOpacity: 0.95,
+      ...IpsoPalette.paiMarkerStyle(rec && rec[FIELD_SPECIES_ID], speciesColors),
     }).addTo(paiLayer);
     const label = formatPaiLabel ? formatPaiLabel(rec) : '';
     if (label) marker.bindTooltip(label, { sticky: true });

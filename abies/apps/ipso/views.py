@@ -97,6 +97,7 @@ ASSET_FILES = {
     'map.js',
     'modes.js',
     'numpad.js',
+    'palette.js',
     'parcel-locator.js',
     'session.js',
     'store.js',
