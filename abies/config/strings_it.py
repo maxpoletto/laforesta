@@ -353,6 +353,10 @@ ERR_CSV_ROW_SAMPLE_DATE_CONFLICT = (
     'Riga {}: data diversa per area di saggio già presente nel rilevamento '
     '({} / {} / {}; data già registrata: {}).'
 )
+ERR_SAMPLE_DATE_CONFLICT = (
+    'Data diversa per area di saggio già presente nel rilevamento '
+    '({} / {} / {}; data già registrata: {}).'
+)
 ERR_CSV_DATE_REQUIRED = (
     'Il file CSV non ha una colonna "Data": indicare una data predefinita.'
 )

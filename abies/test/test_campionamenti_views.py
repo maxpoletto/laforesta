@@ -531,7 +531,7 @@ class TestTreeSave:
             survey=s['survey'], sample_area=new_area,
         ).exists()
         payload = self._save_payload(s, 1, '2025-03-10')
-        payload['sample_area_id'] = str(new_area.id)
+        payload[FIELD_SAMPLE_AREA_ID] = str(new_area.id)
         resp = self._post(writer_client, payload)
         assert resp.status_code == 200, resp.content
         new_sample = Sample.objects.get(
@@ -539,28 +539,34 @@ class TestTreeSave:
         )
         assert new_sample.date.isoformat() == '2025-03-10'
 
-    def test_create_updates_sample_date_when_different(
+    def test_create_rejects_sample_date_change_when_sample_exists(
         self, writer_client, sample_setup,
     ):
-        """Adding a tree to an existing sample with a new date bumps the
-        sample's date (same semantics as the legacy inline selector)."""
         s = sample_setup
-        assert s['sample'].date.isoformat() == '2024-09-15'
+        n_before = TreeSample.objects.filter(sample=s['sample']).count()
         resp = self._post(writer_client, self._save_payload(s, 99, '2025-04-01'))
-        assert resp.status_code == 200, resp.content
+        assert resp.status_code == 400
+        assert S.ERR_SAMPLE_DATE_CONFLICT.format(
+            s['area'].parcel.region.name, s['area'].parcel.name,
+            s['area'].number, '2024-09-15',
+        ) in resp.json()[MESSAGE]
         s['sample'].refresh_from_db()
-        assert s['sample'].date.isoformat() == '2025-04-01'
+        assert s['sample'].date.isoformat() == '2024-09-15'
+        assert TreeSample.objects.filter(sample=s['sample']).count() == n_before
 
-    def test_edit_updates_sample_date(self, writer_client, sample_setup):
-        from apps.base.models import TreeSample
+    def test_edit_rejects_sample_date_change(self, writer_client, sample_setup):
         s = sample_setup
         ts = TreeSample.objects.get(sample=s['sample'], number=1)
         payload = self._save_payload(s, 1, '2025-05-20')
         payload[ROW_ID] = str(ts.id)
         resp = self._post(writer_client, payload)
-        assert resp.status_code == 200, resp.content
+        assert resp.status_code == 400
+        assert S.ERR_SAMPLE_DATE_CONFLICT.format(
+            s['area'].parcel.region.name, s['area'].parcel.name,
+            s['area'].number, '2024-09-15',
+        ) in resp.json()[MESSAGE]
         s['sample'].refresh_from_db()
-        assert s['sample'].date.isoformat() == '2025-05-20'
+        assert s['sample'].date.isoformat() == '2024-09-15'
 
     def test_rejects_invalid_date(self, writer_client, sample_setup):
         payload = self._save_payload(sample_setup, 1, 'not-a-date')
@@ -576,14 +582,14 @@ class TestTreeSave:
             resp = self._post(writer_client, payload)
             assert resp.status_code == 400, (field, resp.content)
 
-    def test_response_sample_patch_reflects_new_date(
+    def test_response_sample_patch_reflects_current_sample(
         self, writer_client, sample_setup,
     ):
-        """When the write changes sample.date, the generic patches
-        envelope carries the current sample row for client cache updates."""
+        """The generic patches envelope carries the current sample row
+        for client cache updates."""
         from apps.base.digests import build_sample_record
         s = sample_setup
-        resp = self._post(writer_client, self._save_payload(s, 50, '2025-06-15'))
+        resp = self._post(writer_client, self._save_payload(s, 50, '2024-09-15'))
         assert resp.status_code == 200, resp.content
         s['sample'].refresh_from_db()
         sample_patch = _patch(resp.json(), 'samples', s['sample'].id)

@@ -133,6 +133,10 @@ def tree_save_view(request):
         return _validation_error(
             [S.ERR_AREA_OUT_OF_SURVEY], ts_id, request, body,
         )
+    if parsed[FIELD_DATE] is not None and parsed[FIELD_DATE] != sample.date:
+        return _validation_error(
+            [_sample_date_conflict_error(sample)], ts_id, request, body,
+        )
 
     # If the user picked an existing tree from the pulldown, that tree is
     # authoritative for species / coppice / lat / lon / number (cross-sample
@@ -235,16 +239,6 @@ def tree_save_view(request):
                 mass_q=parsed[FIELD_MASS_Q],
             )
             created_or_updated_ids = [ts.id]
-
-        # The tree form carries an editable Data field — apply the
-        # user-chosen date to the parent Sample if it differs from the
-        # current value.  Sample is unique per (survey, area), so this
-        # bumps the date for every other tree in this sample too; same
-        # semantics as the legacy inline date selector this replaces.
-        if parsed[FIELD_DATE] is not None and parsed[FIELD_DATE] != sample.date:
-            sample.date = parsed[FIELD_DATE]
-            sample.version += 1
-            sample.save()
 
         # tree_save can create a new Sample (first tree in an area) which
         # affects surveys.N_aree_visitate / Data primo / Data ultimo.  It can
@@ -756,10 +750,9 @@ def _parse_tree_body(body):
     ts_id = body.get(ROW_ID)
     ts_id = int(ts_id) if ts_id else None
 
-    # Date is editable inline in the tree form (replaces the separate
-    # inline selector that used to live above the alberi table).  The
-    # field is optional in the wire format: missing → keep existing
-    # sample.date (edit) or default to today (new).  Invalid → error.
+    # The field is optional in the wire format: missing keeps the
+    # existing sample.date or defaults a new Sample to today.  A submitted
+    # date may create a Sample, but may not rewrite an existing one.
     date_raw = body.get(FIELD_DATE)
     parsed_date = None
     if date_raw not in (None, '', 'null'):
@@ -905,6 +898,14 @@ def _find_or_create_sample(parsed):
         defaults={FIELD_DATE: parsed.get(FIELD_DATE) or date_type.today()},
     )
     return sample
+
+
+def _sample_date_conflict_error(sample):
+    area = sample.sample_area
+    parcel = area.parcel
+    return S.ERR_SAMPLE_DATE_CONFLICT.format(
+        parcel.region.name, parcel.name, area.number, sample.date.isoformat(),
+    )
 
 
 def _update_tree_sample(ts_id, sample, parsed):
