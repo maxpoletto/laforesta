@@ -151,10 +151,14 @@ async function boot() {
 }
 
 async function fetchBootstrap() {
+  const bootstrapToken = bootstrapTokenFromHash();
+  if (bootstrapToken) return await exchangeBootstrapToken(bootstrapToken);
   const stored = storedBearerToken();
   if (stored) return stored;
-  const bootstrapToken = bootstrapTokenFromHash();
-  if (!bootstrapToken) throw new Error(S.ERROR_TOKEN_MISSING);
+  throw new Error(S.ERROR_TOKEN_MISSING);
+}
+
+async function exchangeBootstrapToken(bootstrapToken) {
   const r = await fetch('/api/ipso/bootstrap/', {
     method: 'POST',
     cache: 'no-store',
