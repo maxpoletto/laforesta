@@ -22,6 +22,8 @@ const State = {
   gps: null,          // GPS controller
   locator: null,      // parcel-locator instance (one per recording session)
   numpad: null,       // numpad controller
+  autoNumberValue: null, // current number value filled by prefillNumber()
+  inAutoNumberFill: false,
   lastTreeRow: null,  // most-recent tree in the current session
   wakeLock: null,     // active WakeLockSentinel during recording (or null)
   currentScreen: null, // id of the visible screen
@@ -327,10 +329,18 @@ function sampleAreasForSurvey(surveyId, compresa) {
     s && s[FIELD_SURVEY_ID] === surveyId
   );
   if (!survey) return [];
-  return samplingRows(IPSO_REF_SAMPLE_AREAS).filter((area) =>
-    area && area[FIELD_SAMPLE_GRID_ID] === survey[FIELD_SAMPLE_GRID_ID] &&
-    (!compresa || area.compresa === compresa)
-  );
+  const maxNumbers = survey[IPSO_REF_SAMPLE_AREA_MAX_NUMBERS] || {};
+  return samplingRows(IPSO_REF_SAMPLE_AREAS)
+    .filter((area) =>
+      area && area[FIELD_SAMPLE_GRID_ID] === survey[FIELD_SAMPLE_GRID_ID] &&
+      (!compresa || area.compresa === compresa)
+    )
+    .map((area) => {
+      const maxNumber = maxNumbers[String(area[FIELD_SAMPLE_AREA_ID])];
+      return Object.assign({}, area, {
+        [FIELD_MAX_TREE_NUMBER]: Number.isInteger(maxNumber) ? maxNumber : null,
+      });
+    });
 }
 
 function sampleSurveysForCompresa(compresa) {
@@ -526,6 +536,7 @@ function wireRecording() {
     inputs: { d: inD, h: inH, numero: inNumber },
     maxLen: { d: 3, h: 2, numero: 4 },
     onChange: (field) => {
+      if (field === 'numero' && !State.inAutoNumberFill) State.autoNumberValue = null;
       if (field === 'h' && !State.inAutoFill) State.hMeasured = true;
       if (field === 'd' && shouldAutoHeight() && !State.hMeasured) recomputeAutoH();
       updateSaveEnabled();
@@ -774,7 +785,7 @@ function refreshSampleAreaSelect() {
   document.getElementById('rec-where').textContent = selectedArea
     ? sampleAreaLabel(selectedArea)
     : S.REC_SAMPLE_AREA_OUT_OF_BOUNDS;
-  if (changed && State.numpad && State.numpad.value('numero') === '') {
+  if (changed && State.numpad && shouldReplaceNumberDefault()) {
     prefillNumber();
   }
   refreshMapParcels();
@@ -827,15 +838,30 @@ async function prefillNumber() {
   try {
     const trees = await Store.listTrees(State.db, State.session.id);
     const next = await computeNextNumberDefault(trees);
-    if (next == null) return;
-    if (State.numpad.value('numero') === '') {
-      State.numpad.setValue('numero', '' + next);
-    }
+    if (next == null || !shouldReplaceNumberDefault()) return;
+    setAutoNumberDefault(next);
   } catch (_) { /* leave blank on error */ }
 }
 
-// In-session max+1 takes precedence; on a fresh session (no numbered trees
-// yet) we fall back to the per-operator counter persisted across sessions.
+function shouldReplaceNumberDefault() {
+  const current = State.numpad ? State.numpad.value('numero') : '';
+  return current === '' || current === State.autoNumberValue;
+}
+
+function setAutoNumberDefault(number) {
+  const value = number == null ? '' : '' + number;
+  State.inAutoNumberFill = true;
+  try {
+    State.numpad.setValue('numero', value);
+  } finally {
+    State.inAutoNumberFill = false;
+  }
+  State.autoNumberValue = value;
+}
+
+// In-session max+1 takes precedence; on a fresh sample session, fall
+// back to Abies' max tree number for the selected survey/area. Other modes
+// then use their configured first number or per-operator counter.
 async function computeNextNumberDefault(trees) {
   let rows = trees;
   if (isSamplesMode()) {
@@ -843,6 +869,11 @@ async function computeNextNumberDefault(trees) {
   }
   const inSession = session.nextNumberDefault(rows);
   if (inSession != null) return inSession;
+  if (isSamplesMode()) {
+    const sampleArea = currentSampleArea();
+    const maxNumber = sampleArea ? sampleArea[FIELD_MAX_TREE_NUMBER] : null;
+    if (Number.isInteger(maxNumber)) return maxNumber + 1;
+  }
   if (Number.isInteger(currentMode().firstNumber)) return currentMode().firstNumber;
   if (!State.session || !currentMode().persistNumber) return null;
   return Store.getNextNumberForOperator(
@@ -1085,7 +1116,7 @@ async function onDeleteLast() {
     // h / specie are intentionally left alone (they reflect the redo state).
     const trees = await Store.listTrees(State.db, State.session.id);
     const next = await computeNextNumberDefault(trees);
-    State.numpad.setValue('numero', next == null ? '' : '' + next);
+    setAutoNumberDefault(next);
     updateSaveEnabled();
     refreshMapRecords();
   } catch (e) {

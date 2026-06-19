@@ -153,6 +153,15 @@ def test_reference_json_comes_from_abies_data(db, regions, parcels, species):
     survey = Survey.objects.create(
         name='Ipso survey', sample_grid=grid, active=True,
     )
+    sample = Sample.objects.create(
+        sample_area=area, survey=survey, date=date(2024, 9, 16),
+    )
+    sampled_tree = Tree.objects.create(
+        species=species[0], parcel=parcels[0], coppice=False,
+    )
+    TreeSample.objects.create(
+        sample=sample, tree=sampled_tree, number=8, d_cm=30, h_m=Decimal('18.00'),
+    )
     preserved_tree = Tree.objects.create(
         species=species[0], parcel=parcels[0], preserved=True,
         coppice=False, estimated_birth_year=1920, lat=38.45678, lon=16.12345,
@@ -199,6 +208,7 @@ def test_reference_json_comes_from_abies_data(db, regions, parcels, species):
         'name': 'Ipso survey',
         'sample_grid_id': grid.id,
         'sample_grid_name': 'Ipso grid',
+        'sample_area_max_numbers': {str(area.id): 8},
     }]
     assert data['sampling']['sample_areas'] == [{
         'sample_area_id': area.id,
@@ -680,6 +690,11 @@ def test_upload_detail_lists_sample_targets(writer_client, parcels, species, set
     assert data['suggested_target_id'] == survey.id
     assert data['targets'][0]['id'] == survey.id
     assert 'Ipso survey' in data['targets'][0]['label']
+    assert data['upload']['work_package_label'] == 'Ipso survey - Ipso survey grid'
+    inbox = writer_client.get(reverse('ipso-inbox-data')).json()
+    assert inbox['columns'][6] == 'Contesto'
+    assert inbox['rows'][0][6] == 'Ipso survey - Ipso survey grid'
+    assert 'sampling_survey:' not in json.dumps(inbox)
 
 
 @override_settings(IPSO_UPLOAD_TOKEN='test-token')
@@ -843,10 +858,13 @@ def test_samples_import_rejects_existing_tree_number_in_sample(
     )
 
     assert resp.status_code == 400
-    assert 'numero 1 già presente nel campione' in resp.json()['message']
+    body = resp.json()
+    assert 'numero 1 già presente nel campione' in body['message']
     assert TreeSample.objects.count() == 1
     upload.refresh_from_db()
     assert upload.state == IpsoUploadState.RECEIVED
+    assert upload.error_summary == body['errors'][0]
+    assert writer_client.get(reverse('ipso-inbox-data')).json()['rows'][0][-1] == upload.error_summary
 
 
 @override_settings(IPSO_UPLOAD_TOKEN='test-token')

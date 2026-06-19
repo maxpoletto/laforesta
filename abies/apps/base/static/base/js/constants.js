@@ -49,6 +49,7 @@ export const FILE_ERROR = 'file_error';
 export const RECORD_COUNT = 'record_count';
 export const TARGETS = 'targets';
 export const SUGGESTED_TARGET_ID = 'suggested_target_id';
+export const FIELD_WORK_PACKAGE_LABEL = 'work_package_label';
 
 // Ipso integration identifiers.
 export const DATA_ID_IPSO_UPLOADS = 'ipso_uploads';
@@ -65,6 +66,7 @@ export const IPSO_REF_HYPSOMETRY = 'ipsometrica';
 export const IPSO_REF_SAMPLING = 'sampling';
 export const IPSO_REF_PAI = 'pai';
 export const IPSO_REF_WORK_PACKAGES = 'work_packages';
+export const IPSO_REF_SAMPLE_AREA_MAX_NUMBERS = 'sample_area_max_numbers';
 
 // Role identifiers — mirror apps/base/models.py Role.TextChoices values.
 export const ROLE_ADMIN  = 'admin';
@@ -98,6 +100,7 @@ export const FIELD_NAME                  = 'name';
 export const FIELD_DATE                  = 'date';
 export const FIELD_DESCRIPTION           = 'description';
 export const FIELD_NUMBER                = 'number';
+export const FIELD_MAX_TREE_NUMBER       = 'max_tree_number';
 export const FIELD_NOTE                  = 'note';
 export const FIELD_NOTE_ID               = 'note_id';
 export const FIELD_NOTES                 = 'notes';

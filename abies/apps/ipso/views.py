@@ -17,6 +17,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.staticfiles import finders
 from django.core.exceptions import RequestDataTooBig
 from django.db import IntegrityError, transaction
+from django.db.models import Max
 from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.utils import timezone as django_timezone
 from django.utils.cache import patch_vary_headers
@@ -31,7 +32,7 @@ from apps.base.http import (
 from apps.base.models import (
     HYPSO_FUNC_LN, HarvestPlanItem, HarvestPlanItemState, HypsoParam,
     HypsoParamSet, Parcel, SampleArea, Species, Survey, TreePreserved,
-    natural_sort_key, parcel_sort_key,
+    TreeSample, natural_sort_key, parcel_sort_key,
 )
 from apps.base.numparse import coord_float, to_decimal
 from apps.base.responses import success_response, validation_error
@@ -50,20 +51,23 @@ from config.constants import (
     FIELD_COMPLETED_AT, FIELD_CREATED_AT, FIELD_CSV_TEXT, FIELD_DATE,
     FIELD_D_CM, FIELD_ESTIMATED_BIRTH_YEAR, FIELD_HARVEST_PLAN_ITEM_ID,
     FIELD_H_M, FIELD_H_MEASURED, FIELD_HYPSO_PARAM_SET_ID, FIELD_LAT,
-    FIELD_LON, FIELD_L10_MM, FIELD_MODE, FIELD_NOTE, FIELD_NUMBER,
-    FIELD_OPERATOR, FIELD_PARCEL_ID,
+    FIELD_LON, FIELD_L10_MM, FIELD_MODE, FIELD_NOTE,
+    FIELD_NUMBER, FIELD_OPERATOR, FIELD_PARCEL_ID,
     FIELD_PRESERVED, FIELD_PRESSLER_COEFF, FIELD_REFERENCE_VERSION,
-    FIELD_REGION_ID, FIELD_SAMPLE_AREA_ID, FIELD_SCHEMA_VERSION,
+    FIELD_REGION_ID, FIELD_SAMPLE_AREA_ID, FIELD_SAMPLE_GRID_ID,
+    FIELD_SCHEMA_VERSION,
     FIELD_SESSION_ID, FIELD_SHOOT, FIELD_SPECIES_ID, FIELD_STANDARD,
     FIELD_TREE_ID, FIELD_TREE_PRESERVED_ID,
     FIELD_STATE, FIELD_SURVEY_ID,
-    FIELD_WORK_PACKAGE_ID, FILE_ERROR, IMPORTED, IPSO_BOOTSTRAP_BEARER_TOKEN,
+    FIELD_WORK_PACKAGE_ID, FIELD_WORK_PACKAGE_LABEL, FILE_ERROR, IMPORTED,
+    IPSO_BOOTSTRAP_BEARER_TOKEN,
     IPSO_ERROR_AUTH, IPSO_ERROR_CONFLICT, IPSO_ERROR_INVALID_PAYLOAD,
     IPSO_ERROR_RATE_LIMITED, IPSO_ERROR_TOO_LARGE, IPSO_MODE_MARTELLATE,
     IPSO_MODE_PAI, IPSO_MODE_SAMPLES, IPSO_REF_GENERATED_AT,
     IPSO_REF_HYPSOMETRY, IPSO_REF_PAI, IPSO_REF_PARCELS,
-    IPSO_REF_PRESERVED_TREES, IPSO_REF_SAMPLE_AREAS, IPSO_REF_SAMPLING,
-    IPSO_REF_SPECIES, IPSO_REF_SURVEYS, IPSO_REF_WORK_PACKAGES,
+    IPSO_REF_PRESERVED_TREES, IPSO_REF_SAMPLE_AREA_MAX_NUMBERS,
+    IPSO_REF_SAMPLE_AREAS, IPSO_REF_SAMPLING, IPSO_REF_SPECIES,
+    IPSO_REF_SURVEYS, IPSO_REF_WORK_PACKAGES,
     IPSO_REFERENCE_JSON, IPSO_REFERENCE_VERSION_KEYS,
     IPSO_TARGET_HARVEST_PLAN_ITEM, IPSO_TARGET_PAI, IPSO_TARGET_SURVEY,
     IPSO_TERRENI_GEOJSON, IPSO_WORK_PACKAGE_HARVEST_PREFIX,
@@ -260,20 +264,24 @@ def _sampling_context() -> dict:
             a.sample_grid.name, parcel_sort_key(a.parcel),
             natural_sort_key(a.number), a.id,
         ))
+    max_numbers = _sample_area_max_numbers_by_survey(
+        [s.id for s in surveys], [a.id for a in areas],
+    )
     return {
         IPSO_REF_SURVEYS: [
             {
-                'survey_id': s.id,
+                FIELD_SURVEY_ID: s.id,
                 'name': s.name,
-                'sample_grid_id': s.sample_grid_id,
+                FIELD_SAMPLE_GRID_ID: s.sample_grid_id,
                 'sample_grid_name': s.sample_grid.name,
+                IPSO_REF_SAMPLE_AREA_MAX_NUMBERS: max_numbers.get(s.id, {}),
             }
             for s in surveys
         ],
         IPSO_REF_SAMPLE_AREAS: [
             {
-                'sample_area_id': a.id,
-                'sample_grid_id': a.sample_grid_id,
+                FIELD_SAMPLE_AREA_ID: a.id,
+                FIELD_SAMPLE_GRID_ID: a.sample_grid_id,
                 FIELD_REGION_ID: a.parcel.region_id,
                 FIELD_PARCEL_ID: a.parcel_id,
                 'compresa': a.parcel.region.name,
@@ -287,6 +295,25 @@ def _sampling_context() -> dict:
             for a in areas
         ],
     }
+
+
+def _sample_area_max_numbers_by_survey(
+        survey_ids: list[int], area_ids: list[int],
+) -> dict[int, dict[str, int]]:
+    if not survey_ids or not area_ids:
+        return {}
+    rows = (
+        TreeSample.objects
+        .filter(sample__survey_id__in=survey_ids, sample__sample_area_id__in=area_ids)
+        .values('sample__survey_id', 'sample__sample_area_id')
+        .annotate(max_number=Max(FIELD_NUMBER))
+    )
+    out: dict[int, dict[str, int]] = defaultdict(dict)
+    for row in rows:
+        max_number = row['max_number']
+        if max_number is not None:
+            out[row['sample__survey_id']][str(row['sample__sample_area_id'])] = max_number
+    return dict(out)
 
 
 def _pai_context() -> dict:
@@ -473,10 +500,10 @@ def import_martellate_upload(request: HttpRequest, upload_id: int) -> JsonRespon
 
         payload, file_error = _read_staged_payload(upload)
         if file_error:
-            return validation_error([file_error])
+            return _upload_validation_error(upload, [file_error])
         rows, errors = _martellate_import_rows(upload, payload, item)
         if errors:
-            return validation_error(errors)
+            return _upload_validation_error(upload, errors)
 
         if not _claim_upload_import(
                 upload, request.user, IPSO_TARGET_HARVEST_PLAN_ITEM, item.id):
@@ -514,10 +541,10 @@ def import_samples_upload(request: HttpRequest, upload_id: int) -> JsonResponse:
 
         payload, file_error = _read_staged_payload(upload)
         if file_error:
-            return validation_error([file_error])
+            return _upload_validation_error(upload, [file_error])
         rows, errors = sample_import_rows(payload, survey)
         if errors:
-            return validation_error(errors)
+            return _upload_validation_error(upload, errors)
 
         if not _claim_upload_import(upload, request.user, IPSO_TARGET_SURVEY, survey.id):
             return validation_error([S.IPSO_ERR_UPLOAD_NOT_RECEIVED])
@@ -547,10 +574,10 @@ def import_pai_upload(request: HttpRequest, upload_id: int) -> JsonResponse:
 
         payload, file_error = _read_staged_payload(upload)
         if file_error:
-            return validation_error([file_error])
+            return _upload_validation_error(upload, [file_error])
         rows, errors = pai_import_rows(payload)
         if errors:
-            return validation_error(errors)
+            return _upload_validation_error(upload, errors)
 
         if not _claim_upload_import(upload, request.user, IPSO_TARGET_PAI, None):
             return validation_error([S.IPSO_ERR_UPLOAD_NOT_RECEIVED])
@@ -642,7 +669,7 @@ def _inbox_row(upload: IpsoUpload) -> list:
         upload.operator,
         upload.record_count,
         STATE_LABELS.get(upload.state, upload.state),
-        upload.work_package_id,
+        _work_package_label(upload),
         _target_label(upload),
         upload.error_summary,
     ]
@@ -656,6 +683,7 @@ def _upload_metadata(upload: IpsoUpload) -> dict:
         FIELD_SCHEMA_VERSION: upload.schema_version,
         FIELD_REFERENCE_VERSION: upload.reference_version,
         FIELD_WORK_PACKAGE_ID: upload.work_package_id,
+        FIELD_WORK_PACKAGE_LABEL: _work_package_label(upload),
         FIELD_OPERATOR: upload.operator,
         RECORD_COUNT: upload.record_count,
         'checksum': upload.checksum,
@@ -668,6 +696,27 @@ def _upload_metadata(upload: IpsoUpload) -> dict:
         'target_label': _target_label(upload),
         'error_summary': upload.error_summary,
     }
+
+
+def _work_package_label(upload: IpsoUpload) -> str:
+    raw = (upload.work_package_id or '').strip()
+    if raw.startswith(IPSO_WORK_PACKAGE_HARVEST_PREFIX):
+        item_id = raw.split(':', 1)[1]
+        if item_id.isdigit():
+            item = (HarvestPlanItem.objects
+                    .select_related('harvest_plan', 'parcel__region', 'parcel__eclass', 'region')
+                    .filter(id=int(item_id)).first())
+            if item is not None:
+                return _harvest_item_label(item)
+    if raw.startswith(IPSO_WORK_PACKAGE_SAMPLING_SURVEY_PREFIX):
+        survey_id = raw.split(':', 1)[1]
+        if survey_id.isdigit():
+            survey = (Survey.objects
+                      .select_related('sample_grid')
+                      .filter(id=int(survey_id)).first())
+            if survey is not None:
+                return _survey_label(survey)
+    return ''
 
 
 def _target_label(upload: IpsoUpload) -> str:
@@ -827,6 +876,12 @@ def _suggested_survey_id(work_package_id: str) -> int | None:
     if Survey.objects.filter(id=survey_id, active=True).exists():
         return survey_id
     return None
+
+
+def _upload_validation_error(upload: IpsoUpload, errors: list[str]) -> JsonResponse:
+    upload.error_summary = errors[0] if errors else S.ERROR_GENERIC
+    upload.save(update_fields=['error_summary'])
+    return validation_error(errors)
 
 
 def _claim_upload_import(

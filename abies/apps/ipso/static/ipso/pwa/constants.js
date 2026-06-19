@@ -16,6 +16,7 @@ const IPSO_WORK_PACKAGE_SAMPLING_SURVEY_PREFIX = 'sampling_survey:';
 const IPSO_REF_SAMPLING = 'sampling';
 const IPSO_REF_SURVEYS = 'surveys';
 const IPSO_REF_SAMPLE_AREAS = 'sample_areas';
+const IPSO_REF_SAMPLE_AREA_MAX_NUMBERS = 'sample_area_max_numbers';
 const IPSO_REF_PAI = 'pai';
 const IPSO_REF_PRESERVED_TREES = 'preserved_trees';
 const IPSO_REF_SPECIES = 'species';
@@ -37,6 +38,7 @@ const FIELD_DATE = 'date';
 const FIELD_PARCEL_ID = 'parcel_id';
 const FIELD_SPECIES_ID = 'species_id';
 const FIELD_NUMBER = 'number';
+const FIELD_MAX_TREE_NUMBER = 'max_tree_number';
 const FIELD_D_CM = 'd_cm';
 const FIELD_H_M = 'h_m';
 const FIELD_H_MEASURED = 'h_measured';
@@ -77,6 +79,7 @@ if (typeof module !== 'undefined') {
     IPSO_REF_SAMPLING,
     IPSO_REF_SURVEYS,
     IPSO_REF_SAMPLE_AREAS,
+    IPSO_REF_SAMPLE_AREA_MAX_NUMBERS,
     IPSO_REF_PAI,
     IPSO_REF_PRESERVED_TREES,
     IPSO_REF_SPECIES,
@@ -97,6 +100,7 @@ if (typeof module !== 'undefined') {
     FIELD_PARCEL_ID,
     FIELD_SPECIES_ID,
     FIELD_NUMBER,
+    FIELD_MAX_TREE_NUMBER,
     FIELD_D_CM,
     FIELD_H_M,
     FIELD_H_MEASURED,

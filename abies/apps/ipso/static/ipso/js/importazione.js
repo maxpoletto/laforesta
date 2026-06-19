@@ -16,7 +16,8 @@ import { fmtCoord } from '../../base/js/format.js';
 import { installEscapeHandler } from '../../base/js/escape.js';
 import * as S from '../../base/js/strings.js';
 import {
-  DATA_ID_IPSO_UPLOADS, FIELD_HARVEST_PLAN_ITEM_ID, FIELD_SURVEY_ID, FILE_ERROR,
+  DATA_ID_IPSO_UPLOADS, FIELD_HARVEST_PLAN_ITEM_ID, FIELD_SURVEY_ID,
+  FIELD_WORK_PACKAGE_LABEL, FILE_ERROR,
   IPSO_MODE_MARTELLATE, IPSO_MODE_PAI, IPSO_MODE_SAMPLES,
   IPSO_UPLOAD_STATE_IMPORTED, IPSO_UPLOAD_STATE_RECEIVED, IPSO_UPLOAD_STATE_REJECTED,
   MESSAGE, PENDING_COUNT, RECORD_COUNT, RECORDS, ROLE_READER, ROWS,
@@ -58,9 +59,9 @@ const COLUMN_DEFS = {
   [S.IPSO_COL_OPERATOR]: { label: S.IPSO_COL_OPERATOR, width: '150px' },
   [S.IPSO_COL_RECORDS]: { label: S.IPSO_COL_RECORDS, type: 'number', width: '80px', className: 'num' },
   [S.IPSO_COL_STATE]: { label: S.IPSO_COL_STATE, width: '120px' },
-  [S.IPSO_COL_WORK_PACKAGE]: { label: S.IPSO_COL_WORK_PACKAGE, width: '170px' },
+  [S.IPSO_COL_WORK_PACKAGE]: { label: S.IPSO_COL_WORK_PACKAGE, width: '190px' },
   [S.IPSO_COL_TARGET]: { label: S.IPSO_COL_TARGET, width: '150px' },
-  [S.IPSO_COL_ERROR]: { label: S.IPSO_COL_ERROR, width: '240px' },
+  [S.IPSO_COL_ERROR]: { label: S.IPSO_COL_ERROR, width: '260px' },
 };
 
 let table = null;
@@ -228,7 +229,7 @@ function renderDetail(data) {
     [S.IPSO_COL_RECEIVED, upload.received_at],
     [S.IPSO_COL_RECORDS, upload.record_count],
     [S.IPSO_COL_REFERENCE, upload.reference_version],
-    [S.IPSO_COL_WORK_PACKAGE, upload.work_package_id],
+    [S.IPSO_COL_WORK_PACKAGE, upload[FIELD_WORK_PACKAGE_LABEL]],
     [S.IPSO_COL_TARGET, upload.target_label],
     [S.IPSO_COL_ERROR, upload.error_summary],
   ]));
@@ -304,6 +305,8 @@ async function importUpload(uploadId, config, targetId) {
   } : {};
   const { data, status } = await api.postJSON(config.url(uploadId), body);
   if (status >= 400) {
+    await cache.load(DATA_ID);
+    await openUpload(uploadId);
     showError(data?.[MESSAGE] || S.ERROR_GENERIC);
     return;
   }
