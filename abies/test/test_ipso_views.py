@@ -153,6 +153,9 @@ def test_reference_json_comes_from_abies_data(db, regions, parcels, species):
     survey = Survey.objects.create(
         name='Ipso survey', sample_grid=grid, active=True,
     )
+    inactive_survey = Survey.objects.create(
+        name='Ipso survey 2', sample_grid=grid, active=False,
+    )
     sample = Sample.objects.create(
         sample_area=area, survey=survey, date=date(2024, 9, 16),
     )
@@ -196,20 +199,38 @@ def test_reference_json_comes_from_abies_data(db, regions, parcels, species):
     assert data['ipsometrica']['Capistrano']['Abete'] == {
         'a': 7.0, 'b': -4.0, 'hypso_param_set_id': active.id,
     }
-    assert data['work_packages'] == [{
-        'id': f'sampling_survey:{survey.id}',
-        'kind': 'sampling_survey',
-        'label': 'Ipso survey',
-        'survey_id': survey.id,
-        'sample_grid_id': grid.id,
-    }]
-    assert data['sampling']['surveys'] == [{
-        'survey_id': survey.id,
-        'name': 'Ipso survey',
-        'sample_grid_id': grid.id,
-        'sample_grid_name': 'Ipso grid',
-        'sample_area_max_numbers': {str(area.id): 8},
-    }]
+    assert data['work_packages'] == [
+        {
+            'id': f'sampling_survey:{survey.id}',
+            'kind': 'sampling_survey',
+            'label': 'Ipso survey',
+            'survey_id': survey.id,
+            'sample_grid_id': grid.id,
+        },
+        {
+            'id': f'sampling_survey:{inactive_survey.id}',
+            'kind': 'sampling_survey',
+            'label': 'Ipso survey 2',
+            'survey_id': inactive_survey.id,
+            'sample_grid_id': grid.id,
+        },
+    ]
+    assert data['sampling']['surveys'] == [
+        {
+            'survey_id': survey.id,
+            'name': 'Ipso survey',
+            'sample_grid_id': grid.id,
+            'sample_grid_name': 'Ipso grid',
+            'sample_area_max_numbers': {str(area.id): 8},
+        },
+        {
+            'survey_id': inactive_survey.id,
+            'name': 'Ipso survey 2',
+            'sample_grid_id': grid.id,
+            'sample_grid_name': 'Ipso grid',
+            'sample_area_max_numbers': {},
+        },
+    ]
     assert data['sampling']['sample_areas'] == [{
         'sample_area_id': area.id,
         'sample_grid_id': grid.id,
@@ -674,10 +695,13 @@ def test_upload_detail_lists_martellate_targets(writer_client, parcels, species,
 def test_upload_detail_lists_sample_targets(writer_client, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     survey, area = _sample_survey(parcels[0])
+    target = Survey.objects.create(
+        name='Ipso inactive target', sample_grid=survey.sample_grid, active=False,
+    )
     payload = _upload_payload(
         parcels, species, mode='samples',
         session_id='22222222-2222-4222-8222-222222222222',
-        session_overrides={'work_package_id': f'sampling_survey:{survey.id}'},
+        session_overrides={'work_package_id': f'sampling_survey:{target.id}'},
         record_overrides={'sample_area_id': area.id},
     )
     assert _post_upload(Client(), payload).status_code == 200
@@ -687,13 +711,13 @@ def test_upload_detail_lists_sample_targets(writer_client, parcels, species, set
 
     assert resp.status_code == 200
     data = resp.json()
-    assert data['suggested_target_id'] == survey.id
-    assert data['targets'][0]['id'] == survey.id
-    assert 'Ipso survey' in data['targets'][0]['label']
-    assert data['upload']['work_package_label'] == 'Ipso survey - Ipso survey grid'
+    assert data['suggested_target_id'] == target.id
+    assert any(t['id'] == target.id for t in data['targets'])
+    assert any('Ipso inactive target' in t['label'] for t in data['targets'])
+    assert data['upload']['work_package_label'] == 'Ipso inactive target - Ipso survey grid'
     inbox = writer_client.get(reverse('ipso-inbox-data')).json()
     assert inbox['columns'][6] == 'Contesto'
-    assert inbox['rows'][0][6] == 'Ipso survey - Ipso survey grid'
+    assert inbox['rows'][0][6] == 'Ipso inactive target - Ipso survey grid'
     assert 'sampling_survey:' not in json.dumps(inbox)
 
 

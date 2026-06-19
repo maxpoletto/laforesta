@@ -248,7 +248,6 @@ def _parcel_rows() -> list[dict]:
 def _sampling_context() -> dict:
     surveys = list(
         Survey.objects
-        .filter(active=True)
         .select_related('sample_grid')
         .order_by('name', 'id')
     )
@@ -535,7 +534,7 @@ def import_samples_upload(request: HttpRequest, upload_id: int) -> JsonResponse:
             return validation_error([S.IPSO_ERR_UPLOAD_NOT_RECEIVED])
         survey = (Survey.objects
                   .select_for_update()
-                  .filter(id=survey_id, active=True).first())
+                  .filter(id=survey_id).first())
         if survey is None:
             return validation_error([S.IPSO_ERR_INVALID_SAMPLES_TARGET])
 
@@ -856,7 +855,6 @@ def _suggested_harvest_item_id(work_package_id: str) -> int | None:
 
 def _survey_targets() -> list[dict]:
     surveys = (Survey.objects
-               .filter(active=True)
                .select_related('sample_grid')
                .order_by('name', 'id'))
     return [{'id': survey.id, 'label': _survey_label(survey)} for survey in surveys]
@@ -873,7 +871,7 @@ def _suggested_survey_id(work_package_id: str) -> int | None:
     if not raw.isdigit():
         return None
     survey_id = int(raw)
-    if Survey.objects.filter(id=survey_id, active=True).exists():
+    if Survey.objects.filter(id=survey_id).exists():
         return survey_id
     return None
 
