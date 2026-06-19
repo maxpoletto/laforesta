@@ -76,18 +76,30 @@ def _login_context(request: HttpRequest, next_url: str, *, error_message: str = 
 
 
 def _microsoft_oauth_configured(request: HttpRequest) -> bool:
-    app = settings.SOCIALACCOUNT_PROVIDERS.get('microsoft', {}).get('APP', {})
-    if app.get('client_id') and app.get('secret'):
+    provider = settings.SOCIALACCOUNT_PROVIDERS.get('microsoft', {})
+    provider_tenant = provider.get('TENANT', '')
+    app = provider.get('APP', {})
+    if (app.get('client_id') and app.get('secret')
+            and _usable_microsoft_tenant(provider_tenant)):
         return True
 
     from allauth.socialaccount.models import SocialApp
-    return (
+    for db_app in (
         SocialApp.objects.on_site(request)
         .filter(provider='microsoft')
         .exclude(client_id='')
         .exclude(secret='')
-        .exists()
-    )
+    ):
+        app_settings = db_app.settings or {}
+        if _usable_microsoft_tenant(
+                app_settings.get('tenant') or provider_tenant):
+            return True
+    return False
+
+
+def _usable_microsoft_tenant(tenant: str) -> bool:
+    tenant = (tenant or '').strip()
+    return bool(tenant) and tenant.lower() not in settings.MS_OAUTH_BROAD_TENANTS
 
 
 def logout_view(request: HttpRequest) -> HttpResponse:

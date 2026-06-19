@@ -17,8 +17,13 @@ matching `allauth.EmailAddress` row is created on save.
 ### MS 365 OAuth configuration
 
 OAuth is pinned to a single Entra tenant (only accounts in that tenant
-can authenticate). The tenant is configured by env var; app credentials
-can be configured either by env vars or by a Django-admin `SocialApp`:
+can authenticate). Do not use the Microsoft `/common`, `/organizations`,
+or `/consumers` endpoints for Abies. Configure a tenant-specific value
+(GUID or `<name>.onmicrosoft.com`) either as `MS_OAUTH_TENANT` or as
+`tenant` in the Django-admin `SocialApp` settings JSON.
+
+App credentials can be configured either by env vars or by a Django-admin
+`SocialApp`:
 
 - `MS_OAUTH_CLIENT_ID` — Entra application (client) ID
 - `MS_OAUTH_SECRET` — Entra client secret
@@ -27,11 +32,12 @@ can be configured either by env vars or by a Django-admin `SocialApp`:
 One Entra app registration covers all deployments (localhost, dev VM,
 prod) via separate redirect URIs. The OAuth client_id/secret can be
 shared; Django SECRET_KEYs differ per instance. If the app credentials
-are provided through env vars, set both `MS_OAUTH_CLIENT_ID` and
-`MS_OAUTH_SECRET`; otherwise configure the Microsoft `SocialApp` in the
-Django admin. Abies does not publish an empty settings-backed OAuth app,
-so an unconfigured deployment fails locally instead of redirecting to
-Microsoft with a missing `client_id`.
+are provided through env vars, set all three Microsoft env vars;
+otherwise configure the Microsoft `SocialApp` in the Django admin,
+including its tenant. Abies does not publish an empty settings-backed
+OAuth app, so an unconfigured deployment fails locally instead of
+redirecting to Microsoft with a missing `client_id` or unsupported
+`/common` tenant.
 
 ### Ipso upload configuration
 

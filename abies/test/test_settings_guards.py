@@ -42,7 +42,7 @@ def test_debug_true_allows_local_defaults(monkeypatch, debug_value):
     assert settings.DEBUG is True
     assert settings.SECRET_KEY == DEFAULT_SECRET_KEY
     assert settings.ALLOWED_HOSTS == ['*']
-    assert settings.SOCIALACCOUNT_PROVIDERS['microsoft']['TENANT'] == 'common'
+    assert settings.SOCIALACCOUNT_PROVIDERS['microsoft'] == {}
 
 
 def test_debug_defaults_false(monkeypatch):
@@ -122,6 +122,46 @@ def test_rejects_partial_oauth_env_config(monkeypatch, env):
 def test_debug_omits_empty_oauth_app(monkeypatch):
     settings = load_settings(monkeypatch, DJANGO_DEBUG='1')
     assert 'APP' not in settings.SOCIALACCOUNT_PROVIDERS['microsoft']
+
+
+def test_debug_requires_tenant_when_oauth_env_credentials_are_set(monkeypatch):
+    with pytest.raises(RuntimeError, match='MS_OAUTH_TENANT'):
+        load_settings(
+            monkeypatch,
+            DJANGO_DEBUG='1',
+            MS_OAUTH_CLIENT_ID='client-id',
+            MS_OAUTH_SECRET='client-secret',
+        )
+
+
+def test_debug_rejects_common_tenant_when_oauth_env_credentials_are_set(monkeypatch):
+    with pytest.raises(RuntimeError, match='single Entra tenant'):
+        load_settings(
+            monkeypatch,
+            DJANGO_DEBUG='1',
+            MS_OAUTH_CLIENT_ID='client-id',
+            MS_OAUTH_SECRET='client-secret',
+            MS_OAUTH_TENANT='common',
+        )
+
+
+def test_debug_accepts_tenant_specific_oauth_env_credentials(monkeypatch):
+    settings = load_settings(
+        monkeypatch,
+        DJANGO_DEBUG='1',
+        MS_OAUTH_CLIENT_ID=' client-id ',
+        MS_OAUTH_SECRET=' client-secret ',
+        MS_OAUTH_TENANT=' contoso.onmicrosoft.com ',
+    )
+
+    assert (
+        settings.SOCIALACCOUNT_PROVIDERS['microsoft']['TENANT']
+        == 'contoso.onmicrosoft.com'
+    )
+    assert (
+        settings.SOCIALACCOUNT_PROVIDERS['microsoft']['APP']['client_id']
+        == 'client-id'
+    )
 
 
 def test_production_requires_ipso_upload_token_after_oauth_guards(monkeypatch):

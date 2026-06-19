@@ -46,7 +46,7 @@ class TestLoginPage:
     @override_settings(SOCIALACCOUNT_PROVIDERS={
         'microsoft': {
             'APP': {'client_id': 'client-id', 'secret': 'client-secret'},
-            'TENANT': 'common',
+            'TENANT': 'contoso.onmicrosoft.com',
         },
     })
     def test_shows_microsoft_login_when_oauth_configured(self, client):
@@ -57,12 +57,31 @@ class TestLoginPage:
     @override_settings(SOCIALACCOUNT_PROVIDERS={
         'microsoft': {'TENANT': 'common'},
     })
+    def test_hides_microsoft_login_when_only_common_tenant_is_configured(
+            self, client):
+        app = SocialApp.objects.create(
+            provider='microsoft',
+            name='Microsoft',
+            client_id='client-id',
+            secret='client-secret',
+        )
+        app.sites.add(Site.objects.get_current())
+
+        resp = client.get('/login/')
+
+        assert resp.status_code == 200
+        assert b'Accedi con Microsoft' not in resp.content
+
+    @override_settings(SOCIALACCOUNT_PROVIDERS={
+        'microsoft': {'TENANT': 'common'},
+    })
     def test_shows_microsoft_login_when_social_app_configured(self, client):
         app = SocialApp.objects.create(
             provider='microsoft',
             name='Microsoft',
             client_id='client-id',
             secret='client-secret',
+            settings={'tenant': 'contoso.onmicrosoft.com'},
         )
         app.sites.add(Site.objects.get_current())
 
