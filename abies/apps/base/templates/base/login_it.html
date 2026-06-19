@@ -36,11 +36,13 @@
       <button type="submit" class="btn btn-save">Accedi</button>
     </form>
 
+    {% if microsoft_oauth_configured %}
     <div class="separator">oppure</div>
 
     <a href="{% url 'microsoft_login' %}" class="btn btn-ms">
       Accedi con Microsoft
     </a>
+    {% endif %}
   </div>
 </body>
 </html>

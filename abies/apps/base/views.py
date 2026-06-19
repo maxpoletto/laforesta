@@ -45,7 +45,9 @@ class LoginView(View):
     def get(self, request: HttpRequest) -> HttpResponse:
         if request.user.is_authenticated:
             return redirect(settings.LOGIN_REDIRECT_URL)
-        return render(request, 'base/login.html', {'next': request.GET.get('next', '')})
+        return render(request, 'base/login.html', _login_context(
+            request, request.GET.get('next', ''),
+        ))
 
     def post(self, request: HttpRequest) -> HttpResponse:
         username = request.POST.get('username', '')
@@ -59,10 +61,33 @@ class LoginView(View):
                     require_https=request.is_secure()):
                 next_url = settings.LOGIN_REDIRECT_URL
             return redirect(next_url)
-        return render(request, 'base/login.html', {
-            'error_message': S.ERR_LOGIN_INVALID,
-            'next': request.POST.get('next', ''),
-        }, status=400)
+        return render(request, 'base/login.html', _login_context(
+            request, request.POST.get('next', ''),
+            error_message=S.ERR_LOGIN_INVALID,
+        ), status=400)
+
+
+def _login_context(request: HttpRequest, next_url: str, *, error_message: str = '') -> dict:
+    return {
+        'error_message': error_message,
+        'microsoft_oauth_configured': _microsoft_oauth_configured(request),
+        'next': next_url,
+    }
+
+
+def _microsoft_oauth_configured(request: HttpRequest) -> bool:
+    app = settings.SOCIALACCOUNT_PROVIDERS.get('microsoft', {}).get('APP', {})
+    if app.get('client_id') and app.get('secret'):
+        return True
+
+    from allauth.socialaccount.models import SocialApp
+    return (
+        SocialApp.objects.on_site(request)
+        .filter(provider='microsoft')
+        .exclude(client_id='')
+        .exclude(secret='')
+        .exists()
+    )
 
 
 def logout_view(request: HttpRequest) -> HttpResponse:

@@ -1,7 +1,9 @@
 """Tests for auth views: login, logout, shell access."""
 
 import pytest
-from django.test import Client
+from allauth.socialaccount.models import SocialApp
+from django.contrib.sites.models import Site
+from django.test import Client, override_settings
 
 from apps.base.models import LoginMethod, User
 from config import strings as S
@@ -32,6 +34,42 @@ class TestLoginPage:
         resp = client.get('/login/')
         assert resp.status_code == 200
         assert b'Nome utente' in resp.content
+
+    @override_settings(SOCIALACCOUNT_PROVIDERS={
+        'microsoft': {'APP': {'client_id': '', 'secret': ''}, 'TENANT': 'common'},
+    })
+    def test_hides_microsoft_login_when_oauth_unconfigured(self, client):
+        resp = client.get('/login/')
+        assert resp.status_code == 200
+        assert b'Accedi con Microsoft' not in resp.content
+
+    @override_settings(SOCIALACCOUNT_PROVIDERS={
+        'microsoft': {
+            'APP': {'client_id': 'client-id', 'secret': 'client-secret'},
+            'TENANT': 'common',
+        },
+    })
+    def test_shows_microsoft_login_when_oauth_configured(self, client):
+        resp = client.get('/login/')
+        assert resp.status_code == 200
+        assert b'Accedi con Microsoft' in resp.content
+
+    @override_settings(SOCIALACCOUNT_PROVIDERS={
+        'microsoft': {'TENANT': 'common'},
+    })
+    def test_shows_microsoft_login_when_social_app_configured(self, client):
+        app = SocialApp.objects.create(
+            provider='microsoft',
+            name='Microsoft',
+            client_id='client-id',
+            secret='client-secret',
+        )
+        app.sites.add(Site.objects.get_current())
+
+        resp = client.get('/login/')
+
+        assert resp.status_code == 200
+        assert b'Accedi con Microsoft' in resp.content
 
     def test_post_success_redirects(self, client, admin_user):
         resp = client.post('/login/', {

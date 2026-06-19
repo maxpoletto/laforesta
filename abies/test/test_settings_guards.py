@@ -17,6 +17,7 @@ ENV_KEYS = (
     'MS_OAUTH_TENANT',
     'DJANGO_DATA_UPLOAD_MAX_MEMORY_SIZE',
     'ABIES_IPSO_UPLOAD_TOKEN',
+    'ABIES_IPSO_BOOTSTRAP_TOKEN',
 )
 
 
@@ -109,7 +110,21 @@ def test_production_rejects_broad_oauth_tenants(monkeypatch, tenant):
         )
 
 
-def test_production_requires_ipso_upload_token_after_base_guards(monkeypatch):
+@pytest.mark.parametrize('env', [
+    {'MS_OAUTH_CLIENT_ID': 'client-id'},
+    {'MS_OAUTH_SECRET': 'client-secret'},
+])
+def test_rejects_partial_oauth_env_config(monkeypatch, env):
+    with pytest.raises(RuntimeError, match='set together'):
+        load_settings(monkeypatch, DJANGO_DEBUG='1', **env)
+
+
+def test_debug_omits_empty_oauth_app(monkeypatch):
+    settings = load_settings(monkeypatch, DJANGO_DEBUG='1')
+    assert 'APP' not in settings.SOCIALACCOUNT_PROVIDERS['microsoft']
+
+
+def test_production_requires_ipso_upload_token_after_oauth_guards(monkeypatch):
     with pytest.raises(RuntimeError, match='ABIES_IPSO_UPLOAD_TOKEN'):
         load_settings(
             monkeypatch,
@@ -120,19 +135,37 @@ def test_production_requires_ipso_upload_token_after_base_guards(monkeypatch):
         )
 
 
+def test_production_requires_ipso_bootstrap_token_after_upload_token(monkeypatch):
+    with pytest.raises(RuntimeError, match='ABIES_IPSO_BOOTSTRAP_TOKEN'):
+        load_settings(
+            monkeypatch,
+            DJANGO_DEBUG='False',
+            DJANGO_SECRET_KEY='prod-secret',
+            DJANGO_ALLOWED_HOSTS='abies.example.test',
+            MS_OAUTH_TENANT='contoso.onmicrosoft.com',
+            MS_OAUTH_CLIENT_ID='client-id',
+            MS_OAUTH_SECRET='client-secret',
+            ABIES_IPSO_UPLOAD_TOKEN='prod-token',
+        )
+
+
 def test_production_loads_with_secret_key_allowed_hosts_and_oauth_tenant(monkeypatch):
     settings = load_settings(
         monkeypatch,
         DJANGO_DEBUG='False',
         DJANGO_SECRET_KEY='prod-secret',
         DJANGO_ALLOWED_HOSTS='abies.example.test, www.example.test',
+        MS_OAUTH_CLIENT_ID=' client-id ',
+        MS_OAUTH_SECRET=' client-secret ',
         MS_OAUTH_TENANT=' contoso.onmicrosoft.com ',
         ABIES_IPSO_UPLOAD_TOKEN='prod-token',
+        ABIES_IPSO_BOOTSTRAP_TOKEN='bootstrap-token',
     )
 
     assert settings.DEBUG is False
     assert settings.SECRET_KEY == 'prod-secret'
     assert settings.IPSO_UPLOAD_TOKEN == 'prod-token'
+    assert settings.IPSO_BOOTSTRAP_TOKEN == 'bootstrap-token'
     assert settings.ALLOWED_HOSTS == ['abies.example.test', 'www.example.test']
     assert settings.SESSION_COOKIE_SECURE is True
     assert settings.CSRF_COOKIE_SECURE is True
@@ -140,4 +173,12 @@ def test_production_loads_with_secret_key_allowed_hosts_and_oauth_tenant(monkeyp
     assert (
         settings.SOCIALACCOUNT_PROVIDERS['microsoft']['TENANT']
         == 'contoso.onmicrosoft.com'
+    )
+    assert (
+        settings.SOCIALACCOUNT_PROVIDERS['microsoft']['APP']['client_id']
+        == 'client-id'
+    )
+    assert (
+        settings.SOCIALACCOUNT_PROVIDERS['microsoft']['APP']['secret']
+        == 'client-secret'
     )

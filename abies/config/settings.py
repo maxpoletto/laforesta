@@ -72,6 +72,8 @@ else:
 _csrf = os.environ.get('DJANGO_CSRF_TRUSTED_ORIGINS', '').strip()
 CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf.split(',') if o.strip()]
 
+_ms_oauth_client_id = os.environ.get('MS_OAUTH_CLIENT_ID', '').strip()
+_ms_oauth_secret = os.environ.get('MS_OAUTH_SECRET', '').strip()
 _ms_oauth_tenant = os.environ.get('MS_OAUTH_TENANT', '').strip()
 if DEBUG and not _ms_oauth_tenant:
     _ms_oauth_tenant = _DEFAULT_MS_OAUTH_TENANT
@@ -82,6 +84,10 @@ elif not DEBUG and _ms_oauth_tenant.lower() in _BROAD_MS_OAUTH_TENANTS:
         'MS_OAUTH_TENANT must pin a single Entra tenant when DEBUG=0',
     )
 
+if bool(_ms_oauth_client_id) != bool(_ms_oauth_secret):
+    raise RuntimeError(
+        'MS_OAUTH_CLIENT_ID and MS_OAUTH_SECRET must be set together',
+    )
 if not DEBUG and not IPSO_UPLOAD_TOKEN:
     raise RuntimeError('ABIES_IPSO_UPLOAD_TOKEN must be set when DEBUG=0')
 if not DEBUG and not IPSO_BOOTSTRAP_TOKEN:
@@ -188,14 +194,17 @@ SOCIALACCOUNT_AUTO_SIGNUP = False
 SOCIALACCOUNT_EMAIL_AUTHENTICATION = True
 SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True
 # MS 365 OAuth: configure client_id/secret via Django admin or env vars.
+# Do not publish an empty settings-backed APP: allauth would build a
+# malformed Microsoft authorize request with no client_id.
+_microsoft_provider_config = {'TENANT': _ms_oauth_tenant}
+if _ms_oauth_client_id and _ms_oauth_secret:
+    _microsoft_provider_config['APP'] = {
+        'client_id': _ms_oauth_client_id,
+        'secret': _ms_oauth_secret,
+    }
+
 SOCIALACCOUNT_PROVIDERS = {
-    'microsoft': {
-        'APP': {
-            'client_id': os.environ.get('MS_OAUTH_CLIENT_ID', ''),
-            'secret': os.environ.get('MS_OAUTH_SECRET', ''),
-        },
-        'TENANT': _ms_oauth_tenant,
-    },
+    'microsoft': _microsoft_provider_config,
 }
 
 # --- django-axes -------------------------------------------------------------
