@@ -343,15 +343,8 @@ function sampleAreasForSurvey(surveyId, compresa) {
     });
 }
 
-function sampleSurveysForCompresa(compresa) {
-  const seenGridIds = new Set(
-    samplingRows(IPSO_REF_SAMPLE_AREAS)
-      .filter((area) => area && area.compresa === compresa)
-      .map((area) => area[FIELD_SAMPLE_GRID_ID])
-  );
-  return samplingRows(IPSO_REF_SURVEYS).filter((survey) =>
-    survey && seenGridIds.has(survey[FIELD_SAMPLE_GRID_ID])
-  );
+function sampleSurveys() {
+  return samplingRows(IPSO_REF_SURVEYS).filter((survey) => survey);
 }
 
 function populateSampleSurveyOptions() {
@@ -360,8 +353,7 @@ function populateSampleSurveyOptions() {
   const keep = sel.value;
   sel.replaceChildren();
   appendOption(sel, '', S.PRE_PICK_SURVEY, true);
-  const compresa = document.getElementById('in-compresa').value;
-  for (const survey of sampleSurveysForCompresa(compresa)) {
+  for (const survey of sampleSurveys()) {
     appendOption(sel, '' + survey[FIELD_SURVEY_ID], sampleSurveyLabel(survey));
   }
   if (keep && Array.from(sel.options).some((opt) => opt.value === keep)) {
@@ -386,10 +378,9 @@ function sampleAreaById(id) {
 
 function sampleAreaLabel(area) {
   if (!area) return '';
-  return [
-    area.particella || '',
-    S.REC_SAMPLE_AREA_NUMBER + ' ' + area.number,
-  ].filter((v) => v).join(' · ');
+  return [area.particella, area.number]
+    .filter((v) => v !== null && v !== undefined && v !== '')
+    .join('/');
 }
 
 function currentAutoSampleArea() {
