@@ -795,17 +795,26 @@ def test_samples_import_supports_coppice_parcels(
 
 
 @override_settings(IPSO_SECRET='test-token')
-def test_samples_import_rejects_duplicate_tree_numbers_in_sample(
-        writer_client, parcels, species, settings, tmp_path):
+def test_samples_import_supports_coppice_shoots_with_same_number(
+        writer_client, regions, eclasses, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
-    survey, area = _sample_survey(parcels[0])
+    coppice_parcel = Parcel.objects.create(
+        name='C2', region=regions[0], eclass=next(e for e in eclasses if e.coppice),
+        area_ha=Decimal('1.0'),
+    )
+    survey, area = _sample_survey(coppice_parcel, name='Ceduo shoots survey')
     payload = _upload_payload(
-        parcels, species, mode='samples',
+        [coppice_parcel], species, mode='samples',
         session_id='22222222-2222-4222-8222-222222222225',
-        record_overrides={'sample_area_id': area.id},
+        record_overrides={
+            'sample_area_id': area.id,
+            'coppice': True,
+            'shoot': 1,
+        },
     )
     second = dict(payload['records'][0])
     second['client_record_id'] = '2'
+    second['shoot'] = 2
     payload['records'].append(second)
     assert _post_upload(Client(), payload).status_code == 200
     upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
@@ -816,15 +825,18 @@ def test_samples_import_rejects_duplicate_tree_numbers_in_sample(
         content_type='application/json',
     )
 
-    assert resp.status_code == 400
-    assert 'numero 1 già presente nel campione' in resp.json()['message']
-    assert TreeSample.objects.count() == 0
+    assert resp.status_code == 200
+    assert resp.json()['imported'] == 2
+    rows = list(TreeSample.objects.order_by('shoot'))
+    assert [row.number for row in rows] == [1, 1]
+    assert [row.shoot for row in rows] == [1, 2]
+    assert all(row.tree.coppice for row in rows)
     upload.refresh_from_db()
-    assert upload.state == IpsoUploadState.RECEIVED
+    assert upload.state == IpsoUploadState.IMPORTED
 
 
 @override_settings(IPSO_SECRET='test-token')
-def test_samples_import_rejects_existing_tree_number_in_sample(
+def test_samples_import_allows_existing_tree_number_like_csv_core(
         writer_client, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     survey, area = _sample_survey(parcels[0])
@@ -847,14 +859,11 @@ def test_samples_import_rejects_existing_tree_number_in_sample(
         content_type='application/json',
     )
 
-    assert resp.status_code == 400
-    body = resp.json()
-    assert 'numero 1 già presente nel campione' in body['message']
-    assert TreeSample.objects.count() == 1
+    assert resp.status_code == 200
+    assert resp.json()['imported'] == 1
+    assert list(TreeSample.objects.order_by('id').values_list('number', flat=True)) == [1, 1]
     upload.refresh_from_db()
-    assert upload.state == IpsoUploadState.RECEIVED
-    assert upload.error_summary == body['errors'][0]
-    assert writer_client.get(reverse('ipso-inbox-data')).json()['rows'][0][-1] == upload.error_summary
+    assert upload.state == IpsoUploadState.IMPORTED
 
 
 @override_settings(IPSO_SECRET='test-token')
@@ -924,7 +933,9 @@ def test_writer_imports_pai_upload(writer_client, writer_user, parcels, species,
     assert pai.h_measured is True
     assert pai.operator == 'Mario Rossi'
     assert pai.note == 'nota PAI'
-    assert pai.volume_m3 is not None
+    assert pai.tree.coppice is False
+    assert pai.volume_m3 is None
+    assert pai.mass_q is None
 
 
 @override_settings(IPSO_SECRET='test-token')
@@ -950,7 +961,9 @@ def test_pai_import_supports_coppice_parcels(
 
     assert resp.status_code == 200
     pai = TreePreserved.objects.select_related('tree').get()
-    assert pai.tree.coppice is True
+    assert pai.tree.coppice is False
+    assert pai.volume_m3 is None
+    assert pai.mass_q is None
 
 
 @override_settings(IPSO_SECRET='test-token')

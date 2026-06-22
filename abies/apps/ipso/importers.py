@@ -6,23 +6,21 @@ from dataclasses import dataclass
 from datetime import date as date_type
 from decimal import Decimal, ROUND_HALF_UP
 
-from django.db import transaction
-
-from apps.base.digests import mark_stale
 from apps.base.models import (
-    Parcel, Sample, SampleArea, Species, Survey, Tree, TreePreserved,
+    Parcel, Sample, SampleArea, Species, Survey, TreePreserved,
     TreeSample, next_sequence_number,
 )
 from apps.base.numparse import to_decimal
-from apps.campionamenti.csv_trees import parsed_tree_row, tree_volume_and_mass
+from apps.campionamenti import csv_preserved
+from apps.campionamenti.csv_trees import parsed_tree_row
 from config import strings as S
 from config.constants import (
-    BOSCO_TREE_DIGESTS, FIELD_ACC_M, FIELD_AREA, FIELD_COPPICE, FIELD_DATE,
+    FIELD_ACC_M, FIELD_AREA, FIELD_COPPICE, FIELD_DATE,
     FIELD_D_CM, FIELD_ESTIMATED_BIRTH_YEAR, FIELD_H_M, FIELD_H_MEASURED,
-    FIELD_LAT, FIELD_LON, FIELD_L10_MM, FIELD_MASS_Q, FIELD_NOTE,
+    FIELD_LAT, FIELD_LON, FIELD_L10_MM, FIELD_NOTE,
     FIELD_NUMBER, FIELD_OPERATOR, FIELD_PARCEL, FIELD_PARCEL_ID,
     FIELD_PRESERVED, FIELD_PRESSLER_COEFF, FIELD_SAMPLE_AREA_ID, FIELD_SHOOT,
-    FIELD_SPECIES, FIELD_SPECIES_ID, FIELD_STANDARD, FIELD_VOLUME_M3,
+    FIELD_SPECIES, FIELD_SPECIES_ID, FIELD_STANDARD,
     PRESSLER_DEFAULT, RECORDS, SESSION, TREE_H_QUANTUM,
 )
 
@@ -62,12 +60,6 @@ def sample_import_rows(payload: dict, survey: Survey) -> tuple[list[dict], list[
         sample.sample_area_id: sample
         for sample in Sample.objects.filter(survey=survey, sample_area_id__in=area_ids)
     }
-    seen_numbers = set(
-        TreeSample.objects
-        .filter(sample__survey=survey, sample__sample_area_id__in=area_ids)
-        .values_list('sample__sample_area_id', FIELD_NUMBER)
-    )
-
     rows = []
     errors = []
     csv_date_by_area = {}
@@ -109,13 +101,6 @@ def sample_import_rows(payload: dict, survey: Survey) -> tuple[list[dict], list[
                 previous_date.isoformat(),
             ))
             continue
-        number_key = (area.id, parsed[FIELD_NUMBER])
-        if number_key in seen_numbers:
-            errors.append(S.IPSO_ERR_IMPORT_RECORD_SAMPLE_NUMBER_DUPLICATE.format(
-                i, parsed[FIELD_NUMBER],
-            ))
-            continue
-        seen_numbers.add(number_key)
         csv_date_by_area.setdefault(area.id, row_date)
         rows.append(parsed)
     return rows, errors
@@ -183,37 +168,7 @@ def pai_import_rows(payload: dict) -> tuple[list[dict], list[str]]:
 
 
 def apply_pai_rows(rows: list[dict]) -> int:
-    with transaction.atomic():
-        for row in rows:
-            parcel = row[FIELD_PARCEL]
-            tree = Tree.objects.create(
-                species=row[FIELD_SPECIES],
-                parcel=parcel,
-                estimated_birth_year=row[FIELD_ESTIMATED_BIRTH_YEAR],
-                lat=row[FIELD_LAT],
-                lon=row[FIELD_LON],
-                acc_m=row[FIELD_ACC_M],
-                preserved=True,
-                coppice=parcel.eclass.coppice,
-            )
-            TreePreserved.objects.create(
-                tree=tree,
-                parcel=parcel,
-                number=row[FIELD_NUMBER],
-                date=row[FIELD_DATE],
-                d_cm=row[FIELD_D_CM],
-                h_m=row[FIELD_H_M],
-                h_measured=row[FIELD_H_MEASURED],
-                volume_m3=row[FIELD_VOLUME_M3],
-                mass_q=row[FIELD_MASS_Q],
-                lat=row[FIELD_LAT],
-                lon=row[FIELD_LON],
-                acc_m=row[FIELD_ACC_M],
-                operator=row[FIELD_OPERATOR],
-                note=row[FIELD_NOTE],
-            )
-        mark_stale(*BOSCO_TREE_DIGESTS, 'audit')
-    return len(rows)
+    return csv_preserved.apply(rows)
 
 
 def _payload_records(payload: dict) -> list | None:
@@ -285,9 +240,6 @@ def _pai_record_values(
         if (parcel.id, number) in seen_numbers:
             return _PAI_PARSE_DUPLICATE
     seen_numbers.add((parcel.id, number))
-    volume_m3, mass_q = tree_volume_and_mass(
-        parcel.eclass.coppice, measurements.d_cm, h_m, sp,
-    )
     return {
         FIELD_PARCEL: parcel,
         FIELD_SPECIES: sp,
@@ -302,8 +254,6 @@ def _pai_record_values(
         FIELD_ACC_M: record.get(FIELD_ACC_M),
         FIELD_OPERATOR: (record.get(FIELD_OPERATOR) or session_operator).strip(),
         FIELD_NOTE: (record.get(FIELD_NOTE) or '').strip(),
-        FIELD_VOLUME_M3: volume_m3,
-        FIELD_MASS_Q: mass_q,
     }
 
 
