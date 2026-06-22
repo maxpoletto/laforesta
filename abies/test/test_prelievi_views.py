@@ -408,6 +408,26 @@ class TestSaveView:
         assert resp.status_code == 400
         assert S.ERR_QUINTALS_POSITIVE in resp.json()[MESSAGE]
 
+    def test_validation_error_malformed_integer_fields(self, writer_client,
+                                                       harvest_fixtures):
+        f = harvest_fixtures
+        cases = [
+            (FIELD_CREW_ID, S.COL_CREW),
+            (FIELD_PRODUCT_ID, S.COL_PRODUCT),
+            (FIELD_RECORD1, S.COL_VDP),
+            (FIELD_RECORD2, S.COL_PROT),
+            (FIELD_HARVEST_PLAN_ITEM_ID, S.COL_WORKSITE),
+            (ROW_ID, ROW_ID),
+        ]
+        for field, label in cases:
+            resp = self._post(writer_client, self._base_payload(
+                f, **{field: 'abc'},
+            ))
+            assert resp.status_code == 400, field
+            assert resp.json()[STATUS] == STATUS_VALIDATION_ERROR, field
+            assert (S.ERR_BOSCO_INTEGER_REQUIRED.format(label)
+                    in resp.json()[MESSAGE]), field
+
     def test_validation_error_tractor_sum(self, writer_client, harvest_fixtures):
         f = harvest_fixtures
         resp = self._post(writer_client, self._base_payload(
@@ -659,7 +679,7 @@ from config.constants import (
     FIELD_DATE, FIELD_DENSITY, FIELD_ERRORS, FIELD_FILE,
     FIELD_HARVEST_PLAN_ITEM_ID, FIELD_MANUFACTURER, FIELD_MASS_Q,
     FIELD_MINOR, FIELD_MODEL, FIELD_NONCE, FIELD_NOTE, FIELD_PRODUCT_ID,
-    FIELD_RECORD1,
+    FIELD_RECORD1, FIELD_RECORD2,
     DELETES, HTML, MESSAGE, PATCHES, RECORD, ROWS, ROW_ID,
     STATUS, STATUS_CONFLICT, STATUS_VALIDATION_ERROR, VERSION,
 )

@@ -377,6 +377,16 @@ def _render_form(op_id, request, vals=None):
     )
 
 
+def _optional_int(body, field, label, errors):
+    raw = body.get(field)
+    if raw in (None, ''):
+        return None
+    value = int_or_none(raw)
+    if value is None:
+        errors.append(S.ERR_BOSCO_INTEGER_REQUIRED.format(label))
+    return value
+
+
 def _parse_body(body):
     """Extract and validate core fields from the POST body.
 
@@ -385,8 +395,7 @@ def _parse_body(body):
     legacy row is preserved.
     """
     errors = []
-    row_id = body.get(ROW_ID)
-    row_id = int(row_id) if row_id else None
+    row_id = _optional_int(body, ROW_ID, ROW_ID, errors)
 
     date_str = body.get(FIELD_DATE)
     if not date_str:
@@ -402,31 +411,36 @@ def _parse_body(body):
     if mass_q <= 0:
         errors.append(S.ERR_QUINTALS_POSITIVE)
 
-    record1 = body.get(FIELD_RECORD1)
+    record1 = _optional_int(body, FIELD_RECORD1, S.COL_VDP, errors)
 
     # Resolve the Cantiere link.  New rows: mandatory + must be open.
     # Edits: optional (legacy NULL preserved), but if supplied the new
     # link must point at an item in state OPEN or HARVESTING.
     item_id_raw = body.get(FIELD_HARVEST_PLAN_ITEM_ID)
+    item_id = _optional_int(
+        body, FIELD_HARVEST_PLAN_ITEM_ID, S.COL_WORKSITE, errors,
+    )
     item = None
     if row_id is None:
         if not item_id_raw:
             errors.append(S.ERR_CANTIERE_REQUIRED)
-        else:
-            item = HarvestPlanItem.objects.filter(id=int(item_id_raw)).first()
+        elif item_id is not None:
+            item = HarvestPlanItem.objects.filter(id=item_id).first()
             if item is None or item.state not in _OPEN_STATES:
                 errors.append(S.ERR_CANTIERE_STATE_INVALID)
     else:
-        if item_id_raw:
-            item = HarvestPlanItem.objects.filter(id=int(item_id_raw)).first()
+        if item_id is not None:
+            item = HarvestPlanItem.objects.filter(id=item_id).first()
             if item is None or item.state not in _OPEN_STATES:
                 errors.append(S.ERR_CANTIERE_STATE_INVALID)
 
     parsed = {
         FIELD_DATE: date_str,
-        FIELD_CREW_ID: int(body[FIELD_CREW_ID]) if body.get(FIELD_CREW_ID) else None,
-        FIELD_PRODUCT_ID: int(body[FIELD_PRODUCT_ID]) if body.get(FIELD_PRODUCT_ID) else None,
-        FIELD_RECORD1: int(record1) if record1 else None,
+        FIELD_CREW_ID: _optional_int(body, FIELD_CREW_ID, S.COL_CREW, errors),
+        FIELD_PRODUCT_ID: _optional_int(
+            body, FIELD_PRODUCT_ID, S.COL_PRODUCT, errors,
+        ),
+        FIELD_RECORD1: record1,
         FIELD_MASS_Q: mass_q,
         FIELD_NOTE: body.get(FIELD_NOTE, ''),
     }
@@ -462,8 +476,9 @@ def _parse_body(body):
         pass
 
     if FIELD_RECORD2 in body:
-        record2 = body[FIELD_RECORD2]
-        parsed[FIELD_RECORD2] = int(record2) if record2 else None
+        parsed[FIELD_RECORD2] = _optional_int(
+            body, FIELD_RECORD2, S.COL_PROT, errors,
+        )
     return row_id, parsed, errors
 
 
