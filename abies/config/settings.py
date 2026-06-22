@@ -20,8 +20,7 @@ SATELLITE_DIR = Path(os.environ.get(
 IPSO_INBOX_DIR = Path(os.environ.get(
     'ABIES_IPSO_INBOX_DIR', str(DATA_DIR / 'ipso-inbox'),
 ))
-IPSO_UPLOAD_TOKEN = os.environ.get('ABIES_IPSO_UPLOAD_TOKEN', '').strip()
-IPSO_BOOTSTRAP_TOKEN = os.environ.get('ABIES_IPSO_BOOTSTRAP_TOKEN', '').strip()
+IPSO_SECRET = os.environ.get('ABIES_IPSO_SECRET', '').strip()
 IPSO_UPLOAD_MAX_BYTES = int(os.environ.get(
     'ABIES_IPSO_UPLOAD_MAX_BYTES', str(2 * 1024 * 1024),
 ))
@@ -91,10 +90,8 @@ elif _ms_oauth_tenant.lower() in MS_OAUTH_BROAD_TENANTS:
         raise RuntimeError(
             'MS_OAUTH_TENANT must pin a single Entra tenant',
         )
-if not DEBUG and not IPSO_UPLOAD_TOKEN:
-    raise RuntimeError('ABIES_IPSO_UPLOAD_TOKEN must be set when DEBUG=0')
-if not DEBUG and not IPSO_BOOTSTRAP_TOKEN:
-    raise RuntimeError('ABIES_IPSO_BOOTSTRAP_TOKEN must be set when DEBUG=0')
+if not DEBUG and not IPSO_SECRET:
+    raise RuntimeError('ABIES_IPSO_SECRET must be set when DEBUG=0')
 
 # Apache terminates TLS and forwards plain HTTP; trust the X-Forwarded-Proto
 # header so Django recognises the request as secure for cookie flags, etc.

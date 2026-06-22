@@ -131,7 +131,6 @@ const S = {
     'Albero Ipso non appartenente alla sessione.',
   ERROR_GEO_UNAVAILABLE: 'geo.js non disponibile',
   ERROR_HTTP_STATUS: (status) => `HTTP ${status}`,
-  ERROR_BOOTSTRAP_INVALID: 'Bootstrap Ipso non valido',
   ERROR_TOKEN_MISSING: 'Token Ipso mancante',
   ERROR_GEOJSON_INVALID: 'GeoJSON non valido',
   TOAST_REFERENCE_LOAD_ERROR: (detail) =>

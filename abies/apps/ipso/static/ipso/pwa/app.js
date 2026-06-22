@@ -90,7 +90,7 @@ async function boot() {
   }
 
   try {
-    State.bearerToken = await fetchBootstrap();
+    State.bearerToken = loadBearerToken();
   } catch (e) {
     showToast(S.TOAST_REFERENCE_LOAD_ERROR(e.message));
     return;
@@ -150,31 +150,16 @@ async function boot() {
   checkGpsPermission();
 }
 
-async function fetchBootstrap() {
-  const bootstrapToken = bootstrapTokenFromHash();
-  if (bootstrapToken) return await exchangeBootstrapToken(bootstrapToken);
+function loadBearerToken() {
+  const hashSecret = secretFromHash();
+  if (hashSecret) {
+    storeBearerToken(hashSecret);
+    clearSecretHash();
+    return hashSecret;
+  }
   const stored = storedBearerToken();
   if (stored) return stored;
   throw new Error(S.ERROR_TOKEN_MISSING);
-}
-
-async function exchangeBootstrapToken(bootstrapToken) {
-  const r = await fetch('/api/ipso/bootstrap/', {
-    method: 'POST',
-    cache: 'no-store',
-    credentials: 'same-origin',
-    headers: {
-      Accept: 'application/json',
-      Authorization: 'Bearer ' + bootstrapToken,
-    },
-  });
-  if (!r.ok) throw new Error(S.ERROR_HTTP_STATUS(r.status));
-  const payload = await r.json();
-  const token = payload && payload[IPSO_BOOTSTRAP_BEARER_TOKEN];
-  if (!payload || payload.ok !== true || !token) throw new Error(S.ERROR_BOOTSTRAP_INVALID);
-  storeBearerToken(token);
-  clearBootstrapHash();
-  return token;
 }
 
 function storedBearerToken() {
@@ -186,16 +171,16 @@ function storeBearerToken(token) {
   try { localStorage.setItem(IPSO_BEARER_STORAGE_KEY, token); } catch (_) {}
 }
 
-function bootstrapTokenFromHash() {
+function secretFromHash() {
   const params = new URLSearchParams((window.location.hash || '').replace(/^#/, ''));
-  return params.get(IPSO_BOOTSTRAP_HASH_PARAM) || '';
+  return params.get(IPSO_SECRET_HASH_PARAM) || '';
 }
 
-function clearBootstrapHash() {
+function clearSecretHash() {
   if (!window.location.hash) return;
   const params = new URLSearchParams(window.location.hash.replace(/^#/, ''));
-  if (!params.has(IPSO_BOOTSTRAP_HASH_PARAM)) return;
-  params.delete(IPSO_BOOTSTRAP_HASH_PARAM);
+  if (!params.has(IPSO_SECRET_HASH_PARAM)) return;
+  params.delete(IPSO_SECRET_HASH_PARAM);
   const nextHash = params.toString();
   const nextUrl = window.location.pathname + window.location.search +
     (nextHash ? '#' + nextHash : '');

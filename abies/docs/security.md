@@ -39,12 +39,12 @@ OAuth app, so an unconfigured deployment fails locally instead of
 redirecting to Microsoft with a missing `client_id` or unsupported
 `/common` tenant.
 
-### Ipso upload configuration
+### Ipso-Abies integration
 
-The Abies-served Ipso PWA posts staged field uploads to the same origin.
-Production deployments must set `ABIES_IPSO_UPLOAD_TOKEN`; the generated
-`/ipso/upload-config.js` serves that bearer token to the installed PWA,
-and `/api/ipso/uploads/` rejects requests without it.
+The Abies-served Ipso PWA uses a shared bearer secret for unauthenticated
+device reference downloads and staged uploads. Production deployments must
+set `ABIES_IPSO_SECRET`. See `docs/ipso-abies.md` for the data flows,
+trust model, rate limiting, and deployment notes.
 
 ### Whitelist social adapter
 

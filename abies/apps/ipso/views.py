@@ -60,7 +60,6 @@ from config.constants import (
     FIELD_TREE_ID, FIELD_TREE_PRESERVED_ID,
     FIELD_STATE, FIELD_SURVEY_ID,
     FIELD_WORK_PACKAGE_ID, FIELD_WORK_PACKAGE_LABEL, FILE_ERROR, IMPORTED,
-    IPSO_BOOTSTRAP_BEARER_TOKEN,
     IPSO_ERROR_AUTH, IPSO_ERROR_CONFLICT, IPSO_ERROR_INVALID_PAYLOAD,
     IPSO_ERROR_RATE_LIMITED, IPSO_ERROR_TOO_LARGE, IPSO_MODE_MARTELLATE,
     IPSO_MODE_PAI, IPSO_MODE_SAMPLES, IPSO_REF_GENERATED_AT,
@@ -141,23 +140,6 @@ def index(request: HttpRequest) -> HttpResponse:
     return _asset_response(request, 'index.html')
 
 
-@csrf_exempt
-@require_POST
-def bootstrap(request: HttpRequest) -> JsonResponse:
-    if _upload_rate_limited(request):
-        return _api_json({OK: False, ERROR: IPSO_ERROR_RATE_LIMITED}, status=429)
-    if not _bootstrap_authorized(request):
-        return _auth_error()
-    token = _configured_upload_token()
-    if not token:
-        return _api_json({
-            OK: False,
-            ERROR: IPSO_ERROR_AUTH,
-            DETAIL: S.IPSO_ERR_SECURITY_NOT_CONFIGURED,
-        }, status=503)
-    return _api_json({OK: True, IPSO_BOOTSTRAP_BEARER_TOKEN: token})
-
-
 @require_GET
 def asset(request: HttpRequest, asset_path: str) -> HttpResponse:
     if asset_path in {IPSO_REFERENCE_JSON, IPSO_TERRENI_GEOJSON, IPSO_UPLOAD_CONFIG_JS}:
@@ -209,7 +191,7 @@ def reference_json(request: HttpRequest) -> HttpResponse:
     }
     payload[FIELD_REFERENCE_VERSION] = _reference_version(payload)
     response = _json_response(
-        payload, content_type='application/json', cache_control=CACHE_NO_CACHE,
+        payload, content_type='application/json', cache_control=CACHE_NO_STORE,
     )
     return _authorized_data_response(response)
 
@@ -396,12 +378,12 @@ def terreni_geojson(request: HttpRequest) -> HttpResponse:
     if path.is_file():
         response = conditional_file_response(
             request, path, content_type='application/geo+json',
-            cache_control=CACHE_NO_CACHE,
+            cache_control=CACHE_NO_STORE,
         )
         return _authorized_data_response(response)
     response = _json_response(
         {'type': 'FeatureCollection', 'features': []},
-        content_type='application/geo+json', cache_control=CACHE_NO_CACHE,
+        content_type='application/geo+json', cache_control=CACHE_NO_STORE,
     )
     return _authorized_data_response(response)
 
@@ -852,7 +834,6 @@ def _suggested_harvest_item_id(work_package_id: str) -> int | None:
     return None
 
 
-
 def _survey_targets() -> list[dict]:
     surveys = (Survey.objects
                .select_related('sample_grid')
@@ -975,27 +956,12 @@ def _martellate_import_rows(
     return rows, errors
 
 
-
-def _configured_upload_token() -> str:
-    return str(getattr(settings, 'IPSO_UPLOAD_TOKEN', '') or '').strip()
-
-
-def _configured_bootstrap_token() -> str:
-    return str(getattr(settings, 'IPSO_BOOTSTRAP_TOKEN', '') or '').strip()
-
-
-def _bootstrap_authorized(request: HttpRequest) -> bool:
-    expected = _configured_bootstrap_token()
-    if not expected:
-        return False
-    header = request.headers.get('Authorization', '')
-    if not header.startswith(_BEARER_PREFIX):
-        return False
-    return hmac.compare_digest(header[len(_BEARER_PREFIX):], expected)
+def _configured_ipso_secret() -> str:
+    return str(getattr(settings, 'IPSO_SECRET', '') or '').strip()
 
 
 def _upload_authorized(request: HttpRequest) -> bool:
-    expected = _configured_upload_token()
+    expected = _configured_ipso_secret()
     if not expected:
         return False
     header = request.headers.get('Authorization', '')

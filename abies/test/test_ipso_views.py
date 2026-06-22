@@ -94,42 +94,7 @@ def test_manifest_is_served(db):
     assert json.loads(_body(resp))['short_name'] == 'Ipso'
 
 
-@override_settings(IPSO_UPLOAD_TOKEN='test-token', IPSO_BOOTSTRAP_TOKEN='bootstrap-token')
-def test_bootstrap_exchanges_bootstrap_bearer_without_login(db):
-    wrong = Client().post(
-        reverse('ipso-bootstrap'), HTTP_AUTHORIZATION='Bearer wrong',
-    )
-    ok = Client().post(
-        reverse('ipso-bootstrap'), HTTP_AUTHORIZATION='Bearer bootstrap-token',
-    )
-
-    assert wrong.status_code == 401
-    assert ok.status_code == 200
-    assert ok.json() == {'ok': True, 'bearer_token': 'test-token'}
-    assert 'no-store' in ok['Cache-Control']
-
-
-@override_settings(IPSO_UPLOAD_TOKEN='test-token', IPSO_BOOTSTRAP_TOKEN='')
-def test_bootstrap_fails_closed_without_bootstrap_token(db):
-    resp = Client().post(
-        reverse('ipso-bootstrap'), HTTP_AUTHORIZATION='Bearer bootstrap-token',
-    )
-
-    assert resp.status_code == 401
-    assert resp.json()['error'] == 'auth'
-
-
-@override_settings(IPSO_UPLOAD_TOKEN='', IPSO_BOOTSTRAP_TOKEN='bootstrap-token')
-def test_bootstrap_fails_closed_without_upload_token(db):
-    resp = Client().post(
-        reverse('ipso-bootstrap'), HTTP_AUTHORIZATION='Bearer bootstrap-token',
-    )
-
-    assert resp.status_code == 503
-    assert resp.json()['error'] == 'auth'
-
-
-@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+@override_settings(IPSO_SECRET='test-token')
 def test_ipso_data_downloads_require_bearer(db):
     client = Client()
 
@@ -143,7 +108,7 @@ def test_ipso_data_downloads_require_bearer(db):
     ).status_code == 401
 
 
-@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+@override_settings(IPSO_SECRET='test-token')
 def test_reference_json_comes_from_abies_data(db, regions, parcels, species):
     grid = SampleGrid.objects.create(name='Ipso grid')
     area = SampleArea.objects.create(
@@ -188,6 +153,7 @@ def test_reference_json_comes_from_abies_data(db, regions, parcels, species):
 
     assert resp.status_code == 200
     assert resp['Vary'] == 'Authorization'
+    assert 'no-store' in resp['Cache-Control']
     data = resp.json()
     assert data['schema_version'] == 1
     assert data['reference_version']
@@ -267,7 +233,7 @@ def test_reference_json_comes_from_abies_data(db, regions, parcels, species):
     }]
 
 
-@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+@override_settings(IPSO_SECRET='test-token')
 def test_terreni_geojson_has_empty_fallback(db):
     resp = Client().get(
         '/ipso/terreni.geojson', HTTP_AUTHORIZATION='Bearer test-token',
@@ -275,6 +241,7 @@ def test_terreni_geojson_has_empty_fallback(db):
 
     assert resp.status_code == 200
     assert resp['Vary'] == 'Authorization'
+    assert 'no-store' in resp['Cache-Control']
     assert resp['Content-Type'] == 'application/geo+json'
     assert resp.json() == {'type': 'FeatureCollection', 'features': []}
 
@@ -329,7 +296,6 @@ def _sample_survey(parcel, *, name='Ipso survey'):
     return survey, area
 
 
-
 def _harvest_item(parcels):
     plan = HarvestPlan.objects.create(
         name='Piano Ipso', year_start=2026, year_end=2026,
@@ -352,7 +318,7 @@ def _post_upload(client, payload, token='test-token'):
     )
 
 
-@override_settings(IPSO_UPLOAD_TOKEN='configured-token')
+@override_settings(IPSO_SECRET='configured-token')
 def test_upload_rejects_bad_token(db, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     resp = _post_upload(Client(), _upload_payload(parcels, species), token='wrong')
@@ -361,7 +327,7 @@ def test_upload_rejects_bad_token(db, parcels, species, settings, tmp_path):
     assert IpsoUpload.objects.count() == 0
 
 
-@override_settings(IPSO_UPLOAD_TOKEN='')
+@override_settings(IPSO_SECRET='')
 def test_upload_rejects_when_token_unconfigured(db, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
 
@@ -371,7 +337,7 @@ def test_upload_rejects_when_token_unconfigured(db, parcels, species, settings, 
     assert IpsoUpload.objects.count() == 0
 
 
-@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+@override_settings(IPSO_SECRET='test-token')
 def test_upload_stages_json_and_metadata(db, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     payload = _upload_payload(parcels, species)
@@ -398,7 +364,7 @@ def test_upload_stages_json_and_metadata(db, parcels, species, settings, tmp_pat
     ('samples', '22222222-2222-4222-8222-222222222222'),
     ('pai', '33333333-3333-4333-8333-333333333333'),
 ])
-@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+@override_settings(IPSO_SECRET='test-token')
 def test_upload_stages_non_martellate_modes(
         db, parcels, species, settings, tmp_path, mode, session_id):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
@@ -420,7 +386,7 @@ def test_upload_stages_non_martellate_modes(
         assert staged['records'][0]['sample_area_id'] == area.id
 
 
-@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+@override_settings(IPSO_SECRET='test-token')
 def test_upload_rejects_empty_records(db, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     payload = _upload_payload(parcels, species)
@@ -434,7 +400,7 @@ def test_upload_rejects_empty_records(db, parcels, species, settings, tmp_path):
     assert IpsoUpload.objects.count() == 0
 
 
-@override_settings(IPSO_UPLOAD_TOKEN='test-token', IPSO_UPLOAD_MAX_BYTES=10)
+@override_settings(IPSO_SECRET='test-token', IPSO_UPLOAD_MAX_BYTES=10)
 def test_upload_rejects_body_over_cap(db, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
 
@@ -445,7 +411,7 @@ def test_upload_rejects_body_over_cap(db, parcels, species, settings, tmp_path):
     assert IpsoUpload.objects.count() == 0
 
 
-@override_settings(IPSO_UPLOAD_TOKEN='test-token', IPSO_UPLOAD_MAX_RECORDS=1)
+@override_settings(IPSO_SECRET='test-token', IPSO_UPLOAD_MAX_RECORDS=1)
 def test_upload_rejects_record_count_over_cap(db, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     payload = _upload_payload(parcels, species)
@@ -463,7 +429,7 @@ def test_upload_rejects_record_count_over_cap(db, parcels, species, settings, tm
 
 
 @override_settings(
-    IPSO_UPLOAD_TOKEN='test-token',
+    IPSO_SECRET='test-token',
     IPSO_UPLOAD_RATE_LIMIT=1,
     IPSO_UPLOAD_RATE_WINDOW_S=60,
 )
@@ -485,7 +451,7 @@ def test_upload_endpoint_is_rate_limited(db, parcels, species, settings, tmp_pat
     assert second.json()['error'] == 'rate_limited'
 
 
-@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+@override_settings(IPSO_SECRET='test-token')
 def test_upload_rejects_pai_without_height(db, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     payload = _upload_payload(
@@ -501,7 +467,7 @@ def test_upload_rejects_pai_without_height(db, parcels, species, settings, tmp_p
     assert IpsoUpload.objects.count() == 0
 
 
-@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+@override_settings(IPSO_SECRET='test-token')
 def test_upload_rejects_unknown_mode(db, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     payload = _upload_payload(parcels, species, mode='invalid')
@@ -513,7 +479,7 @@ def test_upload_rejects_unknown_mode(db, parcels, species, settings, tmp_path):
     assert IpsoUpload.objects.count() == 0
 
 
-@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+@override_settings(IPSO_SECRET='test-token')
 def test_upload_duplicate_is_idempotent(db, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     payload = _upload_payload(parcels, species)
@@ -526,7 +492,7 @@ def test_upload_duplicate_is_idempotent(db, parcels, species, settings, tmp_path
     assert IpsoUpload.objects.count() == 1
 
 
-@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+@override_settings(IPSO_SECRET='test-token')
 def test_upload_conflicts_on_same_session_different_payload(db, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     payload = _upload_payload(parcels, species)
@@ -542,7 +508,7 @@ def test_upload_conflicts_on_same_session_different_payload(db, parcels, species
     assert upload.state == IpsoUploadState.CONFLICT
 
 
-@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+@override_settings(IPSO_SECRET='test-token')
 def test_upload_integrity_error_does_not_write_files(
         db, parcels, species, settings, tmp_path, monkeypatch):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
@@ -564,7 +530,7 @@ def test_upload_integrity_error_does_not_write_files(
     assert not settings.IPSO_INBOX_DIR.exists()
 
 
-@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+@override_settings(IPSO_SECRET='test-token')
 def test_upload_rejects_unknown_species(db, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     payload = _upload_payload(parcels, species)
@@ -577,7 +543,7 @@ def test_upload_rejects_unknown_species(db, parcels, species, settings, tmp_path
     assert IpsoUpload.objects.count() == 0
 
 
-@override_settings(IPSO_UPLOAD_TOKEN='visible-token')
+@override_settings(IPSO_SECRET='visible-token')
 def test_upload_config_does_not_serve_configured_token(db):
     resp = Client().get('/ipso/upload-config.js')
 
@@ -585,7 +551,7 @@ def test_upload_config_does_not_serve_configured_token(db):
     assert b'visible-token' not in resp.content
 
 
-@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+@override_settings(IPSO_SECRET='test-token')
 def test_shell_shows_importazione_dot_for_received_upload(
         writer_client, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
@@ -599,7 +565,7 @@ def test_shell_shows_importazione_dot_for_received_upload(
     assert 'data-ipso-pending-dot hidden' not in body
 
 
-@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+@override_settings(IPSO_SECRET='test-token')
 def test_inbox_data_lists_received_upload(writer_client, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     payload = _upload_payload(parcels, species)
@@ -616,7 +582,7 @@ def test_inbox_data_lists_received_upload(writer_client, parcels, species, setti
     assert data['rows'][0][5] == 'Da importare'
 
 
-@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+@override_settings(IPSO_SECRET='test-token')
 def test_upload_detail_previews_staged_records(writer_client, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     payload = _upload_payload(parcels, species)
@@ -634,7 +600,7 @@ def test_upload_detail_previews_staged_records(writer_client, parcels, species, 
     assert data['records'][0]['lon'] == 16.12345
 
 
-@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+@override_settings(IPSO_SECRET='test-token')
 def test_writer_can_reject_upload(writer_client, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     payload = _upload_payload(parcels, species)
@@ -654,7 +620,7 @@ def test_writer_can_reject_upload(writer_client, parcels, species, settings, tmp
     assert writer_client.get(reverse('ipso-inbox-data')).json()['pending_count'] == 0
 
 
-@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+@override_settings(IPSO_SECRET='test-token')
 def test_reader_cannot_reject_upload(reader_client, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     payload = _upload_payload(parcels, species)
@@ -672,7 +638,7 @@ def test_reader_cannot_reject_upload(reader_client, parcels, species, settings, 
     assert upload.state == IpsoUploadState.RECEIVED
 
 
-@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+@override_settings(IPSO_SECRET='test-token')
 def test_upload_detail_lists_martellate_targets(writer_client, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     item = _harvest_item(parcels)
@@ -691,7 +657,7 @@ def test_upload_detail_lists_martellate_targets(writer_client, parcels, species,
     assert 'Capistrano 1' in data['targets'][0]['label']
 
 
-@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+@override_settings(IPSO_SECRET='test-token')
 def test_upload_detail_lists_sample_targets(writer_client, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     survey, area = _sample_survey(parcels[0])
@@ -721,7 +687,7 @@ def test_upload_detail_lists_sample_targets(writer_client, parcels, species, set
     assert 'sampling_survey:' not in json.dumps(inbox)
 
 
-@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+@override_settings(IPSO_SECRET='test-token')
 def test_writer_imports_upload_into_harvest_plan_item(
         writer_client, writer_user, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
@@ -759,7 +725,7 @@ def test_writer_imports_upload_into_harvest_plan_item(
     assert item.date_actual == date(2026, 6, 17)
 
 
-@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+@override_settings(IPSO_SECRET='test-token')
 def test_writer_imports_samples_upload_into_survey(
         writer_client, writer_user, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
@@ -798,7 +764,7 @@ def test_writer_imports_samples_upload_into_survey(
     assert ts.volume_m3 is not None
 
 
-@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+@override_settings(IPSO_SECRET='test-token')
 def test_samples_import_supports_coppice_parcels(
         writer_client, regions, eclasses, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
@@ -828,7 +794,7 @@ def test_samples_import_supports_coppice_parcels(
     assert ts.mass_q is None
 
 
-@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+@override_settings(IPSO_SECRET='test-token')
 def test_samples_import_rejects_duplicate_tree_numbers_in_sample(
         writer_client, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
@@ -857,7 +823,7 @@ def test_samples_import_rejects_duplicate_tree_numbers_in_sample(
     assert upload.state == IpsoUploadState.RECEIVED
 
 
-@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+@override_settings(IPSO_SECRET='test-token')
 def test_samples_import_rejects_existing_tree_number_in_sample(
         writer_client, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
@@ -891,7 +857,7 @@ def test_samples_import_rejects_existing_tree_number_in_sample(
     assert writer_client.get(reverse('ipso-inbox-data')).json()['rows'][0][-1] == upload.error_summary
 
 
-@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+@override_settings(IPSO_SECRET='test-token')
 def test_pai_import_rejects_duplicate_tree_number_in_parcel(
         writer_client, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
@@ -921,7 +887,7 @@ def test_pai_import_rejects_duplicate_tree_number_in_parcel(
     assert upload.state == IpsoUploadState.RECEIVED
 
 
-@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+@override_settings(IPSO_SECRET='test-token')
 def test_writer_imports_pai_upload(writer_client, writer_user, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     payload = _upload_payload(
@@ -961,7 +927,7 @@ def test_writer_imports_pai_upload(writer_client, writer_user, parcels, species,
     assert pai.volume_m3 is not None
 
 
-@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+@override_settings(IPSO_SECRET='test-token')
 def test_pai_import_supports_coppice_parcels(
         writer_client, regions, eclasses, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
@@ -987,7 +953,7 @@ def test_pai_import_supports_coppice_parcels(
     assert pai.tree.coppice is True
 
 
-@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+@override_settings(IPSO_SECRET='test-token')
 def test_import_rejects_second_submit_without_duplicate_marks(
         writer_client, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
@@ -1010,7 +976,7 @@ def test_import_rejects_second_submit_without_duplicate_marks(
     assert upload.state == IpsoUploadState.IMPORTED
 
 
-@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+@override_settings(IPSO_SECRET='test-token')
 def test_samples_import_rejects_second_submit_without_duplicate_samples(
         writer_client, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
@@ -1033,7 +999,7 @@ def test_samples_import_rejects_second_submit_without_duplicate_samples(
     assert TreeSample.objects.count() == 1
 
 
-@override_settings(IPSO_UPLOAD_TOKEN='test-token')
+@override_settings(IPSO_SECRET='test-token')
 def test_import_rejects_reader(reader_client, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     item = _harvest_item(parcels)

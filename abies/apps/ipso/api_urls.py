@@ -5,7 +5,6 @@ from django.urls import path
 from apps.ipso import views
 
 urlpatterns = [
-    path('bootstrap/', views.bootstrap, name='ipso-bootstrap'),
     path('inbox/', views.inbox_data, name='ipso-inbox-data'),
     path('uploads/', views.upload_session, name='ipso-upload-session'),
     path('uploads/<int:upload_id>/', views.upload_detail, name='ipso-upload-detail'),
