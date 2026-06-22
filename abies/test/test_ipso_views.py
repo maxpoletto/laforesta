@@ -18,6 +18,7 @@ from apps.base.models import (
 )
 from apps.ipso import views as ipso_views
 from apps.ipso.models import IpsoUpload, IpsoUploadState
+from config import strings as S
 
 
 def _body(resp) -> bytes:
@@ -340,7 +341,10 @@ def test_upload_rejects_when_token_unconfigured(db, parcels, species, settings, 
 @override_settings(IPSO_SECRET='test-token')
 def test_upload_stages_json_and_metadata(db, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
-    payload = _upload_payload(parcels, species)
+    payload = _upload_payload(
+        parcels, species,
+        record_overrides={'lat': 38.512345, 'lon': 16.123455},
+    )
 
     resp = _post_upload(Client(), payload)
 
@@ -355,7 +359,8 @@ def test_upload_stages_json_and_metadata(db, parcels, species, settings, tmp_pat
     assert Path(upload.inbox_path).is_dir()
     staged = json.loads((Path(upload.inbox_path) / 'upload.json').read_text())
     assert staged['records'][0]['hypso_param_set_id'] is None
-    assert staged['records'][0]['lon'] == 16.12345
+    assert staged['records'][0]['lat'] == 38.51235
+    assert staged['records'][0]['lon'] == 16.12346
     assert (Path(upload.inbox_path) / 'upload.sha256').is_file()
     assert (Path(upload.inbox_path) / 'export.csv').read_text() == 'csv backup'
 
@@ -688,11 +693,131 @@ def test_upload_detail_lists_sample_targets(writer_client, parcels, species, set
 
 
 @override_settings(IPSO_SECRET='test-token')
+def test_import_rejects_upload_mode_mismatch(
+        writer_client, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    _, area = _sample_survey(parcels[0])
+    item = _harvest_item(parcels)
+    payload = _upload_payload(
+        parcels, species, mode='samples',
+        session_id='22222222-2222-4222-8222-222222222227',
+        record_overrides={'sample_area_id': area.id},
+    )
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
+
+    resp = writer_client.post(
+        reverse('ipso-upload-import-martellate', args=[upload.id]),
+        data=json.dumps({'harvest_plan_item_id': item.id}),
+        content_type='application/json',
+    )
+
+    assert resp.status_code == 400
+    assert S.IPSO_ERR_MODE_UNSUPPORTED in resp.json()['message']
+    assert TreeMark.objects.count() == 0
+    assert TreeSample.objects.count() == 0
+    upload.refresh_from_db()
+    assert upload.state == IpsoUploadState.RECEIVED
+    assert upload.target_type == ''
+
+
+@override_settings(IPSO_SECRET='test-token')
+def test_martellate_import_rejects_coppice_target(
+        writer_client, regions, eclasses, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    coppice_parcel = Parcel.objects.create(
+        name='C-target', region=regions[0],
+        eclass=next(e for e in eclasses if e.coppice),
+        area_ha=Decimal('1.0'),
+    )
+    item = _harvest_item([coppice_parcel])
+    payload = _upload_payload(parcels, species)
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
+
+    resp = writer_client.post(
+        reverse('ipso-upload-import-martellate', args=[upload.id]),
+        data=json.dumps({'harvest_plan_item_id': item.id}),
+        content_type='application/json',
+    )
+
+    assert resp.status_code == 400
+    assert S.IPSO_ERR_INVALID_MARTELLATE_TARGET in resp.json()['message']
+    assert TreeMark.objects.count() == 0
+    upload.refresh_from_db()
+    assert upload.state == IpsoUploadState.RECEIVED
+
+
+@pytest.mark.parametrize(('file_state', 'expected_error'), [
+    ('missing', S.IPSO_ERR_UPLOAD_JSON_MISSING),
+    ('invalid', S.IPSO_ERR_UPLOAD_JSON_INVALID),
+])
+@override_settings(IPSO_SECRET='test-token')
+def test_import_reports_staged_payload_file_errors(
+        writer_client, parcels, species, settings, tmp_path, file_state,
+        expected_error):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    item = _harvest_item(parcels)
+    payload = _upload_payload(parcels, species)
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
+    upload_json = Path(upload.inbox_path) / 'upload.json'
+    if file_state == 'missing':
+        upload_json.unlink()
+    else:
+        upload_json.write_text('{not-json', encoding='utf-8')
+
+    resp = writer_client.post(
+        reverse('ipso-upload-import-martellate', args=[upload.id]),
+        data=json.dumps({'harvest_plan_item_id': item.id}),
+        content_type='application/json',
+    )
+
+    assert resp.status_code == 400
+    assert expected_error in resp.json()['message']
+    assert TreeMark.objects.count() == 0
+    upload.refresh_from_db()
+    assert upload.state == IpsoUploadState.RECEIVED
+    assert upload.error_summary == expected_error
+
+
+@pytest.mark.parametrize('state', [
+    IpsoUploadState.REJECTED,
+    IpsoUploadState.CONFLICT,
+])
+@override_settings(IPSO_SECRET='test-token')
+def test_import_rejects_non_received_upload_states(
+        writer_client, parcels, species, settings, tmp_path, state):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    item = _harvest_item(parcels)
+    payload = _upload_payload(parcels, species)
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
+    upload.state = state
+    upload.save(update_fields=['state'])
+
+    resp = writer_client.post(
+        reverse('ipso-upload-import-martellate', args=[upload.id]),
+        data=json.dumps({'harvest_plan_item_id': item.id}),
+        content_type='application/json',
+    )
+
+    assert resp.status_code == 400
+    assert S.IPSO_ERR_UPLOAD_NOT_RECEIVED in resp.json()['message']
+    assert TreeMark.objects.count() == 0
+    upload.refresh_from_db()
+    assert upload.state == state
+
+
+@override_settings(IPSO_SECRET='test-token')
 def test_writer_imports_upload_into_harvest_plan_item(
         writer_client, writer_user, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     item = _harvest_item(parcels)
-    payload = _upload_payload(parcels, species)
+    payload = _upload_payload(
+        parcels, species,
+        record_overrides={'h_m': '22.346', 'lat': 38.512345, 'lon': 16.123455},
+    )
     assert _post_upload(Client(), payload).status_code == 200
     upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
 
@@ -716,13 +841,44 @@ def test_writer_imports_upload_into_harvest_plan_item(
     assert tm.number == 1
     assert tm.date == date(2026, 6, 17)
     assert tm.d_cm == 42
-    assert tm.h_m == Decimal('22.00')
-    assert tm.lat == 38.51234
-    assert tm.lon == 16.12345
+    assert tm.h_m == Decimal('22.35')
+    assert tm.lat == 38.51235
+    assert tm.lon == 16.12346
     assert tm.operator == 'Mario Rossi'
     item.refresh_from_db()
     assert item.state == HarvestPlanItemState.MARKED
     assert item.date_actual == date(2026, 6, 17)
+
+
+@override_settings(IPSO_SECRET='test-token')
+def test_samples_import_rejects_area_outside_selected_survey_grid(
+        writer_client, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    source_survey, area = _sample_survey(parcels[0], name='Source survey')
+    target_survey, _ = _sample_survey(parcels[0], name='Target survey')
+    payload = _upload_payload(
+        parcels, species, mode='samples',
+        session_id='22222222-2222-4222-8222-222222222228',
+        record_overrides={'sample_area_id': area.id},
+    )
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
+
+    resp = writer_client.post(
+        reverse('ipso-upload-import-samples', args=[upload.id]),
+        data=json.dumps({'survey_id': target_survey.id}),
+        content_type='application/json',
+    )
+
+    assert resp.status_code == 400
+    assert (S.IPSO_ERR_IMPORT_RECORD_AREA_OUT_OF_SURVEY.format(1)
+            in resp.json()['message'])
+    assert TreeSample.objects.count() == 0
+    upload.refresh_from_db()
+    assert upload.state == IpsoUploadState.RECEIVED
+    assert upload.error_summary == S.IPSO_ERR_IMPORT_RECORD_AREA_OUT_OF_SURVEY.format(1)
+    assert source_survey.sample_grid_id == area.sample_grid_id
+    assert target_survey.sample_grid_id != area.sample_grid_id
 
 
 @override_settings(IPSO_SECRET='test-token')
@@ -924,6 +1080,36 @@ def test_pai_import_integrity_error_returns_validation(
     upload.refresh_from_db()
     assert upload.state == IpsoUploadState.RECEIVED
     assert 'Numero PAI già presente' in upload.error_summary
+
+
+@override_settings(IPSO_SECRET='test-token')
+def test_pai_import_auto_numbers_after_existing_tree_number(
+        writer_client, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    tree = Tree.objects.create(species=species[0], parcel=parcels[0], preserved=True)
+    existing = TreePreserved.objects.create(
+        tree=tree, parcel=parcels[0], number=3, date=date(2026, 6, 16),
+        d_cm=30, h_m=Decimal('18.00'), lat=38.51234, lon=16.12345,
+    )
+    payload = _upload_payload(
+        parcels, species, mode='pai',
+        session_id='33333333-3333-4333-8333-333333333337',
+        record_overrides={'number': None},
+    )
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
+
+    resp = writer_client.post(
+        reverse('ipso-upload-import-pai', args=[upload.id]),
+        data=json.dumps({}),
+        content_type='application/json',
+    )
+
+    assert resp.status_code == 200
+    created = TreePreserved.objects.exclude(id=existing.id).get()
+    assert created.number == 4
+    upload.refresh_from_db()
+    assert upload.state == IpsoUploadState.IMPORTED
 
 
 @override_settings(IPSO_SECRET='test-token')
