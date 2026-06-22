@@ -18,6 +18,7 @@ process.on('exit', () => fs.rmSync(tmpRoot, { recursive: true, force: true }));
 const staticModule = rel => pathToFileURL(path.join(staticRoot, rel)).href;
 
 const B = await import(staticModule('squadre/js/squadre.js'));
+const { PDFDocument, buildPDF, decimalRight } = await import(staticModule('squadre/js/pdf.js'));
 const S = await import(staticModule('base/js/strings.js'));
 const { ROW_ID, VERSION } = await import(staticModule('base/js/constants.js'));
 
@@ -79,6 +80,27 @@ eq(r.totalProduction + r.credits, 65, 'March adjusted quintali total');
 
 eq(B.buildReportsFromDigests('not-a-month', meta, prelievi, hours, credits).length, 0,
    'invalid month returns no reports');
+
+const doc = new PDFDocument({ landscape: true });
+B.drawReport(doc, '2026-01', {
+  crew: 'Alfa',
+  hours: 7.5,
+  productTotals: [],
+  totalProduction: 0,
+  credits: 0,
+  harvests: [],
+  columns: {},
+});
+const pdf = buildPDF(doc.width, doc.height, doc.pages);
+const valueComma = 34 + 150 + 44;
+const valueRight = decimalRight(doc, valueComma);
+const hoursX = valueRight - doc.textWidth('7,50', { size: 10 });
+const hoursY = doc.height - 88;
+eq(
+  pdf.includes(`${hoursX.toFixed(2)} ${hoursY.toFixed(2)} Td (7,50)`),
+  true,
+  'Ore lavorate value is right-aligned to the report numeric column',
+);
 
 console.log(`${passed} passed, ${failed} failed`);
 if (failed) process.exit(1);

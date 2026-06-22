@@ -562,7 +562,7 @@ function generateReportsPDF(month, reports) {
 }
 
 const margin = 34;
-function drawReport(doc, month, report) {
+export function drawReport(doc, month, report) {
   const col1 = margin, col2 = margin + 150;
   const valueComma = col2 + 44;
   let y = 32;
@@ -571,7 +571,7 @@ function drawReport(doc, month, report) {
   doc.text(col1, y, monthLabel(month), { size: 11 });
   y += 34;
   doc.text(col1, y, S.SQUADRE_REPORT_HOURS, { size: 10, bold: true });
-  drawDecimal(doc, valueComma, y, fmtDecimal2(report.hours), { size: 10 });
+  doc.textRight(decimalRight(doc, valueComma), y, fmtDecimal2(report.hours), { size: 10 });
   y += 28;
   doc.text(col1, y, S.SQUADRE_REPORT_PRODUCTION, { size: 10, bold: true });
   doc.textRight(decimalRight(doc, valueComma), y, S.COL_CREDITS_Q, { size: 10, bold: true });
@@ -600,7 +600,7 @@ function drawReport(doc, month, report) {
 function drawHarvestDetail(doc, report, x, y, month) {
   doc.text(x, y, S.SQUADRE_REPORT_DETAIL, { size: 10, bold: true });
   y += 18;
-  const species = meta.species || [];
+  const species = meta?.species || [];
   const headers = [
     S.COL_DATE, S.COL_REGION, S.COL_PARCEL, S.COL_VDP, S.COL_TYPE, S.COL_QUINTALS, S.COL_NOTE,
     ...species.map(s => `${s} ${S.LABEL_PERCENT}`),
