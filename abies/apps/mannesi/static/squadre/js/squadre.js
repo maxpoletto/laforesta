@@ -478,6 +478,18 @@ function monthValue({ year, month }) {
   return `${year}-${String(month).padStart(2, '0')}`;
 }
 
+function previousMonthValue(month) {
+  const parsed = typeof month === 'string' ? parseMonthValue(month) : month;
+  if (!parsed) return null;
+  return parsed.month === 1
+    ? monthValue({ year: parsed.year - 1, month: 12 })
+    : monthValue({ year: parsed.year, month: parsed.month - 1 });
+}
+
+function sameMonth(value, month) {
+  return Boolean(month) && String(value || '').startsWith(month);
+}
+
 function monthName(month, style) {
   const d = new Date(Date.UTC(2020, month - 1, 1));
   const raw = new Intl.DateTimeFormat(S.LOCALE, { month: style, timeZone: 'UTC' }).format(d);
@@ -489,41 +501,53 @@ function monthName(month, style) {
 // ---------------------------------------------------------------------------
 
 function buildReports(month) {
-  const prelievi = cache.get(PRELIEVI_DATA_ID);
-  const hours = cache.get(HOURS.dataId);
-  const credits = cache.get(CREDITS.dataId);
-  if (!prelievi || !hours || !credits || !month) return [];
+  return buildReportsFromDigests(
+    month, meta, cache.get(PRELIEVI_DATA_ID),
+    cache.get(HOURS.dataId), cache.get(CREDITS.dataId),
+  );
+}
+
+export function buildReportsFromDigests(month, metaData, prelievi, hours, credits) {
+  if (!prelievi || !hours || !credits || !parseMonthValue(month)) return [];
 
   const pc = columnMap(prelievi.columns);
   const hc = columnMap(hours.columns);
   const cc = columnMap(credits.columns);
-  const harvests = prelievi.rows.filter(row => String(row[pc[S.COL_DATE]] || '').startsWith(month));
+  const previousMonth = previousMonthValue(month);
+  const harvests = prelievi.rows.filter(row => sameMonth(row[pc[S.COL_DATE]], month));
   const teams = [...new Set(harvests.map(row => row[pc[S.COL_CREW]]).filter(Boolean))]
     .sort((a, b) => String(a).localeCompare(String(b), S.LOCALE));
 
   return teams.map(crew => {
     const crewHarvests = harvests.filter(row => row[pc[S.COL_CREW]] === crew);
-    const productTotals = productNames(crewHarvests, pc).map(product => ({
+    const productTotals = productNames(crewHarvests, pc, metaData).map(product => ({
       product,
       mass: sum(crewHarvests.filter(row => row[pc[S.COL_TYPE]] === product), pc[S.COL_QUINTALS]),
     }));
     const totalProduction = sum(crewHarvests, pc[S.COL_QUINTALS]);
-    const hoursRows = hours.rows.filter(row => row[hc[S.COL_CREW]] === crew && String(row[hc[S.COL_DATE]] || '').startsWith(month));
-    const creditRows = credits.rows.filter(row => row[cc[S.COL_CREW]] === crew && String(row[cc[S.COL_DATE]] || '').startsWith(month));
+    const hoursRows = hours.rows.filter(row =>
+      row[hc[S.COL_CREW]] === crew && sameMonth(row[hc[S.COL_DATE]], month));
+    const currentCreditRows = credits.rows.filter(row =>
+      row[cc[S.COL_CREW]] === crew && sameMonth(row[cc[S.COL_DATE]], month));
+    const previousCreditRows = credits.rows.filter(row =>
+      row[cc[S.COL_CREW]] === crew && sameMonth(row[cc[S.COL_DATE]], previousMonth));
     return {
       crew,
       hours: sum(hoursRows, hc[S.COL_HOURS]),
       productTotals,
       totalProduction,
-      credits: sum(creditRows, cc[S.COL_CREDITS_Q]),
+      credits: (
+        sum(currentCreditRows, cc[S.COL_CREDITS_Q]) -
+        sum(previousCreditRows, cc[S.COL_CREDITS_Q])
+      ),
       harvests: crewHarvests,
       columns: pc,
     };
   });
 }
 
-function productNames(rows, pc) {
-  const configured = meta.products || [];
+function productNames(rows, pc, metaData = meta) {
+  const configured = metaData?.products || [];
   const seen = new Set(rows.map(row => row[pc[S.COL_TYPE]]).filter(Boolean));
   return [...configured, ...[...seen].filter(name => !configured.includes(name))];
 }
@@ -565,7 +589,10 @@ function drawReport(doc, month, report) {
   drawDecimal(doc, valueComma, y, fmtDecimal1(report.credits), { size: 10 });
   y += 18;
   doc.text(col1, y, S.SQUADRE_REPORT_TOTAL, { size: 10, bold: true });
-  drawDecimal(doc, valueComma, y, fmtDecimal1(report.totalProduction - report.credits), { size: 10, bold: true });
+  drawDecimal(
+    doc, valueComma, y, fmtDecimal1(report.totalProduction + report.credits),
+    { size: 10, bold: true },
+  );
   y += 34;
   y = drawHarvestDetail(doc, report, margin, y, month);
 }

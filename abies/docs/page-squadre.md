@@ -48,9 +48,10 @@ Hours must be greater than zero, and team/date are required.
 
 Same table and modal behavior as Ore, with `Quintali` in place of `Ore`.
 
-The report balance treatment is not a plain same-month subtraction: an acconto
-created in month N is added to the quintali balance in month N and subtracted in
-month N+1.
+The report balance treatment is not a plain same-month subtraction: for a
+report month M, the acconto balance is `acconti in M - acconti in M-1`.
+Equivalently, an acconto created in month N is added to the quintali balance in
+month N and subtracted in month N+1.
 
 ## 4. Rendiconti
 
