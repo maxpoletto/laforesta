@@ -546,24 +546,28 @@ def import_pai_upload(request: HttpRequest, upload_id: int) -> JsonResponse:
     except UploadValidationError as e:
         return validation_error([str(e)])
 
-    with transaction.atomic():
-        upload = _get_upload(upload_id, for_update=True)
-        if upload.mode != IPSO_MODE_PAI:
-            return validation_error([S.IPSO_ERR_MODE_UNSUPPORTED])
-        if upload.state != IpsoUploadState.RECEIVED:
-            return validation_error([S.IPSO_ERR_UPLOAD_NOT_RECEIVED])
+    try:
+        with transaction.atomic():
+            upload = _get_upload(upload_id, for_update=True)
+            if upload.mode != IPSO_MODE_PAI:
+                return validation_error([S.IPSO_ERR_MODE_UNSUPPORTED])
+            if upload.state != IpsoUploadState.RECEIVED:
+                return validation_error([S.IPSO_ERR_UPLOAD_NOT_RECEIVED])
 
-        payload, file_error = _read_staged_payload(upload)
-        if file_error:
-            return _upload_validation_error(upload, [file_error])
-        rows, errors = pai_import_rows(payload)
-        if errors:
-            return _upload_validation_error(upload, errors)
+            payload, file_error = _read_staged_payload(upload)
+            if file_error:
+                return _upload_validation_error(upload, [file_error])
+            rows, errors = pai_import_rows(payload)
+            if errors:
+                return _upload_validation_error(upload, errors)
 
-        if not _claim_upload_import(upload, request.user, IPSO_TARGET_PAI, None):
-            return validation_error([S.IPSO_ERR_UPLOAD_NOT_RECEIVED])
-        imported = apply_pai_rows(rows)
-        data = _upload_metadata(upload)
+            if not _claim_upload_import(upload, request.user, IPSO_TARGET_PAI, None):
+                return validation_error([S.IPSO_ERR_UPLOAD_NOT_RECEIVED])
+            imported = apply_pai_rows(rows)
+            data = _upload_metadata(upload)
+    except IntegrityError:
+        upload = _get_upload(upload_id)
+        return _upload_validation_error(upload, [S.IPSO_ERR_IMPORT_PAI_NUMBER_CONFLICT])
     return success_response(request, body, extra={
         IMPORTED: imported,
         UPLOAD: data,

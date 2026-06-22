@@ -897,6 +897,36 @@ def test_pai_import_rejects_duplicate_tree_number_in_parcel(
 
 
 @override_settings(IPSO_SECRET='test-token')
+def test_pai_import_integrity_error_returns_validation(
+        writer_client, parcels, species, settings, tmp_path, monkeypatch):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    payload = _upload_payload(
+        parcels, species, mode='pai',
+        session_id='33333333-3333-4333-8333-333333333336',
+    )
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
+
+    def raise_integrity_error(rows):
+        raise IntegrityError
+
+    monkeypatch.setattr(ipso_views, 'apply_pai_rows', raise_integrity_error)
+
+    resp = writer_client.post(
+        reverse('ipso-upload-import-pai', args=[upload.id]),
+        data=json.dumps({}),
+        content_type='application/json',
+    )
+
+    assert resp.status_code == 400
+    assert 'Numero PAI già presente' in resp.json()['message']
+    assert TreePreserved.objects.count() == 0
+    upload.refresh_from_db()
+    assert upload.state == IpsoUploadState.RECEIVED
+    assert 'Numero PAI già presente' in upload.error_summary
+
+
+@override_settings(IPSO_SECRET='test-token')
 def test_writer_imports_pai_upload(writer_client, writer_user, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     payload = _upload_payload(

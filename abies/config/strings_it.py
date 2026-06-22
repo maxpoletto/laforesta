@@ -72,6 +72,7 @@ IPSO_ERR_IMPORT_RECORD_AREA_PARCEL_MISMATCH = 'Riga {}: area di saggio e partice
 IPSO_ERR_IMPORT_RECORD_SAMPLE_FIELDS_INVALID = 'Riga {}: dati campionamento non validi.'
 IPSO_ERR_IMPORT_RECORD_COORDS_REQUIRED = 'Riga {}: Lat e Lon obbligatorie.'
 IPSO_ERR_IMPORT_RECORD_PAI_NUMBER_DUPLICATE = 'Riga {}: numero PAI già presente nella particella.'
+IPSO_ERR_IMPORT_PAI_NUMBER_CONFLICT = 'Numero PAI già presente nella particella.'
 IPSO_ERR_JSON_MALFORMED = 'JSON non valido.'
 IPSO_ERR_PAYLOAD_OBJECT = 'Il payload deve essere un oggetto.'
 IPSO_ERR_CSV_TEXT_STRING = 'csv_text deve essere una stringa quando presente.'
