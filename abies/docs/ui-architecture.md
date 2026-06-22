@@ -28,7 +28,7 @@ On wider displays it contains:
 
 Tab order, left to right:
 
-  Bosco · Piano di taglio · Campionamenti · Prelievi · Controllo · Impostazioni
+  Bosco · Piani di taglio · Campionamenti · Prelievi · Squadre · Importazione · Controllo · Impostazioni
 
 The header is fixed in the viewport. Content scrolls beneath it.
 

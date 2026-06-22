@@ -381,8 +381,8 @@ for coppice parcels there is no per-tree harvest record at all.
 
 ## Squadre data
 
-The Django app and table names retain the legacy `mannesi` identifier for
-migration continuity, but the user-facing page and API are Squadre.
+The Django app and database table names use the `mannesi` identifier; the
+user-facing page and API are Squadre.
 
 - mannesi_hours: (id:int, date:string /* ISO 8601 */, crew_id:int, hours:real,
   note:string)

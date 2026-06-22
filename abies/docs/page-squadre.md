@@ -10,20 +10,19 @@ For database schema, see database.md > Squadre data.
 
 ## 1. Personale
 
-Writer-only personnel editor moved from Impostazioni. Readers do not see this
-section.
-
-The table has the standard Search box, CSV export, and `+ Aggiungi` affordances,
-with columns:
+Visible to all authenticated users. The table has the standard Search box, CSV
+export, and these columns:
 
 Nome, Note, Attivo
 
-A `Solo attivi` checkbox filters out inactive teams by default. The modal form
-creates or updates `Crew` rows with name, notes, and active flag. Crews are not
-deleted; they are deactivated.
+A `Solo attivi` checkbox filters out inactive teams by default. Writers also see
+the standard `+ Aggiungi` and edit affordances. The modal form creates or updates
+`Crew` rows with name, notes, and active flag. Crews are not deleted; they are
+deactivated.
 
-API endpoints live under `/api/squadre/crews/` and return the shared `crews`
-digest shape.
+API endpoints live under `/api/squadre/crews/`. The data endpoint returns the
+shared `crews` digest shape to readers and writers; form and save endpoints are
+writer-only.
 
 ## 2. Ore
 

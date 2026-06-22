@@ -4,6 +4,7 @@
  * Collapsible sections based on user role:
  *   - Password change (all password-login users)
  *   - Tractors, Species (writers and admins)
+ *   - Future production and Dendrometric data (writers and admins)
  *   - Hypsometric parameters (writers and admins)
  *   - App Users (admins only)
  *
@@ -63,7 +64,6 @@ function entitySection(cfg) {
 }
 
 // Role-gated sections in display order.  Each: { minRole, build() → Node }.
-// Hypsometric parameters sit between Specie and Utenti, so Utenti is last.
 const SECTIONS = [
   entitySection({
     key: 'tractors',

@@ -164,9 +164,8 @@ coefficients flowed through).
 
 ## Effect on Piano di taglio
 
-- "Modifica piano > Importa equazioni da CSV" is removed, along with the
-  equazioni CSV in the plan-level export and the per-plan
-  `tree_height_regressions` data.
+- Plan edit/export do not include per-plan hypsometric equation import/export
+  or per-plan `tree_height_regressions` data.
 - The "Nuovo albero martellato" form auto-populates `h = a·ln(D) + b` from the
   single active parameter set (keyed by region + species) instead of a per-plan
   table. The field stays editable; an override sets `h_measured = true`; a

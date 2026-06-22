@@ -25,7 +25,7 @@ from config.constants import PRESSLER_DEFAULT, is_truthy
 # Canonical species list lives at apps/base/data/species.csv.  Both abies (the
 # bootstrap default seed) and ipso (tools/build_reference.py) read it so the two
 # apps stay in sync.  Density values are fresh-cut wood — the truck-scale weight
-# basis for the harvest record.  Admins refine via Settings → Trees.
+# basis for the harvest record.  Admins refine via Impostazioni → Specie.
 SPECIES_CSV = Path(__file__).resolve().parent / 'data' / 'species.csv'
 
 

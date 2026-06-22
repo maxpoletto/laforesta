@@ -1,5 +1,5 @@
-/* Impostazioni page — collapsible sections for password, tractors,
-   species, users. */
+/* Impostazioni page — collapsible sections for password, reference tables,
+   production/dendrometry settings, hypsometry, and users. */
 
 #content { max-width: 950px; }
 #content input[type="password"] { width: 300px; }

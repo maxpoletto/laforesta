@@ -120,18 +120,18 @@ Bottom-of-form button layout.
 |---|---|---|
 | Harvest save (create or update) | `prelievi`, `audit`; + `harvest_plan_items` if linked to a plan item | `prelievi` and linked `harvest_plan_items` via `patches` |
 | Harvest delete | same as save | `prelievi` via `deletes`; `harvest_plan_items` via `patches` |
-| Species save (Settings → Trees) | `prelievi`, `species`, `audit` | — |
-| Tractor save (Settings) | `prelievi`, `audit` | — |
-| Crew save (Settings) | `prelievi`, `audit` | — |
+| Species save (Impostazioni → Specie) | `prelievi`, `species`, `audit` | — |
+| Tractor save (Impostazioni → Trattori) | `prelievi`, `audit` | — |
+| Crew save (Squadre → Personale) | `prelievi`, `audit` | — |
 
-The last three are **cross-domain**: the writes live in the `impostazioni`
-domain but the prelievi digest reads from `Species` (its `minor` flag,
-`sort_order`, and `common_name` define the species column set), `Tractor`
+The last three are **cross-domain**: the writes live outside Prelievi,
+while the prelievi digest reads from `Species` (its `minor` flag, `sort_order`,
+and `common_name` define the species column set), `Tractor`
 (`manufacturer`/`model` are the tractor column labels), and `Crew` / `Product`
-(name value columns). A settings edit that changes any of these must mark
-`prelievi` stale, or the column set / labels go silently stale until the next
-harvest write happens to mark it (see `data-architecture.md` §"JSON digest
-regeneration"). Products are not editable in Settings, so they need no mark.
+(name value columns). Edits that change any of these must mark `prelievi` stale,
+or the column set / labels go silently stale until the next harvest write happens
+to mark it (see `data-architecture.md` §"JSON digest regeneration"). Products
+are not editable in these pages, so they need no mark.
 
 Harvest-op deletion cascades to its `harvest_species` and `harvest_tractor`
 junction rows.
@@ -153,16 +153,16 @@ Species with `Species.minor = True` are uncommon and are grouped under a single
 "Altro" entry to keep the input form compact and the table narrow. The minor
 flag is prelievi-specific: minor species remain fully available as individual
 entries in Campionamenti (sampled trees), Piani di taglio (tree marks), and
-Settings.
+Impostazioni.
 
 The set is controlled by the `minor` field on each `Species` record (seeded from
-`apps/base/data/species.csv`, editable via Settings → Trees).
+`apps/base/data/species.csv`, editable via Impostazioni → Specie).
 
 The "Altro" species itself (`common_name == S.SPECIES_OTHER`) is the bucket the
 minor species fold into, so it must always stay major. The species save view
-rejects flagging it minor (`ERR_OTHER_NOT_MINOR`) and the Settings form disables
-its Minore checkbox; `prelievi_species_cols()` relies on exactly one major
-species named "Altro".
+rejects flagging it minor (`ERR_OTHER_NOT_MINOR`) and the Impostazioni form
+disables its Minore checkbox; `prelievi_species_cols()` relies on exactly one
+major species named "Altro".
 
 **Input form:** only (non-minor, active) species appear. When editing a legacy
 harvest that used a minor species directly, its percentage is folded into the

@@ -63,7 +63,7 @@ hosts (top to bottom):
     - Governo
     - Alt. media (m)
   - Produzione
-    - Prelievo storico (formerly "Produzione storica")
+    - Prelievo storico
     - Prelievo previsto
   - Dati satellitari
     - NDVI
@@ -101,7 +101,7 @@ hosts (top to bottom):
   - Top: parcels of the current region (with PAI count in parens).
   - Bottom: species (color-coded dot, name, count).
 
-  Under each list are "mostra tutte" / "nascondi tutte" buttons.
+  Under each list are `Tutte` / `Nessuna` buttons.
 
   Map shows parcel borders and per-tree dots colored by species.
 
@@ -164,7 +164,7 @@ following the standard Abies idiom:
 
 2. **Dendrometria** (closed by default)
    - Species filter: a not very tall checkbox list of species to be displayed in
-     the following graphs, with "mostra tutte" / "nascondi tutte" buttons., 
+     the following graphs, with `Tutte` / `Nessuna` buttons.
 
    - Units checkbox for the  ("Per ettaro"): if checked, data in the quantity
      charts is per hectare, otherwise for the whole parcel/region. (Default checked.)
