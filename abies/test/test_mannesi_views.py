@@ -119,8 +119,19 @@ class TestCrews:
         assert resp.json()[STATUS] == STATUS_VALIDATION_ERROR
         assert resp.json()[MESSAGE] == S.ERR_JSON_INVALID
 
-    def test_reader_forbidden(self, reader_client, db):
+    def test_reader_can_read_data(self, reader_client, crews):
         resp = reader_client.get('/api/squadre/crews/data/')
+        assert resp.status_code == 200
+        assert len(resp.json()[ROWS]) == 2
+
+    def test_reader_cannot_open_form(self, reader_client, crews):
+        resp = reader_client.get(f'/api/squadre/crews/form/{crews[0].id}/')
+        assert resp.status_code == 403
+
+    def test_reader_cannot_save(self, reader_client, db):
+        resp = _post(reader_client, '/api/squadre/crews/save/', {
+            FIELD_NAME: 'Gamma', FIELD_NOTES: '', FIELD_ACTIVE: 'true',
+        })
         assert resp.status_code == 403
 
 

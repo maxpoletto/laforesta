@@ -629,6 +629,7 @@ COL_WORKSITE = 'Cantiere'
 
 APP_BASE = 'Base'
 APP_PRELIEVI = 'Prelievi'
+APP_SQUADRE = 'Squadre'
 APP_BOSCO = 'Bosco'
 APP_CAMPIONAMENTI = 'Campionamenti'
 APP_PIANO_DI_TAGLIO = 'Piano di taglio'

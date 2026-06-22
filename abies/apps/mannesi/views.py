@@ -38,7 +38,6 @@ def _crew_row(c):
 
 
 @login_required
-@require_writer
 def crews_data(request):
     return JsonResponse({COLUMNS: CREW_COLS, ROWS: [
         _crew_row(obj) for obj in Crew.objects.order_by('name')

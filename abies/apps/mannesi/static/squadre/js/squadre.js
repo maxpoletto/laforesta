@@ -113,10 +113,9 @@ function mountPage(el, params, data) {
   el.appendChild(cloneTemplate('tmpl-squadre-page'));
 
   const p = readParams(params);
-  const open = canModify() ? p.open : p.open.replace('p', '');
-  if (!canModify()) removePersonnelSection(el);
+  const open = p.open;
   wireSections(el, open);
-  if (canModify()) wirePersonnelSection(el, open.includes('p'));
+  wirePersonnelSection(el, open.includes('p'));
   wireReportForm(el);
   buildEntryTable(HOURS, el.querySelector('[data-target="hours-table"]'), data.hours, p.hours);
   buildEntryTable(CREDITS, el.querySelector('[data-target="credits-table"]'), data.credits, p.credits);
@@ -146,7 +145,7 @@ function readParams(params) {
 
 function applyParams(params) {
   const p = readParams(params);
-  const open = canModify() ? p.open : p.open.replace('p', '');
+  const open = p.open;
   for (const key of SECTION_KEYS) setSectionOpen(key, open.includes(key));
   if (open.includes('p')) {
     loadPersonnelSection(document.querySelector('[data-target="personnel-table"]'));
@@ -190,11 +189,6 @@ function setSectionOpen(key, open) {
   s.body?.classList.toggle('open', open);
 }
 
-function removePersonnelSection(el) {
-  el.querySelector('[data-section="p"].collapsible-header')?.remove();
-  el.querySelector('[data-section="p"].collapsible-body')?.remove();
-}
-
 function wirePersonnelSection(el, initiallyOpen) {
   const activeCheck = el.querySelector('[data-role="personnel-active-toggle"]');
   activeCheck?.addEventListener('change', () => {
@@ -221,15 +215,16 @@ async function loadPersonnelSection(container) {
 
   container.replaceChildren();
   personnelDigest = data;
+  const editable = canModify();
   personnelTable = new TableWrapper({
     container,
     digest: data,
     columnDefs: personnelColumnDefs(),
-    canModify: true,
-    actions: {
+    canModify: editable,
+    actions: editable ? {
       onAdd: () => showPersonnelForm(),
       onEdit: (rowId) => showPersonnelForm(rowId),
-    },
+    } : {},
     csvFilename: PERSONNEL.csvFilename,
     labels: S.TABLE_LABELS,
     csvFormat: S.TABLE_CSV_FORMAT,
@@ -680,7 +675,6 @@ function drawDecimal(doc, commaX, y, value, opts) {
   doc.textRight(commaX, y, text.slice(0, comma), opts);
   doc.text(commaX, y, text.slice(comma), opts);
 }
-
 
 function sum(rows, idx) {
   if (idx == null || idx < 0) return 0;
