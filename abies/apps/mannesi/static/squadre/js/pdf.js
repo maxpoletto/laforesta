@@ -1,4 +1,4 @@
-/** Minimal PDF writer for Mannesi-generated operational PDFs. */
+/** Minimal PDF writer for Squadre-generated operational PDFs. */
 
 const A4 = { width: 595.28, height: 841.89 };
 

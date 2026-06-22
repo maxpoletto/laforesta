@@ -1,4 +1,4 @@
-"""Impostazioni (settings) views: password, crews, tractors, species, users."""
+"""Impostazioni (settings) views: password, tractors, species, and users."""
 
 from allauth.account.models import EmailAddress
 from django.contrib.auth import update_session_auth_hash
@@ -26,7 +26,7 @@ from apps.base.selectors import (
     active_or_default_harvest_plan, active_or_default_survey_ids,
 )
 from apps.base.models import (
-    Crew, HarvestPlan, HYPSO_FUNC_LN, HypsoParam, HypsoParamSource,
+    HarvestPlan, HYPSO_FUNC_LN, HypsoParam, HypsoParamSource,
     LoginMethod, Role, Species, Survey, Tractor, TreeSample, User,
 )
 from config import strings as S
@@ -40,7 +40,7 @@ from config.constants import (
     FIELD_LATIN_NAME, FIELD_LOGIN_METHOD, FIELD_MANUFACTURER, FIELD_MIN_N,
     FIELD_MINOR, FIELD_MODEL, FIELD_NAME, FIELD_PRESSLER_DEFAULT,
     PRESSLER_DEFAULT,
-    FIELD_NOTES, FIELD_PASSWORD1, FIELD_PASSWORD2, FIELD_ROLE,
+    FIELD_PASSWORD1, FIELD_PASSWORD2, FIELD_ROLE,
     FIELD_SOURCE, FIELD_SPECIES, FIELD_SURVEY_IDS, FIELD_SURVEYS,
     FIELD_USE_FOR_HEIGHT_PLOTS, FIELD_USERNAME, FIELD_YEAR,
     HTML, MESSAGE, ROWS, ROW_ID, VERSION, is_truthy,
@@ -73,50 +73,6 @@ def password_view(request):
     request.user.save()
     update_session_auth_hash(request, request.user)
     return JsonResponse({MESSAGE: S.PASSWORD_CHANGED})
-
-
-# ---------------------------------------------------------------------------
-# Crews
-# ---------------------------------------------------------------------------
-
-CREW_COLS = [ROW_ID, S.LABEL_NAME, S.LABEL_NOTES, S.COL_ACTIVE]
-
-
-def _crew_row(c):
-    return [c.id, c.name, c.notes, c.active]
-
-
-@login_required
-@require_writer
-def crews_data(request):
-    return _list(Crew, CREW_COLS, _crew_row)
-
-
-@login_required
-@require_writer
-def crews_form(request, obj_id=None):
-    return _form('impostazioni/_crew_form.html', Crew, obj_id, request)
-
-
-@login_required
-@require_writer
-@require_POST
-def crews_save(request):
-    body, error = parse_json_body(request)
-    if error:
-        return error
-    parsed = {
-        FIELD_NAME: body.get(FIELD_NAME, '').strip(),
-        FIELD_NOTES: body.get(FIELD_NOTES, ''),
-        FIELD_ACTIVE: is_truthy(body.get(FIELD_ACTIVE)),
-    }
-    if not parsed[FIELD_NAME]:
-        return _error(S.ERR_NAME_REQUIRED)
-    # crew.name is a value column in the prelievi digest.
-    return save_model_response(
-        request, body, model=Crew, data_id='crews', values=parsed,
-        row_fn=_crew_row, stale=('prelievi', 'audit'),
-    )
 
 
 # ---------------------------------------------------------------------------

@@ -17,7 +17,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('ipso/', include('apps.ipso.urls')),
     path('api/bosco/', include('apps.bosco.urls')),
-    path('api/mannesi/', include('apps.mannesi.urls')),
+    path('api/squadre/', include('apps.mannesi.urls')),
     path('api/prelievi/', include('apps.prelievi.urls')),
     path('api/campionamenti/', include('apps.campionamenti.urls')),
     path('api/piano-di-taglio/', include('apps.piano_di_taglio.urls')),

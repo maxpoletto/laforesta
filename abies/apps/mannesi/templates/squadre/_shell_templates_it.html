@@ -1,0 +1,55 @@
+{% comment %}
+Squadre <template> elements - cloned by JS on mount().
+S (string constants) provided by the shell's render context.
+{% endcomment %}
+
+<template id="tmpl-squadre-page">
+  {% include "base/_partials/_collapsible_header.html" with section="p" title="Personale" %}
+  <div class="collapsible-body" data-section="p">
+    <div class="table-toolbar">
+      <label class="squadre-active-toggle">
+        <input type="checkbox" data-role="personnel-active-toggle" checked>
+        Solo attivi
+      </label>
+    </div>
+    <div data-target="personnel-table"></div>
+  </div>
+
+  {% include "base/_partials/_collapsible_header.html" with section="h" title="Ore" %}
+  <div class="collapsible-body" data-section="h">
+    <div data-target="hours-table"></div>
+  </div>
+
+  {% include "base/_partials/_collapsible_header.html" with section="a" title="Acconti" %}
+  <div class="collapsible-body" data-section="a">
+    <div data-target="credits-table"></div>
+  </div>
+
+  {% include "base/_partials/_collapsible_header.html" with section="r" title="Rendiconti" %}
+  <div class="collapsible-body" data-section="r">
+    <form class="squadre-controls" data-role="reports-form">
+      <div class="form-row squadre-report-row">
+        <div class="form-group narrow squadre-month-picker" data-role="month-picker">
+          <label for="squadre-report-month-button">{{ S.LABEL_MONTH }}</label>
+          <input type="hidden" id="squadre-report-month" name="month">
+          <button type="button" class="squadre-month-trigger" id="squadre-report-month-button"
+                  aria-haspopup="dialog" aria-expanded="false">
+          </button>
+          <div class="squadre-month-popover" data-role="month-popover" hidden>
+            <div class="squadre-month-nav">
+              <button type="button" class="squadre-month-nav-btn" data-action="prev-year"
+                      aria-label="Anno precedente">&lt;</button>
+              <strong data-role="month-year"></strong>
+              <button type="button" class="squadre-month-nav-btn" data-action="next-year"
+                      aria-label="Anno successivo">&gt;</button>
+            </div>
+            <div class="squadre-month-grid" data-role="month-grid"></div>
+          </div>
+        </div>
+        <div class="form-group squadre-submit-cell">
+          <button type="submit" class="btn btn-save">Genera</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</template>

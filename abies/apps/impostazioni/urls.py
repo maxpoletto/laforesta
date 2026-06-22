@@ -8,12 +8,6 @@ urlpatterns = [
     # Password
     path('password/', views.password_view, name='impostazioni-password'),
 
-    # Crews
-    path('crews/data/', views.crews_data, name='impostazioni-crews-data'),
-    path('crews/form/', views.crews_form, name='impostazioni-crews-form-add'),
-    path('crews/form/<int:obj_id>/', views.crews_form, name='impostazioni-crews-form-edit'),
-    path('crews/save/', views.crews_save, name='impostazioni-crews-save'),
-
     # Tractors
     path('tractors/data/', views.tractors_data, name='impostazioni-tractors-data'),
     path('tractors/form/', views.tractors_form, name='impostazioni-tractors-form-add'),

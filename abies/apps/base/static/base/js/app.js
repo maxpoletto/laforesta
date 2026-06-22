@@ -8,7 +8,7 @@
 import * as router from './router.js';
 import * as cache from './cache.js';
 import * as bosco from '../../bosco/js/bosco.js';
-import * as mannesi from '../../mannesi/js/mannesi.js';
+import * as squadre from '../../squadre/js/squadre.js';
 import * as prelievi from '../../prelievi/js/prelievi.js';
 import * as campionamenti from '../../campionamenti/js/campionamenti.js';
 import * as pianoDiTaglio from '../../piano_di_taglio/js/piano-di-taglio.js';
@@ -21,7 +21,7 @@ import * as importazione from '../../ipso/js/importazione.js';
 
 // Register routes.
 router.addRoute('bosco', bosco);
-router.addRoute('mannesi', mannesi);
+router.addRoute('squadre', squadre);
 router.addRoute('prelievi', prelievi);
 router.addRoute('campionamenti', campionamenti);
 router.addRoute('piano-di-taglio', pianoDiTaglio);

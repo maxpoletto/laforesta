@@ -9,7 +9,7 @@ import pytest
 from django.test import Client
 
 from apps.base.models import (
-    Crew, DigestStatus, HarvestPlan, LoginMethod, Role, Sample, SampleArea,
+    DigestStatus, HarvestPlan, LoginMethod, Role, Sample, SampleArea,
     SampleGrid, Species, Survey, Tractor, Tree, TreeSample, User,
 )
 from apps.impostazioni.views import SPECIES_COLS
@@ -21,7 +21,7 @@ from config.constants import (
     FIELD_FIRST_NAME, FIELD_HARVEST_PLAN_ID, FIELD_IS_ACTIVE, FIELD_LAST_NAME,
     FIELD_LATIN_NAME, FIELD_LOGIN_METHOD, FIELD_MANUFACTURER, FIELD_MINOR,
     FIELD_PRESSLER_DEFAULT, FIELD_SPECIES,
-    FIELD_MODEL, FIELD_NAME, FIELD_NONCE, FIELD_NOTES, FIELD_PASSWORD1,
+    FIELD_MODEL, FIELD_NAME, FIELD_NONCE, FIELD_PASSWORD1,
     FIELD_PASSWORD2, FIELD_ROLE, FIELD_SURVEY_IDS, FIELD_USERNAME, FIELD_YEAR,
     HTML, MESSAGE, PATCHES, RECORD, ROWS, ROW_ID, STATUS, STATUS_CONFLICT,
     STATUS_VALIDATION_ERROR, VERSION,
@@ -111,88 +111,6 @@ class TestPasswordView:
         user.refresh_from_db()
         assert user.check_password('oldpass123!')
         assert not user.check_password('newsecure99!')
-
-
-# ---------------------------------------------------------------------------
-# Crews
-# ---------------------------------------------------------------------------
-
-class TestCrews:
-    def test_data(self, writer_client, crews):
-        resp = writer_client.get('/api/impostazioni/crews/data/')
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data[COLUMNS][0] == ROW_ID
-        assert len(data[ROWS]) == 2
-
-    def test_form_add(self, writer_client, db):
-        resp = writer_client.get('/api/impostazioni/crews/form/')
-        assert resp.status_code == 200
-        assert '<form' in resp.json()[HTML]
-
-    def test_form_edit(self, writer_client, crews):
-        resp = writer_client.get(f'/api/impostazioni/crews/form/{crews[0].id}/')
-        assert resp.status_code == 200
-        assert crews[0].name in resp.json()[HTML]
-
-    def test_save_create(self, writer_client, db):
-        resp = _post(writer_client, '/api/impostazioni/crews/save/', {
-            FIELD_NAME: 'Gamma', FIELD_NOTES: 'test notes', FIELD_ACTIVE: 'true',
-        })
-        assert resp.status_code == 200
-        data = resp.json()
-        # _crew_row returns [id, name, notes, active]; name is at index 1.
-        assert data[PATCHES][0][RECORD][1] == 'Gamma'
-        assert Crew.objects.filter(name='Gamma').exists()
-
-    def test_save_update(self, writer_client, crews):
-        resp = _post(writer_client, '/api/impostazioni/crews/save/', {
-            ROW_ID: str(crews[0].id), VERSION: str(crews[0].version),
-            FIELD_NAME: 'Renamed', FIELD_NOTES: '', FIELD_ACTIVE: 'true',
-        })
-        assert resp.status_code == 200
-        crews[0].refresh_from_db()
-        assert crews[0].name == 'Renamed'
-        assert crews[0].version == 2
-
-    def test_save_conflict(self, writer_client, crews):
-        resp = _post(writer_client, '/api/impostazioni/crews/save/', {
-            ROW_ID: str(crews[0].id), VERSION: '999',
-            FIELD_NAME: 'Conflict', FIELD_NOTES: '', FIELD_ACTIVE: 'true',
-        })
-        assert resp.status_code == 400
-        assert resp.json()[STATUS] == STATUS_CONFLICT
-
-    def test_save_non_numeric_version_conflicts(self, writer_client, crews):
-        resp = _post(writer_client, '/api/impostazioni/crews/save/', {
-            ROW_ID: str(crews[0].id), VERSION: 'not-a-number',
-            FIELD_NAME: 'Conflict', FIELD_NOTES: '', FIELD_ACTIVE: 'true',
-        })
-        assert resp.status_code == 400
-        assert resp.json()[STATUS] == STATUS_CONFLICT
-        crews[0].refresh_from_db()
-        assert crews[0].name != 'Conflict'
-
-    def test_save_validation_error(self, writer_client, db):
-        resp = _post(writer_client, '/api/impostazioni/crews/save/', {
-            FIELD_NAME: '', FIELD_NOTES: '', FIELD_ACTIVE: 'true',
-        })
-        assert resp.status_code == 400
-        assert resp.json()[STATUS] == STATUS_VALIDATION_ERROR
-
-    def test_save_malformed_json_returns_validation_error(self, writer_client, db):
-        resp = writer_client.post(
-            '/api/impostazioni/crews/save/',
-            data='{',
-            content_type='application/json',
-        )
-        assert resp.status_code == 400
-        assert resp.json()[STATUS] == STATUS_VALIDATION_ERROR
-        assert resp.json()[MESSAGE] == S.ERR_JSON_INVALID
-
-    def test_reader_forbidden(self, reader_client, db):
-        resp = reader_client.get('/api/impostazioni/crews/data/')
-        assert resp.status_code == 403
 
 
 # ---------------------------------------------------------------------------

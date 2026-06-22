@@ -379,17 +379,20 @@ for coppice parcels there is no per-tree harvest record at all.
   rows. Crews, tractors, and species are never deleted — they are deactivated
   via their `active` flag.
 
-## Mannesi data
+## Squadre data
+
+The Django app and table names retain the legacy `mannesi` identifier for
+migration continuity, but the user-facing page and API are Squadre.
 
 - mannesi_hours: (id:int, date:string /* ISO 8601 */, crew_id:int, hours:real,
   note:string)
 
-  See page-mannesi.md > Ore
+  See page-squadre.md > Ore
 
 - mannesi_credits: (id:int, date:string /* ISO 8601 */, crew_id:int,
   mass_q:real, note:string)
 
-  See page-mannesi.md > Acconti
+  See page-squadre.md > Acconti
 
 ## Hypsometric parameters
 

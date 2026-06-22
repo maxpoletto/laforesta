@@ -1,28 +1,35 @@
-/* Mannesi page - compact operational controls around standard tables. */
+/* Squadre page - compact operational controls around standard tables. */
 
-.mannesi-controls {
+.squadre-controls {
   max-width: 940px;
 }
 
-.mannesi-control-row,
-.mannesi-receipt-row {
+.squadre-control-row,
+.squadre-report-row {
   align-items: end;
 }
 
-.mannesi-submit-cell {
+.squadre-submit-cell {
   flex: 0 0 auto;
   align-self: end;
 }
 
-.mannesi-submit-cell .btn {
+.squadre-submit-cell .btn {
   min-width: 96px;
 }
 
-.mannesi-month-picker {
+.squadre-active-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.95rem;
+}
+
+.squadre-month-picker {
   position: relative;
 }
 
-.mannesi-month-trigger {
+.squadre-month-trigger {
   width: 180px;
   min-height: 36px;
   border: 1px solid #ccc;
@@ -36,14 +43,14 @@
   cursor: pointer;
 }
 
-.mannesi-month-trigger:focus-visible,
-.mannesi-month-nav-btn:focus-visible,
-.mannesi-month-option:focus-visible {
+.squadre-month-trigger:focus-visible,
+.squadre-month-nav-btn:focus-visible,
+.squadre-month-option:focus-visible {
   outline: 2px solid #006400;
   outline-offset: 2px;
 }
 
-.mannesi-month-popover {
+.squadre-month-popover {
   position: absolute;
   top: calc(100% + 4px);
   left: 0;
@@ -56,11 +63,11 @@
   padding: 8px;
 }
 
-.mannesi-month-popover[hidden] {
+.squadre-month-popover[hidden] {
   display: none;
 }
 
-.mannesi-month-nav {
+.squadre-month-nav {
   display: grid;
   grid-template-columns: 32px 1fr 32px;
   align-items: center;
@@ -68,12 +75,12 @@
   padding-bottom: 8px;
 }
 
-.mannesi-month-nav strong {
+.squadre-month-nav strong {
   text-align: center;
 }
 
-.mannesi-month-nav-btn,
-.mannesi-month-option {
+.squadre-month-nav-btn,
+.squadre-month-option {
   border: 1px solid #ccc;
   border-radius: 4px;
   background: #fff;
@@ -82,47 +89,47 @@
   cursor: pointer;
 }
 
-.mannesi-month-nav-btn {
+.squadre-month-nav-btn {
   width: 32px;
   height: 32px;
 }
 
-.mannesi-month-grid {
+.squadre-month-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
 }
 
-.mannesi-month-option {
+.squadre-month-option {
   min-height: 34px;
   padding: 0 6px;
   text-transform: capitalize;
 }
 
-.mannesi-month-option:hover,
-.mannesi-month-nav-btn:hover {
+.squadre-month-option:hover,
+.squadre-month-nav-btn:hover {
   background: #e8f0e8;
 }
 
-.mannesi-month-option.active {
+.squadre-month-option.active {
   border-color: #006400;
   background: #006400;
   color: #fff;
 }
 
 @media (max-width: 700px) {
-  .mannesi-control-row,
-  .mannesi-receipt-row {
+  .squadre-control-row,
+  .squadre-report-row {
     flex-direction: column;
     align-items: stretch;
   }
 
-  .mannesi-submit-cell {
+  .squadre-submit-cell {
     align-self: stretch;
   }
 
-  .mannesi-month-trigger,
-  .mannesi-month-popover {
+  .squadre-month-trigger,
+  .squadre-month-popover {
     width: 100%;
   }
 }

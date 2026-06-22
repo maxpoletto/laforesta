@@ -90,7 +90,8 @@ export const ERR_TRACTOR_PCT_SUM = 'Le percentuali dei trattori devono sommare a
 export const ERR_CREW_REQUIRED = 'Squadra obbligatoria.';
 export const ERR_HOURS_POSITIVE = 'Le ore devono essere maggiori di zero.';
 export const ERR_CREDITS_POSITIVE = 'I quintali devono essere maggiori di zero.';
-export const ERR_RECEIPTS_EMPTY = 'Nessuna produzione nel mese selezionato.';
+export const ERR_NAME_REQUIRED = 'Nome obbligatorio.';
+export const ERR_REPORTS_EMPTY = 'Nessuna produzione nel mese selezionato.';
 
 // Charts
 export const CHART_TOTAL = 'Totale';
@@ -113,7 +114,6 @@ export const COL_MINOR = 'Minore';
 
 // Settings
 export const SETTINGS_PASSWORD = 'Cambio password';
-export const SETTINGS_CREWS = 'Squadre';
 export const SETTINGS_TRACTORS = 'Trattori';
 export const SETTINGS_SPECIES = 'Specie';
 export const SETTINGS_USERS = 'Utenti';
@@ -152,20 +152,20 @@ export const LABEL_LAST_NAME = 'Cognome';
 export const LABEL_LOGIN_METHOD = 'Metodo di accesso';
 export const LABEL_MONTH = 'Mese';
 
-// Mannesi PDFs
-export const MANNESI_RECEIPT_HOURS = 'Ore lavorate';
-export const MANNESI_RECEIPT_PRODUCTION = 'Produzione';
-export const MANNESI_RECEIPT_TOTAL_PRODUCTION = 'Totale produzione';
-export const MANNESI_RECEIPT_CREDITS = 'Acconti';
-export const MANNESI_RECEIPT_TOTAL = 'Totale';
-export const MANNESI_RECEIPT_DETAIL = 'Dettaglio produzione';
+// Squadre PDFs
+export const SQUADRE_REPORT_HOURS = 'Ore lavorate';
+export const SQUADRE_REPORT_PRODUCTION = 'Produzione';
+export const SQUADRE_REPORT_TOTAL_PRODUCTION = 'Totale produzione';
+export const SQUADRE_REPORT_CREDITS = 'Acconti';
+export const SQUADRE_REPORT_TOTAL = 'Totale';
+export const SQUADRE_REPORT_DETAIL = 'Dettaglio produzione';
 export const LABEL_PERCENT = '%';
 
 // Export filenames
 export const CSV_PRELIEVI = 'prelievi.csv';
-export const CSV_MANNESI_HOURS = 'ore-mannesi.csv';
-export const CSV_MANNESI_CREDITS = 'acconti-mannesi.csv';
-export const PDF_MANNESI_RECEIPTS = (month) => `ricevute-mannesi-${month}.pdf`;
+export const CSV_SQUADRE_HOURS = 'ore-squadre.csv';
+export const CSV_SQUADRE_CREDITS = 'acconti-squadre.csv';
+export const PDF_SQUADRE_REPORTS = (month) => `rendiconti-squadre-${month}.pdf`;
 export const CSV_CREWS = 'squadre.csv';
 export const CSV_TRACTORS = 'trattori.csv';
 export const CSV_SPECIES = 'specie.csv';

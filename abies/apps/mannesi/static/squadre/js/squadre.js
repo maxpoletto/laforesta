@@ -1,4 +1,4 @@
-/** Mannesi page: work hours, production credits, receipts. */
+/** Squadre page: personnel, work hours, production credits, and reports. */
 
 import * as cache from '../../base/js/cache.js';
 import { fetchJSON } from '../../base/js/api.js';
@@ -10,7 +10,7 @@ import {
 import { dismiss as dismissModal, showError } from '../../base/js/modals.js';
 import { canModify } from '../../base/js/roles.js';
 import { cloneTemplate } from '../../base/js/templates.js';
-import { wireCancelButtons, wireCollapsibleToggle } from '../../base/js/ui-widgets.js';
+import { showLoadingIn, wireCancelButtons, wireCollapsibleToggle } from '../../base/js/ui-widgets.js';
 import {
   applyTableState, createPage, navigateWithParams, readTableState,
   tableParamKeys, tableSort, writeTableState,
@@ -19,48 +19,61 @@ import { columnMap } from '../../base/js/digests.js';
 import { fmtDecimal1, fmtDecimal2, parseDecimal } from '../../base/js/format.js';
 import * as S from '../../base/js/strings.js';
 import {
-  FIELD_CREW_ID, FIELD_DATE, FIELD_HOURS, FIELD_MASS_Q, FIELD_MONTH, VERSION,
+  FIELD_CREW_ID, FIELD_DATE, FIELD_HOURS, FIELD_MASS_Q, FIELD_MONTH, FIELD_NAME,
+  VERSION,
 } from '../../base/js/constants.js';
 import { decimalRight, PDFDocument } from './pdf.js';
 
-const CSS_URL = '/static/mannesi/css/mannesi.css';
-const PAGE_PATH = '/mannesi';
-const API = '/api/mannesi/';
+const CSS_URL = '/static/squadre/css/squadre.css';
+const PAGE_PATH = '/squadre';
+const API = '/api/squadre/';
 const META_URL = `${API}meta/`;
 const PRELIEVI_DATA_ID = 'prelievi';
 const PRELIEVI_DATA_URL = '/api/prelievi/data/';
+const PERSONNEL = {
+  dataId: 'crews',
+  dataUrl: `${API}crews/data/`,
+  formUrl: `${API}crews/form/`,
+  saveUrl: `${API}crews/save/`,
+  csvFilename: S.CSV_CREWS,
+};
 const HOURS = {
-  dataId: 'mannesi_hours',
+  dataId: 'squadre_hours',
   dataUrl: `${API}hours/data/`,
   formUrl: `${API}hours/form/`,
   saveUrl: `${API}hours/save/`,
   deleteUrl: `${API}hours/delete/`,
-  csvFilename: S.CSV_MANNESI_HOURS,
+  csvFilename: S.CSV_SQUADRE_HOURS,
   valueField: FIELD_HOURS,
   valueError: S.ERR_HOURS_POSITIVE,
 };
 const CREDITS = {
-  dataId: 'mannesi_credits',
+  dataId: 'squadre_credits',
   dataUrl: `${API}credits/data/`,
   formUrl: `${API}credits/form/`,
   saveUrl: `${API}credits/save/`,
   deleteUrl: `${API}credits/delete/`,
-  csvFilename: S.CSV_MANNESI_CREDITS,
+  csvFilename: S.CSV_SQUADRE_CREDITS,
   valueField: FIELD_MASS_Q,
   valueError: S.ERR_CREDITS_POSITIVE,
 };
 
-const SECTION_KEYS = ['h', 'a', 'r'];
+const SECTION_KEYS = ['p', 'h', 'a', 'r'];
 const DEFAULT_OPEN = 'har';
 const HOURS_KEYS = tableParamKeys('h');
 const CREDITS_KEYS = tableParamKeys('c');
 const DEFAULT_SORT = { column: S.COL_DATE, ascending: false };
 
 let meta = null;
+let personnelTable = null;
+let personnelDigest = null;
+let personnelLoaded = false;
+let personnelActiveOnly = true;
 let hoursTable = null;
 let creditsTable = null;
 let sectionState = {};
 
+cache.register(PERSONNEL.dataId, PERSONNEL.dataUrl);
 cache.register(PRELIEVI_DATA_ID, PRELIEVI_DATA_URL);
 cache.register(HOURS.dataId, HOURS.dataUrl);
 cache.register(CREDITS.dataId, CREDITS.dataUrl);
@@ -68,12 +81,13 @@ cache.register(CREDITS.dataId, CREDITS.dataUrl);
 const page = createPage({
   cssUrl: CSS_URL,
   dataIds: [HOURS.dataId, CREDITS.dataId, PRELIEVI_DATA_ID],
-  visibleIds: [HOURS.dataId, CREDITS.dataId, PRELIEVI_DATA_ID],
+  visibleIds: [PERSONNEL.dataId, HOURS.dataId, CREDITS.dataId, PRELIEVI_DATA_ID],
   load: loadPageData,
   mount: mountPage,
   unmount: destroyPage,
   onQueryChange: applyParams,
   onUpdate: [
+    [PERSONNEL.dataId, updatePersonnelTable],
     [HOURS.dataId, data => hoursTable?.setData(data)],
     [CREDITS.dataId, data => creditsTable?.setData(data)],
   ],
@@ -96,18 +110,26 @@ async function loadPageData() {
 function mountPage(el, params, data) {
   meta = data.meta;
   el.replaceChildren();
-  el.appendChild(cloneTemplate('tmpl-mannesi-page'));
+  el.appendChild(cloneTemplate('tmpl-squadre-page'));
 
   const p = readParams(params);
-  wireSections(el, p.open);
-  wireReceiptForm(el);
+  const open = canModify() ? p.open : p.open.replace('p', '');
+  if (!canModify()) removePersonnelSection(el);
+  wireSections(el, open);
+  if (canModify()) wirePersonnelSection(el, open.includes('p'));
+  wireReportForm(el);
   buildEntryTable(HOURS, el.querySelector('[data-target="hours-table"]'), data.hours, p.hours);
   buildEntryTable(CREDITS, el.querySelector('[data-target="credits-table"]'), data.credits, p.credits);
 }
 
 function destroyPage() {
+  personnelTable?.destroy();
   hoursTable?.destroy();
   creditsTable?.destroy();
+  personnelTable = null;
+  personnelDigest = null;
+  personnelLoaded = false;
+  personnelActiveOnly = true;
   hoursTable = null;
   creditsTable = null;
   sectionState = {};
@@ -124,7 +146,11 @@ function readParams(params) {
 
 function applyParams(params) {
   const p = readParams(params);
-  for (const key of SECTION_KEYS) setSectionOpen(key, p.open.includes(key));
+  const open = canModify() ? p.open : p.open.replace('p', '');
+  for (const key of SECTION_KEYS) setSectionOpen(key, open.includes(key));
+  if (open.includes('p')) {
+    loadPersonnelSection(document.querySelector('[data-target="personnel-table"]'));
+  }
   applyTableState(hoursTable, p.hours, DEFAULT_SORT);
   applyTableState(creditsTable, p.credits, DEFAULT_SORT);
 }
@@ -147,6 +173,9 @@ function wireSections(el, openKeys) {
     if (header && body) {
       wireCollapsibleToggle(header, body, (open) => {
         sectionState[key].open = open;
+        if (key === 'p' && open) {
+          loadPersonnelSection(body.querySelector('[data-target="personnel-table"]'));
+        }
         syncURL();
       });
     }
@@ -159,6 +188,101 @@ function setSectionOpen(key, open) {
   s.open = open;
   s.header?.classList.toggle('open', open);
   s.body?.classList.toggle('open', open);
+}
+
+function removePersonnelSection(el) {
+  el.querySelector('[data-section="p"].collapsible-header')?.remove();
+  el.querySelector('[data-section="p"].collapsible-body')?.remove();
+}
+
+function wirePersonnelSection(el, initiallyOpen) {
+  const activeCheck = el.querySelector('[data-role="personnel-active-toggle"]');
+  activeCheck?.addEventListener('change', () => {
+    personnelActiveOnly = activeCheck.checked;
+    applyPersonnelActiveFilter();
+  });
+  if (initiallyOpen) loadPersonnelSection(el.querySelector('[data-target="personnel-table"]'));
+}
+
+async function loadPersonnelSection(container) {
+  if (!container || personnelLoaded) return;
+  personnelLoaded = true;
+  showLoadingIn(container);
+
+  let data;
+  try {
+    data = await cache.load(PERSONNEL.dataId);
+  } catch {
+    personnelLoaded = false;
+    container.replaceChildren();
+    showError(S.ERROR_NETWORK);
+    return;
+  }
+
+  container.replaceChildren();
+  personnelDigest = data;
+  personnelTable = new TableWrapper({
+    container,
+    digest: data,
+    columnDefs: personnelColumnDefs(),
+    canModify: true,
+    actions: {
+      onAdd: () => showPersonnelForm(),
+      onEdit: (rowId) => showPersonnelForm(rowId),
+    },
+    csvFilename: PERSONNEL.csvFilename,
+    labels: S.TABLE_LABELS,
+    csvFormat: S.TABLE_CSV_FORMAT,
+  });
+  applyPersonnelActiveFilter();
+}
+
+function personnelColumnDefs() {
+  return {
+    [S.LABEL_NAME]: { label: S.LABEL_NAME, width: '180px' },
+    [S.LABEL_NOTES]: { label: S.LABEL_NOTES, width: '260px' },
+    [S.COL_ACTIVE]: { label: S.COL_ACTIVE, type: 'boolean', width: '60px' },
+  };
+}
+
+async function showPersonnelForm(rowId = null) {
+  const form = await fetchModalForm(PERSONNEL.formUrl + (rowId == null ? '' : `${rowId}/`));
+  if (!form) return;
+  wirePersonnelForm(form);
+}
+
+function wirePersonnelForm(form) {
+  wireCancelButtons(form, dismissModal);
+  interceptSubmit(form, PERSONNEL.saveUrl, {
+    validate: (body) => (String(body[FIELD_NAME] || '').trim() ? null : S.ERR_NAME_REQUIRED),
+    onSuccess: (data) => {
+      updatePersonnelFromResponse(data);
+      dismissModal();
+    },
+    onConflict: updatePersonnelFromResponse,
+  });
+}
+
+function updatePersonnelFromResponse(data) {
+  cache.applyResponseChanges(data);
+  updatePersonnelTable(cache.get(PERSONNEL.dataId));
+}
+
+function updatePersonnelTable(data) {
+  if (!data) return;
+  personnelDigest = data;
+  personnelTable?.setData(data);
+  applyPersonnelActiveFilter();
+}
+
+function applyPersonnelActiveFilter() {
+  if (!personnelTable || !personnelDigest) return;
+  const activeIdx = personnelDigest.columns.indexOf(S.COL_ACTIVE);
+  if (activeIdx < 0 || !personnelActiveOnly) {
+    personnelTable.setExternalFilter(null);
+  } else {
+    personnelTable.setExternalFilter(row => row[activeIdx] === true);
+  }
 }
 
 function buildEntryTable(cfg, container, digest, state) {
@@ -250,20 +374,20 @@ function refreshEntryTable(cfg) {
   table?.setData(cache.get(cfg.dataId));
 }
 
-function wireReceiptForm(el) {
-  const form = el.querySelector('[data-role="receipts-form"]');
+function wireReportForm(el) {
+  const form = el.querySelector('[data-role="reports-form"]');
   if (!form) return;
   wireMonthPicker(form);
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     const body = Object.fromEntries(new FormData(form));
     const month = body[FIELD_MONTH];
-    const receipts = buildReceipts(month);
-    if (!receipts.length) {
-      showError(S.ERR_RECEIPTS_EMPTY);
+    const reports = buildReports(month);
+    if (!reports.length) {
+      showError(S.ERR_REPORTS_EMPTY);
       return;
     }
-    generateReceiptsPDF(month, receipts);
+    generateReportsPDF(month, reports);
   });
 }
 
@@ -271,7 +395,7 @@ function wireMonthPicker(form) {
   const picker = form.querySelector('[data-role="month-picker"]');
   if (!picker) return;
   const input = picker.querySelector(`[name="${FIELD_MONTH}"]`);
-  const trigger = picker.querySelector('.mannesi-month-trigger');
+  const trigger = picker.querySelector('.squadre-month-trigger');
   const popover = picker.querySelector('[data-role="month-popover"]');
   const yearLabel = picker.querySelector('[data-role="month-year"]');
   const grid = picker.querySelector('[data-role="month-grid"]');
@@ -318,7 +442,7 @@ function renderMonthGrid(grid, year, selected) {
     const month = i + 1;
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'mannesi-month-option';
+    btn.className = 'squadre-month-option';
     btn.dataset.month = String(month);
     btn.textContent = monthName(month, 'short');
     btn.title = monthName(month, 'long');
@@ -361,10 +485,10 @@ function monthName(month, style) {
 }
 
 // ---------------------------------------------------------------------------
-// Receipt PDF
+// Report PDF
 // ---------------------------------------------------------------------------
 
-function buildReceipts(month) {
+function buildReports(month) {
   const prelievi = cache.get(PRELIEVI_DATA_ID);
   const hours = cache.get(HOURS.dataId);
   const credits = cache.get(CREDITS.dataId);
@@ -404,69 +528,69 @@ function productNames(rows, pc) {
   return [...configured, ...[...seen].filter(name => !configured.includes(name))];
 }
 
-function generateReceiptsPDF(month, receipts) {
+function generateReportsPDF(month, reports) {
   const doc = new PDFDocument({ landscape: true });
-  receipts.forEach((receipt, index) => {
+  reports.forEach((report, index) => {
     if (index > 0) doc.addPage();
-    drawReceipt(doc, month, receipt);
+    drawReport(doc, month, report);
   });
-  doc.save(S.PDF_MANNESI_RECEIPTS(month));
+  doc.save(S.PDF_SQUADRE_REPORTS(month));
 }
 
 const margin = 34;
-function drawReceipt(doc, month, receipt) {
+function drawReport(doc, month, report) {
   const col1 = margin, col2 = margin + 150;
   const valueComma = col2 + 44;
   let y = 32;
-  doc.text(col1, y, `${S.COL_CREW} ${receipt.crew}`, { size: 14, bold: true });
+  doc.text(col1, y, `${S.COL_CREW} ${report.crew}`, { size: 14, bold: true });
   y += 22;
   doc.text(col1, y, monthLabel(month), { size: 11 });
   y += 34;
-  doc.text(col1, y, S.MANNESI_RECEIPT_HOURS, { size: 10, bold: true });
-  drawDecimal(doc, valueComma, y, fmtDecimal2(receipt.hours), { size: 10 });
+  doc.text(col1, y, S.SQUADRE_REPORT_HOURS, { size: 10, bold: true });
+  drawDecimal(doc, valueComma, y, fmtDecimal2(report.hours), { size: 10 });
   y += 28;
-  doc.text(col1, y, S.MANNESI_RECEIPT_PRODUCTION, { size: 10, bold: true });
+  doc.text(col1, y, S.SQUADRE_REPORT_PRODUCTION, { size: 10, bold: true });
   doc.textRight(decimalRight(doc, valueComma), y, S.COL_CREDITS_Q, { size: 10, bold: true });
   y += 16;
-  for (const item of receipt.productTotals) {
+  for (const item of report.productTotals) {
     doc.text(col1, y, item.product, { size: 10 });
     drawDecimal(doc, valueComma, y, fmtDecimal1(item.mass), { size: 10 });
     y += 14;
   }
   y += 4;
-  doc.text(col1, y, S.MANNESI_RECEIPT_TOTAL_PRODUCTION, { size: 10, bold: true });
-  drawDecimal(doc, valueComma, y, fmtDecimal1(receipt.totalProduction), { size: 10, bold: true });
+  doc.text(col1, y, S.SQUADRE_REPORT_TOTAL_PRODUCTION, { size: 10, bold: true });
+  drawDecimal(doc, valueComma, y, fmtDecimal1(report.totalProduction), { size: 10, bold: true });
   y += 28;
-  doc.text(col1, y, S.MANNESI_RECEIPT_CREDITS, { size: 10 });
-  drawDecimal(doc, valueComma, y, fmtDecimal1(receipt.credits), { size: 10 });
+  doc.text(col1, y, S.SQUADRE_REPORT_CREDITS, { size: 10 });
+  drawDecimal(doc, valueComma, y, fmtDecimal1(report.credits), { size: 10 });
   y += 18;
-  doc.text(col1, y, S.MANNESI_RECEIPT_TOTAL, { size: 10, bold: true });
-  drawDecimal(doc, valueComma, y, fmtDecimal1(receipt.totalProduction - receipt.credits), { size: 10, bold: true });
+  doc.text(col1, y, S.SQUADRE_REPORT_TOTAL, { size: 10, bold: true });
+  drawDecimal(doc, valueComma, y, fmtDecimal1(report.totalProduction - report.credits), { size: 10, bold: true });
   y += 34;
-  y = drawHarvestDetail(doc, receipt, margin, y, month);
+  y = drawHarvestDetail(doc, report, margin, y, month);
 }
 
-function drawHarvestDetail(doc, receipt, x, y, month) {
-  doc.text(x, y, S.MANNESI_RECEIPT_DETAIL, { size: 10, bold: true });
+function drawHarvestDetail(doc, report, x, y, month) {
+  doc.text(x, y, S.SQUADRE_REPORT_DETAIL, { size: 10, bold: true });
   y += 18;
   const species = meta.species || [];
   const headers = [
     S.COL_DATE, S.COL_REGION, S.COL_PARCEL, S.COL_VDP, S.COL_TYPE, S.COL_QUINTALS, S.COL_NOTE,
     ...species.map(s => `${s} ${S.LABEL_PERCENT}`),
   ];
-  const widths = receiptTableWidths(doc, species.length);
-  const alignments = receiptTableAlignments(species.length);
+  const widths = reportTableWidths(doc, species.length);
+  const alignments = reportTableAlignments(species.length);
   y = drawTableRow(doc, x, y, headers, widths, true, alignments);
 
-  for (const row of receipt.harvests) {
+  for (const row of report.harvests) {
     if (y > doc.height - 32) {
       doc.addPage();
       y = 32;
-      doc.text(x, y, `${S.COL_CREW} ${receipt.crew} - ${monthLabel(month)}`, { size: 10, bold: true });
+      doc.text(x, y, `${S.COL_CREW} ${report.crew} - ${monthLabel(month)}`, { size: 10, bold: true });
       y += 18;
       y = drawTableRow(doc, x, y, headers, widths, true, alignments);
     }
-    const c = receipt.columns;
+    const c = report.columns;
     const note = [row[c[S.COL_NOTE]], row[c[S.COL_EXTRA_NOTE]]].filter(Boolean).join('; ');
     const fields = [
       row[c[S.COL_DATE]], row[c[S.COL_REGION]], row[c[S.COL_PARCEL]],
@@ -479,7 +603,7 @@ function drawHarvestDetail(doc, receipt, x, y, month) {
   return y;
 }
 
-function receiptTableWidths(doc, speciesCount) {
+function reportTableWidths(doc, speciesCount) {
   const available = doc.width - 2 * margin;
   const base = [45, 45, 40, 30, 60, 30, 80];
   const baseTotal = base.reduce((a, b) => a + b, 0);
@@ -489,7 +613,7 @@ function receiptTableWidths(doc, speciesCount) {
   return [...base, ...Array.from({ length: speciesCount }, () => speciesWidth)];
 }
 
-function receiptTableAlignments(speciesCount) {
+function reportTableAlignments(speciesCount) {
   return [
     'left', 'left', 'left', 'left', 'left', 'decimal', 'left',
     ...Array.from({ length: speciesCount }, () => 'decimal'),

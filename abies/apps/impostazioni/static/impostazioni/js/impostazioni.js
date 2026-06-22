@@ -3,7 +3,7 @@
  *
  * Collapsible sections based on user role:
  *   - Password change (all password-login users)
- *   - Crews, Tractors, Species (writers and admins)
+ *   - Tractors, Species (writers and admins)
  *   - Hypsometric parameters (writers and admins)
  *   - App Users (admins only)
  *
@@ -65,19 +65,6 @@ function entitySection(cfg) {
 // Role-gated sections in display order.  Each: { minRole, build() → Node }.
 // Hypsometric parameters sit between Specie and Utenti, so Utenti is last.
 const SECTIONS = [
-  entitySection({
-    key: 'crews',
-    minRole: ROLE_WRITER,
-    title: S.SETTINGS_CREWS,
-    dataUrl: `${API}crews/data/`,
-    formUrl: `${API}crews/form/`,
-    saveUrl: `${API}crews/save/`,
-    csvFilename: S.CSV_CREWS,
-    columnDefs: {
-      [S.LABEL_NAME]: { label: S.LABEL_NAME, width: '180px' },
-      [S.COL_ACTIVE]: ACTIVE_COL_DEF,
-    },
-  }),
   entitySection({
     key: 'tractors',
     minRole: ROLE_WRITER,
@@ -211,7 +198,7 @@ function buildPasswordSection() {
 }
 
 // ---------------------------------------------------------------------------
-// Entity sections (crews, tractors, species, users)
+// Entity sections (tractors, species, users)
 // ---------------------------------------------------------------------------
 
 function buildEntitySection(cfg, state) {

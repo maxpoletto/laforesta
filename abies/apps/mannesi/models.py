@@ -1,4 +1,4 @@
-"""Mannesi domain models: lumberjack work hours and credits."""
+"""Squadre domain models: team work hours and production credits."""
 
 from django.db import models
 from simple_history.models import HistoricalRecords
@@ -8,7 +8,7 @@ from config import strings as S
 
 
 class WorkHour(TimestampedModel):
-    """Hours worked by a lumberjack crew on a date."""
+    """Hours worked by a team on a date."""
     date = models.DateField()
     crew = models.ForeignKey(Crew, on_delete=models.PROTECT)
     hours = models.DecimalField(max_digits=8, decimal_places=2)
@@ -26,7 +26,7 @@ class WorkHour(TimestampedModel):
 
 
 class ProductionCredit(TimestampedModel):
-    """Production credit/acconto for a lumberjack crew on a date."""
+    """Production credit/acconto for a team on a date."""
     date = models.DateField()
     crew = models.ForeignKey(Crew, on_delete=models.PROTECT)
     mass_q = models.DecimalField(max_digits=10, decimal_places=2)

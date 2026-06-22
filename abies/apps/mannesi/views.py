@@ -1,4 +1,4 @@
-"""Mannesi API views: work hours, production credits, and receipt metadata."""
+"""Squadre API views: personnel, work hours, credits, and report metadata."""
 
 from datetime import date as date_type
 
@@ -19,20 +19,65 @@ from apps.base.responses import (
 from apps.mannesi.models import ProductionCredit, WorkHour
 from config import strings as S
 from config.constants import (
-    COLUMNS, FIELD_CREW_ID, FIELD_DATE, FIELD_HOURS, FIELD_MASS_Q, FIELD_NOTE,
-    HTML, ROWS, ROW_ID, STATUS, STATUS_NOT_FOUND, VERSION,
+    COLUMNS, FIELD_ACTIVE, FIELD_CREW_ID, FIELD_DATE, FIELD_HOURS, FIELD_MASS_Q,
+    FIELD_NAME, FIELD_NOTE, FIELD_NOTES, HTML, ROWS, ROW_ID, STATUS,
+    STATUS_NOT_FOUND, VERSION, is_truthy,
 )
 
-DATA_ID_HOURS = 'mannesi_hours'
-DATA_ID_CREDITS = 'mannesi_credits'
+DATA_ID_CREWS = 'crews'
+DATA_ID_HOURS = 'squadre_hours'
+DATA_ID_CREDITS = 'squadre_credits'
 
+CREW_COLS = [ROW_ID, S.LABEL_NAME, S.LABEL_NOTES, S.COL_ACTIVE]
 HOURS_COLS = [ROW_ID, VERSION, S.COL_DATE, S.COL_CREW, S.COL_HOURS, S.COL_NOTE]
 CREDITS_COLS = [ROW_ID, VERSION, S.COL_DATE, S.COL_CREW, S.COL_CREDITS_Q, S.COL_NOTE]
 
 
+def _crew_row(c):
+    return [c.id, c.name, c.notes, c.active]
+
+
+@login_required
+@require_writer
+def crews_data(request):
+    return JsonResponse({COLUMNS: CREW_COLS, ROWS: [
+        _crew_row(obj) for obj in Crew.objects.order_by('name')
+    ]})
+
+
+@login_required
+@require_writer
+def crews_form(request, obj_id=None):
+    obj = Crew.objects.filter(id=obj_id).first() if obj_id else None
+    html = render_to_string(
+        'squadre/_crew_form.html', {'obj': obj}, request=request,
+    )
+    return JsonResponse({HTML: html})
+
+
+@login_required
+@require_writer
+@require_POST
+def crews_save(request):
+    body, error = parse_json_body(request)
+    if error:
+        return error
+    parsed = {
+        FIELD_NAME: body.get(FIELD_NAME, '').strip(),
+        FIELD_NOTES: body.get(FIELD_NOTES, ''),
+        FIELD_ACTIVE: is_truthy(body.get(FIELD_ACTIVE)),
+    }
+    if not parsed[FIELD_NAME]:
+        return validation_error([S.ERR_NAME_REQUIRED])
+    return save_model_response(
+        request, body, model=Crew, data_id=DATA_ID_CREWS, values=parsed,
+        row_fn=_crew_row, stale=('prelievi', 'audit'),
+    )
+
+
 @login_required
 def meta_view(request):
-    """Small metadata bundle used by the receipt generator."""
+    """Small metadata bundle used by the report generator."""
     _, species_names, _, _ = prelievi_species_cols()
     return JsonResponse({
         'products': list(Product.objects.order_by('name').values_list('name', flat=True)),
@@ -192,7 +237,7 @@ def _credit_row(obj):
 
 def _form(kind, obj, request):
     html = render_to_string(
-        'mannesi/_entry_form.html',
+        'squadre/_entry_form.html',
         {
             'kind': kind,
             'obj': obj,
