@@ -1,8 +1,8 @@
 # Bootstrap
 
 `bootstrap` loads a canonical data directory into an empty Abies database. The
-canonical directory is produced by the legacy converter, checked by the CSV
-readers, and then loaded in one transaction.
+canonical files are checked by the CSV readers and then loaded in one
+transaction.
 
 ## Commands
 
@@ -20,10 +20,9 @@ The development shortcut is:
 make dev
 ```
 
-That target resets the local database, migrates, converts the legacy export,
-runs `bootstrap`, builds geodata, generates digests, creates the local admin
-user, and links templates. `make bootstrap` runs only the bootstrap command
-against `$(CANONICAL_DIR)`.
+That target resets the local database, migrates, runs `bootstrap`, builds
+geodata, generates digests, creates the local admin user, and links templates.
+`make bootstrap` runs only the bootstrap command against `$(CANONICAL_DIR)`.
 
 ## Contract
 
@@ -37,8 +36,8 @@ Bootstrap has a deliberately narrow contract.
 - Validation errors are accumulated and reported by file. A file is applied
   only if that file has no validation errors; any error anywhere rolls back the
   full transaction.
-- The input format is canonical. The legacy converter is responsible for fixing
-  La Foresta source quirks before bootstrap sees the data.
+- The input format is canonical. Legacy-source cleanup happens before files
+  reach this command.
 - Species and product files are optional. If they are missing, built-in defaults
   are seeded. Species rows may include `Pressler`; blank/missing values use the
   model default of 2.0.
@@ -124,14 +123,8 @@ to 100. Tractor percentages must be either all blank/zero or sum to 100.
 
 `hypso_params.csv` stores hypsometric parameters by species and eclass.
 
-## Legacy Conversion
+## Canonical Data
 
-Use the converter when starting from the La Foresta export:
-
-```sh
-python3 -m ingest.convert_laforesta <legacy_dir> <canonical_dir>
-```
-
-The converter is the compatibility layer for legacy formats, names, and derived
-canonical columns. Bootstrap should stay strict and simple: it validates and
-loads canonical data, but does not try to interpret arbitrary legacy input.
+Legacy export conversion is handled outside Abies. `bootstrap` intentionally
+knows only the canonical files above and defaults to `data/canonical` in local
+make targets.

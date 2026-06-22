@@ -1,4 +1,4 @@
-"""Round-trip proof for the legacy→canonical converter (ingest/convert_laforesta).
+"""Round-trip proof for the legacy→canonical converter (abies-init/convert_laforesta).
 
 Runs the converter on the *real* legacy data dir, then loads the result with the
 strict ``bootstrap --check`` contract against an empty test DB and asserts it
@@ -11,20 +11,28 @@ the test is skipped rather than failed.
 
 import csv
 import os
+import sys
 from pathlib import Path
+
+ABIES_INIT_ROOT = Path(__file__).resolve().parents[1]
+LAFORESTA_ROOT = ABIES_INIT_ROOT.parent
+ABIES_ROOT = Path(os.environ.get('ABIES_ROOT', LAFORESTA_ROOT / 'abies'))
+sys.path.insert(0, str(ABIES_INIT_ROOT))
+sys.path.insert(0, str(ABIES_ROOT))
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 
 import pytest
 from django.core.management import call_command
 from django.core.management.base import CommandError
 
-from ingest.convert_laforesta import (
-    COL_PARCEL, OUT_HARVESTS, OUT_HARVEST_PLAN_ITEMS, OUT_PRESERVED,
-    OUT_REGIONS, OUT_SAMPLED_TREES, OUT_SPECIES, OUT_SURVEYS, OUT_TRACTORS,
-    SRC_HARVESTS, main,
+from convert_laforesta import (
+    COL_PARCEL, OUT_HARVESTS, OUT_HARVEST_PLAN_ITEMS, OUT_MARTELLATE_DIR,
+    OUT_PRESERVED, OUT_REGIONS, OUT_SAMPLED_TREES, OUT_SPECIES, OUT_SURVEYS,
+    OUT_TRACTORS, SRC_HARVESTS, SRC_MARTELLATE_DIR, main,
 )
 
 # Defaults to the sibling data checkout; override with ABIES_LEGACY_DATA elsewhere.
-_DEFAULT_LEGACY_DIR = Path(__file__).resolve().parents[2] / 'abies-data'
+_DEFAULT_LEGACY_DIR = LAFORESTA_ROOT / 'abies-data'
 LEGACY_DIR = Path(os.environ.get('ABIES_LEGACY_DATA', _DEFAULT_LEGACY_DIR))
 
 EXPECTED_TRACTORS = 5
@@ -122,6 +130,14 @@ def test_sanity_counts(converted):
     plan_rows = _rows(out_dir / OUT_HARVEST_PLAN_ITEMS)
     assert len(plan_rows) > 0
     assert len(plan_rows) == counts[OUT_HARVEST_PLAN_ITEMS]
+
+    # Martellate upload CSVs: one normalized output file per staged source file.
+    source_martellate = sorted((LEGACY_DIR / SRC_MARTELLATE_DIR).glob('*.csv'))
+    output_martellate = sorted((out_dir / OUT_MARTELLATE_DIR).glob('*.csv'))
+    assert len(output_martellate) == len(source_martellate)
+    assert counts[f'{OUT_MARTELLATE_DIR}/*.csv'] == sum(
+        len(_rows(path)) for path in output_martellate
+    )
 
     # Preserved trees: rows with valid Lon/Lat from PAI file.
     preserved_rows = _rows(out_dir / OUT_PRESERVED)

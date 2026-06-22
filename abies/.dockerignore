@@ -6,9 +6,10 @@
 .pytest_cache
 .coverage
 
-# Local runtime state (bind-mounted in production)
+# Local runtime state / secrets (bind-mounted or supplied in production)
 data/
 staticfiles/
+compose/.env*
 
 # Build outputs
 *.pyc

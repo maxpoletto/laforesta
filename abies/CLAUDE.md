@@ -100,7 +100,7 @@ digests.  **Read the page doc for the domain you are working on.**
 - [`docs/page-campionamenti.md`](docs/page-campionamenti.md) — Campionamenti (sampling) page
 - [`docs/page-piano-di-taglio.md`](docs/page-piano-di-taglio.md) — Piano di taglio (harvest plan) page
 - [`docs/page-prelievi.md`](docs/page-prelievi.md) — Prelievi (harvests) page
-- [`docs/page-mannesi.md`](docs/page-mannesi.md) - Mannesi (lumberjacks) page
+- [`docs/page-squadre.md`](docs/page-squadre.md) - Squadre page
 - [`docs/page-controllo.md`](docs/page-controllo.md) — Controllo (audit) page
 - [`docs/page-impostazioni.md`](docs/page-impostazioni.md) — Impostazioni (settings) page
 
@@ -248,7 +248,6 @@ landscape).  Page-specific mobile adaptations are covered in each page's doc
     │   ├── mannesi/                    # Mannesi domain
     │   ├── controllo/                  # Audit domain
     │   └── impostazioni/               # Settings domain
-    ├── ingest/                         # one-time ETL / data import scripts
     ├── data/                           # host-mounted runtime dir (gitignored)
     │   ├── db.sqlite3
     │   ├── digests/                    # pre-computed JSON files
@@ -305,9 +304,8 @@ No browser-based E2E; UI verified by manual smoke testing.
 Runs directly on the host (no Docker): `manage.py runserver` + Python 3.13
 virtualenv. `data/` holds `db.sqlite3`, `canonical/`, `digests/`, and `geo/`.
 
-- `make dev`: zero-to-working in one command (reset DB + migrate + convert + bootstrap + geo + digest + admin + template links).
+- `make dev`: zero-to-working in one command (reset DB + migrate + bootstrap + geo + digest + admin + template links).
 - `make migrate`: run Django migrations.
-- `make convert`: convert `DATA_DIR` (default `../abies-data`) into canonical CSVs.
 - `make bootstrap`: load canonical CSVs from `CANONICAL_DIR` into an empty DB.
 - `make geo`: build geo data into `data/geo/`.
 - `make digest`: precompute all JSON digests via `apps/base/digests.py`.

@@ -14,12 +14,12 @@ are the canonical headers documented in ``config/strings_it.py`` (the
 duplicated here as literals on purpose, to keep this throwaway tool decoupled
 from the Django app.
 
-See ``ingest/README.md`` for the full source→canonical mapping, the assumptions
-made on ambiguous tree-survey data, and the files deferred to a later increment.
+See ``README.md`` for the full source→canonical mapping, the assumptions made
+on ambiguous tree-survey data, and the generated martellate upload files.
 
 Run:
 
-    python3 -m ingest.convert_laforesta <src_dir> <out_dir>
+    python3 convert_laforesta.py <src_dir> <out_dir>
 """
 
 from __future__ import annotations
@@ -68,6 +68,7 @@ SRC_HYPSO = 'equazioni_ipsometro.csv'
 SRC_PLAN_FUSTAIA = 'piano_fustaia.csv'
 SRC_PLAN_CEDUO = 'piano_ceduo.csv'
 SRC_PAI = 'piante-accrescimento-indefinito.csv'
+SRC_MARTELLATE_DIR = 'martellate'
 SRC_GEOJSON = 'terreni.geojson'
 SRC_SPECIES = 'apps/base/data/species.csv'  # in-repo canonical species list
 
@@ -89,6 +90,7 @@ OUT_HYPSO = 'hypso_params.csv'
 OUT_HARVESTS = 'harvests.csv'
 OUT_HARVEST_PLAN_ITEMS = 'harvest_plan_items.csv'
 OUT_PRESERVED = 'preserved-trees.csv'
+OUT_MARTELLATE_DIR = 'martellate'
 OUT_GEOJSON = 'terreni.geojson'
 
 # --- canonical column headers (the S.CSV_COL_* literals) --------------------
@@ -130,6 +132,8 @@ COL_PRESSLER = 'Pressler'
 COL_SPECIES = 'Genere'
 COL_HIGHFOREST = 'Fustaia'
 COL_ACTIVE = 'Attivo'
+COL_DAMAGED = 'Catastrofata'
+COL_LNG = 'Lng'
 
 # Species reference headers (canonical SPECIES RefTable column names).
 COL_LATIN = 'Nome latino'
@@ -243,6 +247,11 @@ _NOTE_FLAG_MAP = {
 # Only entries that do NOT already match canonical common_name case-insensitively.
 _PAI_SPECIES_MAP = {
     'Abete Bianco':   'Abete',     # Abies alba = canonical 'Abete'
+}
+
+# Map martellate CSV species values to canonical Species.common_name.
+_MARTELLATE_SPECIES_MAP = {
+    'Pino': 'Pino Laricio',
 }
 
 
@@ -380,7 +389,7 @@ def _convert_sampled_trees(src_dir: Path, out_dir: Path) -> int:
     NOTE: ``alberi-columns.csv`` has the Albero/Pollone/Matricina shape but the
     README states its *data* is wrong, so it is deliberately NOT merged.  The
     Matricina/Pollone/L10 detail it would provide for the heights survey is left
-    as a reviewer decision (see ingest/README.md).
+    as a reviewer decision (see abies-init/README.md).
     """
     header = [
         COL_SURVEY, COL_REGION, COL_PARCEL, COL_SAMPLE_AREA, COL_TREE, COL_SHOOT,
@@ -680,6 +689,69 @@ def _convert_preserved(src_dir: Path, out_dir: Path) -> int:
     return n
 
 
+def _decimal_dot(value) -> str:
+    if value is None:
+        return ''
+    return str(value).strip().replace(',', '.')
+
+
+def _convert_martellate(src_dir: Path, out_dir: Path) -> int:
+    """Normalize legacy Ipso martellate CSVs into Abies upload CSV files.
+
+    The staged source files already mostly match the upload shape, but older
+    exports used ``Specie`` and ``Lng``.  The importer/exporter contract uses
+    ``Genere`` and ``Lon``.  Because this converter writes comma-delimited CSVs,
+    numeric cells that may contain Italian decimal commas are normalized to dot
+    decimals.
+    """
+    src = src_dir / SRC_MARTELLATE_DIR
+    if not src.is_dir():
+        return 0
+
+    dest = out_dir / OUT_MARTELLATE_DIR
+    dest.mkdir(parents=True, exist_ok=True)
+    header = [
+        COL_DATA, COL_REGION, COL_PARCEL, COL_DAMAGED, COL_NUMBER, COL_SPECIES,
+        COL_D_CM, COL_H_M, COL_H_MEASURED, COL_LAT, COL_LON, COL_ACC_M, COL_OPERATOR,
+    ]
+
+    total = 0
+    for path in sorted(src.glob('*.csv')):
+        rows = []
+        for r in _read(path):
+            species_raw = (r.get('Specie') or r.get(COL_SPECIES) or '').strip()
+            rows.append([
+                (r.get(COL_DATA) or '').strip(),
+                (r.get(COL_REGION) or '').strip(),
+                (r.get(COL_PARCEL) or '').strip(),
+                (r.get(COL_DAMAGED) or '').strip(),
+                (r.get(COL_NUMBER) or '').strip(),
+                _MARTELLATE_SPECIES_MAP.get(species_raw, species_raw),
+                (r.get(COL_D_CM) or '').strip(),
+                _decimal_dot(r.get(COL_H_M)),
+                (r.get(COL_H_MEASURED) or '').strip(),
+                _decimal_dot(r.get(COL_LAT)),
+                _decimal_dot(r.get(COL_LON) or r.get(COL_LNG)),
+                (r.get(COL_ACC_M) or '').strip(),
+                (r.get(COL_OPERATOR) or '').strip(),
+            ])
+        total += _write(dest / path.name, header, rows)
+    return total
+
+
+def _find_abies_root() -> Path:
+    script_dir = Path(__file__).resolve().parent
+    candidates = [
+        script_dir.parent / 'abies',  # local checkout: laforesta/abies-init + laforesta/abies
+        Path('/app'),                # production container: Abies app root
+        Path.cwd(),
+    ]
+    for candidate in candidates:
+        if (candidate / SRC_SPECIES).is_file():
+            return candidate
+    raise FileNotFoundError(f'cannot locate Abies checkout containing {SRC_SPECIES}')
+
+
 def _copy_geojson(src_dir: Path, out_dir: Path) -> None:
     shutil.copyfile(src_dir / SRC_GEOJSON, out_dir / OUT_GEOJSON)
 
@@ -694,9 +766,7 @@ def main(src_dir: Path, out_dir: Path) -> dict[str, int]:
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    # The in-repo species list lives under the abies project root, which is the
-    # parent of this ``ingest`` package.
-    repo_root = Path(__file__).resolve().parent.parent
+    abies_root = _find_abies_root()
 
     parcels = _read(src_dir / SRC_PARCELS)
 
@@ -704,7 +774,7 @@ def main(src_dir: Path, out_dir: Path) -> dict[str, int]:
         OUT_REGIONS: _convert_regions(parcels, out_dir),
         OUT_ECLASSES: _convert_eclasses(parcels, out_dir),
         OUT_CREWS: _convert_crews(src_dir, out_dir),
-        OUT_SPECIES: _convert_species(repo_root, out_dir),
+        OUT_SPECIES: _convert_species(abies_root, out_dir),
         OUT_PRODUCTS: _convert_products(out_dir),
         OUT_TRACTORS: _convert_tractors(out_dir),
         OUT_PARCELS: _convert_parcels(parcels, out_dir),
@@ -717,6 +787,7 @@ def main(src_dir: Path, out_dir: Path) -> dict[str, int]:
         OUT_HARVESTS: _convert_harvests(src_dir, out_dir),
         OUT_HARVEST_PLAN_ITEMS: _convert_harvest_plan_items(src_dir, out_dir),
         OUT_PRESERVED: _convert_preserved(src_dir, out_dir),
+        f'{OUT_MARTELLATE_DIR}/*.csv': _convert_martellate(src_dir, out_dir),
     }
     _copy_geojson(src_dir, out_dir)
     return counts

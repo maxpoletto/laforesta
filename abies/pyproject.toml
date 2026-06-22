@@ -4,7 +4,7 @@ pythonpath = ["."]
 testpaths = ["test"]
 
 [tool.coverage.run]
-source = ["apps", "ingest", "config"]
+source = ["apps", "config"]
 omit = ["*/migrations/*"]
 
 [tool.coverage.report]

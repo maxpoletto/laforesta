@@ -238,9 +238,7 @@ the tree_preserved table.
   - (parcel_id, number) must be unique. number is required and identifies the
     preserved tree within the parcel in user-facing labels. If number is left
     blank in the PAI add/edit form, save assigns `max(number)+1` within the
-    selected parcel. The current La
-    Foresta source numbers are not trusted; the custom converter regenerates
-    numbers from 1 within each parcel.
+    selected parcel.
   - date is the PAI survey date, nullable for legacy rows where no survey date
     is available. It is distinct from tree.estimated_birth_year, which is also
     nullable.

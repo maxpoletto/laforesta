@@ -239,13 +239,13 @@ The modal displays:
    campionamenti page). The CSV is in the shape produced by the
    `laforesta/ipso` tool:
 
-       Data;Compresa;Particella;Catastrofata;Numero;Specie;D_cm;H_m;H_measured;Lat;Lon;Acc_m;Operatore
+       Data;Compresa;Particella;Catastrofata;Numero;Genere;D_cm;H_m;H_measured;Lat;Lon;Acc_m;Operatore
 
    Each row becomes one `tree_mark` row under this `harvest_plan_item`.
    `Compresa`/`Particella` from the CSV must match the item's
    region/parcel (or fall inside its region for region-wide items).
    `volume_m3` and `mass_q` are computed server-side via Tabacchi
-   (`apps/base/tabacchi.py`) from `(D_cm, H_m, Specie)` + species density.
+   (`apps/base/tabacchi.py`) from `(D_cm, H_m, Genere)` + species density.
    `Catastrofata` is ignored at row level (the item's `damaged` flag
    governs).
 

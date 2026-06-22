@@ -1,4 +1,4 @@
-# ingest — legacy → canonical ETL
+# abies-init — legacy → canonical initialization
 
 One-off ETL that converts La Foresta's **legacy** survey/plan CSVs into the
 **canonical abies CSV inputs** that `manage.py bootstrap` consumes.  This is
@@ -8,7 +8,7 @@ data from the strict canonical contract enforced by `bootstrap`.
 ## Usage
 
 ```sh
-python3 -m ingest.convert_laforesta <src_dir> <out_dir>
+python3 convert_laforesta.py <src_dir> <out_dir>
 ```
 
 - `src_dir` — the legacy data dir (e.g. `../abies-data`); see its `README`.
@@ -39,6 +39,7 @@ dependencies — so the tool runs standalone against a legacy-data checkout.
 | `harvests.csv` | `mannesi.csv` | `Tipo` via `_PRODUCT_MAP`; `Particella='X'` → blank; species `abete %` etc. → `Specie: <canonical>` dynamic cols; `Equus %` etc. → `Trattore: <name>` dynamic cols; `Note` token → `Danneggiato/Fitosanitario/PSR` booleans; invalid VDP values (``nd``, ``bis`` variants, fractional) → blank |
 | `harvest_plan_items.csv` | `piano_fustaia.csv` + `piano_ceduo.csv` | unified rows with `Piano=PDG 2026`; `Particella='X'` → blank; highforest flags from `Note` token; coppice flags left `false` (no flag column in legacy) |
 | `preserved-trees.csv` (`Compresa,Particella,Numero,Genere,Data,Anno di nascita stimato,D_cm,H_m,H_measured,Lon,Lat,Acc_m,Operatore,Note`) | `piante-accrescimento-indefinito.csv` | `Genere` preserved when it already names a canonical species; legacy `Abete Bianco` aliases to `Abete`; `Numero` regenerated from 1 within each parcel because the source column is unreliable; date/birth year/accuracy/operator left blank; rows missing `Lon`/`Lat` silently skipped |
+| `martellate/*.csv` (`Data,Compresa,Particella,Catastrofata,Numero,Genere,D_cm,H_m,H_measured,Lat,Lon,Acc_m,Operatore`) | `martellate/*.csv` | upload-ready martellate files for Piano di taglio; legacy `Specie` header becomes `Genere`, `Lng` becomes `Lon`, decimal commas become dot decimals, and `Pino` aliases to `Pino Laricio` |
 | `terreni.geojson` | `terreni.geojson` | copied verbatim (bootstrap does not load it, but the canonical dir carries the source geometry) |
 
 ## Tree-survey assumptions (the interesting part)
@@ -98,11 +99,11 @@ allow a clean bootstrap load:
 
 ## Validation
 
-`test/test_ingest_roundtrip.py` runs the converter on the real legacy data and
+`test/test_roundtrip.py` runs the converter on the real legacy data and
 asserts `bootstrap --check` validates it clean against an empty DB (plus sanity
-counts).  Run from the abies root:
+counts).  Run from the abies-init root:
 
 ```sh
 env DJANGO_DEBUG=1 DJANGO_SECRET_KEY=django-insecure-local-dev \
-    python3 -m pytest test/test_ingest_roundtrip.py -v
+    python3 -m pytest -v
 ```

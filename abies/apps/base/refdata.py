@@ -1,16 +1,14 @@
 """Shared reference data used by the canonical import path.
 
-These tables and the in-repo species defaults used to live on the legacy
-``import_*`` management commands.  They now have a single home so the bootstrap
-orchestrator, the sampled-trees core, and the La Foresta converter can all reach
-them without importing a command module:
+These tables and the in-repo species defaults have a single home so bootstrap
+and the sampled-trees core share the same canonical aliases/defaults:
 
 - ``GENERE_MAP``  — CSV ``Genere`` → ``Species.common_name`` aliasing (sampled
   trees), to absorb minor naming drift between the survey files and Abies.
 - ``SPECIES_CSV`` / ``load_species()`` — the in-repo canonical species list
   (``apps/base/data/species.csv``), seeded as the default when a data dir omits
   ``species.csv``.
-- ``PRODUCT_MAP`` — legacy product name → canonical name; its distinct values
+- ``PRODUCT_MAP`` — source product name → canonical name; its distinct values
   are the default product set.
 """
 

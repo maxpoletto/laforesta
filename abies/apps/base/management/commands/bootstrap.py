@@ -186,9 +186,9 @@ class Command(BaseCommand):
 
     def _seed_default(self, table, report):
         """Seed species/products from the in-repo canonical defaults when their
-        optional CSV is absent.  The converter always emits both, so this only
-        fires for minimal or hand-built data dirs.  Other absent reference tables
-        have no default and are left empty."""
+        optional CSV is absent.  This mainly serves minimal or hand-built data
+        dirs.  Other absent reference tables have no default and are left
+        empty."""
         if table is csv_reference.SPECIES:
             parsed = [
                 {FIELD_COMMON_NAME: common, FIELD_LATIN_NAME: latin,

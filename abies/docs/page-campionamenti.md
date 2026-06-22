@@ -192,9 +192,8 @@ tree-entry flow (below).
 ### Grid CSV import
 
 Required columns: `Compresa`, `Particella`, `Area saggio` (→
-`sample_area.number`), `Lon`, `Lat`, and `Quota` (or `Alt. (m)`).
-`Raggio` / `Raggio (m)` is optional; missing or blank values use the default
-sample-area radius. Reference file: `abies-data/aree-di-saggio.csv`.
+`sample_area.number`), `Lon`, `Lat`, `Quota` (or `Alt. (m)`), and
+`Raggio` (or `Raggio (m)`).
 
 Flow:
 1. Writer opens the pencil modal on the target grid → "Importa aree da

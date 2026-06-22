@@ -1,5 +1,4 @@
 PYTHON = python3
-DATA_DIR ?= ../abies-data
 CANONICAL_DIR ?= data/canonical
 DJANGO_DEBUG ?= 1
 DJANGO_SECRET_KEY ?= django-insecure-local-dev
@@ -13,7 +12,7 @@ LANGUAGE_SUFFIX = _it
 
 .PHONY: check migrate geo digest admin dev \
         clean reset-schema update-vendor minify test test-js collectstatic \
-        link-templates reset-db convert bootstrap
+        link-templates reset-db bootstrap
 
 check:
 	$(MANAGE) check
@@ -23,14 +22,10 @@ migrate:
 	$(MANAGE) makemigrations
 	$(MANAGE) migrate
 
-# --- Canonical load path: convert the legacy data dir to canonical CSVs, then
-# bootstrap them into an EMPTY instance.  `make dev` runs `reset-db` first so
-# bootstrap always loads into a clean DB.
+# --- Canonical load path: load canonical CSVs into an EMPTY instance.
+# `make dev` runs `reset-db` first so bootstrap always loads into a clean DB.
 reset-db:
 	rm -f data/db.sqlite3 data/db.sqlite3-wal data/db.sqlite3-shm
-
-convert:
-	$(PYTHON) -m ingest.convert_laforesta $(DATA_DIR) $(CANONICAL_DIR)
 
 bootstrap:
 	$(MANAGE) bootstrap $(CANONICAL_DIR)
@@ -58,7 +53,7 @@ admin:
 link-templates:
 	$(PYTHON) bin/link-templates.py $(LANGUAGE_SUFFIX)
 
-dev: reset-db migrate convert bootstrap geo digest admin link-templates
+dev: reset-db migrate bootstrap geo digest admin link-templates
 
 serve:
 	$(MANAGE) runserver > /dev/null 2>&1 &

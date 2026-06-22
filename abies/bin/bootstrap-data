@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 # bin/bootstrap-data <dev|prod>
 #
-# One-time data load for a FRESH (empty) abies instance on the VM. Converts the
-# staged legacy La Foresta CSVs into the canonical import format, then loads them
-# with `manage.py bootstrap`, and finally builds the enriched geojson + digests.
+# One-time data load for a FRESH (empty) abies instance on the VM. Loads staged
+# canonical CSVs with `manage.py bootstrap`, then builds the enriched geojson +
+# digests.
 #
-# Legacy data location: the per-instance data dir /var/lib/abies-<instance>/data
-# is bind-mounted to /app/data in the container (see compose/<instance>.yml), so
-# stage the legacy CSVs at /var/lib/abies-<instance>/data/import on the VM host;
-# the container then reads them at /app/data/import.
+# Canonical data location: the per-instance data dir
+# /var/lib/abies-<instance>/data is bind-mounted to /app/data in the container
+# (see compose/<instance>.yml), so stage canonical CSVs at
+# /var/lib/abies-<instance>/data/canonical on the VM host; the container then
+# reads them at /app/data/canonical.
 #
 # `manage.py bootstrap` refuses a non-empty instance (it has no wipe), so run
 # this only once, right after a fresh `bin/deploy <instance>` -- the container
@@ -25,8 +26,7 @@ instance="${1:-}"
 context="${ABIES_DOCKER_CONTEXT:-vm-abies}"
 ctr="abies-${instance}"
 
-# In-container paths under the bind-mounted data dir (/var/lib/abies-$instance/data).
-import_dir=/app/data/import
+# In-container path under the bind-mounted data dir (/var/lib/abies-$instance/data).
 canonical_dir=/app/data/canonical
 
 # Container must be running for `docker exec` to attach.
@@ -39,15 +39,12 @@ state="$(docker --context "$context" inspect -f '{{.State.Running}}' "$ctr" 2>/d
 
 x() { docker --context "$context" exec "$ctr" "$@"; }
 
-# Fail early, with a clear message, if the legacy data was not staged.
-x test -d "$import_dir" || {
-  echo "error: $import_dir not found in container '$ctr'." >&2
-  echo "       stage the legacy CSVs at /var/lib/abies-$instance/data/import on the VM host." >&2
+# Fail early, with a clear message, if canonical data was not staged.
+x test -d "$canonical_dir" || {
+  echo "error: $canonical_dir not found in container '$ctr'." >&2
+  echo "       stage canonical CSVs at /var/lib/abies-$instance/data/canonical on the VM host." >&2
   exit 1
 }
-
-echo "==> convert legacy CSVs -> canonical ($import_dir -> $canonical_dir)"
-x python -m ingest.convert_laforesta "$import_dir" "$canonical_dir"
 
 echo "==> bootstrap canonical data into the (empty) instance"
 x python manage.py bootstrap "$canonical_dir"
@@ -59,7 +56,5 @@ echo "==> regenerate digests"
 x python manage.py shell --no-imports -c \
   "from apps.base.digests import generate_all; generate_all()"
 
-echo "==> remove the regenerated canonical dir ($canonical_dir)"
-x rm -rf "$canonical_dir"
 
 echo "==> done."

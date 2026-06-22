@@ -5,8 +5,6 @@ import gzip
 import json
 from datetime import date
 from decimal import Decimal
-from pathlib import Path
-
 import pytest
 from django.test import Client
 
@@ -2028,34 +2026,24 @@ class TestGridCsvImport:
         area = SampleArea.objects.get(sample_grid=grid, number='10')
         assert area.altitude_m == 500 and area.r_m == 12
 
-    def test_abies_data_sample_grid_import(self, writer_client, sample_setup):
-        """The real setup CSV uses legacy headers and omits Raggio, which is now
-        required, so the fixture rows are augmented with an explicit Raggio."""
+    def test_legacy_sample_grid_headers_import(self, writer_client, sample_setup):
+        """Legacy-shaped setup CSV headers are accepted when Raggio is supplied."""
         s = sample_setup
-        data_path = (
-            Path(__file__).resolve().parents[2]
-            / 'abies-data' / 'aree-di-saggio.csv'
-        )
-        if not data_path.is_file():
-            pytest.skip('abies-data fixture checkout not present')
-
         compresa = s['area'].parcel.region.name
         particella = s['area'].parcel.name
-        lines = data_path.read_text(encoding='utf-8-sig').splitlines()
-        prefix = f'{compresa},{particella},'
-        rows = [line for line in lines[1:] if line.startswith(prefix)][:2]
-        assert rows, 'expected matching fixture rows in abies-data/aree-di-saggio.csv'
 
-        grid = SampleGrid.objects.create(name='abies-data import')
-        header = f'{lines[0]},Raggio'
-        rows = [f'{row},12' for row in rows]
-        csv_text = '\n'.join([header, *rows]) + '\n'
+        grid = SampleGrid.objects.create(name='Legacy header import')
+        csv_text = (
+            'Compresa,Particella,Area saggio,Lon,Lat,Quota,Raggio\n'
+            f'{compresa},{particella},10,16.1,38.5,500,12\n'
+            f'{compresa},{particella},11,16.2,38.6,501,12\n'
+        )
         resp = self._post(writer_client, grid.id, csv_text)
         assert resp.status_code == 200, resp.content
         areas = list(SampleArea.objects.filter(sample_grid=grid).order_by('number'))
-        assert len(areas) == len(rows)
+        assert len(areas) == 2
         assert {a.r_m for a in areas} == {12}
-        assert all(a.altitude_m is not None for a in areas)
+        assert {a.altitude_m for a in areas} == {500, 501}
 
     def test_unparseable_radius_flagged(self, writer_client, sample_setup):
         """A present-but-garbage Raggio is flagged, not silently defaulted."""
