@@ -426,7 +426,7 @@ def _audit_configs() -> list:
         Crew, HarvestPlan, HarvestPlanItem, HypsoParam, HypsoParamSet, Parcel,
         Sample, SampleArea, SampleGrid, Species, Survey, Tractor, User,
     )
-    from apps.mannesi.models import LicensePlate, ProductionCredit, WorkHour
+    from apps.mannesi.models import ProductionCredit, WorkHour
     from apps.prelievi.models import Harvest
 
     return [
@@ -512,9 +512,6 @@ def _audit_configs() -> list:
             'region_id': S.COL_REGION, 'species_id': S.COL_SPECIES,
             'func': S.COL_FUNCTION, 'a': S.COL_A, 'b': S.COL_B,
             'n': S.COL_N_REGRESSION, 'r2': S.COL_R2,
-        }),
-        (LicensePlate, S.TABLE_MANNESI_LICENSE_PLATE, {
-            'value': S.LABEL_LICENSE_PLATE,
         }),
         (WorkHour, S.TABLE_MANNESI_HOURS, {
             'date': S.COL_DATE, 'crew_id': S.COL_CREW,

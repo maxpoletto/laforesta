@@ -3,45 +3,11 @@
 This page appears to the right of Prelievi. It provides features to manage
 lumberjacks.
 
-Four foldable sections, described below.
+Three foldable sections, described below.
 
 For database schema, see database.md > Mannesi data.
 
-## 1. Verbali di pesata
-
-Supports generating a PDF with record slips that lumberjacks use for reporting harvests.
-
-### Section layout
-
-Text inputs:
-
-- Numero iniziale (defaults to (max(VDP)+1) from Prelievi page)
-- Targa autocarro (license plate). Text input with persistent history after write, even across reloads / logouts. (See database.md > mannesi_license_plates)
-- Numero di verbali (number input, accepts multiples of 4)
-
-Below, in green, "Genera" button.
-
-When Genera is pressed, browser downloads a PDF file ("vdp.pdf") with the report slips.
-
-### PDF format
-
-Slips are printed 4-to-a-page on a 2x2 grid on A4 paper, portrait mode.
-
-
-Each verbale contains:
-
-- Top row: Data with a write-in rule on the left, and N. [VDP number] on the
-  far right.
-- Second row: Targa [license plate value].
-- Compresa row: bold label, with one checkbox per compresa.
-- Particella with a write-in rule.
-- Product type checkboxes in two columns.
-- Essenza / % as a bordered two-column grid with one row per major species.
-- Peso lordo ql, Tara ql, Peso netto ql, Squadra, and Firma as bold labels with
-  vertically aligned write-in rules.
-
-
-## 2. Ore (Work time tracker)
+## 1. Ore (Work time tracker)
 
 A sortable-table with the standard Search box and "Esporta CSV" button on top, and the following columns:
 
@@ -60,11 +26,11 @@ Note text input
 
 Hours must be > 0, team and date cannot be null, else showFormError.
 
-## 3. Acconti (Production credit tracker)
+## 2. Acconti (Production credit tracker)
 
 Essentially identical to Ore above, with "Quintali" in place of "Ore".
 
-## 4. Ricevute
+## 3. Ricevute
 
 Very simple appearance:
 - A month picker widget (e.g., "gennaio 2026"), and a green "Genera" button.

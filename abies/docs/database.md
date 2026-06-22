@@ -381,8 +381,6 @@ for coppice parcels there is no per-tree harvest record at all.
 
 ## Mannesi data
 
-- mannesi_license_plates: (id:int, value:string)
-
 - mannesi_hours: (id:int, date:string /* ISO 8601 */, crew_id:int, hours:real,
   note:string)
 

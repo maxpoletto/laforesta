@@ -6,8 +6,6 @@ from apps.mannesi import views
 
 urlpatterns = [
     path('meta/', views.meta_view, name='mannesi-meta'),
-    path('license-plates/save/', views.license_plate_save, name='mannesi-license-save'),
-
     path('hours/data/', views.hours_data, name='mannesi-hours-data'),
     path('hours/form/', views.hours_form, name='mannesi-hours-form-add'),
     path('hours/form/<int:obj_id>/', views.hours_form, name='mannesi-hours-form-edit'),

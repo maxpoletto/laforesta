@@ -4,32 +4,6 @@ S (string constants) provided by the shell's render context.
 {% endcomment %}
 
 <template id="tmpl-mannesi-page">
-  {% include "base/_partials/_collapsible_header.html" with section="v" title="Verbali di pesata" %}
-  <div class="collapsible-body" data-section="v">
-    <form class="mannesi-controls" data-role="vdp-form">
-      <div class="form-row mannesi-control-row">
-        <div class="form-group narrow">
-          <label for="mannesi-vdp-start">{{ S.LABEL_START_NUMBER }}</label>
-          <input type="number" id="mannesi-vdp-start" name="number" min="1" step="1" required>
-        </div>
-        <div class="form-group">
-          <label for="mannesi-license-plate">{{ S.LABEL_LICENSE_PLATE }}</label>
-          <input type="text" id="mannesi-license-plate" name="license_plate"
-                 list="mannesi-license-plates" autocomplete="off" required>
-          <datalist id="mannesi-license-plates"></datalist>
-        </div>
-        <div class="form-group narrow">
-          <label for="mannesi-slip-count">{{ S.LABEL_SLIP_COUNT }}</label>
-          <input type="number" id="mannesi-slip-count" name="slip_count"
-                 min="4" step="4" value="4" required>
-        </div>
-        <div class="form-group mannesi-submit-cell">
-          <button type="submit" class="btn btn-save">Genera</button>
-        </div>
-      </div>
-    </form>
-  </div>
-
   {% include "base/_partials/_collapsible_header.html" with section="h" title="Ore" %}
   <div class="collapsible-body" data-section="h">
     <div data-target="hours-table"></div>

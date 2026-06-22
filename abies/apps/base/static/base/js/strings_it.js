@@ -90,9 +90,6 @@ export const ERR_TRACTOR_PCT_SUM = 'Le percentuali dei trattori devono sommare a
 export const ERR_CREW_REQUIRED = 'Squadra obbligatoria.';
 export const ERR_HOURS_POSITIVE = 'Le ore devono essere maggiori di zero.';
 export const ERR_CREDITS_POSITIVE = 'I quintali devono essere maggiori di zero.';
-export const ERR_SLIP_COUNT_MULTIPLE = 'Il numero di verbali deve essere un multiplo di 4.';
-export const ERR_SLIP_COUNT_POSITIVE = 'Il numero di verbali deve essere maggiore di zero.';
-export const ERR_LICENSE_PLATE_REQUIRED = 'Targa autocarro obbligatoria.';
 export const ERR_RECEIPTS_EMPTY = 'Nessuna produzione nel mese selezionato.';
 
 // Charts
@@ -153,19 +150,9 @@ export const LABEL_NAME = 'Nome';
 export const LABEL_EMAIL = 'Email';
 export const LABEL_LAST_NAME = 'Cognome';
 export const LABEL_LOGIN_METHOD = 'Metodo di accesso';
-export const LABEL_LICENSE_PLATE = 'Targa autocarro';
-export const LABEL_START_NUMBER = 'Numero iniziale';
-export const LABEL_SLIP_COUNT = 'Numero di verbali';
 export const LABEL_MONTH = 'Mese';
 
 // Mannesi PDFs
-export const MANNESI_VDP_NUMBER = 'N.';
-export const MANNESI_VDP_LICENSE_PLATE = 'Targa';
-export const MANNESI_VDP_SPECIES = 'Essenza';
-export const MANNESI_VDP_GROSS_WEIGHT_Q = 'Peso lordo ql';
-export const MANNESI_VDP_TARE_Q = 'Tara ql';
-export const MANNESI_VDP_NET_WEIGHT_Q = 'Peso netto ql';
-export const MANNESI_VDP_SIGNATURE = 'Firma';
 export const MANNESI_RECEIPT_HOURS = 'Ore lavorate';
 export const MANNESI_RECEIPT_PRODUCTION = 'Produzione';
 export const MANNESI_RECEIPT_TOTAL_PRODUCTION = 'Totale produzione';
@@ -178,7 +165,6 @@ export const LABEL_PERCENT = '%';
 export const CSV_PRELIEVI = 'prelievi.csv';
 export const CSV_MANNESI_HOURS = 'ore-mannesi.csv';
 export const CSV_MANNESI_CREDITS = 'acconti-mannesi.csv';
-export const PDF_MANNESI_VDP = 'vdp.pdf';
 export const PDF_MANNESI_RECEIPTS = (month) => `ricevute-mannesi-${month}.pdf`;
 export const CSV_CREWS = 'squadre.csv';
 export const CSV_TRACTORS = 'trattori.csv';

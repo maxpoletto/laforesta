@@ -1,7 +1,7 @@
-/** Mannesi page: VDP slips, work hours, production credits, receipts. */
+/** Mannesi page: work hours, production credits, receipts. */
 
 import * as cache from '../../base/js/cache.js';
-import { fetchJSON, postJSON } from '../../base/js/api.js';
+import { fetchJSON } from '../../base/js/api.js';
 import { TableWrapper } from '../../base/js/table.js';
 import {
   deleteRowWithVersion, fetchModalForm, interceptSubmit, renderModalForm,
@@ -19,8 +19,7 @@ import { columnMap } from '../../base/js/digests.js';
 import { fmtDecimal1, fmtDecimal2, parseDecimal } from '../../base/js/format.js';
 import * as S from '../../base/js/strings.js';
 import {
-  FIELD_CREW_ID, FIELD_DATE, FIELD_HOURS, FIELD_LICENSE_PLATE, FIELD_MASS_Q,
-  FIELD_MONTH, FIELD_NONCE, FIELD_SLIP_COUNT, VERSION,
+  FIELD_CREW_ID, FIELD_DATE, FIELD_HOURS, FIELD_MASS_Q, FIELD_MONTH, VERSION,
 } from '../../base/js/constants.js';
 import { decimalRight, PDFDocument } from './pdf.js';
 
@@ -28,7 +27,6 @@ const CSS_URL = '/static/mannesi/css/mannesi.css';
 const PAGE_PATH = '/mannesi';
 const API = '/api/mannesi/';
 const META_URL = `${API}meta/`;
-const LICENSE_SAVE_URL = `${API}license-plates/save/`;
 const PRELIEVI_DATA_ID = 'prelievi';
 const PRELIEVI_DATA_URL = '/api/prelievi/data/';
 const HOURS = {
@@ -52,8 +50,8 @@ const CREDITS = {
   valueError: S.ERR_CREDITS_POSITIVE,
 };
 
-const SECTION_KEYS = ['v', 'h', 'a', 'r'];
-const DEFAULT_OPEN = 'vhar';
+const SECTION_KEYS = ['h', 'a', 'r'];
+const DEFAULT_OPEN = 'har';
 const HOURS_KEYS = tableParamKeys('h');
 const CREDITS_KEYS = tableParamKeys('c');
 const DEFAULT_SORT = { column: S.COL_DATE, ascending: false };
@@ -102,7 +100,6 @@ function mountPage(el, params, data) {
 
   const p = readParams(params);
   wireSections(el, p.open);
-  wireVdpForm(el, data.prelievi);
   wireReceiptForm(el);
   buildEntryTable(HOURS, el.querySelector('[data-target="hours-table"]'), data.hours, p.hours);
   buildEntryTable(CREDITS, el.querySelector('[data-target="credits-table"]'), data.credits, p.credits);
@@ -253,83 +250,6 @@ function refreshEntryTable(cfg) {
   table?.setData(cache.get(cfg.dataId));
 }
 
-function wireVdpForm(el, prelievi) {
-  const form = el.querySelector('[data-role="vdp-form"]');
-  if (!form) return;
-  const start = form.querySelector('[name="number"]');
-  if (start) start.value = String(defaultStartNumber(prelievi));
-  renderPlateDatalist(form);
-
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const body = Object.fromEntries(new FormData(form));
-    const err = validateVdp(body);
-    if (err) { showFormError(form, err); return; }
-
-    const plate = normalizePlate(body[FIELD_LICENSE_PLATE]);
-    const request = {
-      startNumber: parseInt(body.number, 10),
-      count: parseInt(body[FIELD_SLIP_COUNT], 10),
-      plate,
-    };
-    if (!canModify()) {
-      generateVdpPDF(request);
-      return;
-    }
-
-    let data, status;
-    try {
-      ({ data, status } = await postJSON(LICENSE_SAVE_URL, {
-        [FIELD_LICENSE_PLATE]: plate,
-        [FIELD_NONCE]: crypto.randomUUID(),
-      }));
-    } catch {
-      showFormError(form, S.ERROR_NETWORK);
-      return;
-    }
-    if (status !== 200) {
-      showFormError(form, data?.message || S.ERROR_GENERIC);
-      return;
-    }
-    meta.license_plates = data.license_plates || meta.license_plates;
-    renderPlateDatalist(form);
-    generateVdpPDF(request);
-  });
-}
-
-function validateVdp(body) {
-  const start = parseInt(body.number, 10);
-  const count = parseInt(body[FIELD_SLIP_COUNT], 10);
-  if (!Number.isInteger(start) || start < 1) return S.ERR_SLIP_COUNT_POSITIVE;
-  if (!normalizePlate(body[FIELD_LICENSE_PLATE])) return S.ERR_LICENSE_PLATE_REQUIRED;
-  if (!Number.isInteger(count) || count <= 0) return S.ERR_SLIP_COUNT_POSITIVE;
-  if (count % 4 !== 0) return S.ERR_SLIP_COUNT_MULTIPLE;
-  return null;
-}
-
-function renderPlateDatalist(root) {
-  const list = root.querySelector('#mannesi-license-plates');
-  if (!list || !meta) return;
-  list.replaceChildren(...(meta.license_plates || []).map(value => {
-    const opt = document.createElement('option');
-    opt.value = value;
-    return opt;
-  }));
-}
-
-function normalizePlate(value) {
-  return String(value || '').toUpperCase().replace(/\s+/g, '');
-}
-
-function defaultStartNumber(prelievi) {
-  if (meta?.max_vdp) return meta.max_vdp + 1;
-  const idx = prelievi?.columns?.indexOf(S.COL_VDP) ?? -1;
-  if (idx < 0) return 1;
-  let max = 0;
-  for (const row of prelievi.rows || []) max = Math.max(max, parseInt(row[idx], 10) || 0);
-  return max + 1;
-}
-
 function wireReceiptForm(el) {
   const form = el.querySelector('[data-role="receipts-form"]');
   if (!form) return;
@@ -438,126 +358,6 @@ function monthName(month, style) {
   const d = new Date(Date.UTC(2020, month - 1, 1));
   const raw = new Intl.DateTimeFormat(S.LOCALE, { month: style, timeZone: 'UTC' }).format(d);
   return raw.replace('.', '');
-}
-
-// ---------------------------------------------------------------------------
-// VDP PDF
-// ---------------------------------------------------------------------------
-
-function generateVdpPDF({ startNumber, count, plate }) {
-  const doc = new PDFDocument();
-  const w = doc.width / 2;
-  const h = doc.height / 2;
-  for (let i = 0; i < count; i++) {
-    if (i > 0 && i % 4 === 0) doc.addPage();
-    const slot = i % 4;
-    drawSlip(doc, (slot % 2) * w, Math.floor(slot / 2) * h, w, h, startNumber + i, plate);
-  }
-  doc.save(S.PDF_MANNESI_VDP);
-}
-
-function drawSlip(doc, x, y, w, h, number, plate) {
-  const left = x + 18;
-  const right = x + w - 18;
-  const innerWidth = right - left;
-  let ruleStart = left + 55;
-  let yy = y + 28;
-  doc.rect(x + 8, y + 8, w - 16, h - 16);
-
-  drawRuleField(doc, left, left + 144, yy, S.LABEL_DATE, { ruleStart: ruleStart, size: 10 });
-  doc.textRight(right, yy, `${S.MANNESI_VDP_NUMBER} ${number}`, { size: 11, bold: true });
-
-  yy += 22;
-  doc.text(left, yy, S.MANNESI_VDP_LICENSE_PLATE, { size: 10, bold: true });
-  doc.text(ruleStart, yy, plate, { size: 10 });
-
-  yy += 24;
-  drawRegionOptions(doc, left, right, yy, meta.regions || []);
-
-  yy += 24;
-  drawRuleField(doc, left, right, yy, S.COL_PARCEL, { ruleStart: ruleStart, size: 9 });
-
-  yy += 22;
-  yy = drawProductOptions(doc, left, right, yy, meta.products || []);
-
-  yy += 8;
-  yy = drawSpeciesGrid(doc, left, yy, innerWidth, meta.species || []);
-
-  yy = Math.max(yy + 12, y + h - 122);
-  ruleStart = left + 96;
-  drawRuleField(doc, left, right, yy, S.MANNESI_VDP_GROSS_WEIGHT_Q, { ruleStart, size: 10 });
-  yy += 18;
-  drawRuleField(doc, left, right, yy, S.MANNESI_VDP_TARE_Q, { ruleStart, size: 10 });
-  yy += 18;
-  drawRuleField(doc, left, right, yy, S.MANNESI_VDP_NET_WEIGHT_Q, { ruleStart, size: 10 });
-  yy += 25;
-  drawRuleField(doc, left, right, yy, S.COL_CREW, { ruleStart, size: 10 });
-  yy += 25;
-  drawRuleField(doc, left, right, yy, S.MANNESI_VDP_SIGNATURE, { ruleStart, size: 10 });
-}
-
-function drawRegionOptions(doc, left, right, y, regions) {
-  doc.text(left, y, S.COL_REGION, { size: 9, bold: true });
-  const startX = left + 55;
-  const step = regions.length > 1 ? (right - startX - 52) / (regions.length - 1) : 0;
-  regions.forEach((name, i) => {
-    const x = startX + i * Math.max(60, step);
-    drawCheckbox(doc, x, y - 7);
-    doc.text(x + 11, y, clippedForWidth(name, 50, 9), { size: 9 });
-  });
-}
-
-function drawProductOptions(doc, left, right, y, products) {
-  doc.text(left, y, S.COL_TYPE, { size: 9, bold: true });
-  const colGap = 12;
-  const startX = left + 55;
-  const colWidth = (right - startX - colGap) / 2;
-  const rowHeight = 13;
-  const maxRows = Math.max(1, Math.ceil(products.length / 2));
-  products.forEach((name, i) => {
-    const col = Math.floor(i / maxRows);
-    const row = i % maxRows;
-    const x = startX + col * (colWidth + colGap);
-    const yy = y + row * rowHeight;
-    drawCheckbox(doc, x, yy - 7);
-    doc.text(x + 11, yy, clippedForWidth(name, colWidth - 13, 8.5), { size: 8.5 });
-  });
-  return y + Math.max(1, Math.ceil(products.length / 2)) * rowHeight;
-}
-
-function drawSpeciesGrid(doc, x, y, width, species) {
-  const rows = species.length + 1;
-  const rowHeight = Math.min(12, Math.max(10, 108 / Math.max(1, rows)));
-  const height = rows * rowHeight;
-  const pctWidth = 100;
-  const nameWidth = width - pctWidth;
-
-  doc.rect(x, y, width, height);
-  doc.line(x + nameWidth, y, x + nameWidth, y + height);
-  for (let i = 1; i < rows; i++) {
-    doc.line(x, y + i * rowHeight, x + width, y + i * rowHeight);
-  }
-
-  doc.text(x + 5, y + rowHeight - 4, S.MANNESI_VDP_SPECIES, { size: 8, bold: true });
-  doc.textRight(x + width - 6, y + rowHeight - 4, S.LABEL_PERCENT, { size: 8, bold: true });
-  species.forEach((name, i) => {
-    const yy = y + (i + 2) * rowHeight - 4;
-    doc.text(x + 5, yy, clippedForWidth(name, nameWidth - 10, 8), { size: 8 });
-  });
-  return y + height;
-}
-
-function drawRuleField(doc, left, right, y, label, { ruleStart, size = 9 } = {}) {
-  doc.text(left, y, label, { size, bold: true });
-  doc.line(ruleStart, y + 2, right, y + 2);
-}
-
-function drawCheckbox(doc, x, y, size = 7) {
-  doc.rect(x, y, size, size);
-}
-
-function clippedForWidth(value, width, size) {
-  return clip(value, Math.floor(width / (size * 0.52)));
 }
 
 // ---------------------------------------------------------------------------

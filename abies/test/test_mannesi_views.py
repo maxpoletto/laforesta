@@ -6,11 +6,10 @@ from decimal import Decimal
 import pytest
 from django.test import Client
 
-from apps.mannesi.models import LicensePlate, ProductionCredit, WorkHour
-from apps.prelievi.models import Harvest
+from apps.mannesi.models import ProductionCredit, WorkHour
 from config.constants import (
-    DATA_ID, DELETES, FIELD_CREW_ID, FIELD_DATE, FIELD_HOURS,
-    FIELD_LICENSE_PLATE, FIELD_MASS_Q, FIELD_NONCE, FIELD_NOTE, HTML, PATCHES,
+    DATA_ID, DELETES, FIELD_CREW_ID, FIELD_DATE, FIELD_HOURS, FIELD_MASS_Q,
+    FIELD_NONCE, FIELD_NOTE, HTML, PATCHES,
     RECORD, ROWS, ROW_ID, STATUS, STATUS_CONFLICT, STATUS_NOT_FOUND, STATUS_VALIDATION_ERROR,
     VERSION,
 )
@@ -34,38 +33,14 @@ def _post(client, url, data):
     return client.post(url, data=json.dumps(data), content_type='application/json')
 
 
-def test_meta_returns_vdp_default_support_data(writer_client, crews, parcels, products, species):
-    LicensePlate.objects.create(value='AB123CD')
-    Harvest.objects.create(
-        date='2024-06-01', parcel=parcels[0], crew=crews[0],
-        product=products[0], record1=42, mass_q=Decimal('10'),
-    )
-
+def test_meta_returns_receipt_support_data(writer_client, products, species):
     resp = writer_client.get('/api/mannesi/meta/')
 
     assert resp.status_code == 200
     data = resp.json()
-    assert data['max_vdp'] == 42
-    assert data['license_plates'] == ['AB123CD']
-    assert data['crews'][0][1] == 'Alfa'
-    assert 'Capistrano' in data['regions']
+    assert set(data) == {'products', 'species'}
     assert 'Tronchi' in data['products']
     assert 'Abete' in data['species']
-
-
-def test_license_plate_save_normalizes_and_deduplicates(writer_client, db):
-    resp = _post(writer_client, '/api/mannesi/license-plates/save/', {
-        FIELD_LICENSE_PLATE: ' ab 123 cd ', FIELD_NONCE: 'plate-1',
-    })
-    assert resp.status_code == 200
-    assert LicensePlate.objects.get().value == 'AB123CD'
-    assert resp.json()['license_plates'] == ['AB123CD']
-
-    resp = _post(writer_client, '/api/mannesi/license-plates/save/', {
-        FIELD_LICENSE_PLATE: 'AB123CD', FIELD_NONCE: 'plate-2',
-    })
-    assert resp.status_code == 200
-    assert LicensePlate.objects.count() == 1
 
 
 class TestHours:

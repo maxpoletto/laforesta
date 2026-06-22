@@ -1,29 +1,26 @@
-"""Mannesi API views: VDP metadata, work hours, and production credits."""
+"""Mannesi API views: work hours, production credits, and receipt metadata."""
 
 from datetime import date as date_type
 
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
-from django.db.models import Max
 from django.http import JsonResponse
 from django.template.loader import render_to_string
 from django.views.decorators.http import require_POST
 
 from apps.base.auth import require_writer
 from apps.base.digests import mark_stale, prelievi_species_cols
-from apps.base.models import Crew, Product, Region
+from apps.base.models import Crew, Product
 from apps.base.numparse import int_or_none, parse_decimal
 from apps.base.responses import (
-    conflict_response, parse_json_body, row_delete, row_patch,
+    conflict_response, parse_json_body, row_delete,
     save_model_response, submitted_version, success_response, validation_error,
 )
-from apps.mannesi.models import LicensePlate, ProductionCredit, WorkHour
-from apps.prelievi.models import Harvest
+from apps.mannesi.models import ProductionCredit, WorkHour
 from config import strings as S
 from config.constants import (
-    COLUMNS, FIELD_CREW_ID, FIELD_DATE, FIELD_HOURS, FIELD_LICENSE_PLATE,
-    FIELD_MASS_Q, FIELD_NOTE, HTML, ROWS, ROW_ID, STATUS, STATUS_NOT_FOUND,
-    VERSION,
+    COLUMNS, FIELD_CREW_ID, FIELD_DATE, FIELD_HOURS, FIELD_MASS_Q, FIELD_NOTE,
+    HTML, ROWS, ROW_ID, STATUS, STATUS_NOT_FOUND, VERSION,
 )
 
 DATA_ID_HOURS = 'mannesi_hours'
@@ -35,44 +32,12 @@ CREDITS_COLS = [ROW_ID, VERSION, S.COL_DATE, S.COL_CREW, S.COL_CREDITS_Q, S.COL_
 
 @login_required
 def meta_view(request):
-    """Small metadata bundle used by the VDP and receipt generators."""
+    """Small metadata bundle used by the receipt generator."""
     _, species_names, _, _ = prelievi_species_cols()
-    max_vdp = Harvest.objects.aggregate(m=Max('record1'))['m'] or 0
     return JsonResponse({
-        'max_vdp': max_vdp,
-        'license_plates': list(
-            LicensePlate.objects.order_by('value').values_list('value', flat=True),
-        ),
-        'crews': list(
-            Crew.objects.filter(active=True).order_by('name')
-            .values_list('id', 'name'),
-        ),
-        'regions': list(Region.objects.order_by('name').values_list('name', flat=True)),
         'products': list(Product.objects.order_by('name').values_list('name', flat=True)),
         'species': species_names,
     })
-
-
-@login_required
-@require_writer
-@require_POST
-def license_plate_save(request):
-    body, error = parse_json_body(request)
-    if error:
-        return error
-    value = _normalize_plate(body.get(FIELD_LICENSE_PLATE, ''))
-    if not value:
-        return validation_error([S.ERR_LICENSE_PLATE_REQUIRED])
-    with transaction.atomic():
-        _, created = LicensePlate.objects.get_or_create(value=value)
-        if created:
-            mark_stale('audit')
-    return success_response(
-        request, body,
-        extra={'license_plates': list(
-            LicensePlate.objects.order_by('value').values_list('value', flat=True),
-        )},
-    )
 
 
 @login_required
@@ -260,7 +225,3 @@ def _parse_entry_body(body, *, value_field: str, value_error: str):
         value_field: value,
         FIELD_NOTE: body.get(FIELD_NOTE, ''),
     }, errors
-
-
-def _normalize_plate(value) -> str:
-    return ''.join(str(value).upper().split())

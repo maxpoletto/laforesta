@@ -1,25 +1,10 @@
-"""Mannesi domain models: lumberjack work hours, credits, and VDP helpers."""
+"""Mannesi domain models: lumberjack work hours and credits."""
 
 from django.db import models
 from simple_history.models import HistoricalRecords
 
 from apps.base.models import Crew, TimestampedModel
 from config import strings as S
-
-
-class LicensePlate(TimestampedModel):
-    """Truck license plate remembered from generated VDP slips."""
-    value = models.CharField(max_length=32, unique=True)
-    history = HistoricalRecords()
-
-    class Meta:
-        db_table = 'mannesi_license_plates'
-        verbose_name = S.TABLE_MANNESI_LICENSE_PLATE
-        verbose_name_plural = S.TABLE_MANNESI_LICENSE_PLATES
-        ordering = ['value']
-
-    def __str__(self):
-        return self.value
 
 
 class WorkHour(TimestampedModel):
