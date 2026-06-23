@@ -1,11 +1,12 @@
 FROM python:3.14-slim
 
 # --- OS deps ----------------------------------------------------------------
-# sqlite3 ships as a Python stdlib C extension in python:3.14-slim.  Terser is
-# present so production deploys can minify collected static JS inside the same
-# container that runs collectstatic.
+# sqlite3 ships as a Python stdlib C extension in python:3.14-slim.
+# rasterio's wheel needs libexpat at import time.  Terser is present so
+# production deploys can minify collected static JS inside the same container
+# that runs collectstatic.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends terser \
+ && apt-get install -y --no-install-recommends libexpat1 terser \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
