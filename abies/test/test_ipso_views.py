@@ -740,6 +740,7 @@ def test_upload_detail_lists_sample_targets(writer_client, parcels, species, set
     assert any(t['id'] == target.id for t in data['targets'])
     assert any('Ipso inactive target' in t['label'] for t in data['targets'])
     assert data['upload']['work_package_label'] == 'Ipso inactive target - Ipso survey grid'
+    assert data['records'][0]['sample_area_id'] == area.number
     inbox = writer_client.get(reverse('ipso-inbox-data')).json()
     row = dict(zip(inbox['columns'], inbox['rows'][0]))
     assert row[S.IPSO_COL_WORK_PACKAGE] == 'Ipso inactive target - Ipso survey grid'

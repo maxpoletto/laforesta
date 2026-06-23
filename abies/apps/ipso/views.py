@@ -805,6 +805,10 @@ def _preview_records(records: list) -> list[dict]:
         r.get(FIELD_PARCEL_ID) for r in records
         if isinstance(r, dict) and type(r.get(FIELD_PARCEL_ID)) is int
     }
+    sample_area_ids = {
+        r.get(FIELD_SAMPLE_AREA_ID) for r in records
+        if isinstance(r, dict) and type(r.get(FIELD_SAMPLE_AREA_ID)) is int
+    }
     species = {
         sp.id: sp.common_name
         for sp in Species.objects.filter(id__in=species_ids)
@@ -812,6 +816,10 @@ def _preview_records(records: list) -> list[dict]:
     parcels = {
         p.id: f'{p.region.name} {p.name}'
         for p in Parcel.objects.filter(id__in=parcel_ids).select_related('region')
+    }
+    sample_areas = {
+        a.id: a.number
+        for a in SampleArea.objects.filter(id__in=sample_area_ids)
     }
     out = []
     for i, row in enumerate(records[:500], start=1):
@@ -821,6 +829,7 @@ def _preview_records(records: list) -> list[dict]:
             'seq': _preview_sequence(row.get(FIELD_CLIENT_RECORD_ID), i),
             FIELD_DATE: row.get(FIELD_DATE, ''),
             'parcel': parcels.get(row.get(FIELD_PARCEL_ID), str(row.get(FIELD_PARCEL_ID, ''))),
+            FIELD_SAMPLE_AREA_ID: sample_areas.get(row.get(FIELD_SAMPLE_AREA_ID), ''),
             'species': species.get(row.get(FIELD_SPECIES_ID), str(row.get(FIELD_SPECIES_ID, ''))),
             FIELD_NUMBER: row.get(FIELD_NUMBER),
             FIELD_D_CM: row.get(FIELD_D_CM),
@@ -963,6 +972,10 @@ def _martellate_import_rows(
     parcel_ids = {
         r.get(FIELD_PARCEL_ID) for r in records
         if isinstance(r, dict) and type(r.get(FIELD_PARCEL_ID)) is int
+    }
+    sample_area_ids = {
+        r.get(FIELD_SAMPLE_AREA_ID) for r in records
+        if isinstance(r, dict) and type(r.get(FIELD_SAMPLE_AREA_ID)) is int
     }
     species = {
         sp.id: sp

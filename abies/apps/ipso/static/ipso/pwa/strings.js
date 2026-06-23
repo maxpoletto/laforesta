@@ -115,6 +115,7 @@ const S = {
     'Permesso GPS non concesso. Per registrare le coordinate, abilita la ' +
     'posizione per ipso.laforesta.it nelle impostazioni del browser.',
   BACKUP_SAVED: (n) => `Backup CSV salvato (${n} alberi).`,
+  CSV_HEADER_SAMPLE_AREA: 'Area saggio',
   CSV_HEADER: [
     'Data', 'Compresa', 'Particella', 'Catastrofata',
     'Numero', 'Specie', 'D_cm', 'H_m', 'H_measured',

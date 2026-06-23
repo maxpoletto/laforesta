@@ -7,6 +7,11 @@
 'use strict';
 
 if (typeof module !== 'undefined' && typeof require !== 'undefined' &&
+    typeof FIELD_SAMPLE_AREA_ID === 'undefined') {
+  Object.assign(globalThis, require('./constants.js'));
+}
+
+if (typeof module !== 'undefined' && typeof require !== 'undefined' &&
     typeof S === 'undefined') {
   Object.assign(globalThis, require('./strings.js'));
 }
@@ -15,6 +20,8 @@ const CSV_BOM = '﻿';
 const CSV_SEP = ';';
 const CSV_NL = '\r\n';
 const HEADER = S.CSV_HEADER;
+const SAMPLE_AREA_HEADER = S.CSV_HEADER_SAMPLE_AREA;
+const SAMPLE_MODE = 'samples';
 
 // Sentinel used in the filename's particella slot for catastrofate sessions.
 const FILENAME_CATASTROFATE = S.CSV_FILENAME_CATASTROFATE;
@@ -49,11 +56,29 @@ function escapeField(s) {
   return str;
 }
 
-function formatHeader() {
-  return HEADER.map(escapeField).join(CSV_SEP);
+function includeSampleArea(session) {
+  return session && session.mode === SAMPLE_MODE;
 }
 
-function formatRow(rec, session) {
+function csvHeader(session) {
+  return includeSampleArea(session)
+    ? [...HEADER.slice(0, 3), SAMPLE_AREA_HEADER, ...HEADER.slice(3)]
+    : HEADER;
+}
+
+function sampleAreaNumber(reference, sampleAreaId) {
+  const areas = reference?.[IPSO_REF_SAMPLING]?.[IPSO_REF_SAMPLE_AREAS] || [];
+  const area = areas.find((row) =>
+    row && row[FIELD_SAMPLE_AREA_ID] === sampleAreaId
+  );
+  return area ? area.number || '' : '';
+}
+
+function formatHeader(session) {
+  return csvHeader(session).map(escapeField).join(CSV_SEP);
+}
+
+function formatRow(rec, session, reference) {
   const catastrofata = !!session.catastrofata;
   // Particella is per-tree (auto-detected or manually overridden) so it
   // is carried on `rec`, not the session. Catastrofate sessions are
@@ -63,6 +88,11 @@ function formatRow(rec, session) {
     formatDate(session.data),
     session.compresa,
     rec.particella || '',
+  ];
+  if (includeSampleArea(session)) {
+    cells.push(sampleAreaNumber(reference, rec[FIELD_SAMPLE_AREA_ID]));
+  }
+  cells.push(
     catastrofata ? '1' : '0',
     fmtInt(rec.numero),
     rec.specie,
@@ -73,14 +103,14 @@ function formatRow(rec, session) {
     fmtFloat(rec.lon, 6),
     fmtInt(rec.acc_m),
     session.operatore || '',
-  ];
+  );
   return cells.map(escapeField).join(CSV_SEP);
 }
 
 // Full CSV file as a string. Caller wraps in a Blob and triggers download.
-function formatFile(session, trees) {
-  const lines = [formatHeader()];
-  for (const t of trees) lines.push(formatRow(t, session));
+function formatFile(session, trees, reference) {
+  const lines = [formatHeader(session)];
+  for (const t of trees) lines.push(formatRow(t, session, reference));
   return CSV_BOM + lines.join(CSV_NL) + CSV_NL;
 }
 
@@ -109,8 +139,9 @@ function sanitize(s) {
 }
 
 const csv = {
-  CSV_BOM, CSV_SEP, CSV_NL, HEADER, FILENAME_CATASTROFATE,
-  formatDate, fmtFloat, fmtInt, escapeField,
+  CSV_BOM, CSV_SEP, CSV_NL, HEADER, SAMPLE_AREA_HEADER,
+  FILENAME_CATASTROFATE,
+  formatDate, fmtFloat, fmtInt, escapeField, sampleAreaNumber,
   formatHeader, formatRow, formatFile, filename, sanitize,
 };
 if (typeof module !== 'undefined') module.exports = csv;

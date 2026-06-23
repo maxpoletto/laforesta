@@ -16,8 +16,8 @@ import { fmtCoord, fmtDecimal2, fmtInt } from '../../base/js/format.js';
 import { installEscapeHandler } from '../../base/js/escape.js';
 import * as S from '../../base/js/strings.js';
 import {
-  DATA_ID_IPSO_UPLOADS, FIELD_HARVEST_PLAN_ITEM_ID, FIELD_SURVEY_ID,
-  FIELD_WORK_PACKAGE_LABEL, FILE_ERROR,
+  DATA_ID_IPSO_UPLOADS, FIELD_HARVEST_PLAN_ITEM_ID, FIELD_SAMPLE_AREA_ID,
+  FIELD_SURVEY_ID, FIELD_WORK_PACKAGE_LABEL, FILE_ERROR,
   IPSO_MODE_MARTELLATE, IPSO_MODE_PAI, IPSO_MODE_SAMPLES,
   IPSO_UPLOAD_STATE_IMPORTED, IPSO_UPLOAD_STATE_RECEIVED, IPSO_UPLOAD_STATE_REJECTED,
   MESSAGE, PENDING_COUNT, RECORD_COUNT, RECORDS, ROLE_READER, ROWS,
@@ -66,13 +66,15 @@ const COLUMN_DEFS = {
 };
 
 const PREVIEW_COLUMNS = [
-  S.IPSO_COL_SEQ, S.COL_DATE, S.COL_PARCEL, S.COL_SPECIES, S.COL_NUMBER,
-  S.COL_D_CM, S.COL_H_M, S.COL_LAT, S.COL_LON, S.IPSO_COL_ACCURACY,
+  S.IPSO_COL_SEQ, S.COL_DATE, S.COL_PARCEL, FIELD_SAMPLE_AREA_ID,
+  S.COL_SPECIES, S.COL_NUMBER, S.COL_D_CM, S.COL_H_M, S.COL_LAT, S.COL_LON,
+  S.IPSO_COL_ACCURACY,
 ];
 const PREVIEW_COLUMN_DEFS = {
   [S.IPSO_COL_SEQ]: { label: S.IPSO_COL_SEQ, type: 'number', width: '70px', className: 'num', formatter: intValue },
   [S.COL_DATE]: { label: S.COL_DATE, width: '110px' },
   [S.COL_PARCEL]: { label: S.COL_PARCEL, width: '150px' },
+  [FIELD_SAMPLE_AREA_ID]: { label: S.COL_SAMPLE_AREA, width: '115px' },
   [S.COL_SPECIES]: { label: S.COL_SPECIES, width: '150px' },
   [S.COL_NUMBER]: { label: S.COL_NUMBER, type: 'number', width: '90px', className: 'num', formatter: intValue },
   [S.COL_D_CM]: { label: S.COL_D_CM, type: 'number', width: '90px', className: 'num', formatter: intValue },
@@ -366,8 +368,8 @@ function recordsTable(records) {
   const host = document.createElement('div');
   host.className = 'ipso-record-preview';
   const rows = records.map(rec => [
-    rec.seq, rec.date, rec.parcel, rec.species, rec.number,
-    rec.d_cm, rec.h_m, rec.lat, rec.lon, rec.acc_m,
+    rec.seq, rec.date, rec.parcel, rec[FIELD_SAMPLE_AREA_ID], rec.species,
+    rec.number, rec.d_cm, rec.h_m, rec.lat, rec.lon, rec.acc_m,
   ]);
   detailTable = new TableWrapper({
     container: host,

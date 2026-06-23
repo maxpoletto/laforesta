@@ -1116,7 +1116,7 @@ async function onEnd() {
       await closeEmptySession(State.session);
       return;
     }
-    const csvText = csv.formatFile(State.session, trees);
+    const csvText = csv.formatFile(State.session, trees, State.reference);
     const uploadPayload = upload.buildUploadPayload(
       State.session, trees, State.reference, csvText
     );
@@ -1124,15 +1124,15 @@ async function onEnd() {
     State.session.status = Store.STATUS_PENDING_UPLOAD;
     // Always download the local CSV first — it is the trust anchor and
     // the operator must not lose data if the upload never succeeds.
-    downloadFinal(State.session, trees);
+    downloadFinal(State.session, trees, State.reference);
     uploadFlow().enter(State.session.id, uploadPayload, trees.length);
   } catch (e) {
     showToast(S.TOAST_EXPORT_ERROR(e.message));
   }
 }
 
-function downloadFinal(sess, trees) {
-  const text = csv.formatFile(sess, trees);
+function downloadFinal(sess, trees, reference) {
+  const text = csv.formatFile(sess, trees, reference);
   const name = csv.filename(sess, new Date(), 'final');
   downloadText(text, name);
 }
@@ -1459,7 +1459,7 @@ function renderTreesTable(trees) {
 async function downloadBackup(seq) {
   const trees = await Store.listTrees(State.db, State.session.id);
   trees.sort((a, b) => a.seq - b.seq);
-  const text = csv.formatFile(State.session, trees);
+  const text = csv.formatFile(State.session, trees, State.reference);
   const name = csv.filename(State.session, new Date(), 'backup', seq);
   downloadText(text, name);
   showToast(S.BACKUP_SAVED(seq));
@@ -1576,14 +1576,14 @@ function showResumeModal(sessions) {
           await closeEmptySession(s);
           return;
         }
-        const csvText = csv.formatFile(s, trees);
+        const csvText = csv.formatFile(s, trees, State.reference);
         const uploadPayload = upload.buildUploadPayload(
           s, trees, State.reference, csvText
         );
         // Re-download the local CSV on every entry to screen-upload —
         // the browser auto-renames duplicates so this can never lose
         // the original copy. See spec.
-        downloadFinal(s, trees);
+        downloadFinal(s, trees, State.reference);
         State.session = s;
         setMode(s.mode);
         uploadFlow().enter(s.id, uploadPayload, trees.length);
@@ -1611,7 +1611,7 @@ function showResumeModal(sessions) {
         const trees = await Store.listTrees(State.db, s.id);
         trees.sort((a, b) => a.seq - b.seq);
         await Store.setSessionStatus(State.db, s.id, Store.STATUS_EXPORTED);
-        downloadFinal(s, trees);
+        downloadFinal(s, trees, State.reference);
         li.remove();
         if (!list.children.length) {
           hideModal('modal-resume');
