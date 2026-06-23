@@ -628,16 +628,18 @@ def test_inbox_data_lists_received_upload(writer_client, parcels, species, setti
     assert resp.status_code == 200
     data = resp.json()
     assert data['pending_count'] == 1
+    row = dict(zip(data['columns'], data['rows'][0]))
     assert data['columns'][0] == 'row_id'
-    assert data['rows'][0][2] == 'martellate'
-    assert data['rows'][0][3] == 'Mario Rossi'
-    assert data['rows'][0][5] == 'Da importare'
+    assert row[S.COL_DATE] == '2026-06-17'
+    assert row[S.IPSO_COL_MODE] == S.IPSO_MODE_MARTELLATE_LABEL
+    assert row[S.IPSO_COL_OPERATOR] == 'Mario Rossi'
+    assert row[S.IPSO_COL_STATE] == S.IPSO_STATE_RECEIVED
 
 
 @override_settings(IPSO_SECRET='test-token')
 def test_upload_detail_previews_staged_records(writer_client, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
-    payload = _upload_payload(parcels, species)
+    payload = _upload_payload(parcels, species, record_overrides={'h_m': '22.5'})
     assert _post_upload(Client(), payload).status_code == 200
     upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
 
@@ -646,9 +648,14 @@ def test_upload_detail_previews_staged_records(writer_client, parcels, species, 
     assert resp.status_code == 200
     data = resp.json()
     assert data['upload']['state'] == IpsoUploadState.RECEIVED
+    assert data['upload']['mode'] == 'martellate'
+    assert data['upload']['mode_label'] == S.IPSO_MODE_MARTELLATE_LABEL
+    assert data['upload']['record_date'] == '2026-06-17'
     assert data['record_count'] == 1
+    assert data['records'][0]['seq'] == 1
     assert data['records'][0]['parcel'] == 'Capistrano 1'
     assert data['records'][0]['species'] == 'Abete'
+    assert data['records'][0]['h_m'] == 22.5
     assert data['records'][0]['lon'] == 16.12345
 
 
@@ -734,8 +741,8 @@ def test_upload_detail_lists_sample_targets(writer_client, parcels, species, set
     assert any('Ipso inactive target' in t['label'] for t in data['targets'])
     assert data['upload']['work_package_label'] == 'Ipso inactive target - Ipso survey grid'
     inbox = writer_client.get(reverse('ipso-inbox-data')).json()
-    assert inbox['columns'][6] == 'Contesto'
-    assert inbox['rows'][0][6] == 'Ipso inactive target - Ipso survey grid'
+    row = dict(zip(inbox['columns'], inbox['rows'][0]))
+    assert row[S.IPSO_COL_WORK_PACKAGE] == 'Ipso inactive target - Ipso survey grid'
     assert 'sampling_survey:' not in json.dumps(inbox)
 
 

@@ -101,32 +101,11 @@
   margin: 16px 0 8px;
 }
 
-.ipso-record-preview {
-  max-height: 420px;
-  overflow: auto;
+.ipso-record-preview .table-page {
+  margin: 0;
 }
 
-.ipso-preview-table {
-  border-collapse: collapse;
-  min-width: 900px;
-  width: 100%;
-}
-
-.ipso-preview-table th,
-.ipso-preview-table td {
-  border-bottom: 1px solid #ddd;
-  padding: 6px 8px;
-  text-align: left;
-  white-space: nowrap;
-}
-
-.ipso-preview-table th {
-  background: var(--color-neutral-action);
-  font-weight: 700;
-}
-
-.ipso-loading,
-.ipso-preview-table .empty {
+.ipso-loading {
   color: #666;
 }
 

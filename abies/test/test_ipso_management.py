@@ -15,7 +15,7 @@ from apps.base.models import (
 )
 from apps.ipso.models import IpsoUpload, IpsoUploadState
 from config import strings as S
-from config.constants import RECORDS, SESSION
+from config.constants import RECORDS, SESSION, UPLOAD
 
 pytestmark = pytest.mark.django_db
 
@@ -71,6 +71,11 @@ def test_stage_marks_uploads_imports_converted_csv(
     assert payload[RECORDS][0]['parcel_id'] == parcels[0].id
     assert payload[RECORDS][0]['species_id'] == species[0].id
     assert payload[RECORDS][0]['h_m'] == '22.50'
+
+    detail = writer_client.get(reverse('ipso-upload-detail', args=[upload.id])).json()
+    assert detail[UPLOAD]['mode_label'] == S.IPSO_MODE_MARTELLATE_LABEL
+    assert detail[UPLOAD]['reference_version_label'] == S.IPSO_REFERENCE_LEGACY_CONVERTED
+    assert detail[UPLOAD]['record_date'] == '2026-06-15'
 
     plan = HarvestPlan.objects.create(
         name='PDG test', year_start=2026, year_end=2026,

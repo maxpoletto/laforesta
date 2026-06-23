@@ -12,7 +12,7 @@ import {
 import { showError } from '../../base/js/modals.js';
 import { showConfirmModal } from '../../base/js/ui-widgets.js';
 import { cloneTemplate } from '../../base/js/templates.js';
-import { fmtCoord } from '../../base/js/format.js';
+import { fmtCoord, fmtDecimal2, fmtInt } from '../../base/js/format.js';
 import { installEscapeHandler } from '../../base/js/escape.js';
 import * as S from '../../base/js/strings.js';
 import {
@@ -55,7 +55,8 @@ const IMPORT_CONFIG = {
 
 const COLUMN_DEFS = {
   [S.IPSO_COL_RECEIVED]: { label: S.IPSO_COL_RECEIVED, width: '145px' },
-  [S.IPSO_COL_MODE]: { label: S.IPSO_COL_MODE, width: '100px' },
+  [S.COL_DATE]: { label: S.COL_DATE, width: '110px' },
+  [S.IPSO_COL_MODE]: { label: S.IPSO_COL_MODE, width: '120px' },
   [S.IPSO_COL_OPERATOR]: { label: S.IPSO_COL_OPERATOR, width: '150px' },
   [S.IPSO_COL_RECORDS]: { label: S.IPSO_COL_RECORDS, type: 'number', width: '80px', className: 'num' },
   [S.IPSO_COL_STATE]: { label: S.IPSO_COL_STATE, width: '120px' },
@@ -64,7 +65,25 @@ const COLUMN_DEFS = {
   [S.IPSO_COL_ERROR]: { label: S.IPSO_COL_ERROR, width: '260px' },
 };
 
+const PREVIEW_COLUMNS = [
+  S.IPSO_COL_SEQ, S.COL_DATE, S.COL_PARCEL, S.COL_SPECIES, S.COL_NUMBER,
+  S.COL_D_CM, S.COL_H_M, S.COL_LAT, S.COL_LON, S.IPSO_COL_ACCURACY,
+];
+const PREVIEW_COLUMN_DEFS = {
+  [S.IPSO_COL_SEQ]: { label: S.IPSO_COL_SEQ, type: 'number', width: '70px', className: 'num', formatter: intValue },
+  [S.COL_DATE]: { label: S.COL_DATE, width: '110px' },
+  [S.COL_PARCEL]: { label: S.COL_PARCEL, width: '150px' },
+  [S.COL_SPECIES]: { label: S.COL_SPECIES, width: '150px' },
+  [S.COL_NUMBER]: { label: S.COL_NUMBER, type: 'number', width: '90px', className: 'num', formatter: intValue },
+  [S.COL_D_CM]: { label: S.COL_D_CM, type: 'number', width: '90px', className: 'num', formatter: intValue },
+  [S.COL_H_M]: { label: S.COL_H_M, type: 'number', width: '90px', className: 'num', formatter: decimal2Value },
+  [S.COL_LAT]: { label: S.COL_LAT, type: 'number', width: '115px', formatter: coordValue },
+  [S.COL_LON]: { label: S.COL_LON, type: 'number', width: '115px', formatter: coordValue },
+  [S.IPSO_COL_ACCURACY]: { label: S.IPSO_COL_ACCURACY, type: 'number', width: '80px', className: 'num', formatter: intValue },
+};
+
 let table = null;
+let detailTable = null;
 let detailEl = null;
 let summaryEl = null;
 let selectedId = null;
@@ -127,6 +146,7 @@ function inboxActions() {
 function destroyPage() {
   if (disposeEscape) { disposeEscape(); disposeEscape = null; }
   if (table) { table.destroy(); table = null; }
+  destroyDetailTable();
   detailEl = null;
   summaryEl = null;
   selectedId = null;
@@ -151,6 +171,7 @@ function syncURL() {
 async function openUpload(id) {
   selectedId = id;
   detailEl.hidden = false;
+  destroyDetailTable();
   detailEl.replaceChildren(loadingBlock(S.IPSO_LOADING_DETAIL));
   try {
     const { data } = await api.fetchJSON(DETAIL_URL(id));
@@ -164,8 +185,15 @@ async function openUpload(id) {
 function closeDetail() {
   if (!detailEl || detailEl.hidden) return;
   detailEl.hidden = true;
+  destroyDetailTable();
   detailEl.replaceChildren();
   selectedId = null;
+}
+
+function destroyDetailTable() {
+  if (!detailTable) return;
+  detailTable.destroy();
+  detailTable = null;
 }
 
 function confirmReject(id) {
@@ -187,6 +215,7 @@ async function rejectUpload(id) {
 }
 
 function renderDetail(data) {
+  destroyDetailTable();
   detailEl.replaceChildren();
   const upload = data[UPLOAD] || {};
 
@@ -224,11 +253,12 @@ function renderDetail(data) {
 
   detailEl.appendChild(metadataGrid([
     [S.IPSO_COL_STATE, upload.state_label],
-    [S.IPSO_COL_MODE, upload.mode],
+    [S.IPSO_COL_MODE, upload.mode_label || modeLabel(upload.mode)],
     [S.IPSO_COL_OPERATOR, upload.operator],
     [S.IPSO_COL_RECEIVED, upload.received_at],
+    [S.COL_DATE, upload.record_date],
     [S.IPSO_COL_RECORDS, upload.record_count],
-    [S.IPSO_COL_REFERENCE, upload.reference_version],
+    [S.IPSO_COL_REFERENCE, upload.reference_version_label || referenceLabel(upload.reference_version)],
     [S.IPSO_COL_WORK_PACKAGE, upload[FIELD_WORK_PACKAGE_LABEL]],
     [S.IPSO_COL_TARGET, upload.target_label],
     [S.IPSO_COL_ERROR, upload.error_summary],
@@ -333,48 +363,48 @@ function metadataGrid(items) {
 }
 
 function recordsTable(records) {
-  const wrap = document.createElement('div');
-  wrap.className = 'ipso-record-preview table-scroll';
-  const tableEl = document.createElement('table');
-  tableEl.className = 'ipso-preview-table';
-  const headers = [
-    S.IPSO_COL_SEQ, S.COL_DATE, S.COL_PARCEL, S.COL_SPECIES, S.COL_NUMBER,
-    S.COL_D_CM, S.COL_H_M, S.COL_LAT, S.COL_LON, S.IPSO_COL_ACCURACY,
-  ];
-  const thead = document.createElement('thead');
-  const trh = document.createElement('tr');
-  for (const label of headers) {
-    const th = document.createElement('th');
-    th.textContent = label;
-    trh.appendChild(th);
-  }
-  thead.appendChild(trh);
-  tableEl.appendChild(thead);
-  const tbody = document.createElement('tbody');
-  for (const rec of records) {
-    const tr = document.createElement('tr');
-    for (const value of [
-      rec.seq, rec.date, rec.parcel, rec.species, rec.number,
-      rec.d_cm, rec.h_m, fmtCoord(rec.lat), fmtCoord(rec.lon), rec.acc_m,
-    ]) {
-      const td = document.createElement('td');
-      td.textContent = value == null || value === '' ? S.IPSO_EMPTY_VALUE : String(value);
-      tr.appendChild(td);
-    }
-    tbody.appendChild(tr);
-  }
-  if (!records.length) {
-    const tr = document.createElement('tr');
-    const td = document.createElement('td');
-    td.colSpan = headers.length;
-    td.className = 'empty';
-    td.textContent = S.IPSO_EMPTY_RECORDS;
-    tr.appendChild(td);
-    tbody.appendChild(tr);
-  }
-  tableEl.appendChild(tbody);
-  wrap.appendChild(tableEl);
-  return wrap;
+  const host = document.createElement('div');
+  host.className = 'ipso-record-preview';
+  const rows = records.map(rec => [
+    rec.seq, rec.date, rec.parcel, rec.species, rec.number,
+    rec.d_cm, rec.h_m, rec.lat, rec.lon, rec.acc_m,
+  ]);
+  detailTable = new TableWrapper({
+    container: host,
+    digest: { columns: PREVIEW_COLUMNS, rows },
+    columnDefs: PREVIEW_COLUMN_DEFS,
+    canModify: false,
+    inlineToolbar: false,
+    sort: { column: S.IPSO_COL_SEQ, ascending: true },
+    labels: { ...S.TABLE_LABELS, empty: S.IPSO_EMPTY_RECORDS },
+    csvFormat: S.TABLE_CSV_FORMAT,
+  });
+  return host;
+}
+
+function coordValue(value) {
+  return value == null || value === '' ? S.IPSO_EMPTY_VALUE : fmtCoord(value);
+}
+
+function decimal2Value(value) {
+  return value == null || value === '' ? S.IPSO_EMPTY_VALUE : fmtDecimal2(value);
+}
+
+function intValue(value) {
+  return value == null || value === '' ? S.IPSO_EMPTY_VALUE : fmtInt(value);
+}
+
+function modeLabel(mode) {
+  if (mode === IPSO_MODE_MARTELLATE) return S.IPSO_MODE_MARTELLATE_LABEL;
+  if (mode === IPSO_MODE_SAMPLES) return S.IPSO_MODE_SAMPLES_LABEL;
+  if (mode === IPSO_MODE_PAI) return S.IPSO_MODE_PAI_LABEL;
+  return mode || '';
+}
+
+function referenceLabel(referenceVersion) {
+  return referenceVersion === 'legacy-converted'
+    ? S.IPSO_REFERENCE_LEGACY_CONVERTED
+    : referenceVersion || '';
 }
 
 function loadingBlock(text) {

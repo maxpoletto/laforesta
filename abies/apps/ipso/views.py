@@ -9,7 +9,7 @@ import re
 import time
 from collections import defaultdict, deque
 from datetime import timezone
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from ipaddress import ip_address, ip_network
 from pathlib import Path
 
@@ -391,15 +391,23 @@ def terreni_geojson(request: HttpRequest) -> HttpResponse:
 
 
 INBOX_COLUMNS = [
-    ROW_ID, S.IPSO_COL_RECEIVED, S.IPSO_COL_MODE, S.IPSO_COL_OPERATOR,
-    S.IPSO_COL_RECORDS, S.IPSO_COL_STATE, S.IPSO_COL_WORK_PACKAGE,
-    S.IPSO_COL_TARGET, S.IPSO_COL_ERROR,
+    ROW_ID, S.IPSO_COL_RECEIVED, S.COL_DATE, S.IPSO_COL_MODE,
+    S.IPSO_COL_OPERATOR, S.IPSO_COL_RECORDS, S.IPSO_COL_STATE,
+    S.IPSO_COL_WORK_PACKAGE, S.IPSO_COL_TARGET, S.IPSO_COL_ERROR,
 ]
 STATE_LABELS = {
     IpsoUploadState.RECEIVED: S.IPSO_STATE_RECEIVED,
     IpsoUploadState.IMPORTED: S.IPSO_STATE_IMPORTED,
     IpsoUploadState.REJECTED: S.IPSO_STATE_REJECTED,
     IpsoUploadState.CONFLICT: S.IPSO_STATE_CONFLICT,
+}
+MODE_LABELS = {
+    IPSO_MODE_MARTELLATE: S.IPSO_MODE_MARTELLATE_LABEL,
+    IPSO_MODE_SAMPLES: S.IPSO_MODE_SAMPLES_LABEL,
+    IPSO_MODE_PAI: S.IPSO_MODE_PAI_LABEL,
+}
+REFERENCE_LABELS = {
+    'legacy-converted': S.IPSO_REFERENCE_LEGACY_CONVERTED,
 }
 
 
@@ -644,7 +652,8 @@ def _inbox_row(upload: IpsoUpload) -> list:
     return [
         upload.id,
         _format_dt(upload.received_at),
-        upload.mode,
+        _upload_record_date(upload),
+        _mode_label(upload.mode),
         upload.operator,
         upload.record_count,
         STATE_LABELS.get(upload.state, upload.state),
@@ -659,11 +668,14 @@ def _upload_metadata(upload: IpsoUpload) -> dict:
         'id': upload.id,
         FIELD_SESSION_ID: upload.session_id,
         FIELD_MODE: upload.mode,
+        'mode_label': _mode_label(upload.mode),
         FIELD_SCHEMA_VERSION: upload.schema_version,
         FIELD_REFERENCE_VERSION: upload.reference_version,
+        'reference_version_label': _reference_label(upload.reference_version),
         FIELD_WORK_PACKAGE_ID: upload.work_package_id,
         FIELD_WORK_PACKAGE_LABEL: _work_package_label(upload),
         FIELD_OPERATOR: upload.operator,
+        'record_date': _upload_record_date(upload),
         RECORD_COUNT: upload.record_count,
         'checksum': upload.checksum,
         FIELD_STATE: upload.state,
@@ -722,6 +734,34 @@ def _format_dt(value) -> str:
     return value.astimezone(timezone.utc).strftime('%Y-%m-%d %H:%M')
 
 
+def _mode_label(mode: str) -> str:
+    return MODE_LABELS.get(mode, mode)
+
+
+def _reference_label(reference_version: str) -> str:
+    raw = (reference_version or '').strip()
+    return REFERENCE_LABELS.get(raw, raw)
+
+
+def _upload_record_date(upload: IpsoUpload) -> str:
+    payload, _ = _read_staged_payload(upload)
+    return _payload_record_date(payload)
+
+
+def _payload_record_date(payload: dict) -> str:
+    records = payload.get(RECORDS, []) if isinstance(payload, dict) else []
+    if not isinstance(records, list):
+        return ''
+    dates = [
+        row.get(FIELD_DATE)
+        for row in records
+        if isinstance(row, dict)
+        and isinstance(row.get(FIELD_DATE), str)
+        and _DATE_RE.match(row.get(FIELD_DATE))
+    ]
+    return min(dates) if dates else ''
+
+
 def _read_staged_payload(upload: IpsoUpload) -> tuple[dict, str]:
     path = Path(upload.inbox_path) / IPSO_UPLOAD_FILE_JSON
     try:
@@ -730,6 +770,28 @@ def _read_staged_payload(upload: IpsoUpload) -> tuple[dict, str]:
         return {}, S.IPSO_ERR_UPLOAD_JSON_MISSING
     except json.JSONDecodeError:
         return {}, S.IPSO_ERR_UPLOAD_JSON_INVALID
+
+
+def _preview_sequence(value, fallback: int):
+    if type(value) is int:
+        return value
+    if isinstance(value, str):
+        text = value.strip()
+        if text.isdigit():
+            return int(text)
+        if text:
+            return text
+    return fallback
+
+
+def _preview_decimal(value):
+    if value is None or value == '':
+        return value
+    try:
+        number = Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError):
+        return value
+    return float(number) if number.is_finite() else value
 
 
 def _preview_records(records: list) -> list[dict]:
@@ -756,13 +818,13 @@ def _preview_records(records: list) -> list[dict]:
         if not isinstance(row, dict):
             continue
         out.append({
-            'seq': row.get(FIELD_CLIENT_RECORD_ID) or str(i),
+            'seq': _preview_sequence(row.get(FIELD_CLIENT_RECORD_ID), i),
             FIELD_DATE: row.get(FIELD_DATE, ''),
             'parcel': parcels.get(row.get(FIELD_PARCEL_ID), str(row.get(FIELD_PARCEL_ID, ''))),
             'species': species.get(row.get(FIELD_SPECIES_ID), str(row.get(FIELD_SPECIES_ID, ''))),
             FIELD_NUMBER: row.get(FIELD_NUMBER),
             FIELD_D_CM: row.get(FIELD_D_CM),
-            FIELD_H_M: row.get(FIELD_H_M),
+            FIELD_H_M: _preview_decimal(row.get(FIELD_H_M)),
             FIELD_H_MEASURED: bool(row.get(FIELD_H_MEASURED)),
             FIELD_LAT: row.get(FIELD_LAT),
             FIELD_LON: row.get(FIELD_LON),
