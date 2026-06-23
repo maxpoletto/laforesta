@@ -630,6 +630,7 @@ def test_inbox_data_lists_received_upload(writer_client, parcels, species, setti
     assert data['pending_count'] == 1
     row = dict(zip(data['columns'], data['rows'][0]))
     assert data['columns'][0] == 'row_id'
+    assert row['_ipso_state'] == IpsoUploadState.RECEIVED
     assert row[S.COL_DATE] == '2026-06-17'
     assert row[S.IPSO_COL_MODE] == S.IPSO_MODE_MARTELLATE_LABEL
     assert row[S.IPSO_COL_OPERATOR] == 'Mario Rossi'

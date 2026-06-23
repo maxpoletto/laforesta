@@ -77,6 +77,7 @@ export const IPSO_PREVIEW_TITLE = (n) => `Anteprima record (${n})`;
 export const IPSO_EMPTY_RECORDS = 'Nessun record.';
 export const IPSO_SUMMARY_EMPTY = 'Nessun caricamento Ipso.';
 export const IPSO_SUMMARY = (n, pending) => `${n} caricamenti, ${pending} da importare.`;
+export const IPSO_INCLUDE_IMPORTED = 'Anche dati già importati';
 export const IPSO_TARGET_PLAN_LABEL = 'Piano di taglio';
 export const IPSO_TARGET_SURVEY_LABEL = 'Rilevamento';
 export const IPSO_TARGET_SELECT = 'Seleziona destinazione';

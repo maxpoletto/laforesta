@@ -29,6 +29,7 @@ const DATA_URL = '/api/ipso/inbox/';
 const PAGE_PATH = '/importazione';
 const CSS_URL = '/static/ipso/css/importazione.css';
 const DEFAULT_SORT = { column: S.IPSO_COL_RECEIVED, ascending: false };
+const INBOX_STATE_COL = '_ipso_state';
 const DETAIL_URL = (id) => `/api/ipso/uploads/${id}/`;
 const REJECT_URL = (id) => `/api/ipso/uploads/${id}/reject/`;
 const IMPORT_CONFIG = {
@@ -54,6 +55,7 @@ const IMPORT_CONFIG = {
 };
 
 const COLUMN_DEFS = {
+  [INBOX_STATE_COL]: { hidden: true },
   [S.IPSO_COL_RECEIVED]: { label: S.IPSO_COL_RECEIVED, width: '145px' },
   [S.COL_DATE]: { label: S.COL_DATE, width: '110px' },
   [S.IPSO_COL_MODE]: { label: S.IPSO_COL_MODE, width: '120px' },
@@ -90,6 +92,8 @@ let detailEl = null;
 let summaryEl = null;
 let selectedId = null;
 let disposeEscape = null;
+let includeImportedEl = null;
+let inboxStateIndex = -1;
 
 cache.register(DATA_ID, DATA_URL);
 
@@ -118,6 +122,7 @@ function buildPage(el, params, data) {
   summaryEl.textContent = summaryText(data);
 
   const state = readTableState(params);
+  inboxStateIndex = inboxStateColumnIndex(data);
   table = new TableWrapper({
     container: tableHost,
     digest: data,
@@ -136,6 +141,8 @@ function buildPage(el, params, data) {
     onSort: () => syncURL(),
     onSearch: () => syncURL(),
   });
+  installIncludeImportedToggle(tableHost);
+  applyInboxFilter();
   updateNavDot(data);
 }
 
@@ -152,6 +159,8 @@ function destroyPage() {
   detailEl = null;
   summaryEl = null;
   selectedId = null;
+  includeImportedEl = null;
+  inboxStateIndex = -1;
 }
 
 function applyParams(params) {
@@ -159,7 +168,9 @@ function applyParams(params) {
 }
 
 function refreshTable(data) {
+  inboxStateIndex = inboxStateColumnIndex(data);
   table?.setData(data);
+  applyInboxFilter();
   updateNavDot(data);
   if (summaryEl) summaryEl.textContent = summaryText(data);
 }
@@ -168,6 +179,34 @@ function syncURL() {
   const params = new URLSearchParams();
   writeTableState(params, table);
   navigateWithParams(PAGE_PATH, params);
+}
+
+function installIncludeImportedToggle(tableHost) {
+  const search = tableHost.querySelector('.table-search');
+  if (!search) return;
+
+  const label = document.createElement('label');
+  label.className = 'ipso-include-imported';
+  const checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.checked = false;
+  checkbox.addEventListener('change', applyInboxFilter);
+  label.append(checkbox, document.createTextNode(S.IPSO_INCLUDE_IMPORTED));
+  search.after(label);
+  includeImportedEl = checkbox;
+}
+
+function applyInboxFilter() {
+  if (!table) return;
+  table.setExternalFilter(row => includeImportedEl?.checked || !isImportedInboxRow(row));
+}
+
+function isImportedInboxRow(row) {
+  return inboxStateIndex >= 0 && row[inboxStateIndex] === IPSO_UPLOAD_STATE_IMPORTED;
+}
+
+function inboxStateColumnIndex(data) {
+  return Array.isArray(data?.columns) ? data.columns.indexOf(INBOX_STATE_COL) : -1;
 }
 
 async function openUpload(id) {

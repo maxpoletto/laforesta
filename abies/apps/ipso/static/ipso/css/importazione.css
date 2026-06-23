@@ -21,6 +21,23 @@
   font-size: 14px;
 }
 
+.ipso-inbox-page .table-toolbar {
+  flex-wrap: wrap;
+}
+
+.ipso-include-imported {
+  align-items: center;
+  color: #444;
+  display: flex;
+  font-size: 0.85rem;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.ipso-include-imported input {
+  margin: 0;
+}
+
 .ipso-upload-detail {
   border-top: 1px solid #ddd;
   margin-top: 18px;

@@ -390,10 +390,13 @@ def terreni_geojson(request: HttpRequest) -> HttpResponse:
     return _authorized_data_response(response)
 
 
+IPSO_INBOX_STATE_COL = '_ipso_state'
+
 INBOX_COLUMNS = [
-    ROW_ID, S.IPSO_COL_RECEIVED, S.COL_DATE, S.IPSO_COL_MODE,
-    S.IPSO_COL_OPERATOR, S.IPSO_COL_RECORDS, S.IPSO_COL_STATE,
-    S.IPSO_COL_WORK_PACKAGE, S.IPSO_COL_TARGET, S.IPSO_COL_ERROR,
+    ROW_ID, IPSO_INBOX_STATE_COL, S.IPSO_COL_RECEIVED, S.COL_DATE,
+    S.IPSO_COL_MODE, S.IPSO_COL_OPERATOR, S.IPSO_COL_RECORDS,
+    S.IPSO_COL_STATE, S.IPSO_COL_WORK_PACKAGE, S.IPSO_COL_TARGET,
+    S.IPSO_COL_ERROR,
 ]
 STATE_LABELS = {
     IpsoUploadState.RECEIVED: S.IPSO_STATE_RECEIVED,
@@ -651,6 +654,7 @@ def _get_upload(upload_id: int, *, for_update: bool = False) -> IpsoUpload:
 def _inbox_row(upload: IpsoUpload) -> list:
     return [
         upload.id,
+        upload.state,
         _format_dt(upload.received_at),
         _upload_record_date(upload),
         _mode_label(upload.mode),
