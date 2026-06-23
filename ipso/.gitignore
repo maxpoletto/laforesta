@@ -1,7 +1,0 @@
-# All build output is staged into build/ by `make build` and rsynced
-# from there by `make deploy` / `make deploy-test`. Everything inside
-# is regenerable from src/, test/, tools/, and bosco/data.
-build/
-
-# Real upload secret (only local). Example is committed.
-secrets/upload_config.json
