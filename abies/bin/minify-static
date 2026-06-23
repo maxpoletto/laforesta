@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Minify collected static JavaScript in place.
+#
+# This is intentionally run against STATIC_ROOT / collected static files, not
+# app source files. Production deploys call it after collectstatic, and local
+# runs can use `make collectstatic minify`.
+
+set -euo pipefail
+
+root="${1:-staticfiles}"
+
+if [[ ! -d "$root" ]]; then
+  echo "error: static root '$root' does not exist" >&2
+  echo "       run collectstatic first, or pass the collected static dir" >&2
+  exit 1
+fi
+
+command -v terser >/dev/null 2>&1 || {
+  echo "error: terser not found" >&2
+  echo "       install terser locally, or use the production container image" >&2
+  exit 1
+}
+
+count=0
+while IFS= read -r -d '' file; do
+  tmp="$(mktemp "${file}.XXXXXX")"
+  args=(--compress --mangle --comments false)
+  if [[ "$file" == *.mjs ]]; then
+    args=(--module "${args[@]}")
+  fi
+  if terser "$file" "${args[@]}" -o "$tmp"; then
+    mv "$tmp" "$file"
+    count=$((count + 1))
+  else
+    rm -f "$tmp"
+    exit 1
+  fi
+done < <(find "$root" -type f \( -name '*.js' -o -name '*.mjs' \) ! -name '*.min.js' -print0)
+
+echo "Minified $count JavaScript files under $root."

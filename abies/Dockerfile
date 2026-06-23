@@ -1,9 +1,12 @@
 FROM python:3.14-slim
 
 # --- OS deps ----------------------------------------------------------------
-# Only runtime libs needed: sqlite3 ships as a Python stdlib C extension in
-# python:3.14-slim, so no apt packages are strictly required.  Keeping the
-# apt-get stanza minimal leaves a clean slate for future additions.
+# sqlite3 ships as a Python stdlib C extension in python:3.14-slim.  Terser is
+# present so production deploys can minify collected static JS inside the same
+# container that runs collectstatic.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends terser \
+ && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 

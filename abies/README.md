@@ -39,7 +39,8 @@ Production deployments run Abies as a Docker container. Apache terminates TLS,
 serves collected static files directly, and reverse-proxies application traffic
 to gunicorn bound on localhost. Runtime state lives outside the image under a
 bind-mounted `data/` directory: SQLite database, digests, geodata, Ipso inbox,
-and optional canonical bootstrap data. Static files are host-mounted too; a
+and optional canonical bootstrap data. Digest files are stored as `.json.gz`
+and served with `Content-Encoding: gzip`. Static files are host-mounted too; a
 separate backup mount is used for deploy-time SQLite snapshots, but scheduled or
 off-host backups are still a separate operational task.
 
@@ -83,7 +84,7 @@ make dev
 present, regenerates JSON digests, creates or asks for an admin user, and
 materializes language-template symlinks. For smaller steps, use `make migrate`,
 `make bootstrap`, `make geo`, `make stage-marks-uploads`, `make digest`,
-and `make admin`.
+and `make admin`. Run `make help` for the full local and remote target list.
 
 To make the process completely non-interactive (e.g., during edit-debug cycles),
 set the following environment variables:
@@ -235,8 +236,8 @@ Adjust names and ports as needed.
    explicit git ref:
 
    ```sh
-   ./bin/deploy dev
-   ./bin/deploy dev <branch-or-sha>
+   make deploy-dev
+   make deploy-dev REF=<branch-or-sha>
    ```
 
    Without a ref, the dev deploy builds whatever is currently in the checkout,
@@ -247,37 +248,38 @@ Adjust names and ports as needed.
    tree:
 
    ```sh
-   ./bin/deploy prod <tag-or-sha>
+   make deploy-prod REF=<tag-or-sha>
    ```
 
-   The deploy script builds the image, writes a pre-deploy SQLite snapshot to
-   the backup mount when an image already exists, runs migrations, runs
+   Add `DEPLOY_ARGS=--reset-user` to delete existing superusers before the
+   superuser creation step. The Makefile targets call `bin/deploy`, which
+   builds the image, writes a pre-deploy SQLite snapshot to the backup mount
+   when an image already exists, runs migrations, runs
    `manage.py check --deploy --fail-level WARNING` for prod, optionally creates
-   a superuser from
-   `DJANGO_SUPERUSER_USERNAME`, `DJANGO_SUPERUSER_EMAIL`, and
-   `DJANGO_SUPERUSER_PASSWORD`, collects static files, and starts the compose
-   stack. Add `--reset-user` to delete existing superusers before the
-   superuser creation step.
+   a superuser from `DJANGO_SUPERUSER_USERNAME`,
+   `DJANGO_SUPERUSER_EMAIL`, and `DJANGO_SUPERUSER_PASSWORD`, collects static
+   files, minifies collected JavaScript for prod, and starts the compose stack.
 
 8. Load initial data.
 
-   Stage canonical CSVs on the host under the instance data directory:
-
-   ```text
-   /var/lib/abies-prod/data/canonical
-   /var/lib/abies-dev/data/canonical
-   ```
-
-   Then run:
+   Keep canonical CSVs locally under `data/canonical`, or override the source
+   with `CANONICAL_DIR=<path>`. Then run:
 
    ```sh
-   ./bin/bootstrap-data prod
-   ./bin/bootstrap-data dev
+   make bootstrap-dev
+   make bootstrap-prod
    ```
 
-   This runs `manage.py bootstrap`, builds geodata into `/app/data/geo`, and
-   regenerates all digests. The bootstrap command refuses to load into a
-   non-empty database.
+   These targets rsync the local canonical directory to the matching host path
+   under `/var/lib/abies-<instance>/data/canonical`, fix ownership for the
+   container UID, then run `bin/bootstrap-data <instance>`. To sync without
+   bootstrapping, use `make stage-canonical-dev` or
+   `make stage-canonical-prod`. The bootstrap command runs `manage.py
+   bootstrap`, builds geodata into `/app/data/geo`, and regenerates all
+   digests. It refuses to load into a non-empty database.
+
+   The rsync targets default to `REMOTE=maxp@abies.laforesta.it`; override
+   `REMOTE_USER`, `REMOTE_HOST`, or `REMOTE` if needed.
 
 9. Enroll Ipso devices.
 

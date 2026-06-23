@@ -138,6 +138,11 @@ else:
 echo "==> collectstatic"
 dc run --rm abies python manage.py collectstatic --noinput
 
+if [[ "$instance" == "prod" ]]; then
+  echo "==> minify static JS"
+  dc run --rm abies bin/minify-static /app/staticfiles
+fi
+
 echo "==> start"
 dc up -d
 

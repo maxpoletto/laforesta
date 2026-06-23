@@ -266,7 +266,7 @@ Apps are organized under `apps/` with dotted paths in `INSTALLED_APPS` (e.g.,
 ES modules (`<script type="module">`). `base/js/app.js` is the sole entry
 point; it imports shared modules and each domain's page module (all loaded
 at boot, not lazy). Each domain exports a page class: `mount(params)`,
-`unmount()`, `onQueryChange(params)`. `make minify` for release builds.
+`unmount()`, `onQueryChange(params)`. Production deploys minify collected static files after `collectstatic`; `make minify` applies the same step to local `staticfiles/`.
 
 ## Static file conventions
 
@@ -280,17 +280,19 @@ Prod: `https://abies.laforesta.it/`; dev: `https://abies-dev.laforesta.it/`
 (same VM, separate data, basic-auth gate). Apache reverse-proxies to
 gunicorn. Host provisioning via `../../system/ansible/foresta.yml`.
 
-Deploy from laptop via `bin/deploy <dev|prod> [git-ref]` over a docker
-context. Sequence: backup → build → stop → migrate → collectstatic → up.
-Container env vars from `compose/.env.{prod,dev}` (gitignored).
+Deploy from laptop via Makefile wrappers around `bin/deploy <dev|prod>
+[git-ref]` over a docker context. Sequence: backup → build → stop → migrate →
+collectstatic → prod static minification → up. Container env vars come from
+`compose/.env.{prod,dev}` (gitignored).
 
 ```sh
-bin/deploy dev          # deploy current working tree to abies-dev
-bin/deploy prod v0.1.0  # deploy a tagged release to abies-prod
+make deploy-dev                  # deploy current working tree to abies-dev
+make deploy-dev REF=<branch>     # deploy a specific ref to abies-dev
+make deploy-prod REF=v0.1.0      # deploy a tagged release to abies-prod
 ```
 
-Prod releases use git tags; `bin/deploy prod <tag>` requires clean tree.
-Dev deploys the working tree (uncommitted changes included).
+Prod releases use git tags; `make deploy-prod REF=<tag>` requires a clean tree.
+Dev deploys the working tree (uncommitted changes included) when REF is unset.
 Local dev uses `manage.py runserver` directly (no Docker).
 
 # Testing

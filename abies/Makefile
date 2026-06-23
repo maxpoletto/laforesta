@@ -2,17 +2,50 @@ PYTHON = python3
 CANONICAL_DIR ?= data/canonical
 DJANGO_DEBUG ?= 1
 DJANGO_SECRET_KEY ?= django-insecure-local-dev
+LANGUAGE_SUFFIX ?= _it
+STATIC_ROOT ?= staticfiles
+
+REMOTE_USER ?= maxp
+REMOTE_HOST ?= abies.laforesta.it
+REMOTE ?= $(REMOTE_USER)@$(REMOTE_HOST)
+REMOTE_ABIES_UID ?= 10001
+REMOTE_ABIES_GID ?= 10001
+
+REF ?=
+DEPLOY_ARGS ?=
+
 MANAGE = env DJANGO_DEBUG="$(DJANGO_DEBUG)" DJANGO_SECRET_KEY="$(DJANGO_SECRET_KEY)" $(PYTHON) manage.py
 
-# Active language.  Parallel to `from config.strings_it import *` in
+# Active language. Parallel to `from config.strings_it import *` in
 # config/strings.py and `export * from './strings_it.js'` in strings.js:
 # template files are committed as <name><LANGUAGE_SUFFIX>.html; the
 # unsuffixed <name>.html symlinks are materialized at install time.
-LANGUAGE_SUFFIX = _it
 
-.PHONY: check migrate geo digest admin dev \
-        clean reset-schema update-vendor minify test test-js collectstatic \
-        link-templates reset-db bootstrap stage-marks-uploads
+.PHONY: help \
+        check migrate reset-db bootstrap geo stage-marks-uploads digest admin link-templates dev serve \
+        collectstatic minify \
+        deploy-dev deploy-prod stage-canonical stage-canonical-dev stage-canonical-prod bootstrap-dev bootstrap-prod docker-prune \
+        test test-js \
+        clean reset-schema update-vendor
+
+help:
+	@echo "Local development:"
+	@echo "  make dev                         reset local DB, bootstrap, build geo/digests, create admin"
+	@echo "  make serve                       run Django dev server in the background"
+	@echo "  make test                        run JS tests and pytest"
+	@echo "  make collectstatic minify        collect static files, then minify collected JS"
+	@echo ""
+	@echo "Remote deployment:"
+	@echo "  make deploy-dev [REF=<ref>]      deploy current tree or ref to abies-dev"
+	@echo "  make deploy-prod REF=<ref>       deploy clean tagged/ref build to production"
+	@echo "  make stage-canonical-dev         rsync CANONICAL_DIR to dev data/canonical"
+	@echo "  make stage-canonical-prod        rsync CANONICAL_DIR to prod data/canonical"
+	@echo "  make bootstrap-dev               stage canonical data, then bootstrap dev"
+	@echo "  make bootstrap-prod              stage canonical data, then bootstrap prod"
+	@echo ""
+	@echo "Useful variables: CANONICAL_DIR=$(CANONICAL_DIR), REMOTE=$(REMOTE), DEPLOY_ARGS=--reset-user"
+
+# --- Local database and data build -----------------------------------------
 
 check:
 	$(MANAGE) check
@@ -22,7 +55,6 @@ migrate:
 	$(MANAGE) makemigrations
 	$(MANAGE) migrate
 
-# --- Canonical load path: load canonical CSVs into an EMPTY instance.
 # `make dev` runs `reset-db` first so bootstrap always loads into a clean DB.
 reset-db:
 	rm -f data/db.sqlite3 data/db.sqlite3-wal data/db.sqlite3-shm
@@ -41,9 +73,8 @@ stage-marks-uploads:
 digest:
 	$(MANAGE) shell --no-imports -c "from apps.base.digests import generate_all; generate_all()"
 
-# Creates the initial superuser (role='admin').  Non-interactive when
-# DJANGO_SUPERUSER_USERNAME/EMAIL/PASSWORD are all set (so a reset-based
-# `make dev` can run unattended); falls back to an interactive prompt otherwise.
+# Creates the initial superuser (role='admin'). Non-interactive when
+# DJANGO_SUPERUSER_USERNAME/EMAIL/PASSWORD are all set; otherwise prompts.
 admin:
 	@$(MANAGE) shell --no-imports -c "from apps.base.models import User; exit(0 if User.objects.filter(is_superuser=True).exists() else 1)" \
 		&& echo "Admin user already exists, skipping." \
@@ -62,25 +93,53 @@ dev: reset-db migrate bootstrap geo stage-marks-uploads digest admin link-templa
 serve:
 	$(MANAGE) runserver > /dev/null 2>&1 &
 
-clean:
-	rm -rf data/
-	find apps -type l -delete
+# --- Static assets ----------------------------------------------------------
 
-# Dev-only: drop the auto-generated 0001_initial.py so the next
-# `make migrate` regenerates it from the current model state.  Use this
-# during early development when the schema is still churning and you'd
-# rather collapse model edits into a fresh initial than accumulate
-# incremental migrations.  Hand-written migrations (0002_triggers.py,
-# future data fixes, etc.) are preserved.  Once the schema is shipped
-# with real data, stop using this target — every model change must
-# then be an incremental migration.
-reset-schema: clean
-	find apps/*/migrations -name '0001_initial.py' -delete
+collectstatic:
+	$(MANAGE) collectstatic --noinput
+
+# Minifies collected static files only. It never rewrites app source files.
+minify:
+	bin/minify-static $(STATIC_ROOT)
+
+# --- Remote deployment ------------------------------------------------------
+
+deploy-dev:
+	./bin/deploy dev $(REF) $(DEPLOY_ARGS)
+
+deploy-prod:
+	@test -n "$(REF)" || { echo "usage: make deploy-prod REF=<tag-or-sha> [DEPLOY_ARGS=--reset-user]" >&2; exit 1; }
+	./bin/deploy prod $(REF) $(DEPLOY_ARGS)
+
+stage-canonical-dev:
+	$(MAKE) stage-canonical INSTANCE=dev
+
+stage-canonical-prod:
+	$(MAKE) stage-canonical INSTANCE=prod
+
+stage-canonical:
+	@test -d "$(CANONICAL_DIR)" || { echo "error: CANONICAL_DIR='$(CANONICAL_DIR)' does not exist" >&2; exit 1; }
+	@test "$(INSTANCE)" = "dev" -o "$(INSTANCE)" = "prod" || { echo "usage: make stage-canonical INSTANCE=<dev|prod>" >&2; exit 1; }
+	ssh "$(REMOTE)" "sudo mkdir -p /var/lib/abies-$(INSTANCE)/data/canonical"
+	rsync -rlt --delete --rsync-path="sudo rsync" "$(CANONICAL_DIR)/" "$(REMOTE):/var/lib/abies-$(INSTANCE)/data/canonical/"
+	ssh "$(REMOTE)" "sudo chown -R $(REMOTE_ABIES_UID):$(REMOTE_ABIES_GID) /var/lib/abies-$(INSTANCE)/data/canonical"
+	ssh "$(REMOTE)" "sudo chmod -R u=rwX,g=rX,o= /var/lib/abies-$(INSTANCE)/data/canonical"
+
+bootstrap-dev: stage-canonical-dev
+	./bin/bootstrap-data dev
+
+bootstrap-prod: stage-canonical-prod
+	./bin/bootstrap-data prod
+
+docker-prune:
+	docker --context vm-abies image prune
+
+# --- Tests ------------------------------------------------------------------
 
 test: test-js
 	env DJANGO_DEBUG="$(DJANGO_DEBUG)" DJANGO_SECRET_KEY="$(DJANGO_SECRET_KEY)" $(PYTHON) -m pytest --cov --cov-report=term-missing -q
 
-# Pure-JS tests for shared client-side modules (e.g. geo.js).
+# Pure-JS tests for shared client-side modules.
 test-js:
 	node apps/ipso/static/ipso/pwa/session.test.mjs
 	node apps/ipso/static/ipso/pwa/csv.test.mjs
@@ -109,19 +168,17 @@ test-js:
 	node apps/base/static/base/js/parcel-map.test.mjs
 	node apps/base/static/base/js/map-tools.test.mjs
 
-collectstatic:
-	$(MANAGE) collectstatic --noinput
+# --- Maintenance ------------------------------------------------------------
 
-deploy-dev:
-	./bin/deploy dev
+clean:
+	rm -rf data/ staticfiles/
+	find apps -type l -delete
 
-bootstrap-dev:
-	./bin/bootstrap-data dev
-
-docker-prune:
-	docker --context vm-abies image prune
-
-# --- Vendor dependencies ----------------------------------------------------
+# Dev-only: drop the auto-generated 0001_initial.py so the next `make migrate`
+# regenerates it from the current model state. Once real data ships, stop using
+# this target; model changes must then be incremental migrations.
+reset-schema: clean
+	find apps/*/migrations -name '0001_initial.py' -delete
 
 VENDOR = apps/base/static/vendor
 NPM_TMP = /tmp/abies-vendor
@@ -136,22 +193,3 @@ update-vendor:
 	/bin/cp $(NPM_TMP)/node_modules/@maxpoletto/sortable-table/src/sortable-table.js $(VENDOR)/sortable-table/
 	/bin/cp $(NPM_TMP)/node_modules/@maxpoletto/sortable-table/src/sortable-table.css $(VENDOR)/sortable-table/
 	@echo "Vendor JS/CSS updated. Roboto fonts are managed manually."
-
-# --- Minification -----------------------------------------------------------
-
-JS_DIRS = apps/base/static/base/js \
-          apps/prelievi/static/prelievi/js \
-          apps/controllo/static/controllo/js \
-          apps/impostazioni/static/impostazioni/js \
-          apps/bosco/static/bosco/js
-
-minify:
-	@command -v terser >/dev/null 2>&1 || { echo "Install terser: npm i -g terser"; exit 1; }
-	@for dir in $(JS_DIRS); do \
-		for f in $$dir/*.js; do \
-			[ -f "$$f" ] || continue; \
-			echo "Minifying $$f"; \
-			terser "$$f" --compress --mangle -o "$$f"; \
-		done; \
-	done
-	@echo "Done. Run 'git checkout -- apps/*/static/*/js/' to restore sources."
