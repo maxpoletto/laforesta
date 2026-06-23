@@ -8,7 +8,7 @@ from convert_laforesta import (
     COL_ACC_M, COL_CREW, COL_DAMAGED, COL_DATA, COL_D_CM, COL_EXTRA_NOTE,
     COL_HARVEST_PSR, COL_H_MEASURED, COL_H_M, COL_LAT, COL_LON, COL_NUMBER,
     COL_OPERATOR, COL_PARCEL, COL_PRODUCT, COL_PROT, COL_QUINTALS, COL_REGION,
-    COL_SPECIES, COL_VDP, OUT_HARVESTS, OUT_MARTELLATE_DIR, SRC_CREWS,
+    COL_SPECIES, COL_VDP, OUT_HARVESTS, OUT_MARKS_DIR, SRC_CREWS,
     SRC_MARTELLATE_DIR, _convert_harvests, _convert_martellate,
 )
 
@@ -56,7 +56,7 @@ def test_harvest_converter_blanks_invalid_vdp_without_skipping_rows(tmp_path, ca
     assert '1 VDP values blanked (non-integer; rows kept)' in capsys.readouterr().err
 
 
-def test_martellate_converter_normalizes_upload_shape(tmp_path):
+def test_marks_converter_normalizes_upload_shape(tmp_path):
     src_dir = tmp_path / 'legacy'
     out_dir = tmp_path / 'canonical'
     martellate_dir = src_dir / SRC_MARTELLATE_DIR
@@ -78,7 +78,7 @@ def test_martellate_converter_normalizes_upload_shape(tmp_path):
 
     assert _convert_martellate(src_dir, out_dir) == 1
 
-    rows = _rows(out_dir / OUT_MARTELLATE_DIR / 'sample.csv')
+    rows = _rows(out_dir / OUT_MARKS_DIR / 'sample.csv')
     assert len(rows) == 1
     assert rows[0][COL_SPECIES] == 'Pino Laricio'
     assert rows[0][COL_H_M] == '31.5'

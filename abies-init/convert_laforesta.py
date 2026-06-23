@@ -15,7 +15,7 @@ duplicated here as literals on purpose, to keep this throwaway tool decoupled
 from the Django app.
 
 See ``README.md`` for the full source→canonical mapping, the assumptions made
-on ambiguous tree-survey data, and the generated martellate upload files.
+on ambiguous tree-survey data, and the generated mark upload files.
 
 Run:
 
@@ -90,7 +90,7 @@ OUT_HYPSO = 'hypso_params.csv'
 OUT_HARVESTS = 'harvests.csv'
 OUT_HARVEST_PLAN_ITEMS = 'harvest_plan_items.csv'
 OUT_PRESERVED = 'preserved-trees.csv'
-OUT_MARTELLATE_DIR = 'martellate'
+OUT_MARKS_DIR = 'marks'
 OUT_GEOJSON = 'terreni.geojson'
 
 # --- canonical column headers (the S.CSV_COL_* literals) --------------------
@@ -696,7 +696,7 @@ def _decimal_dot(value) -> str:
 
 
 def _convert_martellate(src_dir: Path, out_dir: Path) -> int:
-    """Normalize legacy Ipso martellate CSVs into Abies upload CSV files.
+    """Normalize legacy Ipso martellate CSVs into Abies mark upload CSV files.
 
     The staged source files already mostly match the upload shape, but older
     exports used ``Specie`` and ``Lng``.  The importer/exporter contract uses
@@ -708,7 +708,7 @@ def _convert_martellate(src_dir: Path, out_dir: Path) -> int:
     if not src.is_dir():
         return 0
 
-    dest = out_dir / OUT_MARTELLATE_DIR
+    dest = out_dir / OUT_MARKS_DIR
     dest.mkdir(parents=True, exist_ok=True)
     header = [
         COL_DATA, COL_REGION, COL_PARCEL, COL_DAMAGED, COL_NUMBER, COL_SPECIES,
@@ -787,7 +787,7 @@ def main(src_dir: Path, out_dir: Path) -> dict[str, int]:
         OUT_HARVESTS: _convert_harvests(src_dir, out_dir),
         OUT_HARVEST_PLAN_ITEMS: _convert_harvest_plan_items(src_dir, out_dir),
         OUT_PRESERVED: _convert_preserved(src_dir, out_dir),
-        f'{OUT_MARTELLATE_DIR}/*.csv': _convert_martellate(src_dir, out_dir),
+        f'{OUT_MARKS_DIR}/*.csv': _convert_martellate(src_dir, out_dir),
     }
     _copy_geojson(src_dir, out_dir)
     return counts

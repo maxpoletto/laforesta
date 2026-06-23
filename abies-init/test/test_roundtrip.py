@@ -26,7 +26,7 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 
 from convert_laforesta import (
-    COL_PARCEL, OUT_HARVESTS, OUT_HARVEST_PLAN_ITEMS, OUT_MARTELLATE_DIR,
+    COL_PARCEL, OUT_HARVESTS, OUT_HARVEST_PLAN_ITEMS, OUT_MARKS_DIR,
     OUT_PRESERVED, OUT_REGIONS, OUT_SAMPLED_TREES, OUT_SPECIES, OUT_SURVEYS,
     OUT_TRACTORS, SRC_HARVESTS, SRC_MARTELLATE_DIR, main,
 )
@@ -131,12 +131,12 @@ def test_sanity_counts(converted):
     assert len(plan_rows) > 0
     assert len(plan_rows) == counts[OUT_HARVEST_PLAN_ITEMS]
 
-    # Martellate upload CSVs: one normalized output file per staged source file.
+    # Mark upload CSVs: one normalized output file per staged source file.
     source_martellate = sorted((LEGACY_DIR / SRC_MARTELLATE_DIR).glob('*.csv'))
-    output_martellate = sorted((out_dir / OUT_MARTELLATE_DIR).glob('*.csv'))
-    assert len(output_martellate) == len(source_martellate)
-    assert counts[f'{OUT_MARTELLATE_DIR}/*.csv'] == sum(
-        len(_rows(path)) for path in output_martellate
+    output_marks = sorted((out_dir / OUT_MARKS_DIR).glob('*.csv'))
+    assert len(output_marks) == len(source_martellate)
+    assert counts[f'{OUT_MARKS_DIR}/*.csv'] == sum(
+        len(_rows(path)) for path in output_marks
     )
 
     # Preserved trees: rows with valid Lon/Lat from PAI file.
