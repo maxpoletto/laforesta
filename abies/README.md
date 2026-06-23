@@ -281,8 +281,9 @@ Adjust names and ports as needed.
 
    These targets rsync the local canonical directory to the matching host path
    under `/var/lib/abies-<instance>/data/canonical`, fix ownership for the
-   container UID, then run `bin/bootstrap-data <instance>`. To sync without
-   bootstrapping, use `make stage-canonical-dev` or
+   container UID, then run `bin/bootstrap-data <instance>`, which applies
+   migrations before loading the empty database. To sync without bootstrapping,
+   use `make stage-canonical-dev` or
    `make stage-canonical-prod`. The bootstrap command runs `manage.py
    bootstrap`, builds geodata into `/app/data/geo`, and regenerates all
    digests. It refuses to load into a non-empty database.

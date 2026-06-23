@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # bin/bootstrap-data <dev|prod>
 #
-# One-time data load for a FRESH (empty) abies instance on the VM. Loads staged
-# canonical CSVs with `manage.py bootstrap`, then builds the enriched geojson +
-# digests.
+# One-time data load for a FRESH (empty) abies instance on the VM. Ensures the
+# DB schema is migrated, loads staged canonical CSVs with `manage.py bootstrap`,
+# then builds the enriched geojson + digests.
 #
 # Canonical data location: the per-instance data dir
 # /var/lib/abies-<instance>/data is bind-mounted to /app/data in the container
@@ -13,7 +13,8 @@
 #
 # `manage.py bootstrap` refuses a non-empty instance (it has no wipe), so run
 # this only once, right after a fresh `bin/deploy <instance>` -- the container
-# must be up.
+# must be up. Running migrations here is intentional so a partially failed
+# first deploy can still be recovered by staging data and rerunning this script.
 
 set -euo pipefail
 
@@ -45,6 +46,9 @@ x test -d "$canonical_dir" || {
   echo "       stage canonical CSVs at /var/lib/abies-$instance/data/canonical on the VM host." >&2
   exit 1
 }
+
+echo "==> migrate database schema"
+x python manage.py migrate --noinput
 
 echo "==> bootstrap canonical data into the (empty) instance"
 x python manage.py bootstrap "$canonical_dir"
