@@ -10,8 +10,10 @@ from convert_laforesta import (
     COL_LON, COL_MANUFACTURER, COL_MODEL, COL_NUMBER, COL_OPERATOR,
     COL_PARCEL, COL_PRODUCT, COL_PROT, COL_QUINTALS, COL_REGION, COL_SPECIES,
     COL_TRACTOR_NAME, COL_VDP, OUT_CREWS, OUT_HARVESTS, OUT_MARKS_DIR,
-    OUT_TRACTORS, SRC_CREWS, SRC_MARTELLATE_DIR, _convert_crews,
-    _convert_harvests, _convert_martellate, _convert_tractors,
+    OUT_PRESERVED, OUT_SPECIES, OUT_TRACTORS, SRC_CREWS, SRC_MARTELLATE_DIR,
+    SRC_PAI, _canonical_species, _convert_crews, _convert_harvests,
+    _convert_martellate, _convert_preserved, _convert_species,
+    _convert_tractors,
 )
 
 
@@ -26,6 +28,56 @@ def _rows(path):
     with path.open(encoding='utf-8') as f:
         return list(csv.DictReader(f, delimiter=','))
 
+
+def test_species_aliases_flatten_generic_pines_but_keep_specific_pines():
+    assert _canonical_species('pino') == 'Pino Nero'
+    assert _canonical_species('Pino') == 'Pino Nero'
+    assert _canonical_species('Pino Laricio') == 'Pino Nero'
+    assert _canonical_species('Pino Nero') == 'Pino Nero'
+    assert _canonical_species('Pino Marittimo') == 'Pino Marittimo'
+    assert _canonical_species('Pino Strobo') == 'Pino Strobo'
+
+
+def test_species_converter_drops_pino_laricio(tmp_path):
+    abies_root = Path(__file__).resolve().parents[2] / 'abies'
+    out_dir = tmp_path / 'canonical'
+    out_dir.mkdir()
+
+    assert _convert_species(abies_root, out_dir) > 0
+
+    species = {r[COL_SPECIES] for r in _rows(out_dir / OUT_SPECIES)}
+    assert 'Pino Laricio' not in species
+    assert {'Pino Nero', 'Pino Marittimo', 'Pino Strobo'} <= species
+
+
+def test_preserved_converter_normalizes_pine_aliases(tmp_path):
+    src_dir = tmp_path / 'legacy'
+    out_dir = tmp_path / 'canonical'
+    src_dir.mkdir()
+    out_dir.mkdir()
+
+    _write_csv(
+        src_dir / SRC_PAI,
+        [COL_REGION, COL_PARCEL, 'Genere', 'Diametro', 'Altezza', COL_LON, COL_LAT],
+        [
+            ['Serra', '1', 'Pino Laricio', '44', '20', '16.1', '38.1'],
+            ['Serra', '1', 'Pino Nero', '45', '21', '16.2', '38.2'],
+            ['Serra', '1', 'Pino Strobo', '46', '22', '16.3', '38.3'],
+            ['Serra', '1', 'Pino Marittimo', '47', '23', '16.4', '38.4'],
+            ['Serra', '1', 'Abete Bianco', '48', '24', '16.5', '38.5'],
+        ],
+    )
+
+    assert _convert_preserved(src_dir, out_dir) == 5
+
+    rows = _rows(out_dir / OUT_PRESERVED)
+    assert [r[COL_SPECIES] for r in rows] == [
+        'Pino Nero',
+        'Pino Nero',
+        'Pino Strobo',
+        'Pino Marittimo',
+        'Abete',
+    ]
 
 def test_crews_converter_marks_2026_crews_and_extra_crew_active(tmp_path):
     src_dir = tmp_path / 'legacy'
@@ -119,7 +171,7 @@ def test_marks_converter_normalizes_upload_shape(tmp_path):
 
     rows = _rows(out_dir / OUT_MARKS_DIR / 'sample.csv')
     assert len(rows) == 1
-    assert rows[0][COL_SPECIES] == 'Pino Laricio'
+    assert rows[0][COL_SPECIES] == 'Pino Nero'
     assert rows[0][COL_H_M] == '31.5'
     assert rows[0][COL_LAT] == '38.559427'
     assert rows[0][COL_LON] == '16.286975'

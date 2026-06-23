@@ -26,7 +26,7 @@ dependencies — so the tool runs standalone against a legacy-data checkout.
 | `regions.csv` (`Compresa`) | `particelle.csv` | distinct `Compresa` |
 | `eclasses.csv` (`Comparto,Ceduo`) | `particelle.csv` | distinct `Comparto`; `Ceduo=1` iff `Comparto=='F'`, else `0` |
 | `crews.csv` (`Squadra,Attivo`) | `mannesi.csv` plus constant | distinct non-blank `Squadra`; `Attivo=true` only for crews with 2026 rows, plus `Zaffino-Santaguida`; all other legacy crews are inactive |
-| `species.csv` (`Genere,Nome latino,Densità (q/m³),Pressler,Minore,Ordine`) | in-repo `apps/base/data/species.csv` | reshape `common/latin/density_q_m3/pressler_default/minor/sort_order` to the canonical localized headers (full species set so tree `Genere` resolves) |
+| `species.csv` (`Genere,Nome latino,Densità (q/m³),Pressler,Minore,Ordine`) | in-repo `apps/base/data/species.csv` | reshape `common/latin/density_q_m3/pressler_default/minor/sort_order` to the canonical localized headers; omit `Pino Laricio` because legacy generic pine aliases are flattened to `Pino Nero` |
 | `products.csv` (`Tipo`) | constant | the distinct canonical products of `apps.base.refdata.PRODUCT_MAP.values()` |
 | `particelle.csv` | `particelle.csv` | select/reorder `Compresa,Comparto,Particella,Area (ha),Età media,Località,Altitudine min,Altitudine max,Esposizione,Pendenza %,Stazione,Soprassuolo`; drop CP, Governo, Piano del taglio, Parametro, Matricine |
 | `sample_grids.csv` (`Griglia`) | constant | one row: `Aree di saggio PDG 2026` |
@@ -36,10 +36,10 @@ dependencies — so the tool runs standalone against a legacy-data checkout.
 | `sampled-trees.csv` | `alberi-calcolati.csv` + `alberi-altezze.csv` | union of the two surveys (see below) |
 | `hypso_params.csv` | `equazioni_ipsometro.csv` | copied verbatim (lowercase headers accepted case-insensitively by `hypsometry.parse_param_csv`) |
 | `tractors.csv` (`Trattore,Produttore,Modello,Anno`) | constant | the six hard-coded La Foresta tractors, including `Scania P380` |
-| `harvests.csv` | `mannesi.csv` | `Tipo` via `_PRODUCT_MAP`; `Particella='X'` → blank; species `abete %` etc. → `Specie: <canonical>` dynamic cols; `Equus %` etc. → `Trattore: <name>` dynamic cols; `Note` token → `Danneggiato/Fitosanitario/PSR` booleans; invalid VDP values (``nd``, ``bis`` variants, fractional) → blank |
+| `harvests.csv` | `mannesi.csv` | `Tipo` via `_PRODUCT_MAP`; `Particella='X'` → blank; species `abete %` etc. → `Specie: <canonical>` dynamic cols, with `pino %` mapped to `Pino Nero`; `Equus %` etc. → `Trattore: <name>` dynamic cols; `Note` token → `Danneggiato/Fitosanitario/PSR` booleans; invalid VDP values (``nd``, ``bis`` variants, fractional) → blank |
 | `harvest_plan_items.csv` | `piano_fustaia.csv` + `piano_ceduo.csv` | unified rows with `Piano=PDG 2026`; `Particella='X'` → blank; highforest flags from `Note` token; coppice flags left `false` (no flag column in legacy) |
-| `preserved-trees.csv` (`Compresa,Particella,Numero,Genere,Data,Anno di nascita stimato,D_cm,H_m,H_measured,Lon,Lat,Acc_m,Operatore,Note`) | `piante-accrescimento-indefinito.csv` | `Genere` preserved when it already names a canonical species; legacy `Abete Bianco` aliases to `Abete`; `Numero` regenerated from 1 within each parcel because the source column is unreliable; date/birth year/accuracy/operator left blank; rows missing `Lon`/`Lat` silently skipped |
-| `marks/*.csv` (`Data,Compresa,Particella,Catastrofata,Numero,Genere,D_cm,H_m,H_measured,Lat,Lon,Acc_m,Operatore`) | `martellate/*.csv` | upload-ready mark files for Piano di taglio; legacy `Specie` header becomes `Genere`, `Lng` becomes `Lon`, decimal commas become dot decimals, and `Pino` aliases to `Pino Laricio` |
+| `preserved-trees.csv` (`Compresa,Particella,Numero,Genere,Data,Anno di nascita stimato,D_cm,H_m,H_measured,Lon,Lat,Acc_m,Operatore,Note`) | `piante-accrescimento-indefinito.csv` | `Genere` preserved when it already names a canonical species; legacy `Abete Bianco` aliases to `Abete`; `Pino`, `Pino Laricio`, and `Pino Nero` flatten to `Pino Nero`; `Pino Marittimo` and `Pino Strobo` stay distinct; `Numero` regenerated from 1 within each parcel because the source column is unreliable; date/birth year/accuracy/operator left blank; rows missing `Lon`/`Lat` silently skipped |
+| `marks/*.csv` (`Data,Compresa,Particella,Catastrofata,Numero,Genere,D_cm,H_m,H_measured,Lat,Lon,Acc_m,Operatore`) | `martellate/*.csv` | upload-ready mark files for Piano di taglio; legacy `Specie` header becomes `Genere`, `Lng` becomes `Lon`, decimal commas become dot decimals, and `Pino` aliases to `Pino Nero` |
 | `terreni.geojson` | `terreni.geojson` | copied verbatim (bootstrap does not load it, but the canonical dir carries the source geometry) |
 
 ## Tree-survey assumptions (the interesting part)
@@ -74,9 +74,9 @@ dependencies — so the tool runs standalone against a legacy-data checkout.
    the *heights* survey is therefore **not** carried — it is left as a reviewer
    decision.  `alberi-columns.csv` is not imported.
 
-`Genere` values are passed through **verbatim**; `csv_trees` applies its own
-`GENERE_MAP` synonym mapping (e.g. `Pino`→`Pino Laricio`, lowercase `leccio`
-resolves case-insensitively) when loading.
+`Genere` values are normalized before writing canonical CSVs: `Pino`,
+`Pino Laricio`, and `Pino Nero` all become `Pino Nero`; `Pino Marittimo` and
+`Pino Strobo` remain distinct.  Other names are passed through as-is.
 
 ## Eclass coppice rule
 

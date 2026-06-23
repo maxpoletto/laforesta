@@ -217,10 +217,9 @@ _PRODUCT_MAP = {
 # Map mannesi.csv species %-columns → canonical Species.common_name (exact case).
 # The key is the full column header (e.g. ``'abete %'``); the value is the
 # common_name as it appears in species.csv (``'Abete'``, etc.).
-# ``pino`` is Pino Laricio, the dominant pine of the Calabrian forests in this dataset.
 _SPECIES_COL_MAP = {
     'abete %':    'Abete',
-    'pino %':     'Pino Laricio',
+    'pino %':     'Pino Nero',
     'douglas %':  'Douglas',
     'faggio %':   'Faggio',
     'castagno %': 'Castagno',
@@ -246,15 +245,13 @@ _NOTE_FLAG_MAP = {
     'psr':           (False, False, True),
 }
 
-# Map piante-accrescimento-indefinito.csv ``Genere`` → canonical Species.common_name.
-# Only entries that do NOT already match canonical common_name case-insensitively.
-_PAI_SPECIES_MAP = {
-    'Abete Bianco':   'Abete',     # Abies alba = canonical 'Abete'
-}
-
-# Map martellate CSV species values to canonical Species.common_name.
-_MARTELLATE_SPECIES_MAP = {
-    'Pino': 'Pino Laricio',
+# Source-species aliases → canonical Species.common_name.  Specific pines that
+# are already canonical, such as Pino Marittimo and Pino Strobo, pass through.
+_SPECIES_ALIASES = {
+    'abete bianco': 'Abete',
+    'pino': 'Pino Nero',
+    'pino laricio': 'Pino Nero',
+    'pino nero': 'Pino Nero',
 }
 
 
@@ -279,6 +276,12 @@ def _write(path: Path, header: list[str], rows: list[list]) -> int:
 def _distinct(rows: list[dict], col: str) -> list[str]:
     """Sorted distinct non-blank stripped values of ``col``."""
     return sorted({(r.get(col) or '').strip() for r in rows if (r.get(col) or '').strip()})
+
+
+def _canonical_species(raw: str) -> str:
+    """Return the canonical species name for a legacy species label."""
+    species = raw.strip()
+    return _SPECIES_ALIASES.get(species.lower(), species)
 
 
 # --- converters (one per canonical file) ------------------------------------
@@ -312,7 +315,7 @@ def _convert_crews(src_dir: Path, out_dir: Path) -> int:
 
 def _convert_species(repo_root: Path, out_dir: Path) -> int:
     """Reshape the in-repo canonical species list into the localized SPECIES
-    RefTable headers (Genere, Nome latino, Densità (q/m³), Pressler, Minore, Ordine)."""
+    RefTable headers, omitting Pino Laricio from this one-off conversion."""
     species = _read(repo_root / SRC_SPECIES)
     header = [COL_SPECIES, COL_LATIN, COL_DENSITY, COL_PRESSLER, COL_MINOR, COL_SORT_ORDER]
     rows = [
@@ -321,6 +324,7 @@ def _convert_species(repo_root: Path, out_dir: Path) -> int:
             s.get('pressler_default') or PRESSLER_DEFAULT, s['minor'], s['sort_order'],
         ]
         for s in species
+        if s['common'] != 'Pino Laricio'
     ]
     return _write(out_dir / OUT_SPECIES, header, rows)
 
@@ -435,7 +439,7 @@ def _calculated_tree_rows(trees: list[dict]) -> list[list]:
             (r.get(LEGACY_TREE_H) or '').strip(),       # H_m
             (r.get(LEGACY_TREE_L10) or '').strip(),     # L10_mm
             PRESSLER_DEFAULT,                           # Pressler
-            (r.get(COL_SPECIES) or '').strip(),
+            _canonical_species(r.get(COL_SPECIES) or ''),
             (r.get(COL_HIGHFOREST) or '').strip(),
         ])
     return out
@@ -460,7 +464,7 @@ def _heights_tree_rows(trees: list[dict]) -> list[list]:
             (r.get(LEGACY_TREE_H) or '').strip(),   # H_m
             '',         # L10_mm (blank → 0)
             PRESSLER_DEFAULT,  # Pressler
-            (r.get(COL_SPECIES) or '').strip(),
+            _canonical_species(r.get(COL_SPECIES) or ''),
             (r.get(COL_HIGHFOREST) or '').strip(),
         ])
     return out
@@ -652,7 +656,7 @@ def _convert_harvest_plan_items(src_dir: Path, out_dir: Path) -> int:
 def _convert_preserved(src_dir: Path, out_dir: Path) -> int:
     """Convert piante-accrescimento-indefinito.csv → preserved-trees.csv.
 
-    Maps legacy Genere via _PAI_SPECIES_MAP to canonical common_name.  The
+    Maps legacy Genere aliases to canonical common_name.  The
     legacy Numero column is not reliable, so converted PAI rows are renumbered
     from 1 independently within each (Compresa, Particella).  Rows with
     missing/blank Lon or Lat are silently skipped.
@@ -675,9 +679,7 @@ def _convert_preserved(src_dir: Path, out_dir: Path) -> int:
         key = (region, parcel)
         number = next_number_by_parcel.get(key, 1)
         next_number_by_parcel[key] = number + 1
-        genere_raw = (r.get('Genere') or '').strip()
-        # Use the explicit map first; fall back to identity (canonical names match verbatim).
-        genere = _PAI_SPECIES_MAP.get(genere_raw, genere_raw)
+        genere = _canonical_species(r.get('Genere') or '')
         h_m = (r.get(LEGACY_PAI_H) or '').strip()
         out.append([
             region,
@@ -739,7 +741,7 @@ def _convert_martellate(src_dir: Path, out_dir: Path) -> int:
                 (r.get(COL_PARCEL) or '').strip(),
                 (r.get(COL_DAMAGED) or '').strip(),
                 (r.get(COL_NUMBER) or '').strip(),
-                _MARTELLATE_SPECIES_MAP.get(species_raw, species_raw),
+                _canonical_species(species_raw),
                 (r.get(COL_D_CM) or '').strip(),
                 _decimal_dot(r.get(COL_H_M)),
                 (r.get(COL_H_MEASURED) or '').strip(),

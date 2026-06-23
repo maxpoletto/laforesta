@@ -117,6 +117,7 @@ def test_sanity_counts(converted):
     # (guards against a regression that silently drops the special case).
     assert any(r['Matricina'] == 'True' for r in tree_rows)
     assert {r['Pressler'] for r in tree_rows} == {'2'}
+    assert 'Pino Laricio' not in {r['Genere'] for r in tree_rows}
 
     # Crews: only crews used in 2026 and the explicit new crew are active.
     crew_rows = _rows(out_dir / OUT_CREWS)
@@ -132,6 +133,8 @@ def test_sanity_counts(converted):
     # PAI-only species are canonical minor species, not squashed into Altro.
     species_rows = _rows(out_dir / OUT_SPECIES)
     species_by_name = {r['Genere']: r for r in species_rows}
+    assert 'Pino Laricio' not in species_by_name
+    assert {'Pino Nero', 'Pino Marittimo', 'Pino Strobo'} <= set(species_by_name)
     for name in EXPECTED_PAI_MINOR_SPECIES:
         assert species_by_name[name]['Minore'] == 'true'
 
@@ -161,6 +164,8 @@ def test_sanity_counts(converted):
     assert len(preserved_rows) == counts[OUT_PRESERVED]
     preserved_species = {r['Genere'] for r in preserved_rows}
     assert 'Altro' not in preserved_species
+    assert 'Pino Laricio' not in preserved_species
+    assert {'Pino Nero', 'Pino Strobo'} <= preserved_species
     assert EXPECTED_PAI_MINOR_SPECIES <= preserved_species
     numbers_by_parcel = {}
     for row in preserved_rows:
