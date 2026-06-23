@@ -51,6 +51,10 @@ function validateTree(rec, options) {
   if (opts.numberRequired && !Number.isInteger(rec.numero)) {
     errors.push('numero');
   }
+  if (opts.parcelRequired &&
+      (typeof rec.particella !== 'string' || rec.particella.trim() === '')) {
+    errors.push('particella');
+  }
   if (opts.sampleAreaRequired && !Number.isInteger(rec[FIELD_SAMPLE_AREA_ID])) {
     errors.push(FIELD_SAMPLE_AREA_ID);
   }

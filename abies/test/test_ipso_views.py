@@ -581,6 +581,20 @@ def test_upload_rejects_unknown_species(db, parcels, species, settings, tmp_path
     assert IpsoUpload.objects.count() == 0
 
 
+@override_settings(IPSO_SECRET='test-token')
+def test_upload_rejects_null_parcel_id(db, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    payload = _upload_payload(parcels, species)
+    payload['records'][0]['parcel_id'] = None
+
+    resp = _post_upload(Client(), payload)
+
+    assert resp.status_code == 422
+    assert resp.json()['error'] == 'invalid_payload'
+    assert 'parcel_id' in resp.json()['detail']
+    assert IpsoUpload.objects.count() == 0
+
+
 @override_settings(IPSO_SECRET='visible-token')
 def test_upload_config_does_not_serve_configured_token(db):
     resp = Client().get('/ipso/upload-config.js')

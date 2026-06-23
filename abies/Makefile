@@ -82,6 +82,7 @@ test: test-js
 
 # Pure-JS tests for shared client-side modules (e.g. geo.js).
 test-js:
+	node apps/ipso/static/ipso/pwa/session.test.mjs
 	node apps/base/static/base/js/geo.test.mjs
 	node apps/base/static/base/js/csv-export.test.mjs
 	node apps/base/static/base/js/charts.test.mjs

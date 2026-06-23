@@ -703,15 +703,17 @@ function populateParticellaOptions(features) {
     }
     return;
   }
-  if (!features) return;
   // Use reference.json order for the option list — it's the curated
-  // ordering the rest of the UI also uses. Only include parcels that
-  // exist as polygons (so manual picks can be cross-checked against
-  // GPS).
-  const known = new Set(features.map(particellaName).filter((n) => n));
+  // ordering the rest of the UI also uses. When polygons are available,
+  // keep the list to polygon-backed parcels so manual picks can be
+  // cross-checked against GPS. Without polygons, fall back to all known
+  // parcels for the compresa so recording can still require a parcel.
+  const known = features && features.length
+    ? new Set(features.map(particellaName).filter((n) => n))
+    : null;
   for (const p of State.reference[IPSO_REF_PARCELS]) {
     if (p.compresa !== State.session.compresa) continue;
-    if (!known.has(p.particella)) continue;
+    if (known && !known.has(p.particella)) continue;
     appendOption(sel, p.particella, p.particella);
   }
 }
@@ -953,6 +955,7 @@ function treeValidationOptions() {
     dRequired: currentMode().dRequired !== false,
     hRequired: currentMode().hRequired !== false,
     numberRequired: !!currentMode().numberRequired,
+    parcelRequired: !!currentMode().parcelRequired,
     sampleAreaRequired: !!currentMode().sampleAreaRequired,
   };
 }

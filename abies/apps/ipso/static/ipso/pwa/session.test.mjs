@@ -1,0 +1,50 @@
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
+const session = require('./session.js');
+
+let pass = 0;
+const failures = [];
+
+function check(ok, msg) {
+  if (ok) pass += 1;
+  else failures.push(msg);
+}
+
+function validTree(overrides = {}) {
+  return Object.assign({
+    specie: 'Abete',
+    d_cm: 42,
+    h_m: 22,
+    numero: 1,
+    particella: '7',
+    sample_area_id: 3,
+  }, overrides);
+}
+
+check(
+  session.validateTree(validTree(), { parcelRequired: true }).length === 0,
+  'parcelRequired accepts a selected parcel',
+);
+check(
+  session.validateTree(validTree({ particella: '' }), { parcelRequired: true }).includes('particella'),
+  'parcelRequired rejects blank parcel',
+);
+check(
+  session.validateTree(validTree({ particella: '   ' }), { parcelRequired: true }).includes('particella'),
+  'parcelRequired rejects whitespace parcel',
+);
+check(
+  !session.validateTree(validTree({ particella: '' }), {}).includes('particella'),
+  'blank parcel remains allowed unless the mode requires it',
+);
+check(
+  session.validateTree(validTree({ sample_area_id: null }), { sampleAreaRequired: true }).includes('sample_area_id'),
+  'sampleAreaRequired still rejects missing sample area',
+);
+
+if (failures.length) {
+  console.error(failures.join('\n'));
+  process.exit(1);
+}
+console.log(`${pass} session tests passed`);
