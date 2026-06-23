@@ -467,8 +467,8 @@ CSV_COL_B            = 'b'                           # regression coefficient
 CSV_COL_R2           = 'r2'                          # coefficient of determination
 CSV_COL_N_REGRESSION = 'n'                           # sample count for regression fit
 
-# Ipso CSV column headers (tree-mark import; format produced by
-# laforesta/ipso — see ipso/CLAUDE.md "CSV format").
+# Ipso CSV column headers (tree-mark import; format produced by the
+# Abies-served Ipso PWA).
 CSV_COL_DAMAGED    = 'Catastrofata'     # session-level flag (ignored row-wise)
 CSV_COL_NUMBER     = 'Numero'           # operator-assigned tree number
 

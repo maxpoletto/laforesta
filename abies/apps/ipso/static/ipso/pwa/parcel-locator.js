@@ -26,8 +26,8 @@
 // file (see test/tests.js).
 
 // Hysteresis: same-candidate streak length required before a transition
-// is considered. With the GPS callback firing every ~1–2 s under canopy
-// (see ipso/CLAUDE.md GPS gotcha), three fixes is ~3–6 s of dwell.
+// is considered. With the GPS callback firing every ~1–2 s under canopy,
+// three fixes is ~3–6 s of dwell.
 const CONSECUTIVE_FIXES = 3;
 
 function createLocator(features) {
