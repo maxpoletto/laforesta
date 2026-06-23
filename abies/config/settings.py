@@ -33,6 +33,12 @@ IPSO_UPLOAD_RATE_LIMIT = int(os.environ.get(
 IPSO_UPLOAD_RATE_WINDOW_S = int(os.environ.get(
     'ABIES_IPSO_UPLOAD_RATE_WINDOW_S', '60',
 ))
+IPSO_UPLOAD_TRUSTED_PROXIES = tuple(
+    p.strip() for p in os.environ.get(
+        'ABIES_IPSO_UPLOAD_TRUSTED_PROXIES',
+        '127.0.0.1,::1,172.16.0.0/12',
+    ).split(',') if p.strip()
+)
 
 _DEFAULT_SECRET_KEY = 'django-insecure-change-me-before-deployment'
 MS_OAUTH_BROAD_TENANTS = frozenset({'common', 'organizations', 'consumers'})

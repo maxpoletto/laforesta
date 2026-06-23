@@ -456,6 +456,39 @@ def test_upload_endpoint_is_rate_limited(db, parcels, species, settings, tmp_pat
     assert second.json()['error'] == 'rate_limited'
 
 
+@override_settings(IPSO_UPLOAD_TRUSTED_PROXIES=('172.16.0.0/12',))
+def test_upload_rate_key_uses_forwarded_client_from_trusted_proxy(db):
+    request = Client().post(
+        '/api/ipso/uploads/',
+        REMOTE_ADDR='172.18.0.1',
+        HTTP_X_FORWARDED_FOR='203.0.113.10',
+    ).wsgi_request
+
+    assert ipso_views._upload_rate_key(request) == '203.0.113.10'
+
+
+@override_settings(IPSO_UPLOAD_TRUSTED_PROXIES=('172.16.0.0/12',))
+def test_upload_rate_key_ignores_forwarded_client_from_untrusted_peer(db):
+    request = Client().post(
+        '/api/ipso/uploads/',
+        REMOTE_ADDR='198.51.100.20',
+        HTTP_X_FORWARDED_FOR='203.0.113.10',
+    ).wsgi_request
+
+    assert ipso_views._upload_rate_key(request) == '198.51.100.20'
+
+
+@override_settings(IPSO_UPLOAD_TRUSTED_PROXIES=('172.16.0.0/12',))
+def test_upload_rate_key_ignores_invalid_forwarded_client(db):
+    request = Client().post(
+        '/api/ipso/uploads/',
+        REMOTE_ADDR='172.18.0.1',
+        HTTP_X_FORWARDED_FOR='not-an-ip',
+    ).wsgi_request
+
+    assert ipso_views._upload_rate_key(request) == '172.18.0.1'
+
+
 @override_settings(IPSO_SECRET='test-token')
 def test_upload_rejects_pai_without_height(db, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'

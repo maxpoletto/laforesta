@@ -151,22 +151,17 @@ The upload endpoint has application-level controls:
   `ABIES_IPSO_UPLOAD_RATE_WINDOW_S`;
 - strict payload validation before staging.
 
-The current application rate-limit key is Django `REMOTE_ADDR`. Behind Apache,
-if Apache proxies to Django without rewriting `REMOTE_ADDR`, all external clients
-share the proxy address. The limit then becomes one global bucket, so one client
-can exhaust it and temporarily deny uploads for everyone.
+The application rate-limit key uses Django `REMOTE_ADDR` by default. When the
+request comes from a configured trusted proxy, Abies instead uses the first
+address in `X-Forwarded-For`. Configure trusted proxy networks with
+`ABIES_IPSO_UPLOAD_TRUSTED_PROXIES`; the deployment default covers loopback and
+common Docker bridge networks.
 
-Recommended deployment choices:
+Apache is the public edge and must sanitize forwarding headers before proxying
+to Django. Do not let a public client choose its own `X-Forwarded-For`;
+clients can spoof that header unless Apache overwrites or removes it.
 
-- Prefer enforcing per-client request limits at Apache, where the real client IP
-  is known.
-- Or configure Apache `mod_remoteip` to normalize the client address before the
-  request reaches Django, for example with `RemoteIPHeader X-Forwarded-For` and
-  a trusted proxy list, and ensure Django is reachable only through Apache.
-- Do not make Django trust arbitrary `X-Forwarded-For` values from the public
-  internet; clients can spoof that header unless the reverse proxy overwrites or
-  sanitizes it.
-
-Because `_UPLOAD_ATTEMPTS` is in-process memory, the app-level limit is also per
-Django process and resets on restart. Treat it as a modest backstop, not the main
-DoS control.
+Because `_UPLOAD_ATTEMPTS` is in-process memory, the app-level limit is per
+Django process and resets on restart. Treat it as a modest backstop. Apache-side
+controls can still be added for stronger DoS protection, but Apache
+`mod_ratelimit` is bandwidth throttling, not request-count rate limiting.

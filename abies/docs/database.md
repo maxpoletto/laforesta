@@ -68,7 +68,7 @@ audited and the contract that keeps that coverage complete.
   - Denotes a tree over time. Lat/lon may be null, or may not fall within the
     bounds of the given parcel due to measurement error (e.g., near a parcel
     border). acc_m denotes the reported GPS error in meters, if available (e.g.,
-    during automated mark recording via foresta/ipso).
+    during automated mark recording via Ipso).
   - If a tree is denoted as preserved, it cannot be marked for felling.
   - Coppice is true if this tree has coppice morphology. There may be coppice
     trees in a non-coppice parcel and vice-versa.

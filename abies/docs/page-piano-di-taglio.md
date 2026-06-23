@@ -237,7 +237,7 @@ The modal displays:
    Clicking `[+ Nuova martellata]` opens an "Importa CSV martellate"
    modal (analogous to "Nuovo Rilevamento" → "Importa da CSV" on the
    campionamenti page). The CSV is in the shape produced by the
-   `laforesta/ipso` tool:
+   Ipso mobile PWA:
 
        Data;Compresa;Particella;Catastrofata;Numero;Genere;D_cm;H_m;H_measured;Lat;Lon;Acc_m;Operatore
 

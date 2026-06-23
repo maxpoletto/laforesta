@@ -10,6 +10,7 @@ import time
 from collections import defaultdict, deque
 from datetime import timezone
 from decimal import Decimal
+from ipaddress import ip_address, ip_network
 from pathlib import Path
 
 from django.conf import settings
@@ -1002,7 +1003,29 @@ def _upload_rate_limited(request: HttpRequest) -> bool:
 
 
 def _upload_rate_key(request: HttpRequest) -> str:
-    return request.META.get('REMOTE_ADDR') or 'unknown'
+    remote_addr = request.META.get('REMOTE_ADDR') or ''
+    forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR') or ''
+    if forwarded_for and _request_from_trusted_proxy(remote_addr):
+        client_ip = forwarded_for.split(',', 1)[0].strip()
+        try:
+            return str(ip_address(client_ip))
+        except ValueError:
+            pass
+    return remote_addr or 'unknown'
+
+
+def _request_from_trusted_proxy(remote_addr: str) -> bool:
+    try:
+        addr = ip_address(remote_addr)
+    except ValueError:
+        return False
+    for proxy in getattr(settings, 'IPSO_UPLOAD_TRUSTED_PROXIES', ()):
+        try:
+            if addr in ip_network(str(proxy), strict=False):
+                return True
+        except ValueError:
+            continue
+    return False
 
 
 def _upload_too_large(request: HttpRequest) -> bool:

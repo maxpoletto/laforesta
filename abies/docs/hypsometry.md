@@ -55,19 +55,17 @@ better parameters from more data, independently of any plan.
   retained from the start.
 
 - New parameters take effect immediately in Abies for future D→h mappings; they
-  never alter already-recorded measurements. They reach Ipso the next time it
-  syncs (Part B).
+  never alter already-recorded measurements. They are included in Ipso's
+  bearer-protected reference bundle the next time the PWA refreshes
+  `/ipso/reference.json`.
 
 - At installation, Abies attempts to import a regression CSV into the initial
   active set; a missing file is a warning, not a fatal error.
 
-- The work is split into two stages:
-  - **Part A** — Abies side: schema, settings section, compute/import/export,
-    and repointing the mark-entry form. This document specifies Part A fully.
-  - **Part B** — Ipso integration: the Abies→Ipso sync endpoint and Ipso-side
-    polling/notification (sketched under "Synchronization with Ipso"). Part B is
-    a prerequisite for the broader workflow in which Ipso mark uploads flow into
-    Abies automatically.
+- The implementation has two surfaces: Abies owns the schema, settings
+  section, compute/import/export flow, and mark-entry autofill; Ipso receives
+  the active parameter set through the same reference bundle it uses for
+  parcels, species, sampling context, and work packages.
 
 ## Data model
 
@@ -171,17 +169,16 @@ coefficients flowed through).
   table. The field stays editable; an override sets `h_measured = true`; a
   missing (region, species) entry leaves h blank for manual entry.
 
-## Synchronization with Ipso (Part B)
+## Synchronization with Ipso
 
-Deferred to the second stage; sketch only.
+Ipso receives the active hypsometric parameter set as part of
+`/ipso/reference.json`, the same bearer-protected reference bundle that carries
+species, parcels, sampling context, PAI context, and work-package options. The
+protected response is served with `Cache-Control: no-store`, and the service
+worker bypasses storage for `no-store` responses so a stale active set is not
+replayed from the HTTP or PWA cache.
 
-- Abies exposes an endpoint that serves the active set as a CSV for Ipso.
-  Because Ipso runs on a different origin and holds no Abies session, the
-  endpoint is token-authenticated (reusing Ipso's existing bearer-token
-  mechanism) and CORS-enabled — the first piece of the broader Ipso↔Abies
-  channel that will also carry mark uploads.
-- The downloaded data completely replaces Ipso's hypsometric data. Ipso's other
-  reference data (species, terreni) is out of scope for this sync.
-- Ipso checks for new data every 10 minutes while online, applies any update,
-  and notifies the user with a dismissable modal. The service worker treats this
-  request as network-only — it must not serve a cached copy.
+A refreshed reference bundle completely replaces Ipso's local hypsometric
+parameters for future field entries. Existing local sessions keep their recorded
+measurements; Abies never recomputes already-recorded tree heights after an
+active-set change.
