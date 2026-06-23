@@ -16,7 +16,7 @@ Ontano,Alnus cordata,120,8.50,false,2.00
 Noce,Juglans regia,125,9.00,true,2.00
 Pino Laricio,Pinus nigra laricio,130,9.20,false,2.00
 Pino Marittimo,Pinus pinaster,140,9.50,true,2.00
-Pino Nero,Pinus nigra,150,9.20,true,2.00
+Pino Nero,Pinus nigra,150,9.20,false,2.00
 Pino Strobo,Pinus strobus,155,7.50,true,2.00
 Pioppo Tremulo,Populus tremula,158,7.50,true,2.00
 Quercia Roverella,Quercus pubescens,160,10.50,true,2.00

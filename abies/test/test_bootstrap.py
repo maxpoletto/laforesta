@@ -249,6 +249,7 @@ def test_species_products_seeded_from_in_repo_default_when_absent(tmp_path, caps
         tmp_path, **{'species.csv': None, 'products.csv': None}))
     assert Species.objects.count() == len(load_species())
     assert Species.objects.filter(common_name='Abete').exists()
+    assert Species.objects.get(common_name='Pino Nero').minor is False
     assert Product.objects.count() == len(set(PRODUCT_MAP.values()))
     # The default species set includes 'Abete', so the sampled tree still loads.
     assert Tree.objects.filter(preserved=False).count() == 1   # sampled tree

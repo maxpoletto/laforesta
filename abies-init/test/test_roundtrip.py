@@ -135,6 +135,7 @@ def test_sanity_counts(converted):
     species_by_name = {r['Genere']: r for r in species_rows}
     assert 'Pino Laricio' not in species_by_name
     assert {'Pino Nero', 'Pino Marittimo', 'Pino Strobo'} <= set(species_by_name)
+    assert species_by_name['Pino Nero']['Minore'] == 'false'
     for name in EXPECTED_PAI_MINOR_SPECIES:
         assert species_by_name[name]['Minore'] == 'true'
 
