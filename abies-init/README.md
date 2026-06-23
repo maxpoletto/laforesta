@@ -25,7 +25,7 @@ dependencies — so the tool runs standalone against a legacy-data checkout.
 |---|---|---|
 | `regions.csv` (`Compresa`) | `particelle.csv` | distinct `Compresa` |
 | `eclasses.csv` (`Comparto,Ceduo`) | `particelle.csv` | distinct `Comparto`; `Ceduo=1` iff `Comparto=='F'`, else `0` |
-| `crews.csv` (`Squadra`) | `mannesi.csv` | distinct non-blank `Squadra` |
+| `crews.csv` (`Squadra,Attivo`) | `mannesi.csv` plus constant | distinct non-blank `Squadra`; `Attivo=true` only for crews with 2026 rows, plus `Zaffino-Santaguida`; all other legacy crews are inactive |
 | `species.csv` (`Genere,Nome latino,Densità (q/m³),Pressler,Minore,Ordine`) | in-repo `apps/base/data/species.csv` | reshape `common/latin/density_q_m3/pressler_default/minor/sort_order` to the canonical localized headers (full species set so tree `Genere` resolves) |
 | `products.csv` (`Tipo`) | constant | the distinct canonical products of `apps.base.refdata.PRODUCT_MAP.values()` |
 | `particelle.csv` | `particelle.csv` | select/reorder `Compresa,Comparto,Particella,Area (ha),Età media,Località,Altitudine min,Altitudine max,Esposizione,Pendenza %,Stazione,Soprassuolo`; drop CP, Governo, Piano del taglio, Parametro, Matricine |
@@ -35,7 +35,7 @@ dependencies — so the tool runs standalone against a legacy-data checkout.
 | `surveys.csv` (`Rilevamento,Griglia,Data`) | constant | two rows, both `Griglia=Aree di saggio PDG 2026`, `Data=2024-09-15`: `Campionamento calcolato`, `Campionamento altezze` |
 | `sampled-trees.csv` | `alberi-calcolati.csv` + `alberi-altezze.csv` | union of the two surveys (see below) |
 | `hypso_params.csv` | `equazioni_ipsometro.csv` | copied verbatim (lowercase headers accepted case-insensitively by `hypsometry.parse_param_csv`) |
-| `tractors.csv` (`Trattore,Produttore,Modello,Anno`) | constant | the five hard-coded La Foresta tractors |
+| `tractors.csv` (`Trattore,Produttore,Modello,Anno`) | constant | the six hard-coded La Foresta tractors, including `Scania P380` |
 | `harvests.csv` | `mannesi.csv` | `Tipo` via `_PRODUCT_MAP`; `Particella='X'` → blank; species `abete %` etc. → `Specie: <canonical>` dynamic cols; `Equus %` etc. → `Trattore: <name>` dynamic cols; `Note` token → `Danneggiato/Fitosanitario/PSR` booleans; invalid VDP values (``nd``, ``bis`` variants, fractional) → blank |
 | `harvest_plan_items.csv` | `piano_fustaia.csv` + `piano_ceduo.csv` | unified rows with `Piano=PDG 2026`; `Particella='X'` → blank; highforest flags from `Note` token; coppice flags left `false` (no flag column in legacy) |
 | `preserved-trees.csv` (`Compresa,Particella,Numero,Genere,Data,Anno di nascita stimato,D_cm,H_m,H_measured,Lon,Lat,Acc_m,Operatore,Note`) | `piante-accrescimento-indefinito.csv` | `Genere` preserved when it already names a canonical species; legacy `Abete Bianco` aliases to `Abete`; `Numero` regenerated from 1 within each parcel because the source column is unreliable; date/birth year/accuracy/operator left blank; rows missing `Lon`/`Lat` silently skipped |

@@ -26,21 +26,30 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 
 from convert_laforesta import (
-    COL_PARCEL, OUT_HARVESTS, OUT_HARVEST_PLAN_ITEMS, OUT_MARKS_DIR,
-    OUT_PRESERVED, OUT_REGIONS, OUT_SAMPLED_TREES, OUT_SPECIES, OUT_SURVEYS,
-    OUT_TRACTORS, SRC_HARVESTS, SRC_MARTELLATE_DIR, main,
+    COL_ACTIVE, COL_CREW, COL_PARCEL, COL_TRACTOR_NAME, OUT_CREWS,
+    OUT_HARVESTS, OUT_HARVEST_PLAN_ITEMS, OUT_MARKS_DIR, OUT_PRESERVED,
+    OUT_REGIONS, OUT_SAMPLED_TREES, OUT_SPECIES, OUT_SURVEYS, OUT_TRACTORS,
+    SRC_HARVESTS, SRC_MARTELLATE_DIR, main,
 )
 
 # Defaults to the sibling data checkout; override with ABIES_LEGACY_DATA elsewhere.
 _DEFAULT_LEGACY_DIR = LAFORESTA_ROOT / 'abies-data'
 LEGACY_DIR = Path(os.environ.get('ABIES_LEGACY_DATA', _DEFAULT_LEGACY_DIR))
 
-EXPECTED_TRACTORS = 5
+EXPECTED_TRACTORS = 6
 EXPECTED_PAI_MINOR_SPECIES = {
     'Betulla Bianca',
     'Farnia',
     'Noce',
     'Pioppo Tremulo',
+}
+EXPECTED_ACTIVE_CREWS = {
+    'Campese X2',
+    'Manno',
+    'Mix Max',
+    'Ns Operai',
+    'Zaffino 4x4',
+    'Zaffino-Santaguida',
 }
 
 pytestmark = pytest.mark.skipif(
@@ -109,9 +118,16 @@ def test_sanity_counts(converted):
     assert any(r['Matricina'] == 'True' for r in tree_rows)
     assert {r['Pressler'] for r in tree_rows} == {'2'}
 
-    # Tractors: exactly 5 hard-coded La Foresta tractors.
+    # Crews: only crews used in 2026 and the explicit new crew are active.
+    crew_rows = _rows(out_dir / OUT_CREWS)
+    assert {
+        r[COL_CREW] for r in crew_rows if r[COL_ACTIVE] == 'true'
+    } == EXPECTED_ACTIVE_CREWS
+
+    # Tractors: exactly the hard-coded La Foresta tractors.
     tractor_rows = _rows(out_dir / OUT_TRACTORS)
     assert len(tractor_rows) == EXPECTED_TRACTORS
+    assert 'Scania P380' in {r[COL_TRACTOR_NAME] for r in tractor_rows}
 
     # PAI-only species are canonical minor species, not squashed into Altro.
     species_rows = _rows(out_dir / OUT_SPECIES)

@@ -44,6 +44,8 @@ SURVEY_CALCULATED = 'Campionamento calcolato'
 SURVEY_HEIGHTS = 'Campionamento altezze'
 DEFAULT_SURVEY_DATE = '2024-09-15'
 PRESSLER_DEFAULT = '2'
+ACTIVE_CREW_YEAR = 2026
+EXTRA_CREWS = ['Zaffino-Santaguida']
 
 # Legacy hard-coded eclass rule: comparti A–E are high forest (fustaia,
 # non-coppice); comparto F is coppice (ceduo).
@@ -199,6 +201,7 @@ _TRACTORS = [
     ['Fiat 80-66',    'Fiat',  '80-66',   ''],
     ['Landini 135',   'Landini', '135',   ''],
     ['New Holland T5050', 'New Holland', 'T5050', ''],
+    ['Scania P380', 'Scania', 'P380', ''],
 ]
 
 # Map legacy mannesi.csv ``Tipo`` values → canonical product names.
@@ -292,9 +295,19 @@ def _convert_eclasses(parcels: list[dict], out_dir: Path) -> int:
 
 
 def _convert_crews(src_dir: Path, out_dir: Path) -> int:
-    crews = _read(src_dir / SRC_CREWS)
-    rows = [[v] for v in _distinct(crews, COL_CREW)]
-    return _write(out_dir / OUT_CREWS, [COL_CREW], rows)
+    """Emit crews, keeping only crews used in ACTIVE_CREW_YEAR active."""
+    legacy_rows = _read(src_dir / SRC_CREWS)
+    crew_names = set(_distinct(legacy_rows, COL_CREW)) | set(EXTRA_CREWS)
+    active_crews = {
+        (r.get(COL_CREW) or '').strip()
+        for r in legacy_rows
+        if (r.get(COL_CREW) or '').strip()
+        and (r.get(COL_DATA) or '').strip().startswith(f'{ACTIVE_CREW_YEAR}-')
+    }
+    active_crews.update(EXTRA_CREWS)
+    rows = [[name, 'true' if name in active_crews else 'false']
+            for name in sorted(crew_names)]
+    return _write(out_dir / OUT_CREWS, [COL_CREW, COL_ACTIVE], rows)
 
 
 def _convert_species(repo_root: Path, out_dir: Path) -> int:
@@ -484,7 +497,7 @@ def _sanitize_int(raw: str) -> str:
 
 
 def _convert_tractors(out_dir: Path) -> int:
-    """Emit the five hard-coded La Foresta tractors."""
+    """Emit the six hard-coded La Foresta tractors."""
     header = [COL_TRACTOR_NAME, COL_MANUFACTURER, COL_MODEL, COL_YEAR]
     return _write(out_dir / OUT_TRACTORS, header, list(_TRACTORS))
 
