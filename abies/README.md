@@ -79,10 +79,19 @@ make dev
 ```
 
 `make dev` resets the local SQLite database, runs migrations, bootstraps from
-`data/canonical`, builds geodata, regenerates JSON digests, creates or asks for
-an admin user, and materializes language-template symlinks. For smaller steps,
-use `make migrate`, `make bootstrap`, `make geo`, `make digest`, and
-`make admin`.
+`data/canonical`, builds geodata, stages converted mark uploads if
+present, regenerates JSON digests, creates or asks for an admin user, and
+materializes language-template symlinks. For smaller steps, use `make migrate`,
+`make bootstrap`, `make geo`, `make stage-marks-uploads`, `make digest`,
+and `make admin`.
+
+To make the process completely non-interactive (e.g., during edit-debug cycles),
+set the following environment variables:
+```sh
+DJANGO_SUPERUSER_USERNAME
+DJANGO_SUPERUSER_EMAIL
+DJANGO_SUPERUSER_PASSWORD
+```
 
 Run tests with:
 
@@ -90,10 +99,19 @@ Run tests with:
 make test
 ```
 
-Start the development server with:
+To test Microsoft Entra OAuth, also set:
+```sh
+MS_OAUTH_TENANT
+MS_OAUTH_CLIENT_ID
+MS_OAUTH_SECRET
+```
+
+To test Ipso data uploads, also set `ABIES_IPSO_SECRET`.
+
+Finally, start the development server with:
 
 ```sh
-DJANGO_DEBUG=1 DJANGO_SECRET_KEY=django-insecure-local-dev python3 manage.py runserver
+make serve
 ```
 
 ## Production Installation

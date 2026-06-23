@@ -12,7 +12,7 @@ LANGUAGE_SUFFIX = _it
 
 .PHONY: check migrate geo digest admin dev \
         clean reset-schema update-vendor minify test test-js collectstatic \
-        link-templates reset-db bootstrap
+        link-templates reset-db bootstrap stage-marks-uploads
 
 check:
 	$(MANAGE) check
@@ -26,6 +26,7 @@ migrate:
 # `make dev` runs `reset-db` first so bootstrap always loads into a clean DB.
 reset-db:
 	rm -f data/db.sqlite3 data/db.sqlite3-wal data/db.sqlite3-shm
+	rm -rf data/ipso-inbox
 
 bootstrap:
 	$(MANAGE) bootstrap $(CANONICAL_DIR)
@@ -33,6 +34,9 @@ bootstrap:
 geo:
 	mkdir -p data/geo
 	$(MANAGE) build_geo $(CANONICAL_DIR)
+
+stage-marks-uploads:
+	$(MANAGE) stage_marks_uploads $(CANONICAL_DIR)/marks
 
 digest:
 	$(MANAGE) shell --no-imports -c "from apps.base.digests import generate_all; generate_all()"
@@ -53,7 +57,7 @@ admin:
 link-templates:
 	$(PYTHON) bin/link-templates.py $(LANGUAGE_SUFFIX)
 
-dev: reset-db migrate bootstrap geo digest admin link-templates
+dev: reset-db migrate bootstrap geo stage-marks-uploads digest admin link-templates
 
 serve:
 	$(MANAGE) runserver > /dev/null 2>&1 &

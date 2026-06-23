@@ -21,8 +21,9 @@ make dev
 ```
 
 That target resets the local database, migrates, runs `bootstrap`, builds
-geodata, generates digests, creates the local admin user, and links templates.
-`make bootstrap` runs only the bootstrap command against `$(CANONICAL_DIR)`.
+geodata, stages converted mark uploads if present, generates digests,
+creates the local admin user, and links templates. `make bootstrap` runs only
+the bootstrap command against `$(CANONICAL_DIR)`.
 
 ## Contract
 
@@ -127,4 +128,6 @@ to 100. Tractor percentages must be either all blank/zero or sum to 100.
 
 Legacy export conversion is handled outside Abies. `bootstrap` intentionally
 knows only the canonical files above and defaults to `data/canonical` in local
-make targets.
+make targets. Converted mark uploads may be placed in
+`data/canonical/marks/*.csv`; `make stage-marks-uploads` stages them
+into the Ipso inbox after bootstrap has loaded parcel and species IDs.
