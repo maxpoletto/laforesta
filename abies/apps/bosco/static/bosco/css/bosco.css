@@ -415,12 +415,6 @@
   margin-top: 8px;
 }
 
-.bosco-pai-popup-actions .btn {
-  flex: 1 1 0;
-  padding: 4px 6px;
-  font-size: 0.78rem;
-}
-
 @media (max-width: 800px) {
   .bosco-sidebar {
     position: absolute;
