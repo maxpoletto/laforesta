@@ -8,8 +8,8 @@ STATIC_ROOT ?= staticfiles
 REMOTE_USER ?= maxp
 REMOTE_HOST ?= abies.laforesta.it
 REMOTE ?= $(REMOTE_USER)@$(REMOTE_HOST)
-REMOTE_ABIES_UID ?= 10001
-REMOTE_ABIES_GID ?= 10001
+REMOTE_ABIES_USER ?= abies
+REMOTE_ABIES_GROUP ?= abies
 
 REF ?=
 DEPLOY_ARGS ?=
@@ -122,7 +122,7 @@ stage-canonical:
 	@test "$(INSTANCE)" = "dev" -o "$(INSTANCE)" = "prod" || { echo "usage: make stage-canonical INSTANCE=<dev|prod>" >&2; exit 1; }
 	ssh "$(REMOTE)" "sudo mkdir -p /var/lib/abies-$(INSTANCE)/data/canonical"
 	rsync -rlt --delete --rsync-path="sudo rsync" "$(CANONICAL_DIR)/" "$(REMOTE):/var/lib/abies-$(INSTANCE)/data/canonical/"
-	ssh "$(REMOTE)" "sudo chown -R $(REMOTE_ABIES_UID):$(REMOTE_ABIES_GID) /var/lib/abies-$(INSTANCE)/data/canonical"
+	ssh "$(REMOTE)" "sudo chown -R $(REMOTE_ABIES_USER):$(REMOTE_ABIES_GROUP) /var/lib/abies-$(INSTANCE)/data/canonical"
 	ssh "$(REMOTE)" "sudo chmod -R u=rwX,g=rX,o= /var/lib/abies-$(INSTANCE)/data/canonical"
 
 bootstrap-dev: stage-canonical-dev

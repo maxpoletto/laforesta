@@ -150,7 +150,16 @@ Adjust names and ports as needed.
 
 3. Create host directories.
 
-   The container runs as UID/GID `10001`. Create these directories on the host:
+   The container runs as UID/GID `10001`. Create a matching non-login host
+   account so bind-mounted files show readable ownership on the VM:
+
+   ```sh
+   sudo groupadd --system --gid 10001 abies
+   sudo useradd --system --uid 10001 --gid abies \
+     --home-dir /nonexistent --shell /usr/sbin/nologin --no-create-home abies
+   ```
+
+   Then create these directories on the host:
 
    ```sh
    sudo mkdir -p /var/lib/abies-prod/data/digests
@@ -165,8 +174,8 @@ Adjust names and ports as needed.
    sudo mkdir -p /var/lib/abies-dev/staticfiles
    sudo mkdir -p /var/backups/abies-dev
 
-   sudo chown -R 10001:10001 /var/lib/abies-prod/data /var/lib/abies-prod/staticfiles /var/backups/abies-prod
-   sudo chown -R 10001:10001 /var/lib/abies-dev/data /var/lib/abies-dev/staticfiles /var/backups/abies-dev
+   sudo chown -R abies:abies /var/lib/abies-prod/data /var/lib/abies-prod/staticfiles /var/backups/abies-prod
+   sudo chown -R abies:abies /var/lib/abies-dev/data /var/lib/abies-dev/staticfiles /var/backups/abies-dev
    sudo chmod 0750 /var/lib/abies-prod/data /var/backups/abies-prod
    sudo chmod 0750 /var/lib/abies-dev/data /var/backups/abies-dev
    sudo chmod 0755 /var/lib/abies-prod/staticfiles /var/lib/abies-dev/staticfiles
