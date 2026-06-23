@@ -3,6 +3,7 @@
 import pytest
 from django.core.management import call_command
 from django.core.management.base import CommandError
+from django.db import OperationalError
 
 from apps.base.models import (
     Crew, Eclass, HarvestPlan, HarvestPlanItem, Parcel, Product, Region,
@@ -93,6 +94,16 @@ def test_non_empty_instance_refused(tmp_path):
     with pytest.raises(CommandError):
         call_command('bootstrap', _make_dir(tmp_path))
     assert Region.objects.filter(name='Existing').exists()   # untouched
+
+
+@pytest.mark.django_db
+def test_missing_schema_reports_actionable_error(tmp_path, monkeypatch):
+    def broken_exists():
+        raise OperationalError('no such table: base_product')
+
+    monkeypatch.setattr(Product.objects, 'exists', broken_exists)
+    with pytest.raises(CommandError, match='Schema database'):
+        call_command('bootstrap', _make_dir(tmp_path))
 
 
 @pytest.mark.django_db

@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
-from django.db import transaction
+from django.db import OperationalError, ProgrammingError, transaction
 
 from apps.base import (
     csv_containers as cc, csv_io, csv_parcels, csv_reference, hypsometry, refdata,
@@ -71,8 +71,11 @@ class Command(BaseCommand):
     def handle(self, *args, data_dir, check, **opts):
         if not data_dir.is_dir():
             raise CommandError(f'{data_dir} is not a directory')
-        populated = [str(m._meta.verbose_name) for m in GUARD_MODELS
-                     if m.objects.exists()]
+        try:
+            populated = [str(m._meta.verbose_name) for m in GUARD_MODELS
+                         if m.objects.exists()]
+        except (OperationalError, ProgrammingError) as exc:
+            raise CommandError(S.ERR_BOOTSTRAP_SCHEMA.format(exc)) from exc
         if populated:
             raise CommandError(
                 S.ERR_BOOTSTRAP_NOT_EMPTY.format(', '.join(populated)))

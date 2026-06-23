@@ -328,6 +328,11 @@ ERR_CSV_GRID_NOT_FOUND   = 'Riga {}: griglia non trovata ({}).'
 ERR_BOOTSTRAP_REQUIRED_FILE  = 'File obbligatorio mancante: {}.'
 ERR_BOOTSTRAP_NOT_EMPTY      = ('Istanza non vuota (popolati: {}); il bootstrap '
                                'carica solo in un’istanza vuota.')
+ERR_BOOTSTRAP_SCHEMA         = (
+    'Schema database non coerente o non inizializzato ({}). '
+    'Esegui migrate su un database integro; se migrate non applica nulla, '
+    'rimuovi data/db.sqlite3* e riprova.'
+)
 ERR_BOOTSTRAP_UNKNOWN_GRID   = 'File {}: griglia non trovata ({}).'
 ERR_BOOTSTRAP_UNKNOWN_SURVEY = 'File {}: rilevamento non trovato ({}).'
 ERR_BOOTSTRAP_FAILED         = '{} errore/i durante il bootstrap; nulla è stato caricato.'
