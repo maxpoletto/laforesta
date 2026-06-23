@@ -250,8 +250,8 @@ Adjust names and ports as needed.
    ```
 
    Without a ref, the dev deploy builds whatever is currently in the checkout,
-   including uncommitted changes. With a ref, it fetches tags and checks out
-   that ref before building.
+   including uncommitted changes. With a ref, it fetches tags and builds a
+   temporary archived copy of that ref, leaving the checkout unchanged.
 
    Production deploys require an explicit ref and refuse to run from a dirty
    tree:

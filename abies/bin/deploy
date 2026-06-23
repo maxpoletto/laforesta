@@ -3,12 +3,12 @@
 #
 # Drives a deploy on vm-abies via docker context.
 #
-# dev:           ref optional. With a ref, performs fetch+checkout. Without,
-#                deploys the current working tree as-is (uncommitted changes
-#                are fair game).
+# dev:           ref optional. With a ref, builds a temporary archived copy of
+#                that ref. Without, deploys the current working tree as-is
+#                (uncommitted changes are fair game).
 #
-# prod:          ref required (tag or sha). Refuses to deploy with a dirty
-#                tree.
+# prod:          ref required (tag or sha). Builds a temporary archived copy of
+#                that ref. Refuses to deploy with a dirty tree.
 #
 # --reset-user:  before the ensure-admin step, delete any existing
 #                superuser(s). Combined with DJANGO_SUPERUSER_* env vars in
@@ -47,25 +47,46 @@ for arg in "$@"; do
 done
 [[ "$instance" == "dev" || "$instance" == "prod" ]] || usage
 
-cd "$(git rev-parse --show-toplevel)/abies"
+repo_root="$(git rev-parse --show-toplevel)"
+source_app_dir="$repo_root/abies"
+deploy_root=""
+
+cleanup() {
+  if [[ -n "$deploy_root" && -d "$deploy_root" ]]; then
+    rm -rf "$deploy_root"
+  fi
+}
+trap cleanup EXIT
 
 case "$instance" in
   dev)
-    if [[ -n "$ref" ]]; then
-      git fetch --tags origin
-      git checkout "$ref"
-    fi
     ;;
   prod)
     [[ -n "$ref" ]] || { echo "error: prod deploy requires explicit git ref (tag or sha)" >&2; exit 1; }
-    [[ -z "$(git status --porcelain)" ]] || {
+    [[ -z "$(git -C "$repo_root" status --porcelain)" ]] || {
       echo "error: working tree has uncommitted changes; refusing prod deploy" >&2
       exit 1
     }
-    git fetch --tags origin
-    git checkout "$ref"
     ;;
 esac
+
+app_dir="$source_app_dir"
+if [[ -n "$ref" ]]; then
+  git -C "$repo_root" fetch --tags origin
+  deploy_root="$(mktemp -d "${TMPDIR:-/tmp}/abies-deploy.XXXXXX")"
+  git -C "$repo_root" archive "$ref" | tar -x -C "$deploy_root"
+  app_dir="$deploy_root/abies"
+
+  env_src="$source_app_dir/compose/.env.${instance}"
+  env_dst="$app_dir/compose/.env.${instance}"
+  [[ -f "$env_src" ]] || {
+    echo "error: $env_src missing; required for ${instance} deploy" >&2
+    exit 1
+  }
+  cp "$env_src" "$env_dst"
+fi
+
+cd "$app_dir"
 
 context="${ABIES_DOCKER_CONTEXT:-vm-abies}"
 image="abies:${instance}"
