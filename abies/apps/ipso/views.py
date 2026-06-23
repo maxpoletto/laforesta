@@ -38,6 +38,7 @@ from apps.base.models import (
 from apps.base.numparse import coord_float, to_decimal
 from apps.base.responses import success_response, validation_error
 from apps.campionamenti import csv_trees
+from apps.ipso import staging as ipso_staging
 from apps.ipso.importers import (
     apply_pai_rows, pai_import_rows, record_measurements, sample_import_rows,
 )
@@ -72,8 +73,8 @@ from config.constants import (
     IPSO_TARGET_HARVEST_PLAN_ITEM, IPSO_TARGET_PAI, IPSO_TARGET_SURVEY,
     IPSO_TERRENI_GEOJSON, IPSO_WORK_PACKAGE_HARVEST_PREFIX,
     IPSO_WORK_PACKAGE_SAMPLING_SURVEY, IPSO_WORK_PACKAGE_SAMPLING_SURVEY_PREFIX,
-    IPSO_UPLOAD_CONFIG_JS, IPSO_UPLOAD_FILE_CSV, IPSO_UPLOAD_FILE_JSON,
-    IPSO_UPLOAD_FILE_SHA256, IPSO_UPLOAD_MODES, MESSAGE, OK,
+    IPSO_UPLOAD_CONFIG_JS, IPSO_UPLOAD_FILE_JSON, IPSO_UPLOAD_MODES, MESSAGE,
+    OK,
     PENDING_COUNT, PRESSLER_DEFAULT, RECORD_COUNT, RECORDS, ROW_ID, ROWS,
     SESSION, SKIPPED_DUPLICATES, STORED_AS, SUGGESTED_TARGET_ID, TARGETS,
     TREE_H_QUANTUM, UPLOAD,
@@ -600,15 +601,7 @@ def upload_session(request: HttpRequest) -> JsonResponse:
         with transaction.atomic():
             inbox_path = _upload_inbox_path(session_id)
             upload = IpsoUpload.objects.create(
-                session_id=session_id,
-                mode=normalized[SESSION][FIELD_MODE],
-                schema_version=normalized[SESSION][FIELD_SCHEMA_VERSION],
-                reference_version=normalized[SESSION].get(FIELD_REFERENCE_VERSION, ''),
-                work_package_id=normalized[SESSION].get(FIELD_WORK_PACKAGE_ID, ''),
-                operator=normalized[SESSION].get(FIELD_OPERATOR, ''),
-                record_count=len(normalized[RECORDS]),
-                checksum=checksum,
-                inbox_path=str(inbox_path),
+                **ipso_staging.upload_model_fields(normalized, checksum, inbox_path)
             )
             _write_upload_files(inbox_path, normalized, checksum, csv_text)
     except IntegrityError:
@@ -918,7 +911,10 @@ def _martellate_import_rows(
         for p in Parcel.objects.filter(id__in=parcel_ids).select_related('region', 'eclass')
     }
     item_region = item.region or (item.parcel.region if item.parcel else None)
-    operator = (session.get(FIELD_OPERATOR) or '').strip() if isinstance(session, dict) else ''
+    session_operator = (
+        (session.get(FIELD_OPERATOR) or '').strip()
+        if isinstance(session, dict) else ''
+    )
 
     rows = []
     errors = []
@@ -944,6 +940,7 @@ def _martellate_import_rows(
         if measurements is None:
             errors.append(S.IPSO_ERR_IMPORT_RECORD_DH_DATE_INVALID.format(i))
             continue
+        operator = (record.get(FIELD_OPERATOR) or session_operator).strip()
         rows.append(MarkImportRow(
             date=measurements.date,
             parcel=parcel,
@@ -1160,6 +1157,8 @@ def _normalize_record(mode: str, index: int, row: object) -> dict:
         FIELD_LON: _opt_coord_float(row, FIELD_LON),
         FIELD_ACC_M: _opt_int(row, FIELD_ACC_M),
     }
+    if mode == IPSO_MODE_MARTELLATE:
+        normalized[FIELD_OPERATOR] = _opt_str(row, FIELD_OPERATOR)
     if mode == IPSO_MODE_SAMPLES:
         pressler_coeff = _opt_decimal(row, FIELD_PRESSLER_COEFF) or PRESSLER_DEFAULT
         shoot = _opt_int(row, FIELD_SHOOT) or 0
@@ -1226,33 +1225,17 @@ def _validate_record_ids(mode: str, records: list[dict]) -> None:
 
 
 def _payload_checksum(payload: dict) -> str:
-    raw = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
-    return hashlib.sha256(raw.encode('utf-8')).hexdigest()
+    return ipso_staging.payload_checksum(payload)
 
 
 def _upload_inbox_path(session_id: str) -> Path:
-    now = django_timezone.now().astimezone(timezone.utc)
-    return Path(settings.IPSO_INBOX_DIR) / f'{now.year:04d}' / f'{now.month:02d}' / session_id
+    return ipso_staging.upload_inbox_path(session_id)
 
 
 def _write_upload_files(
         session_dir: Path, payload: dict, checksum: str, csv_text: str | None,
 ) -> Path:
-    session_dir.mkdir(parents=True, exist_ok=True)
-    _atomic_write_text(
-        session_dir / IPSO_UPLOAD_FILE_JSON,
-        json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + '\n',
-    )
-    _atomic_write_text(session_dir / IPSO_UPLOAD_FILE_SHA256, checksum + '\n')
-    if csv_text:
-        _atomic_write_text(session_dir / IPSO_UPLOAD_FILE_CSV, csv_text)
-    return session_dir
-
-
-def _atomic_write_text(path: Path, text: str) -> None:
-    tmp = path.with_name(path.name + '.tmp')
-    tmp.write_text(text, encoding='utf-8')
-    tmp.replace(path)
+    return ipso_staging.write_upload_files(session_dir, payload, checksum, csv_text)
 
 
 def _dict(payload: dict, key: str) -> dict:
