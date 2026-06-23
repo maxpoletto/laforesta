@@ -114,10 +114,23 @@ Finally, start the development server with:
 make serve
 ```
 
-## Production Installation
+## Remote Dev And Production
 
-The following steps describe a fresh host setup for two deployments, production
-and dev, served as `abies.laforesta.it` and `abies-dev.laforesta.it`.
+Abies has three normal operating modes:
+
+- local development, described above, runs Django directly from the checkout;
+- remote dev runs the containerized app at `abies-dev.laforesta.it`, behind
+  Apache basic auth, using `compose/dev.yml`, `.env.dev`, and host port
+  `127.0.0.1:8001`;
+- production runs the containerized app at `abies.laforesta.it`, without basic
+  auth, using `compose/prod.yml`, `.env.prod`, and host port
+  `127.0.0.1:8000`.
+
+Remote dev is intended for pre-production checks on the same shape of
+infrastructure as production. It should still use `DJANGO_DEBUG=0` and its own
+secrets, OAuth redirect URI, data directory, Ipso secret, and database.
+
+The following steps describe a fresh host setup for both remote instances.
 Adjust names and ports as needed.
 
 1. Install system packages.
@@ -184,23 +197,22 @@ Adjust names and ports as needed.
 
 5. Create compose env files.
 
-   Create `compose/.env.prod` and `compose/.env.dev`. Required production
-   values include:
+   Create `compose/.env.prod` and `compose/.env.dev`. Required values include:
 
    ```env
    DJANGO_DEBUG=0
    DJANGO_SECRET_KEY=<unique-long-secret>
-   DJANGO_ALLOWED_HOSTS=abies.laforesta.it
-   DJANGO_CSRF_TRUSTED_ORIGINS=https://abies.laforesta.it
+   DJANGO_ALLOWED_HOSTS=<instance-hostname>
+   DJANGO_CSRF_TRUSTED_ORIGINS=https://<instance-hostname>
    ABIES_IPSO_SECRET=<shared-ipso-secret>
    MS_OAUTH_TENANT=<tenant-guid-or-name>
    MS_OAUTH_CLIENT_ID=<client-id>
    MS_OAUTH_SECRET=<client-secret>
    ```
 
-   For dev, use the dev hostname in `DJANGO_ALLOWED_HOSTS` and
-   `DJANGO_CSRF_TRUSTED_ORIGINS`, and a different `DJANGO_SECRET_KEY`. Optional
-   knobs include `ABIES_IPSO_UPLOAD_MAX_BYTES`,
+   Use separate values for prod and dev. In particular, do not reuse
+   `DJANGO_SECRET_KEY`, `ABIES_IPSO_SECRET`, or OAuth redirect URIs between the
+   two instances. Optional knobs include `ABIES_IPSO_UPLOAD_MAX_BYTES`,
    `ABIES_IPSO_UPLOAD_MAX_RECORDS`, `ABIES_IPSO_UPLOAD_RATE_LIMIT`,
    `ABIES_IPSO_UPLOAD_RATE_WINDOW_S`,
    `ABIES_IPSO_UPLOAD_TRUSTED_PROXIES`, `ABIES_IPSO_INBOX_DIR`,
@@ -219,19 +231,33 @@ Adjust names and ports as needed.
 
 7. Deploy the application.
 
-   From this repository:
+   From this repository, deploy dev with either the current working tree or an
+   explicit git ref:
 
    ```sh
    ./bin/deploy dev
+   ./bin/deploy dev <branch-or-sha>
+   ```
+
+   Without a ref, the dev deploy builds whatever is currently in the checkout,
+   including uncommitted changes. With a ref, it fetches tags and checks out
+   that ref before building.
+
+   Production deploys require an explicit ref and refuse to run from a dirty
+   tree:
+
+   ```sh
    ./bin/deploy prod <tag-or-sha>
    ```
 
    The deploy script builds the image, writes a pre-deploy SQLite snapshot to
-   the backup mount when an image already exists, runs migrations, optionally
-   creates a superuser from
+   the backup mount when an image already exists, runs migrations, runs
+   `manage.py check --deploy --fail-level WARNING` for prod, optionally creates
+   a superuser from
    `DJANGO_SUPERUSER_USERNAME`, `DJANGO_SUPERUSER_EMAIL`, and
    `DJANGO_SUPERUSER_PASSWORD`, collects static files, and starts the compose
-   stack.
+   stack. Add `--reset-user` to delete existing superusers before the
+   superuser creation step.
 
 8. Load initial data.
 
@@ -255,12 +281,13 @@ Adjust names and ports as needed.
 
 9. Enroll Ipso devices.
 
-   Open this URL on each trusted field device, replacing the secret with the
-   production `ABIES_IPSO_SECRET`:
+   Open the appropriate URL on each trusted field device:
 
    ```text
    https://abies.laforesta.it/ipso/#secret=<ABIES_IPSO_SECRET>
+   https://abies-dev.laforesta.it/ipso/#secret=<DEV_ABIES_IPSO_SECRET>
    ```
 
    The fragment is stored locally by the PWA and removed from the address bar.
-   Rotate `ABIES_IPSO_SECRET` to revoke all currently enrolled devices.
+   Rotate the instance's `ABIES_IPSO_SECRET` to revoke all devices enrolled
+   against that instance.
