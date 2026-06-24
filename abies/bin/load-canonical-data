@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# bin/load-canonical-data <canonical_dir> [--geo-output-dir <dir>]
+#
+# Shared initialization sequence for a fresh Abies database. Runs migrations,
+# loads canonical CSVs, stages converted mark uploads into the Ipso inbox,
+# builds geodata, and regenerates digests.
+
+set -euo pipefail
+
+usage() {
+  echo "usage: $(basename "$0") <canonical_dir> [--geo-output-dir <dir>]" >&2
+  exit 1
+}
+
+canonical_dir=""
+geo_output_dir=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --geo-output-dir)
+      shift
+      [[ $# -gt 0 ]] || usage
+      geo_output_dir="$1"
+      ;;
+    -h|--help)
+      usage
+      ;;
+    --*)
+      echo "unknown flag: $1" >&2
+      usage
+      ;;
+    *)
+      [[ -z "$canonical_dir" ]] || usage
+      canonical_dir="$1"
+      ;;
+  esac
+  shift
+done
+
+[[ -n "$canonical_dir" ]] || usage
+[[ -d "$canonical_dir" ]] || {
+  echo "error: $canonical_dir is not a directory" >&2
+  exit 1
+}
+
+python_bin="${PYTHON:-python3}"
+
+geo_args=()
+if [[ -n "$geo_output_dir" ]]; then
+  geo_args=(--output-dir "$geo_output_dir")
+fi
+
+echo "==> migrate database schema"
+"$python_bin" manage.py migrate --noinput
+
+echo "==> bootstrap canonical data into the (empty) instance"
+"$python_bin" manage.py bootstrap "$canonical_dir"
+
+echo "==> stage converted mark uploads into Ipso inbox"
+"$python_bin" manage.py stage_marks_uploads "$canonical_dir/marks"
+
+echo "==> build geojson"
+"$python_bin" manage.py build_geo "$canonical_dir" "${geo_args[@]}"
+
+echo "==> regenerate digests"
+"$python_bin" manage.py shell --no-imports -c \
+  "from apps.base.digests import generate_all; generate_all()"

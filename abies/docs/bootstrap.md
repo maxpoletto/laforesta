@@ -20,10 +20,11 @@ The development shortcut is:
 make dev
 ```
 
-That target resets the local database, migrates, runs `bootstrap`, builds
-geodata, stages converted mark uploads if present, generates digests,
-creates the local admin user, and links templates. `make bootstrap` runs only
-the bootstrap command against `$(CANONICAL_DIR)`.
+That target resets the local database, runs the shared canonical-data load
+sequence, creates the local admin user, and links templates. The shared
+sequence migrates, runs `bootstrap`, stages converted mark uploads if present,
+builds geodata, and generates digests. `make bootstrap` runs only the bootstrap
+command against `$(CANONICAL_DIR)`.
 
 ## Contract
 
@@ -60,8 +61,8 @@ The command loads files in dependency order:
 8. Preserved trees: `preserved-trees.csv`.
 9. Harvest rows: `harvests.csv`.
 
-After bootstrap, run the geodata and digest steps, usually through `make geo`
-and `make digest` or the broader `make dev` target.
+After bootstrap, run the mark-staging, geodata, and digest steps, usually
+through `bin/load-canonical-data` or the broader `make dev` target.
 
 ## Canonical Directory
 
@@ -130,6 +131,6 @@ Legacy export conversion is handled outside Abies. `bootstrap` intentionally
 knows only the canonical files above and defaults to `data/canonical` in local
 make targets. Converted mark uploads may be placed in
 `data/canonical/marks/*.csv`; `make stage-marks-uploads` stages them
-into the Ipso inbox after bootstrap has loaded parcel and species IDs. Remote
-`make bootstrap-dev` and `make bootstrap-prod` run that staging step as part of
-`bin/bootstrap-data`.
+into the Ipso inbox after bootstrap has loaded parcel and species IDs. Local
+`make dev` and remote `make bootstrap-dev`/`make bootstrap-prod` both run that
+staging step through `bin/load-canonical-data`.

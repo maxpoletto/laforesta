@@ -79,12 +79,13 @@ Then run:
 make dev
 ```
 
-`make dev` resets the local SQLite database, runs migrations, bootstraps from
-`data/canonical`, builds geodata, stages converted mark uploads if
-present, regenerates JSON digests, creates or asks for an admin user, and
-materializes language-template symlinks. For smaller steps, use `make migrate`,
-`make bootstrap`, `make geo`, `make stage-marks-uploads`, `make digest`,
-and `make admin`. Run `make help` for the full local and remote target list.
+`make dev` resets the local SQLite database, runs the shared canonical-data
+load sequence, creates or asks for an admin user, and materializes
+language-template symlinks. The shared sequence runs migrations, bootstraps
+from `data/canonical`, stages converted mark uploads if present, builds
+geodata, and regenerates JSON digests. For smaller steps, use `make migrate`,
+`make bootstrap`, `make geo`, `make stage-marks-uploads`, `make digest`, and
+`make admin`. Run `make help` for the full local and remote target list.
 
 To make the process completely non-interactive (e.g., during edit-debug cycles),
 set the following environment variables:
@@ -284,10 +285,11 @@ Adjust names and ports as needed.
    container UID, then run `bin/bootstrap-data <instance>`, which applies
    migrations before loading the empty database. To sync without bootstrapping,
    use `make stage-canonical-dev` or
-   `make stage-canonical-prod`. The bootstrap command runs `manage.py
-   bootstrap`, stages `data/canonical/marks/*.csv` into the Ipso inbox, builds
-   geodata into `/app/data/geo`, and regenerates all digests. It refuses to
-   load into a non-empty database.
+   `make stage-canonical-prod`. The bootstrap script runs the same shared
+   canonical-data load sequence as local development: migrations, `manage.py
+   bootstrap`, staging `data/canonical/marks/*.csv` into the Ipso inbox,
+   geodata into `/app/data/geo`, and all digests. It refuses to load into a
+   non-empty database.
 
    The rsync targets default to `REMOTE=maxp@abies.laforesta.it`; override
    `REMOTE_USER`, `REMOTE_HOST`, or `REMOTE` if needed.

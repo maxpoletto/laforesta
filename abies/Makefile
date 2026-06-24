@@ -23,7 +23,7 @@ MANAGE = env DJANGO_DEBUG="$(DJANGO_DEBUG)" DJANGO_SECRET_KEY="$(DJANGO_SECRET_K
 # unsuffixed <name>.html symlinks are materialized at install time.
 
 .PHONY: help \
-        check migrate reset-db bootstrap geo stage-marks-uploads digest admin link-templates dev serve \
+        check migrate reset-db load-canonical-data bootstrap geo stage-marks-uploads digest admin link-templates dev serve \
         collectstatic minify \
         deploy-dev deploy-prod stage-canonical stage-canonical-dev stage-canonical-prod bootstrap-dev bootstrap-prod docker-prune \
         test test-js \
@@ -31,7 +31,7 @@ MANAGE = env DJANGO_DEBUG="$(DJANGO_DEBUG)" DJANGO_SECRET_KEY="$(DJANGO_SECRET_K
 
 help:
 	@echo "Local development:"
-	@echo "  make dev                         reset local DB, bootstrap, build geo/digests, create admin"
+	@echo "  make dev                         reset local DB, load canonical data, create admin"
 	@echo "  make serve                       run Django dev server in the background"
 	@echo "  make test                        run JS tests and pytest"
 	@echo "  make collectstatic minify        collect static files, then minify collected JS"
@@ -61,6 +61,10 @@ reset-db:
 	rm -f data/db.sqlite3 data/db.sqlite3-wal data/db.sqlite3-shm
 	rm -rf data/ipso-inbox
 
+load-canonical-data:
+	mkdir -p data
+	env DJANGO_DEBUG="$(DJANGO_DEBUG)" DJANGO_SECRET_KEY="$(DJANGO_SECRET_KEY)" PYTHON="$(PYTHON)" bin/load-canonical-data $(CANONICAL_DIR)
+
 bootstrap:
 	$(MANAGE) bootstrap $(CANONICAL_DIR)
 
@@ -89,7 +93,7 @@ admin:
 link-templates:
 	$(PYTHON) bin/link-templates.py $(LANGUAGE_SUFFIX)
 
-dev: reset-db migrate bootstrap geo stage-marks-uploads digest admin link-templates
+dev: reset-db load-canonical-data admin link-templates
 
 serve:
 	$(MANAGE) runserver > /dev/null 2>&1 &
