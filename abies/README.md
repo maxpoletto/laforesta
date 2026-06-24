@@ -121,12 +121,10 @@ make serve
 Abies has three normal operating modes:
 
 - local development, described above, runs Django directly from the checkout;
-- remote dev runs the containerized app at `abies-dev.laforesta.it`, behind
-  Apache basic auth, using `compose/dev.yml`, `.env.dev`, and host port
-  `127.0.0.1:8001`;
-- production runs the containerized app at `abies.laforesta.it`, without basic
-  auth, using `compose/prod.yml`, `.env.prod`, and host port
-  `127.0.0.1:8000`.
+- remote dev runs the containerized app at `abies-dev.laforesta.it`, using
+  `compose/dev.yml`, `.env.dev`, and host port `127.0.0.1:8001`;
+- production runs the containerized app at `abies.laforesta.it`, using
+  `compose/prod.yml`, `.env.prod`, and host port `127.0.0.1:8000`.
 
 Remote dev is intended for pre-production checks on the same shape of
 infrastructure as production. It should still use `DJANGO_DEBUG=0` and its own
@@ -140,8 +138,7 @@ Adjust names and ports as needed.
    Install Apache, Python venv support, Docker Engine, Docker Buildx, and a
    Docker Compose CLI usable from the deployment machine. Apache needs these
    modules enabled: `ssl`, `socache_shmcb`, `headers`, `rewrite`, `http2`,
-   `reqtimeout`, `proxy`, `proxy_http`, `deflate`, `auth_basic`, and
-   `authn_file`.
+   `reqtimeout`, `proxy`, `proxy_http`, and `deflate`.
 
 2. Configure TLS.
 
@@ -194,9 +191,7 @@ Adjust names and ports as needed.
    by the compose file. Current defaults are `127.0.0.1:8000` for prod and
    `127.0.0.1:8001` for dev. Set `X-Forwarded-Proto: https`; Django trusts that
    header for secure-cookie behavior. Use a request-body cap at least as large
-   as the Django upload limits; 10 MB is the current deployment default. If the
-   dev host is protected by HTTP basic auth, exempt
-   `/accounts/microsoft/login/callback/` so OAuth can complete.
+   as the Django upload limits; 10 MB is the current deployment default.
 
    Ipso upload rate limiting needs a real client address, not the Docker bridge
    or loopback proxy address. Apache should discard any client-supplied
