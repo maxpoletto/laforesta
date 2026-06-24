@@ -130,4 +130,6 @@ Legacy export conversion is handled outside Abies. `bootstrap` intentionally
 knows only the canonical files above and defaults to `data/canonical` in local
 make targets. Converted mark uploads may be placed in
 `data/canonical/marks/*.csv`; `make stage-marks-uploads` stages them
-into the Ipso inbox after bootstrap has loaded parcel and species IDs.
+into the Ipso inbox after bootstrap has loaded parcel and species IDs. Remote
+`make bootstrap-dev` and `make bootstrap-prod` run that staging step as part of
+`bin/bootstrap-data`.

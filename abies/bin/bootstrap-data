@@ -3,7 +3,7 @@
 #
 # One-time data load for a FRESH (empty) abies instance on the VM. Ensures the
 # DB schema is migrated, loads staged canonical CSVs with `manage.py bootstrap`,
-# then builds the enriched geojson + digests.
+# stages converted mark uploads for Ipso, then builds enriched geojson + digests.
 #
 # Canonical data location: the per-instance data dir
 # /var/lib/abies-<instance>/data is bind-mounted to /app/data in the container
@@ -52,6 +52,9 @@ x python manage.py migrate --noinput
 
 echo "==> bootstrap canonical data into the (empty) instance"
 x python manage.py bootstrap "$canonical_dir"
+
+echo "==> stage converted mark uploads into Ipso inbox"
+x python manage.py stage_marks_uploads "$canonical_dir/marks"
 
 echo "==> build geojson into /app/data/geo/"
 x python manage.py build_geo "$canonical_dir" --output-dir /app/data/geo
