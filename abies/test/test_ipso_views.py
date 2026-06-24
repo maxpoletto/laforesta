@@ -45,6 +45,7 @@ def test_index_is_public_and_uses_relative_assets(db):
     assert resp.status_code == 200
     body = _body(resp).decode()
     assert '<title>Ipso' in body
+    assert 'name="apple-mobile-web-app-title" content="Ipso"' in body
     assert 'href="style.css"' in body
     assert 'href="/static/vendor/leaflet/leaflet.css"' in body
     assert 'href="/static/base/css/map-basemaps.css"' in body
@@ -92,7 +93,9 @@ def test_manifest_is_served(db):
 
     assert resp.status_code == 200
     assert resp['Content-Type'] == 'application/manifest+json'
-    assert json.loads(_body(resp))['short_name'] == 'Ipso'
+    manifest = json.loads(_body(resp))
+    assert manifest['name'] == 'Ipso'
+    assert manifest['short_name'] == 'Ipso'
 
 
 @override_settings(IPSO_SECRET='test-token')
