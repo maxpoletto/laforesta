@@ -115,6 +115,13 @@ class TestPlanCRUD:
         resp = reader_client.get('/api/piano-di-taglio/plan/form/')
         assert resp.status_code == 403
 
+    def test_form_renders(self, writer_client, db):
+        resp = writer_client.get('/api/piano-di-taglio/plan/form/')
+        assert resp.status_code == 200
+        html = resp.json()[HTML]
+        assert 'id="plan-form"' in html
+        assert 'name="name"' in html
+
     def test_create(self, writer_client, db):
         resp = self._post(writer_client, {
             FIELD_NAME: 'New plan',
@@ -589,6 +596,13 @@ class TestItemCRUD:
     def test_reader_form_forbidden(self, reader_client, db):
         resp = reader_client.get('/api/piano-di-taglio/item/form/')
         assert resp.status_code == 403
+
+    def test_add_form_renders_for_plan(self, writer_client, plan):
+        resp = writer_client.get(f'/api/piano-di-taglio/item/form/?plan={plan.id}')
+        assert resp.status_code == 200
+        html = resp.json()[HTML]
+        assert 'id="item-form"' in html
+        assert f'name="harvest_plan_id" value="{plan.id}"' in html
 
     def test_create_fustaia_item(self, writer_client, plan, parcels):
         resp = self._save(writer_client, {

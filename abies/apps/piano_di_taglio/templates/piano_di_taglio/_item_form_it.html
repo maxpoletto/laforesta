@@ -1,0 +1,96 @@
+{% load i18n %}
+<div class="form-card">
+  <form id="item-form">
+    <input type="hidden" name="row_id" value="{{ item.id|default_if_none:'' }}">
+    <input type="hidden" name="version" value="{{ item.version|default:'1' }}">
+    <input type="hidden" name="harvest_plan_id" value="{{ plan.id }}">
+
+    <h2>
+      {% if item %}Modifica intervento{% else %}Nuovo intervento{% endif %}
+    </h2>
+
+    <div class="form-readonly-flat">
+      <span><label>Piano:</label> {{ plan.name }}</span>
+    </div>
+
+    <div class="form-row narrow">
+      <div class="form-group">
+        <label for="id_year_planned">Anno previsto</label>
+        <input type="number" id="id_year_planned" name="year_planned"
+               required min="1900" max="2200"
+               value="{% if item %}{{ item.year_planned }}{% else %}{{ today_year }}{% endif %}">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label for="id_item_region">Compresa</label>
+        <select id="id_item_region" name="region_id">
+          <option value="">---</option>
+          {% for r in regions %}
+          <option value="{{ r.id }}"
+            {% if item.region_id == r.id %}selected
+            {% elif item.parcel and item.parcel.region_id == r.id %}selected
+            {% endif %}>{{ r.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="id_item_parcel">Particella</label>
+        <select id="id_item_parcel" name="parcel_id">
+          <option value="">(tutte)</option>
+          {% for p in parcels %}
+          <option value="{{ p.id }}" data-region="{{ p.region_id }}"
+                  data-coppice="{{ p.eclass.coppice|yesno:'1,0' }}"
+            {% if item.parcel_id == p.id %}selected{% endif %}>{{ p.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group form-checkbox">
+        <label>
+          <input type="checkbox" name="damaged"
+            {% if item.damaged %}checked{% endif %}>
+          Catastrofato
+        </label>
+      </div>
+      <div class="form-group form-checkbox">
+        <label>
+          <input type="checkbox" name="unhealthy"
+            {% if item.unhealthy %}checked{% endif %}>
+          Fitosanitario
+        </label>
+      </div>
+    </div>
+
+    <div class="form-row narrow">
+      <div class="form-group">
+        <label for="id_volume_planned">{{ S.COL_VOLUME_PLANNED }}</label>
+        <input type="text" inputmode="decimal" id="id_volume_planned"
+               name="volume_planned_m3"
+               value="{% if item.volume_planned_m3 %}{{ item.volume_planned_m3|floatformat:3 }}{% endif %}">
+      </div>
+      <div class="form-group">
+        <label for="id_intervention_area">Superficie intervento (ha)</label>
+        <input type="text" inputmode="decimal" id="id_intervention_area"
+               name="intervention_area_ha"
+               value="{% if item.intervention_area_ha %}{{ item.intervention_area_ha|floatformat:2 }}{% endif %}">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label for="id_item_note">Note</label>
+        <input type="text" id="id_item_note" name="note" maxlength="255"
+               value="{{ item.note|default:'' }}">
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button type="button" class="btn" data-action="cancel">Annulla</button>
+      <button type="submit" class="btn btn-save">Salva</button>
+    </div>
+  </form>
+</div>
