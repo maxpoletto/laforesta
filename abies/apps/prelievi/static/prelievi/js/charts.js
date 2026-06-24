@@ -7,7 +7,8 @@
 
 import * as S from '../../base/js/strings.js';
 import {
-  chartSeriesColor, speciesColorMap as chartSpeciesColorMap,
+  chartSeriesColor, continuousTimeBuckets, monthBucket,
+  speciesColorMap as chartSpeciesColorMap, yearBucket,
 } from '../../base/js/charts.js';
 
 const MAX_SERIES = 12;
@@ -33,16 +34,18 @@ export function aggregateTimeSeries(
 ) {
   const dateIdx = colMap[S.COL_DATE];
   const qIdx = colMap[S.COL_QUINTALS];
-  const bucket = byMonth ? d => d.substring(0, 7) : d => d.substring(0, 4);
+  const bucket = byMonth ? monthBucket : yearBucket;
 
   // Breakdowns that pivot on multiple numeric columns (species/tractors).
   const byColumns = { specie: speciesCols, trattore: tractorCols }[breakdown];
   if (byColumns) {
     const speciesUniverse = breakdown === 'specie' ? allSpeciesNames : null;
-    return _aggregateColumnsByBucket(rows, dateIdx, colMap, bucket, byColumns, speciesUniverse);
+    return _aggregateColumnsByBucket(
+      rows, dateIdx, colMap, bucket, byMonth, byColumns, speciesUniverse,
+    );
   }
 
-  return _aggregateByBucket(rows, dateIdx, qIdx, bucket, _dimFn(breakdown, colMap));
+  return _aggregateByBucket(rows, dateIdx, qIdx, bucket, byMonth, _dimFn(breakdown, colMap));
 }
 
 /** Build a row → category-name function for the single-column breakdowns. */
@@ -105,16 +108,17 @@ export function aggregateSpeciesByParcel(rows, colMap, speciesCols, allSpeciesNa
 // ---------------------------------------------------------------------------
 
 /** Aggregate rows by time bucket, with a row → category function. */
-function _aggregateByBucket(rows, dateIdx, qIdx, bucket, dimFn) {
+function _aggregateByBucket(rows, dateIdx, qIdx, bucket, byMonth, dimFn) {
   const buckets = {};
   for (const row of rows) {
     const key = bucket(row[dateIdx]);
+    if (!key) continue;
     const dim = dimFn(row);
     if (!buckets[key]) buckets[key] = {};
     buckets[key][dim] = (buckets[key][dim] || 0) + (row[qIdx] || 0);
   }
 
-  const labels = Object.keys(buckets).sort();
+  const labels = continuousTimeBuckets(Object.keys(buckets), byMonth);
   let dims = _topDims(buckets);
 
   if (dims.length > MAX_SERIES) {
@@ -132,16 +136,19 @@ function _aggregateByBucket(rows, dateIdx, qIdx, bucket, dimFn) {
 }
 
 /** Aggregate named numeric columns (e.g. species) by time bucket. */
-function _aggregateColumnsByBucket(rows, dateIdx, colMap, bucket, colNames, speciesUniverse = null) {
+function _aggregateColumnsByBucket(
+  rows, dateIdx, colMap, bucket, byMonth, colNames, speciesUniverse = null,
+) {
   const buckets = {};
   for (const row of rows) {
     const key = bucket(row[dateIdx]);
+    if (!key) continue;
     if (!buckets[key]) buckets[key] = {};
     for (const name of colNames) {
       buckets[key][name] = (buckets[key][name] || 0) + (row[colMap[name]] || 0);
     }
   }
-  const labels = Object.keys(buckets).sort();
+  const labels = continuousTimeBuckets(Object.keys(buckets), byMonth);
   const active = colNames.filter(n =>
     labels.some(k => (buckets[k]?.[n] || 0) > 0),
   );

@@ -1,8 +1,9 @@
 import * as S from './strings.js';
 import {
   CATEGORICAL_COLORS, CHART_SERIES_COLOR_VARS, chartSeriesColor,
-  renderLineChart, renderScatterChart, renderStackedBar, speciesColorMap,
-  speciesNamesFromDigest,
+  continuousMonthBuckets, continuousYearBuckets, monthBucket, renderLineChart,
+  renderScatterChart, renderStackedBar, speciesColorMap, speciesNamesFromDigest,
+  yearBucket,
 } from './charts.js';
 
 let failed = 0;
@@ -55,6 +56,13 @@ assertEqual([...speciesColors.entries()], [['Abete', chartSeriesColor(0)], ['Fag
 const unknownSpeciesColors = speciesColorMap(['Robinia'], ['Abete']);
 assertEqual(unknownSpeciesColors.get('Robinia'), chartSeriesColor(1),
             'speciesColorMap: unknown species sort after known universe');
+assertEqual(yearBucket('2026-03-04'), '2026', 'yearBucket: extracts year');
+assertEqual(monthBucket('2026-03-04'), '2026-03', 'monthBucket: extracts month');
+assertEqual(monthBucket('2026-13-04'), '', 'monthBucket: rejects invalid month');
+assertEqual(continuousYearBuckets(['2020-01-01', '2022-12-31']), ['2020', '2021', '2022'],
+            'continuousYearBuckets: fills missing years');
+assertEqual(continuousMonthBuckets(['2020-01-31', '2020-03-01']), ['2020-01', '2020-02', '2020-03'],
+            'continuousMonthBuckets: fills missing months');
 global.document = { documentElement: {} };
 global.getComputedStyle = () => ({
   getPropertyValue: name => name === '--chart-series-1' ? ' #123456 ' : '',

@@ -37,6 +37,41 @@ export function speciesColorMap(speciesNames, allSpeciesNames = speciesNames) {
   return new Map(requested.map(name => [name, colorByName.get(name)]));
 }
 
+export function yearBucket(value) {
+  const match = String(value || '').trim().match(/^(\d{4})/);
+  return match ? match[1] : '';
+}
+
+export function monthBucket(value) {
+  const match = String(value || '').trim().match(/^(\d{4})-(\d{2})/);
+  if (!match) return '';
+  const month = Number(match[2]);
+  return month >= 1 && month <= 12 ? `${match[1]}-${match[2]}` : '';
+}
+
+export function continuousTimeBuckets(values, byMonth = false) {
+  return byMonth ? continuousMonthBuckets(values) : continuousYearBuckets(values);
+}
+
+export function continuousYearBuckets(values) {
+  const years = [...new Set((values || []).map(yearBucket).filter(Boolean))].sort();
+  if (!years.length) return [];
+  const start = Number(years[0]);
+  const end = Number(years[years.length - 1]);
+  const out = [];
+  for (let year = start; year <= end; year++) out.push(String(year));
+  return out;
+}
+
+export function continuousMonthBuckets(values) {
+  const months = [...new Set((values || []).map(monthBucket).filter(Boolean))].sort();
+  if (!months.length) return [];
+  const start = monthIndex(months[0]);
+  const end = monthIndex(months[months.length - 1]);
+  const out = [];
+  for (let idx = start; idx <= end; idx++) out.push(monthLabel(idx));
+  return out;
+}
 
 export function renderChart(canvas, chartData, existing, config) {
   if (!canvas) return existing || null;
@@ -125,6 +160,17 @@ export function renderLineChart(canvas, chartData, existing) {
 
 function mod(n, base) {
   return ((n % base) + base) % base;
+}
+
+function monthIndex(month) {
+  const [year, value] = month.split('-').map(Number);
+  return year * 12 + value - 1;
+}
+
+function monthLabel(idx) {
+  const year = Math.floor(idx / 12);
+  const month = String((idx % 12) + 1).padStart(2, '0');
+  return `${year}-${month}`;
 }
 
 function alphaUnique(names) {

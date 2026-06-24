@@ -275,11 +275,11 @@ const speciesDigest = {
 
 const chartColMap = {
   [S.COL_DATE]: 0, [S.COL_REGION]: 1, [S.COL_PARCEL]: 2,
-  Abete: 3, Faggio: 4,
+  Abete: 3, Faggio: 4, [S.COL_QUINTALS]: 5,
 };
 const chartRows = [
-  ['2020-01-01', 'A', '1', 10, 0],
-  ['2020-01-02', 'A', '2', 0, 5],
+  ['2020-01-01', 'A', '1', 10, 0, 10],
+  ['2020-01-02', 'A', '2', 0, 5, 5],
 ];
 const allChartSpecies = ['Abete', 'Castagno', 'Faggio'];
 let speciesChart = PrelieviCharts.aggregateTimeSeries(
@@ -288,6 +288,28 @@ let speciesChart = PrelieviCharts.aggregateTimeSeries(
 eq(speciesChart.datasets.map(d => [d.label, d.backgroundColor]),
    [['Abete', '#2e7d32'], ['Faggio', '#144b99']],
    'aggregateTimeSeries keeps species colors stable across omitted species');
+const gapRows = [
+  ['2020-01-01', 'A', '1', 10, 0, 10],
+  ['2022-01-01', 'A', '1', 0, 5, 5],
+];
+let gapChart = PrelieviCharts.aggregateTimeSeries(
+  gapRows, chartColMap, 'total', false, ['Abete', 'Faggio'], [], allChartSpecies,
+);
+eq(gapChart.labels, ['2020', '2021', '2022'],
+   'aggregateTimeSeries fills missing yearly buckets');
+eq(gapChart.datasets[0].data, [10, 0, 5],
+   'aggregateTimeSeries zero-fills missing yearly buckets');
+gapChart = PrelieviCharts.aggregateTimeSeries(
+  [
+    ['2020-01-01', 'A', '1', 10, 0, 10],
+    ['2020-03-01', 'A', '1', 0, 5, 5],
+  ],
+  chartColMap, 'specie', true, ['Abete', 'Faggio'], [], allChartSpecies,
+);
+eq(gapChart.labels, ['2020-01', '2020-02', '2020-03'],
+   'aggregateTimeSeries fills missing monthly buckets');
+eq(gapChart.datasets.find(d => d.label === 'Faggio').data, [0, 0, 5],
+   'aggregateTimeSeries zero-fills missing monthly species buckets');
 speciesChart = PrelieviCharts.aggregateSpeciesByParcel(
   chartRows, chartColMap, ['Abete', 'Faggio'], allChartSpecies,
 );

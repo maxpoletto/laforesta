@@ -2,6 +2,7 @@
 
 import * as S from '../../base/js/strings.js';
 import { ROWS } from '../../base/js/constants.js';
+import { continuousTimeBuckets, monthBucket, yearBucket } from '../../base/js/charts.js';
 import { columnMap, toNumber } from '../../base/js/digests.js';
 
 const TOTAL_COLOR = '#2f8f58';
@@ -43,14 +44,8 @@ export function productionYears(digest, scope = {}) {
   return [...years].sort();
 }
 
-export function productionYearRange(digest) {
-  const years = productionYears(digest);
-  if (!years.length) return [];
-  const start = Number(years[0]);
-  const end = Number(years[years.length - 1]);
-  const out = [];
-  for (let year = start; year <= end; year++) out.push(String(year));
-  return out;
+export function productionYearRange(digest, scope = {}) {
+  return continuousTimeBuckets(productionYears(digest, scope), false);
 }
 
 export function productionMonths(digest, scope = {}) {
@@ -65,14 +60,8 @@ export function productionMonths(digest, scope = {}) {
   return [...months].sort();
 }
 
-export function productionMonthRange(digest) {
-  const months = productionMonths(digest);
-  if (!months.length) return [];
-  const start = monthIndex(months[0]);
-  const end = monthIndex(months[months.length - 1]);
-  const out = [];
-  for (let idx = start; idx <= end; idx++) out.push(monthLabel(idx));
-  return out;
+export function productionMonthRange(digest, scope = {}) {
+  return continuousTimeBuckets(productionMonths(digest, scope), true);
 }
 
 export function pickProductionYear(years, requested, fallback = 'latest') {
@@ -111,24 +100,11 @@ function productionByParcelYear(digest, scope, year) {
 }
 
 export function harvestYear(value) {
-  const match = String(value || '').trim().match(/^(\d{4})/);
-  return match ? match[1] : '';
+  return yearBucket(value);
 }
 
 function harvestMonth(value) {
-  const match = String(value || '').trim().match(/^(\d{4})-(\d{2})/);
-  return match ? `${match[1]}-${match[2]}` : '';
-}
-
-function monthIndex(month) {
-  const [year, value] = month.split('-').map(Number);
-  return year * 12 + value - 1;
-}
-
-function monthLabel(idx) {
-  const year = Math.floor(idx / 12);
-  const month = String((idx % 12) + 1).padStart(2, '0');
-  return `${year}-${month}`;
+  return monthBucket(value);
 }
 
 export function aggregateProduction(digest, scope, opts = {}) {
@@ -152,8 +128,8 @@ export function aggregateProduction(digest, scope, opts = {}) {
   }
 
   const labels = rows.length
-    ? (opts.byMonth ? productionMonthRange(digest) : productionYearRange(digest))
-    : [...byBucket.keys()].sort();
+    ? (opts.byMonth ? productionMonthRange(digest, scope) : productionYearRange(digest, scope))
+    : [];
   return {
     rowCount: rows.length,
     totalQuintals: total,
