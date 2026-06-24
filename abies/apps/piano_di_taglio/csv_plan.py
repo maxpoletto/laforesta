@@ -35,6 +35,7 @@ from config.constants import (
     FIELD_UNHEALTHY,
     FIELD_VOLUME_PLANNED_M3,
     FIELD_YEAR_PLANNED,
+    ROW_ID,
 )
 
 # Column aliases — each logical field accepts the legacy pdg-2026 name
@@ -49,9 +50,15 @@ HIGHFOREST_REQUIRED = {
     'prelievo':   [S.CSV_COL_HARVEST_M3, S.COL_VOLUME_PLANNED],
 }
 HIGHFOREST_OPTIONAL = {
+    # Present in Abies plan exports. Used as row identity when re-importing
+    # rows that otherwise share the same plan/parcel/year.
+    'row_id':     [S.COL_ID, ROW_ID],
     # Holds the flag string ("Catastrofato" / "Fitosanitario" / "PSR")
     # in Abies exports; required for region-wide rows (Particella = 'X').
     'note':       [S.COL_NOTE],
+    # Free text; separate from `note` because Abies exports use `note` for
+    # the flag string. Legacy pdg-2026 fustaia CSVs simply omit this.
+    'free_note':  [S.CSV_COL_EXTRA_NOTE],
 }
 COPPICE_REQUIRED = {
     'anno':       [S.COL_YEAR_PLANNED, S.CSV_COL_YEAR],
@@ -61,6 +68,9 @@ COPPICE_REQUIRED = {
     'turno':      [S.CSV_COL_PERIOD_Y],                           # 'Turno (a)'
 }
 COPPICE_OPTIONAL = {
+    # Present in Abies plan exports. Used as row identity when re-importing
+    # rows that otherwise share the same plan/parcel/year.
+    'row_id':     [S.COL_ID, ROW_ID],
     # In Abies exports: 'Altre note' = free-text, 'Note' = flag string.
     # In legacy pdg-2026 exports: only 'Note' is present and is itself
     # free-text — handled by checking `has_altre_note` at parse time.
@@ -145,6 +155,17 @@ def parse_flag_keywords(note: str) -> tuple[bool, bool, bool]:
     )
 
 
+def _optional_row_id(data, row, row_number, errors):
+    raw = row.get('row_id', '')
+    if raw in (None, ''):
+        return None, True
+    value = data.reader.integer(raw)
+    if value is None:
+        errors.append(S.ERR_CSV_VALUE_PARSE.format(row_number, S.COL_ID, raw))
+        return None, False
+    return value, True
+
+
 def _optional_decimal(reader, row, column, row_number, errors):
     value, ok = reader.opt_decimal(row.get(column))
     if not ok:
@@ -167,6 +188,9 @@ def parse_fustaia_rows(data, parcel_cache, region_cache, errors):
     for i, row in enumerate(data.rows, 2):
         compresa = (row.get('compresa') or '').strip()
         particella = (row.get('particella') or '').strip()
+        row_id, row_id_ok = _optional_row_id(data, row, i, errors)
+        if not row_id_ok:
+            continue
         note_raw = (row.get('note') or '').strip()
         damaged, unhealthy, psr = parse_flag_keywords(note_raw)
         is_whole_region = (
@@ -198,7 +222,8 @@ def parse_fustaia_rows(data, parcel_cache, region_cache, errors):
             ))
             continue
         prelievo = data.reader.decimal(row.get('prelievo'))
-        out.append({
+        parsed = {
+            ROW_ID: row_id,
             FIELD_REGION_ID: region,
             FIELD_PARCEL_ID: parcel,
             FIELD_YEAR_PLANNED: year,
@@ -206,7 +231,10 @@ def parse_fustaia_rows(data, parcel_cache, region_cache, errors):
             FIELD_DAMAGED:   damaged,
             FIELD_UNHEALTHY: unhealthy,
             FIELD_PSR:       psr,
-        })
+        }
+        if 'free_note' in row:
+            parsed[FIELD_NOTE] = (row.get('free_note') or '').strip()
+        out.append(parsed)
     return out
 
 
@@ -220,6 +248,9 @@ def parse_ceduo_rows(data, parcel_cache, errors):
     out = []
     has_altre_note = S.CSV_COL_EXTRA_NOTE in data.reader.fieldnames
     for i, row in enumerate(data.rows, 2):
+        row_id, row_id_ok = _optional_row_id(data, row, i, errors)
+        if not row_id_ok:
+            continue
         compresa = (row.get('compresa') or '').strip()
         particella = (row.get('particella') or '').strip()
         parcel = parcel_cache.get((compresa.lower(), particella))
@@ -246,6 +277,7 @@ def parse_ceduo_rows(data, parcel_cache, errors):
             free_note = (row.get('flag_note') or row.get('free_note') or '').strip()
             damaged = unhealthy = psr = False
         out.append({
+            ROW_ID: row_id,
             FIELD_PARCEL_ID: parcel,
             FIELD_YEAR_PLANNED: year,
             FIELD_INTERVENTION_AREA_HA: area,
@@ -279,11 +311,11 @@ def db_indexes() -> PlanIndexes:
 def apply(*, target_plan, name, description, fustaia_parsed, ceduo_parsed):
     """Create or upsert a HarvestPlan and its items from parsed rows.
 
-    Returns ``(plan, n_items)``.  Preserves the existing semantics exactly:
-    plan create (with year range from the rows) or year-range widening of
-    ``target_plan``; one HarvestDetail/ParcelPlanDetail per coppice interval;
-    fustaia items upsert on (plan, parcel, year) or (plan, region, parcel=NULL,
-    year) for whole-region rows; ceduo items upsert on (plan, parcel, year).
+    Returns ``(plan, n_items)``.  Rows exported by Abies carry an optional
+    item ID, which lets re-import update the exact row even when several
+    interventions share the same plan/parcel/year.  Hand-authored CSVs with
+    no ID keep the legacy upsert key, so revised rows still overwrite the
+    matching calendar item.
     """
     all_years = (
         [r[FIELD_YEAR_PLANNED] for r in fustaia_parsed]
@@ -334,6 +366,27 @@ def apply(*, target_plan, name, description, fustaia_parsed, ceduo_parsed):
                 defaults={'harvest_detail': hd},
             )
 
+        def save_plan_item(row, identity, defaults):
+            fields = {**identity, **defaults}
+            row_id = row.get(ROW_ID)
+            if row_id:
+                item = HarvestPlanItem.objects.filter(
+                    id=row_id, harvest_plan=plan,
+                ).first()
+                if item is not None:
+                    for field, value in fields.items():
+                        setattr(item, field, value)
+                    item.save()
+                    return item
+                item = HarvestPlanItem.objects.filter(**fields).first()
+                if item is not None:
+                    return item
+                return HarvestPlanItem.objects.create(**fields)
+            item, _ = HarvestPlanItem.objects.update_or_create(
+                **identity, defaults=defaults,
+            )
+            return item
+
         n_items = 0
         for r in fustaia_parsed:
             flag_defaults = {
@@ -342,37 +395,37 @@ def apply(*, target_plan, name, description, fustaia_parsed, ceduo_parsed):
                 'unhealthy': r[FIELD_UNHEALTHY],
                 'psr':       r[FIELD_PSR],
             }
+            if FIELD_NOTE in r:
+                flag_defaults['note'] = r[FIELD_NOTE]
             if r[FIELD_PARCEL_ID] is not None:
-                # Parcel-scoped: dedup on (plan, parcel, year_planned).
-                HarvestPlanItem.objects.update_or_create(
-                    harvest_plan=plan,
-                    parcel=r[FIELD_PARCEL_ID],
-                    year_planned=r[FIELD_YEAR_PLANNED],
-                    defaults=flag_defaults,
-                )
+                identity = {
+                    'harvest_plan': plan,
+                    'region': None,
+                    'parcel': r[FIELD_PARCEL_ID],
+                    'year_planned': r[FIELD_YEAR_PLANNED],
+                }
             else:
-                # Region-wide: dedup on (plan, region, parcel=NULL, year).
-                HarvestPlanItem.objects.update_or_create(
-                    harvest_plan=plan,
-                    region=r[FIELD_REGION_ID],
-                    parcel=None,
-                    year_planned=r[FIELD_YEAR_PLANNED],
-                    defaults=flag_defaults,
-                )
+                identity = {
+                    'harvest_plan': plan,
+                    'region': r[FIELD_REGION_ID],
+                    'parcel': None,
+                    'year_planned': r[FIELD_YEAR_PLANNED],
+                }
+            save_plan_item(r, identity, flag_defaults)
             n_items += 1
         for r in ceduo_parsed:
-            HarvestPlanItem.objects.update_or_create(
-                harvest_plan=plan,
-                parcel=r[FIELD_PARCEL_ID],
-                year_planned=r[FIELD_YEAR_PLANNED],
-                defaults={
-                    'intervention_area_ha': r[FIELD_INTERVENTION_AREA_HA],
-                    'note':      r[FIELD_NOTE],
-                    'damaged':   r[FIELD_DAMAGED],
-                    'unhealthy': r[FIELD_UNHEALTHY],
-                    'psr':       r[FIELD_PSR],
-                },
-            )
+            save_plan_item(r, {
+                'harvest_plan': plan,
+                'region': None,
+                'parcel': r[FIELD_PARCEL_ID],
+                'year_planned': r[FIELD_YEAR_PLANNED],
+            }, {
+                'intervention_area_ha': r[FIELD_INTERVENTION_AREA_HA],
+                'note':      r[FIELD_NOTE],
+                'damaged':   r[FIELD_DAMAGED],
+                'unhealthy': r[FIELD_UNHEALTHY],
+                'psr':       r[FIELD_PSR],
+            })
             n_items += 1
 
         mark_stale('harvest_plans', 'harvest_plan_items', DIGEST_FUTURE_PRODUCTION, 'audit')

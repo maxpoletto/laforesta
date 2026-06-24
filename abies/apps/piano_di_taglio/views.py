@@ -230,10 +230,10 @@ def plan_csv_import_view(request):
       - ``fustaia_file``    — optional base64 CSV bytes for piano.csv.
       - ``ceduo_file``      — optional base64 CSV bytes for ceduo.csv.
 
-    At least one CSV must be attached.  Upsert key: calendar items dedup
-    on ``(harvest_plan, parcel, year_planned)``.  Re-importing the same
-    file is a no-op; re-importing a revised file overwrites the matching
-    rows in place.
+    At least one CSV must be attached.  Abies-exported rows carry an optional
+    ``ID`` column so duplicate-looking rows round-trip exactly.  Hand-authored
+    rows without ``ID`` keep the legacy upsert key
+    ``(harvest_plan, parcel, year_planned)``.
     """
     body, error = parse_json_body(request)
     if error:
@@ -330,14 +330,15 @@ def plan_export_view(request, plan_id: int):
     delimiter, decimal_sep = csv_io.export_format()
     fustaia_buf, fustaia_w = csv_io.csv_buffer(delimiter)
     fustaia_w.writerow([
-        S.COL_YEAR_PLANNED, S.COL_YEAR_ACTUAL,
+        S.COL_ID, S.COL_YEAR_PLANNED, S.COL_YEAR_ACTUAL,
         S.COL_REGION, S.COL_PARCEL, S.COL_STATE, S.COL_NOTE,
         S.COL_VOLUME_PLANNED, S.COL_VOLUME_MARKED, S.COL_VOLUME_ACTUAL,
+        S.COL_EXTRA_NOTE,
     ])
 
     ceduo_buf, ceduo_w = csv_io.csv_buffer(delimiter)
     ceduo_w.writerow([
-        S.COL_YEAR_PLANNED, S.COL_YEAR_ACTUAL,
+        S.COL_ID, S.COL_YEAR_PLANNED, S.COL_YEAR_ACTUAL,
         S.COL_REGION, S.COL_PARCEL, S.COL_STATE, S.COL_NOTE,
         S.COL_INTERVENTION_AREA_HA, S.COL_PARCEL_AREA_HA,
         S.COL_PERIOD_Y, S.COL_VOLUME_ACTUAL, S.COL_EXTRA_NOTE,
@@ -360,7 +361,7 @@ def plan_export_view(request, plan_id: int):
         state_label = HarvestPlanItemState(it.state).label
         if is_coppice:
             ceduo_w.writerow([
-                it.year_planned, anno_eff,
+                it.id, it.year_planned, anno_eff,
                 compresa, particella,
                 state_label, flag_note,
                 csv_io.format_decimal(it.intervention_area_ha, decimal_sep),
@@ -371,12 +372,13 @@ def plan_export_view(request, plan_id: int):
             ])
         else:
             fustaia_w.writerow([
-                it.year_planned, anno_eff,
+                it.id, it.year_planned, anno_eff,
                 compresa, particella,
                 state_label, flag_note,
                 csv_io.format_decimal(it.volume_planned_m3, decimal_sep),
                 csv_io.format_decimal(it.volume_marked_m3, decimal_sep),
                 csv_io.format_decimal(it.volume_actual_m3, decimal_sep),
+                it.note or '',
             ])
 
     safe_name = _safe_filename(plan.name)

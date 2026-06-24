@@ -524,9 +524,10 @@ class TestPlanExport:
         resp = writer_client.get(f'/api/piano-di-taglio/plan/export/{plan.id}/')
         zf = zipfile.ZipFile(io.BytesIO(resp.content))
         piano_header = zf.read('fustaia.csv').decode('utf-8').splitlines()[0]
-        for col in [S.COL_YEAR_PLANNED, S.COL_YEAR_ACTUAL, S.COL_STATE,
-                    S.COL_NOTE, S.COL_VOLUME_PLANNED, S.COL_VOLUME_MARKED,
-                    S.COL_VOLUME_ACTUAL]:
+        for col in [S.COL_ID, S.COL_YEAR_PLANNED, S.COL_YEAR_ACTUAL,
+                    S.COL_STATE, S.COL_NOTE, S.COL_VOLUME_PLANNED,
+                    S.COL_VOLUME_MARKED, S.COL_VOLUME_ACTUAL,
+                    S.COL_EXTRA_NOTE]:
             assert col in piano_header, f'missing column {col}'
 
     def test_round_trip_whole_region_item(
@@ -580,6 +581,56 @@ class TestPlanExport:
         assert items.count() == 1  # idempotent
         assert items[0].id == planned_item.id
         assert float(items[0].volume_planned_m3) == float(planned_item.volume_planned_m3)
+
+    def test_round_trip_duplicate_region_items_and_notes(
+        self, writer_client, plan, regions,
+    ):
+        items = [
+            (regions[0], True, False, 'Serra catastrofato'),
+            (regions[0], False, True, 'Serra fitosanitario'),
+            (regions[1], True, False, 'Capistrano catastrofato'),
+            (regions[1], False, True, 'Capistrano fitosanitario'),
+        ]
+        for region, damaged, unhealthy, note in items:
+            HarvestPlanItem.objects.create(
+                harvest_plan=plan, region=region, parcel=None,
+                year_planned=2026, damaged=damaged, unhealthy=unhealthy,
+                note=note, state=HarvestPlanItemState.PLANNED,
+            )
+
+        resp = writer_client.get(f'/api/piano-di-taglio/plan/export/{plan.id}/')
+        assert resp.status_code == 200
+        zf = zipfile.ZipFile(io.BytesIO(resp.content))
+        fustaia_bytes = zf.read(S.CSV_FILE_HIGHFOREST)
+        text = fustaia_bytes.decode('utf-8')
+        assert S.COL_ID in text.splitlines()[0]
+        assert S.COL_EXTRA_NOTE in text.splitlines()[0]
+        assert 'Serra catastrofato' in text
+        assert 'Capistrano fitosanitario' in text
+
+        copy = HarvestPlan.objects.create(
+            name='Copied plan', year_start=2026, year_end=2026,
+        )
+        for _ in range(2):
+            reup = _post_plan_csv_import(
+                writer_client,
+                harvest_plan_id=copy.id,
+                fustaia_file=io.BytesIO(fustaia_bytes),
+            )
+            assert reup.status_code == 200, reup.json()
+
+        copied = HarvestPlanItem.objects.filter(
+            harvest_plan=copy, parcel__isnull=True,
+        )
+        assert copied.count() == 4
+        assert set(copied.values_list('note', flat=True)) == {
+            'Serra catastrofato',
+            'Serra fitosanitario',
+            'Capistrano catastrofato',
+            'Capistrano fitosanitario',
+        }
+        assert copied.filter(region=regions[0], year_planned=2026).count() == 2
+        assert copied.filter(region=regions[1], year_planned=2026).count() == 2
 
 
 # ---------------------------------------------------------------------------

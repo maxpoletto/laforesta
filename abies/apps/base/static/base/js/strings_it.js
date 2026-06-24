@@ -111,6 +111,7 @@ export const COL_VDP = 'VDP';
 export const COL_QUINTALS = 'Q.li';
 export const COL_HOURS = 'Ore';
 export const COL_CREDITS_Q = 'Quintali';
+export const COL_ID = 'ID';
 export const COL_NOTE = 'Note';
 export const COL_EXTRA_NOTE = 'Altre note';
 export const COL_VOLUME_M3 = 'Volume (m³)';

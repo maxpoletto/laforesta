@@ -322,6 +322,7 @@ Submit: "Salva" / "Salva e continua" (batch entry).
 Accepts both pdg-2026 output (`Compresa, Particella, Anno, Prelievo (m³)`)
 and Abies export format (display column names). Stored columns:
 
+- `ID` — optional Abies row identity, used when re-importing exported CSVs.
 - `Compresa` → region, `Particella` → parcel (`X` = region-wide).
 - `Anno` / `Anno previsto` → `year_planned`.
 - `Prelievo (m³)` / `Volume previsto (m³)` / legacy `Volume previsto` →
@@ -330,6 +331,7 @@ and Abies export format (display column names). Stored columns:
   not the harvestable amount.
 - `Note` → scanned for `Catastrofato`/`Fitosanitario`/`PSR` to set boolean
   flags. Required for region-wide rows.
+- `Altre note` → `harvest_plan_item.note` in Abies exports.
 
 Delimiter: `;` or `,` (auto-detected). Decimal: `,` or `.`. UTF-8 ± BOM.
 
@@ -337,6 +339,7 @@ Delimiter: `;` or `,` (auto-detected). Decimal: `,` or `.`. UTF-8 ± BOM.
 
 Accepts both pdg-2026 output and Abies export format. Stored columns:
 
+- `ID` — optional Abies row identity, used when re-importing exported CSVs.
 - `Anno` / `Anno previsto` → `year_planned`.
 - `Compresa`, `Particella` — as fustaia.
 - `Superficie intervento (ha)` → `intervention_area_ha`.
@@ -365,9 +368,15 @@ Same delimiter / decimal / encoding rules as fustaia.
    parcels with the same rotation share a single `harvest_detail_id`.
    Fustaia parcels do not get a `harvest_detail`/`parcel_plan_detail`
    row in v1 (no instructions or interval to record).
-4. For each row in either schedule, create a `harvest_plan_item`.
-   Fustaia rows set `volume_planned_m3`; coppice rows set
-   `intervention_area_ha` and `note` and leave `volume_*` NULL.
+4. For each row in either schedule, create or update a
+   `harvest_plan_item`. If an Abies-exported `ID` belongs to the target plan,
+   that exact row is updated; if the `ID` is absent, imports keep the legacy
+   upsert key (`plan`, parcel or region, planned year). Exported rows copied
+   into a different plan are matched on the full imported row content, so
+   repeated imports remain idempotent without collapsing distinct rows that
+   share the same year and parcel/region. Fustaia rows set
+   `volume_planned_m3`; coppice rows set `intervention_area_ha` and `note`
+   and leave `volume_*` NULL.
 
 ## URL parameters
 
