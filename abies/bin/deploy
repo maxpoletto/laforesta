@@ -164,6 +164,9 @@ if [[ "$instance" == "prod" ]]; then
   dc run --rm abies bin/minify-static /app/staticfiles
 fi
 
+echo "==> normalize static permissions"
+dc run --rm abies sh -c "find /app/staticfiles -type d -exec chmod 755 {} + && find /app/staticfiles -type f -exec chmod 644 {} +"
+
 echo "==> start"
 dc up -d
 

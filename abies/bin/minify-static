@@ -29,6 +29,9 @@ while IFS= read -r -d '' file; do
     args=(--module "${args[@]}")
   fi
   if terser "$file" "${args[@]}" -o "$tmp"; then
+    # mktemp creates 0600 files. Static assets are served by Apache from the
+    # host bind mount, so collected replacements must remain world-readable.
+    chmod 0644 "$tmp"
     mv "$tmp" "$file"
     count=$((count + 1))
   else
