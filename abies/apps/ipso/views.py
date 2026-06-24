@@ -888,7 +888,16 @@ def _harvest_item_label(item: HarvestPlanItem) -> str:
     else:
         area = '-'
     state = HarvestPlanItemState(item.state).label
-    return f'{item.harvest_plan.name} - {area} - {item.year_planned} ({state})'
+    base = f'{item.harvest_plan.name} - {area} - {item.year_planned} ({state})'
+    note = _short_target_note(item.note)
+    return f'{base} - {note}' if note else base
+
+
+def _short_target_note(note: str | None, limit: int = 20) -> str:
+    text = ' '.join((note or '').split())
+    if len(text) <= limit:
+        return text
+    return f'{text[:limit]}…'
 
 
 def _suggested_harvest_item_id(work_package_id: str) -> int | None:

@@ -705,6 +705,8 @@ def test_reader_cannot_reject_upload(reader_client, parcels, species, settings, 
 def test_upload_detail_lists_martellate_targets(writer_client, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     item = _harvest_item(parcels)
+    item.note = 'Nota molto lunga per selettore destinazione'
+    item.save(update_fields=['note'])
     payload = _upload_payload(parcels, species)
     payload['session']['work_package_id'] = f'harvest:{item.id}'
     assert _post_upload(Client(), payload).status_code == 200
@@ -716,8 +718,11 @@ def test_upload_detail_lists_martellate_targets(writer_client, parcels, species,
     data = resp.json()
     assert data['suggested_target_id'] == item.id
     assert data['targets'][0]['id'] == item.id
-    assert 'Piano Ipso' in data['targets'][0]['label']
-    assert 'Capistrano 1' in data['targets'][0]['label']
+    label = data['targets'][0]['label']
+    assert 'Piano Ipso' in label
+    assert 'Capistrano 1' in label
+    assert 'Nota molto lunga per…' in label
+    assert 'selettore destinazione' not in label
 
 
 @override_settings(IPSO_SECRET='test-token')
