@@ -256,14 +256,17 @@ Adjust names and ports as needed.
    make deploy-prod REF=<tag-or-sha>
    ```
 
-   Add `DEPLOY_ARGS=--reset-user` to delete existing superusers before the
-   superuser creation step. The Makefile targets call `bin/deploy`, which
-   builds the image, writes a pre-deploy SQLite snapshot to the backup mount
-   when an image already exists, runs migrations, runs
-   `manage.py check --deploy --fail-level WARNING` for prod, optionally creates
-   a superuser from `DJANGO_SUPERUSER_USERNAME`,
-   `DJANGO_SUPERUSER_EMAIL`, and `DJANGO_SUPERUSER_PASSWORD`, collects static
-   files, minifies collected JavaScript for prod, and starts the compose stack.
+   The Makefile targets call `bin/deploy`, which builds the image, writes a
+   pre-deploy SQLite snapshot to the backup mount when an image already exists,
+   runs migrations, runs `manage.py check --deploy --fail-level WARNING` for
+   prod, creates the first superuser when none exists and
+   `DJANGO_SUPERUSER_USERNAME`, `DJANGO_SUPERUSER_EMAIL`, and
+   `DJANGO_SUPERUSER_PASSWORD` are set, collects static files, minifies
+   collected JavaScript for prod, and starts the compose stack.
+
+   Deploys are intentionally non-destructive: they do not reset the database,
+   and they do not change an existing superuser's password. To replace the
+   current superuser credentials explicitly, add `DEPLOY_ARGS=--reset-user`.
 
 8. Load initial data.
 
@@ -285,6 +288,12 @@ Adjust names and ports as needed.
    bootstrap`, staging `data/canonical/marks/*.csv` into the Ipso inbox,
    geodata into `/app/data/geo`, and all digests. It refuses to load into a
    non-empty database.
+
+   Bootstrap loads forestry data only; it does not create users. On a fresh
+   instance, run deploy first with `DJANGO_SUPERUSER_*` present in the compose
+   env file, then bootstrap. If you manually delete `data/db.sqlite3` after
+   deploy, the superuser is gone too; rerun deploy or create a superuser inside
+   the container before trying to log in.
 
    The rsync targets default to `REMOTE=maxp@abies.laforesta.it`; override
    `REMOTE_USER`, `REMOTE_HOST`, or `REMOTE` if needed.
