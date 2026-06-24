@@ -107,6 +107,7 @@ export class TableWrapper {
     this._table = null;
     this._el = null;
     this._tableEl = null;
+    this._selectedRowId = null;
 
     this._build(opts.digest, opts.sort);
   }
@@ -146,6 +147,7 @@ export class TableWrapper {
     this._table.onSort = null;
     this._table.sort(sort.column, col.type || 'string', sort.ascending);
     this._table.onSort = onSort;
+    this._applySelectedRow();
   }
 
   /** Current search text. */
@@ -166,6 +168,12 @@ export class TableWrapper {
     if (!this._table || !rowEl?.dataset) return null;
     const index = parseInt(rowEl.dataset.index, 10);
     return Number.isInteger(index) ? this._table.data[index] || null : null;
+  }
+
+  /** Highlight the rendered row with this row_id, if it is currently visible. */
+  setSelectedRow(rowId) {
+    this._selectedRowId = rowId == null ? null : rowId;
+    this._applySelectedRow();
   }
 
   /** Tear down DOM and timers. */
@@ -262,7 +270,11 @@ export class TableWrapper {
       sort: sort || undefined,
       emptyMessage: this.labels.empty,
       pageInfo: this.labels.pageInfo,
-      onSort: (col, asc) => this.onSort?.(col, asc),
+      onSort: (col, asc) => {
+        this._applySelectedRow();
+        this.onSort?.(col, asc);
+      },
+      onPageChange: () => this._applySelectedRow(),
     });
 
     // Set min-width so columns keep their specified widths and the wrapper
@@ -280,6 +292,7 @@ export class TableWrapper {
     }
 
     if (this._searchText) this._applyFilters();
+    else this._applySelectedRow();
   }
 
   _handleTableClick(e) {
@@ -310,6 +323,7 @@ export class TableWrapper {
 
     if (!terms.length && !this._externalFilter) {
       this._table.clearFilter();
+      this._applySelectedRow();
       return;
     }
 
@@ -317,6 +331,18 @@ export class TableWrapper {
       if (this._externalFilter && !this._externalFilter(row)) return false;
       return terms.length === 0 || matchesSearch(row, terms, this._stColumns);
     });
+    this._applySelectedRow();
+  }
+
+  _applySelectedRow() {
+    if (!this._tableEl || !this._table) return;
+    for (const rowEl of this._tableEl.querySelectorAll('.sortable-table-row')) {
+      const row = this.rowForElement(rowEl);
+      const selected = this._selectedRowId != null && row?.[ROW_ID_COL] === this._selectedRowId;
+      rowEl.classList.toggle('is-selected', selected);
+      if (selected) rowEl.setAttribute('aria-selected', 'true');
+      else rowEl.removeAttribute('aria-selected');
+    }
   }
 
   // -- CSV export ----------------------------------------------------------

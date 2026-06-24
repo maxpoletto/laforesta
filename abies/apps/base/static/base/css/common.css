@@ -580,6 +580,12 @@ input:focus, select:focus, textarea:focus {
 .sortable-table { min-width: var(--st-table-min-width, 0); }
 
 .table-scroll-editable-rows .sortable-table-row { cursor: pointer; }
+.table-scroll-editable-rows .sortable-table-row.is-selected,
+.table-scroll-editable-rows .sortable-table-row.is-selected:hover,
+.table-scroll-editable-rows .sortable-table-row.is-selected:nth-child(even),
+.table-scroll-editable-rows .sortable-table-row.is-selected:nth-child(even):hover {
+  background: #dbeee4;
+}
 
 .col-actions { text-align: center; }
 

@@ -211,14 +211,24 @@ function inboxStateColumnIndex(data) {
 
 async function openUpload(id) {
   selectedId = id;
+  table?.setSelectedRow(id);
+  const needsInitialContent = detailEl.hidden || detailEl.childElementCount === 0;
   detailEl.hidden = false;
-  destroyDetailTable();
-  detailEl.replaceChildren(loadingBlock(S.IPSO_LOADING_DETAIL));
+  detailEl.classList.add('is-loading');
+  detailEl.setAttribute('aria-busy', 'true');
+  if (needsInitialContent) {
+    destroyDetailTable();
+    detailEl.replaceChildren(loadingBlock(S.IPSO_LOADING_DETAIL));
+  }
   try {
     const { data } = await api.fetchJSON(DETAIL_URL(id));
     if (selectedId !== id) return;
     renderDetail(data);
   } catch {
+    if (selectedId === id) {
+      detailEl.classList.remove('is-loading');
+      detailEl.removeAttribute('aria-busy');
+    }
     showError(S.ERROR_NETWORK);
   }
 }
@@ -226,9 +236,12 @@ async function openUpload(id) {
 function closeDetail() {
   if (!detailEl || detailEl.hidden) return;
   detailEl.hidden = true;
+  detailEl.classList.remove('is-loading');
+  detailEl.removeAttribute('aria-busy');
   destroyDetailTable();
   detailEl.replaceChildren();
   selectedId = null;
+  table?.setSelectedRow(null);
 }
 
 function destroyDetailTable() {
@@ -256,6 +269,8 @@ async function rejectUpload(id) {
 }
 
 function renderDetail(data) {
+  detailEl.classList.remove('is-loading');
+  detailEl.removeAttribute('aria-busy');
   destroyDetailTable();
   detailEl.replaceChildren();
   const upload = data[UPLOAD] || {};
