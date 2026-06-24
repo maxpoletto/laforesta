@@ -19,7 +19,7 @@ on ambiguous tree-survey data, and the generated mark upload files.
 
 Run:
 
-    python3 convert_laforesta.py <src_dir> <out_dir>
+    python3 convert_laforesta.py <src_dir> <out_dir> [branding_out_dir]
 """
 
 from __future__ import annotations
@@ -74,6 +74,13 @@ SRC_PAI = 'piante-accrescimento-indefinito.csv'
 SRC_MARTELLATE_DIR = 'martellate'
 SRC_GEOJSON = 'terreni.geojson'
 SRC_SPECIES = 'apps/base/data/species.csv'  # in-repo canonical species list
+
+# --- bundled branding assets ------------------------------------------------
+
+BRANDING_SRC_DIR = 'branding'
+BRANDING_LOGO = 'logo.png'
+BRANDING_FAVICON = 'favicon.gif'
+BRANDING_IPSO_LOGO = 'ipso-logo.gif'
 
 # --- canonical output filenames (must match bootstrap's expectations) -------
 
@@ -396,10 +403,10 @@ def _convert_surveys(out_dir: Path) -> int:
 def _convert_sampled_trees(src_dir: Path, out_dir: Path) -> int:
     """Union of the two tree surveys into one canonical sampled-trees file.
 
-    - ``alberi-calcolati`` (survey ``Campionamento calcolato``) carries the
+    - ``alberi-calcolati`` (survey ``Campionamento PDG Sabatino``) carries the
       Albero/Pollone/D/H/L10 detail directly; Matricina is left blank (the
       strict core defaults blank Matricina → False, blank Pollone/L10 → 0).
-    - ``alberi-altezze`` (survey ``Campionamento altezze``) has the correct
+    - ``alberi-altezze`` (survey ``Campionamento altezze Luca``) has the correct
       height data but lacks the Albero/Pollone/Matricina shape, so Albero is
       synthesized as a 1-based sequence per (Compresa, Particella, Area saggio)
       and Pollone/Matricina/L10 are left blank.
@@ -772,9 +779,20 @@ def _copy_geojson(src_dir: Path, out_dir: Path) -> None:
     shutil.copyfile(src_dir / SRC_GEOJSON, out_dir / OUT_GEOJSON)
 
 
+def copy_branding(out_dir: Path) -> None:
+    src_dir = Path(__file__).resolve().parent / BRANDING_SRC_DIR
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for filename in (BRANDING_LOGO, BRANDING_FAVICON, BRANDING_IPSO_LOGO):
+        src = src_dir / filename
+        if not src.is_file():
+            raise FileNotFoundError(f'missing branding asset: {src}')
+        shutil.copyfile(src, out_dir / filename)
+
+
 # --- entry point ------------------------------------------------------------
 
-def main(src_dir: Path, out_dir: Path) -> dict[str, int]:
+def main(src_dir: Path, out_dir: Path, branding_out_dir: Path | None = None) -> dict[str, int]:
     """Convert all legacy files in ``src_dir`` into canonical files in
     ``out_dir``.  Returns a ``{filename: row_count}`` summary (geojson is copied
     verbatim and omitted from the counts)."""
@@ -806,6 +824,8 @@ def main(src_dir: Path, out_dir: Path) -> dict[str, int]:
         f'{OUT_MARKS_DIR}/*.csv': _convert_martellate(src_dir, out_dir),
     }
     _copy_geojson(src_dir, out_dir)
+    if branding_out_dir is not None:
+        copy_branding(branding_out_dir)
     return counts
 
 
@@ -815,11 +835,17 @@ def _cli(argv=None) -> int:
                     'bootstrap inputs.')
     parser.add_argument('src_dir', type=Path, help='Legacy data directory.')
     parser.add_argument('out_dir', type=Path, help='Output (canonical) directory.')
+    parser.add_argument(
+        'branding_out_dir', nargs='?', type=Path,
+        help='Optional output directory for Abies branding assets.',
+    )
     args = parser.parse_args(argv)
-    counts = main(args.src_dir, args.out_dir)
+    counts = main(args.src_dir, args.out_dir, args.branding_out_dir)
     for name, n in counts.items():
         print(f'  {name:<22} {n} rows')
     print(f'  {OUT_GEOJSON:<22} copied')
+    if args.branding_out_dir is not None:
+        print(f'  {BRANDING_SRC_DIR + "/":<22} copied')
     return 0
 
 

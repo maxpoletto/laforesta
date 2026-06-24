@@ -8,16 +8,32 @@ data from the strict canonical contract enforced by `bootstrap`.
 ## Usage
 
 ```sh
-python3 convert_laforesta.py <src_dir> <out_dir>
+python3 convert_laforesta.py <src_dir> <out_dir> [branding_out_dir]
 ```
 
 - `src_dir` — the legacy data dir (e.g. `../abies-data`); see its `README`.
 - `out_dir` — written with the canonical files below, then loadable with
   `manage.py bootstrap <out_dir> [--check]`.
+- `branding_out_dir` — optional; when set, receives `logo.png`,
+  `favicon.gif`, and `ipso-logo.gif` from this repository's `branding/`
+  directory.  The Abies
+  checkout expects these under `data/branding` before build/deploy.
 
 Dialect: reads `utf-8-sig` (BOM-tolerant), writes `utf-8`, comma-delimited, dot
 decimals (the canonical pairing).  Stdlib `csv` only — no project imports, no new
 dependencies — so the tool runs standalone against a legacy-data checkout.
+
+## Makefile
+
+The default target writes both Abies bootstrap data and branding inputs:
+
+```sh
+make
+```
+
+By default this writes canonical CSVs to `../abies/data/canonical` and branding
+assets to `../abies/data/branding`. Override `DST_DIR` or `BRANDING_DST_DIR` if
+needed.
 
 ## Output files (source → canonical mapping)
 
@@ -32,7 +48,7 @@ dependencies — so the tool runs standalone against a legacy-data checkout.
 | `sample_grids.csv` (`Griglia`) | constant | one row: `Aree di saggio PDG 2026` |
 | `harvest_plans.csv` (`Piano,Anno inizio,Anno fine`) | `piano_fustaia.csv` + `piano_ceduo.csv` | one row `PDG 2026`, `Anno inizio`/`Anno fine` = min/max `Anno` across both files |
 | `sample_areas.csv` (`Griglia,Compresa,Particella,Area saggio,Lon,Lat,Quota,Raggio`) | `aree-di-saggio.csv` | add the constant `Griglia`; select Lon/Lat/Quota/Raggio; drop CP/UTM\*/Gauss\* |
-| `surveys.csv` (`Rilevamento,Griglia,Data`) | constant | two rows, both `Griglia=Aree di saggio PDG 2026`, `Data=2024-09-15`: `Campionamento calcolato`, `Campionamento altezze` |
+| `surveys.csv` (`Rilevamento,Griglia,Data`) | constant | two rows with `Griglia=Aree di saggio PDG 2026`: `Campionamento PDG Sabatino` dated `2022-08-01`, and `Campionamento altezze Luca` dated `2025-12-01` |
 | `sampled-trees.csv` | `alberi-calcolati.csv` + `alberi-altezze.csv` | union of the two surveys (see below) |
 | `hypso_params.csv` | `equazioni_ipsometro.csv` | copied verbatim (lowercase headers accepted case-insensitively by `hypsometry.parse_param_csv`) |
 | `tractors.csv` (`Trattore,Produttore,Modello,Anno`) | constant | the six hard-coded La Foresta tractors, including `Scania P380` |
@@ -47,7 +63,7 @@ dependencies — so the tool runs standalone against a legacy-data checkout.
 `sampled-trees.csv` is the **union** of two surveys, mapped to the canonical
 `Rilevamento,Compresa,Particella,Area saggio,Albero,Pollone,Matricina,D_cm,H_m,L10_mm,Pressler,Genere,Fustaia`:
 
-1. **`Campionamento calcolato`** (from `alberi-calcolati.csv`): `n`→`Albero`,
+1. **`Campionamento PDG Sabatino`** (from `alberi-calcolati.csv`): `n`→`Albero`,
    `poll`→`Pollone`, `D(cm)`→`D_cm`, `h(m)`→`H_m`, `L10(mm)`→`L10_mm`,
    `Pressler` is set to `2`, plus `Genere`, `Fustaia`.
    - **`poll == 'mat'` sentinel:** in the legacy file the `poll` column is
@@ -58,7 +74,7 @@ dependencies — so the tool runs standalone against a legacy-data checkout.
      `mat` rows are coppice (`Fustaia=FALSE`), consistent with this reading.
      Non-`mat` rows leave `Matricina` blank (→ False).
 
-2. **`Campionamento altezze`** (from `alberi-altezze.csv`): `D(cm)`→`D_cm`,
+2. **`Campionamento altezze Luca`** (from `alberi-altezze.csv`): `D(cm)`→`D_cm`,
    `h(m)`→`H_m`, `Genere`, `Fustaia`.  This file has the **correct** height
    data but lacks the Albero/Pollone/Matricina shape, so:
    - `Albero` is **synthesized** as a 1-based sequence per
@@ -104,6 +120,5 @@ asserts `bootstrap --check` validates it clean against an empty DB (plus sanity
 counts).  Run from the abies-init root:
 
 ```sh
-env DJANGO_DEBUG=1 DJANGO_SECRET_KEY=django-insecure-local-dev \
-    python3 -m pytest -v
+python3 -m pytest -v
 ```
