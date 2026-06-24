@@ -39,10 +39,11 @@ DELIMITER = ','               # canonical pairing: comma field / dot decimal
 # --- magic names emitted into the canonical files ---------------------------
 
 GRID_NAME = 'Aree di saggio PDG 2026'
-PLAN_NAME = 'PDG 2026'
-SURVEY_CALCULATED = 'Campionamento calcolato'
-SURVEY_HEIGHTS = 'Campionamento altezze'
-DEFAULT_SURVEY_DATE = '2024-09-15'
+PLAN_NAME = 'Piano di gestione 2026-2040'
+SURVEY_SABATINO = 'Campionamento PDG Sabatino'
+SURVEY_LUCA = 'Campionamento altezze Luca'
+SURVEY_SABATINO_DATE = '2022-08-01'
+SURVEY_LUCA_DATE = '2025-12-01'
 PRESSLER_DEFAULT = '2'
 ACTIVE_CREW_YEAR = 2026
 EXTRA_CREWS = ['Zaffino-Santaguida']
@@ -386,8 +387,8 @@ def _convert_sample_areas(src_dir: Path, out_dir: Path) -> int:
 def _convert_surveys(out_dir: Path) -> int:
     header = [COL_SURVEY, COL_GRID, COL_DATA, COL_ACTIVE]
     rows = [
-        [SURVEY_CALCULATED, GRID_NAME, DEFAULT_SURVEY_DATE, 'True'],
-        [SURVEY_HEIGHTS, GRID_NAME, DEFAULT_SURVEY_DATE, 'False'],
+        [SURVEY_SABATINO, GRID_NAME, SURVEY_SABATINO_DATE, 'True'],
+        [SURVEY_LUCA, GRID_NAME, SURVEY_LUCA_DATE, 'False'],
     ]
     return _write(out_dir / OUT_SURVEYS, header, rows)
 
@@ -428,7 +429,7 @@ def _calculated_tree_rows(trees: list[dict]) -> list[list]:
         else:
             shoot, standard = poll, ''     # numbered shoot (blank → 0)
         out.append([
-            SURVEY_CALCULATED,
+            SURVEY_SABATINO,
             (r.get(COL_REGION) or '').strip(),
             (r.get(COL_PARCEL) or '').strip(),
             (r.get(COL_SAMPLE_AREA) or '').strip(),
@@ -456,7 +457,7 @@ def _heights_tree_rows(trees: list[dict]) -> list[list]:
         key = (region, parcel, area)
         seq[key] = seq.get(key, 0) + 1
         out.append([
-            SURVEY_HEIGHTS, region, parcel, area,
+            SURVEY_LUCA, region, parcel, area,
             seq[key],   # synthesized Albero
             '',         # Pollone (blank → 0)
             '',         # Matricina (blank → False)
