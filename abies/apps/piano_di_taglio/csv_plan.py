@@ -21,6 +21,7 @@ from apps.base.models import (
     Parcel,
     ParcelPlanDetail,
     Region,
+    render_flag_note,
 )
 from config import strings as S
 from config.constants import (
@@ -81,7 +82,29 @@ COPPICE_OPTIONAL = {
 
 # Minimal required columns: plan, region, parcel, year — all that
 # load_canonical_items needs before it can branch on row type.
-PLAN_ITEMS_CSV_REQUIRED = [S.CSV_COL_PLAN, S.CSV_COL_REGION, S.CSV_COL_PARCEL, S.CSV_COL_YEAR]
+PLAN_ITEMS_CSV_REQUIRED = [
+    S.CSV_COL_PLAN, S.CSV_COL_REGION, S.CSV_COL_PARCEL, S.CSV_COL_YEAR,
+]
+
+PLAN_SECTION_HIGHFOREST = 'fustaia'
+PLAN_SECTION_COPPICE = 'ceduo'
+PLAN_SECTION_FILENAMES = {
+    PLAN_SECTION_HIGHFOREST: 'interventi-fustaia.csv',
+    PLAN_SECTION_COPPICE: 'interventi-ceduo.csv',
+}
+
+HIGHFOREST_EXPORT_COLUMNS = [
+    S.COL_ID, S.COL_YEAR_PLANNED, S.COL_YEAR_ACTUAL,
+    S.COL_REGION, S.COL_PARCEL, S.COL_STATE, S.COL_NOTE,
+    S.COL_VOLUME_PLANNED, S.COL_VOLUME_MARKED, S.COL_VOLUME_ACTUAL,
+    S.COL_EXTRA_NOTE,
+]
+COPPICE_EXPORT_COLUMNS = [
+    S.COL_ID, S.COL_YEAR_PLANNED, S.COL_YEAR_ACTUAL,
+    S.COL_REGION, S.COL_PARCEL, S.COL_STATE, S.COL_NOTE,
+    S.COL_INTERVENTION_AREA_HA, S.COL_PARCEL_AREA_HA,
+    S.COL_PERIOD_Y, S.COL_VOLUME_ACTUAL, S.COL_EXTRA_NOTE,
+]
 
 
 class CsvError:
@@ -431,6 +454,121 @@ def apply(*, target_plan, name, description, fustaia_parsed, ceduo_parsed):
         mark_stale('harvest_plans', 'harvest_plan_items', DIGEST_FUTURE_PRODUCTION, 'audit')
 
     return plan, n_items
+
+
+@dataclass
+class PlanExportContext:
+    items: list[HarvestPlanItem]
+    parcel_intervals: dict[int, int]
+    delimiter: str
+    decimal_sep: str
+
+
+def render_plan_csvs(plan: HarvestPlan) -> list[tuple[str, str]]:
+    """Render the two plan CSVs used by the zip export."""
+    ctx = _plan_export_context(plan)
+    return [
+        (S.CSV_FILE_HIGHFOREST,
+         _render_plan_section_csv(ctx, PLAN_SECTION_HIGHFOREST)),
+        (S.CSV_FILE_COPPICE,
+         _render_plan_section_csv(ctx, PLAN_SECTION_COPPICE)),
+    ]
+
+
+def render_plan_section_csv(plan: HarvestPlan, section: str) -> str:
+    """Render one calendar section CSV using the same serializer as the zip."""
+    if section not in PLAN_SECTION_FILENAMES:
+        raise ValueError(f'unknown plan export section: {section}')
+    return _render_plan_section_csv(_plan_export_context(plan), section)
+
+
+def _plan_export_context(plan: HarvestPlan) -> PlanExportContext:
+    items = list(
+        HarvestPlanItem.objects
+        .filter(harvest_plan=plan)
+        .select_related('parcel__region', 'parcel__eclass', 'region')
+        .order_by('year_planned', 'id')
+    )
+    parcel_intervals = {
+        ppd.parcel_id: ppd.harvest_detail.interval
+        for ppd in ParcelPlanDetail.objects
+                       .filter(harvest_plan=plan)
+                       .select_related('harvest_detail')
+        if ppd.harvest_detail.interval is not None
+    }
+    delimiter, decimal_sep = csv_io.export_format()
+    return PlanExportContext(
+        items=items,
+        parcel_intervals=parcel_intervals,
+        delimiter=delimiter,
+        decimal_sep=decimal_sep,
+    )
+
+
+def _render_plan_section_csv(ctx: PlanExportContext, section: str) -> str:
+    if section == PLAN_SECTION_HIGHFOREST:
+        columns = HIGHFOREST_EXPORT_COLUMNS
+    elif section == PLAN_SECTION_COPPICE:
+        columns = COPPICE_EXPORT_COLUMNS
+    else:
+        raise ValueError(f'unknown plan export section: {section}')
+
+    buf, writer = csv_io.csv_buffer(ctx.delimiter)
+    writer.writerow(columns)
+    for item in ctx.items:
+        if _plan_item_section(item) != section:
+            continue
+        writer.writerow(_plan_item_export_row(item, section, ctx))
+    return buf.getvalue()
+
+
+def _plan_item_section(item: HarvestPlanItem) -> str:
+    if item.parcel_id is None:
+        return PLAN_SECTION_HIGHFOREST
+    if item.parcel.eclass.coppice:
+        return PLAN_SECTION_COPPICE
+    return PLAN_SECTION_HIGHFOREST
+
+
+def _plan_item_export_location(item: HarvestPlanItem) -> tuple[str, str]:
+    if item.parcel_id is None:
+        return item.region.name, S.PARCEL_WHOLE_REGION_MARK
+    return item.parcel.region.name, item.parcel.name
+
+
+def _plan_item_export_row(
+        item: HarvestPlanItem,
+        section: str,
+        ctx: PlanExportContext,
+) -> list:
+    compresa, particella = _plan_item_export_location(item)
+    parcel_area = (
+        '' if item.parcel_id is None
+        else csv_io.format_decimal(item.parcel.area_ha, ctx.decimal_sep)
+    )
+    anno_eff = item.date_actual.year if item.date_actual else ''
+    flag_note = render_flag_note(item.damaged, item.unhealthy, item.psr)
+    state_label = item.get_state_display()
+    if section == PLAN_SECTION_COPPICE:
+        return [
+            item.id, item.year_planned, anno_eff,
+            compresa, particella,
+            state_label, flag_note,
+            csv_io.format_decimal(item.intervention_area_ha, ctx.decimal_sep),
+            parcel_area,
+            ctx.parcel_intervals.get(item.parcel_id, ''),
+            csv_io.format_decimal(item.volume_actual_m3, ctx.decimal_sep),
+            item.note or '',
+        ]
+    return [
+        item.id, item.year_planned, anno_eff,
+        compresa, particella,
+        state_label, flag_note,
+        csv_io.format_decimal(item.volume_planned_m3, ctx.decimal_sep),
+        csv_io.format_decimal(item.volume_marked_m3, ctx.decimal_sep),
+        csv_io.format_decimal(item.volume_actual_m3, ctx.decimal_sep),
+        item.note or '',
+    ]
 
 
 @dataclass

@@ -24,7 +24,9 @@ pulldown:
 
   "Esporta CSV" produces a zip of two CSVs (`fustaia.csv`,
   `ceduo.csv`). Column sets match the
-  per-section exports so rows paste cleanly between them. Italian
+  per-section exports so rows paste cleanly between them. The per-section
+  exports use this round-trip CSV shape, including the leading `ID` column,
+  even though the sortable tables hide row IDs on screen. Italian
   locale (`;` separator, `,` decimal). Round-trip-compatible: the
   importer accepts both display names and legacy pdg-2026 names, and
   parses either `,` or `.` decimals.

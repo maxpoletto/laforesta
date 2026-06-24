@@ -20,8 +20,9 @@ from django.test import Client
 
 from apps.base import csv_io
 from apps.base.models import (
-    DigestStatus, HarvestPlan, HarvestPlanItem, HarvestPlanItemState,
-    HarvestTransition, ParcelPlanDetail, Tree, TreeMark, UsedNonce,
+    DigestStatus, HarvestDetail, HarvestPlan, HarvestPlanItem,
+    HarvestPlanItemState, HarvestTransition, Parcel, ParcelPlanDetail, Tree,
+    TreeMark, UsedNonce,
 )
 from apps.prelievi.models import Harvest, HarvestTractor
 from config import strings as S
@@ -63,6 +64,13 @@ def _post_plan_csv_import(client, **kwargs):
         data=json.dumps(body),
         content_type='application/json',
     )
+
+
+def _csv_rows(raw):
+    delimiter, _ = csv_io.export_format()
+    return list(csv.reader(
+        io.StringIO(raw.decode('utf-8')), delimiter=delimiter,
+    ))
 
 
 # ---------------------------------------------------------------------------
@@ -529,6 +537,59 @@ class TestPlanExport:
                     S.COL_VOLUME_MARKED, S.COL_VOLUME_ACTUAL,
                     S.COL_EXTRA_NOTE]:
             assert col in piano_header, f'missing column {col}'
+
+    def test_fustaia_section_export_matches_zip_member(
+        self, writer_client, plan, planned_item,
+    ):
+        zip_resp = writer_client.get(f'/api/piano-di-taglio/plan/export/{plan.id}/')
+        zf = zipfile.ZipFile(io.BytesIO(zip_resp.content))
+        expected = zf.read(S.CSV_FILE_HIGHFOREST)
+
+        resp = writer_client.get(
+            f'/api/piano-di-taglio/plan/export/{plan.id}/fustaia/',
+        )
+
+        assert resp.status_code == 200
+        assert resp['Content-Type'] == 'text/csv; charset=utf-8'
+        assert 'interventi-fustaia.csv' in resp['Content-Disposition']
+        assert resp.content == expected
+        rows = _csv_rows(resp.content)
+        assert rows[0][0] == S.COL_ID
+        assert rows[1][0] == str(planned_item.id)
+
+    def test_ceduo_section_export_matches_zip_member(
+        self, writer_client, plan, regions, eclasses,
+    ):
+        parcel = Parcel.objects.create(
+            name='C1', region=regions[0], eclass=eclasses[2],
+            area_ha=Decimal('4.25'),
+        )
+        detail = HarvestDetail.objects.create(
+            description='Turno 20a', interval=20,
+        )
+        ParcelPlanDetail.objects.create(
+            harvest_plan=plan, parcel=parcel, harvest_detail=detail,
+        )
+        item = HarvestPlanItem.objects.create(
+            harvest_plan=plan, parcel=parcel, year_planned=2028,
+            intervention_area_ha=Decimal('2.5'), note='Ceduo note',
+            state=HarvestPlanItemState.PLANNED,
+        )
+        zip_resp = writer_client.get(f'/api/piano-di-taglio/plan/export/{plan.id}/')
+        zf = zipfile.ZipFile(io.BytesIO(zip_resp.content))
+        expected = zf.read(S.CSV_FILE_COPPICE)
+
+        resp = writer_client.get(
+            f'/api/piano-di-taglio/plan/export/{plan.id}/ceduo/',
+        )
+
+        assert resp.status_code == 200
+        assert resp['Content-Type'] == 'text/csv; charset=utf-8'
+        assert 'interventi-ceduo.csv' in resp['Content-Disposition']
+        assert resp.content == expected
+        rows = _csv_rows(resp.content)
+        assert rows[0][0] == S.COL_ID
+        assert rows[1][0] == str(item.id)
 
     def test_round_trip_whole_region_item(
         self, writer_client, plan, regions,

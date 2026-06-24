@@ -12,12 +12,11 @@ the submission and returns a generic patches/deletes envelope or a
 import re
 from dataclasses import dataclass
 from datetime import date as date_type
-from typing import Iterable
 
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.db.models import Q
-from django.http import Http404, JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.template.loader import render_to_string
 from django.views.decorators.http import require_POST
 
@@ -41,7 +40,6 @@ from apps.base.models import (
     HarvestPlanItem,
     HarvestPlanItemState,
     HarvestTransition,
-    ParcelPlanDetail,
     Parcel,
     Region,
     Species,
@@ -315,80 +313,29 @@ def plan_export_view(request, plan_id: int):
     if plan is None:
         return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
 
-    items = (HarvestPlanItem.objects
-             .filter(harvest_plan=plan)
-             .select_related('parcel__region', 'parcel__eclass', 'region')
-             .order_by('year_planned', 'id'))
-    parcel_intervals = {
-        ppd.parcel_id: ppd.harvest_detail.interval
-        for ppd in ParcelPlanDetail.objects
-                       .filter(harvest_plan=plan)
-                       .select_related('harvest_detail')
-        if ppd.harvest_detail.interval is not None
-    }
-
-    delimiter, decimal_sep = csv_io.export_format()
-    fustaia_buf, fustaia_w = csv_io.csv_buffer(delimiter)
-    fustaia_w.writerow([
-        S.COL_ID, S.COL_YEAR_PLANNED, S.COL_YEAR_ACTUAL,
-        S.COL_REGION, S.COL_PARCEL, S.COL_STATE, S.COL_NOTE,
-        S.COL_VOLUME_PLANNED, S.COL_VOLUME_MARKED, S.COL_VOLUME_ACTUAL,
-        S.COL_EXTRA_NOTE,
-    ])
-
-    ceduo_buf, ceduo_w = csv_io.csv_buffer(delimiter)
-    ceduo_w.writerow([
-        S.COL_ID, S.COL_YEAR_PLANNED, S.COL_YEAR_ACTUAL,
-        S.COL_REGION, S.COL_PARCEL, S.COL_STATE, S.COL_NOTE,
-        S.COL_INTERVENTION_AREA_HA, S.COL_PARCEL_AREA_HA,
-        S.COL_PERIOD_Y, S.COL_VOLUME_ACTUAL, S.COL_EXTRA_NOTE,
-    ])
-
-    for it in items:
-        is_region_wide = it.parcel_id is None
-        if is_region_wide:
-            compresa = it.region.name
-            particella = S.PARCEL_WHOLE_REGION_MARK
-            parcel_area = ''
-            is_coppice = False  # region-wide items always export as fustaia
-        else:
-            compresa = it.parcel.region.name
-            particella = it.parcel.name
-            parcel_area = csv_io.format_decimal(it.parcel.area_ha, decimal_sep)
-            is_coppice = it.parcel.eclass.coppice
-        anno_eff = it.date_actual.year if it.date_actual else ''
-        flag_note = render_flag_note(it.damaged, it.unhealthy, it.psr)
-        state_label = HarvestPlanItemState(it.state).label
-        if is_coppice:
-            ceduo_w.writerow([
-                it.id, it.year_planned, anno_eff,
-                compresa, particella,
-                state_label, flag_note,
-                csv_io.format_decimal(it.intervention_area_ha, decimal_sep),
-                parcel_area,
-                parcel_intervals.get(it.parcel_id, ''),
-                csv_io.format_decimal(it.volume_actual_m3, decimal_sep),
-                it.note or '',
-            ])
-        else:
-            fustaia_w.writerow([
-                it.id, it.year_planned, anno_eff,
-                compresa, particella,
-                state_label, flag_note,
-                csv_io.format_decimal(it.volume_planned_m3, decimal_sep),
-                csv_io.format_decimal(it.volume_marked_m3, decimal_sep),
-                csv_io.format_decimal(it.volume_actual_m3, decimal_sep),
-                it.note or '',
-            ])
-
     safe_name = _safe_filename(plan.name)
     return csv_io.zip_csv_response(
-        [
-            (S.CSV_FILE_HIGHFOREST, fustaia_buf.getvalue()),
-            (S.CSV_FILE_COPPICE, ceduo_buf.getvalue()),
-        ],
+        csv_plan.render_plan_csvs(plan),
         f'piano_{safe_name}.zip',
     )
+
+
+@login_required
+def plan_section_export_view(request, plan_id: int, section: str):
+    """Return one section CSV using the same renderer as the plan zip."""
+    plan = HarvestPlan.objects.filter(id=plan_id).first()
+    if plan is None:
+        return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
+    try:
+        content = csv_plan.render_plan_section_csv(plan, section)
+        filename = csv_plan.PLAN_SECTION_FILENAMES[section]
+    except ValueError as exc:
+        raise Http404 from exc
+
+    response = HttpResponse(content, content_type='text/csv; charset=utf-8')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    response['Cache-Control'] = 'no-store'
+    return response
 
 
 # ---------------------------------------------------------------------------

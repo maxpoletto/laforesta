@@ -121,7 +121,7 @@ const sections = {
       S.COL_HARVEST_PLAN, S.COL_TYPE, COL_COPPICE,
       S.COL_INTERVENTION_AREA_HA, S.COL_PARCEL_AREA_HA, S.COL_PERIOD_Y,
     ],
-    csvFilename: 'interventi-fustaia.csv',
+    exportKind: 'fustaia',
   },
   c: {
     open: false, kind: 'ceduo',
@@ -134,7 +134,7 @@ const sections = {
       // Altre note (free-text) IS shown for ceduo — pdg-2026 uses it
       // for continuation markers like "Cont. intervento 2028".
     ],
-    csvFilename: 'interventi-ceduo.csv',
+    exportKind: 'ceduo',
   },
 };
 
@@ -330,7 +330,10 @@ function buildPage(el) {
     'new-plan': () => onNewPlan(),
     'export-section-csv': (btn) => {
       const sec = btn.closest('[data-section]');
-      if (sec) sections[sec.dataset.section]?.table?.exportCSV();
+      const section = sec ? sections[sec.dataset.section] : null;
+      if (activePlanId != null && section) {
+        downloadSectionExport(activePlanId, section.exportKind);
+      }
     },
     'add-item-f': () => showAddItemModal(sections.f),
     'add-item-c': () => showAddItemModal(sections.c),
@@ -387,7 +390,6 @@ function buildTable(s, searchInput) {
     } : {},
     sort: tableSort(state, DEFAULT_SECTION_SORT),
     searchText: state.searchText,
-    csvFilename: s.csvFilename,
     labels: S.TABLE_LABELS,
     csvFormat: S.TABLE_CSV_FORMAT,
     onSort: () => syncURL(),
@@ -966,6 +968,10 @@ function planRow(planId) {
 
 function downloadPlanExport(planId) {
   downloadFromURL(`${PLAN_EXPORT_URL}${planId}/`);
+}
+
+function downloadSectionExport(planId, section) {
+  downloadFromURL(`${PLAN_EXPORT_URL}${planId}/${section}/`);
 }
 
 // ---------------------------------------------------------------------------

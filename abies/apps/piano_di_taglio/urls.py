@@ -28,6 +28,9 @@ urlpatterns = [
          name='piano-di-taglio-plan-import-csv'),
     path('plan/export/<int:plan_id>/', views.plan_export_view,
          name='piano-di-taglio-plan-export'),
+    path('plan/export/<int:plan_id>/<str:section>/',
+         views.plan_section_export_view,
+         name='piano-di-taglio-plan-section-export'),
 
     # Plan-item CRUD.
     path('item/data/<int:item_id>/', views.item_data_view,
