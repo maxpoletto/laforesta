@@ -14,4 +14,13 @@ def strings(request):
     so client JS can read the active locale via `document.documentElement.lang`
     for number formatting (see CLAUDE.md §"Number formatting").
     """
-    return {'S': S, 'LANGUAGE_CODE': settings.LANGUAGE_CODE}
+    return {
+        'S': S,
+        'LANGUAGE_CODE': settings.LANGUAGE_CODE,
+        'ABIES_APP_NAME': settings.ABIES_APP_NAME,
+        'ABIES_BRAND_FAVICON_STATIC': settings.ABIES_BRAND_FAVICON_STATIC,
+        'ABIES_BRAND_LOGO_STATIC': settings.ABIES_BRAND_LOGO_STATIC,
+        'ABIES_BRAND_NAME': settings.ABIES_BRAND_NAME,
+        'ABIES_INSTANCE': settings.ABIES_INSTANCE,
+        'ABIES_SITE_TITLE': settings.ABIES_SITE_TITLE,
+    }

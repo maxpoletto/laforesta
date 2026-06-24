@@ -40,6 +40,10 @@ IPSO_UPLOAD_TRUSTED_PROXIES = tuple(
     ).split(',') if p.strip()
 )
 
+ABIES_INSTANCE = (
+    os.environ.get('ABIES_INSTANCE', 'local').strip().lower() or 'local'
+)
+
 _DEFAULT_SECRET_KEY = 'django-insecure-change-me-before-deployment'
 MS_OAUTH_BROAD_TENANTS = frozenset({'common', 'organizations', 'consumers'})
 
@@ -49,6 +53,13 @@ def _env_bool(name, *, default=False):
     if raw is None:
         return default
     return raw.strip().lower() in {'1', 'true', 'yes', 'on'}
+
+
+def _required_env(name):
+    value = os.environ.get(name, '').strip()
+    if not value:
+        raise RuntimeError(f'{name} must be set')
+    return value
 
 
 DEBUG = _env_bool('DJANGO_DEBUG', default=False)
@@ -98,6 +109,12 @@ elif _ms_oauth_tenant.lower() in MS_OAUTH_BROAD_TENANTS:
         )
 if not DEBUG and not IPSO_SECRET:
     raise RuntimeError('ABIES_IPSO_SECRET must be set when DEBUG=0')
+
+ABIES_APP_NAME = _required_env('ABIES_APP_NAME')
+ABIES_BRAND_NAME = _required_env('ABIES_BRAND_NAME')
+ABIES_SITE_TITLE = _required_env('ABIES_SITE_TITLE')
+ABIES_BRAND_LOGO_STATIC = 'base/img/brand-logo.png'
+ABIES_BRAND_FAVICON_STATIC = 'base/img/brand-favicon.gif'
 
 # Apache terminates TLS and forwards plain HTTP; trust the X-Forwarded-Proto
 # header so Django recognises the request as secure for cookie flags, etc.

@@ -8,6 +8,9 @@ __pycache__/
 # Django
 /data/
 staticfiles/
+apps/base/static/base/img/brand-logo.png
+apps/base/static/base/img/brand-favicon.gif
+apps/ipso/static/ipso/pwa/img/brand-logo.gif
 
 # IDE
 .claude/settings.local.json

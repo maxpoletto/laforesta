@@ -10,6 +10,7 @@
   --color-neutral-action-hover: #d0d0d0;
   --color-danger: #c00;
   --color-danger-hover: #a00;
+  --color-dev-instance: #d55e00;
   --chart-series-1: #2e7d32;
   --chart-series-2: #11bb1d;
   --chart-series-3: #144b99;
@@ -76,6 +77,7 @@ body {
   font-size: 1.1rem;
   color: var(--color-bosco-green);
 }
+.abies-instance-dev .header-logo { color: var(--color-dev-instance); }
 
 .header-tabs {
   display: flex;

@@ -3,19 +3,19 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Abies — La Foresta</title>
-  <link rel="icon" href="{% static 'base/img/f.gif' %}" type="image/gif">
+  <title>{{ ABIES_SITE_TITLE }}</title>
+  <link rel="icon" href="{% static ABIES_BRAND_FAVICON_STATIC %}" type="image/gif">
   <link rel="stylesheet" href="{% static 'vendor/fonts/roboto/roboto.css' %}">
   <link rel="stylesheet" href="{% static 'vendor/leaflet/leaflet.css' %}">
   <link rel="stylesheet" href="{% static 'base/css/map-basemaps.css' %}">
   <link rel="stylesheet" href="{% static 'vendor/sortable-table/sortable-table.css' %}">
   <link rel="stylesheet" href="{% static 'base/css/common.css' %}">
 </head>
-<body data-role="{{ user.role }}" data-login-method="{{ user.login_method }}" data-csrf="{{ csrf_token }}">
+<body class="abies-instance-{{ ABIES_INSTANCE|slugify }}" data-role="{{ user.role }}" data-login-method="{{ user.login_method }}" data-csrf="{{ csrf_token }}">
 
   <header id="header">
     <div class="header-left">
-      <span class="header-logo">La Foresta</span>
+      <span class="header-logo">{{ ABIES_BRAND_NAME }}</span>
     </div>
     <nav class="header-tabs" id="header-tabs">
       <a class="tab" href="/bosco" data-tab="bosco">Bosco</a>

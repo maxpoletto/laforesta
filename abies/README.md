@@ -71,11 +71,15 @@ python3 -m venv ~/venv/abies
 pip install -r requirements.txt
 ```
 
-Create a canonical data bundle in `data/canonical`. Legacy-data conversion is
-owned by the external initialization tooling; Abies only consumes canonical CSVs.
-Then run:
+Create a canonical data bundle in `data/canonical` and branding assets in
+`data/branding`. Legacy-data conversion is owned by the external initialization
+tooling; Abies only consumes canonical CSVs and deployment branding files. For
+local development, set the required brand text environment too:
 
 ```sh
+export ABIES_APP_NAME=Abies
+export ABIES_BRAND_NAME=Local
+export ABIES_SITE_TITLE="Abies local"
 make dev
 ```
 
@@ -179,6 +183,20 @@ Adjust names and ports as needed.
    sudo chmod 0755 /var/lib/abies-prod/staticfiles /var/lib/abies-dev/staticfiles
    ```
 
+   Place deployment branding assets locally under `data/branding` before
+   building or deploying:
+
+   ```text
+   data/branding/logo.png
+   data/branding/favicon.gif
+   data/branding/ipso-logo.gif
+   ```
+
+   `bin/deploy` and `make collectstatic` copy these files into fixed static
+   paths before static collection. The files are intentionally local deployment
+   inputs, not checked into Abies. External initialization tooling can populate
+   `data/branding` the same way it populates `data/canonical`.
+
    `data/ipso-inbox` is used by the Abies-served Ipso PWA upload endpoint. No
    separate mount is needed with the default `ABIES_IPSO_INBOX_DIR`; it is
    already inside the `/app/data` bind mount. If the inbox is moved elsewhere,
@@ -211,6 +229,9 @@ Adjust names and ports as needed.
    DJANGO_ALLOWED_HOSTS=<instance-hostname>
    DJANGO_CSRF_TRUSTED_ORIGINS=https://<instance-hostname>
    ABIES_IPSO_SECRET=<shared-ipso-secret>
+   ABIES_APP_NAME=Abies
+   ABIES_BRAND_NAME=<deployment-brand-name>
+   ABIES_SITE_TITLE=<browser-title>
    MS_OAUTH_TENANT=<tenant-guid-or-name>
    MS_OAUTH_CLIENT_ID=<client-id>
    MS_OAUTH_SECRET=<client-secret>
@@ -223,7 +244,8 @@ Adjust names and ports as needed.
    `ABIES_IPSO_UPLOAD_RATE_WINDOW_S`,
    `ABIES_IPSO_UPLOAD_TRUSTED_PROXIES`, `ABIES_IPSO_INBOX_DIR`,
    `DJANGO_DATA_UPLOAD_MAX_MEMORY_SIZE`, `DJANGO_SECURE_HSTS_SECONDS`, and
-   `ABIES_SATELLITE_DIR`.
+   `ABIES_SATELLITE_DIR`. The compose files set `ABIES_INSTANCE` to `dev` or
+   `prod`; local development defaults to `local`.
 
 6. Prepare Docker access.
 

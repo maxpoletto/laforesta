@@ -111,6 +111,9 @@ else
   echo "==> first deploy -- skipping backup"
 fi
 
+echo "==> sync branding"
+ABIES_BRANDING_DIR="$source_app_dir/data/branding" bin/sync-branding
+
 echo "==> build ${image}"
 dc build
 

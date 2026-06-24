@@ -1,17 +1,16 @@
-<!DOCTYPE html>
-<html lang="it">
+{% load static %}<!DOCTYPE html>
+<html lang="{{ LANGUAGE_CODE }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Abies — Accesso</title>
-  {% load static %}
-  <link rel="icon" href="{% static 'base/img/f.gif' %}" type="image/gif">
+  <title>{{ ABIES_APP_NAME }} — Accesso</title>
+  <link rel="icon" href="{% static ABIES_BRAND_FAVICON_STATIC %}" type="image/gif">
   <link rel="stylesheet" href="{% static 'vendor/fonts/roboto/roboto.css' %}">
   <link rel="stylesheet" href="{% static 'base/css/login.css' %}">
 </head>
 <body>
   <div class="login-box">
-    <img src="{% static 'base/img/logo-150.png' %}" alt="La Foresta">
+    <img src="{% static ABIES_BRAND_LOGO_STATIC %}" alt="{{ ABIES_BRAND_NAME }}">
     {% if form.errors or error_message %}
     <p class="error">
       {% if error_message %}{{ error_message }}

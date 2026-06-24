@@ -23,6 +23,8 @@ services:
 
     env_file:
       - .env.dev
+    environment:
+      ABIES_INSTANCE: dev
 
     logging:
       driver: json-file

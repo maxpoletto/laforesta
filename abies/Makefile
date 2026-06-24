@@ -1,5 +1,6 @@
 PYTHON = python3
 CANONICAL_DIR ?= data/canonical
+BRANDING_DIR ?= data/branding
 DJANGO_DEBUG ?= 1
 DJANGO_SECRET_KEY ?= django-insecure-local-dev
 LANGUAGE_SUFFIX ?= _it
@@ -23,7 +24,7 @@ MANAGE = env DJANGO_DEBUG="$(DJANGO_DEBUG)" DJANGO_SECRET_KEY="$(DJANGO_SECRET_K
 # unsuffixed <name>.html symlinks are materialized at install time.
 
 .PHONY: help \
-        check migrate reset-db load-canonical-data bootstrap geo stage-marks-uploads digest admin link-templates dev serve \
+        check migrate reset-db load-canonical-data bootstrap geo stage-marks-uploads digest admin link-templates sync-branding dev serve \
         collectstatic minify \
         deploy-dev deploy-prod stage-canonical stage-canonical-dev stage-canonical-prod bootstrap-dev bootstrap-prod docker-prune \
         test test-js \
@@ -34,6 +35,7 @@ help:
 	@echo "  make dev                         reset local DB, load canonical data, create admin"
 	@echo "  make serve                       run Django dev server in the background"
 	@echo "  make test                        run JS tests and pytest"
+	@echo "  make sync-branding                copy data/branding assets into static files"
 	@echo "  make collectstatic minify        collect static files, then minify collected JS"
 	@echo ""
 	@echo "Remote deployment:"
@@ -44,7 +46,7 @@ help:
 	@echo "  make bootstrap-dev               stage canonical data, then bootstrap dev"
 	@echo "  make bootstrap-prod              stage canonical data, then bootstrap prod"
 	@echo ""
-	@echo "Useful variables: CANONICAL_DIR=$(CANONICAL_DIR), REMOTE=$(REMOTE), DEPLOY_ARGS=--reset-user"
+	@echo "Useful variables: CANONICAL_DIR=$(CANONICAL_DIR), BRANDING_DIR=$(BRANDING_DIR), REMOTE=$(REMOTE), DEPLOY_ARGS=--reset-user"
 
 # --- Local database and data build -----------------------------------------
 
@@ -93,14 +95,17 @@ admin:
 link-templates:
 	$(PYTHON) bin/link-templates.py $(LANGUAGE_SUFFIX)
 
-dev: reset-db load-canonical-data admin link-templates
+dev: sync-branding reset-db load-canonical-data admin link-templates
 
 serve:
 	$(MANAGE) runserver > /dev/null 2>&1 &
 
 # --- Static assets ----------------------------------------------------------
 
-collectstatic:
+sync-branding:
+	ABIES_BRANDING_DIR="$(BRANDING_DIR)" bin/sync-branding
+
+collectstatic: sync-branding
 	$(MANAGE) collectstatic --noinput
 
 # Minifies collected static files only. It never rewrites app source files.

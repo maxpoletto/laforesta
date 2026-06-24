@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Copy deployment-provided branding assets into fixed static filenames.
+
+set -euo pipefail
+
+src_dir="${ABIES_BRANDING_DIR:-data/branding}"
+logo_src="$src_dir/logo.png"
+favicon_src="$src_dir/favicon.gif"
+ipso_logo_src="$src_dir/ipso-logo.gif"
+logo_dst="apps/base/static/base/img/brand-logo.png"
+favicon_dst="apps/base/static/base/img/brand-favicon.gif"
+ipso_logo_dst="apps/ipso/static/ipso/pwa/img/brand-logo.gif"
+
+[[ -f "$logo_src" ]] || {
+  echo "error: missing branding logo: $logo_src" >&2
+  echo "       create data/branding/logo.png before build/deploy" >&2
+  exit 1
+}
+[[ -f "$favicon_src" ]] || {
+  echo "error: missing branding favicon: $favicon_src" >&2
+  echo "       create data/branding/favicon.gif before build/deploy" >&2
+  exit 1
+}
+[[ -f "$ipso_logo_src" ]] || {
+  echo "error: missing Ipso branding logo: $ipso_logo_src" >&2
+  echo "       create data/branding/ipso-logo.gif before build/deploy" >&2
+  exit 1
+}
+
+install -m 0644 "$logo_src" "$logo_dst"
+install -m 0644 "$favicon_src" "$favicon_dst"
+install -m 0644 "$ipso_logo_src" "$ipso_logo_dst"

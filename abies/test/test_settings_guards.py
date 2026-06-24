@@ -17,12 +17,24 @@ ENV_KEYS = (
     'MS_OAUTH_TENANT',
     'DJANGO_DATA_UPLOAD_MAX_MEMORY_SIZE',
     'ABIES_IPSO_SECRET',
+    'ABIES_INSTANCE',
+    'ABIES_APP_NAME',
+    'ABIES_BRAND_NAME',
+    'ABIES_SITE_TITLE',
 )
+BRAND_ENV = {
+    'ABIES_APP_NAME': 'Abies',
+    'ABIES_BRAND_NAME': 'Test',
+    'ABIES_SITE_TITLE': 'Abies test',
+}
 
 
-def load_settings(monkeypatch, **env):
+def load_settings(monkeypatch, *, brand=True, **env):
     for key in ENV_KEYS:
         monkeypatch.delenv(key, raising=False)
+    if brand:
+        for key, value in BRAND_ENV.items():
+            monkeypatch.setenv(key, value)
     for key, value in env.items():
         monkeypatch.setenv(key, value)
 
@@ -47,6 +59,33 @@ def test_debug_true_allows_local_defaults(monkeypatch, debug_value):
 def test_debug_defaults_false(monkeypatch):
     with pytest.raises(RuntimeError, match='DJANGO_ALLOWED_HOSTS'):
         load_settings(monkeypatch, DJANGO_SECRET_KEY='prod-secret')
+
+
+@pytest.mark.parametrize('missing', [
+    'ABIES_APP_NAME', 'ABIES_BRAND_NAME', 'ABIES_SITE_TITLE',
+])
+def test_branding_text_env_is_required(monkeypatch, missing):
+    env = BRAND_ENV.copy()
+    del env[missing]
+    with pytest.raises(RuntimeError, match=missing):
+        load_settings(monkeypatch, brand=False, DJANGO_DEBUG='1', **env)
+
+
+def test_branding_text_and_asset_paths(monkeypatch):
+    settings = load_settings(
+        monkeypatch,
+        DJANGO_DEBUG='1',
+        ABIES_INSTANCE=' Dev ',
+        ABIES_APP_NAME='Trees',
+        ABIES_BRAND_NAME='Crew',
+        ABIES_SITE_TITLE='Trees for Crew',
+    )
+    assert settings.ABIES_INSTANCE == 'dev'
+    assert settings.ABIES_APP_NAME == 'Trees'
+    assert settings.ABIES_BRAND_NAME == 'Crew'
+    assert settings.ABIES_SITE_TITLE == 'Trees for Crew'
+    assert settings.ABIES_BRAND_LOGO_STATIC == 'base/img/brand-logo.png'
+    assert settings.ABIES_BRAND_FAVICON_STATIC == 'base/img/brand-favicon.gif'
 
 
 def test_data_upload_memory_size_default_and_override(monkeypatch):
