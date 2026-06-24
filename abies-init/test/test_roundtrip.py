@@ -19,7 +19,7 @@ LAFORESTA_ROOT = ABIES_INIT_ROOT.parent
 ABIES_ROOT = Path(os.environ.get('ABIES_ROOT', LAFORESTA_ROOT / 'abies'))
 sys.path.insert(0, str(ABIES_INIT_ROOT))
 sys.path.insert(0, str(ABIES_ROOT))
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.test_settings')
 
 import pytest
 from django.core.management import call_command
@@ -29,7 +29,7 @@ from convert_laforesta import (
     COL_ACTIVE, COL_CREW, COL_PARCEL, COL_TRACTOR_NAME, OUT_CREWS,
     OUT_HARVESTS, OUT_HARVEST_PLAN_ITEMS, OUT_MARKS_DIR, OUT_PRESERVED,
     OUT_REGIONS, OUT_SAMPLED_TREES, OUT_SPECIES, OUT_SURVEYS, OUT_TRACTORS,
-    SRC_HARVESTS, SRC_MARTELLATE_DIR, main,
+    SRC_HARVESTS, SRC_MARTELLATE_DIR, SURVEY_LUCA, SURVEY_SABATINO, main,
 )
 
 # Defaults to the sibling data checkout; override with ABIES_LEGACY_DATA elsewhere.
@@ -102,17 +102,15 @@ def test_sanity_counts(converted):
     # Exactly the two surveys.
     survey_rows = _rows(out_dir / OUT_SURVEYS)
     assert len(survey_rows) == 2
-    assert {r['Rilevamento'] for r in survey_rows} == {
-        'Campionamento calcolato', 'Campionamento altezze',
-    }
+    assert {r['Rilevamento'] for r in survey_rows} == {SURVEY_SABATINO, SURVEY_LUCA}
 
     # Sampled trees are the union of both surveys.
     tree_rows = _rows(out_dir / OUT_SAMPLED_TREES)
     surveys_seen = {r['Rilevamento'] for r in tree_rows}
-    assert surveys_seen == {'Campionamento calcolato', 'Campionamento altezze'}
+    assert surveys_seen == {SURVEY_SABATINO, SURVEY_LUCA}
     survey_rows = _rows(out_dir / OUT_SURVEYS)
     active_surveys = [r['Rilevamento'] for r in survey_rows if r.get('Attivo') == 'True']
-    assert active_surveys == ['Campionamento calcolato']
+    assert active_surveys == [SURVEY_SABATINO]
     # The `poll == 'mat'` sentinel must still produce Matricina=True rows
     # (guards against a regression that silently drops the special case).
     assert any(r['Matricina'] == 'True' for r in tree_rows)
@@ -189,7 +187,7 @@ def test_bootstrap_actually_persists(converted):
     assert Region.objects.count() == 3
     assert Survey.objects.count() == 2
     assert list(Survey.objects.filter(active=True).values_list('name', flat=True)) == [
-        'Campionamento calcolato',
+        SURVEY_SABATINO,
     ]
 
     # Tractors.
