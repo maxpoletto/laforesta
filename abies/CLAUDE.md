@@ -251,7 +251,8 @@ landscape).  Page-specific mobile adaptations are covered in each page's doc
     ├── data/                           # host-mounted runtime dir (gitignored)
     │   ├── db.sqlite3
     │   ├── digests/                    # pre-computed JSON files
-    │   └── geo/                        # GeoJSON, satellite imagery
+    │   ├── geo/                        # GeoJSON, satellite imagery
+    │   └── ipso-inbox/                 # staged Ipso uploads
     ├── docs/
     ├── test/
     ├── Dockerfile
@@ -277,13 +278,13 @@ Django's default namespacing convention. Templates follow the same pattern
 # Deployment
 
 Prod: `https://abies.laforesta.it/`; dev: `https://abies-dev.laforesta.it/`
-(same VM, separate data, basic-auth gate). Apache reverse-proxies to
-gunicorn. Host provisioning via `../../system/ansible/foresta.yml`.
+(same VM, separate data). Apache reverse-proxies to gunicorn. Host provisioning
+via `../../system/ansible/foresta.yml`.
 
 Deploy from laptop via Makefile wrappers around `bin/deploy <dev|prod>
-[git-ref]` over a docker context. Sequence: backup → build → stop → migrate →
-collectstatic → prod static minification → up. Container env vars come from
-`compose/.env.{prod,dev}` (gitignored).
+[git-ref]` over a docker context. Sequence: build → pre-deploy backup → prod
+check → stop → migrate → collectstatic → prod static minification → up. Container
+env vars come from `compose/.env.{prod,dev}` (gitignored).
 
 ```sh
 make deploy-dev                  # deploy current working tree to abies-dev
@@ -304,7 +305,7 @@ No browser-based E2E; UI verified by manual smoke testing.
 # Development environment
 
 Runs directly on the host (no Docker): `manage.py runserver` + Python 3.13
-virtualenv. `data/` holds `db.sqlite3`, `canonical/`, `digests/`, and `geo/`.
+virtualenv. `data/` holds `db.sqlite3`, `canonical/`, `digests/`, `geo/`, and `ipso-inbox/`.
 
 - `make dev`: zero-to-working in one command (reset DB + migrate + bootstrap + geo + digest + admin + template links).
 - `make migrate`: run Django migrations.

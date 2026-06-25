@@ -41,13 +41,15 @@ to gunicorn bound on localhost. Runtime state lives outside the image under a
 bind-mounted `data/` directory: SQLite database, digests, geodata, Ipso inbox,
 and optional canonical bootstrap data. Digest files are stored as `.json.gz`
 and served with `Content-Encoding: gzip`. Static files are host-mounted too; a
-separate backup mount is used for deploy-time SQLite snapshots, but scheduled or
-off-host backups are still a separate operational task.
+separate backup mount is used for compressed SQLite and Ipso-inbox backup
+archives, including pre-deploy snapshots and scheduled backups.
 
 ## More Documentation
 
 - [docs/bootstrap.md](docs/bootstrap.md): canonical CSV bundle and bootstrap
   contract.
+- [docs/backups.md](docs/backups.md): SQLite/Ipso backup, retention, scheduling,
+  OneDrive mirroring, and restore notes.
 - [docs/database.md](docs/database.md): relational model and invariants.
 - [docs/security.md](docs/security.md): roles, authentication, OAuth, CSP,
   audit, and Ipso security model.
@@ -280,8 +282,8 @@ Adjust names and ports as needed.
    ```
 
    The Makefile targets call `bin/deploy`, which builds the image, writes a
-   pre-deploy SQLite snapshot to the backup mount when an image already exists,
-   runs migrations, runs `manage.py check --deploy --fail-level WARNING` for
+   pre-deploy compressed backup to the backup mount, runs migrations, runs
+   `manage.py check --deploy --fail-level WARNING` for
    prod, creates the first superuser when none exists and
    `DJANGO_SUPERUSER_USERNAME`, `DJANGO_SUPERUSER_EMAIL`, and
    `DJANGO_SUPERUSER_PASSWORD` are set, collects static files, minifies
@@ -321,7 +323,16 @@ Adjust names and ports as needed.
    The rsync targets default to `REMOTE=maxp@abies.laforesta.it`; override
    `REMOTE_USER`, `REMOTE_HOST`, or `REMOTE` if needed.
 
-9. Enroll Ipso devices.
+9. Configure backups.
+
+   `bin/deploy` creates a compressed pre-deploy backup before migrations. For
+   nightly backups and OneDrive mirroring, install a host-level systemd timer
+   that runs `docker exec abies-prod bin/backup --instance prod` at 23:00
+   and optionally follows it with `rclone sync`. See
+   [docs/backups.md](docs/backups.md) for the exact service/timer example,
+   retention policy, and restore notes.
+
+10. Enroll Ipso devices.
 
    Open the appropriate URL on each trusted field device:
 

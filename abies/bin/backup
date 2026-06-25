@@ -1,0 +1,316 @@
+#!/usr/bin/env python3
+"""Create and prune Abies runtime backups.
+
+Intended to run inside the Abies container, where /app/data and /app/backup are
+bind-mounted to the host instance directories.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import shutil
+import sqlite3
+import tarfile
+import tempfile
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+RECENT_RETENTION = timedelta(days=7)
+FOUR_WEEKLY_RETENTION = timedelta(days=183)
+BACKUP_RE = re.compile(
+    r'^abies-(?P<instance>[A-Za-z0-9_.-]+)-'
+    r'(?P<ts>\d{8}T\d{6}Z)'
+    r'(?:-(?P<reason>[A-Za-z0-9_.-]+))?\.tar\.gz$'
+)
+
+
+@dataclass(frozen=True)
+class BackupArchive:
+    path: Path
+    instance: str
+    created_at: datetime
+
+
+def main() -> int:
+    args = parse_args()
+
+    if args.restore:
+        if args.dest is None:
+            raise SystemExit('error: --dest is required with --restore')
+        restored = restore_backup(args.restore.resolve(), args.dest.resolve())
+        print(f'Restored {args.restore} -> {restored}')
+        return 0
+    if args.dest is not None:
+        raise SystemExit('error: --dest is only valid with --restore')
+
+    now = parse_timestamp(args.now) if args.now else datetime.now(timezone.utc)
+    data_dir = args.data_dir.resolve()
+    backup_dir = args.backup_dir.resolve()
+    instance = filename_part(args.instance)
+    reason = filename_part(args.reason)
+
+    backup_dir.mkdir(parents=True, exist_ok=True)
+
+    if args.prune_only:
+        deleted = prune_backups(backup_dir, instance, now)
+        print(f'Pruned {deleted} backup(s).')
+        return 0
+
+    db_path = data_dir / 'db.sqlite3'
+    if not db_path.is_file():
+        if args.allow_missing:
+            print(f'No SQLite database found at {db_path}; skipping backup.')
+            if args.prune:
+                deleted = prune_backups(backup_dir, instance, now)
+                print(f'Pruned {deleted} backup(s).')
+            return 0
+        raise SystemExit(f'error: SQLite database not found: {db_path}')
+
+    archive = create_backup(
+        data_dir=data_dir,
+        backup_dir=backup_dir,
+        instance=instance,
+        reason=reason,
+        now=now,
+        include_ipso_inbox=args.include_ipso_inbox,
+    )
+    print(f'Wrote {archive}')
+
+    if args.prune:
+        deleted = prune_backups(backup_dir, instance, now)
+        print(f'Pruned {deleted} backup(s).')
+
+    return 0
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description='Create an Abies runtime backup.')
+    parser.add_argument('--data-dir', type=Path, default=Path('/app/data'))
+    parser.add_argument('--backup-dir', type=Path, default=Path('/app/backup'))
+    parser.add_argument(
+        '--instance',
+        default=os.environ.get('ABIES_INSTANCE', 'local'),
+        help='instance name for archive filenames, default: ABIES_INSTANCE or local',
+    )
+    parser.add_argument('--reason', default='scheduled')
+    parser.add_argument(
+        '--now',
+        help='UTC timestamp override for tests/manual backfills; accepts YYYYMMDDTHHMMSSZ or ISO Z',
+    )
+    parser.add_argument('--include-ipso-inbox', dest='include_ipso_inbox', action='store_true')
+    parser.add_argument('--no-include-ipso-inbox', dest='include_ipso_inbox', action='store_false')
+    parser.set_defaults(include_ipso_inbox=True)
+    parser.add_argument('--prune', dest='prune', action='store_true')
+    parser.add_argument('--no-prune', dest='prune', action='store_false')
+    parser.set_defaults(prune=True)
+    parser.add_argument('--prune-only', action='store_true')
+    parser.add_argument('--allow-missing', action='store_true')
+    parser.add_argument('--restore', type=Path, metavar='ARCHIVE')
+    parser.add_argument('--dest', type=Path, help='empty destination directory for --restore')
+    return parser.parse_args()
+
+
+def parse_timestamp(value: str) -> datetime:
+    for fmt in ('%Y%m%dT%H%M%SZ', '%Y-%m-%dT%H:%M:%SZ'):
+        try:
+            return datetime.strptime(value, fmt).replace(tzinfo=timezone.utc)
+        except ValueError:
+            pass
+    raise SystemExit(f'error: invalid UTC timestamp: {value}')
+
+
+def filename_part(value: str) -> str:
+    part = re.sub(r'[^A-Za-z0-9_.-]+', '-', value.strip()).strip('-')
+    if not part:
+        raise SystemExit('error: empty filename component')
+    return part
+
+
+def create_backup(
+        *, data_dir: Path, backup_dir: Path, instance: str, reason: str,
+        now: datetime, include_ipso_inbox: bool,
+) -> Path:
+    timestamp = now.strftime('%Y%m%dT%H%M%SZ')
+    archive_name = f'abies-{instance}-{timestamp}-{reason}.tar.gz'
+    archive_path = backup_dir / archive_name
+    tmp_archive_path = backup_dir / f'.{archive_name}.tmp'
+
+    tmp_root = Path(tempfile.mkdtemp(prefix='.backup-work-', dir=backup_dir))
+    try:
+        db_snapshot = tmp_root / 'db.sqlite3'
+        integrity = copy_sqlite_database(data_dir / 'db.sqlite3', db_snapshot)
+        db_snapshot.chmod(0o600)
+
+        manifest = {
+            'format': 1,
+            'created_at': isoformat_z(now),
+            'instance': instance,
+            'reason': reason,
+            'contents': ['db.sqlite3'],
+            'sqlite': {
+                'source': 'data/db.sqlite3',
+                'integrity_check': integrity,
+                'bytes': db_snapshot.stat().st_size,
+            },
+            'retention': {
+                'recent_days': RECENT_RETENTION.days,
+                'four_weekly_after_days': FOUR_WEEKLY_RETENTION.days,
+                'four_weekly_rule': 'keep Saturday backups whose ISO week is divisible by 4',
+            },
+        }
+
+        ipso_inbox = data_dir / 'ipso-inbox'
+        if include_ipso_inbox and ipso_inbox.exists():
+            manifest['contents'].append('ipso-inbox')
+            manifest['ipso_inbox'] = {
+                'source': 'data/ipso-inbox',
+                'note': 'filesystem snapshot; SQLite is the transactional consistency anchor',
+            }
+
+        manifest_path = tmp_root / 'manifest.json'
+        manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+        manifest_path.chmod(0o600)
+
+        if tmp_archive_path.exists():
+            tmp_archive_path.unlink()
+        with tarfile.open(tmp_archive_path, 'w:gz') as tar:
+            tar.add(manifest_path, arcname='manifest.json', recursive=False)
+            tar.add(db_snapshot, arcname='db.sqlite3', recursive=False)
+            if include_ipso_inbox and ipso_inbox.exists():
+                tar.add(ipso_inbox, arcname='ipso-inbox', recursive=True, filter=tar_filter)
+
+        tmp_archive_path.chmod(0o600)
+        tmp_archive_path.replace(archive_path)
+        return archive_path
+    finally:
+        shutil.rmtree(tmp_root, ignore_errors=True)
+        if tmp_archive_path.exists():
+            tmp_archive_path.unlink()
+
+
+def tar_filter(info: tarfile.TarInfo) -> tarfile.TarInfo | None:
+    if any(part.endswith('.tmp') for part in Path(info.name).parts):
+        return None
+    return info
+
+
+def copy_sqlite_database(source: Path, target: Path) -> str:
+    src = sqlite3.connect(source, timeout=60)
+    dst = sqlite3.connect(target)
+    try:
+        src.execute('PRAGMA busy_timeout=60000')
+        src.backup(dst, pages=1000, sleep=0.05)
+        dst.commit()
+        return check_sqlite_database(target, context='SQLite backup')
+    finally:
+        dst.close()
+        src.close()
+
+
+def check_sqlite_database(path: Path, *, context: str) -> str:
+    conn = sqlite3.connect(path)
+    try:
+        result = conn.execute('PRAGMA integrity_check').fetchone()
+    finally:
+        conn.close()
+    if result is None or result[0] != 'ok':
+        detail = result[0] if result else 'no result'
+        raise SystemExit(f'error: {context} failed integrity_check: {detail}')
+    return result[0]
+
+
+def restore_backup(archive_path: Path, dest: Path) -> Path:
+    if not archive_path.is_file():
+        raise SystemExit(f'error: backup archive not found: {archive_path}')
+    if dest.exists():
+        if not dest.is_dir():
+            raise SystemExit(f'error: restore destination is not a directory: {dest}')
+        if any(dest.iterdir()):
+            raise SystemExit(f'error: restore destination is not empty: {dest}')
+    else:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+
+    work = Path(tempfile.mkdtemp(prefix=f'.{dest.name}.restore-', dir=dest.parent))
+    try:
+        with tarfile.open(archive_path, 'r:gz') as tar:
+            members = tar.getmembers()
+            for member in members:
+                validate_restore_member(member)
+            tar.extractall(work, members=members)
+
+        manifest_path = work / 'manifest.json'
+        db_path = work / 'db.sqlite3'
+        if not manifest_path.is_file():
+            raise SystemExit('error: backup archive missing manifest.json')
+        if not db_path.is_file():
+            raise SystemExit('error: backup archive missing db.sqlite3')
+        json.loads(manifest_path.read_text(encoding='utf-8'))
+        check_sqlite_database(db_path, context='Restored SQLite database')
+
+        if dest.exists():
+            dest.rmdir()
+        work.replace(dest)
+        return dest
+    finally:
+        if work.exists():
+            shutil.rmtree(work, ignore_errors=True)
+
+
+def validate_restore_member(member: tarfile.TarInfo) -> None:
+    path = Path(member.name)
+    if path.is_absolute() or '..' in path.parts or not path.parts:
+        raise SystemExit(f'error: unsafe backup member path: {member.name}')
+    if member.issym() or member.islnk():
+        raise SystemExit(f'error: backup archive must not contain links: {member.name}')
+    name = member.name
+    if name in {'manifest.json', 'db.sqlite3', 'ipso-inbox'}:
+        return
+    if name.startswith('ipso-inbox/'):
+        return
+    raise SystemExit(f'error: unexpected backup member: {member.name}')
+
+
+def prune_backups(backup_dir: Path, instance: str, now: datetime) -> int:
+    deleted = 0
+    for archive in iter_backup_archives(backup_dir, instance):
+        if should_keep(archive.created_at, now):
+            continue
+        archive.path.unlink()
+        deleted += 1
+    return deleted
+
+
+def iter_backup_archives(backup_dir: Path, instance: str) -> list[BackupArchive]:
+    archives: list[BackupArchive] = []
+    for path in backup_dir.glob('abies-*.tar.gz'):
+        match = BACKUP_RE.match(path.name)
+        if not match or match.group('instance') != instance:
+            continue
+        created_at = datetime.strptime(match.group('ts'), '%Y%m%dT%H%M%SZ').replace(
+            tzinfo=timezone.utc,
+        )
+        archives.append(BackupArchive(path=path, instance=instance, created_at=created_at))
+    return sorted(archives, key=lambda item: item.created_at)
+
+
+def should_keep(created_at: datetime, now: datetime) -> bool:
+    age = now - created_at
+    if age < RECENT_RETENTION:
+        return True
+    if created_at.weekday() != 5:  # Monday=0, Saturday=5.
+        return False
+    if age < FOUR_WEEKLY_RETENTION:
+        return True
+    return created_at.isocalendar().week % 4 == 0
+
+
+def isoformat_z(value: datetime) -> str:
+    return value.astimezone(timezone.utc).replace(microsecond=0).isoformat().replace('+00:00', 'Z')
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

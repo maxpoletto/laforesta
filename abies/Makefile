@@ -12,6 +12,7 @@ REMOTE_HOST ?= abies.laforesta.it
 REMOTE ?= $(REMOTE_USER)@$(REMOTE_HOST)
 REMOTE_ABIES_USER ?= abies
 REMOTE_ABIES_GROUP ?= abies
+ABIES_DOCKER_CONTEXT ?= vm-abies
 
 ref ?=
 REF ?= $(ref)
@@ -29,7 +30,7 @@ MANAGE = $(LOCAL_ENV) env $(LOCAL_DJANGO_ENV) $(PYTHON) manage.py
 .PHONY: help \
         check migrate reset-db load-canonical-data bootstrap geo stage-marks-uploads digest admin link-templates sync-branding dev serve \
         collectstatic minify \
-        deploy-dev deploy-prod stage-canonical stage-canonical-dev stage-canonical-prod bootstrap-dev bootstrap-prod docker-prune \
+        deploy-dev deploy-prod stage-canonical stage-canonical-dev stage-canonical-prod bootstrap-dev bootstrap-prod backup-dev backup-prod backup-instance docker-prune \
         test test-js \
         clean reset-schema update-vendor
 
@@ -48,8 +49,10 @@ help:
 	@echo "  make stage-canonical-prod        rsync CANONICAL_DIR to prod data/canonical"
 	@echo "  make bootstrap-dev               stage canonical data, then bootstrap dev"
 	@echo "  make bootstrap-prod              stage canonical data, then bootstrap prod"
+	@echo "  make backup-dev                  create and prune a dev backup"
+	@echo "  make backup-prod                 create and prune a prod backup"
 	@echo ""
-	@echo "Useful variables: LOCAL_ENV_FILE=$(LOCAL_ENV_FILE), CANONICAL_DIR=$(CANONICAL_DIR), BRANDING_DIR=$(BRANDING_DIR), REMOTE=$(REMOTE), DEPLOY_ARGS=--reset-user"
+	@echo "Useful variables: LOCAL_ENV_FILE=$(LOCAL_ENV_FILE), CANONICAL_DIR=$(CANONICAL_DIR), BRANDING_DIR=$(BRANDING_DIR), REMOTE=$(REMOTE), ABIES_DOCKER_CONTEXT=$(ABIES_DOCKER_CONTEXT), DEPLOY_ARGS=--reset-user"
 
 # --- Local database and data build -----------------------------------------
 
@@ -118,11 +121,11 @@ minify:
 # --- Remote deployment ------------------------------------------------------
 
 deploy-dev:
-	./bin/deploy dev $(REF) $(DEPLOY_ARGS)
+	ABIES_DOCKER_CONTEXT="$(ABIES_DOCKER_CONTEXT)" ./bin/deploy dev $(REF) $(DEPLOY_ARGS)
 
 deploy-prod:
 	@test -n "$(REF)" || { echo "usage: make deploy-prod REF=<tag-or-sha> [DEPLOY_ARGS=--reset-user]" >&2; exit 1; }
-	./bin/deploy prod $(REF) $(DEPLOY_ARGS)
+	ABIES_DOCKER_CONTEXT="$(ABIES_DOCKER_CONTEXT)" ./bin/deploy prod $(REF) $(DEPLOY_ARGS)
 
 stage-canonical-dev:
 	$(MAKE) stage-canonical INSTANCE=dev
@@ -144,8 +147,18 @@ bootstrap-dev: stage-canonical-dev
 bootstrap-prod: stage-canonical-prod
 	./bin/bootstrap-data prod
 
+backup-dev:
+	$(MAKE) backup-instance INSTANCE=dev
+
+backup-prod:
+	$(MAKE) backup-instance INSTANCE=prod
+
+backup-instance:
+	@test "$(INSTANCE)" = "dev" -o "$(INSTANCE)" = "prod" || { echo "usage: make backup-instance INSTANCE=<dev|prod>" >&2; exit 1; }
+	docker --context "$(ABIES_DOCKER_CONTEXT)" exec "abies-$(INSTANCE)" bin/backup --instance "$(INSTANCE)"
+
 docker-prune:
-	docker --context vm-abies image prune
+	docker --context "$(ABIES_DOCKER_CONTEXT)" image prune
 
 # --- Tests ------------------------------------------------------------------
 

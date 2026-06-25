@@ -95,27 +95,14 @@ project="abies-${instance}"
 
 dc() { docker-compose --context "$context" -f "$compose_file" -p "$project" "$@"; }
 
-ts="$(date -u +%Y%m%dT%H%M%SZ)"
-
-# Skip backup on first deploy: nothing to back up yet, and `compose run`
-# would fail trying to pull the not-yet-built image.
-if docker --context "$context" image inspect "$image" >/dev/null 2>&1; then
-  echo "==> backup db.sqlite3 -> backup/db.sqlite3.${ts}"
-  dc run --rm abies python -c "
-import sqlite3
-src = sqlite3.connect('data/db.sqlite3')
-dst = sqlite3.connect('backup/db.sqlite3.${ts}')
-src.backup(dst)
-"
-else
-  echo "==> first deploy -- skipping backup"
-fi
-
 echo "==> sync branding"
 ABIES_BRANDING_DIR="$source_app_dir/data/branding" bin/sync-branding
 
 echo "==> build ${image}"
 dc build
+
+echo "==> pre-deploy backup"
+dc run --rm abies bin/backup --instance "$instance" --reason predeploy --allow-missing
 
 if [[ "$instance" == "prod" ]]; then
   echo "==> check --deploy"

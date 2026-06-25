@@ -40,7 +40,7 @@ ENV DJANGO_SETTINGS_MODULE=config.settings \
     PYTHONUNBUFFERED=1
 
 # Bind-mounted from host at runtime.
-VOLUME ["/app/data", "/app/staticfiles"]
+VOLUME ["/app/data", "/app/staticfiles", "/app/backup"]
 
 EXPOSE 8000
 
