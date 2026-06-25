@@ -44,11 +44,6 @@ done
 
 python_bin="${PYTHON:-python3}"
 
-geo_args=()
-if [[ -n "$geo_output_dir" ]]; then
-  geo_args=(--output-dir "$geo_output_dir")
-fi
-
 echo "==> migrate database schema"
 "$python_bin" manage.py migrate --noinput
 
@@ -59,7 +54,11 @@ echo "==> stage converted mark uploads into Ipso inbox"
 "$python_bin" manage.py stage_marks_uploads "$canonical_dir/marks"
 
 echo "==> build geojson"
-"$python_bin" manage.py build_geo "$canonical_dir" "${geo_args[@]}"
+if [[ -n "$geo_output_dir" ]]; then
+  "$python_bin" manage.py build_geo "$canonical_dir" --output-dir "$geo_output_dir"
+else
+  "$python_bin" manage.py build_geo "$canonical_dir"
+fi
 
 echo "==> regenerate digests"
 "$python_bin" manage.py shell --no-imports -c \

@@ -1,6 +1,7 @@
 PYTHON = python3
 CANONICAL_DIR ?= data/canonical
 BRANDING_DIR ?= data/branding
+LOCAL_ENV_FILE ?= compose/.env.local
 DJANGO_DEBUG ?= 1
 DJANGO_SECRET_KEY ?= django-insecure-local-dev
 LANGUAGE_SUFFIX ?= _it
@@ -16,7 +17,9 @@ ref ?=
 REF ?= $(ref)
 DEPLOY_ARGS ?=
 
-MANAGE = env DJANGO_DEBUG="$(DJANGO_DEBUG)" DJANGO_SECRET_KEY="$(DJANGO_SECRET_KEY)" $(PYTHON) manage.py
+LOCAL_ENV = set -a; [ ! -f "$(LOCAL_ENV_FILE)" ] || . "$(LOCAL_ENV_FILE)"; set +a;
+LOCAL_DJANGO_ENV = DJANGO_DEBUG="$${DJANGO_DEBUG:-$(DJANGO_DEBUG)}" DJANGO_SECRET_KEY="$${DJANGO_SECRET_KEY:-$(DJANGO_SECRET_KEY)}"
+MANAGE = $(LOCAL_ENV) env $(LOCAL_DJANGO_ENV) $(PYTHON) manage.py
 
 # Active language. Parallel to `from config.strings_it import *` in
 # config/strings.py and `export * from './strings_it.js'` in strings.js:
@@ -46,7 +49,7 @@ help:
 	@echo "  make bootstrap-dev               stage canonical data, then bootstrap dev"
 	@echo "  make bootstrap-prod              stage canonical data, then bootstrap prod"
 	@echo ""
-	@echo "Useful variables: CANONICAL_DIR=$(CANONICAL_DIR), BRANDING_DIR=$(BRANDING_DIR), REMOTE=$(REMOTE), DEPLOY_ARGS=--reset-user"
+	@echo "Useful variables: LOCAL_ENV_FILE=$(LOCAL_ENV_FILE), CANONICAL_DIR=$(CANONICAL_DIR), BRANDING_DIR=$(BRANDING_DIR), REMOTE=$(REMOTE), DEPLOY_ARGS=--reset-user"
 
 # --- Local database and data build -----------------------------------------
 
@@ -65,7 +68,7 @@ reset-db:
 
 load-canonical-data:
 	mkdir -p data
-	env DJANGO_DEBUG="$(DJANGO_DEBUG)" DJANGO_SECRET_KEY="$(DJANGO_SECRET_KEY)" PYTHON="$(PYTHON)" bin/load-canonical-data $(CANONICAL_DIR)
+	$(LOCAL_ENV) env $(LOCAL_DJANGO_ENV) PYTHON="$(PYTHON)" bin/load-canonical-data $(CANONICAL_DIR)
 
 bootstrap:
 	$(MANAGE) bootstrap $(CANONICAL_DIR)
@@ -147,7 +150,7 @@ docker-prune:
 # --- Tests ------------------------------------------------------------------
 
 test: test-js
-	env DJANGO_DEBUG="$(DJANGO_DEBUG)" DJANGO_SECRET_KEY="$(DJANGO_SECRET_KEY)" $(PYTHON) -m pytest --cov --cov-report=term-missing -q
+	$(LOCAL_ENV) env $(LOCAL_DJANGO_ENV) $(PYTHON) -m pytest --cov --cov-report=term-missing -q
 
 # Pure-JS tests for shared client-side modules.
 test-js:

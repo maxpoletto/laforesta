@@ -13,16 +13,11 @@ apps/base/static/base/img/brand-favicon.gif
 apps/ipso/static/ipso/pwa/img/brand-logo.gif
 
 # IDE
-.claude/settings.local.json
 .vscode/
+.claude/
 
 # OS
 .DS_Store
-
-# Misc
-oauth.txt
-claude-resume
-TODO.md
 
 # Materialized template symlinks.  `bin/link-templates.py` creates
 # `<name>.html → <name><LANGUAGE_SUFFIX>.html` at install time.
@@ -34,4 +29,4 @@ apps/*/templates/**/*.html
 # Real per-instance env files (the .example versions are the templates).
 compose/.env.prod
 compose/.env.dev
-.claude/
+compose/.env.local

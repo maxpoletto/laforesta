@@ -73,13 +73,14 @@ pip install -r requirements.txt
 
 Create a canonical data bundle in `data/canonical` and branding assets in
 `data/branding`. Legacy-data conversion is owned by the external initialization
-tooling; Abies only consumes canonical CSVs and deployment branding files. For
-local development, set the required brand text environment too:
+tooling; Abies only consumes canonical CSVs and deployment branding files.
+
+For local development, create `compose/.env.local` from
+`compose/.env.local.example` and fill in the required brand text. The Makefile
+shell-sources this file for local targets only; remote dev/prod deploys use
+`compose/.env.dev` and `compose/.env.prod` instead.
 
 ```sh
-export ABIES_APP_NAME=Abies
-export ABIES_BRAND_NAME=Local
-export ABIES_SITE_TITLE="Abies local"
 make dev
 ```
 
@@ -92,7 +93,7 @@ geodata, and regenerates JSON digests. For smaller steps, use `make migrate`,
 `make admin`. Run `make help` for the full local and remote target list.
 
 To make the process completely non-interactive (e.g., during edit-debug cycles),
-set the following environment variables:
+set these in `compose/.env.local`:
 ```sh
 DJANGO_SUPERUSER_USERNAME
 DJANGO_SUPERUSER_EMAIL
@@ -105,14 +106,14 @@ Run tests with:
 make test
 ```
 
-To test Microsoft Entra OAuth, also set:
+To test Microsoft Entra OAuth, also set these in `compose/.env.local`:
 ```sh
 MS_OAUTH_TENANT
 MS_OAUTH_CLIENT_ID
 MS_OAUTH_SECRET
 ```
 
-To test Ipso data uploads, also set `ABIES_IPSO_SECRET`.
+To test Ipso data uploads, also set `ABIES_IPSO_SECRET` there.
 
 Finally, start the development server with:
 
