@@ -812,6 +812,40 @@ def test_martellate_import_rejects_coppice_target(
     assert upload.state == IpsoUploadState.RECEIVED
 
 
+@override_settings(IPSO_SECRET='test-token')
+def test_martellate_import_region_wide_target_accepts_coppice_parcel(
+        writer_client, regions, eclasses, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    coppice_parcel = Parcel.objects.create(
+        name='C-damaged', region=regions[0],
+        eclass=next(e for e in eclasses if e.coppice),
+        area_ha=Decimal('1.0'),
+    )
+    plan = HarvestPlan.objects.create(
+        name='Piano Ipso danni', year_start=2026, year_end=2026,
+    )
+    item = HarvestPlanItem.objects.create(
+        harvest_plan=plan, region=regions[0], year_planned=2026,
+        damaged=True, state=HarvestPlanItemState.PLANNED,
+    )
+    payload = _upload_payload([coppice_parcel], species)
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
+
+    resp = writer_client.post(
+        reverse('ipso-upload-import-martellate', args=[upload.id]),
+        data=json.dumps({'harvest_plan_item_id': item.id}),
+        content_type='application/json',
+    )
+
+    assert resp.status_code == 200, resp.json()
+    mark = TreeMark.objects.get()
+    assert mark.harvest_plan_item == item
+    assert mark.tree.parcel == coppice_parcel
+    upload.refresh_from_db()
+    assert upload.state == IpsoUploadState.IMPORTED
+
+
 @pytest.mark.parametrize(('file_state', 'expected_error'), [
     ('missing', S.IPSO_ERR_UPLOAD_JSON_MISSING),
     ('invalid', S.IPSO_ERR_UPLOAD_JSON_INVALID),

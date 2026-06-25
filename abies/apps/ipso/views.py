@@ -1013,7 +1013,7 @@ def _martellate_import_rows(
         if parcel is None:
             errors.append(S.IPSO_ERR_IMPORT_RECORD_PARCEL_NOT_FOUND.format(i))
             continue
-        if parcel.eclass.coppice:
+        if parcel.eclass.coppice and item.parcel_id is not None:
             errors.append(S.IPSO_ERR_IMPORT_RECORD_COPPICE_MARTELLATE.format(i))
             continue
         if item_region and parcel.region_id != item_region.id:

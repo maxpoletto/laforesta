@@ -79,8 +79,10 @@ Due to error in GPS measurements and transience of tree markings (spray paint,
 etc.), it is possible for the same physical tree to appear more than once, e.g.
 as part of a sample one year but as marked for cutting some years later (see
 samples and marks below). Sampled trees are used for per-hectare biomass
-estimates. Marked trees are used in high-forest parcels (not in coppices) to
-cross-check actual harvest mass totals. A tree may in principle appear in both
+estimates. Marked trees are normally used in high-forest parcels to
+cross-check actual harvest mass totals; region-wide damaged/sick
+interventions may also mark trees whose parcel is technically coppice.
+A tree may in principle appear in both
 roles (sampled one year, marked some years later), but this is rare; consumers
 of either dataset should treat them as independent observations.
 
