@@ -94,6 +94,7 @@ compose_file="compose/${instance}.yml"
 project="abies-${instance}"
 
 dc() { docker-compose --context "$context" -f "$compose_file" -p "$project" "$@"; }
+dc_run() { dc run -T --rm "$@"; }
 
 echo "==> sync branding"
 ABIES_BRANDING_DIR="$source_app_dir/data/branding" bin/sync-branding
@@ -102,22 +103,22 @@ echo "==> build ${image}"
 dc build
 
 echo "==> pre-deploy backup"
-dc run --rm abies bin/backup --instance "$instance" --reason predeploy --allow-missing
+dc_run abies bin/backup --instance "$instance" --reason predeploy --allow-missing
 
 if [[ "$instance" == "prod" ]]; then
   echo "==> check --deploy"
-  dc run --rm abies python manage.py check --deploy --fail-level WARNING
+  dc_run abies python manage.py check --deploy --fail-level WARNING
 fi
 
 echo "==> stop"
 dc down --remove-orphans
 
 echo "==> migrate"
-dc run --rm abies python manage.py migrate --noinput
+dc_run abies python manage.py migrate --noinput
 
 if [[ "$reset_user" == "true" ]]; then
   echo "==> reset superuser(s)"
-  dc run --rm abies python manage.py shell --no-imports -c "
+  dc_run abies python manage.py shell --no-imports -c "
 from apps.base.models import User
 qs = User.objects.filter(is_superuser=True)
 n = qs.count()
@@ -127,7 +128,7 @@ print(f'deleted {n} superuser(s)')
 fi
 
 echo "==> ensure admin"
-dc run --rm abies python manage.py shell --no-imports -c "
+dc_run abies python manage.py shell --no-imports -c "
 from apps.base.models import User
 import os
 if User.objects.filter(is_superuser=True).exists():
@@ -147,15 +148,15 @@ else:
 "
 
 echo "==> collectstatic"
-dc run --rm abies python manage.py collectstatic --noinput
+dc_run abies python manage.py collectstatic --noinput
 
 if [[ "$instance" == "prod" ]]; then
   echo "==> minify static JS"
-  dc run --rm abies bin/minify-static /app/staticfiles
+  dc_run abies bin/minify-static /app/staticfiles
 fi
 
 echo "==> normalize static permissions"
-dc run --rm abies sh -c "find /app/staticfiles -type d -exec chmod 755 {} + && find /app/staticfiles -type f -exec chmod 644 {} +"
+dc_run abies sh -c "find /app/staticfiles -type d -exec chmod 755 {} + && find /app/staticfiles -type f -exec chmod 644 {} +"
 
 echo "==> start"
 dc up -d
