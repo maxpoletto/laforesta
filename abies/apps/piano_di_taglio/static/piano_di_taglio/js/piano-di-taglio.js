@@ -1317,6 +1317,21 @@ async function appendItemMarkTreesSection(card, itemId, state) {
 
   if (!data.rows.length) return;
 
+  const toolbar = document.createElement('div');
+  toolbar.className = 'pdt-section-toolbar';
+  const searchId = `pdt-mark-search-${itemId}`;
+  const searchLabel = document.createElement('label');
+  searchLabel.className = 'pdt-search-label';
+  searchLabel.htmlFor = searchId;
+  searchLabel.textContent = S.FILTER_LABEL;
+  const searchInput = document.createElement('input');
+  searchInput.type = 'text';
+  searchInput.className = 'table-search';
+  searchInput.id = searchId;
+  searchInput.placeholder = S.SEARCH_PLACEHOLDER;
+  toolbar.append(searchLabel, searchInput);
+  body.appendChild(toolbar);
+
   const host = document.createElement('div');
   host.className = 'subsection-host';
   body.appendChild(host);
@@ -1338,6 +1353,7 @@ async function appendItemMarkTreesSection(card, itemId, state) {
     labels: S.TABLE_LABELS,
     csvFormat: S.TABLE_CSV_FORMAT,
   });
+  itemMarkTreesTable.wireSearchInput(searchInput);
 }
 
 function buildMarkTreeColumnDefs(columns) {
