@@ -1,5 +1,6 @@
 PYTHON = python3
 CANONICAL_DIR ?= data/canonical
+SATELLITE_DIR ?= data/satellite
 BRANDING_DIR ?= data/branding
 LOCAL_ENV_FILE ?= compose/.env.local
 DJANGO_DEBUG ?= 1
@@ -30,7 +31,7 @@ MANAGE = $(LOCAL_ENV) env $(LOCAL_DJANGO_ENV) $(PYTHON) manage.py
 .PHONY: help \
         check migrate reset-db load-canonical-data bootstrap geo stage-marks-uploads digest admin link-templates sync-branding dev serve \
         collectstatic minify \
-        deploy-dev deploy-prod stage-canonical stage-canonical-dev stage-canonical-prod bootstrap-dev bootstrap-prod backup-dev backup-prod backup-instance docker-prune \
+        deploy-dev deploy-prod stage-canonical stage-canonical-dev stage-canonical-prod stage-satellite stage-satellite-dev stage-satellite-prod bootstrap-dev bootstrap-prod backup-dev backup-prod backup-instance docker-prune \
         test test-js \
         clean reset-schema update-vendor
 
@@ -47,12 +48,14 @@ help:
 	@echo "  make deploy-prod REF=<ref>       deploy clean tagged/ref build to production"
 	@echo "  make stage-canonical-dev         rsync CANONICAL_DIR to dev data/canonical"
 	@echo "  make stage-canonical-prod        rsync CANONICAL_DIR to prod data/canonical"
+	@echo "  make stage-satellite-dev         rsync SATELLITE_DIR to dev data/satellite"
+	@echo "  make stage-satellite-prod        rsync SATELLITE_DIR to prod data/satellite"
 	@echo "  make bootstrap-dev               stage canonical data, then bootstrap dev"
 	@echo "  make bootstrap-prod              stage canonical data, then bootstrap prod"
 	@echo "  make backup-dev                  create and prune a dev backup"
 	@echo "  make backup-prod                 create and prune a prod backup"
 	@echo ""
-	@echo "Useful variables: LOCAL_ENV_FILE=$(LOCAL_ENV_FILE), CANONICAL_DIR=$(CANONICAL_DIR), BRANDING_DIR=$(BRANDING_DIR), REMOTE=$(REMOTE), ABIES_DOCKER_CONTEXT=$(ABIES_DOCKER_CONTEXT), DEPLOY_ARGS=--reset-user"
+	@echo "Useful variables: LOCAL_ENV_FILE=$(LOCAL_ENV_FILE), CANONICAL_DIR=$(CANONICAL_DIR), SATELLITE_DIR=$(SATELLITE_DIR), BRANDING_DIR=$(BRANDING_DIR), REMOTE=$(REMOTE), ABIES_DOCKER_CONTEXT=$(ABIES_DOCKER_CONTEXT), DEPLOY_ARGS=--reset-user"
 
 # --- Local database and data build -----------------------------------------
 
@@ -140,6 +143,20 @@ stage-canonical:
 	rsync -rlt --delete --rsync-path="sudo rsync" "$(CANONICAL_DIR)/" "$(REMOTE):/var/lib/abies-$(INSTANCE)/data/canonical/"
 	ssh "$(REMOTE)" "sudo chown -R $(REMOTE_ABIES_USER):$(REMOTE_ABIES_GROUP) /var/lib/abies-$(INSTANCE)/data/canonical"
 	ssh "$(REMOTE)" "sudo chmod -R u=rwX,g=rX,o= /var/lib/abies-$(INSTANCE)/data/canonical"
+
+stage-satellite-dev:
+	$(MAKE) stage-satellite INSTANCE=dev
+
+stage-satellite-prod:
+	$(MAKE) stage-satellite INSTANCE=prod
+
+stage-satellite:
+	@test -d "$(SATELLITE_DIR)" || { echo "error: SATELLITE_DIR='$(SATELLITE_DIR)' does not exist" >&2; exit 1; }
+	@test "$(INSTANCE)" = "dev" -o "$(INSTANCE)" = "prod" || { echo "usage: make stage-satellite INSTANCE=<dev|prod>" >&2; exit 1; }
+	ssh "$(REMOTE)" "sudo mkdir -p /var/lib/abies-$(INSTANCE)/data/satellite"
+	rsync -rlt --delete --rsync-path="sudo rsync" "$(SATELLITE_DIR)/" "$(REMOTE):/var/lib/abies-$(INSTANCE)/data/satellite/"
+	ssh "$(REMOTE)" "sudo chown -R $(REMOTE_ABIES_USER):$(REMOTE_ABIES_GROUP) /var/lib/abies-$(INSTANCE)/data/satellite"
+	ssh "$(REMOTE)" "sudo chmod -R u=rwX,g=rX,o= /var/lib/abies-$(INSTANCE)/data/satellite"
 
 bootstrap-dev: stage-canonical-dev
 	./bin/bootstrap-data dev

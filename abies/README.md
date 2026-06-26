@@ -73,9 +73,10 @@ python3 -m venv ~/venv/abies
 pip install -r requirements.txt
 ```
 
-Create a canonical data bundle in `data/canonical` and branding assets in
-`data/branding`. Legacy-data conversion is owned by the external initialization
-tooling; Abies only consumes canonical CSVs and deployment branding files.
+Create a canonical data bundle in `data/canonical`, satellite data in
+`data/satellite`, and branding assets in `data/branding`. Legacy-data
+conversion is owned by the external initialization tooling; Abies only consumes
+canonical CSVs, satellite data, and deployment branding files.
 
 For local development, create `compose/.env.local` from
 `compose/.env.local.example` and fill in the required brand text. The Makefile
@@ -295,8 +296,9 @@ Adjust names and ports as needed.
 
 8. Load initial data.
 
-   Keep canonical CSVs locally under `data/canonical`, or override the source
-   with `CANONICAL_DIR=<path>`. Then run:
+   Keep canonical CSVs locally under `data/canonical`, and satellite data under
+   `data/satellite`. Override the sources with `CANONICAL_DIR=<path>` or
+   `SATELLITE_DIR=<path>` when needed. Then run:
 
    ```sh
    make bootstrap-dev
@@ -308,7 +310,9 @@ Adjust names and ports as needed.
    container UID, then run `bin/bootstrap-data <instance>`, which applies
    migrations before loading the empty database. To sync without bootstrapping,
    use `make stage-canonical-dev` or
-   `make stage-canonical-prod`. The bootstrap script runs the same shared
+   `make stage-canonical-prod`. Satellite data is not loaded into the database;
+   sync it with `make stage-satellite-dev` or `make stage-satellite-prod`.
+   The bootstrap script runs the same shared
    canonical-data load sequence as local development: migrations, `manage.py
    bootstrap`, staging `data/canonical/marks/*.csv` into the Ipso inbox,
    geodata into `/app/data/geo`, and all digests. It refuses to load into a
