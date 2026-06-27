@@ -383,7 +383,7 @@ mode-switch.
   (rare).
 - **Satellite data** — per-compresa `manifest.json`, `timeseries.json`, and
   generated diff PNG overlays, served from `SATELLITE_DIR` via
-  `/api/bosco/satellite/<region_id>/...`.  Caratteristiche satellite metrics
-  use the precomputed per-parcel means in `timeseries.json`; Evoluzione uses
-  GeoTIFF raster overlays by default and the same per-parcel means when
-  `fa=1`.
+  `/api/bosco/satellite/<region_id>/...`.  Built from `terreni.geojson` with
+  `manage.py build_satellite`; Caratteristiche satellite metrics use the
+  precomputed per-parcel means in `timeseries.json`; Evoluzione uses GeoTIFF
+  raster overlays by default and the same per-parcel means when `fa=1`.

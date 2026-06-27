@@ -6,6 +6,7 @@ gunicorn>=23.0,<24.0
 numpy>=2.0,<3.0
 pillow>=10.0,<13.0
 rasterio>=1.4,<2.0
+requests>=2.32,<3.0
 
 # Dev / test
 pytest>=9.0,<10.0

@@ -30,3 +30,4 @@ apps/*/templates/**/*.html
 compose/.env.prod
 compose/.env.dev
 compose/.env.local
+.env.satellite

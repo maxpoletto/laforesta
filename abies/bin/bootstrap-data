@@ -6,9 +6,12 @@
 #
 # Canonical data location: the per-instance data dir
 # /var/lib/abies-<instance>/data is bind-mounted to /app/data in the container
-# (see compose/<instance>.yml), so stage canonical CSVs at
+# (see compose/<instance>.yml), so sync canonical CSVs to
 # /var/lib/abies-<instance>/data/canonical on the VM host; the container then
 # reads them at /app/data/canonical.
+#
+# Use `make sync-canonical-<instance>` or the bootstrap Make targets to copy
+# canonical data to the VM.
 #
 # `manage.py bootstrap` refuses a non-empty instance (it has no wipe), so run
 # this only once, right after a fresh `bin/deploy <instance>` -- the container
@@ -39,10 +42,10 @@ state="$(docker --context "$context" inspect -f '{{.State.Running}}' "$ctr" 2>/d
 
 x() { docker --context "$context" exec "$ctr" "$@"; }
 
-# Fail early, with a clear message, if canonical data was not staged.
+# Fail early, with a clear message, if canonical data was not synced.
 x test -d "$canonical_dir" || {
   echo "error: $canonical_dir not found in container '$ctr'." >&2
-  echo "       stage canonical CSVs at /var/lib/abies-$instance/data/canonical on the VM host." >&2
+  echo "       sync canonical CSVs to /var/lib/abies-$instance/data/canonical on the VM host." >&2
   exit 1
 }
 
