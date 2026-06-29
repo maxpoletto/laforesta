@@ -19,7 +19,7 @@ const staticModule = rel => pathToFileURL(path.join(staticRoot, rel)).href;
 const {
   availableMonths, characteristicSatelliteLayer, dateFromMonthValue, dateParam,
   diffColor, divergingDomain, evolutionMetricId, monthValue, normalizeDateParam,
-  pickDate, satelliteColor, satelliteDiffPngUrl, satelliteDiffValue, satelliteValue,
+  pickDate, satelliteColor, satelliteDiffValue, satelliteMaskRawUrl, satelliteRawUrl, satelliteValue,
 } = await import(staticModule('bosco/js/bosco-satellite.js'));
 
 let failed = 0;
@@ -79,9 +79,12 @@ assertEqual(satelliteValue(timeseries, 'Capistrano-2', 'ndvi', '2024-01-15'), nu
             'satelliteValue: null stays null');
 assertEqual(satelliteDiffValue(timeseries, 'Capistrano-1', 'ndvi', '2024-01-15', '2024-07-03'), 0.3,
             'satelliteDiffValue: v2 minus v1');
-assertEqual(satelliteDiffPngUrl(7, 'ndvi', '2024-01-15', '2024-07'),
-            '/api/bosco/satellite/7/diff/ndvi/2024-01-15/2024-07-01.png',
-            'satelliteDiffPngUrl: normalized endpoint');
+assertEqual(satelliteRawUrl(7, 'ndvi', '2024-07'),
+            '/api/bosco/satellite/7/raw/ndvi/2024-07-01.json',
+            'satelliteRawUrl: normalized endpoint');
+assertEqual(satelliteMaskRawUrl(7),
+            '/api/bosco/satellite/7/raw/parcel-mask.json',
+            'satelliteMaskRawUrl: normalized endpoint');
 assertEqual(satelliteDiffValue(timeseries, 'Capistrano-1', 'ndmi', '2024-01-15', '2024-07-03'), null,
             'satelliteDiffValue: missing endpoint');
 assertEqual(divergingDomain([null, -0.2, 0.1]), { min: -0.2, max: 0.1, maxAbs: 0.2 },

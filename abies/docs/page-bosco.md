@@ -238,7 +238,7 @@ clean map state.  Reopening uses the documented defaults.
 
 See "Query parameter details" below for the full list per mode.
 Cross-mode summary:
-- Caratteristiche (`m=1`): `q=` metric id, `fc=` cadastral flag, `fh=` per-hectare harvest flag.
+- Caratteristiche (`m=1`): `q=` metric id, `fa=` parcel-average satellite flag, `fc=` cadastral flag, `fh=` per-hectare harvest flag.
 - Evoluzione (`m=2`): `q=`, `d1=`/`d2=`, `fa=`, `fc=`, `fh=`.
 - PAI (`m=3`): `pp=` parcels list, `ps=` species list.
 
@@ -264,6 +264,7 @@ Cross-mode summary:
   metrics; same set as Boscoscopio).
 - `fc=1` — "aree catastali" checked.
 - `fh=1` — "valori per ettaro" checked for harvest metrics (Caratteristiche) or `q=4` Prelievo (Evoluzione).
+- `fa=1` — "media per particella" checked for satellite metrics. Unchecked satellite metrics render raster pixels; checked metrics render parcel averages from `timeseries.json`.
 
 #### Evoluzione (`m=2`)
 
@@ -274,7 +275,7 @@ Cross-mode summary:
   uses `YYYYMM01`.
 - `d1=YYYY`, `d2=YYYY` for `q=4` Prelievo — historical production years.
   The rendered value is `(d2 q.li) - (d1 q.li)` for each parcel.
-- `fa=1` — "media per particella" checked.
+- `fa=1` — "media per particella" checked for satellite metrics. Unchecked satellite metrics render raster pixels; checked metrics render parcel averages from `timeseries.json`.
 - `fc=1` — "aree catastali" checked.
 - `fh=1` — "valori per ettaro" checked when `q=4` Prelievo.
 
@@ -381,9 +382,11 @@ mode-switch.
   during `build_geo` with static parcel metadata such as
   `properties.coppice`.  Eager-loaded.  Updated only on geometry-data refresh
   (rare).
-- **Satellite data** — per-compresa `manifest.json`, `timeseries.json`, and
-  generated diff PNG overlays, served from `SATELLITE_DIR` via
+- **Satellite data** — per-compresa `manifest.json`, `timeseries.json`,
+  raw index rasters, and `parcel-mask.tif`, served from `SATELLITE_DIR` via
   `/api/bosco/satellite/<region_id>/...`.  Built from `terreni.geojson` with
-  `manage.py build_satellite`; Caratteristiche satellite metrics use the
-  precomputed per-parcel means in `timeseries.json`; Evoluzione uses GeoTIFF
-  raster overlays by default and the same per-parcel means when `fa=1`.
+  `manage.py build_satellite`; satellite metrics in both Caratteristiche and
+  Evoluzione render raster pixels by default and use the precomputed per-parcel
+  means in `timeseries.json` when `fa=1`. Raster-mode overlays and
+  tooltips are rendered in the browser from the same prefetched raw raster
+  values.

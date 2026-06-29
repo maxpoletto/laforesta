@@ -28,6 +28,8 @@ urlpatterns = [
          name='bosco-satellite-manifest'),
     path('satellite/<int:region_id>/timeseries/', views.satellite_timeseries,
          name='bosco-satellite-timeseries'),
-    path('satellite/<int:region_id>/diff/<str:layer>/<str:date1>/<str:date2>.png',
-         views.satellite_diff_png, name='bosco-satellite-diff-png'),
+    path('satellite/<int:region_id>/raw/parcel-mask.json',
+         views.satellite_mask_raw, name='bosco-satellite-mask-raw'),
+    path('satellite/<int:region_id>/raw/<str:layer>/<str:date>.json',
+         views.satellite_raw, name='bosco-satellite-raw'),
 ]

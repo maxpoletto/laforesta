@@ -116,7 +116,10 @@ state = readBoscoParams({ m: '2', q: '1', fh: '1' }, [7, 8]);
 assertEqual(state.harvestPerHa, false, 'readBoscoParams: per-ha ignored on satellite evolution');
 
 state = readBoscoParams({ m: '1', fa: '1' }, [7, 8]);
-assertEqual(state.parcelAverage, false, 'readBoscoParams: parcel-average ignored outside evolution');
+assertEqual(state.parcelAverage, false, 'readBoscoParams: parcel-average ignored on non-satellite characteristic');
+
+state = readBoscoParams({ m: '1', q: '6', fa: '1' }, [7, 8]);
+assertEqual(state.parcelAverage, true, 'readBoscoParams: characteristic satellite parcel-average flag');
 
 state = readBoscoParams({ c: '8', m: '2', q: '3', d1: '20240102', d2: '2024-07' }, [7, 8]);
 assertEqual(state.mode, '2', 'readBoscoParams: evolution mode');

@@ -6,8 +6,7 @@ import {
 } from './bosco-metrics.js';
 
 export const DEFAULT_EVOLUTION_METRIC = E_NDVI;
-// Mirror apps/bosco/views.py SATELLITE_DIFF_VALUE_HEADER / SATELLITE_BYTE_MIDPOINT.
-export const SATELLITE_DIFF_VALUE_HEADER = 'X-Bosco-Max-Abs';
+// Satellite rasters are stored as uint8 values with 127.5 as zero.
 export const BYTE_MIDPOINT = 127.5;
 
 export const CHARACTERISTIC_SATELLITE_LAYERS = Object.fromEntries(
@@ -37,7 +36,6 @@ const INDEX_RAMP = [
   [255, [0, 100, 0]],
 ];
 
-// Mirror apps/bosco/views.py SATELLITE_DIFF_RAMP.
 const DIFF_RAMP = [
   [0,   [180, 30, 30]],
   [128, [255, 255, 255]],
@@ -139,12 +137,16 @@ export function satelliteDiffValue(timeseries, parcelKey, layer, date1, date2) {
   return v1 == null || v2 == null ? null : v2 - v1;
 }
 
-export function satelliteDiffPngUrl(regionId, layer, date1, date2) {
-  const d1 = normalizeDateParam(date1);
-  const d2 = normalizeDateParam(date2);
-  if (!regionId || !layer || !d1 || !d2) return '';
-  return `/api/bosco/satellite/${encodeURIComponent(regionId)}/diff/`
-    + `${encodeURIComponent(layer)}/${encodeURIComponent(d1)}/${encodeURIComponent(d2)}.png`;
+export function satelliteMaskRawUrl(regionId) {
+  if (!regionId) return '';
+  return `/api/bosco/satellite/${encodeURIComponent(regionId)}/raw/parcel-mask.json`;
+}
+
+export function satelliteRawUrl(regionId, layer, date) {
+  const d = normalizeDateParam(date);
+  if (!regionId || !layer || !d) return '';
+  return `/api/bosco/satellite/${encodeURIComponent(regionId)}/raw/`
+    + `${encodeURIComponent(layer)}/${encodeURIComponent(d)}.json`;
 }
 
 export function divergingDomain(values) {
@@ -157,15 +159,23 @@ export function divergingDomain(values) {
   };
 }
 
-export function satelliteColor(value) {
+export function satelliteRgb(value) {
   const v = Math.max(-1, Math.min(1, finite(value) ?? 0));
-  return rgbString(colormapLookup(INDEX_RAMP, Math.round((v + 1) * BYTE_MIDPOINT)));
+  return colormapLookup(INDEX_RAMP, Math.round((v + 1) * BYTE_MIDPOINT));
+}
+
+export function satelliteColor(value) {
+  return rgbString(satelliteRgb(value));
+}
+
+export function diffRgb(value, maxAbs) {
+  const max = Number.isFinite(maxAbs) && maxAbs > 0 ? maxAbs : 1;
+  const clamped = Math.max(-max, Math.min(max, finite(value) ?? 0));
+  return colormapLookup(DIFF_RAMP, Math.round(((clamped / max) + 1) * BYTE_MIDPOINT));
 }
 
 export function diffColor(value, maxAbs) {
-  const max = Number.isFinite(maxAbs) && maxAbs > 0 ? maxAbs : 1;
-  const clamped = Math.max(-max, Math.min(max, finite(value) ?? 0));
-  return rgbString(colormapLookup(DIFF_RAMP, Math.round(((clamped / max) + 1) * BYTE_MIDPOINT)));
+  return rgbString(diffRgb(value, maxAbs));
 }
 
 export function colormapLookup(ramp, value) {

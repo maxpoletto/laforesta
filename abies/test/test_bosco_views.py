@@ -1,12 +1,11 @@
 """Tests for Bosco API views."""
 
-import io
+import base64
 
 import numpy as np
 import pytest
 import rasterio
 from django.test import Client
-from PIL import Image
 from rasterio.transform import from_origin
 
 from apps.base.digests import (
@@ -381,33 +380,46 @@ def test_satellite_timeseries_reader_access(reader_client, regions, tmp_path, se
     assert '"means"' in _stream_text(resp)
 
 
-def test_satellite_diff_png_reader_access(reader_client, regions, tmp_path, settings):
+def test_satellite_raw_reader_access(reader_client, regions, tmp_path, settings):
     region_dir = tmp_path / regions[0].name
-    _write_test_tif(region_dir / '2026-01-01' / 'ndvi.tif', [[100, 100], [100, 100]])
     _write_test_tif(region_dir / '2026-07-01' / 'ndvi.tif', [[100, 150], [80, 100]])
-    _write_test_tif(region_dir / 'parcel-mask.tif', [[1, 1], [0, 1]])
     settings.SATELLITE_DIR = tmp_path
 
     resp = reader_client.get(
-        f'/api/bosco/satellite/{regions[0].id}/diff/ndvi/2026-01-01/2026-07-01.png',
+        f'/api/bosco/satellite/{regions[0].id}/raw/ndvi/2026-07-01.json',
     )
 
     assert resp.status_code == 200
-    assert resp['Content-Type'] == 'image/png'
     assert resp['Cache-Control'] == 'no-cache'
-    assert float(resp['X-Bosco-Max-Abs']) > 0
-    image = Image.open(io.BytesIO(resp.content))
-    assert image.mode == 'RGBA'
-    assert image.size == (2, 2)
-    assert image.getpixel((0, 0))[3] == 210
-    assert image.getpixel((0, 1))[3] == 60
+    payload = resp.json()
+    assert payload['width'] == 2
+    assert payload['height'] == 2
+    assert payload['bbox'] == [[8.0, 10.0], [10.0, 12.0]]
+    assert base64.b64decode(payload['data']) == bytes([100, 150, 80, 100])
+
+
+def test_satellite_mask_raw_reader_access(reader_client, regions, tmp_path, settings):
+    region_dir = tmp_path / regions[0].name
+    _write_test_tif(region_dir / 'parcel-mask.tif', [[1, 0], [1, 1]])
+    settings.SATELLITE_DIR = tmp_path
+
+    resp = reader_client.get(
+        f'/api/bosco/satellite/{regions[0].id}/raw/parcel-mask.json',
+    )
+
+    assert resp.status_code == 200
+    assert resp['Cache-Control'] == 'no-cache'
+    payload = resp.json()
+    assert payload['width'] == 2
+    assert payload['height'] == 2
+    assert base64.b64decode(payload['data']) == bytes([1, 0, 1, 1])
 
 
 @pytest.mark.parametrize('url', [
-    '/api/bosco/satellite/{id}/diff/bad/2026-01-01/2026-07-01.png',
-    '/api/bosco/satellite/{id}/diff/ndvi/20260101/2026-07-01.png',
+    '/api/bosco/satellite/{id}/raw/bad/2026-07-01.json',
+    '/api/bosco/satellite/{id}/raw/ndvi/20260701.json',
 ])
-def test_satellite_diff_png_rejects_invalid_segments(reader_client, regions, tmp_path, settings, url):
+def test_satellite_raster_endpoints_reject_invalid_segments(reader_client, regions, tmp_path, settings, url):
     settings.SATELLITE_DIR = tmp_path
 
     resp = reader_client.get(url.format(id=regions[0].id))
@@ -442,7 +454,8 @@ def test_satellite_unknown_region_404(reader_client, tmp_path, settings):
 @pytest.mark.parametrize('path_suffix', [
     'manifest/',
     'timeseries/',
-    'diff/ndvi/2026-01-01/2026-07-01.png',
+    'raw/parcel-mask.json',
+    'raw/ndvi/2026-07-01.json',
 ])
 def test_satellite_endpoints_require_login(client, regions, path_suffix):
     resp = client.get(f'/api/bosco/satellite/{regions[0].id}/{path_suffix}')

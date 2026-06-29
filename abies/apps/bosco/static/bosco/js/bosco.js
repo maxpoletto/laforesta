@@ -32,7 +32,7 @@ import {
 } from '../../base/js/ui-widgets.js';
 import {
   BOSCO_MODES, MODE_CHARACTERISTICS, MODE_EVOLUTION, MODE_PAI, clearDetailParams,
-  clearMapView, harvestPerHaAllowed, mapTypeToken, readBoscoParams,
+  clearMapView, harvestPerHaAllowed, mapTypeToken, parcelAverageAllowed, readBoscoParams,
   writeMapView, writeOptionalIdList, writeSectionTokens,
 } from './bosco-state.js';
 import {
@@ -52,10 +52,10 @@ import {
   perHaArea,
 } from './bosco-characteristics.js';
 import {
-  EVOLUTION_METRIC_IDS, EVOLUTION_METRICS, SATELLITE_DIFF_VALUE_HEADER, SATELLITE_LAYERS,
+  BYTE_MIDPOINT, EVOLUTION_METRIC_IDS, EVOLUTION_METRICS, SATELLITE_LAYERS,
   availableMonths, characteristicSatelliteLayer, dateFromMonthValue, dateParam,
-  diffColor, divergingDomain, interpolateRgb, monthValue, pickDate, rgbString, satelliteColor,
-  satelliteDiffPngUrl, satelliteDiffValue, satelliteValue,
+  diffColor, diffRgb, divergingDomain, interpolateRgb, monthValue, pickDate, rgbString,
+  satelliteColor, satelliteDiffValue, satelliteMaskRawUrl, satelliteRawUrl, satelliteRgb, satelliteValue,
 } from './bosco-satellite.js';
 import {
   aggregateDendrometry, dendrometryBarChartData, dendrometryHeightPoints,
@@ -102,7 +102,9 @@ const VALID_MAP_TYPES = ['o', 't', 's'];
 const VALID_CHARACTERISTICS = CHARACTERISTIC_METRIC_IDS;
 const VALID_EVOLUTION_METRICS = EVOLUTION_METRIC_IDS;
 const DETAIL_SECTIONS = ['m', 'd', 'p'];
-const EVOLUTION_OVERLAY_OPACITY = 0.85;
+const SATELLITE_OVERLAY_OPACITY = 0.85;
+const SATELLITE_INSIDE_ALPHA = 210;
+const SATELLITE_OUTSIDE_ALPHA = 60;
 const TYPE_HIGHFOREST_KEY = 'highforest';
 const TYPE_COPPICE_KEY = 'coppice';
 
@@ -141,6 +143,8 @@ let characteristicSelect = null;
 let cadastralToggle = null;
 let perHaToggle = null;
 let perHaRow = null;
+let characteristicParcelAverageToggle = null;
+let characteristicParcelAverageRow = null;
 let evolutionSelect = null;
 let date1Input = null;
 let date2Input = null;
@@ -191,7 +195,9 @@ let preservedData = null;
 let satelliteData = null;
 let satelliteRegionId = null;
 let satelliteLoad = null;
-let evolutionOverlay = null;
+let satelliteRasterOverlay = null;
+let rasterTooltipContext = null;
+let rawRasterCache = new Map();
 let paiMarkerLayer = null;
 let parcelsGeo = null;
 let map = null;
@@ -279,6 +285,8 @@ function mountPage(el, params) {
   cadastralToggle = el.querySelector('[data-role="cadastral-toggle"]');
   perHaToggle = el.querySelector('[data-role="per-ha-toggle"]');
   perHaRow = el.querySelector('[data-role="per-ha-row"]');
+  characteristicParcelAverageToggle = el.querySelector('[data-role="characteristic-parcel-average-toggle"]');
+  characteristicParcelAverageRow = el.querySelector('[data-role="characteristic-parcel-average-row"]');
   evolutionSelect = el.querySelector('[data-role="evolution-select"]');
   date1Input = el.querySelector('[data-role="date1"]');
   date2Input = el.querySelector('[data-role="date2"]');
@@ -331,6 +339,7 @@ function destroyPage() {
   document.removeEventListener('keydown', onDetailKeyDown);
   root = mapHost = regionSelect = modeGroup = statusEl = null;
   characteristicSelect = cadastralToggle = perHaToggle = perHaRow = null;
+  characteristicParcelAverageToggle = characteristicParcelAverageRow = null;
   evolutionSelect = date1Input = date2Input = parcelAverageToggle = null;
   parcelAverageRow = evolutionPerHaToggle = evolutionPerHaRow = null;
   evolutionCadastralToggle = diffLegendEl = legendEl = null;
@@ -352,7 +361,8 @@ function destroyPage() {
   speciesNames = [];
   dendrometryPointsData = preservedData = parcelsGeo = null;
   satelliteData = satelliteRegionId = satelliteLoad = null;
-  evolutionOverlay = paiMarkerLayer = null;
+  satelliteRasterOverlay = rasterTooltipContext = paiMarkerLayer = null;
+  rawRasterCache = new Map();
   regions = [];
   regionById = new Map();
   currentState = null;
@@ -451,6 +461,7 @@ function wireControls() {
     const params = new URLSearchParams(location.search);
     params.set('q', characteristicSelect.value);
     if (!isHarvestMetric(characteristicSelect.value)) params.delete('fh');
+    if (!characteristicSatelliteLayer(characteristicSelect.value)) params.delete('fa');
     navigateWithParams(PAGE_PATH, params, true);
   });
 
@@ -463,6 +474,12 @@ function wireControls() {
   perHaToggle?.addEventListener('change', () => {
     const params = new URLSearchParams(location.search);
     setFlagParam(params, 'fh', perHaToggle.checked);
+    navigateWithParams(PAGE_PATH, params, true);
+  });
+
+  characteristicParcelAverageToggle?.addEventListener('change', () => {
+    const params = new URLSearchParams(location.search);
+    setFlagParam(params, 'fa', characteristicParcelAverageToggle.checked);
     navigateWithParams(PAGE_PATH, params, true);
   });
 
@@ -576,10 +593,7 @@ function applyParams(params) {
     refreshCharacteristicLayer();
   }
   if (state.mode === MODE_EVOLUTION) renderEvolutionMode();
-  else {
-    clearEvolutionOverlay();
-    clearEvolutionLegend();
-  }
+  else clearEvolutionLegend();
   syncDetailOverlay(state);
   if (state.mode === MODE_PAI) renderPaiMode();
   else clearPaiMarkers();
@@ -597,10 +611,16 @@ function updateCharacteristicControls(state) {
   if (characteristicSelect) characteristicSelect.value = state.q;
   if (cadastralToggle) cadastralToggle.checked = state.useCadastralArea;
   const harvest = isHarvestMetric(state.q);
+  const satellite = Boolean(characteristicSatelliteLayer(state.q));
   setControlVisible(perHaRow, harvest);
   if (perHaToggle) {
     perHaToggle.checked = harvest && state.harvestPerHa;
     perHaToggle.disabled = !harvest;
+  }
+  setControlVisible(characteristicParcelAverageRow, satellite);
+  if (characteristicParcelAverageToggle) {
+    characteristicParcelAverageToggle.checked = satellite && state.parcelAverage;
+    characteristicParcelAverageToggle.disabled = !satellite;
   }
 }
 
@@ -730,6 +750,8 @@ function buildMapParcelEntries(state) {
     if (!entry) return;
     entry.layers.push(layer);
     entry.geoAreaHa += (layer.feature?.properties?._areaM2 || 0) / M2_PER_HA;
+    layer.on('mousemove', e => onRasterTooltipMove(entry, layer, e.latlng));
+    layer.on('mouseout', () => onRasterTooltipOut(entry, layer));
   });
 
   mapEntries = entries;
@@ -753,7 +775,7 @@ function displayAreaHa(entry, state) {
 
 function destroyMap() {
   if (map) {
-    clearEvolutionOverlay();
+    clearSatelliteRasterOverlay();
     clearPaiMarkers();
     map.destroy();
     map = null;
@@ -780,6 +802,7 @@ function refreshCharacteristicLayer() {
   const seq = ++characteristicRenderSeq;
   if (!map || !currentState) return;
   if (currentState.mode !== MODE_CHARACTERISTICS) {
+    clearSatelliteRasterOverlay();
     resetParcelStyles();
     clearLegend();
     return;
@@ -802,6 +825,7 @@ function refreshCharacteristicLayer() {
     return;
   }
 
+  clearSatelliteRasterOverlay();
   const context = characteristicContext(currentState.q);
   const entries = mapEntries;
   if (currentState.q === Q_TYPE) {
@@ -838,6 +862,7 @@ function renderSatelliteCharacteristic(seq) {
   const layer = characteristicSatelliteLayer(currentState?.q);
   if (!layer || !map || !currentState) return;
   if (!satelliteReady(currentState.regionId)) {
+    clearSatelliteRasterOverlay();
     resetParcelStyles();
     renderMessageLegend(S.BOSCO_LOADING_SATELLITE);
     loadSatellite(currentState.regionId).then(() => {
@@ -850,11 +875,18 @@ function renderSatelliteCharacteristic(seq) {
 
   const date = pickDate(satelliteData.timeseries?.dates, null, 'latest');
   if (!date) {
+    clearSatelliteRasterOverlay();
     resetParcelStyles();
     renderMessageLegend(S.BOSCO_SATELLITE_UNAVAILABLE);
     return;
   }
 
+  if (!currentState.parcelAverage) {
+    renderCharacteristicRaster(seq, layer, date);
+    return;
+  }
+
+  clearSatelliteRasterOverlay();
   const entries = mapEntries;
   const values = entries.map(entry => satelliteValue(satelliteData.timeseries, entry.key, layer, date));
   if (!continuousDomain(values)) {
@@ -870,6 +902,30 @@ function renderSatelliteCharacteristic(seq) {
   renderSatelliteLegend(legendEl, layer, date);
 }
 
+function renderCharacteristicRaster(seq, layer, date) {
+  clearSatelliteRasterOverlay();
+  resetParcelStyles();
+  renderMessageLegend(legendEl, S.BOSCO_LOADING_RASTER);
+  const rawUrl = satelliteRawUrl(currentState.regionId, layer, date);
+  const maskUrl = satelliteMaskRawUrl(currentState.regionId);
+  Promise.all([loadRawRaster(rawUrl), loadRawRaster(maskUrl)]).then(([raster, mask]) => {
+    if (seq !== characteristicRenderSeq || currentState?.mode !== MODE_CHARACTERISTICS || currentState?.parcelAverage) return;
+    clearSatelliteRasterOverlay();
+    satelliteRasterOverlay = L.imageOverlay(renderSatelliteValueOverlay(raster, mask), raster.bbox, {
+      opacity: SATELLITE_OVERLAY_OPACITY,
+    }).addTo(map.leaflet);
+    map.parcelLayer.bringToFront();
+    setRasterTooltipContext({
+      sampleValue: latlng => rawRasterValue(raster, latlng),
+      displayFn: v => metricTooltipDisplay(currentState.q, v),
+    });
+    renderSatelliteLegend(legendEl, layer, date);
+    setStatus(`${SATELLITE_LAYERS[layer]?.label || layer.toUpperCase()} ${date.slice(0, 7)}`);
+  }).catch(() => {
+    if (seq === characteristicRenderSeq) renderMessageLegend(legendEl, S.BOSCO_RASTER_UNAVAILABLE);
+  });
+}
+
 function renderEvolutionMode() {
   const seq = ++evolutionRenderSeq;
   if (!map || currentState?.mode !== MODE_EVOLUTION) return;
@@ -882,6 +938,7 @@ function renderEvolutionMode() {
   }
 
   if (!satelliteReady(currentState.regionId)) {
+    clearSatelliteRasterOverlay();
     resetParcelStyles();
     renderLegendMessage(diffLegendEl, S.BOSCO_LOADING_SATELLITE);
     loadSatellite(currentState.regionId).then(() => {
@@ -897,6 +954,7 @@ function renderEvolutionMode() {
   const date2 = pickDate(dates, currentState.evolutionDate2, 'latest');
   updateEvolutionDateControls(date1, date2, dates);
   if (!date1 || !date2) {
+    clearSatelliteRasterOverlay();
     resetParcelStyles();
     renderLegendMessage(diffLegendEl, S.BOSCO_SATELLITE_UNAVAILABLE);
     return;
@@ -911,7 +969,7 @@ function renderEvolutionMode() {
 }
 
 function renderEvolutionHarvest(seq) {
-  clearEvolutionOverlay();
+  clearSatelliteRasterOverlay();
   if (!prelieviData) {
     resetParcelStyles();
     renderLegendMessage(diffLegendEl, S.BOSCO_LOADING_HARVESTS);
@@ -975,7 +1033,7 @@ function signedHarvestDeltaDisplay(value) {
 }
 
 function renderEvolutionParcelAverages(metric, date1, date2) {
-  clearEvolutionOverlay();
+  clearSatelliteRasterOverlay();
   const values = mapEntries.map(entry => (
     satelliteDiffValue(satelliteData.timeseries, entry.key, metric.layer, date1, date2)
   ));
@@ -999,17 +1057,27 @@ function renderEvolutionParcelAverages(metric, date1, date2) {
 }
 
 function renderEvolutionRaster(seq, metric, date1, date2) {
-  clearEvolutionOverlay();
+  clearSatelliteRasterOverlay();
   resetParcelStyles();
   renderLegendMessage(diffLegendEl, S.BOSCO_LOADING_RASTER);
-  const url = satelliteDiffPngUrl(currentState.regionId, metric.layer, date1, date2);
-  fetchImageDataURL(url).then(({ dataURL, maxAbs }) => {
+  const rawUrl1 = satelliteRawUrl(currentState.regionId, metric.layer, date1);
+  const rawUrl2 = satelliteRawUrl(currentState.regionId, metric.layer, date2);
+  const maskUrl = satelliteMaskRawUrl(currentState.regionId);
+  Promise.all([
+    loadRawRaster(rawUrl1), loadRawRaster(rawUrl2), loadRawRaster(maskUrl),
+  ]).then(([raster1, raster2, mask]) => {
     if (seq !== evolutionRenderSeq || currentState?.mode !== MODE_EVOLUTION || currentState?.parcelAverage) return;
-    clearEvolutionOverlay();
-    evolutionOverlay = L.imageOverlay(dataURL, satelliteData.manifest.bbox, {
-      opacity: EVOLUTION_OVERLAY_OPACITY,
+    const maxAbs = rawRasterDiffMaxAbs(raster1, raster2, mask);
+    clearSatelliteRasterOverlay();
+    const overlayUrl = renderSatelliteDiffOverlay(raster1, raster2, mask, maxAbs);
+    satelliteRasterOverlay = L.imageOverlay(overlayUrl, raster1.bbox, {
+      opacity: SATELLITE_OVERLAY_OPACITY,
     }).addTo(map.leaflet);
     map.parcelLayer.bringToFront();
+    setRasterTooltipContext({
+      sampleValue: latlng => rawRasterDiffValue(raster1, raster2, latlng),
+      displayFn: v => evolutionMetricDisplay(metric, v),
+    });
     renderDiffLegend(metric, date1, date2, { maxAbs });
     setStatus(`${evolutionMetricLabel(metric)} ${date2.slice(0, 7)} - ${date1.slice(0, 7)}`);
   }).catch(() => {
@@ -1017,30 +1085,154 @@ function renderEvolutionRaster(seq, metric, date1, date2) {
   });
 }
 
-async function fetchImageDataURL(url) {
-  if (!url) throw new Error('Missing image URL');
-  const resp = await fetch(url);
-  if (!resp.ok) throw new Error(`GET ${url} failed: ${resp.status}`);
-  const maxAbs = Number(resp.headers.get(SATELLITE_DIFF_VALUE_HEADER)) || 1;
-  return { dataURL: await blobToDataURL(await resp.blob()), maxAbs };
-}
-
-function blobToDataURL(blob) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(blob);
+function renderSatelliteValueOverlay(raster, mask) {
+  assertRasterCompatible(raster, mask);
+  return rasterDataUrl(raster, (idx) => {
+    const rgb = satelliteRgb(rawByteValue(raster.values[idx]));
+    return [rgb[0], rgb[1], rgb[2], maskAlpha(mask, idx)];
   });
 }
 
-function clearEvolutionOverlay() {
-  if (!evolutionOverlay || !map?.leaflet) {
-    evolutionOverlay = null;
+function renderSatelliteDiffOverlay(raster1, raster2, mask, maxAbs) {
+  assertRasterCompatible(raster1, raster2, mask);
+  return rasterDataUrl(raster1, (idx) => {
+    const value = rawByteDiffValue(raster1.values[idx], raster2.values[idx]);
+    const rgb = diffRgb(value, maxAbs);
+    return [rgb[0], rgb[1], rgb[2], maskAlpha(mask, idx)];
+  });
+}
+
+function rasterDataUrl(raster, pixelFn) {
+  if (!validRaster(raster)) throw new Error('Invalid raster');
+  const canvas = document.createElement('canvas');
+  canvas.width = raster.width;
+  canvas.height = raster.height;
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('Canvas rendering unavailable');
+  const imageData = context.createImageData(raster.width, raster.height);
+  for (let idx = 0; idx < raster.values.length; idx++) {
+    const offset = idx * 4;
+    const rgba = pixelFn(idx);
+    imageData.data[offset] = rgba[0];
+    imageData.data[offset + 1] = rgba[1];
+    imageData.data[offset + 2] = rgba[2];
+    imageData.data[offset + 3] = rgba[3];
+  }
+  context.putImageData(imageData, 0, 0);
+  return canvas.toDataURL('image/png');
+}
+
+function rawRasterDiffMaxAbs(raster1, raster2, mask) {
+  assertRasterCompatible(raster1, raster2, mask);
+  let maxAbs = 0;
+  for (let idx = 0; idx < raster1.values.length; idx++) {
+    if (mask?.values && mask.values[idx] <= 0) continue;
+    const value = Math.abs(rawByteDiffValue(raster1.values[idx], raster2.values[idx]));
+    maxAbs = Math.max(maxAbs, value);
+  }
+  return maxAbs || 1;
+}
+
+function assertRasterCompatible(base, ...rasters) {
+  if (!validRaster(base)) throw new Error('Invalid raster');
+  for (const raster of rasters) {
+    if (!raster) continue;
+    if (!validRaster(raster) || raster.width !== base.width || raster.height !== base.height) {
+      throw new Error('Mismatched raster dimensions');
+    }
+  }
+}
+
+function validRaster(raster) {
+  return Boolean(
+    raster?.values
+      && raster.width > 0
+      && raster.height > 0
+      && raster.values.length === raster.width * raster.height,
+  );
+}
+
+function maskAlpha(mask, idx) {
+  return !mask?.values || mask.values[idx] > 0 ? SATELLITE_INSIDE_ALPHA : SATELLITE_OUTSIDE_ALPHA;
+}
+
+function clearSatelliteRasterOverlay() {
+  setRasterTooltipContext(null);
+  if (!satelliteRasterOverlay || !map?.leaflet) {
+    satelliteRasterOverlay = null;
     return;
   }
-  map.leaflet.removeLayer(evolutionOverlay);
-  evolutionOverlay = null;
+  map.leaflet.removeLayer(satelliteRasterOverlay);
+  satelliteRasterOverlay = null;
+}
+
+function setRasterTooltipContext(context) {
+  rasterTooltipContext = context;
+}
+
+function onRasterTooltipMove(entry, layer, latlng) {
+  const context = rasterTooltipContext;
+  if (!context || !latlng) return;
+  setLayerTooltip(layer, buildTooltip(entry, context.sampleValue(latlng), context.displayFn));
+}
+
+function onRasterTooltipOut(entry, layer) {
+  if (!rasterTooltipContext) return;
+  setLayerTooltip(layer, buildTooltip(entry));
+}
+
+function loadRawRaster(url) {
+  if (!url) return Promise.reject(new Error('Missing raw raster URL'));
+  if (!rawRasterCache.has(url)) {
+    rawRasterCache.set(url, fetchJSON(url).then(result => decodeRawRaster(result.data)));
+  }
+  return rawRasterCache.get(url);
+}
+
+function decodeRawRaster(data) {
+  const bytes = decodeBase64Bytes(data.data || '');
+  return {
+    width: Number(data.width) || 0,
+    height: Number(data.height) || 0,
+    bbox: data.bbox,
+    values: bytes,
+  };
+}
+
+function decodeBase64Bytes(encoded) {
+  const binary = atob(encoded);
+  const out = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
+  return out;
+}
+
+function rawRasterValue(raster, latlng) {
+  const raw = rawRasterByte(raster, latlng);
+  return raw == null ? null : rawByteValue(raw);
+}
+
+function rawRasterDiffValue(raster1, raster2, latlng) {
+  const raw1 = rawRasterByte(raster1, latlng);
+  const raw2 = rawRasterByte(raster2, latlng);
+  return raw1 == null || raw2 == null ? null : rawByteDiffValue(raw1, raw2);
+}
+
+function rawByteValue(raw) {
+  return raw / BYTE_MIDPOINT - 1;
+}
+
+function rawByteDiffValue(raw1, raw2) {
+  return (raw2 - raw1) / BYTE_MIDPOINT;
+}
+
+function rawRasterByte(raster, latlng) {
+  if (!raster?.values || !Array.isArray(raster.bbox) || raster.width <= 0 || raster.height <= 0) return null;
+  const [[south, west], [north, east]] = raster.bbox;
+  if (latlng.lat < south || latlng.lat > north || latlng.lng < west || latlng.lng > east) return null;
+  const col = Math.min(raster.width - 1, Math.max(0, Math.floor(((latlng.lng - west) / (east - west)) * raster.width)));
+  const row = Math.min(raster.height - 1, Math.max(0, Math.floor(((north - latlng.lat) / (north - south)) * raster.height)));
+  const idx = row * raster.width + col;
+  return idx >= 0 && idx < raster.values.length ? raster.values[idx] : null;
 }
 
 function clearEvolutionLegend() {
@@ -2054,6 +2246,9 @@ function canonicalizeURL(state) {
   changed = canonicalizeFlag(params, 'fh', state.harvestPerHa && harvestPerHaAllowed(
     state.mode, state.q, state.evolutionMetric,
   )) || changed;
+  changed = canonicalizeFlag(params, 'fa', state.parcelAverage && parcelAverageAllowed(
+    state.mode, state.q, state.evolutionMetric,
+  )) || changed;
   changed = canonicalizeEvolutionParams(params, state) || changed;
   changed = canonicalizeDetailParams(params, state) || changed;
   changed = canonicalizePaiParams(params, state) || changed;
@@ -2066,15 +2261,12 @@ function setStatus(text) {
 
 function canonicalizeEvolutionParams(params, state) {
   if (state.mode !== MODE_EVOLUTION) {
-    if (!params.has('d1') && !params.has('d2') && !params.has('fa')) return false;
+    if (!params.has('d1') && !params.has('d2')) return false;
     params.delete('d1');
     params.delete('d2');
-    params.delete('fa');
     return true;
   }
-  return canonicalizeFlag(
-    params, 'fa', state.parcelAverage && Boolean(EVOLUTION_METRICS[state.evolutionMetric]?.satellite),
-  );
+  return false;
 }
 
 function canonicalizePaiParams(params, state) {

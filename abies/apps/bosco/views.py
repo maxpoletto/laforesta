@@ -1,20 +1,19 @@
 """Bosco API views."""
 
-import io
+import base64
 import os
 import re
 from datetime import date as date_type
 from pathlib import Path
 
 import numpy as np
-from PIL import Image
 import rasterio
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.db.models import Max
-from django.http import Http404, HttpResponse, JsonResponse
+from django.http import Http404, JsonResponse
 from django.template.loader import render_to_string
 from django.utils.http import http_date
 from django.views.decorators.http import require_POST
@@ -45,18 +44,6 @@ from config.constants import (
 ALLOWED_SATELLITE_JSON = {'manifest.json', 'timeseries.json'}
 ALLOWED_SATELLITE_LAYERS = {'ndvi', 'ndmi', 'evi'}
 SATELLITE_DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
-# Mirror apps/bosco/static/bosco/js/bosco-satellite.js SATELLITE_DIFF_VALUE_HEADER / BYTE_MIDPOINT.
-SATELLITE_DIFF_VALUE_HEADER = 'X-Bosco-Max-Abs'
-SATELLITE_BYTE_MIDPOINT = 127.5
-# Mirror apps/bosco/static/bosco/js/bosco-satellite.js DIFF_RAMP.
-SATELLITE_DIFF_RAMP = (
-    (0, np.array([180, 30, 30], dtype=np.float32)),
-    (128, np.array([255, 255, 255], dtype=np.float32)),
-    (255, np.array([30, 130, 30], dtype=np.float32)),
-)
-SATELLITE_INSIDE_ALPHA = 210
-SATELLITE_OUTSIDE_ALPHA = 60
-
 FIELD_AREA_HA = 'area_ha'
 FIELD_AVE_AGE = 'ave_age'
 FIELD_LOCATION_NAME = 'location_name'
@@ -278,27 +265,20 @@ def satellite_timeseries(request, region_id):
 
 
 @login_required
-def satellite_diff_png(request, region_id, layer, date1, date2):
+def satellite_raw(request, region_id, layer, date):
     if layer not in ALLOWED_SATELLITE_LAYERS:
         raise Http404
-    if not SATELLITE_DATE_RE.fullmatch(date1) or not SATELLITE_DATE_RE.fullmatch(date2):
+    if not SATELLITE_DATE_RE.fullmatch(date):
         raise Http404
 
-    path1 = _satellite_file_path(region_id, date1, f'{layer}.tif')
-    path2 = _satellite_file_path(region_id, date2, f'{layer}.tif')
-    mask_path = _satellite_file_path(region_id, 'parcel-mask.tif', required=False)
-    paths = [path1, path2, *([mask_path] if mask_path else [])]
-    mtime = max(os.path.getmtime(path) for path in paths)
-    not_modified = not_modified_response(request, mtime, cache_control=CACHE_NO_CACHE)
-    if not_modified is not None:
-        return not_modified
+    path = _satellite_file_path(region_id, date, f'{layer}.tif')
+    return _satellite_raw_response(request, path)
 
-    png, max_abs = _render_satellite_diff_png(path1, path2, mask_path)
-    response = HttpResponse(png, content_type='image/png')
-    response['Last-Modified'] = http_date(mtime)
-    response[SATELLITE_DIFF_VALUE_HEADER] = f'{max_abs / SATELLITE_BYTE_MIDPOINT:.6g}'
-    apply_cache_control(response, CACHE_NO_CACHE)
-    return response
+
+@login_required
+def satellite_mask_raw(request, region_id):
+    path = _satellite_file_path(region_id, 'parcel-mask.tif')
+    return _satellite_raw_response(request, path)
 
 
 def _render_parcel_metadata_form(request, parcel_id: int, values: dict | None = None):
@@ -568,56 +548,27 @@ def _satellite_region_dir(region_id):
     return path
 
 
-def _render_satellite_diff_png(path1, path2, mask_path):
-    raster1 = _read_raster(path1).astype(np.float32)
-    raster2 = _read_raster(path2).astype(np.float32)
-    if raster1.shape != raster2.shape:
-        raise Http404
+def _satellite_raw_response(request, path):
+    mtime = os.path.getmtime(path)
+    not_modified = not_modified_response(request, mtime, cache_control=CACHE_NO_CACHE)
+    if not_modified is not None:
+        return not_modified
 
-    mask = None
-    if mask_path is not None:
-        mask = _read_raster(mask_path) > 0
-        if mask.shape != raster1.shape:
-            raise Http404
-
-    diff = raster2 - raster1
-    finite = np.isfinite(diff)
-    range_mask = finite & mask if mask is not None else finite
-    if np.any(range_mask):
-        selected = diff[range_mask]
-        max_abs = float(max(abs(np.min(selected)), abs(np.max(selected)))) or 1.0
-    else:
-        max_abs = 1.0
-
-    positions = np.clip(np.rint(((np.nan_to_num(diff) / max_abs) + 1) * SATELLITE_BYTE_MIDPOINT), 0, 255)
-    rgb = _diff_ramp_rgb(positions)
-    alpha = np.full(diff.shape, SATELLITE_INSIDE_ALPHA, dtype=np.uint8)
-    if mask is not None:
-        alpha[:] = SATELLITE_OUTSIDE_ALPHA
-        alpha[mask] = SATELLITE_INSIDE_ALPHA
-    alpha[~finite] = 0
-    rgba = np.dstack([rgb, alpha]).astype(np.uint8)
-
-    out = io.BytesIO()
-    Image.fromarray(rgba).save(out, format='PNG', optimize=True)
-    return out.getvalue(), max_abs
+    payload = _satellite_raw_payload(path)
+    response = JsonResponse(payload)
+    response['Last-Modified'] = http_date(mtime)
+    apply_cache_control(response, CACHE_NO_CACHE)
+    return response
 
 
-def _read_raster(path):
+def _satellite_raw_payload(path):
     with rasterio.open(path) as src:
-        return src.read(1)
-
-
-def _diff_ramp_rgb(positions):
-    values = positions.astype(np.float32)
-    rgb = np.empty((*positions.shape, 3), dtype=np.float32)
-    low_pos, low_rgb = SATELLITE_DIFF_RAMP[0]
-    mid_pos, mid_rgb = SATELLITE_DIFF_RAMP[1]
-    high_pos, high_rgb = SATELLITE_DIFF_RAMP[2]
-
-    lower = values <= mid_pos
-    lower_t = ((values[lower] - low_pos) / (mid_pos - low_pos))[:, None]
-    upper_t = ((values[~lower] - mid_pos) / (high_pos - mid_pos))[:, None]
-    rgb[lower] = low_rgb + (mid_rgb - low_rgb) * lower_t
-    rgb[~lower] = mid_rgb + (high_rgb - mid_rgb) * upper_t
-    return np.rint(rgb).astype(np.uint8)
+        data = np.ascontiguousarray(src.read(1).astype(np.uint8, copy=False))
+        bounds = src.bounds
+        payload = {
+            'width': src.width,
+            'height': src.height,
+            'bbox': [[bounds.bottom, bounds.left], [bounds.top, bounds.right]],
+            'data': base64.b64encode(data.tobytes()).decode('ascii'),
+        }
+    return payload
