@@ -657,7 +657,7 @@ function updateEvolutionControls(state) {
 
 function setControlVisible(el, visible) {
   if (!el) return;
-  el.style.visibility = visible ? '' : 'hidden';
+  el.classList.toggle('hidden', !visible);
   el.setAttribute('aria-hidden', visible ? 'false' : 'true');
 }
 

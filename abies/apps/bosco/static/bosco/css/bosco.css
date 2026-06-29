@@ -107,6 +107,8 @@
   font-weight: 400;
 }
 
+.bosco-check.hidden { display: none; }
+
 .bosco-date-row {
   display: grid;
   grid-template-columns: auto 1fr;
