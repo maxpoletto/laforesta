@@ -105,6 +105,7 @@ const DETAIL_SECTIONS = ['m', 'd', 'p'];
 const SATELLITE_OVERLAY_OPACITY = 0.85;
 const SATELLITE_INSIDE_ALPHA = 210;
 const SATELLITE_OUTSIDE_ALPHA = 60;
+const SATELLITE_OVERLAY_CLASS = 'bosco-satellite-raster-overlay';
 const TYPE_HIGHFOREST_KEY = 'highforest';
 const TYPE_COPPICE_KEY = 'coppice';
 
@@ -912,6 +913,7 @@ function renderCharacteristicRaster(seq, layer, date) {
     if (seq !== characteristicRenderSeq || currentState?.mode !== MODE_CHARACTERISTICS || currentState?.parcelAverage) return;
     clearSatelliteRasterOverlay();
     satelliteRasterOverlay = L.imageOverlay(renderSatelliteValueOverlay(raster, mask), raster.bbox, {
+      className: SATELLITE_OVERLAY_CLASS,
       opacity: SATELLITE_OVERLAY_OPACITY,
     }).addTo(map.leaflet);
     map.parcelLayer.bringToFront();
@@ -1071,6 +1073,7 @@ function renderEvolutionRaster(seq, metric, date1, date2) {
     clearSatelliteRasterOverlay();
     const overlayUrl = renderSatelliteDiffOverlay(raster1, raster2, mask, maxAbs);
     satelliteRasterOverlay = L.imageOverlay(overlayUrl, raster1.bbox, {
+      className: SATELLITE_OVERLAY_CLASS,
       opacity: SATELLITE_OVERLAY_OPACITY,
     }).addTo(map.leaflet);
     map.parcelLayer.bringToFront();

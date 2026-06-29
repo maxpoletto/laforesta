@@ -25,6 +25,11 @@
   height: 100%;
 }
 
+.bosco-satellite-raster-overlay {
+  image-rendering: crisp-edges;
+  image-rendering: pixelated;
+}
+
 .bosco-sidebar {
   flex: 0 0 330px;
   width: 330px;
