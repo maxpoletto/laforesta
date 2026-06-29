@@ -118,14 +118,6 @@ export const COL_VOLUME_M3 = 'Volume (m³)';
 export const COL_ACTIVE = 'Attivo';
 export const COL_MINOR = 'Minore';
 
-// Settings
-export const SETTINGS_PASSWORD = 'Cambio password';
-export const SETTINGS_TRACTORS = 'Trattori';
-export const SETTINGS_SPECIES = 'Specie';
-export const SETTINGS_USERS = 'Utenti';
-export const SETTINGS_HYPSO = 'Parametri ipsometrici';
-export const ONLY_ACTIVE = 'Solo attivi';
-
 // Hypsometric-parameters section.  (Accept/Reject/title are literal in the
 // candidate <template>, per docs/ui-design-patterns.md.)
 export const HYPSO_DESC_NONE = 'Nessun parametro ipsometrico attivo.';

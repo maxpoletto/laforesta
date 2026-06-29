@@ -9,7 +9,7 @@ import pytest
 from apps.base.auth import (
     NoSignupAdapter, WhitelistSocialAdapter, require_admin, require_writer,
 )
-from apps.base.models import LoginMethod, Role, User
+from apps.base.models import LoginMethod, Role, SiteSettings, User
 from config import strings as S
 from config.constants import MESSAGE
 
@@ -18,6 +18,14 @@ class TestNoSignupAdapter:
     def test_signup_disabled(self, db):
         adapter = NoSignupAdapter()
         assert adapter.is_open_for_signup(request=None) is False
+
+    def test_login_redirect_uses_landing_page(self, writer_user):
+        settings = SiteSettings.load()
+        settings.default_landing_page = '/bosco'
+        settings.save()
+        request = SimpleNamespace(user=writer_user)
+
+        assert NoSignupAdapter().get_login_redirect_url(request) == '/bosco'
 
 
 def _ok_view(_request):

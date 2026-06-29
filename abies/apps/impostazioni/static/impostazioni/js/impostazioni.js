@@ -3,6 +3,7 @@
  *
  * Collapsible sections based on user role:
  *   - Password change (all password-login users)
+ *   - Landing page (all users; site default admins only)
  *   - Tractors, Species (writers and admins)
  *   - Future production and Dendrometric data (writers and admins)
  *   - Hypsometric parameters (writers and admins)
@@ -27,8 +28,9 @@ import { loadCSS, unloadCSS } from '../../base/js/page-css.js';
 import { cloneTemplate } from '../../base/js/templates.js';
 import * as S from '../../base/js/strings.js';
 import {
-  FIELD_CREATED_AT, FIELD_FILE, FIELD_HARVEST_PLAN_ID, FIELD_MIN_N,
-  FIELD_NONCE, FIELD_PRESSLER_DEFAULT, FIELD_SOURCE, FIELD_SURVEY_IDS, FIELD_SURVEYS,
+  FIELD_CREATED_AT, FIELD_DEFAULT_LANDING_PAGE, FIELD_FILE, FIELD_HARVEST_PLAN_ID,
+  FIELD_LANDING_PAGE, FIELD_MIN_N, FIELD_NONCE, FIELD_PRESSLER_DEFAULT,
+  FIELD_SOURCE, FIELD_SURVEY_IDS, FIELD_SURVEYS,
   FIELD_USE_FOR_HEIGHT_PLOTS, HYPSO_SOURCE_COMPUTED, LOGIN_METHOD_PASSWORD,
   DATA_ID, MESSAGE, PATCHES, RECORD, ROLE_ADMIN, ROLE_WRITER,
 } from '../../base/js/constants.js';
@@ -50,35 +52,17 @@ const MINOR_COL_DEF = booleanCol(S.COL_MINOR);
 // State per entity section: { table, digest, loaded, activeOnly }.
 const sections = {};
 
-// Wrap an entity-table config as an ordered-section descriptor.  build()
-// registers fresh state under cfg.key (cleared on unmount) before rendering.
-function entitySection(cfg) {
-  return {
-    minRole: cfg.minRole,
-    build: () => {
-      const state = { table: null, digest: null, loaded: false, activeOnly: true };
-      sections[cfg.key] = state;
-      return buildEntitySection(cfg, state);
-    },
-  };
-}
-
-// Role-gated sections in display order.  Each: { minRole, build() → Node }.
-const SECTIONS = [
-  entitySection({
+const ENTITY_SECTIONS = {
+  tractors: {
     key: 'tractors',
-    minRole: ROLE_WRITER,
-    title: S.SETTINGS_TRACTORS,
     dataUrl: `${API}tractors/data/`,
     formUrl: `${API}tractors/form/`,
     saveUrl: `${API}tractors/save/`,
     csvFilename: S.CSV_TRACTORS,
     columnDefs: { [S.COL_ACTIVE]: ACTIVE_COL_DEF },
-  }),
-  entitySection({
+  },
+  species: {
     key: 'species',
-    minRole: ROLE_WRITER,
-    title: S.SETTINGS_SPECIES,
     dataUrl: `${API}species/data/`,
     formUrl: `${API}species/form/`,
     saveUrl: `${API}species/save/`,
@@ -89,14 +73,9 @@ const SECTIONS = [
       [S.COL_MINOR]: MINOR_COL_DEF,
       [S.COL_ACTIVE]: ACTIVE_COL_DEF,
     },
-  }),
-  { minRole: ROLE_WRITER, build: buildFutureProductionSection },
-  { minRole: ROLE_WRITER, build: buildDendrometrySection },
-  { minRole: ROLE_WRITER, build: buildHypsoSection },
-  entitySection({
+  },
+  users: {
     key: 'users',
-    minRole: ROLE_ADMIN,
-    title: S.SETTINGS_USERS,
     dataUrl: `${API}users/data/`,
     formUrl: `${API}users/form/`,
     saveUrl: `${API}users/save/`,
@@ -107,8 +86,31 @@ const SECTIONS = [
       [S.LABEL_LOGIN_METHOD]: { label: S.LABEL_LOGIN_METHOD, width: '140px' },
       [S.COL_ACTIVE]: ACTIVE_COL_DEF,
     },
-  }),
-];
+  },
+};
+
+const SECTION_CONFIGS = {
+  password: {
+    visible: ({ loginMethod }) => loginMethod === LOGIN_METHOD_PASSWORD,
+    wire: wirePasswordSection,
+  },
+  'landing-page': { wire: (root, { role }) => wireLandingPageSection(root, role) },
+  tractors: {
+    minRole: ROLE_WRITER,
+    wire: root => wireEntitySection(root, ENTITY_SECTIONS.tractors),
+  },
+  species: {
+    minRole: ROLE_WRITER,
+    wire: root => wireEntitySection(root, ENTITY_SECTIONS.species),
+  },
+  'future-production': { minRole: ROLE_WRITER, wire: wireFutureProductionSection },
+  dendrometry: { minRole: ROLE_WRITER, wire: wireDendrometrySection },
+  hypso: { minRole: ROLE_WRITER, wire: wireHypsoSection },
+  users: {
+    minRole: ROLE_ADMIN,
+    wire: root => wireEntitySection(root, ENTITY_SECTIONS.users),
+  },
+};
 
 // ---------------------------------------------------------------------------
 // Page lifecycle
@@ -119,19 +121,22 @@ export function mount() {
   const el = document.getElementById('content');
   el.replaceChildren();
 
-  const role = document.body.dataset.role;
-  const loginMethod = document.body.dataset.loginMethod;
+  const context = {
+    role: document.body.dataset.role,
+    loginMethod: document.body.dataset.loginMethod,
+  };
+  const frag = cloneTemplate('tmpl-impostazioni-page');
 
-  // Password change is gated on login method, not role; it leads the page.
-  if (loginMethod === LOGIN_METHOD_PASSWORD) {
-    el.appendChild(buildPasswordSection());
-  }
-
-  for (const section of SECTIONS) {
-    if (hasMinRole(role, section.minRole)) {
-      el.appendChild(section.build());
+  for (const sectionEl of [...frag.querySelectorAll('[data-settings-section]')]) {
+    const cfg = SECTION_CONFIGS[sectionEl.dataset.settingsSection];
+    if (!cfg || !sectionVisible(cfg, context)) {
+      sectionEl.remove();
+      continue;
     }
+    cfg.wire(sectionEl, context);
   }
+
+  el.appendChild(frag);
 }
 
 export function unmount() {
@@ -155,17 +160,22 @@ export function onQueryChange() {}
 // Password section
 // ---------------------------------------------------------------------------
 
-function buildPasswordSection() {
-  const frag = cloneTemplate('tmpl-password-section');
+function sectionVisible(cfg, context) {
+  if (cfg.visible) return cfg.visible(context);
+  if (cfg.minRole) return hasMinRole(context.role, cfg.minRole);
+  return true;
+}
+
+function wirePasswordSection(root) {
   wireCollapsibleToggle(
-    frag.querySelector('.collapsible-header'),
-    frag.querySelector('.collapsible-body'),
+    root.querySelector('.collapsible-header'),
+    root.querySelector('.collapsible-body'),
   );
 
-  const form = frag.querySelector('[data-role="password-form"]');
+  const form = root.querySelector('[data-role="password-form"]');
   const pw1 = form.querySelector('input[name="password1"]');
   const pw2 = form.querySelector('input[name="password2"]');
-  const msg = frag.querySelector('[data-role="password-msg"]');
+  const msg = root.querySelector('[data-role="password-msg"]');
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -193,19 +203,88 @@ function buildPasswordSection() {
       msg.className = 'mt-1 text-error';
     }
   });
+}
 
-  return frag;
+// ---------------------------------------------------------------------------
+// Landing page
+// ---------------------------------------------------------------------------
+
+const LANDING_PAGE = {
+  data: `${API}landing-page/data/`,
+  save: `${API}landing-page/save/`,
+};
+
+function wireLandingPageSection(root, role) {
+  const body = root.querySelector('.collapsible-body');
+  const form = body.querySelector('[data-role="landing-page-form"]');
+  const defaultRow = body.querySelector('[data-role="default-landing-page-row"]');
+  const msg = body.querySelector('[data-role="landing-page-msg"]');
+  const isAdmin = role === ROLE_ADMIN;
+  let loaded = false;
+
+  defaultRow.hidden = !isAdmin;
+
+  wireCollapsibleToggle(
+    root.querySelector('.collapsible-header'), body,
+    () => {
+      if (loaded) return;
+      loaded = true;
+      loadLandingPage(body, isAdmin);
+    },
+  );
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    msg.textContent = '';
+    msg.className = 'mt-1';
+
+    const payload = {
+      [FIELD_LANDING_PAGE]: body.querySelector('[data-role="landing-page"]').value,
+      [FIELD_NONCE]: crypto.randomUUID(),
+    };
+    if (isAdmin) {
+      payload[FIELD_DEFAULT_LANDING_PAGE] = body
+        .querySelector('[data-role="default-landing-page"]').value;
+    }
+
+    const data = await postOrError(postJSON(LANDING_PAGE.save, payload));
+    if (data) msg.textContent = data[MESSAGE] || form.dataset.successLabel;
+  });
+
+}
+
+async function loadLandingPage(body, isAdmin) {
+  const form = body.querySelector('[data-role="landing-page-form"]');
+  const landingInput = body.querySelector('[data-role="landing-page"]');
+  const defaultInput = body.querySelector('[data-role="default-landing-page"]');
+  setFormEnabled(form, false);
+
+  let data;
+  try {
+    const resp = await fetch(LANDING_PAGE.data);
+    if (!resp.ok) throw new Error(`${resp.status}`);
+    data = await resp.json();
+  } catch {
+    showError(S.ERROR_NETWORK);
+    return;
+  }
+
+  landingInput.value = data[FIELD_LANDING_PAGE] || '';
+  if (isAdmin) {
+    defaultInput.value = data[FIELD_DEFAULT_LANDING_PAGE] || '';
+  }
+  setFormEnabled(form, true);
 }
 
 // ---------------------------------------------------------------------------
 // Entity sections (tractors, species, users)
 // ---------------------------------------------------------------------------
 
-function buildEntitySection(cfg, state) {
-  const frag = cloneTemplate('tmpl-entity-section');
-  frag.querySelector('[data-field="title"]').textContent = cfg.title;
-  const tableContainer = frag.querySelector('[data-target="table-host"]');
-  const activeCheck = frag.querySelector('[data-role="active-toggle"]');
+function wireEntitySection(root, cfg) {
+  const state = { table: null, digest: null, loaded: false, activeOnly: true };
+  sections[cfg.key] = state;
+  const tableContainer = root.querySelector('[data-target="table-host"]');
+  const activeCheck = root.querySelector('[data-role="active-toggle"]');
 
   activeCheck.addEventListener('change', () => {
     state.activeOnly = activeCheck.checked;
@@ -213,16 +292,14 @@ function buildEntitySection(cfg, state) {
   });
 
   wireCollapsibleToggle(
-    frag.querySelector('.collapsible-header'),
-    frag.querySelector('.collapsible-body'),
+    root.querySelector('.collapsible-header'),
+    root.querySelector('.collapsible-body'),
     () => {
       if (state.loaded) return;
       state.loaded = true;
       loadEntityData(cfg, state, tableContainer);
     },
   );
-
-  return frag;
 }
 
 async function loadEntityData(cfg, state, container) {
@@ -347,16 +424,15 @@ const DENDROMETRY = {
   save: `${API}dendrometry/save/`,
 };
 
-function buildFutureProductionSection() {
-  const frag = cloneTemplate('tmpl-future-production-section');
-  const body = frag.querySelector('.collapsible-body');
+function wireFutureProductionSection(root) {
+  const body = root.querySelector('.collapsible-body');
   const form = body.querySelector('[data-role="future-production-form"]');
   const select = body.querySelector('[data-role="future-plan"]');
   const msg = body.querySelector('[data-role="future-production-msg"]');
   let loaded = false;
 
   wireCollapsibleToggle(
-    frag.querySelector('.collapsible-header'), body,
+    root.querySelector('.collapsible-header'), body,
     () => {
       if (loaded) return;
       loaded = true;
@@ -374,8 +450,6 @@ function buildFutureProductionSection() {
     }));
     if (data) msg.textContent = data[MESSAGE] || form.dataset.successLabel;
   });
-
-  return frag;
 }
 
 async function loadFutureProduction(select, form) {
@@ -407,15 +481,14 @@ async function loadFutureProduction(select, form) {
   setFormEnabled(form, true);
 }
 
-function buildDendrometrySection() {
-  const frag = cloneTemplate('tmpl-dendrometry-section');
-  const body = frag.querySelector('.collapsible-body');
+function wireDendrometrySection(root) {
+  const body = root.querySelector('.collapsible-body');
   const form = body.querySelector('[data-role="dendrometry-form"]');
   const msg = body.querySelector('[data-role="dendrometry-msg"]');
   let loaded = false;
 
   wireCollapsibleToggle(
-    frag.querySelector('.collapsible-header'), body,
+    root.querySelector('.collapsible-header'), body,
     () => {
       if (loaded) return;
       loaded = true;
@@ -434,8 +507,6 @@ function buildDendrometrySection() {
     await loadDendrometry(body);
     msg.textContent = data[MESSAGE] || form.dataset.successLabel;
   });
-
-  return frag;
 }
 
 async function loadDendrometry(body) {
@@ -498,7 +569,7 @@ function selectOption(value, text) {
 }
 
 function setFormEnabled(form, enabled) {
-  for (const el of form.querySelectorAll('select, button')) {
+  for (const el of form.querySelectorAll('input, select, button')) {
     el.disabled = !enabled;
   }
 }
@@ -530,15 +601,14 @@ const HYPSO_COL_DEFS = {
   [S.COL_N_REGRESSION]: { type: 'number', formatter: fmtInt },
 };
 
-function buildHypsoSection() {
-  const frag = cloneTemplate('tmpl-hypso-section');
-  const body = frag.querySelector('.collapsible-body');
+function wireHypsoSection(root) {
+  const body = root.querySelector('.collapsible-body');
   const tableHost = body.querySelector('[data-target="table-host"]');
   const descEl = body.querySelector('[data-target="description"]');
   const fileInput = body.querySelector('[data-role="import-file"]');
 
   wireCollapsibleToggle(
-    frag.querySelector('.collapsible-header'), body,
+    root.querySelector('.collapsible-header'), body,
     () => {
       if (hypsoState.loaded) return;
       hypsoState.loaded = true;
@@ -559,8 +629,6 @@ function buildHypsoSection() {
     fileInput.value = '';
     if (file) confirmImport(file, tableHost, descEl);
   });
-
-  return frag;
 }
 
 async function loadHypso(tableHost, descEl) {

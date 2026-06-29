@@ -3,123 +3,178 @@ Impostazioni <template> elements — cloned by JS on mount().
 S (string constants) provided by the shell's render context.
 {% endcomment %}
 
-<template id="tmpl-password-section">
-  {% include "base/_partials/_collapsible_header.html" with section="" title="Cambio password" %}
-  <div class="collapsible-body">
-    <form data-role="password-form">
-      <div class="form-group">
-        <label for="id_pw1">Nuova password</label>
-        <input type="password" id="id_pw1" name="password1" required>
-      </div>
-      <div class="form-group">
-        <label for="id_pw2">Ripeti password</label>
-        <input type="password" id="id_pw2" name="password2" required>
-      </div>
-      <div class="form-actions">
-        <button type="submit" class="btn btn-save">{{ S.SAVE }}</button>
-      </div>
-    </form>
-    <p class="mt-1" data-role="password-msg"></p>
-  </div>
-</template>
-
-<template id="tmpl-entity-section">
-  {% include "base/_partials/_collapsible_header.html" with section="" title="" %}
-  <div class="collapsible-body">
-    <div class="table-toolbar">
-      <label class="impostazioni-active-toggle">
-        <input type="checkbox" data-role="active-toggle" checked>
-        Solo attivi
-      </label>
+<template id="tmpl-impostazioni-page">
+  <section data-settings-section="password">
+    {% include "base/_partials/_collapsible_header.html" with section="" title="Cambio password" %}
+    <div class="collapsible-body">
+      <form data-role="password-form">
+        <div class="form-group">
+          <label for="id_pw1">Nuova password</label>
+          <input type="password" id="id_pw1" name="password1" required>
+        </div>
+        <div class="form-group">
+          <label for="id_pw2">Ripeti password</label>
+          <input type="password" id="id_pw2" name="password2" required>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-save">{{ S.SAVE }}</button>
+        </div>
+      </form>
+      <p class="mt-1" data-role="password-msg"></p>
     </div>
-    <div data-target="table-host"></div>
-  </div>
-</template>
+  </section>
 
-<template id="tmpl-future-production-section">
-  {% include "base/_partials/_collapsible_header.html" with section="" title="Produzione futura" %}
-  <div class="collapsible-body">
-    <form class="settings-source-form"
-          data-role="future-production-form"
-          data-success-label="Impostazioni aggiornate.">
-      <div class="form-group">
-        <label for="future-production-plan">Piano</label>
-        <select id="future-production-plan"
-                data-role="future-plan"
-                data-loading-label="Caricamento..."
-                data-empty-label="Nessun piano disponibile."></select>
-      </div>
-      <div class="form-actions">
-        <button type="submit" class="btn btn-save">{{ S.SAVE }}</button>
-      </div>
-    </form>
-    <p class="mt-1" data-role="future-production-msg"></p>
-  </div>
-</template>
+  <section data-settings-section="landing-page">
+    {% include "base/_partials/_collapsible_header.html" with section="" title="Pagina iniziale" %}
+    <div class="collapsible-body">
+      <form class="settings-source-form"
+            data-role="landing-page-form"
+            data-success-label="{{ S.LANDING_PAGE_SAVED }}">
+        <div class="form-group">
+          <label for="id_landing_page">{{ S.LABEL_LANDING_PAGE }}</label>
+          <input type="text" id="id_landing_page" name="landing_page"
+                 data-role="landing-page" placeholder="/prelievi"
+                 autocomplete="off">
+        </div>
+        <div class="form-group" data-role="default-landing-page-row" hidden>
+          <label for="id_default_landing_page">Pagina default</label>
+          <input type="text" id="id_default_landing_page"
+                 name="default_landing_page"
+                 data-role="default-landing-page" placeholder="/prelievi"
+                 autocomplete="off">
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-save">{{ S.SAVE }}</button>
+        </div>
+      </form>
+      <p class="mt-1" data-role="landing-page-msg"></p>
+    </div>
+  </section>
 
-<template id="tmpl-dendrometry-section">
-  {% include "base/_partials/_collapsible_header.html" with section="" title="Parametri dendrometrici" %}
-  <div class="collapsible-body">
-    <p class="settings-summary" data-role="dendrometry-counts">
-      N. alberi: <span data-field="trees">0</span> ·
-      Comprese: <span data-field="regions">0</span> ·
-      Particelle: <span data-field="parcels">0</span>
-    </p>
-    <form class="settings-source-form"
-          data-role="dendrometry-form"
-          data-success-label="Impostazioni aggiornate.">
-      <div class="form-group">
-        <label for="dendrometry-surveys">Rilevamenti</label>
-        <select id="dendrometry-surveys"
-                multiple
-                size="6"
-                data-role="dendrometry-surveys"
-                data-loading-label="Caricamento..."
-                data-empty-label="Nessun rilevamento disponibile."></select>
+  <section data-settings-section="tractors" data-settings-entity>
+    {% include "base/_partials/_collapsible_header.html" with section="" title="Trattori" %}
+    <div class="collapsible-body">
+      <div class="table-toolbar">
+        <label class="impostazioni-active-toggle">
+          <input type="checkbox" data-role="active-toggle" checked>
+          Solo attivi
+        </label>
       </div>
-      <div class="form-actions">
-        <button type="submit" class="btn btn-save">{{ S.SAVE }}</button>
+      <div data-target="table-host"></div>
+    </div>
+  </section>
+
+  <section data-settings-section="species" data-settings-entity>
+    {% include "base/_partials/_collapsible_header.html" with section="" title="Specie" %}
+    <div class="collapsible-body">
+      <div class="table-toolbar">
+        <label class="impostazioni-active-toggle">
+          <input type="checkbox" data-role="active-toggle" checked>
+          Solo attivi
+        </label>
       </div>
-    </form>
-    <p class="mt-1" data-role="dendrometry-msg"></p>
-  </div>
+      <div data-target="table-host"></div>
+    </div>
+  </section>
+
+  <section data-settings-section="future-production">
+    {% include "base/_partials/_collapsible_header.html" with section="" title="Produzione futura" %}
+    <div class="collapsible-body">
+      <form class="settings-source-form"
+            data-role="future-production-form"
+            data-success-label="Impostazioni aggiornate.">
+        <div class="form-group">
+          <label for="future-production-plan">Piano</label>
+          <select id="future-production-plan"
+                  data-role="future-plan"
+                  data-loading-label="Caricamento..."
+                  data-empty-label="Nessun piano disponibile."></select>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-save">{{ S.SAVE }}</button>
+        </div>
+      </form>
+      <p class="mt-1" data-role="future-production-msg"></p>
+    </div>
+  </section>
+
+  <section data-settings-section="dendrometry">
+    {% include "base/_partials/_collapsible_header.html" with section="" title="Parametri dendrometrici" %}
+    <div class="collapsible-body">
+      <p class="settings-summary" data-role="dendrometry-counts">
+        N. alberi: <span data-field="trees">0</span> ·
+        Comprese: <span data-field="regions">0</span> ·
+        Particelle: <span data-field="parcels">0</span>
+      </p>
+      <form class="settings-source-form"
+            data-role="dendrometry-form"
+            data-success-label="Impostazioni aggiornate.">
+        <div class="form-group">
+          <label for="dendrometry-surveys">Rilevamenti</label>
+          <select id="dendrometry-surveys"
+                  multiple
+                  size="6"
+                  data-role="dendrometry-surveys"
+                  data-loading-label="Caricamento..."
+                  data-empty-label="Nessun rilevamento disponibile."></select>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-save">{{ S.SAVE }}</button>
+        </div>
+      </form>
+      <p class="mt-1" data-role="dendrometry-msg"></p>
+    </div>
+  </section>
+
+  <section data-settings-section="hypso">
+    {% include "base/_partials/_collapsible_header.html" with section="" title="Parametri ipsometrici" %}
+    <div class="collapsible-body">
+      <div class="table-toolbar">
+        <button type="button" class="btn btn-import ms-auto" data-action="import">{{ S.IMPORT_LABEL }}</button>
+        <button type="button" class="btn btn-export" data-action="export">{{ S.EXPORT_CSV }}</button>
+        <button type="button" class="btn" data-action="clear">{{ S.ACTION_DELETE }}</button>
+        <input type="file" accept=".csv" data-role="import-file" hidden>
+      </div>
+      <p class="hypso-description" data-target="description"></p>
+      <div data-target="table-host"></div>
+
+      <div class="hypso-compute">
+        <h3>Calcola nuovi parametri</h3>
+        <div class="form-row narrow">
+          <div class="form-group narrow">
+            <label for="hypso-min-n">N minimo</label>
+            <input type="number" id="hypso-min-n" min="1" value="10" data-role="min-n">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="hypso-surveys">Rilevamenti</label>
+          <select id="hypso-surveys" multiple size="6" data-role="surveys"></select>
+        </div>
+        <label class="hypso-check">
+          <input type="checkbox" data-role="use-for-height-plots" checked>
+          Usa questi rilevamenti per i grafici altezza/diametro.
+        </label>
+        <button type="button" class="btn btn-save" data-action="compute">Calcola</button>
+      </div>
+    </div>
+  </section>
+
+  <section data-settings-section="users" data-settings-entity>
+    {% include "base/_partials/_collapsible_header.html" with section="" title="Utenti" %}
+    <div class="collapsible-body">
+      <div class="table-toolbar">
+        <label class="impostazioni-active-toggle">
+          <input type="checkbox" data-role="active-toggle" checked>
+          Solo attivi
+        </label>
+      </div>
+      <div data-target="table-host"></div>
+    </div>
+  </section>
 </template>
 
 <template id="tmpl-settings-select-option">
   <option></option>
-</template>
-
-<template id="tmpl-hypso-section">
-  {% include "base/_partials/_collapsible_header.html" with section="" title="Parametri ipsometrici" %}
-  <div class="collapsible-body">
-    <div class="table-toolbar">
-      <button type="button" class="btn btn-import ms-auto" data-action="import">{{ S.IMPORT_LABEL }}</button>
-      <button type="button" class="btn btn-export" data-action="export">{{ S.EXPORT_CSV }}</button>
-      <button type="button" class="btn" data-action="clear">{{ S.ACTION_DELETE }}</button>
-      <input type="file" accept=".csv" data-role="import-file" hidden>
-    </div>
-    <p class="hypso-description" data-target="description"></p>
-    <div data-target="table-host"></div>
-
-    <div class="hypso-compute">
-      <h3>Calcola nuovi parametri</h3>
-      <div class="form-row narrow">
-        <div class="form-group narrow">
-          <label for="hypso-min-n">N minimo</label>
-          <input type="number" id="hypso-min-n" min="1" value="10" data-role="min-n">
-        </div>
-      </div>
-      <div class="form-group">
-        <label for="hypso-surveys">Rilevamenti</label>
-        <select id="hypso-surveys" multiple size="6" data-role="surveys"></select>
-      </div>
-      <label class="hypso-check">
-        <input type="checkbox" data-role="use-for-height-plots" checked>
-        Usa questi rilevamenti per i grafici altezza/diametro.
-      </label>
-      <button type="button" class="btn btn-save" data-action="compute">Calcola</button>
-    </div>
-  </div>
 </template>
 
 <template id="tmpl-hypso-candidate">

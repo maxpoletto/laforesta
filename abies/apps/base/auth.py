@@ -17,6 +17,10 @@ class NoSignupAdapter(DefaultAccountAdapter):
     def is_open_for_signup(self, request):
         return False
 
+    def get_login_redirect_url(self, request):
+        from apps.base.landing import user_landing_page
+        return user_landing_page(request.user)
+
 
 class WhitelistSocialAdapter(DefaultSocialAccountAdapter):
     """Connect incoming OAuth logins to pre-whitelisted users by email.

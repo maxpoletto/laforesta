@@ -166,6 +166,9 @@ LABEL_LAST_NAME = 'Cognome'
 LABEL_LOGIN_METHOD = 'Metodo di accesso'
 LABEL_CREATED_AT = 'Creato il'
 LABEL_MONTH = 'Mese'
+LABEL_LANDING_PAGE = 'Pagina personale'
+
+SITE_SETTINGS = 'impostazioni sito'
 
 # Audit
 COL_TIMESTAMP = 'Data/Ora'
@@ -200,6 +203,7 @@ AUDIT_DELETE = 'Eliminazione'
 # Settings
 PASSWORD_MISMATCH = 'Le password non coincidono.'
 PASSWORD_CHANGED = 'Password modificata.'
+LANDING_PAGE_SAVED = 'Pagina iniziale aggiornata.'
 
 HYPSO_SAVED = 'Parametri ipsometrici aggiornati.'
 HYPSO_CLEARED = 'Parametri ipsometrici eliminati.'
@@ -211,6 +215,7 @@ ERR_PASSWORD_REQUIRED = 'Password obbligatoria.'
 ERR_NAME_REQUIRED = 'Nome obbligatorio.'
 ERR_USERNAME_REQUIRED = 'Nome utente obbligatorio.'
 ERR_EMAIL_REQUIRED = 'Email obbligatoria.'
+ERR_LANDING_PAGE_INVALID = 'Pagina iniziale non valida.'
 ERR_DENSITY_INVALID = 'La densità deve essere un numero positivo.'
 ERR_PRESSLER_POSITIVE = 'Il coefficiente Pressler deve essere positivo.'
 ERR_OTHER_NOT_MINOR = 'La specie "{}" non può essere contrassegnata come minore.'

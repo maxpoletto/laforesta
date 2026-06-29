@@ -13,6 +13,7 @@ from django.views.decorators.http import require_POST
 
 from apps.base import csv_io, hypsometry
 from apps.base.auth import require_admin, require_writer
+from apps.base.landing import clean_landing_page, user_landing_page
 from apps.base.numparse import parse_decimal
 from apps.base.digests import (
     HYPSO_PARAM_COLUMNS, build_harvest_plan_record, build_survey_record,
@@ -27,7 +28,7 @@ from apps.base.selectors import (
 )
 from apps.base.models import (
     HarvestPlan, HYPSO_FUNC_LN, HypsoParam, HypsoParamSource,
-    LoginMethod, Role, Species, Survey, Tractor, TreeSample, User,
+    LoginMethod, Role, SiteSettings, Species, Survey, Tractor, TreeSample, User,
 )
 from config import strings as S
 from config.constants import (
@@ -37,7 +38,9 @@ from config.constants import (
     FIELD_ACTIVE, FIELD_COMMON_NAME,
     FIELD_CREATED_AT, FIELD_DENSITY, FIELD_EMAIL, FIELD_FILE, FIELD_FIRST_NAME,
     FIELD_HARVEST_PLAN_ID, FIELD_IS_ACTIVE, FIELD_LAST_NAME,
-    FIELD_LATIN_NAME, FIELD_LOGIN_METHOD, FIELD_MANUFACTURER, FIELD_MIN_N,
+    FIELD_DEFAULT_LANDING_PAGE,
+    FIELD_LATIN_NAME, FIELD_LANDING_PAGE, FIELD_LOGIN_METHOD,
+    FIELD_MANUFACTURER, FIELD_MIN_N,
     FIELD_MINOR, FIELD_MODEL, FIELD_NAME, FIELD_PRESSLER_DEFAULT,
     PRESSLER_DEFAULT,
     FIELD_PASSWORD1, FIELD_PASSWORD2, FIELD_ROLE,
@@ -326,6 +329,73 @@ def _dendrometry_counts(survey_ids):
         'regions': qs.values('sample__sample_area__parcel__region_id').distinct().count(),
         'parcels': qs.values('sample__sample_area__parcel_id').distinct().count(),
     }
+
+
+# ---------------------------------------------------------------------------
+# Landing page (all authenticated users; default value admin only)
+# ---------------------------------------------------------------------------
+
+@login_required
+def landing_page_data(request):
+    settings_obj = SiteSettings.load()
+    return JsonResponse({
+        FIELD_LANDING_PAGE: request.user.landing_page,
+        FIELD_DEFAULT_LANDING_PAGE: settings_obj.default_landing_page,
+        'effective_landing_page': user_landing_page(request.user),
+    })
+
+
+@login_required
+@require_POST
+def landing_page_save(request):
+    body, error = parse_json_body(request)
+    if error:
+        return error
+
+    wants_default_update = FIELD_DEFAULT_LANDING_PAGE in body
+    if wants_default_update and request.user.role != Role.ADMIN:
+        return JsonResponse({MESSAGE: S.ERR_FORBIDDEN}, status=403)
+
+    try:
+        landing_page = clean_landing_page(body.get(FIELD_LANDING_PAGE, ''))
+        default_landing_page = clean_landing_page(
+            body.get(FIELD_DEFAULT_LANDING_PAGE, ''),
+        )
+    except ValueError:
+        return _error(S.ERR_LANDING_PAGE_INVALID)
+
+    changed = False
+    with transaction.atomic():
+        user = User.objects.select_for_update().get(pk=request.user.pk)
+        if user.landing_page != landing_page:
+            user.landing_page = landing_page
+            user.save(update_fields=[FIELD_LANDING_PAGE])
+            changed = True
+
+        if wants_default_update:
+            settings_obj = _locked_site_settings()
+            if settings_obj.default_landing_page != default_landing_page:
+                settings_obj.default_landing_page = default_landing_page
+                settings_obj.save(update_fields=[FIELD_DEFAULT_LANDING_PAGE])
+                changed = True
+
+        if changed:
+            mark_stale('audit')
+
+    return success_response(
+        request, body, extra={
+            MESSAGE: S.LANDING_PAGE_SAVED,
+            'effective_landing_page': user_landing_page(user),
+        },
+    )
+
+
+def _locked_site_settings():
+    obj = SiteSettings.objects.select_for_update().filter(singleton_id=1).first()
+    if obj is None:
+        obj = SiteSettings.objects.create(singleton_id=1)
+    return obj
+
 
 # ---------------------------------------------------------------------------
 # Users (admin only)

@@ -15,6 +15,7 @@ from django.utils.http import (
 from django.views import View
 
 from apps.base.digests import serve_digest
+from apps.base.landing import user_landing_page
 from apps.base.http import CACHE_NO_CACHE, conditional_file_response
 from apps.base.models import LoginMethod
 from apps.ipso.models import IpsoUpload, IpsoUploadState
@@ -26,6 +27,11 @@ from config.constants import FIELD_SPECIES
 ALLOWED_GEO_FILES = {
     'terreni.geojson',
 }
+
+
+@login_required
+def home_view(request: HttpRequest) -> HttpResponse:
+    return redirect(user_landing_page(request.user))
 
 
 @login_required
@@ -44,7 +50,7 @@ class LoginView(View):
 
     def get(self, request: HttpRequest) -> HttpResponse:
         if request.user.is_authenticated:
-            return redirect(settings.LOGIN_REDIRECT_URL)
+            return redirect(user_landing_page(request.user))
         return render(request, 'base/login.html', _login_context(
             request, request.GET.get('next', ''),
         ))
@@ -55,11 +61,11 @@ class LoginView(View):
         user = authenticate(request, username=username, password=password)
         if user is not None and user.login_method == LoginMethod.PASSWORD:
             login(request, user)
-            next_url = request.POST.get('next') or settings.LOGIN_REDIRECT_URL
+            next_url = request.POST.get('next') or user_landing_page(user)
             if not url_has_allowed_host_and_scheme(
                     next_url, allowed_hosts={request.get_host()},
                     require_https=request.is_secure()):
-                next_url = settings.LOGIN_REDIRECT_URL
+                next_url = user_landing_page(user)
             return redirect(next_url)
         return render(request, 'base/login.html', _login_context(
             request, request.POST.get('next', ''),

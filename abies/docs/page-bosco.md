@@ -2,8 +2,7 @@
 
 ## Overview
 
-The "bosco" page is the landing page of Abies and provides insight into forest
-health and productivity.
+The "bosco" page provides insight into forest health and productivity.
 
 The main view is map-based. Some data (e.g., harvest amount by region) is
 displayed on the map directly. For other data, the map serves as a parcel- or

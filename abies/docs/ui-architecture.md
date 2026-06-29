@@ -53,4 +53,6 @@ the real history stack and are unaffected.  The stash is in-memory only;
 a full page reload clears it.
 
 The paths and query parameters for each domain are documented in the
-per-page specs (`docs/page-*.md`).
+per-page specs (`docs/page-*.md`). After login, and when visiting `/`, Django
+redirects to the user's effective landing page: personal setting, then site
+default, then `/prelievi`.

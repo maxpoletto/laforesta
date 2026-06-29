@@ -442,6 +442,7 @@ def _audit_configs() -> list:
         }),
         (User, S.TABLE_USER, {
             'username': S.LABEL_USERNAME, 'role': S.LABEL_ROLE,
+            'landing_page': S.LABEL_LANDING_PAGE,
             'is_active': S.COL_ACTIVE,
         }),
         (Crew, S.TABLE_CREW, {

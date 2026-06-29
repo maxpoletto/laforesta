@@ -8,6 +8,12 @@ urlpatterns = [
     # Password
     path('password/', views.password_view, name='impostazioni-password'),
 
+    # Landing page
+    path('landing-page/data/', views.landing_page_data,
+         name='impostazioni-landing-page-data'),
+    path('landing-page/save/', views.landing_page_save,
+         name='impostazioni-landing-page-save'),
+
     # Tractors
     path('tractors/data/', views.tractors_data, name='impostazioni-tractors-data'),
     path('tractors/form/', views.tractors_form, name='impostazioni-tractors-form-add'),

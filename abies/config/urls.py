@@ -5,15 +5,14 @@ abies-dev.laforesta.it). No URL prefix is needed -- the subdomain itself
 scopes the deployment.
 """
 
-from django.conf import settings
 from django.contrib import admin
 from django.urls import include, path
-from django.views.generic import RedirectView
+
+from apps.base import views as base_views
 
 urlpatterns = [
-    # `/` -> the configured landing page. login_required on the shell view
-    # bounces unauthenticated users to LOGIN_URL.
-    path('', RedirectView.as_view(url=settings.LOGIN_REDIRECT_URL, permanent=False)),
+    # `/` resolves to the user's configured landing page.
+    path('', base_views.home_view, name='home'),
     path('admin/', admin.site.urls),
     path('ipso/', include('apps.ipso.urls')),
     path('api/bosco/', include('apps.bosco.urls')),

@@ -11,12 +11,18 @@ audited and the contract that keeps that coverage complete.
 
 ## App metadata
 
-- user: extends AbstractUser with (role:string, login_method:string)
+- user: extends AbstractUser with (role:string, login_method:string,
+  landing_page:string)
   - role is one of `admin`, `writer`, `reader`.
   - login_method is one of `password`, `oauth`.
+  - `landing_page` is a blank-or-same-site app URL used after login and by `/`.
   - Inherits from AbstractUser: username, password, email, first_name,
     last_name, is_active, date_joined.
   - AUTH_USER_MODEL = `apps.base.User` must be set before the first migration.
+
+- site_settings: singleton runtime settings row.
+  - `default_landing_page` is the blank-or-same-site app URL used when a user
+    has no personal landing page.
 
 ## Geographic concepts
 

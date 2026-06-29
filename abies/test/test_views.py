@@ -5,7 +5,7 @@ from allauth.socialaccount.models import SocialApp
 from django.contrib.sites.models import Site
 from django.test import Client, override_settings
 
-from apps.base.models import LoginMethod, User
+from apps.base.models import LoginMethod, SiteSettings, User
 from config import strings as S
 from config.constants import (
     FIELD_PASSWORD, FIELD_USERNAME,
@@ -97,6 +97,17 @@ class TestLoginPage:
         assert resp.status_code == 302
         assert resp.url == '/prelievi'
 
+    def test_post_success_redirects_to_user_landing_page(self, client, admin_user):
+        admin_user.landing_page = '/bosco?mode=evoluzione'
+        admin_user.save(update_fields=['landing_page'])
+
+        resp = client.post('/login/', {
+            FIELD_USERNAME: 'testadmin', FIELD_PASSWORD: 'testpass123!',
+        })
+
+        assert resp.status_code == 302
+        assert resp.url == '/bosco?mode=evoluzione'
+
     def test_post_failure_returns_400(self, client, admin_user):
         resp = client.post('/login/', {
             FIELD_USERNAME: 'testadmin', FIELD_PASSWORD: 'wrong',
@@ -140,6 +151,19 @@ class TestLoginPage:
         assert resp.status_code == 302
         assert resp.url == '/prelievi'
 
+    def test_post_rejects_external_next_to_user_landing_page(
+            self, client, admin_user):
+        admin_user.landing_page = '/campionamenti'
+        admin_user.save(update_fields=['landing_page'])
+
+        resp = client.post('/login/', {
+            FIELD_USERNAME: 'testadmin', FIELD_PASSWORD: 'testpass123!',
+            'next': 'https://evil.example/phish',
+        })
+
+        assert resp.status_code == 302
+        assert resp.url == '/campionamenti'
+
     def test_authenticated_user_redirected_to_shell(self, logged_in_client):
         resp = logged_in_client.get('/login/')
         assert resp.status_code == 302
@@ -154,6 +178,16 @@ class TestShellAccess:
         resp = client.get('/prelievi')
         assert resp.status_code == 302
         assert '/login/' in resp.url
+
+    def test_root_redirects_to_effective_landing_page(self, logged_in_client):
+        settings = SiteSettings.load()
+        settings.default_landing_page = '/bosco'
+        settings.save()
+
+        resp = logged_in_client.get('/')
+
+        assert resp.status_code == 302
+        assert resp.url == '/bosco'
 
     def test_authenticated_gets_shell(self, logged_in_client):
         resp = logged_in_client.get('/prelievi')
@@ -174,6 +208,18 @@ class TestShellAccess:
     def test_shell_contains_user_role(self, logged_in_client):
         resp = logged_in_client.get('/prelievi')
         assert 'data-role="admin"' in resp.content.decode()
+
+    def test_shell_shows_settings_tab_to_oauth_reader(self, reader_user):
+        reader_user.login_method = LoginMethod.OAUTH
+        reader_user.email = 'reader@example.com'
+        reader_user.save(update_fields=['login_method', 'email'])
+        client = Client()
+        client.force_login(reader_user)
+
+        resp = client.get('/prelievi')
+
+        assert resp.status_code == 200
+        assert 'href="/impostazioni"' in resp.content.decode()
 
 
 # ---------------------------------------------------------------------------

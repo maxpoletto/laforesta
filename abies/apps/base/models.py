@@ -97,6 +97,7 @@ class User(AbstractUser):
     login_method = models.CharField(
         max_length=10, choices=LoginMethod.choices, default=LoginMethod.PASSWORD,
     )
+    landing_page = models.CharField(max_length=255, blank=True)
     history = HistoricalRecords()
 
     class Meta(AbstractUser.Meta):
@@ -106,6 +107,23 @@ class User(AbstractUser):
     @property
     def can_modify(self) -> bool:
         return self.role in WRITER_ROLES
+
+
+class SiteSettings(models.Model):
+    """Runtime-wide settings edited from Impostazioni."""
+    singleton_id = models.PositiveSmallIntegerField(
+        primary_key=True, default=1, editable=False,
+    )
+    default_landing_page = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        verbose_name = S.SITE_SETTINGS
+        verbose_name_plural = S.SITE_SETTINGS
+
+    @classmethod
+    def load(cls):
+        obj, _created = cls.objects.get_or_create(singleton_id=1)
+        return obj
 
 
 # ---------------------------------------------------------------------------

@@ -10,15 +10,16 @@ from django.test import Client
 
 from apps.base.models import (
     DigestStatus, HarvestPlan, LoginMethod, Role, Sample, SampleArea,
-    SampleGrid, Species, Survey, Tractor, Tree, TreeSample, User,
+    SampleGrid, SiteSettings, Species, Survey, Tractor, Tree, TreeSample, User,
 )
 from apps.impostazioni.views import SPECIES_COLS
 from config import strings as S
 from config.constants import (
     COLUMNS, DATA_ID, DIGEST_FUTURE_PRODUCTION, DIGEST_PARCEL_DENDROMETRY,
     DIGEST_PARCEL_DENDROMETRY_POINTS, DIGEST_PRESERVED_TREES,
-    FIELD_ACTIVE, FIELD_COMMON_NAME, FIELD_DENSITY, FIELD_EMAIL,
-    FIELD_FIRST_NAME, FIELD_HARVEST_PLAN_ID, FIELD_IS_ACTIVE, FIELD_LAST_NAME,
+    FIELD_ACTIVE, FIELD_COMMON_NAME, FIELD_DEFAULT_LANDING_PAGE,
+    FIELD_DENSITY, FIELD_EMAIL, FIELD_FIRST_NAME, FIELD_HARVEST_PLAN_ID,
+    FIELD_IS_ACTIVE, FIELD_LANDING_PAGE, FIELD_LAST_NAME,
     FIELD_LATIN_NAME, FIELD_LOGIN_METHOD, FIELD_MANUFACTURER, FIELD_MINOR,
     FIELD_PRESSLER_DEFAULT, FIELD_SPECIES,
     FIELD_MODEL, FIELD_NAME, FIELD_NONCE, FIELD_PASSWORD1,
@@ -111,6 +112,74 @@ class TestPasswordView:
         user.refresh_from_db()
         assert user.check_password('oldpass123!')
         assert not user.check_password('newsecure99!')
+
+
+# ---------------------------------------------------------------------------
+# Landing page
+# ---------------------------------------------------------------------------
+
+class TestLandingPageView:
+    DATA_URL = '/api/impostazioni/landing-page/data/'
+    SAVE_URL = '/api/impostazioni/landing-page/save/'
+
+    def test_data_returns_user_default_and_effective_page(
+            self, reader_client, reader_user):
+        settings = SiteSettings.load()
+        settings.default_landing_page = '/bosco'
+        settings.save()
+        reader_user.landing_page = '/campionamenti?grid=1'
+        reader_user.save(update_fields=['landing_page'])
+
+        resp = reader_client.get(self.DATA_URL)
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data[FIELD_LANDING_PAGE] == '/campionamenti?grid=1'
+        assert data[FIELD_DEFAULT_LANDING_PAGE] == '/bosco'
+        assert data['effective_landing_page'] == '/campionamenti?grid=1'
+
+    def test_reader_can_save_personal_landing_page(
+            self, reader_client, reader_user):
+        resp = _post(reader_client, self.SAVE_URL, {
+            FIELD_LANDING_PAGE: '/bosco?mode=evoluzione',
+        })
+
+        assert resp.status_code == 200
+        assert resp.json()[MESSAGE] == S.LANDING_PAGE_SAVED
+        reader_user.refresh_from_db()
+        assert reader_user.landing_page == '/bosco?mode=evoluzione'
+
+    def test_non_admin_cannot_save_default_landing_page(self, writer_client):
+        resp = _post(writer_client, self.SAVE_URL, {
+            FIELD_LANDING_PAGE: '/prelievi',
+            FIELD_DEFAULT_LANDING_PAGE: '/bosco',
+        })
+
+        assert resp.status_code == 403
+        assert resp.json()[MESSAGE] == S.ERR_FORBIDDEN
+
+    def test_admin_can_save_default_landing_page(self, admin_client, admin_user):
+        resp = _post(admin_client, self.SAVE_URL, {
+            FIELD_LANDING_PAGE: '/controllo',
+            FIELD_DEFAULT_LANDING_PAGE: '/bosco',
+        })
+
+        assert resp.status_code == 200
+        admin_user.refresh_from_db()
+        assert admin_user.landing_page == '/controllo'
+        assert SiteSettings.load().default_landing_page == '/bosco'
+
+    def test_invalid_landing_page_rejected(self, writer_client):
+        resp = _post(writer_client, self.SAVE_URL, {
+            FIELD_LANDING_PAGE: 'https://example.com/prelievi',
+        })
+
+        assert resp.status_code == 400
+        assert resp.json()[MESSAGE] == S.ERR_LANDING_PAGE_INVALID
+
+    def test_requires_auth(self, db):
+        resp = Client().get(self.DATA_URL)
+        assert resp.status_code == 302
 
 
 # ---------------------------------------------------------------------------

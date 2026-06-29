@@ -7,7 +7,7 @@ from django.db import IntegrityError, transaction
 
 from apps.base.models import (
     Crew, Eclass, HarvestDetail, HarvestPlan, Product, Parcel,
-    Region, Species, Tractor, User, Role, DigestStatus, UsedNonce,
+    Region, Species, Tractor, User, Role, SiteSettings, DigestStatus, UsedNonce,
 )
 from apps.prelievi.models import Harvest, HarvestSpecies, HarvestTractor
 
@@ -226,6 +226,10 @@ class TestUser:
         u = User.objects.create_user(username='x', password='pass1234!')
         assert u.role == Role.READER
 
+    def test_default_landing_page_is_blank(self, db):
+        u = User.objects.create_user(username='x2', password='pass1234!')
+        assert u.landing_page == ''
+
     def test_role_choices(self):
         assert set(Role.values) == {'admin', 'writer', 'reader'}
 
@@ -233,3 +237,17 @@ class TestUser:
         admin_user.role = Role.WRITER
         admin_user.save()
         assert admin_user.history.count() == 2  # create + update
+
+
+# ---------------------------------------------------------------------------
+# Site settings
+# ---------------------------------------------------------------------------
+
+class TestSiteSettings:
+    def test_load_returns_singleton(self, db):
+        first = SiteSettings.load()
+        second = SiteSettings.load()
+
+        assert first.pk == 1
+        assert second.pk == 1
+        assert SiteSettings.objects.count() == 1

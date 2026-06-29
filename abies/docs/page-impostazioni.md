@@ -3,13 +3,22 @@
 Path: /impostazioni
 
 Collapsible sections are collapsed by default. Sections not visible to the
-current user's role are hidden entirely. The tab itself is hidden for users who
-would see no sections (reader + OAuth).
+current user's role are hidden entirely. The tab is visible to every
+authenticated user because every user can configure a landing page.
 
 ## Personal settings
 
-Visible to password-auth users (all roles). Two fields: "new password" and
-"repeat new password".
+Password-auth users see `Cambio password`, with two fields: new password and
+repeat new password. OAuth users do not see the password section.
+
+Every user sees `Pagina iniziale`. `Pagina personale` accepts a blank value or
+a same-site app URL, such as `/prelievi`, `/bosco`, or
+`/campionamenti?grid=1`; blank means use the site default. Admins also see
+`Pagina default`, used for users without a personal value. External URLs and
+non-app paths such as `/api/...`, `/admin/...`, and `/ipso/...` are rejected.
+
+Login and `/` redirect to the effective landing page: personal value, then site
+default, then `/prelievi`.
 
 ## Reference tables
 
