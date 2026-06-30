@@ -61,7 +61,7 @@ archives, including pre-deploy snapshots and scheduled backups.
   [docs/ui-design-patterns.md](docs/ui-design-patterns.md), and
   [docs/ui-maps.md](docs/ui-maps.md): frontend structure and UI conventions.
 - `docs/page-*.md`: page-specific behavior for Bosco, Campionamenti, Controllo,
-  Impostazioni, Login, Piano di taglio, Prelievi, and Squadre.
+  Impostazioni, Importazione, Login, Piano di taglio, Prelievi, and Squadre.
 
 ## Local Development
 
