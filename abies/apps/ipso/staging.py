@@ -45,14 +45,19 @@ def upload_model_fields(payload: dict, checksum: str, inbox_path: Path) -> dict:
 def write_upload_files(
         session_dir: Path, payload: dict, checksum: str, csv_text: str | None,
 ) -> Path:
+    write_payload_files(session_dir, payload, checksum)
+    if csv_text:
+        _atomic_write_text(session_dir / IPSO_UPLOAD_FILE_CSV, csv_text)
+    return session_dir
+
+
+def write_payload_files(session_dir: Path, payload: dict, checksum: str) -> Path:
     session_dir.mkdir(parents=True, exist_ok=True)
     _atomic_write_text(
         session_dir / IPSO_UPLOAD_FILE_JSON,
         json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + '\n',
     )
     _atomic_write_text(session_dir / IPSO_UPLOAD_FILE_SHA256, checksum + '\n')
-    if csv_text:
-        _atomic_write_text(session_dir / IPSO_UPLOAD_FILE_CSV, csv_text)
     return session_dir
 
 

@@ -14,3 +14,21 @@ Static Italian text lives here; JS wires controls and fills dynamic data.
     <section class="ipso-upload-detail" data-role="detail" hidden></section>
   </div>
 </template>
+
+<template id="tmpl-ipso-upload-mode-modal">
+  <form class="form-card" data-role="ipso-upload-mode-form">
+    <h2>Modifica modalità</h2>
+    <div class="form-group">
+      <label for="id_ipso_upload_mode">Modalità</label>
+      <select id="id_ipso_upload_mode" name="mode" data-role="mode" required>
+        <option value="martellate">{{ S.IPSO_MODE_MARTELLATE_LABEL }}</option>
+        <option value="samples">{{ S.IPSO_MODE_SAMPLES_LABEL }}</option>
+        <option value="pai">{{ S.IPSO_MODE_PAI_LABEL }}</option>
+      </select>
+    </div>
+    <div class="form-actions">
+      <button type="button" class="btn" data-action="cancel">{{ S.CANCEL }}</button>
+      <button type="submit" class="btn btn-save">{{ S.SAVE }}</button>
+    </div>
+  </form>
+</template>

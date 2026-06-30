@@ -23,7 +23,7 @@ urlpatterns = [
     path('plan/delete/<int:plan_id>/', views.plan_delete_view,
          name='piano-di-taglio-plan-delete'),
 
-    # Plan CSV import / plan-level Esporta CSV.
+    # Plan CSV import / plan-level Esporta.
     path('plan/import-csv/', views.plan_csv_import_view,
          name='piano-di-taglio-plan-import-csv'),
     path('plan/export/<int:plan_id>/', views.plan_export_view,
@@ -44,7 +44,7 @@ urlpatterns = [
     path('item/delete/<int:item_id>/', views.item_delete_view,
          name='piano-di-taglio-item-delete'),
 
-    # Per-item Esporta CSV (martellate + prelievi zip).
+    # Per-item Esporta (martellate + prelievi zip).
     path('item/export/<int:item_id>/', views.item_export_view,
          name='piano-di-taglio-item-export'),
 

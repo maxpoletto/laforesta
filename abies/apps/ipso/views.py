@@ -6,6 +6,7 @@ import hashlib
 import hmac
 import json
 import re
+import shutil
 import time
 from collections import defaultdict, deque
 from datetime import timezone
@@ -25,7 +26,8 @@ from django.utils.cache import patch_vary_headers
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
-from apps.base.auth import require_writer
+from apps.base import csv_io
+from apps.base.auth import require_admin, require_writer
 from apps.base.http import (
     CACHE_NO_CACHE, CACHE_NO_STORE, apply_cache_control,
     conditional_file_response,
@@ -36,7 +38,7 @@ from apps.base.models import (
     TreeSample, natural_sort_key, parcel_sort_key,
 )
 from apps.base.numparse import coord_float, to_decimal
-from apps.base.responses import success_response, validation_error
+from apps.base.responses import row_delete, success_response, validation_error
 from apps.campionamenti import csv_trees
 from apps.ipso import staging as ipso_staging
 from apps.ipso.importers import (
@@ -67,13 +69,15 @@ from config.constants import (
     IPSO_MODE_PAI, IPSO_MODE_SAMPLES, IPSO_REF_GENERATED_AT,
     IPSO_REF_HYPSOMETRY, IPSO_REF_PAI, IPSO_REF_PARCELS,
     IPSO_REF_PRESERVED_TREES, IPSO_REF_SAMPLE_AREA_MAX_NUMBERS,
+    DATA_ID_IPSO_UPLOADS,
     IPSO_REF_SAMPLE_AREAS, IPSO_REF_SAMPLING, IPSO_REF_SPECIES,
     IPSO_REF_SURVEYS, IPSO_REF_WORK_PACKAGES,
     IPSO_REFERENCE_JSON, IPSO_REFERENCE_VERSION_KEYS,
     IPSO_TARGET_HARVEST_PLAN_ITEM, IPSO_TARGET_PAI, IPSO_TARGET_SURVEY,
     IPSO_TERRENI_GEOJSON, IPSO_WORK_PACKAGE_HARVEST_PREFIX,
     IPSO_WORK_PACKAGE_SAMPLING_SURVEY, IPSO_WORK_PACKAGE_SAMPLING_SURVEY_PREFIX,
-    IPSO_UPLOAD_CONFIG_JS, IPSO_UPLOAD_FILE_JSON, IPSO_UPLOAD_MODES, MESSAGE,
+    IPSO_UPLOAD_CONFIG_JS, IPSO_UPLOAD_FILE_CSV, IPSO_UPLOAD_FILE_JSON,
+    IPSO_UPLOAD_FILE_SHA256, IPSO_UPLOAD_MODES, MESSAGE,
     OK,
     PENDING_COUNT, PRESSLER_DEFAULT, RECORD_COUNT, RECORDS, ROW_ID, ROWS,
     SESSION, SKIPPED_DUPLICATES, STORED_AS, SUGGESTED_TARGET_ID, TARGETS,
@@ -411,6 +415,11 @@ MODE_LABELS = {
 REFERENCE_LABELS = {
     'legacy-converted': S.IPSO_REFERENCE_LEGACY_CONVERTED,
 }
+STAGED_UPLOAD_ARCHIVE_FILES = (
+    IPSO_UPLOAD_FILE_JSON,
+    IPSO_UPLOAD_FILE_SHA256,
+    IPSO_UPLOAD_FILE_CSV,
+)
 
 
 @login_required
@@ -463,6 +472,66 @@ def reject_upload(request: HttpRequest, upload_id: int) -> JsonResponse:
         upload.error_summary = reason
         data = _upload_metadata(upload)
     return success_response(request, None, extra={UPLOAD: data})
+
+
+@login_required
+@require_admin
+@require_GET
+def download_upload(request: HttpRequest, upload_id: int) -> HttpResponse:
+    upload = _get_upload(upload_id)
+    files = _staged_upload_files(upload)
+    if not files:
+        raise Http404
+    return csv_io.zip_response(files, _upload_archive_filename(upload))
+
+
+@login_required
+@require_admin
+@require_POST
+def delete_upload(request: HttpRequest, upload_id: int) -> JsonResponse:
+    with transaction.atomic():
+        upload = _get_upload(upload_id, for_update=True)
+        inbox_path = Path(upload.inbox_path)
+        upload.delete()
+    _remove_staged_upload_files(inbox_path)
+    return success_response(
+        request, None,
+        data_id=DATA_ID_IPSO_UPLOADS, row_id=upload_id,
+        deletes=[row_delete(DATA_ID_IPSO_UPLOADS, upload_id)],
+    )
+
+
+@login_required
+@require_admin
+@require_POST
+def update_upload_mode(request: HttpRequest, upload_id: int) -> JsonResponse:
+    try:
+        body = _request_json(request)
+        mode = _str(body, FIELD_MODE)
+    except UploadValidationError as e:
+        return validation_error([str(e)])
+    if mode not in ALLOWED_UPLOAD_MODES:
+        return validation_error([S.IPSO_ERR_MODE_UNSUPPORTED])
+
+    with transaction.atomic():
+        upload = _get_upload(upload_id, for_update=True)
+        if upload.state == IpsoUploadState.IMPORTED:
+            return validation_error([S.IPSO_ERR_IMPORTED_CANNOT_EDIT_MODE])
+        payload, file_error = _read_staged_payload(upload)
+        if file_error:
+            return validation_error([file_error])
+        session = payload.get(SESSION) if isinstance(payload, dict) else None
+        if not isinstance(session, dict):
+            return validation_error([S.IPSO_ERR_FIELD_OBJECT.format(SESSION)])
+        session[FIELD_MODE] = mode
+        checksum = _payload_checksum(payload)
+        ipso_staging.write_payload_files(Path(upload.inbox_path), payload, checksum)
+        upload.mode = mode
+        upload.checksum = checksum
+        upload.error_summary = ''
+        upload.save(update_fields=['mode', 'checksum', 'error_summary'])
+        data = _upload_metadata(upload)
+    return success_response(request, body, extra={UPLOAD: data})
 
 
 @login_required
@@ -690,6 +759,27 @@ def _upload_metadata(upload: IpsoUpload) -> dict:
         'target_label': _target_label(upload),
         'error_summary': upload.error_summary,
     }
+
+
+def _staged_upload_files(upload: IpsoUpload) -> list[tuple[str, bytes]]:
+    root = Path(upload.inbox_path)
+    if not root.is_dir():
+        return []
+    files = []
+    for name in STAGED_UPLOAD_ARCHIVE_FILES:
+        path = root / name
+        if path.is_file():
+            files.append((name, path.read_bytes()))
+    return files
+
+
+def _upload_archive_filename(upload: IpsoUpload) -> str:
+    return f'ipso-upload-{upload.session_id}.zip'
+
+
+def _remove_staged_upload_files(path: Path) -> None:
+    if path.is_dir():
+        shutil.rmtree(path)
 
 
 def _work_package_label(upload: IpsoUpload) -> str:

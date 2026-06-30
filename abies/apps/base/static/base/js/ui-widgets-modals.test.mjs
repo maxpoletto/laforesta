@@ -157,7 +157,7 @@ function buildCascadeTemplate() {
   const exportBtn = new MockElement('button');
   exportBtn.className = 'btn btn-export';
   exportBtn.dataset.action = 'export';
-  exportBtn.textContent = 'Esporta CSV';
+  exportBtn.textContent = 'Esporta';
   const delBtn = new MockElement('button');
   delBtn.className = 'btn btn-delete cascade-delete-btn';
   delBtn.dataset.action = 'delete';
@@ -278,7 +278,7 @@ showCascadeDeleteModal({
   title: 'Confirm delete',
   warning: 'This is dangerous',
   exportRequired: 'Export first!',
-  onExportCSV: () => { exportCalled = true; },
+  onExport: () => { exportCalled = true; },
   onDelete: () => { deleteCalled = true; },
 });
 
@@ -297,7 +297,7 @@ assertEqual(delBtn?.disabled, true, 'delete starts disabled');
 const expBtn = findByDataset(modalShown, 'action', 'export');
 assertEqual(expBtn?._removed, false, 'export button present');
 expBtn.click();
-assertEqual(exportCalled, true, 'onExportCSV called');
+assertEqual(exportCalled, true, 'onExport called');
 assertEqual(delBtn.disabled, false, 'delete enabled after export');
 
 delBtn.click();

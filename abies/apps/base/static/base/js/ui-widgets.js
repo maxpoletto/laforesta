@@ -140,7 +140,7 @@ export function showConfirmModal(message, onConfirm, { confirmLabel } = {}) {
   showModal(frag);
 }
 
-export function showCascadeDeleteModal({ title, warning, exportRequired, onExportCSV, onDelete }) {
+export function showCascadeDeleteModal({ title, warning, exportRequired, onExport, onDelete }) {
   const frag = cloneTemplate('tmpl-cascade-delete-modal');
   frag.querySelector('[data-field="title"]').textContent = title;
   frag.querySelector('[data-field="warning"]').textContent = warning;
@@ -149,10 +149,10 @@ export function showCascadeDeleteModal({ title, warning, exportRequired, onExpor
   const exportBtn = frag.querySelector('[data-action="export"]');
   const delBtn = frag.querySelector('[data-action="delete"]');
 
-  if (onExportCSV) {
+  if (onExport) {
     exportReqEl.textContent = exportRequired || S.CASCADE_EXPORT_REQUIRED;
     exportBtn.addEventListener('click', () => {
-      onExportCSV();
+      onExport();
       delBtn.disabled = false;
     });
   } else {

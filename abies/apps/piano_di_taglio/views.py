@@ -295,7 +295,7 @@ def plan_csv_import_view(request):
 
 
 # ---------------------------------------------------------------------------
-# Plan-level Esporta CSV — zip of fustaia.csv + ceduo.csv
+# Plan-level Esporta — zip of fustaia.csv + ceduo.csv
 # ---------------------------------------------------------------------------
 
 @login_required
@@ -507,7 +507,7 @@ def item_delete_view(request, item_id: int):
 
 
 # ---------------------------------------------------------------------------
-# Per-item Esporta CSV — zip of martellate_<id>.csv + prelievi_<id>.csv
+# Per-item Esporta — zip of martellate_<id>.csv + prelievi_<id>.csv
 # ---------------------------------------------------------------------------
 
 @login_required

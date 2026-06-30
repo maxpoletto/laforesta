@@ -40,7 +40,7 @@ better parameters from more data, independently of any plan.
 ## Proposal
 
 - Decouple regression parameters from harvest plans. "Modifica piano > Importa
-  equazioni da CSV" goes away, and the plan-level "Esporta CSV" no longer
+  equazioni da CSV" goes away, and the plan-level "Esporta" no longer
   includes `equazioni_ipsometro.csv`.
 
 - At any time, at most **one** parameter set is active, in both Abies and Ipso.
@@ -105,7 +105,7 @@ Visible to writers and admins, below "Specie".
   set, so there is no per-row add/edit.
 
 - Toolbar buttons, above-right of the table:
-  - **Esporta CSV** — downloads the active set as `equazioni_ipsometro.csv`
+  - **Esporta** — downloads the active set as `equazioni_ipsometro.csv`
     (Italian locale). Always available; non-destructive.
   - **Importa CSV** — uploads an `equazioni_ipsometro.csv`. After a confirmation
     that it replaces the active parameters (the current set is archived), the
@@ -138,7 +138,7 @@ Visible to writers and admins, below "Specie".
 
 Because superseded sets are archived rather than deleted, replacing parameters
 (by compute, import, or clear) is non-destructive. None of these actions force a
-CSV backup first; "Esporta CSV" remains available for an explicit export.
+CSV backup first; "Esporta" remains available for an explicit export.
 
 ## Data serving
 

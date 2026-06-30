@@ -150,7 +150,7 @@ of either dataset should treat them as independent observations.
     UI also disables the trash icon unless `state = planned`, since
     `state > planned` always implies at least one child row exists; the
     DB constraint is the belt-and-suspenders backstop.
-  - The View/Edit-harvest-plan-item modal carries an "Esporta CSV"
+  - The View/Edit-harvest-plan-item modal carries an "Esporta"
     button that dumps the item's `tree_mark` and `harvest` rows as a
     zip (see `piano-di-taglio.md`). The dangerous-delete flow reuses
     that endpoint as a forced-download step before the user clears
@@ -230,7 +230,7 @@ flagged preserved, or otherwise carry independent significance.
 
 These cascades can destroy person-weeks of field-survey work.  The UI
 raises strong warnings before any survey or sample delete and forces an
-export of the affected rows (equivalent to "Esporta CSV") before the
+export of the affected rows (equivalent to "Esporta") before the
 operation can proceed.  See `campionamenti.md` for the flow.
 
 ### Preserved trees

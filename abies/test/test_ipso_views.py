@@ -1,6 +1,8 @@
 """Tests for the Abies-served Ipso PWA."""
 
+import io
 import json
+import zipfile
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
@@ -23,6 +25,13 @@ from config import strings as S
 
 def _body(resp) -> bytes:
     return b''.join(resp.streaming_content)
+
+
+@pytest.fixture
+def admin_client(admin_user):
+    client = Client()
+    client.force_login(admin_user)
+    return client
 
 
 @pytest.fixture
@@ -699,6 +708,126 @@ def test_reader_cannot_reject_upload(reader_client, parcels, species, settings, 
     assert resp.status_code == 403
     upload.refresh_from_db()
     assert upload.state == IpsoUploadState.RECEIVED
+
+
+@override_settings(IPSO_SECRET='test-token')
+def test_admin_downloads_staged_upload_zip(
+        admin_client, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    payload = _upload_payload(parcels, species)
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
+
+    resp = admin_client.get(reverse('ipso-upload-download', args=[upload.id]))
+
+    assert resp.status_code == 200
+    assert resp['Content-Type'] == 'application/zip'
+    assert 'no-store' in resp['Cache-Control']
+    assert f'ipso-upload-{upload.session_id}.zip' in resp['Content-Disposition']
+    zf = zipfile.ZipFile(io.BytesIO(resp.content))
+    assert sorted(zf.namelist()) == ['export.csv', 'upload.json', 'upload.sha256']
+    assert json.loads(zf.read('upload.json'))['session']['mode'] == 'martellate'
+    assert zf.read('export.csv').decode() == 'csv backup'
+
+
+@override_settings(IPSO_SECRET='test-token')
+def test_writer_cannot_download_delete_or_edit_upload_mode(
+        writer_client, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    payload = _upload_payload(parcels, species)
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
+
+    assert writer_client.get(
+        reverse('ipso-upload-download', args=[upload.id]),
+    ).status_code == 403
+    assert writer_client.post(
+        reverse('ipso-upload-delete', args=[upload.id]),
+        data=json.dumps({}), content_type='application/json',
+    ).status_code == 403
+    assert writer_client.post(
+        reverse('ipso-upload-mode', args=[upload.id]),
+        data=json.dumps({'mode': 'pai'}), content_type='application/json',
+    ).status_code == 403
+    upload.refresh_from_db()
+    assert upload.mode == 'martellate'
+    assert Path(upload.inbox_path).is_dir()
+
+
+@override_settings(IPSO_SECRET='test-token')
+def test_admin_updates_upload_mode_and_staged_payload(
+        admin_client, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    payload = _upload_payload(
+        parcels, species, mode='pai',
+        session_id='33333333-3333-4333-8333-333333333338',
+    )
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
+    inbox_path = Path(upload.inbox_path)
+    original_csv = (inbox_path / 'export.csv').read_text()
+
+    resp = admin_client.post(
+        reverse('ipso-upload-mode', args=[upload.id]),
+        data=json.dumps({'mode': 'martellate'}),
+        content_type='application/json',
+    )
+
+    assert resp.status_code == 200
+    upload.refresh_from_db()
+    assert upload.mode == 'martellate'
+    staged = json.loads((inbox_path / 'upload.json').read_text())
+    assert staged['session']['mode'] == 'martellate'
+    assert (inbox_path / 'upload.sha256').read_text().strip() == upload.checksum
+    assert (inbox_path / 'export.csv').read_text() == original_csv
+    assert resp.json()['upload']['mode'] == 'martellate'
+    assert resp.json()['upload']['mode_label'] == S.IPSO_MODE_MARTELLATE_LABEL
+
+
+@override_settings(IPSO_SECRET='test-token')
+def test_admin_cannot_update_mode_after_domain_import(
+        admin_client, writer_client, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    item = _harvest_item(parcels)
+    payload = _upload_payload(parcels, species)
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
+    assert writer_client.post(
+        reverse('ipso-upload-import-martellate', args=[upload.id]),
+        data=json.dumps({'harvest_plan_item_id': item.id}),
+        content_type='application/json',
+    ).status_code == 200
+
+    resp = admin_client.post(
+        reverse('ipso-upload-mode', args=[upload.id]),
+        data=json.dumps({'mode': 'pai'}),
+        content_type='application/json',
+    )
+
+    assert resp.status_code == 400
+    assert S.IPSO_ERR_IMPORTED_CANNOT_EDIT_MODE in resp.json()['message']
+    upload.refresh_from_db()
+    assert upload.mode == 'martellate'
+
+
+@override_settings(IPSO_SECRET='test-token')
+def test_admin_deletes_staged_upload_record_and_files(
+        admin_client, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    payload = _upload_payload(parcels, species)
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
+    inbox_path = Path(upload.inbox_path)
+
+    resp = admin_client.post(
+        reverse('ipso-upload-delete', args=[upload.id]),
+        data=json.dumps({}),
+        content_type='application/json',
+    )
+
+    assert resp.status_code == 200
+    assert not IpsoUpload.objects.filter(id=upload.id).exists()
+    assert not inbox_path.exists()
 
 
 @override_settings(IPSO_SECRET='test-token')

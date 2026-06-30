@@ -26,7 +26,7 @@ writer-only.
 
 ## 2. Ore
 
-A sortable table with the standard Search box and `Esporta CSV` button on top,
+A sortable table with the standard Search box and `Esporta` button on top,
 and the following columns:
 
 Data, Squadra, Ore, Note

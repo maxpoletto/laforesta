@@ -87,7 +87,7 @@ The new-area form:
 - Raggio (m) (default 10 m).
 - Note (optional).
 
-The "Esporta CSV" button at the top right exports the active grid's sample areas
+The "Esporta" button at the top right exports the active grid's sample areas
 in the same column shape as the import flow (see "Grid CSV import" below) —
 useful for programming GPS devices for the field crew.
 
@@ -127,7 +127,7 @@ Nuova-griglia button.
 
 ### Section 2 — Rilevamenti (Surveys)
 
-Same top-row layout as Griglie (pulldown + pencil/trash + Esporta CSV + Nuovo
+Same top-row layout as Griglie (pulldown + pencil/trash + Esporta + Nuovo
 rilevamento). Deleting an empty survey shows a simple warning. Deleting a
 survey with trees prompts with a deletion-after-export modal (see UI Design
 Patterns > Deletion-after-export).
@@ -136,7 +136,7 @@ Summary line: descrizione, griglia, n. aree visitate / totali, data primo/ultimo
 campione.
 
 Selecting a survey drives Section 3 (only that survey's trees). The
-section-level "Esporta CSV" exports the full survey; Section 3 has its
+section-level "Esporta" exports the full survey; Section 3 has its
 own export for the filtered subset.
 
 **Nuovo rilevamento** modal: Nome (required), Griglia (required pulldown),
@@ -301,7 +301,7 @@ Pencil opens the row in an edit form; garbage prompts for confirmation. For
 surveys and samples, the database-level cascade rules (see `database.md`) mean
 deletion can destroy a lot of work: the UI raises a strong, distinct-styled
 warning ("Questa operazione cancellerà N campioni e M misure di alberi che non
-possono essere recuperati") and forces an "Esporta CSV" of the affected rows
+possono essere recuperati") and forces an "Esporta" of the affected rows
 before the delete button is enabled.
 
 Deleting a single `tree_sample` row leaves both the `sample` and the underlying

@@ -147,6 +147,7 @@ export const FIELD_NEXT_SHOOT            = 'next_shoot';
 export const FIELD_STANDARD              = 'standard';
 export const FIELD_MANUFACTURER          = 'manufacturer';
 export const FIELD_MODEL                 = 'model';
+export const FIELD_MODE                  = 'mode';
 export const FIELD_YEAR                  = 'year';
 export const FIELD_ESTIMATED_BIRTH_YEAR  = 'estimated_birth_year';
 export const FIELD_COMMON_NAME           = 'common_name';

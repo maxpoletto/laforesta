@@ -13,7 +13,7 @@ CONFIRM = 'Conferma'
 DISMISS = 'Chiudi'
 ACTION_EDIT = 'Modifica'
 ACTION_DELETE = 'Elimina'
-EXPORT_CSV = 'Esporta CSV'
+EXPORT = 'Esporta'
 IMPORT_CSV = 'Importa CSV'
 IMPORT_LABEL = 'Importa'
 FILTER_LABEL = 'Filtra'
@@ -51,6 +51,7 @@ IPSO_STATE_IMPORTED = 'Importato'
 IPSO_STATE_REJECTED = 'Rifiutato'
 IPSO_STATE_CONFLICT = 'Conflitto'
 IPSO_ERR_IMPORTED_CANNOT_REJECT = 'Un caricamento importato non può essere rifiutato.'
+IPSO_ERR_IMPORTED_CANNOT_EDIT_MODE = 'Un caricamento importato non può cambiare modalità.'
 IPSO_ERR_MODE_UNSUPPORTED = 'Modalità non supportata.'
 IPSO_ERR_UPLOAD_NOT_RECEIVED = 'Solo i caricamenti da importare possono essere importati.'
 IPSO_ERR_INVALID_MARTELLATE_TARGET = 'Destinazione non valida per Martellate.'
@@ -606,7 +607,7 @@ LABEL_ALL_PARCELS = '(tutti)'  # form pulldown placeholder for region-wide
 # character chosen for narrow columns; localizable.
 PARCEL_WHOLE_REGION_MARK = 'X'
 
-# Zip-archive filenames for the plan-level Esporta CSV.  Italian by
+# Zip-archive filenames for the plan-level Esporta.  Italian by
 # default; localizable so a future language gets distinct names.
 CSV_FILE_HIGHFOREST = 'fustaia.csv'
 CSV_FILE_COPPICE    = 'ceduo.csv'

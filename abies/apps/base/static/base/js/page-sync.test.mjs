@@ -276,6 +276,10 @@ const { TableWrapper } = await import('./table.js');
   wrapper.actions = {
     onEdit: (rowId) => calls.push(['edit', rowId]),
     onDelete: (rowId) => calls.push(['delete', rowId]),
+    extra: [{
+      key: 'mode',
+      onClick: (rowId, row) => calls.push(['mode', rowId, row[1]]),
+    }],
   };
   const rowEl = { dataset: { index: '0' } };
   const target = (matches = {}) => ({
@@ -289,16 +293,23 @@ const { TableWrapper } = await import('./table.js');
     classList: { contains: (cls) => cls === 'action-delete' },
     closest: (selector) => selector === '.sortable-table-row' ? rowEl : null,
   };
+  const extraIcon = {
+    classList: { contains: (cls) => cls === 'action-extra' },
+    dataset: { actionKey: 'mode' },
+    closest: (selector) => selector === '.sortable-table-row' ? rowEl : null,
+  };
 
   wrapper._handleTableClick({ target: target() });
   wrapper._handleTableClick({ target: target({ '.action-icon': editIcon }) });
   wrapper._handleTableClick({ target: target({ '.action-icon': deleteIcon }) });
+  wrapper._handleTableClick({ target: target({ '.action-icon': extraIcon }) });
   wrapper._handleTableClick({
     target: target({ '.action-icon,a,button,input,label,select,textarea,[contenteditable="true"],[role="button"]': {} }),
   });
 
-  eq(JSON.stringify(calls), JSON.stringify([['edit', 10], ['edit', 10], ['delete', 10]]),
-     'TableWrapper row clicks edit, action icons dispatch explicitly, and controls are ignored');
+  eq(JSON.stringify(calls), JSON.stringify([
+    ['edit', 10], ['edit', 10], ['delete', 10], ['mode', 10, 'Abete'],
+  ]), 'TableWrapper row clicks edit, action icons dispatch explicitly, and controls are ignored');
 }
 
 // navigateWithParams uses replace by default and preserves empty query handling.

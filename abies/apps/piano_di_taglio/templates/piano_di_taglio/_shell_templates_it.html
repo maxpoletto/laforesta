@@ -16,7 +16,7 @@ render context.
     </div>
     <div class="pdt-header-right">
       <button type="button" class="btn btn-export"
-              data-action="export-plan">{{ S.EXPORT_CSV }}</button>
+              data-action="export-plan">{{ S.EXPORT }}</button>
       {% if user.can_modify %}
       <button type="button" class="btn btn-create"
               data-action="new-plan">+ Nuovo piano</button>
@@ -38,7 +38,7 @@ render context.
       <input type="text" class="table-search" id="pdt-search-f"
              placeholder="{{ S.SEARCH_PLACEHOLDER }}">
       <button type="button" class="btn btn-export ms-auto"
-              data-action="export-section-csv">{{ S.EXPORT_CSV }}</button>
+              data-action="export-section-csv">{{ S.EXPORT }}</button>
     </div>
     <div class="pdt-table-host" data-target="table-f"></div>
     {% if user.can_modify %}
@@ -66,7 +66,7 @@ render context.
       <input type="text" class="table-search" id="pdt-search-c"
              placeholder="{{ S.SEARCH_PLACEHOLDER }}">
       <button type="button" class="btn btn-export ms-auto"
-              data-action="export-section-csv">{{ S.EXPORT_CSV }}</button>
+              data-action="export-section-csv">{{ S.EXPORT }}</button>
     </div>
     <div class="pdt-table-host" data-target="table-c"></div>
     {% if user.can_modify %}
@@ -225,7 +225,7 @@ render context.
       </div>
       <div class="pdt-item-header-actions">
         <button type="button" class="btn btn-export"
-                data-action="export-item">{{ S.EXPORT_CSV }}</button>
+                data-action="export-item">{{ S.EXPORT }}</button>
         <button type="button" class="pdt-item-close"
                 title="{{ S.DISMISS }}" data-action="close-item">×</button>
       </div>

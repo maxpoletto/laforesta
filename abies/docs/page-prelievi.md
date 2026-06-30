@@ -6,7 +6,7 @@ This page supports recording and display of harvesting operations.
 
 A top filter bar hosts a double-ended year slider (`Anni`, see
 `base/.../range-slider.js`), search box (`Filtra`), "Azzera filtri" reset, and
-"Esporta CSV" export. Below it sit three collapsible sections, separated by the
+"Esporta" export. Below it sit three collapsible sections, separated by the
 standard dark-green 4px rule:
 
 1. **Produzione** — stacked bar chart of total quintals over time, with a

@@ -30,7 +30,7 @@ const ROW_CLICK_IGNORE_SELECTOR = [
 const DEFAULT_LABELS = {
   search: 'Filter',
   searchPlaceholder: 'Search...',
-  exportCSV: 'Export CSV',
+  exportCSV: 'Export',
   add: 'Add',
   empty: 'No results.',
   actionEdit: 'Edit',
@@ -73,7 +73,10 @@ export class TableWrapper {
    *   Column metadata keyed by digest column name.
    * @param {boolean} [opts.canModify]
    * @param {{onEdit?: function(number), onDelete?: function(number),
-   *         onAdd?: function}} [opts.actions]
+   *         onAdd?: function, extra?: Array<{key: string, title: string,
+   *         icon: string, onClick: function(number, Array), visible?: function(Array): boolean}>,
+   *         editVisible?: function(Array): boolean,
+   *         deleteVisible?: function(Array): boolean}} [opts.actions]
    * @param {{column: string, ascending: boolean}} [opts.sort]
    * @param {string} [opts.searchText]
    * @param {string} [opts.csvFilename]
@@ -287,7 +290,7 @@ export class TableWrapper {
 
     // Row-action delegation on the stable container element, avoiding
     // SortableTable's onRowClick which stacks listeners on re-render.
-    if (this.canModify && (this.actions.onEdit || this.actions.onDelete)) {
+    if (this.canModify && hasRowActions(this.actions)) {
       this._tableEl.addEventListener('click', (e) => this._handleTableClick(e));
     }
 
@@ -305,13 +308,18 @@ export class TableWrapper {
     const rowId = rowData[ROW_ID_COL];
 
     if (icon) {
-      if (icon.classList.contains('action-edit')) this.actions.onEdit?.(rowId);
-      else if (icon.classList.contains('action-delete')) this.actions.onDelete?.(rowId);
+      if (icon.classList.contains('action-edit')) this.actions.onEdit?.(rowId, rowData);
+      else if (icon.classList.contains('action-delete')) this.actions.onDelete?.(rowId, rowData);
+      else if (icon.classList.contains('action-extra')) {
+        const action = extraActions(this.actions)
+          .find(a => a.key === icon.dataset.actionKey);
+        action?.onClick?.(rowId, rowData);
+      }
       return;
     }
 
     if (this.actions.onEdit && !e.target.closest(ROW_CLICK_IGNORE_SELECTOR)) {
-      this.actions.onEdit(rowId);
+      this.actions.onEdit(rowId, rowData);
     }
   }
 
@@ -383,6 +391,39 @@ TableWrapper._idSeq = 0;
 // Column builder (module-private)
 // ---------------------------------------------------------------------------
 
+function hasRowActions(actions) {
+  return !!(actions.onEdit || actions.onDelete || extraActions(actions).length);
+}
+
+function extraActions(actions) {
+  return Array.isArray(actions.extra) ? actions.extra : [];
+}
+
+function actionCount(actions) {
+  return (actions.onEdit ? 1 : 0) + extraActions(actions).length + (actions.onDelete ? 1 : 0);
+}
+
+function rowActionHTML(actions, labels, row) {
+  const parts = [];
+  if (actions.onEdit && actionVisible(actions.editVisible, row)) {
+    parts.push(`<span class="action-icon action-edit" title="${escAttr(labels.actionEdit)}">${escHTML(labels.actionEditIcon)}</span>`);
+  }
+  for (const action of extraActions(actions)) {
+    if (!actionVisible(action.visible, row)) continue;
+    parts.push(
+      `<span class="action-icon action-extra" data-action-key="${escAttr(action.key)}" title="${escAttr(action.title)}">${escHTML(action.icon)}</span>`,
+    );
+  }
+  if (actions.onDelete && actionVisible(actions.deleteVisible, row)) {
+    parts.push(`<span class="action-icon action-delete" title="${escAttr(labels.actionDelete)}">\u{1F5D1}\u{FE0E}</span>`);
+  }
+  return parts.join(' ');
+}
+
+function actionVisible(fn, row) {
+  return !fn || fn(row) !== false;
+}
+
 function buildSTColumns(digestColumns, columnDefs, actions, labels) {
   const cols = digestColumns.map(name => {
     if (name === 'row_id') {
@@ -401,17 +442,13 @@ function buildSTColumns(digestColumns, columnDefs, actions, labels) {
     };
   });
 
-  if (actions.onEdit || actions.onDelete) {
-    const parts = [];
-    if (actions.onEdit)
-      parts.push(`<span class="action-icon action-edit" title="${escAttr(labels.actionEdit)}">${escHTML(labels.actionEditIcon)}</span>`);
-    if (actions.onDelete)
-      parts.push(`<span class="action-icon action-delete" title="${escAttr(labels.actionDelete)}">\u{1F5D1}\u{FE0E}</span>`);
-    const html = parts.join(' ');
+  if (hasRowActions(actions)) {
+    const maxCount = actionCount(actions);
     cols.push({
       key: '_actions', label: '', sortable: false,
-      width: parts.length === 1 ? '34px' : '65px', className: 'col-actions',
-      formatter: () => html,
+      width: maxCount === 1 ? '34px' : `${31 * maxCount + 3}px`,
+      className: 'col-actions',
+      formatter: (_value, row) => rowActionHTML(actions, labels, row),
       trustedHTML: true,
     });
   }
@@ -507,7 +544,7 @@ function rowSearchText(row, columns) {
 
 function cellSearchText(value, row, col, index) {
   if (col?.hidden || col?.key === '_actions') return '';
-  const display = col?.formatter ? String(col.formatter(value) ?? '') : String(value ?? '');
+  const display = col?.formatter ? String(col.formatter(value, row, col, index) ?? '') : String(value ?? '');
   const extra = col?.searchFormatter ? String(col.searchFormatter(value, row, col, index) ?? '') : '';
   return extra ? `${display} ${extra}` : display;
 }

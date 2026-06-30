@@ -21,9 +21,9 @@ pulldown:
 
   Piano di taglio [ pull-down to select available plans ] [pencil] [trash]
 
-  On the far right: "Esporta CSV" and "+ Nuovo piano".
+  On the far right: "Esporta" and "+ Nuovo piano".
 
-  "Esporta CSV" produces a zip of two CSVs (`fustaia.csv`,
+  "Esporta" produces a zip of two CSVs (`fustaia.csv`,
   `ceduo.csv`). Column sets match the
   per-section exports so rows paste cleanly between them. The per-section
   exports use this round-trip CSV shape, including the leading `ID` column,
@@ -117,7 +117,7 @@ authority may authorize a previously unplanned item to pick up destroyed trees.
 
 **Empty-state CTA.** When the currently active plan has zero fustaia (or
 zero ceduo) items, the section's table — along with its search box,
-Esporta CSV button, and `+ Aggiungi` row — is replaced by an inline
+Esporta button, and `+ Aggiungi` row — is replaced by an inline
 panel:
 
   Nessun intervento. [Importa calendario CSV] [+ Aggiungi manualmente]
@@ -142,7 +142,7 @@ Because a deletable item is always in `state = planned` (and therefore
 has no marks / harvests / transitions to back up), the per-item delete
 confirmation does **not** include the forced-CSV-download step that the
 plan-level delete has. The confirmation modal just shows the warning
-and `[Annulla] [Elimina]`. Per-row Esporta CSV remains available from
+and `[Annulla] [Elimina]`. Per-row Esporta remains available from
 the view/edit modal header for operators who want a backup before
 manual deletion of dependent rows.
 
@@ -189,7 +189,7 @@ Title: Intervento del <harvest plan name>, anno <year_planned>,
 Full-page modal. Unlike others, this one is bookmarkable (for sharing) —
 see `i=N` in URL parameters.
 
-The modal header carries an "Esporta CSV" button on the right (analogous
+The modal header carries an "Esporta" button on the right (analogous
 to the plan-level one). It produces a zip of the item's per-row data:
 `martellate_<id>.csv` (one row per `tree_mark`) and
 `prelievi_<id>.csv` (one row per linked `harvest`, including its species

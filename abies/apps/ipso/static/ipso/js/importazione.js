@@ -4,23 +4,26 @@
 
 import * as api from '../../base/js/api.js';
 import * as cache from '../../base/js/cache.js';
+import { downloadFromURL } from '../../base/js/csv-export.js';
 import { TableWrapper } from '../../base/js/table.js';
 import {
   applyTableState, createPage, navigateWithParams, readTableState,
   tableSort, writeTableState,
 } from '../../base/js/page-sync.js';
-import { showError } from '../../base/js/modals.js';
-import { showConfirmModal } from '../../base/js/ui-widgets.js';
+import { dismiss as dismissModal, show as showModal, showError } from '../../base/js/modals.js';
+import {
+  showCascadeDeleteModal, showConfirmModal, wireCancelButtons,
+} from '../../base/js/ui-widgets.js';
 import { cloneTemplate } from '../../base/js/templates.js';
 import { fmtCoord, fmtDecimal2, fmtInt } from '../../base/js/format.js';
 import { installEscapeHandler } from '../../base/js/escape.js';
 import * as S from '../../base/js/strings.js';
 import {
   DATA_ID_IPSO_UPLOADS, FIELD_HARVEST_PLAN_ITEM_ID, FIELD_SAMPLE_AREA_ID,
-  FIELD_SURVEY_ID, FIELD_WORK_PACKAGE_LABEL, FILE_ERROR,
+  FIELD_MODE, FIELD_SURVEY_ID, FIELD_WORK_PACKAGE_LABEL, FILE_ERROR,
   IPSO_MODE_MARTELLATE, IPSO_MODE_PAI, IPSO_MODE_SAMPLES,
   IPSO_UPLOAD_STATE_IMPORTED, IPSO_UPLOAD_STATE_RECEIVED, IPSO_UPLOAD_STATE_REJECTED,
-  MESSAGE, PENDING_COUNT, RECORD_COUNT, RECORDS, ROLE_READER, ROWS,
+  MESSAGE, PENDING_COUNT, RECORD_COUNT, RECORDS, ROLE_ADMIN, ROLE_READER, ROWS,
   SUGGESTED_TARGET_ID, TARGETS, UPLOAD,
 } from '../../base/js/constants.js';
 
@@ -32,6 +35,9 @@ const DEFAULT_SORT = { column: S.IPSO_COL_RECEIVED, ascending: false };
 const INBOX_STATE_COL = '_ipso_state';
 const DETAIL_URL = (id) => `/api/ipso/uploads/${id}/`;
 const REJECT_URL = (id) => `/api/ipso/uploads/${id}/reject/`;
+const DOWNLOAD_URL = (id) => `/api/ipso/uploads/${id}/download/`;
+const DELETE_URL = (id) => `/api/ipso/uploads/${id}/delete/`;
+const MODE_URL = (id) => `/api/ipso/uploads/${id}/mode/`;
 const IMPORT_CONFIG = {
   [IPSO_MODE_MARTELLATE]: {
     url: id => `/api/ipso/uploads/${id}/import-martellate/`,
@@ -147,9 +153,20 @@ function buildPage(el, params, data) {
 }
 
 function inboxActions() {
-  return {
+  const actions = {
     onEdit: id => openUpload(id),
   };
+  if (isAdmin()) {
+    actions.extra = [{
+      key: 'mode',
+      title: S.ACTION_EDIT,
+      icon: '✎',
+      visible: row => !isImportedInboxRow(row),
+      onClick: id => showModeModal(id),
+    }];
+    actions.onDelete = id => confirmDeleteUpload(id);
+  }
+  return actions;
 }
 
 function destroyPage() {
@@ -268,6 +285,64 @@ async function rejectUpload(id) {
   await cache.load(DATA_ID);
 }
 
+function confirmDeleteUpload(id) {
+  showCascadeDeleteModal({
+    title: S.IPSO_DELETE_TITLE,
+    warning: S.IPSO_DELETE_WARNING,
+    exportRequired: S.IPSO_DELETE_EXPORT_REQUIRED,
+    onExport: () => downloadFromURL(DOWNLOAD_URL(id)),
+    onDelete: () => deleteUpload(id),
+  });
+}
+
+async function deleteUpload(id) {
+  const { data, status } = await api.postJSON(DELETE_URL(id), {});
+  if (status >= 400) {
+    showError(data?.[MESSAGE] || S.ERROR_GENERIC);
+    return;
+  }
+  if (selectedId === id) closeDetail();
+  await cache.load(DATA_ID);
+}
+
+async function showModeModal(id) {
+  let detail;
+  try {
+    ({ data: detail } = await api.fetchJSON(DETAIL_URL(id)));
+  } catch {
+    showError(S.ERROR_NETWORK);
+    return;
+  }
+
+  const upload = detail[UPLOAD] || {};
+  if (upload.state === IPSO_UPLOAD_STATE_IMPORTED) {
+    showError(S.IPSO_MODE_SAVE_ERROR_IMPORTED);
+    return;
+  }
+
+  const frag = cloneTemplate('tmpl-ipso-upload-mode-modal');
+  const form = frag.querySelector('[data-role="ipso-upload-mode-form"]');
+  const select = frag.querySelector('[data-role="mode"]');
+  select.value = upload.mode || IPSO_MODE_MARTELLATE;
+  wireCancelButtons(form, () => dismissModal());
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    await saveUploadMode(id, select.value);
+  });
+  showModal(frag);
+}
+
+async function saveUploadMode(id, mode) {
+  const { data, status } = await api.postJSON(MODE_URL(id), { [FIELD_MODE]: mode });
+  if (status >= 400) {
+    showError(data?.[MESSAGE] || S.ERROR_GENERIC);
+    return;
+  }
+  dismissModal();
+  await cache.load(DATA_ID);
+  if (selectedId === id) await openUpload(id);
+}
+
 function renderDetail(data) {
   detailEl.classList.remove('is-loading');
   detailEl.removeAttribute('aria-busy');
@@ -327,6 +402,10 @@ function renderDetail(data) {
   recordsTitle.textContent = S.IPSO_PREVIEW_TITLE(data[RECORD_COUNT] || 0);
   detailEl.appendChild(recordsTitle);
   detailEl.appendChild(recordsTable(data[RECORDS] || []));
+}
+
+function isAdmin() {
+  return document.body.dataset.role === ROLE_ADMIN;
 }
 
 function canImportUpload(upload) {

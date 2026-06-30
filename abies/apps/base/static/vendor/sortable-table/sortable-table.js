@@ -165,7 +165,7 @@ class SortableTable {
                     ${this.columns.map((col, colIndex) => {
                         if (col.hidden) return '';
                         const value = row[colIndex] ?? '';
-                        const formatted = this.formatCellValue(value, col);
+                        const formatted = this.formatCellValue(value, col, row, colIndex);
                         const cellValue = col.trustedHTML === true
                             ? String(formatted ?? '')
                             : escapeHTML(formatted);
@@ -182,9 +182,9 @@ class SortableTable {
         }).join('');
     }
 
-    formatCellValue(value, column) {
+    formatCellValue(value, column, row = null, columnIndex = -1) {
         if (column.formatter && typeof column.formatter === 'function') {
-            return column.formatter(value);
+            return column.formatter(value, row, column, columnIndex);
         }
 
         switch (column.type) {

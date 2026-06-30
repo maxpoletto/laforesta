@@ -478,7 +478,7 @@ function onDeletePlan() {
   showCascadeDeleteModal({
     title: S.DELETE_PLAN_TITLE,
     warning: S.DELETE_PLAN_WARNING.replace('{name}', planName),
-    onExportCSV: () => downloadPlanExport(activePlanId),
+    onExport: () => downloadPlanExport(activePlanId),
     onDelete: () => doDeletePlan(),
   });
 }
@@ -695,10 +695,10 @@ function downloadItemExport(itemId) {
 }
 
 /**
- * Shared dangerous-delete modal.  When `onExportCSV` is provided, the
- * modal includes a forced-download step (Esporta CSV must be clicked
+ * Shared dangerous-delete modal.  When `onExport` is provided, the
+ * modal includes a forced-download step (Esporta must be clicked
  * before Elimina enables) — used for plan-level delete where the
- * planning calendar is worth backing up.  When `onExportCSV` is
+ * planning calendar is worth backing up.  When `onExport` is
  * omitted (per-item delete in PLANNED state with no deps), the
  * export step is skipped: Elimina is enabled immediately.
  */

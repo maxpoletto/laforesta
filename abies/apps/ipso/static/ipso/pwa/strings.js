@@ -85,7 +85,7 @@ const S = {
   RESUME_BODY:
     'Hai una o più sessioni iniziate ma non esportate. Cosa vuoi farne?',
   RESUME_RESUME: 'Riprendi',
-  RESUME_EXPORT: 'Esporta CSV',
+  RESUME_EXPORT: 'Esporta',
   RESUME_DISCARD: 'Scarta',
 
   // Confirm-end modal

@@ -16,7 +16,7 @@ export const CONFIRM = 'Conferma';
 // Tables
 export const FILTER_LABEL = 'Filtra';
 export const SEARCH_PLACEHOLDER = 'Cerca...';
-export const EXPORT_CSV = 'Esporta CSV';
+export const EXPORT = 'Esporta';
 export const IMPORT_CSV = 'Importa CSV';
 export const NO_RESULTS = 'Nessun risultato.';
 export const ACTION_EDIT = 'Modifica';
@@ -30,7 +30,7 @@ export const ACTION_DELETE = 'Elimina';
 export const TABLE_LABELS = {
   search: FILTER_LABEL,
   searchPlaceholder: SEARCH_PLACEHOLDER,
-  exportCSV: EXPORT_CSV,
+  exportCSV: EXPORT,
   add: 'Aggiungi',
   empty: NO_RESULTS,
   actionEdit: ACTION_EDIT,
@@ -72,18 +72,25 @@ export const IPSO_ACTION_OPEN_ICON = '\u{1F50D}\u{FE0E}';
 export const IPSO_ACTION_REJECT = 'Rifiuta';
 export const IPSO_LOADING_DETAIL = 'Caricamento dettaglio...';
 export const IPSO_REJECT_CONFIRM = 'Rifiutare questo caricamento Ipso?';
+export const IPSO_DELETE_TITLE = 'Elimina sessione Ipso';
+export const IPSO_DELETE_WARNING =
+  'Questa operazione elimina i file ricevuti da Ipso. I dati già importati non verranno eliminati.';
+export const IPSO_DELETE_EXPORT_REQUIRED =
+  'Per sicurezza, scarica una copia della sessione prima di procedere.';
+export const IPSO_MODE_SAVE_ERROR_IMPORTED =
+  'Una sessione già importata non può cambiare modalità.';
 export const IPSO_SESSION_TITLE = (id) => `Sessione ${id}`;
 export const IPSO_PREVIEW_TITLE = (n) => `Anteprima record (${n})`;
 export const IPSO_EMPTY_RECORDS = 'Nessun record.';
-export const IPSO_SUMMARY_EMPTY = 'Nessun caricamento Ipso.';
+export const IPSO_SUMMARY_EMPTY = 'Nessun dato Ipso.';
 export const IPSO_SUMMARY = (n, pending) => `${n} caricamenti, ${pending} da importare.`;
 export const IPSO_INCLUDE_IMPORTED = 'Anche dati già importati';
 export const IPSO_TARGET_PLAN_LABEL = 'Piano di taglio';
 export const IPSO_TARGET_SURVEY_LABEL = 'Rilevamento';
 export const IPSO_TARGET_SELECT = 'Seleziona destinazione';
-export const IPSO_IMPORT_CONFIRM = 'Importare questo caricamento nel piano selezionato?';
-export const IPSO_IMPORT_SAMPLES_CONFIRM = 'Importare questo caricamento nel rilevamento selezionato?';
-export const IPSO_IMPORT_PAI_CONFIRM = 'Importare questo caricamento come PAI?';
+export const IPSO_IMPORT_CONFIRM = 'Importare i dati nel piano selezionato?';
+export const IPSO_IMPORT_SAMPLES_CONFIRM = 'Importare i dati nel rilevamento selezionato?';
+export const IPSO_IMPORT_PAI_CONFIRM = 'Importare i dati come piante ad accrescimento indefinito?';
 export const IPSO_COL_SEQ = '#';
 export const IPSO_COL_ACCURACY = 'Acc.';
 export const IPSO_EMPTY_VALUE = '-';
@@ -241,7 +248,7 @@ export const CSV_COL_HIGHFOREST    = 'Fustaia';
 export const CSV_COL_DATA          = 'Data';
 export const CSV_COL_PRESERVED     = 'PAI';
 
-// CSV export filenames for the symmetric "Esporta CSV" buttons on
+// CSV export filenames for the symmetric "Esporta" buttons on
 // the Griglie + Rilevamenti pulldown rows (mirror the import column shape).
 export const CSV_GRID_AREAS = 'aree-saggio.csv';
 export const CSV_SURVEY_TREES = 'alberi-rilevamento.csv';

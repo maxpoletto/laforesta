@@ -32,13 +32,13 @@ A button's colour is set by what it does, via an intent class on the base
   `.btn-save` (Salva / Crea / Conferma — any form commit), `.btn-import`
   (Importa CSV).
 - **Grey — neutral:** the bare `.btn` (Annulla, dismiss, and auxiliary actions
-  such as "Usa GPS" or "Pianifica") and the named `.btn-export` (Esporta CSV) —
+  such as "Usa GPS" or "Pianifica") and the named `.btn-export` (Esporta) —
   same grey, but named so it can never drift to a commit colour.
 - **Red — destructive:** `.btn-delete` (deletes a record or cascades).
 
 Many objects (survey grids, surveys, harvest plans, the hypsometric parameter
 set) can be both created and exported. The standard pairing is two side-by-side
-buttons on the far right of the work space — `[Esporta CSV]` (`.btn-export`,
+buttons on the far right of the work space — `[Esporta]` (`.btn-export`,
 grey) then `[+ Nuovo X]` (`.btn-create`, green); right-align a toolbar's buttons
 with the `.ms-auto` utility.
 
@@ -129,7 +129,7 @@ Infrastructure:
   container). Template-backed modals (clone from `<template>` elements
   in `_shell_templates_it.html`): `showConfirmModal(message, onConfirm,
   { confirmLabel })`, `showCascadeDeleteModal({ title, warning,
-  exportRequired, onExportCSV, onDelete })`. Form-submit lifecycle
+  exportRequired, onExport, onDelete })`. Form-submit lifecycle
   including CSV import (`submitCsvImport`) lives in `forms.js`. All
   pages import from here; never duplicate these locally.
 - **`csv-export.js`**: `csvField(v, fmt)`, `downloadCSV(lines,
@@ -232,7 +232,7 @@ area popover on the campionamenti map.
 When attempting to delete certain objects (e.g., a survey), UI presents a user
 with a modal warning about the danger of the operation and forces the user to
 export data as CSV first. At bottom are three buttons:
-[Annulla] [Esporta CSV] [Elimina]
+[Annulla] [Esporta] [Elimina]
 Elimina is disabled until after CSV export.
 
 ### Error reporting
@@ -298,7 +298,7 @@ places**, so that a single edit propagates:
   sites and any literal would have to be edited in each one if the wording
   changes. Use `{{ S.X }}` here.
 - **Cross-page recurring strings** — that occur in 3+ sites, e.g. `Cerca…`,
-  `Esporta CSV`, `Filtra`, `Modifica`, `Elimina`, `File CSV`, `Importa`,
+  `Esporta`, `Filtra`, `Modifica`, `Elimina`, `File CSV`, `Importa`,
   `Dettagli`, `Annulla`, `Salva`, `Conferma`, `Chiudi`. Use `{{ S.X }}`.
 - **One-off page titles / labels / help text / empty-state messages**
   — section headings like *Griglie di campionamento*, modal titles

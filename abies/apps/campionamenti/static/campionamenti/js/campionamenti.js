@@ -1270,7 +1270,7 @@ function confirmDeleteSurvey() {
     warning: S.CASCADE_WARN_SURVEY
       .replace('{n_samples}', nVisited)
       .replace('{n_trees}', nTrees),
-    onExportCSV: () => exportSurveyCSV(activeSurveyId),
+    onExport: () => exportSurveyCSV(activeSurveyId),
     onDelete: () => doDeleteSurvey(),
   });
 }
@@ -1310,7 +1310,7 @@ function countTreesInActiveSurvey() {
 
 /**
  * Cascade-delete confirm modal.  The "Elimina" button stays disabled
- * until the user clicks "Esporta CSV" (forces the operator to keep a
+ * until the user clicks "Esporta" (forces the operator to keep a
  * backup of the to-be-deleted rows).
  */
 

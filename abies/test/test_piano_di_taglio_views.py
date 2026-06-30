@@ -1,7 +1,7 @@
 """Tests for the Piano di taglio backend endpoints.
 
-Covers plan CRUD, plan CSV import, plan-level Esporta CSV, plan-item
-CRUD (including the state-gated delete), per-item Esporta CSV, and the
+Covers plan CRUD, plan CSV import, plan-level Esporta, plan-item
+CRUD (including the state-gated delete), per-item Esporta, and the
 cantiere transition save view.  All write paths share the digest-stale
 contract and the nonce-idempotency contract.
 """
@@ -895,7 +895,7 @@ class TestTransitionSave:
 
 
 # ---------------------------------------------------------------------------
-# Per-item Esporta CSV
+# Per-item Esporta
 # ---------------------------------------------------------------------------
 
 class TestItemExport:

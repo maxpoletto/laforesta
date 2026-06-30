@@ -203,20 +203,28 @@ def csv_buffer(delimiter: str):
     return buf, SafeCSVWriter(csv.writer(buf, delimiter=delimiter))
 
 
-def zip_csv_response(
+def zip_response(
         files: Iterable[tuple[str, str | bytes]],
         filename: str,
 ) -> HttpResponse:
-    """Build a no-store ZIP download response from already-rendered CSV files."""
+    """Build a no-store ZIP download response from rendered file contents."""
     zip_buf = io.BytesIO()
     with zipfile.ZipFile(zip_buf, 'w', zipfile.ZIP_DEFLATED) as zf:
-        for csv_name, content in files:
-            zf.writestr(csv_name, content)
+        for archive_name, content in files:
+            zf.writestr(archive_name, content)
 
     response = HttpResponse(zip_buf.getvalue(), content_type='application/zip')
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
     response['Cache-Control'] = 'no-store'
     return response
+
+
+def zip_csv_response(
+        files: Iterable[tuple[str, str | bytes]],
+        filename: str,
+) -> HttpResponse:
+    """Build a no-store ZIP download response from already-rendered CSV files."""
+    return zip_response(files, filename)
 
 
 def format_decimal(value, decimal_sep: str) -> str:
