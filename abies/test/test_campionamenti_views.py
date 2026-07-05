@@ -2261,6 +2261,34 @@ class TestTreeCsvImport:
             DIGEST_PRESERVED_TREES,
         )
 
+
+    def test_duplicate_number_shoot_within_csv_rejected(
+        self, writer_client, sample_setup,
+    ):
+        from apps.base.models import Survey, TreeSample
+        s = sample_setup
+        empty_survey = Survey.objects.create(
+            name='CSV duplicate tree target', sample_grid=s['grid'],
+        )
+        compresa = s['area'].parcel.region.name
+        particella = s['area'].parcel.name
+        adc = s['area'].number
+        csv_text = (
+            'Compresa,Particella,Area saggio,Albero,Pollone,Matricina,'
+            'D_cm,H_m,L10_mm,Pressler,Genere,Fustaia,Data\n'
+            f'{compresa},{particella},{adc},10,0,false,30,20.5,10,2,Abete,true,'
+            '2024-09-15\n'
+            f'{compresa},{particella},{adc},10,0,false,32,22.5,11,2,Abete,true,'
+            '2024-09-15\n'
+        )
+
+        resp = self._post(writer_client, empty_survey.id, csv_text)
+
+        assert resp.status_code == 400
+        assert (S.ERR_CSV_ROW_TREE_NUMBER_DUPLICATE.format(3, 10, 0)
+                in resp.json()[FIELD_ERRORS])
+        assert TreeSample.objects.filter(sample__survey=empty_survey).count() == 0
+
     def test_conflicting_dates_for_same_area_rejected(
         self, writer_client, sample_setup,
     ):

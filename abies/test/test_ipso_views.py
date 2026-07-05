@@ -1122,6 +1122,38 @@ def test_writer_imports_upload_into_harvest_plan_item(
     assert item.date_actual == date(2026, 6, 17)
 
 
+
+@override_settings(IPSO_SECRET='test-token')
+def test_martellate_import_rejects_duplicate_mark_number(
+        writer_client, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    item = _harvest_item(parcels)
+    tree = Tree.objects.create(species=species[0], parcel=parcels[0])
+    TreeMark.objects.create(
+        harvest_plan_item=item, tree=tree, number=7,
+        date=date(2026, 6, 16), d_cm=30, h_m=Decimal('18.00'),
+        operator='Mario Rossi',
+    )
+    payload = _upload_payload(
+        parcels, species,
+        session_id='11111111-1111-4111-8111-111111111121',
+        record_overrides={'number': 7},
+    )
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
+
+    resp = writer_client.post(
+        reverse('ipso-upload-import-martellate', args=[upload.id]),
+        data=json.dumps({'harvest_plan_item_id': item.id}),
+        content_type='application/json',
+    )
+
+    assert resp.status_code == 400
+    assert S.ERR_MARK_NUMBER_DUPLICATE.format(7) in resp.json()['message']
+    assert TreeMark.objects.count() == 1
+    upload.refresh_from_db()
+    assert upload.state == IpsoUploadState.RECEIVED
+
 @override_settings(IPSO_SECRET='test-token')
 def test_martellate_import_rejects_edited_invalid_number(
         writer_client, parcels, species, settings, tmp_path):
@@ -1376,7 +1408,7 @@ def test_samples_import_supports_coppice_shoots_with_same_number(
 
 
 @override_settings(IPSO_SECRET='test-token')
-def test_samples_import_allows_existing_tree_number_like_csv_core(
+def test_samples_import_rejects_existing_number_shoot(
         writer_client, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     survey, area = _sample_survey(parcels[0])
@@ -1399,12 +1431,40 @@ def test_samples_import_allows_existing_tree_number_like_csv_core(
         content_type='application/json',
     )
 
-    assert resp.status_code == 200
-    assert resp.json()['imported'] == 1
-    assert list(TreeSample.objects.order_by('id').values_list('number', flat=True)) == [1, 1]
+    assert resp.status_code == 400
+    assert S.IPSO_ERR_IMPORT_RECORD_SAMPLE_NUMBER_DUPLICATE.format(1) in resp.json()['message']
+    assert TreeSample.objects.count() == 1
     upload.refresh_from_db()
-    assert upload.state == IpsoUploadState.IMPORTED
+    assert upload.state == IpsoUploadState.RECEIVED
 
+
+
+@override_settings(IPSO_SECRET='test-token')
+def test_samples_import_rejects_duplicate_number_shoot_in_upload(
+        writer_client, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    survey, area = _sample_survey(parcels[0])
+    payload = _upload_payload(
+        parcels, species, mode='samples',
+        session_id='22222222-2222-4222-8222-222222222227',
+        record_overrides={'sample_area_id': area.id, 'number': 9, 'shoot': 0},
+    )
+    second = dict(payload['records'][0])
+    second['client_record_id'] = '2'
+    second['d_cm'] = 43
+    payload['records'].append(second)
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
+
+    resp = writer_client.post(
+        reverse('ipso-upload-import-samples', args=[upload.id]),
+        data=json.dumps({'survey_id': survey.id}),
+        content_type='application/json',
+    )
+
+    assert resp.status_code == 400
+    assert S.IPSO_ERR_IMPORT_RECORD_SAMPLE_NUMBER_DUPLICATE.format(2) in resp.json()['message']
+    assert TreeSample.objects.count() == 0
 
 @override_settings(IPSO_SECRET='test-token')
 def test_pai_import_rejects_duplicate_tree_number_in_parcel(

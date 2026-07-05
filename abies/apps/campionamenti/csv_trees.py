@@ -40,6 +40,7 @@ class TreeIndexes:
     area_cache: dict       # (region.lower(), parcel_name, number) -> SampleArea
     species_cache: dict    # common_name.lower() -> Species
     existing_sample_by_area: dict  # sample_area_id -> Sample (already on survey)
+    existing_number_shoots: set     # (sample_area_id, number, shoot)
 
 
 def db_indexes(survey) -> TreeIndexes:
@@ -53,7 +54,14 @@ def db_indexes(survey) -> TreeIndexes:
     existing_sample_by_area = {
         s.sample_area_id: s for s in Sample.objects.filter(survey=survey)
     }
-    return TreeIndexes(area_cache, species_cache, existing_sample_by_area)
+    existing_number_shoots = set(
+        TreeSample.objects
+        .filter(sample__survey=survey)
+        .values_list('sample__sample_area_id', FIELD_NUMBER, FIELD_SHOOT)
+    )
+    return TreeIndexes(
+        area_cache, species_cache, existing_sample_by_area, existing_number_shoots,
+    )
 
 
 def validate_rows(reader, idx: TreeIndexes, *, has_date_column, default_date):
@@ -64,6 +72,7 @@ def validate_rows(reader, idx: TreeIndexes, *, has_date_column, default_date):
     row number (header is row 1, first data row is row 2).
     """
     csv_date_by_area = {}
+    seen_number_shoots = set(idx.existing_number_shoots)
     errors = []
     parsed = []
     for i, row in enumerate(reader, 2):
@@ -138,6 +147,13 @@ def validate_rows(reader, idx: TreeIndexes, *, has_date_column, default_date):
             ))
             continue
         csv_date_by_area.setdefault(area.id, row_date)
+        number_shoot_key = (area.id, number, shoot)
+        if number_shoot_key in seen_number_shoots:
+            errors.append(S.ERR_CSV_ROW_TREE_NUMBER_DUPLICATE.format(
+                i, number, shoot,
+            ))
+            continue
+        seen_number_shoots.add(number_shoot_key)
 
         parsed.append(parsed_tree_row(
             area=area, row_date=row_date, species=species, coppice=coppice,

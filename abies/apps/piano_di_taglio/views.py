@@ -845,6 +845,14 @@ def mark_save_view(request):
     species = Species.objects.filter(id=species_id).first()
     if species is None:
         return validation_error([S.ERR_MARK_SPECIES_REQUIRED])
+    if number is not _MARK_NUMBER_MISSING and number is not None:
+        duplicate = TreeMark.objects.filter(
+            harvest_plan_item_id=item.id, number=number,
+        )
+        if row_id:
+            duplicate = duplicate.exclude(id=row_id)
+        if duplicate.exists():
+            return validation_error([S.ERR_MARK_NUMBER_DUPLICATE.format(number)])
 
     parcel = _resolve_mark_parcel(item, parcel_id)
     if isinstance(parcel, JsonResponse):
@@ -1105,6 +1113,8 @@ def mark_csv_import_view(request):
         return validation_error(errors)
 
     import_result = import_mark_rows(item, parsed)
+    if import_result.errors:
+        return validation_error(import_result.errors)
 
     item_fresh = (HarvestPlanItem.objects
                   .select_related('parcel__region', 'parcel__eclass',

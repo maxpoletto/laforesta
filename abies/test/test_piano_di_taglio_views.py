@@ -1251,6 +1251,33 @@ class TestMarkSave:
         assert resp2.status_code == 200
         tm = TreeMark.objects.get(id=tm_id)
         assert tm.d_cm == 40
+
+    def test_create_mark_rejects_duplicate_number(
+        self, writer_client, planned_item, species,
+    ):
+        sp = species[0]
+        first = writer_client.post(
+            self.SAVE_URL,
+            data=json.dumps(self._mark_body(
+                planned_item, sp, **{FIELD_NUMBER: 7},
+            )),
+            content_type='application/json',
+        )
+        assert first.status_code == 200
+
+        second = writer_client.post(
+            self.SAVE_URL,
+            data=json.dumps(self._mark_body(
+                planned_item, sp,
+                **{FIELD_NUMBER: 7, FIELD_NONCE: 'duplicate-mark-number'},
+            )),
+            content_type='application/json',
+        )
+
+        assert second.status_code == 400
+        assert S.ERR_MARK_NUMBER_DUPLICATE.format(7) in second.json()[MESSAGE]
+        assert TreeMark.objects.count() == 1
+
     def test_update_mark_rejects_invalid_number_and_preserves_existing(
         self, writer_client, planned_item, species,
     ):
@@ -1472,6 +1499,7 @@ class TestMarkCSVImport:
         assert tm.import_fingerprint is not None
         assert tm.number == 1
         assert tm.d_cm == 30
+
     def test_import_rejects_invalid_or_non_positive_mark_numbers(
         self, writer_client, planned_item, species, parcels,
     ):
@@ -1488,6 +1516,25 @@ class TestMarkCSVImport:
 
         assert resp.status_code == 400
         assert resp.json()[STATUS] == STATUS_VALIDATION_ERROR
+        assert TreeMark.objects.count() == 0
+
+
+    def test_import_rejects_duplicate_mark_numbers(
+        self, writer_client, planned_item, species, parcels,
+    ):
+        sp = species[0]
+        parcel = parcels[0]
+        csv_bytes = self._csv_content([
+            ['01/06/2025', parcel.region.name, parcel.name, '0', '7',
+             sp.common_name, '30', '20,0', '0', '38.5', '16.3', '5', 'Mario'],
+            ['01/06/2025', parcel.region.name, parcel.name, '0', '7',
+             sp.common_name, '31', '21,0', '0', '38.6', '16.4', '5', 'Mario'],
+        ])
+
+        resp = self._post(writer_client, planned_item, csv_bytes)
+
+        assert resp.status_code == 400
+        assert S.ERR_MARK_NUMBER_DUPLICATE.format(7) in resp.json()[MESSAGE]
         assert TreeMark.objects.count() == 0
 
     def test_import_preserves_blank_csv_mark_numbers(

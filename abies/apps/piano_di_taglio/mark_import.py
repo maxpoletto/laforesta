@@ -17,6 +17,7 @@ from apps.base.models import (
     next_sequence_number, tree_mass_q,
 )
 from apps.base.tabacchi import tabacchi_volume_m3
+from config import strings as S
 from config.constants import DIGEST_FUTURE_PRODUCTION, FIELD_NUMBER
 
 
@@ -40,6 +41,7 @@ class MarkImportRow:
 class MarkImportResult:
     imported: int
     skipped_duplicates: int
+    errors: list[str]
 
 
 def csv_mark_fingerprint(
@@ -70,19 +72,10 @@ def ipso_mark_fingerprint(session_id: str, record: dict) -> str:
 def import_mark_rows(item: HarvestPlanItem, rows: list[MarkImportRow]) -> MarkImportResult:
     with transaction.atomic():
         item = HarvestPlanItem.objects.select_for_update().get(id=item.id)
-        existing_fps = set(
-            TreeMark.objects
-            .filter(harvest_plan_item_id=item.id, import_fingerprint__isnull=False)
-            .values_list('import_fingerprint', flat=True)
-        )
-        parsed: list[MarkImportRow] = []
-        skipped = 0
-        for row in rows:
-            if row.fingerprint in existing_fps:
-                skipped += 1
-                continue
-            parsed.append(row)
-            existing_fps.add(row.fingerprint)
+        parsed, skipped = _unskipped_import_rows(item.id, rows)
+        errors = mark_number_duplicate_errors(item.id, parsed)
+        if errors:
+            return MarkImportResult(imported=0, skipped_duplicates=skipped, errors=errors)
 
         for row in parsed:
             volume_m3, mass_q = mark_volume_and_mass(row.d_cm, row.h_m, row.species)
@@ -110,7 +103,47 @@ def import_mark_rows(item: HarvestPlanItem, rows: list[MarkImportRow]) -> MarkIm
             DIGEST_FUTURE_PRODUCTION, 'audit',
         )
 
-    return MarkImportResult(imported=len(parsed), skipped_duplicates=skipped)
+    return MarkImportResult(imported=len(parsed), skipped_duplicates=skipped, errors=[])
+
+
+def _unskipped_import_rows(
+        item_id: int, rows: list[MarkImportRow],
+) -> tuple[list[MarkImportRow], int]:
+    existing_fps = set(
+        TreeMark.objects
+        .filter(harvest_plan_item_id=item_id, import_fingerprint__isnull=False)
+        .values_list('import_fingerprint', flat=True)
+    )
+    parsed: list[MarkImportRow] = []
+    skipped = 0
+    for row in rows:
+        if row.fingerprint in existing_fps:
+            skipped += 1
+            continue
+        parsed.append(row)
+        existing_fps.add(row.fingerprint)
+    return parsed, skipped
+
+
+def mark_number_duplicate_errors(
+        item_id: int, rows: list[MarkImportRow], *, exclude_mark_id: int | None = None,
+) -> list[str]:
+    numbers = [row.number for row in rows if row.number is not None]
+    if not numbers:
+        return []
+    existing = TreeMark.objects.filter(
+        harvest_plan_item_id=item_id, number__in=numbers,
+    )
+    if exclude_mark_id is not None:
+        existing = existing.exclude(id=exclude_mark_id)
+    seen = set(existing.values_list(FIELD_NUMBER, flat=True))
+    errors = []
+    for number in numbers:
+        if number in seen:
+            errors.append(S.ERR_MARK_NUMBER_DUPLICATE.format(number))
+        else:
+            seen.add(number)
+    return errors
 
 
 def mark_volume_and_mass(d_cm: int, h_m: Decimal, species: Species):

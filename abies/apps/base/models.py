@@ -605,6 +605,12 @@ class TreeMark(TimestampedModel):
         verbose_name = S.TREE_MARK
         verbose_name_plural = S.TREE_MARKS
         unique_together = [('harvest_plan_item', 'tree')]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['harvest_plan_item', 'number'],
+                name='uniq_tree_mark_item_number',
+            ),
+        ]
 
 
 class TreeSample(TimestampedModel):
@@ -642,6 +648,12 @@ class TreeSample(TimestampedModel):
         verbose_name = S.TREE_SAMPLE
         verbose_name_plural = S.TREE_SAMPLES
         unique_together = [('sample', 'tree', 'shoot')]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['sample', 'number', 'shoot'],
+                name='uniq_tree_sample_number_shoot',
+            ),
+        ]
 
 
 # ---------------------------------------------------------------------------

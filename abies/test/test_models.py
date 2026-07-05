@@ -6,8 +6,9 @@ from decimal import Decimal
 from django.db import IntegrityError, transaction
 
 from apps.base.models import (
-    Crew, Eclass, HarvestDetail, HarvestPlan, Product, Parcel,
-    Region, Species, Tractor, User, Role, SiteSettings, DigestStatus, UsedNonce,
+    Crew, Eclass, HarvestDetail, HarvestPlan, HarvestPlanItem, Product, Parcel,
+    Region, Sample, SampleArea, SampleGrid, Species, Survey, Tractor, Tree,
+    TreeMark, TreeSample, User, Role, SiteSettings, DigestStatus, UsedNonce,
 )
 from apps.prelievi.models import Harvest, HarvestSpecies, HarvestTractor
 
@@ -85,6 +86,15 @@ class TestVersion:
 # ---------------------------------------------------------------------------
 
 class TestConstraints:
+    @staticmethod
+    def _plan_item(parcel):
+        plan = HarvestPlan.objects.create(
+            name=f'Constraint plan {parcel.id}', year_start=2026, year_end=2036,
+        )
+        return HarvestPlanItem.objects.create(
+            harvest_plan=plan, parcel=parcel, year_planned=2026,
+        )
+
     def test_region_name_unique(self, regions):
         with pytest.raises(IntegrityError):
             Region.objects.create(name='Capistrano')
@@ -99,6 +109,73 @@ class TestConstraints:
                 name='1', region=parcels[0].region, eclass=eclasses[0],
                 area_ha=Decimal('1'),
             )
+
+    def test_tree_mark_number_unique_within_item(self, species, parcels):
+        planned_item = self._plan_item(parcels[0])
+        tree1 = Tree.objects.create(species=species[0], parcel=parcels[0])
+        tree2 = Tree.objects.create(species=species[0], parcel=parcels[0])
+        TreeMark.objects.create(
+            harvest_plan_item=planned_item, tree=tree1, number=7,
+            date='2026-07-05', d_cm=30, h_m=Decimal('20.0'), operator='Mario',
+        )
+        with pytest.raises(IntegrityError), transaction.atomic():
+            TreeMark.objects.create(
+                harvest_plan_item=planned_item, tree=tree2, number=7,
+                date='2026-07-05', d_cm=31, h_m=Decimal('21.0'), operator='Mario',
+            )
+
+    def test_tree_mark_null_numbers_are_not_unique(self, species, parcels):
+        planned_item = self._plan_item(parcels[0])
+        tree1 = Tree.objects.create(species=species[0], parcel=parcels[0])
+        tree2 = Tree.objects.create(species=species[0], parcel=parcels[0])
+        TreeMark.objects.create(
+            harvest_plan_item=planned_item, tree=tree1, number=None,
+            date='2026-07-05', d_cm=30, h_m=Decimal('20.0'), operator='Mario',
+        )
+        TreeMark.objects.create(
+            harvest_plan_item=planned_item, tree=tree2, number=None,
+            date='2026-07-05', d_cm=31, h_m=Decimal('21.0'), operator='Mario',
+        )
+        assert TreeMark.objects.filter(harvest_plan_item=planned_item).count() == 2
+
+    def test_tree_sample_number_shoot_unique_within_sample(self, parcels, species):
+        grid = SampleGrid.objects.create(name='Unique tree sample grid')
+        area = SampleArea.objects.create(
+            sample_grid=grid, parcel=parcels[0], number='1',
+            lat=38.5, lon=16.3,
+        )
+        survey = Survey.objects.create(name='Unique tree sample survey', sample_grid=grid)
+        sample = Sample.objects.create(sample_area=area, survey=survey, date='2026-07-05')
+        tree1 = Tree.objects.create(species=species[0], parcel=parcels[0])
+        tree2 = Tree.objects.create(species=species[0], parcel=parcels[0])
+        TreeSample.objects.create(
+            sample=sample, tree=tree1, number=4, shoot=0,
+            d_cm=30, h_m=Decimal('20.0'),
+        )
+        with pytest.raises(IntegrityError), transaction.atomic():
+            TreeSample.objects.create(
+                sample=sample, tree=tree2, number=4, shoot=0,
+                d_cm=31, h_m=Decimal('21.0'),
+            )
+
+    def test_tree_sample_same_number_different_shoot_ok(self, parcels, species):
+        grid = SampleGrid.objects.create(name='Coppice shoot unique grid')
+        area = SampleArea.objects.create(
+            sample_grid=grid, parcel=parcels[0], number='1',
+            lat=38.5, lon=16.3,
+        )
+        survey = Survey.objects.create(name='Coppice shoot unique survey', sample_grid=grid)
+        sample = Sample.objects.create(sample_area=area, survey=survey, date='2026-07-05')
+        tree = Tree.objects.create(species=species[0], parcel=parcels[0])
+        TreeSample.objects.create(
+            sample=sample, tree=tree, number=4, shoot=1,
+            d_cm=30, h_m=Decimal('20.0'),
+        )
+        TreeSample.objects.create(
+            sample=sample, tree=tree, number=4, shoot=2,
+            d_cm=31, h_m=Decimal('21.0'),
+        )
+        assert TreeSample.objects.filter(sample=sample, number=4).count() == 2
 
     def test_parcel_same_name_different_region_ok(self, parcels):
         """Parcel '1' in Capistrano and Fabrizia are distinct."""

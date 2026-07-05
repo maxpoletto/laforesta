@@ -65,6 +65,11 @@ def sample_import_rows(payload: dict, survey: Survey) -> tuple[list[dict], list[
         sample.sample_area_id: sample
         for sample in Sample.objects.filter(survey=survey, sample_area_id__in=area_ids)
     }
+    seen_number_shoots = set(
+        TreeSample.objects
+        .filter(sample__survey=survey, sample__sample_area_id__in=area_ids)
+        .values_list('sample__sample_area_id', FIELD_NUMBER, FIELD_SHOOT)
+    )
     rows = []
     errors = []
     csv_date_by_area = {}
@@ -116,6 +121,11 @@ def sample_import_rows(payload: dict, survey: Survey) -> tuple[list[dict], list[
             ))
             continue
         csv_date_by_area.setdefault(area.id, row_date)
+        number_shoot_key = (area.id, parsed[FIELD_NUMBER], parsed[FIELD_SHOOT])
+        if number_shoot_key in seen_number_shoots:
+            errors.append(S.IPSO_ERR_IMPORT_RECORD_SAMPLE_NUMBER_DUPLICATE.format(i))
+            continue
+        seen_number_shoots.add(number_shoot_key)
         rows.append(parsed)
     return rows, errors
 

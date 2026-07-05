@@ -77,6 +77,7 @@ IPSO_ERR_IMPORT_RECORD_AREA_PARCEL_MISMATCH = 'Riga {}: area di saggio e partice
 IPSO_ERR_IMPORT_RECORD_SAMPLE_FIELDS_INVALID = 'Riga {}: dati campionamento non validi.'
 IPSO_ERR_IMPORT_RECORD_COORDS_REQUIRED = 'Riga {}: Lat e Lon obbligatorie.'
 IPSO_ERR_IMPORT_RECORD_PAI_NUMBER_DUPLICATE = 'Riga {}: numero PAI già presente nella particella.'
+IPSO_ERR_IMPORT_RECORD_SAMPLE_NUMBER_DUPLICATE = 'Riga {}: numero albero/pollone già presente nel campione.'
 IPSO_ERR_IMPORT_PAI_NUMBER_CONFLICT = 'Numero PAI già presente nella particella.'
 IPSO_ERR_JSON_MALFORMED = 'JSON non valido.'
 IPSO_ERR_PAYLOAD_OBJECT = 'Il payload deve essere un oggetto.'
@@ -362,6 +363,9 @@ ERR_CSV_ROW_SAMPLE_DATE_CONFLICT = (
     'Riga {}: data diversa per area di saggio già presente nel rilevamento '
     '({} / {} / {}; data già registrata: {}).'
 )
+ERR_CSV_ROW_TREE_NUMBER_DUPLICATE = (
+    'Riga {}: numero albero {} / pollone {} già presente nel campione.'
+)
 ERR_SAMPLE_DATE_CONFLICT = (
     'Data diversa per area di saggio già presente nel rilevamento '
     '({} / {} / {}; data già registrata: {}).'
@@ -373,6 +377,7 @@ ERR_MARK_SPECIES_REQUIRED = 'Specie obbligatoria.'
 ERR_MARK_D_REQUIRED = 'D obbligatorio (intero > 0).'
 ERR_MARK_H_REQUIRED = 'h obbligatoria (> 0).'
 ERR_MARK_NUMBER_INVALID = 'Numero deve essere vuoto o un intero > 0.'
+ERR_MARK_NUMBER_DUPLICATE = 'Numero {} già utilizzato in questa martellata.'
 ERR_MARK_OPERATOR_REQUIRED = 'Operatore obbligatorio.'
 ERR_MARK_ITEM_CLOSED = 'Il cantiere è chiuso: aggiunta non consentita.'
 ERR_MARK_PARCEL_REQUIRED = 'Particella obbligatoria per interventi a livello di compresa.'

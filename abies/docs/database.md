@@ -206,10 +206,14 @@ of either dataset should treat them as independent observations.
 - tree_sample: (id:int, sample_id:int, tree_id:int, shoot:int, standard:bool,
   number:int, d_cm:int, h_m:int, l10_mm:int, pressler_coeff:real, volume_m3:real
   nullable, mass_q:real nullable)
-  - Measurement of a tree during a sample visit. PK is synthetic `id`;
-    `UNIQUE(sample_id, tree_id, shoot)` enforces the natural key.
+  - Measurement of a tree during a sample visit. PK is synthetic `id`.
+    Two uniqueness constraints are enforced. `UNIQUE(sample_id, tree_id,
+    shoot)` prevents measuring the same physical tree/shoot twice in one sample.
+    `UNIQUE(sample_id, number, shoot)` prevents two different tree rows from
+    reusing the same user-facing tree/stump number and shoot within one sample.
   - `shoot`: 1-based counter for coppice shoots from one stump; 0 for
-    non-coppice.
+    non-coppice. Coppice rows may share the same `number` when their `shoot`
+    differs.
   - `standard` ("matricina"): coppice shoot kept for growth, not harvested.
     False for non-coppice.
   - `number`: 1-based counter of trees within a sample.
@@ -280,7 +284,9 @@ display totals.
   - `number` is the operator-assigned tree sequence number within the
     item. It may be null for marked trees that were not physically numbered
     in the field. Manual entry proposes `max(number)+1`, but the user may
-    clear it; CSV and Ipso imports preserve blank values as null.
+    clear it; CSV and Ipso imports preserve blank values as null. Numbered
+    marks are unique within a harvest-plan item:
+    `UNIQUE(harvest_plan_item_id, number)`. Multiple null numbers are allowed.
   - `date` is the day the mark was recorded.
   - `d_cm` and `h_m` indicate size at time of marking.
   - `h_measured` records whether `h_m` came from a hypsometer measurement in
@@ -300,8 +306,8 @@ display totals.
   - Recording a marked tree always creates a new `tree` row; deleting a
     tree_mark cascades to its `tree` row. The `tree_id` FK is, in practice, not
     a cross-link to any other observation of the same physical tree. (Use
-    (region, parcel, sample area number, `tree_sample.number`) to identify the
-    same physical tree.)
+    region, parcel, sample area number, `tree_sample.number`, and `shoot` to
+    identify the same physical tree/shoot.)
 
 ## Harvest plan item materialization
 

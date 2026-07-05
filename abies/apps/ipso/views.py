@@ -47,6 +47,7 @@ from apps.ipso.importers import (
 from apps.ipso.models import IpsoUpload, IpsoUploadState
 from apps.piano_di_taglio.mark_import import (
     MarkImportRow, import_mark_rows, ipso_mark_fingerprint,
+    mark_number_duplicate_errors,
 )
 from config import strings as S
 from config.constants import (
@@ -566,11 +567,16 @@ def import_martellate_upload(request: HttpRequest, upload_id: int) -> JsonRespon
         rows, errors = _martellate_import_rows(upload, payload, item)
         if errors:
             return _upload_validation_error(upload, errors)
+        duplicate_errors = mark_number_duplicate_errors(item.id, rows)
+        if duplicate_errors:
+            return _upload_validation_error(upload, duplicate_errors)
 
         if not _claim_upload_import(
                 upload, request.user, IPSO_TARGET_HARVEST_PLAN_ITEM, item.id):
             return validation_error([S.IPSO_ERR_UPLOAD_NOT_RECEIVED])
         result = import_mark_rows(item, rows)
+        if result.errors:
+            return _upload_validation_error(upload, result.errors)
         data = _upload_metadata(upload)
     return success_response(request, body, extra={
         IMPORTED: result.imported,
