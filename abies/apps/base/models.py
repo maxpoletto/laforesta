@@ -582,7 +582,7 @@ class TreeMark(TimestampedModel):
         related_name='tree_marks',
     )
     tree = models.ForeignKey(Tree, on_delete=models.CASCADE)
-    number = models.IntegerField(default=0)
+    number = models.IntegerField(null=True, blank=True)
     date = models.DateField()
     d_cm = models.IntegerField()
     h_m = models.DecimalField(max_digits=5, decimal_places=2)

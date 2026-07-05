@@ -1059,6 +1059,19 @@ def _claim_upload_import(
     return True
 
 
+def _staged_mark_number(record: dict, index: int) -> tuple[int | None, str | None]:
+    raw = record.get(FIELD_NUMBER)
+    if raw is None:
+        return None, None
+    try:
+        number = int(raw)
+    except (TypeError, ValueError):
+        return None, S.IPSO_ERR_RECORD_NUMBER_INVALID.format(index)
+    if number <= 0:
+        return None, S.IPSO_ERR_RECORD_NUMBER_POSITIVE.format(index)
+    return number, None
+
+
 def _martellate_import_rows(
         upload: IpsoUpload, payload: dict, item: HarvestPlanItem,
 ) -> tuple[list[MarkImportRow], list[str]]:
@@ -1117,12 +1130,16 @@ def _martellate_import_rows(
         if measurements is None:
             errors.append(S.IPSO_ERR_IMPORT_RECORD_DH_DATE_INVALID.format(i))
             continue
+        number, number_error = _staged_mark_number(record, i)
+        if number_error:
+            errors.append(number_error)
+            continue
         operator = (record.get(FIELD_OPERATOR) or session_operator).strip()
         rows.append(MarkImportRow(
             date=measurements.date,
             parcel=parcel,
             species=sp,
-            number=record.get(FIELD_NUMBER),
+            number=number,
             d_cm=measurements.d_cm,
             h_m=measurements.h_m,
             h_measured=bool(record.get(FIELD_H_MEASURED)),
@@ -1306,7 +1323,7 @@ def _normalize_record(mode: str, index: int, row: object) -> dict:
     number = _opt_int(row, FIELD_NUMBER)
     if number is not None and number <= 0:
         raise UploadValidationError(S.IPSO_ERR_RECORD_NUMBER_POSITIVE.format(index))
-    if mode == IPSO_MODE_SAMPLES and number is None:
+    if mode in {IPSO_MODE_SAMPLES, IPSO_MODE_PAI} and number is None:
         raise UploadValidationError(S.IPSO_ERR_RECORD_NUMBER_REQUIRED.format(index))
 
     sample_area_id = _opt_int(row, FIELD_SAMPLE_AREA_ID)

@@ -57,7 +57,7 @@ the h_measured flag is set implicitly if the user edits h manually
       <div class="form-group">
         <label for="tf-number">Numero</label>
         <input type="number" id="tf-number" name="number" min="1"
-               value="{{ next_number }}">
+               value="{{ next_number|default_if_none:'' }}">
       </div>
       <div class="form-group">
         <label for="tf-operator">Operatore</label>

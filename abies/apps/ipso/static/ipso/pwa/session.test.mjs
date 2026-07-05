@@ -42,6 +42,22 @@ check(
   session.validateTree(validTree({ sample_area_id: null }), { sampleAreaRequired: true }).includes('sample_area_id'),
   'sampleAreaRequired still rejects missing sample area',
 );
+check(
+  session.validateTree(validTree({ numero: 0 }), { numberRequired: true }).includes('numero'),
+  'numberRequired rejects zero',
+);
+check(
+  session.validateTree(validTree({ numero: 0 }), {}).includes('numero'),
+  'a recorded zero number is rejected even when the mode does not require one',
+);
+check(
+  session.validateTree(validTree({ numero: -3 }), {}).includes('numero'),
+  'a recorded negative number is rejected even when the mode does not require one',
+);
+check(
+  !session.validateTree(validTree({ numero: null }), {}).includes('numero'),
+  'blank number remains allowed unless the mode requires a number',
+);
 
 if (failures.length) {
   console.error(failures.join('\n'));

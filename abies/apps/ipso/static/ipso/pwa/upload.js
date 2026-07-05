@@ -56,6 +56,7 @@ function buildUploadPayload(sess, trees, reference, csvText) {
   if (!sess || !reference) throw new Error(S.UPLOAD_ERROR_CONTEXT_MISSING);
   const regionId = regionIdForCompresa(reference, sess.compresa);
   const records = trees.map((t) => canonicalRecord(sess, t, reference));
+  validateRecordNumbers(sess, records, reference);
   return {
     [SESSION]: {
       [FIELD_SESSION_ID]: sess.id,
@@ -103,6 +104,76 @@ function canonicalRecord(sess, t, reference) {
   return record;
 }
 
+function validateRecordNumbers(sess, records, reference) {
+  const mode = sess.mode || IPSO_MODE_MARTELLATE;
+  if (mode === IPSO_MODE_MARTELLATE) return;
+  const seen = new Set();
+  for (let i = 0; i < records.length; i++) {
+    const record = records[i];
+    const number = record[FIELD_NUMBER];
+    if (!Number.isInteger(number) || number <= 0) {
+      throw new Error(S.UPLOAD_ERROR_NUMBER_REQUIRED(i + 1));
+    }
+    const scope = mode === IPSO_MODE_SAMPLES
+      ? record[FIELD_SAMPLE_AREA_ID]
+      : record[FIELD_PARCEL_ID];
+    if (!Number.isInteger(scope)) continue;
+    const key = scope + ':' + number;
+    if (seen.has(key)) {
+      throw new Error(S.UPLOAD_ERROR_NUMBER_DUPLICATE(i + 1));
+    }
+    seen.add(key);
+    if (mode === IPSO_MODE_SAMPLES) {
+      const maxNumber = sampleMaxNumberForArea(reference, sess, scope);
+      if (Number.isInteger(maxNumber) && number <= maxNumber) {
+        throw new Error(S.UPLOAD_ERROR_NUMBER_ALREADY_USED(i + 1));
+      }
+    } else if (mode === IPSO_MODE_PAI && paiNumberExists(reference, scope, number)) {
+      throw new Error(S.UPLOAD_ERROR_NUMBER_ALREADY_USED(i + 1));
+    }
+  }
+}
+
+function sampleSurveyIdFromWorkPackage(workPackageId) {
+  const raw = String(workPackageId || '');
+  if (!raw.startsWith(IPSO_WORK_PACKAGE_SAMPLING_SURVEY_PREFIX)) return null;
+  const id = parseInt(raw.slice(IPSO_WORK_PACKAGE_SAMPLING_SURVEY_PREFIX.length), 10);
+  return Number.isInteger(id) ? id : null;
+}
+
+function sampleMaxNumberForArea(reference, sess, sampleAreaId) {
+  const sampling = reference && reference[IPSO_REF_SAMPLING];
+  const surveyId = sampleSurveyIdFromWorkPackage(sess && sess.work_package_id);
+  const surveys = sampling ? sampling[IPSO_REF_SURVEYS] || [] : [];
+  const survey = surveys.find((row) => row && row[FIELD_SURVEY_ID] === surveyId);
+  const maxNumbers = survey ? survey[IPSO_REF_SAMPLE_AREA_MAX_NUMBERS] || {} : {};
+  const value = maxNumbers[String(sampleAreaId)];
+  return Number.isInteger(value) ? value : null;
+}
+
+function paiPreservedRows(reference) {
+  const pai = reference && reference[IPSO_REF_PAI];
+  return pai ? pai[IPSO_REF_PRESERVED_TREES] || [] : [];
+}
+
+function paiNumberExists(reference, parcelId, number) {
+  return paiPreservedRows(reference).some((row) =>
+    row && row[FIELD_PARCEL_ID] === parcelId && row[FIELD_NUMBER] === number
+  );
+}
+
+function paiMaxNumberForParcel(reference, parcelId) {
+  const rows = paiPreservedRows(reference);
+  let maxNumber = null;
+  for (const row of rows) {
+    if (!row || row[FIELD_PARCEL_ID] !== parcelId) continue;
+    const number = row[FIELD_NUMBER];
+    if (Number.isInteger(number) && (maxNumber == null || number > maxNumber)) {
+      maxNumber = number;
+    }
+  }
+  return maxNumber;
+}
 
 function sampleRecordContext(reference, sess, tree, parcel) {
   const area = sampleAreaForTree(reference, sess, tree, parcel);
@@ -242,6 +313,8 @@ const upload = {
   DEFAULT_SAMPLE_RADIUS_M,
   BACKOFF_SCHEDULE_MS, BACKOFF_CAP_MS,
   backoffMs, classifyHttp, classifyNetwork, distanceMeters,
+  validateRecordNumbers, sampleSurveyIdFromWorkPackage, sampleMaxNumberForArea,
+  paiNumberExists, paiMaxNumberForParcel,
   UploadError, buildUploadPayload, uploadSession,
 };
 

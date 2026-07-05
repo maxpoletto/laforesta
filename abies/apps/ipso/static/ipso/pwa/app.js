@@ -29,6 +29,7 @@ const State = {
   currentScreen: null, // id of the visible screen
   lastFix: null,       // most recent fresh GPS fix, { lat, lon, acc, t }
   sampleAreaId: null,  // selected/inferred sample-area id in sample mode
+  parcelName: null,    // selected/inferred parcel name in parcel-based modes
   map: null,           // lazy orientation map controller
   mapReturnScreen: 'screen-rec',
 };
@@ -288,6 +289,11 @@ function isSamplesMode() {
   return mode === IpsoModes.SAMPLES;
 }
 
+function isPaiMode() {
+  const mode = State.session ? State.session.mode : currentMode().id;
+  return mode === IpsoModes.PAI;
+}
+
 function selectedSampleSurveyId() {
   const raw = document.getElementById('in-sample-survey').value;
   const id = parseInt(raw, 10);
@@ -440,6 +446,7 @@ function showModeScreen() {
   State.locator = null;
   State.override = null;
   State.sampleAreaId = null;
+  State.parcelName = null;
   setMode(IpsoModes.MARTELLATE);
   document.getElementById('sub-status').textContent = '';
   showScreen('screen-mode');
@@ -496,6 +503,7 @@ function wirePreSession() {
       State.session = sess;
       State.lastTreeRow = null;
       State.sampleAreaId = null;
+      State.parcelName = null;
       enterRecording();
     } catch (err) {
       showToast(S.TOAST_SESSION_START_ERROR(err.message));
@@ -607,6 +615,7 @@ function enterRecording() {
     ? S.REC_SAMPLE_AREA
     : S.PRE_PARTICELLA;
   State.sampleAreaId = null;
+  State.parcelName = null;
   setupLocator();
   resetEntryFields();
   refreshPill();
@@ -673,19 +682,32 @@ function formatParcelText(feature) {
 // Extract the bare particella portion of `feature.properties.name`
 // (which has the form "Compresa-Particella" by terreni.geojson
 // convention). Returns '' for malformed features.
-function particellaName(feature) {
+function parcelName(feature) {
   const name = (feature && feature.properties && feature.properties.name) || '';
   const dash = name.indexOf('-');
   return dash >= 0 ? name.slice(dash + 1) : name;
 }
 
-function currentAutoName() {
+function currentAutoParcelName() {
   if (isSamplesMode()) {
     const area = currentAutoSampleArea();
     return area ? area.particella : '';
   }
   if (!State.locator) return '';
-  return particellaName(State.locator.getCommitted());
+  return parcelName(State.locator.getCommitted());
+}
+
+function currentParcelName() {
+  if (!State.override) return '';
+  return State.override.resolve(currentAutoParcelName());
+}
+
+function currentParcelReference() {
+  if (!State.reference || !State.session) return null;
+  const parcel = currentParcelName();
+  return State.reference[IPSO_REF_PARCELS].find((p) =>
+    p && p.compresa === State.session.compresa && p.particella === parcel
+  ) || null;
 }
 
 function populateParticellaOptions(features) {
@@ -709,7 +731,7 @@ function populateParticellaOptions(features) {
   // cross-checked against GPS. Without polygons, fall back to all known
   // parcels for the compresa so recording can still require a parcel.
   const known = features && features.length
-    ? new Set(features.map(particellaName).filter((n) => n))
+    ? new Set(features.map(parcelName).filter((n) => n))
     : null;
   for (const p of State.reference[IPSO_REF_PARCELS]) {
     if (p.compresa !== State.session.compresa) continue;
@@ -726,7 +748,7 @@ function refreshParticellaSelect() {
   const sel = document.getElementById('in-particella-rec');
   const ov = State.override;
   if (!ov) return;
-  const autoName = currentAutoName();
+  const autoParcelName = currentAutoParcelName();
   const sentinel = sel.querySelector('option[value="' + AUTO_SENTINEL + '"]');
   if (ov.getMode() === 'manual') {
     sel.value = ov.getManual();
@@ -734,10 +756,16 @@ function refreshParticellaSelect() {
   } else {
     sel.value = AUTO_SENTINEL;
     if (sentinel) {
-      sentinel.textContent = autoName || S.REC_PARTICELLA_PLACEHOLDER;
+      sentinel.textContent = autoParcelName || S.REC_PARTICELLA_PLACEHOLDER;
     }
   }
-  sel.classList.toggle('error', ov.isMismatch(autoName));
+  const selectedParcelName = ov.resolve(autoParcelName);
+  const changed = State.parcelName !== selectedParcelName;
+  State.parcelName = selectedParcelName;
+  sel.classList.toggle('error', ov.isMismatch(autoParcelName));
+  if (isPaiMode() && changed && State.numpad && shouldReplaceNumberDefault()) {
+    prefillNumber();
+  }
 }
 
 function refreshSampleAreaSelect() {
@@ -848,6 +876,9 @@ async function computeNextNumberDefault(trees) {
   let rows = trees;
   if (isSamplesMode()) {
     rows = trees.filter((t) => t && t[FIELD_SAMPLE_AREA_ID] === State.sampleAreaId);
+  } else if (isPaiMode()) {
+    const name = currentParcelName();
+    rows = trees.filter((t) => t && t.particella === name);
   }
   const inSession = session.nextNumberDefault(rows);
   if (inSession != null) return inSession;
@@ -855,6 +886,16 @@ async function computeNextNumberDefault(trees) {
     const sampleArea = currentSampleArea();
     const maxNumber = sampleArea ? sampleArea[FIELD_MAX_TREE_NUMBER] : null;
     if (Number.isInteger(maxNumber)) return maxNumber + 1;
+  }
+  if (isPaiMode()) {
+    const parcel = currentParcelReference();
+    if (parcel) {
+      const maxNumber = upload.paiMaxNumberForParcel(
+        State.reference, parcel[FIELD_PARCEL_ID]
+      );
+      if (Number.isInteger(maxNumber)) return maxNumber + 1;
+    }
+    return 1;
   }
   if (Number.isInteger(currentMode().firstNumber)) return currentMode().firstNumber;
   if (!State.session || !currentMode().persistNumber) return null;
@@ -1007,7 +1048,7 @@ function currentRecord() {
   const particella = sampleArea
     ? sampleArea.particella
     : State.override
-      ? State.override.resolve(currentAutoName())
+      ? State.override.resolve(currentAutoParcelName())
       : '';
   const autoHeight = shouldAutoHeight();
   const hMeasured = autoHeight ? State.hMeasured : Number.isFinite(h);
@@ -1178,13 +1219,13 @@ function ensureMap() {
   State.map = createOrientationMap({
     elementId: 'map',
     formatFeatureLabel: formatParcelText,
-    featureName: particellaName,
+    featureName: parcelName,
     formatRecordLabel: formatMapRecordText,
     formatPaiLabel: formatMapPaiText,
     formatSampleAreaLabel: sampleAreaLabel,
     sampleAreaDefaultRadius: upload.DEFAULT_SAMPLE_RADIUS_M,
     paiControlTitle: S.MAP_PAI_TOGGLE,
-    getActiveName: currentAutoName,
+    getActiveName: currentAutoParcelName,
     getManualName() {
       if (isSamplesMode() && State.override && State.override.getMode() === 'manual') {
         const area = currentSampleArea();
@@ -1567,26 +1608,31 @@ function showResumeModal(sessions) {
     actions.className = 'resume-actions';
     if (s.status === Store.STATUS_PENDING_UPLOAD) {
       const carica = mkBtn(S.UPLOAD_RESUME_DO_NOW, 'btn-primary', async () => {
-        hideModal('modal-resume');
-        const trees = await Store.listTrees(State.db, s.id);
-        trees.sort((a, b) => a.seq - b.seq);
-        if (trees.length === 0) {
+        try {
+          const trees = await Store.listTrees(State.db, s.id);
+          trees.sort((a, b) => a.seq - b.seq);
+          if (trees.length === 0) {
+            hideModal('modal-resume');
+            State.session = s;
+            setMode(s.mode);
+            await closeEmptySession(s);
+            return;
+          }
+          const csvText = csv.formatFile(s, trees, State.reference);
+          const uploadPayload = upload.buildUploadPayload(
+            s, trees, State.reference, csvText
+          );
+          // Re-download the local CSV on every entry to screen-upload —
+          // the browser auto-renames duplicates so this can never lose
+          // the original copy. See spec.
+          downloadFinal(s, trees, State.reference);
+          hideModal('modal-resume');
           State.session = s;
           setMode(s.mode);
-          await closeEmptySession(s);
-          return;
+          uploadFlow().enter(s.id, uploadPayload, trees.length);
+        } catch (e) {
+          showToast(S.TOAST_EXPORT_ERROR(e.message));
         }
-        const csvText = csv.formatFile(s, trees, State.reference);
-        const uploadPayload = upload.buildUploadPayload(
-          s, trees, State.reference, csvText
-        );
-        // Re-download the local CSV on every entry to screen-upload —
-        // the browser auto-renames duplicates so this can never lose
-        // the original copy. See spec.
-        downloadFinal(s, trees, State.reference);
-        State.session = s;
-        setMode(s.mode);
-        uploadFlow().enter(s.id, uploadPayload, trees.length);
       });
       const local = mkBtn(S.UPLOAD_RESUME_KEEP_LOCAL, 'btn-secondary', async () => {
         await Store.setSessionUploadStatus(State.db, s.id, Store.UPLOAD_STATUS_LOCAL_ONLY);

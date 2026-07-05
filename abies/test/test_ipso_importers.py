@@ -80,6 +80,7 @@ def test_sample_import_collects_lookup_and_shape_errors(parcels, species):
             _sample_record(area, species[0], **{FIELD_SPECIES_ID: 999999}),
             _sample_record(area, species[0], **{FIELD_DATE: 'not-a-date'}),
             _sample_record(area, species[0], **{FIELD_NUMBER: 'x'}),
+            _sample_record(area, species[0], **{FIELD_NUMBER: 0}),
             _sample_record(area, species[0], **{FIELD_PRESSLER_COEFF: '0'}),
         ],
     }, survey)
@@ -91,8 +92,9 @@ def test_sample_import_collects_lookup_and_shape_errors(parcels, species):
         S.IPSO_ERR_IMPORT_RECORD_AREA_PARCEL_MISMATCH.format(3),
         S.IPSO_ERR_IMPORT_RECORD_SPECIES_NOT_FOUND.format(4),
         S.IPSO_ERR_IMPORT_RECORD_SAMPLE_FIELDS_INVALID.format(5),
-        S.IPSO_ERR_IMPORT_RECORD_SAMPLE_FIELDS_INVALID.format(6),
-        S.IPSO_ERR_IMPORT_RECORD_SAMPLE_FIELDS_INVALID.format(7),
+        S.IPSO_ERR_RECORD_NUMBER_INVALID.format(6),
+        S.IPSO_ERR_RECORD_NUMBER_POSITIVE.format(7),
+        S.IPSO_ERR_IMPORT_RECORD_SAMPLE_FIELDS_INVALID.format(8),
     ]
 
 
@@ -189,19 +191,19 @@ def test_pai_import_collects_lookup_and_shape_errors(parcels, species):
         S.IPSO_ERR_IMPORT_RECORD_SPECIES_NOT_FOUND.format(3),
         S.IPSO_ERR_IMPORT_RECORD_DH_DATE_INVALID.format(4),
         S.IPSO_ERR_IMPORT_RECORD_COORDS_REQUIRED.format(5),
-        S.IPSO_ERR_IMPORT_RECORD_DH_DATE_INVALID.format(6),
-        S.IPSO_ERR_IMPORT_RECORD_DH_DATE_INVALID.format(7),
+        S.IPSO_ERR_RECORD_NUMBER_INVALID.format(6),
+        S.IPSO_ERR_RECORD_NUMBER_POSITIVE.format(7),
     ]
 
 
 @pytest.mark.django_db
-def test_pai_import_uses_session_operator_and_skips_staged_numbers(
+def test_pai_import_uses_session_operator_and_preserves_staged_numbers(
         parcels, species):
     rows, errors = pai_import_rows({
         SESSION: {'operator': ' Mario Rossi '},
         RECORDS: [
             _pai_record(parcels[0], species[0], **{FIELD_NUMBER: 1}),
-            _pai_record(parcels[0], species[0], **{FIELD_NUMBER: None}),
+            _pai_record(parcels[0], species[0], **{FIELD_NUMBER: 2}),
         ],
     })
 
@@ -211,7 +213,17 @@ def test_pai_import_uses_session_operator_and_skips_staged_numbers(
 
 
 @pytest.mark.django_db
-def test_pai_import_auto_number_starts_after_persisted_numbers(
+def test_pai_import_rejects_missing_number(parcels, species):
+    rows, errors = pai_import_rows({
+        RECORDS: [_pai_record(parcels[0], species[0], **{FIELD_NUMBER: None})],
+    })
+
+    assert rows == []
+    assert errors == [S.IPSO_ERR_RECORD_NUMBER_REQUIRED.format(1)]
+
+
+@pytest.mark.django_db
+def test_pai_import_rejects_missing_number_after_persisted_numbers(
         parcels, species):
     tree = Tree.objects.create(species=species[0], parcel=parcels[0], preserved=True)
     TreePreserved.objects.create(
@@ -223,5 +235,5 @@ def test_pai_import_auto_number_starts_after_persisted_numbers(
         RECORDS: [_pai_record(parcels[0], species[0], **{FIELD_NUMBER: None})],
     })
 
-    assert errors == []
-    assert rows[0][FIELD_NUMBER] == 4
+    assert rows == []
+    assert errors == [S.IPSO_ERR_RECORD_NUMBER_REQUIRED.format(1)]

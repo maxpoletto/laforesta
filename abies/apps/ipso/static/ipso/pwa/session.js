@@ -48,7 +48,12 @@ function validateTree(rec, options) {
       (!Number.isInteger(rec.h_m) || rec.h_m < H_MIN || rec.h_m > H_MAX)) {
     errors.push('h_m');
   }
-  if (opts.numberRequired && !Number.isInteger(rec.numero)) {
+  // Whether a number may be blank is per-mode, but a recorded number must
+  // be a positive integer in every mode — the server rejects zero/negative
+  // numbers on upload, where the offending row can no longer be edited.
+  const numberMissing = rec.numero == null;
+  if ((opts.numberRequired && numberMissing) ||
+      (!numberMissing && (!Number.isInteger(rec.numero) || rec.numero <= 0))) {
     errors.push('numero');
   }
   if (opts.parcelRequired &&

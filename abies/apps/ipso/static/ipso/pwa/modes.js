@@ -48,6 +48,7 @@ const IpsoModes = (function() {
       blankSmallNumber: false,
       dRequired: true,
       hRequired: true,
+      numberRequired: true,
       parcelRequired: true,
       persistNumber: false,
       enabled: true,

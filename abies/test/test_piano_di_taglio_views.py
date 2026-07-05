@@ -32,7 +32,7 @@ from config.constants import (
     FIELD_FILE, FIELD_HIGHFOREST_FILE, FIELD_H_M, FIELD_H_MEASURED,
     FIELD_HARVEST_PLAN_ID, FIELD_HARVEST_PLAN_ITEM_ID,
     FIELD_INTERVENTION_AREA_HA, FIELD_LAT, FIELD_LON, FIELD_MASS_Q,
-    FIELD_NAME, FIELD_NONCE, FIELD_NOTE, FIELD_OPEN, FIELD_OPERATOR,
+    FIELD_NAME, FIELD_NONCE, FIELD_NOTE, FIELD_NUMBER, FIELD_OPEN, FIELD_OPERATOR,
     FIELD_PARCEL_ID, FIELD_PRODUCT_ID, FIELD_PSR, FIELD_REGION_ID,
     FIELD_SPECIES_ID, FIELD_UNHEALTHY,
     FIELD_VOLUME_M3, FIELD_VOLUME_PLANNED_M3, FIELD_YEAR_END,
@@ -1113,7 +1113,9 @@ class TestMarkSave:
         sp = species[0]
         resp = writer_client.post(
             self.SAVE_URL,
-            data=json.dumps(self._mark_body(planned_item, sp)),
+            data=json.dumps(self._mark_body(
+                planned_item, sp, **{FIELD_NUMBER: 12},
+            )),
             content_type='application/json',
         )
         assert resp.status_code == 200
@@ -1122,8 +1124,21 @@ class TestMarkSave:
         assert any(p[DATA_ID] == 'harvest_plan_items' for p in data[PATCHES])
         assert TreeMark.objects.count() == 1
         tm = TreeMark.objects.first()
+        assert tm.number == 12
         assert tm.d_cm == 30
         assert tm.operator == 'Mario'
+
+    def test_create_mark_allows_blank_number(
+        self, writer_client, planned_item, species,
+    ):
+        resp = writer_client.post(
+            self.SAVE_URL,
+            data=json.dumps(self._mark_body(planned_item, species[0])),
+            content_type='application/json',
+        )
+
+        assert resp.status_code == 200
+        assert TreeMark.objects.get().number is None
 
     def test_rejects_zero_diameter_or_height(
         self, writer_client, planned_item, species,
@@ -1236,6 +1251,114 @@ class TestMarkSave:
         assert resp2.status_code == 200
         tm = TreeMark.objects.get(id=tm_id)
         assert tm.d_cm == 40
+    def test_update_mark_rejects_invalid_number_and_preserves_existing(
+        self, writer_client, planned_item, species,
+    ):
+        sp = species[0]
+        resp = writer_client.post(
+            self.SAVE_URL,
+            data=json.dumps(self._mark_body(
+                planned_item, sp, **{FIELD_NUMBER: 7},
+            )),
+            content_type='application/json',
+        )
+        data = resp.json()
+        tm_id = data[ROW_ID]
+        version = next(p for p in data[PATCHES]
+                       if p[DATA_ID].startswith('mark_trees_'))[RECORD][1]
+
+        resp2 = writer_client.post(
+            self.SAVE_URL,
+            data=json.dumps(self._mark_body(
+                planned_item, sp,
+                **{ROW_ID: tm_id, VERSION: version, FIELD_NUMBER: 'abc',
+                   FIELD_NONCE: 'bad-number'},
+            )),
+            content_type='application/json',
+        )
+
+        assert resp2.status_code == 400
+        assert resp2.json()[STATUS] == STATUS_VALIDATION_ERROR
+        assert S.ERR_MARK_NUMBER_INVALID in resp2.json()[MESSAGE]
+        assert TreeMark.objects.get(id=tm_id).number == 7
+
+    def test_update_mark_missing_number_field_preserves_existing(
+        self, writer_client, planned_item, species,
+    ):
+        sp = species[0]
+        resp = writer_client.post(
+            self.SAVE_URL,
+            data=json.dumps(self._mark_body(
+                planned_item, sp, **{FIELD_NUMBER: 7},
+            )),
+            content_type='application/json',
+        )
+        data = resp.json()
+        tm_id = data[ROW_ID]
+        version = next(p for p in data[PATCHES]
+                       if p[DATA_ID].startswith('mark_trees_'))[RECORD][1]
+        body = self._mark_body(
+            planned_item, sp,
+            **{ROW_ID: tm_id, VERSION: version, FIELD_NONCE: 'missing-number'},
+        )
+        assert FIELD_NUMBER not in body
+
+        resp2 = writer_client.post(
+            self.SAVE_URL,
+            data=json.dumps(body),
+            content_type='application/json',
+        )
+
+        assert resp2.status_code == 200
+        assert TreeMark.objects.get(id=tm_id).number == 7
+
+    def test_mark_form_renders_blank_nullable_number(
+        self, writer_client, planned_item, species,
+    ):
+        sp = species[0]
+        resp = writer_client.post(
+            self.SAVE_URL,
+            data=json.dumps(self._mark_body(planned_item, sp, **{FIELD_NUMBER: ''})),
+            content_type='application/json',
+        )
+        tm_id = resp.json()[ROW_ID]
+
+        form = writer_client.get(
+            f'/api/piano-di-taglio/mark/form/{tm_id}/',
+        )
+
+        assert form.status_code == 200
+        html = form.json()[HTML]
+        assert 'value="None"' not in html
+        assert 'id="tf-number" name="number" min="1"' in html
+        assert 'value=""' in html
+
+    def test_update_mark_can_clear_number(self, writer_client, planned_item, species):
+        sp = species[0]
+        resp = writer_client.post(
+            self.SAVE_URL,
+            data=json.dumps(self._mark_body(
+                planned_item, sp, **{FIELD_NUMBER: 7},
+            )),
+            content_type='application/json',
+        )
+        data = resp.json()
+        tm_id = data[ROW_ID]
+        version = next(p for p in data[PATCHES]
+                       if p[DATA_ID].startswith('mark_trees_'))[RECORD][1]
+
+        resp2 = writer_client.post(
+            self.SAVE_URL,
+            data=json.dumps(self._mark_body(
+                planned_item, sp,
+                **{ROW_ID: tm_id, VERSION: version, FIELD_NUMBER: '',
+                   FIELD_NONCE: 'clear-number'},
+            )),
+            content_type='application/json',
+        )
+
+        assert resp2.status_code == 200
+        assert TreeMark.objects.get(id=tm_id).number is None
 
     def test_delete_mark(self, writer_client, planned_item, species):
         resp = writer_client.post(
@@ -1349,6 +1472,42 @@ class TestMarkCSVImport:
         assert tm.import_fingerprint is not None
         assert tm.number == 1
         assert tm.d_cm == 30
+    def test_import_rejects_invalid_or_non_positive_mark_numbers(
+        self, writer_client, planned_item, species, parcels,
+    ):
+        sp = species[0]
+        parcel = parcels[0]
+        csv_bytes = self._csv_content([
+            ['01/06/2025', parcel.region.name, parcel.name, '0', 'abc',
+             sp.common_name, '30', '20,0', '0', '38.5', '16.3', '5', 'Mario'],
+            ['01/06/2025', parcel.region.name, parcel.name, '0', '0',
+             sp.common_name, '31', '21,0', '0', '38.6', '16.4', '5', 'Mario'],
+        ])
+
+        resp = self._post(writer_client, planned_item, csv_bytes)
+
+        assert resp.status_code == 400
+        assert resp.json()[STATUS] == STATUS_VALIDATION_ERROR
+        assert TreeMark.objects.count() == 0
+
+    def test_import_preserves_blank_csv_mark_numbers(
+        self, writer_client, planned_item, species, parcels,
+    ):
+        sp = species[0]
+        parcel = parcels[0]
+        csv_bytes = self._csv_content([
+            ['01/06/2025', parcel.region.name, parcel.name, '0', '',
+             sp.common_name, '30', '20,0', '0', '38.5', '16.3', '5', 'Mario'],
+            ['01/06/2025', parcel.region.name, parcel.name, '0', '',
+             sp.common_name, '31', '21,0', '0', '38.6', '16.4', '5', 'Mario'],
+        ])
+
+        resp = self._post(writer_client, planned_item, csv_bytes)
+
+        assert resp.status_code == 200
+        assert list(
+            TreeMark.objects.order_by('id').values_list('number', flat=True)
+        ) == [None, None]
 
     def test_import_saves_nonce(self, writer_client, planned_item, species, parcels):
         csv_bytes = self._csv_content([

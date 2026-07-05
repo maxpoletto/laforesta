@@ -8,7 +8,7 @@ from decimal import Decimal, ROUND_HALF_UP
 
 from apps.base.models import (
     Parcel, Sample, SampleArea, Species, Survey, TreePreserved,
-    TreeSample, next_sequence_number,
+    TreeSample,
 )
 from apps.base.numparse import to_decimal
 from apps.campionamenti import csv_preserved
@@ -34,6 +34,11 @@ class TreeMeasurements:
 
 _PAI_PARSE_COORDS = 'coords'
 _PAI_PARSE_DUPLICATE = 'duplicate'
+_PAI_PARSE_NUMBER_INVALID = 'number_invalid'
+_PAI_PARSE_NUMBER_POSITIVE = 'number_positive'
+_PAI_PARSE_NUMBER_REQUIRED = 'number_required'
+_SAMPLE_PARSE_NUMBER_INVALID = 'sample_number_invalid'
+_SAMPLE_PARSE_NUMBER_POSITIVE = 'sample_number_positive'
 
 
 def sample_import_rows(payload: dict, survey: Survey) -> tuple[list[dict], list[str]]:
@@ -81,9 +86,18 @@ def sample_import_rows(payload: dict, survey: Survey) -> tuple[list[dict], list[
         if sp is None:
             errors.append(S.IPSO_ERR_IMPORT_RECORD_SPECIES_NOT_FOUND.format(i))
             continue
+        if record.get(FIELD_NUMBER) is None:
+            errors.append(S.IPSO_ERR_RECORD_NUMBER_REQUIRED.format(i))
+            continue
         parsed = _sample_record_values(record, area, sp)
         if parsed is None:
             errors.append(S.IPSO_ERR_IMPORT_RECORD_SAMPLE_FIELDS_INVALID.format(i))
+            continue
+        if parsed == _SAMPLE_PARSE_NUMBER_INVALID:
+            errors.append(S.IPSO_ERR_RECORD_NUMBER_INVALID.format(i))
+            continue
+        if parsed == _SAMPLE_PARSE_NUMBER_POSITIVE:
+            errors.append(S.IPSO_ERR_RECORD_NUMBER_POSITIVE.format(i))
             continue
 
         existing_sample = existing_samples.get(area.id)
@@ -135,8 +149,6 @@ def pai_import_rows(payload: dict) -> tuple[list[dict], list[str]]:
         .filter(parcel_id__in=parcel_ids)
         .values_list(FIELD_PARCEL_ID, FIELD_NUMBER)
     )
-    next_numbers: dict[int, int] = {}
-
     rows = []
     errors = []
     for i, record in enumerate(records, start=1):
@@ -151,9 +163,7 @@ def pai_import_rows(payload: dict) -> tuple[list[dict], list[str]]:
         if sp is None:
             errors.append(S.IPSO_ERR_IMPORT_RECORD_SPECIES_NOT_FOUND.format(i))
             continue
-        parsed = _pai_record_values(
-            record, parcel, sp, session_operator, seen_numbers, next_numbers,
-        )
+        parsed = _pai_record_values(record, parcel, sp, session_operator, seen_numbers)
         if parsed is None:
             errors.append(S.IPSO_ERR_IMPORT_RECORD_DH_DATE_INVALID.format(i))
             continue
@@ -162,6 +172,15 @@ def pai_import_rows(payload: dict) -> tuple[list[dict], list[str]]:
             continue
         if parsed == _PAI_PARSE_DUPLICATE:
             errors.append(S.IPSO_ERR_IMPORT_RECORD_PAI_NUMBER_DUPLICATE.format(i))
+            continue
+        if parsed == _PAI_PARSE_NUMBER_INVALID:
+            errors.append(S.IPSO_ERR_RECORD_NUMBER_INVALID.format(i))
+            continue
+        if parsed == _PAI_PARSE_NUMBER_POSITIVE:
+            errors.append(S.IPSO_ERR_RECORD_NUMBER_POSITIVE.format(i))
+            continue
+        if parsed == _PAI_PARSE_NUMBER_REQUIRED:
+            errors.append(S.IPSO_ERR_RECORD_NUMBER_REQUIRED.format(i))
             continue
         rows.append(parsed)
     return rows, errors
@@ -194,6 +213,11 @@ def _sample_record_values(record: dict, area: SampleArea, sp: Species) -> dict |
         return None
     try:
         number = int(record.get(FIELD_NUMBER))
+    except (TypeError, ValueError):
+        return _SAMPLE_PARSE_NUMBER_INVALID
+    if number <= 0:
+        return _SAMPLE_PARSE_NUMBER_POSITIVE
+    try:
         shoot = int(record.get(FIELD_SHOOT, 0) or 0)
         l10_mm = int(record.get(FIELD_L10_MM, 0) or 0)
     except (TypeError, ValueError):
@@ -201,7 +225,7 @@ def _sample_record_values(record: dict, area: SampleArea, sp: Species) -> dict |
     pressler_coeff = to_decimal(record.get(FIELD_PRESSLER_COEFF), '.')
     if pressler_coeff is None:
         pressler_coeff = PRESSLER_DEFAULT
-    if number <= 0 or pressler_coeff <= 0:
+    if pressler_coeff <= 0:
         return None
     coppice_value = record.get(FIELD_COPPICE)
     coppice = area.parcel.eclass.coppice if coppice_value is None else bool(coppice_value)
@@ -217,7 +241,7 @@ def _sample_record_values(record: dict, area: SampleArea, sp: Species) -> dict |
 
 def _pai_record_values(
         record: dict, parcel: Parcel, sp: Species, session_operator: str,
-        seen_numbers: set[tuple[int, int]], next_numbers: dict[int, int],
+        seen_numbers: set[tuple[int, int]],
 ):
     measurements = record_measurements(record)
     if measurements is None:
@@ -229,16 +253,15 @@ def _pai_record_values(
         return _PAI_PARSE_COORDS
     number = record.get(FIELD_NUMBER)
     if number is None:
-        number = _next_pai_number(parcel.id, seen_numbers, next_numbers)
-    else:
-        try:
-            number = int(number)
-        except (TypeError, ValueError):
-            return None
-        if number <= 0:
-            return None
-        if (parcel.id, number) in seen_numbers:
-            return _PAI_PARSE_DUPLICATE
+        return _PAI_PARSE_NUMBER_REQUIRED
+    try:
+        number = int(number)
+    except (TypeError, ValueError):
+        return _PAI_PARSE_NUMBER_INVALID
+    if number <= 0:
+        return _PAI_PARSE_NUMBER_POSITIVE
+    if (parcel.id, number) in seen_numbers:
+        return _PAI_PARSE_DUPLICATE
     seen_numbers.add((parcel.id, number))
     return {
         FIELD_PARCEL: parcel,
@@ -255,17 +278,3 @@ def _pai_record_values(
         FIELD_OPERATOR: (record.get(FIELD_OPERATOR) or session_operator).strip(),
         FIELD_NOTE: (record.get(FIELD_NOTE) or '').strip(),
     }
-
-
-def _next_pai_number(
-        parcel_id: int, seen_numbers: set[tuple[int, int]], next_numbers: dict[int, int],
-) -> int:
-    number = next_numbers.get(parcel_id)
-    if number is None:
-        number = next_sequence_number(
-            TreePreserved.objects.filter(parcel_id=parcel_id), FIELD_NUMBER,
-        )
-    while (parcel_id, number) in seen_numbers:
-        number += 1
-    next_numbers[parcel_id] = number + 1
-    return number

@@ -52,6 +52,30 @@ metadata, and leave the staged files in place until an admin deletes the upload.
 Rejecting an upload is available to writers and admins while the upload has not
 already been imported or rejected.
 
+## Number invariants
+
+Tree numbers are required for preserved trees (PAI) and sampled trees, but
+optional for marks. Ipso and the import page preserve submitted values exactly;
+they do not fill in missing numbers during import.
+
+- `Martellate`: `number` may be null. Ipso proposes the usual next number while
+  recording, but the operator may clear it before saving. The staged upload,
+  preview, import, and CSV import all preserve a blank number as SQL `NULL`.
+- `Campionamenti`: `number` must be a positive integer. Ipso does not allow
+  saving/uploading a sampled tree without one, rejects duplicates within the
+  selected sample area, and rejects values already present in Abies for that
+  survey and sample area. The import page also rejects staged rows missing
+  `number`.
+- `PAI`: `number` must be a positive integer. Ipso proposes the next value for
+  the selected parcel, does not allow clearing it, rejects duplicates within the
+  upload for that parcel, and rejects values already present in Abies for that
+  parcel. The import page also rejects staged rows missing, invalid,
+  non-positive, or duplicate within-parcel `number` values.
+
+These checks are intentionally repeated at upload/build time and at server import
+time: mobile validation gives immediate feedback, while server validation protects
+against stale clients, edited staged files, and direct API calls.
+
 ## Admin actions
 
 Admins can download a staged upload as a zip file, edit the upload mode before

@@ -178,6 +178,12 @@ const S = {
     `Compresa senza ID Abies: ${compresa || ''}`,
   UPLOAD_ERROR_PARCEL_ID_MISSING: (compresa, particella) =>
     `Particella senza ID Abies: ${compresa || ''}/${particella || ''}`,
+  UPLOAD_ERROR_NUMBER_REQUIRED: (i) =>
+    `Riga ${i}: numero obbligatorio.`,
+  UPLOAD_ERROR_NUMBER_DUPLICATE: (i) =>
+    `Riga ${i}: numero già usato nella stessa particella/area.`,
+  UPLOAD_ERROR_NUMBER_ALREADY_USED: (i) =>
+    `Riga ${i}: numero già presente in Abies.`,
 
   // Resume modal — upload variant
   UPLOAD_RESUME_TITLE: 'Sessioni in attesa di caricamento',

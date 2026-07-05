@@ -102,6 +102,9 @@ from config.constants import (
 )
 
 
+_MARK_NUMBER_MISSING = object()
+
+
 # ---------------------------------------------------------------------------
 # Digest passthrough endpoints
 # ---------------------------------------------------------------------------
@@ -757,6 +760,28 @@ def mark_form_view(request, mark_id: int | None = None):
     )})
 
 
+def _parse_optional_mark_number(body: dict):
+    if FIELD_NUMBER not in body:
+        return _MARK_NUMBER_MISSING, None
+    raw = body.get(FIELD_NUMBER)
+    if raw in (None, ''):
+        return None, None
+    number = int_or_none(raw)
+    if number is None or number <= 0:
+        return None, S.ERR_MARK_NUMBER_INVALID
+    return number, None
+
+
+def _parse_csv_mark_number(reader, row: dict):
+    raw = row.get('numero')
+    if raw is None or str(raw).strip() == '':
+        return None, None
+    number = reader.integer(raw)
+    if number is None or number <= 0:
+        return None, raw
+    return number, None
+
+
 @login_required
 @require_writer
 @require_POST
@@ -782,10 +807,12 @@ def mark_save_view(request):
     acc_m = int_or_none(body.get(FIELD_ACC_M))
     operator = (body.get(FIELD_OPERATOR) or '').strip()
     date_raw = (body.get(FIELD_DATE) or '').strip()
-    number = int_or_none(body.get(FIELD_NUMBER))
+    number, number_error = _parse_optional_mark_number(body)
     parcel_id = int_or_none(body.get(FIELD_PARCEL_ID))
 
     errors = []
+    if number_error:
+        errors.append(number_error)
     if item_id is None:
         errors.append(S.ERR_PLAN_ITEM_NOT_FOUND)
     if species_id is None:
@@ -840,7 +867,7 @@ def mark_save_view(request):
                     data_id=f'mark_trees_{item.id}', row_id=fresh_tm.id,
                     record=build_tree_mark_record(fresh_tm),
                 )
-            if number is not None:
+            if number is not _MARK_NUMBER_MISSING:
                 tm.number = number
             tm.date = date
             tm.d_cm = d_cm
@@ -866,11 +893,9 @@ def mark_save_view(request):
                 species=species, parcel=parcel,
                 lat=lat, lon=lon, acc_m=acc_m,
             )
-            if number is None:
-                number = _next_mark_number(item_id)
             tm = TreeMark.objects.create(
                 harvest_plan_item=item, tree=tree,
-                number=number,
+                number=None if number is _MARK_NUMBER_MISSING else number,
                 date=date, d_cm=d_cm, h_m=h_m,
                 h_measured=h_measured,
                 volume_m3=volume_m3, mass_q=mass_q,
@@ -1062,7 +1087,10 @@ def mark_csv_import_view(request):
         acc_m = reader.integer(row.get('acc_m'))
         h_measured = is_truthy(row.get('h_measured'))
 
-        numero = reader.integer(row.get('numero'))
+        numero, numero_error = _parse_csv_mark_number(reader, row)
+        if numero_error is not None:
+            errors.append(S.ERR_CSV_ROW_PARSE.format(i, numero_error))
+            continue
         parsed.append(MarkImportRow(
             date=date, parcel=parcel, species=species,
             number=numero, d_cm=d_cm, h_m=h_m, h_measured=h_measured,

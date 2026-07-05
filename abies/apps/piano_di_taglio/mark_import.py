@@ -84,12 +84,7 @@ def import_mark_rows(item: HarvestPlanItem, rows: list[MarkImportRow]) -> MarkIm
             parsed.append(row)
             existing_fps.add(row.fingerprint)
 
-        next_number = next_mark_number(item.id)
         for row in parsed:
-            number = row.number
-            if number is None:
-                number = next_number
-                next_number += 1
             volume_m3, mass_q = mark_volume_and_mass(row.d_cm, row.h_m, row.species)
             tree = Tree.objects.create(
                 species=row.species, parcel=row.parcel,
@@ -97,7 +92,7 @@ def import_mark_rows(item: HarvestPlanItem, rows: list[MarkImportRow]) -> MarkIm
             )
             TreeMark.objects.create(
                 harvest_plan_item=item, tree=tree,
-                number=number,
+                number=row.number,
                 date=row.date, d_cm=row.d_cm, h_m=row.h_m,
                 h_measured=row.h_measured,
                 volume_m3=volume_m3, mass_q=mass_q,
