@@ -110,7 +110,11 @@ writes `upload.json`, `upload.sha256`, and optional `export.csv` under
 Uploading does not directly mutate forestry records. It creates a staged inbox
 item. A logged-in Abies user can view upload metadata and previews. Import or
 rejection requires writer permission, and the import endpoints perform the final
-mode-specific validation against the selected target.
+mode-specific validation against the selected target. Martellate rows must fit
+the selected harvest-plan item scope: exact parcel for parcel items, or same
+region for region-wide items. Sample rows must fit the selected survey grid; if
+the session records the survey chosen in Ipso, selecting another survey is only
+accepted when it uses the same grid.
 
 Duplicate uploads with the same session ID and checksum are idempotent. A second
 upload with the same session ID but different content marks the staged upload as

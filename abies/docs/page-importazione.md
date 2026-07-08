@@ -49,6 +49,16 @@ upload staged and store the first error in the upload's error summary.
 Successful imports mark the upload `imported`, store importer/timestamp/target
 metadata, and leave the staged files in place until an admin deletes the upload.
 
+Target consistency is enforced at import time:
+
+- `Martellate`: every row must match the selected harvest-plan item. For a
+  parcel-scoped item, each row must use that parcel. For a region-wide item,
+  each row must use a parcel in that region.
+- `Campionamenti`: rows must use sample areas in the selected survey's grid. If
+  the Ipso session records the survey chosen by the operator, importing into a
+  different survey is allowed only when both surveys use the same grid.
+- `PAI`: rows carry their own parcel and no target selector is shown.
+
 Rejecting an upload is available to writers and admins while the upload has not
 already been imported or rejected.
 

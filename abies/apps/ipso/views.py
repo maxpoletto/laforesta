@@ -606,6 +606,9 @@ def import_samples_upload(request: HttpRequest, upload_id: int) -> JsonResponse:
                   .filter(id=survey_id).first())
         if survey is None:
             return validation_error([S.IPSO_ERR_INVALID_SAMPLES_TARGET])
+        source_grid_id = _source_survey_grid_id(upload.work_package_id)
+        if source_grid_id is not None and survey.sample_grid_id != source_grid_id:
+            return validation_error([S.IPSO_ERR_SAMPLES_TARGET_GRID_MISMATCH])
 
         payload, file_error = _read_staged_payload(upload)
         if file_error:
@@ -1034,6 +1037,16 @@ def _suggested_survey_id(work_package_id: str) -> int | None:
     return None
 
 
+def _source_survey_grid_id(work_package_id: str) -> int | None:
+    survey_id = _suggested_survey_id(work_package_id)
+    if survey_id is None:
+        return None
+    return (Survey.objects
+            .filter(id=survey_id)
+            .values_list('sample_grid_id', flat=True)
+            .first())
+
+
 def _upload_validation_error(upload: IpsoUpload, errors: list[str]) -> JsonResponse:
     upload.error_summary = errors[0] if errors else S.ERROR_GENERIC
     upload.save(update_fields=['error_summary'])
@@ -1126,7 +1139,10 @@ def _martellate_import_rows(
             errors.append(S.IPSO_ERR_IMPORT_RECORD_COPPICE_MARTELLATE.format(i))
             continue
         if item_region and parcel.region_id != item_region.id:
-            errors.append(S.ERR_MARK_PARCEL_NOT_IN_REGION)
+            errors.append(S.IPSO_ERR_IMPORT_RECORD_MARK_TARGET_MISMATCH.format(i))
+            continue
+        if item.parcel_id is not None and parcel.id != item.parcel_id:
+            errors.append(S.IPSO_ERR_IMPORT_RECORD_MARK_TARGET_MISMATCH.format(i))
             continue
         sp = species.get(record.get(FIELD_SPECIES_ID))
         if sp is None:

@@ -987,6 +987,37 @@ def test_martellate_import_rejects_coppice_target(
 
 
 @override_settings(IPSO_SECRET='test-token')
+def test_martellate_import_rejects_rows_outside_parcel_target(
+        writer_client, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    target = parcels[0]
+    other = Parcel.objects.create(
+        name='other', region=target.region, eclass=target.eclass,
+        area_ha=Decimal('1.0'),
+    )
+    item = _harvest_item([target])
+    payload = _upload_payload(
+        [other], species,
+        session_id='11111111-1111-4111-8111-111111111131',
+    )
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
+
+    resp = writer_client.post(
+        reverse('ipso-upload-import-martellate', args=[upload.id]),
+        data=json.dumps({'harvest_plan_item_id': item.id}),
+        content_type='application/json',
+    )
+
+    assert resp.status_code == 400
+    assert (S.IPSO_ERR_IMPORT_RECORD_MARK_TARGET_MISMATCH.format(1)
+            in resp.json()['message'])
+    assert TreeMark.objects.count() == 0
+    upload.refresh_from_db()
+    assert upload.state == IpsoUploadState.RECEIVED
+
+
+@override_settings(IPSO_SECRET='test-token')
 def test_martellate_import_region_wide_target_accepts_coppice_parcel(
         writer_client, regions, eclasses, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
@@ -1240,6 +1271,66 @@ def test_martellate_import_preserves_blank_numbers_without_auto_numbering(
         .order_by('id')
         .values_list('number', flat=True)
     ) == [1, 2, 3, None, None, 4, 5, 6]
+
+
+@override_settings(IPSO_SECRET='test-token')
+def test_samples_import_allows_recovery_to_survey_with_same_grid(
+        writer_client, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    source_survey, area = _sample_survey(parcels[0], name='Source survey')
+    target_survey = Survey.objects.create(
+        name='Target survey', sample_grid=source_survey.sample_grid, active=True,
+    )
+    payload = _upload_payload(
+        parcels, species, mode='samples',
+        session_id='22222222-2222-4222-8222-222222222231',
+        session_overrides={
+            'work_package_id': f'sampling_survey:{source_survey.id}',
+        },
+        record_overrides={'sample_area_id': area.id},
+    )
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
+
+    resp = writer_client.post(
+        reverse('ipso-upload-import-samples', args=[upload.id]),
+        data=json.dumps({'survey_id': target_survey.id}),
+        content_type='application/json',
+    )
+
+    assert resp.status_code == 200, resp.json()
+    assert Sample.objects.get().survey == target_survey
+    assert TreeSample.objects.count() == 1
+
+
+@override_settings(IPSO_SECRET='test-token')
+def test_samples_import_rejects_target_with_different_source_grid(
+        writer_client, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    source_survey, area = _sample_survey(parcels[0], name='Source survey')
+    target_survey, _ = _sample_survey(parcels[0], name='Target survey')
+    payload = _upload_payload(
+        parcels, species, mode='samples',
+        session_id='22222222-2222-4222-8222-222222222232',
+        session_overrides={
+            'work_package_id': f'sampling_survey:{source_survey.id}',
+        },
+        record_overrides={'sample_area_id': area.id},
+    )
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
+
+    resp = writer_client.post(
+        reverse('ipso-upload-import-samples', args=[upload.id]),
+        data=json.dumps({'survey_id': target_survey.id}),
+        content_type='application/json',
+    )
+
+    assert resp.status_code == 400
+    assert S.IPSO_ERR_SAMPLES_TARGET_GRID_MISMATCH in resp.json()['message']
+    assert TreeSample.objects.count() == 0
+    upload.refresh_from_db()
+    assert upload.state == IpsoUploadState.RECEIVED
 
 
 @override_settings(IPSO_SECRET='test-token')
