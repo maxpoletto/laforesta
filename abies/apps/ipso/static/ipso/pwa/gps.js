@@ -12,14 +12,11 @@
 // battery while the operator is in pre_session or done screens.
 'use strict';
 
-// Accuracy thresholds calibrated for forest GPS. Open-sky phone GPS gives
-// 3-10 m; under tree canopy 15-30 m is typical and a perfectly usable
-// per-tree fix for marking. Anything > 50 m is "where in this stand are
-// we" rather than "which tree", so we flag it red. The v0.1.1 values
-// (10 / 25) were calibrated for open-sky and made the dot always-red
-// under canopy even though the underlying fix was fine.
-const GPS_GREEN_M = 20;
-const GPS_YELLOW_M = 50;
+// Accuracy thresholds calibrated for forest GPS. Open-sky phone GPS gives 3-10
+// m; under tree canopy 10-20 m is typical and usable per-tree fix for marking.
+// Anything > 30 m is flagged red.
+const GPS_GREEN_M = 10;
+const GPS_YELLOW_M = 30;
 const GPS_STALE_MS = 10000;
 // Restart the watcher if no fresh fix has arrived in this long. Tightened
 // from 8 s to 3 s — under canopy the OS sometimes delivers callbacks

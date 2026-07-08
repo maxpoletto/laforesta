@@ -919,36 +919,49 @@ function refreshPill() {
 
 function startGps() {
   if (State.gps) State.gps.stop();
+  State.gps = createGps((st) => {
+    renderGpsStatus(st);
+    updateSaveEnabled();
+  });
+  State.gps.start();
+}
+
+function renderGpsStatus(st) {
   const dot = document.getElementById('gps-dot');
   const text = document.getElementById('gps-text');
-  State.gps = createGps((st) => {
-    dot.className = 'gps-dot ' + st.tier;
-    if (st.fix && (st.age == null || st.age < 10000)) {
-      // Keep the line a fixed shape so it doesn't jitter the rec-header on
-      // narrow screens. The dot already encodes accuracy tier; the
-      // GPS-stale fallback below kicks in when age > 10 s.
+  if (dot) dot.className = 'gps-dot ' + st.tier;
+  if (st.fix && (st.age == null || st.age < 10000)) {
+    // Keep the line a fixed shape so it doesn't jitter the rec-header on
+    // narrow screens. The dot already encodes accuracy tier; the
+    // GPS-stale fallback below kicks in when age > 10 s.
+    if (text) {
       text.textContent =
         IpsoFormat.fmtCoord(st.fix.lat) + ' ' + IpsoFormat.fmtCoord(st.fix.lon) +
         ' ±' + Math.round(st.fix.acc) + ' m';
-      State.lastFix = {
-        lat: st.fix.lat,
-        lon: st.fix.lon,
-        acc: st.fix.acc,
-        t: st.fix.t,
-      };
-      if (State.locator) State.locator.onFix(st.fix);
-      if (isSamplesMode()) refreshSampleAreaSelect();
-      updateMapPosition();
-      updateMapHeader();
-    } else if (st.error === 'denied') {
-      text.textContent = S.GPS_DENIED;
-      updateMapHeader();
-    } else {
-      text.textContent = S.REC_GPS_WAITING;
-      updateMapHeader();
     }
-  });
-  State.gps.start();
+    State.lastFix = {
+      lat: st.fix.lat,
+      lon: st.fix.lon,
+      acc: st.fix.acc,
+      t: st.fix.t,
+    };
+    if (State.locator) State.locator.onFix(st.fix);
+    if (isSamplesMode()) refreshSampleAreaSelect();
+    updateMapPosition();
+    updateMapHeader();
+  } else if (st.error === 'denied') {
+    State.lastFix = null;
+    if (text) text.textContent = S.GPS_DENIED;
+    updateMapHeader();
+  } else {
+    State.lastFix = null;
+    if (text) text.textContent = S.REC_GPS_WAITING;
+    updateMapHeader();
+  }
+}
+
+function currentGpsSnapshot() {
+  return State.gps ? State.gps.snapshot() : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -998,6 +1011,7 @@ function treeValidationOptions() {
     numberRequired: !!currentMode().numberRequired,
     parcelRequired: !!currentMode().parcelRequired,
     sampleAreaRequired: !!currentMode().sampleAreaRequired,
+    gpsRequired: true,
   };
 }
 
@@ -1052,6 +1066,7 @@ function currentRecord() {
       : '';
   const autoHeight = shouldAutoHeight();
   const hMeasured = autoHeight ? State.hMeasured : Number.isFinite(h);
+  const gps = currentGpsSnapshot();
   return {
     specie: State.specie || '',
     d_cm: Number.isFinite(d) ? d : null,
@@ -1061,6 +1076,9 @@ function currentRecord() {
     numero: Number.isInteger(n) ? n : null,
     gruppo,
     particella,
+    lat: gps ? gps.lat : null,
+    lon: gps ? gps.lon : null,
+    acc_m: gps ? gps.acc_m : null,
     [FIELD_SAMPLE_AREA_ID]: sampleArea ? sampleArea[FIELD_SAMPLE_AREA_ID] : null,
   };
 }
@@ -1083,7 +1101,13 @@ function updateSaveEnabled() {
 
 async function onSave() {
   const rec = currentRecord();
-  if (session.validateTree(rec, treeValidationOptions()).length > 0) return;
+  const validationErrors = session.validateTree(rec, treeValidationOptions());
+  if (validationErrors.length > 0) {
+    if (validationErrors.includes('gps')) {
+      renderGpsStatus(State.gps ? State.gps.state() : { fix: null, tier: 'red' });
+    }
+    return;
+  }
 
   // Small trees are not physically numbered in the field, so we force the
   // stored number blank regardless of what the operator typed. The counter
@@ -1094,13 +1118,7 @@ async function onSave() {
     rec.numero = null;
   }
 
-  // Snapshot GPS atomically into the record (R9).
-  const gps = State.gps ? State.gps.snapshot() : null;
-  const full = Object.assign({}, rec, {
-    lat: gps ? gps.lat : null,
-    lon: gps ? gps.lon : null,
-    acc_m: gps ? gps.acc_m : null,
-  });
+  const full = Object.assign({}, rec);
 
   // R12: 300 ms cooldown after save completes.
   State.saveLockUntil = Date.now() + 300;

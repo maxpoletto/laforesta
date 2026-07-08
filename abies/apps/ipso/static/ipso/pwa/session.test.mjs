@@ -19,6 +19,9 @@ function validTree(overrides = {}) {
     numero: 1,
     particella: '7',
     sample_area_id: 3,
+    lat: 38.5,
+    lon: 16.3,
+    acc_m: 12,
   }, overrides);
 }
 
@@ -57,6 +60,14 @@ check(
 check(
   !session.validateTree(validTree({ numero: null }), {}).includes('numero'),
   'blank number remains allowed unless the mode requires a number',
+);
+check(
+  session.validateTree(validTree({ lat: null, lon: 16.3 }), { gpsRequired: true }).includes('gps'),
+  'gpsRequired rejects a missing latitude',
+);
+check(
+  session.validateTree(validTree({ lat: 38.5, lon: 16.3 }), { gpsRequired: true }).length === 0,
+  'gpsRequired accepts fresh coordinates',
 );
 
 if (failures.length) {

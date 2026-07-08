@@ -63,6 +63,10 @@ function validateTree(rec, options) {
   if (opts.sampleAreaRequired && !Number.isInteger(rec[FIELD_SAMPLE_AREA_ID])) {
     errors.push(FIELD_SAMPLE_AREA_ID);
   }
+  if (opts.gpsRequired &&
+      (!Number.isFinite(rec[FIELD_LAT]) || !Number.isFinite(rec[FIELD_LON]))) {
+    errors.push('gps');
+  }
   return errors;
 }
 
