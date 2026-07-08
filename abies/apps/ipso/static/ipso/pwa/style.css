@@ -331,31 +331,6 @@ button {
 .gps-dot.red    { background: var(--red); }
 
 /* ----------------------------------------------------------------------- */
-/* "Ultimo" pill                                                            */
-/* ----------------------------------------------------------------------- */
-
-.pill {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 10px;
-  font-size: 14px;
-  background: var(--grey-5);
-  border: 1px solid var(--grey-4);
-  border-radius: 24px;
-  color: var(--grey-2);
-}
-.pill-text { flex: 1; }
-.pill-btn {
-  background: transparent;
-  border: 1px solid var(--grey-4);
-  padding: 4px 10px;
-  font-size: 13px;
-  color: var(--grey-2);
-  border-radius: 14px;
-}
-
-/* ----------------------------------------------------------------------- */
 /* Numpad                                                                  */
 /* ----------------------------------------------------------------------- */
 
@@ -561,6 +536,57 @@ button {
   color: var(--grey-3);
   font-style: italic;
   padding: 16px;
+}
+
+.tree-table {
+  table-layout: fixed;
+  font-size: 16px;
+}
+.tree-table th {
+  font-size: 13px;
+}
+.tree-table th,
+.tree-table td {
+  padding: 8px 6px;
+}
+.tree-table .col-number { width: 42px; }
+.tree-table .col-particella { width: 48px; }
+.tree-table .col-gruppo { width: 54px; }
+.tree-table .col-d { width: 42px; }
+.tree-table .col-h { width: 38px; }
+.tree-table .col-delete { width: 52px; }
+.tree-table td.tree-species,
+.tree-table td.tree-parcel,
+.tree-table td.tree-group {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tree-table td.tree-delete {
+  padding: 2px 4px;
+  text-align: center;
+}
+.tree-delete-btn {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: white;
+  color: var(--red);
+  border: 1px solid var(--grey-4);
+}
+.tree-delete-btn:active {
+  background: var(--grey-5);
+}
+.tree-delete-btn svg {
+  width: 22px;
+  height: 22px;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
 }
 
 /* ----------------------------------------------------------------------- */

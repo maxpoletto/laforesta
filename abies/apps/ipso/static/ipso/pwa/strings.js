@@ -50,10 +50,6 @@ const S = {
   REC_MAP: 'Mappa',
   REC_VIEW_DATA: 'Dati',
   REC_END: 'Fine',
-  REC_LAST_PREFIX: 'ultimo:',
-  REC_NO_LAST: 'nessun albero registrato',
-  REC_EDIT_LAST: 'Modifica',
-  REC_DELETE_LAST: 'Elimina',
   REC_CANCEL: 'Annulla',
   REC_TREE_NUMBER: 'albero n.',
 
@@ -70,6 +66,7 @@ const S = {
   DATA_COL_H: 'h',
   DATA_CLOSE: 'Chiudi',
   DATA_EMPTY: 'Nessun albero registrato.',
+  DATA_DELETE_TREE: 'Elimina albero',
   MAP_TITLE: 'Mappa',
   MAP_BACK: 'Indietro',
   MAP_CENTER: 'Centra',
@@ -191,18 +188,6 @@ const S = {
   UPLOAD_RESUME_KEEP_LOCAL: 'Mantieni solo locale',
   UPLOAD_DONE_BODY: (n) =>
     `${n} alber${n === 1 ? 'o' : 'i'} caricat${n === 1 ? 'o' : 'i'} sul server.`,
-
-  // Pill formatter. Prepends "n. <N> · " when the operator assigned a
-  // number to the tree (Number.isInteger), otherwise omits the slot
-  // entirely — for trees auto-blanked by the D ≤ 17 rule there's no
-  // visible number to show.
-  pill(rec) {
-    if (!rec) return S.REC_NO_LAST;
-    const d = rec.d_cm != null ? `D=${rec.d_cm}` : 'D=—';
-    const h = rec.h_m != null ? `h=${rec.h_m}` : 'h=—';
-    const numPart = Number.isInteger(rec.numero) ? `n. ${rec.numero} · ` : '';
-    return `${S.REC_LAST_PREFIX} ${numPart}${rec.specie}, ${d}, ${h}`;
-  },
 
   // "Where" formatter used in the recording-screen header (initial
   // paint, before GPS commits the first parcel), the app-bar

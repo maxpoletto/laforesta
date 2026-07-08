@@ -70,17 +70,6 @@ function validateTree(rec, options) {
   return errors;
 }
 
-// Italian summary line for the "ultimo" pill (without the "ultimo:"
-// prefix; S.pill in strings.js prepends that). Includes "n. <N> · "
-// when the operator assigned a number to the tree.
-function summarizePill(rec) {
-  if (!rec) return 'nessun albero';
-  const d = rec.d_cm != null ? `D=${rec.d_cm}` : 'D=—';
-  const h = rec.h_m != null ? `h=${rec.h_m}` : 'h=—';
-  const numPart = Number.isInteger(rec.numero) ? `n. ${rec.numero} · ` : '';
-  return `${numPart}${rec.specie}, ${d}, ${h}`;
-}
-
 // Returns true when seq should trigger a backup CSV download.
 // Plan: every 20 trees. Defensive: only at exact multiples of 20.
 const BACKUP_EVERY = 20;
@@ -92,7 +81,7 @@ function shouldBackup(seq) {
 // number across the supplied trees. Returns null if no tree carries a
 // number (fresh session, or every recorded tree was below the size
 // threshold). Monotonic and derived from the current tree list, so it
-// survives resume and self-corrects after delete-last.
+// survives resume and self-corrects after deletion.
 function nextNumberDefault(trees) {
   if (!trees || !trees.length) return null;
   let max = null;
@@ -105,6 +94,6 @@ function nextNumberDefault(trees) {
 
 const session = {
   D_MIN, D_MAX, H_MIN, H_MAX, BACKUP_EVERY, NUMBER_BLANK_D_THRESHOLD,
-  nextSeq, validateTree, summarizePill, shouldBackup, nextNumberDefault,
+  nextSeq, validateTree, shouldBackup, nextNumberDefault,
 };
 if (typeof module !== 'undefined') module.exports = session;

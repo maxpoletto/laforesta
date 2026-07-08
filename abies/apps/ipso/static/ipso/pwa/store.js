@@ -35,7 +35,7 @@ const STORE_META = 'meta';
 // Meta-store key namespace for per-operator, per-mode "next tree number"
 // persistence. Full key is `${META_KEY_NEXT_NUMBER_PREFIX}${mode}:${operator}`
 // and the value row is `{key, value: <int>}`. Max-bumped on save; rewritten
-// to the new in-session max+1 on delete-last so it tracks the same value
+// to the new in-session max+1 on delete so it tracks the same value
 // prefillNumber would compute (see addTree / deleteTree for details).
 const META_KEY_NEXT_NUMBER_PREFIX = 'next_number:';
 const DEFAULT_NUMBER_MODE = IPSO_MODE_MARTELLATE;
@@ -97,6 +97,16 @@ function nextNumberAfterDelete(prior, remainingTrees) {
   // may carry cross-session memory we don't want to discard.
   if (maxNumber == null) return prior;
   return maxNumber + 1;
+}
+
+function nextSeqAfterRows(rows) {
+  let maxSeq = 0;
+  if (rows) {
+    for (const row of rows) {
+      if (row && Number.isInteger(row.seq) && row.seq > maxSeq) maxSeq = row.seq;
+    }
+  }
+  return maxSeq + 1;
 }
 
 function uuid() {
@@ -245,8 +255,10 @@ async function setSessionUploadStatus(db, id, uploadStatus) {
 // Trees
 // ---------------------------------------------------------------------------
 
-// Add a tree to a session. Allocates `seq` inside the same transaction so a
-// retry after partial failure cannot duplicate (plan R8).
+// Add a tree to a session. Allocates `seq` inside the same transaction from
+// the highest sequence ever used in this session, not from the active-row
+// count, so deleting a middle row does not make future automatic sequence
+// values collide.
 // rec fields (caller supplies): specie, d_cm, h_m, h_measured,
 // hypso_param_set_id, lat, lon, acc_m, numero, gruppo, particella.
 async function addTree(db, sessionId, rec) {
@@ -255,7 +267,11 @@ async function addTree(db, sessionId, rec) {
     const sess = await req(sessStore.get(sessionId));
     if (!sess) throw new Error(S.STORE_ERROR_SESSION_NOT_FOUND(sessionId));
 
-    const seq = (sess.tree_count || 0) + 1;
+    const treesStore = t.objectStore(STORE_TREES);
+    const existingTrees = await req(
+      treesStore.index('by_session').getAll(sessionId)
+    );
+    const seq = nextSeqAfterRows(existingTrees);
     const row = {
       session_id: sessionId,
       seq,
@@ -273,18 +289,17 @@ async function addTree(db, sessionId, rec) {
       particella: rec.particella || '',
       [FIELD_SAMPLE_AREA_ID]: Number.isInteger(rec[FIELD_SAMPLE_AREA_ID]) ? rec[FIELD_SAMPLE_AREA_ID] : null,
     };
-    const treesStore = t.objectStore(STORE_TREES);
     const id = await req(treesStore.add(row));
     row.id = id;
 
-    sess.tree_count = seq;
+    sess.tree_count = existingTrees.length + 1;
     sessStore.put(sess);
 
     // Persist the operator's next-number counter via the pure rule. On add
     // we max-bump it so a manual lower-number override can't roll it
-    // backwards mid-session; delete-last is handled in deleteTree and
-    // intentionally rolls back to the new in-session max. This is what a
-    // fresh session for the same operator reads back from prefillNumber().
+    // backwards mid-session; deletion is handled in deleteTree and rolls
+    // back to the new in-session max. This is what a fresh session for the
+    // same operator reads back from prefillNumber().
     const metaKey = shouldPersistNumber(sess)
       ? numberMetaKey(sess.operatore, sess.mode)
       : null;
@@ -344,19 +359,18 @@ async function deleteTree(db, sessionId, treeId) {
     if (row.session_id !== sessionId) {
       throw new Error(S.STORE_ERROR_TREE_SESSION_MISMATCH);
     }
-    treesStore.delete(treeId);
-    // Decrement session.tree_count so the next addTree allocates the same
-    // seq the deleted tree had — clean numbering for the typical
-    // delete-last-then-rerecord flow.
+    await req(treesStore.delete(treeId));
     const sessStore = t.objectStore(STORE_SESSIONS);
     const sess = await req(sessStore.get(sessionId));
-    if (sess && sess.tree_count > 0) {
-      sess.tree_count -= 1;
+    if (sess) {
+      sess.tree_count = await req(
+        treesStore.index('by_session').count(sessionId)
+      );
       sessStore.put(sess);
     }
 
     // Roll the operator's next-number counter back to match the new
-    // in-session max (e.g. trees 101,102,103,110 → delete-last → 104),
+    // in-session max (e.g. delete 110 from 101,102,103,110 -> 104),
     // mirroring the in-session nextNumberDefault. The pure rule
     // (`nextNumberAfterDelete`) leaves `prior` untouched when no numbered
     // trees remain so cross-session counter state isn't erased.
@@ -401,7 +415,7 @@ const Store = {
   STATUS_OPEN, STATUS_PENDING_UPLOAD, STATUS_EXPORTED, STATUS_ABANDONED,
   UPLOAD_STATUS_UPLOADED, UPLOAD_STATUS_LOCAL_ONLY,
   isResumableStatus, normalizeOperator, numberMetaKey,
-  nextNumberAfterSave, nextNumberAfterDelete,
+  nextNumberAfterSave, nextNumberAfterDelete, nextSeqAfterRows,
   openDb,
   startSession, getSession, listResumableSessions, setSessionStatus,
   setSessionUploadStatus,

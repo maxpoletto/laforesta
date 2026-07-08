@@ -24,7 +24,7 @@ const State = {
   numpad: null,       // numpad controller
   autoNumberValue: null, // current number value filled by prefillNumber()
   inAutoNumberFill: false,
-  lastTreeRow: null,  // most-recent tree in the current session
+  lastGroup: '',      // most-recent tree group in the current session
   wakeLock: null,     // active WakeLockSentinel during recording (or null)
   currentScreen: null, // id of the visible screen
   lastFix: null,       // most recent fresh GPS fix, { lat, lon, acc, t }
@@ -77,9 +77,6 @@ async function boot() {
   document.getElementById('end-title').textContent = S.END_TITLE;
   document.getElementById('end-cancel').textContent = S.REC_CANCEL;
   document.getElementById('end-confirm').textContent = S.END_CONFIRM;
-  document.getElementById('edit-title').textContent = S.REC_EDIT_LAST;
-  document.getElementById('edit-cancel').textContent = S.REC_CANCEL;
-  document.getElementById('edit-delete').textContent = S.REC_DELETE_LAST;
   document.getElementById('done-title').textContent = S.DONE_TITLE;
   document.getElementById('btn-new-session').textContent = S.DONE_NEW;
 
@@ -442,7 +439,7 @@ function modeStringFor(mode, field, fallback) {
 
 function showModeScreen() {
   State.session = null;
-  State.lastTreeRow = null;
+  State.lastGroup = '';
   State.locator = null;
   State.override = null;
   State.sampleAreaId = null;
@@ -485,8 +482,8 @@ function wirePreSession() {
     if (modeId === IpsoModes.SAMPLES && sampleSurveyId == null) return;
 
     // Fire the GPS permission prompt now (during setup, not mid-mark).
-    // Runs in parallel with the rest of submit — we don't await it
-    // because the operator can still record without GPS if they deny.
+    // Runs in parallel with the rest of submit so the permission prompt
+    // is visible before the operator reaches the first required GPS save.
     promptGps();
 
     localStorage.setItem('ipso.operatore', operator);
@@ -501,7 +498,7 @@ function wirePreSession() {
         data, compresa, operatore: operator, catastrofata,
       });
       State.session = sess;
-      State.lastTreeRow = null;
+      State.lastGroup = '';
       State.sampleAreaId = null;
       State.parcelName = null;
       enterRecording();
@@ -576,16 +573,6 @@ function wireRecording() {
     hideModal('modal-confirm-end');
   });
 
-  document.getElementById('pill-action').addEventListener('click', () => {
-    if (!State.lastTreeRow) return;
-    document.getElementById('edit-body').textContent =
-      S.pill(State.lastTreeRow);
-    showModal('modal-edit-last');
-  });
-  document.getElementById('edit-delete').addEventListener('click', onDeleteLast);
-  document.getElementById('edit-cancel').addEventListener('click', () => {
-    hideModal('modal-edit-last');
-  });
 }
 
 function wireMap() {
@@ -602,11 +589,7 @@ function wireMap() {
 function enterRecording() {
   populateSpecie();
   populateGruppo();
-  // Sticky within a session. On a fresh start lastTreeRow is null and the
-  // dropdown starts blank; on resume after force-quit we recover the last
-  // tree's gruppo so the operator picks up where they left off.
-  const lastGruppo = (State.lastTreeRow && State.lastTreeRow.gruppo) || '';
-  document.getElementById('in-gruppo').value = lastGruppo;
+  document.getElementById('in-gruppo').value = State.lastGroup || '';
   const where = S.where(State.session);
   State.lastFix = null;
   document.getElementById('rec-where').textContent = where;
@@ -618,7 +601,6 @@ function enterRecording() {
   State.parcelName = null;
   setupLocator();
   resetEntryFields();
-  refreshPill();
   startGps();
   acquireWakeLock();
   showScreen('screen-rec');
@@ -904,19 +886,6 @@ async function computeNextNumberDefault(trees) {
   );
 }
 
-function refreshPill() {
-  const pill = document.getElementById('pill-text');
-  const btn = document.getElementById('pill-action');
-  if (!State.lastTreeRow) {
-    pill.textContent = S.REC_NO_LAST;
-    btn.hidden = true;
-  } else {
-    pill.textContent = S.pill(State.lastTreeRow);
-    btn.textContent = S.REC_EDIT_LAST + '/' + S.REC_DELETE_LAST;
-    btn.hidden = false;
-  }
-}
-
 function startGps() {
   if (State.gps) State.gps.stop();
   State.gps = createGps((st) => {
@@ -1126,11 +1095,9 @@ async function onSave() {
 
   try {
     const row = await Store.addTree(State.db, State.session.id, full);
-    // Mirror tree_count from the freshly read row.
-    State.session.tree_count = row.seq;
-    State.lastTreeRow = row;
+    State.session = await Store.getSession(State.db, State.session.id);
+    State.lastGroup = row.gruppo || '';
     localStorage.setItem('ipso.specie', State.specie);
-    refreshPill();
     resetEntryFields();
     refreshMapRecords();
 
@@ -1144,21 +1111,19 @@ async function onSave() {
   }
 }
 
-async function onDeleteLast() {
-  hideModal('modal-edit-last');
-  if (!State.lastTreeRow) return;
+async function onDeleteTree(treeId) {
+  if (!State.session || !Number.isInteger(treeId)) return;
   try {
-    await Store.deleteTree(State.db, State.session.id, State.lastTreeRow.id);
-    // Refresh from DB so we get the new "last" and the corrected tree_count.
+    await Store.deleteTree(State.db, State.session.id, treeId);
     State.session = await Store.getSession(State.db, State.session.id);
-    State.lastTreeRow = await Store.lastTree(State.db, State.session.id);
-    refreshPill();
-    // Reset the number field to the new default — the operator just freed
-    // up a slot and almost always wants to redo with the same number. D /
-    // h / specie are intentionally left alone (they reflect the redo state).
     const trees = await Store.listTrees(State.db, State.session.id);
+    trees.sort((a, b) => a.seq - b.seq);
+    const last = trees.length ? trees[trees.length - 1] : null;
+    State.lastGroup = last && last.gruppo || '';
     const next = await computeNextNumberDefault(trees);
     setAutoNumberDefault(next);
+    renderGroupsTable(trees);
+    renderTreesTable(trees);
     updateSaveEnabled();
     refreshMapRecords();
   } catch (e) {
@@ -1468,27 +1433,38 @@ function renderTreesTable(trees) {
   if (!trees.length) {
     const tr = document.createElement('tr');
     const td = document.createElement('td');
-    td.colSpan = 6;
+    td.colSpan = 7;
     td.className = 'empty';
     td.textContent = S.DATA_EMPTY;
     tr.appendChild(td);
     tbl.appendChild(tr);
     return;
   }
+  const colgroup = document.createElement('colgroup');
+  for (const cls of [
+    'col-number', 'col-specie', 'col-particella', 'col-gruppo',
+    'col-d', 'col-h', 'col-delete',
+  ]) {
+    const col = document.createElement('col');
+    col.className = cls;
+    colgroup.appendChild(col);
+  }
+  tbl.appendChild(colgroup);
   const thead = document.createElement('thead');
   const trh = document.createElement('tr');
   const headers = [
-    { label: S.DATA_COL_NUMBER, num: true },
-    { label: S.DATA_COL_SPECIE, num: false },
-    { label: S.DATA_COL_PARTICELLA, num: false },
-    { label: S.DATA_COL_GRUPPO, num: false },
-    { label: S.DATA_COL_D, num: true },
-    { label: S.DATA_COL_H, num: true },
+    { label: S.DATA_COL_NUMBER, cls: 'num' },
+    { label: S.DATA_COL_SPECIE, cls: '' },
+    { label: S.DATA_COL_PARTICELLA, cls: '' },
+    { label: S.DATA_COL_GRUPPO, cls: '' },
+    { label: S.DATA_COL_D, cls: 'num' },
+    { label: S.DATA_COL_H, cls: 'num' },
+    { label: '', cls: 'tree-delete' },
   ];
   for (const h of headers) {
     const th = document.createElement('th');
     th.textContent = h.label;
-    if (h.num) th.className = 'num';
+    if (h.cls) th.className = h.cls;
     trh.appendChild(th);
   }
   thead.appendChild(trh);
@@ -1497,22 +1473,53 @@ function renderTreesTable(trees) {
   for (const t of trees) {
     const tr = document.createElement('tr');
     const cells = [
-      { v: t.numero == null ? '' : '' + t.numero, num: true },
-      { v: t.specie || '', num: false },
-      { v: isSamplesMode() ? sampleAreaTextForTree(t) : (t.particella || ''), num: false },
-      { v: t.gruppo || '', num: false },
-      { v: t.d_cm == null ? '' : '' + t.d_cm, num: true },
-      { v: t.h_m == null ? '' : '' + t.h_m, num: true },
+      { v: t.numero == null ? '' : '' + t.numero, cls: 'num tree-number' },
+      { v: t.specie || '', cls: 'tree-species' },
+      { v: isSamplesMode() ? sampleAreaTextForTree(t) : (t.particella || ''), cls: 'tree-parcel' },
+      { v: t.gruppo || '', cls: 'tree-group' },
+      { v: t.d_cm == null ? '' : '' + t.d_cm, cls: 'num tree-d' },
+      { v: t.h_m == null ? '' : '' + t.h_m, cls: 'num tree-h' },
     ];
     for (const c of cells) {
       const td = document.createElement('td');
       td.textContent = c.v;
-      if (c.num) td.className = 'num';
+      if (c.cls) td.className = c.cls;
       tr.appendChild(td);
     }
+    const deleteTd = document.createElement('td');
+    deleteTd.className = 'tree-delete';
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'tree-delete-btn';
+    deleteBtn.type = 'button';
+    deleteBtn.title = S.DATA_DELETE_TREE;
+    deleteBtn.setAttribute('aria-label', S.DATA_DELETE_TREE);
+    deleteBtn.appendChild(trashIcon());
+    deleteBtn.addEventListener('click', () => onDeleteTree(t.id));
+    deleteTd.appendChild(deleteBtn);
+    tr.appendChild(deleteTd);
     tbody.appendChild(tr);
   }
   tbl.appendChild(tbody);
+}
+
+function trashIcon() {
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('focusable', 'false');
+  for (const d of [
+    'M3 6h18',
+    'M8 6V4h8v2',
+    'M19 6l-1 14H6L5 6',
+    'M10 11v6',
+    'M14 11v6',
+  ]) {
+    const path = document.createElementNS(ns, 'path');
+    path.setAttribute('d', d);
+    svg.appendChild(path);
+  }
+  return svg;
 }
 
 async function downloadBackup(seq) {
@@ -1667,7 +1674,8 @@ function showResumeModal(sessions) {
       const resume = mkBtn(S.RESUME_RESUME, 'btn-primary', async () => {
         State.session = s;
         setMode(s.mode);
-        State.lastTreeRow = await Store.lastTree(State.db, s.id);
+        const last = await Store.lastTree(State.db, s.id);
+        State.lastGroup = last && last.gruppo || '';
         hideModal('modal-resume');
         enterRecording();
       });
