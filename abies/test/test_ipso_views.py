@@ -82,6 +82,7 @@ def test_service_worker_served_from_ipso_scope(db):
     assert b'upload-config.js' not in body
     assert b'./reference.json' not in body
     assert b'./terreni.geojson' not in body
+    assert b'url.origin !== self.location.origin' in body
     assert b"req.cache === 'no-store'" in body
     assert b"cacheControl.includes('no-store')" in body
 
