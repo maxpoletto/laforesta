@@ -146,56 +146,6 @@
   /* Inherits sortable-table sizing from common.css. */
 }
 
-
-.cascade-confirm-title {
-  color: #a00;
-  margin-top: 0;
-}
-
-.cascade-confirm-warning {
-  color: #a00;
-  font-weight: bold;
-  padding: 8px 12px;
-  background: #fee;
-  border: 1px solid #a00;
-  border-radius: 4px;
-}
-
-.csv-import-errors {
-  margin: 8px 0;
-  padding: 8px 12px;
-  background: #fee;
-  border: 1px solid #a00;
-  border-radius: 4px;
-  max-height: 200px;
-  overflow-y: auto;
-  font-size: 0.85em;
-  color: #a00;
-}
-
-.csv-import-errors ul {
-  margin: 0;
-  padding-left: 20px;
-}
-
-.csv-import-status {
-  margin: 8px 0;
-  padding: 8px 12px;
-  background: #f0f7f0;
-  border: 1px solid #2d5d2c;
-  border-radius: 4px;
-  color: #2d5d2c;
-  font-size: 0.9em;
-  font-style: italic;
-  /* Subtle pulse so it's visibly "alive" even though no progress bar. */
-  animation: csv-import-pulse 1.8s ease-in-out infinite;
-}
-
-@keyframes csv-import-pulse {
-  0%, 100% { opacity: 1; }
-  50%      { opacity: 0.55; }
-}
-
 /* "Nuova griglia" / "Nuovo rilevamento" modal — path chooser at top,
  * one of several bodies underneath.  The form-card wrapper class is
  * defined in common.css; field-width 120px lives there too as
