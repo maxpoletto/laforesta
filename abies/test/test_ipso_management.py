@@ -60,6 +60,7 @@ def test_stage_marks_uploads_imports_converted_csv(
     assert upload.mode == 'martellate'
     assert upload.state == IpsoUploadState.RECEIVED
     assert upload.record_count == 2
+    assert upload.record_date == '2026-06-15'
     assert upload.operator == ''
     upload_dir = Path(upload.inbox_path)
     payload = json.loads((upload_dir / 'upload.json').read_text(encoding='utf-8'))

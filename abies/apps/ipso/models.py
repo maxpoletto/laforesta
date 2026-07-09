@@ -26,6 +26,7 @@ class IpsoUpload(models.Model):
     work_package_id = models.CharField(max_length=100, blank=True)
     operator = models.CharField(max_length=100, blank=True)
     record_count = models.IntegerField(default=0)
+    record_date = models.CharField(max_length=10, blank=True, default='')
     checksum = models.CharField(max_length=64)
     inbox_path = models.CharField(max_length=500)
     state = models.CharField(

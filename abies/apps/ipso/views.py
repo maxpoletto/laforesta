@@ -846,22 +846,7 @@ def _reference_label(reference_version: str) -> str:
 
 
 def _upload_record_date(upload: IpsoUpload) -> str:
-    payload, _ = _read_staged_payload(upload)
-    return _payload_record_date(payload)
-
-
-def _payload_record_date(payload: dict) -> str:
-    records = payload.get(RECORDS, []) if isinstance(payload, dict) else []
-    if not isinstance(records, list):
-        return ''
-    dates = [
-        row.get(FIELD_DATE)
-        for row in records
-        if isinstance(row, dict)
-        and isinstance(row.get(FIELD_DATE), str)
-        and _DATE_RE.match(row.get(FIELD_DATE))
-    ]
-    return min(dates) if dates else ''
+    return upload.record_date or ''
 
 
 def _read_staged_payload(upload: IpsoUpload) -> tuple[dict, str]:

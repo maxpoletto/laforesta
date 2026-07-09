@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from datetime import timezone
 from pathlib import Path
 
@@ -11,10 +12,13 @@ from django.conf import settings
 from django.utils import timezone as django_timezone
 
 from config.constants import (
-    FIELD_MODE, FIELD_OPERATOR, FIELD_REFERENCE_VERSION, FIELD_SCHEMA_VERSION,
-    FIELD_SESSION_ID, FIELD_WORK_PACKAGE_ID, IPSO_UPLOAD_FILE_CSV,
-    IPSO_UPLOAD_FILE_JSON, IPSO_UPLOAD_FILE_SHA256, RECORDS, SESSION,
+    FIELD_DATE, FIELD_MODE, FIELD_OPERATOR, FIELD_REFERENCE_VERSION,
+    FIELD_SCHEMA_VERSION, FIELD_SESSION_ID, FIELD_WORK_PACKAGE_ID,
+    IPSO_UPLOAD_FILE_CSV, IPSO_UPLOAD_FILE_JSON, IPSO_UPLOAD_FILE_SHA256,
+    RECORDS, SESSION,
 )
+
+_DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
 
 
 def payload_checksum(payload: dict) -> str:
@@ -27,6 +31,20 @@ def upload_inbox_path(session_id: str) -> Path:
     return Path(settings.IPSO_INBOX_DIR) / f'{now.year:04d}' / f'{now.month:02d}' / session_id
 
 
+def upload_record_date(payload: dict) -> str:
+    records = payload.get(RECORDS, []) if isinstance(payload, dict) else []
+    if not isinstance(records, list):
+        return ''
+    dates = [
+        row.get(FIELD_DATE)
+        for row in records
+        if isinstance(row, dict)
+        and isinstance(row.get(FIELD_DATE), str)
+        and _DATE_RE.match(row.get(FIELD_DATE))
+    ]
+    return min(dates) if dates else ''
+
+
 def upload_model_fields(payload: dict, checksum: str, inbox_path: Path) -> dict:
     session = payload[SESSION]
     return {
@@ -37,6 +55,7 @@ def upload_model_fields(payload: dict, checksum: str, inbox_path: Path) -> dict:
         FIELD_WORK_PACKAGE_ID: session.get(FIELD_WORK_PACKAGE_ID, ''),
         FIELD_OPERATOR: session.get(FIELD_OPERATOR, ''),
         'record_count': len(payload[RECORDS]),
+        'record_date': upload_record_date(payload),
         'checksum': checksum,
         'inbox_path': str(inbox_path),
     }

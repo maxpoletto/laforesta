@@ -24,6 +24,27 @@ audited and the contract that keeps that coverage complete.
   - `default_landing_page` is the blank-or-same-site app URL used when a user
     has no personal landing page.
 
+## Ipso staging
+
+- ipso_upload: (id:int, session_id:string, mode:string, schema_version:int,
+  reference_version:string, work_package_id:string, operator:string,
+  record_count:int, record_date:string, checksum:string, inbox_path:string,
+  state:string, received_at:datetime, imported_at:datetime nullable,
+  imported_by_id:int nullable, target_type:string, target_id:int nullable,
+  error_summary:string)
+  - One completed Ipso mobile session staged for later import. `session_id` is
+    unique, so identical client retries are idempotent and conflicting retries
+    are marked `conflict`.
+  - `record_date` is the earliest valid ISO date among staged records. It is
+    persisted when the upload is staged so the import inbox can list historical
+    uploads without reopening `upload.json` for every row.
+  - `checksum` is the SHA-256 of the canonical staged JSON. `inbox_path` points
+    to the directory containing `upload.json`, `upload.sha256`, and optional
+    `export.csv`.
+  - Successful domain import records `imported_at`, `imported_by`,
+    `target_type`, and `target_id`; rejection/conflict details are stored in
+    `error_summary`.
+
 ## Geographic concepts
 
 - region: (id:int, name:string)

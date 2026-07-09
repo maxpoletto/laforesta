@@ -390,6 +390,7 @@ def test_upload_stages_json_and_metadata(db, parcels, species, settings, tmp_pat
     assert upload.state == IpsoUploadState.RECEIVED
     assert upload.mode == 'martellate'
     assert upload.record_count == 1
+    assert upload.record_date == '2026-06-17'
     assert Path(upload.inbox_path).is_dir()
     staged = json.loads((Path(upload.inbox_path) / 'upload.json').read_text())
     assert staged['records'][0]['hypso_param_set_id'] is None
@@ -687,10 +688,15 @@ def test_shell_shows_importazione_dot_for_received_upload(
 
 
 @override_settings(IPSO_SECRET='test-token')
-def test_inbox_data_lists_received_upload(writer_client, parcels, species, settings, tmp_path):
+def test_inbox_data_lists_received_upload(
+        writer_client, parcels, species, settings, tmp_path, monkeypatch):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     payload = _upload_payload(parcels, species)
     assert _post_upload(Client(), payload).status_code == 200
+
+    def fail_staged_payload_read(_upload):
+        raise AssertionError('inbox_data must not read staged upload files')
+    monkeypatch.setattr(ipso_views, '_read_staged_payload', fail_staged_payload_read)
 
     resp = writer_client.get(reverse('ipso-inbox-data'))
 
