@@ -82,7 +82,9 @@ async function boot() {
 
   // Register service worker but never block the UI on it.
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js').catch(() => {
+    navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).then(
+      (registration) => registration.update().catch(() => {})
+    ).catch(() => {
       // Quietly ignore; the app works without one (just no offline).
     });
   }

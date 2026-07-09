@@ -87,6 +87,16 @@ def test_service_worker_served_from_ipso_scope(db):
     assert b"cacheControl.includes('no-store')" in body
 
 
+def test_ipso_registers_service_worker_without_http_cache(db):
+    resp = Client().get('/ipso/app.js')
+
+    assert resp.status_code == 200
+    assert resp['Content-Type'].startswith('text/javascript')
+    body = _body(resp)
+    assert b"updateViaCache: 'none'" in body
+    assert b'registration.update()' in body
+
+
 @pytest.mark.parametrize(('path', 'needle'), [
     ('/ipso/map.js', b'createOrientationMap'),
     ('/ipso/modes.js', b'IpsoModes'),
