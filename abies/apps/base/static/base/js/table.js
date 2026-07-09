@@ -14,6 +14,9 @@ const DEBOUNCE_MS = 500;
 const ROW_ID_COL = 0;
 const ROWS_PER_PAGE = 25;
 const DEFAULT_COL_WIDTH = '100';  // px fallback for columns without explicit width
+const ACTION_COLUMN_SINGLE_WIDTH_PX = 44;
+const ACTION_COLUMN_ICON_SLOT_WIDTH_PX = 36;
+const ACTION_COLUMN_HORIZONTAL_PADDING_PX = 16;
 const ROW_CLICK_IGNORE_SELECTOR = [
   '.action-icon',
   'a',
@@ -403,6 +406,13 @@ function actionCount(actions) {
   return (actions.onEdit ? 1 : 0) + extraActions(actions).length + (actions.onDelete ? 1 : 0);
 }
 
+function actionColumnWidth(count) {
+  const width = count <= 1
+    ? ACTION_COLUMN_SINGLE_WIDTH_PX
+    : ACTION_COLUMN_HORIZONTAL_PADDING_PX + ACTION_COLUMN_ICON_SLOT_WIDTH_PX * count;
+  return `${width}px`;
+}
+
 function rowActionHTML(actions, labels, row) {
   const parts = [];
   if (actions.onEdit && actionVisible(actions.editVisible, row)) {
@@ -443,10 +453,10 @@ function buildSTColumns(digestColumns, columnDefs, actions, labels) {
   });
 
   if (hasRowActions(actions)) {
-    const maxCount = actionCount(actions);
+    const count = actionCount(actions);
     cols.push({
       key: '_actions', label: '', sortable: false,
-      width: maxCount === 1 ? '34px' : `${31 * maxCount + 3}px`,
+      width: actionColumnWidth(count),
       className: 'col-actions',
       formatter: (_value, row) => rowActionHTML(actions, labels, row),
       trustedHTML: true,

@@ -27,6 +27,7 @@ class MockElement {
     this.rel = '';
     this.removed = false;
     this._listeners = {};
+    this.style = { setProperty: (key, value) => { this.style[key] = value; } };
     this._classes = new Set();
     const syncClasses = () => {
       this._classes = new Set(String(this.className).split(/\s+/).filter(Boolean));
@@ -57,6 +58,7 @@ class MockElement {
   appendChild(child) { this.children.push(child); return child; }
   replaceChildren(...children) { this.children = children; }
   remove() { this.removed = true; }
+  querySelectorAll() { return []; }
   addEventListener(type, fn) { (this._listeners[type] ||= []).push(fn); }
   removeEventListener(type, fn) {
     this._listeners[type] = (this._listeners[type] || []).filter(f => f !== fn);
@@ -266,6 +268,46 @@ const { TableWrapper } = await import('./table.js');
     !deleteOnly._tableEl.classList.contains('table-scroll-editable-rows'),
     'TableWrapper does not mark delete-only tables as row-click editable',
   );
+}
+
+// TableWrapper uses standard action-column widths by action count.
+{
+  const created = [];
+  const previousSortableTable = window.SortableTable;
+  window.SortableTable = class {
+    constructor(opts) {
+      this.data = opts.data;
+      this.columns = opts.columns;
+      this.currentSort = opts.sort || { column: 'name', ascending: true };
+      created.push(this);
+    }
+    destroy() {}
+    clearFilter() {}
+  };
+  const digest = { columns: ['row_id', 'name'], rows: [] };
+
+  new TableWrapper({
+    container: new MockElement('div'), digest, columnDefs: {}, inlineToolbar: false,
+    canModify: true, actions: { onDelete: () => {} },
+  });
+  new TableWrapper({
+    container: new MockElement('div'), digest, columnDefs: {}, inlineToolbar: false,
+    canModify: true, actions: { onEdit: () => {}, onDelete: () => {} },
+  });
+  new TableWrapper({
+    container: new MockElement('div'), digest, columnDefs: {}, inlineToolbar: false,
+    canModify: true,
+    actions: {
+      onEdit: () => {},
+      onDelete: () => {},
+      extra: [{ key: 'inspect', title: 'Inspect', icon: '?', onClick: () => {} }],
+    },
+  });
+
+  eq(created.map(t => t.columns.find(c => c.key === '_actions')?.width),
+     ['44px', '88px', '124px'],
+     'TableWrapper uses standard action-column widths by action count');
+  window.SortableTable = previousSortableTable;
 }
 
 // TableWrapper delegates plain row clicks to edit and keeps explicit actions distinct.
