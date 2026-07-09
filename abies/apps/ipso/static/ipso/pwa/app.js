@@ -1142,15 +1142,20 @@ async function onEnd() {
       await closeEmptySession(State.session);
       return;
     }
-    const csvText = csv.formatFile(State.session, trees, State.reference);
+    // Always download the local CSV first — it is the trust anchor and
+    // the operator must not lose data if validation or upload never succeeds.
+    let csvText;
+    try {
+      csvText = downloadFinal(State.session, trees, State.reference);
+    } catch (e) {
+      showToast(S.TOAST_EXPORT_ERROR(e.message));
+      return;
+    }
     const uploadPayload = upload.buildUploadPayload(
       State.session, trees, State.reference, csvText
     );
     await Store.setSessionStatus(State.db, State.session.id, Store.STATUS_PENDING_UPLOAD);
     State.session.status = Store.STATUS_PENDING_UPLOAD;
-    // Always download the local CSV first — it is the trust anchor and
-    // the operator must not lose data if the upload never succeeds.
-    downloadFinal(State.session, trees, State.reference);
     uploadFlow().enter(State.session.id, uploadPayload, trees.length);
   } catch (e) {
     showToast(S.TOAST_EXPORT_ERROR(e.message));
@@ -1161,6 +1166,7 @@ function downloadFinal(sess, trees, reference) {
   const text = csv.formatFile(sess, trees, reference);
   const name = csv.filename(sess, new Date(), 'final');
   downloadText(text, name);
+  return text;
 }
 
 // ---------------------------------------------------------------------------
@@ -1645,14 +1651,19 @@ function showResumeModal(sessions) {
             await closeEmptySession(s);
             return;
           }
-          const csvText = csv.formatFile(s, trees, State.reference);
-          const uploadPayload = upload.buildUploadPayload(
-            s, trees, State.reference, csvText
-          );
           // Re-download the local CSV on every entry to screen-upload —
           // the browser auto-renames duplicates so this can never lose
           // the original copy. See spec.
-          downloadFinal(s, trees, State.reference);
+          let csvText;
+          try {
+            csvText = downloadFinal(s, trees, State.reference);
+          } catch (e) {
+            showToast(S.TOAST_EXPORT_ERROR(e.message));
+            return;
+          }
+          const uploadPayload = upload.buildUploadPayload(
+            s, trees, State.reference, csvText
+          );
           hideModal('modal-resume');
           State.session = s;
           setMode(s.mode);
