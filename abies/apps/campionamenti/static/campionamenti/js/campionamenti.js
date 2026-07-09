@@ -866,9 +866,13 @@ async function showNewGridForm() {
   if (!form) { inForm = false; return; }
   const modal = document.querySelector('#modal-container #campionamenti-grid-modal');
   if (!modal) { dismissModal(); inForm = false; return; }
-  onDismiss(() => { inForm = false; });
-
   let planner = null;
+  onDismiss(() => {
+    planner?.destroy();
+    planner = null;
+    inForm = false;
+  });
+
   const onPathSwitch = (path) => {
     if (path === 'auto' && !planner) {
       const host = modal.querySelector('#campionamenti-grid-planner-host');

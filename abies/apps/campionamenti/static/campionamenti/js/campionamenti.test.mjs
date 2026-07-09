@@ -14,6 +14,18 @@ fs.mkdirSync(path.join(staticRoot, 'base'), { recursive: true });
 fs.cpSync(here, path.join(staticRoot, 'campionamenti', 'js'), { recursive: true });
 fs.cpSync(path.resolve(here, '../../../../base/static/base/js'),
           path.join(staticRoot, 'base', 'js'), { recursive: true });
+fs.writeFileSync(path.join(staticRoot, 'campionamenti', 'js', 'grid-planner.js'), `
+export class GridPlanner {
+  constructor(opts) {
+    this.opts = opts;
+    this.inited = false;
+    this.destroyed = false;
+    globalThis.__gridPlannerInstances.push(this);
+  }
+  init() { this.inited = true; }
+  destroy() { this.destroyed = true; }
+}
+`);
 process.on('exit', () => fs.rmSync(tmpRoot, { recursive: true, force: true }));
 const staticModule = rel => pathToFileURL(path.join(staticRoot, rel)).href;
 
@@ -39,6 +51,8 @@ class MockElement {
     this.id = '';
     this.textContent = '';
     this.value = '';
+    this.name = '';
+    this.type = '';
     this.hidden = false;
     this.href = '';
     this.rel = '';
@@ -77,6 +91,14 @@ class MockElement {
   }
   remove() { this.removed = true; }
   addEventListener(type, fn) { (this._listeners[type] ||= []).push(fn); }
+  async click() {
+    const event = { target: this, preventDefault() {} };
+    let node = this;
+    while (node) {
+      for (const fn of node._listeners?.click || []) await fn(event);
+      node = node.parentNode;
+    }
+  }
   removeEventListener(type, fn) {
     this._listeners[type] = (this._listeners[type] || []).filter(f => f !== fn);
   }
@@ -137,6 +159,8 @@ class MockElement {
     clone.id = this.id;
     clone.textContent = this.textContent;
     clone.value = this.value;
+    clone.name = this.name;
+    clone.type = this.type;
     clone.hidden = this.hidden;
     if (deep) for (const child of this.children) clone.appendChild(child.cloneNode(true));
     return clone;
@@ -160,11 +184,23 @@ function section(key) {
 
 function buildCampionamentiTemplate() {
   const frag = el('fragment');
+  frag.appendChild(el('button', { dataset: { action: 'new-grid' } }));
   for (const key of ['g', 'r', 't']) frag.append(...section(key));
   return frag;
 }
 
+function buildGridModal() {
+  const root = el('div', { id: 'campionamenti-grid-modal' });
+  root.appendChild(el('button', { className: 'modal-tab', dataset: { path: 'auto' } }));
+  root.appendChild(el('div', { className: 'modal-tab-body grid-path-auto' }));
+  root.appendChild(el('div', { id: 'campionamenti-grid-planner-host' }));
+  root.appendChild(el('form', { id: 'campionamenti-grid-form-empty' }));
+  root.appendChild(el('button', { dataset: { action: 'cancel' } }));
+  return root;
+}
+
 const contentEl = el('main');
+const modalEl = el('div', { id: 'modal-container' });
 const links = [];
 const templates = {
   'tmpl-campionamenti-page': { content: buildCampionamentiTemplate() },
@@ -180,9 +216,13 @@ globalThis.document = {
   removeEventListener() {},
   getElementById(id) {
     if (id === 'content') return contentEl;
+    if (id === 'modal-container') return modalEl;
     return templates[id] || null;
   },
   querySelector(sel) {
+    if (sel.startsWith('#modal-container ')) {
+      return modalEl.querySelector(sel.slice('#modal-container '.length));
+    }
     const href = sel.match(/^link\[href="([^"]+)"\]$/)?.[1];
     return href ? links.find(link => link.href === href && !link.removed) || null : null;
   },
@@ -201,6 +241,16 @@ globalThis.history = {
   },
 };
 globalThis.window = { addEventListener() {} };
+Object.defineProperty(globalThis, 'crypto', {
+  configurable: true,
+  value: { randomUUID: () => 'nonce-1' },
+});
+globalThis.__gridPlannerInstances = [];
+globalThis.DOMParser = class {
+  parseFromString() {
+    return { body: { childNodes: [buildGridModal()] } };
+  }
+};
 
 function deferred() {
   let resolve;
@@ -236,6 +286,7 @@ const payloads = new Map([
   ['/api/campionamenti/sample-areas/data/', digest([ROW_ID, S.COL_GRID], [])],
   ['/api/campionamenti/samples/data/', digest([ROW_ID, S.COL_SURVEY, S.COL_SAMPLE_AREA, S.COL_N_TREES], [])],
   ['/api/geo/terreni.geojson', { type: 'FeatureCollection', features: [] }],
+  ['/api/campionamenti/grid/form/', { html: '<div id=\"campionamenti-grid-modal\"></div>' }],
 ]);
 
 function response(data, lastModified = 'v1') {
@@ -271,6 +322,15 @@ await cache.refreshVisible();
 const visibleTreeFetches = fetches.filter(url => url.includes('/trees/'));
 eq(visibleTreeFetches, ['/api/campionamenti/trees/2/'],
    'stale survey selection does not replace the visible sampled-trees digest');
+
+await contentEl.querySelector('[data-action="new-grid"]').click();
+await flushAsyncWork();
+await modalEl.querySelector('[data-path="auto"]').click();
+eq(globalThis.__gridPlannerInstances.length, 1, 'auto grid tab lazily creates one planner');
+const planner = globalThis.__gridPlannerInstances[0];
+eq(planner.inited, true, 'auto grid tab initializes the planner');
+await modalEl.querySelector('[data-action="cancel"]').click();
+eq(planner.destroyed, true, 'grid planner is destroyed when the modal is dismissed');
 
 campionamenti.unmount();
 
