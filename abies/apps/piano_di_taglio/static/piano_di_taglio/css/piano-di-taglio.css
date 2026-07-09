@@ -108,13 +108,15 @@
 /* Allow two-word column headers (Anno effettivo, Volume previsto, …) to
    wrap at the space and centre them, instead of forcing single-line via
    the vendor default. */
-.pdt-table-host .sortable-table-header {
+.pdt-table-host .sortable-table-header,
+.pdt-item-card .subsection-host .sortable-table-header {
   white-space: normal;
   text-align: center;
   vertical-align: middle;
   line-height: 1.2;
 }
-.pdt-table-host .sortable-table-header.numeric {
+.pdt-table-host .sortable-table-header.numeric,
+.pdt-item-card .subsection-host .sortable-table-header.numeric {
   text-align: center;
 }
 
@@ -181,15 +183,4 @@
 
 .subsection-error {
   color: var(--color-danger);
-}
-
-/* Allow sub-section table headers to wrap (same as the calendar tables). */
-.pdt-item-card .subsection-host .sortable-table-header {
-  white-space: normal;
-  text-align: center;
-  vertical-align: middle;
-  line-height: 1.2;
-}
-.pdt-item-card .subsection-host .sortable-table-header.numeric {
-  text-align: center;
 }
