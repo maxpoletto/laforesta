@@ -142,6 +142,11 @@
   font-style: italic;
 }
 
+.campionamenti-empty-action {
+  margin-top: 1rem;
+  text-align: center;
+}
+
 .campionamenti-table-host {
   /* Inherits sortable-table sizing from common.css. */
 }
