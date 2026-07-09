@@ -90,6 +90,14 @@ class MockElement {
   removeEventListener(type, fn) {
     this._listeners[type] = (this._listeners[type] || []).filter(f => f !== fn);
   }
+  click() {
+    const event = { target: this, preventDefault() {} };
+    let node = this;
+    while (node) {
+      for (const fn of node._listeners?.click || []) fn(event);
+      node = node.parentNode;
+    }
+  }
   closest(sel) {
     let node = this;
     while (node) {
@@ -171,6 +179,16 @@ function section(key) {
   return [header, body];
 }
 
+function buildConfirmTemplate() {
+  const frag = el('fragment');
+  frag.appendChild(el('p', { dataset: { field: 'message' } }));
+  const actions = el('div', { className: 'form-actions' });
+  actions.appendChild(el('button', { dataset: { action: 'cancel' } }));
+  actions.appendChild(el('button', { dataset: { action: 'confirm' } }));
+  frag.appendChild(actions);
+  return frag;
+}
+
 function buildPrelieviTemplate() {
   const frag = el('fragment');
   const minInput = el('input', { dataset: { role: 'slider-min' }, type: 'range' });
@@ -208,6 +226,7 @@ const modalEl = el('div');
 const links = [];
 const templates = {
   'tmpl-prelievi-page': { content: buildPrelieviTemplate() },
+  'tmpl-confirm-modal': { content: buildConfirmTemplate() },
 };
 
 globalThis.document = {
@@ -252,6 +271,8 @@ class MockSortableTable {
 }
 
 const chartInstances = [];
+let browserConfirmCalls = 0;
+globalThis.confirm = () => { browserConfirmCalls += 1; return false; };
 globalThis.window = {
   SortableTable: MockSortableTable,
   Chart: class {
@@ -405,6 +426,23 @@ eq(filteredIds(), [3], 'plain search matches non-zero multi-word species columns
 
 prelievi.unmount();
 check(tableInstances.at(-1).destroyed, 'unmount destroys the table');
+
+// Row deletion must use the shared modal, not window.confirm().
+document.body.dataset.role = 'writer';
+browserConfirmCalls = 0;
+await prelievi.mount({});
+const tableEl = contentEl.querySelector('.table-scroll');
+const row = el('tr', { className: 'sortable-table-row' });
+row.dataset.index = '0';
+const del = el('span', { className: 'action-icon action-delete' });
+row.appendChild(del);
+tableEl.appendChild(row);
+del.click();
+eq(browserConfirmCalls, 0, 'delete action does not call the browser confirm');
+check(Boolean(modalEl.querySelector('[data-action="confirm"]')),
+      'delete action opens the shared confirm modal');
+prelievi.unmount();
+document.body.dataset.role = 'reader';
 
 console.log(`${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

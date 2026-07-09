@@ -9,7 +9,7 @@ import {
   submitCsvImport,
 } from '../../base/js/forms.js';
 import {
-  wireActions, wireCancelButtons, wireCollapsibleToggle,
+  showConfirmModal, wireActions, wireCancelButtons, wireCollapsibleToggle,
 } from '../../base/js/ui-widgets.js';
 import { canModify } from '../../base/js/roles.js';
 import { fileToBase64, postJSON } from '../../base/js/api.js';
@@ -723,13 +723,14 @@ function wire100Buttons(form) {
 // ---------------------------------------------------------------------------
 
 function confirmDelete(rowId) {
-  return deleteRowWithVersion(DATA_ID, rowId, DELETE_URL, {
+  showConfirmModal(S.DELETE_CONFIRM, () => deleteRowWithVersion(DATA_ID, rowId, DELETE_URL, {
+    confirmMessage: null,
     onSuccess: (data) => {
       cache.applyResponseChanges(data);
       if (table) table.setData(cache.get(DATA_ID));
     },
     onConflict: () => { if (table) table.setData(cache.get(DATA_ID)); },
-  });
+  }));
 }
 
 // ---------------------------------------------------------------------------
