@@ -4,7 +4,9 @@
  * in Django; this is for UI affordances only.
  */
 
-const WRITER_ROLES = ['admin', 'writer'];
+import { ROLE_ADMIN, ROLE_WRITER } from './constants.js';
+
+const WRITER_ROLES = [ROLE_ADMIN, ROLE_WRITER];
 
 export function canModify() {
   return WRITER_ROLES.includes(document.body.dataset.role);
