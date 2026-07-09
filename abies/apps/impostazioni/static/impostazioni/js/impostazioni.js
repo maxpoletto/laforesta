@@ -752,7 +752,7 @@ function confirmImport(file, tableHost, descEl) {
     if (await postOrError(postJSON(HYPSO.upload, body))) {
       loadHypso(tableHost, descEl);
     }
-  }, { confirmLabel: S.IMPORT_LABEL });
+  }, { confirmLabel: S.IMPORT_LABEL, intent: 'confirm' });
 }
 
 function confirmClear(tableHost, descEl) {

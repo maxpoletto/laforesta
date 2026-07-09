@@ -2201,7 +2201,7 @@ function promptNewPaiTreeAt(latlng, feature) {
   showConfirmModal(
     S.BOSCO_INSERT_PAI_TREE_HERE,
     () => showPaiForm(null, defaults),
-    { confirmLabel: S.CONFIRM },
+    { confirmLabel: S.CONFIRM, intent: 'confirm' },
   );
 }
 

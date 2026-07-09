@@ -1007,7 +1007,7 @@ function promptNewAreaAt(lat, lon, feature) {
   showConfirmModal(
     S.SAMPLES_INSERT_AREA_HERE,
     () => showAddAreaForm({ lat, lon, compresa, particella }),
-    { confirmLabel: S.CONFIRM },
+    { confirmLabel: S.CONFIRM, intent: 'confirm' },
   );
 }
 

@@ -132,7 +132,7 @@ function buildConfirmTemplate() {
   cancel.dataset.action = 'cancel';
   cancel.textContent = 'Annulla';
   const confirm = new MockElement('button');
-  confirm.className = 'btn btn-save';
+  confirm.className = 'btn';
   confirm.dataset.action = 'confirm';
   actions.append(cancel, confirm);
   frag.append(p, actions);
@@ -232,6 +232,7 @@ assertEqual(msgEl?.textContent, 'Are you sure?', 'message text set');
 // Confirm button gets default label (ACTION_DELETE = "Elimina").
 const okBtn = findByDataset(modalShown, 'action', 'confirm');
 assertEqual(okBtn?.textContent, 'Elimina', 'default confirm label');
+assertEqual(okBtn?.className, 'btn btn-delete', 'default confirm intent is destructive');
 
 // Click confirm triggers callback.
 okBtn.click();
@@ -242,6 +243,12 @@ resetModal();
 showConfirmModal('Delete?', () => {}, { confirmLabel: 'Rimuovi' });
 const okBtn2 = findByDataset(modalShown, 'action', 'confirm');
 assertEqual(okBtn2?.textContent, 'Rimuovi', 'custom confirm label');
+assertEqual(okBtn2?.className, 'btn btn-delete', 'custom label keeps destructive default');
+
+resetModal();
+showConfirmModal('Create?', () => {}, { confirmLabel: 'Conferma', intent: 'confirm' });
+const okBtnConfirm = findByDataset(modalShown, 'action', 'confirm');
+assertEqual(okBtnConfirm?.className, 'btn btn-save', 'confirm intent uses save styling');
 
 // Cancel dismisses without calling onConfirm.
 resetModal();

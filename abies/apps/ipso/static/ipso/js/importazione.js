@@ -460,7 +460,7 @@ function confirmImport(uploadId, config, targetId) {
   showConfirmModal(
     config.confirm,
     async () => importUpload(uploadId, config, targetId),
-    { confirmLabel: S.IMPORT_LABEL },
+    { confirmLabel: S.IMPORT_LABEL, intent: 'confirm' },
   );
 }
 

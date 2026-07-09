@@ -126,10 +126,17 @@ export function wireActions(root, handlers) {
 // Confirm / cascade-delete modals (backed by <template> in shell)
 // ---------------------------------------------------------------------------
 
-export function showConfirmModal(message, onConfirm, { confirmLabel } = {}) {
+const CONFIRM_INTENT_CLASSES = {
+  delete: 'btn-delete',
+  confirm: 'btn-save',
+};
+
+export function showConfirmModal(message, onConfirm, { confirmLabel, intent = 'delete' } = {}) {
   const frag = cloneTemplate('tmpl-confirm-modal');
   frag.querySelector('[data-field="message"]').textContent = message;
   const okBtn = frag.querySelector('[data-action="confirm"]');
+  okBtn.className = ['btn', CONFIRM_INTENT_CLASSES[intent] || CONFIRM_INTENT_CLASSES.delete]
+    .filter(Boolean).join(' ');
   okBtn.textContent = confirmLabel || S.ACTION_DELETE;
   frag.querySelector('[data-action="cancel"]')
     .addEventListener('click', () => dismissModal());
