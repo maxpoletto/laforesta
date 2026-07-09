@@ -254,6 +254,7 @@ test-js:
 	node apps/base/static/base/js/prelievi-columns.test.mjs
 	node apps/base/static/base/js/parcel-map.test.mjs
 	node apps/base/static/base/js/map-tools.test.mjs
+	node apps/campionamenti/static/campionamenti/js/campionamenti.test.mjs
 
 # --- Maintenance ------------------------------------------------------------
 

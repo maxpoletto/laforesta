@@ -156,6 +156,7 @@ let samplesData = null;
 let parcelsGeo = null;
 let unsubCache = null;
 let currentTreesId = null;
+let surveyActivationSeq = 0;
 let _areaColIdx = -1;
 let inForm = false;
 let disposePageActions = null;
@@ -219,6 +220,7 @@ function mountPage(el, params) {
 }
 
 function destroyPage() {
+  surveyActivationSeq += 1;
   if (unsubCache) { unsubCache(); unsubCache = null; }
   if (disposePageActions) { disposePageActions(); disposePageActions = null; }
   destroyTable();
@@ -474,6 +476,7 @@ function rebuildSection(key, activeId) {
 }
 
 async function activateSurvey(surveyId) {
+  const activationSeq = ++surveyActivationSeq;
   const s = sections.r;
   if (surveyId == null || isNaN(surveyId)) { showAlberiEmpty(); return; }
   if (s.pulldown && s.pulldown.value !== String(surveyId)) {
@@ -494,7 +497,13 @@ async function activateSurvey(surveyId) {
 
   let data;
   try { data = await cache.load(dataId); }
-  catch { showError(S.ERROR_NETWORK); return; }
+  catch {
+    if (activationSeq === surveyActivationSeq && currentTreesId === dataId) {
+      showError(S.ERROR_NETWORK);
+    }
+    return;
+  }
+  if (activationSeq !== surveyActivationSeq || currentTreesId !== dataId) return;
 
   renderTable(data);
   cache.setVisible([SURVEYS_ID, GRIDS_ID, SAMPLE_AREAS_ID, SAMPLES_ID, dataId]);
