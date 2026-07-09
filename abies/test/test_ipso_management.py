@@ -15,7 +15,7 @@ from apps.base.models import (
 )
 from apps.ipso.models import IpsoUpload, IpsoUploadState
 from config import strings as S
-from config.constants import RECORDS, SESSION, UPLOAD
+from config.constants import IPSO_REFERENCE_LEGACY_CONVERTED, RECORDS, SESSION, UPLOAD
 
 pytestmark = pytest.mark.django_db
 
@@ -66,7 +66,7 @@ def test_stage_marks_uploads_imports_converted_csv(
     payload = json.loads((upload_dir / 'upload.json').read_text(encoding='utf-8'))
     assert (upload_dir / 'upload.sha256').is_file()
     assert (upload_dir / 'export.csv').read_text(encoding='utf-8') == csv_text
-    assert payload[SESSION]['reference_version'] == 'legacy-converted'
+    assert payload[SESSION]['reference_version'] == IPSO_REFERENCE_LEGACY_CONVERTED
     assert payload[RECORDS][0]['operator'] == 'Valerio'
     assert payload[RECORDS][0]['date'] == '2026-06-15'
     assert payload[RECORDS][0]['parcel_id'] == parcels[0].id

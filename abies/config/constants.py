@@ -230,6 +230,7 @@ TREE_H_QUANTUM = Decimal('0.01')
 # Ipso integration identifiers.
 DATA_ID_IPSO_UPLOADS = 'ipso_uploads'
 IPSO_REFERENCE_JSON = 'reference.json'
+IPSO_REFERENCE_LEGACY_CONVERTED = 'legacy-converted'
 IPSO_TERRENI_GEOJSON = 'terreni.geojson'
 IPSO_UPLOAD_CONFIG_JS = 'upload-config.js'
 IPSO_UPLOAD_FILE_JSON = 'upload.json'
