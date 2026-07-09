@@ -122,7 +122,6 @@
 
 /* Item-view card — full-width page content, not a 640px modal. */
 .pdt-item-card {
-  max-width: 900px;
   margin: 0 auto;
 }
 
