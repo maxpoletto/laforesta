@@ -8,6 +8,7 @@
  * English.  Callers inject a `labels` and/or `csvFormat` option to localize.
  */
 
+import { ROW_ID } from './constants.js';
 import { hardenCSVFormula } from './csv-export.js';
 
 const DEBOUNCE_MS = 500;
@@ -436,8 +437,8 @@ function actionVisible(fn, row) {
 
 function buildSTColumns(digestColumns, columnDefs, actions, labels) {
   const cols = digestColumns.map(name => {
-    if (name === 'row_id') {
-      return { key: 'row_id', label: 'ID', type: 'number', hidden: true };
+    if (name === ROW_ID) {
+      return { key: ROW_ID, label: 'ID', type: 'number', hidden: true };
     }
     const def = columnDefs[name] || {};
     return {
