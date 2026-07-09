@@ -180,6 +180,10 @@
   margin: 0;
 }
 
+.subsection-error {
+  color: var(--color-danger);
+}
+
 /* Allow sub-section table headers to wrap (same as the calendar tables). */
 .pdt-item-card .subsection-host .sortable-table-header {
   white-space: normal;

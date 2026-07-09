@@ -255,6 +255,7 @@ test-js:
 	node apps/base/static/base/js/parcel-map.test.mjs
 	node apps/base/static/base/js/map-tools.test.mjs
 	node apps/campionamenti/static/campionamenti/js/campionamenti.test.mjs
+	node apps/piano_di_taglio/static/piano_di_taglio/js/piano-di-taglio.test.mjs
 
 # --- Maintenance ------------------------------------------------------------
 

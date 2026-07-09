@@ -1020,9 +1020,13 @@ function destroyItemMarkTreesTable() {
   }
 }
 
+function itemViewIsActive(itemId) {
+  return activeItemId === itemId;
+}
+
 async function renderItemView(itemId) {
   const el = document.getElementById('content');
-  if (!el) return;
+  if (!el || !itemViewIsActive(itemId)) return;
 
   showLoadingIn(el);
 
@@ -1031,9 +1035,10 @@ async function renderItemView(itemId) {
     const { data } = await fetchJSON(`${ITEM_DATA_URL}${itemId}/`);
     payload = data;
   } catch {
-    showError(S.ERROR_NETWORK);
+    if (itemViewIsActive(itemId)) showError(S.ERROR_NETWORK);
     return;
   }
+  if (!itemViewIsActive(itemId)) return;
   if (!payload) { showError(S.ERROR_GENERIC); return; }
 
   const record = payload.record;
@@ -1288,13 +1293,15 @@ async function appendItemMarkTreesSection(card, itemId, state) {
   let data;
   try { data = await cache.load(dataId); }
   catch {
-    const err = document.createElement('div');
-    err.textContent = S.ERROR_NETWORK;
-    err.style.color = '#c00';
-    body.appendChild(err);
+    if (itemViewIsActive(itemId)) {
+      const err = document.createElement('div');
+      err.className = 'subsection-error';
+      err.textContent = S.ERROR_NETWORK;
+      body.appendChild(err);
+    }
     return;
   }
-  if (!data?.rows) return;
+  if (!itemViewIsActive(itemId) || !data?.rows) return;
 
   // Volume + mass totals.
   const c = data.columns;
@@ -1551,14 +1558,16 @@ async function appendItemPrelieviSection(card, itemId) {
   try {
     prelieviData = await cache.load(PRELIEVI_ID);
   } catch {
-    const err = document.createElement('div');
-    err.textContent = S.ERROR_NETWORK;
-    err.style.color = '#c00';
-    body.appendChild(err);
+    if (itemViewIsActive(itemId)) {
+      const err = document.createElement('div');
+      err.className = 'subsection-error';
+      err.textContent = S.ERROR_NETWORK;
+      body.appendChild(err);
+    }
     return;
   }
 
-  if (!prelieviData?.rows?.length) return;
+  if (!itemViewIsActive(itemId) || !prelieviData?.rows?.length) return;
 
   const c = prelieviData.columns;
   const cantiereCol = c.indexOf(S.COL_WORKSITE);
