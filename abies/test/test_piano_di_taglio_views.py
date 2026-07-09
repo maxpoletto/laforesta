@@ -1252,6 +1252,43 @@ class TestMarkSave:
         tm = TreeMark.objects.get(id=tm_id)
         assert tm.d_cm == 40
 
+    def test_update_region_wide_mark_can_change_parcel(
+        self, writer_client, plan, parcels, species,
+    ):
+        item = HarvestPlanItem.objects.create(
+            harvest_plan=plan, region=parcels[0].region, parcel=None,
+            damaged=True, year_planned=2025,
+            volume_planned_m3=Decimal('100.0'),
+            state=HarvestPlanItemState.PLANNED,
+        )
+        sp = species[0]
+        resp = writer_client.post(
+            self.SAVE_URL,
+            data=json.dumps(self._mark_body(
+                item, sp, **{FIELD_PARCEL_ID: parcels[0].id},
+            )),
+            content_type='application/json',
+        )
+        data = resp.json()
+        tm_id = data[ROW_ID]
+        version = next(p for p in data[PATCHES]
+                       if p[DATA_ID].startswith('mark_trees_'))[RECORD][1]
+
+        resp2 = writer_client.post(
+            self.SAVE_URL,
+            data=json.dumps(self._mark_body(
+                item, sp,
+                **{ROW_ID: tm_id, VERSION: version,
+                   FIELD_PARCEL_ID: parcels[1].id,
+                   FIELD_NONCE: 'change-mark-parcel'},
+            )),
+            content_type='application/json',
+        )
+
+        assert resp2.status_code == 200
+        tm = TreeMark.objects.select_related('tree').get(id=tm_id)
+        assert tm.tree.parcel_id == parcels[1].id
+
     def test_create_mark_rejects_duplicate_number(
         self, writer_client, planned_item, species,
     ):

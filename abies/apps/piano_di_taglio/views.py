@@ -891,6 +891,7 @@ def mark_save_view(request):
             tm.save()
             tree = tm.tree
             tree.species = species
+            tree.parcel = parcel
             tree.lat = lat
             tree.lon = lon
             tree.acc_m = acc_m
