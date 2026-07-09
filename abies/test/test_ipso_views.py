@@ -755,6 +755,34 @@ def test_writer_can_reject_upload(writer_client, parcels, species, settings, tmp
     assert writer_client.get(reverse('ipso-inbox-data')).json()['pending_count'] == 0
 
 
+@pytest.mark.parametrize('state', [
+    IpsoUploadState.IMPORTED,
+    IpsoUploadState.REJECTED,
+    IpsoUploadState.CONFLICT,
+])
+@override_settings(IPSO_SECRET='test-token')
+def test_reject_rejects_non_received_upload_states(
+        writer_client, parcels, species, settings, tmp_path, state):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    payload = _upload_payload(parcels, species)
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
+    upload.state = state
+    upload.error_summary = 'existing state detail'
+    upload.save(update_fields=['state', 'error_summary'])
+
+    resp = writer_client.post(
+        reverse('ipso-upload-reject', args=[upload.id]),
+        data=json.dumps({'reason': 'new reject reason'}),
+        content_type='application/json',
+    )
+
+    assert resp.status_code == 400
+    upload.refresh_from_db()
+    assert upload.state == state
+    assert upload.error_summary == 'existing state detail'
+
+
 @override_settings(IPSO_SECRET='test-token')
 def test_reader_cannot_reject_upload(reader_client, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'

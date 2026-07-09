@@ -460,15 +460,14 @@ def upload_detail(request: HttpRequest, upload_id: int) -> JsonResponse:
 def reject_upload(request: HttpRequest, upload_id: int) -> JsonResponse:
     with transaction.atomic():
         upload = _get_upload(upload_id, for_update=True)
-        if upload.state == IpsoUploadState.IMPORTED:
-            return validation_error([S.IPSO_ERR_IMPORTED_CANNOT_REJECT])
+        if upload.state != IpsoUploadState.RECEIVED:
+            return validation_error([S.IPSO_ERR_UPLOAD_NOT_REJECTABLE])
         reason = _reject_reason(request)
         updated = (IpsoUpload.objects
-                   .filter(id=upload.id)
-                   .exclude(state=IpsoUploadState.IMPORTED)
+                   .filter(id=upload.id, state=IpsoUploadState.RECEIVED)
                    .update(state=IpsoUploadState.REJECTED, error_summary=reason))
         if not updated:
-            return validation_error([S.IPSO_ERR_IMPORTED_CANNOT_REJECT])
+            return validation_error([S.IPSO_ERR_UPLOAD_NOT_REJECTABLE])
         upload.state = IpsoUploadState.REJECTED
         upload.error_summary = reason
         data = _upload_metadata(upload)

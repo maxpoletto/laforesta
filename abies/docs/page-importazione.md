@@ -59,8 +59,8 @@ Target consistency is enforced at import time:
   different survey is allowed only when both surveys use the same grid.
 - `PAI`: rows carry their own parcel and no target selector is shown.
 
-Rejecting an upload is available to writers and admins while the upload has not
-already been imported or rejected.
+Rejecting an upload is available to writers and admins only while the upload is
+still in the `received` / `Da importare` state.
 
 ## Number invariants
 
