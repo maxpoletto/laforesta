@@ -21,16 +21,6 @@ const H_MIN = 1, H_MAX = 99;
 // next visible-numbered tree continues the sequence.
 const NUMBER_BLANK_D_THRESHOLD = 17;
 
-// Returns next per-session sequence number given an iterable of existing
-// seq values. seq starts at 1.
-function nextSeq(existingSeqs) {
-  let max = 0;
-  for (const s of existingSeqs) {
-    if (typeof s === 'number' && s > max) max = s;
-  }
-  return max + 1;
-}
-
 // Returns [] when the record is valid, otherwise an array of error keys.
 // Error keys are stable strings the UI can map to user-facing messages.
 function validateTree(rec, options) {
@@ -94,6 +84,6 @@ function nextNumberDefault(trees) {
 
 const session = {
   D_MIN, D_MAX, H_MIN, H_MAX, BACKUP_EVERY, NUMBER_BLANK_D_THRESHOLD,
-  nextSeq, validateTree, shouldBackup, nextNumberDefault,
+  validateTree, shouldBackup, nextNumberDefault,
 };
 if (typeof module !== 'undefined') module.exports = session;
