@@ -399,15 +399,19 @@ def apply(*, target_plan, name, description, fustaia_parsed, ceduo_parsed):
                 if item is not None:
                     for field, value in fields.items():
                         setattr(item, field, value)
+                    item.version += 1
                     item.save()
                     return item
                 item = HarvestPlanItem.objects.filter(**fields).first()
                 if item is not None:
                     return item
                 return HarvestPlanItem.objects.create(**fields)
-            item, _ = HarvestPlanItem.objects.update_or_create(
+            item, created = HarvestPlanItem.objects.update_or_create(
                 **identity, defaults=defaults,
             )
+            if not created:
+                item.version += 1
+                item.save(update_fields=['version'])
             return item
 
         n_items = 0

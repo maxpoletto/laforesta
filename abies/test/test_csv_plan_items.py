@@ -11,7 +11,7 @@ from config import strings as S
 from config.constants import (
     FIELD_DAMAGED, FIELD_INTERVENTION_AREA_HA, FIELD_PARCEL_ID,
     FIELD_PERIOD_Y, FIELD_PSR, FIELD_REGION_ID, FIELD_UNHEALTHY,
-    FIELD_VOLUME_PLANNED_M3, FIELD_YEAR_PLANNED,
+    FIELD_VOLUME_PLANNED_M3, FIELD_YEAR_PLANNED, ROW_ID,
 )
 
 
@@ -115,6 +115,61 @@ def test_load_items_optional_volume_blank_ok(parcels, species):
     assert n == 1
     item = HarvestPlanItem.objects.get(harvest_plan=plans['Piano A'])
     assert item.volume_planned_m3 is None
+
+
+@pytest.mark.django_db
+def test_apply_row_id_update_bumps_item_version(parcels, species):
+    plan = _make_plans(['Piano A'])['Piano A']
+    item = HarvestPlanItem.objects.create(
+        harvest_plan=plan, parcel=parcels[0], year_planned=2027,
+        volume_planned_m3=Decimal('200'),
+    )
+    old_version = item.version
+
+    csv_plan.apply(
+        target_plan=plan, name=plan.name, description=plan.description,
+        fustaia_parsed=[{
+            ROW_ID: item.id,
+            FIELD_REGION_ID: None,
+            FIELD_PARCEL_ID: parcels[0],
+            FIELD_YEAR_PLANNED: 2027,
+            FIELD_VOLUME_PLANNED_M3: Decimal('275'),
+            FIELD_DAMAGED: False,
+            FIELD_UNHEALTHY: False,
+            FIELD_PSR: False,
+        }],
+        ceduo_parsed=[],
+    )
+
+    item.refresh_from_db()
+    assert item.volume_planned_m3 == Decimal('275')
+    assert item.version > old_version
+
+
+@pytest.mark.django_db
+def test_load_items_legacy_reimport_bumps_item_version(parcels, species):
+    plans = _make_plans(['Piano A'])
+    idx = csv_plan.db_indexes()
+
+    n, errors = csv_plan.load_canonical_items(_reader('\n'.join([
+        ITEMS_HEADER,
+        'Piano A,Capistrano,1,2027,200,,,,0,0,',
+    ])), idx, plans)
+    assert errors == [], errors
+    assert n == 1
+    item = HarvestPlanItem.objects.get(harvest_plan=plans['Piano A'])
+    old_version = item.version
+
+    n, errors = csv_plan.load_canonical_items(_reader('\n'.join([
+        ITEMS_HEADER,
+        'Piano A,Capistrano,1,2027,275,,,,0,0,',
+    ])), idx, plans)
+
+    assert errors == [], errors
+    assert n == 1
+    item.refresh_from_db()
+    assert item.volume_planned_m3 == Decimal('275')
+    assert item.version > old_version
 
 
 @pytest.mark.django_db
