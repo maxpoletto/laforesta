@@ -69,8 +69,8 @@ the h_measured flag is set implicitly if the user edits h manually
     {% include "base/_tree_fields.html" %}
 
     <div class="form-actions">
-      <button type="button" class="btn" data-action="cancel">Annulla</button>
-      <button type="submit" class="btn btn-save" data-action="save">Salva</button>
+      <button type="button" class="btn" data-action="cancel">{{ S.CANCEL }}</button>
+      <button type="submit" class="btn btn-save" data-action="save">{{ S.SAVE }}</button>
       {% if not tm %}
         <button type="submit" class="btn btn-save" data-action="save-and-add">
           Salva e continua
