@@ -42,7 +42,8 @@ from apps.base.responses import row_delete, success_response, validation_error
 from apps.campionamenti import csv_trees
 from apps.ipso import staging as ipso_staging
 from apps.ipso.importers import (
-    apply_pai_rows, pai_import_rows, record_measurements, sample_import_rows,
+    _int_ids, apply_pai_rows, pai_import_rows, record_measurements,
+    sample_import_rows,
 )
 from apps.ipso.models import IpsoUpload, IpsoUploadState
 from apps.piano_di_taglio.mark_import import (
@@ -895,18 +896,9 @@ def _preview_decimal(value):
 def _preview_records(records: list) -> list[dict]:
     if not isinstance(records, list):
         return []
-    species_ids = {
-        r.get(FIELD_SPECIES_ID) for r in records
-        if isinstance(r, dict) and type(r.get(FIELD_SPECIES_ID)) is int
-    }
-    parcel_ids = {
-        r.get(FIELD_PARCEL_ID) for r in records
-        if isinstance(r, dict) and type(r.get(FIELD_PARCEL_ID)) is int
-    }
-    sample_area_ids = {
-        r.get(FIELD_SAMPLE_AREA_ID) for r in records
-        if isinstance(r, dict) and type(r.get(FIELD_SAMPLE_AREA_ID)) is int
-    }
+    species_ids = _int_ids(records, FIELD_SPECIES_ID)
+    parcel_ids = _int_ids(records, FIELD_PARCEL_ID)
+    sample_area_ids = _int_ids(records, FIELD_SAMPLE_AREA_ID)
     species = {
         sp.id: sp.common_name
         for sp in Species.objects.filter(id__in=species_ids)
@@ -1100,18 +1092,9 @@ def _martellate_import_rows(
     if not isinstance(records, list):
         return [], [S.IPSO_ERR_IMPORT_RECORDS_ARRAY]
 
-    species_ids = {
-        r.get(FIELD_SPECIES_ID) for r in records
-        if isinstance(r, dict) and type(r.get(FIELD_SPECIES_ID)) is int
-    }
-    parcel_ids = {
-        r.get(FIELD_PARCEL_ID) for r in records
-        if isinstance(r, dict) and type(r.get(FIELD_PARCEL_ID)) is int
-    }
-    sample_area_ids = {
-        r.get(FIELD_SAMPLE_AREA_ID) for r in records
-        if isinstance(r, dict) and type(r.get(FIELD_SAMPLE_AREA_ID)) is int
-    }
+    species_ids = _int_ids(records, FIELD_SPECIES_ID)
+    parcel_ids = _int_ids(records, FIELD_PARCEL_ID)
+    sample_area_ids = _int_ids(records, FIELD_SAMPLE_AREA_ID)
     species = {
         sp.id: sp
         for sp in Species.objects.filter(id__in=species_ids)

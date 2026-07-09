@@ -41,19 +41,24 @@ _SAMPLE_PARSE_NUMBER_INVALID = 'sample_number_invalid'
 _SAMPLE_PARSE_NUMBER_POSITIVE = 'sample_number_positive'
 
 
+def _int_ids(records: list, field: str) -> set[int]:
+    ids = set()
+    for record in records:
+        if not isinstance(record, dict):
+            continue
+        value = record.get(field)
+        if type(value) is int:
+            ids.add(value)
+    return ids
+
+
 def sample_import_rows(payload: dict, survey: Survey) -> tuple[list[dict], list[str]]:
     records = _payload_records(payload)
     if records is None:
         return [], [S.IPSO_ERR_IMPORT_RECORDS_ARRAY]
 
-    species_ids = {
-        r.get(FIELD_SPECIES_ID) for r in records
-        if isinstance(r, dict) and type(r.get(FIELD_SPECIES_ID)) is int
-    }
-    area_ids = {
-        r.get(FIELD_SAMPLE_AREA_ID) for r in records
-        if isinstance(r, dict) and type(r.get(FIELD_SAMPLE_AREA_ID)) is int
-    }
+    species_ids = _int_ids(records, FIELD_SPECIES_ID)
+    area_ids = _int_ids(records, FIELD_SAMPLE_AREA_ID)
     species = {sp.id: sp for sp in Species.objects.filter(id__in=species_ids)}
     areas = {
         area.id: area
@@ -139,14 +144,8 @@ def pai_import_rows(payload: dict) -> tuple[list[dict], list[str]]:
         (session.get(FIELD_OPERATOR) or '').strip() if isinstance(session, dict) else ''
     )
 
-    species_ids = {
-        r.get(FIELD_SPECIES_ID) for r in records
-        if isinstance(r, dict) and type(r.get(FIELD_SPECIES_ID)) is int
-    }
-    parcel_ids = {
-        r.get(FIELD_PARCEL_ID) for r in records
-        if isinstance(r, dict) and type(r.get(FIELD_PARCEL_ID)) is int
-    }
+    species_ids = _int_ids(records, FIELD_SPECIES_ID)
+    parcel_ids = _int_ids(records, FIELD_PARCEL_ID)
     species = {sp.id: sp for sp in Species.objects.filter(id__in=species_ids)}
     parcels = {
         parcel.id: parcel
