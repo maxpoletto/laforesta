@@ -115,6 +115,7 @@ export const FIELD_DESCRIPTION           = 'description';
 export const FIELD_NUMBER                = 'number';
 export const FIELD_MAX_TREE_NUMBER       = 'max_tree_number';
 export const FIELD_NOTE                  = 'note';
+export const FIELD_REASON                = 'reason';
 export const FIELD_NOTE_ID               = 'note_id';
 export const FIELD_NOTES                 = 'notes';
 export const FIELD_EXTRA_NOTE            = 'extra_note';

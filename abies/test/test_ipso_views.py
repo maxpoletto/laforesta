@@ -22,6 +22,7 @@ from apps.ipso import staging as ipso_staging
 from apps.ipso import views as ipso_views
 from apps.ipso.models import IpsoUpload, IpsoUploadState
 from config import strings as S
+from config.constants import FIELD_REASON
 
 
 def _body(resp) -> bytes:
@@ -744,7 +745,7 @@ def test_writer_can_reject_upload(writer_client, parcels, species, settings, tmp
 
     resp = writer_client.post(
         reverse('ipso-upload-reject', args=[upload.id]),
-        data=json.dumps({'reason': 'Duplicato'}),
+        data=json.dumps({FIELD_REASON: 'Duplicato'}),
         content_type='application/json',
     )
 
@@ -773,7 +774,7 @@ def test_reject_rejects_non_received_upload_states(
 
     resp = writer_client.post(
         reverse('ipso-upload-reject', args=[upload.id]),
-        data=json.dumps({'reason': 'new reject reason'}),
+        data=json.dumps({FIELD_REASON: 'new reject reason'}),
         content_type='application/json',
     )
 

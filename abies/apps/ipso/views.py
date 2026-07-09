@@ -60,7 +60,8 @@ from config.constants import (
     FIELD_LON, FIELD_L10_MM, FIELD_MODE, FIELD_MODE_LABEL, FIELD_NOTE,
     FIELD_NUMBER, FIELD_OPERATOR, FIELD_PARCEL_ID,
     FIELD_PRESERVED, FIELD_PRESSLER_COEFF, FIELD_RECEIVED_AT, FIELD_RECORD_DATE,
-    FIELD_REFERENCE_VERSION, FIELD_REFERENCE_VERSION_LABEL, FIELD_REGION_ID,
+    FIELD_REASON, FIELD_REFERENCE_VERSION, FIELD_REFERENCE_VERSION_LABEL,
+    FIELD_REGION_ID,
     FIELD_SAMPLE_AREA_ID, FIELD_SAMPLE_GRID_ID, FIELD_SCHEMA_VERSION,
     FIELD_SESSION_ID, FIELD_SHOOT, FIELD_SPECIES_ID, FIELD_STANDARD,
     FIELD_TARGET_ID, FIELD_TARGET_LABEL, FIELD_TARGET_TYPE, FIELD_TREE_ID,
@@ -944,7 +945,7 @@ def _reject_reason(request: HttpRequest) -> str:
         body = json.loads(request.body.decode('utf-8') or '{}')
     except (UnicodeDecodeError, json.JSONDecodeError):
         body = {}
-    reason = body.get('reason', '') if isinstance(body, dict) else ''
+    reason = body.get(FIELD_REASON, '') if isinstance(body, dict) else ''
     return reason.strip() or S.IPSO_REJECT_DEFAULT_REASON
 
 
