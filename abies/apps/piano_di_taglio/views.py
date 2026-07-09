@@ -171,7 +171,6 @@ def plan_save_view(request):
         stale=('harvest_plans', DIGEST_FUTURE_PRODUCTION, 'audit'),
         unique_field=FIELD_NAME, unique_value=name,
         unique_error=S.ERR_PLAN_NAME_DUPLICATE, unique_case_insensitive=True,
-        conflict_fn=_conflict_response_plan,
     )
 
 
@@ -192,7 +191,10 @@ def plan_delete_view(request, plan_id: int):
     if plan is None:
         return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
     if plan.version != submitted_version(body):
-        return _conflict_response_plan(plan)
+        return conflict_response(
+            data_id='harvest_plans', row_id=plan.id,
+            record=build_harvest_plan_record(plan),
+        )
 
     bad = HarvestPlanItem.objects.filter(harvest_plan=plan).exclude(
         state=HarvestPlanItemState.PLANNED,
@@ -431,7 +433,14 @@ def item_save_view(request):
                 return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
             version = submitted_version(body)
             if item.version != version:
-                return _conflict_response_item(item)
+                item = (HarvestPlanItem.objects
+                        .select_related('parcel__region', 'parcel__eclass',
+                                        'region', 'harvest_plan')
+                        .get(id=item.id))
+                return conflict_response(
+                    data_id='harvest_plan_items', row_id=item.id,
+                    record=build_harvest_plan_item_record(item),
+                )
             for field, value in parsed.items():
                 setattr(item, field, value)
             item.version += 1
@@ -491,7 +500,14 @@ def item_delete_view(request, item_id: int):
     if item is None:
         return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
     if item.version != submitted_version(body):
-        return _conflict_response_item(item)
+        item = (HarvestPlanItem.objects
+                .select_related('parcel__region', 'parcel__eclass',
+                                'region', 'harvest_plan')
+                .get(id=item.id))
+        return conflict_response(
+            data_id='harvest_plan_items', row_id=item.id,
+            record=build_harvest_plan_item_record(item),
+        )
     if item.state != HarvestPlanItemState.PLANNED:
         return validation_error([S.ERR_PLAN_ITEM_STATE_NOT_PLANNED])
 
@@ -1240,24 +1256,6 @@ def _transition_record(t) -> list:
     response and on transition save)."""
     return [t.id, t.harvest_plan_item_id, t.open,
             t.date.isoformat(), t.note]
-
-
-def _conflict_response_plan(plan):
-    return conflict_response(
-        data_id='harvest_plans', row_id=plan.id,
-        record=build_harvest_plan_record(plan),
-    )
-
-
-def _conflict_response_item(item):
-    item = (HarvestPlanItem.objects
-            .select_related('parcel__region', 'parcel__eclass',
-                            'region', 'harvest_plan')
-            .get(id=item.id))
-    return conflict_response(
-        data_id='harvest_plan_items', row_id=item.id,
-        record=build_harvest_plan_item_record(item),
-    )
 
 
 _SAFE_RE = re.compile(r'[^A-Za-z0-9._-]+')

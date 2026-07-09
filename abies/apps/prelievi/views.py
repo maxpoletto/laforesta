@@ -518,32 +518,32 @@ def _compute_volume_m3(mass_q: Decimal, sp_pcts: dict[int, int]) -> Decimal:
     )
 
 
-def _conflict_response(row_id, request):
+def _check_update_conflict(row_id, body, request):
     op = Harvest.objects.select_related(
         'parcel__region', 'crew', 'product', 'harvest_plan_item',
-    ).get(id=row_id)
+    ).filter(id=row_id).first()
+    if op is None:
+        return JsonResponse({MESSAGE: S.ERR_NOT_FOUND}, status=404)
+    if op.version == submitted_version(body):
+        return None
     return conflict_response(
         data_id='prelievi', row_id=row_id, record=build_harvest_record(op),
         html=_render_form(row_id, request),
     )
 
 
-def _check_update_conflict(row_id, body, request):
-    try:
-        actual_version = Harvest.objects.values_list(VERSION, flat=True).get(id=row_id)
-    except Harvest.DoesNotExist:
-        return JsonResponse({MESSAGE: S.ERR_NOT_FOUND}, status=404)
-    if actual_version == submitted_version(body):
-        return None
-    return _conflict_response(row_id, request)
-
-
 def _update_op(row_id, parsed, body, request):
     """Update an existing Harvest under row lock."""
     version = submitted_version(body)
-    op = Harvest.objects.select_for_update().get(id=row_id)
+    op = (Harvest.objects
+          .select_for_update()
+          .select_related('parcel__region', 'crew', 'product', 'harvest_plan_item')
+          .get(id=row_id))
     if op.version != version:
-        return _conflict_response(row_id, request)
+        return conflict_response(
+            data_id='prelievi', row_id=row_id, record=build_harvest_record(op),
+            html=_render_form(row_id, request),
+        )
 
     for field, value in parsed.items():
         setattr(op, field, value)
