@@ -1,30 +1,34 @@
-<form id="settings-form">
-  <input type="hidden" name="row_id" value="{{ obj.id|default_if_none:'' }}">
-  <input type="hidden" name="version" value="{{ obj.version|default:'1' }}">
+<div class="form-card">
+  <form id="settings-form">
+    <input type="hidden" name="row_id" value="{{ obj.id|default_if_none:'' }}">
+    <input type="hidden" name="version" value="{{ obj.version|default:'1' }}">
 
-  <div class="form-group">
-    <label for="id_name">Nome</label>
-    <input type="text" id="id_name" name="name" required
-           value="{{ obj.name|default:'' }}">
-  </div>
+    <h2>{% if obj %}Modifica squadra{% else %}Nuova squadra{% endif %}</h2>
 
-  <div class="form-group">
-    <label for="id_notes">Note</label>
-    <input type="text" id="id_notes" name="notes"
-           value="{{ obj.notes|default:'' }}">
-  </div>
+    <div class="form-group">
+      <label for="id_name">Nome</label>
+      <input type="text" id="id_name" name="name" required
+             value="{{ obj.name|default:'' }}">
+    </div>
 
-  <div class="form-group">
-    <label>
-      <input type="hidden" name="active" value="false">
-      <input type="checkbox" name="active" value="true"
-             {% if obj.active or not obj %}checked{% endif %}>
-      Attivo
-    </label>
-  </div>
+    <div class="form-group">
+      <label for="id_notes">Note</label>
+      <input type="text" id="id_notes" name="notes"
+             value="{{ obj.notes|default:'' }}">
+    </div>
 
-  <div class="form-actions">
-    <button type="button" class="btn" data-action="cancel">{{ S.CANCEL }}</button>
-    <button type="submit" class="btn btn-save">{{ S.SAVE }}</button>
-  </div>
-</form>
+    <div class="form-group">
+      <label>
+        <input type="hidden" name="active" value="false">
+        <input type="checkbox" name="active" value="true"
+               {% if obj.active or not obj %}checked{% endif %}>
+        Attivo
+      </label>
+    </div>
+
+    <div class="form-actions">
+      <button type="button" class="btn" data-action="cancel">{{ S.CANCEL }}</button>
+      <button type="submit" class="btn btn-save">{{ S.SAVE }}</button>
+    </div>
+  </form>
+</div>
