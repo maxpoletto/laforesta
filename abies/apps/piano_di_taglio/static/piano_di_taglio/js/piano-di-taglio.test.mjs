@@ -100,7 +100,12 @@ class MockElement {
     this._listeners[type] = (this._listeners[type] || []).filter(f => f !== fn);
   }
   click() {
-    for (const fn of this._listeners.click || []) fn({ target: this, preventDefault() {} });
+    const event = { target: this, preventDefault() {} };
+    let node = this;
+    while (node) {
+      for (const fn of node._listeners?.click || []) fn(event);
+      node = node.parentNode;
+    }
   }
   matches(sel) {
     if (sel.startsWith('#')) return this.id === sel.slice(1);
@@ -233,6 +238,16 @@ function buildSubsectionTemplate() {
   ]);
 }
 
+function buildConfirmTemplate() {
+  const frag = el('fragment');
+  frag.appendChild(el('p', { dataset: { field: 'message' } }));
+  const actions = el('div', { className: 'form-actions' });
+  actions.appendChild(el('button', { dataset: { action: 'cancel' } }));
+  actions.appendChild(el('button', { dataset: { action: 'confirm' } }));
+  frag.appendChild(actions);
+  return frag;
+}
+
 const contentEl = el('main');
 const modalEl = el('div', { id: 'modal-container' });
 const links = [];
@@ -240,6 +255,7 @@ const templates = {
   'tmpl-pdt-page': { content: buildPageTemplate() },
   'tmpl-pdt-item-view': { content: buildItemViewTemplate() },
   'tmpl-pdt-item-subsection': { content: buildSubsectionTemplate() },
+  'tmpl-confirm-modal': { content: buildConfirmTemplate() },
 };
 
 globalThis.document = {
@@ -295,6 +311,8 @@ class MockSortableTable {
   destroy() { this.destroyed = true; }
 }
 
+let browserConfirmCalls = 0;
+globalThis.confirm = () => { browserConfirmCalls += 1; return false; };
 globalThis.window = { SortableTable: MockSortableTable, addEventListener() {} };
 
 function deferred() {
@@ -396,6 +414,7 @@ async function switchItem(id) {
 async function finish() {
   pdt.unmount();
   contentEl.replaceChildren();
+  modalEl.replaceChildren();
   tableInstances.length = 0;
   await flushAsyncWork();
 }
@@ -436,6 +455,34 @@ async function finish() {
   check(!activeTable.destroyed, 'stale mark load does not destroy active mark table');
   eq(tableInstances.at(-1).data.map(row => row[0]), [1201], 'stale mark load does not replace active mark table');
   await finish();
+}
+
+// Mark deletion in the item detail view must use the shared modal, not window.confirm().
+{
+  const previousRole = document.body.dataset.role;
+  document.body.dataset.role = 'writer';
+  const item = deferItem(11);
+  const marks = deferMarks(11);
+  browserConfirmCalls = 0;
+  await mountItem(11);
+  item.resolve(itemPayload(11));
+  await flushAsyncWork();
+  marks.resolve(markDigest(11));
+  await flushAsyncWork();
+
+  const tableEl = contentEl.querySelector('.table-scroll');
+  const row = el('tr', { className: 'sortable-table-row' });
+  row.dataset.index = '0';
+  const del = el('span', { className: 'action-icon action-delete' });
+  row.appendChild(del);
+  tableEl.appendChild(row);
+  del.click();
+
+  eq(browserConfirmCalls, 0, 'mark delete does not call the browser confirm');
+  check(Boolean(modalEl.querySelector('[data-action="confirm"]')),
+        'mark delete opens the shared confirm modal');
+  await finish();
+  document.body.dataset.role = previousRole;
 }
 
 // A stale Prelievi subsection load must not destroy the active item's table.

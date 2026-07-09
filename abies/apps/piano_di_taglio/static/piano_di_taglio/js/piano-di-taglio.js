@@ -19,7 +19,7 @@ import {
   parseHTMLFragment, submitCsvImport, showFormError,
 } from '../../base/js/forms.js';
 import {
-  showCascadeDeleteModal, wireActions, wireCancelButtons,
+  showCascadeDeleteModal, showConfirmModal, wireActions, wireCancelButtons,
   wireCollapsibleToggle, wireTabbedModal, showLoadingIn,
 } from '../../base/js/ui-widgets.js';
 import { canModify } from '../../base/js/roles.js';
@@ -1537,12 +1537,16 @@ async function showImportMarksForm(itemId) {
 }
 
 function deleteMarkRow(itemId, rowId) {
-  return deleteRowWithVersion(markTreesDataId(itemId), rowId, MARK_DELETE_URL, {
-    onSuccess: (data) => {
-      applyWriteResponse(data);
-      renderItemView(itemId);
+  showConfirmModal(S.DELETE_CONFIRM, () => deleteRowWithVersion(
+    markTreesDataId(itemId), rowId, MARK_DELETE_URL,
+    {
+      confirmMessage: null,
+      onSuccess: (data) => {
+        applyWriteResponse(data);
+        renderItemView(itemId);
+      },
     },
-  });
+  ));
 }
 
 function _applyMarkSaveResponse(data, _itemId) {
