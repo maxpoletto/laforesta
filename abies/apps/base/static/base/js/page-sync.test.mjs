@@ -374,6 +374,35 @@ const { TableWrapper } = await import('./table.js');
 }
 
 {
+  const id = 'page_sync_test_stale_mount';
+  cache.register(id, '/api/page-sync/stale-mount/');
+  server.set('/api/page-sync/stale-mount/', {
+    lastModified: '1',
+    data: { columns: ['row_id'], rows: [[2]] },
+  });
+
+  let resolveLoad;
+  const events = [];
+  const page = createPage({
+    visibleIds: [id],
+    load: () => new Promise(resolve => { resolveLoad = resolve; }),
+    mount(_el, _params, data) { events.push(['mount', data.rows[0][0]]); },
+    unmount() { events.push(['unmount']); },
+    onUpdate: [[id, data => events.push(['update', data.rows[0][0]])]],
+  });
+
+  const pendingMount = page.mount({});
+  page.unmount();
+  resolveLoad({ columns: ['row_id'], rows: [[1]] });
+  await pendingMount;
+
+  check(!events.some(e => e[0] === 'mount'), 'createPage suppresses stale mount after unmount');
+
+  await cache.load(id);
+  check(!events.some(e => e[0] === 'update'), 'createPage does not subscribe stale mounts to cache updates');
+}
+
+{
   const wrapper = Object.create(TableWrapper.prototype);
   wrapper.csvFormat = { separator: ';', decimal: ',', dateFormat: 'YYYY-MM-DD' };
   wrapper.labels = { boolYes: 'si', boolNo: 'no' };

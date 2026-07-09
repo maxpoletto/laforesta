@@ -52,8 +52,10 @@ export function createPage({
   mount, unmount = null, onQueryChange = null, onUpdate = [],
 }) {
   let unsubscribers = [];
+  let generation = 0;
   return {
     async mount(params) {
+      const myGeneration = ++generation;
       if (cssUrl) loadCSS(cssUrl);
       const el = document.getElementById('content');
       showLoadingIn(el);
@@ -61,9 +63,10 @@ export function createPage({
       try {
         data = load ? await load() : await loadDataIds(dataIds);
       } catch {
-        showError(S.ERROR_NETWORK);
+        if (myGeneration === generation) showError(S.ERROR_NETWORK);
         return;
       }
+      if (myGeneration !== generation) return;
       mount(el, params, data);
       cache.setVisible(visibleIds);
       unsubscribers = onUpdate.map(([dataId, callback]) =>
@@ -71,6 +74,7 @@ export function createPage({
       );
     },
     unmount() {
+      generation += 1;
       if (cssUrl) unloadCSS(cssUrl);
       for (const unsub of unsubscribers) unsub();
       unsubscribers = [];
