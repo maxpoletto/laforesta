@@ -1349,6 +1349,105 @@ def test_samples_import_allows_recovery_to_survey_with_same_grid(
 
 
 @override_settings(IPSO_SECRET='test-token')
+def test_martellate_import_write_errors_do_not_claim_upload(
+        writer_client, parcels, species, settings, tmp_path, monkeypatch):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    item = _harvest_item(parcels)
+    payload = _upload_payload(
+        parcels, species,
+        session_id='11111111-1111-4111-8111-111111111122',
+    )
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
+
+    class FailedMarkImport:
+        imported = 0
+        skipped_duplicates = 0
+        errors = ['late mark validation error']
+
+    monkeypatch.setattr(
+        ipso_views, 'import_mark_rows',
+        lambda _item, _rows: FailedMarkImport(),
+    )
+
+    resp = writer_client.post(
+        reverse('ipso-upload-import-martellate', args=[upload.id]),
+        data=json.dumps({'harvest_plan_item_id': item.id}),
+        content_type='application/json',
+    )
+
+    assert resp.status_code == 400
+    assert 'late mark validation error' in resp.json()['message']
+    upload.refresh_from_db()
+    assert upload.state == IpsoUploadState.RECEIVED
+    assert upload.error_summary == 'late mark validation error'
+    assert TreeMark.objects.count() == 0
+
+
+@override_settings(IPSO_SECRET='test-token')
+def test_martellate_import_integrity_error_returns_validation(
+        writer_client, parcels, species, settings, tmp_path, monkeypatch):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    item = _harvest_item(parcels)
+    payload = _upload_payload(
+        parcels, species,
+        session_id='11111111-1111-4111-8111-111111111123',
+    )
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
+
+    def raise_integrity_error(_item, _rows):
+        raise IntegrityError
+
+    monkeypatch.setattr(ipso_views, 'import_mark_rows', raise_integrity_error)
+
+    resp = writer_client.post(
+        reverse('ipso-upload-import-martellate', args=[upload.id]),
+        data=json.dumps({'harvest_plan_item_id': item.id}),
+        content_type='application/json',
+    )
+
+    assert resp.status_code == 400
+    assert S.IPSO_ERR_IMPORT_MARK_CONFLICT in resp.json()['message']
+    assert TreeMark.objects.count() == 0
+    upload.refresh_from_db()
+    assert upload.state == IpsoUploadState.RECEIVED
+    assert S.IPSO_ERR_IMPORT_MARK_CONFLICT in upload.error_summary
+
+
+@override_settings(IPSO_SECRET='test-token')
+def test_samples_import_integrity_error_returns_validation(
+        writer_client, parcels, species, settings, tmp_path, monkeypatch):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    survey, area = _sample_survey(parcels[0])
+    payload = _upload_payload(
+        parcels, species, mode='samples',
+        session_id='22222222-2222-4222-8222-222222222225',
+        record_overrides={'sample_area_id': area.id},
+    )
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
+
+    def raise_integrity_error(_survey, _rows):
+        raise IntegrityError
+
+    monkeypatch.setattr(ipso_views.csv_trees, 'apply', raise_integrity_error)
+
+    resp = writer_client.post(
+        reverse('ipso-upload-import-samples', args=[upload.id]),
+        data=json.dumps({'survey_id': survey.id}),
+        content_type='application/json',
+    )
+
+    assert resp.status_code == 400
+    assert S.IPSO_ERR_IMPORT_SAMPLE_CONFLICT in resp.json()['message']
+    assert TreeSample.objects.count() == 0
+    upload.refresh_from_db()
+    assert upload.state == IpsoUploadState.RECEIVED
+    assert S.IPSO_ERR_IMPORT_SAMPLE_CONFLICT in upload.error_summary
+
+
+@override_settings(IPSO_SECRET='test-token')
 def test_samples_import_rejects_target_with_different_source_grid(
         writer_client, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
