@@ -21,7 +21,6 @@ const CSV_SEP = ';';
 const CSV_NL = '\r\n';
 const HEADER = S.CSV_HEADER;
 const SAMPLE_AREA_HEADER = S.CSV_HEADER_SAMPLE_AREA;
-const SAMPLE_MODE = 'samples';
 
 // Sentinel used in the filename's particella slot for catastrofate sessions.
 const FILENAME_CATASTROFATE = S.CSV_FILENAME_CATASTROFATE;
@@ -57,7 +56,7 @@ function escapeField(s) {
 }
 
 function includeSampleArea(session) {
-  return session && session.mode === SAMPLE_MODE;
+  return session && session.mode === IPSO_MODE_SAMPLES;
 }
 
 function csvHeader(session) {
