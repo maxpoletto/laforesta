@@ -1158,7 +1158,7 @@ function formatItemTitle(record, columns) {
   const year = record[columns.indexOf(S.COL_YEAR_PLANNED)];
   const planName = lookupPlanName(record[columns.indexOf(S.COL_HARVEST_PLAN)]);
   const location = parcel ? `${compresa}/${parcel}` : compresa;
-  return `${S.VIEW_ITEM_TITLE} del ${planName}, anno ${year}, ${location}`;
+  return S.VIEW_ITEM_HEADING(planName, year, location);
 }
 
 function lookupPlanName(planId) {

@@ -196,6 +196,16 @@ export const SAMPLES_TREES_HEADER_AREA = (area, n) =>
   `area di campionamento ${area.numero} / ${SAMPLES_TREE_COUNT(n)})`;
 export const SAMPLES_TREES_HEADER_COUNT = (n) =>
   `(${SAMPLES_TREE_COUNT(n)})`;
+export const SAMPLES_SURVEY_OPTION = (name, visited, total) =>
+  `${name} (${visited}/${total} aree)`;
+export const SAMPLES_GRID_SUMMARY = (areas, regions, surveys, updatedAt) =>
+  `${areas} aree · ${regions} · ${surveys} rilevamenti · aggiornata ${updatedAt}`;
+export const SAMPLES_SURVEY_SUMMARY = (gridName, visited, total, dates) =>
+  `Griglia: ${gridName} · ${visited}/${total} aree visitate · ${dates}`;
+export const SAMPLES_SURVEY_DATE_RANGE = (first, last) =>
+  `dal ${first} al ${last}`;
+export const DELETE_GRID_AREAS_WARNING = (n) =>
+  `${n} aree saranno eliminate. ${DELETE_CONFIRM}`;
 
 // Shared lat/lng input
 export const USE_CURRENT_LOCATION = 'Usa GPS';
@@ -488,6 +498,8 @@ export const COL_DENSITY              = 'Densità (q/m³)';
 
 // View/edit-item page.
 export const VIEW_ITEM_TITLE       = 'Intervento';
+export const VIEW_ITEM_HEADING = (planName, year, location) =>
+  `${VIEW_ITEM_TITLE} del ${planName}, anno ${year}, ${location}`;
 export const LABEL_OPEN_WORKSITE   = 'Apri cantiere';
 export const LABEL_CLOSE_WORKSITE  = 'Chiudi cantiere';
 export const LABEL_WORKSITE_OPENED = 'Apertura cantiere';

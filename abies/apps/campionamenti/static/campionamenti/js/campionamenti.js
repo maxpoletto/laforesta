@@ -344,7 +344,7 @@ function surveyPulldownLabel(row) {
   const name = row[c.indexOf(S.COL_NAME)];
   const vis = row[c.indexOf(S.COL_N_AREAS_VISITED)];
   const tot = row[c.indexOf(S.COL_N_AREAS_TOTAL)];
-  return `${name} (${vis}/${tot} aree)`;
+  return S.SAMPLES_SURVEY_OPTION(name, vis, tot);
 }
 
 function updateGridEmptyState() {
@@ -393,11 +393,12 @@ function renderGriglieSummary(gridId) {
   const desc = row[c.indexOf(S.COL_DESCRIPTION)] || '';
 
   const stats = document.createElement('div');
-  stats.textContent =
-    `${row[c.indexOf(S.COL_N_AREAS)]} aree · ` +
-    `${row[c.indexOf(S.COL_REGIONS)]} · ` +
-    `${row[c.indexOf(S.COL_N_SURVEYS)]} rilevamenti · ` +
-    `aggiornata ${formatTimestamp(row[c.indexOf(S.COL_LAST_UPDATE)])}`;
+  stats.textContent = S.SAMPLES_GRID_SUMMARY(
+    row[c.indexOf(S.COL_N_AREAS)],
+    row[c.indexOf(S.COL_REGIONS)],
+    row[c.indexOf(S.COL_N_SURVEYS)],
+    formatTimestamp(row[c.indexOf(S.COL_LAST_UPDATE)]),
+  );
   s.summary.appendChild(stats);
   if (desc) {
     const d = document.createElement('div');
@@ -527,12 +528,18 @@ function renderRilevamentiSummary(surveyId) {
   const gridName = lookupGridName(gridId);
 
   const stats = document.createElement('div');
-  stats.textContent =
-    `Griglia: ${gridName} · ` +
-    `${row[c.indexOf(S.COL_N_AREAS_VISITED)]}/${row[c.indexOf(S.COL_N_AREAS_TOTAL)]} aree visitate · ` +
-    (row[c.indexOf(S.COL_DATE_FIRST)]
-      ? `dal ${row[c.indexOf(S.COL_DATE_FIRST)]} al ${row[c.indexOf(S.COL_DATE_LAST)]}`
-      : S.STATUS_NO_SAMPLES);
+  const dates = row[c.indexOf(S.COL_DATE_FIRST)]
+    ? S.SAMPLES_SURVEY_DATE_RANGE(
+      row[c.indexOf(S.COL_DATE_FIRST)],
+      row[c.indexOf(S.COL_DATE_LAST)],
+    )
+    : S.STATUS_NO_SAMPLES;
+  stats.textContent = S.SAMPLES_SURVEY_SUMMARY(
+    gridName,
+    row[c.indexOf(S.COL_N_AREAS_VISITED)],
+    row[c.indexOf(S.COL_N_AREAS_TOTAL)],
+    dates,
+  );
   s.summary.appendChild(stats);
   if (desc) {
     const d = document.createElement('div');
@@ -1246,7 +1253,7 @@ function confirmDeleteGrid() {
   // No surveys → simple confirm.  Cascade goes to SampleAreas only.
   const nAreas = row[c.indexOf(S.COL_N_AREAS)] || 0;
   const msg = nAreas > 0
-    ? `${nAreas} aree saranno eliminate. ${S.DELETE_CONFIRM}`
+    ? S.DELETE_GRID_AREAS_WARNING(nAreas)
     : S.DELETE_CONFIRM;
   showConfirmModal(msg, () => deleteRowWithVersion(
     GRIDS_ID, activeGridId, `${GRID_DELETE_URL_PREFIX}${activeGridId}/`,
