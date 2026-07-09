@@ -49,7 +49,18 @@ export const FILE_ERROR = 'file_error';
 export const RECORD_COUNT = 'record_count';
 export const TARGETS = 'targets';
 export const SUGGESTED_TARGET_ID = 'suggested_target_id';
+export const FIELD_MODE_LABEL = 'mode_label';
+export const FIELD_REFERENCE_VERSION_LABEL = 'reference_version_label';
 export const FIELD_WORK_PACKAGE_LABEL = 'work_package_label';
+export const FIELD_CHECKSUM = 'checksum';
+export const FIELD_RECORD_DATE = 'record_date';
+export const FIELD_STATE_LABEL = 'state_label';
+export const FIELD_RECEIVED_AT = 'received_at';
+export const FIELD_IMPORTED_AT = 'imported_at';
+export const FIELD_TARGET_TYPE = 'target_type';
+export const FIELD_TARGET_ID = 'target_id';
+export const FIELD_TARGET_LABEL = 'target_label';
+export const FIELD_ERROR_SUMMARY = 'error_summary';
 
 // Ipso integration identifiers.
 export const DATA_ID_IPSO_UPLOADS = 'ipso_uploads';
@@ -96,6 +107,7 @@ export const HYPSO_FUNC_LN = 'ln';
 
 // Form / JSON-body field names.  Match HTML form `name=` attributes and
 // JSON request-body keys; client and server must agree on every name.
+export const FIELD_ID                    = 'id';
 export const FIELD_NAME                  = 'name';
 export const FIELD_DATE                  = 'date';
 export const FIELD_DESCRIPTION           = 'description';

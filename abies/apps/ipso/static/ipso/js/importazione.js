@@ -19,8 +19,11 @@ import { fmtCoord, fmtDecimal2, fmtInt } from '../../base/js/format.js';
 import { installEscapeHandler } from '../../base/js/escape.js';
 import * as S from '../../base/js/strings.js';
 import {
-  DATA_ID_IPSO_UPLOADS, FIELD_HARVEST_PLAN_ITEM_ID, FIELD_SAMPLE_AREA_ID,
-  FIELD_MODE, FIELD_SURVEY_ID, FIELD_WORK_PACKAGE_LABEL, FILE_ERROR,
+  DATA_ID_IPSO_UPLOADS, FIELD_ERROR_SUMMARY, FIELD_ID, FIELD_HARVEST_PLAN_ITEM_ID,
+  FIELD_MODE, FIELD_MODE_LABEL, FIELD_OPERATOR, FIELD_RECEIVED_AT,
+  FIELD_RECORD_DATE, FIELD_REFERENCE_VERSION, FIELD_REFERENCE_VERSION_LABEL,
+  FIELD_SAMPLE_AREA_ID, FIELD_SESSION_ID, FIELD_STATE, FIELD_STATE_LABEL,
+  FIELD_SURVEY_ID, FIELD_TARGET_LABEL, FIELD_WORK_PACKAGE_LABEL, FILE_ERROR,
   IPSO_MODE_MARTELLATE, IPSO_MODE_PAI, IPSO_MODE_SAMPLES,
   IPSO_UPLOAD_STATE_IMPORTED, IPSO_UPLOAD_STATE_RECEIVED,
   MESSAGE, PENDING_COUNT, RECORD_COUNT, RECORDS, ROLE_ADMIN, ROLE_READER, ROWS,
@@ -315,7 +318,7 @@ async function showModeModal(id) {
   }
 
   const upload = detail[UPLOAD] || {};
-  if (upload.state === IPSO_UPLOAD_STATE_IMPORTED) {
+  if (upload[FIELD_STATE] === IPSO_UPLOAD_STATE_IMPORTED) {
     showError(S.IPSO_MODE_SAVE_ERROR_IMPORTED);
     return;
   }
@@ -323,7 +326,7 @@ async function showModeModal(id) {
   const frag = cloneTemplate('tmpl-ipso-upload-mode-modal');
   const form = frag.querySelector('[data-role="ipso-upload-mode-form"]');
   const select = frag.querySelector('[data-role="mode"]');
-  select.value = upload.mode || IPSO_MODE_MARTELLATE;
+  select.value = upload[FIELD_MODE] || IPSO_MODE_MARTELLATE;
   wireCancelButtons(form, () => dismissModal());
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -353,7 +356,7 @@ function renderDetail(data) {
   const header = document.createElement('div');
   header.className = 'ipso-detail-header';
   const title = document.createElement('h2');
-  title.textContent = S.IPSO_SESSION_TITLE(upload.session_id || upload.id);
+  title.textContent = S.IPSO_SESSION_TITLE(upload[FIELD_SESSION_ID] || upload[FIELD_ID]);
   header.appendChild(title);
   const actions = document.createElement('div');
   actions.className = 'ipso-detail-actions';
@@ -361,7 +364,7 @@ function renderDetail(data) {
     const rejectBtn = document.createElement('button');
     rejectBtn.className = 'btn btn-delete';
     rejectBtn.textContent = S.IPSO_ACTION_REJECT;
-    rejectBtn.addEventListener('click', () => confirmReject(upload.id));
+    rejectBtn.addEventListener('click', () => confirmReject(upload[FIELD_ID]));
     actions.appendChild(rejectBtn);
   }
   const closeBtn = document.createElement('button');
@@ -383,16 +386,16 @@ function renderDetail(data) {
   }
 
   detailEl.appendChild(metadataGrid([
-    [S.IPSO_COL_STATE, upload.state_label],
-    [S.IPSO_COL_MODE, upload.mode_label || modeLabel(upload.mode)],
-    [S.IPSO_COL_OPERATOR, upload.operator],
-    [S.IPSO_COL_RECEIVED, upload.received_at],
-    [S.COL_DATE, upload.record_date],
-    [S.IPSO_COL_RECORDS, upload.record_count],
-    [S.IPSO_COL_REFERENCE, upload.reference_version_label || referenceLabel(upload.reference_version)],
+    [S.IPSO_COL_STATE, upload[FIELD_STATE_LABEL]],
+    [S.IPSO_COL_MODE, upload[FIELD_MODE_LABEL] || modeLabel(upload[FIELD_MODE])],
+    [S.IPSO_COL_OPERATOR, upload[FIELD_OPERATOR]],
+    [S.IPSO_COL_RECEIVED, upload[FIELD_RECEIVED_AT]],
+    [S.COL_DATE, upload[FIELD_RECORD_DATE]],
+    [S.IPSO_COL_RECORDS, upload[RECORD_COUNT]],
+    [S.IPSO_COL_REFERENCE, upload[FIELD_REFERENCE_VERSION_LABEL] || referenceLabel(upload[FIELD_REFERENCE_VERSION])],
     [S.IPSO_COL_WORK_PACKAGE, upload[FIELD_WORK_PACKAGE_LABEL]],
-    [S.IPSO_COL_TARGET, upload.target_label],
-    [S.IPSO_COL_ERROR, upload.error_summary],
+    [S.IPSO_COL_TARGET, upload[FIELD_TARGET_LABEL]],
+    [S.IPSO_COL_ERROR, upload[FIELD_ERROR_SUMMARY]],
   ]));
 
   const importEl = importTargetPanel(data);
@@ -410,12 +413,12 @@ function isAdmin() {
 
 function canImportUpload(upload) {
   return document.body.dataset.role !== ROLE_READER &&
-    upload.state === IPSO_UPLOAD_STATE_RECEIVED && !!IMPORT_CONFIG[upload.mode];
+    upload[FIELD_STATE] === IPSO_UPLOAD_STATE_RECEIVED && !!IMPORT_CONFIG[upload[FIELD_MODE]];
 }
 
 function importTargetPanel(data) {
   const upload = data[UPLOAD] || {};
-  const config = IMPORT_CONFIG[upload.mode];
+  const config = IMPORT_CONFIG[upload[FIELD_MODE]];
   if (!config || !canImportUpload(upload)) return null;
 
   const panel = document.createElement('div');
@@ -449,7 +452,7 @@ function importTargetPanel(data) {
   };
   if (select) select.addEventListener('change', updateEnabled);
   btn.addEventListener('click', () => {
-    confirmImport(upload.id, config, select ? select.value : null);
+    confirmImport(upload[FIELD_ID], config, select ? select.value : null);
   });
   panel.appendChild(btn);
   updateEnabled();
@@ -481,7 +484,7 @@ async function importUpload(uploadId, config, targetId) {
 
 function canRejectUpload(upload) {
   return document.body.dataset.role !== ROLE_READER &&
-    upload.state === IPSO_UPLOAD_STATE_RECEIVED;
+    upload[FIELD_STATE] === IPSO_UPLOAD_STATE_RECEIVED;
 }
 
 function metadataGrid(items) {
