@@ -27,7 +27,7 @@ from config.constants import (
     COLUMNS, DUPLICATE, ERROR, FIELD_HARVEST_PLAN_ITEM_ID, FIELD_MODE,
     FIELD_REASON, FIELD_SURVEY_ID, IMPORTED, IPSO_ERROR_CONFLICT,
     IPSO_ERROR_INVALID_PAYLOAD, IPSO_ERROR_RATE_LIMITED, IPSO_ERROR_TOO_LARGE,
-    IPSO_MODE_PAI, MESSAGE, PENDING_COUNT, ROWS, ROW_ID,
+    IPSO_MODE_PAI, IPSO_UPLOAD_FILE_READY, MESSAGE, PENDING_COUNT, ROWS, ROW_ID,
 )
 
 
@@ -408,6 +408,7 @@ def test_upload_stages_json_and_metadata(db, parcels, species, settings, tmp_pat
     assert staged['records'][0]['lat'] == 38.51235
     assert staged['records'][0]['lon'] == 16.12346
     assert (Path(upload.inbox_path) / 'upload.sha256').is_file()
+    assert (Path(upload.inbox_path) / IPSO_UPLOAD_FILE_READY).is_file()
     assert (Path(upload.inbox_path) / 'export.csv').read_text() == 'csv backup'
 
 
@@ -611,6 +612,34 @@ def test_upload_duplicate_is_idempotent(db, parcels, species, settings, tmp_path
     assert IpsoUpload.objects.count() == 1
 
 
+@override_settings(IPSO_SECRET='test-token', IPSO_UPLOAD_RATE_LIMIT=0)
+def test_upload_duplicate_repairs_staged_files(db, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    payload = _upload_payload(parcels, species)
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
+    inbox_path = Path(upload.inbox_path)
+    (inbox_path / 'upload.json').write_text('{"corrupted": true}\n', encoding='utf-8')
+    (inbox_path / 'upload.sha256').unlink()
+    (inbox_path / 'export.csv').unlink()
+    (inbox_path / IPSO_UPLOAD_FILE_READY).unlink()
+
+    resp = _post_upload(Client(), payload)
+
+    assert resp.status_code == 200
+    assert resp.json()[DUPLICATE] is True
+    staged = json.loads((inbox_path / 'upload.json').read_text(encoding='utf-8'))
+    assert staged['session']['session_id'] == payload['session']['session_id']
+    assert staged['records'][0]['number'] == 1
+    staged_checksum = (inbox_path / 'upload.sha256').read_text(encoding='utf-8').strip()
+    assert staged_checksum == upload.checksum
+    assert (inbox_path / 'export.csv').read_text(encoding='utf-8') == 'csv backup'
+    ready_checksum = (
+        inbox_path / IPSO_UPLOAD_FILE_READY
+    ).read_text(encoding='utf-8').strip()
+    assert ready_checksum == upload.checksum
+
+
 @override_settings(IPSO_SECRET='test-token')
 def test_upload_conflicts_on_same_session_different_payload(db, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
@@ -744,6 +773,24 @@ def test_upload_detail_previews_staged_records(writer_client, parcels, species, 
     assert data['records'][0]['species'] == 'Abete'
     assert data['records'][0]['h_m'] == 22.5
     assert data['records'][0]['lon'] == 16.12345
+
+
+@override_settings(IPSO_SECRET='test-token')
+def test_upload_detail_reports_staged_checksum_mismatch(
+        writer_client, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    payload = _upload_payload(parcels, species)
+    upload = _stage_upload_direct(settings, tmp_path, payload)
+    upload_json = Path(upload.inbox_path) / 'upload.json'
+    staged = json.loads(upload_json.read_text(encoding='utf-8'))
+    staged['records'][0]['number'] = 99
+    upload_json.write_text(json.dumps(staged), encoding='utf-8')
+
+    resp = writer_client.get(reverse('ipso-upload-detail', args=[upload.id]))
+
+    assert resp.status_code == 200
+    assert resp.json()['file_error'] == S.IPSO_ERR_UPLOAD_CHECKSUM_MISMATCH
+    assert resp.json()['records'] == []
 
 
 @pytest.mark.parametrize(('method', 'url_name', 'body'), [
@@ -1180,8 +1227,12 @@ def test_martellate_import_region_wide_target_accepts_coppice_parcel(
 
 
 @pytest.mark.parametrize(('file_state', 'expected_error'), [
-    ('missing', S.IPSO_ERR_UPLOAD_JSON_MISSING),
-    ('invalid', S.IPSO_ERR_UPLOAD_JSON_INVALID),
+    ('missing_json', S.IPSO_ERR_UPLOAD_JSON_MISSING),
+    ('invalid_json', S.IPSO_ERR_UPLOAD_JSON_INVALID),
+    ('missing_sha', S.IPSO_ERR_UPLOAD_SHA_MISSING),
+    ('invalid_sha', S.IPSO_ERR_UPLOAD_SHA_INVALID),
+    ('json_checksum_mismatch', S.IPSO_ERR_UPLOAD_CHECKSUM_MISMATCH),
+    ('db_checksum_mismatch', S.IPSO_ERR_UPLOAD_CHECKSUM_MISMATCH),
 ])
 @override_settings(IPSO_SECRET='test-token')
 def test_import_reports_staged_payload_file_errors(
@@ -1190,13 +1241,24 @@ def test_import_reports_staged_payload_file_errors(
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     item = _harvest_item(parcels)
     payload = _upload_payload(parcels, species)
-    assert _post_upload(Client(), payload).status_code == 200
-    upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
-    upload_json = Path(upload.inbox_path) / 'upload.json'
-    if file_state == 'missing':
+    upload = _stage_upload_direct(settings, tmp_path, payload)
+    inbox_path = Path(upload.inbox_path)
+    upload_json = inbox_path / 'upload.json'
+    if file_state == 'missing_json':
         upload_json.unlink()
-    else:
+    elif file_state == 'invalid_json':
         upload_json.write_text('{not-json', encoding='utf-8')
+    elif file_state == 'missing_sha':
+        (inbox_path / 'upload.sha256').unlink()
+    elif file_state == 'invalid_sha':
+        (inbox_path / 'upload.sha256').write_text('not-a-sha\n', encoding='utf-8')
+    elif file_state == 'json_checksum_mismatch':
+        staged = json.loads(upload_json.read_text(encoding='utf-8'))
+        staged['records'][0]['number'] = 99
+        upload_json.write_text(json.dumps(staged), encoding='utf-8')
+    elif file_state == 'db_checksum_mismatch':
+        upload.checksum = '0' * 64
+        upload.save(update_fields=['checksum'])
 
     resp = writer_client.post(
         reverse('ipso-upload-import-martellate', args=[upload.id]),

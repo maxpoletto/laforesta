@@ -83,7 +83,7 @@ from config.constants import (
     IPSO_TERRENI_GEOJSON, IPSO_WORK_PACKAGE_HARVEST_PREFIX,
     IPSO_WORK_PACKAGE_SAMPLING_SURVEY, IPSO_WORK_PACKAGE_SAMPLING_SURVEY_PREFIX,
     IPSO_UPLOAD_CONFIG_JS, IPSO_UPLOAD_FILE_CSV, IPSO_UPLOAD_FILE_JSON,
-    IPSO_UPLOAD_FILE_SHA256, IPSO_UPLOAD_MODES, MESSAGE,
+    IPSO_UPLOAD_FILE_READY, IPSO_UPLOAD_FILE_SHA256, IPSO_UPLOAD_MODES, MESSAGE,
     OK,
     PENDING_COUNT, PRESSLER_DEFAULT, RECORD_COUNT, RECORDS, ROW_ID, ROWS,
     SESSION, SKIPPED_DUPLICATES, STORED_AS, SUGGESTED_TARGET_ID, TARGETS,
@@ -426,6 +426,7 @@ STAGED_UPLOAD_ARCHIVE_FILES = (
     IPSO_UPLOAD_FILE_SHA256,
     IPSO_UPLOAD_FILE_CSV,
 )
+_SHA256_RE = re.compile(r'^[0-9a-f]{64}$')
 
 
 @login_required
@@ -705,7 +706,7 @@ def upload_session(request: HttpRequest) -> JsonResponse:
             )
             _write_upload_files(inbox_path, normalized, checksum, csv_text)
     except IntegrityError:
-        return _duplicate_upload_response(session_id, checksum)
+        return _duplicate_upload_response(session_id, normalized, checksum, csv_text)
 
     return _api_json({
         OK: True,
@@ -714,11 +715,14 @@ def upload_session(request: HttpRequest) -> JsonResponse:
     })
 
 
-def _duplicate_upload_response(session_id: str, checksum: str) -> JsonResponse:
+def _duplicate_upload_response(
+        session_id: str, payload: dict, checksum: str, csv_text: str | None,
+) -> JsonResponse:
     existing = IpsoUpload.objects.filter(session_id=session_id).first()
     if existing is None:
         return _api_json({OK: False, ERROR: IPSO_ERROR_CONFLICT}, status=409)
     if hmac.compare_digest(existing.checksum, checksum):
+        _write_upload_files(Path(existing.inbox_path), payload, checksum, csv_text)
         return _api_json({
             OK: True,
             STORED_AS: existing.inbox_path,
@@ -862,13 +866,33 @@ def _upload_record_date(upload: IpsoUpload) -> str:
 
 
 def _read_staged_payload(upload: IpsoUpload) -> tuple[dict, str]:
-    path = Path(upload.inbox_path) / IPSO_UPLOAD_FILE_JSON
+    root = Path(upload.inbox_path)
+    path = root / IPSO_UPLOAD_FILE_JSON
     try:
-        return json.loads(path.read_text(encoding='utf-8')), ''
+        payload = json.loads(path.read_text(encoding='utf-8'))
     except FileNotFoundError:
         return {}, S.IPSO_ERR_UPLOAD_JSON_MISSING
     except json.JSONDecodeError:
         return {}, S.IPSO_ERR_UPLOAD_JSON_INVALID
+    try:
+        staged_checksum = (
+            root / IPSO_UPLOAD_FILE_SHA256
+        ).read_text(encoding='utf-8').strip()
+    except FileNotFoundError:
+        return {}, S.IPSO_ERR_UPLOAD_SHA_MISSING
+    if not _SHA256_RE.match(staged_checksum):
+        return {}, S.IPSO_ERR_UPLOAD_SHA_INVALID
+    checksum = _payload_checksum(payload)
+    if not hmac.compare_digest(staged_checksum, checksum):
+        return {}, S.IPSO_ERR_UPLOAD_CHECKSUM_MISMATCH
+    if not hmac.compare_digest(upload.checksum, checksum):
+        return {}, S.IPSO_ERR_UPLOAD_CHECKSUM_MISMATCH
+    ready_path = root / IPSO_UPLOAD_FILE_READY
+    if ready_path.is_file():
+        ready_checksum = ready_path.read_text(encoding='utf-8').strip()
+        if ready_checksum and not hmac.compare_digest(ready_checksum, checksum):
+            return {}, S.IPSO_ERR_UPLOAD_CHECKSUM_MISMATCH
+    return payload, ''
 
 
 def _preview_sequence(value, fallback: int):

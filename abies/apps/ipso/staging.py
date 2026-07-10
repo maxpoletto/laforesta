@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 from datetime import timezone
 from pathlib import Path
@@ -14,7 +15,8 @@ from django.utils import timezone as django_timezone
 from config.constants import (
     FIELD_DATE, FIELD_MODE, FIELD_OPERATOR, FIELD_REFERENCE_VERSION,
     FIELD_SCHEMA_VERSION, FIELD_SESSION_ID, FIELD_WORK_PACKAGE_ID,
-    IPSO_UPLOAD_FILE_CSV, IPSO_UPLOAD_FILE_JSON, IPSO_UPLOAD_FILE_SHA256,
+    IPSO_UPLOAD_FILE_CSV, IPSO_UPLOAD_FILE_JSON, IPSO_UPLOAD_FILE_READY,
+    IPSO_UPLOAD_FILE_SHA256,
     RECORDS, SESSION,
 )
 
@@ -64,23 +66,41 @@ def upload_model_fields(payload: dict, checksum: str, inbox_path: Path) -> dict:
 def write_upload_files(
         session_dir: Path, payload: dict, checksum: str, csv_text: str | None,
 ) -> Path:
-    write_payload_files(session_dir, payload, checksum)
+    _write_payload_content(session_dir, payload, checksum)
     if csv_text:
         _atomic_write_text(session_dir / IPSO_UPLOAD_FILE_CSV, csv_text)
+    _atomic_write_text(session_dir / IPSO_UPLOAD_FILE_READY, checksum + '\n')
     return session_dir
 
 
 def write_payload_files(session_dir: Path, payload: dict, checksum: str) -> Path:
+    _write_payload_content(session_dir, payload, checksum)
+    _atomic_write_text(session_dir / IPSO_UPLOAD_FILE_READY, checksum + '\n')
+    return session_dir
+
+
+def _write_payload_content(session_dir: Path, payload: dict, checksum: str) -> None:
     session_dir.mkdir(parents=True, exist_ok=True)
     _atomic_write_text(
         session_dir / IPSO_UPLOAD_FILE_JSON,
         json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + '\n',
     )
     _atomic_write_text(session_dir / IPSO_UPLOAD_FILE_SHA256, checksum + '\n')
-    return session_dir
 
 
 def _atomic_write_text(path: Path, text: str) -> None:
     tmp = path.with_name(path.name + '.tmp')
-    tmp.write_text(text, encoding='utf-8')
+    with tmp.open('w', encoding='utf-8') as f:
+        f.write(text)
+        f.flush()
+        os.fsync(f.fileno())
     tmp.replace(path)
+    _fsync_dir(path.parent)
+
+
+def _fsync_dir(path: Path) -> None:
+    fd = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
