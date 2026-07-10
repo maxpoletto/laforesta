@@ -662,6 +662,32 @@ def test_upload_conflicts_on_same_session_different_payload(db, parcels, species
     assert upload.state == IpsoUploadState.CONFLICT
 
 
+@pytest.mark.parametrize('state', [
+    IpsoUploadState.IMPORTED,
+    IpsoUploadState.REJECTED,
+])
+@override_settings(IPSO_SECRET='test-token')
+def test_upload_conflict_retry_preserves_terminal_state(
+        db, parcels, species, settings, tmp_path, state):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    payload = _upload_payload(parcels, species)
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
+    upload.state = state
+    upload.error_summary = 'terminal state detail'
+    upload.save(update_fields=['state', 'error_summary'])
+    changed = _upload_payload(parcels, species)
+    changed['records'][0]['d_cm'] = 43
+
+    resp = _post_upload(Client(), changed)
+
+    assert resp.status_code == 409
+    assert resp.json()[ERROR] == IPSO_ERROR_CONFLICT
+    upload.refresh_from_db()
+    assert upload.state == state
+    assert upload.error_summary == 'terminal state detail'
+
+
 @override_settings(IPSO_SECRET='test-token')
 def test_upload_integrity_error_does_not_write_files(
         db, parcels, species, settings, tmp_path, monkeypatch):

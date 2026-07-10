@@ -738,9 +738,13 @@ def _duplicate_upload_response(
             STORED_AS: existing.inbox_path,
             DUPLICATE: True,
         })
-    existing.state = IpsoUploadState.CONFLICT
-    existing.error_summary = S.IPSO_ERR_DUPLICATE_SESSION_CONTENT
-    existing.save(update_fields=['state', 'error_summary'])
+    if existing.state == IpsoUploadState.RECEIVED:
+        IpsoUpload.objects.filter(
+            id=existing.id, state=IpsoUploadState.RECEIVED,
+        ).update(
+            state=IpsoUploadState.CONFLICT,
+            error_summary=S.IPSO_ERR_DUPLICATE_SESSION_CONTENT,
+        )
     return _api_json({OK: False, ERROR: IPSO_ERROR_CONFLICT}, status=409)
 
 
