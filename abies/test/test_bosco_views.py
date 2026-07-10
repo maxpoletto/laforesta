@@ -151,8 +151,9 @@ def test_parcel_metadata_save_validation_error_rerenders(writer_client, parcels)
 
     assert resp.status_code == 400
     data = resp.json()
-    assert 'Superficie obbligatoria.' in data['message']
-    assert 'Età media deve essere un numero intero.' in data['message']
+    assert S.ERR_BOSCO_AREA_REQUIRED in data[MESSAGE]
+    assert (S.ERR_BOSCO_INTEGER_REQUIRED.format(S.LABEL_BOSCO_AVE_AGE)
+            in data[MESSAGE])
     assert 'bosco-parcel-metadata-form' in data[HTML]
 
 
@@ -169,7 +170,7 @@ def test_parcel_metadata_save_rejects_inverted_altitude(writer_client, parcels):
                               content_type='application/json')
 
     assert resp.status_code == 400
-    assert 'Altitudine minima maggiore della massima.' in resp.json()['message']
+    assert S.ERR_BOSCO_ALTITUDE_RANGE in resp.json()[MESSAGE]
 
 
 def test_pai_form_requires_writer(reader_client, regions):
