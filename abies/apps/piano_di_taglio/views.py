@@ -53,7 +53,7 @@ from apps.piano_di_taglio.mark_import import (
     MARK_CSV_SPECIES_HEADERS, MarkImportRow,
     auto_advance_to_marked as _auto_advance_to_marked,
     csv_mark_fingerprint, import_mark_rows,
-    mark_parcel_matches_item,
+    legacy_csv_mark_fingerprint, mark_parcel_matches_item,
     next_mark_number as _next_mark_number,
     rematerialize_volume_marked as _rematerialize_volume_marked,
 )
@@ -1122,9 +1122,15 @@ def mark_csv_import_view(request):
             number=numero, d_cm=d_cm, h_m=h_m, h_measured=h_measured,
             lat=lat, lon=lon, acc_m=acc_m, operator=operator,
             fingerprint=csv_mark_fingerprint(
+                source_row=i, date=date, parcel_id=parcel.id,
+                species_id=species.id, number=numero, d_cm=d_cm, h_m=h_m,
+                h_measured=h_measured, lat=lat, lon=lon, acc_m=acc_m,
+                operator=operator,
+            ),
+            legacy_fingerprints=(legacy_csv_mark_fingerprint(
                 date=date, species_name=species_name, d_cm=d_cm, h_m=h_m,
                 lat=lat, lon=lon, operator=operator,
-            ),
+            ),),
         ))
 
     if errors:

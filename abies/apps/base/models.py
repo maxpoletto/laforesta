@@ -596,7 +596,7 @@ class TreeMark(TimestampedModel):
     # Row-content fingerprint used for idempotent CSV re-imports (see
     # `docs/page-piano-di-taglio.md` "Importa CSV martellate").  Null
     # for manually entered rows.
-    import_fingerprint = models.CharField(max_length=64, null=True, blank=True)
+    import_fingerprint = models.CharField(max_length=67, null=True, blank=True)
     # Deliberately NOT history-tracked: marks are written in bulk by CSV
     # import and would swamp the Controllo audit log.  The parent
     # HarvestPlanItem (state/volume changes) is audited instead.

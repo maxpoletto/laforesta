@@ -24,6 +24,9 @@ from apps.base.models import (
     HarvestPlanItemState, HarvestTransition, Parcel, ParcelPlanDetail, Tree,
     TreeMark, UsedNonce,
 )
+from apps.piano_di_taglio.mark_import import (
+    csv_mark_fingerprint, legacy_csv_mark_fingerprint,
+)
 from apps.prelievi.models import Harvest, HarvestTractor
 from config import strings as S
 from config.constants import (
@@ -1536,6 +1539,41 @@ class TestMarkCSVImport:
             content_type='application/json',
         )
 
+    def test_v2_fingerprint_covers_every_canonical_field(self):
+        base = {
+            'source_row': 1,
+            'date': date_type(2025, 6, 1),
+            'parcel_id': 10,
+            'species_id': 20,
+            'number': 30,
+            'd_cm': 40,
+            'h_m': Decimal('21.50'),
+            'h_measured': False,
+            'lat': 38.5,
+            'lon': 16.3,
+            'acc_m': 5,
+            'operator': 'Mario',
+        }
+        variants = {
+            'source_row': 2,
+            'date': date_type(2025, 6, 2),
+            'parcel_id': 11,
+            'species_id': 21,
+            'number': 31,
+            'd_cm': 41,
+            'h_m': Decimal('21.51'),
+            'h_measured': True,
+            'lat': 38.6,
+            'lon': 16.4,
+            'acc_m': 6,
+            'operator': 'Luigi',
+        }
+        fingerprint = csv_mark_fingerprint(**base)
+
+        assert fingerprint.startswith('v2:')
+        for field, value in variants.items():
+            assert csv_mark_fingerprint(**(base | {field: value})) != fingerprint
+
     def test_import_basic(self, writer_client, planned_item, species, parcels):
         sp = species[0]
         parcel = parcels[0]
@@ -1672,6 +1710,45 @@ class TestMarkCSVImport:
         csv_bytes = self._csv_content([row])
         for _ in range(2):
             self._post(writer_client, planned_item, csv_bytes)
+        assert TreeMark.objects.count() == 1
+
+    def test_import_keeps_identical_unnumbered_source_rows(
+        self, writer_client, planned_item, species, parcels,
+    ):
+        parcel = parcels[0]
+        row = ['01/06/2025', parcel.region.name, parcel.name, '0', '',
+               species[0].common_name, '30', '20,0', '0', '', '', '', 'Mario']
+        csv_bytes = self._csv_content([row, row])
+
+        first = self._post(writer_client, planned_item, csv_bytes)
+        second = self._post(writer_client, planned_item, csv_bytes)
+
+        assert first.status_code == 200
+        assert first.json()['imported'] == 2
+        assert second.status_code == 200
+        assert second.json()['skipped_duplicates'] == 2
+        assert TreeMark.objects.count() == 2
+
+    def test_import_recognizes_legacy_fingerprint(
+        self, writer_client, planned_item, species, parcels,
+    ):
+        parcel = parcels[0]
+        species_name = species[0].common_name
+        row = ['01/06/2025', parcel.region.name, parcel.name, '0', '1',
+               species_name, '30', '20,0', '0', '38.5', '16.3', '5', 'Mario']
+        csv_bytes = self._csv_content([row])
+        assert self._post(writer_client, planned_item, csv_bytes).status_code == 200
+        TreeMark.objects.update(import_fingerprint=legacy_csv_mark_fingerprint(
+            date=date_type(2025, 6, 1), species_name=species_name,
+            d_cm=30, h_m=Decimal('20.0'), lat=38.5, lon=16.3,
+            operator='Mario',
+        ))
+
+        retry = self._post(writer_client, planned_item, csv_bytes)
+
+        assert retry.status_code == 200
+        assert retry.json()['imported'] == 0
+        assert retry.json()['skipped_duplicates'] == 1
         assert TreeMark.objects.count() == 1
 
     def test_import_auto_advances_state(

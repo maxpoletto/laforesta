@@ -37,6 +37,7 @@ class MarkImportRow:
     acc_m: int | None
     operator: str
     fingerprint: str
+    legacy_fingerprints: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -54,9 +55,35 @@ def mark_parcel_matches_item(item: HarvestPlanItem, parcel: Parcel) -> bool:
 
 
 def csv_mark_fingerprint(
+        *, source_row: int, date: date_type, parcel_id: int, species_id: int,
+        number: int | None, d_cm: int, h_m: Decimal, h_measured: bool,
+        lat: float | None, lon: float | None, acc_m: int | None, operator: str,
+) -> str:
+    """Fingerprint every canonical CSV field plus its stable row position."""
+    raw = json.dumps({
+        'version': 2,
+        'source': 'csv',
+        'source_row': source_row,
+        'date': date.isoformat(),
+        'parcel_id': parcel_id,
+        'species_id': species_id,
+        'number': number,
+        'd_cm': d_cm,
+        'h_m': format(h_m.quantize(Decimal('0.01')), 'f'),
+        'h_measured': h_measured,
+        'lat': lat,
+        'lon': lon,
+        'acc_m': acc_m,
+        'operator': operator,
+    }, sort_keys=True, separators=(',', ':'))
+    return f'v2:{hashlib.sha256(raw.encode()).hexdigest()}'
+
+
+def legacy_csv_mark_fingerprint(
         *, date: date_type, species_name: str, d_cm: int, h_m: Decimal,
         lat: float | None, lon: float | None, operator: str,
 ) -> str:
+    """Reproduce the pre-v2 hash so historical imports remain idempotent."""
     fp_src = f'{date}|{species_name}|{d_cm}|{h_m}|{lat}|{lon}|{operator}'
     return hashlib.sha256(fp_src.encode()).hexdigest()
 
@@ -123,19 +150,21 @@ def import_mark_rows(item: HarvestPlanItem, rows: list[MarkImportRow]) -> MarkIm
 def _unskipped_import_rows(
         item_id: int, rows: list[MarkImportRow],
 ) -> tuple[list[MarkImportRow], int]:
-    existing_fps = set(
+    persisted_fps = set(
         TreeMark.objects
         .filter(harvest_plan_item_id=item_id, import_fingerprint__isnull=False)
         .values_list('import_fingerprint', flat=True)
     )
+    batch_fps: set[str] = set()
     parsed: list[MarkImportRow] = []
     skipped = 0
     for row in rows:
-        if row.fingerprint in existing_fps:
+        persisted_aliases = {row.fingerprint, *row.legacy_fingerprints}
+        if persisted_aliases & persisted_fps or row.fingerprint in batch_fps:
             skipped += 1
             continue
         parsed.append(row)
-        existing_fps.add(row.fingerprint)
+        batch_fps.add(row.fingerprint)
     return parsed, skipped
 
 
