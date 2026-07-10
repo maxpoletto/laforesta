@@ -97,6 +97,38 @@ check(
   martellatePayload.records[0].number === null,
   'martellate upload keeps blank numbers blank',
 );
+check(
+  martellatePayload.session.completed_at === '2026-06-17T09:00:00Z',
+  'upload payload uses exported_at as legacy completed_at fallback',
+);
+
+const explicitCompletedPayload = upload.buildUploadPayload(
+  {
+    ...sess(upload.UPLOAD_MODE_MARTELLATE),
+    completed_at: '2026-06-17T08:45:00Z',
+  },
+  [tree({ numero: null })],
+  reference(),
+  'csv',
+);
+check(
+  explicitCompletedPayload.session.completed_at === '2026-06-17T08:45:00Z',
+  'upload payload preserves explicit completed_at',
+);
+
+const liveCompletedPayload = upload.buildUploadPayload(
+  {
+    ...sess(upload.UPLOAD_MODE_MARTELLATE),
+    exported_at: '',
+  },
+  [tree({ numero: null })],
+  reference(),
+  'csv',
+);
+check(
+  !Number.isNaN(Date.parse(liveCompletedPayload.session.completed_at)),
+  'upload payload fills completed_at for live session completion',
+);
 
 checkThrows(
   () => upload.buildUploadPayload(

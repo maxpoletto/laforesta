@@ -69,13 +69,17 @@ function buildUploadPayload(sess, trees, reference, csvText) {
       [FIELD_WORK_PACKAGE_ID]: sess.work_package_id || '',
       [FIELD_OPERATOR]: sess.operatore || '',
       [FIELD_CREATED_AT]: sess.started_at || '',
-      [FIELD_COMPLETED_AT]: sess.completed_at || sess.exported_at || '',
+      [FIELD_COMPLETED_AT]: completedAt(sess),
       [FIELD_DAMAGED]: !!sess.catastrofata,
       [FIELD_REGION_ID]: regionId,
     },
     [RECORDS]: records,
     [FIELD_CSV_TEXT]: csvText || '',
   };
+}
+
+function completedAt(sess) {
+  return sess.completed_at || sess.exported_at || new Date().toISOString();
 }
 
 function canonicalRecord(sess, t, reference) {
