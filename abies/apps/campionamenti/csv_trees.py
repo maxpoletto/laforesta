@@ -207,10 +207,21 @@ def parsed_tree_row(
 
 
 def apply(survey, parsed) -> dict:
-    """Persist validated rows: one Sample per (survey, area), then a Tree +
-    TreeSample per row.  Returns ``{'n_samples', 'n_trees'}`` for the response.
+    """Persist validated rows: one Sample per (survey, area), then a
+    TreeSample per row. Physical Tree identity is shared by sample area and
+    tree number across surveys, including coppice shoots.
+
+    Returns ``{'n_samples', 'n_trees'}`` for the response.
     """
     with transaction.atomic():
+        area_ids = sorted({r[FIELD_AREA].id for r in parsed})
+        list(
+            SampleArea.objects
+            .select_for_update()
+            .filter(id__in=area_ids)
+            .order_by('id')
+        )
+
         # One Sample per (survey, area); all rows for that area share its date.
         sample_by_area = {}
         for r in parsed:
@@ -223,14 +234,19 @@ def apply(survey, parsed) -> dict:
             )
             sample_by_area[area_id] = sample
 
+        tree_by_identity = _tree_identity_map(sample_by_area)
         n_trees = 0
         for r in parsed:
             sample = sample_by_area[r[FIELD_AREA].id]
-            tree = Tree.objects.create(
-                species=r[FIELD_SPECIES], parcel=r[FIELD_PARCEL],
-                lat=r.get(FIELD_LAT), lon=r.get(FIELD_LON), acc_m=r.get(FIELD_ACC_M),
-                preserved=r[FIELD_PRESERVED], coppice=r[FIELD_COPPICE],
-            )
+            identity = (r[FIELD_AREA].id, r[FIELD_NUMBER])
+            tree = tree_by_identity.get(identity)
+            if tree is None:
+                tree = Tree.objects.create(
+                    species=r[FIELD_SPECIES], parcel=r[FIELD_PARCEL],
+                    lat=r.get(FIELD_LAT), lon=r.get(FIELD_LON), acc_m=r.get(FIELD_ACC_M),
+                    preserved=r[FIELD_PRESERVED], coppice=r[FIELD_COPPICE],
+                )
+                tree_by_identity[identity] = tree
             TreeSample.objects.create(
                 sample=sample, tree=tree, shoot=r[FIELD_SHOOT],
                 standard=r[FIELD_STANDARD], number=r[FIELD_NUMBER],
@@ -245,3 +261,36 @@ def apply(survey, parsed) -> dict:
             *BOSCO_TREE_DIGESTS, 'audit',
         )
     return {'n_samples': len(sample_by_area), 'n_trees': n_trees}
+
+
+def _tree_identity_map(sample_by_area):
+    sample_ids = [sample.id for sample in sample_by_area.values()]
+    area_ids = list(sample_by_area)
+    tree_by_identity = {}
+
+    target_rows = (
+        TreeSample.objects
+        .select_for_update()
+        .filter(sample_id__in=sample_ids)
+        .select_related('sample', 'tree')
+        .order_by('sample__sample_area_id', 'number', '-sample__date', '-id')
+    )
+    for row in target_rows:
+        tree_by_identity.setdefault(
+            (row.sample.sample_area_id, row.number), row.tree,
+        )
+
+    historical_rows = (
+        TreeSample.objects
+        .select_for_update()
+        .filter(sample__sample_area_id__in=area_ids)
+        .exclude(sample_id__in=sample_ids)
+        .select_related('sample', 'tree')
+        .order_by('sample__sample_area_id', 'number', '-sample__date', '-id')
+    )
+    for row in historical_rows:
+        tree_by_identity.setdefault(
+            (row.sample.sample_area_id, row.number), row.tree,
+        )
+
+    return tree_by_identity

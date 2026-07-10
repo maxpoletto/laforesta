@@ -221,3 +221,48 @@ def test_apply_creates_sample_and_treesample(survey_with_area):
     assert ts.number == 1
     assert ts.d_cm == 30
     assert ts.pressler_coeff == 2
+
+
+@pytest.mark.django_db
+def test_apply_reuses_tree_identity_across_surveys(survey_with_area):
+    survey = survey_with_area['survey']
+    parcel = survey_with_area['parcel']
+    csv_text = (
+        TREE_HEADER + '\n'
+        f'{parcel.region.name},{parcel.name},1,1,0,False,30,15.5,250,2,Abete,True\n'
+    )
+    parsed, errors = _validate(csv_text, csv_trees.db_indexes(survey))
+    assert errors == []
+    csv_trees.apply(survey, parsed)
+
+    next_survey = Survey.objects.create(
+        name='trees-core-follow-up', sample_grid=survey.sample_grid,
+    )
+    parsed, errors = _validate(csv_text, csv_trees.db_indexes(next_survey))
+    assert errors == []
+    csv_trees.apply(next_survey, parsed)
+
+    rows = list(TreeSample.objects.order_by('sample__survey_id'))
+    assert len(rows) == 2
+    assert {row.tree_id for row in rows} == {rows[0].tree_id}
+
+
+@pytest.mark.django_db
+def test_apply_groups_coppice_shoots_under_one_tree(survey_with_area):
+    survey = survey_with_area['survey']
+    parcel = survey_with_area['parcel']
+    csv_text = (
+        TREE_HEADER + '\n'
+        f'{parcel.region.name},{parcel.name},1,1,1,False,30,15.5,250,2,Abete,False\n'
+        f'{parcel.region.name},{parcel.name},1,1,2,False,29,14.5,240,2,Abete,False\n'
+    )
+    parsed, errors = _validate(csv_text, csv_trees.db_indexes(survey))
+    assert errors == []
+
+    counts = csv_trees.apply(survey, parsed)
+
+    assert counts == {'n_samples': 1, 'n_trees': 2}
+    rows = list(TreeSample.objects.select_related('tree').order_by('shoot'))
+    assert [row.shoot for row in rows] == [1, 2]
+    assert {row.tree_id for row in rows} == {rows[0].tree_id}
+    assert all(row.tree.coppice for row in rows)

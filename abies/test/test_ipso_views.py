@@ -1727,6 +1727,7 @@ def test_samples_import_supports_coppice_shoots_with_same_number(
     rows = list(TreeSample.objects.order_by('shoot'))
     assert [row.number for row in rows] == [1, 1]
     assert [row.shoot for row in rows] == [1, 2]
+    assert {row.tree_id for row in rows} == {rows[0].tree_id}
     assert all(row.tree.coppice for row in rows)
     upload.refresh_from_db()
     assert upload.state == IpsoUploadState.IMPORTED
