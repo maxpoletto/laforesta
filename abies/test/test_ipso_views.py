@@ -1876,7 +1876,7 @@ def test_import_rejects_second_submit_without_duplicate_marks(
     assert first.status_code == 200
     assert first.json()[IMPORTED] == 1
     assert second.status_code == 400
-    assert second.json()['message'] == 'Solo i caricamenti da importare possono essere importati.'
+    assert second.json()['message'] == S.IPSO_ERR_UPLOAD_NOT_RECEIVED
     assert TreeMark.objects.count() == 1
     upload.refresh_from_db()
     assert upload.state == IpsoUploadState.IMPORTED
