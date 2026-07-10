@@ -179,7 +179,7 @@ body {
 /* --- Content area --------------------------------------------------------- */
 
 #content {
-  margin-top: 52px;
+  margin-top: 48px;
   padding: 15px 40px;
   min-height: calc(100vh - 52px);
 }
