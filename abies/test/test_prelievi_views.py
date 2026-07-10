@@ -406,6 +406,50 @@ class TestSaveView:
         assert resp.status_code == 400
         assert 'VDP' in resp.json()[MESSAGE]
 
+    def test_update_allows_unchanged_historical_duplicate_vdp(
+        self, writer_client, harvest_fixtures, sample_op,
+    ):
+        f = harvest_fixtures
+        Harvest.objects.create(
+            date='2024-06-16', parcel=f['parcels'][0], crew=f['crews'][0],
+            product=f['products'][0], mass_q=10, record1=sample_op.record1,
+            harvest_plan_item=f['open_item'],
+        )
+
+        resp = self._post(writer_client, self._base_payload(
+            f, **{
+                ROW_ID: str(sample_op.id), VERSION: str(sample_op.version),
+                FIELD_NOTE: 'edited', FIELD_RECORD1: str(sample_op.record1),
+            },
+        ))
+
+        assert resp.status_code == 200
+        sample_op.refresh_from_db()
+        assert sample_op.note == 'edited'
+        assert sample_op.record1 == 999
+
+    def test_update_rejects_changed_duplicate_vdp(
+        self, writer_client, harvest_fixtures, sample_op,
+    ):
+        f = harvest_fixtures
+        Harvest.objects.create(
+            date='2024-06-16', parcel=f['parcels'][0], crew=f['crews'][0],
+            product=f['products'][0], mass_q=10, record1=123,
+            harvest_plan_item=f['open_item'],
+        )
+
+        resp = self._post(writer_client, self._base_payload(
+            f, **{
+                ROW_ID: str(sample_op.id), VERSION: str(sample_op.version),
+                FIELD_RECORD1: '123',
+            },
+        ))
+
+        assert resp.status_code == 400
+        assert S.ERR_VDP_DUPLICATE.format(123) in resp.json()[MESSAGE]
+        sample_op.refresh_from_db()
+        assert sample_op.record1 == 999
+
     def test_validation_error_bad_quintals(self, writer_client, harvest_fixtures):
         f = harvest_fixtures
         resp = self._post(writer_client, self._base_payload(

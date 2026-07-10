@@ -105,9 +105,18 @@ def save_view(request):
             return conflict
 
     record1 = parsed[FIELD_RECORD1]
-    if record1 is not None:
+    check_vdp_duplicate = record1 is not None
+    if check_vdp_duplicate and row_id is not None:
+        current_record1 = (Harvest.objects
+                           .values_list(FIELD_RECORD1, flat=True)
+                           .get(id=row_id))
+        # Historical data may already contain duplicate VDPs.  Keep those
+        # rows editable as long as the submitted VDP is unchanged.
+        check_vdp_duplicate = current_record1 != record1
+
+    if check_vdp_duplicate:
         dup = Harvest.objects.filter(record1=record1)
-        if row_id:
+        if row_id is not None:
             dup = dup.exclude(id=row_id)
         if dup.exists():
             return _validation_error(
