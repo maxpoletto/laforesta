@@ -96,6 +96,7 @@ def test_service_worker_served_from_ipso_scope(db):
     assert b'url.origin !== self.location.origin' in body
     assert b"req.cache === 'no-store'" in body
     assert b"cacheControl.includes('no-store')" in body
+    assert b'n.startsWith(CACHE_PREFIX) && n !== CACHE' in body
 
 
 def test_ipso_registers_service_worker_without_http_cache(db):

@@ -8,7 +8,8 @@
 
 // APP_VERSION lives in version.js, shared with the page.
 importScripts('./version.js');
-const CACHE = 'ipso-v' + APP_VERSION;
+const CACHE_PREFIX = 'ipso-';
+const CACHE = CACHE_PREFIX + 'v' + APP_VERSION;
 
 const SHELL = [
   './',
@@ -61,7 +62,9 @@ self.addEventListener('activate', (e) => {
   e.waitUntil((async () => {
     const names = await caches.keys();
     await Promise.all(
-      names.filter((n) => n !== CACHE).map((n) => caches.delete(n))
+      names
+        .filter((n) => n.startsWith(CACHE_PREFIX) && n !== CACHE)
+        .map((n) => caches.delete(n))
     );
   })());
 });
