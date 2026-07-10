@@ -73,6 +73,7 @@ check(
   Store.nextSeqAfterRows([]) === 1,
   'nextSeqAfterRows starts fresh sessions at one',
 );
+check(Store.SCHEMA_VERSION === 7, 'schema v7 identifies canonical-ID session and tree rows');
 check(
   Store.nextSeqAfterRows([{ seq: 1 }, { seq: 3 }]) === 4,
   'nextSeqAfterRows continues from the highest existing sequence',

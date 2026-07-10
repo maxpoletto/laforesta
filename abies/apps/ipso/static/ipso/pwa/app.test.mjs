@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const appSource = fs.readFileSync(path.join(here, 'app.js'), 'utf8') + `\n` +
-  `globalThis.__ipsoAppTest = { State, boot, onEnd, showResumeModal, prefillNumber, ` +
+  `globalThis.__ipsoAppTest = { State, boot, onEnd, showResumeModal, prefillNumber, currentRecord, ` +
   `validateReference, validateTerreniFeatures, restoreCachedBootResources, ` +
   `refreshBootResources };\n`;
 
@@ -160,6 +160,10 @@ function makeHarness() {
     FIELD_SAMPLE_GRID_ID: 'sample_grid_id',
     FIELD_SAMPLE_AREA_ID: 'sample_area_id',
     FIELD_MAX_TREE_NUMBER: 'max_tree_number',
+    FIELD_REGION_ID: 'region_id',
+    FIELD_PARCEL_ID: 'parcel_id',
+    FIELD_SPECIES_ID: 'species_id',
+    FIELD_COPPICE: 'coppice',
     IPSO_WORK_PACKAGE_SAMPLING_SURVEY_PREFIX: 'sampling_survey:',
     window: {
       AbiesGeoReady: Promise.resolve(),
@@ -248,8 +252,8 @@ function makeHarness() {
 function referenceFixture(version = 'cached') {
   return {
     reference_version: version,
-    species: [],
-    parcels: [{ compresa: 'Serra', particella: '1' }],
+    species: [{ id: 10, common: 'Abete' }],
+    parcels: [{ region_id: 1, parcel_id: 100, compresa: 'Serra', particella: '1' }],
     ipsometrica: {},
     sampling: { surveys: [], sample_areas: [] },
     pai: { preserved_trees: [] },
@@ -265,6 +269,27 @@ const session = {
   operatore: 'Mario',
   tree_count: 1,
 };
+
+// Canonical IDs are captured with each observation; names remain display/CSV
+// data and are not deferred until upload time.
+{
+  const { context } = makeHarness();
+  const app = context.__ipsoAppTest;
+  app.State.reference = referenceFixture();
+  app.State.session = { ...session, status: 'open', region_id: 1 };
+  app.State.specie = 'Abete';
+  app.State.override = { resolve: () => '1' };
+  app.State.numpad = {
+    value(field) { return { d: '42', h: '22', numero: '7' }[field] || ''; },
+  };
+  context.document.getElementById('in-gruppo').value = 'A';
+  const record = app.currentRecord();
+  check(record.region_id === 1, 'record captures canonical region ID');
+  check(record.parcel_id === 100, 'record captures canonical parcel ID');
+  check(record.species_id === 10, 'record captures canonical species ID');
+  check(record.specie === 'Abete' && record.particella === '1',
+        'record retains names for display and CSV export');
+}
 
 // Cached protected resources are validated and restored before network work.
 {

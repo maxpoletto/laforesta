@@ -54,7 +54,9 @@ class UploadError extends Error {
 
 function buildUploadPayload(sess, trees, reference, csvText) {
   if (!sess || !reference) throw new Error(S.UPLOAD_ERROR_CONTEXT_MISSING);
-  const regionId = regionIdForCompresa(reference, sess.compresa);
+  const regionId = Number.isInteger(sess[FIELD_REGION_ID])
+    ? sess[FIELD_REGION_ID]
+    : regionIdForCompresa(reference, sess.compresa);
   const records = trees.map((t) => canonicalRecord(sess, t, reference));
   validateRecordNumbers(sess, records, reference);
   return {
@@ -77,13 +79,25 @@ function buildUploadPayload(sess, trees, reference, csvText) {
 }
 
 function canonicalRecord(sess, t, reference) {
-  const speciesId = speciesIdForName(reference, t.specie);
-  const parcel = parcelForName(reference, sess.compresa, t.particella);
+  const speciesId = Number.isInteger(t[FIELD_SPECIES_ID])
+    ? t[FIELD_SPECIES_ID]
+    : speciesIdForName(reference, t.specie);
+  let parcel = null;
+  if (!Number.isInteger(t[FIELD_PARCEL_ID]) ||
+      (!Number.isInteger(t[FIELD_REGION_ID]) && !Number.isInteger(sess[FIELD_REGION_ID]))) {
+    parcel = parcelForName(reference, sess.compresa, t.particella);
+  }
+  const parcelId = Number.isInteger(t[FIELD_PARCEL_ID])
+    ? t[FIELD_PARCEL_ID] : parcel[FIELD_PARCEL_ID];
+  const regionId = Number.isInteger(t[FIELD_REGION_ID])
+    ? t[FIELD_REGION_ID]
+    : Number.isInteger(sess[FIELD_REGION_ID])
+      ? sess[FIELD_REGION_ID] : parcel[FIELD_REGION_ID];
   const record = {
     [FIELD_CLIENT_RECORD_ID]: String(t.seq || t.id),
     [FIELD_DATE]: sess.data,
-    [FIELD_REGION_ID]: parcel[FIELD_REGION_ID],
-    [FIELD_PARCEL_ID]: parcel[FIELD_PARCEL_ID],
+    [FIELD_REGION_ID]: regionId,
+    [FIELD_PARCEL_ID]: parcelId,
     [FIELD_SPECIES_ID]: speciesId,
     [FIELD_NUMBER]: Number.isInteger(t.numero) ? t.numero : null,
     [FIELD_D_CM]: t.d_cm == null ? null : t.d_cm,
@@ -97,7 +111,7 @@ function canonicalRecord(sess, t, reference) {
     [FIELD_ACC_M]: t.acc_m == null ? null : t.acc_m,
   };
   if ((sess.mode || IPSO_MODE_MARTELLATE) === IPSO_MODE_SAMPLES) {
-    Object.assign(record, sampleRecordContext(reference, sess, t, parcel));
+    Object.assign(record, sampleRecordContext(reference, sess, t, parcelId));
   } else if ((sess.mode || IPSO_MODE_MARTELLATE) === IPSO_MODE_PAI) {
     Object.assign(record, paiRecordContext(sess, t));
   }
@@ -143,7 +157,9 @@ function sampleSurveyIdFromWorkPackage(workPackageId) {
 
 function sampleMaxNumberForArea(reference, sess, sampleAreaId) {
   const sampling = reference && reference[IPSO_REF_SAMPLING];
-  const surveyId = sampleSurveyIdFromWorkPackage(sess && sess.work_package_id);
+  const surveyId = sess && Number.isInteger(sess[FIELD_SURVEY_ID])
+    ? sess[FIELD_SURVEY_ID]
+    : sampleSurveyIdFromWorkPackage(sess && sess.work_package_id);
   const surveys = sampling ? sampling[IPSO_REF_SURVEYS] || [] : [];
   const survey = surveys.find((row) => row && row[FIELD_SURVEY_ID] === surveyId);
   const maxNumbers = survey ? survey[IPSO_REF_SAMPLE_AREA_MAX_NUMBERS] || {} : {};
@@ -175,13 +191,17 @@ function paiMaxNumberForParcel(reference, parcelId) {
   return maxNumber;
 }
 
-function sampleRecordContext(reference, sess, tree, parcel) {
-  const area = sampleAreaForTree(reference, sess, tree, parcel);
+function sampleRecordContext(reference, sess, tree, parcelId) {
+  const area = sampleAreaForTree(reference, sess, tree, parcelId);
+  const sampleAreaId = Number.isInteger(tree[FIELD_SAMPLE_AREA_ID])
+    ? tree[FIELD_SAMPLE_AREA_ID]
+    : area ? area[FIELD_SAMPLE_AREA_ID] : null;
+  const coppice = typeof tree[FIELD_COPPICE] === 'boolean'
+    ? tree[FIELD_COPPICE]
+    : area && typeof area[FIELD_COPPICE] === 'boolean' ? area[FIELD_COPPICE] : null;
   return {
-    [FIELD_SAMPLE_AREA_ID]: area ? area[FIELD_SAMPLE_AREA_ID] : null,
-    [FIELD_COPPICE]: area && typeof area[FIELD_COPPICE] === 'boolean'
-      ? area[FIELD_COPPICE]
-      : null,
+    [FIELD_SAMPLE_AREA_ID]: sampleAreaId,
+    [FIELD_COPPICE]: coppice,
     [FIELD_SHOOT]: Number.isInteger(tree[FIELD_SHOOT]) ? tree[FIELD_SHOOT] : 0,
     [FIELD_STANDARD]: !!tree[FIELD_STANDARD],
     [FIELD_L10_MM]: Number.isInteger(tree[FIELD_L10_MM]) ? tree[FIELD_L10_MM] : 0,
@@ -200,7 +220,7 @@ function paiRecordContext(sess, tree) {
   };
 }
 
-function sampleAreaForTree(reference, sess, tree, parcel) {
+function sampleAreaForTree(reference, sess, tree, parcelId) {
   if (!reference || !reference[IPSO_REF_SAMPLING]) return null;
   const areas = reference[IPSO_REF_SAMPLING][IPSO_REF_SAMPLE_AREAS] || [];
   if (Number.isInteger(tree[FIELD_SAMPLE_AREA_ID])) {
@@ -213,7 +233,7 @@ function sampleAreaForTree(reference, sess, tree, parcel) {
   let best = null;
   let bestDistance = Infinity;
   for (const area of areas) {
-    if (!area || area.compresa !== sess.compresa || area[FIELD_PARCEL_ID] !== parcel[FIELD_PARCEL_ID]) {
+    if (!area || area.compresa !== sess.compresa || area[FIELD_PARCEL_ID] !== parcelId) {
       continue;
     }
     if (area[FIELD_LAT] == null || area[FIELD_LON] == null) continue;

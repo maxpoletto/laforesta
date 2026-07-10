@@ -87,6 +87,14 @@ pending-upload sessions. If no valid reference snapshot is available, existing
 sessions remain exportable, but recording cannot resume until reference data is
 available. Field sessions and trees remain in IndexedDB throughout.
 
+IndexedDB schema v7 captures canonical identity at the moment data is recorded:
+the session stores its region and selected survey IDs, and each observation
+stores region, parcel, species, and (for sampling) sample-area IDs. Display names
+remain alongside them solely for the operator UI and CSV export. Upload payloads
+use the captured IDs directly, so later renames, deactivation, or name reuse do
+not remap an observation. Pre-v7 sessions remain uploadable through a legacy
+name-resolution fallback against their saved/current reference bundle.
+
 ## Ipso -> Abies data
 
 When an operator ends a non-empty Ipso session, the PWA first downloads a local

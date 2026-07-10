@@ -617,12 +617,18 @@ function wirePreSession() {
     localStorage.setItem('ipso.operatore', operator);
 
     try {
+      const region = State.reference[IPSO_REF_PARCELS].find((parcel) =>
+        parcel && parcel.compresa === compresa
+      );
       const sess = await Store.startSession(State.db, {
         mode: modeId,
         reference_version: State.reference.reference_version || '',
         work_package_id: modeId === IpsoModes.SAMPLES
           ? IPSO_WORK_PACKAGE_SAMPLING_SURVEY_PREFIX + sampleSurveyId
           : '',
+        [FIELD_REGION_ID]: region && Number.isInteger(region[FIELD_REGION_ID])
+          ? region[FIELD_REGION_ID] : null,
+        [FIELD_SURVEY_ID]: modeId === IpsoModes.SAMPLES ? sampleSurveyId : null,
         data, compresa, operatore: operator, catastrofata,
       });
       State.session = sess;
@@ -1165,6 +1171,10 @@ function currentRecord() {
   const n = nStr === '' ? null : parseInt(nStr, 10);
   const gruppo = document.getElementById('in-gruppo').value || '';
   const sampleArea = currentSampleArea();
+  const parcel = sampleArea || currentParcelReference();
+  const species = State.reference && State.reference[IPSO_REF_SPECIES].find((row) =>
+    row && row.common === State.specie
+  );
   const particella = sampleArea
     ? sampleArea.particella
     : State.override
@@ -1182,10 +1192,19 @@ function currentRecord() {
     numero: Number.isInteger(n) ? n : null,
     gruppo,
     particella,
+    [FIELD_REGION_ID]: parcel && Number.isInteger(parcel[FIELD_REGION_ID])
+      ? parcel[FIELD_REGION_ID]
+      : State.session && Number.isInteger(State.session[FIELD_REGION_ID])
+        ? State.session[FIELD_REGION_ID] : null,
+    [FIELD_PARCEL_ID]: parcel && Number.isInteger(parcel[FIELD_PARCEL_ID])
+      ? parcel[FIELD_PARCEL_ID] : null,
+    [FIELD_SPECIES_ID]: species && Number.isInteger(species.id) ? species.id : null,
     lat: gps ? gps.lat : null,
     lon: gps ? gps.lon : null,
     acc_m: gps ? gps.acc_m : null,
     [FIELD_SAMPLE_AREA_ID]: sampleArea ? sampleArea[FIELD_SAMPLE_AREA_ID] : null,
+    [FIELD_COPPICE]: sampleArea && typeof sampleArea[FIELD_COPPICE] === 'boolean'
+      ? sampleArea[FIELD_COPPICE] : null,
   };
 }
 

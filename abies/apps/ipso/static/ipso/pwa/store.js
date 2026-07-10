@@ -26,7 +26,7 @@ const DB_NAME = 'ipso';
 // missing/extra fields without a structural change, so the bump is the
 // contract for "this code wrote/read vN-shaped rows" — not a migration
 // trigger at the moment.
-const SCHEMA_VERSION = 6;
+const SCHEMA_VERSION = 7;
 
 const STORE_SESSIONS = 'sessions';
 const STORE_TREES = 'trees';
@@ -224,8 +224,8 @@ async function cacheBootResource(db, key, value) {
 // ---------------------------------------------------------------------------
 
 async function startSession(db, fields) {
-  // fields: {mode, reference_version, work_package_id, data, compresa,
-  //          operatore, catastrofata}
+  // fields: {mode, reference_version, work_package_id, region_id, survey_id,
+  //          data, compresa, operatore, catastrofata}
   const id = uuid();
   const catastrofata = !!fields.catastrofata;
   const row = {
@@ -241,6 +241,10 @@ async function startSession(db, fields) {
     operatore: fields.operatore || '',
     reference_version: fields.reference_version || '',
     work_package_id: fields.work_package_id || '',
+    [FIELD_REGION_ID]: Number.isInteger(fields[FIELD_REGION_ID])
+      ? fields[FIELD_REGION_ID] : null,
+    [FIELD_SURVEY_ID]: Number.isInteger(fields[FIELD_SURVEY_ID])
+      ? fields[FIELD_SURVEY_ID] : null,
     tree_count: 0,
     upload_status: null,
     uploaded_at: null,
@@ -301,8 +305,8 @@ async function setSessionUploadStatus(db, id, uploadStatus) {
 // the highest sequence ever used in this session, not from the active-row
 // count, so deleting a middle row does not make future automatic sequence
 // values collide.
-// rec fields (caller supplies): specie, d_cm, h_m, h_measured,
-// hypso_param_set_id, lat, lon, acc_m, numero, gruppo, particella.
+// rec fields (caller supplies): display names plus canonical region, parcel,
+// species and sample-area IDs captured from the session's reference bundle.
 async function addTree(db, sessionId, rec) {
   return tx(db, [STORE_SESSIONS, STORE_TREES, STORE_META], 'readwrite', async (t) => {
     const sessStore = t.objectStore(STORE_SESSIONS);
@@ -329,7 +333,11 @@ async function addTree(db, sessionId, rec) {
       numero: Number.isInteger(rec.numero) ? rec.numero : null,
       gruppo: rec.gruppo || '',
       particella: rec.particella || '',
+      [FIELD_REGION_ID]: Number.isInteger(rec[FIELD_REGION_ID]) ? rec[FIELD_REGION_ID] : null,
+      [FIELD_PARCEL_ID]: Number.isInteger(rec[FIELD_PARCEL_ID]) ? rec[FIELD_PARCEL_ID] : null,
+      [FIELD_SPECIES_ID]: Number.isInteger(rec[FIELD_SPECIES_ID]) ? rec[FIELD_SPECIES_ID] : null,
       [FIELD_SAMPLE_AREA_ID]: Number.isInteger(rec[FIELD_SAMPLE_AREA_ID]) ? rec[FIELD_SAMPLE_AREA_ID] : null,
+      [FIELD_COPPICE]: typeof rec[FIELD_COPPICE] === 'boolean' ? rec[FIELD_COPPICE] : null,
     };
     const id = await req(treesStore.add(row));
     row.id = id;
