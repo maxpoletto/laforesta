@@ -8,6 +8,8 @@
 // APP_VERSION is defined in version.js (loaded before this script).
 
 
+let prefillNumberGeneration = 0;
+
 const State = {
   mode: null,         // current IpsoModes entry
   reference: null,    // parsed reference.json
@@ -828,13 +830,22 @@ function resetEntryFields() {
 }
 
 async function prefillNumber() {
-  if (!State.session) return;
+  const generation = ++prefillNumberGeneration;
+  const sessionId = State.session?.id;
+  if (sessionId == null) return;
   try {
-    const trees = await Store.listTrees(State.db, State.session.id);
+    const trees = await Store.listTrees(State.db, sessionId);
+    if (!prefillNumberIsCurrent(generation, sessionId)) return;
     const next = await computeNextNumberDefault(trees);
+    if (!prefillNumberIsCurrent(generation, sessionId)) return;
     if (next == null || !shouldReplaceNumberDefault()) return;
     setAutoNumberDefault(next);
   } catch (_) { /* leave blank on error */ }
+}
+
+function prefillNumberIsCurrent(generation, sessionId) {
+  return generation === prefillNumberGeneration
+    && State.session?.id === sessionId;
 }
 
 function shouldReplaceNumberDefault() {
@@ -1115,15 +1126,19 @@ async function onSave() {
 
 async function onDeleteTree(treeId) {
   if (!State.session || !Number.isInteger(treeId)) return;
+  const sessionId = State.session.id;
   try {
-    await Store.deleteTree(State.db, State.session.id, treeId);
+    await Store.deleteTree(State.db, sessionId, treeId);
     State.session = await Store.getSession(State.db, State.session.id);
     const trees = await Store.listTrees(State.db, State.session.id);
     trees.sort((a, b) => a.seq - b.seq);
     const last = trees.length ? trees[trees.length - 1] : null;
     State.lastGroup = last && last.gruppo || '';
+    const generation = ++prefillNumberGeneration;
     const next = await computeNextNumberDefault(trees);
-    setAutoNumberDefault(next);
+    if (prefillNumberIsCurrent(generation, sessionId)) {
+      setAutoNumberDefault(next);
+    }
     renderGroupsTable(trees);
     renderTreesTable(trees);
     updateSaveEnabled();

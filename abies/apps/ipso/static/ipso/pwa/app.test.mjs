@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const appSource = fs.readFileSync(path.join(here, 'app.js'), 'utf8') + `\n` +
-  `globalThis.__ipsoAppTest = { State, onEnd, showResumeModal };\n`;
+  `globalThis.__ipsoAppTest = { State, onEnd, showResumeModal, prefillNumber };\n`;
 
 let pass = 0;
 const failures = [];
@@ -108,6 +108,17 @@ function makeHarness() {
       RESUME_DISCARD: 'Scarta',
       where: (sess) => sess.compresa || '',
     },
+    IpsoModes: {
+      SAMPLES: 'samples',
+      PAI: 'pai',
+    },
+    session: {
+      nextNumberDefault(trees) {
+        const numbers = trees.map(tree => tree.numero)
+          .filter(number => Number.isInteger(number));
+        return numbers.length ? Math.max(...numbers) + 1 : null;
+      },
+    },
     Store: {
       STATUS_PENDING_UPLOAD: 'pending_upload',
       STATUS_OPEN: 'open',
@@ -179,6 +190,33 @@ const session = {
   check(events.indexOf('download') >= 0, 'resume upload downloads CSV even when payload validation throws');
   check(events.indexOf('download') < events.indexOf('buildPayload'),
         'resume upload downloads CSV before building the upload payload');
+}
+
+// A prefill based on an older tree list must not replace a newer proposal when
+// overlapping IndexedDB reads resolve out of order.
+{
+  const { context } = makeHarness();
+  const app = context.__ipsoAppTest;
+  const pending = [];
+  let numberValue = '';
+
+  app.State.db = {};
+  app.State.session = { id: 's1', mode: 'martellate' };
+  app.State.numpad = {
+    value: () => numberValue,
+    setValue: (_field, value) => { numberValue = value; },
+  };
+  context.Store.listTrees = () => new Promise(resolve => pending.push(resolve));
+
+  const stalePrefill = app.prefillNumber();
+  const freshPrefill = app.prefillNumber();
+  pending[1]([{ numero: 1 }, { numero: 2 }]);
+  await freshPrefill;
+  eq(numberValue, '3', 'newer prefill proposes the post-save number');
+
+  pending[0]([{ numero: 1 }]);
+  await stalePrefill;
+  eq(numberValue, '3', 'older prefill cannot replace the newer proposal');
 }
 
 if (failures.length) {
