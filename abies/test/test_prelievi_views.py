@@ -4,6 +4,7 @@ import base64
 import gzip
 import json
 import re
+from datetime import date, timedelta
 
 import pytest
 from django.test import Client
@@ -366,6 +367,19 @@ class TestSaveView:
         assert resp.status_code == 400
         assert resp.json()[STATUS] == STATUS_VALIDATION_ERROR
         assert S.ERR_DATE_REQUIRED in resp.json()[MESSAGE]
+
+    def test_validation_error_future_date(self, writer_client, harvest_fixtures):
+        f = harvest_fixtures
+        future_date = (date.today() + timedelta(days=1)).isoformat()
+
+        resp = self._post(writer_client, self._base_payload(
+            f, **{FIELD_DATE: future_date},
+        ))
+
+        assert resp.status_code == 400
+        assert resp.json()[STATUS] == STATUS_VALIDATION_ERROR
+        assert S.ERR_DATE_FUTURE in resp.json()[MESSAGE]
+        assert Harvest.objects.count() == 0
 
     def test_validation_error_missing_cantiere(self, writer_client, harvest_fixtures):
         """New harvest without Cantiere → rejected with ERR_CANTIERE_REQUIRED."""
