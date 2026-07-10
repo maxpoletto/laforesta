@@ -77,51 +77,101 @@ class SortableTable {
     }
 
     render() {
-        this.container.innerHTML = this.generateHTML();
+        const fragment = document.createDocumentFragment();
+        if (this.showPagination) {
+            fragment.appendChild(this.createPaginationElement());
+        }
+
+        const wrapper = document.createElement('div');
+        wrapper.className = `${this.cssPrefix}-wrapper`;
+        const table = document.createElement('table');
+        table.className = this.cssPrefix;
+        const thead = document.createElement('thead');
+        thead.className = `${this.cssPrefix}-head`;
+        const headerRow = document.createElement('tr');
+        headerRow.appendChild(this.createHeaderFragment());
+        thead.appendChild(headerRow);
+
+        const tbody = document.createElement('tbody');
+        tbody.className = `${this.cssPrefix}-body`;
+        this.renderBody(tbody);
+
+        table.appendChild(thead);
+        table.appendChild(tbody);
+        wrapper.appendChild(table);
+        fragment.appendChild(wrapper);
+        this.container.replaceChildren(fragment);
         this.updatePaginationState();
         this.updateSortIndicators();
         this.attachEventListeners();
     }
 
-    generateHTML() {
-        return `
-            ${this.showPagination ? this.generatePaginationHTML() : ''}
-            <div class="${this.cssPrefix}-wrapper">
-                <table class="${this.cssPrefix}">
-                    <thead class="${this.cssPrefix}-head">
-                        <tr>
-                            ${this.generateHeaderHTML()}
-                        </tr>
-                    </thead>
-                    <tbody class="${this.cssPrefix}-body">
-                        ${this.generateBodyHTML()}
-                    </tbody>
-                </table>
-            </div>
-        `;
+    createPaginationElement() {
+        const controls = document.createElement('div');
+        controls.className = `${this.cssPrefix}-controls`;
+        const pagination = document.createElement('div');
+        pagination.className = `${this.cssPrefix}-pagination`;
+
+        pagination.appendChild(this.createPaginationButton('first-page', 'first', '<<'));
+        pagination.appendChild(this.createPaginationButton('prev-page', 'prev', '<'));
+
+        const pageInfo = document.createElement('span');
+        pageInfo.className = 'page-info';
+        this.appendPageInfo(pageInfo);
+        pagination.appendChild(pageInfo);
+
+        pagination.appendChild(this.createPaginationButton('next-page', 'next', '>'));
+        pagination.appendChild(this.createPaginationButton('last-page', 'last', '>>'));
+        controls.appendChild(pagination);
+        return controls;
     }
 
-    generatePaginationHTML() {
-        const displayTotal = Math.max(1, this.totalPages);
-        const pageInfo = this.pageInfo
-            .replace(PAGE_INFO_CURRENT, `<span class="current-page-number">${this.currentPage}</span>`)
-            .replace(PAGE_INFO_TOTAL, `<span class="total-pages">${displayTotal}</span>`);
-        return `
-            <div class="${this.cssPrefix}-controls">
-                <div class="${this.cssPrefix}-pagination">
-                    <button class="first-page" data-action="first">&lt;&lt;</button>
-                    <button class="prev-page" data-action="prev">&lt;</button>
-                    <span class="page-info">${pageInfo}</span>
-                    <button class="next-page" data-action="next">&gt;</button>
-                    <button class="last-page" data-action="last">&gt;&gt;</button>
-                </div>
-            </div>
-        `;
+    createPaginationButton(className, action, label) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = className;
+        button.dataset.action = action;
+        button.textContent = label;
+        return button;
     }
 
-    generateHeaderHTML() {
-        return this.columns.map((col, index) => {
-            if (col.hidden) return '';
+    appendPageInfo(container) {
+        const values = {
+            [PAGE_INFO_CURRENT]: [
+                'current-page-number', String(this.currentPage),
+            ],
+            [PAGE_INFO_TOTAL]: [
+                'total-pages', String(Math.max(1, this.totalPages)),
+            ],
+        };
+        const seen = new Set();
+        const pattern = /\{current\}|\{total\}/g;
+        const template = String(this.pageInfo);
+        let start = 0;
+        let match;
+        while ((match = pattern.exec(template)) !== null) {
+            container.appendChild(document.createTextNode(
+                template.slice(start, match.index)
+            ));
+            const token = match[0];
+            if (seen.has(token)) {
+                container.appendChild(document.createTextNode(token));
+            } else {
+                seen.add(token);
+                const span = document.createElement('span');
+                span.className = values[token][0];
+                span.textContent = values[token][1];
+                container.appendChild(span);
+            }
+            start = match.index + token.length;
+        }
+        container.appendChild(document.createTextNode(template.slice(start)));
+    }
+
+    createHeaderFragment() {
+        const fragment = document.createDocumentFragment();
+        this.columns.forEach((col, index) => {
+            if (col.hidden) return;
             const sortable = this.allowSorting && col.sortable !== false;
             const classes = [
                 `${this.cssPrefix}-header`,
@@ -130,61 +180,83 @@ class SortableTable {
                 col.className || ''
             ].filter(Boolean).join(' ');
 
-            return `
-                <th class="${classes}"
-                    data-column="${col.key}"
-                    data-index="${index}"
-                    data-type="${col.type || 'string'}"
-                    ${col.width ? `style="width: ${col.width}"` : ''}>
-                    ${escapeHTML(col.label)}
-                    ${sortable ? `<span class="sort-indicator">↕</span>` : ''}
-                </th>
-            `;
-        }).join('');
+            const th = document.createElement('th');
+            th.className = classes;
+            th.dataset.column = String(col.key ?? '');
+            th.dataset.index = String(index);
+            th.dataset.type = col.type || 'string';
+            if (col.width) th.style.width = String(col.width);
+            th.appendChild(document.createTextNode(String(col.label ?? '')));
+            if (sortable) {
+                const indicator = document.createElement('span');
+                indicator.className = 'sort-indicator';
+                indicator.textContent = '↕';
+                th.appendChild(indicator);
+            }
+            fragment.appendChild(th);
+        });
+        return fragment;
     }
 
-    generateBodyHTML() {
+    renderBody(tbody) {
+        tbody.replaceChildren();
         if (this.data.length === 0) {
-            return `
-                <tr>
-                    <td colspan="${this.columns.filter(col => !col.hidden).length}" class="${this.cssPrefix}-empty">
-                        ${escapeHTML(this.emptyMessage)}
-                    </td>
-                </tr>
-            `;
+            const row = document.createElement('tr');
+            const cell = document.createElement('td');
+            cell.colSpan = this.columns.filter(col => !col.hidden).length;
+            cell.className = `${this.cssPrefix}-empty`;
+            cell.textContent = String(this.emptyMessage);
+            row.appendChild(cell);
+            tbody.appendChild(row);
+            return;
         }
 
         const startIndex = (this.currentPage - 1) * this.rowsPerPage;
         const endIndex = Math.min(startIndex + this.rowsPerPage, this.data.length);
         const pageData = this.data.slice(startIndex, endIndex);
 
-        return pageData.map((row, rowIndex) => {
+        pageData.forEach((row, rowIndex) => {
             const actualIndex = startIndex + rowIndex;
-            return `
-                <tr class="${this.cssPrefix}-row" data-index="${actualIndex}">
-                    ${this.columns.map((col, colIndex) => {
-                        if (col.hidden) return '';
-                        const value = row[colIndex] ?? '';
-                        const formatted = this.formatCellValue(value, col, row, colIndex);
-                        const cellValue = col.trustedHTML === true
-                            ? String(formatted ?? '')
-                            : escapeHTML(formatted);
-                        const classes = [
-                            `${this.cssPrefix}-cell`,
-                            (col.type === 'number' || col.type === 'date') ? 'numeric' : '',
-                            col.cellClassName || ''
-                        ].filter(Boolean).join(' ');
+            const tr = document.createElement('tr');
+            tr.className = `${this.cssPrefix}-row`;
+            tr.dataset.index = String(actualIndex);
 
-                        return `<td class="${escapeAttribute(classes)}" data-column="${escapeAttribute(col.key)}">${cellValue}</td>`;
-                    }).join('')}
-                </tr>
-            `;
-        }).join('');
+            this.columns.forEach((col, colIndex) => {
+                if (col.hidden) return;
+                const value = row[colIndex] ?? '';
+                const formatted = this.formatCellValue(value, col);
+                const classes = [
+                    `${this.cssPrefix}-cell`,
+                    (col.type === 'number' || col.type === 'date') ? 'numeric' : '',
+                    col.cellClassName || ''
+                ].filter(Boolean).join(' ');
+
+                const cell = document.createElement('td');
+                cell.className = classes;
+                cell.dataset.column = String(col.key ?? '');
+                if (col.trustedHTML === true) {
+                    this.appendTrustedHTML(cell, formatted);
+                } else {
+                    cell.textContent = String(formatted ?? '');
+                }
+                tr.appendChild(cell);
+            });
+            tbody.appendChild(tr);
+        });
     }
 
-    formatCellValue(value, column, row = null, columnIndex = -1) {
+    appendTrustedHTML(container, value) {
+        const parsed = new DOMParser().parseFromString(
+            String(value ?? ''), 'text/html'
+        );
+        while (parsed.body.firstChild) {
+            container.appendChild(parsed.body.firstChild);
+        }
+    }
+
+    formatCellValue(value, column) {
         if (column.formatter && typeof column.formatter === 'function') {
-            return column.formatter(value, row, column, columnIndex);
+            return column.formatter(value);
         }
 
         switch (column.type) {
@@ -397,7 +469,7 @@ class SortableTable {
 
     updateTable() {
         const tbody = this.container.querySelector(`.${this.cssPrefix}-body`);
-        tbody.innerHTML = this.generateBodyHTML();
+        this.renderBody(tbody);
         this.updatePaginationState();
         this.updateSortIndicators();
         // Re-attach row click listeners for new rows
@@ -512,24 +584,10 @@ class SortableTable {
     }
 
     destroy() {
-        this.container.innerHTML = '';
+        this.container.replaceChildren();
         this.container.classList.remove(this.cssPrefix + '-container');
         this.data = this.originalData = this.columns = this.currentFilter = null;
     }
-}
-
-function escapeHTML(value) {
-    return String(value ?? '').replace(/[&<>"']/g, (ch) => ({
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#39;'
-    })[ch]);
-}
-
-function escapeAttribute(value) {
-    return escapeHTML(value);
 }
 
 // Export for use in other files

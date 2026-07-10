@@ -134,13 +134,91 @@ check(!matchesSearch([0], ['abete'], speciesSearchCols), 'searchFormatter omits 
 check(matchesSearch([12], ['abete:>0'], speciesSearchCols), 'column search works on positive species column');
 check(!matchesSearch([0], ['abete:>0'], speciesSearchCols), 'column search rejects zero species column');
 
-// --- SortableTable: HTML escaping is default, trustedHTML is opt-in ---------
-const fakeContainer = {
-  innerHTML: '',
-  classList: { contains: () => false, add() {}, remove() {} },
-  querySelectorAll: () => [],
-  querySelector: () => null,
+// --- SortableTable: DOM rendering escapes by default, trustedHTML is opt-in --
+class MockNode {
+  constructor(tagName = null, text = '') {
+    this.tagName = tagName;
+    this._text = text;
+    this.children = [];
+    this.parentNode = null;
+    this.className = '';
+    this.dataset = {};
+    this.style = {};
+    this.classList = {
+      contains: name => this.className.split(/\s+/).includes(name),
+      add: name => {
+        const classes = new Set(this.className.split(/\s+/).filter(Boolean));
+        classes.add(name);
+        this.className = [...classes].join(' ');
+      },
+      remove: name => {
+        const classes = new Set(this.className.split(/\s+/).filter(Boolean));
+        classes.delete(name);
+        this.className = [...classes].join(' ');
+      },
+    };
+  }
+  get firstChild() { return this.children[0] || null; }
+  get textContent() {
+    return this.children.length
+      ? this.children.map(child => child.textContent).join('')
+      : this._text;
+  }
+  set textContent(value) {
+    this.children = [];
+    this._text = String(value ?? '');
+  }
+  appendChild(child) {
+    if (child.tagName === '#fragment') {
+      for (const nested of [...child.children]) this.appendChild(nested);
+      return child;
+    }
+    if (child.parentNode) {
+      child.parentNode.children = child.parentNode.children.filter(c => c !== child);
+    }
+    child.parentNode = this;
+    this.children.push(child);
+    return child;
+  }
+  replaceChildren(...children) {
+    this.children = [];
+    for (const child of children) this.appendChild(child);
+  }
+  addEventListener() {}
+  querySelector() { return null; }
+  querySelectorAll() { return []; }
+}
+
+function findNode(root, predicate) {
+  if (predicate(root)) return root;
+  for (const child of root.children || []) {
+    const found = findNode(child, predicate);
+    if (found) return found;
+  }
+  return null;
+}
+
+globalThis.document = {
+  createDocumentFragment: () => new MockNode('#fragment'),
+  createElement: tag => new MockNode(tag.toLowerCase()),
+  createTextNode: text => new MockNode('#text', String(text)),
 };
+globalThis.DOMParser = class {
+  parseFromString(html) {
+    const body = new MockNode('body');
+    const match = String(html).match(/^<([a-z]+)>(.*)<\/\1>$/s);
+    if (match) {
+      const element = new MockNode(match[1]);
+      element.textContent = match[2];
+      body.appendChild(element);
+    } else {
+      body.appendChild(new MockNode('#text', String(html)));
+    }
+    return { body };
+  }
+};
+
+const fakeContainer = new MockNode('div');
 new SortableTable({
   container: fakeContainer,
   data: [['<img src=x onerror=alert(1)>', '<strong>ok</strong>']],
@@ -151,13 +229,22 @@ new SortableTable({
   showPagination: false,
   allowSorting: false,
 });
-check(fakeContainer.innerHTML.includes('&lt;img src=x onerror=alert(1)&gt;'),
-      'sortable-table escapes untrusted cell HTML');
-check(!fakeContainer.innerHTML.includes('<img'),
-      'sortable-table does not emit untrusted HTML elements');
-check(fakeContainer.innerHTML.includes('Unsafe &lt;em&gt;label&lt;/em&gt;'),
-      'sortable-table escapes header labels');
-check(fakeContainer.innerHTML.includes('<strong>ok</strong>'),
+const unsafeCell = findNode(
+  fakeContainer, node => node.tagName === 'td' && node.dataset.column === 'unsafe',
+);
+const trustedCell = findNode(
+  fakeContainer, node => node.tagName === 'td' && node.dataset.column === 'trusted',
+);
+const unsafeHeader = findNode(
+  fakeContainer, node => node.tagName === 'th' && node.dataset.column === 'unsafe',
+);
+check(unsafeCell?.textContent === '<img src=x onerror=alert(1)>',
+      'sortable-table renders untrusted cell HTML as text');
+check(!findNode(unsafeCell, node => node.tagName === 'img'),
+      'sortable-table does not create untrusted HTML elements');
+check(unsafeHeader?.textContent === 'Unsafe <em>label</em>',
+      'sortable-table renders header labels as text');
+check(findNode(trustedCell, node => node.tagName === 'strong')?.textContent === 'ok',
       'sortable-table trustedHTML column renders markup');
 
 // --- Report -----------------------------------------------------------------
