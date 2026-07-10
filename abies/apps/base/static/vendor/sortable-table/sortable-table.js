@@ -41,6 +41,10 @@ class SortableTable {
         this.cssPrefix = options.cssPrefix || 'sortable-table';
         this.emptyMessage = options.emptyMessage || 'No data available';
         this.pageInfo = options.pageInfo || DEFAULT_PAGE_INFO;
+        this.visibleColumns = this.columns
+            .map((column, index) => ({ column, index }))
+            .filter(({ column }) => !column.hidden);
+        this.rowPrototype = this.createRowPrototype();
 
         // Sorting state
 
@@ -170,8 +174,7 @@ class SortableTable {
 
     createHeaderFragment() {
         const fragment = document.createDocumentFragment();
-        this.columns.forEach((col, index) => {
-            if (col.hidden) return;
+        this.visibleColumns.forEach(({ column: col, index }) => {
             const sortable = this.allowSorting && col.sortable !== false;
             const classes = [
                 `${this.cssPrefix}-header`,
@@ -198,16 +201,35 @@ class SortableTable {
         return fragment;
     }
 
+    createRowPrototype() {
+        const row = document.createElement('tr');
+        row.className = `${this.cssPrefix}-row`;
+        this.visibleColumns.forEach(({ column: col }) => {
+            const classes = [
+                `${this.cssPrefix}-cell`,
+                (col.type === 'number' || col.type === 'date') ? 'numeric' : '',
+                col.cellClassName || ''
+            ].filter(Boolean).join(' ');
+
+            const cell = document.createElement('td');
+            cell.className = classes;
+            cell.dataset.column = String(col.key ?? '');
+            row.appendChild(cell);
+        });
+        return row;
+    }
+
     renderBody(tbody) {
-        tbody.replaceChildren();
+        const fragment = document.createDocumentFragment();
         if (this.data.length === 0) {
             const row = document.createElement('tr');
             const cell = document.createElement('td');
-            cell.colSpan = this.columns.filter(col => !col.hidden).length;
+            cell.colSpan = this.visibleColumns.length;
             cell.className = `${this.cssPrefix}-empty`;
             cell.textContent = String(this.emptyMessage);
             row.appendChild(cell);
-            tbody.appendChild(row);
+            fragment.appendChild(row);
+            tbody.replaceChildren(fragment);
             return;
         }
 
@@ -217,32 +239,27 @@ class SortableTable {
 
         pageData.forEach((row, rowIndex) => {
             const actualIndex = startIndex + rowIndex;
-            const tr = document.createElement('tr');
-            tr.className = `${this.cssPrefix}-row`;
+            const tr = this.rowPrototype.cloneNode(true);
             tr.dataset.index = String(actualIndex);
 
-            this.columns.forEach((col, colIndex) => {
-                if (col.hidden) return;
+            this.visibleColumns.forEach(({ column: col, index: colIndex }, cellIndex) => {
                 const value = row[colIndex] ?? '';
-                const formatted = this.formatCellValue(value, col);
-                const classes = [
-                    `${this.cssPrefix}-cell`,
-                    (col.type === 'number' || col.type === 'date') ? 'numeric' : '',
-                    col.cellClassName || ''
-                ].filter(Boolean).join(' ');
+                const cell = tr.children[cellIndex];
+                if (typeof col.renderCell === 'function') {
+                    col.renderCell(cell, value, row);
+                    return;
+                }
 
-                const cell = document.createElement('td');
-                cell.className = classes;
-                cell.dataset.column = String(col.key ?? '');
+                const formatted = this.formatCellValue(value, col, row);
                 if (col.trustedHTML === true) {
                     this.appendTrustedHTML(cell, formatted);
                 } else {
                     cell.textContent = String(formatted ?? '');
                 }
-                tr.appendChild(cell);
             });
-            tbody.appendChild(tr);
+            fragment.appendChild(tr);
         });
+        tbody.replaceChildren(fragment);
     }
 
     appendTrustedHTML(container, value) {
@@ -254,9 +271,9 @@ class SortableTable {
         }
     }
 
-    formatCellValue(value, column) {
+    formatCellValue(value, column, row) {
         if (column.formatter && typeof column.formatter === 'function') {
-            return column.formatter(value);
+            return column.formatter(value, row);
         }
 
         switch (column.type) {
@@ -586,7 +603,8 @@ class SortableTable {
     destroy() {
         this.container.replaceChildren();
         this.container.classList.remove(this.cssPrefix + '-container');
-        this.data = this.originalData = this.columns = this.currentFilter = null;
+        this.data = this.originalData = this.columns = this.visibleColumns =
+            this.rowPrototype = this.currentFilter = null;
     }
 }
 

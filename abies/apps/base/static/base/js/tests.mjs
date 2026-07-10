@@ -184,6 +184,17 @@ class MockNode {
     this.children = [];
     for (const child of children) this.appendChild(child);
   }
+  cloneNode(deep = false) {
+    const clone = new MockNode(this.tagName, this._text);
+    clone.className = this.className;
+    clone.dataset = { ...this.dataset };
+    clone.style = { ...this.style };
+    clone.colSpan = this.colSpan;
+    if (deep) {
+      for (const child of this.children) clone.appendChild(child.cloneNode(true));
+    }
+    return clone;
+  }
   addEventListener() {}
   querySelector() { return null; }
   querySelectorAll() { return []; }

@@ -414,21 +414,32 @@ function actionColumnWidth(count) {
   return `${width}px`;
 }
 
-function rowActionHTML(actions, labels, row) {
-  const parts = [];
+function appendActionIcon(cell, className, title, icon, actionKey = null) {
+  const element = document.createElement('span');
+  element.className = `action-icon ${className}`;
+  element.title = String(title);
+  element.textContent = String(icon);
+  if (actionKey != null) element.dataset.actionKey = String(actionKey);
+  cell.appendChild(element);
+}
+
+function renderRowActions(cell, actions, labels, row) {
   if (actions.onEdit && actionVisible(actions.editVisible, row)) {
-    parts.push(`<span class="action-icon action-edit" title="${escAttr(labels.actionEdit)}">${escHTML(labels.actionEditIcon)}</span>`);
+    appendActionIcon(
+      cell, 'action-edit', labels.actionEdit, labels.actionEditIcon,
+    );
   }
   for (const action of extraActions(actions)) {
     if (!actionVisible(action.visible, row)) continue;
-    parts.push(
-      `<span class="action-icon action-extra" data-action-key="${escAttr(action.key)}" title="${escAttr(action.title)}">${escHTML(action.icon)}</span>`,
+    appendActionIcon(
+      cell, 'action-extra', action.title, action.icon, action.key,
     );
   }
   if (actions.onDelete && actionVisible(actions.deleteVisible, row)) {
-    parts.push(`<span class="action-icon action-delete" title="${escAttr(labels.actionDelete)}">\u{1F5D1}\u{FE0E}</span>`);
+    appendActionIcon(
+      cell, 'action-delete', labels.actionDelete, '\u{1F5D1}\u{FE0E}',
+    );
   }
-  return parts.join(' ');
 }
 
 function actionVisible(fn, row) {
@@ -459,22 +470,13 @@ function buildSTColumns(digestColumns, columnDefs, actions, labels) {
       key: '_actions', label: '', sortable: false,
       width: actionColumnWidth(count),
       className: 'col-actions',
-      formatter: (_value, row) => rowActionHTML(actions, labels, row),
-      trustedHTML: true,
+      renderCell: (cell, _value, row) => {
+        renderRowActions(cell, actions, labels, row);
+      },
     });
   }
 
   return cols;
-}
-
-/** Minimal HTML attribute-value escape (we build title="..." by concatenation). */
-function escAttr(s) {
-  return String(s).replace(/[&"]/g, c => (c === '&' ? '&amp;' : '&quot;'));
-}
-
-/** Minimal text-node escape for icon labels rendered through trustedHTML. */
-function escHTML(s) {
-  return String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 }
 
 // ---------------------------------------------------------------------------

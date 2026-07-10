@@ -300,13 +300,42 @@ const { TableWrapper } = await import('./table.js');
     actions: {
       onEdit: () => {},
       onDelete: () => {},
-      extra: [{ key: 'inspect', title: 'Inspect', icon: '?', onClick: () => {} }],
+      extra: [{
+        key: 'inspect', title: 'Inspect', icon: '?',
+        visible: row => row[1] === 'visible',
+        onClick: () => {},
+      }],
     },
   });
 
   eq(created.map(t => t.columns.find(c => c.key === '_actions')?.width),
      ['44px', '88px', '124px'],
      'TableWrapper uses standard action-column widths by action count');
+
+  const actionColumn = created[2].columns.find(c => c.key === '_actions');
+  check(typeof actionColumn.renderCell === 'function'
+        && actionColumn.formatter === undefined
+        && actionColumn.trustedHTML === undefined,
+        'TableWrapper renders action columns through the DOM API');
+  const actionCell = new MockElement('td');
+  actionColumn.renderCell(actionCell, '', [7, 'visible']);
+  eq(actionCell.children.map(element => ({
+    className: element.className,
+    actionKey: element.dataset.actionKey || null,
+    title: element.title,
+    text: element.textContent,
+  })), [
+    { className: 'action-icon action-edit', actionKey: null, title: 'Edit', text: '\u270E' },
+    { className: 'action-icon action-extra', actionKey: 'inspect', title: 'Inspect', text: '?' },
+    { className: 'action-icon action-delete', actionKey: null, title: 'Delete', text: '\u{1F5D1}\u{FE0E}' },
+  ], 'TableWrapper builds action icons as DOM nodes');
+
+  const filteredActionCell = new MockElement('td');
+  actionColumn.renderCell(filteredActionCell, '', [8, 'hidden']);
+  eq(filteredActionCell.children.map(element => element.className), [
+    'action-icon action-edit',
+    'action-icon action-delete',
+  ], 'TableWrapper passes the full row to action visibility predicates');
   window.SortableTable = previousSortableTable;
 }
 
