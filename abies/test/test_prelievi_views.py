@@ -716,6 +716,22 @@ class TestCsvImportView:
         assert HarvestTractor.objects.filter(harvest=op, percent=100).exists()
         assert DigestStatus.objects.get(name='prelievi').stale is True
 
+    def test_import_retry_is_idempotent(self, writer_client, harvest_fixtures):
+        csv_text = self._csv_text(harvest_fixtures)
+
+        first = self._post(writer_client, {
+            FIELD_FILE: self._csv_b64(csv_text),
+            FIELD_NONCE: 'prelievi-csv-retry-1',
+        })
+        second = self._post(writer_client, {
+            FIELD_FILE: self._csv_b64(csv_text),
+            FIELD_NONCE: 'prelievi-csv-retry-2',
+        })
+
+        assert first.status_code == 200
+        assert second.status_code == 200
+        assert Harvest.objects.filter(record1=123).count() == 1
+
     def test_missing_file_validation_error(self, writer_client, harvest_fixtures):
         resp = self._post(writer_client, {})
         assert resp.status_code == 400

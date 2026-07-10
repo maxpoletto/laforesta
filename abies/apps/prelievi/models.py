@@ -68,6 +68,9 @@ class Harvest(TimestampedModel):
     unhealthy = models.BooleanField(default=False)
     psr = models.BooleanField(default=False)
     note = models.TextField(blank=True)
+    import_fingerprint = models.CharField(
+        max_length=67, null=True, blank=True, unique=True,
+    )
     history = HistoricalRecords()
 
     class Meta:

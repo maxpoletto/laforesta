@@ -167,7 +167,9 @@ def test_harvest_parcel_row(parcels, species, base_setup):
     )
     reader = csv_io.read(text)
     cols, dyn, missing = csv_harvests.resolve_columns(reader.fieldnames)
-    parsed, errors = csv_harvests.validate_rows(reader, cols, dyn, csv_harvests.db_indexes())
+    parsed, errors = csv_harvests.validate_rows(
+        reader, cols, dyn, csv_harvests.db_indexes(),
+    )
     assert errors == []
     assert parsed[0]['parcel'] == p
     assert parsed[0]['region'] is None
@@ -431,6 +433,7 @@ def test_harvest_happy_path(parcels, species, base_setup):
     assert h.record2 is None
     assert h.mass_q == 100
     assert h.volume_m3 > 0
+    assert h.import_fingerprint.startswith('v1:')
     assert not h.damaged
     assert not h.unhealthy
     assert not h.psr
@@ -476,6 +479,46 @@ def test_apply_multiple_rows(parcels, species, base_setup):
     assert errors == []
     assert csv_harvests.apply(parsed) == 2
     assert Harvest.objects.count() == 2
+
+
+@pytest.mark.django_db
+def test_apply_is_idempotent_for_same_csv_retry(parcels, species, base_setup):
+    p = parcels[0]
+    header = _make_header('Specie: Abete')
+    text = header + '\n' + _row(
+        region=p.region.name, parcel=p.name, quintals='10', extra_vals=('100',)
+    )
+    reader = csv_io.read(text)
+    cols, dyn, missing = csv_harvests.resolve_columns(reader.fieldnames)
+    parsed, errors = csv_harvests.validate_rows(reader, cols, dyn, csv_harvests.db_indexes())
+    assert errors == []
+
+    assert csv_harvests.apply(parsed) == 1
+    assert csv_harvests.apply(parsed) == 0
+
+    assert Harvest.objects.count() == 1
+    h = Harvest.objects.get()
+    assert HarvestSpecies.objects.filter(harvest=h).count() == 1
+
+
+@pytest.mark.django_db
+def test_apply_keeps_identical_rows_in_same_csv(parcels, species, base_setup):
+    p = parcels[0]
+    header = _make_header('Specie: Abete')
+    row = _row(region=p.region.name, parcel=p.name, quintals='10', extra_vals=('100',))
+    text = f'{header}\n{row}\n{row}\n'
+    reader = csv_io.read(text)
+    cols, dyn, missing = csv_harvests.resolve_columns(reader.fieldnames)
+    parsed, errors = csv_harvests.validate_rows(
+        reader, cols, dyn, csv_harvests.db_indexes(),
+    )
+    assert errors == []
+
+    assert csv_harvests.apply(parsed) == 2
+
+    assert Harvest.objects.count() == 2
+    fingerprints = set(Harvest.objects.values_list('import_fingerprint', flat=True))
+    assert len(fingerprints) == 2
 
 
 @pytest.mark.django_db

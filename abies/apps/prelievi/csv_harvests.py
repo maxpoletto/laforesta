@@ -12,8 +12,12 @@ The key (header suffix after the prefix, whitespace-stripped) must match
 ``Species.common_name`` or ``Tractor.name`` exactly (case-sensitive).
 """
 
+import hashlib
+import json
+
 from dataclasses import dataclass
 from datetime import date as date_type
+from decimal import Decimal
 
 from django.db import transaction
 
@@ -47,6 +51,10 @@ _OPTIONAL_STATIC = {
 # Dynamic-column kind labels.
 _KIND_SPECIES = 'species'
 _KIND_TRACTOR = 'tractor'
+_FIELD_SOURCE_ROW = 'source_row'
+_FINGERPRINT_VERSION = 'v1'
+_MASS_Q_QUANTUM = Decimal('0.01')
+_VOLUME_M3_QUANTUM = Decimal('0.001')
 
 
 @dataclass
@@ -288,6 +296,7 @@ def validate_rows(reader, static_cols, dyn, idx: HarvestIndexes):
         )
 
         parsed.append({
+            _FIELD_SOURCE_ROW: i,
             'date': row_date,
             'product': product,
             'parcel': parcel,
@@ -308,13 +317,58 @@ def validate_rows(reader, static_cols, dyn, idx: HarvestIndexes):
     return parsed, errors
 
 
+def harvest_import_fingerprint(row: dict) -> str:
+    data = {
+        'version': _FINGERPRINT_VERSION,
+        _FIELD_SOURCE_ROW: row.get(_FIELD_SOURCE_ROW),
+        'date': row['date'].isoformat(),
+        'product_id': row['product'].id,
+        'parcel_id': row['parcel'].id if row['parcel'] is not None else None,
+        'region_id': row['region'].id if row['region'] is not None else None,
+        'crew_id': row['crew'].id,
+        'record1': row['record1'],
+        'record2': row['record2'],
+        'mass_q': _decimal_fingerprint(row['mass_q'], _MASS_Q_QUANTUM),
+        'volume_m3': _decimal_fingerprint(row['volume_m3'], _VOLUME_M3_QUANTUM),
+        'damaged': row['damaged'],
+        'unhealthy': row['unhealthy'],
+        'psr': row['psr'],
+        'note': row['note'],
+        'species_pcts': [(sp.id, pct) for sp, pct in row['species_pcts']],
+        'tractor_pcts': [(tr.id, pct) for tr, pct in row['tractor_pcts']],
+    }
+    raw = json.dumps(data, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
+    digest = hashlib.sha256(raw.encode('utf-8')).hexdigest()
+    return f'{_FINGERPRINT_VERSION}:{digest}'
+
+
+def _decimal_fingerprint(value: Decimal, quantum: Decimal) -> str:
+    return format(value.quantize(quantum), 'f')
+
+
 def apply(parsed: list) -> int:
-    """Persist validated rows: one Harvest per row, plus HarvestSpecies /
-    HarvestTractor children.  Returns the number of Harvests created.
+    """Persist validated rows idempotently: one new Harvest per new row
+    fingerprint, plus HarvestSpecies / HarvestTractor children.
+
+    Returns the number of Harvests created.
     """
     with transaction.atomic():
+        rows = [(harvest_import_fingerprint(r), r) for r in parsed]
+        fingerprints = [fingerprint for fingerprint, _row in rows]
+        existing = set(
+            Harvest.objects
+            .filter(import_fingerprint__in=fingerprints)
+            .values_list('import_fingerprint', flat=True)
+        )
+        rows = [
+            (fingerprint, r)
+            for fingerprint, r in rows
+            if fingerprint not in existing
+        ]
+
         harvests = [
             Harvest.objects.create(
+                import_fingerprint=fingerprint,
                 date=r['date'],
                 product=r['product'],
                 parcel=r['parcel'],
@@ -329,12 +383,12 @@ def apply(parsed: list) -> int:
                 psr=r['psr'],
                 note=r['note'],
             )
-            for r in parsed
+            for fingerprint, r in rows
         ]
 
         species_rows = []
         tractor_rows = []
-        for harvest, r in zip(harvests, parsed):
+        for harvest, (_fingerprint, r) in zip(harvests, rows):
             for sp, pct in r['species_pcts']:
                 if pct > 0:
                     species_rows.append(
@@ -351,6 +405,7 @@ def apply(parsed: list) -> int:
         if tractor_rows:
             HarvestTractor.objects.bulk_create(tractor_rows)
 
-        mark_stale('prelievi', 'audit')
+        if harvests:
+            mark_stale('prelievi', 'audit')
 
     return len(harvests)
