@@ -1228,6 +1228,22 @@ class TestMarkSave:
         planned_item.refresh_from_db()
         assert planned_item.volume_marked_m3 == Decimal('1.500')
 
+    def test_parcel_scoped_mark_rejects_other_submitted_parcel(
+        self, writer_client, planned_item, parcels, species,
+    ):
+        resp = writer_client.post(
+            self.SAVE_URL,
+            data=json.dumps(self._mark_body(
+                planned_item, species[0],
+                **{FIELD_PARCEL_ID: parcels[1].id},
+            )),
+            content_type='application/json',
+        )
+
+        assert resp.status_code == 400
+        assert S.ERR_MARK_PARCEL_NOT_IN_TARGET in resp.json()[MESSAGE]
+        assert TreeMark.objects.count() == 0
+
     def test_update_mark(self, writer_client, planned_item, species):
         sp = species[0]
         resp = writer_client.post(
@@ -1536,6 +1552,22 @@ class TestMarkCSVImport:
         assert tm.import_fingerprint is not None
         assert tm.number == 1
         assert tm.d_cm == 30
+
+    def test_import_rejects_other_parcel_in_same_region(
+        self, writer_client, planned_item, species, parcels,
+    ):
+        other_parcel = parcels[1]
+        assert other_parcel.region_id == planned_item.parcel.region_id
+        csv_bytes = self._csv_content([
+            ['01/06/2025', other_parcel.region.name, other_parcel.name, '0', '1',
+             species[0].common_name, '30', '20,0', '0', '', '', '', 'Mario'],
+        ])
+
+        resp = self._post(writer_client, planned_item, csv_bytes)
+
+        assert resp.status_code == 400
+        assert S.ERR_MARK_ROW_TARGET_MISMATCH.format(1) in resp.json()[MESSAGE]
+        assert TreeMark.objects.count() == 0
 
     def test_import_accepts_legacy_ipso_species_header(
         self, writer_client, planned_item, species, parcels,

@@ -389,6 +389,12 @@ ERR_MARK_PARCEL_REQUIRED = 'Particella obbligatoria per interventi a livello di 
 ERR_MARK_PARCEL_NOT_IN_REGION = (
     'La particella non appartiene alla compresa dell\'intervento.'
 )
+ERR_MARK_PARCEL_NOT_IN_TARGET = (
+    'La particella non appartiene alla destinazione dell\'intervento.'
+)
+ERR_MARK_ROW_TARGET_MISMATCH = (
+    'Riga {}: particella fuori dalla destinazione selezionata.'
+)
 ERR_BOSCO_AREA_REQUIRED = 'Superficie obbligatoria.'
 ERR_BOSCO_INTEGER_REQUIRED = '{} deve essere un numero intero.'
 ERR_BOSCO_TEXT_TOO_LONG = '{} troppo lunga.'

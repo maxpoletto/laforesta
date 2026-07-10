@@ -53,6 +53,7 @@ from apps.piano_di_taglio.mark_import import (
     MARK_CSV_SPECIES_HEADERS, MarkImportRow,
     auto_advance_to_marked as _auto_advance_to_marked,
     csv_mark_fingerprint, import_mark_rows,
+    mark_parcel_matches_item,
     next_mark_number as _next_mark_number,
     rematerialize_volume_marked as _rematerialize_volume_marked,
 )
@@ -1071,7 +1072,6 @@ def mark_csv_import_view(request):
     species_map = {sp.common_name.lower(): sp
                    for sp in Species.objects.all()}
 
-    item_region = item.region or (item.parcel.region if item.parcel else None)
     errors = []
     parsed = []
     for i, row in enumerate(rows, start=1):
@@ -1092,8 +1092,8 @@ def mark_csv_import_view(request):
             errors.append(S.ERR_CSV_PARCEL_NOT_FOUND.format(
                 i, compresa, particella))
             continue
-        if item_region and parcel.region_id != item_region.id:
-            errors.append(S.ERR_MARK_PARCEL_NOT_IN_REGION)
+        if not mark_parcel_matches_item(item, parcel):
+            errors.append(S.ERR_MARK_ROW_TARGET_MISMATCH.format(i))
             continue
 
         species = species_map.get(species_name.lower())
@@ -1159,15 +1159,16 @@ def _resolve_mark_parcel(item, parcel_id):
     Parcel-scoped items: use the item's parcel.
     Region-wide items: require an explicit parcel_id in the request.
     """
-    if item.parcel_id:
-        return item.parcel
-    if parcel_id is None:
+    if parcel_id is None and item.parcel_id is not None:
+        parcel = item.parcel
+    elif parcel_id is None:
         return validation_error([S.ERR_MARK_PARCEL_REQUIRED])
-    parcel = Parcel.objects.filter(id=parcel_id).first()
-    if parcel is None:
-        return validation_error([S.ERR_MARK_PARCEL_REQUIRED])
-    if item.region_id and parcel.region_id != item.region_id:
-        return validation_error([S.ERR_MARK_PARCEL_NOT_IN_REGION])
+    else:
+        parcel = Parcel.objects.filter(id=parcel_id).first()
+        if parcel is None:
+            return validation_error([S.ERR_MARK_PARCEL_REQUIRED])
+    if not mark_parcel_matches_item(item, parcel):
+        return validation_error([S.ERR_MARK_PARCEL_NOT_IN_TARGET])
     return parcel
 
 

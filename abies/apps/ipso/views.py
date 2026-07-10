@@ -48,7 +48,7 @@ from apps.ipso.importers import (
 from apps.ipso.models import IpsoUpload, IpsoUploadState
 from apps.piano_di_taglio.mark_import import (
     MarkImportRow, import_mark_rows, ipso_mark_fingerprint,
-    mark_number_duplicate_errors,
+    mark_number_duplicate_errors, mark_parcel_matches_item,
 )
 from config import strings as S
 from config.constants import (
@@ -1103,7 +1103,6 @@ def _martellate_import_rows(
         p.id: p
         for p in Parcel.objects.filter(id__in=parcel_ids).select_related('region', 'eclass')
     }
-    item_region = item.region or (item.parcel.region if item.parcel else None)
     session_operator = (
         (session.get(FIELD_OPERATOR) or '').strip()
         if isinstance(session, dict) else ''
@@ -1122,10 +1121,7 @@ def _martellate_import_rows(
         if parcel.eclass.coppice and item.parcel_id is not None:
             errors.append(S.IPSO_ERR_IMPORT_RECORD_COPPICE_MARTELLATE.format(i))
             continue
-        if item_region and parcel.region_id != item_region.id:
-            errors.append(S.IPSO_ERR_IMPORT_RECORD_MARK_TARGET_MISMATCH.format(i))
-            continue
-        if item.parcel_id is not None and parcel.id != item.parcel_id:
+        if not mark_parcel_matches_item(item, parcel):
             errors.append(S.IPSO_ERR_IMPORT_RECORD_MARK_TARGET_MISMATCH.format(i))
             continue
         sp = species.get(record.get(FIELD_SPECIES_ID))

@@ -46,6 +46,13 @@ class MarkImportResult:
     errors: list[str]
 
 
+def mark_parcel_matches_item(item: HarvestPlanItem, parcel: Parcel) -> bool:
+    """Return whether ``parcel`` is a valid target for marks on ``item``."""
+    if item.parcel_id is not None:
+        return parcel.id == item.parcel_id
+    return item.region_id is not None and parcel.region_id == item.region_id
+
+
 def csv_mark_fingerprint(
         *, date: date_type, species_name: str, d_cm: int, h_m: Decimal,
         lat: float | None, lon: float | None, operator: str,
@@ -74,6 +81,11 @@ def ipso_mark_fingerprint(session_id: str, record: dict) -> str:
 def import_mark_rows(item: HarvestPlanItem, rows: list[MarkImportRow]) -> MarkImportResult:
     with transaction.atomic():
         item = HarvestPlanItem.objects.select_for_update().get(id=item.id)
+        if any(not mark_parcel_matches_item(item, row.parcel) for row in rows):
+            return MarkImportResult(
+                imported=0, skipped_duplicates=0,
+                errors=[S.ERR_MARK_PARCEL_NOT_IN_TARGET],
+            )
         parsed, skipped = _unskipped_import_rows(item.id, rows)
         errors = mark_number_duplicate_errors(item.id, parsed)
         if errors:
