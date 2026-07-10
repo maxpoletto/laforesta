@@ -21,6 +21,8 @@ const CSV_SEP = ';';
 const CSV_NL = '\r\n';
 const HEADER = S.CSV_HEADER;
 const SAMPLE_AREA_HEADER = S.CSV_HEADER_SAMPLE_AREA;
+const FORMULA_PREFIX_RE = /^[=+\-@\t\r\n]/;
+const NUMERIC_LITERAL_RE = /^[+-]?(?:\d+|\d*[.,]\d+)(?:[eE][+-]?\d+)?$/;
 
 // Sentinel used in the filename's particella slot for catastrofate sessions.
 const FILENAME_CATASTROFATE = S.CSV_FILENAME_CATASTROFATE;
@@ -45,10 +47,19 @@ function fmtInt(v) {
   return '' + Math.round(v);
 }
 
-// Defensive escape: wrap a field in double quotes if it contains the
-// separator, a double quote, or a newline. Double up internal quotes.
+function hardenCSVFormula(value) {
+  const str = String(value == null ? '' : value);
+  if (FORMULA_PREFIX_RE.test(str) && !NUMERIC_LITERAL_RE.test(str.trim())) {
+    return `'${str}`;
+  }
+  return str;
+}
+
+// Defensive escape: neutralize spreadsheet formulas, then wrap a field in
+// double quotes if it contains the separator, a double quote, or a newline.
+// Double up internal quotes.
 function escapeField(s) {
-  const str = String(s == null ? '' : s);
+  const str = hardenCSVFormula(s);
   if (/[;"\r\n]/.test(str)) {
     return '"' + str.replace(/"/g, '""') + '"';
   }
@@ -140,7 +151,7 @@ function sanitize(s) {
 const csv = {
   CSV_BOM, CSV_SEP, CSV_NL, HEADER, SAMPLE_AREA_HEADER,
   FILENAME_CATASTROFATE,
-  formatDate, fmtFloat, fmtInt, escapeField, sampleAreaNumber,
+  formatDate, fmtFloat, fmtInt, hardenCSVFormula, escapeField, sampleAreaNumber,
   formatHeader, formatRow, formatFile, filename, sanitize,
 };
 if (typeof module !== 'undefined') module.exports = csv;

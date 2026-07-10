@@ -57,6 +57,22 @@ check(markHeader[3] === 'Catastrofata', 'martellate CSV header stays unchanged')
 check(markHeader[5] === 'Genere', 'martellate CSV uses the manual importer species header');
 check(markRow[3] === '0', 'martellate CSV row does not include sample area');
 
+check(csv.hardenCSVFormula('=cmd') === "'=cmd", 'formula-looking equals text is hardened');
+check(csv.hardenCSVFormula('+cmd') === "'+cmd", 'formula-looking plus text is hardened');
+check(csv.hardenCSVFormula('-cmd') === "'-cmd", 'formula-looking minus text is hardened');
+check(csv.hardenCSVFormula('@cmd') === "'@cmd", 'formula-looking at text is hardened');
+check(csv.hardenCSVFormula('\tcmd') === "'\tcmd", 'formula-looking tab text is hardened');
+check(csv.hardenCSVFormula('-4') === '-4', 'negative numeric literal is not hardened');
+check(csv.hardenCSVFormula('+3,14') === '+3,14', 'signed comma-decimal numeric literal is not hardened');
+
+const formulaRow = csv.formatRow(
+  { ...tree, specie: '=cmd' },
+  { ...session, operatore: '@cmd' },
+  reference,
+).split(csv.CSV_SEP);
+check(formulaRow[6] === "'=cmd", 'species cell is formula-hardened in row output');
+check(formulaRow[13] === "'@cmd", 'operator cell is formula-hardened in row output');
+
 if (failures.length) {
   console.error(failures.join('\n'));
   process.exit(1);
