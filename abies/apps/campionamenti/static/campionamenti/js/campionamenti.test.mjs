@@ -22,7 +22,12 @@ export class GridPlanner {
     this.destroyed = false;
     globalThis.__gridPlannerInstances.push(this);
   }
-  init() { this.inited = true; }
+  init() {
+    this.inited = true;
+    const cancel = document.createElement('button');
+    cancel.dataset.action = 'cancel';
+    this.opts.host.appendChild(cancel);
+  }
   destroy() { this.destroyed = true; }
 }
 `);
@@ -329,8 +334,13 @@ await modalEl.querySelector('[data-path="auto"]').click();
 eq(globalThis.__gridPlannerInstances.length, 1, 'auto grid tab lazily creates one planner');
 const planner = globalThis.__gridPlannerInstances[0];
 eq(planner.inited, true, 'auto grid tab initializes the planner');
-await modalEl.querySelector('[data-action="cancel"]').click();
-eq(planner.destroyed, true, 'grid planner is destroyed when the modal is dismissed');
+eq(planner.opts.onCancel, undefined,
+   'auto grid planner does not receive a private cancel callback');
+await modalEl.querySelector(
+  '#campionamenti-grid-planner-host [data-action="cancel"]',
+).click();
+eq(planner.destroyed, true,
+   'standard cancel wiring dismisses and destroys the grid planner');
 
 campionamenti.unmount();
 

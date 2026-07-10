@@ -33,10 +33,6 @@ export class GridPlanner {
    * @param {HTMLElement} opts.host — element to render the planner UI into.
    * @param {function(number): void} opts.onCreated — called after a
    *   successful save with the new SampleGrid.id.
-   * @param {function(): void} [opts.onCancel] — called when the user clicks
-   *   the planner's [Annulla] button.  The planner builds that button lazily
-   *   (on the auto-path switch), after the modal-level wireCancelButtons()
-   *   has run, so it wires the button itself rather than relying on it.
    * @param {string} [opts.basemap] — MapCommon basemap key for the modal
    *   map's initial layer.  Defaults to 'satellite' to preserve previous
    *   behaviour when the caller doesn't pass one.
@@ -44,7 +40,6 @@ export class GridPlanner {
   constructor(opts) {
     this.host = opts.host;
     this.onCreated = opts.onCreated;
-    this.onCancel = opts.onCancel;
     this.basemap = opts.basemap || 'satellite';
     // Caller may hand us the already-loaded terreni.geojson (the
     // campionamenti page keeps it cached); fall back to fetching otherwise.
@@ -141,18 +136,16 @@ export class GridPlanner {
     this.mapHost = document.createElement('div');
     h.appendChild(this.mapHost);
 
-    // Bottom button row: [Annulla] [Crea].  Both are wired here: the planner
-    // is built lazily on the auto-path switch, after the modal-level
-    // wireCancelButtons() has already run, so the cancel button calls back
-    // through onCancel (mirroring onCreated for [Crea]).
+    // Bottom button row: [Annulla] [Crea].  The caller wires the standard
+    // cancel action after this lazily built UI has been initialized.
     const actions = document.createElement('div');
     actions.className = 'form-actions';
 
     const cancelBtn = document.createElement('button');
     cancelBtn.type = 'button';
     cancelBtn.className = 'btn';
+    cancelBtn.dataset.action = 'cancel';
     cancelBtn.textContent = S.CANCEL;
-    cancelBtn.addEventListener('click', () => this.onCancel?.());
     actions.appendChild(cancelBtn);
 
     this.submitBtn = document.createElement('button');

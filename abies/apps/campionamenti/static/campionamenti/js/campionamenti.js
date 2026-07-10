@@ -888,7 +888,6 @@ async function showNewGridForm() {
           host,
           geojson: parcelsGeo,
           basemap: activeBasemap(),
-          onCancel: dismissModal,
           onCreated: (rowId, response) => {
             if (response) applySideEffects(response);
             dismissModal();
@@ -896,6 +895,7 @@ async function showNewGridForm() {
           },
         });
         planner.init();
+        wireCancelButtons(host, dismissModal);
       }
     }
   };

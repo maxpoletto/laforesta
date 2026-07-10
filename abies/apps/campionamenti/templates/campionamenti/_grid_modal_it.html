@@ -48,9 +48,9 @@ All bodies render at once; client toggles via .modal-tab-body.active.
 
   {% comment %}
     --- Genera automaticamente ---
-    The Annulla / Crea button row is built inside GridPlanner._buildUI
-    so they sit together at the bottom of the planner.  The cancel
-    button uses data-action="cancel" so wireCancelButtons() binds it.
+    GridPlanner builds the Annulla / Crea row so the controls sit together
+    at the bottom. The caller wires its standard data-action="cancel"
+    control after the planner's lazy initialization.
   {% endcomment %}
   <div class="modal-tab-body grid-path-auto">
     <p class="form-help">
