@@ -11,7 +11,7 @@ import { DATA_ID, DELETES, PATCHES, RECORD, ROW_ID } from './constants.js';
 
 const REFRESH_INTERVAL_MS = 5 * 60 * 1000;  // 5 minutes
 
-/** @type {Map<string, {data: any, lastModified: string|null, refreshedAt: number}>} */
+/** @type {Map<string, {data: any, lastModified: string|null, refreshedAt: number, revision: number}>} */
 const store = new Map();
 
 /** URLs registered for each data ID (set via register). */
@@ -50,8 +50,14 @@ export function set(dataId, data) {
   if (entry) {
     entry.data = data;
     entry.refreshedAt = Date.now();
+    entry.revision++;
   } else {
-    store.set(dataId, { data, lastModified: null, refreshedAt: Date.now() });
+    store.set(dataId, {
+      data,
+      lastModified: null,
+      refreshedAt: Date.now(),
+      revision: 1,
+    });
   }
 }
 
@@ -73,6 +79,7 @@ export function updateRow(dataId, rowId, record) {
   } else {
     entry.data.rows.push(record);
   }
+  entry.revision++;
 }
 
 /**
@@ -84,7 +91,45 @@ export function updateRow(dataId, rowId, record) {
 export function removeRow(dataId, rowId) {
   const entry = store.get(dataId);
   if (!entry?.data?.rows) return;
-  entry.data.rows = entry.data.rows.filter(r => r[0] !== rowId);
+  const rows = entry.data.rows.filter(r => r[0] !== rowId);
+  if (rows.length === entry.data.rows.length) return;
+  entry.data.rows = rows;
+  entry.revision++;
+}
+
+function takeSnapshot(dataId) {
+  const entry = store.get(dataId) || null;
+  return { entry, revision: entry?.revision ?? 0 };
+}
+
+function snapshotIsCurrent(dataId, snapshot) {
+  const entry = store.get(dataId) || null;
+  return entry === snapshot.entry
+    && (entry?.revision ?? 0) === snapshot.revision;
+}
+
+/**
+ * Apply a fetch result only if the cache entry has not changed since the
+ * request started. This prevents a delayed response from replacing a newer
+ * optimistic patch or a response from another request.
+ */
+function applyFetchResult(dataId, snapshot, result) {
+  if (!snapshotIsCurrent(dataId, snapshot)) {
+    return { data: get(dataId), changed: false };
+  }
+
+  if (result.status === 304) {
+    if (snapshot.entry) snapshot.entry.refreshedAt = Date.now();
+    return { data: snapshot.entry?.data ?? null, changed: false };
+  }
+
+  store.set(dataId, {
+    data: result.data,
+    lastModified: result.lastModified,
+    refreshedAt: Date.now(),
+    revision: snapshot.revision + 1,
+  });
+  return { data: result.data, changed: true };
 }
 
 /**
@@ -142,28 +187,18 @@ export async function load(dataId) {
   const url = urls.get(dataId);
   if (!url) throw new Error(`Unknown data ID: ${dataId}`);
 
-  const entry = store.get(dataId);
-  const lastMod = entry ? entry.lastModified : null;
+  const snapshot = takeSnapshot(dataId);
+  const lastMod = snapshot.entry?.lastModified ?? null;
 
   const result = await fetchJSON(url, lastMod);
-
-  if (result.status === 304) {
-    entry.refreshedAt = Date.now();
-    return entry.data;
-  }
-
-  store.set(dataId, {
-    data: result.data,
-    lastModified: result.lastModified,
-    refreshedAt: Date.now(),
-  });
+  const applied = applyFetchResult(dataId, snapshot, result);
   // Fire onUpdate listeners so in-place callers (e.g., a row delete that
   // just wants the table to refresh without a full page rebuild) don't
   // have to re-implement the re-render themselves.  refreshVisible already
   // notifies on the same condition; mirroring it here keeps the manual
   // and background paths consistent.
-  notify(dataId);
-  return result.data;
+  if (applied.changed) notify(dataId);
+  return applied.data;
 }
 
 /**
@@ -229,20 +264,12 @@ export async function refreshVisible() {
     const url = urls.get(dataId);
     if (!url) continue;
 
-    const entry = store.get(dataId);
+    const snapshot = takeSnapshot(dataId);
     jobs.push(
-      fetchJSON(url, entry.lastModified)
+      fetchJSON(url, snapshot.entry.lastModified)
         .then(result => {
-          if (result.status !== 304) {
-            store.set(dataId, {
-              data: result.data,
-              lastModified: result.lastModified,
-              refreshedAt: Date.now(),
-            });
-            changed.add(dataId);
-          } else {
-            entry.refreshedAt = Date.now();
-          }
+          const applied = applyFetchResult(dataId, snapshot, result);
+          if (applied.changed) changed.add(dataId);
         })
         .catch(() => { /* swallow background refresh errors */ })
     );

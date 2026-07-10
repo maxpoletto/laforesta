@@ -152,6 +152,37 @@ eq(await deleteThenReload(0), [2], 'delete + reload (same second): row stays gon
   eq(updates, [[[2, 2, 55]]], 'generic envelope notifies subscribers after patch/delete');
 }
 
+// A background response that started before an optimistic patch must not
+// replace that newer local state when it resolves later.
+{
+  const id = freshDataId();
+  const url = `/api/${id}/`;
+  const server = new DigestServer(digest([[1, 1, 30]]));
+  servers.set(url, server);
+  cache.register(id, url);
+  await cache.load(id);
+  cache.setVisible([id]);
+
+  let resolveFetch;
+  globalThis.fetch = () => new Promise(resolve => { resolveFetch = resolve; });
+  const refresh = cache.refreshVisible();
+  await Promise.resolve();
+
+  cache.updateRow(id, 1, [1, 3, 60]);
+  resolveFetch({
+    status: 200,
+    ok: true,
+    headers: { get: h => h === 'Last-Modified' ? '1001' : null },
+    json: async () => digest([[1, 2, 50]]),
+  });
+  const changed = await refresh;
+
+  eq(dcm(cache.get(id), 1), 60,
+     'delayed background response preserves newer optimistic patch');
+  eq([...changed], [],
+     'discarded background response is not reported as a cache change');
+}
+
 console.log(`${pass} passed, ${failures.length} failed`);
 for (const f of failures) console.error('  FAIL ' + f);
 process.exit(failures.length ? 1 : 0);
