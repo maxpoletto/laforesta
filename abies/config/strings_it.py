@@ -8,6 +8,7 @@
 # ---------------------------------------------------------------------------
 
 SAVE = 'Salva'
+SAVE_AND_CONTINUE = 'Salva e continua'
 CANCEL = 'Annulla'
 CONFIRM = 'Conferma'
 DISMISS = 'Chiudi'
