@@ -22,7 +22,11 @@ from apps.ipso import staging as ipso_staging
 from apps.ipso import views as ipso_views
 from apps.ipso.models import IpsoUpload, IpsoUploadState
 from config import strings as S
-from config.constants import FIELD_REASON
+from config.constants import (
+    DUPLICATE, ERROR, FIELD_REASON, IMPORTED, IPSO_ERROR_CONFLICT,
+    IPSO_ERROR_INVALID_PAYLOAD, IPSO_ERROR_RATE_LIMITED, IPSO_ERROR_TOO_LARGE,
+    PENDING_COUNT,
+)
 
 
 def _body(resp) -> bytes:
@@ -386,7 +390,7 @@ def test_upload_stages_json_and_metadata(db, parcels, species, settings, tmp_pat
     assert resp.status_code == 200
     body = resp.json()
     assert body['ok'] is True
-    assert body['duplicate'] is False
+    assert body[DUPLICATE] is False
     upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
     assert upload.state == IpsoUploadState.RECEIVED
     assert upload.mode == 'martellate'
@@ -436,7 +440,7 @@ def test_upload_rejects_empty_records(db, parcels, species, settings, tmp_path):
     resp = _post_upload(Client(), payload)
 
     assert resp.status_code == 422
-    assert resp.json()['error'] == 'invalid_payload'
+    assert resp.json()[ERROR] == IPSO_ERROR_INVALID_PAYLOAD
     assert 'records' in resp.json()['detail']
     assert IpsoUpload.objects.count() == 0
 
@@ -448,7 +452,7 @@ def test_upload_rejects_body_over_cap(db, parcels, species, settings, tmp_path):
     resp = _post_upload(Client(), _upload_payload(parcels, species))
 
     assert resp.status_code == 413
-    assert resp.json()['error'] == 'too_large'
+    assert resp.json()[ERROR] == IPSO_ERROR_TOO_LARGE
     assert IpsoUpload.objects.count() == 0
 
 
@@ -464,7 +468,7 @@ def test_upload_rejects_record_count_over_cap(db, parcels, species, settings, tm
     resp = _post_upload(Client(), payload)
 
     assert resp.status_code == 422
-    assert resp.json()['error'] == 'invalid_payload'
+    assert resp.json()[ERROR] == IPSO_ERROR_INVALID_PAYLOAD
     assert 'records' in resp.json()['detail']
     assert IpsoUpload.objects.count() == 0
 
@@ -489,7 +493,7 @@ def test_upload_endpoint_is_rate_limited(db, parcels, species, settings, tmp_pat
 
     assert first.status_code == 200
     assert second.status_code == 429
-    assert second.json()['error'] == 'rate_limited'
+    assert second.json()[ERROR] == IPSO_ERROR_RATE_LIMITED
 
 
 @override_settings(IPSO_UPLOAD_TRUSTED_PROXIES=('172.16.0.0/12',))
@@ -537,7 +541,7 @@ def test_upload_rejects_pai_without_height(db, parcels, species, settings, tmp_p
     resp = _post_upload(Client(), payload)
 
     assert resp.status_code == 422
-    assert resp.json()['error'] == 'invalid_payload'
+    assert resp.json()[ERROR] == IPSO_ERROR_INVALID_PAYLOAD
     assert IpsoUpload.objects.count() == 0
 
 
@@ -553,7 +557,7 @@ def test_upload_rejects_pai_without_number(db, parcels, species, settings, tmp_p
     resp = _post_upload(Client(), payload)
 
     assert resp.status_code == 422
-    assert resp.json()['error'] == 'invalid_payload'
+    assert resp.json()[ERROR] == IPSO_ERROR_INVALID_PAYLOAD
     assert 'numero obbligatorio' in resp.json()['detail']
     assert IpsoUpload.objects.count() == 0
 
@@ -571,7 +575,7 @@ def test_upload_rejects_samples_without_number(db, parcels, species, settings, t
     resp = _post_upload(Client(), payload)
 
     assert resp.status_code == 422
-    assert resp.json()['error'] == 'invalid_payload'
+    assert resp.json()[ERROR] == IPSO_ERROR_INVALID_PAYLOAD
     assert 'numero obbligatorio' in resp.json()['detail']
     assert IpsoUpload.objects.count() == 0
 
@@ -584,7 +588,7 @@ def test_upload_rejects_unknown_mode(db, parcels, species, settings, tmp_path):
     resp = _post_upload(Client(), payload)
 
     assert resp.status_code == 422
-    assert resp.json()['error'] == 'invalid_payload'
+    assert resp.json()[ERROR] == IPSO_ERROR_INVALID_PAYLOAD
     assert IpsoUpload.objects.count() == 0
 
 
@@ -597,7 +601,7 @@ def test_upload_duplicate_is_idempotent(db, parcels, species, settings, tmp_path
 
     assert first.status_code == 200
     assert second.status_code == 200
-    assert second.json()['duplicate'] is True
+    assert second.json()[DUPLICATE] is True
     assert IpsoUpload.objects.count() == 1
 
 
@@ -612,7 +616,7 @@ def test_upload_conflicts_on_same_session_different_payload(db, parcels, species
     resp = _post_upload(Client(), changed)
 
     assert resp.status_code == 409
-    assert resp.json()['error'] == 'conflict'
+    assert resp.json()[ERROR] == IPSO_ERROR_CONFLICT
     upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
     assert upload.state == IpsoUploadState.CONFLICT
 
@@ -635,7 +639,7 @@ def test_upload_integrity_error_does_not_write_files(
     resp = _post_upload(Client(), payload)
 
     assert resp.status_code == 409
-    assert resp.json()['error'] == 'conflict'
+    assert resp.json()[ERROR] == IPSO_ERROR_CONFLICT
     assert not settings.IPSO_INBOX_DIR.exists()
 
 
@@ -648,7 +652,7 @@ def test_upload_rejects_unknown_species(db, parcels, species, settings, tmp_path
     resp = _post_upload(Client(), payload)
 
     assert resp.status_code == 422
-    assert resp.json()['error'] == 'invalid_payload'
+    assert resp.json()[ERROR] == IPSO_ERROR_INVALID_PAYLOAD
     assert IpsoUpload.objects.count() == 0
 
 
@@ -661,7 +665,7 @@ def test_upload_rejects_null_parcel_id(db, parcels, species, settings, tmp_path)
     resp = _post_upload(Client(), payload)
 
     assert resp.status_code == 422
-    assert resp.json()['error'] == 'invalid_payload'
+    assert resp.json()[ERROR] == IPSO_ERROR_INVALID_PAYLOAD
     assert 'parcel_id' in resp.json()['detail']
     assert IpsoUpload.objects.count() == 0
 
@@ -703,7 +707,7 @@ def test_inbox_data_lists_received_upload(
 
     assert resp.status_code == 200
     data = resp.json()
-    assert data['pending_count'] == 1
+    assert data[PENDING_COUNT] == 1
     row = dict(zip(data['columns'], data['rows'][0]))
     assert data['columns'][0] == 'row_id'
     assert row['_ipso_state'] == IpsoUploadState.RECEIVED
@@ -753,7 +757,7 @@ def test_writer_can_reject_upload(writer_client, parcels, species, settings, tmp
     upload.refresh_from_db()
     assert upload.state == IpsoUploadState.REJECTED
     assert upload.error_summary == 'Duplicato'
-    assert writer_client.get(reverse('ipso-inbox-data')).json()['pending_count'] == 0
+    assert writer_client.get(reverse('ipso-inbox-data')).json()[PENDING_COUNT] == 0
 
 
 @pytest.mark.parametrize('state', [
@@ -1177,7 +1181,7 @@ def test_writer_imports_upload_into_harvest_plan_item(
     )
 
     assert resp.status_code == 200
-    assert resp.json()['imported'] == 1
+    assert resp.json()[IMPORTED] == 1
     upload.refresh_from_db()
     assert upload.state == IpsoUploadState.IMPORTED
     assert upload.imported_by == writer_user
@@ -1311,7 +1315,7 @@ def test_martellate_import_preserves_blank_numbers_without_auto_numbering(
     )
 
     assert resp.status_code == 200
-    assert resp.json()['imported'] == 5
+    assert resp.json()[IMPORTED] == 5
     assert list(
         TreeMark.objects.filter(harvest_plan_item=item)
         .order_by('id')
@@ -1529,7 +1533,7 @@ def test_writer_imports_samples_upload_into_survey(
     )
 
     assert resp.status_code == 200
-    assert resp.json()['imported'] == 1
+    assert resp.json()[IMPORTED] == 1
     upload.refresh_from_db()
     assert upload.state == IpsoUploadState.IMPORTED
     assert upload.imported_by == writer_user
@@ -1634,7 +1638,7 @@ def test_samples_import_supports_coppice_shoots_with_same_number(
     )
 
     assert resp.status_code == 200
-    assert resp.json()['imported'] == 2
+    assert resp.json()[IMPORTED] == 2
     rows = list(TreeSample.objects.order_by('shoot'))
     assert [row.number for row in rows] == [1, 1]
     assert [row.shoot for row in rows] == [1, 2]
@@ -1807,7 +1811,7 @@ def test_writer_imports_pai_upload(writer_client, writer_user, parcels, species,
     )
 
     assert resp.status_code == 200
-    assert resp.json()['imported'] == 1
+    assert resp.json()[IMPORTED] == 1
     upload.refresh_from_db()
     assert upload.state == IpsoUploadState.IMPORTED
     assert upload.imported_by == writer_user
@@ -1870,7 +1874,7 @@ def test_import_rejects_second_submit_without_duplicate_marks(
     second = writer_client.post(url, data=body, content_type='application/json')
 
     assert first.status_code == 200
-    assert first.json()['imported'] == 1
+    assert first.json()[IMPORTED] == 1
     assert second.status_code == 400
     assert second.json()['message'] == 'Solo i caricamenti da importare possono essere importati.'
     assert TreeMark.objects.count() == 1
