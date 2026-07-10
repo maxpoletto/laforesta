@@ -116,3 +116,26 @@ def test_stage_marks_uploads_rejects_blank_parcel(parcels, species, settings, tm
         call_command('stage_marks_uploads', str(source_dir))
 
     assert IpsoUpload.objects.count() == 0
+
+
+def test_stage_marks_uploads_accepts_legacy_ipso_species_header(
+        parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    source_dir = tmp_path / 'marks'
+    source_dir.mkdir()
+    csv_text = (
+        f'{S.CSV_COL_DATA};{S.CSV_COL_REGION};{S.CSV_COL_PARCEL};'
+        f'{S.CSV_COL_DAMAGED};{S.CSV_COL_NUMBER};{S.COL_SPECIES};'
+        f'{S.CSV_COL_D_CM};{S.CSV_COL_H_M};{S.CSV_COL_H_MEASURED};'
+        f'{S.CSV_COL_LAT};{S.CSV_COL_LON};{S.CSV_COL_ACC_M};{S.CSV_COL_OPERATOR}\n'
+        '15/06/2026;Capistrano;1;0;1;Abete;42;22,5;0;38,570850;16,300260;2;Valerio\n'
+    )
+    (source_dir / 'legacy-specie.csv').write_text(csv_text, encoding='utf-8')
+
+    call_command('stage_marks_uploads', str(source_dir))
+
+    upload = IpsoUpload.objects.get()
+    payload = json.loads(
+        (Path(upload.inbox_path) / 'upload.json').read_text(encoding='utf-8')
+    )
+    assert payload[RECORDS][0]['species_id'] == species[0].id

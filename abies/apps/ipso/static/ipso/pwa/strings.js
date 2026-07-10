@@ -118,7 +118,7 @@ const S = {
   CSV_HEADER_SAMPLE_AREA: 'Area saggio',
   CSV_HEADER: [
     'Data', 'Compresa', 'Particella', 'Catastrofata',
-    'Numero', 'Specie', 'D_cm', 'H_m', 'H_measured',
+    'Numero', 'Genere', 'D_cm', 'H_m', 'H_measured',
     'Lat', 'Lon', 'Acc_m', 'Operatore',
   ],
   CSV_FILENAME_CATASTROFATE: 'catastrofate',

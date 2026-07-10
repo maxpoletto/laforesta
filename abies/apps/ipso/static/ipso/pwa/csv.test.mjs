@@ -54,6 +54,7 @@ const markLines = csv.formatFile({ ...session, mode: 'martellate' }, [tree], ref
 const markHeader = markLines[0].split(csv.CSV_SEP);
 const markRow = markLines[1].split(csv.CSV_SEP);
 check(markHeader[3] === 'Catastrofata', 'martellate CSV header stays unchanged');
+check(markHeader[5] === 'Genere', 'martellate CSV uses the manual importer species header');
 check(markRow[3] === '0', 'martellate CSV row does not include sample area');
 
 if (failures.length) {

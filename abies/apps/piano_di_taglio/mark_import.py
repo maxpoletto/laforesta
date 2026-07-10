@@ -20,6 +20,8 @@ from apps.base.tabacchi import tabacchi_volume_m3
 from config import strings as S
 from config.constants import DIGEST_FUTURE_PRODUCTION, FIELD_NUMBER
 
+MARK_CSV_SPECIES_HEADERS = (S.CSV_COL_SPECIES, S.COL_SPECIES)
+
 
 @dataclass(frozen=True)
 class MarkImportRow:

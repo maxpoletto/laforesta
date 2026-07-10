@@ -14,6 +14,7 @@ from django.db import IntegrityError, transaction
 from apps.base.numparse import coord_float
 from apps.base.models import Parcel, Species
 from apps.piano_di_taglio import csv_plan
+from apps.piano_di_taglio.mark_import import MARK_CSV_SPECIES_HEADERS
 from apps.ipso.models import IpsoUpload
 from apps.ipso import staging
 from config import strings as S
@@ -34,7 +35,7 @@ REQUIRED = {
     'date': [S.CSV_COL_DATA],
     'compresa': [S.CSV_COL_REGION],
     'particella': [S.CSV_COL_PARCEL],
-    'species': [S.CSV_COL_SPECIES],
+    'species': MARK_CSV_SPECIES_HEADERS,
     'd_cm': [S.CSV_COL_D_CM],
     'h_m': [S.CSV_COL_H_M],
 }

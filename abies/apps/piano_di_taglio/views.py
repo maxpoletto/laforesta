@@ -50,7 +50,8 @@ from apps.base.models import (
 )
 from apps.piano_di_taglio import csv_plan
 from apps.piano_di_taglio.mark_import import (
-    MarkImportRow, auto_advance_to_marked as _auto_advance_to_marked,
+    MARK_CSV_SPECIES_HEADERS, MarkImportRow,
+    auto_advance_to_marked as _auto_advance_to_marked,
     csv_mark_fingerprint, import_mark_rows,
     next_mark_number as _next_mark_number,
     rematerialize_volume_marked as _rematerialize_volume_marked,
@@ -1047,7 +1048,7 @@ def mark_csv_import_view(request):
         'date':      [S.CSV_COL_DATA],
         'compresa':  [S.CSV_COL_REGION],
         'particella': [S.CSV_COL_PARCEL],
-        'species':   [S.CSV_COL_SPECIES],
+        'species':   MARK_CSV_SPECIES_HEADERS,
         'd_cm':      [S.CSV_COL_D_CM],
         'h_m':       [S.CSV_COL_H_M],
     }, optional={
