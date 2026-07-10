@@ -168,6 +168,12 @@ Abies writer permission required:
 - `POST /api/ipso/uploads/<id>/import-samples/`
 - `POST /api/ipso/uploads/<id>/import-pai/`
 
+Abies admin permission required:
+
+- `GET /api/ipso/uploads/<id>/download/`
+- `POST /api/ipso/uploads/<id>/delete/`
+- `POST /api/ipso/uploads/<id>/mode/`
+
 The shared secret prevents casual unauthenticated reads/uploads. It does not
 prove which device or operator made a request, and compromise of the secret gives
 access to all bearer-protected Ipso device endpoints until the secret is rotated.
