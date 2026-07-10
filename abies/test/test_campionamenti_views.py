@@ -14,7 +14,7 @@ from apps.base.models import (
 )
 from config import strings as S
 from config.constants import (
-    COLUMNS, COL_COPPICE, DATA_ID, DELETES,
+    COLUMNS, COL_COPPICE, COL_SURVEY_ID, DATA_ID, DELETES,
     DIGEST_PARCEL_DENDROMETRY, DIGEST_PARCEL_DENDROMETRY_POINTS,
     DIGEST_PRESERVED_TREES,
     FIELD_ALTITUDE_M, FIELD_DATE,
@@ -2225,15 +2225,47 @@ class TestTreeCsvImport:
             content_type='application/json',
         )
 
-    def test_happy_path(self, writer_client, sample_setup):
-        """Importing rows into an empty survey creates samples + trees +
-        tree_samples."""
+    def test_happy_path(
+        self, writer_client, sample_setup, tmp_path, settings,
+    ):
+        """Importing rows updates every affected public tree digest."""
         from apps.base.models import Survey, Tree, TreeSample
         s = sample_setup
-        # Use a fresh empty survey so we're not measuring fixture trees.
+        settings.DIGEST_DIR = tmp_path
+        # Make the empty target the dendrometry source so both Bosco
+        # tree-derived digests have an observable before/after transition.
         empty_survey = Survey.objects.create(
-            name='CSV import target', sample_grid=s['grid'],
+            name='CSV import target', sample_grid=s['grid'], active=True,
         )
+        urls = {
+            'trees': f'/api/campionamenti/trees/{empty_survey.id}/',
+            'samples': '/api/campionamenti/samples/data/',
+            'surveys': '/api/campionamenti/surveys/data/',
+            'dendrometry': '/api/bosco/parcel-dendrometry/data/',
+            'points': '/api/bosco/parcel-dendrometry-points/data/',
+        }
+
+        def read_digest(name):
+            response = writer_client.get(urls[name])
+            assert response.status_code == 200
+            return _read_gzip_json(response)
+
+        before = {name: read_digest(name) for name in urls}
+        assert before['trees'][ROWS] == []
+        assert before['dendrometry'][ROWS] == []
+        assert before['points'][ROWS] == []
+        assert not any(
+            row[before['samples'][COLUMNS].index(S.COL_SURVEY)] == empty_survey.id
+            for row in before['samples'][ROWS]
+        )
+        survey_before = next(
+            row for row in before['surveys'][ROWS]
+            if row[before['surveys'][COLUMNS].index(ROW_ID)] == empty_survey.id
+        )
+        assert survey_before[
+            before['surveys'][COLUMNS].index(S.COL_N_AREAS_VISITED)
+        ] == 0
+
         compresa = s['area'].parcel.region.name
         particella = s['area'].parcel.name
         adc = s['area'].number
@@ -2261,6 +2293,41 @@ class TestTreeCsvImport:
             DIGEST_PRESERVED_TREES,
         )
 
+        trees = read_digest('trees')
+        assert [
+            row[trees[COLUMNS].index(S.COL_TREE_NUM)] for row in trees[ROWS]
+        ] == [10, 11]
+
+        samples = read_digest('samples')
+        sample_row = next(
+            row for row in samples[ROWS]
+            if row[samples[COLUMNS].index(S.COL_SURVEY)] == empty_survey.id
+        )
+        assert sample_row[samples[COLUMNS].index(S.COL_N_TREES)] == 2
+
+        surveys = read_digest('surveys')
+        survey_row = next(
+            row for row in surveys[ROWS]
+            if row[surveys[COLUMNS].index(ROW_ID)] == empty_survey.id
+        )
+        assert survey_row[
+            surveys[COLUMNS].index(S.COL_N_AREAS_VISITED)
+        ] == 1
+        assert survey_row[surveys[COLUMNS].index(S.COL_DATE_FIRST)] == '2024-09-15'
+        assert survey_row[surveys[COLUMNS].index(S.COL_DATE_LAST)] == '2024-09-15'
+
+        dendrometry = read_digest('dendrometry')
+        dendrometry_row = next(
+            row for row in dendrometry[ROWS]
+            if row[dendrometry[COLUMNS].index(COL_SURVEY_ID)] == empty_survey.id
+        )
+        assert dendrometry_row[dendrometry[COLUMNS].index(S.COL_N_TREES)] == 2
+
+        points = read_digest('points')
+        assert len([
+            row for row in points[ROWS]
+            if row[points[COLUMNS].index(COL_SURVEY_ID)] == empty_survey.id
+        ]) == 2
 
     def test_duplicate_number_shoot_within_csv_rejected(
         self, writer_client, sample_setup,

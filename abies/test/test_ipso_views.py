@@ -1,5 +1,6 @@
 """Tests for the Abies-served Ipso PWA."""
 
+import gzip
 import io
 import json
 import zipfile
@@ -23,14 +24,18 @@ from apps.ipso import views as ipso_views
 from apps.ipso.models import IpsoUpload, IpsoUploadState
 from config import strings as S
 from config.constants import (
-    DUPLICATE, ERROR, FIELD_REASON, IMPORTED, IPSO_ERROR_CONFLICT,
+    COLUMNS, DUPLICATE, ERROR, FIELD_REASON, IMPORTED, IPSO_ERROR_CONFLICT,
     IPSO_ERROR_INVALID_PAYLOAD, IPSO_ERROR_RATE_LIMITED, IPSO_ERROR_TOO_LARGE,
-    PENDING_COUNT,
+    PENDING_COUNT, ROWS, ROW_ID,
 )
 
 
 def _body(resp) -> bytes:
     return b''.join(resp.streaming_content)
+
+
+def _read_gzip_json(resp):
+    return json.loads(gzip.decompress(resp.getvalue()))
 
 
 @pytest.fixture
@@ -1517,7 +1522,10 @@ def test_samples_import_rejects_area_outside_selected_survey_grid(
 def test_writer_imports_samples_upload_into_survey(
         writer_client, writer_user, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    settings.DIGEST_DIR = tmp_path / 'digests'
     survey, area = _sample_survey(parcels[0])
+    trees_url = f'/api/campionamenti/trees/{survey.id}/'
+    assert _read_gzip_json(writer_client.get(trees_url))[ROWS] == []
     payload = _upload_payload(
         parcels, species, mode='samples',
         session_id='22222222-2222-4222-8222-222222222222',
@@ -1550,6 +1558,10 @@ def test_writer_imports_samples_upload_into_survey(
     assert ts.d_cm == 42
     assert ts.h_m == Decimal('22.00')
     assert ts.volume_m3 is not None
+    trees = _read_gzip_json(writer_client.get(trees_url))
+    assert len(trees[ROWS]) == 1
+    assert trees[ROWS][0][trees[COLUMNS].index(ROW_ID)] == ts.id
+    assert trees[ROWS][0][trees[COLUMNS].index(S.COL_TREE_NUM)] == 1
 
 
 @override_settings(IPSO_SECRET='test-token')
@@ -1794,6 +1806,9 @@ def test_pai_import_rejects_staged_missing_number(
 @override_settings(IPSO_SECRET='test-token')
 def test_writer_imports_pai_upload(writer_client, writer_user, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    settings.DIGEST_DIR = tmp_path / 'digests'
+    preserved_url = '/api/bosco/preserved-trees/data/'
+    assert _read_gzip_json(writer_client.get(preserved_url))[ROWS] == []
     payload = _upload_payload(
         parcels, species, mode='pai',
         session_id='33333333-3333-4333-8333-333333333333',
@@ -1831,6 +1846,10 @@ def test_writer_imports_pai_upload(writer_client, writer_user, parcels, species,
     assert pai.tree.coppice is False
     assert pai.volume_m3 is None
     assert pai.mass_q is None
+    preserved = _read_gzip_json(writer_client.get(preserved_url))
+    assert len(preserved[ROWS]) == 1
+    assert preserved[ROWS][0][preserved[COLUMNS].index(ROW_ID)] == pai.id
+    assert preserved[ROWS][0][preserved[COLUMNS].index(S.COL_NUMBER)] == 1
 
 
 @override_settings(IPSO_SECRET='test-token')
