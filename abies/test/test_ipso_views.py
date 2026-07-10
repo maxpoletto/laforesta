@@ -24,9 +24,10 @@ from apps.ipso import views as ipso_views
 from apps.ipso.models import IpsoUpload, IpsoUploadState
 from config import strings as S
 from config.constants import (
-    COLUMNS, DUPLICATE, ERROR, FIELD_REASON, IMPORTED, IPSO_ERROR_CONFLICT,
+    COLUMNS, DUPLICATE, ERROR, FIELD_HARVEST_PLAN_ITEM_ID, FIELD_MODE,
+    FIELD_REASON, FIELD_SURVEY_ID, IMPORTED, IPSO_ERROR_CONFLICT,
     IPSO_ERROR_INVALID_PAYLOAD, IPSO_ERROR_RATE_LIMITED, IPSO_ERROR_TOO_LARGE,
-    PENDING_COUNT, ROWS, ROW_ID,
+    IPSO_MODE_PAI, PENDING_COUNT, ROWS, ROW_ID,
 )
 
 
@@ -743,6 +744,29 @@ def test_upload_detail_previews_staged_records(writer_client, parcels, species, 
     assert data['records'][0]['species'] == 'Abete'
     assert data['records'][0]['h_m'] == 22.5
     assert data['records'][0]['lon'] == 16.12345
+
+
+@pytest.mark.parametrize(('method', 'url_name', 'body'), [
+    ('get', 'ipso-upload-detail', None),
+    ('post', 'ipso-upload-reject', {}),
+    ('get', 'ipso-upload-download', None),
+    ('post', 'ipso-upload-delete', {}),
+    ('post', 'ipso-upload-mode', {FIELD_MODE: IPSO_MODE_PAI}),
+    ('post', 'ipso-upload-import-martellate', {FIELD_HARVEST_PLAN_ITEM_ID: 1}),
+    ('post', 'ipso-upload-import-samples', {FIELD_SURVEY_ID: 1}),
+    ('post', 'ipso-upload-import-pai', {}),
+])
+def test_upload_id_endpoints_return_404_for_unknown_upload(
+        admin_client, method, url_name, body):
+    url = reverse(url_name, args=[999999])
+    if method == 'get':
+        resp = admin_client.get(url)
+    else:
+        resp = admin_client.post(
+            url, data=json.dumps(body), content_type='application/json',
+        )
+
+    assert resp.status_code == 404
 
 
 @override_settings(IPSO_SECRET='test-token')
