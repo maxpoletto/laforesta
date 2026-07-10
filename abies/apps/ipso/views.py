@@ -464,11 +464,16 @@ def upload_detail(request: HttpRequest, upload_id: int) -> JsonResponse:
 @require_writer
 @require_POST
 def reject_upload(request: HttpRequest, upload_id: int) -> JsonResponse:
+    try:
+        body = _request_json_or_empty(request)
+        reason = _reject_reason(body)
+    except UploadValidationError as e:
+        return validation_error([str(e)])
+
     with transaction.atomic():
         upload = _get_upload(upload_id, for_update=True)
         if upload.state != IpsoUploadState.RECEIVED:
             return validation_error([S.IPSO_ERR_UPLOAD_NOT_REJECTABLE])
-        reason = _reject_reason(request)
         updated = (IpsoUpload.objects
                    .filter(id=upload.id, state=IpsoUploadState.RECEIVED)
                    .update(state=IpsoUploadState.REJECTED, error_summary=reason))
@@ -477,7 +482,7 @@ def reject_upload(request: HttpRequest, upload_id: int) -> JsonResponse:
         upload.state = IpsoUploadState.REJECTED
         upload.error_summary = reason
         data = _upload_metadata(upload)
-    return success_response(request, None, extra={UPLOAD: data})
+    return success_response(request, body, extra={UPLOAD: data})
 
 
 @login_required
@@ -495,13 +500,18 @@ def download_upload(request: HttpRequest, upload_id: int) -> HttpResponse:
 @require_admin
 @require_POST
 def delete_upload(request: HttpRequest, upload_id: int) -> JsonResponse:
+    try:
+        body = _request_json_or_empty(request)
+    except UploadValidationError as e:
+        return validation_error([str(e)])
+
     with transaction.atomic():
         upload = _get_upload(upload_id, for_update=True)
         inbox_path = Path(upload.inbox_path)
         upload.delete()
     _remove_staged_upload_files(inbox_path)
     return success_response(
-        request, None,
+        request, body,
         data_id=DATA_ID_IPSO_UPLOADS, row_id=upload_id,
         deletes=[row_delete(DATA_ID_IPSO_UPLOADS, upload_id)],
     )
@@ -956,11 +966,7 @@ def _preview_records(records: list) -> list[dict]:
     return out
 
 
-def _reject_reason(request: HttpRequest) -> str:
-    try:
-        body = json.loads(request.body.decode('utf-8') or '{}')
-    except (UnicodeDecodeError, json.JSONDecodeError):
-        body = {}
+def _reject_reason(body: dict) -> str:
     reason = body.get(FIELD_REASON, '') if isinstance(body, dict) else ''
     return reason.strip() or S.IPSO_REJECT_DEFAULT_REASON
 
@@ -1277,6 +1283,12 @@ def _request_json(request: HttpRequest) -> dict:
     if not isinstance(payload, dict):
         raise UploadValidationError(S.IPSO_ERR_PAYLOAD_OBJECT)
     return payload
+
+
+def _request_json_or_empty(request: HttpRequest) -> dict:
+    if not request.body:
+        return {}
+    return _request_json(request)
 
 
 def _validate_upload_payload(payload: dict, request: HttpRequest) -> tuple[dict, str | None]:

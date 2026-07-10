@@ -17,7 +17,7 @@ from apps.base.models import (
     HYPSO_FUNC_LN, HarvestPlan, HarvestPlanItem, HarvestPlanItemState,
     HypsoParam, HypsoParamSet, HypsoParamSource, Parcel, Sample,
     SampleArea, SampleGrid, Survey, Tree, TreeMark, TreePreserved,
-    TreeSample,
+    TreeSample, UsedNonce,
 )
 from apps.ipso import staging as ipso_staging
 from apps.ipso import views as ipso_views
@@ -25,7 +25,7 @@ from apps.ipso.models import IpsoUpload, IpsoUploadState
 from config import strings as S
 from config.constants import (
     COLUMNS, DUPLICATE, ERROR, FIELD_HARVEST_PLAN_ITEM_ID, FIELD_MODE,
-    FIELD_REASON, FIELD_SURVEY_ID, IMPORTED, IPSO_ERROR_CONFLICT,
+    FIELD_NONCE, FIELD_REASON, FIELD_SURVEY_ID, IMPORTED, IPSO_ERROR_CONFLICT,
     IPSO_ERROR_INVALID_PAYLOAD, IPSO_ERROR_RATE_LIMITED, IPSO_ERROR_TOO_LARGE,
     IPSO_MODE_PAI, IPSO_UPLOAD_FILE_READY, MESSAGE, PENDING_COUNT, ROWS, ROW_ID,
 )
@@ -362,6 +362,11 @@ def _stage_upload_direct(settings, tmp_path, payload, csv_text='csv backup'):
     return IpsoUpload.objects.create(
         **ipso_staging.upload_model_fields(payload, checksum, inbox_path),
     )
+
+
+def _assert_nonce_saved(user, nonce):
+    used = UsedNonce.objects.get(user=user, nonce=nonce)
+    assert used.response_json
 
 
 @override_settings(IPSO_SECRET='configured-token')
@@ -817,15 +822,17 @@ def test_upload_id_endpoints_return_404_for_unknown_upload(
 
 
 @override_settings(IPSO_SECRET='test-token')
-def test_writer_can_reject_upload(writer_client, parcels, species, settings, tmp_path):
+def test_writer_can_reject_upload(
+        writer_client, writer_user, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     payload = _upload_payload(parcels, species)
     assert _post_upload(Client(), payload).status_code == 200
     upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
 
+    nonce = 'ipso-reject-test-nonce'
     resp = writer_client.post(
         reverse('ipso-upload-reject', args=[upload.id]),
-        data=json.dumps({FIELD_REASON: 'Duplicato'}),
+        data=json.dumps({FIELD_REASON: 'Duplicato', FIELD_NONCE: nonce}),
         content_type='application/json',
     )
 
@@ -833,6 +840,7 @@ def test_writer_can_reject_upload(writer_client, parcels, species, settings, tmp
     upload.refresh_from_db()
     assert upload.state == IpsoUploadState.REJECTED
     assert upload.error_summary == 'Duplicato'
+    _assert_nonce_saved(writer_user, nonce)
     assert writer_client.get(reverse('ipso-inbox-data')).json()[PENDING_COUNT] == 0
 
 
@@ -928,7 +936,7 @@ def test_writer_cannot_download_delete_or_edit_upload_mode(
 
 @override_settings(IPSO_SECRET='test-token')
 def test_admin_updates_upload_mode_and_staged_payload(
-        admin_client, parcels, species, settings, tmp_path):
+        admin_client, admin_user, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     payload = _upload_payload(
         parcels, species, mode='pai',
@@ -939,9 +947,10 @@ def test_admin_updates_upload_mode_and_staged_payload(
     inbox_path = Path(upload.inbox_path)
     original_csv = (inbox_path / 'export.csv').read_text()
 
+    nonce = 'ipso-mode-test-nonce'
     resp = admin_client.post(
         reverse('ipso-upload-mode', args=[upload.id]),
-        data=json.dumps({'mode': 'martellate'}),
+        data=json.dumps({'mode': 'martellate', FIELD_NONCE: nonce}),
         content_type='application/json',
     )
 
@@ -954,6 +963,7 @@ def test_admin_updates_upload_mode_and_staged_payload(
     assert (inbox_path / 'export.csv').read_text() == original_csv
     assert resp.json()['upload']['mode'] == 'martellate'
     assert resp.json()['upload']['mode_label'] == S.IPSO_MODE_MARTELLATE_LABEL
+    _assert_nonce_saved(admin_user, nonce)
 
 
 @override_settings(IPSO_SECRET='test-token')
@@ -1033,22 +1043,24 @@ def test_admin_cannot_update_mode_after_domain_import(
 
 @override_settings(IPSO_SECRET='test-token')
 def test_admin_deletes_staged_upload_record_and_files(
-        admin_client, parcels, species, settings, tmp_path):
+        admin_client, admin_user, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     payload = _upload_payload(parcels, species)
     assert _post_upload(Client(), payload).status_code == 200
     upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
     inbox_path = Path(upload.inbox_path)
 
+    nonce = 'ipso-delete-test-nonce'
     resp = admin_client.post(
         reverse('ipso-upload-delete', args=[upload.id]),
-        data=json.dumps({}),
+        data=json.dumps({FIELD_NONCE: nonce}),
         content_type='application/json',
     )
 
     assert resp.status_code == 200
     assert not IpsoUpload.objects.filter(id=upload.id).exists()
     assert not inbox_path.exists()
+    _assert_nonce_saved(admin_user, nonce)
 
 
 @override_settings(IPSO_SECRET='test-token')
@@ -1314,9 +1326,10 @@ def test_writer_imports_upload_into_harvest_plan_item(
     assert _post_upload(Client(), payload).status_code == 200
     upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
 
+    nonce = 'ipso-import-mark-test-nonce'
     resp = writer_client.post(
         reverse('ipso-upload-import-martellate', args=[upload.id]),
-        data=json.dumps({'harvest_plan_item_id': item.id}),
+        data=json.dumps({'harvest_plan_item_id': item.id, FIELD_NONCE: nonce}),
         content_type='application/json',
     )
 
@@ -1327,6 +1340,7 @@ def test_writer_imports_upload_into_harvest_plan_item(
     assert upload.imported_by == writer_user
     assert upload.target_type == 'harvest_plan_item'
     assert upload.target_id == item.id
+    _assert_nonce_saved(writer_user, nonce)
     tm = TreeMark.objects.select_related('tree', 'tree__species').get()
     assert tm.harvest_plan_item == item
     assert tm.tree.parcel == parcels[0]
@@ -1669,9 +1683,10 @@ def test_writer_imports_samples_upload_into_survey(
     assert _post_upload(Client(), payload).status_code == 200
     upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
 
+    nonce = 'ipso-import-samples-test-nonce'
     resp = writer_client.post(
         reverse('ipso-upload-import-samples', args=[upload.id]),
-        data=json.dumps({'survey_id': survey.id}),
+        data=json.dumps({'survey_id': survey.id, FIELD_NONCE: nonce}),
         content_type='application/json',
     )
 
@@ -1682,6 +1697,7 @@ def test_writer_imports_samples_upload_into_survey(
     assert upload.imported_by == writer_user
     assert upload.target_type == 'survey'
     assert upload.target_id == survey.id
+    _assert_nonce_saved(writer_user, nonce)
     sample = Sample.objects.get(survey=survey, sample_area=area)
     assert sample.date == date(2026, 6, 17)
     ts = TreeSample.objects.select_related('tree', 'tree__species').get(sample=sample)
@@ -1957,9 +1973,10 @@ def test_writer_imports_pai_upload(writer_client, writer_user, parcels, species,
     assert _post_upload(Client(), payload).status_code == 200
     upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
 
+    nonce = 'ipso-import-pai-test-nonce'
     resp = writer_client.post(
         reverse('ipso-upload-import-pai', args=[upload.id]),
-        data=json.dumps({}),
+        data=json.dumps({FIELD_NONCE: nonce}),
         content_type='application/json',
     )
 
@@ -1969,6 +1986,7 @@ def test_writer_imports_pai_upload(writer_client, writer_user, parcels, species,
     assert upload.state == IpsoUploadState.IMPORTED
     assert upload.imported_by == writer_user
     assert upload.target_type == 'pai'
+    _assert_nonce_saved(writer_user, nonce)
     pai = TreePreserved.objects.select_related('tree', 'tree__species').get()
     assert pai.tree.parcel == parcels[0]
     assert pai.tree.species == species[0]

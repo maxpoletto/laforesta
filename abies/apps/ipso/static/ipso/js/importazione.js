@@ -20,7 +20,7 @@ import { installEscapeHandler } from '../../base/js/escape.js';
 import * as S from '../../base/js/strings.js';
 import {
   DATA_ID_IPSO_UPLOADS, FIELD_ERROR_SUMMARY, FIELD_ID, FIELD_HARVEST_PLAN_ITEM_ID,
-  FIELD_MODE, FIELD_MODE_LABEL, FIELD_OPERATOR, FIELD_RECEIVED_AT,
+  FIELD_MODE, FIELD_MODE_LABEL, FIELD_NONCE, FIELD_OPERATOR, FIELD_RECEIVED_AT,
   FIELD_RECORD_DATE, FIELD_REFERENCE_VERSION, FIELD_REFERENCE_VERSION_LABEL,
   FIELD_SAMPLE_AREA_ID, FIELD_SESSION_ID, FIELD_STATE, FIELD_STATE_LABEL,
   FIELD_SURVEY_ID, FIELD_TARGET_LABEL, FIELD_WORK_PACKAGE_LABEL, FILE_ERROR,
@@ -63,6 +63,10 @@ const IMPORT_CONFIG = {
     requiresTarget: false,
   },
 };
+
+function mutationBody(action, body = {}) {
+  return { ...body, [FIELD_NONCE]: `ipso-${action}-${crypto.randomUUID()}` };
+}
 
 const COLUMN_DEFS = {
   [INBOX_STATE_COL]: { hidden: true },
@@ -280,7 +284,7 @@ function confirmReject(id) {
 }
 
 async function rejectUpload(id) {
-  const { data, status } = await api.postJSON(REJECT_URL(id), {});
+  const { data, status } = await api.postJSON(REJECT_URL(id), mutationBody('reject'));
   if (status >= 400) {
     showError(data?.[MESSAGE] || S.ERROR_GENERIC);
     return;
@@ -300,7 +304,7 @@ function confirmDeleteUpload(id) {
 }
 
 async function deleteUpload(id) {
-  const { data, status } = await api.postJSON(DELETE_URL(id), {});
+  const { data, status } = await api.postJSON(DELETE_URL(id), mutationBody('delete'));
   if (status >= 400) {
     showError(data?.[MESSAGE] || S.ERROR_GENERIC);
     return;
@@ -337,7 +341,9 @@ async function showModeModal(id) {
 }
 
 async function saveUploadMode(id, mode) {
-  const { data, status } = await api.postJSON(MODE_URL(id), { [FIELD_MODE]: mode });
+  const { data, status } = await api.postJSON(
+    MODE_URL(id), mutationBody('mode', { [FIELD_MODE]: mode }),
+  );
   if (status >= 400) {
     showError(data?.[MESSAGE] || S.ERROR_GENERIC);
     return;
@@ -472,7 +478,9 @@ async function importUpload(uploadId, config, targetId) {
   const body = config.requiresTarget ? {
     [config.targetField]: Number(targetId),
   } : {};
-  const { data, status } = await api.postJSON(config.url(uploadId), body);
+  const { data, status } = await api.postJSON(
+    config.url(uploadId), mutationBody('import', body),
+  );
   if (status >= 400) {
     await cache.load(DATA_ID);
     await openUpload(uploadId);
