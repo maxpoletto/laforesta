@@ -171,6 +171,41 @@ check(
 
 check(upload.paiMaxNumberForParcel(reference(), 100) === 8, 'PAI max number helper reads reference');
 
+const backoffCases = [
+  [0, 0], [1, 2000], [2, 4000], [3, 8000], [4, 16000], [5, 30000], [99, 30000],
+];
+for (const [attempt, expected] of backoffCases) {
+  check(
+    upload.backoffMs(attempt) === expected,
+    `backoffMs(${attempt}) returns ${expected}`,
+  );
+}
+check(upload.backoffMs(Number.NaN) === 0, 'backoffMs ignores non-finite attempts');
+
+const httpCases = [
+  [200, 'ok'],
+  [401, 'hard:auth'],
+  [409, 'hard:conflict'],
+  [413, 'hard:too_large'],
+  [422, 'hard:invalid_csv'],
+  [429, 'soft:rate_limited'],
+  [500, 'soft:server'],
+  [599, 'soft:server'],
+  [400, 'hard:invalid_csv'],
+  [404, 'hard:invalid_csv'],
+  [600, 'hard:invalid_csv'],
+];
+for (const [status, expected] of httpCases) {
+  check(
+    upload.classifyHttp(status) === expected,
+    `classifyHttp(${status}) returns ${expected}`,
+  );
+}
+check(
+  upload.classifyNetwork() === 'soft:network',
+  'classifyNetwork keeps network failures retryable',
+);
+
 if (failures.length) {
   console.error(failures.join('\n'));
   process.exit(1);

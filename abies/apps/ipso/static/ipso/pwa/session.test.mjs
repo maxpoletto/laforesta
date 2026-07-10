@@ -70,6 +70,36 @@ check(
   'gpsRequired accepts fresh coordinates',
 );
 
+check(session.shouldBackup(20), 'shouldBackup triggers at the first interval');
+check(session.shouldBackup(40), 'shouldBackup triggers at later exact intervals');
+check(!session.shouldBackup(19), 'shouldBackup does not trigger before an interval');
+check(!session.shouldBackup(21), 'shouldBackup does not trigger after an interval');
+check(!session.shouldBackup(0), 'shouldBackup rejects zero');
+check(!session.shouldBackup('20'), 'shouldBackup rejects non-numeric sequences');
+
+check(
+  session.nextNumberDefault([]) === null,
+  'nextNumberDefault leaves a fresh session blank',
+);
+check(
+  session.nextNumberDefault([{ numero: null }, {}, null]) === null,
+  'nextNumberDefault leaves an all-blank session blank',
+);
+check(
+  session.nextNumberDefault([
+    { numero: 3 }, { numero: 1 }, { numero: null }, { numero: 2 },
+  ]) === 4,
+  'nextNumberDefault follows the highest number independent of row order',
+);
+check(
+  session.nextNumberDefault([{ numero: 1 }, { numero: 3 }]) === 4,
+  'nextNumberDefault does not reuse a deleted middle number',
+);
+check(
+  session.nextNumberDefault([{ numero: '9' }, { numero: 4 }]) === 5,
+  'nextNumberDefault ignores non-integer values',
+);
+
 if (failures.length) {
   console.error(failures.join('\n'));
   process.exit(1);
