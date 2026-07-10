@@ -84,6 +84,14 @@ const S = {
   RESUME_RESUME: 'Riprendi',
   RESUME_EXPORT: 'Esporta',
   RESUME_DISCARD: 'Scarta',
+  RESUME_ARCHIVE_TITLE: 'Archivio locale',
+  RESUME_ARCHIVE_BODY:
+    'Sessioni chiuse conservate sul dispositivo. Puoi esportare di nuovo una copia CSV.',
+  RESUME_STATUS_EXPORTED: 'esportata',
+  RESUME_STATUS_ABANDONED: 'scartata',
+  RESUME_CLOSE: 'Continua',
+  RESUME_DISCARD_CONFIRM:
+    'Scartare questa sessione? Resterà nell’archivio locale per una nuova esportazione.',
 
   // Confirm-end modal
   END_TITLE: 'Termina sessione',

@@ -61,6 +61,14 @@ function isResumableStatus(s) {
   return s === STATUS_OPEN || s === STATUS_PENDING_UPLOAD;
 }
 
+function isTerminalStatus(s) {
+  return s === STATUS_EXPORTED || s === STATUS_ABANDONED;
+}
+
+function isRecoverableStatus(s) {
+  return isResumableStatus(s) || isTerminalStatus(s);
+}
+
 // Canonical form for operator names: trim + lowercase. Used as the key the
 // per-operator next-number meta entry lives under, so " Mario Rossi " and
 // "mario rossi" share a counter.
@@ -271,6 +279,13 @@ async function listResumableSessions(db) {
   });
 }
 
+async function listRecoverableSessions(db) {
+  return tx(db, [STORE_SESSIONS], 'readonly', async (t) => {
+    const all = await req(t.objectStore(STORE_SESSIONS).getAll());
+    return all.filter((row) => isRecoverableStatus(row.status));
+  });
+}
+
 async function setSessionStatus(db, id, status) {
   await tx(db, [STORE_SESSIONS], 'readwrite', async (t) => {
     const store = t.objectStore(STORE_SESSIONS);
@@ -464,11 +479,13 @@ const Store = {
   DB_NAME, SCHEMA_VERSION,
   STATUS_OPEN, STATUS_PENDING_UPLOAD, STATUS_EXPORTED, STATUS_ABANDONED,
   UPLOAD_STATUS_UPLOADED, UPLOAD_STATUS_LOCAL_ONLY,
-  isResumableStatus, normalizeOperator, numberMetaKey,
+  isResumableStatus, isTerminalStatus, isRecoverableStatus,
+  normalizeOperator, numberMetaKey,
   nextNumberAfterSave, nextNumberAfterDelete, nextSeqAfterRows,
   openDb,
   getCachedBootResources, cacheReference, cacheTerreni,
-  startSession, getSession, listResumableSessions, setSessionStatus,
+  startSession, getSession, listResumableSessions, listRecoverableSessions,
+  setSessionStatus,
   setSessionUploadStatus,
   addTree, listTrees, updateTree, deleteTree, lastTree,
   getNextNumberForOperator,

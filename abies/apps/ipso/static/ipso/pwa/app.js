@@ -109,9 +109,10 @@ async function boot() {
     showToast(S.TOAST_BOOT_CACHE_ERROR(e.message));
   }
 
-  let resumable;
+  let recoverable;
   try {
-    resumable = await Store.listResumableSessions(State.db);
+    const listSessions = Store.listRecoverableSessions || Store.listResumableSessions;
+    recoverable = await listSessions(State.db);
   } catch (e) {
     showToast(S.TOAST_DB_OPEN_ERROR(e.message));
     return;
@@ -151,10 +152,11 @@ async function boot() {
   // foreground (the Wake Lock API auto-releases on visibility loss).
   setupWakeLockVisibility();
 
-  // Resume-on-open: check for any sessions awaiting follow-up
-  // (STATUS_OPEN or STATUS_PENDING_UPLOAD) before showing pre-session.
-  if (resumable && resumable.length > 0) {
-    showResumeModal(resumable);
+  // Resume-on-open: check for any local sessions still useful to the
+  // operator. Open/pending sessions need action; terminal sessions remain
+  // available as a local export archive.
+  if (recoverable && recoverable.length > 0) {
+    showResumeModal(recoverable);
   } else {
     showModeScreen();
   }
@@ -1778,13 +1780,18 @@ function showResumeModal(sessions) {
   const hasOpen = sessions.some(
     (s) => s.status === Store.STATUS_OPEN
   );
-  document.getElementById('resume-title').textContent = hasUpload && !hasOpen
-    ? S.UPLOAD_RESUME_TITLE
-    : S.RESUME_TITLE;
-  // Body line is generic enough for either case; leave RESUME_BODY in place.
+  const hasActive = hasUpload || hasOpen;
+  document.getElementById('resume-title').textContent = hasActive
+    ? (hasUpload && !hasOpen ? S.UPLOAD_RESUME_TITLE : S.RESUME_TITLE)
+    : S.RESUME_ARCHIVE_TITLE;
+  document.getElementById('resume-body').textContent = hasActive
+    ? S.RESUME_BODY
+    : S.RESUME_ARCHIVE_BODY;
 
   const list = document.getElementById('resume-list');
   list.replaceChildren();
+  const footer = document.getElementById('resume-footer');
+  if (footer) footer.replaceChildren();
   for (const s of sessions) {
     const li = document.createElement('li');
     li.className = 'resume-item';
@@ -1792,7 +1799,8 @@ function showResumeModal(sessions) {
     meta.className = 'resume-meta';
     meta.textContent =
       formatItalianDate(s.data) + ' · ' + S.where(s) +
-      ' · ' + (s.operatore || '—') + ' · ' + (s.tree_count || 0) + ' alberi';
+      ' · ' + (s.operatore || '—') + ' · ' + (s.tree_count || 0) + ' alberi' +
+      sessionStatusSuffix(s);
     li.appendChild(meta);
 
     const actions = document.createElement('div');
@@ -1833,15 +1841,13 @@ function showResumeModal(sessions) {
       const local = mkBtn(S.UPLOAD_RESUME_KEEP_LOCAL, 'btn-secondary', async () => {
         await Store.setSessionUploadStatus(State.db, s.id, Store.UPLOAD_STATUS_LOCAL_ONLY);
         await Store.setSessionStatus(State.db, s.id, Store.STATUS_EXPORTED);
-        li.remove();
-        if (!list.children.length) {
-          hideModal('modal-resume');
-          showModeScreen();
-        }
+        s.upload_status = Store.UPLOAD_STATUS_LOCAL_ONLY;
+        s.status = Store.STATUS_EXPORTED;
+        showResumeModal(sessions);
       });
       actions.appendChild(carica);
       actions.appendChild(local);
-    } else {
+    } else if (s.status === Store.STATUS_OPEN) {
       const resume = mkBtn(S.RESUME_RESUME, 'btn-primary', async () => {
         if (!State.reference) {
           showToast(S.TOAST_REFERENCE_REQUIRED);
@@ -1855,32 +1861,54 @@ function showResumeModal(sessions) {
         enterRecording();
       });
       const exp = mkBtn(S.RESUME_EXPORT, 'btn-secondary', async () => {
-        const trees = await Store.listTrees(State.db, s.id);
-        trees.sort((a, b) => a.seq - b.seq);
-        await Store.setSessionStatus(State.db, s.id, Store.STATUS_EXPORTED);
-        downloadFinal(s, trees, State.reference);
-        li.remove();
-        if (!list.children.length) {
-          hideModal('modal-resume');
-          showModeScreen();
+        try {
+          const trees = await Store.listTrees(State.db, s.id);
+          trees.sort((a, b) => a.seq - b.seq);
+          downloadFinal(s, trees, State.reference);
+          await Store.setSessionStatus(State.db, s.id, Store.STATUS_EXPORTED);
+          s.status = Store.STATUS_EXPORTED;
+          showResumeModal(sessions);
+        } catch (e) {
+          showToast(S.TOAST_EXPORT_ERROR(e.message));
         }
       });
       const discard = mkBtn(S.RESUME_DISCARD, 'btn-danger', async () => {
+        if (!window.confirm(S.RESUME_DISCARD_CONFIRM)) return;
         await Store.setSessionStatus(State.db, s.id, Store.STATUS_ABANDONED);
-        li.remove();
-        if (!list.children.length) {
-          hideModal('modal-resume');
-          showModeScreen();
-        }
+        s.status = Store.STATUS_ABANDONED;
+        showResumeModal(sessions);
       });
       actions.appendChild(resume);
       actions.appendChild(exp);
       actions.appendChild(discard);
+    } else {
+      const exp = mkBtn(S.RESUME_EXPORT, 'btn-secondary', async () => {
+        try {
+          const trees = await Store.listTrees(State.db, s.id);
+          trees.sort((a, b) => a.seq - b.seq);
+          downloadFinal(s, trees, State.reference);
+        } catch (e) {
+          showToast(S.TOAST_EXPORT_ERROR(e.message));
+        }
+      });
+      actions.appendChild(exp);
     }
     li.appendChild(actions);
     list.appendChild(li);
   }
+  if (!hasActive && footer) {
+    footer.appendChild(mkBtn(S.RESUME_CLOSE, 'btn-primary', () => {
+      hideModal('modal-resume');
+      showModeScreen();
+    }));
+  }
   showModal('modal-resume');
+}
+
+function sessionStatusSuffix(s) {
+  if (s.status === Store.STATUS_EXPORTED) return ' · ' + S.RESUME_STATUS_EXPORTED;
+  if (s.status === Store.STATUS_ABANDONED) return ' · ' + S.RESUME_STATUS_ABANDONED;
+  return '';
 }
 
 function mkBtn(label, klass, handler) {

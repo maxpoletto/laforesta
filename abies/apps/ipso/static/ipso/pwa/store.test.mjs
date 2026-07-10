@@ -75,6 +75,25 @@ check(
 );
 check(Store.SCHEMA_VERSION === 7, 'schema v7 identifies canonical-ID session and tree rows');
 check(
+  Store.isResumableStatus(Store.STATUS_OPEN) &&
+    Store.isResumableStatus(Store.STATUS_PENDING_UPLOAD) &&
+    !Store.isResumableStatus(Store.STATUS_EXPORTED),
+  'resumable sessions are active recording or pending upload rows',
+);
+check(
+  Store.isTerminalStatus(Store.STATUS_EXPORTED) &&
+    Store.isTerminalStatus(Store.STATUS_ABANDONED) &&
+    !Store.isTerminalStatus(Store.STATUS_OPEN),
+  'terminal sessions are exported or abandoned rows',
+);
+check(
+  Store.isRecoverableStatus(Store.STATUS_OPEN) &&
+    Store.isRecoverableStatus(Store.STATUS_PENDING_UPLOAD) &&
+    Store.isRecoverableStatus(Store.STATUS_EXPORTED) &&
+    Store.isRecoverableStatus(Store.STATUS_ABANDONED),
+  'recoverable sessions include active rows and the local archive',
+);
+check(
   Store.nextSeqAfterRows([{ seq: 1 }, { seq: 3 }]) === 4,
   'nextSeqAfterRows continues from the highest existing sequence',
 );

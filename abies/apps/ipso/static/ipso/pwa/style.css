@@ -478,6 +478,8 @@ button {
 .resume-meta { font-size: 13px; color: var(--grey-2); }
 .resume-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .resume-actions button { flex: 1; font-size: 14px; padding: 8px 6px; }
+.resume-footer { display: flex; justify-content: flex-end; margin-top: 12px; }
+.resume-footer button { min-width: 120px; }
 
 /* ----------------------------------------------------------------------- */
 /* Visualizza dati raccolti                                                */

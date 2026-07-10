@@ -99,6 +99,7 @@ function makeHarness() {
   element('resume-title');
   element('resume-body');
   element('resume-list');
+  element('resume-footer');
   element('toast');
 
   const localValues = new Map([['ipso.bearer_token', 'test-token']]);
@@ -132,6 +133,12 @@ function makeHarness() {
     RESUME_RESUME: 'Riprendi',
     RESUME_EXPORT: 'Esporta',
     RESUME_DISCARD: 'Scarta',
+    RESUME_ARCHIVE_TITLE: 'Archivio locale',
+    RESUME_ARCHIVE_BODY: 'archive body',
+    RESUME_STATUS_EXPORTED: 'esportata',
+    RESUME_STATUS_ABANDONED: 'scartata',
+    RESUME_CLOSE: 'Continua',
+    RESUME_DISCARD_CONFIRM: 'confirm discard',
     where: (sess) => sess.compresa || '',
   }, {
     get(target, property) {
@@ -170,6 +177,7 @@ function makeHarness() {
       location: { hash: '', pathname: '/ipso/', search: '' },
       history: { replaceState() {} },
       addEventListener() {},
+      confirm() { events.push('confirm'); return true; },
     },
     navigator: {},
     localStorage: {
@@ -217,6 +225,7 @@ function makeHarness() {
       async cacheReference(_db, value) { events.push(['cacheReference', value]); },
       async cacheTerreni(_db, value) { events.push(['cacheTerreni', value]); },
       async listResumableSessions() { events.push('listResumableSessions'); return []; },
+      async listRecoverableSessions() { events.push('listRecoverableSessions'); return []; },
       async listTrees() {
         events.push('listTrees');
         return [{ id: 1, seq: 1, specie: 'Abete' }];
@@ -365,8 +374,8 @@ const session = {
     events.push('getCachedBootResources');
     return { reference, terreni };
   };
-  context.Store.listResumableSessions = async () => {
-    events.push('listResumableSessions');
+  context.Store.listRecoverableSessions = async () => {
+    events.push('listRecoverableSessions');
     return [{ ...session, status: 'open' }];
   };
   context.fetch = (url) => {
@@ -380,8 +389,8 @@ const session = {
   check(events.indexOf('openDb') < firstFetch, 'cold boot opens IndexedDB before network fetch');
   check(events.indexOf('getCachedBootResources') < firstFetch,
         'cold boot restores protected resources before network fetch');
-  check(events.indexOf('listResumableSessions') < firstFetch,
-        'cold boot lists resumable sessions before network fetch');
+  check(events.indexOf('listRecoverableSessions') < firstFetch,
+        'cold boot lists recoverable sessions before network fetch');
   check(!elements.get('modal-resume').classList.contains('hidden'),
         'cold boot exposes locally stored resumable sessions immediately');
 }
@@ -392,7 +401,7 @@ const session = {
 {
   const { context, elements, buttons } = makeHarness();
   const app = context.__ipsoAppTest;
-  context.Store.listResumableSessions = async () => [
+  context.Store.listRecoverableSessions = async () => [
     { ...session, status: 'open' },
   ];
   context.fetch = async () => ({ ok: false, status: 503 });
@@ -433,6 +442,114 @@ const session = {
   check(events.indexOf('download') >= 0, 'resume upload downloads CSV even when payload validation throws');
   check(events.indexOf('download') < events.indexOf('buildPayload'),
         'resume upload downloads CSV before building the upload payload');
+}
+
+// Terminal sessions stay reachable as a local archive on cold boot.
+{
+  const { context, elements, buttons } = makeHarness();
+  const app = context.__ipsoAppTest;
+  context.Store.listRecoverableSessions = async () => [
+    { ...session, status: 'exported' },
+  ];
+  context.fetch = async () => ({ ok: false, status: 503 });
+  await app.boot();
+  check(!elements.get('modal-resume').classList.contains('hidden'),
+        'cold boot exposes terminal sessions in the local archive');
+  check(elements.get('resume-title').textContent === 'Archivio locale',
+        'terminal-only recovery uses the archive title');
+  check(buttons.some(b => b.textContent === 'Esporta'),
+        'archive row can be exported again');
+  check(buttons.some(b => b.textContent === 'Continua'),
+        'archive modal can be closed');
+  check(!buttons.some(b => b.textContent === 'Riprendi'),
+        'exported archive row is not resumable');
+}
+
+// Resume-time export marks exported only after CSV generation/download starts.
+{
+  const { context, events, elements, buttons } = makeHarness();
+  const app = context.__ipsoAppTest;
+  app.State.db = {};
+  app.State.reference = {};
+  context.Store.setSessionStatus = async (_db, _id, status) => {
+    events.push(['setSessionStatus', status]);
+  };
+  app.showResumeModal([{ ...session, status: 'open' }]);
+
+  const exp = buttons.find(b => b.textContent === 'Esporta');
+  await exp.click();
+
+  const downloadIndex = events.indexOf('download');
+  const statusIndex = events.findIndex(
+    e => Array.isArray(e) && e[0] === 'setSessionStatus',
+  );
+  check(downloadIndex >= 0, 'resume export starts a download');
+  check(statusIndex > downloadIndex, 'resume export marks status after download starts');
+  eq(events[statusIndex], ['setSessionStatus', 'exported'],
+     'resume export marks the session exported');
+  check(elements.get('resume-title').textContent === 'Archivio locale',
+        'exported session remains visible in the archive');
+}
+
+// If CSV generation fails, export must not hide the session by changing status.
+{
+  const { context, events, elements, buttons } = makeHarness();
+  const app = context.__ipsoAppTest;
+  app.State.db = {};
+  app.State.reference = {};
+  context.csv.formatFile = () => { throw new Error('format failed'); };
+  context.Store.setSessionStatus = async (_db, _id, status) => {
+    events.push(['setSessionStatus', status]);
+  };
+  app.showResumeModal([{ ...session, status: 'open' }]);
+
+  const exp = buttons.find(b => b.textContent === 'Esporta');
+  await exp.click();
+
+  check(!events.some(e => Array.isArray(e) && e[0] === 'setSessionStatus'),
+        'failed resume export does not mark the session exported');
+  check(elements.get('toast').textContent === 'export error: format failed',
+        'failed resume export reports the formatting error');
+}
+
+// Discard requires confirmation before marking the session abandoned.
+{
+  const { context, events, buttons } = makeHarness();
+  const app = context.__ipsoAppTest;
+  app.State.db = {};
+  app.State.reference = {};
+  context.window.confirm = () => { events.push('confirm'); return false; };
+  context.Store.setSessionStatus = async (_db, _id, status) => {
+    events.push(['setSessionStatus', status]);
+  };
+  app.showResumeModal([{ ...session, status: 'open' }]);
+
+  const discard = buttons.find(b => b.textContent === 'Scarta');
+  await discard.click();
+
+  check(events.includes('confirm'), 'resume discard asks for confirmation');
+  check(!events.some(e => Array.isArray(e) && e[0] === 'setSessionStatus'),
+        'cancelled resume discard does not abandon the session');
+}
+
+// Confirmed discard moves the session to the archive, not out of the UI.
+{
+  const { context, events, elements, buttons } = makeHarness();
+  const app = context.__ipsoAppTest;
+  app.State.db = {};
+  app.State.reference = {};
+  context.Store.setSessionStatus = async (_db, _id, status) => {
+    events.push(['setSessionStatus', status]);
+  };
+  app.showResumeModal([{ ...session, status: 'open' }]);
+
+  const discard = buttons.find(b => b.textContent === 'Scarta');
+  await discard.click();
+
+  check(events.some(e => Array.isArray(e) && e[1] === 'abandoned'),
+        'confirmed resume discard marks the session abandoned');
+  check(elements.get('resume-title').textContent === 'Archivio locale',
+        'abandoned session remains visible in the archive');
 }
 
 // A prefill based on an older tree list must not replace a newer proposal when
