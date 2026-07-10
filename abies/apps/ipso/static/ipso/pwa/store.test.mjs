@@ -11,6 +11,64 @@ function check(ok, msg) {
   else failures.push(msg);
 }
 
+function same(actual, expected) {
+  return JSON.stringify(actual) === JSON.stringify(expected);
+}
+
+function makeMetaDb() {
+  const rows = new Map();
+  return {
+    transaction() {
+      let pending = 0;
+      let completed = false;
+      const transaction = {
+        error: null,
+        objectStore() {
+          return {
+            get(key) {
+              return request(() => rows.get(key));
+            },
+            put(row) {
+              return request(() => {
+                rows.set(row.key, row);
+                return row.key;
+              });
+            },
+          };
+        },
+        abort() {},
+      };
+      function request(action) {
+        const result = {};
+        pending += 1;
+        queueMicrotask(() => {
+          try {
+            result.result = action();
+            if (result.onsuccess) result.onsuccess();
+          } catch (error) {
+            result.error = error;
+            transaction.error = error;
+            if (result.onerror) result.onerror();
+            if (transaction.onerror) transaction.onerror();
+          } finally {
+            pending -= 1;
+            if (pending === 0) {
+              setTimeout(() => {
+                if (!completed && transaction.oncomplete) {
+                  completed = true;
+                  transaction.oncomplete();
+                }
+              }, 0);
+            }
+          }
+        });
+        return result;
+      }
+      return transaction;
+    },
+  };
+}
+
 check(
   Store.nextSeqAfterRows([]) === 1,
   'nextSeqAfterRows starts fresh sessions at one',
@@ -62,6 +120,25 @@ check(
   ]) === 5,
   'nextNumberAfterDelete ignores blanks and row order',
 );
+
+// Protected reference data is application-cached in the existing meta store;
+// writes resolve only after the IndexedDB transaction completes.
+{
+  const db = makeMetaDb();
+  const reference = { reference_version: 'v1', parcels: [{ parcel_id: 7 }] };
+  const terreni = [{ type: 'Feature', properties: { parcel_id: 7 } }];
+  await Store.cacheReference(db, reference);
+  await Store.cacheTerreni(db, terreni);
+  const cached = await Store.getCachedBootResources(db);
+  check(same(cached.reference, reference), 'reference snapshot round-trips through meta');
+  check(same(cached.terreni, terreni), 'parcel geometry snapshot round-trips through meta');
+
+  const replacement = { reference_version: 'v2', parcels: [{ parcel_id: 8 }] };
+  await Store.cacheReference(db, replacement);
+  const refreshed = await Store.getCachedBootResources(db);
+  check(same(refreshed.reference, replacement), 'new reference replaces the last-good snapshot');
+  check(same(refreshed.terreni, terreni), 'reference refresh retains last-good geometry');
+}
 
 if (failures.length) {
   console.error(failures.join('\n'));

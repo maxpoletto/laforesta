@@ -49,6 +49,10 @@ The shell assets are public:
 
 The service worker caches only shell/static assets. Protected data responses use
 `Cache-Control: no-store`, and the service worker bypasses `no-store` requests.
+The PWA instead keeps explicit, application-owned last-good snapshots of the
+validated reference bundle and parcel features in its IndexedDB `meta` store.
+This avoids putting bearer-protected responses in a shared HTTP cache while
+still supporting an offline cold start.
 
 Protected reference endpoints require the shared bearer:
 
@@ -68,8 +72,20 @@ Protected reference endpoints require the shared bearer:
 `terreni.geojson` contains parcel geometry for GPS-driven orientation and parcel
 selection in the mobile app.
 
-Ipso downloads these on boot after it has a bearer. It also stores field sessions
-and trees in IndexedDB for offline operation.
+On boot, Ipso opens IndexedDB before making either protected-data request. It
+restores the last-good reference and parcel-feature snapshots and lists locally
+resumable sessions immediately. When a bearer is available, it refreshes both
+resources opportunistically in the background; only successfully parsed and
+shape-validated responses replace the IndexedDB snapshots. A failed refresh
+leaves the snapshots in use and displays a persistent warning that recent Abies
+changes may be unavailable.
+
+A newly provisioned device still needs one successful online reference download
+before it can start its first field session. After that, a reload, browser-process
+eviction, phone restart, or loss of connectivity does not hide open or
+pending-upload sessions. If no valid reference snapshot is available, existing
+sessions remain exportable, but recording cannot resume until reference data is
+available. Field sessions and trees remain in IndexedDB throughout.
 
 ## Ipso -> Abies data
 

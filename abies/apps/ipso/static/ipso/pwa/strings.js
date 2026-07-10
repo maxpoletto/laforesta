@@ -104,6 +104,9 @@ const S = {
   STORAGE_OK: '',
   STORAGE_WARNING:
     'Memoria non protetta — completa ed esporta la sessione oggi.',
+  REFERENCE_OFFLINE_WARNING:
+    'Modalità offline — uso i dati di riferimento e la mappa salvati. ' +
+    'Le modifiche recenti in Abies potrebbero non essere disponibili.',
 
   // Toasts and errors
   GPS_DENIED:
@@ -130,12 +133,17 @@ const S = {
   ERROR_GEO_UNAVAILABLE: 'geo.js non disponibile',
   ERROR_HTTP_STATUS: (status) => `HTTP ${status}`,
   ERROR_TOKEN_MISSING: 'Token Ipso mancante',
+  ERROR_REFERENCE_INVALID: 'reference.json non valido',
   ERROR_GEOJSON_INVALID: 'GeoJSON non valido',
   TOAST_REFERENCE_LOAD_ERROR: (detail) =>
     `Errore caricamento reference.json: ${detail}`,
   TOAST_TERRENI_LOAD_ERROR: (detail) =>
     `Errore caricamento terreni.geojson: ${detail}`,
   TOAST_DB_OPEN_ERROR: (detail) => `Errore apertura database: ${detail}`,
+  TOAST_BOOT_CACHE_ERROR: (detail) =>
+    `Errore dati offline: ${detail}`,
+  TOAST_REFERENCE_REQUIRED:
+    'Dati di riferimento non disponibili. Puoi esportare la sessione, ma non riprenderla.',
   TOAST_SESSION_START_ERROR: (detail) =>
     `Errore avvio sessione: ${detail}`,
   TOAST_SAVE_ERROR: (detail) => `Errore salvataggio: ${detail}`,

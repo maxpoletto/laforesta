@@ -32,6 +32,13 @@ const STORE_SESSIONS = 'sessions';
 const STORE_TREES = 'trees';
 const STORE_META = 'meta';
 
+// Last-good protected resources used to cold-start the PWA without a network.
+// The service worker deliberately does not cache bearer-protected responses;
+// these application-owned snapshots live alongside the durable field data and
+// are replaced only after app-level validation succeeds.
+const META_KEY_REFERENCE = 'boot:reference';
+const META_KEY_TERRENI = 'boot:terreni';
+
 // Meta-store key namespace for per-operator, per-mode "next tree number"
 // persistence. Full key is `${META_KEY_NEXT_NUMBER_PREFIX}${mode}:${operator}`
 // and the value row is `{key, value: <int>}`. Max-bumped on save; rewritten
@@ -174,6 +181,41 @@ function req(r) {
   return new Promise((resolve, reject) => {
     r.onsuccess = () => resolve(r.result);
     r.onerror = () => reject(r.error);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Offline bootstrap resources
+// ---------------------------------------------------------------------------
+
+async function getCachedBootResources(db) {
+  return tx(db, [STORE_META], 'readonly', async (t) => {
+    const store = t.objectStore(STORE_META);
+    const [referenceRow, terreniRow] = await Promise.all([
+      req(store.get(META_KEY_REFERENCE)),
+      req(store.get(META_KEY_TERRENI)),
+    ]);
+    return {
+      reference: referenceRow ? referenceRow.value : null,
+      terreni: terreniRow ? terreniRow.value : null,
+    };
+  });
+}
+
+async function cacheReference(db, reference) {
+  await cacheBootResource(db, META_KEY_REFERENCE, reference);
+}
+
+async function cacheTerreni(db, terreni) {
+  await cacheBootResource(db, META_KEY_TERRENI, terreni);
+}
+
+async function cacheBootResource(db, key, value) {
+  await tx(db, [STORE_META], 'readwrite', (t) => {
+    t.objectStore(STORE_META).put({
+      key,
+      value,
+    });
   });
 }
 
@@ -417,6 +459,7 @@ const Store = {
   isResumableStatus, normalizeOperator, numberMetaKey,
   nextNumberAfterSave, nextNumberAfterDelete, nextSeqAfterRows,
   openDb,
+  getCachedBootResources, cacheReference, cacheTerreni,
   startSession, getSession, listResumableSessions, setSessionStatus,
   setSessionUploadStatus,
   addTree, listTrees, updateTree, deleteTree, lastTree,

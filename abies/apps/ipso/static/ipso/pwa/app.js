@@ -34,6 +34,7 @@ const State = {
   parcelName: null,    // selected/inferred parcel name in parcel-based modes
   map: null,           // lazy orientation map controller
   mapReturnScreen: 'screen-rec',
+  bootReady: false,    // true once controls are wired and may be refreshed
 };
 
 // ---------------------------------------------------------------------------
@@ -91,30 +92,9 @@ async function boot() {
     });
   }
 
-  try {
-    State.bearerToken = loadBearerToken();
-  } catch (e) {
-    showToast(S.TOAST_REFERENCE_LOAD_ERROR(e.message));
-    return;
-  }
-
-  try {
-    State.reference = await fetchReference();
-  } catch (e) {
-    showToast(S.TOAST_REFERENCE_LOAD_ERROR(e.message));
-    return;
-  }
-
-  // terreni.geojson powers GPS-driven parcel detection. A failure here
-  // is non-fatal: recording still works, the parcel pulldown just
-  // doesn't auto-track.
-  try {
-    State.terreni = await fetchTerreni();
-  } catch (e) {
-    State.terreni = null;
-    showToast(S.TOAST_TERRENI_LOAD_ERROR(e.message));
-  }
-
+  // Open durable local state before touching the network. This keeps saved
+  // sessions and the last-good reference bundle reachable after a reload or
+  // device restart in the forest.
   try {
     State.db = await Store.openDb();
   } catch (e) {
@@ -122,14 +102,50 @@ async function boot() {
     return;
   }
 
-  populateOperator();
-  populateComprese();
+  try {
+    await restoreCachedBootResources();
+  } catch (e) {
+    // A corrupt/unreadable resource snapshot must not hide the session store.
+    showToast(S.TOAST_BOOT_CACHE_ERROR(e.message));
+  }
+
+  let resumable;
+  try {
+    resumable = await Store.listResumableSessions(State.db);
+  } catch (e) {
+    showToast(S.TOAST_DB_OPEN_ERROR(e.message));
+    return;
+  }
+
+  let tokenError = null;
+  try {
+    State.bearerToken = loadBearerToken();
+  } catch (e) {
+    tokenError = e;
+  }
+
+  // A cached bundle makes refresh non-blocking. A newly provisioned device has
+  // no cache yet, so its first online reference download remains a prerequisite.
+  if (State.bearerToken) {
+    const refresh = refreshBootResources();
+    if (!State.reference) await refresh;
+    else refresh.catch((e) => showToast(S.TOAST_BOOT_CACHE_ERROR(e.message)));
+  } else if (State.reference) {
+    showReferenceWarning(S.REFERENCE_OFFLINE_WARNING);
+  }
+  if (!State.reference && tokenError) {
+    showToast(S.TOAST_REFERENCE_LOAD_ERROR(tokenError.message));
+  }
+
   wireModeSelection();
   wirePreSession();
   wireRecording();
   wireMap();
   wireUpload();
   wireDone();
+  State.bootReady = true;
+  populateOperator();
+  populateComprese();
 
   // Re-acquire the screen wake lock when the page returns to the
   // foreground (the Wake Lock API auto-releases on visibility loss).
@@ -137,7 +153,6 @@ async function boot() {
 
   // Resume-on-open: check for any sessions awaiting follow-up
   // (STATUS_OPEN or STATUS_PENDING_UPLOAD) before showing pre-session.
-  const resumable = await Store.listResumableSessions(State.db);
   if (resumable && resumable.length > 0) {
     showResumeModal(resumable);
   } else {
@@ -194,13 +209,110 @@ function bearerHeaders() {
   return { Authorization: 'Bearer ' + State.bearerToken };
 }
 
+function isObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function validateReference(value) {
+  const sampling = value && value[IPSO_REF_SAMPLING];
+  const pai = value && value[IPSO_REF_PAI];
+  if (!isObject(value) ||
+      !Array.isArray(value[IPSO_REF_SPECIES]) ||
+      !Array.isArray(value[IPSO_REF_PARCELS]) ||
+      !isObject(value[IPSO_REF_HYPSOMETRY]) ||
+      !isObject(sampling) ||
+      !Array.isArray(sampling[IPSO_REF_SURVEYS]) ||
+      !Array.isArray(sampling[IPSO_REF_SAMPLE_AREAS]) ||
+      !isObject(pai) ||
+      !Array.isArray(pai[IPSO_REF_PRESERVED_TREES])) {
+    throw new Error(S.ERROR_REFERENCE_INVALID);
+  }
+  return value;
+}
+
+function validateTerreniFeatures(value) {
+  if (!Array.isArray(value) || !value.every(isObject)) {
+    throw new Error(S.ERROR_GEOJSON_INVALID);
+  }
+  return value;
+}
+
+async function restoreCachedBootResources() {
+  const cached = await Store.getCachedBootResources(State.db);
+  const errors = [];
+  if (cached.reference !== null) {
+    try {
+      State.reference = validateReference(cached.reference);
+    } catch (e) {
+      errors.push(e.message);
+    }
+  }
+  if (cached.terreni !== null) {
+    try {
+      State.terreni = validateTerreniFeatures(cached.terreni);
+    } catch (e) {
+      errors.push(e.message);
+    }
+  }
+  if (errors.length) throw new Error(errors.join('; '));
+}
+
+async function refreshBootResources() {
+  const [referenceResult, terreniResult] = await Promise.all([
+    fetchReference().then((value) => ({ value }), (error) => ({ error })),
+    fetchTerreni().then((value) => ({ value }), (error) => ({ error })),
+  ]);
+
+  if (referenceResult.value) {
+    await persistBootResource(Store.cacheReference, referenceResult.value);
+    if (!State.session) {
+      State.reference = referenceResult.value;
+      refreshReferenceControls();
+    }
+  }
+  if (terreniResult.value) {
+    await persistBootResource(Store.cacheTerreni, terreniResult.value);
+    if (!State.session) State.terreni = terreniResult.value;
+  }
+
+  if (referenceResult.error || terreniResult.error) {
+    if (State.reference) showReferenceWarning(S.REFERENCE_OFFLINE_WARNING);
+    if (referenceResult.error && !State.reference) {
+      showToast(S.TOAST_REFERENCE_LOAD_ERROR(referenceResult.error.message));
+    }
+    if (terreniResult.error && !State.terreni) {
+      showToast(S.TOAST_TERRENI_LOAD_ERROR(terreniResult.error.message));
+    }
+  } else {
+    hideReferenceWarning();
+  }
+  return {
+    reference: !referenceResult.error,
+    terreni: !terreniResult.error,
+  };
+}
+
+async function persistBootResource(writer, value) {
+  try {
+    await writer(State.db, value);
+  } catch (e) {
+    showToast(S.TOAST_BOOT_CACHE_ERROR(e.message));
+  }
+}
+
+function refreshReferenceControls() {
+  if (!State.bootReady) return;
+  populateComprese();
+  populateSampleSurveyOptions();
+}
+
 async function fetchReference() {
   const r = await fetch('reference.json', {
     cache: 'reload',
     headers: bearerHeaders(),
   });
   if (!r.ok) throw new Error(S.ERROR_HTTP_STATUS(r.status));
-  return await r.json();
+  return validateReference(await r.json());
 }
 
 async function fetchTerreni() {
@@ -211,7 +323,7 @@ async function fetchTerreni() {
   if (!r.ok) throw new Error(S.ERROR_HTTP_STATUS(r.status));
   const gj = await r.json();
   if (!gj || !Array.isArray(gj.features)) throw new Error(S.ERROR_GEOJSON_INVALID);
-  return gj.features;
+  return validateTerreniFeatures(gj.features);
 }
 
 async function requestPersist() {
@@ -271,10 +383,18 @@ function formatYMD(d) {
 
 function populateComprese() {
   const sel = document.getElementById('in-compresa');
+  const keep = sel.value;
   sel.replaceChildren();
+  if (!State.reference || !Array.isArray(State.reference[IPSO_REF_PARCELS])) {
+    appendOption(sel, '', S.PRE_PICK_COMPRESA, true);
+    return;
+  }
   const comprese = [...new Set(State.reference[IPSO_REF_PARCELS].map((p) => p.compresa))].sort();
   appendOption(sel, '', S.PRE_PICK_COMPRESA, true);
   for (const c of comprese) appendOption(sel, c, c);
+  if (keep && Array.from(sel.options).some((opt) => opt.value === keep)) {
+    sel.value = keep;
+  }
 }
 
 function appendOption(sel, value, label, selected) {
@@ -454,6 +574,10 @@ function showModeScreen() {
 }
 
 function enterPreSession(modeId) {
+  if (!State.reference) {
+    showToast(S.TOAST_REFERENCE_REQUIRED);
+    return;
+  }
   const mode = IpsoModes.get(modeId);
   if (!mode.enabled) return;
   setMode(mode.id);
@@ -1700,6 +1824,10 @@ function showResumeModal(sessions) {
       actions.appendChild(local);
     } else {
       const resume = mkBtn(S.RESUME_RESUME, 'btn-primary', async () => {
+        if (!State.reference) {
+          showToast(S.TOAST_REFERENCE_REQUIRED);
+          return;
+        }
         State.session = s;
         setMode(s.mode);
         const last = await Store.lastTree(State.db, s.id);
@@ -1780,6 +1908,16 @@ function showBanner(msg) {
   const b = document.getElementById('banner-storage');
   b.textContent = msg;
   b.classList.remove('hidden');
+}
+
+function showReferenceWarning(msg) {
+  const b = document.getElementById('banner-reference');
+  b.textContent = msg;
+  b.classList.remove('hidden');
+}
+
+function hideReferenceWarning() {
+  document.getElementById('banner-reference').classList.add('hidden');
 }
 
 // ---------------------------------------------------------------------------
