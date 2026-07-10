@@ -16,6 +16,7 @@ from apps.base.models import UsedNonce
 from config import strings as S
 from config.constants import (
     DATA_ID, FIELD_DATE, FIELD_NONCE, RECORD, ROW_ID, STATUS,
+    STATUS_RATE_LIMITED,
 )
 
 
@@ -172,7 +173,7 @@ class TestRateLimitMiddleware:
         request.user = admin_user
         resp = mw(request)
         assert resp.status_code == 429
-        assert json.loads(resp.content)[STATUS] == 'rate_limited'
+        assert json.loads(resp.content)[STATUS] == STATUS_RATE_LIMITED
 
     def test_non_api_path_not_limited(self, admin_user):
         mw = RateLimitMiddleware(ok_response)

@@ -979,7 +979,7 @@ def test_admin_cannot_update_mode_after_domain_import(
     )
 
     assert resp.status_code == 400
-    assert S.IPSO_ERR_IMPORTED_CANNOT_EDIT_MODE in resp.json()['message']
+    assert S.IPSO_ERR_IMPORTED_CANNOT_EDIT_MODE in resp.json()[MESSAGE]
     upload.refresh_from_db()
     assert upload.mode == 'martellate'
 
@@ -1080,7 +1080,7 @@ def test_import_rejects_upload_mode_mismatch(
     )
 
     assert resp.status_code == 400
-    assert S.IPSO_ERR_MODE_UNSUPPORTED in resp.json()['message']
+    assert S.IPSO_ERR_MODE_UNSUPPORTED in resp.json()[MESSAGE]
     assert TreeMark.objects.count() == 0
     assert TreeSample.objects.count() == 0
     upload.refresh_from_db()
@@ -1108,7 +1108,7 @@ def test_martellate_import_rejects_coppice_target(
     )
 
     assert resp.status_code == 400
-    assert S.IPSO_ERR_INVALID_MARTELLATE_TARGET in resp.json()['message']
+    assert S.IPSO_ERR_INVALID_MARTELLATE_TARGET in resp.json()[MESSAGE]
     assert TreeMark.objects.count() == 0
     upload.refresh_from_db()
     assert upload.state == IpsoUploadState.RECEIVED
@@ -1139,7 +1139,7 @@ def test_martellate_import_rejects_rows_outside_parcel_target(
 
     assert resp.status_code == 400
     assert (S.IPSO_ERR_IMPORT_RECORD_MARK_TARGET_MISMATCH.format(1)
-            in resp.json()['message'])
+            in resp.json()[MESSAGE])
     assert TreeMark.objects.count() == 0
     upload.refresh_from_db()
     assert upload.state == IpsoUploadState.RECEIVED
@@ -1205,7 +1205,7 @@ def test_import_reports_staged_payload_file_errors(
     )
 
     assert resp.status_code == 400
-    assert expected_error in resp.json()['message']
+    assert expected_error in resp.json()[MESSAGE]
     assert TreeMark.objects.count() == 0
     upload.refresh_from_db()
     assert upload.state == IpsoUploadState.RECEIVED
@@ -1234,7 +1234,7 @@ def test_import_rejects_non_received_upload_states(
     )
 
     assert resp.status_code == 400
-    assert S.IPSO_ERR_UPLOAD_NOT_RECEIVED in resp.json()['message']
+    assert S.IPSO_ERR_UPLOAD_NOT_RECEIVED in resp.json()[MESSAGE]
     assert TreeMark.objects.count() == 0
     upload.refresh_from_db()
     assert upload.state == state
@@ -1308,7 +1308,7 @@ def test_martellate_import_rejects_duplicate_mark_number(
     )
 
     assert resp.status_code == 400
-    assert S.ERR_MARK_NUMBER_DUPLICATE.format(7) in resp.json()['message']
+    assert S.ERR_MARK_NUMBER_DUPLICATE.format(7) in resp.json()[MESSAGE]
     assert TreeMark.objects.count() == 1
     upload.refresh_from_db()
     assert upload.state == IpsoUploadState.RECEIVED
@@ -1332,7 +1332,7 @@ def test_martellate_import_rejects_edited_invalid_number(
     )
 
     assert resp.status_code == 400
-    assert S.IPSO_ERR_RECORD_NUMBER_INVALID.format(1) in resp.json()['message']
+    assert S.IPSO_ERR_RECORD_NUMBER_INVALID.format(1) in resp.json()[MESSAGE]
     assert TreeMark.objects.count() == 0
 
 @override_settings(IPSO_SECRET='test-token')
@@ -1354,7 +1354,7 @@ def test_martellate_import_rejects_edited_non_positive_number(
     )
 
     assert resp.status_code == 400
-    assert S.IPSO_ERR_RECORD_NUMBER_POSITIVE.format(1) in resp.json()['message']
+    assert S.IPSO_ERR_RECORD_NUMBER_POSITIVE.format(1) in resp.json()[MESSAGE]
     assert TreeMark.objects.count() == 0
 
 
@@ -1460,7 +1460,7 @@ def test_martellate_import_write_errors_do_not_claim_upload(
     )
 
     assert resp.status_code == 400
-    assert 'late mark validation error' in resp.json()['message']
+    assert 'late mark validation error' in resp.json()[MESSAGE]
     upload.refresh_from_db()
     assert upload.state == IpsoUploadState.RECEIVED
     assert upload.error_summary == 'late mark validation error'
@@ -1491,7 +1491,7 @@ def test_martellate_import_integrity_error_returns_validation(
     )
 
     assert resp.status_code == 400
-    assert S.IPSO_ERR_IMPORT_MARK_CONFLICT in resp.json()['message']
+    assert S.IPSO_ERR_IMPORT_MARK_CONFLICT in resp.json()[MESSAGE]
     assert TreeMark.objects.count() == 0
     upload.refresh_from_db()
     assert upload.state == IpsoUploadState.RECEIVED
@@ -1523,7 +1523,7 @@ def test_samples_import_integrity_error_returns_validation(
     )
 
     assert resp.status_code == 400
-    assert S.IPSO_ERR_IMPORT_SAMPLE_CONFLICT in resp.json()['message']
+    assert S.IPSO_ERR_IMPORT_SAMPLE_CONFLICT in resp.json()[MESSAGE]
     assert TreeSample.objects.count() == 0
     upload.refresh_from_db()
     assert upload.state == IpsoUploadState.RECEIVED
@@ -1554,7 +1554,7 @@ def test_samples_import_rejects_target_with_different_source_grid(
     )
 
     assert resp.status_code == 400
-    assert S.IPSO_ERR_SAMPLES_TARGET_GRID_MISMATCH in resp.json()['message']
+    assert S.IPSO_ERR_SAMPLES_TARGET_GRID_MISMATCH in resp.json()[MESSAGE]
     assert TreeSample.objects.count() == 0
     upload.refresh_from_db()
     assert upload.state == IpsoUploadState.RECEIVED
@@ -1582,7 +1582,7 @@ def test_samples_import_rejects_area_outside_selected_survey_grid(
 
     assert resp.status_code == 400
     assert (S.IPSO_ERR_IMPORT_RECORD_AREA_OUT_OF_SURVEY.format(1)
-            in resp.json()['message'])
+            in resp.json()[MESSAGE])
     assert TreeSample.objects.count() == 0
     upload.refresh_from_db()
     assert upload.state == IpsoUploadState.RECEIVED
@@ -1655,7 +1655,7 @@ def test_samples_import_rejects_staged_missing_number(
     )
 
     assert resp.status_code == 400
-    assert S.IPSO_ERR_RECORD_NUMBER_REQUIRED.format(1) in resp.json()['message']
+    assert S.IPSO_ERR_RECORD_NUMBER_REQUIRED.format(1) in resp.json()[MESSAGE]
     assert TreeSample.objects.count() == 0
     upload.refresh_from_db()
     assert upload.state == IpsoUploadState.RECEIVED
@@ -1757,7 +1757,7 @@ def test_samples_import_rejects_existing_number_shoot(
     )
 
     assert resp.status_code == 400
-    assert S.IPSO_ERR_IMPORT_RECORD_SAMPLE_NUMBER_DUPLICATE.format(1) in resp.json()['message']
+    assert S.IPSO_ERR_IMPORT_RECORD_SAMPLE_NUMBER_DUPLICATE.format(1) in resp.json()[MESSAGE]
     assert TreeSample.objects.count() == 1
     upload.refresh_from_db()
     assert upload.state == IpsoUploadState.RECEIVED
@@ -1788,7 +1788,7 @@ def test_samples_import_rejects_duplicate_number_shoot_in_upload(
     )
 
     assert resp.status_code == 400
-    assert S.IPSO_ERR_IMPORT_RECORD_SAMPLE_NUMBER_DUPLICATE.format(2) in resp.json()['message']
+    assert S.IPSO_ERR_IMPORT_RECORD_SAMPLE_NUMBER_DUPLICATE.format(2) in resp.json()[MESSAGE]
     assert TreeSample.objects.count() == 0
 
 @override_settings(IPSO_SECRET='test-token')
@@ -1815,7 +1815,7 @@ def test_pai_import_rejects_duplicate_tree_number_in_parcel(
     )
 
     assert resp.status_code == 400
-    assert resp.json()['message'] == (
+    assert resp.json()[MESSAGE] == (
         S.IPSO_ERR_IMPORT_RECORD_PAI_NUMBER_DUPLICATE.format(1)
     )
     assert TreePreserved.objects.count() == 1
@@ -1846,7 +1846,7 @@ def test_pai_import_integrity_error_returns_validation(
     )
 
     assert resp.status_code == 400
-    assert resp.json()['message'] == S.IPSO_ERR_IMPORT_PAI_NUMBER_CONFLICT
+    assert resp.json()[MESSAGE] == S.IPSO_ERR_IMPORT_PAI_NUMBER_CONFLICT
     assert TreePreserved.objects.count() == 0
     upload.refresh_from_db()
     assert upload.state == IpsoUploadState.RECEIVED
@@ -1870,7 +1870,7 @@ def test_pai_import_rejects_staged_missing_number(
     )
 
     assert resp.status_code == 400
-    assert S.IPSO_ERR_RECORD_NUMBER_REQUIRED.format(1) in resp.json()['message']
+    assert S.IPSO_ERR_RECORD_NUMBER_REQUIRED.format(1) in resp.json()[MESSAGE]
     assert TreePreserved.objects.count() == 0
     upload.refresh_from_db()
     assert upload.state == IpsoUploadState.RECEIVED
@@ -1970,7 +1970,7 @@ def test_import_rejects_second_submit_without_duplicate_marks(
     assert first.status_code == 200
     assert first.json()[IMPORTED] == 1
     assert second.status_code == 400
-    assert second.json()['message'] == S.IPSO_ERR_UPLOAD_NOT_RECEIVED
+    assert second.json()[MESSAGE] == S.IPSO_ERR_UPLOAD_NOT_RECEIVED
     assert TreeMark.objects.count() == 1
     upload.refresh_from_db()
     assert upload.state == IpsoUploadState.IMPORTED
