@@ -1103,15 +1103,24 @@ def mark_csv_import_view(request):
 
         d_cm = reader.integer(row.get('d_cm'))
         h_m = reader.decimal(row.get('h_m'))
-        if d_cm is None or h_m is None:
+        if d_cm is None or h_m is None or d_cm <= 0 or h_m <= 0:
             errors.append(S.ERR_CSV_ROW_PARSE.format(
                 i, f"{row.get('d_cm', '')}/{row.get('h_m', '')}"))
             continue
 
-        lat = coord_float(reader.decimal(row.get('lat')))
-        lon = coord_float(reader.decimal(row.get('lon')))
-        acc_m = reader.integer(row.get('acc_m'))
-        h_measured = is_truthy(row.get('h_measured'))
+        lat_raw, lat_ok = reader.opt_decimal(row.get('lat'))
+        lon_raw, lon_ok = reader.opt_decimal(row.get('lon'))
+        acc_m, acc_ok = reader.opt_int(row.get('acc_m'))
+        h_measured, h_measured_ok = reader.opt_bool(row.get('h_measured'))
+        if not (lat_ok and lon_ok and acc_ok and h_measured_ok):
+            errors.append(S.ERR_CSV_ROW_PARSE.format(
+                i, f'{S.CSV_COL_H_MEASURED}/{S.CSV_COL_LAT}/'
+                   f'{S.CSV_COL_LON}/{S.CSV_COL_ACC_M}',
+            ))
+            continue
+        lat = coord_float(lat_raw)
+        lon = coord_float(lon_raw)
+        h_measured = bool(h_measured)
 
         numero, numero_error = _parse_csv_mark_number(reader, row)
         if numero_error is not None:

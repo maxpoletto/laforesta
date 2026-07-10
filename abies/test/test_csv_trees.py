@@ -158,6 +158,45 @@ def test_validate_rows_invalid_pressler_flagged(survey_with_area):
     assert len(errors) == 1
 
 
+@pytest.mark.parametrize(('number', 'd_cm', 'h_m'), [
+    ('0', '30', '15.5'),
+    ('1', '0', '15.5'),
+    ('1', '30', '0'),
+])
+@pytest.mark.django_db
+def test_validate_rows_rejects_non_positive_required_measurements(
+        survey_with_area, number, d_cm, h_m):
+    idx = csv_trees.db_indexes(survey_with_area['survey'])
+    parcel = survey_with_area['parcel']
+    csv_text = (
+        TREE_HEADER + '\n'
+        f'{parcel.region.name},{parcel.name},1,{number},0,False,'
+        f'{d_cm},{h_m},250,2,Abete,True\n'
+    )
+    parsed, errors = _validate(csv_text, idx)
+    assert parsed == []
+    assert len(errors) == 1
+
+
+@pytest.mark.parametrize(('shoot', 'l10_mm'), [
+    ('-1', '250'),
+    ('0', '-1'),
+])
+@pytest.mark.django_db
+def test_validate_rows_rejects_negative_optional_measurements(
+        survey_with_area, shoot, l10_mm):
+    idx = csv_trees.db_indexes(survey_with_area['survey'])
+    parcel = survey_with_area['parcel']
+    csv_text = (
+        TREE_HEADER + '\n'
+        f'{parcel.region.name},{parcel.name},1,1,{shoot},False,30,15.5,'
+        f'{l10_mm},2,Abete,True\n'
+    )
+    parsed, errors = _validate(csv_text, idx)
+    assert parsed == []
+    assert len(errors) == 1
+
+
 @pytest.mark.django_db
 def test_validate_rows_invalid_matricina_flagged(survey_with_area):
     """A non-blank but unrecognised Matricina is an error, not a silent False."""

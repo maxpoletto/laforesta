@@ -90,6 +90,10 @@ def validate_rows(reader, idx: TreeIndexes, *, has_date_column, default_date):
             errors.append(S.ERR_CSV_ROW_PARSE.format(
                 i, f'{S.CSV_COL_TREE}/{S.CSV_COL_D_CM}/{S.CSV_COL_H_M}'))
             continue
+        if number <= 0 or d_cm <= 0 or h_dec <= 0:
+            errors.append(S.ERR_CSV_ROW_PARSE.format(
+                i, f'{S.CSV_COL_TREE}/{S.CSV_COL_D_CM}/{S.CSV_COL_H_M}'))
+            continue
         shoot, shoot_ok = reader.opt_int(row.get(S.CSV_COL_COPPICE_SHOOT))
         l10, l10_ok = reader.opt_int(row.get(S.CSV_COL_L10_MM))
         pressler = reader.decimal(row.get(S.CSV_COL_PRESSLER))
@@ -100,6 +104,10 @@ def validate_rows(reader, idx: TreeIndexes, *, has_date_column, default_date):
                 i, f'{S.CSV_COL_COPPICE_SHOOT}/{S.CSV_COL_L10_MM}/'
                    f'{S.CSV_COL_PRESSLER}/{S.CSV_COL_COPPICE_STD}/'
                    f'{S.CSV_COL_PRESERVED}'))
+            continue
+        if (shoot is not None and shoot < 0) or (l10 is not None and l10 < 0):
+            errors.append(S.ERR_CSV_ROW_PARSE.format(
+                i, f'{S.CSV_COL_COPPICE_SHOOT}/{S.CSV_COL_L10_MM}'))
             continue
         shoot = shoot or 0
         l10_mm = l10 or 0

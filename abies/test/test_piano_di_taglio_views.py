@@ -1702,6 +1702,32 @@ class TestMarkCSVImport:
         assert resp.status_code == 400
         assert TreeMark.objects.count() == 0
 
+    @pytest.mark.parametrize(('index', 'value'), [
+        (6, '0'),       # D_cm
+        (7, '0'),       # H_m
+        (8, 'maybe'),   # H_measured
+        (9, 'bad'),     # Lat
+        (10, 'bad'),    # Lon
+        (11, 'bad'),    # Acc_m
+    ])
+    def test_import_rejects_invalid_measurements_and_optionals(
+        self, writer_client, planned_item, species, parcels, index, value,
+    ):
+        sp = species[0]
+        parcel = parcels[0]
+        row = [
+            '01/06/2025', parcel.region.name, parcel.name, '0', '1',
+            sp.common_name, '30', '20,0', '0', '38.5', '16.3', '5', 'Mario',
+        ]
+        row[index] = value
+        csv_bytes = self._csv_content([row])
+
+        resp = self._post(writer_client, planned_item, csv_bytes)
+
+        assert resp.status_code == 400
+        assert resp.json()[STATUS] == STATUS_VALIDATION_ERROR
+        assert TreeMark.objects.count() == 0
+
     def test_import_dedup(self, writer_client, planned_item, species, parcels):
         sp = species[0]
         parcel = parcels[0]
