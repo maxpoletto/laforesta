@@ -1730,7 +1730,9 @@ def test_pai_import_rejects_duplicate_tree_number_in_parcel(
     )
 
     assert resp.status_code == 400
-    assert 'numero PAI già presente' in resp.json()['message']
+    assert resp.json()['message'] == (
+        S.IPSO_ERR_IMPORT_RECORD_PAI_NUMBER_DUPLICATE.format(1)
+    )
     assert TreePreserved.objects.count() == 1
     upload.refresh_from_db()
     assert upload.state == IpsoUploadState.RECEIVED
@@ -1759,11 +1761,11 @@ def test_pai_import_integrity_error_returns_validation(
     )
 
     assert resp.status_code == 400
-    assert 'Numero PAI già presente' in resp.json()['message']
+    assert resp.json()['message'] == S.IPSO_ERR_IMPORT_PAI_NUMBER_CONFLICT
     assert TreePreserved.objects.count() == 0
     upload.refresh_from_db()
     assert upload.state == IpsoUploadState.RECEIVED
-    assert 'Numero PAI già presente' in upload.error_summary
+    assert upload.error_summary == S.IPSO_ERR_IMPORT_PAI_NUMBER_CONFLICT
 
 
 @override_settings(IPSO_SECRET='test-token')
