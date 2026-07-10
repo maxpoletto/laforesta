@@ -241,6 +241,7 @@ test-js:
 	node apps/base/static/base/js/ui-widgets-modals.test.mjs
 	node apps/base/static/base/js/tests.mjs
 	node apps/base/static/base/js/cache.test.mjs
+	node apps/base/static/base/js/router.test.mjs
 	node apps/base/static/base/js/page-sync.test.mjs
 	node --check apps/bosco/static/bosco/js/bosco.js
 	node apps/bosco/static/bosco/js/bosco-state.test.mjs
