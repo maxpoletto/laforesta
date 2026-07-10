@@ -27,7 +27,7 @@ from config.constants import (
     COLUMNS, DUPLICATE, ERROR, FIELD_HARVEST_PLAN_ITEM_ID, FIELD_MODE,
     FIELD_REASON, FIELD_SURVEY_ID, IMPORTED, IPSO_ERROR_CONFLICT,
     IPSO_ERROR_INVALID_PAYLOAD, IPSO_ERROR_RATE_LIMITED, IPSO_ERROR_TOO_LARGE,
-    IPSO_MODE_PAI, PENDING_COUNT, ROWS, ROW_ID,
+    IPSO_MODE_PAI, MESSAGE, PENDING_COUNT, ROWS, ROW_ID,
 )
 
 
@@ -907,6 +907,55 @@ def test_admin_updates_upload_mode_and_staged_payload(
     assert (inbox_path / 'export.csv').read_text() == original_csv
     assert resp.json()['upload']['mode'] == 'martellate'
     assert resp.json()['upload']['mode_label'] == S.IPSO_MODE_MARTELLATE_LABEL
+
+
+@override_settings(IPSO_SECRET='test-token')
+def test_admin_rejects_unsupported_upload_mode(
+        admin_client, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    payload = _upload_payload(parcels, species)
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
+    original_mode = upload.mode
+    original_checksum = upload.checksum
+
+    resp = admin_client.post(
+        reverse('ipso-upload-mode', args=[upload.id]),
+        data=json.dumps({FIELD_MODE: 'unsupported'}),
+        content_type='application/json',
+    )
+
+    assert resp.status_code == 400
+    assert resp.json()[MESSAGE] == S.IPSO_ERR_MODE_UNSUPPORTED
+    upload.refresh_from_db()
+    assert upload.mode == original_mode
+    assert upload.checksum == original_checksum
+
+
+@override_settings(IPSO_SECRET='test-token')
+def test_admin_cannot_update_mode_with_corrupted_staged_payload(
+        admin_client, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    payload = _upload_payload(parcels, species)
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload['session']['session_id'])
+    original_mode = upload.mode
+    original_checksum = upload.checksum
+    upload_json = Path(upload.inbox_path) / 'upload.json'
+    upload_json.write_text('{not-json', encoding='utf-8')
+
+    resp = admin_client.post(
+        reverse('ipso-upload-mode', args=[upload.id]),
+        data=json.dumps({FIELD_MODE: IPSO_MODE_PAI}),
+        content_type='application/json',
+    )
+
+    assert resp.status_code == 400
+    assert resp.json()[MESSAGE] == S.IPSO_ERR_UPLOAD_JSON_INVALID
+    upload.refresh_from_db()
+    assert upload.mode == original_mode
+    assert upload.checksum == original_checksum
+    assert upload_json.read_text(encoding='utf-8') == '{not-json'
 
 
 @override_settings(IPSO_SECRET='test-token')
