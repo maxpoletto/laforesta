@@ -20,8 +20,9 @@ import { createRangeSlider } from '../../base/js/range-slider.js';
 import * as router from '../../base/js/router.js';
 import * as S from '../../base/js/strings.js';
 import {
-  COL_PARCEL_ID, COL_REGION_ID, FIELD_ERRORS, FIELD_FILE, FIELD_NONCE,
-  FIELD_SPECIES, ROW_ID, STATUS_CONFLICT,
+  COL_PARCEL_ID, COL_REGION_ID, FIELD_DATE, FIELD_ERRORS, FIELD_FILE,
+  FIELD_NONCE, FIELD_SPECIES, FIELD_SPECIES_PCT_PREFIX,
+  FIELD_TRACTOR_PCT_PREFIX, PARCEL_WHOLE_REGION_MARK, ROW_ID, STATUS_CONFLICT,
 } from '../../base/js/constants.js';
 import { CLASS_BOSCO_LINK, STATIC_COLS, buildPrelieviColumnDefs }
   from '../../base/js/prelievi-columns.js';
@@ -34,6 +35,7 @@ import {
   applyTableState, createPage, navigateWithParams, readTableState,
   tableSort, writeTableState,
 } from '../../base/js/page-sync.js';
+import { localISODate } from '../../base/js/format.js';
 
 const CSS_URL = '/static/prelievi/css/prelievi.css';
 const DATA_ID = 'prelievi';
@@ -65,6 +67,8 @@ let filterParcelId = null;
 let table = null;
 let slider = null;
 let inForm = false;
+let pendingQueryParams = null;
+let pendingCacheRefresh = false;
 let disposePageActions = null;
 
 // Column classification and index map — resolved on first data load.
@@ -115,7 +119,7 @@ const page = createPage({
   load: loadPageData,
   mount: mountPage,
   unmount: destroyPage,
-  onQueryChange: (params) => { if (!inForm) applyParams(params); },
+  onQueryChange: handleQueryChange,
   onUpdate: [[DATA_ID, onCacheUpdate], [SPECIES_ID, onSpeciesUpdate]],
   visibleIds: [DATA_ID, SPECIES_ID],
 });
@@ -135,11 +139,9 @@ async function loadPageData() {
 
 function mountPage(el, params, data) {
   inForm = false;
-  colDate = data.columns.indexOf(S.COL_DATE);
-  colRegionId = data.columns.indexOf(COL_REGION_ID);
-  colParcelId = data.columns.indexOf(COL_PARCEL_ID);
-  _buildColMap(data.columns);
-  _classifyColumns(data.columns);
+  pendingQueryParams = null;
+  pendingCacheRefresh = false;
+  _syncColumnMetadata(data.columns);
   showTableView(data, params);
 }
 
@@ -155,6 +157,8 @@ function destroyPage() {
 
 function showTableView(data, params) {
   inForm = false;
+  pendingQueryParams = null;
+  pendingCacheRefresh = false;
   _destroyCharts();
   const el = document.getElementById('content');
   el.replaceChildren();
@@ -200,12 +204,19 @@ function destroyTable() {
 }
 
 function onCacheUpdate() {
-  if (inForm || !table) return;
-  table.setData(cache.get(DATA_ID));
+  if (inForm) {
+    pendingCacheRefresh = true;
+    return;
+  }
+  if (!table) return;
+  refreshTable();
+  _updateCharts();
 }
 
 function onSpeciesUpdate(data) {
   speciesNames = speciesNamesFromDigest(data);
+  const current = cache.get(DATA_ID);
+  if (current) refreshTable(current);
   _updateCharts();
 }
 
@@ -280,6 +291,28 @@ function readParams(params) {
     b: params.b || 'total',
     m: params.m === '1',
   };
+}
+
+function handleQueryChange(params) {
+  if (inForm) {
+    pendingQueryParams = params;
+    return;
+  }
+  applyParams(params);
+}
+
+function finishForm() {
+  inForm = false;
+  if (pendingQueryParams) {
+    const params = pendingQueryParams;
+    pendingQueryParams = null;
+    applyParams(params);
+  }
+  if (pendingCacheRefresh) {
+    pendingCacheRefresh = false;
+    refreshTable();
+    _updateCharts();
+  }
 }
 
 function applyParams(params) {
@@ -370,6 +403,14 @@ function syncURL() {
 
 function _buildColMap(columns) {
   colMap = columnMap(columns);
+}
+
+function _syncColumnMetadata(columns) {
+  colDate = columns.indexOf(S.COL_DATE);
+  colRegionId = columns.indexOf(COL_REGION_ID);
+  colParcelId = columns.indexOf(COL_PARCEL_ID);
+  _buildColMap(columns);
+  _classifyColumns(columns);
 }
 
 function _classifyColumns(columns) {
@@ -574,23 +615,23 @@ async function importCsv(form) {
 async function showAddForm() {
   inForm = true;
   const form = await fetchModalForm(FORM_URL);
-  if (!form) { inForm = false; return; }
-  onDismiss(() => { inForm = false; });
+  if (!form) { finishForm(); return; }
+  onDismiss(finishForm);
   wireForm(form);
 }
 
 async function showEditForm(rowId) {
   inForm = true;
   const form = await fetchModalForm(`${FORM_URL}${rowId}/`);
-  if (!form) { inForm = false; return; }
-  onDismiss(() => { inForm = false; });
+  if (!form) { finishForm(); return; }
+  onDismiss(finishForm);
   wireForm(form);
 }
 
 /** Client-side validation before POST. Returns error message or null. */
 function validateForm(body) {
   // Future date check.
-  if (body.date && body.date > new Date().toISOString().slice(0, 10)) {
+  if (body[FIELD_DATE] && body[FIELD_DATE] > localISODate()) {
     return S.ERR_DATE_FUTURE;
   }
   // Species percentages must sum to 100.
@@ -598,11 +639,11 @@ function validateForm(body) {
   let trSum = 0;
   for (const [key, val] of Object.entries(body)) {
     const n = parseInt(val, 10) || 0;
-    if (key.startsWith('sp_')) spSum += n;
-    else if (key.startsWith('tr_')) trSum += n;
+    if (key.startsWith(FIELD_SPECIES_PCT_PREFIX)) spSum += n;
+    else if (key.startsWith(FIELD_TRACTOR_PCT_PREFIX)) trSum += n;
   }
   if (spSum !== 100) return S.ERR_SPECIES_PCT_SUM;
-  if (trSum !== 100) return S.ERR_TRACTOR_PCT_SUM;
+  if (trSum !== 0 && trSum !== 100) return S.ERR_TRACTOR_PCT_SUM;
   return null;
 }
 
@@ -693,7 +734,9 @@ function wireCantiereSelect(form) {
           if (o.dataset.region === regionId) parcelSel.appendChild(o);
         }
         if (![...parcelSel.options].some(o => o.value === current)) {
-          const xOpt = [...parcelSel.options].find(o => o.dataset.name === 'X');
+          const xOpt = [...parcelSel.options].find(
+            o => o.dataset.name === PARCEL_WHOLE_REGION_MARK,
+          );
           parcelSel.value = xOpt ? xOpt.value : '';
         }
       }
@@ -710,9 +753,9 @@ function wire100Buttons(form) {
     const btn = e.target.closest('.btn-100');
     if (!btn) return;
     e.preventDefault();
-    const group = btn.dataset.group;
+    const prefix = btn.dataset.prefix;
     const target = btn.dataset.target;
-    for (const input of form.querySelectorAll(`input[name^="${group}_"]`)) {
+    for (const input of form.querySelectorAll(`input[name^="${prefix}"]`)) {
       input.value = input.name === target ? '100' : '0';
     }
   });
@@ -737,17 +780,11 @@ function confirmDelete(rowId) {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function returnToTable() {
-  const data = cache.get(DATA_ID);
-  const params = Object.fromEntries(new URLSearchParams(location.search));
-  if (!data) { mount(params); return; }
-  showTableView(data, params);
-}
-
-function refreshTable() {
-  if (table) table.setData(cache.get(DATA_ID));
+function refreshTable(data = cache.get(DATA_ID)) {
+  if (!data) return;
+  _syncColumnMetadata(data.columns);
+  if (table) table.setData(data, buildPrelieviColumnDefs(data.columns, speciesNames));
 }
 
 // Prelievi column definitions live in base/js/prelievi-columns.js, shared
 // with the Piano-di-taglio item view's sub-table so both format identically.
-

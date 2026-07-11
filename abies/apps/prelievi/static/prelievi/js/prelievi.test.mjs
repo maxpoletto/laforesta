@@ -351,21 +351,24 @@ const digest = {
     [3, 1, 20, 203, '2022-05-10', 'B', '3', 'Crew', 'Taglio', 30, 3, '', 30, 50, 150, 50, 0],
   ],
 };
+let prelieviDigest = digest;
+let prelieviLastModified = 'v1';
 
 globalThis.fetch = async (url) => {
   const payloads = {
-    '/api/prelievi/data/': digest,
+    '/api/prelievi/data/': prelieviDigest,
     '/api/species/data/': speciesDigest,
   };
   if (!payloads[url]) throw new Error(`unexpected fetch ${url}`);
   return {
     status: 200,
     ok: true,
-    headers: { get: h => h === 'Last-Modified' ? 'v1' : null },
+    headers: { get: h => h === 'Last-Modified' ? prelieviLastModified : null },
     json: async () => payloads[url],
   };
 };
 
+const cache = await import(staticModule('base/js/cache.js'));
 const prelievi = await import(staticModule('prelievi/js/prelievi.js'));
 
 function sliderValues() {
@@ -417,6 +420,20 @@ eq(filteredIds(), [1, 2, 3], 'invalid URL filter ids are ignored');
 prelievi.onQueryChange({ o: 'b' });
 eq(chartInstances.at(-1).data.datasets.map(d => d.label), ['Abete', 'Abete Rosso'],
    'species-by-parcel chart excludes tractor columns');
+
+const castagnoDigest = {
+  columns: [...digest.columns.slice(0, -1), 'Castagno', 'Castagno %', digest.columns.at(-1)],
+  rows: digest.rows.map((row, index) => [
+    ...row.slice(0, -1), index === 2 ? 75 : 0, index === 2 ? 100 : 0, row.at(-1),
+  ]),
+};
+prelieviDigest = castagnoDigest;
+prelieviLastModified = 'v2';
+await cache.load('prelievi');
+check(tableInstances.at(-1).columns.some(col => col.key === 'Castagno'),
+      'background refresh rebuilds the table when digest columns change');
+check(chartInstances.at(-1).data.datasets.some(d => d.label === 'Castagno'),
+      'background refresh reclassifies new species columns for open charts');
 
 prelievi.onQueryChange({ f: 'abete:>100' });
 eq(filteredIds(), [2], 'exact species column search beats longer species substring matches');

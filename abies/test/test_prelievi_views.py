@@ -5,6 +5,7 @@ import gzip
 import json
 import re
 from datetime import date, timedelta
+from decimal import Decimal
 
 import pytest
 from django.test import Client
@@ -217,6 +218,19 @@ class TestFormView:
         # The first species has 100% on sample_op
         assert 'value="100"' in html
 
+    def test_edit_form_includes_inactive_current_crew(
+        self, writer_client, sample_op,
+    ):
+        sample_op.crew.active = False
+        sample_op.crew.save(update_fields=['active'])
+
+        resp = writer_client.get(f'/api/prelievi/form/{sample_op.id}/')
+
+        assert resp.status_code == 200
+        html = resp.json()[HTML]
+        assert sample_op.crew.name in html
+        assert f'value="{sample_op.crew_id}"' in html
+
     def _vdp_value(self, html):
         """Extract the value rendered into the VDP (record1) input."""
         m = re.search(rf'name="{FIELD_RECORD1}"\s+value="([^"]*)"', html)
@@ -314,11 +328,32 @@ class TestSaveView:
         assert HarvestSpecies.objects.filter(harvest=op).count() == 2
         assert HarvestTractor.objects.filter(harvest=op).count() == 1
 
+    def test_create_rejects_missing_product(self, writer_client, harvest_fixtures):
+        f = harvest_fixtures
+        resp = self._post(writer_client, self._base_payload(f, **{
+            FIELD_PRODUCT_ID: '',
+        }))
+
+        assert resp.status_code == 400
+        assert S.ERR_PRODUCT_REQUIRED in resp.json()[MESSAGE]
+
+    def test_create_rejects_malformed_percentages(
+        self, writer_client, harvest_fixtures,
+    ):
+        f = harvest_fixtures
+        resp = self._post(writer_client, self._base_payload(f, **{
+            f'sp_{f["species"][0].id}': 'abc',
+        }))
+
+        assert resp.status_code == 400
+        assert S.ERR_BOSCO_INTEGER_REQUIRED.format('%') in resp.json()[MESSAGE]
+
     def test_create_marks_digest_stale(self, writer_client, harvest_fixtures):
         f = harvest_fixtures
         self._post(writer_client, self._base_payload(f))
         assert DigestStatus.objects.get(name='prelievi').stale is True
         assert DigestStatus.objects.get(name='harvest_plan_items').stale is True
+        assert DigestStatus.objects.get(name=DIGEST_FUTURE_PRODUCTION).stale is True
 
     def test_create_auto_advances_state(self, writer_client, harvest_fixtures):
         """First Harvest on an OPEN item advances state to HARVESTING."""
@@ -342,6 +377,126 @@ class TestSaveView:
         assert str(sample_op.date) == '2024-06-20'
         assert float(sample_op.mass_q) == 60.0
         assert sample_op.version == 2
+
+    def test_update_legacy_region_harvest_attaches_parcel_scoped_cantiere(
+        self, writer_client, harvest_fixtures,
+    ):
+        f = harvest_fixtures
+        legacy = Harvest.objects.create(
+            date='2024-06-15', region=f['parcels'][0].region,
+            crew=f['crews'][0], product=f['products'][0], mass_q=50,
+            record1=998,
+        )
+
+        resp = self._post(writer_client, self._base_payload(
+            f, **{
+                ROW_ID: str(legacy.id), VERSION: str(legacy.version),
+                FIELD_DATE: '2024-06-20', FIELD_MASS_Q: '60',
+                FIELD_RECORD1: '998',
+            },
+        ))
+
+        assert resp.status_code == 200, resp.content
+        legacy.refresh_from_db()
+        assert legacy.region_id is None
+        assert legacy.parcel_id == f['open_item'].parcel_id
+        assert legacy.harvest_plan_item_id == f['open_item'].id
+
+    def test_update_allows_unchanged_inactive_crew(
+        self, writer_client, harvest_fixtures, sample_op,
+    ):
+        f = harvest_fixtures
+        sample_op.crew.active = False
+        sample_op.crew.save(update_fields=['active'])
+
+        resp = self._post(writer_client, self._base_payload(
+            f, **{
+                ROW_ID: str(sample_op.id), VERSION: str(sample_op.version),
+                FIELD_DATE: '2024-06-20', FIELD_NOTE: 'inactive crew edit',
+                FIELD_RECORD1: str(sample_op.record1),
+            },
+        ))
+
+        assert resp.status_code == 200, resp.content
+        sample_op.refresh_from_db()
+        assert sample_op.crew_id == f['crews'][0].id
+        assert sample_op.note == 'inactive crew edit'
+
+    def test_update_rejects_changed_inactive_crew(
+        self, writer_client, harvest_fixtures, sample_op,
+    ):
+        f = harvest_fixtures
+        f['crews'][1].active = False
+        f['crews'][1].save(update_fields=['active'])
+
+        resp = self._post(writer_client, self._base_payload(
+            f, **{
+                ROW_ID: str(sample_op.id), VERSION: str(sample_op.version),
+                FIELD_CREW_ID: str(f['crews'][1].id),
+                FIELD_RECORD1: str(sample_op.record1),
+            },
+        ))
+
+        assert resp.status_code == 400
+        assert S.ERR_CREW_REQUIRED in resp.json()[MESSAGE]
+
+    def test_update_allows_unchanged_closed_cantiere(
+            self, writer_client, harvest_fixtures, sample_op):
+        f = harvest_fixtures
+        f['open_item'].state = HarvestPlanItemState.CLOSED
+        f['open_item'].save(update_fields=['state'])
+
+        resp = self._post(writer_client, self._base_payload(
+            f, **{
+                ROW_ID: str(sample_op.id), VERSION: str(sample_op.version),
+                FIELD_DATE: '2024-06-20', FIELD_NOTE: 'fix typo',
+                FIELD_HARVEST_PLAN_ITEM_ID: str(f['open_item'].id),
+                FIELD_RECORD1: str(sample_op.record1),
+            },
+        ))
+
+        assert resp.status_code == 200, resp.content
+        sample_op.refresh_from_db()
+        assert sample_op.harvest_plan_item_id == f['open_item'].id
+        assert sample_op.note == 'fix typo'
+
+    def test_update_relink_rematerializes_old_and_new_cantiere(
+            self, writer_client, harvest_fixtures, sample_op):
+        f = harvest_fixtures
+        first = self._post(writer_client, self._base_payload(
+            f, **{
+                ROW_ID: str(sample_op.id), VERSION: str(sample_op.version),
+                FIELD_MASS_Q: '50', FIELD_RECORD1: str(sample_op.record1),
+            },
+        ))
+        assert first.status_code == 200, first.content
+        sample_op.refresh_from_db()
+        old_item = f['open_item']
+        old_item.refresh_from_db()
+        assert old_item.volume_actual_m3 > 0
+        new_item = HarvestPlanItem.objects.create(
+            harvest_plan=f['harvest_plan'], parcel=f['parcels'][1],
+            year_planned=2024, state=HarvestPlanItemState.OPEN,
+        )
+
+        second = self._post(writer_client, self._base_payload(
+            f, **{
+                ROW_ID: str(sample_op.id), VERSION: str(sample_op.version),
+                FIELD_HARVEST_PLAN_ITEM_ID: str(new_item.id),
+                FIELD_MASS_Q: '50', FIELD_RECORD1: str(sample_op.record1),
+            },
+        ))
+
+        assert second.status_code == 200, second.content
+        old_item.refresh_from_db()
+        new_item.refresh_from_db()
+        assert old_item.volume_actual_m3 == Decimal('0.000')
+        assert new_item.volume_actual_m3 > 0
+        item_patch_ids = {
+            patch[ROW_ID] for patch in second.json()[PATCHES]
+            if patch[DATA_ID] == 'harvest_plan_items'
+        }
+        assert item_patch_ids == {old_item.id, new_item.id}
 
     def test_update_conflict(self, writer_client, harvest_fixtures, sample_op):
         f = harvest_fixtures
@@ -380,6 +535,37 @@ class TestSaveView:
         assert resp.json()[STATUS] == STATUS_VALIDATION_ERROR
         assert S.ERR_DATE_FUTURE in resp.json()[MESSAGE]
         assert Harvest.objects.count() == 0
+
+    def test_today_date_is_accepted(self, writer_client, harvest_fixtures):
+        f = harvest_fixtures
+        today = date.today()
+
+        resp = self._post(writer_client, self._base_payload(
+            f, **{FIELD_DATE: today.isoformat(), FIELD_NONCE: 'today-date'},
+        ))
+
+        assert resp.status_code == 200
+        op = Harvest.objects.get(id=resp.json()[ROW_ID])
+        assert op.date == today
+
+    def test_update_rejects_future_date(
+            self, writer_client, harvest_fixtures, sample_op):
+        f = harvest_fixtures
+        original_date = date.fromisoformat(str(sample_op.date))
+        future_date = (date.today() + timedelta(days=1)).isoformat()
+
+        resp = self._post(writer_client, self._base_payload(
+            f, **{
+                ROW_ID: str(sample_op.id), VERSION: str(sample_op.version),
+                FIELD_DATE: future_date,
+            },
+        ))
+
+        assert resp.status_code == 400
+        assert resp.json()[STATUS] == STATUS_VALIDATION_ERROR
+        assert S.ERR_DATE_FUTURE in resp.json()[MESSAGE]
+        sample_op.refresh_from_db()
+        assert sample_op.date == original_date
 
     def test_validation_error_missing_cantiere(self, writer_client, harvest_fixtures):
         """New harvest without Cantiere → rejected with ERR_CANTIERE_REQUIRED."""
@@ -611,13 +797,14 @@ class TestDeleteView:
         assert HarvestSpecies.objects.count() < sp_count_before
 
     def test_delete_marks_digest_stale(self, writer_client, harvest_fixtures, sample_op):
-        for name in ('prelievi', 'harvest_plan_items'):
+        for name in ('prelievi', 'harvest_plan_items', DIGEST_FUTURE_PRODUCTION):
             DigestStatus.objects.update_or_create(name=name, defaults={'stale': False})
         self._post(writer_client, {
             ROW_ID: str(sample_op.id), VERSION: str(sample_op.version),
         })
         assert DigestStatus.objects.get(name='prelievi').stale is True
         assert DigestStatus.objects.get(name='harvest_plan_items').stale is True
+        assert DigestStatus.objects.get(name=DIGEST_FUTURE_PRODUCTION).stale is True
 
     def test_delete_conflict(self, writer_client, harvest_fixtures, sample_op):
         resp = self._post(writer_client, {
@@ -630,6 +817,14 @@ class TestDeleteView:
             DATA_ID: 'prelievi', ROW_ID: sample_op.id, RECORD: data[RECORD],
         }]
         assert Harvest.objects.filter(id=sample_op.id).exists()
+
+    def test_delete_rejects_malformed_row_id(self, writer_client, harvest_fixtures):
+        resp = self._post(writer_client, {
+            ROW_ID: 'not-an-id', VERSION: '1',
+        })
+
+        assert resp.status_code == 400
+        assert S.ERR_ROW_ID_INVALID in resp.json()[MESSAGE]
 
     def test_delete_non_numeric_version_conflicts(self, writer_client, harvest_fixtures, sample_op):
         resp = self._post(writer_client, {
@@ -749,8 +944,8 @@ class TestCsvImportView:
 # Import S for assertion comparisons
 from config import strings as S  # noqa: E402
 from config.constants import (
-    COLUMNS, DATA_ID, FIELD_ACTIVE, FIELD_COMMON_NAME, FIELD_CREW_ID,
-    FIELD_DATE, FIELD_DENSITY, FIELD_ERRORS, FIELD_FILE,
+    COLUMNS, DATA_ID, DIGEST_FUTURE_PRODUCTION, FIELD_ACTIVE, FIELD_COMMON_NAME,
+    FIELD_CREW_ID, FIELD_DATE, FIELD_DENSITY, FIELD_ERRORS, FIELD_FILE,
     FIELD_HARVEST_PLAN_ITEM_ID, FIELD_MANUFACTURER, FIELD_MASS_Q,
     FIELD_MINOR, FIELD_MODEL, FIELD_NONCE, FIELD_NOTE, FIELD_PRODUCT_ID,
     FIELD_RECORD1, FIELD_RECORD2,

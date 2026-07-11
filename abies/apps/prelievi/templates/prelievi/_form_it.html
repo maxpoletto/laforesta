@@ -75,7 +75,7 @@
     </div>
 
     <div class="form-readonly-flat" id="cantiere-flags-display">
-      <span><label>Note cantiere:</label> <span id="cantiere-flags">—</span></span>
+      <span><span class="label">Note cantiere:</span> <span id="cantiere-flags">—</span></span>
     </div>
 
     <div class="form-row">
@@ -125,9 +125,10 @@
         {% for id, name, pct in species_data %}
         <div class="pct-row">
           <label>{{ name }}</label>
-          <input type="number" name="sp_{{ id }}" min="0" max="100" value="{{ pct }}">
+          <input type="number" name="{{ species_pct_prefix }}{{ id }}" min="0" max="100" value="{{ pct }}">
           <button type="button" class="btn btn-100"
-                  data-group="sp" data-target="sp_{{ id }}">100%</button>
+                  data-prefix="{{ species_pct_prefix }}"
+                  data-target="{{ species_pct_prefix }}{{ id }}">100%</button>
         </div>
         {% endfor %}
       </div>
@@ -136,9 +137,10 @@
         {% for id, name, pct in tractor_data %}
         <div class="pct-row">
           <label>{{ name }}</label>
-          <input type="number" name="tr_{{ id }}" min="0" max="100" value="{{ pct }}">
+          <input type="number" name="{{ tractor_pct_prefix }}{{ id }}" min="0" max="100" value="{{ pct }}">
           <button type="button" class="btn btn-100"
-                  data-group="tr" data-target="tr_{{ id }}">100%</button>
+                  data-prefix="{{ tractor_pct_prefix }}"
+                  data-target="{{ tractor_pct_prefix }}{{ id }}">100%</button>
         </div>
         {% endfor %}
       </div>

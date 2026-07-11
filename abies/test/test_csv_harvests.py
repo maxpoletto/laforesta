@@ -308,8 +308,8 @@ def test_negative_quintals_rejected(parcels, species, base_setup):
 
 
 @pytest.mark.django_db
-def test_species_pct_sum_ok_when_mass_zero(parcels, species, base_setup):
-    """When Q.li=0, species %-sum is not checked."""
+def test_zero_mass_rejected_before_species_pct_sum(parcels, species, base_setup):
+    """Q.li=0 is rejected by the shared manual/CSV scalar rule."""
     p = parcels[0]
     header = _make_header('Specie: Abete', 'Specie: Castagno')
     text = header + '\n' + _row(
@@ -319,7 +319,8 @@ def test_species_pct_sum_ok_when_mass_zero(parcels, species, base_setup):
     reader = csv_io.read(text)
     cols, dyn, missing = csv_harvests.resolve_columns(reader.fieldnames)
     parsed, errors = csv_harvests.validate_rows(reader, cols, dyn, csv_harvests.db_indexes())
-    assert errors == []
+    assert parsed == []
+    assert errors == [S.ERR_CSV_ROW_PARSE.format(2, S.CSV_COL_QUINTALS)]
 
 
 @pytest.mark.django_db
@@ -390,7 +391,7 @@ def test_volume_computed_positive(parcels, species, base_setup):
 
 
 @pytest.mark.django_db
-def test_volume_zero_when_mass_zero(parcels, species, base_setup):
+def test_zero_mass_rejected_before_volume_compute(parcels, species, base_setup):
     p = parcels[0]
     header = _make_header('Specie: Abete')
     text = header + '\n' + _row(
@@ -400,8 +401,8 @@ def test_volume_zero_when_mass_zero(parcels, species, base_setup):
     reader = csv_io.read(text)
     cols, dyn, missing = csv_harvests.resolve_columns(reader.fieldnames)
     parsed, errors = csv_harvests.validate_rows(reader, cols, dyn, csv_harvests.db_indexes())
-    assert errors == []
-    assert parsed[0]['volume_m3'] == 0
+    assert parsed == []
+    assert errors == [S.ERR_CSV_ROW_PARSE.format(2, S.CSV_COL_QUINTALS)]
 
 
 # ---------------------------------------------------------------------------
@@ -553,13 +554,12 @@ def test_positive_mass_requires_species_breakdown(parcels, species, base_setup):
 
 
 @pytest.mark.django_db
-def test_zero_mass_without_species_breakdown_ok(parcels, species, base_setup):
+def test_zero_mass_without_species_breakdown_rejected(parcels, species, base_setup):
     p = parcels[0]
     header = _make_header()
     text = header + '\n' + _row(region=p.region.name, parcel=p.name, quintals='0')
     reader = csv_io.read(text)
     cols, dyn, missing = csv_harvests.resolve_columns(reader.fieldnames)
     parsed, errors = csv_harvests.validate_rows(reader, cols, dyn, csv_harvests.db_indexes())
-    assert errors == []
-    csv_harvests.apply(parsed)
-    assert HarvestSpecies.objects.count() == 0
+    assert parsed == []
+    assert errors == [S.ERR_CSV_ROW_PARSE.format(2, S.CSV_COL_QUINTALS)]

@@ -26,6 +26,10 @@ from apps.base.models import Crew, Parcel, Product, Region, Species, Tractor
 from apps.prelievi.models import (
     Harvest, HarvestSpecies, HarvestTractor, harvest_volume_m3,
 )
+from apps.prelievi.harvest_validation import (
+    percentages_sum_to_0_or_100, percentages_sum_to_100,
+    valid_harvest_mass, valid_percentage,
+)
 from config import strings as S
 
 # Required static columns — blank Particella is permitted (region-wide row).
@@ -213,7 +217,7 @@ def validate_rows(reader, static_cols, dyn, idx: HarvestIndexes):
 
         # --- Quintals (required). ---
         mass_q = reader.decimal(row.get(S.CSV_COL_QUINTALS))
-        if mass_q is None or mass_q < 0:
+        if not valid_harvest_mass(mass_q):
             errors.append(S.ERR_CSV_ROW_PARSE.format(i, S.CSV_COL_QUINTALS))
             continue
 
@@ -251,7 +255,7 @@ def validate_rows(reader, static_cols, dyn, idx: HarvestIndexes):
                 ok = False
                 break
             pct = pct or 0
-            if pct < 0 or pct > 100:
+            if not valid_percentage(pct):
                 errors.append(S.ERR_CSV_ROW_PARSE.format(i, hdr))
                 ok = False
                 break
@@ -259,11 +263,10 @@ def validate_rows(reader, static_cols, dyn, idx: HarvestIndexes):
         if not ok:
             continue
 
-        if mass_q > 0:
-            sp_sum = sum(pct for _, pct in species_pcts)
-            if sp_sum != 100:
-                errors.append(S.ERR_CSV_SPECIES_PCT_SUM.format(i, sp_sum))
-                continue
+        sp_sum = sum(pct for _, pct in species_pcts)
+        if not percentages_sum_to_100(pct for _, pct in species_pcts):
+            errors.append(S.ERR_CSV_SPECIES_PCT_SUM.format(i, sp_sum))
+            continue
 
         # --- Tractor percentages. ---
         tractor_pcts = []  # [(Tractor, int_pct)]
@@ -275,7 +278,7 @@ def validate_rows(reader, static_cols, dyn, idx: HarvestIndexes):
                 ok = False
                 break
             pct = pct or 0
-            if pct < 0 or pct > 100:
+            if not valid_percentage(pct):
                 errors.append(S.ERR_CSV_ROW_PARSE.format(i, hdr))
                 ok = False
                 break
@@ -283,11 +286,10 @@ def validate_rows(reader, static_cols, dyn, idx: HarvestIndexes):
         if not ok:
             continue
 
-        if tractor_pcts:
-            tr_sum = sum(pct for _, pct in tractor_pcts)
-            if tr_sum not in (0, 100):
-                errors.append(S.ERR_CSV_TRACTOR_PCT_SUM.format(i, tr_sum))
-                continue
+        tr_sum = sum(pct for _, pct in tractor_pcts)
+        if not percentages_sum_to_0_or_100(pct for _, pct in tractor_pcts):
+            errors.append(S.ERR_CSV_TRACTOR_PCT_SUM.format(i, tr_sum))
+            continue
 
         # --- Volume. ---
         volume_m3 = harvest_volume_m3(

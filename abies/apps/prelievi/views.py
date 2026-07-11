@@ -13,7 +13,7 @@ from decimal import Decimal
 
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
-from django.db.models import Sum
+from django.db.models import Q, Sum
 from django.http import JsonResponse
 from django.template.loader import render_to_string
 from django.views.decorators.http import require_POST
@@ -38,15 +38,19 @@ from apps.base.models import (
     Tractor, next_sequence_number, parcel_sort_key,
 )
 from apps.prelievi import csv_harvests
+from apps.prelievi.harvest_validation import (
+    percentages_sum_to_0_or_100, percentages_sum_to_100, valid_harvest_mass,
+)
 from apps.prelievi.models import (
     Harvest, HarvestSpecies, HarvestTractor, harvest_volume_m3,
 )
 from config import strings as S
 from config.constants import (
-    DATA_ID, FIELD_CREW_ID, FIELD_DATE, FIELD_FILE, FIELD_HARVEST_PLAN_ITEM_ID,
-    FIELD_MASS_Q, FIELD_NOTE, FIELD_PARCEL_ID, FIELD_PRODUCT_ID,
-    FIELD_RECORD1, FIELD_RECORD2, FIELD_SORT_ORDER, FIELD_SPECIES_ID,
-    FIELD_VOLUME_M3, HTML, MESSAGE, RECORD, ROW_ID, STATUS,
+    DATA_ID, DIGEST_FUTURE_PRODUCTION, FIELD_CREW_ID, FIELD_DATE, FIELD_FILE,
+    FIELD_HARVEST_PLAN_ITEM_ID, FIELD_MASS_Q, FIELD_NOTE, FIELD_PARCEL_ID,
+    FIELD_PRODUCT_ID, FIELD_RECORD1, FIELD_RECORD2, FIELD_REGION_ID,
+    FIELD_SORT_ORDER, FIELD_SPECIES_ID, FIELD_SPECIES_PCT_PREFIX,
+    FIELD_TRACTOR_PCT_PREFIX, FIELD_VOLUME_M3, HTML, MESSAGE, RECORD, ROW_ID, STATUS,
     VERSION,
 )
 
@@ -130,10 +134,16 @@ def save_view(request):
     parsed[FIELD_VOLUME_M3] = _compute_volume_m3(parsed[FIELD_MASS_Q], sp_pcts)
 
     with transaction.atomic():
+        affected_item_ids = set()
         if row_id:
-            op = _update_op(row_id, parsed, body, request)
-            if isinstance(op, JsonResponse):
-                return op
+            result = _update_op(row_id, parsed, body, request)
+            if isinstance(result, JsonResponse):
+                return result
+            op, previous_item_id = result
+            affected_item_ids.update(
+                item_id for item_id in (previous_item_id, op.harvest_plan_item_id)
+                if item_id is not None
+            )
         else:
             op = Harvest.objects.create(**parsed)
             item = op.harvest_plan_item
@@ -142,13 +152,15 @@ def save_view(request):
                 item.state = HarvestPlanItemState.HARVESTING
                 item.version += 1
                 item.save()
+            if op.harvest_plan_item_id is not None:
+                affected_item_ids.add(op.harvest_plan_item_id)
 
         _write_junctions(op, sp_pcts, tr_pcts)
-        if op.harvest_plan_item_id is not None:
-            _rematerialize_volume_actual(op.harvest_plan_item_id)
+        for item_id in sorted(affected_item_ids):
+            _rematerialize_volume_actual(item_id)
         stale = ['prelievi', 'audit']
-        if op.harvest_plan_item_id is not None:
-            stale.append('harvest_plan_items')
+        if affected_item_ids:
+            stale.extend(['harvest_plan_items', DIGEST_FUTURE_PRODUCTION])
         mark_stale(*stale)
 
     op = Harvest.objects.select_related(
@@ -156,11 +168,11 @@ def save_view(request):
     ).get(id=op.id)
     record = build_harvest_record(op)
     patches = [row_patch('prelievi', op.id, record)]
-    if op.harvest_plan_item_id is not None:
-        item_fresh = (HarvestPlanItem.objects
-                      .select_related('parcel__region', 'parcel__eclass',
-                                      'region', 'harvest_plan')
-                      .get(id=op.harvest_plan_item_id))
+    for item_fresh in (HarvestPlanItem.objects
+                       .select_related('parcel__region', 'parcel__eclass',
+                                       'region', 'harvest_plan')
+                       .filter(id__in=affected_item_ids)
+                       .order_by('id')):
         item_record = build_harvest_plan_item_record(item_fresh)
         patches.append(row_patch(
             'harvest_plan_items', item_fresh.id, item_record,
@@ -184,7 +196,9 @@ def delete_view(request):
     body, error = parse_json_body(request)
     if error:
         return error
-    row_id = int(body[ROW_ID])
+    row_id = int_or_none(body.get(ROW_ID))
+    if row_id is None:
+        return validation_error([S.ERR_ROW_ID_INVALID])
     version = submitted_version(body)
 
     try:
@@ -206,7 +220,7 @@ def delete_view(request):
             _rematerialize_volume_actual(had_item_id)
         stale = ['prelievi', 'audit']
         if had_item_id is not None:
-            stale.append('harvest_plan_items')
+            stale.extend(['harvest_plan_items', DIGEST_FUTURE_PRODUCTION])
         mark_stale(*stale)
 
     patches = []
@@ -328,10 +342,16 @@ def _form_context(op_id=None, vals=None):
         )
     elif vals:
         for key, val in vals.items():
-            if key.startswith('sp_') and val:
-                sp_pcts[int(key[3:])] = int(val)
-            elif key.startswith('tr_') and val:
-                tr_pcts[int(key[3:])] = int(val)
+            if key.startswith(FIELD_SPECIES_PCT_PREFIX) and val:
+                species_id = int_or_none(key[len(FIELD_SPECIES_PCT_PREFIX):])
+                pct = int_or_none(val)
+                if species_id is not None and pct is not None:
+                    sp_pcts[species_id] = pct
+            elif key.startswith(FIELD_TRACTOR_PCT_PREFIX) and val:
+                tractor_id = int_or_none(key[len(FIELD_TRACTOR_PCT_PREFIX):])
+                pct = int_or_none(val)
+                if tractor_id is not None and pct is not None:
+                    tr_pcts[tractor_id] = pct
 
     # Aggregate minor-species percentages into Altro for display.
     _, _, minor_ids, other_id = prelievi_species_cols()
@@ -358,6 +378,10 @@ def _form_context(op_id=None, vals=None):
         }
         for it in _open_cantieri()
     ]
+    crew_filter = Q(active=True)
+    if op and op.crew_id:
+        crew_filter |= Q(id=op.crew_id)
+
     return {
         'op': op,
         'vals': v,
@@ -365,8 +389,10 @@ def _form_context(op_id=None, vals=None):
         'cantieri': cantieri,
         'parcels': sorted(Parcel.objects.select_related('region'),
                          key=parcel_sort_key),
-        'crews': Crew.objects.filter(active=True).order_by('name'),
+        'crews': Crew.objects.filter(crew_filter).order_by('name'),
         'products': Product.objects.order_by('name'),
+        'species_pct_prefix': FIELD_SPECIES_PCT_PREFIX,
+        'tractor_pct_prefix': FIELD_TRACTOR_PCT_PREFIX,
         'species_data': [
             (sp.id, sp.common_name, sp_pcts.get(sp.id, 0))
             for sp in Species.objects.filter(active=True, minor=False)
@@ -405,6 +431,15 @@ def _parse_body(body):
     """
     errors = []
     row_id = _optional_int(body, ROW_ID, ROW_ID, errors)
+    current_item_id = None
+    current_crew_id = None
+    if row_id is not None:
+        current = (Harvest.objects
+                   .filter(id=row_id)
+                   .values_list(FIELD_HARVEST_PLAN_ITEM_ID, FIELD_CREW_ID)
+                   .first())
+        if current is not None:
+            current_item_id, current_crew_id = current
 
     date_str = body.get(FIELD_DATE)
     if not date_str:
@@ -417,7 +452,7 @@ def _parse_body(body):
             errors.append(S.ERR_DATE_REQUIRED)
 
     mass_q = parse_decimal(body.get(FIELD_MASS_Q)) or Decimal(0)
-    if mass_q <= 0:
+    if not valid_harvest_mass(mass_q):
         errors.append(S.ERR_QUINTALS_POSITIVE)
 
     record1 = _optional_int(body, FIELD_RECORD1, S.COL_VDP, errors)
@@ -440,15 +475,27 @@ def _parse_body(body):
     else:
         if item_id is not None:
             item = HarvestPlanItem.objects.filter(id=item_id).first()
-            if item is None or item.state not in _OPEN_STATES:
+            unchanged_item = item_id == current_item_id
+            if item is None or (not unchanged_item and item.state not in _OPEN_STATES):
                 errors.append(S.ERR_CANTIERE_STATE_INVALID)
+
+    crew_id = _optional_int(body, FIELD_CREW_ID, S.COL_CREW, errors)
+    if crew_id is None:
+        if body.get(FIELD_CREW_ID) in (None, ''):
+            errors.append(S.ERR_CREW_REQUIRED)
+    else:
+        crew = Crew.objects.filter(id=crew_id).only('id', 'active').first()
+        if crew is None or (not crew.active and crew_id != current_crew_id):
+            errors.append(S.ERR_CREW_REQUIRED)
+
+    product_id = _optional_int(body, FIELD_PRODUCT_ID, S.COL_PRODUCT, errors)
+    if product_id is None and body.get(FIELD_PRODUCT_ID) in (None, ''):
+        errors.append(S.ERR_PRODUCT_REQUIRED)
 
     parsed = {
         FIELD_DATE: date_str,
-        FIELD_CREW_ID: _optional_int(body, FIELD_CREW_ID, S.COL_CREW, errors),
-        FIELD_PRODUCT_ID: _optional_int(
-            body, FIELD_PRODUCT_ID, S.COL_PRODUCT, errors,
-        ),
+        FIELD_CREW_ID: crew_id,
+        FIELD_PRODUCT_ID: product_id,
         FIELD_RECORD1: record1,
         FIELD_MASS_Q: mass_q,
         FIELD_NOTE: body.get(FIELD_NOTE, ''),
@@ -459,6 +506,7 @@ def _parse_body(body):
         # POST cannot mis-attribute a harvest.
         if item.parcel_id is not None:
             parsed[FIELD_PARCEL_ID] = item.parcel_id
+            parsed[FIELD_REGION_ID] = None
         else:
             # Region-wide cantiere (damaged / unhealthy operation
             # spanning a whole region): the operator must still
@@ -475,6 +523,7 @@ def _parse_body(body):
                     errors.append(S.ERR_PARCEL_NOT_IN_REGION)
                 else:
                     parsed[FIELD_PARCEL_ID] = parcel.id
+                    parsed[FIELD_REGION_ID] = None
         parsed['harvest_plan_item_id'] = item.id
         parsed['damaged'] = item.damaged
         parsed['unhealthy'] = item.unhealthy
@@ -494,22 +543,28 @@ def _parse_body(body):
 def _parse_percentages(body):
     sp_pcts = {}
     tr_pcts = {}
+    errors = []
     for key, val in body.items():
         if not val:
             continue
-        if key.startswith('sp_'):
-            pct = int(val)
-            if pct > 0:
-                sp_pcts[int(key[3:])] = pct
-        elif key.startswith('tr_'):
-            pct = int(val)
-            if pct > 0:
-                tr_pcts[int(key[3:])] = pct
+        if key.startswith(FIELD_SPECIES_PCT_PREFIX):
+            species_id = int_or_none(key[len(FIELD_SPECIES_PCT_PREFIX):])
+            pct = int_or_none(val)
+            if species_id is None or pct is None:
+                errors.append(S.ERR_BOSCO_INTEGER_REQUIRED.format('%'))
+            elif pct > 0:
+                sp_pcts[species_id] = pct
+        elif key.startswith(FIELD_TRACTOR_PCT_PREFIX):
+            tractor_id = int_or_none(key[len(FIELD_TRACTOR_PCT_PREFIX):])
+            pct = int_or_none(val)
+            if tractor_id is None or pct is None:
+                errors.append(S.ERR_BOSCO_INTEGER_REQUIRED.format('%'))
+            elif pct > 0:
+                tr_pcts[tractor_id] = pct
 
-    errors = []
-    if sum(sp_pcts.values()) != 100:
+    if not percentages_sum_to_100(sp_pcts.values()):
         errors.append(S.ERR_SPECIES_PCT_SUM)
-    if sum(tr_pcts.values()) != 100:
+    if not percentages_sum_to_0_or_100(tr_pcts.values()):
         errors.append(S.ERR_TRACTOR_PCT_SUM)
     return sp_pcts, tr_pcts, errors
 
@@ -554,11 +609,12 @@ def _update_op(row_id, parsed, body, request):
             html=_render_form(row_id, request),
         )
 
+    previous_item_id = op.harvest_plan_item_id
     for field, value in parsed.items():
         setattr(op, field, value)
     op.version += 1
     op.save()
-    return op
+    return op, previous_item_id
 
 
 def _write_junctions(op, sp_pcts, tr_pcts):
