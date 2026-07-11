@@ -41,8 +41,8 @@ const LOCATION_CIRCLE_STYLE = {
 /** Human-readable distance, locale-aware ("12,3 m" / "1,23 km" in Italian). */
 export function formatDistance(meters) {
   return meters >= KM_THRESHOLD_M
-    ? S.MAP_DISTANCE_KM.replace('{d}', fmtDecimal2(meters / 1000))
-    : S.MAP_DISTANCE_M.replace('{d}', fmtDecimal1(meters));
+    ? S.MAP_DISTANCE_KM_LABEL(fmtDecimal2(meters / 1000))
+    : S.MAP_DISTANCE_M_LABEL(fmtDecimal1(meters));
 }
 
 /**
@@ -165,13 +165,13 @@ export function attachLocation(leaflet) {
     marker = L.circleMarker(e.latlng, LOCATION_MARKER_STYLE).addTo(leaflet);
     marker.bindTooltip(
       `<b>${S.MAP_LOCATION_CURRENT}</b><br>${
-        S.MAP_LOCATION_ACCURACY.replace('{m}', fmtInt(Math.round(e.accuracy)))}`,
+        S.MAP_LOCATION_ACCURACY_LABEL(fmtInt(Math.round(e.accuracy)))}`,
       { permanent: false, direction: 'top' },
     );
   }
 
   function onError(e) {
-    alert(S.MAP_LOCATION_ERROR.replace('{msg}', e.message));
+    alert(S.MAP_LOCATION_ERROR_MESSAGE(e.message));
     stop();
   }
 

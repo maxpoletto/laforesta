@@ -1670,7 +1670,7 @@ def test_martellate_import_preserves_blank_numbers_without_auto_numbering(
     payload = _upload_payload(
         parcels, species,
         session_id='11111111-1111-4111-8111-111111111118',
-        record_overrides={FIELD_NUMBER: None, 'client_record_id': 'd'},
+        record_overrides={FIELD_NUMBER: None, FIELD_CLIENT_RECORD_ID: 'd'},
     )
     base = payload[RECORDS][0]
     payload[RECORDS] = []

@@ -205,7 +205,7 @@ function wirePasswordSection(root) {
       return;
     }
 
-    msg.textContent = data.message;
+    msg.textContent = data[MESSAGE];
     if (status === 200) {
       form.reset();
     } else {

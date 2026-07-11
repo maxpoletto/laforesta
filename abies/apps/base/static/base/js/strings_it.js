@@ -420,9 +420,13 @@ export const MAP_LOCATION_TITLE = 'Mostra posizione';
 export const MAP_SIDEBAR_TITLE = 'Mostra/nascondi pannello';
 export const MAP_LOCATION_CURRENT = 'Posizione attuale';
 export const MAP_LOCATION_ACCURACY = 'Precisione: ±{m} m';
+export const MAP_LOCATION_ACCURACY_LABEL = (m) => `Precisione: ±${m} m`;
 export const MAP_LOCATION_ERROR = 'Impossibile determinare la posizione: {msg}';
+export const MAP_LOCATION_ERROR_MESSAGE = (msg) => `Impossibile determinare la posizione: ${msg}`;
 export const MAP_DISTANCE_M = '{d} m';
 export const MAP_DISTANCE_KM = '{d} km';
+export const MAP_DISTANCE_M_LABEL = (d) => `${d} m`;
+export const MAP_DISTANCE_KM_LABEL = (d) => `${d} km`;
 
 // ---------------------------------------------------------------------------
 // Piano di taglio (mirrors of config/strings_it.py additions).

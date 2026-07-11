@@ -311,6 +311,24 @@ assertEqual(delBtn.disabled, false, 'delete enabled after export');
 delBtn.click();
 assertEqual(deleteCalled, true, 'onDelete called');
 
+// Export failure leaves delete disabled and surfaces the returned error.
+resetModal();
+let deleteCalledAfterFailedExport = false;
+showCascadeDeleteModal({
+  title: 'Confirm delete',
+  warning: 'This is dangerous',
+  onExport: () => ({ error: 'No rows exported' }),
+  onDelete: () => { deleteCalledAfterFailedExport = true; },
+});
+const failedExportMsg = findByDataset(modalShown, 'field', 'export-required');
+const failedExportBtn = findByDataset(modalShown, 'action', 'export');
+const failedExportDeleteBtn = findByDataset(modalShown, 'action', 'delete');
+failedExportBtn.click();
+await Promise.resolve();
+assertEqual(failedExportDeleteBtn.disabled, true, 'delete remains disabled after failed export');
+assertEqual(failedExportMsg.textContent, 'No rows exported', 'failed export message is shown');
+assertEqual(deleteCalledAfterFailedExport, false, 'failed export does not delete');
+
 // ---------------------------------------------------------------------------
 // showCascadeDeleteModal — without export (simple warning)
 // ---------------------------------------------------------------------------
