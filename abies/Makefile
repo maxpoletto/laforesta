@@ -228,11 +228,14 @@ test: test-js
 test-js:
 	node apps/ipso/static/ipso/pwa/session.test.mjs
 	node apps/ipso/static/ipso/pwa/csv.test.mjs
+	node apps/ipso/static/ipso/pwa/gps.test.mjs
 	node apps/ipso/static/ipso/pwa/upload.test.mjs
 	node apps/ipso/static/ipso/pwa/store.test.mjs
 	node apps/ipso/static/ipso/pwa/app.test.mjs
 	node apps/base/static/base/js/geo.test.mjs
+	node apps/base/static/base/js/format.test.mjs
 	node apps/base/static/base/js/csv-export.test.mjs
+	node apps/base/static/base/js/tree-form.test.mjs
 	node apps/base/static/base/js/charts.test.mjs
 	node apps/base/static/base/js/coppice.test.mjs
 	node apps/base/static/base/js/digests.test.mjs
@@ -256,6 +259,7 @@ test-js:
 	node apps/base/static/base/js/prelievi-columns.test.mjs
 	node apps/base/static/base/js/parcel-map.test.mjs
 	node apps/base/static/base/js/map-tools.test.mjs
+	node apps/campionamenti/static/campionamenti/js/grid-planner.test.mjs
 	node apps/campionamenti/static/campionamenti/js/campionamenti.test.mjs
 	node apps/piano_di_taglio/static/piano_di_taglio/js/piano-di-taglio.test.mjs
 

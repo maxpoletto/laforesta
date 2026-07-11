@@ -118,7 +118,7 @@ Bottom-of-form button layout.
 
 | Write | Digests marked stale | Optimistic client patch |
 |---|---|---|
-| Harvest save (create or update) | `prelievi`, `audit`; + `harvest_plan_items` if linked to a plan item | `prelievi` and linked `harvest_plan_items` via `patches` |
+| Harvest save (create or update) | `prelievi`, `audit`; + `harvest_plan_items`, `future_production` if linked to a plan item | `prelievi` and linked `harvest_plan_items` via `patches` |
 | Harvest delete | same as save | `prelievi` via `deletes`; `harvest_plan_items` via `patches` |
 | Species save (Impostazioni → Specie) | `prelievi`, `species`, `audit` | — |
 | Tractor save (Impostazioni → Trattori) | `prelievi`, `audit` | — |

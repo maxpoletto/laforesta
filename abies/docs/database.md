@@ -141,13 +141,13 @@ of either dataset should treat them as independent observations.
     |---|---|
     | `planned → marked` | automatic: first `tree_mark` insert |
     | `planned/marked → open` | manual: `harvest_transition` (open=true) |
-    | `open/marked → harvesting` | automatic: first linked `harvest` insert |
+    | `open → harvesting` | automatic: first linked `harvest` insert |
     | `harvesting → closed` | manual: `harvest_transition` (open=false) |
   - `year_planned` is the planned year.
   - `date_actual` is the date of the earliest `tree_mark` (and so the date
     of the implicit `planned → marked` transition). NULL while state is
-    still `planned`. For coppice items it is the date of the first
-    `harvest` instead.
+    still `planned`. For coppice items it is set by the manual
+    Apri-cantiere transition.
   - Open / close events live in `harvest_transition` and link back via
     `harvest_transition.harvest_plan_item_id` (one open row, optionally
     one close row).
@@ -338,7 +338,7 @@ materialized aggregates. The invalidation chain (write → updates) is:
 | Write                                       | Bumps                                            |
 |---------------------------------------------|--------------------------------------------------|
 | `tree_mark` insert / update / delete        | `harvest_plan_item.volume_marked_m3`; first insert also auto-advances `state` to `marked` and sets `date_actual` |
-| `harvest` insert / update / delete          | `harvest_plan_item.volume_actual_m3`; first insert also auto-advances `state` to `harvesting` (and sets `date_actual` if still NULL — coppice case) |
+| `harvest` insert / update / delete          | `harvest_plan_item.volume_actual_m3`; first insert also auto-advances `state` from `open` to `harvesting` |
 | `harvest_species` insert / update / delete  | `harvest.volume_m3`, then cascades to `harvest_plan_item.volume_actual_m3` |
 | `harvest_transition` insert (open=true)     | `harvest_plan_item.state := open`                |
 | `harvest_transition` insert (open=false)    | `harvest_plan_item.state := closed`              |

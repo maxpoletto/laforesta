@@ -377,7 +377,7 @@ expands; one is shared with Piano di taglio.
 |---|---|---|
 | Grid save (create) | `grids`, `audit` | `grids` via `patches` |
 | Grid edit (rename) | `grids`, `audit` | `grids` via `patches`; pulldown option text updated |
-| Grid delete | `grids`, `audit` | `grids` (row removed) |
+| Grid delete | `grids`, `sample_areas`, `audit` | `grids` (row removed) |
 | Grid CSV import (areas) | `grids`, `sample_areas`, `surveys`, `audit` | All three via `patches` |
 | Survey save (create) | `surveys`, `grids`, `parcel_dendrometry`, `parcel_dendrometry_points`, `audit` | `surveys` + `grids` via `applySideEffects` |
 | Survey edit (rename) | `surveys`, `parcel_dendrometry`, `parcel_dendrometry_points`, `audit` | `surveys` via `patches`; pulldown option text updated |

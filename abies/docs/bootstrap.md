@@ -120,8 +120,8 @@ observation row, and validates parcel, species, number, and coordinates.
 
 `harvests.csv` records completed harvest rows. A blank parcel means the row is
 region-wide. Dynamic `Specie:<name>` and `Trattore:<name>` columns use canonical
-species and tractor names. When `Q.li` is positive, species percentages must sum
-to 100. Tractor percentages must be either all blank/zero or sum to 100.
+species and tractor names. `Q.li` must be positive; species and tractor
+percentages must each sum to 100, matching the manual Prelievi entry rules.
 
 `hypso_params.csv` stores hypsometric parameters by species and eclass.
 

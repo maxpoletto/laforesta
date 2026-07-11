@@ -38,9 +38,13 @@ URLs are human readable and are the canonical representation of the view state.
 They encode the domain (in the path), and any data filters, chart selection,
 etc. as query parameters.
 
-Changing domain or page-specific parameters changes the URL via
-`history.pushState()` and renders the appropriate content. The back button works
-via `popstate`.
+Changing domain uses `history.pushState()` and renders the appropriate content.
+Page-specific query-parameter changes are written through the shared
+`navigateWithParams()` helper, which uses `history.replaceState()` by default so
+high-frequency UI controls (search boxes, sliders, table sort) do not flood the
+browser back stack. Pages may explicitly request push semantics for a state that
+is navigational rather than incidental. The back button works via `popstate` for
+entries that were pushed.
 
 All URLs are bookmarkable and shareable.
 
