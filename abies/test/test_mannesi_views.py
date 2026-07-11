@@ -109,6 +109,15 @@ class TestCrews:
         assert resp.status_code == 400
         assert resp.json()[STATUS] == STATUS_VALIDATION_ERROR
 
+    def test_save_duplicate_name_returns_validation_error(self, writer_client, crews):
+        resp = _post(writer_client, '/api/squadre/crews/save/', {
+            FIELD_NAME: crews[0].name, FIELD_NOTES: '', FIELD_ACTIVE: 'true',
+        })
+
+        assert resp.status_code == 400
+        assert resp.json()[STATUS] == STATUS_VALIDATION_ERROR
+        assert S.ERR_CREW_NAME_DUPLICATE in resp.json()[MESSAGE]
+
     def test_save_malformed_json_returns_validation_error(self, writer_client, db):
         resp = writer_client.post(
             '/api/squadre/crews/save/',
@@ -141,6 +150,20 @@ class TestHours:
         assert resp.status_code == 200
         assert '<form' in resp.json()[HTML]
         assert 'Alfa' in resp.json()[HTML]
+
+    def test_edit_form_includes_inactive_current_crew(self, writer_client, crews):
+        obj = WorkHour.objects.create(
+            date='2026-01-15', crew=crews[0], hours=Decimal('4'),
+        )
+        crews[0].active = False
+        crews[0].save(update_fields=['active'])
+
+        resp = writer_client.get(f'/api/squadre/hours/form/{obj.id}/')
+
+        assert resp.status_code == 200
+        html = resp.json()[HTML]
+        assert 'Alfa' in html
+        assert f'value="{crews[0].id}"' in html
 
     def test_save_create_and_data(self, writer_client, crews):
         resp = _post(writer_client, '/api/squadre/hours/save/', {
@@ -190,6 +213,40 @@ class TestHours:
         obj.refresh_from_db()
         assert str(obj.date) == '2026-01-15'
 
+    def test_update_allows_unchanged_inactive_crew(self, writer_client, crews):
+        obj = WorkHour.objects.create(
+            date='2026-01-15', crew=crews[0], hours=Decimal('4'),
+        )
+        crews[0].active = False
+        crews[0].save(update_fields=['active'])
+
+        resp = _post(writer_client, '/api/squadre/hours/save/', {
+            ROW_ID: str(obj.id), VERSION: str(obj.version),
+            FIELD_DATE: '2026-01-16', FIELD_CREW_ID: str(crews[0].id),
+            FIELD_HOURS: '5', FIELD_NOTE: 'fixed',
+        })
+
+        assert resp.status_code == 200, resp.content
+        obj.refresh_from_db()
+        assert obj.crew_id == crews[0].id
+        assert obj.hours == Decimal('5')
+
+    def test_update_rejects_changed_inactive_crew(self, writer_client, crews):
+        obj = WorkHour.objects.create(
+            date='2026-01-15', crew=crews[0], hours=Decimal('4'),
+        )
+        crews[1].active = False
+        crews[1].save(update_fields=['active'])
+
+        resp = _post(writer_client, '/api/squadre/hours/save/', {
+            ROW_ID: str(obj.id), VERSION: str(obj.version),
+            FIELD_DATE: '2026-01-16', FIELD_CREW_ID: str(crews[1].id),
+            FIELD_HOURS: '5', FIELD_NOTE: '',
+        })
+
+        assert resp.status_code == 400
+        assert S.ERR_CREW_REQUIRED in resp.json()[MESSAGE]
+
     def test_delete(self, writer_client, crews):
         obj = WorkHour.objects.create(
             date='2026-01-15', crew=crews[0], hours=Decimal('4'),
@@ -227,3 +284,22 @@ def test_credits_save_create(writer_client, crews):
     assert data[PATCHES][0][RECORD][3] == 'Beta'
     assert data[PATCHES][0][RECORD][4] == 12.25
     assert ProductionCredit.objects.get().mass_q == Decimal('12.25')
+
+
+def test_credits_update_allows_unchanged_inactive_crew(writer_client, crews):
+    obj = ProductionCredit.objects.create(
+        date='2026-01-20', crew=crews[1], mass_q=Decimal('12.25'),
+    )
+    crews[1].active = False
+    crews[1].save(update_fields=['active'])
+
+    resp = _post(writer_client, '/api/squadre/credits/save/', {
+        ROW_ID: str(obj.id), VERSION: str(obj.version),
+        FIELD_DATE: '2026-01-21', FIELD_CREW_ID: str(crews[1].id),
+        FIELD_MASS_Q: '13', FIELD_NOTE: 'fixed',
+    })
+
+    assert resp.status_code == 200, resp.content
+    obj.refresh_from_db()
+    assert obj.crew_id == crews[1].id
+    assert obj.mass_q == Decimal('13')

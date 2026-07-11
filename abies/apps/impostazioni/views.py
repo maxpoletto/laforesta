@@ -7,14 +7,14 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Q
-from django.http import HttpResponse, JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.template.loader import render_to_string
 from django.views.decorators.http import require_POST
 
 from apps.base import csv_io, hypsometry
 from apps.base.auth import require_admin, require_writer
 from apps.base.landing import clean_landing_page, user_landing_page
-from apps.base.numparse import parse_decimal
+from apps.base.numparse import int_or_none, parse_decimal
 from apps.base.digests import (
     HYPSO_PARAM_COLUMNS, build_harvest_plan_record, build_survey_record,
     hypso_param_row, mark_stale, serve_digest,
@@ -35,17 +35,20 @@ from config.constants import (
     BOSCO_DENDROMETRY_DIGESTS, BOSCO_SPECIES_DIGESTS, COLUMNS,
     DIGEST_FUTURE_PRODUCTION, DIGEST_HYPSO_PARAMS,
     DIGEST_PARCEL_DENDROMETRY_POINTS,
-    FIELD_ACTIVE, FIELD_COMMON_NAME,
+    FIELD_ACTIVE, FIELD_ACTIVE_ID, FIELD_ACTIVE_IDS, FIELD_COMMON_NAME,
+    FIELD_COUNTS,
     FIELD_CREATED_AT, FIELD_DENSITY, FIELD_EMAIL, FIELD_FILE, FIELD_FIRST_NAME,
-    FIELD_HARVEST_PLAN_ID, FIELD_IS_ACTIVE, FIELD_LAST_NAME,
+    FIELD_HARVEST_PLAN_ID, FIELD_ID, FIELD_IS_ACTIVE, FIELD_LAST_NAME,
     FIELD_DEFAULT_LANDING_PAGE,
     FIELD_LATIN_NAME, FIELD_LANDING_PAGE, FIELD_LOGIN_METHOD,
     FIELD_MANUFACTURER, FIELD_MIN_N,
-    FIELD_MINOR, FIELD_MODEL, FIELD_NAME, FIELD_PRESSLER_DEFAULT,
-    PRESSLER_DEFAULT,
+    FIELD_MINOR, FIELD_MODEL, FIELD_NAME, FIELD_PARCELS, FIELD_PLANS,
+    FIELD_PRESSLER_DEFAULT, FIELD_REGIONS,
+    FIELD_CURRENT_PASSWORD, PRESSLER_DEFAULT,
     FIELD_PASSWORD1, FIELD_PASSWORD2, FIELD_ROLE,
-    FIELD_SOURCE, FIELD_SPECIES, FIELD_SURVEY_IDS, FIELD_SURVEYS,
-    FIELD_USE_FOR_HEIGHT_PLOTS, FIELD_USERNAME, FIELD_YEAR,
+    FIELD_SOURCE, FIELD_SPECIES, FIELD_SURVEY_IDS, FIELD_SURVEYS, FIELD_TREES,
+    FIELD_USE_FOR_HEIGHT_PLOTS, FIELD_USERNAME, FIELD_YEAR, FIELD_YEAR_END,
+    FIELD_YEAR_START,
     HTML, MESSAGE, ROWS, ROW_ID, VERSION, is_truthy,
 )
 
@@ -62,8 +65,13 @@ def password_view(request):
         return error
     if request.user.login_method != LoginMethod.PASSWORD:
         return _error(S.ERR_FORBIDDEN)
+    current_pw = body.get(FIELD_CURRENT_PASSWORD, '')
     pw1 = body.get(FIELD_PASSWORD1, '')
     pw2 = body.get(FIELD_PASSWORD2, '')
+    if not current_pw:
+        return _error(S.ERR_CURRENT_PASSWORD_REQUIRED)
+    if not request.user.check_password(current_pw):
+        return _error(S.ERR_CURRENT_PASSWORD_INVALID)
     if not pw1:
         return _error(S.ERR_PASSWORD_REQUIRED)
     if pw1 != pw2:
@@ -110,12 +118,15 @@ def tractors_save(request):
     if error:
         return error
     year = body.get(FIELD_YEAR, '')
+    parsed_year = int_or_none(year) if year else None
+    if year and parsed_year is None:
+        return _error(S.ERR_BOSCO_INTEGER_REQUIRED.format(S.COL_YEAR))
     name = body.get(FIELD_NAME, '').strip() or None
     parsed = {
         FIELD_NAME: name,
         FIELD_MANUFACTURER: body.get(FIELD_MANUFACTURER, '').strip(),
         FIELD_MODEL: body.get(FIELD_MODEL, '').strip(),
-        FIELD_YEAR: int(year) if year else None,
+        FIELD_YEAR: parsed_year,
         FIELD_ACTIVE: is_truthy(body.get(FIELD_ACTIVE)),
     }
     if not parsed[FIELD_MANUFACTURER]:
@@ -182,6 +193,15 @@ def species_save(request):
     }
     if not parsed[FIELD_COMMON_NAME]:
         return _error(S.ERR_NAME_REQUIRED)
+    row_id = int_or_none(body.get(ROW_ID))
+    if row_id is not None:
+        existing_name = (Species.objects
+                         .filter(id=row_id)
+                         .values_list(FIELD_COMMON_NAME, flat=True)
+                         .first())
+        if (existing_name == S.SPECIES_OTHER
+                and parsed[FIELD_COMMON_NAME] != S.SPECIES_OTHER):
+            return _error(S.ERR_OTHER_RENAME_FORBIDDEN.format(S.SPECIES_OTHER))
     # The "Altro" species backs the minor-aggregation column, so it must
     # itself stay major; otherwise prelievi generation has no bucket to fold
     # minor species into.
@@ -194,6 +214,9 @@ def species_save(request):
         request, body, model=Species, data_id=FIELD_SPECIES, values=parsed,
         row_fn=_species_row,
         stale=('prelievi', FIELD_SPECIES, *BOSCO_SPECIES_DIGESTS, 'audit'),
+        unique_field=FIELD_COMMON_NAME,
+        unique_value=parsed[FIELD_COMMON_NAME],
+        unique_error=S.ERR_SPECIES_NAME_DUPLICATE,
     )
 
 
@@ -208,14 +231,14 @@ def species_save(request):
 def future_production_data(request):
     default = active_or_default_harvest_plan()
     return JsonResponse({
-        'active_id': default.id if default else None,
-        'plans': [
+        FIELD_ACTIVE_ID: default.id if default else None,
+        FIELD_PLANS: [
             {
-                'id': p.id,
-                'name': p.name,
-                'year_start': p.year_start,
-                'year_end': p.year_end,
-                'active': bool(default and p.id == default.id),
+                FIELD_ID: p.id,
+                FIELD_NAME: p.name,
+                FIELD_YEAR_START: p.year_start,
+                FIELD_YEAR_END: p.year_end,
+                FIELD_ACTIVE: bool(default and p.id == default.id),
             }
             for p in HarvestPlan.objects.order_by('-year_start', 'name')
         ],
@@ -269,10 +292,10 @@ def dendrometry_data(request):
     counts = _dendrometry_counts(active_ids)
     active = set(active_ids)
     return JsonResponse({
-        'active_ids': active_ids,
-        'counts': counts,
-        'surveys': [
-            {'id': s.id, 'name': s.name, 'active': s.id in active}
+        FIELD_ACTIVE_IDS: active_ids,
+        FIELD_COUNTS: counts,
+        FIELD_SURVEYS: [
+            {FIELD_ID: s.id, FIELD_NAME: s.name, FIELD_ACTIVE: s.id in active}
             for s in Survey.objects.order_by('name')
         ],
     })
@@ -322,12 +345,12 @@ def dendrometry_save(request):
 
 def _dendrometry_counts(survey_ids):
     if not survey_ids:
-        return {'trees': 0, 'regions': 0, 'parcels': 0}
+        return {FIELD_TREES: 0, FIELD_REGIONS: 0, FIELD_PARCELS: 0}
     qs = TreeSample.objects.filter(sample__survey_id__in=survey_ids)
     return {
-        'trees': qs.count(),
-        'regions': qs.values('sample__sample_area__parcel__region_id').distinct().count(),
-        'parcels': qs.values('sample__sample_area__parcel_id').distinct().count(),
+        FIELD_TREES: qs.count(),
+        FIELD_REGIONS: qs.values('sample__sample_area__parcel__region_id').distinct().count(),
+        FIELD_PARCELS: qs.values('sample__sample_area__parcel_id').distinct().count(),
     }
 
 
@@ -425,7 +448,9 @@ def users_data(request):
 @login_required
 @require_admin
 def users_form(request, obj_id=None):
-    obj = User.objects.get(id=obj_id) if obj_id else None
+    obj = User.objects.filter(id=obj_id).first() if obj_id else None
+    if obj_id and obj is None:
+        raise Http404
     html = render_to_string('impostazioni/_user_form.html', {
         'obj': obj,
         'roles': ROLE_LABELS,
@@ -442,7 +467,9 @@ def users_save(request):
     if error:
         return error
     row_id = body.get(ROW_ID)
-    row_id = int(row_id) if row_id else None
+    row_id = int_or_none(row_id) if row_id else None
+    if body.get(ROW_ID) and row_id is None:
+        return _error(S.ERR_ROW_ID_INVALID)
 
     email = body.get(FIELD_EMAIL, '').strip()
     if not email:
@@ -466,44 +493,55 @@ def users_save(request):
     pw1 = body.get(FIELD_PASSWORD1, '')
     pw2 = body.get(FIELD_PASSWORD2, '')
 
-    if row_id:
-        user = User.objects.get(id=row_id)
-        user.username = username
-        user.email = email
-        user.first_name = first_name
-        user.last_name = last_name
-        user.role = role
-        user.login_method = login_method
-        user.is_active = active
-        if login_method == LoginMethod.OAUTH:
-            user.set_unusable_password()
-        elif pw1:
-            err = _validate_password(pw1, pw2, user)
-            if err:
-                return err
-            user.set_password(pw1)
-        user.save()
-    else:
-        if login_method == LoginMethod.PASSWORD:
-            if not pw1:
-                return _error(S.ERR_PASSWORD_REQUIRED)
-            err = _validate_password(pw1, pw2)
-            if err:
-                return err
-        user = User.objects.create_user(
-            username=username, email=email, password=pw1 or None,
-            first_name=first_name, last_name=last_name,
-            role=role, login_method=login_method, is_active=active,
-        )
-        if login_method != LoginMethod.PASSWORD:
-            user.set_unusable_password()
+    with transaction.atomic():
+        username_dupes = User.objects.filter(username__iexact=username)
+        email_dupes = User.objects.filter(email__iexact=email)
+        if row_id:
+            username_dupes = username_dupes.exclude(id=row_id)
+            email_dupes = email_dupes.exclude(id=row_id)
+        if username_dupes.exists():
+            return _error(S.ERR_USERNAME_DUPLICATE)
+        if email_dupes.exists():
+            return _error(S.ERR_EMAIL_DUPLICATE)
+
+        if row_id:
+            user = User.objects.select_for_update().get(id=row_id)
+            user.username = username
+            user.email = email
+            user.first_name = first_name
+            user.last_name = last_name
+            user.role = role
+            user.login_method = login_method
+            user.is_active = active
+            if login_method == LoginMethod.OAUTH:
+                user.set_unusable_password()
+            elif pw1:
+                err = _validate_password(pw1, pw2, user)
+                if err:
+                    return err
+                user.set_password(pw1)
             user.save()
+        else:
+            if login_method == LoginMethod.PASSWORD:
+                if not pw1:
+                    return _error(S.ERR_PASSWORD_REQUIRED)
+                err = _validate_password(pw1, pw2)
+                if err:
+                    return err
+            user = User.objects.create_user(
+                username=username, email=email, password=pw1 or None,
+                first_name=first_name, last_name=last_name,
+                role=role, login_method=login_method, is_active=active,
+            )
+            if login_method != LoginMethod.PASSWORD:
+                user.set_unusable_password()
+                user.save()
 
-    # allauth matches incoming OAuth logins against verified EmailAddress
-    # rows, not against user.email.  Keep those rows in sync with the user.
-    _sync_email_address(user)
+        # allauth matches incoming OAuth logins against verified EmailAddress
+        # rows, not against user.email.  Keep those rows in sync with the user.
+        _sync_email_address(user)
 
-    mark_stale('audit')
+        mark_stale('audit')
 
     return success_response(
         request, body, data_id='users', row_id=user.id,
@@ -701,7 +739,9 @@ def _list(model, columns, row_fn):
 
 
 def _form(template, model, obj_id, request, extra=None):
-    obj = model.objects.get(id=obj_id) if obj_id else None
+    obj = model.objects.filter(id=obj_id).first() if obj_id else None
+    if obj_id and obj is None:
+        raise Http404
     context = {'obj': obj}
     if extra:
         context.update(extra)

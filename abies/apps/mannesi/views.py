@@ -4,6 +4,7 @@ from datetime import date as date_type
 
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
+from django.db.models import Q
 from django.http import JsonResponse
 from django.template.loader import render_to_string
 from django.views.decorators.http import require_POST
@@ -71,6 +72,8 @@ def crews_save(request):
     return save_model_response(
         request, body, model=Crew, data_id=DATA_ID_CREWS, values=parsed,
         row_fn=_crew_row, stale=('prelievi', 'audit'),
+        unique_field=FIELD_NAME, unique_value=parsed[FIELD_NAME],
+        unique_error=S.ERR_CREW_NAME_DUPLICATE,
     )
 
 
@@ -122,8 +125,10 @@ def hours_save(request):
     row_id, error = _entry_row_id(body)
     if error:
         return error
+    current_crew_id = _entry_current_crew_id(WorkHour, row_id)
     parsed, errors = _parse_entry_body(
         body, value_field=FIELD_HOURS, value_error=S.ERR_HOURS_POSITIVE,
+        current_crew_id=current_crew_id,
     )
     if errors:
         return validation_error(errors)
@@ -149,8 +154,10 @@ def credits_save(request):
     row_id, error = _entry_row_id(body)
     if error:
         return error
+    current_crew_id = _entry_current_crew_id(ProductionCredit, row_id)
     parsed, errors = _parse_entry_body(
         body, value_field=FIELD_MASS_Q, value_error=S.ERR_CREDITS_POSITIVE,
+        current_crew_id=current_crew_id,
     )
     if errors:
         return validation_error(errors)
@@ -235,19 +242,33 @@ def _credit_row(obj):
 
 
 def _form(kind, obj, request):
+    crew_filter = Q(active=True)
+    if obj and obj.crew_id:
+        crew_filter |= Q(id=obj.crew_id)
     html = render_to_string(
         'squadre/_entry_form.html',
         {
             'kind': kind,
             'obj': obj,
-            'crews': Crew.objects.filter(active=True).order_by('name'),
+            'crews': Crew.objects.filter(crew_filter).order_by('name'),
         },
         request=request,
     )
     return JsonResponse({HTML: html})
 
 
-def _parse_entry_body(body, *, value_field: str, value_error: str):
+def _entry_current_crew_id(model, row_id):
+    if row_id is None:
+        return None
+    return model.objects.filter(id=row_id).values_list(
+        FIELD_CREW_ID, flat=True,
+    ).first()
+
+
+def _parse_entry_body(
+        body, *, value_field: str, value_error: str,
+        current_crew_id: int | None = None,
+):
     errors = []
     try:
         date = date_type.fromisoformat((body.get(FIELD_DATE) or '').strip())
@@ -256,7 +277,8 @@ def _parse_entry_body(body, *, value_field: str, value_error: str):
         errors.append(S.ERR_DATE_REQUIRED)
 
     crew_id = int_or_none(body.get(FIELD_CREW_ID))
-    if crew_id is None or not Crew.objects.filter(id=crew_id, active=True).exists():
+    crew = Crew.objects.filter(id=crew_id).only('id', 'active').first()
+    if crew is None or (not crew.active and crew_id != current_crew_id):
         errors.append(S.ERR_CREW_REQUIRED)
 
     value = parse_decimal(body.get(value_field))

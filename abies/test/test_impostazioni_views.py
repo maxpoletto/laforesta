@@ -17,8 +17,9 @@ from config import strings as S
 from config.constants import (
     COLUMNS, DATA_ID, DIGEST_FUTURE_PRODUCTION, DIGEST_PARCEL_DENDROMETRY,
     DIGEST_PARCEL_DENDROMETRY_POINTS, DIGEST_PRESERVED_TREES,
-    FIELD_ACTIVE, FIELD_COMMON_NAME, FIELD_DEFAULT_LANDING_PAGE,
-    FIELD_DENSITY, FIELD_EMAIL, FIELD_FIRST_NAME, FIELD_HARVEST_PLAN_ID,
+    FIELD_ACTIVE, FIELD_COMMON_NAME, FIELD_CURRENT_PASSWORD,
+    FIELD_DEFAULT_LANDING_PAGE, FIELD_DENSITY, FIELD_EMAIL, FIELD_FIRST_NAME,
+    FIELD_HARVEST_PLAN_ID,
     FIELD_IS_ACTIVE, FIELD_LANDING_PAGE, FIELD_LAST_NAME,
     FIELD_LATIN_NAME, FIELD_LOGIN_METHOD, FIELD_MANUFACTURER, FIELD_MINOR,
     FIELD_PRESSLER_DEFAULT, FIELD_SPECIES,
@@ -47,6 +48,15 @@ def writer_client(writer_user):
     return c
 
 
+def test_hypso_toolbar_button_intents(writer_client):
+    resp = writer_client.get('/impostazioni')
+
+    assert resp.status_code == 200
+    html = resp.content.decode()
+    assert 'class="btn btn-delete" data-action="clear"' in html
+    assert 'class="btn" data-action="compute"' in html
+
+
 @pytest.fixture
 def reader_client(reader_user):
     c = Client()
@@ -67,6 +77,7 @@ class TestPasswordView:
 
     def test_change_password(self, writer_client, writer_user):
         resp = _post(writer_client, self.URL, {
+            FIELD_CURRENT_PASSWORD: 'testpass123!',
             FIELD_PASSWORD1: 'newsecure99!', FIELD_PASSWORD2: 'newsecure99!',
         })
         assert resp.status_code == 200
@@ -76,18 +87,42 @@ class TestPasswordView:
 
     def test_mismatch(self, writer_client):
         resp = _post(writer_client, self.URL, {
+            FIELD_CURRENT_PASSWORD: 'testpass123!',
             FIELD_PASSWORD1: 'newsecure99!', FIELD_PASSWORD2: 'different!',
         })
         assert resp.status_code == 400
 
     def test_too_short(self, writer_client):
         resp = _post(writer_client, self.URL, {
+            FIELD_CURRENT_PASSWORD: 'testpass123!',
             FIELD_PASSWORD1: '123', FIELD_PASSWORD2: '123',
         })
         assert resp.status_code == 400
 
+    def test_requires_current_password(self, writer_client, writer_user):
+        resp = _post(writer_client, self.URL, {
+            FIELD_PASSWORD1: 'newsecure99!', FIELD_PASSWORD2: 'newsecure99!',
+        })
+
+        assert resp.status_code == 400
+        assert resp.json()[MESSAGE] == S.ERR_CURRENT_PASSWORD_REQUIRED
+        writer_user.refresh_from_db()
+        assert writer_user.check_password('testpass123!')
+
+    def test_rejects_wrong_current_password(self, writer_client, writer_user):
+        resp = _post(writer_client, self.URL, {
+            FIELD_CURRENT_PASSWORD: 'wrongpass123!',
+            FIELD_PASSWORD1: 'newsecure99!', FIELD_PASSWORD2: 'newsecure99!',
+        })
+
+        assert resp.status_code == 400
+        assert resp.json()[MESSAGE] == S.ERR_CURRENT_PASSWORD_INVALID
+        writer_user.refresh_from_db()
+        assert writer_user.check_password('testpass123!')
+
     def test_requires_auth(self, db):
         resp = _post(Client(), self.URL, {
+            FIELD_CURRENT_PASSWORD: 'testpass123!',
             FIELD_PASSWORD1: 'newsecure99!', FIELD_PASSWORD2: 'newsecure99!',
         })
         assert resp.status_code == 302
@@ -444,6 +479,38 @@ class TestSpecies:
         altro.refresh_from_db()
         assert altro.minor is False
 
+    def test_other_species_cannot_be_renamed(self, writer_client, species):
+        altro = next(s for s in species if s.common_name == S.SPECIES_OTHER)
+
+        resp = _post(writer_client, '/api/impostazioni/species/save/', {
+            ROW_ID: str(altro.id), VERSION: str(altro.version),
+            FIELD_COMMON_NAME: 'Altro rinominato', FIELD_LATIN_NAME: '',
+            FIELD_DENSITY: '9.0', FIELD_PRESSLER_DEFAULT: '0.50',
+            FIELD_ACTIVE: 'true', FIELD_MINOR: 'false',
+        })
+
+        assert resp.status_code == 400, resp.content
+        assert resp.json()[MESSAGE] == S.ERR_OTHER_RENAME_FORBIDDEN.format(S.SPECIES_OTHER)
+        altro.refresh_from_db()
+        assert altro.common_name == S.SPECIES_OTHER
+
+    def test_other_species_density_and_pressler_remain_editable(
+            self, writer_client, species):
+        altro = next(s for s in species if s.common_name == S.SPECIES_OTHER)
+
+        resp = _post(writer_client, '/api/impostazioni/species/save/', {
+            ROW_ID: str(altro.id), VERSION: str(altro.version),
+            FIELD_COMMON_NAME: S.SPECIES_OTHER, FIELD_LATIN_NAME: '',
+            FIELD_DENSITY: '9.0', FIELD_PRESSLER_DEFAULT: '0.55',
+            FIELD_ACTIVE: 'true', FIELD_MINOR: 'false',
+        })
+
+        assert resp.status_code == 200, resp.content
+        altro.refresh_from_db()
+        assert altro.common_name == S.SPECIES_OTHER
+        assert altro.density == Decimal('9.0')
+        assert altro.pressler_default == Decimal('0.55')
+
 
 # ---------------------------------------------------------------------------
 # Bosco source settings
@@ -692,6 +759,42 @@ class TestUsers:
         u = User.objects.get(username='oauthuser@example.com')
         assert not u.has_usable_password()
 
+    def test_create_user_rejects_duplicate_email_case_insensitive(
+        self, admin_client,
+    ):
+        User.objects.create_user(
+            username='existing', email='Person@Example.com', password='testpass123!',
+        )
+
+        resp = _post(admin_client, '/api/impostazioni/users/save/', {
+            FIELD_USERNAME: 'newuser', FIELD_FIRST_NAME: '', FIELD_LAST_NAME: '',
+            FIELD_EMAIL: 'person@example.COM',
+            FIELD_LOGIN_METHOD: LoginMethod.PASSWORD,
+            FIELD_PASSWORD1: 'testpass123!', FIELD_PASSWORD2: 'testpass123!',
+            FIELD_ROLE: Role.READER, FIELD_IS_ACTIVE: 'true',
+        })
+
+        assert resp.status_code == 400
+        assert S.ERR_EMAIL_DUPLICATE in resp.json()[MESSAGE]
+
+    def test_create_user_rejects_duplicate_username_case_insensitive(
+        self, admin_client,
+    ):
+        User.objects.create_user(
+            username='Existing', email='existing@example.com', password='testpass123!',
+        )
+
+        resp = _post(admin_client, '/api/impostazioni/users/save/', {
+            FIELD_USERNAME: 'existing', FIELD_FIRST_NAME: '', FIELD_LAST_NAME: '',
+            FIELD_EMAIL: 'unique@example.com',
+            FIELD_LOGIN_METHOD: LoginMethod.PASSWORD,
+            FIELD_PASSWORD1: 'testpass123!', FIELD_PASSWORD2: 'testpass123!',
+            FIELD_ROLE: Role.READER, FIELD_IS_ACTIVE: 'true',
+        })
+
+        assert resp.status_code == 400
+        assert S.ERR_USERNAME_DUPLICATE in resp.json()[MESSAGE]
+
     def test_create_password_user_requires_password(self, admin_client):
         resp = _post(admin_client, '/api/impostazioni/users/save/', {
             FIELD_USERNAME: 'nopass', FIELD_FIRST_NAME: '', FIELD_LAST_NAME: '',
@@ -715,6 +818,20 @@ class TestUsers:
         writer_user.refresh_from_db()
         assert writer_user.username == 'renamed'
         assert writer_user.role == Role.ADMIN
+
+    def test_update_user_rejects_malformed_row_id(self, admin_client):
+        resp = _post(admin_client, '/api/impostazioni/users/save/', {
+            ROW_ID: 'not-an-id',
+            FIELD_USERNAME: 'renamed', FIELD_FIRST_NAME: '', FIELD_LAST_NAME: '',
+            FIELD_EMAIL: 'renamed@example.com',
+            FIELD_LOGIN_METHOD: LoginMethod.PASSWORD,
+            FIELD_PASSWORD1: '', FIELD_PASSWORD2: '',
+            FIELD_ROLE: Role.READER, FIELD_IS_ACTIVE: 'true',
+        })
+
+        assert resp.status_code == 400
+        assert resp.json()[STATUS] == STATUS_VALIDATION_ERROR
+        assert S.ERR_ROW_ID_INVALID in resp.json()[MESSAGE]
 
     def test_update_user_with_new_password(self, admin_client, writer_user):
         resp = _post(admin_client, '/api/impostazioni/users/save/', {

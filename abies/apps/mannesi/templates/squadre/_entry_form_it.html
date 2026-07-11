@@ -28,7 +28,7 @@
         <input type="text" inputmode="decimal" id="id_value"
                name="{% if kind == 'hours' %}hours{% else %}mass_q{% endif %}"
                required
-               value="{% if obj %}{% if kind == 'hours' %}{{ obj.hours }}{% else %}{{ obj.mass_q }}{% endif %}{% endif %}">
+               value="{% if obj %}{% if kind == 'hours' %}{{ obj.hours|floatformat:2 }}{% else %}{{ obj.mass_q|floatformat:2 }}{% endif %}{% endif %}">
       </div>
     </div>
 

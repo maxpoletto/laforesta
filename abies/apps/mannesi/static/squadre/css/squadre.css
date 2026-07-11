@@ -18,13 +18,6 @@
   min-width: 96px;
 }
 
-.squadre-active-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.95rem;
-}
-
 .squadre-month-picker {
   position: relative;
 }
@@ -46,7 +39,7 @@
 .squadre-month-trigger:focus-visible,
 .squadre-month-nav-btn:focus-visible,
 .squadre-month-option:focus-visible {
-  outline: 2px solid #006400;
+  outline: 2px solid var(--color-bosco-green);
   outline-offset: 2px;
 }
 
@@ -59,7 +52,6 @@
   border: 1px solid #ccc;
   border-radius: 8px;
   background: #fff;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
   padding: 8px;
 }
 
@@ -108,12 +100,12 @@
 
 .squadre-month-option:hover,
 .squadre-month-nav-btn:hover {
-  background: #e8f0e8;
+  background: var(--color-bosco-green-muted);
 }
 
 .squadre-month-option.active {
-  border-color: #006400;
-  background: #006400;
+  border-color: var(--color-bosco-green);
+  background: var(--color-bosco-green);
   color: #fff;
 }
 

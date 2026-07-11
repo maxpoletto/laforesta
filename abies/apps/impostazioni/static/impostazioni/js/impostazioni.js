@@ -28,10 +28,14 @@ import { loadCSS, unloadCSS } from '../../base/js/page-css.js';
 import { cloneTemplate } from '../../base/js/templates.js';
 import * as S from '../../base/js/strings.js';
 import {
-  FIELD_CREATED_AT, FIELD_DEFAULT_LANDING_PAGE, FIELD_FILE, FIELD_HARVEST_PLAN_ID,
+  FIELD_ACTIVE, FIELD_ACTIVE_ID, FIELD_ACTIVE_IDS, FIELD_COUNTS,
+  FIELD_CREATED_AT, FIELD_CURRENT_PASSWORD, FIELD_DEFAULT_LANDING_PAGE,
+  FIELD_FILE, FIELD_HARVEST_PLAN_ID, FIELD_ID,
   FIELD_LANDING_PAGE, FIELD_MIN_N, FIELD_NONCE, FIELD_PRESSLER_DEFAULT,
-  FIELD_SOURCE, FIELD_SURVEY_IDS, FIELD_SURVEYS,
+  FIELD_NAME, FIELD_PARCELS, FIELD_PASSWORD1, FIELD_PASSWORD2, FIELD_PLANS,
+  FIELD_REGIONS, FIELD_SOURCE, FIELD_SURVEY_IDS, FIELD_SURVEYS, FIELD_TREES,
   FIELD_USE_FOR_HEIGHT_PLOTS, HYPSO_SOURCE_COMPUTED, LOGIN_METHOD_PASSWORD,
+  FIELD_YEAR_END, FIELD_YEAR_START,
   DATA_ID, MESSAGE, PATCHES, RECORD, ROLE_ADMIN, ROLE_WRITER,
 } from '../../base/js/constants.js';
 import {
@@ -173,8 +177,9 @@ function wirePasswordSection(root) {
   );
 
   const form = root.querySelector('[data-role="password-form"]');
-  const pw1 = form.querySelector('input[name="password1"]');
-  const pw2 = form.querySelector('input[name="password2"]');
+  const currentPw = form.querySelector(`input[name="${FIELD_CURRENT_PASSWORD}"]`);
+  const pw1 = form.querySelector(`input[name="${FIELD_PASSWORD1}"]`);
+  const pw2 = form.querySelector(`input[name="${FIELD_PASSWORD2}"]`);
   const msg = root.querySelector('[data-role="password-msg"]');
 
   form.addEventListener('submit', async (e) => {
@@ -190,7 +195,11 @@ function wirePasswordSection(root) {
 
     let data, status;
     try {
-      ({ data, status } = await postJSON(`${API}password/`, { password1: pw1.value, password2: pw2.value }));
+      ({ data, status } = await postJSON(`${API}password/`, {
+        [FIELD_CURRENT_PASSWORD]: currentPw.value,
+        [FIELD_PASSWORD1]: pw1.value,
+        [FIELD_PASSWORD2]: pw2.value,
+      }));
     } catch {
       showError(S.ERROR_NETWORK);
       return;
@@ -467,15 +476,18 @@ async function loadFutureProduction(select, form) {
     return;
   }
 
-  const plans = data.plans || [];
+  const plans = data[FIELD_PLANS] || [];
   select.replaceChildren();
   if (!plans.length) {
     setSelectPlaceholder(select, 'emptyLabel');
     return;
   }
   for (const plan of plans) {
-    const opt = selectOption(plan.id, `${plan.name} (${plan.year_start}-${plan.year_end})`);
-    opt.selected = plan.id === data.active_id || plan.active === true;
+    const opt = selectOption(
+      plan[FIELD_ID],
+      `${plan[FIELD_NAME]} (${plan[FIELD_YEAR_START]}-${plan[FIELD_YEAR_END]})`,
+    );
+    opt.selected = plan[FIELD_ID] === data[FIELD_ACTIVE_ID] || plan[FIELD_ACTIVE] === true;
     select.appendChild(opt);
   }
   setFormEnabled(form, true);
@@ -529,17 +541,17 @@ async function loadDendrometry(body) {
     return;
   }
 
-  const surveys = data.surveys || [];
-  const activeIds = new Set(data.active_ids || []);
-  renderDendrometryCounts(summary, data.counts || {});
+  const surveys = data[FIELD_SURVEYS] || [];
+  const activeIds = new Set(data[FIELD_ACTIVE_IDS] || []);
+  renderDendrometryCounts(summary, data[FIELD_COUNTS] || {});
   select.replaceChildren();
   if (!surveys.length) {
     setSelectPlaceholder(select, 'emptyLabel');
     return;
   }
   for (const survey of surveys) {
-    const opt = selectOption(survey.id, survey.name);
-    opt.selected = activeIds.has(survey.id) || survey.active === true;
+    const opt = selectOption(survey[FIELD_ID], survey[FIELD_NAME]);
+    opt.selected = activeIds.has(survey[FIELD_ID]) || survey[FIELD_ACTIVE] === true;
     select.appendChild(opt);
   }
   setFormEnabled(form, true);
@@ -551,7 +563,7 @@ function selectedDendrometrySurveyIds(body) {
 }
 
 function renderDendrometryCounts(root, counts) {
-  for (const field of ['trees', 'regions', 'parcels']) {
+  for (const field of [FIELD_TREES, FIELD_REGIONS, FIELD_PARCELS]) {
     root.querySelector(`[data-field="${field}"]`).textContent = counts[field] || 0;
   }
 }

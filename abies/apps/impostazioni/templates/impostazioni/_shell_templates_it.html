@@ -9,11 +9,16 @@ S (string constants) provided by the shell's render context.
     <div class="collapsible-body">
       <form data-role="password-form">
         <div class="form-group">
-          <label for="id_pw1">Nuova password</label>
+          <label for="id_current_pw">{{ S.PASSWORD_CURRENT }}</label>
+          <input type="password" id="id_current_pw"
+                 name="current_password" required>
+        </div>
+        <div class="form-group">
+          <label for="id_pw1">{{ S.PASSWORD_NEW }}</label>
           <input type="password" id="id_pw1" name="password1" required>
         </div>
         <div class="form-group">
-          <label for="id_pw2">Ripeti password</label>
+          <label for="id_pw2">{{ S.PASSWORD_REPEAT }}</label>
           <input type="password" id="id_pw2" name="password2" required>
         </div>
         <div class="form-actions">
@@ -55,7 +60,7 @@ S (string constants) provided by the shell's render context.
     {% include "base/_partials/_collapsible_header.html" with section="" title="Trattori" %}
     <div class="collapsible-body">
       <div class="table-toolbar">
-        <label class="impostazioni-active-toggle">
+        <label class="active-toggle ms-auto">
           <input type="checkbox" data-role="active-toggle" checked>
           Solo attivi
         </label>
@@ -68,7 +73,7 @@ S (string constants) provided by the shell's render context.
     {% include "base/_partials/_collapsible_header.html" with section="" title="Specie" %}
     <div class="collapsible-body">
       <div class="table-toolbar">
-        <label class="impostazioni-active-toggle">
+        <label class="active-toggle ms-auto">
           <input type="checkbox" data-role="active-toggle" checked>
           Solo attivi
         </label>
@@ -132,7 +137,7 @@ S (string constants) provided by the shell's render context.
       <div class="table-toolbar">
         <button type="button" class="btn btn-import ms-auto" data-action="import">{{ S.IMPORT_LABEL }}</button>
         <button type="button" class="btn btn-export" data-action="export">{{ S.EXPORT }}</button>
-        <button type="button" class="btn" data-action="clear">{{ S.ACTION_DELETE }}</button>
+        <button type="button" class="btn btn-delete" data-action="clear">{{ S.ACTION_DELETE }}</button>
         <input type="file" accept=".csv" data-role="import-file" hidden>
       </div>
       <p class="hypso-description" data-target="description"></p>
@@ -154,7 +159,7 @@ S (string constants) provided by the shell's render context.
           <input type="checkbox" data-role="use-for-height-plots" checked>
           Usa questi rilevamenti per i grafici altezza/diametro.
         </label>
-        <button type="button" class="btn btn-save" data-action="compute">Calcola</button>
+        <button type="button" class="btn" data-action="compute">Calcola</button>
       </div>
     </div>
   </section>
@@ -163,7 +168,7 @@ S (string constants) provided by the shell's render context.
     {% include "base/_partials/_collapsible_header.html" with section="" title="Utenti" %}
     <div class="collapsible-body">
       <div class="table-toolbar">
-        <label class="impostazioni-active-toggle">
+        <label class="active-toggle ms-auto">
           <input type="checkbox" data-role="active-toggle" checked>
           Solo attivi
         </label>
