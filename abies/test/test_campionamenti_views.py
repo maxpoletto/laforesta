@@ -24,7 +24,8 @@ from config.constants import (
     FIELD_NUMBER, FIELD_PARCEL_ID, FIELD_POINTS, FIELD_PRESERVED, FIELD_R_M,
     FIELD_SAMPLE_AREA_ID, FIELD_SAMPLE_GRID_ID, FIELD_SHOOT, FIELD_SPECIES_ID,
     FIELD_STANDARD, FIELD_SURVEY_ID, FIELD_TREE_PICK, HTML, MESSAGE, PATCHES,
-    RECORD, ROWS, ROW_ID, STATUS, STATUS_CONFLICT, VERSION,
+    RECORD, ROWS, ROW_ID, STATUS, STATUS_CONFLICT, STATUS_VALIDATION_ERROR,
+    VERSION,
 )
 
 
@@ -176,12 +177,10 @@ class TestDataEndpoints:
 
     def test_trees_data_unknown_survey(self, writer_client, sample_setup,
                                        tmp_path, settings):
-        """Requesting a non-existent survey id returns an empty digest."""
+        """Requesting a non-existent survey id does not create a dynamic digest."""
         settings.DIGEST_DIR = tmp_path
         resp = writer_client.get('/api/campionamenti/trees/9999/')
-        assert resp.status_code == 200
-        d = _read_gzip_json(resp)
-        assert d[ROWS] == []
+        assert resp.status_code == 404
 
     def test_requires_auth(self, db):
         resp = Client().get('/api/campionamenti/surveys/data/')
@@ -197,6 +196,10 @@ class TestTreeForm:
     def test_form_add_requires_survey_and_area(self, writer_client, sample_setup):
         # Missing survey / area -> 404
         resp = writer_client.get('/api/campionamenti/tree/form/')
+        assert resp.status_code == 404
+
+    def test_form_add_rejects_malformed_query_ids(self, writer_client, sample_setup):
+        resp = writer_client.get('/api/campionamenti/tree/form/?survey=x&area=1')
         assert resp.status_code == 404
 
     def test_reader_forbidden(self, reader_client, db):
@@ -310,6 +313,7 @@ class TestTreeForm:
         assert 'type="hidden"' in tag
         assert 'data-density="' in tag
         assert 'data-name="' in tag
+        assert f'name="version" value="{ts.version}"' in html
 
 
 class TestTreeSave:
@@ -344,6 +348,20 @@ class TestTreeSave:
         assert ts.tree.coppice is False
         assert ts.tree.preserved is False
         assert ts.volume_m3 is not None and ts.mass_q is not None
+
+    def test_create_rejects_malformed_parent_ids(self, writer_client, sample_setup):
+        s = sample_setup
+        resp = self._post(writer_client, {
+            FIELD_SURVEY_ID: 'not-a-survey',
+            FIELD_SAMPLE_AREA_ID: str(s['area'].id),
+            FIELD_SPECIES_ID: str(s['tree'].species_id),
+            FIELD_NUMBER: '42',
+            FIELD_D_CM: '30', FIELD_H_M: '20.5', 'l10_mm': '12',
+            FIELD_HIGHFOREST: 'true',
+        })
+
+        assert resp.status_code == 400
+        assert resp.json()[STATUS] == STATUS_VALIDATION_ERROR
 
     def test_create_rejects_mismatched_grid(self, writer_client, sample_setup,
                                             regions, eclasses):
@@ -557,6 +575,7 @@ class TestTreeSave:
         ts = TreeSample.objects.get(sample=s['sample'], number=1)
         payload = self._save_payload(s, 1, '2025-05-20')
         payload[ROW_ID] = str(ts.id)
+        payload[VERSION] = ts.version
         resp = self._post(writer_client, payload)
         assert resp.status_code == 400
         assert S.ERR_SAMPLE_DATE_CONFLICT.format(
@@ -565,6 +584,24 @@ class TestTreeSave:
         ) in resp.json()[MESSAGE]
         s['sample'].refresh_from_db()
         assert s['sample'].date.isoformat() == '2024-09-15'
+
+    def test_edit_stale_version_conflicts(self, writer_client, sample_setup):
+        s = sample_setup
+        ts = TreeSample.objects.get(sample=s['sample'], number=1)
+        payload = self._save_payload(s, 1, '2024-09-15')
+        payload[ROW_ID] = str(ts.id)
+        payload[VERSION] = ts.version + 1
+
+        resp = self._post(writer_client, payload)
+
+        assert resp.status_code == 400
+        data = resp.json()
+        assert data[STATUS] == STATUS_CONFLICT
+        assert data[DATA_ID] == f'sampled_trees_{s["survey"].id}'
+        assert data[ROW_ID] == ts.id
+        assert HTML in data
+        ts.refresh_from_db()
+        assert ts.d_cm == 30
 
     def test_rejects_invalid_date(self, writer_client, sample_setup):
         payload = self._save_payload(sample_setup, 1, 'not-a-date')
@@ -958,6 +995,7 @@ class TestTreeSaveCoppice:
         n_ts_before = TreeSample.objects.count()
         resp = self._post(writer_client, {
             ROW_ID: str(ts1.id),
+            VERSION: ts1.version,
             FIELD_SURVEY_ID: str(s['survey'].id),
             FIELD_SAMPLE_AREA_ID: str(s['area'].id),
             FIELD_TREE_PICK: str(tree.id),
@@ -1102,6 +1140,7 @@ class TestAreaCRUD:
         s = sample_setup
         resp = self._post(writer_client, '/api/campionamenti/area/save/', {
             ROW_ID: s['area'].id,
+            VERSION: s['area'].version,
             FIELD_SAMPLE_GRID_ID: s['grid'].id,
             FIELD_PARCEL_ID: s['area'].parcel_id,
             FIELD_NUMBER: 'edited',
@@ -1112,6 +1151,25 @@ class TestAreaCRUD:
         s['area'].refresh_from_db()
         assert s['area'].number == 'edited'
         assert s['area'].r_m == 14
+
+    def test_update_area_stale_version_conflicts(self, writer_client, sample_setup):
+        s = sample_setup
+        resp = self._post(writer_client, '/api/campionamenti/area/save/', {
+            ROW_ID: s['area'].id,
+            VERSION: s['area'].version + 1,
+            FIELD_SAMPLE_GRID_ID: s['grid'].id,
+            FIELD_PARCEL_ID: s['area'].parcel_id,
+            FIELD_NUMBER: 'edited',
+            FIELD_LAT: '38.6', FIELD_LON: '16.2', FIELD_R_M: '14',
+        })
+
+        assert resp.status_code == 400
+        data = resp.json()
+        assert data[STATUS] == STATUS_CONFLICT
+        assert data[DATA_ID] == 'sample_areas'
+        assert data[ROW_ID] == s['area'].id
+        s['area'].refresh_from_db()
+        assert s['area'].number == '1'
 
     def test_number_required(self, writer_client, sample_setup):
         s = sample_setup
@@ -1167,6 +1225,7 @@ class TestAreaCRUD:
         s = sample_setup
         resp = self._post(writer_client, '/api/campionamenti/area/save/', {
             ROW_ID: s['area'].id,
+            VERSION: s['area'].version,
             FIELD_SAMPLE_GRID_ID: s['grid'].id,
             FIELD_PARCEL_ID: s['area'].parcel_id,
             FIELD_NUMBER: s['area'].number,          # unchanged
@@ -1823,6 +1882,29 @@ class TestGridSaveAuto:
             ],
         })
         assert resp.status_code == 400
+
+    def test_nonce_replay_does_not_duplicate_auto_grid(self, writer_client, sample_setup):
+        s = sample_setup
+        body = {
+            FIELD_NAME: 'Auto grid nonce',
+            FIELD_DESCRIPTION: '',
+            FIELD_R_M: 12,
+            FIELD_POINTS: [
+                {'compresa': s['area'].parcel.region.name,
+                 'particella': s['area'].parcel.name,
+                 FIELD_LAT: 38.5, FIELD_LON: 16.1},
+            ],
+            FIELD_NONCE: 'auto-grid-nonce',
+        }
+
+        first = self._post(writer_client, body)
+        second = self._post(writer_client, body)
+
+        assert first.status_code == 200, first.content
+        assert second.status_code == 200, second.content
+        assert second.json() == first.json()
+        assert SampleGrid.objects.filter(name='Auto grid nonce').count() == 1
+        assert UsedNonce.objects.filter(nonce='auto-grid-nonce').exists()
 
     def test_empty_points_rejected(self, writer_client, db):
         resp = self._post(writer_client, {

@@ -19,7 +19,7 @@ import * as S from '../../base/js/strings.js';
 import {
   COL_COPPICE, FIELD_COMPRESA, FIELD_DEFAULT_DATE, FIELD_FILE, FIELD_LAT, FIELD_LON,
   FIELD_NONCE, FIELD_PARTICELLA, FIELD_PRESSLER_COEFF, FIELD_SAMPLE_GRID_ID, FIELD_SURVEY_ID,
-  ROW_ID, VERSION,
+  ROW_ID, STATUS_CONFLICT, VERSION,
 } from '../../base/js/constants.js';
 import { parcelNames, sortFeaturesByArea } from '../../base/js/geo.js';
 import { fileToBase64, postJSON } from '../../base/js/api.js';
@@ -159,6 +159,7 @@ let currentTreesId = null;
 let surveyActivationSeq = 0;
 let _areaColIdx = -1;
 let inForm = false;
+let pendingQueryParams = null;
 let disposePageActions = null;
 // MapCommon basemap key in effect across all maps on this page.
 // Initialised in mount() from the URL; updated by `basemapchange` events
@@ -180,7 +181,7 @@ const page = createPage({
   load: loadPageData,
   mount: mountPage,
   unmount: destroyPage,
-  onQueryChange: (params) => { if (!inForm) applyParams(params); },
+  onQueryChange: handleQueryChange,
   visibleIds: [SURVEYS_ID, GRIDS_ID, SAMPLE_AREAS_ID, SAMPLES_ID],
 });
 
@@ -209,6 +210,7 @@ async function loadPageData() {
 }
 
 function mountPage(el, params) {
+  pendingQueryParams = null;
   // Initialise the per-page basemap state from the URL before any map is
   // constructed.  All subsequent maps (and the BasemapControl on each)
   // start in sync with this value.
@@ -221,6 +223,7 @@ function mountPage(el, params) {
 
 function destroyPage() {
   surveyActivationSeq += 1;
+  pendingQueryParams = null;
   if (unsubCache) { unsubCache(); unsubCache = null; }
   if (disposePageActions) { disposePageActions(); disposePageActions = null; }
   destroyTable();
@@ -780,6 +783,22 @@ function bindBasemapEvents(map) {
   map.leaflet.on('basemapchange', (e) => onBasemapChange(e.name));
 }
 
+function handleQueryChange(params) {
+  if (inForm) {
+    pendingQueryParams = params;
+    return;
+  }
+  applyParams(params);
+}
+
+function finishForm() {
+  inForm = false;
+  if (!pendingQueryParams) return;
+  const params = pendingQueryParams;
+  pendingQueryParams = null;
+  applyParams(params);
+}
+
 function applyParams(params) {
   const p = readParams(params);
 
@@ -819,7 +838,10 @@ function applyParams(params) {
   if (targetSurvey == null) { showAlberiEmpty(); return; }
 
   if (targetSurvey !== activeSurveyId) {
+    const requestedSurvey = targetSurvey;
+    const activationSeq = surveyActivationSeq + 1;
     activateSurvey(targetSurvey).then(() => {
+      if (activationSeq !== surveyActivationSeq || activeSurveyId !== requestedSurvey) return;
       if (p.a != null) {
         activeAreaId = p.a;
         if (sections.r.map) sections.r.map.setActiveAreaId(p.a);
@@ -870,15 +892,16 @@ function syncURL() {
 async function showNewGridForm() {
   inForm = true;
   const form = await fetchModalForm(GRID_FORM_URL);
-  if (!form) { inForm = false; return; }
+  if (!form) { finishForm(); return; }
   const modal = document.querySelector('#modal-container #campionamenti-grid-modal');
-  if (!modal) { dismissModal(); inForm = false; return; }
+  if (!modal) { dismissModal(); finishForm(); return; }
   let planner = null;
   onDismiss(() => {
     planner?.destroy();
     planner = null;
-    inForm = false;
+    finishForm();
   });
+  let tabbed = null;
 
   const onPathSwitch = (path) => {
     if (path === 'auto' && !planner) {
@@ -896,11 +919,13 @@ async function showNewGridForm() {
         });
         planner.init();
         wireCancelButtons(host, dismissModal);
+        tabbed?.lockHeight();
       }
     }
   };
 
-  wirePathChooser(modal, onPathSwitch);
+  tabbed = wireTabbedModal(modal, { onSwitch: onPathSwitch });
+  tabbed.lockHeight();
   wireGridEmptyForm(modal);
   wireCancelButtons(modal, dismissModal);
 }
@@ -921,10 +946,10 @@ function wireGridEmptyForm(modal) {
 async function showNewSurveyForm() {
   inForm = true;
   const form = await fetchModalForm(SURVEY_FORM_URL);
-  if (!form) { inForm = false; return; }
+  if (!form) { finishForm(); return; }
   const modal = document.querySelector('#modal-container #campionamenti-survey-modal');
-  if (!modal) { dismissModal(); inForm = false; return; }
-  onDismiss(() => { inForm = false; });
+  if (!modal) { dismissModal(); finishForm(); return; }
+  onDismiss(finishForm);
   wireSurveyEmptyForm(modal);
   wireCancelButtons(modal, dismissModal);
 }
@@ -942,27 +967,6 @@ function wireSurveyEmptyForm(modal) {
   });
 }
 
-/**
- * Wire the tab bar inside a server-rendered modal so clicking a tab
- * button shows that tab's body and hides the others.
- */
-function wirePathChooser(modal, onSwitch) {
-  const buttons = modal.querySelectorAll('.modal-tab');
-  const bodies = modal.querySelectorAll('.modal-tab-body');
-  for (const btn of buttons) {
-    btn.addEventListener('click', () => {
-      const path = btn.dataset.path;
-      for (const b of buttons) b.classList.toggle('active', b === btn);
-      for (const body of bodies) {
-        const isActive = body.classList.contains(`grid-path-${path}`)
-                      || body.classList.contains(`survey-path-${path}`);
-        body.classList.toggle('active', isActive);
-      }
-      onSwitch?.(path);
-    });
-  }
-}
-
 // ---------------------------------------------------------------------------
 // Section 1 — area popover + new-area form
 // ---------------------------------------------------------------------------
@@ -978,10 +982,10 @@ function showAreaPopover(area) {
   for (const [label, val] of [
     [S.COL_REGION, area.compresa], [S.COL_PARCEL, area.particella],
     [S.COL_NUMBER, area.numero],
-    [S.COL_RADIUS, area.r_m],
+    [S.COL_RADIUS, fmtInt(area.r_m)],
     [S.COL_LAT, fmtCoord(area.lat)],
     [S.COL_LON, fmtCoord(area.lon)],
-    [S.COL_ALT, area.altitude ?? '—'],
+    [S.COL_ALT, area.altitude == null ? '—' : fmtInt(area.altitude)],
     [S.COL_NOTE, area.note || ''],
   ]) {
     const row = document.createElement('div');
@@ -1027,16 +1031,16 @@ async function showAddAreaForm({ lat, lon, compresa, particella } = {}) {
   if (compresa) qs.set(FIELD_COMPRESA, compresa);
   if (particella) qs.set(FIELD_PARTICELLA, particella);
   const form = await fetchModalForm(`${AREA_FORM_URL}?${qs}`);
-  if (!form) { inForm = false; return; }
-  onDismiss(() => { inForm = false; });
+  if (!form) { finishForm(); return; }
+  onDismiss(finishForm);
   wireAreaForm(form);
 }
 
 async function showEditAreaForm(areaId) {
   inForm = true;
   const form = await fetchModalForm(`${AREA_FORM_URL}${areaId}/`);
-  if (!form) { inForm = false; return; }
-  onDismiss(() => { inForm = false; });
+  if (!form) { finishForm(); return; }
+  onDismiss(finishForm);
   wireAreaForm(form);
 }
 
@@ -1107,7 +1111,7 @@ async function deleteArea(areaId) {
 
 function showEditGridModal() {
   if (activeGridId == null) return;
-  const row = gridRow(activeGridId);
+  let row = gridRow(activeGridId);
   if (!row) return;
   const c = gridsData.columns;
   showEditModal({
@@ -1124,7 +1128,13 @@ function showEditGridModal() {
           [VERSION]: String(row[c.indexOf(VERSION)] ?? 0),
         },
       );
-      if (status !== 200) return data?.message || S.ERROR_GENERIC;
+      if (status !== 200) {
+        if (data?.status === STATUS_CONFLICT) {
+          applySideEffects(data);
+          row = gridRow(activeGridId) || row;
+        }
+        return data?.message || S.ERROR_GENERIC;
+      }
       applySideEffects(data);
       updatePulldownOption(sections.g, activeGridId, gridsData, S.COL_NAME);
       return null;
@@ -1150,7 +1160,7 @@ function showEditGridModal() {
 
 function showEditSurveyModal() {
   if (activeSurveyId == null) return;
-  const row = surveyRow(activeSurveyId);
+  let row = surveyRow(activeSurveyId);
   if (!row) return;
   const c = surveysData.columns;
   showEditModal({
@@ -1167,7 +1177,13 @@ function showEditSurveyModal() {
           [VERSION]: String(row[c.indexOf(VERSION)] ?? 0),
         },
       );
-      if (status !== 200) return data?.message || S.ERROR_GENERIC;
+      if (status !== 200) {
+        if (data?.status === STATUS_CONFLICT) {
+          applySideEffects(data);
+          row = surveyRow(activeSurveyId) || row;
+        }
+        return data?.message || S.ERROR_GENERIC;
+      }
       applySideEffects(data);
       rebuildSurveyPulldown();
       return null;
@@ -1287,9 +1303,7 @@ function confirmDeleteSurvey() {
   const nTrees = countTreesInActiveSurvey();
   showCascadeDeleteModal({
     title: S.CASCADE_CONFIRM_TITLE,
-    warning: S.CASCADE_WARN_SURVEY
-      .replace('{n_samples}', nVisited)
-      .replace('{n_trees}', nTrees),
+    warning: S.CASCADE_WARN_SURVEY(nVisited, nTrees),
     onExport: () => exportSurveyCSV(activeSurveyId),
     onDelete: () => doDeleteSurvey(),
   });
@@ -1334,14 +1348,21 @@ function countTreesInActiveSurvey() {
  * backup of the to-be-deleted rows).
  */
 
-function exportSurveyCSV(surveyId) {
-  if (!currentTreesId) return;
-  const d = cache.get(currentTreesId);
-  if (!d) return;
+async function exportSurveyCSV(surveyId) {
+  if (surveyId == null) return { error: S.ERROR_GENERIC };
+  const dataId = `${TREES_ID_PREFIX}${surveyId}`;
+  cache.register(dataId, `${TREES_URL_PREFIX}${surveyId}/`);
+  let d = cache.get(dataId);
+  if (!d) {
+    try { d = await cache.load(dataId); }
+    catch { return { error: S.ERROR_NETWORK }; }
+  }
+  if (!d?.columns || !Array.isArray(d.rows)) return { error: S.ERROR_GENERIC };
   const visibleCols = d.columns.filter(
     c => c !== VERSION && c !== S.COL_SAMPLE_AREA,
   );
   exportDigest(d, visibleCols, S.CSV_SAMPLED_TREES);
+  return { ok: true };
 }
 
 function exportGridAreasCSV(gridId) {
@@ -1550,16 +1571,16 @@ async function showAddTreeForm() {
   inForm = true;
   const url = `${TREE_FORM_URL}?survey=${activeSurveyId}&area=${activeAreaId}`;
   const form = await fetchModalForm(url);
-  if (!form) { inForm = false; return; }
-  onDismiss(() => { inForm = false; });
+  if (!form) { finishForm(); return; }
+  onDismiss(finishForm);
   wireTreeForm(form);
 }
 
 async function showEditTreeForm(tsId) {
   inForm = true;
   const form = await fetchModalForm(`${TREE_FORM_URL}${tsId}/`);
-  if (!form) { inForm = false; return; }
-  onDismiss(() => { inForm = false; });
+  if (!form) { finishForm(); return; }
+  onDismiss(finishForm);
   wireTreeForm(form);
 }
 
@@ -1883,4 +1904,3 @@ function formatTimestamp(iso) {
   if (!iso) return '—';
   return iso.length >= 10 ? iso.slice(0, 10) : iso;
 }
-

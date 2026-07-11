@@ -14,6 +14,7 @@ from django.db import transaction
 from apps.base.digests import mark_stale
 from apps.base.models import Sample, SampleArea, Species, Tree, TreeSample, tree_mass_q
 from apps.base.refdata import GENERE_MAP
+from apps.campionamenti.tree_validation import normalize_sample_tree_values
 from config import strings as S
 from config.constants import (
     BOSCO_TREE_DIGESTS, FIELD_ACC_M, FIELD_AREA, FIELD_COPPICE, FIELD_DATE,
@@ -109,8 +110,21 @@ def validate_rows(reader, idx: TreeIndexes, *, has_date_column, default_date):
             errors.append(S.ERR_CSV_ROW_PARSE.format(
                 i, f'{S.CSV_COL_COPPICE_SHOOT}/{S.CSV_COL_L10_MM}'))
             continue
-        shoot = shoot or 0
-        l10_mm = l10 or 0
+        values = normalize_sample_tree_values(
+            number=number,
+            d_cm=d_cm,
+            h_m=h_dec,
+            shoot=shoot or 0,
+            l10_mm=l10 or 0,
+            pressler_coeff=pressler,
+        )
+        if values is None:
+            errors.append(S.ERR_CSV_ROW_PARSE.format(
+                i, f'{S.CSV_COL_TREE}/{S.CSV_COL_COPPICE_SHOOT}/'
+                   f'{S.CSV_COL_D_CM}/{S.CSV_COL_H_M}/'
+                   f'{S.CSV_COL_L10_MM}/{S.CSV_COL_PRESSLER}',
+            ))
+            continue
         standard = bool(standard)        # required column; blank → False
         preserved = bool(preserved)      # optional; absent/blank → False
         # Fustaia is required: a blank or unrecognised value is an error.
@@ -165,8 +179,9 @@ def validate_rows(reader, idx: TreeIndexes, *, has_date_column, default_date):
 
         parsed.append(parsed_tree_row(
             area=area, row_date=row_date, species=species, coppice=coppice,
-            preserved=preserved, number=number, shoot=shoot, standard=standard,
-            d_cm=d_cm, h_m=h_dec, l10_mm=l10_mm, pressler_coeff=pressler,
+            preserved=preserved, number=values.number, shoot=values.shoot,
+            standard=standard, d_cm=values.d_cm, h_m=values.h_m,
+            l10_mm=values.l10_mm, pressler_coeff=values.pressler_coeff,
             volume_species_name=mapped,
         ))
     return parsed, errors

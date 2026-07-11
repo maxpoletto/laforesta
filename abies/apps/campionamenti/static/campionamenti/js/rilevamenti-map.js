@@ -56,8 +56,11 @@ export class RilevamentiMap extends ParcelMap {
       const visited = visitedById.get(area.id);
       const isVisited = !!visited;
       const tooltip = isVisited
-        ? this._areaTooltip(S.TOOLTIP_SAMPLE_AREA_VISITED, area)
-            .replace('{alberi}', S.SAMPLES_TREE_COUNT(visited.nAlberi))
+        ? this._areaTooltip(
+            S.TOOLTIP_SAMPLE_AREA_VISITED,
+            area,
+            S.SAMPLES_TREE_COUNT(visited.nAlberi),
+          )
         : this._areaTooltip(S.TOOLTIP_SAMPLE_AREA, area);
       this._addAreaMarker(area, {
         fillColor: isVisited ? VISITED_COLOR : UNVISITED_COLOR,

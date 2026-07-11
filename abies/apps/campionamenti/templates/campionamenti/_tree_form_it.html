@@ -23,6 +23,7 @@ coppice block.
     <input type="hidden" name="row_id" value="{{ ts.id|default_if_none:'' }}">
     <input type="hidden" name="survey_id" value="{{ survey.id }}">
     <input type="hidden" name="sample_area_id" value="{{ area.id }}">
+    <input type="hidden" name="version" value="{{ ts.version|default:0 }}">
     <input type="hidden" name="shoots" id="id_shoots" value="">
 
     <div class="form-readonly-flat">

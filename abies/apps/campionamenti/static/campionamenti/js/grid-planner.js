@@ -17,7 +17,10 @@ import { showError } from '../../base/js/modals.js';
 import { showFormError } from '../../base/js/forms.js';
 import { fmtDecimal1, fmtDecimal2, parseDecimal } from '../../base/js/format.js';
 import * as S from '../../base/js/strings.js';
-import { DEFAULT_RADIUS_M, M2_PER_HA } from '../../base/js/constants.js';
+import {
+  DEFAULT_RADIUS_M, FIELD_DESCRIPTION, FIELD_NAME, FIELD_NONCE, FIELD_POINTS,
+  FIELD_R_M, M2_PER_HA,
+} from '../../base/js/constants.js';
 
 const TERRENI_URL = '/api/geo/terreni.geojson';
 const SAVE_URL = '/api/campionamenti/grid/save-auto/';
@@ -198,7 +201,7 @@ export class GridPlanner {
       cb.value = name;
       lab.appendChild(cb);
       lab.appendChild(document.createTextNode(
-        ` ${name} (${this.featuresByCompresa[name].length} particelle)`,
+        ` ${S.GRID_PLANNER_REGION_OPTION(name, this.featuresByCompresa[name].length)}`,
       ));
       this.compreseListEl.appendChild(lab);
     }
@@ -255,9 +258,7 @@ export class GridPlanner {
     this._renderPoints();
     this._renderStats(totalAreaM2, perPointAreaM2, targetN);
     this.submitBtn.disabled = this.points.length === 0;
-    this._setStatus(
-      S.STATUS_PLAN_COMPLETE.replace('{n}', this.points.length),
-    );
+    this._setStatus(S.STATUS_PLAN_COMPLETE(this.points.length));
   }
 
   _renderPoints() {
@@ -270,12 +271,7 @@ export class GridPlanner {
       const n = (countByCompresa[pt.compresa] || 0) + 1;
       countByCompresa[pt.compresa] = n;
       const m = L.circleMarker([pt.lat, pt.lon], POINT_STYLE);
-      m.bindTooltip(
-        S.TOOLTIP_ADC
-          .replace('{n}', n)
-          .replace('{compresa}', pt.compresa)
-          .replace('{particella}', pt.particella),
-      );
+      m.bindTooltip(S.TOOLTIP_ADC(n, pt.compresa, pt.particella));
       m.addTo(this.pointLayer);
     });
   }
@@ -283,11 +279,9 @@ export class GridPlanner {
   _renderStats(totalAreaM2, perPointAreaM2, targetN) {
     this.statsEl.replaceChildren();
     const lines = [
-      S.STATS_POINTS
-        .replace('{n}', this.points.length)
-        .replace('{target}', targetN),
-      S.STATS_TOTAL_AREA_HA.replace('{ha}', fmtDecimal2(totalAreaM2 / M2_PER_HA)),
-      S.STATS_AREA_PER_POINT_M2.replace('{area}', fmtDecimal1(perPointAreaM2)),
+      S.STATS_POINTS(this.points.length, targetN),
+      S.STATS_TOTAL_AREA_HA(fmtDecimal2(totalAreaM2 / M2_PER_HA)),
+      S.STATS_AREA_PER_POINT_M2(fmtDecimal1(perPointAreaM2)),
     ];
     for (const t of lines) {
       const div = document.createElement('div');
@@ -314,8 +308,11 @@ export class GridPlanner {
     this._setStatus(S.STATUS_SAVING);
     try {
       const { data, status } = await postJSON(SAVE_URL, {
-        name, description, r_m: Math.round(radius),
-        points: this.points,
+        [FIELD_NAME]: name,
+        [FIELD_DESCRIPTION]: description,
+        [FIELD_R_M]: Math.round(radius),
+        [FIELD_POINTS]: this.points,
+        [FIELD_NONCE]: crypto.randomUUID(),
       });
       if (status !== 200) {
         this.submitBtn.disabled = false;

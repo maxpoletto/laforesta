@@ -37,6 +37,9 @@ from apps.base.models import (
     TreeSample, parcel_sort_key,
 )
 from apps.campionamenti import csv_grid, csv_trees
+from apps.campionamenti.tree_validation import (
+    normalize_sample_shoot_values, normalize_sample_tree_values,
+)
 from config import strings as S
 from config.constants import (
     BOSCO_DENDROMETRY_DIGESTS, BOSCO_TREE_DIGESTS, DEFAULT_RADIUS_M,
@@ -53,8 +56,8 @@ from config.constants import (
     FIELD_SAMPLE_AREA_ID, FIELD_SAMPLE_GRID_ID, FIELD_SHOOT, FIELD_SHOOTS,
     FIELD_SORT_ORDER, FIELD_SPECIES, FIELD_SPECIES_ID, FIELD_STANDARD,
     FIELD_SURVEY_ID, FIELD_TREE_PICK, FIELD_TREE_PICK_EXISTING_ID,
-    FIELD_VOLUME_M3, HTML, ROW_ID, STATUS, STATUS_NOT_FOUND, TREE_H_QUANTUM,
-    VERSION, is_truthy,
+    FIELD_VOLUME_M3, HTML, ROW_ID, STATUS, STATUS_NOT_FOUND, VERSION,
+    is_truthy,
 )
 
 
@@ -85,7 +88,7 @@ def samples_data(request):
 @login_required
 def sampled_trees_data(request, survey_id: int):
     """Per-survey sampled-tree digest.  Lazily generated on first hit."""
-    if survey_id <= 0:
+    if survey_id <= 0 or not Survey.objects.filter(id=survey_id).exists():
         raise Http404
     return serve_digest(request, f'sampled_trees_{survey_id}')
 
@@ -103,8 +106,12 @@ def tree_form_view(request, ts_id: int | None = None):
       ?survey=<id>&area=<id>  — required: the survey + sample area
                                 under which the new tree will be created.
     """
-    survey_id = int(request.GET.get('survey', 0)) or None
-    area_id = int(request.GET.get(FIELD_AREA, 0)) or None
+    survey_raw = request.GET.get('survey')
+    area_raw = request.GET.get(FIELD_AREA)
+    survey_id = int_or_none(survey_raw) if survey_raw else None
+    area_id = int_or_none(area_raw) if area_raw else None
+    if (survey_raw and survey_id is None) or (area_raw and area_id is None):
+        raise Http404
     return JsonResponse({HTML: _render_tree_form(
         request, ts_id, survey_id, area_id,
     )})
@@ -188,7 +195,9 @@ def tree_save_view(request):
 
     with transaction.atomic():
         if ts_id:
-            ts = _update_tree_sample(ts_id, sample, parsed)
+            ts = _update_tree_sample(ts_id, sample, parsed, body, request)
+            if isinstance(ts, JsonResponse):
+                return ts
             created_or_updated_ids = [ts.id]
         elif parsed[FIELD_COPPICE]:
             tree = existing_tree or Tree.objects.create(
@@ -475,6 +484,12 @@ def area_save_view(request):
             ).first()
             if area is None:
                 return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
+            if area.version != submitted_version(body):
+                fresh_area = SampleArea.objects.select_related('parcel__region').get(id=area.id)
+                return conflict_response(
+                    data_id='sample_areas', row_id=fresh_area.id,
+                    record=build_sample_area_record(fresh_area),
+                )
             area.parcel = parcel
             area.number = number
             area.lat = lat
@@ -779,6 +794,20 @@ def _parse_tree_body(body):
         except (ValueError, TypeError):
             errors.append(S.ERR_TREE_NUMBER_REQUIRED)
 
+    sample_area_id = int_or_none(body.get(FIELD_SAMPLE_AREA_ID))
+    survey_id = int_or_none(body.get(FIELD_SURVEY_ID))
+    species_id = (int_or_none(body.get(FIELD_SPECIES_ID))
+                  if body.get(FIELD_SPECIES_ID) else None)
+    number = int_or_none(body.get(FIELD_NUMBER, 0) or 0)
+    if sample_area_id is None:
+        errors.append(S.IPSO_ERR_FIELD_REQUIRED.format(S.COL_SAMPLE_AREA))
+    if survey_id is None:
+        errors.append(S.ERR_CSV_SURVEY_REQUIRED)
+    if body.get(FIELD_SPECIES_ID) and species_id is None:
+        errors.append(S.ERR_BOSCO_INTEGER_REQUIRED.format(S.COL_SPECIES))
+    if number is None:
+        errors.append(S.ERR_TREE_NUMBER_REQUIRED)
+
     if coppice:
         shoots, shoot_errors = _parse_shoots(body.get(FIELD_SHOOTS))
         errors.extend(shoot_errors)
@@ -791,30 +820,45 @@ def _parse_tree_body(body):
         shoots = []
         try:
             d_cm = int(body[FIELD_D_CM])
-            if d_cm <= 0:
-                errors.append(S.ERR_D_POSITIVE)
         except (KeyError, ValueError, TypeError):
             d_cm = 0
             errors.append(S.ERR_D_POSITIVE)
 
         h_m = parse_decimal(body.get(FIELD_H_M)) or Decimal('0')
-        if h_m <= 0:
-            errors.append(S.ERR_H_POSITIVE)
 
-        try:
-            l10_mm = int(body.get(FIELD_L10_MM, 0) or 0)
-        except (ValueError, TypeError):
+        l10_mm = int_or_none(body.get(FIELD_L10_MM, 0) or 0)
+        if l10_mm is None:
             l10_mm = 0
-
+            errors.append(S.ERR_BOSCO_INTEGER_REQUIRED.format(S.COL_L10_MM))
+        values = normalize_sample_tree_values(
+            number=number,
+            d_cm=d_cm,
+            h_m=h_m,
+            shoot=0,
+            l10_mm=l10_mm,
+            pressler_coeff=pressler_coeff,
+        )
+        if values is None:
+            if d_cm <= 0:
+                errors.append(S.ERR_D_POSITIVE)
+            if h_m <= 0:
+                errors.append(S.ERR_H_POSITIVE)
+            if l10_mm < 0:
+                errors.append(S.ERR_BOSCO_INTEGER_REQUIRED.format(S.COL_L10_MM))
+        else:
+            d_cm = values.d_cm
+            h_m = values.h_m
+            l10_mm = values.l10_mm
+            pressler_coeff = values.pressler_coeff
     parsed = {
-        FIELD_SAMPLE_AREA_ID: int(body[FIELD_SAMPLE_AREA_ID]),
-        FIELD_SURVEY_ID: int(body[FIELD_SURVEY_ID]),
-        FIELD_SPECIES_ID: int(body[FIELD_SPECIES_ID]) if body.get(FIELD_SPECIES_ID) else None,
-        FIELD_NUMBER: int(body.get(FIELD_NUMBER, 0) or 0),
+        FIELD_SAMPLE_AREA_ID: sample_area_id,
+        FIELD_SURVEY_ID: survey_id,
+        FIELD_SPECIES_ID: species_id,
+        FIELD_NUMBER: number or 0,
         FIELD_D_CM: d_cm,
-        FIELD_H_M: h_m.quantize(TREE_H_QUANTUM) if not coppice else h_m,
+        FIELD_H_M: h_m,
         FIELD_L10_MM: l10_mm,
-        FIELD_PRESSLER_COEFF: pressler_coeff.quantize(TREE_H_QUANTUM),
+        FIELD_PRESSLER_COEFF: pressler_coeff,
         FIELD_VOLUME_M3: parse_decimal(body.get(FIELD_VOLUME_M3)) if not coppice else None,
         FIELD_MASS_Q: parse_decimal(body.get(FIELD_MASS_Q)) if not coppice else None,
         FIELD_LAT: coord_float(parse_decimal(body.get(FIELD_LAT))),
@@ -857,14 +901,23 @@ def _parse_shoots(raw):
             errors.append(S.ERR_D_POSITIVE)
             continue
         h_m = parse_decimal(item.get(FIELD_H_M)) or Decimal('0')
-        if d_cm <= 0:
-            errors.append(S.ERR_D_POSITIVE)
-        if h_m <= 0:
-            errors.append(S.ERR_H_POSITIVE)
+        values = normalize_sample_shoot_values(
+            shoot=shoot_num, d_cm=d_cm, h_m=h_m, l10_mm=l10_mm,
+        )
+        if values is None:
+            if d_cm <= 0:
+                errors.append(S.ERR_D_POSITIVE)
+            if h_m <= 0:
+                errors.append(S.ERR_H_POSITIVE)
+            if shoot_num < 0:
+                errors.append(S.ERR_BOSCO_INTEGER_REQUIRED.format(S.COL_COPPICE_SHOOT))
+            if l10_mm < 0:
+                errors.append(S.ERR_BOSCO_INTEGER_REQUIRED.format(S.COL_L10_MM))
+            continue
         shoots.append({
-            FIELD_SHOOT: shoot_num, FIELD_STANDARD: standard,
-            FIELD_D_CM: d_cm, FIELD_H_M: h_m.quantize(TREE_H_QUANTUM),
-            FIELD_L10_MM: l10_mm,
+            FIELD_SHOOT: values.shoot, FIELD_STANDARD: standard,
+            FIELD_D_CM: values.d_cm, FIELD_H_M: values.h_m,
+            FIELD_L10_MM: values.l10_mm,
         })
     return shoots, errors
 
@@ -908,8 +961,20 @@ def _sample_date_conflict_error(sample):
     )
 
 
-def _update_tree_sample(ts_id, sample, parsed):
-    ts = TreeSample.objects.select_for_update().get(id=ts_id)
+def _update_tree_sample(ts_id, sample, parsed, body, request):
+    ts = (TreeSample.objects
+          .select_for_update()
+          .select_related(
+              'sample__survey', 'sample__sample_area__parcel__region',
+              'tree__species', 'tree__parcel',
+          )
+          .get(id=ts_id))
+    if ts.version != submitted_version(body):
+        return conflict_response(
+            data_id=f'sampled_trees_{ts.sample.survey_id}', row_id=ts.id,
+            record=build_tree_sample_record(ts),
+            html=_render_tree_form(request, ts.id, None, None),
+        )
     ts.sample = sample
     ts.number = parsed[FIELD_NUMBER]
     if parsed[FIELD_COPPICE]:
@@ -945,8 +1010,8 @@ def _update_tree_sample(ts_id, sample, parsed):
 
 
 def _validation_error(errors, ts_id, request, body):
-    survey_id = int(body.get(FIELD_SURVEY_ID, 0)) or None
-    area_id = int(body.get(FIELD_SAMPLE_AREA_ID, 0)) or None
+    survey_id = int_or_none(body.get(FIELD_SURVEY_ID))
+    area_id = int_or_none(body.get(FIELD_SAMPLE_AREA_ID))
     # Skip the form re-render when the survey/area combo is itself
     # invalid (Http404 from _render_tree_form would mask the real
     # error).  Client just shows the error message in that case.
@@ -1124,7 +1189,10 @@ def grid_csv_import_view(request):
     if upload is None:
         return validation_error([S.ERR_CSV_FILE_REQUIRED])
 
-    grid = SampleGrid.objects.filter(id=int(grid_id)).first()
+    grid_pk = int_or_none(grid_id)
+    if grid_pk is None:
+        return validation_error([S.ERR_CSV_GRID_REQUIRED])
+    grid = SampleGrid.objects.filter(id=grid_pk).first()
     if grid is None:
         return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
 
@@ -1193,7 +1261,10 @@ def tree_csv_import_view(request):
     if upload is None:
         return validation_error([S.ERR_CSV_FILE_REQUIRED])
 
-    survey = Survey.objects.filter(id=int(survey_id)).select_related(
+    survey_pk = int_or_none(survey_id)
+    if survey_pk is None:
+        return validation_error([S.ERR_CSV_SURVEY_REQUIRED])
+    survey = Survey.objects.filter(id=survey_pk).select_related(
         'sample_grid',
     ).first()
     if survey is None:
@@ -1408,5 +1479,3 @@ def _resolve_grid_points(points):
             parcel_cache[key] = parcel
         resolved.append((pt, parcel))
     return resolved, None
-
-

@@ -62,6 +62,7 @@ class MockElement {
     this.href = '';
     this.rel = '';
     this.removed = false;
+    this.offsetHeight = 0;
     this._listeners = {};
     this.style = { setProperty: (k, v) => { this.style[k] = v; } };
     this.classList = {
@@ -196,10 +197,16 @@ function buildCampionamentiTemplate() {
 
 function buildGridModal() {
   const root = el('div', { id: 'campionamenti-grid-modal' });
-  root.appendChild(el('button', { className: 'modal-tab', dataset: { path: 'auto' } }));
-  root.appendChild(el('div', { className: 'modal-tab-body grid-path-auto' }));
-  root.appendChild(el('div', { id: 'campionamenti-grid-planner-host' }));
-  root.appendChild(el('form', { id: 'campionamenti-grid-form-empty' }));
+  root.appendChild(el('div', { className: 'modal-tabs' }, [
+    el('button', { className: 'modal-tab', dataset: { path: 'empty' } }),
+    el('button', { className: 'modal-tab', dataset: { path: 'auto' } }),
+  ]));
+  root.appendChild(el('div', { className: 'modal-tab-bodies' }, [
+    el('form', { id: 'campionamenti-grid-form-empty', className: 'modal-tab-body', dataset: { path: 'empty' } }),
+    el('div', { className: 'modal-tab-body', dataset: { path: 'auto' } }, [
+      el('div', { id: 'campionamenti-grid-planner-host' }),
+    ]),
+  ]));
   root.appendChild(el('button', { dataset: { action: 'cancel' } }));
   return root;
 }

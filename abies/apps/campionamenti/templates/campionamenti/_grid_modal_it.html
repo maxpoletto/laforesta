@@ -19,44 +19,47 @@ All bodies render at once; client toggles via .modal-tab-body.active.
     </button>
   </div>
 
-  {# --- Crea vuota ------------------------------------------------------ #}
-  <form class="modal-tab-body grid-path-empty active"
-        id="campionamenti-grid-form-empty">
-    <input type="hidden" name="path" value="empty">
+  <div class="modal-tab-bodies">
+    {# --- Crea vuota ------------------------------------------------------ #}
+    <form class="modal-tab-body active"
+          data-path="empty"
+          id="campionamenti-grid-form-empty">
+      <input type="hidden" name="path" value="empty">
 
-    <div class="form-group">
-      <label for="id_grid_name">Nome</label>
-      <input type="text" id="id_grid_name" name="name" required
-             maxlength="100" autofocus>
+      <div class="form-group">
+        <label for="id_grid_name">Nome</label>
+        <input type="text" id="id_grid_name" name="name" required
+               maxlength="100" autofocus>
+      </div>
+
+      <div class="form-group">
+        <label for="id_grid_description">Descrizione (opzionale)</label>
+        <textarea id="id_grid_description" name="description" rows="3"></textarea>
+      </div>
+
+      <p class="form-help">
+        La griglia viene creata vuota.  Le aree di saggio si aggiungono
+        successivamente tramite import CSV o inserimento manuale dalla mappa.
+      </p>
+
+      <div class="form-actions">
+        <button type="button" class="btn" data-action="cancel">{{ S.CANCEL }}</button>
+        <button type="submit" class="btn btn-save" data-action="save">Crea</button>
+      </div>
+    </form>
+
+    {% comment %}
+      --- Genera automaticamente ---
+      GridPlanner builds the Annulla / Crea row so the controls sit together
+      at the bottom. The caller wires its standard data-action="cancel"
+      control after the planner's lazy initialization.
+    {% endcomment %}
+    <div class="modal-tab-body" data-path="auto">
+      <p class="form-help">
+        Genera automaticamente una griglia regolare sulle comprese
+        selezionate.
+      </p>
+      <div id="campionamenti-grid-planner-host"></div>
     </div>
-
-    <div class="form-group">
-      <label for="id_grid_description">Descrizione (opzionale)</label>
-      <textarea id="id_grid_description" name="description" rows="3"></textarea>
-    </div>
-
-    <p class="form-help">
-      La griglia viene creata vuota.  Le aree di saggio si aggiungono
-      successivamente tramite import CSV o inserimento manuale dalla mappa.
-    </p>
-
-    <div class="form-actions">
-      <button type="button" class="btn" data-action="cancel">{{ S.CANCEL }}</button>
-      <button type="submit" class="btn btn-save" data-action="save">Crea</button>
-    </div>
-  </form>
-
-  {% comment %}
-    --- Genera automaticamente ---
-    GridPlanner builds the Annulla / Crea row so the controls sit together
-    at the bottom. The caller wires its standard data-action="cancel"
-    control after the planner's lazy initialization.
-  {% endcomment %}
-  <div class="modal-tab-body grid-path-auto">
-    <p class="form-help">
-      Genera automaticamente una griglia regolare sulle comprese
-      selezionate.
-    </p>
-    <div id="campionamenti-grid-planner-host"></div>
   </div>
 </div>

@@ -79,7 +79,7 @@
  * screens it wraps via the inputs' own min-widths. */
 .tree-coppice-block {
   margin-left: 24px;
-  border-left: 3px solid #2d5d2c;
+  border-left: 3px solid var(--color-bosco-green-dark);
   padding: 8px 12px;
   margin-bottom: 12px;
   background: #f5f7f5;
@@ -147,10 +147,6 @@
   text-align: center;
 }
 
-.campionamenti-table-host {
-  /* Inherits sortable-table sizing from common.css. */
-}
-
 /* "Nuova griglia" / "Nuovo rilevamento" modal — path chooser at top,
  * one of several bodies underneath.  The form-card wrapper class is
  * defined in common.css; field-width 120px lives there too as
@@ -208,7 +204,7 @@
    win over the .text-error utility by source order (campionamenti.css loads
    after common.css). */
 .grid-planner-status.text-error {
-  color: #c00;
+  color: var(--color-danger);
 }
 
 .grid-planner-stats {
@@ -249,11 +245,4 @@
     line-height: 1.25;
   }
 
-  .table-toolbar { flex-wrap: wrap; }
-
-  .table-search {
-    flex: 1 1 180px;
-    width: auto;
-    max-width: 100%;
-  }
 }
