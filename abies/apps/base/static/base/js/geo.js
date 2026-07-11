@@ -35,16 +35,35 @@ export function pointInRing(lng, lat, ring) {
   return inside;
 }
 
-/**
- * Point-in-polygon for a GeoJSON Polygon geometry (exterior + holes).
- */
-export function pointInPolygon(lng, lat, geometry) {
-  const coords = geometry.coordinates;
-  if (!pointInRing(lng, lat, coords[0])) return false;
-  for (let i = 1; i < coords.length; i++) {
-    if (pointInRing(lng, lat, coords[i])) return false;
+function geometryPolygons(geometry) {
+  if (!geometry) return [];
+  if (geometry.type === 'Polygon') return [geometry.coordinates];
+  if (geometry.type === 'MultiPolygon') return geometry.coordinates;
+  return [];
+}
+
+function pointInPolygonRings(lng, lat, rings) {
+  if (!pointInRing(lng, lat, rings[0])) return false;
+  for (let i = 1; i < rings.length; i++) {
+    if (pointInRing(lng, lat, rings[i])) return false;
   }
   return true;
+}
+
+function forEachGeometryCoordinate(geometry, fn) {
+  for (const rings of geometryPolygons(geometry)) {
+    for (const ring of rings) {
+      for (const coord of ring) fn(coord);
+    }
+  }
+}
+
+/**
+ * Point-in-polygon for a GeoJSON Polygon or MultiPolygon geometry
+ * (exterior + holes).
+ */
+export function pointInPolygon(lng, lat, geometry) {
+  return geometryPolygons(geometry).some(rings => pointInPolygonRings(lng, lat, rings));
 }
 
 /**
@@ -69,19 +88,17 @@ export function ringToLatLngs(ring) {
 }
 
 /**
- * Geodesic area of a GeoJSON Polygon feature's exterior ring, in m².
- * (Exterior only — for hole-aware area use geoJSONFeatureArea.)
+ * Geodesic area of a GeoJSON Polygon/MultiPolygon feature, in m².
  */
 export function featureArea(feature) {
-  return geodesicArea(ringToLatLngs(feature.geometry.coordinates[0]));
+  return geoJSONFeatureArea(feature);
 }
 
 /** Geodesic area of a GeoJSON feature in m² (exterior minus holes). */
 export function geoJSONFeatureArea(feature) {
   const geom = feature.geometry;
   if (!geom) return 0;
-  const polygons = geom.type === 'Polygon' ? [geom.coordinates]
-    : geom.type === 'MultiPolygon' ? geom.coordinates : [];
+  const polygons = geometryPolygons(geom);
   let total = 0;
   for (const rings of polygons) {
     total += geodesicArea(ringToLatLngs(rings[0]));
@@ -105,31 +122,31 @@ export function sortFeaturesByArea(geojson) {
   return geojson;
 }
 
-/** Bounding box of an array of GeoJSON Polygon features. */
+/** Bounding box of an array of GeoJSON Polygon/MultiPolygon features. */
 export function boundingBox(features) {
   let minLng = Infinity, minLat = Infinity;
   let maxLng = -Infinity, maxLat = -Infinity;
   for (const f of features) {
-    for (const c of f.geometry.coordinates[0]) {
+    forEachGeometryCoordinate(f.geometry, (c) => {
       if (c[0] < minLng) minLng = c[0];
       if (c[0] > maxLng) maxLng = c[0];
       if (c[1] < minLat) minLat = c[1];
       if (c[1] > maxLat) maxLat = c[1];
-    }
+    });
   }
   return { minLng, minLat, maxLng, maxLat };
 }
 
-/** Bounding box of a single Polygon feature, [minLng, minLat, maxLng, maxLat]. */
+/** Bounding box of a single Polygon/MultiPolygon feature. */
 export function featureBbox(feature) {
   let minLng = Infinity, minLat = Infinity;
   let maxLng = -Infinity, maxLat = -Infinity;
-  for (const c of feature.geometry.coordinates[0]) {
+  forEachGeometryCoordinate(feature.geometry, (c) => {
     if (c[0] < minLng) minLng = c[0];
     if (c[0] > maxLng) maxLng = c[0];
     if (c[1] < minLat) minLat = c[1];
     if (c[1] > maxLat) maxLat = c[1];
-  }
+  });
   return [minLng, minLat, maxLng, maxLat];
 }
 
@@ -145,7 +162,7 @@ export function buildBboxIndex(features) {
 
 /**
  * Minimum distance, in meters, from (lng, lat) to the boundary of the
- * given Polygon feature (exterior ring + any holes). Uses an
+ * given Polygon/MultiPolygon feature (exterior rings + any holes). Uses an
  * equirectangular projection anchored at the query point — accurate to
  * well under 1 m at the few-km scale of a parcel.
  */
@@ -153,20 +170,22 @@ export function distanceToBoundaryMeters(lng, lat, feature) {
   const mLat = 111132.92;
   const mLng = mLat * Math.cos(lat * DEG_TO_RAD);
   let best = Infinity;
-  for (const ring of feature.geometry.coordinates) {
-    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-      const ax = (ring[j][0] - lng) * mLng;
-      const ay = (ring[j][1] - lat) * mLat;
-      const bx = (ring[i][0] - lng) * mLng;
-      const by = (ring[i][1] - lat) * mLat;
-      const dx = bx - ax;
-      const dy = by - ay;
-      const len2 = dx * dx + dy * dy;
-      let t = len2 > 0 ? -(ax * dx + ay * dy) / len2 : 0;
-      if (t < 0) t = 0;
-      else if (t > 1) t = 1;
-      const d = Math.hypot(ax + t * dx, ay + t * dy);
-      if (d < best) best = d;
+  for (const rings of geometryPolygons(feature.geometry)) {
+    for (const ring of rings) {
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const ax = (ring[j][0] - lng) * mLng;
+        const ay = (ring[j][1] - lat) * mLat;
+        const bx = (ring[i][0] - lng) * mLng;
+        const by = (ring[i][1] - lat) * mLat;
+        const dx = bx - ax;
+        const dy = by - ay;
+        const len2 = dx * dx + dy * dy;
+        let t = len2 > 0 ? -(ax * dx + ay * dy) / len2 : 0;
+        if (t < 0) t = 0;
+        else if (t > 1) t = 1;
+        const d = Math.hypot(ax + t * dx, ay + t * dy);
+        if (d < best) best = d;
+      }
     }
   }
   return best;
@@ -250,7 +269,7 @@ export function generateGrid(features, spacingLng, spacingLat) {
  * point count is within `tolerance` of `targetN`, returning the
  * best-fit point set.  Mirrors `bosco/pac/app.js:202-221`.
  *
- * @param {Array} features — array of GeoJSON Polygon features.
+ * @param {Array} features — array of GeoJSON Polygon/MultiPolygon features.
  * @param {number} targetN — desired point count.
  * @param {object} opts — { maxIter, tolerance, hiMeters }.
  *   hiMeters defaults to sqrt(totalAreaM2) — a coarse upper bound.

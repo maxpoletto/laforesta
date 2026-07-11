@@ -139,11 +139,15 @@ def read(source, required_cols=None) -> CsvReader:
     dict_reader = csv.DictReader(io.StringIO(text), delimiter=delimiter)
     if dict_reader.fieldnames is None:
         raise CsvError(S.ERR_CSV_EMPTY)
-    if required_cols:
-        missing = [c for c in required_cols if c not in dict_reader.fieldnames]
-        if missing:
-            raise CsvError(S.ERR_CSV_MISSING_COLS.format(', '.join(missing)))
-    return CsvReader(list(dict_reader), delimiter, dict_reader.fieldnames)
+    try:
+        if required_cols:
+            missing = [c for c in required_cols if c not in dict_reader.fieldnames]
+            if missing:
+                raise CsvError(S.ERR_CSV_MISSING_COLS.format(', '.join(missing)))
+        rows = list(dict_reader)
+    except csv.Error as exc:
+        raise CsvError(S.ERR_CSV_INVALID) from exc
+    return CsvReader(rows, delimiter, dict_reader.fieldnames)
 
 
 def _decode(source) -> str:

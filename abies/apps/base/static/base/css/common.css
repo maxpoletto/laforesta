@@ -3,8 +3,10 @@
 /* --- Color tokens --------------------------------------------------------- */
 
 :root {
+  --header-height: 48px;
   --color-bosco-green: #006400;
   --color-bosco-green-hover: #228B22;
+  --color-bosco-green-dark: #2d5d2c;
   --color-bosco-green-muted: #e8f0e8;
   --color-neutral-action: #e8e8e8;
   --color-neutral-action-hover: #d0d0d0;
@@ -62,7 +64,7 @@ body {
   z-index: 1100;
   display: flex;
   align-items: center;
-  height: 48px;
+  height: var(--header-height);
   padding: 0 15px;
   background: #fff;
   border-bottom: 4px solid var(--color-bosco-green);
@@ -103,11 +105,11 @@ body {
   position: absolute;
   top: 7px;
   right: 7px;
-  width: 8px;
-  height: 8px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
   background: #c62828;
-  box-shadow: 0 0 0 2px #fff;
+  border: 2px solid #fff;
 }
 .mobile-tab .nav-alert-dot { top: 12px; right: 12px; }
 
@@ -123,10 +125,20 @@ body {
   color: #444;
 }
 
+.header-logout-form,
+.mobile-logout-form {
+  margin: 0;
+}
+
 .header-logout {
+  border: 0;
+  background: none;
+  padding: 0;
   font-size: 0.85rem;
+  font-family: inherit;
   color: #666;
   text-decoration: none;
+  cursor: pointer;
 }
 
 .header-logout:hover { color: var(--color-bosco-green); }
@@ -145,7 +157,7 @@ body {
 .mobile-menu {
   display: none;
   position: fixed;
-  top: 52px;
+  top: var(--header-height);
   left: 0;
   right: 0;
   z-index: 1090;
@@ -170,6 +182,14 @@ body {
 .mobile-tab.active { color: var(--color-bosco-green); font-weight: 700; }
 
 .mobile-logout {
+  border-right: 0;
+  border-bottom: 0;
+  border-left: 0;
+  background: none;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
   border-top: 1px solid #ddd;
   margin-top: 4px;
   padding-top: 12px;
@@ -179,9 +199,9 @@ body {
 /* --- Content area --------------------------------------------------------- */
 
 #content {
-  margin-top: 48px;
+  margin-top: var(--header-height);
   padding: 15px 40px;
-  min-height: calc(100vh - 52px);
+  min-height: calc(100vh - var(--header-height));
 }
 
 /* --- Modals --------------------------------------------------------------- */
@@ -252,9 +272,9 @@ body {
   margin: 8px 0;
   padding: 8px 12px;
   background: #f0f7f0;
-  border: 1px solid #2d5d2c;
+  border: 1px solid var(--color-bosco-green-dark);
   border-radius: 4px;
-  color: #2d5d2c;
+  color: var(--color-bosco-green-dark);
   font-size: 0.9em;
   font-style: italic;
   /* Subtle pulse so it's visibly "alive" even though no progress bar. */
@@ -284,14 +304,12 @@ body {
 }
 .modal-tab:hover { background: var(--color-neutral-action); }
 .modal-tab.active {
-  background: #2d5d2c;
+  background: var(--color-bosco-green-dark);
   color: white;
-  border-color: #2d5d2c;
+  border-color: var(--color-bosco-green-dark);
 }
 .modal-tab-body { display: none; }
 .modal-tab-body.active { display: block; }
-
-.modal .btn { margin-top: 1rem; }
 
 /* --- Buttons -------------------------------------------------------------- */
 
@@ -573,9 +591,6 @@ input:focus, select:focus, textarea:focus {
 .text-muted { color: #888; }
 .text-error { color: var(--color-danger); }
 .mt-1 { margin-top: 0.5rem; }
-.mt-2 { margin-top: 1rem; }
-.mb-1 { margin-bottom: 0.5rem; }
-.mb-2 { margin-bottom: 1rem; }
 .ms-auto { margin-left: auto; }  /* push a flex item (and those after it) right */
 
 /* ========================================================================== */
@@ -604,6 +619,22 @@ input:focus, select:focus, textarea:focus {
   color: #444;
   min-width: 35px;
 }
+
+.active-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.85rem;
+}
+
+.detail-close {
+  min-width: 34px;
+  height: 34px;
+  padding: 0;
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
 .page-pulldown { width: 300px; }
 
 .page-pulldown-icon {
@@ -727,7 +758,6 @@ input:focus, select:focus, textarea:focus {
   border-radius: 50%;
   background: var(--color-bosco-green);
   border: 2px solid white;
-  box-shadow: 0 0 2px rgba(0, 0, 0, 0.4);
   cursor: pointer;
   pointer-events: auto;
   margin-top: -5px;
@@ -739,7 +769,6 @@ input:focus, select:focus, textarea:focus {
   border-radius: 50%;
   background: var(--color-bosco-green);
   border: 2px solid white;
-  box-shadow: 0 0 2px rgba(0, 0, 0, 0.4);
   cursor: pointer;
   pointer-events: auto;
 }
@@ -788,4 +817,12 @@ input:focus, select:focus, textarea:focus {
   .hamburger { display: block; }
 
   .form-row { flex-direction: column; gap: 0; }
+
+  .table-toolbar { flex-wrap: wrap; }
+
+  .table-search {
+    flex: 1 1 180px;
+    width: auto;
+    max-width: 100%;
+  }
 }

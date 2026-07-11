@@ -32,7 +32,10 @@
     </nav>
     <div class="header-right">
       <span class="header-user">{{ user.first_name|default:user.username }}</span>
-      <a class="header-logout" href="{% url 'logout' %}">Esci</a>
+      <form class="header-logout-form" method="post" action="{% url 'logout' %}">
+        {% csrf_token %}
+        <button class="header-logout" type="submit">Esci</button>
+      </form>
       <button class="hamburger" id="hamburger" aria-label="Menu">&#9776;</button>
     </div>
   </header>
@@ -49,7 +52,10 @@
     </a>
     <a class="mobile-tab" href="/controllo" data-tab="controllo">Controllo</a>
     <a class="mobile-tab" href="/impostazioni" data-tab="impostazioni">Impostazioni</a>
-    <a class="mobile-tab mobile-logout" href="{% url 'logout' %}">Esci</a>
+    <form class="mobile-logout-form" method="post" action="{% url 'logout' %}">
+      {% csrf_token %}
+      <button class="mobile-tab mobile-logout" type="submit">Esci</button>
+    </form>
   </nav>
 
   <main id="content"></main>

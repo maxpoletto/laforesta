@@ -81,8 +81,10 @@ export function parseHTMLFragment(html) {
  *   — client-side pre-submit check; return error string to block, null to proceed.
  */
 export function interceptSubmit(form, postUrl, callbacks) {
+  let submitting = false;
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
+    if (submitting) return;
     const isSaveAndAdd = e.submitter?.dataset.action === 'save-and-add';
     const body = Object.fromEntries(new FormData(form));
 
@@ -91,34 +93,53 @@ export function interceptSubmit(form, postUrl, callbacks) {
       if (err) { showFormError(form, err); return; }
     }
 
-    let data, status;
+    submitting = true;
+    const submitControls = formSubmitControls(form);
+    const previousDisabled = submitControls.map(control => control.disabled);
+    for (const control of submitControls) control.disabled = true;
+
     try {
-      ({ data, status } = await postJSON(postUrl, body));
-    } catch {
-      showFormError(form, S.ERROR_NETWORK);
-      return;
-    }
+      let data, status;
+      try {
+        ({ data, status } = await postJSON(postUrl, body));
+      } catch {
+        showFormError(form, S.ERROR_NETWORK);
+        return;
+      }
 
-    if (status === 200) {
-      await callbacks.onSuccess?.(data, isSaveAndAdd);
-      return;
-    }
+      if (status === 200) {
+        await callbacks.onSuccess?.(data, isSaveAndAdd);
+        return;
+      }
 
-    if (data?.status === STATUS_CONFLICT) {
-      showFormError(form, data.message || S.ERROR_CONFLICT);
-      callbacks.onConflict?.(data);
-      return;
-    }
+      if (data?.status === STATUS_CONFLICT) {
+        showFormError(form, data.message || S.ERROR_CONFLICT);
+        await callbacks.onConflict?.(data);
+        return;
+      }
 
-    const html = data?.[HTML] || data?.html;
-    if (html && callbacks.onHtml) {
-      callbacks.onHtml(html, data);
-      return;
-    }
+      const html = data?.[HTML] || data?.html;
+      if (html && callbacks.onHtml) {
+        callbacks.onHtml(html, data);
+        return;
+      }
 
-    showFormError(form, data?.message || S.ERROR_GENERIC);
-    callbacks.onValidationError?.(data);
+      showFormError(form, data?.message || S.ERROR_GENERIC);
+      callbacks.onValidationError?.(data);
+    } finally {
+      submitControls.forEach((control, index) => {
+        control.disabled = previousDisabled[index];
+      });
+      submitting = false;
+    }
   });
+}
+
+function formSubmitControls(form) {
+  return [
+    ...form.querySelectorAll('button[type="submit"]'),
+    ...form.querySelectorAll('input[type="submit"]'),
+  ];
 }
 
 /**
@@ -165,6 +186,7 @@ export async function deleteRowWithVersion(
   }
 
   if (status === 200) {
+    cache.applyResponseChanges(data);
     cache.removeRow(dataId, rowId);
     await onSuccess?.(data);
     return true;
@@ -219,7 +241,9 @@ export function showFormError(form, message) {
   if (!el) {
     el = document.createElement('p');
     el.className = 'form-error';
-    form.querySelector('.form-actions')?.before(el) || form.appendChild(el);
+    const actions = form.querySelector('.form-actions');
+    if (actions) actions.before(el);
+    else form.appendChild(el);
   }
   el.textContent = message;
 }

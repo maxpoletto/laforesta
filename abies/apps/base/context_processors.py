@@ -3,6 +3,16 @@
 from django.conf import settings
 
 from config import strings as S
+from config.constants import (
+    FIELD_MODE, IPSO_MODE_MARTELLATE, IPSO_MODE_PAI, IPSO_MODE_SAMPLES,
+)
+
+
+IPSO_UPLOAD_MODE_OPTIONS = (
+    {'value': IPSO_MODE_MARTELLATE, 'label': S.IPSO_MODE_MARTELLATE_LABEL},
+    {'value': IPSO_MODE_SAMPLES, 'label': S.IPSO_MODE_SAMPLES_LABEL},
+    {'value': IPSO_MODE_PAI, 'label': S.IPSO_MODE_PAI_LABEL},
+)
 
 
 def strings(request):
@@ -17,6 +27,8 @@ def strings(request):
     return {
         'S': S,
         'LANGUAGE_CODE': settings.LANGUAGE_CODE,
+        'FIELD_MODE': FIELD_MODE,
+        'IPSO_UPLOAD_MODE_OPTIONS': IPSO_UPLOAD_MODE_OPTIONS,
         'ABIES_APP_NAME': settings.ABIES_APP_NAME,
         'ABIES_BRAND_FAVICON_STATIC': settings.ABIES_BRAND_FAVICON_STATIC,
         'ABIES_BRAND_LOGO_STATIC': settings.ABIES_BRAND_LOGO_STATIC,

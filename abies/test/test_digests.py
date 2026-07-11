@@ -3,6 +3,7 @@
 import gzip
 import json
 import math
+from datetime import date, datetime, timezone as dt_timezone
 from decimal import Decimal
 from pathlib import Path
 
@@ -16,7 +17,7 @@ from apps.base.digests import (
     build_harvest_record, diameter_class_cm, generate_future_production,
     generate_parcel_dendrometry, generate_parcel_dendrometry_points,
     generate_prelievi, generate_preserved_trees, generate_parcels,
-    generate_crews, generate_audit, generate_all, mark_stale,
+    generate_audit, generate_all, mark_stale,
     regenerate_if_stale, prelievi_species_cols, _write_gzip_json,
     _audit_configs, _tracked_models,
 )
@@ -83,6 +84,23 @@ class TestStaleness:
         mark_stale('prelievi')
         assert DigestStatus.objects.filter(name='prelievi').count() == 1
 
+    def test_mark_stale_retries_after_concurrent_create(self, db, monkeypatch):
+        def raced_get_or_create(*, name, defaults):
+            status = DigestStatus.objects.create(
+                name=name, stale=False, dirty_seq=0,
+            )
+            return status, False
+
+        monkeypatch.setattr(
+            DigestStatus.objects, 'get_or_create', raced_get_or_create,
+        )
+
+        mark_stale('prelievi')
+
+        ds = DigestStatus.objects.get(name='prelievi')
+        assert ds.stale is True
+        assert ds.dirty_seq == 1
+
     def test_regenerate_clears_stale_flag(self, db, parcels, crews, species,
                                           tractors, products):
         mark_stale('prelievi')
@@ -96,6 +114,17 @@ class TestStaleness:
         path = regenerate_if_stale('prelievi')
         assert path.exists()
         assert path.suffix == '.gz'
+
+    def test_unknown_digest_does_not_create_status_or_file(self, db, settings,
+                                                           tmp_path):
+        settings.DIGEST_DIR = tmp_path
+        name = 'sampled_trees_999999'
+
+        with pytest.raises(ValueError):
+            regenerate_if_stale(name)
+
+        assert not DigestStatus.objects.filter(name=name).exists()
+        assert not (tmp_path / f'{name}.json.gz').exists()
 
     def test_concurrent_mark_during_regeneration_survives(
         self, db, settings, tmp_path, monkeypatch,
@@ -462,21 +491,6 @@ class TestGenerateBoscoDigests:
 
 
 # ---------------------------------------------------------------------------
-# generate_crews
-# ---------------------------------------------------------------------------
-
-class TestGenerateCrews:
-    def test_output(self, crews):
-        generate_crews()
-        path = settings.DIGEST_DIR / 'crews.json.gz'
-        with gzip.open(path, 'rt') as f:
-            data = json.load(f)
-        assert len(data[ROWS]) == 2
-        names = [r[1] for r in data[ROWS]]
-        assert 'Alfa' in names
-
-
-# ---------------------------------------------------------------------------
 # generate_audit — user display name
 # ---------------------------------------------------------------------------
 
@@ -560,6 +574,20 @@ class TestGenerateAudit:
         plan_rows = [r for r in data[ROWS] if r[3] == S.TABLE_HARVEST_PLAN]
         assert any('Piano 2026' in (r[6] or '') for r in plan_rows)
 
+    def test_audit_timestamps_use_local_timezone(self, db, settings, tmp_path):
+        settings.DIGEST_DIR = tmp_path
+        crew = Crew.objects.create(name='UTC audit crew')
+        history = crew.history.first()
+        history.history_date = datetime(2026, 1, 1, 12, 0, tzinfo=dt_timezone.utc)
+        history.save(update_fields=['history_date'])
+
+        generate_audit()
+
+        with gzip.open(tmp_path / 'audit.json.gz', 'rt') as f:
+            data = json.load(f)
+        crew_rows = [row for row in data[ROWS] if row[3] == S.TABLE_CREW]
+        assert any(row[1] == '2026-01-01 13:00' for row in crew_rows)
+
     def test_hypso_params_and_archive_updates_appear(
         self, hypso_samples, settings, tmp_path,
     ):
@@ -595,7 +623,7 @@ class TestGenerateAudit:
     ):
         settings.DIGEST_DIR = tmp_path
         csv_harvests.apply([{
-            'date': '2026-01-02',
+            'date': date(2026, 1, 2),
             'product': products[0],
             'parcel': parcels[0],
             'region': None,
@@ -684,6 +712,6 @@ class TestGenerateAll:
         # Redirect to tmp_path so the test doesn't clobber dev digests.
         settings.DIGEST_DIR = tmp_path
         generate_all()
-        for name in ('prelievi', 'parcels', 'crews', 'audit'):
+        for name in ('prelievi', 'parcels', 'audit'):
             path = settings.DIGEST_DIR / f'{name}.json.gz'
             assert path.exists(), f'{name}.json.gz not generated'

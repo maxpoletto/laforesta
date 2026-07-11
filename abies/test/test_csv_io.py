@@ -17,6 +17,7 @@ from django.utils import translation
 
 from apps.base import csv_io
 from apps.base.csv_io import CsvError
+from config import strings as S
 
 COMMA_CSV = 'a,b\n1.5,2\n3.25,4\n'      # ',' delimiter ⇒ '.' decimal
 SEMI_CSV = 'a;b\n1,5;2\n3,25;4\n'       # ';' delimiter ⇒ ',' decimal
@@ -120,6 +121,24 @@ def test_empty_raises():
 def test_non_utf8_raises():
     with pytest.raises(CsvError):
         csv_io.read(b'\xff\xfe bad bytes')
+
+
+def test_csv_parser_errors_are_normalized(monkeypatch):
+    class BadDictReader:
+        fieldnames = ['a']
+
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def __iter__(self):
+            raise csv_io.csv.Error('bad csv')
+
+    monkeypatch.setattr(csv_io.csv, 'DictReader', BadDictReader)
+
+    with pytest.raises(CsvError) as exc:
+        csv_io.read('a\n1\n')
+
+    assert str(exc.value) == S.ERR_CSV_INVALID
 
 
 def test_json_file_bytes_decodes_base64_payload():

@@ -11,15 +11,24 @@ export function hardenCSVFormula(value) {
   return s;
 }
 
+export function csvEscape(value, separator) {
+  const s = hardenCSVFormula(value);
+  return (s.includes(separator) || s.includes('"') || s.includes('\n') || s.includes('\r'))
+    ? '"' + s.replace(/"/g, '""') + '"'
+    : s;
+}
+
 export function csvField(v, fmt) {
-  if (v == null) return '';
-  if (typeof v === 'boolean') return v ? 'true' : 'false';
-  if (typeof v === 'number') return String(v).replace('.', fmt.decimal);
-  return hardenCSVFormula(String(v).replaceAll(fmt.separator, ' '));
+  let value;
+  if (v == null) value = '';
+  else if (typeof v === 'boolean') value = v ? 'true' : 'false';
+  else if (typeof v === 'number') value = String(v).replace('.', fmt.decimal);
+  else value = String(v);
+  return csvEscape(value, fmt.separator);
 }
 
 export function downloadCSV(lines, filename) {
-  const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+  const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = filename;
@@ -59,7 +68,7 @@ export function exportDigest(digest, columns, filename, opts = {}) {
     const idx = c.src != null ? digest.columns.indexOf(c.src) : -1;
     return { dst, idx, transform: c.transform ?? null };
   });
-  const lines = [resolved.map(r => r.dst).join(fmt.separator)];
+  const lines = [resolved.map(r => csvEscape(r.dst, fmt.separator)).join(fmt.separator)];
   for (const row of digest.rows) {
     if (opts.filter && !opts.filter(row)) continue;
     const parts = resolved.map(r =>

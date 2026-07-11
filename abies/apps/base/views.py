@@ -13,6 +13,7 @@ from django.utils.http import (
     url_has_allowed_host_and_scheme,
 )
 from django.views import View
+from django.views.decorators.http import require_POST
 
 from apps.base.digests import serve_digest
 from apps.base.landing import user_landing_page
@@ -108,6 +109,7 @@ def _usable_microsoft_tenant(tenant: str) -> bool:
     return bool(tenant) and tenant.lower() not in settings.MS_OAUTH_BROAD_TENANTS
 
 
+@require_POST
 def logout_view(request: HttpRequest) -> HttpResponse:
     logout(request)
     return redirect('login')

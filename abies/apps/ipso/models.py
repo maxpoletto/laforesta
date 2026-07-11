@@ -2,6 +2,7 @@
 
 from django.conf import settings
 from django.db import models
+from simple_history.models import HistoricalRecords
 
 from config.constants import (
     IPSO_UPLOAD_STATE_CONFLICT, IPSO_UPLOAD_STATE_IMPORTED,
@@ -35,6 +36,7 @@ class IpsoUpload(models.Model):
         default=IpsoUploadState.RECEIVED,
     )
     received_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
     imported_at = models.DateTimeField(null=True, blank=True)
     imported_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -46,9 +48,16 @@ class IpsoUpload(models.Model):
     target_type = models.CharField(max_length=50, blank=True)
     target_id = models.IntegerField(null=True, blank=True)
     error_summary = models.TextField(blank=True)
+    history = HistoricalRecords()
 
     class Meta:
         ordering = ['-received_at']
+
+    def save(self, *args, **kwargs):
+        update_fields = kwargs.get('update_fields')
+        if update_fields is not None and 'updated_at' not in update_fields:
+            kwargs['update_fields'] = [*update_fields, 'updated_at']
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f'{self.mode}:{self.session_id}'

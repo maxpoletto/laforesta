@@ -144,3 +144,12 @@ class TestWhitelistSocialAdapter:
         WhitelistSocialAdapter().pre_social_login(request=None, sociallogin=sociallogin)
 
         sociallogin.connect.assert_called_once_with(None, user)
+
+    def test_duplicate_email_connects_first_match(self):
+        first = _oauth_user('person@example.com', username='oauth-a')
+        _oauth_user('PERSON@example.com', username='oauth-b')
+        sociallogin = _sociallogin('person@example.com')
+
+        WhitelistSocialAdapter().pre_social_login(request=None, sociallogin=sociallogin)
+
+        sociallogin.connect.assert_called_once_with(None, first)

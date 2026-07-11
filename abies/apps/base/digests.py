@@ -12,6 +12,7 @@ full protocol.
 
 import gzip
 import json
+import logging
 import math
 import os
 import tempfile
@@ -19,6 +20,7 @@ from pathlib import Path
 
 from django.conf import settings
 from django.db.models import F, Sum
+from django.utils import timezone
 
 from apps.base.http import CACHE_NO_STORE, conditional_file_response
 from apps.base.models import DigestStatus, render_flag_note
@@ -39,6 +41,7 @@ from config.constants import (
 )
 
 _UNSET = object()
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -77,9 +80,13 @@ def mark_stale(*names: str) -> None:
             stale=True, dirty_seq=F('dirty_seq') + 1,
         )
         if not updated:
-            DigestStatus.objects.get_or_create(
+            _status, created = DigestStatus.objects.get_or_create(
                 name=name, defaults={'stale': True, 'dirty_seq': 1},
             )
+            if not created:
+                DigestStatus.objects.filter(name=name).update(
+                    stale=True, dirty_seq=F('dirty_seq') + 1,
+                )
 
 
 _DYNAMIC_PREFIX_SAMPLED_TREES = 'sampled_trees_'
@@ -102,11 +109,17 @@ def _resolve_generator(name: str):
             survey_id = int(name[len(_DYNAMIC_PREFIX_SAMPLED_TREES):])
         except ValueError:
             return None
+        from apps.base.models import Survey
+        if not Survey.objects.filter(pk=survey_id).exists():
+            return None
         return lambda: generate_sampled_trees_for_survey(survey_id)
     if name.startswith(_DYNAMIC_PREFIX_MARK_TREES):
         try:
             item_id = int(name[len(_DYNAMIC_PREFIX_MARK_TREES):])
         except ValueError:
+            return None
+        from apps.base.models import HarvestPlanItem
+        if not HarvestPlanItem.objects.filter(pk=item_id).exists():
             return None
         return lambda: generate_mark_trees_for_item(item_id)
     return None
@@ -115,11 +128,11 @@ def _resolve_generator(name: str):
 def regenerate_if_stale(name: str) -> Path:
     """Return the path to *name*'s digest, regenerating first if stale."""
     dest = _dest(name)
+    gen = _resolve_generator(name)
+    if gen is None:
+        raise ValueError(f'unknown digest: {name!r}')
     status, _ = DigestStatus.objects.get_or_create(name=name)
     if status.stale or not dest.exists():
-        gen = _resolve_generator(name)
-        if gen is None:
-            raise ValueError(f'unknown digest: {name!r}')
         seq = status.dirty_seq
         gen()
         # Compare-and-swap on the token snapshotted *before* generating: a
@@ -243,7 +256,7 @@ def generate_prelievi() -> None:
         ))
 
     _write_gzip_json({'columns': columns, 'rows': rows}, _dest('prelievi'))
-    print(f'prelievi.json.gz: {len(rows)} rows, {len(columns)} columns')
+    logger.info('prelievi.json.gz: %s rows, %s columns', len(rows), len(columns))
 
 
 def build_harvest_record(
@@ -346,23 +359,7 @@ def generate_parcels() -> None:
     ]
 
     _write_gzip_json({'columns': PARCEL_COLUMNS, 'rows': rows}, _dest(DIGEST_PARCELS))
-    print(f'{DIGEST_PARCELS}.json.gz: {len(rows)} rows')
-
-
-# ---------------------------------------------------------------------------
-# Crews digest
-# ---------------------------------------------------------------------------
-
-def generate_crews() -> None:
-    from apps.base.models import Crew
-
-    columns = [ROW_ID, S.COL_NAME, S.COL_NOTE, S.COL_ACTIVE]
-    rows = []
-    for c in Crew.objects.order_by('name'):
-        rows.append([c.id, c.name, c.notes, c.active])
-
-    _write_gzip_json({'columns': columns, 'rows': rows}, _dest('crews'))
-    print(f'crews.json.gz: {len(rows)} rows')
+    logger.info('%s.json.gz: %s rows', DIGEST_PARCELS, len(rows))
 
 
 # ---------------------------------------------------------------------------
@@ -384,7 +381,7 @@ def generate_species() -> None:
         ])
 
     _write_gzip_json({'columns': columns, 'rows': rows}, _dest(FIELD_SPECIES))
-    print(f'species.json.gz: {len(rows)} rows')
+    logger.info('species.json.gz: %s rows', len(rows))
 
 
 # ---------------------------------------------------------------------------
@@ -426,6 +423,7 @@ def _audit_configs() -> list:
         Crew, HarvestPlan, HarvestPlanItem, HypsoParam, HypsoParamSet, Parcel,
         Sample, SampleArea, SampleGrid, Species, Survey, Tractor, User,
     )
+    from apps.ipso.models import IpsoUpload
     from apps.mannesi.models import ProductionCredit, WorkHour
     from apps.prelievi.models import Harvest
 
@@ -522,6 +520,19 @@ def _audit_configs() -> list:
             'date': S.COL_DATE, 'crew_id': S.COL_CREW,
             'mass_q': S.COL_CREDITS_Q, 'note': S.COL_NOTE,
         }),
+        (IpsoUpload, S.TABLE_IPSO_UPLOAD, {
+            'session_id': S.IPSO_COL_SESSION,
+            'mode': S.IPSO_COL_MODE,
+            'operator_name': S.IPSO_COL_OPERATOR,
+            'record_count': S.IPSO_COL_RECORDS,
+            'record_date': S.COL_DATE,
+            'state': S.IPSO_COL_STATE,
+            'error_summary': S.IPSO_COL_ERROR,
+            'target_type': S.IPSO_COL_TARGET,
+            'target_id': S.IPSO_COL_TARGET,
+            'imported_at': S.IPSO_COL_IMPORTED,
+            'imported_by_id': S.IPSO_COL_IMPORTED_BY,
+        }),
     ]
 
 
@@ -549,7 +560,7 @@ def generate_audit() -> None:
     columns = [ROW_ID, S.COL_TIMESTAMP, S.COL_USER, S.COL_TABLE,
                S.COL_ACTION, S.COL_OLD_VALUE, S.COL_NEW_VALUE]
     _write_gzip_json({'columns': columns, 'rows': rows}, _dest('audit'))
-    print(f'audit.json.gz: {len(rows)} rows')
+    logger.info('audit.json.gz: %s rows', len(rows))
 
 
 def _audit_rows(manager, table_label, field_labels, rows, row_id):
@@ -564,7 +575,7 @@ def _audit_rows(manager, table_label, field_labels, rows, row_id):
             u = entry.history_user
             user = f'{u.first_name} {u.last_name}'.strip() or u.username
 
-        ts = entry.history_date.strftime('%Y-%m-%d %H:%M')
+        ts = timezone.localtime(entry.history_date).strftime('%Y-%m-%d %H:%M')
         action = _ACTION_MAP.get(ht, ht)
 
         if ht == '+':
@@ -649,7 +660,7 @@ def generate_grids() -> None:
     _write_gzip_json(
         {'columns': GRID_COLUMNS, 'rows': rows}, _dest('grids'),
     )
-    print(f'grids.json.gz: {len(rows)} rows')
+    logger.info('grids.json.gz: %s rows', len(rows))
 
 
 SURVEY_COLUMNS = [ROW_ID, VERSION, S.COL_NAME, S.COL_DESCRIPTION,
@@ -731,7 +742,7 @@ def generate_surveys() -> None:
     _write_gzip_json(
         {'columns': SURVEY_COLUMNS, 'rows': rows}, _dest('surveys'),
     )
-    print(f'surveys.json.gz: {len(rows)} rows')
+    logger.info('surveys.json.gz: %s rows', len(rows))
 
 
 SAMPLE_AREA_COLUMNS = [ROW_ID, VERSION, S.COL_GRID, S.COL_REGION,
@@ -769,7 +780,7 @@ def generate_sample_areas() -> None:
         {'columns': SAMPLE_AREA_COLUMNS, 'rows': rows},
         _dest('sample_areas'),
     )
-    print(f'sample_areas.json.gz: {len(rows)} rows')
+    logger.info('sample_areas.json.gz: %s rows', len(rows))
 
 
 SAMPLE_COLUMNS = [ROW_ID, VERSION, S.COL_SURVEY, S.COL_SAMPLE_AREA,
@@ -810,7 +821,7 @@ def generate_samples() -> None:
     _write_gzip_json(
         {'columns': SAMPLE_COLUMNS, 'rows': rows}, _dest('samples'),
     )
-    print(f'samples.json.gz: {len(rows)} rows')
+    logger.info('samples.json.gz: %s rows', len(rows))
 
 
 SAMPLED_TREE_COLUMNS = [ROW_ID, VERSION, S.COL_SAMPLE_AREA,
@@ -867,7 +878,7 @@ def generate_sampled_trees_for_survey(survey_id: int) -> None:
         {'columns': SAMPLED_TREE_COLUMNS, 'rows': rows},
         _dest(f'sampled_trees_{survey_id}'),
     )
-    print(f'sampled_trees_{survey_id}.json.gz: {len(rows)} rows')
+    logger.info('sampled_trees_%s.json.gz: %s rows', survey_id, len(rows))
 
 
 # ---------------------------------------------------------------------------
@@ -898,7 +909,7 @@ def generate_harvest_plans() -> None:
         {'columns': HARVEST_PLAN_COLUMNS, 'rows': rows},
         _dest('harvest_plans'),
     )
-    print(f'harvest_plans.json.gz: {len(rows)} rows')
+    logger.info('harvest_plans.json.gz: %s rows', len(rows))
 
 
 HARVEST_PLAN_ITEM_COLUMNS = [
@@ -1001,7 +1012,7 @@ def generate_harvest_plan_items() -> None:
         {'columns': HARVEST_PLAN_ITEM_COLUMNS, 'rows': rows},
         _dest('harvest_plan_items'),
     )
-    print(f'harvest_plan_items.json.gz: {len(rows)} rows')
+    logger.info('harvest_plan_items.json.gz: %s rows', len(rows))
 
 
 HYPSO_PARAM_COLUMNS = [
@@ -1050,7 +1061,7 @@ def generate_hypso_params() -> None:
         {'columns': HYPSO_PARAM_COLUMNS, 'rows': rows},
         _dest(DIGEST_HYPSO_PARAMS),
     )
-    print(f'{DIGEST_HYPSO_PARAMS}.json.gz: {len(rows)} rows')
+    logger.info('%s.json.gz: %s rows', DIGEST_HYPSO_PARAMS, len(rows))
 
 
 MARK_TREE_COLUMNS = [ROW_ID, VERSION, S.COL_DATE, S.COL_NUMBER,
@@ -1094,7 +1105,7 @@ def generate_mark_trees_for_item(item_id: int) -> None:
         {'columns': MARK_TREE_COLUMNS, 'rows': rows},
         _dest(f'mark_trees_{item_id}'),
     )
-    print(f'mark_trees_{item_id}.json.gz: {len(rows)} rows')
+    logger.info('mark_trees_%s.json.gz: %s rows', item_id, len(rows))
 
 
 # ---------------------------------------------------------------------------
@@ -1141,7 +1152,7 @@ def generate_preserved_trees() -> None:
         {'columns': PRESERVED_TREE_COLUMNS, 'rows': rows},
         _dest(DIGEST_PRESERVED_TREES),
     )
-    print(f'{DIGEST_PRESERVED_TREES}.json.gz: {len(rows)} rows')
+    logger.info('%s.json.gz: %s rows', DIGEST_PRESERVED_TREES, len(rows))
 
 
 FUTURE_PRODUCTION_COLUMNS = [
@@ -1176,7 +1187,7 @@ def generate_future_production() -> None:
         {'columns': FUTURE_PRODUCTION_COLUMNS, 'rows': rows},
         _dest(DIGEST_FUTURE_PRODUCTION),
     )
-    print(f'{DIGEST_FUTURE_PRODUCTION}.json.gz: {len(rows)} rows')
+    logger.info('%s.json.gz: %s rows', DIGEST_FUTURE_PRODUCTION, len(rows))
 
 
 DENDROMETRY_COLUMNS = [
@@ -1303,7 +1314,7 @@ def generate_parcel_dendrometry() -> None:
         {'columns': DENDROMETRY_COLUMNS, 'rows': rows},
         _dest(DIGEST_PARCEL_DENDROMETRY),
     )
-    print(f'{DIGEST_PARCEL_DENDROMETRY}.json.gz: {len(rows)} rows')
+    logger.info('%s.json.gz: %s rows', DIGEST_PARCEL_DENDROMETRY, len(rows))
 
 
 def generate_parcel_dendrometry_points() -> None:
@@ -1321,7 +1332,7 @@ def generate_parcel_dendrometry_points() -> None:
         {'columns': DENDROMETRY_POINT_COLUMNS, 'rows': rows},
         _dest(DIGEST_PARCEL_DENDROMETRY_POINTS),
     )
-    print(f'{DIGEST_PARCEL_DENDROMETRY_POINTS}.json.gz: {len(rows)} rows')
+    logger.info('%s.json.gz: %s rows', DIGEST_PARCEL_DENDROMETRY_POINTS, len(rows))
 
 
 # ---------------------------------------------------------------------------
@@ -1331,7 +1342,6 @@ def generate_parcel_dendrometry_points() -> None:
 _GENERATORS: dict[str, callable] = {
     'prelievi': generate_prelievi,
     DIGEST_PARCELS: generate_parcels,
-    'crews': generate_crews,
     FIELD_SPECIES: generate_species,
     'audit': generate_audit,
     'grids': generate_grids,

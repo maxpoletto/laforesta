@@ -230,6 +230,63 @@ const { TableWrapper } = await import('./table.js');
   eq(wrapper._table.sorted, null, 'TableWrapper.setSort ignores unknown columns');
 }
 
+// TableWrapper drops stale URL sort columns before constructing SortableTable.
+{
+  let constructorSort = 'not-called';
+  const previousSortableTable = window.SortableTable;
+  window.SortableTable = class {
+    constructor(opts) {
+      constructorSort = opts.sort;
+      if (opts.sort?.column === 'missing') throw new Error('unknown column');
+      this.currentSort = opts.sort || { column: 'name', ascending: true };
+    }
+    destroy() {}
+    clearFilter() {}
+  };
+  const digest = { columns: ['row_id', 'name'], rows: [] };
+
+  new TableWrapper({
+    container: new MockElement('div'), digest, columnDefs: {}, inlineToolbar: false,
+    sort: { column: 'missing', ascending: true },
+  });
+
+  eq(constructorSort, undefined, 'TableWrapper ignores unknown initial sort columns');
+  window.SortableTable = previousSortableTable;
+}
+
+// TableWrapper.setData preserves pagination across background/cache refreshes.
+{
+  const wrapper = Object.create(TableWrapper.prototype);
+  wrapper._tableEl = new MockElement('div');
+  wrapper._table = {
+    currentPage: 3,
+    totalPages: 3,
+    setData(rows) {
+      this.rows = rows;
+      this.totalPages = Math.ceil(rows.length / 25);
+      this.currentPage = 1;
+    },
+    clearFilter() {
+      this.currentFilter = null;
+      this.totalPages = Math.ceil(this.rows.length / 25);
+      this.currentPage = 1;
+    },
+    updateTable() { this.updated = true; },
+  };
+  wrapper._searchText = '';
+  wrapper._externalFilter = null;
+  wrapper._selectedRowId = null;
+  wrapper._digestColumns = ['row_id'];
+
+  wrapper.setData({ columns: ['row_id'], rows: Array.from({ length: 61 }, (_, i) => [i + 1]) });
+  eq(wrapper._table.currentPage, 3, 'TableWrapper.setData preserves the current page when still valid');
+  check(wrapper._table.updated, 'TableWrapper.setData re-renders after restoring the page');
+
+  wrapper._table.updated = false;
+  wrapper.setData({ columns: ['row_id'], rows: Array.from({ length: 26 }, (_, i) => [i + 1]) });
+  eq(wrapper._table.currentPage, 2, 'TableWrapper.setData clamps the page when rows shrink');
+}
+
 // TableWrapper.rowForElement exposes rendered-row lookup without leaking SortableTable internals.
 {
   const wrapper = Object.create(TableWrapper.prototype);
@@ -504,6 +561,26 @@ const { TableWrapper } = await import('./table.js');
   });
   await page.mount({});
   eq(mountedData, [{ id: 'a' }, { id: 'b' }], 'createPage loads multiple data ids as an array');
+  page.unmount();
+}
+
+// createPage surfaces mount callback exceptions instead of leaving the spinner.
+{
+  const id = 'page_sync_test_mount_error';
+  cache.register(id, '/api/page-sync/mount-error/');
+  server.set('/api/page-sync/mount-error/', {
+    lastModified: '1',
+    data: { columns: ['row_id'], rows: [[1]] },
+  });
+
+  const page = createPage({
+    dataIds: [id],
+    mount() { throw new Error('boom'); },
+  });
+
+  await page.mount({});
+
+  check(modalEl.classList.contains('open'), 'createPage shows an error modal when mount throws');
   page.unmount();
 }
 

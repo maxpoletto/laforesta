@@ -47,8 +47,26 @@ assertEqual(geo.pointInPolygon(2, 2, unitSquare.geometry), false,
 assertEqual(geo.pointInPolygon(-0.1, 0.5, unitSquare.geometry), false,
             'pointInPolygon: just outside left edge');
 
+const multiParcel = {
+  type: 'Feature',
+  properties: { layer: 'X', name: 'X-multi' },
+  geometry: {
+    type: 'MultiPolygon',
+    coordinates: [
+      [[[0,0],[1,0],[1,1],[0,1],[0,0]]],
+      [[[3,3],[4,3],[4,4],[3,4],[3,3]]],
+    ],
+  },
+};
+assertEqual(geo.pointInPolygon(3.5, 3.5, multiParcel.geometry), true,
+            'pointInPolygon: MultiPolygon second component inside');
+assertEqual(geo.pointInPolygon(2, 2, multiParcel.geometry), false,
+            'pointInPolygon: between MultiPolygon components is outside');
+
 assertEqual(geo.featureBbox(unitSquare), [0, 0, 1, 1],
             'featureBbox: unit square');
+assertEqual(geo.featureBbox(multiParcel), [0, 0, 4, 4],
+            'featureBbox: MultiPolygon spans all components');
 
 const twoSquares = [
   { geometry: { type: 'Polygon',
@@ -67,6 +85,10 @@ assertEqual(geo.findContainingParcel(7, 7, twoSquares) === twoSquares[1], true,
 assertEqual(geo.findContainingParcel(20, 20, twoSquares), null,
             'findContainingParcel: outside all features');
 
+geo.buildBboxIndex([multiParcel]);
+assertEqual(geo.findContainingParcel(3.5, 3.5, [multiParcel]) === multiParcel, true,
+            'findContainingParcel: hits MultiPolygon component with bbox prefilter');
+
 // 1° × 1° square at lat 45. Centroid (0.5, 45.5): nearest edges are
 // left/right walls at 0.5° × 111 km/° × cos(lat). Expected ≈ 38.94 km.
 const square45 = {
@@ -79,6 +101,8 @@ assertClose(geo.distanceToBoundaryMeters(0.5, 45.5, square45),
             'distanceToBoundaryMeters: 1° square at lat 45, centroid');
 assertClose(geo.distanceToBoundaryMeters(0, 45, square45), 0, 0.001,
             'distanceToBoundaryMeters: on a vertex');
+assertEqual(Number.isFinite(geo.distanceToBoundaryMeters(3.5, 3.5, multiParcel)), true,
+            'distanceToBoundaryMeters: MultiPolygon returns a finite distance');
 
 assertEqual(geo.parcelLabel({ properties: { layer: 'Capistrano',
                                             name: 'Capistrano-3a' } }),
@@ -141,6 +165,9 @@ assertClose(geo.geoJSONFeatureArea({ geometry: { type: 'Polygon',
 assertClose(geo.geoJSONFeatureArea({ geometry: { type: 'MultiPolygon',
               coordinates: [[outerRing], [holeRing]] } }),
             outerA + holeA, 1, 'geoJSONFeatureArea: MultiPolygon sums polygons');
+assertClose(geo.featureArea({ geometry: { type: 'MultiPolygon',
+              coordinates: [[outerRing], [holeRing]] } }),
+            outerA + holeA, 1, 'featureArea: MultiPolygon matches geoJSONFeatureArea');
 assertEqual(geo.geoJSONFeatureArea({ geometry: null }), 0,
             'geoJSONFeatureArea: no geometry → 0');
 

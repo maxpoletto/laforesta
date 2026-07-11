@@ -21,6 +21,10 @@ ENV_KEYS = (
     'ABIES_APP_NAME',
     'ABIES_BRAND_NAME',
     'ABIES_SITE_TITLE',
+    'AXES_IPWARE_PROXY_COUNT',
+    'AXES_IPWARE_PROXY_ORDER',
+    'AXES_IPWARE_PROXY_TRUSTED_IPS',
+    'AXES_IPWARE_META_PRECEDENCE_ORDER',
 )
 BRAND_ENV = {
     'ABIES_APP_NAME': 'Abies',
@@ -126,14 +130,16 @@ def test_production_requires_allowed_hosts_after_secret_key(monkeypatch):
         )
 
 
-def test_production_requires_oauth_tenant_after_base_guards(monkeypatch):
-    with pytest.raises(RuntimeError, match='MS_OAUTH_TENANT must be set'):
-        load_settings(
-            monkeypatch,
-            DJANGO_DEBUG='False',
-            DJANGO_SECRET_KEY='prod-secret',
-            DJANGO_ALLOWED_HOSTS='abies.example.test',
-        )
+def test_production_allows_socialapp_only_oauth_config(monkeypatch):
+    settings = load_settings(
+        monkeypatch,
+        DJANGO_DEBUG='False',
+        DJANGO_SECRET_KEY='prod-secret',
+        DJANGO_ALLOWED_HOSTS='abies.example.test',
+        ABIES_IPSO_SECRET='prod-token',
+    )
+
+    assert settings.SOCIALACCOUNT_PROVIDERS['microsoft'] == {}
 
 
 @pytest.mark.parametrize('tenant', ['common', ' organizations ', 'Consumers'])
@@ -169,6 +175,19 @@ def test_debug_requires_tenant_when_oauth_env_credentials_are_set(monkeypatch):
             DJANGO_DEBUG='1',
             MS_OAUTH_CLIENT_ID='client-id',
             MS_OAUTH_SECRET='client-secret',
+        )
+
+
+def test_production_requires_tenant_when_oauth_env_credentials_are_set(monkeypatch):
+    with pytest.raises(RuntimeError, match='MS_OAUTH_TENANT'):
+        load_settings(
+            monkeypatch,
+            DJANGO_DEBUG='False',
+            DJANGO_SECRET_KEY='prod-secret',
+            DJANGO_ALLOWED_HOSTS='abies.example.test',
+            MS_OAUTH_CLIENT_ID='client-id',
+            MS_OAUTH_SECRET='client-secret',
+            ABIES_IPSO_SECRET='prod-token',
         )
 
 
@@ -243,4 +262,25 @@ def test_production_loads_with_secret_key_allowed_hosts_and_oauth_tenant(monkeyp
     assert (
         settings.SOCIALACCOUNT_PROVIDERS['microsoft']['APP']['secret']
         == 'client-secret'
+    )
+
+
+def test_axes_proxy_settings_are_env_configurable(monkeypatch):
+    settings = load_settings(
+        monkeypatch,
+        DJANGO_DEBUG='False',
+        DJANGO_SECRET_KEY='prod-secret',
+        DJANGO_ALLOWED_HOSTS='abies.example.test',
+        ABIES_IPSO_SECRET='prod-token',
+        AXES_IPWARE_PROXY_COUNT='1',
+        AXES_IPWARE_PROXY_ORDER='right-most',
+        AXES_IPWARE_PROXY_TRUSTED_IPS='127.0.0.1, 10.0.0.0/8',
+        AXES_IPWARE_META_PRECEDENCE_ORDER='HTTP_X_FORWARDED_FOR, REMOTE_ADDR',
+    )
+
+    assert settings.AXES_IPWARE_PROXY_COUNT == 1
+    assert settings.AXES_IPWARE_PROXY_ORDER == 'right-most'
+    assert settings.AXES_IPWARE_PROXY_TRUSTED_IPS == ('127.0.0.1', '10.0.0.0/8')
+    assert settings.AXES_IPWARE_META_PRECEDENCE_ORDER == (
+        'HTTP_X_FORWARDED_FOR', 'REMOTE_ADDR',
     )

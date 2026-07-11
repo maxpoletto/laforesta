@@ -79,6 +79,8 @@ class MockElement {
     if (inputMatch) return this.tagName === 'input' && this.name === inputMatch[1];
     const buttonType = sel.match(/^button\[type="([^"]+)"\]$/);
     if (buttonType) return this.tagName === 'button' && this.type === buttonType[1];
+    const inputType = sel.match(/^input\[type="([^"]+)"\]$/);
+    if (inputType) return this.tagName === 'input' && this.type === inputType[1];
     return this.tagName === sel.toLowerCase();
   }
   querySelector(sel) {
@@ -88,6 +90,14 @@ class MockElement {
       if (found) return found;
     }
     return null;
+  }
+  querySelectorAll(sel) {
+    const out = [];
+    for (const child of this.children) {
+      if (child._matches?.(sel)) out.push(child);
+      out.push(...(child.querySelectorAll?.(sel) || []));
+    }
+    return out;
   }
 }
 
@@ -136,9 +146,10 @@ globalThis.FormData = MockFormData;
 
 const {
   deleteRowWithVersion, fetchModalForm, injectNonce, interceptSubmit,
-  parseHTMLFragment, renderModalForm, submitCsvImport,
+  parseHTMLFragment, renderModalForm, showFormError, submitCsvImport,
 } = await import('./forms.js');
 const cache = await import('./cache.js');
+const S = await import('./strings.js');
 
 // parseHTMLFragment: server HTML becomes a fragment with queryable children.
 {
@@ -203,6 +214,36 @@ const cache = await import('./cache.js');
   eq(calls, ['success'], 'interceptSubmit awaits async success callbacks');
 }
 
+{
+  let resolveFetch;
+  let fetchCalls = 0;
+  globalThis.fetch = async () => {
+    fetchCalls += 1;
+    return new Promise(resolve => { resolveFetch = resolve; });
+  };
+  const form = new MockElement('form');
+  const save = new MockElement('button');
+  save.type = 'submit';
+  const saveAndAdd = new MockElement('button');
+  saveAndAdd.type = 'submit';
+  saveAndAdd.disabled = true;
+  form.appendChild(save);
+  form.appendChild(saveAndAdd);
+  interceptSubmit(form, '/save/', { onSuccess() {} });
+
+  const pending = form.submit(save);
+  await Promise.resolve();
+  check(save.disabled, 'interceptSubmit disables submit buttons while awaiting POST');
+  check(saveAndAdd.disabled, 'interceptSubmit preserves already-disabled submit buttons while pending');
+  await form.submit(save);
+  eq(fetchCalls, 1, 'interceptSubmit ignores duplicate submits while pending');
+
+  resolveFetch({ status: 200, json: async () => ({ ok: true }) });
+  await pending;
+  check(!save.disabled, 'interceptSubmit re-enables enabled submit buttons after completion');
+  check(saveAndAdd.disabled, 'interceptSubmit restores previously disabled submit buttons');
+}
+
 // interceptSubmit: conflicts surface inline and reach the conflict callback.
 {
   const conflict = { status: 'conflict', message: 'Versione superata' };
@@ -218,6 +259,18 @@ const cache = await import('./cache.js');
   eq(conflictSeen, conflict, 'interceptSubmit dispatches conflicts');
   eq(form.querySelector('.form-error')?.textContent, conflict.message,
      'interceptSubmit renders the conflict message inline');
+}
+
+// showFormError places inline errors above form actions.
+{
+  const form = new MockElement('form');
+  const actions = new MockElement('div');
+  actions.className = 'form-actions';
+  form.appendChild(actions);
+
+  showFormError(form, 'Errore');
+  eq(form.children.map(child => child.className), ['form-error', 'form-actions'],
+     'showFormError inserts the error before form actions');
 }
 
 // renderModalForm/fetchModalForm: server HTML is shown with a fresh nonce.
@@ -242,15 +295,53 @@ const cache = await import('./cache.js');
         'fetchModalForm injects a nonce');
 }
 
+// fetchModalForm: fetch failures surface as a network error modal.
+{
+  modalContainer.replaceChildren();
+  modalContainer.className = '';
+  globalThis.fetch = async () => { throw new Error('offline'); };
+
+  const fetched = await fetchModalForm('/form/');
+
+  eq(fetched, null, 'fetchModalForm returns null on network failure');
+  eq(modalContainer.querySelector('.modal-error')?.textContent, S.ERROR_NETWORK,
+     'fetchModalForm reports network failures');
+}
+
+// fetchModalForm: successful JSON without replacement HTML is still a form error.
+{
+  modalContainer.replaceChildren();
+  modalContainer.className = '';
+  globalThis.fetch = async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({ ok: true }),
+  });
+
+  const fetched = await fetchModalForm('/form/');
+
+  eq(fetched, null, 'fetchModalForm returns null when html is missing');
+  eq(modalContainer.querySelector('.modal-error')?.textContent, S.ERROR_GENERIC,
+     'fetchModalForm reports missing form HTML');
+}
+
 // deleteRowWithVersion: success removes the cached row and posts its version.
 {
   const dataId = 'forms-delete-success';
+  const sideDataId = 'forms-delete-success-side-effect';
   cache.set(dataId, { columns: ['row_id', 'version'], rows: [[7, 3]] });
+  cache.set(sideDataId, { columns: ['row_id', 'label'], rows: [[1, 'old']] });
+  const response = {
+    data_id: dataId,
+    row_id: 7,
+    patches: [{ data_id: sideDataId, row_id: 1, record: [1, 'new'] }],
+    deletes: [{ data_id: dataId, row_id: 7 }],
+  };
   let posted = null;
   let successSeen = null;
   globalThis.fetch = async (url, opts) => {
     posted = { url, body: JSON.parse(opts.body) };
-    return { status: 200, json: async () => ({ deleted: true }) };
+    return { status: 200, json: async () => response };
   };
 
   const deleted = await deleteRowWithVersion(dataId, 7, '/delete/', {
@@ -264,7 +355,9 @@ const cache = await import('./cache.js');
   eq(posted.body.version, '3', 'deleteRowWithVersion posts the cached version');
   check(Boolean(posted.body.nonce), 'deleteRowWithVersion posts a nonce');
   eq(cache.get(dataId).rows, [], 'deleteRowWithVersion removes the cached row');
-  eq(successSeen, { deleted: true }, 'deleteRowWithVersion dispatches success');
+  eq(cache.get(sideDataId).rows, [[1, 'new']],
+     'deleteRowWithVersion applies success side-effect patches');
+  eq(successSeen, response, 'deleteRowWithVersion dispatches success');
 }
 
 // deleteRowWithVersion: a conflict refreshes the cached row before callback.

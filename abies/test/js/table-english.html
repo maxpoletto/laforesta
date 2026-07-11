@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <title>TableWrapper — English defaults smoke test</title>
-  <link rel="stylesheet" href="../../vendor/fonts/roboto/roboto.css">
-  <link rel="stylesheet" href="../../vendor/sortable-table/sortable-table.css">
-  <link rel="stylesheet" href="../css/common.css">
+  <link rel="stylesheet" href="../../apps/base/static/vendor/fonts/roboto/roboto.css">
+  <link rel="stylesheet" href="../../apps/base/static/vendor/sortable-table/sortable-table.css">
+  <link rel="stylesheet" href="../../apps/base/static/base/css/common.css">
   <style>
     body { padding: 20px; max-width: 1000px; }
     h2 { margin-top: 1rem; }
@@ -30,8 +30,9 @@
        propagate through both UI and CSV output.</p>
     <p>A second table built with the Italian <code>TABLE_LABELS</code> bundle
        confirms localized pagination text propagates through to SortableTable.</p>
-    <p>Access this file via Django's dev static server:<br>
-       <code>http://localhost:8000/static/base/test/table-english.html</code>
+    <p>Access this file from a simple server rooted at the repository root:<br>
+       <code>python3 -m http.server 8000</code>, then
+       <code>http://localhost:8000/test/js/table-english.html</code>
     </p>
   </div>
 
@@ -43,10 +44,10 @@
   <h2>CSV output</h2>
   <pre id="csv-output"></pre>
 
-  <script src="../../vendor/sortable-table/sortable-table.js"></script>
+  <script src="../../apps/base/static/vendor/sortable-table/sortable-table.js"></script>
   <script type="module">
-    import { TableWrapper } from '../js/table.js';
-    import { TABLE_LABELS } from '../js/strings.js';
+    import { TableWrapper } from '../../apps/base/static/base/js/table.js';
+    import { TABLE_LABELS } from '../../apps/base/static/base/js/strings.js';
 
     // --- Fixture ----------------------------------------------------------
     // Includes a separator character (",") in a Name value to exercise

@@ -58,7 +58,10 @@ def save_model_response(
     domain fields.  The helper owns only the repeated optimistic-lock, optional
     unique-field check, stale marking, and row-patch response plumbing.
     """
+    raw_row_id = body.get(ROW_ID)
     row_id = row_id if row_id is not None else _row_id_from_body(body)
+    if row_id is None and raw_row_id not in (None, ''):
+        return validation_error([S.ERR_ROW_ID_INVALID])
 
     if unique_error and unique_field and unique_value is not None:
         lookup = f'{unique_field}__iexact' if unique_case_insensitive else unique_field
@@ -104,7 +107,7 @@ def submitted_version(body: dict) -> int:
 
 def _row_id_from_body(body: dict) -> int | None:
     row_id = body.get(ROW_ID)
-    return int(row_id) if row_id not in (None, '') else None
+    return int_or_none(row_id) if row_id not in (None, '') else None
 
 
 def success_response(

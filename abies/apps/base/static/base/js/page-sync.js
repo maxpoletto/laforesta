@@ -67,7 +67,12 @@ export function createPage({
         return;
       }
       if (myGeneration !== generation) return;
-      mount(el, params, data);
+      try {
+        mount(el, params, data);
+      } catch {
+        if (myGeneration === generation) showError(S.ERROR_GENERIC);
+        return;
+      }
       cache.setVisible(visibleIds);
       unsubscribers = onUpdate.map(([dataId, callback]) =>
         cache.onUpdate(dataId, () => callback(cache.get(dataId))),

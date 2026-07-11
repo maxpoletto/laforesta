@@ -159,7 +159,7 @@ function buildCascadeTemplate() {
   exportBtn.dataset.action = 'export';
   exportBtn.textContent = 'Esporta';
   const delBtn = new MockElement('button');
-  delBtn.className = 'btn btn-delete cascade-delete-btn';
+  delBtn.className = 'btn btn-delete';
   delBtn.dataset.action = 'delete';
   delBtn.disabled = true;
   actions.append(cancel, exportBtn, delBtn);
@@ -304,6 +304,7 @@ assertEqual(delBtn?.disabled, true, 'delete starts disabled');
 const expBtn = findByDataset(modalShown, 'action', 'export');
 assertEqual(expBtn?._removed, false, 'export button present');
 expBtn.click();
+await Promise.resolve();
 assertEqual(exportCalled, true, 'onExport called');
 assertEqual(delBtn.disabled, false, 'delete enabled after export');
 

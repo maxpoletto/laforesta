@@ -9,7 +9,7 @@
  */
 
 import { ROW_ID } from './constants.js';
-import { hardenCSVFormula } from './csv-export.js';
+import { csvEscape } from './csv-export.js';
 
 const DEBOUNCE_MS = 500;
 const ROW_ID_COL = 0;
@@ -29,6 +29,11 @@ const ROW_CLICK_IGNORE_SELECTOR = [
   '[contenteditable="true"]',
   '[role="button"]',
 ].join(',');
+
+function sameColumns(a = [], b = []) {
+  if (a.length !== b.length) return false;
+  return a.every((value, index) => value === b[index]);
+}
 
 /** English defaults for all user-facing strings. */
 const DEFAULT_LABELS = {
@@ -111,10 +116,13 @@ export class TableWrapper {
     this._debounceTimer = null;
     this._searchInputEl = null;
     this._stColumns = [];
+    this._digestColumns = [];
     this._table = null;
     this._el = null;
     this._tableEl = null;
     this._selectedRowId = null;
+    this._tableClickHandler = (e) => this._handleTableClick(e);
+    this._tableClickWired = false;
 
     this._build(opts.digest, opts.sort);
   }
@@ -122,10 +130,23 @@ export class TableWrapper {
   // -- Public API ----------------------------------------------------------
 
   /** Replace digest data (e.g., after cache refresh). */
-  setData(digest) {
+  setData(digest, columnDefs = null) {
     if (!this._table) return;
+    if (columnDefs) this.columnDefs = columnDefs;
+    const previousPage = this._table.currentPage || 1;
+    if (!sameColumns(digest.columns, this._digestColumns)) {
+      const previousSort = this.getSort();
+      this._table.destroy();
+      this._tableEl.replaceChildren();
+      this._table = null;
+      this._initTable(digest, previousSort);
+      this._applyFilters();
+      this._restorePage(previousPage);
+      return;
+    }
     this._table.setData(digest.rows);
     this._applyFilters();
+    this._restorePage(previousPage);
   }
 
   /** Set an additional filter combined with search (e.g., year slider). */
@@ -136,7 +157,7 @@ export class TableWrapper {
 
   /** Current sort state. */
   getSort() {
-    if (!this._table) return null;
+    if (!this._table?.currentSort) return null;
     return {
       column: this._table.currentSort.column,
       ascending: this._table.currentSort.ascending,
@@ -187,6 +208,10 @@ export class TableWrapper {
   destroy() {
     if (this._debounceTimer) clearTimeout(this._debounceTimer);
     if (this._table) this._table.destroy();
+    if (this._tableClickWired) {
+      this._tableEl?.removeEventListener('click', this._tableClickHandler);
+      this._tableClickWired = false;
+    }
     this._el?.remove();
     this._table = null;
   }
@@ -267,14 +292,18 @@ export class TableWrapper {
   }
 
   _initTable(digest, sort) {
+    this._digestColumns = [...(digest.columns || [])];
     this._stColumns = buildSTColumns(digest.columns, this.columnDefs, this.actions, this.labels);
+    const initialSort = sort && this._stColumns.some(c => c.key === sort.column)
+      ? sort
+      : undefined;
 
     this._table = new window.SortableTable({
       container: this._tableEl,
       data: digest.rows,
       columns: this._stColumns,
       rowsPerPage: ROWS_PER_PAGE,
-      sort: sort || undefined,
+      sort: initialSort,
       emptyMessage: this.labels.empty,
       pageInfo: this.labels.pageInfo,
       onSort: (col, asc) => {
@@ -294,8 +323,9 @@ export class TableWrapper {
 
     // Row-action delegation on the stable container element, avoiding
     // SortableTable's onRowClick which stacks listeners on re-render.
-    if (this.canModify && hasRowActions(this.actions)) {
-      this._tableEl.addEventListener('click', (e) => this._handleTableClick(e));
+    if (this.canModify && hasRowActions(this.actions) && !this._tableClickWired) {
+      this._tableEl.addEventListener('click', this._tableClickHandler);
+      this._tableClickWired = true;
     }
 
     if (this._searchText) this._applyFilters();
@@ -355,6 +385,16 @@ export class TableWrapper {
       if (selected) rowEl.setAttribute('aria-selected', 'true');
       else rowEl.removeAttribute('aria-selected');
     }
+  }
+
+  _restorePage(page) {
+    if (!this._table || !Number.isFinite(page)) return;
+    const totalPages = Math.max(1, this._table.totalPages || 1);
+    const nextPage = Math.min(Math.max(1, page), totalPages);
+    if (this._table.currentPage === nextPage) return;
+    this._table.currentPage = nextPage;
+    this._table.updateTable?.();
+    this._applySelectedRow();
   }
 
   // -- CSV export ----------------------------------------------------------
@@ -631,14 +671,6 @@ function formatCSV(value, type, csvFormat, labels) {
     return csvFormat.dateFormat.replace(/YYYY|MM|DD/g, t => tokens[t]);
   }
   return String(value);
-}
-
-/** Escape a CSV field for the given separator. */
-function csvEscape(value, separator) {
-  const s = hardenCSVFormula(value);
-  return (s.includes(separator) || s.includes('"') || s.includes('\n'))
-    ? '"' + s.replace(/"/g, '""') + '"'
-    : s;
 }
 
 /** Trigger browser download of a text file. */

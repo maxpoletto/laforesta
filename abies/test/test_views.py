@@ -244,11 +244,15 @@ class TestSharedDigests:
 # ---------------------------------------------------------------------------
 
 class TestLogout:
-    def test_logout_redirects_to_login(self, logged_in_client):
+    def test_logout_requires_post(self, logged_in_client):
         resp = logged_in_client.get('/logout/')
+        assert resp.status_code == 405
+
+    def test_logout_redirects_to_login(self, logged_in_client):
+        resp = logged_in_client.post('/logout/')
         assert resp.status_code == 302
 
     def test_logout_clears_session(self, logged_in_client):
-        logged_in_client.get('/logout/')
+        logged_in_client.post('/logout/')
         resp = logged_in_client.get('/prelievi')
         assert resp.status_code == 302  # redirected to login

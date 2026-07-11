@@ -92,18 +92,12 @@ if bool(_ms_oauth_client_id) != bool(_ms_oauth_secret):
     raise RuntimeError(
         'MS_OAUTH_CLIENT_ID and MS_OAUTH_SECRET must be set together',
     )
-if not _ms_oauth_tenant:
-    if not DEBUG:
-        raise RuntimeError('MS_OAUTH_TENANT must be set when DEBUG=0')
-    if _ms_oauth_client_id:
-        raise RuntimeError(
-            'MS_OAUTH_TENANT must be set when Microsoft OAuth env credentials are set',
-        )
-elif _ms_oauth_tenant.lower() in MS_OAUTH_BROAD_TENANTS:
-    if not DEBUG or _ms_oauth_client_id:
-        raise RuntimeError(
-            'MS_OAUTH_TENANT must pin a single Entra tenant',
-        )
+if _ms_oauth_client_id and not _ms_oauth_tenant:
+    raise RuntimeError(
+        'MS_OAUTH_TENANT must be set when Microsoft OAuth env credentials are set',
+    )
+if _ms_oauth_tenant.lower() in MS_OAUTH_BROAD_TENANTS:
+    raise RuntimeError('MS_OAUTH_TENANT must pin a single Entra tenant')
 if not DEBUG and not IPSO_SECRET:
     raise RuntimeError('ABIES_IPSO_SECRET must be set when DEBUG=0')
 
@@ -237,6 +231,27 @@ AXES_COOLOFF_TIME = timedelta(minutes=30)
 AXES_LOCKOUT_PARAMETERS = ['username', 'ip_address']
 AXES_RESET_ON_SUCCESS = True
 
+_axes_proxy_count = os.environ.get('AXES_IPWARE_PROXY_COUNT', '').strip()
+if _axes_proxy_count:
+    AXES_IPWARE_PROXY_COUNT = int(_axes_proxy_count)
+_axes_proxy_order = os.environ.get('AXES_IPWARE_PROXY_ORDER', '').strip()
+if _axes_proxy_order:
+    AXES_IPWARE_PROXY_ORDER = _axes_proxy_order
+_axes_proxy_trusted_ips = tuple(
+    ip.strip() for ip in os.environ.get(
+        'AXES_IPWARE_PROXY_TRUSTED_IPS', '',
+    ).split(',') if ip.strip()
+)
+if _axes_proxy_trusted_ips:
+    AXES_IPWARE_PROXY_TRUSTED_IPS = _axes_proxy_trusted_ips
+_axes_meta_order = tuple(
+    header.strip() for header in os.environ.get(
+        'AXES_IPWARE_META_PRECEDENCE_ORDER', '',
+    ).split(',') if header.strip()
+)
+if _axes_meta_order:
+    AXES_IPWARE_META_PRECEDENCE_ORDER = _axes_meta_order
+
 # --- Middleware --------------------------------------------------------------
 
 MIDDLEWARE = [
@@ -251,8 +266,8 @@ MIDDLEWARE = [
     'axes.middleware.AxesMiddleware',
     'simple_history.middleware.HistoryRequestMiddleware',
     'apps.base.middleware.CSPMiddleware',
-    'apps.base.middleware.NonceMiddleware',
     'apps.base.middleware.RateLimitMiddleware',
+    'apps.base.middleware.NonceMiddleware',
 ]
 
 # --- URLs / WSGI -------------------------------------------------------------

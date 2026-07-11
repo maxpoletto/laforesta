@@ -187,15 +187,12 @@ export class ParcelMap {
   }
 
   /**
-   * Fill a sample-area tooltip template's shared {compresa}/{particella}/{numero}
-   * keys.  Subclasses call it from `setAreas`; Rilevamenti's visited template
-   * adds its own {alberi} on top of the returned string.
+   * Fill a sample-area tooltip formatter's shared area data.  Subclasses call
+   * it from `setAreas`; Rilevamenti passes the visited-tree count as an extra
+   * argument.
    */
-  _areaTooltip(template, area) {
-    return template
-      .replace('{compresa}', area.compresa)
-      .replace('{particella}', area.particella)
-      .replace('{numero}', area.numero);
+  _areaTooltip(formatter, area, ...args) {
+    return formatter(area, ...args);
   }
 
   /** Page-driven active-area setter (idempotent — no work when unchanged). */

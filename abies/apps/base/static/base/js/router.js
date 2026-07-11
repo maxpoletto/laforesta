@@ -47,12 +47,22 @@ function parseURL() {
  * @param {boolean} [replace=false] — use replaceState instead of pushState
  */
 export function navigate(url, replace = false) {
+  const target = pathAndSearch(url);
+  if (target === location.pathname + location.search) {
+    render();
+    return;
+  }
   if (replace) {
-    history.replaceState(null, '', url);
+    history.replaceState(null, '', target);
   } else {
-    history.pushState(null, '', url);
+    history.pushState(null, '', target);
   }
   render();
+}
+
+function pathAndSearch(url) {
+  const parsed = new URL(url, location.origin || 'http://localhost');
+  return parsed.pathname + parsed.search;
 }
 
 /**

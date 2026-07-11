@@ -158,9 +158,21 @@ export function showCascadeDeleteModal({ title, warning, exportRequired, onExpor
 
   if (onExport) {
     exportReqEl.textContent = exportRequired || S.CASCADE_EXPORT_REQUIRED;
-    exportBtn.addEventListener('click', () => {
-      onExport();
-      delBtn.disabled = false;
+    exportBtn.addEventListener('click', async () => {
+      exportBtn.disabled = true;
+      try {
+        const result = await onExport();
+        const ok = result === undefined || result === true || result?.ok === true;
+        if (ok) {
+          delBtn.disabled = false;
+        } else {
+          exportReqEl.textContent = result?.error || S.ERROR_GENERIC;
+        }
+      } catch {
+        exportReqEl.textContent = S.ERROR_NETWORK;
+      } finally {
+        exportBtn.disabled = false;
+      }
     });
   } else {
     exportReqEl.remove();

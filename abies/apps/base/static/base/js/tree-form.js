@@ -85,9 +85,9 @@ export function wireVMPreview(form, opts = {}) {
     const m = massQ(Number(v.toFixed(4)), density);
     preview.hidden = false;
     preview.textContent =
-      `V = ${fmtDecimal(v, 3)} m³  ·  m = ${fmtDecimal(m, 2)} q`;
+      `V = ${fmtDecimal(v, 3)} m³  ·  m = ${m == null ? '—' : fmtDecimal(m, 2)} q`;
     vHidden.value = v.toFixed(4);
-    mHidden.value = m.toFixed(3);
+    mHidden.value = m == null ? '' : m.toFixed(3);
   }
 
   d.addEventListener('input', update);

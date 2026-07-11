@@ -140,6 +140,11 @@ eq(history.pushed.at(-1), '/controllo',
 eq(calls.at(-1), ['controllo', 'query', {}],
    'same-tab reset clears page query state without remounting');
 
+const pushesBeforeSameBareClick = history.pushed.length;
+await tabs[1].click();
+eq(history.pushed.length, pushesBeforeSameBareClick,
+   'clicking the current tab again on its bare URL does not duplicate history');
+
 const pushesBeforePop = history.pushed.length;
 setURL('/prelievi?back=si');
 await windowListeners.popstate();

@@ -306,7 +306,7 @@ class HarvestPlanItemState(models.IntegerChoices):
     """State machine for HarvestPlanItem.
 
     Transitions are monotonic — state only advances. Auto-transitions:
-    `planned → marked` on first linked TreeMark; `open|marked → harvesting`
+    `planned → marked` on first linked TreeMark; `open → harvesting`
     on first linked Harvest. Manual transitions via HarvestTransition:
     `planned|marked → open` (Apri cantiere) and `open|harvesting → closed`
     (Chiudi cantiere). Coppice items skip `marked`.

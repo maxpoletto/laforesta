@@ -39,13 +39,15 @@ class WhitelistSocialAdapter(DefaultSocialAccountAdapter):
         if not email:
             return
         from apps.base.models import LoginMethod, User
-        try:
-            user = User.objects.get(
-                email__iexact=email,
-                login_method=LoginMethod.OAUTH,
-                is_active=True,
-            )
-        except User.DoesNotExist:
+        user = (User.objects
+                .filter(
+                    email__iexact=email,
+                    login_method=LoginMethod.OAUTH,
+                    is_active=True,
+                )
+                .order_by('id')
+                .first())
+        if user is None:
             return
         sociallogin.connect(request, user)
 

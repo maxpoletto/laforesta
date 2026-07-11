@@ -4,6 +4,7 @@ import json
 from datetime import timedelta
 
 import pytest
+from django.conf import settings
 from django.contrib.auth.models import AnonymousUser
 from django.http import HttpResponse, JsonResponse
 from django.utils import timezone
@@ -153,6 +154,13 @@ class TestNonceMiddleware:
 
 
 # -- Rate limiting ---------------------------------------------------------
+
+
+def test_rate_limit_middleware_wraps_nonce_replay():
+    middleware = list(settings.MIDDLEWARE)
+    assert middleware.index('apps.base.middleware.RateLimitMiddleware') < \
+        middleware.index('apps.base.middleware.NonceMiddleware')
+
 
 class TestRateLimitMiddleware:
     def test_under_limit_passes(self, admin_user):

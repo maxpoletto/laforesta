@@ -137,6 +137,7 @@ export const HYPSO_IMPORT_CONFIRM =
   "L'importazione sostituisce i parametri attivi. Continuare?";
 export const HYPSO_CLEAR_CONFIRM =
   'I parametri attivi verranno eliminati. Continuare?';
+export const PASSWORD_CURRENT = 'Password attuale';
 export const PASSWORD_NEW = 'Nuova password';
 export const PASSWORD_REPEAT = 'Ripeti password';
 export const PASSWORD_MISMATCH = 'Le password non coincidono.';
@@ -212,8 +213,8 @@ export const USE_CURRENT_LOCATION = 'Usa GPS';
 
 // Cascade-delete warning (Section 1/2 garbage on populated resources)
 export const CASCADE_CONFIRM_TITLE = 'Conferma eliminazione';
-export const CASCADE_WARN_SURVEY =
-  'Questa operazione cancellerà {n_samples} campioni e {n_trees} ' +
+export const CASCADE_WARN_SURVEY = (nSamples, nTrees) =>
+  `Questa operazione cancellerà ${nSamples} campioni e ${nTrees} ` +
   'misure di alberi che non possono essere recuperati.';
 export const CASCADE_EXPORT_REQUIRED =
   'Per sicurezza, esporta i dati prima di procedere all\'eliminazione.';
@@ -283,16 +284,20 @@ export const ERR_COVERAGE_RANGE = 'Copertura deve essere > 0% e ≤ 100%.';
 export const ERR_PARAMS_ZERO_POINTS = 'Parametri danno 0 punti.';
 export const ERR_PLAN_FIRST = 'Esegui prima "Pianifica".';
 export const STATUS_SAVING = 'Salvataggio in corso...';
-export const STATUS_PLAN_COMPLETE = 'Pianificazione completata: {n} punti.';
-export const STATS_POINTS = 'Punti: {n} (obiettivo: {target})';
-export const STATS_TOTAL_AREA_HA = 'Superficie totale: {ha} ha';
-export const STATS_AREA_PER_POINT_M2 = 'Area singola adc: {area} m²';
-export const TOOLTIP_ADC = 'adc {n} · {compresa} {particella}';
+export const GRID_PLANNER_REGION_OPTION = (name, nParcels) =>
+  `${name} (${nParcels} particelle)`;
+export const STATUS_PLAN_COMPLETE = n => `Pianificazione completata: ${n} punti.`;
+export const STATS_POINTS = (n, target) => `Punti: ${n} (obiettivo: ${target})`;
+export const STATS_TOTAL_AREA_HA = ha => `Superficie totale: ${ha} ha`;
+export const STATS_AREA_PER_POINT_M2 = area => `Area singola adc: ${area} m²`;
+export const TOOLTIP_ADC = (n, compresa, particella) =>
+  `adc ${n} · ${compresa} ${particella}`;
 // Sample-area marker tooltips on the Griglie / Rilevamenti maps.  Flat
 // templates (not concatenated fragments) so word order stays translatable.
-export const TOOLTIP_SAMPLE_AREA = '{compresa} {particella} / adc {numero}';
-export const TOOLTIP_SAMPLE_AREA_VISITED =
-  '{compresa} {particella} / adc {numero} / {alberi}';
+export const TOOLTIP_SAMPLE_AREA = area =>
+  `${area.compresa} ${area.particella} / adc ${area.numero}`;
+export const TOOLTIP_SAMPLE_AREA_VISITED = (area, alberi) =>
+  `${area.compresa} ${area.particella} / adc ${area.numero} / ${alberi}`;
 
 // Bosco placeholder page
 export const BOSCO_PLACEHOLDER_MESSAGE =
@@ -335,6 +340,8 @@ export const BOSCO_METRIC_HISTORICAL_HARVEST = 'Prelievo storico';
 export const BOSCO_METRIC_FUTURE_HARVEST = 'Prelievo previsto';
 export const BOSCO_HARVEST_METRIC = 'Prelievo';
 export const BOSCO_QUINTALS_PER_HA = 'Q.li/ha';
+export const BOSCO_QUINTALS_PER_HA_VALUE = value => `${value} q/ha`;
+export const BOSCO_VOLUME_PER_HA_VALUE = value => `${value} m³/ha`;
 export const BOSCO_REGRESSION = (name, r2, n) => `${name} regressione (R² ${r2}, n ${n})`;
 
 // Digest column headers (mirror config/strings_it.py COL_* additions).
@@ -460,17 +467,16 @@ export const IMPORT_LABEL             = 'Importa';
 
 // Dangerous-delete (plan + per-item).
 export const DELETE_PLAN_TITLE   = 'Elimina piano';
-export const DELETE_PLAN_WARNING =
-  'Il piano "{name}" e tutte le sue voci saranno ' +
-  'eliminati definitivamente.';
+export const DELETE_PLAN_WARNING = name =>
+  `Il piano "${name}" e tutte le sue voci saranno eliminati definitivamente.`;
 export const ERR_PLAN_HAS_ACTIVE_ITEMS =
   'Il piano contiene voci non in stato "pianificato". ' +
   'Elimina prima le voci dipendenti.';
 export const ERR_PLAN_ITEM_STATE_NOT_PLANNED =
   'La voce non è in stato "pianificato"; eliminazione non consentita.';
 export const DELETE_ITEM_TITLE = 'Elimina intervento';
-export const DELETE_ITEM_WARNING =
-  'L\'intervento {year} {region} {parcel} sarà eliminato definitivamente.';
+export const DELETE_ITEM_WARNING = (year, region, parcel) =>
+  `L'intervento ${year} ${region}${parcel ? ` ${parcel}` : ''} sarà eliminato definitivamente.`;
 
 // Piano di taglio digest column headers (mirror config/strings_it.py).
 export const COL_YEAR_START           = 'Anno inizio';

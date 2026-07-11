@@ -81,3 +81,11 @@ export function fmtWithUnit(v, n, unit) {
 export const fmtVolume = v => fmtWithUnit(v, 2, 'm³');
 export const fmtArea   = v => fmtWithUnit(v, 2, 'ha');
 export const fmtMass   = v => fmtWithUnit(v, 0, 'q');
+
+/** Return YYYY-MM-DD for the user's local calendar day. */
+export function localISODate(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
