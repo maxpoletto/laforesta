@@ -20,10 +20,10 @@ Static Italian text lives here; JS wires controls and fills dynamic data.
     <h2>Modifica modalità</h2>
     <div class="form-group">
       <label for="id_ipso_upload_mode">Modalità</label>
-      <select id="id_ipso_upload_mode" name="mode" data-role="mode" required>
-        <option value="martellate">{{ S.IPSO_MODE_MARTELLATE_LABEL }}</option>
-        <option value="samples">{{ S.IPSO_MODE_SAMPLES_LABEL }}</option>
-        <option value="pai">{{ S.IPSO_MODE_PAI_LABEL }}</option>
+      <select id="id_ipso_upload_mode" name="{{ FIELD_MODE }}" data-role="mode" required>
+        {% for option in IPSO_UPLOAD_MODE_OPTIONS %}
+        <option value="{{ option.value }}">{{ option.label }}</option>
+        {% endfor %}
       </select>
     </div>
     <div class="form-actions">

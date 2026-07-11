@@ -8,7 +8,8 @@ import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const appSource = fs.readFileSync(path.join(here, 'app.js'), 'utf8') + `\n` +
-  `globalThis.__ipsoAppTest = { State, boot, onEnd, showResumeModal, prefillNumber, currentRecord, ` +
+  `globalThis.__ipsoAppTest = { State, boot, onSave, onEnd, onDeleteTree, ` +
+  `showResumeModal, prefillNumber, currentRecord, renderTreesTable, ` +
   `validateReference, validateTerreniFeatures, restoreCachedBootResources, ` +
   `refreshBootResources };\n`;
 
@@ -121,6 +122,7 @@ function makeHarness() {
     TOAST_REFERENCE_REQUIRED: 'reference required',
     REFERENCE_OFFLINE_WARNING: 'offline reference',
     STORAGE_WARNING: 'storage warning',
+    TOAST_DUPLICATE_NUMBER: (number) => `duplicate ${number}`,
     GPS_PERMISSION_BANNER: 'gps denied',
     PRE_PICK_COMPRESA: 'pick region',
     PRE_PICK_SURVEY: 'pick survey',
@@ -154,6 +156,11 @@ function makeHarness() {
     URLSearchParams,
     APP_VERSION: 'test',
     IPSO_BEARER_STORAGE_KEY: 'ipso.bearer_token',
+    IPSO_OPERATOR_STORAGE_KEY: 'ipso.operatore',
+    IPSO_SPECIES_STORAGE_KEY: 'ipso.specie',
+    GPS_STALE_MS: 10000,
+    SAVE_COOLDOWN_MS: 300,
+    SAVE_COOLDOWN_RECHECK_MS: 320,
     IPSO_SECRET_HASH_PARAM: 'secret',
     IPSO_REF_SPECIES: 'species',
     IPSO_REF_PARCELS: 'parcels',
@@ -163,6 +170,7 @@ function makeHarness() {
     IPSO_REF_SAMPLE_AREAS: 'sample_areas',
     IPSO_REF_PAI: 'pai',
     IPSO_REF_PRESERVED_TREES: 'preserved_trees',
+    RECORDS: 'records',
     FIELD_SURVEY_ID: 'survey_id',
     FIELD_SAMPLE_GRID_ID: 'sample_grid_id',
     FIELD_SAMPLE_AREA_ID: 'sample_area_id',
@@ -170,6 +178,7 @@ function makeHarness() {
     FIELD_REGION_ID: 'region_id',
     FIELD_PARCEL_ID: 'parcel_id',
     FIELD_SPECIES_ID: 'species_id',
+    FIELD_CSV_TEXT: 'csv_text',
     FIELD_COPPICE: 'coppice',
     IPSO_WORK_PACKAGE_SAMPLING_SURVEY_PREFIX: 'sampling_survey:',
     window: {
@@ -190,6 +199,7 @@ function makeHarness() {
         if (tag === 'button') buttons.push(el);
         return el;
       },
+      createElementNS(_ns, tag) { return new MockElement(tag); },
       getElementById: element,
       querySelectorAll: () => [],
       addEventListener() {},
@@ -230,7 +240,13 @@ function makeHarness() {
         events.push('listTrees');
         return [{ id: 1, seq: 1, specie: 'Abete' }];
       },
+      async addTree() { events.push('addTree'); return { seq: 1, gruppo: '' }; },
+      async deleteTree(_db, sessionId, treeId) { events.push(['deleteTree', sessionId, treeId]); },
+      async getSession(_db, sessionId) { events.push(['getSession', sessionId]); return { ...session, id: sessionId }; },
       async setSessionStatus() { events.push('setSessionStatus'); },
+      async setSessionPendingUpload(_db, sessionId, payload, count) {
+        events.push(['setSessionPendingUpload', sessionId, payload, count]);
+      },
       async setSessionUploadStatus() { events.push('setSessionUploadStatus'); },
     },
     csv: {
@@ -245,7 +261,12 @@ function makeHarness() {
       },
     },
     createUploadFlow() {
-      return { enter() { events.push('uploadEnter'); }, wire() {} };
+      return {
+        enter(sessionId, payload, count) {
+          events.push(['uploadEnter', sessionId, payload, count]);
+        },
+        wire() {},
+      };
     },
     createNumpad() {
       return { mount() {}, value() { return ''; }, setValue() {} };
@@ -427,9 +448,33 @@ const session = {
   check(events.indexOf('download') < events.indexOf('buildPayload'),
         'onEnd downloads CSV before building the upload payload');
   check(!events.includes('setSessionStatus'), 'onEnd does not mark pending after payload validation fails');
+  check(!events.some(e => Array.isArray(e) && e[0] === 'setSessionPendingUpload'),
+        'onEnd does not persist a pending upload payload after payload validation fails');
 }
 
-// Retrying a pending upload from the resume modal has the same safety ordering.
+// A successful session end persists the exact upload payload before entering upload.
+{
+  const { context, events } = makeHarness();
+  const app = context.__ipsoAppTest;
+  const payload = { records: [{ client_record_id: 'r1' }], csv_text: 'csv-text' };
+  app.State.db = {};
+  app.State.reference = {};
+  app.State.session = { ...session, status: 'open' };
+  context.upload.buildUploadPayload = () => {
+    events.push('buildPayload');
+    return payload;
+  };
+  await app.onEnd();
+
+  const persisted = events.find(e => Array.isArray(e) && e[0] === 'setSessionPendingUpload');
+  const entered = events.find(e => Array.isArray(e) && e[0] === 'uploadEnter');
+  eq(persisted, ['setSessionPendingUpload', 's1', payload, 1],
+     'onEnd stores the exact payload and tree count on the pending session');
+  eq(entered, ['uploadEnter', 's1', payload, 1],
+     'onEnd enters upload with the exact payload it persisted');
+}
+
+// Retrying a legacy pending upload from the resume modal has the same safety ordering.
 {
   const { context, events, buttons } = makeHarness();
   const app = context.__ipsoAppTest;
@@ -442,6 +487,25 @@ const session = {
   check(events.indexOf('download') >= 0, 'resume upload downloads CSV even when payload validation throws');
   check(events.indexOf('download') < events.indexOf('buildPayload'),
         'resume upload downloads CSV before building the upload payload');
+}
+
+// Retrying a new pending upload reuses the previously persisted payload verbatim.
+{
+  const { context, events, buttons } = makeHarness();
+  const app = context.__ipsoAppTest;
+  const payload = { records: [{ client_record_id: 'r1' }], csv_text: 'persisted csv' };
+  app.State.db = {};
+  app.State.reference = { changed: true };
+  app.showResumeModal([{ ...session, upload_payload: payload, upload_tree_count: 1 }]);
+  const carica = buttons.find(b => b.textContent === 'Carica');
+  await carica.click();
+
+  const entered = events.find(e => Array.isArray(e) && e[0] === 'uploadEnter');
+  check(events.includes('download'), 'stored pending upload still downloads a local CSV copy');
+  check(!events.includes('listTrees'), 'stored pending upload does not reread local tree rows');
+  check(!events.includes('buildPayload'), 'stored pending upload does not rebuild against current reference data');
+  eq(entered, ['uploadEnter', 's1', payload, 1],
+     'stored pending upload enters upload with the persisted payload');
 }
 
 // Terminal sessions stay reachable as a local archive on cold boot.
@@ -577,6 +641,85 @@ const session = {
   pending[0]([{ numero: 1 }]);
   await stalePrefill;
   eq(numberValue, '3', 'older prefill cannot replace the newer proposal');
+}
+
+// Save returns before writing when validation reports a missing required GPS fix.
+{
+  const { context, events, elements } = makeHarness();
+  const app = context.__ipsoAppTest;
+  app.State.db = {};
+  app.State.reference = referenceFixture();
+  app.State.session = { ...session, id: 's1', status: 'open', region_id: 1 };
+  app.State.specie = 'Abete';
+  app.State.override = { resolve: () => '1' };
+  app.State.numpad = {
+    value(field) { return { d: '42', h: '22', numero: '7' }[field] || ''; },
+    setValue() {},
+  };
+  context.session.validateTree = () => ['gps'];
+
+  await app.onSave();
+
+  check(!events.includes('addTree'), 'onSave does not persist when GPS validation fails');
+  check(elements.get('gps-text').textContent === 'REC_GPS_WAITING',
+        'onSave refreshes GPS status after a GPS validation failure');
+}
+
+// Save rejects duplicate numbers in the current local parcel before persisting.
+{
+  const { context, events, elements } = makeHarness();
+  const app = context.__ipsoAppTest;
+  app.State.db = {};
+  app.State.reference = referenceFixture();
+  app.State.session = { ...session, id: 's1', status: 'open', region_id: 1 };
+  app.State.specie = 'Abete';
+  app.State.override = { resolve: () => '1' };
+  app.State.numpad = {
+    value(field) { return { d: '42', h: '22', numero: '7' }[field] || ''; },
+    setValue() {},
+  };
+  context.session.validateTree = () => [];
+  context.Store.listTrees = async () => [
+    { numero: 7, particella: '1', region_id: 1, parcel_id: 100 },
+  ];
+
+  await app.onSave();
+
+  check(!events.includes('addTree'), 'onSave does not persist a duplicate number');
+  check(elements.get('toast').textContent === 'duplicate 7',
+        'onSave reports the duplicate number immediately');
+}
+
+// The data-table delete button is wired to onDeleteTree and refreshes the view.
+{
+  const { context, events, buttons, elements } = makeHarness();
+  const app = context.__ipsoAppTest;
+  app.State.db = {};
+  app.State.reference = referenceFixture();
+  app.State.session = { ...session, id: 's1', status: 'open', region_id: 1 };
+  app.State.specie = 'Abete';
+  app.State.override = { resolve: () => '1' };
+  app.State.numpad = {
+    value(field) { return { d: '42', h: '22', numero: '' }[field] || ''; },
+    setValue(field, value) { events.push(['setValue', field, value]); },
+  };
+  context.session.validateTree = () => [];
+  context.Store.getSession = async (_db, sessionId) => {
+    events.push(['getSession', sessionId]);
+    return { ...app.State.session, tree_count: 0 };
+  };
+  context.Store.listTrees = async () => [];
+
+  app.renderTreesTable([
+    { id: 77, seq: 1, numero: 7, specie: 'Abete', particella: '1', gruppo: '', d_cm: 42, h_m: 22 },
+  ]);
+  const deleteButton = buttons.find(button => button.className === 'tree-delete-btn');
+  await deleteButton.click();
+
+  check(events.some(event => JSON.stringify(event) === JSON.stringify(['deleteTree', 's1', 77])),
+        'data-table delete button calls Store.deleteTree with the row id');
+  check(elements.get('data-trees-table').children.length === 1,
+        'onDeleteTree re-renders the tree table after deletion');
 }
 
 if (failures.length) {

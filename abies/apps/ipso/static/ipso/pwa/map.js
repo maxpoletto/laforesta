@@ -74,12 +74,12 @@ function createOrientationMap(opts) {
   }
 
   function readBasemap() {
-    try { return localStorage.getItem('ipso.basemap') || 'satellite'; }
+    try { return localStorage.getItem(IPSO_BASEMAP_STORAGE_KEY) || 'satellite'; }
     catch (_) { return 'satellite'; }
   }
 
   function writeBasemap(name) {
-    try { localStorage.setItem('ipso.basemap', name); } catch (_) {}
+    try { localStorage.setItem(IPSO_BASEMAP_STORAGE_KEY, name); } catch (_) {}
   }
 
   function ready() { return !!leaflet; }

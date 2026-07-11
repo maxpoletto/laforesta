@@ -64,6 +64,13 @@ const SESSION = 'session';
 const RECORDS = 'records';
 const IPSO_SECRET_HASH_PARAM = 'secret';
 const IPSO_BEARER_STORAGE_KEY = 'ipso.bearer_token';
+const IPSO_OPERATOR_STORAGE_KEY = 'ipso.operatore';
+const IPSO_SPECIES_STORAGE_KEY = 'ipso.specie';
+const IPSO_BASEMAP_STORAGE_KEY = 'ipso.basemap';
+
+const GPS_STALE_MS = 10000;
+const SAVE_COOLDOWN_MS = 300;
+const SAVE_COOLDOWN_RECHECK_MS = SAVE_COOLDOWN_MS + 20;
 
 const PRESSLER_DEFAULT = '2.00';
 
@@ -124,6 +131,12 @@ if (typeof module !== 'undefined') {
     RECORDS,
     IPSO_SECRET_HASH_PARAM,
     IPSO_BEARER_STORAGE_KEY,
+    IPSO_OPERATOR_STORAGE_KEY,
+    IPSO_SPECIES_STORAGE_KEY,
+    IPSO_BASEMAP_STORAGE_KEY,
+    GPS_STALE_MS,
+    SAVE_COOLDOWN_MS,
+    SAVE_COOLDOWN_RECHECK_MS,
     PRESSLER_DEFAULT,
   };
   Object.assign(globalThis, module.exports);

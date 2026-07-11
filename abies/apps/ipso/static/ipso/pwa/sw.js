@@ -53,7 +53,9 @@ const SHELL = [
 
 self.addEventListener('install', (e) => {
   e.waitUntil(
-    caches.open(CACHE).then((c) => c.addAll(SHELL))
+    caches.open(CACHE).then((c) => c.addAll(
+      SHELL.map((url) => new Request(url, { cache: 'no-cache' }))
+    ))
   );
   // Deliberately do NOT call self.skipWaiting() — see header note.
 });

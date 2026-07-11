@@ -118,9 +118,9 @@ const S = {
 
   // Toasts and errors
   GPS_DENIED:
-    'GPS non disponibile: gli alberi verranno registrati senza coordinate.',
+    'GPS non consentito: abilita la posizione per registrare gli alberi.',
   GPS_PERMISSION_BANNER:
-    'Permesso GPS non concesso. Per registrare le coordinate, abilita la ' +
+    'Permesso GPS non concesso. Ipso richiede le coordinate: abilita la ' +
     'posizione per ipso.laforesta.it nelle impostazioni del browser.',
   BACKUP_SAVED: (n) => `Backup CSV salvato (${n} alberi).`,
   CSV_HEADER_SAMPLE_AREA: 'Area saggio',
@@ -155,6 +155,8 @@ const S = {
   TOAST_SESSION_START_ERROR: (detail) =>
     `Errore avvio sessione: ${detail}`,
   TOAST_SAVE_ERROR: (detail) => `Errore salvataggio: ${detail}`,
+  TOAST_DUPLICATE_NUMBER: (number) =>
+    `Numero ${number} già registrato in questa particella/area.`,
   TOAST_DELETE_ERROR: (detail) => `Errore eliminazione: ${detail}`,
   TOAST_EXPORT_ERROR: (detail) => `Errore esportazione: ${detail}`,
   TOAST_UPLOAD_STATE_ERROR: (detail) =>

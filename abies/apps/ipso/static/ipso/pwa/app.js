@@ -371,7 +371,7 @@ function promptGps() {
 // ---------------------------------------------------------------------------
 
 function populateOperator() {
-  const stored = localStorage.getItem('ipso.operatore') || '';
+  const stored = localStorage.getItem(IPSO_OPERATOR_STORAGE_KEY) || '';
   document.getElementById('in-operatore').value = stored;
   const today = new Date();
   document.getElementById('in-data').value = formatYMD(today);
@@ -616,7 +616,7 @@ function wirePreSession() {
     // is visible before the operator reaches the first required GPS save.
     promptGps();
 
-    localStorage.setItem('ipso.operatore', operator);
+    localStorage.setItem(IPSO_OPERATOR_STORAGE_KEY, operator);
 
     try {
       const region = State.reference[IPSO_REF_PARCELS].find((parcel) =>
@@ -940,7 +940,7 @@ function populateSpecie() {
   );
   for (const sp of ordered) appendOption(sel, sp.common, sp.common);
   // Sticky: if a prior session set a default in localStorage, prefer that.
-  const sticky = localStorage.getItem('ipso.specie') || '';
+  const sticky = localStorage.getItem(IPSO_SPECIES_STORAGE_KEY) || '';
   if (sticky && ordered.some((s) => s.common === sticky)) {
     sel.value = sticky;
     State.specie = sticky;
@@ -1044,10 +1044,10 @@ function renderGpsStatus(st) {
   const dot = document.getElementById('gps-dot');
   const text = document.getElementById('gps-text');
   if (dot) dot.className = 'gps-dot ' + st.tier;
-  if (st.fix && (st.age == null || st.age < 10000)) {
+  if (st.fix && (st.age == null || st.age < GPS_STALE_MS)) {
     // Keep the line a fixed shape so it doesn't jitter the rec-header on
     // narrow screens. The dot already encodes accuracy tier; the
-    // GPS-stale fallback below kicks in when age > 10 s.
+    // GPS-stale fallback below kicks in after GPS_STALE_MS.
     if (text) {
       text.textContent =
         IpsoFormat.fmtCoord(st.fix.lat) + ' ' + IpsoFormat.fmtCoord(st.fix.lon) +
@@ -1245,17 +1245,22 @@ async function onSave() {
     rec.numero = null;
   }
 
+  if (await numberExistsInSession(rec)) {
+    showToast(S.TOAST_DUPLICATE_NUMBER(rec.numero));
+    return;
+  }
+
   const full = Object.assign({}, rec);
 
-  // R12: 300 ms cooldown after save completes.
-  State.saveLockUntil = Date.now() + 300;
+  // Short debounce after save completes prevents accidental double-taps.
+  State.saveLockUntil = Date.now() + SAVE_COOLDOWN_MS;
   document.getElementById('btn-save').disabled = true;
 
   try {
     const row = await Store.addTree(State.db, State.session.id, full);
     State.session = await Store.getSession(State.db, State.session.id);
     State.lastGroup = row.gruppo || '';
-    localStorage.setItem('ipso.specie', State.specie);
+    localStorage.setItem(IPSO_SPECIES_STORAGE_KEY, State.specie);
     resetEntryFields();
     refreshMapRecords();
 
@@ -1265,8 +1270,25 @@ async function onSave() {
   } catch (e) {
     showToast(S.TOAST_SAVE_ERROR(e.message));
   } finally {
-    setTimeout(updateSaveEnabled, 320);
+    setTimeout(updateSaveEnabled, SAVE_COOLDOWN_RECHECK_MS);
   }
+}
+
+async function numberExistsInSession(rec) {
+  if (!State.session || !Number.isInteger(rec.numero)) return false;
+  const trees = await Store.listTrees(State.db, State.session.id);
+  return trees.some((tree) => sameNumberScope(tree, rec));
+}
+
+function sameNumberScope(tree, rec) {
+  if (!tree || tree.numero !== rec.numero) return false;
+  if (rec[FIELD_SAMPLE_AREA_ID] != null || tree[FIELD_SAMPLE_AREA_ID] != null) {
+    return tree[FIELD_SAMPLE_AREA_ID] === rec[FIELD_SAMPLE_AREA_ID];
+  }
+  if (rec[FIELD_PARCEL_ID] != null || tree[FIELD_PARCEL_ID] != null) {
+    return tree[FIELD_PARCEL_ID] === rec[FIELD_PARCEL_ID];
+  }
+  return (tree.particella || '') === (rec.particella || '');
 }
 
 async function onDeleteTree(treeId) {
@@ -1314,8 +1336,12 @@ async function onEnd() {
     const uploadPayload = upload.buildUploadPayload(
       State.session, trees, State.reference, csvText
     );
-    await Store.setSessionStatus(State.db, State.session.id, Store.STATUS_PENDING_UPLOAD);
+    await Store.setSessionPendingUpload(
+      State.db, State.session.id, uploadPayload, trees.length
+    );
     State.session.status = Store.STATUS_PENDING_UPLOAD;
+    State.session.upload_payload = uploadPayload;
+    State.session.upload_tree_count = trees.length;
     uploadFlow().enter(State.session.id, uploadPayload, trees.length);
   } catch (e) {
     showToast(S.TOAST_EXPORT_ERROR(e.message));
@@ -1808,32 +1834,12 @@ function showResumeModal(sessions) {
     if (s.status === Store.STATUS_PENDING_UPLOAD) {
       const carica = mkBtn(S.UPLOAD_RESUME_DO_NOW, 'btn-primary', async () => {
         try {
-          const trees = await Store.listTrees(State.db, s.id);
-          trees.sort((a, b) => a.seq - b.seq);
-          if (trees.length === 0) {
-            hideModal('modal-resume');
-            State.session = s;
-            setMode(s.mode);
-            await closeEmptySession(s);
-            return;
-          }
-          // Re-download the local CSV on every entry to screen-upload —
-          // the browser auto-renames duplicates so this can never lose
-          // the original copy. See spec.
-          let csvText;
-          try {
-            csvText = downloadFinal(s, trees, State.reference);
-          } catch (e) {
-            showToast(S.TOAST_EXPORT_ERROR(e.message));
-            return;
-          }
-          const uploadPayload = upload.buildUploadPayload(
-            s, trees, State.reference, csvText
-          );
+          const { uploadPayload, treeCount } = await pendingUploadPayload(s);
+          if (!uploadPayload) return;
           hideModal('modal-resume');
           State.session = s;
           setMode(s.mode);
-          uploadFlow().enter(s.id, uploadPayload, trees.length);
+          uploadFlow().enter(s.id, uploadPayload, treeCount);
         } catch (e) {
           showToast(S.TOAST_EXPORT_ERROR(e.message));
         }
@@ -1903,6 +1909,45 @@ function showResumeModal(sessions) {
     }));
   }
   showModal('modal-resume');
+}
+
+async function pendingUploadPayload(s) {
+  if (s.upload_payload) {
+    const csvText = s.upload_payload[FIELD_CSV_TEXT] || '';
+    if (csvText) {
+      downloadText(csvText, csv.filename(s, new Date(), 'final'));
+    }
+    const records = Array.isArray(s.upload_payload[RECORDS])
+      ? s.upload_payload[RECORDS] : [];
+    return {
+      uploadPayload: s.upload_payload,
+      treeCount: Number.isInteger(s.upload_tree_count)
+        ? s.upload_tree_count : records.length,
+    };
+  }
+
+  // Legacy pending-upload rows predate stored payloads. Fall back to the old
+  // rebuild path, but new pending uploads persist and replay the exact payload.
+  const trees = await Store.listTrees(State.db, s.id);
+  trees.sort((a, b) => a.seq - b.seq);
+  if (trees.length === 0) {
+    hideModal('modal-resume');
+    State.session = s;
+    setMode(s.mode);
+    await closeEmptySession(s);
+    return { uploadPayload: null, treeCount: 0 };
+  }
+  let csvText;
+  try {
+    csvText = downloadFinal(s, trees, State.reference);
+  } catch (e) {
+    showToast(S.TOAST_EXPORT_ERROR(e.message));
+    return { uploadPayload: null, treeCount: 0 };
+  }
+  return {
+    uploadPayload: upload.buildUploadPayload(s, trees, State.reference, csvText),
+    treeCount: trees.length,
+  };
 }
 
 function sessionStatusSuffix(s) {

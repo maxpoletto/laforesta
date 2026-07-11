@@ -19,10 +19,12 @@ import { fmtCoord, fmtDecimal2, fmtInt } from '../../base/js/format.js';
 import { installEscapeHandler } from '../../base/js/escape.js';
 import * as S from '../../base/js/strings.js';
 import {
-  DATA_ID_IPSO_UPLOADS, FIELD_ERROR_SUMMARY, FIELD_ID, FIELD_HARVEST_PLAN_ITEM_ID,
-  FIELD_MODE, FIELD_MODE_LABEL, FIELD_NONCE, FIELD_OPERATOR, FIELD_RECEIVED_AT,
-  FIELD_RECORD_DATE, FIELD_REFERENCE_VERSION, FIELD_REFERENCE_VERSION_LABEL,
-  FIELD_SAMPLE_AREA_ID, FIELD_SESSION_ID, FIELD_STATE, FIELD_STATE_LABEL,
+  DATA_ID_IPSO_UPLOADS, FIELD_ACC_M, FIELD_D_CM, FIELD_DATE, FIELD_ERROR_SUMMARY,
+  FIELD_H_M, FIELD_ID, FIELD_HARVEST_PLAN_ITEM_ID, FIELD_LAT, FIELD_LON,
+  FIELD_MODE, FIELD_MODE_LABEL, FIELD_NONCE, FIELD_NUMBER, FIELD_OPERATOR,
+  FIELD_PARCEL, FIELD_RECEIVED_AT, FIELD_RECORD_DATE, FIELD_REFERENCE_VERSION,
+  FIELD_REFERENCE_VERSION_LABEL, FIELD_SAMPLE_AREA_ID, FIELD_SEQ,
+  FIELD_SESSION_ID, FIELD_SPECIES, FIELD_STATE, FIELD_STATE_LABEL,
   FIELD_SURVEY_ID, FIELD_TARGET_LABEL, FIELD_WORK_PACKAGE_LABEL, FILE_ERROR,
   IPSO_MODE_MARTELLATE, IPSO_MODE_PAI, IPSO_MODE_SAMPLES,
   IPSO_REFERENCE_LEGACY_CONVERTED,
@@ -375,7 +377,7 @@ function renderDetail(data) {
     actions.appendChild(rejectBtn);
   }
   const closeBtn = document.createElement('button');
-  closeBtn.className = 'btn ipso-detail-close';
+  closeBtn.className = 'btn detail-close';
   closeBtn.type = 'button';
   closeBtn.textContent = '\u00D7';
   closeBtn.title = S.DISMISS;
@@ -513,8 +515,8 @@ function recordsTable(records) {
   const host = document.createElement('div');
   host.className = 'ipso-record-preview';
   const rows = records.map(rec => [
-    rec.seq, rec.date, rec.parcel, rec[FIELD_SAMPLE_AREA_ID], rec.species,
-    rec.number, rec.d_cm, rec.h_m, rec.lat, rec.lon, rec.acc_m,
+    rec[FIELD_SEQ], rec[FIELD_DATE], rec[FIELD_PARCEL], rec[FIELD_SAMPLE_AREA_ID], rec[FIELD_SPECIES],
+    rec[FIELD_NUMBER], rec[FIELD_D_CM], rec[FIELD_H_M], rec[FIELD_LAT], rec[FIELD_LON], rec[FIELD_ACC_M],
   ]);
   detailTable = new TableWrapper({
     container: host,

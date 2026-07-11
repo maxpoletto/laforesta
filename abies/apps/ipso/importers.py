@@ -13,6 +13,7 @@ from apps.base.models import (
 from apps.base.numparse import to_decimal
 from apps.campionamenti import csv_preserved
 from apps.campionamenti.csv_trees import parsed_tree_row
+from apps.campionamenti.tree_validation import normalize_sample_tree_values
 from config import strings as S
 from config.constants import (
     FIELD_ACC_M, FIELD_AREA, FIELD_COPPICE, FIELD_DATE,
@@ -234,16 +235,24 @@ def _sample_record_values(record: dict, area: SampleArea, sp: Species) -> dict |
     pressler_coeff = to_decimal(record.get(FIELD_PRESSLER_COEFF), '.')
     if pressler_coeff is None:
         pressler_coeff = PRESSLER_DEFAULT
-    if pressler_coeff <= 0:
+    values = normalize_sample_tree_values(
+        number=number,
+        d_cm=measurements.d_cm,
+        h_m=measurements.h_m,
+        shoot=shoot,
+        l10_mm=l10_mm,
+        pressler_coeff=pressler_coeff,
+    )
+    if values is None:
         return None
     coppice_value = record.get(FIELD_COPPICE)
     coppice = area.parcel.eclass.coppice if coppice_value is None else bool(coppice_value)
     return parsed_tree_row(
         area=area, row_date=measurements.date, species=sp, coppice=coppice,
-        preserved=bool(record.get(FIELD_PRESERVED)), number=number,
-        shoot=shoot, standard=bool(record.get(FIELD_STANDARD)),
-        d_cm=measurements.d_cm, h_m=measurements.h_m, l10_mm=l10_mm,
-        pressler_coeff=pressler_coeff, lat=record.get(FIELD_LAT),
+        preserved=bool(record.get(FIELD_PRESERVED)), number=values.number,
+        shoot=values.shoot, standard=bool(record.get(FIELD_STANDARD)),
+        d_cm=values.d_cm, h_m=values.h_m, l10_mm=values.l10_mm,
+        pressler_coeff=values.pressler_coeff, lat=record.get(FIELD_LAT),
         lon=record.get(FIELD_LON), acc_m=record.get(FIELD_ACC_M),
     )
 

@@ -60,11 +60,11 @@ from config.constants import (
     FIELD_H_M, FIELD_H_MEASURED, FIELD_HYPSO_PARAM_SET_ID, FIELD_LAT,
     FIELD_LON, FIELD_L10_MM, FIELD_MODE, FIELD_MODE_LABEL, FIELD_NOTE,
     FIELD_NUMBER, FIELD_OPERATOR, FIELD_PARCEL_ID,
-    FIELD_PRESERVED, FIELD_PRESSLER_COEFF, FIELD_RECEIVED_AT, FIELD_RECORD_DATE,
+    FIELD_PARCEL, FIELD_PRESERVED, FIELD_PRESSLER_COEFF, FIELD_RECEIVED_AT, FIELD_RECORD_DATE,
     FIELD_REASON, FIELD_REFERENCE_VERSION, FIELD_REFERENCE_VERSION_LABEL,
-    FIELD_REGION_ID,
+    FIELD_REGION_ID, FIELD_SEQ,
     FIELD_SAMPLE_AREA_ID, FIELD_SAMPLE_GRID_ID, FIELD_SCHEMA_VERSION,
-    FIELD_SESSION_ID, FIELD_SHOOT, FIELD_SPECIES_ID, FIELD_STANDARD,
+    FIELD_SESSION_ID, FIELD_SHOOT, FIELD_SPECIES, FIELD_SPECIES_ID, FIELD_STANDARD,
     FIELD_TARGET_ID, FIELD_TARGET_LABEL, FIELD_TARGET_TYPE, FIELD_TREE_ID,
     FIELD_TREE_PRESERVED_ID, FIELD_IMPORTED_AT, FIELD_STATE, FIELD_STATE_LABEL,
     FIELD_SURVEY_ID,
@@ -432,11 +432,12 @@ _SHA256_RE = re.compile(r'^[0-9a-f]{64}$')
 @login_required
 @require_GET
 def inbox_data(request: HttpRequest) -> JsonResponse:
-    uploads = IpsoUpload.objects.order_by('-received_at')
+    uploads = list(IpsoUpload.objects.order_by('-received_at'))
+    labels = _upload_label_maps(uploads)
     payload = {
         COLUMNS: INBOX_COLUMNS,
-        ROWS: [_inbox_row(u) for u in uploads],
-        PENDING_COUNT: uploads.filter(state=IpsoUploadState.RECEIVED).count(),
+        ROWS: [_inbox_row(u, labels) for u in uploads],
+        PENDING_COUNT: sum(1 for u in uploads if u.state == IpsoUploadState.RECEIVED),
     }
     return _api_json(payload)
 
@@ -474,13 +475,9 @@ def reject_upload(request: HttpRequest, upload_id: int) -> JsonResponse:
         upload = _get_upload(upload_id, for_update=True)
         if upload.state != IpsoUploadState.RECEIVED:
             return validation_error([S.IPSO_ERR_UPLOAD_NOT_REJECTABLE])
-        updated = (IpsoUpload.objects
-                   .filter(id=upload.id, state=IpsoUploadState.RECEIVED)
-                   .update(state=IpsoUploadState.REJECTED, error_summary=reason))
-        if not updated:
-            return validation_error([S.IPSO_ERR_UPLOAD_NOT_REJECTABLE])
         upload.state = IpsoUploadState.REJECTED
         upload.error_summary = reason
+        upload.save(update_fields=['state', 'error_summary'])
         data = _upload_metadata(upload)
     return success_response(request, body, extra={UPLOAD: data})
 
@@ -544,8 +541,11 @@ def update_upload_mode(request: HttpRequest, upload_id: int) -> JsonResponse:
         ipso_staging.write_payload_files(Path(upload.inbox_path), payload, checksum)
         upload.mode = mode
         upload.checksum = checksum
-        upload.error_summary = ''
-        upload.save(update_fields=['mode', 'checksum', 'error_summary'])
+        update_fields = ['mode', 'checksum']
+        if upload.state != IpsoUploadState.REJECTED:
+            upload.error_summary = ''
+            update_fields.append('error_summary')
+        upload.save(update_fields=update_fields)
         data = _upload_metadata(upload)
     return success_response(request, body, extra={UPLOAD: data})
 
@@ -739,12 +739,9 @@ def _duplicate_upload_response(
             DUPLICATE: True,
         })
     if existing.state == IpsoUploadState.RECEIVED:
-        IpsoUpload.objects.filter(
-            id=existing.id, state=IpsoUploadState.RECEIVED,
-        ).update(
-            state=IpsoUploadState.CONFLICT,
-            error_summary=S.IPSO_ERR_DUPLICATE_SESSION_CONTENT,
-        )
+        existing.state = IpsoUploadState.CONFLICT
+        existing.error_summary = S.IPSO_ERR_DUPLICATE_SESSION_CONTENT
+        existing.save(update_fields=['state', 'error_summary'])
     return _api_json({OK: False, ERROR: IPSO_ERROR_CONFLICT}, status=409)
 
 
@@ -758,7 +755,7 @@ def _get_upload(upload_id: int, *, for_update: bool = False) -> IpsoUpload:
         raise Http404 from e
 
 
-def _inbox_row(upload: IpsoUpload) -> list:
+def _inbox_row(upload: IpsoUpload, labels: dict | None = None) -> list:
     return [
         upload.id,
         upload.state,
@@ -768,13 +765,13 @@ def _inbox_row(upload: IpsoUpload) -> list:
         upload.operator,
         upload.record_count,
         STATE_LABELS.get(upload.state, upload.state),
-        _work_package_label(upload),
-        _target_label(upload),
+        _work_package_label(upload, labels),
+        _target_label(upload, labels),
         upload.error_summary,
     ]
 
 
-def _upload_metadata(upload: IpsoUpload) -> dict:
+def _upload_metadata(upload: IpsoUpload, labels: dict | None = None) -> dict:
     return {
         FIELD_ID: upload.id,
         FIELD_SESSION_ID: upload.session_id,
@@ -784,7 +781,7 @@ def _upload_metadata(upload: IpsoUpload) -> dict:
         FIELD_REFERENCE_VERSION: upload.reference_version,
         FIELD_REFERENCE_VERSION_LABEL: _reference_label(upload.reference_version),
         FIELD_WORK_PACKAGE_ID: upload.work_package_id,
-        FIELD_WORK_PACKAGE_LABEL: _work_package_label(upload),
+        FIELD_WORK_PACKAGE_LABEL: _work_package_label(upload, labels),
         FIELD_OPERATOR: upload.operator,
         FIELD_RECORD_DATE: _upload_record_date(upload),
         RECORD_COUNT: upload.record_count,
@@ -795,7 +792,7 @@ def _upload_metadata(upload: IpsoUpload) -> dict:
         FIELD_IMPORTED_AT: _format_dt(upload.imported_at),
         FIELD_TARGET_TYPE: upload.target_type,
         FIELD_TARGET_ID: upload.target_id,
-        FIELD_TARGET_LABEL: _target_label(upload),
+        FIELD_TARGET_LABEL: _target_label(upload, labels),
         FIELD_ERROR_SUMMARY: upload.error_summary,
     }
 
@@ -821,36 +818,94 @@ def _remove_staged_upload_files(path: Path) -> None:
         shutil.rmtree(path)
 
 
-def _work_package_label(upload: IpsoUpload) -> str:
+def _upload_label_maps(uploads: list[IpsoUpload]) -> dict:
+    harvest_item_ids = set()
+    survey_ids = set()
+    for upload in uploads:
+        harvest_id = _prefixed_int(
+            upload.work_package_id, IPSO_WORK_PACKAGE_HARVEST_PREFIX,
+        )
+        if harvest_id is not None:
+            harvest_item_ids.add(harvest_id)
+        survey_id = _prefixed_int(
+            upload.work_package_id, IPSO_WORK_PACKAGE_SAMPLING_SURVEY_PREFIX,
+        )
+        if survey_id is not None:
+            survey_ids.add(survey_id)
+        if upload.target_type == IPSO_TARGET_HARVEST_PLAN_ITEM and upload.target_id:
+            harvest_item_ids.add(upload.target_id)
+        if upload.target_type == IPSO_TARGET_SURVEY and upload.target_id:
+            survey_ids.add(upload.target_id)
+    harvest_items = []
+    if harvest_item_ids:
+        harvest_items = (HarvestPlanItem.objects
+                         .select_related(
+                             'harvest_plan', 'parcel__region',
+                             'parcel__eclass', 'region',
+                         )
+                         .filter(id__in=harvest_item_ids))
+    surveys = []
+    if survey_ids:
+        surveys = (Survey.objects
+                   .select_related('sample_grid')
+                   .filter(id__in=survey_ids))
+    return {
+        IPSO_TARGET_HARVEST_PLAN_ITEM: {
+            item.id: _harvest_item_label(item) for item in harvest_items
+        },
+        IPSO_TARGET_SURVEY: {
+            survey.id: _survey_label(survey) for survey in surveys
+        },
+    }
+
+
+def _prefixed_int(raw: str, prefix: str) -> int | None:
+    text = (raw or '').strip()
+    if not text.startswith(prefix):
+        return None
+    value = text.split(':', 1)[1]
+    return int(value) if value.isdigit() else None
+
+
+def _work_package_label(upload: IpsoUpload, labels: dict | None = None) -> str:
     raw = (upload.work_package_id or '').strip()
-    if raw.startswith(IPSO_WORK_PACKAGE_HARVEST_PREFIX):
-        item_id = raw.split(':', 1)[1]
-        if item_id.isdigit():
-            item = (HarvestPlanItem.objects
-                    .select_related('harvest_plan', 'parcel__region', 'parcel__eclass', 'region')
-                    .filter(id=int(item_id)).first())
-            if item is not None:
-                return _harvest_item_label(item)
-    if raw.startswith(IPSO_WORK_PACKAGE_SAMPLING_SURVEY_PREFIX):
-        survey_id = raw.split(':', 1)[1]
-        if survey_id.isdigit():
-            survey = (Survey.objects
-                      .select_related('sample_grid')
-                      .filter(id=int(survey_id)).first())
-            if survey is not None:
-                return _survey_label(survey)
+    item_id = _prefixed_int(raw, IPSO_WORK_PACKAGE_HARVEST_PREFIX)
+    if item_id is not None:
+        if labels is not None:
+            return labels[IPSO_TARGET_HARVEST_PLAN_ITEM].get(item_id, '')
+        item = (HarvestPlanItem.objects
+                .select_related(
+                    'harvest_plan', 'parcel__region',
+                    'parcel__eclass', 'region',
+                )
+                .filter(id=item_id).first())
+        if item is not None:
+            return _harvest_item_label(item)
+    survey_id = _prefixed_int(raw, IPSO_WORK_PACKAGE_SAMPLING_SURVEY_PREFIX)
+    if survey_id is not None:
+        if labels is not None:
+            return labels[IPSO_TARGET_SURVEY].get(survey_id, '')
+        survey = (Survey.objects
+                  .select_related('sample_grid')
+                  .filter(id=survey_id).first())
+        if survey is not None:
+            return _survey_label(survey)
     return ''
 
 
-def _target_label(upload: IpsoUpload) -> str:
+def _target_label(upload: IpsoUpload, labels: dict | None = None) -> str:
     if upload.target_type == IPSO_TARGET_HARVEST_PLAN_ITEM and upload.target_id:
+        if labels is not None:
+            return labels[IPSO_TARGET_HARVEST_PLAN_ITEM].get(upload.target_id, '')
         item = (HarvestPlanItem.objects
                 .select_related('harvest_plan', 'parcel__region', 'parcel__eclass', 'region')
                 .filter(id=upload.target_id).first())
         if item is not None:
             return _harvest_item_label(item)
     if upload.target_type == IPSO_TARGET_SURVEY and upload.target_id:
-        survey = Survey.objects.filter(id=upload.target_id).first()
+        if labels is not None:
+            return labels[IPSO_TARGET_SURVEY].get(upload.target_id, '')
+        survey = Survey.objects.select_related('sample_grid').filter(id=upload.target_id).first()
         if survey is not None:
             return _survey_label(survey)
     if upload.target_type == IPSO_TARGET_PAI:
@@ -863,7 +918,7 @@ def _target_label(upload: IpsoUpload) -> str:
 def _format_dt(value) -> str:
     if not value:
         return ''
-    return value.astimezone(timezone.utc).strftime('%Y-%m-%d %H:%M')
+    return django_timezone.localtime(value).strftime('%Y-%m-%d %H:%M')
 
 
 def _mode_label(mode: str) -> str:
@@ -954,11 +1009,11 @@ def _preview_records(records: list) -> list[dict]:
         if not isinstance(row, dict):
             continue
         out.append({
-            'seq': _preview_sequence(row.get(FIELD_CLIENT_RECORD_ID), i),
+            FIELD_SEQ: _preview_sequence(row.get(FIELD_CLIENT_RECORD_ID), i),
             FIELD_DATE: row.get(FIELD_DATE, ''),
-            'parcel': parcels.get(row.get(FIELD_PARCEL_ID), str(row.get(FIELD_PARCEL_ID, ''))),
+            FIELD_PARCEL: parcels.get(row.get(FIELD_PARCEL_ID), str(row.get(FIELD_PARCEL_ID, ''))),
             FIELD_SAMPLE_AREA_ID: sample_areas.get(row.get(FIELD_SAMPLE_AREA_ID), ''),
-            'species': species.get(row.get(FIELD_SPECIES_ID), str(row.get(FIELD_SPECIES_ID, ''))),
+            FIELD_SPECIES: species.get(row.get(FIELD_SPECIES_ID), str(row.get(FIELD_SPECIES_ID, ''))),
             FIELD_NUMBER: row.get(FIELD_NUMBER),
             FIELD_D_CM: row.get(FIELD_D_CM),
             FIELD_H_M: _preview_decimal(row.get(FIELD_H_M)),
@@ -1084,17 +1139,7 @@ def _claim_upload_import(
         upload: IpsoUpload, user, target_type: str, target_id: int | None,
 ) -> bool:
     imported_at = django_timezone.now()
-    claimed = (IpsoUpload.objects
-               .filter(id=upload.id, state=IpsoUploadState.RECEIVED)
-               .update(
-                   state=IpsoUploadState.IMPORTED,
-                   imported_at=imported_at,
-                   imported_by_id=user.id,
-                   target_type=target_type,
-                   target_id=target_id,
-                   error_summary='',
-               ))
-    if not claimed:
+    if upload.state != IpsoUploadState.RECEIVED:
         return False
     upload.state = IpsoUploadState.IMPORTED
     upload.imported_at = imported_at
@@ -1102,6 +1147,10 @@ def _claim_upload_import(
     upload.target_type = target_type
     upload.target_id = target_id
     upload.error_summary = ''
+    upload.save(update_fields=[
+        'state', 'imported_at', 'imported_by', 'target_type', 'target_id',
+        'error_summary',
+    ])
     return True
 
 

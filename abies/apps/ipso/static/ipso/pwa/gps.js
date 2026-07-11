@@ -1,6 +1,6 @@
 // GPS manager. Wraps navigator.geolocation.watchPosition() with:
 //  - persistent in-memory cache of the latest fix;
-//  - staleness threshold (10 s -> dot turns red);
+//  - staleness threshold (GPS_STALE_MS -> dot turns red);
 //  - subscriber callback for UI updates;
 //  - self-healing watcher (heartbeat-driven restart) — Android's GPS
 //    subsystem aggressively power-saves and watchPosition often goes
@@ -17,7 +17,6 @@
 // Anything > 30 m is flagged red.
 const GPS_GREEN_M = 10;
 const GPS_YELLOW_M = 30;
-const GPS_STALE_MS = 10000;
 // Restart the watcher if no fresh fix has arrived in this long. Tightened
 // from 8 s to 3 s — under canopy the OS sometimes delivers callbacks
 // every several seconds; restarting sooner provokes a fresh delivery
@@ -35,6 +34,7 @@ function createGps(onChange) {
   let heartbeatTimer = null;
   let visibilityHandler = null;
   let errorBackoffTimer = null;
+  let permissionDenied = false;
 
   function emit() {
     onChange && onChange(state());
@@ -80,6 +80,7 @@ function createGps(onChange) {
           t: Date.now(),
         };
         lastError = null;
+        permissionDenied = false;
         restartingAt = 0;
         emit();
       },
@@ -87,7 +88,12 @@ function createGps(onChange) {
         if (err && err.code === err.PERMISSION_DENIED) {
           // Terminal: stop trying — restarting just thrashes the prompt.
           lastError = 'denied';
+          permissionDenied = true;
           stopWatcherOnly();
+          if (errorBackoffTimer) {
+            clearTimeout(errorBackoffTimer);
+            errorBackoffTimer = null;
+          }
           emit();
           return;
         }
@@ -118,6 +124,8 @@ function createGps(onChange) {
   }
 
   function restart(reason) {
+    if (permissionDenied && reason !== 'visibility') return;
+    if (reason === 'visibility') permissionDenied = false;
     // Guard against piling up restarts within a short window.
     const now = Date.now();
     if (now - restartingAt < 1500) return;
@@ -155,7 +163,8 @@ function createGps(onChange) {
   }
 
   function start() {
-    if (watchId != null) return;
+    if (watchId != null || heartbeatTimer != null) return;
+    permissionDenied = false;
     attachWatcher();
     heartbeatTimer = setInterval(heartbeat, GPS_HEARTBEAT_MS);
     visibilityHandler = onVisibility;

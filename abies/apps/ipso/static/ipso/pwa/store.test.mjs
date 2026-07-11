@@ -15,6 +15,31 @@ function same(actual, expected) {
   return JSON.stringify(actual) === JSON.stringify(expected);
 }
 
+// openDb closes its connection when another tab needs a schema upgrade.
+{
+  const previousIndexedDB = globalThis.indexedDB;
+  let closed = false;
+  const db = {
+    objectStoreNames: { contains: () => true },
+    close() { closed = true; },
+  };
+  globalThis.indexedDB = {
+    open(name, version) {
+      check(name === Store.DB_NAME, 'openDb uses the Ipso database name');
+      check(version === Store.SCHEMA_VERSION, 'openDb uses the current schema version');
+      const request = { result: db, error: null };
+      queueMicrotask(() => request.onsuccess());
+      return request;
+    },
+  };
+
+  const opened = await Store.openDb();
+  opened.onversionchange();
+  check(closed, 'openDb closes the connection on versionchange');
+  if (previousIndexedDB === undefined) delete globalThis.indexedDB;
+  else globalThis.indexedDB = previousIndexedDB;
+}
+
 function makeMetaDb() {
   const rows = new Map();
   return {
@@ -69,6 +94,97 @@ function makeMetaDb() {
   };
 }
 
+function makeStoreDb({ sessions = [], trees = [], meta = [] } = {}) {
+  const data = {
+    sessions: new Map(sessions.map(row => [row.id, { ...row }])),
+    trees: new Map(trees.map(row => [row.id, { ...row }])),
+    meta: new Map(meta.map(row => [row.key, { ...row }])),
+  };
+  const db = {
+    ...data,
+    transaction() {
+      let pending = 0;
+      let completed = false;
+      const transaction = {
+        error: null,
+        objectStore(name) {
+          if (name === 'sessions') return objectStore(data.sessions, 'id');
+          if (name === 'trees') return treeStore(data.trees);
+          if (name === 'meta') return objectStore(data.meta, 'key');
+          throw new Error(`unknown store ${name}`);
+        },
+        abort() {},
+      };
+      function request(action) {
+        const result = {};
+        pending += 1;
+        queueMicrotask(() => {
+          try {
+            result.result = action();
+            if (result.onsuccess) result.onsuccess();
+          } catch (error) {
+            result.error = error;
+            transaction.error = error;
+            if (result.onerror) result.onerror();
+            if (transaction.onerror) transaction.onerror();
+          } finally {
+            pending -= 1;
+            if (pending === 0) {
+              setTimeout(() => {
+                if (pending === 0 && !completed && transaction.oncomplete) {
+                  completed = true;
+                  transaction.oncomplete();
+                }
+              }, 0);
+            }
+          }
+        });
+        return result;
+      }
+      function objectStore(rows, keyField) {
+        return {
+          get(key) {
+            return request(() => {
+              const row = rows.get(key);
+              return row ? { ...row } : row;
+            });
+          },
+          put(row) {
+            return request(() => {
+              rows.set(row[keyField], { ...row });
+              return row[keyField];
+            });
+          },
+        };
+      }
+      function treeStore(rows) {
+        return {
+          ...objectStore(rows, 'id'),
+          delete(key) {
+            return request(() => rows.delete(key));
+          },
+          index(name) {
+            if (name !== 'by_session') throw new Error(`unknown index ${name}`);
+            return {
+              getAll(sessionId) {
+                return request(() => [...rows.values()]
+                  .filter(row => row.session_id === sessionId)
+                  .map(row => ({ ...row })));
+              },
+              count(sessionId) {
+                return request(() => [...rows.values()]
+                  .filter(row => row.session_id === sessionId).length);
+              },
+            };
+          },
+        };
+      }
+      return transaction;
+    },
+  };
+  return db;
+}
+
 check(
   Store.nextSeqAfterRows([]) === 1,
   'nextSeqAfterRows starts fresh sessions at one',
@@ -105,6 +221,14 @@ check(
   Store.nextSeqAfterRows([{ seq: 1 }, { seq: null }, {}]) === 2,
   'nextSeqAfterRows ignores missing sequence values',
 );
+check(
+  Store.nextSeqForSession({ last_seq: 3 }, [{ seq: 1 }]) === 4,
+  'nextSeqForSession does not reuse a deleted maximum sequence',
+);
+check(
+  Store.nextSeqForSession({}, [{ seq: 1 }, { seq: 3 }]) === 4,
+  'nextSeqForSession falls back to current rows for legacy sessions',
+);
 
 check(
   Store.nextNumberAfterSave(null, 5) === 6,
@@ -125,8 +249,14 @@ check(
 check(
   Store.nextNumberAfterDelete(111, [
     { numero: 101 }, { numero: 103 }, { numero: 102 },
-  ]) === 104,
-  'nextNumberAfterDelete follows the highest remaining number',
+  ]) === 111,
+  'nextNumberAfterDelete does not roll back a persisted operator counter',
+);
+check(
+  Store.nextNumberAfterDelete(162, [
+    { numero: 10 },
+  ]) === 162,
+  'nextNumberAfterDelete preserves cross-session counter state after deleting a high in-session number',
 );
 check(
   Store.nextNumberAfterDelete(8, [
@@ -158,6 +288,62 @@ check(
   const refreshed = await Store.getCachedBootResources(db);
   check(same(refreshed.reference, replacement), 'new reference replaces the last-good snapshot');
   check(same(refreshed.terreni, terreni), 'reference refresh retains last-good geometry');
+}
+
+// deleteTree performs the row delete, session count refresh, and monotonic
+// operator-counter update in the same durable transaction.
+{
+  const metaKey = 'next_number:martellate:mario';
+  const db = makeStoreDb({
+    sessions: [{ id: 's1', operatore: 'Mario', mode: 'martellate', tree_count: 2 }],
+    trees: [
+      { id: 1, session_id: 's1', seq: 1, numero: 10 },
+      { id: 2, session_id: 's1', seq: 2, numero: 161 },
+    ],
+    meta: [{ key: metaKey, value: 162 }],
+  });
+
+  await Store.deleteTree(db, 's1', 2);
+
+  check(!db.trees.has(2), 'deleteTree removes the requested tree row');
+  check(db.sessions.get('s1').tree_count === 1,
+        'deleteTree refreshes the session tree_count in the transaction');
+  check(db.meta.get(metaKey).value === 162,
+        'deleteTree does not roll the persisted operator counter backwards');
+}
+
+{
+  const db = makeStoreDb({
+    sessions: [{ id: 's1', operatore: 'Mario', mode: 'martellate', tree_count: 0 }],
+    trees: [{ id: 7, session_id: 'other', seq: 1, numero: 4 }],
+  });
+  let rejected = false;
+  try {
+    await Store.deleteTree(db, 's1', 7);
+  } catch (_) {
+    rejected = true;
+  }
+  check(rejected, 'deleteTree rejects rows belonging to another session');
+  check(db.trees.has(7), 'session-mismatch delete leaves the tree row untouched');
+}
+
+// Pending-upload sessions retain the exact payload built at session close so
+// offline retries do not rebuild against changed reference data.
+{
+  const payload = { records: [{ client_record_id: 'r1' }], csv_text: 'csv' };
+  const db = makeStoreDb({
+    sessions: [{ id: 's1', status: Store.STATUS_OPEN, tree_count: 1 }],
+  });
+
+  await Store.setSessionPendingUpload(db, 's1', payload, 1);
+
+  const row = db.sessions.get('s1');
+  check(row.status === Store.STATUS_PENDING_UPLOAD,
+        'setSessionPendingUpload marks the session pending upload');
+  check(same(row.upload_payload, payload),
+        'setSessionPendingUpload persists the exact upload payload');
+  check(row.upload_tree_count === 1,
+        'setSessionPendingUpload persists the payload tree count');
 }
 
 if (failures.length) {

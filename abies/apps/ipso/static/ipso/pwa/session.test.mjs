@@ -2,6 +2,7 @@ import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
 const session = require('./session.js');
+const { FIELD_SAMPLE_AREA_ID } = require('./constants.js');
 
 let pass = 0;
 const failures = [];
@@ -18,7 +19,7 @@ function validTree(overrides = {}) {
     h_m: 22,
     numero: 1,
     particella: '7',
-    sample_area_id: 3,
+    [FIELD_SAMPLE_AREA_ID]: 3,
     lat: 38.5,
     lon: 16.3,
     acc_m: 12,
@@ -42,7 +43,10 @@ check(
   'blank parcel remains allowed unless the mode requires it',
 );
 check(
-  session.validateTree(validTree({ sample_area_id: null }), { sampleAreaRequired: true }).includes('sample_area_id'),
+  session.validateTree(
+    validTree({ [FIELD_SAMPLE_AREA_ID]: null }),
+    { sampleAreaRequired: true },
+  ).includes(FIELD_SAMPLE_AREA_ID),
   'sampleAreaRequired still rejects missing sample area',
 );
 check(
