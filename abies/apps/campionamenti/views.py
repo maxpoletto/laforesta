@@ -400,7 +400,7 @@ def area_form_view(request, area_id: int | None = None):
             raise Http404
         grid = area.sample_grid
     else:
-        grid_id = int(request.GET.get('grid', 0)) or None
+        grid_id = int_or_none(request.GET.get('grid'))
         if grid_id is None:
             raise Http404('grid required')
         grid = SampleGrid.objects.filter(id=grid_id).first()

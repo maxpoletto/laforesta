@@ -1083,6 +1083,10 @@ class TestAreaCRUD:
         resp = writer_client.get('/api/campionamenti/area/form/')
         assert resp.status_code == 404
 
+    def test_form_add_rejects_malformed_grid(self, writer_client, db):
+        resp = writer_client.get('/api/campionamenti/area/form/?grid=abc')
+        assert resp.status_code == 404
+
     def test_reader_form_forbidden(self, reader_client, db):
         resp = reader_client.get('/api/campionamenti/area/form/')
         assert resp.status_code == 403
