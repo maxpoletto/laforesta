@@ -8,7 +8,7 @@
 .bosco-page {
   position: relative;
   display: flex;
-  height: calc(100vh - 52px);
+  height: calc(100vh - var(--header-height));
   min-height: 480px;
   width: 100%;
 }
@@ -36,7 +36,7 @@
   height: 100%;
   overflow-y: auto;
   background: #fff;
-  border-left: 4px solid #006400;
+  border-left: 4px solid var(--color-bosco-green);
 }
 
 .bosco-sidebar.hidden { display: none; }
@@ -179,7 +179,7 @@
 }
 
 .bosco-gradient.satellite {
-  background: linear-gradient(90deg, #8b5a2b, #f5ebc8 50%, #006400);
+  background: linear-gradient(90deg, #8b5a2b, #f5ebc8 50%, var(--color-bosco-green));
 }
 
 .bosco-gradient.diff {
@@ -236,7 +236,7 @@
   justify-content: space-between;
   gap: 16px;
   padding: 14px 18px;
-  border-bottom: 4px solid #006400;
+  border-bottom: 4px solid var(--color-bosco-green);
 }
 
 .bosco-detail-kicker {
@@ -261,7 +261,7 @@
 }
 
 .bosco-detail-nav,
-.bosco-detail-close {
+.bosco-detail-actions .detail-close {
   min-width: 36px;
   height: 36px;
   padding: 0;

@@ -9,7 +9,7 @@ Static Italian text lives here; JS wires controls and fills dynamic data.
 
     <aside class="bosco-sidebar" id="bosco-sidebar" aria-label="Controlli Bosco">
       <div class="bosco-sidebar-inner">
-        <section class="bosco-sidebar-section bosco-status-section">
+        <section class="bosco-sidebar-section">
           <div class="bosco-status" data-role="status">Caricamento...</div>
           <div class="bosco-coords" id="coords"></div>
           <label for="bosco-region-select">Compresa</label>
@@ -109,7 +109,7 @@ Static Italian text lives here; JS wires controls and fills dynamic data.
         <div class="bosco-detail-actions">
           <button type="button" class="btn bosco-detail-nav" data-action="detail-prev-parcel" aria-label="Particella precedente" disabled title="Particella precedente">‹</button>
           <button type="button" class="btn bosco-detail-nav" data-action="detail-next-parcel" aria-label="Particella successiva" disabled title="Particella successiva">›</button>
-          <button type="button" class="btn bosco-detail-close" data-action="close-detail" aria-label="Chiudi" title="Chiudi">×</button>
+          <button type="button" class="btn detail-close" data-action="close-detail" aria-label="Chiudi" title="Chiudi">×</button>
         </div>
       </div>
       <div class="bosco-detail-body">
@@ -137,7 +137,7 @@ Static Italian text lives here; JS wires controls and fills dynamic data.
               <button type="button" class="btn" data-action="show-all-dendrometry-species">Tutte</button>
               <button type="button" class="btn" data-action="hide-all-dendrometry-species">Nessuna</button>
             </div>
-            <div class="bosco-dendrometry-charts" data-target="dendrometry">
+            <div data-target="dendrometry">
               <p class="bosco-detail-note" data-target="dendrometry-status"></p>
               <div class="bosco-chart-grid" data-target="dendrometry-chart-grid">
                 <div class="bosco-chart-panel">

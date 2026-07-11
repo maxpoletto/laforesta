@@ -1,6 +1,7 @@
 """Tests for Bosco API views."""
 
 import base64
+import re
 
 import numpy as np
 import pytest
@@ -15,9 +16,10 @@ from apps.base.models import DigestStatus, Region, Tree, TreePreserved
 from config import strings as S
 from config.constants import (
     DATA_ID, DELETES, DIGEST_PARCELS, DIGEST_PRESERVED_TREES, FIELD_DATE,
-    FIELD_D_CM, FIELD_ESTIMATED_BIRTH_YEAR, FIELD_H_M, FIELD_LAT, FIELD_LON,
-    FIELD_NONCE, FIELD_NOTE, FIELD_NUMBER, FIELD_PARCEL_ID, FIELD_SPECIES_ID,
-    HTML, MESSAGE, PATCHES, RECORD, ROW_ID, STATUS, STATUS_CONFLICT, VERSION,
+    FIELD_D_CM, FIELD_ESTIMATED_BIRTH_YEAR, FIELD_ACC_M, FIELD_H_M, FIELD_LAT,
+    FIELD_LON, FIELD_NONCE, FIELD_NOTE, FIELD_NUMBER, FIELD_OPERATOR,
+    FIELD_PARCEL_ID, FIELD_SPECIES_ID, HTML, MESSAGE, PATCHES, RECORD, ROW_ID,
+    STATUS, STATUS_CONFLICT, VERSION,
 )
 
 
@@ -190,8 +192,14 @@ def test_pai_form_writer_access(writer_client, regions, parcels, species):
     assert 'id="bosco-pai-form"' in html
     assert 'Capistrano 1' in html
     assert f'value="{parcels[0].id}" data-region="{regions[0].id}"\n            selected' in html
-    assert 'id="id_pai_lat" name="lat"\n               required value="38.12345"' in html
-    assert 'id="id_pai_lon" name="lon"\n               required value="16.12345"' in html
+    assert re.search(
+        r'<input[^>]*id="id_pai_lat"[^>]*name="lat"[^>]*required[^>]*value="38\.12345(?:0)?"',
+        html,
+    )
+    assert re.search(
+        r'<input[^>]*id="id_pai_lon"[^>]*name="lon"[^>]*required[^>]*value="16\.12345(?:0)?"',
+        html,
+    )
 
 
 def test_pai_save_creates_preserved_tree(writer_client, parcels, species):
@@ -256,6 +264,64 @@ def test_pai_save_defaults_blank_number_to_next_in_parcel(writer_client, parcels
     assert pai.parcel == parcels[0]
     data = resp.json()
     assert data[PATCHES][0][RECORD] == build_preserved_tree_record(pai)
+
+
+def test_pai_save_updates_preserved_tree(writer_client, parcels, species):
+    tree = Tree.objects.create(
+        species=species[0], parcel=parcels[0], preserved=True,
+        estimated_birth_year=1920, lat=38.1, lon=16.1, acc_m=5,
+    )
+    pai = TreePreserved.objects.create(
+        tree=tree, parcel=parcels[0], number=7,
+        date='2024-09-15', d_cm=42, h_m='18.50', h_measured=True,
+        lat=38.1, lon=16.1, acc_m=5, operator='Mario', note='old',
+    )
+    body = {
+        ROW_ID: str(pai.id), VERSION: str(pai.version),
+        FIELD_SPECIES_ID: str(species[1].id),
+        FIELD_PARCEL_ID: str(parcels[1].id),
+        FIELD_NUMBER: '11',
+        FIELD_DATE: '2024-10-02',
+        FIELD_ESTIMATED_BIRTH_YEAR: '1935',
+        FIELD_D_CM: '55',
+        FIELD_H_M: '24,75',
+        FIELD_LAT: '38,22222',
+        FIELD_LON: '16,33333',
+        FIELD_ACC_M: '9',
+        FIELD_OPERATOR: 'Luisa',
+        FIELD_NOTE: 'updated',
+        FIELD_NONCE: 'pai-edit-success',
+    }
+
+    resp = writer_client.post('/api/bosco/pai/save/', body,
+                              content_type='application/json')
+
+    assert resp.status_code == 200
+    tree.refresh_from_db()
+    pai.refresh_from_db()
+    assert tree.species == species[1]
+    assert tree.parcel == parcels[1]
+    assert tree.estimated_birth_year == 1935
+    assert tree.lat == 38.22222
+    assert tree.lon == 16.33333
+    assert tree.acc_m == 9
+    assert tree.preserved is True
+    assert tree.version == 2
+    assert pai.parcel == parcels[1]
+    assert pai.number == 11
+    assert pai.date.isoformat() == '2024-10-02'
+    assert pai.d_cm == 55
+    assert str(pai.h_m) == '24.75'
+    assert pai.operator == 'Luisa'
+    assert pai.note == 'updated'
+    assert pai.version == 2
+    patch = resp.json()[PATCHES][0]
+    assert patch == {
+        DATA_ID: DIGEST_PRESERVED_TREES,
+        ROW_ID: pai.id,
+        RECORD: build_preserved_tree_record(pai),
+    }
+    assert DigestStatus.objects.get(name=DIGEST_PRESERVED_TREES).stale is True
 
 
 def test_pai_save_rejects_duplicate_number_in_parcel(writer_client, parcels, species):

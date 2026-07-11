@@ -59,7 +59,7 @@
       <div class="form-group">
         <label for="id_pai_h_m">h (m)</label>
         <input type="text" inputmode="decimal" id="id_pai_h_m" name="h_m"
-               value="{{ h_m }}">
+               value="{{ h_m|floatformat:2 }}">
       </div>
     </div>
 
@@ -77,7 +77,7 @@
     </div>
 
     <div class="form-row">
-      <div class="form-group form-group-wide">
+      <div class="form-group">
         <label for="id_pai_note">Note</label>
         <textarea id="id_pai_note" name="note" rows="3">{{ note }}</textarea>
       </div>

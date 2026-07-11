@@ -392,8 +392,8 @@ def _render_pai_form(request, pai_id: int | None = None, values: dict | None = N
         ),
         'd_cm': _form_value(values, FIELD_D_CM, pai.d_cm if pai else '', blank=True),
         'h_m': _form_value(values, FIELD_H_M, pai.h_m if pai else '', blank=True),
-        'lat': _form_value(values, FIELD_LAT, pai.lat if pai else request.GET.get(FIELD_LAT, '')),
-        'lon': _form_value(values, FIELD_LON, pai.lon if pai else request.GET.get(FIELD_LON, '')),
+        'lat': _coord_form_value(values, FIELD_LAT, pai.lat if pai else request.GET.get(FIELD_LAT, '')),
+        'lon': _coord_form_value(values, FIELD_LON, pai.lon if pai else request.GET.get(FIELD_LON, '')),
         'note': _form_value(values, FIELD_NOTE, pai.note if pai else '', blank=True),
     }, request=request)
 
@@ -412,6 +412,16 @@ def _form_value(values: dict | None, key: str, default, *, blank=False):
             return value or ''
         return value
     return default if default is not None else ''
+
+
+def _coord_form_value(values: dict | None, key: str, default):
+    value = _form_value(values, key, default)
+    if value in (None, ''):
+        return ''
+    coord = coord_float(parse_decimal(value))
+    if coord is None:
+        return value
+    return f'{coord:.5f}'
 
 
 def _parse_pai_body(body: dict):

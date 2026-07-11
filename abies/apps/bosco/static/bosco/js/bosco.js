@@ -108,6 +108,7 @@ const SATELLITE_OUTSIDE_ALPHA = 60;
 const SATELLITE_OVERLAY_CLASS = 'bosco-satellite-raster-overlay';
 const TYPE_HIGHFOREST_KEY = 'highforest';
 const TYPE_COPPICE_KEY = 'coppice';
+const RASTER_TOOLTIP_HANDLERS = Symbol('rasterTooltipHandlers');
 
 const NO_DATA_STYLE = {
   ...PARCEL_STYLE,
@@ -751,13 +752,27 @@ function buildMapParcelEntries(state) {
     if (!entry) return;
     entry.layers.push(layer);
     entry.geoAreaHa += (layer.feature?.properties?._areaM2 || 0) / M2_PER_HA;
-    layer.on('mousemove', e => onRasterTooltipMove(entry, layer, e.latlng));
-    layer.on('mouseout', () => onRasterTooltipOut(entry, layer));
+    bindRasterTooltipHandlers(layer, entry);
   });
 
   mapEntries = entries;
   mapEntriesByKey = byKey;
   updateMapDisplayAreas(state);
+}
+
+function bindRasterTooltipHandlers(layer, entry) {
+  const previous = layer[RASTER_TOOLTIP_HANDLERS];
+  if (previous) {
+    layer.off?.('mousemove', previous.move);
+    layer.off?.('mouseout', previous.out);
+  }
+  const handlers = {
+    move: e => onRasterTooltipMove(entry, layer, e.latlng),
+    out: () => onRasterTooltipOut(entry, layer),
+  };
+  layer.on('mousemove', handlers.move);
+  layer.on('mouseout', handlers.out);
+  layer[RASTER_TOOLTIP_HANDLERS] = handlers;
 }
 
 function updateMapDisplayAreas(state) {
@@ -906,7 +921,7 @@ function renderSatelliteCharacteristic(seq) {
 function renderCharacteristicRaster(seq, layer, date) {
   clearSatelliteRasterOverlay();
   resetParcelStyles();
-  renderMessageLegend(legendEl, S.BOSCO_LOADING_RASTER);
+  renderMessageLegend(S.BOSCO_LOADING_RASTER);
   const rawUrl = satelliteRawUrl(currentState.regionId, layer, date);
   const maskUrl = satelliteMaskRawUrl(currentState.regionId);
   Promise.all([loadRawRaster(rawUrl), loadRawRaster(maskUrl)]).then(([raster, mask]) => {
@@ -924,7 +939,7 @@ function renderCharacteristicRaster(seq, layer, date) {
     renderSatelliteLegend(legendEl, layer, date);
     setStatus(`${SATELLITE_LAYERS[layer]?.label || layer.toUpperCase()} ${date.slice(0, 7)}`);
   }).catch(() => {
-    if (seq === characteristicRenderSeq) renderMessageLegend(legendEl, S.BOSCO_RASTER_UNAVAILABLE);
+    if (seq === characteristicRenderSeq) renderMessageLegend(S.BOSCO_RASTER_UNAVAILABLE);
   });
 }
 
@@ -1388,8 +1403,12 @@ function metricDisplay(metricId, value) {
   if (metricId === Q_TYPE) return value;
   if (characteristicSatelliteLayer(metricId)) return fmtDecimal2(value);
   const perHa = currentState?.harvestPerHa && isHarvestMetric(metricId);
-  if (metricId === Q_HISTORICAL_HARVEST) return perHa ? `${fmtDecimal2(value)} q/ha` : fmtMass(value);
-  if (metricId === Q_FUTURE_HARVEST) return perHa ? `${fmtDecimal2(value)} m³/ha` : fmtVolume(value);
+  if (metricId === Q_HISTORICAL_HARVEST) {
+    return perHa ? S.BOSCO_QUINTALS_PER_HA_VALUE(fmtDecimal2(value)) : fmtMass(value);
+  }
+  if (metricId === Q_FUTURE_HARVEST) {
+    return perHa ? S.BOSCO_VOLUME_PER_HA_VALUE(fmtDecimal2(value)) : fmtVolume(value);
+  }
   const unit = CHARACTERISTIC_METRICS[metricId]?.unit;
   const display = wholeNumberMetric(metricId) ? fmtRoundedInt(value) : fmtDecimal1(value);
   return unit ? `${display} ${unit}` : display;
@@ -1891,7 +1910,7 @@ function renderProduction() {
   productionChart = renderStackedBar(productionCanvas, result.chartData, productionChart);
   const area = scope.areaHa || 0;
   const total = perHa && area > 0
-    ? `${fmtDecimal2(result.totalQuintals / area)} q/ha`
+    ? S.BOSCO_QUINTALS_PER_HA_VALUE(fmtDecimal2(result.totalQuintals / area))
     : fmtMass(result.totalQuintals);
   productionSummary.textContent = `${total} - ${S.BOSCO_INTERVENTIONS(fmtInt(result.rowCount))}`;
 }
