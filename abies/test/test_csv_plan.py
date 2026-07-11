@@ -4,7 +4,7 @@ import io
 
 import pytest
 
-from apps.base.models import HarvestPlanItem, ParcelPlanDetail
+from apps.base.models import HarvestPlanItem, Parcel, ParcelPlanDetail
 from apps.piano_di_taglio import csv_plan
 from config import strings as S
 
@@ -46,6 +46,40 @@ def test_parse_fustaia_happy(parcels):
     assert errors == []
     assert len(parsed) == 1
     assert parsed[0][csv_plan.FIELD_YEAR_PLANNED] == 2027
+
+
+@pytest.mark.django_db
+def test_parse_fustaia_parcel_name_matching_is_case_insensitive(parcels):
+    parcel = Parcel.objects.create(
+        name='CaseA', region=parcels[0].region, eclass=parcels[0].eclass,
+        area_ha='1.00',
+    )
+    idx = csv_plan.db_indexes()
+    errors = []
+    csv_in = (
+        'Compresa,Particella,Anno,Prelievo (m³)\r\n'
+        f'{parcel.region.name.upper()},{parcel.name.lower()},2027,250\r\n'
+    )
+    parsed = csv_plan.parse_fustaia_rows(_fustaia(csv_in), idx.parcels, idx.regions, errors)
+    assert errors == []
+    assert parsed[0][csv_plan.FIELD_PARCEL_ID] == parcel
+
+
+@pytest.mark.django_db
+def test_parse_ceduo_parcel_name_matching_is_case_insensitive(parcels):
+    parcel = Parcel.objects.create(
+        name='CaseB', region=parcels[0].region, eclass=parcels[1].eclass,
+        area_ha='1.00',
+    )
+    idx = csv_plan.db_indexes()
+    errors = []
+    csv_in = (
+        'Anno,Compresa,Particella,Superficie intervento (ha),Turno (a),Note\r\n'
+        f'2028,{parcel.region.name.upper()},{parcel.name.lower()},2.5,18,Cont.\r\n'
+    )
+    parsed = csv_plan.parse_ceduo_rows(_ceduo(csv_in), idx.parcels, errors)
+    assert errors == []
+    assert parsed[0][csv_plan.FIELD_PARCEL_ID] == parcel
 
 
 @pytest.mark.django_db

@@ -16,9 +16,12 @@ from datetime import date as date_type
 from decimal import Decimal
 
 import pytest
+from django.core.exceptions import ValidationError
+from django.db import IntegrityError
 from django.test import Client
 
 from apps.base import csv_io
+from apps.base.digests import build_tree_mark_record
 from apps.base.models import (
     DigestStatus, HarvestDetail, HarvestPlan, HarvestPlanItem,
     HarvestPlanItemState, HarvestTransition, Parcel, ParcelPlanDetail, Tree,
@@ -121,17 +124,6 @@ class TestPlanCRUD:
             '/api/piano-di-taglio/plan/save/',
             data=json.dumps(payload), content_type='application/json',
         )
-
-    def test_reader_form_forbidden(self, reader_client, db):
-        resp = reader_client.get('/api/piano-di-taglio/plan/form/')
-        assert resp.status_code == 403
-
-    def test_form_renders(self, writer_client, db):
-        resp = writer_client.get('/api/piano-di-taglio/plan/form/')
-        assert resp.status_code == 200
-        html = resp.json()[HTML]
-        assert 'id="plan-form"' in html
-        assert 'name="name"' in html
 
     def test_create(self, writer_client, db):
         resp = self._post(writer_client, {
@@ -283,6 +275,32 @@ class TestPlanCSVImport:
         )
         assert resp.status_code == 400
 
+    def test_import_rejects_invalid_planned_volume(self, writer_client, parcels):
+        bad_csv = (
+            'Compresa,Particella,Anno,Prelievo (m³)\r\n'
+            'Capistrano,1,2027,abc\r\n'
+        )
+        resp = self._upload(
+            writer_client, name='Bad volume plan',
+            fustaia_file=io.BytesIO(bad_csv.encode('utf-8')),
+        )
+
+        assert resp.status_code == 400
+        assert 'abc' in resp.json()[MESSAGE]
+
+    def test_import_rejects_negative_planned_volume(self, writer_client, parcels):
+        bad_csv = (
+            'Compresa,Particella,Anno,Prelievo (m³)\r\n'
+            'Capistrano,1,2027,-1\r\n'
+        )
+        resp = self._upload(
+            writer_client, name='Negative volume plan',
+            fustaia_file=io.BytesIO(bad_csv.encode('utf-8')),
+        )
+
+        assert resp.status_code == 400
+        assert '-1' in resp.json()[MESSAGE]
+
     def test_import_whole_region_fustaia(
         self, writer_client, plan, regions,
     ):
@@ -355,6 +373,33 @@ class TestPlanCSVImport:
             harvest_plan=plan, parcel=parcels[0], year_planned=2032,
         )
         assert it.volume_planned_m3 == Decimal('75')
+
+    def test_import_rejects_target_change_when_linked_harvest_exists(
+        self, writer_client, plan, planned_item, parcels, products, crews,
+    ):
+        Harvest.objects.create(
+            date=date_type(2025, 6, 1), product=products[0], crew=crews[0],
+            parcel=planned_item.parcel, harvest_plan_item=planned_item,
+            mass_q=Decimal('10.00'), volume_m3=Decimal('1.000'),
+            damaged=planned_item.damaged, unhealthy=planned_item.unhealthy,
+            psr=planned_item.psr,
+        )
+        csv_in = (
+            f'{S.COL_ID};Compresa;Particella;Anno;{S.COL_VOLUME_PLANNED};Note\r\n'
+            f'{planned_item.id};{parcels[1].region.name};{parcels[1].name};'
+            f'{planned_item.year_planned};175;\r\n'
+        )
+
+        resp = self._upload(
+            writer_client, harvest_plan_id=plan.id,
+            fustaia_file=io.BytesIO(csv_in.encode('utf-8')),
+        )
+
+        assert resp.status_code == 400
+        assert S.ERR_PLAN_ITEM_LINKED_HARVESTS_INVARIANT in resp.json()[MESSAGE]
+        planned_item.refresh_from_db()
+        assert planned_item.parcel_id == parcels[0].id
+        assert planned_item.volume_planned_m3 == Decimal('100.000')
 
     def test_import_total_volume_header_rejected(self, writer_client, plan, parcels):
         csv_in = (
@@ -779,6 +824,43 @@ class TestItemCRUD:
         })
         assert resp.status_code == 200
 
+    def test_create_flattens_model_validation_errors(
+        self, writer_client, plan, parcels, monkeypatch,
+    ):
+        def fail_clean(self):
+            raise ValidationError(['Errore uno', 'Errore due'])
+
+        monkeypatch.setattr(HarvestPlanItem, 'clean', fail_clean)
+        resp = self._save(writer_client, {
+            FIELD_HARVEST_PLAN_ID: plan.id,
+            FIELD_PARCEL_ID: parcels[0].id,
+            FIELD_YEAR_PLANNED: 2027,
+            FIELD_VOLUME_PLANNED_M3: '150',
+        })
+
+        assert resp.status_code == 400
+        message = resp.json()[MESSAGE]
+        assert 'Errore uno' in message
+        assert 'Errore due' in message
+        assert '[' not in message
+
+    def test_create_hides_raw_integrity_trigger_text(
+        self, writer_client, plan, parcels, monkeypatch,
+    ):
+        def fail_save(self, *args, **kwargs):
+            raise IntegrityError('harvest_plan_item: exactly one of region or parcel must be set')
+
+        monkeypatch.setattr(HarvestPlanItem, 'save', fail_save)
+        resp = self._save(writer_client, {
+            FIELD_HARVEST_PLAN_ID: plan.id,
+            FIELD_PARCEL_ID: parcels[0].id,
+            FIELD_YEAR_PLANNED: 2027,
+            FIELD_VOLUME_PLANNED_M3: '150',
+        })
+
+        assert resp.status_code == 400
+        assert resp.json()[MESSAGE] == S.ERROR_GENERIC
+
     def test_update_missing_version_conflicts(self, writer_client, planned_item):
         resp = self._save(writer_client, {
             ROW_ID: planned_item.id,
@@ -792,6 +874,32 @@ class TestItemCRUD:
         assert resp.json()[STATUS] == STATUS_CONFLICT
         planned_item.refresh_from_db()
         assert planned_item.note != 'missing version update'
+
+    def test_update_rejects_target_change_when_linked_harvest_exists(
+        self, writer_client, planned_item, parcels, products, crews,
+    ):
+        Harvest.objects.create(
+            date=date_type(2025, 6, 1), product=products[0], crew=crews[0],
+            parcel=planned_item.parcel, harvest_plan_item=planned_item,
+            mass_q=Decimal('10.00'), volume_m3=Decimal('1.000'),
+            damaged=planned_item.damaged, unhealthy=planned_item.unhealthy,
+            psr=planned_item.psr,
+        )
+
+        resp = self._save(writer_client, {
+            ROW_ID: planned_item.id,
+            VERSION: planned_item.version,
+            FIELD_PARCEL_ID: parcels[1].id,
+            FIELD_YEAR_PLANNED: planned_item.year_planned,
+            FIELD_VOLUME_PLANNED_M3: str(planned_item.volume_planned_m3),
+            FIELD_NOTE: 'target changed',
+        })
+
+        assert resp.status_code == 400
+        assert S.ERR_PLAN_ITEM_LINKED_HARVESTS_INVARIANT in resp.json()[MESSAGE]
+        planned_item.refresh_from_db()
+        assert planned_item.parcel_id == parcels[0].id
+        assert planned_item.note != 'target changed'
 
     def test_delete_planned(self, writer_client, planned_item):
         resp = writer_client.post(
@@ -896,6 +1004,16 @@ class TestTransitionSave:
         assert (S.ERR_TRANSITION_INVALID_STATE
                 in resp.json()[MESSAGE])
 
+    def test_malformed_slash_date_rejected(self, writer_client, planned_item):
+        resp = self._post(writer_client, {
+            FIELD_HARVEST_PLAN_ITEM_ID: planned_item.id,
+            FIELD_OPEN: True,
+            FIELD_DATE: '09/2024',
+        })
+
+        assert resp.status_code == 400
+        assert S.ERR_DATE_INVALID in resp.json()[MESSAGE]
+
 
 # ---------------------------------------------------------------------------
 # Per-item Esporta
@@ -913,8 +1031,8 @@ class TestItemExport:
         assert f'martellate_{planned_item.id}.csv' in names
         assert f'prelievi_{planned_item.id}.csv' in names
 
-    def test_item_export_uses_tractor_name_in_prelievi_header(
-        self, writer_client, planned_item, crews, products, tractors,
+    def test_item_export_uses_prefixed_percent_headers(
+        self, writer_client, planned_item, crews, products, tractors, species,
     ):
         tractor = tractors[0]
         tractor.name = 'T1'
@@ -933,7 +1051,8 @@ class TestItemExport:
         text = zf.read(f'prelievi_{planned_item.id}.csv').decode('utf-8-sig')
         delimiter, _ = csv_io.export_format()
         rows = list(csv.reader(io.StringIO(text), delimiter=delimiter))
-        assert 'T1' in rows[0]
+        assert f'{S.CSV_COL_SPECIES_PREFIX}{species[0].common_name}' in rows[0]
+        assert f'{S.CSV_COL_TRACTOR_PREFIX}T1' in rows[0]
         assert 'Fiat 110-90' not in rows[0]
 
     def test_export_numero_is_mark_number_not_id(
@@ -1217,6 +1336,22 @@ class TestMarkSave:
         assert tm.volume_m3 is None
         assert tm.mass_q is None
 
+    def test_create_rejects_negative_volume_and_mass(
+        self, writer_client, planned_item, species,
+    ):
+        resp = writer_client.post(
+            self.SAVE_URL,
+            data=json.dumps(self._mark_body(
+                planned_item, species[0],
+                **{FIELD_VOLUME_M3: '-1', FIELD_MASS_Q: '-2'},
+            )),
+            content_type='application/json',
+        )
+
+        assert resp.status_code == 400
+        assert S.ERR_MARK_VOLUME_NEGATIVE in resp.json()[MESSAGE]
+        assert S.ERR_MARK_MASS_NEGATIVE in resp.json()[MESSAGE]
+
     def test_create_materializes_volume(
         self, writer_client, planned_item, species,
     ):
@@ -1270,6 +1405,88 @@ class TestMarkSave:
         assert resp2.status_code == 200
         tm = TreeMark.objects.get(id=tm_id)
         assert tm.d_cm == 40
+
+    def test_update_mark_stale_version_conflicts(
+        self, writer_client, planned_item, species,
+    ):
+        sp = species[0]
+        resp = writer_client.post(
+            self.SAVE_URL,
+            data=json.dumps(self._mark_body(planned_item, sp)),
+            content_type='application/json',
+        )
+        data = resp.json()
+        tm_id = data[ROW_ID]
+        stale_version = next(p for p in data[PATCHES]
+                             if p[DATA_ID].startswith('mark_trees_'))[RECORD][1]
+        tm = TreeMark.objects.get(id=tm_id)
+        tm.d_cm = 35
+        tm.version += 1
+        tm.save(update_fields=[FIELD_D_CM, VERSION])
+
+        conflict = writer_client.post(
+            self.SAVE_URL,
+            data=json.dumps(self._mark_body(
+                planned_item, sp,
+                **{ROW_ID: tm_id, VERSION: stale_version, FIELD_D_CM: 40,
+                   FIELD_NONCE: 'mark-stale-update'},
+            )),
+            content_type='application/json',
+        )
+
+        assert conflict.status_code == 400
+        payload = conflict.json()
+        assert payload[STATUS] == STATUS_CONFLICT
+        patch = payload[PATCHES][0]
+        tm.refresh_from_db()
+        assert tm.d_cm == 35
+        assert patch == {
+            DATA_ID: f'mark_trees_{planned_item.id}',
+            ROW_ID: tm.id,
+            RECORD: build_tree_mark_record(tm),
+        }
+
+    def test_update_mark_rejects_submitted_item_mismatch(
+        self, writer_client, plan, planned_item, parcels, species,
+    ):
+        sp = species[0]
+        resp = writer_client.post(
+            self.SAVE_URL,
+            data=json.dumps(self._mark_body(planned_item, sp)),
+            content_type='application/json',
+        )
+        data = resp.json()
+        tm_id = data[ROW_ID]
+        version = next(p for p in data[PATCHES]
+                       if p[DATA_ID].startswith('mark_trees_'))[RECORD][1]
+        other_item = HarvestPlanItem.objects.create(
+            harvest_plan=plan,
+            parcel=parcels[1],
+            year_planned=2025,
+            volume_planned_m3=Decimal('100.0'),
+            state=HarvestPlanItemState.PLANNED,
+        )
+
+        resp2 = writer_client.post(
+            self.SAVE_URL,
+            data=json.dumps(self._mark_body(
+                other_item, sp,
+                **{ROW_ID: tm_id, VERSION: version, FIELD_D_CM: 40,
+                   FIELD_PARCEL_ID: parcels[1].id,
+                   FIELD_NONCE: 'wrong-item-update'},
+            )),
+            content_type='application/json',
+        )
+
+        assert resp2.status_code == 400
+        assert S.ERR_MARK_ITEM_MISMATCH in resp2.json()[MESSAGE]
+        tm = TreeMark.objects.get(id=tm_id)
+        assert tm.harvest_plan_item_id == planned_item.id
+        assert tm.d_cm == 30
+        planned_item.refresh_from_db()
+        other_item.refresh_from_db()
+        assert planned_item.volume_marked_m3 == Decimal('0.702')
+        assert other_item.volume_marked_m3 is None
 
     def test_update_region_wide_mark_can_change_parcel(
         self, writer_client, plan, parcels, species,
@@ -1461,6 +1678,50 @@ class TestMarkSave:
         assert resp2.status_code == 200
         assert TreeMark.objects.count() == 0
         assert Tree.objects.count() == 0
+
+    def test_delete_mark_stale_version_conflicts(
+        self, writer_client, planned_item, species,
+    ):
+        resp = writer_client.post(
+            self.SAVE_URL,
+            data=json.dumps(self._mark_body(planned_item, species[0])),
+            content_type='application/json',
+        )
+        data = resp.json()
+        tm_id = data[ROW_ID]
+        stale_version = next(p for p in data[PATCHES]
+                             if p[DATA_ID].startswith('mark_trees_'))[RECORD][1]
+        tm = TreeMark.objects.get(id=tm_id)
+        tm.version += 1
+        tm.save(update_fields=[VERSION])
+
+        conflict = writer_client.post(
+            self.DELETE_URL,
+            data=json.dumps({ROW_ID: tm_id, VERSION: stale_version}),
+            content_type='application/json',
+        )
+
+        assert conflict.status_code == 400
+        payload = conflict.json()
+        assert payload[STATUS] == STATUS_CONFLICT
+        tm.refresh_from_db()
+        assert TreeMark.objects.filter(id=tm_id).exists()
+        assert Tree.objects.filter(id=tm.tree_id).exists()
+        assert payload[PATCHES][0] == {
+            DATA_ID: f'mark_trees_{planned_item.id}',
+            ROW_ID: tm.id,
+            RECORD: build_tree_mark_record(tm),
+        }
+
+    def test_delete_mark_rejects_malformed_row_id(self, writer_client):
+        resp = writer_client.post(
+            self.DELETE_URL,
+            data=json.dumps({ROW_ID: 'not-an-id', VERSION: '1'}),
+            content_type='application/json',
+        )
+
+        assert resp.status_code == 400
+        assert S.ERR_ROW_ID_INVALID in resp.json()[MESSAGE]
 
     def test_delete_closed_rejected(self, writer_client, planned_item, species):
         resp = writer_client.post(

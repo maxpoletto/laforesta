@@ -37,11 +37,11 @@ import {
   FIELD_HIGHFOREST_FILE, FIELD_HARVEST_PLAN_ID, FIELD_HARVEST_PLAN_ITEM_ID,
   COL_COPPICE, FIELD_NAME, FIELD_NONCE, FIELD_NOTE,
   FIELD_OPEN, FIELD_YEAR_END, FIELD_YEAR_START,
-  HYPSO_FUNC_LN, ROW_ID, VERSION,
+  HYPSO_FUNC_LN, ROW_ID, STATUS_CONFLICT, VERSION,
 } from '../../base/js/constants.js';
 import {
   fmtDecimal2, fmtDecimal3, fmtInt, fmtCoord,
-  fmtVolume, fmtArea, fmtMass, parseDecimal,
+  fmtVolume, fmtArea, fmtMass, localISODate, parseDecimal,
 } from '../../base/js/format.js';
 import { buildPrelieviColumnDefs } from '../../base/js/prelievi-columns.js';
 import {
@@ -100,6 +100,7 @@ let hypsoParamsData = null;
 let descriptionEl = null;
 let planSelectEl = null;
 let activeItemId = null;
+let itemRenderSeq = 0;
 let prelieviData = null;
 let itemPrelieviTable = null;
 let itemMarkTreesTable = null;
@@ -176,7 +177,8 @@ function destroyPage() {
   if (disposeEscape) { disposeEscape(); disposeEscape = null; }
   if (disposePageActions) { disposePageActions(); disposePageActions = null; }
   destroyTables();
-  destroyItemPrelieviTable();
+  destroyItemTables();
+  itemRenderSeq += 1;
   activePlanId = null;
   activeItemId = null;
   plansData = itemsData = hypsoParamsData = prelieviData = null;
@@ -477,7 +479,7 @@ function onDeletePlan() {
   const planName = row[plansData.columns.indexOf(S.COL_NAME)];
   showCascadeDeleteModal({
     title: S.DELETE_PLAN_TITLE,
-    warning: S.DELETE_PLAN_WARNING.replace('{name}', planName),
+    warning: S.DELETE_PLAN_WARNING(planName),
     onExport: () => downloadPlanExport(activePlanId),
     onDelete: () => doDeletePlan(),
   });
@@ -534,8 +536,9 @@ async function showAddItemModal(section) {
 
 async function fetchAndOpenItemForm(url, kind, { onDone } = {}) {
   const form = await fetchModalForm(url);
-  if (!form) return;
+  if (!form) return null;
   wireItemFormModal(form, kind, onDone || (() => {}));
+  return form;
 }
 
 function wireItemFormModal(form, kind, onSuccess) {
@@ -570,6 +573,13 @@ function attachItemSubmit(form, kind, onSuccess) {
     },
     onHtml(html) {
       replaceItemFormInModal(html, kind, onSuccess);
+    },
+    async onConflict(data) {
+      applyWriteResponse(data);
+      const rowId = data?.[ROW_ID];
+      if (rowId == null) return;
+      const fresh = await fetchAndOpenItemForm(`${ITEM_FORM_URL}${rowId}/`, kind, { onDone: onSuccess });
+      if (fresh) showFormError(fresh, data.message || S.ERROR_CONFLICT);
     },
   });
 }
@@ -660,10 +670,7 @@ function confirmDeleteItem(itemId) {
   // forced-download step.
   showCascadeDeleteModal({
     title: S.DELETE_ITEM_TITLE,
-    warning: S.DELETE_ITEM_WARNING
-      .replace('{year}', year)
-      .replace('{region}', compresa)
-      .replace('{parcel}', parcel || ''),
+    warning: S.DELETE_ITEM_WARNING(year, compresa, parcel || ''),
     onDelete: () => doDeleteItem(itemId),
   });
 }
@@ -727,7 +734,7 @@ export function openEditPlanModal(initialTab, { ceduo = false } = {}) {
   const row = planRow(activePlanId);
   if (!row) return;
   const c = plansData.columns;
-  const current = {
+  let current = {
     name: row[c.indexOf(S.COL_NAME)] || '',
     description: row[c.indexOf(S.COL_DESCRIPTION)] || '',
     year_start: row[c.indexOf(S.COL_YEAR_START)],
@@ -775,6 +782,18 @@ export function openEditPlanModal(initialTab, { ceduo = false } = {}) {
     try {
       const { data, status } = await postJSON(PLAN_SAVE_URL, body);
       if (status !== 200) {
+        if (data?.status === STATUS_CONFLICT) {
+          applyWriteResponse(data);
+          onPlansUpdate();
+          const fresh = planRow(activePlanId);
+          if (fresh) current = {
+            name: fresh[c.indexOf(S.COL_NAME)] || '',
+            description: fresh[c.indexOf(S.COL_DESCRIPTION)] || '',
+            year_start: fresh[c.indexOf(S.COL_YEAR_START)],
+            year_end: fresh[c.indexOf(S.COL_YEAR_END)],
+            version: fresh[c.indexOf(VERSION)] ?? current.version,
+          };
+        }
         showFormError(detailsForm, data?.message || S.ERROR_GENERIC);
         return;
       }
@@ -946,13 +965,16 @@ function renderDescription() {
 
 function onPlansUpdate() {
   plansData = cache.get(PLANS_ID);
-  const el = document.getElementById('content');
-  if (!el) return;
-  buildPage(el);
   if (activePlanId != null && !planRow(activePlanId)) activePlanId = null;
   if (activePlanId == null && plansData?.rows.length) {
     activePlanId = plansData.rows[0][plansData.columns.indexOf(ROW_ID)];
   }
+  if (activeItemId != null) {
+    return;
+  }
+  const el = document.getElementById('content');
+  if (!el) return;
+  buildPage(el);
   setActivePlan(activePlanId);
 }
 
@@ -996,7 +1018,8 @@ function openItemView(itemId, push = false) {
 
 function closeItemView(push = false) {
   if (disposeEscape) { disposeEscape(); disposeEscape = null; }
-  destroyItemPrelieviTable();
+  destroyItemTables();
+  itemRenderSeq += 1;
   activeItemId = null;
   if (push) syncURL(true);
   const el = document.getElementById('content');
@@ -1020,31 +1043,48 @@ function destroyItemMarkTreesTable() {
   }
 }
 
+function destroyItemTables() {
+  destroyItemPrelieviTable();
+  destroyItemMarkTreesTable();
+}
+
 function itemViewIsActive(itemId) {
   return activeItemId === itemId;
+}
+
+function itemRenderIsCurrent(itemId, seq) {
+  return itemViewIsActive(itemId) && seq === itemRenderSeq;
 }
 
 async function renderItemView(itemId) {
   const el = document.getElementById('content');
   if (!el || !itemViewIsActive(itemId)) return;
 
-  showLoadingIn(el);
+  const renderSeq = ++itemRenderSeq;
+  const openingFromCalendar = SECTION_KEYS.some(k => sections[k].table);
+  if (openingFromCalendar) {
+    destroyTables();
+    destroyItemTables();
+    showLoadingIn(el);
+  }
 
   let payload;
   try {
     const { data } = await fetchJSON(`${ITEM_DATA_URL}${itemId}/`);
     payload = data;
   } catch {
-    if (itemViewIsActive(itemId)) showError(S.ERROR_NETWORK);
+    if (itemRenderIsCurrent(itemId, renderSeq)) showError(S.ERROR_NETWORK);
     return;
   }
-  if (!itemViewIsActive(itemId)) return;
+  if (!itemRenderIsCurrent(itemId, renderSeq)) return;
   if (!payload) { showError(S.ERROR_GENERIC); return; }
 
   const record = payload.record;
   const transitions = payload.transition_records || [];
   if (!record) { showError(S.ERROR_GENERIC); return; }
 
+  destroyTables();
+  destroyItemTables();
   el.replaceChildren();
 
   const c = itemsData?.columns;
@@ -1191,8 +1231,7 @@ function showTransitionForm(itemId, openFlag) {
   title.textContent = openFlag ? S.LABEL_OPEN_WORKSITE : S.LABEL_CLOSE_WORKSITE;
 
   const form = frag.querySelector('form');
-  form.querySelector('#pdt-transition-date').value =
-    new Date().toISOString().slice(0, 10);
+  form.querySelector('#pdt-transition-date').value = localISODate();
 
   form.querySelector('[data-action="cancel"]')
     .addEventListener('click', dismissModal);
@@ -1472,8 +1511,15 @@ async function wireMarkForm(form, itemId) {
         renderItemView(itemId);
       }
     },
-    onConflict(data) {
-      if (data.message) showFormError(form, data.message);
+    async onConflict(data) {
+      _applyMarkSaveResponse(data, itemId);
+      const rowId = data?.[ROW_ID];
+      if (rowId == null) {
+        if (data.message) showFormError(form, data.message);
+        return;
+      }
+      const fresh = await showEditMarkForm(itemId, rowId);
+      if (fresh) showFormError(fresh, data.message || S.ERROR_CONFLICT);
     },
     onValidationError(data) {
       if (data.message) showFormError(form, data.message);
@@ -1484,15 +1530,17 @@ async function wireMarkForm(form, itemId) {
 async function showNewMarkForm(itemId) {
   const url = `${MARK_FORM_URL}?item=${itemId}`;
   const form = await fetchModalForm(url);
-  if (!form) return;
+  if (!form) return null;
   wireMarkForm(form, itemId);
+  return form;
 }
 
 async function showEditMarkForm(itemId, rowId) {
   const url = `${MARK_FORM_URL}${rowId}/`;
   const form = await fetchModalForm(url);
-  if (!form) return;
+  if (!form) return null;
   wireMarkForm(form, itemId);
+  return form;
 }
 
 async function showImportMarksForm(itemId) {
@@ -1614,4 +1662,3 @@ async function appendItemPrelieviSection(card, itemId) {
 // ---------------------------------------------------------------------------
 // CSS lifecycle
 // ---------------------------------------------------------------------------
-

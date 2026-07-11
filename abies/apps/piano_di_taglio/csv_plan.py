@@ -23,6 +23,9 @@ from apps.base.models import (
     Region,
     render_flag_note,
 )
+from apps.piano_di_taglio.plan_item_validation import (
+    plan_item_harvest_invariant_errors,
+)
 from config import strings as S
 from config.constants import (
     DIGEST_FUTURE_PRODUCTION,
@@ -38,6 +41,16 @@ from config.constants import (
     FIELD_YEAR_PLANNED,
     ROW_ID,
 )
+
+_SOURCE_ROW = '_source_row'
+
+
+class PlanItemValidationError(Exception):
+    """Raised when a parsed plan item row fails write-time validation."""
+
+    def __init__(self, errors):
+        self.errors = errors
+        super().__init__(' '.join(errors))
 
 # Column aliases — each logical field accepts the legacy pdg-2026 name
 # AND the display-name used by the per-table CSV export, so a freshly
@@ -195,7 +208,17 @@ def _optional_decimal(reader, row, column, row_number, errors):
         errors.append(S.ERR_CSV_VALUE_PARSE.format(
             row_number, column, row.get(column, ''),
         ))
+        return None, False
+    if value is not None and value < 0:
+        errors.append(S.ERR_CSV_VALUE_PARSE.format(
+            row_number, column, row.get(column, ''),
+        ))
+        return None, False
     return value, ok
+
+
+def _parcel_key(region_name, parcel_name):
+    return (str(region_name or '').lower(), str(parcel_name or '').lower())
 
 
 def parse_fustaia_rows(data, parcel_cache, region_cache, errors):
@@ -232,7 +255,7 @@ def parse_fustaia_rows(data, parcel_cache, region_cache, errors):
             parcel = None
         else:
             region = None
-            parcel = parcel_cache.get((compresa.lower(), particella))
+            parcel = parcel_cache.get(_parcel_key(compresa, particella))
             if parcel is None:
                 errors.append(S.ERR_CSV_PARCEL_NOT_FOUND.format(
                     i, compresa, particella,
@@ -244,8 +267,13 @@ def parse_fustaia_rows(data, parcel_cache, region_cache, errors):
                 i, S.CSV_COL_YEAR, row.get('anno', ''),
             ))
             continue
-        prelievo = data.reader.decimal(row.get('prelievo'))
+        prelievo, prelievo_ok = _optional_decimal(
+            data.reader, row, 'prelievo', i, errors,
+        )
+        if not prelievo_ok:
+            continue
         parsed = {
+            _SOURCE_ROW: i,
             ROW_ID: row_id,
             FIELD_REGION_ID: region,
             FIELD_PARCEL_ID: parcel,
@@ -276,7 +304,7 @@ def parse_ceduo_rows(data, parcel_cache, errors):
             continue
         compresa = (row.get('compresa') or '').strip()
         particella = (row.get('particella') or '').strip()
-        parcel = parcel_cache.get((compresa.lower(), particella))
+        parcel = parcel_cache.get(_parcel_key(compresa, particella))
         if parcel is None:
             errors.append(S.ERR_CSV_PARCEL_NOT_FOUND.format(
                 i, compresa, particella,
@@ -284,7 +312,11 @@ def parse_ceduo_rows(data, parcel_cache, errors):
             continue
         year = data.reader.integer(row.get('anno'))
         interval = data.reader.integer(row.get('turno'))
-        area = data.reader.decimal(row.get('superficie'))
+        area, area_ok = _optional_decimal(
+            data.reader, row, 'superficie', i, errors,
+        )
+        if not area_ok:
+            continue
         if year is None or interval is None:
             errors.append(S.ERR_CSV_VALUE_PARSE.format(
                 i, S.CSV_COL_PERIOD_Y, row.get('turno', ''),
@@ -300,6 +332,7 @@ def parse_ceduo_rows(data, parcel_cache, errors):
             free_note = (row.get('flag_note') or row.get('free_note') or '').strip()
             damaged = unhealthy = psr = False
         out.append({
+            _SOURCE_ROW: i,
             ROW_ID: row_id,
             FIELD_PARCEL_ID: parcel,
             FIELD_YEAR_PLANNED: year,
@@ -317,7 +350,7 @@ def parse_ceduo_rows(data, parcel_cache, errors):
 class PlanIndexes:
     """Lookups the parse helpers need, injected so they run against the live DB
     (view) or a staged index (bootstrap)."""
-    parcels: dict   # (region_name.lower(), parcel_name) -> Parcel
+    parcels: dict   # (region_name.lower(), parcel_name.lower()) -> Parcel
     regions: dict   # region_name.lower() -> Region
 
 
@@ -325,7 +358,7 @@ def db_indexes() -> PlanIndexes:
     """Build ``PlanIndexes`` from the live database."""
     regions = {r.name.lower(): r for r in Region.objects.all()}
     parcels = {
-        (p.region.name.lower(), p.name): p
+        _parcel_key(p.region.name, p.name): p
         for p in Parcel.objects.select_related('region', 'eclass')
     }
     return PlanIndexes(parcels, regions)
@@ -392,11 +425,22 @@ def apply(*, target_plan, name, description, fustaia_parsed, ceduo_parsed):
         def save_plan_item(row, identity, defaults):
             fields = {**identity, **defaults}
             row_id = row.get(ROW_ID)
+            def validate_update(item, values):
+                errors = plan_item_harvest_invariant_errors(item, values)
+                if errors:
+                    source_row = row.get(_SOURCE_ROW)
+                    if source_row is not None:
+                        errors = [
+                            S.ERR_CSV_ROW_PARSE.format(source_row, error)
+                            for error in errors
+                        ]
+                    raise PlanItemValidationError(errors)
             if row_id:
                 item = HarvestPlanItem.objects.filter(
                     id=row_id, harvest_plan=plan,
                 ).first()
                 if item is not None:
+                    validate_update(item, fields)
                     for field, value in fields.items():
                         setattr(item, field, value)
                     item.version += 1
@@ -406,12 +450,15 @@ def apply(*, target_plan, name, description, fustaia_parsed, ceduo_parsed):
                 if item is not None:
                     return item
                 return HarvestPlanItem.objects.create(**fields)
-            item, created = HarvestPlanItem.objects.update_or_create(
-                **identity, defaults=defaults,
-            )
-            if not created:
+            item = HarvestPlanItem.objects.filter(**identity).first()
+            if item is None:
+                item = HarvestPlanItem.objects.create(**identity, **defaults)
+            else:
+                validate_update(item, defaults)
+                for field, value in defaults.items():
+                    setattr(item, field, value)
                 item.version += 1
-                item.save(update_fields=['version'])
+                item.save()
             return item
 
         n_items = 0
@@ -655,7 +702,7 @@ def validate_canonical_items(reader, indexes: PlanIndexes, plans: dict):
                 FIELD_PSR: psr,
             })
         else:
-            parcel = indexes.parcels.get((compresa.lower(), particella))
+            parcel = indexes.parcels.get(_parcel_key(compresa, particella))
             if parcel is None:
                 errors.append(S.ERR_CSV_PARCEL_NOT_FOUND.format(
                     i, compresa, particella))

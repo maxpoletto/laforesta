@@ -395,6 +395,7 @@ globalThis.fetch = async (url) => {
 };
 
 const pdt = await import(staticModule('piano_di_taglio/js/piano-di-taglio.js'));
+const cache = await import(staticModule('base/js/cache.js'));
 
 function titleText() {
   return contentEl.querySelector('[data-field="title"]')?.textContent || '';
@@ -431,6 +432,29 @@ async function finish() {
   item1.resolve(itemPayload(1));
   await flushAsyncWork();
   eq(titleText(), expectedTitle(2), 'stale item response does not replace the active view');
+  await finish();
+}
+
+// A plans refresh while an item is open must not rebuild back to the calendar.
+{
+  const item = deferItem(1);
+  await mountItem(1);
+  item.resolve(itemPayload(1));
+  await flushAsyncWork();
+  const title = titleText();
+
+  cache.applyResponseChanges({
+    patches: [{
+      data_id: 'harvest_plans',
+      row_id: 10,
+      record: [10, 'Piano rinominato', 'Aggiornato', 2026, 2029],
+    }],
+  });
+  await flushAsyncWork();
+
+  eq(titleText(), title, 'plans refresh preserves the active item view');
+  check(Boolean(contentEl.querySelector('.pdt-item-card')),
+        'plans refresh leaves the item card mounted');
   await finish();
 }
 

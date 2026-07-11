@@ -376,6 +376,9 @@ class TestDynamicResolver:
     def test_mark_trees_garbage_returns_none(self):
         assert _resolve_generator('mark_trees_xyz') is None
 
+    def test_mark_trees_missing_item_returns_none(self, db):
+        assert _resolve_generator('mark_trees_999999') is None
+
     def test_unknown_name_returns_none(self):
         assert _resolve_generator('nope') is None
 

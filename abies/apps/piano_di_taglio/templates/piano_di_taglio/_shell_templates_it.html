@@ -152,7 +152,7 @@ render context.
       <div class="modal-tab-body" data-path="calendar">
         <form class="pdt-plan-form" data-role="calendar-form">
           <div class="form-row">
-            <label class="pdt-checkbox-label">
+            <label>
               <input type="checkbox" name="is_ceduo">
               File contiene il calendario ceduo
             </label>
@@ -219,14 +219,14 @@ render context.
       <div class="pdt-item-header-left">
         <h2 class="pdt-item-title" data-field="title"></h2>
         {% if user.can_modify %}
-        <span class="page-pulldown-icon" role="button" title="{{ S.ACTION_EDIT }}"
+        <span class="action-icon action-edit page-pulldown-icon" role="button" title="{{ S.ACTION_EDIT }}"
               data-action="edit-item">✎</span>
         {% endif %}
       </div>
       <div class="pdt-item-header-actions">
         <button type="button" class="btn btn-export"
                 data-action="export-item">{{ S.EXPORT }}</button>
-        <button type="button" class="pdt-item-close"
+        <button type="button" class="btn detail-close"
                 title="{{ S.DISMISS }}" data-action="close-item">×</button>
       </div>
     </div>

@@ -14,7 +14,8 @@ from dataclasses import dataclass
 from datetime import date as date_type
 
 from django.contrib.auth.decorators import login_required
-from django.db import transaction
+from django.core.exceptions import ValidationError
+from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.http import Http404, HttpResponse, JsonResponse
 from django.template.loader import render_to_string
@@ -56,6 +57,9 @@ from apps.piano_di_taglio.mark_import import (
     legacy_csv_mark_fingerprint, mark_parcel_matches_item,
     next_mark_number as _next_mark_number,
     rematerialize_volume_marked as _rematerialize_volume_marked,
+)
+from apps.piano_di_taglio.plan_item_validation import (
+    plan_item_harvest_invariant_errors,
 )
 from apps.prelievi.models import Harvest, HarvestSpecies, HarvestTractor
 from config import strings as S
@@ -132,20 +136,6 @@ def mark_trees_data_view(request, item_id: int):
 # ---------------------------------------------------------------------------
 # Plan CRUD
 # ---------------------------------------------------------------------------
-
-@login_required
-@require_writer
-def plan_form_view(request, plan_id: int | None = None):
-    """Form fragment for the "Crea vuoto" / edit-plan modal."""
-    plan = None
-    if plan_id:
-        plan = HarvestPlan.objects.filter(id=plan_id).first()
-        if plan is None:
-            raise Http404
-    return JsonResponse({HTML: render_to_string(
-        'piano_di_taglio/_plan_form.html', {'plan': plan}, request=request,
-    )})
-
 
 @login_required
 @require_writer
@@ -288,10 +278,13 @@ def plan_csv_import_view(request):
     if errors:
         return csv_error_list(errors)
 
-    plan, n_items = csv_plan.apply(
-        target_plan=target_plan, name=name, description=description,
-        fustaia_parsed=fustaia_parsed, ceduo_parsed=ceduo_parsed,
-    )
+    try:
+        plan, n_items = csv_plan.apply(
+            target_plan=target_plan, name=name, description=description,
+            fustaia_parsed=fustaia_parsed, ceduo_parsed=ceduo_parsed,
+        )
+    except csv_plan.PlanItemValidationError as exc:
+        return csv_error_list(exc.errors)
 
     return success_response(
         request, body,
@@ -443,14 +436,19 @@ def item_save_view(request):
                     data_id='harvest_plan_items', row_id=item.id,
                     record=build_harvest_plan_item_record(item),
                 )
+            invariant_errors = plan_item_harvest_invariant_errors(item, parsed)
+            if invariant_errors:
+                return validation_error(invariant_errors)
             for field, value in parsed.items():
                 setattr(item, field, value)
             item.version += 1
             try:
                 item.clean()
                 item.save()
-            except Exception as exc:
-                return validation_error([str(exc)])
+            except ValidationError as exc:
+                return validation_error(_validation_error_messages(exc))
+            except IntegrityError:
+                return validation_error([S.ERROR_GENERIC])
         else:
             plan_id = int_or_none(body.get(FIELD_HARVEST_PLAN_ID))
             if plan_id is None:
@@ -466,8 +464,10 @@ def item_save_view(request):
             try:
                 item.clean()
                 item.save()
-            except Exception as exc:
-                return validation_error([str(exc)])
+            except ValidationError as exc:
+                return validation_error(_validation_error_messages(exc))
+            except IntegrityError:
+                return validation_error([S.ERROR_GENERIC])
         mark_stale('harvest_plan_items', DIGEST_FUTURE_PRODUCTION, 'audit')
 
     item = (HarvestPlanItem.objects
@@ -481,6 +481,14 @@ def item_save_view(request):
             'harvest_plan_items', item.id, build_harvest_plan_item_record(item),
         )],
     )
+
+
+def _validation_error_messages(exc: ValidationError) -> list[str]:
+    if hasattr(exc, 'message_dict'):
+        return [str(message)
+                for messages in exc.message_dict.values()
+                for message in messages]
+    return [str(message) for message in exc.messages]
 
 
 @login_required
@@ -593,8 +601,8 @@ def item_export_view(request, item_id: int):
         [S.CSV_COL_DATA, S.CSV_COL_REGION, S.CSV_COL_PARCEL,
          S.CSV_COL_CREW, S.CSV_COL_VDP, S.CSV_COL_PRODUCT,
          S.CSV_COL_QUINTALS, S.CSV_COL_NOTE, S.CSV_COL_EXTRA_NOTE]
-        + [sn for _, sn in species_list]
-        + tractor_labels
+        + [f'{S.CSV_COL_SPECIES_PREFIX}{sn}' for _, sn in species_list]
+        + [f'{S.CSV_COL_TRACTOR_PREFIX}{label}' for label in tractor_labels]
     )
     harvests_qs = (Harvest.objects
                    .filter(harvest_plan_item=item)
@@ -719,7 +727,9 @@ def mark_form_view(request, mark_id: int | None = None):
         tm = (TreeMark.objects
               .select_related('tree__species', 'harvest_plan_item__parcel__region',
                               'harvest_plan_item__region')
-              .get(id=mark_id))
+              .filter(id=mark_id).first())
+        if tm is None:
+            raise Http404
         item = tm.harvest_plan_item
         tree = tm.tree
     else:
@@ -839,6 +849,10 @@ def mark_save_view(request):
         errors.append(S.ERR_MARK_D_REQUIRED)
     if h_m is None or h_m <= 0:
         errors.append(S.ERR_MARK_H_REQUIRED)
+    if volume_m3 is not None and volume_m3 < 0:
+        errors.append(S.ERR_MARK_VOLUME_NEGATIVE)
+    if mass_q is not None and mass_q < 0:
+        errors.append(S.ERR_MARK_MASS_NEGATIVE)
     if not operator:
         errors.append(S.ERR_MARK_OPERATOR_REQUIRED)
     if not date_raw:
@@ -859,6 +873,15 @@ def mark_save_view(request):
         return validation_error([S.ERR_PLAN_ITEM_NOT_FOUND])
     if item.state == HarvestPlanItemState.CLOSED:
         return validation_error([S.ERR_MARK_ITEM_CLOSED])
+    if row_id:
+        mark_item_id = (TreeMark.objects
+                        .filter(id=row_id)
+                        .values_list(FIELD_HARVEST_PLAN_ITEM_ID, flat=True)
+                        .first())
+        if mark_item_id is None:
+            return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
+        if mark_item_id != item.id:
+            return validation_error([S.ERR_MARK_ITEM_MISMATCH])
 
     species = Species.objects.filter(id=species_id).first()
     if species is None:
@@ -965,7 +988,9 @@ def mark_delete_view(request):
     body, error = parse_json_body(request)
     if error:
         return error
-    row_id = int(body[ROW_ID])
+    row_id = int_or_none(body.get(ROW_ID))
+    if row_id is None:
+        return validation_error([S.ERR_ROW_ID_INVALID])
     version = submitted_version(body)
 
     tm = (TreeMark.objects
@@ -1191,6 +1216,8 @@ def _parse_date_flex(s: str) -> date_type:
     """Parse ISO (YYYY-MM-DD) or Italian (DD/MM/YYYY) date."""
     if '/' in s:
         parts = s.split('/')
+        if len(parts) != 3:
+            raise ValueError
         return date_type(int(parts[2]), int(parts[1]), int(parts[0]))
     return date_type.fromisoformat(s)
 

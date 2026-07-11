@@ -122,11 +122,6 @@
 
 /* --- View/edit-item page --- */
 
-/* Item-view card — full-width page content, not a 640px modal. */
-.pdt-item-card {
-  margin: 0 auto;
-}
-
 .pdt-item-header {
   display: flex;
   align-items: center;
@@ -152,18 +147,6 @@
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
-}
-
-.pdt-item-close {
-  font-size: 1.3rem;
-  cursor: pointer;
-  padding: 2px 8px;
-  border: none;
-  background: none;
-  color: #666;
-}
-.pdt-item-close:hover {
-  color: #333;
 }
 
 .pdt-item-meta {

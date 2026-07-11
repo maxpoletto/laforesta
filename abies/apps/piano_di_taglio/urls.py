@@ -14,10 +14,6 @@ urlpatterns = [
          name='piano-di-taglio-mark-trees-data'),
 
     # Plan CRUD.
-    path('plan/form/', views.plan_form_view,
-         name='piano-di-taglio-plan-form-add'),
-    path('plan/form/<int:plan_id>/', views.plan_form_view,
-         name='piano-di-taglio-plan-form-edit'),
     path('plan/save/', views.plan_save_view,
          name='piano-di-taglio-plan-save'),
     path('plan/delete/<int:plan_id>/', views.plan_delete_view,
