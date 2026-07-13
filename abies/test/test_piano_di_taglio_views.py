@@ -1852,6 +1852,20 @@ class TestMarkCSVImport:
         assert tm.number == 1
         assert tm.d_cm == 30
 
+    def test_import_rejects_missing_lon_header(
+        self, writer_client, planned_item, species, parcels,
+    ):
+        csv_bytes = self._csv_content([
+            ['01/06/2025', parcels[0].region.name, parcels[0].name, '0', '1',
+             species[0].common_name, '30', '20,0', '0', '38.5', '16.3', '5', 'Mario'],
+        ]).replace(b'Lon', b'Lng')
+
+        resp = self._post(writer_client, planned_item, csv_bytes)
+
+        assert resp.status_code == 400
+        assert resp.json()[MESSAGE] == S.ERR_CSV_MISSING_COLS.format(S.CSV_COL_LON)
+        assert TreeMark.objects.count() == 0
+
     def test_import_rejects_other_parcel_in_same_region(
         self, writer_client, planned_item, species, parcels,
     ):

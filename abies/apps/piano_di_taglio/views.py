@@ -1077,12 +1077,12 @@ def mark_csv_import_view(request):
         'species':   MARK_CSV_SPECIES_HEADERS,
         'd_cm':      [S.CSV_COL_D_CM],
         'h_m':       [S.CSV_COL_H_M],
+        'lat':       [S.CSV_COL_LAT],
+        'lon':       [S.CSV_COL_LON],
     }, optional={
         'catastrofata': [S.CSV_COL_DAMAGED],
         'numero':    [S.CSV_COL_NUMBER],
         'h_measured': [S.CSV_COL_H_MEASURED],
-        'lat':       [S.CSV_COL_LAT],
-        'lon':       [S.CSV_COL_LON],
         'acc_m':     [S.CSV_COL_ACC_M],
         'operator':  [S.CSV_COL_OPERATOR],
     })
