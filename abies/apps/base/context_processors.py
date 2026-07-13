@@ -2,6 +2,7 @@
 
 from django.conf import settings
 
+from apps.base.models import Role
 from config import strings as S
 from config.constants import (
     FIELD_MODE, IPSO_MODE_MARTELLATE, IPSO_MODE_PAI, IPSO_MODE_SAMPLES,
@@ -29,10 +30,12 @@ def strings(request):
         'LANGUAGE_CODE': settings.LANGUAGE_CODE,
         'FIELD_MODE': FIELD_MODE,
         'IPSO_UPLOAD_MODE_OPTIONS': IPSO_UPLOAD_MODE_OPTIONS,
+        'ROLE_ADMIN': Role.ADMIN,
         'ABIES_APP_NAME': settings.ABIES_APP_NAME,
         'ABIES_BRAND_FAVICON_STATIC': settings.ABIES_BRAND_FAVICON_STATIC,
         'ABIES_BRAND_LOGO_STATIC': settings.ABIES_BRAND_LOGO_STATIC,
         'ABIES_BRAND_NAME': settings.ABIES_BRAND_NAME,
         'ABIES_INSTANCE': settings.ABIES_INSTANCE,
         'ABIES_SITE_TITLE': settings.ABIES_SITE_TITLE,
+        'ABIES_VERSION': settings.ABIES_VERSION,
     }

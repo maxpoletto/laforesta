@@ -6,7 +6,7 @@ from datetime import date
 from decimal import Decimal
 
 import pytest
-from django.test import Client
+from django.test import Client, override_settings
 
 from apps.base.models import (
     DigestStatus, HarvestPlan, LoginMethod, Role, Sample, SampleArea,
@@ -55,6 +55,26 @@ def test_hypso_toolbar_button_intents(writer_client):
     html = resp.content.decode()
     assert 'class="btn btn-delete" data-action="clear"' in html
     assert 'class="btn" data-action="compute"' in html
+
+
+@override_settings(ABIES_VERSION='abies-test-version')
+def test_settings_page_shows_version_to_admin(admin_client):
+    resp = admin_client.get('/impostazioni')
+
+    assert resp.status_code == 200
+    html = resp.content.decode()
+    assert 'Versione software' in html
+    assert 'abies-test-version' in html
+
+
+@override_settings(ABIES_VERSION='abies-test-version')
+def test_settings_page_hides_version_from_non_admin(writer_client):
+    resp = writer_client.get('/impostazioni')
+
+    assert resp.status_code == 200
+    html = resp.content.decode()
+    assert 'Versione software' not in html
+    assert 'abies-test-version' not in html
 
 
 @pytest.fixture

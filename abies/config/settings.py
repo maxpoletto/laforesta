@@ -1,10 +1,28 @@
 """Django settings for Abies."""
 
 import os
+import subprocess
 from datetime import timedelta
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+def _git_describe_version():
+    try:
+        return subprocess.check_output(
+            ['git', 'describe', '--tags', '--always', '--dirty'],
+            cwd=BASE_DIR,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        ).strip()
+    except Exception:
+        return ''
+
+
+ABIES_VERSION = (
+    os.environ.get('ABIES_VERSION', '').strip() or _git_describe_version()
+)
 
 # Data lives outside the Django project tree in production (Docker mount).
 # In dev, it sits at BASE_DIR / 'data'.

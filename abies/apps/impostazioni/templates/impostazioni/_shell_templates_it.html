@@ -176,6 +176,10 @@ S (string constants) provided by the shell's render context.
       <div data-target="table-host"></div>
     </div>
   </section>
+
+  {% if user.role == ROLE_ADMIN and ABIES_VERSION %}
+    <p class="settings-version text-muted">Versione software: <code>{{ ABIES_VERSION }}</code></p>
+  {% endif %}
 </template>
 
 <template id="tmpl-settings-select-option">
