@@ -469,8 +469,6 @@ def _audit_configs() -> list:
             'region_id': S.COL_REGION, 'parcel_id': S.COL_PARCEL,
             'state': S.COL_STATE, 'year_planned': S.COL_YEAR_PLANNED,
             'volume_planned_m3': S.COL_VOLUME_PLANNED,
-            'volume_marked_m3': S.COL_VOLUME_MARKED,
-            'volume_actual_m3': S.COL_VOLUME_ACTUAL,
             'intervention_area_ha': S.COL_INTERVENTION_AREA_HA,
             'damaged': S.FLAG_DAMAGED, 'unhealthy': S.FLAG_UNHEALTHY,
             'psr': S.FLAG_PSR, 'note': S.COL_NOTE,
@@ -576,15 +574,20 @@ def _audit_rows(model, manager, table_label, field_labels, rows, row_id):
         action = _ACTION_MAP.get(ht, ht)
 
         if ht == '+':
-            before, after = '', _format_fields(model, entry, field_labels, value_cache)
+            row = ('', _format_fields(model, entry, field_labels, value_cache))
         elif ht == '~' and pk in prev_map:
-            before, after = _format_diff(
+            row = _format_update(
                 model, prev_map[pk], entry, field_labels, value_cache,
             )
         elif ht == '-':
-            before, after = _format_fields(model, entry, field_labels, value_cache), ''
+            row = (_format_fields(model, entry, field_labels, value_cache), '')
         else:
-            before, after = '', _format_fields(model, entry, field_labels, value_cache)
+            row = ('', _format_fields(model, entry, field_labels, value_cache))
+
+        if row is None:
+            prev_map[pk] = entry
+            continue
+        before, after = row
 
         row_id += 1
         rows.append([row_id, ts, user, table_label, action, before, after])
@@ -604,22 +607,33 @@ def _format_fields(model, entry, field_labels: dict, value_cache: dict) -> str:
     return '; '.join(parts)
 
 
-def _format_diff(
+def _format_update(
         model, prev, current, field_labels: dict, value_cache: dict,
-) -> tuple[str, str]:
-    """Format only the changed fields as before/after strings."""
-    before_parts, after_parts = [], []
-    for field, label in field_labels.items():
-        old = getattr(prev, field, None)
-        new = getattr(current, field, None)
-        if old != new:
-            before_parts.append(
-                f'{label}: {_format_audit_value(model, field, old, value_cache)}',
-            )
-            after_parts.append(
-                f'{label}: {_format_audit_value(model, field, new, value_cache)}',
-            )
-    return '; '.join(before_parts), '; '.join(after_parts)
+) -> tuple[str, str] | None:
+    """Format updates as full before/after records, or skip noise-only writes."""
+    before = _format_fields(model, prev, field_labels, value_cache)
+    after = _format_fields(model, current, field_labels, value_cache)
+    password_changed = _user_password_changed(model, prev, current)
+
+    if before != after:
+        if password_changed:
+            after = _append_audit_note(after, S.PASSWORD_CHANGED)
+        return before, after
+    if password_changed:
+        return '', S.PASSWORD_CHANGED
+    return None
+
+
+def _user_password_changed(model, prev, current) -> bool:
+    if model._meta.label_lower != 'base.user':
+        return False
+    return getattr(prev, 'password', None) != getattr(current, 'password', None)
+
+
+def _append_audit_note(text: str, note: str) -> str:
+    if not text:
+        return note
+    return f'{text}; {note}'
 
 
 def _model_field(model, field_name: str):

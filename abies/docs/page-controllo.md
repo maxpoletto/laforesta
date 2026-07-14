@@ -6,6 +6,15 @@ Read-only sortable-table of writes to the domain tables, sourced from
 django-simple-history. Columns: time/date, user, table name,
 action (insert/edit/delete), value before, value after.
 
+Insert rows have an empty previous value and the full audited record in
+the next value. Delete rows do the opposite. Update rows show the full
+audited projection before and after, not only changed fields, so recovery
+work has context for edits such as parcel changes. Omitted-field-only
+updates are suppressed; password-only user updates are displayed as
+`Password modificata.`. Materialized harvest-plan item volume
+recalculations are intentionally omitted because the underlying marks and
+harvest rows carry the meaningful operational changes.
+
 ## Coverage
 
 Every model carrying `HistoricalRecords()` is audited. The authoritative

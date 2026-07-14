@@ -592,6 +592,79 @@ class TestGenerateAudit:
             and f'{S.COL_PARCEL}: {parcels[1]}' in (r[6] or '')
             for r in rows
         )
+        row = next(
+            r for r in rows
+            if f'{S.COL_PARCEL}: {parcels[0]}' in (r[5] or '')
+            and f'{S.COL_PARCEL}: {parcels[1]}' in (r[6] or '')
+        )
+        assert f'{S.COL_HARVEST_PLAN}: {harvest_plan.name}' in row[5]
+        assert f'{S.COL_HARVEST_PLAN}: {harvest_plan.name}' in row[6]
+        assert f'{S.COL_STATE}: {HarvestPlanItemState.OPEN.label}' in row[5]
+        assert f'{S.COL_STATE}: {HarvestPlanItemState.OPEN.label}' in row[6]
+
+    def test_audit_updates_show_full_before_and_after_records(
+        self, products, parcels, crews, settings, tmp_path,
+    ):
+        settings.DIGEST_DIR = tmp_path
+        harvest = Harvest.objects.create(
+            date=date(2026, 1, 2), product=products[0], parcel=parcels[0],
+            crew=crews[0], record1=77, mass_q=Decimal('12.50'),
+            volume_m3=Decimal('2.500'), note='prima nota',
+        )
+        harvest.parcel = parcels[1]
+        harvest.note = 'sradicate'
+        harvest.save()
+
+        generate_audit()
+        with gzip.open(tmp_path / 'audit.json.gz', 'rt') as f:
+            data = json.load(f)
+
+        row = next(
+            r for r in data[ROWS]
+            if r[3] == S.TABLE_HARVEST and r[4] == S.AUDIT_UPDATE
+        )
+        before, after = row[5] or '', row[6] or ''
+        assert f'{S.COL_PARCEL}: {parcels[0]}' in before
+        assert f'{S.COL_PARCEL}: {parcels[1]}' in after
+        assert f'{S.COL_EXTRA_NOTE}: prima nota' in before
+        assert f'{S.COL_EXTRA_NOTE}: sradicate' in after
+        for text in (before, after):
+            assert f'{S.COL_DATE}: 2026-01-02' in text
+            assert f'{S.COL_PRODUCT}: {products[0]}' in text
+            assert f'{S.COL_CREW}: {crews[0]}' in text
+            assert f'{S.COL_VDP}: 77' in text
+
+    def test_user_password_change_has_semantic_audit_message(
+        self, db, settings, tmp_path,
+    ):
+        settings.DIGEST_DIR = tmp_path
+        user = User.objects.create_user(username='pw-audit', password='oldpass123!')
+        user.set_password('newpass123!')
+        user.save(update_fields=['password'])
+
+        generate_audit()
+        with gzip.open(tmp_path / 'audit.json.gz', 'rt') as f:
+            data = json.load(f)
+
+        rows = [r for r in data[ROWS]
+                if r[3] == S.TABLE_USER and r[4] == S.AUDIT_UPDATE]
+        assert any((r[6] or '') == S.PASSWORD_CHANGED for r in rows)
+        assert not any(not (r[5] or '') and not (r[6] or '') for r in rows)
+
+    def test_user_last_login_change_is_not_audit_noise(
+        self, db, settings, tmp_path,
+    ):
+        settings.DIGEST_DIR = tmp_path
+        user = User.objects.create_user(username='login-audit', password='pass1234!')
+        user.last_login = datetime(2026, 1, 2, 12, 0, tzinfo=dt_timezone.utc)
+        user.save(update_fields=['last_login'])
+
+        generate_audit()
+        with gzip.open(tmp_path / 'audit.json.gz', 'rt') as f:
+            data = json.load(f)
+
+        assert not [r for r in data[ROWS]
+                    if r[3] == S.TABLE_USER and r[4] == S.AUDIT_UPDATE]
 
     def test_parcel_metadata_update_appears(self, parcels, settings, tmp_path):
         """Parcel metadata edits are audited for the Controllo page."""
@@ -734,7 +807,7 @@ class TestGenerateAudit:
                      and r[4] == S.AUDIT_INSERT]
         assert any(f'{S.COL_NUMBER}: 42' in (r[6] or '') for r in area_rows)
 
-    def test_materialized_plan_item_volume_updates_appear_in_audit(
+    def test_materialized_plan_item_volume_updates_do_not_appear_in_audit(
         self, products, parcels, crews, settings, tmp_path,
     ):
         settings.DIGEST_DIR = tmp_path
@@ -760,7 +833,7 @@ class TestGenerateAudit:
         item_rows = [r for r in data[ROWS]
                      if r[3] == S.TABLE_HARVEST_PLAN_ITEM
                      and r[4] == S.AUDIT_UPDATE]
-        assert any(S.COL_VOLUME_ACTUAL in (r[6] or '') for r in item_rows)
+        assert not item_rows
 
 
 # ---------------------------------------------------------------------------
