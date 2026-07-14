@@ -113,6 +113,25 @@ globalThis.history = {
 };
 globalThis.window = { addEventListener() {} };
 
+function appendMockControls(opts) {
+  if (!opts.controlsStart && !opts.controlsEnd) return null;
+  const controls = new MockElement('div');
+  controls.className = 'sortable-table-controls sortable-table-controls-combined';
+  if (opts.controlsStart) {
+    opts.controlsStart.classList.add('sortable-table-controls-start');
+    controls.appendChild(opts.controlsStart);
+  }
+  const pagination = new MockElement('div');
+  pagination.className = 'sortable-table-pagination';
+  controls.appendChild(pagination);
+  if (opts.controlsEnd) {
+    opts.controlsEnd.classList.add('sortable-table-controls-end');
+    controls.appendChild(opts.controlsEnd);
+  }
+  opts.container.appendChild(controls);
+  return controls;
+}
+
 // ---------------------------------------------------------------------------
 // Server model for cache.load() used by createPage.
 // ---------------------------------------------------------------------------
@@ -364,6 +383,7 @@ const { TableWrapper } = await import('./table.js');
       this.data = opts.data;
       this.columns = opts.columns;
       this.currentSort = opts.sort || { column: 'name', ascending: true };
+      appendMockControls(opts);
     }
     destroy() {}
     clearFilter() {}
@@ -379,12 +399,17 @@ const { TableWrapper } = await import('./table.js');
     labels: { add: 'Aggiungi', exportCSV: 'Esporta' },
   });
   const page = container.children[0];
-  const toolbar = page.children[0];
-  const actionGroup = toolbar.children[2];
+  const controls = page.children[0].children[0];
+  const searchGroup = controls.children[0];
+  const actionGroup = controls.children[2];
   eq(
-    toolbar.children.map(child => child.textContent || child.className),
-    ['Filter', 'table-search', 'table-toolbar-actions ms-auto'],
-    'TableWrapper renders search controls and a right-aligned toolbar action group',
+    searchGroup.children.map(child => child.textContent || child.className),
+    ['Filter', 'table-search'],
+    'TableWrapper renders search controls in the SortableTable start slot',
+  );
+  check(
+    controls.children[1].classList.contains('sortable-table-pagination'),
+    'TableWrapper keeps pagination between search and actions',
   );
   eq(
     actionGroup.children.map(child => child.textContent),
@@ -406,6 +431,7 @@ const { TableWrapper } = await import('./table.js');
       this.data = opts.data;
       this.columns = opts.columns;
       this.currentSort = opts.sort || { column: 'name', ascending: true };
+      appendMockControls(opts);
     }
     destroy() {}
     clearFilter() {}
@@ -428,11 +454,11 @@ const { TableWrapper } = await import('./table.js');
       }],
     },
   });
-  const toolbar = container.children[0].children[0];
-  const actionGroup = toolbar.children[0];
+  const controls = container.children[0].children[0].children[0];
+  const actionGroup = controls.children[1];
   eq(
-    toolbar.children.map(child => child.className),
-    ['table-toolbar-actions ms-auto'],
+    controls.children.map(child => child.className),
+    ['sortable-table-pagination', 'table-toolbar-actions sortable-table-controls-end'],
     'TableWrapper can render toolbar actions without search controls',
   );
   eq(
@@ -451,8 +477,8 @@ const { TableWrapper } = await import('./table.js');
     columnDefs: {},
     toolbar: { export: null, actions: [{ label: 'Solo', onClick: () => {} }] },
   });
-  const noExportToolbar = noExport.children[0].children[0];
-  const noExportActionGroup = noExportToolbar.children[2];
+  const noExportControls = noExport.children[0].children[0].children[0];
+  const noExportActionGroup = noExportControls.children[2];
   eq(
     noExportActionGroup.children.map(child => child.textContent),
     ['Solo'],

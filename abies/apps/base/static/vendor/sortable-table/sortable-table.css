@@ -38,6 +38,28 @@
     color: #666;
 }
 
+.sortable-table-controls-combined {
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.sortable-table-controls-start,
+.sortable-table-controls-end {
+    flex: 1 1 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.sortable-table-controls-end {
+    justify-content: flex-end;
+}
+
+.sortable-table-controls-combined .sortable-table-pagination {
+    flex: 0 0 auto;
+}
+
 /* Pagination Buttons */
 .sortable-table-pagination button {
     padding: 6px 12px;
@@ -223,6 +245,27 @@
     .sortable-table-pagination button {
         padding: 4px 8px;
         min-width: 32px;
+    }
+
+    .sortable-table-controls-combined {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .sortable-table-controls-start {
+        order: 1;
+        flex: 1 1 auto;
+    }
+
+    .sortable-table-controls-end {
+        order: 2;
+        flex: 0 1 auto;
+    }
+
+    .sortable-table-controls-combined .sortable-table-pagination {
+        order: 3;
+        flex: 1 0 100%;
+        justify-content: center;
     }
 
     .sortable-table {

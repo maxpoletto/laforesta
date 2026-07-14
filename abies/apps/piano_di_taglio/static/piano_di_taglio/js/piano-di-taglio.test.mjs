@@ -288,6 +288,20 @@ globalThis.history = {
 };
 
 const tableInstances = [];
+function appendMockControls(opts) {
+  if (!opts.controlsStart && !opts.controlsEnd) return;
+  const controls = el('div', { className: 'sortable-table-controls sortable-table-controls-combined' });
+  if (opts.controlsStart) {
+    opts.controlsStart.classList.add('sortable-table-controls-start');
+    controls.appendChild(opts.controlsStart);
+  }
+  controls.appendChild(el('div', { className: 'sortable-table-pagination' }));
+  if (opts.controlsEnd) {
+    opts.controlsEnd.classList.add('sortable-table-controls-end');
+    controls.appendChild(opts.controlsEnd);
+  }
+  opts.container.appendChild(controls);
+}
 class MockSortableTable {
   constructor(opts) {
     this.container = opts.container;
@@ -296,6 +310,7 @@ class MockSortableTable {
     this.currentSort = opts.sort || { column: opts.columns.find(c => !c.hidden)?.key, ascending: true };
     this.onSort = opts.onSort;
     this.destroyed = false;
+    appendMockControls(opts);
     tableInstances.push(this);
   }
   setData(rows) { this.data = rows; }
@@ -443,9 +458,9 @@ async function finish() {
     expectedLeading,
     'ceduo table shows area as fifth visible column',
   );
-  const toolbar = contentEl.querySelector('[data-target="table-f"] .table-toolbar');
-  const actionGroup = toolbar.querySelector('.table-toolbar-actions');
-  check(Boolean(toolbar.querySelector('.table-search')), 'calendar search is rendered by TableWrapper toolbar');
+  const controls = contentEl.querySelector('[data-target="table-f"] .sortable-table-controls');
+  const actionGroup = controls.querySelector('.table-toolbar-actions');
+  check(Boolean(controls.querySelector('.table-search')), 'calendar search is rendered in TableWrapper controls');
   eq(
     actionGroup.children.map(child => child.textContent),
     ['Esporta', '+ Aggiungi'],

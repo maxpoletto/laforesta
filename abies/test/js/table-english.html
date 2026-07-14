@@ -84,11 +84,11 @@
     const check = (name, cond, detail) => checks.push({ name, pass: !!cond, detail });
 
     // UI labels
-    const toolbar     = document.querySelector('.table-toolbar');
-    const filterLabel = toolbar?.querySelector('.table-search-label');
-    const searchInput = toolbar?.querySelector('.table-search');
-    const csvBtn      = toolbar?.querySelector('.btn-export');
-    const addBtn      = toolbar?.querySelector('.btn-add');
+    const controls    = document.querySelector('.sortable-table-controls');
+    const filterLabel = controls?.querySelector('.table-search-label');
+    const searchInput = controls?.querySelector('.table-search');
+    const csvBtn      = controls?.querySelector('.btn-export');
+    const addBtn      = controls?.querySelector('.btn-add');
     check('filter label is "Filter"',
           filterLabel?.textContent === 'Filter',
           `got: ${JSON.stringify(filterLabel?.textContent)}`);

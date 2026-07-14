@@ -41,6 +41,8 @@ class SortableTable {
         this.cssPrefix = options.cssPrefix || 'sortable-table';
         this.emptyMessage = options.emptyMessage || 'No data available';
         this.pageInfo = options.pageInfo || DEFAULT_PAGE_INFO;
+        this.controlsStart = options.controlsStart || null;
+        this.controlsEnd = options.controlsEnd || null;
         this.visibleColumns = this.columns
             .map((column, index) => ({ column, index }))
             .filter(({ column }) => !column.hidden);
@@ -113,6 +115,15 @@ class SortableTable {
     createPaginationElement() {
         const controls = document.createElement('div');
         controls.className = `${this.cssPrefix}-controls`;
+        if (this.controlsStart || this.controlsEnd) {
+            controls.classList.add(`${this.cssPrefix}-controls-combined`);
+        }
+
+        if (this.controlsStart) {
+            this.controlsStart.classList.add(`${this.cssPrefix}-controls-start`);
+            controls.appendChild(this.controlsStart);
+        }
+
         const pagination = document.createElement('div');
         pagination.className = `${this.cssPrefix}-pagination`;
 
@@ -127,6 +138,12 @@ class SortableTable {
         pagination.appendChild(this.createPaginationButton('next-page', 'next', '>'));
         pagination.appendChild(this.createPaginationButton('last-page', 'last', '>>'));
         controls.appendChild(pagination);
+
+        if (this.controlsEnd) {
+            this.controlsEnd.classList.add(`${this.cssPrefix}-controls-end`);
+            controls.appendChild(this.controlsEnd);
+        }
+
         return controls;
     }
 
@@ -604,7 +621,8 @@ class SortableTable {
         this.container.replaceChildren();
         this.container.classList.remove(this.cssPrefix + '-container');
         this.data = this.originalData = this.columns = this.visibleColumns =
-            this.rowPrototype = this.currentFilter = null;
+            this.rowPrototype = this.currentFilter = this.controlsStart =
+            this.controlsEnd = null;
     }
 }
 

@@ -122,6 +122,8 @@ export class TableWrapper {
     this._externalFilter = null;
     this._debounceTimer = null;
     this._searchInputEl = null;
+    this._toolbarStartEl = null;
+    this._toolbarEndEl = null;
     this._stColumns = [];
     this._digestColumns = [];
     this._table = null;
@@ -243,14 +245,14 @@ export class TableWrapper {
   }
 
   _buildToolbar() {
-    const bar = document.createElement('div');
-    bar.className = 'table-toolbar';
-
     if (this.toolbar.search !== false) {
+      const searchGroup = document.createElement('div');
+      searchGroup.className = 'table-toolbar-search';
+
       const label = document.createElement('label');
       label.className = 'table-search-label';
       label.textContent = this.labels.search;
-      bar.appendChild(label);
+      searchGroup.appendChild(label);
 
       const search = document.createElement('input');
       search.type = 'text';
@@ -258,11 +260,13 @@ export class TableWrapper {
       search.placeholder = this.labels.searchPlaceholder;
       this.wireSearchInput(search);
       label.htmlFor = search.id = 'table-search-' + (++TableWrapper._idSeq);
-      bar.appendChild(search);
+      searchGroup.appendChild(search);
+
+      this._toolbarStartEl = searchGroup;
     }
 
     const actions = document.createElement('div');
-    actions.className = 'table-toolbar-actions ms-auto';
+    actions.className = 'table-toolbar-actions';
     const exportButton = this._buildExportButton();
     if (exportButton) actions.appendChild(exportButton);
     if (this.canModify && this.actions.onAdd) {
@@ -272,9 +276,7 @@ export class TableWrapper {
       if (!toolbarActionVisible(action)) continue;
       actions.appendChild(this._buildToolbarActionButton(action));
     }
-    if (actions.children.length) bar.appendChild(actions);
-
-    if (bar.children.length) this._el.appendChild(bar);
+    if (actions.children.length) this._toolbarEndEl = actions;
   }
 
   _buildExportButton() {
@@ -340,7 +342,7 @@ export class TableWrapper {
       ? sort
       : undefined;
 
-    this._table = new window.SortableTable({
+    const tableOptions = {
       container: this._tableEl,
       data: digest.rows,
       columns: this._stColumns,
@@ -353,7 +355,11 @@ export class TableWrapper {
         this.onSort?.(col, asc);
       },
       onPageChange: () => this._applySelectedRow(),
-    });
+    };
+    if (this._toolbarStartEl) tableOptions.controlsStart = this._toolbarStartEl;
+    if (this._toolbarEndEl) tableOptions.controlsEnd = this._toolbarEndEl;
+
+    this._table = new window.SortableTable(tableOptions);
 
     // Set min-width so columns keep their specified widths and the wrapper
     // scrolls horizontally when the total exceeds the viewport.
