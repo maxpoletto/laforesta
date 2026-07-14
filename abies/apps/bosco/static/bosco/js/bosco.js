@@ -592,6 +592,7 @@ function applyParams(params) {
   else {
     applyMapView(state);
     updateMapDisplayAreas(state);
+    updateSidebarTitle(state);
     refreshCharacteristicLayer();
   }
   if (state.mode === MODE_EVOLUTION) renderEvolutionMode();
@@ -735,7 +736,7 @@ function renderMap(state) {
   setTimeout(() => { suppressViewSync = false; }, 0);
   buildMapParcelEntries(state);
   refreshCharacteristicLayer();
-  setStatus(S.BOSCO_PARCELS(region.name, fmtInt(mapEntries.length)));
+  updateSidebarTitle(state);
 }
 
 function buildMapParcelEntries(state) {
@@ -937,7 +938,6 @@ function renderCharacteristicRaster(seq, layer, date) {
       displayFn: v => metricTooltipDisplay(currentState.q, v),
     });
     renderSatelliteLegend(legendEl, layer, date);
-    setStatus(`${SATELLITE_LAYERS[layer]?.label || layer.toUpperCase()} ${date.slice(0, 7)}`);
   }).catch(() => {
     if (seq === characteristicRenderSeq) renderMessageLegend(S.BOSCO_RASTER_UNAVAILABLE);
   });
@@ -1028,7 +1028,6 @@ function renderEvolutionHarvest(seq) {
     );
   }
   renderHarvestDeltaLegend(fromYear, toYear, domain);
-  setStatus(`${S.BOSCO_HARVEST_METRIC} ${toYear} - ${fromYear}`);
   canonicalizeEvolutionDates(currentState, fromYear, toYear);
 }
 
@@ -1097,7 +1096,6 @@ function renderEvolutionRaster(seq, metric, date1, date2) {
       displayFn: v => evolutionMetricDisplay(metric, v),
     });
     renderDiffLegend(metric, date1, date2, { maxAbs });
-    setStatus(`${evolutionMetricLabel(metric)} ${date2.slice(0, 7)} - ${date1.slice(0, 7)}`);
   }).catch(() => {
     if (seq === evolutionRenderSeq) renderLegendMessage(diffLegendEl, S.BOSCO_RASTER_UNAVAILABLE);
   });
@@ -2229,18 +2227,14 @@ function onMapClick(latlng, feature) {
     promptNewPaiTreeAt(latlng, feature);
     return;
   }
-  const region = regionById.get(currentState?.regionId);
   if (!feature) {
-    if (region) setStatus(S.BOSCO_REGION_SUMMARY(region.name));
+    updateSidebarTitle(currentState);
     openRegionDetail();
     return;
   }
   const { compresa, particella } = parcelNames(feature);
   const entry = mapEntriesByKey?.get(parcelKey(compresa, particella));
-  const context = currentState ? characteristicContext(currentState.q) : {};
-  const value = entry && currentState ? metricValue(entry, currentState.q, context) : null;
-  const metric = currentState?.mode === MODE_CHARACTERISTICS ? ` — ${metricDisplay(currentState.q, value)}` : '';
-  setStatus(`${compresa} ${particella}${metric}`.trim());
+  updateSidebarTitle(currentState);
   if (entry) openParcelDetail(entry);
 }
 
@@ -2279,6 +2273,12 @@ function canonicalizeURL(state) {
 
 function setStatus(text) {
   if (statusEl) statusEl.textContent = text || '';
+}
+
+function updateSidebarTitle(state = currentState) {
+  const region = regionById.get(state?.regionId);
+  if (!region || !mapEntries.length) return;
+  setStatus(S.BOSCO_PARCELS(region.name, fmtInt(mapEntries.length)));
 }
 
 function canonicalizeEvolutionParams(params, state) {
