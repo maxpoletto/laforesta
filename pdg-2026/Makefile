@@ -11,6 +11,8 @@ CSV_DIR=../bosco/data
 all: equazioni altvol pdf
 clean: clean-equazioni clean-altvol clean-pdf
 
+PDG_DEPS=pdg.py $(wildcard pdg/*.py)
+
 #
 # Fit curves
 #
@@ -19,13 +21,13 @@ FILES_EQUAZIONI=$(CSV_DIR)/equazioni_originali.csv $(CSV_DIR)/equazioni_ipsometr
 
 equazioni: $(FILES_EQUAZIONI)
 
-$(CSV_DIR)/equazioni_originali.csv: $(CSV_DIR)/alberi.csv
+$(CSV_DIR)/equazioni_originali.csv: $(PDG_DEPS) $(CSV_DIR)/alberi.csv
 	./pdg.py --genera-equazioni --funzione log --fonte-altezze originali --input $(CSV_DIR)/alberi.csv --output $(CSV_DIR)/equazioni_originali.csv
 
-$(CSV_DIR)/equazioni_ipsometro.csv: $(CSV_DIR)/altezze.csv
+$(CSV_DIR)/equazioni_ipsometro.csv: $(PDG_DEPS) $(CSV_DIR)/altezze.csv
 	./pdg.py --genera-equazioni --funzione log --fonte-altezze ipsometro --input $(CSV_DIR)/altezze.csv --output $(CSV_DIR)/equazioni_ipsometro.csv
 
-$(CSV_DIR)/equazioni_tabelle.csv: $(CSV_DIR)/alsometrie.csv $(CSV_DIR)/particelle.csv
+$(CSV_DIR)/equazioni_tabelle.csv: $(PDG_DEPS) $(CSV_DIR)/alsometrie.csv $(CSV_DIR)/particelle.csv
 	./pdg.py --genera-equazioni --funzione log --fonte-altezze tabelle --particelle $(CSV_DIR)/particelle.csv --input $(CSV_DIR)/alsometrie.csv --output $(CSV_DIR)/equazioni_tabelle.csv
 
 clean-equazioni:
@@ -38,7 +40,7 @@ clean-equazioni:
 
 altvol: $(CSV_DIR)/alberi-calcolati.csv
 
-$(CSV_DIR)/alberi-calcolati.csv: $(CSV_DIR)/alberi.csv $(CSV_DIR)/equazioni_ipsometro.csv
+$(CSV_DIR)/alberi-calcolati.csv: $(PDG_DEPS) $(CSV_DIR)/alberi.csv $(CSV_DIR)/equazioni_ipsometro.csv
 	./pdg.py --calcola-altezze-volumi --coeff-pressler 200 --equazioni $(CSV_DIR)/equazioni_ipsometro.csv --input $(CSV_DIR)/alberi.csv --output $(CSV_DIR)/alberi-calcolati.csv
 
 clean-altvol:
@@ -50,7 +52,7 @@ clean-altvol:
 
 incrementi: $(CSV_DIR)/incrementi.csv
 
-$(CSV_DIR)/incrementi.csv: $(CSV_DIR)/alberi-calcolati.csv
+$(CSV_DIR)/incrementi.csv: $(PDG_DEPS) $(CSV_DIR)/alberi-calcolati.csv
 	./pdg.py --calcola-incrementi --input $(CSV_DIR)/alberi-calcolati.csv --output $(CSV_DIR)/incrementi.csv
 
 #
@@ -64,7 +66,7 @@ DATA_DEPS=$(FILES_EQUAZIONI) $(CSV_DIR)/alberi.csv $(CSV_DIR)/alberi-calcolati.c
 #
 
 FILES_HTML=html/index.html
-DEPS_HTML=$(DATA_DEPS) pdg.py $(wildcard pdg/*.py) harvest_rules.py template/html/style.css
+DEPS_HTML=$(DATA_DEPS) $(PDG_DEPS) harvest_rules.py template/html/style.css
 
 html: $(FILES_HTML)
 
@@ -83,7 +85,7 @@ BASENAME=relazione
 FILE_PDF=tex/$(BASENAME).pdf
 FILE_TEX=tex/$(BASENAME).tex
 DEPS_BIB=template/tex/ref.bib
-DEPS_TEX=$(DATA_DEPS) pdg.py $(wildcard pdg/*.py)
+DEPS_TEX=$(DATA_DEPS) $(PDG_DEPS)
 
 TEX_FLAGS=-interaction=batchmode -halt-on-error
 
@@ -125,12 +127,12 @@ clean-pdf-all:
 #
 
 FILES_CSV=$(CSV_DIR)/ripresa.csv $(CSV_DIR)/piano.csv $(CSV_DIR)/ceduo.csv
-DEPS_CSV=$(DATA_DEPS) pdg.py $(wildcard pdg/*.py)
+DEPS_CSV=$(DATA_DEPS) $(PDG_DEPS)
 csv: $(FILES_CSV)
 
 $(CSV_DIR)/%.csv: template/csv/%.csv $(DEPS_CSV)
 	./pdg.py $(EXTRA_FLAGS) --report --formato csv --separatore-decimale punto --particelle $(CSV_DIR)/particelle.csv --dati $(CSV_DIR) --input template/csv/$*.csv --output-dir csv/
-	
+
 clean-csv:
 	rm -f $(FILES_CSV)
 
