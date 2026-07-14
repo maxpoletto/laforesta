@@ -38,7 +38,7 @@ SATELLITE_MANAGE = $(LOCAL_ENV) $(SATELLITE_ENV) env $(LOCAL_DJANGO_ENV) $(PYTHO
         collectstatic minify \
         deploy-dev deploy-prod deploy-instance \
         sync-canonical sync-canonical-dev sync-canonical-prod sync-satellite sync-satellite-dev sync-satellite-prod sync-data sync-data-dev sync-data-prod \
-        bootstrap-dev bootstrap-prod bootstrap-instance backup-dev backup-prod backup-instance docker-prune \
+        bootstrap-dev bootstrap-prod bootstrap-instance backup-dev backup-prod backup-instance mirror-prod-to-dev mirror-instance docker-prune \
         test test-js \
         clean reset-schema update-vendor
 
@@ -65,6 +65,7 @@ help:
 	@echo "  make bootstrap-prod             sync canonical data, then bootstrap prod DB"
 	@echo "  make backup-dev                  create and prune a dev backup"
 	@echo "  make backup-prod                 create and prune a prod backup"
+	@echo "  make mirror-prod-to-dev          copy prod runtime state into dev (use MIRROR_ARGS=--yes)"
 	@echo ""
 	@echo "Useful variables: LOCAL_ENV_FILE=$(LOCAL_ENV_FILE), SATELLITE_ENV_FILE=$(SATELLITE_ENV_FILE), CANONICAL_DIR=$(CANONICAL_DIR), SATELLITE_DIR=$(SATELLITE_DIR), SATELLITE_GEOJSON=$(SATELLITE_GEOJSON), BRANDING_DIR=$(BRANDING_DIR), REMOTE=$(REMOTE), ABIES_DOCKER_CONTEXT=$(ABIES_DOCKER_CONTEXT), DEPLOY_ARGS=--reset-user"
 
@@ -215,6 +216,14 @@ backup-prod:
 backup-instance:
 	@test "$(INSTANCE)" = "dev" -o "$(INSTANCE)" = "prod" || { echo "usage: make backup-instance INSTANCE=<dev|prod>" >&2; exit 1; }
 	docker --context "$(ABIES_DOCKER_CONTEXT)" exec "abies-$(INSTANCE)" bin/backup --instance "$(INSTANCE)"
+
+mirror-prod-to-dev:
+	$(MAKE) mirror-instance SOURCE=prod TARGET=dev
+
+mirror-instance:
+	@test "$(SOURCE)" = "dev" -o "$(SOURCE)" = "prod" || { echo "usage: make mirror-instance SOURCE=<dev|prod> TARGET=<dev|prod> [MIRROR_ARGS=--yes]" >&2; exit 1; }
+	@test "$(TARGET)" = "dev" -o "$(TARGET)" = "prod" || { echo "usage: make mirror-instance SOURCE=<dev|prod> TARGET=<dev|prod> [MIRROR_ARGS=--yes]" >&2; exit 1; }
+	ABIES_DOCKER_CONTEXT="$(ABIES_DOCKER_CONTEXT)" ./bin/mirror-instance-state "$(SOURCE)" "$(TARGET)" $(MIRROR_ARGS)
 
 docker-prune:
 	docker --context "$(ABIES_DOCKER_CONTEXT)" image prune

@@ -170,3 +170,39 @@ For a full restore, stop the instance, preserve the current data directory, run
 `bin/backup --restore` into a temporary directory, copy the restored
 `db.sqlite3` into `/var/lib/abies-prod/data/db.sqlite3`, restore `ipso-inbox` if
 needed, fix ownership to `abies:abies`, and start the container.
+
+## Mirroring Runtime State Between Instances
+
+Use `bin/mirror-instance-state` when remote dev should become a copy of
+production for realistic testing:
+
+```sh
+make mirror-prod-to-dev MIRROR_ARGS=--yes
+```
+
+The tool copies the same runtime state covered by backups: `db.sqlite3` and,
+by default, `ipso-inbox`. It intentionally does not copy generated/static or
+deployment-owned inputs such as canonical CSVs, satellite data, geodata,
+branding, collected static files, or compose environment secrets.
+
+The default `prod -> dev` flow is:
+
+1. create a fresh source backup in the prod backup mount;
+2. create a pre-mirror backup of the target dev state;
+3. transfer the source archive into the target backup mount;
+4. stop the target compose stack;
+5. restore `db.sqlite3`, remove stale SQLite WAL/SHM files, and replace the
+   target Ipso inbox with the restored inbox, or an empty inbox when the source
+   archive has none;
+6. run target migrations and regenerate digests using the target image;
+7. start the target compose stack.
+
+Run a plan without changing anything:
+
+```sh
+bin/mirror-instance-state prod dev --dry-run
+```
+
+Because mirroring overwrites target runtime state, non-interactive runs require
+`--yes`. The tool refuses to target production unless `--allow-prod-target` is
+also provided.

@@ -1,0 +1,295 @@
+#!/usr/bin/env python3
+"""Mirror Abies runtime state from one deployed instance into another.
+
+The mirrored state is exactly the runtime state covered by ``bin/backup``:
+the SQLite database and, by default, the Ipso inbox.  Generated/static inputs
+such as canonical CSVs, satellite data, geodata, collected static files, and
+branding remain owned by the target instance.
+
+Intended use from the deployment checkout:
+
+    bin/mirror-instance-state prod dev --yes
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+import re
+import shlex
+import subprocess
+import sys
+import tempfile
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+
+INSTANCES = {'dev', 'prod'}
+
+RESTORE_SCRIPT = r'''
+set -eu
+archive="$1"
+work="/app/data/.mirror-restore"
+new_db="/app/data/.mirror-db.sqlite3"
+new_inbox="/app/data/.mirror-ipso-inbox"
+
+cleanup() {
+  rm -f "$new_db"
+  rm -rf "$work" "$new_inbox"
+}
+trap cleanup EXIT
+
+rm -rf "$work" "$new_inbox"
+rm -f "$new_db"
+
+bin/backup --restore "/app/backup/$archive" --dest "$work"
+cp "$work/db.sqlite3" "$new_db"
+chmod 600 "$new_db"
+
+rm -f /app/data/db.sqlite3-wal /app/data/db.sqlite3-shm
+mv -f "$new_db" /app/data/db.sqlite3
+
+if [ -d "$work/ipso-inbox" ]; then
+  cp -a "$work/ipso-inbox" "$new_inbox"
+fi
+rm -rf /app/data/ipso-inbox
+if [ -d "$new_inbox" ]; then
+  mv "$new_inbox" /app/data/ipso-inbox
+else
+  mkdir -p /app/data/ipso-inbox
+fi
+
+rm -rf "$work"
+trap - EXIT
+cleanup
+'''
+
+
+@dataclass(frozen=True)
+class MirrorPlan:
+    source: str
+    target: str
+    timestamp: str
+    source_reason: str
+    target_backup_reason: str
+    archive_name: str
+
+
+class Runner:
+    def __init__(self, *, dry_run: bool) -> None:
+        self.dry_run = dry_run
+
+    def run(
+            self, cmd: list[str], *, stdin_path: Path | None = None,
+            stdout_path: Path | None = None,
+    ) -> None:
+        if self.dry_run:
+            print('+ ' + shlex.join(cmd))
+            if stdin_path is not None:
+                print(f'  # stdin <- {stdin_path}')
+            if stdout_path is not None:
+                print(f'  # stdout -> {stdout_path}')
+            return
+
+        with _optional_open(stdin_path, 'rb') as stdin, _optional_open(stdout_path, 'wb') as stdout:
+            subprocess.run(cmd, check=True, stdin=stdin, stdout=stdout)
+
+
+def main() -> int:
+    args = parse_args()
+    validate_args(args)
+
+    plan = build_plan(args)
+    print_plan(plan, args)
+    confirm_or_exit(args)
+
+    runner = Runner(dry_run=args.dry_run)
+    if args.dry_run:
+        archive_path = Path('/tmp') / plan.archive_name
+        execute_plan(args, plan, runner, archive_path)
+        return 0
+
+    with tempfile.TemporaryDirectory(prefix='abies-mirror.') as tmp:
+        archive_path = Path(tmp) / plan.archive_name
+        execute_plan(args, plan, runner, archive_path)
+    return 0
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description='Mirror Abies runtime state from one deployed instance into another.',
+    )
+    parser.add_argument('source', nargs='?', default='prod', choices=sorted(INSTANCES))
+    parser.add_argument('target', nargs='?', default='dev', choices=sorted(INSTANCES))
+    parser.add_argument(
+        '--docker-context',
+        default=os.environ.get('ABIES_DOCKER_CONTEXT', 'vm-abies'),
+        help='Docker context to use, default: ABIES_DOCKER_CONTEXT or vm-abies',
+    )
+    parser.add_argument(
+        '--compose-bin',
+        default=os.environ.get('ABIES_DOCKER_COMPOSE', 'docker-compose'),
+        help='Docker Compose command, default: ABIES_DOCKER_COMPOSE or docker-compose',
+    )
+    parser.add_argument('--reason', help='backup reason suffix for the source archive')
+    parser.add_argument(
+        '--now',
+        help='UTC timestamp override for deterministic archive names; accepts YYYYMMDDTHHMMSSZ or ISO Z',
+    )
+    parser.add_argument('--yes', action='store_true', help='do not prompt before overwriting target state')
+    parser.add_argument('--dry-run', action='store_true', help='print the planned commands without running them')
+    parser.add_argument(
+        '--allow-prod-target', action='store_true',
+        help='allow mirroring into prod; still requires --yes or interactive confirmation',
+    )
+    parser.add_argument('--no-target-backup', action='store_true', help='skip target pre-mirror backup')
+    parser.add_argument('--no-migrate', action='store_true', help='skip target migrations after restore')
+    parser.add_argument('--no-digests', action='store_true', help='skip regenerating target digests after restore')
+    parser.add_argument('--no-start', action='store_true', help='leave target compose stack stopped after restore')
+    parser.add_argument(
+        '--include-ipso-inbox', dest='include_ipso_inbox', action='store_true',
+        help='include Ipso inbox in the source backup, default',
+    )
+    parser.add_argument(
+        '--no-include-ipso-inbox', dest='include_ipso_inbox', action='store_false',
+        help='mirror only the SQLite database and reset target Ipso inbox to empty',
+    )
+    parser.set_defaults(include_ipso_inbox=True)
+    return parser.parse_args()
+
+
+def validate_args(args: argparse.Namespace) -> None:
+    if args.source == args.target:
+        raise SystemExit('error: source and target must differ')
+    if args.target == 'prod' and not args.allow_prod_target:
+        raise SystemExit('error: refusing to overwrite prod without --allow-prod-target')
+
+
+def build_plan(args: argparse.Namespace) -> MirrorPlan:
+    timestamp = parse_timestamp(args.now).strftime('%Y%m%dT%H%M%SZ') if args.now else utc_now()
+    source_reason = filename_part(args.reason or f'mirror-to-{args.target}')
+    target_reason = filename_part(f'pre-mirror-from-{args.source}')
+    archive_name = f'abies-{args.source}-{timestamp}-{source_reason}.tar.gz'
+    return MirrorPlan(
+        source=args.source,
+        target=args.target,
+        timestamp=timestamp,
+        source_reason=source_reason,
+        target_backup_reason=target_reason,
+        archive_name=archive_name,
+    )
+
+
+def parse_timestamp(value: str) -> datetime:
+    for fmt in ('%Y%m%dT%H%M%SZ', '%Y-%m-%dT%H:%M:%SZ'):
+        try:
+            return datetime.strptime(value, fmt).replace(tzinfo=timezone.utc)
+        except ValueError:
+            pass
+    raise SystemExit(f'error: invalid UTC timestamp: {value}')
+
+
+def utc_now() -> str:
+    return datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
+
+
+def filename_part(value: str) -> str:
+    part = re.sub(r'[^A-Za-z0-9_.-]+', '-', value.strip()).strip('-')
+    if not part:
+        raise SystemExit('error: empty filename component')
+    return part
+
+
+def print_plan(plan: MirrorPlan, args: argparse.Namespace) -> None:
+    print(f'Mirror Abies runtime state: {plan.source} -> {plan.target}')
+    print(f'Archive: {plan.archive_name}')
+    print('State copied: SQLite database' + (' + Ipso inbox' if args.include_ipso_inbox else ' only'))
+    print('Target pre-mirror backup: ' + ('no' if args.no_target_backup else 'yes'))
+    print('Target migrations: ' + ('no' if args.no_migrate else 'yes'))
+    print('Target digest regeneration: ' + ('no' if args.no_digests else 'yes'))
+    print('Target restart: ' + ('no' if args.no_start else 'yes'))
+
+
+def confirm_or_exit(args: argparse.Namespace) -> None:
+    if args.dry_run or args.yes:
+        return
+    phrase = f'{args.source}->{args.target}'
+    if not sys.stdin.isatty():
+        raise SystemExit(f'error: destructive mirror requires --yes or an interactive confirmation ({phrase})')
+    answer = input(f'Type {phrase!r} to overwrite {args.target} runtime state: ')
+    if answer != phrase:
+        raise SystemExit('aborted')
+
+
+def execute_plan(args: argparse.Namespace, plan: MirrorPlan, runner: Runner, archive_path: Path) -> None:
+    backup_args = [
+        'bin/backup', '--instance', plan.source, '--reason', plan.source_reason,
+        '--now', plan.timestamp, '--no-prune',
+    ]
+    if not args.include_ipso_inbox:
+        backup_args.append('--no-include-ipso-inbox')
+    runner.run(dc_run(args, plan.source, *backup_args))
+
+    if not args.no_target_backup:
+        runner.run(dc_run(
+            args, plan.target,
+            'bin/backup', '--instance', plan.target,
+            '--reason', plan.target_backup_reason,
+            '--now', plan.timestamp, '--no-prune', '--allow-missing',
+        ))
+
+    runner.run(
+        dc_run(args, plan.source, 'cat', f'/app/backup/{plan.archive_name}'),
+        stdout_path=archive_path,
+    )
+    runner.run(
+        dc_run(args, plan.target, 'sh', '-c', 'umask 077; cat > "$1"; chmod 600 "$1"',
+               'sh', f'/app/backup/{plan.archive_name}'),
+        stdin_path=archive_path,
+    )
+
+    runner.run(dc(args, plan.target, 'down', '--remove-orphans'))
+    runner.run(dc_run(args, plan.target, 'sh', '-c', RESTORE_SCRIPT, 'sh', plan.archive_name))
+
+    if not args.no_migrate:
+        runner.run(dc_run(args, plan.target, 'python', 'manage.py', 'migrate', '--noinput'))
+    if not args.no_digests:
+        runner.run(dc_run(
+            args, plan.target,
+            'python', 'manage.py', 'shell', '--no-imports', '-c',
+            'from apps.base.digests import generate_all; generate_all()',
+        ))
+    if not args.no_start:
+        runner.run(dc(args, plan.target, 'up', '-d'))
+
+
+def dc(args: argparse.Namespace, instance: str, *cmd: str) -> list[str]:
+    return [
+        args.compose_bin, '--context', args.docker_context,
+        '-f', f'compose/{instance}.yml', '-p', f'abies-{instance}', *cmd,
+    ]
+
+
+def dc_run(args: argparse.Namespace, instance: str, *cmd: str) -> list[str]:
+    return dc(args, instance, 'run', '-T', '--rm', '--no-deps', 'abies', *cmd)
+
+
+class _optional_open:
+    def __init__(self, path: Path | None, mode: str) -> None:
+        self.path = path
+        self.mode = mode
+        self.handle = None
+
+    def __enter__(self):
+        if self.path is None:
+            return None
+        self.handle = self.path.open(self.mode)
+        return self.handle
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        if self.handle is not None:
+            self.handle.close()
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())
