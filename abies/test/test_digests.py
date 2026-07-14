@@ -524,10 +524,10 @@ class TestGenerateAudit:
         configured = {model for model, _, _ in _audit_configs()}
         assert _tracked_models() == configured
 
-    def test_bulk_tree_models_not_tracked(self, db):
-        """Tree / TreeSample / TreeMark are excluded from history (and thus
-        the audit) so bulk CSV imports don't swamp the log."""
+    def test_bulk_sample_tree_models_not_tracked(self, db):
+        """High-volume sample/tree rows are excluded from history and audit."""
         tracked = _tracked_models()
+        assert Sample not in tracked
         assert Tree not in tracked
         assert TreeSample not in tracked
         assert TreeMark not in tracked

@@ -507,7 +507,9 @@ class Sample(TimestampedModel):
     sample_area = models.ForeignKey(SampleArea, on_delete=models.CASCADE)
     survey = models.ForeignKey(Survey, on_delete=models.CASCADE)
     date = models.DateField()
-    history = HistoricalRecords()
+    # Deliberately NOT history-tracked: imports create one Sample per visited
+    # sample area, and those rows add high-volume noise to Controllo.  The
+    # surrounding Survey, SampleGrid, and SampleArea metadata remain audited.
 
     class Meta:
         verbose_name = S.SAMPLE

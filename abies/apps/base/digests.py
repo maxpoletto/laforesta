@@ -411,17 +411,17 @@ def _audit_configs() -> list:
     writes surface in the Controllo log; `generate_audit()` asserts this
     against `_tracked_models()`, and the contract is locked by
     `test_audit_covers_all_tracked_models`.  To stop auditing a model,
-    remove its `HistoricalRecords()` (as done for Tree/TreeSample/TreeMark/
-    TreePreserved, whose bulk CSV imports would swamp the log) — do not just
-    drop it here.
+    remove its `HistoricalRecords()` (as done for Sample/Tree/TreeSample/
+    TreeMark/TreePreserved, whose bulk imports would swamp the log) — do not
+    just drop it here.
 
     Field maps are selective: only domain-meaningful fields are shown.  FK
     and choice fields render as raw ids/codes, consistent with the original
     design.
     """
     from apps.base.models import (
-        Crew, HarvestPlan, HarvestPlanItem, HypsoParam, HypsoParamSet, Parcel,
-        Sample, SampleArea, SampleGrid, Species, Survey, Tractor, User,
+        Crew, HarvestPlan, HarvestPlanItem, HypsoParam, HypsoParamSet,
+        Parcel, SampleArea, SampleGrid, Species, Survey, Tractor, User,
     )
     from apps.ipso.models import IpsoUpload
     from apps.mannesi.models import ProductionCredit, WorkHour
@@ -496,10 +496,6 @@ def _audit_configs() -> list:
         (Survey, S.TABLE_SURVEY, {
             'name': S.LABEL_NAME, 'sample_grid_id': S.COL_GRID,
             'description': S.COL_DESCRIPTION, 'active': S.COL_ACTIVE,
-        }),
-        (Sample, S.TABLE_SAMPLE, {
-            'sample_area_id': S.COL_SAMPLE_AREA, 'survey_id': S.COL_SURVEY,
-            'date': S.COL_DATE,
         }),
         (HypsoParamSet, S.TABLE_HYPSO_PARAM_SET, {
             'source': S.COL_HYPSO_SOURCE, 'min_n': S.COL_MIN_N,

@@ -16,11 +16,12 @@ history-tracked models (`_tracked_models()`); the contract is locked by
 model without wiring it into `_audit_configs()` fails that test, so the
 log can never silently drop a tracked table.
 
-`Tree`, `TreeSample`, `TreeMark`, and `TreePreserved` are deliberately
+`Sample`, `Tree`, `TreeSample`, `TreeMark`, and `TreePreserved` are deliberately
 **not** history-tracked: they are written by bulk-ish CSV import paths
 (tens of thousands of rows for sampled/marked trees) and would swamp the
 log. Their parent or aggregate rows carry the user-visible event where
-practical. To stop auditing a model, remove its `HistoricalRecords()`
+practical; sample metadata still appears through `SampleGrid`, `SampleArea`,
+and `Survey`. To stop auditing a model, remove its `HistoricalRecords()`
 rather than dropping it from the config.
 
 Known intentional non-history tables include reference tables loaded only
