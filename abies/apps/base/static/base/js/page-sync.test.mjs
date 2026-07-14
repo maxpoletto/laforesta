@@ -356,6 +356,42 @@ const { TableWrapper } = await import('./table.js');
   );
 }
 
+// TableWrapper places add actions in the toolbar, immediately after export.
+{
+  const previousSortableTable = window.SortableTable;
+  window.SortableTable = class {
+    constructor(opts) {
+      this.data = opts.data;
+      this.columns = opts.columns;
+      this.currentSort = opts.sort || { column: 'name', ascending: true };
+    }
+    destroy() {}
+    clearFilter() {}
+  };
+
+  const container = new MockElement('div');
+  new TableWrapper({
+    container,
+    digest: { columns: ['row_id', 'name'], rows: [] },
+    columnDefs: {},
+    canModify: true,
+    actions: { onAdd: () => {} },
+    labels: { add: 'Aggiungi', exportCSV: 'Esporta' },
+  });
+  const page = container.children[0];
+  const toolbar = page.children[0];
+  eq(
+    toolbar.children.map(child => child.textContent || child.className),
+    ['Filter', 'table-search', 'Esporta', '+ Aggiungi'],
+    'TableWrapper add button is inside toolbar after export',
+  );
+  check(
+    !page.children.some(child => child.className === 'action-add'),
+    'TableWrapper does not render a below-table add row',
+  );
+  window.SortableTable = previousSortableTable;
+}
+
 // TableWrapper uses standard action-column widths by action count.
 {
   const created = [];

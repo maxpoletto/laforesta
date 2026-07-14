@@ -88,7 +88,7 @@
     const filterLabel = toolbar?.querySelector('.table-search-label');
     const searchInput = toolbar?.querySelector('.table-search');
     const csvBtn      = toolbar?.querySelector('.btn-export');
-    const addBtn      = document.querySelector('.btn-add');
+    const addBtn      = toolbar?.querySelector('.btn-add');
     check('filter label is "Filter"',
           filterLabel?.textContent === 'Filter',
           `got: ${JSON.stringify(filterLabel?.textContent)}`);
@@ -101,6 +101,9 @@
     check('Add button text is "+ Add"',
           addBtn?.textContent === '+ Add',
           `got: ${JSON.stringify(addBtn?.textContent)}`);
+    check('Add button is immediately after Export',
+          csvBtn?.nextElementSibling === addBtn,
+          `got: ${csvBtn?.nextElementSibling?.className}`);
 
     // Boolean cell rendering ("Yes" / "No")
     const rowTexts = [...document.querySelectorAll('.sortable-table-row')]

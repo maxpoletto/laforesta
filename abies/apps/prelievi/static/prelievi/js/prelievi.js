@@ -518,6 +518,7 @@ function buildPage(el, data, p) {
     },
     'export-csv': () => table?.exportCSV(),
     'import-csv': () => showCsvImportModal(),
+    add: () => showAddForm(),
   });
 
   // Wire collapsible sections.

@@ -204,10 +204,12 @@ function buildPageTemplate() {
   frag.appendChild(el('div', { dataset: { target: 'no-plans' } }));
   for (const key of ['f', 'c']) {
     const [header, body] = section(key);
-    body.appendChild(el('div', { dataset: { target: `toolbar-${key}` } }));
-    body.appendChild(el('input', { id: `pdt-search-${key}` }));
+    const toolbar = el('div', { dataset: { target: `toolbar-${key}` } });
+    toolbar.appendChild(el('input', { id: `pdt-search-${key}` }));
+    toolbar.appendChild(el('button', { dataset: { action: 'export-section-csv' } }));
+    toolbar.appendChild(el('button', { dataset: { target: `add-${key}`, action: `add-item-${key}` } }));
+    body.appendChild(toolbar);
     body.appendChild(el('div', { dataset: { target: `table-${key}` } }));
-    body.appendChild(el('div', { dataset: { target: `add-${key}` } }));
     body.appendChild(el('div', { dataset: { target: `empty-${key}` } }));
     frag.append(header, body);
   }
@@ -443,6 +445,12 @@ async function finish() {
     ceduoVisible.slice(0, expectedLeading.length),
     expectedLeading,
     'ceduo table shows area as fifth visible column',
+  );
+  const toolbar = contentEl.querySelector('[data-target="toolbar-f"]');
+  eq(
+    toolbar.children.map(child => child.dataset.target || child.dataset.action || child.id),
+    ['pdt-search-f', 'export-section-csv', 'add-f'],
+    'calendar add button is in section toolbar immediately after export',
   );
   await finish();
 }

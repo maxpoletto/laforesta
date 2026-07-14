@@ -201,6 +201,7 @@ function buildPrelieviTemplate() {
     search,
     el('button', { dataset: { action: 'reset-filters' } }),
     el('button', { dataset: { action: 'export-csv' } }),
+    el('button', { dataset: { action: 'add' } }),
   ]));
 
   const [ha, ba] = section('a');

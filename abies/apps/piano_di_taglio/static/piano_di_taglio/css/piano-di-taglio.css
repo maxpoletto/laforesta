@@ -85,13 +85,19 @@
   margin: 8px 0;
 }
 
-/* Honour the `hidden` attribute on the toolbar / table host / +Aggiungi
-   row.  Their explicit `display:` rules above (flex / block) would
+.pdt-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Honour the `hidden` attribute on the toolbar / table host / empty state.
+   Their explicit `display:` rules above (flex / block) would
    otherwise win over the user-agent rule that maps [hidden] to
    display:none — needed so the empty-state CTA can suppress them. */
 .pdt-section-toolbar[hidden],
 .pdt-table-host[hidden],
-.collapsible-body .action-add[hidden],
 .pdt-empty-state[hidden] {
   display: none;
 }

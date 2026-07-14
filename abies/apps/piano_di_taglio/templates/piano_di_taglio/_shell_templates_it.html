@@ -39,13 +39,13 @@ render context.
              placeholder="{{ S.SEARCH_PLACEHOLDER }}">
       <button type="button" class="btn btn-export ms-auto"
               data-action="export-section-csv">{{ S.EXPORT }}</button>
+      {% if user.can_modify %}
+      <button type="button" class="btn btn-create btn-add"
+              data-target="add-f" data-action="add-item-f">+ Aggiungi</button>
+      {% endif %}
     </div>
     <div class="pdt-table-host" data-target="table-f"></div>
     {% if user.can_modify %}
-    <div class="action-add" data-target="add-f">
-      <button type="button" class="btn btn-create btn-add"
-              data-action="add-item-f">+ Aggiungi</button>
-    </div>
     <div class="pdt-empty-state" data-target="empty-f" hidden>
       <div class="pdt-empty-state-message">Nessun intervento.</div>
       <div class="pdt-empty-state-actions">
@@ -67,13 +67,13 @@ render context.
              placeholder="{{ S.SEARCH_PLACEHOLDER }}">
       <button type="button" class="btn btn-export ms-auto"
               data-action="export-section-csv">{{ S.EXPORT }}</button>
+      {% if user.can_modify %}
+      <button type="button" class="btn btn-create btn-add"
+              data-target="add-c" data-action="add-item-c">+ Aggiungi</button>
+      {% endif %}
     </div>
     <div class="pdt-table-host" data-target="table-c"></div>
     {% if user.can_modify %}
-    <div class="action-add" data-target="add-c">
-      <button type="button" class="btn btn-create btn-add"
-              data-action="add-item-c">+ Aggiungi</button>
-    </div>
     <div class="pdt-empty-state" data-target="empty-c" hidden>
       <div class="pdt-empty-state-message">Nessun intervento.</div>
       <div class="pdt-empty-state-actions">

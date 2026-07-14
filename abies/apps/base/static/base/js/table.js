@@ -70,7 +70,7 @@ const DEFAULT_CSV_FORMAT = {
  *   - Built-in toolbar (search + CSV export), or external wiring for
  *     page-level filter bars via wireSearchInput() / exportCSV()
  *   - Edit/delete action icons per row (writers/admins)
- *   - Add button below table (writers/admins)
+ *   - Add button in the toolbar next to CSV export (writers/admins)
  */
 export class TableWrapper {
   /**
@@ -231,17 +231,6 @@ export class TableWrapper {
     }
     this._el.appendChild(this._tableEl);
 
-    if (this.canModify && this.actions.onAdd) {
-      const row = document.createElement('div');
-      row.className = 'action-add';
-      const btn = document.createElement('button');
-      btn.className = 'btn btn-create btn-add';
-      btn.textContent = '+ ' + this.labels.add;
-      btn.addEventListener('click', () => this.actions.onAdd());
-      row.appendChild(btn);
-      this._el.appendChild(row);
-    }
-
     this.container.appendChild(this._el);
     if (digest) this._initTable(digest, sort);
   }
@@ -269,7 +258,19 @@ export class TableWrapper {
     csvBtn.addEventListener('click', () => this.exportCSV());
     bar.appendChild(csvBtn);
 
+    if (this.canModify && this.actions.onAdd) {
+      bar.appendChild(this._buildAddButton());
+    }
+
     this._el.appendChild(bar);
+  }
+
+  _buildAddButton() {
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-create btn-add';
+    btn.textContent = '+ ' + this.labels.add;
+    btn.addEventListener('click', () => this.actions.onAdd());
+    return btn;
   }
 
   /**

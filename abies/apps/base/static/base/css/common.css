@@ -674,7 +674,7 @@ input:focus, select:focus, textarea:focus {
 
 .col-actions { text-align: center; }
 
-/* Action icons (per-row pencil/X) and add-button row. */
+/* Action icons (per-row pencil/X) and toolbar add button. */
 .action-icon {
   background: none;
   border: none;
@@ -685,12 +685,6 @@ input:focus, select:focus, textarea:focus {
 }
 
 .action-icon:hover { color: var(--color-bosco-green); }
-
-.action-add {
-  display: flex;
-  justify-content: flex-end;
-  padding: 6px 0;
-}
 
 .btn-add { font-size: 0.85rem; }
 

@@ -1303,27 +1303,7 @@ async function appendItemMarkTreesSection(card, itemId, state) {
     body.appendChild(banner);
   }
 
-  // Action buttons (writers only, not closed).
-  if (canModify() && !isClosed) {
-    const actions = document.createElement('div');
-    actions.className = 'subsection-actions';
-
-    const addBtn = document.createElement('button');
-    addBtn.type = 'button';
-    addBtn.className = 'btn btn-create';
-    addBtn.textContent = S.NEW_MARK_LABEL;
-    addBtn.addEventListener('click', () => showNewMarkForm(itemId));
-    actions.appendChild(addBtn);
-
-    const importBtn = document.createElement('button');
-    importBtn.type = 'button';
-    importBtn.className = 'btn btn-import';
-    importBtn.textContent = S.IMPORT_MARKS_LABEL;
-    importBtn.addEventListener('click', () => showImportMarksForm(itemId));
-    actions.appendChild(importBtn);
-
-    body.appendChild(actions);
-  }
+  const showMarkActions = canModify() && !isClosed;
 
   // Lazy-fetch per-item mark trees.
   const dataId = markTreesDataId(itemId);
@@ -1361,22 +1341,47 @@ async function appendItemMarkTreesSection(card, itemId, state) {
     body.appendChild(note);
   }
 
-  if (!data.rows.length) return;
+  if (!data.rows.length && !showMarkActions) return;
 
   const toolbar = document.createElement('div');
   toolbar.className = 'pdt-section-toolbar';
-  const searchId = `pdt-mark-search-${itemId}`;
-  const searchLabel = document.createElement('label');
-  searchLabel.className = 'pdt-search-label';
-  searchLabel.htmlFor = searchId;
-  searchLabel.textContent = S.FILTER_LABEL;
-  const searchInput = document.createElement('input');
-  searchInput.type = 'text';
-  searchInput.className = 'table-search';
-  searchInput.id = searchId;
-  searchInput.placeholder = S.SEARCH_PLACEHOLDER;
-  toolbar.append(searchLabel, searchInput);
+  let searchInput = null;
+  if (data.rows.length) {
+    const searchId = `pdt-mark-search-${itemId}`;
+    const searchLabel = document.createElement('label');
+    searchLabel.className = 'pdt-search-label';
+    searchLabel.htmlFor = searchId;
+    searchLabel.textContent = S.FILTER_LABEL;
+    searchInput = document.createElement('input');
+    searchInput.type = 'text';
+    searchInput.className = 'table-search';
+    searchInput.id = searchId;
+    searchInput.placeholder = S.SEARCH_PLACEHOLDER;
+    toolbar.append(searchLabel, searchInput);
+  }
+  if (showMarkActions) {
+    const actions = document.createElement('div');
+    actions.className = 'pdt-toolbar-actions ms-auto';
+
+    const addBtn = document.createElement('button');
+    addBtn.type = 'button';
+    addBtn.className = 'btn btn-create';
+    addBtn.textContent = S.NEW_MARK_LABEL;
+    addBtn.addEventListener('click', () => showNewMarkForm(itemId));
+    actions.appendChild(addBtn);
+
+    const importBtn = document.createElement('button');
+    importBtn.type = 'button';
+    importBtn.className = 'btn btn-import';
+    importBtn.textContent = S.IMPORT_MARKS_LABEL;
+    importBtn.addEventListener('click', () => showImportMarksForm(itemId));
+    actions.appendChild(importBtn);
+
+    toolbar.appendChild(actions);
+  }
   body.appendChild(toolbar);
+
+  if (!data.rows.length) return;
 
   const host = document.createElement('div');
   host.className = 'subsection-host';
@@ -1399,7 +1404,7 @@ async function appendItemMarkTreesSection(card, itemId, state) {
     labels: S.TABLE_LABELS,
     csvFormat: S.TABLE_CSV_FORMAT,
   });
-  itemMarkTreesTable.wireSearchInput(searchInput);
+  if (searchInput) itemMarkTreesTable.wireSearchInput(searchInput);
 }
 
 function buildMarkTreeColumnDefs(columns) {
