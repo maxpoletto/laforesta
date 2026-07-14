@@ -25,6 +25,7 @@ services:
       - .env.prod
     environment:
       ABIES_INSTANCE: prod
+      ABIES_VERSION: ${ABIES_VERSION:-}
 
     logging:
       driver: json-file

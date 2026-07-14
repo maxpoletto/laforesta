@@ -298,6 +298,9 @@ Adjust names and ports as needed.
    make deploy-prod REF=<tag-or-sha>
    ```
 
+   The deployed ref/current-tree description is passed to the container as
+   `ABIES_VERSION` and shown to admins at the bottom of Impostazioni.
+
    The Makefile targets call `bin/deploy`, which builds the image, writes a
    pre-deploy compressed backup to the backup mount, runs migrations, runs
    `manage.py check --deploy --fail-level WARNING` for

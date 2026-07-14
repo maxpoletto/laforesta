@@ -50,6 +50,7 @@ done
 repo_root="$(git rev-parse --show-toplevel)"
 source_app_dir="$repo_root/abies"
 deploy_root=""
+deploy_version=""
 
 cleanup() {
   if [[ -n "$deploy_root" && -d "$deploy_root" ]]; then
@@ -73,6 +74,7 @@ esac
 app_dir="$source_app_dir"
 if [[ -n "$ref" ]]; then
   git -C "$repo_root" fetch --tags origin
+  deploy_version="$(git -C "$repo_root" describe --tags --always "$ref")"
   deploy_root="$(mktemp -d "${TMPDIR:-/tmp}/abies-deploy.XXXXXX")"
   git -C "$repo_root" archive "$ref" | tar -x -C "$deploy_root"
   app_dir="$deploy_root/abies"
@@ -84,9 +86,15 @@ if [[ -n "$ref" ]]; then
     exit 1
   }
   cp "$env_src" "$env_dst"
+else
+  deploy_version="$(git -C "$repo_root" describe --tags --always --dirty)"
+  if [[ -n "$(git -C "$repo_root" status --porcelain)" && "$deploy_version" != *-dirty ]]; then
+    deploy_version="${deploy_version}-dirty"
+  fi
 fi
 
 cd "$app_dir"
+export ABIES_VERSION="$deploy_version"
 
 context="${ABIES_DOCKER_CONTEXT:-vm-abies}"
 image="abies:${instance}"
@@ -100,6 +108,7 @@ echo "==> sync branding"
 ABIES_BRANDING_DIR="$source_app_dir/data/branding" bin/sync-branding
 
 echo "==> build ${image}"
+echo "==> version ${ABIES_VERSION}"
 dc build
 
 echo "==> pre-deploy backup"

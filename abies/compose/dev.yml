@@ -25,6 +25,7 @@ services:
       - .env.dev
     environment:
       ABIES_INSTANCE: dev
+      ABIES_VERSION: ${ABIES_VERSION:-}
 
     logging:
       driver: json-file
