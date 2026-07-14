@@ -9,8 +9,10 @@ code can back a true ``--check`` dry-run against a staged index.
 
 from dataclasses import dataclass
 from datetime import date as date_type
+from decimal import Decimal
 
 from django.db import transaction
+from django.db.models import Sum
 
 from apps.base import csv_io
 from apps.base.digests import mark_stale
@@ -108,14 +110,15 @@ PLAN_SECTION_FILENAMES = {
 
 HIGHFOREST_EXPORT_COLUMNS = [
     S.COL_ID, S.COL_YEAR_PLANNED, S.COL_YEAR_ACTUAL,
-    S.COL_REGION, S.COL_PARCEL, S.COL_STATE, S.COL_NOTE,
+    S.COL_REGION, S.COL_PARCEL, S.COL_PARCEL_AREA_HA,
+    S.COL_STATE, S.COL_NOTE,
     S.COL_VOLUME_PLANNED, S.COL_VOLUME_MARKED, S.COL_VOLUME_ACTUAL,
     S.COL_EXTRA_NOTE,
 ]
 COPPICE_EXPORT_COLUMNS = [
     S.COL_ID, S.COL_YEAR_PLANNED, S.COL_YEAR_ACTUAL,
-    S.COL_REGION, S.COL_PARCEL, S.COL_STATE, S.COL_NOTE,
-    S.COL_INTERVENTION_AREA_HA, S.COL_PARCEL_AREA_HA,
+    S.COL_REGION, S.COL_PARCEL, S.COL_PARCEL_AREA_HA,
+    S.COL_STATE, S.COL_NOTE, S.COL_INTERVENTION_AREA_HA,
     S.COL_PERIOD_Y, S.COL_VOLUME_ACTUAL, S.COL_EXTRA_NOTE,
 ]
 
@@ -511,6 +514,7 @@ def apply(*, target_plan, name, description, fustaia_parsed, ceduo_parsed):
 class PlanExportContext:
     items: list[HarvestPlanItem]
     parcel_intervals: dict[int, int]
+    region_area_by_id: dict[int, Decimal]
     delimiter: str
     decimal_sep: str
 
@@ -547,10 +551,19 @@ def _plan_export_context(plan: HarvestPlan) -> PlanExportContext:
                        .select_related('harvest_detail')
         if ppd.harvest_detail.interval is not None
     }
+    region_ids = {item.region_id for item in items if item.region_id is not None}
+    region_area_by_id = {
+        row['region_id']: row['area']
+        for row in Parcel.objects.filter(region_id__in=region_ids)
+                                 .values('region_id')
+                                 .annotate(area=Sum('area_ha'))
+        if row['area'] is not None
+    }
     delimiter, decimal_sep = csv_io.export_format()
     return PlanExportContext(
         items=items,
         parcel_intervals=parcel_intervals,
+        region_area_by_id=region_area_by_id,
         delimiter=delimiter,
         decimal_sep=decimal_sep,
     )
@@ -593,27 +606,27 @@ def _plan_item_export_row(
         ctx: PlanExportContext,
 ) -> list:
     compresa, particella = _plan_item_export_location(item)
-    parcel_area = (
-        '' if item.parcel_id is None
-        else csv_io.format_decimal(item.parcel.area_ha, ctx.decimal_sep)
+    area = (
+        ctx.region_area_by_id.get(item.region_id, '') if item.parcel_id is None
+        else item.parcel.area_ha
     )
+    parcel_area = csv_io.format_decimal(area, ctx.decimal_sep)
     anno_eff = item.date_actual.year if item.date_actual else ''
     flag_note = render_flag_note(item.damaged, item.unhealthy, item.psr)
     state_label = item.get_state_display()
     if section == PLAN_SECTION_COPPICE:
         return [
             item.id, item.year_planned, anno_eff,
-            compresa, particella,
+            compresa, particella, parcel_area,
             state_label, flag_note,
             csv_io.format_decimal(item.intervention_area_ha, ctx.decimal_sep),
-            parcel_area,
             ctx.parcel_intervals.get(item.parcel_id, ''),
             csv_io.format_decimal(item.volume_actual_m3, ctx.decimal_sep),
             item.note or '',
         ]
     return [
         item.id, item.year_planned, anno_eff,
-        compresa, particella,
+        compresa, particella, parcel_area,
         state_label, flag_note,
         csv_io.format_decimal(item.volume_planned_m3, ctx.decimal_sep),
         csv_io.format_decimal(item.volume_marked_m3, ctx.decimal_sep),

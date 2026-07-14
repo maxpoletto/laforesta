@@ -120,7 +120,7 @@ const sections = {
     itemMatcher: (row) => !rowIsCoppice(row),
     hiddenCols: [
       S.COL_HARVEST_PLAN, S.COL_TYPE, COL_COPPICE,
-      S.COL_INTERVENTION_AREA_HA, S.COL_PARCEL_AREA_HA, S.COL_PERIOD_Y,
+      S.COL_INTERVENTION_AREA_HA, S.COL_PERIOD_Y,
     ],
     exportKind: 'fustaia',
   },

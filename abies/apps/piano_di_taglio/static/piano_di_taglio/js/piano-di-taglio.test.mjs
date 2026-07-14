@@ -328,19 +328,20 @@ const { COL_COPPICE, ROW_ID, VERSION } = await import(staticModule('base/js/cons
 const planColumns = [ROW_ID, S.COL_NAME, S.COL_DESCRIPTION, S.COL_YEAR_START, S.COL_YEAR_END];
 const planDigest = { columns: planColumns, rows: [[10, 'Piano', '', 2026, 2029]] };
 const itemColumns = [
-  ROW_ID, VERSION, S.COL_HARVEST_PLAN, S.COL_TYPE, COL_COPPICE,
+  ROW_ID, VERSION, S.COL_HARVEST_PLAN,
   S.COL_YEAR_PLANNED, S.COL_YEAR_ACTUAL, S.COL_REGION, S.COL_PARCEL,
-  S.COL_STATE, S.COL_NOTE, S.COL_VOLUME_PLANNED, S.COL_VOLUME_MARKED,
-  S.COL_VOLUME_ACTUAL, S.COL_INTERVENTION_AREA_HA, S.COL_PARCEL_AREA_HA,
-  S.COL_PERIOD_Y,
+  S.COL_PARCEL_AREA_HA, S.COL_TYPE, COL_COPPICE, S.COL_STATE, S.COL_NOTE,
+  S.COL_VOLUME_PLANNED, S.COL_VOLUME_MARKED, S.COL_VOLUME_ACTUAL,
+  S.COL_INTERVENTION_AREA_HA, S.COL_PERIOD_Y,
 ];
 
 function itemRow(id, { region, parcel, year, state = S.STATE_MARKED, coppice = false }) {
   return [
-    id, 1, 10, coppice ? S.TYPE_COPPICE : '', coppice,
-    year, null, region, parcel, state, '',
+    id, 1, 10,
+    year, null, region, parcel, coppice ? 10 : 12.5,
+    coppice ? S.TYPE_COPPICE : '', coppice, state, '',
     coppice ? null : 100, coppice ? null : 20, 0,
-    coppice ? 3 : null, coppice ? 10 : null, coppice ? 12 : null,
+    coppice ? 3 : null, coppice ? 12 : null,
   ];
 }
 
@@ -418,6 +419,32 @@ async function finish() {
   modalEl.replaceChildren();
   tableInstances.length = 0;
   await flushAsyncWork();
+}
+
+// Calendar tables show cadastral parcel/region area as the fifth visible column.
+{
+  await pdt.mount({});
+  const expectedLeading = [
+    S.COL_YEAR_PLANNED, S.COL_YEAR_ACTUAL, S.COL_REGION,
+    S.COL_PARCEL, S.COL_PARCEL_AREA_HA, S.COL_STATE,
+  ];
+  const fustaiaVisible = tableInstances[0].columns
+    .filter(col => !col.hidden)
+    .map(col => col.key);
+  const ceduoVisible = tableInstances[1].columns
+    .filter(col => !col.hidden)
+    .map(col => col.key);
+  eq(
+    fustaiaVisible.slice(0, expectedLeading.length),
+    expectedLeading,
+    'fustaia table shows area as fifth visible column',
+  );
+  eq(
+    ceduoVisible.slice(0, expectedLeading.length),
+    expectedLeading,
+    'ceduo table shows area as fifth visible column',
+  );
+  await finish();
 }
 
 // A stale item/data response must not replace the newer item view.

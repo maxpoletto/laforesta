@@ -101,6 +101,7 @@ def _load(path):
         return json.load(f)
 
 
+
 # ---------------------------------------------------------------------------
 # harvest_plans digest
 # ---------------------------------------------------------------------------
@@ -198,7 +199,7 @@ class TestGenerateHarvestPlanItems:
         assert row[cols.index(S.COL_VOLUME_MARKED)] == ''
         assert row[cols.index(S.COL_VOLUME_ACTUAL)] == 0.0
 
-    def test_region_wide_row(self, region_wide_item, tmp_path, settings):
+    def test_region_wide_row(self, region_wide_item, parcels, tmp_path, settings):
         settings.DIGEST_DIR = tmp_path
         generate_harvest_plan_items()
         data = _load(tmp_path / 'harvest_plan_items.json.gz')
@@ -207,11 +208,10 @@ class TestGenerateHarvestPlanItems:
         row = next(r for r in data[ROWS] if r[cols.index(ROW_ID)] == region_wide_item.id)
         assert row[cols.index(S.COL_REGION)] == 'Capistrano'
         assert row[cols.index(S.COL_PARCEL)] == S.PARCEL_WHOLE_REGION_MARK
+        assert row[cols.index(S.COL_PARCEL_AREA_HA)] == 15.5
         # Region-wide items have no Eclass → Tipo/Coppice are empty.
         assert row[cols.index(S.COL_TYPE)] == ''
         assert row[cols.index(COL_COPPICE)] is None
-        # Parcel-area cross-check column is empty.
-        assert row[cols.index(S.COL_PARCEL_AREA_HA)] == ''
         # Flag rendering: damaged=True only → S.FLAG_DAMAGED.
         assert row[cols.index(S.COL_NOTE)] == S.FLAG_DAMAGED
         assert row[cols.index(S.COL_STATE)] == S.STATE_OPEN

@@ -114,6 +114,7 @@ def planned_item(plan, parcels):
     )
 
 
+
 # ---------------------------------------------------------------------------
 # Plan CRUD
 # ---------------------------------------------------------------------------
@@ -581,9 +582,9 @@ class TestPlanExport:
         zf = zipfile.ZipFile(io.BytesIO(resp.content))
         piano_header = zf.read('fustaia.csv').decode('utf-8').splitlines()[0]
         for col in [S.COL_ID, S.COL_YEAR_PLANNED, S.COL_YEAR_ACTUAL,
-                    S.COL_STATE, S.COL_NOTE, S.COL_VOLUME_PLANNED,
-                    S.COL_VOLUME_MARKED, S.COL_VOLUME_ACTUAL,
-                    S.COL_EXTRA_NOTE]:
+                    S.COL_STATE, S.COL_NOTE, S.COL_PARCEL_AREA_HA,
+                    S.COL_VOLUME_PLANNED, S.COL_VOLUME_MARKED,
+                    S.COL_VOLUME_ACTUAL, S.COL_EXTRA_NOTE]:
             assert col in piano_header, f'missing column {col}'
 
     def test_fustaia_section_export_matches_zip_member(
@@ -604,6 +605,10 @@ class TestPlanExport:
         rows = _csv_rows(resp.content)
         assert rows[0][0] == S.COL_ID
         assert rows[1][0] == str(planned_item.id)
+        area_idx = rows[0].index(S.COL_PARCEL_AREA_HA)
+        assert float(rows[1][area_idx].replace(',', '.')) == pytest.approx(
+            10.5, abs=0.0001,
+        )
 
     def test_ceduo_section_export_matches_zip_member(
         self, writer_client, plan, regions, eclasses,
@@ -640,7 +645,7 @@ class TestPlanExport:
         assert rows[1][0] == str(item.id)
 
     def test_round_trip_whole_region_item(
-        self, writer_client, plan, regions,
+        self, writer_client, plan, regions, parcels,
     ):
         # A whole-region item exists → exports to fustaia.csv with
         # Particella='X', Note=flag string → re-import preserves the row.
@@ -653,7 +658,16 @@ class TestPlanExport:
         zf = zipfile.ZipFile(io.BytesIO(resp.content))
         fustaia_bytes = zf.read(S.CSV_FILE_HIGHFOREST)
         text = fustaia_bytes.decode('utf-8')
-        assert f';{S.PARCEL_WHOLE_REGION_MARK};' in text
+        rows = _csv_rows(fustaia_bytes)
+        parcel_idx = rows[0].index(S.COL_PARCEL)
+        area_idx = rows[0].index(S.COL_PARCEL_AREA_HA)
+        region_row = next(
+            row for row in rows
+            if row[parcel_idx] == S.PARCEL_WHOLE_REGION_MARK
+        )
+        assert float(region_row[area_idx].replace(',', '.')) == pytest.approx(
+            15.5, abs=0.0001,
+        )
         assert S.FLAG_DAMAGED in text
 
         before = HarvestPlanItem.objects.filter(

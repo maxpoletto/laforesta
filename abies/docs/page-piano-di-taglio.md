@@ -93,13 +93,16 @@ This section contains a flat sortable-table of calendar entries for high forest
 parcels.
 
 The sortable table has the following columns: `Anno previsto`, `Anno effettivo`,
-  `Compresa`, `Particella`, `Stato`, `Note`, `Volume previsto (m³)`, `Volume
-  martellato (m³)`, `Volume effettivo (m³)`, `Altre note`. On the far right is an action
+  `Compresa`, `Particella`, `Superficie totale (ha)`, `Stato`, `Note`,
+  `Volume previsto (m³)`, `Volume martellato (m³)`, `Volume effettivo (m³)`,
+  `Altre note`. On the far right is an action
   column (no title) with looking-glass and garbage icons.
 - `Anno previsto` comes from the `Anno` field of the CSV (i.e.,
   `harvest_plan_item.year_planned`).
 - `Anno effettivo` is the year part of `harvest_plan_item.date_actual`,
   blank while state is still `planned`.
+- `Superficie totale (ha)` is the cadastral `Parcel.area_ha`; for
+  whole-region items it is the sum of cadastral parcel areas in the region.
 - `Stato` reflects `harvest_plan_item.state` (see `database.md` and
   the "View/edit-harvest-plan-item" modal below for the values).
 - `Note` is a comma-joined string assembled from the boolean flags
@@ -281,10 +284,10 @@ row), reusing the same "Add-harvest-plan-item" and "View/edit-harvest-plan-
 item" modals.
 
 The sortable table has the following columns: `Anno previsto`, `Anno
-effettivo`, `Compresa`, `Particella`, `Stato`, `Note`, `Volume
-effettivo`, `Superficie intervento (ha)`, `Superficie totale (ha)`,
-`Turno (a)`, `Altre note`.
-- `Superficie totale (ha)` is read from `parcel.area_ha` and exists for
+effettivo`, `Compresa`, `Particella`, `Superficie totale (ha)`, `Stato`,
+`Note`, `Volume effettivo (m³)`, `Superficie intervento (ha)`, `Turno (a)`,
+`Altre note`.
+- `Superficie totale (ha)` is the cadastral `Parcel.area_ha` and exists for
   visual cross-check against `Superficie intervento (ha)`.
 - `Turno (a)` is read from the linked `harvest_detail.interval` via
   `parcel_plan_detail`.
@@ -329,6 +332,8 @@ and Abies export format (display column names). Stored columns:
 - `ID` — optional Abies row identity, used when re-importing exported CSVs.
 - `Compresa` → region, `Particella` → parcel (`X` = region-wide).
 - `Anno` / `Anno previsto` → `year_planned`.
+- `Superficie totale (ha)` is exported as a cross-check only; import ignores
+  it and keeps `Parcel.area_ha` as the source of truth.
 - `Prelievo (m³)` / `Volume previsto (m³)` / legacy `Volume previsto` →
   `volume_planned_m3` (may be empty for region-wide catastrofato). Generic
   `Volume (m³)` is not accepted here because it denotes total stand volume,
@@ -453,9 +458,9 @@ Both calendar tables. Invalidated on `harvest_plan_item`, `tree_mark`,
 materialization chain in `database.md`).
 
 Columns: `row_id`, `version`, `Piano`, `Anno previsto`, `Anno effettivo`,
-`Compresa`, `Particella`, `Tipo`, `Coppice`, `Stato`, `Note`,
-`Volume previsto (m³)`, `Volume martellato (m³)`, `Volume effettivo (m³)`,
-`Superficie intervento (ha)`, `Superficie totale (ha)`, `Turno (a)`,
+`Compresa`, `Particella`, `Superficie totale (ha)`, `Tipo`, `Coppice`,
+`Stato`, `Note`, `Volume previsto (m³)`, `Volume martellato (m³)`,
+`Volume effettivo (m³)`, `Superficie intervento (ha)`, `Turno (a)`,
 `Altre note`.
 Sorted by `Anno previsto`, then natural-order on `Compresa` +
 `Particella`.

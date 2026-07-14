@@ -977,11 +977,10 @@ def generate_harvest_plans() -> None:
 HARVEST_PLAN_ITEM_COLUMNS = [
     ROW_ID, VERSION, S.COL_HARVEST_PLAN,
     S.COL_YEAR_PLANNED, S.COL_YEAR_ACTUAL,
-    S.COL_REGION, S.COL_PARCEL, S.COL_TYPE, COL_COPPICE,
-    S.COL_STATE, S.COL_NOTE,
+    S.COL_REGION, S.COL_PARCEL, S.COL_PARCEL_AREA_HA,
+    S.COL_TYPE, COL_COPPICE, S.COL_STATE, S.COL_NOTE,
     S.COL_VOLUME_PLANNED, S.COL_VOLUME_MARKED, S.COL_VOLUME_ACTUAL,
-    S.COL_INTERVENTION_AREA_HA, S.COL_PARCEL_AREA_HA, S.COL_PERIOD_Y,
-    S.COL_EXTRA_NOTE,
+    S.COL_INTERVENTION_AREA_HA, S.COL_PERIOD_Y, S.COL_EXTRA_NOTE,
 ]
 
 
@@ -1022,7 +1021,19 @@ def _hpi_turno(item) -> int | str:
     return ppd.harvest_detail.interval
 
 
-def build_harvest_plan_item_record(item) -> list:
+def _region_area_by_id(region_ids=None) -> dict[int, float]:
+    from apps.base.models import Parcel
+    qs = Parcel.objects
+    if region_ids is not None:
+        qs = qs.filter(region_id__in=region_ids)
+    return {
+        row['region_id']: float(row['area'])
+        for row in qs.values('region_id').annotate(area=Sum('area_ha'))
+        if row['area'] is not None
+    }
+
+
+def build_harvest_plan_item_record(item, region_area_by_id: dict | None = None) -> list:
     """Build one row of the `harvest_plan_items` digest.
 
     Caller must pre-load `parcel.region`, `parcel.eclass`, and `region`
@@ -1037,20 +1048,21 @@ def build_harvest_plan_item_record(item) -> list:
         compresa = item.region.name
         # Whole-region marker — also the CSV round-trip representation.
         particella = S.PARCEL_WHOLE_REGION_MARK
-        parcel_area = ''
+        if region_area_by_id is None:
+            region_area_by_id = _region_area_by_id([item.region_id])
+        parcel_area = region_area_by_id.get(item.region_id, '')
 
     return [
         item.id, item.version, item.harvest_plan_id,
         item.year_planned,
         item.date_actual.year if item.date_actual else '',
-        compresa, particella, _hpi_type(item), _hpi_coppice(item),
+        compresa, particella, parcel_area, _hpi_type(item), _hpi_coppice(item),
         item.get_state_display(),
         render_flag_note(item.damaged, item.unhealthy, item.psr),
         float(item.volume_planned_m3) if item.volume_planned_m3 is not None else '',
         float(item.volume_marked_m3) if item.volume_marked_m3 is not None else '',
         float(item.volume_actual_m3),
         float(item.intervention_area_ha) if item.intervention_area_ha is not None else '',
-        parcel_area,
         _hpi_turno(item),
         item.note,
     ]
@@ -1069,7 +1081,8 @@ def generate_harvest_plan_items() -> None:
           .select_related('parcel__region', 'parcel__eclass', 'region',
                           'harvest_plan')
           .order_by('harvest_plan_id', 'year_planned', 'id'))
-    rows = [build_harvest_plan_item_record(it) for it in qs]
+    region_area_by_id = _region_area_by_id()
+    rows = [build_harvest_plan_item_record(it, region_area_by_id) for it in qs]
     _write_gzip_json(
         {'columns': HARVEST_PLAN_ITEM_COLUMNS, 'rows': rows},
         _dest('harvest_plan_items'),
