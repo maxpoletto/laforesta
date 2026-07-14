@@ -254,6 +254,35 @@ const { TableWrapper } = await import('./table.js');
   window.SortableTable = previousSortableTable;
 }
 
+// TableWrapper forwards header and cell classes from columnDefs.
+{
+  let columns = [];
+  const previousSortableTable = window.SortableTable;
+  window.SortableTable = class {
+    constructor(opts) {
+      columns = opts.columns;
+      this.currentSort = opts.sort || { column: 'name', ascending: true };
+    }
+    destroy() {}
+    clearFilter() {}
+  };
+
+  new TableWrapper({
+    container: new MockElement('div'),
+    digest: { columns: ['row_id', 'name'], rows: [] },
+    columnDefs: {
+      name: { className: 'col-header', cellClassName: 'col-cell' },
+    },
+    inlineToolbar: false,
+  });
+
+  const nameCol = columns.find(c => c.key === 'name');
+  eq({ className: nameCol.className, cellClassName: nameCol.cellClassName },
+     { className: 'col-header', cellClassName: 'col-cell' },
+     'TableWrapper forwards header and cell classes');
+  window.SortableTable = previousSortableTable;
+}
+
 // TableWrapper.setData preserves pagination across background/cache refreshes.
 {
   const wrapper = Object.create(TableWrapper.prototype);

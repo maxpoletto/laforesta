@@ -78,7 +78,7 @@ export class TableWrapper {
    * @param {HTMLElement} opts.container — element to render into
    * @param {{columns: string[], rows: any[][]}} [opts.digest]
    * @param {Object<string, {label: string, type?: string, formatter?: Function,
-   *         width?: string, className?: string}>} opts.columnDefs
+   *         width?: string, className?: string, cellClassName?: string}>} opts.columnDefs
    *   Column metadata keyed by digest column name.
    * @param {boolean} [opts.canModify]
    * @param {{onEdit?: function(number), onDelete?: function(number),
@@ -501,6 +501,7 @@ function buildSTColumns(digestColumns, columnDefs, actions, labels) {
       searchFormatter: def.searchFormatter,
       width: def.width,
       className: def.className,
+      cellClassName: def.cellClassName,
     };
   });
 

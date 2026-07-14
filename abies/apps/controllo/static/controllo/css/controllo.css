@@ -1,0 +1,12 @@
+/* Controllo page — domain-specific styles. */
+
+/* Audit before/after values can contain several labelled fields.  Keep the
+   stable metadata columns compact, but let these two value columns wrap. */
+.sortable-table-cell.col-audit-value {
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  vertical-align: top;
+  line-height: 1.35;
+}
