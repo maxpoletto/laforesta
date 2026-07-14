@@ -699,6 +699,22 @@ function renderFlagNote(opt) {
   return parts.join(', ');
 }
 
+export function filterParcelSelectForRegion(parcelSel, allParcelOpts, regionId) {
+  const current = parcelSel.value;
+  for (const o of allParcelOpts) o.remove();
+  for (const o of allParcelOpts) {
+    if (o.dataset.region === regionId) parcelSel.appendChild(o);
+  }
+  if ([...parcelSel.options].some(o => o.value === current)) {
+    parcelSel.value = current;
+  } else {
+    const xOpt = [...parcelSel.options].find(
+      o => o.dataset.name === PARCEL_WHOLE_REGION_MARK,
+    );
+    parcelSel.value = xOpt ? xOpt.value : '';
+  }
+}
+
 /** Wire Cantiere pulldown: toggle parcel group, filter parcels, show flags. */
 function wireCantiereSelect(form) {
   const cantiereSel = form.querySelector('#id_cantiere');
@@ -728,17 +744,7 @@ function wireCantiereSelect(form) {
       } else {
         parcelGroup.hidden = false;
         const regionId = opt.dataset.regionId;
-        const current = parcelSel.value;
-        for (const o of allParcelOpts) o.remove();
-        for (const o of allParcelOpts) {
-          if (o.dataset.region === regionId) parcelSel.appendChild(o);
-        }
-        if (![...parcelSel.options].some(o => o.value === current)) {
-          const xOpt = [...parcelSel.options].find(
-            o => o.dataset.name === PARCEL_WHOLE_REGION_MARK,
-          );
-          parcelSel.value = xOpt ? xOpt.value : '';
-        }
+        filterParcelSelectForRegion(parcelSel, allParcelOpts, regionId);
       }
     }
   }

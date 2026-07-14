@@ -371,6 +371,65 @@ globalThis.fetch = async (url) => {
 const cache = await import(staticModule('base/js/cache.js'));
 const prelievi = await import(staticModule('prelievi/js/prelievi.js'));
 
+function parcelOption(value, region, name = value) {
+  return {
+    value: String(value),
+    dataset: { region: String(region), name: String(name) },
+    parentNode: null,
+    remove() {
+      if (!this.parentNode) return;
+      this.parentNode.options = this.parentNode.options.filter(o => o !== this);
+      this.parentNode = null;
+    },
+  };
+}
+
+function parcelSelect(value, options) {
+  const select = {
+    value: String(value),
+    options: [...options],
+    appendChild(option) {
+      option.parentNode = this;
+      this.options.push(option);
+      // Model the browser hazard this regression pins: rebuilding a select can
+      // leave it on a default option unless code explicitly restores value.
+      this.value = option.value;
+      return option;
+    },
+  };
+  for (const option of select.options) option.parentNode = select;
+  return select;
+}
+
+{
+  const p1 = parcelOption(101, 10, '1');
+  const saved = parcelOption(102, 10, '2');
+  const later = parcelOption(109, 10, '9');
+  const otherRegion = parcelOption(203, 20, '3');
+  const allOptions = [p1, saved, otherRegion, later];
+  const select = parcelSelect(saved.value, allOptions);
+
+  prelievi.filterParcelSelectForRegion(select, allOptions, '10');
+
+  eq(select.options.map(o => o.value), ['101', '102', '109'],
+     'region-wide parcel selector filters to the selected cantiere region');
+  eq(select.value, '102',
+     'region-wide edit preserves the saved parcel after rebuilding options');
+}
+
+{
+  const x = parcelOption(100, 10, 'X');
+  const p1 = parcelOption(101, 10, '1');
+  const otherRegion = parcelOption(203, 20, '3');
+  const allOptions = [otherRegion, x, p1];
+  const select = parcelSelect(otherRegion.value, allOptions);
+
+  prelievi.filterParcelSelectForRegion(select, allOptions, '10');
+
+  eq(select.value, '100',
+     'region-wide parcel selector falls back to the whole-region sentinel');
+}
+
 function sliderValues() {
   const min = contentEl.querySelector('[data-role="slider-min"]');
   const max = contentEl.querySelector('[data-role="slider-max"]');
