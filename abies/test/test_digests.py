@@ -22,9 +22,9 @@ from apps.base.digests import (
     _audit_configs, _tracked_models,
 )
 from apps.base.models import (
-    Crew, DigestStatus, HarvestPlan, HarvestPlanItem, HypsoParamSet,
-    HypsoParamSource, Parcel, Role, Sample, SampleArea, SampleGrid, Survey,
-    Tree, TreeMark, TreePreserved, TreeSample, User,
+    Crew, DigestStatus, HarvestPlan, HarvestPlanItem, HarvestPlanItemState,
+    HypsoParamSet, HypsoParamSource, Parcel, Role, Sample, SampleArea,
+    SampleGrid, Survey, Tree, TreeMark, TreePreserved, TreeSample, User,
 )
 from apps.campionamenti import csv_grid
 from apps.mannesi.models import ProductionCredit, WorkHour
@@ -531,6 +531,67 @@ class TestGenerateAudit:
         assert Tree not in tracked
         assert TreeSample not in tracked
         assert TreeMark not in tracked
+
+    def test_audit_values_use_human_readable_labels(
+        self, db, parcels, settings, tmp_path,
+    ):
+        """FK and choice values render as labels, not raw ids/codes."""
+        settings.DIGEST_DIR = tmp_path
+        harvest_plan = HarvestPlan.objects.create(
+            name='Piano audit labels', year_start=2026, year_end=2026,
+        )
+        HarvestPlanItem.objects.create(
+            harvest_plan=harvest_plan,
+            parcel=parcels[0],
+            state=HarvestPlanItemState.OPEN,
+            year_planned=2026,
+        )
+
+        generate_audit()
+        with gzip.open(tmp_path / 'audit.json.gz', 'rt') as f:
+            data = json.load(f)
+
+        rows = [r for r in data[ROWS]
+                if r[3] == S.TABLE_HARVEST_PLAN_ITEM
+                and r[4] == S.AUDIT_INSERT]
+        row = next(
+            r for r in rows
+            if f'{S.COL_YEAR_PLANNED}: 2026' in (r[6] or '')
+        )
+        assert f'{S.COL_HARVEST_PLAN}: {harvest_plan.name}' in row[6]
+        assert f'{S.COL_PARCEL}: {parcels[0]}' in row[6]
+        assert f'{S.COL_STATE}: {HarvestPlanItemState.OPEN.label}' in row[6]
+        assert f'{S.COL_PARCEL}: {parcels[0].id}' not in row[6]
+        assert f'{S.COL_STATE}: {int(HarvestPlanItemState.OPEN)}' not in row[6]
+
+    def test_audit_diff_values_use_human_readable_labels(
+        self, db, parcels, settings, tmp_path,
+    ):
+        settings.DIGEST_DIR = tmp_path
+        harvest_plan = HarvestPlan.objects.create(
+            name='Piano audit diff labels', year_start=2026, year_end=2026,
+        )
+        item = HarvestPlanItem.objects.create(
+            harvest_plan=harvest_plan,
+            parcel=parcels[0],
+            state=HarvestPlanItemState.OPEN,
+            year_planned=2026,
+        )
+        item.parcel = parcels[1]
+        item.save()
+
+        generate_audit()
+        with gzip.open(tmp_path / 'audit.json.gz', 'rt') as f:
+            data = json.load(f)
+
+        rows = [r for r in data[ROWS]
+                if r[3] == S.TABLE_HARVEST_PLAN_ITEM
+                and r[4] == S.AUDIT_UPDATE]
+        assert any(
+            f'{S.COL_PARCEL}: {parcels[0]}' in (r[5] or '')
+            and f'{S.COL_PARCEL}: {parcels[1]}' in (r[6] or '')
+            for r in rows
+        )
 
     def test_parcel_metadata_update_appears(self, parcels, settings, tmp_path):
         """Parcel metadata edits are audited for the Controllo page."""

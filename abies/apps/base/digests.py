@@ -19,6 +19,8 @@ import tempfile
 from pathlib import Path
 
 from django.conf import settings
+from django.core.exceptions import FieldDoesNotExist
+from django.db import models
 from django.db.models import F, Sum
 from django.utils import timezone
 
@@ -415,9 +417,7 @@ def _audit_configs() -> list:
     TreeMark/TreePreserved, whose bulk imports would swamp the log) — do not
     just drop it here.
 
-    Field maps are selective: only domain-meaningful fields are shown.  FK
-    and choice fields render as raw ids/codes, consistent with the original
-    design.
+    Field maps are selective: only domain-meaningful fields are shown.
     """
     from apps.base.models import (
         Crew, HarvestPlan, HarvestPlanItem, HypsoParam, HypsoParamSet,
@@ -548,7 +548,7 @@ def generate_audit() -> None:
     rows = []
     row_id = 0
     for model, table_label, field_labels in configs:
-        row_id = _audit_rows(model.history, table_label, field_labels,
+        row_id = _audit_rows(model, model.history, table_label, field_labels,
                              rows, row_id)
 
     rows.sort(key=lambda r: r[1], reverse=True)
@@ -559,9 +559,10 @@ def generate_audit() -> None:
     logger.info('audit.json.gz: %s rows', len(rows))
 
 
-def _audit_rows(manager, table_label, field_labels, rows, row_id):
+def _audit_rows(model, manager, table_label, field_labels, rows, row_id):
     """Append audit rows for one historical model.  Returns updated row_id."""
     prev_map: dict[int, object] = {}
+    value_cache: dict[tuple[object, object], object | None] = {}
 
     for entry in manager.select_related('history_user').order_by('history_date', 'history_id'):
         pk = entry.id
@@ -575,13 +576,15 @@ def _audit_rows(manager, table_label, field_labels, rows, row_id):
         action = _ACTION_MAP.get(ht, ht)
 
         if ht == '+':
-            before, after = '', _format_fields(entry, field_labels)
+            before, after = '', _format_fields(model, entry, field_labels, value_cache)
         elif ht == '~' and pk in prev_map:
-            before, after = _format_diff(prev_map[pk], entry, field_labels)
+            before, after = _format_diff(
+                model, prev_map[pk], entry, field_labels, value_cache,
+            )
         elif ht == '-':
-            before, after = _format_fields(entry, field_labels), ''
+            before, after = _format_fields(model, entry, field_labels, value_cache), ''
         else:
-            before, after = '', _format_fields(entry, field_labels)
+            before, after = '', _format_fields(model, entry, field_labels, value_cache)
 
         row_id += 1
         rows.append([row_id, ts, user, table_label, action, before, after])
@@ -590,26 +593,75 @@ def _audit_rows(manager, table_label, field_labels, rows, row_id):
     return row_id
 
 
-def _format_fields(entry, field_labels: dict) -> str:
+def _format_fields(model, entry, field_labels: dict, value_cache: dict) -> str:
     """Format all tracked fields as 'label: value; ...'."""
     parts = []
     for field, label in field_labels.items():
         val = getattr(entry, field, None)
         if val is not None and val != '':
-            parts.append(f'{label}: {val}')
+            rendered = _format_audit_value(model, field, val, value_cache)
+            parts.append(f'{label}: {rendered}')
     return '; '.join(parts)
 
 
-def _format_diff(prev, current, field_labels: dict) -> tuple[str, str]:
+def _format_diff(
+        model, prev, current, field_labels: dict, value_cache: dict,
+) -> tuple[str, str]:
     """Format only the changed fields as before/after strings."""
     before_parts, after_parts = [], []
     for field, label in field_labels.items():
         old = getattr(prev, field, None)
         new = getattr(current, field, None)
         if old != new:
-            before_parts.append(f'{label}: {old if old is not None else ""}')
-            after_parts.append(f'{label}: {new if new is not None else ""}')
+            before_parts.append(
+                f'{label}: {_format_audit_value(model, field, old, value_cache)}',
+            )
+            after_parts.append(
+                f'{label}: {_format_audit_value(model, field, new, value_cache)}',
+            )
     return '; '.join(before_parts), '; '.join(after_parts)
+
+
+def _model_field(model, field_name: str):
+    """Return the model field represented by an audit field name."""
+    try:
+        return model._meta.get_field(field_name)
+    except FieldDoesNotExist:
+        if field_name.endswith('_id'):
+            try:
+                return model._meta.get_field(field_name[:-3])
+            except FieldDoesNotExist:
+                return None
+        return None
+
+
+def _format_audit_value(model, field_name: str, value, value_cache: dict) -> str:
+    """Render audit values as operator-readable labels where possible."""
+    if value is None or value == '':
+        return ''
+
+    field = _model_field(model, field_name)
+    if isinstance(field, models.ForeignKey):
+        return _format_audit_fk(field.remote_field.model, value, value_cache)
+    if field is not None and field.choices:
+        choices = dict(field.flatchoices)
+        return str(choices.get(value, value))
+    if isinstance(field, models.BooleanField):
+        return 'sì' if value else 'no'
+    return str(value)
+
+
+def _format_audit_fk(related_model, pk, value_cache: dict) -> str:
+    cache_key = (related_model, pk)
+    if cache_key not in value_cache:
+        value_cache[cache_key] = related_model.objects.filter(pk=pk).first()
+    obj = value_cache[cache_key]
+    if obj is None:
+        return f'#{pk}'
+    if hasattr(obj, 'username'):
+        full_name = f'{obj.first_name} {obj.last_name}'.strip()
+        return full_name or obj.username
+    return str(obj)
 
 
 # ---------------------------------------------------------------------------
