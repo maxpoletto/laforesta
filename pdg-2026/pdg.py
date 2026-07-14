@@ -609,12 +609,43 @@ def run_calcola_altezze_volumi(args):
     trees_df = load_trees(args.input)
     equations_df = load_csv(args.equazioni)
 
+    duplicate_key = [COL_COMPRESA, COL_PARTICELLA, COL_AREA_SAGGIO, 'n']
+    missing_duplicate_cols = [c for c in duplicate_key if c not in trees_df.columns]
+    if missing_duplicate_cols:
+        raise ValueError(
+            f"Colonne mancanti per deduplicare alberi: {missing_duplicate_cols}",
+        )
+
+    duplicate_mask = trees_df.duplicated(subset=duplicate_key, keep='first')
+    if duplicate_mask.any():
+        duplicate_count = int(duplicate_mask.sum())
+        print(f"Rimossi {duplicate_count} alberi duplicati")
+        trees_df = trees_df.loc[~duplicate_mask].copy()
+
     if args.coeff_pressler is not None:
         trees_df[COL_PRESSLER] = args.coeff_pressler
         trees_df['IP'] = trees_df[COL_PRESSLER] * 2 * trees_df[COL_L10_MM] / 100 / trees_df[COL_D_CM]
         print(f"Coefficiente di Pressler = {args.coeff_pressler} per tutti gli alberi")
 
+    equation_keys = set(zip(equations_df['compresa'], equations_df['genere']))
+    has_equation_mask = trees_df.apply(
+        lambda row: (row[COL_COMPRESA], row[COL_GENERE]) in equation_keys,
+        axis=1,
+    )
+    original_heights = trees_df[COL_H_M].copy()
     trees_df, updated, unchanged = compute_heights(trees_df, equations_df, verbose=True)
+
+    low_height_mask = has_equation_mask & (trees_df[COL_H_M] < args.altezza_minima_calcolata)
+    if low_height_mask.any():
+        restored_count = int(low_height_mask.sum())
+        trees_df.loc[low_height_mask, COL_H_M] = original_heights.loc[low_height_mask]
+        updated -= restored_count
+        unchanged += restored_count
+        print(
+            f"Altezza calcolata sotto {args.altezza_minima_calcolata:g} m: "
+            f"ripristinata altezza originale per {restored_count} alberi",
+        )
+
     trees_df = calculate_all_trees_volume(trees_df)
     print(f"\nCalcolo altezze e volumi: {updated} alberi aggiornati, {unchanged} immutati")
 
@@ -744,6 +775,9 @@ Modalità di utilizzo:
     av_group = parser.add_argument_group('Opzioni per --calcola-altezze-volumi')
     av_group.add_argument('--coeff-pressler', type=float, default=None,
                           help='Imposta coefficiente di Pressler per tutti gli alberi')
+    av_group.add_argument('--altezza-minima-calcolata', type=float, default=5.0,
+                          help=('Soglia minima in metri per le altezze calcolate; '
+                                'sotto soglia conserva l\'altezza originale'))
 
     # Specific options for --genera-equazioni
     eq_group = parser.add_argument_group('Opzioni per --genera-equazioni')
