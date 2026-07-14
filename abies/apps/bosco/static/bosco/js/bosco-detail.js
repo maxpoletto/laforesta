@@ -163,8 +163,20 @@ export function dendrometryLineChartData(rows, metric, yTitle) {
   };
 }
 
+export function dendrometryTreeSum(rows) {
+  return sum(rows.map(row => row.treeCount));
+}
+
 export function dendrometryTreeTotal(rows) {
-  return Math.round(sum(rows.map(row => row.treeCount)));
+  return Math.round(dendrometryTreeSum(rows));
+}
+
+export function dendrometryTreeStatusLabel(
+  rows, rawRows, { perHa = true, formatTotal = String, formatPerHa = String } = {},
+) {
+  return perHa
+    ? S.BOSCO_TREES_PER_HA(formatPerHa(dendrometryTreeSum(rows)))
+    : S.BOSCO_TOTAL_TREES(formatTotal(dendrometryTreeTotal(rawRows)));
 }
 
 function dendrometryChartAxes(rows) {

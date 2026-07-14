@@ -61,7 +61,7 @@ import {
   aggregateDendrometry, dendrometryBarChartData, dendrometryHeightPoints,
   dendrometryLineChartData, dendrometryScatterChartData, dendrometrySpecies,
   dendrometrySpeciesColor,
-  dendrometryTreeTotal, parcelNavigation, regionMetadata,
+  dendrometryTreeStatusLabel, parcelNavigation, regionMetadata,
 } from './bosco-detail.js';
 import {
   buildPreservedTrees, filterPaiTrees, paiParcelItems, paiSpeciesItems, speciesColorMap,
@@ -1838,8 +1838,12 @@ function renderDendrometryCharts(rows, rawRows, heightPoints) {
   }
 
   dendrometryChartGrid.hidden = false;
-  dendrometryStatus.textContent = S.BOSCO_TREES(fmtInt(dendrometryTreeTotal(rawRows)));
   const perHa = dendrometryPerHa?.checked !== false;
+  dendrometryStatus.textContent = dendrometryTreeStatusLabel(rows, rawRows, {
+    perHa,
+    formatTotal: fmtInt,
+    formatPerHa: fmtDecimal1,
+  });
   dendrometryCharts.treeCount = renderStackedBar(
     dendrometryTreeCanvas,
     dendrometryBarChartData(rows, 'treeCount', perHa ? S.BOSCO_TREE_COUNT_PER_HA : S.BOSCO_TREE_COUNT),

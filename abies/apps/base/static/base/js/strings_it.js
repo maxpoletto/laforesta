@@ -322,7 +322,8 @@ export const BOSCO_DENDROMETRY_UNAVAILABLE = 'Dendrometria non disponibile.';
 export const BOSCO_NO_DENDROMETRY = 'Nessun dato dendrometrico.';
 export const BOSCO_TREE_COUNT = 'Numero alberi';
 export const BOSCO_TREE_COUNT_PER_HA = 'Numero alberi/ha';
-export const BOSCO_TREES = (n) => `${n} alberi`;
+export const BOSCO_TOTAL_TREES = (n) => `Alberi totali: ${n}`;
+export const BOSCO_TREES_PER_HA = (n) => `Alberi per ettaro: ${n}`;
 export const BOSCO_VOLUME_PER_HA = 'Volume (m³/ha)';
 export const BOSCO_BASAL_AREA_PER_HA = 'Area bas. (m²/ha)';
 export const BOSCO_HISTORICAL_PRODUCTION_UNAVAILABLE =

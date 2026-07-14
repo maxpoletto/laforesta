@@ -140,6 +140,18 @@ assertEqual(chart.datasets[0].data, [1.6, null, null], 'dendrometryLineChartData
 assertEqual(chart.datasets[0].spanGaps, true, 'dendrometryLineChartData: spans gaps');
 assertEqual(chart.legend, false, 'dendrometryLineChartData: hides repeated legend');
 assertEqual(D.dendrometryTreeTotal(rows), 9, 'dendrometryTreeTotal: raw tree count');
+assertEqual(
+  D.dendrometryTreeStatusLabel(rows, rows, { perHa: false }),
+  'Alberi totali: 9',
+  'dendrometryTreeStatusLabel: total trees label',
+);
+const perHaRows = D.aggregateDendrometry(dendro, { region: 'Capistrano' }, { areaHa: 10, perHa: true });
+assertClose(D.dendrometryTreeSum(perHaRows), 12, 0.0001, 'dendrometryTreeSum: per-ha tree sum');
+assertEqual(
+  D.dendrometryTreeStatusLabel(perHaRows, rows, { perHa: true, formatPerHa: n => n.toFixed(1) }),
+  'Alberi per ettaro: 12.0',
+  'dendrometryTreeStatusLabel: per-ha trees label',
+);
 
 let heightPoints = D.dendrometryHeightPoints(points, { parcelId: 10 }, { speciesIds: [5] });
 assertEqual(heightPoints.map(p => [p.species, p.dCm, p.hM]),
