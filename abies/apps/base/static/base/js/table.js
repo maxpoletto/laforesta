@@ -67,7 +67,7 @@ const DEFAULT_CSV_FORMAT = {
 
 /**
  * Wraps SortableTable with:
- *   - Built-in toolbar (search + CSV export), or external wiring for
+ *   - Built-in toolbar (search + CSV export + optional actions), or external wiring for
  *     page-level filter bars via wireSearchInput() / exportCSV()
  *   - Edit/delete action icons per row (writers/admins)
  *   - Add button in the toolbar next to CSV export (writers/admins)
@@ -90,8 +90,14 @@ export class TableWrapper {
    * @param {string} [opts.searchText]
    * @param {string} [opts.csvFilename]
    * @param {boolean} [opts.inlineToolbar=true] — when false, the built-in
-   *   search box and CSV button are omitted.  The caller is responsible for
-   *   providing them and wiring them via wireSearchInput() and exportCSV().
+   *   toolbar is omitted.  The caller is responsible for providing controls
+   *   and wiring them via wireSearchInput() and exportCSV().
+   * @param {{search?: boolean, export?: null|function|{label?: string,
+   *         className?: string, onClick?: function}, actions?: Array<{label: string,
+   *         className?: string, onClick: function, visible?: boolean|function}>}}
+   *   [opts.toolbar] — optional built-in toolbar customization.  `export:
+   *   undefined` keeps the default CSV export button; `export: null` suppresses
+   *   it; a function/object installs a custom export-like action.
    * @param {Partial<typeof DEFAULT_LABELS>} [opts.labels] — overrides for the
    *   English defaults (see DEFAULT_LABELS).  Any keys omitted fall back to
    *   the English defaults.
@@ -107,6 +113,7 @@ export class TableWrapper {
     this.actions = opts.actions || {};
     this.csvFilename = opts.csvFilename || 'export.csv';
     this.inlineToolbar = opts.inlineToolbar !== false;
+    this.toolbar = opts.toolbar || {};
     this.labels = { ...DEFAULT_LABELS, ...(opts.labels || {}) };
     this.csvFormat = { ...DEFAULT_CSV_FORMAT, ...(opts.csvFormat || {}) };
     this.onSort = opts.onSort || null;
@@ -239,37 +246,71 @@ export class TableWrapper {
     const bar = document.createElement('div');
     bar.className = 'table-toolbar';
 
-    const label = document.createElement('label');
-    label.className = 'table-search-label';
-    label.textContent = this.labels.search;
-    bar.appendChild(label);
+    if (this.toolbar.search !== false) {
+      const label = document.createElement('label');
+      label.className = 'table-search-label';
+      label.textContent = this.labels.search;
+      bar.appendChild(label);
 
-    const search = document.createElement('input');
-    search.type = 'text';
-    search.className = 'table-search';
-    search.placeholder = this.labels.searchPlaceholder;
-    this.wireSearchInput(search);
-    label.htmlFor = search.id = 'table-search-' + (++TableWrapper._idSeq);
-    bar.appendChild(search);
-
-    const csvBtn = document.createElement('button');
-    csvBtn.className = 'btn btn-export ms-auto';
-    csvBtn.textContent = this.labels.exportCSV;
-    csvBtn.addEventListener('click', () => this.exportCSV());
-    bar.appendChild(csvBtn);
-
-    if (this.canModify && this.actions.onAdd) {
-      bar.appendChild(this._buildAddButton());
+      const search = document.createElement('input');
+      search.type = 'text';
+      search.className = 'table-search';
+      search.placeholder = this.labels.searchPlaceholder;
+      this.wireSearchInput(search);
+      label.htmlFor = search.id = 'table-search-' + (++TableWrapper._idSeq);
+      bar.appendChild(search);
     }
 
-    this._el.appendChild(bar);
+    const actions = document.createElement('div');
+    actions.className = 'table-toolbar-actions ms-auto';
+    const exportButton = this._buildExportButton();
+    if (exportButton) actions.appendChild(exportButton);
+    if (this.canModify && this.actions.onAdd) {
+      actions.appendChild(this._buildAddButton());
+    }
+    for (const action of toolbarActions(this.toolbar)) {
+      if (!toolbarActionVisible(action)) continue;
+      actions.appendChild(this._buildToolbarActionButton(action));
+    }
+    if (actions.children.length) bar.appendChild(actions);
+
+    if (bar.children.length) this._el.appendChild(bar);
+  }
+
+  _buildExportButton() {
+    if (this.toolbar.export === null) return null;
+    const config = this.toolbar.export;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = typeof config === 'object' && config.className
+      ? config.className
+      : 'btn btn-export';
+    btn.textContent = typeof config === 'object' && config.label
+      ? config.label
+      : this.labels.exportCSV;
+    const handler = typeof config === 'function' ? config : config?.onClick;
+    btn.addEventListener('click', () => {
+      if (handler) handler();
+      else this.exportCSV();
+    });
+    return btn;
   }
 
   _buildAddButton() {
     const btn = document.createElement('button');
+    btn.type = 'button';
     btn.className = 'btn btn-create btn-add';
     btn.textContent = '+ ' + this.labels.add;
     btn.addEventListener('click', () => this.actions.onAdd());
+    return btn;
+  }
+
+  _buildToolbarActionButton(action) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = action.className || 'btn';
+    btn.textContent = action.label;
+    btn.addEventListener('click', () => action.onClick?.());
     return btn;
   }
 
@@ -442,6 +483,16 @@ function hasRowActions(actions) {
 
 function extraActions(actions) {
   return Array.isArray(actions.extra) ? actions.extra : [];
+}
+
+function toolbarActions(toolbar) {
+  return Array.isArray(toolbar.actions) ? toolbar.actions : [];
+}
+
+function toolbarActionVisible(action) {
+  if (!action) return false;
+  if (typeof action.visible === 'function') return action.visible() !== false;
+  return action.visible !== false;
 }
 
 function actionCount(actions) {

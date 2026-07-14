@@ -204,11 +204,6 @@ function buildPageTemplate() {
   frag.appendChild(el('div', { dataset: { target: 'no-plans' } }));
   for (const key of ['f', 'c']) {
     const [header, body] = section(key);
-    const toolbar = el('div', { dataset: { target: `toolbar-${key}` } });
-    toolbar.appendChild(el('input', { id: `pdt-search-${key}` }));
-    toolbar.appendChild(el('button', { dataset: { action: 'export-section-csv' } }));
-    toolbar.appendChild(el('button', { dataset: { target: `add-${key}`, action: `add-item-${key}` } }));
-    body.appendChild(toolbar);
     body.appendChild(el('div', { dataset: { target: `table-${key}` } }));
     body.appendChild(el('div', { dataset: { target: `empty-${key}` } }));
     frag.append(header, body);
@@ -425,6 +420,8 @@ async function finish() {
 
 // Calendar tables show cadastral parcel/region area as the fifth visible column.
 {
+  const previousRole = document.body.dataset.role;
+  document.body.dataset.role = 'writer';
   await pdt.mount({});
   const expectedLeading = [
     S.COL_YEAR_PLANNED, S.COL_YEAR_ACTUAL, S.COL_REGION,
@@ -446,13 +443,16 @@ async function finish() {
     expectedLeading,
     'ceduo table shows area as fifth visible column',
   );
-  const toolbar = contentEl.querySelector('[data-target="toolbar-f"]');
+  const toolbar = contentEl.querySelector('[data-target="table-f"] .table-toolbar');
+  const actionGroup = toolbar.querySelector('.table-toolbar-actions');
+  check(Boolean(toolbar.querySelector('.table-search')), 'calendar search is rendered by TableWrapper toolbar');
   eq(
-    toolbar.children.map(child => child.dataset.target || child.dataset.action || child.id),
-    ['pdt-search-f', 'export-section-csv', 'add-f'],
-    'calendar add button is in section toolbar immediately after export',
+    actionGroup.children.map(child => child.textContent),
+    ['Esporta', '+ Aggiungi'],
+    'calendar add button is in TableWrapper toolbar immediately after export',
   );
   await finish();
+  document.body.dataset.role = previousRole;
 }
 
 // A stale item/data response must not replace the newer item view.

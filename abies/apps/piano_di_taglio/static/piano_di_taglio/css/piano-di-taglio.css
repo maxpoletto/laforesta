@@ -77,35 +77,14 @@
   gap: 8px;
 }
 
-/* Calendar section toolbar (search box + per-table CSV export). */
-.pdt-section-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 8px 0;
-}
-
-.pdt-toolbar-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-/* Honour the `hidden` attribute on the toolbar / table host / empty state.
-   Their explicit `display:` rules above (flex / block) would
-   otherwise win over the user-agent rule that maps [hidden] to
-   display:none — needed so the empty-state CTA can suppress them. */
-.pdt-section-toolbar[hidden],
+/* Honour the `hidden` attribute on the table host / empty state.
+   Their explicit `display:` rules above would otherwise win over the
+   user-agent rule that maps [hidden] to display:none — needed so the
+   empty-state CTA can suppress them. */
 .pdt-table-host[hidden],
 .pdt-empty-state[hidden] {
   display: none;
 }
-
-.pdt-search-label {
-  font-weight: 500;
-}
-
 
 .pdt-table-host {
   margin-top: 4px;

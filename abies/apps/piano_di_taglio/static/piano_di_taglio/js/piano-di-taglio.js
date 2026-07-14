@@ -116,7 +116,7 @@ const sections = {
   f: {
     open: true, kind: 'fustaia',
     header: null, body: null, host: null, table: null,
-    toolbar: null, actionAdd: null, emptyState: null,
+    emptyState: null,
     itemMatcher: (row) => !rowIsCoppice(row),
     hiddenCols: [
       S.COL_HARVEST_PLAN, S.COL_TYPE, COL_COPPICE,
@@ -127,7 +127,7 @@ const sections = {
   c: {
     open: false, kind: 'ceduo',
     header: null, body: null, host: null, table: null,
-    toolbar: null, actionAdd: null, emptyState: null,
+    emptyState: null,
     itemMatcher: (row) => rowIsCoppice(row),
     hiddenCols: [
       S.COL_HARVEST_PLAN, S.COL_TYPE, COL_COPPICE,
@@ -305,9 +305,7 @@ function buildPage(el) {
     s.body = el.querySelector(`[data-section="${k}"].collapsible-body`);
     s.header?.classList.toggle('open', s.open);
     s.body?.classList.toggle('open', s.open);
-    s.toolbar = el.querySelector(`[data-target="toolbar-${k}"]`);
     s.host = el.querySelector(`[data-target="table-${k}"]`);
-    s.actionAdd = el.querySelector(`[data-target="add-${k}"]`) || null;
     s.emptyState = el.querySelector(`[data-target="empty-${k}"]`) || null;
 
     if (s.header && s.body) {
@@ -321,8 +319,7 @@ function buildPage(el) {
     if (s.header) s.header.hidden = !hasPlans;
     if (s.body) s.body.hidden = !hasPlans;
 
-    const searchInput = el.querySelector(`#pdt-search-${k}`);
-    buildTable(s, searchInput);
+    buildTable(s);
   }
 
   disposePageActions = wireActions(el, {
@@ -330,15 +327,6 @@ function buildPage(el) {
     'delete-plan': () => onDeletePlan(),
     'export-plan': () => { if (activePlanId != null) downloadPlanExport(activePlanId); },
     'new-plan': () => onNewPlan(),
-    'export-section-csv': (btn) => {
-      const sec = btn.closest('[data-section]');
-      const section = sec ? sections[sec.dataset.section] : null;
-      if (activePlanId != null && section) {
-        downloadSectionExport(activePlanId, section.exportKind);
-      }
-    },
-    'add-item-f': () => showAddItemModal(sections.f),
-    'add-item-c': () => showAddItemModal(sections.c),
     'import-calendar-f': () => openEditPlanModal(EDIT_PLAN_TAB_CALENDAR, { ceduo: false }),
     'import-calendar-c': () => openEditPlanModal(EDIT_PLAN_TAB_CALENDAR, { ceduo: true }),
     'add-manual-f': () => showAddItemModal(sections.f),
@@ -370,7 +358,7 @@ function toggleSection(s, open) {
  * Build (or rebuild) a section's TableWrapper.  Reads current URL state
  * from `location.search` so sort/search round-trip across rebuilds.
  */
-function buildTable(s, searchInput) {
+function buildTable(s) {
   if (s.table) { s.table.destroy(); s.table = null; }
   if (!s.host || !itemsData) return;
 
@@ -384,12 +372,21 @@ function buildTable(s, searchInput) {
     container: s.host,
     digest: itemsData,
     columnDefs: buildItemColumnDefs(itemsData.columns, s.hiddenCols),
-    inlineToolbar: false,
     canModify: modify,
     actions: modify ? {
+      onAdd: () => showAddItemModal(s),
       onEdit: (rowId) => navigateToItem(rowId),
       onDelete: (rowId) => confirmDeleteItem(rowId),
     } : {},
+    toolbar: {
+      export: {
+        label: S.EXPORT,
+        className: 'btn btn-export',
+        onClick: () => {
+          if (activePlanId != null) downloadSectionExport(activePlanId, s.exportKind);
+        },
+      },
+    },
     sort: tableSort(state, DEFAULT_SECTION_SORT),
     searchText: state.searchText,
     labels: S.TABLE_LABELS,
@@ -397,9 +394,7 @@ function buildTable(s, searchInput) {
     onSort: () => syncURL(),
     onSearch: () => syncURL(),
   });
-  s.table.wireSearchInput(searchInput);
   applyPlanFilter(s);
-
 }
 
 function applyPlanFilter(s) {
@@ -422,9 +417,7 @@ function updateEmptyState(s) {
     r[planCol] === activePlanId && s.itemMatcher(r),
   );
   s.emptyState.hidden = hasItems;
-  if (s.toolbar) s.toolbar.hidden = !hasItems;
   if (s.host) s.host.hidden = !hasItems;
-  if (s.actionAdd) s.actionAdd.hidden = !hasItems;
 }
 
 function rowIsCoppice(row) {
@@ -1343,46 +1336,6 @@ async function appendItemMarkTreesSection(card, itemId, state) {
 
   if (!data.rows.length && !showMarkActions) return;
 
-  const toolbar = document.createElement('div');
-  toolbar.className = 'pdt-section-toolbar';
-  let searchInput = null;
-  if (data.rows.length) {
-    const searchId = `pdt-mark-search-${itemId}`;
-    const searchLabel = document.createElement('label');
-    searchLabel.className = 'pdt-search-label';
-    searchLabel.htmlFor = searchId;
-    searchLabel.textContent = S.FILTER_LABEL;
-    searchInput = document.createElement('input');
-    searchInput.type = 'text';
-    searchInput.className = 'table-search';
-    searchInput.id = searchId;
-    searchInput.placeholder = S.SEARCH_PLACEHOLDER;
-    toolbar.append(searchLabel, searchInput);
-  }
-  if (showMarkActions) {
-    const actions = document.createElement('div');
-    actions.className = 'pdt-toolbar-actions ms-auto';
-
-    const addBtn = document.createElement('button');
-    addBtn.type = 'button';
-    addBtn.className = 'btn btn-create';
-    addBtn.textContent = S.NEW_MARK_LABEL;
-    addBtn.addEventListener('click', () => showNewMarkForm(itemId));
-    actions.appendChild(addBtn);
-
-    const importBtn = document.createElement('button');
-    importBtn.type = 'button';
-    importBtn.className = 'btn btn-import';
-    importBtn.textContent = S.IMPORT_MARKS_LABEL;
-    importBtn.addEventListener('click', () => showImportMarksForm(itemId));
-    actions.appendChild(importBtn);
-
-    toolbar.appendChild(actions);
-  }
-  body.appendChild(toolbar);
-
-  if (!data.rows.length) return;
-
   const host = document.createElement('div');
   host.className = 'subsection-host';
   body.appendChild(host);
@@ -1393,18 +1346,32 @@ async function appendItemMarkTreesSection(card, itemId, state) {
     container: host,
     digest: data,
     columnDefs: buildMarkTreeColumnDefs(c),
-    inlineToolbar: false,
     canModify: showActions,
     actions: showActions ? {
       onEdit: (rowId) => showEditMarkForm(itemId, rowId),
       onDelete: (rowId) => deleteMarkRow(itemId, rowId),
     } : {},
+    toolbar: {
+      search: data.rows.length > 0,
+      export: null,
+      actions: showMarkActions ? [
+        {
+          label: S.NEW_MARK_LABEL,
+          className: 'btn btn-create',
+          onClick: () => showNewMarkForm(itemId),
+        },
+        {
+          label: S.IMPORT_MARKS_LABEL,
+          className: 'btn btn-import',
+          onClick: () => showImportMarksForm(itemId),
+        },
+      ] : [],
+    },
     sort: { column: S.COL_DATE, ascending: false },
     csvFilename: `${S.CSV_MARKS_PREFIX}${itemId}.csv`,
     labels: S.TABLE_LABELS,
     csvFormat: S.TABLE_CSV_FORMAT,
   });
-  if (searchInput) itemMarkTreesTable.wireSearchInput(searchInput);
 }
 
 function buildMarkTreeColumnDefs(columns) {

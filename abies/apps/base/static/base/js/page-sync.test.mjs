@@ -380,14 +380,83 @@ const { TableWrapper } = await import('./table.js');
   });
   const page = container.children[0];
   const toolbar = page.children[0];
+  const actionGroup = toolbar.children[2];
   eq(
     toolbar.children.map(child => child.textContent || child.className),
-    ['Filter', 'table-search', 'Esporta', '+ Aggiungi'],
+    ['Filter', 'table-search', 'table-toolbar-actions ms-auto'],
+    'TableWrapper renders search controls and a right-aligned toolbar action group',
+  );
+  eq(
+    actionGroup.children.map(child => child.textContent),
+    ['Esporta', '+ Aggiungi'],
     'TableWrapper add button is inside toolbar after export',
   );
   check(
     !page.children.some(child => child.className === 'action-add'),
     'TableWrapper does not render a below-table add row',
+  );
+  window.SortableTable = previousSortableTable;
+}
+
+// TableWrapper supports custom toolbar export/action configuration.
+{
+  const previousSortableTable = window.SortableTable;
+  window.SortableTable = class {
+    constructor(opts) {
+      this.data = opts.data;
+      this.columns = opts.columns;
+      this.currentSort = opts.sort || { column: 'name', ascending: true };
+    }
+    destroy() {}
+    clearFilter() {}
+  };
+
+  let customExportClicked = 0;
+  let customActionClicked = 0;
+  const container = new MockElement('div');
+  new TableWrapper({
+    container,
+    digest: { columns: ['row_id', 'name'], rows: [] },
+    columnDefs: {},
+    toolbar: {
+      search: false,
+      export: { label: 'Scarica', onClick: () => { customExportClicked++; } },
+      actions: [{
+        label: 'Azione',
+        className: 'btn btn-create',
+        onClick: () => { customActionClicked++; },
+      }],
+    },
+  });
+  const toolbar = container.children[0].children[0];
+  const actionGroup = toolbar.children[0];
+  eq(
+    toolbar.children.map(child => child.className),
+    ['table-toolbar-actions ms-auto'],
+    'TableWrapper can render toolbar actions without search controls',
+  );
+  eq(
+    actionGroup.children.map(child => child.textContent),
+    ['Scarica', 'Azione'],
+    'TableWrapper renders custom export and action buttons',
+  );
+  actionGroup.children[0]._listeners.click[0]();
+  actionGroup.children[1]._listeners.click[0]();
+  eq([customExportClicked, customActionClicked], [1, 1], 'custom toolbar buttons invoke handlers');
+
+  const noExport = new MockElement('div');
+  new TableWrapper({
+    container: noExport,
+    digest: { columns: ['row_id', 'name'], rows: [] },
+    columnDefs: {},
+    toolbar: { export: null, actions: [{ label: 'Solo', onClick: () => {} }] },
+  });
+  const noExportToolbar = noExport.children[0].children[0];
+  const noExportActionGroup = noExportToolbar.children[2];
+  eq(
+    noExportActionGroup.children.map(child => child.textContent),
+    ['Solo'],
+    'TableWrapper suppresses export with export:null',
   );
   window.SortableTable = previousSortableTable;
 }

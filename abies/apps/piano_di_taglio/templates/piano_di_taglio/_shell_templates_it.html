@@ -33,17 +33,6 @@ render context.
   {# Fustaia section #}
   {% include "base/_partials/_collapsible_header.html" with section="f" title="Interventi fustaia" %}
   <div class="collapsible-body" data-section="f">
-    <div class="pdt-section-toolbar" data-target="toolbar-f">
-      <label class="pdt-search-label" for="pdt-search-f">{{ S.FILTER_LABEL }}</label>
-      <input type="text" class="table-search" id="pdt-search-f"
-             placeholder="{{ S.SEARCH_PLACEHOLDER }}">
-      <button type="button" class="btn btn-export ms-auto"
-              data-action="export-section-csv">{{ S.EXPORT }}</button>
-      {% if user.can_modify %}
-      <button type="button" class="btn btn-create btn-add"
-              data-target="add-f" data-action="add-item-f">+ Aggiungi</button>
-      {% endif %}
-    </div>
     <div class="pdt-table-host" data-target="table-f"></div>
     {% if user.can_modify %}
     <div class="pdt-empty-state" data-target="empty-f" hidden>
@@ -61,17 +50,6 @@ render context.
   {# Ceduo section #}
   {% include "base/_partials/_collapsible_header.html" with section="c" title="Interventi ceduo" %}
   <div class="collapsible-body" data-section="c">
-    <div class="pdt-section-toolbar" data-target="toolbar-c">
-      <label class="pdt-search-label" for="pdt-search-c">{{ S.FILTER_LABEL }}</label>
-      <input type="text" class="table-search" id="pdt-search-c"
-             placeholder="{{ S.SEARCH_PLACEHOLDER }}">
-      <button type="button" class="btn btn-export ms-auto"
-              data-action="export-section-csv">{{ S.EXPORT }}</button>
-      {% if user.can_modify %}
-      <button type="button" class="btn btn-create btn-add"
-              data-target="add-c" data-action="add-item-c">+ Aggiungi</button>
-      {% endif %}
-    </div>
     <div class="pdt-table-host" data-target="table-c"></div>
     {% if user.can_modify %}
     <div class="pdt-empty-state" data-target="empty-c" hidden>

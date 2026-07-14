@@ -613,6 +613,14 @@ input:focus, select:focus, textarea:focus {
   flex-shrink: 0;
 }
 
+.table-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .table-search-label {
   font-size: 0.85rem;
   font-weight: 500;
