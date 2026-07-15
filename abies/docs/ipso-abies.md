@@ -74,18 +74,20 @@ selection in the mobile app.
 
 On boot, Ipso opens IndexedDB before making either protected-data request. It
 restores the last-good reference and parcel-feature snapshots and lists locally
-resumable sessions immediately. When a bearer is available, it refreshes both
-resources opportunistically in the background; only successfully parsed and
-shape-validated responses replace the IndexedDB snapshots. A failed refresh
-leaves the snapshots in use and displays a persistent warning that recent Abies
-changes may be unavailable.
+resumable sessions immediately. Completed, exported, or abandoned local sessions
+remain stored on the device but do not open a blocking startup prompt. When a
+bearer is available, Ipso refreshes both resources opportunistically in the
+background; only successfully parsed and shape-validated responses replace the
+IndexedDB snapshots. A failed refresh leaves the snapshots in use and displays a
+persistent warning that recent Abies changes may be unavailable.
 
 A newly provisioned device still needs one successful online reference download
 before it can start its first field session. After that, a reload, browser-process
 eviction, phone restart, or loss of connectivity does not hide open or
 pending-upload sessions. If no valid reference snapshot is available, existing
-sessions remain exportable, but recording cannot resume until reference data is
-available. Field sessions and trees remain in IndexedDB throughout.
+open sessions remain exportable and pending uploads remain retryable or
+local-only, but recording cannot resume until reference data is available. Field
+sessions and trees remain in IndexedDB throughout.
 
 IndexedDB schema v7 captures canonical identity at the moment data is recorded:
 the session stores its region and selected survey IDs, and each observation

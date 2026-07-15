@@ -109,10 +109,10 @@ async function boot() {
     showToast(S.TOAST_BOOT_CACHE_ERROR(e.message));
   }
 
-  let recoverable;
+  let resumable;
   try {
-    const listSessions = Store.listRecoverableSessions || Store.listResumableSessions;
-    recoverable = await listSessions(State.db);
+    const listSessions = Store.listResumableSessions || Store.listRecoverableSessions;
+    resumable = startupActionSessions(await listSessions(State.db));
   } catch (e) {
     showToast(S.TOAST_DB_OPEN_ERROR(e.message));
     return;
@@ -152,11 +152,11 @@ async function boot() {
   // foreground (the Wake Lock API auto-releases on visibility loss).
   setupWakeLockVisibility();
 
-  // Resume-on-open: check for any local sessions still useful to the
-  // operator. Open/pending sessions need action; terminal sessions remain
-  // available as a local export archive.
-  if (recoverable && recoverable.length > 0) {
-    showResumeModal(recoverable);
+  // Resume-on-open: interrupt startup only for sessions that still need an
+  // operator decision. Completed local sessions stay in IndexedDB but must not
+  // block the app on every launch.
+  if (resumable && resumable.length > 0) {
+    showResumeModal(resumable);
   } else {
     showModeScreen();
   }
@@ -1798,6 +1798,13 @@ function wireDone() {
 // ---------------------------------------------------------------------------
 
 function showResumeModal(sessions) {
+  sessions = startupActionSessions(sessions);
+  if (sessions.length === 0) {
+    hideModal('modal-resume');
+    showModeScreen();
+    return;
+  }
+
   // Mixed list: STATUS_OPEN sessions need resume/export/discard; new
   // STATUS_PENDING_UPLOAD sessions need carica-ora / mantieni-solo-locale.
   const hasUpload = sessions.some(
@@ -1909,6 +1916,17 @@ function showResumeModal(sessions) {
     }));
   }
   showModal('modal-resume');
+}
+
+function startupActionSessions(sessions) {
+  return (sessions || []).filter(sessionNeedsStartupAction);
+}
+
+function sessionNeedsStartupAction(s) {
+  return !!s && (
+    s.status === Store.STATUS_OPEN ||
+    s.status === Store.STATUS_PENDING_UPLOAD
+  );
 }
 
 async function pendingUploadPayload(s) {

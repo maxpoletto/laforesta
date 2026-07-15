@@ -459,6 +459,7 @@ button {
   padding: 16px;
   width: 100%;
   max-width: 360px;
+  max-height: calc(100vh - 32px);
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -466,7 +467,16 @@ button {
 .modal-card h2 { margin: 0; font-size: 18px; color: var(--green-dark); }
 .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
 
-#resume-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+#resume-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  overflow-y: auto;
+}
 .resume-item {
   border: 1px solid var(--grey-4);
   border-radius: 4px;

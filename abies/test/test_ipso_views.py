@@ -168,6 +168,16 @@ def test_ipso_data_downloads_require_bearer(db):
     ).status_code == 401
 
 
+@override_settings(IPSO_SECRET='old-shared-secret')
+def test_ipso_data_download_accepts_preserved_shared_secret_after_upgrade(db):
+    resp = Client().get(
+        '/ipso/reference.json', HTTP_AUTHORIZATION='Bearer old-shared-secret',
+    )
+
+    assert resp.status_code == 200
+    assert resp['Vary'] == 'Authorization'
+
+
 @override_settings(IPSO_SECRET='test-token')
 def test_reference_json_comes_from_abies_data(db, regions, parcels, species):
     grid = SampleGrid.objects.create(name='Ipso grid')

@@ -370,5 +370,8 @@ Adjust names and ports as needed.
    ```
 
    The fragment is stored locally by the PWA and removed from the address bar.
-   Rotate the instance's `ABIES_IPSO_SECRET` to revoke all devices enrolled
-   against that instance.
+   Keep the same `ABIES_IPSO_SECRET` across normal upgrades so already enrolled
+   devices remain authorized. Rotate the instance's `ABIES_IPSO_SECRET` only to
+   revoke all devices enrolled against that instance. If upgrading an older
+   deployment that used separate Ipso tokens, set `ABIES_IPSO_SECRET` to the old
+   upload token value to preserve existing device enrollment.

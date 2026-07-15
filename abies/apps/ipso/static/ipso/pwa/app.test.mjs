@@ -11,7 +11,7 @@ const appSource = fs.readFileSync(path.join(here, 'app.js'), 'utf8') + `\n` +
   `globalThis.__ipsoAppTest = { State, boot, onSave, onEnd, onDeleteTree, ` +
   `showResumeModal, prefillNumber, currentRecord, renderTreesTable, ` +
   `validateReference, validateTerreniFeatures, restoreCachedBootResources, ` +
-  `refreshBootResources };\n`;
+  `refreshBootResources, loadBearerToken, bearerHeaders };\n`;
 
 let pass = 0;
 const failures = [];
@@ -85,7 +85,7 @@ class MockElement {
   }
 }
 
-function makeHarness() {
+function makeHarness({ storedToken = 'test-token', hash = '' } = {}) {
   const events = [];
   const elements = new Map();
   const buttons = [];
@@ -103,7 +103,7 @@ function makeHarness() {
   element('resume-footer');
   element('toast');
 
-  const localValues = new Map([['ipso.bearer_token', 'test-token']]);
+  const localValues = new Map(storedToken ? [['ipso.bearer_token', storedToken]] : []);
   const modes = {
     martellate: { id: 'martellate', enabled: true },
     samples: { id: 'samples', enabled: true },
@@ -183,8 +183,8 @@ function makeHarness() {
     IPSO_WORK_PACKAGE_SAMPLING_SURVEY_PREFIX: 'sampling_survey:',
     window: {
       AbiesGeoReady: Promise.resolve(),
-      location: { hash: '', pathname: '/ipso/', search: '' },
-      history: { replaceState() {} },
+      location: { hash, pathname: '/ipso/', search: '' },
+      history: { replaceState(_state, _title, url) { events.push(['replaceState', url]); } },
       addEventListener() {},
       confirm() { events.push('confirm'); return true; },
     },
@@ -300,6 +300,35 @@ const session = {
   tree_count: 1,
 };
 
+// A previously provisioned device keeps using the bearer secret stored before
+// the upgrade unless a fresh provisioning fragment explicitly replaces it.
+{
+  const { context, localValues } = makeHarness({ storedToken: 'old-shared-secret' });
+  const app = context.__ipsoAppTest;
+  app.State.bearerToken = app.loadBearerToken();
+  check(app.State.bearerToken === 'old-shared-secret',
+        'upgrade reuses the stored shared Ipso secret');
+  eq(app.bearerHeaders(), { Authorization: 'Bearer old-shared-secret' },
+     'stored shared secret is sent as the bearer token');
+  check(localValues.get('ipso.bearer_token') === 'old-shared-secret',
+        'reading the stored secret does not rewrite it');
+}
+
+{
+  const { context, localValues, events } = makeHarness({
+    storedToken: 'old-shared-secret',
+    hash: '#secret=new-shared-secret',
+  });
+  const app = context.__ipsoAppTest;
+  check(app.loadBearerToken() === 'new-shared-secret',
+        'provisioning fragment intentionally replaces the stored shared secret');
+  check(localValues.get('ipso.bearer_token') === 'new-shared-secret',
+        'new provisioning secret is persisted for later launches');
+  check(events.some(event => Array.isArray(event) && event[0] === 'replaceState' &&
+        !event[1].includes('secret=')),
+        'provisioning fragment is removed from the address bar');
+}
+
 // Canonical IDs are captured with each observation; names remain display/CSV
 // data and are not deferred until upload time.
 {
@@ -395,8 +424,8 @@ const session = {
     events.push('getCachedBootResources');
     return { reference, terreni };
   };
-  context.Store.listRecoverableSessions = async () => {
-    events.push('listRecoverableSessions');
+  context.Store.listResumableSessions = async () => {
+    events.push('listResumableSessions');
     return [{ ...session, status: 'open' }];
   };
   context.fetch = (url) => {
@@ -410,8 +439,8 @@ const session = {
   check(events.indexOf('openDb') < firstFetch, 'cold boot opens IndexedDB before network fetch');
   check(events.indexOf('getCachedBootResources') < firstFetch,
         'cold boot restores protected resources before network fetch');
-  check(events.indexOf('listRecoverableSessions') < firstFetch,
-        'cold boot lists recoverable sessions before network fetch');
+  check(events.indexOf('listResumableSessions') < firstFetch,
+        'cold boot lists resumable sessions before network fetch');
   check(!elements.get('modal-resume').classList.contains('hidden'),
         'cold boot exposes locally stored resumable sessions immediately');
 }
@@ -422,7 +451,7 @@ const session = {
 {
   const { context, elements, buttons } = makeHarness();
   const app = context.__ipsoAppTest;
-  context.Store.listRecoverableSessions = async () => [
+  context.Store.listResumableSessions = async () => [
     { ...session, status: 'open' },
   ];
   context.fetch = async () => ({ ok: false, status: 503 });
@@ -508,25 +537,21 @@ const session = {
      'stored pending upload enters upload with the persisted payload');
 }
 
-// Terminal sessions stay reachable as a local archive on cold boot.
+// Terminal sessions must not interrupt startup; only open or pending-upload
+// rows require an operator decision on launch.
 {
   const { context, elements, buttons } = makeHarness();
   const app = context.__ipsoAppTest;
-  context.Store.listRecoverableSessions = async () => [
+  context.Store.listResumableSessions = async () => [
     { ...session, status: 'exported' },
+    { ...session, id: 's2', status: 'abandoned' },
   ];
   context.fetch = async () => ({ ok: false, status: 503 });
   await app.boot();
-  check(!elements.get('modal-resume').classList.contains('hidden'),
-        'cold boot exposes terminal sessions in the local archive');
-  check(elements.get('resume-title').textContent === 'Archivio locale',
-        'terminal-only recovery uses the archive title');
-  check(buttons.some(b => b.textContent === 'Esporta'),
-        'archive row can be exported again');
-  check(buttons.some(b => b.textContent === 'Continua'),
-        'archive modal can be closed');
-  check(!buttons.some(b => b.textContent === 'Riprendi'),
-        'exported archive row is not resumable');
+  check(elements.get('modal-resume').classList.contains('hidden'),
+        'cold boot ignores terminal local sessions');
+  check(!buttons.some(b => b.textContent === 'Esporta'),
+        'terminal local sessions do not render archive export buttons on startup');
 }
 
 // Resume-time export marks exported only after CSV generation/download starts.
@@ -551,8 +576,8 @@ const session = {
   check(statusIndex > downloadIndex, 'resume export marks status after download starts');
   eq(events[statusIndex], ['setSessionStatus', 'exported'],
      'resume export marks the session exported');
-  check(elements.get('resume-title').textContent === 'Archivio locale',
-        'exported session remains visible in the archive');
+  check(elements.get('modal-resume').classList.contains('hidden'),
+        'exporting the last active session closes the startup modal');
 }
 
 // If CSV generation fails, export must not hide the session by changing status.
@@ -596,7 +621,7 @@ const session = {
         'cancelled resume discard does not abandon the session');
 }
 
-// Confirmed discard moves the session to the archive, not out of the UI.
+// Confirmed discard resolves the active session and closes the modal.
 {
   const { context, events, elements, buttons } = makeHarness();
   const app = context.__ipsoAppTest;
@@ -612,8 +637,32 @@ const session = {
 
   check(events.some(e => Array.isArray(e) && e[1] === 'abandoned'),
         'confirmed resume discard marks the session abandoned');
-  check(elements.get('resume-title').textContent === 'Archivio locale',
-        'abandoned session remains visible in the archive');
+  check(elements.get('modal-resume').classList.contains('hidden'),
+        'discarding the last active session closes the startup modal');
+}
+
+// Marking a pending upload as local-only also resolves the last active session.
+{
+  const { context, events, elements, buttons } = makeHarness();
+  const app = context.__ipsoAppTest;
+  app.State.db = {};
+  context.Store.setSessionUploadStatus = async (_db, _id, status) => {
+    events.push(['setSessionUploadStatus', status]);
+  };
+  context.Store.setSessionStatus = async (_db, _id, status) => {
+    events.push(['setSessionStatus', status]);
+  };
+  app.showResumeModal([{ ...session, status: 'pending_upload' }]);
+
+  const local = buttons.find(b => b.textContent === 'Mantieni locale');
+  await local.click();
+
+  check(events.some(e => Array.isArray(e) && e[1] === 'local_only'),
+        'local-only pending upload records the upload status');
+  check(events.some(e => Array.isArray(e) && e[1] === 'exported'),
+        'local-only pending upload marks the session exported');
+  check(elements.get('modal-resume').classList.contains('hidden'),
+        'local-only pending upload closes the startup modal');
 }
 
 // A prefill based on an older tree list must not replace a newer proposal when
