@@ -53,6 +53,13 @@ const IpsoModes = (function() {
       persistNumber: false,
       enabled: true,
     },
+    [IPSO_MODE_MAP]: {
+      id: IPSO_MODE_MAP,
+      labelKey: 'MODE_MAP',
+      buttonId: 'btn-mode-map',
+      mapOnly: true,
+      enabled: true,
+    },
   };
 
   function get(id) {
@@ -64,20 +71,26 @@ const IpsoModes = (function() {
   }
 
   function all() {
-    return [defs[IPSO_MODE_MARTELLATE], defs[IPSO_MODE_SAMPLES], defs[IPSO_MODE_PAI]];
+    return [
+      defs[IPSO_MODE_MARTELLATE],
+      defs[IPSO_MODE_SAMPLES],
+      defs[IPSO_MODE_PAI],
+      defs[IPSO_MODE_MAP],
+    ];
   }
 
   return {
     MARTELLATE: IPSO_MODE_MARTELLATE,
     SAMPLES: IPSO_MODE_SAMPLES,
     PAI: IPSO_MODE_PAI,
+    MAP: IPSO_MODE_MAP,
     get, defaultMode, all,
   };
 })();
 
 if (typeof module !== 'undefined') {
   module.exports = {
-    IPSO_MODE_MARTELLATE, IPSO_MODE_SAMPLES, IPSO_MODE_PAI,
+    IPSO_MODE_MARTELLATE, IPSO_MODE_SAMPLES, IPSO_MODE_PAI, IPSO_MODE_MAP,
     IPSO_WORK_PACKAGE_SAMPLING_SURVEY_PREFIX, IpsoModes,
   };
 }

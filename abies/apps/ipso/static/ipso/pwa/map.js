@@ -36,6 +36,8 @@ function createOrientationMap(opts) {
   let paiControlEl = null;
   let paiEnabled = false;
   let paiVisible = true;
+  let currentFix = null;
+  let currentHeading = null;
 
   async function ensure() {
     if (leaflet) return;
@@ -115,6 +117,7 @@ function createOrientationMap(opts) {
     const label = formatFeatureLabel(feature);
     if (label) layer.bindTooltip(label, { sticky: true });
     layer.on('click', () => {
+      if (label && layer.openTooltip) layer.openTooltip();
       if (label && onFeatureClick) onFeatureClick(label, feature);
     });
   }
@@ -232,11 +235,21 @@ function createOrientationMap(opts) {
   }
 
   function updatePosition(fix) {
+    currentFix = fix || null;
+    renderPosition();
+  }
+
+  function updateHeading(heading) {
+    currentHeading = Number.isFinite(heading) ? heading : null;
+    renderPosition();
+  }
+
+  function renderPosition() {
     if (!positionLayer) return;
     positionLayer.clearLayers();
-    if (!fix) return;
-    const latlng = [fix.lat, fix.lon];
-    const radius = Math.max(3, Math.round(fix.acc || 0));
+    if (!currentFix) return;
+    const latlng = [currentFix.lat, currentFix.lon];
+    const radius = Math.max(3, Math.round(currentFix.acc || 0));
     L.circle(latlng, {
       radius,
       color: '#1f5b1a',
@@ -251,6 +264,26 @@ function createOrientationMap(opts) {
       fillColor: '#1f5b1a',
       fillOpacity: 1,
     }).addTo(positionLayer);
+    const heading = Number.isFinite(currentHeading)
+      ? currentHeading
+      : currentFix && Number.isFinite(currentFix.heading)
+        ? currentFix.heading : null;
+    if (Number.isFinite(heading)) addHeadingMarker(latlng, heading);
+  }
+
+  function addHeadingMarker(latlng, heading) {
+    const marker = L.marker(latlng, {
+      interactive: false,
+      icon: L.divIcon({
+        className: 'ipso-position-heading-icon',
+        html: '<span></span>',
+        iconSize: [32, 32],
+        iconAnchor: [16, 16],
+      }),
+      zIndexOffset: 1000,
+    }).addTo(positionLayer);
+    const el = marker.getElement && marker.getElement();
+    if (el) el.style.setProperty('--ipso-heading', heading + 'deg');
   }
 
   function center(context) {
@@ -291,7 +324,7 @@ function createOrientationMap(opts) {
 
   return {
     ensure, ready, renderParcels, renderRecords, renderSampleAreas, renderPai,
-    updatePosition, center, invalidate,
+    updatePosition, updateHeading, center, invalidate,
   };
 }
 

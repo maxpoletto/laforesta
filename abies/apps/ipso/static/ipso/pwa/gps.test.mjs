@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const source = fs.readFileSync(path.join(here, 'constants.js'), 'utf8') + '\n' +
   fs.readFileSync(path.join(here, 'gps.js'), 'utf8') +
-  '\nglobalThis.__gpsTest = { createGps };\n';
+  '\nglobalThis.__gpsTest = { createGps, createDirection };\n';
 
 let passed = 0;
 let failed = 0;
@@ -78,6 +78,66 @@ function eq(actual, expected, msg) {
   eq(watchCalls, 2, 'visibilitychange may retry after a permission/settings change');
   check(clearCalls >= 1, 'permission denial clears the active watcher');
   check(states.some(state => state.error === 'denied'), 'denied state is emitted to the UI');
+}
+
+{
+  let geolocationSuccess = null;
+  const context = {
+    console,
+    Date,
+    setInterval() { return 1; },
+    clearInterval() {},
+    setTimeout() { return 1; },
+    clearTimeout() {},
+    navigator: {
+      geolocation: {
+        watchPosition(success) { geolocationSuccess = success; return 1; },
+        clearWatch() {},
+      },
+    },
+    document: {
+      addEventListener() {},
+      removeEventListener() {},
+      visibilityState: 'visible',
+    },
+  };
+  context.globalThis = context;
+  vm.runInNewContext(source, context);
+
+  const gps = context.__gpsTest.createGps(() => {});
+  gps.start();
+  geolocationSuccess({
+    coords: { latitude: 38.1, longitude: 16.2, accuracy: 7, heading: 42 },
+  });
+  eq(gps.state().fix.heading, 42, 'gps fix carries browser heading when present');
+}
+
+{
+  const headings = [];
+  const listeners = {};
+  const removed = [];
+  const context = {
+    console,
+    Number,
+    screen: { orientation: { angle: 0 } },
+    window: {
+      addEventListener(type, fn) { listeners[type] = fn; },
+      removeEventListener(type) { removed.push(type); },
+    },
+  };
+  context.globalThis = context;
+  vm.runInNewContext(source, context);
+
+  const direction = context.__gpsTest.createDirection(h => headings.push(h));
+  direction.start();
+  listeners.deviceorientation({ webkitCompassHeading: 725 });
+  listeners.deviceorientationabsolute({
+    type: 'deviceorientationabsolute', absolute: true, alpha: 10,
+  });
+  eq(headings, [5, 350], 'compass headings are normalized from browser events');
+  direction.stop();
+  eq(removed.sort(), ['deviceorientation', 'deviceorientationabsolute'],
+     'direction.stop removes orientation listeners');
 }
 
 console.log(`${passed} passed, ${failed} failed`);

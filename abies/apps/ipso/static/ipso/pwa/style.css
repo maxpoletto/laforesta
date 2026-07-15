@@ -413,6 +413,24 @@ button {
   font-size: 11px;
 }
 
+.ipso-position-heading-icon {
+  pointer-events: none;
+}
+
+.ipso-position-heading-icon span {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-bottom: 20px solid var(--green-dark);
+  filter: drop-shadow(0 0 2px #fff);
+  transform: translate(-50%, -78%) rotate(var(--ipso-heading, 0deg));
+  transform-origin: 50% 78%;
+}
+
 /* ----------------------------------------------------------------------- */
 /* Banners and toasts                                                      */
 /* ----------------------------------------------------------------------- */

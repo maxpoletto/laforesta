@@ -29,11 +29,16 @@ const State = {
   lastGroup: '',      // most-recent tree group in the current session
   wakeLock: null,     // active WakeLockSentinel during recording (or null)
   currentScreen: null, // id of the visible screen
-  lastFix: null,       // most recent fresh GPS fix, { lat, lon, acc, t }
+  lastFix: null,       // most recent fresh GPS fix, { lat, lon, acc, heading, t }
   sampleAreaId: null,  // selected/inferred sample-area id in sample mode
   parcelName: null,    // selected/inferred parcel name in parcel-based modes
   map: null,           // lazy orientation map controller
   mapReturnScreen: 'screen-rec',
+  mapStandalone: false,
+  mapGpsStandalone: false,
+  mapPendingCenterOnFix: false,
+  direction: null,
+  heading: null,
   bootReady: false,    // true once controls are wired and may be refreshed
 };
 
@@ -593,7 +598,10 @@ function wireModeSelection() {
     if (!button) continue;
     button.textContent = modeStringFor(mode, 'labelKey', mode.id);
     button.disabled = !mode.enabled;
-    button.addEventListener('click', () => enterPreSession(mode.id));
+    button.addEventListener('click', () => {
+      if (mode.mapOnly) enterMapScreen('screen-mode', { standalone: true });
+      else enterPreSession(mode.id);
+    });
   }
 }
 
@@ -1057,12 +1065,17 @@ function renderGpsStatus(st) {
       lat: st.fix.lat,
       lon: st.fix.lon,
       acc: st.fix.acc,
+      heading: Number.isFinite(st.fix.heading) ? st.fix.heading : null,
       t: st.fix.t,
     };
     if (State.locator) State.locator.onFix(st.fix);
     if (isSamplesMode()) refreshSampleAreaSelect();
     updateMapPosition();
     updateMapHeader();
+    if (State.mapPendingCenterOnFix && State.currentScreen === 'screen-map') {
+      State.mapPendingCenterOnFix = false;
+      centerMapOnContext();
+    }
   } else if (st.error === 'denied') {
     State.lastFix = null;
     if (text) text.textContent = S.GPS_DENIED;
@@ -1359,13 +1372,28 @@ function downloadFinal(sess, trees, reference) {
 // Map screen
 // ---------------------------------------------------------------------------
 
-async function enterMapScreen(returnScreen) {
-  if (!State.session) return;
+async function enterMapScreen(returnScreen, options) {
+  const standalone = !!(options && options.standalone);
+  if (!State.session && !standalone) return;
+  if (standalone && (!State.terreni || !State.terreni.length)) {
+    showToast(S.MAP_UNAVAILABLE);
+    return;
+  }
   if (typeof createOrientationMap === 'undefined') {
     showToast(S.MAP_UNAVAILABLE);
     return;
   }
   State.mapReturnScreen = returnScreen || 'screen-rec';
+  State.mapStandalone = standalone;
+  if (standalone && !State.gps) State.lastFix = null;
+  State.mapPendingCenterOnFix = standalone && !State.lastFix;
+  if (standalone && !State.gps) {
+    startGps();
+    State.mapGpsStandalone = true;
+  } else {
+    State.mapGpsStandalone = false;
+  }
+  startMapDirection();
   showScreen('screen-map');
   ensureMap();
   try {
@@ -1379,6 +1407,7 @@ async function enterMapScreen(returnScreen) {
   await renderMapRecords();
   renderMapPai();
   updateMapPosition();
+  updateMapDirection();
   updateMapHeader();
   setTimeout(() => {
     if (!State.map || !State.map.ready()) return;
@@ -1388,6 +1417,16 @@ async function enterMapScreen(returnScreen) {
 }
 
 function exitMapScreen() {
+  stopMapDirection();
+  if (State.mapStandalone && State.mapGpsStandalone && State.gps) {
+    State.gps.stop();
+    State.gps = null;
+    State.lastFix = null;
+    updateMapPosition();
+  }
+  State.mapStandalone = false;
+  State.mapGpsStandalone = false;
+  State.mapPendingCenterOnFix = false;
   showScreen(State.mapReturnScreen || 'screen-rec');
 }
 
@@ -1419,7 +1458,8 @@ function ensureMap() {
 }
 
 function currentMapFeatures() {
-  if (!State.terreni || !State.session) return [];
+  if (!State.terreni) return [];
+  if (State.mapStandalone || !State.session) return State.terreni;
   const compresa = State.session.compresa;
   return State.terreni.filter(
     (f) => f.properties && f.properties.layer === compresa
@@ -1448,7 +1488,11 @@ function refreshMapSampleAreas() {
 }
 
 async function renderMapRecords() {
-  if (!State.map || !State.map.ready() || !State.session) return;
+  if (!State.map || !State.map.ready()) return;
+  if (!State.session) {
+    State.map.renderRecords([]);
+    return;
+  }
   try {
     const trees = await Store.listTrees(State.db, State.session.id);
     trees.sort((a, b) => a.seq - b.seq);
@@ -1511,6 +1555,31 @@ function speciesNameById(id) {
 
 function updateMapPosition() {
   if (State.map && State.map.ready()) State.map.updatePosition(State.lastFix);
+}
+
+function updateMapDirection() {
+  if (State.map && State.map.ready() && State.map.updateHeading) {
+    State.map.updateHeading(State.heading);
+  }
+}
+
+function startMapDirection() {
+  if (typeof createDirection === 'undefined') return;
+  if (!State.direction) {
+    State.direction = createDirection((heading) => {
+      State.heading = heading;
+      updateMapDirection();
+    });
+  }
+  State.direction.start();
+  State.heading = State.direction.heading();
+  updateMapDirection();
+}
+
+function stopMapDirection() {
+  if (State.direction) State.direction.stop();
+  State.heading = null;
+  updateMapDirection();
 }
 
 function centerMapOnContext() {

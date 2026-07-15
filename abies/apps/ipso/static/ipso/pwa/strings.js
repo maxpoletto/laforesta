@@ -10,6 +10,7 @@ const S = {
   MODE_MARTELLATE: 'Martellate',
   MODE_SAMPLES: 'Campionamenti',
   MODE_PAI: 'PAI',
+  MODE_MAP: 'Mappa',
   MODE_BACK: 'Indietro',
 
   // Pre-session screen

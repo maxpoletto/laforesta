@@ -77,6 +77,7 @@ function createGps(onChange) {
           lat: pos.coords.latitude,
           lon: pos.coords.longitude,
           acc: pos.coords.accuracy,
+          heading: Number.isFinite(pos.coords.heading) ? pos.coords.heading : null,
           t: Date.now(),
         };
         lastError = null;
@@ -188,4 +189,89 @@ function createGps(onChange) {
   }
 
   return { start, stop, state, snapshot };
+}
+
+function createDirection(onChange) {
+  let active = false;
+  let listening = false;
+  let permissionPending = false;
+  let lastHeading = null;
+  let orientationHandler = null;
+
+  function emit(heading) {
+    if (!Number.isFinite(heading)) return;
+    lastHeading = normalizeHeading(heading);
+    onChange && onChange(lastHeading);
+  }
+
+  function normalizeHeading(heading) {
+    return ((heading % 360) + 360) % 360;
+  }
+
+  function orientationAngle() {
+    const scr = typeof screen !== 'undefined' ? screen : null;
+    if (scr && scr.orientation && Number.isFinite(scr.orientation.angle)) {
+      return scr.orientation.angle;
+    }
+    const win = typeof window !== 'undefined' ? window : null;
+    return win && Number.isFinite(win.orientation) ? win.orientation : 0;
+  }
+
+  function headingFromEvent(event) {
+    if (!event) return null;
+    if (Number.isFinite(event.webkitCompassHeading)) {
+      return event.webkitCompassHeading;
+    }
+    if (Number.isFinite(event.alpha) &&
+        (event.absolute || event.type === 'deviceorientationabsolute')) {
+      return 360 - event.alpha + orientationAngle();
+    }
+    return null;
+  }
+
+  function orientationEventCtor() {
+    if (typeof DeviceOrientationEvent !== 'undefined') return DeviceOrientationEvent;
+    const win = typeof window !== 'undefined' ? window : null;
+    return win ? win.DeviceOrientationEvent : null;
+  }
+
+  function attach() {
+    if (listening || typeof window === 'undefined' || !window.addEventListener) return;
+    orientationHandler = (event) => emit(headingFromEvent(event));
+    window.addEventListener('deviceorientationabsolute', orientationHandler, true);
+    window.addEventListener('deviceorientation', orientationHandler, true);
+    listening = true;
+  }
+
+  function start() {
+    active = true;
+    if (listening || permissionPending) return;
+    const Ctor = orientationEventCtor();
+    if (Ctor && typeof Ctor.requestPermission === 'function') {
+      permissionPending = true;
+      Ctor.requestPermission().then((state) => {
+        permissionPending = false;
+        if (active && state === 'granted') attach();
+      }, () => {
+        permissionPending = false;
+      });
+      return;
+    }
+    attach();
+  }
+
+  function stop() {
+    active = false;
+    if (!listening || typeof window === 'undefined' || !window.removeEventListener) return;
+    window.removeEventListener('deviceorientationabsolute', orientationHandler, true);
+    window.removeEventListener('deviceorientation', orientationHandler, true);
+    orientationHandler = null;
+    listening = false;
+  }
+
+  function heading() {
+    return lastHeading;
+  }
+
+  return { start, stop, heading };
 }
