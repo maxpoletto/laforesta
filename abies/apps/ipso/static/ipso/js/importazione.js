@@ -16,7 +16,9 @@ import {
 } from '../../base/js/ui-widgets.js';
 import { cloneTemplate } from '../../base/js/templates.js';
 import { fmtCoord, fmtDecimal2, fmtInt } from '../../base/js/format.js';
+import { sortFeaturesByArea } from '../../base/js/geo.js';
 import { installEscapeHandler } from '../../base/js/escape.js';
+import { TreePointsMap, treePointsFromDigest } from '../../base/js/tree-points-map.js';
 import * as S from '../../base/js/strings.js';
 import {
   DATA_ID_IPSO_UPLOADS, FIELD_ACC_M, FIELD_D_CM, FIELD_DATE, FIELD_ERROR_SUMMARY,
@@ -34,7 +36,9 @@ import {
 } from '../../base/js/constants.js';
 
 const DATA_ID = DATA_ID_IPSO_UPLOADS;
+const TERRENI_ID = 'terreni';
 const DATA_URL = '/api/ipso/inbox/';
+const TERRENI_GEOJSON_URL = '/api/geo/terreni.geojson';
 const PAGE_PATH = '/importazione';
 const CSS_URL = '/static/ipso/css/importazione.css';
 const DEFAULT_SORT = { column: S.IPSO_COL_RECEIVED, ascending: false };
@@ -104,14 +108,17 @@ const PREVIEW_COLUMN_DEFS = {
 
 let table = null;
 let detailTable = null;
+let detailMap = null;
 let detailEl = null;
 let summaryEl = null;
 let selectedId = null;
 let disposeEscape = null;
 let includeImportedEl = null;
 let inboxStateIndex = -1;
+let parcelsGeo = null;
 
 cache.register(DATA_ID, DATA_URL);
+cache.register(TERRENI_ID, TERRENI_GEOJSON_URL);
 
 const page = createPage({
   cssUrl: CSS_URL,
@@ -188,6 +195,7 @@ function destroyPage() {
   selectedId = null;
   includeImportedEl = null;
   inboxStateIndex = -1;
+  parcelsGeo = null;
 }
 
 function applyParams(params) {
@@ -272,9 +280,21 @@ function closeDetail() {
 }
 
 function destroyDetailTable() {
-  if (!detailTable) return;
-  detailTable.destroy();
-  detailTable = null;
+  if (detailTable) {
+    detailTable.destroy();
+    detailTable = null;
+  }
+  if (detailMap) {
+    detailMap.destroy();
+    detailMap = null;
+  }
+}
+
+async function ensureParcelsGeo() {
+  if (parcelsGeo) return parcelsGeo;
+  const geojson = cache.get(TERRENI_ID) || await cache.load(TERRENI_ID);
+  parcelsGeo = sortFeaturesByArea(geojson);
+  return parcelsGeo;
 }
 
 function confirmReject(id) {
@@ -413,7 +433,7 @@ function renderDetail(data) {
   const recordsTitle = document.createElement('h3');
   recordsTitle.textContent = S.IPSO_PREVIEW_TITLE(data[RECORD_COUNT] || 0);
   detailEl.appendChild(recordsTitle);
-  detailEl.appendChild(recordsTable(data[RECORDS] || []));
+  detailEl.appendChild(recordsTable(data[RECORDS] || [], upload[FIELD_ID]));
 }
 
 function isAdmin() {
@@ -511,7 +531,7 @@ function metadataGrid(items) {
   return dl;
 }
 
-function recordsTable(records) {
+function recordsTable(records, uploadId) {
   const host = document.createElement('div');
   host.className = 'ipso-record-preview';
   const rows = records.map(rec => [
@@ -528,7 +548,26 @@ function recordsTable(records) {
     labels: { ...S.TABLE_LABELS, empty: S.IPSO_EMPTY_RECORDS },
     csvFormat: S.TABLE_CSV_FORMAT,
   });
+  appendRecordPreviewMap(host, rows, uploadId);
   return host;
+}
+
+async function appendRecordPreviewMap(host, rows, uploadId) {
+  if (!rows.length || typeof L === 'undefined') return;
+  let geojson;
+  try { geojson = await ensureParcelsGeo(); }
+  catch { return; }
+  if (selectedId !== uploadId || detailEl?.contains?.(host) === false) return;
+
+  const mapHost = document.createElement('div');
+  mapHost.className = 'ipso-record-map-host';
+  host.appendChild(mapHost);
+  detailMap = new TreePointsMap({
+    container: mapHost,
+    className: 'ipso-record-map',
+    geojson,
+  });
+  detailMap.setTrees(treePointsFromDigest(rows, PREVIEW_COLUMNS));
 }
 
 function coordValue(value) {

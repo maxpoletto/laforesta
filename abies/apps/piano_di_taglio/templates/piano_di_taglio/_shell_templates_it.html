@@ -186,6 +186,20 @@ render context.
   </div>
 </template>
 
+<template id="tmpl-pdt-mark-popover">
+  <div class="pdt-mark-popover-fields" data-target="fields"></div>
+  <div class="form-actions">
+    <button type="button" class="btn"
+            data-action="cancel">{{ S.DISMISS }}</button>
+    {% if user.can_modify %}
+    <button type="button" class="btn btn-save"
+            data-action="edit-mark">{{ S.ACTION_EDIT }}</button>
+    <button type="button" class="btn btn-delete"
+            data-action="delete-mark">{{ S.ACTION_DELETE }}</button>
+    {% endif %}
+  </div>
+</template>
+
 <template id="tmpl-pdt-item-subsection">
   {% include "base/_partials/_collapsible_header.html" with section="" title="" %}
   <div class="collapsible-body"></div>

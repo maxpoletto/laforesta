@@ -31,6 +31,8 @@ import {
   wireVMPreview, ID_D_CM, ID_H_M, ID_SPECIES, ID_LAT, ID_LON,
 } from '../../base/js/tree-form.js';
 import { mountUseLocationButton } from '../../base/js/latlng-input.js';
+import { TreePointsMap, treePointsFromDigest } from '../../base/js/tree-points-map.js';
+import { sortFeaturesByArea } from '../../base/js/geo.js';
 import * as S from '../../base/js/strings.js';
 import {
   FIELD_COPPICE_FILE, FIELD_DATE, FIELD_DESCRIPTION, FIELD_FILE,
@@ -61,6 +63,7 @@ const HYPSO_PARAMS_ID = 'hypso_params';
 const PLANS_URL = '/api/piano-di-taglio/plans/data/';
 const ITEMS_URL = '/api/piano-di-taglio/items/data/';
 const HYPSO_PARAMS_URL = '/api/impostazioni/hypso-params/data/';
+const TERRENI_GEOJSON_URL = '/api/geo/terreni.geojson';
 const PLAN_SAVE_URL = '/api/piano-di-taglio/plan/save/';
 const PLAN_IMPORT_CSV_URL = '/api/piano-di-taglio/plan/import-csv/';
 const PLAN_DELETE_URL = '/api/piano-di-taglio/plan/delete/';
@@ -79,6 +82,7 @@ const MARK_CSV_IMPORT_URL = '/api/piano-di-taglio/mark/import-csv/';
 
 const PRELIEVI_ID = 'prelievi';
 const PRELIEVI_URL = '/api/prelievi/data/';
+const TERRENI_ID = 'terreni';
 
 const PAGE_PATH = '/piano-di-taglio';
 const DEFAULT_SECTION_SORT = { column: S.COL_YEAR_PLANNED, ascending: true };
@@ -89,6 +93,7 @@ cache.register(PLANS_ID, PLANS_URL);
 cache.register(ITEMS_ID, ITEMS_URL);
 cache.register(HYPSO_PARAMS_ID, HYPSO_PARAMS_URL);
 cache.register(PRELIEVI_ID, PRELIEVI_URL);
+cache.register(TERRENI_ID, TERRENI_GEOJSON_URL);
 
 // --- Page state -------------------------------------------------------------
 
@@ -96,6 +101,7 @@ let activePlanId = null;
 let plansData = null;
 let itemsData = null;
 let hypsoParamsData = null;
+let parcelsGeo = null;
 
 let descriptionEl = null;
 let planSelectEl = null;
@@ -104,6 +110,7 @@ let itemRenderSeq = 0;
 let prelieviData = null;
 let itemPrelieviTable = null;
 let itemMarkTreesTable = null;
+let itemMarkTreesMap = null;
 let disposeEscape = null;
 let disposePageActions = null;
 
@@ -181,7 +188,7 @@ function destroyPage() {
   itemRenderSeq += 1;
   activePlanId = null;
   activeItemId = null;
-  plansData = itemsData = hypsoParamsData = prelieviData = null;
+  plansData = itemsData = hypsoParamsData = prelieviData = parcelsGeo = null;
   descriptionEl = null;
   planSelectEl = null;
 }
@@ -1036,9 +1043,24 @@ function destroyItemMarkTreesTable() {
   }
 }
 
+function destroyItemMarkTreesMap() {
+  if (itemMarkTreesMap) {
+    itemMarkTreesMap.destroy();
+    itemMarkTreesMap = null;
+  }
+}
+
 function destroyItemTables() {
   destroyItemPrelieviTable();
   destroyItemMarkTreesTable();
+  destroyItemMarkTreesMap();
+}
+
+async function ensureParcelsGeo() {
+  if (parcelsGeo) return parcelsGeo;
+  const geojson = cache.get(TERRENI_ID) || await cache.load(TERRENI_ID);
+  parcelsGeo = sortFeaturesByArea(geojson);
+  return parcelsGeo;
 }
 
 function itemViewIsActive(itemId) {
@@ -1348,8 +1370,10 @@ async function appendItemMarkTreesSection(card, itemId, state) {
     columnDefs: buildMarkTreeColumnDefs(c),
     canModify: showActions,
     actions: showActions ? {
-      onEdit: (rowId) => showEditMarkForm(itemId, rowId),
-      onDelete: (rowId) => deleteMarkRow(itemId, rowId),
+      onEdit: (rowId, row) =>
+        showEditMarkForm(itemId, markTreeRowId(row, c) ?? rowId),
+      onDelete: (rowId, row) =>
+        deleteMarkRow(itemId, markTreeRowId(row, c) ?? rowId),
     } : {},
     toolbar: {
       search: data.rows.length > 0,
@@ -1372,6 +1396,91 @@ async function appendItemMarkTreesSection(card, itemId, state) {
     labels: S.TABLE_LABELS,
     csvFormat: S.TABLE_CSV_FORMAT,
   });
+  await appendItemMarkTreesMap(body, itemId, data, showActions);
+}
+
+async function appendItemMarkTreesMap(body, itemId, data, showActions) {
+  destroyItemMarkTreesMap();
+  if (!data?.rows?.length || typeof L === 'undefined') return;
+  let geojson;
+  try { geojson = await ensureParcelsGeo(); }
+  catch { return; }
+  if (!itemViewIsActive(itemId) ||
+      document.getElementById('content')?.contains?.(body) === false) return;
+
+  const host = document.createElement('div');
+  host.className = 'pdt-mark-map-host';
+  body.appendChild(host);
+  itemMarkTreesMap = new TreePointsMap({
+    container: host,
+    className: 'pdt-mark-map',
+    geojson,
+    onTreeClick: (tree) => {
+      showMarkTreePopover(itemId, tree.row, data.columns, showActions);
+    },
+  });
+  itemMarkTreesMap.setTrees(treePointsFromDigest(data.rows, data.columns));
+}
+
+function markTreeRowId(row, columns) {
+  if (!row) return null;
+  const idx = columns.indexOf(ROW_ID);
+  return idx >= 0 ? row[idx] : row[0];
+}
+
+function showMarkTreePopover(itemId, row, columns, showActions) {
+  if (!row) return;
+  const rowId = markTreeRowId(row, columns);
+  const frag = cloneTemplate('tmpl-pdt-mark-popover');
+  const fields = frag.querySelector('[data-target="fields"]');
+  for (const name of columns) {
+    if (name === ROW_ID || name === VERSION) continue;
+    appendMarkPopoverField(
+      fields, name, formatMarkPopoverValue(name, row[columns.indexOf(name)]),
+    );
+  }
+
+  const closeBtn = frag.querySelector('[data-action="cancel"]');
+  closeBtn?.addEventListener('click', dismissModal);
+
+  const editBtn = frag.querySelector('[data-action="edit-mark"]');
+  const deleteBtn = frag.querySelector('[data-action="delete-mark"]');
+  if (showActions && rowId != null && editBtn && deleteBtn) {
+    editBtn.addEventListener('click', () => {
+      dismissModal();
+      showEditMarkForm(itemId, rowId);
+    });
+    deleteBtn.addEventListener('click', () => {
+      dismissModal();
+      deleteMarkRow(itemId, rowId);
+    });
+  } else {
+    editBtn?.remove();
+    deleteBtn?.remove();
+  }
+
+  showModal(frag);
+}
+
+function appendMarkPopoverField(root, label, value) {
+  const row = document.createElement('div');
+  const b = document.createElement('strong');
+  b.textContent = `${label}: `;
+  row.append(b, document.createTextNode(value));
+  root.appendChild(row);
+}
+
+function formatMarkPopoverValue(name, value) {
+  if (value == null || value === '') return '—';
+  if (name === S.COL_DATE) return formatDate(String(value));
+  if (name === S.COL_NUMBER || name === S.COL_D_CM) return fmtInt(value);
+  if (name === S.COL_H_M || name === S.COL_MASS_Q) return fmtDecimal2(value);
+  if (name === S.COL_V_M3) return fmtDecimal3(value);
+  if (name === S.COL_LAT || name === S.COL_LON) return fmtCoord(value);
+  if (name === S.COL_H_MEASURED) {
+    return value ? S.TABLE_LABELS.boolYes : S.TABLE_LABELS.boolNo;
+  }
+  return String(value);
 }
 
 function buildMarkTreeColumnDefs(columns) {

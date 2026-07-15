@@ -241,6 +241,7 @@ test-js:
 	node apps/ipso/static/ipso/pwa/upload.test.mjs
 	node apps/ipso/static/ipso/pwa/store.test.mjs
 	node apps/ipso/static/ipso/pwa/app.test.mjs
+	node apps/ipso/static/ipso/js/importazione.test.mjs
 	node apps/base/static/base/js/geo.test.mjs
 	node apps/base/static/base/js/format.test.mjs
 	node apps/base/static/base/js/csv-export.test.mjs
@@ -267,6 +268,7 @@ test-js:
 	node apps/prelievi/static/prelievi/js/prelievi.test.mjs
 	node apps/base/static/base/js/prelievi-columns.test.mjs
 	node apps/base/static/base/js/parcel-map.test.mjs
+	node apps/base/static/base/js/tree-points-map.test.mjs
 	node apps/base/static/base/js/map-tools.test.mjs
 	node apps/campionamenti/static/campionamenti/js/grid-planner.test.mjs
 	node apps/campionamenti/static/campionamenti/js/campionamenti.test.mjs

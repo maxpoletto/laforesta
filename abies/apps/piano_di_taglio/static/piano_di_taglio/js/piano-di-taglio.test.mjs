@@ -245,6 +245,17 @@ function buildConfirmTemplate() {
   return frag;
 }
 
+function buildMarkPopoverTemplate() {
+  const frag = el('fragment');
+  frag.appendChild(el('div', { className: 'pdt-mark-popover-fields', dataset: { target: 'fields' } }));
+  const actions = el('div', { className: 'form-actions' });
+  actions.appendChild(el('button', { dataset: { action: 'cancel' } }));
+  actions.appendChild(el('button', { className: 'btn btn-save', dataset: { action: 'edit-mark' } }));
+  actions.appendChild(el('button', { className: 'btn btn-delete', dataset: { action: 'delete-mark' } }));
+  frag.appendChild(actions);
+  return frag;
+}
+
 const contentEl = el('main');
 const modalEl = el('div', { id: 'modal-container' });
 const links = [];
@@ -252,6 +263,7 @@ const templates = {
   'tmpl-pdt-page': { content: buildPageTemplate() },
   'tmpl-pdt-item-view': { content: buildItemViewTemplate() },
   'tmpl-pdt-item-subsection': { content: buildSubsectionTemplate() },
+  'tmpl-pdt-mark-popover': { content: buildMarkPopoverTemplate() },
   'tmpl-confirm-modal': { content: buildConfirmTemplate() },
 };
 
@@ -260,6 +272,7 @@ globalThis.document = {
   body: el('body', { dataset: { csrf: 'csrf-token', role: 'reader' } }),
   head: { appendChild: link => links.push(link) },
   createElement: tag => el(tag),
+  createTextNode: text => { const node = el('#text'); node.textContent = text; return node; },
   createDocumentFragment: () => el('fragment'),
   addEventListener() {},
   removeEventListener() {},
@@ -333,6 +346,9 @@ function deferred() {
   return { promise, resolve };
 }
 const flushAsyncWork = () => new Promise(resolve => setTimeout(resolve, 0));
+async function flushSeveral(times = 4) {
+  for (let i = 0; i < times; i++) await flushAsyncWork();
+}
 
 const S = await import(staticModule('base/js/strings.js'));
 const { COL_COPPICE, ROW_ID, VERSION } = await import(staticModule('base/js/constants.js'));
@@ -369,18 +385,29 @@ const itemsDigest = { columns: itemColumns, rows: itemRows };
 
 const itemLoads = new Map();
 const markLoads = new Map();
+const markDataOverrides = new Map();
 const prelieviLoads = [];
+const fetchUrls = [];
 function deferItem(id) { const d = deferred(); itemLoads.set(`/api/piano-di-taglio/item/data/${id}/`, d); return d; }
 function deferMarks(id) { const d = deferred(); markLoads.set(`/api/piano-di-taglio/mark-trees/${id}/`, d); return d; }
 function deferPrelievi() { const d = deferred(); prelieviLoads.push(d); return d; }
 function itemPayload(id) {
   return { record: itemRows.find(row => row[0] === id), transition_records: [] };
 }
-function markDigest(id) {
-  return {
-    columns: [ROW_ID, VERSION, S.COL_DATE, S.COL_NUMBER, S.COL_D_CM, S.COL_H_M, S.COL_V_M3, S.COL_MASS_Q],
-    rows: [[id * 100 + 1, 1, '2026-01-01', 1, 30, 20, 1.2, 8.5]],
-  };
+function markDigest(id, overrides = {}) {
+  const row = [
+    id * 100 + 1, 1, '2026-01-01', 1, 'Abete bianco', 30, 20,
+    true, 1.2, 8.5, 38.1, 16.2, 'Operatore',
+  ];
+  const columns = [
+    ROW_ID, VERSION, S.COL_DATE, S.COL_NUMBER, S.COL_SPECIES, S.COL_D_CM,
+    S.COL_H_M, S.COL_H_MEASURED, S.COL_V_M3, S.COL_MASS_Q, S.COL_LAT,
+    S.COL_LON, S.COL_OPERATOR,
+  ];
+  for (const [name, value] of Object.entries(overrides)) {
+    row[columns.indexOf(name)] = value;
+  }
+  return { columns, rows: [row] };
 }
 function prelieviDigest() {
   return {
@@ -397,13 +424,178 @@ function response(data, lastModified = 'v1') {
   };
 }
 
-globalThis.fetch = async (url) => {
+function terreniGeojson() {
+  return {
+    type: 'FeatureCollection',
+    features: [{
+      type: 'Feature',
+      properties: { layer: 'A', name: 'A-1', coppice: false },
+      geometry: {
+        type: 'Polygon',
+        coordinates: [[[16, 38], [17, 38], [17, 39], [16, 39], [16, 38]]],
+      },
+    }],
+  };
+}
+
+let leafletMaps = [];
+let leafletMarkerGroups = [];
+function installLeafletMock() {
+  leafletMaps = [];
+  leafletMarkerGroups = [];
+
+  function fakeClassList(node) {
+    return {
+      add: (...names) => node._setClasses(new Set([...node._classes(), ...names])),
+      remove: (...names) => {
+        const next = node._classes();
+        for (const name of names) next.delete(name);
+        node._setClasses(next);
+      },
+      toggle: (name, force) => {
+        const next = node._classes();
+        const shouldAdd = force === undefined ? !next.has(name) : Boolean(force);
+        if (shouldAdd) next.add(name);
+        else next.delete(name);
+        node._setClasses(next);
+        return shouldAdd;
+      },
+      contains: name => node._classes().has(name),
+    };
+  }
+
+  function fakeMap() {
+    const handlers = {};
+    return {
+      handlers,
+      controls: [],
+      on(ev, cb) { (handlers[ev] ||= []).push(cb); return this; },
+      off(ev, cb) { handlers[ev] = (handlers[ev] || []).filter(h => h !== cb); return this; },
+      fire(ev, payload) { (handlers[ev] || []).forEach(cb => cb(payload)); },
+      addControl(control) { this.controls.push(control); control.onAdd?.(this); return this; },
+      removeControl(control) { this.controls = this.controls.filter(c => c !== control); return this; },
+      removeLayer(layer) { layer.removed = true; return this; },
+      fitBounds(bounds, opts) { this.fitted = { bounds, opts }; return this; },
+      setView(center, zoom) { this.view = { center, zoom }; return this; },
+      getCenter() { return { lat: 38.5, lng: 16.5 }; },
+      getZoom() { return 12; },
+      getContainer() { return { style: {} }; },
+      invalidateSize() {},
+      locate() { return this; },
+      stopLocate() { return this; },
+      distance() { return 1; },
+      remove() { this.removed = true; },
+    };
+  }
+
+  function layerGroup() {
+    const group = {
+      layers: [],
+      addTo() { return this; },
+      addLayer(layer) { this.layers.push(layer); layer.group = this; },
+      clearLayers() { this.layers = []; },
+    };
+    leafletMarkerGroups.push(group);
+    return group;
+  }
+
+  function marker(latlng, style) {
+    return {
+      latlng,
+      style,
+      handlers: {},
+      bindTooltip(content, options) { this.tooltip = { content, options }; return this; },
+      on(ev, cb) { this.handlers[ev] = cb; return this; },
+      addTo(layer) { layer.addLayer(this); return this; },
+      setStyle(next) { this.style = { ...this.style, ...next }; },
+      bringToFront() { this.front = true; },
+      click() { this.handlers.click?.({}); },
+    };
+  }
+
+  globalThis.L = {
+    map() { const map = fakeMap(); leafletMaps.push(map); return map; },
+    tileLayer() { return { addTo(map) { this.map = map; return this; } }; },
+    control: { zoom: () => ({ addTo(map) { map.addControl(this); return this; } }) },
+    Control: {
+      extend(proto) {
+        return function Control(...args) {
+          Object.assign(this, proto);
+          this.options = { ...(proto.options || {}) };
+          this.initialize?.(...args);
+        };
+      },
+    },
+    DomUtil: {
+      create(tag, cls, parent) {
+        const node = el(tag, { className: cls || '' });
+        node.style = {};
+        node.classList = fakeClassList(node);
+        parent?.appendChild?.(node);
+        return node;
+      },
+    },
+    DomEvent: {
+      on(node, ev, cb) { node.addEventListener?.(ev, cb); },
+      off() {},
+      stop() {},
+      stopPropagation() {},
+      preventDefault() {},
+      disableClickPropagation() {},
+    },
+    geoJSON(data, opts) {
+      const layer = {
+        addTo() { return this; },
+        getBounds() { return { isValid: () => true }; },
+        tooltips: [],
+      };
+      for (const feature of data.features || []) {
+        const lyr = {
+          bindTooltip(content, options) { layer.tooltips.push({ content, options }); return this; },
+          on() {},
+        };
+        opts.onEachFeature?.(feature, lyr);
+      }
+      return layer;
+    },
+    layerGroup,
+    circleMarker: marker,
+    polyline: () => ({ addTo() { return this; } }),
+    marker: () => ({ addTo() { return this; } }),
+    circle: () => ({ addTo() { return this; } }),
+    divIcon: () => ({}),
+  };
+}
+
+function latestTreeMarkers() {
+  return leafletMarkerGroups.at(-1)?.layers || [];
+}
+
+globalThis.fetch = async (url, options = {}) => {
+  fetchUrls.push(String(url));
   if (url === '/api/piano-di-taglio/plans/data/') return response(planDigest);
   if (url === '/api/piano-di-taglio/items/data/') return response(itemsDigest);
   if (url === '/api/impostazioni/hypso-params/data/') return response({ columns: [], rows: [] });
+  if (url === '/api/geo/terreni.geojson') return response(terreniGeojson());
+  if (url === '/api/piano-di-taglio/mark/delete/' && options.method === 'POST') {
+    const body = JSON.parse(options.body || '{}');
+    const rowId = Number(body[ROW_ID]);
+    const itemId = Math.floor((rowId - 1) / 100);
+    markDataOverrides.set(
+      `/api/piano-di-taglio/mark-trees/${itemId}/`,
+      { ...markDigest(itemId), rows: [] },
+    );
+    return response({
+      deletes: [{ data_id: `mark_trees_${itemId}`, row_id: rowId }],
+    });
+  }
   if (itemLoads.has(url)) return response(await itemLoads.get(url).promise);
+  if (markDataOverrides.has(url)) return response(markDataOverrides.get(url), 'v2');
   if (markLoads.has(url)) return response(await markLoads.get(url).promise);
   if (url === '/api/prelievi/data/') return response(await prelieviLoads.shift().promise);
+  if (String(url).startsWith('/api/piano-di-taglio/mark/form/')) {
+    return { status: 404, ok: false, headers: { get: () => null }, json: async () => ({}) };
+  }
   throw new Error(`unexpected fetch ${url}`);
 };
 
@@ -430,6 +622,10 @@ async function finish() {
   contentEl.replaceChildren();
   modalEl.replaceChildren();
   tableInstances.length = 0;
+  markDataOverrides.clear();
+  delete globalThis.L;
+  leafletMaps = [];
+  leafletMarkerGroups = [];
   await flushAsyncWork();
 }
 
@@ -531,6 +727,36 @@ async function finish() {
   await finish();
 }
 
+// Mark edit in the item detail view must request the form for the digest ROW_ID.
+{
+  const previousRole = document.body.dataset.role;
+  document.body.dataset.role = 'writer';
+  const item = deferItem(11);
+  const marks = deferMarks(11);
+  fetchUrls.length = 0;
+  await mountItem(11);
+  item.resolve(itemPayload(11));
+  await flushAsyncWork();
+  marks.resolve(markDigest(11));
+  await flushAsyncWork();
+
+  const tableEl = contentEl.querySelector('.table-scroll');
+  const row = el('tr', { className: 'sortable-table-row' });
+  row.dataset.index = '0';
+  const edit = el('span', { className: 'action-icon action-edit' });
+  row.appendChild(edit);
+  tableEl.appendChild(row);
+  edit.click();
+  await flushAsyncWork();
+
+  const markFormUrls = fetchUrls
+    .filter(u => u.startsWith('/api/piano-di-taglio/mark/form/'));
+  eq(markFormUrls.at(-1), '/api/piano-di-taglio/mark/form/1101/',
+     'mark edit opens the form for the digest row_id');
+  await finish();
+  document.body.dataset.role = previousRole;
+}
+
 // Mark deletion in the item detail view must use the shared modal, not window.confirm().
 {
   const previousRole = document.body.dataset.role;
@@ -555,6 +781,123 @@ async function finish() {
   eq(browserConfirmCalls, 0, 'mark delete does not call the browser confirm');
   check(Boolean(modalEl.querySelector('[data-action="confirm"]')),
         'mark delete opens the shared confirm modal');
+  await finish();
+  document.body.dataset.role = previousRole;
+}
+
+// Mark edit from the map popover must request the same digest ROW_ID as the table action.
+{
+  const previousRole = document.body.dataset.role;
+  document.body.dataset.role = 'writer';
+  installLeafletMock();
+  const item = deferItem(11);
+  const marks = deferMarks(11);
+  fetchUrls.length = 0;
+  await mountItem(11);
+  item.resolve(itemPayload(11));
+  await flushAsyncWork();
+  marks.resolve(markDigest(11));
+  await flushSeveral();
+
+  eq(latestTreeMarkers().length, 1, 'mark map renders a geolocated digest row');
+  latestTreeMarkers()[0].click();
+  modalEl.querySelector('[data-action="edit-mark"]').click();
+  await flushAsyncWork();
+
+  const markFormUrls = fetchUrls
+    .filter(u => u.startsWith('/api/piano-di-taglio/mark/form/'));
+  eq(markFormUrls.at(-1), '/api/piano-di-taglio/mark/form/1101/',
+     'mark map edit opens the form for the digest row_id');
+  await finish();
+  document.body.dataset.role = previousRole;
+}
+
+// A mark edit/save response must refresh both the detail table and map marker.
+{
+  installLeafletMock();
+  const item = deferItem(11);
+  const marks = deferMarks(11);
+  await mountItem(11);
+  item.resolve(itemPayload(11));
+  await flushAsyncWork();
+  marks.resolve(markDigest(11));
+  await flushSeveral();
+
+  const updated = markDigest(11, {
+    [S.COL_D_CM]: 45,
+    [S.COL_H_M]: 22.5,
+    [S.COL_LAT]: 38.25,
+    [S.COL_LON]: 16.35,
+  });
+  markDataOverrides.set('/api/piano-di-taglio/mark-trees/11/', updated);
+  cache.applyResponseChanges({
+    patches: [{ data_id: 'mark_trees_11', row_id: 1101, record: updated.rows[0] }],
+  });
+  pdt.onQueryChange({});
+  await flushSeveral();
+  pdt.onQueryChange({ i: '11' });
+  await flushSeveral();
+
+  const latestTable = tableInstances.at(-1);
+  const dCol = updated.columns.indexOf(S.COL_D_CM);
+  eq(latestTable.data.map(row => row[dCol]), [45],
+     'mark table reflects the edited digest row after re-render');
+  eq(latestTreeMarkers().map(marker => marker.latlng), [[38.25, 16.35]],
+     'mark map reflects the edited coordinates after re-render');
+  await finish();
+}
+
+// Deleting a mark from the table must remove the corresponding map.
+{
+  const previousRole = document.body.dataset.role;
+  document.body.dataset.role = 'writer';
+  installLeafletMock();
+  const item = deferItem(11);
+  const marks = deferMarks(11);
+  await mountItem(11);
+  item.resolve(itemPayload(11));
+  await flushAsyncWork();
+  marks.resolve(markDigest(11));
+  await flushSeveral();
+
+  const tableEl = contentEl.querySelector('.table-scroll');
+  const row = el('tr', { className: 'sortable-table-row' });
+  row.dataset.index = '0';
+  const del = el('span', { className: 'action-icon action-delete' });
+  row.appendChild(del);
+  tableEl.appendChild(row);
+  del.click();
+  modalEl.querySelector('[data-action="confirm"]').click();
+  await flushSeveral(6);
+
+  eq(tableInstances.at(-1).data, [], 'table delete refreshes the mark table to empty');
+  check(!contentEl.querySelector('.pdt-mark-map-host'),
+        'table delete removes the mark map when no geolocated rows remain');
+  await finish();
+  document.body.dataset.role = previousRole;
+}
+
+// Deleting a mark from the map popover must remove it from the table.
+{
+  const previousRole = document.body.dataset.role;
+  document.body.dataset.role = 'writer';
+  installLeafletMock();
+  const item = deferItem(11);
+  const marks = deferMarks(11);
+  await mountItem(11);
+  item.resolve(itemPayload(11));
+  await flushAsyncWork();
+  marks.resolve(markDigest(11));
+  await flushSeveral();
+
+  latestTreeMarkers()[0].click();
+  modalEl.querySelector('[data-action="delete-mark"]').click();
+  modalEl.querySelector('[data-action="confirm"]').click();
+  await flushSeveral(6);
+
+  eq(tableInstances.at(-1).data, [], 'map delete refreshes the mark table to empty');
+  check(!contentEl.querySelector('.pdt-mark-map-host'),
+        'map delete removes the mark map when no geolocated rows remain');
   await finish();
   document.body.dataset.role = previousRole;
 }
