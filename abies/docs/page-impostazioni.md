@@ -53,10 +53,12 @@ parameters in the Bosco page (see `page-bosco.md` > Dendrometria).
 The top of the section is a line listing the current total number of trees,
 regions, and parcels used for the dendrometric parameters.
 
-Below is a multiselect of available surveys (Rilevamenti), identical to the
-multiselect in the hypsometry section (see `hypsometry.md`). The currently
-selected surveys are highlighted. Defaults to the first survey by name alpha
-order, and is robust to there being no surveys.
+Below is a multiselect of available structured surveys (Rilevamenti with a
+sample grid), identical to the multiselect in the hypsometry section (see
+`hypsometry.md`). Unstructured surveys are not listed and cannot be active for
+dendrometric purposes. The currently selected surveys are highlighted. Defaults
+to the first structured survey by name alpha order, and is robust to there being
+no structured surveys.
 
 Below the multiselect is an `Aggiorna` submit button that causes the user's
 selection to go into effect.

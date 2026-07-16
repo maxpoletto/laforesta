@@ -16,6 +16,7 @@ from apps.base.digests import (
     aggregate_sp_pcts, annual_increment_pct, basal_area_m2,
     build_harvest_record, diameter_class_cm, generate_future_production,
     generate_parcel_dendrometry, generate_parcel_dendrometry_points,
+    generate_sampled_trees_for_survey,
     generate_prelievi, generate_preserved_trees, generate_parcels,
     generate_audit, generate_all, mark_stale,
     regenerate_if_stale, prelievi_species_cols, _write_gzip_json,
@@ -406,6 +407,53 @@ class TestGenerateBoscoDigests:
         assert annual_increment_pct(18, 9, 2) == 2.0
         assert annual_increment_pct(30, 15, 2) == 2.0
         assert annual_increment_pct(18, 0, 2) is None
+
+    def test_unstructured_sampled_tree_digest_uses_tree_parcel(
+            self, parcels, species, tmp_path, settings,
+    ):
+        settings.DIGEST_DIR = tmp_path
+        survey = Survey.objects.create(name='Unstructured survey')
+        sample = Sample.objects.create(
+            sample_area=None, survey=survey, date=date(2026, 7, 16),
+        )
+        tree = Tree.objects.create(
+            species=species[0], parcel=parcels[0], lat=38.1, lon=16.2,
+        )
+        ts = TreeSample.objects.create(
+            sample=sample, tree=tree, number=12, d_cm=30, h_m=Decimal('17.50'),
+        )
+
+        generate_sampled_trees_for_survey(survey.id)
+
+        data = self._read(tmp_path, f'sampled_trees_{survey.id}')
+        cols = data[COLUMNS]
+        assert data[ROWS] == [[
+            ts.id, ts.version, None, '2026-07-16',
+            parcels[0].region.name, parcels[0].name, '',
+            12, species[0].common_name, S.TYPE_HIGHFOREST, False,
+            0, False, 30, 17.5, 0, 2.0, None, None, False, 38.1, 16.2,
+        ]]
+        assert cols[2] == S.COL_SAMPLE_AREA
+
+    def test_unstructured_samples_are_excluded_from_dendrometry(
+            self, parcels, species, tmp_path, settings,
+    ):
+        settings.DIGEST_DIR = tmp_path
+        survey = Survey.objects.create(name='Unstructured survey')
+        sample = Sample.objects.create(
+            sample_area=None, survey=survey, date=date(2026, 7, 16),
+        )
+        tree = Tree.objects.create(species=species[0], parcel=parcels[0])
+        TreeSample.objects.create(
+            sample=sample, tree=tree, number=12, d_cm=30, h_m=Decimal('17.50'),
+            volume_m3=Decimal('0.1000'), mass_q=Decimal('1.000'),
+        )
+
+        generate_parcel_dendrometry()
+        generate_parcel_dendrometry_points()
+
+        assert self._read(tmp_path, DIGEST_PARCEL_DENDROMETRY)[ROWS] == []
+        assert self._read(tmp_path, DIGEST_PARCEL_DENDROMETRY_POINTS)[ROWS] == []
 
     def test_parcel_dendrometry_uses_active_surveys(
             self, parcels, species, tmp_path, settings,

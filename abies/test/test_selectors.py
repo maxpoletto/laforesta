@@ -40,13 +40,20 @@ def test_active_or_default_survey_ids_prefers_active_sorted_by_name(db):
     assert active_or_default_survey_ids() == [alpha.id, zeta.id]
 
 
-def test_active_or_default_survey_ids_falls_back_to_first_by_name(db):
+def test_active_or_default_survey_ids_falls_back_to_first_structured_by_name(db):
     grid = SampleGrid.objects.create(name='Grid')
     beta = Survey.objects.create(name='Beta', sample_grid=grid)
     alpha = Survey.objects.create(name='Alpha', sample_grid=grid)
+    Survey.objects.create(name='Aardvark unstructured')
 
     assert active_or_default_survey_ids() == [alpha.id]
     assert active_or_default_survey_ids() != [beta.id]
+
+
+def test_active_or_default_survey_ids_ignores_unstructured_surveys(db):
+    Survey.objects.create(name='Only unstructured')
+
+    assert active_or_default_survey_ids() == []
 
 
 def test_active_or_default_survey_ids_empty(db):

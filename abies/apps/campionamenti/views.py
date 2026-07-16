@@ -56,8 +56,8 @@ from config.constants import (
     FIELD_SAMPLE_AREA_ID, FIELD_SAMPLE_GRID_ID, FIELD_SHOOT, FIELD_SHOOTS,
     FIELD_SORT_ORDER, FIELD_SPECIES, FIELD_SPECIES_ID, FIELD_STANDARD,
     FIELD_SURVEY_ID, FIELD_TREE_PICK, FIELD_TREE_PICK_EXISTING_ID,
-    FIELD_VOLUME_M3, HTML, ROW_ID, STATUS, STATUS_NOT_FOUND, VERSION,
-    is_truthy,
+    FIELD_VOLUME_M3, HTML, ROW_ID, SAMPLE_GRID_UNSTRUCTURED, STATUS,
+    STATUS_NOT_FOUND, VERSION, is_truthy,
 )
 
 
@@ -1072,6 +1072,7 @@ def survey_form_view(request):
     return JsonResponse({HTML: render_to_string(
         'campionamenti/_survey_modal.html', {
             'grids': grids, 'surveys': surveys,
+            'sample_grid_unstructured_value': SAMPLE_GRID_UNSTRUCTURED,
         }, request=request,
     )})
 
@@ -1269,6 +1270,8 @@ def tree_csv_import_view(request):
     ).first()
     if survey is None:
         return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
+    if survey.sample_grid_id is None:
+        return validation_error([S.ERR_SURVEY_STRUCTURED_REQUIRED])
 
     try:
         reader = csv_io.read(upload, csv_trees.TREE_CSV_REQUIRED)
@@ -1350,10 +1353,13 @@ def survey_save_view(request):
         return validation_error([S.ERR_SURVEY_NAME_REQUIRED])
     if not grid_id:
         return validation_error([S.ERR_SURVEY_GRID_REQUIRED])
-    try:
-        grid = SampleGrid.objects.get(id=int(grid_id))
-    except (SampleGrid.DoesNotExist, ValueError):
-        return validation_error([S.ERR_SURVEY_GRID_REQUIRED])
+    if grid_id == SAMPLE_GRID_UNSTRUCTURED:
+        grid = None
+    else:
+        try:
+            grid = SampleGrid.objects.get(id=int(grid_id))
+        except (SampleGrid.DoesNotExist, ValueError):
+            return validation_error([S.ERR_SURVEY_GRID_REQUIRED])
 
     return save_model_response(
         request, body, model=Survey, data_id='surveys',
@@ -1362,9 +1368,10 @@ def survey_save_view(request):
         stale=('surveys', 'grids', *BOSCO_DENDROMETRY_DIGESTS, 'audit'),
         unique_field=FIELD_NAME, unique_value=name,
         unique_error=S.ERR_SURVEY_NAME_DUPLICATE,
-        extra_patches=lambda _survey: [
-            row_patch('grids', grid.id, build_grid_record(grid)),
-        ],
+        extra_patches=lambda _survey: (
+            [row_patch('grids', grid.id, build_grid_record(grid))]
+            if grid is not None else []
+        ),
     )
 
 

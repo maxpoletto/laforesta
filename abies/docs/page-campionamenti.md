@@ -11,10 +11,12 @@ Three schema entities organize the data:
 
 - **Grid** (`sample_grid`): a set of physical sample areas. Multiple
   surveys may reuse the same grid over time.
-- **Survey** (`survey`): visits the areas of exactly one grid, typically
-  over a season. "Complete" when every area has been visited.
-- **Sample** (`sample`): one visit to one area within a survey; holds
-  the date. Each `tree_sample` row hangs off a sample.
+- **Survey** (`survey`): a tree survey. Structured surveys visit the areas of
+  exactly one grid, typically over a season; unstructured surveys have no grid
+  and are not statistically expandable by default.
+- **Sample** (`sample`): a dated group of tree measurements within a survey.
+  Structured samples point at one sample area; unstructured samples do not.
+  Each `tree_sample` row hangs off a sample.
 
 ## Visual layout
 
@@ -417,10 +419,13 @@ Columns: `row_id`, `version`, `Nome`, `Descrizione`, `Griglia`
 active first), falling back to `created_at` for surveys without
 samples yet.
 
-`N. aree visitate` is `COUNT(DISTINCT sample.sample_area_id WHERE
-survey_id = this.id)`.  `N. aree totali` is the size of the survey's
-grid (`COUNT(sample_area WHERE sample_grid_id = survey.sample_grid_id)`).
-Grid name is looked up client-side via `grids.json`.
+For structured surveys, `N. aree visitate` is
+`COUNT(DISTINCT sample.sample_area_id WHERE survey_id = this.id)` and
+`N. aree totali` is the size of the survey's grid
+(`COUNT(sample_area WHERE sample_grid_id = survey.sample_grid_id)`). For
+unstructured surveys, `N. aree visitate` is the number of dated samples and
+`N. aree totali` is `0`. Grid name is looked up client-side via `grids.json`;
+`Griglia` is null for unstructured surveys.
 
 ### `sample_areas.json`
 
@@ -439,7 +444,7 @@ display in Section 3.  Eager-loaded.  Invalidated on `sample` writes
 and on `tree_sample` writes (since `N. alberi` is materialized).
 
 Columns: `row_id`, `version`, `Survey`, `Sample area`, `Data`,
-`N. alberi`.
+`N. alberi`. `Sample area` is null for unstructured samples.
 
 `N. alberi` is `COUNT(tree_sample WHERE sample_id = this.id)`,
 materialized so the Section 2 hover tooltip can render without
@@ -456,8 +461,12 @@ writes whose sample's survey matches.
 Columns: `row_id`, `version`, `Sample area`, `Data campione`,
 `Compresa`, `Particella`, `N. area`, `N. albero`, `Specie`, `Tipo`,
 `Coppice`, `Pollone`, `Matricina`, `D (cm)`, `h (m)`, `L10 (mm)`, `V (m³)`,
-`m (q)`, `PAI`, `Lat`, `Lon`.  Sort: by `Compresa`, `Particella`,
-`N. area`, `N. albero`, `Pollone`.
+`m (q)`, `PAI`, `Lat`, `Lon`. Structured rows derive parcel/area display
+from the sample area, with tree coordinates falling back to area coordinates.
+Unstructured rows derive parcel display and coordinates from the tree itself,
+with `Sample area` null and `N. area` blank. Sort: by `Compresa`,
+`Particella`, `N. area`, `N. albero`, `Pollone`; unstructured rows fall
+back to the tree parcel for `Compresa`/`Particella` ordering.
 
 `row_id` = `tree_sample.id` (the synthetic id, see `database.md`).
 `Coppice` is the stable boolean copied from `tree.coppice`; `Tipo` is the

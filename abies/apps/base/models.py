@@ -478,14 +478,16 @@ class SampleArea(TimestampedModel):
 
 
 class Survey(TimestampedModel):
-    """A high-level sampling operation against a specific grid.
+    """A high-level tree survey.
 
-    Optionally linked to a harvest plan; otherwise an ad-hoc research
-    survey.  Completeness is computed: a survey is "complete" when
-    every area in its grid has at least one Sample.
+    Structured surveys point at a SampleGrid and their Samples must point at
+    SampleAreas in that grid.  Unstructured surveys have no grid and their
+    Samples must not point at SampleAreas.
     """
     name = models.CharField(max_length=100, unique=True)
-    sample_grid = models.ForeignKey(SampleGrid, on_delete=models.PROTECT)
+    sample_grid = models.ForeignKey(
+        SampleGrid, null=True, blank=True, on_delete=models.PROTECT,
+    )
     description = models.TextField(blank=True)
     active = models.BooleanField(default=False)
     history = HistoricalRecords()
@@ -493,18 +495,30 @@ class Survey(TimestampedModel):
     class Meta:
         verbose_name = S.SURVEY
         verbose_name_plural = S.SURVEYS
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(active=False) |
+                    models.Q(sample_grid__isnull=False)
+                ),
+                name='survey_active_requires_sample_grid',
+            ),
+        ]
 
     def __str__(self):
         return self.name
 
 
 class Sample(TimestampedModel):
-    """A single visit to one sample area within a survey.
+    """A single dated group of tree measurements within a survey.
 
-    Schema-level invariant (enforced by SQLite trigger in the migration):
-    `sample_area.sample_grid_id == survey.sample_grid_id`.
+    Structured surveys store one Sample per sample area.  Unstructured surveys
+    store Samples without a sample area.  Schema-level invariants are enforced
+    by SQLite triggers in migrations.
     """
-    sample_area = models.ForeignKey(SampleArea, on_delete=models.CASCADE)
+    sample_area = models.ForeignKey(
+        SampleArea, null=True, blank=True, on_delete=models.CASCADE,
+    )
     survey = models.ForeignKey(Survey, on_delete=models.CASCADE)
     date = models.DateField()
     # Deliberately NOT history-tracked: imports create one Sample per visited

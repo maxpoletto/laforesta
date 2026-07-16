@@ -585,6 +585,18 @@ class TestFutureProductionSettings:
         assert active_by_id[manual.id] is True
         assert active_by_id[current.id] is False
 
+    def test_data_lists_only_structured_surveys(self, writer_client, db):
+        grid = SampleGrid.objects.create(name='Grid')
+        structured = Survey.objects.create(name='Structured', sample_grid=grid)
+        unstructured = Survey.objects.create(name='Unstructured')
+
+        resp = writer_client.get(self.DATA_URL)
+
+        assert resp.status_code == 200
+        survey_ids = [s['id'] for s in resp.json()['surveys']]
+        assert survey_ids == [structured.id]
+        assert unstructured.id not in survey_ids
+
     def test_data_empty_is_robust(self, writer_client, db):
         resp = writer_client.get(self.DATA_URL)
 
@@ -718,7 +730,23 @@ class TestDendrometrySettings:
         assert resp.status_code == 400
         assert resp.json()[MESSAGE] == S.ERR_DENDROMETRY_SURVEYS_REQUIRED
 
-    def test_save_allows_empty_selection_when_no_surveys_exist(self, writer_client, db):
+    def test_save_rejects_unstructured_survey(self, writer_client, db):
+        unstructured = Survey.objects.create(name='Unstructured')
+
+        resp = _post(writer_client, self.SAVE_URL, {
+            FIELD_SURVEY_IDS: [str(unstructured.id)],
+            FIELD_NONCE: 'dendro-unstructured',
+        })
+
+        assert resp.status_code == 400
+        assert resp.json()[MESSAGE] == S.ERR_SURVEY_STRUCTURED_REQUIRED
+        unstructured.refresh_from_db()
+        assert unstructured.active is False
+
+    def test_save_allows_empty_selection_when_no_structured_surveys_exist(
+            self, writer_client, db,
+    ):
+        Survey.objects.create(name='Only unstructured')
         resp = _post(writer_client, self.SAVE_URL, {
             FIELD_SURVEY_IDS: [], FIELD_NONCE: 'dendro-no-surveys',
         })

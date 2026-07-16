@@ -259,6 +259,10 @@ ERR_GRID_NAME_DUPLICATE = 'Esiste già una griglia con questo nome.'
 ERR_SURVEY_NAME_REQUIRED = 'Nome rilevamento obbligatorio.'
 ERR_SURVEY_NAME_DUPLICATE = 'Esiste già un rilevamento con questo nome.'
 ERR_SURVEY_GRID_REQUIRED = 'Selezionare una griglia.'
+ERR_SURVEY_STRUCTURED_REQUIRED = (
+    'Il rilevamento selezionato non ha una griglia di campionamento.'
+)
+NO_SAMPLE_GRID = 'Nessuna (campionamento non strutturato)'
 ERR_AREA_OUT_OF_SURVEY = (
     'L\'area di saggio non appartiene alla griglia del rilevamento.'
 )

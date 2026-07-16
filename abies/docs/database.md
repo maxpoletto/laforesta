@@ -200,29 +200,34 @@ of either dataset should treat them as independent observations.
 
 ### Surveys and samples
 
-- survey: (id:int, name:string, sample_grid_id:int, description:string,
-  active:bool)
-  - Represents a high-level survey operation, typically consisting of one or
-    more samples.
+- survey: (id:int, name:string, sample_grid_id:int nullable,
+  description:string, active:bool)
+  - Represents a high-level tree survey, typically consisting of one or more
+    samples.
   - `name` is a short human-readable label used in pulldowns and cross-page
     references (e.g., `Bosco completo 2026`); unique within the app.
   - `active` is true if this survey is being used to compute dendrometric data
     (see page-impostazioni.md > Dendrometric data). Any number of surveys (or
-    none) may have this flag set to true at the same time.
-  - It is always associated with a `sample_grid` of physical sample areas.
-  - During a survey, each sample area is visited at most once. A survey is
-    "complete" when every sample area in the survey's sample grid has been
-    visited, i.e., when there is a sample (below) for every sample area in the
-    sample grid. (Completeness is computed---it is not an explicit flag.)
+    none) may have this flag set to true at the same time, but only structured
+    surveys can be active. The database enforces `active = false OR
+    sample_grid_id IS NOT NULL`.
+  - Structured surveys are associated with a `sample_grid` of physical sample
+    areas. Unstructured surveys have `sample_grid_id = NULL` and are not
+    statistically expandable or eligible for dendrometric settings by default.
+  - For structured surveys, each sample area is visited at most once. A
+    structured survey is "complete" when every sample area in the survey's
+    sample grid has been visited. Unstructured surveys count dated samples but
+    have no grid-wide completeness denominator.
 
-- sample: (id:int, sample_area_id:int, survey_id:int,
+- sample: (id:int, sample_area_id:int nullable, survey_id:int,
   date:string /* ISO 8601 */)
-  - Represents a visit to a single sample area during a survey. It happens on a
-    specific day.
-  - The sample_area must belong to the survey's grid:
-    `sample_area.sample_grid_id` must equal `survey.sample_grid_id`. This is
-    enforced both in the app (Django validation) and at the schema level
-    (SQLite triggers on INSERT and UPDATE of `sample`).
+  - Represents a dated group of tree measurements in a survey. Structured
+    samples point at one sample area; unstructured samples have
+    `sample_area_id = NULL`.
+  - Schema-level triggers enforce the survey/sample-area invariant on INSERT
+    and UPDATE of `sample`: structured surveys require a sample area whose
+    `sample_grid_id` matches the survey's `sample_grid_id`; unstructured
+    surveys require `sample_area_id = NULL`.
 
 - tree_sample: (id:int, sample_id:int, tree_id:int, shoot:int, standard:bool,
   number:int, d_cm:int, h_m:int, l10_mm:int, pressler_coeff:real, volume_m3:real

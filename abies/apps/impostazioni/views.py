@@ -291,12 +291,13 @@ def dendrometry_data(request):
     active_ids = active_or_default_survey_ids()
     counts = _dendrometry_counts(active_ids)
     active = set(active_ids)
+    surveys = Survey.objects.filter(sample_grid__isnull=False).order_by('name')
     return JsonResponse({
         FIELD_ACTIVE_IDS: active_ids,
         FIELD_COUNTS: counts,
         FIELD_SURVEYS: [
             {FIELD_ID: s.id, FIELD_NAME: s.name, FIELD_ACTIVE: s.id in active}
-            for s in Survey.objects.order_by('name')
+            for s in surveys
         ],
     })
 
@@ -315,15 +316,18 @@ def dendrometry_save(request):
         survey_ids = [int(s) for s in raw_ids]
     except (TypeError, ValueError):
         return _error(S.ERR_DENDROMETRY_SURVEYS_REQUIRED)
-    if Survey.objects.exists() and not survey_ids:
+    structured_surveys = Survey.objects.filter(sample_grid__isnull=False)
+    if structured_surveys.exists() and not survey_ids:
         return _error(S.ERR_DENDROMETRY_SURVEYS_REQUIRED)
-    if Survey.objects.filter(id__in=survey_ids).count() != len(set(survey_ids)):
-        return _error(S.ERR_CSV_SURVEY_REQUIRED)
+    if structured_surveys.filter(id__in=survey_ids).count() != len(set(survey_ids)):
+        return _error(S.ERR_SURVEY_STRUCTURED_REQUIRED)
 
     desired = set(survey_ids)
     changed = []
     with transaction.atomic():
-        qs = Survey.objects.select_for_update().filter(Q(active=True) | Q(id__in=desired))
+        qs = (Survey.objects
+              .select_for_update()
+              .filter(Q(active=True) | Q(id__in=desired)))
         for survey in qs:
             active = survey.id in desired
             if survey.active == active:

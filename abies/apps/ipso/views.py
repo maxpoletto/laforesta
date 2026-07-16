@@ -241,6 +241,7 @@ def _parcel_rows() -> list[dict]:
 def _sampling_context() -> dict:
     surveys = list(
         Survey.objects
+        .filter(sample_grid__isnull=False)
         .select_related('sample_grid')
         .order_by('name', 'id')
     )
@@ -626,6 +627,8 @@ def import_samples_upload(request: HttpRequest, upload_id: int) -> JsonResponse:
                       .filter(id=survey_id).first())
             if survey is None:
                 return validation_error([S.IPSO_ERR_INVALID_SAMPLES_TARGET])
+            if survey.sample_grid_id is None:
+                return validation_error([S.ERR_SURVEY_STRUCTURED_REQUIRED])
             source_grid_id = _source_survey_grid_id(upload.work_package_id)
             if source_grid_id is not None and survey.sample_grid_id != source_grid_id:
                 return validation_error([S.IPSO_ERR_SAMPLES_TARGET_GRID_MISMATCH])
@@ -1093,13 +1096,15 @@ def _suggested_harvest_item_id(work_package_id: str) -> int | None:
 
 def _survey_targets() -> list[dict]:
     surveys = (Survey.objects
+               .filter(sample_grid__isnull=False)
                .select_related('sample_grid')
                .order_by('name', 'id'))
     return [{'id': survey.id, 'label': _survey_label(survey)} for survey in surveys]
 
 
 def _survey_label(survey: Survey) -> str:
-    return f'{survey.name} - {survey.sample_grid.name}'
+    grid_name = survey.sample_grid.name if survey.sample_grid_id else S.NO_SAMPLE_GRID
+    return f'{survey.name} - {grid_name}'
 
 
 def _suggested_survey_id(work_package_id: str) -> int | None:
@@ -1109,7 +1114,7 @@ def _suggested_survey_id(work_package_id: str) -> int | None:
     if not raw.isdigit():
         return None
     survey_id = int(raw)
-    if Survey.objects.filter(id=survey_id).exists():
+    if Survey.objects.filter(id=survey_id, sample_grid__isnull=False).exists():
         return survey_id
     return None
 

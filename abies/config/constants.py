@@ -111,6 +111,9 @@ FIELD_PRODUCT_ID            = 'product_id'
 FIELD_SAMPLE_AREA_ID        = 'sample_area_id'
 FIELD_SAMPLE_GRID_ID        = 'sample_grid_id'
 FIELD_SURVEY_ID             = 'survey_id'
+
+# Sentinel value used by survey creation forms for surveys without a grid.
+SAMPLE_GRID_UNSTRUCTURED    = '__unstructured__'
 FIELD_TREE_PICK             = 'tree_pick'
 FIELD_TREE_PICK_EXISTING_ID = 'tree_pick_existing_id'
 FIELD_TREE_ID               = 'tree_id'

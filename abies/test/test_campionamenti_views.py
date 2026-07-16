@@ -24,8 +24,8 @@ from config.constants import (
     FIELD_NUMBER, FIELD_PARCEL_ID, FIELD_POINTS, FIELD_PRESERVED, FIELD_R_M,
     FIELD_SAMPLE_AREA_ID, FIELD_SAMPLE_GRID_ID, FIELD_SHOOT, FIELD_SPECIES_ID,
     FIELD_STANDARD, FIELD_SURVEY_ID, FIELD_TREE_PICK, HTML, MESSAGE, PATCHES,
-    RECORD, ROWS, ROW_ID, STATUS, STATUS_CONFLICT, STATUS_VALIDATION_ERROR,
-    VERSION,
+    RECORD, ROWS, ROW_ID, SAMPLE_GRID_UNSTRUCTURED, STATUS, STATUS_CONFLICT,
+    STATUS_VALIDATION_ERROR, VERSION,
 )
 
 
@@ -2311,6 +2311,13 @@ class TestTreeCsvImport:
             content_type='application/json',
         )
 
+    def test_unstructured_survey_rejected(self, writer_client, db):
+        survey = Survey.objects.create(name='Unstructured CSV target')
+        resp = self._post(writer_client, survey.id, 'not,a,real,csv\n')
+
+        assert resp.status_code == 400
+        assert S.ERR_SURVEY_STRUCTURED_REQUIRED in resp.json()[MESSAGE]
+
     def test_happy_path(
         self, writer_client, sample_setup, tmp_path, settings,
     ):
@@ -2824,8 +2831,10 @@ class TestSurveySave:
         html = resp.json()[HTML]
         # Single creation path (CSV import moved to pencil modal).
         assert 'campionamenti-survey-form-empty' in html
-        # Grid pulldown contains the fixture's grid.
+        # Grid pulldown contains the fixture's grid and the unstructured option.
         assert sample_setup['grid'].name in html
+        assert S.NO_SAMPLE_GRID in html
+        assert SAMPLE_GRID_UNSTRUCTURED in html
 
     def test_reader_form_forbidden(self, reader_client, db):
         resp = reader_client.get('/api/campionamenti/survey/form/')
@@ -2843,6 +2852,25 @@ class TestSurveySave:
         sv = Survey.objects.get(id=data[ROW_ID])
         assert sv.name == 'Rilevamento di prova'
         assert sv.sample_grid_id == sample_setup['grid'].id
+
+    def test_create_unstructured_survey(self, writer_client, db):
+        from apps.base.models import Survey
+        resp = self._post(writer_client, {
+            FIELD_NAME: 'Rilevamento non strutturato',
+            FIELD_SAMPLE_GRID_ID: SAMPLE_GRID_UNSTRUCTURED,
+            FIELD_DESCRIPTION: 'desc',
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        sv = Survey.objects.get(id=data[ROW_ID])
+        assert sv.name == 'Rilevamento non strutturato'
+        assert sv.sample_grid_id is None
+        survey_patch = next(
+            p for p in data[PATCHES]
+            if p[DATA_ID] == 'surveys' and p[ROW_ID] == sv.id
+        )
+        assert survey_patch[RECORD][4] is None
+        assert not any(p[DATA_ID] == 'grids' for p in data[PATCHES])
 
     def test_name_required(self, writer_client, sample_setup):
         resp = self._post(writer_client, {

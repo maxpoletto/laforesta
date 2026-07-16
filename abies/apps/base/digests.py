@@ -745,8 +745,9 @@ def build_survey_record(
     from apps.base.models import Sample, SampleArea
 
     if n_visited is _UNSET or first_date is _UNSET or last_date is _UNSET:
+        visited_expr = 'sample_area' if s.sample_grid_id is not None else 'id'
         agg = Sample.objects.filter(survey=s).aggregate(
-            n_visited=Count('sample_area', distinct=True),
+            n_visited=Count(visited_expr, distinct=True),
             first_date=Min('date'),
             last_date=Max('date'),
         )
@@ -757,7 +758,10 @@ def build_survey_record(
         if last_date is _UNSET:
             last_date = agg[FIELD_LAST_DATE]
     if n_total is _UNSET:
-        n_total = SampleArea.objects.filter(sample_grid_id=s.sample_grid_id).count()
+        n_total = (
+            SampleArea.objects.filter(sample_grid_id=s.sample_grid_id).count()
+            if s.sample_grid_id is not None else 0
+        )
 
     return [
         s.id, s.version, s.name, s.description,
@@ -788,15 +792,19 @@ def generate_surveys() -> None:
     qs = Survey.objects.select_related('sample_grid') \
                        .annotate(
                            n_visited=Count('sample__sample_area', distinct=True),
+                           n_samples=Count('sample', distinct=True),
                            first_date=Min('sample__date'),
                            last_date=Max('sample__date'),
                        ) \
                        .order_by('-last_date', '-created_at')
     for s in qs:
+        structured = s.sample_grid_id is not None
+        n_visited = s.n_visited if structured else s.n_samples
+        n_total = totals_by_grid.get(s.sample_grid_id, 0) if structured else 0
         rows.append(build_survey_record(
             s,
-            n_visited=s.n_visited or 0,
-            n_total=totals_by_grid.get(s.sample_grid_id, 0),
+            n_visited=n_visited or 0,
+            n_total=n_total,
             first_date=s.first_date,
             last_date=s.last_date,
         ))
@@ -899,14 +907,28 @@ SAMPLED_TREE_COLUMNS = [ROW_ID, VERSION, S.COL_SAMPLE_AREA,
 def build_tree_sample_record(ts) -> list:
     """Build one row of the `sampled_trees_<survey>` digest.
 
-    Caller must pre-load `sample.sample_area.parcel.region` and
-    `tree.species` (select_related).
+    Structured samples use their sample area's parcel and area coordinates.
+    Unstructured samples have no sample area, so the digest falls back to the
+    tree's parcel and tree coordinates.  Caller must pre-load the relevant
+    parcel/species relations.
     """
     tree = ts.tree
     sa = ts.sample.sample_area
+    if sa is None:
+        parcel = tree.parcel
+        area_id = None
+        area_number = ''
+        lat = tree.lat
+        lon = tree.lon
+    else:
+        parcel = sa.parcel
+        area_id = sa.id
+        area_number = sa.number
+        lat = tree.lat if tree.lat is not None else sa.lat
+        lon = tree.lon if tree.lon is not None else sa.lon
     return [
-        ts.id, ts.version, sa.id, ts.sample.date.isoformat(),
-        sa.parcel.region.name, sa.parcel.name, sa.number,
+        ts.id, ts.version, area_id, ts.sample.date.isoformat(),
+        parcel.region.name, parcel.name, area_number,
         ts.number, tree.species.common_name,
         S.TYPE_COPPICE if tree.coppice else S.TYPE_HIGHFOREST,
         tree.coppice,
@@ -915,8 +937,7 @@ def build_tree_sample_record(ts) -> list:
         float(ts.volume_m3) if ts.volume_m3 is not None else None,
         float(ts.mass_q) if ts.mass_q is not None else None,
         tree.preserved,
-        tree.lat if tree.lat is not None else sa.lat,
-        tree.lon if tree.lon is not None else sa.lon,
+        lat, lon,
     ]
 
 
@@ -931,9 +952,11 @@ def generate_sampled_trees_for_survey(survey_id: int) -> None:
     qs = (TreeSample.objects
           .filter(sample__survey_id=survey_id)
           .select_related('sample', 'sample__sample_area__parcel__region',
-                          'tree__species', 'tree__parcel')
+                          'tree__species', 'tree__parcel__region')
           .order_by('sample__sample_area__parcel__region__name',
+                    'tree__parcel__region__name',
                     'sample__sample_area__parcel__name',
+                    'tree__parcel__name',
                     'sample__sample_area__number', FIELD_NUMBER, FIELD_SHOOT))
     rows = [build_tree_sample_record(ts) for ts in qs]
     _write_gzip_json(
@@ -1315,7 +1338,10 @@ def _dendrometry_queryset(survey_ids=None):
     if not survey_ids:
         return TreeSample.objects.none()
     return (TreeSample.objects
-            .filter(sample__survey_id__in=survey_ids)
+            .filter(
+                sample__survey_id__in=survey_ids,
+                sample__sample_area_id__isnull=False,
+            )
             .select_related('sample__survey', 'sample__sample_area__parcel__region',
                             'tree', 'tree__species')
             .order_by('sample__sample_area__parcel__region__name',
@@ -1336,7 +1362,7 @@ def _dendrometry_sample_area_coverage() -> dict[tuple[int, int], float]:
         return {}
     coverage = {}
     qs = (Sample.objects
-          .filter(survey_id__in=survey_ids)
+          .filter(survey_id__in=survey_ids, sample_area_id__isnull=False)
           .select_related('sample_area', 'sample_area__parcel'))
     for sample in qs:
         key = (sample.sample_area.parcel_id, sample.survey_id)

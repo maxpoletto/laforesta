@@ -54,6 +54,8 @@ def _int_ids(records: list, field: str) -> set[int]:
 
 
 def sample_import_rows(payload: dict, survey: Survey) -> tuple[list[dict], list[str]]:
+    if survey.sample_grid_id is None:
+        return [], [S.ERR_SURVEY_STRUCTURED_REQUIRED]
     records = _payload_records(payload)
     if records is None:
         return [], [S.IPSO_ERR_IMPORT_RECORDS_ARRAY]

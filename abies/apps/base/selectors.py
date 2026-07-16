@@ -23,11 +23,21 @@ def active_or_default_harvest_plan():
 
 def active_or_default_survey_ids() -> list[int]:
     """Survey ids used by Bosco dendrometry settings and digests."""
-    ids = list(Survey.objects.filter(active=True).order_by('name')
-               .values_list('id', flat=True))
+    ids = list(
+        Survey.objects
+        .filter(active=True, sample_grid__isnull=False)
+        .order_by('name')
+        .values_list('id', flat=True)
+    )
     if ids:
         return ids
-    first = Survey.objects.order_by('name').values_list('id', flat=True).first()
+    first = (
+        Survey.objects
+        .filter(sample_grid__isnull=False)
+        .order_by('name')
+        .values_list('id', flat=True)
+        .first()
+    )
     return [first] if first else []
 
 

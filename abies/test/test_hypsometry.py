@@ -2,12 +2,15 @@
 
 import math
 from collections.abc import Sequence
+from datetime import date
+from decimal import Decimal
 
 import pytest
 
 from apps.base import hypsometry
 from apps.base.models import (
-    HYPSO_FUNC_LN, HypsoParam, HypsoParamSet, HypsoParamSource,
+    HYPSO_FUNC_LN, HypsoParam, HypsoParamSet, HypsoParamSource, Sample,
+    Survey, Tree, TreeSample,
 )
 from config import strings as S
 
@@ -105,6 +108,30 @@ def test_compute_params_fits_and_excludes(hypso_samples):
 
 def test_compute_params_min_n_excludes_all(hypso_samples):
     assert hypsometry.compute_params([hypso_samples['survey'].id], min_n=100) == []
+
+
+def test_compute_params_ignores_unstructured_samples(
+        hypso_samples, parcels, species,
+):
+    unstructured = Survey.objects.create(name='Ad hoc tree measurements')
+    sample = Sample.objects.create(
+        sample_area=None, survey=unstructured, date=date(2026, 7, 16),
+    )
+    for number, d_cm in enumerate((30, 32, 34, 36, 38, 40), start=1):
+        tree = Tree.objects.create(species=species[0], parcel=parcels[0])
+        TreeSample.objects.create(
+            sample=sample, tree=tree, number=number, d_cm=d_cm,
+            h_m=Decimal('99.00'),
+        )
+
+    rows = hypsometry.compute_params(
+        [hypso_samples['survey'].id, unstructured.id], min_n=5,
+    )
+
+    assert len(rows) == 1
+    assert rows[0].n == hypso_samples['n_abete']
+    assert rows[0].a == pytest.approx(hypso_samples['a'], abs=0.05)
+    assert rows[0].b == pytest.approx(hypso_samples['b'], abs=0.05)
 
 
 def test_compute_params_unknown_survey_is_empty(db):

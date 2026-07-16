@@ -18,6 +18,9 @@ a chosen grid.  CSV import lives in the pencil (edit) modal.
       <label for="id_survey_grid">Griglia</label>
       <select id="id_survey_grid" name="sample_grid_id" required>
         <option value="">— Seleziona —</option>
+        <option value="{{ sample_grid_unstructured_value }}">
+          {{ S.NO_SAMPLE_GRID }}
+        </option>
         {% for g in grids %}
           <option value="{{ g.id }}">{{ g.name }}</option>
         {% endfor %}

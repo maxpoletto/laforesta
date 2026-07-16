@@ -191,6 +191,9 @@ def test_reference_json_comes_from_abies_data(db, regions, parcels, species):
     inactive_survey = Survey.objects.create(
         name='Ipso survey 2', sample_grid=grid, active=False,
     )
+    unstructured_survey = Survey.objects.create(
+        name='Ipso unstructured survey',
+    )
     sample = Sample.objects.create(
         sample_area=area, survey=survey, date=date(2024, 9, 16),
     )
@@ -267,6 +270,15 @@ def test_reference_json_comes_from_abies_data(db, regions, parcels, species):
             'sample_area_max_numbers': {},
         },
     ]
+    assert all(
+        s['survey_id'] != unstructured_survey.id
+        for s in data['sampling']['surveys']
+    )
+    assert all(
+        wp['survey_id'] != unstructured_survey.id
+        for wp in data['work_packages']
+        if wp['kind'] == 'sampling_survey'
+    )
     assert data['sampling']['sample_areas'] == [{
         FIELD_SAMPLE_AREA_ID: area.id,
         'sample_grid_id': grid.id,
@@ -1944,6 +1956,34 @@ def test_writer_imports_samples_upload_into_survey(
     assert len(trees[ROWS]) == 1
     assert trees[ROWS][0][trees[COLUMNS].index(ROW_ID)] == ts.id
     assert trees[ROWS][0][trees[COLUMNS].index(S.COL_TREE_NUM)] == 1
+
+
+@override_settings(IPSO_SECRET='test-token')
+def test_writer_rejects_samples_import_into_unstructured_survey(
+        writer_client, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    unstructured = Survey.objects.create(name='Ipso unstructured target')
+    structured, area = _sample_survey(parcels[0])
+    payload = _upload_payload(
+        parcels, species, mode='samples',
+        session_id='23232323-2323-4323-8323-232323232323',
+        session_overrides={'work_package_id': f'sampling_survey:{structured.id}'},
+        record_overrides={FIELD_SAMPLE_AREA_ID: area.id},
+    )
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload[SESSION][FIELD_SESSION_ID])
+
+    resp = writer_client.post(
+        reverse('ipso-upload-import-samples', args=[upload.id]),
+        data=json.dumps({'survey_id': unstructured.id}),
+        content_type='application/json',
+    )
+
+    assert resp.status_code == 400
+    assert S.ERR_SURVEY_STRUCTURED_REQUIRED in resp.json()[MESSAGE]
+    upload.refresh_from_db()
+    assert upload.state == IpsoUploadState.RECEIVED
+    assert Sample.objects.filter(survey=unstructured).count() == 0
 
 
 @override_settings(IPSO_SECRET='test-token')

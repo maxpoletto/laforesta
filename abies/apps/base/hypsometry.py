@@ -78,7 +78,11 @@ def compute_params(survey_ids: Sequence[int], min_n: int) -> list[ParamRow]:
     from apps.base.models import TreeSample
 
     qs = (TreeSample.objects
-          .filter(sample__survey_id__in=list(survey_ids), tree__coppice=False)
+          .filter(
+              sample__survey_id__in=list(survey_ids),
+              sample__sample_area_id__isnull=False,
+              tree__coppice=False,
+          )
           .select_related('sample__sample_area__parcel__region', 'tree__species'))
 
     groups: dict[tuple[int, int], dict] = {}
