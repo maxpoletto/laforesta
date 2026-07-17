@@ -195,8 +195,19 @@ class TestShellAccess:
         assert b'data-role=' in resp.content
         assert b'app.js' in resp.content
 
+    def test_shell_uses_rilevamenti_nav_label(self, logged_in_client):
+        resp = logged_in_client.get('/rilevamenti')
+        html = resp.content.decode()
+        assert resp.status_code == 200
+        assert 'href="/rilevamenti" data-tab="rilevamenti">Rilevamenti' in html
+
+    def test_campionamenti_route_redirects_to_rilevamenti(self, logged_in_client):
+        resp = logged_in_client.get('/campionamenti?g=1')
+        assert resp.status_code == 302
+        assert resp.url == '/rilevamenti?g=1'
+
     def test_shell_serves_all_domain_paths(self, logged_in_client):
-        for path in ('/bosco', '/prelievi',
+        for path in ('/bosco', '/rilevamenti', '/prelievi',
                      '/controllo', '/impostazioni'):
             resp = logged_in_client.get(path)
             assert resp.status_code == 200, f'{path} returned {resp.status_code}'

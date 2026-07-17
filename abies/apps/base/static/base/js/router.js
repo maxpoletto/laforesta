@@ -96,8 +96,9 @@ function render() {
  * Highlight the active tab in both desktop and mobile nav.
  */
 function updateActiveTab(domain) {
+  const activeDomain = domain === 'campionamenti' ? 'rilevamenti' : domain;
   for (const el of document.querySelectorAll('.tab, .mobile-tab')) {
-    el.classList.toggle('active', el.dataset.tab === domain);
+    el.classList.toggle('active', el.dataset.tab === activeDomain);
   }
 }
 

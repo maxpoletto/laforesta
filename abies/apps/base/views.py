@@ -38,6 +38,12 @@ def home_view(request: HttpRequest) -> HttpResponse:
 @login_required
 def shell_view(request: HttpRequest) -> HttpResponse:
     """The long-lived SPA shell.  All post-login navigation happens here."""
+    if request.path.startswith('/campionamenti'):
+        suffix = request.path.removeprefix('/campionamenti')
+        target = f'/rilevamenti{suffix}'
+        if request.META.get('QUERY_STRING'):
+            target = f'{target}?{request.META["QUERY_STRING"]}'
+        return redirect(target)
     return render(request, 'base/shell.html', {
         'ipso_upload_pending_count': IpsoUpload.objects.filter(
             state=IpsoUploadState.RECEIVED,

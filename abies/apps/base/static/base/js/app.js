@@ -23,6 +23,7 @@ import * as importazione from '../../ipso/js/importazione.js';
 router.addRoute('bosco', bosco);
 router.addRoute('squadre', squadre);
 router.addRoute('prelievi', prelievi);
+router.addRoute('rilevamenti', campionamenti);
 router.addRoute('campionamenti', campionamenti);
 router.addRoute('piano-di-taglio', pianoDiTaglio);
 router.addRoute('controllo', controllo);

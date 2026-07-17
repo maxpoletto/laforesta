@@ -10,6 +10,7 @@ from apps.base.models import SiteSettings
     ('/prelievi', '/prelievi'),
     (' /bosco?mode=evoluzione#map ', '/bosco?mode=evoluzione#map'),
     ('/campionamenti/griglie?grid=1', '/campionamenti/griglie?grid=1'),
+    ('/rilevamenti/griglie?grid=1', '/rilevamenti/griglie?grid=1'),
 ])
 def test_clean_landing_page_accepts_app_routes(raw, expected):
     assert clean_landing_page(raw) == expected

@@ -10,6 +10,7 @@ APP_ROUTE_DOMAINS = frozenset({
     'bosco',
     'piano-di-taglio',
     'campionamenti',
+    'rilevamenti',
     'squadre',
     'prelievi',
     'importazione',

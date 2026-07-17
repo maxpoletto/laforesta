@@ -87,7 +87,7 @@ const SURVEY_SAVE_URL = '/api/campionamenti/survey/save/';
 // `properties.coppice` after parcels have been imported into the DB.
 const TERRENI_GEOJSON_URL = '/api/geo/terreni.geojson';
 const TERRENI_ID = 'terreni';
-const PAGE_PATH = '/campionamenti';
+const PAGE_PATH = '/rilevamenti';
 const TREE_TABLE_KEYS = tableParamKeys('t');
 const DEFAULT_TREE_SORT = { column: S.COL_REGION, ascending: true };
 
