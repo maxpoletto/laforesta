@@ -244,6 +244,7 @@ def _sample_record_values(record: dict, area: SampleArea, sp: Species) -> dict |
         shoot=shoot,
         l10_mm=l10_mm,
         pressler_coeff=pressler_coeff,
+        h_measured=bool(record.get(FIELD_H_MEASURED)),
     )
     if values is None:
         return None
@@ -254,7 +255,7 @@ def _sample_record_values(record: dict, area: SampleArea, sp: Species) -> dict |
         preserved=bool(record.get(FIELD_PRESERVED)), number=values.number,
         shoot=values.shoot, standard=bool(record.get(FIELD_STANDARD)),
         d_cm=values.d_cm, h_m=values.h_m,
-        h_measured=bool(record.get(FIELD_H_MEASURED)),
+        h_measured=values.h_measured,
         l10_mm=values.l10_mm, pressler_coeff=values.pressler_coeff,
         lat=record.get(FIELD_LAT),
         lon=record.get(FIELD_LON), acc_m=record.get(FIELD_ACC_M),

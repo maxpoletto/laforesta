@@ -810,6 +810,7 @@ def _parse_tree_body(body):
     if number is None:
         errors.append(S.ERR_TREE_NUMBER_REQUIRED)
 
+    h_measured = is_truthy(body.get(FIELD_H_MEASURED))
     if coppice:
         shoots, shoot_errors = _parse_shoots(body.get(FIELD_SHOOTS))
         errors.extend(shoot_errors)
@@ -839,6 +840,7 @@ def _parse_tree_body(body):
             shoot=0,
             l10_mm=l10_mm,
             pressler_coeff=pressler_coeff,
+            h_measured=h_measured,
         )
         if values is None:
             if d_cm <= 0:
@@ -852,6 +854,7 @@ def _parse_tree_body(body):
             h_m = values.h_m
             l10_mm = values.l10_mm
             pressler_coeff = values.pressler_coeff
+            h_measured = values.h_measured
     parsed = {
         FIELD_SAMPLE_AREA_ID: sample_area_id,
         FIELD_SURVEY_ID: survey_id,
@@ -859,7 +862,7 @@ def _parse_tree_body(body):
         FIELD_NUMBER: number or 0,
         FIELD_D_CM: d_cm,
         FIELD_H_M: h_m,
-        FIELD_H_MEASURED: is_truthy(body.get(FIELD_H_MEASURED)),
+        FIELD_H_MEASURED: h_measured,
         FIELD_L10_MM: l10_mm,
         FIELD_PRESSLER_COEFF: pressler_coeff,
         FIELD_VOLUME_M3: parse_decimal(body.get(FIELD_VOLUME_M3)) if not coppice else None,

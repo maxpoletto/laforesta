@@ -119,6 +119,7 @@ def validate_rows(reader, idx: TreeIndexes, *, has_date_column, default_date):
             shoot=shoot or 0,
             l10_mm=l10 or 0,
             pressler_coeff=pressler,
+            h_measured=h_measured,
         )
         if values is None:
             errors.append(S.ERR_CSV_ROW_PARSE.format(
@@ -129,7 +130,6 @@ def validate_rows(reader, idx: TreeIndexes, *, has_date_column, default_date):
             continue
         standard = bool(standard)        # required column; blank → False
         preserved = bool(preserved)      # optional; absent/blank → False
-        h_measured = bool(h_measured)  # optional; absent/blank → False
         # Fustaia is required: a blank or unrecognised value is an error.
         fustaia, fustaia_ok = reader.opt_bool(row[S.CSV_COL_HIGHFOREST])
         if not fustaia_ok or fustaia is None:
@@ -184,7 +184,7 @@ def validate_rows(reader, idx: TreeIndexes, *, has_date_column, default_date):
             area=area, row_date=row_date, species=species, coppice=coppice,
             preserved=preserved, number=values.number, shoot=values.shoot,
             standard=standard, d_cm=values.d_cm, h_m=values.h_m,
-            h_measured=h_measured, l10_mm=values.l10_mm,
+            h_measured=values.h_measured, l10_mm=values.l10_mm,
             pressler_coeff=values.pressler_coeff,
             volume_species_name=mapped,
         ))

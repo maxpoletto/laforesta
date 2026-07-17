@@ -27,6 +27,7 @@ class SampleTreeValues:
     shoot: int
     d_cm: int
     h_m: Decimal
+    h_measured: bool
     l10_mm: int
     pressler_coeff: Decimal
 
@@ -53,7 +54,7 @@ def normalize_sample_shoot_values(
 def normalize_sample_tree_values(
         *, number: int | None, d_cm: int | None, h_m: Decimal | None,
         shoot: int | None = 0, l10_mm: int | None = 0,
-        pressler_coeff: Decimal | None = None,
+        pressler_coeff: Decimal | None = None, h_measured: bool | None = False,
 ) -> SampleTreeValues | None:
     """Return normalized sampled-tree values, or ``None`` when invalid."""
     if number is None or number <= 0:
@@ -72,6 +73,7 @@ def normalize_sample_tree_values(
         shoot=shoot_values.shoot,
         d_cm=shoot_values.d_cm,
         h_m=shoot_values.h_m,
+        h_measured=bool(h_measured),
         l10_mm=shoot_values.l10_mm,
         pressler_coeff=pressler_coeff.quantize(
             TREE_H_QUANTUM, rounding=ROUND_HALF_UP,
