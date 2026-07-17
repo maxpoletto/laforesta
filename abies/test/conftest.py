@@ -136,6 +136,7 @@ def hypso_samples(db, regions, eclasses, species):
         TreeSample.objects.create(
             sample=sample, tree=tree, shoot=0, standard=False,
             number=next(counter), d_cm=d_cm, h_m=Decimal(str(round(h, 2))),
+            h_measured=True,
         )
 
     abete_diam = [8, 10, 12, 15, 18, 20, 24, 28, 32, 36, 40, 45]

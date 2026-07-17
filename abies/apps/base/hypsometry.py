@@ -80,14 +80,14 @@ def compute_params(survey_ids: Sequence[int], min_n: int) -> list[ParamRow]:
     qs = (TreeSample.objects
           .filter(
               sample__survey_id__in=list(survey_ids),
-              sample__sample_area_id__isnull=False,
+              h_measured=True,
               tree__coppice=False,
           )
-          .select_related('sample__sample_area__parcel__region', 'tree__species'))
+          .select_related('tree__parcel__region', 'tree__species'))
 
     groups: dict[tuple[int, int], dict] = {}
     for ts in qs:
-        region = ts.sample.sample_area.parcel.region
+        region = ts.tree.parcel.region
         species = ts.tree.species
         group = groups.setdefault(
             (region.id, species.id),

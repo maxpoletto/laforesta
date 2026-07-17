@@ -48,6 +48,8 @@ urlpatterns = [
          name='impostazioni-hypso-data'),
     path('hypso-params/active-set/', views.hypso_params_active_set,
          name='impostazioni-hypso-active-set'),
+    path('hypso-params/surveys/', views.hypso_params_surveys,
+         name='impostazioni-hypso-surveys'),
     path('hypso-params/compute/', views.hypso_params_compute,
          name='impostazioni-hypso-compute'),
     path('hypso-params/accept/', views.hypso_params_accept,

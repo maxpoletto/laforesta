@@ -600,7 +600,7 @@ const HYPSO = {
   upload:  `${API}hypso-params/import/`,
   export:  `${API}hypso-params/export/`,
   clear:   `${API}hypso-params/clear/`,
-  surveys: '/api/campionamenti/surveys/data/',
+  surveys: `${API}hypso-params/surveys/`,
 };
 
 const hypsoState = { table: null, digest: null, loaded: false };
@@ -690,20 +690,19 @@ function renderDescription(el, meta) {
 
 async function loadSurveys(body) {
   const select = body.querySelector('[data-role="surveys"]');
-  let digest;
+  let data;
   try {
     const resp = await fetch(HYPSO.surveys);
     if (!resp.ok) throw new Error();
-    digest = await resp.json();
+    data = await resp.json();
   } catch {
     return;
   }
-  const nameIdx = digest.columns.indexOf(S.COL_NAME);
   select.replaceChildren();
-  for (const row of digest.rows) {
+  for (const survey of data[FIELD_SURVEYS] || []) {
     const opt = document.createElement('option');
-    opt.value = row[0];
-    opt.textContent = row[nameIdx];
+    opt.value = survey[FIELD_ID];
+    opt.textContent = `${survey[FIELD_NAME]} (${S.COL_N_TREES}: ${survey[FIELD_TREES]})`;
     select.appendChild(opt);
   }
 }

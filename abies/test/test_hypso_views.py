@@ -1,6 +1,8 @@
 """Tests for the hypsometric-parameters settings endpoints."""
 
 import base64
+from datetime import date
+from decimal import Decimal
 import gzip
 import json
 
@@ -12,17 +14,19 @@ from apps.base import hypsometry
 from apps.base.digests import build_hypso_param_record, generate_hypso_params
 from apps.base.models import (
     DigestStatus, HYPSO_FUNC_LN, HypsoParam, HypsoParamSet,
-    HypsoParamSource, UsedNonce,
+    HypsoParamSource, Sample, Survey, Tree, TreeSample, UsedNonce,
 )
 from config import strings as S
 from config.constants import (
     COLUMNS, DIGEST_HYPSO_PARAMS, DIGEST_PARCEL_DENDROMETRY_POINTS,
-    FIELD_FILE, FIELD_MIN_N, FIELD_NONCE, FIELD_SOURCE,
-    FIELD_SURVEY_IDS, FIELD_SURVEYS, FIELD_USE_FOR_HEIGHT_PLOTS, ROWS,
+    FIELD_FILE, FIELD_ID, FIELD_MIN_N, FIELD_NAME, FIELD_NONCE, FIELD_SOURCE,
+    FIELD_SURVEY_IDS, FIELD_SURVEYS, FIELD_TREES, FIELD_USE_FOR_HEIGHT_PLOTS,
+    ROWS,
 )
 
 URL_DATA = reverse('impostazioni-hypso-data')
 URL_ACTIVE = reverse('impostazioni-hypso-active-set')
+URL_SURVEYS = reverse('impostazioni-hypso-surveys')
 URL_COMPUTE = reverse('impostazioni-hypso-compute')
 URL_ACCEPT = reverse('impostazioni-hypso-accept')
 URL_IMPORT = reverse('impostazioni-hypso-import')
@@ -81,12 +85,87 @@ def _csv_b64(content):
     return base64.b64encode(raw).decode('ascii')
 
 
+def _make_unstructured_hypso_survey(parcel, species, *, name='Unstructured hypso',
+                                    h_measured=True, count=5):
+    survey = Survey.objects.create(name=name)
+    sample = Sample.objects.create(
+        survey=survey, sample_area=None, date=date(2026, 7, 17),
+    )
+    heights = [Decimal('10.00'), Decimal('12.00'), Decimal('13.00'),
+               Decimal('15.00'), Decimal('16.00'), Decimal('18.00')]
+    for i in range(count):
+        tree = Tree.objects.create(species=species, parcel=parcel, coppice=False)
+        TreeSample.objects.create(
+            sample=sample, tree=tree, number=i + 1, shoot=0, standard=False,
+            d_cm=10 + (i * 5), h_m=heights[i], h_measured=h_measured,
+        )
+    return survey
+
+
+class TestSourceSurveys:
+    def test_lists_measured_non_coppice_counts_for_eligible_surveys(
+            self, writer_client, hypso_samples, parcels, species,
+    ):
+        unstructured = _make_unstructured_hypso_survey(parcels[0], species[0])
+        hidden = _make_unstructured_hypso_survey(
+            parcels[0], species[0], name='Derived heights only', h_measured=False,
+        )
+
+        resp = writer_client.get(URL_SURVEYS)
+
+        assert resp.status_code == 200
+        rows = {row[FIELD_NAME]: row for row in resp.json()[FIELD_SURVEYS]}
+        assert (
+            rows[hypso_samples['survey'].name][FIELD_ID]
+            == hypso_samples['survey'].id
+        )
+        assert rows[hypso_samples['survey'].name][FIELD_TREES] == 15
+        assert rows[unstructured.name][FIELD_ID] == unstructured.id
+        assert rows[unstructured.name][FIELD_TREES] == 5
+        assert hidden.name not in rows
+
+
 class TestCompute:
     def test_returns_candidate_without_persisting(self, writer_client, hypso_samples):
         resp = _post_json(writer_client, URL_COMPUTE, _compute_body(hypso_samples))
         assert resp.status_code == 200
         assert len(resp.json()[ROWS]) == 1
         assert HypsoParamSet.objects.count() == 0
+
+    def test_uses_only_measured_height_rows(self, writer_client, hypso_samples):
+        ts = (TreeSample.objects
+              .filter(
+                  sample__survey=hypso_samples['survey'],
+                  tree__species=hypso_samples['species'],
+                  tree__coppice=False,
+              )
+              .order_by('id')
+              .first())
+        ts.h_measured = False
+        ts.save()
+
+        resp = _post_json(
+            writer_client, URL_COMPUTE, _compute_body(hypso_samples, min_n=12),
+        )
+
+        assert resp.status_code == 200
+        assert resp.json()[ROWS] == []
+
+    def test_unstructured_measured_rows_contribute(
+            self, writer_client, parcels, species,
+    ):
+        survey = _make_unstructured_hypso_survey(parcels[0], species[0])
+        resp = _post_json(
+            writer_client, URL_COMPUTE,
+            {FIELD_MIN_N: 5, FIELD_SURVEY_IDS: [survey.id]},
+        )
+
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert len(payload[ROWS]) == 1
+        row = payload[ROWS][0]
+        assert row[payload[COLUMNS].index(S.COL_REGION)] == parcels[0].region.name
+        assert row[payload[COLUMNS].index(S.COL_N_REGRESSION)] == 5
 
     def test_requires_surveys(self, writer_client, hypso_samples):
         resp = _post_json(writer_client, URL_COMPUTE,

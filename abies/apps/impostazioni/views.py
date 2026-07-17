@@ -6,7 +6,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.http import Http404, HttpResponse, JsonResponse
 from django.template.loader import render_to_string
 from django.views.decorators.http import require_POST
@@ -584,6 +584,32 @@ def hypso_params_active_set(request):
     })
 
 
+def _eligible_hypso_surveys():
+    return (Survey.objects
+            .annotate(h_measured_count=Count(
+                'sample__treesample',
+                filter=(
+                    Q(sample__treesample__h_measured=True)
+                    & Q(sample__treesample__tree__coppice=False)
+                ),
+            ))
+            .filter(h_measured_count__gt=0)
+            .order_by(FIELD_NAME))
+
+
+@login_required
+@require_writer
+def hypso_params_surveys(request):
+    return JsonResponse({FIELD_SURVEYS: [
+        {
+            FIELD_ID: survey.id,
+            FIELD_NAME: survey.name,
+            FIELD_TREES: survey.h_measured_count,
+        }
+        for survey in _eligible_hypso_surveys()
+    ]})
+
+
 def _candidate_payload(rows):
     return {COLUMNS: HYPSO_PARAM_COLUMNS, ROWS: [
         hypso_param_row(None, r.region.name, r.species.common_name,
@@ -604,6 +630,13 @@ def _parse_compute_body(body):
         return None, None, _error(S.ERR_MIN_N_INVALID)
     if min_n < 1:
         return None, None, _error(S.ERR_MIN_N_INVALID)
+    eligible_ids = set(
+        _eligible_hypso_surveys()
+        .filter(id__in=survey_ids)
+        .values_list('id', flat=True)
+    )
+    if eligible_ids != set(survey_ids):
+        return None, None, _error(S.ERR_HYPSO_SURVEYS_REQUIRED)
     return survey_ids, min_n, None
 
 
