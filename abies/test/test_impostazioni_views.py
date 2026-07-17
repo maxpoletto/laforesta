@@ -585,18 +585,6 @@ class TestFutureProductionSettings:
         assert active_by_id[manual.id] is True
         assert active_by_id[current.id] is False
 
-    def test_data_lists_only_structured_surveys(self, writer_client, db):
-        grid = SampleGrid.objects.create(name='Grid')
-        structured = Survey.objects.create(name='Structured', sample_grid=grid)
-        unstructured = Survey.objects.create(name='Unstructured')
-
-        resp = writer_client.get(self.DATA_URL)
-
-        assert resp.status_code == 200
-        survey_ids = [s['id'] for s in resp.json()['surveys']]
-        assert survey_ids == [structured.id]
-        assert unstructured.id not in survey_ids
-
     def test_data_empty_is_robust(self, writer_client, db):
         resp = writer_client.get(self.DATA_URL)
 
@@ -642,6 +630,18 @@ class TestFutureProductionSettings:
 class TestDendrometrySettings:
     DATA_URL = '/api/impostazioni/dendrometry/data/'
     SAVE_URL = '/api/impostazioni/dendrometry/save/'
+
+    def test_data_lists_only_structured_surveys(self, writer_client, db):
+        grid = SampleGrid.objects.create(name='Grid')
+        structured = Survey.objects.create(name='Structured', sample_grid=grid)
+        unstructured = Survey.objects.create(name='Unstructured')
+
+        resp = writer_client.get(self.DATA_URL)
+
+        assert resp.status_code == 200
+        survey_ids = [s['id'] for s in resp.json()['surveys']]
+        assert survey_ids == [structured.id]
+        assert unstructured.id not in survey_ids
 
     def test_data_defaults_to_first_survey_and_counts(
             self, writer_client, parcels, species,

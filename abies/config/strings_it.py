@@ -262,7 +262,7 @@ ERR_SURVEY_GRID_REQUIRED = 'Selezionare una griglia.'
 ERR_SURVEY_STRUCTURED_REQUIRED = (
     'Il rilevamento selezionato non ha una griglia di campionamento.'
 )
-NO_SAMPLE_GRID = 'Nessuna (campionamento non strutturato)'
+NO_SAMPLE_GRID = 'Nessuna (rilevamento libero)'
 ERR_AREA_OUT_OF_SURVEY = (
     'L\'area di saggio non appartiene alla griglia del rilevamento.'
 )
