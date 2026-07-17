@@ -1921,8 +1921,14 @@ def test_writer_imports_samples_upload_into_survey(
     payload = _upload_payload(
         parcels, species, mode='samples',
         session_id='22222222-2222-4222-8222-222222222222',
-        record_overrides={FIELD_SAMPLE_AREA_ID: area.id},
+        record_overrides={FIELD_SAMPLE_AREA_ID: area.id, FIELD_H_MEASURED: True},
     )
+    payload[RECORDS].append({
+        **payload[RECORDS][0],
+        FIELD_CLIENT_RECORD_ID: '2',
+        FIELD_NUMBER: 2,
+        FIELD_H_MEASURED: False,
+    })
     assert _post_upload(Client(), payload).status_code == 200
     upload = IpsoUpload.objects.get(session_id=payload[SESSION][FIELD_SESSION_ID])
 
@@ -1934,7 +1940,7 @@ def test_writer_imports_samples_upload_into_survey(
     )
 
     assert resp.status_code == 200
-    assert resp.json()[IMPORTED] == 1
+    assert resp.json()[IMPORTED] == 2
     upload.refresh_from_db()
     assert upload.state == IpsoUploadState.IMPORTED
     assert upload.imported_by == writer_user
@@ -1943,7 +1949,14 @@ def test_writer_imports_samples_upload_into_survey(
     _assert_nonce_saved(writer_user, nonce)
     sample = Sample.objects.get(survey=survey, sample_area=area)
     assert sample.date == date(2026, 6, 17)
-    ts = TreeSample.objects.select_related('tree', 'tree__species').get(sample=sample)
+    samples = list(
+        TreeSample.objects
+        .select_related('tree', 'tree__species')
+        .filter(sample=sample)
+        .order_by(FIELD_NUMBER)
+    )
+    assert [ts.h_measured for ts in samples] == [True, False]
+    ts = samples[0]
     assert ts.tree.parcel == parcels[0]
     assert ts.tree.species == species[0]
     assert ts.tree.lat == 38.51234
@@ -1953,7 +1966,7 @@ def test_writer_imports_samples_upload_into_survey(
     assert ts.h_m == Decimal('22.00')
     assert ts.volume_m3 is not None
     trees = _read_gzip_json(writer_client.get(trees_url))
-    assert len(trees[ROWS]) == 1
+    assert len(trees[ROWS]) == 2
     assert trees[ROWS][0][trees[COLUMNS].index(ROW_ID)] == ts.id
     assert trees[ROWS][0][trees[COLUMNS].index(S.COL_TREE_NUM)] == 1
 

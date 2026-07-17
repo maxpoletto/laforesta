@@ -643,6 +643,7 @@ class TreeSample(TimestampedModel):
     number = models.IntegerField()
     d_cm = models.IntegerField()
     h_m = models.DecimalField(max_digits=5, decimal_places=2)
+    h_measured = models.BooleanField(default=False)
     l10_mm = models.IntegerField(default=0)
     pressler_coeff = models.DecimalField(
         max_digits=4, decimal_places=2, default=PRESSLER_DEFAULT,

@@ -73,6 +73,17 @@ coppice block.
 
     {% include "base/_tree_fields.html" %}
 
+    <div class="form-row narrow">
+      <div class="form-group">
+        <label>
+          <input type="hidden" name="h_measured" value="">
+          <input type="checkbox" name="h_measured" value="true"
+                 {% if ts.h_measured %}checked{% endif %}>
+          {{ S.COL_H_MEASURED }}
+        </label>
+      </div>
+    </div>
+
     <div class="tree-coppice-block" hidden>
       <p class="form-help">
         Inserire un pollone per riga.  V e m non si calcolano per alberi

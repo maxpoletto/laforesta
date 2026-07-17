@@ -19,7 +19,7 @@ from config.constants import (
     DIGEST_PRESERVED_TREES,
     FIELD_ALTITUDE_M, FIELD_DATE,
     FIELD_DEFAULT_DATE, FIELD_DESCRIPTION, FIELD_D_CM, FIELD_ERRORS, FIELD_FILE,
-    FIELD_HIGHFOREST, FIELD_H_M,
+    FIELD_HIGHFOREST, FIELD_H_M, FIELD_H_MEASURED,
     FIELD_LAT, FIELD_LON, FIELD_MASS_Q, FIELD_NAME, FIELD_NONCE, FIELD_NOTE,
     FIELD_NUMBER, FIELD_PARCEL_ID, FIELD_POINTS, FIELD_PRESERVED, FIELD_R_M,
     FIELD_SAMPLE_AREA_ID, FIELD_SAMPLE_GRID_ID, FIELD_SHOOT, FIELD_SPECIES_ID,
@@ -334,8 +334,8 @@ class TestTreeSave:
             FIELD_SAMPLE_AREA_ID: str(s['area'].id),
             FIELD_SPECIES_ID: str(s['tree'].species_id),
             FIELD_NUMBER: '42',
-            FIELD_D_CM: '30', FIELD_H_M: '20.5', 'l10_mm': '12',
-            'volume_m3': '0.7022', FIELD_MASS_Q: '6.32',
+            FIELD_D_CM: '30', FIELD_H_M: '20.5', FIELD_H_MEASURED: 'true',
+            'l10_mm': '12', 'volume_m3': '0.7022', FIELD_MASS_Q: '6.32',
             FIELD_HIGHFOREST: 'true',
             FIELD_LAT: '0.001', FIELD_LON: '0.001',
             FIELD_PRESERVED: '',
@@ -347,6 +347,7 @@ class TestTreeSave:
         assert ts.number == 42
         assert ts.tree.coppice is False
         assert ts.tree.preserved is False
+        assert ts.h_measured is True
         assert ts.volume_m3 is not None and ts.mass_q is not None
 
     def test_create_rejects_malformed_parent_ids(self, writer_client, sample_setup):
@@ -2381,6 +2382,12 @@ class TestTreeCsvImport:
         assert Tree.objects.count() == n_trees_before + 2
         assert TreeSample.objects.count() == n_ts_before + 2
         assert Tree.objects.filter(preserved=True).count() == n_preserved_before + 1
+        assert list(
+            TreeSample.objects
+            .filter(sample__survey=empty_survey)
+            .order_by(FIELD_NUMBER)
+            .values_list(FIELD_H_MEASURED, flat=True)
+        ) == [False, False]
         _assert_stale(
             DIGEST_PARCEL_DENDROMETRY, DIGEST_PARCEL_DENDROMETRY_POINTS,
             DIGEST_PRESERVED_TREES,
@@ -2421,6 +2428,33 @@ class TestTreeCsvImport:
             row for row in points[ROWS]
             if row[points[COLUMNS].index(COL_SURVEY_ID)] == empty_survey.id
         ]) == 2
+
+    def test_h_measured_column_persists_when_present(
+            self, writer_client, sample_setup,
+    ):
+        s = sample_setup
+        target = Survey.objects.create(
+            name='CSV h measured target', sample_grid=s['grid'],
+        )
+        compresa = s['area'].parcel.region.name
+        particella = s['area'].parcel.name
+        adc = s['area'].number
+        csv_text = (
+            'Compresa,Particella,Area saggio,Albero,Pollone,Matricina,'
+            'D_cm,H_m,L10_mm,Pressler,Genere,Fustaia,H_measured\n'
+            f'{compresa},{particella},{adc},20,0,false,30,20.5,10,2,Abete,true,true\n'
+            f'{compresa},{particella},{adc},21,0,false,32,22.5,11,2,Abete,true,false\n'
+        )
+
+        resp = self._post(writer_client, target.id, csv_text, default_date='2024-09-15')
+
+        assert resp.status_code == 200, resp.content
+        assert list(
+            TreeSample.objects
+            .filter(sample__survey=target)
+            .order_by(FIELD_NUMBER)
+            .values_list(FIELD_H_MEASURED, flat=True)
+        ) == [True, False]
 
     def test_duplicate_number_shoot_within_csv_rejected(
         self, writer_client, sample_setup,

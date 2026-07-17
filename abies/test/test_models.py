@@ -148,10 +148,11 @@ class TestConstraints:
         sample = Sample.objects.create(sample_area=area, survey=survey, date='2026-07-05')
         tree1 = Tree.objects.create(species=species[0], parcel=parcels[0])
         tree2 = Tree.objects.create(species=species[0], parcel=parcels[0])
-        TreeSample.objects.create(
+        ts = TreeSample.objects.create(
             sample=sample, tree=tree1, number=4, shoot=0,
             d_cm=30, h_m=Decimal('20.0'),
         )
+        assert ts.h_measured is False
         with pytest.raises(IntegrityError), transaction.atomic():
             TreeSample.objects.create(
                 sample=sample, tree=tree2, number=4, shoot=0,

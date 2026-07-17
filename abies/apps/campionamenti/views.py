@@ -47,7 +47,8 @@ from config.constants import (
     FIELD_ALTITUDE, FIELD_ALTITUDE_M, FIELD_AREA,
     FIELD_COMPRESA, FIELD_COPPICE, FIELD_DATE, FIELD_DEFAULT_DATE,
     FIELD_DESCRIPTION, FIELD_D_CM,
-    FIELD_FILE, FIELD_HIGHFOREST, FIELD_H_M, FIELD_L10_MM, FIELD_LAT, FIELD_LON,
+    FIELD_FILE, FIELD_HIGHFOREST, FIELD_H_M, FIELD_H_MEASURED, FIELD_L10_MM,
+    FIELD_LAT, FIELD_LON,
     FIELD_PRESSLER_COEFF,
     FIELD_MASS_Q,
     FIELD_NAME, FIELD_NEXT_SHOOT, FIELD_NOTE, FIELD_NUMBER,
@@ -213,7 +214,8 @@ def tree_save_view(request):
                     sample=sample, tree=tree, shoot=sh[FIELD_SHOOT],
                     standard=sh[FIELD_STANDARD],
                     number=parsed[FIELD_NUMBER],
-                    d_cm=sh[FIELD_D_CM], h_m=sh[FIELD_H_M], l10_mm=sh[FIELD_L10_MM],
+                    d_cm=sh[FIELD_D_CM], h_m=sh[FIELD_H_M],
+                    h_measured=parsed[FIELD_H_MEASURED], l10_mm=sh[FIELD_L10_MM],
                     pressler_coeff=parsed[FIELD_PRESSLER_COEFF],
                     volume_m3=None, mass_q=None,
                 )
@@ -224,7 +226,7 @@ def tree_save_view(request):
                 sample=sample, tree=existing_tree, shoot=0, standard=False,
                 number=parsed[FIELD_NUMBER],
                 d_cm=parsed[FIELD_D_CM], h_m=parsed[FIELD_H_M],
-                l10_mm=parsed[FIELD_L10_MM],
+                h_measured=parsed[FIELD_H_MEASURED], l10_mm=parsed[FIELD_L10_MM],
                 pressler_coeff=parsed[FIELD_PRESSLER_COEFF],
                 volume_m3=parsed[FIELD_VOLUME_M3],
                 mass_q=parsed[FIELD_MASS_Q],
@@ -242,7 +244,7 @@ def tree_save_view(request):
                 sample=sample, tree=tree, shoot=0, standard=False,
                 number=parsed[FIELD_NUMBER],
                 d_cm=parsed[FIELD_D_CM], h_m=parsed[FIELD_H_M],
-                l10_mm=parsed[FIELD_L10_MM],
+                h_measured=parsed[FIELD_H_MEASURED], l10_mm=parsed[FIELD_L10_MM],
                 pressler_coeff=parsed[FIELD_PRESSLER_COEFF],
                 volume_m3=parsed[FIELD_VOLUME_M3],
                 mass_q=parsed[FIELD_MASS_Q],
@@ -857,6 +859,7 @@ def _parse_tree_body(body):
         FIELD_NUMBER: number or 0,
         FIELD_D_CM: d_cm,
         FIELD_H_M: h_m,
+        FIELD_H_MEASURED: is_truthy(body.get(FIELD_H_MEASURED)),
         FIELD_L10_MM: l10_mm,
         FIELD_PRESSLER_COEFF: pressler_coeff,
         FIELD_VOLUME_M3: parse_decimal(body.get(FIELD_VOLUME_M3)) if not coppice else None,
@@ -985,6 +988,7 @@ def _update_tree_sample(ts_id, sample, parsed, body, request):
         ts.standard = sh[FIELD_STANDARD]
         ts.d_cm = sh[FIELD_D_CM]
         ts.h_m = sh[FIELD_H_M]
+        ts.h_measured = parsed[FIELD_H_MEASURED]
         ts.l10_mm = sh[FIELD_L10_MM]
         ts.pressler_coeff = parsed[FIELD_PRESSLER_COEFF]
         ts.volume_m3 = None
@@ -992,6 +996,7 @@ def _update_tree_sample(ts_id, sample, parsed, body, request):
     else:
         ts.d_cm = parsed[FIELD_D_CM]
         ts.h_m = parsed[FIELD_H_M]
+        ts.h_measured = parsed[FIELD_H_MEASURED]
         ts.l10_mm = parsed[FIELD_L10_MM]
         ts.pressler_coeff = parsed[FIELD_PRESSLER_COEFF]
         ts.volume_m3 = parsed[FIELD_VOLUME_M3]

@@ -253,8 +253,10 @@ def _sample_record_values(record: dict, area: SampleArea, sp: Species) -> dict |
         area=area, row_date=measurements.date, species=sp, coppice=coppice,
         preserved=bool(record.get(FIELD_PRESERVED)), number=values.number,
         shoot=values.shoot, standard=bool(record.get(FIELD_STANDARD)),
-        d_cm=values.d_cm, h_m=values.h_m, l10_mm=values.l10_mm,
-        pressler_coeff=values.pressler_coeff, lat=record.get(FIELD_LAT),
+        d_cm=values.d_cm, h_m=values.h_m,
+        h_measured=bool(record.get(FIELD_H_MEASURED)),
+        l10_mm=values.l10_mm, pressler_coeff=values.pressler_coeff,
+        lat=record.get(FIELD_LAT),
         lon=record.get(FIELD_LON), acc_m=record.get(FIELD_ACC_M),
     )
 

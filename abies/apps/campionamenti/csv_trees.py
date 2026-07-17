@@ -18,7 +18,8 @@ from apps.campionamenti.tree_validation import normalize_sample_tree_values
 from config import strings as S
 from config.constants import (
     BOSCO_TREE_DIGESTS, FIELD_ACC_M, FIELD_AREA, FIELD_COPPICE, FIELD_DATE,
-    FIELD_D_CM, FIELD_H_M, FIELD_L10_MM, FIELD_LAT, FIELD_LON, FIELD_MASS_Q,
+    FIELD_D_CM, FIELD_H_M, FIELD_H_MEASURED, FIELD_L10_MM, FIELD_LAT, FIELD_LON,
+    FIELD_MASS_Q,
     FIELD_NUMBER, FIELD_PARCEL,
     FIELD_PRESERVED, FIELD_PRESSLER_COEFF, FIELD_SHOOT, FIELD_SPECIES,
     FIELD_STANDARD, FIELD_VOLUME_M3,
@@ -31,7 +32,7 @@ TREE_CSV_REQUIRED = [S.CSV_COL_REGION, S.CSV_COL_PARCEL,
                      S.CSV_COL_D_CM, S.CSV_COL_H_M, S.CSV_COL_L10_MM,
                      S.CSV_COL_PRESSLER, S.CSV_COL_SPECIES,
                      S.CSV_COL_HIGHFOREST]
-TREE_CSV_OPTIONAL = [S.CSV_COL_DATA, S.CSV_COL_PRESERVED]
+TREE_CSV_OPTIONAL = [S.CSV_COL_DATA, S.CSV_COL_PRESERVED, S.CSV_COL_H_MEASURED]
 
 
 @dataclass
@@ -100,11 +101,12 @@ def validate_rows(reader, idx: TreeIndexes, *, has_date_column, default_date):
         pressler = reader.decimal(row.get(S.CSV_COL_PRESSLER))
         standard, std_ok = reader.opt_bool(row.get(S.CSV_COL_COPPICE_STD))
         preserved, pai_ok = reader.opt_bool(row.get(S.CSV_COL_PRESERVED, ''))
-        if not (shoot_ok and l10_ok and std_ok and pai_ok) or pressler is None or pressler <= 0:
+        h_measured, h_measured_ok = reader.opt_bool(row.get(S.CSV_COL_H_MEASURED, ''))
+        if not (shoot_ok and l10_ok and std_ok and pai_ok and h_measured_ok) or pressler is None or pressler <= 0:
             errors.append(S.ERR_CSV_ROW_PARSE.format(
                 i, f'{S.CSV_COL_COPPICE_SHOOT}/{S.CSV_COL_L10_MM}/'
                    f'{S.CSV_COL_PRESSLER}/{S.CSV_COL_COPPICE_STD}/'
-                   f'{S.CSV_COL_PRESERVED}'))
+                   f'{S.CSV_COL_PRESERVED}/{S.CSV_COL_H_MEASURED}'))
             continue
         if (shoot is not None and shoot < 0) or (l10 is not None and l10 < 0):
             errors.append(S.ERR_CSV_ROW_PARSE.format(
@@ -127,6 +129,7 @@ def validate_rows(reader, idx: TreeIndexes, *, has_date_column, default_date):
             continue
         standard = bool(standard)        # required column; blank → False
         preserved = bool(preserved)      # optional; absent/blank → False
+        h_measured = bool(h_measured)  # optional; absent/blank → False
         # Fustaia is required: a blank or unrecognised value is an error.
         fustaia, fustaia_ok = reader.opt_bool(row[S.CSV_COL_HIGHFOREST])
         if not fustaia_ok or fustaia is None:
@@ -181,7 +184,8 @@ def validate_rows(reader, idx: TreeIndexes, *, has_date_column, default_date):
             area=area, row_date=row_date, species=species, coppice=coppice,
             preserved=preserved, number=values.number, shoot=values.shoot,
             standard=standard, d_cm=values.d_cm, h_m=values.h_m,
-            l10_mm=values.l10_mm, pressler_coeff=values.pressler_coeff,
+            h_measured=h_measured, l10_mm=values.l10_mm,
+            pressler_coeff=values.pressler_coeff,
             volume_species_name=mapped,
         ))
     return parsed, errors
@@ -200,7 +204,8 @@ def tree_volume_and_mass(coppice, d_cm, h_m, species, species_name=None):
 
 def parsed_tree_row(
         *, area, row_date, species, coppice, preserved, number, shoot, standard,
-        d_cm, h_m, l10_mm, pressler_coeff, lat=None, lon=None, acc_m=None,
+        d_cm, h_m, l10_mm, pressler_coeff, h_measured=False, lat=None, lon=None,
+        acc_m=None,
         volume_species_name=None,
 ):
     h_m = h_m.quantize(TREE_H_QUANTUM, rounding=ROUND_HALF_UP)
@@ -219,6 +224,7 @@ def parsed_tree_row(
         FIELD_STANDARD: standard,
         FIELD_D_CM: d_cm,
         FIELD_H_M: h_m,
+        FIELD_H_MEASURED: bool(h_measured),
         FIELD_L10_MM: l10_mm,
         FIELD_PRESSLER_COEFF: pressler_coeff,
         FIELD_VOLUME_M3: volume_m3,
@@ -273,7 +279,8 @@ def apply(survey, parsed) -> dict:
             TreeSample.objects.create(
                 sample=sample, tree=tree, shoot=r[FIELD_SHOOT],
                 standard=r[FIELD_STANDARD], number=r[FIELD_NUMBER],
-                d_cm=r[FIELD_D_CM], h_m=r[FIELD_H_M], l10_mm=r[FIELD_L10_MM],
+                d_cm=r[FIELD_D_CM], h_m=r[FIELD_H_M],
+                h_measured=r[FIELD_H_MEASURED], l10_mm=r[FIELD_L10_MM],
                 pressler_coeff=r[FIELD_PRESSLER_COEFF],
                 volume_m3=r[FIELD_VOLUME_M3], mass_q=r[FIELD_MASS_Q],
             )
