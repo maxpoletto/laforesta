@@ -212,8 +212,10 @@ of either dataset should treat them as independent observations.
     surveys can be active. The database enforces `active = false OR
     sample_grid_id IS NOT NULL`.
   - Structured surveys are associated with a `sample_grid` of physical sample
-    areas. Unstructured surveys have `sample_grid_id = NULL` and are not
-    statistically expandable or eligible for dendrometric settings by default.
+    areas. Unstructured surveys have `sample_grid_id = NULL`; they are not
+    statistically expandable and cannot be selected for dendrometric settings.
+    They may still be used as hypsometry sources when they contain measured
+    high-forest tree rows (see "Hypsometric parameters" below).
   - For structured surveys, each sample area is visited at most once. A
     structured survey is "complete" when every sample area in the survey's
     sample grid has been visited. Unstructured surveys count dated samples but
@@ -228,10 +230,14 @@ of either dataset should treat them as independent observations.
     and UPDATE of `sample`: structured surveys require a sample area whose
     `sample_grid_id` matches the survey's `sample_grid_id`; unstructured
     surveys require `sample_area_id = NULL`.
+  - `UNIQUE(sample_area_id, survey_id)` enforces one structured sample per
+    sample area and survey. Because SQL unique constraints allow multiple NULL
+    values, unstructured sample grouping is source-specific application logic
+    rather than a database uniqueness rule.
 
 - tree_sample: (id:int, sample_id:int, tree_id:int, shoot:int, standard:bool,
-  number:int, d_cm:int, h_m:int, l10_mm:int, pressler_coeff:real, volume_m3:real
-  nullable, mass_q:real nullable)
+  number:int, d_cm:int, h_m:real, h_measured:bool, l10_mm:int,
+  pressler_coeff:real, volume_m3:real nullable, mass_q:real nullable)
   - Measurement of a tree during a sample visit. PK is synthetic `id`.
     Two uniqueness constraints are enforced. `UNIQUE(sample_id, tree_id,
     shoot)` prevents measuring the same physical tree/shoot twice in one sample.
@@ -243,6 +249,9 @@ of either dataset should treat them as independent observations.
   - `standard` ("matricina"): coppice shoot kept for growth, not harvested.
     False for non-coppice.
   - `number`: 1-based counter of trees within a sample.
+  - `h_measured` records whether `h_m` was measured in the field. Rows with
+    `h_measured = false` may still be valid sample measurements, but they are
+    not eligible for computing hypsometric parameters.
   - `l10_mm`: width (mm) of outer ten rings. 0 if tree was not cored.
   - `volume_m3`: computed from (d_cm, h_m, species) via Tabacchi equations.
     JS form computes a live preview; CSV imports compute server-side.
@@ -296,7 +305,7 @@ aggregate volume is materialized on `harvest_plan_item.volume_marked_m3`
 display totals.
 
 - tree_mark: (id:int, harvest_plan_item_id:int, tree_id:int,
-  number:int nullable, date:string /* ISO 8601 */, d_cm:int, h_m:int,
+  number:int nullable, date:string /* ISO 8601 */, d_cm:int, h_m:real,
   h_measured:bool, volume_m3:real, mass_q:real, lat:real, lon:real,
   acc_m:int nullable, operator:string, import_fingerprint:string nullable)
   - A (high-forest) tree being marked for felling. PK is the synthetic
@@ -439,6 +448,15 @@ Per-(region, species) hypsometric regression coefficients (`h = a·ln(D) + b`),
 used to auto-populate `h_m` in the mark-entry form and exported to Ipso. Global
 (not plan-scoped). The settings UI, compute/import flow, and behavior are
 documented in [`hypsometry.md`](hypsometry.md).
+
+Computed parameter sets consume eligible `tree_sample` rows from the selected
+surveys. Eligibility is row-based, not survey-type-based: the row must have
+`h_measured = true` and must point to a non-coppice `tree`. Therefore both
+structured and unstructured surveys can be selected for hypsometry if they have
+at least one eligible row. Region attribution comes from
+`tree_sample.tree.parcel.region`, not from `sample.sample_area`, so unstructured
+samples can participate. This is independent of `survey.active`, which is only
+the dendrometry setting.
 
 - hypso_param_set: (id:int, source:string, min_n:int nullable,
   use_for_height_plots:bool, superseded_at:datetime nullable)

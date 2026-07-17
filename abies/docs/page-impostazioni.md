@@ -54,11 +54,12 @@ The top of the section is a line listing the current total number of trees,
 regions, and parcels used for the dendrometric parameters.
 
 Below is a multiselect of available structured surveys (Rilevamenti with a
-sample grid), identical to the multiselect in the hypsometry section (see
-`hypsometry.md`). Unstructured surveys are not listed and cannot be active for
-dendrometric purposes. The currently selected surveys are highlighted. Defaults
-to the first structured survey by name alpha order, and is robust to there being
-no structured surveys.
+sample grid). Unstructured surveys are not listed and cannot be active for
+dendrometric purposes. This is intentionally stricter than the hypsometry
+survey selector, which may list unstructured surveys with measured heights (see
+`hypsometry.md`). The currently selected surveys are highlighted. Defaults to
+the first structured survey by name alpha order, and is robust to there being no
+structured surveys.
 
 Below the multiselect is an `Aggiorna` submit button that causes the user's
 selection to go into effect.
@@ -72,9 +73,10 @@ chart into its source surveys.
 
 Visible to writers and admins. A read-only table shows the active hypsometric
 parameter set, with Importa / Esporta / Elimina controls and a `Calcola nuovi
-parametri` panel that fits new coefficients from selected surveys. Fully
-documented — behavior, the compute→accept flow, the CSV format, and the served
-digest — in [`hypsometry.md`](hypsometry.md).
+parametri` panel that fits new coefficients from selected surveys. The selector
+lists surveys only when they have measured non-coppice tree rows, and displays
+that eligible-row count. Fully documented — behavior, the compute→accept flow,
+the CSV format, and the served digest — in [`hypsometry.md`](hypsometry.md).
 
 ## App users
 

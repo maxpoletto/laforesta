@@ -83,13 +83,15 @@ leaves h blank for manual entry.
   `pdg-2026/pdg/computation.py`): a least-squares fit of h on ln(D) yielding
   `a`, `b`, plus `r2` and the sample count `n`. The small numeric core is ported
   into Abies; numpy is added to Abies's dependencies for it.
-- Inputs are the `(d_cm, h_m)` pairs of eligible `tree_sample` rows. **Coppice
-  samples are excluded** — hypsometry serves high-forest marking only — and rows
-  with non-positive or missing D or h are dropped.
-- Samples are grouped by (region, species): region via
-  `tree_sample → sample → sample_area → parcel → region`, species via the
-  sampled `tree`. A group is fit only if it has at least `min_n` eligible
-  samples; smaller groups produce no entry.
+- Inputs are the `(d_cm, h_m)` pairs of eligible `tree_sample` rows. Eligible
+  rows have `h_measured = true`; **coppice tree rows are excluded** because
+  hypsometry serves high-forest marking only; and rows with non-positive or
+  missing D or h are dropped.
+- Rows are grouped by (region, species): region via
+  `tree_sample → tree → parcel → region`, species via the sampled `tree`. This
+  allows both structured and unstructured surveys to participate. A group is fit
+  only if it has at least `min_n` eligible rows; smaller groups produce no
+  entry.
 
 ## Parametri ipsometrici settings section
 
@@ -115,8 +117,9 @@ Visible to writers and admins, below "Specie".
 
 - A **"Calcola nuovi parametri"** sub-section with:
   - "N minimo" — integer input (the per-group minimum sample count).
-  - "Rilevamenti" — a multiselect of all surveys (reuses the existing `surveys`
-    digest).
+  - "Rilevamenti" — a multiselect of every structured or unstructured survey
+    with at least one measured non-coppice tree row. Each option displays that
+    eligible measured-tree count, not the survey's total tree count.
   - "Usa questi rilevamenti per i grafici altezza/diametro" — when checked, the
     accepted computed set also supplies the survey list for Bosco's
     diameter/height scatter plot. (Other Bosco dendrometry use the Parametri
@@ -127,9 +130,9 @@ Visible to writers and admins, below "Specie".
 
 1. The user sets "N minimo", selects one or more surveys, and clicks "Calcola".
 2. Abies shows an in-progress modal while it computes a **candidate** set in
-   memory (no database write): it gathers eligible samples from the chosen
-   surveys, groups them by (region, species), and fits each group with at least
-   N samples.
+   memory (no database write): it gathers eligible `tree_sample` rows from the
+   chosen surveys, groups them by (region, species), and fits each group with
+   at least N rows.
 3. The candidate is shown as a table in the modal, with "Accetta" / "Rifiuta".
 4. **Accetta** persists the candidate as the new active set — recomputed
    server-side from the same inputs, so the stored set is authoritative rather
