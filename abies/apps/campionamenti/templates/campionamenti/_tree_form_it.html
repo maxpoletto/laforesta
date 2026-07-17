@@ -22,28 +22,60 @@ coppice block.
 
     <input type="hidden" name="row_id" value="{{ ts.id|default_if_none:'' }}">
     <input type="hidden" name="survey_id" value="{{ survey.id }}">
-    <input type="hidden" name="sample_area_id" value="{{ area.id }}">
+    <input type="hidden" name="sample_area_id" value="{{ area.id|default_if_none:'' }}">
     <input type="hidden" name="version" value="{{ ts.version|default:0 }}">
     <input type="hidden" name="shoots" id="id_shoots" value="">
 
-    <div class="form-readonly-flat">
-      <div>
-        <span class="label">Compresa:</span>{{ area.parcel.region.name }}
+    {% if is_unstructured %}
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_tree_region">Compresa</label>
+          <select id="id_tree_region" name="region_id" required>
+            {% for r in regions %}
+              <option value="{{ r.id }}"
+                      {% if selected_parcel and r.id == selected_parcel.region_id %}selected{% endif %}>
+                {{ r.name }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="id_tree_parcel">Particella</label>
+          <select id="id_tree_parcel" name="parcel_id" required>
+            {% for p in parcel_choices %}
+              <option value="{{ p.id }}"
+                      data-region-id="{{ p.region_id }}"
+                      {% if selected_parcel and p.id == selected_parcel.id %}selected{% endif %}>
+                {{ p.region.name }}-{{ p.name }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
       </div>
-      <div>
-        <span class="label">Particella:</span>{{ area.parcel.name }}
+    {% else %}
+      <div class="form-readonly-flat">
+        <div>
+          <span class="label">Compresa:</span>{{ area.parcel.region.name }}
+        </div>
+        <div>
+          <span class="label">Particella:</span>{{ area.parcel.name }}
+        </div>
+        <div>
+          <span class="label">Area di saggio:</span>{{ area.number }}
+        </div>
       </div>
-      <div>
-        <span class="label">Area di saggio:</span>{{ area.number }}
-      </div>
-    </div>
+    {% endif %}
 
     <div class="form-row">
       <div class="form-group{% if ts %} narrow{% endif %}">
-        <label for="id_tree_pick">N. albero</label>
+        <label for="{% if ts or is_unstructured %}id_number{% else %}id_tree_pick{% endif %}">N. albero</label>
         {% if ts %}
           <span class="readonly-field">{{ ts.number }}</span>
           <input type="hidden" name="number" id="id_number" value="{{ ts.number }}">
+        {% elif is_unstructured %}
+          <input type="number" name="number" id="id_number" min="1" step="1"
+                 value="{{ next_number }}" required>
+          <input type="hidden" name="tree_pick" value="new">
         {% else %}
           <select id="id_tree_pick" name="tree_pick" required>
             <option value="new" data-next="{{ next_number }}" data-next-shoot="1" selected>

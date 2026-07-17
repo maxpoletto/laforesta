@@ -104,8 +104,8 @@ def tree_form_view(request, ts_id: int | None = None):
     """Return the HTML fragment for adding or editing a TreeSample.
 
     Query params (add path only):
-      ?survey=<id>&area=<id>  — required: the survey + sample area
-                                under which the new tree will be created.
+      ?survey=<id>&area=<id>  — structured survey + sample area;
+      ?survey=<id>            — unstructured survey.
     """
     survey_raw = request.GET.get('survey')
     area_raw = request.GET.get(FIELD_AREA)
@@ -152,6 +152,10 @@ def tree_save_view(request):
     # Validate it lives in this sample area before we trust it.
     existing_tree = None
     if parsed[FIELD_TREE_PICK_EXISTING_ID] is not None:
+        if sample.sample_area_id is None:
+            return _validation_error(
+                [S.ERR_TREE_NUMBER_REQUIRED], ts_id, request, body,
+            )
         existing_tree = _resolve_existing_tree(
             parsed[FIELD_TREE_PICK_EXISTING_ID], sample.sample_area_id,
         )
@@ -159,6 +163,11 @@ def tree_save_view(request):
             return _validation_error(
                 [S.ERR_TREE_NUMBER_REQUIRED], ts_id, request, body,
             )
+
+    parcel_id = (
+        sample.sample_area.parcel_id
+        if sample.sample_area_id is not None else parsed[FIELD_PARCEL_ID]
+    )
 
     # A tree number can appear at most once in the active sample.  This
     # also catches stale/direct posts for existing trees hidden from the
@@ -203,7 +212,7 @@ def tree_save_view(request):
         elif parsed[FIELD_COPPICE]:
             tree = existing_tree or Tree.objects.create(
                 species_id=parsed[FIELD_SPECIES_ID],
-                parcel_id=sample.sample_area.parcel_id,
+                parcel_id=parcel_id,
                 lat=parsed[FIELD_LAT], lon=parsed[FIELD_LON],
                 preserved=parsed[FIELD_PRESERVED],
                 coppice=True,
@@ -235,7 +244,7 @@ def tree_save_view(request):
         else:
             tree = Tree.objects.create(
                 species_id=parsed[FIELD_SPECIES_ID],
-                parcel_id=sample.sample_area.parcel_id,
+                parcel_id=parcel_id,
                 lat=parsed[FIELD_LAT], lon=parsed[FIELD_LON],
                 preserved=parsed[FIELD_PRESERVED],
                 coppice=False,
@@ -583,32 +592,50 @@ def _render_tree_form(request, ts_id, survey_id, area_id):
                 .select_related('sample__survey',
                                 'sample__sample_area__parcel__region',
                                 'sample__sample_area__parcel__eclass',
-                                'tree__species')
+                                'tree__species', 'tree__parcel__region',
+                                'tree__parcel__eclass')
                 .get(id=ts_id))
         sample = ts.sample
         area = sample.sample_area
         survey = sample.survey
     else:
-        if survey_id is None or area_id is None:
-            raise Http404('survey and area required')
+        if survey_id is None:
+            raise Http404('survey required')
         survey = Survey.objects.get(id=survey_id)
-        area = SampleArea.objects.select_related(
-            'parcel__region', 'parcel__eclass',
-        ).get(id=area_id)
-        if area.sample_grid_id != survey.sample_grid_id:
-            raise Http404('sample_area not in survey grid')
-        sample = Sample.objects.filter(
-            sample_area=area, survey=survey,
-        ).first()
+        if survey.sample_grid_id is None:
+            if area_id is not None:
+                raise Http404('unstructured survey has no sample areas')
+        else:
+            if area_id is None:
+                raise Http404('area required')
+            area = SampleArea.objects.select_related(
+                'parcel__region', 'parcel__eclass',
+            ).get(id=area_id)
+            if area.sample_grid_id != survey.sample_grid_id:
+                raise Http404('sample_area not in survey grid')
+            sample = Sample.objects.filter(
+                sample_area=area, survey=survey,
+            ).first()
 
     species = list(Species.objects.filter(active=True).order_by(FIELD_SORT_ORDER))
     tree = ts.tree if ts else None
-    is_coppice = area.parcel.eclass.coppice
+    is_unstructured = survey.sample_grid_id is None
+    parcel_choices = sorted(
+        Parcel.objects.select_related('region', 'eclass'), key=parcel_sort_key,
+    ) if is_unstructured else []
+    selected_parcel = (
+        tree.parcel if tree else (parcel_choices[0] if parcel_choices else None)
+    ) if is_unstructured else area.parcel
+    is_coppice = bool(selected_parcel and selected_parcel.eclass.coppice)
     default_species_id = None if ts else _default_species_id(species, is_coppice)
     default_species = next((sp for sp in species if sp.id == default_species_id), None)
-    prior_trees, next_number = _prior_trees_for_area(
-        area, exclude_ts_id=ts_id, current_sample=sample,
-    )
+    if is_unstructured:
+        prior_trees = []
+        next_number = _next_unstructured_tree_number(survey) if not ts else ts.number
+    else:
+        prior_trees, next_number = _prior_trees_for_area(
+            area, exclude_ts_id=ts_id, current_sample=sample,
+        )
 
     return render_to_string('campionamenti/_tree_form.html', {
         'ts': ts,
@@ -616,6 +643,10 @@ def _render_tree_form(request, ts_id, survey_id, area_id):
         'sample': sample,
         FIELD_AREA: area,
         'survey': survey,
+        'is_unstructured': is_unstructured,
+        'regions': Region.objects.order_by(FIELD_NAME),
+        'parcel_choices': parcel_choices,
+        'selected_parcel': selected_parcel,
         FIELD_SPECIES: species,
         'sample_date': sample.date if sample else date_type.today(),
         'prior_trees': prior_trees,
@@ -643,11 +674,26 @@ def _render_tree_form(request, ts_id, survey_id, area_id):
         'd_cm': ts.d_cm if ts else '',
         'h_m': ts.h_m if ts else '',
         'l10_mm': ts.l10_mm if ts else 0,
-        'lat': round((tree.lat if tree and tree.lat is not None
-                      else area.lat) if ts else area.lat, 5),
-        'lon': round((tree.lon if tree and tree.lon is not None
-                      else area.lon) if ts else area.lon, 5),
+        'lat': _tree_form_coord(tree, area, FIELD_LAT, ts=ts),
+        'lon': _tree_form_coord(tree, area, FIELD_LON, ts=ts),
     }, request=request)
+
+
+def _tree_form_coord(tree, area, field, *, ts):
+    if tree and getattr(tree, field) is not None:
+        return round(getattr(tree, field), 5)
+    if area is not None and not ts:
+        return round(getattr(area, field), 5)
+    return ''
+
+
+def _next_unstructured_tree_number(survey):
+    last = (TreeSample.objects
+            .filter(sample__survey=survey)
+            .order_by('-number')
+            .values_list(FIELD_NUMBER, flat=True)
+            .first())
+    return (last or 0) + 1
 
 
 def _default_species_id(species, parcel_is_coppice):
@@ -798,10 +844,11 @@ def _parse_tree_body(body):
 
     sample_area_id = int_or_none(body.get(FIELD_SAMPLE_AREA_ID))
     survey_id = int_or_none(body.get(FIELD_SURVEY_ID))
+    parcel_id = int_or_none(body.get(FIELD_PARCEL_ID))
     species_id = (int_or_none(body.get(FIELD_SPECIES_ID))
                   if body.get(FIELD_SPECIES_ID) else None)
     number = int_or_none(body.get(FIELD_NUMBER, 0) or 0)
-    if sample_area_id is None:
+    if sample_area_id is None and parcel_id is None:
         errors.append(S.IPSO_ERR_FIELD_REQUIRED.format(S.COL_SAMPLE_AREA))
     if survey_id is None:
         errors.append(S.ERR_CSV_SURVEY_REQUIRED)
@@ -858,6 +905,7 @@ def _parse_tree_body(body):
     parsed = {
         FIELD_SAMPLE_AREA_ID: sample_area_id,
         FIELD_SURVEY_ID: survey_id,
+        FIELD_PARCEL_ID: parcel_id,
         FIELD_SPECIES_ID: species_id,
         FIELD_NUMBER: number or 0,
         FIELD_D_CM: d_cm,
@@ -943,18 +991,36 @@ def _resolve_existing_tree(tree_id, sample_area_id):
 
 
 def _find_or_create_sample(parsed):
-    """Return the Sample row for (survey, sample_area), creating it if
-    needed.  Returns None when the area doesn't belong to the survey's
-    grid (caller surfaces a validation error)."""
+    """Return the Sample row for the parsed survey scope, creating it if needed.
+
+    Structured surveys group by (survey, sample_area).  Unstructured surveys
+    group manual Abies entries by (survey, date) with sample_area=NULL.
+    Returns None when the submitted scope is invalid.
+    """
+    survey = Survey.objects.get(id=parsed[FIELD_SURVEY_ID])
+    sample_date = parsed.get(FIELD_DATE) or date_type.today()
+    if survey.sample_grid_id is None:
+        if parsed[FIELD_SAMPLE_AREA_ID] is not None:
+            return None
+        if parsed[FIELD_PARCEL_ID] is None:
+            return None
+        if not Parcel.objects.filter(id=parsed[FIELD_PARCEL_ID]).exists():
+            return None
+        sample, _ = Sample.objects.get_or_create(
+            sample_area=None, survey=survey, date=sample_date,
+        )
+        return sample
+
+    if parsed[FIELD_SAMPLE_AREA_ID] is None:
+        return None
     area = SampleArea.objects.select_related(FIELD_PARCEL).get(
         id=parsed[FIELD_SAMPLE_AREA_ID],
     )
-    survey = Survey.objects.get(id=parsed[FIELD_SURVEY_ID])
     if area.sample_grid_id != survey.sample_grid_id:
         return None
     sample, _ = Sample.objects.get_or_create(
         sample_area=area, survey=survey,
-        defaults={FIELD_DATE: parsed.get(FIELD_DATE) or date_type.today()},
+        defaults={FIELD_DATE: sample_date},
     )
     return sample
 
@@ -1009,6 +1075,8 @@ def _update_tree_sample(ts_id, sample, parsed, body, request):
     # Tree fields that can change on edit.
     tree = ts.tree
     tree.species_id = parsed[FIELD_SPECIES_ID]
+    if sample.sample_area_id is None:
+        tree.parcel_id = parsed[FIELD_PARCEL_ID]
     tree.preserved = parsed[FIELD_PRESERVED]
     tree.lat = parsed[FIELD_LAT]
     tree.lon = parsed[FIELD_LON]

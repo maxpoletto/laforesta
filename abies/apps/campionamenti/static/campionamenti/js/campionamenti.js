@@ -1564,12 +1564,15 @@ async function showAddTreeForm() {
     showError(S.SAMPLES_PICK_SURVEY_FIRST);
     return;
   }
-  if (activeAreaId == null) {
+  const isUnstructured = surveyGridId(activeSurveyId) == null;
+  if (!isUnstructured && activeAreaId == null) {
     showError(S.SAMPLES_PICK_AREA_FIRST);
     return;
   }
   inForm = true;
-  const url = `${TREE_FORM_URL}?survey=${activeSurveyId}&area=${activeAreaId}`;
+  const url = isUnstructured
+    ? `${TREE_FORM_URL}?survey=${activeSurveyId}`
+    : `${TREE_FORM_URL}?survey=${activeSurveyId}&area=${activeAreaId}`;
   const form = await fetchModalForm(url);
   if (!form) { finishForm(); return; }
   onDismiss(finishForm);
@@ -1606,7 +1609,30 @@ async function deleteTreeSample(tsId) {
   );
 }
 
+function wireTreeParcelByRegion(form) {
+  const region = form.querySelector('#id_tree_region');
+  const parcel = form.querySelector('#id_tree_parcel');
+  if (!region || !parcel) return;
+  const allOpts = [...parcel.options].map(opt => opt.cloneNode(true));
+
+  function refresh() {
+    const selected = parcel.value;
+    const rid = region.value;
+    parcel.replaceChildren();
+    for (const opt of allOpts) {
+      if (opt.dataset.regionId === rid) parcel.appendChild(opt.cloneNode(true));
+    }
+    if ([...parcel.options].some(opt => opt.value === selected)) {
+      parcel.value = selected;
+    }
+  }
+
+  region.addEventListener('change', refresh);
+  refresh();
+}
+
 function wireTreeForm(form) {
+  wireTreeParcelByRegion(form);
   wireTreePick(form);
   wireCeduoToggle(form);
   wireCoppiceBlock(form);

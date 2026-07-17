@@ -110,7 +110,7 @@ def test_compute_params_min_n_excludes_all(hypso_samples):
     assert hypsometry.compute_params([hypso_samples['survey'].id], min_n=100) == []
 
 
-def test_compute_params_ignores_unstructured_samples(
+def test_compute_params_ignores_unmeasured_unstructured_samples(
         hypso_samples, parcels, species,
 ):
     unstructured = Survey.objects.create(name='Ad hoc tree measurements')
@@ -229,6 +229,7 @@ def test_compute_params_groups_by_region(hypso_samples, regions, eclasses):
         TreeSample.objects.create(
             sample=sample2, tree=tree, shoot=0, standard=False,
             number=i, d_cm=d, h_m=Decimal(str(round(6.5 * math.log(d) - 3, 2))),
+            h_measured=True,
         )
     rows = hypsometry.compute_params(
         [hypso_samples['survey'].id, survey2.id], min_n=5,

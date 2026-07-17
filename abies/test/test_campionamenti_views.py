@@ -216,6 +216,22 @@ class TestTreeForm:
         assert '<form' in html
         assert s['area'].parcel.name in html
 
+    def test_unstructured_form_uses_parcel_and_number_fields(
+        self, writer_client, parcels, species,
+    ):
+        survey = Survey.objects.create(name='Free survey')
+
+        resp = writer_client.get(
+            f'/api/campionamenti/tree/form/?survey={survey.id}'
+        )
+
+        assert resp.status_code == 200
+        html = resp.json()[HTML]
+        assert 'name="parcel_id"' in html
+        assert 'name="number" id="id_number"' in html
+        assert 'id="id_tree_pick"' not in html
+        assert parcels[0].name in html
+
     def test_form_add_rejects_mismatched_grid(self, writer_client, sample_setup,
                                               regions, eclasses):
         """Survey on grid A + area on grid B → 404."""
@@ -349,6 +365,61 @@ class TestTreeSave:
         assert ts.tree.preserved is False
         assert ts.h_measured is True
         assert ts.volume_m3 is not None and ts.mass_q is not None
+
+    def test_create_unstructured_tree_creates_null_area_sample(
+            self, writer_client, parcels, species,
+    ):
+        survey = Survey.objects.create(name='Free tree survey')
+        n_trees_before = Tree.objects.count()
+
+        resp = self._post(writer_client, {
+            FIELD_SURVEY_ID: str(survey.id),
+            FIELD_PARCEL_ID: str(parcels[0].id),
+            FIELD_SPECIES_ID: str(species[0].id),
+            FIELD_NUMBER: '1',
+            FIELD_DATE: '2026-07-17',
+            FIELD_D_CM: '30', FIELD_H_M: '20.5', FIELD_H_MEASURED: 'true',
+            'l10_mm': '12', 'volume_m3': '0.7022', FIELD_MASS_Q: '6.32',
+            FIELD_HIGHFOREST: 'true',
+            FIELD_LAT: '38.5', FIELD_LON: '16.1',
+            FIELD_PRESERVED: '',
+        })
+
+        assert resp.status_code == 200, resp.content
+        sample = Sample.objects.get(survey=survey)
+        assert sample.sample_area_id is None
+        assert sample.date.isoformat() == '2026-07-17'
+        ts = TreeSample.objects.select_related('tree').get(sample=sample)
+        assert ts.tree.parcel == parcels[0]
+        assert ts.tree.lat == 38.5
+        assert ts.tree.lon == 16.1
+        assert ts.h_measured is True
+        assert Tree.objects.count() == n_trees_before + 1
+
+    def test_unstructured_tree_same_date_reuses_sample_but_not_tree(
+            self, writer_client, parcels, species,
+    ):
+        survey = Survey.objects.create(name='Free tree survey')
+        base = {
+            FIELD_SURVEY_ID: str(survey.id),
+            FIELD_PARCEL_ID: str(parcels[0].id),
+            FIELD_SPECIES_ID: str(species[0].id),
+            FIELD_DATE: '2026-07-17',
+            FIELD_D_CM: '30', FIELD_H_M: '20.5',
+            'l10_mm': '12', 'volume_m3': '0.7022', FIELD_MASS_Q: '6.32',
+            FIELD_HIGHFOREST: 'true',
+        }
+
+        first = self._post(writer_client, {**base, FIELD_NUMBER: '1'})
+        second = self._post(writer_client, {**base, FIELD_NUMBER: '2'})
+
+        assert first.status_code == 200, first.content
+        assert second.status_code == 200, second.content
+        assert Sample.objects.filter(survey=survey, sample_area__isnull=True).count() == 1
+        samples = TreeSample.objects.filter(sample__survey=survey).order_by(FIELD_NUMBER)
+        assert samples.count() == 2
+        assert samples[0].sample_id == samples[1].sample_id
+        assert samples[0].tree_id != samples[1].tree_id
 
     def test_create_rejects_malformed_parent_ids(self, writer_client, sample_setup):
         s = sample_setup
