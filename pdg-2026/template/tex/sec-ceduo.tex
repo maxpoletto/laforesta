@@ -1,22 +1,5 @@
-Come già anticipato, gli interventi nei cedui di castagno vengono effettuati a turni di 12, 15, o 18 anni, a seconda delle condizioni del soprassuolo.
+In base ai criteri e requisiti descritti nella sezione~\ref{sec:metodo} è stato elaborato il seguente calendario degli interventi sui cedui fino al 2050.
 
-\begin{description}
-    \item[Turno di 12 anni: avviamento a fustaia.] Nei cedui di castagno dove è presente la rinnovazione di conifere, si interviene a intervalli di 12 anni con rilascio di 30 matricine/ha per due turni per ogni intervento, in modo da favorire la competizione verticale e l'avviamento a fustaia.
-
-    \item[Turno di 15 anni: gestione ordinaria.] Dove le condizioni stazionali sono normali, si interviene a intervalli di 15 anni con rilascio di 50 matricine/ha per due turni per ogni intervento, in attesa dell'insediamento della rinnovazione di conifere o di interventi di semina.
-
-    \item[Turno di 18 anni: miglioramento stazionale.] Dove il bosco è più rado, si interviene a intervalli di 18 anni con rilascio di 75 matricine/ha per due turni per ogni intervento, con l'obbiettivo di incrementare la copertura e la lettiera e migliorare la fertilità stazionale.
-\end{description}
-
-Nel solo ceduo di leccio il turno è di 25 anni, con rilascio di 50 matricine/ha per due turni per ogni intervento, finalizzato all'incremento della copertura e dell'apporto di lettiera per il miglioramento della fertilità stazionale.
-
-I criteri definiti agli Artt. 30--31 del Regolamento di attuazione sulla ``Gestione, tutela e valorizzazione del patrimonio forestale regionale''~\cite{calabria:2024} prevedono turni minimi di 12 anni per i cedui di castagno e di 25 anni per i cedui di leccio. Inoltre, la superficie tagliata non deve superare i 10 ha per stagione silvana. Per i boschi di superficie maggiore, fino a 50 ha, sono consentiti più tagli per stagione silvana, purché separati da aree boscate di superficie pari a quella tagliata.
-
-Nello specifico, per questo piano, se una particella supera i 10 ha di superficie, i singoli interventi sono suddivisi in sub-interventi di pari superficie inferiore a 10 ha, distanziati di almeno due anni l'uno dall'altro. Inoltre, se due particelle sono adiacenti, non vengono utilizzate nello stesso anno e tutti i relativi interventi e sub-interventi devono essere distanziati di almeno due anni.
-
-Un algoritmo sviluppato ad hoc soddisfa questi requisiti selezionando le particelle nell'ordine dato dall'ultimo intervento, così da garantire una rotazione regolare.
-
-Il risultato di questo processo è il seguente calendario degli interventi pianificati per i cedui fino al 2050.
 \clearpage
 @@calendario_ceduo(particelle=particelle.csv,calendario=calendario-mannesi.csv,adiacenze=cedui-adiacenti.csv,anno_inizio=2027,anno_fine=2050)
 \clearpage
