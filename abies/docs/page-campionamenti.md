@@ -219,8 +219,9 @@ Required columns: `Compresa`, `Particella`, `Area saggio`, `Albero` (→
 these fields is missing. However, on a per-row level, it is ok for `L10_mm` to
 be 0 (not all trees are cored).
 
-Optional columns: `Data` (→ `sample.date`), `PAI` (bool, →
-`tree.preserved`).
+Optional columns: `Data` (→ `sample.date`), `PAI` (bool). `PAI=true`
+marks the sampled tree as preserved by storing a parcel-scoped
+`tree_sample.preserved_number`, using `Albero` as the preserved number.
 
 `V_m3` is computed at import time from `D_cm`, `H_m`, and the species-specific
 Tabacchi parameters in `apps/base/tabacchi.py` (vendored from `pdg-2026`).
@@ -242,8 +243,8 @@ Flow:
 4. For each row, resolves `tree_id` via the cross-sample identity convention
    (see below): same `(sample_area, Albero)` → reuse existing `tree.id`;
    otherwise create a new `tree` row.
-5. Writes `tree_sample`. `PAI=true` sets `tree.preserved=true`. `Fustaia=false`
-   sets `tree.coppice=true`.
+5. Writes `tree_sample`. `PAI=true` stores a non-null
+   `tree_sample.preserved_number`. `Fustaia=false` sets `tree.coppice=true`.
 6. Transactional. Reports success counts and a per-row error list.
 
 The Compresa+Particella+Area saggio referenced by each row must already exist in

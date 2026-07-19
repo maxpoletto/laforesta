@@ -321,14 +321,16 @@ mode-switch.
 
 ### Lazy on PAI mode (m=3)
 
-- **`preserved_trees.json`** — `tree_preserved` rows whose backing tree has
-  `preserved=true`, denormalized. Invalidated on PAI writes.
+- **`preserved_trees.json`** — current preserved/PAI tree rows, derived
+  from the latest `tree_sample` row with a non-null `preserved_number` for
+  each `(parcel_id, preserved_number)` identity. Invalidated on preserved-tree
+  sample writes.
 
   Columns: `row_id`, `version`, `Tree id`, `Parcel id`, `Species id`,
   `Compresa`, `Particella`, `Specie`, `Numero`, `Data`,
   `Anno di nascita stimato`, `D (cm)`, `h (m)`, `h misurata`, `Lat`, `Lon`,
-  `Note`. `row_id` = `tree_preserved.id`. Sorted by
-  `(Compresa, Particella, Numero)`.
+  `Note`. `row_id` = `tree_sample.id`; `Numero` is the parcel-scoped
+  `preserved_number`. Sorted by `(Compresa, Particella, Numero)`.
 
   Drives both the species/parcel scrollable lists and the per-tree
   dot map.  Filtered client-side by `pp=` / `ps=`.

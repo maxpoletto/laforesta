@@ -89,14 +89,19 @@ audited and the contract that keeps that coverage complete.
 
 ## Trees
 
-- tree: (id:int, species_id:int, estimated_birth_year:int nullable,
-  lat:real nullable, lon:real nullable, acc_m:int nullable, parcel_id:int,
+- tree: (id:int, species_id:int, parcel_id:int, lat:real nullable,
+  lon:real nullable, acc_m:int nullable, estimated_birth_year:int nullable,
   preserved:bool, coppice:bool)
-  - Denotes a tree over time. Lat/lon may be null, or may not fall within the
-    bounds of the given parcel due to measurement error (e.g., near a parcel
-    border). acc_m denotes the reported GPS error in meters, if available (e.g.,
-    during automated mark recording via Ipso).
-  - If a tree is denoted as preserved, it cannot be marked for felling.
+  - Denotes a tree identity over time. Species, coppice morphology, and
+    estimated birth year are tree-identity facts.
+  - Observation rows (`tree_sample`, `tree_mark`) carry the authoritative
+    parcel, GPS fix, GPS accuracy, operator/provenance, and measurement facts
+    for a specific field observation or operation. The parcel/location fields
+    on `tree` are best-known denormalized values kept in sync with those
+    observations for legacy consumers and fast identity lookup.
+  - `preserved` is true when the tree is currently represented by at least one
+    preserved-tree sample row; canonical preserved-tree identity is stored on
+    `tree_sample.preserved_number` (see below).
   - Coppice is true if this tree has coppice morphology. There may be coppice
     trees in a non-coppice parcel and vice-versa.
 
@@ -111,7 +116,8 @@ cross-check actual harvest mass totals; region-wide damaged/sick
 interventions may also mark trees whose parcel is technically coppice.
 A tree may in principle appear in both
 roles (sampled one year, marked some years later), but this is rare; consumers
-of either dataset should treat them as independent observations.
+of either dataset should treat them as independent observations unless a row
+explicitly reuses the same `tree_id`.
 
 ## Harvest plans
 
@@ -235,20 +241,34 @@ of either dataset should treat them as independent observations.
     values, unstructured sample grouping is source-specific application logic
     rather than a database uniqueness rule.
 
-- tree_sample: (id:int, sample_id:int, tree_id:int, shoot:int, standard:bool,
-  number:int, d_cm:int, h_m:real, h_measured:bool, l10_mm:int,
-  pressler_coeff:real, volume_m3:real nullable, mass_q:real nullable)
+- tree_sample: (id:int, sample_id:int, tree_id:int, parcel_id:int,
+  number:int, preserved_number:int nullable, shoot:int, standard:bool,
+  d_cm:int, h_m:real, l10_mm:int, pressler_coeff:real,
+  h_measured:bool, volume_m3:real nullable, mass_q:real nullable,
+  lat:real nullable, lon:real nullable, acc_m:int nullable,
+  operator:string, note:string, import_fingerprint:string nullable)
   - Measurement of a tree during a sample visit. PK is synthetic `id`.
     Two uniqueness constraints are enforced. `UNIQUE(sample_id, tree_id,
     shoot)` prevents measuring the same physical tree/shoot twice in one sample.
     `UNIQUE(sample_id, number, shoot)` prevents two different tree rows from
-    reusing the same user-facing tree/stump number and shoot within one sample.
+    reusing the same sample-local tree/stump number and shoot within one sample.
+  - `parcel_id` is the parcel asserted for this observation. It is non-null.
+    For structured samples it must match `sample.sample_area.parcel_id`; for
+    unstructured samples it is supplied by the row.
+  - `number`: 1-based counter of trees within a sample. It reflects the
+    operator/sample sequencing and is also the physical identity anchor in the
+    structured-sample convention.
+  - `preserved_number`: optional parcel-scoped number for a preserved/PAI tree.
+    A non-null value is positive and is unique within `(sample, parcel)`. Across
+    samples, rows with the same `(parcel_id, preserved_number)` must reuse the
+    same `tree_id`. The current preserved-tree state is the latest row for each
+    `(parcel_id, preserved_number)`, ordered by `sample.date DESC` then
+    `tree_sample.id DESC`.
   - `shoot`: 1-based counter for coppice shoots from one stump; 0 for
     non-coppice. Coppice rows may share the same `number` when their `shoot`
     differs.
   - `standard` ("matricina"): coppice shoot kept for growth, not harvested.
     False for non-coppice.
-  - `number`: 1-based counter of trees within a sample.
   - `h_measured` records whether `h_m` was measured in the field. Rows with
     `h_measured = false` may still be valid sample measurements, but they are
     not eligible for computing hypsometric parameters.
@@ -257,6 +277,9 @@ of either dataset should treat them as independent observations.
     JS form computes a live preview; CSV imports compute server-side.
     `mass_q` = `volume_m3 × species.density`. Both NULL for coppice rows
     (coppice harvests are mass-based at parcel level, not per-tree).
+  - `lat`, `lon`, and `acc_m` are the GPS fix and reported accuracy for this
+    observation, when present. `operator`, `note`, and `import_fingerprint`
+    carry row-level provenance and idempotency metadata.
   - Trees are decoupled from tree_samples to track growth over time.
 
 #### Deletion semantics
@@ -274,23 +297,19 @@ operation can proceed.  See `campionamenti.md` for the flow.
 
 ### Preserved trees
 
-Some trees need to be identified as "to not be harvested". They are stored in
-the tree_preserved table.
+Preserved/PAI trees are represented by `tree_sample` rows with a non-null
+`preserved_number`.
 
-- tree_preserved: (id:int, tree_id:int, parcel_id:int, number:int,
-  date:string nullable /* ISO 8601 */, d_cm:int nullable, h_m:real nullable,
-  h_measured:bool, volume_m3:real nullable, mass_q:real nullable, lat:real,
-  lon:real, acc_m:int nullable, operator:string, note:string)
-  - assert(tree_preserved.tree.preserved == true)
-  - (parcel_id, number) must be unique. number is required and identifies the
-    preserved tree within the parcel in user-facing labels. If number is left
-    blank in the PAI add/edit form, save assigns `max(number)+1` within the
-    selected parcel.
-  - date is the PAI survey date, nullable for legacy rows where no survey date
-    is available. It is distinct from tree.estimated_birth_year, which is also
-    nullable.
-  - note carries arbitrary free-text observations, e.g. health or environmental
-    conditions.
+- `preserved_number` is scoped to a parcel, not to a sample.
+- `tree_sample.number` remains the sample-local operator sequence number.
+- The stable preserved-tree identity is `(parcel_id, preserved_number)`.
+- All rows with the same `(parcel_id, preserved_number)` point to the same
+  `tree_id`.
+- The current preserved-tree row is the latest row for that identity by
+  `sample.date DESC`, with `tree_sample.id DESC` as a deterministic tie-breaker.
+
+This lets preserved trees have repeated measurement history while keeping the
+same tree identity.
 
 ### Marks
 
@@ -304,18 +323,19 @@ aggregate volume is materialized on `harvest_plan_item.volume_marked_m3`
 (see above) so the calendar view never needs to scan `tree_mark` to
 display totals.
 
-- tree_mark: (id:int, harvest_plan_item_id:int, tree_id:int,
-  number:int nullable, date:string /* ISO 8601 */, d_cm:int, h_m:real,
-  h_measured:bool, volume_m3:real, mass_q:real, lat:real, lon:real,
-  acc_m:int nullable, operator:string, import_fingerprint:string nullable)
+- tree_mark: (id:int, harvest_plan_item_id:int, tree_id:int, parcel_id:int,
+  number:int nullable, lat:real nullable, lon:real nullable,
+  acc_m:int nullable, date:string /* ISO 8601 */, d_cm:int, h_m:real,
+  h_measured:bool, volume_m3:real, mass_q:real, operator:string,
+  import_fingerprint:string nullable)
   - A (high-forest) tree being marked for felling. PK is the synthetic
     `id`; `UNIQUE(harvest_plan_item_id, tree_id)` enforces the natural
     key.
   - `harvest_plan_item_id` ties this tree mark back to the intervento.
-    The linked item's parcel (or region, if region-wide) is the parcel
-    the tree was marked in. ON DELETE PROTECT — deleting a plan item
-    with tree_marks is blocked at the DB level (see harvest_plan_item
-    deletion note above).
+    For parcel-scoped items, `parcel_id` must match the item's parcel. For
+    region-wide items, `parcel_id` must be in the item's region. ON DELETE
+    PROTECT from the plan item — deleting a plan item with tree_marks is blocked
+    at the DB level (see harvest_plan_item deletion note above).
   - `number` is the operator-assigned tree sequence number within the
     item. It may be null for marked trees that were not physically numbered
     in the field. Manual entry proposes `max(number)+1`, but the user may
@@ -332,9 +352,10 @@ display totals.
   - `volume_m3` is computed from (d_cm, h_m, species) via Tabacchi equations
     at write time. `mass_q` is `volume_m3 × species.density`. Both are
     always non-null since marks only exist in high-forest parcels.
-  - `lat`, `lon`, `acc_m`, `operator` are populated from the offline-first
-    `ipso` PWA at marking time (see `ipso/`). `acc_m` is the reported GPS
-    accuracy in meters; null when the source has no GPS reading.
+  - `lat`, `lon`, `acc_m`, `parcel_id`, and `operator` are populated from the
+    offline-first `ipso` PWA at marking time (see `ipso/`) or from manual/CSV
+    entry. `acc_m` is the reported GPS accuracy in meters; null when the source
+    has no GPS reading.
   - `import_fingerprint` is the content hash of the source CSV row, used
     for idempotent re-uploads (see `piano-di-taglio.md` "Importa CSV
     martellate"). Null for manually entered tree marks.
@@ -454,7 +475,7 @@ surveys. Eligibility is row-based, not survey-type-based: the row must have
 `h_measured = true` and must point to a non-coppice `tree`. Therefore both
 structured and unstructured surveys can be selected for hypsometry if they have
 at least one eligible row. Region attribution comes from
-`tree_sample.tree.parcel.region`, not from `sample.sample_area`, so unstructured
+`tree_sample.parcel.region`, not from `sample.sample_area`, so unstructured
 samples can participate. This is independent of `survey.active`, which is only
 the dendrometry setting.
 

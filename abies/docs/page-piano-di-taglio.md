@@ -499,5 +499,6 @@ Sorted by `Numero` ascending.
 carries the boolean `h_measured`, rendered in the table as a small
 filled / outlined dot.
 
-Preserved trees (`tree.preserved = true`) cannot become tree_marks (a
-mark form rejects them); no client-side filtering is needed.
+Preserved trees (trees with current non-null `tree_sample.preserved_number`)
+cannot become tree_marks (a mark form rejects them); no client-side filtering
+is needed.

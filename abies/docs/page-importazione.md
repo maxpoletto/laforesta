@@ -57,7 +57,10 @@ Target consistency is enforced at import time:
 - `Campionamenti`: rows must use sample areas in the selected survey's grid. If
   the Ipso session records the survey chosen by the operator, importing into a
   different survey is allowed only when both surveys use the same grid.
-- `PAI`: rows carry their own parcel and no target selector is shown.
+- `PAI`: rows carry their own parcel and no target selector is shown. Each
+  imported row becomes a preserved-tree sample row whose `number` is the
+  submitted sample-local sequence and whose `preserved_number` is the
+  parcel-scoped PAI number.
 
 Rejecting an upload is available to writers and admins only while the upload is
 still in the `received` / `Da importare` state.
@@ -79,8 +82,10 @@ they do not fill in missing numbers during import.
 - `PAI`: `number` must be a positive integer. Ipso proposes the next value for
   the selected parcel, does not allow clearing it, rejects duplicates within the
   upload for that parcel, and rejects values already present in Abies for that
-  parcel. The import page also rejects staged rows missing, invalid,
-  non-positive, or duplicate within-parcel `number` values.
+  parcel. On import this value is stored as `tree_sample.preserved_number`; the
+  row also has a sample-local `tree_sample.number`, initially the same value.
+  The import page rejects staged rows missing, invalid, non-positive, or
+  duplicate within-parcel `number` values.
 
 These checks are intentionally repeated at upload/build time and at server import
 time: mobile validation gives immediate feedback, while server validation protects

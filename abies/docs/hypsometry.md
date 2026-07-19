@@ -88,7 +88,7 @@ leaves h blank for manual entry.
   hypsometry serves high-forest marking only; and rows with non-positive or
   missing D or h are dropped.
 - Rows are grouped by (region, species): region via
-  `tree_sample → tree → parcel → region`, species via the sampled `tree`. This
+  `tree_sample → parcel → region`, species via the sampled `tree`. This
   allows both structured and unstructured surveys to participate. A group is fit
   only if it has at least `min_n` eligible rows; smaller groups produce no
   entry.

@@ -67,8 +67,6 @@ in the Controllo audit digest:
   measurements and are the highest-volume sampling rows.
 - `base.TreeMark`: intentionally excluded; martellate CSV/PWA imports are
   bulk-ish; the linked `HarvestPlanItem` aggregate is audited instead.
-- `base.TreePreserved`: intentionally excluded; PAI/preserved trees may
-  be bulk imported.
 - Junction/detail tables such as `prelievi.HarvestSpecies`,
   `prelievi.HarvestTractor`, `base.HypsoParamSetSurvey`, and other
   many-to-many or child rows are not individually audited unless
