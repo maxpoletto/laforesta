@@ -52,8 +52,9 @@ def test_validate_rows_happy_path(survey_with_area):
     idx = csv_trees.db_indexes(survey_with_area['survey'])
     parcel = survey_with_area['parcel']
     csv_text = (
-        TREE_HEADER + '\n'
-        f'{parcel.region.name},{parcel.name},1,1,0,False,30,15.5,250,2,Abete,True\n'
+        f'{TREE_HEADER},{S.CSV_COL_OPERATOR},{S.CSV_COL_NOTE}\n'
+        f'{parcel.region.name},{parcel.name},1,1,0,False,30,15.5,250,2,'
+        'Abete,True,Mario Rossi,nota campo\n'
     )
     parsed, errors = _validate(csv_text, idx)
     assert errors == []
@@ -248,8 +249,9 @@ def test_apply_creates_sample_and_treesample(survey_with_area):
     idx = csv_trees.db_indexes(survey)
     parcel = survey_with_area['parcel']
     csv_text = (
-        TREE_HEADER + '\n'
-        f'{parcel.region.name},{parcel.name},1,1,0,False,30,15.5,250,2,Abete,True\n'
+        f'{TREE_HEADER},{S.CSV_COL_OPERATOR},{S.CSV_COL_NOTE}\n'
+        f'{parcel.region.name},{parcel.name},1,1,0,False,30,15.5,250,2,'
+        'Abete,True,Mario Rossi,nota campo\n'
     )
     parsed, errors = _validate(csv_text, idx)
     assert errors == []
@@ -260,6 +262,9 @@ def test_apply_creates_sample_and_treesample(survey_with_area):
     assert ts.number == 1
     assert ts.d_cm == 30
     assert ts.pressler_coeff == 2
+    assert ts.parcel == parcel
+    assert ts.operator == 'Mario Rossi'
+    assert ts.note == 'nota campo'
 
 
 @pytest.mark.django_db

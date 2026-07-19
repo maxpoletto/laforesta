@@ -28,7 +28,7 @@ from config.constants import (
     FIELD_CSV_TEXT, FIELD_D_CM, FIELD_DAMAGED, FIELD_DATE,
     FIELD_HARVEST_PLAN_ITEM_ID, FIELD_H_M, FIELD_H_MEASURED,
     FIELD_HYPSO_PARAM_SET_ID, FIELD_LAT, FIELD_LON, FIELD_MODE,
-    FIELD_MODE_LABEL, FIELD_NONCE, FIELD_NUMBER, FIELD_OPERATOR,
+    FIELD_MODE_LABEL, FIELD_NONCE, FIELD_NOTE, FIELD_NUMBER, FIELD_OPERATOR,
     FIELD_PARCEL, FIELD_PARCEL_ID, FIELD_REASON, FIELD_RECORD_DATE,
     FIELD_REGION_ID, FIELD_SAMPLE_AREA_ID, FIELD_SCHEMA_VERSION,
     FIELD_SEQ, FIELD_SESSION_ID, FIELD_SHOOT, FIELD_SPECIES, FIELD_SPECIES_ID,
@@ -201,7 +201,8 @@ def test_reference_json_comes_from_abies_data(db, regions, parcels, species):
         species=species[0], parcel=parcels[0], coppice=False,
     )
     TreeSample.objects.create(
-        sample=sample, tree=sampled_tree, number=8, d_cm=30, h_m=Decimal('18.00'),
+        sample=sample, tree=sampled_tree, parcel=parcels[0],
+        number=8, d_cm=30, h_m=Decimal('18.00'),
     )
     preserved_tree = Tree.objects.create(
         species=species[0], parcel=parcels[0], preserved=True,
@@ -1608,7 +1609,7 @@ def test_martellate_import_rejects_duplicate_mark_number(
     item = _harvest_item(parcels)
     tree = Tree.objects.create(species=species[0], parcel=parcels[0])
     TreeMark.objects.create(
-        harvest_plan_item=item, tree=tree, number=7,
+        harvest_plan_item=item, tree=tree, parcel=parcels[0], number=7,
         date=date(2026, 6, 16), d_cm=30, h_m=Decimal('18.00'),
         operator='Mario Rossi',
     )
@@ -1685,7 +1686,7 @@ def test_martellate_import_preserves_blank_numbers_without_auto_numbering(
     for n in [1, 2, 3]:
         tree = Tree.objects.create(species=species[0], parcel=parcels[0])
         TreeMark.objects.create(
-            harvest_plan_item=item, tree=tree, number=n,
+            harvest_plan_item=item, tree=tree, parcel=parcels[0], number=n,
             date=date(2026, 6, 16), d_cm=30, h_m=Decimal('18.00'),
             operator='Mario Rossi',
         )
@@ -1921,7 +1922,11 @@ def test_writer_imports_samples_upload_into_survey(
     payload = _upload_payload(
         parcels, species, mode='samples',
         session_id='22222222-2222-4222-8222-222222222222',
-        record_overrides={FIELD_SAMPLE_AREA_ID: area.id, FIELD_H_MEASURED: True},
+        record_overrides={
+            FIELD_SAMPLE_AREA_ID: area.id,
+            FIELD_H_MEASURED: True,
+            FIELD_NOTE: 'nota rilevamento',
+        },
     )
     payload[RECORDS].append({
         **payload[RECORDS][0],
@@ -1951,7 +1956,7 @@ def test_writer_imports_samples_upload_into_survey(
     assert sample.date == date(2026, 6, 17)
     samples = list(
         TreeSample.objects
-        .select_related('tree', 'tree__species')
+        .select_related('tree', 'tree__species', 'parcel')
         .filter(sample=sample)
         .order_by(FIELD_NUMBER)
     )
@@ -1961,6 +1966,12 @@ def test_writer_imports_samples_upload_into_survey(
     assert ts.tree.species == species[0]
     assert ts.tree.lat == 38.51234
     assert ts.tree.lon == 16.12345
+    assert ts.parcel == parcels[0]
+    assert ts.lat == 38.51234
+    assert ts.lon == 16.12345
+    assert ts.acc_m == 5
+    assert ts.operator == 'Mario Rossi'
+    assert ts.note == 'nota rilevamento'
     assert ts.number == 1
     assert ts.d_cm == 42
     assert ts.h_m == Decimal('22.00')
@@ -2103,7 +2114,8 @@ def test_samples_import_rejects_existing_number_shoot(
     sample = Sample.objects.create(survey=survey, sample_area=area, date=date(2026, 6, 17))
     tree = Tree.objects.create(species=species[0], parcel=parcels[0])
     TreeSample.objects.create(
-        sample=sample, tree=tree, number=1, d_cm=30, h_m=Decimal('18.00'),
+        sample=sample, tree=tree, parcel=parcels[0],
+        number=1, d_cm=30, h_m=Decimal('18.00'),
     )
     payload = _upload_payload(
         parcels, species, mode='samples',

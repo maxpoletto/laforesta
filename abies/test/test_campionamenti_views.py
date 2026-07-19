@@ -63,7 +63,7 @@ def sample_setup(db, regions, eclasses, species):
         species=species[0], parcel=parcel, preserved=False, coppice=False,
     )
     TreeSample.objects.create(
-        sample=sample, tree=tree, shoot=0, standard=False,
+        sample=sample, tree=tree, parcel=parcel, shoot=0, standard=False,
         number=1, d_cm=30, h_m=Decimal('20.00'),
         l10_mm=10, volume_m3=Decimal('0.7022'), mass_q=Decimal('6.32'),
     )
@@ -569,7 +569,8 @@ class TestTreeSave:
             preserved=False, coppice=False,
         )
         TreeSample.objects.create(
-            sample=other_sample, tree=other_tree, shoot=0, standard=False,
+            sample=other_sample, tree=other_tree, parcel=other_parcel,
+            shoot=0, standard=False,
             number=7, d_cm=50, h_m=Decimal('30.00'), l10_mm=0,
             volume_m3=Decimal('1.0'), mass_q=Decimal('9.0'),
         )
@@ -742,7 +743,8 @@ class TestTreeFormPriorTrees:
             coppice=False,
         )
         TreeSample.objects.create(
-            sample=other_sample, tree=other_tree, shoot=0, standard=False,
+            sample=other_sample, tree=other_tree, parcel=s['area'].parcel,
+            shoot=0, standard=False,
             number=1, d_cm=36, h_m=Decimal('22.00'), l10_mm=0,
         )
 
@@ -834,8 +836,8 @@ class TestTreeFormPriorTrees:
         )
         for sh in (1, 2):
             TreeSample.objects.create(
-                sample=s['sample'], tree=coppice_tree, shoot=sh,
-                standard=(sh == 2), number=7,
+                sample=s['sample'], tree=coppice_tree, parcel=s['area'].parcel,
+                shoot=sh, standard=(sh == 2), number=7,
                 d_cm=5 + sh, h_m=Decimal('8.00'), l10_mm=0,
             )
         second_survey = Survey.objects.create(
@@ -990,7 +992,7 @@ class TestTreeSaveCoppice:
             preserved=False, coppice=True,
         )
         TreeSample.objects.create(
-            sample=s['sample'], tree=existing, shoot=1,
+            sample=s['sample'], tree=existing, parcel=s['area'].parcel, shoot=1,
             standard=False, number=42,
             d_cm=5, h_m=Decimal('8.00'), l10_mm=0,
         )
@@ -1031,7 +1033,8 @@ class TestTreeSaveCoppice:
             preserved=False, coppice=True,
         )
         TreeSample.objects.create(
-            sample=s['sample'], tree=existing, shoot=1, standard=False,
+            sample=s['sample'], tree=existing, parcel=s['area'].parcel,
+            shoot=1, standard=False,
             number=99, d_cm=5, h_m=Decimal('8.00'), l10_mm=0,
         )
         resp = self._post(writer_client, {
@@ -1057,11 +1060,13 @@ class TestTreeSaveCoppice:
             preserved=False, coppice=True,
         )
         ts1 = TreeSample.objects.create(
-            sample=s['sample'], tree=tree, shoot=1, standard=False,
+            sample=s['sample'], tree=tree, parcel=s['area'].parcel,
+            shoot=1, standard=False,
             number=15, d_cm=5, h_m=Decimal('8.00'), l10_mm=0,
         )
         ts2 = TreeSample.objects.create(
-            sample=s['sample'], tree=tree, shoot=2, standard=True,
+            sample=s['sample'], tree=tree, parcel=s['area'].parcel,
+            shoot=2, standard=True,
             number=15, d_cm=6, h_m=Decimal('8.50'), l10_mm=12,
         )
         n_ts_before = TreeSample.objects.count()

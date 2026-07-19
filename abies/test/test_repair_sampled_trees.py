@@ -40,7 +40,7 @@ def _setup_domain():
     )
     sampled_tree = Tree.objects.create(species=species, parcel=parcel)
     TreeSample.objects.create(
-        sample=sample, tree=sampled_tree, number=1, shoot=0,
+        sample=sample, tree=sampled_tree, parcel=parcel, number=1, shoot=0,
         d_cm=30, h_m=Decimal('15.0'),
     )
     preserved_tree = Tree.objects.create(
@@ -80,8 +80,9 @@ def test_repair_sampled_trees_refuses_sampled_tree_referenced_by_mark(tmp_path):
         harvest_plan=plan, parcel=sampled_tree.parcel, year_planned=2026,
     )
     TreeMark.objects.create(
-        harvest_plan_item=item, tree=sampled_tree, number=1,
-        date='2026-01-01', d_cm=30, h_m=Decimal('18.0'), operator='Rossi',
+        harvest_plan_item=item, tree=sampled_tree, parcel=sampled_tree.parcel,
+        number=1, date='2026-01-01', d_cm=30, h_m=Decimal('18.0'),
+        operator='Rossi',
     )
     data_dir = _write_canonical(tmp_path, _replacement_csv())
 

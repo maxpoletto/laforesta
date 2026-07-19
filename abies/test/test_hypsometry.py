@@ -120,8 +120,8 @@ def test_compute_params_ignores_unmeasured_unstructured_samples(
     for number, d_cm in enumerate((30, 32, 34, 36, 38, 40), start=1):
         tree = Tree.objects.create(species=species[0], parcel=parcels[0])
         TreeSample.objects.create(
-            sample=sample, tree=tree, number=number, d_cm=d_cm,
-            h_m=Decimal('99.00'),
+            sample=sample, tree=tree, parcel=parcels[0],
+            number=number, d_cm=d_cm, h_m=Decimal('99.00'),
         )
 
     rows = hypsometry.compute_params(
@@ -227,7 +227,7 @@ def test_compute_params_groups_by_region(hypso_samples, regions, eclasses):
     for i, d in enumerate([8, 10, 12, 15, 18, 20, 24, 28, 32, 36], start=1):
         tree = Tree.objects.create(species=sp, parcel=parcel2, coppice=False)
         TreeSample.objects.create(
-            sample=sample2, tree=tree, shoot=0, standard=False,
+            sample=sample2, tree=tree, parcel=parcel2, shoot=0, standard=False,
             number=i, d_cm=d, h_m=Decimal(str(round(6.5 * math.log(d) - 3, 2))),
             h_measured=True,
         )

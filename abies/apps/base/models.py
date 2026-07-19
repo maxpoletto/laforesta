@@ -598,6 +598,7 @@ class TreeMark(TimestampedModel):
         related_name='tree_marks',
     )
     tree = models.ForeignKey(Tree, on_delete=models.CASCADE)
+    parcel = models.ForeignKey(Parcel, on_delete=models.PROTECT)
     number = models.IntegerField(null=True, blank=True)
     date = models.DateField()
     d_cm = models.IntegerField()
@@ -638,9 +639,11 @@ class TreeSample(TimestampedModel):
     """
     sample = models.ForeignKey(Sample, on_delete=models.CASCADE)
     tree = models.ForeignKey(Tree, on_delete=models.PROTECT)
+    parcel = models.ForeignKey(Parcel, on_delete=models.PROTECT)
     shoot = models.IntegerField(default=0)
     standard = models.BooleanField(default=False)
     number = models.IntegerField()
+    preserved_number = models.IntegerField(null=True, blank=True)
     d_cm = models.IntegerField()
     h_m = models.DecimalField(max_digits=5, decimal_places=2)
     h_measured = models.BooleanField(default=False)
@@ -657,6 +660,12 @@ class TreeSample(TimestampedModel):
         max_digits=8, decimal_places=3, null=True, blank=True,
         help_text='volume_m3 × species.density; NULL for coppice rows.',
     )
+    lat = models.FloatField(null=True, blank=True)
+    lon = models.FloatField(null=True, blank=True)
+    acc_m = models.IntegerField(null=True, blank=True)
+    operator = models.CharField(max_length=100, blank=True)
+    note = models.TextField(blank=True)
+    import_fingerprint = models.CharField(max_length=67, null=True, blank=True)
     # Deliberately NOT history-tracked: measurements are written in bulk by
     # CSV import (one per sampled tree) and would swamp the Controllo audit
     # log.  Excluded from the audit by design.
@@ -669,6 +678,18 @@ class TreeSample(TimestampedModel):
             models.UniqueConstraint(
                 fields=['sample', 'number', 'shoot'],
                 name='uniq_tree_sample_number_shoot',
+            ),
+            models.UniqueConstraint(
+                fields=['sample', 'parcel', 'preserved_number'],
+                condition=models.Q(preserved_number__isnull=False),
+                name='uniq_tree_sample_preserved_number_per_sample_parcel',
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(preserved_number__isnull=True) |
+                    models.Q(preserved_number__gt=0)
+                ),
+                name='tree_sample_preserved_number_positive',
             ),
         ]
 

@@ -78,6 +78,12 @@ def sample_import_rows(payload: dict, survey: Survey) -> tuple[list[dict], list[
         .filter(sample__survey=survey, sample__sample_area_id__in=area_ids)
         .values_list('sample__sample_area_id', FIELD_NUMBER, FIELD_SHOOT)
     )
+    session = payload.get(SESSION, {}) if isinstance(payload, dict) else {}
+    session_operator = (
+        (session.get(FIELD_OPERATOR) or '').strip()
+        if isinstance(session, dict) else ''
+    )
+
     rows = []
     errors = []
     csv_date_by_area = {}
@@ -102,7 +108,7 @@ def sample_import_rows(payload: dict, survey: Survey) -> tuple[list[dict], list[
         if record.get(FIELD_NUMBER) is None:
             errors.append(S.IPSO_ERR_RECORD_NUMBER_REQUIRED.format(i))
             continue
-        parsed = _sample_record_values(record, area, sp)
+        parsed = _sample_record_values(record, area, sp, session_operator)
         if parsed is None:
             errors.append(S.IPSO_ERR_IMPORT_RECORD_SAMPLE_FIELDS_INVALID.format(i))
             continue
@@ -219,7 +225,9 @@ def record_measurements(record: dict) -> TreeMeasurements | None:
     return TreeMeasurements(date=row_date, d_cm=d_cm, h_m=h_m)
 
 
-def _sample_record_values(record: dict, area: SampleArea, sp: Species) -> dict | None:
+def _sample_record_values(
+        record: dict, area: SampleArea, sp: Species, session_operator: str,
+) -> dict | None:
     measurements = record_measurements(record)
     if measurements is None:
         return None
@@ -259,6 +267,8 @@ def _sample_record_values(record: dict, area: SampleArea, sp: Species) -> dict |
         l10_mm=values.l10_mm, pressler_coeff=values.pressler_coeff,
         lat=record.get(FIELD_LAT),
         lon=record.get(FIELD_LON), acc_m=record.get(FIELD_ACC_M),
+        operator=(record.get(FIELD_OPERATOR) or session_operator).strip(),
+        note=(record.get(FIELD_NOTE) or '').strip(),
     )
 
 

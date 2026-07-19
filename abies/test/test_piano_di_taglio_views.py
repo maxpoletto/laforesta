@@ -1078,7 +1078,8 @@ class TestItemExport:
             species=species[0], parcel=planned_item.parcel,
             lat=38.5, lon=16.3, acc_m=5)
         tm = TreeMark.objects.create(
-            harvest_plan_item=planned_item, tree=tree, number=1440,
+            harvest_plan_item=planned_item, tree=tree, parcel=planned_item.parcel,
+            number=1440,
             date=date_type(2025, 6, 1), d_cm=30, h_m=Decimal('20.0'),
             h_measured=False, volume_m3=Decimal('0.7'), mass_q=Decimal('0.5'),
             lat=38.5, lon=16.3, acc_m=5, operator='Mario')

@@ -276,21 +276,24 @@ class TestGenerateMarkTreesForItem:
     def marks(self, fustaia_item, trees):
         return [
             TreeMark.objects.create(
-                harvest_plan_item=fustaia_item, tree=trees[0], number=1,
+                harvest_plan_item=fustaia_item, tree=trees[0],
+                parcel=trees[0].parcel, number=1,
                 date='2025-06-15', d_cm=40, h_m=Decimal('22.5'),
                 h_measured=True,
                 volume_m3=Decimal('1.5'), mass_q=Decimal('13.5'),
                 lat=38.4, lon=16.1, operator='Mario',
             ),
             TreeMark.objects.create(
-                harvest_plan_item=fustaia_item, tree=trees[1], number=2,
+                harvest_plan_item=fustaia_item, tree=trees[1],
+                parcel=trees[1].parcel, number=2,
                 date='2025-06-10', d_cm=35, h_m=Decimal('20.0'),
                 h_measured=False,
                 volume_m3=Decimal('1.0'), mass_q=Decimal('9.2'),
                 lat=38.41, lon=16.11, operator='Luigi',
             ),
             TreeMark.objects.create(
-                harvest_plan_item=fustaia_item, tree=trees[2], number=3,
+                harvest_plan_item=fustaia_item, tree=trees[2],
+                parcel=trees[2].parcel, number=3,
                 date='2025-06-15', d_cm=50, h_m=Decimal('25.0'),
                 h_measured=True,
                 volume_m3=Decimal('2.2'), mass_q=Decimal('19.8'),
@@ -340,7 +343,7 @@ class TestGenerateMarkTreesForItem:
         from apps.base.models import Tree
         other_tree = Tree.objects.create(species=trees[0].species, parcel=parcels[1])
         TreeMark.objects.create(
-            harvest_plan_item=other, tree=other_tree, number=1,
+            harvest_plan_item=other, tree=other_tree, parcel=parcels[1], number=1,
             date='2025-07-01', d_cm=30, h_m=Decimal('18.0'),
             volume_m3=Decimal('0.8'), mass_q=Decimal('7.2'),
             lat=38.5, lon=16.2, operator='X',
@@ -357,7 +360,7 @@ class TestGenerateMarkTreesForItem:
         for row in data[ROWS]:
             tm_id = row[data[COLUMNS].index(ROW_ID)]
             tm = (TreeMark.objects
-                  .select_related('tree__species').get(pk=tm_id))
+                  .select_related('tree__species', 'parcel__region').get(pk=tm_id))
             assert build_tree_mark_record(tm) == row
 
 

@@ -658,7 +658,7 @@ class TestDendrometrySettings:
         for number in (1, 2):
             tree = Tree.objects.create(species=species[0], parcel=parcels[0])
             TreeSample.objects.create(
-                sample=sample, tree=tree, shoot=0, standard=False,
+                sample=sample, tree=tree, parcel=parcels[0], shoot=0, standard=False,
                 number=number, d_cm=30, h_m=Decimal('20.00'), l10_mm=10,
                 volume_m3=Decimal('1.0000'), mass_q=Decimal('9.000'),
             )

@@ -19,8 +19,8 @@ from config import strings as S
 from config.constants import (
     BOSCO_TREE_DIGESTS, FIELD_ACC_M, FIELD_AREA, FIELD_COPPICE, FIELD_DATE,
     FIELD_D_CM, FIELD_H_M, FIELD_H_MEASURED, FIELD_L10_MM, FIELD_LAT, FIELD_LON,
-    FIELD_MASS_Q,
-    FIELD_NUMBER, FIELD_PARCEL,
+    FIELD_MASS_Q, FIELD_NOTE,
+    FIELD_NUMBER, FIELD_OPERATOR, FIELD_PARCEL, FIELD_PRESERVED_NUMBER,
     FIELD_PRESERVED, FIELD_PRESSLER_COEFF, FIELD_SHOOT, FIELD_SPECIES,
     FIELD_STANDARD, FIELD_VOLUME_M3,
     TREE_H_QUANTUM,
@@ -32,7 +32,10 @@ TREE_CSV_REQUIRED = [S.CSV_COL_REGION, S.CSV_COL_PARCEL,
                      S.CSV_COL_D_CM, S.CSV_COL_H_M, S.CSV_COL_L10_MM,
                      S.CSV_COL_PRESSLER, S.CSV_COL_SPECIES,
                      S.CSV_COL_HIGHFOREST]
-TREE_CSV_OPTIONAL = [S.CSV_COL_DATA, S.CSV_COL_PRESERVED, S.CSV_COL_H_MEASURED]
+TREE_CSV_OPTIONAL = [
+    S.CSV_COL_DATA, S.CSV_COL_PRESERVED, S.CSV_COL_H_MEASURED,
+    S.CSV_COL_OPERATOR, S.CSV_COL_NOTE,
+]
 
 
 @dataclass
@@ -186,6 +189,8 @@ def validate_rows(reader, idx: TreeIndexes, *, has_date_column, default_date):
             standard=standard, d_cm=values.d_cm, h_m=values.h_m,
             h_measured=values.h_measured, l10_mm=values.l10_mm,
             pressler_coeff=values.pressler_coeff,
+            operator=(row.get(S.CSV_COL_OPERATOR) or '').strip(),
+            note=(row.get(S.CSV_COL_NOTE) or '').strip(),
             volume_species_name=mapped,
         ))
     return parsed, errors
@@ -205,7 +210,7 @@ def tree_volume_and_mass(coppice, d_cm, h_m, species, species_name=None):
 def parsed_tree_row(
         *, area, row_date, species, coppice, preserved, number, shoot, standard,
         d_cm, h_m, l10_mm, pressler_coeff, h_measured=False, lat=None, lon=None,
-        acc_m=None,
+        acc_m=None, operator='', note='',
         volume_species_name=None,
 ):
     h_m = h_m.quantize(TREE_H_QUANTUM, rounding=ROUND_HALF_UP)
@@ -219,6 +224,7 @@ def parsed_tree_row(
         FIELD_SPECIES: species,
         FIELD_COPPICE: coppice,
         FIELD_PRESERVED: preserved,
+        FIELD_PRESERVED_NUMBER: number if preserved else None,
         FIELD_NUMBER: number,
         FIELD_SHOOT: shoot,
         FIELD_STANDARD: standard,
@@ -232,6 +238,8 @@ def parsed_tree_row(
         FIELD_LAT: lat,
         FIELD_LON: lon,
         FIELD_ACC_M: acc_m,
+        FIELD_OPERATOR: operator,
+        FIELD_NOTE: note,
     }
 
 
@@ -277,12 +285,16 @@ def apply(survey, parsed) -> dict:
                 )
                 tree_by_identity[identity] = tree
             TreeSample.objects.create(
-                sample=sample, tree=tree, shoot=r[FIELD_SHOOT],
-                standard=r[FIELD_STANDARD], number=r[FIELD_NUMBER],
+                sample=sample, tree=tree, parcel=r[FIELD_PARCEL],
+                shoot=r[FIELD_SHOOT], standard=r[FIELD_STANDARD],
+                number=r[FIELD_NUMBER],
+                preserved_number=r[FIELD_PRESERVED_NUMBER],
                 d_cm=r[FIELD_D_CM], h_m=r[FIELD_H_M],
                 h_measured=r[FIELD_H_MEASURED], l10_mm=r[FIELD_L10_MM],
                 pressler_coeff=r[FIELD_PRESSLER_COEFF],
                 volume_m3=r[FIELD_VOLUME_M3], mass_q=r[FIELD_MASS_Q],
+                lat=r[FIELD_LAT], lon=r[FIELD_LON], acc_m=r[FIELD_ACC_M],
+                operator=r[FIELD_OPERATOR], note=r[FIELD_NOTE],
             )
             n_trees += 1
 

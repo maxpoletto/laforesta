@@ -420,7 +420,9 @@ class TestGenerateBoscoDigests:
             species=species[0], parcel=parcels[0], lat=38.1, lon=16.2,
         )
         ts = TreeSample.objects.create(
-            sample=sample, tree=tree, number=12, d_cm=30, h_m=Decimal('17.50'),
+            sample=sample, tree=tree, parcel=parcels[0], number=12,
+            d_cm=30, h_m=Decimal('17.50'),
+            lat=38.1, lon=16.2,
         )
 
         generate_sampled_trees_for_survey(survey.id)
@@ -445,7 +447,8 @@ class TestGenerateBoscoDigests:
         )
         tree = Tree.objects.create(species=species[0], parcel=parcels[0])
         TreeSample.objects.create(
-            sample=sample, tree=tree, number=12, d_cm=30, h_m=Decimal('17.50'),
+            sample=sample, tree=tree, parcel=parcels[0], number=12,
+            d_cm=30, h_m=Decimal('17.50'),
             volume_m3=Decimal('0.1000'), mass_q=Decimal('1.000'),
         )
 
@@ -473,17 +476,17 @@ class TestGenerateBoscoDigests:
         tree2 = Tree.objects.create(species=species[0], parcel=parcels[0])
         tree3 = Tree.objects.create(species=species[1], parcel=parcels[0])
         ts1 = TreeSample.objects.create(
-            sample=sample, tree=tree1, number=1, d_cm=18,
+            sample=sample, tree=tree1, parcel=parcels[0], number=1, d_cm=18,
             h_m=Decimal('20.00'), l10_mm=9,
             volume_m3=Decimal('0.1000'), mass_q=Decimal('1.000'),
         )
         ts2 = TreeSample.objects.create(
-            sample=sample, tree=tree2, number=2, d_cm=22,
+            sample=sample, tree=tree2, parcel=parcels[0], number=2, d_cm=22,
             h_m=Decimal('22.00'), l10_mm=0,
             volume_m3=Decimal('0.2000'), mass_q=Decimal('2.000'),
         )
         ts3 = TreeSample.objects.create(
-            sample=inactive_sample, tree=tree3, number=1, d_cm=40,
+            sample=inactive_sample, tree=tree3, parcel=parcels[0], number=1, d_cm=40,
             h_m=Decimal('30.00'), l10_mm=20,
             volume_m3=Decimal('9.0000'), mass_q=Decimal('9.000'),
         )

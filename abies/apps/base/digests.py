@@ -907,25 +907,23 @@ SAMPLED_TREE_COLUMNS = [ROW_ID, VERSION, S.COL_SAMPLE_AREA,
 def build_tree_sample_record(ts) -> list:
     """Build one row of the `sampled_trees_<survey>` digest.
 
-    Structured samples use their sample area's parcel and area coordinates.
-    Unstructured samples have no sample area, so the digest falls back to the
-    tree's parcel and tree coordinates.  Caller must pre-load the relevant
-    parcel/species relations.
+    Structured samples use their sample area's area coordinates when the row
+    has no GPS fix.  Parcel always comes from the row-level observation field.
+    Caller must pre-load the relevant parcel/species relations.
     """
     tree = ts.tree
     sa = ts.sample.sample_area
+    parcel = ts.parcel
     if sa is None:
-        parcel = tree.parcel
         area_id = None
         area_number = ''
-        lat = tree.lat
-        lon = tree.lon
+        lat = ts.lat
+        lon = ts.lon
     else:
-        parcel = sa.parcel
         area_id = sa.id
         area_number = sa.number
-        lat = tree.lat if tree.lat is not None else sa.lat
-        lon = tree.lon if tree.lon is not None else sa.lon
+        lat = ts.lat if ts.lat is not None else sa.lat
+        lon = ts.lon if ts.lon is not None else sa.lon
     return [
         ts.id, ts.version, area_id, ts.sample.date.isoformat(),
         parcel.region.name, parcel.name, area_number,
@@ -936,7 +934,7 @@ def build_tree_sample_record(ts) -> list:
         ts.d_cm, float(ts.h_m), ts.l10_mm, float(ts.pressler_coeff),
         float(ts.volume_m3) if ts.volume_m3 is not None else None,
         float(ts.mass_q) if ts.mass_q is not None else None,
-        tree.preserved,
+        ts.preserved_number is not None,
         lat, lon,
     ]
 
@@ -952,11 +950,8 @@ def generate_sampled_trees_for_survey(survey_id: int) -> None:
     qs = (TreeSample.objects
           .filter(sample__survey_id=survey_id)
           .select_related('sample', 'sample__sample_area__parcel__region',
-                          'tree__species', 'tree__parcel__region')
-          .order_by('sample__sample_area__parcel__region__name',
-                    'tree__parcel__region__name',
-                    'sample__sample_area__parcel__name',
-                    'tree__parcel__name',
+                          'tree__species', 'parcel__region')
+          .order_by('parcel__region__name', 'parcel__name',
                     'sample__sample_area__number', FIELD_NUMBER, FIELD_SHOOT))
     rows = [build_tree_sample_record(ts) for ts in qs]
     _write_gzip_json(

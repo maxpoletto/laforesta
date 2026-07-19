@@ -125,7 +125,7 @@ def import_mark_rows(item: HarvestPlanItem, rows: list[MarkImportRow]) -> MarkIm
                 lat=row.lat, lon=row.lon, acc_m=row.acc_m,
             )
             TreeMark.objects.create(
-                harvest_plan_item=item, tree=tree,
+                harvest_plan_item=item, tree=tree, parcel=row.parcel,
                 number=row.number,
                 date=row.date, d_cm=row.d_cm, h_m=row.h_m,
                 h_measured=row.h_measured,

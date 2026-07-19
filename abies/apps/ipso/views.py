@@ -1463,6 +1463,8 @@ def _normalize_record(mode: str, index: int, row: object) -> dict:
             FIELD_L10_MM: l10_mm,
             FIELD_PRESSLER_COEFF: format(pressler_coeff, 'f'),
             FIELD_PRESERVED: _opt_bool(row, FIELD_PRESERVED) or False,
+            FIELD_OPERATOR: _opt_str(row, FIELD_OPERATOR),
+            FIELD_NOTE: _opt_str(row, FIELD_NOTE),
         })
     elif mode == IPSO_MODE_PAI:
         normalized.update({

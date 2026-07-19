@@ -115,12 +115,12 @@ class TestConstraints:
         tree1 = Tree.objects.create(species=species[0], parcel=parcels[0])
         tree2 = Tree.objects.create(species=species[0], parcel=parcels[0])
         TreeMark.objects.create(
-            harvest_plan_item=planned_item, tree=tree1, number=7,
+            harvest_plan_item=planned_item, tree=tree1, parcel=parcels[0], number=7,
             date='2026-07-05', d_cm=30, h_m=Decimal('20.0'), operator='Mario',
         )
         with pytest.raises(IntegrityError), transaction.atomic():
             TreeMark.objects.create(
-                harvest_plan_item=planned_item, tree=tree2, number=7,
+                harvest_plan_item=planned_item, tree=tree2, parcel=parcels[0], number=7,
                 date='2026-07-05', d_cm=31, h_m=Decimal('21.0'), operator='Mario',
             )
 
@@ -129,11 +129,11 @@ class TestConstraints:
         tree1 = Tree.objects.create(species=species[0], parcel=parcels[0])
         tree2 = Tree.objects.create(species=species[0], parcel=parcels[0])
         TreeMark.objects.create(
-            harvest_plan_item=planned_item, tree=tree1, number=None,
+            harvest_plan_item=planned_item, tree=tree1, parcel=parcels[0], number=None,
             date='2026-07-05', d_cm=30, h_m=Decimal('20.0'), operator='Mario',
         )
         TreeMark.objects.create(
-            harvest_plan_item=planned_item, tree=tree2, number=None,
+            harvest_plan_item=planned_item, tree=tree2, parcel=parcels[0], number=None,
             date='2026-07-05', d_cm=31, h_m=Decimal('21.0'), operator='Mario',
         )
         assert TreeMark.objects.filter(harvest_plan_item=planned_item).count() == 2
@@ -149,13 +149,13 @@ class TestConstraints:
         tree1 = Tree.objects.create(species=species[0], parcel=parcels[0])
         tree2 = Tree.objects.create(species=species[0], parcel=parcels[0])
         ts = TreeSample.objects.create(
-            sample=sample, tree=tree1, number=4, shoot=0,
+            sample=sample, tree=tree1, parcel=parcels[0], number=4, shoot=0,
             d_cm=30, h_m=Decimal('20.0'),
         )
         assert ts.h_measured is False
         with pytest.raises(IntegrityError), transaction.atomic():
             TreeSample.objects.create(
-                sample=sample, tree=tree2, number=4, shoot=0,
+                sample=sample, tree=tree2, parcel=parcels[0], number=4, shoot=0,
                 d_cm=31, h_m=Decimal('21.0'),
             )
 
@@ -169,14 +169,45 @@ class TestConstraints:
         sample = Sample.objects.create(sample_area=area, survey=survey, date='2026-07-05')
         tree = Tree.objects.create(species=species[0], parcel=parcels[0])
         TreeSample.objects.create(
-            sample=sample, tree=tree, number=4, shoot=1,
+            sample=sample, tree=tree, parcel=parcels[0], number=4, shoot=1,
             d_cm=30, h_m=Decimal('20.0'),
         )
         TreeSample.objects.create(
-            sample=sample, tree=tree, number=4, shoot=2,
+            sample=sample, tree=tree, parcel=parcels[0], number=4, shoot=2,
             d_cm=31, h_m=Decimal('21.0'),
         )
         assert TreeSample.objects.filter(sample=sample, number=4).count() == 2
+
+    def test_tree_sample_preserved_number_unique_within_sample_parcel(
+            self, parcels, species,
+    ):
+        survey = Survey.objects.create(name='PAI sample uniqueness survey')
+        sample = Sample.objects.create(
+            sample_area=None, survey=survey, date='2026-07-05',
+        )
+        tree1 = Tree.objects.create(species=species[0], parcel=parcels[0])
+        tree2 = Tree.objects.create(species=species[0], parcel=parcels[0])
+        TreeSample.objects.create(
+            sample=sample, tree=tree1, parcel=parcels[0],
+            number=1, preserved_number=7, d_cm=30, h_m=Decimal('20.0'),
+        )
+        with pytest.raises(IntegrityError), transaction.atomic():
+            TreeSample.objects.create(
+                sample=sample, tree=tree2, parcel=parcels[0],
+                number=2, preserved_number=7, d_cm=31, h_m=Decimal('21.0'),
+            )
+
+    def test_tree_sample_preserved_number_must_be_positive(self, parcels, species):
+        survey = Survey.objects.create(name='PAI positive survey')
+        sample = Sample.objects.create(
+            sample_area=None, survey=survey, date='2026-07-05',
+        )
+        tree = Tree.objects.create(species=species[0], parcel=parcels[0])
+        with pytest.raises(IntegrityError), transaction.atomic():
+            TreeSample.objects.create(
+                sample=sample, tree=tree, parcel=parcels[0],
+                number=1, preserved_number=0, d_cm=30, h_m=Decimal('20.0'),
+            )
 
     def test_parcel_same_name_different_region_ok(self, parcels):
         """Parcel '1' in Capistrano and Fabrizia are distinct."""

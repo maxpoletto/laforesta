@@ -220,25 +220,34 @@ def tree_save_view(request):
             created_or_updated_ids = []
             for sh in parsed[FIELD_SHOOTS]:
                 ts = TreeSample.objects.create(
-                    sample=sample, tree=tree, shoot=sh[FIELD_SHOOT],
-                    standard=sh[FIELD_STANDARD],
+                    sample=sample, tree=tree, parcel_id=parcel_id,
+                    shoot=sh[FIELD_SHOOT], standard=sh[FIELD_STANDARD],
                     number=parsed[FIELD_NUMBER],
+                    preserved_number=(
+                        parsed[FIELD_NUMBER] if parsed[FIELD_PRESERVED] else None
+                    ),
                     d_cm=sh[FIELD_D_CM], h_m=sh[FIELD_H_M],
                     h_measured=parsed[FIELD_H_MEASURED], l10_mm=sh[FIELD_L10_MM],
                     pressler_coeff=parsed[FIELD_PRESSLER_COEFF],
                     volume_m3=None, mass_q=None,
+                    lat=parsed[FIELD_LAT], lon=parsed[FIELD_LON],
                 )
                 created_or_updated_ids.append(ts.id)
         elif existing_tree is not None:
             # Reuse the existing Tree row.  Do not create a new Tree.
             ts = TreeSample.objects.create(
-                sample=sample, tree=existing_tree, shoot=0, standard=False,
+                sample=sample, tree=existing_tree, parcel_id=parcel_id,
+                shoot=0, standard=False,
                 number=parsed[FIELD_NUMBER],
+                preserved_number=(
+                    parsed[FIELD_NUMBER] if parsed[FIELD_PRESERVED] else None
+                ),
                 d_cm=parsed[FIELD_D_CM], h_m=parsed[FIELD_H_M],
                 h_measured=parsed[FIELD_H_MEASURED], l10_mm=parsed[FIELD_L10_MM],
                 pressler_coeff=parsed[FIELD_PRESSLER_COEFF],
                 volume_m3=parsed[FIELD_VOLUME_M3],
                 mass_q=parsed[FIELD_MASS_Q],
+                lat=parsed[FIELD_LAT], lon=parsed[FIELD_LON],
             )
             created_or_updated_ids = [ts.id]
         else:
@@ -250,13 +259,18 @@ def tree_save_view(request):
                 coppice=False,
             )
             ts = TreeSample.objects.create(
-                sample=sample, tree=tree, shoot=0, standard=False,
+                sample=sample, tree=tree, parcel_id=parcel_id,
+                shoot=0, standard=False,
                 number=parsed[FIELD_NUMBER],
+                preserved_number=(
+                    parsed[FIELD_NUMBER] if parsed[FIELD_PRESERVED] else None
+                ),
                 d_cm=parsed[FIELD_D_CM], h_m=parsed[FIELD_H_M],
                 h_measured=parsed[FIELD_H_MEASURED], l10_mm=parsed[FIELD_L10_MM],
                 pressler_coeff=parsed[FIELD_PRESSLER_COEFF],
                 volume_m3=parsed[FIELD_VOLUME_M3],
                 mass_q=parsed[FIELD_MASS_Q],
+                lat=parsed[FIELD_LAT], lon=parsed[FIELD_LON],
             )
             created_or_updated_ids = [ts.id]
 
@@ -1049,6 +1063,13 @@ def _update_tree_sample(ts_id, sample, parsed, body, request):
         )
     ts.sample = sample
     ts.number = parsed[FIELD_NUMBER]
+    ts.parcel_id = (
+        sample.sample_area.parcel_id
+        if sample.sample_area_id is not None else parsed[FIELD_PARCEL_ID]
+    )
+    ts.preserved_number = parsed[FIELD_NUMBER] if parsed[FIELD_PRESERVED] else None
+    ts.lat = parsed[FIELD_LAT]
+    ts.lon = parsed[FIELD_LON]
     if parsed[FIELD_COPPICE]:
         # Coppice edit form sends exactly one shoot row (the one being
         # edited); the multi-row "Aggiungi pollone" path is add-only.

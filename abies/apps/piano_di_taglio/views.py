@@ -563,13 +563,13 @@ def item_export_view(request, item_id: int):
     ])
     marks_qs = (TreeMark.objects
                 .filter(harvest_plan_item=item)
-                .select_related('tree__species', 'tree__parcel__region')
+                .select_related('tree__species', 'parcel__region')
                 .order_by('date', 'id'))
     for tm in marks_qs:
-        # Compresa / Particella reflect the linked tree's parcel; for
-        # region-wide items, the parcel may differ from the item's
-        # missing one (which is by design).
-        parcel = tm.tree.parcel
+        # Compresa / Particella reflect the row-level mark parcel; for
+        # region-wide items, this differs from the item's missing parcel by
+        # design.
+        parcel = tm.parcel
         marks_w.writerow([
             tm.date.isoformat(),
             parcel.region.name,
@@ -754,8 +754,8 @@ def mark_form_view(request, mark_id: int | None = None):
             Parcel.objects.filter(region=item.region)
             .order_by('name')
         )
-        if tm and tree:
-            selected_parcel_id = tree.parcel_id
+        if tm:
+            selected_parcel_id = tm.parcel_id
 
     next_number = tm.number if tm else _next_mark_number(item.id)
 
@@ -924,6 +924,7 @@ def mark_save_view(request):
             tm.h_measured = h_measured
             tm.volume_m3 = volume_m3
             tm.mass_q = mass_q
+            tm.parcel = parcel
             tm.lat = lat
             tm.lon = lon
             tm.acc_m = acc_m
@@ -944,7 +945,7 @@ def mark_save_view(request):
                 lat=lat, lon=lon, acc_m=acc_m,
             )
             tm = TreeMark.objects.create(
-                harvest_plan_item=item, tree=tree,
+                harvest_plan_item=item, tree=tree, parcel=parcel,
                 number=None if number is _MARK_NUMBER_MISSING else number,
                 date=date, d_cm=d_cm, h_m=h_m,
                 h_measured=h_measured,

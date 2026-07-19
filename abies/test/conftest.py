@@ -134,7 +134,7 @@ def hypso_samples(db, regions, eclasses, species):
         tree = Tree.objects.create(species=sp, parcel=parcel, coppice=coppice)
         h = a_true * math.log(d_cm) + b_true
         TreeSample.objects.create(
-            sample=sample, tree=tree, shoot=0, standard=False,
+            sample=sample, tree=tree, parcel=parcel, shoot=0, standard=False,
             number=next(counter), d_cm=d_cm, h_m=Decimal(str(round(h, 2))),
             h_measured=True,
         )

@@ -158,6 +158,7 @@ export const FIELD_MONTH                 = 'month';
 export const FIELD_VOLUME_M3             = 'volume_m3';
 export const FIELD_MASS_Q                = 'mass_q';
 export const FIELD_PRESERVED             = 'preserved';
+export const FIELD_PRESERVED_NUMBER      = 'preserved_number';
 export const FIELD_COPPICE               = 'coppice';
 export const FIELD_HIGHFOREST               = 'fustaia';
 export const FIELD_SHOOT                 = 'shoot';
