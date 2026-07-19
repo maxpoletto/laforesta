@@ -1367,15 +1367,17 @@ def tree_csv_import_view(request):
     ).first()
     if survey is None:
         return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
-    if survey.sample_grid_id is None:
-        return validation_error([S.ERR_SURVEY_STRUCTURED_REQUIRED])
 
+    required_cols = (
+        csv_trees.FREE_TREE_CSV_REQUIRED
+        if survey.sample_grid_id is None else csv_trees.TREE_CSV_REQUIRED
+    )
     try:
-        reader = csv_io.read(upload, csv_trees.TREE_CSV_REQUIRED)
+        reader = csv_io.read(upload, required_cols)
     except csv_io.CsvError as e:
         return validation_error([str(e)])
 
-    has_date_column = bool(reader) and S.CSV_COL_DATA in reader[0]
+    has_date_column = S.CSV_COL_DATA in (reader.fieldnames or [])
     if not has_date_column and not default_date_str:
         return validation_error([S.ERR_CSV_DATE_REQUIRED])
     default_date = None

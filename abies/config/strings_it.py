@@ -396,6 +396,14 @@ ERR_CSV_ROW_SAMPLE_DATE_CONFLICT = (
     'Riga {}: data diversa per area di saggio già presente nel rilevamento '
     '({} / {} / {}; data già registrata: {}).'
 )
+ERR_CSV_ROW_FREE_SAMPLE_DATE_CONFLICT = (
+    'Riga {}: data diversa nello stesso rilevamento libero '
+    '(data già registrata: {}).'
+)
+ERR_CSV_ROW_PAI_SPECIES_CONFLICT = (
+    'Riga {}: specie diversa per albero PAI già presente '
+    '({} / {} / {}; specie già registrata: {}).'
+)
 ERR_CSV_ROW_TREE_NUMBER_DUPLICATE = (
     'Riga {}: numero albero {} / pollone {} già presente nel campione.'
 )

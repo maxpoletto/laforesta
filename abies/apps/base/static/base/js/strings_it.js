@@ -227,8 +227,10 @@ export const GRID_IMPORT_HELP =
   'Raggio è opzionale; se assente usa 12 m. Sono accettate anche le ' +
   'intestazioni Alt. (m) e Raggio (m).';
 export const SURVEY_IMPORT_HELP =
-  'Colonne necessarie: Compresa, Particella, Area saggio, Albero, Pollone, ' +
-  'Matricina, D_cm, H_m, L10_mm, Genere, Fustaia. Opzionali: Data, PAI.';
+  'Colonne necessarie: Compresa, Particella, Albero, Pollone, Matricina, ' +
+  'D_cm, H_m, L10_mm, Pressler, Genere, Fustaia. Per rilevamenti ' +
+  'strutturati serve anche Area saggio. Opzionali: Data, PAI, H_measured, ' +
+  'Lat, Lon, Acc_m.';
 
 // CSV import status (large files can take many seconds)
 export const CSV_IMPORT_IN_PROGRESS =

@@ -211,17 +211,31 @@ Flow:
 
 ### Tree-and-sample CSV import
 
-Required columns: `Compresa`, `Particella`, `Area saggio`, `Albero` (→
-`tree_sample.number`), `Pollone` (→ `tree_sample.shoot`), `Matricina` (bool, →
-`tree_sample.standard`), `D_cm`, `H_m`, `L10_mm`, `Genere` (→ species),
-`Fustaia` (bool; `Fustaia=false` → `tree.coppice=true`), Pressler (→
-`tree_sample.pressler_coeff`). Importer aborts with a helpful message if any of
-these fields is missing. However, on a per-row level, it is ok for `L10_mm` to
-be 0 (not all trees are cored).
+The tree CSV import targets an existing survey. Structured surveys and free
+surveys share the same measurement validation (`Albero`, `Pollone`, `D_cm`,
+`H_m`, `L10_mm`, `Pressler`, `Matricina`, `Fustaia`, `H_measured`) but differ
+in how the sample scope is resolved.
 
-Optional columns: `Data` (→ `sample.date`), `PAI` (bool). `PAI=true`
-marks the sampled tree as preserved by storing a parcel-scoped
-`tree_sample.preserved_number`, using `Albero` as the preserved number.
+Required columns for structured surveys: `Compresa`, `Particella`,
+`Area saggio`, `Albero` (→ `tree_sample.number`), `Pollone` (→
+`tree_sample.shoot`), `Matricina` (bool → `tree_sample.standard`), `D_cm`,
+`H_m`, `L10_mm`, `Pressler` (→ `tree_sample.pressler_coeff`), `Genere`
+(→ species), and `Fustaia` (bool; `Fustaia=false` → `tree.coppice=true`).
+`Area saggio` must already exist in the survey grid.
+
+Required columns for free surveys: the same fields except `Area saggio`. Free
+rows resolve the parcel directly from `Compresa` + `Particella`, and one CSV
+import operation creates one `Sample(sample_area=NULL)`. If the CSV has a
+`Data` column, all rows in a free import must carry the same date; otherwise
+the modal's default date is used.
+
+Optional columns: `Data` (→ `sample.date`), `PAI` (bool), `H_measured` (bool),
+`Lat`, `Lon`, `Acc_m`, `Operatore`, and `Note`. Blank `H_measured` is false.
+If either `Lat` or `Lon` is present, both must be present. `PAI=true` stores a
+parcel-scoped `tree_sample.preserved_number`, using `Albero` as the preserved
+number. If the preserved identity `(parcel_id, preserved_number)` already
+exists, the import reuses that `tree_id`; otherwise it creates a new preserved
+`tree`.
 
 `V_m3` is computed at import time from `D_cm`, `H_m`, and the species-specific
 Tabacchi parameters in `apps/base/tabacchi.py` (vendored from `pdg-2026`).
@@ -236,20 +250,21 @@ Flow:
    da CSV" tab.
 2. Uploads CSV. If the file lacks a `Data` column, the form asks for a default
    sample date applied to all rows.
-3. Importer maps each `(Compresa, Particella, Area saggio)` to the one
+3. Structured import maps each `(Compresa, Particella, Area saggio)` to the one
    `sample` row for that area in the target survey. All rows for the same area
    must carry the same sample date; if a sample already exists for that area in
    the survey, the CSV date must match it. Conflicting dates abort the import.
-4. For each row, resolves `tree_id` via the cross-sample identity convention
-   (see below): same `(sample_area, Albero)` → reuse existing `tree.id`;
-   otherwise create a new `tree` row.
+4. Free import creates one null-area sample for the upload and creates a new
+   `tree` per ordinary row. Coppice rows with the same `Albero` in the same
+   free import share the same `tree`; preserved rows reuse the stable preserved
+   identity as described above.
 5. Writes `tree_sample`. `PAI=true` stores a non-null
    `tree_sample.preserved_number`. `Fustaia=false` sets `tree.coppice=true`.
 6. Transactional. Reports success counts and a per-row error list.
 
-The Compresa+Particella+Area saggio referenced by each row must already exist in
-the survey's grid; the schema-level trigger (see `database.md`) prevents writing
-samples to areas outside the grid.
+The Compresa+Particella+Area saggio referenced by each structured row must
+already exist in the survey's grid; the schema-level trigger (see
+`database.md`) prevents writing samples to areas outside the grid.
 
 ### Manual tree + sample entry
 

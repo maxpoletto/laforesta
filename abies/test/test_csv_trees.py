@@ -5,7 +5,7 @@ from datetime import date
 import pytest
 
 from apps.base import csv_io
-from apps.base.models import Sample, SampleArea, SampleGrid, Survey, TreeSample
+from apps.base.models import Sample, SampleArea, SampleGrid, Survey, Tree, TreeSample
 from apps.campionamenti import csv_trees
 from config import strings as S
 
@@ -13,6 +13,8 @@ from config import strings as S
 # Header with all TREE_CSV_REQUIRED columns; no Data column (use default_date).
 TREE_HEADER = ('Compresa,Particella,Area saggio,Albero,Pollone,Matricina,'
                'D_cm,H_m,L10_mm,Pressler,Genere,Fustaia')
+FREE_TREE_HEADER = ('Compresa,Particella,Albero,Pollone,Matricina,'
+                    'D_cm,H_m,L10_mm,Pressler,Genere,Fustaia')
 
 
 @pytest.fixture
@@ -31,6 +33,10 @@ def _reader(csv_text):
     return csv_io.read(csv_text, csv_trees.TREE_CSV_REQUIRED)
 
 
+def _free_reader(csv_text):
+    return csv_io.read(csv_text, csv_trees.FREE_TREE_CSV_REQUIRED)
+
+
 @pytest.mark.django_db
 def test_db_indexes_scopes_to_survey(survey_with_area):
     idx = csv_trees.db_indexes(survey_with_area['survey'])
@@ -42,9 +48,18 @@ def test_db_indexes_scopes_to_survey(survey_with_area):
 
 def _validate(csv_text, idx, *, default_date=date(2024, 9, 15)):
     reader = _reader(csv_text)
-    has_date = bool(reader) and S.CSV_COL_DATA in reader[0]
+    has_date = S.CSV_COL_DATA in (reader.fieldnames or [])
     return csv_trees.validate_rows(
         reader, idx, has_date_column=has_date, default_date=default_date)
+
+
+def _validate_free(csv_text, survey, *, default_date=date(2024, 9, 15)):
+    reader = _free_reader(csv_text)
+    has_date = S.CSV_COL_DATA in (reader.fieldnames or [])
+    return csv_trees.validate_rows(
+        reader, csv_trees.db_indexes(survey),
+        has_date_column=has_date, default_date=default_date,
+    )
 
 
 @pytest.mark.django_db
@@ -310,3 +325,155 @@ def test_apply_groups_coppice_shoots_under_one_tree(survey_with_area):
     assert [row.shoot for row in rows] == [1, 2]
     assert {row.tree_id for row in rows} == {rows[0].tree_id}
     assert all(row.tree.coppice for row in rows)
+
+
+@pytest.mark.django_db
+def test_validate_free_rows_happy_path(parcels, species):
+    survey = Survey.objects.create(name='free-csv-survey')
+    parcel = parcels[0]
+    csv_text = (
+        f'{FREE_TREE_HEADER},{S.CSV_COL_H_MEASURED},{S.CSV_COL_LAT},'
+        f'{S.CSV_COL_LON},{S.CSV_COL_ACC_M},{S.CSV_COL_OPERATOR},'
+        f'{S.CSV_COL_NOTE}\n'
+        f'{parcel.region.name},{parcel.name},1,0,False,30,15.5,250,2,'
+        'Abete,True,true,38.5,16.1,7,Mario Rossi,nota campo\n'
+    )
+
+    parsed, errors = _validate_free(csv_text, survey)
+
+    assert errors == []
+    assert len(parsed) == 1
+    row = parsed[0]
+    assert row[csv_trees.FIELD_AREA] is None
+    assert row[csv_trees.FIELD_PARCEL] == parcel
+    assert row[csv_trees.FIELD_H_MEASURED] is True
+    assert row[csv_trees.FIELD_LAT] == pytest.approx(38.5)
+    assert row[csv_trees.FIELD_LON] == pytest.approx(16.1)
+    assert row[csv_trees.FIELD_ACC_M] == 7
+    assert row[csv_trees.FIELD_OPERATOR] == 'Mario Rossi'
+    assert row[csv_trees.FIELD_NOTE] == 'nota campo'
+
+
+@pytest.mark.django_db
+def test_validate_free_rows_rejects_mixed_dates(parcels, species):
+    survey = Survey.objects.create(name='free-csv-mixed-dates')
+    parcel = parcels[0]
+    csv_text = (
+        f'{FREE_TREE_HEADER},{S.CSV_COL_DATA}\n'
+        f'{parcel.region.name},{parcel.name},1,0,False,30,15.5,250,2,'
+        'Abete,True,2024-09-15\n'
+        f'{parcel.region.name},{parcel.name},2,0,False,32,16.5,250,2,'
+        'Abete,True,2024-09-16\n'
+    )
+
+    parsed, errors = _validate_free(csv_text, survey)
+
+    assert len(parsed) == 1
+    assert errors == [
+        S.ERR_CSV_ROW_FREE_SAMPLE_DATE_CONFLICT.format(3, '2024-09-15'),
+    ]
+
+
+@pytest.mark.django_db
+def test_validate_free_rows_rejects_one_sided_coordinates(parcels, species):
+    survey = Survey.objects.create(name='free-csv-one-sided-coord')
+    parcel = parcels[0]
+    csv_text = (
+        f'{FREE_TREE_HEADER},{S.CSV_COL_LAT}\n'
+        f'{parcel.region.name},{parcel.name},1,0,False,30,15.5,250,2,'
+        'Abete,True,38.5\n'
+    )
+
+    parsed, errors = _validate_free(csv_text, survey)
+
+    assert parsed == []
+    assert errors == [
+        S.ERR_CSV_ROW_PARSE.format(2, f'{S.CSV_COL_LAT}/{S.CSV_COL_LON}'),
+    ]
+
+
+@pytest.mark.django_db
+def test_apply_free_creates_one_sample_and_new_tree_per_ordinary_row(parcels, species):
+    survey = Survey.objects.create(name='free-csv-apply')
+    parcel = parcels[0]
+    csv_text = (
+        f'{FREE_TREE_HEADER},{S.CSV_COL_H_MEASURED}\n'
+        f'{parcel.region.name},{parcel.name},1,0,False,30,15.5,250,2,'
+        'Abete,True,true\n'
+        f'{parcel.region.name},{parcel.name},2,0,False,32,16.5,250,2,'
+        'Abete,True,false\n'
+    )
+    parsed, errors = _validate_free(csv_text, survey, default_date=date(2024, 9, 20))
+    assert errors == []
+
+    counts = csv_trees.apply(survey, parsed)
+
+    assert counts == {'n_samples': 1, 'n_trees': 2}
+    sample = Sample.objects.get(survey=survey, sample_area__isnull=True)
+    assert sample.date == date(2024, 9, 20)
+    rows = list(TreeSample.objects.filter(sample=sample).order_by('number'))
+    assert [row.number for row in rows] == [1, 2]
+    assert rows[0].tree_id != rows[1].tree_id
+    assert [row.h_measured for row in rows] == [True, False]
+
+
+@pytest.mark.django_db
+def test_apply_free_reuses_preserved_tree_identity(parcels, species):
+    parcel = parcels[0]
+    existing_tree = Tree.objects.create(
+        species=species[0], parcel=parcel, preserved=True, coppice=False,
+    )
+    pai_survey = Survey.objects.create(name='existing-pai-survey')
+    pai_sample = Sample.objects.create(
+        sample_area=None, survey=pai_survey, date=date(2024, 9, 1),
+    )
+    TreeSample.objects.create(
+        sample=pai_sample, tree=existing_tree, parcel=parcel,
+        number=7, preserved_number=7, d_cm=40, h_m='18.00', h_measured=True,
+    )
+    survey = Survey.objects.create(name='free-csv-preserved-reuse')
+    csv_text = (
+        f'{FREE_TREE_HEADER},{S.CSV_COL_PRESERVED}\n'
+        f'{parcel.region.name},{parcel.name},7,0,False,42,19.5,250,2,'
+        'Abete,True,true\n'
+    )
+    parsed, errors = _validate_free(csv_text, survey)
+    assert errors == []
+
+    counts = csv_trees.apply(survey, parsed)
+
+    assert counts == {'n_samples': 1, 'n_trees': 1}
+    row = TreeSample.objects.get(sample__survey=survey)
+    assert row.tree == existing_tree
+    assert row.preserved_number == 7
+
+
+@pytest.mark.django_db
+def test_validate_free_rejects_preserved_species_mismatch(parcels, species):
+    parcel = parcels[0]
+    existing_tree = Tree.objects.create(
+        species=species[0], parcel=parcel, preserved=True, coppice=False,
+    )
+    pai_survey = Survey.objects.create(name='existing-pai-species-survey')
+    pai_sample = Sample.objects.create(
+        sample_area=None, survey=pai_survey, date=date(2024, 9, 1),
+    )
+    TreeSample.objects.create(
+        sample=pai_sample, tree=existing_tree, parcel=parcel,
+        number=7, preserved_number=7, d_cm=40, h_m='18.00', h_measured=True,
+    )
+    survey = Survey.objects.create(name='free-csv-preserved-species-mismatch')
+    csv_text = (
+        f'{FREE_TREE_HEADER},{S.CSV_COL_PRESERVED}\n'
+        f'{parcel.region.name},{parcel.name},7,0,False,42,19.5,250,2,'
+        f'{species[1].common_name},True,true\n'
+    )
+
+    parsed, errors = _validate_free(csv_text, survey)
+
+    assert parsed == []
+    assert errors == [
+        S.ERR_CSV_ROW_PAI_SPECIES_CONFLICT.format(
+            2, parcel.region.name, parcel.name, 7, species[0].common_name,
+        ),
+    ]

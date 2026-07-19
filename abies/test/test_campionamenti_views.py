@@ -2388,12 +2388,34 @@ class TestTreeCsvImport:
             content_type='application/json',
         )
 
-    def test_unstructured_survey_rejected(self, writer_client, db):
-        survey = Survey.objects.create(name='Unstructured CSV target')
-        resp = self._post(writer_client, survey.id, 'not,a,real,csv\n')
+    def test_unstructured_survey_import_creates_free_sample(
+            self, writer_client, parcels, species, db,
+    ):
+        from apps.base.models import Sample, Survey, Tree, TreeSample
 
-        assert resp.status_code == 400
-        assert S.ERR_SURVEY_STRUCTURED_REQUIRED in resp.json()[MESSAGE]
+        survey = Survey.objects.create(name='Unstructured CSV target')
+        parcel = parcels[0]
+        csv_text = (
+            'Compresa,Particella,Albero,Pollone,Matricina,'
+            'D_cm,H_m,L10_mm,Pressler,Genere,Fustaia,Data,H_measured,Lat,Lon\n'
+            f'{parcel.region.name},{parcel.name},1,0,false,30,20.5,10,2,'
+            f'{species[0].common_name},true,2024-09-15,true,38.5,16.1\n'
+        )
+
+        resp = self._post(writer_client, survey.id, csv_text)
+
+        assert resp.status_code == 200, resp.content
+        assert resp.json()['n_samples'] == 1
+        assert resp.json()['n_trees'] == 1
+        sample = Sample.objects.get(survey=survey, sample_area__isnull=True)
+        row = TreeSample.objects.select_related('tree').get(sample=sample)
+        assert row.parcel == parcel
+        assert row.tree.parcel == parcel
+        assert row.tree.species == species[0]
+        assert row.h_measured is True
+        assert row.lat == pytest.approx(38.5)
+        assert row.lon == pytest.approx(16.1)
+        assert Tree.objects.filter(id=row.tree_id).count() == 1
 
     def test_happy_path(
         self, writer_client, sample_setup, tmp_path, settings,
