@@ -6,7 +6,7 @@ from decimal import Decimal
 import pytest
 
 from apps.base.models import (
-    Sample, SampleArea, SampleGrid, Survey, Tree, TreePreserved,
+    Sample, SampleArea, SampleGrid, Survey, Tree, TreeSample,
 )
 from apps.ipso.importers import (
     pai_import_rows, record_measurements, sample_import_rows,
@@ -27,6 +27,18 @@ def _sample_context(parcel):
     )
     survey = Survey.objects.create(name='Ipso importer survey', sample_grid=grid)
     return survey, area
+
+
+def _preserved_sample(tree, parcel, *, number=3):
+    survey = Survey.objects.create(name=f'Ipso importer PAI {tree.id}-{number}')
+    sample = Sample.objects.create(
+        sample_area=None, survey=survey, date=date(2026, 6, 16),
+    )
+    return TreeSample.objects.create(
+        sample=sample, tree=tree, parcel=parcel, number=number,
+        preserved_number=number, d_cm=30, h_m=Decimal('18.00'),
+        h_measured=True, lat=38.51234, lon=16.12345,
+    )
 
 
 def _sample_record(area, species, **overrides):
@@ -226,10 +238,7 @@ def test_pai_import_rejects_missing_number(parcels, species):
 def test_pai_import_rejects_missing_number_after_persisted_numbers(
         parcels, species):
     tree = Tree.objects.create(species=species[0], parcel=parcels[0], preserved=True)
-    TreePreserved.objects.create(
-        tree=tree, parcel=parcels[0], number=3, date=date(2026, 6, 16),
-        d_cm=30, h_m=Decimal('18.00'), lat=38.51234, lon=16.12345,
-    )
+    _preserved_sample(tree, parcels[0], number=3)
 
     rows, errors = pai_import_rows({
         RECORDS: [_pai_record(parcels[0], species[0], **{FIELD_NUMBER: None})],

@@ -3,9 +3,21 @@
 import pytest
 
 from apps.base import csv_io
-from apps.base.models import Tree, TreePreserved
+from apps.base.models import Sample, Survey, Tree, TreeSample
 from apps.campionamenti import csv_preserved
 from config import strings as S
+
+
+def _pai_row(tree, parcel, *, number=1):
+    survey = Survey.objects.create(name=f'csv-preserved-existing-{tree.id}-{number}')
+    sample = Sample.objects.create(
+        sample_area=None, survey=survey, date='2024-09-14',
+    )
+    return TreeSample.objects.create(
+        sample=sample, tree=tree, parcel=parcel, number=number,
+        preserved_number=number, d_cm=40, h_m='18.00',
+        h_measured=True, lat=38.1, lon=16.1,
+    )
 
 
 def _reader(text):
@@ -41,9 +53,9 @@ def test_preserved_happy_path(parcels, species):
     assert t.estimated_birth_year == 1920
     assert t.lat == pytest.approx(38.45678, abs=1e-4)
     assert t.lon == pytest.approx(16.12345, abs=1e-4)
-    pai = TreePreserved.objects.get(tree=t)
-    assert pai.number == 7
-    assert pai.date.isoformat() == '2024-09-15'
+    pai = TreeSample.objects.get(tree=t)
+    assert pai.preserved_number == 7
+    assert pai.sample.date.isoformat() == '2024-09-15'
     assert pai.d_cm == 42
     assert str(pai.h_m) == '18.50'
     assert pai.note == 'nota'
@@ -52,8 +64,8 @@ def test_preserved_happy_path(parcels, species):
 @pytest.mark.django_db
 def test_preserved_duplicate_number_in_file_flagged(parcels, species):
     csv_text = _csv(
-        'Capistrano,1,1,Abete,16.1,38.4,,,,,',
-        'Capistrano,1,1,Castagno,16.2,38.5,,,,,',
+        'Capistrano,1,1,Abete,16.1,38.4,2024-09-15,,42,18.5,',
+        'Capistrano,1,1,Castagno,16.2,38.5,2024-09-15,,43,19.0,',
     )
     reader = _reader(csv_text)
     idx = csv_preserved.db_indexes()
@@ -73,10 +85,8 @@ def test_preserved_duplicate_number_in_db_flagged(parcels, species):
         species=species[0], parcel=parcels[0], preserved=True,
         lat=38.1, lon=16.1,
     )
-    TreePreserved.objects.create(
-        tree=tree, parcel=parcels[0], number=1, lat=38.1, lon=16.1,
-    )
-    reader = _reader(_csv('Capistrano,1,1,Castagno,16.2,38.5,,,,,'))
+    _pai_row(tree, parcels[0], number=1)
+    reader = _reader(_csv('Capistrano,1,1,Castagno,16.2,38.5,2024-09-15,,43,19.0,'))
     idx = csv_preserved.db_indexes()
 
     parsed, errors = csv_preserved.validate_rows(reader, idx)
@@ -123,9 +133,9 @@ def test_preserved_unknown_region_flagged(parcels, species):
 def test_preserved_multiple_rows(parcels, species):
     """Multiple valid rows all create Trees."""
     csv_text = _csv(
-        'Capistrano,1,1,Abete,16.1,38.4,,,,,',
-        'Capistrano,2,1,Castagno,16.2,38.5,,,,,',
-        'Fabrizia,1,1,Abete,16.3,38.6,,,,,',
+        'Capistrano,1,1,Abete,16.1,38.4,2024-09-15,,42,18.5,',
+        'Capistrano,2,1,Castagno,16.2,38.5,2024-09-15,,43,19.0,',
+        'Fabrizia,1,1,Abete,16.3,38.6,2024-09-15,,44,20.0,',
     )
     reader = _reader(csv_text)
     idx = csv_preserved.db_indexes()
@@ -134,13 +144,16 @@ def test_preserved_multiple_rows(parcels, species):
     assert len(parsed) == 3
     assert csv_preserved.apply(parsed) == 3
     assert Tree.objects.count() == 3
-    assert TreePreserved.objects.count() == 3
+    assert TreeSample.objects.filter(preserved_number__isnull=False).count() == 3
 
 
 @pytest.mark.django_db
 def test_preserved_missing_required_col(parcels, species):
     """CSV missing a required column raises CsvError on read."""
     from apps.base.csv_io import CsvError
-    bad_csv = f'{S.CSV_COL_REGION},{S.CSV_COL_PARCEL},{S.CSV_COL_LON},{S.CSV_COL_LAT}\nCapistrano,1,16.1,38.4\n'
+    bad_csv = (
+        f'{S.CSV_COL_REGION},{S.CSV_COL_PARCEL},'
+        f'{S.CSV_COL_LON},{S.CSV_COL_LAT}\nCapistrano,1,16.1,38.4\n'
+    )
     with pytest.raises(CsvError):
         csv_io.read(bad_csv, required_cols=csv_preserved.PRESERVED_CSV_REQUIRED)

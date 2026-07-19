@@ -25,7 +25,7 @@ from apps.base.digests import (
 from apps.base.models import (
     Crew, DigestStatus, HarvestPlan, HarvestPlanItem, HarvestPlanItemState,
     HypsoParamSet, HypsoParamSource, Parcel, Role, Sample, SampleArea,
-    SampleGrid, Survey, Tree, TreeMark, TreePreserved, TreeSample, User,
+    SampleGrid, Survey, Tree, TreeMark, TreeSample, User,
 )
 from apps.campionamenti import csv_grid
 from apps.mannesi.models import ProductionCredit, WorkHour
@@ -340,8 +340,11 @@ class TestGenerateBoscoDigests:
             species=species[0], parcel=parcels[0], preserved=True,
             estimated_birth_year=1920, lat=38.1, lon=16.2,
         )
-        pai = TreePreserved.objects.create(
-            tree=kept, parcel=parcels[0], number=7, date='2024-09-15',
+        survey = Survey.objects.create(name='PAI')
+        sample = Sample.objects.create(survey=survey, date='2024-09-15')
+        pai = TreeSample.objects.create(
+            sample=sample, tree=kept, parcel=parcels[0], number=7,
+            preserved_number=7,
             d_cm=42, h_m=Decimal('18.50'), h_measured=True,
             lat=38.1, lon=16.2, note='nota',
         )

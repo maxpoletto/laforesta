@@ -3,7 +3,7 @@
 bootstrap file.
 
 Each valid row creates a physical ``Tree(preserved=True, coppice=False)`` and
-one ``TreePreserved`` observation row.  Species are resolved by
+one preserved ``TreeSample`` observation row.  Species are resolved by
 ``common_name.lower()`` (strict canonical — no GENERE_MAP aliasing).  Lon/Lat
 are converted via ``reader.decimal`` → ``coord_float``.
 """
@@ -15,14 +15,17 @@ from decimal import ROUND_HALF_UP
 from django.db import transaction
 
 from apps.base.digests import mark_stale
-from apps.base.models import Parcel, Species, Tree, TreePreserved
+from apps.base.models import Parcel, Sample, Species, Survey, Tree, TreeSample
 from apps.base.numparse import coord_float
+from apps.base.preserved_trees import (
+    PRESERVED_IMPORT_SURVEY_NAME, current_preserved_number_keys,
+)
 from config import strings as S
 from config.constants import (
     BOSCO_TREE_DIGESTS, FIELD_ACC_M, FIELD_DATE, FIELD_D_CM,
     FIELD_ESTIMATED_BIRTH_YEAR, FIELD_H_M, FIELD_H_MEASURED, FIELD_LAT,
     FIELD_LON, FIELD_NOTE, FIELD_NUMBER, FIELD_OPERATOR, FIELD_PARCEL,
-    FIELD_SPECIES, TREE_H_QUANTUM,
+    FIELD_SPECIES, PRESSLER_DEFAULT, TREE_H_QUANTUM,
 )
 
 # Required columns for the canonical preserved-trees CSV.
@@ -33,6 +36,9 @@ PRESERVED_CSV_REQUIRED = [
     S.CSV_COL_NUMBER,
     S.CSV_COL_LON,
     S.CSV_COL_LAT,
+    S.CSV_COL_DATA,
+    S.CSV_COL_D_CM,
+    S.CSV_COL_H_M,
 ]
 
 
@@ -51,9 +57,7 @@ def db_indexes() -> PreservedIndexes:
         for p in Parcel.objects.select_related('region')
     }
     species = {s.common_name.lower(): s for s in Species.objects.all()}
-    preserved_numbers = set(
-        TreePreserved.objects.values_list('parcel_id', 'number'),
-    )
+    preserved_numbers = current_preserved_number_keys()
     return PreservedIndexes(parcels, species, preserved_numbers)
 
 
@@ -98,7 +102,7 @@ def validate_rows(reader, idx: PreservedIndexes):
             continue
         seen_numbers.add(number_key)
 
-        date, date_ok = _optional_date(row.get(S.CSV_COL_DATA))
+        date, date_ok = _required_date(row.get(S.CSV_COL_DATA))
         birth_year, birth_ok = reader.opt_int(row.get(S.CSV_COL_ESTIMATED_BIRTH_YEAR, ''))
         d_cm, d_ok = reader.opt_int(row.get(S.CSV_COL_D_CM, ''))
         h_m, h_ok = reader.opt_decimal(row.get(S.CSV_COL_H_M, ''))
@@ -107,16 +111,15 @@ def validate_rows(reader, idx: PreservedIndexes):
         if not all((date_ok, birth_ok, d_ok, h_ok, h_measured_ok, acc_ok)):
             errors.append(S.ERR_CSV_ROW_PARSE.format(i, S.CSV_FILE_PRESERVED_TREES))
             continue
-        if d_cm is not None and d_cm <= 0:
+        if d_cm is None or d_cm <= 0:
             errors.append(S.ERR_CSV_ROW_PARSE.format(i, S.CSV_COL_D_CM))
             continue
-        if h_m is not None:
-            h_m = h_m.quantize(TREE_H_QUANTUM, rounding=ROUND_HALF_UP)
-            if h_m <= 0:
-                errors.append(S.ERR_CSV_ROW_PARSE.format(i, S.CSV_COL_H_M))
-                continue
+        if h_m is None or h_m <= 0:
+            errors.append(S.ERR_CSV_ROW_PARSE.format(i, S.CSV_COL_H_M))
+            continue
+        h_m = h_m.quantize(TREE_H_QUANTUM, rounding=ROUND_HALF_UP)
         if h_measured is None:
-            h_measured = h_m is not None
+            h_measured = True
 
         parsed.append({
             FIELD_PARCEL: parcel,
@@ -136,10 +139,10 @@ def validate_rows(reader, idx: PreservedIndexes):
     return parsed, errors
 
 
-def _optional_date(value):
+def _required_date(value):
     raw = (value or '').strip()
     if not raw:
-        return None, True
+        return None, False
     try:
         return date_type.fromisoformat(raw), True
     except ValueError:
@@ -149,7 +152,30 @@ def _optional_date(value):
 def apply(parsed) -> int:
     """Persist validated rows as PAI observations.  Returns created count."""
     with transaction.atomic():
+        survey, _ = Survey.objects.get_or_create(
+            name=PRESERVED_IMPORT_SURVEY_NAME,
+            defaults={
+                'sample_grid': None,
+                'description': 'Rilevamento libero per alberi PAI.',
+                'active': False,
+            },
+        )
+        if survey.sample_grid_id is not None:
+            raise RuntimeError(
+                f'Existing survey {PRESERVED_IMPORT_SURVEY_NAME!r} is structured.'
+            )
+        if survey.active:
+            survey.active = False
+            survey.save(update_fields=['active'])
+        sample_by_key = {}
         for r in parsed:
+            key = (r[FIELD_DATE], r[FIELD_PARCEL].id)
+            sample = sample_by_key.get(key)
+            if sample is None:
+                sample = Sample.objects.create(
+                    sample_area=None, survey=survey, date=r[FIELD_DATE],
+                )
+                sample_by_key[key] = sample
             tree = Tree.objects.create(
                 species=r[FIELD_SPECIES],
                 parcel=r[FIELD_PARCEL],
@@ -160,14 +186,21 @@ def apply(parsed) -> int:
                 preserved=True,
                 coppice=False,
             )
-            TreePreserved.objects.create(
+            TreeSample.objects.create(
+                sample=sample,
                 tree=tree,
                 parcel=r[FIELD_PARCEL],
                 number=r[FIELD_NUMBER],
-                date=r[FIELD_DATE],
+                preserved_number=r[FIELD_NUMBER],
+                shoot=0,
+                standard=False,
                 d_cm=r[FIELD_D_CM],
                 h_m=r[FIELD_H_M],
                 h_measured=r[FIELD_H_MEASURED],
+                l10_mm=0,
+                pressler_coeff=PRESSLER_DEFAULT,
+                volume_m3=None,
+                mass_q=None,
                 lat=r[FIELD_LAT],
                 lon=r[FIELD_LON],
                 acc_m=r[FIELD_ACC_M],

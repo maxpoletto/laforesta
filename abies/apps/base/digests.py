@@ -414,7 +414,7 @@ def _audit_configs() -> list:
     against `_tracked_models()`, and the contract is locked by
     `test_audit_covers_all_tracked_models`.  To stop auditing a model,
     remove its `HistoricalRecords()` (as done for Sample/Tree/TreeSample/
-    TreeMark/TreePreserved, whose bulk imports would swamp the log) — do not
+    TreeMark, whose bulk imports would swamp the log) — do not
     just drop it here.
 
     Field maps are selective: only domain-meaningful fields are shown.
@@ -1213,33 +1213,30 @@ PRESERVED_TREE_COLUMNS = [
 ]
 
 
-def build_preserved_tree_record(pai) -> list:
+def build_preserved_tree_record(ts) -> list:
     """Build one row of the `preserved_trees` digest.
 
-    Caller must pre-load `parcel.region` and `tree.species`.
+    Caller must pre-load `sample`, `parcel.region`, and `tree.species`.
     """
-    tree = pai.tree
+    tree = ts.tree
     return [
-        pai.id, pai.version, tree.id, pai.parcel_id, tree.species_id,
-        pai.parcel.region.name, pai.parcel.name, tree.species.common_name,
-        pai.number, pai.date.isoformat() if pai.date else '',
+        ts.id, ts.version, tree.id, ts.parcel_id, tree.species_id,
+        ts.parcel.region.name, ts.parcel.name, tree.species.common_name,
+        ts.preserved_number, ts.sample.date.isoformat(),
         tree.estimated_birth_year if tree.estimated_birth_year is not None else '',
-        pai.d_cm if pai.d_cm is not None else '',
-        float(pai.h_m) if pai.h_m is not None else '',
-        pai.h_measured, pai.lat, pai.lon, pai.note,
+        ts.d_cm, float(ts.h_m), ts.h_measured, ts.lat, ts.lon, ts.note,
     ]
 
 
 def generate_preserved_trees() -> None:
-    from apps.base.models import TreePreserved
+    from apps.base.preserved_trees import latest_preserved_tree_samples
 
     rows = [
-        build_preserved_tree_record(pai)
-        for pai in (TreePreserved.objects
-                    .filter(tree__preserved=True)
-                    .select_related('parcel__region', 'tree__species')
-                    .order_by('parcel__region__name', 'parcel__name',
-                              'number', 'id'))
+        build_preserved_tree_record(ts)
+        for ts in (latest_preserved_tree_samples()
+                   .select_related('sample', 'parcel__region', 'tree__species')
+                   .order_by('parcel__region__name', 'parcel__name',
+                             'preserved_number', 'id'))
     ]
     _write_gzip_json(
         {'columns': PRESERVED_TREE_COLUMNS, 'rows': rows},

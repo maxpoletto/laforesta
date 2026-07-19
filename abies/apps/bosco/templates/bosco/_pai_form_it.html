@@ -26,7 +26,7 @@
     <div class="form-row">
       <div class="form-group">
         <label for="id_pai_date">Data di rilevamento</label>
-        <input type="date" id="id_pai_date" name="date" value="{{ date }}">
+        <input type="date" id="id_pai_date" name="date" required value="{{ date }}">
       </div>
       <div class="form-group">
         <label for="id_pai_birth_year">Anno di nascita stimato</label>
@@ -54,12 +54,12 @@
       <div class="form-group">
         <label for="id_pai_d_cm">D (cm)</label>
         <input type="number" id="id_pai_d_cm" name="d_cm" min="1" step="1"
-               value="{{ d_cm }}">
+               required value="{{ d_cm }}">
       </div>
       <div class="form-group">
         <label for="id_pai_h_m">h (m)</label>
         <input type="text" inputmode="decimal" id="id_pai_h_m" name="h_m"
-               value="{{ h_m|floatformat:2 }}">
+               required value="{{ h_m|floatformat:2 }}">
       </div>
     </div>
 

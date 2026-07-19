@@ -12,7 +12,6 @@ import rasterio
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
-from django.db.models import Max
 from django.http import Http404, JsonResponse
 from django.template.loader import render_to_string
 from django.utils.http import http_date
@@ -25,8 +24,14 @@ from apps.base.digests import (
 from apps.base.http import (
     CACHE_NO_CACHE, apply_cache_control, conditional_file_response, not_modified_response,
 )
-from apps.base.models import Parcel, Region, Species, Tree, TreePreserved, parcel_sort_key
+from apps.base.models import (
+    Parcel, Region, Sample, Species, Survey, Tree, TreeSample, parcel_sort_key,
+)
 from apps.base.numparse import coord_float, int_or_none, parse_decimal
+from apps.base.preserved_trees import (
+    PRESERVED_IMPORT_SURVEY_NAME, latest_preserved_tree_samples,
+    next_preserved_number, preserved_number_exists,
+)
 from apps.base.responses import (
     conflict_response, parse_json_body, row_delete, row_patch, submitted_version,
     success_response, validation_error,
@@ -145,14 +150,18 @@ def pai_save_view(request):
                 preserved=True,
                 coppice=False,
             )
-            pai = TreePreserved.objects.create(
+            pai = TreeSample.objects.create(
+                sample=_pai_sample(values[FIELD_DATE]),
                 tree=tree,
                 parcel_id=values[FIELD_PARCEL_ID],
                 number=values[FIELD_NUMBER],
-                date=values[FIELD_DATE],
+                preserved_number=values[FIELD_NUMBER],
+                shoot=0,
+                standard=False,
                 d_cm=values[FIELD_D_CM],
                 h_m=values[FIELD_H_M],
                 h_measured=values[FIELD_H_MEASURED],
+                l10_mm=0,
                 lat=values[FIELD_LAT],
                 lon=values[FIELD_LON],
                 acc_m=values[FIELD_ACC_M],
@@ -181,9 +190,11 @@ def pai_save_view(request):
             tree.coppice = False
             tree.version += 1
             tree.save()
+            if pai.sample.date != values[FIELD_DATE]:
+                pai.sample = _pai_sample(values[FIELD_DATE])
             pai.parcel_id = values[FIELD_PARCEL_ID]
             pai.number = values[FIELD_NUMBER]
-            pai.date = values[FIELD_DATE]
+            pai.preserved_number = values[FIELD_NUMBER]
             pai.d_cm = values[FIELD_D_CM]
             pai.h_m = values[FIELD_H_M]
             pai.h_measured = values[FIELD_H_MEASURED]
@@ -228,9 +239,12 @@ def pai_delete_view(request):
             )
         tree = pai.tree
         pai.delete()
-        tree.preserved = False
-        tree.version += 1
-        tree.save(update_fields=['preserved', VERSION])
+        if not TreeSample.objects.filter(
+                tree=tree, preserved_number__isnull=False,
+        ).exists():
+            tree.preserved = False
+            tree.version += 1
+            tree.save(update_fields=['preserved', VERSION])
         mark_stale(DIGEST_PRESERVED_TREES)
 
     return success_response(
@@ -384,25 +398,26 @@ def _render_pai_form(request, pai_id: int | None = None, values: dict | None = N
         'parcels': parcels,
         'selected_species_id': selected_species_id,
         'selected_parcel_id': selected_parcel_id,
-        'number': _form_value(values, FIELD_NUMBER, pai.number if pai else ''),
-        'date': _form_value(values, FIELD_DATE, pai.date.isoformat() if pai and pai.date else ''),
+        'number': _form_value(values, FIELD_NUMBER, pai.preserved_number if pai else ''),
+        'date': _form_value(values, FIELD_DATE, pai.sample.date.isoformat() if pai else ''),
         'estimated_birth_year': _form_value(
             values, FIELD_ESTIMATED_BIRTH_YEAR,
             tree.estimated_birth_year if tree else '',
         ),
         'd_cm': _form_value(values, FIELD_D_CM, pai.d_cm if pai else '', blank=True),
         'h_m': _form_value(values, FIELD_H_M, pai.h_m if pai else '', blank=True),
-        'lat': _coord_form_value(values, FIELD_LAT, pai.lat if pai else request.GET.get(FIELD_LAT, '')),
-        'lon': _coord_form_value(values, FIELD_LON, pai.lon if pai else request.GET.get(FIELD_LON, '')),
+        'lat': _coord_form_value(
+            values, FIELD_LAT, pai.lat if pai else request.GET.get(FIELD_LAT, ''),
+        ),
+        'lon': _coord_form_value(
+            values, FIELD_LON, pai.lon if pai else request.GET.get(FIELD_LON, ''),
+        ),
         'note': _form_value(values, FIELD_NOTE, pai.note if pai else '', blank=True),
     }, request=request)
 
 
 def _next_pai_number(parcel_id: int, row_id: int | None = None):
-    qs = TreePreserved.objects.filter(parcel_id=parcel_id)
-    if row_id is not None:
-        qs = qs.exclude(id=row_id)
-    return (qs.aggregate(max_number=Max(FIELD_NUMBER))['max_number'] or 0) + 1
+    return next_preserved_number(parcel_id, exclude_id=row_id)
 
 
 def _form_value(values: dict | None, key: str, default, *, blank=False):
@@ -454,20 +469,19 @@ def _parse_pai_body(body: dict):
     elif number is None or number <= 0:
         errors.append(S.ERR_BOSCO_POSITIVE_INTEGER_REQUIRED.format(S.COL_NUMBER))
     if number is not None and parcel_exists:
-        duplicates = TreePreserved.objects.filter(parcel_id=parcel_id, number=number)
-        if row_id is not None:
-            duplicates = duplicates.exclude(id=row_id)
-        if duplicates.exists():
+        if preserved_number_exists(
+                parcel_id=parcel_id, preserved_number=number, exclude_id=row_id,
+        ):
             errors.append(S.ERR_BOSCO_PAI_NUMBER_DUPLICATE)
     if not birth_year_ok:
         errors.append(S.ERR_BOSCO_INTEGER_REQUIRED.format(S.COL_ESTIMATED_BIRTH_YEAR))
-    if not d_ok or (d_cm is not None and d_cm <= 0):
+    if not d_ok or d_cm is None or d_cm <= 0:
         errors.append(S.ERR_BOSCO_POSITIVE_INTEGER_REQUIRED.format(S.COL_D_CM))
-    if body.get(FIELD_H_M) not in (None, '') and (h_m is None or h_m <= 0):
+    if h_m is None or h_m <= 0:
         errors.append(S.ERR_MARK_H_REQUIRED)
     if not acc_ok:
         errors.append(S.ERR_BOSCO_INTEGER_REQUIRED.format(S.CSV_COL_ACC_M))
-    if not date_ok:
+    if not date_ok or date is None:
         errors.append(S.ERR_DATE_INVALID)
     if lat is None or lon is None:
         errors.append(S.ERR_BOSCO_LAT_LON_REQUIRED)
@@ -508,10 +522,27 @@ def _optional_form_date(raw):
 
 
 def _preserved_tree_qs(*, for_update=False):
-    qs = (TreePreserved.objects
-          .filter(tree__preserved=True)
-          .select_related('parcel__region', 'tree__species'))
-    return qs.select_for_update() if for_update else qs
+    qs = latest_preserved_tree_samples(for_update=for_update).select_related(
+        'sample', 'parcel__region', 'tree__species',
+    )
+    return qs
+
+
+def _pai_sample(sample_date):
+    survey, _ = Survey.objects.get_or_create(
+        name=PRESERVED_IMPORT_SURVEY_NAME,
+        defaults={
+            'sample_grid': None,
+            'description': 'Rilevamento libero per alberi PAI.',
+            'active': False,
+        },
+    )
+    if survey.sample_grid_id is not None:
+        raise RuntimeError(f'Survey {PRESERVED_IMPORT_SURVEY_NAME!r} is structured')
+    if survey.active:
+        survey.active = False
+        survey.save(update_fields=['active'])
+    return Sample.objects.create(sample_area=None, survey=survey, date=sample_date)
 
 
 def _satellite_json_response(request, region_id, filename):

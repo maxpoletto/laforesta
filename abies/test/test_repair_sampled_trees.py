@@ -8,7 +8,7 @@ from django.core.management.base import CommandError
 
 from apps.base.models import (
     Eclass, HarvestPlan, HarvestPlanItem, Parcel, Region, Sample, SampleArea,
-    SampleGrid, Species, Survey, Tree, TreeMark, TreePreserved, TreeSample,
+    SampleGrid, Species, Survey, Tree, TreeMark, TreeSample,
 )
 
 
@@ -46,9 +46,13 @@ def _setup_domain():
     preserved_tree = Tree.objects.create(
         species=species, parcel=parcel, preserved=True, coppice=False,
     )
-    TreePreserved.objects.create(
-        tree=preserved_tree, parcel=parcel, number=1,
-        date='2024-09-15', d_cm=40, h_m=Decimal('18.5'),
+    pai_survey = Survey.objects.create(name='PAI')
+    pai_sample = Sample.objects.create(
+        sample_area=None, survey=pai_survey, date='2024-09-15',
+    )
+    TreeSample.objects.create(
+        sample=pai_sample, tree=preserved_tree, parcel=parcel,
+        number=1, preserved_number=1, d_cm=40, h_m=Decimal('18.5'),
         h_measured=True, lat=38.5, lon=16.1,
     )
     return {
@@ -64,7 +68,8 @@ def test_repair_sampled_trees_check_persists_nothing(tmp_path):
 
     call_command('repair_sampled_trees', data_dir, '--check')
 
-    assert TreeSample.objects.count() == 1
+    assert TreeSample.objects.count() == 2
+    assert TreeSample.objects.filter(preserved_number__isnull=False).count() == 1
     assert Tree.objects.filter(id=ids['sampled_tree_id']).exists()
     assert Tree.objects.filter(id=ids['preserved_tree_id']).exists()
 
@@ -89,7 +94,31 @@ def test_repair_sampled_trees_refuses_sampled_tree_referenced_by_mark(tmp_path):
     with pytest.raises(CommandError, match='referenced outside samples'):
         call_command('repair_sampled_trees', data_dir)
 
-    assert TreeSample.objects.count() == 1
+    assert TreeSample.objects.count() == 2
+    assert TreeSample.objects.filter(preserved_number__isnull=False).count() == 1
+    assert Tree.objects.filter(id=ids['sampled_tree_id']).exists()
+
+
+@pytest.mark.django_db
+def test_repair_sampled_trees_refuses_sampled_tree_referenced_by_pai_sample(tmp_path):
+    ids = _setup_domain()
+    sampled_tree = Tree.objects.get(id=ids['sampled_tree_id'])
+    sampled_tree.preserved = True
+    sampled_tree.save(update_fields=['preserved'])
+    pai_survey = Survey.objects.create(name='PAI shared tree')
+    pai_sample = Sample.objects.create(
+        sample_area=None, survey=pai_survey, date='2024-10-01',
+    )
+    TreeSample.objects.create(
+        sample=pai_sample, tree=sampled_tree, parcel=sampled_tree.parcel,
+        number=99, preserved_number=99, d_cm=35, h_m=Decimal('16.0'),
+        h_measured=True,
+    )
+    data_dir = _write_canonical(tmp_path, _replacement_csv())
+
+    with pytest.raises(CommandError, match='referenced outside samples'):
+        call_command('repair_sampled_trees', data_dir)
+
     assert Tree.objects.filter(id=ids['sampled_tree_id']).exists()
 
 
@@ -100,13 +129,16 @@ def test_repair_sampled_trees_replaces_sample_rows_only(tmp_path):
 
     call_command('repair_sampled_trees', data_dir)
 
-    assert Sample.objects.count() == 1
-    assert TreeSample.objects.count() == 2
+    assert Sample.objects.count() == 2
+    assert TreeSample.objects.count() == 3
     assert not Tree.objects.filter(id=ids['sampled_tree_id']).exists()
     assert Tree.objects.filter(id=ids['preserved_tree_id']).exists()
-    assert TreePreserved.objects.count() == 1
+    assert TreeSample.objects.filter(preserved_number__isnull=False).count() == 1
     assert list(
-        TreeSample.objects.order_by('number').values_list('number', 'd_cm')
+        TreeSample.objects
+        .filter(preserved_number__isnull=True)
+        .order_by('number')
+        .values_list('number', 'd_cm')
     ) == [(1, 31), (2, 32)]
 
 

@@ -41,7 +41,11 @@ class Command(BaseCommand):
             raise CommandError(f"{data_dir} is not a directory")
 
         groups, survey_names = _validated_replacement_groups(data_dir)
-        tree_ids = set(TreeSample.objects.values_list("tree_id", flat=True))
+        tree_ids = set(
+            TreeSample.objects
+            .filter(preserved_number__isnull=True)
+            .values_list("tree_id", flat=True)
+        )
         blocked = _blocked_tree_ids(tree_ids)
         if blocked:
             sample = ", ".join(str(i) for i in sorted(blocked)[:20])
@@ -50,8 +54,10 @@ class Command(BaseCommand):
                 f"outside samples ({sample})."
             )
 
-        n_samples = Sample.objects.count()
-        n_tree_samples = TreeSample.objects.count()
+        n_samples = Sample.objects.filter(
+            treesample__isnull=False, treesample__preserved_number__isnull=True,
+        ).distinct().count()
+        n_tree_samples = TreeSample.objects.filter(preserved_number__isnull=True).count()
         n_trees = len(tree_ids)
         n_new_trees = sum(len(parsed) for _survey, parsed in groups)
 
@@ -168,14 +174,27 @@ def _blocked_tree_ids(tree_ids: set[int]) -> set[int]:
         .filter(tree_id__in=tree_ids)
         .values_list("tree_id", flat=True)
     )
+    blocked.update(
+        TreeSample.objects
+        .filter(tree_id__in=tree_ids, preserved_number__isnull=False)
+        .values_list("tree_id", flat=True)
+    )
     return blocked
 
 
 def _delete_all_samples_and_trees(tree_ids: set[int]) -> None:
-    sample_ids = list(Sample.objects.values_list("id", flat=True))
-    tree_sample_ids = list(TreeSample.objects.values_list("id", flat=True))
+    tree_sample_ids = list(
+        TreeSample.objects
+        .filter(preserved_number__isnull=True)
+        .values_list("id", flat=True)
+    )
     if tree_sample_ids:
         _delete_by_ids("base_treesample", tree_sample_ids)
+    sample_ids = list(
+        Sample.objects
+        .exclude(id__in=TreeSample.objects.values("sample_id"))
+        .values_list("id", flat=True)
+    )
     if sample_ids:
         _delete_by_ids("base_sample", sample_ids)
     if tree_ids:

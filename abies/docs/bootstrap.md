@@ -113,10 +113,11 @@ species table.
 region-wide. Region-wide rows use `X` as their display parcel in the UI.
 
 `preserved-trees.csv` records PAI/preserved trees. Required columns are
-`Compresa`, `Particella`, `Numero`, `Genere`, `Lon`, and `Lat`; optional columns
-include `Data`, `Anno di nascita stimato`, `D_cm`, `H_m`, `H_measured`, `Acc_m`,
-`Operatore`, and `Note`. Bootstrap creates both the backing tree and its PAI
-observation row, and validates parcel, species, number, and coordinates.
+`Compresa`, `Particella`, `Numero`, `Genere`, `Lon`, `Lat`, `Data`, `D_cm`,
+and `H_m`; optional columns include `Anno di nascita stimato`, `H_measured`,
+`Acc_m`, `Operatore`, and `Note`. Bootstrap creates both the backing tree and
+its PAI observation row, and validates parcel, species, number, date, diameter,
+height, and coordinates.
 
 `harvests.csv` records completed harvest rows. A blank parcel means the row is
 region-wide. Dynamic `Specie:<name>` and `Trattore:<name>` columns use canonical

@@ -105,10 +105,10 @@ hosts (top to bottom):
   Map shows parcel borders and per-tree dots colored by species.
 
   Writers see a "+ Aggiungi" button below the species list. Clicking it opens a
-  modal form: species, tree number, optional survey date, optional estimated
-  birth year, parcel, optional diameter/height, lat/lon (shared lat-lon
-  component — manual entry plus "Usa GPS" button when device geolocation is
-  available), and free-text note. Species, number and lat/lon cannot be empty:
+  modal form: species, tree number, survey date, optional estimated birth year,
+  parcel, diameter/height, lat/lon (shared lat-lon component — manual entry plus
+  "Usa GPS" button when device geolocation is available), and free-text note.
+  Species, number, date, diameter, height, and lat/lon cannot be empty:
   showFormError on submit if they are. Parcel is auto-derived (via parcel
   geometries) from lat/lon when user sets lat/lon, but user can edit it
   explicitly also.

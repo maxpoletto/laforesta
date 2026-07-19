@@ -16,7 +16,7 @@ from django.urls import reverse
 from apps.base.models import (
     HYPSO_FUNC_LN, HarvestPlan, HarvestPlanItem, HarvestPlanItemState,
     HypsoParam, HypsoParamSet, HypsoParamSource, Parcel, Sample,
-    SampleArea, SampleGrid, Survey, Tree, TreeMark, TreePreserved,
+    SampleArea, SampleGrid, Survey, Tree, TreeMark,
     TreeSample, UsedNonce,
 )
 from apps.ipso import staging as ipso_staging
@@ -31,6 +31,7 @@ from config.constants import (
     FIELD_MODE_LABEL, FIELD_NONCE, FIELD_NOTE, FIELD_NUMBER, FIELD_OPERATOR,
     FIELD_PARCEL, FIELD_PARCEL_ID, FIELD_REASON, FIELD_RECORD_DATE,
     FIELD_REGION_ID, FIELD_SAMPLE_AREA_ID, FIELD_SCHEMA_VERSION,
+    FIELD_TREE_PRESERVED_ID,
     FIELD_SEQ, FIELD_SESSION_ID, FIELD_SHOOT, FIELD_SPECIES, FIELD_SPECIES_ID,
     FIELD_SURVEY_ID, FIELD_WORK_PACKAGE_LABEL,
     IMPORTED, IPSO_ERROR_CONFLICT, IPSO_ERROR_INVALID_PAYLOAD,
@@ -208,11 +209,10 @@ def test_reference_json_comes_from_abies_data(db, regions, parcels, species):
         species=species[0], parcel=parcels[0], preserved=True,
         coppice=False, estimated_birth_year=1920, lat=38.45678, lon=16.12345,
     )
-    preserved = TreePreserved.objects.create(
-        tree=preserved_tree, parcel=parcels[0], number=7,
-        date=date(2024, 9, 15), d_cm=42, h_m=Decimal('18.50'),
-        h_measured=True, lat=38.45678, lon=16.12345, acc_m=6,
-        operator='Mario', note='nota',
+    preserved = _preserved_sample(
+        preserved_tree, parcels[0], number=7, sample_date=date(2024, 9, 15),
+        d_cm=42, h_m=Decimal('18.50'), h_measured=True,
+        lat=38.45678, lon=16.12345, acc_m=6, operator='Mario', note='nota',
     )
     active = HypsoParamSet.objects.create(source=HypsoParamSource.IMPORTED)
     HypsoParam.objects.create(
@@ -294,7 +294,7 @@ def test_reference_json_comes_from_abies_data(db, regions, parcels, species):
         'coppice': False,
     }]
     assert data['pai']['preserved_trees'] == [{
-        'tree_preserved_id': preserved.id,
+        FIELD_TREE_PRESERVED_ID: preserved.id,
         'tree_id': preserved_tree.id,
         'region_id': parcels[0].region_id,
         'parcel_id': parcels[0].id,
@@ -367,6 +367,23 @@ def _upload_payload(
     if record_overrides:
         record.update(record_overrides)
     return {SESSION: session, RECORDS: [record], FIELD_CSV_TEXT: 'csv backup'}
+
+
+def _preserved_sample(
+        tree, parcel, *, number=7, sample_date=date(2024, 9, 15),
+        d_cm=42, h_m=Decimal('18.50'), h_measured=True, lat=38.45678,
+        lon=16.12345, acc_m=6, operator='Mario', note='nota',
+):
+    survey = Survey.objects.create(name=f'Ipso PAI survey {tree.id}-{number}')
+    sample = Sample.objects.create(
+        sample_area=None, survey=survey, date=sample_date,
+    )
+    return TreeSample.objects.create(
+        sample=sample, tree=tree, parcel=parcel, number=number,
+        preserved_number=number, d_cm=d_cm, h_m=h_m,
+        h_measured=h_measured, lat=lat, lon=lon, acc_m=acc_m,
+        operator=operator, note=note,
+    )
 
 
 def _sample_survey(parcel, *, name='Ipso survey'):
@@ -2171,8 +2188,8 @@ def test_pai_import_rejects_duplicate_tree_number_in_parcel(
         writer_client, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     tree = Tree.objects.create(species=species[0], parcel=parcels[0], preserved=True)
-    TreePreserved.objects.create(
-        tree=tree, parcel=parcels[0], number=1, date=date(2026, 6, 17),
+    _preserved_sample(
+        tree, parcels[0], number=1, sample_date=date(2026, 6, 17),
         d_cm=30, h_m=Decimal('18.00'), lat=38.51234, lon=16.12345,
     )
     payload = _upload_payload(
@@ -2193,7 +2210,7 @@ def test_pai_import_rejects_duplicate_tree_number_in_parcel(
     assert resp.json()[MESSAGE] == (
         S.IPSO_ERR_IMPORT_RECORD_PAI_NUMBER_DUPLICATE.format(1)
     )
-    assert TreePreserved.objects.count() == 1
+    assert TreeSample.objects.filter(preserved_number__isnull=False).count() == 1
     upload.refresh_from_db()
     assert upload.state == IpsoUploadState.RECEIVED
 
@@ -2222,7 +2239,7 @@ def test_pai_import_integrity_error_returns_validation(
 
     assert resp.status_code == 400
     assert resp.json()[MESSAGE] == S.IPSO_ERR_IMPORT_PAI_NUMBER_CONFLICT
-    assert TreePreserved.objects.count() == 0
+    assert TreeSample.objects.filter(preserved_number__isnull=False).count() == 0
     upload.refresh_from_db()
     assert upload.state == IpsoUploadState.RECEIVED
     assert upload.error_summary == S.IPSO_ERR_IMPORT_PAI_NUMBER_CONFLICT
@@ -2246,7 +2263,7 @@ def test_pai_import_rejects_staged_missing_number(
 
     assert resp.status_code == 400
     assert S.IPSO_ERR_RECORD_NUMBER_REQUIRED.format(1) in resp.json()[MESSAGE]
-    assert TreePreserved.objects.count() == 0
+    assert TreeSample.objects.filter(preserved_number__isnull=False).count() == 0
     upload.refresh_from_db()
     assert upload.state == IpsoUploadState.RECEIVED
 
@@ -2283,11 +2300,14 @@ def test_writer_imports_pai_upload(writer_client, writer_user, parcels, species,
     assert upload.imported_by == writer_user
     assert upload.target_type == 'pai'
     _assert_nonce_saved(writer_user, nonce)
-    pai = TreePreserved.objects.select_related('tree', 'tree__species').get()
+    pai = (TreeSample.objects
+           .select_related('sample', 'tree', 'tree__species', 'parcel')
+           .get(preserved_number__isnull=False))
     assert pai.tree.parcel == parcels[0]
+    assert pai.parcel == parcels[0]
     assert pai.tree.species == species[0]
-    assert pai.number == 1
-    assert pai.date == date(2026, 6, 17)
+    assert pai.preserved_number == 1
+    assert pai.sample.date == date(2026, 6, 17)
     assert pai.d_cm == 42
     assert pai.h_m == Decimal('22.00')
     assert pai.h_measured is True
@@ -2324,7 +2344,7 @@ def test_pai_import_supports_coppice_parcels(
     )
 
     assert resp.status_code == 200
-    pai = TreePreserved.objects.select_related('tree').get()
+    pai = TreeSample.objects.select_related('tree').get(preserved_number__isnull=False)
     assert pai.tree.coppice is False
     assert pai.volume_m3 is None
     assert pai.mass_q is None

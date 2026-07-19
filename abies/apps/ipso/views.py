@@ -34,10 +34,11 @@ from apps.base.http import (
 )
 from apps.base.models import (
     HYPSO_FUNC_LN, HarvestPlanItem, HarvestPlanItemState, HypsoParam,
-    HypsoParamSet, Parcel, SampleArea, Species, Survey, TreePreserved,
-    TreeSample, natural_sort_key, parcel_sort_key,
+    HypsoParamSet, Parcel, SampleArea, Species, Survey, TreeSample,
+    natural_sort_key, parcel_sort_key,
 )
 from apps.base.numparse import coord_float, to_decimal
+from apps.base.preserved_trees import latest_preserved_tree_samples
 from apps.base.responses import row_delete, success_response, validation_error
 from apps.campionamenti import csv_trees
 from apps.ipso import staging as ipso_staging
@@ -311,9 +312,9 @@ def _sample_area_max_numbers_by_survey(
 
 def _pai_context() -> dict:
     rows = (
-        TreePreserved.objects
-        .select_related('tree__species', 'parcel__region')
-        .order_by('parcel__region__name', 'parcel__name', FIELD_NUMBER, 'id')
+        latest_preserved_tree_samples()
+        .select_related('sample', 'tree__species', 'parcel__region')
+        .order_by('parcel__region__name', 'parcel__name', 'preserved_number', 'id')
     )
     return {
         IPSO_REF_PRESERVED_TREES: [
@@ -325,11 +326,11 @@ def _pai_context() -> dict:
                 'compresa': p.parcel.region.name,
                 'particella': p.parcel.name,
                 FIELD_SPECIES_ID: p.tree.species_id,
-                FIELD_NUMBER: p.number,
+                FIELD_NUMBER: p.preserved_number,
                 FIELD_ESTIMATED_BIRTH_YEAR: p.tree.estimated_birth_year,
-                FIELD_DATE: p.date.isoformat() if p.date else '',
+                FIELD_DATE: p.sample.date.isoformat(),
                 FIELD_D_CM: p.d_cm,
-                FIELD_H_M: str(p.h_m) if p.h_m is not None else None,
+                FIELD_H_M: str(p.h_m),
                 FIELD_H_MEASURED: p.h_measured,
                 FIELD_LAT: p.lat,
                 FIELD_LON: p.lon,

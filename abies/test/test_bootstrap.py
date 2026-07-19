@@ -7,7 +7,7 @@ from django.db import OperationalError
 
 from apps.base.models import (
     Crew, Eclass, HarvestPlan, HarvestPlanItem, Parcel, Product, Region,
-    SampleArea, SampleGrid, Species, Survey, Tractor, Tree, TreePreserved,
+    SampleArea, SampleGrid, Species, Survey, Tractor, Tree, TreeSample,
 )
 from apps.base.hypsometry import active_set
 from apps.base.refdata import PRODUCT_MAP, load_species
@@ -76,7 +76,7 @@ def test_happy_path_loads_everything(tmp_path):
     assert SampleArea.objects.count() == 1
     assert Tree.objects.filter(preserved=False).count() == 1   # sampled tree
     assert Tree.objects.filter(preserved=True).count() == 1    # preserved tree
-    assert TreePreserved.objects.count() == 1
+    assert TreeSample.objects.filter(preserved_number__isnull=False).count() == 1
     assert Harvest.objects.count() == 2
 
 
@@ -217,9 +217,13 @@ def test_preserved_trees_load(tmp_path):
     call_command('bootstrap', _make_dir(tmp_path))
     trees = Tree.objects.filter(preserved=True)
     assert trees.count() == 1
-    pai = TreePreserved.objects.get()
+    pai = TreeSample.objects.get(preserved_number__isnull=False)
     assert pai.tree == trees.get()
+    assert pai.preserved_number == 1
     assert pai.number == 1
+    assert pai.sample.date.isoformat() == '2024-09-15'
+    assert pai.d_cm == 40
+    assert str(pai.h_m) == '18.50'
     assert pai.note == 'nota'
 
 

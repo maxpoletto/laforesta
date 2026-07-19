@@ -7,10 +7,10 @@ from datetime import date as date_type
 from decimal import Decimal, ROUND_HALF_UP
 
 from apps.base.models import (
-    Parcel, Sample, SampleArea, Species, Survey, TreePreserved,
-    TreeSample,
+    Parcel, Sample, SampleArea, Species, Survey, TreeSample,
 )
 from apps.base.numparse import to_decimal
+from apps.base.preserved_trees import current_preserved_number_keys
 from apps.campionamenti import csv_preserved
 from apps.campionamenti.csv_trees import parsed_tree_row
 from apps.campionamenti.tree_validation import normalize_sample_tree_values
@@ -162,11 +162,7 @@ def pai_import_rows(payload: dict) -> tuple[list[dict], list[str]]:
                        .filter(id__in=parcel_ids)
                        .select_related('region', 'eclass'))
     }
-    seen_numbers = set(
-        TreePreserved.objects
-        .filter(parcel_id__in=parcel_ids)
-        .values_list(FIELD_PARCEL_ID, FIELD_NUMBER)
-    )
+    seen_numbers = current_preserved_number_keys(parcel_ids)
     rows = []
     errors = []
     for i, record in enumerate(records, start=1):
