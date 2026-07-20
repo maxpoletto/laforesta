@@ -55,6 +55,7 @@ help:
 	@echo "Remote deployment:"
 	@echo "  make deploy-dev [REF=<ref>]      deploy current tree or ref to abies-dev"
 	@echo "  make deploy-prod REF=<ref>       deploy clean tagged/ref build to production"
+	@echo "                                  pass DEPLOY_ARGS=--release1-tree-checks for Release 1"
 	@echo "  make sync-canonical-dev         rsync CANONICAL_DIR to dev data/canonical"
 	@echo "  make sync-canonical-prod        rsync CANONICAL_DIR to prod data/canonical"
 	@echo "  make sync-satellite-dev         rsync generated SATELLITE_DIR to dev"
@@ -67,7 +68,7 @@ help:
 	@echo "  make backup-prod                 create and prune a prod backup"
 	@echo "  make mirror-prod-to-dev          copy prod runtime state into dev (use MIRROR_ARGS=--yes)"
 	@echo ""
-	@echo "Useful variables: LOCAL_ENV_FILE=$(LOCAL_ENV_FILE), SATELLITE_ENV_FILE=$(SATELLITE_ENV_FILE), CANONICAL_DIR=$(CANONICAL_DIR), SATELLITE_DIR=$(SATELLITE_DIR), SATELLITE_GEOJSON=$(SATELLITE_GEOJSON), BRANDING_DIR=$(BRANDING_DIR), REMOTE=$(REMOTE), ABIES_DOCKER_CONTEXT=$(ABIES_DOCKER_CONTEXT), DEPLOY_ARGS=--reset-user"
+	@echo "Useful variables: LOCAL_ENV_FILE=$(LOCAL_ENV_FILE), SATELLITE_ENV_FILE=$(SATELLITE_ENV_FILE), CANONICAL_DIR=$(CANONICAL_DIR), SATELLITE_DIR=$(SATELLITE_DIR), SATELLITE_GEOJSON=$(SATELLITE_GEOJSON), BRANDING_DIR=$(BRANDING_DIR), REMOTE=$(REMOTE), ABIES_DOCKER_CONTEXT=$(ABIES_DOCKER_CONTEXT), DEPLOY_ARGS=--reset-user|--release1-tree-checks"
 
 # --- Local database and data build -----------------------------------------
 
@@ -151,7 +152,7 @@ deploy-dev:
 	$(MAKE) deploy-instance INSTANCE=dev
 
 deploy-prod:
-	@test -n "$(REF)" || { echo "usage: make deploy-prod REF=<tag-or-sha> [DEPLOY_ARGS=--reset-user]" >&2; exit 1; }
+	@test -n "$(REF)" || { echo "usage: make deploy-prod REF=<tag-or-sha> [DEPLOY_ARGS=--reset-user|--release1-tree-checks]" >&2; exit 1; }
 	$(MAKE) deploy-instance INSTANCE=prod
 
 deploy-instance:
