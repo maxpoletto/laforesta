@@ -25,15 +25,18 @@ from apps.ipso.models import IpsoUpload, IpsoUploadState
 from config import strings as S
 from config.constants import (
     COLUMNS, DETAIL, DUPLICATE, ERROR, FIELD_ACC_M, FIELD_CLIENT_RECORD_ID,
+    FIELD_COMPLETED_AT, FIELD_COPPICE, FIELD_CREATED_AT,
     FIELD_CSV_TEXT, FIELD_D_CM, FIELD_DAMAGED, FIELD_DATE,
-    FIELD_HARVEST_PLAN_ITEM_ID, FIELD_H_M, FIELD_H_MEASURED,
+    FIELD_ESTIMATED_BIRTH_YEAR, FIELD_HARVEST_PLAN_ITEM_ID, FIELD_H_M,
+    FIELD_H_MEASURED,
     FIELD_HYPSO_PARAM_SET_ID, FIELD_LAT, FIELD_LON, FIELD_MODE,
-    FIELD_MODE_LABEL, FIELD_NONCE, FIELD_NOTE, FIELD_NUMBER, FIELD_OPERATOR,
-    FIELD_PARCEL, FIELD_PARCEL_ID, FIELD_REASON, FIELD_RECORD_DATE,
-    FIELD_REGION_ID, FIELD_SAMPLE_AREA_ID, FIELD_SCHEMA_VERSION,
-    FIELD_TREE_PRESERVED_ID,
+    FIELD_L10_MM, FIELD_MODE_LABEL, FIELD_NONCE, FIELD_NOTE, FIELD_NUMBER,
+    FIELD_OPERATOR, FIELD_PARCEL, FIELD_PARCEL_ID, FIELD_PRESERVED,
+    FIELD_PRESSLER_COEFF, FIELD_REASON, FIELD_RECORD_DATE,
+    FIELD_REFERENCE_VERSION, FIELD_REGION_ID, FIELD_SAMPLE_AREA_ID,
+    FIELD_SCHEMA_VERSION, FIELD_STANDARD, FIELD_TREE_PRESERVED_ID,
     FIELD_SEQ, FIELD_SESSION_ID, FIELD_SHOOT, FIELD_SPECIES, FIELD_SPECIES_ID,
-    FIELD_SURVEY_ID, FIELD_WORK_PACKAGE_LABEL,
+    FIELD_SURVEY_ID, FIELD_WORK_PACKAGE_ID, FIELD_WORK_PACKAGE_LABEL,
     IMPORTED, IPSO_ERROR_CONFLICT, IPSO_ERROR_INVALID_PAYLOAD,
     IPSO_ERROR_RATE_LIMITED, IPSO_ERROR_TOO_LARGE, IPSO_MODE_MARTELLATE,
     IPSO_MODE_PAI, IPSO_MODE_SAMPLES, IPSO_UPLOAD_FILE_READY, MESSAGE,
@@ -367,6 +370,69 @@ def _upload_payload(
     if record_overrides:
         record.update(record_overrides)
     return {SESSION: session, RECORDS: [record], FIELD_CSV_TEXT: 'csv backup'}
+
+
+def _legacy_ipso_1_1_4_payload(
+        parcels, species, *, mode=IPSO_MODE_MARTELLATE,
+        session_id='44444444-1444-4444-8444-444444444401',
+        work_package_id='', sample_area_id=None, number=1,
+        record_overrides=None,
+):
+    """Payload shape emitted by abies-1.1.4 Ipso buildUploadPayload()."""
+    parcel = parcels[0]
+    sp = species[0]
+    session = {
+        FIELD_SESSION_ID: session_id,
+        FIELD_MODE: mode,
+        FIELD_SCHEMA_VERSION: 1,
+        FIELD_REFERENCE_VERSION: 'abies-1.1.4-reference',
+        FIELD_WORK_PACKAGE_ID: work_package_id,
+        FIELD_OPERATOR: 'Mario Rossi',
+        FIELD_CREATED_AT: '2026-06-17T08:00:00Z',
+        FIELD_COMPLETED_AT: '2026-06-17T09:00:00Z',
+        FIELD_DAMAGED: False,
+        FIELD_REGION_ID: parcel.region_id,
+    }
+    record = {
+        FIELD_CLIENT_RECORD_ID: '1',
+        FIELD_DATE: '2026-06-17',
+        FIELD_REGION_ID: parcel.region_id,
+        FIELD_PARCEL_ID: parcel.id,
+        FIELD_SPECIES_ID: sp.id,
+        FIELD_NUMBER: number,
+        FIELD_D_CM: 42,
+        FIELD_H_M: '22',
+        FIELD_H_MEASURED: False,
+        FIELD_HYPSO_PARAM_SET_ID: None,
+        FIELD_LAT: 38.51234,
+        FIELD_LON: 16.12345,
+        FIELD_ACC_M: 5,
+    }
+    if mode == IPSO_MODE_SAMPLES:
+        record.update({
+            FIELD_SAMPLE_AREA_ID: sample_area_id,
+            FIELD_COPPICE: False,
+            FIELD_SHOOT: 0,
+            FIELD_STANDARD: False,
+            FIELD_L10_MM: 0,
+            FIELD_PRESSLER_COEFF: '2',
+            FIELD_PRESERVED: False,
+            # abies-1.1.4 did not include per-record operator/note for samples.
+        })
+    elif mode == IPSO_MODE_PAI:
+        record.update({
+            FIELD_ESTIMATED_BIRTH_YEAR: 1920,
+            FIELD_OPERATOR: 'Mario Rossi',
+            FIELD_NOTE: 'nota PAI da 1.1.4',
+        })
+    # Martellate records deliberately carry no per-record operator in the
+    # 1.1.4 client; the session operator is the fallback.
+    if record_overrides:
+        record.update(record_overrides)
+    return {
+        SESSION: session, RECORDS: [record],
+        FIELD_CSV_TEXT: 'csv backup 1.1.4',
+    }
 
 
 def _preserved_sample(
@@ -1406,6 +1472,131 @@ def test_import_rejects_upload_mode_mismatch(
     upload.refresh_from_db()
     assert upload.state == IpsoUploadState.RECEIVED
     assert upload.target_type == ''
+
+
+@override_settings(IPSO_SECRET='test-token')
+def test_abies_1_1_4_martellate_payload_uploads_and_imports(
+        writer_client, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    item = _harvest_item(parcels)
+    payload = _legacy_ipso_1_1_4_payload(
+        parcels, species,
+        session_id='41414141-1414-4141-8141-414141414101',
+    )
+    assert FIELD_OPERATOR not in payload[RECORDS][0]
+
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload[SESSION][FIELD_SESSION_ID])
+    resp = writer_client.post(
+        reverse('ipso-upload-import-martellate', args=[upload.id]),
+        data=json.dumps({FIELD_HARVEST_PLAN_ITEM_ID: item.id}),
+        content_type='application/json',
+    )
+
+    assert resp.status_code == 200, resp.content
+    mark = TreeMark.objects.select_related('tree', 'parcel').get()
+    assert mark.parcel == parcels[0]
+    assert mark.tree.parcel == parcels[0]
+    assert mark.operator == 'Mario Rossi'
+    assert mark.d_cm == 42
+    assert mark.h_m == Decimal('22.00')
+    upload.refresh_from_db()
+    assert upload.state == IpsoUploadState.IMPORTED
+
+
+@override_settings(IPSO_SECRET='test-token')
+def test_abies_1_1_4_samples_payload_uploads_and_imports(
+        writer_client, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    survey, area = _sample_survey(parcels[0], name='Legacy Ipso samples')
+    payload = _legacy_ipso_1_1_4_payload(
+        parcels, species, mode=IPSO_MODE_SAMPLES,
+        session_id='42424242-2424-4242-8242-424242424202',
+        work_package_id=f'sampling_survey:{survey.id}',
+        sample_area_id=area.id,
+        record_overrides={FIELD_H_MEASURED: True},
+    )
+    assert FIELD_OPERATOR not in payload[RECORDS][0]
+    assert FIELD_NOTE not in payload[RECORDS][0]
+
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload[SESSION][FIELD_SESSION_ID])
+    resp = writer_client.post(
+        reverse('ipso-upload-import-samples', args=[upload.id]),
+        data=json.dumps({FIELD_SURVEY_ID: survey.id}),
+        content_type='application/json',
+    )
+
+    assert resp.status_code == 200, resp.content
+    row = (TreeSample.objects
+           .select_related('sample', 'tree', 'parcel')
+           .get(sample__survey=survey))
+    assert row.sample.sample_area == area
+    assert row.parcel == parcels[0]
+    assert row.tree.parcel == parcels[0]
+    assert row.h_measured is True
+    assert row.operator == 'Mario Rossi'
+    assert row.note == ''
+    upload.refresh_from_db()
+    assert upload.state == IpsoUploadState.IMPORTED
+
+
+@override_settings(IPSO_SECRET='test-token')
+def test_old_normalized_samples_upload_imports_after_release_1(
+        writer_client, parcels, species, settings, tmp_path):
+    """Inbox JSON written by abies-1.1.4 lacks sample operator/note fields."""
+    survey, area = _sample_survey(parcels[0], name='Old staged samples')
+    payload = _legacy_ipso_1_1_4_payload(
+        parcels, species, mode=IPSO_MODE_SAMPLES,
+        session_id='42424242-2424-4242-8242-424242424203',
+        work_package_id=f'sampling_survey:{survey.id}',
+        sample_area_id=area.id,
+    )
+    upload = _stage_upload_direct(settings, tmp_path, payload)
+
+    resp = writer_client.post(
+        reverse('ipso-upload-import-samples', args=[upload.id]),
+        data=json.dumps({FIELD_SURVEY_ID: survey.id}),
+        content_type='application/json',
+    )
+
+    assert resp.status_code == 200, resp.content
+    row = TreeSample.objects.get(sample__survey=survey)
+    assert row.operator == 'Mario Rossi'
+    assert row.note == ''
+
+
+@override_settings(IPSO_SECRET='test-token')
+def test_abies_1_1_4_pai_payload_uploads_and_imports(
+        writer_client, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    payload = _legacy_ipso_1_1_4_payload(
+        parcels, species, mode=IPSO_MODE_PAI,
+        session_id='43434343-3434-4343-8343-434343434303',
+        number=12,
+    )
+
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload[SESSION][FIELD_SESSION_ID])
+    resp = writer_client.post(
+        reverse('ipso-upload-import-pai', args=[upload.id]),
+        data=json.dumps({}),
+        content_type='application/json',
+    )
+
+    assert resp.status_code == 200, resp.content
+    row = (TreeSample.objects
+           .select_related('sample', 'tree', 'parcel')
+           .get(preserved_number__isnull=False))
+    assert row.parcel == parcels[0]
+    assert row.tree.parcel == parcels[0]
+    assert row.preserved_number == 12
+    assert row.sample.date == date(2026, 6, 17)
+    assert row.operator == 'Mario Rossi'
+    assert row.note == 'nota PAI da 1.1.4'
+    upload.refresh_from_db()
+    assert upload.state == IpsoUploadState.IMPORTED
+
 
 @override_settings(IPSO_SECRET='test-token')
 def test_martellate_import_rejects_coppice_target(
