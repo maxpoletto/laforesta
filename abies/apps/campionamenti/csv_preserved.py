@@ -18,7 +18,8 @@ from apps.base.digests import mark_stale
 from apps.base.models import Parcel, Sample, Species, Survey, Tree, TreeSample
 from apps.base.numparse import coord_float
 from apps.base.preserved_trees import (
-    PRESERVED_IMPORT_SURVEY_NAME, current_preserved_number_keys,
+    PRESERVED_IMPORT_SURVEY_NAME, PRESERVED_LEGACY_UNKNOWN_DATE,
+    current_preserved_number_keys,
 )
 from config import strings as S
 from config.constants import (
@@ -102,7 +103,7 @@ def validate_rows(reader, idx: PreservedIndexes):
             continue
         seen_numbers.add(number_key)
 
-        date, date_ok = _required_date(row.get(S.CSV_COL_DATA))
+        row_date, date_ok = _optional_date(row.get(S.CSV_COL_DATA))
         birth_year, birth_ok = reader.opt_int(row.get(S.CSV_COL_ESTIMATED_BIRTH_YEAR, ''))
         d_cm, d_ok = reader.opt_int(row.get(S.CSV_COL_D_CM, ''))
         h_m, h_ok = reader.opt_decimal(row.get(S.CSV_COL_H_M, ''))
@@ -114,18 +115,26 @@ def validate_rows(reader, idx: PreservedIndexes):
         if d_cm is None or d_cm <= 0:
             errors.append(S.ERR_CSV_ROW_PARSE.format(i, S.CSV_COL_D_CM))
             continue
-        if h_m is None or h_m <= 0:
-            errors.append(S.ERR_CSV_ROW_PARSE.format(i, S.CSV_COL_H_M))
-            continue
-        h_m = h_m.quantize(TREE_H_QUANTUM, rounding=ROUND_HALF_UP)
-        if h_measured is None:
-            h_measured = True
+        if h_m is None:
+            if h_measured is True:
+                errors.append(S.ERR_CSV_ROW_PARSE.format(i, S.CSV_COL_H_M))
+                continue
+            h_measured = False
+        else:
+            if h_m <= 0:
+                errors.append(S.ERR_CSV_ROW_PARSE.format(i, S.CSV_COL_H_M))
+                continue
+            h_m = h_m.quantize(TREE_H_QUANTUM, rounding=ROUND_HALF_UP)
+            if h_measured is None:
+                h_measured = True
+        if row_date is None:
+            row_date = PRESERVED_LEGACY_UNKNOWN_DATE
 
         parsed.append({
             FIELD_PARCEL: parcel,
             FIELD_SPECIES: sp,
             FIELD_NUMBER: number,
-            FIELD_DATE: date,
+            FIELD_DATE: row_date,
             FIELD_ESTIMATED_BIRTH_YEAR: birth_year,
             FIELD_D_CM: d_cm,
             FIELD_H_M: h_m,
@@ -139,10 +148,10 @@ def validate_rows(reader, idx: PreservedIndexes):
     return parsed, errors
 
 
-def _required_date(value):
+def _optional_date(value):
     raw = (value or '').strip()
     if not raw:
-        return None, False
+        return None, True
     try:
         return date_type.fromisoformat(raw), True
     except ValueError:

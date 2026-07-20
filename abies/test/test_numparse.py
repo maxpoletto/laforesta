@@ -15,7 +15,9 @@ from decimal import Decimal
 import pytest
 from django.utils import translation
 
-from apps.base.numparse import coord_float, int_or_none, parse_decimal, to_int
+from apps.base.numparse import (
+    coord_float, float_or_none, int_or_none, parse_decimal, to_int,
+)
 
 
 class TestParseDecimal:
@@ -122,3 +124,8 @@ class TestIntOrNone:
         """The deliberate edge asymmetry: CSV tolerates "12.0", a form does not."""
         assert to_int('12.0', '.') == 12
         assert int_or_none('12.0') is None
+
+
+def test_float_or_none_preserves_null_and_converts_decimal():
+    assert float_or_none(None) is None
+    assert float_or_none(Decimal('18.50')) == 18.5

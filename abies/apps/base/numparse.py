@@ -4,8 +4,8 @@ Number conversion is organized **by edge**, not by direction:
 
   * This module is the **parsing core** — `to_decimal` / `to_int`, parameterized
     by decimal separator — and the **form/JSON edge** layered on it
-    (`parse_decimal` / `int_or_none` / `coord_float`, driven by the *active
-    locale*).
+    (`parse_decimal` / `int_or_none` / `float_or_none` / `coord_float`,
+    driven by the *active locale*).
   * `apps.base.csv_io` is the **CSV edge**: the same core driven by the
     *delimiter-detected* separator, and the only place numbers are *formatted*
     in Python (`csv_io.format_decimal`).
@@ -105,6 +105,11 @@ def int_or_none(value) -> int | None:
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+def float_or_none(value: Decimal | float | int | None) -> float | None:
+    """Convert a numeric value to float for JSON edges; preserve NULL as None."""
+    return float(value) if value is not None else None
 
 
 _COORD_QUANTUM = Decimal('0.00001')  # 5 dp ≈ 1 m; coordinates persist to float

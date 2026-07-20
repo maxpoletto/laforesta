@@ -4,6 +4,7 @@ import pytest
 
 from apps.base import csv_io
 from apps.base.models import Sample, Survey, Tree, TreeSample
+from apps.base.preserved_trees import PRESERVED_LEGACY_UNKNOWN_DATE
 from apps.campionamenti import csv_preserved
 from config import strings as S
 
@@ -59,6 +60,46 @@ def test_preserved_happy_path(parcels, species):
     assert pai.d_cm == 42
     assert str(pai.h_m) == '18.50'
     assert pai.note == 'nota'
+
+
+@pytest.mark.django_db
+def test_preserved_legacy_blank_date_and_height_imports(parcels, species):
+    reader = _reader(_csv('Capistrano,1,7,Abete,16.12345,38.45678,,,42,,nota'))
+    idx = csv_preserved.db_indexes()
+
+    parsed, errors = csv_preserved.validate_rows(reader, idx)
+
+    assert errors == []
+    assert len(parsed) == 1
+    assert parsed[0]['date'] == PRESERVED_LEGACY_UNKNOWN_DATE
+    assert parsed[0]['h_m'] is None
+    assert parsed[0]['h_measured'] is False
+
+    assert csv_preserved.apply(parsed) == 1
+    pai = TreeSample.objects.get(preserved_number=7)
+    assert pai.sample.date == PRESERVED_LEGACY_UNKNOWN_DATE
+    assert pai.h_m is None
+    assert pai.h_measured is False
+
+
+@pytest.mark.django_db
+def test_preserved_blank_height_cannot_be_marked_measured(parcels, species):
+    header = (
+        f'{S.CSV_COL_REGION},{S.CSV_COL_PARCEL},{S.CSV_COL_NUMBER},'
+        f'{S.CSV_COL_SPECIES},{S.CSV_COL_LON},{S.CSV_COL_LAT},'
+        f'{S.CSV_COL_DATA},{S.CSV_COL_ESTIMATED_BIRTH_YEAR},'
+        f'{S.CSV_COL_D_CM},{S.CSV_COL_H_M},{S.CSV_COL_H_MEASURED}'
+    )
+    reader = _reader('\n'.join([
+        header,
+        'Capistrano,1,7,Abete,16.12345,38.45678,2024-09-15,,42,,true',
+    ]))
+    idx = csv_preserved.db_indexes()
+
+    parsed, errors = csv_preserved.validate_rows(reader, idx)
+
+    assert parsed == []
+    assert errors == [S.ERR_CSV_ROW_PARSE.format(2, S.CSV_COL_H_M)]
 
 
 @pytest.mark.django_db

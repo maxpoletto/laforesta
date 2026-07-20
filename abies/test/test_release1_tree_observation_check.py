@@ -8,8 +8,8 @@ import pytest
 from django.core.management import call_command
 from django.core.management.base import CommandError
 
-from apps.base.management.commands.check_release1_tree_observations import (
-    PRESERVED_HISTORY_SURVEY_NAME,
+from apps.base.preserved_trees import (
+    PRESERVED_HISTORY_SURVEY_NAME, PRESERVED_LEGACY_UNKNOWN_DATE,
 )
 from apps.base.models import (
     Sample, SampleArea, SampleGrid, Survey, Tree, TreePreserved, TreeSample,
@@ -51,7 +51,10 @@ def _free_sample(name: str, sample_date: date) -> Sample:
     )
 
 
-def _legacy_preserved(parcel, species, *, number=7, tree=None) -> TreePreserved:
+def _legacy_preserved(
+        parcel, species, *, number=7, tree=None, row_date=date(2025, 6, 1),
+        h_m=Decimal('18.50'), h_measured=True,
+) -> TreePreserved:
     tree = tree or _tree(
         parcel, species, preserved=True, lat=38.1, lon=16.1, acc_m=4,
     )
@@ -59,10 +62,10 @@ def _legacy_preserved(parcel, species, *, number=7, tree=None) -> TreePreserved:
         tree=tree,
         parcel=parcel,
         number=number,
-        date=date(2025, 6, 1),
+        date=row_date,
         d_cm=40,
-        h_m=Decimal('18.50'),
-        h_measured=True,
+        h_m=h_m,
+        h_measured=h_measured,
         volume_m3=Decimal('1.2500'),
         mass_q=Decimal('11.250'),
         lat=38.1,
@@ -74,7 +77,10 @@ def _legacy_preserved(parcel, species, *, number=7, tree=None) -> TreePreserved:
 
 
 def _migrated_preserved_sample(parcel, legacy: TreePreserved) -> TreeSample:
-    sample = _free_sample(PRESERVED_HISTORY_SURVEY_NAME, legacy.date)
+    sample = _free_sample(
+        PRESERVED_HISTORY_SURVEY_NAME,
+        legacy.date or PRESERVED_LEGACY_UNKNOWN_DATE,
+    )
     return TreeSample.objects.create(
         sample=sample,
         tree=legacy.tree,
@@ -85,7 +91,7 @@ def _migrated_preserved_sample(parcel, legacy: TreePreserved) -> TreeSample:
         standard=False,
         d_cm=legacy.d_cm,
         h_m=legacy.h_m,
-        h_measured=legacy.h_measured,
+        h_measured=bool(legacy.h_measured and legacy.h_m is not None),
         volume_m3=legacy.volume_m3,
         mass_q=legacy.mass_q,
         lat=legacy.lat,
@@ -100,13 +106,13 @@ def test_release1_preflight_passes_empty_db(db):
     assert 'Release 1 tree-observation preflight OK' in _call_check('pre')
 
 
-def test_release1_preflight_rejects_incomplete_legacy_preserved_rows(parcels, species):
+def test_release1_preflight_rejects_legacy_preserved_rows_without_diameter(parcels, species):
     tree = _tree(parcels[0], species)
     TreePreserved.objects.create(
         tree=tree, parcel=parcels[0], number=7, lat=38.1, lon=16.1,
     )
 
-    with pytest.raises(CommandError, match='missing values required by migration'):
+    with pytest.raises(CommandError, match='missing diameter required by migration'):
         _call_check('pre')
 
 
@@ -121,6 +127,20 @@ def test_release1_postflight_accepts_migrated_legacy_preserved_rows(parcels, spe
     legacy = _legacy_preserved(parcels[0], species)
     _migrated_preserved_sample(parcels[0], legacy)
 
+    assert 'Release 1 tree-observation postflight OK' in _call_check('post')
+
+
+def test_release1_postflight_accepts_legacy_preserved_rows_with_unknown_date_and_height(
+        parcels, species,
+):
+    legacy = _legacy_preserved(
+        parcels[0], species, row_date=None, h_m=None, h_measured=True,
+    )
+    migrated = _migrated_preserved_sample(parcels[0], legacy)
+
+    assert migrated.sample.date == PRESERVED_LEGACY_UNKNOWN_DATE
+    assert migrated.h_m is None
+    assert migrated.h_measured is False
     assert 'Release 1 tree-observation postflight OK' in _call_check('post')
 
 

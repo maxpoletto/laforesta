@@ -645,7 +645,7 @@ class TreeSample(TimestampedModel):
     number = models.IntegerField()
     preserved_number = models.IntegerField(null=True, blank=True)
     d_cm = models.IntegerField()
-    h_m = models.DecimalField(max_digits=5, decimal_places=2)
+    h_m = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     h_measured = models.BooleanField(default=False)
     l10_mm = models.IntegerField(default=0)
     pressler_coeff = models.DecimalField(
@@ -690,6 +690,20 @@ class TreeSample(TimestampedModel):
                     models.Q(preserved_number__gt=0)
                 ),
                 name='tree_sample_preserved_number_positive',
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(preserved_number__isnull=False) |
+                    models.Q(h_m__isnull=False)
+                ),
+                name='tree_sample_h_m_required_unless_preserved',
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(h_m__isnull=False) |
+                    models.Q(h_measured=False)
+                ),
+                name='tree_sample_h_measured_false_without_h_m',
             ),
         ]
 

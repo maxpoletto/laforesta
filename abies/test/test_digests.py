@@ -365,6 +365,30 @@ class TestGenerateBoscoDigests:
             S.COL_H_MEASURED, S.COL_LAT, S.COL_LON, S.COL_NOTE,
         ]
 
+    def test_preserved_trees_digest_allows_unknown_height(self, parcels, species, tmp_path, settings):
+        settings.DIGEST_DIR = tmp_path
+        kept = Tree.objects.create(
+            species=species[0], parcel=parcels[0], preserved=True,
+            lat=38.1, lon=16.2,
+        )
+        survey = Survey.objects.create(name='PAI')
+        sample = Sample.objects.create(survey=survey, date='1970-01-01')
+        pai = TreeSample.objects.create(
+            sample=sample, tree=kept, parcel=parcels[0], number=7,
+            preserved_number=7, d_cm=42, h_m=None, h_measured=False,
+            lat=38.1, lon=16.2,
+        )
+
+        generate_preserved_trees()
+
+        data = self._read(tmp_path, DIGEST_PRESERVED_TREES)
+        row = data[ROWS][0]
+        cols = data[COLUMNS]
+        assert row[cols.index(ROW_ID)] == pai.id
+        assert row[cols.index(S.COL_H_M)] is None
+        assert row[cols.index(S.COL_H_MEASURED)] is False
+
+
     def test_future_production_active_highforest_only(
             self, parcels, regions, eclasses, tmp_path, settings,
     ):

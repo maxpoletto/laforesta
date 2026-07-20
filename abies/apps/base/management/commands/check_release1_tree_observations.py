@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+from datetime import date as date_type
+
 from django.core.management.base import BaseCommand, CommandError
 from django.db import connection
 
 
 PRESERVED_HISTORY_SURVEY_NAME = 'Alberi da preservare - storico'
+PRESERVED_LEGACY_UNKNOWN_DATE = date_type(1970, 1, 1)
 MAX_ROWS_PER_FAILURE = 20
 
 
@@ -55,11 +58,11 @@ class _Release1TreeObservationChecker:
 
         self._add_if_rows(
             failures,
-            'Legacy TreePreserved rows missing values required by migration',
+            'Legacy TreePreserved rows missing diameter required by migration',
             '''
             SELECT id, date, d_cm, h_m
             FROM base_treepreserved
-            WHERE date IS NULL OR d_cm IS NULL OR h_m IS NULL
+            WHERE d_cm IS NULL
             ORDER BY id
             ''',
         )
@@ -123,7 +126,7 @@ class _Release1TreeObservationChecker:
             LEFT JOIN base_sample s
               ON s.survey_id = sv.id
              AND s.sample_area_id IS NULL
-             AND s.date = tp.date
+             AND s.date = COALESCE(tp.date, %s)
             LEFT JOIN base_treesample ts
               ON ts.sample_id = s.id
              AND ts.tree_id = tp.tree_id
@@ -134,7 +137,7 @@ class _Release1TreeObservationChecker:
             WHERE ts.id IS NULL
             ORDER BY tp.id
             ''',
-            [PRESERVED_HISTORY_SURVEY_NAME],
+            [PRESERVED_HISTORY_SURVEY_NAME, PRESERVED_LEGACY_UNKNOWN_DATE],
         )
         self._add_if_rows(
             failures,
@@ -165,7 +168,7 @@ class _Release1TreeObservationChecker:
             JOIN base_sample s
               ON s.survey_id = sv.id
              AND s.sample_area_id IS NULL
-             AND s.date = tp.date
+             AND s.date = COALESCE(tp.date, %s)
             JOIN base_treesample ts
               ON ts.sample_id = s.id
              AND ts.tree_id = tp.tree_id
@@ -174,8 +177,14 @@ class _Release1TreeObservationChecker:
              AND ts.number = tp.number
              AND ts.shoot = 0
             WHERE tp.d_cm <> ts.d_cm
-               OR tp.h_m <> ts.h_m
-               OR tp.h_measured <> ts.h_measured
+               OR (
+                    tp.h_m <> ts.h_m
+                    OR (tp.h_m IS NULL AND ts.h_m IS NOT NULL)
+                    OR (tp.h_m IS NOT NULL AND ts.h_m IS NULL)
+               )
+               OR (
+                    CASE WHEN tp.h_m IS NULL THEN 0 ELSE tp.h_measured END
+               ) <> ts.h_measured
                OR tp.lat <> ts.lat
                OR tp.lon <> ts.lon
                OR (
@@ -187,7 +196,7 @@ class _Release1TreeObservationChecker:
                OR COALESCE(tp.note, '') <> COALESCE(ts.note, '')
             ORDER BY tp.id
             ''',
-            [PRESERVED_HISTORY_SURVEY_NAME],
+            [PRESERVED_HISTORY_SURVEY_NAME, PRESERVED_LEGACY_UNKNOWN_DATE],
         )
         self._add_structured_parcel_mismatches(failures)
         self._add_preserved_identity_failures(failures)

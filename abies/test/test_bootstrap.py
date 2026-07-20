@@ -198,6 +198,24 @@ def test_hypso_loaded_when_present(tmp_path):
 
 
 @pytest.mark.django_db
+def test_preserved_trees_load_with_legacy_blank_date_and_height(tmp_path):
+    preserved = (
+        'Compresa,Particella,Numero,Genere,Data,Anno di nascita stimato,'
+        'D_cm,H_m,H_measured,Lon,Lat,Acc_m,Operatore,Note\n'
+        'Capistrano,1,1,Abete,,,40,,false,16.1,38.5,,Rossi,nota\n'
+    )
+
+    call_command('bootstrap', _make_dir(tmp_path, **{'preserved-trees.csv': preserved}))
+
+    pai = TreeSample.objects.get(preserved_number__isnull=False)
+    assert pai.sample.date.isoformat() == '1970-01-01'
+    assert pai.d_cm == 40
+    assert pai.h_m is None
+    assert pai.h_measured is False
+    assert pai.note == 'nota'
+
+
+@pytest.mark.django_db
 def test_tractors_load_via_reference_loop(tmp_path):
     """tractors.csv loads via the reference table loop (TRACTORS in ALL_TABLES)."""
     call_command('bootstrap', _make_dir(tmp_path))

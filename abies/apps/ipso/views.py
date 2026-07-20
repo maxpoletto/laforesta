@@ -330,7 +330,7 @@ def _pai_context() -> dict:
                 FIELD_ESTIMATED_BIRTH_YEAR: p.tree.estimated_birth_year,
                 FIELD_DATE: p.sample.date.isoformat(),
                 FIELD_D_CM: p.d_cm,
-                FIELD_H_M: str(p.h_m),
+                FIELD_H_M: str(p.h_m) if p.h_m is not None else None,
                 FIELD_H_MEASURED: p.h_measured,
                 FIELD_LAT: p.lat,
                 FIELD_LON: p.lon,

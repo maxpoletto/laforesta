@@ -209,6 +209,48 @@ class TestConstraints:
                 number=1, preserved_number=0, d_cm=30, h_m=Decimal('20.0'),
             )
 
+    def test_tree_sample_height_required_unless_preserved(self, parcels, species):
+        survey = Survey.objects.create(name='Height required survey')
+        sample = Sample.objects.create(
+            sample_area=None, survey=survey, date='2026-07-05',
+        )
+        tree = Tree.objects.create(species=species[0], parcel=parcels[0])
+
+        with pytest.raises(IntegrityError), transaction.atomic():
+            TreeSample.objects.create(
+                sample=sample, tree=tree, parcel=parcels[0],
+                number=1, d_cm=30, h_m=None, h_measured=False,
+            )
+
+    def test_preserved_tree_sample_may_have_unknown_height(self, parcels, species):
+        survey = Survey.objects.create(name='PAI unknown height survey')
+        sample = Sample.objects.create(
+            sample_area=None, survey=survey, date='2026-07-05',
+        )
+        tree = Tree.objects.create(species=species[0], parcel=parcels[0])
+
+        ts = TreeSample.objects.create(
+            sample=sample, tree=tree, parcel=parcels[0], number=1,
+            preserved_number=7, d_cm=30, h_m=None, h_measured=False,
+        )
+
+        assert ts.h_m is None
+        assert ts.h_measured is False
+
+    def test_unknown_height_cannot_be_marked_measured(self, parcels, species):
+        survey = Survey.objects.create(name='Unknown measured height survey')
+        sample = Sample.objects.create(
+            sample_area=None, survey=survey, date='2026-07-05',
+        )
+        tree = Tree.objects.create(species=species[0], parcel=parcels[0])
+
+        with pytest.raises(IntegrityError), transaction.atomic():
+            TreeSample.objects.create(
+                sample=sample, tree=tree, parcel=parcels[0], number=1,
+                preserved_number=7, d_cm=30, h_m=None, h_measured=True,
+            )
+
+
     def test_parcel_same_name_different_region_ok(self, parcels):
         """Parcel '1' in Capistrano and Fabrizia are distinct."""
         names = [p.name for p in parcels if p.name == '1']

@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+from datetime import date as date_type
+
 from django.db.models import Max, OuterRef, Subquery
 
 from apps.base.models import TreeSample
 
 PRESERVED_HISTORY_SURVEY_NAME = 'Alberi da preservare - storico'
 PRESERVED_IMPORT_SURVEY_NAME = 'Alberi da preservare'
+PRESERVED_LEGACY_UNKNOWN_DATE = date_type(1970, 1, 1)
 
 
 def latest_preserved_tree_samples(*, for_update: bool = False):

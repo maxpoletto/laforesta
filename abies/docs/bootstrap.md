@@ -112,12 +112,14 @@ species table.
 `harvest_plan_items.csv` is grouped by `Piano`. A blank parcel means the row is
 region-wide. Region-wide rows use `X` as their display parcel in the UI.
 
-`preserved-trees.csv` records PAI/preserved trees. Required columns are
+`preserved-trees.csv` records PAI/preserved trees. Required headers are
 `Compresa`, `Particella`, `Numero`, `Genere`, `Lon`, `Lat`, `Data`, `D_cm`,
-and `H_m`; optional columns include `Anno di nascita stimato`, `H_measured`,
-`Acc_m`, `Operatore`, and `Note`. Bootstrap creates both the backing tree and
-its PAI observation row, and validates parcel, species, number, date, diameter,
-height, and coordinates.
+and `H_m`; optional headers include `Anno di nascita stimato`, `H_measured`,
+`Acc_m`, `Operatore`, and `Note`. `D_cm` is required per row. Blank `Data`
+means an unknown historical date and is stored as `1970-01-01`; blank `H_m`
+is allowed only when `H_measured` is blank/false. Bootstrap creates both the
+backing tree and its PAI observation row, and validates parcel, species,
+number, diameter, coordinates, and any supplied date/height values.
 
 `harvests.csv` records completed harvest rows. A blank parcel means the row is
 region-wide. Dynamic `Specie:<name>` and `Trattore:<name>` columns use canonical

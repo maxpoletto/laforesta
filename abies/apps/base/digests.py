@@ -26,6 +26,7 @@ from django.utils import timezone
 
 from apps.base.http import CACHE_NO_STORE, conditional_file_response
 from apps.base.models import DigestStatus, render_flag_note
+from apps.base.numparse import float_or_none
 from apps.base.selectors import (
     active_or_default_harvest_plan, active_or_default_survey_ids,
     height_plot_survey_ids,
@@ -931,7 +932,7 @@ def build_tree_sample_record(ts) -> list:
         S.TYPE_COPPICE if tree.coppice else S.TYPE_HIGHFOREST,
         tree.coppice,
         ts.shoot, ts.standard,
-        ts.d_cm, float(ts.h_m), ts.l10_mm, float(ts.pressler_coeff),
+        ts.d_cm, float_or_none(ts.h_m), ts.l10_mm, float(ts.pressler_coeff),
         float(ts.volume_m3) if ts.volume_m3 is not None else None,
         float(ts.mass_q) if ts.mass_q is not None else None,
         ts.preserved_number is not None,
@@ -1224,7 +1225,7 @@ def build_preserved_tree_record(ts) -> list:
         ts.parcel.region.name, ts.parcel.name, tree.species.common_name,
         ts.preserved_number, ts.sample.date.isoformat(),
         tree.estimated_birth_year if tree.estimated_birth_year is not None else '',
-        ts.d_cm, float(ts.h_m), ts.h_measured, ts.lat, ts.lon, ts.note,
+        ts.d_cm, float_or_none(ts.h_m), ts.h_measured, ts.lat, ts.lon, ts.note,
     ]
 
 

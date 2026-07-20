@@ -243,7 +243,7 @@ explicitly reuses the same `tree_id`.
 
 - tree_sample: (id:int, sample_id:int, tree_id:int, parcel_id:int,
   number:int, preserved_number:int nullable, shoot:int, standard:bool,
-  d_cm:int, h_m:real, l10_mm:int, pressler_coeff:real,
+  d_cm:int, h_m:real nullable, l10_mm:int, pressler_coeff:real,
   h_measured:bool, volume_m3:real nullable, mass_q:real nullable,
   lat:real nullable, lon:real nullable, acc_m:int nullable,
   operator:string, note:string, import_fingerprint:string nullable)
@@ -269,9 +269,12 @@ explicitly reuses the same `tree_id`.
     differs.
   - `standard` ("matricina"): coppice shoot kept for growth, not harvested.
     False for non-coppice.
+  - `h_m` is required for dendrometric sample rows and may be NULL only for
+    preserved/PAI rows whose historical height is unknown.
   - `h_measured` records whether `h_m` was measured in the field. Rows with
     `h_measured = false` may still be valid sample measurements, but they are
-    not eligible for computing hypsometric parameters.
+    not eligible for computing hypsometric parameters. When `h_m` is NULL,
+    `h_measured` is false.
   - `l10_mm`: width (mm) of outer ten rings. 0 if tree was not cored.
   - `volume_m3`: computed from (d_cm, h_m, species) via Tabacchi equations.
     JS form computes a live preview; CSV imports compute server-side.
@@ -307,6 +310,9 @@ Preserved/PAI trees are represented by `tree_sample` rows with a non-null
   `tree_id`.
 - The current preserved-tree row is the latest row for that identity by
   `sample.date DESC`, with `tree_sample.id DESC` as a deterministic tie-breaker.
+- Historical imported PAI rows may have unknown dates or heights. Unknown
+  dates are stored as `1970-01-01`; unknown heights are stored as `h_m=NULL`
+  and `h_measured=false`.
 
 This lets preserved trees have repeated measurement history while keeping the
 same tree identity.
