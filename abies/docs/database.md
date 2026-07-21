@@ -1,9 +1,10 @@
 # Database model
 
 Core relational tables that underpin Abies.  Per-domain JSON digests appear
-in the individual page docs (`docs/page-*.md`).  All tables have implicit
-`version` (int), `created_at`, and `modified_at` columns that we omit below
-for clarity.
+in the individual page docs (`docs/page-*.md`).  Most mutable domain tables
+inherit `version` (int), `created_at`, and `modified_at` columns; table
+signatures below omit those inherited columns unless a timestamp has
+domain-specific meaning.
 
 Mutable domain tables are tracked by django-simple-history and surface in
 the Controllo audit log; `docs/page-controllo.md` lists which tables are
@@ -29,15 +30,16 @@ audited and the contract that keeps that coverage complete.
 - ipso_upload: (id:int, session_id:string, mode:string, schema_version:int,
   reference_version:string, work_package_id:string, operator:string,
   record_count:int, record_date:string, checksum:string, inbox_path:string,
-  state:string, received_at:datetime, imported_at:datetime nullable,
-  imported_by_id:int nullable, target_type:string, target_id:int nullable,
-  error_summary:string)
+  state:string, received_at:datetime, updated_at:datetime,
+  imported_at:datetime nullable, imported_by_id:int nullable,
+  target_type:string, target_id:int nullable, error_summary:string)
   - One completed Ipso mobile session staged for later import. `session_id` is
     unique, so identical client retries are idempotent and conflicting retries
     are marked `conflict`.
   - `record_date` is the earliest valid ISO date among staged records. It is
     persisted when the upload is staged so the import inbox can list historical
-    uploads without reopening `upload.json` for every row.
+    uploads without reopening `upload.json` for every row. `updated_at` is
+    refreshed on every state change.
   - `checksum` is the SHA-256 of the canonical staged JSON. `inbox_path` points
     to the directory containing `upload.json`, `upload.sha256`, and optional
     `export.csv`.
@@ -55,9 +57,10 @@ audited and the contract that keeps that coverage complete.
     (coppice=false).
   - Characterized by a minimum volume (m3/ha) before harvesting is permitted.
 
-- parcel: (id:int, name:string, region_id:int, eclass_id:int, area_ha:int,
-  ave_age:int, location_name:string, altitude_min_m:int, altitude_max_m:int,
-  aspect:str, grade_pct:int, desc_veg:string, desc_geo:string)
+- parcel: (id:int, name:string, region_id:int, eclass_id:int,
+  area_ha:decimal, ave_age:int nullable, location_name:string,
+  altitude_min_m:int nullable, altitude_max_m:int nullable, aspect:string,
+  grade_pct:int nullable, desc_veg:string, desc_geo:string)
   - Represents a forest parcel. `name` is typically an alphanumeric string like
     "11" or "2a".
   - `area_ha` is surface area in hectares.
@@ -131,10 +134,11 @@ explicitly reuses the same `tree_id`.
     one harvest plan can have this flag set to true.
 
 - harvest_plan_item: (id:int, harvest_plan_id:int, region_id:int nullable,
-  parcel_id:int nullable, state:int, year_planned:int, date_actual:int nullable,
-  volume_planned_m3:real nullable, volume_marked_m3:real nullable,
-  volume_actual_m3:real nullable, intervention_area_ha:real nullable,
-  damaged:bool, unhealthy:bool, psr:bool, note:string nullable)
+  parcel_id:int nullable, state:int, year_planned:int,
+  date_actual:date nullable, volume_planned_m3:decimal nullable,
+  volume_marked_m3:decimal nullable, volume_actual_m3:decimal,
+  intervention_area_ha:decimal nullable, damaged:bool, unhealthy:bool,
+  psr:bool, note:string nullable)
   - Denotes a calendar item in the harvest plan, i.e., that the given parcel
     will be cut in the given year.
   - We specify both `region_id` and `parcel_id` because some operations (e.g.,
@@ -185,7 +189,7 @@ explicitly reuses the same `tree_id`.
     demo/test cleanup; real operational data should not be deleted.
 
 - harvest_transition: (id:int, harvest_plan_item_id:int, open:bool,
-  date:string /* ISO 8601 */, note:string)
+  date:date, note:string)
   - Denotes the opening (`open = true`) and closing (`open = false`) of a
     harvest plan item. Each item has at most one open row and at most one
     close row.
@@ -193,7 +197,7 @@ explicitly reuses the same `tree_id`.
   - `note` is user-specified text, often a regional permit number.
   - ON DELETE PROTECT from `harvest_plan_item` (see deletion note above).
 
-- harvest_detail: (id:int, description:text, interval:int)
+- harvest_detail: (id:int, description:text, interval:int nullable)
   - A reusable harvest instruction, e.g., "Preferentially cut white firs of
     diameter 20-40cm". `interval` denotes the harvest interval for coppice
     parcels (nullable for non-coppice).
@@ -227,8 +231,7 @@ explicitly reuses the same `tree_id`.
     sample grid has been visited. Unstructured surveys count dated samples but
     have no grid-wide completeness denominator.
 
-- sample: (id:int, sample_area_id:int nullable, survey_id:int,
-  date:string /* ISO 8601 */)
+- sample: (id:int, sample_area_id:int nullable, survey_id:int, date:date)
   - Represents a dated group of tree measurements in a survey. Structured
     samples point at one sample area; unstructured samples have
     `sample_area_id = NULL`.
@@ -243,8 +246,8 @@ explicitly reuses the same `tree_id`.
 
 - tree_sample: (id:int, sample_id:int, tree_id:int, parcel_id:int,
   number:int, preserved_number:int nullable, shoot:int, standard:bool,
-  d_cm:int, h_m:real nullable, l10_mm:int, pressler_coeff:real,
-  h_measured:bool, volume_m3:real nullable, mass_q:real nullable,
+  d_cm:int, h_m:decimal nullable, l10_mm:int, pressler_coeff:decimal,
+  h_measured:bool, volume_m3:decimal nullable, mass_q:decimal nullable,
   lat:real nullable, lon:real nullable, acc_m:int nullable,
   operator:string, note:string, import_fingerprint:string nullable)
   - Measurement of a tree during a sample visit. PK is synthetic `id`.
@@ -310,8 +313,12 @@ Preserved/PAI trees are represented by `tree_sample` rows with a non-null
   `tree_id`.
 - The current preserved-tree row is the latest row for that identity by
   `sample.date DESC`, with `tree_sample.id DESC` as a deterministic tie-breaker.
-- Historical imported PAI rows may have unknown dates or heights. Unknown
-  dates are stored as `1970-01-01`; unknown heights are stored as `h_m=NULL`
+- Historical imported PAI rows may have unknown dates or heights. Legacy PAI
+  rows whose date is unknown are migrated into generated unstructured samples
+  dated `1970-01-01`. That sentinel date means "legacy unknown date", not a
+  real measurement date. The generated migration samples are grouped by
+  `(date, parcel)`, so unknown-date legacy rows produce one
+  `1970-01-01` sample per parcel. Unknown heights are stored as `h_m=NULL`
   and `h_measured=false`.
 
 This lets preserved trees have repeated measurement history while keeping the
@@ -331,9 +338,9 @@ display totals.
 
 - tree_mark: (id:int, harvest_plan_item_id:int, tree_id:int, parcel_id:int,
   number:int nullable, lat:real nullable, lon:real nullable,
-  acc_m:int nullable, date:string /* ISO 8601 */, d_cm:int, h_m:real,
-  h_measured:bool, volume_m3:real, mass_q:real, operator:string,
-  import_fingerprint:string nullable)
+  acc_m:int nullable, date:date, d_cm:int, h_m:decimal,
+  h_measured:bool, volume_m3:decimal nullable, mass_q:decimal nullable,
+  operator:string, import_fingerprint:string nullable)
   - A (high-forest) tree being marked for felling. PK is the synthetic
     `id`; `UNIQUE(harvest_plan_item_id, tree_id)` enforces the natural
     key.
@@ -395,10 +402,11 @@ Although a harvest physically affects individual trees, the schema does not
 track that link. For high-forest parcels the last per-tree record is the mark;
 for coppice parcels there is no per-tree harvest record at all.
 
-- harvest: (id:int, date:string /* ISO 8601 */, region_id:int nullable,
+- harvest: (id:int, date:date, region_id:int nullable,
   parcel_id:int nullable, harvest_plan_item_id:int nullable, product_id:int,
-  crew_id:int, record1:int nullable, record2:int nullable, mass_q:real,
-  volume_m3:real, damaged:bool, unhealthy:bool, psr:bool, note:text)
+  crew_id:int, record1:int nullable, record2:int nullable, mass_q:decimal,
+  volume_m3:decimal, damaged:bool, unhealthy:bool, psr:bool, note:text,
+  import_fingerprint:string nullable)
   - Denotes a cutting/harvesting operation by one crew on a given day.
   - `region_id` and `parcel_id` are mutually exclusive FKs: exactly one must
     be set (XOR). Parcel-level harvests set `parcel_id`; region-wide harvests
@@ -422,6 +430,8 @@ for coppice parcels there is no per-tree harvest record at all.
     `harvest_flags_consistency_{insert,update}`).
     The CSV importer translates the Italian strings to booleans.
   - `note`: free-text annotation ("Altre note" column).
+  - `import_fingerprint` is the content hash of the source CSV row, used
+    for idempotent re-imports. Null for manually entered harvest rows.
   - Parcel/region consistency: if linked to a plan item, the harvest's
     `parcel_id` must match the item's parcel (or the harvest's `region_id`
     must match the item's `region_id` for region-wide harvests). Enforced by
@@ -459,13 +469,13 @@ for coppice parcels there is no per-tree harvest record at all.
 The Django app and database table names use the `mannesi` identifier; the
 user-facing page and API are Squadre.
 
-- mannesi_hours: (id:int, date:string /* ISO 8601 */, crew_id:int, hours:real,
+- mannesi_hours: (id:int, date:date, crew_id:int, hours:decimal,
   note:string)
 
   See page-squadre.md > Ore
 
-- mannesi_credits: (id:int, date:string /* ISO 8601 */, crew_id:int,
-  mass_q:real, note:string)
+- mannesi_credits: (id:int, date:date, crew_id:int, mass_q:decimal,
+  note:string)
 
   See page-squadre.md > Acconti
 
@@ -502,7 +512,7 @@ the dendrometry setting.
     "which parameters were live when" log.
 
 - hypso_param: (id:int, param_set_id:int, region_id:int, species_id:int,
-  func:string, a:real, b:real, r2:real, n:int) — UNIQUE(param_set_id,
+  func:string, a:decimal, b:decimal, r2:decimal, n:int) — UNIQUE(param_set_id,
   region_id, species_id)
   - One (region, species) regression within a set. `param_set_id` →
     hypso_param_set (ON DELETE CASCADE); `region_id` / `species_id` are
@@ -535,7 +545,7 @@ Most of these are configurable in the Settings section.
   - Represents a team of workers, e.g., a group of lumberjacks.
 
 - species: (id:int, common_name:string, latin_name:string, sort_order:int,
-  density:real, pressler_default:real, active:bool)
+  density:decimal, pressler_default:decimal, minor:bool, active:bool)
   - Represents a tree species.
   - sort_order controls display ordering everywhere species appear. Catch-all
     entries like "Altro" use a high value (999) to sort last.
