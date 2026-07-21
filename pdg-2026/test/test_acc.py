@@ -52,15 +52,15 @@ from pdg.simulation import (
     COL_WEIGHT, COL_YEAR, COL_HARVEST,
     COL_VOLUME_BEFORE, COL_VOLUME_AFTER, COL_SPECIES_SHARES,
     HarvestResult,
-    select_from_bottom, harvest_parcel, schedule_harvests,
+    select_from_bottom, harvest_parcel, schedule_harvests, total_harvests,
     growth_per_group,
 )
 
-from pdg.io import load_trees
+from pdg.io import load_trees, read_past_harvests
 from pdg.core import (
-    COL_SECTOR, COL_AGE, COL_PP_MAX,
+    COL_SECTOR, COL_AGE,
     parcel_data, parse_gap_overrides,
-    compute_parcel_harvests,
+    plan_events, plan_cache,
     calculate_volumes, calculate_harvest_table,
     calculate_harvest_plan, calculate_diameter_class_data,
     calculate_stumps, render_prop_coppice,
@@ -68,6 +68,19 @@ from pdg.core import (
 from pdg.formatters import HTMLSnippetFormatter
 
 # Fixtures are defined in conftest.py
+
+
+def plan_totals(data, rules, year_range=(2026, 2026), min_gap=10, **kwargs):
+    """Per-parcel harvest totals from a harvest plan simulation.
+
+    The defaults (single year, unlimited target) make the plan equivalent to
+    the static per-parcel maximum harvest: every eligible parcel is harvested
+    once, before any growth is applied.
+    """
+    events = schedule_harvests(
+        data, past_harvests=None, year_range=year_range,
+        min_gap=min_gap, target_volume=1e9, rules=rules, **kwargs)
+    return total_harvests(events)
 
 
 # =============================================================================
@@ -291,12 +304,17 @@ class TestCrossQueryConsistency:
             f"@@tabella_classi_diametriche G {tcd_basal} != manual G {manual_basal}"
 
     def test_tsv_tpt_volume_consistency(self, data_all, harvest_rules):
-        """Harvest table volumes come from calculate_volumes — verify consistency."""
+        """Harvest table volumes come from calculate_volumes — verify consistency.
+
+        The harvest table only shows parcels present in the plan, so compare
+        against the inventory of those same parcels.
+        """
+        totals = plan_totals(data_all, harvest_rules)
         df_tsv = calculate_volumes(
-            data_all, group_cols=[], calc_margin=False, calc_total=True,
-            calc_mature=True
+            data_all.filter_parcels(set(totals)), group_cols=[],
+            calc_margin=False, calc_total=True, calc_mature=True
         )
-        df_tpt = calculate_harvest_table(data_all, compute_parcel_harvests(data_all, harvest_rules), group_cols=[])
+        df_tpt = calculate_harvest_table(data_all, totals, group_cols=[])
 
         tsv_vol = df_tsv['volume'].sum()
         tpt_vol = df_tpt['volume'].sum()
@@ -306,11 +324,12 @@ class TestCrossQueryConsistency:
 
     def test_tsv_tpt_volume_mature_consitency(self, data_all, harvest_rules):
         """Harvest table volume_mature comes from calculate_volumes — verify consistency."""
+        totals = plan_totals(data_all, harvest_rules)
         df_tsv = calculate_volumes(
-            data_all, group_cols=[], calc_margin=False, calc_total=True,
-            calc_mature=True
+            data_all.filter_parcels(set(totals)), group_cols=[],
+            calc_margin=False, calc_total=True, calc_mature=True
         )
-        df_tpt = calculate_harvest_table(data_all, compute_parcel_harvests(data_all, harvest_rules), group_cols=[])
+        df_tpt = calculate_harvest_table(data_all, totals, group_cols=[])
 
         tsv_vol_ss = df_tsv['volume_mature'].sum()
         tpt_vol_ss = df_tpt['volume_mature'].sum()
@@ -601,24 +620,56 @@ class TestMature:
 # (h) HARVEST CALCULATION
 # =============================================================================
 
-class TestComputeParcelHarvests:
-    """Test the per-parcel harvest extraction."""
+class TestTotalHarvests:
+    """Test the aggregation of plan events into per-parcel harvest totals."""
 
-    def test_returns_dict_of_harvest_results(self, data_all, harvest_rules):
-        """Should return a HarvestResult per harvestable parcel."""
-        result = compute_parcel_harvests(data_all, harvest_rules)
+    def test_returns_per_parcel_species_totals(self, data_all, harvest_rules):
+        """Should return {(compresa, particella): {genere: harvest}}."""
+        result = plan_totals(data_all, harvest_rules)
         assert isinstance(result, dict)
         assert len(result) > 0
-        for key, hr in result.items():
+        for key, by_species in result.items():
             assert isinstance(key, tuple) and len(key) == 2
-            assert isinstance(hr, HarvestResult)
-            assert hr.harvest >= 0
-            assert hr.volume_before > 0
+            assert len(by_species) > 0
+            for harvest in by_species.values():
+                assert harvest >= 0
+
+    def test_totals_match_events(self, data_all, harvest_rules):
+        """Species totals should sum to the total harvest of the plan events."""
+        events = schedule_harvests(
+            data_all, past_harvests=None, year_range=(2026, 2030),
+            min_gap=2, target_volume=1e9, rules=harvest_rules)
+        totals = total_harvests(events)
+
+        total_from_events = sum(e[COL_HARVEST] for e in events)
+        total_from_totals = sum(
+            h for by_species in totals.values() for h in by_species.values())
+        assert np.isclose(total_from_events, total_from_totals, rtol=1e-9)
+
+    def test_accumulates_repeat_harvests(self, data_all, harvest_rules):
+        """A parcel harvested in several years contributes the sum of its events."""
+        events = schedule_harvests(
+            data_all, past_harvests=None, year_range=(2026, 2030),
+            min_gap=2, target_volume=1e9, rules=harvest_rules)
+        totals = total_harvests(events)
+
+        per_parcel_events = {}
+        for e in events:
+            key = (e[COL_COMPRESA], e[COL_PARTICELLA])
+            per_parcel_events[key] = per_parcel_events.get(key, 0.0) + e[COL_HARVEST]
+        assert any(sum(1 for e in events
+                       if (e[COL_COMPRESA], e[COL_PARTICELLA]) == key) > 1
+                   for key in totals), "Test setup should re-harvest some parcel"
+        for key, by_species in totals.items():
+            assert np.isclose(sum(by_species.values()), per_parcel_events[key],
+                              rtol=1e-9)
 
     def test_matches_harvest_table_totals(self, data_all, harvest_rules):
-        """Total harvest from compute_parcel_harvests should match calculate_harvest_table."""
-        parcel_harvests = compute_parcel_harvests(data_all, harvest_rules)
-        total_from_parcels = sum(hr.harvest for hr in parcel_harvests.values())
+        """Total harvest from plan totals should match calculate_harvest_table."""
+        parcel_harvests = plan_totals(data_all, harvest_rules)
+        total_from_parcels = sum(
+            h for by_species in parcel_harvests.values()
+            for h in by_species.values())
 
         df = calculate_harvest_table(data_all, parcel_harvests, group_cols=[])
         total_from_table = df['harvest'].sum()
@@ -626,12 +677,109 @@ class TestComputeParcelHarvests:
         assert np.isclose(total_from_parcels, total_from_table, rtol=1e-9)
 
 
+class TestPrelieviPlanConsistency:
+    """@@prelievi must report the same harvests as @@piano_di_taglio."""
+
+    PLAN_KWARGS: dict = dict(year_range=(2026, 2031), min_gap=2,
+                             target_volume=1e9, mortality=1.0, prudence=80.0)
+
+    def test_table_total_matches_plan_total(self, data_all, harvest_rules):
+        """Sum over the harvest table == sum over all plan events."""
+        events = schedule_harvests(
+            data_all, past_harvests=None, rules=harvest_rules,
+            **self.PLAN_KWARGS)
+        df = calculate_harvest_table(
+            data_all, total_harvests(events), group_cols=[])
+        assert np.isclose(df['harvest'].sum(),
+                          sum(e[COL_HARVEST] for e in events), rtol=1e-9)
+
+    def test_per_genere_total_matches_plan_total(self, data_all, harvest_rules):
+        """Per-genere rows sum to the same plan total."""
+        events = schedule_harvests(
+            data_all, past_harvests=None, rules=harvest_rules,
+            **self.PLAN_KWARGS)
+        df = calculate_harvest_table(
+            data_all, total_harvests(events), group_cols=[COL_GENERE])
+        assert np.isclose(df['harvest'].sum(),
+                          sum(e[COL_HARVEST] for e in events), rtol=1e-9)
+
+    def test_display_filter_is_a_subset_of_the_plan(self, data_all, harvest_rules):
+        """Filtering parcels for display must not change their values."""
+        totals = plan_totals(data_all, harvest_rules,
+                             year_range=(2026, 2030), min_gap=2)
+        df_full = calculate_harvest_table(
+            data_all, totals, group_cols=[COL_PARTICELLA])
+
+        subset_keys = sorted(totals)[:2]
+        subset = {k: totals[k] for k in subset_keys}
+        df_subset = calculate_harvest_table(
+            data_all, subset, group_cols=[COL_PARTICELLA])
+
+        assert len(df_subset) == len(subset_keys)
+        for _, row in df_subset.iterrows():
+            full_row = df_full[df_full[COL_PARTICELLA] == row[COL_PARTICELLA]]
+            assert np.isclose(row['harvest'], full_row['harvest'].iloc[0],
+                              rtol=1e-9)
+            assert np.isclose(row['volume'], full_row['volume'].iloc[0],
+                              rtol=1e-9)
+
+
+class TestPlanEventsCache:
+    """plan_events memoizes schedule_harvests runs."""
+
+    SIM_KWARGS: dict = dict(year_range=(2026, 2027), min_gap=10,
+                            target_volume=1e9)
+
+    def test_same_inputs_return_cached_events(self, data_all, harvest_rules):
+        """Identical inputs return the same events object without recomputing."""
+        e1 = plan_events(data_all, None, rules=harvest_rules, **self.SIM_KWARGS)
+        e2 = plan_events(data_all, None, rules=harvest_rules, **self.SIM_KWARGS)
+        assert e1 is e2
+
+    def test_different_params_recompute(self, data_all, harvest_rules):
+        """A different parameter yields a fresh simulation."""
+        e1 = plan_events(data_all, None, rules=harvest_rules, **self.SIM_KWARGS)
+        e2 = plan_events(data_all, None, rules=harvest_rules,
+                         year_range=(2026, 2028), min_gap=10, target_volume=1e9)
+        assert e1 is not e2
+
+    def test_volume_log_bypasses_cache(self, data_all, harvest_rules):
+        """A volume_log request must run the simulation to populate the log."""
+        plan_events(data_all, None, rules=harvest_rules, **self.SIM_KWARGS)
+        volume_log = {}
+        events = plan_events(data_all, None, rules=harvest_rules,
+                             volume_log=volume_log, **self.SIM_KWARGS)
+        assert len(volume_log) > 0
+        assert len(events) > 0
+
+
+class TestReadPastHarvests:
+    """read_past_harvests parses, validates and caches the calendar CSV."""
+
+    def test_cached_identity(self, tmp_path):
+        """Repeated reads return the same object (needed by plan_events)."""
+        path = tmp_path / 'calendario.csv'
+        path.write_text('Anno,Compresa,Particella\n2020,Test,1\n',
+                        encoding='utf-8')
+        df1 = read_past_harvests(path)
+        df2 = read_past_harvests(path)
+        assert df1 is df2
+        assert df1['Particella'].iloc[0] == '1'  # converted to str
+
+    def test_missing_columns_raise(self, tmp_path):
+        """A calendar without the required columns is rejected."""
+        path = tmp_path / 'calendario.csv'
+        path.write_text('Anno,Compresa\n2020,Test\n', encoding='utf-8')
+        with pytest.raises(ValueError, match='colonne mancanti'):
+            read_past_harvests(path)
+
+
 class TestHarvestCalculation:
     """Test harvest (prelievo) calculations."""
 
     def test_volume_harvest_excludes_sottomisura(self, data_all, harvest_rules):
         """Volume-based harvest should use volume_mature."""
-        df = calculate_harvest_table(data_all, compute_parcel_harvests(data_all, harvest_rules), group_cols=[])
+        df = calculate_harvest_table(data_all, plan_totals(data_all, harvest_rules), group_cols=[])
 
         vol_mature = df['volume_mature'].sum()
         harvest = df['harvest'].sum()
@@ -641,7 +789,7 @@ class TestHarvestCalculation:
 
     def test_harvest_per_parcel(self, data_all, harvest_rules):
         """Harvest totals should equal sum of per-parcel harvests."""
-        ph = compute_parcel_harvests(data_all, harvest_rules)
+        ph = plan_totals(data_all, harvest_rules)
         df_total = calculate_harvest_table(data_all, ph, group_cols=[])
         df_parcels = calculate_harvest_table(
             data_all, ph, group_cols=[COL_PARTICELLA]
@@ -655,7 +803,7 @@ class TestHarvestCalculation:
 
     def test_basal_area_harvest_parcel_d(self, data_parcel_d, harvest_rules):
         """Parcel D (age=20) should use 15% basal area harvest rule."""
-        df = calculate_harvest_table(data_parcel_d, compute_parcel_harvests(data_parcel_d, harvest_rules), group_cols=[])
+        df = calculate_harvest_table(data_parcel_d, plan_totals(data_parcel_d, harvest_rules), group_cols=[])
 
         assert df['harvest'].sum() > 0, "Should have some harvest"
 
@@ -665,7 +813,7 @@ class TestHarvestCalculation:
 
     def test_basal_area_harvest_parcel_e(self, data_parcel_e, harvest_rules):
         """Parcel E (age=45) should use 20% basal area harvest rule."""
-        df = calculate_harvest_table(data_parcel_e, compute_parcel_harvests(data_parcel_e, harvest_rules), group_cols=[])
+        df = calculate_harvest_table(data_parcel_e, plan_totals(data_parcel_e, harvest_rules), group_cols=[])
 
         assert df['harvest'].sum() > 0, "Should have some harvest"
 
@@ -676,7 +824,7 @@ class TestHarvestCalculation:
     def test_small_trees_excluded_from_basal_area_harvest(
             self, data_parcel_d, harvest_rules):
         """Small trees (D <= 20) should be excluded from basal area harvest calculation."""
-        df = calculate_harvest_table(data_parcel_d, compute_parcel_harvests(data_parcel_d, harvest_rules), group_cols=[])
+        df = calculate_harvest_table(data_parcel_d, plan_totals(data_parcel_d, harvest_rules), group_cols=[])
 
         trees = data_parcel_d.trees
         small_trees = trees[trees[COL_D_CM] <= MATURE_THRESHOLD]

@@ -66,7 +66,7 @@ Lists all (compresa, particella) tuples.
 - `@@volumi(params)` — Volume table with optional confidence intervals
 - `@@tabella_classi_diametriche(params)` — Diameter class table
 - `@@tabella_incremento_percentuale(params)` — Percentage growth table
-- `@@prelievi(params)` — Harvest table based on comparto/age rules
+- `@@prelievi(params)` — Harvest totals table: sum of all planned harvests per parcel/group (growth included)
 - `@@piano_di_taglio(params)` — Multi-period harvest plan (cutting schedule simulation)
 
 ### Structural
@@ -117,7 +117,18 @@ Multiple `alberi`/`equazioni` files are concatenated; multiple filters are combi
 
 ### `@@prelievi` Parameters
 
-Harvest rules are defined in `harvest_rules.py` (comparto-based limits from volume and age tables).
+Reports, per parcel/group, the sum of all harvests in the harvest plan
+(growth included). It runs the same simulation as `@@piano_di_taglio` and
+accepts the same simulation parameters (`volume_obiettivo`, `anno_inizio`,
+`anno_fine`, `intervallo`, `intervallo_anno`, `mortalita`, `prudenza`,
+`riduzione`, `ordine`, `particelle_min`, `calendario`); pass identical values
+to both directives so they describe the same plan. Harvest rules are defined
+in `pdg/harvest_rules.py` (comparto-based limits from volume and age tables)
+and are applied to every simulated harvest event. The `compresa`/`particella`
+filters only restrict the displayed rows — the plan is always computed on the
+full dataset.
+
+Display options:
 
 | Parameter | Values | Description |
 |-----------|--------|-------------|
@@ -128,7 +139,6 @@ Harvest rules are defined in `harvest_rules.py` (comparto-based limits from volu
 | `col_volume_ha` | `si`, `no` | Show volume per hectare (default: `no`) |
 | `col_volume_mature` | `si`, `no` | Show mature-tree volume (default: `si`) |
 | `col_volume_mature_ha` | `si`, `no` | Show mature-tree volume per hectare (default: `si`) |
-| `col_pp_max` | `si`, `no` | Show PP_max % (default: `si`) |
 | `col_prelievo_ha` | `si`, `no` | Show harvest per hectare (default: `si`) |
 | `col_prelievo` | `si`, `no` | Show total harvest (default: `si`) |
 

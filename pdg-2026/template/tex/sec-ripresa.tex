@@ -1,17 +1,25 @@
-In base alle regole descritte nella sezione~\ref{sec:note-ripresa}, la ripresa totale per compresa è la seguente.
+La ripresa per compresa, riportata di seguito, è calcolata come somma di tutti
+i prelievi previsti dal piano dei tagli (sezione~\ref{sec:piano}) nel periodo
+2027--2040. A differenza della provvigione, che fotografa lo stato attuale del
+bosco, la ripresa include quindi l'accrescimento stimato secondo la metodologia
+della sezione~\ref{sec:note:piano}. I limiti di prelievo descritti nella
+sezione~\ref{sec:note-ripresa} sono applicati a ogni singolo intervento della
+simulazione.
 
-@@prelievi(alberi=alberi-calcolati.csv,per_compresa=si,per_particella=no,col_prelievo=si,totali=si)
+@@prelievi(alberi=alberi-calcolati.csv,calendario=calendario-mannesi.csv,anno_inizio=2027,anno_fine=2040,intervallo=10,intervallo_anno=2027/9,intervallo_anno=2028/9,intervallo_anno=2029/9,intervallo_anno=2030/9,intervallo_anno=2031/9,volume_obiettivo=12000,mortalita=1,prudenza=80,riduzione=100,particelle_min=3,per_compresa=si,per_particella=no,col_prelievo=si,totali=si)
 
-Le tabelle seguenti riportano, per ciascuna compresa, la ripresa per particella. Per ogni particella si indicano anche il comparto e l'età media per permettere di verificare manualmente le percentuali massime di prelievo secondo i criteri di cui sopra.
+Le tabelle seguenti riportano, per ciascuna compresa, la ripresa per
+particella. Per ogni particella si indicano anche il comparto e l'età media
+attuale.
 
 \subsection*{Ripresa: Serra}
-@@prelievi(alberi=alberi-calcolati.csv,compresa=Serra,per_compresa=no,totali=si)
+@@prelievi(alberi=alberi-calcolati.csv,calendario=calendario-mannesi.csv,anno_inizio=2027,anno_fine=2040,intervallo=10,intervallo_anno=2027/9,intervallo_anno=2028/9,intervallo_anno=2029/9,intervallo_anno=2030/9,intervallo_anno=2031/9,volume_obiettivo=12000,mortalita=1,prudenza=80,riduzione=100,particelle_min=3,compresa=Serra,per_compresa=no,totali=si)
 \clearpage
 
 \subsection*{Ripresa: Fabrizia}
-@@prelievi(alberi=alberi-calcolati.csv,compresa=Fabrizia,per_compresa=no,totali=si)
+@@prelievi(alberi=alberi-calcolati.csv,calendario=calendario-mannesi.csv,anno_inizio=2027,anno_fine=2040,intervallo=10,intervallo_anno=2027/9,intervallo_anno=2028/9,intervallo_anno=2029/9,intervallo_anno=2030/9,intervallo_anno=2031/9,volume_obiettivo=12000,mortalita=1,prudenza=80,riduzione=100,particelle_min=3,compresa=Fabrizia,per_compresa=no,totali=si)
 
 \subsection*{Ripresa: Capistrano}
-@@prelievi(alberi=alberi-calcolati.csv,compresa=Capistrano,per_compresa=no,totali=si)
+@@prelievi(alberi=alberi-calcolati.csv,calendario=calendario-mannesi.csv,anno_inizio=2027,anno_fine=2040,intervallo=10,intervallo_anno=2027/9,intervallo_anno=2028/9,intervallo_anno=2029/9,intervallo_anno=2030/9,intervallo_anno=2031/9,volume_obiettivo=12000,mortalita=1,prudenza=80,riduzione=100,particelle_min=3,compresa=Capistrano,per_compresa=no,totali=si)
 
 \clearpage

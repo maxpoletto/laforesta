@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from pdg.io import file_cache, load_csv, load_trees
 from pdg.computation import calculate_all_trees_volume
-from pdg.core import region_cache, parcel_data
+from pdg.core import region_cache, parcel_data, plan_cache
 
 # Test data directory
 TEST_DATA_DIR = Path(__file__).parent / "data"
@@ -24,9 +24,11 @@ def clear_caches():
     """Clear module-level caches before tests."""
     region_cache.clear()
     file_cache.clear()
+    plan_cache.clear()
     yield
     region_cache.clear()
     file_cache.clear()
+    plan_cache.clear()
 
 
 @pytest.fixture(scope="module")

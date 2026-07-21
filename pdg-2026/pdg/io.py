@@ -30,11 +30,19 @@ def load_trees(filenames: list[str] | str, data_dir: Path | None = None,
     return result
 
 def read_past_harvests(path: Path) -> pd.DataFrame:
-    """Read past harvests CSV (columns: Anno, Compresa, Particella)."""
-    df = pd.read_csv(path, comment='#')
-    required = {'Anno', COL_COMPRESA, COL_PARTICELLA}
-    missing = required - set(df.columns)
-    if missing:
-        raise ValueError(f"Calendario tagli {path}: colonne mancanti: {missing}")
-    df[COL_PARTICELLA] = df[COL_PARTICELLA].astype(str)
-    return df
+    """Read past harvests CSV (columns: Anno, Compresa, Particella).
+
+    Cached: repeated calls return the same DataFrame object, so downstream
+    caches (e.g. pdg.core.plan_cache) can compare inputs by identity.
+    Callers must not mutate the result.
+    """
+    key = ('past_harvests', str(path))
+    if key not in file_cache:
+        df = pd.read_csv(path, comment='#')
+        required = {'Anno', COL_COMPRESA, COL_PARTICELLA}
+        missing = required - set(df.columns)
+        if missing:
+            raise ValueError(f"Calendario tagli {path}: colonne mancanti: {missing}")
+        df[COL_PARTICELLA] = df[COL_PARTICELLA].astype(str)
+        file_cache[key] = df
+    return file_cache[key]

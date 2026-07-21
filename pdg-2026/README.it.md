@@ -66,7 +66,7 @@ Elenca tutte le tuple (compresa, particella).
 - `@@volumi(parametri)` — Tabella volumi con intervalli di fiducia opzionali
 - `@@tabella_classi_diametriche(parametri)` — Tabella classi diametriche
 - `@@tabella_incremento_percentuale(parametri)` — Tabella incremento percentuale
-- `@@prelievi(parametri)` — Tabella prelievi basata su regole comparto/età
+- `@@prelievi(parametri)` — Tabella prelievi: somma di tutti i prelievi del piano di taglio per particella/gruppo (accrescimento incluso)
 - `@@piano_di_taglio(parametri)` — Piano di taglio pluriennale (simulazione del calendario prelievi)
 
 ### Strutturali
@@ -117,7 +117,19 @@ Metriche `@@grafico_incremento_percentuale`: `ip`, `ic` (default: `ip`). `per_co
 
 ### Parametri `@@prelievi`
 
-Le regole di prelievo sono definite in `harvest_rules.py` (limiti per comparto basati su tavole di volume ed età).
+Riporta, per particella/gruppo, la somma di tutti i prelievi del piano di
+taglio (accrescimento incluso). Esegue la stessa simulazione di
+`@@piano_di_taglio` e accetta gli stessi parametri di simulazione
+(`volume_obiettivo`, `anno_inizio`, `anno_fine`, `intervallo`,
+`intervallo_anno`, `mortalita`, `prudenza`, `riduzione`, `ordine`,
+`particelle_min`, `calendario`); usare valori identici nelle due direttive
+perché descrivano lo stesso piano. Le regole di prelievo sono definite in
+`pdg/harvest_rules.py` (limiti per comparto basati su tavole di volume ed
+età) e vengono applicate a ogni singolo intervento simulato. I filtri
+`compresa`/`particella` limitano solo le righe visualizzate — il piano è
+sempre calcolato su tutti i dati.
+
+Opzioni di visualizzazione:
 
 | Parametro | Valori | Descrizione |
 |-----------|--------|-------------|
@@ -128,7 +140,6 @@ Le regole di prelievo sono definite in `harvest_rules.py` (limiti per comparto b
 | `col_volume_ha` | `si`, `no` | Mostra volume per ettaro (default: `no`) |
 | `col_volume_mature` | `si`, `no` | Mostra volume alberi maturi (default: `si`) |
 | `col_volume_mature_ha` | `si`, `no` | Mostra volume alberi maturi per ettaro (default: `si`) |
-| `col_pp_max` | `si`, `no` | Mostra PP_max % (default: `si`) |
 | `col_prelievo_ha` | `si`, `no` | Mostra prelievo per ettaro (default: `si`) |
 | `col_prelievo` | `si`, `no` | Mostra prelievo totale (default: `si`) |
 

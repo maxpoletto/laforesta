@@ -447,3 +447,20 @@ def schedule_harvests(
         volume_log[last_year + 1] = snapshot_volumes(sim)
 
     return events
+
+
+def total_harvests(events: list[dict]) -> dict[tuple[str, str], dict[str, float]]:
+    """Sum plan events into per-parcel, per-species harvest totals.
+
+    Each event's harvest is split pro-rata by its species shares (the same
+    allocation used for per-genere plan tables), then accumulated over all
+    years of the plan.
+
+    Returns {(compresa, particella): {genere: harvest}}.
+    """
+    totals: dict[tuple[str, str], dict[str, float]] = {}
+    for e in events:
+        by_species = totals.setdefault((e[COL_COMPRESA], e[COL_PARTICELLA]), {})
+        for genere, frac in e[COL_SPECIES_SHARES].items():
+            by_species[genere] = by_species.get(genere, 0.0) + e[COL_HARVEST] * frac
+    return totals

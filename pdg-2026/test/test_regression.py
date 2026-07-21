@@ -28,10 +28,10 @@ from pdg.simulation import growth_per_group
 from pdg.core import (
     region_cache, parcel_data,
     calculate_volumes, calculate_harvest_table,
-    compute_parcel_harvests,
     calculate_diameter_class_data,
 )
 from pdg.harvest_rules import max_harvest
+from test.generate_golden import plan_totals, filter_totals
 
 TEST_DIR = Path(__file__).parent / "data"
 
@@ -154,39 +154,55 @@ class TestTsvRegression:
 # ── @@prelievi (calculate_harvest_table) ──────────────────────────────────────────────
 
 class TestTptRegression:
-    """Regression tests matching @@prelievi invocations in templates."""
+    """Regression tests matching @@prelievi invocations in templates.
 
-    def test_per_compresa(self, data_all):
+    @@prelievi reports plan totals: the simulation always runs on all data
+    (data_all) and compresa/particella filter only the displayed rows.
+    """
+
+    @pytest.fixture(scope="class")
+    def totals_all(self, data_all):
+        return plan_totals(data_all)
+
+    def test_per_compresa(self, data_all, totals_all):
         """sec-ripresa.tex: per_compresa=si, per_particella=no."""
-        actual = calculate_harvest_table(data_all,
-            compute_parcel_harvests(data_all, max_harvest),
+        actual = calculate_harvest_table(data_all, totals_all,
             group_cols=[COL_COMPRESA])
         expected = _load_golden('tpt-per_compresa')
         _assert_frames_close(actual, expected, 'tpt-per_compresa')
 
-    def test_serra_per_particella(self, data_serra):
+    def test_serra_per_particella(self, data_all, totals_all):
         """sec-ripresa.tex: single compresa, per_particella=si."""
-        actual = calculate_harvest_table(data_serra,
-            compute_parcel_harvests(data_serra, max_harvest),
+        actual = calculate_harvest_table(data_all,
+            filter_totals(totals_all, compresa='Serra'),
             group_cols=[COL_PARTICELLA])
         expected = _load_golden('tpt-serra-per_particella')
         _assert_frames_close(actual, expected, 'tpt-serra-per_particella')
 
-    def test_cap3_per_genere(self, data_cap3):
+    def test_cap3_per_genere(self, data_all, totals_all):
         """particella.tex: single particella, per_genere=si."""
-        actual = calculate_harvest_table(data_cap3,
-            compute_parcel_harvests(data_cap3, max_harvest),
+        actual = calculate_harvest_table(data_all,
+            filter_totals(totals_all, compresa='Capistrano', particella='3'),
             group_cols=[COL_GENERE])
         expected = _load_golden('tpt-cap3-per_genere')
         _assert_frames_close(actual, expected, 'tpt-cap3-per_genere')
 
-    def test_serra_per_particella_genere(self, data_serra):
+    def test_serra_per_particella_genere(self, data_all, totals_all):
         """relazione.tex: per_particella=si, per_genere=si."""
-        actual = calculate_harvest_table(data_serra,
-            compute_parcel_harvests(data_serra, max_harvest),
+        actual = calculate_harvest_table(data_all,
+            filter_totals(totals_all, compresa='Serra'),
             group_cols=[COL_PARTICELLA, COL_GENERE])
         expected = _load_golden('tpt-serra-per_particella_genere')
         _assert_frames_close(actual, expected, 'tpt-serra-per_particella_genere')
+
+    def test_ambiguous_particella_raises(self, data_all, totals_all):
+        """Per-particella metadata across comprese with colliding parcel
+        names must fail loudly rather than mix parcels up."""
+        ambiguous = (filter_totals(totals_all, compresa='Serra')
+                     | {('Fabrizia', '1'): {'Faggio': 1.0}})
+        with pytest.raises(ValueError, match="comprese"):
+            calculate_harvest_table(data_all, ambiguous,
+                group_cols=[COL_PARTICELLA])
 
 
 # ── @@tabella_incremento_percentuale (growth_per_group) ───────────────────────────────────────────

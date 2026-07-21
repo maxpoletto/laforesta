@@ -13,6 +13,7 @@ import subprocess
 from typing import cast
 
 from natsort import natsort_keygen
+import pandas as pd
 
 from pdg.harvest_rules import max_harvest
 from pdg.computation import (
@@ -122,6 +123,50 @@ def check_param_values(options: dict, key: str, valid_values: list[str], directi
 def _bool_opt(params: dict, key: str, enabled: bool = True) -> bool:
     """Parse a si/no boolean option from template directive params."""
     return params.get(key, 'si' if enabled else 'no').lower() == 'si'
+
+
+# Defaults for the harvest plan simulation parameters
+DEFAULT_ANNO_INIZIO = 2026
+DEFAULT_ANNO_FINE = 2040
+DEFAULT_INTERVALLO = 10
+DEFAULT_MORTALITA = 0.0    # %/year
+DEFAULT_PRUDENZA = 100.0   # % of the rule limits (100 = no reduction)
+DEFAULT_RIDUZIONE = 100.0  # % of the computed harvest (100 = no reduction)
+DEFAULT_PARTICELLE_MIN = 0
+VALID_ORDINE = {ORDINE_VOL_HA, ORDINE_VOL_TOT, ORDINE_DATA}
+
+
+def parse_plan_params(keyword: str, params: dict,
+                      data_dir: Path) -> tuple[pd.DataFrame | None, dict]:
+    """Parse the simulation parameters shared by @@piano_di_taglio and
+    @@prelievi.
+
+    Both directives must receive identical values for these parameters to
+    describe the same harvest plan.  Returns (past_harvests, options).
+    """
+    check_required_params(keyword, params, [OPT_VOLUME_OBIETTIVO])
+    calendario_path = params.get(OPT_CALENDARIO)
+    past_harvests = (read_past_harvests(data_dir / calendario_path)
+                     if calendario_path else None)
+    anno_inizio = int(params.get(OPT_ANNO_INIZIO, DEFAULT_ANNO_INIZIO))
+    anno_fine = int(params.get(OPT_ANNO_FINE, DEFAULT_ANNO_FINE))
+    options = {
+        OPT_ANNO_INIZIO: anno_inizio,
+        OPT_ANNO_FINE: anno_fine,
+        OPT_INTERVALLO: int(params.get(OPT_INTERVALLO, DEFAULT_INTERVALLO)),
+        OPT_INTERVALLO_ANNO: parse_gap_overrides(
+            params.get(OPT_INTERVALLO_ANNO), anno_inizio, anno_fine),
+        OPT_MORTALITA: float(params.get(OPT_MORTALITA, DEFAULT_MORTALITA)),
+        OPT_PRUDENZA: float(params.get(OPT_PRUDENZA, DEFAULT_PRUDENZA)),
+        OPT_RIDUZIONE: float(params.get(OPT_RIDUZIONE, DEFAULT_RIDUZIONE)),
+        OPT_VOLUME_OBIETTIVO: float(params[OPT_VOLUME_OBIETTIVO]),
+        OPT_ORDINE: params.get(OPT_ORDINE, ORDINE_VOL_HA),
+        OPT_PARTICELLE_MIN: int(params.get(OPT_PARTICELLE_MIN, DEFAULT_PARTICELLE_MIN)),
+    }
+    if options[OPT_ORDINE] not in VALID_ORDINE:
+        raise ValueError(f"@@{keyword}: ordine='{options[OPT_ORDINE]}' "
+                         f"non valido (valori ammessi: {', '.join(sorted(VALID_ORDINE))})")
+    return past_harvests, options
 
 
 def parse_template_directive(line: str) -> Directive | None:
@@ -385,6 +430,8 @@ def process_template(template_text: str, data_dir: Path,
                     if 'genere' in params:
                         raise ValueError("@@prelievi non supporta il parametro 'genere' "
                                          "(usa 'per_genere=si' per raggruppare per specie)")
+                    past_harvests, plan_options = parse_plan_params(
+                        keyword, params, data_dir)
                     options = {
                         OPT_PER_COMPRESA: _bool_opt(params, OPT_PER_COMPRESA),
                         OPT_PER_PARTICELLA: _bool_opt(params, OPT_PER_PARTICELLA),
@@ -392,7 +439,6 @@ def process_template(template_text: str, data_dir: Path,
                         OPT_COL_AREA_HA: _bool_opt(params, OPT_COL_AREA_HA),
                         OPT_COL_COMPARTO: _bool_opt(params, OPT_COL_COMPARTO),
                         OPT_COL_ETA: _bool_opt(params, OPT_COL_ETA),
-                        OPT_COL_PP_MAX: _bool_opt(params, OPT_COL_PP_MAX),
                         OPT_COL_PRELIEVO_HA: _bool_opt(params, OPT_COL_PRELIEVO_HA),
                         OPT_COL_PRELIEVO: _bool_opt(params, OPT_COL_PRELIEVO),
                         OPT_COL_VOLUME_HA: _bool_opt(params, OPT_COL_VOLUME_HA, False),
@@ -401,18 +447,22 @@ def process_template(template_text: str, data_dir: Path,
                         OPT_COL_VOLUME: _bool_opt(params, OPT_COL_VOLUME, False),
                         OPT_TOTALI: _bool_opt(params, OPT_TOTALI, False),
                     }
-                    check_allowed_params(keyword, params, options)
-                    result = render_harvest_table(data, max_harvest,
-                                              formatter, **options)
+                    check_allowed_params(keyword, params,
+                                         options | plan_options | {OPT_CALENDARIO: True})
+                    # The plan runs on all parcels; compresa/particella only
+                    # filter the displayed rows.
+                    plan_data = parcel_data(alberi_files, trees_df,
+                                            particelle_df, [], [], [])
+                    result = render_harvest_table(plan_data, past_harvests,
+                                              max_harvest, formatter,
+                                              comprese=comprese,
+                                              particelle=particelle,
+                                              **options, **plan_options)
                 case Dir.HARVEST_PLAN:
                     nonlocal harvest_plan_count
                     harvest_plan_count += 1
-                    calendario_path = params.get(OPT_CALENDARIO)
-                    past_harvests = (
-                        read_past_harvests(data_dir / calendario_path)
-                        if calendario_path else None)
-                    anno_inizio = int(params.get(OPT_ANNO_INIZIO, 2026))
-                    anno_fine = int(params.get(OPT_ANNO_FINE, 2040))
+                    past_harvests, plan_options = parse_plan_params(
+                        keyword, params, data_dir)
                     options = {
                         OPT_PER_COMPRESA: _bool_opt(params, OPT_PER_COMPRESA),
                         OPT_PER_PARTICELLA: _bool_opt(params, OPT_PER_PARTICELLA),
@@ -421,28 +471,10 @@ def process_template(template_text: str, data_dir: Path,
                         OPT_COL_ETA: _bool_opt(params, OPT_COL_ETA),
                         OPT_COL_PP_MAX: _bool_opt(params, OPT_COL_PP_MAX),
                         OPT_COL_PRIMA_DOPO: _bool_opt(params, OPT_COL_PRIMA_DOPO),
-                        OPT_ANNO_FINE: anno_fine,
-                        OPT_ANNO_INIZIO: anno_inizio,
-                        OPT_INTERVALLO: int(params.get(OPT_INTERVALLO, 10)),
-                        OPT_INTERVALLO_ANNO: parse_gap_overrides(
-                            params.get(OPT_INTERVALLO_ANNO),
-                            anno_inizio, anno_fine),
-                        OPT_MORTALITA: float(params.get(OPT_MORTALITA, 0)),
-                        OPT_PRUDENZA: float(params.get(OPT_PRUDENZA, 100)),
-                        OPT_RIDUZIONE: float(params.get(OPT_RIDUZIONE, 100)),
                         OPT_TOTALI: _bool_opt(params, OPT_TOTALI, False),
-                        OPT_VOLUME_OBIETTIVO: float(params[OPT_VOLUME_OBIETTIVO]),
-                        OPT_ORDINE: params.get(OPT_ORDINE, ORDINE_VOL_HA),
-                        OPT_PARTICELLE_MIN: int(params.get(OPT_PARTICELLE_MIN, 0)),
                     }
-                    _VALID_ORDINE = {ORDINE_VOL_HA, ORDINE_VOL_TOT, ORDINE_DATA}
-                    if options[OPT_ORDINE] not in _VALID_ORDINE:
-                        raise ValueError(f"@@piano_di_taglio: ordine='{options[OPT_ORDINE]}' "
-                                         f"non valido (valori ammessi: {', '.join(sorted(_VALID_ORDINE))})")
                     check_allowed_params(keyword, params,
-                                         options | {OPT_CALENDARIO: True})
-                    check_required_params(keyword, params,
-                                          [OPT_VOLUME_OBIETTIVO])
+                                         options | plan_options | {OPT_CALENDARIO: True})
                     if options[OPT_COL_PRIMA_DOPO] and not options[OPT_PER_PARTICELLA]:
                         raise ValueError("@@piano_di_taglio richiede 'per_particella=si' se si usa "
                                          "'col_prima_dopo=si', altrimenti i volumi prima/dopo "
@@ -452,7 +484,7 @@ def process_template(template_text: str, data_dir: Path,
                                                max_harvest,
                                                formatter,
                                                volume_log=volume_log,
-                                               **options)
+                                               **options, **plan_options)
                     if volume_log:
                         log_path = f'simulazione_pdt_{harvest_plan_count}.csv'
                         write_volume_log(volume_log, log_path)

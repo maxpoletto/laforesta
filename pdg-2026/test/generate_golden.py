@@ -11,16 +11,43 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from pdg.computation import COL_PARTICELLA, COL_COMPRESA, COL_GENERE, COL_CD_CM
 from pdg.io import file_cache, load_csv, load_trees
-from pdg.simulation import growth_per_group
+from pdg.simulation import growth_per_group, schedule_harvests, total_harvests
 from pdg.core import (
     region_cache, parcel_data,
     calculate_volumes, calculate_harvest_table,
-    compute_parcel_harvests,
     calculate_diameter_class_data,
 )
 from pdg.harvest_rules import max_harvest
 
 TEST_DIR = Path(__file__).parent / "data"
+
+# Simulation parameters for the @@prelievi goldens (shared with
+# test_regression.py).  Sized so the annual target, the min-gap pauses and
+# growth all shape the result: Serra/1 and Capistrano/3 are harvested in 2027
+# and again (after growth) in 2037, while Fabrizia/1 stays below the minimum
+# standing volume for the whole period and never enters the plan.
+PLAN_YEAR_RANGE = (2027, 2040)
+PLAN_MIN_GAP = 10
+PLAN_TARGET_VOLUME = 1200.0
+PLAN_MORTALITY = 1.0
+PLAN_PRUDENCE = 80.0
+
+
+def plan_totals(data):
+    """Per-parcel plan harvest totals for the @@prelievi goldens."""
+    return total_harvests(schedule_harvests(
+        data, past_harvests=None, year_range=PLAN_YEAR_RANGE,
+        min_gap=PLAN_MIN_GAP, target_volume=PLAN_TARGET_VOLUME,
+        mortality=PLAN_MORTALITY, rules=max_harvest,
+        prudence=PLAN_PRUDENCE))
+
+
+def filter_totals(totals, compresa=None, particella=None):
+    """Restrict plan totals to one compresa/particella, as the @@prelievi
+    display filters do (the plan itself is always computed on all data)."""
+    return {k: v for k, v in totals.items()
+            if (compresa is None or k[0] == compresa)
+            and (particella is None or k[1] == particella)}
 
 
 def main():
@@ -67,19 +94,20 @@ def main():
         group_cols=[COL_GENERE],
         calc_margin=True, calc_total=True), 'tsv-fab1-per_genere')
 
-    # @@prelievi — matches sec-ripresa.tex, particella.tex, relazione.tex
+    # @@prelievi — matches sec-ripresa.tex, particella.tex, relazione.tex.
+    # The plan runs on all data; compresa/particella only filter the rows.
     print('@@prelievi:')
-    save(calculate_harvest_table(data_all,
-        compute_parcel_harvests(data_all, max_harvest),
+    totals_all = plan_totals(data_all)
+    save(calculate_harvest_table(data_all, totals_all,
         group_cols=[COL_COMPRESA]), 'tpt-per_compresa')
-    save(calculate_harvest_table(data_serra,
-        compute_parcel_harvests(data_serra, max_harvest),
+    save(calculate_harvest_table(data_all,
+        filter_totals(totals_all, compresa='Serra'),
         group_cols=[COL_PARTICELLA]), 'tpt-serra-per_particella')
-    save(calculate_harvest_table(data_cap3,
-        compute_parcel_harvests(data_cap3, max_harvest),
+    save(calculate_harvest_table(data_all,
+        filter_totals(totals_all, compresa='Capistrano', particella='3'),
         group_cols=[COL_GENERE]), 'tpt-cap3-per_genere')
-    save(calculate_harvest_table(data_serra,
-        compute_parcel_harvests(data_serra, max_harvest),
+    save(calculate_harvest_table(data_all,
+        filter_totals(totals_all, compresa='Serra'),
         group_cols=[COL_PARTICELLA, COL_GENERE]),
         'tpt-serra-per_particella_genere')
 

@@ -42,8 +42,8 @@ from pdg.simulation import (
     COL_YEAR, COL_HARVEST, COL_VOLUME_BEFORE, COL_VOLUME_AFTER, COL_SPECIES_SHARES,
     COL_WEIGHT,
     ORDINE_VOL_HA,
-    HarvestResult, TreeSelectionFunc, select_from_bottom,
-    growth_per_group, harvest_parcel, schedule_harvests,
+    TreeSelectionFunc, select_from_bottom,
+    growth_per_group, schedule_harvests, total_harvests,
 )
 
 # =============================================================================
@@ -92,7 +92,6 @@ COL_VOL_HI = 'vol_hi'
 # tpt-specific
 COL_SECTOR = 'sector'
 COL_AGE = 'age'
-COL_PP_MAX = 'pp_max'
 ROW_TOTAL = 'Totale'
 
 # =============================================================================
@@ -904,39 +903,119 @@ def render_pct_growth_graph(data: ParcelData, output_path: Path,
 
 
 # =============================================================================
-# RIPRESA (HARVEST TABLE)
+# PLAN SIMULATION (shared by @@prelievi and @@piano_di_taglio)
 # =============================================================================
 
-def compute_parcel_harvests(data: ParcelData, rules: HarvestRulesFunc,
-                            ) -> dict[tuple[str, str], HarvestResult]:
-    """Compute harvest for each parcel. Returns only harvestable parcels.
+# Memoized schedule_harvests runs: entries are (data, past_harvests, params,
+# events).  data and past_harvests are compared by identity — both come from
+# module-level caches (region_cache, io.file_cache), and holding references
+# here keeps those identities alive for the lifetime of this cache.
+plan_cache: list[tuple] = []
 
-    Calls harvest_parcel() per parcel to determine harvest limits and tree
-    selection. Parcels with no mature trees or where rules return zero limits
-    are omitted from the result.
+
+def plan_events(
+    data: ParcelData,
+    past_harvests: pd.DataFrame | None,
+    year_range: tuple[int, int],
+    min_gap: int,
+    target_volume: float,
+    mortality: float = 0.0,
+    rules: HarvestRulesFunc = max_harvest,
+    tree_selection: TreeSelectionFunc = select_from_bottom,
+    volume_log: dict[int, dict[tuple[str, str], float]] | None = None,
+    prudence: float = 100.0,
+    ordine: str = ORDINE_VOL_HA,
+    particelle_min: int = 0,
+    gap_overrides: dict[int, int] | None = None,
+) -> list[dict]:
+    """Memoizing front-end to schedule_harvests (same signature).
+
+    @@prelievi and @@piano_di_taglio directives with identical parameters
+    describe the same plan, so the year-by-year simulation runs only once.
+    Calls that request a volume_log always run the simulation (the log is a
+    side effect the cache cannot replay).
     """
-    trees = data.trees
-    if COL_V_M3 not in trees.columns:
-        raise ValueError("Richiede dati con volumi (colonna V(m3) mancante). "
-                         "Esegui --calcola-altezze-volumi per calcolarli.")
-    result = {}
-    for (region, parcel), part_trees in trees.groupby(  # type: ignore[reportGeneralTypeIssues]
-            [COL_COMPRESA, COL_PARTICELLA]):
-        p = data.parcels[(region, parcel)]  # type: ignore[reportGeneralTypeIssues]
-        hr = harvest_parcel(part_trees, p, rules, select_from_bottom)
-        if hr is not None:
-            result[(region, parcel)] = hr  # type: ignore[reportGeneralTypeIssues]
-    return result
+    params = (year_range, min_gap, target_volume, mortality, rules,
+              tree_selection, prudence, ordine, particelle_min,
+              tuple(sorted(gap_overrides.items())) if gap_overrides else None)
+    if volume_log is None:
+        for cached_data, cached_past, cached_params, events in plan_cache:
+            if (cached_data is data and cached_past is past_harvests
+                    and cached_params == params):
+                return events
+    events = schedule_harvests(
+        data, past_harvests, year_range, min_gap, target_volume,
+        mortality, rules, tree_selection, volume_log=volume_log,
+        prudence=prudence, ordine=ordine, particelle_min=particelle_min,
+        gap_overrides=gap_overrides)
+    if volume_log is None:
+        plan_cache.append((data, past_harvests, params, events))
+    return events
+
+
+def _plan_kwargs(options: dict) -> dict:
+    """Translate directive options into plan_events/calculate_harvest_plan
+    keyword arguments."""
+    return {
+        'year_range': (options[OPT_ANNO_INIZIO], options[OPT_ANNO_FINE]),
+        'min_gap': options[OPT_INTERVALLO],
+        'target_volume': options[OPT_VOLUME_OBIETTIVO],
+        'mortality': options[OPT_MORTALITA],
+        'tree_selection': select_from_bottom,
+        'prudence': options.get(OPT_PRUDENZA, 100.0),
+        'ordine': options.get(OPT_ORDINE, ORDINE_VOL_HA),
+        'particelle_min': options.get(OPT_PARTICELLE_MIN, 0),
+        'gap_overrides': options.get(OPT_INTERVALLO_ANNO),
+    }
+
+
+def _apply_riduzione(df: pd.DataFrame, options: dict) -> None:
+    """Scale harvests by the riduzione percentage option, in place."""
+    reduction = options.get(OPT_RIDUZIONE, 100.0)
+    if reduction != 100.0:
+        df[COL_HARVEST] = df[COL_HARVEST] * reduction / 100
+
+
+# =============================================================================
+# RIPRESA (HARVEST TABLE: PLAN TOTALS PER PARCEL/GROUP)
+# =============================================================================
+
+def _row_parcel_keys(df: pd.DataFrame, parcel_keys: set[tuple[str, str]],
+                     group_cols: list[str]) -> list[tuple[str, str]]:
+    """Resolve each table row to its (compresa, particella) key.
+
+    Used to attach per-parcel metadata (sector, age).  Valid when rows map
+    1:1 to parcels: either COL_PARTICELLA is a group column, or the table
+    covers a single parcel.
+    """
+    if COL_PARTICELLA not in group_cols:
+        (key,) = parcel_keys
+        return [key] * len(df)
+    if COL_COMPRESA in df.columns:
+        return list(zip(df[COL_COMPRESA], df[COL_PARTICELLA]))
+    region_by_parcel: dict[str, str] = {}
+    for region, parcel in parcel_keys:
+        if region_by_parcel.setdefault(parcel, region) != region:
+            raise ValueError(
+                f"Particella '{parcel}' presente in più comprese: "
+                "usare per_compresa=si o filtrare per compresa")
+    return [(region_by_parcel[p], p) for p in df[COL_PARTICELLA]]
 
 
 def calculate_harvest_table(data: ParcelData,
-                            parcel_harvests: dict[tuple[str, str], HarvestResult],
+                            parcel_harvests: dict[tuple[str, str], dict[str, float]],
                             group_cols: list[str]) -> pd.DataFrame:
-    """Compute harvest table: volume inventory + per-parcel harvest aggregation.
+    """Compute harvest table: current volume inventory + plan harvest totals.
 
-    Calls calculate_volumes for inventory data (volume, volume_mature), then
-    merges with harvest volumes aggregated from parcel_harvests. When Genere is
-    in group_cols, harvest is allocated pro-rata by species shares.
+    Args:
+        data: Trees and parcel stats (superset of the parcels to display).
+        parcel_harvests: Per-parcel, per-species harvest totals (from
+            total_harvests).  Only these parcels appear in the table.
+        group_cols: Any of [COL_COMPRESA, COL_PARTICELLA, COL_GENERE].
+
+    Volumes come from calculate_volumes on the parcels in parcel_harvests;
+    harvests are aggregated onto the same groups (species are summed unless
+    Genere is a group column).
     """
     def harvest_group_key(region: str, parcel: str, genere: str | None,
                           group_cols: list[str]) -> tuple:
@@ -954,7 +1033,7 @@ def calculate_harvest_table(data: ParcelData,
     if not parcel_harvests:
         return pd.DataFrame()
 
-    # Filter to harvestable parcels so volumes match harvest scope
+    # Restrict inventory volumes to the parcels being displayed
     harvestable_data = data.filter_parcels(set(parcel_harvests.keys()))
 
     vol_df = calculate_volumes(harvestable_data, group_cols, calc_ntrees=False,
@@ -962,14 +1041,10 @@ def calculate_harvest_table(data: ParcelData,
 
     # Aggregate harvest by group_cols
     harvest_rows: dict[tuple, float] = {}
-    for (region, parcel), hr in parcel_harvests.items():
-        if COL_GENERE in group_cols:
-            for genere, frac in hr.species_shares.items():
-                key = harvest_group_key(region, parcel, genere, group_cols)
-                harvest_rows[key] = harvest_rows.get(key, 0.0) + hr.harvest * frac
-        else:
-            key = harvest_group_key(region, parcel, None, group_cols)
-            harvest_rows[key] = harvest_rows.get(key, 0.0) + hr.harvest
+    for (region, parcel), by_species in parcel_harvests.items():
+        for genere, harvest in by_species.items():
+            key = harvest_group_key(region, parcel, genere, group_cols)
+            harvest_rows[key] = harvest_rows.get(key, 0.0) + harvest
 
     harvest_df = pd.DataFrame([
         dict(zip(group_cols, key), **{COL_HARVEST: harvest})
@@ -999,45 +1074,18 @@ def calculate_harvest_table(data: ParcelData,
         # No spatial grouping: assign total area to single result row
         df[COL_AREA_HA] = area_map[()]
 
-    # Add per-parcel metadata (sector, age, pp_max)
-    per_parcel = COL_PARTICELLA in group_cols or len(data.parcels) == 1
+    # Add per-parcel metadata (sector, age)
+    per_parcel = COL_PARTICELLA in group_cols or len(parcel_harvests) == 1
     if per_parcel:
-        if COL_PARTICELLA not in group_cols:
-            # Single parcel in data: metadata is constant across all rows
-            key = next(iter(parcel_harvests))
-            p = data.parcels[key]
-            hr = parcel_harvests[key]
-            df[COL_SECTOR] = p.sector
-            df[COL_AGE] = p.age
-            df[COL_PP_MAX] = hr.harvest / hr.volume_before * 100 if hr.volume_before > 0 else 0
-        elif COL_COMPRESA not in df.columns:
-            # Single compresa in data: look up via particella only
-            compresa = next(iter(data.parcels))[0]
-            df[COL_SECTOR] = df[COL_PARTICELLA].map(
-                lambda p, c=compresa: data.parcels[(c, p)].sector)
-            df[COL_AGE] = df[COL_PARTICELLA].map(
-                lambda p, c=compresa: data.parcels[(c, p)].age)
-            df[COL_PP_MAX] = df[COL_PARTICELLA].map(
-                lambda p, c=compresa: (
-                    parcel_harvests[(c, p)].harvest / parcel_harvests[(c, p)].volume_before * 100
-                    if parcel_harvests[(c, p)].volume_before > 0 else 0))
-        else:
-            df[COL_SECTOR] = df.apply(
-                lambda r: data.parcels[(r[COL_COMPRESA], r[COL_PARTICELLA])].sector, axis=1)
-            df[COL_AGE] = df.apply(
-                lambda r: data.parcels[(r[COL_COMPRESA], r[COL_PARTICELLA])].age, axis=1)
-            df[COL_PP_MAX] = df.apply(
-                lambda r: (
-                    parcel_harvests[(r[COL_COMPRESA], r[COL_PARTICELLA])].harvest /
-                    parcel_harvests[(r[COL_COMPRESA], r[COL_PARTICELLA])].volume_before * 100
-                    if parcel_harvests[(r[COL_COMPRESA], r[COL_PARTICELLA])].volume_before > 0
-                    else 0), axis=1)
+        row_keys = _row_parcel_keys(df, set(parcel_harvests.keys()), group_cols)
+        df[COL_SECTOR] = [data.parcels[k].sector for k in row_keys]
+        df[COL_AGE] = [data.parcels[k].age for k in row_keys]
 
     # Ensure column order matches golden file expectations (for tests)
-    # Order: group_cols, [sector, age, pp_max], area_ha, volume, volume_mature, harvest
+    # Order: group_cols, [sector, age], area_ha, volume, volume_mature, harvest
     ordered_cols = list(group_cols)
     if per_parcel:
-        ordered_cols += [COL_SECTOR, COL_AGE, COL_PP_MAX]
+        ordered_cols += [COL_SECTOR, COL_AGE]
     ordered_cols += [COL_AREA_HA, COL_VOLUME, COL_VOLUME_MATURE, COL_HARVEST]
     df = df[[c for c in ordered_cols if c in df.columns]]
 
@@ -1048,9 +1096,20 @@ def calculate_harvest_table(data: ParcelData,
         key=lambda col: col.map(natsort_keygen()) if col.name == COL_PARTICELLA else col)
 
 
-def render_harvest_table(data: ParcelData, rules: HarvestRulesFunc,
-                         formatter: SnippetFormatter, **options) -> RenderResult:
-    """Render harvest (prelievo totale) table (@@prelievi directive)."""
+def render_harvest_table(data: ParcelData, past_harvests: pd.DataFrame | None,
+                         rules: HarvestRulesFunc, formatter: SnippetFormatter,
+                         comprese: list[str] | None = None,
+                         particelle: list[str] | None = None,
+                         **options) -> RenderResult:
+    """Render harvest totals table (@@prelievi directive).
+
+    Runs the same simulation as @@piano_di_taglio (identical parameters
+    describe the same plan) and reports, per group, the sum of all planned
+    harvests over the whole period — growth included — alongside the current
+    inventory.  The plan is always computed on the full dataset; comprese and
+    particelle only filter the displayed rows, so each row matches the
+    corresponding rows of an unfiltered table.
+    """
     group_cols = []
     if options[OPT_PER_COMPRESA]:
         group_cols.append(COL_COMPRESA)
@@ -1059,15 +1118,24 @@ def render_harvest_table(data: ParcelData, rules: HarvestRulesFunc,
     if options[OPT_PER_GENERE]:
         group_cols.append(COL_GENERE)
 
-    parcel_harvests = compute_parcel_harvests(data, rules)
+    events = plan_events(data, past_harvests, rules=rules,
+                         **_plan_kwargs(options))
+    parcel_harvests = total_harvests(events)
+    if comprese:
+        parcel_harvests = {k: v for k, v in parcel_harvests.items()
+                           if k[0] in comprese}
+    if particelle:
+        parcel_harvests = {k: v for k, v in parcel_harvests.items()
+                           if k[1] in particelle}
     if not parcel_harvests:
         return RenderResult(snippet='')
 
     df = calculate_harvest_table(data, parcel_harvests, group_cols)
     if df.empty:
         return RenderResult(snippet='')
+    _apply_riduzione(df, options)
 
-    per_parcel = COL_PARTICELLA in group_cols or len(data.parcels) == 1
+    per_parcel = COL_PARTICELLA in group_cols or len(parcel_harvests) == 1
 
     # When grouping only by species, area cannot be meaningfully assigned to
     # individual species in a mixed forest, so hide area and per-hectare columns.
@@ -1092,8 +1160,6 @@ def render_harvest_table(data: ParcelData, rules: HarvestRulesFunc,
                 lambda r: fmt_num(r[COL_VOLUME_MATURE] / r[COL_AREA_HA], 1),
                 lambda d: fmt_num(d[COL_VOLUME_MATURE].sum() / total_area, 1),
                 options[OPT_COL_VOLUME_MATURE_HA] and not genere_only),
-        ColSpec('Prel \\%', 'r', lambda r: fmt_num(r[COL_PP_MAX], 0),
-                None, options[OPT_COL_PP_MAX] and per_parcel),
         ColSpec('Prel tot (m³)', 'r', COL_HARVEST, COL_HARVEST, options[OPT_COL_PRELIEVO]),
         ColSpec('Prel/ha (m³/ha)', 'r',
                 lambda r: fmt_num(r[COL_HARVEST] / r[COL_AREA_HA], 1),
@@ -1125,10 +1191,10 @@ def calculate_harvest_plan(
 ) -> pd.DataFrame:
     """Compute harvest schedule table grouped by year and optional columns.
 
-    Calls schedule_harvests() then aggregates. When COL_GENERE is in group_cols,
+    Calls plan_events() then aggregates. When COL_GENERE is in group_cols,
     each event is expanded into per-species rows using pro-rata allocation.
     """
-    events = schedule_harvests(
+    events = plan_events(
         data, past_harvests, year_range, min_gap, target_volume,
         mortality, rules, tree_selection, volume_log=volume_log,
         prudence=prudence, ordine=ordine, particelle_min=particelle_min,
@@ -1201,25 +1267,11 @@ def render_harvest_plan(data: ParcelData, past_harvests: pd.DataFrame | None,
         group_cols.append(COL_GENERE)
 
     df = calculate_harvest_plan(
-        data, past_harvests,
-        year_range=(options[OPT_ANNO_INIZIO], options[OPT_ANNO_FINE]),
-        min_gap=options[OPT_INTERVALLO],
-        target_volume=options[OPT_VOLUME_OBIETTIVO],
-        mortality=options[OPT_MORTALITA],
-        rules=rules,
-        tree_selection=select_from_bottom,
-        group_cols=group_cols,
-        volume_log=volume_log,
-        prudence=options.get(OPT_PRUDENZA, 100.0),
-        ordine=options.get(OPT_ORDINE, ORDINE_VOL_HA),
-        particelle_min=options.get(OPT_PARTICELLE_MIN, 0),
-        gap_overrides=options.get(OPT_INTERVALLO_ANNO))
+        data, past_harvests, rules=rules, group_cols=group_cols,
+        volume_log=volume_log, **_plan_kwargs(options))
     if df.empty:
         return RenderResult(snippet='')
-
-    reduction = options.get(OPT_RIDUZIONE, 100.0)
-    if reduction != 100.0:
-        df[COL_HARVEST] = df[COL_HARVEST] * reduction / 100
+    _apply_riduzione(df, options)
 
     per_parcel = COL_PARTICELLA in group_cols or len(data.parcels) == 1
 

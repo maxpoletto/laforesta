@@ -215,20 +215,20 @@
             </tbody>
         </table>
 
-        <p>In base a queste regole, la ripresa totale per compresa è la seguente.</p>
+        <p>In base a queste regole, la ripresa totale per compresa è la seguente: la somma di tutti i prelievi previsti dal piano dei tagli 2027–2040, accrescimento incluso.</p>
 
-        @@prelievi(alberi=alberi-calcolati.csv,per_compresa=si,per_particella=no,col_prel_ha=si,totali=si)
+        @@prelievi(alberi=alberi-calcolati.csv,calendario=calendario-mannesi.csv,anno_inizio=2027,anno_fine=2040,intervallo=10,intervallo_anno=2027/9,intervallo_anno=2028/9,intervallo_anno=2029/9,intervallo_anno=2030/9,intervallo_anno=2031/9,volume_obiettivo=12000,mortalita=1,prudenza=80,riduzione=100,particelle_min=3,per_compresa=si,per_particella=no,col_prelievo=si,totali=si)
 
-        <p>Di seguito, per ciascuna compresa, la ripresa per particella. Per ogni particella riportiamo anche il comparto, l'età media, e l'area, il che permette di verificare manualmente le percentuali di prelievo.</p>
+        <p>Di seguito, per ciascuna compresa, la ripresa per particella. Per ogni particella riportiamo anche il comparto, l'età media attuale e l'area.</p>
 
         <h4>Ripresa: Serra</h4>
-        @@prelievi(alberi=alberi-calcolati.csv,compresa=Serra,per_compresa=si,totali=si)
+        @@prelievi(alberi=alberi-calcolati.csv,calendario=calendario-mannesi.csv,anno_inizio=2027,anno_fine=2040,intervallo=10,intervallo_anno=2027/9,intervallo_anno=2028/9,intervallo_anno=2029/9,intervallo_anno=2030/9,intervallo_anno=2031/9,volume_obiettivo=12000,mortalita=1,prudenza=80,riduzione=100,particelle_min=3,compresa=Serra,per_compresa=si,totali=si)
 
         <h4>Ripresa: Fabrizia</h4>
-        @@prelievi(alberi=alberi-calcolati.csv,compresa=Fabrizia,per_compresa=si,totali=si)
+        @@prelievi(alberi=alberi-calcolati.csv,calendario=calendario-mannesi.csv,anno_inizio=2027,anno_fine=2040,intervallo=10,intervallo_anno=2027/9,intervallo_anno=2028/9,intervallo_anno=2029/9,intervallo_anno=2030/9,intervallo_anno=2031/9,volume_obiettivo=12000,mortalita=1,prudenza=80,riduzione=100,particelle_min=3,compresa=Fabrizia,per_compresa=si,totali=si)
 
         <h4>Ripresa: Capistrano</h4>
-        @@prelievi(alberi=alberi-calcolati.csv,compresa=Capistrano,per_compresa=si,totali=si)
+        @@prelievi(alberi=alberi-calcolati.csv,calendario=calendario-mannesi.csv,anno_inizio=2027,anno_fine=2040,intervallo=10,intervallo_anno=2027/9,intervallo_anno=2028/9,intervallo_anno=2029/9,intervallo_anno=2030/9,intervallo_anno=2031/9,volume_obiettivo=12000,mortalita=1,prudenza=80,riduzione=100,particelle_min=3,compresa=Capistrano,per_compresa=si,totali=si)
 
     </div>
 </body>
