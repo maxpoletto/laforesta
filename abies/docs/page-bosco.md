@@ -153,7 +153,8 @@ following the standard Abies idiom:
 1. **Caratteristiche** (open by default)
    - Location, altitude min/max, esposizione, pendenza.
    - Surface area: cadastral and computed.
-   - Età media (a), classe economica, tipo (alto fusto / ceduo).
+   - Classe economica, tipo (alto fusto / ceduo).
+   - For parcels only: età media (a).
    - Descrizione vegetazione ("soprassuolo") (free text, multi-paragraph).
    - Descrizione geologia ("stazione") (free text, multi-paragraph).
    

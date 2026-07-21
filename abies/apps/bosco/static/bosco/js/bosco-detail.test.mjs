@@ -189,7 +189,7 @@ const meta = D.regionMetadata([
 assertEqual(meta.count, 2, 'regionMetadata: count');
 assertEqual(meta.areaHa, 15, 'regionMetadata: area sum');
 assertEqual(meta.cadastralAreaHa, 17, 'regionMetadata: cadastral area sum');
-assertClose(meta.aveAge, 50, 0.0001, 'regionMetadata: weighted age');
+assertEqual('aveAge' in meta, false, 'regionMetadata: omits region age');
 assertEqual(meta.altMin, 600, 'regionMetadata: min altitude');
 assertEqual(meta.altMax, 900, 'regionMetadata: max altitude');
 assertEqual([...meta.typeCounts.entries()], [[S.TYPE_HIGHFOREST, 1], [S.TYPE_COPPICE, 1]], 'regionMetadata: types');

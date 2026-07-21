@@ -1735,7 +1735,6 @@ function renderRegionMetadata(entries) {
   appendMetadataField(S.BOSCO_REGION_PARCELS, fmtInt(meta.count));
   appendMetadataField(S.COL_AREA_HA, fmtArea(meta.areaHa));
   appendMetadataField(S.COL_AREA_CAD_HA, fmtArea(meta.cadastralAreaHa));
-  appendMetadataField(S.COL_AVE_AGE, fmtRoundedInt(meta.aveAge));
   appendMetadataField(S.COL_ALT_MIN, fmtRoundedInt(meta.altMin));
   appendMetadataField(S.COL_ALT_MAX, fmtRoundedInt(meta.altMax));
   const types = [...meta.typeCounts.entries()].map(([name, count]) => `${name}: ${count}`).join(' · ');

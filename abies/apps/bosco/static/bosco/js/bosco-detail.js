@@ -26,7 +26,6 @@ export function regionMetadata(entries) {
   const count = entries.length;
   const areaHa = sum(entries.map(e => e.displayAreaHa));
   const cadastralAreaHa = sum(entries.map(e => e.cadastralAreaHa));
-  const ageWeighted = weightedAverage(entries.map(e => [e.aveAge, e.displayAreaHa || 1]));
   const altMin = min(entries.map(e => e.altMin));
   const altMax = max(entries.map(e => e.altMax));
   const typeCounts = new Map();
@@ -34,7 +33,7 @@ export function regionMetadata(entries) {
     if (!entry.type) continue;
     typeCounts.set(entry.type, (typeCounts.get(entry.type) || 0) + 1);
   }
-  return { count, areaHa, cadastralAreaHa, aveAge: ageWeighted, altMin, altMax, typeCounts };
+  return { count, areaHa, cadastralAreaHa, altMin, altMax, typeCounts };
 }
 
 export function aggregateDendrometry(
@@ -348,17 +347,6 @@ function formatR2(value) {
 
 function average(values) {
   return values.reduce((total, value) => total + value, 0) / values.length;
-}
-
-function weightedAverage(pairs) {
-  let total = 0;
-  let weight = 0;
-  for (const [value, w] of pairs) {
-    if (value == null || !Number.isFinite(value) || !w) continue;
-    total += value * w;
-    weight += w;
-  }
-  return weight ? total / weight : null;
 }
 
 function sum(values) {
