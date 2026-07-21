@@ -67,6 +67,13 @@ from pdg.core import (
     calculate_stumps, render_prop_coppice,
 )
 from pdg.formatters import HTMLSnippetFormatter
+from pdg.core import (
+    OPT_PER_COMPRESA, OPT_PER_PARTICELLA, OPT_PER_GENERE,
+    OPT_COL_AREA_HA, OPT_COL_PRELIEVO, OPT_COL_PRELIEVO_HA, OPT_TOTALI,
+    OPT_ANNO_INIZIO, OPT_ANNO_FINE, OPT_INTERVALLO, OPT_VOLUME_OBIETTIVO,
+    OPT_MORTALITA,
+    render_harvest_table,
+)
 
 # Fixtures are defined in conftest.py
 
@@ -770,6 +777,40 @@ class TestAgeYear:
         e2 = plan_events(data_all, None, rules=harvest_rules, age_year=2020,
                          **kwargs)
         assert e1 is not e2
+
+
+class TestRenderHarvestTableOptions:
+    """Column options are honored as given (defaults are decided upstream)."""
+
+    def _options(self, **overrides):
+        options = {
+            OPT_PER_COMPRESA: False, OPT_PER_PARTICELLA: False,
+            OPT_PER_GENERE: True,
+            OPT_COL_AREA_HA: True, OPT_COL_PRELIEVO: True,
+            OPT_COL_PRELIEVO_HA: True, OPT_TOTALI: False,
+            OPT_ANNO_INIZIO: 2026, OPT_ANNO_FINE: 2026,
+            OPT_INTERVALLO: 10, OPT_VOLUME_OBIETTIVO: 1e9,
+            OPT_MORTALITA: 0.0,
+        }
+        options.update(overrides)
+        return options
+
+    def test_explicit_area_shown_for_genere_grouping(self, data_all, harvest_rules):
+        """col_area_ha=si must show Area even when grouping by species only."""
+        result = render_harvest_table(
+            data_all, None, harvest_rules, HTMLSnippetFormatter(),
+            **self._options())
+        assert 'Area (ha)' in result.snippet
+        assert 'Prel/ha' in result.snippet
+
+    def test_area_can_be_disabled(self, data_all, harvest_rules):
+        """col_area_ha=no hides the column."""
+        result = render_harvest_table(
+            data_all, None, harvest_rules, HTMLSnippetFormatter(),
+            **self._options(**{OPT_COL_AREA_HA: False,
+                               OPT_COL_PRELIEVO_HA: False}))
+        assert 'Area (ha)' not in result.snippet
+        assert 'Prel/ha' not in result.snippet
 
 
 class TestPlanEventsCache:

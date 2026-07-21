@@ -1149,14 +1149,10 @@ def render_harvest_table(data: ParcelData, past_harvests: pd.DataFrame | None,
         return RenderResult(snippet='')
     _apply_riduzione(df, options)
 
-    # When grouping only by species, area cannot be meaningfully assigned to
-    # individual species in a mixed forest, so hide area and per-hectare columns.
-    genere_only = group_cols == [COL_GENERE]
-
     total_area = sum(data.parcels[k].area_ha for k in parcel_harvests)
     col_specs = [
         ColSpec('Area (ha)', 'r', COL_AREA_HA, lambda _: fmt_num(total_area, 1),
-         options[OPT_COL_AREA_HA] and not genere_only),
+                options[OPT_COL_AREA_HA]),
         ColSpec('N. Alberi', 'r',
                 lambda r: fmt_num(r[COL_N_TREES], 0),
                 lambda d: fmt_num(d[COL_N_TREES].sum(), 0), True),
@@ -1164,7 +1160,7 @@ def render_harvest_table(data: ParcelData, past_harvests: pd.DataFrame | None,
         ColSpec('Prel/ha (m³/ha)', 'r',
                 lambda r: fmt_num(r[COL_HARVEST] / r[COL_AREA_HA], 1),
                 lambda d: fmt_num(d[COL_HARVEST].sum() / total_area, 1),
-                options[OPT_COL_PRELIEVO_HA] and not genere_only),
+                options[OPT_COL_PRELIEVO_HA]),
     ]
     return render_table(df, group_cols, col_specs, formatter, options[OPT_TOTALI])
 

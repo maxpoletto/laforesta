@@ -433,12 +433,20 @@ def process_template(template_text: str, data_dir: Path,
                                          "(usa 'per_genere=si' per raggruppare per specie)")
                     past_harvests, plan_options = parse_plan_params(
                         keyword, params, data_dir)
+                    # Area and per-hectare columns default off when grouping
+                    # by species only (area is not species-specific), but an
+                    # explicit si wins.
+                    genere_only = (_bool_opt(params, OPT_PER_GENERE, False)
+                                   and not _bool_opt(params, OPT_PER_COMPRESA)
+                                   and not _bool_opt(params, OPT_PER_PARTICELLA))
                     options = {
                         OPT_PER_COMPRESA: _bool_opt(params, OPT_PER_COMPRESA),
                         OPT_PER_PARTICELLA: _bool_opt(params, OPT_PER_PARTICELLA),
                         OPT_PER_GENERE: _bool_opt(params, OPT_PER_GENERE, False),
-                        OPT_COL_AREA_HA: _bool_opt(params, OPT_COL_AREA_HA),
-                        OPT_COL_PRELIEVO_HA: _bool_opt(params, OPT_COL_PRELIEVO_HA),
+                        OPT_COL_AREA_HA: _bool_opt(params, OPT_COL_AREA_HA,
+                                                   not genere_only),
+                        OPT_COL_PRELIEVO_HA: _bool_opt(params, OPT_COL_PRELIEVO_HA,
+                                                       not genere_only),
                         OPT_COL_PRELIEVO: _bool_opt(params, OPT_COL_PRELIEVO),
                         OPT_TOTALI: _bool_opt(params, OPT_TOTALI, False),
                     }
