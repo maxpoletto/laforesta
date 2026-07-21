@@ -66,11 +66,12 @@ DATA_DEPS=$(FILES_EQUAZIONI) $(CSV_DIR)/alberi.csv $(CSV_DIR)/alberi-calcolati.c
 #
 
 FILES_HTML=html/index.html
-DEPS_HTML=$(DATA_DEPS) $(PDG_DEPS) harvest_rules.py template/html/style.css
+DEPS_HTML=$(DATA_DEPS) $(PDG_DEPS) template/html/style.css
 
 html: $(FILES_HTML)
 
 html/%.html: template/html/%.html $(DEPS_HTML)
+	mkdir -p html
 	cp -f template/html/style.css html/
 	./pdg.py $(EXTRA_FLAGS) --report --formato html --particelle $(CSV_DIR)/particelle.csv --dati $(CSV_DIR) --input template/html/$*.html --output-dir html/
 
