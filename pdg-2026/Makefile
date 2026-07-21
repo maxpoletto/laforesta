@@ -127,11 +127,12 @@ clean-pdf-all:
 # CSV output
 #
 
-FILES_CSV=$(CSV_DIR)/ripresa.csv $(CSV_DIR)/piano.csv $(CSV_DIR)/ceduo.csv
+FILES_CSV=csv/ripresa.csv csv/piano.csv csv/ceduo.csv
 DEPS_CSV=$(DATA_DEPS) $(PDG_DEPS)
 csv: $(FILES_CSV)
 
-$(CSV_DIR)/%.csv: template/csv/%.csv $(DEPS_CSV)
+csv/%.csv: template/csv/%.csv $(DEPS_CSV)
+	mkdir -p csv
 	./pdg.py $(EXTRA_FLAGS) --report --formato csv --separatore-decimale punto --particelle $(CSV_DIR)/particelle.csv --dati $(CSV_DIR) --input template/csv/$*.csv --output-dir csv/
 
 clean-csv:
