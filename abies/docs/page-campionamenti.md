@@ -478,18 +478,17 @@ Columns: `row_id`, `version`, `Sample area`, `Data campione`,
 `Compresa`, `Particella`, `N. area`, `N. albero`, `Specie`, `Tipo`,
 `Coppice`, `Pollone`, `Matricina`, `D (cm)`, `h (m)`, `L10 (mm)`, `V (m³)`,
 `m (q)`, `PAI`, `Lat`, `Lon`. Structured rows derive parcel/area display
-from the sample area, with tree coordinates falling back to area coordinates.
-Unstructured rows derive parcel display and coordinates from the tree itself,
-with `Sample area` null and `N. area` blank. Sort: by `Compresa`,
-`Particella`, `N. area`, `N. albero`, `Pollone`; unstructured rows fall
-back to the tree parcel for `Compresa`/`Particella` ordering.
+from the sample area, with row coordinates falling back to area coordinates.
+Unstructured rows derive parcel display and coordinates from the `TreeSample`
+row, with `Sample area` null and `N. area` blank. Sort: by `Compresa`,
+`Particella`, `N. area`, `N. albero`, `Pollone`.
 
 `row_id` = `tree_sample.id` (the synthetic id, see `database.md`).
 `Coppice` is the stable boolean copied from `tree.coppice`; `Tipo` is the
 localized display label derived from the same value.
 `V (m³)` and `m (q)` are NULL for ceduo rows (per `database.md`
-invariant).  `Lat`, `Lon` come from `tree.lat/lon` if set, else fall
-back to the sample-area center.  `Data campione` is `sample.date`
+invariant).  `Lat`, `Lon` come from row-level `TreeSample` coordinates
+if set, else fall back to the sample-area center.  `Data campione` is `sample.date`
 (useful for cross-tab tracking even when Section 3 isn't narrowed
 to a single area).
 

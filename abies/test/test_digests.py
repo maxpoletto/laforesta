@@ -343,8 +343,8 @@ class TestGenerateBoscoDigests:
     def test_preserved_trees_digest(self, parcels, species, tmp_path, settings):
         settings.DIGEST_DIR = tmp_path
         kept = Tree.objects.create(
-            species=species[0], parcel=parcels[0], preserved=True,
-            estimated_birth_year=1920, lat=38.1, lon=16.2,
+            species=species[0],
+            estimated_birth_year=1920,
         )
         survey = Survey.objects.create(name='PAI')
         sample = Sample.objects.create(survey=survey, date='2024-09-15')
@@ -354,7 +354,7 @@ class TestGenerateBoscoDigests:
             d_cm=42, h_m=Decimal('18.50'), h_measured=True,
             lat=38.1, lon=16.2, note='nota',
         )
-        Tree.objects.create(species=species[1], parcel=parcels[0], preserved=False)
+        Tree.objects.create(species=species[1])
 
         generate_preserved_trees()
         data = self._read(tmp_path, DIGEST_PRESERVED_TREES)
@@ -374,8 +374,7 @@ class TestGenerateBoscoDigests:
     def test_preserved_trees_digest_allows_unknown_height(self, parcels, species, tmp_path, settings):
         settings.DIGEST_DIR = tmp_path
         kept = Tree.objects.create(
-            species=species[0], parcel=parcels[0], preserved=True,
-            lat=38.1, lon=16.2,
+            species=species[0],
         )
         survey = Survey.objects.create(name='PAI')
         sample = Sample.objects.create(survey=survey, date='1970-01-01')
@@ -451,7 +450,7 @@ class TestGenerateBoscoDigests:
             sample_area=None, survey=survey, date=date(2026, 7, 16),
         )
         tree = Tree.objects.create(
-            species=species[0], parcel=parcels[0], lat=38.1, lon=16.2,
+            species=species[0],
         )
         ts = TreeSample.objects.create(
             sample=sample, tree=tree, parcel=parcels[0], number=12,
@@ -479,7 +478,7 @@ class TestGenerateBoscoDigests:
         sample = Sample.objects.create(
             sample_area=None, survey=survey, date=date(2026, 7, 16),
         )
-        tree = Tree.objects.create(species=species[0], parcel=parcels[0])
+        tree = Tree.objects.create(species=species[0])
         TreeSample.objects.create(
             sample=sample, tree=tree, parcel=parcels[0], number=12,
             d_cm=30, h_m=Decimal('17.50'),
@@ -506,9 +505,9 @@ class TestGenerateBoscoDigests:
         inactive_sample = Sample.objects.create(
             sample_area=area, survey=inactive, date='2026-06-02',
         )
-        tree1 = Tree.objects.create(species=species[0], parcel=parcels[0])
-        tree2 = Tree.objects.create(species=species[0], parcel=parcels[0])
-        tree3 = Tree.objects.create(species=species[1], parcel=parcels[0])
+        tree1 = Tree.objects.create(species=species[0])
+        tree2 = Tree.objects.create(species=species[0])
+        tree3 = Tree.objects.create(species=species[1])
         ts1 = TreeSample.objects.create(
             sample=sample, tree=tree1, parcel=parcels[0], number=1, d_cm=18,
             h_m=Decimal('20.00'), l10_mm=9,

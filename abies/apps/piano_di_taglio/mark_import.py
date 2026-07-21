@@ -120,10 +120,7 @@ def import_mark_rows(item: HarvestPlanItem, rows: list[MarkImportRow]) -> MarkIm
 
         for row in parsed:
             volume_m3, mass_q = mark_volume_and_mass(row.d_cm, row.h_m, row.species)
-            tree = Tree.objects.create(
-                species=row.species, parcel=row.parcel,
-                lat=row.lat, lon=row.lon, acc_m=row.acc_m,
-            )
+            tree = Tree.objects.create(species=row.species)
             TreeMark.objects.create(
                 harvest_plan_item=item, tree=tree, parcel=row.parcel,
                 number=row.number,

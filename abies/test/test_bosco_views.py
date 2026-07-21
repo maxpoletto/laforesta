@@ -363,11 +363,12 @@ def test_pai_save_creates_preserved_tree(writer_client, parcels, species):
                               content_type='application/json')
 
     assert resp.status_code == 200
-    tree = Tree.objects.get(species=species[0], parcel=parcels[0])
-    assert tree.preserved is True
+    pai = TreeSample.objects.select_related('tree').get(
+        tree__species=species[0], parcel=parcels[0], preserved_number=7,
+    )
+    tree = pai.tree
     assert tree.estimated_birth_year == 1920
-    assert tree.lat == 38.12346
-    pai = TreeSample.objects.get(tree=tree)
+    assert pai.lat == 38.12346
     assert pai.preserved_number == 7
     assert pai.sample.date.isoformat() == '2024-09-15'
     assert pai.d_cm == 42
@@ -383,8 +384,7 @@ def test_pai_save_creates_preserved_tree(writer_client, parcels, species):
 
 def test_pai_save_defaults_blank_number_to_next_in_parcel(writer_client, parcels, species):
     tree = Tree.objects.create(
-        species=species[0], parcel=parcels[0], preserved=True,
-        lat=38.1, lon=16.1,
+        species=species[0],
     )
     _pai_row(tree, parcels[0], number=7)
     body = {
@@ -411,8 +411,8 @@ def test_pai_save_defaults_blank_number_to_next_in_parcel(writer_client, parcels
 
 def test_pai_save_updates_preserved_tree(writer_client, parcels, species):
     tree = Tree.objects.create(
-        species=species[0], parcel=parcels[0], preserved=True,
-        estimated_birth_year=1920, lat=38.1, lon=16.1, acc_m=5,
+        species=species[0],
+        estimated_birth_year=1920,
     )
     pai = _pai_row(
         tree, parcels[0], number=7, sample_date='2024-09-15',
@@ -443,14 +443,12 @@ def test_pai_save_updates_preserved_tree(writer_client, parcels, species):
     tree.refresh_from_db()
     pai.refresh_from_db()
     assert tree.species == species[1]
-    assert tree.parcel == parcels[1]
     assert tree.estimated_birth_year == 1935
-    assert tree.lat == 38.22222
-    assert tree.lon == 16.33333
-    assert tree.acc_m == 9
-    assert tree.preserved is True
     assert tree.version == 2
     assert pai.parcel == parcels[1]
+    assert pai.lat == 38.22222
+    assert pai.lon == 16.33333
+    assert pai.acc_m == 9
     assert pai.preserved_number == 11
     assert pai.sample.date.isoformat() == '2024-10-02'
     assert pai.d_cm == 55
@@ -469,8 +467,7 @@ def test_pai_save_updates_preserved_tree(writer_client, parcels, species):
 
 def test_pai_save_rejects_duplicate_number_in_parcel(writer_client, parcels, species):
     tree = Tree.objects.create(
-        species=species[0], parcel=parcels[0], preserved=True,
-        lat=38.1, lon=16.1,
+        species=species[0],
     )
     _pai_row(tree, parcels[0], number=7)
     body = {
@@ -495,8 +492,8 @@ def test_pai_save_rejects_duplicate_number_in_parcel(writer_client, parcels, spe
 
 def test_pai_save_stale_edit_conflicts(writer_client, parcels, species):
     tree = Tree.objects.create(
-        species=species[0], parcel=parcels[0], preserved=True,
-        estimated_birth_year=1920, lat=38.1, lon=16.1, version=2,
+        species=species[0],
+        estimated_birth_year=1920, version=2,
     )
     pai = _pai_row(
         tree, parcels[0], number=3, sample_date='2024-09-15',
@@ -526,10 +523,10 @@ def test_pai_save_stale_edit_conflicts(writer_client, parcels, species):
     assert 'bosco-pai-form' in data[HTML]
 
 
-def test_pai_delete_clears_preserved_flag(writer_client, parcels, species):
+def test_pai_delete_removes_preserved_sample(writer_client, parcels, species):
     tree = Tree.objects.create(
-        species=species[0], parcel=parcels[0], preserved=True,
-        estimated_birth_year=1925, lat=38.1, lon=16.1, version=3,
+        species=species[0],
+        estimated_birth_year=1925, version=3,
     )
     pai = _pai_row(
         tree, parcels[0], number=3, sample_date='2024-09-15',
@@ -542,8 +539,7 @@ def test_pai_delete_clears_preserved_flag(writer_client, parcels, species):
 
     assert resp.status_code == 200
     tree.refresh_from_db()
-    assert tree.preserved is False
-    assert tree.version == 4
+    assert tree.version == 3
     assert TreeSample.objects.filter(preserved_number__isnull=False).count() == 0
     assert resp.json()[DELETES] == [{
         DATA_ID: DIGEST_PRESERVED_TREES,

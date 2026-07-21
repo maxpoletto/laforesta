@@ -656,7 +656,7 @@ class TestDendrometrySettings:
             sample_area=area, survey=alpha, date=date(2024, 9, 1),
         )
         for number in (1, 2):
-            tree = Tree.objects.create(species=species[0], parcel=parcels[0])
+            tree = Tree.objects.create(species=species[0])
             TreeSample.objects.create(
                 sample=sample, tree=tree, parcel=parcels[0], shoot=0, standard=False,
                 number=number, d_cm=30, h_m=Decimal('20.00'), l10_mm=10,

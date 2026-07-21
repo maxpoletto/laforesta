@@ -364,14 +364,8 @@ def apply(survey, parsed) -> dict:
                 tree = tree_by_identity.get(identity)
             if tree is None:
                 tree = Tree.objects.create(
-                    species=r[FIELD_SPECIES], parcel=r[FIELD_PARCEL],
-                    lat=r.get(FIELD_LAT), lon=r.get(FIELD_LON),
-                    acc_m=r.get(FIELD_ACC_M), preserved=r[FIELD_PRESERVED],
-                    coppice=r[FIELD_COPPICE],
+                    species=r[FIELD_SPECIES], coppice=r[FIELD_COPPICE],
                 )
-            elif r[FIELD_PRESERVED] and not tree.preserved:
-                tree.preserved = True
-                tree.save(update_fields=['preserved'])
             tree_by_identity[identity] = tree
             if preserved_key:
                 tree_by_preserved_key[preserved_key] = tree
@@ -413,14 +407,8 @@ def apply_unstructured(survey, parsed) -> dict:
                 tree = tree_by_number.get(r[FIELD_NUMBER])
             if tree is None:
                 tree = Tree.objects.create(
-                    species=r[FIELD_SPECIES], parcel=r[FIELD_PARCEL],
-                    lat=r.get(FIELD_LAT), lon=r.get(FIELD_LON),
-                    acc_m=r.get(FIELD_ACC_M), preserved=r[FIELD_PRESERVED],
-                    coppice=r[FIELD_COPPICE],
+                    species=r[FIELD_SPECIES], coppice=r[FIELD_COPPICE],
                 )
-            elif r[FIELD_PRESERVED] and not tree.preserved:
-                tree.preserved = True
-                tree.save(update_fields=['preserved'])
             tree_by_number.setdefault(r[FIELD_NUMBER], tree)
             if preserved_key:
                 tree_by_preserved_key[preserved_key] = tree

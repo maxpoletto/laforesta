@@ -60,7 +60,7 @@ def sample_setup(db, regions, eclasses, species):
         sample_area=area, survey=survey, date=date(2024, 9, 15),
     )
     tree = Tree.objects.create(
-        species=species[0], parcel=parcel, preserved=False, coppice=False,
+        species=species[0], coppice=False,
     )
     TreeSample.objects.create(
         sample=sample, tree=tree, parcel=parcel, shoot=0, standard=False,
@@ -363,7 +363,7 @@ class TestTreeSave:
         ts = TreeSample.objects.get(id=data[ROW_ID])
         assert ts.number == 42
         assert ts.tree.coppice is False
-        assert ts.tree.preserved is False
+        assert ts.preserved_number is None
         assert ts.h_measured is True
         assert ts.volume_m3 is not None and ts.mass_q is not None
 
@@ -391,9 +391,9 @@ class TestTreeSave:
         assert sample.sample_area_id is None
         assert sample.date.isoformat() == '2026-07-17'
         ts = TreeSample.objects.select_related('tree').get(sample=sample)
-        assert ts.tree.parcel == parcels[0]
-        assert ts.tree.lat == 38.5
-        assert ts.tree.lon == 16.1
+        assert ts.parcel == parcels[0]
+        assert ts.lat == 38.5
+        assert ts.lon == 16.1
         assert ts.h_measured is True
         assert Tree.objects.count() == n_trees_before + 1
 
@@ -566,8 +566,7 @@ class TestTreeSave:
             sample_area=other_area, survey=other_survey, date=date(2024, 1, 1),
         )
         other_tree = Tree.objects.create(
-            species=species[0], parcel=other_parcel,
-            preserved=False, coppice=False,
+            species=species[0], coppice=False,
         )
         TreeSample.objects.create(
             sample=other_sample, tree=other_tree, parcel=other_parcel,
@@ -740,7 +739,7 @@ class TestTreeFormPriorTrees:
             sample_area=s['area'], survey=other_survey, date=date(2025, 1, 10),
         )
         other_tree = Tree.objects.create(
-            species=species[0], parcel=s['area'].parcel, preserved=False,
+            species=species[0],
             coppice=False,
         )
         TreeSample.objects.create(
@@ -833,8 +832,7 @@ class TestTreeFormPriorTrees:
         the pulldown labelled "ceduo" and carry data-next-shoot=3."""
         s = sample_setup
         coppice_tree = Tree.objects.create(
-            species=species[0], parcel=s['area'].parcel,
-            preserved=False, coppice=True,
+            species=species[0], coppice=True,
         )
         for sh in (1, 2):
             TreeSample.objects.create(
@@ -993,8 +991,7 @@ class TestTreeSaveCoppice:
         shoots under the same tree_id (no new Tree row)."""
         s = sample_setup
         existing = Tree.objects.create(
-            species=species[1], parcel=s['area'].parcel,
-            preserved=False, coppice=True,
+            species=species[1], coppice=True,
         )
         TreeSample.objects.create(
             sample=s['sample'], tree=existing, parcel=s['area'].parcel, shoot=1,
@@ -1034,8 +1031,7 @@ class TestTreeSaveCoppice:
         (sample, tree) raises a clean validation error."""
         s = sample_setup
         existing = Tree.objects.create(
-            species=species[1], parcel=s['area'].parcel,
-            preserved=False, coppice=True,
+            species=species[1], coppice=True,
         )
         TreeSample.objects.create(
             sample=s['sample'], tree=existing, parcel=s['area'].parcel,
@@ -1061,8 +1057,7 @@ class TestTreeSaveCoppice:
         """Editing a single coppice TreeSample updates only that row."""
         s = sample_setup
         tree = Tree.objects.create(
-            species=species[1], parcel=s['area'].parcel,
-            preserved=False, coppice=True,
+            species=species[1], coppice=True,
         )
         ts1 = TreeSample.objects.create(
             sample=s['sample'], tree=tree, parcel=s['area'].parcel,
@@ -1588,7 +1583,7 @@ class TestRecordShape:
         # Match against the canonical row built from the freshly-saved ts.
         ts = TreeSample.objects.select_related(
             'sample__survey', 'sample__sample_area__parcel__region',
-            'tree__species', 'tree__parcel',
+            'parcel__region', 'tree__species',
         ).get(id=payload[ROW_ID])
         assert record == build_tree_sample_record(ts)
         assert len(record) == len(SAMPLED_TREE_COLUMNS)
@@ -1637,7 +1632,7 @@ class TestRecordShape:
             ts.id: build_tree_sample_record(ts)
             for ts in TreeSample.objects.filter(id__in=ids).select_related(
                 'sample__sample_area__parcel__region',
-                'tree__species', 'tree__parcel',
+                'parcel__region', 'tree__species',
             )
         }
         for patch in tree_patches:
@@ -2417,7 +2412,7 @@ class TestTreeCsvImport:
         sample = Sample.objects.get(survey=survey, sample_area__isnull=True)
         row = TreeSample.objects.select_related('tree').get(sample=sample)
         assert row.parcel == parcel
-        assert row.tree.parcel == parcel
+        assert row.parcel == parcel
         assert row.tree.species == species[0]
         assert row.h_measured is True
         assert row.lat == pytest.approx(38.5)
@@ -2469,7 +2464,7 @@ class TestTreeCsvImport:
         particella = s['area'].parcel.name
         adc = s['area'].number
         n_trees_before = Tree.objects.count()
-        n_preserved_before = Tree.objects.filter(preserved=True).count()
+        n_preserved_before = TreeSample.objects.filter(preserved_number__isnull=False).count()
         n_ts_before = TreeSample.objects.count()
         csv_text = (
             'Compresa,Particella,Area saggio,Albero,Pollone,Matricina,'
@@ -2486,7 +2481,7 @@ class TestTreeCsvImport:
         assert data['n_trees'] == 2
         assert Tree.objects.count() == n_trees_before + 2
         assert TreeSample.objects.count() == n_ts_before + 2
-        assert Tree.objects.filter(preserved=True).count() == n_preserved_before + 1
+        assert TreeSample.objects.filter(preserved_number__isnull=False).count() == n_preserved_before + 1
         assert list(
             TreeSample.objects
             .filter(sample__survey=empty_survey)

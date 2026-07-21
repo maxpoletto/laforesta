@@ -1078,8 +1078,7 @@ class TestItemExport:
         """The martellate CSV 'Numero' column must carry TreeMark.number,
         not the DB id (which just starts at 1)."""
         tree = Tree.objects.create(
-            species=species[0], parcel=planned_item.parcel,
-            lat=38.5, lon=16.3, acc_m=5)
+            species=species[0])
         tm = TreeMark.objects.create(
             harvest_plan_item=planned_item, tree=tree, parcel=planned_item.parcel,
             number=1440,
@@ -1541,7 +1540,7 @@ class TestMarkSave:
 
         assert resp2.status_code == 200
         tm = TreeMark.objects.select_related('tree').get(id=tm_id)
-        assert tm.tree.parcel_id == parcels[1].id
+        assert tm.parcel_id == parcels[1].id
 
     def test_create_mark_rejects_duplicate_number(
         self, writer_client, planned_item, species,

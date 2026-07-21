@@ -16,8 +16,7 @@ from django.db import connection, transaction
 from apps.base import csv_containers as cc, csv_io
 from apps.base.digests import mark_all_stale
 from apps.base.models import (
-    Sample, SampleArea, Species, Survey, TreeMark,
-    TreePreserved, TreeSample,
+    Sample, SampleArea, Species, Survey, TreeMark, TreeSample,
 )
 from apps.campionamenti import csv_trees
 from config import strings as S
@@ -166,11 +165,6 @@ def _blocked_tree_ids(tree_ids: set[int]) -> set[int]:
         return set()
     blocked = set(
         TreeMark.objects
-        .filter(tree_id__in=tree_ids)
-        .values_list("tree_id", flat=True)
-    )
-    blocked.update(
-        TreePreserved.objects
         .filter(tree_id__in=tree_ids)
         .values_list("tree_id", flat=True)
     )

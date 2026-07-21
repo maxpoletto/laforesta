@@ -169,8 +169,8 @@ class TestConstraints:
 
     def test_tree_mark_number_unique_within_item(self, species, parcels):
         planned_item = self._plan_item(parcels[0])
-        tree1 = Tree.objects.create(species=species[0], parcel=parcels[0])
-        tree2 = Tree.objects.create(species=species[0], parcel=parcels[0])
+        tree1 = Tree.objects.create(species=species[0])
+        tree2 = Tree.objects.create(species=species[0])
         TreeMark.objects.create(
             harvest_plan_item=planned_item, tree=tree1, parcel=parcels[0], number=7,
             date='2026-07-05', d_cm=30, h_m=Decimal('20.0'), operator='Mario',
@@ -183,8 +183,8 @@ class TestConstraints:
 
     def test_tree_mark_null_numbers_are_not_unique(self, species, parcels):
         planned_item = self._plan_item(parcels[0])
-        tree1 = Tree.objects.create(species=species[0], parcel=parcels[0])
-        tree2 = Tree.objects.create(species=species[0], parcel=parcels[0])
+        tree1 = Tree.objects.create(species=species[0])
+        tree2 = Tree.objects.create(species=species[0])
         TreeMark.objects.create(
             harvest_plan_item=planned_item, tree=tree1, parcel=parcels[0], number=None,
             date='2026-07-05', d_cm=30, h_m=Decimal('20.0'), operator='Mario',
@@ -203,8 +203,8 @@ class TestConstraints:
         )
         survey = Survey.objects.create(name='Unique tree sample survey', sample_grid=grid)
         sample = Sample.objects.create(sample_area=area, survey=survey, date='2026-07-05')
-        tree1 = Tree.objects.create(species=species[0], parcel=parcels[0])
-        tree2 = Tree.objects.create(species=species[0], parcel=parcels[0])
+        tree1 = Tree.objects.create(species=species[0])
+        tree2 = Tree.objects.create(species=species[0])
         ts = TreeSample.objects.create(
             sample=sample, tree=tree1, parcel=parcels[0], number=4, shoot=0,
             d_cm=30, h_m=Decimal('20.0'),
@@ -224,7 +224,7 @@ class TestConstraints:
         )
         survey = Survey.objects.create(name='Coppice shoot unique survey', sample_grid=grid)
         sample = Sample.objects.create(sample_area=area, survey=survey, date='2026-07-05')
-        tree = Tree.objects.create(species=species[0], parcel=parcels[0])
+        tree = Tree.objects.create(species=species[0])
         TreeSample.objects.create(
             sample=sample, tree=tree, parcel=parcels[0], number=4, shoot=1,
             d_cm=30, h_m=Decimal('20.0'),
@@ -242,8 +242,8 @@ class TestConstraints:
         sample = Sample.objects.create(
             sample_area=None, survey=survey, date='2026-07-05',
         )
-        tree1 = Tree.objects.create(species=species[0], parcel=parcels[0])
-        tree2 = Tree.objects.create(species=species[0], parcel=parcels[0])
+        tree1 = Tree.objects.create(species=species[0])
+        tree2 = Tree.objects.create(species=species[0])
         TreeSample.objects.create(
             sample=sample, tree=tree1, parcel=parcels[0],
             number=1, preserved_number=7, d_cm=30, h_m=Decimal('20.0'),
@@ -259,7 +259,7 @@ class TestConstraints:
         sample = Sample.objects.create(
             sample_area=None, survey=survey, date='2026-07-05',
         )
-        tree = Tree.objects.create(species=species[0], parcel=parcels[0])
+        tree = Tree.objects.create(species=species[0])
         with pytest.raises(IntegrityError), transaction.atomic():
             TreeSample.objects.create(
                 sample=sample, tree=tree, parcel=parcels[0],
@@ -271,7 +271,7 @@ class TestConstraints:
         sample = Sample.objects.create(
             sample_area=None, survey=survey, date='2026-07-05',
         )
-        tree = Tree.objects.create(species=species[0], parcel=parcels[0])
+        tree = Tree.objects.create(species=species[0])
 
         with pytest.raises(IntegrityError), transaction.atomic():
             TreeSample.objects.create(
@@ -284,7 +284,7 @@ class TestConstraints:
         sample = Sample.objects.create(
             sample_area=None, survey=survey, date='2026-07-05',
         )
-        tree = Tree.objects.create(species=species[0], parcel=parcels[0])
+        tree = Tree.objects.create(species=species[0])
 
         ts = TreeSample.objects.create(
             sample=sample, tree=tree, parcel=parcels[0], number=1,
@@ -299,7 +299,7 @@ class TestConstraints:
         sample = Sample.objects.create(
             sample_area=None, survey=survey, date='2026-07-05',
         )
-        tree = Tree.objects.create(species=species[0], parcel=parcels[0])
+        tree = Tree.objects.create(species=species[0])
 
         with pytest.raises(IntegrityError), transaction.atomic():
             TreeSample.objects.create(

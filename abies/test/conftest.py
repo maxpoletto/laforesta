@@ -131,7 +131,7 @@ def hypso_samples(db, regions, eclasses, species):
     counter = count(1)
 
     def add(sp, d_cm, coppice=False):
-        tree = Tree.objects.create(species=sp, parcel=parcel, coppice=coppice)
+        tree = Tree.objects.create(species=sp, coppice=coppice)
         h = a_true * math.log(d_cm) + b_true
         TreeSample.objects.create(
             sample=sample, tree=tree, parcel=parcel, shoot=0, standard=False,

@@ -98,19 +98,13 @@ audited and the contract that keeps that coverage complete.
 
 ## Trees
 
-- tree: (id:int, species_id:int, parcel_id:int, lat:real nullable,
-  lon:real nullable, acc_m:int nullable, estimated_birth_year:int nullable,
-  preserved:bool, coppice:bool)
+- tree: (id:int, species_id:int, estimated_birth_year:int nullable,
+  coppice:bool)
   - Denotes a tree identity over time. Species, coppice morphology, and
     estimated birth year are tree-identity facts.
   - Observation rows (`tree_sample`, `tree_mark`) carry the authoritative
-    parcel, GPS fix, GPS accuracy, operator/provenance, and measurement facts
-    for a specific field observation or operation. The parcel/location fields
-    on `tree` are best-known denormalized values kept in sync with those
-    observations for legacy consumers and fast identity lookup.
-  - `preserved` is true when the tree is currently represented by at least one
-    preserved-tree sample row; canonical preserved-tree identity is stored on
-    `tree_sample.preserved_number` (see below).
+    parcel, GPS fix, GPS accuracy, operator/provenance, preserved-tree identity,
+    and measurement facts for a specific field observation or operation.
   - Coppice is true if this tree has coppice morphology. There may be coppice
     trees in a non-coppice parcel and vice-versa.
 
@@ -299,8 +293,8 @@ explicitly reuses the same `tree_id`.
 Deleting a `survey` cascades to its `sample` rows and onward to their
 `tree_sample` rows.  Deleting a `sample` cascades to its `tree_sample`
 rows.  `tree` rows are never cascade-deleted along sample paths: a sampled
-tree may be referenced by multiple `tree_sample` rows over time, may be
-flagged preserved, or otherwise carry independent significance.
+tree may be referenced by multiple `tree_sample` rows over time or otherwise
+carry independent significance.
 
 These cascades can destroy person-weeks of field-survey work.  The UI
 raises strong warnings before any survey or sample delete and forces an

@@ -421,7 +421,7 @@ def test_apply_free_creates_one_sample_and_new_tree_per_ordinary_row(parcels, sp
 def test_apply_free_reuses_preserved_tree_identity(parcels, species):
     parcel = parcels[0]
     existing_tree = Tree.objects.create(
-        species=species[0], parcel=parcel, preserved=True, coppice=False,
+        species=species[0], coppice=False,
     )
     pai_survey = Survey.objects.create(name='existing-pai-survey')
     pai_sample = Sample.objects.create(
@@ -452,7 +452,7 @@ def test_apply_free_reuses_preserved_tree_identity(parcels, species):
 def test_validate_free_rejects_preserved_species_mismatch(parcels, species):
     parcel = parcels[0]
     existing_tree = Tree.objects.create(
-        species=species[0], parcel=parcel, preserved=True, coppice=False,
+        species=species[0], coppice=False,
     )
     pai_survey = Survey.objects.create(name='existing-pai-species-survey')
     pai_sample = Sample.objects.create(

@@ -38,13 +38,13 @@ def _setup_domain():
     sample = Sample.objects.create(
         sample_area=area, survey=survey, date='2024-09-15',
     )
-    sampled_tree = Tree.objects.create(species=species, parcel=parcel)
+    sampled_tree = Tree.objects.create(species=species)
     TreeSample.objects.create(
         sample=sample, tree=sampled_tree, parcel=parcel, number=1, shoot=0,
         d_cm=30, h_m=Decimal('15.0'),
     )
     preserved_tree = Tree.objects.create(
-        species=species, parcel=parcel, preserved=True, coppice=False,
+        species=species, coppice=False,
     )
     pai_survey = Survey.objects.create(name='PAI')
     pai_sample = Sample.objects.create(
@@ -58,6 +58,7 @@ def _setup_domain():
     return {
         'sampled_tree_id': sampled_tree.id,
         'preserved_tree_id': preserved_tree.id,
+        'parcel_id': parcel.id,
     }
 
 
@@ -78,14 +79,15 @@ def test_repair_sampled_trees_check_persists_nothing(tmp_path):
 def test_repair_sampled_trees_refuses_sampled_tree_referenced_by_mark(tmp_path):
     ids = _setup_domain()
     sampled_tree = Tree.objects.get(id=ids['sampled_tree_id'])
+    parcel = Parcel.objects.get(id=ids['parcel_id'])
     plan = HarvestPlan.objects.create(
         name='PDG 2026', year_start=2026, year_end=2040,
     )
     item = HarvestPlanItem.objects.create(
-        harvest_plan=plan, parcel=sampled_tree.parcel, year_planned=2026,
+        harvest_plan=plan, parcel=parcel, year_planned=2026,
     )
     TreeMark.objects.create(
-        harvest_plan_item=item, tree=sampled_tree, parcel=sampled_tree.parcel,
+        harvest_plan_item=item, tree=sampled_tree, parcel=parcel,
         number=1, date='2026-01-01', d_cm=30, h_m=Decimal('18.0'),
         operator='Rossi',
     )
@@ -103,14 +105,13 @@ def test_repair_sampled_trees_refuses_sampled_tree_referenced_by_mark(tmp_path):
 def test_repair_sampled_trees_refuses_sampled_tree_referenced_by_pai_sample(tmp_path):
     ids = _setup_domain()
     sampled_tree = Tree.objects.get(id=ids['sampled_tree_id'])
-    sampled_tree.preserved = True
-    sampled_tree.save(update_fields=['preserved'])
+    parcel = Parcel.objects.get(id=ids['parcel_id'])
     pai_survey = Survey.objects.create(name='PAI shared tree')
     pai_sample = Sample.objects.create(
         sample_area=None, survey=pai_survey, date='2024-10-01',
     )
     TreeSample.objects.create(
-        sample=pai_sample, tree=sampled_tree, parcel=sampled_tree.parcel,
+        sample=pai_sample, tree=sampled_tree, parcel=parcel,
         number=99, preserved_number=99, d_cm=35, h_m=Decimal('16.0'),
         h_measured=True,
     )

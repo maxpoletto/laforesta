@@ -202,15 +202,15 @@ def test_reference_json_comes_from_abies_data(db, regions, parcels, species):
         sample_area=area, survey=survey, date=date(2024, 9, 16),
     )
     sampled_tree = Tree.objects.create(
-        species=species[0], parcel=parcels[0], coppice=False,
+        species=species[0], coppice=False,
     )
     TreeSample.objects.create(
         sample=sample, tree=sampled_tree, parcel=parcels[0],
         number=8, d_cm=30, h_m=Decimal('18.00'),
     )
     preserved_tree = Tree.objects.create(
-        species=species[0], parcel=parcels[0], preserved=True,
-        coppice=False, estimated_birth_year=1920, lat=38.45678, lon=16.12345,
+        species=species[0],
+        coppice=False, estimated_birth_year=1920,
     )
     preserved = _preserved_sample(
         preserved_tree, parcels[0], number=7, sample_date=date(2024, 9, 15),
@@ -1496,7 +1496,7 @@ def test_abies_1_1_4_martellate_payload_uploads_and_imports(
     assert resp.status_code == 200, resp.content
     mark = TreeMark.objects.select_related('tree', 'parcel').get()
     assert mark.parcel == parcels[0]
-    assert mark.tree.parcel == parcels[0]
+    assert mark.parcel == parcels[0]
     assert mark.operator == 'Mario Rossi'
     assert mark.d_cm == 42
     assert mark.h_m == Decimal('22.00')
@@ -1533,7 +1533,7 @@ def test_abies_1_1_4_samples_payload_uploads_and_imports(
            .get(sample__survey=survey))
     assert row.sample.sample_area == area
     assert row.parcel == parcels[0]
-    assert row.tree.parcel == parcels[0]
+    assert row.parcel == parcels[0]
     assert row.h_measured is True
     assert row.operator == 'Mario Rossi'
     assert row.note == ''
@@ -1589,7 +1589,7 @@ def test_abies_1_1_4_pai_payload_uploads_and_imports(
            .select_related('sample', 'tree', 'parcel')
            .get(preserved_number__isnull=False))
     assert row.parcel == parcels[0]
-    assert row.tree.parcel == parcels[0]
+    assert row.parcel == parcels[0]
     assert row.preserved_number == 12
     assert row.sample.date == date(2026, 6, 17)
     assert row.operator == 'Mario Rossi'
@@ -1687,7 +1687,7 @@ def test_martellate_import_region_wide_target_accepts_coppice_parcel(
     assert resp.status_code == 200, resp.json()
     mark = TreeMark.objects.get()
     assert mark.harvest_plan_item == item
-    assert mark.tree.parcel == coppice_parcel
+    assert mark.parcel == coppice_parcel
     upload.refresh_from_db()
     assert upload.state == IpsoUploadState.IMPORTED
 
@@ -1797,7 +1797,7 @@ def test_writer_imports_upload_into_harvest_plan_item(
     _assert_nonce_saved(writer_user, nonce)
     tm = TreeMark.objects.select_related('tree', 'tree__species').get()
     assert tm.harvest_plan_item == item
-    assert tm.tree.parcel == parcels[0]
+    assert tm.parcel == parcels[0]
     assert tm.tree.species == species[0]
     assert tm.number == 1
     assert tm.date == date(2026, 6, 17)
@@ -1817,7 +1817,7 @@ def test_martellate_import_rejects_duplicate_mark_number(
         writer_client, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     item = _harvest_item(parcels)
-    tree = Tree.objects.create(species=species[0], parcel=parcels[0])
+    tree = Tree.objects.create(species=species[0])
     TreeMark.objects.create(
         harvest_plan_item=item, tree=tree, parcel=parcels[0], number=7,
         date=date(2026, 6, 16), d_cm=30, h_m=Decimal('18.00'),
@@ -1894,7 +1894,7 @@ def test_martellate_import_preserves_blank_numbers_without_auto_numbering(
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     item = _harvest_item(parcels)
     for n in [1, 2, 3]:
-        tree = Tree.objects.create(species=species[0], parcel=parcels[0])
+        tree = Tree.objects.create(species=species[0])
         TreeMark.objects.create(
             harvest_plan_item=item, tree=tree, parcel=parcels[0], number=n,
             date=date(2026, 6, 16), d_cm=30, h_m=Decimal('18.00'),
@@ -2172,10 +2172,10 @@ def test_writer_imports_samples_upload_into_survey(
     )
     assert [ts.h_measured for ts in samples] == [True, False]
     ts = samples[0]
-    assert ts.tree.parcel == parcels[0]
+    assert ts.parcel == parcels[0]
     assert ts.tree.species == species[0]
-    assert ts.tree.lat == 38.51234
-    assert ts.tree.lon == 16.12345
+    assert ts.lat == 38.51234
+    assert ts.lon == 16.12345
     assert ts.parcel == parcels[0]
     assert ts.lat == 38.51234
     assert ts.lon == 16.12345
@@ -2324,7 +2324,7 @@ def test_samples_import_rejects_existing_number_shoot(
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     survey, area = _sample_survey(parcels[0])
     sample = Sample.objects.create(survey=survey, sample_area=area, date=date(2026, 6, 17))
-    tree = Tree.objects.create(species=species[0], parcel=parcels[0])
+    tree = Tree.objects.create(species=species[0])
     TreeSample.objects.create(
         sample=sample, tree=tree, parcel=parcels[0],
         number=1, d_cm=30, h_m=Decimal('18.00'),
@@ -2382,7 +2382,7 @@ def test_samples_import_rejects_duplicate_number_shoot_in_upload(
 def test_pai_import_rejects_duplicate_tree_number_in_parcel(
         writer_client, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
-    tree = Tree.objects.create(species=species[0], parcel=parcels[0], preserved=True)
+    tree = Tree.objects.create(species=species[0])
     _preserved_sample(
         tree, parcels[0], number=1, sample_date=date(2026, 6, 17),
         d_cm=30, h_m=Decimal('18.00'), lat=38.51234, lon=16.12345,
@@ -2498,7 +2498,7 @@ def test_writer_imports_pai_upload(writer_client, writer_user, parcels, species,
     pai = (TreeSample.objects
            .select_related('sample', 'tree', 'tree__species', 'parcel')
            .get(preserved_number__isnull=False))
-    assert pai.tree.parcel == parcels[0]
+    assert pai.parcel == parcels[0]
     assert pai.parcel == parcels[0]
     assert pai.tree.species == species[0]
     assert pai.preserved_number == 1

@@ -2,7 +2,7 @@
 (``db_indexes`` → ``validate_rows`` → ``apply``) for the PAI/preserved-trees
 bootstrap file.
 
-Each valid row creates a physical ``Tree(preserved=True, coppice=False)`` and
+Each valid row creates a physical ``Tree(coppice=False)`` and
 one preserved ``TreeSample`` observation row.  Species are resolved by
 ``common_name.lower()`` (strict canonical — no GENERE_MAP aliasing).  Lon/Lat
 are converted via ``reader.decimal`` → ``coord_float``.
@@ -187,12 +187,7 @@ def apply(parsed) -> int:
                 sample_by_key[key] = sample
             tree = Tree.objects.create(
                 species=r[FIELD_SPECIES],
-                parcel=r[FIELD_PARCEL],
                 estimated_birth_year=r[FIELD_ESTIMATED_BIRTH_YEAR],
-                lat=r[FIELD_LAT],
-                lon=r[FIELD_LON],
-                acc_m=r[FIELD_ACC_M],
-                preserved=True,
                 coppice=False,
             )
             TreeSample.objects.create(

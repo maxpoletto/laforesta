@@ -49,6 +49,8 @@ class _Release1TreeObservationChecker:
         self._columns_cache: dict[str, set[str]] = {}
 
     def check_preflight(self) -> list[tuple[str, list[dict[str, object]]]]:
+        if self._migration_applied('base', '0012_release2_drop_legacy_tree_state'):
+            return []
         failures = []
         failures.extend(self._require_tables([
             'base_treepreserved', 'base_sample', 'base_survey',
@@ -98,6 +100,8 @@ class _Release1TreeObservationChecker:
         return failures
 
     def check_postflight(self) -> list[tuple[str, list[dict[str, object]]]]:
+        if self._migration_applied('base', '0012_release2_drop_legacy_tree_state'):
+            return []
         failures = []
         failures.extend(self._require_tables([
             'base_treepreserved', 'base_treesample', 'base_sample',

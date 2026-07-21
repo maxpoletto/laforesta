@@ -237,7 +237,7 @@ def test_pai_import_rejects_missing_number(parcels, species):
 @pytest.mark.django_db
 def test_pai_import_rejects_missing_number_after_persisted_numbers(
         parcels, species):
-    tree = Tree.objects.create(species=species[0], parcel=parcels[0], preserved=True)
+    tree = Tree.objects.create(species=species[0])
     _preserved_sample(tree, parcels[0], number=3)
 
     rows, errors = pai_import_rows({

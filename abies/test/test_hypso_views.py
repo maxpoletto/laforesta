@@ -94,7 +94,7 @@ def _make_unstructured_hypso_survey(parcel, species, *, name='Unstructured hypso
     heights = [Decimal('10.00'), Decimal('12.00'), Decimal('13.00'),
                Decimal('15.00'), Decimal('16.00'), Decimal('18.00')]
     for i in range(count):
-        tree = Tree.objects.create(species=species, parcel=parcel, coppice=False)
+        tree = Tree.objects.create(species=species, coppice=False)
         TreeSample.objects.create(
             sample=sample, tree=tree, parcel=parcel, number=i + 1,
             shoot=0, standard=False,

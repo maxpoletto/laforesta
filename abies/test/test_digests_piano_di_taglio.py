@@ -268,9 +268,9 @@ class TestGenerateMarkTreesForItem:
     @pytest.fixture
     def trees(self, species, parcels):
         return [
-            Tree.objects.create(species=species[0], parcel=parcels[0]),
-            Tree.objects.create(species=species[1], parcel=parcels[0]),
-            Tree.objects.create(species=species[0], parcel=parcels[0]),
+            Tree.objects.create(species=species[0]),
+            Tree.objects.create(species=species[1]),
+            Tree.objects.create(species=species[0]),
         ]
 
     @pytest.fixture
@@ -278,7 +278,7 @@ class TestGenerateMarkTreesForItem:
         return [
             TreeMark.objects.create(
                 harvest_plan_item=fustaia_item, tree=trees[0],
-                parcel=trees[0].parcel, number=1,
+                parcel=fustaia_item.parcel, number=1,
                 date='2025-06-15', d_cm=40, h_m=Decimal('22.5'),
                 h_measured=True,
                 volume_m3=Decimal('1.5'), mass_q=Decimal('13.5'),
@@ -286,7 +286,7 @@ class TestGenerateMarkTreesForItem:
             ),
             TreeMark.objects.create(
                 harvest_plan_item=fustaia_item, tree=trees[1],
-                parcel=trees[1].parcel, number=2,
+                parcel=fustaia_item.parcel, number=2,
                 date='2025-06-10', d_cm=35, h_m=Decimal('20.0'),
                 h_measured=False,
                 volume_m3=Decimal('1.0'), mass_q=Decimal('9.2'),
@@ -294,7 +294,7 @@ class TestGenerateMarkTreesForItem:
             ),
             TreeMark.objects.create(
                 harvest_plan_item=fustaia_item, tree=trees[2],
-                parcel=trees[2].parcel, number=3,
+                parcel=fustaia_item.parcel, number=3,
                 date='2025-06-15', d_cm=50, h_m=Decimal('25.0'),
                 h_measured=True,
                 volume_m3=Decimal('2.2'), mass_q=Decimal('19.8'),
@@ -342,7 +342,7 @@ class TestGenerateMarkTreesForItem:
         )
         # Need a fresh tree to satisfy UNIQUE(harvest_plan_item, tree).
         from apps.base.models import Tree
-        other_tree = Tree.objects.create(species=trees[0].species, parcel=parcels[1])
+        other_tree = Tree.objects.create(species=trees[0].species)
         TreeMark.objects.create(
             harvest_plan_item=other, tree=other_tree, parcel=parcels[1], number=1,
             date='2025-07-01', d_cm=30, h_m=Decimal('18.0'),

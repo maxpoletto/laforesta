@@ -38,7 +38,7 @@ def _csv(*rows):
 
 @pytest.mark.django_db
 def test_preserved_happy_path(parcels, species):
-    """Valid row creates a preserved=True, coppice=False Tree."""
+    """Valid row creates a preserved sample with a high-forest Tree."""
     reader = _reader(_csv('Capistrano,1,7,Abete,16.12345,38.45678,2024-09-15,1920,42,18.5,nota'))
     idx = csv_preserved.db_indexes()
     parsed, errors = csv_preserved.validate_rows(reader, idx)
@@ -46,16 +46,14 @@ def test_preserved_happy_path(parcels, species):
     assert len(parsed) == 1
     n = csv_preserved.apply(parsed)
     assert n == 1
-    t = Tree.objects.get()
-    assert t.preserved is True
+    pai = TreeSample.objects.select_related('tree').get(preserved_number=7)
+    t = pai.tree
     assert t.coppice is False
     assert t.species.common_name == 'Abete'
-    assert t.parcel == parcels[0]
     assert t.estimated_birth_year == 1920
-    assert t.lat == pytest.approx(38.45678, abs=1e-4)
-    assert t.lon == pytest.approx(16.12345, abs=1e-4)
-    pai = TreeSample.objects.get(tree=t)
-    assert pai.preserved_number == 7
+    assert pai.parcel == parcels[0]
+    assert pai.lat == pytest.approx(38.45678, abs=1e-4)
+    assert pai.lon == pytest.approx(16.12345, abs=1e-4)
     assert pai.sample.date.isoformat() == '2024-09-15'
     assert pai.d_cm == 42
     assert str(pai.h_m) == '18.50'
@@ -123,8 +121,7 @@ def test_preserved_duplicate_number_in_file_flagged(parcels, species):
 @pytest.mark.django_db
 def test_preserved_duplicate_number_in_db_flagged(parcels, species):
     tree = Tree.objects.create(
-        species=species[0], parcel=parcels[0], preserved=True,
-        lat=38.1, lon=16.1,
+        species=species[0],
     )
     _pai_row(tree, parcels[0], number=1)
     reader = _reader(_csv('Capistrano,1,1,Castagno,16.2,38.5,2024-09-15,,43,19.0,'))

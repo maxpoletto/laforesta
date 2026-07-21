@@ -212,9 +212,6 @@ def tree_save_view(request):
         elif parsed[FIELD_COPPICE]:
             tree = existing_tree or Tree.objects.create(
                 species_id=parsed[FIELD_SPECIES_ID],
-                parcel_id=parcel_id,
-                lat=parsed[FIELD_LAT], lon=parsed[FIELD_LON],
-                preserved=parsed[FIELD_PRESERVED],
                 coppice=True,
             )
             created_or_updated_ids = []
@@ -253,9 +250,6 @@ def tree_save_view(request):
         else:
             tree = Tree.objects.create(
                 species_id=parsed[FIELD_SPECIES_ID],
-                parcel_id=parcel_id,
-                lat=parsed[FIELD_LAT], lon=parsed[FIELD_LON],
-                preserved=parsed[FIELD_PRESERVED],
                 coppice=False,
             )
             ts = TreeSample.objects.create(
@@ -289,7 +283,7 @@ def tree_save_view(request):
         id__in=created_or_updated_ids,
     ).select_related(
         'sample', 'sample__sample_area__parcel__region',
-        'tree__species', 'tree__parcel',
+        'parcel__region', 'tree__species',
     )
     records = [build_tree_sample_record(ts) for ts in fresh_ts_qs]
     sample.refresh_from_db()
@@ -606,8 +600,8 @@ def _render_tree_form(request, ts_id, survey_id, area_id):
                 .select_related('sample__survey',
                                 'sample__sample_area__parcel__region',
                                 'sample__sample_area__parcel__eclass',
-                                'tree__species', 'tree__parcel__region',
-                                'tree__parcel__eclass')
+                                'parcel__region', 'parcel__eclass',
+                                'tree__species')
                 .get(id=ts_id))
         sample = ts.sample
         area = sample.sample_area
@@ -638,7 +632,7 @@ def _render_tree_form(request, ts_id, survey_id, area_id):
         Parcel.objects.select_related('region', 'eclass'), key=parcel_sort_key,
     ) if is_unstructured else []
     selected_parcel = (
-        tree.parcel if tree else (parcel_choices[0] if parcel_choices else None)
+        ts.parcel if ts else (parcel_choices[0] if parcel_choices else None)
     ) if is_unstructured else area.parcel
     is_coppice = bool(selected_parcel and selected_parcel.eclass.coppice)
     default_species_id = None if ts else _default_species_id(species, is_coppice)
@@ -673,7 +667,7 @@ def _render_tree_form(request, ts_id, survey_id, area_id):
         'show_ceduo': True,
         'show_l10': True,
         'ceduo_checked': tree.coppice if tree else False,
-        'pai_checked': tree.preserved if tree else False,
+        'pai_checked': ts.preserved_number is not None if ts else False,
         'edit_species_name': tree.species.common_name if tree else '',
         'edit_species_id': tree.species_id if tree else '',
         'edit_species_density': tree.species.density if tree else '',
@@ -694,8 +688,8 @@ def _render_tree_form(request, ts_id, survey_id, area_id):
 
 
 def _tree_form_coord(tree, area, field, *, ts):
-    if tree and getattr(tree, field) is not None:
-        return round(getattr(tree, field), 5)
+    if ts and getattr(ts, field) is not None:
+        return round(getattr(ts, field), 5)
     if area is not None and not ts:
         return round(getattr(area, field), 5)
     return ''
@@ -788,8 +782,8 @@ def _prior_trees_for_area(area, exclude_ts_id=None, current_sample=None):
             FIELD_SPECIES_ID: ts.tree.species_id,
             'species_common_name': ts.tree.species.common_name,
             FIELD_COPPICE: ts.tree.coppice,
-            FIELD_LAT: ts.tree.lat,
-            FIELD_LON: ts.tree.lon,
+            FIELD_LAT: ts.lat,
+            FIELD_LON: ts.lon,
             'last_d_cm': ts.d_cm,
             'last_h_m': ts.h_m,
             'last_survey_name': ts.sample.survey.name,
@@ -1052,7 +1046,7 @@ def _update_tree_sample(ts_id, sample, parsed, body, request):
           .select_for_update()
           .select_related(
               'sample__survey', 'sample__sample_area__parcel__region',
-              'tree__species', 'tree__parcel',
+              'parcel__region', 'tree__species',
           )
           .get(id=ts_id))
     if ts.version != submitted_version(body):
@@ -1093,14 +1087,9 @@ def _update_tree_sample(ts_id, sample, parsed, body, request):
         ts.mass_q = parsed[FIELD_MASS_Q]
     ts.version += 1
     ts.save()
-    # Tree fields that can change on edit.
+    # Tree identity fields that can change on edit.
     tree = ts.tree
     tree.species_id = parsed[FIELD_SPECIES_ID]
-    if sample.sample_area_id is None:
-        tree.parcel_id = parsed[FIELD_PARCEL_ID]
-    tree.preserved = parsed[FIELD_PRESERVED]
-    tree.lat = parsed[FIELD_LAT]
-    tree.lon = parsed[FIELD_LON]
     tree.version += 1
     tree.save()
     return ts

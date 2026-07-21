@@ -933,17 +933,10 @@ def mark_save_view(request):
             tm.save()
             tree = tm.tree
             tree.species = species
-            tree.parcel = parcel
-            tree.lat = lat
-            tree.lon = lon
-            tree.acc_m = acc_m
             tree.save()
         else:
             # Create new mark + tree.
-            tree = Tree.objects.create(
-                species=species, parcel=parcel,
-                lat=lat, lon=lon, acc_m=acc_m,
-            )
+            tree = Tree.objects.create(species=species)
             tm = TreeMark.objects.create(
                 harvest_plan_item=item, tree=tree, parcel=parcel,
                 number=None if number is _MARK_NUMBER_MISSING else number,

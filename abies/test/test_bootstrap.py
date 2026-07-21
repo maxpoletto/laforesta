@@ -74,8 +74,8 @@ def test_happy_path_loads_everything(tmp_path):
     assert HarvestPlanItem.objects.count() == 1
     assert Survey.objects.filter(name='Campagna 2024').exists()
     assert SampleArea.objects.count() == 1
-    assert Tree.objects.filter(preserved=False).count() == 1   # sampled tree
-    assert Tree.objects.filter(preserved=True).count() == 1    # preserved tree
+    assert Tree.objects.count() == 2
+    assert TreeSample.objects.filter(preserved_number__isnull=True).count() == 1
     assert TreeSample.objects.filter(preserved_number__isnull=False).count() == 1
     assert Harvest.objects.count() == 2
 
@@ -231,12 +231,10 @@ def test_harvest_plan_items_load(tmp_path):
 
 @pytest.mark.django_db
 def test_preserved_trees_load(tmp_path):
-    """preserved-trees.csv wires in and creates preserved Tree rows."""
+    """preserved-trees.csv wires in and creates preserved sample rows."""
     call_command('bootstrap', _make_dir(tmp_path))
-    trees = Tree.objects.filter(preserved=True)
-    assert trees.count() == 1
     pai = TreeSample.objects.get(preserved_number__isnull=False)
-    assert pai.tree == trees.get()
+    assert Tree.objects.filter(id=pai.tree_id).count() == 1
     assert pai.preserved_number == 1
     assert pai.number == 1
     assert pai.sample.date.isoformat() == '2024-09-15'
@@ -285,7 +283,7 @@ def test_species_products_seeded_from_in_repo_default_when_absent(tmp_path, caps
     assert Species.objects.get(common_name='Pino Nero').minor is False
     assert Product.objects.count() == len(set(PRODUCT_MAP.values()))
     # The default species set includes 'Abete', so the sampled tree still loads.
-    assert Tree.objects.filter(preserved=False).count() == 1   # sampled tree
+    assert TreeSample.objects.filter(preserved_number__isnull=True).count() == 1
     # The report flags that defaults were seeded (not silently skipped).
     assert S.BOOTSTRAP_DEFAULT_SEEDED in capsys.readouterr().out
 

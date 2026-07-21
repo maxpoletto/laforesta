@@ -185,12 +185,7 @@ def pai_save_view(request):
         if row_id is None:
             tree = Tree.objects.create(
                 species_id=values[FIELD_SPECIES_ID],
-                parcel_id=values[FIELD_PARCEL_ID],
                 estimated_birth_year=values[FIELD_ESTIMATED_BIRTH_YEAR],
-                lat=values[FIELD_LAT],
-                lon=values[FIELD_LON],
-                acc_m=values[FIELD_ACC_M],
-                preserved=True,
                 coppice=False,
             )
             pai = TreeSample.objects.create(
@@ -224,12 +219,7 @@ def pai_save_view(request):
                 )
             tree = pai.tree
             tree.species_id = values[FIELD_SPECIES_ID]
-            tree.parcel_id = values[FIELD_PARCEL_ID]
             tree.estimated_birth_year = values[FIELD_ESTIMATED_BIRTH_YEAR]
-            tree.lat = values[FIELD_LAT]
-            tree.lon = values[FIELD_LON]
-            tree.acc_m = values[FIELD_ACC_M]
-            tree.preserved = True
             tree.coppice = False
             tree.version += 1
             tree.save()
@@ -280,14 +270,7 @@ def pai_delete_view(request):
                 data_id=DIGEST_PRESERVED_TREES, row_id=fresh_pai.id,
                 record=build_preserved_tree_record(fresh_pai),
             )
-        tree = pai.tree
         pai.delete()
-        if not TreeSample.objects.filter(
-                tree=tree, preserved_number__isnull=False,
-        ).exists():
-            tree.preserved = False
-            tree.version += 1
-            tree.save(update_fields=['preserved', VERSION])
         mark_stale(DIGEST_PRESERVED_TREES)
 
     return success_response(
