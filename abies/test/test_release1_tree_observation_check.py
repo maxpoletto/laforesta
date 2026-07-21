@@ -7,6 +7,7 @@ from io import StringIO
 import pytest
 from django.core.management import call_command
 from django.core.management.base import CommandError
+from django.db import connection
 
 from apps.base.preserved_trees import (
     PRESERVED_HISTORY_SURVEY_NAME, PRESERVED_LEGACY_UNKNOWN_DATE,
@@ -20,6 +21,17 @@ def _call_check(phase: str) -> str:
     stdout = StringIO()
     call_command('check_release1_tree_observations', phase=phase, stdout=stdout)
     return stdout.getvalue()
+
+
+def _mark_release1_migration_unapplied() -> None:
+    with connection.cursor() as cursor:
+        cursor.execute(
+            '''
+            DELETE FROM django_migrations
+            WHERE app = %s AND name = %s
+            ''',
+            ['base', '0010_migrate_preserved_trees_to_samples'],
+        )
 
 
 def _tree(parcel, species, **kwargs) -> Tree:
@@ -45,7 +57,9 @@ def _structured_sample(parcel) -> Sample:
 
 
 def _free_sample(name: str, sample_date: date) -> Sample:
-    survey = Survey.objects.create(name=name, sample_grid=None)
+    survey, _ = Survey.objects.get_or_create(
+        name=name, defaults={'sample_grid': None},
+    )
     return Sample.objects.create(
         sample_area=None, survey=survey, date=sample_date,
     )
@@ -103,10 +117,13 @@ def _migrated_preserved_sample(parcel, legacy: TreePreserved) -> TreeSample:
 
 
 def test_release1_preflight_passes_empty_db(db):
+    _mark_release1_migration_unapplied()
+
     assert 'Release 1 tree-observation preflight OK' in _call_check('pre')
 
 
 def test_release1_preflight_rejects_legacy_preserved_rows_without_diameter(parcels, species):
+    _mark_release1_migration_unapplied()
     tree = _tree(parcels[0], species)
     TreePreserved.objects.create(
         tree=tree, parcel=parcels[0], number=7, lat=38.1, lon=16.1,
@@ -117,10 +134,17 @@ def test_release1_preflight_rejects_legacy_preserved_rows_without_diameter(parce
 
 
 def test_release1_preflight_rejects_existing_free_samples(db):
+    _mark_release1_migration_unapplied()
     _free_sample('Unexpected free survey', date(2026, 1, 1))
 
     with pytest.raises(CommandError, match='Existing free Sample rows'):
         _call_check('pre')
+
+
+def test_release1_preflight_skips_free_samples_after_release1_migration(db):
+    _free_sample('Expected post-migration free survey', date(2026, 1, 1))
+
+    assert 'Release 1 tree-observation preflight OK' in _call_check('pre')
 
 
 def test_release1_postflight_accepts_migrated_legacy_preserved_rows(parcels, species):
@@ -141,6 +165,23 @@ def test_release1_postflight_accepts_legacy_preserved_rows_with_unknown_date_and
     assert migrated.sample.date == PRESERVED_LEGACY_UNKNOWN_DATE
     assert migrated.h_m is None
     assert migrated.h_measured is False
+    assert 'Release 1 tree-observation postflight OK' in _call_check('post')
+
+
+def test_release1_postflight_handles_multiple_unknown_date_pai_samples(
+        parcels, species,
+):
+    legacy_1 = _legacy_preserved(
+        parcels[0], species, number=1, row_date=None, h_m=None,
+        h_measured=False,
+    )
+    legacy_2 = _legacy_preserved(
+        parcels[1], species, number=1, row_date=None, h_m=None,
+        h_measured=False,
+    )
+    _migrated_preserved_sample(parcels[0], legacy_1)
+    _migrated_preserved_sample(parcels[1], legacy_2)
+
     assert 'Release 1 tree-observation postflight OK' in _call_check('post')
 
 

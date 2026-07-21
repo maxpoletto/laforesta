@@ -55,6 +55,8 @@ class _Release1TreeObservationChecker:
         ]))
         if failures:
             return failures
+        if self._migration_applied('base', '0010_migrate_preserved_trees_to_samples'):
+            return []
 
         self._add_if_rows(
             failures,
@@ -121,20 +123,20 @@ class _Release1TreeObservationChecker:
             '''
             SELECT tp.id, tp.parcel_id, tp.number, tp.tree_id, tp.date
             FROM base_treepreserved tp
-            LEFT JOIN base_survey sv
-              ON sv.name = %s
-            LEFT JOIN base_sample s
-              ON s.survey_id = sv.id
-             AND s.sample_area_id IS NULL
-             AND s.date = COALESCE(tp.date, %s)
-            LEFT JOIN base_treesample ts
-              ON ts.sample_id = s.id
-             AND ts.tree_id = tp.tree_id
-             AND ts.parcel_id = tp.parcel_id
-             AND ts.preserved_number = tp.number
-             AND ts.number = tp.number
-             AND ts.shoot = 0
-            WHERE ts.id IS NULL
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM base_treesample ts
+                JOIN base_sample s ON s.id = ts.sample_id
+                JOIN base_survey sv ON sv.id = s.survey_id
+                WHERE sv.name = %s
+                  AND s.sample_area_id IS NULL
+                  AND s.date = COALESCE(tp.date, %s)
+                  AND ts.tree_id = tp.tree_id
+                  AND ts.parcel_id = tp.parcel_id
+                  AND ts.preserved_number = tp.number
+                  AND ts.number = tp.number
+                  AND ts.shoot = 0
+            )
             ORDER BY tp.id
             ''',
             [PRESERVED_HISTORY_SURVEY_NAME, PRESERVED_LEGACY_UNKNOWN_DATE],
@@ -212,6 +214,20 @@ class _Release1TreeObservationChecker:
             ''',
         )
         return failures
+
+    def _migration_applied(self, app: str, name: str) -> bool:
+        if 'django_migrations' not in self.tables:
+            return False
+        rows = self._select(
+            '''
+            SELECT 1
+            FROM django_migrations
+            WHERE app = %s AND name = %s
+            LIMIT 1
+            ''',
+            [app, name],
+        )
+        return bool(rows)
 
     def _add_structured_parcel_mismatches(self, failures):
         self._add_if_rows(
