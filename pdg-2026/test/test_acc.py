@@ -49,7 +49,7 @@ from pdg.computation import (
 )
 
 from pdg.simulation import (
-    COL_WEIGHT, COL_YEAR, COL_HARVEST,
+    COL_WEIGHT, COL_YEAR, COL_HARVEST, COL_N_TREES,
     COL_VOLUME_BEFORE, COL_VOLUME_AFTER, COL_SPECIES_SHARES,
     HarvestResult,
     select_from_bottom, harvest_parcel, schedule_harvests, total_harvests,
@@ -596,28 +596,30 @@ class TestMature:
 class TestTotalHarvests:
     """Test the aggregation of plan events into per-parcel harvest totals."""
 
-    def test_returns_per_parcel_species_totals(self, data_all, harvest_rules):
-        """Should return {(compresa, particella): {genere: harvest}}."""
+    def test_returns_per_parcel_totals(self, data_all, harvest_rules):
+        """Should return {(compresa, particella): ParcelHarvest}."""
         result = plan_totals(data_all, harvest_rules)
         assert isinstance(result, dict)
         assert len(result) > 0
-        for key, by_species in result.items():
+        for key, totals in result.items():
             assert isinstance(key, tuple) and len(key) == 2
-            assert len(by_species) > 0
-            for harvest in by_species.values():
-                assert harvest >= 0
+            assert totals.harvest > 0
+            assert totals.n_trees > 0
+            assert len(totals.by_species) > 0
+            assert np.isclose(sum(totals.by_species.values()), totals.harvest,
+                              rtol=1e-9)
 
     def test_totals_match_events(self, data_all, harvest_rules):
-        """Species totals should sum to the total harvest of the plan events."""
+        """Totals should sum to the harvests and counts of the plan events."""
         events = schedule_harvests(
             data_all, past_harvests=None, year_range=(2026, 2030),
             min_gap=2, target_volume=1e9, rules=harvest_rules)
         totals = total_harvests(events)
 
-        total_from_events = sum(e[COL_HARVEST] for e in events)
-        total_from_totals = sum(
-            h for by_species in totals.values() for h in by_species.values())
-        assert np.isclose(total_from_events, total_from_totals, rtol=1e-9)
+        assert np.isclose(sum(e[COL_HARVEST] for e in events),
+                          sum(t.harvest for t in totals.values()), rtol=1e-9)
+        assert np.isclose(sum(e[COL_N_TREES] for e in events),
+                          sum(t.n_trees for t in totals.values()), rtol=1e-9)
 
     def test_accumulates_repeat_harvests(self, data_all, harvest_rules):
         """A parcel harvested in several years contributes the sum of its events."""
@@ -633,21 +635,29 @@ class TestTotalHarvests:
         assert any(sum(1 for e in events
                        if (e[COL_COMPRESA], e[COL_PARTICELLA]) == key) > 1
                    for key in totals), "Test setup should re-harvest some parcel"
-        for key, by_species in totals.items():
-            assert np.isclose(sum(by_species.values()), per_parcel_events[key],
+        for key, totals_p in totals.items():
+            assert np.isclose(totals_p.harvest, per_parcel_events[key],
                               rtol=1e-9)
 
     def test_matches_harvest_table_totals(self, data_all, harvest_rules):
-        """Total harvest from plan totals should match calculate_harvest_table."""
+        """Plan totals should match calculate_harvest_table sums."""
         parcel_harvests = plan_totals(data_all, harvest_rules)
-        total_from_parcels = sum(
-            h for by_species in parcel_harvests.values()
-            for h in by_species.values())
 
         df = calculate_harvest_table(data_all, parcel_harvests, group_cols=[])
-        total_from_table = df['harvest'].sum()
 
-        assert np.isclose(total_from_parcels, total_from_table, rtol=1e-9)
+        assert np.isclose(sum(t.harvest for t in parcel_harvests.values()),
+                          df['harvest'].sum(), rtol=1e-9)
+        assert np.isclose(sum(t.n_trees for t in parcel_harvests.values()),
+                          df['n_trees'].sum(), rtol=1e-9)
+
+    def test_per_genere_counts_sum_to_parcel(self, data_all, harvest_rules):
+        """Pro-rata per-genere tree counts must sum to the parcel counts."""
+        parcel_harvests = plan_totals(data_all, harvest_rules)
+        df = calculate_harvest_table(data_all, parcel_harvests,
+                                     group_cols=[COL_GENERE])
+        assert np.isclose(df['n_trees'].sum(),
+                          sum(t.n_trees for t in parcel_harvests.values()),
+                          rtol=1e-9)
 
 
 class TestPrelieviPlanConsistency:

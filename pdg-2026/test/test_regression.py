@@ -24,7 +24,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from pdg.computation import COL_PARTICELLA, COL_COMPRESA, COL_GENERE, COL_CD_CM
 from pdg.io import file_cache, load_csv, load_trees
-from pdg.simulation import growth_per_group
+from pdg.simulation import growth_per_group, ParcelHarvest
 from pdg.core import (
     region_cache, parcel_data,
     calculate_stock_table, calculate_harvest_table,
@@ -199,7 +199,8 @@ class TestTptRegression:
         """Per-particella metadata across comprese with colliding parcel
         names must fail loudly rather than mix parcels up."""
         ambiguous = (filter_totals(totals_all, compresa='Serra')
-                     | {('Fabrizia', '1'): {'Faggio': 1.0}})
+                     | {('Fabrizia', '1'): ParcelHarvest(
+                         harvest=1.0, n_trees=1.0, by_species={'Faggio': 1.0})})
         with pytest.raises(ValueError, match="comprese"):
             calculate_harvest_table(data_all, ambiguous,
                 group_cols=[COL_PARTICELLA])

@@ -123,7 +123,7 @@ rules. Confidence intervals are computed on the same population.
 ### `@@prelievi` Parameters
 
 Reports, per parcel/group, the sum of all harvests in the harvest plan
-(growth included). It runs the same simulation as `@@piano_di_taglio` and
+(growth included), with the estimated number of trees to be cut. It runs the same simulation as `@@piano_di_taglio` and
 accepts the same simulation parameters (`volume_obiettivo`, `anno_inizio`,
 `anno_fine`, `intervallo`, `intervallo_anno`, `mortalita`, `prudenza`,
 `riduzione`, `ordine`, `particelle_min`, `calendario`); pass identical values

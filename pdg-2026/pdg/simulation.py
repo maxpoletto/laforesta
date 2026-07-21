@@ -3,7 +3,7 @@
 import bisect
 from collections import defaultdict
 from copy import copy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
@@ -34,6 +34,7 @@ class HarvestResult:
     """Result of harvesting one parcel."""
     volume_before: float    # mature volume before harvest
     harvest: float          # volume harvested
+    n_trees: float          # estimated number of trees harvested (scaled)
     species_shares: dict[str, float]  # fraction of mature volume per species
     harvested_indices: list  # DataFrame indices of harvested trees
 from pdg.formatters import fmt_num
@@ -55,6 +56,7 @@ ORDINE_DATA = 'data'        # oldest last-harvest date first, ties broken by vol
 # Internal DataFrame column names for harvest plan events (shared with core.py)
 COL_YEAR = 'year'
 COL_HARVEST = 'harvest'
+COL_N_TREES = 'n_trees'
 COL_VOLUME_BEFORE = 'volume_before'
 COL_VOLUME_AFTER = 'volume_after'
 COL_SPECIES_SHARES = '_species_shares'
@@ -271,21 +273,23 @@ def harvest_parcel(trees: pd.DataFrame, stats: ParcelStats,
     mature = trees[MATURE_FILTER(trees)]
     w = weight[mature.index] if weight is not None else 1
     scale = mature[COL_SCALE]
-    tree_vol = mature[COL_V_M3] * w * scale
-    tree_basal = basal_area_m2(mature[COL_D_CM]) * w * scale
+    tree_n = w * scale
+    tree_vol = mature[COL_V_M3] * tree_n
+    tree_basal = basal_area_m2(mature[COL_D_CM]) * tree_n
 
     # Select trees in harvest order, accumulate until limits
     vol_limit = vol_limit_ha * stats.area_ha * prudence / 100
     area_limit = area_limit_ha * stats.area_ha * prudence / 100
     ordered_idx = selection_fn(mature)  # type: ignore[reportGeneralTypeIssues]
     harvested = []
-    cum_vol, cum_area = 0.0, 0.0
+    cum_vol, cum_area, cum_n = 0.0, 0.0, 0.0
     for idx in ordered_idx:
         tv, ta = tree_vol[idx], tree_basal[idx]
         if cum_vol + tv > vol_limit or cum_area + ta > area_limit:
             break
         cum_vol += tv
         cum_area += ta
+        cum_n += tree_n[idx]
         harvested.append(idx)
 
     # Species shares of mature volume (for pro-rata allocation)
@@ -293,7 +297,7 @@ def harvest_parcel(trees: pd.DataFrame, stats: ParcelStats,
     for genere, g_trees in mature.groupby(COL_GENERE):
         species_shares[genere] = tree_vol[g_trees.index].sum() / vol_mature
 
-    return HarvestResult(vol_mature, cum_vol, species_shares, harvested)  # type: ignore[reportGeneralTypeIssues]
+    return HarvestResult(vol_mature, cum_vol, cum_n, species_shares, harvested)  # type: ignore[reportGeneralTypeIssues]
 
 
 def schedule_harvests(
@@ -413,6 +417,7 @@ def schedule_harvests(
                 COL_COMPRESA: region,
                 COL_PARTICELLA: parcel,
                 COL_HARVEST: result.harvest,
+                COL_N_TREES: result.n_trees,
                 COL_VOLUME_BEFORE: result.volume_before,
                 COL_VOLUME_AFTER: result.volume_before - result.harvest,
                 COL_SPECIES_SHARES: result.species_shares,
@@ -449,18 +454,26 @@ def schedule_harvests(
     return events
 
 
-def total_harvests(events: list[dict]) -> dict[tuple[str, str], dict[str, float]]:
-    """Sum plan events into per-parcel, per-species harvest totals.
+@dataclass
+class ParcelHarvest:
+    """Plan totals for one parcel, accumulated over all its events."""
+    harvest: float = 0.0
+    n_trees: float = 0.0
+    by_species: dict[str, float] = field(default_factory=dict)  # harvest per species
+
+
+def total_harvests(events: list[dict]) -> dict[tuple[str, str], ParcelHarvest]:
+    """Sum plan events into per-parcel harvest totals.
 
     Each event's harvest is split pro-rata by its species shares (the same
     allocation used for per-genere plan tables), then accumulated over all
     years of the plan.
-
-    Returns {(compresa, particella): {genere: harvest}}.
     """
-    totals: dict[tuple[str, str], dict[str, float]] = {}
+    totals: dict[tuple[str, str], ParcelHarvest] = {}
     for e in events:
-        by_species = totals.setdefault((e[COL_COMPRESA], e[COL_PARTICELLA]), {})
+        t = totals.setdefault((e[COL_COMPRESA], e[COL_PARTICELLA]), ParcelHarvest())
+        t.harvest += e[COL_HARVEST]
+        t.n_trees += e[COL_N_TREES]
         for genere, frac in e[COL_SPECIES_SHARES].items():
-            by_species[genere] = by_species.get(genere, 0.0) + e[COL_HARVEST] * frac
+            t.by_species[genere] = t.by_species.get(genere, 0.0) + e[COL_HARVEST] * frac
     return totals

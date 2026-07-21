@@ -124,7 +124,7 @@ popolazione.
 ### Parametri `@@prelievi`
 
 Riporta, per particella/gruppo, la somma di tutti i prelievi del piano di
-taglio (accrescimento incluso). Esegue la stessa simulazione di
+taglio (accrescimento incluso) e il numero stimato di piante da prelevare. Esegue la stessa simulazione di
 `@@piano_di_taglio` e accetta gli stessi parametri di simulazione
 (`volume_obiettivo`, `anno_inizio`, `anno_fine`, `intervallo`,
 `intervallo_anno`, `mortalita`, `prudenza`, `riduzione`, `ordine`,

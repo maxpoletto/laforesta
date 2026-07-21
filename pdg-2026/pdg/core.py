@@ -39,10 +39,10 @@ from pdg.ceduo import (
 )
 from pdg.simulation import (
     COL_IP_MEDIO, COL_INCR_CORR, COL_DELTA_D,
-    COL_YEAR, COL_HARVEST, COL_VOLUME_BEFORE, COL_VOLUME_AFTER, COL_SPECIES_SHARES,
-    COL_WEIGHT,
+    COL_YEAR, COL_HARVEST, COL_N_TREES, COL_VOLUME_BEFORE, COL_VOLUME_AFTER,
+    COL_SPECIES_SHARES, COL_WEIGHT,
     ORDINE_VOL_HA,
-    TreeSelectionFunc, select_from_bottom,
+    ParcelHarvest, TreeSelectionFunc, select_from_bottom,
     growth_per_group, schedule_harvests, total_harvests,
 )
 
@@ -85,7 +85,6 @@ plt.rcParams['ytick.labelsize'] = 6
 COL_VOLUME = 'volume'
 COL_AREA_HA = 'area_ha'
 # provvigione-specific
-COL_N_TREES = 'n_trees'
 COL_VOL_LO = 'vol_lo'
 COL_VOL_HI = 'vol_hi'
 # tpt-specific
@@ -832,7 +831,7 @@ def calculate_stock_table(data: ParcelData, group_cols: list[str],
     parcel_keys = set(zip(stock.trees[COL_COMPRESA], stock.trees[COL_PARTICELLA]))
     _assign_area(df, parcel_keys, data.parcels, group_cols)
 
-    ordered_cols = group_cols + [COL_N_TREES, COL_AREA_HA, COL_VOLUME,
+    ordered_cols = group_cols + [COL_AREA_HA, COL_N_TREES, COL_VOLUME,
                                  COL_VOL_LO, COL_VOL_HI]
     return df[[c for c in ordered_cols if c in df.columns]]
 
@@ -862,8 +861,14 @@ def render_stock_table(data: ParcelData, formatter: SnippetFormatter, **options)
     else:
         total_area = df[COL_AREA_HA].iloc[0]
 
+    # When grouping only by species, area cannot be meaningfully assigned to
+    # individual species in a mixed forest, so hide the area column.
+    genere_only = group_cols == [COL_GENERE]
+
     has_ci = options[OPT_INTERV_FIDUC]
     col_specs = [
+        ColSpec('Area (ha)', 'r', COL_AREA_HA, lambda _: fmt_num(total_area, 1),
+                not genere_only),
         ColSpec('N. Alberi', 'r',
                 lambda r: fmt_num(r[COL_N_TREES], 0),
                 lambda d: fmt_num(d[COL_N_TREES].sum(), 0), True),
@@ -1063,33 +1068,42 @@ def _row_parcel_keys(df: pd.DataFrame, parcel_keys: set[tuple[str, str]],
 
 
 def calculate_harvest_table(data: ParcelData,
-                            parcel_harvests: dict[tuple[str, str], dict[str, float]],
+                            parcel_harvests: dict[tuple[str, str], ParcelHarvest],
                             group_cols: list[str]) -> pd.DataFrame:
     """Aggregate plan harvest totals into table rows for @@prelievi.
 
     Args:
         data: Parcel stats (superset of the parcels to display).
-        parcel_harvests: Per-parcel, per-species harvest totals (from
-            total_harvests).  Only these parcels appear in the table.
+        parcel_harvests: Per-parcel plan totals (from total_harvests).
+            Only these parcels appear in the table.
         group_cols: Any of [COL_COMPRESA, COL_PARTICELLA, COL_GENERE].
 
-    Species are summed unless Genere is a group column.  Each group also gets
-    its area and, for per-parcel rows, sector and age metadata.
+    Species are summed unless Genere is a group column; harvested tree counts
+    are allocated to species pro-rata by harvest volume.  Each group also
+    gets its area and, for per-parcel rows, sector and age metadata.
     """
     if not parcel_harvests:
         return pd.DataFrame()
 
-    # Aggregate harvest by group_cols
-    harvest_rows: dict[tuple, float] = {}
-    for (region, parcel), by_species in parcel_harvests.items():
-        for genere, harvest in by_species.items():
+    # Aggregate (harvest, n_trees) by group_cols
+    harvest_rows: dict[tuple, ParcelHarvest] = {}
+    for (region, parcel), totals in parcel_harvests.items():
+        for genere, harvest in totals.by_species.items():
             key = _group_key(region, parcel, genere, group_cols)
-            harvest_rows[key] = harvest_rows.get(key, 0.0) + harvest
+            row = harvest_rows.setdefault(key, ParcelHarvest())
+            row.harvest += harvest
+            row.n_trees += totals.n_trees * (
+                harvest / totals.harvest if totals.harvest > 0 else 0.0)
 
-    df = pd.DataFrame([
-        dict(zip(group_cols, key), **{COL_HARVEST: harvest})
-        for key, harvest in harvest_rows.items()
-    ]) if group_cols else pd.DataFrame([{COL_HARVEST: sum(harvest_rows.values())}])
+    if group_cols:
+        df = pd.DataFrame([
+            dict(zip(group_cols, key),
+                 **{COL_N_TREES: row.n_trees, COL_HARVEST: row.harvest})
+            for key, row in harvest_rows.items()])
+    else:
+        df = pd.DataFrame([{
+            COL_N_TREES: sum(r.n_trees for r in harvest_rows.values()),
+            COL_HARVEST: sum(r.harvest for r in harvest_rows.values())}])
 
     _assign_area(df, set(parcel_harvests.keys()), data.parcels, group_cols)
 
@@ -1101,11 +1115,11 @@ def calculate_harvest_table(data: ParcelData,
         df[COL_AGE] = [data.parcels[k].age for k in row_keys]
 
     # Ensure column order matches golden file expectations (for tests)
-    # Order: group_cols, [sector, age], area_ha, harvest
+    # Order: group_cols, [sector, age], area_ha, n_trees, harvest
     ordered_cols = list(group_cols)
     if per_parcel:
         ordered_cols += [COL_SECTOR, COL_AGE]
-    ordered_cols += [COL_AREA_HA, COL_HARVEST]
+    ordered_cols += [COL_AREA_HA, COL_N_TREES, COL_HARVEST]
     df = df[[c for c in ordered_cols if c in df.columns]]
 
     if not group_cols or df.empty:
@@ -1168,6 +1182,9 @@ def render_harvest_table(data: ParcelData, past_harvests: pd.DataFrame | None,
                 options[OPT_COL_ETA] and per_parcel),
         ColSpec('Area (ha)', 'r', COL_AREA_HA, lambda _: fmt_num(total_area, 1),
          options[OPT_COL_AREA_HA] and not genere_only),
+        ColSpec('N. Alberi', 'r',
+                lambda r: fmt_num(r[COL_N_TREES], 0),
+                lambda d: fmt_num(d[COL_N_TREES].sum(), 0), True),
         ColSpec('Prel tot (m³)', 'r', COL_HARVEST, COL_HARVEST, options[OPT_COL_PRELIEVO]),
         ColSpec('Prel/ha (m³/ha)', 'r',
                 lambda r: fmt_num(r[COL_HARVEST] / r[COL_AREA_HA], 1),
@@ -1289,18 +1306,14 @@ def render_harvest_plan(data: ParcelData, past_harvests: pd.DataFrame | None,
                 options[OPT_COL_COMPARTO] and per_parcel),
         ColSpec('Età', 'r', lambda r: fmt_num(r[COL_AGE], 0), None,
                 options[OPT_COL_ETA] and per_parcel),
-        ColSpec('Provv. prima\n(m³/ha)', 'r',
-                lambda r: fmt_num(r[COL_VOLUME_BEFORE] / r[COL_AREA_HA], 1),
-                None,
+        ColSpec('Provv. prima\n(m³)', 'r', COL_VOLUME_BEFORE, None,
                 options[OPT_COL_PRIMA_DOPO]),
         ColSpec('Prelievo (m³)', 'r', COL_HARVEST, COL_HARVEST, True),
         ColSpec('Prel \\%', 'r',
                 lambda r: fmt_num(r[COL_HARVEST] / r[COL_VOLUME_BEFORE] * 100, 0)
                     if r[COL_VOLUME_BEFORE] > 0 else '—',
                 None, options[OPT_COL_PP_MAX] and per_parcel),
-        ColSpec('Provv. dopo\n(m³/ha)', 'r',
-                lambda r: fmt_num(r[COL_VOLUME_AFTER] / r[COL_AREA_HA], 1),
-                None,
+        ColSpec('Provv. dopo\n(m³)', 'r', COL_VOLUME_AFTER, None,
                 options[OPT_COL_PRIMA_DOPO]),
     ]
     has_year_groups = len(df) > df[COL_YEAR].nunique()
