@@ -3,6 +3,95 @@
 from django.db import migrations, models
 
 
+HARVEST_TRIGGER_DROP = """
+DROP TRIGGER IF EXISTS harvest_region_xor_parcel_insert;
+DROP TRIGGER IF EXISTS harvest_region_xor_parcel_update;
+DROP TRIGGER IF EXISTS harvest_parcel_consistency_insert;
+DROP TRIGGER IF EXISTS harvest_parcel_consistency_update;
+DROP TRIGGER IF EXISTS harvest_flags_consistency_insert;
+DROP TRIGGER IF EXISTS harvest_flags_consistency_update;
+"""
+
+HARVEST_TRIGGER_CREATE = """
+CREATE TRIGGER IF NOT EXISTS harvest_region_xor_parcel_insert
+BEFORE INSERT ON prelievi_harvest
+FOR EACH ROW
+WHEN (NEW.region_id IS NULL) = (NEW.parcel_id IS NULL)
+BEGIN
+    SELECT RAISE(ABORT, 'harvest: exactly one of region or parcel must be set');
+END;
+
+CREATE TRIGGER IF NOT EXISTS harvest_region_xor_parcel_update
+BEFORE UPDATE OF region_id, parcel_id ON prelievi_harvest
+FOR EACH ROW
+WHEN (NEW.region_id IS NULL) = (NEW.parcel_id IS NULL)
+BEGIN
+    SELECT RAISE(ABORT, 'harvest: exactly one of region or parcel must be set');
+END;
+
+CREATE TRIGGER IF NOT EXISTS harvest_parcel_consistency_insert
+BEFORE INSERT ON prelievi_harvest
+FOR EACH ROW
+WHEN NEW.harvest_plan_item_id IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM base_harvestplanitem AS hpi
+    WHERE hpi.id = NEW.harvest_plan_item_id
+      AND (
+        (NEW.parcel_id IS NOT NULL AND (
+            hpi.parcel_id = NEW.parcel_id
+            OR hpi.region_id = (SELECT region_id FROM base_parcel WHERE id = NEW.parcel_id)))
+        OR (NEW.parcel_id IS NULL AND hpi.region_id = NEW.region_id)
+      )
+)
+BEGIN
+    SELECT RAISE(ABORT, 'harvest.parcel/region does not match linked harvest_plan_item');
+END;
+
+CREATE TRIGGER IF NOT EXISTS harvest_parcel_consistency_update
+BEFORE UPDATE OF parcel_id, region_id, harvest_plan_item_id ON prelievi_harvest
+FOR EACH ROW
+WHEN NEW.harvest_plan_item_id IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM base_harvestplanitem AS hpi
+    WHERE hpi.id = NEW.harvest_plan_item_id
+      AND (
+        (NEW.parcel_id IS NOT NULL AND (
+            hpi.parcel_id = NEW.parcel_id
+            OR hpi.region_id = (SELECT region_id FROM base_parcel WHERE id = NEW.parcel_id)))
+        OR (NEW.parcel_id IS NULL AND hpi.region_id = NEW.region_id)
+      )
+)
+BEGIN
+    SELECT RAISE(ABORT, 'harvest.parcel/region does not match linked harvest_plan_item');
+END;
+
+CREATE TRIGGER IF NOT EXISTS harvest_flags_consistency_insert
+BEFORE INSERT ON prelievi_harvest
+FOR EACH ROW
+WHEN NEW.harvest_plan_item_id IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM base_harvestplanitem AS hpi
+    WHERE hpi.id = NEW.harvest_plan_item_id
+      AND hpi.damaged   = NEW.damaged
+      AND hpi.unhealthy = NEW.unhealthy
+      AND hpi.psr       = NEW.psr
+)
+BEGIN
+    SELECT RAISE(ABORT, 'harvest flags must match linked harvest_plan_item flags');
+END;
+
+CREATE TRIGGER IF NOT EXISTS harvest_flags_consistency_update
+BEFORE UPDATE OF damaged, unhealthy, psr, harvest_plan_item_id ON prelievi_harvest
+FOR EACH ROW
+WHEN NEW.harvest_plan_item_id IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM base_harvestplanitem AS hpi
+    WHERE hpi.id = NEW.harvest_plan_item_id
+      AND hpi.damaged   = NEW.damaged
+      AND hpi.unhealthy = NEW.unhealthy
+      AND hpi.psr       = NEW.psr
+)
+BEGIN
+    SELECT RAISE(ABORT, 'harvest flags must match linked harvest_plan_item flags');
+END;
+"""
+
 PARCEL_COPPICE_METADATA_DROP = """
 DROP TRIGGER IF EXISTS parcel_coppice_metadata_insert;
 DROP TRIGGER IF EXISTS parcel_coppice_metadata_update;
@@ -93,9 +182,14 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ("base", "0010_migrate_preserved_trees_to_samples"),
+        ("prelievi", "0003_harvest_consistency_triggers"),
     ]
 
     operations = [
+        migrations.RunSQL(
+            HARVEST_TRIGGER_DROP,
+            reverse_sql=migrations.RunSQL.noop,
+        ),
         migrations.AddField(
             model_name="historicalparcel",
             name="cutting_plan",
@@ -125,6 +219,10 @@ class Migration(migrations.Migration):
             model_name="parcel",
             name="standards_per_ha",
             field=models.IntegerField(blank=True, null=True),
+        ),
+        migrations.RunSQL(
+            HARVEST_TRIGGER_CREATE,
+            reverse_sql=HARVEST_TRIGGER_DROP,
         ),
         migrations.RunSQL(
             PARCEL_COPPICE_METADATA_DROP + PARCEL_COPPICE_METADATA_TRIGGERS,
