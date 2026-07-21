@@ -120,6 +120,9 @@ COL_ASPECT = 'Esposizione'
 COL_GRADE_PCT = 'Pendenza %'
 COL_GEO_DESC = 'Stazione'       # geological station
 COL_VEG_DESC = 'Soprassuolo'    # vegetation description
+COL_CUTTING_PLAN = 'Piano del taglio'
+COL_INTERVAL = 'Intervallo'
+COL_STANDARDS = 'Matricine'
 COL_GRID = 'Griglia'
 COL_PLAN = 'Piano'
 COL_YEAR_START = 'Anno inizio'
@@ -144,6 +147,7 @@ COL_HIGHFOREST = 'Fustaia'
 COL_ACTIVE = 'Attivo'
 COL_DAMAGED = 'Catastrofata'
 COL_LNG = 'Lng'
+LEGACY_COL_INTERVAL = 'Parametro'
 
 # Species reference headers (canonical SPECIES RefTable column names).
 COL_LATIN = 'Nome latino'
@@ -343,16 +347,23 @@ def _convert_products(out_dir: Path) -> int:
 
 
 def _convert_parcels(parcels: list[dict], out_dir: Path) -> int:
-    """Canonical subset of legacy particelle: drop CP, Governo, Piano del
-    taglio, Parametro, Matricine; keep/reorder the rest (header names already
-    match the legacy file)."""
+    """Canonical subset of legacy particelle.  Most output headers match
+    the legacy file; legacy Parametro is renamed to Intervallo."""
     header = [
         COL_REGION, COL_CLASS, COL_PARCEL, COL_AREA_HA, COL_AVE_AGE, COL_LOCATION,
         COL_ALT_MIN, COL_ALT_MAX, COL_ASPECT, COL_GRADE_PCT, COL_GEO_DESC,
-        COL_VEG_DESC,
+        COL_VEG_DESC, COL_CUTTING_PLAN, COL_INTERVAL, COL_STANDARDS,
     ]
-    rows = [[(r.get(c) or '').strip() for c in header] for r in parcels]
+    rows = [[_parcel_cell(r, c) for c in header] for r in parcels]
     return _write(out_dir / OUT_PARCELS, header, rows)
+
+
+def _parcel_cell(row: dict, col: str) -> str:
+    if col in (COL_INTERVAL, COL_STANDARDS):
+        if (row.get(COL_CLASS) or '').strip() != COPPICE_COMPARTO:
+            return ''
+    source = LEGACY_COL_INTERVAL if col == COL_INTERVAL else col
+    return (row.get(source) or '').strip()
 
 
 def _convert_sample_grids(out_dir: Path) -> int:

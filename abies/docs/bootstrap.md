@@ -64,6 +64,21 @@ The command loads files in dependency order:
 After bootstrap, run the mark-staging, geodata, and digest steps, usually
 through `bin/load-canonical-data` or the broader `make dev` target.
 
+## Updating parcels in a live instance
+
+Do not run `bootstrap` against a non-empty live instance. To refresh only
+existing parcel rows from canonical `particelle.csv`, use:
+
+```sh
+python3 manage.py update_parcels_from_csv data/canonical/particelle.csv
+python3 manage.py update_parcels_from_csv data/canonical/particelle.csv --apply
+```
+
+The first command is a dry-run. The command validates the CSV with the same
+parcel import core as `bootstrap`, refuses parcel keys that are not already in
+the DB, increments changed parcel versions, marks digests stale after an
+applied update, and immediately regenerates the `parcels` digest used by Bosco.
+
 ## Canonical Directory
 
 The minimal bootstrap input is:

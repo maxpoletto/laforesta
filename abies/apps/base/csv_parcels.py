@@ -5,9 +5,9 @@ Parcels carry two foreign keys (region, eclass) and a composite natural key
 (name, region), so this is a bespoke core in the style of
 ``apps/campionamenti/csv_trees`` rather than a declarative ``RefTable`` (which is
 for flat, FK-free tables).  ``validate_rows`` is pure and resolves FKs against an
-injected ``ParcelIndexes``; ``apply`` upserts on (name, region) and is
-idempotent.  No synthetic 'X' parcels — the canonical contract has none;
-region-wide rows arrive with the harvest model change in step 3.
+injected ``ParcelIndexes``; ``apply`` is create-only for empty-instance
+bootstrap, while ``update_existing`` is the explicit live-DB update path. No
+synthetic 'X' parcels — the canonical contract has none.
 
 The caller verifies required-column presence via
 ``csv_io.read(text, required_cols=PARCEL_CSV_REQUIRED)`` before calling
@@ -22,6 +22,7 @@ from django.db import transaction
 from apps.base.digests import mark_all_stale
 from apps.base.models import Eclass, Parcel, Region
 from config import strings as S
+from config.constants import VERSION
 
 PARCEL_CSV_REQUIRED = [
     S.CSV_COL_REGION, S.CSV_COL_CLASS, S.CSV_COL_PARCEL, S.CSV_COL_AREA_HA,
@@ -31,6 +32,18 @@ PARCEL_CSV_OPTIONAL = [
     S.CSV_COL_ASPECT, S.CSV_COL_GRADE_PCT, S.CSV_COL_VEG_DESC, S.CSV_COL_GEO_DESC,
     S.CSV_COL_CUTTING_PLAN, S.CSV_COL_INTERVAL, S.CSV_COL_STANDARDS,
 ]
+PARCEL_UPDATE_FIELDS = [
+    'eclass', 'area_ha', 'ave_age', 'location_name', 'altitude_min_m',
+    'altitude_max_m', 'aspect', 'grade_pct', 'desc_veg', 'desc_geo',
+    'cutting_plan', 'intervention_interval', 'standards_per_ha',
+]
+
+
+@dataclass
+class ParcelUpdate:
+    parcel: Parcel
+    data: dict
+    fields: list[str]
 
 
 @dataclass
@@ -123,6 +136,68 @@ def validate_rows(reader, idx: ParcelIndexes):
             **optional_ints,
         })
     return parsed, errors
+
+
+def plan_existing_updates(parsed) -> tuple[list[ParcelUpdate], list[tuple[str, str]]]:
+    """Plan updates for existing parcels only.
+
+    Returns ``(updates, missing)``. ``missing`` contains ``(region, parcel)``
+    keys present in the validated CSV but absent from the live DB, so callers
+    can fail safely before writing partial updates.
+    """
+    existing = _existing_parcels(parsed)
+    updates, missing = [], []
+    for d in parsed:
+        key = (d['region'].id, d['name'])
+        parcel = existing.get(key)
+        if parcel is None:
+            missing.append((d['region'].name, d['name']))
+            continue
+        fields = _changed_fields(parcel, d)
+        if fields:
+            updates.append(ParcelUpdate(parcel, d, fields))
+    return updates, missing
+
+
+def update_existing(parsed) -> int:
+    """Persist validated CSV data to existing parcels only.
+
+    Missing live parcels are refused with ``ValueError``. Changed parcels get a
+    new optimistic-lock ``version`` and normal model save/history behavior.
+    Returns the number of updated rows.
+    """
+    updates, missing = plan_existing_updates(parsed)
+    if missing:
+        raise ValueError('cannot update missing parcels')
+    with transaction.atomic():
+        for update in updates:
+            for field in update.fields:
+                setattr(update.parcel, field, update.data[field])
+            update.parcel.version += 1
+            update.parcel.save(update_fields=[*update.fields, VERSION])
+        if updates:
+            mark_all_stale()
+    return len(updates)
+
+
+def _existing_parcels(parsed) -> dict[tuple[int, str], Parcel]:
+    region_ids = {d['region'].id for d in parsed}
+    names = {d['name'] for d in parsed}
+    return {
+        (p.region_id, p.name): p
+        for p in Parcel.objects.filter(region_id__in=region_ids, name__in=names)
+    }
+
+
+def _changed_fields(parcel: Parcel, data: dict) -> list[str]:
+    fields = []
+    for field in PARCEL_UPDATE_FIELDS:
+        if field == 'eclass':
+            if parcel.eclass_id != data[field].id:
+                fields.append(field)
+        elif getattr(parcel, field) != data[field]:
+            fields.append(field)
+    return fields
 
 
 def apply(parsed) -> int:
