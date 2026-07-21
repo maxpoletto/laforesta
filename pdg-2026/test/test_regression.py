@@ -27,7 +27,7 @@ from pdg.io import file_cache, load_csv, load_trees
 from pdg.simulation import growth_per_group
 from pdg.core import (
     region_cache, parcel_data,
-    calculate_volumes, calculate_harvest_table,
+    calculate_stock_table, calculate_harvest_table,
     calculate_diameter_class_data,
 )
 from pdg.harvest_rules import max_harvest
@@ -121,34 +121,34 @@ def _assert_frames_close(actual: pd.DataFrame, expected: pd.DataFrame,
                 f"{label}, column '{col}': {act_vals} != {exp_vals}")
 
 
-# ── @@volumi (calculate_volumes) ──────────────────────────────────────────────
+# ── @@provvigione (calculate_stock_table) ─────────────────────────────────────
 
-class TestTsvRegression:
-    """Regression tests matching @@volumi invocations in templates."""
+class TestProvRegression:
+    """Regression tests matching @@provvigione invocations in templates."""
 
     def test_per_compresa(self, data_all):
-        """sec-volumi.tex: per_compresa=si, per_particella=no, with CI."""
-        actual = calculate_volumes(data_all,
+        """sec-provvigione.tex: per_compresa=si, per_particella=no, with CI."""
+        actual = calculate_stock_table(data_all,
             group_cols=[COL_COMPRESA],
             calc_margin=True, calc_total=True)
-        expected = _load_golden('tsv-per_compresa')
-        _assert_frames_close(actual, expected, 'tsv-per_compresa')
+        expected = _load_golden('prov-per_compresa')
+        _assert_frames_close(actual, expected, 'prov-per_compresa')
 
     def test_serra_per_particella(self, data_serra):
-        """sec-volumi.tex: single compresa, per_particella=si, with CI."""
-        actual = calculate_volumes(data_serra,
+        """sec-provvigione.tex: single compresa, per_particella=si, with CI."""
+        actual = calculate_stock_table(data_serra,
             group_cols=[COL_PARTICELLA],
             calc_margin=True, calc_total=True)
-        expected = _load_golden('tsv-serra-per_particella')
-        _assert_frames_close(actual, expected, 'tsv-serra-per_particella')
+        expected = _load_golden('prov-serra-per_particella')
+        _assert_frames_close(actual, expected, 'prov-serra-per_particella')
 
     def test_fab1_per_genere(self, data_fab1):
         """particella.tex: single particella, per_genere=si, with CI."""
-        actual = calculate_volumes(data_fab1,
+        actual = calculate_stock_table(data_fab1,
             group_cols=[COL_GENERE],
             calc_margin=True, calc_total=True)
-        expected = _load_golden('tsv-fab1-per_genere')
-        _assert_frames_close(actual, expected, 'tsv-fab1-per_genere')
+        expected = _load_golden('prov-fab1-per_genere')
+        _assert_frames_close(actual, expected, 'prov-fab1-per_genere')
 
 
 # ── @@prelievi (calculate_harvest_table) ──────────────────────────────────────────────

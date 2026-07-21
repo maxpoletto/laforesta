@@ -14,7 +14,7 @@ from pdg.io import file_cache, load_csv, load_trees
 from pdg.simulation import growth_per_group, schedule_harvests, total_harvests
 from pdg.core import (
     region_cache, parcel_data,
-    calculate_volumes, calculate_harvest_table,
+    calculate_stock_table, calculate_harvest_table,
     calculate_diameter_class_data,
 )
 from pdg.harvest_rules import max_harvest
@@ -82,17 +82,17 @@ def main():
     data_fab1 = pd_filtered(regions=['Fabrizia'], parcels=['1'])
     data_cap3 = pd_filtered(regions=['Capistrano'], parcels=['3'])
 
-    # @@volumi — matches sec-volumi.tex and particella.tex invocations
-    print('@@volumi:')
-    save(calculate_volumes(data_all,
+    # @@provvigione — matches sec-provvigione.tex and particella.tex invocations
+    print('@@provvigione:')
+    save(calculate_stock_table(data_all,
         group_cols=[COL_COMPRESA],
-        calc_margin=True, calc_total=True), 'tsv-per_compresa')
-    save(calculate_volumes(data_serra,
+        calc_margin=True, calc_total=True), 'prov-per_compresa')
+    save(calculate_stock_table(data_serra,
         group_cols=[COL_PARTICELLA],
-        calc_margin=True, calc_total=True), 'tsv-serra-per_particella')
-    save(calculate_volumes(data_fab1,
+        calc_margin=True, calc_total=True), 'prov-serra-per_particella')
+    save(calculate_stock_table(data_fab1,
         group_cols=[COL_GENERE],
-        calc_margin=True, calc_total=True), 'tsv-fab1-per_genere')
+        calc_margin=True, calc_total=True), 'prov-fab1-per_genere')
 
     # @@prelievi — matches sec-ripresa.tex, particella.tex, relazione.tex.
     # The plan runs on all data; compresa/particella only filter the rows.

@@ -3,7 +3,7 @@ Tests for the pdg forest analysis module.
 
 Test categories:
 (a) Aggregation consistency - total vs per-particella breakdown
-(b) Cross-query consistency - @@volumi totals match @@tabella_classi_diametriche sums, @@volumi/@@prelievi consistency
+(b) Cross-query consistency - calculate_volumes totals match @@tabella_classi_diametriche sums, provvigione/@@prelievi consistency
 (c) Correct scaling with different sample areas
 (d) Edge cases
 (f) Confidence interval sanity
@@ -40,7 +40,7 @@ from pdg.computation import (
     COL_PRESSLER, COL_COMPRESA, COL_D_CM, COL_CD_CM,
     COL_GENERE, COL_H_M, COL_L10_MM, COL_PARTICELLA, COL_V_M3,
     COL_AREA_SAGGIO, COL_SCALE, COL_FUSTAIA,
-    COL_AREA_PARCEL, COL_COMPARTO, COL_GOVERNO, COL_ETA_MEDIA,
+    COL_AREA_PARCEL, COL_COMPARTO, COL_GOVERNO, COL_ETA_MEDIA, GOV_CEDUO,
     COL_LOCALITA, COL_ALT_MIN, COL_ALT_MAX,
     COL_ESPOSIZIONE, COL_STAZIONE, COL_SOPRASSUOLO, COL_PIANO_TAGLIO,
     ParcelData, ParcelStats,
@@ -61,7 +61,7 @@ from pdg.core import (
     COL_SECTOR, COL_AGE,
     parcel_data, parse_gap_overrides,
     plan_events, plan_cache,
-    calculate_volumes, calculate_harvest_table,
+    calculate_volumes, calculate_stock_table, calculate_harvest_table,
     calculate_harvest_plan, calculate_diameter_class_data,
     calculate_stumps, render_prop_coppice,
 )
@@ -91,7 +91,7 @@ class TestAggregationConsistency:
     """Test that aggregated totals match sum of per-particella breakdowns."""
 
     def test_tsv_volume_aggregation(self, data_all):
-        """@@volumi total volume should equal sum of per-particella volumes."""
+        """calculate_volumes total volume should equal sum of per-particella volumes."""
         # Total (no per_particella breakdown)
         df_total = calculate_volumes(
             data_all, group_cols=[], calc_margin=False, calc_total=True
@@ -108,7 +108,7 @@ class TestAggregationConsistency:
             f"Total {total_volume} != sum of per-parcel {sum_per_parcel}"
 
     def test_tsv_tree_count_aggregation(self, data_all):
-        """@@volumi total tree count should equal sum of per-particella counts."""
+        """calculate_volumes total tree count should equal sum of per-particella counts."""
         df_total = calculate_volumes(
             data_all, group_cols=[], calc_margin=False, calc_total=True
         )
@@ -123,7 +123,7 @@ class TestAggregationConsistency:
             f"Total {total_trees} != sum of per-parcel {sum_per_parcel}"
 
     def test_tsv_volume_by_species_aggregation(self, data_all):
-        """@@volumi per-genere volumes should sum to total."""
+        """calculate_volumes per-genere volumes should sum to total."""
         df_total = calculate_volumes(
             data_all, group_cols=[], calc_margin=False, calc_total=True
         )
@@ -138,7 +138,7 @@ class TestAggregationConsistency:
             f"Total {total_volume} != sum by species {sum_per_species}"
 
     def test_tsv_volume_parcel_species_aggregation(self, data_all):
-        """@@volumi per-particella-per-genere should sum to total."""
+        """calculate_volumes per-particella-per-genere should sum to total."""
         df_total = calculate_volumes(
             data_all, group_cols=[], calc_margin=False, calc_total=True
         )
@@ -233,8 +233,8 @@ class TestCrossQueryConsistency:
     """Test that different directives report consistent data."""
 
     def test_tsv_tcd_volume_consistency(self, data_all):
-        """@@volumi total volume should match sum of @@tabella_classi_diametriche volume buckets."""
-        # @@volumi total
+        """calculate_volumes total volume should match sum of @@tabella_classi_diametriche volume buckets."""
+        # calculate_volumes total
         df_tsv = calculate_volumes(
             data_all, group_cols=[], calc_margin=False, calc_total=True
         )
@@ -247,10 +247,10 @@ class TestCrossQueryConsistency:
         tcd_volume = tcd_df.sum().sum()
 
         assert np.isclose(tsv_volume, tcd_volume, rtol=1e-9), \
-            f"@@volumi volume {tsv_volume} != @@tabella_classi_diametriche volume {tcd_volume}"
+            f"calculate_volumes volume {tsv_volume} != @@tabella_classi_diametriche volume {tcd_volume}"
 
     def test_tsv_tcd_tree_count_consistency(self, data_all):
-        """@@volumi tree count should match sum of @@tabella_classi_diametriche tree count buckets."""
+        """calculate_volumes tree count should match sum of @@tabella_classi_diametriche tree count buckets."""
         df_tsv = calculate_volumes(
             data_all, group_cols=[], calc_margin=False, calc_total=True
         )
@@ -262,7 +262,7 @@ class TestCrossQueryConsistency:
         tcd_trees = tcd_df.sum().sum()
 
         assert np.isclose(tsv_trees, tcd_trees, rtol=1e-9), \
-            f"@@volumi trees {tsv_trees} != @@tabella_classi_diametriche trees {tcd_trees}"
+            f"calculate_volumes trees {tsv_trees} != @@tabella_classi_diametriche trees {tcd_trees}"
 
     def test_tcd_fine_coarse_consistency(self, data_all):
         """@@tabella_classi_diametriche fine buckets should sum to coarse buckets."""
@@ -303,39 +303,15 @@ class TestCrossQueryConsistency:
         assert np.isclose(tcd_basal, manual_basal, rtol=1e-9), \
             f"@@tabella_classi_diametriche G {tcd_basal} != manual G {manual_basal}"
 
-    def test_tsv_tpt_volume_consistency(self, data_all, harvest_rules):
-        """Harvest table volumes come from calculate_volumes — verify consistency.
-
-        The harvest table only shows parcels present in the plan, so compare
-        against the inventory of those same parcels.
-        """
+    def test_stock_covers_single_year_harvest(self, data_all, harvest_rules):
+        """A one-year plan cannot harvest more than the current provvigione."""
         totals = plan_totals(data_all, harvest_rules)
-        df_tsv = calculate_volumes(
+        df_stock = calculate_stock_table(
             data_all.filter_parcels(set(totals)), group_cols=[],
-            calc_margin=False, calc_total=True, calc_mature=True
-        )
+            calc_total=True)
         df_tpt = calculate_harvest_table(data_all, totals, group_cols=[])
 
-        tsv_vol = df_tsv['volume'].sum()
-        tpt_vol = df_tpt['volume'].sum()
-
-        assert np.isclose(tsv_vol, tpt_vol, rtol=1e-9), \
-            f"@@volumi volume {tsv_vol} != @@prelievi volume {tpt_vol}"
-
-    def test_tsv_tpt_volume_mature_consitency(self, data_all, harvest_rules):
-        """Harvest table volume_mature comes from calculate_volumes — verify consistency."""
-        totals = plan_totals(data_all, harvest_rules)
-        df_tsv = calculate_volumes(
-            data_all.filter_parcels(set(totals)), group_cols=[],
-            calc_margin=False, calc_total=True, calc_mature=True
-        )
-        df_tpt = calculate_harvest_table(data_all, totals, group_cols=[])
-
-        tsv_vol_ss = df_tsv['volume_mature'].sum()
-        tpt_vol_ss = df_tpt['volume_mature'].sum()
-
-        assert np.isclose(tsv_vol_ss, tpt_vol_ss, rtol=1e-9), \
-            f"@@volumi vol_ss {tsv_vol_ss} != @@prelievi vol_ss {tpt_vol_ss}"
+        assert df_tpt['harvest'].sum() <= df_stock['volume'].sum()
 
 
 # =============================================================================
@@ -568,19 +544,19 @@ class TestConfidenceInterval:
 class TestMature:
     """Test that trees with D <= 20cm are correctly excluded from harvest calculations."""
 
-    def test_volume_mature_excludes_small_trees(self, data_all):
-        """volume_mature should exclude trees with D <= 20cm."""
-        df = calculate_volumes(
-            data_all, group_cols=[], calc_margin=False, calc_total=True,
-            calc_mature=True
-        )
+    def test_stock_excludes_small_trees(self, data_all):
+        """The provvigione should exclude trees with D <= 20cm."""
+        df_all = calculate_volumes(
+            data_all, group_cols=[], calc_margin=False, calc_total=True)
+        df_stock = calculate_stock_table(
+            data_all, group_cols=[], calc_total=True)
 
-        total_vol = df['volume'].sum()
-        vol_ss = df['volume_mature'].sum()
+        total_vol = df_all['volume'].sum()
+        stock_vol = df_stock['volume'].sum()
 
-        # volume_mature should be less than total (we have small trees)
-        assert vol_ss < total_vol, \
-            f"Vol small ({vol_ss}) should be less than total ({total_vol})"
+        # The provvigione should be less than total (we have small trees)
+        assert stock_vol < total_vol, \
+            f"Stock ({stock_vol}) should be less than total ({total_vol})"
 
     def test_small_trees_count(self, data_all):
         """Verify the number of small trees in test data."""
@@ -594,7 +570,7 @@ class TestMature:
         assert n_mature == 28, f"Expected 28 mature trees, got {n_mature}"
 
     def test_volume_mature_consistency(self, data_all):
-        """Manual calculation of volume_mature should match."""
+        """Manual calculation of the provvigione should match."""
         trees = data_all.trees
         parcels = data_all.parcels
 
@@ -605,12 +581,9 @@ class TestMature:
             above = ptrees[ptrees[COL_D_CM] > MATURE_THRESHOLD]
             manual_vol_mature += above[COL_V_M3].sum() / sf
 
-        # Via calculate_volumes
-        df = calculate_volumes(
-            data_all, group_cols=[], calc_margin=False, calc_total=True,
-            calc_mature=True
-        )
-        computed_vol_mature = df['volume_mature'].sum()
+        # Via calculate_stock_table
+        df = calculate_stock_table(data_all, group_cols=[], calc_total=True)
+        computed_vol_mature = df['volume'].sum()
 
         assert np.isclose(manual_vol_mature, computed_vol_mature, rtol=1e-9), \
             f"Manual vol_mature {manual_vol_mature} != computed {computed_vol_mature}"
@@ -720,7 +693,7 @@ class TestPrelieviPlanConsistency:
             full_row = df_full[df_full[COL_PARTICELLA] == row[COL_PARTICELLA]]
             assert np.isclose(row['harvest'], full_row['harvest'].iloc[0],
                               rtol=1e-9)
-            assert np.isclose(row['volume'], full_row['volume'].iloc[0],
+            assert np.isclose(row['area_ha'], full_row['area_ha'].iloc[0],
                               rtol=1e-9)
 
 
@@ -774,14 +747,76 @@ class TestReadPastHarvests:
             read_past_harvests(path)
 
 
+class TestStockTable:
+    """Test calculate_stock_table (@@provvigione directive)."""
+
+    def test_min_diameter_zero_includes_all_trees(self, data_all):
+        """min_diameter=0 should reproduce the unfiltered volume total."""
+        df_all = calculate_volumes(
+            data_all, group_cols=[], calc_margin=False, calc_total=True)
+        df_stock = calculate_stock_table(
+            data_all, group_cols=[], calc_total=True, min_diameter=0)
+        assert np.isclose(df_stock['volume'].sum(), df_all['volume'].sum(),
+                          rtol=1e-9)
+
+    def test_area_per_group(self, data_all):
+        """area_ha should be the sum of parcel areas in each group."""
+        df = calculate_stock_table(
+            data_all, group_cols=[COL_PARTICELLA], calc_total=True)
+        for _, row in df.iterrows():
+            expected = data_all.parcels[('Test', row[COL_PARTICELLA])].area_ha
+            assert np.isclose(row['area_ha'], expected, rtol=1e-9)
+
+    def test_area_total_when_ungrouped(self, data_all):
+        """With no grouping, area_ha covers all parcels with mature trees."""
+        df = calculate_stock_table(data_all, group_cols=[], calc_total=True)
+        mature = data_all.trees[data_all.trees[COL_D_CM] > MATURE_THRESHOLD]
+        keys = set(zip(mature[COL_COMPRESA], mature[COL_PARTICELLA]))
+        expected = sum(data_all.parcels[k].area_ha for k in keys)
+        assert np.isclose(df['area_ha'].iloc[0], expected, rtol=1e-9)
+
+    def test_confidence_interval_brackets_volume(self, data_all):
+        """CI bounds computed on the mature subset must bracket the volume."""
+        df = calculate_stock_table(
+            data_all, group_cols=[COL_PARTICELLA], calc_margin=True,
+            calc_total=True)
+        assert (df['vol_lo'] <= df['volume']).all()
+        assert (df['volume'] <= df['vol_hi']).all()
+
+    def test_per_genere_rows_sum_to_total(self, data_all):
+        """Per-genere provvigione sums to the ungrouped total."""
+        df_tot = calculate_stock_table(data_all, group_cols=[], calc_total=True)
+        df_gen = calculate_stock_table(
+            data_all, group_cols=[COL_GENERE], calc_total=True)
+        assert np.isclose(df_gen['volume'].sum(), df_tot['volume'].sum(),
+                          rtol=1e-9)
+
+    def test_excludes_coppice_parcels(self, data_all):
+        """Parcels with governo Ceduo must not appear, even if they contain
+        fustaia-flagged trees."""
+        from copy import copy
+        parcels = dict(data_all.parcels)
+        stats = copy(parcels[('Test', 'A')])
+        stats.governo = GOV_CEDUO
+        parcels[('Test', 'A')] = stats
+        data = ParcelData(trees=data_all.trees.copy(),
+                          regions=data_all.regions,
+                          species=data_all.species, parcels=parcels)
+
+        df = calculate_stock_table(data, group_cols=[COL_PARTICELLA],
+                                   calc_total=True)
+        assert 'A' not in df[COL_PARTICELLA].values
+        assert 'B' in df[COL_PARTICELLA].values
+
+
 class TestHarvestCalculation:
     """Test harvest (prelievo) calculations."""
 
     def test_volume_harvest_excludes_sottomisura(self, data_all, harvest_rules):
-        """Volume-based harvest should use volume_mature."""
+        """Volume-based harvest should be bounded by the mature volume."""
         df = calculate_harvest_table(data_all, plan_totals(data_all, harvest_rules), group_cols=[])
-
-        vol_mature = df['volume_mature'].sum()
+        vol_mature = calculate_stock_table(
+            data_all, group_cols=[], calc_total=True)['volume'].sum()
         harvest = df['harvest'].sum()
 
         assert harvest <= vol_mature, \
@@ -807,7 +842,8 @@ class TestHarvestCalculation:
 
         assert df['harvest'].sum() > 0, "Should have some harvest"
 
-        vol_mature = df['volume_mature'].sum()
+        vol_mature = calculate_stock_table(
+            data_parcel_d, group_cols=[], calc_total=True)['volume'].sum()
         harvest = df['harvest'].sum()
         assert harvest < vol_mature, "Harvest should be less than total mature volume"
 
@@ -817,15 +853,13 @@ class TestHarvestCalculation:
 
         assert df['harvest'].sum() > 0, "Should have some harvest"
 
-        vol_mature = df['volume_mature'].sum()
+        vol_mature = calculate_stock_table(
+            data_parcel_e, group_cols=[], calc_total=True)['volume'].sum()
         harvest = df['harvest'].sum()
         assert harvest < vol_mature, "Harvest should be less than total mature volume"
 
-    def test_small_trees_excluded_from_basal_area_harvest(
-            self, data_parcel_d, harvest_rules):
-        """Small trees (D <= 20) should be excluded from basal area harvest calculation."""
-        df = calculate_harvest_table(data_parcel_d, plan_totals(data_parcel_d, harvest_rules), group_cols=[])
-
+    def test_small_trees_excluded_from_stock(self, data_parcel_d):
+        """Small trees (D <= 20) should be excluded from the provvigione."""
         trees = data_parcel_d.trees
         small_trees = trees[trees[COL_D_CM] <= MATURE_THRESHOLD]
         mature_trees = trees[trees[COL_D_CM] > MATURE_THRESHOLD]
@@ -835,10 +869,11 @@ class TestHarvestCalculation:
 
         sf = data_parcel_d.parcels[('Test', 'D')].sampled_frac
         expected_vol_mature = mature_trees[COL_V_M3].sum() / sf
-        actual_vol_mature = df['volume_mature'].sum()
+        actual_vol_mature = calculate_stock_table(
+            data_parcel_d, group_cols=[], calc_total=True)['volume'].sum()
 
         assert np.isclose(actual_vol_mature, expected_vol_mature, rtol=1e-9), \
-            f"volume_mature {actual_vol_mature} != expected {expected_vol_mature}"
+            f"stock volume {actual_vol_mature} != expected {expected_vol_mature}"
 
 
 class TestPrelievoMassimo:

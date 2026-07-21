@@ -100,6 +100,18 @@ class ParcelData:
             species=self.species,
             parcels={k: v for k, v in self.parcels.items() if k in keys})
 
+    def filter_trees(self, mask: pd.Series) -> 'ParcelData':
+        """Return a new ParcelData keeping only the trees where mask is True.
+
+        Parcel stats (areas, sampling fractions) are unchanged: the sample
+        plots are the same, only the trees under consideration differ.
+        """
+        return ParcelData(
+            trees=self.trees[mask].copy(),
+            regions=self.regions,
+            species=self.species,
+            parcels=self.parcels)
+
 
 # =============================================================================
 # REGRESSION / CURVE FITTING

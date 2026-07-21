@@ -92,7 +92,7 @@ TEX_FLAGS=-interaction=batchmode -halt-on-error
 
 SECTIONS_TEX= \
 	tex/sec-ipsometrie.tex \
-	tex/sec-volumi.tex \
+	tex/sec-provvigione.tex \
 	tex/sec-ripresa.tex \
 	tex/sec-metodo.tex \
 	tex/sec-ceduo.tex \

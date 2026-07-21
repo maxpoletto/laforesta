@@ -1,2 +1,2 @@
-Particella,sector,age,area_ha,volume,volume_mature,harvest
-1,A,61,7.470000,4795.154830,4795.154830,1587.343819
+Particella,sector,age,area_ha,harvest
+1,A,61,7.470000,1587.343819

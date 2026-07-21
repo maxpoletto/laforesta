@@ -81,11 +81,10 @@ plt.rcParams['ytick.labelsize'] = 6
 # INTERNAL DATAFRAME COLUMN NAMES (for calculate/render pairs)
 # =============================================================================
 
-# Common columns (used across tsv, tpt)
+# Common columns (used across provvigione, tpt)
 COL_VOLUME = 'volume'
-COL_VOLUME_MATURE = 'volume_mature'
 COL_AREA_HA = 'area_ha'
-# tsv-specific
+# provvigione-specific
 COL_N_TREES = 'n_trees'
 COL_VOL_LO = 'vol_lo'
 COL_VOL_HI = 'vol_hi'
@@ -105,17 +104,13 @@ OPT_PER_GENERE = 'per_genere'
 OPT_STIME_TOTALI = 'stime_totali'
 OPT_TOTALI = 'totali'
 OPT_METRICA = 'metrica'
-# tsv-specific
+# provvigione-specific
 OPT_INTERV_FIDUC = 'intervallo_fiduciario'
-OPT_SOLO_MATURE = 'solo_mature'
+OPT_DIAMETRO_MIN = 'diametro_min'
 # tpt column toggles
 OPT_COL_COMPARTO = 'col_comparto'
 OPT_COL_ETA = 'col_eta'
 OPT_COL_AREA_HA = 'col_area_ha'
-OPT_COL_VOLUME = 'col_volume'
-OPT_COL_VOLUME_HA = 'col_volume_ha'
-OPT_COL_VOLUME_MATURE = 'col_volume_mature'
-OPT_COL_VOLUME_MATURE_HA = 'col_volume_mature_ha'
 OPT_COL_PP_MAX = 'col_pp_max'
 OPT_COL_PRELIEVO = 'col_prelievo'
 OPT_COL_PRELIEVO_HA = 'col_prelievo_ha'
@@ -717,25 +712,56 @@ def render_prop_coppice(particelle_df: pd.DataFrame, compresa: str, particella: 
 
 
 # =============================================================================
-# STIMA VOLUMI
+# PROVVIGIONE (STANDING STOCK)
 # =============================================================================
 
+def _group_key(region: str, parcel: str, genere: str | None,
+               group_cols: list[str]) -> tuple:
+    """Build a group key tuple from parcel identity and optional species."""
+    key = []
+    for col in group_cols:
+        if col == COL_COMPRESA:
+            key.append(region)
+        elif col == COL_PARTICELLA:
+            key.append(parcel)
+        elif col == COL_GENERE:
+            key.append(genere)
+    return tuple(key)
+
+
+def _assign_area(df: pd.DataFrame, parcel_keys: set[tuple[str, str]],
+                 parcels: dict, group_cols: list[str]) -> None:
+    """Add COL_AREA_HA to df: sum of parcel areas per spatial group.
+
+    Genere is ignored for area purposes; with no spatial grouping every row
+    gets the total area of parcel_keys.
+    """
+    spatial_cols = [c for c in group_cols if c != COL_GENERE]
+    area_map: dict[tuple, float] = {}
+    for region, parcel in parcel_keys:
+        key = _group_key(region, parcel, None, spatial_cols)
+        area_map[key] = area_map.get(key, 0.0) + parcels[(region, parcel)].area_ha
+    if spatial_cols:
+        df[COL_AREA_HA] = df[spatial_cols].apply(
+            lambda r: area_map[tuple(r)], axis=1)
+    else:
+        df[COL_AREA_HA] = area_map[()]
+
+
 def calculate_volumes(data: ParcelData, group_cols: list[str], calc_ntrees: bool = True,
-                      calc_margin: bool = False, calc_total: bool = False,
-                      calc_mature: bool = False) -> pd.DataFrame:
-    """Calculate the table rows for the @@volumi directive. Returns a DataFrame.
+                      calc_margin: bool = False, calc_total: bool = False) -> pd.DataFrame:
+    """Calculate tree counts, volumes and optional confidence intervals per group.
 
     Args:
         data: Output from parcel_data
         group_cols: Grouping columns (Compresa, Particella, Genere)
         calc_margin: If True, include confidence interval margin columns
         calc_total: If True, scale by 1/sampled_frac to estimate totals
-        calc_mature: If True, include volume_mature column (trees with D > 20cm only)
     """
     #pylint: disable=too-many-locals
     trees = data.trees
     if COL_V_M3 not in trees.columns:
-        raise ValueError("@@volumi richiede dati con volumi (manca la colonna COL_V_M3). "
+        raise ValueError("@@provvigione richiede dati con volumi (manca la colonna COL_V_M3). "
                          "Esegui --calcola-altezze-volumi per calcolarli.")
     parcels = data.parcels
 
@@ -752,11 +778,6 @@ def calculate_volumes(data: ParcelData, group_cols: list[str], calc_ntrees: bool
         # from sample plots to full parcel estimates.
         scale = group_trees[COL_SCALE] if calc_total else 1
         volume = (group_trees[COL_V_M3] * scale).sum()
-        vol_mature = 0.0
-        if calc_mature:
-            mature_mask = group_trees[COL_D_CM] > MATURE_THRESHOLD
-            vol_mature = (group_trees.loc[mature_mask, COL_V_M3] * (
-                group_trees.loc[mature_mask, COL_SCALE] if calc_total else 1)).sum()
         # CI must be computed per parcel (non-linear function of tree data)
         margin = 0.0
         if calc_margin:
@@ -772,8 +793,6 @@ def calculate_volumes(data: ParcelData, group_cols: list[str], calc_ntrees: bool
             row_dict[COL_N_TREES] = (group_trees[COL_SCALE].sum()
                                      if calc_total else float(len(group_trees)))
         row_dict[COL_VOLUME] = volume  # type: ignore[reportGeneralTypeIssues]
-        if calc_mature:
-            row_dict[COL_VOLUME_MATURE] = vol_mature  # type: ignore[reportGeneralTypeIssues]
         if calc_margin:
             row_dict[COL_VOL_LO] = volume - margin  # type: ignore[reportGeneralTypeIssues]
             row_dict[COL_VOL_HI] = volume + margin  # type: ignore[reportGeneralTypeIssues]
@@ -788,8 +807,38 @@ def calculate_volumes(data: ParcelData, group_cols: list[str], calc_ntrees: bool
         key=lambda col: col.map(natsort_keygen()) if col.name == COL_PARTICELLA else col)
 
 
-def render_volume_table(data: ParcelData, formatter: SnippetFormatter, **options) -> RenderResult:
-    """Generate volume summary table (@@volumi directive)."""
+def calculate_stock_table(data: ParcelData, group_cols: list[str],
+                          calc_margin: bool = False, calc_total: bool = False,
+                          min_diameter: float = MATURE_THRESHOLD) -> pd.DataFrame:
+    """Calculate the table rows for the @@provvigione directive.
+
+    The provvigione covers fustaia parcels only (coppice parcels are excluded
+    even when they contain some fustaia-flagged trees) and considers only
+    trees with D > min_diameter (default: the maturity threshold, so it
+    matches the volumes used for harvest rules).  Counts, volumes and
+    confidence intervals are all computed on that population; each group also
+    gets its area (COL_AREA_HA) for per-hectare figures.
+    """
+    fustaia_keys = {k for k, stats in data.parcels.items()
+                    if stats.governo == GOV_FUSTAIA}
+    stock = data.filter_parcels(fustaia_keys)
+    stock = stock.filter_trees(stock.trees[COL_D_CM] > min_diameter)
+    if stock.trees.empty:
+        return pd.DataFrame()
+
+    df = calculate_volumes(stock, group_cols, calc_ntrees=True,
+                           calc_margin=calc_margin, calc_total=calc_total)
+
+    parcel_keys = set(zip(stock.trees[COL_COMPRESA], stock.trees[COL_PARTICELLA]))
+    _assign_area(df, parcel_keys, data.parcels, group_cols)
+
+    ordered_cols = group_cols + [COL_N_TREES, COL_AREA_HA, COL_VOLUME,
+                                 COL_VOL_LO, COL_VOL_HI]
+    return df[[c for c in ordered_cols if c in df.columns]]
+
+
+def render_stock_table(data: ParcelData, formatter: SnippetFormatter, **options) -> RenderResult:
+    """Generate standing stock table (@@provvigione directive)."""
     group_cols = []
     if options[OPT_PER_COMPRESA]:
         group_cols.append(COL_COMPRESA)
@@ -798,19 +847,30 @@ def render_volume_table(data: ParcelData, formatter: SnippetFormatter, **options
     if options[OPT_PER_GENERE]:
         group_cols.append(COL_GENERE)
 
-    df = calculate_volumes(data, group_cols,
-                           calc_ntrees=True, calc_margin=options[OPT_INTERV_FIDUC],
-                           calc_total=options[OPT_STIME_TOTALI],
-                           calc_mature=options[OPT_SOLO_MATURE])
+    df = calculate_stock_table(data, group_cols,
+                               calc_margin=options[OPT_INTERV_FIDUC],
+                               calc_total=options[OPT_STIME_TOTALI],
+                               min_diameter=options[OPT_DIAMETRO_MIN])
+    if df.empty:
+        return RenderResult(snippet='')
+
+    # Total area for the per-ha totals row: each parcel counted once even
+    # when genere splits a spatial group into several rows.
+    spatial_cols = [c for c in group_cols if c != COL_GENERE]
+    if spatial_cols:
+        total_area = df.drop_duplicates(spatial_cols)[COL_AREA_HA].sum()
+    else:
+        total_area = df[COL_AREA_HA].iloc[0]
 
     has_ci = options[OPT_INTERV_FIDUC]
     col_specs = [
         ColSpec('N. Alberi', 'r',
                 lambda r: fmt_num(r[COL_N_TREES], 0),
                 lambda d: fmt_num(d[COL_N_TREES].sum(), 0), True),
-        ColSpec('Volume (m³)', 'r', COL_VOLUME, COL_VOLUME, True),
-        ColSpec('Vol. mature (m³)', 'r', COL_VOLUME_MATURE, COL_VOLUME_MATURE,
-                options.get(OPT_SOLO_MATURE, False)),
+        ColSpec('Provv. (m³)', 'r', COL_VOLUME, COL_VOLUME, True),
+        ColSpec('Provv. (m³/ha)', 'r',
+                lambda r: fmt_num(r[COL_VOLUME] / r[COL_AREA_HA], 1),
+                lambda d: fmt_num(d[COL_VOLUME].sum() / total_area, 1), True),
         ColSpec('IF inf (m³)', 'r', COL_VOL_LO, COL_VOL_LO, has_ci),
         ColSpec('IF sup (m³)', 'r', COL_VOL_HI, COL_VOL_HI, has_ci),
     ]
@@ -1005,74 +1065,33 @@ def _row_parcel_keys(df: pd.DataFrame, parcel_keys: set[tuple[str, str]],
 def calculate_harvest_table(data: ParcelData,
                             parcel_harvests: dict[tuple[str, str], dict[str, float]],
                             group_cols: list[str]) -> pd.DataFrame:
-    """Compute harvest table: current volume inventory + plan harvest totals.
+    """Aggregate plan harvest totals into table rows for @@prelievi.
 
     Args:
-        data: Trees and parcel stats (superset of the parcels to display).
+        data: Parcel stats (superset of the parcels to display).
         parcel_harvests: Per-parcel, per-species harvest totals (from
             total_harvests).  Only these parcels appear in the table.
         group_cols: Any of [COL_COMPRESA, COL_PARTICELLA, COL_GENERE].
 
-    Volumes come from calculate_volumes on the parcels in parcel_harvests;
-    harvests are aggregated onto the same groups (species are summed unless
-    Genere is a group column).
+    Species are summed unless Genere is a group column.  Each group also gets
+    its area and, for per-parcel rows, sector and age metadata.
     """
-    def harvest_group_key(region: str, parcel: str, genere: str | None,
-                          group_cols: list[str]) -> tuple:
-        """Build a group key tuple from parcel identity and optional species."""
-        key = []
-        for col in group_cols:
-            if col == COL_COMPRESA:
-                key.append(region)
-            elif col == COL_PARTICELLA:
-                key.append(parcel)
-            elif col == COL_GENERE:
-                key.append(genere)
-        return tuple(key)
-
     if not parcel_harvests:
         return pd.DataFrame()
-
-    # Restrict inventory volumes to the parcels being displayed
-    harvestable_data = data.filter_parcels(set(parcel_harvests.keys()))
-
-    vol_df = calculate_volumes(harvestable_data, group_cols, calc_ntrees=False,
-                               calc_margin=False, calc_total=True, calc_mature=True)
 
     # Aggregate harvest by group_cols
     harvest_rows: dict[tuple, float] = {}
     for (region, parcel), by_species in parcel_harvests.items():
         for genere, harvest in by_species.items():
-            key = harvest_group_key(region, parcel, genere, group_cols)
+            key = _group_key(region, parcel, genere, group_cols)
             harvest_rows[key] = harvest_rows.get(key, 0.0) + harvest
 
-    harvest_df = pd.DataFrame([
+    df = pd.DataFrame([
         dict(zip(group_cols, key), **{COL_HARVEST: harvest})
         for key, harvest in harvest_rows.items()
     ]) if group_cols else pd.DataFrame([{COL_HARVEST: sum(harvest_rows.values())}])
 
-    # Merge volume + harvest
-    if group_cols:
-        df = vol_df.merge(harvest_df, on=group_cols, how='left')
-    else:
-        # Single-row case: no join columns, just concatenate
-        df = pd.concat([vol_df.reset_index(drop=True),
-                        harvest_df.reset_index(drop=True)], axis=1)
-    df[COL_HARVEST] = df[COL_HARVEST].fillna(0)
-
-    # Add area_ha per group (from parcel data)
-    spatial_cols = [c for c in group_cols if c != COL_GENERE]
-    area_map: dict[tuple, float] = {}
-    for (region, parcel) in parcel_harvests:
-        # Sum all parcels in the same group (region) if grouping by region only.
-        key = harvest_group_key(region, parcel, None, spatial_cols)
-        area_map[key] = area_map.get(key, 0.0) + data.parcels[(region, parcel)].area_ha
-    if spatial_cols:
-        df[COL_AREA_HA] = df[spatial_cols].apply(
-            lambda r: area_map[tuple(r)], axis=1)
-    else:
-        # No spatial grouping: assign total area to single result row
-        df[COL_AREA_HA] = area_map[()]
+    _assign_area(df, set(parcel_harvests.keys()), data.parcels, group_cols)
 
     # Add per-parcel metadata (sector, age)
     per_parcel = COL_PARTICELLA in group_cols or len(parcel_harvests) == 1
@@ -1082,11 +1101,11 @@ def calculate_harvest_table(data: ParcelData,
         df[COL_AGE] = [data.parcels[k].age for k in row_keys]
 
     # Ensure column order matches golden file expectations (for tests)
-    # Order: group_cols, [sector, age], area_ha, volume, volume_mature, harvest
+    # Order: group_cols, [sector, age], area_ha, harvest
     ordered_cols = list(group_cols)
     if per_parcel:
         ordered_cols += [COL_SECTOR, COL_AGE]
-    ordered_cols += [COL_AREA_HA, COL_VOLUME, COL_VOLUME_MATURE, COL_HARVEST]
+    ordered_cols += [COL_AREA_HA, COL_HARVEST]
     df = df[[c for c in ordered_cols if c in df.columns]]
 
     if not group_cols or df.empty:
@@ -1105,10 +1124,10 @@ def render_harvest_table(data: ParcelData, past_harvests: pd.DataFrame | None,
 
     Runs the same simulation as @@piano_di_taglio (identical parameters
     describe the same plan) and reports, per group, the sum of all planned
-    harvests over the whole period — growth included — alongside the current
-    inventory.  The plan is always computed on the full dataset; comprese and
-    particelle only filter the displayed rows, so each row matches the
-    corresponding rows of an unfiltered table.
+    harvests over the whole period — growth included.  The plan is always
+    computed on the full dataset; comprese and particelle only filter the
+    displayed rows, so each row matches the corresponding rows of an
+    unfiltered table.
     """
     group_cols = []
     if options[OPT_PER_COMPRESA]:
@@ -1149,17 +1168,6 @@ def render_harvest_table(data: ParcelData, past_harvests: pd.DataFrame | None,
                 options[OPT_COL_ETA] and per_parcel),
         ColSpec('Area (ha)', 'r', COL_AREA_HA, lambda _: fmt_num(total_area, 1),
          options[OPT_COL_AREA_HA] and not genere_only),
-        ColSpec('Vol tot (m³)', 'r', COL_VOLUME, COL_VOLUME, options[OPT_COL_VOLUME]),
-        ColSpec('Vol/ha (m³/ha)', 'r',
-            lambda r: fmt_num(r[COL_VOLUME] / r[COL_AREA_HA], 1),
-            lambda d: fmt_num(d[COL_VOLUME].sum() / total_area, 1),
-            options[OPT_COL_VOLUME_HA] and not genere_only),
-        ColSpec('Provv. (m³)', 'r', COL_VOLUME_MATURE, COL_VOLUME_MATURE,
-                options[OPT_COL_VOLUME_MATURE]),
-        ColSpec('Provv. (m³/ha)', 'r',
-                lambda r: fmt_num(r[COL_VOLUME_MATURE] / r[COL_AREA_HA], 1),
-                lambda d: fmt_num(d[COL_VOLUME_MATURE].sum() / total_area, 1),
-                options[OPT_COL_VOLUME_MATURE_HA] and not genere_only),
         ColSpec('Prel tot (m³)', 'r', COL_HARVEST, COL_HARVEST, options[OPT_COL_PRELIEVO]),
         ColSpec('Prel/ha (m³/ha)', 'r',
                 lambda r: fmt_num(r[COL_HARVEST] / r[COL_AREA_HA], 1),

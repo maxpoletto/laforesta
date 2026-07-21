@@ -63,7 +63,7 @@ Elenca tutte le tuple (compresa, particella).
 - `@@grafico_incremento_percentuale(parametri)` — Grafico incremento percentuale per classe diametrica
 
 ### Tabelle
-- `@@volumi(parametri)` — Tabella volumi con intervalli di fiducia opzionali
+- `@@provvigione(parametri)` — Tabella provvigione (solo piante mature) con valori per ettaro e intervalli di fiducia opzionali
 - `@@tabella_classi_diametriche(parametri)` — Tabella classi diametriche
 - `@@tabella_incremento_percentuale(parametri)` — Tabella incremento percentuale
 - `@@prelievi(parametri)` — Tabella prelievi: somma di tutti i prelievi del piano di taglio per particella/gruppo (accrescimento incluso)
@@ -108,12 +108,18 @@ Metriche `@@grafico_classi_diametriche`: `alberi_ha`, `G_ha`, `volume_ha`, `albe
 
 Metriche `@@grafico_incremento_percentuale`: `ip`, `ic` (default: `ip`). `per_compresa` e `per_particella` sono `no` per default.
 
-### Parametri `@@volumi`
+### Parametri `@@provvigione`
+
+Riporta numero di piante, volumi e volumi per ettaro della provvigione: sono
+considerate solo le piante con D superiore a `diametro_min` (default 20 cm,
+la soglia di maturità), così i valori corrispondono ai volumi usati per le
+regole di prelievo. Gli intervalli di fiducia sono calcolati sulla stessa
+popolazione.
 
 | Parametro | Valori | Descrizione |
 |-----------|--------|-------------|
 | `intervallo_fiduciario` | `si`, `no` | Mostra intervalli di fiducia (default: `no`) |
-| `solo_mature` | `si`, `no` | Solo alberi maturi (D > 20 cm) (default: `no`) |
+| `diametro_min` | cm | Diametro minimo; contano solo le piante con D superiore (default: 20) |
 
 ### Parametri `@@prelievi`
 
@@ -136,10 +142,6 @@ Opzioni di visualizzazione:
 | `col_comparto` | `si`, `no` | Mostra colonna comparto (default: `si`) |
 | `col_eta` | `si`, `no` | Mostra colonna età media (default: `si`) |
 | `col_area_ha` | `si`, `no` | Mostra area in ettari (default: `si`) |
-| `col_volume` | `si`, `no` | Mostra volume totale (default: `no`) |
-| `col_volume_ha` | `si`, `no` | Mostra volume per ettaro (default: `no`) |
-| `col_volume_mature` | `si`, `no` | Mostra volume alberi maturi (default: `si`) |
-| `col_volume_mature_ha` | `si`, `no` | Mostra volume alberi maturi per ettaro (default: `si`) |
 | `col_prelievo_ha` | `si`, `no` | Mostra prelievo per ettaro (default: `si`) |
 | `col_prelievo` | `si`, `no` | Mostra prelievo totale (default: `si`) |
 

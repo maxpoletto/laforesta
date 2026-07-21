@@ -19,7 +19,7 @@ from pdg.harvest_rules import max_harvest
 from pdg.computation import (
     COL_COMPRESA, COL_PARTICELLA, COL_GENERE,
     COL_D_CM, COL_H_M, COL_V_M3, COL_PRESSLER, COL_L10_MM,
-    COL_GOVERNO, GOV_FUSTAIA, GOV_CEDUO, COL_AREA_SAGGIO,
+    COL_GOVERNO, GOV_FUSTAIA, GOV_CEDUO, COL_AREA_SAGGIO, MATURE_THRESHOLD,
     calculate_all_trees_volume, compute_heights,
     fit_curves_from_ipsometro, fit_curves_from_originali, fit_curves_from_tabelle,
 )
@@ -36,10 +36,8 @@ from pdg.simulation import ORDINE_VOL_HA, ORDINE_VOL_TOT, ORDINE_DATA, write_vol
 from pdg.core import (
     OPT_PER_COMPRESA, OPT_PER_PARTICELLA, OPT_PER_GENERE,
     OPT_STIME_TOTALI, OPT_TOTALI, OPT_METRICA,
-    OPT_INTERV_FIDUC, OPT_SOLO_MATURE,
+    OPT_INTERV_FIDUC, OPT_DIAMETRO_MIN,
     OPT_COL_COMPARTO, OPT_COL_ETA, OPT_COL_AREA_HA,
-    OPT_COL_VOLUME, OPT_COL_VOLUME_HA,
-    OPT_COL_VOLUME_MATURE, OPT_COL_VOLUME_MATURE_HA,
     OPT_COL_PP_MAX, OPT_COL_PRELIEVO, OPT_COL_PRELIEVO_HA, OPT_COL_INCR_CORR,
     OPT_X_MAX, OPT_Y_MAX,
     OPT_ANNO_INIZIO, OPT_ANNO_FINE, OPT_INTERVALLO, OPT_INTERVALLO_ANNO,
@@ -50,7 +48,7 @@ from pdg.core import (
     get_color_map,
     render_hypsometric_graph, render_diameter_class_graph, render_diameter_class_table,
     render_prop, render_prop_coppice,
-    render_volume_table, render_harvest_table, render_harvest_plan,
+    render_stock_table, render_harvest_table, render_harvest_plan,
     render_pct_growth_table, render_pct_growth_graph,
     render_coppice_schedule, render_coppice_gantt,
     skip_graphs,
@@ -89,7 +87,7 @@ class Dir:
     COPPICE_GANTT = 'tabella_ceduo'
     PROP = 'prop'
     PROP_CEDUO = 'prop_ceduo'
-    VOLUME_TABLE = 'volumi'
+    STOCK_TABLE = 'provvigione'
 
 
 def check_allowed_params(directive: str, params: dict, options: dict):
@@ -414,18 +412,19 @@ def process_template(template_text: str, data_dir: Path,
             data = parcel_data(alberi_files, trees_df, particelle_df, comprese, particelle, generi)
 
             match keyword:
-                case Dir.VOLUME_TABLE:
+                case Dir.STOCK_TABLE:
                     options = {
                         OPT_PER_COMPRESA: _bool_opt(params, OPT_PER_COMPRESA),
                         OPT_PER_PARTICELLA: _bool_opt(params, OPT_PER_PARTICELLA),
                         OPT_PER_GENERE: _bool_opt(params, OPT_PER_GENERE),
                         OPT_INTERV_FIDUC: _bool_opt(params, OPT_INTERV_FIDUC, False),
-                        OPT_SOLO_MATURE: _bool_opt(params, OPT_SOLO_MATURE, False),
+                        OPT_DIAMETRO_MIN: int(params.get(OPT_DIAMETRO_MIN,
+                                                         MATURE_THRESHOLD)),
                         OPT_STIME_TOTALI: _bool_opt(params, OPT_STIME_TOTALI),
                         OPT_TOTALI: _bool_opt(params, OPT_TOTALI, False),
                     }
                     check_allowed_params(keyword, params, options)
-                    result = render_volume_table(data, formatter, **options)
+                    result = render_stock_table(data, formatter, **options)
                 case Dir.HARVEST_TABLE:
                     if 'genere' in params:
                         raise ValueError("@@prelievi non supporta il parametro 'genere' "
@@ -441,10 +440,6 @@ def process_template(template_text: str, data_dir: Path,
                         OPT_COL_ETA: _bool_opt(params, OPT_COL_ETA),
                         OPT_COL_PRELIEVO_HA: _bool_opt(params, OPT_COL_PRELIEVO_HA),
                         OPT_COL_PRELIEVO: _bool_opt(params, OPT_COL_PRELIEVO),
-                        OPT_COL_VOLUME_HA: _bool_opt(params, OPT_COL_VOLUME_HA, False),
-                        OPT_COL_VOLUME_MATURE_HA: _bool_opt(params, OPT_COL_VOLUME_MATURE_HA),
-                        OPT_COL_VOLUME_MATURE: _bool_opt(params, OPT_COL_VOLUME_MATURE),
-                        OPT_COL_VOLUME: _bool_opt(params, OPT_COL_VOLUME, False),
                         OPT_TOTALI: _bool_opt(params, OPT_TOTALI, False),
                     }
                     check_allowed_params(keyword, params,

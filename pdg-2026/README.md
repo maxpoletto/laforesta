@@ -63,7 +63,7 @@ Lists all (compresa, particella) tuples.
 - `@@grafico_incremento_percentuale(params)` — Percentage growth graph by diameter class
 
 ### Tables
-- `@@volumi(params)` — Volume table with optional confidence intervals
+- `@@provvigione(params)` — Standing stock table (mature trees only) with per-hectare figures and optional confidence intervals
 - `@@tabella_classi_diametriche(params)` — Diameter class table
 - `@@tabella_incremento_percentuale(params)` — Percentage growth table
 - `@@prelievi(params)` — Harvest totals table: sum of all planned harvests per parcel/group (growth included)
@@ -108,12 +108,17 @@ Multiple `alberi`/`equazioni` files are concatenated; multiple filters are combi
 
 `@@grafico_incremento_percentuale` metrics: `ip`, `ic` (default: `ip`). `per_compresa` and `per_particella` default to `no`.
 
-### `@@volumi` Parameters
+### `@@provvigione` Parameters
+
+Reports tree counts, volumes and volumes per hectare for the standing stock:
+only trees with D above `diametro_min` (default 20 cm, the maturity
+threshold) are considered, so the values match the volumes used for harvest
+rules. Confidence intervals are computed on the same population.
 
 | Parameter | Values | Description |
 |-----------|--------|-------------|
 | `intervallo_fiduciario` | `si`, `no` | Show confidence intervals (default: `no`) |
-| `solo_mature` | `si`, `no` | Only include mature trees (D > 20 cm) (default: `no`) |
+| `diametro_min` | cm | Minimum diameter; only trees with D above it count (default: 20) |
 
 ### `@@prelievi` Parameters
 
@@ -135,10 +140,6 @@ Display options:
 | `col_comparto` | `si`, `no` | Show comparto column (default: `si`) |
 | `col_eta` | `si`, `no` | Show mean age column (default: `si`) |
 | `col_area_ha` | `si`, `no` | Show area in hectares (default: `si`) |
-| `col_volume` | `si`, `no` | Show total volume (default: `no`) |
-| `col_volume_ha` | `si`, `no` | Show volume per hectare (default: `no`) |
-| `col_volume_mature` | `si`, `no` | Show mature-tree volume (default: `si`) |
-| `col_volume_mature_ha` | `si`, `no` | Show mature-tree volume per hectare (default: `si`) |
 | `col_prelievo_ha` | `si`, `no` | Show harvest per hectare (default: `si`) |
 | `col_prelievo` | `si`, `no` | Show total harvest (default: `si`) |
 
