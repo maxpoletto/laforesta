@@ -129,6 +129,7 @@ OPT_VOLUME_OBIETTIVO = 'volume_obiettivo'
 OPT_ORDINE = 'ordine'
 OPT_PARTICELLE_MIN = 'particelle_min'
 OPT_CALENDARIO = 'calendario'
+OPT_ANNO_ETA = 'anno_eta'
 # tpdt column toggles
 OPT_COL_PRIMA_DOPO = 'col_prima_dopo'
 # calendario_ceduo options
@@ -992,6 +993,7 @@ def plan_events(
     ordine: str = ORDINE_VOL_HA,
     particelle_min: int = 0,
     gap_overrides: dict[int, int] | None = None,
+    age_year: int | None = None,
 ) -> list[dict]:
     """Memoizing front-end to schedule_harvests (same signature).
 
@@ -1002,7 +1004,8 @@ def plan_events(
     """
     params = (year_range, min_gap, target_volume, mortality, rules,
               tree_selection, prudence, ordine, particelle_min,
-              tuple(sorted(gap_overrides.items())) if gap_overrides else None)
+              tuple(sorted(gap_overrides.items())) if gap_overrides else None,
+              age_year)
     if volume_log is None:
         for cached_data, cached_past, cached_params, events in plan_cache:
             if (cached_data is data and cached_past is past_harvests
@@ -1012,7 +1015,7 @@ def plan_events(
         data, past_harvests, year_range, min_gap, target_volume,
         mortality, rules, tree_selection, volume_log=volume_log,
         prudence=prudence, ordine=ordine, particelle_min=particelle_min,
-        gap_overrides=gap_overrides)
+        gap_overrides=gap_overrides, age_year=age_year)
     if volume_log is None:
         plan_cache.append((data, past_harvests, params, events))
     return events
@@ -1031,6 +1034,7 @@ def _plan_kwargs(options: dict) -> dict:
         'ordine': options.get(OPT_ORDINE, ORDINE_VOL_HA),
         'particelle_min': options.get(OPT_PARTICELLE_MIN, 0),
         'gap_overrides': options.get(OPT_INTERVALLO_ANNO),
+        'age_year': options.get(OPT_ANNO_ETA),
     }
 
 
@@ -1184,6 +1188,7 @@ def calculate_harvest_plan(
     ordine: str = ORDINE_VOL_HA,
     particelle_min: int = 0,
     gap_overrides: dict[int, int] | None = None,
+    age_year: int | None = None,
 ) -> pd.DataFrame:
     """Compute harvest schedule table grouped by year and optional columns.
 
@@ -1194,7 +1199,7 @@ def calculate_harvest_plan(
         data, past_harvests, year_range, min_gap, target_volume,
         mortality, rules, tree_selection, volume_log=volume_log,
         prudence=prudence, ordine=ordine, particelle_min=particelle_min,
-        gap_overrides=gap_overrides)
+        gap_overrides=gap_overrides, age_year=age_year)
     if not events:
         return pd.DataFrame()
 
@@ -1236,13 +1241,13 @@ def calculate_harvest_plan(
 
     # Derive sector and age when per-parcel rows are available
     if COL_PARTICELLA in group_cols:
-        first_year = year_range[0]
+        age_base_year = age_year if age_year is not None else year_range[0]
         df[COL_SECTOR] = df.apply(
             lambda r: data.parcels[(r[COL_COMPRESA], r[COL_PARTICELLA])].sector,
             axis=1)
         df[COL_AGE] = df.apply(
             lambda r: data.parcels[(r[COL_COMPRESA], r[COL_PARTICELLA])].age
-                      + (r[COL_YEAR] - first_year),
+                      + (r[COL_YEAR] - age_base_year),
             axis=1)
 
     return df

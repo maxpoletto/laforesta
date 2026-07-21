@@ -314,6 +314,7 @@ def schedule_harvests(
     ordine: str = ORDINE_VOL_HA,
     particelle_min: int = 0,
     gap_overrides: dict[int, int] | None = None,
+    age_year: int | None = None,
 ) -> list[dict]:
     """Schedule harvests using a greedy algorithm with year-by-year growth simulation.
 
@@ -323,6 +324,9 @@ def schedule_harvests(
         ordine: Parcel priority within each year. 'vol_ha' = highest mature
             volume/ha first (default); 'vol_tot' = highest total mature volume
             first; 'data' = oldest last-harvest date first, ties by vol/ha.
+        age_year: Year the parcel ages refer to; each parcel's age in
+            simulation year y is its age + (y - age_year).  None treats the
+            ages as valid in the first simulated year.
 
     Returns list of dicts, one per (year, parcel) harvest event, with keys:
         year, Compresa, Particella, harvest, volume_before, volume_after, _species_shares
@@ -362,6 +366,13 @@ def schedule_harvests(
                 last_harvest[key] = max(last_harvest.get(key, 0), int(row['Anno']))  # type: ignore[reportGeneralTypeIssues]
 
     first_year, last_year = year_range
+
+    # Advance ages from their reference year to the first simulated year,
+    # so the rules see each parcel's actual age in the harvest year.
+    if age_year is not None:
+        for p in sim_parcels.values():
+            p.age += first_year - age_year
+
     events = []
     diam_growth_arr = None
 

@@ -715,6 +715,58 @@ class TestPrelieviPlanConsistency:
                               rtol=1e-9)
 
 
+class TestAgeYear:
+    """Ages are as of anno_eta; the simulation must use each year's real age."""
+
+    def test_rules_see_shifted_ages(self, data_parcel_a):
+        """With age_year set, the rules receive age + (year - age_year)."""
+        base_age = data_parcel_a.parcels[('Test', 'A')].age
+        seen = []
+
+        def spy_rules(sector, age, vol_ha, basal_ha):
+            seen.append(age)
+            return 0.0, 0.0
+
+        schedule_harvests(
+            data_parcel_a, past_harvests=None, year_range=(2030, 2031),
+            min_gap=10, target_volume=1e9, rules=spy_rules, age_year=2026)
+        assert seen == [base_age + 4, base_age + 5]
+
+    def test_default_treats_ages_as_current(self, data_parcel_a):
+        """Without age_year, ages are taken as valid in the first plan year."""
+        base_age = data_parcel_a.parcels[('Test', 'A')].age
+        seen = []
+
+        def spy_rules(sector, age, vol_ha, basal_ha):
+            seen.append(age)
+            return 0.0, 0.0
+
+        schedule_harvests(
+            data_parcel_a, past_harvests=None, year_range=(2030, 2030),
+            min_gap=10, target_volume=1e9, rules=spy_rules)
+        assert seen == [base_age]
+
+    def test_displayed_age_uses_age_year(self, data_all, harvest_rules):
+        """The Età column shows the age in the harvest year."""
+        df = calculate_harvest_plan(
+            data_all, past_harvests=None, year_range=(2027, 2027),
+            min_gap=10, target_volume=1e9, mortality=0.0,
+            rules=harvest_rules, tree_selection=select_from_bottom,
+            group_cols=[COL_COMPRESA, COL_PARTICELLA], age_year=2026)
+        assert not df.empty
+        for _, row in df.iterrows():
+            base = data_all.parcels[(row[COL_COMPRESA], row[COL_PARTICELLA])].age
+            assert row[COL_AGE] == base + (row[COL_YEAR] - 2026)
+
+    def test_cache_distinguishes_age_year(self, data_all, harvest_rules):
+        """plan_events must not conflate runs with different age references."""
+        kwargs = dict(year_range=(2026, 2027), min_gap=10, target_volume=1e9)
+        e1 = plan_events(data_all, None, rules=harvest_rules, **kwargs)
+        e2 = plan_events(data_all, None, rules=harvest_rules, age_year=2020,
+                         **kwargs)
+        assert e1 is not e2
+
+
 class TestPlanEventsCache:
     """plan_events memoizes schedule_harvests runs."""
 

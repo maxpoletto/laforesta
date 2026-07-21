@@ -41,7 +41,7 @@ from pdg.core import (
     OPT_COL_PP_MAX, OPT_COL_PRELIEVO, OPT_COL_PRELIEVO_HA, OPT_COL_INCR_CORR,
     OPT_X_MAX, OPT_Y_MAX,
     OPT_ANNO_INIZIO, OPT_ANNO_FINE, OPT_INTERVALLO, OPT_INTERVALLO_ANNO,
-    OPT_MORTALITA, OPT_PRUDENZA, OPT_RIDUZIONE, OPT_VOLUME_OBIETTIVO, OPT_CALENDARIO, OPT_ORDINE, OPT_PARTICELLE_MIN,
+    OPT_MORTALITA, OPT_PRUDENZA, OPT_RIDUZIONE, OPT_VOLUME_OBIETTIVO, OPT_CALENDARIO, OPT_ORDINE, OPT_PARTICELLE_MIN, OPT_ANNO_ETA,
     parse_gap_overrides,
     OPT_COL_PRIMA_DOPO, OPT_PARTICELLE, OPT_ADIACENZE, OPT_EQUAZIONI,
     read_past_harvests, parcel_data,
@@ -126,6 +126,7 @@ def _bool_opt(params: dict, key: str, enabled: bool = True) -> bool:
 # Defaults for the harvest plan simulation parameters
 DEFAULT_ANNO_INIZIO = 2026
 DEFAULT_ANNO_FINE = 2040
+DEFAULT_ANNO_ETA = 2026  # year the Età media in particelle.csv refers to
 DEFAULT_INTERVALLO = 10
 DEFAULT_MORTALITA = 0.0    # %/year
 DEFAULT_PRUDENZA = 100.0   # % of the rule limits (100 = no reduction)
@@ -160,6 +161,7 @@ def parse_plan_params(keyword: str, params: dict,
         OPT_VOLUME_OBIETTIVO: float(params[OPT_VOLUME_OBIETTIVO]),
         OPT_ORDINE: params.get(OPT_ORDINE, ORDINE_VOL_HA),
         OPT_PARTICELLE_MIN: int(params.get(OPT_PARTICELLE_MIN, DEFAULT_PARTICELLE_MIN)),
+        OPT_ANNO_ETA: int(params.get(OPT_ANNO_ETA, DEFAULT_ANNO_ETA)),
     }
     if options[OPT_ORDINE] not in VALID_ORDINE:
         raise ValueError(f"@@{keyword}: ordine='{options[OPT_ORDINE]}' "

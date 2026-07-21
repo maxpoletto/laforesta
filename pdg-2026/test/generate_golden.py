@@ -31,6 +31,7 @@ PLAN_MIN_GAP = 10
 PLAN_TARGET_VOLUME = 1200.0
 PLAN_MORTALITY = 1.0
 PLAN_PRUDENCE = 80.0
+PLAN_AGE_YEAR = 2026
 
 
 def plan_totals(data):
@@ -39,7 +40,7 @@ def plan_totals(data):
         data, past_harvests=None, year_range=PLAN_YEAR_RANGE,
         min_gap=PLAN_MIN_GAP, target_volume=PLAN_TARGET_VOLUME,
         mortality=PLAN_MORTALITY, rules=max_harvest,
-        prudence=PLAN_PRUDENCE))
+        prudence=PLAN_PRUDENCE, age_year=PLAN_AGE_YEAR))
 
 
 def filter_totals(totals, compresa=None, particella=None):

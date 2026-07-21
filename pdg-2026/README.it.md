@@ -128,7 +128,7 @@ taglio (accrescimento incluso) e il numero stimato di piante da prelevare. Esegu
 `@@piano_di_taglio` e accetta gli stessi parametri di simulazione
 (`volume_obiettivo`, `anno_inizio`, `anno_fine`, `intervallo`,
 `intervallo_anno`, `mortalita`, `prudenza`, `riduzione`, `ordine`,
-`particelle_min`, `calendario`); usare valori identici nelle due direttive
+`particelle_min`, `anno_eta`, `calendario`); usare valori identici nelle due direttive
 perché descrivano lo stesso piano. Le regole di prelievo sono definite in
 `pdg/harvest_rules.py` (limiti per comparto basati su tavole di volume ed
 età) e vengono applicate a ogni singolo intervento simulato. I filtri
@@ -153,6 +153,7 @@ Nota: il filtro `genere` non è ammesso — usare `per_genere=si` per raggruppar
 | `anno_inizio` | anno | Primo anno di taglio (default: 2026) | No |
 | `anno_fine` | anno | Ultimo anno di taglio (default: 2040) | No |
 | `intervallo` | anni | Intervallo tra i tagli (default: 10) | No |
+| `anno_eta` | anno | Anno a cui si riferiscono le età (Età media) (default: 2026) | No |
 | `mortalita` | frazione | Tasso di mortalità annua (default: 0) | No |
 | `calendario=FILE` | nome file | CSV tagli passati (relativo a `--dati`) | No |
 | `col_comparto` | `si`, `no` | Mostra colonna comparto (default: `si`) | No |

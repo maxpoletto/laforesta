@@ -126,7 +126,7 @@ Reports, per parcel/group, the sum of all harvests in the harvest plan
 (growth included), with the estimated number of trees to be cut. It runs the same simulation as `@@piano_di_taglio` and
 accepts the same simulation parameters (`volume_obiettivo`, `anno_inizio`,
 `anno_fine`, `intervallo`, `intervallo_anno`, `mortalita`, `prudenza`,
-`riduzione`, `ordine`, `particelle_min`, `calendario`); pass identical values
+`riduzione`, `ordine`, `particelle_min`, `anno_eta`, `calendario`); pass identical values
 to both directives so they describe the same plan. Harvest rules are defined
 in `pdg/harvest_rules.py` (comparto-based limits from volume and age tables)
 and are applied to every simulated harvest event. The `compresa`/`particella`
@@ -151,6 +151,7 @@ Note: the `genere` filter is not allowed — use `per_genere=si` to group by spe
 | `anno_inizio` | year | First harvest year (default: 2026) | No |
 | `anno_fine` | year | Last harvest year (default: 2040) | No |
 | `intervallo` | years | Harvest interval (default: 10) | No |
+| `anno_eta` | year | Year the parcel ages (Età media) refer to (default: 2026) | No |
 | `mortalita` | fraction | Annual mortality rate (default: 0) | No |
 | `calendario=FILE` | filename | Past harvests CSV (relative to `--dati`) | No |
 | `col_comparto` | `si`, `no` | Show comparto column (default: `si`) | No |
