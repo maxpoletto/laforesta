@@ -23,7 +23,7 @@ from pdg.computation import (
     calculate_all_trees_volume, compute_heights,
     fit_curves_from_ipsometro, fit_curves_from_originali, fit_curves_from_tabelle,
 )
-from pdg.io import load_csv, load_trees
+from pdg.io import load_csv, load_parcels, load_trees
 from pdg.formatters import (
     OPT_STILE, fmt_num, set_decimal_comma,
     SnippetFormatter, HTMLSnippetFormatter, LaTeXSnippetFormatter, CSVSnippetFormatter,
@@ -572,7 +572,7 @@ def process_template(template_text: str, data_dir: Path,
         case _:
             raise ValueError(f"Formato non supportato: {format_type}")
     color_map = get_color_map()
-    particelle_df = load_csv(parcel_file)
+    particelle_df = load_parcels(parcel_file)
 
     # Find and replace all directives
     processed = re.sub(DIRECTIVE_PATTERN, process_directive, template_text)

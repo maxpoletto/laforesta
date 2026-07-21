@@ -57,7 +57,7 @@ from pdg.simulation import (
     growth_per_group,
 )
 
-from pdg.io import load_trees, read_past_harvests
+from pdg.io import load_trees, load_parcels, read_past_harvests
 from pdg.core import (
     COL_SECTOR, COL_AGE,
     parcel_data, parse_gap_overrides,
@@ -76,6 +76,7 @@ from pdg.core import (
 )
 
 # Fixtures are defined in conftest.py
+TEST_DATA_DIR = Path(__file__).parent / "data"
 
 
 def plan_totals(data, rules, year_range=(2026, 2026), min_gap=10, **kwargs):
@@ -840,6 +841,29 @@ class TestPlanEventsCache:
                              volume_log=volume_log, **self.SIM_KWARGS)
         assert len(volume_log) > 0
         assert len(events) > 0
+
+
+class TestLoadParcels:
+    """load_parcels supports both the legacy and the Abies export formats."""
+
+    def test_abies_format(self):
+        """Semicolon separator, decimal commas, quoted multi-line fields."""
+        df = load_parcels('particelle-abies.csv', TEST_DATA_DIR)
+        assert len(df) == 2
+        a = df[df[COL_PARTICELLA] == 'A'].iloc[0]
+        x = df[df[COL_PARTICELLA] == 'X'].iloc[0]
+        assert a[COL_AREA_PARCEL] == 10.5
+        assert x[COL_AREA_PARCEL] == 3.25
+        assert 'punto e virgola' in a[COL_STAZIONE]
+        assert 'su due righe' in x[COL_STAZIONE]
+        assert a[COL_GOVERNO] == 'Fustaia' and x[COL_GOVERNO] == 'Ceduo'
+
+    def test_legacy_format_normalized(self):
+        """Old files keep their Governo; Parametro is renamed Intervallo."""
+        df = load_parcels('particelle-ceduo.csv', TEST_DATA_DIR)
+        assert COL_GOVERNO in df.columns
+        assert 'Intervallo' in df.columns
+        assert 'Parametro' not in df.columns
 
 
 class TestReadPastHarvests:

@@ -8,7 +8,11 @@ from pathlib import Path
 import pandas as pd
 from natsort import natsort_keygen
 
-from pdg.computation import COL_COMPRESA, COL_PARTICELLA, COL_GOVERNO, COL_AREA_PARCEL, GOV_CEDUO
+from pdg.computation import (
+    COL_COMPRESA, COL_PARTICELLA, COL_GOVERNO, COL_AREA_PARCEL, GOV_CEDUO,
+    COL_INTERVALLO_CEDUO,
+)
+from pdg.io import load_parcels
 
 # Domain constants
 MAX_HARVEST_AREA_HA = 10   # Maximum area per sub-harvest
@@ -23,7 +27,6 @@ COL_INTERVALLO = 'intervallo'
 COL_CYCLE_START = 'cycle_start'
 
 # Column names in input CSVs
-COL_PARAMETRO = 'Parametro'
 COL_MATRICINE = 'Matricine'
 COL_ANNO = 'Anno'
 COL_ADJ_A = 'A'
@@ -83,7 +86,7 @@ Adjacencies = set[tuple[ParcelKey, ParcelKey]]  # sorted pairs: first < second
 
 def load_coppice_parcels(particelle_path: Path) -> list[CoppiceParcel]:
     """Load coppice parcels from particelle.csv (Governo=Ceduo only)."""
-    df = pd.read_csv(particelle_path, encoding='utf-8-sig', comment='#')
+    df = load_parcels(str(particelle_path))
     df = df[df[COL_GOVERNO] == GOV_CEDUO]
     df[COL_PARTICELLA] = df[COL_PARTICELLA].astype(str)
     natsort_key = natsort_keygen()
@@ -92,7 +95,7 @@ def load_coppice_parcels(particelle_path: Path) -> list[CoppiceParcel]:
         key=lambda col: col.map(natsort_key) if col.name == COL_PARTICELLA else col)
     return [
         CoppiceParcel(row[COL_COMPRESA], row[COL_PARTICELLA],
-                      row[COL_AREA_PARCEL], int(row[COL_PARAMETRO]),
+                      row[COL_AREA_PARCEL], int(row[COL_INTERVALLO_CEDUO]),
                       int(row[COL_MATRICINE]))
         for _, row in df.iterrows()
     ]
